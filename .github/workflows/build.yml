@@ -38,9 +38,11 @@ jobs:
         run: npm ci || npm install
 
       - name: Build installer
-        run: npm run ${{ matrix.target }}
+        # Build only — do NOT publish from here (these jobs are read-only; the release
+        # job below publishes). electron-builder still emits the latest*.yml auto-update
+        # manifests into dist/ because package.json has a publish config.
+        run: npm run ${{ matrix.target }} -- --publish never
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # unsigned builds are fine for personal use; CSC_* secrets enable signing if added
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
@@ -48,11 +50,14 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
+          # Include the update manifests (*.yml) + delta maps (*.blockmap) so electron-updater works.
           path: |
             desktop/dist/*.AppImage
             desktop/dist/*.deb
             desktop/dist/*.exe
             desktop/dist/*.dmg
+            desktop/dist/*.yml
+            desktop/dist/*.blockmap
           if-no-files-found: ignore
 
   release:
