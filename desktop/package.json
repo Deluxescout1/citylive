@@ -40,6 +40,7 @@
     "files": [
       "main.js",
       "preload.js",
+      "config-store.js",
       "renderer/**/*"
     ],
     "linux": {

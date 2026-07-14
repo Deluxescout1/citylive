@@ -3,8 +3,14 @@
 // The renderer (renderer/index.html + renderer/city.js) is the exact same engine
 // that powers the KDE Plasma wallpaper, so the city looks identical everywhere.
 
-const { app, BrowserWindow, Menu, Tray, nativeImage, shell } = require('electron');
+const { app, BrowserWindow, Menu, Tray, nativeImage, shell, ipcMain } = require('electron');
 const path = require('path');
+const store = require('./config-store');
+
+// Where the friend's personal settings (birthdays / location / speed) live. This is in
+// the OS user-data folder, OUTSIDE the app bundle, so auto-updates never overwrite it.
+// Set once the app is ready (needs app.getPath). All config I/O goes through config-store.
+let CONFIG_PATH = null;
 
 // Auto-update from GitHub Releases: when you tag a new version and CI publishes a release, installed
 // apps download it in the background and apply it on the next launch. Optional in dev (module may be absent).
@@ -48,6 +54,36 @@ function createWindow() {
   win.on('closed', () => { win = null; });
 }
 
+// Reload the city so a settings change applies through the exact same startup path
+// (one config code path — no separate "apply live" logic to drift out of sync).
+function reloadCity() { if (win && !win.isDestroyed()) win.reload(); }
+
+// Ask the renderer to open its Settings panel.
+function openSettings() { if (win) win.webContents.send('citylive:open-settings'); }
+
+function resetSettings() {
+  if (!CONFIG_PATH) return;
+  store.writeConfig(CONFIG_PATH, store.DEFAULT_CONFIG);
+  reloadCity();
+}
+
+// All config I/O for the renderer. MUST be registered before the window loads, because
+// the preload calls the sync channel while the page is loading — if it isn't ready yet
+// the friend's saved settings would silently vanish behind the defaults.
+function registerConfigIpc() {
+  // Synchronous: preload reads this as the page loads, before city.js's first frame.
+  ipcMain.on('citylive:get-config-sync', (e) => {
+    try { e.returnValue = JSON.stringify(store.readConfig(CONFIG_PATH)); }
+    catch (err) { e.returnValue = JSON.stringify(store.DEFAULT_CONFIG); }
+  });
+  // Async: the Settings panel loads the current values to populate its fields.
+  ipcMain.handle('citylive:get-config', () => store.readConfig(CONFIG_PATH));
+  // Async: the Settings panel saves; we persist then reload so the change takes effect.
+  ipcMain.handle('citylive:save-config', (e, cfg) => { const clean = store.writeConfig(CONFIG_PATH, cfg); reloadCity(); return clean; });
+  ipcMain.handle('citylive:reset-config', () => { const def = store.writeConfig(CONFIG_PATH, store.DEFAULT_CONFIG); reloadCity(); return def; });
+  ipcMain.handle('citylive:open-config-file', () => (CONFIG_PATH ? shell.openPath(CONFIG_PATH) : Promise.resolve('')));
+}
+
 // Frameless, borderless full-screen "wallpaper" look. Not literally behind desktop
 // icons (that is OS-specific), but a clean ambient full-screen mode you can send to
 // the back and leave running. Toggle with the menu / tray / F11.
@@ -72,6 +108,10 @@ function rebuildMenu() {
     {
       label: 'CityLive',
       submenu: [
+        { label: 'Settings / Birthdays…', accelerator: 'CmdOrCtrl+,', click: openSettings },
+        { label: 'Open Config File', click: () => CONFIG_PATH && shell.openPath(CONFIG_PATH) },
+        { label: 'Reset Settings to Defaults', click: resetSettings },
+        { type: 'separator' },
         { label: 'Full Screen', accelerator: 'F11', click: toggleFullScreen },
         {
           label: 'Wallpaper Mode',
@@ -116,6 +156,11 @@ if (!gotLock) {
   app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });
 
   app.whenReady().then(() => {
+    // Personal settings live in userData (survives auto-updates). Seed + wire the IPC
+    // BEFORE createWindow, so the preload's sync request is answered as the page loads.
+    CONFIG_PATH = path.join(app.getPath('userData'), 'config.json');
+    store.ensureConfig(CONFIG_PATH);
+    registerConfigIpc();
     createWindow();
     rebuildMenu();
     createTray();

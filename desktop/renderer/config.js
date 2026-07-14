@@ -1,7 +1,8 @@
-/* ============================ CityLive — YOUR settings ============================
- * Make CityLive yours by editing this one file. Save it, then reload CityLive.
- * Everything here is optional — delete a line to fall back to the default.
- * (This file is NOT overwritten by updates.)
+/* ========================= CityLive — default settings =========================
+ * In the desktop app you don't need to edit this file — open the menu
+ * (CityLive ▸ Settings / Birthdays, or press Ctrl/Cmd + ,) to set your birthdays,
+ * location and speed. Those are saved separately and KEPT when the app updates.
+ * This file is just the built-in default (and IS replaced by updates).
  * ================================================================================= */
 window.CITYLIVE_CFG = {
 

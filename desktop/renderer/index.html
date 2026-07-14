@@ -28,6 +28,31 @@
   #hud b{color:var(--txt)}
   #help{position:fixed;right:12px;bottom:10px;color:var(--sub);z-index:8;opacity:.7;font-size:11px}
   @media (max-width:640px){ #bar{gap:6px;padding:6px 8px} input[type=range]{width:84px} .lbl{display:none} }
+  /* ---- Settings panel (birthdays / location / speed) ---- */
+  #settings{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;
+    background:rgba(3,5,10,.66);backdrop-filter:blur(3px)}
+  #settings.hidden{display:none}
+  #settings .sheet{width:min(560px,92vw);max-height:88vh;overflow:auto;background:var(--panel);
+    border:1px solid var(--line);border-radius:14px;padding:18px 20px;box-shadow:0 18px 60px rgba(0,0,0,.5)}
+  #settings h2{margin:0 0 2px;color:var(--cyan);letter-spacing:1px}
+  #settings h3{margin:14px 0 4px;font-size:12px;text-transform:uppercase;letter-spacing:1px;color:var(--cyan)}
+  #settings .hint{margin:0 0 8px;color:var(--sub);font-size:11px;line-height:1.5}
+  #settings section{border-top:1px solid var(--line);padding-top:8px;margin-top:12px}
+  #settings section:first-of-type{border-top:0;margin-top:8px}
+  #settings input[type=text],#settings input[type=number],#settings select{
+    font:inherit;color:var(--txt);background:#0f1626;border:1px solid var(--line);border-radius:7px;padding:6px 8px}
+  .brow{display:flex;gap:6px;align-items:center;margin:5px 0}
+  .brow .bm,.brow .bd{width:48px;text-align:center}
+  .brow .bl{flex:1;min-width:0}
+  .brow .pink{display:flex;align-items:center;gap:3px;color:var(--sub);font-size:11px;white-space:nowrap}
+  .brow .del{padding:5px 9px;color:#ff9aa2}
+  #settings .row2{display:flex;gap:10px;align-items:flex-start}
+  #settings .row2 label{display:flex;flex-direction:column;gap:3px;flex:1;color:var(--sub);font-size:11px}
+  #settings .row2 select{width:100%}
+  #settings .actions{display:flex;gap:8px;align-items:center;margin-top:18px}
+  #settings .grow{flex:1}
+  #settings button.primary{background:linear-gradient(180deg,#1b6,#0a5);border-color:#0a5;color:#eafff3}
+  #settings button.ghost{background:transparent}
 </style>
 </head>
 <body>
@@ -55,7 +80,56 @@
 <div id="hud">— </div>
 <div id="help">drag <b>time</b> to scrub the day · <b>age</b> to grow the city · hover top edge for controls</div>
 
+<!-- Settings panel — opened from the app menu (CityLive ▸ Settings / Birthdays, or Ctrl/Cmd+,) -->
+<div id="settings" class="hidden">
+  <div class="sheet">
+    <h2>CityLive Settings</h2>
+    <p class="hint">These are saved on your computer and kept when CityLive updates itself.</p>
+    <section>
+      <h3>Birthdays</h3>
+      <p class="hint">On each day, a banner, fireworks and floating hearts appear over the city.<br>
+        Letters, numbers, spaces and hyphens only.</p>
+      <div id="bdayList"></div>
+      <button id="bdayAdd" class="ghost">+ Add birthday</button>
+    </section>
+    <section>
+      <h3>Your location</h3>
+      <p class="hint">Drives the sun, moon, sunrise/sunset and daylight. Leave blank for the default (Norwich, CT).</p>
+      <div class="row2">
+        <label>Latitude <input id="lat" type="number" step="any" placeholder="e.g. 40.7128"></label>
+        <label>Longitude <input id="lon" type="number" step="any" placeholder="e.g. -74.0060"></label>
+      </div>
+    </section>
+    <section>
+      <h3>Speed</h3>
+      <div class="row2">
+        <label>How fast the city lives out a full lifetime
+          <select id="cycle">
+            <option value="weekly">One lifetime per week (normal, relaxing)</option>
+            <option value="test">One lifetime per hour (fast — see everything quickly)</option>
+          </select></label>
+      </div>
+    </section>
+    <div class="actions">
+      <button id="setReset" class="ghost" title="Clear all settings">Reset to defaults</button>
+      <span class="grow"></span>
+      <button id="setCancel">Cancel</button>
+      <button id="setSave" class="primary">Save</button>
+    </div>
+  </div>
+</div>
+
 <script src="config.js"></script>
+<script>
+  // Update-safe user settings (userData/config.json, bridged by preload as a JSON string)
+  // override the bundled defaults above. Runs before city.js reads window.CITYLIVE_CFG.
+  try {
+    if (window.citylive && window.citylive.userConfigJSON) {
+      var _u = JSON.parse(window.citylive.userConfigJSON);
+      if (_u && typeof _u === 'object') window.CITYLIVE_CFG = _u;
+    }
+  } catch (e) { /* keep bundled defaults */ }
+</script>
 <script src="city.js"></script>
 <script>
 (function(){
@@ -124,6 +198,69 @@
   // keep the screen awake if displayed as a kiosk (best effort)
   if(navigator.wakeLock) navigator.wakeLock.request('screen').catch(function(){});
   document.addEventListener('visibilitychange',function(){ if(!document.hidden&&navigator.wakeLock) navigator.wakeLock.request('screen').catch(function(){}); });
+})();
+</script>
+
+<script>
+// ---- Settings panel: edit birthdays / location / speed; persists via preload (userData) ----
+(function(){
+  var api = window.citylive;
+  if(!api) return;                       // plain browser / phone build → no native settings
+  var panel  = document.getElementById('settings');
+  var listEl = document.getElementById('bdayList');
+  function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+  function bdayRow(b){
+    b = b||{};
+    var row = document.createElement('div'); row.className='brow';
+    row.innerHTML =
+      '<input class="bm" type="number" min="1" max="12" placeholder="M" value="'+(b.m!=null?b.m:'')+'">'+
+      '<input class="bd" type="number" min="1" max="31" placeholder="D" value="'+(b.d!=null?b.d:'')+'">'+
+      '<input class="bl" type="text" placeholder="HAPPY BIRTHDAY NAME" value="'+esc(b.label)+'">'+
+      '<label class="pink"><input class="bp" type="checkbox" '+(b.pink?'checked':'')+'> pink</label>'+
+      '<button class="del ghost" title="Remove">✕</button>';
+    row.querySelector('.del').addEventListener('click',function(){ row.remove(); });
+    row.querySelector('.bl').addEventListener('input',function(){                 // live UPPERCASE (banners are caps-only)
+      var p=this.selectionStart; this.value=this.value.toUpperCase(); try{ this.selectionStart=this.selectionEnd=p; }catch(e){} });
+    return row;
+  }
+
+  function load(){
+    api.getConfig().then(function(cfg){
+      cfg = cfg||{};
+      listEl.innerHTML='';
+      (cfg.birthdays||[]).forEach(function(b){ listEl.appendChild(bdayRow(b)); });
+      document.getElementById('lat').value = (cfg.lat!=null)?cfg.lat:'';
+      document.getElementById('lon').value = (cfg.lon!=null)?cfg.lon:'';
+      document.getElementById('cycle').value = (cfg.cycle==='test')?'test':'weekly';
+    }).catch(function(){});
+  }
+
+  function gather(){
+    var birthdays=[];
+    Array.prototype.forEach.call(listEl.querySelectorAll('.brow'),function(row){
+      var m=parseInt(row.querySelector('.bm').value,10), d=parseInt(row.querySelector('.bd').value,10);
+      if(m>=1&&m<=12&&d>=1&&d<=31){
+        var e={ m:m, d:d, label:row.querySelector('.bl').value };
+        if(row.querySelector('.bp').checked) e.pink=true;
+        birthdays.push(e);
+      }
+    });
+    var cfg={ birthdays:birthdays, cycle:document.getElementById('cycle').value };
+    var lat=parseFloat(document.getElementById('lat').value), lon=parseFloat(document.getElementById('lon').value);
+    if(isFinite(lat)&&isFinite(lon)){ cfg.lat=lat; cfg.lon=lon; }
+    return cfg;
+  }
+
+  function show(){ load(); panel.classList.remove('hidden'); }
+  function hide(){ panel.classList.add('hidden'); }
+
+  api.onOpenSettings(show);
+  document.getElementById('bdayAdd').addEventListener('click',function(){ listEl.appendChild(bdayRow({label:'HAPPY BIRTHDAY '})); });
+  document.getElementById('setCancel').addEventListener('click',hide);
+  document.getElementById('setSave').addEventListener('click',function(){ api.saveConfig(gather()); });  // main persists + reloads the city
+  document.getElementById('setReset').addEventListener('click',function(){ if(confirm('Reset all CityLive settings to defaults?')) api.resetConfig(); });
+  document.addEventListener('keydown',function(e){ if(e.key==='Escape' && !panel.classList.contains('hidden')) hide(); });
 })();
 </script>
 </body>
