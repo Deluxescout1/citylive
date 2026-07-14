@@ -27,6 +27,8 @@
     border-radius:7px;padding:5px 9px;z-index:8;opacity:.9}
   #hud b{color:var(--txt)}
   #help{position:fixed;right:12px;bottom:10px;color:var(--sub);z-index:8;opacity:.7;font-size:11px}
+  /* wallpaper mode (?wallpaper=1) — pure city, no on-screen controls/labels behind the desktop icons */
+  body.wallpaper #bar,body.wallpaper #hot,body.wallpaper #hud,body.wallpaper #help{display:none!important}
   @media (max-width:640px){ #bar{gap:6px;padding:6px 8px} input[type=range]{width:84px} .lbl{display:none} }
 </style>
 </head>
@@ -56,6 +58,46 @@
 <div id="help">drag <b>time</b> to scrub the day · <b>age</b> to grow the city · hover top edge for controls</div>
 
 <script src="config.js"></script>
+<script>
+/* URL config — lets a hosted CityLive (e.g. in Lively Wallpaper) carry the viewer's own
+ * birthdays, location and timeline in the link, without editing any file. Runs AFTER
+ * config.js (which sets window.CITYLIVE_CFG) and BEFORE city.js reads it. Examples:
+ *   ?wallpaper=1                          → clean wallpaper mode (no controls)
+ *   ?lat=40.71&lon=-74.0&cycle=2w         → your location + a two-week lifetime
+ *   ?b=6.15.HAPPY BIRTHDAY ALEX           → a birthday (M.D.LABEL, repeatable)
+ *   ?b=3.2.HAPPY BIRTHDAY MOM.pink        → a pink birthday banner
+ *   ?cfg=<base64-json>                    → a whole config object (used by the URL builder) */
+(function(){
+  try{
+    var P=new URLSearchParams(location.search);
+    var C=(window.CITYLIVE_CFG&&typeof window.CITYLIVE_CFG==='object')?window.CITYLIVE_CFG:(window.CITYLIVE_CFG={});
+    if(P.get('wallpaper')==='1'||P.get('wp')==='1') document.body.classList.add('wallpaper');
+    // whole-config override (base64 JSON) wins over individual params
+    var raw=P.get('cfg');
+    if(raw){ try{ var o=JSON.parse(decodeURIComponent(escape(atob(raw)))); if(o&&typeof o==='object') for(var k in o) C[k]=o[k]; }catch(e){} }
+    var lat=parseFloat(P.get('lat')), lon=parseFloat(P.get('lon'));
+    if(isFinite(lat)&&lat>=-90&&lat<=90) C.lat=lat;
+    if(isFinite(lon)&&lon>=-180&&lon<=180) C.lon=lon;
+    var cyc=P.get('cycle'); if(cyc) C.cycle=cyc;
+    // birthdays: repeatable  b=M.D.LABEL[.pink]  (labels are UPPERCASE A-Z 0-9 space hyphen; '.' never occurs in a label)
+    var bs=P.getAll('b');
+    if(bs.length){
+      var list=[];
+      bs.forEach(function(s){
+        var parts=String(s).split('.'); if(parts.length<3) return;
+        var m=parseInt(parts[0],10), d=parseInt(parts[1],10);
+        if(!(m>=1&&m<=12&&d>=1&&d<=31)) return;
+        var pink=false, rest=parts.slice(2);
+        if(rest.length>1&&/^pink$/i.test(rest[rest.length-1])){ pink=true; rest=rest.slice(0,-1); }
+        var label=rest.join('.').toUpperCase().replace(/[^A-Z0-9 \-]/g,'').slice(0,40).trim();
+        if(!label) return;
+        var e={m:m,d:d,label:label}; if(pink) e.pink=true; list.push(e);
+      });
+      if(list.length) C.birthdays=list.slice(0,50);
+    }
+  }catch(e){}
+})();
+</script>
 <script src="city.js"></script>
 <script>
 (function(){

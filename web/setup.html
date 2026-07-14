@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CityLive — Wallpaper Setup</title>
+<style>
+  :root{ --bg:#05070c; --panel:#0e121c; --line:#2a3550; --txt:#e6ecf7; --sub:#93a2c0; --cyan:#39e6ff; --pink:#ff6ad5; }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);
+    font:15px/1.5 "JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  .wrap{max-width:720px;margin:0 auto;padding:28px 18px 60px}
+  h1{color:var(--cyan);letter-spacing:1px;margin:0 0 4px;font-size:22px;text-shadow:0 0 12px rgba(57,230,255,.35)}
+  p.lead{color:var(--sub);margin:0 0 22px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 16px 18px;margin:14px 0}
+  h2{font-size:14px;color:var(--txt);margin:0 0 10px;letter-spacing:.5px}
+  label{display:block;color:var(--sub);font-size:12px;margin:8px 0 3px}
+  input,select{font:inherit;color:var(--txt);background:#161d2e;border:1px solid var(--line);
+    border-radius:8px;padding:8px 10px;width:100%}
+  .row{display:flex;gap:10px;flex-wrap:wrap}
+  .row>div{flex:1;min-width:120px}
+  .bday{display:flex;gap:8px;align-items:end;margin:8px 0}
+  .bday .m,.bday .d{width:70px;flex:0 0 auto}
+  .bday .lab{flex:1}
+  .bday .pink{flex:0 0 auto;display:flex;align-items:center;gap:5px;color:var(--sub);font-size:12px;padding-bottom:9px;white-space:nowrap}
+  button{font:inherit;color:var(--txt);background:#161d2e;border:1px solid var(--line);
+    border-radius:8px;padding:8px 12px;cursor:pointer}
+  button.primary{background:linear-gradient(180deg,#1e9,#0a6);border-color:#0a6;color:#eafff3;font-weight:700}
+  button.x{color:#ff8a8a;border-color:#5a2a2a;padding:8px 11px}
+  .add{margin-top:6px;color:var(--cyan);border-color:#245}
+  .out{margin-top:18px}
+  .url{width:100%;min-height:74px;background:#0a0e16;border:1px solid var(--line);border-radius:8px;
+    color:var(--cyan);padding:10px;font-size:12px;word-break:break-all;resize:vertical}
+  .btns{display:flex;gap:10px;margin-top:10px;flex-wrap:wrap}
+  a.link{color:var(--cyan)}
+  .hint{color:var(--sub);font-size:12px;margin-top:6px}
+  .copied{color:#5efc82}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>CityLive · Wallpaper Setup</h1>
+  <p class="lead">Fill this in, copy the link, and paste it into <b>Lively Wallpaper</b> (Add Wallpaper). Your city then runs as a live Windows desktop background — with your own birthdays and location baked into the link. Nothing is uploaded; the settings live only in your link.</p>
+
+  <div class="card">
+    <h2>📍 Location <span style="color:var(--sub);font-weight:400">(drives sun, moon, sunrise &amp; sunset)</span></h2>
+    <div class="row">
+      <div><label>Latitude</label><input id="lat" inputmode="decimal" placeholder="e.g. 40.7128"></div>
+      <div><label>Longitude</label><input id="lon" inputmode="decimal" placeholder="e.g. -74.0060"></div>
+    </div>
+    <div class="hint">Tip: right-click your spot in Google Maps → the numbers at the top are “latitude, longitude”. Leave blank to default to Norwich, CT.</div>
+  </div>
+
+  <div class="card">
+    <h2>⏳ Timeline <span style="color:var(--sub);font-weight:400">(village → metropolis → rebuild)</span></h2>
+    <label>How long is one full city lifetime?</label>
+    <select id="cycle">
+      <option value="1w">1 week</option>
+      <option value="2w">2 weeks</option>
+      <option value="3w">3 weeks</option>
+      <option value="1mo">1 month</option>
+    </select>
+  </div>
+
+  <div class="card">
+    <h2>🎂 Birthdays <span style="color:var(--sub);font-weight:400">(banner + fireworks + hearts on the day)</span></h2>
+    <div id="bdays"></div>
+    <button class="add" id="addBday">+ Add a birthday</button>
+    <div class="hint">Messages use CAPITAL letters, numbers, spaces and hyphens (no punctuation).</div>
+  </div>
+
+  <div class="out">
+    <label>Your wallpaper link — copy this:</label>
+    <textarea class="url" id="url" readonly></textarea>
+    <div class="btns">
+      <button class="primary" id="copy">📋 Copy link</button>
+      <button id="preview">▶ Preview in browser</button>
+      <span id="msg" class="hint"></span>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var BASE = location.href.replace(/setup\.html.*$/,'').replace(/\/?$/,'/');  // .../citylive/
+  var bdaysEl = document.getElementById('bdays');
+
+  function bdayRow(m,d,label,pink){
+    var wrap=document.createElement('div'); wrap.className='bday';
+    var mm=document.createElement('input'); mm.className='m'; mm.type='number'; mm.min=1; mm.max=12; mm.placeholder='MM'; if(m)mm.value=m;
+    var dd=document.createElement('input'); dd.className='d'; dd.type='number'; dd.min=1; dd.max=31; dd.placeholder='DD'; if(d)dd.value=d;
+    var lab=document.createElement('input'); lab.className='lab'; lab.placeholder='HAPPY BIRTHDAY ALEX'; if(label)lab.value=label;
+    var pk=document.createElement('label'); pk.className='pink';
+    var cb=document.createElement('input'); cb.type='checkbox'; if(pink)cb.checked=true;
+    pk.appendChild(cb); pk.appendChild(document.createTextNode('pink'));
+    var x=document.createElement('button'); x.className='x'; x.textContent='✕'; x.title='Remove';
+    x.onclick=function(){ wrap.remove(); build(); };
+    [mm,dd,lab].forEach(function(el){ el.addEventListener('input',build); });
+    cb.addEventListener('change',build);
+    var labWrap=document.createElement('div'); labWrap.className='lab';
+    var l1=document.createElement('div'); l1.style.display='none';
+    wrap.appendChild(fieldLabeled('Month',mm)); wrap.appendChild(fieldLabeled('Day',dd));
+    wrap.appendChild(fieldLabeled('Message',lab,true)); wrap.appendChild(pk); wrap.appendChild(x);
+    return wrap;
+  }
+  function fieldLabeled(name,input,grow){
+    var d=document.createElement('div'); if(grow)d.className='lab'; else d.style.flex='0 0 auto';
+    var l=document.createElement('label'); l.textContent=name; d.appendChild(l); d.appendChild(input); return d;
+  }
+
+  function cleanLabel(s){ return String(s||'').toUpperCase().replace(/[^A-Z0-9 \-]/g,'').replace(/\s+/g,' ').trim().slice(0,40); }
+
+  function collect(){
+    var cfg={ wallpaper:true };
+    var lat=parseFloat(document.getElementById('lat').value), lon=parseFloat(document.getElementById('lon').value);
+    if(isFinite(lat)&&lat>=-90&&lat<=90) cfg.lat=lat;
+    if(isFinite(lon)&&lon>=-180&&lon<=180) cfg.lon=lon;
+    cfg.cycle=document.getElementById('cycle').value;
+    cfg.birthdays=[];
+    bdaysEl.querySelectorAll('.bday').forEach(function(row){
+      var m=parseInt(row.querySelector('.m').value,10), d=parseInt(row.querySelector('.d').value,10);
+      var label=cleanLabel(row.querySelector('.lab').value);
+      var pink=row.querySelector('input[type=checkbox]').checked;
+      if(m>=1&&m<=12&&d>=1&&d<=31&&label){ var e={m:m,d:d,label:label}; if(pink)e.pink=true; cfg.birthdays.push(e); }
+    });
+    return cfg;
+  }
+
+  // build a human-readable query URL (transparent + easy to hand-tweak)
+  function buildURL(cfg){
+    var q=[];
+    if(cfg.wallpaper) q.push('wallpaper=1');
+    if(cfg.lat!=null) q.push('lat='+cfg.lat);
+    if(cfg.lon!=null) q.push('lon='+cfg.lon);
+    if(cfg.cycle) q.push('cycle='+cfg.cycle);
+    cfg.birthdays.forEach(function(b){
+      var v=b.m+'.'+b.d+'.'+b.label+(b.pink?'.pink':'');
+      q.push('b='+encodeURIComponent(v));
+    });
+    return BASE+'?'+q.join('&');
+  }
+
+  var lastURL='';
+  function build(){ lastURL=buildURL(collect()); document.getElementById('url').value=lastURL; }
+  window.__buildURL=buildURL; // exposed for tests
+
+  document.getElementById('addBday').onclick=function(){ bdaysEl.appendChild(bdayRow()); build(); };
+  document.getElementById('lat').addEventListener('input',build);
+  document.getElementById('lon').addEventListener('input',build);
+  document.getElementById('cycle').addEventListener('change',build);
+  document.getElementById('copy').onclick=function(){
+    var t=document.getElementById('url'); t.select();
+    var ok=false; try{ ok=document.execCommand('copy'); }catch(e){}
+    if(navigator.clipboard){ navigator.clipboard.writeText(lastURL).then(function(){msg('Copied! Now paste it into Lively.');},function(){msg(ok?'Copied!':'Select the link and copy manually.');}); }
+    else msg(ok?'Copied!':'Select the link and copy manually.');
+  };
+  document.getElementById('preview').onclick=function(){ window.open(lastURL,'_blank'); };
+  function msg(s){ var m=document.getElementById('msg'); m.textContent=s; m.className='hint copied'; setTimeout(function(){m.className='hint';m.textContent='';},4000); }
+
+  bdaysEl.appendChild(bdayRow()); build();
+})();
+</script>
+</body>
+</html>
