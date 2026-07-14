@@ -1,0 +1,90 @@
+{
+  "name": "citylive",
+  "productName": "CityLive",
+  "version": "1.0.0",
+  "description": "CityLive — a living pixel-art city for your desktop. Real time, real weather, day & night, seasons, festivals and the occasional disaster.",
+  "author": "Deluxescout1",
+  "homepage": "https://github.com/Deluxescout1/citylive",
+  "license": "MIT",
+  "main": "main.js",
+  "dependencies": {
+    "electron-updater": "^6.8.9"
+  },
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder",
+    "dist:linux": "electron-builder --linux",
+    "dist:win": "electron-builder --win",
+    "dist:mac": "electron-builder --mac",
+    "pack": "electron-builder --dir"
+  },
+  "devDependencies": {
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "org.citylive.app",
+    "productName": "CityLive",
+    "copyright": "Copyright © 2026 CityLive",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Deluxescout1",
+        "repo": "citylive"
+      }
+    ],
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer/**/*"
+    ],
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Graphics",
+      "icon": "build/icon.png",
+      "maintainer": "CityLive",
+      "synopsis": "A living pixel-art city for your desktop"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "CityLive"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "universal"
+          ]
+        }
+      ],
+      "category": "public.app-category.entertainment",
+      "icon": "build/icon.icns"
+    },
+    "dmg": {
+      "title": "CityLive"
+    }
+  }
+}

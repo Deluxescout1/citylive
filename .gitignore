@@ -1,0 +1,30 @@
+# ---- personal / local (never publish) ----
+.aider*
+# per-machine private settings (birthdays, location, cycle)
+config.local.json
+**/config.local.json
+# personal vitals dashboard (not part of the CityLive distribution)
+dashboard.html
+# personal build reports
+CityLive-Morning-Report.md
+# generated per-life chronicles
+chronicles/
+# generated timelapse videos (large binaries)
+timelapses/
+
+# ---- build outputs / dependencies ----
+node_modules/
+**/node_modules/
+desktop/dist/
+dist/
+*.AppImage
+*.deb
+*.dmg
+*.exe
+*.snap
+*.blockmap
+
+# ---- OS / editor cruft ----
+.DS_Store
+Thumbs.db
+*.swp

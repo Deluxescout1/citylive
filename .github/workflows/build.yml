@@ -1,0 +1,72 @@
+name: Build CityLive desktop apps
+
+# Builds native installers on each OS's own runner, so the Windows .exe and macOS
+# .dmg are produced with their real toolchains (they cannot be built from Linux).
+# Trigger by pushing a version tag (e.g. v1.0.0) or from the Actions tab.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: dist:linux
+            artifact: linux-installers
+          - os: windows-latest
+            target: dist:win
+            artifact: windows-installer
+          - os: macos-latest
+            target: dist:mac
+            artifact: macos-installer
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm ci || npm install
+
+      - name: Build installer
+        run: npm run ${{ matrix.target }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # unsigned builds are fine for personal use; CSC_* secrets enable signing if added
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+
+      - name: Upload installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: |
+            desktop/dist/*.AppImage
+            desktop/dist/*.deb
+            desktop/dist/*.exe
+            desktop/dist/*.dmg
+          if-no-files-found: ignore
+
+  release:
+    # When triggered by a version tag, gather every OS's installers into one GitHub Release.
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { path: artifacts }
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/**/*
+          generate_release_notes: true

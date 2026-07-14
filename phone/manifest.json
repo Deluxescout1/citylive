@@ -1,0 +1,10 @@
+{
+  "name": "CityLive",
+  "short_name": "CityLive",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#0a0c14",
+  "theme_color": "#0a0c14",
+  "start_url": "./index.html",
+  "icons": []
+}

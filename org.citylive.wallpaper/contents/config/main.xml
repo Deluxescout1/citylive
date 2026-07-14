@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kcfg xmlns="http://www.kde.org/standards/kcfg/1.0"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="http://www.kde.org/standards/kcfg/1.0
+      http://www.kde.org/standards/kcfg/1.0/kcfg.xsd">
+  <kcfgfile name=""/>
+  <group name="General">
+    <entry name="scene" type="String">
+      <default>neon</default>
+    </entry>
+    <!-- Total width (logical px) of the whole multi-monitor desktop. All screens
+         share this so the city is one continuous world. -->
+    <entry name="worldW" type="Int">
+      <default>6808</default>
+    </entry>
+    <entry name="quality" type="String">
+      <default></default>
+    </entry>
+    <!-- This screen's left edge in the global desktop (logical px). -1 = auto
+         (read Screen.virtualX). Set explicitly only if auto-detect is wrong. -->
+    <entry name="worldX" type="Int">
+      <default>-1</default>
+    </entry>
+    <!-- Height (logical px) of the bottom panel/taskbar to keep the road clear of.
+         -1 = auto (read Plasma's availableScreenRect; on Wayland this is often 0
+         because panels are hidden from wallpaper clients). Set to your panel height
+         only if the road is being clipped by a tall taskbar. -->
+    <entry name="taskbarPx" type="Int">
+      <default>-1</default>
+    </entry>
+  </group>
+</kcfg>

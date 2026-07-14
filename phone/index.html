@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>CityLive</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0a0c14">
+<link rel="manifest" href="manifest.json">
+<style>
+  html,body{margin:0;padding:0;background:#0a0c14;height:100%;overflow:hidden}
+  canvas{display:block;width:100vw;height:100vh;image-rendering:pixelated;image-rendering:crisp-edges}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<script src="config.js"></script>
+<script src="city.js"></script>
+<script>
+// CityLive phone port — the same engine, one screen, performance tier.
+(function(){
+  var cv=document.getElementById("cv"), g=cv.getContext("2d");
+  var PXK=4, ZOOMP=1;
+  function boot(){
+    var dpr=Math.min(2,window.devicePixelRatio||1);
+    var pw=Math.round(window.innerWidth*dpr), ph=Math.round(window.innerHeight*dpr);
+    var cw=Math.max(120,Math.round(pw/PXK)), ch=Math.max(120,Math.round(ph/PXK));
+    cv.width=cw; cv.height=ch;
+    setup("neon",{cw:cw,ch:ch,woff:0,ww:cw,pxk:PXK,zoom:ZOOMP,quality:"performance"});
+  }
+  boot();
+  var t=null;
+  window.addEventListener("resize",function(){ clearTimeout(t); t=setTimeout(boot,300); });
+  // battery-friendly: 10fps foreground + 0.5fps backdrop merged in one pass
+  setInterval(function(){ try{ draw(g); }catch(e){} }, 100);
+  // TOUCH: drag horizontally to scrub the city's whole life under your finger; release to
+  // return to live time. Double-tap toggles performance/spectacle.
+  var lastTap=0, curQ="performance";
+  cv.style.touchAction="none";
+  window.addEventListener("pointerdown",function(e){
+    var t2=Date.now();
+    if(t2-lastTap<350){ curQ=(curQ==="performance")?"spectacle":"performance"; boot2(); }
+    lastTap=t2;
+  });
+  window.addEventListener("pointermove",function(e){
+    if(e.buttons||e.pressure>0){ var f=Math.max(0.001,Math.min(0.999,e.clientX/window.innerWidth));
+      FORCEAGE=f; }
+  });
+  window.addEventListener("pointerup",function(){ FORCEAGE=null; });
+  function boot2(){ var dpr=Math.min(2,window.devicePixelRatio||1);
+    var pw=Math.round(window.innerWidth*dpr), ph=Math.round(window.innerHeight*dpr);
+    var cw=Math.max(120,Math.round(pw/PXK)), ch=Math.max(120,Math.round(ph/PXK));
+    cv.width=cw; cv.height=ch;
+    setup("neon",{cw:cw,ch:ch,woff:0,ww:cw,pxk:PXK,zoom:ZOOMP,quality:curQ});
+  }
+  // keep the screen awake while displayed (best effort)
+  if(navigator.wakeLock) navigator.wakeLock.request("screen").catch(function(){});
+  document.addEventListener("visibilitychange",function(){
+    if(!document.hidden&&navigator.wakeLock) navigator.wakeLock.request("screen").catch(function(){});
+  });
+})();
+</script>
+</body>
+</html>
