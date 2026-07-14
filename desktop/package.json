@@ -1,7 +1,7 @@
 {
   "name": "citylive",
   "productName": "CityLive",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "CityLive — a living pixel-art city for your desktop. Real time, real weather, day & night, seasons, festivals and the occasional disaster.",
   "author": "Deluxescout1",
   "homepage": "https://github.com/Deluxescout1/citylive",
@@ -71,7 +71,8 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "CityLive"
+      "shortcutName": "CityLive",
+      "artifactName": "CityLive-Setup.${ext}"
     },
     "mac": {
       "target": [

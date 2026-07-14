@@ -10,17 +10,24 @@ banners.
 It is a **pure QML + JavaScript** Plasma wallpaper plugin — no compiling, no
 dependencies, no WebEngine. Just files.
 
-## Get it — pick your platform
+## ⬇️ Download
 
-| Platform | What to use |
+> **Windows** → **[Download CityLive Setup (.exe)](https://github.com/Deluxescout1/citylive/releases/latest/download/CityLive-Setup.exe)**
+> then double-click it. If Windows shows a blue "protected your PC" box, click **More info → Run anyway** (the app just isn't code-signed).
+>
+> **macOS** → [download the `.dmg`](https://github.com/Deluxescout1/citylive/releases/latest) · **Linux** → [`.AppImage` or `.deb`](https://github.com/Deluxescout1/citylive/releases/latest), or use the KDE wallpaper below.
+
+**Not sure what to click?** Everything is on the **[Releases page](https://github.com/Deluxescout1/citylive/releases/latest)** under **Assets**. Grab the file for your system:
+
+| Your computer | The file to download |
 |----------|-------------|
-| **Windows / macOS / Linux** — download & run a real app | **[`desktop/`](desktop/README.md)** — a native installer (`.exe` / `.dmg` / `AppImage` / `.deb`). Double-click to install; runs in its own window or full-screen "wallpaper mode". |
-| **Linux + KDE Plasma 6** — true desktop wallpaper (crispest) | `./install.sh` (below). |
-| **Anything with a browser** (phones/tablets/TVs) | open [`web/index.html`](web/README.md). |
+| **Windows** | **`CityLive-Setup.exe`** ← this one |
+| **macOS** | `CityLive-*.dmg` |
+| **Linux** (app) | `CityLive-*.AppImage` or `citylive_*.deb` |
 
-All three run the **same engine** — the desktop app is the easiest download-and-run
-option; the KDE plugin is the sharpest as an actual wallpaper on Plasma. See
-**[`desktop/README.md`](desktop/README.md)** for install/build details.
+⚠️ The green **“Code”** button and any **“Source code (zip)”** link give you the *source code* (which contains a Linux `install.sh`), **not** the app — ignore those unless you're a developer.
+
+Once installed, set your birthdays, location and timeline in the app menu → **Settings / Birthdays** (`Ctrl + ,`). They're kept when the app auto-updates.
 
 ## Requirements
 - KDE **Plasma 6** (Wayland or X11), Qt 6.
