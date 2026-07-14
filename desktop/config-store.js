@@ -10,7 +10,17 @@ const fs = require('fs');
 
 // A brand-new install: no birthdays, one lifetime per week. (No lat/lon → the engine
 // keeps its built-in default location.)
-const DEFAULT_CONFIG = { birthdays: [], cycle: 'weekly' };
+const DEFAULT_CONFIG = { birthdays: [], cycle: '1w' };
+
+// Timeline choices the app offers. "weekly"/"monthly" are accepted as aliases (older
+// configs) and normalized; anything unrecognized falls back to one week.
+const CYCLES = ['1w', '2w', '3w', '1mo'];
+function normalizeCycle(v) {
+  if (v === 'weekly') return '1w';
+  if (v === 'monthly') return '1mo';
+  if (v === 'test') return 'test';               // hidden fast-preview mode (not in the UI)
+  return CYCLES.indexOf(v) >= 0 ? v : '1w';
+}
 
 // The pixel font only has A-Z, 0-9, space and hyphen — sanitize labels to that set so a
 // banner can never render as garbage. Uppercase, collapse whitespace, cap the length.
@@ -27,7 +37,7 @@ function sanitizeLabel(s) {
 // Never throws: anything unusable is dropped, not fatal.
 function sanitizeConfig(raw) {
   const cfg = (raw && typeof raw === 'object') ? raw : {};
-  const out = { birthdays: [], cycle: (cfg.cycle === 'test') ? 'test' : 'weekly' };
+  const out = { birthdays: [], cycle: normalizeCycle(cfg.cycle) };
 
   const list = Array.isArray(cfg.birthdays) ? cfg.birthdays : [];
   for (let i = 0; i < list.length && out.birthdays.length < 50; i++) {
@@ -70,4 +80,4 @@ function ensureConfig(pathToFile) {
   catch (e) { try { writeConfig(pathToFile, DEFAULT_CONFIG); } catch (_) { /* ignore */ } }
 }
 
-module.exports = { DEFAULT_CONFIG, sanitizeLabel, sanitizeConfig, readConfig, writeConfig, ensureConfig };
+module.exports = { DEFAULT_CONFIG, CYCLES, normalizeCycle, sanitizeLabel, sanitizeConfig, readConfig, writeConfig, ensureConfig };

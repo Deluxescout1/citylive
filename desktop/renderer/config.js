@@ -21,10 +21,9 @@ window.CITYLIVE_CFG = {
   // lat: 40.7128,
   // lon: -74.0060,
 
-  /* 3) SPEED — how fast the city lives out a full lifetime (village -> metropolis
-   *    -> the occasional disaster -> rebuild).
-   *      "weekly" = one lifetime per week (normal, relaxing)
-   *      "test"   = one lifetime per hour (fast, to see everything quickly) */
-  cycle: "weekly",
+  /* 3) TIMELINE — how long the city takes to live a full lifetime (village -> metropolis
+   *    -> the occasional disaster -> rebuild). Set it in the app's Settings menu, or here:
+   *      "1w" = one week   "2w" = two weeks   "3w" = three weeks   "1mo" = one month */
+  cycle: "1w",
 
 };

@@ -103,10 +103,12 @@
     <section>
       <h3>Speed</h3>
       <div class="row2">
-        <label>How fast the city lives out a full lifetime
+        <label>How long the city takes to live a full lifetime
           <select id="cycle">
-            <option value="weekly">One lifetime per week (normal, relaxing)</option>
-            <option value="test">One lifetime per hour (fast — see everything quickly)</option>
+            <option value="1w">1 week</option>
+            <option value="2w">2 weeks</option>
+            <option value="3w">3 weeks</option>
+            <option value="1mo">1 month</option>
           </select></label>
       </div>
     </section>
@@ -232,7 +234,9 @@
       (cfg.birthdays||[]).forEach(function(b){ listEl.appendChild(bdayRow(b)); });
       document.getElementById('lat').value = (cfg.lat!=null)?cfg.lat:'';
       document.getElementById('lon').value = (cfg.lon!=null)?cfg.lon:'';
-      document.getElementById('cycle').value = (cfg.cycle==='test')?'test':'weekly';
+      var cyc = cfg.cycle==='weekly' ? '1w' : cfg.cycle;                          // map legacy alias
+      if(['1w','2w','3w','1mo'].indexOf(cyc)<0) cyc='1w';                          // test/unknown → show 1 week
+      document.getElementById('cycle').value = cyc;
     }).catch(function(){});
   }
 

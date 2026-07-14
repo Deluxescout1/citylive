@@ -20,7 +20,7 @@ var LAT = 41.5243, LON = -72.0759;
 // Recognised keys (all optional):
 //   { lat, lon,                        // your location for sun/moon/weather
 //     birthdays: [ {m,d,label,pink} ], // banner days — an EMPTY array [] means none
-//     cycle: "weekly" | "test" }       // life length: 1 week (normal) or 1 hour (testing)
+//     cycle: "1w"|"2w"|"3w"|"1mo"|"test" } // lifetime length: 1/2/3 weeks, 1 month, or "test"=1 hour
 // `typeof` guards keep this safe in QML (no `window`, no global) — it silently no-ops.
 var CFG = (function(){
   try { if (typeof CITYLIVE_CFG !== 'undefined' && CITYLIVE_CFG) return CITYLIVE_CFG; } catch(e){}
@@ -38,13 +38,27 @@ var BIRTHDAYS = (CFG.birthdays != null) ? CFG.birthdays : DEFAULT_BIRTHDAYS;
 function birthdayFor(m,d){ if(!BIRTHDAYS || !BIRTHDAYS.length) return null;
   for(var i=0;i<BIRTHDAYS.length;i++){ var b=BIRTHDAYS[i]; if(b && b.m===m && b.d===d) return b; } return null; }
 
+// How long the city takes to live one full lifetime (village → metropolis → disaster → rebuild).
+// Accepts a token or a raw millisecond number. Unknown/absent → 1 hour "test" (the bare-engine
+// default; every shipped build supplies an explicit token via config, so real installs never hit it).
+function cycleMs(v){
+  switch(v){
+    case "1w": case "weekly":  return 604800000;    // 1 week
+    case "2w":                 return 1209600000;   // 2 weeks
+    case "3w":                 return 1814400000;   // 3 weeks
+    case "1mo": case "monthly":return 2592000000;   // 1 month (30 days)
+    case "test":               return 3600000;      // 1 hour (fast preview)
+    default: return (typeof v==="number" && isFinite(v) && v>0) ? v : 3600000;
+  }
+}
+
 // A host may inject personal settings that are NOT part of this shared engine — e.g. the KDE wallpaper's
 // main.qml reads a local, gitignored config.local.json and calls this. All keys optional. (GROW_CYCLE is
 // declared later in the file but this runs at boot, long after, so the reference resolves fine.)
 function applyConfig(cfg){ if(!cfg) return;
   if(cfg.birthdays!=null) BIRTHDAYS=cfg.birthdays;
   if(cfg.lat!=null) LAT=+cfg.lat;  if(cfg.lon!=null) LON=+cfg.lon;
-  if(cfg.cycle==="weekly") GROW_CYCLE=604800000; else if(cfg.cycle==="test") GROW_CYCLE=3600000;
+  if(cfg.cycle!=null) GROW_CYCLE=cycleMs(cfg.cycle);
 }
 // ================================================================================
 
@@ -6084,7 +6098,7 @@ function drawDisasterHud(g,cd,now){
 //  screen grows in lock-step. cityG (0..1 maturity) gates every subsystem; each
 //  building has a birth age (b.bAge) and rises as a construction site when due.
 // ============================================================================
-var GROW_CYCLE=(CFG.cycle==="weekly")?604800000:(CFG.cycle==="test")?3600000:3600000;   // life length. Config: cycle:"weekly"=1 week (normal) / "test"=1 hour. The web/desktop builds set cycle:"weekly" in their config; set 604800000 as the fallback here for a plain weekly default.
+var GROW_CYCLE=cycleMs(CFG.cycle);   // life length. Config cycle: "1w"/"2w"/"3w"/"1mo" (or "weekly") / "test"=1 hour. See cycleMs() near the top.
 var GROW_EPOCH=1783972450746;          // TEST MODE reset 2026-07-13 ~16:xx — set so cy≈0.88 at deploy (apocalypse ~4.5 min after restart, life 0 = alien war), then a new life every hour
 var GROW_OFFSET_DAYS=0;                // ►► FAST-FORWARD KNOB: bump this to jump ahead N days into the city's life.
                                        //    ~0=newborn wilderness, ~6=village, ~12=growing city, ~20=near-metropolis, ~24=peak metropolis.
