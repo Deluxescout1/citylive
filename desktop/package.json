@@ -41,7 +41,8 @@
       "main.js",
       "preload.js",
       "config-store.js",
-      "renderer/**/*"
+      "renderer/**/*",
+      "build/icon.png"
     ],
     "linux": {
       "target": [
@@ -62,7 +63,7 @@
           ]
         }
       ],
-      "icon": "build/icon.ico"
+      "icon": "build/icon.png"
     },
     "nsis": {
       "oneClick": false,
@@ -82,7 +83,7 @@
         }
       ],
       "category": "public.app-category.entertainment",
-      "icon": "build/icon.icns"
+      "icon": "build/icon.png"
     },
     "dmg": {
       "title": "CityLive"

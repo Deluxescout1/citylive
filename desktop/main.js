@@ -33,7 +33,7 @@ function createWindow() {
     minHeight: 320,
     backgroundColor: '#05070c',
     title: 'CityLive',
-    icon: path.join(__dirname, 'build', process.platform === 'win32' ? 'icon.ico' : 'icon.png'),
+    icon: path.join(__dirname, 'build', 'icon.png'),
     autoHideMenuBar: true,       // menu bar hidden until Alt (Win/Linux); macOS uses top bar
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
