@@ -3,9 +3,14 @@
 // The renderer (renderer/index.html + renderer/city.js) is the exact same engine
 // that powers the KDE Plasma wallpaper, so the city looks identical everywhere.
 
-const { app, BrowserWindow, Menu, Tray, nativeImage, shell, ipcMain } = require('electron');
+const { app, BrowserWindow, Menu, Tray, nativeImage, shell, ipcMain, dialog } = require('electron');
 const path = require('path');
 const store = require('./config-store');
+const screensaver = require('./screensaver');
+
+// Windows may launch us as a screensaver (.scr) with /s, /c or /p. Detect that up front;
+// it changes how the window is created and whether we take the single-instance lock.
+const SS = screensaver.parseFlags(process.argv);
 
 // Where the friend's personal settings (birthdays / location / speed) live. This is in
 // the OS user-data folder, OUTSIDE the app bundle, so auto-updates never overwrite it.
@@ -31,6 +36,9 @@ function createWindow() {
     height: 720,
     minWidth: 480,
     minHeight: 320,
+    fullscreen: SS.screensaver,   // screensaver starts full-screen…
+    frame: !SS.screensaver,       // …with no window chrome
+    skipTaskbar: SS.screensaver,
     backgroundColor: '#05070c',
     title: 'CityLive',
     icon: path.join(__dirname, 'build', 'icon.png'),
@@ -101,8 +109,29 @@ function toggleFullScreen() {
   win.setFullScreen(!win.isFullScreen());
 }
 
+// Turn CityLive on/off as the Windows screensaver, with a friendly confirmation.
+function enableScreensaver() {
+  screensaver.setRegistered(true, 300, (err) => {
+    if (err) return;
+    dialog.showMessageBox({
+      type: 'info', title: 'CityLive',
+      message: 'CityLive is now your screensaver.',
+      detail: 'It will start after 5 minutes idle. Change the wait time or turn it off any time in Windows Screen Saver settings.',
+      buttons: ['Open Screen Saver Settings', 'OK'], defaultId: 1
+    }).then((r) => { if (r.response === 0) shell.openExternal('ms-settings:lockscreen').catch(() => {}); });
+  });
+}
+function disableScreensaver() { screensaver.setRegistered(false, 0, () => {}); }
+
 function rebuildMenu() {
   const isMac = process.platform === 'darwin';
+  const isWin = process.platform === 'win32';
+  const screensaverItems = isWin ? [
+    { type: 'separator' },
+    { label: 'Use CityLive as Screen Saver', click: enableScreensaver },
+    { label: 'Turn Off CityLive Screen Saver', click: disableScreensaver },
+    { label: 'Preview Screen Saver', click: () => screensaver.preview() }
+  ] : [];
   const template = [
     ...(isMac ? [{ role: 'appMenu' }] : []),
     {
@@ -120,6 +149,7 @@ function rebuildMenu() {
           accelerator: 'CmdOrCtrl+Shift+W',
           click: (item) => setWallpaperMode(item.checked)
         },
+        ...screensaverItems,
         { type: 'separator' },
         { label: 'Reload City', accelerator: 'CmdOrCtrl+R', click: () => win && win.reload() },
         { type: 'separator' },
@@ -148,26 +178,45 @@ function createTray() {
   } catch (e) { /* tray is optional; ignore on platforms without a system tray */ }
 }
 
-// Single-instance: focus the existing window instead of spawning a second city.
-const gotLock = app.requestSingleInstanceLock();
-if (!gotLock) {
-  app.quit();
-} else {
-  app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });
-
+if (SS.preview) {
+  // Windows preview thumbnail (/p): we don't paint into the tiny preview window, so
+  // exit cleanly (Windows shows a blank preview) instead of popping a stray window.
+  app.whenReady().then(() => app.quit());
+} else if (SS.screensaver) {
+  // Screensaver (/s): run full-screen and INDEPENDENTLY of any normal instance — do
+  // not take the single-instance lock, or it would just focus a running app and quit.
   app.whenReady().then(() => {
-    // Personal settings live in userData (survives auto-updates). Seed + wire the IPC
-    // BEFORE createWindow, so the preload's sync request is answered as the page loads.
     CONFIG_PATH = path.join(app.getPath('userData'), 'config.json');
     store.ensureConfig(CONFIG_PATH);
     registerConfigIpc();
     createWindow();
-    rebuildMenu();
-    createTray();
-    // check for a newer released version (silent; installs on next launch). Never block startup on it.
-    if (autoUpdater) { try { autoUpdater.checkForUpdatesAndNotify(); } catch (e) { /* offline / no release yet */ } }
-    app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
+    screensaver.applyToWindow(win);
   });
+  app.on('window-all-closed', () => app.quit());
+} else {
+  // Normal app (double-click, or /c configure → open and show Settings).
+  // Single-instance: focus the existing window instead of spawning a second city.
+  const gotLock = app.requestSingleInstanceLock();
+  if (!gotLock) {
+    app.quit();
+  } else {
+    app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });
 
-  app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
+    app.whenReady().then(() => {
+      // Personal settings live in userData (survives auto-updates). Seed + wire the IPC
+      // BEFORE createWindow, so the preload's sync request is answered as the page loads.
+      CONFIG_PATH = path.join(app.getPath('userData'), 'config.json');
+      store.ensureConfig(CONFIG_PATH);
+      registerConfigIpc();
+      createWindow();
+      rebuildMenu();
+      createTray();
+      if (SS.config) win.webContents.once('did-finish-load', openSettings);
+      // check for a newer released version (silent; installs on next launch). Never block startup on it.
+      if (autoUpdater) { try { autoUpdater.checkForUpdatesAndNotify(); } catch (e) { /* offline / no release yet */ } }
+      app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
+    });
+
+    app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
+  }
 }
