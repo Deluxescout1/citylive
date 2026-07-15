@@ -7,10 +7,13 @@ const { app, BrowserWindow, Menu, Tray, nativeImage, shell, ipcMain, dialog } = 
 const path = require('path');
 const store = require('./config-store');
 const screensaver = require('./screensaver');
+const wallpaper = require('./wallpaper');
 
 // Windows may launch us as a screensaver (.scr) with /s, /c or /p. Detect that up front;
 // it changes how the window is created and whether we take the single-instance lock.
 const SS = screensaver.parseFlags(process.argv);
+// --wallpaper: start straight into behind-the-icons desktop wallpaper mode (Windows).
+const START_WALLPAPER = process.argv.includes('--wallpaper');
 
 // Where the friend's personal settings (birthdays / location / speed) live. This is in
 // the OS user-data folder, OUTSIDE the app bundle, so auto-updates never overwrite it.
@@ -28,17 +31,22 @@ app.disableHardwareAcceleration && false; // (keep HW accel on for smooth canvas
 
 let win = null;
 let tray = null;
-let wallpaperMode = false;
+let wallpaperMode = false;       // legacy ambient full-screen (non-Windows fallback)
+let desktopWallpaper = false;    // real behind-the-icons wallpaper (Windows)
+let wpWatch = null;              // watchdog timer that re-attaches after Explorer restarts
 
-function createWindow() {
+function createWindow(opts) {
+  const wp = !!(opts && opts.wallpaper);
+  const bare = SS.screensaver || wp;   // screensaver + wallpaper both want a chromeless full window
   win = new BrowserWindow({
     width: 1280,
     height: 720,
     minWidth: 480,
     minHeight: 320,
-    fullscreen: SS.screensaver,   // screensaver starts full-screen…
-    frame: !SS.screensaver,       // …with no window chrome
-    skipTaskbar: SS.screensaver,
+    fullscreen: bare,
+    frame: !bare,
+    skipTaskbar: bare,
+    focusable: !wp,              // a wallpaper never steals focus
     backgroundColor: '#05070c',
     title: 'CityLive',
     icon: path.join(__dirname, 'build', 'icon.png'),
@@ -59,7 +67,29 @@ function createWindow() {
     return { action: 'deny' };
   });
 
+  // Once the page is up, sink the window behind the desktop icons.
+  if (wp) win.webContents.once('did-finish-load', () => { wallpaper.attach(win); });
+
   win.on('closed', () => { win = null; });
+}
+
+// Turn the real "live wallpaper behind icons" mode on/off (Windows). On other
+// platforms fall back to the legacy ambient full-screen look.
+function setDesktopWallpaper(on) {
+  if (process.platform !== 'win32' || !wallpaper.available()) return setWallpaperMode(on);
+  desktopWallpaper = on;
+  // Frame/skip-taskbar/focusable are set at window creation, so re-create the window
+  // in the right shape instead of trying to mutate a live one.
+  if (win && !win.isDestroyed()) { const old = win; win = null; old.destroy(); }
+  createWindow({ wallpaper: on });
+  rebuildMenu();
+  if (wpWatch) { clearInterval(wpWatch); wpWatch = null; }
+  if (on) {
+    // If Explorer restarts, the WorkerW dies and we lose our parent — re-attach.
+    wpWatch = setInterval(() => {
+      if (desktopWallpaper && win && !win.isDestroyed() && !wallpaper.isStillAttached(win)) wallpaper.attach(win);
+    }, 4000);
+  }
 }
 
 // Reload the city so a settings change applies through the exact same startup path
@@ -143,11 +173,11 @@ function rebuildMenu() {
         { type: 'separator' },
         { label: 'Full Screen', accelerator: 'F11', click: toggleFullScreen },
         {
-          label: 'Wallpaper Mode',
+          label: isWin ? 'Desktop Wallpaper (behind icons)' : 'Wallpaper Mode',
           type: 'checkbox',
-          checked: wallpaperMode,
+          checked: isWin ? desktopWallpaper : wallpaperMode,
           accelerator: 'CmdOrCtrl+Shift+W',
-          click: (item) => setWallpaperMode(item.checked)
+          click: (item) => (isWin ? setDesktopWallpaper(item.checked) : setWallpaperMode(item.checked))
         },
         ...screensaverItems,
         { type: 'separator' },
@@ -170,7 +200,9 @@ function createTray() {
     tray.setContextMenu(Menu.buildFromTemplate([
       { label: 'Show', click: () => { if (win) { win.show(); win.focus(); } } },
       { label: 'Full Screen', click: toggleFullScreen },
-      { label: 'Wallpaper Mode', type: 'checkbox', checked: wallpaperMode, click: (i) => setWallpaperMode(i.checked) },
+      (process.platform === 'win32'
+        ? { label: 'Desktop Wallpaper (behind icons)', type: 'checkbox', checked: desktopWallpaper, click: (i) => setDesktopWallpaper(i.checked) }
+        : { label: 'Wallpaper Mode', type: 'checkbox', checked: wallpaperMode, click: (i) => setWallpaperMode(i.checked) }),
       { type: 'separator' },
       { label: 'Quit', click: () => app.quit() }
     ]));
@@ -208,7 +240,14 @@ if (SS.preview) {
       CONFIG_PATH = path.join(app.getPath('userData'), 'config.json');
       store.ensureConfig(CONFIG_PATH);
       registerConfigIpc();
-      createWindow();
+      const startWp = START_WALLPAPER && wallpaper.available();
+      createWindow(startWp ? { wallpaper: true } : undefined);
+      if (startWp) {
+        desktopWallpaper = true;
+        wpWatch = setInterval(() => {
+          if (desktopWallpaper && win && !win.isDestroyed() && !wallpaper.isStillAttached(win)) wallpaper.attach(win);
+        }, 4000);
+      }
       rebuildMenu();
       createTray();
       if (SS.config) win.webContents.once('did-finish-load', openSettings);

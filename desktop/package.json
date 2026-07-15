@@ -8,7 +8,8 @@
   "license": "MIT",
   "main": "main.js",
   "dependencies": {
-    "electron-updater": "^6.8.9"
+    "electron-updater": "^6.8.9",
+    "koffi": "^3.1.1"
   },
   "scripts": {
     "start": "electron .",
@@ -42,8 +43,12 @@
       "preload.js",
       "config-store.js",
       "screensaver.js",
+      "wallpaper.js",
       "renderer/**/*",
       "build/icon.png"
+    ],
+    "asarUnpack": [
+      "**/node_modules/koffi/**"
     ],
     "linux": {
       "target": [
