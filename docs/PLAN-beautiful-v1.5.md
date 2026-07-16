@@ -52,8 +52,8 @@ A6: port meander/foam/breakers from drawOpenSea into drawHarbor replacing 3810-3
   warm goldenK water reflections (gate cityG>.15) alongside neon (cityG>.5).
 
 ## Ordered steps & state  ⟵ UPDATE AS EXECUTED
-- [ ] 0 (inline) branch ✓ + QUAL==="performance"→===0 (8068,10221) + kde-repro dis/disf params + this doc
-- [ ] 1 (Opus) A1 golden pass (globals, sky gradient, folds, shadows, mountains/clouds→global) + sunrise/sunset renders
+- [x] 0 (inline) branch ✓ + QUAL==="performance"→===0 (8068,10221) + kde-repro dis/disf params + this doc
+- [x] 1 A1 golden pass DONE render-verified (sunset cinematic, noon untouched) (globals, sky gradient, folds, shadows, mountains/clouds→global) + sunrise/sunset renders
 - [ ] 2 (Opus) A1 night bloom (separate commit for perf bisect)
 - [ ] 3 (Sonnet) A3 haze gradients
 - [ ] 4 (Opus) A2 fire idiom + caller regressions, THEN inline-site conversions (2 commits)
