@@ -7674,7 +7674,7 @@ function drawWar(g,L,now,night){
   if(((Math.floor(now/6000))%4)===0) drawDoomHud(g,0.9,now,"OCCUPIED TERRITORY","OCCUPIED TERRITORY");
 }
 // which death this life ends by — every civilization falls differently
-var DEATHS=["meteors","nuke","sunburst","ai","bh","alienwar","frost","kaiju","flood"];
+var DEATHS=["meteors","nuke","sunburst","ai","bh","alienwar","frost","kaiju","flood","kaijuwar","pollution"];   // append-only (auto-mode hash maps h%length)
 var CFG_FINALE=null;   // config: pin which apocalypse ends EVERY life ("auto"/unset = varied per life)
 function deathOf(li){ if(CFG_FINALE) return CFG_FINALE;
   var h=((li*2654435761+977)>>>0); h=(h^(h>>>15))>>>0; return DEATHS[h%DEATHS.length]; }
