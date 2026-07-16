@@ -37,6 +37,9 @@ jobs:
       - name: Install dependencies
         run: npm ci || npm install
 
+      - name: Unit tests
+        run: npm test
+
       - name: Build installer
         # Build only — do NOT publish from here (these jobs are read-only; the release
         # job below publishes). electron-builder still emits the latest*.yml auto-update
@@ -45,6 +48,28 @@ jobs:
         env:
           # unsigned builds are fine for personal use; CSC_* secrets enable signing if added
           CSC_IDENTITY_AUTO_DISCOVERY: false
+
+      - name: Verify koffi native binary is packaged + loads (Windows wallpaper mode)
+        # The behind-icons wallpaper needs koffi's win32 .node, which lives in the separate
+        # @koromix/koffi-win32-x64 package and MUST be asar-unpacked. If it isn't shipped or
+        # can't dlopen, wallpaper.available() silently returns false and the feature dies.
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          $root = "dist/win-unpacked/resources/app.asar.unpacked/node_modules"
+          $paths = @(
+            "$root/@koromix/koffi-win32-x64/win32_x64/koffi.node",
+            "$root/koffi/build/koffi/win32_x64/koffi.node"
+          )
+          $found = $paths | Where-Object { Test-Path $_ }
+          if (-not $found) {
+            Write-Error "koffi win32 .node not found in packaged app. Checked: $($paths -join '; ')"
+            Get-ChildItem -Recurse "$root/@koromix" -ErrorAction SilentlyContinue | Select-Object FullName
+            exit 1
+          }
+          Write-Host "Found packaged koffi native binary: $($found -join ', ')"
+          # Prove the win32 prebuilt actually dlopens (N-API → Node/Electron share the ABI).
+          node -e "const k=require('koffi'); k.load('user32.dll'); console.log('koffi win32 dlopen OK')"
 
       - name: Upload installers
         uses: actions/upload-artifact@v4

@@ -13,4 +13,7 @@
   # Clean up the .scr and stop pointing the screensaver registry at a deleted file.
   Delete "$INSTDIR\CityLive.scr"
   nsExec::Exec 'reg delete "HKCU\Control Panel\Desktop" /v SCRNSAVE.EXE /f'
+  # Remove the "launch at login as wallpaper" autostart entry if it was set (no-op if absent).
+  nsExec::Exec 'reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v CityLive /f'
+  nsExec::Exec 'reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v citylive /f'
 !macroend

@@ -34,6 +34,8 @@ let tray = null;
 let wallpaperMode = false;       // legacy ambient full-screen (non-Windows fallback)
 let desktopWallpaper = false;    // real behind-the-icons wallpaper (Windows)
 let wpWatch = null;              // watchdog timer that re-attaches after Explorer restarts
+let wpFailStreak = 0;            // consecutive failed (re)attaches before we give up + fall back
+let wpDialogShown = false;       // latch so one failed attempt shows the fallback dialog once
 
 function createWindow(opts) {
   const wp = !!(opts && opts.wallpaper);
@@ -67,10 +69,85 @@ function createWindow(opts) {
     return { action: 'deny' };
   });
 
-  // Once the page is up, sink the window behind the desktop icons.
-  if (wp) win.webContents.once('did-finish-load', () => { wallpaper.attach(win); });
+  // Once the page is up, sink the window behind the desktop icons — and verify it took.
+  if (wp) win.webContents.once('did-finish-load', () => { attachOrFallback(win); });
 
   win.on('closed', () => { win = null; });
+}
+
+// --- Desktop-wallpaper support helpers (Windows) --------------------------------
+
+// Remember the choice in userData/config.json (survives auto-updates) so the city comes
+// back as the wallpaper after a reboot. Read-modify-write so birthdays etc. are untouched.
+function persistWallpaperPref(on) {
+  if (!CONFIG_PATH) return;
+  try {
+    const cfg = store.readConfig(CONFIG_PATH);
+    if (on) cfg.wallpaper = true; else delete cfg.wallpaper;
+    store.writeConfig(CONFIG_PATH, cfg);
+  } catch (e) { /* non-fatal: worst case the pref just doesn't persist */ }
+}
+
+// Launch at login in wallpaper mode so it behaves like a real wallpaper. Packaged Windows
+// only — never register the dev Electron binary, never touch login items on other OSes.
+function syncLoginItem(on) {
+  if (process.platform !== 'win32' || !app.isPackaged) return;
+  try { app.setLoginItemSettings({ openAtLogin: on, args: ['--wallpaper'] }); }
+  catch (e) { /* best effort */ }
+}
+
+// Attach behind the icons and verify it actually took. A failed reparent — or one that
+// silently drops a moment later on a quirky Explorer build — must never leave a chromeless
+// fullscreen window covering the desktop; fall back to a normal window + explain.
+function attachOrFallback(w) {
+  if (!wallpaper.attach(w)) { onWallpaperFailed('attach'); return; }
+  wpFailStreak = 0;
+  setTimeout(() => {
+    if (desktopWallpaper && win === w && !w.isDestroyed() && !wallpaper.isStillAttached(w)) {
+      onWallpaperFailed('dropped');
+    }
+  }, 1500);
+}
+
+// Behind-icons couldn't be established (or was lost and won't come back). Reshape to a
+// normal window — setDesktopWallpaper(false) does the full teardown, un-persists the pref
+// and drops the login item so a broken mode can't relaunch every login — then explain.
+function onWallpaperFailed(reason) {
+  if (!desktopWallpaper) return;
+  setDesktopWallpaper(false);
+  showWallpaperFallbackDialog();
+}
+
+// Friendly "it didn't work, here's what you can do instead" dialog.
+function showWallpaperFallbackDialog() {
+  if (wpDialogShown) return;
+  wpDialogShown = true;
+  dialog.showMessageBox(win && !win.isDestroyed() ? win : undefined, {
+    type: 'info',
+    title: 'CityLive',
+    message: "CityLive couldn't attach behind your desktop icons.",
+    detail: 'Whether this works depends on your Windows / Explorer build. The city is now '
+      + 'running as a normal window. You can instead use it as a screensaver, or set it as a '
+      + 'true wallpaper with the free Lively Wallpaper app.',
+    buttons: ['Use Screensaver Instead', 'Set Up Lively Wallpaper', 'Keep as a Window'],
+    defaultId: 2,
+    cancelId: 2
+  }).then((r) => {
+    if (r.response === 0) enableScreensaver();
+    else if (r.response === 1) shell.openExternal('https://deluxescout1.github.io/citylive/setup.html').catch(() => {});
+  }).catch(() => {});
+}
+
+// Watchdog: if Explorer restarts, the WorkerW dies and we lose our parent — re-attach.
+// After a few straight failures, give up gracefully rather than thrash forever.
+function startWallpaperWatch() {
+  if (wpWatch) { clearInterval(wpWatch); wpWatch = null; }
+  wpWatch = setInterval(() => {
+    if (!desktopWallpaper || !win || win.isDestroyed()) return;
+    if (wallpaper.isStillAttached(win)) { wpFailStreak = 0; return; }
+    if (wallpaper.attach(win)) { wpFailStreak = 0; }
+    else if (++wpFailStreak >= 3) { onWallpaperFailed('watchdog'); }
+  }, 4000);
 }
 
 // Turn the real "live wallpaper behind icons" mode on/off (Windows). On other
@@ -78,18 +155,18 @@ function createWindow(opts) {
 function setDesktopWallpaper(on) {
   if (process.platform !== 'win32' || !wallpaper.available()) return setWallpaperMode(on);
   desktopWallpaper = on;
-  // Frame/skip-taskbar/focusable are set at window creation, so re-create the window
-  // in the right shape instead of trying to mutate a live one.
-  if (win && !win.isDestroyed()) { const old = win; win = null; old.destroy(); }
+  if (on) wpDialogShown = false;   // allow a fresh failure dialog for this attempt
+  wpFailStreak = 0;
+  persistWallpaperPref(on);
+  syncLoginItem(on);
+  // Frame/skip-taskbar/focusable are set at window creation, so re-create the window in the
+  // right shape instead of mutating a live one. Detach first so we don't destroy it while
+  // it's still parented into the WorkerW.
+  if (win && !win.isDestroyed()) { const old = win; win = null; wallpaper.detach(old); old.destroy(); }
   createWindow({ wallpaper: on });
   rebuildMenu();
   if (wpWatch) { clearInterval(wpWatch); wpWatch = null; }
-  if (on) {
-    // If Explorer restarts, the WorkerW dies and we lose our parent — re-attach.
-    wpWatch = setInterval(() => {
-      if (desktopWallpaper && win && !win.isDestroyed() && !wallpaper.isStillAttached(win)) wallpaper.attach(win);
-    }, 4000);
-  }
+  if (on) startWallpaperWatch();
 }
 
 // Reload the city so a settings change applies through the exact same startup path
@@ -99,9 +176,30 @@ function reloadCity() { if (win && !win.isDestroyed()) win.reload(); }
 // Ask the renderer to open its Settings panel.
 function openSettings() { if (win) win.webContents.send('citylive:open-settings'); }
 
+// Open Settings so it's actually usable. In wallpaper mode the window sits BEHIND the
+// desktop icons and is click-through, so its in-window Settings panel can't be reached —
+// drop back to a normal window first, then open the panel once it has reloaded.
+function openSettingsInteractive() {
+  if (desktopWallpaper) {
+    setDesktopWallpaper(false);
+    if (win) win.webContents.once('did-finish-load', openSettings);
+  } else {
+    if (win) { win.show(); win.focus(); }
+    openSettings();
+  }
+}
+
+// Persist user settings while preserving the live wallpaper-mode flag. The Settings panel
+// and reset build a fresh { birthdays, cycle, lat?, lon? } object with no knowledge of
+// wallpaper mode, so without this overlay any save/reset would silently turn it off on disk.
+function writeUserConfig(cfg) {
+  const merged = Object.assign({}, cfg, desktopWallpaper ? { wallpaper: true } : {});
+  return store.writeConfig(CONFIG_PATH, merged);
+}
+
 function resetSettings() {
   if (!CONFIG_PATH) return;
-  store.writeConfig(CONFIG_PATH, store.DEFAULT_CONFIG);
+  writeUserConfig(store.DEFAULT_CONFIG);
   reloadCity();
 }
 
@@ -117,8 +215,8 @@ function registerConfigIpc() {
   // Async: the Settings panel loads the current values to populate its fields.
   ipcMain.handle('citylive:get-config', () => store.readConfig(CONFIG_PATH));
   // Async: the Settings panel saves; we persist then reload so the change takes effect.
-  ipcMain.handle('citylive:save-config', (e, cfg) => { const clean = store.writeConfig(CONFIG_PATH, cfg); reloadCity(); return clean; });
-  ipcMain.handle('citylive:reset-config', () => { const def = store.writeConfig(CONFIG_PATH, store.DEFAULT_CONFIG); reloadCity(); return def; });
+  ipcMain.handle('citylive:save-config', (e, cfg) => { const clean = writeUserConfig(cfg); reloadCity(); return clean; });
+  ipcMain.handle('citylive:reset-config', () => { const def = writeUserConfig(store.DEFAULT_CONFIG); reloadCity(); return def; });
   ipcMain.handle('citylive:open-config-file', () => (CONFIG_PATH ? shell.openPath(CONFIG_PATH) : Promise.resolve('')));
 }
 
@@ -167,7 +265,7 @@ function rebuildMenu() {
     {
       label: 'CityLive',
       submenu: [
-        { label: 'Settings / Birthdays…', accelerator: 'CmdOrCtrl+,', click: openSettings },
+        { label: 'Settings / Birthdays…', accelerator: 'CmdOrCtrl+,', click: openSettingsInteractive },
         { label: 'Open Config File', click: () => CONFIG_PATH && shell.openPath(CONFIG_PATH) },
         { label: 'Reset Settings to Defaults', click: resetSettings },
         { type: 'separator' },
@@ -179,6 +277,12 @@ function rebuildMenu() {
           accelerator: 'CmdOrCtrl+Shift+W',
           click: (item) => (isWin ? setDesktopWallpaper(item.checked) : setWallpaperMode(item.checked))
         },
+        // Escape hatch for the case we CAN'T auto-detect: the reparent succeeds but a given
+        // Windows build composites our layer wrong (nothing in the API reveals this).
+        ...(isWin ? [{
+          label: 'Wallpaper didn’t work?',
+          click: () => { if (desktopWallpaper) setDesktopWallpaper(false); wpDialogShown = false; showWallpaperFallbackDialog(); }
+        }] : []),
         ...screensaverItems,
         { type: 'separator' },
         { label: 'Reload City', accelerator: 'CmdOrCtrl+R', click: () => win && win.reload() },
@@ -197,12 +301,18 @@ function createTray() {
     if (img.isEmpty()) return;
     tray = new Tray(img.resize({ width: 18, height: 18 }));
     tray.setToolTip('CityLive');
+    const trayIsWin = process.platform === 'win32';
     tray.setContextMenu(Menu.buildFromTemplate([
       { label: 'Show', click: () => { if (win) { win.show(); win.focus(); } } },
       { label: 'Full Screen', click: toggleFullScreen },
-      (process.platform === 'win32'
+      // The tray is the only UI once the city is the wallpaper (the window is behind the
+      // icons), so Settings must be reachable from here.
+      { label: 'Settings / Birthdays…', click: openSettingsInteractive },
+      { label: 'Open Config File', click: () => CONFIG_PATH && shell.openPath(CONFIG_PATH) },
+      (trayIsWin
         ? { label: 'Desktop Wallpaper (behind icons)', type: 'checkbox', checked: desktopWallpaper, click: (i) => setDesktopWallpaper(i.checked) }
         : { label: 'Wallpaper Mode', type: 'checkbox', checked: wallpaperMode, click: (i) => setWallpaperMode(i.checked) }),
+      ...(trayIsWin ? [{ label: 'Wallpaper didn’t work?', click: () => { if (desktopWallpaper) setDesktopWallpaper(false); wpDialogShown = false; showWallpaperFallbackDialog(); } }] : []),
       { type: 'separator' },
       { label: 'Quit', click: () => app.quit() }
     ]));
@@ -240,15 +350,16 @@ if (SS.preview) {
       CONFIG_PATH = path.join(app.getPath('userData'), 'config.json');
       store.ensureConfig(CONFIG_PATH);
       registerConfigIpc();
-      const startWp = START_WALLPAPER && wallpaper.available();
-      createWindow(startWp ? { wallpaper: true } : undefined);
-      if (startWp) {
-        desktopWallpaper = true;
-        wpWatch = setInterval(() => {
-          if (desktopWallpaper && win && !win.isDestroyed() && !wallpaper.isStillAttached(win)) wallpaper.attach(win);
-        }, 4000);
+      // Start as the wallpaper if launched with --wallpaper (autostart) OR the friend left
+      // wallpaper mode on last time. One code path (setDesktopWallpaper) creates the window,
+      // arms the watchdog and builds the menu; otherwise a normal window.
+      const wantWp = (START_WALLPAPER || !!store.readConfig(CONFIG_PATH).wallpaper) && wallpaper.available();
+      if (wantWp) {
+        setDesktopWallpaper(true);
+      } else {
+        createWindow();
+        rebuildMenu();
       }
-      rebuildMenu();
       createTray();
       if (SS.config) win.webContents.once('did-finish-load', openSettings);
       // check for a newer released version (silent; installs on next launch). Never block startup on it.

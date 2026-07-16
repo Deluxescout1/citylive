@@ -54,6 +54,10 @@ function sanitizeConfig(raw) {
   if (isFinite(lat) && isFinite(lon) && lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180) {
     out.lat = lat; out.lon = lon;
   }
+  // Whether the app should run as the behind-the-icons desktop wallpaper (Windows).
+  // Stored only when true (absent = off), mirroring the `pink` flag style above so the
+  // app can re-enter wallpaper mode + re-arm autostart after a reboot. See main.js.
+  if (cfg.wallpaper) out.wallpaper = true;
   return out;
 }
 
