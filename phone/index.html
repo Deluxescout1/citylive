@@ -23,9 +23,11 @@
   function boot(){
     var dpr=Math.min(2,window.devicePixelRatio||1);
     var pw=Math.round(window.innerWidth*dpr), ph=Math.round(window.innerHeight*dpr);
+    // auto-scale for any phone: pick PXK from the short side against the tuned baseline
+    PXK=Math.max(2,Math.min(10,Math.round(Math.min(pw,ph)/430)||PXK));
     var cw=Math.max(120,Math.round(pw/PXK)), ch=Math.max(120,Math.round(ph/PXK));
     cv.width=cw; cv.height=ch;
-    setup("neon",{cw:cw,ch:ch,woff:0,ww:cw,pxk:PXK,zoom:ZOOMP,quality:"performance"});
+    setup("neon",{cw:cw,ch:ch,woff:0,ww:cw,pxk:PXK,kspAuto:true,zoom:ZOOMP,quality:"performance"});
   }
   boot();
   var t=null;
@@ -50,7 +52,7 @@
     var pw=Math.round(window.innerWidth*dpr), ph=Math.round(window.innerHeight*dpr);
     var cw=Math.max(120,Math.round(pw/PXK)), ch=Math.max(120,Math.round(ph/PXK));
     cv.width=cw; cv.height=ch;
-    setup("neon",{cw:cw,ch:ch,woff:0,ww:cw,pxk:PXK,zoom:ZOOMP,quality:curQ});
+    setup("neon",{cw:cw,ch:ch,woff:0,ww:cw,pxk:PXK,kspAuto:true,zoom:ZOOMP,quality:curQ});
   }
   // keep the screen awake while displayed (best effort)
   if(navigator.wakeLock) navigator.wakeLock.request("screen").catch(function(){});

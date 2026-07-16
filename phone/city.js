@@ -1842,7 +1842,13 @@ function setup(scene,opts){
   // resolution scale: at PXK 4 ("64-bit" fine-pixel mode) the same desktop is 1.5× more
   // world-px wide, so world speeds & building masses scale by KSP to keep real-world
   // timing and screen composition identical. KSP=1 at the classic PXK 6 → exact no-op.
-  KSP=6/(opts.pxk||6);
+  // kspAuto (single-window hosts: desktop app / web / phone): the 6/pxk law assumes a
+  // 2560-class monitor, so on a small screen the HUD/text stays physically huge. When the
+  // canvas IS the whole world, scale features by the ACTUAL logical width against the
+  // tuned 427px baseline instead — every resolution then gets the same composition.
+  // (KDE multi-monitor slices keep the pxk law: per-screen widths differ and features
+  // must stay world-consistent across bezels.)
+  KSP=opts.kspAuto ? Math.max(0.55,Math.min(2.2,(opts.cw||480)/427)) : 6/(opts.pxk||6);
   QUAL=opts.quality==="performance"?0:(opts.quality==="balanced"?1:2);
   // Foreground depth (world-px from the bottom). Default 26wp (≈156px) — room for a
   // sidewalk + 4 lanes and clears a standard ~44px taskbar. But if THIS screen reports
@@ -6089,6 +6095,38 @@ function drawDisasterHud(g,cd,now){
   if(f<0.50){ for(var ip=0;ip<5;ip++){ var lit=ip<cd.intensity;
     for(var wp2=-1;wp2<=1;wp2++){ var ppx=(cd.x-8+ip*4)-WOFF+wp2*WW; if(ppx<-2||ppx>SW+2) continue;
       g.fillStyle=lit?(col+a+")"):"rgba(80,80,90,0.6)"; g.fillRect(ppx|0,ty+9,3,2); } } }
+  drawBattleBars(g,cd,now,ty);
+}
+
+// MONSTER vs CITY health bars — for creature attacks you can now SEE who is winning.
+// Purely deterministic from the disaster phase + its predetermined outcome (cd.win), so
+// every screen shows the same fight. Curves: during the STRIKE window the loser's bar
+// drains hard; the winner's is scratched proportionally to CAT. A small clock-seeded
+// wobble makes the exchange feel live without storing any state.
+var DIS_MONSTER={zombie:1,alien:1,kaiju:1,mech:1,kraken:1,rift:1};
+function drawBattleBars(g,cd,now,ty){
+  if(!DIS_MONSTER[cd.type] || cd.f<0.10 || cd.f>=0.50) return;
+  var p=Math.max(0,Math.min(1,(cd.f-0.10)/0.26));            // fight progress through STRIKE
+  var iK=cd.intensity, wob=Math.sin(now/240+cd.seed)*0.025;  // live jitter
+  var mHP, cHP;
+  if(cd.win!==false){ mHP=1-p; cHP=1-p*(0.12+iK*0.07); }     // city repels it: monster drains
+  else { mHP=1-p*0.45; cHP=1-p*(0.55+iK*0.06); }             // defenses overrun: city drains
+  mHP=Math.max(0,Math.min(1,mHP+wob)); cHP=Math.max(0,Math.min(1,cHP-wob));
+  var rows=[[DIS_NAME[cd.type],mHP,[255,64,96]],["CITY",cHP,null]];   // city colour by health below
+  var BW=34, LX=cd.x-24, y0=ty+13;
+  for(var ri=0;ri<rows.length;ri++){ var lab=rows[ri][0], hp=rows[ri][1], rc=rows[ri][2];
+    if(!rc) rc=hp>0.5?[80,230,130]:(hp>0.25?[255,190,50]:[255,70,60]);   // city: green→amber→red
+    var y=y0+ri*7;
+    for(var wp3=-1;wp3<=1;wp3++){ var bx=LX-WOFF+wp3*WW; if(bx+BW+30<-2||bx>SW+2) continue;
+      drawPixText(g,lab,bx,y,"rgba(235,240,255,0.92)",1);
+      var brx=(bx+textW(lab)+3)|0;
+      g.fillStyle="rgba(8,8,14,0.78)"; g.fillRect(brx-1,y-1,BW+2,5);                       // backing
+      g.fillStyle="rgba(120,120,140,0.5)"; g.fillRect(brx-1,y-1,BW+2,1); g.fillRect(brx-1,y+3,BW+2,1);
+      g.fillStyle="rgba("+rc[0]+","+rc[1]+","+rc[2]+",0.95)";
+      g.fillRect(brx,y,Math.max(0,Math.round(BW*hp)),3);                                   // health fill
+      if(hp>0&&hp<1){ g.fillStyle="rgba(255,255,255,0.55)"; g.fillRect(brx+Math.round(BW*hp)-1,y,1,3); } // hit edge
+    }
+  }
 }
 
 // ============================================================================

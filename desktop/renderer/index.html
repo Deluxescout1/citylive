@@ -158,9 +158,14 @@
 
   function boot(){
     var dpr=Math.min(2,window.devicePixelRatio||1);
+    // AUTO-SCALE to the screen: pick the pixel factor so the logical canvas lands near the
+    // engine's tuned 427px-wide baseline on ANY resolution (1024x768 → 2, 1080p → 4,
+    // 1440p → 6, 4K → 9). Combined with kspAuto below, HUD text/banners keep the same
+    // PROPORTION of the screen everywhere instead of a fixed physical size.
+    PXK=Math.max(2,Math.min(10,Math.round(window.innerWidth*dpr/430)||PXK));
     var cw=Math.max(160,Math.round(window.innerWidth*dpr/PXK)), ch=Math.max(120,Math.round(window.innerHeight*dpr/PXK));
     cv.width=cw; cv.height=ch;
-    setup('neon',{cw:cw,ch:ch,woff:0,ww:cw,pxk:PXK,zoom:1,quality:st.quality});
+    setup('neon',{cw:cw,ch:ch,woff:0,ww:cw,pxk:PXK,kspAuto:true,zoom:1,quality:st.quality});
   }
 
   function applyOverrides(){
