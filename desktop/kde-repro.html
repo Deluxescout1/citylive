@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>kde-repro</title>
+<style>html,body{margin:0;background:#000}canvas{image-rendering:pixelated}</style></head>
+<body>
+<canvas id="cv"></canvas>
+<script src="renderer/city.js"></script>
+<script>
+// Replicate the KDE plugin EXACTLY: a per-monitor SLICE of the 3-monitor world at pxk 3
+// (KSP=6/3=2, the classic law — NO kspAuto), so slice/wrap-only artifacts reproduce.
+var cv=document.getElementById('cv'), g=cv.getContext('2d');
+var Q=new URLSearchParams(location.search);
+var cw=+Q.get('cw')||853, ch=+Q.get('ch')||480, woff=+Q.get('woff')||776, ww=+Q.get('ww')||2269;
+cv.width=cw; cv.height=ch;
+var sw2=+Q.get('screenw')||cw*3, sh2=+Q.get('screenh')||ch*3;
+cv.style.width=sw2+'px'; cv.style.height=sh2+'px';
+if(Q.get('smooth')==='1') cv.style.imageRendering='auto';   // linear sampling, like a GPU texture upscale
+FORCEAGE=+Q.get('age')||0.12;
+try{ setup('neon',{cw:cw,ch:ch,woff:woff,ww:ww,pxk:3,zoom:1,quality:'spectacle'}); document.title='SETUP_OK'; }
+catch(e){ document.title='SETUP_ERR '+(e&&e.message); }
+function frame(){ try{ draw(g); }catch(e){ document.title='DRAW_ERR '+e; } requestAnimationFrame(frame); }
+frame();
+</script>
+</body></html>

@@ -18,6 +18,7 @@ const H = parseInt(process.env.CLH || '720', 10);
 const OUT = process.env.CLOUT || path.join(__dirname, 'scale.png');
 const DIS = process.env.CLDIS || '';
 const ERA = process.env.CLERA || '';
+const AGE = (process.env.CLAGE && isFinite(+process.env.CLAGE)) ? +process.env.CLAGE : 1;  // city maturity 0..1 (village ~0.12)
 const WEATHER = process.env.CLWEATHER || '';
 const AQ = process.env.CLAQ || '';
 const NOW = process.env.CLNOW || '';
@@ -51,8 +52,8 @@ app.whenReady().then(() => {
     const nowJs = isFinite(nowMs) ? `NOWOVR=${nowMs}; ` : '';
     const overrideJs = eraJs + weatherJs + aqJs + nowJs;
     const js = DIS
-      ? `${overrideJs}FORCEDIS={type:'${DIS}',intensity:4,xf:0.5,w:60,seed:77,f:0.25}; FORCEAGE=1; 'ok'`
-      : `${overrideJs}FORCEAGE=1; 'ok'`;
+      ? `${overrideJs}FORCEDIS={type:'${DIS}',intensity:4,xf:0.5,w:60,seed:77,f:0.25}; FORCEAGE=${AGE}; 'ok'`
+      : `${overrideJs}FORCEAGE=${AGE}; 'ok'`;
     win.webContents.executeJavaScript(js).then(() => {
       setTimeout(async () => {
         try {
