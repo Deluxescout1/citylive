@@ -39,6 +39,7 @@ let wpDialogShown = false;       // latch so one failed attempt shows the fallba
 let wallpaperPref = null;        // tri-state mirror of config `wallpaper`: true/false/null(=never decided)
 let suspendedForSettings = false;// wallpaper temporarily dropped to a window so Settings is reachable
 let firstRunBalloon = false;     // show the one-time "this is your wallpaper now" tray balloon
+let quitting = false;            // true once the user really wants to exit (before-quit)
 
 function createWindow(opts) {
   const wp = !!(opts && opts.wallpaper);
@@ -83,7 +84,15 @@ function createWindow(opts) {
   });
 
   // Once the page is up, sink the window behind the desktop icons — and verify it took.
-  if (wp) win.webContents.once('did-finish-load', () => { attachOrFallback(win); });
+  // On RECOVERY (Explorer restarted, Progman was recreated) retry quietly instead of
+  // popping the fallback dialog: Progman may still be respawning for a second or two.
+  if (wp) {
+    const recovering = !!(opts && opts.recovering);
+    win.webContents.once('did-finish-load', () => {
+      if (recovering) attachWithRetry(win, 5);
+      else attachOrFallback(win);
+    });
+  }
 
   // Only null the module ref if it still points at THIS window — during a wallpaper-mode
   // swap the old window's `closed` fires after the replacement was already assigned.
@@ -125,6 +134,38 @@ function attachOrFallback(w) {
     if (!desktopWallpaper || win !== w || w.isDestroyed()) return;
     if (!wallpaper.isStillAttached(w)) onWallpaperFailed('dropped');
     else maybeShowFirstRunBalloon();   // attach VERIFIED — safe to greet the first-run user
+  }, 1500);
+}
+
+// Recovery attach (after an Explorer restart recreated Progman): keep retrying for a few
+// seconds before giving up, so a transient "Progman not ready yet" doesn't tear down the
+// user's wallpaper and pop a dialog. Only falls back after the retries are exhausted.
+function attachWithRetry(w, triesLeft) {
+  if (quitting || !desktopWallpaper || !w || w.isDestroyed() || win !== w) return;
+  if (wallpaper.attach(w)) {
+    setTimeout(() => {
+      if (quitting || !desktopWallpaper || win !== w || w.isDestroyed()) return;
+      if (wallpaper.isStillAttached(w)) return;                 // recovered
+      if (triesLeft > 0) attachWithRetry(w, triesLeft - 1);
+      else onWallpaperFailed('recover-dropped');
+    }, 1200);
+    return;
+  }
+  if (triesLeft > 0) setTimeout(() => attachWithRetry(w, triesLeft - 1), 1200);
+  else onWallpaperFailed('recover-attach');
+}
+
+// The wallpaper window was destroyed out from under us — almost always because Explorer
+// restarted (its Progman owns our reparented child window, so it dies with Explorer). A
+// wallpaper must survive that: rebuild the window and re-attach to the NEW Progman instead
+// of letting the app quit. Delayed so Explorer/Progman can finish respawning first.
+function handleWallpaperWindowLost() {
+  if (quitting || !desktopWallpaper) return;
+  setTimeout(() => {
+    if (quitting || !desktopWallpaper || (win && !win.isDestroyed())) return;
+    createWindow({ wallpaper: true, recovering: true });
+    if (wpWatch) { clearInterval(wpWatch); wpWatch = null; }
+    startWallpaperWatch();
   }, 1500);
 }
 
@@ -418,6 +459,9 @@ if (SS.preview) {
     app.quit();
   } else {
     app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });
+    // A real exit (tray Quit / OS shutdown) must actually quit; a window merely being
+    // destroyed by an Explorer restart must NOT (see window-all-closed below).
+    app.on('before-quit', () => { quitting = true; });
 
     app.whenReady().then(() => {
       // Personal settings live in userData (survives auto-updates). Seed + wire the IPC
@@ -450,6 +494,15 @@ if (SS.preview) {
       app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
     });
 
-    app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
+    app.on('window-all-closed', () => {
+      // If our wallpaper window vanished (Explorer restart destroyed Progman + our child)
+      // and the user isn't actually quitting, resurrect it instead of exiting — otherwise
+      // the live wallpaper would disappear until the next reboot.
+      if (!quitting && desktopWallpaper && process.platform === 'win32' && wallpaper.available()) {
+        handleWallpaperWindowLost();
+        return;
+      }
+      if (process.platform !== 'darwin') app.quit();
+    });
   }
 }
