@@ -2727,6 +2727,7 @@ function drawCrown(g,crown,bx,top,bw,col,accent,L,now,night){
     g.fillStyle=L>0.5?"#2a2d36":"#0e0f16"; g.fillRect(bbx,top-2,1,2); g.fillRect(bbx+bbw-1,top-2,1,2);      // support legs
     g.fillStyle=L>0.5?"#3a3f4a":"#161922"; g.fillRect(bbx,top-2-bbh,bbw,bbh);                               // panel backing
     g.globalCompositeOperation="lighter"; var ba=0.45+0.4*night;
+    if(night>0.4){ g.fillStyle=rgba(accent,ba*0.22); g.fillRect(bbx,top-2-bbh,bbw,bbh+1); }                  // soft halo bleeding past the frame
     g.fillStyle=rgba(accent,ba); g.fillRect(bbx+1,top-1-bbh,bbw-2,bbh-2);                                    // glowing lit face
     g.fillStyle="rgba(255,255,255,"+(0.4*night+0.15)+")"; g.fillRect(bbx+2,top-bbh,Math.max(1,bbw-4),1);     // a bright copy line
     g.globalCompositeOperation="source-over";
@@ -3155,6 +3156,7 @@ function drawLayer(g,layer,L,now,fx,hol,haze){
       var hc=cityEra.neon?b.accent:cityEra.glow, hc2=cityEra.neon?b.accent2:cityEra.glow;
       g.fillStyle=rgba(hc,glow); g.fillRect(bx-1,top,b.w+2,bh);
       g.fillStyle=rgba(hc2,glow*0.5); g.fillRect(bx,top-1,b.w,Math.min(bh,10));
+      g.fillStyle=rgba(hc,glow*0.35); g.fillRect(bx-2,top-4,b.w+4,4);   // bloom crown rising above the roofline
       g.globalCompositeOperation="source-over";
     }
     if(layer===near&&b.type!=="park"){
@@ -3196,7 +3198,8 @@ function drawLayer(g,layer,L,now,fx,hol,haze){
         buzz=((Math.floor(now/53))+bi)%17===0?0.45:0.95;
         for(var k=0;k<b.gl.length;k++){ var yy=top+b.signY+k*4; if(yy>HORIZON-8) break;
           var pat=b.gl[k];
-          g.fillStyle=sc; g.globalAlpha=0.20*buzz; g.fillRect(sgx-1,yy-1,5,4);
+          g.fillStyle=sc; g.globalAlpha=0.10*buzz; g.fillRect(sgx-2,yy-2,7,6);   // outer bloom
+          g.globalAlpha=0.20*buzz; g.fillRect(sgx-1,yy-1,5,4);
           g.globalAlpha=buzz;
           for(var px=0;px<3;px++) for(var py=0;py<3;py++) if(pat&(1<<(py*3+px))) g.fillRect(sgx+px,yy+py,1,1);
           g.globalAlpha=1; }
@@ -3228,7 +3231,8 @@ function drawLayer(g,layer,L,now,fx,hol,haze){
       if(L<0.62){ var ec=b.entrWarm?[255,214,140]:hex2rgb(NEON[b.ledC]);
         g.globalCompositeOperation="lighter";
         g.fillStyle=rgba(ec,0.42*night+0.12); g.fillRect(eX,HORIZON-edh+1,edw,edh-1);   // warm interior glow
-        g.fillStyle=rgba(ec,0.20*night);      g.fillRect(eX-1,HORIZON-1,edw+2,1);       // light pooling on the pavement
+        g.fillStyle=rgba(ec,0.24*night);      g.fillRect(eX-1,HORIZON-1,edw+2,1);       // light pooling on the pavement
+        g.fillStyle=rgba(ec,0.10*night);      g.fillRect(eX-2,HORIZON-2,edw+4,2);        // softer wider spill
         g.globalCompositeOperation="source-over"; }
       if(b.awning>=0){ var awc=hex2rgb(NEON[b.awning]), aw=Math.min(b.w-2,edw+4), aX=bx+((b.w-aw)>>1);
         g.fillStyle=rgba(awc,0.85); g.fillRect(aX,HORIZON-edh-1,aw,1);        // marquee band above the door
