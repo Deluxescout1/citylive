@@ -15,5 +15,7 @@ contextBridge.exposeInMainWorld('citylive', {
   saveConfig: (cfg) => ipcRenderer.invoke('citylive:save-config', cfg), // persist (main reloads the city)
   resetConfig: () => ipcRenderer.invoke('citylive:reset-config'),
   openConfigFile: () => ipcRenderer.invoke('citylive:open-config-file'),
-  onOpenSettings: (cb) => ipcRenderer.on('citylive:open-settings', () => cb())
+  onOpenSettings: (cb) => ipcRenderer.on('citylive:open-settings', () => cb()),
+  getVersion: () => ipcRenderer.invoke('citylive:get-version'),
+  settingsClosed: () => ipcRenderer.send('citylive:settings-closed')
 });

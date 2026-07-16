@@ -14,10 +14,13 @@ test('wallpaper:true survives sanitize', () => {
   assert.strictEqual(out.wallpaper, true);
 });
 
-test('wallpaper flag is absent when off / falsy', () => {
-  for (const v of [false, 0, null, undefined, '']) {
-    const out = store.sanitizeConfig({ wallpaper: v });
-    assert.ok(!('wallpaper' in out), `expected no key for ${JSON.stringify(v)}`);
+test('tri-state: explicit false survives, other falsy junk drops', () => {
+  const out = store.sanitizeConfig({ wallpaper: false });
+  assert.strictEqual(out.wallpaper, false);
+
+  for (const v of [0, null, undefined, '']) {
+    const undecided = store.sanitizeConfig({ wallpaper: v });
+    assert.ok(!('wallpaper' in undecided), `expected no key for ${JSON.stringify(v)}`);
   }
   assert.ok(!('wallpaper' in store.sanitizeConfig({})));
 });
@@ -64,4 +67,31 @@ test('a Settings-panel-shaped save (no wallpaper key) clears the flag — docume
   const panelSave = { birthdays: [], cycle: '1w' };
   assert.ok(!('wallpaper' in store.sanitizeConfig(panelSave)));
   assert.ok('wallpaper' in store.sanitizeConfig(Object.assign({}, panelSave, { wallpaper: true })));
+});
+
+test('write → read round-trip persists an explicit wallpaper:false opt-out', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'citylive-cfg-'));
+  const file = path.join(dir, 'config.json');
+  try {
+    store.writeConfig(file, { wallpaper: false, cycle: '1w', birthdays: [] });
+    const back = store.readConfig(file);
+    assert.strictEqual(back.wallpaper, false);
+    assert.strictEqual(back.cycle, '1w');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('a Settings-panel-shaped save merged with an explicit wallpaper decision preserves it either way', () => {
+  // Same panel shape as gather() would produce, but simulating main.js overlaying the
+  // user's last explicit wallpaper decision before persisting.
+  const panelSave = { birthdays: [], cycle: '1w' };
+  assert.strictEqual(
+    store.sanitizeConfig(Object.assign({}, panelSave, { wallpaper: false })).wallpaper,
+    false
+  );
+  assert.strictEqual(
+    store.sanitizeConfig(Object.assign({}, panelSave, { wallpaper: true })).wallpaper,
+    true
+  );
 });

@@ -54,10 +54,12 @@ function sanitizeConfig(raw) {
   if (isFinite(lat) && isFinite(lon) && lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180) {
     out.lat = lat; out.lon = lon;
   }
-  // Whether the app should run as the behind-the-icons desktop wallpaper (Windows).
-  // Stored only when true (absent = off), mirroring the `pink` flag style above so the
-  // app can re-enter wallpaper mode + re-arm autostart after a reboot. See main.js.
+  // Tri-state behind-the-icons wallpaper flag (Windows): true = on, explicit false =
+  // the user turned it off (never auto-retry), key ABSENT = never decided — on a fresh
+  // install the app defaults to wallpaper mode. Only a strict `false` survives as the
+  // opt-out; other falsy junk (0/null/'') stays "undecided". See main.js startup gate.
   if (cfg.wallpaper) out.wallpaper = true;
+  else if (cfg.wallpaper === false) out.wallpaper = false;
   return out;
 }
 

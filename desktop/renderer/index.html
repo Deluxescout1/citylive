@@ -118,6 +118,7 @@
       <button id="setCancel">Cancel</button>
       <button id="setSave" class="primary">Save</button>
     </div>
+    <div id="appver" style="opacity:.55;font-size:11px;margin-top:8px"></div>
   </div>
 </div>
 
@@ -257,7 +258,17 @@
   }
 
   function show(){ load(); panel.classList.remove('hidden'); }
-  function hide(){ panel.classList.add('hidden'); }
+  function hide(){
+    panel.classList.add('hidden');
+    // Tell main so it can resume wallpaper mode after a Cancel. Guarded: this same
+    // index.html is also loaded in plain web / non-Electron builds with no bridge.
+    if(window.citylive && window.citylive.settingsClosed){ try{ window.citylive.settingsClosed(); }catch(e){} }
+  }
+
+  // Version footer — best-effort, guarded for the plain web build (no window.citylive).
+  if(window.citylive && window.citylive.getVersion){
+    window.citylive.getVersion().then(function(v){ document.getElementById('appver').textContent='CityLive v'+v; }).catch(function(){});
+  }
 
   api.onOpenSettings(show);
   document.getElementById('bdayAdd').addEventListener('click',function(){ listEl.appendChild(bdayRow({label:'HAPPY BIRTHDAY '})); });

@@ -17,6 +17,8 @@ dependencies, no WebEngine. Just files.
 >
 > **macOS** → [download the `.dmg`](https://github.com/Deluxescout1/citylive/releases/latest) · **Linux** → [`.AppImage` or `.deb`](https://github.com/Deluxescout1/citylive/releases/latest), or use the KDE wallpaper below.
 
+> **Note:** the one-click experience where CityLive installs as your actual desktop background (behind your icons) requires **v1.1.0 or newer**. The current release at the link above is **v1.0.2**, which only runs as a regular windowed app — the wallpaper mode isn't in that build yet. This link will point at the right thing automatically once v1.1.0 ships.
+
 **Not sure what to click?** Everything is on the **[Releases page](https://github.com/Deluxescout1/citylive/releases/latest)** under **Assets**. Grab the file for your system:
 
 | Your computer | The file to download |
