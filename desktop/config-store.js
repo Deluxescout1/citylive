@@ -87,6 +87,25 @@ function sanitizeConfig(raw) {
   if (cfg.disasters === 'rare' || cfg.disasters === 'normal' || cfg.disasters === 'frequent') {
     out.disasters = cfg.disasters;
   }
+
+  // Finale pin: 'auto' (a different fate each life, the engine's own default) or one of
+  // the 9 exact apocalypse names below; absent/junk drops so the engine picks auto.
+  const FINALES = ['meteors', 'nuke', 'sunburst', 'ai', 'bh', 'alienwar', 'frost', 'kaiju', 'flood'];
+  if (cfg.finale === 'auto' || FINALES.indexOf(cfg.finale) >= 0) {
+    out.finale = cfg.finale;
+  }
+
+  // World-restart request: a "pick your apocalypse now" click. worldRestartAt is the ms
+  // timestamp of that click (only finite positive integers survive — Number-coerce, then
+  // floor so a stray fractional value can't sneak through), worldRestartMode says whether
+  // the chosen finale plays out first ('apoc') or the world reborns instantly ('fresh').
+  // These persist independently of `finale` — the pinned fate and the "end it now" request
+  // are separate decisions.
+  const restartAt = Math.floor(Number(cfg.worldRestartAt));
+  if (isFinite(restartAt) && restartAt > 0) out.worldRestartAt = restartAt;
+  if (cfg.worldRestartMode === 'apoc' || cfg.worldRestartMode === 'fresh') {
+    out.worldRestartMode = cfg.worldRestartMode;
+  }
   return out;
 }
 

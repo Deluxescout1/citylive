@@ -145,6 +145,27 @@
     <div class="note" id="citySaveNote"></div>
   </div>
 
+  <div class="card" id="cardWorld">
+    <h2>World</h2>
+    <p class="hint">Every life the city lives ends in an apocalypse, then is reborn. Pin which one — or let fate decide — and rewind or fast-forward right now.</p>
+    <section>
+      <h3>World ends by</h3>
+      <div class="row2">
+        <label>Fate of this world
+          <select id="finale"></select></label>
+      </div>
+    </section>
+    <section>
+      <h3>Right now</h3>
+      <p class="hint">Saves your other World/City Settings changes too.</p>
+      <div class="row">
+        <button id="worldEnd" class="off">☄ End the world now</button>
+        <button id="worldFresh" class="ghost">🌱 Start a fresh world</button>
+      </div>
+      <div class="note" id="worldNote"></div>
+    </section>
+  </div>
+
   <div class="card" id="cardUpdates">
     <h2>Updates</h2>
     <div class="row">
@@ -272,6 +293,24 @@
     });
   })();
 
+  // Finale select: "Auto" (a different fate each life) + the 9 engine apocalypse names,
+  // with friendly labels. Value = engine name; kept in the exact order the engine cycles
+  // them (DEATHS in city.js).
+  var FINALES = [
+    ['meteors', 'Meteor Storm'], ['nuke', 'Nuclear Strike'], ['sunburst', 'Solar Flare'],
+    ['ai', 'AI Uprising'], ['bh', 'Black Hole'], ['alienwar', 'Alien War'],
+    ['frost', 'Deep Freeze'], ['kaiju', 'Kaiju Attack'], ['flood', 'Great Flood']
+  ];
+  var finaleSel = document.getElementById('finale');
+  (function fillFinale(){
+    var o = document.createElement('option'); o.value = 'auto'; o.textContent = 'Auto (a different fate each life)';
+    finaleSel.appendChild(o);
+    FINALES.forEach(function(f){
+      var op = document.createElement('option'); op.value = f[0]; op.textContent = f[1];
+      finaleSel.appendChild(op);
+    });
+  })();
+
   function loadCity(){
     try {
       api.getConfig().then(function(cfg){
@@ -289,6 +328,8 @@
         eraSel.value = (cfg.era && ERA_NAMES.indexOf(cfg.era)>=0) ? cfg.era : 'auto';
         var disF = ['rare','normal','frequent'].indexOf(cfg.disasters)>=0 ? cfg.disasters : 'normal';
         document.getElementById('disasters').value = disF;
+        var finaleNames = FINALES.map(function(f){ return f[0]; });
+        finaleSel.value = (cfg.finale && finaleNames.indexOf(cfg.finale)>=0) ? cfg.finale : 'auto';
       }).catch(function(){});
     } catch (e) { /* no bridge */ }
   }
@@ -308,7 +349,8 @@
       cycle: document.getElementById('cycle').value,
       quality: document.getElementById('quality').value,
       era: eraSel.value,
-      disasters: document.getElementById('disasters').value
+      disasters: document.getElementById('disasters').value,
+      finale: finaleSel.value
     };
     var lat=parseFloat(document.getElementById('lat').value), lon=parseFloat(document.getElementById('lon').value);
     if(isFinite(lat)&&isFinite(lon)){ cfg.lat=lat; cfg.lon=lon; }
@@ -411,6 +453,48 @@
   });
 
   loadCity();
+
+  // ---------------------------------------------------------------------
+  // World — pin the finale, or trigger it (or a fresh rebirth) right now.
+  // ---------------------------------------------------------------------
+  var worldNote = document.getElementById('worldNote');
+
+  // Wires a two-click confirm onto a button: first click turns it into "Click again to
+  // confirm" for 5s (reverting if nothing follows); the second click within that window
+  // runs the real action. Prevents a stray click from ending/resetting the world.
+  function armConfirm(btn, confirmText, onConfirm){
+    var restoreText = btn.textContent, armed = false, timer = null;
+    function disarm(){ armed = false; btn.textContent = restoreText; if (timer) { clearTimeout(timer); timer = null; } }
+    btn.addEventListener('click', function(){
+      if (!armed) {
+        armed = true;
+        btn.textContent = 'Click again to confirm';
+        timer = setTimeout(disarm, 5000);
+        return;
+      }
+      disarm();
+      onConfirm();
+    });
+  }
+
+  function doWorldRestart(mode, noteText){
+    try {
+      var cfg = gatherCity();
+      cfg.worldRestartAt = Date.now();
+      cfg.worldRestartMode = mode;
+      api.saveConfig(cfg).then(function(){
+        worldNote.textContent = noteText;
+        setTimeout(function(){ worldNote.textContent = ''; }, 4000);
+      }).catch(function(){});
+    } catch (e) { /* no bridge */ }
+  }
+
+  armConfirm(document.getElementById('worldEnd'), 'Click again to confirm', function(){
+    doWorldRestart('apoc', 'The end is nigh…');
+  });
+  armConfirm(document.getElementById('worldFresh'), 'Click again to confirm', function(){
+    doWorldRestart('fresh', 'A new world begins…');
+  });
 
   // ---------------------------------------------------------------------
   // Updates

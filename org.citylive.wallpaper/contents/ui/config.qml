@@ -9,6 +9,23 @@ ColumnLayout {
     property real cfg_latitude: 999
     property real cfg_longitude: 999
     property string cfg_locationName: ""
+    property string cfg_finale: "auto"
+    property real cfg_worldRestartAt: 0
+    property string cfg_worldRestartMode: "apoc"
+
+    // Friendly name -> engine name for the finale picker (order matches DEATHS in city.js).
+    readonly property var finaleChoices: [
+        { text: i18n("Auto (a different fate each life)"), value: "auto" },
+        { text: i18n("Meteor Storm"), value: "meteors" },
+        { text: i18n("Nuclear Strike"), value: "nuke" },
+        { text: i18n("Solar Flare"), value: "sunburst" },
+        { text: i18n("AI Uprising"), value: "ai" },
+        { text: i18n("Black Hole"), value: "bh" },
+        { text: i18n("Alien War"), value: "alienwar" },
+        { text: i18n("Deep Freeze"), value: "frost" },
+        { text: i18n("Kaiju Attack"), value: "kaiju" },
+        { text: i18n("Great Flood"), value: "flood" }
+    ]
 
     // Reflects the current cfg_locationName / lookup state into locStatus.text.
     // Managed entirely imperatively (not a declarative binding) so both user edits
@@ -192,6 +209,52 @@ ColumnLayout {
                 locResults.clear();
                 cfgRoot.setStatus("", false);
             }
+        }
+
+        Kirigami.Separator {
+            Kirigami.FormData.isSection: true
+            Kirigami.FormData.label: i18n("World")
+        }
+
+        QQC2.ComboBox {
+            id: finaleCombo
+            Kirigami.FormData.label: i18n("World ends by:")
+            model: cfgRoot.finaleChoices
+            textRole: "text"
+            valueRole: "value"
+            currentIndex: Math.max(0, indexOfValue(cfgRoot.cfg_finale))
+            onActivated: cfgRoot.cfg_finale = currentValue
+            Component.onCompleted: currentIndex = Math.max(0, indexOfValue(cfgRoot.cfg_finale))
+        }
+
+        RowLayout {
+            Kirigami.FormData.label: i18n("Right now:")
+            QQC2.Button {
+                text: i18n("☄ End the world now")
+                onClicked: {
+                    cfgRoot.cfg_worldRestartAt = Date.now();
+                    cfgRoot.cfg_worldRestartMode = "apoc";
+                    worldNote.text = i18n("The end is nigh… takes effect when you click Apply");
+                }
+            }
+            QQC2.Button {
+                text: i18n("🌱 Start a fresh world")
+                onClicked: {
+                    cfgRoot.cfg_worldRestartAt = Date.now();
+                    cfgRoot.cfg_worldRestartMode = "fresh";
+                    worldNote.text = i18n("A new world begins… takes effect when you click Apply");
+                }
+            }
+        }
+
+        QQC2.Label {
+            id: worldNote
+            Kirigami.FormData.label: " "
+            Layout.fillWidth: true
+            wrapMode: Text.WordWrap
+            opacity: 0.7
+            font.pointSize: Kirigami.Theme.smallFont.pointSize
+            text: ""
         }
     }
 

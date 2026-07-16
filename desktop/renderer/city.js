@@ -64,6 +64,8 @@ function applyConfig(cfg){ if(!cfg) return;
   if(cfg.lat!=null||cfg.lon!=null) REGION=regionOf(LAT,LON);   // re-derive the architectural region for the new place
   if(cfg.cycle!=null) GROW_CYCLE=cycleMs(cfg.cycle);
   if(cfg.disasters!=null) DIS_PROB=DIS_PROB_BASE*disMul(cfg.disasters);
+  if(cfg.finale!==undefined) CFG_FINALE=(cfg.finale&&cfg.finale!=="auto"&&DEATHS.indexOf(cfg.finale)>=0)?cfg.finale:null;
+  if(cfg.worldRestartAt!==undefined) WORLD_SHIFT=worldShiftFrom(+cfg.worldRestartAt||0, cfg.worldRestartMode);
   if(cfg.era!==undefined){ FORCEERA=null;
     if(cfg.era && cfg.era!=="auto"){ for(var ei=0;ei<ERAS.length;ei++){ if(ERAS[ei].name===cfg.era){ FORCEERA=ei; break; } } } }
 }
@@ -1918,7 +1920,7 @@ function setup(scene,opts){
 // grows a one-of-a-kind city — new skyline, windows, crowns, parks, street furniture,
 // birth order, everything — on top of its per-life architectural ERA. Life 0 keeps the
 // original seed (1337), so the current city is unchanged.
-function lifeIndexOf(now){ return Math.floor((now-GROW_EPOCH+GROW_OFFSET_DAYS*86400000)/GROW_CYCLE); }
+function lifeIndexOf(now){ return Math.floor((now-GROW_EPOCH+GROW_OFFSET_DAYS*86400000+WORLD_SHIFT)/GROW_CYCLE); }
 var curLife=null;
 function buildWorld(li){
   curLife=li;
@@ -5491,7 +5493,7 @@ function ruinZones(now){
     x:Math.round((FORCERUIN.xf||0.4)*WW), w:FORCERUIN.w||64, seed:FORCERUIN.seed||123, ruin:true, win:false }];
   if(FORCEDIS) return [];
   var out=[], base=Math.floor(now/DIS_SLOT);
-  var lifeStart=GROW_EPOCH - GROW_OFFSET_DAYS*86400000 + lifeIndexOf(now)*GROW_CYCLE;   // wall-clock birth of THIS life
+  var lifeStart=GROW_EPOCH - GROW_OFFSET_DAYS*86400000 - WORLD_SHIFT + lifeIndexOf(now)*GROW_CYCLE;   // wall-clock birth of THIS life
   var firstSlot=Math.max(Math.ceil(lifeStart/DIS_SLOT), base-RUIN_MAXSCAN);
   for(var idx=base; idx>=firstSlot; idx--){ var di=disasterInfo(idx); if(!di||!di.ruin) continue;
     var end=idx*DIS_SLOT+di.t0+DIS_DUR; if(end<=now) out.push(di); }   // only once its disaster has fully finished collapsing
@@ -6228,6 +6230,17 @@ function drawBattleBars(g,cd,now,ty){
 var GROW_CYCLE=cycleMs(CFG.cycle);   // life length. Config cycle: "1w"/"2w"/"3w"/"1mo" (or "weekly") / "test"=1 hour. See cycleMs() near the top.
 var GROW_EPOCH=1783972450746;          // TEST MODE reset 2026-07-13 ~16:xx — set so cy≈0.88 at deploy (apocalypse ~4.5 min after restart, life 0 = alien war), then a new life every hour
 var GROW_OFFSET_DAYS=0;                // ►► FAST-FORWARD KNOB: bump this to jump ahead N days into the city's life.
+// RESTART-THE-WORLD (user-triggered): config stores the CLICK TIMESTAMP + mode; every screen
+// derives the exact same phase shift from it, so the whole desktop ends/restarts in lockstep
+// and the state survives reboots (still a pure function of clock + shared config).
+var WORLD_SHIFT=0;
+function worldShiftFrom(at,mode){
+  if(!at||!isFinite(+at)) return 0;
+  var target=(mode==="fresh")?0.0005:0.9555;                         // fresh = reborn wilderness; apoc = the finale begins
+  var base=(((+at)-GROW_EPOCH+GROW_OFFSET_DAYS*86400000)%GROW_CYCLE+GROW_CYCLE)%GROW_CYCLE;
+  return target*GROW_CYCLE-base;
+}
+if(CFG.worldRestartAt) WORLD_SHIFT=worldShiftFrom(CFG.worldRestartAt, CFG.worldRestartMode);
                                        //    ~0=newborn wilderness, ~6=village, ~12=growing city, ~20=near-metropolis, ~24=peak metropolis.
 var GROWBAND=0.03;                     // how much of the cycle a building spends "under construction" (base, before workforce)
 var laborK=1;                          // WORKFORCE → BUILD SPEED: a bigger population raises towers faster (set per-frame in draw)
@@ -6236,7 +6249,7 @@ var ARRIVE=0.012;                      // cityG when the founding caravan reache
 var FORCEAGE=null;                     // test hook: a number 0..1, or a {g,phase,apoc} object
 function cityGrowth(now){
   if(FORCEAGE!=null){ if(typeof FORCEAGE==="number") return {g:FORCEAGE, phase:(FORCEAGE>=1?"peak":"grow"), apoc:0, cy:FORCEAGE*0.78}; return FORCEAGE; }
-  var cy=((((now-GROW_EPOCH+GROW_OFFSET_DAYS*86400000)%GROW_CYCLE)+GROW_CYCLE)%GROW_CYCLE)/GROW_CYCLE;   // 0..1 through the life
+  var cy=((((now-GROW_EPOCH+GROW_OFFSET_DAYS*86400000+WORLD_SHIFT)%GROW_CYCLE)+GROW_CYCLE)%GROW_CYCLE)/GROW_CYCLE;   // 0..1 through the life
   if(cy<0.78) return {g:cy/0.78, phase:"grow", apoc:0, cy:cy};                // wilderness → metropolis
   if(cy<0.955) return {g:1, phase:"peak", apoc:0, cy:cy};                     // the thriving metropolis
   return {g:1, phase:"apoc", apoc:(cy-0.955)/0.045, cy:cy};                   // the cataclysm, then wraps to wilderness
@@ -6334,7 +6347,7 @@ function eraPickOf(ci){
 }
 function cityEraOf(now){
   if(FORCEERA!=null) return ERAS[FORCEERA];
-  var ci=Math.floor((now-GROW_EPOCH+GROW_OFFSET_DAYS*86400000)/GROW_CYCLE);   // which life is this?
+  var ci=Math.floor((now-GROW_EPOCH+GROW_OFFSET_DAYS*86400000+WORLD_SHIFT)/GROW_CYCLE);   // which life is this?
   return ERAS[eraPickOf(ci)]||ERAS[0];
 }
 // ancient ruins of a fallen city, left standing in the wilderness for the next one to grow around
@@ -7650,8 +7663,11 @@ function drawWar(g,L,now,night){
 }
 // which death this life ends by — every civilization falls differently
 var DEATHS=["meteors","nuke","sunburst","ai","bh","alienwar","frost","kaiju","flood"];
-function deathOf(li){ var h=((li*2654435761+977)>>>0); h=(h^(h>>>15))>>>0; return DEATHS[h%DEATHS.length]; }
+var CFG_FINALE=null;   // config: pin which apocalypse ends EVERY life ("auto"/unset = varied per life)
+function deathOf(li){ if(CFG_FINALE) return CFG_FINALE;
+  var h=((li*2654435761+977)>>>0); h=(h^(h>>>15))>>>0; return DEATHS[h%DEATHS.length]; }
 var curDeath="meteors";
+if(CFG.finale&&CFG.finale!=="auto"&&DEATHS.indexOf(CFG.finale)>=0) CFG_FINALE=CFG.finale;
 var FORCEDEATH=null;   // test hook: "meteors"|"nuke"|"sunburst"|"ai" (own line — QML namespace writable)
 // ---- THE NUKE CLOCK: the strike plays out in REAL SECONDS, not over the ~7.5-hour apoc phase. apocMs
 // is real ms since detonation (set per-frame in draw). One bomb: bang → a heat wave races across the

@@ -41,5 +41,21 @@
     <entry name="locationName" type="String">
       <default></default>
     </entry>
+    <!-- Pinned apocalypse: "auto" (a different fate each life, the engine's own default)
+         or one of the 9 exact engine death names (see DEATHS in js/city.js). -->
+    <entry name="finale" type="String">
+      <default>auto</default>
+    </entry>
+    <!-- "End the world now" / "Start a fresh world" request from the config dialog: the
+         ms timestamp of the click. 0 = never requested. Applied once per boot alongside
+         worldRestartMode; the user re-clicking sets a new timestamp to fire again. -->
+    <entry name="worldRestartAt" type="Double">
+      <default>0</default>
+    </entry>
+    <!-- "apoc" = the pinned/chosen finale plays out now, then rebirth. "fresh" = skip
+         straight to a reborn wilderness. -->
+    <entry name="worldRestartMode" type="String">
+      <default>apoc</default>
+    </entry>
   </group>
 </kcfg>

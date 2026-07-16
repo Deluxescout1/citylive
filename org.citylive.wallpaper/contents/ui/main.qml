@@ -114,6 +114,17 @@ WallpaperItem {
                 City.applyConfig({ lat: configuration.latitude, lon: configuration.longitude });
             }
         } catch (e) { /* invalid/unset → keep the baked or default location */ }
+        // FINALE pin + "end the world now"/"start a fresh world" request from the config
+        // dialog. worldRestartAt > 0 means the user clicked one of those buttons; applied
+        // every boot so re-clicking (a fresh timestamp) fires again.
+        try {
+            if (configuration && configuration.finale !== undefined) {
+                City.applyConfig({ finale: configuration.finale });
+            }
+            if (configuration && configuration.worldRestartAt > 0) {
+                City.applyConfig({ worldRestartAt: configuration.worldRestartAt, worldRestartMode: configuration.worldRestartMode });
+            }
+        } catch (e) { /* invalid/unset → keep the current finale/world state */ }
         City.setup(root.scene, {
             cw:   cv.width,
             ch:   cv.height,
@@ -142,6 +153,8 @@ WallpaperItem {
         ignoreUnknownSignals: true
         function onLatitudeChanged(){ bootTimer.restart() }
         function onLongitudeChanged(){ bootTimer.restart() }
+        function onFinaleChanged(){ bootTimer.restart() }
+        function onWorldRestartAtChanged(){ bootTimer.restart() }
     }
     onWidthChanged: bootTimer.restart()
     onHeightChanged: bootTimer.restart()

@@ -187,3 +187,68 @@ test('write → read round-trip persists quality / era / disasters', () => {
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('finale: "auto" and the 9 exact apocalypse names survive, invalid/absent drop', () => {
+  const NAMES = ['meteors', 'nuke', 'sunburst', 'ai', 'bh', 'alienwar', 'frost', 'kaiju', 'flood'];
+  assert.strictEqual(store.sanitizeConfig({ finale: 'auto' }).finale, 'auto');
+  NAMES.forEach((n) => {
+    assert.strictEqual(store.sanitizeConfig({ finale: n }).finale, n);
+  });
+  for (const v of ['METEORS', 'zombies', 'Nuke', 42, '', null, 'auto ']) {
+    assert.ok(!('finale' in store.sanitizeConfig({ finale: v })), `expected no key for ${JSON.stringify(v)}`);
+  }
+  assert.ok(!('finale' in store.sanitizeConfig({})));
+});
+
+test('worldRestartAt: finite positive integers (coerced/floored) survive, junk drops', () => {
+  assert.strictEqual(store.sanitizeConfig({ worldRestartAt: 1234567890123 }).worldRestartAt, 1234567890123);
+  assert.strictEqual(store.sanitizeConfig({ worldRestartAt: 1234567890123.9 }).worldRestartAt, 1234567890123);
+  assert.strictEqual(store.sanitizeConfig({ worldRestartAt: '1700000000000' }).worldRestartAt, 1700000000000);
+  for (const v of [0, -5, NaN, Infinity, -Infinity, 'not a number', null, undefined, {}, []]) {
+    assert.ok(!('worldRestartAt' in store.sanitizeConfig({ worldRestartAt: v })), `expected no key for ${JSON.stringify(v)}`);
+  }
+  assert.ok(!('worldRestartAt' in store.sanitizeConfig({})));
+});
+
+test('worldRestartMode: only apoc|fresh survive, invalid/absent drop', () => {
+  assert.strictEqual(store.sanitizeConfig({ worldRestartMode: 'apoc' }).worldRestartMode, 'apoc');
+  assert.strictEqual(store.sanitizeConfig({ worldRestartMode: 'fresh' }).worldRestartMode, 'fresh');
+  for (const v of ['APOC', 'auto', 42, '', null]) {
+    assert.ok(!('worldRestartMode' in store.sanitizeConfig({ worldRestartMode: v })), `expected no key for ${JSON.stringify(v)}`);
+  }
+  assert.ok(!('worldRestartMode' in store.sanitizeConfig({})));
+});
+
+test('worldRestartAt/worldRestartMode persist independently of finale', () => {
+  const onlyRestart = store.sanitizeConfig({ worldRestartAt: 1700000000000, worldRestartMode: 'fresh' });
+  assert.ok(!('finale' in onlyRestart));
+  assert.strictEqual(onlyRestart.worldRestartAt, 1700000000000);
+  assert.strictEqual(onlyRestart.worldRestartMode, 'fresh');
+
+  const onlyFinale = store.sanitizeConfig({ finale: 'kaiju' });
+  assert.ok(!('worldRestartAt' in onlyFinale));
+  assert.ok(!('worldRestartMode' in onlyFinale));
+  assert.strictEqual(onlyFinale.finale, 'kaiju');
+
+  const both = store.sanitizeConfig({ finale: 'flood', worldRestartAt: 1700000000000, worldRestartMode: 'apoc' });
+  assert.strictEqual(both.finale, 'flood');
+  assert.strictEqual(both.worldRestartAt, 1700000000000);
+  assert.strictEqual(both.worldRestartMode, 'apoc');
+});
+
+test('write → read round-trip persists finale / worldRestartAt / worldRestartMode', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'citylive-cfg-'));
+  const file = path.join(dir, 'config.json');
+  try {
+    store.writeConfig(file, {
+      birthdays: [], cycle: '1w',
+      finale: 'nuke', worldRestartAt: 1700000000000, worldRestartMode: 'apoc'
+    });
+    const back = store.readConfig(file);
+    assert.strictEqual(back.finale, 'nuke');
+    assert.strictEqual(back.worldRestartAt, 1700000000000);
+    assert.strictEqual(back.worldRestartMode, 'apoc');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
