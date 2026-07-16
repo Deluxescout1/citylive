@@ -53,7 +53,7 @@ edits ONLY in canonical `org.citylive.wallpaper/contents/js/city.js` then sync �
 - [x] Branch `endtimes-spectacle`; commit leftover harness (CLAGE knob + kde-repro debug rigs) + this plan
 - [x] 1 (Opus) constants + helpers + gate cases DONE (commit); ⚠ apocKill kaijuwar branch NOT yet added (fold into step 2)
 - [ ] 2 (Opus) building/lm/ped/window-lit wiring + museum glyphs (see anchors)
-- [x] 3a renderers+dispatch DONE, kaijuwar render-verified (clash+slice-wrap); 3b TODO: pollution band renders + arrive/decided/aftermath eyeballs + beam-beat render
+- [x] 3 renderers COMPLETE + render-verified: clash/slice-wrap/decided/aftermath + pollution 0.45-night(lights dying)+0.95(dead grey). Winner varies per life (li9=ape, li1/22=reptile per hash).
 - [ ] 4 (Opus) invasion helper cluster + rework drawApocAI / drawApocAlienWar 8566-8571 / drawWar tier-3
 - [ ] 5 sync city.js ×4 + md5
 - [ ] 6 (Sonnet) config-store whitelist+comment + tests green
