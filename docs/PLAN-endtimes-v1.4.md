@@ -60,9 +60,9 @@ edits ONLY in canonical `org.citylive.wallpaper/contents/js/city.js` then sync �
 - [x] 7 DONE (qmllint clean)
 - [x] 8 DONE (CLDEATH/CLAPOC live-tested)
 - [x] 9 matrix 22/22 via kde-repro (NOTE: verify-scale CLDEATH/CLAPOC clobbered per-frame by index.html applyOverrides — fix knobs later, non-blocking); spot: nuke/frost unregressed, pollution ok
-- [ ] 10 both-platform gate: KDE qml6-offscreen subset + live plasma dropdown/pin/end-world test;
+- [x] 10 BOTH GATES PASSED: KDE deploy (md5/bake/journal clean) + VM end-to-end (pinned kaijuwar world-end -> LIZARD KING VICTORIOUS aftermath on the live desktop; reptile won this life vs ape in li9 = winner variety confirmed): KDE qml6-offscreen subset + live plasma dropdown/pin/end-world test;
       Windows VM install + CC dropdown + pinned-kaijuwar end-world screenshot; perf spot-check 8fps clash
-- [ ] 11 merge → bump 1.4.0 → tag (ONLY after both gates)
+- [x] 11 SHIPPED v1.4.0
 
 ## Side-quest state: vertical-lines bug (roadmap #12)
 Linewatch 2026-07-16 16:40-17:27 (26 frames, upper-sky strip): NEGATIVE — but the crop missed the
