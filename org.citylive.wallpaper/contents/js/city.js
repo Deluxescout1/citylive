@@ -7705,6 +7705,17 @@ var KAIJU_WIPE_MS=11000;           // its swath of destruction then crosses the 
 // ---- THE FLOOD: the sea rises and drowns the city — tall towers hold out longest, then topple & vanish under the water ----
 var FLOOD_ONSET_MS=3000;           // the waters start rising ~3s in (city still alive, people running for high ground)
 var FLOOD_RISE_MS=13000;           // the sea then climbs to swallow the whole skyline over ~13s
+// ---- KAIJU WAR: TWO titans battle EACH OTHER across the skyline; the city is collateral.
+// Outskirts are trampled INWARD as they advance from opposite edges; downtown is wrecked
+// OUTWARD by the melee. A different victor each life; the loser topples like a building.
+var KW_ARRIVE_MS=4500;             // both titans rise at opposite world edges & trade roars (city still alive)
+var KW_APPROACH_MS=6000;           // they advance toward the battleground, trampling the outskirts behind them
+var KW_CLASH_MS=12000;             // the melee at the battleground: beam-rake / lunge / grapple beats
+var KW_DECIDE_MS=2000;             // the killing blow lands; the loser topples
+var KW_SAFE=0.12;                  // fraction of WW around the battleground the approach SPARES (the melee wrecks it)
+// ---- POLLUTION: the only finale with NO real-seconds clock — the whole apoc phase IS the
+// timeline (cityApoc 0..1 across ~7.5h in weekly mode): veil settles → district lights die
+// one-by-one → grey corrosion → dead grey. Nothing is ever demolished; the city suffocates.
 var DEMO_APOC_SEC=0;                // ►► TEST HOOK: >0 plays the apocalypse LIVE on a repeating N-second loop (0=off, normal 1-week life)
 function nukeDetId(now){ return DEMO_APOC_SEC>0 ? Math.floor(now/(DEMO_APOC_SEC*1000)) : lifeIndexOf(now); }   // a fresh id per detonation (per life normally; per demo-loop in demo mode)
 function nukeGZX(now){ var h=((nukeDetId(now)*2654435761+13)>>>0); h=(h^(h>>>15))>>>0; return Math.round(WW*(0.10+0.80*(h/4294967296))); }  // GROUND ZERO — random per drop, anywhere across the whole world; every effect keys off this
@@ -7720,6 +7731,43 @@ function bhFrontR(){ return apocFrontR(BH_FORM_MS,BH_WIPE_MS); }     // the blac
 function bhPos(now){ var sx=apocEpiX(now)-WOFF; if(sx>SW+600&&sx-WW>-600)sx-=WW; if(sx<-600&&sx+WW<SW+600)sx+=WW; return {sx:sx, sy:Math.round(HORIZON*0.24)}; }
 // collapse progress 0..1 for a world-x under a nuke-style front (how far past the front it is), or -1 if the front hasn't reached it
 function frontCollapse(x,frontR){ var d=nukeDist(x,apocEpiX(NOWOVR!=null?NOWOVR:Date.now())); return frontR>d ? Math.min(1,(frontR-d)/(WW*0.075)) : -1; }
+// ---- KAIJU WAR helpers (all pure functions of the clock + per-life hash) ----
+function kwWinner(now){ var h=((nukeDetId(now)*40503+9257)>>>0); h=(h^(h>>>13))>>>0; return h%2; }   // 0 = the reptile (beams) · 1 = the ape (fists)
+function kwBX(now){ return apocEpiX(now); }                          // the battleground (per-life epicenter)
+function kwT1(){ return Math.max(0,Math.min(1,(apocMs-KW_ARRIVE_MS)/KW_APPROACH_MS)); }   // approach progress 0..1
+// each titan's world-x: rises at its edge, advances to the battleground, then drifts with the melee beats
+function kwTitanX(now,side){
+  var bx=kwBX(now), t1=kwT1(), gap=WW*0.025*(side?1:-1);
+  var x=bx+(side?1:-1)*WW*0.5*(1-t1)+gap*t1;
+  var tc=apocMs-KW_ARRIVE_MS-KW_APPROACH_MS;
+  if(tc>0){ var cyc=Math.floor(tc/3000), dh=((cyc*2654435761+nukeDetId(now)*7+side)>>>0);
+    x+=(((dh>>>4)%9)-4)*WW*0.008; }
+  return ((x%WW)+WW)%WW;
+}
+function kwClashR(){ var tc=apocMs-KW_ARRIVE_MS-KW_APPROACH_MS;      // melee collateral radius, grows over the clash
+  return tc<=0?0:Math.min(WW*KW_SAFE, WW*0.02+(tc/KW_CLASH_MS)*WW*(KW_SAFE-0.02)); }
+// collapse progress 0..1 for world-x under the war (or -1): trampled inward during the approach
+// (outskirts first), wrecked outward by the growing melee radius (downtown last)
+function kwCl(x,now){
+  var d=nukeDist(x,kwBX(now)), t1=kwT1(), cl=-1;
+  var titanD=WW*0.5*(1-t1);
+  if(t1>0 && d>=Math.max(titanD,WW*KW_SAFE)) cl=Math.min(1,(d-Math.max(titanD,WW*KW_SAFE))/(WW*0.075)+0.15);
+  var cr=kwClashR(); if(cr>0 && d<cr) cl=Math.max(cl,Math.min(1,(cr-d)/(WW*0.05)));
+  return cl;
+}
+// ---- POLLUTION helpers: per-life hashed district death order; per-building stagger ----
+var DIST_INDEX={downtown:0,entertainment:1,residential:2,oldtown:3,industrial:4};   // stable index per district name
+function polDistOrder(now,di){ var h=((nukeDetId(now)*2246822519+di*40503+5)>>>0); h=(h^(h>>>15))>>>0; return (h%1000)/1000; }   // 0..1 rank for district index di
+// has this building's lights died yet? (lights die from cityApoc 0.25→0.70, district by district,
+// each building staggered ±0.03 around its district's threshold)
+function polDark(b){
+  if(curDeath!=="pollution"||cityPhase!=="apoc") return false;
+  var nd5=NOWOVR!=null?NOWOVR:Date.now();
+  var di=0; try{ di=DIST_INDEX[b.district]||0; }catch(e){}
+  var thr=0.25+polDistOrder(nd5,di)*0.45;
+  var stg=((((b.seed|0)*2654435761)>>>0)%1000)/1000*0.06-0.03;
+  return cityApoc>=(thr+stg);
+}
 // ---- GENERIC APOCALYPSE DISPATCH ----
 // Each death type answers three questions the whole engine keys off: has world-x been destroyed yet
 // (apocHit), is the ENTIRE city gone (apocFull), and has the cataclysm actually STRUCK (apocStruck).
@@ -7727,7 +7775,7 @@ function frontCollapse(x,frontR){ var d=nukeDist(x,apocEpiX(NOWOVR!=null?NOWOVR:
 // its case here + a per-building branch + its drawApoc* — no touching the ~48 scattered call sites.
 // apocPositional() = this death destroys the city by POSITION (a front / impacts), so cars/peds/etc.
 // die exactly as it reaches them, rather than fading out globally over the phase.
-function apocPositional(){ return curDeath==="nuke" || curDeath==="meteors" || curDeath==="ai" || curDeath==="bh" || curDeath==="kaiju"; }
+function apocPositional(){ return curDeath==="nuke" || curDeath==="meteors" || curDeath==="ai" || curDeath==="bh" || curDeath==="kaiju" || curDeath==="kaijuwar"; }
 function apocStruck(){ if(cityPhase!=="apoc") return false;
   if(curDeath==="nuke")    return apocMs>=NUKE_FALL_MS;                                  // the warhead has DETONATED
   if(curDeath==="meteors") return apocMs>=METEOR_SWARM_MS;                              // the small-meteor swarm has begun
@@ -7738,6 +7786,8 @@ function apocStruck(){ if(cityPhase!=="apoc") return false;
   if(curDeath==="frost")   return apocMs>=FROST_ONSET_MS;                              // the killing freeze has begun
   if(curDeath==="kaiju")   return apocMs>=KAIJU_ARRIVE_MS;                             // the beast has emerged & begun its rampage
   if(curDeath==="flood")   return apocMs>=FLOOD_ONSET_MS;                              // the waters have started rising
+  if(curDeath==="kaijuwar") return apocMs>=KW_ARRIVE_MS;                               // the titans have engaged
+  if(curDeath==="pollution") return cityApoc>0.02;                                     // the inversion has settled in
   return false; }
 function apocHit(x){ if(cityPhase!=="apoc") return false;
   if(curDeath==="nuke")    return nukeFrontR() >= nukeDist(x,nukeGZX(NOWOVR!=null?NOWOVR:Date.now()));   // the heat-wave front reached world-x
@@ -7749,6 +7799,8 @@ function apocHit(x){ if(cityPhase!=="apoc") return false;
   if(curDeath==="frost")   return frostCl(x)>=0;                                        // the freeze has reached & frozen world-x
   if(curDeath==="kaiju")   return frontCollapse(x,kaijuFrontR())>=0;                    // the monster's rampage has reached world-x
   if(curDeath==="flood")   return floodGroundHit(x);                                    // the water has risen above the ground here
+  if(curDeath==="kaijuwar") return kwCl(x,NOWOVR!=null?NOWOVR:Date.now())>=0;           // trampled or caught in the melee
+  if(curDeath==="pollution") return cityApoc>=0.92;                                     // nothing is DEMOLISHED until the very end (movers die via apocKill fade)
   return false; }
 function apocFull(){ if(cityPhase!=="apoc") return false;
   if(curDeath==="nuke")    return nukeFrontR() >= WW*0.5;                               // the front has swept the ENTIRE city (≈5s)
@@ -7760,6 +7812,8 @@ function apocFull(){ if(cityPhase!=="apoc") return false;
   if(curDeath==="frost")   return apocMs >= FROST_ONSET_MS+FROST_STAGGER_MS+FROST_FREEZE_MS;   // the whole city is frozen & buried (~13s)
   if(curDeath==="kaiju")   return kaijuFrontR() >= WW*0.5;                              // the rampage has flattened the whole city
   if(curDeath==="flood")   return floodLevel() >= floodMax()*0.95;                      // the water has risen over the whole skyline
+  if(curDeath==="kaijuwar") return kwT1()>=1 && kwClashR()>=WW*KW_SAFE*0.98;             // trample complete + the melee has wrecked downtown
+  if(curDeath==="pollution") return cityApoc>=0.92;                                     // the air is gone
   return false; }
 // SUNBURST global heat: burn-progress at deterministic key k (a building seed, or a world-x for entities).
 // Unlike a spatial front, there is no ground zero — the whole earth bakes at once, only staggered so it
