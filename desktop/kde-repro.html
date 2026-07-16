@@ -9,15 +9,24 @@
 // (KSP=6/3=2, the classic law — NO kspAuto), so slice/wrap-only artifacts reproduce.
 var cv=document.getElementById('cv'), g=cv.getContext('2d');
 var Q=new URLSearchParams(location.search);
-var cw=+Q.get('cw')||853, ch=+Q.get('ch')||480, woff=+Q.get('woff')||776, ww=+Q.get('ww')||2269;
+function qn(k,d){ var v=Q.get(k); return v!=null&&v!==''?+v:d; }
+var cw=qn('cw',853), ch=qn('ch',480), woff=qn('woff',776), ww=qn('ww',2269);
 cv.width=cw; cv.height=ch;
-var sw2=+Q.get('screenw')||cw*3, sh2=+Q.get('screenh')||ch*3;
+var sc9=+Q.get('scale')||3;
+var sw2=+Q.get('screenw')||cw*sc9, sh2=+Q.get('screenh')||ch*sc9;
 cv.style.width=sw2+'px'; cv.style.height=sh2+'px';
 if(Q.get('smooth')==='1') cv.style.imageRendering='auto';   // linear sampling, like a GPU texture upscale
 FORCEAGE=+Q.get('age')||0.12;
+if(Q.get('death')){ FORCEDEATH=Q.get('death'); }
+if(Q.get('now')){ NOWOVR=+Q.get('now'); }
+if(Q.get('apoc')!=null){ var _ap=+Q.get('apoc'); FORCEAGE={g:1,phase:'apoc',apoc:_ap,cy:0.955+0.045*_ap}; }
 try{ setup('neon',{cw:cw,ch:ch,woff:woff,ww:ww,pxk:3,zoom:1,quality:'spectacle'}); document.title='SETUP_OK'; }
 catch(e){ document.title='SETUP_ERR '+(e&&e.message); }
-function frame(){ try{ draw(g); }catch(e){ document.title='DRAW_ERR '+e; } requestAnimationFrame(frame); }
+function frame(){ if(window.__stop) return; try{ draw(g); }catch(e){ document.title='DRAW_ERR '+e; } requestAnimationFrame(frame); }
 frame();
+setTimeout(function(){ try{
+  var rn=Date.now();
+  document.title='WW='+WW+' SW='+SW+' WOFF='+WOFF+' liveEpi='+Math.round(apocEpiX(rn))+' liveXA='+Math.round(kwTitanX(rn,0))+' liveXB='+Math.round(kwTitanX(rn,1))+' apocMs='+Math.round(apocMs);
+}catch(e){ document.title='PROBE_ERR '+e; } }, 1800);
 </script>
 </body></html>

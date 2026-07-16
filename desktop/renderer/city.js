@@ -3001,6 +3001,12 @@ function drawLayer(g,layer,L,now,fx,hol,haze){
         var flc=floodCl(b.h);
         if(flc>=0){ drawApocBuilding(g,b,bx,flc,L,now); continue; }   // undermined → tilting & breaking into the water
         // else: still standing, its base swallowed by the rising water (fall through to normal draw)
+      } else if(curDeath==="kaijuwar"){                          // KAIJU WAR: trampled on the approach, wrecked in the melee — collateral of the titans' battle
+        var kwc=kwCl(b.x,now);
+        if(kwc>=0){ drawApocBuilding(g,b,bx,kwc,L,now); continue; }
+        // else: the battle hasn't touched this block yet — it stands (and watches)
+      } else if(curDeath==="pollution"){                         // POLLUTION: NOTHING is demolished — the city stands and suffocates.
+        // fall through to the normal draw; polDark() kills the lights and the pall greys it out
       } else {                                                  // other cataclysms: the whole skyline dies row by row
         var dT=((((b.seed||bi)*2654435761)>>>0)/4294967296)*0.7;
         if(cityApoc>dT){ drawApocBuilding(g,b,bx,Math.min(1,(cityApoc-dT)/0.22),L,now); continue; }
@@ -3113,6 +3119,7 @@ function drawLayer(g,layer,L,now,fx,hol,haze){
           g.fillRect(bx+w.x-1,top+w.y+w.h,w.w+2,1); } }                            // balcony rail
       var lit=isNight?(w.no&&((w.hx%97)/97<curLit)):w.do;   // evening ramp: more windows light as it gets later
       if(blk6) lit=curBlk.fix&&(((now/130)|0)&1)&&lit;      // dark block; flickers back as the crew works
+      if(lit&&polDark(b)) lit=false;                        // POLLUTION finale: this district's lights have died (never flicker back)
       if(w.fl) lit=lit && (((now*0.001*w.fl)|0)%3!==0);
       if(!lit){
         if(!isNight&&layer===near){ g.globalAlpha=0.13;      // day: unlit panes still show sky-glass
@@ -4994,7 +5001,7 @@ function drawMuseum(g,L,now,night){
       g.fillStyle=day?"#8a8474":"#242220"; g.fillRect(rlx2-1,gy-2,4,2);
       g.fillStyle=dth2==="meteors"?"#4a4448":(dth2==="nuke"?"#c9b23a":(dth2==="sunburst"?"#241c16":"#181a22"));
       g.fillRect(rlx2,gy-4,2,2); }
-    var rlx=x0+w+4, dth=DEATHS[deathOf(curLife>0?curLife-1:0)];
+    var rlx=x0+w+4, dth=deathOf(curLife>0?curLife-1:0);   // (was DEATHS[deathOf(...)] — deathOf returns the NAME, so the relic always showed the AI core)
     g.fillStyle=day?"#8a8474":"#242220"; g.fillRect(rlx-1,gy-2,4,2);                 // plinth
     if(dth==="meteors"){ g.fillStyle="#4a4448"; g.fillRect(rlx,gy-5,3,3);
       g.fillStyle="#c0453a"; g.fillRect(rlx+1,gy-4,1,1); }                           // meteor chunk, ember vein
@@ -5002,6 +5009,10 @@ function drawMuseum(g,L,now,night){
       g.fillStyle="#1a1a1a"; g.fillRect(rlx+1,gy-4,1,1); }                           // scorched hazard sign
     else if(dth==="sunburst"){ g.fillStyle="#241c16"; g.fillRect(rlx+1,gy-6,1,4);
       g.fillStyle="#e05028"; g.fillRect(rlx+1,gy-4,1,1); }                           // charred obelisk, live ember
+    else if(dth==="kaijuwar"){ g.fillStyle="#3a3f35"; g.fillRect(rlx,gy-5,3,2);       // a titan's fang, mounted
+      g.fillStyle="#e8e4da"; g.fillRect(rlx+1,gy-6,1,2); }
+    else if(dth==="pollution"){ g.fillStyle="#5a564e"; g.fillRect(rlx,gy-5,3,3);      // the last breathing mask
+      g.fillStyle="#e8e4da"; g.fillRect(rlx,gy-4,3,1); }
     else { g.fillStyle="#181a22"; g.fillRect(rlx,gy-5,3,3);                          // the dead AI core
       if((Math.floor(now/900))%5===0){ g.fillStyle="#ff2030"; g.fillRect(rlx+1,gy-4,1,1); } }  // ...mostly dead
     if(!day){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(200,220,255,0.14)";
@@ -5205,7 +5216,7 @@ function drawLandmarks(g,L,now,night,nd){
   // when the NUKE front sweeps over a landmark's plot it is RIPPED AWAY just like the rest of the skyline
   // (the incandescence flash masks the shape→rubble transition); until the front arrives it stands normally
   var _lnow=(NOWOVR!=null?NOWOVR:now), gzL=nukeGZX(_lnow), frL=nukeFrontR();
-  function lmHit(frac){ return cityPhase==="apoc" && apocStruck() && curDeath!=="flood" && apocHit(Math.round(frac*WW)); }   // (flood: landmarks submerge under the rising-water overlay, not "blown")
+  function lmHit(frac){ return cityPhase==="apoc" && apocStruck() && curDeath!=="flood" && curDeath!=="pollution" && apocHit(Math.round(frac*WW)); }   // (flood: landmarks submerge; pollution: nothing is demolished — the city just dies)
   function lmBlow(frac,w,h,seed){
     var cxw=Math.round(frac*WW), cl, bd;
     if(curDeath==="meteors"){ var mc=meteorCollapse(cxw,now); cl=(mc.cl>=0?mc.cl:0); bd=mc.bd; }
@@ -5215,6 +5226,7 @@ function drawLandmarks(g,L,now,night,nd){
     else if(curDeath==="alienwar"){ var wcL=alienCl(cxw); cl=(wcL>=0?wcL:0); bd=0; }   // beam-struck & blasted into wreckage
     else if(curDeath==="frost"){ var frL2=frostCl(cxw); cl=(frL2>=0?frL2:0); bd=0; }   // frozen over & buried
     else if(curDeath==="kaiju"){ var kcL=frontCollapse(cxw,kaijuFrontR()); cl=(kcL>=0?kcL:0); bd=0; }   // stomped flat
+    else if(curDeath==="kaijuwar"){ var kwL=kwCl(cxw,now); cl=(kwL>=0?kwL:0); bd=0; }   // trampled by a titan or caught in the melee
     else { cl=Math.min(1,(frL-nukeDist(cxw,gzL))/(WW*0.09)); var sd=((cxw-gzL)%WW+WW*1.5)%WW-WW*0.5; bd=(sd>=0)?1:-1; }
     for(var o=-WW;o<=WW;o+=WW){ var sx=cxw-WOFF+o; if(sx<-w-60||sx>SW+60) continue;
       drawApocBuilding(g,{h:h,w:w,seed:seed},Math.round(sx-w/2),cl,L,now,bd); }
@@ -7705,6 +7717,17 @@ var KAIJU_WIPE_MS=11000;           // its swath of destruction then crosses the 
 // ---- THE FLOOD: the sea rises and drowns the city — tall towers hold out longest, then topple & vanish under the water ----
 var FLOOD_ONSET_MS=3000;           // the waters start rising ~3s in (city still alive, people running for high ground)
 var FLOOD_RISE_MS=13000;           // the sea then climbs to swallow the whole skyline over ~13s
+// ---- KAIJU WAR: TWO titans battle EACH OTHER across the skyline; the city is collateral.
+// Outskirts are trampled INWARD as they advance from opposite edges; downtown is wrecked
+// OUTWARD by the melee. A different victor each life; the loser topples like a building.
+var KW_ARRIVE_MS=4500;             // both titans rise at opposite world edges & trade roars (city still alive)
+var KW_APPROACH_MS=6000;           // they advance toward the battleground, trampling the outskirts behind them
+var KW_CLASH_MS=12000;             // the melee at the battleground: beam-rake / lunge / grapple beats
+var KW_DECIDE_MS=2000;             // the killing blow lands; the loser topples
+var KW_SAFE=0.12;                  // fraction of WW around the battleground the approach SPARES (the melee wrecks it)
+// ---- POLLUTION: the only finale with NO real-seconds clock — the whole apoc phase IS the
+// timeline (cityApoc 0..1 across ~7.5h in weekly mode): veil settles → district lights die
+// one-by-one → grey corrosion → dead grey. Nothing is ever demolished; the city suffocates.
 var DEMO_APOC_SEC=0;                // ►► TEST HOOK: >0 plays the apocalypse LIVE on a repeating N-second loop (0=off, normal 1-week life)
 function nukeDetId(now){ return DEMO_APOC_SEC>0 ? Math.floor(now/(DEMO_APOC_SEC*1000)) : lifeIndexOf(now); }   // a fresh id per detonation (per life normally; per demo-loop in demo mode)
 function nukeGZX(now){ var h=((nukeDetId(now)*2654435761+13)>>>0); h=(h^(h>>>15))>>>0; return Math.round(WW*(0.10+0.80*(h/4294967296))); }  // GROUND ZERO — random per drop, anywhere across the whole world; every effect keys off this
@@ -7720,6 +7743,43 @@ function bhFrontR(){ return apocFrontR(BH_FORM_MS,BH_WIPE_MS); }     // the blac
 function bhPos(now){ var sx=apocEpiX(now)-WOFF; if(sx>SW+600&&sx-WW>-600)sx-=WW; if(sx<-600&&sx+WW<SW+600)sx+=WW; return {sx:sx, sy:Math.round(HORIZON*0.24)}; }
 // collapse progress 0..1 for a world-x under a nuke-style front (how far past the front it is), or -1 if the front hasn't reached it
 function frontCollapse(x,frontR){ var d=nukeDist(x,apocEpiX(NOWOVR!=null?NOWOVR:Date.now())); return frontR>d ? Math.min(1,(frontR-d)/(WW*0.075)) : -1; }
+// ---- KAIJU WAR helpers (all pure functions of the clock + per-life hash) ----
+function kwWinner(now){ var h=((nukeDetId(now)*40503+9257)>>>0); h=(h^(h>>>13))>>>0; return h%2; }   // 0 = the reptile (beams) · 1 = the ape (fists)
+function kwBX(now){ return apocEpiX(now); }                          // the battleground (per-life epicenter)
+function kwT1(){ return Math.max(0,Math.min(1,(apocMs-KW_ARRIVE_MS)/KW_APPROACH_MS)); }   // approach progress 0..1
+// each titan's world-x: rises at its edge, advances to the battleground, then drifts with the melee beats
+function kwTitanX(now,side){
+  var bx=kwBX(now), t1=kwT1(), gap=WW*0.025*(side?1:-1);
+  var x=bx+(side?1:-1)*WW*0.5*(1-t1)+gap*t1;
+  var tc=apocMs-KW_ARRIVE_MS-KW_APPROACH_MS;
+  if(tc>0){ var cyc=Math.floor(tc/3000), dh=((cyc*2654435761+nukeDetId(now)*7+side)>>>0);
+    x+=(((dh>>>4)%9)-4)*WW*0.008; }
+  return ((x%WW)+WW)%WW;
+}
+function kwClashR(){ var tc=apocMs-KW_ARRIVE_MS-KW_APPROACH_MS;      // melee collateral radius, grows over the clash
+  return tc<=0?0:Math.min(WW*KW_SAFE, WW*0.02+(tc/KW_CLASH_MS)*WW*(KW_SAFE-0.02)); }
+// collapse progress 0..1 for world-x under the war (or -1): trampled inward during the approach
+// (outskirts first), wrecked outward by the growing melee radius (downtown last)
+function kwCl(x,now){
+  var d=nukeDist(x,kwBX(now)), t1=kwT1(), cl=-1;
+  var titanD=WW*0.5*(1-t1);
+  if(t1>0 && d>=Math.max(titanD,WW*KW_SAFE)) cl=Math.min(1,(d-Math.max(titanD,WW*KW_SAFE))/(WW*0.075)+0.15);
+  var cr=kwClashR(); if(cr>0 && d<cr) cl=Math.max(cl,Math.min(1,(cr-d)/(WW*0.05)));
+  return cl;
+}
+// ---- POLLUTION helpers: per-life hashed district death order; per-building stagger ----
+var DIST_INDEX={downtown:0,entertainment:1,residential:2,oldtown:3,industrial:4};   // stable index per district name
+function polDistOrder(now,di){ var h=((nukeDetId(now)*2246822519+di*40503+5)>>>0); h=(h^(h>>>15))>>>0; return (h%1000)/1000; }   // 0..1 rank for district index di
+// has this building's lights died yet? (lights die from cityApoc 0.25→0.70, district by district,
+// each building staggered ±0.03 around its district's threshold)
+function polDark(b){
+  if(curDeath!=="pollution"||cityPhase!=="apoc") return false;
+  var nd5=NOWOVR!=null?NOWOVR:Date.now();
+  var di=0; try{ di=DIST_INDEX[b.district]||0; }catch(e){}
+  var thr=0.25+polDistOrder(nd5,di)*0.45;
+  var stg=((((b.seed|0)*2654435761)>>>0)%1000)/1000*0.06-0.03;
+  return cityApoc>=(thr+stg);
+}
 // ---- GENERIC APOCALYPSE DISPATCH ----
 // Each death type answers three questions the whole engine keys off: has world-x been destroyed yet
 // (apocHit), is the ENTIRE city gone (apocFull), and has the cataclysm actually STRUCK (apocStruck).
@@ -7727,7 +7787,7 @@ function frontCollapse(x,frontR){ var d=nukeDist(x,apocEpiX(NOWOVR!=null?NOWOVR:
 // its case here + a per-building branch + its drawApoc* — no touching the ~48 scattered call sites.
 // apocPositional() = this death destroys the city by POSITION (a front / impacts), so cars/peds/etc.
 // die exactly as it reaches them, rather than fading out globally over the phase.
-function apocPositional(){ return curDeath==="nuke" || curDeath==="meteors" || curDeath==="ai" || curDeath==="bh" || curDeath==="kaiju"; }
+function apocPositional(){ return curDeath==="nuke" || curDeath==="meteors" || curDeath==="ai" || curDeath==="bh" || curDeath==="kaiju" || curDeath==="kaijuwar"; }
 function apocStruck(){ if(cityPhase!=="apoc") return false;
   if(curDeath==="nuke")    return apocMs>=NUKE_FALL_MS;                                  // the warhead has DETONATED
   if(curDeath==="meteors") return apocMs>=METEOR_SWARM_MS;                              // the small-meteor swarm has begun
@@ -7738,6 +7798,8 @@ function apocStruck(){ if(cityPhase!=="apoc") return false;
   if(curDeath==="frost")   return apocMs>=FROST_ONSET_MS;                              // the killing freeze has begun
   if(curDeath==="kaiju")   return apocMs>=KAIJU_ARRIVE_MS;                             // the beast has emerged & begun its rampage
   if(curDeath==="flood")   return apocMs>=FLOOD_ONSET_MS;                              // the waters have started rising
+  if(curDeath==="kaijuwar") return apocMs>=KW_ARRIVE_MS;                               // the titans have engaged
+  if(curDeath==="pollution") return cityApoc>0.02;                                     // the inversion has settled in
   return false; }
 function apocHit(x){ if(cityPhase!=="apoc") return false;
   if(curDeath==="nuke")    return nukeFrontR() >= nukeDist(x,nukeGZX(NOWOVR!=null?NOWOVR:Date.now()));   // the heat-wave front reached world-x
@@ -7749,6 +7811,8 @@ function apocHit(x){ if(cityPhase!=="apoc") return false;
   if(curDeath==="frost")   return frostCl(x)>=0;                                        // the freeze has reached & frozen world-x
   if(curDeath==="kaiju")   return frontCollapse(x,kaijuFrontR())>=0;                    // the monster's rampage has reached world-x
   if(curDeath==="flood")   return floodGroundHit(x);                                    // the water has risen above the ground here
+  if(curDeath==="kaijuwar") return kwCl(x,NOWOVR!=null?NOWOVR:Date.now())>=0;           // trampled or caught in the melee
+  if(curDeath==="pollution") return cityApoc>=0.92;                                     // nothing is DEMOLISHED until the very end (movers die via apocKill fade)
   return false; }
 function apocFull(){ if(cityPhase!=="apoc") return false;
   if(curDeath==="nuke")    return nukeFrontR() >= WW*0.5;                               // the front has swept the ENTIRE city (≈5s)
@@ -7760,6 +7824,8 @@ function apocFull(){ if(cityPhase!=="apoc") return false;
   if(curDeath==="frost")   return apocMs >= FROST_ONSET_MS+FROST_STAGGER_MS+FROST_FREEZE_MS;   // the whole city is frozen & buried (~13s)
   if(curDeath==="kaiju")   return kaijuFrontR() >= WW*0.5;                              // the rampage has flattened the whole city
   if(curDeath==="flood")   return floodLevel() >= floodMax()*0.95;                      // the water has risen over the whole skyline
+  if(curDeath==="kaijuwar") return kwT1()>=1 && kwClashR()>=WW*KW_SAFE*0.98;             // trample complete + the melee has wrecked downtown
+  if(curDeath==="pollution") return cityApoc>=0.92;                                     // the air is gone
   return false; }
 // SUNBURST global heat: burn-progress at deterministic key k (a building seed, or a world-x for entities).
 // Unlike a spatial front, there is no ground zero — the whole earth bakes at once, only staggered so it
@@ -7844,6 +7910,157 @@ function drawApocalypse(g,ap,L,now){
   if(curDeath==="frost"){ drawApocFrost(g,ap,L,now); return; }
   if(curDeath==="kaiju"){ drawApocKaiju(g,ap,L,now); return; }
   if(curDeath==="flood"){ drawApocFlood(g,ap,L,now); return; }
+  if(curDeath==="kaijuwar"){ drawApocKaijuWar(g,ap,L,now); return; }
+  if(curDeath==="pollution"){ drawApocPollution(g,ap,L,now); return; }
+}
+// ---- KAIJU WAR: two titans battle EACH OTHER; the city is collateral. A different victor each life. ----
+// drawTitan: shared silhouette painter. kind 0 = the reptile (dorsal fins, cyan rim, atomic breath),
+// kind 1 = the ape (broad shoulders, long arms, amber rim, fists). pose: 0 advance · 1 attack ·
+// 2 stagger · 3 grapple-lean · 4 topple(prog via tp) · 5 victor roar. facing: +1 faces right.
+function drawTitan(g,sx,gy,H,kind,facing,pose,now,tp){
+  var W=Math.round(H*(kind?0.30:0.22));
+  var lean=(pose===2)?-facing*Math.round(W*0.30):(pose===3)?facing*Math.round(W*0.20):0;
+  var sink=(pose===4)?Math.round(H*0.55*tp):0, tilt=(pose===4)?Math.round(tp*W*0.6):0;
+  var top=gy-H+sink, cx=(sx+lean+facing*tilt)|0;
+  var body=kind?"#241d16":"#1b2a1c", dark=kind?"#161009":"#142115";
+  var rimL=kind?"rgba(255,180,90,0.5)":"rgba(90,225,255,0.55)", rimR=kind?"rgba(255,120,60,0.5)":"rgba(255,90,200,0.55)";
+  g.globalCompositeOperation="lighter";
+  g.fillStyle=kind?"rgba(200,140,60,0.07)":"rgba(120,70,170,0.08)"; fillEllipse(g,cx,top+H*0.5,W*0.85,H*0.55);
+  g.globalCompositeOperation="source-over";
+  var neckY=top+Math.round(H*(kind?0.16:0.20)), hipY=gy-Math.round(H*0.30)+sink;
+  // torso rows — ape: broad shoulders tapering DOWN · reptile: narrow neck broadening to the hips.
+  // Rim light hugs each row's edges (every other row) so it follows the body, never floats.
+  for(var by2=neckY; by2<hipY; by2++){ var tf2=(by2-neckY)/Math.max(1,hipY-neckY);
+    var tw=kind?Math.round(W*(1.0-0.38*tf2)):Math.round(W*(0.44+0.56*tf2));
+    var rx=cx-(tw>>1)+((pose===4)?Math.round(tilt*tf2):0);
+    g.fillStyle=body; g.fillRect(rx,by2,tw,1);
+    if((by2&1)===0){ g.globalCompositeOperation="lighter";
+      g.fillStyle=rimL; g.fillRect(rx,by2,1,1); g.fillStyle=rimR; g.fillRect(rx+tw-1,by2,1,1);
+      g.globalCompositeOperation="source-over"; } }
+  g.fillStyle=body;
+  g.fillRect(cx-2,top+Math.round(H*0.09),4,Math.round(H*0.12));                          // neck
+  var hd=Math.round(W*(kind?0.55:0.6)), hh7=Math.round(H*(kind?0.12:0.09)), hy=top+Math.round(H*(kind?0.02:0.04));
+  var hx0=(facing>0?cx-(hd>>2):cx+(hd>>2)-hd)|0;
+  g.fillRect(hx0,hy,hd,hh7);                                                             // head (mostly centered, jutting slightly forward)
+  if(!kind){ g.fillRect((facing>0?hx0+hd-2:hx0-3)|0,hy+2,4,Math.max(2,(hh7*0.6)|0)); }   // reptile snout
+  if(kind){ g.fillStyle=dark; g.fillRect(hx0+1,hy-2,hd-2,2); g.fillStyle=body; }         // ape brow ridge
+  var legW=Math.round(W*(kind?0.26:0.24));
+  g.fillRect(cx-Math.round(W*0.30),hipY,legW,Math.max(0,gy-hipY));
+  g.fillRect(cx+Math.round(W*0.30)-legW,hipY,legW,Math.max(0,gy-hipY));                  // legs
+  // arms — the ape's are long and heavy, knuckles near the ground; punch extends the lead arm
+  var armW=kind?4:3, armL=Math.round(H*(kind?0.46:0.24)), armY=neckY+Math.round(H*0.02);
+  var punch=(pose===1&&kind)?Math.round(W*0.6+((Math.floor(now/220))&1)*5):0;
+  g.fillStyle=dark;
+  var shW=kind?Math.round(W*0.5):(W>>1);
+  if(punch){ g.fillRect((facing>0?cx+shW-2:cx-shW+2-armL)|0,armY+2,armL,armW); }         // punching: the lead arm goes HORIZONTAL at the foe
+  else g.fillRect((facing>0?cx+shW-armW:cx-shW)|0,armY,armW,armL);
+  g.fillRect((facing>0?cx-shW:cx+shW-armW)|0,armY,armW,Math.round(armL*0.85));           // trailing arm
+  if(!kind){ for(var tl=0;tl<Math.round(H*0.4);tl++){ var txp=cx-facing*(Math.round(W*0.5)+tl), typ=hipY+2+Math.round(Math.sin(tl*0.28)*4)+Math.round(tl*0.22);
+    g.fillStyle=dark; g.fillRect(txp|0,Math.min(gy-1,typ)|0,2,3); } }                    // reptile tail
+  g.globalCompositeOperation="lighter";
+  if(!kind){ for(var sp=0;sp<hipY-neckY;sp+=3){ var fw=1+((sp/3)&1);
+    g.fillStyle="rgba(150,235,255,0.85)"; g.fillRect((cx-(fw>>1))|0,(neckY+sp)|0,fw,2); } }   // dorsal fins
+  g.fillStyle=kind?"rgba(255,200,60,1)":"rgba(255,70,50,1)";
+  g.fillRect((facing>0?hx0+hd-3:hx0+2)|0,(hy+2)|0,2,2);                                  // the eye
+  if(pose===5&&((now%6000)<900)){ var rr=((now%900)/900)*W*2.2;                          // victor roar ring
+    g.fillStyle="rgba(255,240,210,"+(0.4*(1-(now%900)/900))+")";
+    g.fillRect((cx-rr)|0,(hy-2)|0,Math.max(2,rr*2)|0,1); g.fillRect((cx-rr*0.7)|0,(hy+3)|0,Math.max(2,rr*1.4)|0,1); }
+  g.globalCompositeOperation="source-over";
+  if(pose!==4){ g.fillStyle="rgba(120,100,86,0.4)"; g.fillRect(cx-W,gy-3,W*2,3); }       // stomp dust
+  return {cx:cx, headY:hy, headX:(facing>0?hx0+hd:hx0), W:W, top:top};
+}
+function drawApocKaijuWar(g,ap,L,now){
+  var gy=HORIZON, winner=kwWinner(now), loser=1-winner;
+  var bxW=kwBX(now), t1=kwT1();
+  var arriveP=Math.min(1,apocMs/KW_ARRIVE_MS);
+  var tc=apocMs-KW_ARRIVE_MS-KW_APPROACH_MS;                                             // clash-phase clock
+  var decided=tc>=KW_CLASH_MS, tD=Math.max(0,Math.min(1,(tc-KW_CLASH_MS)/KW_DECIDE_MS)); // topple progress
+  var after=apocMs>KW_ARRIVE_MS+KW_APPROACH_MS+KW_CLASH_MS+KW_DECIDE_MS+1500;
+  var names=["THE LIZARD KING","THE GREAT APE"];
+  // screen positions of both titans (wrap-aware)
+  function scr(wx){ var sx=wx-WOFF; if(sx>SW+150&&sx-WW>-150)sx-=WW; if(sx<-150&&sx+WW<SW+150)sx+=WW; return sx; }   // tight margins: a titan just off one slice edge must wrap into view
+  var xA=scr(kwTitanX(now,0)), xB=scr(kwTitanX(now,1));
+  var prog=Math.min(1, Math.max(t1*0.6, kwClashR()/(WW*KW_SAFE)*0.4+t1*0.6));
+
+  // ===== LONG AFTERMATH: dust pall, the victor on the rubble, a roar beat every ~6s =====
+  if(after){
+    g.fillStyle="rgba(58,44,42,0.55)"; g.fillRect(0,0,SW,gy);
+    g.globalCompositeOperation="lighter"; for(var sm=0;sm<6;sm++){ var smx=((sm*2654435761)>>>0)%SW;
+      g.fillStyle="rgba(90,70,60,0.10)"; g.fillRect(smx-20,(gy*0.3)|0,40,(gy*0.7)|0); } g.globalCompositeOperation="source-over";
+    var vx=scr(bxW), H3=Math.round(gy*0.30);
+    if(vx>-200&&vx<SW+200){
+      g.fillStyle="#2a2320"; g.fillRect((vx-40)|0,gy-8,80,8);                            // the rubble mound
+      var roar=((now%6000)<900)?5:0;                                                     // periodic roar pose
+      drawTitan(g,vx,gy-6,H3,winner,(winner?-1:1),roar||0,now,0);
+      g.fillStyle="#1a1512"; fillEllipse(g,vx+ (winner? -70: 70),gy-5,46,7);             // the fallen — a dark mound nearby
+    }
+    g.fillStyle="rgba(6,4,5,0.88)"; g.fillRect(0,gy,SW,SH-gy);
+    drawDoomHud(g,ap,now,names[winner]+" STANDS VICTORIOUS","THE CITY PAID THE PRICE");
+    return;
+  }
+
+  // dust-choked sky deepens with the battle
+  g.fillStyle="rgba(70,50,44,"+(0.10+0.40*prog)+")"; g.fillRect(0,0,SW,gy);
+
+  // ===== THE TWO TITANS =====
+  var H=Math.round(gy*(0.24+0.20*arriveP));
+  var beat=(tc>0&&!decided)?Math.floor(tc/3000)%3:-1;                                    // 0 reptile attacks · 1 ape attacks · 2 grapple
+  var poseA=0, poseB=0;                                                                  // A = reptile(kind 0, faces right) · B = ape(kind 1, faces left)
+  if(tc>0&&!decided){ poseA=(beat===0)?1:(beat===1)?2:3; poseB=(beat===1)?1:(beat===0)?2:3; }
+  if(decided){ if(loser===0){ poseA=4; poseB=5; } else { poseB=4; poseA=5; } }
+  var tA=null, tB=null;
+  if(xA>-260&&xA<SW+260) tA=drawTitan(g,xA,gy,H,0, 1,poseA,now,(decided&&loser===0)?tD:0);
+  if(xB>-260&&xB<SW+260) tB=drawTitan(g,xB,gy,H,1,-1,poseB,now,(decided&&loser===1)?tD:0);
+
+  // reptile's atomic breath rakes AT THE APE during its attack beat (and the killing blow)
+  if(tA&&(poseA===1||(decided&&winner===0&&tD<0.7))&&((Math.floor(now/280))%2===0)){
+    var mx=tA.headX, my=tA.headY+2, tx=(tB?tB.cx:xB), span=Math.max(8,Math.abs(tx-mx))|0;
+    for(var br=0;br<span;br+=2){ var bxp=mx+(tx>mx?br:-br); if(bxp<-2||bxp>SW+2) continue;
+      g.globalCompositeOperation="lighter";
+      g.fillStyle="rgba("+Math.round(180-br*0.15)+",245,255,"+(0.85*(1-br/span))+")"; g.fillRect(bxp|0,my|0,2,4);
+      g.globalCompositeOperation="source-over"; }
+    if(tB){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(220,255,255,0.7)"; fillEllipse(g,tB.cx,my+2,7,9); g.globalCompositeOperation="source-over"; } }
+  // impact flashes + shockwave ring on the grapple beat
+  if(beat===2&&tA&&tB){ var gph=(tc%3000)/3000, rr2=gph*Math.abs(xB-xA)*0.9+8;
+    g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,220,170,"+(0.30*(1-gph))+")";
+    g.fillRect(((xA+xB)/2-rr2)|0,gy-4,(rr2*2)|0,2); g.globalCompositeOperation="source-over"; }
+
+  var msg=(apocMs<KW_ARRIVE_MS)?"TWO TITANS RISE"
+        :(t1<1)?"THE TITANS CLOSE IN"
+        :(!decided)?"CLASH OF TITANS"
+        :names[loser]+" HAS FALLEN";
+  drawDoomHud(g,ap,now,msg,"THE CITY PAYS THE PRICE");
+}
+// ---- POLLUTION: the slow suffocation. The only finale paced on cityApoc (the WHOLE phase),
+// not real seconds: veil settles → district lights die → grey corrosion → dead grey pall. ----
+function drawApocPollution(g,ap,L,now){
+  var gy=HORIZON, day=L>0.5;
+  var base=day?[168,150,72]:[54,50,30], toxic=day?[110,120,60]:[40,50,26];
+  var k=Math.min(1,ap/0.25);                                                             // band 1 ramp
+  var veilA=0.10+0.38*k+(ap>0.25?0.12*Math.min(1,(ap-0.25)/0.45):0);
+  var c=mixc(base,toxic,Math.min(1,ap*1.4));
+  g.fillStyle="rgba("+c[0]+","+c[1]+","+c[2]+","+veilA.toFixed(3)+")"; g.fillRect(0,0,SW,SH);
+  g.fillStyle="rgba("+Math.round(c[0]*0.8)+","+Math.round(c[1]*0.8)+","+Math.round(c[2]*0.8)+","+(veilA*0.8).toFixed(3)+")";
+  g.fillRect(0,(gy*0.55)|0,SW,SH-((gy*0.55)|0));                                          // smoke settles LOW
+  var moteN=Math.round((QUAL==="performance"?16:34)*Math.min(1,0.3+ap));                  // drifting soot
+  g.fillStyle=day?"rgba(96,88,58,0.55)":"rgba(30,28,18,0.6)";
+  for(var mi=0;mi<moteN;mi++){ var mh=((mi*2654435761+31)>>>0);
+    var mx2=((mh%(SW+40))+now*(0.003+((mh>>>7)%10)*0.0007))%(SW+40)-20;
+    var my2=((mh>>>11)%(gy+GROUND))+Math.sin(now*0.0005+mi)*3;
+    g.fillRect(mx2|0,my2|0,1,1); }
+  if(ap>0.70){                                                                            // band 3: grey corrosion eats the skyline
+    var cor=Math.min(1,(ap-0.70)/0.22);
+    g.fillStyle="rgba(120,115,105,"+(0.30*cor).toFixed(3)+")";
+    for(var cx3=0;cx3<SW;cx3+=4){ var ch3=((cx3*2654435761)>>>0)%7;                       // ragged top edge, cheap 4px columns
+      g.fillRect(cx3,ch3,4,gy-ch3); } }
+  if(ap>=0.92){                                                                           // band 4: the dead grey pall
+    var dd=Math.min(1,(ap-0.92)/0.06);
+    g.fillStyle="rgba(95,90,82,"+(0.45+0.4*dd).toFixed(3)+")"; g.fillRect(0,0,SW,SH); }
+  var msg=(ap<0.25)?"AIR QUALITY EMERGENCY - STAY INSIDE"
+        :(ap<0.70)?"THE LIGHTS ARE GOING OUT"
+        :(ap<0.92)?"THE CITY IS CHOKING"
+        :"THE AIR IS GONE";
+  drawDoomHud(g,ap,now,msg,cityName+" SUFFOCATED");
 }
 // a single meteor impact crater, carved into the ground band (age-driven dig + cooling molten floor)
 function drawMeteorCrater(g,sx,R,ageMs){
@@ -8980,7 +9197,9 @@ function draw(g,pass){
                                                      : Math.min(1,0.28+(apocMs-KAIJU_ARRIVE_MS)/KAIJU_WIPE_MS))   //   …then the rampage empties the city
     : (curDeath==="flood") ? (apocMs<FLOOD_ONSET_MS ? Math.min(0.3,apocMs/FLOOD_ONSET_MS*0.3)   //   flood: people run for high ground as the waters rise…
                                                     : Math.min(1,0.3+(apocMs-FLOOD_ONSET_MS)/9000))   //   …then the sea drowns the city
-    : cityApoc;                                                                               //   (any future non-positional death)
+    : (curDeath==="kaijuwar") ? (apocMs<KW_ARRIVE_MS ? Math.min(0.3,apocMs/KW_ARRIVE_MS*0.3)   //   kaiju war: terror as the two titans rise…
+                                                     : Math.min(1,0.3+(apocMs-KW_ARRIVE_MS)/(KW_APPROACH_MS+KW_CLASH_MS)))   //   …then the battle empties the city as it spreads
+    : cityApoc;                                                                               //   (any future non-positional death — incl. pollution's slow fade)
   var rhythm=dayRhythm(nd);           // the city's daily pulse (rush-hour vs 3am)
   if(cityPhase==="apoc" && !apocPositional()){ rhythm.carPresence*=Math.max(0,1-apocKill*1.6); }   // traffic flees as the world ends, on the FAST clock (positional deaths handle each car as the wave/impact reaches it)
   curSeason=seasonInfo(nd);           // foliage colour for the trees
@@ -9602,6 +9821,18 @@ function draw(g,pass){
           if(vsx8>-3&&vsx8<SW+3){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(120,170,210,0.6)"; g.fillRect(vsx8|0,(HORIZON-floodLevel())|0,2,2); g.globalCompositeOperation="source-over"; }   // a splash at the waterline
           continue; }                                            // swept under → gone
         fleeing=true; pwx=wrapW(pwx + pd.dir*(now%4000)*0.04); }
+      else if(curDeath==="kaijuwar"){                            // kaiju war: flee whichever titan is closer; gone once the battle reaches them
+        if(kwCl(pwx,now)>=0){ continue; }                        // trampled / caught in the melee → gone
+        var tA=kwTitanX(now,0), tB=kwTitanX(now,1);
+        var nearT=(nukeDist(pwx,tA)<=nukeDist(pwx,tB))?tA:tB;
+        fleeing=true; var awayW=((((pwx-nearT)%WW+WW*1.5)%WW)-WW*0.5)>=0?1:-1; pwx=wrapW(pwx+awayW*(now%4000)*0.045); }
+      else if(curDeath==="pollution"){                           // pollution: no running from the air — masked residents shuffle, ever fewer
+        if((((i*40503+13)>>>0)%1000)/1000 < apocKill) continue;  // this one has succumbed / stayed inside
+        var psx=pwx-WOFF; if(psx>SW+4&&psx-WW>-4)psx-=WW; if(psx<-4&&psx+WW<SW+4)psx+=WW;
+        if(psx>-3&&psx<SW+3){ var pbb=(psx+((now*0.0016)|0))&1;                     // slow, heavy steps
+          drawPerson(g, psx, HORIZON-1+pd.row, "#5a564e", pd.sk, pbb);              // drab, dust-caked clothes
+          g.fillStyle="#e8e4da"; g.fillRect(psx|0,(HORIZON-1+pd.row-pbb-3)|0,2,1); }  // breathing mask
+        continue; }
       else if(cityApoc>0.08){ fleeing=true;                      // any other (future) endtimes: EVERYONE runs
         pwx=wrapW(pwx + pd.dir*(now%4000)*0.03); } }
     else if(curWar&&curWar.f>=0.2&&curWar.f<1){ var wdx=pwx-curWar.x; if(wdx>WW/2)wdx-=WW; if(wdx<-WW/2)wdx+=WW;

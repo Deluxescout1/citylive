@@ -7910,6 +7910,157 @@ function drawApocalypse(g,ap,L,now){
   if(curDeath==="frost"){ drawApocFrost(g,ap,L,now); return; }
   if(curDeath==="kaiju"){ drawApocKaiju(g,ap,L,now); return; }
   if(curDeath==="flood"){ drawApocFlood(g,ap,L,now); return; }
+  if(curDeath==="kaijuwar"){ drawApocKaijuWar(g,ap,L,now); return; }
+  if(curDeath==="pollution"){ drawApocPollution(g,ap,L,now); return; }
+}
+// ---- KAIJU WAR: two titans battle EACH OTHER; the city is collateral. A different victor each life. ----
+// drawTitan: shared silhouette painter. kind 0 = the reptile (dorsal fins, cyan rim, atomic breath),
+// kind 1 = the ape (broad shoulders, long arms, amber rim, fists). pose: 0 advance · 1 attack ·
+// 2 stagger · 3 grapple-lean · 4 topple(prog via tp) · 5 victor roar. facing: +1 faces right.
+function drawTitan(g,sx,gy,H,kind,facing,pose,now,tp){
+  var W=Math.round(H*(kind?0.30:0.22));
+  var lean=(pose===2)?-facing*Math.round(W*0.30):(pose===3)?facing*Math.round(W*0.20):0;
+  var sink=(pose===4)?Math.round(H*0.55*tp):0, tilt=(pose===4)?Math.round(tp*W*0.6):0;
+  var top=gy-H+sink, cx=(sx+lean+facing*tilt)|0;
+  var body=kind?"#241d16":"#1b2a1c", dark=kind?"#161009":"#142115";
+  var rimL=kind?"rgba(255,180,90,0.5)":"rgba(90,225,255,0.55)", rimR=kind?"rgba(255,120,60,0.5)":"rgba(255,90,200,0.55)";
+  g.globalCompositeOperation="lighter";
+  g.fillStyle=kind?"rgba(200,140,60,0.07)":"rgba(120,70,170,0.08)"; fillEllipse(g,cx,top+H*0.5,W*0.85,H*0.55);
+  g.globalCompositeOperation="source-over";
+  var neckY=top+Math.round(H*(kind?0.16:0.20)), hipY=gy-Math.round(H*0.30)+sink;
+  // torso rows — ape: broad shoulders tapering DOWN · reptile: narrow neck broadening to the hips.
+  // Rim light hugs each row's edges (every other row) so it follows the body, never floats.
+  for(var by2=neckY; by2<hipY; by2++){ var tf2=(by2-neckY)/Math.max(1,hipY-neckY);
+    var tw=kind?Math.round(W*(1.0-0.38*tf2)):Math.round(W*(0.44+0.56*tf2));
+    var rx=cx-(tw>>1)+((pose===4)?Math.round(tilt*tf2):0);
+    g.fillStyle=body; g.fillRect(rx,by2,tw,1);
+    if((by2&1)===0){ g.globalCompositeOperation="lighter";
+      g.fillStyle=rimL; g.fillRect(rx,by2,1,1); g.fillStyle=rimR; g.fillRect(rx+tw-1,by2,1,1);
+      g.globalCompositeOperation="source-over"; } }
+  g.fillStyle=body;
+  g.fillRect(cx-2,top+Math.round(H*0.09),4,Math.round(H*0.12));                          // neck
+  var hd=Math.round(W*(kind?0.55:0.6)), hh7=Math.round(H*(kind?0.12:0.09)), hy=top+Math.round(H*(kind?0.02:0.04));
+  var hx0=(facing>0?cx-(hd>>2):cx+(hd>>2)-hd)|0;
+  g.fillRect(hx0,hy,hd,hh7);                                                             // head (mostly centered, jutting slightly forward)
+  if(!kind){ g.fillRect((facing>0?hx0+hd-2:hx0-3)|0,hy+2,4,Math.max(2,(hh7*0.6)|0)); }   // reptile snout
+  if(kind){ g.fillStyle=dark; g.fillRect(hx0+1,hy-2,hd-2,2); g.fillStyle=body; }         // ape brow ridge
+  var legW=Math.round(W*(kind?0.26:0.24));
+  g.fillRect(cx-Math.round(W*0.30),hipY,legW,Math.max(0,gy-hipY));
+  g.fillRect(cx+Math.round(W*0.30)-legW,hipY,legW,Math.max(0,gy-hipY));                  // legs
+  // arms — the ape's are long and heavy, knuckles near the ground; punch extends the lead arm
+  var armW=kind?4:3, armL=Math.round(H*(kind?0.46:0.24)), armY=neckY+Math.round(H*0.02);
+  var punch=(pose===1&&kind)?Math.round(W*0.6+((Math.floor(now/220))&1)*5):0;
+  g.fillStyle=dark;
+  var shW=kind?Math.round(W*0.5):(W>>1);
+  if(punch){ g.fillRect((facing>0?cx+shW-2:cx-shW+2-armL)|0,armY+2,armL,armW); }         // punching: the lead arm goes HORIZONTAL at the foe
+  else g.fillRect((facing>0?cx+shW-armW:cx-shW)|0,armY,armW,armL);
+  g.fillRect((facing>0?cx-shW:cx+shW-armW)|0,armY,armW,Math.round(armL*0.85));           // trailing arm
+  if(!kind){ for(var tl=0;tl<Math.round(H*0.4);tl++){ var txp=cx-facing*(Math.round(W*0.5)+tl), typ=hipY+2+Math.round(Math.sin(tl*0.28)*4)+Math.round(tl*0.22);
+    g.fillStyle=dark; g.fillRect(txp|0,Math.min(gy-1,typ)|0,2,3); } }                    // reptile tail
+  g.globalCompositeOperation="lighter";
+  if(!kind){ for(var sp=0;sp<hipY-neckY;sp+=3){ var fw=1+((sp/3)&1);
+    g.fillStyle="rgba(150,235,255,0.85)"; g.fillRect((cx-(fw>>1))|0,(neckY+sp)|0,fw,2); } }   // dorsal fins
+  g.fillStyle=kind?"rgba(255,200,60,1)":"rgba(255,70,50,1)";
+  g.fillRect((facing>0?hx0+hd-3:hx0+2)|0,(hy+2)|0,2,2);                                  // the eye
+  if(pose===5&&((now%6000)<900)){ var rr=((now%900)/900)*W*2.2;                          // victor roar ring
+    g.fillStyle="rgba(255,240,210,"+(0.4*(1-(now%900)/900))+")";
+    g.fillRect((cx-rr)|0,(hy-2)|0,Math.max(2,rr*2)|0,1); g.fillRect((cx-rr*0.7)|0,(hy+3)|0,Math.max(2,rr*1.4)|0,1); }
+  g.globalCompositeOperation="source-over";
+  if(pose!==4){ g.fillStyle="rgba(120,100,86,0.4)"; g.fillRect(cx-W,gy-3,W*2,3); }       // stomp dust
+  return {cx:cx, headY:hy, headX:(facing>0?hx0+hd:hx0), W:W, top:top};
+}
+function drawApocKaijuWar(g,ap,L,now){
+  var gy=HORIZON, winner=kwWinner(now), loser=1-winner;
+  var bxW=kwBX(now), t1=kwT1();
+  var arriveP=Math.min(1,apocMs/KW_ARRIVE_MS);
+  var tc=apocMs-KW_ARRIVE_MS-KW_APPROACH_MS;                                             // clash-phase clock
+  var decided=tc>=KW_CLASH_MS, tD=Math.max(0,Math.min(1,(tc-KW_CLASH_MS)/KW_DECIDE_MS)); // topple progress
+  var after=apocMs>KW_ARRIVE_MS+KW_APPROACH_MS+KW_CLASH_MS+KW_DECIDE_MS+1500;
+  var names=["THE LIZARD KING","THE GREAT APE"];
+  // screen positions of both titans (wrap-aware)
+  function scr(wx){ var sx=wx-WOFF; if(sx>SW+150&&sx-WW>-150)sx-=WW; if(sx<-150&&sx+WW<SW+150)sx+=WW; return sx; }   // tight margins: a titan just off one slice edge must wrap into view
+  var xA=scr(kwTitanX(now,0)), xB=scr(kwTitanX(now,1));
+  var prog=Math.min(1, Math.max(t1*0.6, kwClashR()/(WW*KW_SAFE)*0.4+t1*0.6));
+
+  // ===== LONG AFTERMATH: dust pall, the victor on the rubble, a roar beat every ~6s =====
+  if(after){
+    g.fillStyle="rgba(58,44,42,0.55)"; g.fillRect(0,0,SW,gy);
+    g.globalCompositeOperation="lighter"; for(var sm=0;sm<6;sm++){ var smx=((sm*2654435761)>>>0)%SW;
+      g.fillStyle="rgba(90,70,60,0.10)"; g.fillRect(smx-20,(gy*0.3)|0,40,(gy*0.7)|0); } g.globalCompositeOperation="source-over";
+    var vx=scr(bxW), H3=Math.round(gy*0.30);
+    if(vx>-200&&vx<SW+200){
+      g.fillStyle="#2a2320"; g.fillRect((vx-40)|0,gy-8,80,8);                            // the rubble mound
+      var roar=((now%6000)<900)?5:0;                                                     // periodic roar pose
+      drawTitan(g,vx,gy-6,H3,winner,(winner?-1:1),roar||0,now,0);
+      g.fillStyle="#1a1512"; fillEllipse(g,vx+ (winner? -70: 70),gy-5,46,7);             // the fallen — a dark mound nearby
+    }
+    g.fillStyle="rgba(6,4,5,0.88)"; g.fillRect(0,gy,SW,SH-gy);
+    drawDoomHud(g,ap,now,names[winner]+" STANDS VICTORIOUS","THE CITY PAID THE PRICE");
+    return;
+  }
+
+  // dust-choked sky deepens with the battle
+  g.fillStyle="rgba(70,50,44,"+(0.10+0.40*prog)+")"; g.fillRect(0,0,SW,gy);
+
+  // ===== THE TWO TITANS =====
+  var H=Math.round(gy*(0.24+0.20*arriveP));
+  var beat=(tc>0&&!decided)?Math.floor(tc/3000)%3:-1;                                    // 0 reptile attacks · 1 ape attacks · 2 grapple
+  var poseA=0, poseB=0;                                                                  // A = reptile(kind 0, faces right) · B = ape(kind 1, faces left)
+  if(tc>0&&!decided){ poseA=(beat===0)?1:(beat===1)?2:3; poseB=(beat===1)?1:(beat===0)?2:3; }
+  if(decided){ if(loser===0){ poseA=4; poseB=5; } else { poseB=4; poseA=5; } }
+  var tA=null, tB=null;
+  if(xA>-260&&xA<SW+260) tA=drawTitan(g,xA,gy,H,0, 1,poseA,now,(decided&&loser===0)?tD:0);
+  if(xB>-260&&xB<SW+260) tB=drawTitan(g,xB,gy,H,1,-1,poseB,now,(decided&&loser===1)?tD:0);
+
+  // reptile's atomic breath rakes AT THE APE during its attack beat (and the killing blow)
+  if(tA&&(poseA===1||(decided&&winner===0&&tD<0.7))&&((Math.floor(now/280))%2===0)){
+    var mx=tA.headX, my=tA.headY+2, tx=(tB?tB.cx:xB), span=Math.max(8,Math.abs(tx-mx))|0;
+    for(var br=0;br<span;br+=2){ var bxp=mx+(tx>mx?br:-br); if(bxp<-2||bxp>SW+2) continue;
+      g.globalCompositeOperation="lighter";
+      g.fillStyle="rgba("+Math.round(180-br*0.15)+",245,255,"+(0.85*(1-br/span))+")"; g.fillRect(bxp|0,my|0,2,4);
+      g.globalCompositeOperation="source-over"; }
+    if(tB){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(220,255,255,0.7)"; fillEllipse(g,tB.cx,my+2,7,9); g.globalCompositeOperation="source-over"; } }
+  // impact flashes + shockwave ring on the grapple beat
+  if(beat===2&&tA&&tB){ var gph=(tc%3000)/3000, rr2=gph*Math.abs(xB-xA)*0.9+8;
+    g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,220,170,"+(0.30*(1-gph))+")";
+    g.fillRect(((xA+xB)/2-rr2)|0,gy-4,(rr2*2)|0,2); g.globalCompositeOperation="source-over"; }
+
+  var msg=(apocMs<KW_ARRIVE_MS)?"TWO TITANS RISE"
+        :(t1<1)?"THE TITANS CLOSE IN"
+        :(!decided)?"CLASH OF TITANS"
+        :names[loser]+" HAS FALLEN";
+  drawDoomHud(g,ap,now,msg,"THE CITY PAYS THE PRICE");
+}
+// ---- POLLUTION: the slow suffocation. The only finale paced on cityApoc (the WHOLE phase),
+// not real seconds: veil settles → district lights die → grey corrosion → dead grey pall. ----
+function drawApocPollution(g,ap,L,now){
+  var gy=HORIZON, day=L>0.5;
+  var base=day?[168,150,72]:[54,50,30], toxic=day?[110,120,60]:[40,50,26];
+  var k=Math.min(1,ap/0.25);                                                             // band 1 ramp
+  var veilA=0.10+0.38*k+(ap>0.25?0.12*Math.min(1,(ap-0.25)/0.45):0);
+  var c=mixc(base,toxic,Math.min(1,ap*1.4));
+  g.fillStyle="rgba("+c[0]+","+c[1]+","+c[2]+","+veilA.toFixed(3)+")"; g.fillRect(0,0,SW,SH);
+  g.fillStyle="rgba("+Math.round(c[0]*0.8)+","+Math.round(c[1]*0.8)+","+Math.round(c[2]*0.8)+","+(veilA*0.8).toFixed(3)+")";
+  g.fillRect(0,(gy*0.55)|0,SW,SH-((gy*0.55)|0));                                          // smoke settles LOW
+  var moteN=Math.round((QUAL==="performance"?16:34)*Math.min(1,0.3+ap));                  // drifting soot
+  g.fillStyle=day?"rgba(96,88,58,0.55)":"rgba(30,28,18,0.6)";
+  for(var mi=0;mi<moteN;mi++){ var mh=((mi*2654435761+31)>>>0);
+    var mx2=((mh%(SW+40))+now*(0.003+((mh>>>7)%10)*0.0007))%(SW+40)-20;
+    var my2=((mh>>>11)%(gy+GROUND))+Math.sin(now*0.0005+mi)*3;
+    g.fillRect(mx2|0,my2|0,1,1); }
+  if(ap>0.70){                                                                            // band 3: grey corrosion eats the skyline
+    var cor=Math.min(1,(ap-0.70)/0.22);
+    g.fillStyle="rgba(120,115,105,"+(0.30*cor).toFixed(3)+")";
+    for(var cx3=0;cx3<SW;cx3+=4){ var ch3=((cx3*2654435761)>>>0)%7;                       // ragged top edge, cheap 4px columns
+      g.fillRect(cx3,ch3,4,gy-ch3); } }
+  if(ap>=0.92){                                                                           // band 4: the dead grey pall
+    var dd=Math.min(1,(ap-0.92)/0.06);
+    g.fillStyle="rgba(95,90,82,"+(0.45+0.4*dd).toFixed(3)+")"; g.fillRect(0,0,SW,SH); }
+  var msg=(ap<0.25)?"AIR QUALITY EMERGENCY - STAY INSIDE"
+        :(ap<0.70)?"THE LIGHTS ARE GOING OUT"
+        :(ap<0.92)?"THE CITY IS CHOKING"
+        :"THE AIR IS GONE";
+  drawDoomHud(g,ap,now,msg,cityName+" SUFFOCATED");
 }
 // a single meteor impact crater, carved into the ground band (age-driven dig + cooling molten floor)
 function drawMeteorCrater(g,sx,R,ageMs){
