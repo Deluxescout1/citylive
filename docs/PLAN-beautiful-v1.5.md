@@ -54,7 +54,7 @@ A6: port meander/foam/breakers from drawOpenSea into drawHarbor replacing 3810-3
 ## Ordered steps & state  ⟵ UPDATE AS EXECUTED
 - [x] 0 (inline) branch ✓ + QUAL==="performance"→===0 (8068,10221) + kde-repro dis/disf params + this doc
 - [x] 1 A1 golden pass DONE render-verified (sunset cinematic, noon untouched) (globals, sky gradient, folds, shadows, mountains/clouds→global) + sunrise/sunset renders
-- [ ] 2 (Opus) A1 night bloom (separate commit for perf bisect)
+- [x] 2 night bloom DONE (subtle, night-render verified)
 - [ ] 3 (Sonnet) A3 haze gradients
 - [ ] 4 (Opus) A2 fire idiom + caller regressions, THEN inline-site conversions (2 commits)
 - [ ] 5 (Sonnet) A4 clouds
