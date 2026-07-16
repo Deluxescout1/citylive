@@ -54,7 +54,7 @@ edits ONLY in canonical `org.citylive.wallpaper/contents/js/city.js` then sync �
 - [x] 1 (Opus) constants + helpers + gate cases DONE (commit); ⚠ apocKill kaijuwar branch NOT yet added (fold into step 2)
 - [ ] 2 (Opus) building/lm/ped/window-lit wiring + museum glyphs (see anchors)
 - [x] 3 renderers COMPLETE + render-verified: clash/slice-wrap/decided/aftermath + pollution 0.45-night(lights dying)+0.95(dead grey). Winner varies per life (li9=ape, li1/22=reptile per hash).
-- [ ] 4 (Opus) invasion helper cluster + rework drawApocAI / drawApocAlienWar 8566-8571 / drawWar tier-3
+- [x] 4a helpers + drawApocAI + drawApocAlienWar DONE render-verified; 4b TODO: drawWar tier-3 dropships + aimed bolts (read drawWar first)
 - [ ] 5 sync city.js ×4 + md5
 - [ ] 6 (Sonnet) config-store whitelist+comment + tests green
 - [ ] 7 (Sonnet) settings.html FINALES + config.qml finaleChoices + main.xml comment
