@@ -55,10 +55,10 @@ edits ONLY in canonical `org.citylive.wallpaper/contents/js/city.js` then sync �
 - [ ] 2 (Opus) building/lm/ped/window-lit wiring + museum glyphs (see anchors)
 - [x] 3 renderers COMPLETE + render-verified: clash/slice-wrap/decided/aftermath + pollution 0.45-night(lights dying)+0.95(dead grey). Winner varies per life (li9=ape, li1/22=reptile per hash).
 - [x] 4a helpers + drawApocAI + drawApocAlienWar DONE render-verified; 4b TODO: drawWar tier-3 dropships + aimed bolts (read drawWar first)
-- [ ] 5 sync city.js ×4 + md5
-- [ ] 6 (Sonnet) config-store whitelist+comment + tests green
-- [ ] 7 (Sonnet) settings.html FINALES + config.qml finaleChoices + main.xml comment
-- [ ] 8 (Sonnet) verify-scale.js knobs CLDEATH + CLAPOC (FORCEAGE={g:1,phase:'apoc',apoc:X,cy:0.955+0.045X})
+- [x] 5 synced ×4 (md5 1) — incl. DEATHS append (auto-rotation verified reaching both new fates)
+- [x] 6 DONE 29/29
+- [x] 7 DONE (qmllint clean)
+- [x] 8 DONE (CLDEATH/CLAPOC live-tested)
 - [ ] 9 render matrix (day+night per scene: kaijuwar arrive/clash/decided/aftermath + winner determinism
       across 2 lives ×2 reruns; pollution 0.1/0.4/0.75/0.95 — assert ZERO collapsed buildings; ai/alienwar/
       war-tier3 scenes; regression: all 9 old finales mid+aftermath, smog/blackout/zombie disasters, CLAGE=1)
