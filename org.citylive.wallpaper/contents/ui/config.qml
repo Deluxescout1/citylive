@@ -13,7 +13,8 @@ ColumnLayout {
     property real cfg_worldRestartAt: 0
     property string cfg_worldRestartMode: "apoc"
 
-    // Friendly name -> engine name for the finale picker (order matches DEATHS in city.js).
+    // Friendly name -> engine name for the finale picker (first 9 in the order DEATHS
+    // cycles them in city.js; kaijuwar/pollution are picker-only fates appended after).
     readonly property var finaleChoices: [
         { text: i18n("Auto (a different fate each life)"), value: "auto" },
         { text: i18n("Meteor Storm"), value: "meteors" },
@@ -24,7 +25,9 @@ ColumnLayout {
         { text: i18n("Alien War"), value: "alienwar" },
         { text: i18n("Deep Freeze"), value: "frost" },
         { text: i18n("Kaiju Attack"), value: "kaiju" },
-        { text: i18n("Great Flood"), value: "flood" }
+        { text: i18n("Great Flood"), value: "flood" },
+        { text: i18n("Godzilla vs Kong"), value: "kaijuwar" },
+        { text: i18n("Pollution"), value: "pollution" }
     ]
 
     // Reflects the current cfg_locationName / lookup state into locStatus.text.

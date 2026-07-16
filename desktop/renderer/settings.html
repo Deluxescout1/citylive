@@ -293,13 +293,15 @@
     });
   })();
 
-  // Finale select: "Auto" (a different fate each life) + the 9 engine apocalypse names,
-  // with friendly labels. Value = engine name; kept in the exact order the engine cycles
-  // them (DEATHS in city.js).
+  // Finale select: "Auto" (a different fate each life) + the 11 engine apocalypse names,
+  // with friendly labels. Value = engine name; the first 9 are kept in the exact order the
+  // engine cycles them (DEATHS in city.js); kaijuwar/pollution are picker-only fates (not
+  // yet in DEATHS' auto-cycle) and are appended after.
   var FINALES = [
     ['meteors', 'Meteor Storm'], ['nuke', 'Nuclear Strike'], ['sunburst', 'Solar Flare'],
     ['ai', 'AI Uprising'], ['bh', 'Black Hole'], ['alienwar', 'Alien War'],
-    ['frost', 'Deep Freeze'], ['kaiju', 'Kaiju Attack'], ['flood', 'Great Flood']
+    ['frost', 'Deep Freeze'], ['kaiju', 'Kaiju Attack'], ['flood', 'Great Flood'],
+    ['kaijuwar', 'Godzilla vs Kong'], ['pollution', 'Pollution']
   ];
   var finaleSel = document.getElementById('finale');
   (function fillFinale(){

@@ -6,7 +6,11 @@
 // CLWEATHER = force a weather code (pins FORCEWX, see wfx() in city.js for the code
 // table), CLAQ = force a PM2.5 air-quality value (pins FORCEAQ; drives drawSmokeVeil),
 // CLNOW = force the render clock to a specific ms-since-epoch (pins NOWOVR, for
-// deterministic renders). All four compose with CLDIS/CLERA above.
+// deterministic renders), CLDEATH = force the finale (pins FORCEDEATH, any engine
+// death name incl. the picker-only kaijuwar/pollution — bypasses the DEATHS auto-cycle),
+// CLAPOC = force the apocalypse phase at a given 0..1 progress (pins FORCEAGE to a
+// {g:1,phase:'apoc',apoc,cy} object instead of the plain CLAGE number; overrides CLAGE
+// when both are set). All compose with CLDIS/CLERA above.
 // (Env, not argv: Electron main's process.argv contains Chromium switches.)
 const { app, BrowserWindow } = require('electron');
 const path = require('path');
@@ -22,6 +26,8 @@ const AGE = (process.env.CLAGE && isFinite(+process.env.CLAGE)) ? +process.env.C
 const WEATHER = process.env.CLWEATHER || '';
 const AQ = process.env.CLAQ || '';
 const NOW = process.env.CLNOW || '';
+const DEATH = process.env.CLDEATH || '';
+const APOC = (process.env.CLAPOC && isFinite(+process.env.CLAPOC)) ? +process.env.CLAPOC : NaN;  // 0..1 apocalypse progress; overrides CLAGE when set
 // CLDISF (disaster frequency) is intentionally not wired to any renderable effect here —
 // it only affects how OFTEN disasters occur over real time, which a single-frame static
 // capture can't demonstrate. Read (so it doesn't silently no-op if someone sets it) and skipped.
@@ -50,10 +56,17 @@ app.whenReady().then(() => {
     const aqJs = isFinite(aqPm25) ? `FORCEAQ={pm25:${aqPm25},aqi:${aqPm25 * 2}}; ` : '';
     const nowMs = NOW ? parseInt(NOW, 10) : NaN;
     const nowJs = isFinite(nowMs) ? `NOWOVR=${nowMs}; ` : '';
-    const overrideJs = eraJs + weatherJs + aqJs + nowJs;
+    const deathJs = DEATH ? `FORCEDEATH='${DEATH}'; ` : '';
+    const overrideJs = eraJs + weatherJs + aqJs + nowJs + deathJs;
+    // CLAPOC forces the apocalypse phase at a given progress; it overrides CLAGE (the
+    // plain grow/peak maturity number) when both are set, since the two are mutually
+    // exclusive phases of the same FORCEAGE hook.
+    const ageJs = isFinite(APOC)
+      ? `FORCEAGE={g:1,phase:'apoc',apoc:${APOC},cy:0.955+0.045*${APOC}}; `
+      : `FORCEAGE=${AGE}; `;
     const js = DIS
-      ? `${overrideJs}FORCEDIS={type:'${DIS}',intensity:4,xf:0.5,w:60,seed:77,f:0.25}; FORCEAGE=${AGE}; 'ok'`
-      : `${overrideJs}FORCEAGE=${AGE}; 'ok'`;
+      ? `${overrideJs}FORCEDIS={type:'${DIS}',intensity:4,xf:0.5,w:60,seed:77,f:0.25}; ${ageJs}'ok'`
+      : `${overrideJs}${ageJs}'ok'`;
     win.webContents.executeJavaScript(js).then(() => {
       setTimeout(async () => {
         try {

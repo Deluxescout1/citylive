@@ -126,6 +126,22 @@ pixels**, mapped to canvas pixels by `ZOOM`.
 - Settlers / lumber camp / hunters / farms / barns / founders' caravan 5023–5410.
 - **ELECTIONS** 5554 · **WAR** (tiers by era; election funds the army) 5620 ·
   grand cataclysm 5770 · **THE SPACE AGE** 5844 · sun explodes / AI takeover 6065.
+- **Finales (`DEATHS`)** ~7677 — the 9 apocalypse types the engine auto-cycles between lives:
+  `meteors, nuke, sunburst, ai, bh, alienwar, frost, kaiju, flood` (`deathOf(lifeIndex)` hashes
+  a life index into one of them). Plus two **picker-only** fates, selectable via
+  `FORCEDEATH`/`cfg_finale` but not yet in the `DEATHS` auto-cycle:
+  - `kaijuwar` ("Godzilla vs Kong") — two titans converge on the city and duel; `kwWinner`
+    picks reptile-vs-ape, `kwTitanX` positions them, `kwCl`/`kwClashR` compute trample/melee
+    collateral (~7747–7772).
+  - `pollution` ("Pollution") — nothing is demolished; the city stands and suffocates.
+    `polDistOrder` ranks districts, `polDark` kills a district's lights permanently
+    (~7772–7789).
+  - **Checklist for a new finale**: append to `DEATHS` (only if it should join the auto-cycle —
+    picker-only fates skip this) → add its gate cases in `apocPositional`/`apocStruck`/`apocHit`/
+    `apocFull` (~7790–7828) → building-collapse + pedestrian-flee branches (~3004, ~5229, ~9824) →
+    museum relic glyph (~5012) → the picker ×3 (`desktop/config-store.js` `FINALES`,
+    `desktop/renderer/settings.html` `FINALES`, `org.citylive.wallpaper/contents/ui/config.qml`
+    `finaleChoices`).
 
 ## 11. The frame: `draw(g, pass)` (lines ~6142–6971)
 Order per frame: reset alert lanes → rebirth check → weather → sky/celestial → mountains →

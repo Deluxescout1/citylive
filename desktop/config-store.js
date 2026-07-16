@@ -89,8 +89,8 @@ function sanitizeConfig(raw) {
   }
 
   // Finale pin: 'auto' (a different fate each life, the engine's own default) or one of
-  // the 9 exact apocalypse names below; absent/junk drops so the engine picks auto.
-  const FINALES = ['meteors', 'nuke', 'sunburst', 'ai', 'bh', 'alienwar', 'frost', 'kaiju', 'flood'];
+  // the 11 exact apocalypse names below; absent/junk drops so the engine picks auto.
+  const FINALES = ['meteors', 'nuke', 'sunburst', 'ai', 'bh', 'alienwar', 'frost', 'kaiju', 'flood', 'kaijuwar', 'pollution'];
   if (cfg.finale === 'auto' || FINALES.indexOf(cfg.finale) >= 0) {
     out.finale = cfg.finale;
   }

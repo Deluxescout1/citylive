@@ -188,13 +188,13 @@ test('write → read round-trip persists quality / era / disasters', () => {
   }
 });
 
-test('finale: "auto" and the 9 exact apocalypse names survive, invalid/absent drop', () => {
-  const NAMES = ['meteors', 'nuke', 'sunburst', 'ai', 'bh', 'alienwar', 'frost', 'kaiju', 'flood'];
+test('finale: "auto" and the 11 exact apocalypse names survive, invalid/absent drop', () => {
+  const NAMES = ['meteors', 'nuke', 'sunburst', 'ai', 'bh', 'alienwar', 'frost', 'kaiju', 'flood', 'kaijuwar', 'pollution'];
   assert.strictEqual(store.sanitizeConfig({ finale: 'auto' }).finale, 'auto');
   NAMES.forEach((n) => {
     assert.strictEqual(store.sanitizeConfig({ finale: n }).finale, n);
   });
-  for (const v of ['METEORS', 'zombies', 'Nuke', 42, '', null, 'auto ']) {
+  for (const v of ['METEORS', 'zombies', 'Nuke', 42, '', null, 'auto ', 'KAIJUWAR', 'Pollution', 'kaiju war', 'pollution ']) {
     assert.ok(!('finale' in store.sanitizeConfig({ finale: v })), `expected no key for ${JSON.stringify(v)}`);
   }
   assert.ok(!('finale' in store.sanitizeConfig({})));

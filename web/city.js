@@ -8606,6 +8606,59 @@ function drawApocSun(g,ap,L,now){
 // AI TAKEOVER: AI factories boot at an epicentre, an assimilation front spreads outward converting the
 // city into machine-factories & harvesting it, the planet's resources drain, then it's enslaved & killed.
 // Timeline on the real-time apocMs clock (boot ~3s → assimilation front crosses the city ~10s → dead machine world).
+// ---- INVASION SPECTACLE (shared by the AI takeover + alien-war finale + tier-3 war):
+// descending dropships and AIMED beams that telegraph, then CRACK into the street.
+// Near-misses ONLY (targets are hash-offset away from any ped anchor); crowds scatter via
+// the existing apoc/war ped machinery. Everything is a pure function of the clock. ----
+function drawDropship(g,sx,sy,kind,now){                       // kind 0 machine-red · 1 saucer · 2 gunmetal
+  var hull=kind===0?"#2a1218":(kind===1?"#1a2030":"#232830");
+  var glow=kind===0?"255,60,50":(kind===1?"140,220,255":"255,200,90");
+  g.fillStyle=hull; g.fillRect((sx-7)|0,sy|0,14,4); g.fillRect((sx-4)|0,(sy-3)|0,8,3);
+  g.globalCompositeOperation="lighter";
+  g.fillStyle="rgba("+glow+",0.7)"; g.fillRect((sx-5)|0,(sy+4)|0,10,1);                  // underglow
+  if(((Math.floor(now/300))&1)===0){ g.fillStyle="rgba("+glow+",0.9)"; g.fillRect((sx+(((now/300)|0)%2?6:-7))|0,(sy+1)|0,1,1); }
+  g.globalCompositeOperation="source-over";
+}
+// a fleet of descending dropships on wrapped ~11s S-curve paths (count bounded)
+function drawInvasionFleet(g,now,salt,n,kind,yMax){
+  for(var i=0;i<n;i++){ var h=((i*2654435761+salt)>>>0); h^=h>>>15;
+    var ph=((now*(0.8+((h>>>6)%5)*0.1)/11000)+((h>>>9)%97)/97)%1;
+    var dx=((h%WW)+Math.sin(ph*6.28+i)*30)-WOFF; if(dx<-16||dx>SW+16) continue;
+    drawDropship(g,dx,6+ph*yMax,kind,now); }
+}
+// one aimed strike per ~950ms slot: a telegraph dot sweeps to the target, then the CRACK —
+// thick beam + ground flash + dust ring. Returns nothing; purely visual, always a near-miss.
+function drawAimedBeam(g,now,salt,muzX,muzY,colRGB){
+  var SLOT=950, sl=Math.floor(now/SLOT), ph=(now%SLOT)/SLOT;
+  var h=((sl*2654435761+salt)>>>0); h^=h>>>13;
+  var tx=(h%WW)-WOFF; if(tx<-40||tx>SW+40) return;
+  tx+=(((h>>>21)&1)?1:-1)*(6+((h>>>17)%9));                    // guaranteed near-miss offset off any anchor
+  g.globalCompositeOperation="lighter";
+  if(ph<0.6){                                                   // telegraph: the aim point skims the street
+    var swp=muzX+(tx-muzX)*(ph/0.6);
+    g.fillStyle="rgba("+colRGB+",0.28)"; g.fillRect(swp|0,(HORIZON-3)|0,2,3);
+    g.fillStyle="rgba("+colRGB+",0.55)"; g.fillRect(swp|0,(HORIZON-1)|0,2,1);
+  } else {                                                      // CRACK
+    var k=(ph-0.6)/0.4;
+    for(var t=0;t<=14;t++){ var tf=t/14;
+      g.fillStyle="rgba("+colRGB+","+(0.9*(1-tf*0.3)*(1-k*0.5)).toFixed(3)+")";
+      g.fillRect((muzX+(tx-muzX)*tf)|0,(muzY+((HORIZON-2)-muzY)*tf)|0,3,3); }
+    g.fillStyle="rgba(255,245,220,"+(0.9*(1-k)).toFixed(3)+")"; fillEllipse(g,tx,HORIZON-2,5+k*6,3);
+    g.fillStyle="rgba(200,160,120,"+(0.5*(1-k)).toFixed(3)+")"; fillEllipse(g,tx,HORIZON-5,3+k*10,2);   // dust ring
+  }
+  g.globalCompositeOperation="source-over";
+}
+// the last ~10 strikes leave fading scorch smudges + a dying ember (pure fn of the clock)
+function drawScorches(g,now,salt){
+  var SLOT=950, base=Math.floor(now/SLOT);
+  for(var k2=1;k2<=10;k2++){ var sl2=base-k2, age=(now-((sl2+1)*SLOT))/20000; if(age>=1) break;
+    var h2=((sl2*2654435761+salt)>>>0); h2^=h2>>>13;
+    var sx2=(h2%WW)-WOFF; if(sx2<-10||sx2>SW+10) continue;
+    sx2+=(((h2>>>21)&1)?1:-1)*(6+((h2>>>17)%9));
+    g.fillStyle="rgba(30,22,18,"+(0.5*(1-age)).toFixed(3)+")"; fillEllipse(g,sx2,HORIZON-1,4,1);
+    if(age<0.4&&((Math.floor(now/160)+k2)&1)){ g.fillStyle="rgba(255,120,40,"+(0.5*(1-age/0.4)).toFixed(3)+")"; g.fillRect(sx2|0,(HORIZON-2)|0,1,1); }
+  }
+}
 function drawApocAI(g,ap,L,now){
   var boot=Math.min(1,apocMs/AI_WAKE_MS);                    // factory boot progress (0..1)
   var frontR=aiFrontR(), prog=Math.min(1,frontR/(WW*0.5));   // how much of the city has been assimilated
@@ -8664,6 +8717,19 @@ function drawApocAI(g,ap,L,now){
     if(dx2<-4||dx2>SW+4) continue;
     g.fillStyle="#1a0c10"; g.fillRect(dx2|0,dy2|0,2,1);
     if(((Math.floor(now/160))+dr2)%2===0){ g.fillStyle="#ff2444"; g.fillRect((dx2+((dr2&1)?0:1))|0,(dy2+1)|0,1,1); }
+  }
+
+  // ===== THE INVASION FORCE: machine dropships descend from above the monolith; the
+  // reactor-eye SWEEPS, LOCKS and cracks an aimed laser into the streets (near-misses —
+  // the fleeing crowds are already handled by the apoc ped machinery) =====
+  if(apocStruck()){
+    drawInvasionFleet(g,now,911,4,0,Math.round(HORIZON*0.5));
+    drawScorches(g,now,912);
+    var eyeY=coreY-Math.round(fH*0.7);
+    drawAimedBeam(g,now,912,sx,eyeY,"255,60,70");
+    g.globalCompositeOperation="lighter";                                                    // the eye flares as it fires
+    g.fillStyle="rgba(255,60,70,"+(0.35+0.25*((Math.floor(now/240))&1))+")"; fillEllipse(g,sx,eyeY,5,4);
+    g.globalCompositeOperation="source-over";
   }
 
   // ===== harvested data-voxels streaming up out of the converted city, converging on the core =====
@@ -8780,12 +8846,16 @@ function drawApocAlienWar(g,ap,L,now){
   g.globalCompositeOperation="source-over";
 
   // ===== CROSSFIRE raining on the CITY — stray beams lancing down + falling burning wreckage =====
-  if(apocStruck()){ g.globalCompositeOperation="lighter";
-    for(var sy2=0; sy2<Math.round(3+battleP*8); sy2++){ var sh3=((sy2*2654435761+Math.floor(now/200))>>>0);
-      var gx=(sh3%WW)-WOFF; if(gx<-6||gx>SW+6) continue;
-      var col2=((sh3>>4)&1)?"255,110,80":"140,220,255", topx=gx+((sh3>>8)%50-25);                // a slight diagonal from a firing ship
-      for(var t2=0;t2<=12;t2++){ var tf2=t2/12; g.fillStyle="rgba("+col2+","+(0.8*(1-tf2*0.25))+")"; g.fillRect((topx+(gx-topx)*tf2)|0,(tf2*(HORIZON-2))|0,3,3); }
-      g.fillStyle="rgba(255,245,220,0.9)"; fillEllipse(g,gx,HORIZON-2,4,2); }                     // ground detonation flash
+  if(apocStruck()){
+    // dropship waves descend beneath the capital-ship battle; their fire is AIMED — a
+    // telegraphing dot skims the street, then the beam CRACKS down (always a near-miss)
+    drawInvasionFleet(g,now,713,3,1,Math.round(HORIZON*0.55));
+    drawScorches(g,now,714);
+    for(var ab=0;ab<Math.min(3,1+Math.round(battleP*2));ab++){
+      var ms=((ab*2654435761+Math.floor(now/950))>>>0)%nShips;
+      drawAimedBeam(g,now,714+ab*37,shipX[ms],shipY[ms],(ab&1)?"255,110,80":"140,220,255");
+    }
+    g.globalCompositeOperation="lighter";
     for(var wr=0; wr<Math.round(2+battleP*9); wr++){ var wh=((wr*2654435761+7)>>>0), wph=((now*0.04+wr*53+wh)%100)/100;
       var wx0=((wh%WW)-WOFF); if(wx0<-4||wx0>SW+4) continue;
       g.fillStyle="rgba(255,"+(120+(wh%80))+",40,"+(0.75*(1-wph))+")"; g.fillRect((wx0+wph*24)|0,(wph*HORIZON)|0,2,2);
