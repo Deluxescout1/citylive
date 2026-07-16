@@ -28,5 +28,18 @@
     <entry name="taskbarPx" type="Int">
       <default>-1</default>
     </entry>
+    <!-- User location override (city/ZIP/address lookup in the config UI). 999 = unset
+         sentinel: falls back to config.local.json (install.sh-generated) or the engine's
+         built-in default (Norwich, CT). Real coordinates are always within [-90,90]/
+         [-180,180], so 999 can never collide with a genuine value. -->
+    <entry name="latitude" type="Double">
+      <default>999</default>
+    </entry>
+    <entry name="longitude" type="Double">
+      <default>999</default>
+    </entry>
+    <entry name="locationName" type="String">
+      <default></default>
+    </entry>
   </group>
 </kcfg>

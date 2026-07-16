@@ -61,6 +61,7 @@ function disMul(v){ return v==="rare"?0.42 : v==="frequent"?2 : 1; }
 function applyConfig(cfg){ if(!cfg) return;
   if(cfg.birthdays!=null) BIRTHDAYS=cfg.birthdays;
   if(cfg.lat!=null) LAT=+cfg.lat;  if(cfg.lon!=null) LON=+cfg.lon;
+  if(cfg.lat!=null||cfg.lon!=null) REGION=regionOf(LAT,LON);   // re-derive the architectural region for the new place
   if(cfg.cycle!=null) GROW_CYCLE=cycleMs(cfg.cycle);
   if(cfg.disasters!=null) DIS_PROB=DIS_PROB_BASE*disMul(cfg.disasters);
   if(cfg.era!==undefined){ FORCEERA=null;
@@ -119,6 +120,13 @@ var WX_BUCKET = 120000;                          // 2-minute shared fetch window
                                                  // bucket for right-now, so a shower starting/stopping shows within ~15 min instead
                                                  // of waiting on the hourly current — this is why "it's raining outside but not here".
 var wxBucket = -1, wxReqAt = 0, wxOkBucket = -2; // current window · last request time · window that actually landed
+// AIR QUALITY (wildfire smoke etc): same shared-wall-clock-bucket pattern as weather, so every
+// screen fetches in the same 30-min window and converges on identical smoke. Data is hourly
+// upstream (interval:3600), so 30 min is plenty fresh.
+var airq = { pm25:null, aqi:null };
+var AQ_BUCKET = 1800000;
+var aqBucket = -1, aqReqAt = 0, aqOkBucket = -2;
+var FORCEAQ = null;   // test hook: {pm25,aqi} — pins the live air-quality fetch
 // notification lanes — stacked BELOW the 3-line sky-clock pill (which ends ~y41) so alerts never overlap it or each other
 var NOTIF_LANE1 = 47;   // lane 1: disaster / weather alerts (world-anchored over the event)
 var NOTIF_LANE2 = 59;   // lane 2: war, apocalypse, election & mayor-elect banners
@@ -871,9 +879,13 @@ function drawFauna(g,L,now,nd){
 var auroraOn=false;
 // 1a. HAIL: white stones fall and bounce during some thunderstorms
 function drawHail(g,L,now,fx){
-  if(!fx.thunder) return;
-  var slot=Math.floor(now/240000); if(((slot*40503+7)>>>0)%100>=35) return;
-  for(var i=0;i<Math.round(SW/14);i++){ var h=((i*2654435761+slot)>>>0);
+  if(!fx.thunder&&!fx.hail) return;
+  var slot=Math.floor(now/240000);
+  // plain thunderstorms (95) keep the occasional random hail treat; codes 96/99 REPORT hail,
+  // so it always falls — and 99 (heavy hail) falls noticeably denser.
+  if(!fx.hail && ((slot*40503+7)>>>0)%100>=35) return;
+  var hn=Math.round(SW/(fx.hail?(weather.code===99?7:11):14));
+  for(var i=0;i<hn;i++){ var h=((i*2654435761+slot)>>>0);
     var ph=((now*(0.9+((h>>>4)%40)/100)/900)+(h%97))%1.25;
     var x=(h%SW), y;
     if(ph<1) y=ph*(HORIZON+GROUND-4);
@@ -1485,7 +1497,32 @@ function drawSky(g,now,nd,L,fx){
 // ---- weather ----
 // fetch on a new shared 10-min window, or retry within a window if a screen's request never landed —
 // all monitors compute the SAME window index, so they fetch together and converge on identical weather.
+function maybeFetchAirq(){
+  if(FORCEAQ){ airq=FORCEAQ; return; }
+  var rn=Date.now(), ab=Math.floor(rn/AQ_BUCKET);
+  if(ab!==aqBucket || (aqOkBucket!==ab && rn-aqReqAt>60000)){
+    aqBucket=ab; aqReqAt=rn; fetchAirq(ab);
+  }
+}
+function fetchAirq(bucket){
+  if(typeof XMLHttpRequest==="undefined") return;
+  try{
+    var xhr=new XMLHttpRequest();
+    xhr.onreadystatechange=function(){
+      if(xhr.readyState===XMLHttpRequest.DONE && xhr.status===200){
+        try{ var j=JSON.parse(xhr.responseText), cu=j.current;
+          if(cu){ airq={ pm25:(cu.pm2_5!=null?cu.pm2_5:null), aqi:(cu.us_aqi!=null?cu.us_aqi:null) };
+            if(bucket!==undefined) aqOkBucket=bucket; }
+        }catch(e){}
+      }
+    };
+    xhr.open("GET","https://air-quality-api.open-meteo.com/v1/air-quality?latitude="+LAT+"&longitude="+LON+"&current=pm2_5,us_aqi");
+    xhr.send();
+  }catch(e){}
+}
+var FORCEWX=null;   // test hook: a full weather object {code,cloud,wind,temp,precip,feels,gust} — pins the live fetch
 function maybeFetchWeather(){
+  if(FORCEWX){ weather=FORCEWX; return; }   // forced weather sticks (harness) — no live fetch can clobber it
   var rn=Date.now(), wb=Math.floor(rn/WX_BUCKET);
   if(wb!==wxBucket || (wxOkBucket!==wb && rn-wxReqAt>30000)){
     wxBucket=wb; wxReqAt=rn; fetchWeather(wb);
@@ -1540,11 +1577,17 @@ function wfx(){
   var c=weather.code;
   return { fog:c===45||c===48, drizzle:c>=51&&c<=57,
     rain:(c>=61&&c<=67)||(c>=80&&c<=82), snow:(c>=71&&c<=77)||c===85||c===86,
-    thunder:c>=95, cloudy:weather.cloud>60 };
+    thunder:c>=95, cloudy:weather.cloud>60,
+    freezing:c===56||c===57||c===66||c===67,   // freezing drizzle/rain → ice glaze on everything
+    hail:c===96||c===99,                       // thunderstorm WITH hail → pellets guaranteed (99 = heavy)
+    grains:c===77,                             // snow grains → fine, slow, sparse
+    violent:c===82 };                          // violent rain showers → reads harder than steady heavy rain
 }
 // a short weather word from a WMO code (+ cloud % for the clear/cloudy split)
 function wxWord(c,cloud){
+  if(c===96||c===99) return "HAIL";
   if(c>=95) return "STORMS";
+  if(c===56||c===57||c===66||c===67) return "ICE";
   if((c>=71&&c<=77)||c===85||c===86) return "SNOW";
   if((c>=61&&c<=67)||(c>=80&&c<=82)) return "RAIN";
   if(c>=51&&c<=57) return "DRIZZLE";
@@ -1868,6 +1911,7 @@ function setup(scene,opts){
   HORIZON=SH-GROUND;                          // street baseline (back edge of sidewalk)
   buildWorld(lifeIndexOf(NOWOVR!=null?NOWOVR:Date.now()));
   maybeFetchWeather();          // seed the shared 10-min window on boot (draw() keeps it fresh thereafter)
+  maybeFetchAirq();             // seed the shared 30-min air-quality window too
   tPrev=Date.now();
 }
 // Which of the city's LIVES is this? Every rebirth rolls a brand-new seed, so each life
@@ -8879,6 +8923,7 @@ function draw(g,pass){
   if(pass!=="bg") tPrev=now;
   var lifeI=lifeIndexOf(now); if(lifeI!==curLife) buildWorld(lifeI);   // REBIRTH: roll a brand-new city (masked by the ash veil)
   maybeFetchWeather();          // all monitors fetch on the same 10-min wall-clock window → identical weather
+  maybeFetchAirq();             // and the same 30-min window for air quality (wildfire smoke)
   var nd=nowDate();
   var ph=dayPhase(nd), fx=wfx(), hol=holidays(nd);
   var L=ph.light, night=1-L;
@@ -9729,7 +9774,16 @@ function draw(g,pass){
     // a dark cool gloom by NIGHT — so a rainy afternoon doesn't turn pitch-dark
     if(L>0.5){ g.fillStyle="rgba(150,162,182,"+(fx.thunder?0.16:0.10)+")"; g.fillRect(0,0,SW,SH); }
     else     { g.fillStyle="rgba(40,52,74,"+(fx.thunder?0.14:0.09)+")"; g.fillRect(0,0,SW,HORIZON); }  // night: cool mist on the sky only — never darken the street further
-    g.fillStyle="rgba(120,150,190,0.08)"; g.fillRect(0,HORIZON+3,SW,GROUND-3);            // puddle sheen on the road
+    g.fillStyle=fx.freezing?"rgba(170,205,240,0.13)":"rgba(120,150,190,0.08)"; g.fillRect(0,HORIZON+3,SW,GROUND-3);   // puddle sheen (icier when freezing)
+    if(fx.freezing){                                                                        // FREEZING rain/drizzle: everything glazes over
+      g.fillStyle="rgba(190,220,250,0.07)"; g.fillRect(0,0,SW,SH);                          // cold glassy cast over the whole scene
+      g.globalCompositeOperation="lighter";
+      g.fillStyle="rgba(210,235,255,0.10)"; g.fillRect(0,HORIZON+3,SW,2);                    // hard glint line where the ice sheet starts
+      var gl=Math.floor(now/700);                                                            // slow sparkle: stray glints on the glazed road
+      for(var gi=0;gi<Math.round(SW/26);gi++){ var gh=((gi*2654435761+gl)>>>0);
+        if(gh%5===0){ g.fillStyle="rgba(235,248,255,0.7)"; g.fillRect(gh%SW,HORIZON+3+((gh>>>9)%Math.max(2,GROUND-4)),1,1); } }
+      g.globalCompositeOperation="source-over";
+    }
     if(L<0.5){ g.globalCompositeOperation="lighter";                                      // night: the wet road MIRRORS the city light
       g.fillStyle="rgba(90,110,160,0.10)"; g.fillRect(0,HORIZON+3,SW,GROUND-3);
       g.fillStyle="rgba(140,160,210,0.07)"; g.fillRect(0,HORIZON+3,SW,((GROUND-3)/2)|0);
@@ -9746,6 +9800,7 @@ function draw(g,pass){
     var lean=(0.28+0.85*windK)*(1+0.35*gust);                            // x-drift per px of fall (wind from the west)
     var precipK=(weather.precip!=null&&weather.precip>0)?Math.max(0.6,Math.min(1.9,0.6+weather.precip/3)):1;   // real precip mm → drop density
     var mult=(fx.drizzle?0.5:(fx.thunder?1.5:1))*precipK;                // a drizzle is sparse; a downpour is dense — matched to reality
+    if(fx.violent) mult=Math.max(mult,1.4);                              // code 82 "violent showers" must read harder than steady heavy rain
     // depth layers: [share of SW as drop count, fall px/ms, streak len, alpha scale]
     var RL=[[0.55,0.16,3,0.42],[0.5,0.24,5,0.65],[0.4,0.34,8,1.0]];      // far, mid, near
     if(L<0.4) g.globalCompositeOperation="lighter";                      // at night the rain catches the city light
@@ -9788,7 +9843,9 @@ function draw(g,pass){
   } else { if(splashes.length) splashes.length=0; wetness=Math.max(0,wetness-dt*0.000008); }
 
   if(fx.snow){
-    while(flakes.length<230) flakes.push({x:Math.random()*SW,y:Math.random()*SH,v:0.3+Math.random()*0.6,ph:Math.random()*6,s:Math.random()<0.3?2:1});
+    var flkN=fx.grains?140:230, flkV=fx.grains?0.55:1;                   // code 77 snow grains: fine, slow, sparse — never a blizzard
+    while(flakes.length<flkN) flakes.push({x:Math.random()*SW,y:Math.random()*SH,v:(0.3+Math.random()*0.6)*flkV,ph:Math.random()*6,s:fx.grains?1:(Math.random()<0.3?2:1)});
+    if(flakes.length>flkN) flakes.length=flkN;
     g.fillStyle="rgba(170,196,232,0.10)"; g.fillRect(0,0,SW,SH);       // cold blue cast
     for(i=0;i<flakes.length;i++){ var f=flakes[i]; f.y+=f.v*dt*0.06; f.x+=Math.sin(now*0.001+f.ph)*0.4-dt*0.004*(weather.wind||5)*0.2;
       if(f.y>HORIZON+2){f.y=-3;f.x=Math.random()*SW;}
@@ -9800,6 +9857,34 @@ function draw(g,pass){
   if(fog.t>0.01){ for(i=0;i<4;i++){ var fy=HORIZON*0.6+i*18, drift=Math.sin(now*0.0001*(i+1))*24;
       g.fillStyle="rgba(198,204,214,"+(fog.t*(0.30-i*0.05))+")"; g.fillRect(0,(fy+drift*0.2)|0,SW,36); }
     g.fillStyle="rgba(188,194,208,"+(fog.t*0.45)+")"; g.fillRect(0,(HORIZON*0.85)|0,SW,SH*0.5); }
+
+  // ---- WILDFIRE SMOKE (real air quality): a warm grey-amber veil driven by live PM2.5.
+  // Ambience, not a disaster: no HUD alert, coexists with any weather. ≤20 µg/m³ = nothing;
+  // ~35 light haze; ~100 heavy; ≥200 the sky goes apocalyptic orange (2023-Canada style).
+  // Pure function of the shared fetched value + clock → identical on every screen.
+  var smokeF=(airq.pm25!=null)?Math.max(0,Math.min(1,(airq.pm25-20)/180)):0;
+  if(curDis&&curDis.type==="smog") smokeF*=0.3;              // the smog DISASTER owns the look locally — don't stack to mud
+  if(smokeF>0.01){
+    var smDay=L>0.5;
+    // full-sky wash: warm smoke grey by day, sodium-brown by night (borrowed from the smog palette)
+    g.fillStyle=smDay?("rgba(168,132,72,"+(0.10+0.34*smokeF)+")"):("rgba(84,64,38,"+(0.10+0.30*smokeF)+")");
+    g.fillRect(0,0,SW,SH);
+    // thicker band hugging the skyline — smoke settles low
+    g.fillStyle=smDay?("rgba(150,112,60,"+(0.10+0.26*smokeF)+")"):("rgba(66,50,30,"+(0.10+0.22*smokeF)+")");
+    g.fillRect(0,(HORIZON*0.55)|0,SW,(HORIZON*0.45+GROUND)|0);
+    if(smokeF>0.55){                                          // heavy smoke: an extra hot-orange cast up high
+      g.globalCompositeOperation="lighter";
+      g.fillStyle="rgba(230,120,30,"+(0.05+0.14*(smokeF-0.55)/0.45)+")"; g.fillRect(0,0,SW,(HORIZON*0.6)|0);
+      g.globalCompositeOperation="source-over";
+    }
+    // drifting soot motes (hash-deterministic, clock-driven; count scales with quality tier)
+    var moteN=Math.round((QUAL==="performance"?12:24)*smokeF);
+    g.fillStyle=smDay?"rgba(120,96,60,0.5)":"rgba(48,38,24,0.6)";
+    for(var smi=0;smi<moteN;smi++){ var smh=((smi*2654435761+77)>>>0);
+      var smx=((smh%(SW+40))+now*(0.004+((smh>>>8)%10)*0.0008))%(SW+40)-20;
+      var smy=((smh>>>12)%(HORIZON+GROUND))+Math.sin(now*0.0006+smi)*3;
+      g.fillRect(smx|0,smy|0,1,1); }
+  }
 
   if(fx.thunder){ if(now>lightNext){ lightning=1; lightNext=now+2000+Math.random()*7000; lboltX=Math.random()*SW; }
     if(lightning>0){ g.fillStyle="rgba(240,245,255,"+(lightning*0.7)+")"; g.fillRect(0,0,SW,SH);

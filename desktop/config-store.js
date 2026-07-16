@@ -54,6 +54,15 @@ function sanitizeConfig(raw) {
   const lat = parseFloat(cfg.lat), lon = parseFloat(cfg.lon);
   if (isFinite(lat) && isFinite(lon) && lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180) {
     out.lat = lat; out.lon = lon;
+    // locationName (the human-friendly "Norwich, CT" shown in Settings) only ever
+    // persists alongside a valid lat/lon pair — without coordinates it's a stray
+    // label with nothing to describe, so it's dropped rather than saved half-formed.
+    const name = String(cfg.locationName == null ? '' : cfg.locationName)
+      .replace(/[\x00-\x1F\x7F]/g, '')   // strip control chars
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 60);
+    if (name) out.locationName = name;
   }
   // Tri-state behind-the-icons wallpaper flag (Windows): true = on, explicit false =
   // the user turned it off (never auto-retry), key ABSENT = never decided — on a fresh

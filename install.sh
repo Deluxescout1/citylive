@@ -69,6 +69,5 @@ echo
 echo "Done!  CityLive is installed."
 echo "  • If the wallpaper didn't switch, open System Settings > Wallpaper, choose 'CityLive Pixel City'."
 echo "  • Location is Norwich CT (day/night, sun, moon, stars, weather). To use YOUR location,"
-echo "    edit the first line of:  $DEST/contents/js/city.js"
-echo "        var LAT = 41.5243, LON = -72.0759;   // <- change to your lat/lon"
-echo "    then re-run this script (or restart plasmashell)."
+echo "    right-click the desktop → Configure Desktop and Wallpaper → CityLive → set Location"
+echo "    (or keep using config.local.json, as above)."

@@ -43,6 +43,7 @@
       "main.js",
       "preload.js",
       "config-store.js",
+      "geocode.js",
       "screensaver.js",
       "wallpaper.js",
       "renderer/**/*",

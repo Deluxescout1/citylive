@@ -23,6 +23,7 @@ contextBridge.exposeInMainWorld('citylive', {
   resetConfig: () => ipcRenderer.invoke('citylive:reset-config'),
   openConfigFile: () => ipcRenderer.invoke('citylive:open-config-file'),
   getVersion: () => ipcRenderer.invoke('citylive:get-version'),
+  geocode: (q) => ipcRenderer.invoke('citylive:geocode', q),
   // Control Center:
   setWallpaper: (on) => ipcRenderer.invoke('citylive:set-wallpaper', !!on),
   screensaver: (action) => ipcRenderer.invoke('citylive:screensaver', action), // 'enable'|'disable'|'preview'|'status'

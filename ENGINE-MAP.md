@@ -30,6 +30,13 @@ pixels**, mapped to canvas pixels by `ZOOM`.
 ### Test / override hooks (used by the render harness)
 - `NOWOVR` — override `Date.now()` to render any moment (past or future; the sim is deterministic).
 - `FORCEDIS = {type,intensity,xf,w,seed,f}` — force a specific disaster at phase `f∈[0,1]`.
+- `FORCEWX = {code,cloud,wind,temp,precip,feels,gust}` (~1523) — pins the live weather fetch;
+  once set, `maybeFetchWeather()` never overwrites `weather` from the network. `code` is a WMO
+  weather code — see `wfx()` (~1576) for how it derives `fog/drizzle/rain/snow/thunder/cloudy`
+  plus the finer flags `freezing` (56/57/66/67 — ice glaze), `hail` (96/99), `grains` (77 — fine
+  sparse snow), `violent` (82 — violent rain showers).
+- `FORCEAQ = {pm25,aqi}` (~129) — pins the live air-quality fetch (`airq`, ~126); once set,
+  `maybeFetchAirq()` never overwrites it from the network.
 - `CLOCK` — mirror of the override clock used by some subsystems.
 - Offscreen render recipe: `QT_QPA_PLATFORM=offscreen qml6 <file.qml>` with a `Canvas`
   that sets `City.NOWOVR`, calls `City.setup(...)`, then `City.draw(g)` and
@@ -65,6 +72,13 @@ pixels**, mapped to canvas pixels by `ZOOM`.
 ## 5. Weather & rhythm (lines 1413–1605)
 - Live weather fetch + nowcast + 12h projection 1413 · daily rhythm (rush-hour density) 1537 ·
   season → foliage 1559 · special calendar days 1569 · `cwInst()` (crosswalks paint in as roads pave) 1604.
+- **Live air quality → wildfire smoke veil** (~9865, inline in `draw()`, not a standalone
+  function despite the descriptive name "drawSmokeVeil" used informally): `airq.pm25` (µg/m³,
+  from Open-Meteo's air-quality API, or `FORCEAQ` in tests) maps to a smoke intensity
+  `smokeF = clamp((pm25-20)/180, 0, 1)` — ≤20 is invisible, ~35 a light haze, ~100 heavy,
+  ≥200 an apocalyptic orange sky (2023-Canada-wildfire style). Pure function of the shared
+  fetched value + clock, so it renders identically on every screen. The `smog` disaster
+  dims it to 0.3× locally so the two effects don't stack into mud.
 
 ## 6. World generation (lines 1606–1935)
 - **Massing** — setback segment stacks → unique silhouettes 1641.

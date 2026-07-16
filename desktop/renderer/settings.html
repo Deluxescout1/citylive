@@ -40,6 +40,9 @@
   .status{color:var(--sub);font-size:12px;margin:0 0 8px}
   .status b{color:var(--txt)}
   .note{color:#8bffb0;font-size:11px;margin-top:8px;min-height:14px}
+  .note.err{color:#ff9aa2}
+  .loccand{font-size:11px;padding:6px 10px;text-align:left}
+  details summary::-webkit-details-marker{color:var(--sub)}
   .brow{display:flex;gap:6px;align-items:center;margin:5px 0}
   .brow .bm,.brow .bd{width:48px;text-align:center}
   .brow .bl{flex:1;min-width:0}
@@ -85,10 +88,24 @@
     </section>
     <section>
       <h3>Your location</h3>
-      <p class="hint">Drives the sun, moon, sunrise/sunset and daylight. Leave blank for the default (Norwich, CT).</p>
-      <div class="row2">
-        <label>Latitude <input id="lat" type="number" step="any" placeholder="e.g. 40.7128"></label>
-        <label>Longitude <input id="lon" type="number" step="any" placeholder="e.g. -74.0060"></label>
+      <p class="hint">Drives the sun, moon, sunrise/sunset, daylight and weather. Leave blank for the default (Norwich, CT).</p>
+      <input id="locationName" type="hidden" value="">
+      <div class="row">
+        <input id="locQuery" class="grow" type="text" placeholder="City, ZIP code, or address">
+        <button id="locLookup">Look up</button>
+      </div>
+      <div id="locResults" class="row" style="display:none"></div>
+      <p class="note" id="locNote" style="min-height:14px"></p>
+      <p class="status" id="locUsing" style="display:none"></p>
+      <details style="margin-top:8px">
+        <summary style="cursor:pointer;color:var(--sub);font-size:11px">Advanced: enter lat/lon manually</summary>
+        <div class="row2" style="margin-top:8px">
+          <label>Latitude <input id="lat" type="number" step="any" placeholder="e.g. 40.7128"></label>
+          <label>Longitude <input id="lon" type="number" step="any" placeholder="e.g. -74.0060"></label>
+        </div>
+      </details>
+      <div class="row">
+        <button id="locReset" class="ghost">Reset to default</button>
       </div>
     </section>
     <section>
@@ -263,6 +280,8 @@
         (cfg.birthdays||[]).forEach(function(b){ listEl.appendChild(bdayRow(b)); });
         document.getElementById('lat').value = (cfg.lat!=null)?cfg.lat:'';
         document.getElementById('lon').value = (cfg.lon!=null)?cfg.lon:'';
+        document.getElementById('locationName').value = cfg.locationName || '';
+        renderLocUsing();
         var cyc = cfg.cycle==='weekly' ? '1w' : cfg.cycle;                          // map legacy alias
         if(['1w','2w','3w','1mo'].indexOf(cyc)<0) cyc='1w';                          // test/unknown → show 1 week
         document.getElementById('cycle').value = cyc;
@@ -293,10 +312,93 @@
     };
     var lat=parseFloat(document.getElementById('lat').value), lon=parseFloat(document.getElementById('lon').value);
     if(isFinite(lat)&&isFinite(lon)){ cfg.lat=lat; cfg.lon=lon; }
+    var locName = document.getElementById('locationName').value;
+    if(locName) cfg.locationName = locName;
     return cfg;
   }
 
   document.getElementById('bdayAdd').addEventListener('click',function(){ listEl.appendChild(bdayRow({label:'HAPPY BIRTHDAY '})); });
+
+  // ---------------------------------------------------------------------
+  // Location lookup (city / ZIP / address → lat/lon via the main-process geocoder)
+  // ---------------------------------------------------------------------
+  var locQuery = document.getElementById('locQuery');
+  var locLookup = document.getElementById('locLookup');
+  var locResults = document.getElementById('locResults');
+  var locNote = document.getElementById('locNote');
+  var locUsing = document.getElementById('locUsing');
+  var locNameField = document.getElementById('locationName');
+  var latField = document.getElementById('lat');
+  var lonField = document.getElementById('lon');
+
+  function setLocNote(msg, isErr){
+    locNote.textContent = msg || '';
+    locNote.className = 'note' + (isErr ? ' err' : '');
+  }
+
+  function renderLocUsing(){
+    var name = locNameField.value;
+    if (name) { locUsing.textContent = 'Using: ' + name; locUsing.style.display = ''; }
+    else { locUsing.textContent = ''; locUsing.style.display = 'none'; }
+  }
+
+  function clearLocResults(){ locResults.innerHTML=''; locResults.style.display='none'; }
+
+  function pickCandidate(c){
+    latField.value = c.lat;
+    lonField.value = c.lon;
+    locNameField.value = c.name || c.label || '';
+    locUsing.textContent = 'Using: ' + (c.label || c.name || '');
+    locUsing.style.display = '';
+    clearLocResults();
+    setLocNote('');
+  }
+
+  function renderCandidates(results){
+    clearLocResults();
+    if (!results || !results.length) return;
+    locResults.style.display = 'flex';
+    results.forEach(function(c){
+      var b = document.createElement('button');
+      b.type = 'button'; b.className = 'ghost loccand'; b.textContent = c.label || c.name;
+      b.addEventListener('click', function(){ pickCandidate(c); });
+      locResults.appendChild(b);
+    });
+  }
+
+  locLookup.addEventListener('click', function(){
+    var q = locQuery.value;
+    setLocNote('Looking up…');
+    clearLocResults();
+    try {
+      api.geocode(q).then(function(res){
+        res = res || {};
+        if (res.error) { setLocNote(res.error, true); return; }
+        if (!res.results || !res.results.length) { setLocNote('No matches — try a nearby city name', true); return; }
+        setLocNote('');
+        renderCandidates(res.results);
+      }).catch(function(){ setLocNote('Lookup failed — check your internet connection and try again', true); });
+    } catch (e) { setLocNote('Lookup failed — check your internet connection and try again', true); }
+  });
+
+  // Typing lat/lon manually means the picked-candidate name no longer describes the
+  // coordinates the user now has in mind — drop it rather than show a stale label.
+  [latField, lonField].forEach(function(f){
+    f.addEventListener('input', function(){
+      locNameField.value = '';
+      renderLocUsing();
+    });
+  });
+
+  document.getElementById('locReset').addEventListener('click', function(){
+    latField.value = '';
+    lonField.value = '';
+    locNameField.value = '';
+    locQuery.value = '';
+    clearLocResults();
+    setLocNote('');
+    renderLocUsing();
+  });
 
   var citySaveNote = document.getElementById('citySaveNote');
   document.getElementById('citySave').addEventListener('click',function(){

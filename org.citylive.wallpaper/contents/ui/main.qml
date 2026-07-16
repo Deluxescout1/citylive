@@ -102,6 +102,18 @@ WallpaperItem {
             root.cfgApplied = true;
             try { if (Local && Local.CONFIG) City.applyConfig(Local.CONFIG); } catch (e) { /* empty → shared defaults */ }
         }
+        // LOCATION from the wallpaper-config dialog (System Settings → Wallpaper → CityLive).
+        // Precedence: config-dialog location > config.local.json location > engine default.
+        // 999 = "unset" (the dialog's default), so a fresh install never overrides the bake.
+        // Applied every boot (not once): the user can change it live from the dialog, and
+        // applyConfig re-derives the architecture region + weather/sky for the new place.
+        try {
+            if (configuration && configuration.latitude !== undefined &&
+                configuration.latitude >= -90 && configuration.latitude <= 90 &&
+                configuration.longitude >= -180 && configuration.longitude <= 180) {
+                City.applyConfig({ lat: configuration.latitude, lon: configuration.longitude });
+            }
+        } catch (e) { /* invalid/unset → keep the baked or default location */ }
         City.setup(root.scene, {
             cw:   cv.width,
             ch:   cv.height,
@@ -124,6 +136,13 @@ WallpaperItem {
     Timer { id: settleTimer; interval: 6000; running: true; onTriggered: { root.boot(); cv.requestPaint() } }
     Component.onCompleted: bootTimer.restart()
     onSceneChanged: bootTimer.restart()
+    // location changed in the config dialog → re-boot with the new place (weather/sun/stars/architecture)
+    Connections {
+        target: configuration
+        ignoreUnknownSignals: true
+        function onLatitudeChanged(){ bootTimer.restart() }
+        function onLongitudeChanged(){ bootTimer.restart() }
+    }
     onWidthChanged: bootTimer.restart()
     onHeightChanged: bootTimer.restart()
     onWorldLeftPxChanged: bootTimer.restart()

@@ -331,6 +331,9 @@ function registerConfigIpc() {
   ipcMain.handle('citylive:reset-config', () => { const def = writeUserConfig(store.DEFAULT_CONFIG); reloadCity(); return def; });
   ipcMain.handle('citylive:open-config-file', () => (CONFIG_PATH ? shell.openPath(CONFIG_PATH) : Promise.resolve('')));
   ipcMain.handle('citylive:get-version', () => app.getVersion());
+  // Settings panel location lookup: city/ZIP/address → candidate {label,lat,lon,name}
+  // list. Delegates to geocode.js (no Electron dependency, unit-tested standalone).
+  ipcMain.handle('citylive:geocode', (e, q) => require('./geocode').lookup(q));
   // Environment facts the render page needs before its first frame: whether it's the
   // wallpaper (reserve street above the taskbar), and the primary display's logical width
   // (feature scale reference on a multi-monitor union canvas).

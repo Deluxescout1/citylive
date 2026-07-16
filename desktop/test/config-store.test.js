@@ -131,6 +131,46 @@ test('disasters: valid values survive, invalid/absent drop', () => {
   assert.ok(!('disasters' in store.sanitizeConfig({})));
 });
 
+test('locationName survives sanitize only alongside a valid lat/lon pair', () => {
+  const withCoords = store.sanitizeConfig({ lat: 41.5, lon: -72.1, locationName: 'Norwich, CT' });
+  assert.strictEqual(withCoords.locationName, 'Norwich, CT');
+
+  const noCoords = store.sanitizeConfig({ locationName: 'Norwich, CT' });
+  assert.ok(!('locationName' in noCoords));
+
+  const badCoords = store.sanitizeConfig({ lat: 999, lon: -72.1, locationName: 'Norwich, CT' });
+  assert.ok(!('locationName' in badCoords));
+});
+
+test('locationName is sanitized: control chars stripped, whitespace collapsed, length capped', () => {
+  const out = store.sanitizeConfig({
+    lat: 41.5, lon: -72.1,
+    locationName: '  Nor\x00wich,   CT  ' + 'x'.repeat(80)
+  });
+  assert.strictEqual(out.locationName.length, 60);
+  assert.ok(!/[\x00-\x1F\x7F]/.test(out.locationName));
+  assert.ok(!/\s\s/.test(out.locationName));
+  assert.strictEqual(out.locationName.indexOf('Norwich, CT'), 0);
+});
+
+test('an empty/whitespace-only locationName drops even with valid lat/lon', () => {
+  const out = store.sanitizeConfig({ lat: 41.5, lon: -72.1, locationName: '   ' });
+  assert.ok(!('locationName' in out));
+});
+
+test('write → read round-trip persists locationName alongside lat/lon', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'citylive-cfg-'));
+  const file = path.join(dir, 'config.json');
+  try {
+    store.writeConfig(file, { birthdays: [], cycle: '1w', lat: 41.5243, lon: -72.0759, locationName: 'Norwich, CT' });
+    const back = store.readConfig(file);
+    assert.strictEqual(back.locationName, 'Norwich, CT');
+    assert.strictEqual(back.lat, 41.5243);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('write → read round-trip persists quality / era / disasters', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'citylive-cfg-'));
   const file = path.join(dir, 'config.json');
