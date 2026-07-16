@@ -7634,6 +7634,29 @@ function drawWar(g,L,now,night){
         else if(tier===1){ g.fillStyle="rgba(40,34,28,0.95)"; g.fillRect(sxp|0,pyp|0,1,1); }
         else { g.fillStyle="#e6dcc0"; g.fillRect((sxp-dir3)|0,pyp|0,2,1); }   // arrow shaft
       }
+      // -- tier-3 INVASION FORCE: gunmetal dropships hover over the invader line, raking
+      //    AIMED bolts into no-man's-land — telegraph, then CRACK, always shy of the wall --
+      if(tier===3){
+        for(var ds9=0;ds9<2;ds9++){ var dh9=((ds9*2654435761+41)>>>0);
+          var dbob=Math.sin(now*0.0012+ds9*2.6)*5;
+          drawDropship(g,BXX+22+ds9*24+Math.sin(now*0.001+ds9)*4,HORIZON-44+dbob-ds9*9,2,now); }
+        var SLOT9=950, ph9=(now%SLOT9)/SLOT9, sl9=Math.floor(now/SLOT9);
+        var h9=((sl9*2654435761+515)>>>0); h9^=h9>>>13;
+        var btx=BXX-13+((h9>>>17)%11), muzX9=BXX+22+((h9>>>21)&1)*24, muzY9=HORIZON-44-((h9>>>22)&1)*9;
+        g.globalCompositeOperation="lighter";
+        if(ph9<0.6){ var swp9=muzX9+(btx-muzX9)*(ph9/0.6);
+          g.fillStyle="rgba(255,200,90,0.4)"; g.fillRect(swp9|0,(HORIZON-2)|0,2,2); }
+        else { var k9=(ph9-0.6)/0.4;
+          for(var t9=0;t9<=10;t9++){ var tf9=t9/10;
+            g.fillStyle="rgba(255,200,90,"+(0.85*(1-tf9*0.3)*(1-k9*0.5)).toFixed(3)+")";
+            g.fillRect((muzX9+(btx-muzX9)*tf9)|0,(muzY9+((HORIZON-2)-muzY9)*tf9)|0,2,2); }
+          g.fillStyle="rgba(255,240,200,"+(0.8*(1-k9)).toFixed(3)+")"; fillEllipse(g,btx,HORIZON-2,4+k9*4,2); }
+        g.globalCompositeOperation="source-over";
+        // fading scorches in no-man's-land from the last few bolts
+        for(var sc9=1;sc9<=6;sc9++){ var so9=sl9-sc9, sage=(now-((so9+1)*SLOT9))/14000; if(sage>=1) break;
+          var sh9=((so9*2654435761+515)>>>0); sh9^=sh9>>>13;
+          g.fillStyle="rgba(30,22,18,"+(0.45*(1-sage)).toFixed(3)+")"; fillEllipse(g,BXX-13+((sh9>>>17)%11),HORIZON-1,3,1); }
+      }
       // -- heavy shellbursts landing --
       for(var ex2=0;ex2<3;ex2++){ var eph2=((now*0.4+ex2*777)%1400)/1400;
         if(eph2<0.22){ g.globalCompositeOperation="lighter";
