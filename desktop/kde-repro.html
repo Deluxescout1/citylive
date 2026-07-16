@@ -21,6 +21,7 @@ if(Q.get('death')){ FORCEDEATH=Q.get('death'); }
 if(Q.get('now')){ NOWOVR=+Q.get('now'); }
 if(Q.get('clock')){ CLOCK=+Q.get('clock'); }   // pins the sim's wall-clock (day/night) separately from NOWOVR
 if(Q.get('apoc')!=null){ var _ap=+Q.get('apoc'); FORCEAGE={g:1,phase:'apoc',apoc:_ap,cy:0.955+0.045*_ap}; }
+if(Q.get('dis')){ FORCEDIS={type:Q.get('dis'),intensity:4,xf:0.5,w:60,seed:77,f:qn('disf',0.25)}; }
 try{ setup('neon',{cw:cw,ch:ch,woff:woff,ww:ww,pxk:3,zoom:1,quality:'spectacle'}); document.title='SETUP_OK'; }
 catch(e){ document.title='SETUP_ERR '+(e&&e.message); }
 function frame(){ if(window.__stop) return; try{ draw(g); }catch(e){ document.title='DRAW_ERR '+e; } requestAnimationFrame(frame); }

@@ -8065,7 +8065,7 @@ function drawApocPollution(g,ap,L,now){
   g.fillStyle="rgba("+c[0]+","+c[1]+","+c[2]+","+veilA.toFixed(3)+")"; g.fillRect(0,0,SW,SH);
   g.fillStyle="rgba("+Math.round(c[0]*0.8)+","+Math.round(c[1]*0.8)+","+Math.round(c[2]*0.8)+","+(veilA*0.8).toFixed(3)+")";
   g.fillRect(0,(gy*0.55)|0,SW,SH-((gy*0.55)|0));                                          // smoke settles LOW
-  var moteN=Math.round((QUAL==="performance"?16:34)*Math.min(1,0.3+ap));                  // drifting soot
+  var moteN=Math.round((QUAL===0?16:34)*Math.min(1,0.3+ap));                  // drifting soot
   g.fillStyle=day?"rgba(96,88,58,0.55)":"rgba(30,28,18,0.6)";
   for(var mi=0;mi<moteN;mi++){ var mh=((mi*2654435761+31)>>>0);
     var mx2=((mh%(SW+40))+now*(0.003+((mh>>>7)%10)*0.0007))%(SW+40)-20;
@@ -10218,7 +10218,7 @@ function draw(g,pass){
       g.globalCompositeOperation="source-over";
     }
     // drifting soot motes (hash-deterministic, clock-driven; count scales with quality tier)
-    var moteN=Math.round((QUAL==="performance"?12:24)*smokeF);
+    var moteN=Math.round((QUAL===0?12:24)*smokeF);
     g.fillStyle=smDay?"rgba(120,96,60,0.5)":"rgba(48,38,24,0.6)";
     for(var smi=0;smi<moteN;smi++){ var smh=((smi*2654435761+77)>>>0);
       var smx=((smh%(SW+40))+now*(0.004+((smh>>>8)%10)*0.0008))%(SW+40)-20;
