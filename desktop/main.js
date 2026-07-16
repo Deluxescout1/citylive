@@ -43,12 +43,22 @@ let firstRunBalloon = false;     // show the one-time "this is your wallpaper no
 function createWindow(opts) {
   const wp = !!(opts && opts.wallpaper);
   const bare = SS.screensaver || wp;   // screensaver + wallpaper both want a chromeless full window
+  // A wallpaper window must NOT be Chromium-fullscreen: converting a fullscreen window into
+  // a WS_CHILD of Progman leaves its compositor blank (VM-verified — the reparented surface
+  // stops painting, while a plain window reparents and paints fine). So the wallpaper gets a
+  // frameless window SIZED like the screen instead; wallpaper.js re-covers the full virtual
+  // desktop with MoveWindow after the reparent anyway.
+  let wpBounds = null;
+  if (wp) {
+    try { wpBounds = require('electron').screen.getPrimaryDisplay().bounds; } catch (e) { wpBounds = null; }
+  }
   win = new BrowserWindow({
-    width: 1280,
-    height: 720,
+    width: wpBounds ? wpBounds.width : 1280,
+    height: wpBounds ? wpBounds.height : 720,
+    ...(wpBounds ? { x: wpBounds.x, y: wpBounds.y, resizable: false } : {}),
     minWidth: 480,
     minHeight: 320,
-    fullscreen: bare,
+    fullscreen: SS.screensaver,   // fullscreen ONLY for the screensaver (see note above)
     frame: !bare,
     skipTaskbar: bare,
     focusable: !wp,              // a wallpaper never steals focus
