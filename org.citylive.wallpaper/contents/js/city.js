@@ -1724,6 +1724,9 @@ function landRoute(x){ if(!hasOcean||seaW<=0) return x;
   var a=WW*seaW+8, b=WW*(1-seaW)-8; return a+(x/WW)*(b-a); }
 var curLit=1;        // fraction of night windows actually on (ramps up through the evening, dims after midnight)
 var curSunDf=0.5;    // where the sun is in its arc (0 sunrise .. 1 sunset) — drives light direction
+// THE GOLDEN HOUR — one global light state, computed once per frame, consumed everywhere
+// (sky, buildings, terrain, water, mountains, clouds) so low-sun light reads as ONE event.
+var goldenK=0, goldC=[255,196,140];   // strength 0..1 near sunrise/sunset · rose-gold dawns, amber dusks
 function cwInst(cw){ return cityG >= 0.38+((cw.seed%997)/997)*0.2; }      // crosswalks get painted one at a time
 
 // ---- world generation ----
@@ -2901,7 +2904,7 @@ function drawHouse(g,bx,b,L,now,dayLit,night){
   g.fillStyle=css(col); g.fillRect(hx,top,hw,hh);                                       // walls
   if(b.brick){ g.fillStyle="rgba(0,0,0,0.14)"; for(var my=top+2;my<HORIZON-1;my+=3) g.fillRect(hx,my,hw,1); }
   else if(b.clap||tier===2){ g.fillStyle="rgba(0,0,0,0.06)"; for(var cly=top+3;cly<HORIZON-1;cly+=2) g.fillRect(hx,cly,hw,1); }
-  if(dayLit>0.12){ g.fillStyle="rgba(255,248,225,"+(dayLit*0.28)+")"; g.fillRect(hx,top,1,hh);
+  if(dayLit>0.12){ g.fillStyle=(goldenK>0.25)?("rgba(255,214,160,"+(dayLit*0.32)+")"):("rgba(255,248,225,"+(dayLit*0.28)+")"); g.fillRect(hx,top,1,hh);
     g.fillStyle="rgba(6,8,24,"+(dayLit*0.3)+")"; g.fillRect(hx+hw-1,top,1,hh); }
   if(snowpack>0.15){ g.fillStyle="rgba(240,246,255,"+Math.min(0.85,snowpack*0.9).toFixed(2)+")"; g.fillRect(hx,top,hw,1); }
   // ROOF — richer roofs are steeper & fancier; poor roofs are patched
@@ -3044,6 +3047,7 @@ function drawLayer(g,layer,L,now,fx,hol,haze){
     var col=mixc(b.c,[Math.min(255,b.c[0]*bMul+bA0),Math.min(255,b.c[1]*bMul+bA1),Math.min(255,b.c[2]*bMul+bA2)],dayLit);
     if(cityEra.tint) col=mixc(col,cityEra.tint,cityEra.blend*(0.6+0.4*dayLit));   // this life's architectural material
     if(haze) col=mixc(col,skyTint,haze*dayLit);
+    if(goldenK>0.03) col=mixc(col,goldC,goldenK*0.22*dayLit);   // the golden hour warms every facade
     var colc=css(col);
     // ---- draw the segmented silhouette (each setback narrower; ground seg meets the street) ----
     for(var sgi=0;sgi<b.segs.length;sgi++){ var sg=b.segs[sgi];
@@ -3058,7 +3062,7 @@ function drawLayer(g,layer,L,now,fx,hol,haze){
       }
       if(dayLit>0.12){                                       // the lit face tracks the REAL sun (east mornings, west evenings)
         var sunL=curSunDf<0.5, hiX=sunL?sX:sX+sg.w-1, shX=sunL?sX+sg.w-1:sX;
-        g.fillStyle="rgba(255,248,225,"+(dayLit*0.30)+")"; g.fillRect(hiX,sTop,1,sHt);
+        g.fillStyle=(goldenK>0.25)?("rgba(255,214,160,"+(dayLit*0.34)+")"):("rgba(255,248,225,"+(dayLit*0.30)+")"); g.fillRect(hiX,sTop,1,sHt);   // golden-hour rim
         g.fillStyle="rgba(214,232,255,"+(dayLit*0.45)+")"; g.fillRect(sX,sTop,sg.w,1);
         g.fillStyle="rgba(6,8,24,"+(dayLit*0.34)+")";      g.fillRect(shX,sTop,1,sHt);
       }
@@ -3082,9 +3086,11 @@ function drawLayer(g,layer,L,now,fx,hol,haze){
       if((b.seed&7)===3){ g.fillStyle="rgba(90,120,80,0.12)"; g.fillRect(bx,HORIZON-3,1,3); g.fillRect(bx+b.w-1,HORIZON-3,1,3); }  // moss creeping up the corners
     }
     if(layer===near && dayLit>0.2){                          // long morning/evening shadows thrown on the ground
-      var sunL2=curSunDf<0.5, shL=Math.round(2+(1-Math.sin(Math.max(0.05,Math.min(0.95,curSunDf))*Math.PI))*16);
+      var sunL2=curSunDf<0.5, shL=Math.round(2+(1-Math.sin(Math.max(0.05,Math.min(0.95,curSunDf))*Math.PI))*26);
       g.fillStyle="rgba(8,10,25,"+(0.15*dayLit)+")";
-      g.fillRect(sunL2?bx+b.w:bx-shL, HORIZON, shL, 2);
+      g.fillRect(sunL2?bx+b.w:bx-Math.round(shL*0.6), HORIZON, Math.round(shL*0.6), 2);         // dense core
+      g.fillStyle="rgba(8,10,25,"+(0.07*dayLit)+")";
+      g.fillRect(sunL2?bx+b.w:bx-shL, HORIZON, shL, 2);                                          // soft long tail
     }
     var tX=bx+b.topDx, tW=b.topW;                            // top-segment (roof features attach here)
     drawCrown(g,b.crown,tX,top,tW,col,b.accent,L,now,night);
@@ -4301,6 +4307,7 @@ function drawNewsScreens(g,L,now,night){
 function waterTex(g,xa,xb,yTop,yBot,L,now){
   var w=xb-xa, h=yBot-yTop; if(w<=0||h<=0) return;
   var day=L>0.5, deep=mixc([26,58,84],[92,152,188],L);
+  if(goldenK>0.05) deep=mixc(deep,goldC,goldenK*0.22);   // golden-hour water
   var sg2=g.createLinearGradient(0,yTop,0,yBot);
   sg2.addColorStop(0,css(mixc(deep,[168,196,224],day?0.3:0.14)));    // soft at the far edge…
   sg2.addColorStop(0.22,css(mixc(deep,[120,168,208],day?0.18:0.07)));
@@ -6590,7 +6597,7 @@ function drawGrowSite(g,X,w,targetH,frac,seed,L,now,crew){
 function drawMountains(g,L,now,nd){
   if(!mts) return;
   var gy=HORIZON, day=L>0.5;
-  var sunsetK=Math.max(0,1-Math.abs(L-0.5)*2.4);
+  var sunsetK=goldenK;   // sourced from the shared golden-hour global (identical law)
   var mo=nd.getMonth();
   var winter=(mo===11||mo<=1)?1:((mo===2||mo===10)?0.5:0);
   var snowLo=Math.min(0.5, winter*0.26 + snowpack*0.22);          // how far the snowline creeps down
@@ -9347,6 +9354,18 @@ function draw(g,pass){
   grd.addColorStop(1,css(mixc(cB,ocBot,ocMix)));
   g.fillStyle=grd; g.fillRect(0,0,SW,SH);
 
+  // GOLDEN HOUR: one warm additive gradient hugging the horizon — kills the hard twilight
+  // band edge AND bathes the low sky in dawn/dusk color (single fill, budget-friendly)
+  if(goldenK>0.04){
+    var ggo=g.createLinearGradient(0,HORIZON*0.35,0,HORIZON+4);
+    ggo.addColorStop(0,   rgba(goldC,0));
+    ggo.addColorStop(0.6, rgba(goldC,0.16*goldenK));
+    ggo.addColorStop(1,   rgba(goldC,0.30*goldenK));
+    g.globalCompositeOperation="lighter";
+    g.fillStyle=ggo; g.fillRect(0,(HORIZON*0.35)|0,SW,(HORIZON*0.65)|0+5);
+    g.globalCompositeOperation="source-over";
+  }
+
   // NIGHT RADIANCE: light-pollution dome glowing up from the skyline (a subtle bloom, tinted by this life's lights)
   if(night>0.15){
     var gh4=Math.round(SH*0.36), neonE=cityEra.neon, gc4=cityEra.glow||[224,80,192];
@@ -9364,6 +9383,8 @@ function draw(g,pass){
   // sun / moon — travels across the whole world so all screens agree
   var st=sunTimes(nd);
   if(st.rise){ var dfx=(nd-st.rise)/(st.set-st.rise); if(dfx>0&&dfx<1) curSunDf=dfx; }   // track the sun for directional light
+  goldenK=Math.max(0,1-Math.abs(L-0.5)*2.4);                                             // golden hour strength (same law the mountains/clouds used locally)
+  goldC=curSunDf<0.5?[255,196,140]:[255,158,96];                                          // rose-gold dawn · amber dusk
   solarEclDim=0;
   var sunHidden=fx.rain||fx.drizzle||fx.snow||fx.thunder||fx.fog||(fx.cloudy&&(weather.cloud||0)>85);   // no sun disk through rain/fog/thick overcast
   if(st.rise){
@@ -9440,7 +9461,7 @@ function draw(g,pass){
     var cwx=wrapW(c.x0+c.sp*windPush*now), cx=cwx-WOFF;
     if(cx>SW+10&&cx-WW>-70) cx-=WW; if(cx<-70&&cx+WW<SW+70) cx+=WW;
     if(cx<-70||cx>SW+10) continue;
-    var shade=L>0.5?200:70, sunsetK=Math.max(0,1-Math.abs(L-0.5)*2.4);
+    var shade=L>0.5?200:70, sunsetK=goldenK;   // shared golden-hour global
     var cc0=[shade,shade,shade+10];
     if(sunsetK>0.02) cc0=mixc(cc0,(i&1)?[255,150,175]:[255,170,115],sunsetK*0.8);   // cotton-candy twilight
     var cv2=i%3, CX0=cx|0, CY0=c.y|0, CW0=c.w|0, CH0=c.h|0;
