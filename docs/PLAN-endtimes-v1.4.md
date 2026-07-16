@@ -51,7 +51,7 @@ edits ONLY in canonical `org.citylive.wallpaper/contents/js/city.js` then sync �
 
 ## Ordered steps & state  ⟵ UPDATE AS EXECUTED
 - [x] Branch `endtimes-spectacle`; commit leftover harness (CLAGE knob + kde-repro debug rigs) + this plan
-- [ ] 1 (Opus) constants + winner/front/clash helpers + gate cases (7702/7790/7730-7763) + apocKill branch
+- [x] 1 (Opus) constants + helpers + gate cases DONE (commit); ⚠ apocKill kaijuwar branch NOT yet added (fold into step 2)
 - [ ] 2 (Opus) building/lm/ped/window-lit wiring + museum glyphs (see anchors)
 - [ ] 3 (Opus) drawApocKaijuWar + drawApocPollution + dispatch (7837-7845); hot-phase/static-aftermath split
 - [ ] 4 (Opus) invasion helper cluster + rework drawApocAI / drawApocAlienWar 8566-8571 / drawWar tier-3
