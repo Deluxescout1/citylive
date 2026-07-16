@@ -66,6 +66,13 @@ edits ONLY in canonical `org.citylive.wallpaper/contents/js/city.js` then sync �
       Windows VM install + CC dropdown + pinned-kaijuwar end-world screenshot; perf spot-check 8fps clash
 - [ ] 11 merge → bump 1.4.0 → tag (ONLY after both gates)
 
+## Side-quest state: vertical-lines bug (roadmap #12)
+Linewatch 2026-07-16 16:40-17:27 (26 frames, upper-sky strip): NEGATIVE — but the crop missed the
+mountain band where lines are most visible. NEXT TACTIC: run the qml6-offscreen harness (scratchpad
+kdeqml.qml pattern — recreate it; it renders the REAL engine under QML with the REAL clock) during a
+live village window (test mode: ~:06-:18 past each hour) with NO FORCEAGE — the real advancing cycle
+is the missing ingredient every frozen-age repro lacked. If reproduced: bisect draw subsystems.
+
 ## What NOT to do
 No choreography state (pure clock+hash only); append-only DEATHS (never reorder/rehash);
 pollution must never collapse a building (catch-alls at 3004/5218!); additive `else if` edits only;
