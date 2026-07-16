@@ -14,6 +14,8 @@ const wallpaper = require('./wallpaper');
 const SS = screensaver.parseFlags(process.argv);
 // --wallpaper: start straight into behind-the-icons desktop wallpaper mode (Windows).
 const START_WALLPAPER = process.argv.includes('--wallpaper');
+// --settings: open the Control Center (the "CityLive Settings" desktop shortcut).
+const START_SETTINGS = process.argv.includes('--settings');
 
 // Where the friend's personal settings (birthdays / location / speed) live. This is in
 // the OS user-data folder, OUTSIDE the app bundle, so auto-updates never overwrite it.
@@ -37,7 +39,7 @@ let wpWatch = null;              // watchdog timer that re-attaches after Explor
 let wpFailStreak = 0;            // consecutive failed (re)attaches before we give up + fall back
 let wpDialogShown = false;       // latch so one failed attempt shows the fallback dialog once
 let wallpaperPref = null;        // tri-state mirror of config `wallpaper`: true/false/null(=never decided)
-let suspendedForSettings = false;// wallpaper temporarily dropped to a window so Settings is reachable
+let ccWin = null;                // the Control Center window (settings.html) — never assigned to `win`
 let firstRunBalloon = false;     // show the one-time "this is your wallpaper now" tray balloon
 let quitting = false;            // true once the user really wants to exit (before-quit)
 
@@ -47,11 +49,13 @@ function createWindow(opts) {
   // A wallpaper window must NOT be Chromium-fullscreen: converting a fullscreen window into
   // a WS_CHILD of Progman leaves its compositor blank (VM-verified — the reparented surface
   // stops painting, while a plain window reparents and paints fine). So the wallpaper gets a
-  // frameless window SIZED like the screen instead; wallpaper.js re-covers the full virtual
-  // desktop with MoveWindow after the reparent anyway.
+  // frameless window SIZED like the desktop instead. ONE CONTINUOUS CITY across all monitors:
+  // bounds = the union of every display (like the KDE tri-monitor setup). wallpaper.js's
+  // MoveWindow then covers the same virtual screen natively after the reparent (child coords
+  // are Progman-client-relative, origin = virtual-screen top-left) — the two agree by design.
   let wpBounds = null;
   if (wp) {
-    try { wpBounds = require('electron').screen.getPrimaryDisplay().bounds; } catch (e) { wpBounds = null; }
+    try { wpBounds = displayUnion(); } catch (e) { wpBounds = null; }
   }
   win = new BrowserWindow({
     width: wpBounds ? wpBounds.width : 1280,
@@ -96,8 +100,28 @@ function createWindow(opts) {
 
   // Only null the module ref if it still points at THIS window — during a wallpaper-mode
   // swap the old window's `closed` fires after the replacement was already assigned.
+  // LOSS DETECTION lives HERE (not window-all-closed): with the Control Center open,
+  // window-all-closed never fires when Explorer's restart destroys our reparented child,
+  // so the wallpaper would silently never resurrect. The window's own `closed` always fires.
   const self = win;
-  win.on('closed', () => { if (win === self) win = null; });
+  win.on('closed', () => {
+    if (win !== self) return;
+    win = null;
+    if (wp && !quitting && desktopWallpaper) handleWallpaperWindowLost();
+  });
+}
+
+// The union rectangle of every connected display — the whole desktop, all monitors.
+function displayUnion() {
+  const ds = require('electron').screen.getAllDisplays();
+  if (!ds.length) return null;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const d of ds) {
+    minX = Math.min(minX, d.bounds.x); minY = Math.min(minY, d.bounds.y);
+    maxX = Math.max(maxX, d.bounds.x + d.bounds.width);
+    maxY = Math.max(maxY, d.bounds.y + d.bounds.height);
+  }
+  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
 }
 
 // --- Desktop-wallpaper support helpers (Windows) --------------------------------
@@ -212,19 +236,13 @@ function startWallpaperWatch() {
 
 // Turn the real "live wallpaper behind icons" mode on/off (Windows). On other
 // platforms fall back to the legacy ambient full-screen look.
-// opts.temporary = a Settings excursion, not a user decision: don't persist, don't touch
-// the login item (the wallpaper resumes when Settings closes).
-function setDesktopWallpaper(on, opts) {
+function setDesktopWallpaper(on) {
   if (process.platform !== 'win32' || !wallpaper.available()) return setWallpaperMode(on);
-  const temporary = !!(opts && opts.temporary);
   desktopWallpaper = on;
   if (on) wpDialogShown = false;   // allow a fresh failure dialog for this attempt
   wpFailStreak = 0;
-  if (!temporary) {
-    suspendedForSettings = false;  // an explicit decision cancels any pending Settings resume
-    persistWallpaperPref(on);
-    syncLoginItem(on);
-  }
+  persistWallpaperPref(on);
+  syncLoginItem(on);
   // Frame/skip-taskbar/focusable are set at window creation, so re-create the window in
   // the right shape instead of mutating a live one. CREATE THE REPLACEMENT FIRST: the old
   // window's destroy() fires `closed` → `window-all-closed` SYNCHRONOUSLY (verified), and
@@ -241,30 +259,42 @@ function setDesktopWallpaper(on, opts) {
 // (one config code path — no separate "apply live" logic to drift out of sync).
 function reloadCity() { if (win && !win.isDestroyed()) win.reload(); }
 
-// Ask the renderer to open its Settings panel.
-function openSettings() { if (win) win.webContents.send('citylive:open-settings'); }
-
-// Open Settings so it's actually usable. In wallpaper mode the window sits BEHIND the
-// desktop icons and is click-through, so its in-window Settings panel can't be reached —
-// TEMPORARILY drop to a normal window (no persistence: opening Settings must not turn
-// the wallpaper off), then resume wallpaper mode when the panel closes or saves.
-function openSettingsInteractive() {
-  if (desktopWallpaper) {
-    suspendedForSettings = true;
-    setDesktopWallpaper(false, { temporary: true });
-    if (win) win.webContents.once('did-finish-load', openSettings);
-  } else {
-    if (win) { win.show(); win.focus(); }
-    openSettings();
-  }
+// THE CONTROL CENTER: a separate window (renderer/settings.html) that controls the
+// wallpaper without ever tearing it down — the city keeps running behind the icons while
+// you edit settings. Replaces the old "drop the wallpaper to a window to reach Settings"
+// excursion entirely. Reached from the tray, the app menu, the "CityLive Settings"
+// desktop/Start-menu shortcut (--settings), and the screensaver Settings button (/c).
+function openControlCenter() {
+  if (ccWin && !ccWin.isDestroyed()) { ccWin.show(); ccWin.focus(); return; }
+  ccWin = new BrowserWindow({
+    width: 620, height: 760, minWidth: 480, minHeight: 520,
+    title: 'CityLive Settings',
+    backgroundColor: '#05070c',
+    icon: path.join(__dirname, 'build', 'icon.png'),
+    autoHideMenuBar: true,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false
+    }
+  });
+  ccWin.loadFile(path.join(__dirname, 'renderer', 'settings.html'));
+  ccWin.webContents.once('did-finish-load', () => pushStateToCC());
+  ccWin.on('closed', () => { ccWin = null; });
 }
 
-// Return to wallpaper mode after a Settings excursion. Idempotent: the flag is the gate,
-// and any explicit user toggle in the meantime clears it (see setDesktopWallpaper).
-function resumeWallpaperIfSuspended() {
-  if (!suspendedForSettings) return;
-  suspendedForSettings = false;
-  setDesktopWallpaper(true, { temporary: true });  // pref is already true; nothing to rewrite
+// Keep the Control Center's live readouts (wallpaper toggle, screensaver status) current.
+function pushStateToCC() {
+  if (!ccWin || ccWin.isDestroyed()) return;
+  screensaver.isRegistered((ss) => {
+    if (!ccWin || ccWin.isDestroyed()) return;
+    ccWin.webContents.send('citylive:state', {
+      wallpaper: desktopWallpaper,
+      wallpaperAvailable: process.platform === 'win32' && wallpaper.available(),
+      screensaver: !!ss,
+      version: app.getVersion()
+    });
+  });
 }
 
 // Persist user settings while preserving the tri-state wallpaper flag. The Settings panel
@@ -273,7 +303,7 @@ function resumeWallpaperIfSuspended() {
 // would resurrect wallpaper mode on a machine where the user explicitly opted out.
 function writeUserConfig(cfg) {
   const overlay = {};
-  if (desktopWallpaper || suspendedForSettings || wallpaperPref === true) overlay.wallpaper = true;
+  if (desktopWallpaper || wallpaperPref === true) overlay.wallpaper = true;
   else if (wallpaperPref === false) overlay.wallpaper = false;
   return store.writeConfig(CONFIG_PATH, Object.assign({}, cfg, overlay));
 }
@@ -295,21 +325,54 @@ function registerConfigIpc() {
   });
   // Async: the Settings panel loads the current values to populate its fields.
   ipcMain.handle('citylive:get-config', () => store.readConfig(CONFIG_PATH));
-  // Async: the Settings panel saves; we persist then reload so the change takes effect.
-  // After a save/reset during a Settings excursion, resume wallpaper mode instead of a
-  // plain reload — the window recreation reloads the config anyway. Deferred a tick so
-  // the invoke's reply reaches the renderer before its window is destroyed.
-  const applyAndReturn = (clean) => {
-    if (suspendedForSettings) setImmediate(resumeWallpaperIfSuspended);
-    else reloadCity();
-    return clean;
-  };
-  ipcMain.handle('citylive:save-config', (e, cfg) => applyAndReturn(writeUserConfig(cfg)));
-  ipcMain.handle('citylive:reset-config', () => applyAndReturn(writeUserConfig(store.DEFAULT_CONFIG)));
+  // The Control Center saves; persist then reload the city so the change takes effect —
+  // the wallpaper stays attached behind the icons the whole time.
+  ipcMain.handle('citylive:save-config', (e, cfg) => { const clean = writeUserConfig(cfg); reloadCity(); return clean; });
+  ipcMain.handle('citylive:reset-config', () => { const def = writeUserConfig(store.DEFAULT_CONFIG); reloadCity(); return def; });
   ipcMain.handle('citylive:open-config-file', () => (CONFIG_PATH ? shell.openPath(CONFIG_PATH) : Promise.resolve('')));
   ipcMain.handle('citylive:get-version', () => app.getVersion());
-  // The Settings panel was dismissed without saving (Cancel/Escape) — resume the wallpaper.
-  ipcMain.on('citylive:settings-closed', () => { resumeWallpaperIfSuspended(); });
+  // Environment facts the render page needs before its first frame: whether it's the
+  // wallpaper (reserve street above the taskbar), and the primary display's logical width
+  // (feature scale reference on a multi-monitor union canvas).
+  ipcMain.on('citylive:get-env-sync', (e) => {
+    try {
+      const scr = require('electron').screen;
+      const prim = scr.getPrimaryDisplay();
+      let taskbarPx = 0;
+      for (const d of scr.getAllDisplays()) {
+        const bottomGap = (d.bounds.y + d.bounds.height) - (d.workArea.y + d.workArea.height);
+        if (bottomGap > taskbarPx) taskbarPx = bottomGap;   // bottom taskbars only
+      }
+      e.returnValue = JSON.stringify({
+        wallpaper: desktopWallpaper,
+        taskbarPx: taskbarPx,
+        primaryW: prim.bounds.width,
+        primaryScale: prim.scaleFactor || 1,
+        displayCount: scr.getAllDisplays().length
+      });
+    } catch (err) { e.returnValue = JSON.stringify({}); }
+  });
+  // Control Center actions
+  ipcMain.handle('citylive:set-wallpaper', (e, on) => { setDesktopWallpaper(!!on); pushStateToCC(); return desktopWallpaper; });
+  ipcMain.handle('citylive:refresh-wallpaper', () => { reloadCity(); return true; });
+  ipcMain.handle('citylive:screensaver', (e, action) => new Promise((resolve) => {
+    if (action === 'enable') screensaver.setRegistered(true, 300, () => { pushStateToCC(); resolve(true); });
+    else if (action === 'disable') screensaver.setRegistered(false, 0, () => { pushStateToCC(); resolve(true); });
+    else if (action === 'preview') { screensaver.preview(); resolve(true); }
+    else screensaver.isRegistered((on) => resolve(!!on));
+  }));
+  ipcMain.handle('citylive:check-updates', async () => {
+    if (!autoUpdater) return 'Updates unavailable in this build.';
+    try {
+      const r = await autoUpdater.checkForUpdates();
+      const v = r && r.updateInfo && r.updateInfo.version;
+      if (v && v !== app.getVersion()) return 'Update available: v' + v + ' — downloading in the background; it installs on next launch.';
+      return "You're up to date (v" + app.getVersion() + ').';
+    } catch (err) {
+      // No published release yet (404) or offline — both are fine, not errors to the user.
+      return "You're up to date (v" + app.getVersion() + ').';
+    }
+  });
 }
 
 // Frameless, borderless full-screen "wallpaper" look. Not literally behind desktop
@@ -357,7 +420,7 @@ function rebuildMenu() {
     {
       label: 'CityLive',
       submenu: [
-        { label: 'Settings / Birthdays…', accelerator: 'CmdOrCtrl+,', click: openSettingsInteractive },
+        { label: 'Open Control Center…', accelerator: 'CmdOrCtrl+,', click: openControlCenter },
         { label: 'Open Config File', click: () => CONFIG_PATH && shell.openPath(CONFIG_PATH) },
         { label: 'Reset Settings to Defaults', click: resetSettings },
         { type: 'separator' },
@@ -402,7 +465,7 @@ function rebuildTrayMenu() {
       { label: 'Show', click: () => { if (win) { win.show(); win.focus(); } } },
       { label: 'Full Screen', click: toggleFullScreen }
     ]),
-    { label: 'Settings / Birthdays…', click: openSettingsInteractive },
+    { label: 'Control Center / Settings…', click: openControlCenter },
     { label: 'Open Config File', click: () => CONFIG_PATH && shell.openPath(CONFIG_PATH) },
     (trayIsWin
       ? { label: 'Desktop Wallpaper (behind icons)', type: 'checkbox', checked: desktopWallpaper, click: (i) => setDesktopWallpaper(i.checked) }
@@ -458,7 +521,14 @@ if (SS.preview) {
   if (!gotLock) {
     app.quit();
   } else {
-    app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });
+    app.on('second-instance', (e, argv) => {
+      // The "CityLive Settings" shortcut (--settings) and the screensaver Settings button
+      // (/c) relaunch the exe — route them to the Control Center in THIS instance.
+      const flags = screensaver.parseFlags(argv || []);
+      if ((argv || []).includes('--settings') || flags.config) { openControlCenter(); return; }
+      if (win && !desktopWallpaper) { if (win.isMinimized()) win.restore(); win.focus(); }
+      else openControlCenter();   // wallpaper mode has no reachable window — CC is the app
+    });
     // A real exit (tray Quit / OS shutdown) must actually quit; a window merely being
     // destroyed by an Explorer restart must NOT (see window-all-closed below).
     app.on('before-quit', () => { quitting = true; });
@@ -488,10 +558,38 @@ if (SS.preview) {
         createWindow();
         rebuildMenu();
       }
-      if (SS.config) win.webContents.once('did-finish-load', openSettings);
-      // check for a newer released version (silent; installs on next launch). Never block startup on it.
-      if (autoUpdater) { try { autoUpdater.checkForUpdatesAndNotify(); } catch (e) { /* offline / no release yet */ } }
-      app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
+      if (SS.config || START_SETTINGS) openControlCenter();   // /c (screensaver Settings) or --settings shortcut
+      // Monitors added/removed/rescaled while we're the wallpaper: rebuild the window at
+      // the new union so the one continuous city covers whatever is connected. Debounced —
+      // Windows fires several metrics events per hotplug.
+      let displayDebounce = null;
+      const onDisplayChange = () => {
+        if (!desktopWallpaper) return;
+        clearTimeout(displayDebounce);
+        displayDebounce = setTimeout(() => { if (desktopWallpaper && !quitting) setDesktopWallpaper(true); }, 2000);
+      };
+      try {
+        const scr = require('electron').screen;
+        scr.on('display-added', onDisplayChange);
+        scr.on('display-removed', onDisplayChange);
+        scr.on('display-metrics-changed', onDisplayChange);
+      } catch (e) { /* screen module should exist post-ready; best effort */ }
+      // Auto-update: check at startup AND every 6 hours — a wallpaper runs for months, one
+      // launch-time check isn't enough. Silent; downloads in background, installs on next launch.
+      const checkUpdates = () => { if (autoUpdater) { try { autoUpdater.checkForUpdatesAndNotify(); } catch (e) { /* offline / no release yet */ } } };
+      checkUpdates();
+      setInterval(checkUpdates, 6 * 3600 * 1000);
+      // Forward updater status to the Control Center's Updates line.
+      if (autoUpdater) {
+        const fwd = (msg) => { if (ccWin && !ccWin.isDestroyed()) ccWin.webContents.send('citylive:update-status', msg); };
+        autoUpdater.on('checking-for-update', () => fwd('Checking for updates…'));
+        autoUpdater.on('update-available', (i) => fwd('Update available: v' + (i && i.version) + ' — downloading…'));
+        autoUpdater.on('update-not-available', () => fwd("You're up to date (v" + app.getVersion() + ').'));
+        autoUpdater.on('download-progress', (p) => fwd('Downloading update… ' + Math.round((p && p.percent) || 0) + '%'));
+        autoUpdater.on('update-downloaded', (i) => fwd('Update v' + (i && i.version) + ' downloaded — installs on next launch.'));
+        autoUpdater.on('error', () => fwd("You're up to date (v" + app.getVersion() + ').'));
+      }
+      app.on('activate', () => { if (win === null && !SS.screensaver) createWindow(); });
     });
 
     app.on('window-all-closed', () => {

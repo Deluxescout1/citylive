@@ -80,47 +80,6 @@
 <div id="hud">— </div>
 <div id="help">drag <b>time</b> to scrub the day · <b>age</b> to grow the city · hover top edge for controls</div>
 
-<!-- Settings panel — opened from the app menu (CityLive ▸ Settings / Birthdays, or Ctrl/Cmd+,) -->
-<div id="settings" class="hidden">
-  <div class="sheet">
-    <h2>CityLive Settings</h2>
-    <p class="hint">These are saved on your computer and kept when CityLive updates itself.</p>
-    <section>
-      <h3>Birthdays</h3>
-      <p class="hint">On each day, a banner, fireworks and floating hearts appear over the city.<br>
-        Letters, numbers, spaces and hyphens only.</p>
-      <div id="bdayList"></div>
-      <button id="bdayAdd" class="ghost">+ Add birthday</button>
-    </section>
-    <section>
-      <h3>Your location</h3>
-      <p class="hint">Drives the sun, moon, sunrise/sunset and daylight. Leave blank for the default (Norwich, CT).</p>
-      <div class="row2">
-        <label>Latitude <input id="lat" type="number" step="any" placeholder="e.g. 40.7128"></label>
-        <label>Longitude <input id="lon" type="number" step="any" placeholder="e.g. -74.0060"></label>
-      </div>
-    </section>
-    <section>
-      <h3>Speed</h3>
-      <div class="row2">
-        <label>How long the city takes to live a full lifetime
-          <select id="cycle">
-            <option value="1w">1 week</option>
-            <option value="2w">2 weeks</option>
-            <option value="3w">3 weeks</option>
-            <option value="1mo">1 month</option>
-          </select></label>
-      </div>
-    </section>
-    <div class="actions">
-      <button id="setReset" class="ghost" title="Clear all settings">Reset to defaults</button>
-      <span class="grow"></span>
-      <button id="setCancel">Cancel</button>
-      <button id="setSave" class="primary">Save</button>
-    </div>
-    <div id="appver" style="opacity:.55;font-size:11px;margin-top:8px"></div>
-  </div>
-</div>
 
 <script src="config.js"></script>
 <script>
@@ -138,7 +97,14 @@
 (function(){
   var cv=document.getElementById('cv'), g=cv.getContext('2d');
   var PXK=4;
-  var st={ era:null, hour:null, age:null, quality:'spectacle', paused:false };
+  // Environment facts from the main process (desktop app only; empty {} on the web):
+  // wallpaper mode → reserve street above the Windows taskbar; primaryW → feature-scale
+  // reference so a multi-monitor union canvas scales to ONE monitor, not the whole desktop.
+  var ENV={}; try{ if(window.citylive&&window.citylive.envJSON) ENV=JSON.parse(window.citylive.envJSON)||{}; }catch(e){}
+  var CFG0=(typeof window!=='undefined'&&window.CITYLIVE_CFG)||{};
+  var st={ era:null, hour:null, age:null, quality:(CFG0.quality==='performance'?'performance':'spectacle'), paused:false };
+  // config era name → session override index (the control bar can still change it live)
+  try{ if(CFG0.era&&CFG0.era!=='auto'){ var _ci=ERAS.findIndex(function(e){return e.name===CFG0.era;}); if(_ci>=0) st.era=_ci; } }catch(e){}
 
   // build the city/era dropdown from the engine's own ERAS table (+ a Live option)
   var eraSel=document.getElementById('era');
@@ -158,14 +124,20 @@
 
   function boot(){
     var dpr=Math.min(2,window.devicePixelRatio||1);
-    // AUTO-SCALE to the screen: pick the pixel factor so the logical canvas lands near the
-    // engine's tuned 427px-wide baseline on ANY resolution (1024x768 → 2, 1080p → 4,
-    // 1440p → 6, 4K → 9). Combined with kspAuto below, HUD text/banners keep the same
-    // PROPORTION of the screen everywhere instead of a fixed physical size.
-    PXK=Math.max(2,Math.min(10,Math.round(window.innerWidth*dpr/430)||PXK));
+    // AUTO-SCALE to the screen: pick the pixel factor so ONE MONITOR's logical width lands
+    // near the engine's tuned 427px baseline on ANY resolution (1024x768 → 2, 1080p → 4,
+    // 1440p → 6, 4K → 9). On a multi-monitor union window the reference is the PRIMARY
+    // display (ENV.primaryW), so the city scales per-monitor while spanning all of them.
+    var refW=(ENV.primaryW&&ENV.displayCount>1)?ENV.primaryW:window.innerWidth;
+    PXK=Math.max(2,Math.min(10,Math.round(refW*dpr/430)||PXK));
     var cw=Math.max(160,Math.round(window.innerWidth*dpr/PXK)), ch=Math.max(120,Math.round(window.innerHeight*dpr/PXK));
     cv.width=cw; cv.height=ch;
-    setup('neon',{cw:cw,ch:ch,woff:0,ww:cw,pxk:PXK,kspAuto:true,zoom:1,quality:st.quality});
+    // Wallpaper mode sits UNDER the Windows taskbar — raise the street so the traffic and
+    // sidewalks stay visible above it (same trick as the KDE panel handling).
+    var tbWp=0;
+    // taskbarPx is in DIP (≈CSS px); dpr converts to physical, /PXK to canvas-logical px.
+    if(ENV.wallpaper&&ENV.taskbarPx>0) tbWp=Math.ceil(ENV.taskbarPx*dpr/PXK);
+    setup('neon',{cw:cw,ch:ch,woff:0,ww:cw,pxk:PXK,kspAuto:true,kspw:Math.round(refW*dpr/PXK),taskbarWp:tbWp,zoom:1,quality:st.quality});
   }
 
   function applyOverrides(){
@@ -210,78 +182,7 @@
 </script>
 
 <script>
-// ---- Settings panel: edit birthdays / location / speed; persists via preload (userData) ----
-(function(){
-  var api = window.citylive;
-  if(!api) return;                       // plain browser / phone build → no native settings
-  var panel  = document.getElementById('settings');
-  var listEl = document.getElementById('bdayList');
-  function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
-  function bdayRow(b){
-    b = b||{};
-    var row = document.createElement('div'); row.className='brow';
-    row.innerHTML =
-      '<input class="bm" type="number" min="1" max="12" placeholder="M" value="'+(b.m!=null?b.m:'')+'">'+
-      '<input class="bd" type="number" min="1" max="31" placeholder="D" value="'+(b.d!=null?b.d:'')+'">'+
-      '<input class="bl" type="text" placeholder="HAPPY BIRTHDAY NAME" value="'+esc(b.label)+'">'+
-      '<label class="pink"><input class="bp" type="checkbox" '+(b.pink?'checked':'')+'> pink</label>'+
-      '<button class="del ghost" title="Remove">✕</button>';
-    row.querySelector('.del').addEventListener('click',function(){ row.remove(); });
-    row.querySelector('.bl').addEventListener('input',function(){                 // live UPPERCASE (banners are caps-only)
-      var p=this.selectionStart; this.value=this.value.toUpperCase(); try{ this.selectionStart=this.selectionEnd=p; }catch(e){} });
-    return row;
-  }
-
-  function load(){
-    api.getConfig().then(function(cfg){
-      cfg = cfg||{};
-      listEl.innerHTML='';
-      (cfg.birthdays||[]).forEach(function(b){ listEl.appendChild(bdayRow(b)); });
-      document.getElementById('lat').value = (cfg.lat!=null)?cfg.lat:'';
-      document.getElementById('lon').value = (cfg.lon!=null)?cfg.lon:'';
-      var cyc = cfg.cycle==='weekly' ? '1w' : cfg.cycle;                          // map legacy alias
-      if(['1w','2w','3w','1mo'].indexOf(cyc)<0) cyc='1w';                          // test/unknown → show 1 week
-      document.getElementById('cycle').value = cyc;
-    }).catch(function(){});
-  }
-
-  function gather(){
-    var birthdays=[];
-    Array.prototype.forEach.call(listEl.querySelectorAll('.brow'),function(row){
-      var m=parseInt(row.querySelector('.bm').value,10), d=parseInt(row.querySelector('.bd').value,10);
-      if(m>=1&&m<=12&&d>=1&&d<=31){
-        var e={ m:m, d:d, label:row.querySelector('.bl').value };
-        if(row.querySelector('.bp').checked) e.pink=true;
-        birthdays.push(e);
-      }
-    });
-    var cfg={ birthdays:birthdays, cycle:document.getElementById('cycle').value };
-    var lat=parseFloat(document.getElementById('lat').value), lon=parseFloat(document.getElementById('lon').value);
-    if(isFinite(lat)&&isFinite(lon)){ cfg.lat=lat; cfg.lon=lon; }
-    return cfg;
-  }
-
-  function show(){ load(); panel.classList.remove('hidden'); }
-  function hide(){
-    panel.classList.add('hidden');
-    // Tell main so it can resume wallpaper mode after a Cancel. Guarded: this same
-    // index.html is also loaded in plain web / non-Electron builds with no bridge.
-    if(window.citylive && window.citylive.settingsClosed){ try{ window.citylive.settingsClosed(); }catch(e){} }
-  }
-
-  // Version footer — best-effort, guarded for the plain web build (no window.citylive).
-  if(window.citylive && window.citylive.getVersion){
-    window.citylive.getVersion().then(function(v){ document.getElementById('appver').textContent='CityLive v'+v; }).catch(function(){});
-  }
-
-  api.onOpenSettings(show);
-  document.getElementById('bdayAdd').addEventListener('click',function(){ listEl.appendChild(bdayRow({label:'HAPPY BIRTHDAY '})); });
-  document.getElementById('setCancel').addEventListener('click',hide);
-  document.getElementById('setSave').addEventListener('click',function(){ api.saveConfig(gather()); });  // main persists + reloads the city
-  document.getElementById('setReset').addEventListener('click',function(){ if(confirm('Reset all CityLive settings to defaults?')) api.resetConfig(); });
-  document.addEventListener('keydown',function(e){ if(e.key==='Escape' && !panel.classList.contains('hidden')) hide(); });
-})();
 </script>
 </body>
 </html>

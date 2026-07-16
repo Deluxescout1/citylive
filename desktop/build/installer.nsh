@@ -7,11 +7,15 @@
 
 !macro customInstall
   nsExec::Exec 'cmd /c copy /Y "$INSTDIR\CityLive.exe" "$INSTDIR\CityLive.scr"'
+  CreateShortCut "$DESKTOP\CityLive Settings.lnk" "$INSTDIR\CityLive.exe" "--settings"
+  CreateShortCut "$SMPROGRAMS\CityLive Settings.lnk" "$INSTDIR\CityLive.exe" "--settings"
 !macroend
 
 !macro customUnInstall
   # Clean up the .scr and stop pointing the screensaver registry at a deleted file.
   Delete "$INSTDIR\CityLive.scr"
+  Delete "$DESKTOP\CityLive Settings.lnk"
+  Delete "$SMPROGRAMS\CityLive Settings.lnk"
   nsExec::Exec 'reg delete "HKCU\Control Panel\Desktop" /v SCRNSAVE.EXE /f'
   # Remove the "launch at login as wallpaper" autostart entry if it was set (no-op if absent).
   nsExec::Exec 'reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v CityLive /f'

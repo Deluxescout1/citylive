@@ -1,4 +1,5 @@
-// CityLive — persistent user settings store (birthdays, location, speed).
+// CityLive — persistent user settings store (birthdays, location, speed, quality,
+// era, disaster frequency).
 //
 // Deliberately has NO Electron dependency: it takes the config-file path as an
 // argument, so the real read/write/validate logic can be unit-tested under plain
@@ -60,6 +61,23 @@ function sanitizeConfig(raw) {
   // opt-out; other falsy junk (0/null/'') stays "undecided". See main.js startup gate.
   if (cfg.wallpaper) out.wallpaper = true;
   else if (cfg.wallpaper === false) out.wallpaper = false;
+
+  // Render quality override: only these two exact strings survive; absent lets the
+  // engine pick its own default (currently "spectacle").
+  if (cfg.quality === 'spectacle' || cfg.quality === 'performance') out.quality = cfg.quality;
+
+  // City era override: 'auto' (follow the live evolving city) or a lowercase-alpha
+  // engine era name. Stored as-is — the engine itself resolves an unrecognized name
+  // to auto, so we don't need to validate against the live ERAS table here. Absent
+  // means auto.
+  if (cfg.era === 'auto' || (typeof cfg.era === 'string' && /^[a-z]{2,24}$/.test(cfg.era))) {
+    out.era = cfg.era;
+  }
+
+  // Disaster frequency: only these three exact strings survive; absent = engine default.
+  if (cfg.disasters === 'rare' || cfg.disasters === 'normal' || cfg.disasters === 'frequent') {
+    out.disasters = cfg.disasters;
+  }
   return out;
 }
 

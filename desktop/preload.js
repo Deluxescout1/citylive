@@ -8,14 +8,26 @@ const { contextBridge, ipcRenderer } = require('electron');
 let userConfigJSON = '{}';
 try { userConfigJSON = ipcRenderer.sendSync('citylive:get-config-sync') || '{}'; } catch (e) { /* fall back to defaults */ }
 
+// Same read-once-at-load pattern as userConfigJSON above, but for runtime/environment
+// info (e.g. current wallpaper/screensaver state) the Control Center page needs before
+// its first paint. Also comes back as a JSON string for the same freezing reason.
+let envJSON = '{}';
+try { envJSON = ipcRenderer.sendSync('citylive:get-env-sync') || '{}'; } catch (e) { /* fall back to defaults */ }
+
 contextBridge.exposeInMainWorld('citylive', {
   userConfigJSON: userConfigJSON,
+  envJSON: envJSON,
   // Settings panel:
   getConfig: () => ipcRenderer.invoke('citylive:get-config'),          // load current values
   saveConfig: (cfg) => ipcRenderer.invoke('citylive:save-config', cfg), // persist (main reloads the city)
   resetConfig: () => ipcRenderer.invoke('citylive:reset-config'),
   openConfigFile: () => ipcRenderer.invoke('citylive:open-config-file'),
-  onOpenSettings: (cb) => ipcRenderer.on('citylive:open-settings', () => cb()),
   getVersion: () => ipcRenderer.invoke('citylive:get-version'),
-  settingsClosed: () => ipcRenderer.send('citylive:settings-closed')
+  // Control Center:
+  setWallpaper: (on) => ipcRenderer.invoke('citylive:set-wallpaper', !!on),
+  screensaver: (action) => ipcRenderer.invoke('citylive:screensaver', action), // 'enable'|'disable'|'preview'|'status'
+  refreshWallpaper: () => ipcRenderer.invoke('citylive:refresh-wallpaper'),
+  checkUpdates: () => ipcRenderer.invoke('citylive:check-updates'),
+  onState: (cb) => ipcRenderer.on('citylive:state', (_e, s) => cb(s)),
+  onUpdateStatus: (cb) => ipcRenderer.on('citylive:update-status', (_e, s) => cb(s))
 });

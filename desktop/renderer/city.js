@@ -55,10 +55,16 @@ function cycleMs(v){
 // A host may inject personal settings that are NOT part of this shared engine — e.g. the KDE wallpaper's
 // main.qml reads a local, gitignored config.local.json and calls this. All keys optional. (GROW_CYCLE is
 // declared later in the file but this runs at boot, long after, so the reference resolves fine.)
+// Disaster frequency: a calm→chaos setting. Multiplies the per-slot firing chance only —
+// the slot grid itself stays fixed, so timing determinism and cross-screen sync are untouched.
+function disMul(v){ return v==="rare"?0.42 : v==="frequent"?2 : 1; }
 function applyConfig(cfg){ if(!cfg) return;
   if(cfg.birthdays!=null) BIRTHDAYS=cfg.birthdays;
   if(cfg.lat!=null) LAT=+cfg.lat;  if(cfg.lon!=null) LON=+cfg.lon;
   if(cfg.cycle!=null) GROW_CYCLE=cycleMs(cfg.cycle);
+  if(cfg.disasters!=null) DIS_PROB=DIS_PROB_BASE*disMul(cfg.disasters);
+  if(cfg.era!==undefined){ FORCEERA=null;
+    if(cfg.era && cfg.era!=="auto"){ for(var ei=0;ei<ERAS.length;ei++){ if(ERAS[ei].name===cfg.era){ FORCEERA=ei; break; } } } }
 }
 // ================================================================================
 
@@ -1848,7 +1854,9 @@ function setup(scene,opts){
   // tuned 427px baseline instead — every resolution then gets the same composition.
   // (KDE multi-monitor slices keep the pxk law: per-screen widths differ and features
   // must stay world-consistent across bezels.)
-  KSP=opts.kspAuto ? Math.max(0.55,Math.min(2.2,(opts.cw||480)/427)) : 6/(opts.pxk||6);
+  // kspw: reference width for feature scale — on a multi-monitor union canvas the HOST passes
+  // one screen's logical width here so features scale to a MONITOR, not the whole desktop.
+  KSP=opts.kspAuto ? Math.max(0.55,Math.min(2.2,((opts.kspw||opts.cw)||480)/427)) : 6/(opts.pxk||6);
   QUAL=opts.quality==="performance"?0:(opts.quality==="balanced"?1:2);
   // Foreground depth (world-px from the bottom). Default 26wp (≈156px) — room for a
   // sidewalk + 4 lanes and clears a standard ~44px taskbar. But if THIS screen reports
@@ -4557,16 +4565,52 @@ function corpNews(now){
 }
 // STREET BILLBOARDS: a few fixed hoardings along the boulevards carrying the current companies' ads (readable
 // name + brand logo). Rotate slowly; skip the dead. Fixed count → cheap/freeze-safe.
+// Every sign is VISIBLY MOUNTED (Nick: no floating signs): flush on a wide building's facade
+// with brackets, on rooftop legs over a narrower one, or as a classic framed highway billboard
+// on the ground when no born building covers the anchor. Selection is a pure function of the
+// near-layer DNA + cityG, so every screen slices the same mounting.
 var CORP_AD_X=[0.16,0.35,0.71];
+function adMountAt(wx){
+  if(!near||!near.blds) return null;
+  var B=near.blds, best=null, bd=1e9;
+  for(var k=0;k<B.length;k++){ var b=B[k];
+    if(b.type==="park") continue;
+    if(b.bAge!==undefined && cityG-b.bAge<=bandOf(b)) continue;      // unborn / still scaffolding
+    if(wx<b.x-6||wx>b.x+b.w+6) continue;
+    var d=Math.abs(b.x+b.w/2-wx); if(d<bd){ bd=d; best=b; } }
+  return best;
+}
 function drawCorpAds(g,L,now,night){
   var C=curCorps; if(!C||!C.cos.length||nukeStruck()) return;
   for(var i=0;i<CORP_AD_X.length;i++){
-    var sx=disX(Math.round(CORP_AD_X[i]*WW)); if(sx<-46||sx>SW+46) continue;
+    var wx=Math.round(CORP_AD_X[i]*WW), sx=disX(wx); if(sx<-70||sx>SW+70) continue;
     var live=[]; for(var j=0;j<C.cos.length;j++){ if(!C.cos[j].bankrupt&&C.cos[j].size>=0.12) live.push(C.cos[j]); }
     if(!live.length) continue;
     var e=live[((i*5+((now/9000)|0))%live.length+live.length)%live.length], co=e.co, brand=co.c;
-    var tagW=textW(co.g), nmW=textW(co.n), pad=2, pw=pad+(tagW+3)+3+nmW+pad, py=HORIZON-27, x0=(sx-(pw>>1))|0;
-    g.fillStyle=L>0.5?"#5a5040":"#241f18"; g.fillRect(sx-1,py+11,2,HORIZON-(py+11));            // pole
+    var tagW=textW(co.g), nmW=textW(co.n), pad=2, pw=pad+(tagW+3)+3+nmW+pad;
+    var b=adMountAt(wx), py, x0, mount;
+    if(b && b.w>=pw+4 && b.h>=24){
+      // FACADE mount: flush on the wall band, clamped fully inside the building
+      mount="facade"; var bx=(b.x-WOFF)|0; if(sx-bx>WW/2) bx+=WW; if(bx-sx>WW/2) bx-=WW;
+      py=HORIZON-Math.min(b.h-8,26);
+      x0=Math.max(bx+2,Math.min(bx+b.w-pw-2,(sx-(pw>>1))|0));
+    } else if(b && b.w>=14){
+      // ROOFTOP mount: panel on two legs above the roofline
+      mount="roof"; py=(HORIZON-b.h-15)|0; x0=(sx-(pw>>1))|0;
+    } else {
+      // GROUND billboard: framed panel on two stout legs (classic highway hoarding)
+      mount="ground"; py=HORIZON-24; x0=(sx-(pw>>1))|0;
+    }
+    if(mount!=="facade"){
+      var legC=L>0.5?"#6a6152":"#2c2620", legY0=py+11, legY1=(mount==="roof")?((HORIZON-b.h)|0):HORIZON;
+      g.fillStyle=legC; g.fillRect(x0+2,legY0,2,Math.max(1,legY1-legY0)); g.fillRect(x0+pw-4,legY0,2,Math.max(1,legY1-legY0));
+      if(mount==="ground"){ g.fillRect(x0-1,py+12,pw+2,1); }                                     // catwalk line
+      g.fillStyle="rgba(0,0,0,0.25)"; g.fillRect(x0+2,legY1-1,pw-4,1);                            // contact shadow
+    } else {
+      var brC=L>0.5?"#7a7264":"#3a342c";
+      g.fillStyle=brC; g.fillRect(x0-1,py+2,1,7); g.fillRect(x0+pw,py+2,1,7);                     // wall brackets
+      g.fillStyle="rgba(0,0,0,0.3)"; g.fillRect(x0,py+12,pw,1);                                   // drop shadow on wall
+    }
     g.fillStyle="rgba(10,12,18,0.9)"; g.fillRect(x0,py,pw,11);                                   // panel
     g.fillStyle=rgba(brand,0.95); g.fillRect(x0,py-1,pw,1); g.fillRect(x0,py+11,pw,1);            // brand rails
     g.fillStyle=rgba(brand,1); g.fillRect(x0+pad-1,py+1,tagW+3,9);                                // logo box
@@ -5346,7 +5390,8 @@ function drawSite(g,st,L,now,nd){
 //  rng() check per frame that returns null.
 // ============================================================================
 var DIS_SLOT=7*60000;        // one potential disaster window per 7 min (LESS FREQUENT: was 5.5)
-var DIS_PROB=0.24;           // fraction of windows that actually fire (~1 per ~29 min now; raise for more mayhem)
+var DIS_PROB_BASE=0.24;      // baseline fraction of windows that fire (~1 per ~29 min at "normal")
+var DIS_PROB=DIS_PROB_BASE*disMul(CFG.disasters);   // config "rare"/"normal"/"frequent" scales it
 var DIS_DUR=240000;          // full lifecycle length (4 min): warn→build→strike→aftermath→rebuild (LONGER: was 2.75min). must stay < DIS_SLOT so t0=r()*(DIS_SLOT-DIS_DUR) has room
 var DIS_LOOKBACK=10;         // how many past slots to remember rebuilt towers for
 var RUIN_CHANCE=0.20;        // of the RARE lost CAT-5 events, the fraction that scar the district PERMANENTLY (rest of this life) instead of eventually rebuilding — tuned so a week-long life sees only ~a handful of dead districts (a real, memorable event; use FORCERUIN to see one on demand)
@@ -6192,6 +6237,8 @@ var ERAS=[
 ];
 var cityEra=ERAS[0];
 var FORCEERA=null;   // test hook: index into ERAS (own line — multi-var declarations aren't writable via the QML import namespace)
+// Config may pin the city to a themed era BY NAME ("auto"/absent = live evolving era).
+if(CFG.era && CFG.era!=="auto"){ for(var _ei=0;_ei<ERAS.length;_ei++){ if(ERAS[_ei].name===CFG.era){ FORCEERA=_ei; break; } } }
 function famOf(era){
   if(era==="cyber"||era==="vaporwave"||era==="emeraldneon"||era==="amberneon") return "neon";
   if(era==="ancient"||era==="adobe"||era==="gilded") return "ancient";

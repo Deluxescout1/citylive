@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover">
+<title>CityLive Settings</title>
+<meta name="theme-color" content="#0a0c14">
+<style>
+  :root{ --panel:rgba(14,18,28,.82); --line:#2a3550; --txt:#e6ecf7; --sub:#93a2c0; --cyan:#39e6ff; --magenta:#ff4fd8; }
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%;background:#05070c;
+    font:13px/1.4 "JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--txt)}
+  body{padding:28px 18px 60px;display:flex;justify-content:center}
+  .wrap{width:min(680px,100%)}
+  h1{margin:0 0 4px;color:var(--cyan);letter-spacing:1px;font-size:20px;
+    text-shadow:0 0 10px rgba(57,230,255,.4)}
+  .tagline{margin:0 0 22px;color:var(--sub);font-size:11px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;
+    padding:16px 18px;margin-bottom:16px;box-shadow:0 12px 40px rgba(0,0,0,.35)}
+  .card h2{margin:0 0 4px;font-size:13px;text-transform:uppercase;letter-spacing:1px;color:var(--magenta)}
+  .card .hint{margin:0 0 10px;color:var(--sub);font-size:11px;line-height:1.5}
+  .card section{border-top:1px solid var(--line);padding-top:10px;margin-top:12px}
+  .card section:first-of-type{border-top:0;margin-top:8px}
+  .card section h3{margin:0 0 4px;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--cyan)}
+  input[type=text],input[type=number],select{
+    font:inherit;color:var(--txt);background:#0f1626;border:1px solid var(--line);border-radius:7px;padding:6px 8px}
+  select{cursor:pointer}
+  button{font:inherit;color:var(--txt);background:#161d2e;border:1px solid var(--line);border-radius:7px;
+    padding:8px 14px;cursor:pointer}
+  button.ghost{background:transparent}
+  button.primary{background:linear-gradient(180deg,#1b6,#0a5);border-color:#0a5;color:#eafff3}
+  button.big{width:100%;padding:16px;font-size:14px;text-align:left;border-radius:10px}
+  button.on{background:linear-gradient(180deg,#1b6,#0a5);border-color:#0a5;color:#eafff3}
+  button.off{background:linear-gradient(180deg,#3a2230,#2a1420);border-color:var(--magenta);color:#ffd7f2}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}
+  .row2{display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap}
+  .row2 label{display:flex;flex-direction:column;gap:3px;flex:1;min-width:140px;color:var(--sub);font-size:11px}
+  .row2 select,.row2 input{width:100%}
+  .grow{flex:1}
+  .status{color:var(--sub);font-size:12px;margin:0 0 8px}
+  .status b{color:var(--txt)}
+  .note{color:#8bffb0;font-size:11px;margin-top:8px;min-height:14px}
+  .brow{display:flex;gap:6px;align-items:center;margin:5px 0}
+  .brow .bm,.brow .bd{width:48px;text-align:center}
+  .brow .bl{flex:1;min-width:0}
+  .brow .pink{display:flex;align-items:center;gap:3px;color:var(--sub);font-size:11px;white-space:nowrap}
+  .brow .del{padding:5px 9px;color:#ff9aa2}
+  footer{text-align:center;color:var(--sub);opacity:.6;font-size:11px;margin-top:24px}
+  .updateline{color:var(--sub);font-size:12px;margin-top:8px;min-height:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>CityLive Control Center</h1>
+  <p class="tagline">Wallpaper, screensaver, and city settings — all in one place.</p>
+
+  <div class="card" id="cardWallpaper">
+    <h2>Wallpaper</h2>
+    <p class="hint">Runs CityLive live, behind your desktop icons.</p>
+    <button id="wpToggle" class="big off">Wallpaper: OFF — click to turn on</button>
+    <div class="row">
+      <button id="wpRefresh">Refresh Wallpaper</button>
+    </div>
+  </div>
+
+  <div class="card" id="cardScreensaver">
+    <h2>Screensaver</h2>
+    <p class="status" id="ssStatus">CityLive isn't your screensaver.</p>
+    <div class="row">
+      <button id="ssEnable" class="primary">Use as Screensaver</button>
+      <button id="ssDisable" class="ghost">Turn Off</button>
+      <button id="ssPreview">Preview</button>
+    </div>
+  </div>
+
+  <div class="card" id="cardCity">
+    <h2>City Settings</h2>
+    <p class="hint">These are saved on your computer and kept when CityLive updates itself.</p>
+    <section>
+      <h3>Birthdays</h3>
+      <p class="hint">On each day, a banner, fireworks and floating hearts appear over the city.<br>
+        Letters, numbers, spaces and hyphens only.</p>
+      <div id="bdayList"></div>
+      <button id="bdayAdd" class="ghost">+ Add birthday</button>
+    </section>
+    <section>
+      <h3>Your location</h3>
+      <p class="hint">Drives the sun, moon, sunrise/sunset and daylight. Leave blank for the default (Norwich, CT).</p>
+      <div class="row2">
+        <label>Latitude <input id="lat" type="number" step="any" placeholder="e.g. 40.7128"></label>
+        <label>Longitude <input id="lon" type="number" step="any" placeholder="e.g. -74.0060"></label>
+      </div>
+    </section>
+    <section>
+      <h3>Speed</h3>
+      <div class="row2">
+        <label>How long the city takes to live a full lifetime
+          <select id="cycle">
+            <option value="1w">1 week</option>
+            <option value="2w">2 weeks</option>
+            <option value="3w">3 weeks</option>
+            <option value="1mo">1 month</option>
+          </select></label>
+      </div>
+    </section>
+    <section>
+      <h3>Look &amp; feel</h3>
+      <div class="row2">
+        <label>Render quality
+          <select id="quality">
+            <option value="spectacle">Spectacle</option>
+            <option value="performance">Performance</option>
+          </select></label>
+        <label>City / era
+          <select id="era"></select></label>
+        <label>Disasters
+          <select id="disasters">
+            <option value="rare">Rare</option>
+            <option value="normal">Normal</option>
+            <option value="frequent">Frequent</option>
+          </select></label>
+      </div>
+    </section>
+    <div class="row" style="margin-top:18px">
+      <button id="citySave" class="primary">Save</button>
+      <span class="grow"></span>
+    </div>
+    <div class="note" id="citySaveNote"></div>
+  </div>
+
+  <div class="card" id="cardUpdates">
+    <h2>Updates</h2>
+    <div class="row">
+      <button id="checkUpdates">Check for Updates</button>
+    </div>
+    <p class="updateline" id="updateLine"></p>
+  </div>
+
+  <footer id="appver">CityLive</footer>
+</div>
+
+<script>
+(function(){
+  var api = window.citylive;
+
+  // ---------------------------------------------------------------------
+  // Wallpaper
+  // ---------------------------------------------------------------------
+  var wpToggle = document.getElementById('wpToggle');
+  var wpRefresh = document.getElementById('wpRefresh');
+  var wallpaperOn = false;
+
+  function renderWpToggle(){
+    wpToggle.textContent = wallpaperOn
+      ? 'Wallpaper: ON — click to turn off'
+      : 'Wallpaper: OFF — click to turn on';
+    wpToggle.className = 'big ' + (wallpaperOn ? 'on' : 'off');
+  }
+
+  try {
+    var env = JSON.parse((api && api.envJSON) || '{}');
+    wallpaperOn = !!(env && env.wallpaper);
+  } catch (e) { /* keep default off */ }
+  renderWpToggle();
+
+  wpToggle.addEventListener('click', function(){
+    var next = !wallpaperOn;
+    try {
+      api.setWallpaper(next).then(function(){ wallpaperOn = next; renderWpToggle(); })
+        .catch(function(){});
+    } catch (e) { /* no bridge */ }
+  });
+
+  wpRefresh.addEventListener('click', function(){
+    try { api.refreshWallpaper().catch(function(){}); } catch (e) { /* no bridge */ }
+  });
+
+  try {
+    api.onState(function(s){
+      if (s && typeof s.wallpaper === 'boolean') { wallpaperOn = s.wallpaper; renderWpToggle(); }
+    });
+  } catch (e) { /* no bridge */ }
+
+  // ---------------------------------------------------------------------
+  // Screensaver
+  // ---------------------------------------------------------------------
+  var ssStatus = document.getElementById('ssStatus');
+  var ssEnable = document.getElementById('ssEnable');
+  var ssDisable = document.getElementById('ssDisable');
+  var ssPreview = document.getElementById('ssPreview');
+
+  function renderSsStatus(res){
+    var active = false;
+    if (typeof res === 'boolean') active = res;
+    else if (typeof res === 'string') active = /^(on|enabled|active|true)$/i.test(res.trim());
+    else if (res && typeof res === 'object') active = !!(res.active || res.enabled || res.on);
+    ssStatus.innerHTML = active
+      ? 'CityLive <b>is</b> your screensaver.'
+      : "CityLive <b>isn't</b> your screensaver.";
+  }
+
+  function refreshSsStatus(){
+    try { api.screensaver('status').then(renderSsStatus).catch(function(){}); }
+    catch (e) { /* no bridge */ }
+  }
+
+  function ssAction(action){
+    try { api.screensaver(action).then(refreshSsStatus).catch(refreshSsStatus); }
+    catch (e) { /* no bridge */ }
+  }
+
+  ssEnable.addEventListener('click', function(){ ssAction('enable'); });
+  ssDisable.addEventListener('click', function(){ ssAction('disable'); });
+  ssPreview.addEventListener('click', function(){ ssAction('preview'); });
+
+  refreshSsStatus();
+
+  // ---------------------------------------------------------------------
+  // City Settings (birthdays / location / speed / quality / era / disasters)
+  // ---------------------------------------------------------------------
+  var listEl = document.getElementById('bdayList');
+  function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+  function bdayRow(b){
+    b = b||{};
+    var row = document.createElement('div'); row.className='brow';
+    row.innerHTML =
+      '<input class="bm" type="number" min="1" max="12" placeholder="M" value="'+(b.m!=null?b.m:'')+'">'+
+      '<input class="bd" type="number" min="1" max="31" placeholder="D" value="'+(b.d!=null?b.d:'')+'">'+
+      '<input class="bl" type="text" placeholder="HAPPY BIRTHDAY NAME" value="'+esc(b.label)+'">'+
+      '<label class="pink"><input class="bp" type="checkbox" '+(b.pink?'checked':'')+'> pink</label>'+
+      '<button class="del ghost" title="Remove">✕</button>';
+    row.querySelector('.del').addEventListener('click',function(){ row.remove(); });
+    row.querySelector('.bl').addEventListener('input',function(){                 // live UPPERCASE (banners are caps-only)
+      var p=this.selectionStart; this.value=this.value.toUpperCase(); try{ this.selectionStart=this.selectionEnd=p; }catch(e){} });
+    return row;
+  }
+
+  // Era select: "Auto" (live evolving city) + every engine era name, extracted from
+  // renderer/city.js's ERAS table (name:"..." literals). Value = engine era name;
+  // label = a simple capitalized form.
+  var ERA_NAMES = ['adobe','amberneon','ancient','arctic','artdeco','autumn','boston','brutal',
+    'candy','china','coral','cyber','deepsea','downtown','emeraldneon','gilded','gothic',
+    'houston','industrial','ivory','jade','lantern','london','midnight','neon','neworleans',
+    'noir','obsidian','oldtown','paris','porcelain','residential','rustbelt','solar','spring',
+    'steampunk','summer','tokyo','vaporwave','winter'];
+  function cap(s){ return s.charAt(0).toUpperCase() + s.slice(1); }
+  var eraSel = document.getElementById('era');
+  (function fillEra(){
+    var o = document.createElement('option'); o.value = 'auto'; o.textContent = 'Auto (live evolving city)';
+    eraSel.appendChild(o);
+    ERA_NAMES.forEach(function(n){
+      var op = document.createElement('option'); op.value = n; op.textContent = cap(n);
+      eraSel.appendChild(op);
+    });
+  })();
+
+  function loadCity(){
+    try {
+      api.getConfig().then(function(cfg){
+        cfg = cfg||{};
+        listEl.innerHTML='';
+        (cfg.birthdays||[]).forEach(function(b){ listEl.appendChild(bdayRow(b)); });
+        document.getElementById('lat').value = (cfg.lat!=null)?cfg.lat:'';
+        document.getElementById('lon').value = (cfg.lon!=null)?cfg.lon:'';
+        var cyc = cfg.cycle==='weekly' ? '1w' : cfg.cycle;                          // map legacy alias
+        if(['1w','2w','3w','1mo'].indexOf(cyc)<0) cyc='1w';                          // test/unknown → show 1 week
+        document.getElementById('cycle').value = cyc;
+        document.getElementById('quality').value = (cfg.quality==='performance') ? 'performance' : 'spectacle';
+        eraSel.value = (cfg.era && ERA_NAMES.indexOf(cfg.era)>=0) ? cfg.era : 'auto';
+        var disF = ['rare','normal','frequent'].indexOf(cfg.disasters)>=0 ? cfg.disasters : 'normal';
+        document.getElementById('disasters').value = disF;
+      }).catch(function(){});
+    } catch (e) { /* no bridge */ }
+  }
+
+  function gatherCity(){
+    var birthdays=[];
+    Array.prototype.forEach.call(listEl.querySelectorAll('.brow'),function(row){
+      var m=parseInt(row.querySelector('.bm').value,10), d=parseInt(row.querySelector('.bd').value,10);
+      if(m>=1&&m<=12&&d>=1&&d<=31){
+        var e={ m:m, d:d, label:row.querySelector('.bl').value };
+        if(row.querySelector('.bp').checked) e.pink=true;
+        birthdays.push(e);
+      }
+    });
+    var cfg={
+      birthdays: birthdays,
+      cycle: document.getElementById('cycle').value,
+      quality: document.getElementById('quality').value,
+      era: eraSel.value,
+      disasters: document.getElementById('disasters').value
+    };
+    var lat=parseFloat(document.getElementById('lat').value), lon=parseFloat(document.getElementById('lon').value);
+    if(isFinite(lat)&&isFinite(lon)){ cfg.lat=lat; cfg.lon=lon; }
+    return cfg;
+  }
+
+  document.getElementById('bdayAdd').addEventListener('click',function(){ listEl.appendChild(bdayRow({label:'HAPPY BIRTHDAY '})); });
+
+  var citySaveNote = document.getElementById('citySaveNote');
+  document.getElementById('citySave').addEventListener('click',function(){
+    try {
+      api.saveConfig(gatherCity()).then(function(){
+        citySaveNote.textContent = 'Saved — wallpaper refreshed';
+        setTimeout(function(){ citySaveNote.textContent = ''; }, 4000);
+      }).catch(function(){});
+    } catch (e) { /* no bridge */ }
+  });
+
+  loadCity();
+
+  // ---------------------------------------------------------------------
+  // Updates
+  // ---------------------------------------------------------------------
+  var updateLine = document.getElementById('updateLine');
+  document.getElementById('checkUpdates').addEventListener('click',function(){
+    updateLine.textContent = 'Checking…';
+    try {
+      api.checkUpdates().then(function(s){ updateLine.textContent = String(s==null?'':s); })
+        .catch(function(){ updateLine.textContent = ''; });
+    } catch (e) { updateLine.textContent = ''; }
+  });
+  try {
+    api.onUpdateStatus(function(s){ updateLine.textContent = String(s==null?'':s); });
+  } catch (e) { /* no bridge */ }
+
+  // ---------------------------------------------------------------------
+  // Footer — app version
+  // ---------------------------------------------------------------------
+  try {
+    api.getVersion().then(function(v){ document.getElementById('appver').textContent='CityLive v'+v; }).catch(function(){});
+  } catch (e) { /* no bridge */ }
+})();
+</script>
+</body>
+</html>

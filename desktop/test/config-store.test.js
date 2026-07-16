@@ -25,9 +25,15 @@ test('tri-state: explicit false survives, other falsy junk drops', () => {
   assert.ok(!('wallpaper' in store.sanitizeConfig({})));
 });
 
-test('unknown keys are still dropped (wallpaper is the only new key)', () => {
-  const out = store.sanitizeConfig({ wallpaper: true, junk: 'x', evil: { a: 1 } });
-  assert.deepStrictEqual(Object.keys(out).sort(), ['birthdays', 'cycle', 'wallpaper']);
+test('unknown keys are still dropped, valid new keys survive alongside junk', () => {
+  const out = store.sanitizeConfig({
+    wallpaper: true, quality: 'performance', era: 'boston', disasters: 'rare',
+    junk: 'x', evil: { a: 1 }
+  });
+  assert.deepStrictEqual(
+    Object.keys(out).sort(),
+    ['birthdays', 'cycle', 'disasters', 'era', 'quality', 'wallpaper']
+  );
 });
 
 test('birthdays / cycle / lat-lon sanitize behavior is preserved (regression net)', () => {
@@ -94,4 +100,50 @@ test('a Settings-panel-shaped save merged with an explicit wallpaper decision pr
     store.sanitizeConfig(Object.assign({}, panelSave, { wallpaper: true })).wallpaper,
     true
   );
+});
+
+test('quality: valid values survive, invalid/absent drop', () => {
+  assert.strictEqual(store.sanitizeConfig({ quality: 'spectacle' }).quality, 'spectacle');
+  assert.strictEqual(store.sanitizeConfig({ quality: 'performance' }).quality, 'performance');
+  for (const v of ['ultra', 'balanced', 42, '', null]) {
+    assert.ok(!('quality' in store.sanitizeConfig({ quality: v })), `expected no key for ${JSON.stringify(v)}`);
+  }
+  assert.ok(!('quality' in store.sanitizeConfig({})));
+});
+
+test('era: "auto" and lowercase-alpha names survive, invalid/absent drop', () => {
+  assert.strictEqual(store.sanitizeConfig({ era: 'auto' }).era, 'auto');
+  assert.strictEqual(store.sanitizeConfig({ era: 'tokyo' }).era, 'tokyo');
+  assert.strictEqual(store.sanitizeConfig({ era: 'neworleans' }).era, 'neworleans');
+  for (const v of ['ERA!', 'Tokyo', 'a', 42, '', 'this-name-is-way-too-long-to-be-valid-here']) {
+    assert.ok(!('era' in store.sanitizeConfig({ era: v })), `expected no key for ${JSON.stringify(v)}`);
+  }
+  assert.ok(!('era' in store.sanitizeConfig({})));
+});
+
+test('disasters: valid values survive, invalid/absent drop', () => {
+  assert.strictEqual(store.sanitizeConfig({ disasters: 'rare' }).disasters, 'rare');
+  assert.strictEqual(store.sanitizeConfig({ disasters: 'normal' }).disasters, 'normal');
+  assert.strictEqual(store.sanitizeConfig({ disasters: 'frequent' }).disasters, 'frequent');
+  for (const v of ['ultra', 42, '', null]) {
+    assert.ok(!('disasters' in store.sanitizeConfig({ disasters: v })), `expected no key for ${JSON.stringify(v)}`);
+  }
+  assert.ok(!('disasters' in store.sanitizeConfig({})));
+});
+
+test('write → read round-trip persists quality / era / disasters', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'citylive-cfg-'));
+  const file = path.join(dir, 'config.json');
+  try {
+    store.writeConfig(file, {
+      birthdays: [], cycle: '1w',
+      quality: 'performance', era: 'boston', disasters: 'frequent'
+    });
+    const back = store.readConfig(file);
+    assert.strictEqual(back.quality, 'performance');
+    assert.strictEqual(back.era, 'boston');
+    assert.strictEqual(back.disasters, 'frequent');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
