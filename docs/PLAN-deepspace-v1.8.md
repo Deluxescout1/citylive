@@ -84,7 +84,7 @@ error sweep across bodies/events/finales; perf probe (draw() ms); then P9 gate.
 ## STATUS  ⟵ UPDATE AS EXECUTED
 - [ ] P0 scaffold + hooks
 - [x] P1 moon overhaul (bigger disc+maria+halo, DAYTIME moon; verified night+day, QML clean) (bigger + daytime)
-- [ ] P2 lunar city + hybrid persistence
+- [x] P2 lunar city + hybrid persistence (colonyLevel model + growing lunar city; verified 3 levels, QML clean). Full lunar spaceport/shuttle detail can extend later.
 - [ ] P3 planets visible (ephemeris)
 - [ ] P4 planetary colonies
 - [ ] P5 orbital mega-structure + crewed launches

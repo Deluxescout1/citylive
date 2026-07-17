@@ -281,13 +281,19 @@ function drawMoon(g,mx,my,mp,colony,R,dayFade){
     if(!onLit) continue;                                                               // maria only show on the lit face
     g.fillStyle=day?"rgba(200,208,224,"+(0.55*night).toFixed(2)+")":"rgba(120,128,150,0.5)";
     g.fillRect((mx+px)|0,(my+py)|0,1,1); if(R>=6) g.fillRect((mx+px+(wax?-1:1))|0,(my+py)|0,1,1); } }   // the seas
-  // THE LUNAR COLONY — settlement lights bloom on the dark limb, growing with the age (P2 expands this)
-  if((colony||0)>0.10 && !blood && !day){
-    var sideC=wax?-1:1, cnt=Math.min(6,1+Math.floor(colony*6)); g.globalCompositeOperation="lighter";
-    for(var ci=0;ci<cnt;ci++){ var ang=ci*1.7, cr=(0.35+0.5*(ci/6))*R, cxp=Math.round(sideC*Math.abs(Math.cos(ang))*cr), cyp=Math.round(Math.sin(ang)*cr*0.7);
-      if(cxp*cxp+cyp*cyp>R*R) continue;
-      g.fillStyle="rgba(150,238,255,0.95)"; g.fillRect((mx+cxp)|0,(my+cyp)|0,1,1); }
-    if(colony>0.5){ g.fillStyle="rgba(120,220,255,"+(0.18*colony).toFixed(2)+")"; g.fillRect((mx+Math.round(sideC*R*0.4)-1)|0,(my-1)|0,3,3); }   // dome glow
+  // THE LUNAR CITY — humanity's settlement grows on the near face over the eons: a lamp, a cluster,
+  // then a glittering city with dome-glow and a lit skyline on the limb. Fixed layout (same city each night).
+  if((colony||0)>0.08 && !blood && !day){
+    var lvl=Math.min(1.3,colony), cnt=Math.min(11,1+Math.floor(lvl*11)), lr=rng(0x4C554E41);   // "LUNA" — deterministic city
+    g.globalCompositeOperation="lighter";
+    for(var ci=0;ci<cnt;ci++){ var la=lr()*6.283, lrad=Math.sqrt(lr())*R*0.86, cxp=Math.round(Math.cos(la)*lrad), cyp=Math.round(Math.sin(la)*lrad*0.9);
+      if(cxp*cxp+cyp*cyp>R*R-1){ lr(); continue; }
+      var lxt=ca*Math.sqrt(Math.max(0,R*R-cyp*cyp)), onDark=wax?(cxp<lxt):(cxp>-lxt);   // city lights cover the near side; they BLAZE on the earthshine-dark part
+      g.fillStyle=(lr()<0.28?"rgba(255,236,182,":"rgba(160,240,255,")+(onDark?0.95:0.55)+")"; g.fillRect((mx+cxp)|0,(my+cyp)|0,1,1); }
+    var sideC=wax?-1:1;
+    if(lvl>0.30){ g.fillStyle="rgba(130,224,255,"+(0.16+0.32*lvl).toFixed(2)+")"; g.fillRect((mx+Math.round(sideC*R*0.3)-1)|0,(my-1)|0,4,3);   // the great dome's glow
+      g.fillStyle="rgba(150,232,255,"+(0.10*lvl).toFixed(2)+")"; g.fillRect((mx-R)|0,(my-R)|0,2*R+1,2*R+1); }                                    // a faint colony-glow over the whole disc
+    if(lvl>0.65){ g.fillStyle="rgba(170,236,255,"+(0.22*(lvl-0.65)/0.65).toFixed(2)+")"; g.fillRect((mx-R+1)|0,(my+R-3)|0,2*R-2,3); }             // a lit lunar skyline on the limb
     g.globalCompositeOperation="source-over";
   }
 }
@@ -1622,7 +1628,7 @@ function drawCelestial(g,now,nd,L,fx){
   if(maa.alt>1.5 && (dayFade<0.4 || (maa.alt>4 && illum>0.18))){            // by day: only a well-up, gibbous-enough Moon shows
     var R=6, mwx=skyWX(maa.az), mwy=skyY(maa.alt)*0.96;
     for(var w=-1;w<=1;w++){ var mx=mwx-WOFF+w*WW; if(mx<-R-4||mx>SW+R+4) continue;
-      drawMoon(g,mx,mwy,mp,curSpace,R,dayFade);
+      drawMoon(g,mx,mwy,mp,colonyLevel('moon',now),R,dayFade);
       if(curSpace>0.35 && dayFade<0.4){ var SHS=76000, shp=(now%SHS)/SHS;   // a shuttle climbs city→Moon (night)
         if(shp<0.075){ var sht=shp/0.075; g.globalCompositeOperation="lighter";
           for(var st8=0;st8<4;st8++){ var sp8=Math.max(0,sht-st8*0.02);
@@ -8674,6 +8680,21 @@ function drawApocMeteor(g,ap,L,now){
           : (mBlast<9000) ? "☄ IMPACT - "+cityName+" DECIMATED ☄" : cityName+" IS GONE";
   drawDoomHud(g,ap,now,msg,msg);
 }
+
+// ===== OFF-WORLD COLONIES — humanity's settlements on the Moon & planets. HYBRID persistence (Nick):
+// a BASELINE that grows across lives (accumulating over eons, capped) PLUS a within-life BOOM as this
+// life's space age (curSpace) surges. Pure f(clock) — no stored state, recomputed like the ruin/build
+// systems. Firewall: reads only the clock + curSpace, never curDis/curWar/mayor/econ. =====
+var SPACE_BIRTH_EPOCH=Date.UTC(2026,6,17);   // "humanity reaches the stars" — a FIXED date so colonies are young NOW and grow forward in any cycle mode
+var COLONY_BODIES={ moon:{settle:0,cap:1.0,grow:40}, mars:{settle:4,cap:0.85,grow:50},
+  venus:{settle:9,cap:0.65,grow:55}, europa:{settle:14,cap:0.55,grow:60}, titan:{settle:18,cap:0.55,grow:60} };
+var FORCECOLONY=null;                        // test hook: {moon:0.7, mars:0.3, ...} pins any body's level
+function colonyBaseline(body,now){ var b=COLONY_BODIES[body]; if(!b) return 0;
+  var age=(lifeIndexOf(now)-lifeIndexOf(SPACE_BIRTH_EPOCH))-b.settle;        // lives since THIS body was first settled
+  return age<=0?0:Math.min(b.cap, age/b.grow*b.cap); }                      // monotonic across lives, capped per body
+function colonyLevel(body,now){ if(FORCECOLONY&&FORCECOLONY[body]!=null) return FORCECOLONY[body];
+  var b=COLONY_BODIES[body]; if(!b) return 0;
+  return Math.min(b.cap, colonyBaseline(body,now) + (curSpace||0)*0.4); }   // baseline + this life's space-age boom
 
 // ============================ THE SPACE AGE ============================
 // In its final days the metropolis evolves into a space-faring city: a launch

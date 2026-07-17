@@ -24,6 +24,7 @@ if(Q.get('apoc')!=null){ var _ap=+Q.get('apoc'); FORCEAGE={g:1,phase:'apoc',apoc
 if(Q.get('space')!=null){ var _sp=+Q.get('space'); FORCEAGE={g:1,phase:'peak',apoc:0,cy:0.80+0.13*_sp}; }   // pins the SPACE AGE ramp (curSpace≈_sp, EDUB aside)
 if(Q.get('dis')){ FORCEDIS={type:Q.get('dis'),intensity:4,xf:0.5,w:60,seed:77,f:qn('disf',0.25)}; }
 if(Q.get('kp')!=null){ FORCEKP=+Q.get('kp'); }   // pins the planetary K-index (aurora): 5-6 band, ≥7 curtains
+if(Q.get('colony')!=null){ FORCECOLONY={moon:+Q.get('colony'), mars:+Q.get('colony'), venus:+Q.get('colony'), europa:+Q.get('colony'), titan:+Q.get('colony')}; }   // pins every colony's level
 try{ setup('neon',{cw:cw,ch:ch,woff:woff,ww:ww,pxk:3,zoom:1,quality:'spectacle'}); document.title='SETUP_OK'; }
 catch(e){ document.title='SETUP_ERR '+(e&&e.message); }
 function frame(){ if(window.__stop) return; try{ draw(g); }catch(e){ document.title='DRAW_ERR '+((e&&e.stack)||e).toString().replace(/\n/g,' | ').slice(0,300); } requestAnimationFrame(frame); }
