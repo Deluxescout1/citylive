@@ -58,7 +58,7 @@ A6: port meander/foam/breakers from drawOpenSea into drawHarbor replacing 3810-3
 - [x] 1 A1 golden pass DONE render-verified (sunset cinematic, noon untouched) (globals, sky gradient, folds, shadows, mountains/clouds→global) + sunrise/sunset renders
 - [x] 2 night bloom DONE (subtle, night-render verified)
 - [x] 3 A3 haze gradients DONE (Sonnet, render-verified incl forced fog/smoke contrast)
-- [x] 4a flame idiom DONE (committed); - [ ] 4b inline-site conversions (disaster STRIKE/AFTERMATH ~5575/5596, apoc meteors/sunburst/alienwar ~9086/9101/9146, crash ~2133) + burning-city render proof
+- [x] 4 fire COMPLETE: idiom + conversions (disaster STRIKE + apoc break-line; zero #ff3810 arrays remain), burn render-verified
 - [x] 5 A4 clouds DONE (Sonnet, cross-slice verified)
 - [x] 6 A5 sign truss DONE (Sonnet, age sweep verified)
 - [ ] 7 (Opus) A6 waterfront (incl. LIGHTHOUSE island w/ rotating night beam — Nick locked)
