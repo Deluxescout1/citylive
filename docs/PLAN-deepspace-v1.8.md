@@ -85,8 +85,8 @@ error sweep across bodies/events/finales; perf probe (draw() ms); then P9 gate.
 - [ ] P0 scaffold + hooks
 - [x] P1 moon overhaul (bigger disc+maria+halo, DAYTIME moon; verified night+day, QML clean) (bigger + daytime)
 - [x] P2 lunar city + hybrid persistence (colonyLevel model + growing lunar city; verified 3 levels, QML clean). Full lunar spaceport/shuttle detail can extend later.
-- [ ] P3 planets visible (ephemeris)
-- [ ] P4 planetary colonies
+- [x] P3+P4 planets visible + colonies (JPL ephemeris verified; point→ringed colonized disc + glow + "<WORLD> COLONY" label; Venus by day). QML clean.
+- [x] P4 (done with P3)
 - [ ] P5 orbital mega-structure + crewed launches
 - [ ] P6 interplanetary exodus
 - [ ] P7 moon end-events + Majora's-Mask moonfall finale

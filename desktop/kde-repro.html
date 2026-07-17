@@ -46,6 +46,10 @@ setTimeout(function(){ try{
     for(var bt=0;bt<8;bt++){ var b8=busCrosser(rn+bt*500,26000,0.030,20,0.86);
       bl.push(b8?Math.round(b8.x)+(b8.stopped?'S':'m'):'-'); }
     ex=' stops='+JSON.stringify(busstops.map(Math.round))+' bus@+0..3.5s='+bl.join('|'); }
+  if(Q.get('probe')==='planet'){ var nd=nowDate(rn), lst=lstHours(nd), out=[];
+    for(var pp=0;pp<PLANETS.length;pp++){ var P=PLANETS[pp], rd=planetRaDec(P.el,nd), aa=altAz(rd.ra,rd.dec,lst);
+      out.push(P.name+" alt="+aa.alt.toFixed(0)+" az="+aa.az.toFixed(0)+" scrX="+Math.round(skyWX(aa.az)-WOFF)+" scrY="+Math.round(skyY(aa.alt))+" lvl="+colonyLevel(P.colony||P.k,rn).toFixed(2)); }
+    console.log("PLANETS "+out.join(" | ")); }
   if(Q.get('probe')==='mw'){ buildMilkyWay(); var nd=nowDate(rn), lst=lstHours(nd), vis=0,maxa=0,fade=1;
     var COLS=48,ROWS=12,grid=[]; for(var gr=0;gr<ROWS;gr++){ grid[gr]=[]; for(var gc=0;gc<COLS;gc++) grid[gr][gc]=0; }
     var skyH=HORIZON*0.9;

@@ -1616,7 +1616,56 @@ function drawSky(g,now,nd,L,fx){
   // (the Moon is drawn by drawCelestial — day AND night — so it can also hang in the morning sky)
 }
 
-// ---- the Moon (and, in later phases, the planets) in their REAL sky positions — drawn day AND
+// ---- PLANET EPHEMERIS — real geocentric RA/Dec from JPL/Standish Keplerian elements (accurate to a
+// few arcmin over 1800-2050). Verified sane 2026: Venus near greatest elongation, planets on the
+// ecliptic, Saturn well-placed. Same altAz projection as the stars → planets rise/set correctly. ----
+var PL_EL={
+  earth:  {a:1.00000261,aR:0.00000562, e:0.01671123,eR:-0.00004392, I:-0.00001531,IR:-0.01294668, L:100.46457166,LR:35999.37244981, w:102.93768193,wR:0.32327364, O:0,OR:0},
+  venus:  {a:0.72333566,aR:0.00000390, e:0.00677672,eR:-0.00004107, I:3.39467605,IR:-0.00078890, L:181.97909950,LR:58517.81538729, w:131.60246718,wR:0.00268329, O:76.67984255,OR:-0.27769418},
+  mars:   {a:1.52371034,aR:0.00001847, e:0.09339410,eR:0.00007882, I:1.84969142,IR:-0.00813131, L:-4.55343205,LR:19140.30268499, w:-23.94362959,wR:0.44441088, O:49.55953891,OR:-0.29257343},
+  jupiter:{a:5.20288700,aR:-0.00011607, e:0.04838624,eR:-0.00013253, I:1.30439695,IR:-0.00183714, L:34.39644051,LR:3034.74612775, w:14.72847983,wR:0.21252668, O:100.47390909,OR:0.20469106},
+  saturn: {a:9.53667594,aR:-0.00125060, e:0.05386179,eR:-0.00050991, I:2.48599187,IR:0.00193609, L:49.95424423,LR:1222.49362201, w:92.59887831,wR:-0.41897216, O:113.66242448,OR:-0.28867794}
+};
+function planetHelio(el,T){ var a=el.a+el.aR*T, e=el.e+el.eR*T, I=(el.I+el.IR*T)*DEG,
+  L=el.L+el.LR*T, wl=el.w+el.wR*T, O=(el.O+el.OR*T)*DEG;
+  var M=(L-wl); M=((M%360)+360)%360; if(M>180)M-=360; M*=DEG;
+  var E=M; for(var k=0;k<8;k++) E=E-(E-e*Math.sin(E)-M)/(1-e*Math.cos(E));                   // Kepler
+  var xp=a*(Math.cos(E)-e), yp=a*Math.sqrt(1-e*e)*Math.sin(E);
+  var wp=wl*DEG-O, cw=Math.cos(wp),sw=Math.sin(wp),cO=Math.cos(O),sO=Math.sin(O),cI=Math.cos(I),sI=Math.sin(I);
+  return [ (cw*cO-sw*sO*cI)*xp+(-sw*cO-cw*sO*cI)*yp, (cw*sO+sw*cO*cI)*xp+(-sw*sO+cw*cO*cI)*yp, (sw*sI)*xp+(cw*sI)*yp ]; }
+function planetRaDec(el,nd){ var JD=nd.getTime()/86400000+2440587.5, T=(JD-2451545)/36525;
+  var p=planetHelio(el,T), ea=planetHelio(PL_EL.earth,T), gx=p[0]-ea[0],gy=p[1]-ea[1],gz=p[2]-ea[2];
+  var ec=23.43928*DEG, eqy=gy*Math.cos(ec)-gz*Math.sin(ec), eqz=gy*Math.sin(ec)+gz*Math.cos(ec);
+  var ra=Math.atan2(eqy,gx)/DEG/15; if(ra<0)ra+=24;
+  return { ra:ra, dec:Math.atan2(eqz,Math.sqrt(gx*gx+eqy*eqy))/DEG }; }
+// realistic colours, brightness, colony body; Jupiter/Saturn's colonies live on Europa/Titan.
+var PLANETS=[
+  {k:'venus',   name:'VENUS',   col:[255,248,232], mag:-4.1, day:true,  el:PL_EL.venus},
+  {k:'mars',    name:'MARS',    col:[255,120,80],  mag:0.6,  day:false, el:PL_EL.mars},
+  {k:'jupiter', name:'JUPITER', col:[255,226,182], mag:-2.2, day:false, el:PL_EL.jupiter, colony:'europa', colonyName:'EUROPA'},
+  {k:'saturn',  name:'SATURN',  col:[240,222,166], mag:0.4,  day:false, el:PL_EL.saturn,  colony:'titan',  colonyName:'TITAN', ring:true}
+];
+// the planets in their real places: a coloured point that SWELLS into a small disc (Saturn ringed) as
+// we colonise it, with a colony glow + an earned "<WORLD> COLONY" label. Venus also shows by day.
+function drawPlanets(g,now,nd,lst,dayFade){
+  var day=dayFade>0.4;
+  for(var pi=0;pi<PLANETS.length;pi++){ var P=PLANETS[pi]; if(day&&!P.day) continue;
+    var rd=planetRaDec(P.el,nd), aa=altAz(rd.ra,rd.dec,lst); if(aa.alt<2) continue;
+    var lvl=colonyLevel(P.colony||P.k, now), pwx=skyWX(aa.az), pwy=skyY(aa.alt), a=day?0.45:1;
+    var bright=P.mag<-1, pr=lvl>0.06?Math.round(1+lvl*2.3):0;
+    for(var w=-1;w<=1;w++){ var px=pwx-WOFF+w*WW; if(px<-8||px>SW+8) continue;
+      if(bright && !day){ g.globalCompositeOperation="lighter"; g.fillStyle=rgba(P.col,0.18); g.fillRect((px-2)|0,(pwy-2)|0,5,5); g.globalCompositeOperation="source-over"; }
+      if(pr>0){ for(var dy=-pr;dy<=pr;dy++)for(var dx=-pr;dx<=pr;dx++){ if(dx*dx+dy*dy>pr*pr+0.4) continue; g.fillStyle=rgba(P.col,a); g.fillRect((px+dx)|0,(pwy+dy)|0,1,1); }
+        g.globalCompositeOperation="lighter"; g.fillStyle="rgba(150,238,255,"+(0.12+0.22*lvl).toFixed(2)+")"; g.fillRect((px-pr-1)|0,(pwy-pr-1)|0,2*pr+3,2*pr+3);
+        if(P.ring){ g.fillStyle=rgba([238,222,172],0.85*a); g.fillRect((px-pr-2)|0,pwy|0,2*pr+5,1); g.fillStyle=rgba([238,222,172],0.42*a); g.fillRect((px-pr-3)|0,(pwy-1)|0,2*pr+7,1); }   // Saturn's rings (a tilted band)
+        g.globalCompositeOperation="source-over";
+      } else { var sz=bright?2:1; g.fillStyle=rgba(P.col,a); g.fillRect(px|0,pwy|0,sz,sz); }   // a bright coloured point
+    }
+    if(lvl>0.15 && !day) drawPixText(g,(P.colonyName||P.name)+" COLONY", Math.round(pwx+pr+3), Math.round(pwy-2), css(P.col), Math.min(0.9,(lvl-0.15)*3));
+  }
+}
+
+// ---- the Moon (and the planets) in their REAL sky positions — drawn day AND
 // night so the Moon can hang pale in the morning. Night = bright + halo + colony; daytime = a soft
 // wash, only when the Moon is well up and fat enough to actually be seen. ----
 function drawCelestial(g,now,nd,L,fx){
@@ -1635,6 +1684,7 @@ function drawCelestial(g,now,nd,L,fx){
             g.fillStyle="rgba(200,240,255,"+(0.8*(1-st8/4))+")"; g.fillRect((mx-60+sp8*58)|0,(mwy+46-sp8*44)|0,1,1); }
           g.globalCompositeOperation="source-over"; } }
     } }
+  drawPlanets(g,now,nd,lst,dayFade);          // Mars/Venus/Jupiter/Saturn at their real positions (+ colonies)
 }
 
 // ---- weather ----
