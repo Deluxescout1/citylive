@@ -907,7 +907,7 @@ function drawSnag(g,X,gy,day,k,seed){
   if(k<0.12&&(Math.floor(Date.now()/300)&1)){ g.fillStyle="#ff6a20"; g.fillRect(X,gy-th+1,1,1); }   // last embers
 }
 // is world-x on the PAVED road band? (the paver sweeps W→E: paved = world-x < WW*paveFrac)
-function onPavedRoad(wx){ var pf=Math.max(0,Math.min(1,(cityG-0.05)/0.25)); return pf>0.001 && wrapW(wx)<WW*pf; }
+function onPavedRoad(wx){ var pf=Math.max(0,Math.min(1,(cityG-0.20)/0.25)); return pf>0.001 && wrapW(wx)<WW*pf; }   // roads come LATER (a more established town first): paving 0.20→0.45 (was 0.05→0.30)
 // wildflowers dot the meadow (seasonal colours, paved over patch by patch as the city grows)
 function drawFlora(g,L,now,nd){
   var season=curSeason||seasonInfo(nowDate());
@@ -9986,7 +9986,7 @@ function draw(g,pass){
   // ash-out veil: only masks the death→rebirth WRAP itself (~last hour rising, ~first hour fading).
   // (was 0.955/0.04 of the cycle = a 70% black overlay for ~29 REAL HOURS after every rebirth — far too long)
   apocVeil = cg.cy>=0.9985 ? Math.min(1,(cg.cy-0.9985)/0.0012) : (cg.cy<0.0015 ? 1-cg.cy/0.0015 : 0);
-  growPop=Math.max(0,Math.min(1,(cityG-0.15)/0.45));         // traffic/crowds/infra scale up as it matures
+  growPop=Math.max(0,Math.min(1,(cityG-0.25)/0.45));         // traffic/crowds/infra scale up as it matures (shifted later to match the later road-paving — a more established town first)
   laborK=1.5-0.95*Math.min(1,cityG/0.55);                    // few hands in the village build SLOW; the boomtown workforce builds FAST (1.5×→0.55× duration)
   computeLmFoot();                                           // clear plazas where the civic landmarks stand
   curMayor=mayorState(now);                                  // who runs city hall right now?
@@ -10298,7 +10298,7 @@ function draw(g,pass){
   // World-anchored (paved band = world-x [0, WW*paveFrac]) → the front is continuous across every monitor.
   // Freeze-safe: bounded loops, ≤3-rect clip, the machinery vanishes once paved.
   var roadY=HORIZON+3, roadF=Math.max(0,Math.min(1,(cityG-0.1)/0.4));
-  var paveFrac=Math.max(0,Math.min(1,(cityG-0.05)/0.25)), frontW=WW*paveFrac, roadPaved=paveFrac>=1;
+  var paveFrac=Math.max(0,Math.min(1,(cityG-0.20)/0.25)), frontW=WW*paveFrac, roadPaved=paveFrac>=1;   // paving 0.20→0.45 (matches onPavedRoad): roads appear once the town is more established
   if(paveFrac>0.001){
     if(!roadPaved){                                                          // graded earth roadbed ahead of the paver
       g.fillStyle=L>0.5?"#6e5c46":"#332a20"; g.fillRect(0,HORIZON+1,SW,SH-HORIZON-1);
@@ -10444,6 +10444,7 @@ function draw(g,pass){
     var laneOn=(cars[i].lane<2)?gstage(0.42,0.50):gstage(0.50,0.58);   // a lane only carries traffic once it's PAVED (outer lanes open first)
     if((((i*2246822519+1)>>>0)/4294967296) > rhythm.carPresence*growPop*laneOn) continue;
     var dir=LANE[c.lane].d, cwx=cwxAll[i];
+    if(!onPavedRoad(cwx)) continue;                                    // a car only drives where the road is actually PAVED (follows the paver; auto-safe as paving shifts)
     if(nukeHit(cwx)) continue;                                         // the heat wave has reached this car — vaporized (until then it keeps driving)
     // EARLY CULL: if this car can't reach this screen's slice even after queueing, skip the queue math
     var cxr=cwx-WOFF; if(cxr>SW+CARM&&cxr-WW>-CARM) cxr-=WW; if(cxr<-CARM&&cxr+WW<SW+CARM) cxr+=WW;
@@ -10582,6 +10583,7 @@ function draw(g,pass){
     var jog=((i%9)===4);                                       // ~1 in 9 is a jogger — a CONSTANT per-ped speed (weather no longer toggles it → no position jump)
     var pwx=wrapW(pd.x0+pd.dir*pd.sp*(jog?2.1:1)*KSP*now), pdist=districtAt(pwx).name;   // constant speed → smooth stroll (was *wmood.speedK*now → jumped when weather changed)
     if(inSea(pwx)&&roadFNow()<0.85) continue;                  // nobody strolls over open water before the causeway
+    if(!curDis && cityPhase!=="apoc" && !onPavedRoad(pwx)) continue;   // strollers only where the sidewalk is PAVED (no one on the dirt ahead of the paver); fleeing crowds exempt
     var fleeing=false;
     if(curDis){ var fdx=pwx-curDis.x; if(fdx>WW/2)fdx-=WW; if(fdx<-WW/2)fdx+=WW;
       if(Math.abs(fdx)<90){ fleeing=true;                        // PANIC: run AWAY from the disaster, fast
