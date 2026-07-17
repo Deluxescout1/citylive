@@ -48,7 +48,9 @@ A5 (Sonnet): sy=top-12; pole → base beam (cX-panelW/4,top-1,panelW/2,1) + 2 an
   corners + 2px centre post; panel/rails/logo/text byte-identical; all geometry f(top,panelW) only.
 A6: port meander/foam/breakers from drawOpenSea into drawHarbor replacing 3810-3826 (scale by (1-dockA));
   reeds/rocks/driftwood hash-placed ×(1-dockA); fishing pier gstage(.18,.38) + boardwalk gstage(.5,.7) w/ lamps;
-  1 layered island per span (mound rows + tufts <cityG.6 + cottage light >.55 + reflection rows);
+  1 layered island per span — NICK LOCKED: LIGHTHOUSE ISLAND on one shore (small working lighthouse,
+  red/white stripes, ROTATING BEAM sweeping the water at night) + trees/cottage-light island on the other;
+  mound rows + reflection rows for both;
   warm goldenK water reflections (gate cityG>.15) alongside neon (cityG>.5).
 
 ## Ordered steps & state  ⟵ UPDATE AS EXECUTED
