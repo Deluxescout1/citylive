@@ -3397,6 +3397,16 @@ function drawLayer(g,layer,L,now,fx,hol,haze){
     for(var sgi=0;sgi<b.segs.length;sgi++){ var sg=b.segs[sgi];
       var sX=bx+sg.dx, sTop=top+sg.top, sBot=(sgi===0)?HORIZON:(top+sg.bot), sHt=sBot-sTop;
       g.fillStyle=colc; g.fillRect(sX,sTop,sg.w,sHt);
+      // FACADE ARTICULATION — floor/spandrel lines + structural piers turn a flat slab into a real gridded
+      // facade (glass/concrete towers; brick & clapboard keep their own coursing). Windows sit in the bays.
+      if((layer===near||layer===mid) && sg.w>=5 && sHt>=8 && !b.brick && !b.clap){
+        g.fillStyle=dayLit>0.15?"rgba(0,0,0,0.11)":"rgba(0,0,0,0.20)";
+        for(var fbY=sTop+3; fbY<sBot-1; fbY+=4) g.fillRect(sX,fbY,sg.w,1);           // floor / spandrel lines
+        g.fillStyle=dayLit>0.15?"rgba(0,0,0,0.09)":"rgba(0,0,0,0.16)";
+        for(var prX=sX+4; prX<sX+sg.w-2; prX+=6) g.fillRect(prX,sTop+2,1,sHt-3);     // structural piers between window bays
+        if(dayLit>0.25){ g.fillStyle="rgba(255,255,255,0.06)";
+          for(var prH=sX+3; prH<sX+sg.w-2; prH+=6) g.fillRect(prH,sTop+2,1,sHt-3); } // a crisp lit edge on each pier
+      }
       if(b.brick){                                            // brick coursing (old-town / industrial)
         g.fillStyle="rgba(0,0,0,0.14)";
         for(var mby=sTop+2; mby<sBot-1; mby+=3) g.fillRect(sX,mby,sg.w,1);
