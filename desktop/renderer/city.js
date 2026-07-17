@@ -5599,9 +5599,9 @@ function drawDisasterBuilding(g,b,X,cd,L,now){
     } else {                                                                           // FIRE — the default violent, blazing collapse
       g.globalCompositeOperation="lighter";                                             // firelight bathing the ruin
       g.fillStyle="rgba(255,110,30,"+(0.30+0.12*Math.sin(now*0.02))+")"; g.fillRect(X-1,top-3,w+2,Math.min(curH+3,20));
-      for(var fx2=0;fx2<w;fx2++){ if(((fx2*5+(Math.floor(now/80)))%2)===0){ var fh=3+((Math.floor(now/60))+fx2)%6;
-        g.fillStyle=["#ff3810","#ff7a1a","#ffd23a","#fff0a0"][((Math.floor(now/70))+fx2)%4]; g.fillRect(X+fx2,top-fh,1,fh); } }  // tall flames
       g.globalCompositeOperation="source-over";
+      drawFlame(g,X+(w>>1),top+2,Math.min(20,w-2),9+cd.intensity*2,now,cd.seed,0.85);   // the blaze — licking shared-idiom flames
+      if(w>10) drawFlame(g,X+(w>>2),top+3,Math.min(10,w>>1),6+cd.intensity,now,cd.seed+31,0.6);   // secondary tongue off-centre
       for(var em=0;em<w;em+=2){ if(((em*3+(Math.floor(now/50)))%5)===0){ g.fillStyle="#ffc23a"; g.fillRect(X+em,(top+((em*7+now*0.08)%curH))|0,1,1); } }  // glowing embers up the face
     }
     for(var db=0;db<8;db++){ var dbx=X+((db*7+now*0.05)%w), dby=top+((db*40+now*0.12)%Math.max(6,b.h));
@@ -9239,10 +9239,10 @@ function drawApocBuilding(g,b,bx,cl,L,now,bdir){
     g.fillStyle="#120e18"; g.fillRect(nx+wob,top-nh,2,nh); }
   for(var cr=0;cr<3;cr++){ var cx2=bx+2+((b.seed>>cr)%Math.max(1,b.w-4));  // cracks running down the face
     g.fillStyle="rgba(0,0,0,0.55)"; g.fillRect(cx2,top+2+cr*3,1,Math.max(2,keep>>1)); }
-  g.globalCompositeOperation="lighter";                         // fire along the break line
-  for(var fxp=bx; fxp<bx+b.w; fxp+=2){ if(((fxp+Math.floor(now/70))%3)!==2){
-    var fh2=3+((fxp*7+Math.floor(now/60))%6);
-    g.fillStyle=["#ff3810","#ff7a1a","#ffd23a"][((fxp>>1)+Math.floor(now/90))%3]; g.fillRect(fxp,top-fh2,2,fh2); } }
+  g.globalCompositeOperation="source-over";                     // fire along the break line — shared licking-flame idiom
+  drawFlame(g,bx+(b.w>>1),top+1,Math.min(22,b.w),8,now,(b.seed|0)+7,0.8);
+  if(b.w>12) drawFlame(g,bx+(b.w>>2),top+2,Math.min(10,b.w>>1),5,now,(b.seed|0)+41,0.55);
+  g.globalCompositeOperation="lighter";
   for(var sm2=0;sm2<3;sm2++){ var smt=((now*0.03+sm2*160+b.seed)%120);                       // smoke columns
     g.fillStyle="rgba(50,46,52,"+(0.5*(1-smt/120))+")";
     g.fillRect((bx+(b.w>>1)-2+Math.sin(now*0.002+sm2)*3)|0,(top-6-smt*0.5)|0,3,3); }
