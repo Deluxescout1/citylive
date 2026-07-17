@@ -229,6 +229,13 @@ var DAYMAT = {
 };
 function dayMatFor(dname,seed){ var t=DAYMAT[dname]; if(!t) return null; return t[(seed>>>7)%t.length]; }
 
+// ROOF MATERIALS — so pitched/capped roofs aren't all one slate. New England-appropriate + general:
+// slate, copper-green (weathered), red shingle, cedar, tar-black, tin, aged purple-slate. Chosen per
+// building by a bseed hash (no r() → determinism-safe). Mixed into the roof mass in drawCrown.
+var ROOFMAT = [ [46,50,60],[58,64,76],[150,72,56],[168,92,64],[92,122,104],[74,104,90],
+                [98,76,56],[120,90,64],[34,36,44],[120,124,132],[74,60,68],[52,58,66] ];
+function roofMatFor(seed){ return ROOFMAT[(seed>>>9)%ROOFMAT.length]; }
+
 var SKY = { night:[[8,8,26],[16,14,40]], dawn:[[70,40,90],[255,140,90]],
             day:[[92,160,235],[170,215,250]], dusk:[[40,30,80],[255,110,70]] };
 
@@ -2080,6 +2087,7 @@ function makeLayer(seed,y0,baseHMin,baseHMax,layerK){
             c: mixc(base, acc, accMix), accent:acc, accent2:acc2, winP:winPal, winHue:winHue,
             glass:((winLayout==="corp"||winLayout==="ribbon")&&!(d.brick||neClap||nePitch)),   // reflective glass tower
             hero:hero,   // signature landmark tower (ornate crown + premium beacon/trim)
+            roofMat:roofMatFor(bseed),   // this building's roof colour (slate/copper/red/cedar/tin…) — no two the same
             dayMat:(neColonial?null:dayMatFor(d.name,bseed)),   // DAYTIME material colour (colonial town keeps NE_WALLS; modern core gets it)
             nePitch:nePitch, clap:neClap,
             win:[], st:[], gl:[], roof:[],
@@ -2946,7 +2954,7 @@ function drawBanner(g,msg,now,night,pink){
 
 // ---- building crowns (a distinct top for every building) ----
 // bx = top-segment screen x, top = its roof y, bw = top-segment width.
-function drawCrown(g,crown,bx,top,bw,col,accent,L,now,night){
+function drawCrown(g,crown,bx,top,bw,col,accent,L,now,night,roofMat){
   // themed lives lean into their signature roofline citywide (Paris = mansards, China = pagoda eaves), except a
   // few landmark tops (steeple/spire/antenna/helipad/water-tower/billboard) which keep their identity.
   var _en=cityEra.name, _keep=(crown==="steeple"||crown==="spire"||crown==="antenna"||crown==="helipad"||crown==="watertower"||crown==="billboard");
@@ -2957,7 +2965,8 @@ function drawCrown(g,crown,bx,top,bw,col,accent,L,now,night){
   g.fillStyle=css(col); var mid=bx+(bw>>1), blink=(Math.floor(now/700))%2===0;
   // ---- NEW ENGLAND pitched roofs: slate/charcoal, drawn as a solid mass above the top edge ----
   if(crown==="gable"||crown==="gambrel"||crown==="hip"||crown==="steeple"){
-    var slate=css(mixc(col,[46,50,60],0.74)), sllit=css(mixc(col,[92,98,112],0.7));   // roof slate (still faintly era-tinted) + sunlit slope
+    var rmat=roofMat||[46,50,60], slateC=mixc(col,rmat,0.82);                          // THIS roof's material (slate/copper/red/cedar/tin…)
+    var slate=css(slateC), sllit=css(mixc(slateC,[255,255,255],0.30));                 // roof mass + its sunlit slope
     if(crown==="gable"){                                             // steep triangular roof
       var ph=Math.min(Math.round(bw*0.62),12);
       for(var r=0;r<ph;r++){ var rw=Math.max(1,Math.round(bw*(1-r/ph)));
@@ -3486,7 +3495,7 @@ function drawLayer(g,layer,L,now,fx,hol,haze){
       g.fillRect(sunL2?bx+b.w:bx-shL, HORIZON, shL, 2);                                          // soft long tail
     }
     var tX=bx+b.topDx, tW=b.topW;                            // top-segment (roof features attach here)
-    drawCrown(g,b.crown,tX,top,tW,col,b.accent,L,now,night);
+    drawCrown(g,b.crown,tX,top,tW,col,b.accent,L,now,night,b.roofMat);
     // HERO / SIGNATURE TOWER premium: a gilded cornice band under the ornate crown + a soft apex beacon at
     // night → the tower reads as a deliberate skyline landmark, day and night.
     if(b.hero && (layer===near||layer===mid)){
