@@ -102,3 +102,22 @@ Engine copies ×4 + md5 before any kde-repro render (bitten once already).
 - regression: golden-hour dusk perfect + MW correctly absent at dusk; v1.6 living streets (crowds/traffic/corps) intact.
 - perf: draw() ≤ 4.65ms village / 6.94ms metro / 7.42ms kp8-aurora night — well within the 15fps budget (MW spine ≈ +1ms; KDE is composite-bound anyway).
 - BUGFIX bonus: fixed drawSmokers signed-shift charCodeAt crash (shipped in v1.6.0 — blanked ~half of night frames).
+
+## S8 — SHIP GATE (advisor-reviewed hand-off)
+DONE autonomously (engine-only batch, no host-side changes):
+- QML Canvas verification (the real KDE render path, not Chromium): headless
+  `QT_QPA_PLATFORM=offscreen qml6` harness rendered village Milky Way, aurora
+  FORCEKP=8 curtains, and the moon colony — the two platform-divergent new calls
+  (createLinearGradient aurora + round-cap stroke() MW spine) BOTH render in QML.
+- CSP check: no connect-src allowlist in desktop/ → the new NOAA SWPC fetch is
+  not blocked on Electron/Windows (aurora fires on all platforms).
+- Chromium/Electron (≈ the Windows render path) verified throughout via kde-repro.
+PENDING NICK (deliberately held — standing rule + outward-facing):
+- Live KDE deploy: install.sh (preserve config.local.json test-mode) + journalctl
+  + eyeball on the tri-monitor. Held because it restarts plasmashell on his live desktop.
+- WinTest VM: attach the CI artifact + regression (engine is verified; host-side
+  unchanged, so low risk — the Electron path already exercised the same engine).
+- THEN: merge sky-space → main, bump desktop/package.json to 1.7.0, tag v1.7.0
+  (this publishes the release → auto-updates Nick + friend). DO NOT tag without Nick.
+- FLAG TO NICK: the every-2.5-min satellite is now a rare 1-2×/night ISS flyover
+  event (plan-backed, but a visible change to shipped behavior).
