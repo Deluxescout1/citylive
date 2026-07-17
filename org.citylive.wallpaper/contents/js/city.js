@@ -9636,12 +9636,34 @@ function drawApocKaiju(g,ap,L,now){
   for(var sp=0;sp<hipY-neckY;sp+=3){ var fw=1+((sp/3)&1); g.fillStyle="rgba(150,235,255,0.85)"; g.fillRect((cxB-(fw>>1))|0,(neckY+sp)|0,fw,2); }   // glowing dorsal fins down the spine
   g.fillStyle="rgba(90,225,255,0.55)"; g.fillRect(cxB-Math.round(W*0.5),top,1,H); g.fillStyle="rgba(255,90,200,0.55)"; g.fillRect(cxB+Math.round(W*0.5),top,1,H);   // rim light
   g.fillStyle="rgba(255,70,50,1)"; g.fillRect((breathDir<0?cxB-hd+1:cxB+hd-4)|0,(hy+1)|0,2,2);   // baleful eye on the head
-  if((Math.floor(now/280))%2===0){ var by=hy+1, mouth=(breathDir<0?cxB-hd:cxB+hd), blen=Math.round(SW*0.5);   // ATOMIC BREATH — a bright cyan beam raking the skyline from the mouth
-    for(var br=0;br<blen;br++){ var bxp=mouth+(breathDir<0?-1-br:1+br); if(bxp<-2||bxp>SW+2) continue;
-      g.fillStyle="rgba("+Math.round(180-br*0.22)+",245,255,"+(0.9*(1-br/blen))+")"; g.fillRect(bxp|0,by|0,2,4); }
-    g.fillStyle="rgba(220,255,255,0.8)"; g.fillRect((mouth+(breathDir<0?-blen:blen))|0,by-2,4,8); }   // white-hot beam tip
   g.globalCompositeOperation="source-over";
+  // ATOMIC BREATH — a searing beam lances DOWN from the maw and RAKES THE STREET, vaporizing the crowd
+  if(apocMs>KAIJU_ARRIVE_MS*0.6 && (Math.floor(now/900))%2===0){
+    var mouthX=(breathDir<0?cxB-hd:cxB+hd), mouthY=hy+2, sweep=Math.sin(now*0.004)*W*1.7, impX=cxB+sweep, impY=gy;
+    g.globalCompositeOperation="lighter";
+    var steps=Math.max(3,Math.round(Math.hypot(impX-mouthX,impY-mouthY)/2));
+    for(var bs=0;bs<=steps;bs++){ var bt=bs/steps, bx3=mouthX+(impX-mouthX)*bt, by3=mouthY+(impY-mouthY)*bt;
+      g.fillStyle="rgba(170,248,255,"+(0.88-0.22*bt).toFixed(2)+")"; g.fillRect((bx3-1)|0,by3|0,3,3);
+      g.fillStyle="rgba(242,255,255,0.9)"; g.fillRect(bx3|0,by3|0,1,2); }
+    g.fillStyle="rgba(255,255,244,0.9)"; fillEllipse(g,impX,impY-2,8,5);                        // ground-impact blaze
+    g.fillStyle="rgba(140,245,255,0.65)"; fillEllipse(g,impX,impY-2,14,9);
+    g.globalCompositeOperation="source-over";
+    g.fillStyle="rgba(18,12,10,0.7)"; g.fillRect((impX-11)|0,gy-1,22,2);                        // scorched street
+    for(var vp=0;vp<4;vp++){ var vpx=impX+(vp-1.5)*6, vt=((now+vp*130)%700)/700;               // people at the impact flashing to ash
+      if(vt<0.5){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,242,214,"+(1-vt*2).toFixed(2)+")";
+        g.fillRect(vpx|0,(gy-4+((vt*4)|0))|0,2,Math.max(1,4-((vt*4)|0))); g.globalCompositeOperation="source-over"; } }
+  }
   g.fillStyle="rgba(120,100,86,0.4)"; g.fillRect(cxB-W,gy-3,W*2,3);                             // stomp dust at its feet
+  // BREAKING THROUGH — as it rises, the earth (or the sea) erupts around it
+  if(arriveP<1){ var isSea=hasOcean&&inSea(epiX); g.globalCompositeOperation="lighter";
+    for(var eb=0;eb<11;eb++){ var ebh=((eb*40503+7)>>>0), ebt=((now*0.02+eb*37)%100)/100, ebx=cxB+((ebh%200)/200*2-1)*W;
+      g.fillStyle=(isSea?"rgba(150,212,255,":"rgba(150,112,82,")+(0.42*(1-ebt)).toFixed(2)+")"; g.fillRect(ebx|0,(gy-ebt*42)|0,3,4); }
+    g.globalCompositeOperation="source-over"; }
+  // THE CITY FIGHTS BACK — tanks, jets, troops throw everything at the beast
+  if(apocMs<KAIJU_ARRIVE_MS+KAIJU_WIPE_MS){
+    var milF=0.12+0.34*Math.min(1,apocMs/(KAIJU_ARRIVE_MS+KAIJU_WIPE_MS));
+    drawMilitaryResponse(g,{f:milF,x:epiX,intensity:5,w:Math.round(H*0.3),seed:0x4B41},L,now);
+  }
 
   var msg=(apocMs<KAIJU_ARRIVE_MS)?"IT RISES FROM THE DEEP":(prog<1)?"KAIJU RAMPAGE - "+Math.round(prog*100)+" PCT":cityName+" IN RUINS";
   drawDoomHud(g,ap,now,msg,"THE MONSTER MOVES ON");
