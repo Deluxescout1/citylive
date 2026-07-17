@@ -89,6 +89,6 @@ error sweep across bodies/events/finales; perf probe (draw() ms); then P9 gate.
 - [x] P4 (done with P3)
 - [x] P5+P6 orbital station beef-up + orbital RING arc + crewed EXODUS (ramps with curSpace, ships arc spaceward). QML clean.
 - [x] P6 (done with P5)
-- [ ] P7 moon end-events + Majora's-Mask moonfall finale
+- [~] P7 IN PROGRESS: MAJORA'S MASK MOONFALL finale DONE (new DEATHS 'moonfall'; giant faced moon descends+plunges; verified Chromium+QML). REMAINING: blood-portent (moon reddens/looms in other apocs), shatter→debris ring, lunar-colony-falls (war), + host-side finale picker whitelist for 'moonfall' (config-store.js/config.qml/settings.html) + DEATHS hash-shift note.
 - [ ] P8 sync + matrix + QML sweep + perf
 - [ ] P9 both-platform gate → ship v1.8.0

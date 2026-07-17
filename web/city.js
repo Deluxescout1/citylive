@@ -1670,6 +1670,7 @@ function drawPlanets(g,now,nd,lst,dayFade){
 // wash, only when the Moon is well up and fat enough to actually be seen. ----
 function drawCelestial(g,now,nd,L,fx){
   if(fx.rain||fx.snow||fx.fog||fx.thunder) return;                         // hidden by heavy weather
+  if(cityPhase==="apoc" && curDeath==="moonfall") return;                  // the giant plunging Moon is drawn by the finale instead
   var lst=lstHours(nd);
   eclipseMoon = LUNAR_ECLIPSES.indexOf(ymd(nd))>=0;
   var mrd=moonRaDec(nd), maa=altAz(mrd.ra,mrd.dec,lst), mp=eclipseMoon?0.5:moonPhase(nd), illum=(1-Math.cos(2*Math.PI*mp))/2;
@@ -8238,7 +8239,7 @@ function drawWar(g,L,now,night){
   if(((Math.floor(now/6000))%4)===0) drawDoomHud(g,0.9,now,"OCCUPIED TERRITORY","OCCUPIED TERRITORY");
 }
 // which death this life ends by — every civilization falls differently
-var DEATHS=["meteors","nuke","sunburst","ai","bh","alienwar","frost","kaiju","flood","kaijuwar","pollution"];   // append-only (auto-mode hash maps h%length)
+var DEATHS=["meteors","nuke","sunburst","ai","bh","alienwar","frost","kaiju","flood","kaijuwar","pollution","moonfall"];   // append-only (auto-mode hash maps h%length)
 var CFG_FINALE=null;   // config: pin which apocalypse ends EVERY life ("auto"/unset = varied per life)
 function deathOf(li){ if(CFG_FINALE) return CFG_FINALE;
   var h=((li*2654435761+977)>>>0); h=(h^(h>>>15))>>>0; return DEATHS[h%DEATHS.length]; }
@@ -8476,6 +8477,47 @@ function drawApocalypse(g,ap,L,now){
   if(curDeath==="flood"){ drawApocFlood(g,ap,L,now); return; }
   if(curDeath==="kaijuwar"){ drawApocKaijuWar(g,ap,L,now); return; }
   if(curDeath==="pollution"){ drawApocPollution(g,ap,L,now); return; }
+  if(curDeath==="moonfall"){ drawApocMoonfall(g,ap,L,now); return; }
+}
+// ---- MOONFALL (Majora's Mask): the Moon grows ENORMOUS, its carved face leering, and plunges into the city. ----
+function drawApocMoonfall(g,ap,L,now){
+  function fillCircle(gg,x,y,r,c){ gg.fillStyle=c; fillEllipse(gg,x,y,Math.max(1,r),Math.max(1,r)); }
+  function mixByte(a,b,t){ return Math.round(a+(b-a)*t); }
+  // the sky curdles green-black then hellish orange as the Moon fills it
+  var SKB=[[18,26,20],[40,30,24],[86,42,26],[150,66,30],[210,120,50]], segN=SKB.length-1;
+  for(var yy=0;yy<HORIZON;yy+=6){ var tt=yy/HORIZON*segN, si=Math.min(segN-1,tt|0), tf=tt-si, ca=SKB[si], cb=SKB[si+1];
+    g.fillStyle="rgba("+((ca[0]+(cb[0]-ca[0])*tf)|0)+","+((ca[1]+(cb[1]-ca[1])*tf)|0)+","+((ca[2]+(cb[2]-ca[2])*tf)|0)+","+(0.55+0.4*ap)+")"; g.fillRect(0,yy,SW,6); }
+  var mR=Math.round(7 + ap*ap*(SH*0.62)), mcx=(SW*0.5)|0, mcy=Math.round(-mR*0.35 + ap*ap*(HORIZON*0.55 + mR*0.5));   // grows huge + descends toward the city
+  var tint=Math.min(1,ap*1.2), pulse=1+0.02*Math.sin(now*0.006);
+  // the enormous pallid Moon, reddening with menace as it falls
+  var base=[mixByte(214,150,tint), mixByte(210,120,tint), mixByte(196,80,tint)];
+  g.globalCompositeOperation="lighter"; g.fillStyle="rgba("+base[0]+","+base[1]+","+base[2]+",0.10)"; g.fillRect((mcx-mR-8)|0,(mcy-mR-8)|0,2*mR+16,2*mR+16); g.globalCompositeOperation="source-over";  // sickly halo
+  fillCircle(g, mcx, mcy, mR*pulse, "rgb("+base[0]+","+base[1]+","+base[2]+")");
+  // pocked craters
+  var cr=rng(0x4D4F4F4E);
+  for(var k=0;k<14;k++){ var caa=cr()*6.283, crd=Math.sqrt(cr())*mR*0.9, kx=mcx+Math.cos(caa)*crd, ky=mcy+Math.sin(caa)*crd, ksz=Math.max(1,mR*(0.04+cr()*0.06));
+    fillCircle(g,kx,ky,ksz,"rgba("+(base[0]-30)+","+(base[1]-34)+","+(base[2]-30)+",0.5)"); }
+  // ---- THE CARVED FACE (Majora's Mask): furrowed brow, slanted glaring eyes, gritted teeth ----
+  if(ap>0.12 && mR>14){ var fa=Math.min(1,(ap-0.12)*2.2), ex=mR*0.42, ey=mcy-mR*0.16, es=mR*0.26;
+    var dark="rgba(46,20,16,"+(0.85*fa)+")", glow=(Math.floor(now/300)%2?"rgba(255,150,40,":"rgba(255,90,30,");
+    // furrowed brow (two heavy angled ridges meeting in a scowl)
+    g.strokeStyle=dark; g.lineWidth=Math.max(2,mR*0.06); g.lineCap="round";
+    g.beginPath(); g.moveTo(mcx-ex-es*0.6, ey-es*0.9); g.lineTo(mcx-es*0.2, ey-es*0.2); g.stroke();
+    g.beginPath(); g.moveTo(mcx+ex+es*0.6, ey-es*0.9); g.lineTo(mcx+es*0.2, ey-es*0.2); g.stroke();
+    // slanted glaring eyes (angry triangles) with burning pupils
+    for(var e=0;e<2;e++){ var sgn=e?1:-1, exc=mcx+sgn*ex;
+      g.fillStyle=dark; g.beginPath(); g.moveTo(exc-sgn*es*0.9, ey-es*0.2); g.lineTo(exc+sgn*es*0.9, ey+es*0.1); g.lineTo(exc-sgn*es*0.2, ey+es*0.7); g.closePath(); g.fill();
+      g.globalCompositeOperation="lighter"; g.fillStyle=glow+(0.9*fa)+")"; fillCircle(g,exc,ey+es*0.15,es*0.32*pulse,glow+(0.9*fa)+")"); g.globalCompositeOperation="source-over"; }
+    // the nose
+    g.fillStyle=dark; g.beginPath(); g.moveTo(mcx,ey+es*0.4); g.lineTo(mcx-es*0.35,mcy+mR*0.18); g.lineTo(mcx+es*0.35,mcy+mR*0.18); g.closePath(); g.fill();
+    // the wide gritted mouth with big teeth
+    var mw=mR*0.86, my=mcy+mR*0.42, mh=mR*0.26;
+    g.fillStyle=dark; g.fillRect((mcx-mw*0.5)|0,(my-mh*0.5)|0,(mw)|0,(mh)|0);
+    g.fillStyle="rgba(220,206,180,"+(0.9*fa)+")"; var tn=7, tw=mw/tn;
+    for(var t=0;t<tn;t++){ g.fillRect((mcx-mw*0.5+t*tw+1)|0,(my-mh*0.5+1)|0,(tw-1.5)|0,(mh*0.42)|0); g.fillRect((mcx-mw*0.5+t*tw+1)|0,(my+mh*0.08)|0,(tw-1.5)|0,(mh*0.42)|0); }
+  }
+  // impact: the Moon meets the city — a searing white-out
+  if(ap>0.9){ var f=(ap-0.9)/0.1; g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,240,210,"+(f*f)+")"; g.fillRect(0,0,SW,HORIZON+GROUND); g.globalCompositeOperation="source-over"; }
 }
 // ---- KAIJU WAR: two titans battle EACH OTHER; the city is collateral. A different victor each life. ----
 // drawTitan: shared silhouette painter. kind 0 = the reptile (dorsal fins, cyan rim, atomic breath),
