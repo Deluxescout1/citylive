@@ -1851,6 +1851,7 @@ var curDis=null, curRebuilt=[], curRuins=[];   // active disaster (or null) + co
 var cityG=1, cityPhase="peak", growPop=1, cityApoc=0, apocVeil=0;   // maturity, phase, pop factor, apocalypse progress + ash-out veil
 var curSpace=0;   // SPACE AGE 0..1 — the mature metropolis' final evolution before the endtimes
 var lpK=0;        // LIGHT POLLUTION 0..1 — how far the city's glow drowns the dark sky (Milky Way/Andromeda wash-out)
+var wmood={};     // per-frame weather mood (wet/snow/cold/hot/harsh + pedFactor/speedK) — GLOBAL so building/prop draw fns can read it (set in draw())
 function gstage(a,b){ return Math.max(0,Math.min(1,(cityG-a)/(b-a))); }   // 0..1 build progress between two growth marks
 function roadFNow(){ return Math.max(0,Math.min(1,(cityG-0.1)/0.4)); }
 var KSP=1;             // resolution scale (6/pxk): 1 at classic PXK 6, 1.5 in PXK-4 fine-pixel mode
@@ -9723,7 +9724,7 @@ function draw(g,pass){
   // ---- weather mood: how the street reacts (crowd size, umbrellas, bundling, shade) ----
   var temp=(weather.temp==null?60:weather.temp);
   var feels=(weather.feels==null?temp:weather.feels);          // "feels-like" — what actually drives coats & sun-shades
-  var wmood={ wet:(fx.rain||fx.drizzle||fx.thunder), snow:fx.snow,
+  wmood={ wet:(fx.rain||fx.drizzle||fx.thunder), snow:fx.snow,                 // GLOBAL (not var): the building/prop draw fns (church picnic/kite ~2947) read it — a draw()-local threw ReferenceError in QML, aborting the frame
     cold:(feels<34&&!fx.rain&&!fx.drizzle), hot:(feels>86&&L>0.55&&!fx.rain&&!fx.snow&&!fx.drizzle&&!fx.cloudy),
     harsh:(fx.thunder||(fx.snow&&(weather.wind||0)>16)) };
   wmood.pedFactor = wmood.harsh?0.32 : wmood.wet?0.6 : wmood.snow?0.55 : wmood.cold?0.62 : wmood.hot?0.66 : 1;
