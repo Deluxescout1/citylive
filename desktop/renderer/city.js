@@ -2054,6 +2054,7 @@ function makeLayer(seed,y0,baseHMin,baseHMax,layerK){
     var b={ x:x, w:bw, h:bh, y0:y0, type:"tower", seed:bseed, district:d.name, brick:d.brick||0,
             segs:segs, crown:crown, winLayout:winLayout, topW:topW, topDx:topDx,
             c: mixc(base, acc, accMix), accent:acc, accent2:acc2, winP:winPal, winHue:winHue,
+            glass:((winLayout==="corp"||winLayout==="ribbon")&&!(d.brick||neClap||nePitch)),   // reflective glass tower
             nePitch:nePitch, clap:neClap,
             win:[], st:[], gl:[], roof:[],
             ledge:r()<d.ledge, ledC:(r()*NEON.length)|0,
@@ -3397,14 +3398,25 @@ function drawLayer(g,layer,L,now,fx,hol,haze){
     for(var sgi=0;sgi<b.segs.length;sgi++){ var sg=b.segs[sgi];
       var sX=bx+sg.dx, sTop=top+sg.top, sBot=(sgi===0)?HORIZON:(top+sg.bot), sHt=sBot-sTop;
       g.fillStyle=colc; g.fillRect(sX,sTop,sg.w,sHt);
-      // FACADE ARTICULATION — floor/spandrel lines + structural piers turn a flat slab into a real gridded
-      // facade (glass/concrete towers; brick & clapboard keep their own coursing). Windows sit in the bays.
+      // REFLECTIVE GLASS — the facade MIRRORS the sky (day) / sunset (dusk) / city-glow (night) + a sheen column
+      if(b.glass && sHt>=6){
+        var gT9, gB9;
+        if(dayLit>0.14){ gT9=mixc(col,[206,228,255],0.55); gB9=mixc(col,skyTint,0.42);
+          if(goldenK>0.08){ gT9=mixc(gT9,goldC,goldenK*0.45); gB9=mixc(gB9,goldC,goldenK*0.55); } }   // sunset in the glass
+        else { gT9=mixc(col,[26,34,60],0.6); gB9=mixc(col,cityEra.glow||[70,110,170],0.30); }          // dark night glass + base glow
+        var gr9=g.createLinearGradient(0,sTop,0,sBot); gr9.addColorStop(0,css(gT9)); gr9.addColorStop(1,css(gB9));
+        g.fillStyle=gr9; g.fillRect(sX,sTop,sg.w,sHt);
+        var shX9=sX+Math.round(sg.w*0.32);                                                             // a bright sheen streak (the glass catching the light)
+        g.fillStyle=dayLit>0.14?"rgba(255,255,255,0.16)":"rgba(200,225,255,0.10)"; g.fillRect(shX9,sTop,1,sHt);
+        g.fillStyle=dayLit>0.14?"rgba(255,255,255,0.07)":"rgba(200,225,255,0.05)"; g.fillRect(shX9+1,sTop,1,sHt);
+      }
+      // FACADE ARTICULATION — BOLD floor/spandrel lines + structural piers (glass → mullions) = a crisp gridded facade
       if((layer===near||layer===mid) && sg.w>=5 && sHt>=8 && !b.brick && !b.clap){
-        g.fillStyle=dayLit>0.15?"rgba(0,0,0,0.11)":"rgba(0,0,0,0.20)";
+        g.fillStyle=dayLit>0.15?"rgba(0,0,0,0.16)":"rgba(0,0,0,0.26)";
         for(var fbY=sTop+3; fbY<sBot-1; fbY+=4) g.fillRect(sX,fbY,sg.w,1);           // floor / spandrel lines
-        g.fillStyle=dayLit>0.15?"rgba(0,0,0,0.09)":"rgba(0,0,0,0.16)";
-        for(var prX=sX+4; prX<sX+sg.w-2; prX+=6) g.fillRect(prX,sTop+2,1,sHt-3);     // structural piers between window bays
-        if(dayLit>0.25){ g.fillStyle="rgba(255,255,255,0.06)";
+        g.fillStyle=dayLit>0.15?"rgba(0,0,0,0.13)":"rgba(0,0,0,0.22)";
+        for(var prX=sX+4; prX<sX+sg.w-2; prX+=6) g.fillRect(prX,sTop+2,1,sHt-3);     // structural piers / mullions between window bays
+        if(dayLit>0.2){ g.fillStyle="rgba(255,255,255,0.10)";
           for(var prH=sX+3; prH<sX+sg.w-2; prH+=6) g.fillRect(prH,sTop+2,1,sHt-3); } // a crisp lit edge on each pier
       }
       if(b.brick){                                            // brick coursing (old-town / industrial)
@@ -3477,6 +3489,20 @@ function drawLayer(g,layer,L,now,fx,hol,haze){
           g.fillRect(bx+w.x+w.w-1,top+w.y+w.h-1,1,1); }                            // window AC unit
         else if(b.district==="residential"&&wh6%17===0){ g.globalAlpha=1; g.fillStyle="rgba(20,22,30,0.8)";
           g.fillRect(bx+w.x-1,top+w.y+w.h,w.w+2,1); } }                            // balcony rail
+      // ── DAYTIME: draw every window as a CRISP RECESSED PANE (cool glass inset + a lit top edge) so facades
+      //    read as gridded glass — the reference look — instead of the old faint scattered dots. Night below
+      //    keeps its warm-lit pattern. Near+mid only; far stays atmospheric.
+      if(!isNight && (layer===near||layer===mid) && w.w>=2){
+        var wpx=bx+w.x, wpy=top+w.y;
+        var pane=w.do ? mixc(col,[92,156,212],0.40)      // an "occupied"/open pane reads a touch brighter & bluer
+                      : mixc(col,[54,74,110],0.56);       // a cool recessed glass pane, darker than the facade
+        if(goldenK>0.12) pane=mixc(pane,goldC,goldenK*0.30);            // dusk warms the glass
+        g.globalAlpha=0.82*dim; g.fillStyle=css(pane); g.fillRect(wpx,wpy,w.w,w.h);
+        g.globalAlpha=0.5*dim;  g.fillStyle="#ecf6ff"; g.fillRect(wpx,wpy,w.w,1);           // sky catching the top of the glass
+        if(w.h>=3){ g.globalAlpha=0.28*dim; g.fillStyle="#000000"; g.fillRect(wpx,wpy+w.h-1,w.w,1); }  // recess shadow at the sill
+        g.globalAlpha=1;
+        continue;
+      }
       var lit=isNight?(w.no&&((w.hx%97)/97<curLit)):w.do;   // evening ramp: more windows light as it gets later
       if(blk6) lit=curBlk.fix&&(((now/130)|0)&1)&&lit;      // dark block; flickers back as the crew works
       if(lit&&polDark(b)) lit=false;                        // POLLUTION finale: this district's lights have died (never flicker back)

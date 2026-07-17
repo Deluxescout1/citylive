@@ -91,9 +91,34 @@ Growth: b.bAge birth-age; unborn skipped, borning = drawGrowSite. Windows precom
 ## COLOUR-GRADED atmospheric depth (far layers tint hard toward the sky/sunset colour); (4) crisp lit
 ## windows warm+cool at night. Keep our variety + hustle/bustle. Vibe "bright crisp detailed" ✓ fits.
 
+## HIGH-CLASS DECISIONS (Nick 2026-07-17, "I want this to look high class", AskUserQuestion):
+## - DETAIL = BOLD & CRISP: strong readable floor lines, piers, WINDOW FRAMES, cornices, setbacks —
+##   sharp/architectural, readable at any zoom. Push the articulation HARDER (bolder than the first pass).
+## - GLASS = REFLECTIVE: glass towers MIRROR the sky-gradient by day, warm SUNSET at dusk, city GLOW at
+##   night + a diagonal sheen streak. The premium "real render" look (ref #2 green-glass, ref #1 lit glass).
+## - LANDMARKS = YES, HERO TOWERS: a few signature buildings per city (art-deco crowns, a spire tower like
+##   ref #1's WTC, tapered/twisted forms, ornate caps) anchoring the skyline as focal points.
+## - PRIORITY = ALL times equally polished (day + dusk color-grade + lit night).
+## EXECUTION ORDER (max high-class impact): reflective glass + bolder articulation + window frames FIRST,
+## then material colour identity (colourful AND restrained range), then hero towers, then colour-graded depth.
+
+## B1 EXECUTION LOG (render→react loop with Nick)
+## - 1: DENSER window grids (all 5 layouts tightened). 2: FACADE ARTICULATION (floor/spandrel lines + piers).
+## - 3: REFLECTIVE GLASS (b.glass flag on corp/ribbon towers, not brick/clap) — body mirrors sky(day)/
+##   sunset(dusk)/city-glow(night) via a vertical gradient + a 1px sheen streak. Reads strongest at night.
+## - 4: BOLDER articulation (alphas up ~0.11→0.16 etc) for the "high class / bold & crisp" ask.
+## - 5: DAYTIME WINDOW FIX (advisor's key call): the day flatness was RENDER not density (night was already
+##   dense from the SAME array). Rewrote the day path (near+mid) → every window a CRISP RECESSED PANE:
+##   cool glass inset (darker than facade) + 1px lit top edge (sky) + 1px sill shadow; dusk warms the glass.
+##   Result: brown residential + grey office towers now read as real gridded glass facades. Perf 7.0→8.4ms
+##   (budget 66). VERIFIED: kde-repro day/dusk/night triplet + tight zoom + perf probe. Node -c + sync ×4 OK.
+## - OPEN: a few WIDE-SPACED "corp" setback towers are genuinely sparse-by-generation (few big windows) — look
+##   flat even with the render fix. Decide with Nick whether those want a secondary light-window pass (risk:
+##   over-busy) or stay as intentional big-corporate glazing. Show Nick the triplet + tight zoom → react.
+##
 ## STATUS  ⟵ UPDATE AS EXECUTED
 - [ ] B0 branch + plan + harness
-- [ ] B1 structural realism (facades/materials/cornices/ground floor)
+- [~] B1 structural realism — glass+articulation+DAY WINDOW PANES done; corp-sparse case + material colour TBD
 - [ ] B2 ground-floor retail storefronts
 - [ ] B3 building types by function + signage
 - [ ] B4 living interiors (people in lit windows at night)
