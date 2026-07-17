@@ -3841,6 +3841,77 @@ function drawHarbor(g,L,now,night,nd){
           g.fillRect(fx2,HORIZON-2,2,1); } }
       g.globalAlpha=ga3;
     }
+    // ---- SHORE LIFE (fades as the quays pave in): reeds, rocks, a driftwood log ----
+    var wildA=1-dockA;
+    if(wildA>0.05){ var ga4=g.globalAlpha; g.globalAlpha=wildA;
+      for(var px9=sa+3;px9<sb-3;px9+=3){ var ph9=((px9*2654435761)>>>0);
+        if(ph9%3===0){ var rh9=2+((ph9>>>5)%3), swy=Math.round(Math.sin(now*0.002+px9)*1);   // swaying reeds
+          g.fillStyle=L>0.5?"#3f6b34":"#1d3020"; g.fillRect(px9+swy,HORIZON-1-rh9,1,rh9);
+          g.fillStyle=L>0.5?"#6b5b35":"#332c1c"; g.fillRect(px9+swy,HORIZON-2-rh9,1,1); }    // seed head
+        else if(ph9%23===0){ g.fillStyle=L>0.5?"#8b8d90":"#3a3c42";                          // half-round rocks
+          g.fillRect(px9,HORIZON-2,3,2); g.fillRect(px9+1,HORIZON-3,1,1); } }
+      var dwx=sa+8+(((sa*40503)>>>0)%Math.max(4,ww-20));                                     // one driftwood log per span
+      g.fillStyle=L>0.5?"#9a8266":"#463b2c"; g.fillRect(dwx,HORIZON-2,5,1); g.fillRect(dwx+4,HORIZON-3,2,1);
+      g.globalAlpha=ga4; }
+    // ---- FISHING PIER (early growth; the working docks replace it) ----
+    var pierA=gstage(0.18,0.38)*(1-dockA);
+    if(pierA>0.05){ var ga5=g.globalAlpha; g.globalAlpha=pierA;
+      var pxr=sa+Math.round(ww*0.3), plen=10;
+      g.fillStyle=L>0.5?"#7a6247":"#3a2f22";
+      g.fillRect(pxr,HORIZON-4,plen,1);                                                       // deck planks
+      g.fillRect(pxr+2,HORIZON-3,1,3); g.fillRect(pxr+plen-2,HORIZON-3,1,3); g.fillRect(pxr+5,HORIZON-3,1,3);  // posts
+      drawPerson(g,pxr+plen-3,HORIZON-5,"#5a4a6a","#d8b090",0);                              // the fisher, sat at the end
+      g.fillStyle=L>0.5?"#2c2620":"#181410"; g.fillRect(pxr+plen-1,HORIZON-5,1,1);            // rod stub
+      g.fillStyle="rgba(200,220,240,0.5)"; g.fillRect(pxr+plen+1,(HORIZON-3+((Math.floor(now/900))%2))|0,1,2);  // line + bobber
+      g.globalAlpha=ga5; }
+    // ---- BOARDWALK with lamps (the leisure shore of the grown city) ----
+    var bwA=gstage(0.5,0.7);
+    if(bwA>0.05){ var ga6=g.globalAlpha; g.globalAlpha=bwA;
+      g.fillStyle=L>0.5?"#8a7050":"#403528"; g.fillRect(sa+2,HORIZON-1,ww-4,1);               // plank promenade
+      for(var bl9=0;bl9<2;bl9++){ var lx9=sa+Math.round(ww*(0.25+bl9*0.5));
+        g.fillStyle=L>0.5?"#4a4f58":"#22252c"; g.fillRect(lx9,HORIZON-5,1,4);                 // lamp post
+        if(night>0.3){ g.globalCompositeOperation="lighter";
+          g.fillStyle="rgba(255,214,140,"+(0.6*night)+")"; g.fillRect(lx9-1,HORIZON-6,3,2);   // warm lamp head
+          g.fillStyle="rgba(255,214,140,"+(0.12*night)+")"; g.fillRect(lx9-3,HORIZON-3,7,3);  // glow pool
+          g.globalCompositeOperation="source-over"; }
+        else { g.fillStyle="#d8dce4"; g.fillRect(lx9-1,HORIZON-6,3,2); } }
+      g.globalAlpha=ga6; }
+    // ---- THE ISLAND: lighthouse on the west shore's bay, a wooded cottage isle on the east ----
+    var isLight=(sa<WW*0.5), ix=sa+Math.round(ww*0.55)+(((sa*131)>>>0)%7)-3, iw=12+(((sa*977)>>>0)%5), iy=wTop+7;
+    g.fillStyle=L>0.5?"#4a4436":"#211d16"; g.fillRect(ix-(iw>>1),iy+2,iw,2);                  // under-bank
+    g.fillStyle=L>0.5?"#6b5f45":"#2e281c"; g.fillRect(ix-(iw>>1)+1,iy+1,iw-2,2);              // earth mound
+    g.fillStyle=L>0.5?"#4f7a3d":"#22371e"; g.fillRect(ix-(iw>>1)+2,iy,iw-4,1);                // green crown
+    if(isLight){                                                                              // THE LIGHTHOUSE
+      var lhx=ix, lhTop=iy-7;
+      g.fillStyle=L>0.5?"#e8e4dc":"#8a877e"; g.fillRect(lhx-1,lhTop,3,7);                     // white tower
+      g.fillStyle=L>0.5?"#c04038":"#5e2320"; g.fillRect(lhx-1,lhTop+2,3,1); g.fillRect(lhx-1,lhTop+5,3,1);   // red bands
+      g.fillStyle="#20242c"; g.fillRect(lhx-2,lhTop-1,5,1);                                   // gallery
+      var lit9=night>0.35;
+      g.fillStyle=lit9?"#ffe9a0":"#3a3e48"; g.fillRect(lhx-1,lhTop-3,3,2);                    // lamp room
+      g.fillStyle="#20242c"; g.fillRect(lhx-1,lhTop-4,3,1);                                   // cap
+      if(lit9){ var ang=now*0.0011, ca=Math.cos(ang);                                          // THE ROTATING BEAM
+        g.globalCompositeOperation="lighter";
+        var bdir=ca>=0?1:-1, blen=Math.round(6+Math.abs(ca)*16);
+        for(var bt9=2;bt9<blen;bt9+=2){ var bw9=1+(bt9>>3);
+          g.fillStyle="rgba(255,240,190,"+(0.34*Math.abs(ca)*(1-bt9/blen)).toFixed(3)+")";
+          g.fillRect((lhx+bdir*bt9)|0,(lhTop-3+Math.round(bt9*0.08))|0,2,bw9+1); }
+        g.fillStyle="rgba(255,240,190,"+(0.5*night)+")"; g.fillRect(lhx-1,lhTop-3,3,2);        // lamp flare
+        g.globalCompositeOperation="source-over"; }
+      g.fillStyle="rgba(232,228,220,0.14)"; g.fillRect(lhx-1,iy+4,3,3);                        // tower reflection
+    } else {                                                                                   // the wooded isle
+      for(var tt9=0;tt9<2;tt9++){ var tx9=ix-3+tt9*5;
+        g.fillStyle=L>0.5?"#3f6b34":"#1d3020"; g.fillRect(tx9,iy-3,3,3); g.fillRect(tx9+1,iy-4,1,1);
+        g.fillStyle=L>0.5?"#5a4632":"#2a211a"; g.fillRect(tx9+1,iy,1,1); }                     // tree trunks
+      if(cityG>0.55){ g.fillStyle=L>0.5?"#6b5f45":"#332c20"; g.fillRect(ix+1,iy-2,3,2);        // the cottage
+        if(night>0.35){ g.globalCompositeOperation="lighter";
+          g.fillStyle="rgba(255,214,140,"+(0.7*night)+")"; g.fillRect(ix+2,iy-2,1,1);          // warm window
+          g.fillStyle="rgba(255,214,140,0.10)"; g.fillRect(ix+1,iy+4,3,3);                     // its reflection
+          g.globalCompositeOperation="source-over"; } } }
+    // ---- golden-hour water shimmer (village-age onward; neon needs the full city) ----
+    if(goldenK>0.3&&cityG>0.15){ g.globalCompositeOperation="lighter";
+      for(var gx9=sa+3;gx9<sb;gx9+=6){ g.fillStyle=rgba(goldC,0.10*goldenK);
+        g.fillRect((gx9+((Math.sin(now*0.0025+gx9))|0))|0,wTop+3,1,HORIZON-wTop-4); }
+      g.globalCompositeOperation="source-over"; }
     if(night>0.4&&cityG>0.5){ g.globalCompositeOperation="lighter";                 // neon reflections (need a lit city)
       var rc=["rgba(255,60,160,0.11)","rgba(60,200,255,0.11)","rgba(120,255,190,0.09)"];
       for(var rx=sa+2; rx<sb; rx+=7){ g.fillStyle=rc[((rx>>2)%3+3)%3];
