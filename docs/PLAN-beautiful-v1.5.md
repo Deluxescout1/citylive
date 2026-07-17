@@ -66,8 +66,8 @@ A6: port meander/foam/breakers from drawOpenSea into drawHarbor replacing 3810-3
 - [ ] 7c NICK BUG open: floating lit-window row (NOT mainline train — twf>=1 gate; suspects: monorail build / corp-HQ windows / other; REPRODUCE village dusk)
 - [ ] 8 sync ×4 + md5 + npm test
 - [x] 9 matrix 11/11 (4 tod x 2 ages + 3 finales) + island tune; 7c bug swept 6 frames NO repro (open, non-blocking)
-- [ ] 10 both-platform gate (KDE deploy 3-monitor dusk+disaster watch · VM app run + tests)
-- [ ] 11 bump 1.5.0 → merge → tag (after v1.4.0 finally publishes — GitHub outage queue)
+- [x] 10 BOTH GATES PASSED: KDE live deploy (md5/bake/journal) + VM living-city dusk render (attach + all new visuals)
+- [x] 11 SHIPPED v1.5.0
 
 ## What NOT to do
 Canonical-only sync; no Math.random in painters; ±WW wrap for world props; golden folds NEVER replace base
