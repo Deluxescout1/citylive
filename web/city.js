@@ -263,8 +263,8 @@ function moonPhase(d){
 var MOON_MARIA=[[-0.34,-0.28],[-0.12,-0.44],[0.08,-0.12],[0.30,0.04],[0.04,0.30],[-0.26,0.36],[0.40,-0.26],[-0.44,0.06]];
 // The Moon at (mx,my), real illuminated phase mp (0=new .5=full). R=radius px. dayFade 0..1:
 // 0 = night (bright disc + halo + colony), 1 = daytime (a pale wash hanging in the blue). blood=eclipse.
-function drawMoon(g,mx,my,mp,colony,R,dayFade){
-  R=R||6; dayFade=dayFade||0; var night=1-dayFade, day=dayFade>0.35;
+function drawMoon(g,mx,my,mp,colony,R,dayFade,portent,now){
+  R=R||6; dayFade=dayFade||0; portent=portent||0; now=now||0; var night=1-dayFade, day=dayFade>0.35;
   var ca=Math.cos(2*Math.PI*mp), wax=mp<0.5, illum=(1-ca)/2, blood=eclipseMoon;
   if(!day){ g.globalCompositeOperation="lighter";                                     // soft halo — night only
     g.fillStyle=(blood?"rgba(200,60,40,":"rgba(220,226,240,")+((0.05+0.14*illum)*night).toFixed(3)+")";
@@ -296,6 +296,44 @@ function drawMoon(g,mx,my,mp,colony,R,dayFade){
     if(lvl>0.65){ g.fillStyle="rgba(170,236,255,"+(0.22*(lvl-0.65)/0.65).toFixed(2)+")"; g.fillRect((mx-R+1)|0,(my+R-3)|0,2*R-2,3); }             // a lit lunar skyline on the limb
     g.globalCompositeOperation="source-over";
   }
+  // BLOOD PORTENT — as the apocalypse nears the Moon reddens and pulses (it already loomed larger via R)
+  if(portent>0 && !blood && !day){ g.globalCompositeOperation="lighter"; var pp=0.68+0.32*Math.sin(now*0.006);
+    g.fillStyle="rgba(212,52,30,"+(0.42*portent*pp).toFixed(3)+")"; fillEllipse(g,mx,my,R,R);
+    g.fillStyle="rgba(200,40,24,"+(0.14*portent).toFixed(3)+")"; fillEllipse(g,mx,my,R+3,R+3);        // a bloody halo
+    g.globalCompositeOperation="source-over"; }
+}
+// SHATTERED — the black hole tears the Moon into a drifting ring of rubble
+function drawMoonDebris(g,mx,my,R,shatter,now){
+  var dr=rng(0x44454252), spread=1+shatter*1.6;
+  g.globalCompositeOperation="lighter"; g.fillStyle="rgba(180,150,140,0.10)"; fillEllipse(g,mx,my,R*spread*1.3,R*spread*0.7); g.globalCompositeOperation="source-over";  // dust ring
+  for(var c=0;c<12;c++){ var a=dr()*6.283, rad=(0.25+dr()*0.85)*R*spread, cx=mx+Math.cos(a)*rad, cy=my+Math.sin(a)*rad*0.8, cs=Math.max(1,R*(0.11+dr()*0.15));
+    g.fillStyle="rgb(150,146,150)"; fillEllipse(g,cx,cy,cs,cs*0.82);
+    g.fillStyle="rgba(80,78,88,0.7)"; fillEllipse(g,cx+cs*0.3,cy+cs*0.25,cs*0.5,cs*0.4);              // shard shadow
+    if(dr()<0.5){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,120,50,"+(0.55*shatter)+")"; g.fillRect(cx|0,cy|0,1,1); g.globalCompositeOperation="source-over"; } }  // molten crack
+}
+// LUNAR COLONY FALLS — war reaches the Moon: surface explosions flash and evacuation ships flee
+function drawColonyFall(g,mx,my,R,cf,now){
+  g.globalCompositeOperation="lighter";
+  for(var e=0;e<3;e++){ var ph=((now+e*700)%1400)/1400, ex=mx+((e*97)%7-3)*R*0.18, ey=my+((e*53)%5-2)*R*0.18;
+    if(ph<0.4){ var f=1-ph/0.4; g.fillStyle="rgba(255,150,60,"+(0.8*f*cf).toFixed(2)+")"; fillEllipse(g,ex,ey,R*0.22*(1+ph),R*0.22*(1+ph)); } }   // explosions on the surface
+  for(var s=0;s<2;s++){ var sp=((now+s*900)%2600)/2600, sd=s?1:-1, sx=mx+sd*sp*R*3, sy=my-sp*R*1.4;   // ships fleeing the Moon
+    g.fillStyle="rgba(232,242,255,"+(0.85*(1-sp)*cf).toFixed(2)+")"; g.fillRect(sx|0,sy|0,1,1);
+    g.fillStyle="rgba(255,200,120,"+(0.5*(1-sp)*cf).toFixed(2)+")"; g.fillRect((sx-sd)|0,sy|0,1,1); }
+  g.globalCompositeOperation="source-over";
+}
+// during a (non-moonfall) apocalypse the Moon reacts ON TOP of the doom sky: blood-red loom (portent),
+// the black hole shatters it to a debris ring, or war fells the lunar colony. Only while it's up.
+function drawApocMoon(g,now,nd,L){
+  if(cityPhase!=="apoc"||curDeath==="moonfall") return; var fx=wfx(); if(fx.rain||fx.snow||fx.fog||fx.thunder) return;
+  var lst=lstHours(nd), mrd=moonRaDec(nd), maa=altAz(mrd.ra,mrd.dec,lst); if(maa.alt<2) return;
+  eclipseMoon = LUNAR_ECLIPSES.indexOf(ymd(nd))>=0; var mp=eclipseMoon?0.5:moonPhase(nd);
+  var portent=Math.min(1,cityApoc*1.15), shatter=(curDeath==="bh")?Math.max(0,Math.min(1,(cityApoc-0.25)/0.5)):0;
+  var mcol=colonyLevel('moon',now), colFall=(curWar&&curWar.f>=0&&curWar.f<1.4&&mcol>0.12)?Math.min(1,curWar.f):0;
+  var colonyArg=colFall>0?mcol*(1-colFall*0.75):(portent>0.3?mcol*(1-portent):mcol);
+  var R=Math.round(6+portent*5), mwx=skyWX(maa.az), mwy=skyY(maa.alt)*0.96;
+  for(var w=-1;w<=1;w++){ var mx=mwx-WOFF+w*WW; if(mx<-R-10||mx>SW+R+10) continue;
+    if(shatter>0.5) drawMoonDebris(g,mx,mwy,R,shatter,now);
+    else { drawMoon(g,mx,mwy,mp,colonyArg,R,0,portent,now); if(colFall>0) drawColonyFall(g,mx,mwy,R,colFall,now); } }
 }
 
 // ---- real night sky for Norwich CT (actual bright-star positions, rotating with the clock) ----
@@ -1675,11 +1713,15 @@ function drawCelestial(g,now,nd,L,fx){
   eclipseMoon = LUNAR_ECLIPSES.indexOf(ymd(nd))>=0;
   var mrd=moonRaDec(nd), maa=altAz(mrd.ra,mrd.dec,lst), mp=eclipseMoon?0.5:moonPhase(nd), illum=(1-Math.cos(2*Math.PI*mp))/2;
   var dayFade=Math.max(0,Math.min(1,(L-0.30)/0.20));                        // 0 night → 1 full day
-  if(maa.alt>1.5 && (dayFade<0.4 || (maa.alt>4 && illum>0.18))){            // by day: only a well-up, gibbous-enough Moon shows
+  if(cityPhase!=="apoc" && maa.alt>1.5 && (dayFade<0.4 || (maa.alt>4 && illum>0.18))){   // by day: only a well-up, gibbous-enough Moon shows; apoc moon-events draw LATE (on top) via drawApocMoon
+    var mcol=colonyLevel('moon',now);
+    var colFall=(curWar && curWar.f>=0 && curWar.f<1.4 && mcol>0.12 && dayFade<0.4)?Math.min(1,curWar.f):0;   // war reaches the colony (can happen mid-life)
+    var colonyArg = colFall>0 ? mcol*(1-colFall*0.75) : mcol;
     var R=6, mwx=skyWX(maa.az), mwy=skyY(maa.alt)*0.96;
-    for(var w=-1;w<=1;w++){ var mx=mwx-WOFF+w*WW; if(mx<-R-4||mx>SW+R+4) continue;
-      drawMoon(g,mx,mwy,mp,colonyLevel('moon',now),R,dayFade);
-      if(curSpace>0.35 && dayFade<0.4){ var SHS=76000, shp=(now%SHS)/SHS;   // a shuttle climbs city→Moon (night)
+    for(var w=-1;w<=1;w++){ var mx=mwx-WOFF+w*WW; if(mx<-R-10||mx>SW+R+10) continue;
+      drawMoon(g,mx,mwy,mp,colonyArg,R,dayFade,0,now);
+      if(colFall>0) drawColonyFall(g,mx,mwy,R,colFall,now);
+      if(curSpace>0.35 && dayFade<0.4 && !colFall){ var SHS=76000, shp=(now%SHS)/SHS;   // a shuttle climbs city→Moon (night)
         if(shp<0.075){ var sht=shp/0.075; g.globalCompositeOperation="lighter";
           for(var st8=0;st8<4;st8++){ var sp8=Math.max(0,sht-st8*0.02);
             g.fillStyle="rgba(200,240,255,"+(0.8*(1-st8/4))+")"; g.fillRect((mx-60+sp8*58)|0,(mwy+46-sp8*44)|0,1,1); }
@@ -10798,6 +10840,7 @@ function draw(g,pass){
 
   // ---- THE GRAND CATACLYSM ends the city's life every ~month, then it's reborn as wilderness ----
   if(cityApoc>0) drawApocalypse(g,cityApoc,L,now);
+  if(cityApoc>0) drawApocMoon(g,now,nd,L);      // the Moon's end-events ride ON TOP of the doom sky (portent/shatter/colony-fall)
 
   // weather + holidays (local to each screen — no need to line up)
   if(fx.rain||fx.drizzle||fx.thunder){
