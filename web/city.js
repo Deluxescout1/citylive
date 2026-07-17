@@ -414,7 +414,7 @@ function ymd(nd){ return nd.getFullYear()+"-"+(nd.getMonth()+1)+"-"+nd.getDate()
 function ym(nd){ return nd.getFullYear()+"-"+(nd.getMonth()+1); }
 var eclipseMoon=false, solarEclDim=0;                                                             // eclipse state (moon reddens / daytime dims)
 function meteorShowerActive(nd){ var m=nd.getMonth()+1,d=nd.getDate();
-  return (m===8&&d>=8&&d<=16)||(m===12&&d>=10&&d<=17)||(m===1&&d>=1&&d<=5); }                     // Perseids / Geminids / Quadrantids
+  return (m===1&&d>=1&&d<=5)||(m===4&&d>=21&&d<=23)||(m===8&&d>=11&&d<=14)||(m===10&&d>=20&&d<=22)||(m===11&&d>=16&&d<=18)||(m===12&&d>=12&&d<=15); }   // Quadrantids/Lyrids/Perseids/Orionids/Leonids/Geminids (keep both copies in lockstep)
 function auroraActive(nd){ var t=(weather.temp==null?60:weather.temp); if(t>=36) return false;
   return (rng((Math.floor(nd.getTime()/86400000)*2654435761)>>>0)()<0.18); }                     // ~18% of cold clear nights
 // ============ STREET LIFE 2 & RARE SPECTACLES (K/J/M batch) ============
@@ -4375,15 +4375,23 @@ function drawKites(g,L,now){
     g.fillStyle="rgba(255,255,255,0.6)"; g.fillRect(kx|0,ky|0,1,1);
     g.fillStyle=c; g.fillRect(kx|0,(ky+2)|0,1,1); g.fillRect((kx-1)|0,(ky+3)|0,1,1); }   // tail
 }
-// a satellite / the ISS: a steady (non-twinkling) point gliding across the dark sky, world-anchored so
-// every monitor agrees on where it is. Slow, faint, with an occasional blink — unlike a fast meteor.
+// the ISS: a STEADY (non-twinkling, non-blinking — unlike a plane) bright point that glides the whole
+// sky on a shallow arc, ~200s, only 1-2 flyovers on a given night (date-hashed) so it's a real event.
+// A short trailing fade marks its track. World-anchored → every monitor agrees where it is.
 function drawSatellite(g,L,now){
   if(L>0.30) return;
-  var period=150000, ph=(now%period)/period; if(ph>0.5) return;      // one slow pass per ~2.5 min, visible half that
-  var p=ph/0.5, wx=p*WW, x=wx-WOFF; if(x<-2||x>SW+2) return;
-  var y=16+((Math.floor(now/period)%3)*9)+p*7;                       // gentle diagonal, altitude varies per pass
-  var blink=((Math.floor(now/1100))%9===0)?0.35:0.9;
-  g.globalCompositeOperation="lighter"; g.fillStyle="rgba(220,236,255,"+blink+")"; g.fillRect(x|0,y|0,1,1); g.globalCompositeOperation="source-over";
+  var day=Math.floor(now/86400000);
+  for(var s=0;s<2;s++){ var sh=rng((day*2654435761+71+s*40503)>>>0);
+    if(sh()>0.6) continue;                                           // ~1-2 passes on a given day survive this gate
+    var t0=day*86400000 + sh()*86400000, pt=now-t0; if(pt<0||pt>200000) continue;   // ~200s crossing
+    var p=pt/200000, dir=sh()<0.5?1:-1;
+    g.globalCompositeOperation="lighter";
+    for(var tr=0;tr<5;tr++){ var ptr=p-tr*0.006; if(ptr<0) break;    // a short trailing fade behind the ISS
+      var wxt=(dir>0?ptr:1-ptr)*WW, yt=34-16*Math.sin(ptr*Math.PI);  // a shallow arc: rises to a peak mid-pass, then sets
+      for(var w=-1;w<=1;w++){ var xt=wxt-WOFF+w*WW; if(xt<-2||xt>SW+2) continue;
+        g.fillStyle="rgba(226,238,255,"+(0.9*(1-tr/5)).toFixed(3)+")"; g.fillRect(xt|0,yt|0,1,1); } }
+    g.globalCompositeOperation="source-over";
+  }
 }
 // an occasional lone shooting star (distinct from the dated showers) — and someone below makes a wish (a rising heart)
 function drawShootingStar(g,L,now){
@@ -4427,7 +4435,7 @@ function drawAurora(g,nd,L,now,fx){
 }
 // METEOR SHOWERS on their real dates: Lyrids (Apr), Perseids (Aug), Geminids (Dec)
 function meteorShowerActive(nd){ var m=nd.getMonth()+1,d=nd.getDate();
-  return (m===8&&d>=11&&d<=13)||(m===12&&d>=12&&d<=14)||(m===4&&d>=21&&d<=22); }
+  return (m===1&&d>=1&&d<=5)||(m===4&&d>=21&&d<=23)||(m===8&&d>=11&&d<=14)||(m===10&&d>=20&&d<=22)||(m===11&&d>=16&&d<=18)||(m===12&&d>=12&&d<=15); }   // Quadrantids/Lyrids/Perseids/Orionids/Leonids/Geminids (lockstep with the copy above)
 function drawShower(g,nd,L,now,fx){
   if(L>0.3||fx.cloudy||fx.rain||fx.snow||fx.thunder||fx.fog||!meteorShowerActive(nd)) return;
   var SL=2600;
