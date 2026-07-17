@@ -258,27 +258,37 @@ function moonPhase(d){
 }
 
 // draw the moon at (mx,my) with real illuminated phase mp (0=new,.25=first qtr,.5=full,.75=last qtr)
-function drawMoon(g,mx,my,mp,colony){
-  var ca=Math.cos(2*Math.PI*mp), wax=mp<0.5, R=3, illum=(1-ca)/2, blood=eclipseMoon;
-  g.globalCompositeOperation="lighter";                                   // soft halo, brighter near full (red on eclipse)
-  g.fillStyle=(blood?"rgba(200,60,40,":"rgba(220,226,240,")+(0.05+0.13*illum)+")"; g.fillRect((mx-R-2)|0,(my-R-2)|0,2*R+5,2*R+5);
-  g.globalCompositeOperation="source-over";
+// the lunar maria (dark "seas"), as fractions of the radius — a fixed pattern so the disc reads as
+// unmistakably THE Moon at size, roughly the familiar near-side face.
+var MOON_MARIA=[[-0.34,-0.28],[-0.12,-0.44],[0.08,-0.12],[0.30,0.04],[0.04,0.30],[-0.26,0.36],[0.40,-0.26],[-0.44,0.06]];
+// The Moon at (mx,my), real illuminated phase mp (0=new .5=full). R=radius px. dayFade 0..1:
+// 0 = night (bright disc + halo + colony), 1 = daytime (a pale wash hanging in the blue). blood=eclipse.
+function drawMoon(g,mx,my,mp,colony,R,dayFade){
+  R=R||6; dayFade=dayFade||0; var night=1-dayFade, day=dayFade>0.35;
+  var ca=Math.cos(2*Math.PI*mp), wax=mp<0.5, illum=(1-ca)/2, blood=eclipseMoon;
+  if(!day){ g.globalCompositeOperation="lighter";                                     // soft halo — night only
+    g.fillStyle=(blood?"rgba(200,60,40,":"rgba(220,226,240,")+((0.05+0.14*illum)*night).toFixed(3)+")";
+    g.fillRect((mx-R-3)|0,(my-R-3)|0,2*R+7,2*R+7); g.globalCompositeOperation="source-over"; }
+  var litA=(0.42+0.30*night).toFixed(2), darkA=(0.10*night).toFixed(2);
   for(var dy=-R;dy<=R;dy++){ var mw=Math.sqrt(R*R-dy*dy);
-    for(var dx=-R;dx<=R;dx++){ if(dx*dx+dy*dy>R*R+0.6) continue;
-      var xt=ca*mw, mlit=blood?true:(wax?(dx>=xt-0.001):(dx<=-xt+0.001));  // eclipse = whole disc glows red
-      g.fillStyle=blood?(mlit?"#b83c28":"#7a2818"):(mlit?"#eef0e6":"rgba(150,158,178,0.16)");
+    for(var dx=-R;dx<=R;dx++){ if(dx*dx+dy*dy>R*R+0.7) continue;
+      var xt=ca*mw, mlit=blood?true:(wax?(dx>=xt-0.001):(dx<=-xt+0.001));              // phase terminator
+      if(mlit) g.fillStyle=blood?"#b83c28":(day?"rgba(240,242,250,"+litA+")":"#eef0e6");
+      else     g.fillStyle=blood?"#7a2818":(day?"rgba(214,222,236,"+darkA+")":"rgba(150,158,178,0.16)");
       g.fillRect((mx+dx)|0,(my+dy)|0,1,1); } }
-  // THE MOON COLONY: in the space age, settlement lights bloom across the dark limb —
-  // one lamp, then a cluster, then a glowing dome. Humanity made it.
-  if((colony||0)>0.12 && !blood){
-    var sideC=wax?-1:1, pts=[[sideC*2,0],[sideC,1],[sideC*2,-2]];
-    var cnt=colony>0.75?3:(colony>0.45?2:1);
-    for(var ci=0;ci<cnt;ci++){ var cp=pts[ci];
-      g.fillStyle="rgba(20,26,34,0.85)"; g.fillRect((mx+cp[0])|0,(my+cp[1])|0,1,1);   // a hab against the regolith
-      g.fillStyle="rgba(140,235,255,0.95)"; g.fillRect((mx+cp[0])|0,(my+cp[1])|0,1,1); }
-    if(colony>0.6){ g.globalCompositeOperation="lighter";
-      g.fillStyle="rgba(120,220,255,0.22)"; g.fillRect((mx+sideC-1)|0,(my-1)|0,3,3);   // the dome's glow
-      g.globalCompositeOperation="source-over"; }
+  if(!blood){ for(var s=0;s<MOON_MARIA.length;s++){ var px=Math.round(MOON_MARIA[s][0]*R), py=Math.round(MOON_MARIA[s][1]*R);
+    if(px*px+py*py>R*R-1.5) continue; var xt3=ca*Math.sqrt(Math.max(0,R*R-py*py)), onLit=wax?(px>=xt3):(px<=-xt3);
+    if(!onLit) continue;                                                               // maria only show on the lit face
+    g.fillStyle=day?"rgba(200,208,224,"+(0.55*night).toFixed(2)+")":"rgba(120,128,150,0.5)";
+    g.fillRect((mx+px)|0,(my+py)|0,1,1); if(R>=6) g.fillRect((mx+px+(wax?-1:1))|0,(my+py)|0,1,1); } }   // the seas
+  // THE LUNAR COLONY — settlement lights bloom on the dark limb, growing with the age (P2 expands this)
+  if((colony||0)>0.10 && !blood && !day){
+    var sideC=wax?-1:1, cnt=Math.min(6,1+Math.floor(colony*6)); g.globalCompositeOperation="lighter";
+    for(var ci=0;ci<cnt;ci++){ var ang=ci*1.7, cr=(0.35+0.5*(ci/6))*R, cxp=Math.round(sideC*Math.abs(Math.cos(ang))*cr), cyp=Math.round(Math.sin(ang)*cr*0.7);
+      if(cxp*cxp+cyp*cyp>R*R) continue;
+      g.fillStyle="rgba(150,238,255,0.95)"; g.fillRect((mx+cxp)|0,(my+cyp)|0,1,1); }
+    if(colony>0.5){ g.fillStyle="rgba(120,220,255,"+(0.18*colony).toFixed(2)+")"; g.fillRect((mx+Math.round(sideC*R*0.4)-1)|0,(my-1)|0,3,3); }   // dome glow
+    g.globalCompositeOperation="source-over";
   }
 }
 
@@ -1597,18 +1607,26 @@ function drawSky(g,now,nd,L,fx){
       g.globalCompositeOperation="source-over"; }
   }
 
-  // the Moon in its real position + real phase (blood-red on eclipse nights)
+  // (the Moon is drawn by drawCelestial — day AND night — so it can also hang in the morning sky)
+}
+
+// ---- the Moon (and, in later phases, the planets) in their REAL sky positions — drawn day AND
+// night so the Moon can hang pale in the morning. Night = bright + halo + colony; daytime = a soft
+// wash, only when the Moon is well up and fat enough to actually be seen. ----
+function drawCelestial(g,now,nd,L,fx){
+  if(fx.rain||fx.snow||fx.fog||fx.thunder) return;                         // hidden by heavy weather
+  var lst=lstHours(nd);
   eclipseMoon = LUNAR_ECLIPSES.indexOf(ymd(nd))>=0;
-  var mrd=moonRaDec(nd), maa=altAz(mrd.ra,mrd.dec,lst);
-  if(maa.alt>1.5){ var mwx=skyWX(maa.az), mwy=skyY(maa.alt)*0.96;
-    for(w=-1;w<=1;w++){ var mx=mwx-WOFF+w*WW; if(mx<-8||mx>SW+8) continue; drawMoon(g,mx,mwy,eclipseMoon?1:moonPhase(nd),curSpace);
-      // in the space age a shuttle climbs from the city toward the colony every little while
-      if(curSpace>0.35){ var SHS=76000, shp=(now%SHS)/SHS;
-        if(shp<0.075){ var sht=shp/0.075, shx=mx-60+sht*58, shy=mwy+46-sht*44;
-          g.globalCompositeOperation="lighter";
+  var mrd=moonRaDec(nd), maa=altAz(mrd.ra,mrd.dec,lst), mp=eclipseMoon?0.5:moonPhase(nd), illum=(1-Math.cos(2*Math.PI*mp))/2;
+  var dayFade=Math.max(0,Math.min(1,(L-0.30)/0.20));                        // 0 night → 1 full day
+  if(maa.alt>1.5 && (dayFade<0.4 || (maa.alt>4 && illum>0.18))){            // by day: only a well-up, gibbous-enough Moon shows
+    var R=6, mwx=skyWX(maa.az), mwy=skyY(maa.alt)*0.96;
+    for(var w=-1;w<=1;w++){ var mx=mwx-WOFF+w*WW; if(mx<-R-4||mx>SW+R+4) continue;
+      drawMoon(g,mx,mwy,mp,curSpace,R,dayFade);
+      if(curSpace>0.35 && dayFade<0.4){ var SHS=76000, shp=(now%SHS)/SHS;   // a shuttle climbs city→Moon (night)
+        if(shp<0.075){ var sht=shp/0.075; g.globalCompositeOperation="lighter";
           for(var st8=0;st8<4;st8++){ var sp8=Math.max(0,sht-st8*0.02);
-            g.fillStyle="rgba(200,240,255,"+(0.8*(1-st8/4))+")";
-            g.fillRect((mx-60+sp8*58)|0,(mwy+46-sp8*44)|0,1,1); }
+            g.fillStyle="rgba(200,240,255,"+(0.8*(1-st8/4))+")"; g.fillRect((mx-60+sp8*58)|0,(mwy+46-sp8*44)|0,1,1); }
           g.globalCompositeOperation="source-over"; } }
     } }
 }
@@ -9843,8 +9861,9 @@ function draw(g,pass){
   }
 
   var i,s,c;
-  // the real Norwich night sky (stars + moon) — draws only when dark & clear
+  // the real Norwich night sky (stars) — draws only when dark & clear
   drawSky(g,now,nd,L,fx);
+  drawCelestial(g,now,nd,L,fx);                 // the Moon (+ planets) in real positions — day AND night
 
   // sun / moon — travels across the whole world so all screens agree
   var st=sunTimes(nd);

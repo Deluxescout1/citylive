@@ -44,6 +44,9 @@ QUAL budget; verify via kde-repro (Chromium) + headless qml6 (real KDE Canvas) +
 - `colonyLevel(body, now)` = min(cap, baseline + curSpace*boom). Drives dome/light/district count.
 - Settlement order over lives: Moon → Mars → Venus → Europa/Titan (each unlocks after N lives).
 
+## ADDED MID-BATCH (Nick 2026-07-17)
+- SUN OVERHAUL — make the sun look nicer/better (drawn in draw() ~9850, sunTimes track). Fold into P1/celestial pass: a proper glowing disc (corona/rays, warm gradient, limb), golden-hour tint already exists. Do alongside the moon.
+
 ## Build phases (ONE release, but built + verified incrementally)
 - P0  branch + this doc. `bodyState()` scaffold + FORCE hooks (FORCESPACE `{body:level}`,
       FORCEMOONEVENT) + kde-repro params (moon=, planet=, moonevent=).
@@ -80,7 +83,7 @@ error sweep across bodies/events/finales; perf probe (draw() ms); then P9 gate.
 
 ## STATUS  ⟵ UPDATE AS EXECUTED
 - [ ] P0 scaffold + hooks
-- [ ] P1 moon overhaul (bigger + daytime)
+- [x] P1 moon overhaul (bigger disc+maria+halo, DAYTIME moon; verified night+day, QML clean) (bigger + daytime)
 - [ ] P2 lunar city + hybrid persistence
 - [ ] P3 planets visible (ephemeris)
 - [ ] P4 planetary colonies
