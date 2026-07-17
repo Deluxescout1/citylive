@@ -1967,9 +1967,10 @@ function buildWorld(li){
   var r=rng(seed+9), i; skyfill=[];
   for(i=0;i<640;i++){ var ra=r()*24, dec=Math.asin(2*r()-1)/DEG, mag=3.2+r()*2.6;   // a much richer field (was 220)
     skyfill.push([ra,dec,mag]); }
-  // clouds, world-wide, drift deterministically
-  r=rng(seed+5); clouds=[]; var nc=Math.round(WW/70)+3;
-  for(i=0;i<nc;i++) clouds.push({x0:r()*WW, y:5+r()*(HORIZON*0.45), w:26+r()*46, h:5+r()*7, sp:0.004+r()*0.006, d:0.3+r()*0.4});
+  // clouds, world-wide, drift deterministically — wisp/cumulus/high-streak mix (t: 0/1/2)
+  r=rng(seed+5); clouds=[]; var nc=Math.round(WW/(QUAL===0?95:70))+3;
+  for(i=0;i<nc;i++){ var ct=(i%7<3?0:(i%7<6?1:2));
+    clouds.push({x0:r()*WW, y:ct===2?5+r()*(HORIZON*0.15):5+r()*(HORIZON*0.45), w:26+r()*46, h:5+r()*7, sp:0.004+r()*0.006, d:0.3+r()*0.4, t:ct}); }
   // cross-screen traffic: deterministic vehicles in 4 lanes over the whole world.
   // Mix of ordinary cars + yellow taxis + delivery vans → a real city fleet.
   r=rng(seed+7); cars=[]; var perLane=Math.round(WW/34);
@@ -5120,11 +5121,17 @@ function drawCorpHQ(g,idx,L,now,night,mst){
   var e=C.cos[C.king], nm=e.co.n, brand=e.co.c, tag=e.co.g;
   var megaH=Math.round((150+idx*24)*KSP*0.85)+10;                                                   // match the mega-tower's own height (incl. crown)
   var cx=Math.round(LM_MEGA[idx]*WW), gy=HORIZON, H=Math.round(megaH*(mst==null?1:mst)), top=gy-H;  // anchor to the tower's CURRENT risen top so the marquee never detaches
-  var tagW=textW(tag), nmW=textW(nm), pad=3, gap=4, panelW=pad+(tagW+3)+gap+nmW+pad, sy=top-15;
+  var tagW=textW(tag), nmW=textW(nm), pad=3, gap=4, panelW=pad+(tagW+3)+gap+nmW+pad, sy=top-12;
   var lit=night>0.35;
   for(var off=-WW;off<=WW;off+=WW){ var bxp=(cx-(panelW>>1)-WOFF+off)|0; if(bxp+panelW<-2||bxp>SW+2) continue;
     var cX=bxp+(panelW>>1);
-    g.fillStyle="rgba(34,38,48,0.92)"; g.fillRect(cX-1,sy+10,2,Math.max(0,top-(sy+10)));            // strut down from the sign to the tower roof
+    // truss: base beam under the roofline + two angled stepped struts up to the panel corners + centre post
+    g.fillStyle="rgba(34,38,48,0.92)";
+    g.fillRect(cX-(panelW>>2), top-1, panelW>>1, 1);                                                // base beam
+    var panelBotY=sy+10, beamY=top-1, stH=Math.max(1,Math.round(Math.max(0,beamY-panelBotY)/3));
+    var lx=bxp, ly=panelBotY; for(var st=0;st<3;st++){ lx+=1; g.fillRect(lx,ly,1,stH); ly+=stH; }   // left strut, stepped inward
+    var rx=bxp+panelW-1; ly=panelBotY; for(var st2=0;st2<3;st2++){ rx-=1; g.fillRect(rx,ly,1,stH); ly+=stH; }  // right strut, mirrored
+    g.fillRect(cX-1,sy+10,2,Math.max(0,top-(sy+10)));                                               // centre post, panel to tower roof
     g.fillStyle="rgba(8,10,16,0.9)"; g.fillRect(bxp,sy,panelW,10);                                  // dark sign panel
     g.fillStyle=rgba(brand,0.95); g.fillRect(bxp,sy-1,panelW,1); g.fillRect(bxp,sy+10,panelW,1);    // brand rails
     g.fillStyle=rgba(brand,1); g.fillRect(bxp+pad-1,sy+1,tagW+3,8);                                 // brand logo box
@@ -9468,23 +9475,30 @@ function draw(g,pass){
     var shade=L>0.5?200:70, sunsetK=goldenK;   // shared golden-hour global
     var cc0=[shade,shade,shade+10];
     if(sunsetK>0.02) cc0=mixc(cc0,(i&1)?[255,150,175]:[255,170,115],sunsetK*0.8);   // cotton-candy twilight
-    var cv2=i%3, CX0=cx|0, CY0=c.y|0, CW0=c.w|0, CH0=c.h|0;
+    var CX0=cx|0, CY0=c.y|0, CW0=c.w|0, CH0=c.h|0;
     g.fillStyle=rgba(cc0,cloudA*c.d);
-    if(cv2===0){                                                                    // classic cumulus: 3 lobes
+    if(c.t===1){                                                                    // cumulus: flat base + 3 rounded lobes
       g.fillRect(CX0,CY0,CW0,CH0);
-      g.fillRect(CX0+(CW0*0.32|0),CY0-3,(CW0*0.42|0),3);
-      g.fillRect(CX0+(CW0*0.12|0),CY0-1,(CW0*0.2|0),1); g.fillRect(CX0+(CW0*0.7|0),CY0-2,(CW0*0.2|0),2); }
-    else if(cv2===1){                                                               // tall billowing tower
-      g.fillRect(CX0,CY0,CW0,CH0);
-      g.fillRect(CX0+(CW0*0.22|0),CY0-4,(CW0*0.5|0),4); g.fillRect(CX0+(CW0*0.36|0),CY0-6,(CW0*0.26|0),2); }
-    else{ g.fillRect(CX0,CY0,CW0,(CH0*0.7|0)||1);                                   // long wisp
-      g.fillRect(CX0-(CW0*0.18|0),CY0+1,(CW0*1.3|0),1); }
-    g.fillStyle=rgba(mixc(cc0,[255,255,255],L>0.5?0.5:0.15),cloudA*c.d*0.7);
-    g.fillRect(CX0+(CW0*0.28|0),CY0-(cv2===1?5:(cv2===0?3:0))-(cv2===2?0:0),(CW0*0.36|0),1);   // lit crown
-    g.fillStyle=rgba(mixc(cc0,[40,50,80],0.5),cloudA*c.d*0.5);
-    g.fillRect(CX0+1,CY0+CH0-1,CW0-2,1);                                            // flat shaded base
-    if(sunsetK>0.3){ g.fillStyle=rgba([255,205,160],0.35*sunsetK*c.d);              // sunlit underside
-      g.fillRect((cx+2)|0,(c.y+c.h-1)|0,(c.w*0.8)|0,1); }
+      fillEllipse(g,CX0+(CW0*0.25|0),CY0,Math.max(2,(CW0*0.22)|0),3);
+      fillEllipse(g,CX0+(CW0*0.55|0),CY0-1,Math.max(2,(CW0*0.24)|0),5);              // middle lobe tallest
+      fillEllipse(g,CX0+(CW0*0.8|0),CY0,Math.max(2,(CW0*0.2)|0),4);
+      g.fillStyle=rgba([255,255,255],cloudA*c.d*0.5);
+      fillEllipse(g,CX0+(CW0*0.55|0),CY0-3,Math.max(1,(CW0*0.16)|0),2);              // top-light
+      g.fillStyle=rgba(mixc(cc0,[40,50,80],0.5),cloudA*c.d*0.5);
+      g.fillRect(CX0+1,CY0+CH0-1,CW0-2,1);                                          // flat shaded base
+      if(sunsetK>0.3){ g.fillStyle=rgba([255,205,160],0.35*sunsetK*c.d);            // sunlit underside
+        g.fillRect((cx+2)|0,(c.y+c.h-1)|0,(c.w*0.8)|0,1); }
+    } else if(c.t===0){                                                             // wisp: two offset rects + a soft feather
+      g.fillRect(CX0,CY0,CW0,Math.max(1,(CH0*0.5)|0));
+      g.fillRect(CX0-(CW0*0.18|0),CY0+1,(CW0*1.15|0),Math.max(1,(CH0*0.3)|0));
+      g.fillStyle=rgba(cc0,cloudA*c.d*0.5);
+      g.fillRect(CX0-(CW0*0.18|0),CY0+2,(CW0*1.3|0),1);
+    } else {                                                                        // high-streak: thin wide band up high + feather
+      g.fillStyle=rgba(cc0,cloudA*c.d*0.6);
+      var stH=CH0>7?2:1; g.fillRect(CX0-(CW0*0.2|0),CY0,(CW0*1.4|0),stH);
+      g.fillStyle=rgba(cc0,cloudA*c.d*0.3);
+      g.fillRect(CX0-(CW0*0.2|0),CY0+stH,(CW0*1.4|0),1);
+    }
   }
   // heavy overcast: when it's raining/snowing/cloudy, a second denser deck of cloud masses rolls in
   if(fx.rain||fx.snow||fx.thunder||fx.cloudy){
@@ -9521,10 +9535,17 @@ function draw(g,pass){
   if(cityG<0.985) drawTerrain(g,cityG,L,now,nd,pass==="fg"?"fg":undefined);
 
   drawLayer(g,far,L,now,fx,hol,0.42);
-  // dystopian smog band (only once there's a city to be smoggy)
+  // dystopian smog band (only once there's a city to be smoggy) — one gradient, magenta→teal, feathered at both ends
   var smA=(0.10+0.06*Math.sin(now*0.00008))*night*Math.min(1,cityG*1.5);
-  g.fillStyle=rgba([150,60,130],smA); g.fillRect(0,(HORIZON*0.5+Math.sin(now*0.00006)*6)|0,SW,26);
-  g.fillStyle=rgba([60,120,140],smA*0.8); g.fillRect(0,(HORIZON*0.66+Math.cos(now*0.00005)*5)|0,SW,20);
+  if(smA>0.002){
+    var smY0=(HORIZON*0.42+Math.sin(now*0.00006)*6)|0, smY1=(HORIZON*0.78+Math.cos(now*0.00005)*5)|0;
+    var smg=g.createLinearGradient(0,smY0,0,smY1);
+    smg.addColorStop(0,    rgba([150,60,130],0));
+    smg.addColorStop(0.35, rgba([150,60,130],smA));
+    smg.addColorStop(0.65, rgba([60,120,140],smA*0.8));
+    smg.addColorStop(1,    rgba([60,120,140],0));
+    g.fillStyle=smg; g.fillRect(0,smY0,SW,smY1-smY0);
+  }
   drawLayer(g,mid,L,now,fx,hol,0.20);
   // waterfront harbour fills the industrial edges (behind the near shoreline)
   if(hasOcean) drawHarbor(g,L,now,night,nd);   // the coast is there from day one — the city grows out to meet it
@@ -10220,8 +10241,12 @@ function draw(g,pass){
 
   var fogTarget=fx.fog?0.92:0; fog.t+=(fogTarget-fog.t)*0.002*dt;
   if(fog.t>0.01){ for(i=0;i<4;i++){ var fy=HORIZON*0.6+i*18, drift=Math.sin(now*0.0001*(i+1))*24;
-      g.fillStyle="rgba(198,204,214,"+(fog.t*(0.30-i*0.05))+")"; g.fillRect(0,(fy+drift*0.2)|0,SW,36); }
-    g.fillStyle="rgba(188,194,208,"+(fog.t*0.45)+")"; g.fillRect(0,(HORIZON*0.85)|0,SW,SH*0.5); }
+      var fbA=fog.t*(0.30-i*0.05), fbY=(fy+drift*0.2)|0;
+      g.fillStyle="rgba(198,204,214,"+fbA+")"; g.fillRect(0,fbY,SW,36);
+      g.fillStyle="rgba(198,204,214,"+(fbA*0.5)+")"; g.fillRect(0,fbY-1,SW,1); g.fillRect(0,fbY+36,SW,1); }  // 2px alpha-feathered top+bottom edges
+    var fogPeak=fog.t*0.45, fogG=g.createLinearGradient(0,HORIZON*0.85,0,SH);
+    fogG.addColorStop(0,"rgba(188,194,208,0)"); fogG.addColorStop(0.5,"rgba(188,194,208,"+fogPeak+")"); fogG.addColorStop(1,"rgba(188,194,208,0)");
+    g.fillStyle=fogG; g.fillRect(0,(HORIZON*0.85)|0,SW,SH*0.5); }
 
   // ---- WILDFIRE SMOKE (real air quality): a warm grey-amber veil driven by live PM2.5.
   // Ambience, not a disaster: no HUD alert, coexists with any weather. ≤20 µg/m³ = nothing;
@@ -10234,9 +10259,11 @@ function draw(g,pass){
     // full-sky wash: warm smoke grey by day, sodium-brown by night (borrowed from the smog palette)
     g.fillStyle=smDay?("rgba(168,132,72,"+(0.10+0.34*smokeF)+")"):("rgba(84,64,38,"+(0.10+0.30*smokeF)+")");
     g.fillRect(0,0,SW,SH);
-    // thicker band hugging the skyline — smoke settles low
-    g.fillStyle=smDay?("rgba(150,112,60,"+(0.10+0.26*smokeF)+")"):("rgba(66,50,30,"+(0.10+0.22*smokeF)+")");
-    g.fillRect(0,(HORIZON*0.55)|0,SW,(HORIZON*0.45+GROUND)|0);
+    // thicker band hugging the skyline — smoke settles low (gradient: builds from nothing up top to full low down)
+    var wfA=smDay?(0.10+0.26*smokeF):(0.10+0.22*smokeF), wfCol=smDay?[150,112,60]:[66,50,30];
+    var wfY0=HORIZON*0.4, wfY1=HORIZON+GROUND, wfG=g.createLinearGradient(0,wfY0,0,wfY1);
+    wfG.addColorStop(0,rgba(wfCol,0)); wfG.addColorStop(1,rgba(wfCol,wfA));
+    g.fillStyle=wfG; g.fillRect(0,wfY0|0,SW,(wfY1-wfY0)|0);
     if(smokeF>0.55){                                          // heavy smoke: an extra hot-orange cast up high
       g.globalCompositeOperation="lighter";
       g.fillStyle="rgba(230,120,30,"+(0.05+0.14*(smokeF-0.55)/0.45)+")"; g.fillRect(0,0,SW,(HORIZON*0.6)|0);
