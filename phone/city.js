@@ -2067,21 +2067,23 @@ function makeLayer(seed,y0,baseHMin,baseHMax,layerK){
     // ---- windows generated PER SEGMENT in the chosen layout (stay within the silhouette) ----
     for(var s3=0;s3<segs.length;s3++){ var sg=segs[s3], x0=sg.dx+1, x1=sg.dx+sg.w-1,
         y0w=sg.top+3, y1w=Math.min(sg.bot, bh)-2;
+      // DENSER, more COLOURFUL window grids (toward the reference skylines) — tighter rows/cols cover the
+      // facade, and more windows take a varied hue (warm/cool/coloured), so a lit night reads like a real city.
       if(winLayout==="grid"){
-        for(var wy=y0w;wy<y1w-2;wy+=6) for(var wx=x0;wx<x1-1;wx+=5)
-          if(r()<0.86) b.win.push({x:wx,y:wy,w:2,h:3,on:r(),fl:r()<0.04?r()*2+1:0,h2:(r()<0.16?(r()*winPal.length)|0:winHue)});
+        for(var wy=y0w;wy<y1w-1;wy+=4) for(var wx=x0;wx<x1-1;wx+=3)
+          if(r()<0.9) b.win.push({x:wx,y:wy,w:2,h:2,on:r(),fl:r()<0.04?r()*2+1:0,h2:(r()<0.34?(r()*winPal.length)|0:winHue)});
       } else if(winLayout==="ribbon"){                 // vertical glass ribbons
-        for(var wx=x0;wx<x1;wx+=3) for(var wy=y0w;wy<y1w-1;wy+=4)
-          b.win.push({x:wx,y:wy,w:1,h:2,on:r(),fl:0,h2:(r()<0.10?(r()*winPal.length)|0:winHue)});
+        for(var wx=x0;wx<x1;wx+=2) for(var wy=y0w;wy<y1w-1;wy+=3)
+          b.win.push({x:wx,y:wy,w:1,h:2,on:r(),fl:0,h2:(r()<0.22?(r()*winPal.length)|0:winHue)});
       } else if(winLayout==="band"){                   // horizontal window bands
-        for(var wy=y0w;wy<y1w-1;wy+=4) for(var wx=x0;wx<x1-2;wx+=4)
-          b.win.push({x:wx,y:wy,w:3,h:1,on:r(),fl:0,h2:(r()<0.12?(r()*winPal.length)|0:winHue)});
-      } else if(winLayout==="punch"){                  // sparse punched openings (older midrise)
-        for(var wy=y0w;wy<y1w-2;wy+=5) for(var wx=x0;wx<x1-1;wx+=4)
-          if(r()<0.7) b.win.push({x:wx,y:wy,w:2,h:2,on:r(),fl:r()<0.03?r()*2+1:0,h2:(r()<0.2?(r()*winPal.length)|0:winHue)});
-      } else {                                          // corp — big corporate glass panes
-        for(var wy=y0w;wy<y1w-4;wy+=7) for(var wx=x0;wx<x1-2;wx+=6)
-          if(r()<0.9) b.win.push({x:wx,y:wy,w:3,h:4,on:r(),fl:0,h2:(r()<0.14?(r()*winPal.length)|0:winHue)});
+        for(var wy=y0w;wy<y1w-1;wy+=3) for(var wx=x0;wx<x1-2;wx+=4)
+          b.win.push({x:wx,y:wy,w:3,h:1,on:r(),fl:0,h2:(r()<0.24?(r()*winPal.length)|0:winHue)});
+      } else if(winLayout==="punch"){                  // punched openings (older midrise) — now a fuller grid
+        for(var wy=y0w;wy<y1w-1;wy+=4) for(var wx=x0;wx<x1-1;wx+=3)
+          if(r()<0.82) b.win.push({x:wx,y:wy,w:2,h:2,on:r(),fl:r()<0.03?r()*2+1:0,h2:(r()<0.32?(r()*winPal.length)|0:winHue)});
+      } else {                                          // corp — big corporate glass panes, packed tighter
+        for(var wy=y0w;wy<y1w-3;wy+=5) for(var wx=x0;wx<x1-2;wx+=5)
+          if(r()<0.92) b.win.push({x:wx,y:wy,w:3,h:3,on:r(),fl:0,h2:(r()<0.26?(r()*winPal.length)|0:winHue)});
       }
     }
     if(b.win.length===0){                                    // EVERY building gets windows, however small

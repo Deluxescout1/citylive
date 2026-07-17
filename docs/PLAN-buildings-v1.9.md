@@ -78,6 +78,19 @@ Growth: b.bAge birth-age; unborn skipped, borning = drawGrowSite. Windows precom
 ## TIGHT feedback loop with Nick (render → he reacts → tune), since "beauty" is subjective. Reorder B1
 ## toward COLOUR+WINDOWS first (highest visible impact), then the structural extras.
 
+## REFERENCE IMAGES (Nick dropped 2 in ~/Nextcloud/Desktop, 2026-07-17): analyzed.
+## (a) "8-bit-graphics-pixels-scene-with-city-night.jpg" — dense NYC night skyline: buildings are
+##     DENSE COLOURFUL LIT-WINDOW GRIDS (warm amber/cool white/cyan/pink) on deep-blue silhouettes;
+##     windows are the visual STAR; varied crowns (WTC-style spire, art-deco tops, setbacks, water
+##     towers); water reflections; layered atmospheric depth. (b) "1000_F_591796166_...jpg" — dusk
+##     skyline w/ gorgeous COLOUR-GRADED DEPTH: near buildings dark teal/green w/ warm lit windows,
+##     midground purple, FAR buildings fade to pink/salmon sunset haze; buildings have DISTINCT MATERIAL
+##     COLOURS (green glass / teal / pink, NOT grey); densely packed variety; crisp clean readable pixels.
+## THROUGH-LINE (the target): (1) FAR denser windows (grids covering facades) — our #1 gap vs the sparse
+## current dots; (2) per-building COLOUR IDENTITY (saturated materials, not uniform grey); (3) stronger
+## COLOUR-GRADED atmospheric depth (far layers tint hard toward the sky/sunset colour); (4) crisp lit
+## windows warm+cool at night. Keep our variety + hustle/bustle. Vibe "bright crisp detailed" ✓ fits.
+
 ## STATUS  ⟵ UPDATE AS EXECUTED
 - [ ] B0 branch + plan + harness
 - [ ] B1 structural realism (facades/materials/cornices/ground floor)
