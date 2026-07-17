@@ -149,6 +149,7 @@ function notifLane(pref){
 function resetNotifLanes(){ for(var r=0;r<_notifTaken.length;r++) _notifTaken[r]=false; }
 var CLOCK = null;   // test-harness override: ms timestamp for time-of-day (null = real wall clock)
 var NOWOVR = null;  // test-harness override: ms value returned as Date.now() inside draw() (null = real)
+var FORCELAYOUT = null;   // test hook: pin every building's window layout (grid/ribbon/band/punch/corp) — verify per-layout render
 function nowDate(){ return CLOCK ? new Date(CLOCK) : new Date(); }
 
 function rng(seed){ var a=seed>>>0; return function(){ a|=0; a=a+0x6D2B79F5|0; var t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
@@ -2063,6 +2064,7 @@ function makeLayer(seed,y0,baseHMin,baseHMax,layerK){
     }                                                                                       // midrises keep a wooden water tank
     // ---- WINDOW SYSTEM from this district's palette ----
     var winLayout=d.layouts[(r()*d.layouts.length)|0];
+    if(typeof FORCELAYOUT!=='undefined'&&FORCELAYOUT) winLayout=FORCELAYOUT;   // TEST hook: pin every building's window layout (harness ?layout=ribbon)
     var b={ x:x, w:bw, h:bh, y0:y0, type:"tower", seed:bseed, district:d.name, brick:d.brick||0,
             segs:segs, crown:crown, winLayout:winLayout, topW:topW, topDx:topDx,
             c: mixc(base, acc, accMix), accent:acc, accent2:acc2, winP:winPal, winHue:winHue,
@@ -3506,14 +3508,14 @@ function drawLayer(g,layer,L,now,fx,hol,haze){
       // ── DAYTIME: draw every window as a CRISP RECESSED PANE (cool glass inset + a lit top edge) so facades
       //    read as gridded glass — the reference look — instead of the old faint scattered dots. Night below
       //    keeps its warm-lit pattern. Near+mid only; far stays atmospheric.
-      if(!isNight && (layer===near||layer===mid) && w.w>=2){
+      if(!isNight && (layer===near||layer===mid)){          // ALL layouts incl. ribbon(w:1) & band(h:1)
         var wpx=bx+w.x, wpy=top+w.y;
         var pane=w.do ? mixc(col,[92,156,212],0.40)      // an "occupied"/open pane reads a touch brighter & bluer
                       : mixc(col,[54,74,110],0.56);       // a cool recessed glass pane, darker than the facade
         if(goldenK>0.12) pane=mixc(pane,goldC,goldenK*0.30);            // dusk warms the glass
         g.globalAlpha=0.82*dim; g.fillStyle=css(pane); g.fillRect(wpx,wpy,w.w,w.h);
-        g.globalAlpha=0.5*dim;  g.fillStyle="#ecf6ff"; g.fillRect(wpx,wpy,w.w,1);           // sky catching the top of the glass
-        if(w.h>=3){ g.globalAlpha=0.28*dim; g.fillStyle="#000000"; g.fillRect(wpx,wpy+w.h-1,w.w,1); }  // recess shadow at the sill
+        if(w.h>=2){ g.globalAlpha=0.5*dim; g.fillStyle="#ecf6ff"; g.fillRect(wpx,wpy,w.w,1); }          // sky on the top edge (skip 1px bands → would fully overwrite the pane)
+        if(w.h>=3){ g.globalAlpha=0.28*dim; g.fillStyle="#000000"; g.fillRect(wpx,wpy+w.h-1,w.w,1); }   // recess shadow at the sill
         g.globalAlpha=1;
         continue;
       }
