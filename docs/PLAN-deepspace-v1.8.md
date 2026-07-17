@@ -90,5 +90,5 @@ error sweep across bodies/events/finales; perf probe (draw() ms); then P9 gate.
 - [x] P5+P6 orbital station beef-up + orbital RING arc + crewed EXODUS (ramps with curSpace, ships arc spaceward). QML clean.
 - [x] P6 (done with P5)
 - [x] P7 DONE: MOONFALL finale + 3 moon-events (blood-portent loom, black-hole SHATTER→debris ring, lunar-colony-falls war explosions/fleeing ships) — drawn ON TOP of the apoc via drawApocMoon. Verified Chromium+QML. REMAINING for ship: host-side 'moonfall' in finale picker (config-store/config.qml/settings.html).
-- [ ] P8 sync + matrix + QML sweep + perf
+- [x] P8 DONE: sync x4, host-side moonfall picker (config-store/settings.html/config.qml), full 28-scenario QML no-error sweep CLEAN, perf 5.8-6.4ms. REMAINING P9: both-platform gate (KDE live + WinTest VM) → merge → bump 1.8.0 → tag.
 - [ ] P9 both-platform gate → ship v1.8.0

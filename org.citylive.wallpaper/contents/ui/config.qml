@@ -27,7 +27,8 @@ ColumnLayout {
         { text: i18n("Kaiju Attack"), value: "kaiju" },
         { text: i18n("Great Flood"), value: "flood" },
         { text: i18n("Godzilla vs Kong"), value: "kaijuwar" },
-        { text: i18n("Pollution"), value: "pollution" }
+        { text: i18n("Pollution"), value: "pollution" },
+        { text: i18n("Moonfall"), value: "moonfall" }
     ]
 
     // Reflects the current cfg_locationName / lookup state into locStatus.text.
