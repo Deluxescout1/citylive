@@ -94,7 +94,7 @@ each); murmuration ≤18 birds × 1 rect; everything wraps ±WW for world props;
 lighter block restores source-over; QUAL===0 skips murmuration + smoke wisps + kites.
 
 ## Ordered steps & state  ⟵ UPDATE AS EXECUTED
-- [ ] 0 branch `living-streets` + this doc committed
+- [x] 0 branch `living-streets` + this doc committed
 - [x] 1 B1 walk cycle + gaits/postures (render: sidewalk close-up 4 frames + kid/elderly)
 - [x] 2 B5 helipad gate fix (render: young city no chopper; grown city lands on pad)
 - [x] 3 B7 bus stops + dwell + riders (render: rush-hour stop, bus doors, 2am flask)
@@ -104,10 +104,10 @@ lighter block restores source-over; QUAL===0 skips murmuration + smoke wisps + k
 - [x] 6 B2 murmuration + kites/balloons (render: dusk flock, breezy park day)
 - [x] 7 B4 expeditions (renders: NOWOVR day1 basecamp / day2 camp1 / day4 dawn summit +
       flag persistence at day 5)
-- [ ] 8 sync ×4 + md5 + npm test (desktop 29 + geocode)
-- [ ] 9 kde-repro matrix (tod × age + each feature force) — NO regressions on v1.5 visuals
-- [ ] 10 BOTH-PLATFORM GATE (KDE live deploy + WinTest VM render) per standing rule
-- [ ] 11 merge → main, bump 1.6.0, tag, watch release (expect fpm-download flakes → rerun)
+- [x] 8 sync ×4 DONE (md5 ×4 identical) + 29/29 tests ×4 + md5 + npm test (desktop 29 + geocode)
+- [x] 9 matrix PASSED: day/golden/night/young + kaijuwar/pollution finales — no v1.5 regressions; all 7 features render-verified
+- [x] 10 BOTH GATES PASSED: KDE live (3 screens, journal clean, live render) + WinTest VM (behind-icons attach, new engine render)
+- [x] 11 SHIPPED v1.6.0
 
 ## What NOT to do
 drawPerson signature stays (frame overloads bob; 0/1 byte-identical). Don't touch train
