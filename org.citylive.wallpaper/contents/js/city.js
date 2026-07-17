@@ -8917,11 +8917,23 @@ function drawOrbitals(g,L,now,fx){
   // the orbital station sails across the whole world's sky
   var owx=(now*(WW/240000))%WW, osx=owx-WOFF;
   if(osx>SW+6&&osx-WW>-6) osx-=WW; if(osx<-6&&osx+WW<SW+6) osx+=WW;
-  if(osx>=-4&&osx<=SW+4){ var oy=12+Math.sin(owx*0.02)*5;
+  var night=L<0.5;
+  if(osx>=-6&&osx<=SW+6){ var oy=(12+Math.sin(owx*0.02)*5)|0, ox=osx|0;                       // a REAL lit space station: truss+hub+wings+beacon
     g.globalCompositeOperation="lighter";
-    g.fillStyle="rgba(240,248,255,0.95)"; g.fillRect(osx|0,oy|0,1,1);                        // hub
-    g.fillStyle="rgba(122,205,255,0.7)";  g.fillRect((osx-2)|0,oy|0,2,1); g.fillRect((osx+1)|0,oy|0,2,1);  // panel wings
-    g.fillStyle="rgba(200,230,255,0.18)"; g.fillRect((osx-2)|0,(oy-1)|0,5,3);                 // glow
+    g.fillStyle="rgba(90,150,235,0.85)"; g.fillRect(ox-5,oy,4,1); g.fillRect(ox+2,oy,4,1);      // solar wings
+    g.fillStyle="rgba(130,195,255,0.5)"; g.fillRect(ox-5,oy-1,4,1); g.fillRect(ox+2,oy-1,4,1);
+    g.fillStyle="rgba(150,165,190,0.9)"; g.fillRect(ox-1,oy,3,1);                                // central truss
+    g.fillStyle="rgba(245,250,255,0.98)"; g.fillRect(ox,oy,1,1);                                 // bright hub module
+    g.fillStyle="rgba(220,235,255,0.85)"; g.fillRect(ox,oy-1,1,1);                               // docking node
+    if((Math.floor(now/500))%2===0){ g.fillStyle="rgba(255,90,90,0.95)"; g.fillRect(ox+2,oy,1,1); }   // blinking beacon
+    g.fillStyle="rgba(200,230,255,0.16)"; g.fillRect(ox-6,oy-2,13,4);                            // soft glow
+    g.globalCompositeOperation="source-over"; }
+  // the ORBITAL RING — a mega-structure arcing high across the whole sky once the space age matures
+  if(curSpace>0.72){ var rga=(curSpace-0.72)/0.28*(night?0.5:0.26);
+    g.globalCompositeOperation="lighter";
+    for(var rgx=0;rgx<SW;rgx+=2){ var wxr=rgx+WOFF, f=((wxr%WW)+WW)%WW/WW, ry3=(10+(f-0.5)*(f-0.5)*46)|0;   // shallow world-anchored arc
+      g.fillStyle="rgba(150,205,255,"+rga.toFixed(3)+")"; g.fillRect(rgx|0,ry3,2,1);
+      if(((wxr|0)%52)<2){ g.fillStyle="rgba(224,242,255,"+Math.min(0.8,rga*2.4).toFixed(3)+")"; g.fillRect(rgx|0,ry3-1,1,2); } }   // lit ring-stations strung along it
     g.globalCompositeOperation="source-over"; }
   // now and then a shuttle re-enters, streaking down toward the spaceport
   var RS=480000, rp2=(now%RS)/RS;
@@ -8932,6 +8944,24 @@ function drawOrbitals(g,L,now,fx){
         g.fillRect((rsx+rt*2)|0,(ty2-rt*1.4)|0,2,1); }
       g.globalCompositeOperation="source-over"; } }
   g.globalAlpha=1;
+}
+// CREWED DEPARTURES → THE EXODUS: through the space age, settlers leave for the colonies; the stream
+// swells to a mass migration in the metropolis' final days. (Distinct from the apoc EVACUATION panic.)
+function drawExodus(g,L,now){
+  if(cityPhase==="apoc") return;
+  var xa=Math.max(0,Math.min(1,(curSpace-0.4)/0.5)); if(xa<=0) return;   // ramps in over the late space age
+  var SLOT=Math.round(90000-58000*xa), nships=1+Math.floor(xa*3), day=L>0.5;
+  for(var back=0;back<nships;back++){ var idx=Math.floor(now/SLOT)-back, h=((idx*2654435761+51)>>>0);
+    var u=((now-idx*SLOT)/SLOT)+back*0; u=u*1.15; if(u<0||u>1.6) continue;
+    var lx=Math.round(SPACEPORT_XF*WW)+(h%Math.max(1,WW>>1)), alt=u*u*(SH*0.6), driftx=u*u*20*((h&1)?1:-1);   // ships arc up + drift spaceward
+    var sx=(lx+driftx)-WOFF; if(sx>SW+8&&sx-WW>-8)sx-=WW; if(sx<-8&&sx+WW<SW+8)sx+=WW; if(sx<-6||sx>SW+6) continue;
+    var ry=(HORIZON-24-alt)|0; if(ry<-16) continue;
+    drawRocketSprite(g,sx|0,ry,day);
+    g.globalCompositeOperation="lighter";
+    g.fillStyle="rgba(255,225,150,"+(0.85*Math.max(0.4,xa)).toFixed(2)+")"; g.fillRect((sx+1)|0,ry+12,1,3);              // engine flare
+    g.fillStyle="rgba(210,235,255,0.2)"; g.fillRect((sx+1)|0,ry+15,1,Math.min(30,(HORIZON-ry-15)|0));                    // exhaust trail spaceward
+    g.globalCompositeOperation="source-over";
+  }
 }
 // the EVACUATION: as the endtimes rage, the ships get the people out — the space age pays off
 function drawEvacuation(g,ap,now){
@@ -10009,7 +10039,8 @@ function draw(g,pass){
   drawClimbers(g,L,now,nd,fx);    // tiny mountaineers roping up the tallest peaks (fair-weather days)
   }                                                          // end of the backdrop stack
   if(pass==="bg"){ if(cityG<0.985) drawTerrain(g,cityG,L,now,nd,"bg"); return; }
-  if(curSpace>0.35 && !nukeFull()) drawOrbitals(g,L,now,fx);   // the orbital station + shuttle re-entries
+  if(curSpace>0.35 && !nukeFull()) drawOrbitals(g,L,now,fx);   // the orbital station + ring + shuttle re-entries
+  if(curSpace>0.4 && !nukeFull()) drawExodus(g,L,now);         // crewed departures → the exodus to the colonies
   drawAurora(g,nd,L,now,fx);                    // rare frigid-night light show
   drawShower(g,nd,L,now,fx);                    // real-date meteor showers
   drawSatellite(g,L,now);                       // a satellite/ISS ghosting steadily across the dark sky

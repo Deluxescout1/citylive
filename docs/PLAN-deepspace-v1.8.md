@@ -87,8 +87,8 @@ error sweep across bodies/events/finales; perf probe (draw() ms); then P9 gate.
 - [x] P2 lunar city + hybrid persistence (colonyLevel model + growing lunar city; verified 3 levels, QML clean). Full lunar spaceport/shuttle detail can extend later.
 - [x] P3+P4 planets visible + colonies (JPL ephemeris verified; point→ringed colonized disc + glow + "<WORLD> COLONY" label; Venus by day). QML clean.
 - [x] P4 (done with P3)
-- [ ] P5 orbital mega-structure + crewed launches
-- [ ] P6 interplanetary exodus
+- [x] P5+P6 orbital station beef-up + orbital RING arc + crewed EXODUS (ramps with curSpace, ships arc spaceward). QML clean.
+- [x] P6 (done with P5)
 - [ ] P7 moon end-events + Majora's-Mask moonfall finale
 - [ ] P8 sync + matrix + QML sweep + perf
 - [ ] P9 both-platform gate → ship v1.8.0
