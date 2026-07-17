@@ -788,6 +788,8 @@ function drawSnag(g,X,gy,day,k,seed){
   g.fillRect(X-1,gy-th+2,1,1); g.fillRect(X+1,gy-th+4,1,1);                            // stub branches
   if(k<0.12&&(Math.floor(Date.now()/300)&1)){ g.fillStyle="#ff6a20"; g.fillRect(X,gy-th+1,1,1); }   // last embers
 }
+// is world-x on the PAVED road band? (the paver sweeps W→E: paved = world-x < WW*paveFrac)
+function onPavedRoad(wx){ var pf=Math.max(0,Math.min(1,(cityG-0.05)/0.25)); return pf>0.001 && wrapW(wx)<WW*pf; }
 // wildflowers dot the meadow (seasonal colours, paved over patch by patch as the city grows)
 function drawFlora(g,L,now,nd){
   var season=curSeason||seasonInfo(nowDate());
@@ -802,6 +804,7 @@ function drawFlora(g,L,now,nd){
     var ffs=fireStateAt(WW*seaW+14+((h%1000)/1000)*(WW*(1-2*seaW)-28),now);
     if(ffs&&(ffs.ph<2||ffs.k<0.4)) continue;                   // nothing blooms on fresh ash
     var wx=WW*seaW+14+((h%1000)/1000)*(WW*(1-2*seaW)-28);
+    if(onPavedRoad(wx)) continue;                              // NOTHING blooms through asphalt (Nick: flowers off the road)
     var sx=wx-WOFF; if(sx>SW+6&&sx-WW>-6) sx-=WW; if(sx<-6&&sx+WW<SW+6) sx+=WW;
     if(sx<-5||sx>SW+5) continue;
     var n=3+((h>>>4)%4);
@@ -823,10 +826,7 @@ function drawFlora(g,L,now,nd){
       var appr=eaten<0.13?(1-eaten/0.13)*10:0, leave=eaten>0.87?((eaten-0.87)/0.13)*10:0;
       var mx3=sx+3+appr-leave, my3=gy+3+((h>>>7)%4);
       var big=((h>>>5)%3)===0, nib=(Math.floor(now/650)+((h>>>2)&3))&1;
-      if(big){ g.fillStyle=day?"#9a7248":"#4e3c28";              // a deer, head down in the blooms
-        g.fillRect(mx3|0,(my3-2)|0,5,2); g.fillRect((mx3+5)|0,(my3-1-(nib?0:1))|0,1,1+(nib?1:0));
-        g.fillStyle="#f2ede2"; g.fillRect((mx3-1)|0,(my3-2)|0,1,1);
-        g.fillStyle=day?"#7a5836":"#3e2f1f"; g.fillRect(mx3|0,my3|0,1,1); g.fillRect((mx3+4)|0,my3|0,1,1); }
+      if(big){ drawDeer(g,mx3|0,my3|0,day,now,h); }              // the PROPER deer sprite, head down in the blooms
       else{ g.fillStyle=day?"#a8998a":"#4c453c";                 // a rabbit, cheeks full
         g.fillRect(mx3|0,(my3-1)|0,2,1); g.fillRect((mx3+2)|0,(my3-2+(nib?1:0))|0,1,1);
         g.fillStyle="#f2ede2"; g.fillRect((mx3-1)|0,(my3-1)|0,1,1); }
@@ -5380,21 +5380,52 @@ function drawDeer(g,x,y,day,now,seed){
     g.fillStyle=css(mixc(c,[0,0,0],0.3)); g.fillRect(x-2,y-6,1,1); g.fillRect(x,y-6,1,1); }  // antlers
 }
 // deer & rabbits on the undeveloped land — they retreat as the city paves over the wild
+// may an animal stand at world-x? grass always; PAVED road only while the city is still young
+// (cityG<0.35 = pre-real-town: wildlife still dashes across the street — Nick's cutoff)
+function wildOK(wx){ return !onPavedRoad(wx) || cityG<0.35; }
 function drawWildlife(g,wild,day,now,gy){
   if(wild<0.32) return;
   var nd2=Math.max(2,Math.round(WW/95));
   for(var d=0;d<nd2;d++){ var seed=(d*2654435761)>>>0, hh=seed/4294967296;
     if(hh>wild*0.9+0.1) continue;                                    // fewer as it urbanises
     var wx=landRoute(wrapW(hh*WW + Math.sin(now*0.00006+d*1.7)*24)), gyy=gy+3+((seed>>4)%7);
+    if(!wildOK(wx)) continue;                                        // grass only once the town is real
+    if(onPavedRoad(wx)){ gyy=gy+4; }                                 // a road-dasher keeps to one lane line
     for(var o=-WW;o<=WW;o+=WW){ var X=(wx-WOFF+o)|0; if(X<-6||X>SW+6) continue; drawDeer(g,X,gyy,day,now,seed); }
   }
   var nr=Math.max(3,Math.round(WW/48));
   for(var rb=0;rb<nr;rb++){ var rs=(rb*40503+13)>>>0, rh=(rs%1000)/1000; if(rh>wild) continue;
     var hop=Math.abs(Math.sin(now*0.004+rb*2.1)), rwx=landRoute(wrapW(((rs>>2)/1073741824*WW) + now*0.002*((rb&1)?1:-1)));
-    var ryy=gy+4+((rs>>6)%8) - (hop>0.6?1:0);
+    if(!wildOK(rwx)) continue;
+    var sit=(Math.floor(now/2600)+rb)%5===0;                          // now and then it sits up, ears tall
+    var ryy=gy+4+((rs>>6)%8) - (hop>0.6&&!sit?1:0);
     for(var o2=-WW;o2<=WW;o2+=WW){ var RX=(rwx-WOFF+o2)|0; if(RX<-3||RX>SW+3) continue;
-      g.fillStyle=day?"#b9a385":"#4a4238"; g.fillRect(RX,ryy,2,1); g.fillRect(RX+1,ryy-1,1,1);   // body + ear
-      g.fillStyle=day?"#cbb89a":"#524a3e"; g.fillRect(RX-1,ryy,1,1); }                            // tail
+      var rc=day?"#b9a385":"#4a4238", rl=day?"#cbb89a":"#524a3e";
+      if(sit){ g.fillStyle=rc; g.fillRect(RX,ryy-1,2,2); g.fillRect(RX,ryy-3,1,2);              // sitting up: body + tall ears
+        g.fillStyle=rl; g.fillRect(RX+1,ryy-3,1,1); }
+      else { g.fillStyle=rc; g.fillRect(RX,ryy,2,1); g.fillRect(RX+1,ryy-1,1,1);                // hopping: body + ear
+        g.fillStyle=rl; g.fillRect(RX-1,ryy,1,1); } }                                            // bobtail
+  }
+  // THE FOX: a rusty trotter patrolling at dawn/dusk, brush tail high — sometimes on a rabbit's trail
+  if(goldenK>0.15||day===false){ var fs=((7*40503+99)>>>0);
+    var fwx=landRoute(wrapW((fs%1000)/1000*WW + now*0.004));
+    if(wildOK(fwx)){ var fyy=gy+5+((fs>>6)%4), trot=(Math.floor(now/240))&1;
+      for(var o3=-WW;o3<=WW;o3+=WW){ var FX=(fwx-WOFF+o3)|0; if(FX<-5||FX>SW+5) continue;
+        g.fillStyle=day?"#c26a32":"#5e3418"; g.fillRect(FX,fyy-1,4,1); g.fillRect(FX+4,fyy-2,1,1);   // low body + head
+        g.fillRect(FX-1,fyy-2+(trot?0:1),1,1);                                                        // brush tail swings
+        g.fillStyle="#f2ede2"; g.fillRect(FX-1,fyy-1,1,1);                                            // white tail tip
+        g.fillStyle=day?"#7a3f1c":"#3a2010"; g.fillRect(FX+(trot?0:2),fyy,1,1); g.fillRect(FX+(trot?3:1),fyy,1,1); } }   // trotting legs
+  }
+  // MOUNTAIN GOATS: white specks with horns on the high foothill shoulders (wild land only)
+  if(wild>0.5){ for(var gt=0;gt<2;gt++){ var gs=((gt*977+41)>>>0);
+    var gwx=wrapW((0.08+0.84*((gs*2654435761>>>0)%1000)/1000)*WW + Math.sin(now*0.00004+gt*2.4)*10);
+    if(!wildOK(gwx)) continue;
+    var gyy2=gy-8-((gs>>3)%5);                                        // perched above the meadow line on the slope shoulder
+    for(var o4=-WW;o4<=WW;o4+=WW){ var GX=(gwx-WOFF+o4)|0; if(GX<-4||GX>SW+4) continue;
+      g.fillStyle=day?"#e8e4da":"#8a877c"; g.fillRect(GX,gyy2-1,3,2);                              // stocky white body
+      g.fillRect(GX+3,gyy2-2,1,1);                                                                 // head
+      g.fillStyle=day?"#4a4238":"#2a251e"; g.fillRect(GX+4,gyy2-3,1,1);                            // horn nub
+      g.fillRect(GX,gyy2+1,1,1); g.fillRect(GX+2,gyy2+1,1,1); } }                                  // legs
   }
 }
 // fish arcing out of the river (over the river band drawn in drawTerrain)
