@@ -2029,8 +2029,12 @@ function makeLayer(seed,y0,baseHMin,baseHMax,layerK){
     var bseed=(r()*1e9)>>>0, winHue=(r()*winPal.length)|0;
     // REGION: New England reskins the walls to a colonial palette (barely any neon accent), and
     // marks light-walled builds as wood clapboard. Pitched roofs are chosen below.
+    // BLEND (Nick 2026-07-17): the colonial reskin applies to the TOWN districts only — the downtown +
+    // entertainment core stays a MODERN glass-tower city (heroes/landmarks/material colour) even in New
+    // England. So Norwich reads as brick-and-steeple neighbourhoods around a real metropolis skyline.
+    var neColonial=(REGION==="newengland" && d.name!=="downtown" && d.name!=="neon");
     var neClap=false, nePitch=false, accMix=(d.brick?0.06:0.10);
-    if(REGION==="newengland"){
+    if(neColonial){
       var nw=NE_WALLS[(r()*NE_WALLS.length)|0]; base=[nw[0],nw[1],nw[2]];
       neClap=(nw[0]+nw[1]+nw[2])>430;                        // light walls → wood clapboard siding
       accMix=0.03;                                           // colonial colours are muted
@@ -2059,9 +2063,15 @@ function makeLayer(seed,y0,baseHMin,baseHMax,layerK){
     // ---- CROWN from this district's palette (no spindly tops on short buildings) ----
     var crown=d.crowns[(r()*d.crowns.length)|0];
     if(bh<30 && (crown==="spire"||crown==="antenna"||crown==="blade")) crown=(r()<0.5?"flat":"tank");
-    if(REGION==="newengland" && bh < 54*KSP && crown!=="watertower"){  // low & mid-rise wear NE pitched roofs; tall
+    if(neColonial && bh < 54*KSP && crown!=="watertower"){  // low & mid-rise wear NE pitched roofs; tall
       var pr=(bseed>>>4)%3; crown=(pr===0?"gable":(pr===1?"gambrel":"hip")); nePitch=true;  // towers stay modern; brick
     }                                                                                       // midrises keep a wooden water tank
+    // ---- HERO / SIGNATURE TOWER: a rare, very tall downtown tower becomes a skyline LANDMARK — a guaranteed
+    //      ornate crown + a premium accent (beacon + crown trim). Chosen by a bseed HASH (no r() → the whole
+    //      city layout stays byte-stable). A handful per city anchor the skyline as focal points. ----
+    var heroK=((bseed*2246822519)>>>0)/4294967296;
+    var hero=(d.name==="downtown" && bh>=62*KSP && heroK<0.24);   // downtown is a modern core everywhere (incl. NE blend)
+    if(hero) crown=["deco","spire","step","blade"][(bseed>>>13)%4];   // ornate crowns anchor the skyline
     // ---- WINDOW SYSTEM from this district's palette ----
     var winLayout=d.layouts[(r()*d.layouts.length)|0];
     if(typeof FORCELAYOUT!=='undefined'&&FORCELAYOUT) winLayout=FORCELAYOUT;   // TEST hook: pin every building's window layout (harness ?layout=ribbon)
@@ -2069,7 +2079,8 @@ function makeLayer(seed,y0,baseHMin,baseHMax,layerK){
             segs:segs, crown:crown, winLayout:winLayout, topW:topW, topDx:topDx,
             c: mixc(base, acc, accMix), accent:acc, accent2:acc2, winP:winPal, winHue:winHue,
             glass:((winLayout==="corp"||winLayout==="ribbon")&&!(d.brick||neClap||nePitch)),   // reflective glass tower
-            dayMat:(REGION==="newengland"?null:dayMatFor(d.name,bseed)),   // this building's DAYTIME material colour (NE keeps colonial palette)
+            hero:hero,   // signature landmark tower (ornate crown + premium beacon/trim)
+            dayMat:(neColonial?null:dayMatFor(d.name,bseed)),   // DAYTIME material colour (colonial town keeps NE_WALLS; modern core gets it)
             nePitch:nePitch, clap:neClap,
             win:[], st:[], gl:[], roof:[],
             ledge:r()<d.ledge, ledC:(r()*NEON.length)|0,
@@ -3476,6 +3487,18 @@ function drawLayer(g,layer,L,now,fx,hol,haze){
     }
     var tX=bx+b.topDx, tW=b.topW;                            // top-segment (roof features attach here)
     drawCrown(g,b.crown,tX,top,tW,col,b.accent,L,now,night);
+    // HERO / SIGNATURE TOWER premium: a gilded cornice band under the ornate crown + a soft apex beacon at
+    // night → the tower reads as a deliberate skyline landmark, day and night.
+    if(b.hero && (layer===near||layer===mid)){
+      var hcC=mixc(b.accent,[255,228,150],0.5);                                   // gilded accent
+      g.fillStyle=rgba(hcC,(night>0.4?0.6:0.30*dayLit+0.08)); g.fillRect(tX,top,tW,1);       // crown-base cornice
+      g.fillStyle=rgba(hcC,(night>0.4?0.3:0.14*dayLit));      g.fillRect(tX,top+2,tW,1);      // a second, fainter trim line
+      if(night>0.35){ var hbp=0.5+0.5*Math.sin(now*0.0028+bx);                    // apex beacon — a pulsing landmark light
+        g.globalCompositeOperation="lighter";
+        g.fillStyle=rgba(b.accent2,0.7*hbp*night); g.fillRect(tX+(tW>>1)-1,top-1,3,2);
+        g.fillStyle=rgba(b.accent2,0.3*hbp*night); g.fillRect(tX+(tW>>1)-2,top-2,5,1);
+        g.globalCompositeOperation="source-over"; }
+    }
     // rooftop mechanicals (flat/step tops)
     for(var ri=0;ri<b.roof.length;ri++){ var rs=b.roof[ri], rX=tX+rs.x, rY=top-rs.h;
       g.fillStyle=L>0.5?"#2a2733":"#0b0912"; g.fillRect(rX,rY,rs.w,rs.h);

@@ -125,6 +125,27 @@ Growth: b.bAge birth-age; unborn skipped, borning = drawGrowSite. Windows precom
 ##   buildings by day — a real colourful city, not grey. VERIFIED: kde-repro day/dusk/night + perf 9.6ms +
 ##   QML no-try/catch sweep (34 conditions incl. all finales) SWEEP_OK. Show Nick → react (too saturated?).
 ##
+## BLEND + ROOFS (Nick 2026-07-17, AskUserQuestion): CRITICAL FINDING — the wallpaper ADAPTS architecture to
+## location, and Norwich CT → REGION="newengland" → the whole city was reskinned colonial (NE_WALLS brick/
+## cream/sage walls + gable/gambrel/hip PITCHED roofs on everything bh<54). That's why (a) roofs all looked
+## the same, and (b) my dayMat + hero work was BYPASSED at Nick's actual location (gated off for NE). The
+## colour in earlier renders came from NE_WALLS, not dayMat — so those two commits were effectively unverified
+## on Nick's machine until now.
+## Nick's decisions: LOOK = "BLEND BOTH" (NE low-rise character around a MODERN downtown of glass towers +
+## landmarks). ROOFS = ALL FOUR upgrades (more shapes · varied colours/materials · rooftop details · modern
+## crowns on tall ones).
+## - STEP A DONE (blend): neColonial = (NE && district≠downtown && ≠entertainment) — the colonial reskin +
+##   pitched roofs now apply to the TOWN districts only; downtown+entertainment stay a modern glass core with
+##   dayMat + heroes + varied modern crowns EVEN in New England. hero gate dropped its REGION!=="newengland"
+##   check (downtown is modern everywhere). NOTE: exempting downtown/entertainment removes one r() call for
+##   those buildings → the city layout INTENTIONALLY re-rolls (expected for this look change). Heroes are
+##   mid/far-layer background giants (near downtown caps below the 62*KSP hero height) and rise LAST (high
+##   bAge) — verified via new ?probe=hero. Downtown now shows glass towers + deco/blade/step/mansard/antenna/
+##   pagoda crowns + gilded-cornice heroes; night = a real neon metropolis. SWEEP_OK 34, perf 9.2ms.
+## - STEP B/C/D TODO (the actual "roofs look same" fix for the colonial town): varied roof COLOURS (slate/
+##   copper-green/red-shingle/black/tin), more roof SHAPES (mansard/saltbox/cross-gable/cupola/monitor/flat-
+##   parapet), rooftop DETAILS (chimneys/dormers/weathervanes/water tanks). Then re-render town + downtown.
+##
 ## STATUS  ⟵ UPDATE AS EXECUTED
 - [ ] B0 branch + plan + harness
 - [~] B1 structural realism — glass+articulation+DAY WINDOW PANES done; corp-sparse case + material colour TBD

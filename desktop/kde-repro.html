@@ -60,6 +60,11 @@ setTimeout(function(){ try{
       if(cc>=0&&cc<COLS&&rr>=0&&rr<ROWS) grid[rr][cc]++; }
     var art='\n'; for(var gr2=0;gr2<ROWS;gr2++){ var line=''; for(var gc2=0;gc2<COLS;gc2++){ var v=grid[gr2][gc2]; line+= v===0?'.':(v<2?':':(v<4?'o':'#')); } art+=line+'\n'; }
     console.log('MWGRID spine='+MWSPINE.length+' dabs='+MWDABS.length+' vis='+vis+' maxAlpha='+maxa.toFixed(3)+' lpK='+lpK.toFixed(3)+art); }
+  if(Q.get('probe')==='hero'){ var hs=[], dts=[];
+    [near,mid,far].forEach(function(ly,li){ (ly.blds||[]).forEach(function(b){
+      if(b.hero) hs.push((li===0?'N':li===1?'M':'F')+' x'+Math.round(b.x)+' h'+Math.round(b.h)+' '+b.crown+(b.bAge<=cityGrowth(rn).g?'':' UNBORN'));
+      if(b.district==='downtown'&&b.h>60) dts.push(Math.round(b.x)+':'+b.crown); }); });
+    console.log('HEROES '+hs.length+' -> '+hs.join(' | ')+'  ||  DOWNTOWN-TALL '+dts.join(', ')); }
   if(Q.get('probe')==='perf'){ var N=40, t0p=performance.now(); for(var pf=0;pf<N;pf++) draw(g); var dt=(performance.now()-t0p)/N;
     console.log('PERF avg draw() = '+dt.toFixed(2)+' ms/frame over '+N+' frames'); }
   document.title='WW='+WW+' SW='+SW+' WOFF='+WOFF+' liveEpi='+Math.round(apocEpiX(rn))+' liveXA='+Math.round(kwTitanX(rn,0))+' liveXB='+Math.round(kwTitanX(rn,1))+' apocMs='+Math.round(apocMs)+ex;
