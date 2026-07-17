@@ -44,6 +44,15 @@ setTimeout(function(){ try{
     for(var bt=0;bt<8;bt++){ var b8=busCrosser(rn+bt*500,26000,0.030,20,0.86);
       bl.push(b8?Math.round(b8.x)+(b8.stopped?'S':'m'):'-'); }
     ex=' stops='+JSON.stringify(busstops.map(Math.round))+' bus@+0..3.5s='+bl.join('|'); }
+  if(Q.get('probe')==='mw'){ buildMilkyWay(); var nd=nowDate(rn), lst=lstHours(nd), vis=0,maxa=0,fade=1;
+    var COLS=48,ROWS=12,grid=[]; for(var gr=0;gr<ROWS;gr++){ grid[gr]=[]; for(var gc=0;gc<COLS;gc++) grid[gr][gc]=0; }
+    var skyH=HORIZON*0.9;
+    for(var q=0;q<MWSPINE.length;q++){ var mp=MWSPINE[q], aa=altAz(mp.ra,mp.dec,lst); if(aa.alt<2) continue; vis++;
+      var vfp=Math.min(1,(1-lpK)*(aa.alt>50?1.5:1)), ma=mp.w*fade*vfp; if(ma>maxa)maxa=ma; if(ma<0.02) continue;
+      var sx=skyWX(aa.az), sy=skyY(aa.alt); var cc=Math.floor(sx/WW*COLS), rr=Math.floor(sy/skyH*ROWS);
+      if(cc>=0&&cc<COLS&&rr>=0&&rr<ROWS) grid[rr][cc]++; }
+    var art='\n'; for(var gr2=0;gr2<ROWS;gr2++){ var line=''; for(var gc2=0;gc2<COLS;gc2++){ var v=grid[gr2][gc2]; line+= v===0?'.':(v<2?':':(v<4?'o':'#')); } art+=line+'\n'; }
+    console.log('MWGRID spine='+MWSPINE.length+' dabs='+MWDABS.length+' vis='+vis+' maxAlpha='+maxa.toFixed(3)+' lpK='+lpK.toFixed(3)+art); }
   document.title='WW='+WW+' SW='+SW+' WOFF='+WOFF+' liveEpi='+Math.round(apocEpiX(rn))+' liveXA='+Math.round(kwTitanX(rn,0))+' liveXB='+Math.round(kwTitanX(rn,1))+' apocMs='+Math.round(apocMs)+ex;
 }catch(e){ document.title='PROBE_ERR '+e; } }, 1800);
 </script>

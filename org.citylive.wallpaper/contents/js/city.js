@@ -369,6 +369,38 @@ function moonRaDec(d){
 function skyY(alt){ return (1-Math.min(90,alt)/90)*HORIZON*0.9; }
 function skyWX(az){ return az/360*WW; }
 
+// ---- the Milky Way + Andromeda -----------------------------------------------------------------
+// Galactic→equatorial rotation (J2000). equatorial = Mᵀ · galactic — dotting with the COLUMNS of M.
+// Verified against anchors: galactic centre (ℓ=0,b=0) → RA 17.76h Dec −29°; NGP → Dec +27.13°;
+// M31 → RA 0.712h Dec +41.27°. The band is the SAME sky every night on every screen, so it is built
+// once from a FIXED seed (never the per-life seed) → identical across all three monitors' bezels.
+var MW_M=[[-0.0548755604,-0.8734370902,-0.4838350155],
+          [ 0.4941094279,-0.4448296300, 0.7469822445],
+          [-0.8676661490,-0.1980763734, 0.4559837762]];
+function galToEq(l,b){ l*=DEG; b*=DEG;
+  var gx=Math.cos(b)*Math.cos(l), gy=Math.cos(b)*Math.sin(l), gz=Math.sin(b);
+  var ex=MW_M[0][0]*gx+MW_M[1][0]*gy+MW_M[2][0]*gz,
+      ey=MW_M[0][1]*gx+MW_M[1][1]*gy+MW_M[2][1]*gz,
+      ez=MW_M[0][2]*gx+MW_M[1][2]*gy+MW_M[2][2]*gz;
+  var dec=Math.asin(Math.max(-1,Math.min(1,ez)))/DEG, ra=Math.atan2(ey,ex)/DEG; if(ra<0)ra+=360;
+  return [ra/15, dec];                                              // [RA hours, Dec deg] — the shape STARS use
+}
+// The band is drawn as a STROKED SPINE (a continuous glowing river, round-capped so segments blend)
+// plus scattered dabs for feathered edges + bright star-cloud knots. Built once from the fixed seed.
+var MWSPINE=null, MWDABS=null;
+function buildMilkyWay(){
+  if(MWSPINE) return; MWSPINE=[]; MWDABS=[]; var r=rng(0x4D575759);   // FIXED seed "MWWY" — identical on every screen
+  function gB(s){ return (r()+r()-1)*s; }                          // triangular ≈ gaussian, tight to the equator
+  for(var l=0;l<360;l+=1.5){                                        // ordered by galactic longitude → adjacent = strokeable
+    var d0=Math.min(l,360-l), bulge=d0<40?(1-d0/40):0,             // Sagittarius core: fatter & brighter near ℓ=0
+        rift=(l>=18&&l<=52)?0.4:1;                                 // the Great Rift — a dark dust lane splits the band
+    var e=galToEq(l,gB(1.0)); MWSPINE.push({ra:e[0],dec:e[1],w:(0.13+0.13*bulge)*rift});   // the ridge itself
+    if(r()<0.5){ var f=galToEq(l,(r()<0.5?1:-1)*(2.5+gB(2)));      // feathered fringe → the band's soft edges
+      MWDABS.push({ra:f[0],dec:f[1],w:(0.05+0.05*bulge)*rift,sz:1}); }
+  }
+  for(var k=0;k<32;k++){ var kk=galToEq(r()*360,gB(3.5)); MWDABS.push({ra:kk[0],dec:kk[1],w:0.22+0.13*r(),sz:2}); }   // bright knots
+}
+
 // draw the real Norwich star field + moon (only when dark & clear)
 // ---- real-ish celestial calendar ----
 var LUNAR_ECLIPSES=["2026-3-3","2026-8-28","2027-2-20","2027-7-18","2028-1-12","2028-7-6"];     // blood-moon nights
@@ -1455,6 +1487,32 @@ function drawSky(g,now,nd,L,fx){
   var vis=1-Math.min(0.8,(weather.cloud||0)/100*(fx.cloudy?0.8:0.45));   // stars pierce a broken deck
   var lst=lstHours(nd), fade=Math.min(1,(0.34-L)*3.6)*vis, P=[];
   if(fade<0.05) return;
+  // ---- THE MILKY WAY — the galaxy's own band arcs overhead; the city's glow washes it out as it
+  // grows, and it returns over the darkened city (deep 3-4am, pollution lights-out, storm blackout).
+  buildMilkyWay();
+  g.globalCompositeOperation="lighter"; g.lineCap="round";
+  var SPN=[]; for(var si=0;si<MWSPINE.length;si++){ var sp=MWSPINE[si], sa=altAz(sp.ra,sp.dec,lst);   // project the ridge once
+    SPN.push(sa.alt<2?null:{x:skyWX(sa.az),y:skyY(sa.alt),alt:sa.alt,w:sp.w}); }
+  for(var pass=0;pass<2;pass++){ if(QUAL===0&&pass===0) continue;   // pass0 = wide hazy halo, pass1 = bright core (KDE budget: core only)
+    for(var si2=0;si2<SPN.length-1;si2++){ var A=SPN[si2], B=SPN[si2+1]; if(!A||!B) continue;
+      var vf=Math.min(1,(1-lpK)*((A.alt>50||B.alt>50)?1.5:1)), wv=(A.w+B.w)*0.5, a=wv*fade*vf*(pass?2.3:0.9); if(a<0.02) continue;
+      g.lineWidth=pass?(1.3+wv*6):(3.5+wv*11); g.strokeStyle="rgba(200,212,240,"+a.toFixed(3)+")";
+      for(var w=-1;w<=1;w++){ var ax=A.x-WOFF+w*WW, bx=B.x-WOFF+w*WW; if(Math.abs(ax-bx)>WW*0.5) continue;   // skip seam-wrap segments
+        if((ax<-6&&bx<-6)||(ax>SW+6&&bx>SW+6)) continue;
+        g.beginPath(); g.moveTo(ax,A.y); g.lineTo(bx,B.y); g.stroke(); } } }
+  g.lineCap="butt";
+  for(var di=0;di<MWDABS.length;di++){ var dd=MWDABS[di], da=altAz(dd.ra,dd.dec,lst); if(da.alt<2) continue;   // feathered edges + knots
+    var vfd=Math.min(1,(1-lpK)*(da.alt>50?1.5:1)), dma=dd.w*fade*vfd; if(dma<0.02) continue;
+    var dwx=skyWX(da.az), dwy=skyY(da.alt); g.fillStyle="rgba(212,220,246,"+dma.toFixed(3)+")";
+    for(var dw=-1;dw<=1;dw++){ var dsx=dwx-WOFF+dw*WW; if(dsx<-2||dsx>SW+2) continue; g.fillRect(dsx|0,dwy|0,dd.sz,dd.sz); } }
+  // ANDROMEDA — the faint elongated smudge of M31, the farthest thing a naked eye can reach
+  var anda=altAz(0.712,41.27,lst);
+  if(anda.alt>3){ var vfa=Math.min(1,(1-lpK)*(anda.alt>50?1.5:1)), aal=0.46*fade*vfa;
+    if(aal>0.02){ var awx=skyWX(anda.az), awy=skyY(anda.alt);
+      for(var aw=-1;aw<=1;aw++){ var asx=awx-WOFF+aw*WW; if(asx<-4||asx>SW+4) continue;
+        g.fillStyle="rgba(208,212,238,"+(aal*0.55).toFixed(3)+")"; g.fillRect((asx-2)|0,awy|0,5,2);
+        g.fillStyle="rgba(236,240,255,"+aal.toFixed(3)+")"; g.fillRect(asx|0,awy|0,1,1); } } }
+  g.globalCompositeOperation="source-over";
   // faint filler field first (fills the sky; rotates correctly with the real stars)
   for(var i=0;i<skyfill.length;i++){ var fa=altAz(skyfill[i][0],skyfill[i][1],lst); if(fa.alt<1.5) continue;
     // LIGHT POLLUTION: the city's glow washes the faint stars low over the skyline; the zenith stays dark & rich
@@ -1754,6 +1812,7 @@ var curEvents=null;
 var curDis=null, curRebuilt=[], curRuins=[];   // active disaster (or null) + completed-rebuild zones + permanently-ruined zones, set each frame
 var cityG=1, cityPhase="peak", growPop=1, cityApoc=0, apocVeil=0;   // maturity, phase, pop factor, apocalypse progress + ash-out veil
 var curSpace=0;   // SPACE AGE 0..1 — the mature metropolis' final evolution before the endtimes
+var lpK=0;        // LIGHT POLLUTION 0..1 — how far the city's glow drowns the dark sky (Milky Way/Andromeda wash-out)
 function gstage(a,b){ return Math.max(0,Math.min(1,(cityG-a)/(b-a))); }   // 0..1 build progress between two growth marks
 function roadFNow(){ return Math.max(0,Math.min(1,(cityG-0.1)/0.4)); }
 var KSP=1;             // resolution scale (6/pxk): 1 at classic PXK 6, 1.5 in PXK-4 fine-pixel mode
@@ -9662,6 +9721,11 @@ function draw(g,pass){
   curEvents=cityEvents(nd);           // calendar-driven special days (market, parade, marathon, movie)
   curMishap=blimpMishapNow(now);      // …and the rare blimp mishap (suppresses the ad blimp)
   curBlk=blackoutNow(now,fx);         // storm blackout state (L1)
+  // LIGHT POLLUTION: the city's own glow drowns the night sky. Grows with the city (cityG), scaled by
+  // how many lights actually burn (curLit dims deep-night, 3-4am), and RELENTS as the city dies
+  // (apocKill — pollution's slow lights-out) or a storm blacks downtown out → the dark sky returns.
+  var lpLit=curLit*(1-apocKill*0.9); if(curBlk) lpLit*=0.6;
+  lpK=Math.min(1,cityG*(0.30+0.70*lpLit));
   computeFireZones(now,fx);           // wildfire lifecycle (burn → char → regrow)
   curOutbreak=outbreakNow(now);       // disease outbreak state (N5)
   curCruise=cruiseNow(now);           // cruise-ship call (N6)

@@ -8,6 +8,7 @@ const OUT = process.env.KROUT || path.join(__dirname, 'kde-repro.png');
 app.whenReady().then(() => {
   const win = new BrowserWindow({ width: 2560, height: 1440, show: false,
     webPreferences: { offscreen: true, contextIsolation: true, nodeIntegration: false } });
+  win.webContents.on('console-message', (_e, _l, msg) => { if (/^MWGRID|^MW:/.test(msg)) console.log(msg); });
   win.loadFile(path.join(__dirname, 'kde-repro.html'), { search: Q });
   win.webContents.once('did-finish-load', () => {
     setTimeout(async () => {
