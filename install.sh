@@ -56,6 +56,27 @@ else
   echo "==> qdbus not found; after this finishes, open System Settings > Wallpaper and pick 'CityLive Pixel City'."
 fi
 
+# CityLive Settings launcher — a KDE app-menu shortcut to edit personal settings (birthdays,
+# location, day length, which apocalypse ends the world). Complements the right-click wallpaper dialog.
+if [ -f "$HERE/citylive-settings" ]; then
+  echo "==> Installing the 'CityLive Settings' launcher (find it in your app menu)"
+  chmod +x "$HERE/citylive-settings" 2>/dev/null || true
+  ICON_DEST="$HOME/.local/share/icons/citylive.png"
+  mkdir -p "$(dirname "$ICON_DEST")" "$HOME/.local/share/applications"
+  [ -f "$HERE/desktop/build/icon.png" ] && cp -f "$HERE/desktop/build/icon.png" "$ICON_DEST"
+  cat > "$HOME/.local/share/applications/citylive-settings.desktop" <<DESK
+[Desktop Entry]
+Type=Application
+Name=CityLive Settings
+Comment=Edit your CityLive wallpaper settings (birthdays, location, day length, finale)
+Exec=$HERE/citylive-settings
+Icon=$ICON_DEST
+Terminal=false
+Categories=Settings;Utility;
+DESK
+  command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || true
+fi
+
 echo "==> Reloading plasmashell"
 if command -v systemctl >/dev/null && systemctl --user is-active plasma-plasmashell.service >/dev/null 2>&1; then
   systemctl --user restart plasma-plasmashell.service

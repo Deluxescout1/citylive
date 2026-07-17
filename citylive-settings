@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# CityLive Settings (KDE) — opens your personal CityLive wallpaper settings for editing,
+# then applies them. On KDE, CityLive is a Plasma wallpaper plugin; per-scene options also
+# live in right-click desktop → "Configure Desktop and Wallpaper". This edits the file-based
+# personal settings (birthdays, location, day-length, which apocalypse ends the world, …).
+set -u
+HERE="${CITYLIVE_HOME:-$HOME/CityLive}"
+CFG="$HERE/org.citylive.wallpaper/contents/config.local.json"
+mkdir -p "$(dirname "$CFG")"
+if [ ! -f "$CFG" ]; then
+  cat > "$CFG" <<'JSON'
+{
+  "_help": "CityLive personal settings. Edit, SAVE, then CLOSE this window — it applies automatically.",
+  "cycle": "1w",
+  "_cycle_options": "test (1 hour) | 1w | 2w | 3w | 1mo — how long a whole city life lasts",
+  "birthdays": [],
+  "_birthdays_example": [ { "m": 2, "d": 17, "label": "HAPPY BIRTHDAY" }, { "m": 12, "d": 18, "label": "HAPPY BIRTHDAY KATHY", "pink": true } ],
+  "_finale": "add  \"finale\": \"auto\"  — auto | meteors | nuke | sunburst | ai | bh | alienwar | frost | kaiju | flood | kaijuwar | pollution | moonfall",
+  "_location": "add  \"lat\": 41.52, \"lon\": -72.08  to move the sun/moon/stars/weather off the Norwich CT default",
+  "_disasters": "add  \"disasters\": \"normal\"  — rare | normal | frequent"
+}
+JSON
+fi
+# open in an editor, waiting for it to close, then re-apply
+if command -v kate >/dev/null 2>&1; then kate --block "$CFG"
+elif command -v kwrite >/dev/null 2>&1; then kwrite "$CFG"; read -rp "Press Enter when you've saved & closed the editor…" _
+elif [ -n "${EDITOR:-}" ] && command -v konsole >/dev/null 2>&1; then konsole -e "${EDITOR}" "$CFG"
+elif [ -n "${EDITOR:-}" ]; then "${EDITOR}" "$CFG"
+else xdg-open "$CFG"; read -rp "Press Enter when you've saved & closed the editor…" _
+fi
+# apply (re-bakes localcfg.js + reloads the wallpaper)
+if [ -x "$HERE/install.sh" ]; then
+  "$HERE/install.sh" >/dev/null 2>&1 && (command -v notify-send >/dev/null 2>&1 && notify-send "CityLive" "Settings applied." || echo "CityLive settings applied.")
+else
+  echo "Saved. Re-run $HERE/install.sh (or restart plasmashell) to apply."
+fi
