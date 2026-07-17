@@ -45,7 +45,7 @@ QUAL budget; verify via kde-repro (Chromium) + headless qml6 (real KDE Canvas) +
 - Settlement order over lives: Moon → Mars → Venus → Europa/Titan (each unlocks after N lives).
 
 ## ADDED MID-BATCH (Nick 2026-07-17)
-- SUN OVERHAUL — make the sun look nicer/better (drawn in draw() ~9850, sunTimes track). Fold into P1/celestial pass: a proper glowing disc (corona/rays, warm gradient, limb), golden-hour tint already exists. Do alongside the moon.
+- [x] SUN OVERHAUL DONE — radial-gradient corona bloom + limb-darkened round disc + soft hot core + gentle breathe; keeps temp colors/god-rays/eclipse. Verified Chromium + QML (createRadialGradient works).
 
 ## Build phases (ONE release, but built + verified incrementally)
 - P0  branch + this doc. `bodyState()` scaffold + FORCE hooks (FORCESPACE `{body:level}`,

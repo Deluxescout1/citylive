@@ -9885,14 +9885,20 @@ function draw(g,pass){
         else if(T<30){ sOut=[130,185,255]; sCore=[205,232,255]; sHalo=[120,180,255]; }   // frigid → blue sun
         else { sOut=[255,215,94]; sCore=[255,236,158]; sHalo=[255,210,120]; }            // temperate → warm
         var ext=T>90?Math.min(1,(T-90)/20):T<30?Math.min(1,(30-T)/25):0;                 // extremeness 0..1
-        g.globalCompositeOperation="lighter";
-        g.fillStyle=rgba(sHalo,0.10+0.18*ext); g.fillRect((sx2-6)|0,(sy-6)|0,13,13);
-        g.fillStyle=rgba(sHalo,0.07+0.13*ext); g.fillRect((sx2-9)|0,(sy-9)|0,19,19);
+        var SR=4, sPulse=1+0.06*Math.sin(now*0.0011);                           // a bigger, softer disc that gently breathes
+        g.globalCompositeOperation="lighter";                                   // soft radial CORONA bloom (much nicer than flat rects)
+        var cor=g.createRadialGradient(sx2,sy,SR*0.6, sx2,sy,SR*4.4*sPulse);
+        cor.addColorStop(0,   rgba(sHalo,0.42+0.28*ext));
+        cor.addColorStop(0.32,rgba(sHalo,0.14+0.14*ext));
+        cor.addColorStop(1,   rgba(sHalo,0));
+        g.fillStyle=cor; g.fillRect((sx2-SR*5)|0,(sy-SR*5)|0,SR*10,SR*10);
         g.globalCompositeOperation="source-over";
-        var RW=[3,5,7,7,7,5,3];                                                  // a proper round disc
-        for(var sr=0;sr<7;sr++){ g.fillStyle=css(sOut); g.fillRect((sx2-(RW[sr]>>1))|0,(sy-3+sr)|0,RW[sr],1); }
-        var RC=[3,5,5,5,3];
-        for(sr=0;sr<5;sr++){ g.fillStyle=css(sCore); g.fillRect((sx2-(RC[sr]>>1))|0,(sy-2+sr)|0,RC[sr],1); }
+        for(var dy=-SR;dy<=SR;dy++){ for(var dx=-SR;dx<=SR;dx++){ var rr2=dx*dx+dy*dy; if(rr2>SR*SR-1.2) continue;   // tighter clip → a round disc, no cardinal spikes
+          g.fillStyle=css(mixc(sCore,sOut,Math.min(1,(rr2/(SR*SR))*1.2)));       // limb-darkening: white-hot core → warm edge
+          g.fillRect((sx2+dx)|0,(sy+dy)|0,1,1); } }
+        g.globalCompositeOperation="lighter";                                   // a soft white-hot core highlight
+        g.fillStyle=rgba([255,255,250],0.6); g.fillRect((sx2-1)|0,(sy-1)|0,2,2);
+        g.globalCompositeOperation="source-over";
         var lowSun=Math.min(df,1-df)<0.14;                                       // long dawn/dusk rays
         if(lowSun){ g.globalCompositeOperation="lighter"; g.fillStyle=rgba(sHalo,0.16);
           g.fillRect((sx2-14)|0,sy|0,29,1); g.fillRect(sx2|0,(sy-10)|0,1,21);
