@@ -90,5 +90,15 @@ Engine copies ×4 + md5 before any kde-repro render (bitten once already).
 - [x] 4 S4 aurora fetch + renderer (renders: kp 5 band, kp 8 curtains)
 - [x] 5 S5 ISS pass (render: dot on arc mid-pass)
 - [x] 6 S6 extra shower dates (code-only + one Lyrids-night render)
-- [ ] 7 S7 sync ×4 + tests + full matrix
+- [x] 7 S7 sync ×4 + tests + full matrix
 - [ ] 8 S8 both-platform gate → SHIP v1.7.0
+
+## VERIFICATION MATRIX RESULTS (S7 — all via kde-repro, engine synced ×4, md5-match)
+- village dark-sky night → vibrant Milky Way arch (COALFIELD); metropolis-evening → fully washed (lpK 1.0); metropolis-3am → partial return (lpK 0.55); pollution finale → returns as lights die (lpK 0.46). Contrast IS the feature — confirmed.
+- aurora: kp0 absent · kp5 green N-horizon band · kp8 green/violet curtains. FORCEKP/kp= param.
+- ISS: 1-2 date-hashed passes/night, shallow arc + trailing fade, steady (verified via boosted debug).
+- showers: Lyrids/Orionids/Leonids fire on-date; both meteorShowerActive copies unified (had diverged).
+- space age .3/.7/1 day+night: coherent (space elevator/vactrain/orbital-loop/moon colony), no glitches.
+- regression: golden-hour dusk perfect + MW correctly absent at dusk; v1.6 living streets (crowds/traffic/corps) intact.
+- perf: draw() ≤ 4.65ms village / 6.94ms metro / 7.42ms kp8-aurora night — well within the 15fps budget (MW spine ≈ +1ms; KDE is composite-bound anyway).
+- BUGFIX bonus: fixed drawSmokers signed-shift charCodeAt crash (shipped in v1.6.0 — blanked ~half of night frames).
