@@ -27,8 +27,23 @@ catch(e){ document.title='SETUP_ERR '+(e&&e.message); }
 function frame(){ if(window.__stop) return; try{ draw(g); }catch(e){ document.title='DRAW_ERR '+e; } requestAnimationFrame(frame); }
 frame();
 setTimeout(function(){ try{
-  var rn=Date.now();
-  document.title='WW='+WW+' SW='+SW+' WOFF='+WOFF+' liveEpi='+Math.round(apocEpiX(rn))+' liveXA='+Math.round(kwTitanX(rn,0))+' liveXB='+Math.round(kwTitanX(rn,1))+' apocMs='+Math.round(apocMs);
+  var rn=(typeof NOWOVR!=='undefined'&&NOWOVR)?NOWOVR:Date.now();
+  var ex='';
+  if(Q.get('probe')==='heli'){ var hc=chopperNow(rn), hbs=[];
+    [near,mid].forEach(function(ly,li){ ly.blds.forEach(function(b){ if(b.crown==='helipad')
+      hbs.push({ly:li?'mid':'near',x:Math.round(b.x),w:b.w,h:Math.round(b.h),y0:Math.round(ly.y0),d:b.district,t:b.type,ba:+(b.bAge+b.band).toFixed(3),sp:+(b.spAge||0).toFixed(2)}); }); });
+    ex=' pads='+JSON.stringify(helipads.map(function(p){return {x:Math.round(p.x),y:Math.round(p.y),ba:+(p.bAge+p.band).toFixed(3)};}))
+      +' hbs='+JSON.stringify(hbs)
+      +' cityG='+(+cityG.toFixed(3))+' chop='+(hc?Math.round(hc.x)+','+Math.round(hc.y)+',landed='+hc.landed:'none'); }
+  if(Q.get('probe')==='pub'){ ex=' pubs='+JSON.stringify(pubs.map(function(p){return Math.round(p.x);}))+' cityG='+(+cityG.toFixed(2)); }
+  if(Q.get('probe')==='exp'){ var bp=null; (mts&&mts.near||[]).forEach(function(p){ if(!bp||p.h>bp.h) bp=p; });
+    ex=' peak='+(bp?Math.round(bp.x)+',h'+Math.round(bp.h):'none')+' mx1='+(mtsCache?Math.round(mtsCache.mx[1]):-1)
+      +' ch='+(+(cityGrowth(rn).cy*9).toFixed(2)); }
+  if(Q.get('probe')==='bus'){ var bl=[];
+    for(var bt=0;bt<8;bt++){ var b8=busCrosser(rn+bt*500,26000,0.030,20,0.86);
+      bl.push(b8?Math.round(b8.x)+(b8.stopped?'S':'m'):'-'); }
+    ex=' stops='+JSON.stringify(busstops.map(Math.round))+' bus@+0..3.5s='+bl.join('|'); }
+  document.title='WW='+WW+' SW='+SW+' WOFF='+WOFF+' liveEpi='+Math.round(apocEpiX(rn))+' liveXA='+Math.round(kwTitanX(rn,0))+' liveXB='+Math.round(kwTitanX(rn,1))+' apocMs='+Math.round(apocMs)+ex;
 }catch(e){ document.title='PROBE_ERR '+e; } }, 1800);
 </script>
 </body></html>

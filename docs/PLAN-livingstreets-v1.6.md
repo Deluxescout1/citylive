@@ -95,14 +95,14 @@ lighter block restores source-over; QUAL===0 skips murmuration + smoke wisps + k
 
 ## Ordered steps & state  ⟵ UPDATE AS EXECUTED
 - [ ] 0 branch `living-streets` + this doc committed
-- [ ] 1 B1 walk cycle + gaits/postures (render: sidewalk close-up 4 frames + kid/elderly)
-- [ ] 2 B5 helipad gate fix (render: young city no chopper; grown city lands on pad)
-- [ ] 3 B7 bus stops + dwell + riders (render: rush-hour stop, bus doors, 2am flask)
-- [ ] 4 B6 station glow-up (render: dusk platform, arrivals flicker, boarding)
-- [ ] 5 B3 vice: pub + rooftop + smokers + picnics (renders: pub night, doorway ember,
+- [x] 1 B1 walk cycle + gaits/postures (render: sidewalk close-up 4 frames + kid/elderly)
+- [x] 2 B5 helipad gate fix (render: young city no chopper; grown city lands on pad)
+- [x] 3 B7 bus stops + dwell + riders (render: rush-hour stop, bus doors, 2am flask)
+- [x] 4 B6 station glow-up (render: dusk platform, arrivals flicker, boarding)
+- [x] 5 B3 vice: pub + rooftop + smokers + picnics (renders: pub night, doorway ember,
       weekend picnic)
-- [ ] 6 B2 murmuration + kites/balloons (render: dusk flock, breezy park day)
-- [ ] 7 B4 expeditions (renders: NOWOVR day1 basecamp / day2 camp1 / day4 dawn summit +
+- [x] 6 B2 murmuration + kites/balloons (render: dusk flock, breezy park day)
+- [x] 7 B4 expeditions (renders: NOWOVR day1 basecamp / day2 camp1 / day4 dawn summit +
       flag persistence at day 5)
 - [ ] 8 sync ×4 + md5 + npm test (desktop 29 + geocode)
 - [ ] 9 kde-repro matrix (tod × age + each feature force) — NO regressions on v1.5 visuals

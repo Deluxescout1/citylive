@@ -440,6 +440,22 @@ function drawSkyBirds(g,L,now,fx){
         drawBird(g,X,byy,flap?(Math.floor(now/110)+b):1,col,fl.dir); }
     }
   }
+  // DUSK MURMURATION: in the golden half-hour a cloud of starlings wheels over the
+  // rooftops — the flock centre rides a slow lissajous drift and every bird jitters
+  // in its own little orbit around it. Bounded: ≤18 one-pixel birds.
+  if(QUAL>0 && typeof goldenK!=="undefined" && goldenK>0.25 && cityG>0.3){
+    var msd=((Math.floor(now/240000)*2654435761+331)>>>0);              // a fresh flock every few minutes
+    if((msd%3)!==2){
+      var mn=12+(msd%7), mcx=(msd%WW)+now*0.012, mcy=24+((msd>>>5)%26);
+      var wob=Math.sin(now*0.00042)*30, woby=Math.sin(now*0.00069+1.7)*10;
+      g.fillStyle=L>0.5?"rgba(40,46,58,0.85)":"rgba(120,130,155,0.6)";
+      for(var mb=0;mb<mn;mb++){ var mhh=((msd+mb*40503)>>>0);
+        var ax=Math.sin(now*0.0011+(mhh%13))*(6+(mhh%11)), ay=Math.cos(now*0.0013+(mhh%7))*(3+(mhh%7));
+        var mwx=wrapW(mcx+wob+ax), myy=mcy+woby+ay;
+        for(var mo=-WW;mo<=WW;mo+=WW){ var MX=(mwx-WOFF+mo)|0; if(MX<-2||MX>SW+2) continue;
+          g.fillRect(MX,myy|0,1,1); } }
+    }
+  }
 }
 // SONGBIRDS hop the meadow and flit up into the canopies
 function drawSongbirds(g,L,now){
@@ -2040,6 +2056,12 @@ function buildWorld(li){
   r=rng(seed+47); buskers=[];
   for(var bkx=12; bkx<WW; bkx+=40+((r()*36)|0)){ if(districtAt(bkx).name!=="neon") continue;
     buskers.push({x:bkx, s:(r()*1e6)|0}); }
+  // THE PUB: one or two locals on the strip — patio tables, pints, a warm doorway (own seed, additive)
+  r=rng(seed+71); pubs=[];
+  var npub=1+((r()*2)|0);
+  for(i=0;i<npub;i++){ var pbx=Math.round(WW*(0.18+r()*0.64));
+    if(districtAt(pbx).name==="industrial"||inSea(pbx)) pbx=Math.round(WW*(0.5+0.1*r()));
+    pubs.push({x:pbx, s:(r()*1e6)|0}); }
   // subway entrances: stairway kiosks on the sidewalk (kept out of the industrial edges)
   r=rng(seed+67); subways=[];
   var sfr=[0.12,0.36,0.58,0.84];
@@ -2061,11 +2083,12 @@ function buildWorld(li){
   helipads=[];
   for(var hlL=0;hlL<2;hlL++){ var ly=hlL?mid:near;
     for(i=0;i<ly.blds.length;i++){ var hb=ly.blds[i];
-      if(hb.crown==="helipad") helipads.push({x:hb.x+hb.topDx+(hb.topW>>1), y:(hb.y0-hb.h)-1}); } }
+      if(hb.crown==="helipad") helipads.push({x:hb.x+hb.topDx+(hb.topW>>1), y:(hb.y0-hb.h)-1,
+        bAge:hb.bAge, band:hb.band, bx:hb.x, bw:hb.w, nr:hlL?0:1}); } }   // bAge/band + plot: a pad only opens once its tower actually TOPS OUT (and isn't yielded to a plaza/site)
   // airport on the city's edge (a control tower + beacon; planes depart/arrive from here)
   airportX=Math.round(WW*0.8);
 }
-var cars=[], sprops=[], busstops=[], vents=[], pigeons=[], docks=[], buskers=[], boats=[], helipads=[], sites=[];
+var cars=[], sprops=[], busstops=[], vents=[], pigeons=[], docks=[], buskers=[], boats=[], helipads=[], sites=[], pubs=[];
 var hasOcean=true;   // set per life in buildWorld — landlocked cities have no waterfront at all
 var subways=[];      // street-level subway entrances (generated per life)
 var skybridges=[];   // G1: lit tube bridges between adjacent transformed towers
@@ -2088,6 +2111,31 @@ function crosser(now, period, speed, len, dwellFrac){
   var dir=(idx%2===0)?1:-1;
   var x=dir>0 ? (-len+speed*ph) : (WW+len-speed*ph);
   return { x:x, dir:dir, len:len, idx:idx };
+}
+// like crosser(), but the bus CALLS at every shelter along the way — constant cruise between
+// stops, a ~2.2s door-open dwell nose-to-shelter, then on. Pure function of the clock (the
+// train's dwell math, brought down to street level).
+var BUS_DWELL=2200;
+function busCrosser(now, period, speed, len, dwellFrac){
+  if(!busstops.length) return crosser(now,period,speed,len,dwellFrac);
+  speed*=KSP;
+  var idx=Math.floor(now/period), ph=now-idx*period, dir=(idx%2===0)?1:-1;
+  var span=WW+len*2, nst=busstops.length;
+  var dur=Math.min(span/speed+nst*BUS_DWELL, period*(dwellFrac||0.5)*1.6);
+  if(ph>dur) return null;
+  var t=ph, d=0, i, sd;
+  for(i=0;i<nst;i++){
+    var sx=busstops[dir>0?i:nst-1-i];
+    sd=dir>0 ? sx+7 : (WW+len-sx+5);               // path distance where the DOOR meets the shelter
+    if(sd<=d||sd>=span) continue;
+    var seg=(sd-d)/speed;
+    if(t<seg){ d+=t*speed; return {x:dir>0?d-len:WW+len-d, dir:dir, len:len, idx:idx, stopped:false}; }
+    t-=seg; d=sd;
+    if(t<BUS_DWELL) return {x:dir>0?d-len:WW+len-d, dir:dir, len:len, idx:idx, stopped:true, stopX:sx, k:t/BUS_DWELL};
+    t-=BUS_DWELL;
+  }
+  d+=t*speed; if(d>span) return null;
+  return {x:dir>0?d-len:WW+len-d, dir:dir, len:len, idx:idx, stopped:false};
 }
 var TRSTOPS=[0.18,0.5,0.78];                                   // elevated-station positions (world fractions)
 var TRLINE=["#e0483a","#3a70d0","#3ac86a","#eec83a","#b05ad0","#ff8a3c"];   // the LINES: red/blue/green/yellow/purple/orange
@@ -2167,25 +2215,41 @@ function pantsOf(c){ var v=PANTC[c]; if(v) return v;
 // a PROPER pixel person: hair, face with an eye, shoulders, swinging arms, two-tone
 // clothes, striding legs and shoes (4x7 — feet still land at y+2, so every call site
 // keeps working; heads just reach higher)
-function drawPerson(g,x,y,cloth,skin,bob){
-  var yy=(y-bob)|0, X=x|0;
+function drawPerson(g,x,y,cloth,skin,bob,kind){
+  // bob is a WALK FRAME 0..3: 0 contact / 1 stride (lifted) / 2 contact / 3 counter-stride
+  // (lifted, other leg leads). Legacy callers pass 0/1 and render exactly as before.
+  // kind: undefined/0 adult · 1 child (one head shorter, no accessories) · 2 elder (silver + cane)
+  var f=(bob|0)&3, lift=(f===1||f===3)?1:0, yy=(y-lift)|0, X=x|0;
   var hseed=(cloth.charCodeAt(1)+cloth.charCodeAt(3)+skin.charCodeAt(2));
   var pants=pantsOf(cloth);
-  g.fillStyle=HAIRC[hseed%HAIRC.length];
-  g.fillRect(X,yy-4,2,1); g.fillRect(X+((hseed&1)?1:-0),yy-3,1,1);      // hair + a little sweep
-  g.fillStyle=skin; g.fillRect(X,yy-3,2,1);                             // face…
-  g.fillStyle="rgba(20,16,14,0.85)"; g.fillRect(X+((hseed>>2)&1),yy-3,1,1);   // …with an eye
-  g.fillStyle=cloth; g.fillRect(X-1,yy-2,4,1);                          // shoulders
-  g.fillRect(X,yy-1,2,2);                                               // jacket
-  if(bob){ g.fillStyle=cloth; g.fillRect(X-1,yy-1,1,1); g.fillRect(X+2,yy,1,1);      // arms swing
-           g.fillStyle=skin;  g.fillRect(X-1,yy,1,1);   g.fillRect(X+2,yy+1,1,1); }  // hands
-  else   { g.fillStyle=cloth; g.fillRect(X-1,yy-1,1,2); g.fillRect(X+2,yy-1,1,2);
-           g.fillStyle=skin;  g.fillRect(X-1,yy+1,1,1); g.fillRect(X+2,yy+1,1,1); }
+  if(kind===1){                                                          // a child — same feet, smaller frame
+    g.fillStyle=HAIRC[hseed%HAIRC.length]; g.fillRect(X,yy-3,2,1);
+    g.fillStyle=skin; g.fillRect(X,yy-2,2,1);
+    g.fillStyle="rgba(20,16,14,0.85)"; g.fillRect(X+((hseed>>2)&1),yy-2,1,1);
+    g.fillStyle=cloth; g.fillRect(X,yy-1,2,2);                           // little jacket, no shoulder row
+  } else {
+    g.fillStyle=(kind===2)?"#cfd2d6":HAIRC[hseed%HAIRC.length];
+    g.fillRect(X,yy-4,2,1); g.fillRect(X+((hseed&1)?1:-0),yy-3,1,1);      // hair + a little sweep
+    g.fillStyle=skin; g.fillRect(X,yy-3,2,1);                             // face…
+    g.fillStyle="rgba(20,16,14,0.85)"; g.fillRect(X+((hseed>>2)&1),yy-3,1,1);   // …with an eye
+    g.fillStyle=cloth; g.fillRect(X-1,yy-2,4,1);                          // shoulders
+    g.fillRect(X,yy-1,2,2);                                               // jacket
+    if(f===1){ g.fillStyle=cloth; g.fillRect(X-1,yy-1,1,1); g.fillRect(X+2,yy,1,1);      // arms swing
+             g.fillStyle=skin;  g.fillRect(X-1,yy,1,1);   g.fillRect(X+2,yy+1,1,1); }  // hands
+    else if(f===3){ g.fillStyle=cloth; g.fillRect(X-1,yy,1,1); g.fillRect(X+2,yy-1,1,1); // counter-swing
+             g.fillStyle=skin;  g.fillRect(X-1,yy+1,1,1); g.fillRect(X+2,yy,1,1); }
+    else   { g.fillStyle=cloth; g.fillRect(X-1,yy-1,1,2); g.fillRect(X+2,yy-1,1,2);
+             g.fillStyle=skin;  g.fillRect(X-1,yy+1,1,1); g.fillRect(X+2,yy+1,1,1); }
+  }
   g.fillStyle=pants;
-  if(bob){ g.fillRect(X-1,yy+1,1,1); g.fillRect(X+1,yy+1,1,1);          // legs mid-stride
+  if(f===1){ g.fillRect(X-1,yy+1,1,1); g.fillRect(X+1,yy+1,1,1);          // legs mid-stride
            g.fillStyle="#1c1a18"; g.fillRect(X-1,yy+2,1,1); g.fillRect(X+1,yy+2,1,1); }   // shoes
+  else if(f===3){ g.fillRect(X,yy+1,1,1); g.fillRect(X+2,yy+1,1,1);       // the other leg leads
+           g.fillStyle="#1c1a18"; g.fillRect(X,yy+2,1,1); g.fillRect(X+2,yy+2,1,1); }
   else   { g.fillRect(X,yy+1,2,1);
            g.fillStyle="#1c1a18"; g.fillRect(X,yy+2,2,1); }
+  if(kind===2){ g.fillStyle="#9a8a6a"; g.fillRect(X+3,yy,1,3); }          // the cane, planted ahead
+  if(kind===1) return;                                                     // kids carry nothing formal
   // deterministic accessories — a hat or a carried bag — add crowd variety with no new call args
   var acc=hseed%9;
   if(acc<2){ g.fillStyle=PEDC[(hseed*7)%PEDC.length]; g.fillRect(X-1,yy-4,3,1); g.fillRect(X,yy-5,2,1); }   // a hat (brim + crown) over the hair
@@ -2758,6 +2822,33 @@ function drawPark(g,p,bx,L,now,dayLit,night){
         g.fillRect(px0+1,grassTop+2,pw2-2,1); g.globalCompositeOperation="source-over"; }
       if(p.fountain){ g.fillStyle="rgba(200,230,255,0.75)"; g.fillRect(px0+(pw2>>1),grassTop-2,1,3);
         g.fillRect(px0+(pw2>>1)-1,grassTop-1,3,1); } } }
+  // weekend picnics on a clear day: a blanket, two friends, a basket and a bottle catching the sun
+  var pnd=nowDate(), pdow=pnd.getDay(), phr=pnd.getHours();
+  if((pdow===0||pdow===6) && dayLit>0.55 && !wmood.wet && !wmood.snow && phr>=10 && phr<18 && p.w>14){
+    var pkx=bx+4+((p.seed||p.w)%Math.max(1,p.w-12));
+    g.fillStyle="#b03a4a"; g.fillRect(pkx,grassTop+2,5,1); g.fillStyle="#d9d2c2"; g.fillRect(pkx+1,grassTop+2,1,1); g.fillRect(pkx+3,grassTop+2,1,1);   // the checkered blanket
+    drawSeated(g,pkx,grassTop,PEDC[(p.w*3+1)%PEDC.length],SKINC[p.w%SKINC.length]);
+    drawSeated(g,pkx+3,grassTop,PEDC[(p.w*5+2)%PEDC.length],SKINC[(p.w+2)%SKINC.length]);
+    g.fillStyle="#6a4a2a"; g.fillRect(pkx+2,grassTop+1,1,1);                                     // the basket
+    if(((Math.floor(now/900))&3)===0){ g.fillStyle="rgba(150,220,120,0.9)"; g.fillRect(pkx+5,grassTop+1,1,1); }   // the bottle glints
+  }
+  // a kite over the park on a breezy clear day — diamond, swaying tail, a kid on the string
+  if(QUAL>0 && dayLit>0.6 && !wmood.wet && !wmood.snow && (weather.wind||0)>=8 && p.w>12 && ((p.w*7)%3)!==1){
+    var kx=bx+(p.w>>1)+Math.sin(now*0.0016+p.w)*3, ky=grassTop-17-((p.w*7)%5)+Math.sin(now*0.0011+p.w)*2;
+    var kc=["#ff5a5a","#3a8aff","#ffd23a"][p.w%3], kX=kx|0, kY=ky|0;
+    g.fillStyle=kc; g.fillRect(kX,kY,2,2); g.fillRect(kX-1,kY+1,1,1); g.fillRect(kX+2,kY+1,1,1);   // the diamond
+    for(var kt=1;kt<4;kt++) g.fillRect((kX+1+Math.sin(now*0.004+kt)*1.4)|0,kY+1+kt*2,1,1);          // the tail flicks
+    g.fillStyle="rgba(200,205,215,0.30)";
+    for(var ks=1;ks<5;ks++) g.fillRect((kX+1+(bx+(p.w>>1)-kX-1)*ks/5)|0,(kY+2+(grassTop-2-kY)*ks/5)|0,1,1);   // the string
+    drawPerson(g,bx+(p.w>>1),grassTop,PEDC[p.w%PEDC.length],SKINC[(p.w*3)%SKINC.length],0,1);      // the kid flying it
+  }
+  // a birthday-bright balloon in a small fist on weekend afternoons
+  if(dayLit>0.55 && (pdow===0||pdow===6) && p.w>10 && ((p.w*11)%4)===0){
+    var blx=bx+3+((p.w*13)%Math.max(1,p.w-6)), blc=["#ffe08a","#ff7ad0","#7affd7"][((blx>>1)+(Math.floor(now/700)))%3];
+    drawPerson(g,blx,grassTop+1,PEDC[(p.w+2)%PEDC.length],SKINC[(p.w+1)%SKINC.length],0,1);
+    g.fillStyle="rgba(200,205,215,0.35)"; g.fillRect(blx+2,grassTop-4,1,3);                        // the string
+    g.fillStyle=blc; g.fillRect(blx+1,grassTop-6,3,2); g.fillRect(blx+2,grassTop-7,1,1);           // the balloon bobbing
+  }
   // trees — foliage colour follows the season (green summer, gold autumn, bare winter, blossoms spring)
   var se=curSeason||seasonInfo(nowDate());
   for(var ti=0;ti<p.trees.length;ti++){ var t=p.trees[ti];
@@ -2820,7 +2911,12 @@ function drawRooftop(g,b,tX,top,tW,L,now,night){
     if(night>0.3){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,210,140,0.12)"; g.fillRect(tX,roofY-5,tW,5); g.globalCompositeOperation="source-over"; }
     g.fillStyle=L>0.5?"#6a5238":"#241a12"; g.fillRect(tX+1,roofY-1,Math.min(tW-2,5),1);                 // bar counter
     var np=1+(b.seed%2);
-    for(var p=0;p<np;p++) drawPerson(g,tX+2+p*3,roofY-3,["#c05a8a","#5ac0c0","#e6e6ea"][(b.seed+p)%3],SKINC[(b.seed+p)%SKINC.length],0);
+    for(var p=0;p<np;p++){ var prx=tX+2+p*3, lift9=(((Math.floor(now/700)+b.seed*3+p*5)%5)===0)?2:0;    // and every so often a toast goes up
+      drawPerson(g,prx,roofY-3,["#c05a8a","#5ac0c0","#e6e6ea"][(b.seed+p)%3],SKINC[(b.seed+p)%SKINC.length],0);
+      g.fillStyle="#ffb23a"; g.fillRect(prx+2,roofY-2-lift9,1,1);                                       // the amber pint
+      g.fillStyle="rgba(255,246,224,0.8)"; g.fillRect(prx+2,roofY-3-lift9,1,1); }                       // with its foam head
+    if(night>0.3&&tW>=10){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,90,180,0.5)";     // a little cocktail-glass neon by the door
+      g.fillRect(tX+tW-2,roofY-6,1,2); g.globalCompositeOperation="source-over"; }
     if(tW>=14){ g.fillStyle="#d23b3b"; g.fillRect(tX+tW-5,roofY-4,4,1); g.fillStyle="#6a6a76"; g.fillRect(tX+tW-3,roofY-4,1,3); }  // umbrella
   } else if(b.rtop==="pool"){
     var pw=Math.max(3,tW-5); g.fillStyle=css(mixc([26,70,110],[92,170,210],L)); g.fillRect(tX+2,roofY-2,pw,2);
@@ -3308,19 +3404,32 @@ function drawTrainLine(g,L,now,fx){
   // ELEVATED STATIONS: platform + canopy + stair shaft + line signs + waiting riders
   for(var st2=0; st2<TRSTOPS.length; st2++){ var wxs=Math.round(TRSTOPS[st2]*WW);
     if(wxs>built || (blasted&&nukeHit(wxs))) continue;          // a station opens when the line reaches it — and is blasted away with the viaduct
+    var due=(tr && Math.abs(tr.x-wxs)<260 && ((tr.dir>0)===(tr.x<wxs)));           // a train is closing on this platform
     for(var sw2=-1;sw2<=1;sw2++){ var SXs=(wxs-WOFF+sw2*WW)|0; if(SXs<-14||SXs>SW+14) continue;
       g.fillStyle=L>0.5?"#5a5266":"#1d1a2a"; g.fillRect(SXs-8,ty-1,17,1);          // platform slab
+      g.fillStyle=L>0.5?"#c9a94e":"#584a24"; for(var wd2=SXs-8;wd2<SXs+9;wd2+=2) g.fillRect(wd2,ty-2,1,1);   // tactile warning strip along the edge
       g.fillStyle=L>0.5?"#6a6276":"#242032"; g.fillRect(SXs-7,ty-6,15,1);          // canopy
+      g.fillStyle=L>0.5?"#7a7288":"#2e2a42"; for(var rb2=SXs-6;rb2<SXs+8;rb2+=3) g.fillRect(rb2,ty-7,1,1);   // ribbed canopy spine
       g.fillStyle=L>0.5?"#4a4356":"#171522"; g.fillRect(SXs-7,ty-5,1,4); g.fillRect(SXs+7,ty-5,1,4);   // canopy posts
       g.fillStyle=L>0.5?"#3a3346":"#12101c"; g.fillRect(SXs+9,ty,2,HORIZON-ty);    // stair shaft down to the street
       g.fillStyle=L>0.5?"#8a8296":"#3a3648"; for(var stp=ty+2; stp<HORIZON-1; stp+=3) g.fillRect(SXs+9,stp,2,1);   // steps
+      g.fillStyle=L>0.5?"#6a6478":"#262236"; g.fillRect(SXs+12,ty+1,1,HORIZON-ty-2);   // stair handrail
       for(var lc2=0;lc2<3;lc2++){ g.fillStyle=TRLINE[(st2+lc2)%TRLINE.length]; g.fillRect(SXs-6+lc2*2,ty-8,1,1); } // lines-served signs
+      g.fillStyle=L<0.6?"#ffd98a":"#d9dde8"; g.fillRect(SXs+1,ty-9,6,2);           // the lit station name board over the canopy
+      g.fillStyle="rgba(30,28,40,0.85)"; g.fillRect(SXs+2,ty-9,1,1); g.fillRect(SXs+4,ty-9,1,1); g.fillRect(SXs+6,ty-9,1,1);   // lettering
+      if(due && (Math.floor(now/350)&1)){ g.fillStyle="#ffb23a"; g.fillRect(SXs+1,ty-11,1,1); }   // NEXT TRAIN blinker as one closes in
       if(L<0.6){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,235,180,0.16)";
-        g.fillRect(SXs-8,ty-5,17,4); g.globalCompositeOperation="source-over"; }   // platform lighting
+        g.fillRect(SXs-8,ty-5,17,4); g.fillStyle="rgba(255,220,150,0.22)"; g.fillRect(SXs,ty-10,8,4);
+        g.globalCompositeOperation="source-over"; }   // platform + name-board lighting
+      g.fillStyle=L>0.5?"#6a5238":"#1a1510"; g.fillRect(SXs+2,ty-3,4,1); g.fillRect(SXs+2,ty-2,1,1); g.fillRect(SXs+5,ty-2,1,1);   // platform bench
       if(trC===null || Math.abs((trC-WOFF+sw2*WW)-SXs)>12){                        // riders wait — unless they're boarding
         var nw=1+((Math.floor(now/8000)+st2)%3);
-        for(var rw=0;rw<nw;rw++){ var rxp=SXs-5+rw*4+((st2*7+rw*13)%3);
-          drawPerson(g,rxp,ty-4,PEDC[(st2*5+rw)%PEDC.length],SKINC[(st2+rw)%SKINC.length],0); } }
+        for(var rw=0;rw<nw;rw++){ var rxp=SXs-6+rw*3+((st2*7+rw*13)%2);
+          var wcheck=(((Math.floor(now/700)+st2*3+rw*5)%9)===0)?1:0;               // a glance at the watch now and then
+          drawPerson(g,rxp,ty-4,PEDC[(st2*5+rw)%PEDC.length],SKINC[(st2+rw)%SKINC.length],0);
+          if(wcheck){ g.fillStyle=SKINC[(st2+rw)%SKINC.length]; g.fillRect(rxp-1,ty-7,1,1); } }
+        drawSeated(g,SXs+3,ty-5,PEDC[(st2*3+1)%PEDC.length],SKINC[(st2*2+1)%SKINC.length]);   // and one waits on the bench
+      }
     } }
   if(tr){ var carLen=15, gap=2, unit=carLen+gap, ncar=Math.max(2,Math.floor(tr.len/unit));
     var lc=TRLINE[((tr.idx%TRLINE.length)+TRLINE.length)%TRLINE.length];
@@ -3378,9 +3487,17 @@ function drawTrainLine(g,L,now,fx){
 // ---- helicopter: on a schedule it flies in, lands on a rooftop helipad, sits, departs ----
 function chopperNow(now){
   if(!helipads||helipads.length===0) return null;
+  var nb=0, hi, hp;                                         // only pads whose tower is really THERE: topped out,
+  for(hi=0;hi<helipads.length;hi++){ hp=helipads[hi];       // not yielded to a landmark plaza, not a construction site
+    if(cityG>=hp.bAge+hp.band && !overLandmark(hp.bx,hp.bw) && !(hp.nr&&overSite(hp.bx,hp.bw))) nb++; }
+  if(nb===0) return null;
   var SLOT=44000, idx=Math.floor(now/SLOT), r=rng((idx*2654435761)>>>0);
   if(r()>0.72) return null;                                 // ~72% of slots have a chopper somewhere
-  var pad=helipads[(r()*helipads.length)|0], adir=(r()<0.5?1:-1);
+  var pick=(r()*nb)|0, pad=null;
+  for(hi=0;hi<helipads.length;hi++){ hp=helipads[hi];
+    if(cityG<hp.bAge+hp.band || overLandmark(hp.bx,hp.bw) || (hp.nr&&overSite(hp.bx,hp.bw))) continue;
+    if(pick===0){ pad=hp; break; } pick--; }
+  var adir=(r()<0.5?1:-1);
   var t=(now-idx*SLOT)/(SLOT*0.92); if(t>1) return null;
   var px=pad.x, py=pad.y, sX=px-adir*130, sY=py-64, x,y,rotor,landed;
   if(t<0.32){ var u=t/0.32, e=u*u*(3-2*u); x=lerp(sX,px,e); y=lerp(sY,py,e); rotor=1; landed=false; }
@@ -3614,7 +3731,16 @@ function drawStreetProps(g,L,now,night){
         g.fillRect(X-3,gy-7,8,1); g.fillRect(X-3,gy-7,1,7); g.fillRect(X+4,gy-7,1,7);   // roof + posts
         g.fillStyle=L>0.5?"#6a5238":"#1a1510"; g.fillRect(X-2,gy-2,5,1);                // bench
         if(L<0.66){ g.fillStyle="#7ab8ff"; g.fillRect(X+4,gy-6,1,2); }                  // lit sign
-        var nW=(pr()*3)|0; for(var q2=0;q2<nW;q2++) drawPerson(g,X-2+q2*2,gy-4,PEDC[(pr()*PEDC.length)|0],SKINC[(pr()*SKINC.length)|0],0);
+        var rollW=(pr()*3)|0, hrB=nowDate().getHours(), nW;                             // ridership follows the clock:
+        if((hrB>=7&&hrB<9)||(hrB>=16&&hrB<18)) nW=2+(rollW&1);                          // rush-hour queues,
+        else if(hrB>=2&&hrB<5) nW=0;                                                    // nobody in the dead of night,
+        else if(hrB>=22||hrB<2) nW=rollW>1?1:0;                                         // a late soul or two,
+        else nW=rollW;                                                                  // and a daytime trickle
+        for(var q2=0;q2<nW;q2++) drawPerson(g,X-2+q2*2,gy-4,PEDC[(pr()*PEDC.length)|0],SKINC[(pr()*SKINC.length)|0],0);
+        if(hrB>=1&&hrB<4&&((sp.s%3)===0)){                                              // the 2am lonesoul on the bench
+          drawSeated(g,X,gy-4,"#3a3a44",SKINC[sp.s%SKINC.length]);
+          if(((Math.floor(now/1500))%6)===0){ g.fillStyle="#c9c2a8"; g.fillRect(X+2,gy-5,1,1); }   // a quiet pull from the flask
+        }
       } else if(k==="foodcart"){ var uc=NEON[(sp.s)%NEON.length];
         g.fillStyle="#c8ccd6"; g.fillRect(X-2,gy-3,6,3);                                // cart
         g.fillStyle="#8a929e"; g.fillRect(X-2,gy-1,6,1);
@@ -3745,6 +3871,60 @@ function drawBuskers(g,L,now,busyN){
         g.fillStyle="rgba(255,220,120,"+(0.85*(1-t/50))+")"; g.fillRect((X+3+Math.sin(now*0.004+n)*2)|0,(gy-2-t*0.3)|0,1,1); }
       var crowd=2+((pr()*2)|0);
       for(var c2=0;c2<crowd;c2++) drawPerson(g,X-2-c2*2,gy,PEDC[(pr()*PEDC.length)|0],SKINC[(pr()*SKINC.length)|0],0);
+    }
+  }
+}
+
+// ---- THE PUB: patio tables on the strip, pints going up, a warm doorway — and at closing
+// time a stumbler weaving home. Opens with the evening, locks up at 2am. ----
+function drawPubs(g,L,now){
+  if(cityG<0.5) return;
+  var hrP=nowDate().getHours(), open=(hrP>=11&&hrP<24)||hrP<2, gy=HORIZON-1, night=1-L;
+  for(var i=0;i<pubs.length;i++){ var pb=pubs[i];
+    if(cityG < 0.5+((pb.s%997)/997)*0.2) continue;                       // each pub opens as its block matures
+    for(var wp=-1;wp<=1;wp++){ var X=(pb.x-WOFF+wp*WW)|0; if(X<-12||X>SW+12) continue;
+      g.fillStyle=L>0.5?"#7a3a2a":"#2e150e"; g.fillRect(X-6,gy-8,13,1);   // timber fascia
+      g.fillStyle=L>0.5?"#4a2418":"#1c0d08"; g.fillRect(X-6,gy-7,1,7); g.fillRect(X+6,gy-7,1,7);   // posts
+      g.fillStyle=(open&&L<0.66)?"#ffcf6a":"#6a5a3a"; g.fillRect(X-3,gy-10,7,2);   // THE LANTERN — the hanging sign
+      g.fillStyle="rgba(40,24,10,0.9)"; g.fillRect(X-2,gy-10,1,1); g.fillRect(X,gy-10,1,1); g.fillRect(X+2,gy-10,1,1);   // lettering
+      g.fillStyle="#ffb23a"; g.fillRect(X+4,gy-10,1,1); g.fillStyle="rgba(255,246,224,0.9)"; g.fillRect(X+4,gy-11,1,1);  // the pint on the sign
+      if(open&&night>0.34){ g.globalCompositeOperation="lighter";
+        g.fillStyle="rgba(255,190,110,0.22)"; g.fillRect(X-4,gy-9,9,4);   // sign lamp
+        g.fillStyle="rgba(255,180,90,0.16)"; g.fillRect(X-1,gy-6,3,6);    // doorway spill
+        g.globalCompositeOperation="source-over"; }
+      if(open){
+        for(var tb=0;tb<2;tb++){ var tx9=X+(tb?-5:2);                     // two patio tables
+          g.fillStyle=L>0.5?"#6a5238":"#241a12"; g.fillRect(tx9,gy-2,3,1); g.fillRect(tx9+1,gy-1,1,1);   // table + leg
+          var lift9=(((Math.floor(now/650)+pb.s+tb*3)%6)===0)?1:0;        // a pint rises in a toast
+          g.fillStyle="#ffb23a"; g.fillRect(tx9+1,gy-3-lift9,1,1);
+          g.fillStyle="rgba(255,246,224,0.85)"; g.fillRect(tx9+1,gy-4-lift9,1,1);
+          drawSeated(g,tx9-1,gy-4,PEDC[(pb.s+tb)%PEDC.length],SKINC[(pb.s+tb*2)%SKINC.length]);
+          if(((pb.s>>2)+tb)%3!==0) drawSeated(g,tx9+3,gy-4,PEDC[(pb.s+tb*3+1)%PEDC.length],SKINC[(pb.s+tb+1)%SKINC.length]); }
+        if(hrP>=22||hrP<2){                                               // closing time: someone weaves home
+          var st9=((now/26000)%1), swx=X+8+st9*46, swy=Math.sin(now*0.012+pb.s)*1.2;
+          if(swx<SW+6) drawPerson(g,(swx+swy)|0,gy,PEDC[pb.s%PEDC.length],SKINC[(pb.s>>3)%SKINC.length],Math.floor(now*0.005+pb.s)&3); }
+      }
+    }
+  }
+}
+// ---- doorway smokers: a couple of night owls step out for a cigarette — the ember
+// brightens on the drag, a thin wisp climbs and thins into the dark ----
+function drawSmokers(g,L,now){
+  if(L>=0.45||cityG<0.45||!near||!near.blds.length) return;
+  var slot=Math.floor(now/52000);                                        // smokers rotate doorways every ~52s
+  for(var s9=0;s9<2;s9++){ var hh9=((slot*2654435761+s9*40503+13)>>>0);
+    var b9=near.blds[hh9%near.blds.length];
+    if(!b9||b9.type==="park"||b9.h<14||overLandmark(b9.x,b9.w)) continue;
+    if(cityG<(b9.bAge||0)) continue;                                     // the building must actually stand
+    var wx9=b9.x+2+(hh9>>4)%Math.max(1,b9.w-4);
+    for(var wp2=-1;wp2<=1;wp2+=1){ var SX9=(wx9-WOFF+wp2*WW)|0; if(SX9<-4||SX9>SW+4) continue;
+      var gy9=HORIZON-1, drag=((now+((hh9>>2)%3000))%3400)<420;           // the pull on the cigarette
+      drawPerson(g,SX9,gy9,["#3a3a44","#4a3a5a","#2f4a3a"][hh9%3],SKINC[(hh9>>8)%SKINC.length],0);
+      g.fillStyle=drag?"#ff7a2a":"#b03a1a"; g.fillRect(SX9+2,gy9-3,1,1);  // the ember
+      if(drag){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,140,60,0.35)"; g.fillRect(SX9+1,gy9-4,3,3); g.globalCompositeOperation="source-over"; }
+      if(QUAL>0) for(var pw9=0;pw9<2;pw9++){ var t9=((now*0.02)+pw9*40+(hh9%97))%70;
+        g.fillStyle="rgba(190,196,205,"+(0.30*(1-t9/70))+")";
+        g.fillRect((SX9+2+Math.sin(now*0.003+pw9*2+hh9)*1.5)|0,(gy9-4-t9*0.22)|0,1,1); }   // the wisp
     }
   }
 }
@@ -6765,36 +6945,67 @@ function drawMountains(g,L,now,nd){
     }
   }
 }
-// tiny mountaineers roping up the TALLEST peaks — a fair-weather daytime sight. Deterministic & very slow
-// (a summit push takes the better part of an hour). Sized as SPECKS against the mountain (2px vs ~100px peaks).
+// THE EXPEDITION: once per life a party attempts the tallest peak — a MULTI-DAY story you
+// follow each morning. Life-chapters (cy*9): ch2 basecamp rises · ch3 the lower route +
+// camp one · ch4 the upper route + a camp at the snowline · ch5 the dawn summit push and a
+// FLAG planted on top · the flag then waves until the world ends. Camps persist, climbers
+// sit out storms and nights, everything is a pure function of the clock (freeze-safe).
 function drawClimbers(g,L,now,nd,fx){
   if(!mts||!mtsCache||cityPhase==="apoc") return;              // no mountains / not during the apocalypse
-  if(L<0.42||fx.thunder||fx.snow||fx.rain) return;             // clear-ish daylight only
   var peaks=mts.near; if(!peaks||!peaks.length) return;
   var mx=mtsCache.mx[1]; if(mx<40*KSP) return;                 // needs a real, tall range
-  var hs=mtsCache.h[1], gy=HORIZON, drawn=0;
-  for(var pk=0; pk<peaks.length && drawn<2; pk++){ var p0=peaks[pk];
-    if(p0.h < mx*0.82) continue;                               // only the TALLEST peaks are worth the ascent
-    var apexSx=p0.x-WOFF; if(apexSx>SW+40&&apexSx-WW>-40)apexSx-=WW; if(apexSx<-40&&apexSx+WW<SW+40)apexSx+=WW;
-    if(apexSx<-30||apexSx>SW+30) continue;                     // this peak isn't on this screen
-    var ph=((p0.x*13+7)>>>0), side=(ph&1)?1:-1;               // which flank the party ascends
-    var routeW=Math.min(p0.w*0.68, 70);                        // horizontal span of the switchback route
-    var CYC=2400000, baseP=((now+ph%CYC)%CYC)/CYC;             // ~40 min per summit push (climbing is slow)
-    var col=["#e0503a","#e0a030","#d8d040"][ph%3];            // a bright jacket, so the speck reads against grey stone
+  var hs=mtsCache.h[1], gy=HORIZON;
+  var chapF=cityGrowth(now).cy*9, ch=Math.floor(chapF), chF=chapF-ch;
+  if(ch<2) return;                                             // the range rests while the town is young
+  var best=null;                                               // the life's CHOSEN peak: the tallest on the ridge
+  for(var pk=0;pk<peaks.length;pk++){ if(!best||peaks[pk].h>best.h) best=peaks[pk]; }
+  var p0=best;
+  var apexSx=p0.x-WOFF; if(apexSx>SW+80&&apexSx-WW>-80)apexSx-=WW; if(apexSx<-80&&apexSx+WW<SW+80)apexSx+=WW;
+  if(apexSx<-70||apexSx>SW+70) return;                         // the peak isn't on this screen
+  var ph=(((p0.x*13+7)|0)^(lifeIndexOf(now)*40503))>>>0, side=(ph&1)?1:-1;
+  var routeW=Math.min(p0.w*0.68, 70);
+  var col=["#e0503a","#e0a030","#d8d040"][ph%3];               // the party's bright shells
+  function routePt(frac){ var cx=apexSx-side*(1-frac)*routeW, ci=Math.round(cx);
+    if(ci<0)ci=0; if(ci>=SW)ci=SW-1; var sh=hs[ci]; return {x:ci, y:gy-sh-1, ok:sh>=2}; }
+  var nightE=L<0.4, storm=fx.thunder||fx.rain||fx.snow;
+  // ---- BASECAMP (ch2 morning → struck after the summit) ----
+  if(ch>=2&&ch<=5){ var bc=routePt(0.12);
+    if(bc.ok && !(ch===2&&chF<0.1)){
+      for(var tn=0;tn<2;tn++){ var tx0=bc.x-3+tn*6, ty0=gy-((hs[Math.max(0,Math.min(SW-1,tx0+1))]|0))-1;
+        g.fillStyle=tn?"#c9542e":"#d8973a";                    // two weathered tents
+        g.fillRect(tx0,ty0-1,3,1); g.fillRect(tx0+1,ty0-2,1,1);
+        if(nightE){ g.fillStyle="rgba(255,190,110,0.9)"; g.fillRect(tx0+1,ty0-1,1,1); } }   // lamplight through canvas
+      drawFlame(g,bc.x+2,gy-((hs[Math.max(0,Math.min(SW-1,bc.x+2))]|0))-1,2,3,now,ph,nightE?1:0.55);   // the cook-fire
+    } }
+  // ---- HIGH CAMPS: one on the shoulder, one at the snowline (each pitched mid-chapter, struck after ch5) ----
+  var camps=[[3,0.45],[4,0.72]];
+  for(var cm=0;cm<2;cm++){ var cch=camps[cm][0], cfr=camps[cm][1];
+    if((ch>cch || (ch===cch&&chF>0.55)) && ch<=5){ var cp=routePt(cfr);
+      if(cp.ok){ g.fillStyle="#c9542e"; g.fillRect(cp.x-1,cp.y,3,1); g.fillRect(cp.x,cp.y-1,1,1);
+        if(nightE){ g.fillStyle="rgba(255,190,110,0.85)"; g.fillRect(cp.x,cp.y,1,1); } } } }
+  // ---- THE ROPE TEAM on the move (daylight, fair weather — the dawn push goes regardless) ----
+  var teamLo=-1, teamHi=-1, push=(ch===5&&chF<0.35);
+  if(ch===3) { teamLo=0.14; teamHi=0.14+0.31*chF; }
+  else if(ch===4){ teamLo=0.45; teamHi=0.45+0.27*chF; }
+  else if(push){ teamLo=0.72; teamHi=0.72+0.28*(chF/0.35); }
+  if(teamHi>0 && (push || (!nightE&&!storm))){
     var prevX=null, prevY=null;
-    for(var c=0;c<3;c++){ var pk2=baseP-c*0.08; if(pk2<0) pk2+=1;    // three roped together, spaced down the line
-      var frac=0.16+0.8*pk2, cx=apexSx-side*(1-frac)*routeW;         // frac 1 = at the summit, low = down the slope
-      var ci=Math.round(cx); if(ci<0)ci=0; if(ci>=SW)ci=SW-1;
-      var surfH=hs[ci]; if(surfH<2) continue;
-      var cy=gy-surfH-1;
-      if(prevX!=null){ for(var rr=1;rr<4;rr++){ var rf=rr/4;         // the rope between climbers
-        g.fillStyle="rgba(50,42,38,0.7)"; g.fillRect((cx+(prevX-cx)*rf)|0,(cy+(prevY-cy)*rf)|0,1,1); } }
-      g.fillStyle=col; g.fillRect(ci,cy-1,1,2);                       // the climber — a 2px speck
-      g.fillStyle="rgba(18,14,12,0.85)"; g.fillRect(ci,cy,1,1);       // legs a touch darker
-      prevX=cx; prevY=cy;
-    }
-    drawn++;
+    for(var c=0;c<3;c++){ var frac=teamHi-c*0.05; if(frac<teamLo) frac=teamLo;
+      var pt=routePt(frac); if(!pt.ok) continue;
+      if(prevX!=null){ for(var rr=1;rr<4;rr++){ var rf=rr/4;   // the rope between them
+        g.fillStyle="rgba(50,42,38,0.7)"; g.fillRect((pt.x+(prevX-pt.x)*rf)|0,(pt.y+(prevY-pt.y)*rf)|0,1,1); } }
+      g.fillStyle=col; g.fillRect(pt.x,pt.y-1,1,2);            // a 2px speck against the stone
+      g.fillStyle="rgba(18,14,12,0.85)"; g.fillRect(pt.x,pt.y,1,1);
+      prevX=pt.x; prevY=pt.y; }
   }
+  // ---- THE FLAG: planted at the top of the dawn push, waving until the world ends ----
+  if(ch>5 || (ch===5&&chF>=0.35)){ var ap=routePt(1);
+    if(ap.ok){ g.fillStyle="rgba(60,52,46,0.95)"; g.fillRect(ap.x,ap.y-3,1,3);      // the pole
+      var flap=(Math.floor(now/350)&1);
+      g.fillStyle=col; g.fillRect(ap.x+1,ap.y-3,2,1); if(!flap) g.fillRect(ap.x+3,ap.y-3,1,1);   // the pennant snapping
+      if(ch===5&&chF<0.5){ var cp5=routePt(0.93);              // the party lingers at the top, arms raised
+        if(cp5.ok){ g.fillStyle=col; g.fillRect(cp5.x,cp5.y-1,1,2); g.fillRect(cp5.x-1,cp5.y-2,1,1); g.fillRect(cp5.x+1,cp5.y-2,1,1); } }
+    } }
 }
 
 // ---- THE SETTLEMENT SURVIVES: hunters stalk game, gatherers forage the meadow, a cook-fire
@@ -9928,8 +10139,20 @@ function draw(g,pass){
   var BUSR=[["#3f7fbf","#2b5f95",26000,0.030,0],["#3aa864","#277a46",31000,0.028,9000],["#e0883a","#a05f24",37000,0.032,17000]];
   for(var brt=0;brt<BUSR.length;brt++){ var RB=BUSR[brt];
     if(cityG<0.45+brt*0.08 || (!apocPositional() && apocKill>0.3)) continue;   // non-positional deaths suspend service; nuke/meteors take each bus as the wave/impact reaches it
-    var bus=crosser(now+RB[4], (curMayor&&curMayor.party.k==="TRANSIT")?(RB[2]*0.65)|0:RB[2], RB[3], 20, 0.86);
-    if(bus && !nukeHit(bus.x)) drawBus(g, bus.x, bus.dir, L, now, RB[0], RB[1]);
+    var bus=busCrosser(now+RB[4], (curMayor&&curMayor.party.k==="TRANSIT")?(RB[2]*0.65)|0:RB[2], RB[3], 20, 0.86);
+    if(bus && !nukeHit(bus.x)){ drawBus(g, bus.x, bus.dir, L, now, RB[0], RB[1]);
+      if(bus.stopped){                                              // doors open at the shelter: riders board & alight
+        var doorW=bus.x+(bus.dir>0?bus.len-7:5), bsx9=bus.stopX, kq=bus.k;
+        for(var bq=0;bq<2;bq++){                                    // two waiters step from the shelter to the door
+          var bwx=lerp(bsx9-2+bq*2, doorW, Math.min(1,kq*1.5+bq*0.12)), bpx=bwx-WOFF;
+          if(bpx>SW+4&&bpx-WW>-4)bpx-=WW; if(bpx<-4&&bpx+WW<SW+4)bpx+=WW; if(bpx<-3||bpx>SW+3) continue;
+          if(kq*1.5+bq*0.12>=1) continue;                           // stepped aboard — gone
+          drawPerson(g,bpx|0,HORIZON-1,PEDC[(bus.idx*3+bq+brt)%PEDC.length],SKINC[(bus.idx+bq)%SKINC.length],Math.floor(now*0.006+bq*2)&3); }
+        var awx=doorW+(bus.dir>0?3:-3)+(bus.dir>0?1:-1)*kq*14, apx=awx-WOFF;  // one rider stepped off, walking away
+        if(apx>SW+4&&apx-WW>-4)apx-=WW; if(apx<-4&&apx+WW<SW+4)apx+=WW;
+        if(kq>0.15&&apx>=-3&&apx<=SW+3)
+          drawPerson(g,apx|0,HORIZON-1,PEDC[(bus.idx*7+brt)%PEDC.length],SKINC[(bus.idx*5)%SKINC.length],Math.floor(now*0.006)&3);
+      } }
   }
   // two-wheelers weave through the traffic once the town has real roads (motos, scooters, bicycles)
   if(cityG>0.4 && (apocPositional() || apocKill<0.4)){
@@ -10091,24 +10314,33 @@ function draw(g,pass){
     var px=pwx-WOFF;
     if(px>SW+4&&px-WW>-4) px-=WW; if(px<-4&&px+WW<SW+4) px+=WW;
     if(px<-3||px>SW+3) continue;
-    var bob=fleeing?((Math.floor(now/90)+i)&1):((px+((now*0.004)|0))&1), prow=HORIZON-1+pd.row, cloth=pd.c;
+    // GAIT & POSTURE: every walker owns a stride — stroll/walk/brisk from a hash; some are
+    // kids (a head shorter, skipping along) or elders (silver hair, a cane, half pace)
+    var pr9=((i*40503+7)>>>0)%12, kind=(!jog&&pr9===5)?1:((!jog&&pr9===8)?2:0);
+    var cad=kind===2?0.45:(kind===1?1.5:[0.75,1,1,1.3][((i*2654435761)>>>0)%4]);
+    var bob=fleeing?((Math.floor(now/90)+i)&1):(Math.floor(now*0.004*cad+i*2.7)&3);
+    var prow=HORIZON-1+pd.row, cloth=pd.c;
+    if(kind===1&&!fleeing&&((Math.floor(now/260)+i)%6)===0) prow--;      // a little skip in the step
     var hh6=nowDate().getHours();
     if(gameNight(nowDate())&&hh6>=17&&hh6<23&&(i%4)===0) cloth=teamCols[i%2];   // fans heading to the game
-    if(fleeing){ drawPerson(g, px, prow, cloth, pd.sk, bob);
-      g.fillStyle=pd.sk; g.fillRect((px-2)|0,(prow-bob-3)|0,1,1); g.fillRect((px+3)|0,(prow-bob-3)|0,1,1);   // arms thrown up
+    if(fleeing){ drawPerson(g, px, prow, cloth, pd.sk, bob, kind);
+      g.fillStyle=pd.sk; g.fillRect((px-2)|0,(prow-bob-3+(kind===1?1:0))|0,1,1); g.fillRect((px+3)|0,(prow-bob-3+(kind===1?1:0))|0,1,1);   // arms thrown up
       continue; }
     if(wmood.cold) cloth=["#3a4a5a","#5a3a3a","#3a3a44","#4a4a3a","#4a3a2a"][i%5];   // winter coats
-    if(jog){ cloth=["#ff5a5a","#4affc0","#ffd23a","#5aa8ff"][i%4]; bob=(Math.floor(now/90)+i)&1; }   // bright athletic wear, fast stride
-    drawPerson(g, px, prow, cloth, pd.sk, bob);
-    if(jog){ g.fillStyle=["#ff2a6a","#2affc0","#ffe23a","#2a8aff"][i%4]; g.fillRect((px+(pd.dir>0?0:1))|0,(prow-bob-4)|0,1,1);   // sweatband
-      g.fillStyle=pd.sk; g.fillRect((px+(pd.dir>0?3:-2))|0,(prow-bob-1)|0,1,1); }                                              // arm pumping forward
-    if(curOutbreak&&(i&1)){ g.fillStyle="#eef2f6"; g.fillRect(px|0,(prow-bob-3)|0,2,1); }   // N5: masked up
-    if(wmood.cold){ g.fillStyle=["#d23","#38c","#dd3","#eee","#c05a8a"][i%5]; g.fillRect(px|0,(prow-bob-5)|0,2,1); }   // knit hat
-    else if((i%11)===3){ g.fillStyle=["#5a4028","#2a2c34","#c9b284"][i%3]; g.fillRect((px-1)|0,(prow-bob-5)|0,4,1); } // brimmed hat
-    if((i%13)===5){ g.fillStyle=["#6a4a2a","#2a3c5c","#7a2e2e"][i%3]; g.fillRect((px+(pd.dir>0?2:-2))|0,(prow-bob+1)|0,1,2); }   // bag/case
-    if(wmood.wet||wmood.snow) drawUmbrella(g, px, prow-bob-4, UMB[i%UMB.length]);       // umbrella up
-    else if(wmood.hot && (i%5)<2) drawSunShade(g, px, prow-bob-4);                      // ~40% shield from the sun
-    if(pdist==="residential" && (i%6)===2){                              // a parent pushing a stroller
+    if(jog){ cloth=["#ff5a5a","#4affc0","#ffd23a","#5aa8ff"][i%4]; bob=Math.floor(now/110+i)&3; }   // bright athletic wear, fast 4-beat stride
+    var blift=(bob===1||bob===3)?1:0, hdy=(kind===1)?1:0;                 // accessory lift follows the stride; kid heads sit 1px lower
+    drawPerson(g, px, prow, cloth, pd.sk, bob, kind);
+    if(jog){ g.fillStyle=["#ff2a6a","#2affc0","#ffe23a","#2a8aff"][i%4]; g.fillRect((px+(pd.dir>0?0:1))|0,(prow-blift-4)|0,1,1);   // sweatband
+      g.fillStyle=pd.sk; g.fillRect((px+(pd.dir>0?3:-2))|0,(prow-blift-1)|0,1,1); }                                              // arm pumping forward
+    if(curOutbreak&&(i&1)){ g.fillStyle="#eef2f6"; g.fillRect(px|0,(prow-blift-3+hdy)|0,2,1); }   // N5: masked up
+    if(kind===0){
+      if(wmood.cold){ g.fillStyle=["#d23","#38c","#dd3","#eee","#c05a8a"][i%5]; g.fillRect(px|0,(prow-blift-5)|0,2,1); }   // knit hat
+      else if((i%11)===3){ g.fillStyle=["#5a4028","#2a2c34","#c9b284"][i%3]; g.fillRect((px-1)|0,(prow-blift-5)|0,4,1); } // brimmed hat
+      if((i%13)===5){ g.fillStyle=["#6a4a2a","#2a3c5c","#7a2e2e"][i%3]; g.fillRect((px+(pd.dir>0?2:-2))|0,(prow-blift+1)|0,1,2); }   // bag/case
+    }
+    if(wmood.wet||wmood.snow) drawUmbrella(g, px, prow-blift-4+hdy, UMB[i%UMB.length]);       // umbrella up
+    else if(wmood.hot && (i%5)<2) drawSunShade(g, px, prow-blift-4+hdy);                      // ~40% shield from the sun
+    if(pdist==="residential" && (i%6)===2 && kind!==1){                              // a parent pushing a stroller
       var stx=(px+pd.dir*3)|0, sty=HORIZON+pd.row;
       g.fillStyle="#d2d2dc"; g.fillRect(stx,sty-2,3,2);
       g.fillStyle=["#e88a8a","#8ab8e8","#e8c88a"][i%3]; g.fillRect(stx,sty-3,3,1);    // canopy
@@ -10138,6 +10370,7 @@ function draw(g,pass){
     } }
   // buskers + gathered crowds on the neon strip (evenings, once there's an entertainment district)
   if(cityG>0.55 && !nukeFull()) drawBuskers(g,L,now,districtBusy("neon",rhythm.hour));
+  if(!nukeFull() && (apocPositional()||apocKill<0.3)){ drawPubs(g,L,now); drawSmokers(g,L,now); }   // pub patios & doorway smokers (the vice pass)
 
   // pigeons pecking on the sidewalk / perched on the wires
   if(!nukeFull()) drawPigeons(g,now,L);
