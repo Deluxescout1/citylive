@@ -67,6 +67,17 @@ Growth: b.bAge birth-age; unborn skipped, borning = drawGrowSite. Windows precom
       stages, apoc/disaster over new buildings) + qml6 no-try/catch sweep + perf; both-platform gate
       → merge → bump 1.9.0 → tag.
 
+## FINDING (2026-07-17, before B1): drawLayer ALREADY has real structural realism — per-tier cornices
+## (~3413), sun/shadow side-shading (~3405), brick coursing + clapboard (~3400), stone quoins (~3418),
+## grime/weathering (~3423), ground shadows (~3430), and a D6 ground-floor storefront system (~3567).
+## So B1's "structural realism" is largely PRESENT. The real gap to "bright crisp detailed / complete
+## beauty" is: (1) COLOR VIBRANCY — buildings skew grey; want saturated varied materials (warm brick,
+## cream stone, coloured/painted facades, richer glass); (2) WINDOW crispness/density — sparse faint
+## dots → clean readable grids; (3) more VARIETY + per-district POP. Vibe LOCKED = "Bright crisp
+## detailed" (clean colourful daytime, crisp readable detail, orderly+vibrant). Best executed as a
+## TIGHT feedback loop with Nick (render → he reacts → tune), since "beauty" is subjective. Reorder B1
+## toward COLOUR+WINDOWS first (highest visible impact), then the structural extras.
+
 ## STATUS  ⟵ UPDATE AS EXECUTED
 - [ ] B0 branch + plan + harness
 - [ ] B1 structural realism (facades/materials/cornices/ground floor)
