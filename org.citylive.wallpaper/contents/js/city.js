@@ -3877,10 +3877,11 @@ function drawHarbor(g,L,now,night,nd){
         else { g.fillStyle="#d8dce4"; g.fillRect(lx9-1,HORIZON-6,3,2); } }
       g.globalAlpha=ga6; }
     // ---- THE ISLAND: lighthouse on the west shore's bay, a wooded cottage isle on the east ----
-    var isLight=(sa<WW*0.5), ix=sa+Math.round(ww*0.55)+(((sa*131)>>>0)%7)-3, iw=12+(((sa*977)>>>0)%5), iy=wTop+7;
-    g.fillStyle=L>0.5?"#4a4436":"#211d16"; g.fillRect(ix-(iw>>1),iy+2,iw,2);                  // under-bank
-    g.fillStyle=L>0.5?"#6b5f45":"#2e281c"; g.fillRect(ix-(iw>>1)+1,iy+1,iw-2,2);              // earth mound
-    g.fillStyle=L>0.5?"#4f7a3d":"#22371e"; g.fillRect(ix-(iw>>1)+2,iy,iw-4,1);                // green crown
+    var isLight=(sa<WW*0.5), ix=sa+Math.round(ww*0.55)+(((sa*131)>>>0)%7)-3, iw=13+(((sa*977)>>>0)%5), iy=wTop+7;
+    g.fillStyle=L>0.5?"#3e382c":"#191510"; g.fillRect(ix-(iw>>1),iy+2,iw,2);                  // under-bank
+    g.fillStyle=L>0.5?"#8a7a58":"#3a3324"; g.fillRect(ix-(iw>>1)+1,iy,iw-2,3);                // earth mound (taller, brighter)
+    g.fillStyle=L>0.5?"#66984e":"#2c4526"; g.fillRect(ix-(iw>>1)+2,iy-1,iw-4,2);              // green crown pops against the swell
+    g.fillStyle="rgba(255,255,255,0.35)"; g.fillRect(ix-(iw>>1),iy+4,iw,1);                    // foam skirt at the waterline
     if(isLight){                                                                              // THE LIGHTHOUSE
       var lhx=ix, lhTop=iy-7;
       g.fillStyle=L>0.5?"#e8e4dc":"#8a877e"; g.fillRect(lhx-1,lhTop,3,7);                     // white tower
