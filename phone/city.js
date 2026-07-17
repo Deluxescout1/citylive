@@ -254,7 +254,7 @@ function moonPhase(d){
 }
 
 // draw the moon at (mx,my) with real illuminated phase mp (0=new,.25=first qtr,.5=full,.75=last qtr)
-function drawMoon(g,mx,my,mp){
+function drawMoon(g,mx,my,mp,colony){
   var ca=Math.cos(2*Math.PI*mp), wax=mp<0.5, R=3, illum=(1-ca)/2, blood=eclipseMoon;
   g.globalCompositeOperation="lighter";                                   // soft halo, brighter near full (red on eclipse)
   g.fillStyle=(blood?"rgba(200,60,40,":"rgba(220,226,240,")+(0.05+0.13*illum)+")"; g.fillRect((mx-R-2)|0,(my-R-2)|0,2*R+5,2*R+5);
@@ -264,6 +264,18 @@ function drawMoon(g,mx,my,mp){
       var xt=ca*mw, mlit=blood?true:(wax?(dx>=xt-0.001):(dx<=-xt+0.001));  // eclipse = whole disc glows red
       g.fillStyle=blood?(mlit?"#b83c28":"#7a2818"):(mlit?"#eef0e6":"rgba(150,158,178,0.16)");
       g.fillRect((mx+dx)|0,(my+dy)|0,1,1); } }
+  // THE MOON COLONY: in the space age, settlement lights bloom across the dark limb —
+  // one lamp, then a cluster, then a glowing dome. Humanity made it.
+  if((colony||0)>0.12 && !blood){
+    var sideC=wax?-1:1, pts=[[sideC*2,0],[sideC,1],[sideC*2,-2]];
+    var cnt=colony>0.75?3:(colony>0.45?2:1);
+    for(var ci=0;ci<cnt;ci++){ var cp=pts[ci];
+      g.fillStyle="rgba(20,26,34,0.85)"; g.fillRect((mx+cp[0])|0,(my+cp[1])|0,1,1);   // a hab against the regolith
+      g.fillStyle="rgba(140,235,255,0.95)"; g.fillRect((mx+cp[0])|0,(my+cp[1])|0,1,1); }
+    if(colony>0.6){ g.globalCompositeOperation="lighter";
+      g.fillStyle="rgba(120,220,255,0.22)"; g.fillRect((mx+sideC-1)|0,(my-1)|0,3,3);   // the dome's glow
+      g.globalCompositeOperation="source-over"; }
+  }
 }
 
 // ---- real night sky for Norwich CT (actual bright-star positions, rotating with the clock) ----
@@ -1515,7 +1527,16 @@ function drawSky(g,now,nd,L,fx){
   eclipseMoon = LUNAR_ECLIPSES.indexOf(ymd(nd))>=0;
   var mrd=moonRaDec(nd), maa=altAz(mrd.ra,mrd.dec,lst);
   if(maa.alt>1.5){ var mwx=skyWX(maa.az), mwy=skyY(maa.alt)*0.96;
-    for(w=-1;w<=1;w++){ var mx=mwx-WOFF+w*WW; if(mx<-8||mx>SW+8) continue; drawMoon(g,mx,mwy,eclipseMoon?1:moonPhase(nd)); } }
+    for(w=-1;w<=1;w++){ var mx=mwx-WOFF+w*WW; if(mx<-8||mx>SW+8) continue; drawMoon(g,mx,mwy,eclipseMoon?1:moonPhase(nd),curSpace);
+      // in the space age a shuttle climbs from the city toward the colony every little while
+      if(curSpace>0.35){ var SHS=76000, shp=(now%SHS)/SHS;
+        if(shp<0.075){ var sht=shp/0.075, shx=mx-60+sht*58, shy=mwy+46-sht*44;
+          g.globalCompositeOperation="lighter";
+          for(var st8=0;st8<4;st8++){ var sp8=Math.max(0,sht-st8*0.02);
+            g.fillStyle="rgba(200,240,255,"+(0.8*(1-st8/4))+")";
+            g.fillRect((mx-60+sp8*58)|0,(mwy+46-sp8*44)|0,1,1); }
+          g.globalCompositeOperation="source-over"; } }
+    } }
 }
 
 // ---- weather ----
@@ -2220,6 +2241,7 @@ function drawPerson(g,x,y,cloth,skin,bob,kind){
   // (lifted, other leg leads). Legacy callers pass 0/1 and render exactly as before.
   // kind: undefined/0 adult · 1 child (one head shorter, no accessories) · 2 elder (silver + cane)
   var f=(bob|0)&3, lift=(f===1||f===3)?1:0, yy=(y-lift)|0, X=x|0;
+  if(cloth==null) cloth="#3a3a44"; if(skin==null) skin=SKINC[0];            // guard a bad palette index (e.g. a signed-shift hash gone negative) — draw a person, never blank the frame
   var hseed=(cloth.charCodeAt(1)+cloth.charCodeAt(3)+skin.charCodeAt(2));
   var pants=pantsOf(cloth);
   if(kind===1){                                                          // a child — same feet, smaller frame
@@ -3916,10 +3938,10 @@ function drawSmokers(g,L,now){
     var b9=near.blds[hh9%near.blds.length];
     if(!b9||b9.type==="park"||b9.h<14||overLandmark(b9.x,b9.w)) continue;
     if(cityG<(b9.bAge||0)) continue;                                     // the building must actually stand
-    var wx9=b9.x+2+(hh9>>4)%Math.max(1,b9.w-4);
+    var wx9=b9.x+2+(hh9>>>4)%Math.max(1,b9.w-4);                          // >>> (unsigned): hh9 can exceed 2^31, a signed >> would go negative → negative modulo
     for(var wp2=-1;wp2<=1;wp2+=1){ var SX9=(wx9-WOFF+wp2*WW)|0; if(SX9<-4||SX9>SW+4) continue;
-      var gy9=HORIZON-1, drag=((now+((hh9>>2)%3000))%3400)<420;           // the pull on the cigarette
-      drawPerson(g,SX9,gy9,["#3a3a44","#4a3a5a","#2f4a3a"][hh9%3],SKINC[(hh9>>8)%SKINC.length],0);
+      var gy9=HORIZON-1, drag=((now+((hh9>>>2)%3000))%3400)<420;          // the pull on the cigarette
+      drawPerson(g,SX9,gy9,["#3a3a44","#4a3a5a","#2f4a3a"][hh9%3],SKINC[(hh9>>>8)%SKINC.length],0);
       g.fillStyle=drag?"#ff7a2a":"#b03a1a"; g.fillRect(SX9+2,gy9-3,1,1);  // the ember
       if(drag){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,140,60,0.35)"; g.fillRect(SX9+1,gy9-4,3,3); g.globalCompositeOperation="source-over"; }
       if(QUAL>0) for(var pw9=0;pw9<2;pw9++){ var t9=((now*0.02)+pw9*40+(hh9%97))%70;

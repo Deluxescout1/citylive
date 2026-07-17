@@ -83,9 +83,9 @@ weirdness (drive only from cy in peak). DEMO_APOC 9610 already sets curSpace=1 �
 Engine copies ×4 + md5 before any kde-repro render (bitten once already).
 
 ## Ordered steps & state  ⟵ UPDATE AS EXECUTED
-- [ ] 0 branch `sky-space` + this doc
-- [ ] 1 S1 curSpace driver + FORCEAGE.sp + kde-repro space param; dormant-kit renders
-- [ ] 2 S2 moon colony (renders: colony growth at space .3/.7/1)
+- [x] 0 branch `sky-space` + this doc
+- [x] 1 S1 curSpace driver + FORCEAGE.sp + kde-repro space param; dormant-kit renders
+- [x] 2 S2 moon colony (renders: colony growth at space .3/.7/1)
 - [ ] 3 S3 Milky Way/Andromeda + lpK law (renders: village vs metropolis vs 3am vs pollution)
 - [ ] 4 S4 aurora fetch + renderer (renders: kp 5 band, kp 8 curtains)
 - [ ] 5 S5 ISS pass (render: dot on arc mid-pass)
