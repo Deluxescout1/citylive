@@ -57,10 +57,10 @@ A6: port meander/foam/breakers from drawOpenSea into drawHarbor replacing 3810-3
 - [x] 0 (inline) branch ✓ + QUAL==="performance"→===0 (8068,10221) + kde-repro dis/disf params + this doc
 - [x] 1 A1 golden pass DONE render-verified (sunset cinematic, noon untouched) (globals, sky gradient, folds, shadows, mountains/clouds→global) + sunrise/sunset renders
 - [x] 2 night bloom DONE (subtle, night-render verified)
-- [ ] 3 (Sonnet) A3 haze gradients
-- [ ] 4 (Opus) A2 fire idiom + caller regressions, THEN inline-site conversions (2 commits)
-- [ ] 5 (Sonnet) A4 clouds
-- [ ] 6 (Sonnet) A5 sign truss (age sweep .90/.95/1.0 vs mst)
+- [x] 3 A3 haze gradients DONE (Sonnet, render-verified incl forced fog/smoke contrast)
+- [x] 4a flame idiom DONE (committed); - [ ] 4b inline-site conversions (disaster STRIKE/AFTERMATH ~5575/5596, apoc meteors/sunburst/alienwar ~9086/9101/9146, crash ~2133) + burning-city render proof
+- [x] 5 A4 clouds DONE (Sonnet, cross-slice verified)
+- [x] 6 A5 sign truss DONE (Sonnet, age sweep verified)
 - [ ] 7 (Opus) A6 waterfront (incl. LIGHTHOUSE island w/ rotating night beam — Nick locked)
 - [ ] 7b (Opus) A8 NICK BUG: floating lit-window row in empty sky (likely train w/o viaduct — gate train render by track existence; reproduce village/dusk) +  A7 NICK ADD: flowers NEVER on road/asphalt (grass only); wildlife looks like real animals (deer silhouette w/ head/legs/tail), grass-only, street-dashes allowed only while cityG low
 - [ ] 8 sync ×4 + md5 + npm test
