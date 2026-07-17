@@ -10428,7 +10428,11 @@ function draw(g,pass){
 
   // cross-screen cars — 4 lanes, small, and they STOP & queue at red signals (deterministic)
   var STOPZ=24, CARM=100, CARLEN=11;   // CARM: off-screen cull margin; CARLEN: car body length (drawCar draws left-anchored)
-  function carWX(cc){ return wrapW(cc.x0+LANE[cc.lane].d*cc.sp*KSP*now*rhythm.carSpeed*(fx.snow?0.5:1)); }
+  // CONSTANT per-car speed — position is a clean linear f(now). (A time-VARYING multiplier like
+  // rhythm.carSpeed/snow on `now` made every car's position JUMP whenever the factor changed, since
+  // now≈1.7e12: a tiny speed change × huge now = a big teleport. Rush hour now reads via DENSITY
+  // (carPresence) + the red-light queues, not by re-scaling everyone's position → smooth travel.)
+  function carWX(cc){ return wrapW(cc.x0+LANE[cc.lane].d*cc.sp*KSP*now); }
   // world-x of a car's LEADING edge. drawCar always draws CARLEN px to the RIGHT of the anchor,
   // regardless of heading, so a rightbound car's nose is anchor+CARLEN and a leftbound car's nose is the anchor.
   function noseWX(leftWX,dir){ return leftWX+(dir>0?CARLEN:0); }
@@ -10575,8 +10579,8 @@ function draw(g,pass){
 
   // ---- pedestrians strolling the sidewalk (crowd size varies by district, hour & weather) ----
   for(i=0;i<peds.length;i++){ var pd=peds[i];
-    var jog=((i%9)===4 && !wmood.wet && !wmood.snow);          // ~1 in 9 is a jogger — faster & athletic (not in the rain)
-    var pwx=wrapW(pd.x0+pd.dir*pd.sp*(jog?2.1:1)*KSP*wmood.speedK*now), pdist=districtAt(pwx).name;
+    var jog=((i%9)===4);                                       // ~1 in 9 is a jogger — a CONSTANT per-ped speed (weather no longer toggles it → no position jump)
+    var pwx=wrapW(pd.x0+pd.dir*pd.sp*(jog?2.1:1)*KSP*now), pdist=districtAt(pwx).name;   // constant speed → smooth stroll (was *wmood.speedK*now → jumped when weather changed)
     if(inSea(pwx)&&roadFNow()<0.85) continue;                  // nobody strolls over open water before the causeway
     var fleeing=false;
     if(curDis){ var fdx=pwx-curDis.x; if(fdx>WW/2)fdx-=WW; if(fdx<-WW/2)fdx+=WW;
