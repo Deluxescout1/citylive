@@ -142,9 +142,16 @@ Growth: b.bAge birth-age; unborn skipped, borning = drawGrowSite. Windows precom
 ##   mid/far-layer background giants (near downtown caps below the 62*KSP hero height) and rise LAST (high
 ##   bAge) — verified via new ?probe=hero. Downtown now shows glass towers + deco/blade/step/mansard/antenna/
 ##   pagoda crowns + gilded-cornice heroes; night = a real neon metropolis. SWEEP_OK 34, perf 9.2ms.
-## - STEP B/C/D TODO (the actual "roofs look same" fix for the colonial town): varied roof COLOURS (slate/
-##   copper-green/red-shingle/black/tin), more roof SHAPES (mansard/saltbox/cross-gable/cupola/monitor/flat-
-##   parapet), rooftop DETAILS (chimneys/dormers/weathervanes/water tanks). Then re-render town + downtown.
+## - STEP B DONE (roof COLOUR): every NE pitched roof mixed toward the SAME slate → root cause. Added ROOFMAT
+##   palette (slate/copper-green/red-shingle/cedar/tar/tin/aged, 12) + roofMatFor(bseed); b.roofMat threaded
+##   into drawCrown for the roof mass + sunlit slope. No two roofs the same colour now.
+## - STEP C DONE (roof SHAPES): NE selection expanded gable/gambrel/hip → +saltbox (asymmetric ridge + chimney)
+##   +mansard (Second Empire, now roofMat-coloured w/ dormers) = 5 distinct pitched shapes. Verified each via
+##   new FORCECROWN hook (?crown=).
+## - STEP D (rooftop DETAILS) partial: chimneys now on gable/gambrel/hip/saltbox; mansard dormers; steeple
+##   weathervane. TODO more: cupolas, roof water tanks on colonial, varied dormer counts.
+## - Verified: forced saltbox/mansard renders + natural town/oldtown mix + qml sweep (34) SWEEP_OK + perf ~9ms.
+##   Harness hooks now: ?layout= (FORCELAYOUT), ?crown= (FORCECROWN), ?probe=hero.
 ##
 ## STATUS  ⟵ UPDATE AS EXECUTED
 - [ ] B0 branch + plan + harness

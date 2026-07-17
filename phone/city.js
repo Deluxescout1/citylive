@@ -150,6 +150,7 @@ function resetNotifLanes(){ for(var r=0;r<_notifTaken.length;r++) _notifTaken[r]
 var CLOCK = null;   // test-harness override: ms timestamp for time-of-day (null = real wall clock)
 var NOWOVR = null;  // test-harness override: ms value returned as Date.now() inside draw() (null = real)
 var FORCELAYOUT = null;   // test hook: pin every building's window layout (grid/ribbon/band/punch/corp) — verify per-layout render
+var FORCECROWN = null;    // test hook: pin every building's crown/roof (gable/hip/saltbox/mansard/deco/…) — verify per-roof render
 function nowDate(){ return CLOCK ? new Date(CLOCK) : new Date(); }
 
 function rng(seed){ var a=seed>>>0; return function(){ a|=0; a=a+0x6D2B79F5|0; var t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
@@ -2071,7 +2072,8 @@ function makeLayer(seed,y0,baseHMin,baseHMax,layerK){
     var crown=d.crowns[(r()*d.crowns.length)|0];
     if(bh<30 && (crown==="spire"||crown==="antenna"||crown==="blade")) crown=(r()<0.5?"flat":"tank");
     if(neColonial && bh < 54*KSP && crown!=="watertower"){  // low & mid-rise wear NE pitched roofs; tall
-      var pr=(bseed>>>4)%3; crown=(pr===0?"gable":(pr===1?"gambrel":"hip")); nePitch=true;  // towers stay modern; brick
+      var neRoofs=["gable","gambrel","hip","saltbox","mansard","hip","gable","gambrel"];     // 5 distinct pitched shapes, hip/gable weighted
+      crown=neRoofs[(bseed>>>4)%neRoofs.length]; nePitch=true;                                // towers stay modern; brick
     }                                                                                       // midrises keep a wooden water tank
     // ---- HERO / SIGNATURE TOWER: a rare, very tall downtown tower becomes a skyline LANDMARK — a guaranteed
     //      ornate crown + a premium accent (beacon + crown trim). Chosen by a bseed HASH (no r() → the whole
@@ -2079,6 +2081,7 @@ function makeLayer(seed,y0,baseHMin,baseHMax,layerK){
     var heroK=((bseed*2246822519)>>>0)/4294967296;
     var hero=(d.name==="downtown" && bh>=62*KSP && heroK<0.24);   // downtown is a modern core everywhere (incl. NE blend)
     if(hero) crown=["deco","spire","step","blade"][(bseed>>>13)%4];   // ornate crowns anchor the skyline
+    if(typeof FORCECROWN!=='undefined'&&FORCECROWN) crown=FORCECROWN;   // TEST hook: pin every roof (harness ?crown=saltbox)
     // ---- WINDOW SYSTEM from this district's palette ----
     var winLayout=d.layouts[(r()*d.layouts.length)|0];
     if(typeof FORCELAYOUT!=='undefined'&&FORCELAYOUT) winLayout=FORCELAYOUT;   // TEST hook: pin every building's window layout (harness ?layout=ribbon)
@@ -2964,7 +2967,7 @@ function drawCrown(g,crown,bx,top,bw,col,accent,L,now,night,roofMat){
   }
   g.fillStyle=css(col); var mid=bx+(bw>>1), blink=(Math.floor(now/700))%2===0;
   // ---- NEW ENGLAND pitched roofs: slate/charcoal, drawn as a solid mass above the top edge ----
-  if(crown==="gable"||crown==="gambrel"||crown==="hip"||crown==="steeple"){
+  if(crown==="gable"||crown==="gambrel"||crown==="hip"||crown==="steeple"||crown==="saltbox"){
     var rmat=roofMat||[46,50,60], slateC=mixc(col,rmat,0.82);                          // THIS roof's material (slate/copper/red/cedar/tin…)
     var slate=css(slateC), sllit=css(mixc(slateC,[255,255,255],0.30));                 // roof mass + its sunlit slope
     if(crown==="gable"){                                             // steep triangular roof
@@ -2980,12 +2983,20 @@ function drawCrown(g,crown,bx,top,bw,col,accent,L,now,night,roofMat){
         rw2=Math.max(1,rw2); g.fillStyle=slate; g.fillRect(bx+((bw-rw2)>>1),top-1-r,rw2,1);
         g.fillStyle=sllit; g.fillRect(bx+((bw-rw2)>>1),top-1-r,1,1); }
       g.fillStyle=slate; g.fillRect(bx-1,top-1,bw+2,1);
+      var gch=bx+Math.max(2,bw>>2); g.fillStyle=css(mixc(col,[60,44,40],0.6)); g.fillRect(gch,top-Math.min(gh+1,11),2,4);   // brick chimney
     } else if(crown==="hip"){                                        // four-slope hip roof (flat ridge)
       var hh=Math.min(Math.round(bw*0.5),9), ridge=Math.max(2,Math.round(bw*0.42));
       for(var r=0;r<hh;r++){ var rw3=Math.max(ridge,Math.round(bw-(bw-ridge)*(r/Math.max(1,hh-1))));
         g.fillStyle=slate; g.fillRect(bx+((bw-rw3)>>1),top-1-r,rw3,1);
         g.fillStyle=sllit; g.fillRect(bx+((bw-rw3)>>1),top-1-r,1,1); }
       g.fillStyle=slate; g.fillRect(bx-1,top-1,bw+2,1);
+      var hch=bx+bw-Math.max(3,bw>>2); g.fillStyle=css(mixc(col,[60,44,40],0.6)); g.fillRect(hch,top-Math.min(hh+2,9),2,4);   // brick chimney
+    } else if(crown==="saltbox"){                                    // asymmetric colonial saltbox: ridge off-centre, one long slope
+      var sh=Math.min(Math.round(bw*0.62),12), rdg=Math.max(2,Math.round(bw*0.34));
+      for(var r=0;r<sh;r++){ var f=r/sh, lx=Math.round(bx+rdg*f), rx=Math.round(bx+bw-(bw-rdg)*f); if(rx<=lx) rx=lx+1;
+        g.fillStyle=slate; g.fillRect(lx,top-1-r,rx-lx,1); g.fillStyle=sllit; g.fillRect(lx,top-1-r,1,1); }
+      g.fillStyle=slate; g.fillRect(bx-1,top-1,bw+2,1);                                            // eave overhang
+      var sch=bx+Math.max(1,rdg-1); g.fillStyle=css(mixc(col,[60,44,40],0.6)); g.fillRect(sch,top-Math.min(sh+2,11),2,4);   // brick chimney at the ridge
     } else {                                                         // STEEPLE: white meeting-house tower + spire
       var white=css(mixc(col,[238,238,232],0.62)), tw=Math.max(3,Math.min(6,bw>>2)), txx=mid-(tw>>1);
       g.fillStyle=white; g.fillRect(bx-1,top-2,bw+2,2);                             // pedimented roof band
@@ -3043,8 +3054,8 @@ function drawCrown(g,crown,bx,top,bw,col,accent,L,now,night,roofMat){
     g.fillStyle=css(mixc(col,[62,44,30],0.7)); g.fillRect(wtx,top-6,wtw,1);             // top hoop band
     g.fillStyle=css(mixc(col,[74,54,36],0.7)); g.fillRect(wtx+1,top-7,wtw-2,1); g.fillRect(mid,top-8,1,1);   // conical cap
     g.fillStyle=css(mixc(col,[48,38,28],0.6)); g.fillRect(wtx,top-2,1,2); g.fillRect(wtx+wtw-1,top-2,1,2);   // stilt legs
-  } else if(crown==="mansard"){                                   // PARIS Haussmann: steep grey mansard roof, zinc eave, dormers
-    var mh=Math.min(7,Math.max(4,bw>>1)), slate=css(mixc(col,[70,74,84],0.72));
+  } else if(crown==="mansard"){                                   // Second Empire mansard: steep roof, zinc eave, dormers
+    var mh=Math.min(7,Math.max(4,bw>>1)), slate=css(mixc(col,roofMat||[70,74,84],0.74));
     for(var mr=0;mr<mh;mr++){ var mw=(mr<2)?bw:Math.max(3,bw-2-(mr-1)*2); g.fillStyle=slate; g.fillRect(bx+((bw-mw)>>1),top-1-mr,mw,1); }
     g.fillStyle=css(mixc(col,[120,126,138],0.6)); g.fillRect(bx-1,top-1,bw+2,1);                        // zinc eave
     g.fillStyle=slate; g.fillRect(bx+2,top-mh+1,2,2); g.fillRect(bx+bw-4,top-mh+1,2,2);                 // dormers
