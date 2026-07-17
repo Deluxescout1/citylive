@@ -702,26 +702,31 @@ function drawBlimpMishap(g,L,now){
 // deterministic (now+seed) so it burns identically on every screen. cx = flame centre, baseY = the
 // surface it sits on, fw/fh = width/height in world px, inten 0..1 scales height & brightness
 // (a dying fire → thin, low & red). Drawn additively so overlapping tongues glow.
-function drawFlame(g,cx,baseY,fw,fh,now,seed,inten){
+function drawFlame(g,cx,baseY,fw,fh,now,seed,inten,wind){
   if(inten==null) inten=1; if(inten<=0||fw<1) return;
-  var half=fw/2, sway=Math.sin(now*0.0032+seed*1.7)*(1+fw*0.12)*inten;
+  if(fw>24) fw=24;                                                                       // defensive bound (shared painter, many callers)
+  inten*=0.85+0.15*Math.sin(now*0.006+seed*2.1);                                         // the whole fire BREATHES
+  var half=fw/2, sway=Math.sin(now*0.0032+seed*1.7)*(1+fw*0.12)*inten+(wind||0)*2;
   g.globalCompositeOperation="lighter";
   g.fillStyle="rgba(255,138,44,"+(0.16*inten).toFixed(3)+")";                          // warm pool of light at the base
   g.fillRect((cx-half-1)|0,(baseY-2)|0,Math.max(1,(fw+2)|0),3);
   for(var dx=Math.ceil(-half);dx<=half;dx++){
     var ee=dx/(half+0.001), e=1-ee*ee;                                                  // parabolic envelope (tallest centre)
     if(e<=0.02) continue;
+    e*=0.72+0.38*Math.sin(dx*2.3+seed*0.7+Math.floor(now/450));                          // LICKING TONGUES: 2-4 peaks that reshape every ~450ms
+    if(e<=0.03) continue;
     var fl=0.58+0.30*Math.sin(now*0.013+dx*0.9+seed)+0.14*Math.sin(now*0.029-dx*1.9+seed*1.3);  // 2-octave turbulence
     var colH=fh*e*Math.max(0.18,fl)*inten; if(colH<1) continue;
     var lean=sway*(1.1-e*0.6), x=(cx+dx+lean)|0, topY=(baseY-colH)|0, ch=Math.max(1,colH|0);
     g.fillStyle="#e42a08"; g.fillRect(x,topY,1,ch);                                     // full deep-red tongue
+    if(colH>fh*0.72){ g.fillStyle="rgba(255,60,10,0.55)"; g.fillRect(x,topY-1,1,1); }   // deep-red tip licking upward off tall tongues
     var oH=(colH*0.72)|0; if(oH>0){ g.fillStyle="#ff7413"; g.fillRect(x,(baseY-oH)|0,1,oH); }    // orange body (lower ¾)
     if(e>0.28){ var yH=(colH*0.44)|0; if(yH>0){ g.fillStyle="#ffc233"; g.fillRect(x,(baseY-yH)|0,1,yH); } }  // yellow (centre, lower half)
     if(e>0.6){ var wH=Math.max(1,(colH*0.22)|0); g.fillStyle="#fff2c4"; g.fillRect(x,(baseY-wH)|0,1,wH); }   // white-hot heart
   }
   var nE=Math.max(2,Math.round(fw*0.6*inten));                                          // sparks spat up and swept sideways
-  for(var ei=0;ei<nE;ei++){ var eh=((seed*131+ei*977)>>>0), per=760+(eh%680), lf=((now+eh)%per)/per;
-    var ex=(cx+(((eh>>5)%Math.max(1,(fw|0)))-half)+Math.sin(now*0.004+ei+seed)*(1.5+fw*0.12))|0;
+  for(var ei=0;ei<nE;ei++){ var eh=((seed*131+ei*977)>>>0), per=900+(eh%900), lf=((now+eh)%per)/per;
+    var ex=(cx+(((eh>>5)%Math.max(1,(fw|0)))-half)+Math.sin(now*0.004+ei+seed)*(1.5+fw*0.12)+(wind||0)*lf*8)|0;
     var ey=(baseY-2-lf*(fh*1.7+5))|0;
     g.globalAlpha=Math.max(0,(1-lf))*inten; g.fillStyle=lf<0.5?"#ffd257":"#ff6a1e"; g.fillRect(ex,ey,1,1); }
   g.globalAlpha=1; g.globalCompositeOperation="source-over";
@@ -730,10 +735,11 @@ function drawFlame(g,cx,baseY,fw,fh,now,seed,inten){
 function drawFireSmoke(g,cx,topY,now,seed,inten,wind){
   if(inten<=0) return; var n=Math.round(4*inten)+2;
   for(var i=0;i<n;i++){ var sh=((seed*71+i*613)>>>0), per=1500+(sh%1300), lf=((now+sh)%per)/per;
-    var rise=lf*(26+(sh%22)), sz=1+Math.round(lf*3*inten);
+    var rise=lf*(26+(sh%22)), sz=1+Math.round(lf*4*inten);
     var sx=(cx+Math.sin(now*0.0011+i+seed)*4+(wind||0)*rise*0.18)|0, sy=(topY-rise)|0;
     var g2=lf<0.28?66:104, a=0.5*(1-lf)*inten;                                          // dark near the fire, pale as it thins
-    g.fillStyle="rgba("+g2+","+(g2-3)+","+(g2-7)+","+a.toFixed(3)+")"; g.fillRect(sx,sy,sz,sz); }
+    var r9=Math.round(g2+(140-g2)*lf), gg9=Math.round((g2-3)+(150-g2)*lf), b9=Math.round((g2-7)+(165-g2)*lf);   // dissolve toward the sky
+    g.fillStyle="rgba("+r9+","+gg9+","+b9+","+a.toFixed(3)+")"; g.fillRect(sx,sy,sz,sz); }
 }
 // ---- FOREST FIRES: a dry-season spark takes the woods; charred snags stand a while,
 // then the forest takes itself back, sapling by sapling. Rain douses an active burn.
