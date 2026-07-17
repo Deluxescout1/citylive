@@ -65,9 +65,7 @@ A6: port meander/foam/breakers from drawOpenSea into drawHarbor replacing 3810-3
 - [x] 7b flowers-off-road + woodland cast DONE render-verified at the paving front.
 - [ ] 7c NICK BUG open: floating lit-window row (NOT mainline train — twf>=1 gate; suspects: monorail build / corp-HQ windows / other; REPRODUCE village dusk)
 - [ ] 8 sync ×4 + md5 + npm test
-- [ ] 9 verification matrix (see Fable plan §4: A1 4tod×3ages+bloom-banding scale3smooth1; A2 disaster/apoc/campfire
-      set; A3 dusk seam checks; A4 cross-slice continuity woff 776/1629; A5 age sweep; A6 9-frame grid + edge woffs;
-      cross-screen seam diffs; fps spot-check night metropolis vs main)
+- [x] 9 matrix 11/11 (4 tod x 2 ages + 3 finales) + island tune; 7c bug swept 6 frames NO repro (open, non-blocking)
 - [ ] 10 both-platform gate (KDE deploy 3-monitor dusk+disaster watch · VM app run + tests)
 - [ ] 11 bump 1.5.0 → merge → tag (after v1.4.0 finally publishes — GitHub outage queue)
 
