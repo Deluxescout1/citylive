@@ -216,6 +216,18 @@ var NEON = ["#ff2a9d","#05d9e8","#2af5b8","#ffb347","#b98cff","#ff5a5a","#5affd7
 // dark facade bases (kept moody; tinted toward the district accent per building)
 var BLDBASE = ["#0f0a18","#141020","#1a1430","#0c0a16","#181228","#0a0712","#161022"];
 
+// DAYTIME MATERIAL COLOURS — each building reads as a real material by day (brick / stone / glass /
+// concrete / painted), not the old lavender-grey wash. Blended into the facade by DAYLIGHT only, so the
+// moody night silhouette is untouched. Restrained + saturated ("high class", ref: distinct material colours).
+var DAYMAT = {
+  downtown:      [[150,182,176],[164,190,206],[142,160,188],[196,190,168],[176,168,150],[152,172,182]], // green/blue/bronze glass, stone
+  oldtown:       [[178,98,74],[190,124,86],[198,170,132],[162,86,68],[152,122,98],[186,146,108]],        // brick red · terracotta · sandstone
+  residential:   [[196,176,146],[176,150,120],[198,158,140],[150,166,142],[190,182,162],[178,140,112]],  // brownstone · pastel · sage · tan
+  entertainment: [[198,150,120],[184,142,170],[202,178,140],[168,150,192],[196,164,132]],                // warm painted · mauve
+  industrial:    [[150,146,140],[170,120,96],[142,140,152],[178,150,120],[132,140,146]]                  // concrete · rust · brick
+};
+function dayMatFor(dname,seed){ var t=DAYMAT[dname]; if(!t) return null; return t[(seed>>>7)%t.length]; }
+
 var SKY = { night:[[8,8,26],[16,14,40]], dawn:[[70,40,90],[255,140,90]],
             day:[[92,160,235],[170,215,250]], dusk:[[40,30,80],[255,110,70]] };
 
@@ -2055,6 +2067,7 @@ function makeLayer(seed,y0,baseHMin,baseHMax,layerK){
             segs:segs, crown:crown, winLayout:winLayout, topW:topW, topDx:topDx,
             c: mixc(base, acc, accMix), accent:acc, accent2:acc2, winP:winPal, winHue:winHue,
             glass:((winLayout==="corp"||winLayout==="ribbon")&&!(d.brick||neClap||nePitch)),   // reflective glass tower
+            dayMat:(REGION==="newengland"?null:dayMatFor(d.name,bseed)),   // this building's DAYTIME material colour (NE keeps colonial palette)
             nePitch:nePitch, clap:neClap,
             win:[], st:[], gl:[], roof:[],
             ledge:r()<d.ledge, ledC:(r()*NEON.length)|0,
@@ -3390,6 +3403,7 @@ function drawLayer(g,layer,L,now,fx,hol,haze){
     // otherwise the barn-reds & brick wash out to pink at noon.
     var neMatte=(b.nePitch||b.clap||b.church), bMul=neMatte?1.5:2.3, bA0=neMatte?18:30,bA1=neMatte?22:40,bA2=neMatte?30:56;
     var col=mixc(b.c,[Math.min(255,b.c[0]*bMul+bA0),Math.min(255,b.c[1]*bMul+bA1),Math.min(255,b.c[2]*bMul+bA2)],dayLit);
+    if(b.dayMat && dayLit>0.04) col=mixc(col,b.dayMat,0.6*dayLit);                 // DAYTIME MATERIAL colour (brick/stone/glass/painted) — daylight only, night untouched
     if(cityEra.tint) col=mixc(col,cityEra.tint,cityEra.blend*(0.6+0.4*dayLit));   // this life's architectural material
     if(haze) col=mixc(col,skyTint,haze*dayLit);
     if(goldenK>0.03) col=mixc(col,goldC,goldenK*0.22*dayLit);   // the golden hour warms every facade

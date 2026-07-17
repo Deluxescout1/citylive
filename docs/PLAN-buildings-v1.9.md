@@ -115,6 +115,15 @@ Growth: b.bAge birth-age; unborn skipped, borning = drawGrowSite. Windows precom
 ## - OPEN: a few WIDE-SPACED "corp" setback towers are genuinely sparse-by-generation (few big windows) — look
 ##   flat even with the render fix. Decide with Nick whether those want a secondary light-window pass (risk:
 ##   over-busy) or stay as intentional big-corporate glazing. Show Nick the triplet + tight zoom → react.
+## - 6: MATERIAL COLOUR IDENTITY (the reference's #2 through-line). Root cause of the grey/tan wash: BLDBASE is
+##   all dark night-silhouette purples, and the daytime `col` just brightened them with a cool-blue additive
+##   offset → lavender-grey for every building. Added DAYMAT{} (a restrained saturated material palette per
+##   district: brick red/terracotta/sandstone · green/blue/bronze glass · brownstone/pastel/sage · concrete/
+##   rust) + dayMatFor(district,seed); b.dayMat assigned per building (NE region keeps its colonial palette);
+##   blended into `col` by DAYLIGHT ONLY (0.6*dayLit) so the moody night silhouette is untouched. Determinism-
+##   safe (adds zero r() calls → positions byte-identical). Result: distinct pink/green/red/cream/teal
+##   buildings by day — a real colourful city, not grey. VERIFIED: kde-repro day/dusk/night + perf 9.6ms +
+##   QML no-try/catch sweep (34 conditions incl. all finales) SWEEP_OK. Show Nick → react (too saturated?).
 ##
 ## STATUS  ⟵ UPDATE AS EXECUTED
 - [ ] B0 branch + plan + harness
