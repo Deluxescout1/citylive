@@ -61,7 +61,7 @@ A6: port meander/foam/breakers from drawOpenSea into drawHarbor replacing 3810-3
 - [x] 4 fire COMPLETE: idiom + conversions (disaster STRIKE + apoc break-line; zero #ff3810 arrays remain), burn render-verified
 - [x] 5 A4 clouds DONE (Sonnet, cross-slice verified)
 - [x] 6 A5 sign truss DONE (Sonnet, age sweep verified)
-- [ ] 7 (Opus) A6 waterfront (incl. LIGHTHOUSE island w/ rotating night beam — Nick locked)
+- [x] 7 A6 waterfront DONE (TUNE: island contrast at matrix)
 - [ ] 7b (Opus) A8 NICK BUG: floating lit-window row in empty sky (likely train w/o viaduct — gate train render by track existence; reproduce village/dusk) +  A7 NICK ADD: flowers NEVER on road/asphalt (grass only); wildlife looks like real animals (deer silhouette w/ head/legs/tail), grass-only, street-dashes allowed only while cityG low
 - [ ] 8 sync ×4 + md5 + npm test
 - [ ] 9 verification matrix (see Fable plan §4: A1 4tod×3ages+bloom-banding scale3smooth1; A2 disaster/apoc/campfire
