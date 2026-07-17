@@ -129,6 +129,10 @@ var airq = { pm25:null, aqi:null };
 var AQ_BUCKET = 1800000;
 var aqBucket = -1, aqReqAt = 0, aqOkBucket = -2;
 var FORCEAQ = null;   // test hook: {pm25,aqi} — pins the live air-quality fetch
+// planetary K-index (geomagnetic storms) → the REAL aurora. 0 offline → the aurora is simply absent
+// (it only shows on genuine storm nights, matching the real-world space-weather news). Shared 30-min bucket.
+var kpNow = 0, KP_BUCKET = 1800000, kpBucket = -1, kpReqAt = 0, kpOkBucket = -2;
+var FORCEKP = null;   // test hook: a number (the KP index 0..9) — pins the live fetch
 // notification lanes — stacked BELOW the 3-line sky-clock pill (which ends ~y41) so alerts never overlap it or each other
 var NOTIF_LANE1 = 47;   // lane 1: disaster / weather alerts (world-anchored over the event)
 var NOTIF_LANE2 = 59;   // lane 2: war, apocalypse, election & mayor-elect banners
@@ -1549,12 +1553,24 @@ function drawSky(g,now,nd,L,fx){
       g.globalAlpha=alpha; g.fillStyle=mag<1.2?"#f2f6ff":"#dfe6f6"; g.fillRect(sx|0,wy|0,1,1); g.globalAlpha=1;
     }
   }
-  // ---- AURORA on cold clear nights (northern sky, shimmering green/violet curtains) ----
-  if(auroraActive(nd)){ g.globalCompositeOperation="lighter";
-    for(var band=0;band<3;band++){ var by=18+band*10, ba=(0.06+0.04*Math.sin(now*0.0011+band*2))*fade;
-      for(var ax2=0;ax2<SW;ax2+=2){ var wxA=ax2+WOFF, wav=Math.sin(wxA*0.02+now*0.0006+band)*6+Math.sin(wxA*0.05+now*0.0013)*3,
-          h=14+Math.sin(wxA*0.03+now*0.001+band)*8;
-        g.fillStyle=(band<2?"rgba(80,235,150,":"rgba(170,110,255,")+(ba)+")"; g.fillRect(ax2,(by+wav)|0,2,h|0); } }
+  // ---- AURORA — driven by the REAL planetary K-index (kpNow). KP≥5: a green shimmer low on the
+  // NORTHERN horizon; KP≥7: full green/violet curtains. Offline (kp 0) → absent; it only lights up on
+  // genuine geomagnetic-storm nights, matching the real space-weather news. Localized north via azimuth. ----
+  if(kpNow>=5){ var kpI=Math.min(1,(kpNow-4)/4);                          // 0 at KP4 → 1 at KP8+
+    g.globalCompositeOperation="lighter";
+    for(var band=0;band<3;band++){ var by=14+band*9;
+      for(var ax2=0;ax2<SW;ax2+=2){ var az=(((ax2+WOFF)/WW*360)%360+360)%360, nf=Math.max(0,Math.cos(az*DEG)); if(nf<0.06) continue;   // brightest due N, fades to E/W, gone in the south
+        var wxA=ax2+WOFF, wav=Math.sin(wxA*0.02+now*0.0006+band)*6+Math.sin(wxA*0.05+now*0.0013)*3, h=12+Math.sin(wxA*0.03+now*0.001+band)*7;
+        var ba=(0.05+0.05*Math.sin(now*0.0011+band*2))*fade*nf*(0.55+0.45*kpI);
+        g.fillStyle=(band<2?"rgba(80,235,150,":"rgba(170,110,255,")+ba.toFixed(3)+")"; g.fillRect(ax2,(by+wav)|0,2,h|0); } }
+    if(kpNow>=7 && QUAL>0){ var nc=8+Math.round(6*kpI);                   // KP≥7: hanging curtains sweep the northern sky
+      for(var cc=0;cc<nc;cc++){ var caz=-72+cc/(nc-1)*144, cwx=(((caz+360)%360)/360)*WW;   // spread across the northern span
+        var chh=30+50*kpI*(0.65+0.35*Math.sin(now*0.0005+cc*1.7)), csway=Math.sin(now*0.0004+cc*1.3)*9;
+        for(var cw=-1;cw<=1;cw++){ var cx=cwx-WOFF+cw*WW+csway; if(cx<-6||cx>SW+6) continue;
+          var grad=g.createLinearGradient(0,10,0,10+chh);
+          grad.addColorStop(0,"rgba(200,90,220,0)"); grad.addColorStop(0.28,"rgba(200,90,220,"+(0.20*kpI*fade).toFixed(3)+")");
+          grad.addColorStop(0.7,"rgba(110,255,160,"+(0.32*kpI*fade).toFixed(3)+")"); grad.addColorStop(1,"rgba(80,255,150,"+(0.42*kpI*fade).toFixed(3)+")");
+          g.fillStyle=grad; g.fillRect((cx-2)|0,10,4,chh|0); } } }
     g.globalCompositeOperation="source-over"; }
 
   // ---- METEORS (frequent during the real showers, occasional otherwise) — world-anchored so all screens agree ----
@@ -1620,6 +1636,28 @@ function fetchAirq(bucket){
       }
     };
     xhr.open("GET","https://air-quality-api.open-meteo.com/v1/air-quality?latitude="+LAT+"&longitude="+LON+"&current=pm2_5,us_aqi");
+    xhr.send();
+  }catch(e){}
+}
+// the planetary K-index — same shared-bucket, never-throw discipline as the weather/air fetches
+function maybeFetchKp(){
+  if(FORCEKP!=null){ kpNow=FORCEKP; return; }
+  var rn=Date.now(), kb=Math.floor(rn/KP_BUCKET);
+  if(kb!==kpBucket || (kpOkBucket!==kb && rn-kpReqAt>60000)){ kpBucket=kb; kpReqAt=rn; fetchKp(kb); }
+}
+function fetchKp(bucket){
+  if(typeof XMLHttpRequest==="undefined") return;
+  try{
+    var xhr=new XMLHttpRequest();
+    xhr.onreadystatechange=function(){
+      if(xhr.readyState===XMLHttpRequest.DONE && xhr.status===200){
+        try{ var j=JSON.parse(xhr.responseText);                              // [ [header...], ...rows ]; last row = latest
+          if(Array.isArray(j) && j.length>1){ var last=j[j.length-1], kp=parseFloat(last[1]);
+            if(!isNaN(kp)){ kpNow=kp; if(bucket!==undefined) kpOkBucket=bucket; } }
+        }catch(e){}
+      }
+    };
+    xhr.open("GET","https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json");
     xhr.send();
   }catch(e){}
 }
@@ -2019,6 +2057,7 @@ function setup(scene,opts){
   buildWorld(lifeIndexOf(NOWOVR!=null?NOWOVR:Date.now()));
   maybeFetchWeather();          // seed the shared 10-min window on boot (draw() keeps it fresh thereafter)
   maybeFetchAirq();             // seed the shared 30-min air-quality window too
+  maybeFetchKp();                // and the shared 30-min planetary-K window (aurora)
   tPrev=Date.now();
 }
 // Which of the city's LIVES is this? Every rebirth rolls a brand-new seed, so each life
@@ -9669,6 +9708,7 @@ function draw(g,pass){
   var lifeI=lifeIndexOf(now); if(lifeI!==curLife) buildWorld(lifeI);   // REBIRTH: roll a brand-new city (masked by the ash veil)
   maybeFetchWeather();          // all monitors fetch on the same 10-min wall-clock window → identical weather
   maybeFetchAirq();             // and the same 30-min window for air quality (wildfire smoke)
+  maybeFetchKp();                // and the planetary K-index (aurora on real storm nights)
   var nd=nowDate();
   var ph=dayPhase(nd), fx=wfx(), hol=holidays(nd);
   var L=ph.light, night=1-L;

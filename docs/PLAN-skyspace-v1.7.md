@@ -87,7 +87,7 @@ Engine copies ×4 + md5 before any kde-repro render (bitten once already).
 - [x] 1 S1 curSpace driver + FORCEAGE.sp + kde-repro space param; dormant-kit renders
 - [x] 2 S2 moon colony (renders: colony growth at space .3/.7/1)
 - [x] 3 S3 Milky Way/Andromeda + lpK law (renders: village vs metropolis vs 3am vs pollution)
-- [ ] 4 S4 aurora fetch + renderer (renders: kp 5 band, kp 8 curtains)
+- [x] 4 S4 aurora fetch + renderer (renders: kp 5 band, kp 8 curtains)
 - [ ] 5 S5 ISS pass (render: dot on arc mid-pass)
 - [ ] 6 S6 extra shower dates (code-only + one Lyrids-night render)
 - [ ] 7 S7 sync ×4 + tests + full matrix
