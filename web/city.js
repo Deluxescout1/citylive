@@ -501,11 +501,19 @@ function buildMilkyWay(){
   // band at VISUAL width: latitude spreads here are ~3x the real sky so the river occupies a real slab of
   // screen the way it does in a wide-angle astrophoto.
   function riftK(l,b){                                              // 0=deep dust … 1=clear
-    if((l<=66)&&(b>-7&&b<1.0)) return 0;                            // main rift channel (Aquila→Sagittarius)
-    if((l>=24&&l<=58)&&(b>2.6&&b<5.8)) return 0.25;                 // thinner northern filament (braided look)
-    if((l>=62&&l<=84)&&(b>-4.6&&b<1.8)) return 0.15;                // the Cygnus rift (the split starts at the Northern Cross)
+    var e1=Math.sin(l*0.31)*1.6+Math.sin(l*0.83)*0.9;               // RAGGED channel edges (deterministic wobble),
+    var e2=Math.sin(l*0.47+2)*1.2+Math.sin(l*1.1)*0.6;              // so the dust looks torn, not ruled
+    if((l<=66)&&(b>-7+e1&&b<1.0+e2)) return 0;                      // main rift channel (Aquila→Sagittarius)
+    if((l>=24&&l<=58)&&(b>2.6+e2*0.5&&b<5.8+e1*0.5)) return 0.25;   // thinner northern filament (braided look)
+    if((l>=62&&l<=84)&&(b>-4.6+e1&&b<1.8+e2)) return 0.15;          // the Cygnus rift (the split starts at the Northern Cross)
     return 1;
   }
+  // scattered DARK CLOUDLETS — small torn holes of dust pocking the band (beyond the big rift)
+  var DKP=[]; for(var dk=0;dk<26;dk++) DKP.push({l:r()*360, b:gB(7), rad:1.5+r()*3});
+  function darkK(l,b){ for(var q=0;q<DKP.length;q++){ var P=DKP[q], dl=Math.abs(l-P.l); if(dl>180) dl=360-dl;
+      if(dl*dl+(b-P.b)*(b-P.b)<P.rad*P.rad) return 0.25; } return 1; }
+  // PATCHY CLUMPING — the band's brightness billows and thins along its length (cloud texture, not gradient)
+  function clumpK(l,b){ return 0.62+0.38*Math.sin(l*0.9+b*0.8)*Math.sin(l*0.23+1.7)+0.18*Math.sin(l*2.1+b*1.9); }
   for(var l2=0;l2<360;l2+=1){
     var d02=Math.min(l2,360-l2), bulge2=d02<50?(1-d02/50):0;        // the core bulge is BIG in a real sky
     var cloud=1 + 1.5*bulge2                                        // Sagittarius core glow
@@ -516,16 +524,19 @@ function buildMilkyWay(){
       var bh2=gB(10)*(1+0.8*bulge2);
       var wh2=(0.050+0.070*cloud)*Math.max(0.10,1-Math.abs(bh2)/22);
       var rk2=riftK(l2,bh2); wh2*=(0.35+0.65*rk2);
+      wh2*=Math.max(0.45,clumpK(l2,bh2));                            // the cloud body billows too (gentler than the grain)
       if(r()<0.10) continue;
       var eh2=galToEq(l2+r()-0.5,bh2);
       MWDABS.push({ra:eh2[0],dec:eh2[1],w:wh2,sz:(h2===0?5:(h2===1?4:3)),c:(bulge2>0.35&&r()<0.55)?1:0});
     }
-    // layer 2 — GRAIN: the fine mottle of millions of unresolved stars (the rift cuts these hard)
+    // layer 2 — GRAIN: the fine mottle of millions of unresolved stars (the rift cuts these hard;
+    // cloudlets poke holes; clumping billows the brightness so the texture reads like cloud, not fog)
     var n=(l2%2===0)?5:4;
     for(var s2=0;s2<n;s2++){
       var b2=gB(8)*(1+0.8*bulge2)+gB(4);
       var wgt=(0.08+0.10*cloud)*Math.max(0.12,1-Math.abs(b2)/24);
       var rk3=riftK(l2,b2); wgt*=(0.08+0.92*rk3);
+      wgt*=darkK(l2,b2)*Math.max(0.25,clumpK(l2,b2));
       if(r()<0.12) continue;
       var e2=galToEq(l2+r()-0.5,b2);
       MWDABS.push({ra:e2[0],dec:e2[1],w:wgt,sz:(r()<0.30?2:1),c:(bulge2>0.3&&r()<0.6)?1:0});
@@ -538,6 +549,16 @@ function buildMilkyWay(){
   }
   for(var k=0;k<90;k++){ var kl=r()*360, kd=Math.min(kl,360-kl);    // bright knots & clumps riding the band
     var kk=galToEq(kl,gB(7)); MWDABS.push({ra:kk[0],dec:kk[1],w:0.20+0.15*r()*(kd<55?1.5:1),sz:(r()<0.4?3:2),c:(kd<55&&r()<0.55)?1:0}); }
+  // EMISSION NEBULAE — the rosy H-alpha patches of the real band, at their real homes: Lagoon & Omega &
+  // Eagle (near the core), the North America nebula by Deneb, the Heart & Soul in Cassiopeia
+  var NEBS=[[6,-1.5],[15,-0.8],[17,0.8],[85,-1.2],[134,0.9],[137,1.2],[353,1.4],[265,-1.4]];
+  for(var nb=0;nb<NEBS.length;nb++){ var NB=NEBS[nb];
+    for(var np=0;np<5;np++){ var ne9=galToEq(NB[0]+gB(1.4),NB[1]+gB(1.1));
+      MWDABS.push({ra:ne9[0],dec:ne9[1],w:0.10+0.10*r(),sz:(np===0?3:2),c:2}); } }                     // c=2 → rose glow
+  // EMBEDDED STAR CLUSTERS — tight sparkling knots of resolved stars sitting IN the band
+  for(var cl9=0;cl9<22;cl9++){ var cll=r()*360, clb=gB(6);
+    for(var cs9=0,cn9=4+((r()*3)|0);cs9<cn9;cs9++){ var ce9=galToEq(cll+gB(0.9),clb+gB(0.7));
+      MWDABS.push({ra:ce9[0],dec:ce9[1],w:0.26+0.18*r(),sz:1,c:0}); } }
 }
 
 // draw the real Norwich star field + moon (only when dark & clear)
@@ -1651,7 +1672,9 @@ function drawSky(g,now,nd,L,fx){
   for(var di=0;di<MWDABS.length;di+=mwStride){ var dd=MWDABS[di], da=altAz(dd.ra,dd.dec,lst); if(da.alt<2) continue;
     var vfd=Math.min(1,(1-lpK)*(da.alt>50?1.5:1)), dma=dd.w*fade*vfd; if(dma<0.02) continue;
     var dwx=skyWX(da.az), dwy=skyY(da.alt);
-    g.fillStyle=dd.c?("rgba(240,228,200,"+dma.toFixed(3)+")"):("rgba(212,220,246,"+dma.toFixed(3)+")");
+    g.fillStyle=dd.c===2?("rgba(248,186,200,"+dma.toFixed(3)+")")                       // rose H-alpha nebulae
+               :dd.c===1?("rgba(240,228,200,"+dma.toFixed(3)+")")                       // warm-gold core clouds
+               :("rgba(212,220,246,"+dma.toFixed(3)+")");                               // blue-white starlight
     for(var dw=-1;dw<=1;dw++){ var dsx=dwx-WOFF+dw*WW; if(dsx<-2||dsx>SW+2) continue; g.fillRect(dsx|0,dwy|0,dd.sz,dd.sz); } }
   // ANDROMEDA — the faint elongated smudge of M31, the farthest thing a naked eye can reach
   var anda=altAz(0.712,41.27,lst);
