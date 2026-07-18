@@ -244,11 +244,11 @@ function roofMatFor(seed){ return ROOFMAT[(seed>>>9)%ROOFMAT.length]; }
 // hash — no r(), so the skyline layout is byte-stable. See drawUse().
 function useFor(dname,bh,bseed){
   var hh=(bseed>>>17)&255;
-  if(dname==="industrial") return hh<140?"factory":"warehouse";
-  if(dname==="downtown")   return hh<11?"hotel":(hh<19?"bank":(hh<26&&bh>=54*KSP?"theater":"office"));
-  if(dname==="neon")       return hh<40?"theater":(hh<64?"hotel":(hh<96?"cafe":"office"));   // entertainment strip
-  if(dname==="residential")return hh<9?"hospital":(hh<20?"cafe":"apartment");
-  if(dname==="oldtown")    return hh<11?"bank":(hh<26?"cafe":(hh<40?"pharmacy":"apartment"));
+  if(dname==="industrial") return hh<120?"factory":(hh<200?"warehouse":"depot");
+  if(dname==="downtown")   return hh<11?"hotel":(hh<19?"bank":(hh<26&&bh>=54*KSP?"theater":(hh<33?"store":"office")));
+  if(dname==="neon")       return hh<40?"theater":(hh<64?"hotel":(hh<96?"cafe":(hh<112?"store":"office")));   // entertainment strip
+  if(dname==="residential")return hh<9?"hospital":(hh<20?"cafe":(hh<30&&bh<40*KSP?"school":(hh<38?"fire":"apartment")));
+  if(dname==="oldtown")    return hh<11?"bank":(hh<26?"cafe":(hh<40?"pharmacy":(hh<50?"museum":(hh<58&&bh<40*KSP?"school":"apartment"))));
   return "office";
 }
 
@@ -2976,8 +2976,49 @@ function drawBanner(g,msg,now,night,pink){
 // hotel = lit vertical blade; bank = pale pediment band + gold seal; cafe = warm double-awning; pharmacy =
 // green cross. Night versions glow; day versions are painted colour. ~4-8 fillRects each, near layer only.
 function drawUse(g,b,bx,top,L,now,night){
-  var u=b.use; if(!u||u==="office"||u==="apartment"||u==="warehouse"||u==="factory") return;
+  var u=b.use; if(!u||u==="office"||u==="apartment") return;
   var w=b.w, mid=bx+(w>>1), fy=top+Math.min(9,Math.max(5,b.h>>2));      // upper-facade anchor (above the rail line)
+  if(u==="factory"){                                                     // lit clerestory band up high (the works run late)
+    if(L<0.6){ g.fillStyle="rgba(255,196,110,0.55)"; for(var fw9=bx+2;fw9<bx+w-2;fw9+=3) g.fillRect(fw9,fy,2,1); }
+    return;
+  }
+  if(u==="warehouse"||u==="depot"){                                      // big loading door + dock shadow
+    if(w<10) return; var ldw=Math.min(8,w-4), ldX=bx+((w-ldw)>>1);
+    g.fillStyle=L>0.5?"#4a4640":"#1a1814"; g.fillRect(ldX,HORIZON-6,ldw,6);            // roll-up door
+    g.fillStyle=L>0.5?"rgba(255,255,255,0.10)":"rgba(255,255,255,0.05)";
+    for(var lv9=HORIZON-5;lv9<HORIZON-1;lv9+=2) g.fillRect(ldX,lv9,ldw,1);              // door slats
+    g.fillStyle="rgba(0,0,0,0.3)"; g.fillRect(ldX-1,HORIZON-1,ldw+2,1);                 // dock shadow
+    if(u==="depot"&&L<0.55){ g.fillStyle="rgba(255,190,80,0.5)"; g.fillRect(ldX+1,HORIZON-6,1,1); }   // a work lamp
+    return;
+  }
+  if(u==="school"){                                                      // rooftop flagpole + flag, warm yellow entry band
+    g.fillStyle=L>0.5?"#8a8e96":"#3a3e46"; g.fillRect(mid,top-5,1,5);                   // pole
+    g.fillStyle=L>0.5?"#d24a4a":"#8a3030"; g.fillRect(mid+1,top-5,2,1);                 // flag
+    g.fillStyle=L>0.5?"#4a6ad2":"#2a3a7a"; g.fillRect(mid+1,top-4,2,1);
+    g.fillStyle=L>0.5?"#e8c86a":"#8a7840"; g.fillRect(bx+1,HORIZON-6,w-2,1);            // school-yellow band over the doors
+    return;
+  }
+  if(u==="fire"){                                                        // fire station: red facade band + big garage door
+    g.fillStyle=L>0.5?"#c03830":"#6a2018"; g.fillRect(bx+1,fy-1,w-2,2);                 // red band
+    if(w>=10){ var fdw=Math.min(7,w-4), fdX=bx+((w-fdw)>>1);
+      g.fillStyle=L>0.5?"#8a2724":"#3a1210"; g.fillRect(fdX,HORIZON-6,fdw,6);           // engine-bay door
+      g.fillStyle="rgba(255,255,255,0.12)"; g.fillRect(fdX,HORIZON-4,fdw,1); }
+    if(L<0.55){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,70,60,0.30)"; g.fillRect(bx+1,fy-2,w-2,4); g.globalCompositeOperation="source-over"; }
+    return;
+  }
+  if(u==="museum"){                                                      // pale pediment + a hanging exhibition banner
+    g.fillStyle=L>0.5?"#ded8c8":"#5a564a"; g.fillRect(bx+1,fy-2,w-2,2);                 // stone pediment band
+    var bc9=[[200,80,90],[90,140,200],[210,160,70]][(b.seed>>>21)%3];                   // this life's exhibition colour
+    g.fillStyle=rgba(bc9,L>0.5?0.9:0.55); g.fillRect(mid-1,fy+1,3,Math.min(7,b.h>>3));  // the banner
+    return;
+  }
+  if(u==="store"){                                                       // department store: long lit display band + awning row
+    var dw9=w-4, dX9=bx+2;
+    g.fillStyle=L>0.5?"#7d96b2":"#3a4a66"; g.fillRect(dX9,HORIZON-6,dw9,3);             // wide display glass
+    g.fillStyle=L>0.5?"#c05a3a":"#7a3828"; for(var aw9=dX9;aw9<dX9+dw9;aw9+=4) g.fillRect(aw9,HORIZON-7,3,1);   // awning row
+    if(L<0.55){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,220,160,0.30)"; g.fillRect(dX9,HORIZON-6,dw9,4); g.globalCompositeOperation="source-over"; }
+    return;
+  }
   if(u==="hospital"){                                                    // white/red cross on its own pale panel
     g.fillStyle=L>0.5?"#e8ecf0":"#b8c0c8"; g.fillRect(mid-2,fy-2,5,5);
     g.fillStyle=L>0.5?"#c03038":"#ff5a60"; g.fillRect(mid-1,fy,3,1); g.fillRect(mid,fy-1,1,3);
