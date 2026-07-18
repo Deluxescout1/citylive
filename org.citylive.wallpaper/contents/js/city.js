@@ -6652,13 +6652,36 @@ function drawTornado(g,cd,L,now){
   var grow=Math.min(1,f/0.10), fade=(f>0.40)?1-(f-0.40)/0.10:1, gy=HORIZON, H=(gy-8)*grow;
   var wander=Math.sin(now*0.0006+cd.seed)*(14+i*8)+Math.sin(now*0.0013+cd.seed*1.7)*(6+i*3), cx=cx0+wander;   // the funnel ROAMS across the district
   var widthK=cd.w+i*6;                                                  // CAT-5 = a broad wedge
-  for(var y=0;y<H;y++){ var wob=Math.sin(now*0.006+y*0.15)*(3+y*0.06), wdt=3+(y/H)*(widthK*1.2), mx=cx+wob;
-    g.globalAlpha=fade*(0.55+0.3*Math.sin(now*0.02+y)); g.fillStyle=L>0.5?"#5c5c66":"#22222c";
-    g.fillRect((mx-wdt/2)|0,(gy-y)|0,(wdt)|0,1);
-    if((y+(Math.floor(now/40)))%3===0){ g.fillStyle="rgba(200,200,210,0.6)"; g.fillRect((mx-wdt/2)|0,(gy-y)|0,1,1); g.fillRect((mx+wdt/2-1)|0,(gy-y)|0,1,1); } }
+  // ---- REALISTIC FUNNEL: a smooth TAPERED cone (broad at the wall cloud, ropey at the ground) that LEANS
+  //      and bows as it moves, with 3-tone volumetric shading, DOWNWARD-SPIRALLING helix bands (the rotation),
+  //      a dark lumpy WALL CLOUD it hangs from, and a churning brown DEBRIS BOWL where it grinds the ground.
+  var sunL9=curSunDf<0.5, leanA=Math.sin(now*0.00042+cd.seed*2.3)*0.35;             // slow whole-funnel lean
+  var coreC =L>0.5?"#57525c":"#1c1a24", edgeC=L>0.5?"#6c6672":"#26232e";            // condensation tones
+  var bandC =L>0.5?"#7d7684":"#332e3c", rimC =L>0.5?"rgba(214,208,200,0.5)":"rgba(150,146,158,0.35)";
+  for(var y=0;y<H;y++){ var t=y/H,
+      wdt=Math.max(2, 2.5 + Math.pow(t,1.5)*widthK*1.5),                            // taper: rope at ground → wedge at cloud base
+      mx=cx + leanA*y*(0.35+0.4*t)                                                  // the lean grows with height (bowed column)
+           + Math.sin(now*0.0011+cd.seed+t*2.6)*3*t                                 // slow snaking, stronger aloft
+           + Math.sin(now*0.008+y*0.35)*0.7;                                        // fine shimmer only (was the old zigzag)
+    var x0=(mx-wdt/2)|0, wI=(wdt)|0;
+    g.globalAlpha=fade*(0.78+0.10*Math.sin(now*0.013+y*0.3));                       // near-solid, gentle breathing (no strobe)
+    g.fillStyle=edgeC; g.fillRect(x0,(gy-y)|0,wI,1);                                // outer condensation
+    if(wI>2){ g.fillStyle=coreC; g.fillRect(x0+1,(gy-y)|0,wI-2,1); }                // dark core
+    var hb=((y*0.55 - now*0.026 + cd.seed*7)%7+7)%7;                                // HELIX: bands corkscrew DOWNWARD
+    if(hb<2 && wI>3){ g.fillStyle=bandC; g.fillRect(x0+1+((hb*(wI-3))/2|0),(gy-y)|0,Math.max(1,wI>>2),1); }
+    if(wI>=4){ g.fillStyle=rimC; g.fillRect(sunL9?x0:(x0+wI-1),(gy-y)|0,1,1); }     // sunlit rim on the sun side
+  }
   g.globalAlpha=1;
-  for(var d=0;d<12+i*3;d++){ var a=now*0.011+d*0.55, dx=cx+Math.cos(a)*(widthK*0.8), dy=gy-2-Math.abs(Math.sin(a))*(9+i*2);
-    g.fillStyle=["#5a4a30","#4a4a52","#6a5a3a","#7a4a4a"][d%4]; g.fillRect(dx|0,dy|0,2,2); }
+  // WALL CLOUD — the dark rotating lowering the funnel descends from
+  var wcY=(gy-H)|0, wcW=widthK*2.6, topMx=cx+leanA*H*0.75;
+  g.fillStyle=L>0.5?"rgba(70,66,76,"+(0.85*fade)+")":"rgba(16,14,22,"+(0.9*fade)+")";
+  for(var wc=0;wc<4;wc++){ var lump=Math.sin(now*0.0009+wc*1.9+cd.seed)*4;
+    g.fillRect((topMx-wcW/2+wc*wcW/4+lump)|0,(wcY-3-((wc&1)?2:0))|0,(wcW/3.2)|0,5+((wc&1)?2:0)); }
+  // DEBRIS BOWL — a churning brown bowl of ground-up city at the foot (spiral churn, not a neat ring)
+  for(var d=0;d<16+i*4;d++){ var dph=((now*(0.010+((d*7)%5)*0.001)+d*0.61)%(Math.PI*2)),
+      drr=(3+((d*13)%9))*(0.5+0.5*Math.sin(now*0.002+d)), dx=cx+Math.cos(dph)*(widthK*0.55+drr),
+      dy=gy-1-Math.abs(Math.sin(dph))*(6+i*2)-((d*11)%4);
+    g.fillStyle=["#6a5638","#57534a","#7a6444","#5d4a42","#4c4438"][d%5]; g.fillRect(dx|0,dy|0,2,d%3===0?1:2); }
   // HURLED debris flung out on tangents — cars, signs, torn roof sheets
   for(var h=0;h<3+(i>>1);h++){ var hp=((now*0.0009+h*0.33+cd.seed)%1), ang=h*2.1+cd.seed, dist=hp*(40+i*14),
       hx=cx+Math.cos(ang)*dist, hy=gy-4-Math.sin(hp*Math.PI)*(20+i*8)-hp*10, spin=(Math.floor(now/80)+h)&1;
