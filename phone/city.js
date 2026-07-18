@@ -151,6 +151,7 @@ var CLOCK = null;   // test-harness override: ms timestamp for time-of-day (null
 var NOWOVR = null;  // test-harness override: ms value returned as Date.now() inside draw() (null = real)
 var FORCELAYOUT = null;   // test hook: pin every building's window layout (grid/ribbon/band/punch/corp) — verify per-layout render
 var FORCECROWN = null;    // test hook: pin every building's crown/roof (gable/hip/saltbox/mansard/deco/…) — verify per-roof render
+var FORCEUSE = null;      // test hook: pin every building's functional type (hospital/theater/hotel/bank/cafe/pharmacy) — verify drawUse
 function nowDate(){ return CLOCK ? new Date(CLOCK) : new Date(); }
 
 function rng(seed){ var a=seed>>>0; return function(){ a|=0; a=a+0x6D2B79F5|0; var t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
@@ -236,6 +237,20 @@ function dayMatFor(dname,seed){ var t=DAYMAT[dname]; if(!t) return null; return 
 var ROOFMAT = [ [46,50,60],[58,64,76],[150,72,56],[168,92,64],[92,122,104],[74,104,90],
                 [98,76,56],[120,90,64],[34,36,44],[120,124,132],[74,60,68],[52,58,66] ];
 function roofMatFor(seed){ return ROOFMAT[(seed>>>9)%ROOFMAT.length]; }
+
+// FUNCTIONAL BUILDING TYPE — most buildings are generic office/apartment; a MINORITY are recognizable civic/
+// commercial types rendered with a colour/light cue that survives pixel scale (a mid-facade emblem or a lit
+// blade sign, NOT fine ground-floor linework the rail/crowds occlude). Derived from district+height+a bseed
+// hash — no r(), so the skyline layout is byte-stable. See drawUse().
+function useFor(dname,bh,bseed){
+  var hh=(bseed>>>17)&255;
+  if(dname==="industrial") return hh<140?"factory":"warehouse";
+  if(dname==="downtown")   return hh<11?"hotel":(hh<19?"bank":(hh<26&&bh>=54*KSP?"theater":"office"));
+  if(dname==="neon")       return hh<40?"theater":(hh<64?"hotel":(hh<96?"cafe":"office"));   // entertainment strip
+  if(dname==="residential")return hh<9?"hospital":(hh<20?"cafe":"apartment");
+  if(dname==="oldtown")    return hh<11?"bank":(hh<26?"cafe":(hh<40?"pharmacy":"apartment"));
+  return "office";
+}
 
 var SKY = { night:[[8,8,26],[16,14,40]], dawn:[[70,40,90],[255,140,90]],
             day:[[92,160,235],[170,215,250]], dusk:[[40,30,80],[255,110,70]] };
@@ -2091,6 +2106,7 @@ function makeLayer(seed,y0,baseHMin,baseHMax,layerK){
             glass:((winLayout==="corp"||winLayout==="ribbon")&&!(d.brick||neClap||nePitch)),   // reflective glass tower
             hero:hero,   // signature landmark tower (ornate crown + premium beacon/trim)
             roofMat:roofMatFor(bseed),   // this building's roof colour (slate/copper/red/cedar/tin…) — no two the same
+            use:(typeof FORCEUSE!=='undefined'&&FORCEUSE)?FORCEUSE:useFor(d.name,bh,bseed),   // functional type (hospital/theater/hotel/bank/cafe/…) → drawUse cue
             dayMat:(neColonial?null:dayMatFor(d.name,bseed)),   // DAYTIME material colour (colonial town keeps NE_WALLS; modern core gets it)
             nePitch:nePitch, clap:neClap,
             win:[], st:[], gl:[], roof:[],
@@ -2955,6 +2971,42 @@ function drawBanner(g,msg,now,night,pink){
   }
 }
 
+// FUNCTIONAL-TYPE CUE — a colour/light mark that reads at real pixel scale, placed MID-FACADE (the ground
+// floor is occluded by the el-rail + crowds). Hospital = lit cross; theater = bulb marquee band + red blade;
+// hotel = lit vertical blade; bank = pale pediment band + gold seal; cafe = warm double-awning; pharmacy =
+// green cross. Night versions glow; day versions are painted colour. ~4-8 fillRects each, near layer only.
+function drawUse(g,b,bx,top,L,now,night){
+  var u=b.use; if(!u||u==="office"||u==="apartment"||u==="warehouse"||u==="factory") return;
+  var w=b.w, mid=bx+(w>>1), fy=top+Math.min(9,Math.max(5,b.h>>2));      // upper-facade anchor (above the rail line)
+  if(u==="hospital"){                                                    // white/red cross on its own pale panel
+    g.fillStyle=L>0.5?"#e8ecf0":"#b8c0c8"; g.fillRect(mid-2,fy-2,5,5);
+    g.fillStyle=L>0.5?"#c03038":"#ff5a60"; g.fillRect(mid-1,fy,3,1); g.fillRect(mid,fy-1,1,3);
+    if(L<0.55){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,90,96,0.5)"; g.fillRect(mid-2,fy-2,5,5); g.globalCompositeOperation="source-over"; }
+  } else if(u==="theater"){                                              // bulb-chase marquee band + red blade sign
+    var my=HORIZON-8, mw=Math.min(w-2,14), mX=bx+((w-mw)>>1);
+    g.fillStyle=L>0.5?"#3a3240":"#181020"; g.fillRect(mX,my,mw,2);                       // marquee box
+    for(var bl2=0;bl2<mw;bl2+=2){ var on2=((Math.floor(now/240))+bl2)%4!==0;             // chasing bulbs
+      g.fillStyle=on2?(L<0.6?"#ffe08a":"#c8a850"):"#6a5a30"; g.fillRect(mX+bl2,my,1,1); }
+    g.fillStyle=L<0.6?"#ff4048":"#a03038"; g.fillRect(bx+w-3,top+4,2,Math.min(10,b.h>>2));   // vertical blade
+    if(L<0.55){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,80,90,0.35)"; g.fillRect(bx+w-4,top+3,4,Math.min(12,(b.h>>2)+2)); g.globalCompositeOperation="source-over"; }
+  } else if(u==="hotel"){                                                // lit vertical HOTEL blade on the corner
+    var hbh=Math.min(12,Math.max(6,b.h>>2));
+    g.fillStyle=L<0.6?"#ffd27a":"#8a7440"; g.fillRect(bx+1,top+4,2,hbh);
+    if(L<0.55){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,210,122,0.35)"; g.fillRect(bx,top+3,4,hbh+2); g.globalCompositeOperation="source-over"; }
+  } else if(u==="bank"){                                                 // pale stone pediment band + gold seal
+    g.fillStyle=L>0.5?"#ded8c8":"#5a564a"; g.fillRect(bx+1,fy-1,w-2,2);
+    g.fillStyle=L>0.5?"#c8a850":"#8a7440"; g.fillRect(mid,fy-2,1,1);
+  } else if(u==="cafe"){                                                 // warm scalloped double-awning + glow
+    var aw2=Math.min(w-2,10), aX2=bx+((w-aw2)>>1), ay=HORIZON-7;
+    g.fillStyle=L>0.5?"#c05a3a":"#7a3828"; g.fillRect(aX2,ay,aw2,1);
+    for(var av2=0;av2<aw2;av2+=2) g.fillRect(aX2+av2,ay+1,1,1);                          // scallops
+    if(L<0.55){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,190,120,0.30)"; g.fillRect(aX2-1,ay,aw2+2,4); g.globalCompositeOperation="source-over"; }
+  } else if(u==="pharmacy"){                                             // green cross (universal)
+    g.fillStyle=L<0.6?"#3ae06a":"#2a8848"; g.fillRect(mid-1,fy,3,1); g.fillRect(mid,fy-1,1,3);
+    if(L<0.55){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(60,224,110,0.4)"; g.fillRect(mid-2,fy-2,5,5); g.globalCompositeOperation="source-over"; }
+  }
+}
+
 // ---- building crowns (a distinct top for every building) ----
 // bx = top-segment screen x, top = its roof y, bw = top-segment width.
 function drawCrown(g,crown,bx,top,bw,col,accent,L,now,night,roofMat){
@@ -3691,6 +3743,7 @@ function drawLayer(g,layer,L,now,fx,hol,haze){
       // a holiday prop hung over the doorway (the building "celebrates" the day)
       if(doProps && (((b.x|0)%3)===0)) drawProp(g,hol.decor.prop, eX+(edw>>1), HORIZON, L, now, night);
     }
+    if(layer===near && b.type!=="park" && b.w>=8) drawUse(g,b,bx,top,L,now,night);   // functional-type cue (hospital cross / theater marquee / hotel blade / …)
     // holiday garland lights strung along the top-segment roofline (every holiday)
     if(decor){ var gc=hol.decor.garland;
       for(var i2=1;i2<tW-1;i2+=2){ var cc=gc[(((i2/2)|0)+bi)%gc.length];
