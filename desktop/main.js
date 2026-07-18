@@ -26,6 +26,10 @@ let CONFIG_PATH = null;
 // apps download it in the background and apply it on the next launch. Optional in dev (module may be absent).
 let autoUpdater = null;
 try { autoUpdater = require('electron-updater').autoUpdater; } catch (e) { /* dev without the dep → no updates */ }
+if (autoUpdater) {
+  autoUpdater.autoDownload = true;          // fetch the new version as soon as it's seen
+  autoUpdater.autoInstallOnAppQuit = true;  // safety net if the immediate install below ever fails
+}
 
 // A single shared render process is plenty; allow GPU canvas acceleration.
 app.commandLine.appendSwitch('enable-gpu-rasterization');
@@ -369,7 +373,7 @@ function registerConfigIpc() {
     try {
       const r = await autoUpdater.checkForUpdates();
       const v = r && r.updateInfo && r.updateInfo.version;
-      if (v && v !== app.getVersion()) return 'Update available: v' + v + ' — downloading in the background; it installs on next launch.';
+      if (v && v !== app.getVersion()) return 'Update available: v' + v + ' — downloading now; CityLive will restart itself updated (your city continues exactly where it is).';
       return "You're up to date (v" + app.getVersion() + ').';
     } catch (err) {
       // No published release yet (404) or offline — both are fine, not errors to the user.
@@ -589,7 +593,16 @@ if (SS.preview) {
         autoUpdater.on('update-available', (i) => fwd('Update available: v' + (i && i.version) + ' — downloading…'));
         autoUpdater.on('update-not-available', () => fwd("You're up to date (v" + app.getVersion() + ').'));
         autoUpdater.on('download-progress', (p) => fwd('Downloading update… ' + Math.round((p && p.percent) || 0) + '%'));
-        autoUpdater.on('update-downloaded', (i) => fwd('Update v' + (i && i.version) + ' downloaded — installs on next launch.'));
+        autoUpdater.on('update-downloaded', (i) => {
+          fwd('Update v' + (i && i.version) + ' downloaded — restarting to apply…');
+          // APPLY IMMEDIATELY: the city is a pure function of the wall clock and all personal
+          // settings/progress live in userData (outside the app bundle), so a silent in-place
+          // restart resumes exactly where the world was — same buildings, same day, same life.
+          setTimeout(() => {
+            try { quitting = true; autoUpdater.quitAndInstall(true, true); }   // silent install + relaunch
+            catch (e) { quitting = false; /* fall back to autoInstallOnAppQuit */ }
+          }, 2500);   // a beat so the Control Center can show the message first
+        });
         autoUpdater.on('error', () => fwd("You're up to date (v" + app.getVersion() + ').'));
       }
       app.on('activate', () => { if (win === null && !SS.screensaver) createWindow(); });

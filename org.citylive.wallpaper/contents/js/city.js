@@ -3233,8 +3233,10 @@ function drawPark(g,p,bx,L,now,dayLit,night){
   }
   // trees — foliage colour follows the season (green summer, gold autumn, bare winter, blossoms spring)
   var se=curSeason||seasonInfo(nowDate());
+  // park trees GROW: planted as saplings when the park opens, maturing over ~40% of the life, then old-growth
+  var tgf=0.5+0.7*Math.min(1,Math.max(0,(cityG-(p.bAge||0))/0.4));
   for(var ti=0;ti<p.trees.length;ti++){ var t=p.trees[ti];
-    var cx=bx+t.x, base=grassTop+1, s=t.s+(t.big?2:0), trunkH=s+2, cy=base-trunkH;
+    var cx=bx+t.x, base=grassTop+1, s=Math.max(1,Math.round(t.s*tgf))+(t.big?2:0), trunkH=s+2, cy=base-trunkH;
     g.fillStyle=css(mixc([34,24,16],[96,68,40],dayLit)); g.fillRect(cx,cy,1,trunkH);
     if(se.bare){                                        // winter: bare branches (+ snow if any)
       g.fillStyle=css(mixc([30,24,18],[80,70,58],dayLit));
@@ -7240,8 +7242,11 @@ function drawRuins(g,cg,L,now){
 // size class: most trees are normal, some are LARGE, a few are old-growth GIANTS
 function treeSC(seed){ var h=((seed*40503+11)>>>0)%100;
   return h<58?1:(h<82?1.7:(h<96?2.5:3.4)); }
+// TREES KEEP GROWING: every tree matures over the city's life — planted small, filling out season after
+// season toward a full crown (and creeping a touch beyond, so an old city has old growth). Pure f(cityG).
+function treeGrow(){ return 0.60+0.55*Math.min(1.0,Math.max(0,cityG)*1.35); }
 function drawTree(g,X,gy,day,now,seed,mul){
-  var sc=treeSC(seed)*(mul||1), v=seed%7;
+  var sc=treeSC(seed)*(mul||1)*treeGrow(), v=seed%7;
   var sway=Math.round(Math.sin(now*0.0008+seed)*(sc>1.8?2:1)), tx=X+sway;
   var trunk=day?"#5a4028":"#3c3020", tw=sc>=2.5?3:(sc>=1.7?2:1);
   var season=curSeason||seasonInfo(nowDate());
