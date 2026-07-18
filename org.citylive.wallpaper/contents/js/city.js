@@ -3715,9 +3715,16 @@ function drawLayer(g,layer,L,now,fx,hol,haze){
         var sfY=HORIZON-5;                                          // D6: ground-floor storefront (now on more blocks)
         g.fillStyle="rgba(10,12,18,0.9)"; g.fillRect(bx+1,sfY-1,b.w-2,1);            // transom
         g.fillStyle=L>0.5?"#7d96b2":"#28324a"; g.fillRect(bx+1,sfY,b.w-2,3);         // display glass
+        // SHOP KIND: each frontage is a specific shop — GOODS in the display + a kind-coloured glow.
+        // bakery(warm loaves) grocer(produce) boutique(mannequin colours) bar(neon) book(spines) flowers.
+        var sk6=(b.seed>>>11)%6, GOODS6=[[[236,196,120],[204,150,80]],[[110,190,90],[220,90,70]],[[220,140,200],[140,160,240]],[[255,80,160],[80,220,255]],[[180,120,80],[90,130,190]],[[240,120,140],[120,200,110]]][sk6];
+        for(var gd6=bx+2;gd6<bx+b.w-3;gd6+=2){ var gv6=GOODS6[((gd6*7)>>1)&1];       // alternating goods pixels on the shelf
+          g.fillStyle=rgba(gv6,L>0.5?0.95:0.7); g.fillRect(gd6,sfY+1,1,1); }
+        g.fillStyle="rgba(30,26,22,0.8)"; g.fillRect(bx+1,sfY+2,b.w-2,1);            // the shelf line
         g.fillStyle=css(colc); for(var sp6=bx+4;sp6<bx+b.w-2;sp6+=5) g.fillRect(sp6,sfY,1,3);   // mullion posts
-        if(L<0.5){ g.globalCompositeOperation="lighter";
-          g.fillStyle="rgba(255,214,140,0.14)"; g.fillRect(bx+1,sfY,b.w-2,4);
+        if(L<0.5){ var sg6=sk6===3?[255,120,220]:[255,214,140];                       // bars glow neon-pink, the rest lamp-warm
+          g.globalCompositeOperation="lighter";
+          g.fillStyle=rgba(sg6,0.16); g.fillRect(bx+1,sfY,b.w-2,4);
           g.globalCompositeOperation="source-over"; }
       }
     }
