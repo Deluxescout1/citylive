@@ -158,6 +158,10 @@ Growth: b.bAge birth-age; unborn skipped, borning = drawGrowSite. Windows precom
 - [~] B1 structural realism — glass+articulation+DAY WINDOW PANES done; corp-sparse case + material colour TBD
 - [ ] B2 ground-floor retail storefronts
 - [ ] B3 building types by function + signage
-- [ ] B4 living interiors (people in lit windows at night)
+- [~] B4 living interiors — DONE (first pass): ~20% of lit near-layer rooms (grid/punch/corp windows ≥2×2)
+      show a dark person SILHOUETTE against the glow at night; a slow life-clock (now/3600) drifts the figure
+      across the room + sometimes empties it. Deterministic per window (w.hx+seed). Subtle by design ("sometimes
+      you see someone" — Nick). Night roofs were also fixed here (day/night-aware roof colour). Perf 8.7ms.
+      TODO maybe: rarer OPEN window showing a fuller room; desk/lamp props.
 - [ ] B5 variety + district identity + more residential/industrial
 - [ ] B6 verify + both-platform gate → ship v1.9.0

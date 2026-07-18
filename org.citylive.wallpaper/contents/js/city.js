@@ -3581,6 +3581,17 @@ function drawLayer(g,layer,L,now,fx,hol,haze){
         var tvp=((Math.floor(now/210))+w.x*3+w.y)%5; wc=tvp<2?"#5f86d8":(tvp<3?"#a8c8ff":"#39508f"); }
       g.fillStyle=wc; g.globalAlpha=winAlpha;
       g.fillRect(bx+w.x,top+w.y,w.w,w.h);
+      // LIVING INTERIOR: some lit near-layer rooms show a person's SILHOUETTE against the glow (offices &
+      // homes at night). Deterministic per window; a slow life-clock shifts the figure across the room and
+      // sometimes empties it — so the city looks inhabited, not just lit.
+      if(isNight && layer===near && w.w>=2 && w.h>=2 && ((w.hx*13+b.seed)>>>0)%5===0){
+        var pph=(Math.floor(now/3600)+w.hx*3)|0;
+        if(pph%3!==2){                                              // a figure is home ~2/3 of the time
+          var fgx=bx+w.x+((pph+w.x)%w.w);                           // silhouette drifts slowly across the room
+          g.globalAlpha=0.9; g.fillStyle="#161018"; g.fillRect(fgx,top+w.y,1,w.h);   // body column
+          if(w.h>=3){ g.globalAlpha=0.6; g.fillRect(fgx,top+w.y,1,1); }              // a hint of a head on taller rooms
+        }
+      }
     }
     g.globalAlpha=1;
     if(auroraOn&&layer===near&&night>0.5&&b.h>30*KSP){                          // the aurora in the glass
