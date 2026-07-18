@@ -153,9 +153,25 @@ Growth: b.bAge birth-age; unborn skipped, borning = drawGrowSite. Windows precom
 ## - Verified: forced saltbox/mansard renders + natural town/oldtown mix + qml sweep (34) SWEEP_OK + perf ~9ms.
 ##   Harness hooks now: ?layout= (FORCELAYOUT), ?crown= (FORCECROWN), ?probe=hero.
 ##
+## 2026-07-17 LATE: B3 EXECUTED (types w/ pixel-scale cues — hospital cross, theater marquee+blade, hotel blade,
+## bank pediment, cafe awning, pharmacy green cross, school flag+yellow band, fire station red band+bay door,
+## museum pediment+banner, dept-store display band, factory clerestory, warehouse/depot loading dock). Nick's
+## answers: build ALL (more types + storefront goods + industrial) then SHIP; cue density = SUBTLE AS-IS.
+## B2 EXECUTED: D6 storefronts now shop-KINDS (bakery/grocer/boutique/bar/book/florist) w/ goods pixels +
+## kind-coloured night glow. Industrial: covered by factory/warehouse cues (harbor scenery already rich).
+## Hooks: ?use= (FORCEUSE), ?probe=use. All verified at REAL scale (6x), SWEEP_OK, perf 8.6ms.
+## REMAINING FOR SHIP (B6): full render matrix (each district day+night + growth + one apoc over new bldgs),
+## LIVE KDE install.sh deploy (the wmood-class gate — harnesses can't catch what live KDE can), WinTest VM,
+## then merge → bump 1.9.0 → tag (tag push triggers the release build).
+##
 ## STATUS  ⟵ UPDATE AS EXECUTED
-- [ ] B0 branch + plan + harness
-- [~] B1 structural realism — glass+articulation+DAY WINDOW PANES done; corp-sparse case + material colour TBD
+- [x] B0 branch + plan + harness (kde-repro hooks: layout/crown/use/probe=hero/probe=use + qml-sweep.qml)
+- [x] B1 structural realism (glass/articulation/day-panes/material colour/roof variety/hero towers)
+- [x] B2 shop-kind storefronts w/ goods
+- [x] B3 functional types + cues (12 types)
+- [x] B4 living interiors (window silhouettes)
+- [~] B5 variety — covered via roofs/materials/types; no separate pass planned
+- [ ] B6 verify matrix + BOTH-PLATFORM GATE + merge + tag v1.9.0
 - [ ] B2 ground-floor retail storefronts
 - [ ] B3 building types by function + signage
 - [~] B4 living interiors — DONE (first pass): ~20% of lit near-layer rooms (grid/punch/corp windows ≥2×2)
