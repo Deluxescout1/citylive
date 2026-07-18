@@ -496,10 +496,14 @@ function buildMilkyWay(){
   // THE BAND, PHOTO-STYLE (three layers, ~2000 dabs): a broad soft HAZE cloud body, dense fine GRAIN
   // (unresolved-star mottle), and a faint STAR SPRINKLE feathering far past the edges — with a BRAIDED
   // Great Rift (three dust filaments) threading through it and a big glowing core.
+  // NOTE ON SCALE: the sky projection compresses latitude hard — a few real degrees is a couple of pixels,
+  // so an astronomically-true band collapses into a LINE (Nick's complaint, twice). The fix is to draw the
+  // band at VISUAL width: latitude spreads here are ~3x the real sky so the river occupies a real slab of
+  // screen the way it does in a wide-angle astrophoto.
   function riftK(l,b){                                              // 0=deep dust … 1=clear
-    if((l<=66)&&(b>-2.4&&b<0.3)) return 0;                          // main rift channel (Aquila→Sagittarius)
-    if((l>=24&&l<=58)&&(b>0.9&&b<2.0)) return 0.25;                 // thinner northern filament (braided look)
-    if((l>=62&&l<=84)&&(b>-1.6&&b<0.6)) return 0.15;                // the Cygnus rift (the split starts at the Northern Cross)
+    if((l<=66)&&(b>-7&&b<1.0)) return 0;                            // main rift channel (Aquila→Sagittarius)
+    if((l>=24&&l<=58)&&(b>2.6&&b<5.8)) return 0.25;                 // thinner northern filament (braided look)
+    if((l>=62&&l<=84)&&(b>-4.6&&b<1.8)) return 0.15;                // the Cygnus rift (the split starts at the Northern Cross)
     return 1;
   }
   for(var l2=0;l2<360;l2+=1){
@@ -508,32 +512,32 @@ function buildMilkyWay(){
               + ((l2>=18&&l2<=32)?0.9:0)                            // Scutum star cloud
               + ((l2>=66&&l2<=86)?0.8:0);                           // Cygnus star cloud
     // layer 1 — HAZE: big soft dabs give the band a continuous cloud BODY (dust dims but can't kill glow)
-    for(var h2=0;h2<3;h2++){
-      var bh2=gB(3.6)*(1+1.0*bulge2);
-      var wh2=(0.050+0.070*cloud)*Math.max(0.10,1-Math.abs(bh2)/8);
+    for(var h2=0;h2<4;h2++){
+      var bh2=gB(10)*(1+0.8*bulge2);
+      var wh2=(0.050+0.070*cloud)*Math.max(0.10,1-Math.abs(bh2)/22);
       var rk2=riftK(l2,bh2); wh2*=(0.35+0.65*rk2);
       if(r()<0.10) continue;
       var eh2=galToEq(l2+r()-0.5,bh2);
-      MWDABS.push({ra:eh2[0],dec:eh2[1],w:wh2,sz:(h2===0?4:3),c:(bulge2>0.35&&r()<0.55)?1:0});
+      MWDABS.push({ra:eh2[0],dec:eh2[1],w:wh2,sz:(h2===0?5:(h2===1?4:3)),c:(bulge2>0.35&&r()<0.55)?1:0});
     }
     // layer 2 — GRAIN: the fine mottle of millions of unresolved stars (the rift cuts these hard)
-    var n=(l2%2===0)?4:3;
+    var n=(l2%2===0)?5:4;
     for(var s2=0;s2<n;s2++){
-      var b2=gB(2.9)*(1+1.0*bulge2)+gB(1.7);
-      var wgt=(0.08+0.10*cloud)*Math.max(0.12,1-Math.abs(b2)/8);
+      var b2=gB(8)*(1+0.8*bulge2)+gB(4);
+      var wgt=(0.08+0.10*cloud)*Math.max(0.12,1-Math.abs(b2)/24);
       var rk3=riftK(l2,b2); wgt*=(0.08+0.92*rk3);
       if(r()<0.12) continue;
       var e2=galToEq(l2+r()-0.5,b2);
-      MWDABS.push({ra:e2[0],dec:e2[1],w:wgt,sz:(r()<0.16?2:1),c:(bulge2>0.3&&r()<0.6)?1:0});
+      MWDABS.push({ra:e2[0],dec:e2[1],w:wgt,sz:(r()<0.30?2:1),c:(bulge2>0.3&&r()<0.6)?1:0});
     }
     // layer 3 — STAR SPRINKLE: faint pinpricks feathering way past the band (the star-rich sky of the photo)
-    if(l2%2===0){ var bs3=gB(5.5)+gB(3);
+    for(var sp3=0;sp3<2;sp3++){ var bs3=gB(18)+gB(8);
       var es3=galToEq(l2+r()-0.5,bs3);
       MWDABS.push({ra:es3[0],dec:es3[1],w:0.035+0.03*r(),sz:1,c:0});
     }
   }
-  for(var k=0;k<72;k++){ var kl=r()*360, kd=Math.min(kl,360-kl);    // bright knots & clumps riding the band
-    var kk=galToEq(kl,gB(2.6)); MWDABS.push({ra:kk[0],dec:kk[1],w:0.20+0.15*r()*(kd<55?1.5:1),sz:2,c:(kd<55&&r()<0.55)?1:0}); }
+  for(var k=0;k<90;k++){ var kl=r()*360, kd=Math.min(kl,360-kl);    // bright knots & clumps riding the band
+    var kk=galToEq(kl,gB(7)); MWDABS.push({ra:kk[0],dec:kk[1],w:0.20+0.15*r()*(kd<55?1.5:1),sz:(r()<0.4?3:2),c:(kd<55&&r()<0.55)?1:0}); }
 }
 
 // draw the real Norwich star field + moon (only when dark & clear)
@@ -1628,14 +1632,18 @@ function drawSky(g,now,nd,L,fx){
   g.globalCompositeOperation="lighter"; g.lineCap="butt";   // butt caps: round caps double-stack additively at joints → a beaded pearl-chain artifact
   var SPN=[]; for(var si=0;si<MWSPINE.length;si++){ var sp=MWSPINE[si], sa=altAz(sp.ra,sp.dec,lst);   // project the ridge once
     SPN.push(sa.alt<2?null:{x:skyWX(sa.az),y:skyY(sa.alt),alt:sa.alt,w:sp.w}); }
-  // pass 1: a WIDE, FAINT luminous bed (no rope — the glow the dab-field rides on)
-  for(var pass=0;pass<2;pass++){ if(QUAL===0&&pass===0) continue;
+  // pass 1: the luminous bed as SEVEN PARALLEL RIBBONS with gaussian falloff — guaranteed SCREEN-SPACE
+  // width, so the river is a broad slab of glow everywhere along the arch (the projection compresses real
+  // latitude to almost nothing; offsetting in screen px is what finally makes the band BIG, not a line).
+  var MWOFF=[[0,1],[-5,0.8],[5,0.8],[-10,0.55],[10,0.55],[-16,0.3],[16,0.3]];
+  for(var ob=0;ob<MWOFF.length;ob++){ if(QUAL===0&&ob>=5) continue;   // KDE budget: 5 ribbons
+    var oy=MWOFF[ob][0], ow=MWOFF[ob][1];
     for(var si2=0;si2<SPN.length-1;si2++){ var A=SPN[si2], B=SPN[si2+1]; if(!A||!B) continue;
-      var vf=Math.min(1,(1-lpK)*((A.alt>50||B.alt>50)?1.5:1)), wv=(A.w+B.w)*0.5, a=wv*fade*vf*(pass?0.85:0.5); if(a<0.015) continue;
-      g.lineWidth=pass?(5+wv*14):(10+wv*26); g.strokeStyle="rgba(196,208,238,"+a.toFixed(3)+")";
+      var vf=Math.min(1,(1-lpK)*((A.alt>50||B.alt>50)?1.5:1)), wv=(A.w+B.w)*0.5, a=wv*fade*vf*0.62*ow; if(a<0.012) continue;
+      g.lineWidth=7+wv*18; g.strokeStyle="rgba(196,208,238,"+a.toFixed(3)+")";
       for(var w=-1;w<=1;w++){ var ax=A.x-WOFF+w*WW, bx=B.x-WOFF+w*WW; if(Math.abs(ax-bx)>WW*0.5) continue;   // skip seam-wrap segments
-        if((ax<-16&&bx<-16)||(ax>SW+16&&bx>SW+16)) continue;
-        g.beginPath(); g.moveTo(ax,A.y); g.lineTo(bx,B.y); g.stroke(); } } }
+        if((ax<-24&&bx<-24)||(ax>SW+24&&bx>SW+24)) continue;
+        g.beginPath(); g.moveTo(ax,A.y+oy); g.lineTo(bx,B.y+oy); g.stroke(); } } }
   g.lineCap="butt";
   // pass 2: the BAND — a dense mottled dab field (star clouds warm-gold near the core, blue-white elsewhere,
   // the Great Rift already carved out at build time). QUAL 0 strides by 2 to hold the perf budget.
