@@ -21,6 +21,11 @@ Item {
             var deaths = ["meteors","nuke","kaiju","kaijuwar","moonfall","flood","frost","ai","bh","alienwar","sunburst","pollution"];
             for (var d = 0; d < deaths.length; d++) jobs.push({ age: {g:1,phase:'apoc',apoc:0.5,cy:0.98}, clock: night, death: deaths[d] });
             jobs.push({ age: {g:1,phase:'peak',apoc:0,cy:0.9}, clock: clk });   // space age
+            // Weather/attack disasters (drawDisaster paths) on a grown city, at the active-funnel phase
+            // (f=0.25) AND the later/rebuild phase (f=0.55) so both draw branches are throw-checked.
+            var diss = ["asteroid","volcano","zombie","alien","kaiju","tornado","flood","mech","kraken","sandstorm","iceage","rift","blackout","smog"];
+            for (var s = 0; s < diss.length; s++) for (var fp = 0; fp < 2; fp++)
+                jobs.push({ age: 0.6, clock: clk, dis: { type: diss[s], intensity: 4, xf: 0.5, w: 60, seed: 77, f: [0.25, 0.55][fp] } });
 
             var ok = true;
             try { City.setup('neon', { cw: 853, ch: 480, woff: 0, ww: 2269, pxk: 3, zoom: 1, quality: 'spectacle' }); }
@@ -29,6 +34,7 @@ Item {
                 City.FORCEAGE = jobs[j].age;
                 City.CLOCK = jobs[j].clock;
                 City.FORCEDEATH = (jobs[j].death !== undefined ? jobs[j].death : undefined);
+                City.FORCEDIS = (jobs[j].dis !== undefined ? jobs[j].dis : null);
                 try { City.draw(g); }
                 catch (e) { console.log("SWEEP_FAIL job " + j + " " + JSON.stringify(jobs[j]).slice(0,70) + ": " + e); ok = false; }
             }
