@@ -149,6 +149,9 @@ function notifLane(pref){
 function resetNotifLanes(){ for(var r=0;r<_notifTaken.length;r++) _notifTaken[r]=false; }
 var CLOCK = null;   // test-harness override: ms timestamp for time-of-day (null = real wall clock)
 var NOWOVR = null;  // test-harness override: ms value returned as Date.now() inside draw() (null = real)
+var FORCELAYOUT = null;   // test hook: pin every building's window layout (grid/ribbon/band/punch/corp) — verify per-layout render
+var FORCECROWN = null;    // test hook: pin every building's crown/roof (gable/hip/saltbox/mansard/deco/…) — verify per-roof render
+var FORCEUSE = null;      // test hook: pin every building's functional type (hospital/theater/hotel/bank/cafe/pharmacy) — verify drawUse
 function nowDate(){ return CLOCK ? new Date(CLOCK) : new Date(); }
 
 function rng(seed){ var a=seed>>>0; return function(){ a|=0; a=a+0x6D2B79F5|0; var t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
@@ -215,6 +218,39 @@ var NEON = ["#ff2a9d","#05d9e8","#2af5b8","#ffb347","#b98cff","#ff5a5a","#5affd7
 
 // dark facade bases (kept moody; tinted toward the district accent per building)
 var BLDBASE = ["#0f0a18","#141020","#1a1430","#0c0a16","#181228","#0a0712","#161022"];
+
+// DAYTIME MATERIAL COLOURS — each building reads as a real material by day (brick / stone / glass /
+// concrete / painted), not the old lavender-grey wash. Blended into the facade by DAYLIGHT only, so the
+// moody night silhouette is untouched. Restrained + saturated ("high class", ref: distinct material colours).
+var DAYMAT = {
+  downtown:      [[150,182,176],[164,190,206],[142,160,188],[196,190,168],[176,168,150],[152,172,182]], // green/blue/bronze glass, stone
+  oldtown:       [[178,98,74],[190,124,86],[198,170,132],[162,86,68],[152,122,98],[186,146,108]],        // brick red · terracotta · sandstone
+  residential:   [[196,176,146],[176,150,120],[198,158,140],[150,166,142],[190,182,162],[178,140,112]],  // brownstone · pastel · sage · tan
+  entertainment: [[198,150,120],[184,142,170],[202,178,140],[168,150,192],[196,164,132]],                // warm painted · mauve
+  industrial:    [[150,146,140],[170,120,96],[142,140,152],[178,150,120],[132,140,146]]                  // concrete · rust · brick
+};
+function dayMatFor(dname,seed){ var t=DAYMAT[dname]; if(!t) return null; return t[(seed>>>7)%t.length]; }
+
+// ROOF MATERIALS — so pitched/capped roofs aren't all one slate. New England-appropriate + general:
+// slate, copper-green (weathered), red shingle, cedar, tar-black, tin, aged purple-slate. Chosen per
+// building by a bseed hash (no r() → determinism-safe). Mixed into the roof mass in drawCrown.
+var ROOFMAT = [ [46,50,60],[58,64,76],[150,72,56],[168,92,64],[92,122,104],[74,104,90],
+                [98,76,56],[120,90,64],[34,36,44],[120,124,132],[74,60,68],[52,58,66] ];
+function roofMatFor(seed){ return ROOFMAT[(seed>>>9)%ROOFMAT.length]; }
+
+// FUNCTIONAL BUILDING TYPE — most buildings are generic office/apartment; a MINORITY are recognizable civic/
+// commercial types rendered with a colour/light cue that survives pixel scale (a mid-facade emblem or a lit
+// blade sign, NOT fine ground-floor linework the rail/crowds occlude). Derived from district+height+a bseed
+// hash — no r(), so the skyline layout is byte-stable. See drawUse().
+function useFor(dname,bh,bseed){
+  var hh=(bseed>>>17)&255;
+  if(dname==="industrial") return hh<120?"factory":(hh<200?"warehouse":"depot");
+  if(dname==="downtown")   return hh<11?"hotel":(hh<19?"bank":(hh<26&&bh>=54*KSP?"theater":(hh<33?"store":"office")));
+  if(dname==="neon")       return hh<40?"theater":(hh<64?"hotel":(hh<96?"cafe":(hh<112?"store":"office")));   // entertainment strip
+  if(dname==="residential")return hh<9?"hospital":(hh<20?"cafe":(hh<30&&bh<40*KSP?"school":(hh<38?"fire":"apartment")));
+  if(dname==="oldtown")    return hh<11?"bank":(hh<26?"cafe":(hh<40?"pharmacy":(hh<50?"museum":(hh<58&&bh<40*KSP?"school":"apartment"))));
+  return "office";
+}
 
 var SKY = { night:[[8,8,26],[16,14,40]], dawn:[[70,40,90],[255,140,90]],
             day:[[92,160,235],[170,215,250]], dusk:[[40,30,80],[255,110,70]] };
@@ -2016,8 +2052,12 @@ function makeLayer(seed,y0,baseHMin,baseHMax,layerK){
     var bseed=(r()*1e9)>>>0, winHue=(r()*winPal.length)|0;
     // REGION: New England reskins the walls to a colonial palette (barely any neon accent), and
     // marks light-walled builds as wood clapboard. Pitched roofs are chosen below.
+    // BLEND (Nick 2026-07-17): the colonial reskin applies to the TOWN districts only — the downtown +
+    // entertainment core stays a MODERN glass-tower city (heroes/landmarks/material colour) even in New
+    // England. So Norwich reads as brick-and-steeple neighbourhoods around a real metropolis skyline.
+    var neColonial=(REGION==="newengland" && d.name!=="downtown" && d.name!=="neon");
     var neClap=false, nePitch=false, accMix=(d.brick?0.06:0.10);
-    if(REGION==="newengland"){
+    if(neColonial){
       var nw=NE_WALLS[(r()*NE_WALLS.length)|0]; base=[nw[0],nw[1],nw[2]];
       neClap=(nw[0]+nw[1]+nw[2])>430;                        // light walls → wood clapboard siding
       accMix=0.03;                                           // colonial colours are muted
@@ -2046,14 +2086,28 @@ function makeLayer(seed,y0,baseHMin,baseHMax,layerK){
     // ---- CROWN from this district's palette (no spindly tops on short buildings) ----
     var crown=d.crowns[(r()*d.crowns.length)|0];
     if(bh<30 && (crown==="spire"||crown==="antenna"||crown==="blade")) crown=(r()<0.5?"flat":"tank");
-    if(REGION==="newengland" && bh < 54*KSP && crown!=="watertower"){  // low & mid-rise wear NE pitched roofs; tall
-      var pr=(bseed>>>4)%3; crown=(pr===0?"gable":(pr===1?"gambrel":"hip")); nePitch=true;  // towers stay modern; brick
+    if(neColonial && bh < 54*KSP && crown!=="watertower"){  // low & mid-rise wear NE pitched roofs; tall
+      var neRoofs=["gable","gambrel","hip","saltbox","mansard","hip","gable","gambrel"];     // 5 distinct pitched shapes, hip/gable weighted
+      crown=neRoofs[(bseed>>>4)%neRoofs.length]; nePitch=true;                                // towers stay modern; brick
     }                                                                                       // midrises keep a wooden water tank
+    // ---- HERO / SIGNATURE TOWER: a rare, very tall downtown tower becomes a skyline LANDMARK — a guaranteed
+    //      ornate crown + a premium accent (beacon + crown trim). Chosen by a bseed HASH (no r() → the whole
+    //      city layout stays byte-stable). A handful per city anchor the skyline as focal points. ----
+    var heroK=((bseed*2246822519)>>>0)/4294967296;
+    var hero=(d.name==="downtown" && bh>=62*KSP && heroK<0.24);   // downtown is a modern core everywhere (incl. NE blend)
+    if(hero) crown=["deco","spire","step","blade"][(bseed>>>13)%4];   // ornate crowns anchor the skyline
+    if(typeof FORCECROWN!=='undefined'&&FORCECROWN) crown=FORCECROWN;   // TEST hook: pin every roof (harness ?crown=saltbox)
     // ---- WINDOW SYSTEM from this district's palette ----
     var winLayout=d.layouts[(r()*d.layouts.length)|0];
+    if(typeof FORCELAYOUT!=='undefined'&&FORCELAYOUT) winLayout=FORCELAYOUT;   // TEST hook: pin every building's window layout (harness ?layout=ribbon)
     var b={ x:x, w:bw, h:bh, y0:y0, type:"tower", seed:bseed, district:d.name, brick:d.brick||0,
             segs:segs, crown:crown, winLayout:winLayout, topW:topW, topDx:topDx,
             c: mixc(base, acc, accMix), accent:acc, accent2:acc2, winP:winPal, winHue:winHue,
+            glass:((winLayout==="corp"||winLayout==="ribbon")&&!(d.brick||neClap||nePitch)),   // reflective glass tower
+            hero:hero,   // signature landmark tower (ornate crown + premium beacon/trim)
+            roofMat:roofMatFor(bseed),   // this building's roof colour (slate/copper/red/cedar/tin…) — no two the same
+            use:(typeof FORCEUSE!=='undefined'&&FORCEUSE)?FORCEUSE:useFor(d.name,bh,bseed),   // functional type (hospital/theater/hotel/bank/cafe/…) → drawUse cue
+            dayMat:(neColonial?null:dayMatFor(d.name,bseed)),   // DAYTIME material colour (colonial town keeps NE_WALLS; modern core gets it)
             nePitch:nePitch, clap:neClap,
             win:[], st:[], gl:[], roof:[],
             ledge:r()<d.ledge, ledC:(r()*NEON.length)|0,
@@ -2067,21 +2121,23 @@ function makeLayer(seed,y0,baseHMin,baseHMax,layerK){
     // ---- windows generated PER SEGMENT in the chosen layout (stay within the silhouette) ----
     for(var s3=0;s3<segs.length;s3++){ var sg=segs[s3], x0=sg.dx+1, x1=sg.dx+sg.w-1,
         y0w=sg.top+3, y1w=Math.min(sg.bot, bh)-2;
+      // DENSER, more COLOURFUL window grids (toward the reference skylines) — tighter rows/cols cover the
+      // facade, and more windows take a varied hue (warm/cool/coloured), so a lit night reads like a real city.
       if(winLayout==="grid"){
-        for(var wy=y0w;wy<y1w-2;wy+=6) for(var wx=x0;wx<x1-1;wx+=5)
-          if(r()<0.86) b.win.push({x:wx,y:wy,w:2,h:3,on:r(),fl:r()<0.04?r()*2+1:0,h2:(r()<0.16?(r()*winPal.length)|0:winHue)});
+        for(var wy=y0w;wy<y1w-1;wy+=4) for(var wx=x0;wx<x1-1;wx+=3)
+          if(r()<0.9) b.win.push({x:wx,y:wy,w:2,h:2,on:r(),fl:r()<0.04?r()*2+1:0,h2:(r()<0.34?(r()*winPal.length)|0:winHue)});
       } else if(winLayout==="ribbon"){                 // vertical glass ribbons
-        for(var wx=x0;wx<x1;wx+=3) for(var wy=y0w;wy<y1w-1;wy+=4)
-          b.win.push({x:wx,y:wy,w:1,h:2,on:r(),fl:0,h2:(r()<0.10?(r()*winPal.length)|0:winHue)});
+        for(var wx=x0;wx<x1;wx+=2) for(var wy=y0w;wy<y1w-1;wy+=3)
+          b.win.push({x:wx,y:wy,w:1,h:2,on:r(),fl:0,h2:(r()<0.22?(r()*winPal.length)|0:winHue)});
       } else if(winLayout==="band"){                   // horizontal window bands
-        for(var wy=y0w;wy<y1w-1;wy+=4) for(var wx=x0;wx<x1-2;wx+=4)
-          b.win.push({x:wx,y:wy,w:3,h:1,on:r(),fl:0,h2:(r()<0.12?(r()*winPal.length)|0:winHue)});
-      } else if(winLayout==="punch"){                  // sparse punched openings (older midrise)
-        for(var wy=y0w;wy<y1w-2;wy+=5) for(var wx=x0;wx<x1-1;wx+=4)
-          if(r()<0.7) b.win.push({x:wx,y:wy,w:2,h:2,on:r(),fl:r()<0.03?r()*2+1:0,h2:(r()<0.2?(r()*winPal.length)|0:winHue)});
-      } else {                                          // corp — big corporate glass panes
-        for(var wy=y0w;wy<y1w-4;wy+=7) for(var wx=x0;wx<x1-2;wx+=6)
-          if(r()<0.9) b.win.push({x:wx,y:wy,w:3,h:4,on:r(),fl:0,h2:(r()<0.14?(r()*winPal.length)|0:winHue)});
+        for(var wy=y0w;wy<y1w-1;wy+=3) for(var wx=x0;wx<x1-2;wx+=4)
+          b.win.push({x:wx,y:wy,w:3,h:1,on:r(),fl:0,h2:(r()<0.24?(r()*winPal.length)|0:winHue)});
+      } else if(winLayout==="punch"){                  // punched openings (older midrise) — now a fuller grid
+        for(var wy=y0w;wy<y1w-1;wy+=4) for(var wx=x0;wx<x1-1;wx+=3)
+          if(r()<0.82) b.win.push({x:wx,y:wy,w:2,h:2,on:r(),fl:r()<0.03?r()*2+1:0,h2:(r()<0.32?(r()*winPal.length)|0:winHue)});
+      } else {                                          // corp — big corporate glass panes, packed tighter
+        for(var wy=y0w;wy<y1w-3;wy+=5) for(var wx=x0;wx<x1-2;wx+=5)
+          if(r()<0.92) b.win.push({x:wx,y:wy,w:3,h:3,on:r(),fl:0,h2:(r()<0.26?(r()*winPal.length)|0:winHue)});
       }
     }
     if(b.win.length===0){                                    // EVERY building gets windows, however small
@@ -2915,9 +2971,86 @@ function drawBanner(g,msg,now,night,pink){
   }
 }
 
+// FUNCTIONAL-TYPE CUE — a colour/light mark that reads at real pixel scale, placed MID-FACADE (the ground
+// floor is occluded by the el-rail + crowds). Hospital = lit cross; theater = bulb marquee band + red blade;
+// hotel = lit vertical blade; bank = pale pediment band + gold seal; cafe = warm double-awning; pharmacy =
+// green cross. Night versions glow; day versions are painted colour. ~4-8 fillRects each, near layer only.
+function drawUse(g,b,bx,top,L,now,night){
+  var u=b.use; if(!u||u==="office"||u==="apartment") return;
+  var w=b.w, mid=bx+(w>>1), fy=top+Math.min(9,Math.max(5,b.h>>2));      // upper-facade anchor (above the rail line)
+  if(u==="factory"){                                                     // lit clerestory band up high (the works run late)
+    if(L<0.6){ g.fillStyle="rgba(255,196,110,0.55)"; for(var fw9=bx+2;fw9<bx+w-2;fw9+=3) g.fillRect(fw9,fy,2,1); }
+    return;
+  }
+  if(u==="warehouse"||u==="depot"){                                      // big loading door + dock shadow
+    if(w<10) return; var ldw=Math.min(8,w-4), ldX=bx+((w-ldw)>>1);
+    g.fillStyle=L>0.5?"#4a4640":"#1a1814"; g.fillRect(ldX,HORIZON-6,ldw,6);            // roll-up door
+    g.fillStyle=L>0.5?"rgba(255,255,255,0.10)":"rgba(255,255,255,0.05)";
+    for(var lv9=HORIZON-5;lv9<HORIZON-1;lv9+=2) g.fillRect(ldX,lv9,ldw,1);              // door slats
+    g.fillStyle="rgba(0,0,0,0.3)"; g.fillRect(ldX-1,HORIZON-1,ldw+2,1);                 // dock shadow
+    if(u==="depot"&&L<0.55){ g.fillStyle="rgba(255,190,80,0.5)"; g.fillRect(ldX+1,HORIZON-6,1,1); }   // a work lamp
+    return;
+  }
+  if(u==="school"){                                                      // rooftop flagpole + flag, warm yellow entry band
+    g.fillStyle=L>0.5?"#8a8e96":"#3a3e46"; g.fillRect(mid,top-5,1,5);                   // pole
+    g.fillStyle=L>0.5?"#d24a4a":"#8a3030"; g.fillRect(mid+1,top-5,2,1);                 // flag
+    g.fillStyle=L>0.5?"#4a6ad2":"#2a3a7a"; g.fillRect(mid+1,top-4,2,1);
+    g.fillStyle=L>0.5?"#e8c86a":"#8a7840"; g.fillRect(bx+1,HORIZON-6,w-2,1);            // school-yellow band over the doors
+    return;
+  }
+  if(u==="fire"){                                                        // fire station: red facade band + big garage door
+    g.fillStyle=L>0.5?"#c03830":"#6a2018"; g.fillRect(bx+1,fy-1,w-2,2);                 // red band
+    if(w>=10){ var fdw=Math.min(7,w-4), fdX=bx+((w-fdw)>>1);
+      g.fillStyle=L>0.5?"#8a2724":"#3a1210"; g.fillRect(fdX,HORIZON-6,fdw,6);           // engine-bay door
+      g.fillStyle="rgba(255,255,255,0.12)"; g.fillRect(fdX,HORIZON-4,fdw,1); }
+    if(L<0.55){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,70,60,0.30)"; g.fillRect(bx+1,fy-2,w-2,4); g.globalCompositeOperation="source-over"; }
+    return;
+  }
+  if(u==="museum"){                                                      // pale pediment + a hanging exhibition banner
+    g.fillStyle=L>0.5?"#ded8c8":"#5a564a"; g.fillRect(bx+1,fy-2,w-2,2);                 // stone pediment band
+    var bc9=[[200,80,90],[90,140,200],[210,160,70]][(b.seed>>>21)%3];                   // this life's exhibition colour
+    g.fillStyle=rgba(bc9,L>0.5?0.9:0.55); g.fillRect(mid-1,fy+1,3,Math.min(7,b.h>>3));  // the banner
+    return;
+  }
+  if(u==="store"){                                                       // department store: long lit display band + awning row
+    var dw9=w-4, dX9=bx+2;
+    g.fillStyle=L>0.5?"#7d96b2":"#3a4a66"; g.fillRect(dX9,HORIZON-6,dw9,3);             // wide display glass
+    g.fillStyle=L>0.5?"#c05a3a":"#7a3828"; for(var aw9=dX9;aw9<dX9+dw9;aw9+=4) g.fillRect(aw9,HORIZON-7,3,1);   // awning row
+    if(L<0.55){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,220,160,0.30)"; g.fillRect(dX9,HORIZON-6,dw9,4); g.globalCompositeOperation="source-over"; }
+    return;
+  }
+  if(u==="hospital"){                                                    // white/red cross on its own pale panel
+    g.fillStyle=L>0.5?"#e8ecf0":"#b8c0c8"; g.fillRect(mid-2,fy-2,5,5);
+    g.fillStyle=L>0.5?"#c03038":"#ff5a60"; g.fillRect(mid-1,fy,3,1); g.fillRect(mid,fy-1,1,3);
+    if(L<0.55){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,90,96,0.5)"; g.fillRect(mid-2,fy-2,5,5); g.globalCompositeOperation="source-over"; }
+  } else if(u==="theater"){                                              // bulb-chase marquee band + red blade sign
+    var my=HORIZON-8, mw=Math.min(w-2,14), mX=bx+((w-mw)>>1);
+    g.fillStyle=L>0.5?"#3a3240":"#181020"; g.fillRect(mX,my,mw,2);                       // marquee box
+    for(var bl2=0;bl2<mw;bl2+=2){ var on2=((Math.floor(now/240))+bl2)%4!==0;             // chasing bulbs
+      g.fillStyle=on2?(L<0.6?"#ffe08a":"#c8a850"):"#6a5a30"; g.fillRect(mX+bl2,my,1,1); }
+    g.fillStyle=L<0.6?"#ff4048":"#a03038"; g.fillRect(bx+w-3,top+4,2,Math.min(10,b.h>>2));   // vertical blade
+    if(L<0.55){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,80,90,0.35)"; g.fillRect(bx+w-4,top+3,4,Math.min(12,(b.h>>2)+2)); g.globalCompositeOperation="source-over"; }
+  } else if(u==="hotel"){                                                // lit vertical HOTEL blade on the corner
+    var hbh=Math.min(12,Math.max(6,b.h>>2));
+    g.fillStyle=L<0.6?"#ffd27a":"#8a7440"; g.fillRect(bx+1,top+4,2,hbh);
+    if(L<0.55){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,210,122,0.35)"; g.fillRect(bx,top+3,4,hbh+2); g.globalCompositeOperation="source-over"; }
+  } else if(u==="bank"){                                                 // pale stone pediment band + gold seal
+    g.fillStyle=L>0.5?"#ded8c8":"#5a564a"; g.fillRect(bx+1,fy-1,w-2,2);
+    g.fillStyle=L>0.5?"#c8a850":"#8a7440"; g.fillRect(mid,fy-2,1,1);
+  } else if(u==="cafe"){                                                 // warm scalloped double-awning + glow
+    var aw2=Math.min(w-2,10), aX2=bx+((w-aw2)>>1), ay=HORIZON-7;
+    g.fillStyle=L>0.5?"#c05a3a":"#7a3828"; g.fillRect(aX2,ay,aw2,1);
+    for(var av2=0;av2<aw2;av2+=2) g.fillRect(aX2+av2,ay+1,1,1);                          // scallops
+    if(L<0.55){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,190,120,0.30)"; g.fillRect(aX2-1,ay,aw2+2,4); g.globalCompositeOperation="source-over"; }
+  } else if(u==="pharmacy"){                                             // green cross (universal)
+    g.fillStyle=L<0.6?"#3ae06a":"#2a8848"; g.fillRect(mid-1,fy,3,1); g.fillRect(mid,fy-1,1,3);
+    if(L<0.55){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(60,224,110,0.4)"; g.fillRect(mid-2,fy-2,5,5); g.globalCompositeOperation="source-over"; }
+  }
+}
+
 // ---- building crowns (a distinct top for every building) ----
 // bx = top-segment screen x, top = its roof y, bw = top-segment width.
-function drawCrown(g,crown,bx,top,bw,col,accent,L,now,night){
+function drawCrown(g,crown,bx,top,bw,col,accent,L,now,night,roofMat){
   // themed lives lean into their signature roofline citywide (Paris = mansards, China = pagoda eaves), except a
   // few landmark tops (steeple/spire/antenna/helipad/water-tower/billboard) which keep their identity.
   var _en=cityEra.name, _keep=(crown==="steeple"||crown==="spire"||crown==="antenna"||crown==="helipad"||crown==="watertower"||crown==="billboard");
@@ -2927,8 +3060,10 @@ function drawCrown(g,crown,bx,top,bw,col,accent,L,now,night){
   }
   g.fillStyle=css(col); var mid=bx+(bw>>1), blink=(Math.floor(now/700))%2===0;
   // ---- NEW ENGLAND pitched roofs: slate/charcoal, drawn as a solid mass above the top edge ----
-  if(crown==="gable"||crown==="gambrel"||crown==="hip"||crown==="steeple"){
-    var slate=css(mixc(col,[46,50,60],0.74)), sllit=css(mixc(col,[92,98,112],0.7));   // roof slate (still faintly era-tinted) + sunlit slope
+  if(crown==="gable"||crown==="gambrel"||crown==="hip"||crown==="steeple"||crown==="saltbox"){
+    var rmat=roofMat||[46,50,60], rmD=mixc([24,26,34],rmat,Math.min(1,L*1.15));         // roof material darkens toward night-slate after dark
+    var slateC=mixc(col,rmD,0.82);                                                      // THIS roof's material (slate/copper/red/cedar/tin…), day/night aware
+    var slate=css(slateC), sllit=css(mixc(slateC,[255,255,255],0.10+0.22*L));           // roof mass + its (daylight-only) sunlit slope
     if(crown==="gable"){                                             // steep triangular roof
       var ph=Math.min(Math.round(bw*0.62),12);
       for(var r=0;r<ph;r++){ var rw=Math.max(1,Math.round(bw*(1-r/ph)));
@@ -2942,12 +3077,20 @@ function drawCrown(g,crown,bx,top,bw,col,accent,L,now,night){
         rw2=Math.max(1,rw2); g.fillStyle=slate; g.fillRect(bx+((bw-rw2)>>1),top-1-r,rw2,1);
         g.fillStyle=sllit; g.fillRect(bx+((bw-rw2)>>1),top-1-r,1,1); }
       g.fillStyle=slate; g.fillRect(bx-1,top-1,bw+2,1);
+      var gch=bx+Math.max(2,bw>>2); g.fillStyle=css(mixc(col,[60,44,40],0.6)); g.fillRect(gch,top-Math.min(gh+1,11),2,4);   // brick chimney
     } else if(crown==="hip"){                                        // four-slope hip roof (flat ridge)
       var hh=Math.min(Math.round(bw*0.5),9), ridge=Math.max(2,Math.round(bw*0.42));
       for(var r=0;r<hh;r++){ var rw3=Math.max(ridge,Math.round(bw-(bw-ridge)*(r/Math.max(1,hh-1))));
         g.fillStyle=slate; g.fillRect(bx+((bw-rw3)>>1),top-1-r,rw3,1);
         g.fillStyle=sllit; g.fillRect(bx+((bw-rw3)>>1),top-1-r,1,1); }
       g.fillStyle=slate; g.fillRect(bx-1,top-1,bw+2,1);
+      var hch=bx+bw-Math.max(3,bw>>2); g.fillStyle=css(mixc(col,[60,44,40],0.6)); g.fillRect(hch,top-Math.min(hh+2,9),2,4);   // brick chimney
+    } else if(crown==="saltbox"){                                    // asymmetric colonial saltbox: ridge off-centre, one long slope
+      var sh=Math.min(Math.round(bw*0.62),12), rdg=Math.max(2,Math.round(bw*0.34));
+      for(var r=0;r<sh;r++){ var f=r/sh, lx=Math.round(bx+rdg*f), rx=Math.round(bx+bw-(bw-rdg)*f); if(rx<=lx) rx=lx+1;
+        g.fillStyle=slate; g.fillRect(lx,top-1-r,rx-lx,1); g.fillStyle=sllit; g.fillRect(lx,top-1-r,1,1); }
+      g.fillStyle=slate; g.fillRect(bx-1,top-1,bw+2,1);                                            // eave overhang
+      var sch=bx+Math.max(1,rdg-1); g.fillStyle=css(mixc(col,[60,44,40],0.6)); g.fillRect(sch,top-Math.min(sh+2,11),2,4);   // brick chimney at the ridge
     } else {                                                         // STEEPLE: white meeting-house tower + spire
       var white=css(mixc(col,[238,238,232],0.62)), tw=Math.max(3,Math.min(6,bw>>2)), txx=mid-(tw>>1);
       g.fillStyle=white; g.fillRect(bx-1,top-2,bw+2,2);                             // pedimented roof band
@@ -3005,10 +3148,10 @@ function drawCrown(g,crown,bx,top,bw,col,accent,L,now,night){
     g.fillStyle=css(mixc(col,[62,44,30],0.7)); g.fillRect(wtx,top-6,wtw,1);             // top hoop band
     g.fillStyle=css(mixc(col,[74,54,36],0.7)); g.fillRect(wtx+1,top-7,wtw-2,1); g.fillRect(mid,top-8,1,1);   // conical cap
     g.fillStyle=css(mixc(col,[48,38,28],0.6)); g.fillRect(wtx,top-2,1,2); g.fillRect(wtx+wtw-1,top-2,1,2);   // stilt legs
-  } else if(crown==="mansard"){                                   // PARIS Haussmann: steep grey mansard roof, zinc eave, dormers
-    var mh=Math.min(7,Math.max(4,bw>>1)), slate=css(mixc(col,[70,74,84],0.72));
+  } else if(crown==="mansard"){                                   // Second Empire mansard: steep roof, zinc eave, dormers
+    var mh=Math.min(7,Math.max(4,bw>>1)), mrmD=mixc([24,26,34],roofMat||[70,74,84],Math.min(1,L*1.15)), slate=css(mixc(col,mrmD,0.76));   // day/night-aware mansard slate
     for(var mr=0;mr<mh;mr++){ var mw=(mr<2)?bw:Math.max(3,bw-2-(mr-1)*2); g.fillStyle=slate; g.fillRect(bx+((bw-mw)>>1),top-1-mr,mw,1); }
-    g.fillStyle=css(mixc(col,[120,126,138],0.6)); g.fillRect(bx-1,top-1,bw+2,1);                        // zinc eave
+    g.fillStyle=css(mixc(col,mixc([40,42,50],[120,126,138],L),0.6)); g.fillRect(bx-1,top-1,bw+2,1);     // zinc eave (dimmed at night)
     g.fillStyle=slate; g.fillRect(bx+2,top-mh+1,2,2); g.fillRect(bx+bw-4,top-mh+1,2,2);                 // dormers
     g.fillStyle=(L<0.6)?"rgba(255,224,170,0.9)":"#bcd0e0"; g.fillRect(bx+2,top-mh+2,2,1); g.fillRect(bx+bw-4,top-mh+2,2,1);
   } else if(crown==="pagoda"){                                     // CHINA: tiered roof, upturned curved eaves, gilded finial + lantern
@@ -3387,6 +3530,7 @@ function drawLayer(g,layer,L,now,fx,hol,haze){
     // otherwise the barn-reds & brick wash out to pink at noon.
     var neMatte=(b.nePitch||b.clap||b.church), bMul=neMatte?1.5:2.3, bA0=neMatte?18:30,bA1=neMatte?22:40,bA2=neMatte?30:56;
     var col=mixc(b.c,[Math.min(255,b.c[0]*bMul+bA0),Math.min(255,b.c[1]*bMul+bA1),Math.min(255,b.c[2]*bMul+bA2)],dayLit);
+    if(b.dayMat && dayLit>0.04) col=mixc(col,b.dayMat,0.6*dayLit);                 // DAYTIME MATERIAL colour (brick/stone/glass/painted) — daylight only, night untouched
     if(cityEra.tint) col=mixc(col,cityEra.tint,cityEra.blend*(0.6+0.4*dayLit));   // this life's architectural material
     if(haze) col=mixc(col,skyTint,haze*dayLit);
     if(goldenK>0.03) col=mixc(col,goldC,goldenK*0.22*dayLit);   // the golden hour warms every facade
@@ -3395,6 +3539,27 @@ function drawLayer(g,layer,L,now,fx,hol,haze){
     for(var sgi=0;sgi<b.segs.length;sgi++){ var sg=b.segs[sgi];
       var sX=bx+sg.dx, sTop=top+sg.top, sBot=(sgi===0)?HORIZON:(top+sg.bot), sHt=sBot-sTop;
       g.fillStyle=colc; g.fillRect(sX,sTop,sg.w,sHt);
+      // REFLECTIVE GLASS — the facade MIRRORS the sky (day) / sunset (dusk) / city-glow (night) + a sheen column
+      if(b.glass && sHt>=6){
+        var gT9, gB9;
+        if(dayLit>0.14){ gT9=mixc(col,[206,228,255],0.55); gB9=mixc(col,skyTint,0.42);
+          if(goldenK>0.08){ gT9=mixc(gT9,goldC,goldenK*0.45); gB9=mixc(gB9,goldC,goldenK*0.55); } }   // sunset in the glass
+        else { gT9=mixc(col,[26,34,60],0.6); gB9=mixc(col,cityEra.glow||[70,110,170],0.30); }          // dark night glass + base glow
+        var gr9=g.createLinearGradient(0,sTop,0,sBot); gr9.addColorStop(0,css(gT9)); gr9.addColorStop(1,css(gB9));
+        g.fillStyle=gr9; g.fillRect(sX,sTop,sg.w,sHt);
+        var shX9=sX+Math.round(sg.w*0.32);                                                             // a bright sheen streak (the glass catching the light)
+        g.fillStyle=dayLit>0.14?"rgba(255,255,255,0.16)":"rgba(200,225,255,0.10)"; g.fillRect(shX9,sTop,1,sHt);
+        g.fillStyle=dayLit>0.14?"rgba(255,255,255,0.07)":"rgba(200,225,255,0.05)"; g.fillRect(shX9+1,sTop,1,sHt);
+      }
+      // FACADE ARTICULATION — BOLD floor/spandrel lines + structural piers (glass → mullions) = a crisp gridded facade
+      if((layer===near||layer===mid) && sg.w>=5 && sHt>=8 && !b.brick && !b.clap){
+        g.fillStyle=dayLit>0.15?"rgba(0,0,0,0.16)":"rgba(0,0,0,0.26)";
+        for(var fbY=sTop+3; fbY<sBot-1; fbY+=4) g.fillRect(sX,fbY,sg.w,1);           // floor / spandrel lines
+        g.fillStyle=dayLit>0.15?"rgba(0,0,0,0.13)":"rgba(0,0,0,0.22)";
+        for(var prX=sX+4; prX<sX+sg.w-2; prX+=6) g.fillRect(prX,sTop+2,1,sHt-3);     // structural piers / mullions between window bays
+        if(dayLit>0.2){ g.fillStyle="rgba(255,255,255,0.10)";
+          for(var prH=sX+3; prH<sX+sg.w-2; prH+=6) g.fillRect(prH,sTop+2,1,sHt-3); } // a crisp lit edge on each pier
+      }
       if(b.brick){                                            // brick coursing (old-town / industrial)
         g.fillStyle="rgba(0,0,0,0.14)";
         for(var mby=sTop+2; mby<sBot-1; mby+=3) g.fillRect(sX,mby,sg.w,1);
@@ -3435,7 +3600,19 @@ function drawLayer(g,layer,L,now,fx,hol,haze){
       g.fillRect(sunL2?bx+b.w:bx-shL, HORIZON, shL, 2);                                          // soft long tail
     }
     var tX=bx+b.topDx, tW=b.topW;                            // top-segment (roof features attach here)
-    drawCrown(g,b.crown,tX,top,tW,col,b.accent,L,now,night);
+    drawCrown(g,b.crown,tX,top,tW,col,b.accent,L,now,night,b.roofMat);
+    // HERO / SIGNATURE TOWER premium: a gilded cornice band under the ornate crown + a soft apex beacon at
+    // night → the tower reads as a deliberate skyline landmark, day and night.
+    if(b.hero && (layer===near||layer===mid)){
+      var hcC=mixc(b.accent,[255,228,150],0.5);                                   // gilded accent
+      g.fillStyle=rgba(hcC,(night>0.4?0.6:0.30*dayLit+0.08)); g.fillRect(tX,top,tW,1);       // crown-base cornice
+      g.fillStyle=rgba(hcC,(night>0.4?0.3:0.14*dayLit));      g.fillRect(tX,top+2,tW,1);      // a second, fainter trim line
+      if(night>0.35){ var hbp=0.5+0.5*Math.sin(now*0.0028+bx);                    // apex beacon — a pulsing landmark light
+        g.globalCompositeOperation="lighter";
+        g.fillStyle=rgba(b.accent2,0.7*hbp*night); g.fillRect(tX+(tW>>1)-1,top-1,3,2);
+        g.fillStyle=rgba(b.accent2,0.3*hbp*night); g.fillRect(tX+(tW>>1)-2,top-2,5,1);
+        g.globalCompositeOperation="source-over"; }
+    }
     // rooftop mechanicals (flat/step tops)
     for(var ri=0;ri<b.roof.length;ri++){ var rs=b.roof[ri], rX=tX+rs.x, rY=top-rs.h;
       g.fillStyle=L>0.5?"#2a2733":"#0b0912"; g.fillRect(rX,rY,rs.w,rs.h);
@@ -3465,6 +3642,20 @@ function drawLayer(g,layer,L,now,fx,hol,haze){
           g.fillRect(bx+w.x+w.w-1,top+w.y+w.h-1,1,1); }                            // window AC unit
         else if(b.district==="residential"&&wh6%17===0){ g.globalAlpha=1; g.fillStyle="rgba(20,22,30,0.8)";
           g.fillRect(bx+w.x-1,top+w.y+w.h,w.w+2,1); } }                            // balcony rail
+      // ── DAYTIME: draw every window as a CRISP RECESSED PANE (cool glass inset + a lit top edge) so facades
+      //    read as gridded glass — the reference look — instead of the old faint scattered dots. Night below
+      //    keeps its warm-lit pattern. Near+mid only; far stays atmospheric.
+      if(!isNight && (layer===near||layer===mid)){          // ALL layouts incl. ribbon(w:1) & band(h:1)
+        var wpx=bx+w.x, wpy=top+w.y;
+        var pane=w.do ? mixc(col,[92,156,212],0.40)      // an "occupied"/open pane reads a touch brighter & bluer
+                      : mixc(col,[54,74,110],0.56);       // a cool recessed glass pane, darker than the facade
+        if(goldenK>0.12) pane=mixc(pane,goldC,goldenK*0.30);            // dusk warms the glass
+        g.globalAlpha=0.82*dim; g.fillStyle=css(pane); g.fillRect(wpx,wpy,w.w,w.h);
+        if(w.h>=2){ g.globalAlpha=0.5*dim; g.fillStyle="#ecf6ff"; g.fillRect(wpx,wpy,w.w,1); }          // sky on the top edge (skip 1px bands → would fully overwrite the pane)
+        if(w.h>=3){ g.globalAlpha=0.28*dim; g.fillStyle="#000000"; g.fillRect(wpx,wpy+w.h-1,w.w,1); }   // recess shadow at the sill
+        g.globalAlpha=1;
+        continue;
+      }
       var lit=isNight?(w.no&&((w.hx%97)/97<curLit)):w.do;   // evening ramp: more windows light as it gets later
       if(blk6) lit=curBlk.fix&&(((now/130)|0)&1)&&lit;      // dark block; flickers back as the crew works
       if(lit&&polDark(b)) lit=false;                        // POLLUTION finale: this district's lights have died (never flicker back)
@@ -3483,6 +3674,17 @@ function drawLayer(g,layer,L,now,fx,hol,haze){
         var tvp=((Math.floor(now/210))+w.x*3+w.y)%5; wc=tvp<2?"#5f86d8":(tvp<3?"#a8c8ff":"#39508f"); }
       g.fillStyle=wc; g.globalAlpha=winAlpha;
       g.fillRect(bx+w.x,top+w.y,w.w,w.h);
+      // LIVING INTERIOR: some lit near-layer rooms show a person's SILHOUETTE against the glow (offices &
+      // homes at night). Deterministic per window; a slow life-clock shifts the figure across the room and
+      // sometimes empties it — so the city looks inhabited, not just lit.
+      if(isNight && layer===near && w.w>=2 && w.h>=2 && ((w.hx*13+b.seed)>>>0)%5===0){
+        var pph=(Math.floor(now/3600)+w.hx*3)|0;
+        if(pph%3!==2){                                              // a figure is home ~2/3 of the time
+          var fgx=bx+w.x+((pph+w.x)%w.w);                           // silhouette drifts slowly across the room
+          g.globalAlpha=0.9; g.fillStyle="#161018"; g.fillRect(fgx,top+w.y,1,w.h);   // body column
+          if(w.h>=3){ g.globalAlpha=0.6; g.fillRect(fgx,top+w.y,1,1); }              // a hint of a head on taller rooms
+        }
+      }
     }
     g.globalAlpha=1;
     if(auroraOn&&layer===near&&night>0.5&&b.h>30*KSP){                          // the aurora in the glass
@@ -3513,9 +3715,16 @@ function drawLayer(g,layer,L,now,fx,hol,haze){
         var sfY=HORIZON-5;                                          // D6: ground-floor storefront (now on more blocks)
         g.fillStyle="rgba(10,12,18,0.9)"; g.fillRect(bx+1,sfY-1,b.w-2,1);            // transom
         g.fillStyle=L>0.5?"#7d96b2":"#28324a"; g.fillRect(bx+1,sfY,b.w-2,3);         // display glass
+        // SHOP KIND: each frontage is a specific shop — GOODS in the display + a kind-coloured glow.
+        // bakery(warm loaves) grocer(produce) boutique(mannequin colours) bar(neon) book(spines) flowers.
+        var sk6=(b.seed>>>11)%6, GOODS6=[[[236,196,120],[204,150,80]],[[110,190,90],[220,90,70]],[[220,140,200],[140,160,240]],[[255,80,160],[80,220,255]],[[180,120,80],[90,130,190]],[[240,120,140],[120,200,110]]][sk6];
+        for(var gd6=bx+2;gd6<bx+b.w-3;gd6+=2){ var gv6=GOODS6[((gd6*7)>>1)&1];       // alternating goods pixels on the shelf
+          g.fillStyle=rgba(gv6,L>0.5?0.95:0.7); g.fillRect(gd6,sfY+1,1,1); }
+        g.fillStyle="rgba(30,26,22,0.8)"; g.fillRect(bx+1,sfY+2,b.w-2,1);            // the shelf line
         g.fillStyle=css(colc); for(var sp6=bx+4;sp6<bx+b.w-2;sp6+=5) g.fillRect(sp6,sfY,1,3);   // mullion posts
-        if(L<0.5){ g.globalCompositeOperation="lighter";
-          g.fillStyle="rgba(255,214,140,0.14)"; g.fillRect(bx+1,sfY,b.w-2,4);
+        if(L<0.5){ var sg6=sk6===3?[255,120,220]:[255,214,140];                       // bars glow neon-pink, the rest lamp-warm
+          g.globalCompositeOperation="lighter";
+          g.fillStyle=rgba(sg6,0.16); g.fillRect(bx+1,sfY,b.w-2,4);
           g.globalCompositeOperation="source-over"; }
       }
     }
@@ -3582,6 +3791,7 @@ function drawLayer(g,layer,L,now,fx,hol,haze){
       // a holiday prop hung over the doorway (the building "celebrates" the day)
       if(doProps && (((b.x|0)%3)===0)) drawProp(g,hol.decor.prop, eX+(edw>>1), HORIZON, L, now, night);
     }
+    if(layer===near && b.type!=="park" && b.w>=8) drawUse(g,b,bx,top,L,now,night);   // functional-type cue (hospital cross / theater marquee / hotel blade / …)
     // holiday garland lights strung along the top-segment roofline (every holiday)
     if(decor){ var gc=hol.decor.garland;
       for(var i2=1;i2<tW-1;i2+=2){ var cc=gc[(((i2/2)|0)+bi)%gc.length];

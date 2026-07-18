@@ -20,6 +20,9 @@ FORCEAGE=+Q.get('age')||0.12;
 if(Q.get('death')){ FORCEDEATH=Q.get('death'); }
 if(Q.get('now')){ NOWOVR=+Q.get('now'); }
 if(Q.get('clock')){ CLOCK=+Q.get('clock'); }   // pins the sim's wall-clock (day/night) separately from NOWOVR
+if(Q.get('layout')){ FORCELAYOUT=Q.get('layout'); }   // pins every building's window layout (ribbon/band/grid/punch/corp) to verify per-layout render
+if(Q.get('crown')){ FORCECROWN=Q.get('crown'); }   // pins every building's roof/crown to verify per-roof render
+if(Q.get('use')){ FORCEUSE=Q.get('use'); }   // pins every building's functional type to verify drawUse cues
 if(Q.get('apoc')!=null){ var _ap=+Q.get('apoc'); FORCEAGE={g:1,phase:'apoc',apoc:_ap,cy:0.955+0.045*_ap}; }
 if(Q.get('space')!=null){ var _sp=+Q.get('space'); FORCEAGE={g:1,phase:'peak',apoc:0,cy:0.80+0.13*_sp}; }   // pins the SPACE AGE ramp (curSpace≈_sp, EDUB aside)
 if(Q.get('dis')){ FORCEDIS={type:Q.get('dis'),intensity:4,xf:0.5,w:60,seed:77,f:qn('disf',0.25)}; }
@@ -59,6 +62,15 @@ setTimeout(function(){ try{
       if(cc>=0&&cc<COLS&&rr>=0&&rr<ROWS) grid[rr][cc]++; }
     var art='\n'; for(var gr2=0;gr2<ROWS;gr2++){ var line=''; for(var gc2=0;gc2<COLS;gc2++){ var v=grid[gr2][gc2]; line+= v===0?'.':(v<2?':':(v<4?'o':'#')); } art+=line+'\n'; }
     console.log('MWGRID spine='+MWSPINE.length+' dabs='+MWDABS.length+' vis='+vis+' maxAlpha='+maxa.toFixed(3)+' lpK='+lpK.toFixed(3)+art); }
+  if(Q.get('probe')==='use'){ var uc={}, ux=[];
+    (near.blds||[]).forEach(function(b){ if(b.type==="park") return; uc[b.use]=(uc[b.use]||0)+1;
+      if(b.use&&b.use!=="office"&&b.use!=="apartment"&&b.use!=="factory"&&b.use!=="warehouse"&&ux.length<24) ux.push(b.use+'@'+Math.round(b.x)+' w'+b.w+' born='+(b.bAge<=cityGrowth(rn).g)); });
+    console.log('HEROES USE '+JSON.stringify(uc)+' || '+ux.join(' | ')); }
+  if(Q.get('probe')==='hero'){ var hs=[], dts=[];
+    [near,mid,far].forEach(function(ly,li){ (ly.blds||[]).forEach(function(b){
+      if(b.hero) hs.push((li===0?'N':li===1?'M':'F')+' x'+Math.round(b.x)+' h'+Math.round(b.h)+' '+b.crown+(b.bAge<=cityGrowth(rn).g?'':' UNBORN'));
+      if(b.district==='downtown'&&b.h>60) dts.push(Math.round(b.x)+':'+b.crown); }); });
+    console.log('HEROES '+hs.length+' -> '+hs.join(' | ')+'  ||  DOWNTOWN-TALL '+dts.join(', ')); }
   if(Q.get('probe')==='perf'){ var N=40, t0p=performance.now(); for(var pf=0;pf<N;pf++) draw(g); var dt=(performance.now()-t0p)/N;
     console.log('PERF avg draw() = '+dt.toFixed(2)+' ms/frame over '+N+' frames'); }
   document.title='WW='+WW+' SW='+SW+' WOFF='+WOFF+' liveEpi='+Math.round(apocEpiX(rn))+' liveXA='+Math.round(kwTitanX(rn,0))+' liveXB='+Math.round(kwTitanX(rn,1))+' apocMs='+Math.round(apocMs)+ex;
