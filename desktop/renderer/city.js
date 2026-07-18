@@ -366,7 +366,7 @@ function drawApocMoon(g,now,nd,L){
   var portent=Math.min(1,cityApoc*1.15), shatter=(curDeath==="bh")?Math.max(0,Math.min(1,(cityApoc-0.25)/0.5)):0;
   var mcol=colonyLevel('moon',now), colFall=(curWar&&curWar.f>=0&&curWar.f<1.4&&mcol>0.12)?Math.min(1,curWar.f):0;
   var colonyArg=colFall>0?mcol*(1-colFall*0.75):(portent>0.3?mcol*(1-portent):mcol);
-  var R=Math.round(6+portent*5), mwx=skyWX(maa.az), mwy=skyY(maa.alt)*0.96;
+  var R=Math.round(9+portent*5), mwx=skyWX(maa.az), mwy=skyY(maa.alt)*0.96;   // BIGGER moon (Nick 2026-07-18)
   for(var w=-1;w<=1;w++){ var mx=mwx-WOFF+w*WW; if(mx<-R-10||mx>SW+R+10) continue;
     if(shatter>0.5) drawMoonDebris(g,mx,mwy,R,shatter,now);
     else { drawMoon(g,mx,mwy,mp,colonyArg,R,0,portent,now); if(colFall>0) drawColonyFall(g,mx,mwy,R,colFall,now); } }
@@ -493,25 +493,47 @@ function buildMilkyWay(){
     var d0=Math.min(l,360-l), bulge=d0<40?(1-d0/40):0;             // Sagittarius core: fatter & brighter near ℓ=0
     var e=galToEq(l,gB(0.9)); MWSPINE.push({ra:e[0],dec:e[1],w:(0.10+0.10*bulge)});   // the ridge (soft bed, rift handled in the dabs)
   }
-  // the band itself: ~1100 dabs spread across galactic latitude with gaussian falloff
+  // THE BAND, PHOTO-STYLE (three layers, ~2000 dabs): a broad soft HAZE cloud body, dense fine GRAIN
+  // (unresolved-star mottle), and a faint STAR SPRINKLE feathering far past the edges — with a BRAIDED
+  // Great Rift (three dust filaments) threading through it and a big glowing core.
+  function riftK(l,b){                                              // 0=deep dust … 1=clear
+    if((l<=66)&&(b>-2.4&&b<0.3)) return 0;                          // main rift channel (Aquila→Sagittarius)
+    if((l>=24&&l<=58)&&(b>0.9&&b<2.0)) return 0.25;                 // thinner northern filament (braided look)
+    if((l>=62&&l<=84)&&(b>-1.6&&b<0.6)) return 0.15;                // the Cygnus rift (the split starts at the Northern Cross)
+    return 1;
+  }
   for(var l2=0;l2<360;l2+=1){
-    var d02=Math.min(l2,360-l2), bulge2=d02<45?(1-d02/45):0;
-    var cloud=1 + 1.1*bulge2                                        // Sagittarius core glow
-              + ((l2>=18&&l2<=32)?0.8:0)                            // Scutum star cloud
-              + ((l2>=68&&l2<=86)?0.7:0);                           // Cygnus star cloud
-    var n=(l2%2===0)?3:2;                                           // dab density along the band
+    var d02=Math.min(l2,360-l2), bulge2=d02<50?(1-d02/50):0;        // the core bulge is BIG in a real sky
+    var cloud=1 + 1.5*bulge2                                        // Sagittarius core glow
+              + ((l2>=18&&l2<=32)?0.9:0)                            // Scutum star cloud
+              + ((l2>=66&&l2<=86)?0.8:0);                           // Cygnus star cloud
+    // layer 1 — HAZE: big soft dabs give the band a continuous cloud BODY (dust dims but can't kill glow)
+    for(var h2=0;h2<3;h2++){
+      var bh2=gB(3.6)*(1+1.0*bulge2);
+      var wh2=(0.050+0.070*cloud)*Math.max(0.10,1-Math.abs(bh2)/8);
+      var rk2=riftK(l2,bh2); wh2*=(0.35+0.65*rk2);
+      if(r()<0.10) continue;
+      var eh2=galToEq(l2+r()-0.5,bh2);
+      MWDABS.push({ra:eh2[0],dec:eh2[1],w:wh2,sz:(h2===0?4:3),c:(bulge2>0.35&&r()<0.55)?1:0});
+    }
+    // layer 2 — GRAIN: the fine mottle of millions of unresolved stars (the rift cuts these hard)
+    var n=(l2%2===0)?4:3;
     for(var s2=0;s2<n;s2++){
-      var b2=gB(2.2)*(1+0.8*bulge2)+gB(1.4);                        // latitude scatter — band ~4-7° half-width
-      var inRift=(l2>=0&&l2<=62)&&(b2>-2.6&&b2<0.2);                // the GREAT RIFT dust lane hugs the equator's south edge
-      var wgt=(0.05+0.06*cloud)*Math.max(0.12,1-Math.abs(b2)/6);    // fade toward the edges
-      if(inRift) wgt*=0.10;                                         // the rift is nearly black — the band splits in two
-      if(r()<0.12) continue;                                        // ragged, not uniform
+      var b2=gB(2.9)*(1+1.0*bulge2)+gB(1.7);
+      var wgt=(0.08+0.10*cloud)*Math.max(0.12,1-Math.abs(b2)/8);
+      var rk3=riftK(l2,b2); wgt*=(0.08+0.92*rk3);
+      if(r()<0.12) continue;
       var e2=galToEq(l2+r()-0.5,b2);
-      MWDABS.push({ra:e2[0],dec:e2[1],w:wgt,sz:(r()<0.18?2:1),c:(bulge2>0.3&&r()<0.6)?1:0});   // c=1: the core glows warm
+      MWDABS.push({ra:e2[0],dec:e2[1],w:wgt,sz:(r()<0.16?2:1),c:(bulge2>0.3&&r()<0.6)?1:0});
+    }
+    // layer 3 — STAR SPRINKLE: faint pinpricks feathering way past the band (the star-rich sky of the photo)
+    if(l2%2===0){ var bs3=gB(5.5)+gB(3);
+      var es3=galToEq(l2+r()-0.5,bs3);
+      MWDABS.push({ra:es3[0],dec:es3[1],w:0.035+0.03*r(),sz:1,c:0});
     }
   }
-  for(var k=0;k<46;k++){ var kl=r()*360, kd=Math.min(kl,360-kl);    // bright knots & clumps riding the band
-    var kk=galToEq(kl,gB(2.6)); MWDABS.push({ra:kk[0],dec:kk[1],w:0.20+0.14*r()*(kd<50?1.4:1),sz:2,c:(kd<50&&r()<0.5)?1:0}); }
+  for(var k=0;k<72;k++){ var kl=r()*360, kd=Math.min(kl,360-kl);    // bright knots & clumps riding the band
+    var kk=galToEq(kl,gB(2.6)); MWDABS.push({ra:kk[0],dec:kk[1],w:0.20+0.15*r()*(kd<55?1.5:1),sz:2,c:(kd<55&&r()<0.55)?1:0}); }
 }
 
 // draw the real Norwich star field + moon (only when dark & clear)
@@ -1617,7 +1639,7 @@ function drawSky(g,now,nd,L,fx){
   g.lineCap="butt";
   // pass 2: the BAND — a dense mottled dab field (star clouds warm-gold near the core, blue-white elsewhere,
   // the Great Rift already carved out at build time). QUAL 0 strides by 2 to hold the perf budget.
-  var mwStride=(QUAL===0)?2:1;
+  var mwStride=(QUAL===0)?3:1;   // KDE budget: the denser field strides harder at low quality
   for(var di=0;di<MWDABS.length;di+=mwStride){ var dd=MWDABS[di], da=altAz(dd.ra,dd.dec,lst); if(da.alt<2) continue;
     var vfd=Math.min(1,(1-lpK)*(da.alt>50?1.5:1)), dma=dd.w*fade*vfd; if(dma<0.02) continue;
     var dwx=skyWX(da.az), dwy=skyY(da.alt);
@@ -1778,7 +1800,7 @@ function drawCelestial(g,now,nd,L,fx){
     var mcol=colonyLevel('moon',now);
     var colFall=(curWar && curWar.f>=0 && curWar.f<1.4 && mcol>0.12 && dayFade<0.4)?Math.min(1,curWar.f):0;   // war reaches the colony (can happen mid-life)
     var colonyArg = colFall>0 ? mcol*(1-colFall*0.75) : mcol;
-    var R=6, mwx=skyWX(maa.az), mwy=skyY(maa.alt)*0.96;
+    var R=9, mwx=skyWX(maa.az), mwy=skyY(maa.alt)*0.96;   // BIGGER moon (Nick 2026-07-18)
     for(var w=-1;w<=1;w++){ var mx=mwx-WOFF+w*WW; if(mx<-R-10||mx>SW+R+10) continue;
       drawMoon(g,mx,mwy,mp,colonyArg,R,dayFade,0,now);
       if(colFall>0) drawColonyFall(g,mx,mwy,R,colFall,now);
