@@ -1617,8 +1617,8 @@ function drawSky(g,now,nd,L,fx){
     for(var fw=-1;fw<=1;fw++){ var fsx=fwx2-WOFF+fw*WW; if(fsx<-1||fsx>SW+1) continue;
       g.globalAlpha=falpha; g.fillStyle="#cfd8ec"; g.fillRect(fsx|0,fwy|0,1,1); g.globalAlpha=1; } }
   for(i=0;i<STARS.length;i++) P.push(altAz(STARS[i][0],STARS[i][1],lst));
-  // asterism lines (very faint)
-  g.strokeStyle="rgba(155,186,232,"+(0.44*fade)+")"; g.lineWidth=1;   // brighter so constellations pop from the denser field
+  // asterism lines (very faint — a hint you can trace, not a diagram drawn on the sky)
+  g.strokeStyle="rgba(155,186,232,"+(0.24*fade)+")"; g.lineWidth=1;
   for(i=0;i<LINES.length;i++){ var a=P[LINES[i][0]], b=P[LINES[i][1]]; if(a.alt<2||b.alt<2) continue;
     var awx=skyWX(a.az), bwx=skyWX(b.az); if(Math.abs(awx-bwx)>WW*0.5) continue;    // skip seam-wrapping links
     var ay=skyY(a.alt), byy=skyY(b.alt);
@@ -1632,14 +1632,15 @@ function drawSky(g,now,nd,L,fx){
     var lpS=Math.min(1,Math.max(0.4,(aa.alt)/20));                    // bright named stars resist the city glow more than filler
     var base=Math.max(0.5,Math.min(1,(2.6-mag)/2.2)), tw=0.75+0.25*Math.sin(now*0.002+i*1.7);
     var alpha=base*tw*fade*lpS;
-    if(mag<1.6){ g.globalCompositeOperation="lighter";                    // the bright named stars GLOW
+    if(mag<1.6){ g.globalCompositeOperation="lighter";                    // bright named stars: a soft 4-POINT STAR, not a square box
       for(var w4=-1;w4<=1;w4++){ var hx5=wx-WOFF+w4*WW; if(hx5<-3||hx5>SW+3) continue;
-        g.fillStyle="rgba(190,214,255,"+(0.16*alpha).toFixed(3)+")"; g.fillRect((hx5-1)|0,(wy-1)|0,3,3);
-        g.fillStyle="rgba(235,242,255,"+(0.9*alpha).toFixed(3)+")"; g.fillRect(hx5|0,wy|0,2,1); }
+        g.fillStyle="rgba(190,214,255,"+(0.22*alpha).toFixed(3)+")";                        // diffraction cross arms
+        g.fillRect((hx5-1)|0,wy|0,3,1); g.fillRect(hx5|0,(wy-1)|0,1,3);
+        g.fillStyle="rgba(235,242,255,"+(0.9*alpha).toFixed(3)+")"; g.fillRect(hx5|0,wy|0,1,1); }   // hot core
       g.globalCompositeOperation="source-over"; }
     for(w=-1;w<=1;w++){ var sx=wx-WOFF+w*WW; if(sx<-1||sx>SW+1) continue;
-      if(mag<0.8){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(190,214,255,"+(0.35*alpha)+")";
-        g.fillRect((sx-1)|0,(wy-1)|0,3,3); g.globalCompositeOperation="source-over"; }
+      if(mag<0.8){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(190,214,255,"+(0.28*alpha)+")";   // the very brightest add longer spikes
+        g.fillRect((sx-2)|0,wy|0,5,1); g.fillRect(sx|0,(wy-2)|0,1,5); g.globalCompositeOperation="source-over"; }
       g.globalAlpha=alpha; g.fillStyle=mag<1.2?"#f2f6ff":"#dfe6f6"; g.fillRect(sx|0,wy|0,1,1); g.globalAlpha=1;
     }
   }
