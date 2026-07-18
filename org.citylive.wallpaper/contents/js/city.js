@@ -1384,7 +1384,7 @@ function drawFamily(g,L,now,nd){
   // ---- half-mast at city hall when the elder passes ----
   if(cy>F.elder&&cy<F.elder+0.01){
     var hxw=Math.round(LM_CITYHALL*WW), sxh=hxw-WOFF;
-    if(sxh>=-14&&sxh<=SW+14){ g.fillStyle="#1a1c24"; g.fillRect(sxh|0,HORIZON-19,3,2); }   // black bunting on the dome
+    if(sxh>=-14&&sxh<=SW+14){ g.fillStyle="#1a1c24"; g.fillRect(sxh|0,(HORIZON-19*civicScale())|0,3,2); }   // black bunting on the (grown) dome
   }
 }
 // ---- little LIVES: chatting pairs, kids playing tag, a dog chasing its ball, a wave from a window
@@ -5187,27 +5187,27 @@ function drawMovie(g,L,now,night){
 // plus sky attractions (balloons, an ad-blimp). All pure functions of the world clock.
 var LM_STADIUM=0.63, LM_CATHEDRAL=0.24, LM_FERRIS=0.93;        // world-x fractions
 var LM_CITYHALL=0.415, LM_SCHOOL=0.685, LM_MUSEUM=0.275, LM_COASTER=0.885, LM_MEGA=[0.44,0.565];
-var LM_COURTHOUSE=0.48, LM_CAPITOL=0.505, LM_POLICE=0.335, LM_FIRE=0.365, LM_LIBRARY=0.72, LM_POST=0.78;  // government district
+var LM_COURTHOUSE=0.468, LM_CAPITOL=0.505, LM_POLICE=0.335, LM_FIRE=0.365, LM_LIBRARY=0.72, LM_POST=0.78;  // government district (courthouse shifted left so the winged capitol has room)
 var schoolAt=0.42, EDUB=0, POPK=0.5, SMALLW=false;   // SMALLW: single-monitor world — fewer, tighter landmarks     // per-life school timing; early schooling hastens the space age (N8)
 var lmFoot=[];                                                 // cleared plaza footprints (world x-ranges), rebuilt each frame
 function computeLmFoot(){ lmFoot.length=0;
   // the plots are reserved from the start (fairground), so no buildings get "demolished" when landmarks rise
   var sc=Math.round(LM_STADIUM*WW); lmFoot.push([sc-30,sc+30]);
-  var hc=Math.round(LM_CITYHALL*WW); lmFoot.push([hc-26,hc+26]);   // wide plaza — city hall grows imposing with the city
+  var hc=Math.round(LM_CITYHALL*WW); lmFoot.push([hc-36,hc+36]);   // wide plaza — city hall + annexes grow MONUMENTAL with the city
   var scl=Math.round(LM_SCHOOL*WW); lmFoot.push([scl-12,scl+12]);
   var mu=Math.round(LM_MUSEUM*WW); lmFoot.push([mu-12,mu+12]);
   var mx0=Math.round(LM_MEGA[0]*WW); lmFoot.push([mx0-10,mx0+10]);
   if(heroEra()){ var hh=Math.round(LM_HERO*WW); lmFoot.push([hh-16,hh+16]); }   // clear a plaza for this life's hero monument
-  var cth=Math.round(LM_COURTHOUSE*WW); lmFoot.push([cth-24,cth+24]);       // government district (courthouse + capitol always) — grow with maturity
-  var cap=Math.round(LM_CAPITOL*WW); lmFoot.push([cap-30,cap+30]);
+  var cth=Math.round(LM_COURTHOUSE*WW); lmFoot.push([cth-26,cth+26]);       // government district (courthouse + capitol always) — grow with maturity
+  var cap=Math.round(LM_CAPITOL*WW); lmFoot.push([cap-44,cap+44]);           // the winged capitol commands a broad ceremonial plaza
   if(!SMALLW){                                                  // the big-world extras
     var cc=Math.round(LM_CATHEDRAL*WW); lmFoot.push([cc-15,cc+15]);
     var co=Math.round(LM_COASTER*WW); lmFoot.push([co-44,co+44]);   // wider plaza: the amusement park (ferris wheel + coaster) spans ~80px
     var mx1=Math.round(LM_MEGA[1]*WW); lmFoot.push([mx1-10,mx1+10]);
-    var pol=Math.round(LM_POLICE*WW); lmFoot.push([pol-9,pol+9]);           // police + fire (public safety)
-    var fir=Math.round(LM_FIRE*WW); lmFoot.push([fir-9,fir+9]);
-    var lib=Math.round(LM_LIBRARY*WW); lmFoot.push([lib-10,lib+10]);        // library + post office
-    var pos=Math.round(LM_POST*WW); lmFoot.push([pos-10,pos+10]); } }
+    var pol=Math.round(LM_POLICE*WW); lmFoot.push([pol-13,pol+13]);         // police + fire (public safety; they grow with the city now)
+    var fir=Math.round(LM_FIRE*WW); lmFoot.push([fir-13,fir+13]);
+    var lib=Math.round(LM_LIBRARY*WW); lmFoot.push([lib-14,lib+14]);        // library + post office
+    var pos=Math.round(LM_POST*WW); lmFoot.push([pos-14,pos+14]); } }
 function overLandmark(bx,bw){ for(var i=0;i<lmFoot.length;i++){ if(bx<lmFoot[i][1] && bx+bw>lmFoot[i][0]) return true; } return false; }
 
 function gameNight(nd){ var d=nd.getDay(); return d===3||d===5||d===6; }   // Wed/Fri/Sat home games
@@ -5579,6 +5579,8 @@ function drawCityHall(g,L,now,night){
   for(var off=-WW;off<=WW;off+=WW){ var X=(cx-WOFF+off)|0; if(X<-40||X>SW+40) continue;
     g.save(); g.translate(X,gy); g.scale(csx,cs); g.translate(-X,-gy);
     var w=24, x0=X-(w>>1);
+    g.fillStyle=day?"#c6c0b0":"#34322c"; g.fillRect(x0-7,gy-8,7,8); g.fillRect(x0+w,gy-8,7,8);   // flanking civic ANNEXES
+    g.fillStyle=day?"#d8d2c2":"#3e3c36"; g.fillRect(x0-8,gy-9,9,1); g.fillRect(x0+w-1,gy-9,9,1); // annex cornices
     g.fillStyle=day?"#cfc9ba":"#3c3a34"; g.fillRect(x0,gy-12,w,12);                 // body
     g.fillStyle=day?"#e3ddcc":"#4a4840"; g.fillRect(x0-1,gy-13,w+2,2);              // entablature
     g.fillStyle=day?"#b8b2a2":"#302e28";
@@ -5597,8 +5599,9 @@ function drawCityHall(g,L,now,night){
 }
 // civic government offices swell from modest to imposing as the metropolis matures (bigger than any house).
 // They grow tall & stately; width creeps up only gently so neighbours in the packed gov district don't collide.
-function civicScale(){ return 1.12+0.9*gstage(0.58,1.0); }   // vertical
-function civicScaleX(){ return 1.05+0.22*gstage(0.58,1.0); } // horizontal (gentle)
+function civicScale(){ return 1.25+1.6*gstage(0.55,1.0); }   // vertical — a mature capital's government is MONUMENTAL (~2.9x)
+function civicScaleX(){ return 1.10+0.55*gstage(0.55,1.0); } // horizontal — broad porticos & wings (~1.65x)
+function civicScaleMinor(){ return 1.05+0.5*gstage(0.55,1.0); } // police/fire/library/post grow too (more modestly)
 // ---- GOVERNMENT DISTRICT: courthouse, capitol, police & fire, library, post office ----
 function drawCourthouse(g,L,now,night){
   var cx=Math.round(LM_COURTHOUSE*WW), gy=HORIZON, day=L>0.5, cs=civicScale(), csx=civicScaleX();
@@ -5620,6 +5623,9 @@ function drawCapitol(g,L,now,night){
   for(var off=-WW;off<=WW;off+=WW){ var X=(cx-WOFF+off)|0; if(X<-48||X>SW+48) continue;
     g.save(); g.translate(X,gy); g.scale(csx,cs); g.translate(-X,-gy);
     var w=28, x0=X-(w>>1);
+    g.fillStyle=day?"#ddd8ca":"#3a3832"; g.fillRect(x0-9,gy-9,9,9); g.fillRect(x0+w,gy-9,9,9);        // flanking WINGS (House & Senate)
+    g.fillStyle=day?"#c8c2b2":"#2c2a26"; for(var wc2=2;wc2<8;wc2+=3){ g.fillRect(x0-9+wc2,gy-7,1,6); g.fillRect(x0+w+wc2,gy-7,1,6); }  // wing pilasters
+    g.fillStyle=day?"#eae6da":"#46443e"; g.fillRect(x0-10,gy-10,11,1); g.fillRect(x0+w-1,gy-10,11,1); // wing cornices
     g.fillStyle=day?"#e6e2d6":"#42403a"; g.fillRect(x0,gy-14,w,14);                                   // white body
     g.fillStyle=day?"#cfc9ba":"#302e28"; for(var c2=2;c2<w-1;c2+=3) g.fillRect(x0+c2,gy-12,1,11);      // pilasters
     g.fillStyle=day?"#dcd8cc":"#3a3832"; g.fillRect(X-5,gy-18,10,4);                                  // drum
@@ -5634,7 +5640,9 @@ function drawCapitol(g,L,now,night){
 }
 function drawPoliceStation(g,L,now,night){
   var cx=Math.round(LM_POLICE*WW), gy=HORIZON, day=L>0.5;
-  for(var off=-WW;off<=WW;off+=WW){ var X=(cx-WOFF+off)|0; if(X<-14||X>SW+14) continue;
+  var cm=civicScaleMinor();
+  for(var off=-WW;off<=WW;off+=WW){ var X=(cx-WOFF+off)|0; if(X<-24||X>SW+24) continue;
+    g.save(); g.translate(X,gy); g.scale(cm,cm); g.translate(-X,-gy);
     var w=15, x0=X-(w>>1);
     g.fillStyle=day?"#8f96a2":"#2e323a"; g.fillRect(x0,gy-11,w,11);                                   // grey stone
     g.fillStyle=day?"#a4abb6":"#3a3e46"; g.fillRect(x0-1,gy-12,w+2,2);
@@ -5642,11 +5650,13 @@ function drawPoliceStation(g,L,now,night){
     g.fillStyle=day?"#3a3e46":"#14161a"; g.fillRect(X-1,gy-5,3,5);                                    // door
     var bl=(Math.floor(now/500))&1; g.globalCompositeOperation="lighter"; g.fillStyle=bl?"rgba(60,120,255,0.95)":"rgba(60,120,255,0.3)"; g.fillRect(X,gy-14,1,2); g.globalCompositeOperation="source-over";   // precinct lamp
     g.fillStyle="#2a4a8a"; g.fillRect(X-3,gy-11,7,1);                                                 // blue band
+    g.restore();
   }
 }
 function drawFireStation(g,L,now,night){
-  var cx=Math.round(LM_FIRE*WW), gy=HORIZON, day=L>0.5;
-  for(var off=-WW;off<=WW;off+=WW){ var X=(cx-WOFF+off)|0; if(X<-16||X>SW+16) continue;
+  var cx=Math.round(LM_FIRE*WW), gy=HORIZON, day=L>0.5, cm=civicScaleMinor();
+  for(var off=-WW;off<=WW;off+=WW){ var X=(cx-WOFF+off)|0; if(X<-26||X>SW+26) continue;
+    g.save(); g.translate(X,gy); g.scale(cm,cm); g.translate(-X,-gy);
     var w=16, x0=X-(w>>1);
     g.fillStyle=day?"#9a3320":"#3a1610"; g.fillRect(x0,gy-11,w,11);                                   // red brick
     g.fillStyle="rgba(0,0,0,0.16)"; for(var mb=gy-9;mb<gy-1;mb+=2) g.fillRect(x0,mb,w,1);
@@ -5656,11 +5666,13 @@ function drawFireStation(g,L,now,night){
       g.fillStyle="rgba(0,0,0,0.2)"; for(var bln=gy-7;bln<gy-1;bln+=2) g.fillRect(bx,bln,5,1); }       // bay doors
     g.fillStyle="#ff3b3b"; g.fillRect(X-2,gy-11,4,1);                                                 // red band
     if((Math.floor(now/16000))%3===0){ g.fillStyle="#d81f1f"; g.fillRect(x0-6,gy-4,6,4); g.fillStyle="#c9c9d2"; g.fillRect(x0-5,gy-6,4,1); g.fillStyle="#0b0b10"; g.fillRect(x0-5,gy-1,1,1); g.fillRect(x0-2,gy-1,1,1); }  // engine out front
+    g.restore();
   }
 }
 function drawLibrary(g,L,now,night){
-  var cx=Math.round(LM_LIBRARY*WW), gy=HORIZON, day=L>0.5;
-  for(var off=-WW;off<=WW;off+=WW){ var X=(cx-WOFF+off)|0; if(X<-16||X>SW+16) continue;
+  var cx=Math.round(LM_LIBRARY*WW), gy=HORIZON, day=L>0.5, cm=civicScaleMinor();
+  for(var off=-WW;off<=WW;off+=WW){ var X=(cx-WOFF+off)|0; if(X<-28||X>SW+28) continue;
+    g.save(); g.translate(X,gy); g.scale(cm,cm); g.translate(-X,-gy);
     var w=18, x0=X-(w>>1);
     g.fillStyle=day?"#cabf9a":"#3a362a"; g.fillRect(x0,gy-11,w,11);                                   // sandstone
     g.fillStyle=day?"#ddd3ad":"#48443a"; g.fillRect(x0-1,gy-12,w+2,2);
@@ -5669,11 +5681,13 @@ function drawLibrary(g,L,now,night){
     g.fillStyle=day?"#2e4a7a":"#22344f"; g.fillRect(x0+2,gy-13,w-4,2);                                // banner
     g.fillStyle="#e9c96a"; g.fillRect(x0+4,gy-12,1,1); g.fillRect(x0+7,gy-12,1,1); g.fillRect(x0+10,gy-12,1,1);   // gilt lettering
     if(!day){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,236,180,0.16)"; g.fillRect(x0,gy-11,w,11); g.globalCompositeOperation="source-over"; }
+    g.restore();
   }
 }
 function drawPostOffice(g,L,now,night){
-  var cx=Math.round(LM_POST*WW), gy=HORIZON, day=L>0.5;
-  for(var off=-WW;off<=WW;off+=WW){ var X=(cx-WOFF+off)|0; if(X<-15||X>SW+15) continue;
+  var cx=Math.round(LM_POST*WW), gy=HORIZON, day=L>0.5, cm=civicScaleMinor();
+  for(var off=-WW;off<=WW;off+=WW){ var X=(cx-WOFF+off)|0; if(X<-26||X>SW+26) continue;
+    g.save(); g.translate(X,gy); g.scale(cm,cm); g.translate(-X,-gy);
     var w=16, x0=X-(w>>1);
     g.fillStyle=day?"#b9b3a4":"#34322c"; g.fillRect(x0,gy-10,w,10);                                   // body
     g.fillStyle=day?"#8fa0b8":"#2a3240"; g.fillRect(x0,gy-11,w,1);
@@ -5682,6 +5696,7 @@ function drawPostOffice(g,L,now,night){
     g.fillStyle="#2a4a8a"; g.fillRect(x0+2,gy-12,w-4,1);                                              // POST banner
     g.fillStyle=day?"#6a6458":"#1e1c1a"; g.fillRect(x0+1,gy-16,1,5); g.fillStyle="#d23b3b"; g.fillRect(x0+2,gy-16,3,1); g.fillStyle="#eef1f6"; g.fillRect(x0+2,gy-15,3,1);   // flag
     if((Math.floor(now/14000))%3===1){ g.fillStyle=day?"#e9edf2":"#5a6068"; g.fillRect(x0+w+1,gy-4,6,4); g.fillStyle="#2a4a8a"; g.fillRect(x0+w+2,gy-3,4,1); g.fillStyle="#0b0b10"; g.fillRect(x0+w+2,gy-1,1,1); g.fillRect(x0+w+5,gy-1,1,1); }  // mail truck
+    g.restore();
   }
 }
 // C4: the SCHOOLHOUSE — bell tower, big windows, kids at recess
@@ -5968,10 +5983,10 @@ function drawLandmarks(g,L,now,night,nd){
   lm(LM_STADIUM,   gstage(0.55,0.63), 98,46,  71, function(){ drawStadium(g,L,now,night,nd); });
   if(!SMALLW) lm(LM_CATHEDRAL, gstage(0.57,0.65), 42,88, 131, function(){ drawCathedral(g,L,now,night); });
   lm(LM_FERRIS,    gstage(0.50,0.58), 54,66, 233, function(){ drawFerris(g,L,now,night); });
-  lm(LM_CITYHALL,  gstage(0.52,0.60), 58,60, 317, function(){ drawCityHall(g,L,now,night); });
+  lm(LM_CITYHALL,  gstage(0.52,0.60), 76,72, 317, function(){ drawCityHall(g,L,now,night); });
   lm(LM_HERO,      gstage(0.54,0.64), 50,74, 419, function(){ drawCityHero(g,L,now); });          // this life's signature monument
   lm(LM_COURTHOUSE,gstage(0.54,0.62), 54,62, 523, function(){ drawCourthouse(g,L,now,night); });
-  lm(LM_CAPITOL,   gstage(0.60,0.70), 62,76, 631, function(){ drawCapitol(g,L,now,night); });
+  lm(LM_CAPITOL,   gstage(0.60,0.70), 96,86, 631, function(){ drawCapitol(g,L,now,night); });
   if(!SMALLW){
     lm(LM_POLICE,  gstage(0.50,0.58), 42,44, 733, function(){ drawPoliceStation(g,L,now,night); });
     lm(LM_FIRE,    gstage(0.50,0.58), 42,46, 829, function(){ drawFireStation(g,L,now,night); });
