@@ -485,14 +485,33 @@ var MWSPINE=null, MWDABS=null;
 function buildMilkyWay(){
   if(MWSPINE) return; MWSPINE=[]; MWDABS=[]; var r=rng(0x4D575759);   // FIXED seed "MWWY" — identical on every screen
   function gB(s){ return (r()+r()-1)*s; }                          // triangular ≈ gaussian, tight to the equator
+  // THE REAL THING is not a line — it's a broad MOTTLED RIVER of unresolved starlight: a diffuse band ~10°
+  // wide with ragged feathered edges, split lengthwise by the GREAT RIFT dust lane, swelling into glowing
+  // STAR CLOUDS (the Sagittarius core, the Scutum cloud, Cygnus). Built here as a dense dab FIELD; the old
+  // spine survives only as a faint luminous bed under it.
   for(var l=0;l<360;l+=1.5){                                        // ordered by galactic longitude → adjacent = strokeable
-    var d0=Math.min(l,360-l), bulge=d0<40?(1-d0/40):0,             // Sagittarius core: fatter & brighter near ℓ=0
-        rift=(l>=18&&l<=52)?0.4:1;                                 // the Great Rift — a dark dust lane splits the band
-    var e=galToEq(l,gB(1.0)); MWSPINE.push({ra:e[0],dec:e[1],w:(0.13+0.13*bulge)*rift});   // the ridge itself
-    if(r()<0.5){ var f=galToEq(l,(r()<0.5?1:-1)*(2.5+gB(2)));      // feathered fringe → the band's soft edges
-      MWDABS.push({ra:f[0],dec:f[1],w:(0.05+0.05*bulge)*rift,sz:1}); }
+    var d0=Math.min(l,360-l), bulge=d0<40?(1-d0/40):0;             // Sagittarius core: fatter & brighter near ℓ=0
+    var e=galToEq(l,gB(0.9)); MWSPINE.push({ra:e[0],dec:e[1],w:(0.10+0.10*bulge)});   // the ridge (soft bed, rift handled in the dabs)
   }
-  for(var k=0;k<32;k++){ var kk=galToEq(r()*360,gB(3.5)); MWDABS.push({ra:kk[0],dec:kk[1],w:0.22+0.13*r(),sz:2}); }   // bright knots
+  // the band itself: ~1100 dabs spread across galactic latitude with gaussian falloff
+  for(var l2=0;l2<360;l2+=1){
+    var d02=Math.min(l2,360-l2), bulge2=d02<45?(1-d02/45):0;
+    var cloud=1 + 1.1*bulge2                                        // Sagittarius core glow
+              + ((l2>=18&&l2<=32)?0.8:0)                            // Scutum star cloud
+              + ((l2>=68&&l2<=86)?0.7:0);                           // Cygnus star cloud
+    var n=(l2%2===0)?3:2;                                           // dab density along the band
+    for(var s2=0;s2<n;s2++){
+      var b2=gB(2.2)*(1+0.8*bulge2)+gB(1.4);                        // latitude scatter — band ~4-7° half-width
+      var inRift=(l2>=0&&l2<=62)&&(b2>-2.6&&b2<0.2);                // the GREAT RIFT dust lane hugs the equator's south edge
+      var wgt=(0.05+0.06*cloud)*Math.max(0.12,1-Math.abs(b2)/6);    // fade toward the edges
+      if(inRift) wgt*=0.10;                                         // the rift is nearly black — the band splits in two
+      if(r()<0.12) continue;                                        // ragged, not uniform
+      var e2=galToEq(l2+r()-0.5,b2);
+      MWDABS.push({ra:e2[0],dec:e2[1],w:wgt,sz:(r()<0.18?2:1),c:(bulge2>0.3&&r()<0.6)?1:0});   // c=1: the core glows warm
+    }
+  }
+  for(var k=0;k<46;k++){ var kl=r()*360, kd=Math.min(kl,360-kl);    // bright knots & clumps riding the band
+    var kk=galToEq(kl,gB(2.6)); MWDABS.push({ra:kk[0],dec:kk[1],w:0.20+0.14*r()*(kd<50?1.4:1),sz:2,c:(kd<50&&r()<0.5)?1:0}); }
 }
 
 // draw the real Norwich star field + moon (only when dark & clear)
@@ -1584,20 +1603,25 @@ function drawSky(g,now,nd,L,fx){
   // ---- THE MILKY WAY — the galaxy's own band arcs overhead; the city's glow washes it out as it
   // grows, and it returns over the darkened city (deep 3-4am, pollution lights-out, storm blackout).
   buildMilkyWay();
-  g.globalCompositeOperation="lighter"; g.lineCap="round";
+  g.globalCompositeOperation="lighter"; g.lineCap="butt";   // butt caps: round caps double-stack additively at joints → a beaded pearl-chain artifact
   var SPN=[]; for(var si=0;si<MWSPINE.length;si++){ var sp=MWSPINE[si], sa=altAz(sp.ra,sp.dec,lst);   // project the ridge once
     SPN.push(sa.alt<2?null:{x:skyWX(sa.az),y:skyY(sa.alt),alt:sa.alt,w:sp.w}); }
-  for(var pass=0;pass<2;pass++){ if(QUAL===0&&pass===0) continue;   // pass0 = wide hazy halo, pass1 = bright core (KDE budget: core only)
+  // pass 1: a WIDE, FAINT luminous bed (no rope — the glow the dab-field rides on)
+  for(var pass=0;pass<2;pass++){ if(QUAL===0&&pass===0) continue;
     for(var si2=0;si2<SPN.length-1;si2++){ var A=SPN[si2], B=SPN[si2+1]; if(!A||!B) continue;
-      var vf=Math.min(1,(1-lpK)*((A.alt>50||B.alt>50)?1.5:1)), wv=(A.w+B.w)*0.5, a=wv*fade*vf*(pass?2.3:0.9); if(a<0.02) continue;
-      g.lineWidth=pass?(1.3+wv*6):(3.5+wv*11); g.strokeStyle="rgba(200,212,240,"+a.toFixed(3)+")";
+      var vf=Math.min(1,(1-lpK)*((A.alt>50||B.alt>50)?1.5:1)), wv=(A.w+B.w)*0.5, a=wv*fade*vf*(pass?0.85:0.5); if(a<0.015) continue;
+      g.lineWidth=pass?(5+wv*14):(10+wv*26); g.strokeStyle="rgba(196,208,238,"+a.toFixed(3)+")";
       for(var w=-1;w<=1;w++){ var ax=A.x-WOFF+w*WW, bx=B.x-WOFF+w*WW; if(Math.abs(ax-bx)>WW*0.5) continue;   // skip seam-wrap segments
-        if((ax<-6&&bx<-6)||(ax>SW+6&&bx>SW+6)) continue;
+        if((ax<-16&&bx<-16)||(ax>SW+16&&bx>SW+16)) continue;
         g.beginPath(); g.moveTo(ax,A.y); g.lineTo(bx,B.y); g.stroke(); } } }
   g.lineCap="butt";
-  for(var di=0;di<MWDABS.length;di++){ var dd=MWDABS[di], da=altAz(dd.ra,dd.dec,lst); if(da.alt<2) continue;   // feathered edges + knots
+  // pass 2: the BAND — a dense mottled dab field (star clouds warm-gold near the core, blue-white elsewhere,
+  // the Great Rift already carved out at build time). QUAL 0 strides by 2 to hold the perf budget.
+  var mwStride=(QUAL===0)?2:1;
+  for(var di=0;di<MWDABS.length;di+=mwStride){ var dd=MWDABS[di], da=altAz(dd.ra,dd.dec,lst); if(da.alt<2) continue;
     var vfd=Math.min(1,(1-lpK)*(da.alt>50?1.5:1)), dma=dd.w*fade*vfd; if(dma<0.02) continue;
-    var dwx=skyWX(da.az), dwy=skyY(da.alt); g.fillStyle="rgba(212,220,246,"+dma.toFixed(3)+")";
+    var dwx=skyWX(da.az), dwy=skyY(da.alt);
+    g.fillStyle=dd.c?("rgba(240,228,200,"+dma.toFixed(3)+")"):("rgba(212,220,246,"+dma.toFixed(3)+")");
     for(var dw=-1;dw<=1;dw++){ var dsx=dwx-WOFF+dw*WW; if(dsx<-2||dsx>SW+2) continue; g.fillRect(dsx|0,dwy|0,dd.sz,dd.sz); } }
   // ANDROMEDA — the faint elongated smudge of M31, the farthest thing a naked eye can reach
   var anda=altAz(0.712,41.27,lst);
