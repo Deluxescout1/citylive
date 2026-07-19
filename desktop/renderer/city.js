@@ -28,6 +28,10 @@ var CFG = (function(){
   return {};
 })();
 if (CFG.lat != null && CFG.lon != null) { LAT = +CFG.lat; LON = +CFG.lon; }
+// LIVE FLIGHTS: opt-out toggle for the real-aircraft overlay (see drawRealFlights / fetchFlights).
+// Default ON. Set config `flights:false` to disable (it calls a public ADS-B API with the area's
+// coordinates, so a privacy-minded host can turn it off).
+var FLIGHTS_ON = (CFG.flights !== false);
 
 // BIRTHDAYS: strung banner + fireworks + hearts on the given day. Each entry {m,d,label,pink?}.
 // None are baked in here; a build supplies its own list via config (or [] for none, so the
@@ -68,6 +72,7 @@ function applyConfig(cfg){ if(!cfg) return;
   if(cfg.worldRestartAt!==undefined) WORLD_SHIFT=worldShiftFrom(+cfg.worldRestartAt||0, cfg.worldRestartMode);
   if(cfg.era!==undefined){ FORCEERA=null;
     if(cfg.era && cfg.era!=="auto"){ for(var ei=0;ei<ERAS.length;ei++){ if(ERAS[ei].name===cfg.era){ FORCEERA=ei; break; } } } }
+  if(cfg.flights!==undefined) FLIGHTS_ON=(cfg.flights!==false);   // live real-aircraft overlay on/off
 }
 // ================================================================================
 
@@ -151,7 +156,7 @@ function resetNotifLanes(){ for(var r=0;r<_notifTaken.length;r++) _notifTaken[r]
 var CLOCK = null;   // test-harness override: ms timestamp for time-of-day (null = real wall clock)
 var NOWOVR = null;  // test-harness override: ms value returned as Date.now() inside draw() (null = real)
 var NOFETCH = false;  // headless flag (own line = QML-namespace writable): almanac callers set this so setup() makes NO network calls
-var VERSION = "1.30.0";  // the build the user is running — surfaced in the Almanac + KDE config page (keep in sync with desktop/package.json)
+var VERSION = "1.31.0";  // the build the user is running — surfaced in the Almanac + KDE config page (keep in sync with desktop/package.json)
 var FORCELAYOUT = null;   // test hook: pin every building's window layout (grid/ribbon/band/punch/corp) — verify per-layout render
 var FORCECROWN = null;    // test hook: pin every building's crown/roof (gable/hip/saltbox/mansard/deco/…) — verify per-roof render
 var FORCEUSE = null;      // test hook: pin every building's functional type (hospital/theater/hotel/bank/cafe/pharmacy) — verify drawUse
@@ -1922,6 +1927,52 @@ function fetchKp(bucket){
     xhr.send();
   }catch(e){}
 }
+// ---- LIVE FLIGHTS: real aircraft near the user's coordinates, from the free no-key ADS-B feed
+// (airplanes.live). Same shared-bucket / never-throw discipline as the weather fetches: poll on a
+// ~90s wall-clock window so every monitor requests in lockstep and a hiccup never spams the API.
+// The API sends `dir` (bearing us→plane) and `dst` (distance nm) pre-computed, so we store each
+// plane as a local East/North vector from the user (metres) plus its heading/speed — drawRealFlights
+// dead-reckons that vector each frame and re-derives azimuth+elevation for placement. CORS: the feed
+// serves `Access-Control-Allow-Origin: *`, so it works from BOTH the QML XHR and the Electron/Chromium
+// renderer (which enforces CORS). Any failure (offline, no aircraft, parse error) leaves the last list
+// untouched and simply draws nothing — the feature degrades silently.
+var FORCEFLIGHTS=null;   // test hook: an array of flight records {cs,ty,e0,n0,alt0,track,gs,vr,t0} — pins the live fetch
+var realFlights=[], flBucket=-1, flReqAt=0, flOkBucket=-1;
+var FL_BUCKET=90000, FL_RADIUS=45;   // 90s poll window · 45nm radius (local air; the API caps ~250nm)
+function maybeFetchFlights(){
+  if(FORCEFLIGHTS){ realFlights=FORCEFLIGHTS; return; }   // pinned aircraft stick (harness) — no live fetch clobbers them
+  if(!FLIGHTS_ON){ realFlights=[]; return; }
+  var rn=Date.now(), fb=Math.floor(rn/FL_BUCKET);
+  if(fb!==flBucket || (flOkBucket!==fb && rn-flReqAt>25000)){ flBucket=fb; flReqAt=rn; fetchFlights(fb); }
+}
+function fetchFlights(bucket){
+  if(typeof XMLHttpRequest==="undefined") return;   // node/tooling has no XHR → the overlay is simply absent there
+  try{
+    var xhr=new XMLHttpRequest();
+    xhr.onreadystatechange=function(){
+      if(xhr.readyState===XMLHttpRequest.DONE && xhr.status===200){
+        try{
+          var j=JSON.parse(xhr.responseText), ac=(j&&j.ac)||[], out=[], now=Date.now();
+          for(var i=0;i<ac.length;i++){ var a=ac[i];
+            var alt=a.alt_baro; if(alt==="ground"||alt==null) continue;              // skip parked / taxiing aircraft
+            if(typeof a.dir!=="number"||typeof a.dst!=="number"||typeof a.lat!=="number") continue;  // need real bearing+distance
+            var dstM=a.dst*1852, azr=a.dir*Math.PI/180;                              // nm→m · bearing→radians
+            out.push({ cs:(((a.flight||a.r||"").trim())||"FLIGHT").toUpperCase(), ty:(a.t||""),
+                       e0:dstM*Math.sin(azr), n0:dstM*Math.cos(azr), alt0:(+alt||0), // local East/North metres from the user
+                       track:(typeof a.track==="number"?a.track:a.dir),
+                       gs:(typeof a.gs==="number"?a.gs:0),
+                       vr:(typeof a.baro_rate==="number"?a.baro_rate:0), t0:now });
+          }
+          out.sort(function(p,q){ return (p.e0*p.e0+p.n0*p.n0)-(q.e0*q.e0+q.n0*q.n0); });  // nearest aircraft first
+          realFlights=out.slice(0,20);                                              // cap the panorama at the 20 closest
+          if(bucket!==undefined) flOkBucket=bucket;
+        }catch(e){}
+      }
+    };
+    xhr.open("GET","https://api.airplanes.live/v2/point/"+LAT.toFixed(4)+"/"+LON.toFixed(4)+"/"+FL_RADIUS);
+    xhr.send();
+  }catch(e){}
+}
 var FORCEWX=null;   // test hook: a full weather object {code,cloud,wind,temp,precip,feels,gust} — pins the live fetch
 function maybeFetchWeather(){
   if(FORCEWX){ weather=FORCEWX; return; }   // forced weather sticks (harness) — no live fetch can clobber it
@@ -2353,6 +2404,7 @@ function setup(scene,opts){
     maybeFetchWeather();          // seed the shared 10-min window on boot (draw() keeps it fresh thereafter)
     maybeFetchAirq();             // seed the shared 30-min air-quality window too
     maybeFetchKp();                // and the shared 30-min planetary-K window (aurora)
+    maybeFetchFlights();           // and the ~90s live-aircraft window (real flights overhead)
   }
   tPrev=Date.now();
 }
@@ -4833,6 +4885,60 @@ function drawHelis(g,L,now){
       g.fillStyle="#20242c"; g.fillRect(X,y-2,1,2);                                                    // rotor mast
       if((Math.floor(now/300))%2===0){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,60,60,0.9)"; g.fillRect(X|0,(y+2)|0,1,1); g.globalCompositeOperation="source-over"; }  // red beacon
       if(L<0.6){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,244,190,0.5)"; g.fillRect((X+dir*3)|0,(y+2)|0,2,2); g.globalCompositeOperation="source-over"; }  // searchlight
+    }
+  }
+}
+// LIVE FLIGHTS — the REAL aircraft overhead right now (fetchFlights, ADS-B). Unlike the decorative
+// high-altitude jets, each of these is placed at its TRUE compass bearing (azimuth→skyWX) and a lifted
+// geometric elevation (altitude/distance→skyY), dead-reckoned along its real heading & ground speed
+// between the ~90s fetches. They read as "live": a cooler cyan airframe, a cyan (not white) beacon, a
+// short cyan contrail, and — on the closest / most-overhead aircraft — a callsign + altitude data tag
+// that FADES IN as the plane grows prominent and fades back to a bare silhouette otherwise.
+function drawRealFlights(g,L,now){
+  if(!FLIGHTS_ON || !realFlights || !realFlights.length) return;
+  if(cityPhase==="apoc") return;                          // the sky is meteors / fire / ash — no ADS-B overlay
+  var d2r=Math.PI/180, R2D=180/Math.PI;
+  for(var i=0;i<realFlights.length;i++){ var f=realFlights[i];
+    var dt=Math.max(0,Math.min(180,(now-(f.t0||now))/1000));   // seconds since the fetch (clamped: a stalled feed can't fling planes to infinity)
+    var gms=(f.gs||0)*0.514444;                           // knots→m/s
+    var e=f.e0+gms*Math.sin(f.track*d2r)*dt, n=f.n0+gms*Math.cos(f.track*d2r)*dt;   // advance the ground vector
+    var dstM=Math.sqrt(e*e+n*n); if(dstM<1) dstM=1;
+    var az=(Math.atan2(e,n)*R2D+360)%360;                 // bearing user→plane, right now
+    var altFt=(f.alt0||0)+(f.vr||0)*dt/60, altM=altFt*0.3048;
+    var elev=Math.atan2(altM,dstM)*R2D;                   // true geometric elevation (distant jets hug the horizon)
+    var elevD=Math.min(80, 3+elev*1.7);                   // lift it into a readable sky band (nearer/higher rises more)
+    var y=Math.round(skyY(elevD));
+    // which way does it slide across the screen? sample the azimuth a few seconds ahead (handle the 0/360 wrap)
+    var e2=f.e0+gms*Math.sin(f.track*d2r)*(dt+4), n2=f.n0+gms*Math.cos(f.track*d2r)*(dt+4);
+    var az2=(Math.atan2(e2,n2)*R2D+360)%360, daz=az2-az; if(daz>180)daz-=360; if(daz<-180)daz+=360;
+    var dir=(daz>=0)?1:-1;                                // increasing azimuth = sliding right
+    var wx=skyWX(az);
+    // prominence → tag fade-in: close overhead OR high in the sky
+    var near=1-Math.min(1,dstM/(FL_RADIUS*1852)), high=Math.min(1,elev/25);
+    var prom=Math.max(near*0.9,high), tagA=Math.max(0,Math.min(1,(prom-0.45)/0.3));
+    // ---- airframe + lights, drawn on every world-wrap copy that lands on this screen ----
+    var vis=[wx-WOFF]; if(wx-WOFF-WW>-40) vis.push(wx-WOFF-WW); if(wx-WOFF+WW<SW+40) vis.push(wx-WOFF+WW);
+    for(var vi=0;vi<vis.length;vi++){ var X=vis[vi]|0, Y=y; if(X<-40||X>SW+40) continue;
+      g.globalCompositeOperation="lighter";
+      for(var c=0;c<10;c++){ var cx=X-dir*(3+c*1.5); if(cx<-2||cx>SW+2) continue;   // short cyan contrail behind
+        g.fillStyle="rgba(150,225,255,"+(0.22*(1-c/10)).toFixed(3)+")"; g.fillRect(cx|0,Y,1,1); }
+      g.globalCompositeOperation="source-over";
+      g.fillStyle=L>0.5?"#dff0ff":"#8fb6d8"; g.fillRect(X-3,Y,7,2);                 // fuselage (cooler than the ambient jets)
+      g.fillRect(X+(dir>0?-1:2),Y-1,2,1);                                          // tail fin
+      g.fillStyle=L>0.5?"#bcd8ef":"#5f83a4"; g.fillRect(X-1,Y+1,4,1);              // wing
+      g.fillStyle="#ff3344"; g.fillRect((X+(dir>0?-3:3))|0,Y,1,1);                 // port nav light
+      g.fillStyle="#33ff66"; g.fillRect((X+(dir>0?4:-4))|0,Y,1,1);                 // starboard nav light
+      if((Math.floor(now/450))%2===0){ g.globalCompositeOperation="lighter";       // CYAN beacon — the "live" tell (ambient jets strobe white)
+        g.fillStyle="rgba(120,230,255,0.95)"; g.fillRect(X,Y-1,1,1);
+        g.fillStyle="rgba(120,230,255,0.35)"; g.fillRect(X-1,Y-1,3,3); g.globalCompositeOperation="source-over"; }
+    }
+    // ---- the fade-in data tag (drawPixText handles its own screen-wrap from a world x) ----
+    if(tagA>0.03){
+      var a100=Math.round(altFt/100)*100;
+      var sub=(a100>=1000?((a100/1000).toFixed(1).replace(/\.0$/,""))+"K":(a100<0?"0":a100+""))+"FT";
+      var lblX=wx-(textW(f.cs)>>1), subX=wx-(textW(sub)>>1), ty=y-16;   // sit the two-line tag clear ABOVE the airframe
+      drawPixText(g,f.cs,lblX+1,ty+1,"#04090f",tagA*0.7);  drawPixText(g,f.cs,lblX,ty,"#c8f2ff",tagA);   // callsign (shadow + cyan)
+      drawPixText(g,sub, subX+1,ty+7,"#04090f",tagA*0.7);  drawPixText(g,sub, subX,ty+6,"#8fdcff",tagA*0.9);  // altitude
     }
   }
 }
@@ -11685,6 +11791,7 @@ function draw(g,pass){
   maybeFetchWeather();          // all monitors fetch on the same 10-min wall-clock window → identical weather
   maybeFetchAirq();             // and the same 30-min window for air quality (wildfire smoke)
   maybeFetchKp();                // and the planetary K-index (aurora on real storm nights)
+  maybeFetchFlights();           // and the live aircraft near the user's coordinates (real flights)
   var nd=nowDate();
   var ph=dayPhase(nd), fx=wfx(), hol=holidays(nd);
   var L=ph.light, night=1-L;
@@ -11995,7 +12102,7 @@ function draw(g,pass){
   // sky attractions: hot-air balloons on calm days, an ad-blimp on a schedule
   if(cityG>0.35 && !nukeStruck()) drawBalloons(g,L,now,fx);   // the flash pops the hot-air balloons
   if(cityG>0.5 && !nukeFull()) drawBlimp(g,L,now,night,nd);
-  if(!nukeFull()){ drawHighFlights(g,L,now,fx); drawHelis(g,L,now); }   // busier skies: high cruisers + contrails + downtown choppers
+  if(!nukeFull()){ drawHighFlights(g,L,now,fx); drawHelis(g,L,now); drawRealFlights(g,L,now); }   // busier skies: high cruisers + contrails + downtown choppers + the REAL aircraft overhead
 
   // the wilderness the city grows out of (hills, grass, river, trees, the first cabin) — recedes as it matures
   if(cityG<0.985) drawTerrain(g,cityG,L,now,nd,pass==="fg"?"fg":undefined);

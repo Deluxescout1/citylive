@@ -151,7 +151,9 @@
             <option value="normal">Normal</option>
             <option value="frequent">Frequent</option>
           </select></label>
+        <label class="checkrow"><input id="flights" type="checkbox" checked> Live flights (real aircraft near your location)</label>
       </div>
+      <p class="note">Real planes overhead from a free flight-tracking feed (~90s refresh), drawn at their true bearing with a callsign tag on the closest pass. Uncheck to keep only the decorative jets — it calls a public API with your area's coordinates.</p>
     </section>
     <div class="row" style="margin-top:18px">
       <button id="citySave" class="primary">Save</button>
@@ -352,6 +354,7 @@
         eraSel.value = (cfg.era && ERA_NAMES.indexOf(cfg.era)>=0) ? cfg.era : 'auto';
         var disF = ['rare','normal','frequent'].indexOf(cfg.disasters)>=0 ? cfg.disasters : 'normal';
         document.getElementById('disasters').value = disF;
+        document.getElementById('flights').checked = (cfg.flights !== false);   // live-aircraft overlay (default on)
         var finaleNames = FINALES.map(function(f){ return f[0]; });
         finaleSel.value = (cfg.finale && finaleNames.indexOf(cfg.finale)>=0) ? cfg.finale : 'auto';
       }).catch(function(){});
@@ -374,7 +377,8 @@
       quality: document.getElementById('quality').value,
       era: eraSel.value,
       disasters: document.getElementById('disasters').value,
-      finale: finaleSel.value
+      finale: finaleSel.value,
+      flights: document.getElementById('flights').checked
     };
     var lat=parseFloat(document.getElementById('lat').value), lon=parseFloat(document.getElementById('lon').value);
     if(isFinite(lat)&&isFinite(lon)){ cfg.lat=lat; cfg.lon=lon; }

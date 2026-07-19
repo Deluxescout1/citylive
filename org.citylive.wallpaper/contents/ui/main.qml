@@ -125,6 +125,12 @@ WallpaperItem {
                 City.applyConfig({ worldRestartAt: configuration.worldRestartAt, worldRestartMode: configuration.worldRestartMode });
             }
         } catch (e) { /* invalid/unset → keep the current finale/world state */ }
+        // LIVE FLIGHTS on/off from the config dialog (real aircraft overlay). Applied every boot.
+        try {
+            if (configuration && configuration.flights !== undefined) {
+                City.applyConfig({ flights: configuration.flights });
+            }
+        } catch (e) { /* unset → engine default (on) */ }
         City.setup(root.scene, {
             cw:   cv.width,
             ch:   cv.height,

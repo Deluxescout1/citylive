@@ -88,6 +88,10 @@ function sanitizeConfig(raw) {
     out.disasters = cfg.disasters;
   }
 
+  // Live-flight overlay: real aircraft near the user's location. Default ON in the engine,
+  // so only an explicit boolean survives (false = the user turned it off; absent = default on).
+  if (typeof cfg.flights === 'boolean') out.flights = cfg.flights;
+
   // Finale pin: 'auto' (a different fate each life, the engine's own default) or one of
   // the 11 exact apocalypse names below; absent/junk drops so the engine picks auto.
   const FINALES = ['meteors', 'nuke', 'sunburst', 'ai', 'bh', 'alienwar', 'frost', 'kaiju', 'flood', 'kaijuwar', 'pollution', 'moonfall'];

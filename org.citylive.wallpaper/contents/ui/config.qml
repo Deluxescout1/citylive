@@ -14,6 +14,7 @@ ColumnLayout {
     property string cfg_finale: "auto"
     property real cfg_worldRestartAt: 0
     property string cfg_worldRestartMode: "apoc"
+    property bool cfg_flights: true
 
     // Friendly name -> engine name for the finale picker (first 9 in the order DEATHS
     // cycles them in city.js; kaijuwar/pollution are picker-only fates appended after).
@@ -316,6 +317,28 @@ ColumnLayout {
             opacity: 0.7
             font.pointSize: Kirigami.Theme.smallFont.pointSize
             text: ""
+        }
+
+        Kirigami.Separator {
+            Kirigami.FormData.isSection: true
+            Kirigami.FormData.label: i18n("Sky")
+        }
+
+        QQC2.CheckBox {
+            Kirigami.FormData.label: i18n("Live flights:")
+            text: i18n("Show real aircraft near your location")
+            checked: cfgRoot.cfg_flights
+            onToggled: cfgRoot.cfg_flights = checked
+        }
+
+        QQC2.Label {
+            Kirigami.FormData.label: " "
+            Layout.fillWidth: true
+            Layout.preferredWidth: Kirigami.Units.gridUnit * 22
+            wrapMode: Text.WordWrap
+            opacity: 0.7
+            font.pointSize: Kirigami.Theme.smallFont.pointSize
+            text: i18n("Real planes overhead, from a free flight-tracking feed (refreshed about every 90 seconds), drawn at their true bearing with a callsign tag on the closest pass. Turn off to keep only the decorative jets — it calls a public API with your area's coordinates.")
         }
 
         Kirigami.Separator {

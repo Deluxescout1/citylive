@@ -36,6 +36,16 @@ if(Q.get('event')){ FORCEEVENT=Q.get('event'); }   // force a calendar event on 
 if(Q.get('civic')){ FORCEELECT={civics:[{t:Q.get('civic'),kind:"build",civic:true,pass:true,bp:(Q.get('bp')==='cons'?'cons':'done'),prog:qn('prog',1),x:Math.round(ww*qn('cx',0.5)),w:56,seed:998877}]}; }   // force a civic landmark (uses local ww; WW isn't set until setup runs below)
 if(Q.get('regime')){ FORCEREGIME={active:true,stage:+Q.get('regime'),sub:qn('rsub',0.5),party:{k:"THE ORDER",c:"#c0182a"},leaderName:"CHANCELLOR "+(Q.get('leader')||"VOSS"),path:(Q.get('rpath')||"revolution"),cyStart:0.42,cyEnd:0.80}; }   // force THE ORDER stage 1-6
 if(Q.get('plague')){ FORCEPLAGUE={active:true,stage:+Q.get('plague'),sub:qn('psub',0.5),severity:qn('psev',+Q.get('plague')>=3?1:0.5),zombie:(Q.get('pz')==='1'),zprog:qn('pzprog',0.5),cyStart:0.42,cyEnd:(Q.get('pz')==='1'?0.955:0.78),seed:12345}; }   // force THE PLAGUE stage 1-5 (?pz=1 = zombie)
+if(Q.get('flights')){   // inject synthetic live aircraft so the real-flight overlay can be eyeballed offline. ?flights=N (1..6)
+  var _fn=+Q.get('flights')||6, _t0=(Q.get('now')?+Q.get('now'):Date.now()), _ff=[];
+  // [callsign, bearing°, altFt, distNm, type] — a spread across the compass: a close/high jet (tag shows),
+  // a far low GA prop (subtle), plus mid-field traffic. bearing 0=N so they ring the whole sky panorama.
+  var _demo=[['DAL880',12,33000,4,'B752'],['N811VL',85,3900,30,'C172'],['JBU12',150,12000,18,'A320'],
+             ['UAL634',210,28000,8,'B739'],['FDX55',300,8500,38,'B763'],['AAL21',340,41000,25,'B77W']];
+  for(var _i=0;_i<Math.min(_fn,_demo.length);_i++){ var _d=_demo[_i], _dm=_d[3]*1852, _az=_d[1]*Math.PI/180;
+    _ff.push({cs:_d[0],ty:_d[4],e0:_dm*Math.sin(_az),n0:_dm*Math.cos(_az),alt0:_d[2],track:(_d[1]+90)%360,gs:180+_i*40,vr:0,t0:_t0}); }
+  FORCEFLIGHTS=_ff; }
+if(Q.get('noflights')==='1'){ FLIGHTS_ON=false; }   // hard-disable the live-flight overlay (containment A/B: the pre-v1.24 ref engine has no flight code, so this keeps the render byte-identical)
 if(Q.get('kp')!=null){ FORCEKP=+Q.get('kp'); }   // pins the planetary K-index (aurora): 5-6 band, ≥7 curtains
 if(Q.get('colony')!=null){ FORCECOLONY={moon:+Q.get('colony'), mars:+Q.get('colony'), venus:+Q.get('colony'), europa:+Q.get('colony'), titan:+Q.get('colony')}; }   // pins every colony's level
 try{ setup('neon',{cw:cw,ch:ch,woff:woff,ww:ww,pxk:3,zoom:1,quality:'spectacle'}); document.title='SETUP_OK'; }

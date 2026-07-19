@@ -58,5 +58,11 @@
     <entry name="worldRestartMode" type="String">
       <default>apoc</default>
     </entry>
+    <!-- Live flights: show REAL aircraft near your location (a free ADS-B feed, polled ~90s).
+         On by default. Turn off if you'd rather the sky held only the decorative jets (it calls
+         a public API with your area's coordinates). -->
+    <entry name="flights" type="Bool">
+      <default>true</default>
+    </entry>
   </group>
 </kcfg>
