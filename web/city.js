@@ -8611,6 +8611,65 @@ function curPoliciesOf(now){
   var ms=termMeasures(li,t); for(var i=0;i<ms.length;i++){ var m=ms[i]; if(m.kind==="policy"&&m.pass) p[m.t]=true; }
   return p;
 }
+// ---------- CITY ALMANAC ----------
+// A pure, canvas-free snapshot of the city's present & past, read from the SAME clock-state functions
+// draw() reads (cityGrowth/econOf/mayorState/regimeState/deathOf/corpState/passedBuilds/passedCivics) so
+// the almanac can NEVER disagree with what the city is showing. It NEVER touches near/mid/far or any
+// render global, so it is safe to call from the Electron Control Center and the KDE config page WITHOUT
+// a render. Population is a pure estimate from growth — cityPop() needs the built layout, which we avoid.
+var DEATH_LABEL={meteors:"Meteor Storm",nuke:"Nuclear Strike",sunburst:"Solar Flare",ai:"AI Uprising",
+  bh:"Black Hole",alienwar:"Alien War",frost:"Deep Freeze",kaiju:"Kaiju Attack",flood:"The Flood",
+  kaijuwar:"Kaiju War",pollution:"The Great Smog",moonfall:"Moonfall"};
+var LANDMARK_LABEL={monorail:"Monorail",stadium:"Stadium",park:"City Park",casino:"Casino",seawall:"Seawall",
+  university:"University",marina:"Marina",zoo:"City Zoo",observatory:"Observatory",grandcentral:"Grand Central"};
+var ERA_LABEL={cyber:"Cyberpunk",ancient:"Ancient",brutal:"Brutalist",solar:"Solarpunk",vaporwave:"Vaporwave",
+  steampunk:"Steampunk",gothic:"Gothic",noir:"Film Noir",adobe:"Adobe",arctic:"Arctic",jade:"Jade Dynasty",
+  lantern:"Lantern",gilded:"Gilded",porcelain:"Porcelain",obsidian:"Obsidian",coral:"Coral",midnight:"Midnight",
+  rustbelt:"Rustbelt",candy:"Candy",emeraldneon:"Emerald Neon",amberneon:"Amber Neon",ivory:"Ivory",deepsea:"Deep Sea",
+  boston:"Brownstone",artdeco:"Art Deco",houston:"Glass Modern",london:"Victorian",neworleans:"French Quarter",
+  paris:"Haussmann",tokyo:"Tokyo Neon",china:"Dynastic"};
+function eraLabelOf(nm){ return ERA_LABEL[nm]||(nm?nm.charAt(0).toUpperCase()+nm.slice(1):"Unknown"); }
+function almanacPop(now){
+  var cg=cityGrowth(now); if(cg.phase==="apoc"||cg.g<0.06) return 0;
+  var li=lifeIndexOf(now), h=((li*2654435761+555)>>>0);
+  var peak=120000+(h%140000);                          // 120k..260k metropolis peak, stable per life
+  var ramp=Math.pow(Math.min(1,cg.g/0.72),1.6);        // low-rise sprawl → dense high-rise (mirrors cityPop's densRamp)
+  var eco=0.9+0.2*(econOf(now)-0.5);                   // gentle boom/bust sway
+  return Math.max(0,Math.round(peak*ramp*eco/1000)*1000);
+}
+function almanacData(now){
+  if(now==null) now=(NOWOVR!=null?NOWOVR:Date.now());
+  var cg=cityGrowth(now), li=lifeIndexOf(now), eraNm=cityEraOf(now).name;
+  var M=mayorState(now), R=regimeState(now), C=corpState(now);
+  var phaseLabel={seed:"Founding",grow:"Growing",peak:"Thriving",apoc:"Apocalypse"}[cg.phase]||"—";
+  // permanent landmarks standing this life (build-measures + civic projects), deduped by type
+  var raw=passedBuilds(now).concat(passedCivics(now)), seen={}, marks=[];
+  for(var i=0;i<raw.length;i++){ var t=raw[i].t; if(seen[t])continue; seen[t]=1; marks.push(LANDMARK_LABEL[t]||t); }
+  // the biggest company right now (matches the crowned skyline tower)
+  var topCo=null;
+  if(C&&C.king>=0&&C.cos[C.king]){ var kco=C.cos[C.king]; topCo={name:kco.co.n,ticker:kco.co.g,phase:kco.phase}; }
+  // mayor / regime — mayorState already applies THE ORDER's override internally, so these MATCH the rendered city
+  var mayor=null;
+  if(M) mayor={name:M.winName,party:(M.party&&M.party.k)||"—",term:M.term+1,share:M.share,ousted:!!M.ousted,scandal:!!M.scandal};
+  var regime=null;
+  if(R&&R.active) regime={stage:R.stage,label:REGIME_STAGE_LABEL[R.stage]||"",leader:R.leaderName,path:R.path,fallen:(R.stage>=6&&R.sub>=0.55)};
+  // PAST CIVILIZATIONS: the lives that rose & fell on these lands before this one, and how each met its end
+  var history=[];
+  for(var p=1;p<=6 && (li-p)>=0;p++){ var pl=li-p;
+    history.push({life:pl+1, era:eraLabelOf(ERAS[eraPickOf(pl)].name), fate:DEATH_LABEL[deathOf(pl)]||deathOf(pl)}); }
+  return {
+    now:now,
+    cityName:nameOf(li,eraNm), teamName:teamOf(li,eraNm),
+    life:li+1,                                     // 1-based "incarnation number" (life 0 = the original city)
+    era:eraLabelOf(eraNm), phase:phaseLabel,
+    growthPct:Math.round(cg.g*100), lifePct:Math.round(cg.cy*100),
+    population:almanacPop(now),
+    economy:Math.round(econOf(now)*100),           // 0..100 boom/bust index (50 = neutral)
+    mayor:mayor, regime:regime,
+    fate:DEATH_LABEL[deathOf(li)]||deathOf(li),    // the apocalypse THIS city is fated to meet
+    landmarks:marks, topCompany:topCo, history:history
+  };
+}
 function drawElections(g,L,now,night){
   var M=curMayor; if(!M) return;
   if(M.campaign){
