@@ -2,3 +2,16 @@ node_modules/
 dist/
 verify.png
 *.log
+
+# scratch render / VM-verification outputs (kde-repro captures, event/feature renders, screenshots)
+*.ppm
+ci-win/
+kde-repro.png
+live-*.png
+wintest-*.png
+ev-*.png
+p1-*.png
+p3-*.png
+mw-*.png
+tornado*.png
+govdistrict.png
