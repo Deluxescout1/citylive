@@ -2956,9 +2956,10 @@ function drawCivicHud(g,now,night){
   g.fillStyle="rgba(6,9,18,"+(night>0.5?0.46:0.34)+")"; g.fillRect(bx,by+1,W,bh-2); g.fillRect(bx+2,by,W-4,bh);
   // neon frame — cyan rails top/bottom, party-colour rails on the sides
   g.globalCompositeOperation="lighter";
-  g.fillStyle="rgba(40,200,235,"+(0.5*pulse)+")"; g.fillRect(bx+2,by,W-4,1); g.fillRect(bx+2,by+bh-1,W-4,1);
+  var reg=M.regime, frameC=reg?"rgba(224,28,52,":"rgba(40,200,235,", tickC=reg?"rgba(255,90,110,":"rgba(122,240,255,";   // frame goes CRIMSON under THE ORDER
+  g.fillStyle=frameC+(0.55*pulse)+")"; g.fillRect(bx+2,by,W-4,1); g.fillRect(bx+2,by+bh-1,W-4,1);
   g.globalAlpha=0.55*pulse; g.fillStyle=pc; g.fillRect(bx,by+2,1,bh-4); g.fillRect(bx+W-1,by+2,1,bh-4); g.globalAlpha=1;
-  g.fillStyle="rgba(122,240,255,"+(0.9*pulse)+")"; g.fillRect(bx,by,4,1); g.fillRect(bx+W-4,by,4,1);   // corner ticks
+  g.fillStyle=tickC+(0.9*pulse)+")"; g.fillRect(bx,by,4,1); g.fillRect(bx+W-4,by,4,1);   // corner ticks
   g.globalCompositeOperation="source-over";
   // Row 0 — party swatch + party name (+ scandal/recall flag on the right)
   g.fillStyle=pc; g.fillRect(ix,y0,4,4);
@@ -2987,9 +2988,34 @@ function drawCivicHud(g,now,night){
   // Row 4 — countdown to the next vote (or the live phase)
   var lbl=M.electionDay?"ELECTION DAY":M.recallVote?"RECALL VOTE":M.campaign?"CAMPAIGN":M.debate?"DEBATE NIGHT":M.justElected?"NEW TERM":"NEXT VOTE";
   var lcol=M.electionDay?"#ffe14a":M.recallVote?"#ff6a6a":M.campaign?"#ff9a4a":M.debate?"#c0a0ff":"rgba(150,200,230,0.9)";
+  if(reg){ lbl=reg>=3?"NO ELECTIONS":"SEIZED POWER"; lcol="#ff4a5e"; }   // under THE ORDER the ballot is dead
   drawUiText(g,lbl,ix,y4,lcol,1);
   var bY=y4+6; g.fillStyle="rgba(255,255,255,0.12)"; g.fillRect(ix,bY,iw,3);
   g.fillStyle="rgba(90,210,255,0.85)"; g.fillRect(ix,bY,Math.round(iw*Math.min(1,Math.max(0,M.tf))),3);
+}
+// THE ORDER's emblem — a stark white angular star on a crimson roundel (fictional; no real symbols)
+function drawOrderEmblem(g,cx,cy,r,fg,bg){
+  cx=cx|0; cy=cy|0;
+  if(bg){ g.fillStyle=bg; fillEllipse(g,cx,cy,r+1,r+1); }
+  g.fillStyle=fg||"#f4eee2";
+  var inr=Math.max(1,r-1);
+  for(var d=-inr;d<=inr;d++){ var w=Math.max(0,inr-Math.abs(d)); g.fillRect(cx-w,cy+d,2*w+1,1); }   // angular diamond
+  g.fillRect(cx-r,cy,2*r+1,1); g.fillRect(cx,cy-r,1,2*r+1);                                          // star points
+}
+// THE CLEAR INDICATION the takeover is happening: a bold persistent alert banner top-centre,
+// the emblem + "THE ORDER" + the current stage, crimson (green once it falls), blinking under martial law.
+function drawRegimeHud(g,now,night){
+  var R=curRegime; if(!R||!R.active) return;
+  var fallen=(R.stage===6&&R.sub>=0.55);
+  var lab=fallen?"HAS FALLEN":REGIME_STAGE_LABEL[R.stage];
+  var full="THE ORDER - "+lab, col=fallen?"rgba(60,216,110,":"rgba(224,28,52,";
+  var blink=(R.stage>=4&&!fallen)?((Math.floor(now/300))%2):1, a=0.72+0.28*blink;
+  var tw=textW(full), ew=9, W=ew+tw+4, cx=(SW>>1), ty=notifLane(0), x0=(cx-(W>>1))|0;
+  g.fillStyle="rgba(10,4,6,0.85)"; g.fillRect(x0-2,ty-3,W+4,11);
+  g.fillStyle=col+(0.95*a)+")"; g.fillRect(x0-2,ty-4,W+4,1); g.fillRect(x0-2,ty+7,W+4,1);            // crimson rails
+  g.fillStyle=col+(0.30*a)+")"; g.fillRect(x0-2,ty-3,W+4,11);                                        // crimson wash so the bar reads as an ALERT
+  drawOrderEmblem(g,x0+3,ty+2,3,fallen?"#eafff0":"#f7f0e6",fallen?"#2fa85a":"#c0182a");              // the emblem
+  drawUiText(g,full,x0+ew,ty,fallen?"#d6ffe2":"#ffe2e2",1);                                          // BRIGHT screen-space text — unmistakable
 }
 // the sky clock: local time + date, floating top-centre of every monitor
 function drawSkyClock(g,nd,L){
@@ -5030,6 +5056,7 @@ function tickerMsg(now){
   if(curWar&&curWar.f>=0&&curWar.f<1) return "INVASION UNDERWAY - SHELTER IN PLACE";
   if(curWar&&curWar.f>=1&&!curWar.win) return "CURFEW IN EFFECT BY ORDER OF THE OCCUPATION";
   if(curDis) return "BREAKING - CAT-"+curDis.intensity+" "+DIS_NAME[curDis.type]+" - SEEK SHELTER";
+  var rgm=regimeTicker(now); if(rgm && (Math.floor(now/12000))%4!==0) return rgm;   // THE ORDER dominates the news (3 of 4 slots) while the takeover is underway
   var fx=wfx();
   if(fireBurning) return "WILDFIRE ON THE RIDGE - STAY CLEAR OF THE TREELINE";
   if(iceNow) return "THE BAY IS FROZEN - SKATE AT YOUR OWN JOY";
@@ -8211,6 +8238,7 @@ var REGIME_SALT=0x0FF1CE5;
 var THE_ORDER={k:"THE ORDER",c:"#c0182a"};                        // crimson; distinct from the four normal parties
 var REGIME_TITLES=["CHANCELLOR","THE MARSHAL","THE DIRECTOR","THE PREMIER","THE GENERAL"];
 var REGIME_STAGES=[0.42,0.48,0.53,0.58,0.64,0.73,0.80];          // 6 stage boundaries then the healed end
+var REGIME_STAGE_LABEL=["","RISING","SEIZES CITY HALL","EMERGENCY POWERS","MARTIAL LAW","TOTAL CONTROL","THE PEOPLE RISE"];   // unmistakable stage names
 var FORCEREGIME=null;                                            // test hook (kde-repro ?regime=<stage>) — own line (QML namespace writable)
 function regimeState(now){
   if(FORCEREGIME) return FORCEREGIME;
@@ -8227,6 +8255,21 @@ function regimeState(now){
     path:["vote","revolution","uprising"][(rh>>>17)%3], cyStart:REGIME_STAGES[0], cyEnd:REGIME_STAGES[6], li:li, seed:rh };
 }
 var curRegime=null;   // set each frame; the whole arc reads this
+// explicit, unmistakable per-stage news — dominates the ticker while the takeover is underway
+function regimeTicker(now){
+  var R=curRegime; if(!R||!R.active) return null;
+  var nm=R.leaderName, slow=Math.floor(now/16000);
+  var S={
+    1:["A NEW PARTY - THE ORDER - RALLIES DOWNTOWN","THE ORDER VOWS TO 'RESTORE ORDER' TO "+cityName],
+    2:["THE ORDER SWEEPS THE ELECTION - "+nm+" TAKES CITY HALL","THE ORDER'S RED BANNERS RISE OVER CITY HALL"],
+    3:["ELECTIONS POSTPONED - "+nm+" ASSUMES EMERGENCY POWERS","THE ORDER SUSPENDS THE CITY COUNCIL 'FOR THE DURATION'"],
+    4:["CURFEW IN EFFECT BY ORDER OF THE ORDER","CHECKPOINTS AND PATROLS GO UP ACROSS "+cityName,"THE ORDER IS WATCHING - REPORT ALL DISSENT"],
+    5:["ALL HAIL "+nm+" - SUPREME LEADER OF THE ORDER","STATE MEDIA: 'THE ORDER BRINGS PROSPERITY AND ORDER'","THE ORDER RALLIES FILL THE PLAZA - ATTENDANCE MANDATORY"],
+    6:(R.sub<0.55?["UNREST SPREADS - CROWDS DEFY THE CURFEW","THE PEOPLE RISE AGAINST THE ORDER","RESISTANCE BARRICADES GO UP DOWNTOWN"]
+                :["THE ORDER HAS FALLEN - "+cityName+" IS FREE","THE STATUE COMES DOWN - CROWDS FLOOD THE PLAZA","LIBERATION - THE RED BANNERS ARE TORN DOWN"])
+  };
+  var arr=S[R.stage]||["THE ORDER"]; return arr[((slow%arr.length)+arr.length)%arr.length];
+}
 function mayorState(now){
   var cg2=cityGrowth(now); if(cg2.g<0.35||cg2.phase==="apoc") return null;   // no politics in a hamlet or an inferno
   var li=lifeIndexOf(now), term=Math.floor(cg2.cy/TERM);
@@ -11866,4 +11909,5 @@ function draw(g,pass){
 
   drawSkyClock(g,nd,L);   // local time & date in the sky, top-centre of every monitor
   drawCivicHud(g,now,night);   // who runs the city + approval + mandates + next-vote countdown, top-right
+  drawRegimeHud(g,now,night);  // THE ORDER — the unmistakable alert banner while the takeover is underway
 }

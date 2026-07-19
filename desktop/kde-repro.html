@@ -32,6 +32,7 @@ if(Q.get('space')!=null){ var _sp=+Q.get('space'); FORCEAGE={g:1,phase:'peak',ap
 if(Q.get('dis')){ FORCEDIS={type:Q.get('dis'),intensity:4,xf:0.5,w:60,seed:77,f:qn('disf',0.25)}; }
 if(Q.get('event')){ FORCEEVENT=Q.get('event'); }   // force a calendar event on (concert/foodfest/champ/icerink/market/parade/…)
 if(Q.get('civic')){ FORCEELECT={civics:[{t:Q.get('civic'),kind:"build",civic:true,pass:true,bp:(Q.get('bp')==='cons'?'cons':'done'),prog:qn('prog',1),x:Math.round(ww*qn('cx',0.5)),w:56,seed:998877}]}; }   // force a civic landmark (uses local ww; WW isn't set until setup runs below)
+if(Q.get('regime')){ FORCEREGIME={active:true,stage:+Q.get('regime'),sub:qn('rsub',0.5),party:{k:"THE ORDER",c:"#c0182a"},leaderName:"CHANCELLOR "+(Q.get('leader')||"VOSS"),path:(Q.get('rpath')||"revolution"),cyStart:0.42,cyEnd:0.80}; }   // force THE ORDER stage 1-6
 if(Q.get('kp')!=null){ FORCEKP=+Q.get('kp'); }   // pins the planetary K-index (aurora): 5-6 band, ≥7 curtains
 if(Q.get('colony')!=null){ FORCECOLONY={moon:+Q.get('colony'), mars:+Q.get('colony'), venus:+Q.get('colony'), europa:+Q.get('colony'), titan:+Q.get('colony')}; }   // pins every colony's level
 try{ setup('neon',{cw:cw,ch:ch,woff:woff,ww:ww,pxk:3,zoom:1,quality:'spectacle'}); document.title='SETUP_OK'; }
