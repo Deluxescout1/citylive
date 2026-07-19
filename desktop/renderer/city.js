@@ -1938,6 +1938,7 @@ function fetchKp(bucket){
 // untouched and simply draws nothing — the feature degrades silently.
 var FORCEFLIGHTS=null;   // test hook: an array of flight records {cs,ty,e0,n0,alt0,track,gs,vr,t0} — pins the live fetch
 var realFlights=[], flBucket=-1, flReqAt=0, flOkBucket=-1;
+var flightSmooth={};     // per-aircraft (hex) render state {e,n,alt,t} — eases the sparse ~90s position corrections so planes glide instead of jumping
 var FL_BUCKET=90000, FL_RADIUS=45;   // 90s poll window · 45nm radius (local air; the API caps ~250nm)
 function maybeFetchFlights(){
   if(FORCEFLIGHTS){ realFlights=FORCEFLIGHTS; return; }   // pinned aircraft stick (harness) — no live fetch clobbers them
@@ -1958,6 +1959,7 @@ function fetchFlights(bucket){
             if(typeof a.dir!=="number"||typeof a.dst!=="number"||typeof a.lat!=="number") continue;  // need real bearing+distance
             var dstM=a.dst*1852, azr=a.dir*Math.PI/180;                              // nm→m · bearing→radians
             out.push({ cs:(((a.flight||a.r||"").trim())||"FLIGHT").toUpperCase(), ty:(a.t||""),
+                       hex:(typeof a.hex==="string"?a.hex:""),                    // stable ICAO id → per-plane motion smoothing across fetches
                        cat:(typeof a.category==="string"?a.category:""),          // A1 light · A3 airliner · A5 heavy · A7 rotorcraft → size the sprite
                        e0:dstM*Math.sin(azr), n0:dstM*Math.cos(azr), alt0:(+alt||0), // local East/North metres from the user
                        track:(typeof a.track==="number"?a.track:a.dir),
@@ -4898,20 +4900,34 @@ function drawHelis(g,L,now){
 function drawRealFlights(g,L,now){
   if(!FLIGHTS_ON || !realFlights || !realFlights.length) return;
   if(cityPhase==="apoc") return;                          // the sky is meteors / fire / ash — no ADS-B overlay
-  var d2r=Math.PI/180, R2D=180/Math.PI;
+  var d2r=Math.PI/180, R2D=180/Math.PI, nowMs=now;
+  // FLOOR the whole flight band ABOVE the skyline: find the tallest STANDING tower on screen so even a low
+  // plane clears every rooftop — the aircraft read as a scale reference over the city, never hidden behind it.
+  var skyTop=HORIZON;
+  for(var bi=0;bi<near.blds.length;bi++){ var bb=near.blds[bi];
+    if(bb.bAge!==undefined && cityG-bb.bAge<=bandOf(bb)) continue;   // not yet grown → doesn't occlude
+    var bt=HORIZON-bb.h; if(bt<skyTop) skyTop=bt; }
+  var floorY=Math.max(20,Math.min(skyTop-5,Math.round(HORIZON*0.40))), ceilY=Math.min(floorY-2,14);   // keep the whole band in the upper sky, above the skyline (incl. landmarks/regime towers) · high jets near the top
+  var seen={};
   for(var i=0;i<realFlights.length;i++){ var f=realFlights[i];
-    var dt=Math.max(0,Math.min(180,(now-(f.t0||now))/1000));   // seconds since the fetch (clamped: a stalled feed can't fling planes to infinity)
+    var dt=Math.max(0,Math.min(180,(nowMs-(f.t0||nowMs))/1000));   // seconds since the fetch (clamped: a stalled feed can't fling planes to infinity)
     var gms=(f.gs||0)*0.514444;                           // knots→m/s
-    var e=f.e0+gms*Math.sin(f.track*d2r)*dt, n=f.n0+gms*Math.cos(f.track*d2r)*dt;   // advance the ground vector
-    var az=(Math.atan2(e,n)*R2D+360)%360;                 // bearing user→plane, right now
-    var altFt=(f.alt0||0)+(f.vr||0)*dt/60;
-    // vertical position tracks ALTITUDE directly (not slant elevation): a high-flying jet rides high in the
-    // sky and a low prop skims the rooftops, however far off it is. Bearing still fixes the x. This also
-    // separates same-airway traffic vertically by flight level, so the tags don't pile up.
+    var te=f.e0+gms*Math.sin(f.track*d2r)*dt, tn=f.n0+gms*Math.cos(f.track*d2r)*dt;   // dead-reckoned TARGET ground vector
+    var talt=(f.alt0||0)+(f.vr||0)*dt/60;
+    // ease the DISPLAYED position toward that target so the sparse ~90s fetch corrections glide in instead of
+    // snapping (keyed by the stable ICAO hex). A newly-seen plane starts exactly on target (no lurch).
+    var id=f.hex||f.cs||("i"+i); seen[id]=1;
+    var S=flightSmooth[id];
+    if(!S){ S=flightSmooth[id]={e:te,n:tn,alt:talt,t:nowMs}; }
+    else { var sk=Math.max(0,Math.min(1,(nowMs-S.t)/380)); S.e+=(te-S.e)*sk; S.n+=(tn-S.n)*sk; S.alt+=(talt-S.alt)*sk; S.t=nowMs; }
+    var e=S.e, n=S.n, altFt=S.alt;
+    var az=(Math.atan2(e,n)*R2D+360)%360;                 // bearing user→plane, right now (smoothed)
+    // vertical position tracks ALTITUDE, remapped into the band ABOVE the skyline: a high jet rides near the
+    // top, a low prop just clears the rooftops. Bearing still fixes x; altitude separates traffic vertically.
     var altFrac=Math.max(0,Math.min(1,altFt/40000));      // 0 at ground → 1 at 40,000 ft+
-    var y=Math.round(skyY(4+altFrac*74));                 // 4° (low, near the rooftops) .. 78° (cruising jets) up the sky band
-    // which way does it slide across the screen? sample the azimuth a few seconds ahead (handle the 0/360 wrap)
-    var e2=f.e0+gms*Math.sin(f.track*d2r)*(dt+4), n2=f.n0+gms*Math.cos(f.track*d2r)*(dt+4);
+    var y=Math.round(floorY-altFrac*(floorY-ceilY));
+    // which way does it slide across the screen? sample a few seconds ahead along the heading (0/360 wrap-safe)
+    var e2=e+gms*Math.sin(f.track*d2r)*4, n2=n+gms*Math.cos(f.track*d2r)*4;
     var az2=(Math.atan2(e2,n2)*R2D+360)%360, daz=az2-az; if(daz>180)daz-=360; if(daz<-180)daz+=360;
     var dir=(daz>=0)?1:-1;                                // increasing azimuth = sliding right
     var wx=skyWX(az);
@@ -4969,6 +4985,7 @@ function drawRealFlights(g,L,now){
       }
     }
   }
+  for(var sid in flightSmooth){ if(!seen[sid]) delete flightSmooth[sid]; }   // forget planes that left the area (so a returning one doesn't ease from a stale spot)
 }
 // early OFFROAD vehicles: the founders' jeeps, log trucks and a dozer roam the dirt before roads exist
 function drawOffroad(g,wx,y,dir,L,now,kind){
