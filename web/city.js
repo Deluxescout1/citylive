@@ -151,7 +151,7 @@ function resetNotifLanes(){ for(var r=0;r<_notifTaken.length;r++) _notifTaken[r]
 var CLOCK = null;   // test-harness override: ms timestamp for time-of-day (null = real wall clock)
 var NOWOVR = null;  // test-harness override: ms value returned as Date.now() inside draw() (null = real)
 var NOFETCH = false;  // headless flag (own line = QML-namespace writable): almanac callers set this so setup() makes NO network calls
-var VERSION = "1.28.0";  // the build the user is running — surfaced in the Almanac + KDE config page (keep in sync with desktop/package.json)
+var VERSION = "1.29.0";  // the build the user is running — surfaced in the Almanac + KDE config page (keep in sync with desktop/package.json)
 var FORCELAYOUT = null;   // test hook: pin every building's window layout (grid/ribbon/band/punch/corp) — verify per-layout render
 var FORCECROWN = null;    // test hook: pin every building's crown/roof (gable/hip/saltbox/mansard/deco/…) — verify per-roof render
 var FORCEUSE = null;      // test hook: pin every building's functional type (hospital/theater/hotel/bank/cafe/pharmacy) — verify drawUse
@@ -2135,6 +2135,8 @@ function landRoute(x){ if(!hasOcean||seaW<=0) return x;
   var a=WW*seaW+8, b=WW*(1-seaW)-8; return a+(x/WW)*(b-a); }
 var curLit=1;        // fraction of night windows actually on (ramps up through the evening, dims after midnight)
 var curCurfew=0;     // v1.24 THE ORDER curfew strength 0..1 (Martial Law nights): dark windows + empty streets. 0 on every non-regime life.
+var curMaskK=0;      // v1.29 THE PLAGUE mask prevalence 0..1: citizens wear surgical masks. 0 on every non-plague life (drawPerson reads it).
+var curPlagueEmpty=0;// v1.29 THE PLAGUE emptiness 0..1 (peaks at the SURGE): dims the streets like the curfew. 0 on every non-plague life.
 var curSunDf=0.5;    // where the sun is in its arc (0 sunrise .. 1 sunset) — drives light direction
 // THE GOLDEN HOUR — one global light state, computed once per frame, consumed everywhere
 // (sky, buildings, terrain, water, mountains, clouds) so low-sun light reads as ONE event.
@@ -2646,6 +2648,8 @@ function drawPerson(g,x,y,cloth,skin,bob,kind){
     g.fillRect(X,yy-4,2,1); g.fillRect(X+((hseed&1)?1:-0),yy-3,1,1);      // hair + a little sweep
     g.fillStyle=skin; g.fillRect(X,yy-3,2,1);                             // face…
     g.fillStyle="rgba(20,16,14,0.85)"; g.fillRect(X+((hseed>>2)&1),yy-3,1,1);   // …with an eye
+    if(curMaskK>0 && ((hseed*7+X*3)>>>0)%100 < curMaskK*100){ g.fillStyle="#bcd6ec"; g.fillRect(X,yy-3,2,1);   // v1.29 a surgical mask (pale blue over the face)…
+      g.fillStyle="rgba(30,24,20,0.7)"; g.fillRect(X+((hseed>>2)&1),yy-4,1,1); }                              // …the eye peeks above the mask
     g.fillStyle=cloth; g.fillRect(X-1,yy-2,4,1);                          // shoulders
     g.fillRect(X,yy-1,2,2);                                               // jacket
     if(f===1){ g.fillStyle=cloth; g.fillRect(X-1,yy-1,1,1); g.fillRect(X+2,yy,1,1);      // arms swing
@@ -3100,6 +3104,30 @@ function drawRegimeHud(g,now,night){
   drawOrderEmblem(g,x0+3,ty+2,3,fallen?"#eafff0":"#f7f0e6",fallen?"#2fa85a":"#c0182a");              // the emblem
   drawUiText(g,full,x0+ew,ty,fallen?"#d6ffe2":"#ffe2e2",1);                                          // BRIGHT screen-space text — unmistakable
 }
+// THE PLAGUE's emblem — a white medical CROSS on an amber roundel (distinct from the Order's angular star)
+function drawPlagueEmblem(g,cx,cy,r,fg,bg){
+  cx=cx|0; cy=cy|0;
+  if(bg){ g.fillStyle=bg; fillEllipse(g,cx,cy,r+1,r+1); }
+  g.fillStyle=fg||"#fff4d8";
+  var a=r-1, t=Math.max(1,Math.floor(r/2)-1);
+  g.fillRect(cx-a,cy-t,2*a+1,2*t+1);                                                                 // horizontal bar
+  g.fillRect(cx-t,cy-a,2*t+1,2*a+1);                                                                 // vertical bar
+}
+// THE CLEAR INDICATION a pandemic is underway: an amber medical alert banner top-centre (green once
+// recovered), blinking at the SURGE peak. Mutually exclusive with the regime HUD (never both same life).
+function drawPlagueHud(g,now,night){
+  var P=curPlague; if(!P||!P.active) return;
+  var recovered=(P.stage===5&&P.sub>=0.6);
+  var lab=recovered?"RECOVERED":PLAGUE_STAGE_LABEL[P.stage];
+  var full="PLAGUE - "+lab, col=recovered?"rgba(60,200,120,":"rgba(224,168,32,";
+  var blink=(P.stage===3&&!recovered)?((Math.floor(now/320))%2):1, a=0.72+0.28*blink;               // blinks at the SURGE
+  var tw=textW(full), ew=9, W=ew+tw+4, cx=(SW>>1), ty=notifLane(0), x0=(cx-(W>>1))|0;
+  g.fillStyle="rgba(8,6,2,0.85)"; g.fillRect(x0-2,ty-3,W+4,11);
+  g.fillStyle=col+(0.95*a)+")"; g.fillRect(x0-2,ty-4,W+4,1); g.fillRect(x0-2,ty+7,W+4,1);            // amber rails
+  g.fillStyle=col+(0.28*a)+")"; g.fillRect(x0-2,ty-3,W+4,11);                                        // amber wash → reads as an alert
+  drawPlagueEmblem(g,x0+3,ty+2,3,recovered?"#eafff0":"#fff4d8",recovered?"#2fa85a":"#c04a10");       // medical emblem
+  drawUiText(g,full,x0+ew,ty,recovered?"#d6ffe2":"#ffeecc",1);
+}
 // THE ORDER's crimson BANNERS hang down the facades once the dictatorship takes hold (stage 3+, dense at 5)
 // ---- v1.24 TOTAL CONTROL — a rooftop flag flying from a tower top (waving crimson pennant + emblem)
 function drawOrderFlag(g,cx,cy,ph,L,now,scale){
@@ -3441,6 +3469,86 @@ function drawMotorcade(g,L,now){
     if(cars[c].limo){ var pnx=X+(dir>0?-1:6); g.fillStyle="#c0182a"; g.fillRect(pnx|0,ly-5,2,3); g.fillStyle="#f4eee2"; g.fillRect(pnx|0,ly-5,2,1); }   // emblem pennant
     g.fillStyle=beac?"#ff2a2a":"#3a7aff"; g.fillRect((X+2)|0,ly-3,2,1);
     g.globalCompositeOperation="lighter"; g.fillStyle=beac?"rgba(255,50,50,0.5)":"rgba(60,130,255,0.5)"; g.fillRect((X+1)|0,ly-4,4,2); g.globalCompositeOperation="source-over"; } }
+}
+// ===== THE PLAGUE set-pieces (all gated on curPlague; mutually exclusive with the regime) =====
+// FIELD HOSPITALS — white red-cross tents cluster in the plaza through LOCKDOWN→RECOVERY, most at the SURGE.
+function drawFieldHospital(g,L,now){
+  var P=curPlague; if(!P||!P.active||P.stage<2||P.stage>4) return;
+  var intensity=(P.stage===3)?1:(P.stage===2?Math.max(0.3,P.sub):Math.max(0.3,1-P.sub*0.6)), day=L>0.5;
+  var wx=Math.round(0.365*WW), nTents=Math.max(1,Math.round(4*intensity));
+  for(var off=-WW;off<=WW;off+=WW){ var X0=(wx-WOFF+off)|0; if(X0<-90||X0>SW+90) continue;
+    for(var t=0;t<nTents;t++){ var tx=(X0-42+t*22)|0, tw=16, th=9, ty=HORIZON-th;
+      g.fillStyle=day?"#e6e6de":"#b6b6ae"; g.fillRect(tx,ty,tw,th);                                    // tent body
+      for(var pk=0;pk<=8;pk++){ g.fillStyle=day?"#f0f0e8":"#c8c8c0"; g.fillRect((tx+(tw>>1)-pk)|0,(ty-pk+1)|0,pk*2,1); }   // peaked roof
+      g.fillStyle=day?"#c8c8c0":"#98988f"; g.fillRect(tx,ty+th-1,tw,1);                                // base shade
+      g.fillStyle="#d02424"; g.fillRect(tx+(tw>>1)-2,ty+3,4,2); g.fillRect(tx+(tw>>1)-1,ty+2,2,4);      // red cross
+      if(!day){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,240,200,0.5)"; g.fillRect(tx+(tw>>1)-1,ty+th-3,2,3); g.globalCompositeOperation="source-over"; } }   // lit entrance at night
+  }
+}
+// AMBULANCES — white vans with a red cross + flashing lights hurry the streets (most at the SURGE).
+function drawAmbulances(g,L,now){
+  var P=curPlague; if(!P||!P.active||P.stage<2||P.stage>4) return;
+  var n=(P.stage===3)?2:1;
+  for(var i=0;i<n;i++){ var lane=LANE[(i*2)%LANE.length], ly=HORIZON+lane.o, per=42000, ph=((now+i*21000)%per)/per, dir=lane.d, wx=dir>0?ph*WW:WW*(1-ph);
+    for(var off=-WW;off<=WW;off+=WW){ var X=(wx-WOFF+off)|0; if(X<-14||X>SW+14) continue;
+      drawCar(g,X|0,ly,"#eef0f2",dir,L,"van");                                                        // white ambulance van
+      g.fillStyle="#d02424"; g.fillRect((X+3)|0,ly-2,3,1); g.fillRect((X+4)|0,ly-3,1,3);              // red cross on the side
+      var beac=(Math.floor(now/240)&1); g.fillStyle=beac?"#ff2a2a":"#dfeef8"; g.fillRect((X+(dir>0?1:5))|0,ly-4,2,1);   // flashing beacon
+      g.globalCompositeOperation="lighter"; g.fillStyle=beac?"rgba(255,40,40,0.5)":"rgba(210,235,255,0.4)"; g.fillRect((X+(dir>0?0:4))|0,ly-5,4,2); g.globalCompositeOperation="source-over"; } }
+}
+// BOARDED SHOPS + "STAY HOME" — storefronts board up through the lockdown. PER-BUILDING, so it mirrors
+// drawLayer's standing-tower culls EXACTLY (overSite/overLandmark/born>=band) or the boards float in the
+// sky over a plot with no building — the same bug the flags had (Nick 2026-07-19).
+function drawPlagueSigns(g,L,now){
+  var P=curPlague; if(!P||!P.active||P.stage<2||P.stage>4) return;
+  var frac=(P.stage===3)?0.9:(P.stage===2?0.4+0.5*P.sub:Math.max(0.15,0.6-P.sub*0.5));   // most boarded at the surge, reopening as it recovers
+  for(var i=0;i<near.blds.length;i++){ var b=near.blds[i];
+    if(b.type==="park"||b.h<20||b.w<10) continue;
+    if(overSite(b.x,b.w)||overLandmark(b.x,b.w)) continue;                                // a site/landmark stands here, not a shop
+    if(b.bAge!==undefined && cityG-b.bAge<bandOf(b)) continue;                            // open land / house / under construction → no storefront
+    if((((b.seed^0x51)>>>1)%100) >= frac*100) continue;                                   // fraction of the built frontages boarded, rising with the outbreak
+    var bx=(b.x-WOFF)|0; if(bx>SW+4&&bx-WW>-4)bx-=WW; if(bx<-4-b.w&&bx+WW<SW+4)bx+=WW;
+    if(bx+b.w<-4||bx>SW+4) continue;
+    var sx=(bx+1)|0, sw=b.w-2, gy=HORIZON, top=(gy-b.h)|0;
+    g.fillStyle="#6a4a2a"; g.fillRect(sx,gy-7,sw,7);                                        // boards over the storefront (ground floor)
+    for(var pl=sx;pl<sx+sw;pl+=2){ g.fillStyle="#523a22"; g.fillRect(pl,gy-7,1,7); }
+    g.fillStyle="#4a3418"; g.fillRect(sx,gy-5,sw,1);                                        // a nailed cross-plank
+    // a CLOSED / STAY HOME placard hung HIGH on the face (well clear of any viaduct), the readable signal
+    var sign=((b.seed&1)&&sw>=38)?"STAY HOME":"CLOSED", slen=sign.length*4-1;
+    if(sw>=slen+2){ var px2=(sx+((sw-slen)>>1)-1)|0, py2=Math.max(top+3,gy-Math.min(b.h-4,24))|0;
+      g.fillStyle="#241a0e"; g.fillRect(px2+(slen>>1),py2-3,1,3);                            // small mount
+      g.fillStyle="#efe6cc"; g.fillRect(px2,py2,slen+2,7);                                   // cream placard
+      g.fillStyle="#8a6a3a"; g.fillRect(px2,py2,slen+2,1); g.fillRect(px2,py2+6,slen+2,1); g.fillRect(px2,py2,1,7); g.fillRect(px2+slen+1,py2,1,7);
+      drawUiText(g,sign,(px2+1)|0,py2+1,"#8a1e16",1); }
+  }
+}
+// REOPENING & CELEBRATION — the payoff: at REOPENING the plaza fills with a jubilant, maskless crowd,
+// confetti, and a "WE MADE IT" banner (the plague's liberation). Ramps up through stage 5.
+function drawPlagueCelebration(g,L,now){
+  var P=curPlague; if(!P||!P.active||P.stage!==5) return;
+  var joy=Math.max(0,Math.min(1,(P.sub-0.30)/0.5)); if(joy<=0) return;
+  var wx=Math.round(0.365*WW);
+  for(var off=-WW;off<=WW;off+=WW){ var X=(wx-WOFF+off)|0; if(X<-92||X>SW+92) continue;
+    var n=Math.round(28*joy);                                                             // the crowd floods back (no masks now)
+    for(var p=0;p<n;p++){ var hh=((p*2654435761+(P.seed||0))>>>0), px=X-60+((hh%120)), jump=((Math.floor(now/150)+p)%3===0)?1:0;
+      drawPerson(g,px|0,HORIZON-1-jump,PEDC[(hh>>>5)%PEDC.length],SKINC[(hh>>>7)%SKINC.length],(Math.floor(now/200)+p)&1);
+      if(((hh>>>9)%3)===0){ g.fillStyle=["#ffd24a","#6ad0ff","#ff7ad0","#7affb0","#ff5a5a"][(hh>>>11)%5]; g.fillRect(px|0,HORIZON-7-jump,1,2); } }   // raised flags/balloons
+    g.globalCompositeOperation="lighter";                                                 // confetti in the air
+    for(var c=0;c<Math.round(34*joy);c++){ var ch=((c*2654435761+(P.seed||0)+Math.floor(now/130)*7)>>>0), cx2=X-72+(ch%144), cy2=HORIZON-42+((ch>>>3)%42);
+      g.fillStyle=["#ffd24a","#6ad0ff","#ff7ad0","#7affb0","#ff9a3c"][(ch>>>5)%5]; g.fillRect(cx2|0,cy2|0,1,1); }
+    g.globalCompositeOperation="source-over";
+    var msg=(P.sub>=0.68)?"WE MADE IT":"REOPENED", mlen=msg.length*4-1, bx2=(X-(mlen>>1))|0, by2=(HORIZON-30)|0;   // a joyful banner
+    g.fillStyle="#123024"; g.fillRect(bx2-2,by2-1,mlen+4,8);
+    g.fillStyle="#2fa85a"; g.fillRect(bx2-2,by2-1,mlen+4,1); g.fillRect(bx2-2,by2+6,mlen+4,1);
+    drawUiText(g,msg,bx2,by2,"#d6ffe2",1);
+  }
+}
+function drawPlague(g,L,now,night){
+  if(!curPlague||!curPlague.active) return;
+  drawFieldHospital(g,L,now);    // the red-cross tents in the plaza
+  drawPlagueSigns(g,L,now);      // boarded storefronts + STAY HOME signs
+  drawAmbulances(g,L,now);       // ambulances hurrying the emptied streets
+  drawPlagueCelebration(g,L,now);// …then at REOPENING, the jubilant maskless crowd + confetti
 }
 function drawRegime(g,L,now,night){
   if(!curRegime||!curRegime.active) return;
@@ -5575,6 +5683,7 @@ function tickerMsg(now){
   if(curWar&&curWar.f>=1&&!curWar.win) return "CURFEW IN EFFECT BY ORDER OF THE OCCUPATION";
   if(curDis) return "BREAKING - CAT-"+curDis.intensity+" "+DIS_NAME[curDis.type]+" - SEEK SHELTER";
   var rgm=regimeTicker(now); if(rgm && (Math.floor(now/12000))%4!==0) return rgm;   // THE ORDER dominates the news (3 of 4 slots) while the takeover is underway
+  var pgm=plagueTicker(now); if(pgm && (Math.floor(now/12000))%4!==0) return pgm;   // THE PLAGUE dominates the news while the pandemic rages (mutually exclusive with the regime)
   var fx=wfx();
   if(fireBurning) return "WILDFIRE ON THE RIDGE - STAY CLEAR OF THE TREELINE";
   if(iceNow) return "THE BAY IS FROZEN - SKATE AT YOUR OWN JOY";
@@ -8825,6 +8934,30 @@ function regimeState(now){
     path:["vote","revolution","uprising"][(rh>>>17)%3], cyStart:REGIME_STAGES[0], cyEnd:REGIME_STAGES[6], li:li, seed:rh };
 }
 var curRegime=null;   // set each frame; the whole arc reads this
+// ===== THE PLAGUE — a pandemic arc, same shape as THE ORDER but its own story. Pure f(clock), life-scoped,
+// and MUTUALLY EXCLUSIVE with war + regime: it yields to BOTH (a life is at most one of war/regime/plague),
+// so it never collides. Reads only the same rolls (no mayorState/warState/regimeState call → no cycle). =====
+var PLAGUE_SALT=0x50142E1D;                                        // "Plag" — isolated hash stream
+var PLAGUE_STAGES=[0.42,0.48,0.54,0.62,0.70,0.78];                // 5 stages then RECOVERED (healed end)
+var PLAGUE_STAGE_LABEL=["","OUTBREAK","LOCKDOWN","SURGE","RECOVERY","REOPENING"];   // unmistakable stage names
+var FORCEPLAGUE=null;                                              // test hook (own line — QML-namespace writable)
+function plagueState(now){
+  if(FORCEPLAGUE) return FORCEPLAGUE;
+  var cg=cityGrowth(now); if(cg.g<0.40||cg.phase==="apoc") return null;   // real cities only, never the apocalypse
+  var li=lifeIndexOf(now), cy=cg.cy;
+  if(((li*2654435761+7717)>>>0)%100 < 62) return null;            // YIELD to war lives (warState's existence roll)
+  var rh=((((li*2654435761)>>>0) ^ REGIME_SALT)>>>0);
+  if((rh%100) < 37) return null;                                  // YIELD to REGIME lives (regimeState claims those)
+  var ph=((((li*2654435761)>>>0) ^ PLAGUE_SALT)>>>0);
+  if((ph%100) >= 45) return null;                                 // ~45% of what's left → ~11% overall (uncommon, like the regime)
+  if(cy<PLAGUE_STAGES[0] || cy>=PLAGUE_STAGES[5]) return null;    // NORMAL before the outbreak & after recovery (life-scoped)
+  var stage=1; for(var s=1;s<5;s++){ if(cy>=PLAGUE_STAGES[s]) stage=s+1; }
+  var sub=Math.max(0,Math.min(1,(cy-PLAGUE_STAGES[stage-1])/(PLAGUE_STAGES[stage]-PLAGUE_STAGES[stage-1])));
+  var prog=(cy-PLAGUE_STAGES[0])/(PLAGUE_STAGES[5]-PLAGUE_STAGES[0]);                 // 0..1 across the whole arc
+  var severity=Math.max(0,Math.min(1, prog<0.42 ? prog/0.42 : 1-(prog-0.42)/0.58));  // cases rise to the SURGE peak (~stage 3) then fall
+  return { active:true, stage:stage, sub:sub, severity:severity, cyStart:PLAGUE_STAGES[0], cyEnd:PLAGUE_STAGES[5], li:li, seed:ph };
+}
+var curPlague=null;   // set each frame; the whole plague arc reads this
 // explicit, unmistakable per-stage news — dominates the ticker while the takeover is underway
 function regimeTicker(now){
   var R=curRegime; if(!R||!R.active) return null;
@@ -8839,6 +8972,20 @@ function regimeTicker(now){
                 :["THE ORDER HAS FALLEN - "+cityName+" IS FREE","THE STATUE COMES DOWN - CROWDS FLOOD THE PLAZA","LIBERATION - THE RED BANNERS ARE TORN DOWN"])
   };
   var arr=S[R.stage]||["THE ORDER"]; return arr[((slow%arr.length)+arr.length)%arr.length];
+}
+// explicit per-stage plague news — dominates the ticker while the pandemic rages
+function plagueTicker(now){
+  var P=curPlague; if(!P||!P.active) return null;
+  var slow=Math.floor(now/16000);
+  var S={
+    1:["A NEW ILLNESS SPREADS THROUGH "+cityName,"HEALTH OFFICIALS URGE CAUTION - WASH YOUR HANDS","FIRST CASES CONFIRMED DOWNTOWN"],
+    2:["LOCKDOWN DECLARED - "+cityName+" STAYS HOME","SCHOOLS AND SHOPS CLOSE AS CASES CLIMB","STREETS EMPTY UNDER QUARANTINE ORDERS"],
+    3:["HOSPITALS OVERWHELMED - FIELD WARDS GO UP","THE SURGE PEAKS - "+cityName+" HOLDS ITS BREATH","STAY HOME - PROTECT EACH OTHER"],
+    4:["THE CURVE BENDS - CASES BEGIN TO FALL","RECOVERY UNDERWAY - HOPE RETURNS TO "+cityName,"HEALTH WORKERS HAILED AS HEROES"],
+    5:(P.sub<0.6?["THE CITY REOPENS - MASKS COME OFF","SHOPS RAISE THEIR SHUTTERS ONCE MORE","LIFE RETURNS TO THE STREETS"]
+              :[cityName+" IS FREE OF THE PLAGUE","A CELEBRATION FILLS THE PLAZA - WE MADE IT","THE PLAGUE IS OVER - "+cityName+" ENDURES"])
+  };
+  var arr=S[P.stage]||["PLAGUE"]; return arr[((slow%arr.length)+arr.length)%arr.length];
 }
 function mayorState(now){
   var cg2=cityGrowth(now); if(cg2.g<0.35||cg2.phase==="apoc") return null;   // no politics in a hamlet or an inferno
@@ -11507,6 +11654,7 @@ function draw(g,pass){
   computeLmFoot();                                           // clear plazas where the civic landmarks stand
   curMayor=mayorState(now);                                  // who runs city hall right now?
   curRegime=regimeState(now);                                // THE ORDER's political arc this life (null on most lives)
+  curPlague=plagueState(now);                                // THE PLAGUE's pandemic arc this life (null on most lives; never overlaps war/regime)
   curBuilds=passedBuilds(now).concat(passedCivics(now));     // permanent landmarks the city voted to build this life (measures + civic projects)
   curPolicies=curPoliciesOf(now);                            // soft policy-measures in force this term
   curCorps=corpState(now);                                   // the corporate landscape (rising/juggernaut/fading firms) this life
@@ -11529,6 +11677,19 @@ function draw(g,pass){
       curLit=Math.max(0.10,curLit*(1-0.72*curCurfew));                             // the city goes dark
       wmood.pedFactor*=(1-0.90*curCurfew);                                         // the sidewalks clear
       rhythm.carPresence*=(1-0.88*curCurfew);                                      // the roads empty
+    }
+  }
+  // v1.29 THE PLAGUE — quarantine empties the streets (peaks at the SURGE) & citizens mask up. Strictly gated
+  // on curPlague → both stay 0 on every non-plague life (plague never co-occurs with war/regime/curfew).
+  curMaskK=0; curPlagueEmpty=0;
+  if(curPlague&&curPlague.active){
+    var psev=curPlague.severity||0;
+    curMaskK=Math.max(0,Math.min(0.95, curPlague.stage>=5?0.15:0.30+0.65*psev));   // masks ramp to the surge, mostly off at reopening
+    curPlagueEmpty=Math.max(0,Math.min(1, psev*(curPlague.stage>=5?0.30:1)));       // streets emptiest at the surge, refill at reopening
+    if(curPlagueEmpty>0){
+      curLit=Math.max(0.18,curLit*(1-0.30*curPlagueEmpty));                         // storefronts dim (lighter than curfew)
+      wmood.pedFactor*=(1-0.78*curPlagueEmpty);                                     // sidewalks clear (people stay home)
+      rhythm.carPresence*=(1-0.70*curPlagueEmpty);                                  // fewer cars on the road
     }
   }
   curWar=(cityG>0.5)?warState(now):null;                     // is this the life the enemy comes?
@@ -12395,6 +12556,7 @@ function draw(g,pass){
   if(curWar) drawWar(g,L,now,night);                         // the war for the city plays out on top
   if(cityG>0.5) drawElections(g,L,now,night);                // democracy in the streets
   drawRegime(g,L,now,night);                                 // …or THE ORDER's banners + statue when democracy has fallen
+  drawPlague(g,L,now,night);                                 // …or THE PLAGUE's field hospitals + ambulances (mutually exclusive with the regime)
   if(cityG>0.45) drawCorpAds(g,L,now,night);                 // street billboards for the current companies (corporate ad presence)
 
   // ---- THE GRAND CATACLYSM ends the city's life every ~month, then it's reborn as wilderness ----
@@ -12595,5 +12757,6 @@ function draw(g,pass){
   drawSkyClock(g,nd,L);   // local time & date in the sky, top-centre of every monitor
   drawCivicHud(g,now,night);   // who runs the city + approval + mandates + next-vote countdown, top-right
   drawRegimeHud(g,now,night);  // THE ORDER — the unmistakable alert banner while the takeover is underway
+  drawPlagueHud(g,now,night);  // THE PLAGUE — the amber medical alert banner while the pandemic rages
   drawDoomClock(g,now,night);  // top-left: the exact time this city's fated end will strike, so nobody misses it
 }
