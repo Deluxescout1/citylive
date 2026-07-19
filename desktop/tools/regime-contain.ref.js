@@ -151,7 +151,7 @@ function resetNotifLanes(){ for(var r=0;r<_notifTaken.length;r++) _notifTaken[r]
 var CLOCK = null;   // test-harness override: ms timestamp for time-of-day (null = real wall clock)
 var NOWOVR = null;  // test-harness override: ms value returned as Date.now() inside draw() (null = real)
 var NOFETCH = false;  // headless flag (own line = QML-namespace writable): almanac callers set this so setup() makes NO network calls
-var VERSION = "1.24.0";  // the build the user is running — surfaced in the Almanac + KDE config page (keep in sync with desktop/package.json)
+var VERSION = "1.23.1";  // the build the user is running — surfaced in the Almanac + KDE config page (keep in sync with desktop/package.json)
 var FORCELAYOUT = null;   // test hook: pin every building's window layout (grid/ribbon/band/punch/corp) — verify per-layout render
 var FORCECROWN = null;    // test hook: pin every building's crown/roof (gable/hip/saltbox/mansard/deco/…) — verify per-roof render
 var FORCEUSE = null;      // test hook: pin every building's functional type (hospital/theater/hotel/bank/cafe/pharmacy) — verify drawUse
@@ -2128,7 +2128,6 @@ function inSea(wx){ return hasOcean && seaW>0 && (wx < WW*seaW || wx > WW*(1-sea
 function landRoute(x){ if(!hasOcean||seaW<=0) return x;
   var a=WW*seaW+8, b=WW*(1-seaW)-8; return a+(x/WW)*(b-a); }
 var curLit=1;        // fraction of night windows actually on (ramps up through the evening, dims after midnight)
-var curCurfew=0;     // v1.24 THE ORDER curfew strength 0..1 (Martial Law nights): dark windows + empty streets. 0 on every non-regime life.
 var curSunDf=0.5;    // where the sun is in its arc (0 sunrise .. 1 sunset) — drives light direction
 // THE GOLDEN HOUR — one global light state, computed once per frame, consumed everywhere
 // (sky, buildings, terrain, water, mountains, clouds) so low-sun light reads as ONE event.
@@ -3095,60 +3094,23 @@ function drawRegimeHud(g,now,night){
   drawUiText(g,full,x0+ew,ty,fallen?"#d6ffe2":"#ffe2e2",1);                                          // BRIGHT screen-space text — unmistakable
 }
 // THE ORDER's crimson BANNERS hang down the facades once the dictatorship takes hold (stage 3+, dense at 5)
-// ---- v1.24 TOTAL CONTROL — a rooftop flag flying from a tower top (waving crimson pennant + emblem)
-function drawOrderFlag(g,cx,cy,ph,L,now,scale){
-  scale=scale||1; var poleH=Math.max(4,Math.round(6*scale)), fw=Math.max(3,Math.round(5*scale)), fh=Math.max(2,Math.round(3*scale));
-  g.fillStyle=L>0.5?"#2a2226":"#141014"; g.fillRect(cx,cy-poleH,1,poleH);                        // pole
-  g.fillStyle=L>0.5?"#ffe14a":"#b0a030"; g.fillRect(cx,cy-poleH,1,1);                            // finial
-  var fy=cy-poleH;
-  for(var r=0;r<fh;r++){ var off=Math.round(Math.sin(now*0.006+ph+r*0.7)*scale);                 // the pennant waves
-    g.fillStyle=L>0.5?"#c01828":"#7a1018"; g.fillRect(cx+1+off,fy+r,fw,1);
-    g.fillStyle=L>0.5?"#8a1018":"#4a0810"; g.fillRect(cx+1+off,fy+r,1,1); }                       // hoist shade
-  if(fw>=4&&fh>=3) drawOrderEmblem(g,cx+1+(fw>>1),fy+(fh>>1),1,"#f4eee2",null);                   // tiny emblem
-}
-// a GIANT propaganda banner draped down a hero tower's face — emblem + a vertical slogan
-var ORDER_SLOGANS=["ORDER","OBEY","UNITY","ONE CITY","STRENGTH","LOYALTY"];
-function drawGiantBanner(g,bx,top,bw,bh,L,now,seed){
-  var w=Math.min(bw-2,10), x=(bx+((bw-w)>>1))|0, len=Math.min(bh-3,Math.round(bh*0.72));
-  g.fillStyle="#150a0c"; g.fillRect(x-1,top,w+2,1);                                               // rod
-  g.fillStyle=L>0.5?"#a81624":"#5c0c14"; g.fillRect(x,top+1,w,len);                               // crimson field
-  g.fillStyle=L>0.5?"#7a1018":"#420810"; g.fillRect(x,top+1,1,len); g.fillRect(x+w-1,top+1,1,len);
-  g.fillStyle=L>0.5?"#c33040":"#7a121e"; g.fillRect(x+1,top+1,1,len);                             // fold hilight
-  for(var nk=0;nk<w;nk+=2){ g.fillStyle="rgba(0,0,0,0.4)"; g.fillRect(x+nk,top+1+len,1,1); }       // notched tail
-  drawOrderEmblem(g,x+(w>>1),top+5,Math.max(2,(w>>1)-1),"#f4eee2",null);                          // emblem near the top
-  if(w>=6){ var sl=ORDER_SLOGANS[(seed>>>0)%ORDER_SLOGANS.length], ty=top+10, tx=x+(w>>1)-1;       // vertical stacked slogan
-    for(var ci=0;ci<sl.length && ty+6<top+1+len;ci++){ if(sl[ci]===" "){ ty+=3; continue; }
-      drawUiText(g,sl[ci],tx,ty,"rgba(245,238,226,0.95)",1); ty+=6; } }
-}
-// THE WHOLE SKYLINE DRAPED — per-layer flag/banner pass, run right after each layer draws (back-to-front)
-// so depth is correct for free. Coverage widens with the stage: sparse at EMERGENCY POWERS → the entire
-// city draped at TOTAL CONTROL. Gated on curRegime.active → invisible (byte-identical) on non-regime lives.
-function drawLayerRegime(g,layer,L,now,night){
+function drawRegimeBanners(g,L,now){
   var R=curRegime; if(!R||!R.active||R.stage<3) return;
-  if(R.stage===6&&R.sub>=0.5) return;                                    // torn down at the liberation
-  var isNear=(layer===near), isFar=(layer===far);
-  var denom = R.stage>=5?1 : R.stage===4?2 : 4;                          // 1-in-N eligible towers → all of them at TOTAL CONTROL
-  var lscale = isNear?1 : (layer===mid?0.8:0.6);
-  var bigDone=0, bigMax=(isNear&&R.stage>=4)?2:0;                        // a couple of giant slogan banners, near-layer only
-  for(var i=0;i<layer.blds.length;i++){ var b=layer.blds[i];
-    if(b.type==="park"||b.h<(isFar?14:22)||b.w<7) continue;
-    if(b.bAge!==undefined && cityG-b.bAge<=bandOf(b)) continue;          // only fully built towers
+  if(R.stage===6&&R.sub>=0.5) return;                                   // torn down at the liberation
+  var dense=(R.stage>=5), maxB=dense?8:3, drawn=0;
+  for(var i=0;i<near.blds.length&&drawn<maxB;i++){ var b=near.blds[i];
+    if(b.type==="park"||b.h<26||b.w<9) continue;
+    if(b.bAge!==undefined && cityG-b.bAge<=bandOf(b)) continue;          // only built towers
+    if(((b.seed>>>3)%(dense?2:4))!==0) continue;
     var bx=(b.x-WOFF)|0; if(bx>SW+4&&bx-WW>-4)bx-=WW; if(bx<-4-b.w&&bx+WW<SW+4)bx+=WW;
-    if(bx+b.w<-4||bx>SW+4) continue;
-    var top=(layer.y0-b.h)|0;
-    if(bigMax&&bigDone<bigMax && b.w>=12 && b.h>=40 && ((b.seed>>>7)%3)===0){ drawGiantBanner(g,bx,top,b.w,b.h,L,now,(b.seed>>>11)); bigDone++; continue; }
-    if(((b.seed>>>3)%denom)!==0){                                        // not banner-picked…
-      if(R.stage>=5 && !isFar && b.h>=30) drawOrderFlag(g,(bx+(b.w>>1))|0,top,(b.seed%628)/100,L,now,lscale);   // …but flies a rooftop flag at TOTAL CONTROL
-      continue;
-    }
-    var bw=Math.max(3,Math.min(Math.round(9*lscale),b.w>>1)), bxc=(bx+((b.w-bw)>>1))|0, len=Math.min(b.h-4,Math.round((14+(b.h>>1))*lscale));
-    g.fillStyle="#1a0c0e"; g.fillRect(bxc-1,top+1,bw+2,1);                                             // rod
-    g.fillStyle=L>0.5?"#b01828":"#6c0e18"; g.fillRect(bxc,top+2,bw,len);                               // crimson banner
-    g.fillStyle=L>0.5?"#7a1018":"#490810"; g.fillRect(bxc,top+2,1,len); g.fillRect(bxc+bw-1,top+2,1,len);
-    g.fillStyle=L>0.5?"#c83040":"#82121e"; g.fillRect(bxc+1,top+2,1,len);                              // fold hilight
-    for(var nk=0;nk<bw;nk+=2){ g.fillStyle="rgba(0,0,0,0.45)"; g.fillRect(bxc+nk,top+2+len,1,1); }     // notched tail
-    if(bw>=4) drawOrderEmblem(g,bxc+(bw>>1),top+2+Math.min(len-4,6),Math.max(1,(bw>>1)-1),"#f4eee2",null);
-    if(!isFar && b.h>=26 && R.stage>=4) drawOrderFlag(g,(bx+b.w-2)|0,top,(b.seed%628)/100,L,now,lscale);        // a rooftop flag too
+    if(bx+b.w<-4||bx>SW+4) continue; drawn++;
+    var bw=Math.max(4,Math.min(8,b.w>>1)), bxc=(bx+((b.w-bw)>>1))|0, top=(HORIZON-b.h+2)|0, len=Math.min(b.h-5,16+(b.h>>1));
+    g.fillStyle="#1a0c0e"; g.fillRect(bxc-1,top-1,bw+2,1);                                             // hanging rod
+    g.fillStyle=L>0.5?"#b01828":"#6c0e18"; g.fillRect(bxc,top,bw,len);                                 // crimson banner
+    g.fillStyle=L>0.5?"#7a1018":"#490810"; g.fillRect(bxc,top,1,len); g.fillRect(bxc+bw-1,top,1,len);  // fold shade
+    g.fillStyle=L>0.5?"#c83040":"#82121e"; g.fillRect(bxc+1,top,1,len);                                // fold hilight
+    var nb=Math.max(1,bw>>2); for(var nk=0;nk<bw;nk+=2){ g.fillStyle="rgba(0,0,0,0.45)"; g.fillRect(bxc+nk,top+len,1,1); }  // notched tail
+    drawOrderEmblem(g,bxc+(bw>>1),top+Math.min(len-4,6),Math.max(1,(bw>>1)-1),"#f4eee2",null);         // white emblem
   }
 }
 // the LEADER'S COLOSSAL STATUE looms over the plaza (stands stage 4+). In the fall (stage 6) it TOPPLES —
@@ -3195,59 +3157,9 @@ function drawLiberation(g,L,now){
   }
 }
 // the whole regime world-overlay dispatcher (banners + statue + …), drawn over the near layer
-// v1.24 — the oppressive CRIMSON WASH over the whole city, deepening with the stage, lifting at liberation.
-// A source-over gradient veil (denser toward the streets, light on the sky so the stars survive) — no
-// additive/multiply, so it renders the same on the QML FBO and Chromium. Gated on curRegime.active.
-function drawRegimeWash(g,L,now){
-  var R=curRegime; if(!R||!R.active) return;
-  var amt = R.stage>=5?0.24 : R.stage===4?0.16 : R.stage===3?0.09 : R.stage===2?0.045 : 0.02;
-  if(R.stage===6) amt*=Math.max(0,1-(R.sub-0.08)/0.40);            // the red lifts as the city is freed
-  if(amt<=0.004) return;
-  amt*=1+0.05*Math.sin(now*0.0011);                                // a slow, ominous breathe
-  var gd=g.createLinearGradient(0,0,0,SH);
-  gd.addColorStop(0,    "rgba(60,6,12,"+(amt*0.42).toFixed(3)+")");  // sky: a light crimson touch
-  gd.addColorStop(0.55, "rgba(80,8,14,"+(amt*0.85).toFixed(3)+")");
-  gd.addColorStop(1,    "rgba(96,10,16,"+(amt).toFixed(3)+")");      // streets: full oppressive crimson
-  g.fillStyle=gd; g.fillRect(0,0,SW,SH);
-}
-// v1.24 — THE ORDER on the ground: searchlights raking the night sky, patrol cars with flashing beacons
-// on the curfew-emptied road, and a checkpoint. Martial Law+ (stage 4-5). Gated on curRegime.active.
-function drawRegimeStreets(g,L,now,night){
-  var R=curRegime; if(!R||!R.active||R.stage<4) return;
-  if(R.stage===6&&R.sub>=0.5) return;                                   // gone at the liberation
-  // 1) SWEEPING SEARCHLIGHTS — tall watch-beacons rake the night sky (bright, unmistakable)
-  if(L<0.55){ var nl=1-L, reach=140;
-    for(var s=0;s<4;s++){ var bwx=(0.14+0.24*s)*WW, baseY=HORIZON-30-(s%2)*22;              // originate up on the skyline, not the street
-      for(var off=-WW;off<=WW;off+=WW){ var bx=bwx-WOFF+off; if(bx<-40||bx>SW+40) continue;
-        var ang=Math.sin(now*0.0004+s*1.9)*0.85;
-        g.globalCompositeOperation="lighter";
-        for(var t=0;t<=reach;t+=2){ var bxT=bx+Math.sin(ang)*t, byT=baseY-t*Math.cos(ang*0.4), wsp=1.5+t*0.06;
-          var fa=(0.16+0.08*Math.sin(now*0.004+s))*nl*(1-t/reach);                          // brighter cone, fades with distance
-          g.fillStyle="rgba(255,238,208,"+Math.max(0,fa).toFixed(3)+")"; g.fillRect((bxT-wsp)|0,byT|0,Math.max(2,(wsp*2)|0),2); }
-        g.fillStyle="rgba(255,244,214,"+(0.85*nl).toFixed(2)+")"; g.fillRect(bx-1|0,baseY-1,3,3);   // the hot lamp
-        g.globalCompositeOperation="source-over"; } }
-  }
-  // 2) PATROL CARS with flashing red/blue beacons on the emptied road
-  var np=R.stage>=5?2:1;
-  for(var p=0;p<np;p++){ var lane=LANE[(p*2)%LANE.length], per=52000, ph=((now+p*26000)%per)/per, dir=lane.d;
-    var wx=dir>0?ph*WW:WW*(1-ph), ly=HORIZON+lane.o;
-    for(var off2=-WW;off2<=WW;off2+=WW){ var X=(wx-WOFF+off2); if(X<-14||X>SW+14) continue;
-      drawCar(g,X|0,ly,"#242a34",dir,L,"suv");                                        // dark patrol vehicle
-      var beac=(Math.floor(now/260)&1), bxb=X+(dir>0?3:2);
-      g.fillStyle=beac?"#ff2a2a":"#3a7aff"; g.fillRect(bxb|0,ly-4,2,1);               // flashing beacon
-      g.globalCompositeOperation="lighter"; g.fillStyle=beac?"rgba(255,50,50,0.5)":"rgba(60,130,255,0.5)"; g.fillRect((bxb-1)|0,ly-5,4,3); g.globalCompositeOperation="source-over"; } }
-  // 3) A CHECKPOINT — striped barricade + a guard on the sidewalk (TOTAL CONTROL)
-  if(R.stage>=5){ var cwx=0.5*WW;
-    for(var off3=-WW;off3<=WW;off3+=WW){ var CX=cwx-WOFF+off3; if(CX<-12||CX>SW+12) continue;
-      for(var bar=0;bar<10;bar+=2){ g.fillStyle=(((bar>>1)&1))?"#e8e2d0":"#c0182a"; g.fillRect((CX-5+bar)|0,HORIZON+2,2,2); }   // striped barrier
-      g.fillStyle="#1a0c0e"; g.fillRect((CX-6)|0,HORIZON+1,1,4); g.fillRect((CX+4)|0,HORIZON+1,1,4);                            // posts
-      drawPerson(g,(CX+7)|0,HORIZON+1,"#2f3540","#caa07a",(Math.floor(now/520))&1); } }                                        // a guard
-}
 function drawRegime(g,L,now,night){
   if(!curRegime||!curRegime.active) return;
-  drawRegimeWash(g,L,now);       // the crimson mood over everything drawn so far (flags/city); HUD stays crisp on top
-  drawRegimeStreets(g,L,now,night);   // searchlights + patrols + checkpoint
-  // (flags/banners are drawn per-layer via drawLayerRegime for correct depth; here = the plaza overlay)
+  drawRegimeBanners(g,L,now);
   drawLeaderStatue(g,L,now);
   drawLiberation(g,L,now);
 }
@@ -5456,26 +5368,6 @@ function newsEmergency(){
 // big LED NEWS SCREENS mounted high on the downtown towers — they run the LOCAL city news, and cut to
 // red BREAKING coverage the instant anything happens (disaster, invasion, the incoming meteor…), so the
 // story is visible right on the skyline. Each screen dies with its tower when the cataclysm reaches it.
-// v1.24 STATE MEDIA — under THE ORDER the jumbotrons stop showing news and show the leader's portrait
-// + a rotating slogan (propaganda faces). A small stern pixel portrait: crimson cap w/ emblem, hard eyes.
-function drawStateScreen(g,sx,sy,sw,sh,now,L){
-  g.fillStyle="#5a1418"; g.fillRect(sx-1,sy-1,sw+2,sh+2);                               // crimson bezel
-  g.fillStyle="#1a0407"; g.fillRect(sx,sy,sw,sh);                                       // dark screen
-  g.fillStyle="#7a1018"; g.fillRect(sx,sy,sw,4);                                        // header bar
-  drawUiText(g,"STATE",sx+1,sy,"#ffd2c4",1);
-  if((Math.floor(now/500))&1){ g.fillStyle="#ff3b3b"; g.fillRect(sx+sw-3,sy+1,2,2); }   // blinking LIVE dot
-  var px=sx+3, py=sy+5;                                                                 // the leader's portrait (left)
-  g.fillStyle="#d8b48c"; g.fillRect(px,py+2,5,5);                                       // face
-  g.fillStyle="#c39a72"; g.fillRect(px,py+2,1,5);                                       // cheek shade
-  g.fillStyle="#8a1018"; g.fillRect(px-1,py,7,2); g.fillRect(px-1,py+1,1,1); g.fillRect(px+5,py+1,1,1);   // crimson cap
-  g.fillStyle="#f4eee2"; g.fillRect(px+2,py,1,1);                                       // cap emblem
-  g.fillStyle="#241610"; g.fillRect(px+1,py+4,1,1); g.fillRect(px+3,py+4,1,1);          // hard eyes
-  g.fillStyle="#3a2a1e"; g.fillRect(px+1,py+3,4,1);                                     // stern brow
-  g.fillStyle="#7a1018"; g.fillRect(px,py+7,5,1);                                       // collar
-  var sl=ORDER_SLOGANS[(Math.floor(now/2600))%ORDER_SLOGANS.length];                    // rotating slogan (right)
-  drawUiText(g,sl.substr(0,Math.max(1,((sw-11)/4)|0)),px+8,sy+7,"#ffe0d0",1);
-  g.globalCompositeOperation="lighter"; g.fillStyle="rgba(220,40,40,"+(0.10+0.10*(1-L)).toFixed(2)+")"; g.fillRect(sx,sy,sw,sh); g.globalCompositeOperation="source-over";   // screen glow
-}
 function drawNewsScreens(g,L,now,night){
   if(cityG<0.5) return;
   var msg=tickerMsg(now), emerg=newsEmergency();
@@ -5492,7 +5384,6 @@ function drawNewsScreens(g,L,now,night){
     if(bx<-40||bx>SW+40) continue;
     drawn++;
     var sw2=Math.min(b.w-4,34), sh2=13, sx=Math.round(bx+(b.w-sw2)/2), sy=HORIZON-b.h+8;   // mounted high on the facade
-    if(curRegime&&curRegime.active&&curRegime.stage>=3){ drawStateScreen(g,sx,sy,sw2,sh2,now,L); continue; }   // STATE MEDIA takes the screens
     g.fillStyle=emerg?"#5a1418":(L>0.5?"#474d59":"#2a2f39"); g.fillRect(sx-1,sy-1,sw2+2,sh2+2);   // metallic bezel — reads against any facade
     g.fillStyle=emerg?"#170406":"#05070c"; g.fillRect(sx,sy,sw2,sh2);                             // dark screen
     g.fillStyle=emerg?"#7a1418":"#123a4e"; g.fillRect(sx,sy,sw2,4);                               // header bar
@@ -11301,20 +11192,6 @@ function draw(g,pass){
   if(cityHasBuild("grandcentral")) curEcon=Math.min(1,curEcon+0.03);              // GRAND CENTRAL — the transit hub keeps commerce moving
   if(curPolicies.heightcap) curEcon=Math.max(0,curEcon-0.08);                     // a HEIGHT CAP throttles development → softer economy, more empty storefronts (see FOR LEASE at ~9248)
   if(curEcon<0.35) curLit*=0.9;                                                    // a mandate-driven slump also dims the town a touch more
-  // v1.24 CURFEW — Martial Law (stage 4-5) empties the NIGHT: windows go dark, sidewalks clear, roads
-  // empty (only patrols move). Strictly gated on curRegime → curCurfew stays 0 on every non-regime life,
-  // so the containment guard's non-regime render is untouched. curLit keeps a nonzero floor (a few holdouts).
-  curCurfew=0;
-  if(curRegime&&curRegime.active&&curRegime.stage>=4&&curRegime.stage<6){
-    var cfHr=nd.getHours()+nd.getMinutes()/60;
-    var nightK=(cfHr>=21||cfHr<5)?1:(cfHr>=19?(cfHr-19)/2:(cfHr<6?(6-cfHr):0));    // ramp dusk→night, full 9pm–5am
-    curCurfew=Math.max(0,Math.min(1,nightK))*(curRegime.stage>=5?1:0.72);
-    if(curCurfew>0){
-      curLit=Math.max(0.10,curLit*(1-0.72*curCurfew));                             // the city goes dark
-      wmood.pedFactor*=(1-0.90*curCurfew);                                         // the sidewalks clear
-      rhythm.carPresence*=(1-0.88*curCurfew);                                      // the roads empty
-    }
-  }
   curWar=(cityG>0.5)?warState(now):null;                     // is this the life the enemy comes?
   curDis=disasterNow(now);            // is a disaster striking right now?
   if(curWar&&curWar.f>=0&&curWar.f<1) curDis=null;           // a war eclipses lesser troubles
@@ -11522,7 +11399,6 @@ function draw(g,pass){
   if(cityG<0.985) drawTerrain(g,cityG,L,now,nd,pass==="fg"?"fg":undefined);
 
   drawLayer(g,far,L,now,fx,hol,0.42);
-  if(curRegime&&curRegime.active) drawLayerRegime(g,far,L,now,night);   // THE ORDER drapes the far skyline
   // dystopian smog band (only once there's a city to be smoggy) — one gradient, magenta→teal, feathered at both ends
   var smA=(0.10+0.06*Math.sin(now*0.00008))*night*Math.min(1,cityG*1.5);
   if(smA>0.002){
@@ -11535,7 +11411,6 @@ function draw(g,pass){
     g.fillStyle=smg; g.fillRect(0,smY0,SW,smY1-smY0);
   }
   drawLayer(g,mid,L,now,fx,hol,0.20);
-  if(curRegime&&curRegime.active) drawLayerRegime(g,mid,L,now,night);   // …the mid skyline
   // waterfront harbour fills the industrial edges (behind the near shoreline)
   if(hasOcean) drawHarbor(g,L,now,night,nd);   // the coast is there from day one — the city grows out to meet it
   if(hasOcean) drawOpenSea(g,L,now,night);     // …and beyond the harbour, the OPEN sea
@@ -11543,7 +11418,6 @@ function draw(g,pass){
   if(!nukeFull()) drawIce(g,L,now);                            // deep winter: the bay is a skating rink (skaters gone with the blast)
   if(hasOcean && !nukeFull()) drawRival(g,L,now);              // the rival city, growing across the bay (also gone in the exchange)
   drawLayer(g,near,L,now,fx,hol,0);
-  if(curRegime&&curRegime.active) drawLayerRegime(g,near,L,now,night);  // …and the near towers (giant slogan banners here)
 
   // construction sites — towers rising floor-by-floor over real days, with tower cranes
   if(cityG>0.35 && !nukeStruck()) for(var siI=0;siI<sites.length;siI++) drawSite(g,sites[siI],L,now,nd);   // NO new construction once the bomb drops — the cranes are gone
