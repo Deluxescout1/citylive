@@ -7624,7 +7624,7 @@ var GROW_OFFSET_DAYS=0;                // ►► FAST-FORWARD KNOB: bump this to
 var WORLD_SHIFT=0;
 function worldShiftFrom(at,mode){
   if(!at||!isFinite(+at)) return 0;
-  var target=(mode==="fresh")?0.0005:0.9555;                         // fresh = reborn wilderness; apoc = the finale begins
+  var target=(mode==="fresh")?0.0005:0.9550;                         // fresh = reborn wilderness; apoc = the finale begins AT DETONATION (cy 0.955 → apocMs≈0, so you WITNESS it play out in real time, not land in the aftermath)
   var base=(((+at)-GROW_EPOCH+GROW_OFFSET_DAYS*86400000)%GROW_CYCLE+GROW_CYCLE)%GROW_CYCLE;
   return target*GROW_CYCLE-base;
 }
