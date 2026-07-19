@@ -3522,11 +3522,33 @@ function drawPlagueSigns(g,L,now){
       drawUiText(g,sign,(px2+1)|0,py2+1,"#8a1e16",1); }
   }
 }
+// REOPENING & CELEBRATION — the payoff: at REOPENING the plaza fills with a jubilant, maskless crowd,
+// confetti, and a "WE MADE IT" banner (the plague's liberation). Ramps up through stage 5.
+function drawPlagueCelebration(g,L,now){
+  var P=curPlague; if(!P||!P.active||P.stage!==5) return;
+  var joy=Math.max(0,Math.min(1,(P.sub-0.30)/0.5)); if(joy<=0) return;
+  var wx=Math.round(0.365*WW);
+  for(var off=-WW;off<=WW;off+=WW){ var X=(wx-WOFF+off)|0; if(X<-92||X>SW+92) continue;
+    var n=Math.round(28*joy);                                                             // the crowd floods back (no masks now)
+    for(var p=0;p<n;p++){ var hh=((p*2654435761+(P.seed||0))>>>0), px=X-60+((hh%120)), jump=((Math.floor(now/150)+p)%3===0)?1:0;
+      drawPerson(g,px|0,HORIZON-1-jump,PEDC[(hh>>>5)%PEDC.length],SKINC[(hh>>>7)%SKINC.length],(Math.floor(now/200)+p)&1);
+      if(((hh>>>9)%3)===0){ g.fillStyle=["#ffd24a","#6ad0ff","#ff7ad0","#7affb0","#ff5a5a"][(hh>>>11)%5]; g.fillRect(px|0,HORIZON-7-jump,1,2); } }   // raised flags/balloons
+    g.globalCompositeOperation="lighter";                                                 // confetti in the air
+    for(var c=0;c<Math.round(34*joy);c++){ var ch=((c*2654435761+(P.seed||0)+Math.floor(now/130)*7)>>>0), cx2=X-72+(ch%144), cy2=HORIZON-42+((ch>>>3)%42);
+      g.fillStyle=["#ffd24a","#6ad0ff","#ff7ad0","#7affb0","#ff9a3c"][(ch>>>5)%5]; g.fillRect(cx2|0,cy2|0,1,1); }
+    g.globalCompositeOperation="source-over";
+    var msg=(P.sub>=0.68)?"WE MADE IT":"REOPENED", mlen=msg.length*4-1, bx2=(X-(mlen>>1))|0, by2=(HORIZON-30)|0;   // a joyful banner
+    g.fillStyle="#123024"; g.fillRect(bx2-2,by2-1,mlen+4,8);
+    g.fillStyle="#2fa85a"; g.fillRect(bx2-2,by2-1,mlen+4,1); g.fillRect(bx2-2,by2+6,mlen+4,1);
+    drawUiText(g,msg,bx2,by2,"#d6ffe2",1);
+  }
+}
 function drawPlague(g,L,now,night){
   if(!curPlague||!curPlague.active) return;
   drawFieldHospital(g,L,now);    // the red-cross tents in the plaza
   drawPlagueSigns(g,L,now);      // boarded storefronts + STAY HOME signs
   drawAmbulances(g,L,now);       // ambulances hurrying the emptied streets
+  drawPlagueCelebration(g,L,now);// …then at REOPENING, the jubilant maskless crowd + confetti
 }
 function drawRegime(g,L,now,night){
   if(!curRegime||!curRegime.active) return;
