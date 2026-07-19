@@ -4224,6 +4224,40 @@ function drawAirport(g,L,now,night){
   }
 }
 
+// HIGH-ALTITUDE cruising jets crossing the sky with long twin contrails — fills the big empty upper sky (fair weather)
+function drawHighFlights(g,L,now,fx){
+  if(cityG<0.35||cityPhase==="apoc"||fx.rain||fx.snow||fx.thunder||fx.fog) return;
+  var n=4+(cityG>0.6?1:0);
+  for(var i=0;i<n;i++){ var period=104000+i*19000, idx=Math.floor((now+i*26000)/period), ph=(now+i*26000)-idx*period;
+    var span=WW+90, speed=span/(period*0.9), prog=speed*ph; if(prog>span) continue;
+    var dir=((idx+i)&1)?1:-1, wx=dir>0?(-45+prog):(WW+45-prog), y=Math.round(HORIZON*(0.11+i*0.062))+((idx*29+i*13)%16);
+    for(var off=-WW;off<=WW;off+=WW){ var X=(wx-WOFF+off)|0; if(X<-80||X>SW+80) continue;
+      g.globalCompositeOperation="lighter";
+      for(var c=0;c<44;c++){ var cx=X-dir*(3+c*1.4); if(cx<-2||cx>SW+2) continue;                       // the trailing contrail (fades out)
+        g.fillStyle="rgba(238,245,255,"+(0.16*(1-c/44)).toFixed(3)+")"; g.fillRect(cx|0,y|0,2,1); }
+      g.globalCompositeOperation="source-over";
+      g.fillStyle=L>0.5?"#e2e8f2":"#9aa3b4"; g.fillRect(X-1,y,3,1); g.fillRect((X+(dir>0?-2:2))|0,y-1,1,1);   // the jet + tail fin (tiny at altitude)
+      if((Math.floor(now/450)+i)%2===0){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,255,255,0.85)"; g.fillRect(X|0,y|0,1,1); g.globalCompositeOperation="source-over"; }
+    }
+  }
+}
+// HELICOPTERS patrol over the downtown skyline (news/police) — rotor blur, blinking beacon, a night searchlight
+function drawHelis(g,L,now){
+  if(cityG<0.5||cityPhase==="apoc") return;
+  var n=1+(cityG>0.75?1:0);
+  for(var i=0;i<n;i++){ var period=54000+i*23000, idx=Math.floor((now+i*20000)/period), ph=(now+i*20000)-idx*period, dur=period*0.86;
+    if(ph>dur) continue; var t=ph/dur, dir=((idx+i)&1)?1:-1;
+    var wx=dir>0?(WW*0.15+t*WW*0.7):(WW*0.85-t*WW*0.7), y=Math.round(HORIZON*0.34)+Math.round(Math.sin(now*0.001+i*2)*6)+i*14;
+    for(var off=-WW;off<=WW;off+=WW){ var X=(wx-WOFF+off)|0; if(X<-12||X>SW+12) continue;
+      g.fillStyle="rgba(180,190,205,0.45)"; g.fillRect(X-4,y-2,10,1);                                  // rotor blur
+      g.fillStyle=L>0.5?"#3a4150":"#1a1e28"; g.fillRect(X-2,y,5,2); g.fillRect((X+(dir>0?-4:3))|0,y,3,1);   // body + tail boom
+      g.fillStyle=L>0.5?"#8aa0c0":"#2a3444"; g.fillRect((X+(dir>0?1:-1))|0,y,2,1);                    // canopy
+      g.fillStyle="#20242c"; g.fillRect(X,y-2,1,2);                                                    // rotor mast
+      if((Math.floor(now/300))%2===0){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,60,60,0.9)"; g.fillRect(X|0,(y+2)|0,1,1); g.globalCompositeOperation="source-over"; }  // red beacon
+      if(L<0.6){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,244,190,0.5)"; g.fillRect((X+dir*3)|0,(y+2)|0,2,2); g.globalCompositeOperation="source-over"; }  // searchlight
+    }
+  }
+}
 // early OFFROAD vehicles: the founders' jeeps, log trucks and a dozer roam the dirt before roads exist
 function drawOffroad(g,wx,y,dir,L,now,kind){
   for(var off=-WW;off<=WW;off+=WW){ var X=(wx-WOFF+off)|0; if(X<-14||X>SW+14) continue;
@@ -11136,6 +11170,7 @@ function draw(g,pass){
   // sky attractions: hot-air balloons on calm days, an ad-blimp on a schedule
   if(cityG>0.35 && !nukeStruck()) drawBalloons(g,L,now,fx);   // the flash pops the hot-air balloons
   if(cityG>0.5 && !nukeFull()) drawBlimp(g,L,now,night,nd);
+  if(!nukeFull()){ drawHighFlights(g,L,now,fx); drawHelis(g,L,now); }   // busier skies: high cruisers + contrails + downtown choppers
 
   // the wilderness the city grows out of (hills, grass, river, trees, the first cabin) — recedes as it matures
   if(cityG<0.985) drawTerrain(g,cityG,L,now,nd,pass==="fg"?"fg":undefined);
@@ -11198,7 +11233,8 @@ function draw(g,pass){
   } g.globalAlpha=1; }
 
   // airport traffic: a plane taking off or coming in to land (needs the airport)
-  if(cityG>0.68){ var fl=flightNow(now); if(fl && !nukeHit(fl.x)) drawPlane(g,fl,L,now);            // the blast wave takes the aircraft down as it reaches them
+  if(cityG>0.55){ var fl=flightNow(now); if(fl && !nukeHit(fl.x)) drawPlane(g,fl,L,now);            // the blast wave takes the aircraft down as it reaches them
+    var fl2=flightNow(now+21000); if(fl2 && !nukeHit(fl2.x)) drawPlane(g,fl2,L,now);                 // a 2nd flight (offset) so the pattern is usually busy
     var chop=chopperNow(now); if(chop && !nukeHit(chop.x)) drawChopper(g,chop.x,chop.y,chop.dir,chop.rotor,L,now); }  // rooftop helipad chopper
 
   // elevated train line + scheduled train (mass transit arrives with the city)
