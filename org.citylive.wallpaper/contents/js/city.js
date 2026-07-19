@@ -3194,8 +3194,24 @@ function drawLiberation(g,L,now){
   }
 }
 // the whole regime world-overlay dispatcher (banners + statue + …), drawn over the near layer
+// v1.24 — the oppressive CRIMSON WASH over the whole city, deepening with the stage, lifting at liberation.
+// A source-over gradient veil (denser toward the streets, light on the sky so the stars survive) — no
+// additive/multiply, so it renders the same on the QML FBO and Chromium. Gated on curRegime.active.
+function drawRegimeWash(g,L,now){
+  var R=curRegime; if(!R||!R.active) return;
+  var amt = R.stage>=5?0.24 : R.stage===4?0.16 : R.stage===3?0.09 : R.stage===2?0.045 : 0.02;
+  if(R.stage===6) amt*=Math.max(0,1-(R.sub-0.08)/0.40);            // the red lifts as the city is freed
+  if(amt<=0.004) return;
+  amt*=1+0.05*Math.sin(now*0.0011);                                // a slow, ominous breathe
+  var gd=g.createLinearGradient(0,0,0,SH);
+  gd.addColorStop(0,    "rgba(60,6,12,"+(amt*0.42).toFixed(3)+")");  // sky: a light crimson touch
+  gd.addColorStop(0.55, "rgba(80,8,14,"+(amt*0.85).toFixed(3)+")");
+  gd.addColorStop(1,    "rgba(96,10,16,"+(amt).toFixed(3)+")");      // streets: full oppressive crimson
+  g.fillStyle=gd; g.fillRect(0,0,SW,SH);
+}
 function drawRegime(g,L,now,night){
   if(!curRegime||!curRegime.active) return;
+  drawRegimeWash(g,L,now);       // the crimson mood over everything drawn so far (flags/city); HUD stays crisp on top
   // (flags/banners are drawn per-layer via drawLayerRegime for correct depth; here = the plaza overlay)
   drawLeaderStatue(g,L,now);
   drawLiberation(g,L,now);
