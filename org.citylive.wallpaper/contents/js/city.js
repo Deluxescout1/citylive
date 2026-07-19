@@ -5079,6 +5079,15 @@ function tickerMsg(now){
   if(cityHasBuild("casino")){ msgs.push("CASINO ZONE DRAWS RECORD CROWDS - TOURISM UP"); msgs.push("POLICE ADD PATROLS AROUND THE CASINO DISTRICT"); }
   if(curPolicies.heightcap&&curEcon<0.45) msgs.push("DEVELOPERS BLAME HEIGHT CAP FOR STALLED GROWTH");
   if(cityHasBuild("park")) msgs.push("CITY PARK NAMED BEST NEW PUBLIC SPACE");
+  // ---- CIVIC LANDMARK headlines: a GRAND OPENING beat preempts the ticker; once built, ambient civic-pride/tourism news ----
+  var isJune=(nowDate().getMonth()===5);
+  for(var lb=0;lb<curBuilds.length;lb++){ var lcb=curBuilds[lb]; if(!lcb.civic) continue;
+    var open=(lcb.bp==="open"), lname=CIVIC_LABEL[lcb.t];
+    if(lcb.t==="university"){ if(open) return "THE NEW UNIVERSITY OPENS - FIRST CLASS ENROLLS"; msgs.push(isJune?"GRADUATION DAY - CAPS FLY AT THE UNIVERSITY":("UNIVERSITY RESEARCH PUTS "+cityName+" ON THE MAP")); }
+    else if(lcb.t==="grandcentral"){ if(open) return "GRAND CENTRAL TERMINAL OPENS - THE TRAINS ROLL IN"; msgs.push("GRAND CENTRAL BUSTLES - RECORD RIDERSHIP DOWNTOWN"); }
+    else if(lcb.t==="zoo"){ if(open) return "THE CITY ZOO OPENS ITS GATES TODAY"; msgs.push("CITY ZOO WELCOMES A NEW ARRIVAL - TOURISM UP"); }
+    else if(lcb.t==="marina"){ if(open) return "THE NEW MARINA OPENS - SAILS FILL THE BAY"; msgs.push("MARINA DRAWS YACHTS AND VISITORS - TOURISM UP"); }
+    else if(lcb.t==="observatory"){ if(open) return "THE OBSERVATORY OPENS - PUBLIC STARGAZING NIGHTS"; msgs.push("OBSERVATORY TRACKS A COMET OVER "+cityName); } }
   var bn=corpNews(now); for(var ci2=0;ci2<bn.length;ci2++) msgs.push(bn[ci2]);   // corporate business headlines (rise/IPO/merger/bankruptcy)
   var slot=Math.floor(now/12000);
   var cb=citizenBeat(now);   // the featured citizen's current status gets EVERY 3RD slot — steady, followable airtime for a story arc
@@ -8208,7 +8217,8 @@ function approvalNow(now){
   var a=48 + curEcon*34 - (curWar&&curWar.f>=0&&curWar.f<1.2?18:0) + (curMayor?4:0);
   if(curMayor){ if(curMayor.ousted) a-=10; else if(curMayor.scandal) a-=14; if(curMayor.justElected) a+=6; }  // honeymoon / disgrace
   if(curPolicies){ if(curPolicies.surveil) a-=4; if(curPolicies.carfree) a+=3; if(curPolicies.heightcap) a-=3; }  // soft mood swings
-  for(var i=0;i<curBuilds.length;i++){ var t=curBuilds[i].t; if(t==="park")a+=4; else if(t==="stadium"||t==="casino")a+=2; }
+  for(var i=0;i<curBuilds.length;i++){ var t=curBuilds[i].t;                                         // voted builds lift civic pride
+    if(t==="park"||t==="university")a+=4; else if(t==="grandcentral"||t==="zoo"||t==="marina")a+=3; else if(t==="stadium"||t==="casino"||t==="observatory")a+=2; }
   return Math.max(15,Math.min(92,Math.round(a)));
 }
 // ---------- BALLOT MEASURES ----------
@@ -10682,7 +10692,8 @@ function draw(g,pass){
   // fresh BEFORE anything downstream reacts to it (traffic suppression, crowds, movers this same frame).
   var cg=cityGrowth(now); cityG=cg.g; cityPhase=cg.phase;
   cityEra=cityEraOf(now);                                    // which architectural age is this life rebuilt in?
-  curSpace = cityPhase==="apoc" ? 1 : Math.max(0,Math.min(1,(cg.cy-(0.80-EDUB))/0.13));   // the space age dawns in the city's final days
+  var eduB = EDUB + (cityHasBuild("university")?0.03:0);   // a UNIVERSITY hastens the space age (research city)
+  curSpace = cityPhase==="apoc" ? 1 : Math.max(0,Math.min(1,(cg.cy-(0.80-eduB))/0.13));   // the space age dawns in the city's final days
   cityApoc=(cityPhase==="apoc")?cg.apoc:0;                   // the grand cataclysm progress (0..1)
   apocMs=cityApoc*0.045*GROW_CYCLE;                          // REAL ms since detonation (drives the fast bang/heat-wave/vaporize)
   curDeath=FORCEDEATH||deathOf(lifeI);                       // how this civilization is fated to end
@@ -10741,6 +10752,9 @@ function draw(g,pass){
   curCorps=corpState(now);                                   // the corporate landscape (rising/juggernaut/fading firms) this life
   if(curMayor&&curMayor.party.k==="BUILDERS") curEcon=Math.min(1,curEcon+0.15);   // builders juice the economy
   if(cityHasBuild("casino")) curEcon=Math.min(1,curEcon+0.06);                    // CASINO nightlife brings tourist money (but also crime — see crimeNow)
+  if(cityHasBuild("zoo")) curEcon=Math.min(1,curEcon+0.04);                       // ZOO + MARINA draw tourists (no crime downside)
+  if(cityHasBuild("marina")) curEcon=Math.min(1,curEcon+0.04);
+  if(cityHasBuild("grandcentral")) curEcon=Math.min(1,curEcon+0.03);              // GRAND CENTRAL — the transit hub keeps commerce moving
   if(curPolicies.heightcap) curEcon=Math.max(0,curEcon-0.08);                     // a HEIGHT CAP throttles development → softer economy, more empty storefronts (see FOR LEASE at ~9248)
   if(curEcon<0.35) curLit*=0.9;                                                    // a mandate-driven slump also dims the town a touch more
   curWar=(cityG>0.5)?warState(now):null;                     // is this the life the enemy comes?
