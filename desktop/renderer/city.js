@@ -5456,6 +5456,26 @@ function newsEmergency(){
 // big LED NEWS SCREENS mounted high on the downtown towers — they run the LOCAL city news, and cut to
 // red BREAKING coverage the instant anything happens (disaster, invasion, the incoming meteor…), so the
 // story is visible right on the skyline. Each screen dies with its tower when the cataclysm reaches it.
+// v1.24 STATE MEDIA — under THE ORDER the jumbotrons stop showing news and show the leader's portrait
+// + a rotating slogan (propaganda faces). A small stern pixel portrait: crimson cap w/ emblem, hard eyes.
+function drawStateScreen(g,sx,sy,sw,sh,now,L){
+  g.fillStyle="#5a1418"; g.fillRect(sx-1,sy-1,sw+2,sh+2);                               // crimson bezel
+  g.fillStyle="#1a0407"; g.fillRect(sx,sy,sw,sh);                                       // dark screen
+  g.fillStyle="#7a1018"; g.fillRect(sx,sy,sw,4);                                        // header bar
+  drawUiText(g,"STATE",sx+1,sy,"#ffd2c4",1);
+  if((Math.floor(now/500))&1){ g.fillStyle="#ff3b3b"; g.fillRect(sx+sw-3,sy+1,2,2); }   // blinking LIVE dot
+  var px=sx+3, py=sy+5;                                                                 // the leader's portrait (left)
+  g.fillStyle="#d8b48c"; g.fillRect(px,py+2,5,5);                                       // face
+  g.fillStyle="#c39a72"; g.fillRect(px,py+2,1,5);                                       // cheek shade
+  g.fillStyle="#8a1018"; g.fillRect(px-1,py,7,2); g.fillRect(px-1,py+1,1,1); g.fillRect(px+5,py+1,1,1);   // crimson cap
+  g.fillStyle="#f4eee2"; g.fillRect(px+2,py,1,1);                                       // cap emblem
+  g.fillStyle="#241610"; g.fillRect(px+1,py+4,1,1); g.fillRect(px+3,py+4,1,1);          // hard eyes
+  g.fillStyle="#3a2a1e"; g.fillRect(px+1,py+3,4,1);                                     // stern brow
+  g.fillStyle="#7a1018"; g.fillRect(px,py+7,5,1);                                       // collar
+  var sl=ORDER_SLOGANS[(Math.floor(now/2600))%ORDER_SLOGANS.length];                    // rotating slogan (right)
+  drawUiText(g,sl.substr(0,Math.max(1,((sw-11)/4)|0)),px+8,sy+7,"#ffe0d0",1);
+  g.globalCompositeOperation="lighter"; g.fillStyle="rgba(220,40,40,"+(0.10+0.10*(1-L)).toFixed(2)+")"; g.fillRect(sx,sy,sw,sh); g.globalCompositeOperation="source-over";   // screen glow
+}
 function drawNewsScreens(g,L,now,night){
   if(cityG<0.5) return;
   var msg=tickerMsg(now), emerg=newsEmergency();
@@ -5472,6 +5492,7 @@ function drawNewsScreens(g,L,now,night){
     if(bx<-40||bx>SW+40) continue;
     drawn++;
     var sw2=Math.min(b.w-4,34), sh2=13, sx=Math.round(bx+(b.w-sw2)/2), sy=HORIZON-b.h+8;   // mounted high on the facade
+    if(curRegime&&curRegime.active&&curRegime.stage>=3){ drawStateScreen(g,sx,sy,sw2,sh2,now,L); continue; }   // STATE MEDIA takes the screens
     g.fillStyle=emerg?"#5a1418":(L>0.5?"#474d59":"#2a2f39"); g.fillRect(sx-1,sy-1,sw2+2,sh2+2);   // metallic bezel — reads against any facade
     g.fillStyle=emerg?"#170406":"#05070c"; g.fillRect(sx,sy,sw2,sh2);                             // dark screen
     g.fillStyle=emerg?"#7a1418":"#123a4e"; g.fillRect(sx,sy,sw2,4);                               // header bar
