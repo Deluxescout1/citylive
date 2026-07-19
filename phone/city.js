@@ -8825,6 +8825,30 @@ function regimeState(now){
     path:["vote","revolution","uprising"][(rh>>>17)%3], cyStart:REGIME_STAGES[0], cyEnd:REGIME_STAGES[6], li:li, seed:rh };
 }
 var curRegime=null;   // set each frame; the whole arc reads this
+// ===== THE PLAGUE — a pandemic arc, same shape as THE ORDER but its own story. Pure f(clock), life-scoped,
+// and MUTUALLY EXCLUSIVE with war + regime: it yields to BOTH (a life is at most one of war/regime/plague),
+// so it never collides. Reads only the same rolls (no mayorState/warState/regimeState call → no cycle). =====
+var PLAGUE_SALT=0x50142E1D;                                        // "Plag" — isolated hash stream
+var PLAGUE_STAGES=[0.42,0.48,0.54,0.62,0.70,0.78];                // 5 stages then RECOVERED (healed end)
+var PLAGUE_STAGE_LABEL=["","OUTBREAK","LOCKDOWN","SURGE","RECOVERY","REOPENING"];   // unmistakable stage names
+var FORCEPLAGUE=null;                                              // test hook (own line — QML-namespace writable)
+function plagueState(now){
+  if(FORCEPLAGUE) return FORCEPLAGUE;
+  var cg=cityGrowth(now); if(cg.g<0.40||cg.phase==="apoc") return null;   // real cities only, never the apocalypse
+  var li=lifeIndexOf(now), cy=cg.cy;
+  if(((li*2654435761+7717)>>>0)%100 < 62) return null;            // YIELD to war lives (warState's existence roll)
+  var rh=((((li*2654435761)>>>0) ^ REGIME_SALT)>>>0);
+  if((rh%100) < 37) return null;                                  // YIELD to REGIME lives (regimeState claims those)
+  var ph=((((li*2654435761)>>>0) ^ PLAGUE_SALT)>>>0);
+  if((ph%100) >= 45) return null;                                 // ~45% of what's left → ~11% overall (uncommon, like the regime)
+  if(cy<PLAGUE_STAGES[0] || cy>=PLAGUE_STAGES[5]) return null;    // NORMAL before the outbreak & after recovery (life-scoped)
+  var stage=1; for(var s=1;s<5;s++){ if(cy>=PLAGUE_STAGES[s]) stage=s+1; }
+  var sub=Math.max(0,Math.min(1,(cy-PLAGUE_STAGES[stage-1])/(PLAGUE_STAGES[stage]-PLAGUE_STAGES[stage-1])));
+  var prog=(cy-PLAGUE_STAGES[0])/(PLAGUE_STAGES[5]-PLAGUE_STAGES[0]);                 // 0..1 across the whole arc
+  var severity=Math.max(0,Math.min(1, prog<0.42 ? prog/0.42 : 1-(prog-0.42)/0.58));  // cases rise to the SURGE peak (~stage 3) then fall
+  return { active:true, stage:stage, sub:sub, severity:severity, cyStart:PLAGUE_STAGES[0], cyEnd:PLAGUE_STAGES[5], li:li, seed:ph };
+}
+var curPlague=null;   // set each frame; the whole plague arc reads this
 // explicit, unmistakable per-stage news — dominates the ticker while the takeover is underway
 function regimeTicker(now){
   var R=curRegime; if(!R||!R.active) return null;
@@ -11507,6 +11531,7 @@ function draw(g,pass){
   computeLmFoot();                                           // clear plazas where the civic landmarks stand
   curMayor=mayorState(now);                                  // who runs city hall right now?
   curRegime=regimeState(now);                                // THE ORDER's political arc this life (null on most lives)
+  curPlague=plagueState(now);                                // THE PLAGUE's pandemic arc this life (null on most lives; never overlaps war/regime)
   curBuilds=passedBuilds(now).concat(passedCivics(now));     // permanent landmarks the city voted to build this life (measures + civic projects)
   curPolicies=curPoliciesOf(now);                            // soft policy-measures in force this term
   curCorps=corpState(now);                                   // the corporate landscape (rising/juggernaut/fading firms) this life
