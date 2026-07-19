@@ -29,6 +29,10 @@ Item {
             // street events (drawConcert/drawFoodFest/drawChampionship/drawIceRink + the older ones) on a grown city, day & night
             var evs = ["concert","foodfest","champ","icerink","market","parade","movie","marathon","protest","film","balloonfest"];
             for (var ev = 0; ev < evs.length; ev++) jobs.push({ age: 0.7, clock: [clk, night][ev % 2], event: evs[ev] });
+            // voted civic landmarks (drawUniversity/GrandCentral/Zoo/Observatory/Marina) — done + under-construction, day & night
+            var lms = ["university","marina","zoo","observatory","grandcentral"];
+            for (var lm = 0; lm < lms.length; lm++) for (var bp = 0; bp < 2; bp++)
+                jobs.push({ age: 0.72, clock: [clk, night][lm % 2], civics: [{ t: lms[lm], kind: "build", civic: true, pass: true, bp: ["done","cons"][bp], prog: 0.5, x: 1200, w: 60, seed: 998877 }] });
 
             var ok = true;
             try { City.setup('neon', { cw: 853, ch: 480, woff: 0, ww: 2269, pxk: 3, zoom: 1, quality: 'spectacle' }); }
@@ -39,6 +43,7 @@ Item {
                 City.FORCEDEATH = (jobs[j].death !== undefined ? jobs[j].death : undefined);
                 City.FORCEDIS = (jobs[j].dis !== undefined ? jobs[j].dis : null);
                 City.FORCEEVENT = (jobs[j].event !== undefined ? jobs[j].event : null);
+                City.FORCEELECT = (jobs[j].civics !== undefined ? { civics: jobs[j].civics } : null);
                 try { City.draw(g); }
                 catch (e) { console.log("SWEEP_FAIL job " + j + " " + JSON.stringify(jobs[j]).slice(0,70) + ": " + e); ok = false; }
             }

@@ -8493,7 +8493,7 @@ function warState(now){
 // district — the building loop clears the ground there (skips those buildings) and the whole structure is
 // drawn here in ONE pass, in the near layer (so traffic passes in front). Rendered EVERY frame for hours →
 // every renderer is STATIC/cheap with hard-bounded loops (same freeze discipline as ruins).
-function isZoneBuild(t){ return t==="stadium"||t==="park"||t==="casino"; }
+function isZoneBuild(t){ return t==="stadium"||t==="park"||t==="casino"||t==="university"||t==="zoo"||t==="grandcentral"; }   // in-city plots that clear a plaza (marina→shore, observatory→mountain place themselves)
 function drawBuilds(g,L,now,night){
   if(!curBuilds.length||nukeStruck()) return;
   for(var i=0;i<curBuilds.length;i++){ var cb=curBuilds[i];
@@ -8504,6 +8504,11 @@ function drawBuilds(g,L,now,night){
     if(cb.t==="stadium") drawArena(g,cx,cb,L,now,night);
     else if(cb.t==="casino") drawCasino(g,cx,cb,L,now);
     else if(cb.t==="park") drawCityPark(g,cx,cb,L,now);
+    else if(cb.t==="university") drawUniversity(g,cx,cb,L,now,night);
+    else if(cb.t==="grandcentral") drawGrandCentral(g,cx,cb,L,now,night);
+    else if(cb.t==="zoo") drawZoo(g,cx,cb,L,now,night);
+    else if(cb.t==="observatory") drawObservatory(g,cx,cb,L,now,night);
+    else if(cb.t==="marina") drawMarina(g,cx,cb,L,now,night);
     if(cb.bp==="open") drawRibbon(g,cx,cb,L,now);                            // GRAND OPENING beat, overlaid on the finished build
   }
 }
@@ -8620,6 +8625,116 @@ function drawCityPark(g,cx,cb,L,now){
   for(var pp=0;pp<3;pp++){ var ppx=x0+8+pp*((w/3)|0)+((Math.floor(now/1000)+pp)%3);            // strollers
     drawPerson(g,ppx,gy-1,PEDC[(pp+seed)%PEDC.length],SKINC[pp%SKINC.length],(Math.floor(now/400)+pp)&1); }
   var lab="CITY PARK", lw=textW(lab); if(lw<=w) drawPixText(g,lab, cb.x-(lw>>1), gy-13, L>0.5?"#bfe0b0":"#8fd08a", 0.9);
+}
+// ============================ VOTED CIVIC LANDMARKS (v1.11) ============================
+// Monumental beaux-arts civic architecture (stone, columns, domes, clock towers) with lively activity,
+// so each reads as an important public building set apart from the commercial towers. cx=screen centre,
+// cb.x=world-x (labels use it so text wraps to the same on-screen spot). All pure functions of the clock.
+function civicPediment(g,px,py,pw,fill,edge){ var hh=Math.min(8,pw>>1);   // a filled triangular pediment sitting on py, apex up
+  for(var r=0;r<hh;r++){ g.fillStyle=fill; g.fillRect(px+r,py-r,pw-r*2,1); }
+  g.fillStyle=edge; for(var e=0;e<hh;e++){ g.fillRect(px+e,py-e,1,1); g.fillRect(px+pw-1-e,py-e,1,1); } }
+// UNIVERSITY — a stone hall with a columned portico, a central clock tower, and a lively quad (grad processions in June)
+function drawUniversity(g,cx,cb,L,now,night){
+  var gy=HORIZON, w=cb.w||52, x0=(cx-(w>>1))|0, seed=(cb.seed>>>0), H=22+(seed%5);
+  var stone=L>0.5?"#d8cdb4":"#484234", stoneD=L>0.5?"#bcae90":"#37322a", roof=L>0.5?"#7a5638":"#281d14";
+  g.fillStyle=stone; g.fillRect(x0,gy-H,w,H); g.fillStyle=stoneD; g.fillRect(x0,gy-H,w,1);            // main hall
+  g.fillStyle=night>0.4?"#ffe6a0":(L>0.5?"#8fb0d0":"#2a3550");                                        // window rows
+  for(var wy=gy-H+4;wy<gy-5;wy+=5) for(var wx=x0+3;wx<x0+w-3;wx+=4) g.fillRect(wx,wy,2,3);
+  var pw=Math.max(10,Math.round(w*0.46)), px=x0+(w>>1)-(pw>>1);                                       // columned portico
+  g.fillStyle=stoneD; g.fillRect(px-1,gy-13,pw+2,1);                                                  // base step
+  for(var c=0;c<pw;c+=3){ g.fillStyle=(c%6===0)?stoneD:stone; g.fillRect(px+c,gy-13,2,13); }          // columns (fluted feel)
+  g.fillStyle=stone; g.fillRect(px-1,gy-16,pw+2,3);                                                   // architrave
+  civicPediment(g,px-1,gy-16,pw+2,stone,stoneD);
+  var tw=7, tx=x0+(w>>1)-(tw>>1), th=15;                                                              // central clock tower
+  g.fillStyle=stone; g.fillRect(tx,gy-H-th,tw,th); g.fillStyle=stoneD; g.fillRect(tx,gy-H-th,tw,1);
+  g.fillStyle=roof; for(var rr=0;rr<4;rr++) g.fillRect(tx+rr,gy-H-th-1-rr,tw-rr*2,1);                 // spire
+  g.fillStyle="#f4efe0"; g.fillRect(tx+2,gy-H-th+3,tw-4,tw-4);                                        // clock face
+  g.fillStyle="#2a2620"; g.fillRect(tx+(tw>>1)-1,gy-H-th+4,1,2); g.fillRect(tx+(tw>>1)-1,gy-H-th+4,2,1);
+  g.fillStyle=L>0.5?"#3c6e30":"#16321c"; for(var iv=x0+1;iv<x0+w;iv+=7) g.fillRect(iv,gy-5,1,5);      // ivy at the base
+  var grad=(nowDate().getMonth()===5);                                                                // June = graduation season
+  for(var s=0;s<6;s++){ var sx=(x0+4+s*((w-8)/5))|0, isG=grad&&(s&1);
+    drawPerson(g,sx,gy-1,isG?"#20202e":PEDC[(s+seed)%PEDC.length],SKINC[s%SKINC.length],(Math.floor(now/500)+s)&1);
+    if(isG){ g.fillStyle="#20202e"; g.fillRect(sx-1,gy-6,3,1); g.fillStyle="#ffd24a"; g.fillRect(sx+2,gy-6,1,1); } }   // mortarboard + tassel
+  var lab="UNIVERSITY", lw=textW(lab); if(lw<=w+10) drawPixText(g,lab,cb.x-(lw>>1),gy-H-th-6,L>0.5?"#e8dcc0":"#c9b890",0.9);
+}
+// GRAND CENTRAL — a monumental beaux-arts terminal: arched hall, colonnade, a great clock, a statue-crowned
+// pediment, and commuter crowds streaming through the doors.
+function drawGrandCentral(g,cx,cb,L,now,night){
+  var gy=HORIZON, w=cb.w||60, x0=(cx-(w>>1))|0, seed=(cb.seed>>>0), H=26+(seed%5);
+  var stone=L>0.5?"#cfc3a6":"#443f32", stoneD=L>0.5?"#b0a184":"#332e26";
+  g.fillStyle=stone; g.fillRect(x0,gy-H,w,H); g.fillStyle=stoneD; g.fillRect(x0,gy-H,w,1);
+  for(var a=0;a<3;a++){ var aw=Math.round(w*0.22), ax=x0+Math.round(w*(0.13+a*0.28));                // three great arched windows
+    g.fillStyle=stoneD; g.fillRect(ax-1,gy-H+4,aw+2,H-8);
+    g.fillStyle=night>0.4?"#ffdf94":(L>0.5?"#9fc0dc":"#2c3a56"); g.fillRect(ax,gy-H+6,aw,H-11);
+    for(var mu=1;mu<aw;mu+=3){ g.fillStyle=stone; g.fillRect(ax+mu,gy-H+6,1,H-11); }                  // window mullions
+    for(var ar=0;ar<(aw>>1);ar++){ g.fillStyle=stone; g.fillRect(ax+ar,gy-H+5-ar,1,1); g.fillRect(ax+aw-1-ar,gy-H+5-ar,1,1); } }  // arch tops
+  for(var c2=x0+2;c2<x0+w-2;c2+=4){ g.fillStyle=stoneD; g.fillRect(c2,gy-6,2,6); }                    // ground colonnade
+  var cpw=Math.max(12,Math.round(w*0.34)), cpx=x0+(w>>1)-(cpw>>1);                                    // crowning pediment + clock
+  g.fillStyle=stone; g.fillRect(cpx,gy-H-3,cpw,3); civicPediment(g,cpx,gy-H-3,cpw,stone,stoneD);
+  g.fillStyle="#e9e2cf"; g.fillRect(x0+(w>>1)-2,gy-H-1,4,4); g.fillStyle="#2a2620";                   // the great clock
+  g.fillRect(x0+(w>>1),gy-H+1,1,2); g.fillRect(x0+(w>>1),gy-H+1,2,1);
+  g.fillStyle=stoneD; g.fillRect(x0+(w>>1),gy-H-3-6,1,6);                                             // rooftop statue/finial
+  for(var p=0;p<9;p++){ var t=((now*0.02)+p*7)%36, side=(p&1)?1:-1, dx=side*Math.round((36-t)/3);     // commuters streaming to the doors
+    var qx=x0+(w>>1)+dx; drawPerson(g,qx|0,gy-1,PEDC[(p+seed)%PEDC.length],SKINC[p%SKINC.length],(Math.floor(now/260)+p)&1); }
+  var lab="GRAND CENTRAL", lw=textW(lab); if(lw<=w+12) drawPixText(g,lab,cb.x-(lw>>1),gy-H-12,L>0.5?"#e6dcc2":"#c7b896",0.9);
+}
+// ZOO — a broad, sprawling grounds behind an ornate arch gate, with animal enclosures and families
+function drawZoo(g,cx,cb,L,now,night){
+  var gy=HORIZON, w=cb.w||58, x0=(cx-(w>>1))|0, seed=(cb.seed>>>0);
+  g.fillStyle=L>0.5?"#3f6a34":"#16301a"; g.fillRect(x0,gy-4,w,4);                                     // grounds
+  g.fillStyle=L>0.5?"#7a6a4a":"#2c2618"; for(var fx=x0;fx<x0+w;fx+=3) g.fillRect(fx,gy-6,1,6);        // perimeter fence
+  var gw=12, gx=x0+(w>>1)-(gw>>1), stone=L>0.5?"#c9b58a":"#3a3223";                                   // ornate arch GATE
+  g.fillStyle=stone; g.fillRect(gx-1,gy-15,2,15); g.fillRect(gx+gw-1,gy-15,2,15);                     // gate pillars
+  g.fillStyle=stone; g.fillRect(gx-1,gy-16,gw+2,3);                                                   // arch beam
+  for(var ga=0;ga<(gw>>1);ga++){ g.fillStyle=stone; g.fillRect(gx+ga,gy-16-ga,1,1); g.fillRect(gx+gw-1-ga,gy-16-ga,1,1); }
+  drawPixText(g,"ZOO",gx+1,gy-15,L>0.5?"#5a3f26":"#d8c090",0.8);
+  // enclosures: a leafy tree, an elephant, a giraffe silhouette
+  var ex=x0+4; g.fillStyle=L>0.5?"#3c6e30":"#16321c"; g.fillRect(ex,gy-9,5,4); g.fillStyle=L>0.5?"#5a3f26":"#241a10"; g.fillRect(ex+2,gy-5,1,3);  // tree
+  var elx=x0+w-16; g.fillStyle=L>0.5?"#9a9aa4":"#3a3a44"; g.fillRect(elx,gy-6,7,4); g.fillRect(elx-1,gy-4,1,3); g.fillRect(elx,gy-2,1,2); g.fillRect(elx+6,gy-2,1,2);  // elephant body+trunk+legs
+  var grx=x0+w-8; g.fillStyle=L>0.5?"#d8b24a":"#5a4a20"; g.fillRect(grx,gy-13,1,9); g.fillRect(grx,gy-13,2,1); g.fillRect(grx-1,gy-4,3,3);  // giraffe neck+head+body
+  for(var f=0;f<5;f++){ var fx2=(x0+7+f*((w-12)/4))|0; if(Math.abs(fx2-(x0+(w>>1)))<6) continue;      // families (an adult + a kid)
+    drawPerson(g,fx2,gy-1,PEDC[(f+seed)%PEDC.length],SKINC[f%SKINC.length],(Math.floor(now/520)+f)&1);
+    drawKidS(g,fx2+2,gy-1,PEDC[(f+3)%PEDC.length],SKINC[(f+1)%SKINC.length],(Math.floor(now/520)+f)&1,0.6); }
+  var lab="CITY ZOO", lw=textW(lab); if(lw<=w) drawPixText(g,lab,cb.x-(lw>>1),gy-20,L>0.5?"#bfe0b0":"#8fd08a",0.9);
+}
+// OBSERVATORY — a silver domed telescope on the mountain foothills; the slit opens at night and stargazers gather
+function drawObservatory(g,cx,cb,L,now,night){
+  var gy=HORIZON, w=cb.w||40, x0=(cx-(w>>1))|0, seed=(cb.seed>>>0), H=14+(seed%4);
+  var stone=L>0.5?"#c4bca8":"#413c33", dome=L>0.5?"#b8c0cc":"#3a4250", domeHi=L>0.5?"#dfe6ee":"#586274";
+  g.fillStyle=stone; g.fillRect(x0,gy-H,w,H); g.fillStyle=L>0.5?"#a89f8a":"#322e27"; g.fillRect(x0,gy-H,w,1);   // stone drum base
+  g.fillStyle=night>0.4?"#ffe6a0":(L>0.5?"#8fb0d0":"#2a3550"); for(var wx=x0+3;wx<x0+w-3;wx+=5) g.fillRect(wx,gy-H+4,2,3);  // windows
+  var dw=Math.round(w*0.62), dx=x0+(w>>1)-(dw>>1), dh=Math.round(dw*0.55), dcx=x0+(w>>1);             // the DOME (half-circle)
+  for(var yy=0;yy<dh;yy++){ var t=yy/dh, hw=Math.round((dw>>1)*Math.sqrt(Math.max(0,1-t*t)));
+    g.fillStyle=(yy<2)?domeHi:dome; g.fillRect(dcx-hw,gy-H-1-yy,hw*2,1); }
+  g.fillStyle=domeHi; g.fillRect(dx+1,gy-H-2,2,1);                                                    // dome sheen
+  var open=(night>0.35);                                                                              // slit + telescope at night
+  g.fillStyle=open?"#12151f":"#8a92a0"; g.fillRect(dcx-1,gy-H-dh,2,dh);                               // shutter slit
+  if(open){ g.strokeStyle="#c8ccd6"; g.lineWidth=1; g.beginPath();                                    // the telescope barrel peeking out, aimed high
+    g.moveTo(dcx,gy-H-Math.round(dh*0.5)); g.lineTo(dcx+4,gy-H-dh-4); g.stroke();
+    g.globalCompositeOperation="lighter"; g.fillStyle="rgba(150,190,255,0.10)"; g.fillRect(dcx+2,gy-H-dh-8,4,8); g.globalCompositeOperation="source-over"; }
+  for(var sg=0;sg<3;sg++){ var sx=(x0+5+sg*((w-8)/2))|0; drawPerson(g,sx,gy-1,PEDC[(sg+seed)%PEDC.length],SKINC[sg%SKINC.length],(Math.floor(now/700)+sg)&1); }  // stargazers
+  var lab="OBSERVATORY", lw=textW(lab); if(lw<=w+16) drawPixText(g,lab,cb.x-(lw>>1),gy-H-dh-6,L>0.5?"#d8d2c2":"#b8c0cc",0.85);
+}
+// MARINA — a broad waterfront: a boardwalk on pilings over the water with moored yachts, sailboats, and gulls
+function drawMarina(g,cx,cb,L,now,night){
+  var gy=HORIZON, w=cb.w||64, x0=(cx-(w>>1))|0, seed=(cb.seed>>>0);
+  var deck=L>0.5?"#a5895f":"#3a2f1f", deckD=L>0.5?"#856b45":"#2a2116", water=L>0.5?"#3f78b0":"#12283f";
+  g.fillStyle=deck; g.fillRect(x0,gy-2,w,3); g.fillStyle=deckD; g.fillRect(x0,gy-2,w,1);              // boardwalk deck
+  for(var pl=x0+2;pl<x0+w;pl+=6){ g.fillStyle=deckD; g.fillRect(pl,gy+1,1,3); }                       // pilings into the water
+  var hb=Math.round(w*0.2), hx=x0;                                                                     // harbormaster hut
+  g.fillStyle=L>0.5?"#b64a3a":"#3a1a14"; g.fillRect(hx,gy-9,hb,7); g.fillStyle=L>0.5?"#8a3428":"#2a120e"; g.fillRect(hx,gy-11,hb,2);
+  g.fillStyle=night>0.4?"#ffe6a0":"#8fb0d0"; g.fillRect(hx+2,gy-7,2,2);
+  var boats=[[0.42,"#e8e2d0","#c0392b"],[0.66,"#dfe6ee","#2f6fb0"],[0.86,"#e8e2d0","#3a9a6f"]];       // moored sailboats (hull + sail)
+  for(var b=0;b<boats.length;b++){ var bx=x0+Math.round(boats[b][0]*w)+Math.round(Math.sin(now*0.001+b*2)*1);
+    g.fillStyle=boats[b][1]; g.fillRect(bx-3,gy+1,7,2); g.fillStyle=boats[b][2];                      // hull
+    g.fillStyle="#6a5a3a"; g.fillRect(bx,gy-8,1,9);                                                   // mast
+    g.fillStyle=boats[b][2]; for(var sr=0;sr<7;sr++) g.fillRect(bx+1,gy-8+sr,Math.round((7-sr)*0.6),1); }  // triangular sail
+  var sx2=x0+Math.round(((now*0.008)%1)*w);                                                            // a sailboat drifting across
+  g.fillStyle="#e8e2d0"; g.fillRect(sx2-2,gy+2,5,1); g.fillStyle="#6a5a3a"; g.fillRect(sx2,gy-5,1,6);
+  g.fillStyle="#f0f0f0"; for(var sr2=0;sr2<6;sr2++) g.fillRect(sx2+1,gy-5+sr2,Math.round((6-sr2)*0.5),1);
+  if(night<0.4) for(var gu=0;gu<3;gu++){ var gx=(x0+w*0.3+gu*10+((now*0.02)%14))|0, gyy=(gy-16-gu*3+Math.sin(now*0.003+gu)*2)|0;  // gulls
+    g.fillStyle=L>0.5?"#e8ecf2":"#8a909c"; g.fillRect(gx,gyy,1,1); g.fillRect(gx-1,gyy-1,1,1); g.fillRect(gx+1,gyy-1,1,1); }
+  var lab="MARINA", lw=textW(lab); if(lw<=w) drawPixText(g,lab,cb.x-(lw>>1),gy-14,L>0.5?"#cfe0f0":"#9fc0dc",0.9);
 }
 // A voted MONORAIL: a full-width elevated beam on world-anchored pylons, with a sleek train gliding along.
 // Rides HIGH above the pre-existing el-train viaduct (which sits at ~HORIZON-GROUND*1.1) so the two lines never
