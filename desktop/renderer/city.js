@@ -5401,7 +5401,7 @@ var schoolAt=0.42, EDUB=0, POPK=0.5, SMALLW=false;   // SMALLW: single-monitor w
 var lmFoot=[];                                                 // cleared plaza footprints (world x-ranges), rebuilt each frame
 function computeLmFoot(){ lmFoot.length=0;
   // the plots are reserved from the start (fairground), so no buildings get "demolished" when landmarks rise
-  var sc=Math.round(LM_STADIUM*WW); lmFoot.push([sc-30,sc+30]);
+  var sc=Math.round(LM_STADIUM*WW); lmFoot.push([sc-56,sc+56]);   // MASSIVE stadium needs a wider cleared plaza
   var hc=Math.round(LM_CITYHALL*WW); lmFoot.push([hc-36,hc+36]);   // wide plaza — city hall + annexes grow MONUMENTAL with the city
   var scl=Math.round(LM_SCHOOL*WW); lmFoot.push([scl-12,scl+12]);
   var mu=Math.round(LM_MUSEUM*WW); lmFoot.push([mu-12,mu+12]);
@@ -5708,7 +5708,7 @@ function drawCorpAds(g,L,now,night){
 
 // ---- the STADIUM: a tiered grandstand bowl with tall floodlight pylons; roars on game nights + fireworks ----
 function drawStadium(g,L,now,night,nd){
-  var cx=Math.round(LM_STADIUM*WW), baseY=HORIZON, rw=27, rh=14, game=gameNight(nd)&&L<0.55, lit=game?1:(night*0.55);
+  var cx=Math.round(LM_STADIUM*WW), baseY=HORIZON, rw=52, rh=30, game=gameNight(nd)&&L<0.55, lit=game?1:(night*0.55);   // MASSIVE bowl (Nick)
   for(var off=-WW;off<=WW;off+=WW){ var X=(cx-WOFF+off)|0; if(X+rw<-4||X-rw>SW+4) continue;
     // grandstand: the near (front) bowl wall, curving down toward the pitch, tiered seating rows
     for(var ry=0;ry<rh;ry++){ var t=ry/rh, ww=(rw*(1-t*t*0.5))|0;
@@ -5727,7 +5727,7 @@ function drawStadium(g,L,now,night,nd){
       g.fillStyle="rgba(255,255,255,0.35)"; g.fillRect(X-(rw-10),baseY-4,(rw-10)*2,1);                  // sideline
       g.fillStyle="rgba(255,255,255,0.4)"; g.fillRect(X-2,baseY-3,4,2); }                               // centre circle
     // four TALL floodlight pylons at the corners, with lamp banks + light cones onto the pitch
-    for(var p=0;p<4;p++){ var side=(p&1)?1:-1, near=(p<2), px=X+side*(rw-2), py=baseY-rh-16;
+    for(var p=0;p<4;p++){ var side=(p&1)?1:-1, near=(p<2), px=X+side*(rw-2), py=baseY-rh-26;
       g.fillStyle="#2a2e38"; g.fillRect(px|0,py|0,1,baseY-py-1);                                        // mast
       g.fillStyle=css(mixc([54,60,72],[255,250,220],lit)); g.fillRect((px-2)|0,py-2,5,4);               // lamp bank
       if(lit>0.35){ g.globalCompositeOperation="lighter";
@@ -8259,7 +8259,7 @@ function approvalNow(now){
 // so they never perturb who wins the mayor's race. Some BUILD permanent landmarks (life-scoped, like ruins);
 // some are term-scoped POLICIES that a later election can flip. ~65% of props pass (yes>=50).
 var MEASURE_SALT=0x51ED2701;
-var MEASURES=[ {t:"monorail",kind:"build",w:0}, {t:"stadium",kind:"build",w:60}, {t:"park",kind:"build",w:70},
+var MEASURES=[ {t:"monorail",kind:"build",w:0}, {t:"stadium",kind:"build",w:98}, {t:"park",kind:"build",w:70},
   {t:"casino",kind:"build",w:66}, {t:"seawall",kind:"build",w:0},
   {t:"heightcap",kind:"policy"}, {t:"carfree",kind:"policy"}, {t:"surveil",kind:"policy"} ];
 var MEASURE_LABEL={monorail:"MONORAIL",stadium:"STADIUM",park:"CITY PARK",casino:"CASINO ZONE",seawall:"SEAWALL",heightcap:"HEIGHT CAP",carfree:"CAR-FREE",surveil:"SAFE CAMS"};
@@ -8607,7 +8607,7 @@ function drawRibbon(g,cx,cb,L,now){
 // EVENT NIGHTS (~1 in 3 nights) when the floods blaze, the pitch glows, and the crowd sparkles.
 // (Named drawArena — NOT drawStadium — to avoid colliding with the civic-landmark drawStadium at ~4341.)
 function drawArena(g,cx,cb,L,now,night){
-  var gy=HORIZON, w=cb.w||60, x0=(cx-(w>>1))|0, seed=(cb.seed>>>0), H=20+(seed%6);
+  var gy=HORIZON, w=cb.w||98, x0=(cx-(w>>1))|0, seed=(cb.seed>>>0), H=34+(seed%8);   // MASSIVE voted arena too
   var wallB=L>0.5?"#8790a0":"#242a38", wallD=L>0.5?"#6b7382":"#171c28";
   // the bowl — a domed oval wall, column by column (center taller than the ends)
   for(var cxx=0;cxx<w;cxx++){ var tN=(cxx/(w-1))*2-1, rimDrop=Math.round(tN*tN*6), top=gy-H+rimDrop;
