@@ -3496,9 +3496,36 @@ function drawAmbulances(g,L,now){
       var beac=(Math.floor(now/240)&1); g.fillStyle=beac?"#ff2a2a":"#dfeef8"; g.fillRect((X+(dir>0?1:5))|0,ly-4,2,1);   // flashing beacon
       g.globalCompositeOperation="lighter"; g.fillStyle=beac?"rgba(255,40,40,0.5)":"rgba(210,235,255,0.4)"; g.fillRect((X+(dir>0?0:4))|0,ly-5,4,2); g.globalCompositeOperation="source-over"; } }
 }
+// BOARDED SHOPS + "STAY HOME" — storefronts board up through the lockdown. PER-BUILDING, so it mirrors
+// drawLayer's standing-tower culls EXACTLY (overSite/overLandmark/born>=band) or the boards float in the
+// sky over a plot with no building — the same bug the flags had (Nick 2026-07-19).
+function drawPlagueSigns(g,L,now){
+  var P=curPlague; if(!P||!P.active||P.stage<2||P.stage>4) return;
+  var frac=(P.stage===3)?0.9:(P.stage===2?0.4+0.5*P.sub:Math.max(0.15,0.6-P.sub*0.5));   // most boarded at the surge, reopening as it recovers
+  for(var i=0;i<near.blds.length;i++){ var b=near.blds[i];
+    if(b.type==="park"||b.h<20||b.w<10) continue;
+    if(overSite(b.x,b.w)||overLandmark(b.x,b.w)) continue;                                // a site/landmark stands here, not a shop
+    if(b.bAge!==undefined && cityG-b.bAge<bandOf(b)) continue;                            // open land / house / under construction → no storefront
+    if((((b.seed^0x51)>>>1)%100) >= frac*100) continue;                                   // fraction of the built frontages boarded, rising with the outbreak
+    var bx=(b.x-WOFF)|0; if(bx>SW+4&&bx-WW>-4)bx-=WW; if(bx<-4-b.w&&bx+WW<SW+4)bx+=WW;
+    if(bx+b.w<-4||bx>SW+4) continue;
+    var sx=(bx+1)|0, sw=b.w-2, gy=HORIZON, top=(gy-b.h)|0;
+    g.fillStyle="#6a4a2a"; g.fillRect(sx,gy-7,sw,7);                                        // boards over the storefront (ground floor)
+    for(var pl=sx;pl<sx+sw;pl+=2){ g.fillStyle="#523a22"; g.fillRect(pl,gy-7,1,7); }
+    g.fillStyle="#4a3418"; g.fillRect(sx,gy-5,sw,1);                                        // a nailed cross-plank
+    // a CLOSED / STAY HOME placard hung HIGH on the face (well clear of any viaduct), the readable signal
+    var sign=((b.seed&1)&&sw>=38)?"STAY HOME":"CLOSED", slen=sign.length*4-1;
+    if(sw>=slen+2){ var px2=(sx+((sw-slen)>>1)-1)|0, py2=Math.max(top+3,gy-Math.min(b.h-4,24))|0;
+      g.fillStyle="#241a0e"; g.fillRect(px2+(slen>>1),py2-3,1,3);                            // small mount
+      g.fillStyle="#efe6cc"; g.fillRect(px2,py2,slen+2,7);                                   // cream placard
+      g.fillStyle="#8a6a3a"; g.fillRect(px2,py2,slen+2,1); g.fillRect(px2,py2+6,slen+2,1); g.fillRect(px2,py2,1,7); g.fillRect(px2+slen+1,py2,1,7);
+      drawUiText(g,sign,(px2+1)|0,py2+1,"#8a1e16",1); }
+  }
+}
 function drawPlague(g,L,now,night){
   if(!curPlague||!curPlague.active) return;
   drawFieldHospital(g,L,now);    // the red-cross tents in the plaza
+  drawPlagueSigns(g,L,now);      // boarded storefronts + STAY HOME signs
   drawAmbulances(g,L,now);       // ambulances hurrying the emptied streets
 }
 function drawRegime(g,L,now,night){
