@@ -3339,13 +3339,18 @@ function drawRegimeParade(g,L,now){
 function drawSeizure(g,L,now){
   var R=curRegime; if(!R||!R.active||R.stage!==2) return;
   var wx=Math.round(0.505*WW), unf=Math.max(0,Math.min(1,R.sub*1.2));                                 // the banner drops over stage 2
-  for(var off=-WW;off<=WW;off+=WW){ var X=(wx-WOFF+off)|0; if(X<-44||X>SW+44) continue;
-    var bw=8, bx=X-(bw>>1), top=HORIZON-24, len=Math.round(22*unf);
-    g.fillStyle="#150a0c"; g.fillRect(bx-1,top,bw+2,1);                                                // rod
-    g.fillStyle=L>0.5?"#a81624":"#5c0c14"; g.fillRect(bx,top+1,bw,len);                                // unfurling crimson
-    g.fillStyle=L>0.5?"#7a1018":"#420810"; g.fillRect(bx,top+1,1,len); g.fillRect(bx+bw-1,top+1,1,len);
-    if(len>6) drawOrderEmblem(g,X,top+5,2,"#f4eee2",null);
-    drawPerson(g,(X-11)|0,HORIZON-1,"#2f3540","#caa07a",0); drawPerson(g,(X+10)|0,HORIZON-1,"#2f3540","#caa07a",0);   // guards flank
+  for(var off=-WW;off<=WW;off+=WW){ var X=(wx-WOFF+off)|0; if(X<-46||X>SW+46) continue;
+    // a FREESTANDING banner frame planted in the plaza (posts + crossbar to the ground) so it stands on
+    // its own and never floats over an empty government lot (Nick 2026-07-19).
+    var bw=8, bx=X-(bw>>1), frameH=26, topBar=(HORIZON-frameH)|0, len=Math.round((frameH-4)*unf);
+    var poleC=L>0.5?"#4a4038":"#241e1a";
+    g.fillStyle=poleC; g.fillRect(bx-2,topBar,1,frameH); g.fillRect(bx+bw+1,topBar,1,frameH);          // two posts down to the ground
+    g.fillStyle=poleC; g.fillRect(bx-2,topBar,bw+4,1);                                                  // crossbar
+    g.fillStyle="#150a0c"; g.fillRect(bx-1,topBar+1,bw+2,1);                                            // hanging rod
+    g.fillStyle=L>0.5?"#a81624":"#5c0c14"; g.fillRect(bx,topBar+2,bw,len);                              // unfurling crimson banner
+    g.fillStyle=L>0.5?"#7a1018":"#420810"; g.fillRect(bx,topBar+2,1,len); g.fillRect(bx+bw-1,topBar+2,1,len);
+    if(len>6) drawOrderEmblem(g,X,topBar+6,2,"#f4eee2",null);
+    drawPerson(g,(X-13)|0,HORIZON-1,"#2f3540","#caa07a",0); drawPerson(g,(X+12)|0,HORIZON-1,"#2f3540","#caa07a",0);   // guards flank
     var n=Math.round(11*unf); for(var p=0;p<n;p++){ var hh=((p*2654435761+(R.seed||0))>>>0), px=X-28+((hh%56));
       drawPerson(g,px|0,HORIZON-1,PEDC[(hh>>>5)%PEDC.length],SKINC[(hh>>>7)%SKINC.length],(Math.floor(now/300)+p)&1); } }
 }
