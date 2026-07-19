@@ -93,19 +93,30 @@ function checkLife(ctx, L) {
     if (row.msg == null || typeof row.msg !== 'string') problems.push(`life ${L} cy ${row.cy}: ticker not a string (${row.msg})`);
     else if (/undefined|NaN|\[object/.test(row.msg)) problems.push(`life ${L} cy ${row.cy}: junk in ticker "${row.msg}"`);
   }
-  // citizen-arc coherence (only if the civic layer exists yet)
+  // citizen-arc coherence (only once the civic layer exists)
   if (typeof ctx.citizenState === 'function') {
-    // contradiction guard: a founder can't be "acquired/bankrupt" and "opens 100th store" adjacent
-    let prevFounder = null;
+    let peakFounder = -1, sawCitizen = false, reachedCity = false, rivalSettledCy = -1, founderCo = null;
     for (const row of stream) {
+      if (row.g >= 0.35 && row.phase !== 'apoc') reachedCity = true;
       const cs = ctx.citizenState(row.now);
-      if (cs && cs.founder) {
-        const f = cs.founder;
-        if (prevFounder && prevFounder.phase === 'acquired' && f.phase === 'growing')
-          problems.push(`life ${L} cy ${row.cy}: founder regressed acquired→growing`);
-        prevFounder = f;
+      if (!cs) continue;
+      // founder narrative stage (1 garage→6 collapsed) must be MONOTONE non-decreasing within a life
+      if (cs.founder && typeof cs.founder.stage === 'number') {
+        const r = cs.founder.stage;
+        if (r < peakFounder) problems.push(`life ${L} cy ${row.cy}: founder stage regressed ${peakFounder}→${r}`);
+        if (r > peakFounder) peakFounder = r;
+        // the founder's company must never CHANGE within a life (they founded ONE company)
+        if (founderCo === null) founderCo = cs.founder.co;
+        else if (cs.founder.co !== founderCo) problems.push(`life ${L} cy ${row.cy}: founder switched company ${founderCo}→${cs.founder.co}`);
       }
+      const beat = ctx.citizenBeat ? ctx.citizenBeat(row.now) : null;
+      if (beat) sawCitizen = true;
+      // rivalry may settle only once: once a winner is crowned the "FEUD HEATS UP" beat must not return
+      if (beat && /WINS "/.test(beat) && rivalSettledCy < 0) rivalSettledCy = row.cy;
+      if (beat && /FEUD HEATS UP/.test(beat) && rivalSettledCy >= 0 && row.cy > rivalSettledCy)
+        problems.push(`life ${L} cy ${row.cy}: rivalry feud re-opened after it settled at cy ${rivalSettledCy}`);
     }
+    if (reachedCity && !sawCitizen) problems.push(`life ${L}: reached city stage but no citizen beats ever surfaced`);
   }
   return problems;
 }

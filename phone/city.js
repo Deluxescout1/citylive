@@ -5024,6 +5024,7 @@ function tickerMsg(now){
     [0.82,"THE "+FI.sur+" HEIRLOOM TURNS 100 - STILL ON THE SILL"],
     [FI.elder,"THE CITY HONORS ELDER "+FI.pA+" "+FI.sur+" - FLAGS AT HALF MAST"]);
   for(var fm2=0;fm2<FMS.length;fm2++) if(Math.abs(cg3.cy-FMS[fm2][0])<0.006) return FMS[fm2][1];
+  var CM=citizenMilestones(now); for(var cm2=0;cm2<CM.length;cm2++) if(Math.abs(cg3.cy-CM[cm2][0])<0.006) return CM[cm2][1];   // civic-cast turning points BREAK IN (like the family milestones)
   if(gm) msgs.push("GAME NIGHT - "+cityName+" "+teamName+" AT 7","GO "+teamName+"!");
   if(curMayor&&curMayor.campaign){ msgs.push("ELECTION AHEAD - "+curMayor.winName+" VS "+curMayor.loseName,"RALLY TONIGHT IN THE PLAZA");
     var nm5=curMayor.nextMeasures; if(nm5&&nm5.length) msgs.push("ON THE BALLOT - PROP "+MEASURE_LABEL[nm5[0].t]+(nm5[1]?(" AND "+MEASURE_LABEL[nm5[1].t]):"")); }
@@ -5041,7 +5042,10 @@ function tickerMsg(now){
   if(curPolicies.heightcap&&curEcon<0.45) msgs.push("DEVELOPERS BLAME HEIGHT CAP FOR STALLED GROWTH");
   if(cityHasBuild("park")) msgs.push("CITY PARK NAMED BEST NEW PUBLIC SPACE");
   var bn=corpNews(now); for(var ci2=0;ci2<bn.length;ci2++) msgs.push(bn[ci2]);   // corporate business headlines (rise/IPO/merger/bankruptcy)
-  return msgs[Math.floor(now/12000)%msgs.length];
+  var slot=Math.floor(now/12000);
+  var cb=citizenBeat(now);   // the featured citizen's current status gets EVERY 3RD slot — steady, followable airtime for a story arc
+  if(cb && slot%3===0) return cb;
+  return msgs[slot%msgs.length];
 }
 // ---- NEWSPAPERS: when something big happens, papers spread the word — extras blow across the
 //      city on the wind, tumbling out from wherever the event is. (The words themselves scroll on
@@ -5403,7 +5407,7 @@ function corpState(now){
     var past=(decl&&cy>peakCy);
     var bankrupt=(past&&s<0.13), fading=(past&&!bankrupt&&s<0.55);
     var phase=bankrupt?"bankrupt":s>=0.72?"juggernaut":s>=0.36?"growing":s>0.06?"startup":"seed";
-    cos.push({co:co,idx:pick,size:s,phase:phase,fading:fading,bankrupt:bankrupt,founding:foundCy,seed:ch>>>0}); }
+    cos.push({co:co,idx:pick,size:s,phase:phase,past:past,fading:fading,bankrupt:bankrupt,founding:foundCy,seed:ch>>>0}); }
   // crown the biggest LIVE company (not bankrupt) if it's clearly a juggernaut
   var king=-1, best=0.60; for(var m=0;m<cos.length;m++){ if(cos[m].bankrupt)continue; if(cos[m].size>best){best=cos[m].size;king=m;} }
   return {li:li, era:era, cy:cy, cos:cos, king:king};
@@ -5421,6 +5425,103 @@ function corpNews(now){
   if(C.king>=0&&C.cos.length>=2){ var b=(C.king+1)%C.cos.length;                 // the giant swallows a rival
     if(!C.cos[b].bankrupt&&C.cos[b].size<0.4&&((C.li>>>1)&1)) out.push(C.cos[C.king].co.n+" ACQUIRES "+C.cos[b].co.n+" IN MEGADEAL"); }
   return out;
+}
+// ======================= CIVIC CAST — "CITIZENS WITH STORIES" (v1.10) =======================
+// A deterministic per-life cast of recurring PUBLIC figures whose arcs you can FOLLOW across days
+// on the ticker (and the skyline news screens). Distinct from the DOMESTIC family (famInfo) — this
+// is the civic/professional layer: a startup FOUNDER (bound to corpState so beats can't contradict
+// the business news — same arc, person's lens), a shopkeeper RIVALRY, a beloved public SERVANT, a
+// scandal-prone COUNCILOR, and a rising STAR. Pure clock function (econOf/cityGrowth/lifeIndexOf,
+// never the mutable cur* globals) → freeze-safe. Own salt, isolated from corp/election/family streams.
+var CITIZEN_SALT=0x4369747A;   // "Citz"
+var C_TRADES=[["BAKERS","BAKERY","BEST-LOAF"],["CAFES","CAFE","BEST-BREW"],["BREWERS","BREWERY","BEST-PINT"],["GROCERS","DELI","BEST-BITE"],["FLORISTS","FLOWER SHOP","BEST-BLOOM"]];
+var C_SERVANTS=[["BUS DRIVER","ON THE NO. 7 LINE"],["LIBRARIAN","AT THE READING ROOM"],["HARBOR PILOT","ON THE WATER"],["PARK RANGER","UP AT THE PARK"],["CROSSING GUARD","ON MAIN STREET"]];
+var C_STARS=[["MURALIST","WALL"],["SLUGGER","BALLCLUB"],["FIDDLER","STAGE"],["LINE COOK","KITCHEN"]];
+var FORCECITIZEN=null;         // test hook: pin a citizenState() for render/arc tests (own line — QML namespace writable)
+function citizenState(now){
+  if(FORCECITIZEN) return FORCECITIZEN;
+  var cg=cityGrowth(now); if(cg.g<0.30||cg.phase==="apoc") return null;   // no civic cast in a hamlet or an inferno (mirrors corpState gate)
+  var li=lifeIndexOf(now), cy=cg.cy;
+  var h=((((li*2654435761)>>>0) ^ CITIZEN_SALT)>>>0);
+  // distinct-name allocator: hand out UNIQUE first+last names across the cast so no two civic figures
+  // share a full name (with only 8 first / 12 last names, naive hashing collides — e.g. servant==councilor).
+  var uf={}, ul={}, nk=0;
+  function name2(){ var f,l,t=0; do{ f=((h+nk*0x9E3779B9+t*0x85EBCA6B)>>>0)%FNAMES.length; l=((h+nk*0x27D4EB2F+t*0xC2B2AE35)>>>0)%LNAMES.length; t++; }while((uf[f]||ul[l])&&t<64); uf[f]=1; ul[l]=1; nk++; return FNAMES[f]+" "+LNAMES[l]; }
+  function lastOnly(){ var l,t=0; do{ l=((h+nk*0x165667B1+t*0xD3A2646C)>>>0)%LNAMES.length; t++; }while(ul[l]&&t<64); ul[l]=1; nk++; return LNAMES[l]; }
+  // FOUNDER — bound to a RISING firm in corpState (person-lens on the same corporate arc → never contradicts corpNews)
+  var founder=null, C=corpState(now);
+  if(C&&C.cos.length){
+    // Bind ONLY to the first 4 firms — corpState always builds those identically regardless of city size
+    // (it appends a 5th/6th only once g>0.7), so the founder's company stays FIXED across the whole life.
+    var pick=-1, bestF=99, core=Math.min(4,C.cos.length);                  // prefer the startup we watch rise from nothing
+    for(var i=0;i<core;i++){ if(C.cos[i].founding>0&&C.cos[i].founding<bestF){ bestF=C.cos[i].founding; pick=i; } }
+    if(pick<0) pick=0;
+    var e=C.cos[pick];
+    // narrative STAGE — monotone up the rise then into decline (never ambiguous like corp "growing" up-vs-down):
+    // 1 garage · 2 IPO · 3 at the top · 4 cooling (post-peak, pre-fade) · 5 sliding · 6 collapsed
+    var stg=e.bankrupt?6:e.fading?5:e.past?4:(e.phase==="juggernaut")?3:(e.phase==="growing")?2:(e.phase==="startup")?1:0;
+    founder={name:name2(), co:e.co.n, stage:stg, king:(pick===C.king)};
+  } else { name2(); }                                                      // keep allocator order stable whether or not the founder exists
+  var tr=C_TRADES[(h>>>5)%C_TRADES.length];
+  var sv=C_SERVANTS[(h>>>13)%C_SERVANTS.length];
+  var st=C_STARS[(h>>>27)%C_STARS.length];
+  return { li:li, cy:cy, founder:founder,
+    rivA:lastOnly(), rivB:lastOnly(), winA:(((h>>>11)&1)===0), trade:tr,
+    servant:{ name:name2(), role:sv[0], where:sv[1], years:20+((h>>>19)%25) },
+    councilor:{ name:name2(), cleared:(((h>>>25)&1)===0) },
+    star:{ name:name2(), kind:st[0] },
+    seed:h };
+}
+// each citizen's CURRENT status line (null before their story starts) — the followable state
+function c_founderLine(f){ if(!f) return null;
+  switch(f.stage){
+    case 6: return "FOUNDER "+f.name+"'S "+f.co+" COLLAPSES INTO BANKRUPTCY";
+    case 5: return "FOUNDER "+f.name+" STEPS BACK AS "+f.co+" SLIDES";
+    case 4: return "FOUNDER "+f.name+" CEDES THE CROWN AS "+f.co+" COOLS";
+    case 3: return f.king?("FOUNDER "+f.name+" NAMED RICHEST IN "+cityName):("FOUNDER "+f.name+"'S "+f.co+" POSTS A RECORD YEAR");
+    case 2: return "FOUNDER "+f.name+" RINGS THE BELL - "+f.co+" GOES PUBLIC";
+    case 1: return "FOUNDER "+f.name+" OPENS "+f.co+" IN A GARAGE DOWNTOWN";
+    default: return null; }
+}
+function c_rivalLine(cy,s){ var a=s.rivA, b=s.rivB, w=s.winA?a:b, l=s.winA?b:a, tr=s.trade;
+  if(cy<0.42) return null;
+  if(cy<0.56) return "TWO "+tr[0]+" OPEN ON MARKET ROW - "+a+"'S VS "+b+"'S";
+  if(cy<0.72) return "THE "+tr[1]+" FEUD HEATS UP - "+a+"'S VS "+b+"'S";
+  if(cy<0.84) return "\""+tr[2]+"\" CONTEST DIVIDES THE CITY - "+a+" VS "+b;
+  return w+"'S WINS \""+tr[2]+"\" - "+l+" TIPS THE CAP"; }
+function c_servantLine(cy,s){ var v=s.servant;
+  if(cy<0.45) return null;
+  if(cy<0.70) return "EVERYONE KNOWS "+v.name+" THE "+v.role;
+  if(cy<0.88) return v.name+" THE "+v.role+" MARKS "+v.years+" YEARS "+v.where;
+  return "THE CITY HONORS "+v.name+" - "+v.years+" YEARS AS THE "+v.role; }
+function c_councilorLine(cy,s){ var c=s.councilor;
+  if(cy<0.50) return null;
+  if(cy<0.72) return "COUNCILOR "+c.name+" WINS THE WARD SEAT";
+  if(cy<0.84) return "COUNCILOR "+c.name+" CAUGHT IN AN EXPENSE SCANDAL";
+  return c.cleared?("COUNCILOR "+c.name+" CLEARED - BACK AT CITY HALL"):("COUNCILOR "+c.name+" RESIGNS IN DISGRACE"); }
+function c_starLine(cy,s){ var t=s.star;
+  if(cy<0.55) return null;
+  if(cy<0.75) return "A YOUNG "+t.kind+", "+t.name+", TURNS HEADS";
+  if(cy<0.90) return t.name+" THE "+t.kind+" IS THE TALK OF THE CITY";
+  return t.name+" THE "+t.kind+" MAKES IT BIG - OFF TO THE CAPITAL"; }
+// FEATURED BEAT: one citizen's current status, held for ~3 in-world hours so an arc is FOLLOWABLE
+// (a flat msgs rotation would flash each beat 1-in-N; the priority slot gives a story airtime).
+function citizenBeat(now){
+  var s=citizenState(now); if(!s) return null;
+  var live=[c_founderLine(s.founder),c_rivalLine(s.cy,s),c_servantLine(s.cy,s),c_councilorLine(s.cy,s),c_starLine(s.cy,s)].filter(function(x){return x;});
+  if(!live.length) return null;
+  return live[Math.floor(now/11520000)%live.length];   // 11520000ms = 3.2h in-world per featured citizen
+}
+// BREAKING turning points — exact-cy beats that briefly PREEMPT the ticker (like the family FMS milestones)
+function citizenMilestones(now){
+  var s=citizenState(now); if(!s) return [];
+  var w=s.winA?s.rivA:s.rivB, tr=s.trade, v=s.servant, c=s.councilor;
+  return [
+    [0.72, "COUNCILOR "+c.name+" ENGULFED IN SCANDAL AT CITY HALL"],
+    [0.84, w+"'S CROWNED \""+tr[2]+"\" - THE "+tr[1]+" FEUD IS SETTLED"],
+    [0.88, "THE CITY HONORS "+v.name+" - "+v.years+" YEARS AS THE "+v.role],
+    [0.90, s.star.name+" THE "+s.star.kind+" MAKES IT BIG"]
+  ];
 }
 // STREET BILLBOARDS: a few fixed hoardings along the boulevards carrying the current companies' ads (readable
 // name + brand logo). Rotate slowly; skip the dead. Fixed count → cheap/freeze-safe.

@@ -1,0 +1,8 @@
+version: 1.9.1
+files:
+  - url: CityLive-Setup.exe
+    sha512: gC744X6ve7G2kPAShAiJz1S2xv11kEM/3ZIRV50T+BuzLDMKjZnFrLY3lCQv8+Fc1OnTB7vjhZDqfhICyidUew==
+    size: 82836408
+path: CityLive-Setup.exe
+sha512: gC744X6ve7G2kPAShAiJz1S2xv11kEM/3ZIRV50T+BuzLDMKjZnFrLY3lCQv8+Fc1OnTB7vjhZDqfhICyidUew==
+releaseDate: '2026-07-18T23:37:54.641Z'
