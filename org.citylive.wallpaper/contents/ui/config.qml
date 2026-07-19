@@ -2,9 +2,11 @@ import QtQuick
 import QtQuick.Controls as QQC2
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
+import "../js/city.js" as City   // the real engine (its own instance here; no .pragma library) — for the read-only Almanac
 
 ColumnLayout {
     id: cfgRoot
+    property bool almReady: false
     property string cfg_scene: "metro"
     property real cfg_latitude: 999
     property real cfg_longitude: 999
@@ -38,6 +40,44 @@ ColumnLayout {
         locStatus.text = text || "";
         locStatus.isError = !!isError;
     }
+
+    // City Almanac — a read-only snapshot from the real engine. NOFETCH makes setup() do NO network
+    // calls, and we never call draw(), so this is pure clock-state (no canvas, no timers). This config
+    // file gets its own City instance (JS imports aren't shared without .pragma library), so bringing
+    // the engine up here never disturbs the running wallpaper.
+    function refreshAlmanac() {
+        try {
+            City.NOFETCH = true;
+            if (!cfgRoot.almReady) {
+                City.setup("neon", { cw: 853, ch: 480, woff: 0, ww: 2269, pxk: 3, zoom: 1, quality: "spectacle" });
+                cfgRoot.almReady = true;
+            }
+            var A = City.almanacData(Date.now());
+            // Keep dynamic numbers/percent OUT of i18n placeholders (a bare '%' after a placeholder can
+            // trip ki18n's escaping) — translate the static labels, concatenate the data plainly.
+            var econ = A.economy >= 60 ? i18n("Boom") : (A.economy <= 40 ? i18n("Bust") : i18n("Steady"));
+            var lead = A.regime ? (A.regime.leader + " — " + A.regime.label)
+                     : (A.mayor ? (A.mayor.name + " (" + A.mayor.party + ")") : i18n("No government"));
+            var s = "<b>" + A.cityName + "</b> &mdash; " + i18n("home of the %1", A.teamName) + "<br>"
+                  + i18n("Incarnation") + " No. " + A.life + " · " + A.era + " · " + A.phase + " (" + A.growthPct + "%)<br>"
+                  + i18n("Population") + ": <b>" + City.popFmt(A.population) + "</b> &nbsp; "
+                  + i18n("Economy") + ": " + econ + "<br>"
+                  + i18n("Leadership") + ": " + (A.regime ? "<font color='#e0555f'>" + lead + "</font>" : lead) + "<br>"
+                  + i18n("Fated end") + ": " + A.fate;
+            if (A.landmarks && A.landmarks.length) s += "<br>" + i18n("Landmarks") + ": " + A.landmarks.join(" · ");
+            if (A.history && A.history.length) {
+                s += "<br><br><b>" + i18n("Past civilizations") + "</b>";
+                for (var i = 0; i < A.history.length; i++) {
+                    var e = A.history[i];
+                    s += "<br>" + i18n("Life") + " " + e.life + " · " + e.era + " — " + i18n("fell to %1", e.fate);
+                }
+            }
+            almanacLabel.text = s;
+        } catch (err) {
+            almanacLabel.text = i18n("Almanac unavailable: %1", err);
+        }
+    }
+    Component.onCompleted: refreshAlmanac()
 
     Kirigami.FormLayout {
         Layout.fillWidth: true
@@ -259,6 +299,29 @@ ColumnLayout {
             opacity: 0.7
             font.pointSize: Kirigami.Theme.smallFont.pointSize
             text: ""
+        }
+
+        Kirigami.Separator {
+            Kirigami.FormData.isSection: true
+            Kirigami.FormData.label: i18n("City Almanac")
+        }
+
+        QQC2.Label {
+            id: almanacLabel
+            Kirigami.FormData.label: " "
+            Layout.fillWidth: true
+            Layout.preferredWidth: Kirigami.Units.gridUnit * 22
+            wrapMode: Text.WordWrap
+            textFormat: Text.RichText
+            lineHeight: 1.2
+            font.pointSize: Kirigami.Theme.smallFont.pointSize
+            text: i18n("Loading…")
+        }
+
+        QQC2.Button {
+            Kirigami.FormData.label: " "
+            text: i18n("↻ Refresh almanac")
+            onClicked: cfgRoot.refreshAlmanac()
         }
     }
 

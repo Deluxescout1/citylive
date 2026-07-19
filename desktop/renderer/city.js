@@ -150,6 +150,7 @@ function notifLane(pref){
 function resetNotifLanes(){ for(var r=0;r<_notifTaken.length;r++) _notifTaken[r]=false; }
 var CLOCK = null;   // test-harness override: ms timestamp for time-of-day (null = real wall clock)
 var NOWOVR = null;  // test-harness override: ms value returned as Date.now() inside draw() (null = real)
+var NOFETCH = false;  // headless flag (own line = QML-namespace writable): almanac callers set this so setup() makes NO network calls
 var FORCELAYOUT = null;   // test hook: pin every building's window layout (grid/ribbon/band/punch/corp) — verify per-layout render
 var FORCECROWN = null;    // test hook: pin every building's crown/roof (gable/hip/saltbox/mansard/deco/…) — verify per-roof render
 var FORCEUSE = null;      // test hook: pin every building's functional type (hospital/theater/hotel/bank/cafe/pharmacy) — verify drawUse
@@ -2338,9 +2339,11 @@ function setup(scene,opts){
   SMALLW=WW<1000;                             // H1: one laptop screen carries the whole city
   HORIZON=SH-GROUND;                          // street baseline (back edge of sidewalk)
   buildWorld(lifeIndexOf(NOWOVR!=null?NOWOVR:Date.now()));
-  maybeFetchWeather();          // seed the shared 10-min window on boot (draw() keeps it fresh thereafter)
-  maybeFetchAirq();             // seed the shared 30-min air-quality window too
-  maybeFetchKp();                // and the shared 30-min planetary-K window (aurora)
+  if(!NOFETCH){                  // NOFETCH: headless/almanac callers (Control Center, KDE config page) set this
+    maybeFetchWeather();          // seed the shared 10-min window on boot (draw() keeps it fresh thereafter)
+    maybeFetchAirq();             // seed the shared 30-min air-quality window too
+    maybeFetchKp();                // and the shared 30-min planetary-K window (aurora)
+  }
   tPrev=Date.now();
 }
 // Which of the city's LIVES is this? Every rebirth rolls a brand-new seed, so each life

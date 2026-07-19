@@ -50,6 +50,21 @@
   .brow .del{padding:5px 9px;color:#ff9aa2}
   footer{text-align:center;color:var(--sub);opacity:.6;font-size:11px;margin-top:24px}
   .updateline{color:var(--sub);font-size:12px;margin-top:8px;min-height:14px}
+  .alm{font-size:12px;line-height:1.5}
+  .alm .hdr{color:var(--cyan);font-size:15px;letter-spacing:1px;text-shadow:0 0 8px rgba(57,230,255,.3)}
+  .alm .sub{color:var(--sub);font-size:11px;margin:2px 0 12px}
+  .alm .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px}
+  .alm .stat{background:#0f1626;border:1px solid var(--line);border-radius:8px;padding:7px 9px}
+  .alm .stat .k{color:var(--sub);font-size:10px;text-transform:uppercase;letter-spacing:.5px}
+  .alm .stat .v{color:var(--txt);font-size:13px;margin-top:2px;word-break:break-word}
+  .alm .stat.regime{border-color:#c0182a;background:#1c0c12}
+  .alm .stat.regime .v{color:#ff8a97}
+  .alm .marks{color:var(--sub);font-size:11px;margin-top:10px}
+  .alm .marks b{color:var(--txt)}
+  .alm .hist{border-top:1px solid var(--line);padding-top:8px;margin-top:12px}
+  .alm .hist .cap{color:var(--magenta);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:5px}
+  .alm .hist .row3{display:flex;justify-content:space-between;gap:8px;color:var(--sub);font-size:11px;padding:2px 0}
+  .alm .hist .row3 b{color:var(--txt)}
 </style>
 </head>
 <body>
@@ -164,6 +179,13 @@
       </div>
       <div class="note" id="worldNote"></div>
     </section>
+  </div>
+
+  <div class="card" id="cardAlmanac">
+    <h2>City Almanac</h2>
+    <p class="hint">A living record of the city on your screen right now — and the civilizations that rose and fell here before it.</p>
+    <div id="almanacBody" class="alm">Loading…</div>
+    <div class="row"><button id="almanacRefresh" class="ghost">↻ Refresh</button></div>
   </div>
 
   <div class="card" id="cardUpdates">
@@ -519,6 +541,46 @@
   try {
     api.getVersion().then(function(v){ document.getElementById('appver').textContent='CityLive v'+v; }).catch(function(){});
   } catch (e) { /* no bridge */ }
+})();
+</script>
+
+<!-- City Almanac: load the real engine (canvas-free) and render a live snapshot. -->
+<script src="city.js"></script>
+<script>
+(function(){
+  // Bring the engine up in headless mode — NOFETCH stops setup() making any network calls,
+  // and we never call draw(), so this is pure state (no canvas, no timers, no weather XHR).
+  try{ if(typeof window.setup==='function'){ window.NOFETCH=true;
+    window.setup('neon',{cw:853,ch:480,woff:0,ww:2269,pxk:3,zoom:1,quality:'spectacle'}); } }catch(e){}
+
+  function esc(s){ return String(s==null?'':s).replace(/[&<>]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;'}[c];}); }
+  function num(n){ return (n||0).toLocaleString('en-US'); }
+
+  function render(){
+    var body=document.getElementById('almanacBody'); if(!body) return;
+    if(typeof window.almanacData!=='function'){ body.textContent='Almanac unavailable (engine not loaded).'; return; }
+    var A; try{ A=window.almanacData(Date.now()); }catch(e){ body.textContent='Almanac error: '+e; return; }
+    var econ = A.economy>=60?'Boom':A.economy<=40?'Bust':'Steady';
+    var stats=[ ['Era',A.era], ['Incarnation','No. '+num(A.life)], ['Population',num(A.population)],
+      ['Phase',A.phase+' ('+A.growthPct+'%)'], ['Economy',econ], ['Fated end',A.fate] ];
+    var lead = A.regime ? (A.regime.leader+' — '+A.regime.label) : (A.mayor ? (A.mayor.name+' ('+A.mayor.party+')') : 'No government');
+    stats.push(['Leadership',lead]);
+    if(A.topCompany) stats.push(['Top company',A.topCompany.name]);
+    var h='<div class="hdr">'+esc(A.cityName)+'</div>'+
+      '<div class="sub">Home of the '+esc(A.teamName)+' · '+A.lifePct+'% through this life</div><div class="grid">';
+    for(var i=0;i<stats.length;i++){ var reg=(stats[i][0]==='Leadership'&&A.regime);
+      h+='<div class="stat'+(reg?' regime':'')+'"><div class="k">'+esc(stats[i][0])+'</div><div class="v">'+esc(stats[i][1])+'</div></div>'; }
+    h+='</div>';
+    if(A.landmarks&&A.landmarks.length) h+='<div class="marks"><b>🏛 Landmarks:</b> '+A.landmarks.map(esc).join(' · ')+'</div>';
+    if(A.history&&A.history.length){ h+='<div class="hist"><div class="cap">Past civilizations</div>';
+      for(var k=0;k<A.history.length;k++){ var e=A.history[k];
+        h+='<div class="row3"><span><b>Life '+num(e.life)+'</b> · '+esc(e.era)+'</span><span>fell to <b>'+esc(e.fate)+'</b></span></div>'; }
+      h+='</div>'; }
+    body.innerHTML=h;
+  }
+  render();
+  var rb=document.getElementById('almanacRefresh'); if(rb) rb.addEventListener('click',render);
+  setInterval(render, 30000);   // keep it live as the city evolves
 })();
 </script>
 </body>
