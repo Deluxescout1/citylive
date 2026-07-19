@@ -578,6 +578,10 @@
       h+='<div class="stat'+(reg?' regime':'')+'"><div class="k">'+esc(stats[i][0])+'</div><div class="v">'+esc(stats[i][1])+'</div></div>'; }
     h+='</div>';
     if(A.landmarks&&A.landmarks.length) h+='<div class="marks"><b>🏛 Landmarks:</b> '+A.landmarks.map(esc).join(' · ')+'</div>';
+    if(A.space&&(A.space.agePct>0||(A.space.colonies&&A.space.colonies.length))){
+      h+='<div class="marks"><b>🚀 Space age:</b> '+A.space.agePct+'%';
+      if(A.space.colonies&&A.space.colonies.length) h+=' &nbsp; <b>Off-world:</b> '+A.space.colonies.map(function(c){return esc(c.body)+' '+c.pct+'%';}).join(' · ');
+      h+='</div>'; }
     if(A.history&&A.history.length){ h+='<div class="hist"><div class="cap">Past civilizations</div>';
       for(var k=0;k<A.history.length;k++){ var e=A.history[k];
         h+='<div class="row3"><span><b>Life '+num(e.life)+'</b> · '+esc(e.era)+'</span><span>fell to <b>'+esc(e.fate)+'</b></span></div>'; }

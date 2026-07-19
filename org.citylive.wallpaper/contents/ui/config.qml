@@ -73,6 +73,15 @@ ColumnLayout {
                 s += "<br>" + i18n("Cataclysm strikes") + ": <font color='#e0a24a'>" + when + " · " + cd + "</font>";
             }
             if (A.landmarks && A.landmarks.length) s += "<br>" + i18n("Landmarks") + ": " + A.landmarks.join(" · ");
+            if (A.space && (A.space.agePct > 0 || (A.space.colonies && A.space.colonies.length))) {
+                s += "<br><font color='#7ad0ff'>" + i18n("Space age") + ": " + A.space.agePct + "%";
+                if (A.space.colonies && A.space.colonies.length) {
+                    var cc = [];
+                    for (var si = 0; si < A.space.colonies.length; si++) cc.push(A.space.colonies[si].body + " " + A.space.colonies[si].pct + "%");
+                    s += " &nbsp; " + i18n("Off-world") + ": " + cc.join(" · ");
+                }
+                s += "</font>";
+            }
             if (A.history && A.history.length) {
                 s += "<br><br><b>" + i18n("Past civilizations") + "</b>";
                 for (var i = 0; i < A.history.length; i++) {

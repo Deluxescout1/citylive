@@ -8705,6 +8705,10 @@ function almanacData(now){
   // the biggest company right now (matches the crowned skyline tower)
   var topCo=null;
   if(C&&C.king>=0&&C.cos[C.king]){ var kco=C.cos[C.king]; topCo={name:kco.co.n,ticker:kco.co.g,phase:kco.phase}; }
+  // OFF-WORLD: humanity's colonies (baseline grows across eons + this life's space-age boom) — matches the sky
+  var spAge=spaceLevelOf(now), COL=[["moon","Moon"],["mars","Mars"],["venus","Venus"],["europa","Europa"],["titan","Titan"]], cols=[];
+  for(var ci2=0;ci2<COL.length;ci2++){ var cl=colonyLevel(COL[ci2][0],now); if(cl>0.02) cols.push({body:COL[ci2][1],pct:Math.round(cl*100)}); }
+  var space={agePct:Math.round(spAge*100), colonies:cols};
   // mayor / regime — mayorState already applies THE ORDER's override internally, so these MATCH the rendered city
   var mayor=null;
   if(M) mayor={name:M.winName,party:(M.party&&M.party.k)||"—",term:M.term+1,share:M.share,ousted:!!M.ousted,scandal:!!M.scandal};
@@ -8726,7 +8730,7 @@ function almanacData(now){
     fate:DEATH_LABEL[deathOf(li)]||deathOf(li),    // the apocalypse THIS city is fated to meet
     fateAt:apocAtOf(now),                          // exact wall-clock ms when the cataclysm strikes (so nobody misses it)
     fateInMs:apocAtOf(now)-now,                    // …and how long from now
-    landmarks:marks, topCompany:topCo, history:history
+    landmarks:marks, topCompany:topCo, space:space, history:history
   };
 }
 function drawElections(g,L,now,night){
@@ -9974,9 +9978,24 @@ var FORCECOLONY=null;                        // test hook: {moon:0.7, mars:0.3, 
 function colonyBaseline(body,now){ var b=COLONY_BODIES[body]; if(!b) return 0;
   var age=(lifeIndexOf(now)-lifeIndexOf(SPACE_BIRTH_EPOCH))-b.settle;        // lives since THIS body was first settled
   return age<=0?0:Math.min(b.cap, age/b.grow*b.cap); }                      // monotonic across lives, capped per body
+// PURE space-age level (0..1) — the SAME value draw() puts in the global curSpace, but derived only from the
+// clock so canvas-less callers (the Almanac surfaces, which never draw()) get the true number instead of the
+// stale default-0 global. Cached per-now so the ~6 colonyLevel() calls a frame don't recompute. (curSpace stays
+// the per-frame global for the hot draw path; colonyLevel/almanac read this so they can't silently drop the boom.)
+var _spCache={t:null,v:0};
+function spaceLevelOf(now){
+  if(_spCache.t===now) return _spCache.v;
+  var cg=cityGrowth(now), v;
+  if(cg.phase==="apoc") v=1;
+  else { var hasUni=false, cv=passedCivics(now);                            // a UNIVERSITY hastens the space age (research city) — civic-only, so passedCivics is authoritative
+    for(var i=0;i<cv.length;i++){ if(cv[i].t==="university"){ hasUni=true; break; } }
+    var eduB=EDUB+(hasUni?0.03:0);
+    v=Math.max(0,Math.min(1,(cg.cy-(0.80-eduB))/0.13)); }
+  _spCache.t=now; _spCache.v=v; return v;
+}
 function colonyLevel(body,now){ if(FORCECOLONY&&FORCECOLONY[body]!=null) return FORCECOLONY[body];
   var b=COLONY_BODIES[body]; if(!b) return 0;
-  return Math.min(b.cap, colonyBaseline(body,now) + (curSpace||0)*0.4); }   // baseline + this life's space-age boom
+  return Math.min(b.cap, colonyBaseline(body,now) + spaceLevelOf(now)*0.4); }   // baseline (eons) + this life's space-age boom — PURE, no stale-global drift
 
 // ============================ THE SPACE AGE ============================
 // In its final days the metropolis evolves into a space-faring city: a launch
@@ -11106,8 +11125,7 @@ function draw(g,pass){
   // fresh BEFORE anything downstream reacts to it (traffic suppression, crowds, movers this same frame).
   var cg=cityGrowth(now); cityG=cg.g; cityPhase=cg.phase;
   cityEra=cityEraOf(now);                                    // which architectural age is this life rebuilt in?
-  var eduB = EDUB + (cityHasBuild("university")?0.03:0);   // a UNIVERSITY hastens the space age (research city)
-  curSpace = cityPhase==="apoc" ? 1 : Math.max(0,Math.min(1,(cg.cy-(0.80-eduB))/0.13));   // the space age dawns in the city's final days
+  curSpace = spaceLevelOf(now);   // the space age dawns in the city's final days (pure f(clock); university hastens it — see spaceLevelOf)
   cityApoc=(cityPhase==="apoc")?cg.apoc:0;                   // the grand cataclysm progress (0..1)
   apocMs=cityApoc*0.045*GROW_CYCLE;                          // REAL ms since detonation (drives the fast bang/heat-wave/vaporize)
   curDeath=FORCEDEATH||deathOf(lifeI);                       // how this civilization is fated to end

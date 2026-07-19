@@ -74,6 +74,9 @@ for (let L = 1; L <= 48; L++) {
         if (A.regime.leader !== cr.leaderName) problems.push(`L${L} cy${cy}: regime leader "${A.regime.leader}" != "${cr.leaderName}"`);
       }
     } else if (A.regime) problems.push(`L${L} cy${cy}: curRegime inactive but almanac.regime set`);
+    // space level: the pure helper must equal what draw() put in curSpace (else the almanac drifts from the sky)
+    if (Math.abs(ctx.curSpace - ctx.spaceLevelOf(now)) > 1e-9)
+      problems.push(`L${L} cy${cy}: curSpace ${ctx.curSpace} != spaceLevelOf ${ctx.spaceLevelOf(now)}`);
     if (ctx.cityPhase === 'apoc') apocSeen++;
     if (A.regime) regimeSeen++;
     if (A.landmarks && A.landmarks.length) lm++;
@@ -95,6 +98,22 @@ for (let L = 1; L <= 48; L++) {
     for (const h of A.history) { if (!(h.life >= 1) || !h.era || !h.fate) bad.push('badHistory=' + JSON.stringify(h)); }
     if (bad.length) problems.push(`L${L} cy${cy}: ${bad.join(', ')}`);
   }
+}
+
+// DISCRIMINATING (advisor): the Almanac surfaces call almanacData WITHOUT ever calling draw(), so the
+// draw-set global curSpace is stuck at its default 0. Colony levels MUST still be correct — i.e. colonyLevel
+// reads the pure spaceLevelOf, not the stale global. Reset curSpace to its default, DON'T draw, and verify.
+{
+  ctx.curSpace = 0;                                    // the stale default the surfaces would see
+  const now = Math.round(lifeStart(ctx, 6) + 0.90 * ctx.GROW_CYCLE);   // peak, space age well underway
+  ctx.NOWOVR = now; ctx.CLOCK = now; ctx.FORCEAGE = null;
+  const A = ctx.almanacData(now);                      // NO draw() first — mirrors config.qml / settings.html
+  const want = Math.round(ctx.spaceLevelOf(now) * 100);
+  if (A.space.agePct !== want) problems.push(`no-draw: space.agePct ${A.space.agePct} != spaceLevelOf ${want}`);
+  if (!(A.space.agePct > 0)) problems.push(`no-draw: space.agePct should be >0 in the space age, got ${A.space.agePct} (stale-curSpace bug?)`);
+  const moon = A.space.colonies.find(c => c.body === 'Moon');
+  if (!moon || !(moon.pct > 0)) problems.push('no-draw: Moon colony missing/zero in the space age (colonyLevel read the stale global?)');
+  else if (moon.pct !== Math.round(ctx.colonyLevel('moon', now) * 100)) problems.push('no-draw: Moon pct disagrees with colonyLevel');
 }
 
 if (problems.length) { console.log('ALMANAC_FAIL (' + problems.length + '):'); console.log(problems.slice(0, 25).join('\n')); process.exit(1); }
