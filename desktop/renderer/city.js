@@ -3017,6 +3017,50 @@ function drawRegimeHud(g,now,night){
   drawOrderEmblem(g,x0+3,ty+2,3,fallen?"#eafff0":"#f7f0e6",fallen?"#2fa85a":"#c0182a");              // the emblem
   drawUiText(g,full,x0+ew,ty,fallen?"#d6ffe2":"#ffe2e2",1);                                          // BRIGHT screen-space text — unmistakable
 }
+// THE ORDER's crimson BANNERS hang down the facades once the dictatorship takes hold (stage 3+, dense at 5)
+function drawRegimeBanners(g,L,now){
+  var R=curRegime; if(!R||!R.active||R.stage<3) return;
+  if(R.stage===6&&R.sub>=0.5) return;                                   // torn down at the liberation
+  var dense=(R.stage>=5), maxB=dense?8:3, drawn=0;
+  for(var i=0;i<near.blds.length&&drawn<maxB;i++){ var b=near.blds[i];
+    if(b.type==="park"||b.h<26||b.w<9) continue;
+    if(b.bAge!==undefined && cityG-b.bAge<=bandOf(b)) continue;          // only built towers
+    if(((b.seed>>>3)%(dense?2:4))!==0) continue;
+    var bx=(b.x-WOFF)|0; if(bx>SW+4&&bx-WW>-4)bx-=WW; if(bx<-4-b.w&&bx+WW<SW+4)bx+=WW;
+    if(bx+b.w<-4||bx>SW+4) continue; drawn++;
+    var bw=Math.max(4,Math.min(8,b.w>>1)), bxc=(bx+((b.w-bw)>>1))|0, top=(HORIZON-b.h+2)|0, len=Math.min(b.h-5,16+(b.h>>1));
+    g.fillStyle="#1a0c0e"; g.fillRect(bxc-1,top-1,bw+2,1);                                             // hanging rod
+    g.fillStyle=L>0.5?"#b01828":"#6c0e18"; g.fillRect(bxc,top,bw,len);                                 // crimson banner
+    g.fillStyle=L>0.5?"#7a1018":"#490810"; g.fillRect(bxc,top,1,len); g.fillRect(bxc+bw-1,top,1,len);  // fold shade
+    g.fillStyle=L>0.5?"#c83040":"#82121e"; g.fillRect(bxc+1,top,1,len);                                // fold hilight
+    var nb=Math.max(1,bw>>2); for(var nk=0;nk<bw;nk+=2){ g.fillStyle="rgba(0,0,0,0.45)"; g.fillRect(bxc+nk,top+len,1,1); }  // notched tail
+    drawOrderEmblem(g,bxc+(bw>>1),top+Math.min(len-4,6),Math.max(1,(bw>>1)-1),"#f4eee2",null);         // white emblem
+  }
+}
+// the LEADER'S colossal STATUE looms over the plaza (stands stage 4+; the TOPPLE is handled in the fall, RP3)
+function drawLeaderStatue(g,L,now){
+  var R=curRegime; if(!R||!R.active||R.stage<4) return;
+  var wx=Math.round(0.365*WW)+34, sx=wx-WOFF;
+  for(var off=-WW;off<=WW;off+=WW){ var X=(sx+off)|0; if(X<-24||X>SW+24) continue;
+    var baseY=HORIZON, pedH=9, figH=26, stone=L>0.5?"#7a6a4a":"#3a3226", hi=L>0.5?"#8f7c56":"#4a4030"; // bronze
+    g.fillStyle=L>0.5?"#5a5148":"#2a2620"; g.fillRect(X-5,baseY-pedH,10,pedH);                         // pedestal
+    g.fillStyle=L>0.5?"#6a6156":"#332e28"; g.fillRect(X-6,baseY-pedH,12,1);
+    drawOrderEmblem(g,X,baseY-2,2,"#c0182a",null);                                                     // emblem on the plinth
+    var fy=baseY-pedH;
+    g.fillStyle=stone; g.fillRect(X-3,fy-figH,6,figH);                                                 // body
+    g.fillRect(X-3,fy-figH-5,6,5);                                                                     // head/cap
+    g.fillRect(X+3,fy-figH+4,5,2);                                                                     // outstretched saluting arm
+    g.fillRect(X-5,fy-figH+6,2,figH-8);                                                                // other arm at the side
+    g.fillStyle=hi; g.fillRect(X-3,fy-figH,6,1); g.fillRect(X-3,fy-figH-5,6,1);                        // rim light
+    g.fillStyle="rgba(0,0,0,0.35)"; g.fillRect(X+2,fy-figH,1,figH);                                    // shaded side
+  }
+}
+// the whole regime world-overlay dispatcher (banners + statue + …), drawn over the near layer
+function drawRegime(g,L,now,night){
+  if(!curRegime||!curRegime.active) return;
+  drawRegimeBanners(g,L,now);
+  drawLeaderStatue(g,L,now);
+}
 // the sky clock: local time + date, floating top-centre of every monitor
 function drawSkyClock(g,nd,L){
   var h=nd.getHours(), mi=nd.getMinutes(), h12=(h%12)||12, ap=h<12?"AM":"PM";
@@ -11720,6 +11764,7 @@ function draw(g,pass){
   if(curDis){ drawDisaster(g,curDis,L,now); drawDisasterHud(g,curDis,now); }
   if(curWar) drawWar(g,L,now,night);                         // the war for the city plays out on top
   if(cityG>0.5) drawElections(g,L,now,night);                // democracy in the streets
+  drawRegime(g,L,now,night);                                 // …or THE ORDER's banners + statue when democracy has fallen
   if(cityG>0.45) drawCorpAds(g,L,now,night);                 // street billboards for the current companies (corporate ad presence)
 
   // ---- THE GRAND CATACLYSM ends the city's life every ~month, then it's reborn as wilderness ----
