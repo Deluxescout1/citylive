@@ -3138,7 +3138,12 @@ function drawLayerRegime(g,layer,L,now,night){
   var bigDone=0, bigMax=(isNear&&R.stage>=4)?2:0;                        // a couple of giant slogan banners, near-layer only
   for(var i=0;i<layer.blds.length;i++){ var b=layer.blds[i];
     if(b.type==="park"||b.h<(isFar?14:22)||b.w<7) continue;
-    if(b.bAge!==undefined && cityG-b.bAge<=bandOf(b)) continue;          // only fully built towers
+    // ONLY flag a building drawLayer actually DREW as a full standing tower — otherwise the banner floats
+    // in empty sky over a culled/unbuilt plot (Nick 2026-07-19). Mirror drawLayer's culls exactly:
+    if(hasOcean && b.district==="industrial" && !isNear) continue;       // harbour: mid/far industrial towers aren't drawn
+    if(isNear && overSite(b.x,b.w)) continue;                            // a construction site stands here
+    if(overLandmark(b.x,b.w)) continue;                                  // a civic landmark cleared this plot
+    if(b.bAge!==undefined && cityG-b.bAge<bandOf(b)) continue;           // open land / house / under construction → no tower yet
     var bx=(b.x-WOFF)|0; if(bx>SW+4&&bx-WW>-4)bx-=WW; if(bx<-4-b.w&&bx+WW<SW+4)bx+=WW;
     if(bx+b.w<-4||bx>SW+4) continue;
     var top=(layer.y0-b.h)|0;
@@ -3170,13 +3175,22 @@ function drawLeaderStatue(g,L,now){
     g.fillStyle=L>0.5?"#6a6156":"#332e28"; g.fillRect(X-8,baseY-pedH,16,2); g.fillRect(X-6,baseY-pedH-2,12,2);
     drawOrderEmblem(g,X,baseY-4,3,tP>=1?"#5a5148":"#c0182a",null);                                   // emblem on the plinth (defaced once fallen)
     var pvY=baseY-pedH-2;
-    if(tP<1){                                                                                       // the standing / toppling figure — rows along the (rotated) spine
-      for(var h=0;h<figH;h++){ var rx=X+Math.round(h*sA*fd), ry=pvY-Math.round(h*cA), w=(h>figH-8)?3:2;
+    var ep=(R.stage===4)?Math.max(0,Math.min(1,R.sub/0.5)):1;                                       // WATCH IT RISE: erected over the first half of stage 4
+    var topH=(tP>0)?figH:Math.round(figH*ep);                                                        // build height (full once toppling begins)
+    if(tP<1){                                                                                       // the rising / standing / toppling figure — rows along the (rotated) spine
+      if(ep<1){                                                                                     // …still going up: scaffold + crane
+        g.fillStyle=L>0.5?"#6a5630":"#33291a"; g.fillRect(X-6,pvY-figH,1,figH); g.fillRect(X+5,pvY-figH,1,figH);   // two scaffold poles
+        for(var rg=pvY-figH+3;rg<pvY;rg+=5){ g.fillStyle=L>0.5?"#5a4a2a":"#2a2216"; g.fillRect(X-6,rg,12,1); }     // rungs
+        var jib=pvY-figH-2; g.fillStyle=L>0.5?"#e0a83a":"#5a4418"; g.fillRect(X-7,jib,18,1); g.fillRect(X+10,jib,1,8);   // crane jib + mast
+        var hook=pvY-topH-3; g.fillStyle="#8a8f9a"; g.fillRect(X+2,jib+1,1,Math.max(1,hook-jib-1)); g.fillStyle=stone; g.fillRect(X+1,hook,3,2);   // cable + a block being lifted
+        if((Math.floor(now/700))%2===0){ g.fillStyle="#ff4040"; g.fillRect(X+10,jib-1,1,1); }        // crane beacon
+      }
+      for(var h=0;h<topH;h++){ var rx=X+Math.round(h*sA*fd), ry=pvY-Math.round(h*cA), w=(h>figH-8)?3:2;
         g.fillStyle=stone; g.fillRect(rx-w,ry,w*2,1); g.fillStyle=sh; g.fillRect(rx-w,ry,1,1); }
-      var hh=figH, hx=X+Math.round(hh*sA*fd), hy=pvY-Math.round(hh*cA);                              // head/cap
-      g.fillStyle=stone; g.fillRect(hx-3,hy-4,6,5); g.fillStyle=hi; g.fillRect(hx-3,hy-4,6,1);
-      var ah=Math.round(figH*0.64), ax=X+Math.round(ah*sA*fd), ay=pvY-Math.round(ah*cA);            // outstretched saluting arm
-      g.fillStyle=stone; g.fillRect(ax+(fd>0?2:-6),ay-1,4,2);
+      if(topH>=figH){ var hh=figH, hx=X+Math.round(hh*sA*fd), hy=pvY-Math.round(hh*cA);              // head/cap (only once fully built)
+        g.fillStyle=stone; g.fillRect(hx-3,hy-4,6,5); g.fillStyle=hi; g.fillRect(hx-3,hy-4,6,1);
+        var ah=Math.round(figH*0.64), ax=X+Math.round(ah*sA*fd), ay=pvY-Math.round(ah*cA);          // outstretched saluting arm
+        g.fillStyle=stone; g.fillRect(ax+(fd>0?2:-6),ay-1,4,2); }
       if(tP>0.35){ g.fillStyle="rgba(150,140,128,"+(0.5*Math.min(1,(tP-0.35)/0.3))+")"; g.fillRect(X-16,baseY-3,32,3); }  // dust as it comes down
     } else {                                                                                        // FALLEN — broken on the ground
       var bx=(fd>0?X+3:X-figH-3);
@@ -3273,7 +3287,8 @@ function drawResistance(g,L,now){
   var seed=(R.seed||0), TAGS=["NO","RISE","FREE"];
   for(var i=0;i<near.blds.length;i++){ var b=near.blds[i]; if(b.type==="park"||b.h<24||b.w<9) continue;
     if(((b.seed>>>5)%4)!==0) continue;
-    if(b.bAge!==undefined && cityG-b.bAge<=bandOf(b)) continue;
+    if(overSite(b.x,b.w)||overLandmark(b.x,b.w)) continue;              // only on real standing towers (same as the banners)
+    if(b.bAge!==undefined && cityG-b.bAge<bandOf(b)) continue;
     if((((seed^b.seed)>>>1)%100) >= act*100) continue;
     var bx=(b.x-WOFF)|0; if(bx>SW+4&&bx-WW>-4)bx-=WW; if(bx<-4-b.w&&bx+WW<SW+4)bx+=WW;
     if(bx+b.w<-4||bx>SW+4) continue;
@@ -3319,14 +3334,73 @@ function drawRegimeParade(g,L,now){
       drawPerson(g,px,ly+1,"#2f3540","#caa07a",march?1:0);
       if((k%4)===0){ g.fillStyle="#b01828"; g.fillRect(px|0,ly-6,1,3); g.fillStyle="#f4eee2"; g.fillRect(px|0,ly-6,1,1); } } }
 }
+// 5) SEIZURE OF CITY HALL (stage 2) — the moment democracy falls: a crimson banner unfurls down the
+// government building, the emblem raised, guards on the steps, a crowd gathering.
+function drawSeizure(g,L,now){
+  var R=curRegime; if(!R||!R.active||R.stage!==2) return;
+  var wx=Math.round(0.505*WW), unf=Math.max(0,Math.min(1,R.sub*1.2));                                 // the banner drops over stage 2
+  for(var off=-WW;off<=WW;off+=WW){ var X=(wx-WOFF+off)|0; if(X<-44||X>SW+44) continue;
+    var bw=8, bx=X-(bw>>1), top=HORIZON-24, len=Math.round(22*unf);
+    g.fillStyle="#150a0c"; g.fillRect(bx-1,top,bw+2,1);                                                // rod
+    g.fillStyle=L>0.5?"#a81624":"#5c0c14"; g.fillRect(bx,top+1,bw,len);                                // unfurling crimson
+    g.fillStyle=L>0.5?"#7a1018":"#420810"; g.fillRect(bx,top+1,1,len); g.fillRect(bx+bw-1,top+1,1,len);
+    if(len>6) drawOrderEmblem(g,X,top+5,2,"#f4eee2",null);
+    drawPerson(g,(X-11)|0,HORIZON-1,"#2f3540","#caa07a",0); drawPerson(g,(X+10)|0,HORIZON-1,"#2f3540","#caa07a",0);   // guards flank
+    var n=Math.round(11*unf); for(var p=0;p<n;p++){ var hh=((p*2654435761+(R.seed||0))>>>0), px=X-28+((hh%56));
+      drawPerson(g,px|0,HORIZON-1,PEDC[(hh>>>5)%PEDC.length],SKINC[(hh>>>7)%SKINC.length],(Math.floor(now/300)+p)&1); } }
+}
+// SURVEILLANCE DRONES (stage 4+) — dark quads drift between the towers, a blinking red eye + a thin red
+// scan-beam sweeping down. The Order is always watching.
+function drawDrones(g,L,now){
+  var R=curRegime; if(!R||!R.active||R.stage<4) return; if(R.stage===6&&R.sub>=0.5) return;
+  var nd=R.stage>=5?4:2;
+  for(var i=0;i<nd;i++){ var dwx=(0.18+0.62*((i*0.37)%1))*WW+Math.sin(now*0.0006+i)*44, dy=(HORIZON*0.5+(i%3)*14+Math.sin(now*0.0013+i*2)*5)|0;
+    for(var off=-WW;off<=WW;off+=WW){ var X=(dwx-WOFF+off)|0; if(X<-8||X>SW+8) continue;
+      g.fillStyle=L>0.5?"#20242c":"#0e1016"; g.fillRect(X-2,dy,4,2); g.fillRect(X-3,dy-1,1,1); g.fillRect(X+3,dy-1,1,1);   // body + rotor arms
+      if(((Math.floor(now/400)+i)&1)){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,50,50,0.9)"; g.fillRect(X|0,dy|0,1,1);
+        var sang=Math.sin(now*0.001+i*1.7)*0.5; for(var t=2;t<22;t+=2){ g.fillStyle="rgba(255,60,60,"+(0.10*(1-t/22)).toFixed(3)+")"; g.fillRect((X+Math.sin(sang)*t)|0,(dy+t)|0,1,1); }
+        g.globalCompositeOperation="source-over"; } } }
+}
+// LOUDSPEAKER TOWERS (stage 3+) — horn poles blare across the city: dotted broadcast rings pulse out.
+function drawLoudspeakers(g,L,now){
+  var R=curRegime; if(!R||!R.active||R.stage<3) return; if(R.stage===6&&R.sub>=0.5) return;
+  for(var i=0;i<3;i++){ var swx=(0.30+0.20*i)*WW, poleTop=HORIZON-18;
+    for(var off=-WW;off<=WW;off+=WW){ var X=(swx-WOFF+off)|0; if(X<-12||X>SW+12) continue;
+      g.fillStyle=L>0.5?"#3a3238":"#1c181c"; g.fillRect(X,poleTop,1,18);                               // pole
+      g.fillStyle=L>0.5?"#4a4048":"#26202a"; g.fillRect(X-3,poleTop,2,2); g.fillRect(X+2,poleTop,2,2);  // two horns
+      g.fillStyle=L>0.5?"#5a5058":"#302a34"; g.fillRect(X-4,poleTop,1,3); g.fillRect(X+4,poleTop,1,3);  // horn mouths
+      var pph=((now+i*900)%2600)/2600; if(pph<0.62){ g.globalCompositeOperation="lighter";              // dotted broadcast rings (FBO-safe fillRect)
+        var rr=2+Math.round(pph*13), ra=0.16*(1-pph/0.62);
+        for(var an=-0.9;an<=0.9;an+=0.30){ var s2=-1; for(;s2<=1;s2+=2){ var rx=(X+s2*Math.cos(an)*rr)|0, ry=(poleTop+1+Math.sin(an)*rr)|0;
+          g.fillStyle="rgba(255,212,150,"+ra.toFixed(3)+")"; g.fillRect(rx,ry,1,1); } }
+        g.globalCompositeOperation="source-over"; } } }
+}
+// CURFEW CHASE (stage 4-5 nights, restrained) — a lone runner is caught in a searchlight, a patrol closes
+// in. Implied tension only; no harm is ever shown.
+function drawCurfewChase(g,L,now){
+  var R=curRegime; if(!R||!R.active||R.stage<4||R.stage>5||L>=0.4) return;
+  var per=45000, ph=(now%per)/per; if(ph>0.4) return; var t=ph/0.4, dir=((Math.floor(now/per))&1)?1:-1;
+  var runWx=0.55*WW + dir*t*84;
+  for(var off=-WW;off<=WW;off+=WW){ var X=(runWx-WOFF+off)|0; if(X<-20||X>SW+20) continue;
+    var step=(Math.floor(now/120))&1;
+    g.globalCompositeOperation="lighter";                                                             // searchlight snaps onto them
+    for(var s=0;s<4;s++){ g.fillStyle="rgba(255,244,200,"+(0.13*(1-s/4)).toFixed(3)+")"; g.fillRect((X-2-s)|0,(HORIZON-1-s*9)|0,(5+2*s),2); }
+    g.globalCompositeOperation="source-over";
+    drawPerson(g,X|0,(HORIZON-1-step)|0,"#d0c8b8","#caa07a",step?1:3);                                  // the runner (pale, panicked)
+    drawPerson(g,(X-dir*13)|0,HORIZON-1,"#2f3540","#caa07a",step?3:1); }                                // a patrol closing in
+}
 function drawRegime(g,L,now,night){
   if(!curRegime||!curRegime.active) return;
   drawRegimeWash(g,L,now);       // the crimson mood over everything drawn so far (flags/city); HUD stays crisp on top
+  drawSeizure(g,L,now);          // stage 2: the banner drops over City Hall
   drawRegimeAirship(g,L,now);    // the propaganda dirigible, high over downtown
+  drawDrones(g,L,now);           // surveillance quads between the towers
   drawRegimeStreets(g,L,now,night);   // searchlights + patrols + checkpoint
+  drawLoudspeakers(g,L,now);     // horn poles broadcasting across the city
   drawRegimeParade(g,L,now);     // the military column down the avenue
+  drawCurfewChase(g,L,now);      // a curfew-runner caught in a searchlight (restrained)
   // (flags/banners are drawn per-layer via drawLayerRegime for correct depth; here = the plaza overlay)
-  drawLeaderStatue(g,L,now);
+  drawLeaderStatue(g,L,now);     // …erected first (stage 4), then looming, then toppled
   drawRegimeRally(g,L,now);      // the mandatory rally massed before the statue
   drawResistance(g,L,now);       // …and, near the end, the graffiti/tags of the resistance
   drawLiberation(g,L,now);
