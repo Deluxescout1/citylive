@@ -97,8 +97,20 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with: { path: artifacts }
+      # Only publish when installers actually exist. always() lets this job run even if one OS leg
+      # flaked (mac hiccup must not block the Windows installer) — but if EVERY build failed there are
+      # no artifacts, and publishing anyway created an empty DRAFT release that then collided on the
+      # next tag run (duplicate-draft removal → "Not Found" asset race → the job failed & emailed).
+      # This guard skips cleanly on total failure: no empty release, no collision, no failure email.
+      - name: Check for built installers
+        id: haveart
+        run: |
+          if [ -n "$(find artifacts -type f 2>/dev/null | head -1)" ]; then echo "found=true" >> "$GITHUB_OUTPUT"; else echo "found=false" >> "$GITHUB_OUTPUT"; fi
       - name: Publish release
+        if: ${{ steps.haveart.outputs.found == 'true' }}
         uses: softprops/action-gh-release@v2
         with:
           files: artifacts/**/*
           generate_release_notes: true
+          draft: false          # publish LIVE so electron-updater sees it immediately (no manual un-drafting)
+          make_latest: true
