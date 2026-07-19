@@ -1123,11 +1123,14 @@ function drawHail(g,L,now,fx){
 }
 // 1b. HEAT SHIMMER over summer asphalt
 function drawShimmer(g,L,now){
-  if(!(curLit!==undefined)&&false) return;
+  if(L<0.4) return;                                                    // heat haze only in real daylight
   g.globalCompositeOperation="lighter";
-  for(var i=0;i<4;i++){ var y=HORIZON+5+i*5, off=Math.sin(now*0.006+i*1.9)*1.5;
-    g.fillStyle="rgba(255,255,255,0.045)";
-    g.fillRect((off+((i&1)?3:0))|0,y,SW,1); }
+  // warm heat-haze bands RISING off the hot asphalt, rippling side to side and fading as they climb
+  for(var i=0;i<7;i++){ var rise=((now*0.02+i*37)%42), y=HORIZON+3+i*4-Math.round(rise*0.18);
+    var wob=Math.sin(now*0.005+i*1.3)*2.2+Math.sin(now*0.011+i)*0.8, a=(0.075*(1-rise/42)).toFixed(3);
+    g.fillStyle="rgba(255,246,216,"+a+")"; g.fillRect(wob|0,y,SW,1); }
+  for(var j=0;j<3;j++){ var yy=HORIZON+7+j*3, ox=Math.sin(now*0.007+j*2.1)*3.2;                    // low wobble glaze over the road
+    g.fillStyle="rgba(255,250,232,0.05)"; g.fillRect(ox|0,yy,SW,2); }
   g.globalCompositeOperation="source-over";
 }
 // 2. the FISHING FLEET works the dawn tide, gulls in tow
@@ -2713,6 +2716,7 @@ function drawCar(g,x,y,col,dir,L,kind){
     if(hover){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(122,245,255,0.5)"; g.fillRect(x+1,y+2,len-2,1); g.globalCompositeOperation="source-over"; }
     else{ g.fillStyle="#0b0b10"; g.fillRect(x+2,y+2,2,1); g.fillRect(x+len-4,y+2,2,1); g.fillStyle="rgba(0,0,0,0.25)"; g.fillRect(x+4,y+2,len-8,1); }
     if(night){ g.fillStyle="rgba(255,240,170,0.95)"; g.fillRect(x+(dir>0?len:-1),y,1,1); g.fillStyle="rgba(255,60,60,0.9)"; g.fillRect(x+(dir>0?-1:len),y,1,1); }
+    if(snowpack>0.15&&!hover){ g.fillStyle="rgba(242,247,255,"+Math.min(0.9,snowpack+0.2).toFixed(2)+")"; g.fillRect(x+2,y-3,Math.max(1,len-4),1); }   // snow settles on the roof
   }
   if(kind==="van"){
     g.fillStyle=col; g.fillRect(x,y-3,10,5);                       // tall box body
@@ -2725,6 +2729,7 @@ function drawCar(g,x,y,col,dir,L,kind){
     else{ g.fillStyle="#0b0b10"; g.fillRect(x+1,y+2,2,1); g.fillRect(x+7,y+2,2,1); }
     if(night){ g.fillStyle="rgba(255,240,170,0.95)"; g.fillRect(x+(dir>0?10:-1),y,1,1);
       g.fillStyle="rgba(255,60,60,0.9)"; g.fillRect(x+(dir>0?-1:10),y,1,1); }
+    if(snowpack>0.15&&!hover){ g.fillStyle="rgba(242,247,255,"+Math.min(0.9,snowpack+0.2).toFixed(2)+")"; g.fillRect(x+1,y-4,8,1); }   // snow on the van roof
     return;
   }
   if(kind==="pickup"){                                             // cab at the leading half, open bed behind
