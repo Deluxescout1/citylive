@@ -2058,11 +2058,14 @@ function seasonInfo(nd){
 var curSeason=null;   // set each frame in draw()
 
 // ---- special event days (calendar-driven, like holidays) ----
+var FORCEEVENT=null;   // test hook (kde-repro ?event=): force a calendar-event flag on (concert/foodfest/champ/icerink/…)
 function cityEvents(nd){
   var dow=nd.getDay(), m=nd.getMonth()+1, d=nd.getDate(), h=nd.getHours(), y=nd.getFullYear();
   var sep1=new Date(y,8,1).getDay(),  paradeD=1+((6-sep1+7)%7);        // 1st Saturday of Sept = parade
   var oct1=new Date(y,9,1).getDay(),  marD=1+((0-oct1+7)%7)+7;         // 2nd Sunday of Oct = marathon
-  return {
+  var aug1=new Date(y,7,1).getDay(),  foodD=1+((6-aug1+7)%7)+7;        // 2nd Saturday of Aug = food festival weekend
+  var jun1c=new Date(y,5,1).getDay(), champD=1+((6-jun1c+7)%7)+14;     // 3rd Saturday of June = championship parade
+  var ev={
     market:  ((dow===6||dow===0) && h>=8 && h<16),                     // weekend farmers' market
     parade:  ((m===9 && d===paradeD) ||                       // founders' parade (1st Sat of Sept)
               (m===7 && d===4) ||                              // Independence Day
@@ -2074,8 +2077,14 @@ function cityEvents(nd){
     balloonfest: (function(){ var jun1=new Date(y,5,1).getDay(), bd=1+((6-jun1+7)%7)+7;   // 2nd Sat of June
       return (m===6 && d===bd && h>=6 && h<11); })(),
     protest: (dow===3 && d>=8 && d<=14 && h>=12 && h<17),             // a 'day of action' march — 2nd Wednesday afternoon
-    film:    (dow===2 && d>=1 && d<=7 && h>=9 && h<17)                // a film shoot comes to town — 1st Tuesday, daytime
+    film:    (dow===2 && d>=1 && d<=7 && h>=9 && h<17),                // a film shoot comes to town — 1st Tuesday, daytime
+    concert: ((dow===5||dow===6) && m>=6 && m<=9 && (h>=19||h<1)),     // summer weekend concert nights at the amusement park
+    foodfest:((m===8) && d>=foodD && d<=foodD+1 && h>=11 && h<21),     // food-festival weekend on market row (2nd Sat-Sun of Aug)
+    champ:   ((m===6) && d===champD && h>=10 && h<20),                 // the team wins it all — championship parade day
+    icerink: ((m===12||m===1||m===2) && h>=9 && h<22)                 // winter ice rink open in the plaza (Dec-Feb)
   };
+  if(FORCEEVENT) ev[FORCEEVENT]=true;
+  return ev;
 }
 var curEvents=null;
 var curDis=null, curRebuilt=[], curRuins=[];   // active disaster (or null) + completed-rebuild zones + permanently-ruined zones, set each frame
@@ -5001,7 +5010,11 @@ function tickerMsg(now){
   if(fx.fog) return "DENSE FOG ADVISORY - LOW VISIBILITY DOWNTOWN";
   if(fx.cloudy) return ((weather.cloud||0)>=88?"OVERCAST":"CLOUDY")+" SKIES OVER "+cityName+" - "+Math.round(weather.temp==null?60:weather.temp)+"F";
   if(curEvents&&curEvents.parade) return "PARADE TODAY ON MAIN STREET";
+  if(curEvents&&curEvents.champ) return cityName+" "+teamName+" WIN THE TITLE - PARADE DOWNTOWN";
   if(curEvents&&curEvents.market) return "FARMERS MARKET OPEN UNTIL 4 PM";
+  if(curEvents&&curEvents.foodfest) return "STREET FOOD FESTIVAL ON MARKET ROW - COME HUNGRY";
+  if(curEvents&&curEvents.concert) return "LIVE MUSIC TONIGHT AT THE FAIRGROUND STAGE";
+  if(curEvents&&curEvents.icerink) return "THE PLAZA ICE RINK IS OPEN - SKATES FOR RENT";
   if(curEvents&&curEvents.movie) return "MOVIE NIGHT IN THE PLAZA AT DUSK";
   if(curSpace>0.3) return cityName+" SPACEPORT - NEXT LAUNCH BOARDING";
   var nd2=nowDate(), gm=gameNight(nd2);
@@ -5263,6 +5276,74 @@ function drawMovie(g,L,now,night){
     for(var row=0;row<3;row++) for(var seat=0;seat<9;seat++){                                // audience
       if(((seat*3+row+ (mx))%7)===0) continue;
       drawSeated(g,X+1+seat*2, HORIZON-2-row, PEDC[(seat*3+row)%PEDC.length], SKINC[(seat+row)%SKINC.length]); }
+  }
+}
+// ---- concert: a lit stage at the fairground with light beams, a band, and a dense crowd ----
+function drawConcert(g,L,now,night){
+  var mx=Math.round(0.885*WW), stW=28, stH=9;
+  for(var off=-WW;off<=WW;off+=WW){ var X=(mx-WOFF+off)|0; if(X<-50||X>SW+50) continue;
+    var sy=HORIZON-stH, x0=X-(stW>>1);
+    g.fillStyle=L>0.5?"#241c30":"#0a0712"; g.fillRect(x0,sy-9,stW,9);                       // backdrop screen
+    var f=(Math.floor(now/240))%4, sc=[["#3a2f5a","#8f7ad0"],["#5a2f3a","#e08fa0"],["#2f4a5a","#7ad0e0"],["#2f5a3a","#7ae0a0"]][f];
+    g.fillStyle=sc[0]; g.fillRect(x0+1,sy-8,stW-2,7); g.fillStyle=sc[1]; g.fillRect(x0+3+f,sy-6,stW-8,3);   // screen visuals
+    g.fillStyle=L>0.5?"#2e2636":"#100b18"; g.fillRect(x0,sy,stW,stH);                       // stage deck
+    for(var b=0;b<4;b++){ var bx=x0+5+b*6, bob=((Math.floor(now/150)+b)&1); drawPerson(g,bx,sy-1,"#1c1a22",SKINC[(b*3)%SKINC.length],bob); }  // band
+    if(night>0.15){ g.globalCompositeOperation="lighter";
+      var bc=["rgba(255,60,120,0.10)","rgba(60,150,255,0.10)","rgba(120,255,160,0.10)","rgba(255,200,60,0.10)"];
+      for(var lb=0;lb<4;lb++){ var sweep=Math.sin(now*0.0011+lb*1.9)*16; g.fillStyle=bc[lb];
+        g.beginPath(); g.moveTo(x0+4+lb*6,sy-9); g.lineTo(X-24+sweep+lb*12,sy-66); g.lineTo(X-14+sweep+lb*12,sy-66); g.closePath(); g.fill(); }
+      g.globalCompositeOperation="source-over"; }
+    for(var c=0;c<30;c++){ var row=c%2, cxp=x0-6+((c>>1)*3)+(row?1:0), bob=((c*5+(Math.floor(now/170)))&1);   // crowd facing the stage
+      if(cxp<X-40||cxp>X+40) continue; drawPerson(g,cxp,HORIZON-1-row,PEDC[(c*2)%PEDC.length],SKINC[c%SKINC.length],bob); }
+  }
+}
+// ---- food festival: a run of food stalls with striped awnings, string lights, grill smoke, crowds ----
+function drawFoodFest(g,L,now,night){
+  var gy=HORIZON+1, ac=["#d2683b","#c23b5a","#3a9a6f","#e0a83a","#8a4ab0"], food=["#f0902a","#e0402a","#ffd23a","#c86038","#8ae05a"];
+  var lit=false, lastX=null;
+  for(var mx=18; mx<WW; mx+=13){ var dn=districtAt(mx).name; if(dn!=="residential"&&dn!=="oldtown"&&dn!=="downtown") continue;
+    for(var off=-WW;off<=WW;off+=WW){ var X=(mx-WOFF+off)|0; if(X<-8||X>SW+10) continue;
+      var pr=rng((mx*151+13)>>>0), c=ac[(mx>>2)%ac.length];
+      g.fillStyle="#7a5a3a"; g.fillRect(X-4,gy-7,1,7); g.fillRect(X+4,gy-7,1,7);            // cart posts
+      for(var aw=0;aw<9;aw++){ g.fillStyle=((aw&1)?c:"#f2ede2"); g.fillRect(X-4+aw,gy-7,1,1); }  // striped awning
+      g.fillStyle=L>0.5?"#5a4230":"#1c140c"; g.fillRect(X-4,gy-3,9,3);                       // counter
+      for(var pp=0;pp<7;pp++){ g.fillStyle=food[(pp+(mx>>1))%food.length]; g.fillRect(X-4+pp+((pp>3)?1:0),gy-4,1,1); }  // dishes
+      if(night>0.3 && (mx&1)){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,180,90,0.14)"; g.fillRect(X-2,gy-6,4,3); g.globalCompositeOperation="source-over"; }  // grill glow
+      else if((mx%3)===0){ for(var sm=0;sm<3;sm++){ g.fillStyle="rgba(180,180,190,"+(0.16-sm*0.04)+")"; g.fillRect((X+1)|0,(gy-8-sm*2-((now*0.02)%3))|0,1,1); } }  // grill smoke
+      drawPerson(g,X+3,gy-3,"#8a5a3a",SKINC[mx%SKINC.length],0);                             // vendor
+      if(pr()<0.85) drawPerson(g,X-5,gy-2,PEDC[(mx>>1)%PEDC.length],SKINC[(mx>>2)%SKINC.length],((now*0.02|0)&1));  // eater
+      if(lastX!=null && night>0.3){ g.strokeStyle="rgba(255,210,120,0.5)"; g.lineWidth=1;    // string lights swagging stall-to-stall
+        g.beginPath(); g.moveTo(lastX,gy-9); g.quadraticCurveTo((lastX+X)/2,gy-6,X,gy-9); g.stroke();
+        g.fillStyle="#ffd37a"; for(var bl=0;bl<3;bl++){ g.fillRect((lastX+(X-lastX)*(bl+1)/4)|0,(gy-7)|0,1,1); } }
+      lastX=X;
+    }
+  }
+}
+// ---- championship parade: the team wins it all — confetti rain, team banners, cheering crowds ----
+function drawChampionship(g,L,now){
+  var tc=(teamCols&&teamCols[0])||"#d23b3b", tc2=(teamCols&&teamCols[1])||"#f2ede2";
+  for(var k=0;k<Math.round(WW/3);k++){                                                       // cheering crowd lining the boulevard
+    var wx=wrapW(k*3 + (k%2)*1.5), sx=wx-WOFF; if(sx>SW+3&&sx-WW>-3)sx-=WW; if(sx<-3&&sx+WW<SW+3)sx+=WW; if(sx<-2||sx>SW+2) continue;
+    if((k%5)===0) continue; var bob=((k*3+(Math.floor(now/150)))&1);
+    drawPerson(g,sx,HORIZON-1,(k&1)?tc:PEDC[k%PEDC.length],SKINC[k%SKINC.length],bob);
+  }
+  for(var i=0;i<120;i++){                                                                     // confetti rain
+    var cx=((i*47+ (now*0.05))% (SW+20))-10, cy=((i*83+ now*0.09)% (HORIZON-6)), cc=[tc,tc2,"#ffd23a","#4aa8ff"][i&3];
+    g.fillStyle=cc; g.fillRect(cx|0,cy|0,1,1);
+  }
+}
+// ---- winter ice rink: a pale sheet of ice in the plaza with skaters looping and rink-edge lights ----
+function drawIceRink(g,L,now,night){
+  var mx=Math.round(0.415*WW), rW=30, rH=8;
+  for(var off=-WW;off<=WW;off+=WW){ var X=(mx-WOFF+off)|0; if(X<-40||X>SW+40) continue;
+    var rx=X-(rW>>1), ry=HORIZON-1;
+    g.fillStyle=L>0.5?"#c8dce6":"#3a4a58"; g.fillRect(rx,ry,rW,rH);                          // ice sheet
+    g.fillStyle=L>0.5?"#e8f2f8":"#4a5c6a"; for(var sh=0;sh<5;sh++){ g.fillRect((rx+3+sh*6)|0,(ry+1+((sh+ (now*0.01|0))%3))|0,3,1); }  // ice sheen streaks
+    g.fillStyle=L>0.5?"#8a9aa6":"#20303c"; g.fillRect(rx-1,ry-1,1,rH+1); g.fillRect(rx+rW,ry-1,1,rH+1);   // rink rails
+    for(var p=0;p<6;p++){ var ph=now*0.0016+p*1.05, sx2=X+Math.cos(ph)*(rW/2-4), sy2=ry+2+Math.sin(ph)*2, bob=((Math.floor(now/160)+p)&1);   // skaters looping on the ice
+      drawPerson(g,sx2,sy2,PEDC[(p*2)%PEDC.length],SKINC[p%SKINC.length],bob); }
+    if(night>0.3){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(160,200,240,0.10)"; g.fillRect(rx,ry,rW,rH); g.globalCompositeOperation="source-over";
+      for(var lp=0;lp<4;lp++){ g.fillStyle="#ffe08a"; g.fillRect((rx+lp*10)|0,(ry-3)|0,1,3); } }   // rink-edge light poles
   }
 }
 // ============================ LANDMARKS & ATTRACTIONS ============================
@@ -11282,6 +11363,10 @@ function draw(g,pass){
     if(curEvents.parade)   drawParade(g,L,now);           // floats + marching band + confetti
     if(curEvents.protest)  drawProtest(g,L,now);          // a day-of-action march with placards
     if(curEvents.film)     drawFilmShoot(g,L,now);        // a film crew shooting downtown
+    if(curEvents.foodfest) drawFoodFest(g,L,now,night);   // street-food stalls + string lights on market row
+    if(curEvents.icerink)  drawIceRink(g,L,now,night);    // winter ice rink in the plaza
+    if(curEvents.concert)  drawConcert(g,L,now,night);    // live music on the fairground stage
+    if(curEvents.champ)    drawChampionship(g,L,now);     // the team wins it all — confetti parade
   }
   // ---- invented CITY holidays (whimsical spectacles unique to this world) ----
   if(cityG>0.4 && !nukeFull()){

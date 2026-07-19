@@ -26,6 +26,9 @@ Item {
             var diss = ["asteroid","volcano","zombie","alien","kaiju","tornado","flood","mech","kraken","sandstorm","iceage","rift","blackout","smog"];
             for (var s = 0; s < diss.length; s++) for (var fp = 0; fp < 2; fp++)
                 jobs.push({ age: 0.6, clock: clk, dis: { type: diss[s], intensity: 4, xf: 0.5, w: 60, seed: 77, f: [0.25, 0.55][fp] } });
+            // street events (drawConcert/drawFoodFest/drawChampionship/drawIceRink + the older ones) on a grown city, day & night
+            var evs = ["concert","foodfest","champ","icerink","market","parade","movie","marathon","protest","film","balloonfest"];
+            for (var ev = 0; ev < evs.length; ev++) jobs.push({ age: 0.7, clock: [clk, night][ev % 2], event: evs[ev] });
 
             var ok = true;
             try { City.setup('neon', { cw: 853, ch: 480, woff: 0, ww: 2269, pxk: 3, zoom: 1, quality: 'spectacle' }); }
@@ -35,6 +38,7 @@ Item {
                 City.CLOCK = jobs[j].clock;
                 City.FORCEDEATH = (jobs[j].death !== undefined ? jobs[j].death : undefined);
                 City.FORCEDIS = (jobs[j].dis !== undefined ? jobs[j].dis : null);
+                City.FORCEEVENT = (jobs[j].event !== undefined ? jobs[j].event : null);
                 try { City.draw(g); }
                 catch (e) { console.log("SWEEP_FAIL job " + j + " " + JSON.stringify(jobs[j]).slice(0,70) + ": " + e); ok = false; }
             }
