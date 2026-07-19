@@ -8273,7 +8273,7 @@ function civicWOf(t){ for(var i=0;i<CIVICS.length;i++) if(CIVICS[i].t===t) retur
 // where a landmark sits: marina on the shore, grand central by downtown, observatory out at the mountains/edge,
 // university & zoo wherever the ballot drew them (with a little jitter so repeats don't stack).
 function civicX(type,hx,hh){ var j=((hh>>>11)%40)-20;
-  if(type==="marina"&&hasOcean) return Math.round(WW*(seaW+0.05))+((hh>>>13)%16);
+  if(type==="marina"&&hasOcean) return Math.round(WW*seaW*0.66)+((hh>>>13)%8);   // straddle the shoreline so the boardwalk + boats sit OVER the water
   if(type==="grandcentral") return (Math.round(WW*0.52)+j+WW)%WW;
   if(type==="observatory") return Math.round(WW*(hasOcean?(seaW+0.04):0.05))+((hh>>>13)%8);   // a bluff at the city's LEFT edge (inside any sea), clear of downtown towers
   return hx; }
