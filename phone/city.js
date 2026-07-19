@@ -4914,9 +4914,6 @@ function drawRealFlights(g,L,now){
     var az2=(Math.atan2(e2,n2)*R2D+360)%360, daz=az2-az; if(daz>180)daz-=360; if(daz<-180)daz+=360;
     var dir=(daz>=0)?1:-1;                                // increasing azimuth = sliding right
     var wx=skyWX(az);
-    // prominence → tag fade-in: close overhead OR high in the sky
-    var near=1-Math.min(1,dstM/(FL_RADIUS*1852)), high=Math.min(1,elev/25);
-    var prom=Math.max(near*0.9,high), tagA=Math.max(0,Math.min(1,(prom-0.45)/0.3));
     // ---- aircraft CLASS from the ADS-B category (altitude/speed fallback) → size the sprite so a heavy
     //      widebody reads bigger than a little Cessna, a helicopter is unmistakable, and only high jets trail ----
     var cat=f.cat||"", heavy=(cat==="A5"||cat==="A4"), light=(cat==="A1"), small=(cat==="A2"), rotor=(cat==="A7");
@@ -4947,20 +4944,27 @@ function drawRealFlights(g,L,now){
         g.fillStyle="rgba(120,230,255,0.95)"; g.fillRect(X,Y-1,1,1);
         g.fillStyle="rgba(120,230,255,0.35)"; g.fillRect(X-1,Y-1,3,3); g.globalCompositeOperation="source-over"; }
     }
-    // ---- the fade-in data tag (drawPixText handles its own screen-wrap from a world x) ----
-    if(tagA>0.03){
+    // ---- ALWAYS-ON data tag on a solid dark plate → the callsign + altitude stay crisply legible over
+    //      ANY sky (bright day or night), no fade. drawPixText handles its own screen-wrap from a world x. ----
+    {
       var a100=Math.round(altFt/100)*100;
       var sub=(a100>=1000?((a100/1000).toFixed(1).replace(/\.0$/,""))+"K":(a100<0?"0":a100+""))+"FT";
-      var lblX=wx-(textW(f.cs)>>1), subX=wx-(textW(sub)>>1), ty=y-16;   // sit the two-line tag clear ABOVE the airframe
-      drawPixText(g,f.cs,lblX+1,ty+1,"#04090f",tagA*0.7);  drawPixText(g,f.cs,lblX,ty,"#c8f2ff",tagA);   // callsign (shadow + cyan)
-      drawPixText(g,sub, subX+1,ty+7,"#04090f",tagA*0.7);  drawPixText(g,sub, subX,ty+6,"#8fdcff",tagA*0.9);  // altitude
-      if(climb!==0){                                                              // tiny climb/descent triangle beside the altitude — arrival vs departure at a glance
-        var tcol=climb>0?"#7dff9e":"#ffc266", tx0=subX+textW(sub)+2, tyr=y-10;    // green climbing · amber descending
-        for(var wv=-1;wv<=1;wv++){ var sxt=tx0-WOFF+wv*WW; if(sxt<-4||sxt>SW+2) continue;
-          g.globalAlpha=tagA*0.95; g.fillStyle=tcol;
-          if(climb>0){ g.fillRect((sxt+1)|0,tyr|0,1,1); g.fillRect(sxt|0,(tyr+1)|0,3,1); }             // ▲
-          else       { g.fillRect(sxt|0,tyr|0,3,1);     g.fillRect((sxt+1)|0,(tyr+1)|0,1,1); }         // ▼
-          g.globalAlpha=1; }
+      var tw=Math.max(textW(f.cs),textW(sub)), ty=y-16;                            // two lines, sat clear ABOVE the airframe
+      var lblX=wx-(textW(f.cs)>>1), subX=wx-(textW(sub)>>1);
+      var plX=wx-(tw>>1)-3, plW=tw+6+(climb!==0?5:0), plY=ty-2, plH=14;            // the backing plate (extra width on the right for the trend arrow)
+      for(var wp=-1;wp<=1;wp++){ var psx=(plX-WOFF+wp*WW)|0; if(psx>SW+2||psx+plW<-2) continue;
+        g.fillStyle="rgba(6,12,20,0.82)"; g.fillRect(psx,plY|0,plW,plH);           // dark plate for contrast
+        g.fillStyle="rgba(120,205,255,0.55)"; g.fillRect(psx,plY|0,plW,1);         // a cyan top edge (HUD feel + separates it from sky)
+      }
+      drawPixText(g,f.cs,lblX,ty,"#eaffff",1);                                     // callsign — bright, FULL opacity
+      drawPixText(g,sub, subX,ty+6,"#a8e8ff",1);                                   // altitude
+      if(climb!==0){                                                              // climb/descent triangle beside the altitude — arrival vs departure at a glance
+        var tcol=climb>0?"#7dff9e":"#ffc266", tx0=subX+textW(sub)+2, tyr=y-10;     // green climbing · amber descending
+        for(var wv=-1;wv<=1;wv++){ var sxt=(tx0-WOFF+wv*WW)|0; if(sxt<-4||sxt>SW+2) continue;
+          g.fillStyle=tcol;
+          if(climb>0){ g.fillRect(sxt+1,tyr|0,1,1); g.fillRect(sxt,(tyr+1)|0,3,1); }               // ▲
+          else       { g.fillRect(sxt,tyr|0,3,1);   g.fillRect(sxt+1,(tyr+1)|0,1,1); }             // ▼
+        }
       }
     }
   }
