@@ -3543,11 +3543,75 @@ function drawPlagueCelebration(g,L,now){
     drawUiText(g,msg,bx2,by2,"#d6ffe2",1);
   }
 }
+// v1.30 — VACCINE ROLLOUT (RECOVERY): a blue clinic tent with a VACCINE sign + syringe and a spaced-out queue.
+function drawVaccineClinic(g,L,now){
+  var P=curPlague; if(!P||!P.active||P.stage!==4) return;
+  var open=Math.max(0.15,Math.min(1,P.sub*1.4)), day=L>0.5, wx=Math.round(0.365*WW)+52;
+  for(var off=-WW;off<=WW;off+=WW){ var X=(wx-WOFF+off)|0; if(X<-90||X>SW+90) continue;
+    var tw=18, th=10, tx=(X-(tw>>1))|0, ty=HORIZON-th;
+    g.fillStyle=day?"#3a6a9a":"#1e3a56"; g.fillRect(tx,ty,tw,th);
+    for(var pk=0;pk<=9;pk++){ g.fillStyle=day?"#4a7aaa":"#264866"; g.fillRect((tx+(tw>>1)-pk)|0,(ty-pk+1)|0,pk*2,1); }   // peaked roof
+    g.fillStyle="#e8e8f0"; g.fillRect(tx+3,ty+4,6,1); g.fillStyle="#8ab0e0"; g.fillRect(tx+2,ty+3,1,3);                   // a syringe on the flap
+    var sign="VACCINE", slen=sign.length*4-1, sbx=(X-(slen>>1))|0, sby=ty-8;                                             // sign board
+    g.fillStyle="#dfe8f4"; g.fillRect(sbx-1,sby,slen+2,6); g.fillStyle="#2a6ab0"; g.fillRect(sbx-1,sby,slen+2,1); drawUiText(g,sign,sbx,sby+1,"#1a4a8a",1);
+    var qn=Math.round(9*open); for(var q=0;q<qn;q++){ var hh=((q*2654435761+(P.seed||0))>>>0), px=X+(tw>>1)+2+q*6;        // a spaced-out queue (6px apart)
+      drawPerson(g,px|0,HORIZON-1,PEDC[(hh>>>5)%PEDC.length],SKINC[(hh>>>7)%SKINC.length],0); } }
+}
+// v1.30 — HOSPITAL SHIP (coastal): a big white naval ship w/ red crosses docks in the harbor for extra wards.
+function drawHospitalShip(g,L,now){
+  var P=curPlague; if(!P||!P.active||P.stage<2||P.stage>4) return; if(!hasOcean||seaW<=0) return;
+  var spanW=WW*seaW; if(spanW<48) return;
+  var len=42, wx=WW*seaW*0.5, sx=wx-WOFF, day=L>0.5;
+  for(var off=-WW;off<=WW;off+=WW){ var X=(sx+off)|0; if(X+(len>>1)<-4||X-(len>>1)>SW+4) continue;
+    var wl=HORIZON-3, hx0=(X-(len>>1))|0;
+    g.fillStyle=day?"#e8ecf0":"#b4b8c0"; g.fillRect(hx0,wl-5,len,6);                                                     // white hull
+    g.fillStyle=day?"#c8ccd2":"#8c909a"; g.fillRect(hx0,wl+1,len,1);                                                     // waterline
+    g.fillStyle=day?"#f0f2f6":"#c4c8ce"; g.fillRect(hx0+5,wl-10,len-14,5);                                              // superstructure
+    for(var cx2=hx0+7;cx2<hx0+len-7;cx2+=13){ g.fillStyle="#d02424"; g.fillRect(cx2,wl-3,3,1); g.fillRect(cx2+1,wl-4,1,3); }   // red crosses on the hull
+    g.fillStyle=day?"#dadde4":"#a4a8b0"; g.fillRect(hx0+len-11,wl-8,7,3); g.fillStyle="#d02424"; g.fillRect(hx0+len-9,wl-7,3,1);   // helipad + cross
+    if(!day){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,240,200,0.5)"; for(var lx=hx0+2;lx<hx0+len;lx+=5) g.fillRect(lx,wl-9,1,1);
+      if((Math.floor(now/700))%2===0){ g.fillStyle="#ff4040"; g.fillRect(hx0+len-8,wl-11,1,1); } g.globalCompositeOperation="source-over"; } }   // lights + helipad beacon
+}
+// v1.30 — MEMORIAL VIGIL (RECOVERY→REOPENING): candles + flowers + IN MEMORY, a moment of remembrance.
+function drawMemorial(g,L,now){
+  var P=curPlague; if(!P||!P.active||P.stage<4) return; var night=1-L, wx=Math.round(0.365*WW)-46;
+  for(var off=-WW;off<=WW;off+=WW){ var X=(wx-WOFF+off)|0; if(X<-60||X>SW+60) continue;
+    g.fillStyle=L>0.5?"#82828a":"#42424a"; g.fillRect(X-16,HORIZON-3,32,3);                                             // low memorial wall
+    var sign="IN MEMORY", slen=sign.length*4-1; drawUiText(g,sign,(X-(slen>>1))|0,HORIZON-10,L>0.5?"#c4c4cc":"#9a9aa8",1);
+    for(var c=0;c<13;c++){ var cx2=X-15+c*3, fl=(Math.floor(now/220)+c)&1;                                              // rows of candles
+      g.fillStyle="#e8e0d0"; g.fillRect(cx2,HORIZON-1,1,1);
+      g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,190,90,"+(0.55+0.35*fl).toFixed(2)+")"; g.fillRect(cx2,HORIZON-2,1,1);
+      g.fillStyle="rgba(255,210,130,"+(0.14*night).toFixed(2)+")"; g.fillRect(cx2-1,HORIZON-3,3,3); g.globalCompositeOperation="source-over"; }
+    for(var fw=0;fw<6;fw++){ var fx=X-15+fw*6; g.fillStyle=["#ff6a8a","#ffd24a","#c06ad0","#6ad0ff"][fw%4]; g.fillRect(fx,HORIZON-1,1,1); } }   // flowers
+}
+// v1.30 — RAINBOW "THANK YOU" — gratitude to the health workers: rainbows/hearts in windows + a THANK YOU
+// on a hero tower. PER-BUILDING → mirrors drawLayer's culls (no floating).
+function drawGratitudeWindows(g,L,now){
+  var P=curPlague; if(!P||!P.active||P.stage<2||(P.stage===5&&P.sub>=0.7)) return;
+  var frac=Math.min(0.5,0.18+0.32*(P.stage>=3?1:P.sub)), RB=["#ff5a5a","#ff9a3c","#ffd24a","#5ac86a","#4a90e0","#a05ad0"], thanks=0;
+  for(var i=0;i<near.blds.length;i++){ var b=near.blds[i];
+    if(b.type==="park"||b.h<22||b.w<9) continue;
+    if(overSite(b.x,b.w)||overLandmark(b.x,b.w)) continue;
+    if(b.bAge!==undefined && cityG-b.bAge<bandOf(b)) continue;
+    if((((b.seed^0x9A17)>>>1)%100) >= frac*100) continue;
+    var bx=(b.x-WOFF)|0; if(bx>SW+4&&bx-WW>-4)bx-=WW; if(bx<-4-b.w&&bx+WW<SW+4)bx+=WW;
+    if(bx+b.w<-4||bx>SW+4) continue;
+    var top=(HORIZON-b.h)|0, wx2=(bx+3+((b.seed>>>3)%Math.max(1,b.w-6)))|0, wy=(top+6+((b.seed>>>5)%Math.max(1,b.h-12)))|0;
+    if(b.seed&1){ for(var rb=0;rb<6;rb++){ g.fillStyle=RB[rb]; g.fillRect(wx2-3+rb,wy,1,1); } g.fillStyle=RB[0]; g.fillRect(wx2-2,wy-1,4,1); }   // a little rainbow
+    else { g.fillStyle="#ff6a8a"; g.fillRect(wx2-1,wy,3,1); g.fillRect(wx2,wy-1,1,1); g.fillRect(wx2,wy+1,1,1); }                                // …or a heart
+    if(thanks<2 && b.w>=16 && ((b.seed>>>9)&1)){ var msg="THANK YOU", ml=msg.length*4-1; if(b.w-2>=ml){                     // a THANK YOU on a couple of wide towers
+      g.fillStyle="#efe6cc"; g.fillRect((bx+((b.w-ml)>>1)-1)|0,top+3,ml+2,6); drawUiText(g,msg,(bx+((b.w-ml)>>1))|0,top+4,"#2a6ab0",1); thanks++; } }
+  }
+}
 function drawPlague(g,L,now,night){
   if(!curPlague||!curPlague.active) return;
+  drawHospitalShip(g,L,now);     // the naval hospital ship in the harbor (coastal)
   drawFieldHospital(g,L,now);    // the red-cross tents in the plaza
   drawPlagueSigns(g,L,now);      // boarded storefronts + STAY HOME signs
+  drawGratitudeWindows(g,L,now); // rainbows / hearts / THANK YOU in the windows
   drawAmbulances(g,L,now);       // ambulances hurrying the emptied streets
+  drawVaccineClinic(g,L,now);    // the vaccine rollout at RECOVERY
+  drawMemorial(g,L,now);         // the candlelight memorial
   drawPlagueCelebration(g,L,now);// …then at REOPENING, the jubilant maskless crowd + confetti
 }
 function drawRegime(g,L,now,night){
