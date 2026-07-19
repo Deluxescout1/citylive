@@ -8201,6 +8201,32 @@ var curPolicies={heightcap:false,carfree:false,surveil:false}; // term-scoped po
 var FORCEELECT=null;   // test hook: {partyK,party2K,winName,loseName,phase,measures,builds,policies,scandal} — own line (QML namespace writable)
 var curCorps=null;     // this life's corporate landscape (rising/juggernaut/fading companies) — set each frame
 var FORCECORP=null;    // test hook: pin a corpState() {li,era,cos,king,cy} for render tests — own line (QML namespace writable)
+// ======================= THE ORDER — fascist-takeover political arc (v1.14) =======================
+// A dystopian CHAPTER an uncommon city goes through and comes out of: a fictional authoritarian party
+// ("THE ORDER") rises through the ballot, seizes power, becomes a dictatorship, and is always overthrown.
+// PURE clock function (own salt, reads cityGrowth/lifeIndexOf only — NEVER the mutable cur* globals, and
+// NEVER mayorState/warState, so there's no cycle: consumers → mayorState → regimeState → pure inputs).
+// Life-scoped: returns null before cyStart and after cyEnd, so the city is normal on either side + across rebirth.
+var REGIME_SALT=0x0FF1CE5;
+var THE_ORDER={k:"THE ORDER",c:"#c0182a"};                        // crimson; distinct from the four normal parties
+var REGIME_TITLES=["CHANCELLOR","THE MARSHAL","THE DIRECTOR","THE PREMIER","THE GENERAL"];
+var REGIME_STAGES=[0.42,0.48,0.53,0.58,0.64,0.73,0.80];          // 6 stage boundaries then the healed end
+var FORCEREGIME=null;                                            // test hook (kde-repro ?regime=<stage>) — own line (QML namespace writable)
+function regimeState(now){
+  if(FORCEREGIME) return FORCEREGIME;
+  var cg=cityGrowth(now); if(cg.g<0.40||cg.phase==="apoc") return null;   // real cities only, never the apocalypse
+  var li=lifeIndexOf(now), cy=cg.cy;
+  if(((li*2654435761+7717)>>>0)%100 < 62) return null;           // YIELD to war lives (replicates warState's existence roll — no mayorState call → no cycle)
+  var rh=((((li*2654435761)>>>0) ^ REGIME_SALT)>>>0);
+  if((rh%100) >= 37) return null;                                // ~37% of the war-free lives → ~14% overall (uncommon; Nick: ~1 in 7)
+  if(cy<REGIME_STAGES[0] || cy>=REGIME_STAGES[6]) return null;   // NORMAL before the rise & after the fall (life-scoped)
+  var stage=1; for(var s=1;s<6;s++){ if(cy>=REGIME_STAGES[s]) stage=s+1; }
+  var sub=Math.max(0,Math.min(1,(cy-REGIME_STAGES[stage-1])/(REGIME_STAGES[stage]-REGIME_STAGES[stage-1])));
+  return { active:true, stage:stage, sub:sub, party:THE_ORDER,
+    leaderName:REGIME_TITLES[(rh>>>7)%REGIME_TITLES.length]+" "+LNAMES[(rh>>>11)%LNAMES.length],
+    path:["vote","revolution","uprising"][(rh>>>17)%3], cyStart:REGIME_STAGES[0], cyEnd:REGIME_STAGES[6], li:li, seed:rh };
+}
+var curRegime=null;   // set each frame; the whole arc reads this
 function mayorState(now){
   var cg2=cityGrowth(now); if(cg2.g<0.35||cg2.phase==="apoc") return null;   // no politics in a hamlet or an inferno
   var li=lifeIndexOf(now), term=Math.floor(cg2.cy/TERM);
@@ -8240,6 +8266,13 @@ function mayorState(now){
     if(FORCEELECT.measures){ M.measures=FORCEELECT.measures; M.nextMeasures=FORCEELECT.measures; }
     if(FORCEELECT.scandal){ M.scandal=true; M.scandalTerm=true; }
     if(FORCEELECT.recallVote) M.recallVote=true;
+  }
+  // THE ORDER — the ONE guarded branch: skipped entirely (M untouched) unless this is a regime life IN its window,
+  // so non-regime lives stay byte-identical. From stage 2 the Order holds City Hall; from stage 3 elections are postponed.
+  var RG=regimeState(now);
+  if(RG&&RG.active&&RG.stage>=2){
+    M.party=RG.party; M.party2=RG.party; M.electedParty=RG.party; M.winName=RG.leaderName; M.regime=RG.stage;
+    if(RG.stage>=3){ M.campaign=false; M.electionDay=false; M.debate=false; M.scandal=false; M.recallVote=false; M.justElected=false; }
   }
   return M;
 }
@@ -10780,6 +10813,7 @@ function draw(g,pass){
   laborK=1.5-0.95*Math.min(1,cityG/0.55);                    // few hands in the village build SLOW; the boomtown workforce builds FAST (1.5×→0.55× duration)
   computeLmFoot();                                           // clear plazas where the civic landmarks stand
   curMayor=mayorState(now);                                  // who runs city hall right now?
+  curRegime=regimeState(now);                                // THE ORDER's political arc this life (null on most lives)
   curBuilds=passedBuilds(now).concat(passedCivics(now));     // permanent landmarks the city voted to build this life (measures + civic projects)
   curPolicies=curPoliciesOf(now);                            // soft policy-measures in force this term
   curCorps=corpState(now);                                   // the corporate landscape (rising/juggernaut/fading firms) this life
