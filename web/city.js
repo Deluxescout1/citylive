@@ -5299,23 +5299,28 @@ function drawConcert(g,L,now,night){
 }
 // ---- food festival: a run of food stalls with striped awnings, string lights, grill smoke, crowds ----
 function drawFoodFest(g,L,now,night){
-  var gy=HORIZON+1, ac=["#d2683b","#c23b5a","#3a9a6f","#e0a83a","#8a4ab0"], food=["#f0902a","#e0402a","#ffd23a","#c86038","#8ae05a"];
-  var lit=false, lastX=null;
-  for(var mx=18; mx<WW; mx+=13){ var dn=districtAt(mx).name; if(dn!=="residential"&&dn!=="oldtown"&&dn!=="downtown") continue;
-    for(var off=-WW;off<=WW;off+=WW){ var X=(mx-WOFF+off)|0; if(X<-8||X>SW+10) continue;
-      var pr=rng((mx*151+13)>>>0), c=ac[(mx>>2)%ac.length];
-      g.fillStyle="#7a5a3a"; g.fillRect(X-4,gy-7,1,7); g.fillRect(X+4,gy-7,1,7);            // cart posts
-      for(var aw=0;aw<9;aw++){ g.fillStyle=((aw&1)?c:"#f2ede2"); g.fillRect(X-4+aw,gy-7,1,1); }  // striped awning
-      g.fillStyle=L>0.5?"#5a4230":"#1c140c"; g.fillRect(X-4,gy-3,9,3);                       // counter
-      for(var pp=0;pp<7;pp++){ g.fillStyle=food[(pp+(mx>>1))%food.length]; g.fillRect(X-4+pp+((pp>3)?1:0),gy-4,1,1); }  // dishes
-      if(night>0.3 && (mx&1)){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,180,90,0.14)"; g.fillRect(X-2,gy-6,4,3); g.globalCompositeOperation="source-over"; }  // grill glow
-      else if((mx%3)===0){ for(var sm=0;sm<3;sm++){ g.fillStyle="rgba(180,180,190,"+(0.16-sm*0.04)+")"; g.fillRect((X+1)|0,(gy-8-sm*2-((now*0.02)%3))|0,1,1); } }  // grill smoke
-      drawPerson(g,X+3,gy-3,"#8a5a3a",SKINC[mx%SKINC.length],0);                             // vendor
-      if(pr()<0.85) drawPerson(g,X-5,gy-2,PEDC[(mx>>1)%PEDC.length],SKINC[(mx>>2)%SKINC.length],((now*0.02|0)&1));  // eater
-      if(lastX!=null && night>0.3){ g.strokeStyle="rgba(255,210,120,0.5)"; g.lineWidth=1;    // string lights swagging stall-to-stall
-        g.beginPath(); g.moveTo(lastX,gy-9); g.quadraticCurveTo((lastX+X)/2,gy-6,X,gy-9); g.stroke();
-        g.fillStyle="#ffd37a"; for(var bl=0;bl<3;bl++){ g.fillRect((lastX+(X-lastX)*(bl+1)/4)|0,(gy-7)|0,1,1); } }
-      lastX=X;
+  var gy=HORIZON+1, night2=night>0.28;
+  var awn=["#d2683b","#c23b5a","#3a9a6f","#e0a83a","#8a4ab0"], food=["#f0902a","#e0402a","#ffd23a","#8ae05a"];
+  // spaced-out booths on market row only — each a CLEAR canopy stall, not a wall of stalls
+  for(var mx=26; mx<WW; mx+=24){ var dn=districtAt(mx).name; if(dn!=="residential"&&dn!=="oldtown") continue;
+    for(var off=-WW;off<=WW;off+=WW){ var X=(mx-WOFF+off)|0; if(X<-12||X>SW+14) continue;
+      var seed=(mx*151+13)>>>0, pr=rng(seed), c=awn[(mx>>2)%awn.length], bw=11, x0=X-(bw>>1);
+      g.fillStyle=L>0.5?"#6a4e34":"#241a10"; g.fillRect(x0,gy-9,bw,2);                          // canopy top bar
+      for(var aw=0;aw<bw;aw++){ g.fillStyle=((aw&1)?c:"#f4efe4"); g.fillRect(x0+aw,gy-7,1,1); }   // striped valance
+      g.fillStyle=L>0.5?"#7a5a3a":"#2a2016"; g.fillRect(x0,gy-7,1,7); g.fillRect(x0+bw-1,gy-7,1,7);  // posts
+      g.fillStyle=L>0.5?"#5a4230":"#1c140c"; g.fillRect(x0,gy-3,bw,3);                             // counter
+      for(var pp=0;pp<3;pp++){ g.fillStyle=food[(pp+(mx>>1))%food.length]; g.fillRect(x0+2+pp*3,gy-4,2,1); }  // 3 distinct dishes
+      g.fillStyle=L>0.5?"#2e2620":"#0e0b08"; g.fillRect(x0-2,gy-6,2,4); g.fillStyle="#f4d38a"; g.fillRect(x0-2,gy-6,2,1);  // menu board on a post
+      // ---- LIGHTS: warm booth glow + a bright bulb string across the canopy (visible by day, clearly LIT at night)
+      if(night2){ g.globalCompositeOperation="lighter";
+        g.fillStyle="rgba(255,178,78,0.26)"; g.fillRect(x0-2,gy-9,bw+4,11);                       // warm pool of light over the whole booth
+        g.fillStyle="rgba(255,196,104,0.5)"; g.fillRect(x0,gy-10,bw,4);                           // bulb-string halo along the canopy
+        g.fillStyle="rgba(255,208,120,0.6)"; g.fillRect(X-2,gy-7,5,5);                            // lantern halo
+        g.globalCompositeOperation="source-over"; }
+      g.fillStyle="#ffd86a"; g.fillRect(X,gy-6,1,2);                                             // lantern body (crisp)
+      for(var bl=0;bl<4;bl++){ g.fillStyle="#fff0b4"; g.fillRect(x0+1+bl*3,gy-9,1,1); }            // bright bulb string
+      drawPerson(g,X+2,gy-3,"#8a5a3a",SKINC[mx%SKINC.length],0);                                  // vendor
+      if(pr()<0.7) drawPerson(g,x0-3,gy-2,PEDC[(mx>>1)%PEDC.length],SKINC[(mx>>2)%SKINC.length],((now*0.02|0)&1));  // one customer
     }
   }
 }
