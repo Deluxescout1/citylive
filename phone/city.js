@@ -3094,23 +3094,60 @@ function drawRegimeHud(g,now,night){
   drawUiText(g,full,x0+ew,ty,fallen?"#d6ffe2":"#ffe2e2",1);                                          // BRIGHT screen-space text — unmistakable
 }
 // THE ORDER's crimson BANNERS hang down the facades once the dictatorship takes hold (stage 3+, dense at 5)
-function drawRegimeBanners(g,L,now){
+// ---- v1.24 TOTAL CONTROL — a rooftop flag flying from a tower top (waving crimson pennant + emblem)
+function drawOrderFlag(g,cx,cy,ph,L,now,scale){
+  scale=scale||1; var poleH=Math.max(4,Math.round(6*scale)), fw=Math.max(3,Math.round(5*scale)), fh=Math.max(2,Math.round(3*scale));
+  g.fillStyle=L>0.5?"#2a2226":"#141014"; g.fillRect(cx,cy-poleH,1,poleH);                        // pole
+  g.fillStyle=L>0.5?"#ffe14a":"#b0a030"; g.fillRect(cx,cy-poleH,1,1);                            // finial
+  var fy=cy-poleH;
+  for(var r=0;r<fh;r++){ var off=Math.round(Math.sin(now*0.006+ph+r*0.7)*scale);                 // the pennant waves
+    g.fillStyle=L>0.5?"#c01828":"#7a1018"; g.fillRect(cx+1+off,fy+r,fw,1);
+    g.fillStyle=L>0.5?"#8a1018":"#4a0810"; g.fillRect(cx+1+off,fy+r,1,1); }                       // hoist shade
+  if(fw>=4&&fh>=3) drawOrderEmblem(g,cx+1+(fw>>1),fy+(fh>>1),1,"#f4eee2",null);                   // tiny emblem
+}
+// a GIANT propaganda banner draped down a hero tower's face — emblem + a vertical slogan
+var ORDER_SLOGANS=["ORDER","OBEY","UNITY","ONE CITY","STRENGTH","LOYALTY"];
+function drawGiantBanner(g,bx,top,bw,bh,L,now,seed){
+  var w=Math.min(bw-2,10), x=(bx+((bw-w)>>1))|0, len=Math.min(bh-3,Math.round(bh*0.72));
+  g.fillStyle="#150a0c"; g.fillRect(x-1,top,w+2,1);                                               // rod
+  g.fillStyle=L>0.5?"#a81624":"#5c0c14"; g.fillRect(x,top+1,w,len);                               // crimson field
+  g.fillStyle=L>0.5?"#7a1018":"#420810"; g.fillRect(x,top+1,1,len); g.fillRect(x+w-1,top+1,1,len);
+  g.fillStyle=L>0.5?"#c33040":"#7a121e"; g.fillRect(x+1,top+1,1,len);                             // fold hilight
+  for(var nk=0;nk<w;nk+=2){ g.fillStyle="rgba(0,0,0,0.4)"; g.fillRect(x+nk,top+1+len,1,1); }       // notched tail
+  drawOrderEmblem(g,x+(w>>1),top+5,Math.max(2,(w>>1)-1),"#f4eee2",null);                          // emblem near the top
+  if(w>=6){ var sl=ORDER_SLOGANS[(seed>>>0)%ORDER_SLOGANS.length], ty=top+10, tx=x+(w>>1)-1;       // vertical stacked slogan
+    for(var ci=0;ci<sl.length && ty+6<top+1+len;ci++){ if(sl[ci]===" "){ ty+=3; continue; }
+      drawUiText(g,sl[ci],tx,ty,"rgba(245,238,226,0.95)",1); ty+=6; } }
+}
+// THE WHOLE SKYLINE DRAPED — per-layer flag/banner pass, run right after each layer draws (back-to-front)
+// so depth is correct for free. Coverage widens with the stage: sparse at EMERGENCY POWERS → the entire
+// city draped at TOTAL CONTROL. Gated on curRegime.active → invisible (byte-identical) on non-regime lives.
+function drawLayerRegime(g,layer,L,now,night){
   var R=curRegime; if(!R||!R.active||R.stage<3) return;
-  if(R.stage===6&&R.sub>=0.5) return;                                   // torn down at the liberation
-  var dense=(R.stage>=5), maxB=dense?8:3, drawn=0;
-  for(var i=0;i<near.blds.length&&drawn<maxB;i++){ var b=near.blds[i];
-    if(b.type==="park"||b.h<26||b.w<9) continue;
-    if(b.bAge!==undefined && cityG-b.bAge<=bandOf(b)) continue;          // only built towers
-    if(((b.seed>>>3)%(dense?2:4))!==0) continue;
+  if(R.stage===6&&R.sub>=0.5) return;                                    // torn down at the liberation
+  var isNear=(layer===near), isFar=(layer===far);
+  var denom = R.stage>=5?1 : R.stage===4?2 : 4;                          // 1-in-N eligible towers → all of them at TOTAL CONTROL
+  var lscale = isNear?1 : (layer===mid?0.8:0.6);
+  var bigDone=0, bigMax=(isNear&&R.stage>=4)?2:0;                        // a couple of giant slogan banners, near-layer only
+  for(var i=0;i<layer.blds.length;i++){ var b=layer.blds[i];
+    if(b.type==="park"||b.h<(isFar?14:22)||b.w<7) continue;
+    if(b.bAge!==undefined && cityG-b.bAge<=bandOf(b)) continue;          // only fully built towers
     var bx=(b.x-WOFF)|0; if(bx>SW+4&&bx-WW>-4)bx-=WW; if(bx<-4-b.w&&bx+WW<SW+4)bx+=WW;
-    if(bx+b.w<-4||bx>SW+4) continue; drawn++;
-    var bw=Math.max(4,Math.min(8,b.w>>1)), bxc=(bx+((b.w-bw)>>1))|0, top=(HORIZON-b.h+2)|0, len=Math.min(b.h-5,16+(b.h>>1));
-    g.fillStyle="#1a0c0e"; g.fillRect(bxc-1,top-1,bw+2,1);                                             // hanging rod
-    g.fillStyle=L>0.5?"#b01828":"#6c0e18"; g.fillRect(bxc,top,bw,len);                                 // crimson banner
-    g.fillStyle=L>0.5?"#7a1018":"#490810"; g.fillRect(bxc,top,1,len); g.fillRect(bxc+bw-1,top,1,len);  // fold shade
-    g.fillStyle=L>0.5?"#c83040":"#82121e"; g.fillRect(bxc+1,top,1,len);                                // fold hilight
-    var nb=Math.max(1,bw>>2); for(var nk=0;nk<bw;nk+=2){ g.fillStyle="rgba(0,0,0,0.45)"; g.fillRect(bxc+nk,top+len,1,1); }  // notched tail
-    drawOrderEmblem(g,bxc+(bw>>1),top+Math.min(len-4,6),Math.max(1,(bw>>1)-1),"#f4eee2",null);         // white emblem
+    if(bx+b.w<-4||bx>SW+4) continue;
+    var top=(layer.y0-b.h)|0;
+    if(bigMax&&bigDone<bigMax && b.w>=12 && b.h>=40 && ((b.seed>>>7)%3)===0){ drawGiantBanner(g,bx,top,b.w,b.h,L,now,(b.seed>>>11)); bigDone++; continue; }
+    if(((b.seed>>>3)%denom)!==0){                                        // not banner-picked…
+      if(R.stage>=5 && !isFar && b.h>=30) drawOrderFlag(g,(bx+(b.w>>1))|0,top,(b.seed%628)/100,L,now,lscale);   // …but flies a rooftop flag at TOTAL CONTROL
+      continue;
+    }
+    var bw=Math.max(3,Math.min(Math.round(9*lscale),b.w>>1)), bxc=(bx+((b.w-bw)>>1))|0, len=Math.min(b.h-4,Math.round((14+(b.h>>1))*lscale));
+    g.fillStyle="#1a0c0e"; g.fillRect(bxc-1,top+1,bw+2,1);                                             // rod
+    g.fillStyle=L>0.5?"#b01828":"#6c0e18"; g.fillRect(bxc,top+2,bw,len);                               // crimson banner
+    g.fillStyle=L>0.5?"#7a1018":"#490810"; g.fillRect(bxc,top+2,1,len); g.fillRect(bxc+bw-1,top+2,1,len);
+    g.fillStyle=L>0.5?"#c83040":"#82121e"; g.fillRect(bxc+1,top+2,1,len);                              // fold hilight
+    for(var nk=0;nk<bw;nk+=2){ g.fillStyle="rgba(0,0,0,0.45)"; g.fillRect(bxc+nk,top+2+len,1,1); }     // notched tail
+    if(bw>=4) drawOrderEmblem(g,bxc+(bw>>1),top+2+Math.min(len-4,6),Math.max(1,(bw>>1)-1),"#f4eee2",null);
+    if(!isFar && b.h>=26 && R.stage>=4) drawOrderFlag(g,(bx+b.w-2)|0,top,(b.seed%628)/100,L,now,lscale);        // a rooftop flag too
   }
 }
 // the LEADER'S COLOSSAL STATUE looms over the plaza (stands stage 4+). In the fall (stage 6) it TOPPLES —
@@ -3159,7 +3196,7 @@ function drawLiberation(g,L,now){
 // the whole regime world-overlay dispatcher (banners + statue + …), drawn over the near layer
 function drawRegime(g,L,now,night){
   if(!curRegime||!curRegime.active) return;
-  drawRegimeBanners(g,L,now);
+  // (flags/banners are drawn per-layer via drawLayerRegime for correct depth; here = the plaza overlay)
   drawLeaderStatue(g,L,now);
   drawLiberation(g,L,now);
 }
@@ -11399,6 +11436,7 @@ function draw(g,pass){
   if(cityG<0.985) drawTerrain(g,cityG,L,now,nd,pass==="fg"?"fg":undefined);
 
   drawLayer(g,far,L,now,fx,hol,0.42);
+  if(curRegime&&curRegime.active) drawLayerRegime(g,far,L,now,night);   // THE ORDER drapes the far skyline
   // dystopian smog band (only once there's a city to be smoggy) — one gradient, magenta→teal, feathered at both ends
   var smA=(0.10+0.06*Math.sin(now*0.00008))*night*Math.min(1,cityG*1.5);
   if(smA>0.002){
@@ -11411,6 +11449,7 @@ function draw(g,pass){
     g.fillStyle=smg; g.fillRect(0,smY0,SW,smY1-smY0);
   }
   drawLayer(g,mid,L,now,fx,hol,0.20);
+  if(curRegime&&curRegime.active) drawLayerRegime(g,mid,L,now,night);   // …the mid skyline
   // waterfront harbour fills the industrial edges (behind the near shoreline)
   if(hasOcean) drawHarbor(g,L,now,night,nd);   // the coast is there from day one — the city grows out to meet it
   if(hasOcean) drawOpenSea(g,L,now,night);     // …and beyond the harbour, the OPEN sea
@@ -11418,6 +11457,7 @@ function draw(g,pass){
   if(!nukeFull()) drawIce(g,L,now);                            // deep winter: the bay is a skating rink (skaters gone with the blast)
   if(hasOcean && !nukeFull()) drawRival(g,L,now);              // the rival city, growing across the bay (also gone in the exchange)
   drawLayer(g,near,L,now,fx,hol,0);
+  if(curRegime&&curRegime.active) drawLayerRegime(g,near,L,now,night);  // …and the near towers (giant slogan banners here)
 
   // construction sites — towers rising floor-by-floor over real days, with tower cranes
   if(cityG>0.35 && !nukeStruck()) for(var siI=0;siI<sites.length;siI++) drawSite(g,sites[siI],L,now,nd);   // NO new construction once the bomb drops — the cranes are gone
