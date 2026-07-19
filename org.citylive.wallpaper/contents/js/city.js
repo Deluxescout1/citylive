@@ -3210,9 +3210,43 @@ function drawRegimeWash(g,L,now){
   gd.addColorStop(1,    "rgba(96,10,16,"+(amt).toFixed(3)+")");      // streets: full oppressive crimson
   g.fillStyle=gd; g.fillRect(0,0,SW,SH);
 }
+// v1.24 — THE ORDER on the ground: searchlights raking the night sky, patrol cars with flashing beacons
+// on the curfew-emptied road, and a checkpoint. Martial Law+ (stage 4-5). Gated on curRegime.active.
+function drawRegimeStreets(g,L,now,night){
+  var R=curRegime; if(!R||!R.active||R.stage<4) return;
+  if(R.stage===6&&R.sub>=0.5) return;                                   // gone at the liberation
+  // 1) SWEEPING SEARCHLIGHTS — tall watch-beacons rake the night sky (bright, unmistakable)
+  if(L<0.55){ var nl=1-L, reach=140;
+    for(var s=0;s<4;s++){ var bwx=(0.14+0.24*s)*WW, baseY=HORIZON-30-(s%2)*22;              // originate up on the skyline, not the street
+      for(var off=-WW;off<=WW;off+=WW){ var bx=bwx-WOFF+off; if(bx<-40||bx>SW+40) continue;
+        var ang=Math.sin(now*0.0004+s*1.9)*0.85;
+        g.globalCompositeOperation="lighter";
+        for(var t=0;t<=reach;t+=2){ var bxT=bx+Math.sin(ang)*t, byT=baseY-t*Math.cos(ang*0.4), wsp=1.5+t*0.06;
+          var fa=(0.16+0.08*Math.sin(now*0.004+s))*nl*(1-t/reach);                          // brighter cone, fades with distance
+          g.fillStyle="rgba(255,238,208,"+Math.max(0,fa).toFixed(3)+")"; g.fillRect((bxT-wsp)|0,byT|0,Math.max(2,(wsp*2)|0),2); }
+        g.fillStyle="rgba(255,244,214,"+(0.85*nl).toFixed(2)+")"; g.fillRect(bx-1|0,baseY-1,3,3);   // the hot lamp
+        g.globalCompositeOperation="source-over"; } }
+  }
+  // 2) PATROL CARS with flashing red/blue beacons on the emptied road
+  var np=R.stage>=5?2:1;
+  for(var p=0;p<np;p++){ var lane=LANE[(p*2)%LANE.length], per=52000, ph=((now+p*26000)%per)/per, dir=lane.d;
+    var wx=dir>0?ph*WW:WW*(1-ph), ly=HORIZON+lane.o;
+    for(var off2=-WW;off2<=WW;off2+=WW){ var X=(wx-WOFF+off2); if(X<-14||X>SW+14) continue;
+      drawCar(g,X|0,ly,"#242a34",dir,L,"suv");                                        // dark patrol vehicle
+      var beac=(Math.floor(now/260)&1), bxb=X+(dir>0?3:2);
+      g.fillStyle=beac?"#ff2a2a":"#3a7aff"; g.fillRect(bxb|0,ly-4,2,1);               // flashing beacon
+      g.globalCompositeOperation="lighter"; g.fillStyle=beac?"rgba(255,50,50,0.5)":"rgba(60,130,255,0.5)"; g.fillRect((bxb-1)|0,ly-5,4,3); g.globalCompositeOperation="source-over"; } }
+  // 3) A CHECKPOINT — striped barricade + a guard on the sidewalk (TOTAL CONTROL)
+  if(R.stage>=5){ var cwx=0.5*WW;
+    for(var off3=-WW;off3<=WW;off3+=WW){ var CX=cwx-WOFF+off3; if(CX<-12||CX>SW+12) continue;
+      for(var bar=0;bar<10;bar+=2){ g.fillStyle=(((bar>>1)&1))?"#e8e2d0":"#c0182a"; g.fillRect((CX-5+bar)|0,HORIZON+2,2,2); }   // striped barrier
+      g.fillStyle="#1a0c0e"; g.fillRect((CX-6)|0,HORIZON+1,1,4); g.fillRect((CX+4)|0,HORIZON+1,1,4);                            // posts
+      drawPerson(g,(CX+7)|0,HORIZON+1,"#2f3540","#caa07a",(Math.floor(now/520))&1); } }                                        // a guard
+}
 function drawRegime(g,L,now,night){
   if(!curRegime||!curRegime.active) return;
   drawRegimeWash(g,L,now);       // the crimson mood over everything drawn so far (flags/city); HUD stays crisp on top
+  drawRegimeStreets(g,L,now,night);   // searchlights + patrols + checkpoint
   // (flags/banners are drawn per-layer via drawLayerRegime for correct depth; here = the plaza overlay)
   drawLeaderStatue(g,L,now);
   drawLiberation(g,L,now);
