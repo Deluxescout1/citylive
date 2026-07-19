@@ -156,7 +156,7 @@ function resetNotifLanes(){ for(var r=0;r<_notifTaken.length;r++) _notifTaken[r]
 var CLOCK = null;   // test-harness override: ms timestamp for time-of-day (null = real wall clock)
 var NOWOVR = null;  // test-harness override: ms value returned as Date.now() inside draw() (null = real)
 var NOFETCH = false;  // headless flag (own line = QML-namespace writable): almanac callers set this so setup() makes NO network calls
-var VERSION = "1.31.0";  // the build the user is running — surfaced in the Almanac + KDE config page (keep in sync with desktop/package.json)
+var VERSION = "1.32.0";  // the build the user is running — surfaced in the Almanac + KDE config page (keep in sync with desktop/package.json)
 var FORCELAYOUT = null;   // test hook: pin every building's window layout (grid/ribbon/band/punch/corp) — verify per-layout render
 var FORCECROWN = null;    // test hook: pin every building's crown/roof (gable/hip/saltbox/mansard/deco/…) — verify per-roof render
 var FORCEUSE = null;      // test hook: pin every building's functional type (hospital/theater/hotel/bank/cafe/pharmacy) — verify drawUse
@@ -7879,6 +7879,38 @@ function drawZombies(g,cd,L,now){
       g.globalCompositeOperation="source-over"; }
   }
 }
+// a victim caught in an alien tractor beam — lifted helpless off the street. kind 0-2 = a person
+// (spread-eagle, tumbling & flailing), 3 = a cow (legs-up, the classic), 4 = a hapless car.
+function drawAbductee(g,x,y,kind,spin,L){
+  x|=0; y|=0;
+  if(kind>=4){                                                              // a whole CAR, hauled up
+    g.fillStyle=L>0.5?"#c85048":"#7a2e28"; g.fillRect(x-4,y,8,3);
+    g.fillStyle=L>0.5?"#e0e8f0":"#8090a0"; g.fillRect(x-2,y-2,5,2);         // cabin glass
+    g.fillStyle="#20242c"; g.fillRect(x-3,y+3,2,1); g.fillRect(x+2,y+3,2,1); // wheels dangling
+    return;
+  }
+  if(kind===3){                                                            // a COW — legs splayed upward
+    g.fillStyle=L>0.5?"#f0ece4":"#9a948a"; g.fillRect(x-4,y,8,3);          // body
+    g.fillStyle=L>0.5?"#3a2a24":"#241a16"; g.fillRect(x-3,y,2,1); g.fillRect(x+2,y+1,2,1); // spots
+    g.fillStyle=L>0.5?"#e8ddce":"#8a847a"; g.fillRect(x+4,y,2,2);          // head
+    g.fillStyle="#f2b0c0"; g.fillRect(x+5,y+1,1,1);                        // snout
+    g.fillStyle=L>0.5?"#d8ccbc":"#7a746a";                                  // four legs kicking up
+    g.fillRect(x-3,y-2,1,2); g.fillRect(x-1,y-3,1,3); g.fillRect(x+1,y-3,1,3); g.fillRect(x+3,y-2,1,2);
+    return;
+  }
+  var body=L>0.5?"#2c2c36":"#1c1c26", skin=SKINC[((x>>1)+kind)%SKINC.length];
+  if(spin){                                                                // arms & legs flung wide (tumbling)
+    g.fillStyle=body; g.fillRect(x-1,y,2,3);                               // torso
+    g.fillStyle=skin; g.fillRect(x-1,y-2,2,2);                             // head
+    g.fillStyle=body; g.fillRect(x-4,y,3,1); g.fillRect(x+2,y,3,1);        // arms out
+    g.fillRect(x-3,y+3,2,1); g.fillRect(x+2,y+3,2,1);                      // legs splayed
+  } else {                                                                 // arms flailing UP toward the ship
+    g.fillStyle=body; g.fillRect(x-1,y,2,3);
+    g.fillStyle=skin; g.fillRect(x-1,y-2,2,2);
+    g.fillStyle=body; g.fillRect(x-2,y-3,1,3); g.fillRect(x+1,y-3,1,3);    // arms up
+    g.fillRect(x-1,y+3,1,2); g.fillRect(x,y+3,1,2);                        // legs kicking down
+  }
+}
 function drawAliens(g,cd,L,now){
   var cx=disX(cd.x), f=cd.f, i=cd.intensity; if(f>=0.50) return;
   var descend=Math.min(1,f/0.10), leave=(f>0.42)?(f-0.42)/0.08:0;
@@ -7892,20 +7924,29 @@ function drawAliens(g,cd,L,now){
     g.globalCompositeOperation="source-over"; }
   // ---- the raiding saucers (fleet grows with CAT) ----
   var nships=1+(i>>1);                                             // CAT1-2:1 · CAT3-4:2-3 · CAT5:3
-  for(var s=0;s<nships;s++){ var scx=cx+(s-(nships-1)/2)*(cd.w*0.7+14), shipY=8+descend*16-leave*30+(s&1?3:0), shipW=9+i*2;
+  for(var s=0;s<nships;s++){ var scx=cx+(s-(nships-1)/2)*(cd.w*0.7+14), shipY=8+descend*95-leave*110+(s&1?4:0), shipW=9+i*2;   // the raiders drop low over the street to harvest (mothership stays high)
     if(scx<-shipW||scx>SW+shipW) continue;
     g.fillStyle=L>0.5?"#3a4a5a":"#1a2430"; g.fillRect((scx-shipW/2)|0,shipY|0,shipW,3);         // saucer hull
     g.fillStyle=L>0.5?"#5a6a7a":"#26303c"; g.fillRect((scx-shipW/4)|0,(shipY-2)|0,(shipW/2)|0,2); // dome
     g.globalCompositeOperation="lighter";
     for(var lp=0;lp<shipW;lp+=2){ g.fillStyle=(((Math.floor(now/120))+lp)&1)?"#5affd0":"#ff5ad0"; g.fillRect((scx-shipW/2+lp)|0,(shipY+3)|0,1,1); } // running lights
     g.fillStyle="rgba(120,255,200,"+(0.7+0.2*Math.sin(now*0.01))+")"; g.fillRect((scx-shipW/4)|0,(shipY-2)|0,(shipW/2)|0,1);
-    // HARVEST: a soft tractor cone lifting cars/people/rubble up into the ship
-    if(harvest){ var bw=cd.w*0.5;
-      g.fillStyle="rgba(120,255,180,"+(0.14+0.08*Math.sin(now*0.02))+")";
-      g.beginPath(); g.moveTo(scx-2,shipY+3); g.lineTo(scx-bw/2,HORIZON); g.lineTo(scx+bw/2,HORIZON); g.lineTo(scx+2,shipY+3); g.closePath(); g.fill();
-      for(var ab=0;ab<3;ab++){ var ay=HORIZON-(((now*0.05+ab*40+s*20)%(HORIZON-shipY-6))), axx=scx+Math.sin(ay*0.1+ab)*2, kind=(ab+s)%3;
-        g.fillStyle=kind===0?"#b0553f":(kind===1?"#5a6a7a":"#4a4a52"); g.fillRect(axx|0,ay|0,kind===0?3:2,2); }   // abducted silhouettes rising
+    // ABDUCTION: a bright tractor beam locks onto the street and hauls a victim (person / cow / car) up
+    // into the saucer — the classic close encounter. Each saucer runs its own cycle across the harvest.
+    if(harvest){ var topY=shipY+3, bw=5+i;                                  // beam half-width at the ground
+      var cyc=2800, ph=(((now+s*1300)%cyc)/cyc);                            // 0 = grabbed off the street .. 1 = pulled into the ship
+      var vidx=Math.floor((now+s*1300)/cyc), vkind=((vidx*2654435761+s*97)>>>0)%5;   // mostly people, sometimes a cow or a car
+      var pulse=0.5+0.5*Math.sin(now*0.018+s);
+      g.fillStyle="rgba(130,255,180,"+(0.09+0.06*pulse).toFixed(3)+")";     // soft green cone
+      g.beginPath(); g.moveTo(scx-2,topY); g.lineTo(scx-bw,HORIZON); g.lineTo(scx+bw,HORIZON); g.lineTo(scx+2,topY); g.closePath(); g.fill();
+      g.globalCompositeOperation="lighter";
+      g.fillStyle="rgba(190,255,215,"+(0.20+0.16*pulse).toFixed(3)+")"; g.fillRect((scx-1)|0,topY|0,2,(HORIZON-topY)|0);    // bright core column
+      g.fillStyle="rgba(150,255,190,"+(0.45*pulse).toFixed(3)+")"; g.fillRect((scx-bw)|0,(HORIZON-1)|0,(bw*2)|0,2);         // glowing pool at the grab point
       g.globalCompositeOperation="source-over";
+      var vy=Math.round(HORIZON-2-ph*(HORIZON-topY-3)), vx=scx+Math.round(Math.sin(ph*6.28+s)*2), spin=(Math.floor(ph*5+s)&1);
+      drawAbductee(g,vx,vy,vkind,spin,L);                                   // the victim rising up the beam
+      if(ph<0.55){ for(var pf=0;pf<2;pf++){ var fdir=pf?1:-1, fx=scx+fdir*(bw+3+Math.round(ph*12));   // bystanders bolt — someone's being taken!
+        if(fx>-4&&fx<SW+4) drawPerson(g,fx|0,HORIZON-1,"#3a3a46",SKINC[(vidx+pf)%SKINC.length],(Math.floor(now/130)+pf)&3); } }
     }
     // RAZE: a hard bright death-ray slagging the ground
     if(raze){ g.globalCompositeOperation="lighter";
