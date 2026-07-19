@@ -86,6 +86,11 @@ for (let L = 1; L <= 48; L++) {
     if (!(A.economy >= 0 && A.economy <= 100)) bad.push('economy=' + A.economy);
     if (!A.era || A.era === 'Unknown') bad.push('era=' + A.era);
     if (!A.fate) bad.push('fate=' + A.fate);
+    // fateAt must be a future timestamp landing exactly at the peak→apoc boundary (nobody misses the end)
+    if (!(A.fateAt > now)) bad.push('fateAt<=now=' + A.fateAt);
+    else { const bp = ctx.cityGrowth(A.fateAt - 1000).phase, ap = ctx.cityGrowth(A.fateAt + 1000).phase;
+      if (ap !== 'apoc' || bp === 'apoc') bad.push('fateAt not at boundary (before=' + bp + ' after=' + ap + ')'); }
+    if (!(A.fateInMs > 0)) bad.push('fateInMs=' + A.fateInMs);
     if (!A.cityName) bad.push('cityName=' + A.cityName);
     for (const h of A.history) { if (!(h.life >= 1) || !h.era || !h.fate) bad.push('badHistory=' + JSON.stringify(h)); }
     if (bad.length) problems.push(`L${L} cy${cy}: ${bad.join(', ')}`);

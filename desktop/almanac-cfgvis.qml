@@ -38,6 +38,14 @@ Rectangle {
               + i18n("Economy") + ": " + econ + "<br>"
               + i18n("Leadership") + ": " + (A.regime ? "<font color='#e0555f'>" + lead + "</font>" : lead) + "<br>"
               + i18n("Fated end") + ": " + A.fate;
+        if (A.fateAt) {
+            var fd = new Date(A.fateAt), fh = fd.getHours(), fh12 = (fh % 12) || 12, fap = fh < 12 ? "AM" : "PM", fmm = fd.getMinutes();
+            var DOW = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"], MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+            var when = DOW[fd.getDay()] + " " + MON[fd.getMonth()] + " " + fd.getDate() + ", " + fh12 + ":" + (fmm < 10 ? "0" : "") + fmm + " " + fap;
+            var dt = A.fateInMs, mins = Math.floor(dt / 60000), cd = mins >= 1440 ? ("in " + Math.floor(mins / 1440) + "d " + Math.floor((mins % 1440) / 60) + "h")
+                    : mins >= 60 ? ("in " + Math.floor(mins / 60) + "h " + (mins % 60) + "m") : mins >= 1 ? ("in " + mins + " min") : i18n("any moment");
+            s += "<br>" + i18n("Cataclysm strikes") + ": <font color='#e0a24a'>" + when + " · " + cd + "</font>";
+        }
         if (A.landmarks && A.landmarks.length) s += "<br>" + i18n("Landmarks") + ": " + A.landmarks.join(" · ");
         if (A.history && A.history.length) {
             s += "<br><br><b>" + i18n("Past civilizations") + "</b>";

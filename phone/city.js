@@ -2968,6 +2968,60 @@ function drawUiText(g,str,x,y,col,sc){                        // SCREEN-space pi
 // draws nothing when there is no government (hamlet or apocalypse: curMayor===null) — which is also null-safe.
 var HUD_MANDATE={ monorail:["M","#c05ad0"], seawall:["S","#4aa0e0"], stadium:["T","#e0a83a"], park:["P","#3ac86a"],
   casino:["C","#ff4bd0"], heightcap:["H","#ffb060"], carfree:["F","#6ad06a"], surveil:["V","#6ab0ff"] };
+// ---- THE DOOMSDAY CLOCK ----
+// So nobody MISSES the apocalypse: an unmistakable top-left warning of exactly WHEN this city's fated
+// end will strike. Shows through the mature "peak" phase, escalating amber→red as it nears; the finale
+// takes over once it hits. Time is REAL wall-clock, so it's right whether a life is a week or (test mode)
+// an hour. apocAtOf() derives the strike time from the SAME formula cityGrowth uses (cy 0.955 = "apoc").
+function apocAtOf(now){
+  var basis=now-GROW_EPOCH+GROW_OFFSET_DAYS*86400000+WORLD_SHIFT;
+  var m=((basis%GROW_CYCLE)+GROW_CYCLE)%GROW_CYCLE;   // ms elapsed in the current life
+  var at=(now-m)+0.955*GROW_CYCLE;                     // 0.955 = the cy where cityGrowth flips to "apoc"
+  if(now>=at) at+=GROW_CYCLE;                          // already erupting → point at the NEXT life's end
+  return at;
+}
+function fmtStrikeAt(at){
+  var d=new Date(at), h=d.getHours(), h12=(h%12)||12, ap=h<12?"AM":"PM", mm=d.getMinutes();
+  return DAYS3[d.getDay()]+" "+MONS3[d.getMonth()]+" "+d.getDate()+"  "+h12+":"+(mm<10?"0":"")+mm+ap;
+}
+function fmtCountdown(dt){
+  if(dt<0) dt=0; var s=Math.floor(dt/1000), d=Math.floor(s/86400), h=Math.floor((s%86400)/3600), m=Math.floor((s%3600)/60), ss=s%60;
+  if(d>0) return "IN "+d+"d "+h+"h";
+  if(h>0) return "IN "+h+"h "+m+"m";
+  if(m>=10) return "IN "+m+" MIN";
+  return "IN "+m+":"+(ss<10?"0":"")+ss;                 // final <10 min → live M:SS
+}
+function drawWarnTri(g,x,y,col,a){                       // a tiny 5px warning triangle
+  g.globalAlpha=(a==null?1:a); g.fillStyle=col;
+  for(var r=0;r<5;r++){ var half=Math.round(r/4*2); g.fillRect(x+2-half,y+r,2*half+1,1); }
+  g.globalAlpha=1;
+}
+function drawDoomClock(g,now,night){
+  var cg=cityGrowth(now); if(cg.phase!=="peak") return;   // only the mature run-up (grow=too early; apoc=the finale itself shows)
+  var at=apocAtOf(now), dt=at-now;
+  var fate=(DEATH_LABEL[curDeath]||curDeath||"CATACLYSM").toUpperCase();
+  var urg=Math.max(0,Math.min(1,(cg.cy-0.78)/(0.955-0.78)));   // 0 at start of peak → 1 at the brink
+  var soon=urg>0.6;                                       // last ~40% of the run-up → red alert
+  var pulse=0.6+0.4*Math.sin(now*(soon?0.008:0.0032));
+  var pad=5, W=106, mr=6, bx=mr, by=6, ix=bx+pad, iw=W-2*pad;
+  var y0=by+5, y1=y0+8, y2=y1+8, bh=(y2+10)-by;
+  var accent=soon?"#ff4a4a":"#ffb24a", accA=soon?"rgba(255,74,74,":"rgba(255,178,74,";
+  g.fillStyle="rgba(10,6,8,"+(night>0.5?0.5:0.38)+")"; g.fillRect(bx,by+1,W,bh-2); g.fillRect(bx+2,by,W-4,bh);
+  g.globalCompositeOperation="lighter";
+  g.fillStyle=accA+(0.55*pulse)+")"; g.fillRect(bx+2,by,W-4,1); g.fillRect(bx+2,by+bh-1,W-4,1);   // top/bottom rails
+  g.fillStyle=accA+(0.9*pulse)+")"; g.fillRect(bx,by,4,1); g.fillRect(bx+W-4,by,4,1);              // corner ticks
+  g.globalCompositeOperation="source-over";
+  // Row 0 — ⚠ + the fate name
+  drawWarnTri(g,ix,y0,accent,soon?pulse:0.9);
+  drawUiText(g,fate,ix+8,y0,accent,1);
+  // Row 1 — the EXACT strike time (wall-clock)
+  drawUiText(g,fmtStrikeAt(at),ix,y1,"rgba(232,238,248,0.94)",1);
+  // Row 2 — live countdown + a "time remaining" bar
+  drawUiText(g,fmtCountdown(dt),ix,y2,soon?"#ff7a7a":"rgba(255,205,150,0.95)",1);
+  var barY=y2+6; g.fillStyle="rgba(255,255,255,0.12)"; g.fillRect(ix,barY,iw,3);
+  g.globalCompositeOperation="lighter"; g.fillStyle=accA+"0.85)"; g.fillRect(ix,barY,Math.max(1,Math.round(iw*urg)),3);
+  g.globalCompositeOperation="source-over";
+}
 function drawCivicHud(g,now,night){
   var M=curMayor; if(!M) return;
   var pad=5, W=94, mr=6, bx=(SW-W-mr)|0, by=6, ix=bx+pad, iw=W-2*pad;
@@ -8670,6 +8724,8 @@ function almanacData(now){
     economy:Math.round(econOf(now)*100),           // 0..100 boom/bust index (50 = neutral)
     mayor:mayor, regime:regime,
     fate:DEATH_LABEL[deathOf(li)]||deathOf(li),    // the apocalypse THIS city is fated to meet
+    fateAt:apocAtOf(now),                          // exact wall-clock ms when the cataclysm strikes (so nobody misses it)
+    fateInMs:apocAtOf(now)-now,                    // …and how long from now
     landmarks:marks, topCompany:topCo, history:history
   };
 }
@@ -12176,4 +12232,5 @@ function draw(g,pass){
   drawSkyClock(g,nd,L);   // local time & date in the sky, top-centre of every monitor
   drawCivicHud(g,now,night);   // who runs the city + approval + mandates + next-vote countdown, top-right
   drawRegimeHud(g,now,night);  // THE ORDER — the unmistakable alert banner while the takeover is underway
+  drawDoomClock(g,now,night);  // top-left: the exact time this city's fated end will strike, so nobody misses it
 }

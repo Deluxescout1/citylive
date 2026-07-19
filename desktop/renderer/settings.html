@@ -555,6 +555,11 @@
 
   function esc(s){ return String(s==null?'':s).replace(/[&<>]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;'}[c];}); }
   function num(n){ return (n||0).toLocaleString('en-US'); }
+  var DOW=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'], MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  function strikeTime(ms){ var d=new Date(ms), h=d.getHours(), h12=(h%12)||12, ap=h<12?'AM':'PM', mm=d.getMinutes();
+    return DOW[d.getDay()]+' '+MON[d.getMonth()]+' '+d.getDate()+', '+h12+':'+(mm<10?'0':'')+mm+' '+ap; }
+  function countdown(dt){ if(dt<0) dt=0; var s=Math.floor(dt/1000), d=Math.floor(s/86400), h=Math.floor((s%86400)/3600), m=Math.floor((s%3600)/60);
+    if(d>0) return 'in '+d+'d '+h+'h'; if(h>0) return 'in '+h+'h '+m+'m'; if(m>=1) return 'in '+m+' min'; return 'any moment'; }
 
   function render(){
     var body=document.getElementById('almanacBody'); if(!body) return;
@@ -562,7 +567,8 @@
     var A; try{ A=window.almanacData(Date.now()); }catch(e){ body.textContent='Almanac error: '+e; return; }
     var econ = A.economy>=60?'Boom':A.economy<=40?'Bust':'Steady';
     var stats=[ ['Era',A.era], ['Incarnation','No. '+num(A.life)], ['Population',num(A.population)],
-      ['Phase',A.phase+' ('+A.growthPct+'%)'], ['Economy',econ], ['Fated end',A.fate] ];
+      ['Phase',A.phase+' ('+A.growthPct+'%)'], ['Economy',econ], ['Fated end',A.fate],
+      ['Cataclysm strikes', A.fateAt ? (strikeTime(A.fateAt)+' · '+countdown(A.fateInMs)) : '—'] ];
     var lead = A.regime ? (A.regime.leader+' — '+A.regime.label) : (A.mayor ? (A.mayor.name+' ('+A.mayor.party+')') : 'No government');
     stats.push(['Leadership',lead]);
     if(A.topCompany) stats.push(['Top company',A.topCompany.name]);
