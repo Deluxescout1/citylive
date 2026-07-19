@@ -7946,6 +7946,37 @@ function drawMountains(g,L,now,nd){
 // camp one · ch4 the upper route + a camp at the snowline · ch5 the dawn summit push and a
 // FLAG planted on top · the flag then waves until the world ends. Camps persist, climbers
 // sit out storms and nights, everything is a pure function of the clock (freeze-safe).
+// a GONDOLA / cable-car climbs the tallest peak to a summit LODGE — the mature city's mountain playground
+function drawGondola(g,L,now){
+  if(!mts||!mtsCache||cityPhase==="apoc"||cityG<0.52) return;
+  var hs=mtsCache.h[1], mxw=mtsCache.mx[1]; if(!hs||mxw<44*KSP) return;
+  var peaks=mts.near; if(!peaks||!peaks.length) return;
+  var best=null; for(var pk=0;pk<peaks.length;pk++){ if(!best||peaks[pk].h>best.h) best=peaks[pk]; }
+  var apexSx=best.x-WOFF; if(apexSx>SW+90&&apexSx-WW>-90)apexSx-=WW; if(apexSx<-90&&apexSx+WW<SW+90)apexSx+=WW;
+  if(apexSx<-80||apexSx>SW+80) return;
+  var gy=HORIZON;
+  function terr(sx){ var ci=Math.max(0,Math.min(SW-1,sx|0)); return gy-(hs[ci]|0); }
+  // find the true silhouette apex NEAR the chosen peak (hs is the on-screen mountain height), then run the
+  // cable DOWN the slope toward the city centre — so the gondola always sits ON the visible mountain.
+  var apxX=Math.max(4,Math.min(SW-5,apexSx|0)), aH=0;
+  for(var sxk=Math.max(4,apxX-40);sxk<Math.min(SW-4,apxX+40);sxk++){ if((hs[sxk]|0)>aH){ aH=hs[sxk]|0; apxX=sxk; } }
+  if(aH<40*KSP) return;
+  var side=(apxX<SW*0.5)?1:-1;                                                                      // descend toward the city (screen centre)
+  var sumX=Math.max(4,Math.min(SW-4,apxX+side*Math.round(aH*0.28))), baseX=Math.max(4,Math.min(SW-4,apxX+side*Math.round(aH*0.95)));
+  var sumY=terr(sumX)-3, baseY=terr(baseX)-2;
+  if(terr(baseX)>gy-6) baseX=Math.max(4,Math.min(SW-4,apxX+side*Math.round(aH*0.7))), baseY=terr(baseX)-2;  // keep the base up on the slope, not on flat ground
+  g.strokeStyle=L>0.5?"rgba(36,40,50,0.85)":"rgba(120,128,145,0.6)"; g.lineWidth=1;                 // the cable
+  g.beginPath(); g.moveTo(baseX,baseY); g.lineTo(sumX,sumY); g.stroke();
+  var mpx=Math.round((baseX+sumX)/2), mpy=terr(mpx); g.fillStyle=L>0.5?"#4a5160":"#20242f"; g.fillRect(mpx,mpy-9,1,9);   // mid pylon
+  g.fillStyle=L>0.5?"#6a6156":"#2a2620"; g.fillRect(baseX-3,baseY,6,4);                             // base station
+  g.fillStyle=L>0.5?"#8a6a4a":"#3a2c1e"; g.fillRect(sumX-4,sumY-4,8,5);                             // summit LODGE
+  g.fillStyle=L>0.5?"#a4603c":"#4a281a"; g.fillRect(sumX-5,sumY-6,10,2);                            // lodge roof
+  if(L<0.6){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,222,150,0.9)"; g.fillRect(sumX-2,sumY-3,4,2); g.fillRect(baseX-1,baseY+1,2,1); g.globalCompositeOperation="source-over"; }  // warm windows
+  var per=46000, ph2=(now%per)/per, tt=ph2<0.5?ph2*2:2-ph2*2;                                       // the cabin glides up, then back down
+  var gx=baseX+(sumX-baseX)*tt, gyy=baseY+(sumY-baseY)*tt;
+  g.fillStyle="#20242c"; g.fillRect((gx)|0,(gyy-1)|0,1,1);                                          // hanger arm
+  g.fillStyle=side>0?"#d23b3b":"#3a9ad2"; g.fillRect((gx-2)|0,gyy|0,4,3); g.fillStyle="#bfe3ff"; g.fillRect((gx-1)|0,(gyy+1)|0,2,1);  // cabin + window
+}
 function drawClimbers(g,L,now,nd,fx){
   if(!mts||!mtsCache||cityPhase==="apoc") return;              // no mountains / not during the apocalypse
   var peaks=mts.near; if(!peaks||!peaks.length) return;
@@ -11128,6 +11159,7 @@ function draw(g,pass){
   // (the Moon is drawn in drawSky() at its real Norwich position/phase)
 
   drawMountains(g,L,now,nd);      // the distant range — behind the clouds, the city, everything
+  drawGondola(g,L,now);           // a cable-car + summit lodge on the tallest peak (mature cities)
   drawClimbers(g,L,now,nd,fx);    // tiny mountaineers roping up the tallest peaks (fair-weather days)
   }                                                          // end of the backdrop stack
   if(pass==="bg"){ if(cityG<0.985) drawTerrain(g,cityG,L,now,nd,"bg"); return; }
