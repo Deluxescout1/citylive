@@ -7039,30 +7039,57 @@ function drawFlood(g,cd,L,now){
     g.fillStyle=["#7a5a3a","#4a4a52","#c8b48a"][d%3]; g.fillRect(dx|0,(dy-1)|0,3,2); }
 }
 // one walker: team>0 = enemy invader (red optic), team<0 = city defender (blue optic). returns its top-y.
-function drawOneMech(g,mx,gy,H,team,stompPhase,body,dark){
-  var top=(gy-H)|0, torsoH=Math.round(H*0.42), hipY=top+torsoH, legH=H-torsoH, stomp=stompPhase&1;
-  g.fillStyle=body; g.fillRect(mx-5,hipY,3,legH-(stomp?2:0)); g.fillRect(mx+2,hipY,3,legH-(stomp?0:2));   // reverse-knee legs
-  g.fillStyle=dark; g.fillRect(mx-6,gy-2,5,2); g.fillRect(mx+2,gy-2,5,2);                                 // splayed feet
-  g.fillStyle=dark; g.fillRect(mx-4,hipY-2,8,3);                                                          // hips
-  g.fillStyle=body; g.fillRect(mx-4,top+3,8,torsoH); g.fillStyle=dark; g.fillRect(mx-4,top+3,8,1);        // chassis
-  g.fillStyle=body; g.fillRect(mx-6,top+2,2,4); g.fillRect(mx+4,top+2,2,4);                               // shoulder cannons
-  g.fillStyle=dark; g.fillRect(mx-2,top,4,4);                                                             // cockpit head
-  g.globalCompositeOperation="lighter"; g.fillStyle=team>0?"#ff5a5a":"#5aa8ff"; g.fillRect(mx-1,top+1,2,2); g.globalCompositeOperation="source-over";  // optic
-  if(stomp){ g.fillStyle="rgba(120,120,130,0.4)"; g.fillRect(mx-7,gy-1,14,1); }                           // stomp dust
-  return top;
+// A towering bipedal WAR MECH: reverse-knee legs (one mid-stride), a broad paneled chassis with a
+// glowing reactor core, shoulder pauldrons, a cannon arm aimed at the city + a missile pod, and a
+// visored cockpit. `fires`>0 flashes the muzzle. Returns the muzzle world-y for the beam origin.
+function drawOneMech(g,mx,gy,H,team,stompPhase,body,dark,fires){
+  var top=(gy-H)|0, W=Math.max(13,Math.round(H*0.36)), torsoTop=top+Math.round(H*0.15), torsoH=Math.round(H*0.36),
+      hipY=torsoTop+torsoH, legH=gy-hipY, stomp=stompPhase&1;
+  var trim=team>0?"#c8483a":"#3a6cae", glow=team>0?"rgba(255,120,90,":"rgba(120,200,255,";
+  // ---- LEGS: thigh + reverse knee + shin + broad foot; front leg strides ----
+  function leg(lx,fwd){ var thH=Math.round(legH*0.44), kneeY=hipY+thH, footY=gy-3;
+    g.fillStyle=body; g.fillRect(lx-2,hipY,4,thH);                                                        // thigh
+    g.fillStyle=dark; g.fillRect(lx-2,kneeY-1,4,2);                                                       // knee joint
+    g.fillStyle=body; g.fillRect(lx-2+fwd,kneeY+1,4,footY-kneeY-1);                                       // shin (canted)
+    g.fillStyle=dark; g.fillRect(lx-4+fwd,gy-3,8,3); g.fillStyle=body; g.fillRect(lx-4+fwd,gy-3,8,1); }   // foot
+  leg(mx-Math.round(W*0.28), stomp?0:1); leg(mx+Math.round(W*0.28), stomp?1:0);
+  g.fillStyle=dark; g.fillRect(mx-Math.round(W*0.4),hipY-2,Math.round(W*0.8),4);                          // pelvis block
+  // ---- TORSO: angular chassis, panel lines, reactor core, team stripe ----
+  var tx=mx-(W>>1);
+  g.fillStyle=body; g.fillRect(tx,torsoTop,W,torsoH);
+  g.fillStyle=dark; g.fillRect(tx,torsoTop,W,1); g.fillRect(tx+2,torsoTop+3,W-4,1);                        // top edge + panel line
+  g.globalCompositeOperation="lighter"; g.fillStyle=glow+"0.9)"; g.fillRect(mx-1,torsoTop+Math.round(torsoH*0.42),2,3); g.globalCompositeOperation="source-over";  // reactor core
+  g.fillStyle=trim; g.fillRect(tx,torsoTop+torsoH-2,W,1);                                                 // team stripe
+  // ---- SHOULDERS + WEAPONS ----
+  var armY=torsoTop+2;
+  g.fillStyle=dark; g.fillRect(tx-3,armY,3,Math.round(torsoH*0.7)); g.fillRect(tx+W,armY,3,Math.round(torsoH*0.7));  // pauldrons
+  var cannonX=team>0?tx-6:tx+W+1;                                                                          // cannon arm points at the city
+  g.fillStyle=body; g.fillRect(cannonX,armY+3,6,3); g.fillStyle=dark; g.fillRect(team>0?cannonX:cannonX+5,armY+3,1,3);
+  var podX=team>0?tx+W:tx-4; g.fillStyle=dark; g.fillRect(podX,armY-1,4,4); g.fillStyle=trim; g.fillRect(podX,armY-1,4,1);  // missile pod
+  var muzY=armY+4;
+  if(fires){ g.globalCompositeOperation="lighter"; g.fillStyle=glow+"0.95)";                              // muzzle flash
+    g.fillRect((team>0?cannonX-2:cannonX+6)|0,muzY-1,3,4); g.globalCompositeOperation="source-over"; }
+  // ---- COCKPIT HEAD + visor ----
+  var hw=Math.max(5,Math.round(W*0.44)), hx=mx-(hw>>1), hy=top+Math.round(H*0.05), hh=Math.max(3,Math.round(H*0.1));
+  g.fillStyle=dark; g.fillRect(hx,hy,hw,hh); g.fillStyle=body; g.fillRect(hx,hy,hw,1);
+  g.globalCompositeOperation="lighter"; g.fillStyle=glow+"0.9)"; g.fillRect(hx+1,hy+1,hw-2,1); g.globalCompositeOperation="source-over";  // visor slit
+  if(stomp){ g.fillStyle="rgba(120,120,130,0.4)"; g.fillRect(mx-Math.round(W*0.6),gy-1,Math.round(W*1.2),1); }
+  return top+muzY;   // muzzle screen-y (beam origin)
 }
 function drawMech(g,cd,L,now){
   var cx=disX(cd.x), f=cd.f, i=cd.intensity, gy=HORIZON; if(f>=0.50) return;
   var body=L>0.5?"#5a5f6a":"#20242c", dark=L>0.5?"#3f434c":"#141820", adv=Math.min(1,f/0.14);
   var nEnemy=1+(i>>1), nDef=1+((i-1)>>2);                          // the city is OUTNUMBERED at high CAT (enemies scale faster)
-  // ENEMY INVADERS stride in from the right, cannons blazing toward the city
-  for(var e=0;e<nEnemy;e++){ var ex=(cx+(cd.w*0.9+14+e*16)*(1.35-0.35*adv))|0, H=30+i*4-e*3, top=drawOneMech(g,ex,gy,H,1,(Math.floor(now/380)+e),body,dark);
-    if(((Math.floor(now/110))+e)%2===0){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,90,90,0.9)";
-      for(var b=0;b<(ex-cx)+cd.w;b+=3) g.fillRect((ex-b)|0,(top+4)|0,2,1); g.globalCompositeOperation="source-over"; } }
+  // ENEMY INVADERS stride in from the right, cannons blazing toward the city — TOWERING now
+  for(var e=0;e<nEnemy;e++){ var ex=(cx+(cd.w*0.9+18+e*22)*(1.35-0.35*adv))|0, H=48+i*7-e*5, ef=((Math.floor(now/110))+e)%2===0;
+    var muzE=drawOneMech(g,ex,gy,H,1,(Math.floor(now/380)+e),body,dark,ef);
+    if(ef){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,90,90,0.9)";
+      for(var b=0;b<(ex-cx)+cd.w;b+=3) g.fillRect((ex-b)|0,(muzE+((b*0.02)|0))|0,2,1); g.globalCompositeOperation="source-over"; } }
   // CITY DEFENDER mechs hold the left flank, returning fire (allied blue)
-  for(var c=0;c<nDef;c++){ var dxp=(cx-(cd.w*0.9+16+c*16))|0, H2=28+i*3, top2=drawOneMech(g,dxp,gy,H2,-1,(Math.floor(now/420)+c),body,dark);
-    if(((Math.floor(now/130))+c)%2===0){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(120,200,255,0.9)";
-      for(var b2=0;b2<(cx-dxp)+cd.w;b2+=3) g.fillRect((dxp+b2)|0,(top2+4)|0,2,1); g.globalCompositeOperation="source-over"; } }
+  for(var c=0;c<nDef;c++){ var dxp=(cx-(cd.w*0.9+20+c*22))|0, H2=44+i*6, df=((Math.floor(now/130))+c)%2===0;
+    var muzD=drawOneMech(g,dxp,gy,H2,-1,(Math.floor(now/420)+c),body,dark,df);
+    if(df){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(120,200,255,0.9)";
+      for(var b2=0;b2<(cx-dxp)+cd.w;b2+=3) g.fillRect((dxp+b2)|0,(muzD+((b2*0.02)|0))|0,2,1); g.globalCompositeOperation="source-over"; } }
   if((Math.floor(now/200))%2===0){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,200,120,0.85)"; g.fillRect((cx-4)|0,gy-12,8,7); g.globalCompositeOperation="source-over"; }   // crossfire impact at the front line
 }
 function drawKraken(g,cd,L,now){
