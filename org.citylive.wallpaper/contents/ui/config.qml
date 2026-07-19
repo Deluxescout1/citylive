@@ -324,6 +324,12 @@ ColumnLayout {
         }
 
         QQC2.Label {
+            Kirigami.FormData.label: i18n("Version:")
+            text: "CityLive v" + (typeof City !== "undefined" && City.VERSION ? City.VERSION : "?")
+            font.bold: true
+        }
+
+        QQC2.Label {
             id: almanacLabel
             Kirigami.FormData.label: " "
             Layout.fillWidth: true

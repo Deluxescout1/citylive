@@ -21,6 +21,7 @@ Item {
             if (ok && !(A.population >= 0)) { ok = false; why = "population " + A.population; }
             if (ok && typeof City.popFmt(A.population) !== "string") { ok = false; why = "popFmt not string"; }
             if (ok && A.history.length) { var h = A.history[0]; if (!(h.life >= 1) || !h.era || !h.fate) { ok = false; why = "bad history " + JSON.stringify(h); } }
+            if (ok && (typeof City.VERSION !== "string" || !City.VERSION)) { ok = false; why = "VERSION not readable: " + City.VERSION; }   // the config page's version Label reads City.VERSION
             console.log("ALMANAC_QML " + (ok ? "OK" : "FAIL " + why));
             console.log("  " + A.cityName + " | Life " + A.life + " | " + A.era + " | " + A.phase
                 + " | pop " + City.popFmt(A.population) + " | econ " + A.economy + " | fate " + A.fate
