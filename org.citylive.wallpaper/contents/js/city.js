@@ -2128,6 +2128,7 @@ function inSea(wx){ return hasOcean && seaW>0 && (wx < WW*seaW || wx > WW*(1-sea
 function landRoute(x){ if(!hasOcean||seaW<=0) return x;
   var a=WW*seaW+8, b=WW*(1-seaW)-8; return a+(x/WW)*(b-a); }
 var curLit=1;        // fraction of night windows actually on (ramps up through the evening, dims after midnight)
+var curCurfew=0;     // v1.24 THE ORDER curfew strength 0..1 (Martial Law nights): dark windows + empty streets. 0 on every non-regime life.
 var curSunDf=0.5;    // where the sun is in its arc (0 sunrise .. 1 sunset) — drives light direction
 // THE GOLDEN HOUR — one global light state, computed once per frame, consumed everywhere
 // (sky, buildings, terrain, water, mountains, clouds) so low-sun light reads as ONE event.
@@ -11245,6 +11246,20 @@ function draw(g,pass){
   if(cityHasBuild("grandcentral")) curEcon=Math.min(1,curEcon+0.03);              // GRAND CENTRAL — the transit hub keeps commerce moving
   if(curPolicies.heightcap) curEcon=Math.max(0,curEcon-0.08);                     // a HEIGHT CAP throttles development → softer economy, more empty storefronts (see FOR LEASE at ~9248)
   if(curEcon<0.35) curLit*=0.9;                                                    // a mandate-driven slump also dims the town a touch more
+  // v1.24 CURFEW — Martial Law (stage 4-5) empties the NIGHT: windows go dark, sidewalks clear, roads
+  // empty (only patrols move). Strictly gated on curRegime → curCurfew stays 0 on every non-regime life,
+  // so the containment guard's non-regime render is untouched. curLit keeps a nonzero floor (a few holdouts).
+  curCurfew=0;
+  if(curRegime&&curRegime.active&&curRegime.stage>=4&&curRegime.stage<6){
+    var cfHr=nd.getHours()+nd.getMinutes()/60;
+    var nightK=(cfHr>=21||cfHr<5)?1:(cfHr>=19?(cfHr-19)/2:(cfHr<6?(6-cfHr):0));    // ramp dusk→night, full 9pm–5am
+    curCurfew=Math.max(0,Math.min(1,nightK))*(curRegime.stage>=5?1:0.72);
+    if(curCurfew>0){
+      curLit=Math.max(0.10,curLit*(1-0.72*curCurfew));                             // the city goes dark
+      wmood.pedFactor*=(1-0.90*curCurfew);                                         // the sidewalks clear
+      rhythm.carPresence*=(1-0.88*curCurfew);                                      // the roads empty
+    }
+  }
   curWar=(cityG>0.5)?warState(now):null;                     // is this the life the enemy comes?
   curDis=disasterNow(now);            // is a disaster striking right now?
   if(curWar&&curWar.f>=0&&curWar.f<1) curDis=null;           // a war eclipses lesser troubles
