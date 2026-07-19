@@ -1718,14 +1718,20 @@ function drawSky(g,now,nd,L,fx){
     for(var fw=-1;fw<=1;fw++){ var fsx=fwx2-WOFF+fw*WW; if(fsx<-1||fsx>SW+1) continue;
       g.globalAlpha=falpha; g.fillStyle="#cfd8ec"; g.fillRect(fsx|0,fwy|0,1,1); g.globalAlpha=1; } }
   for(i=0;i<STARS.length;i++) P.push(altAz(STARS[i][0],STARS[i][1],lst));
-  // asterism lines (very faint — a hint you can trace, not a diagram drawn on the sky)
-  g.strokeStyle="rgba(155,186,232,"+(0.24*fade)+")"; g.lineWidth=1;
-  for(i=0;i<LINES.length;i++){ var a=P[LINES[i][0]], b=P[LINES[i][1]]; if(a.alt<2||b.alt<2) continue;
+  // asterism lines — a faint DASHED hint you can trace, NOT a bold solid diagram on the sky. (A 1px
+  // stroke here upscales ×3 into a hard 3px line, which read as an artificial triangle/box — issue fixed
+  // 2026-07-19 by dotting the links at low alpha so they whisper the shape instead of drawing it.)
+  for(i=0;i<LINES.length;i++){ var a=P[LINES[i][0]], b=P[LINES[i][1]]; if(a.alt<3||b.alt<3) continue;
     var awx=skyWX(a.az), bwx=skyWX(b.az); if(Math.abs(awx-bwx)>WW*0.5) continue;    // skip seam-wrapping links
     var ay=skyY(a.alt), byy=skyY(b.alt);
     for(var w=-1;w<=1;w++){ var ax=awx-WOFF+w*WW, bx2=bwx-WOFF+w*WW;
       if((ax<-4&&bx2<-4)||(ax>SW+4&&bx2>SW+4)) continue;
-      g.beginPath(); g.moveTo(ax,ay); g.lineTo(bx2,byy); g.stroke(); }
+      var ldx=bx2-ax, ldy=byy-ay, ldist=Math.max(1,Math.sqrt(ldx*ldx+ldy*ldy)), lsteps=Math.floor(ldist/2);
+      for(var ls=1;ls<lsteps;ls++){ if((ls&1)===0) continue;                        // every other 2px cell → a dash, endpoints (the stars) left to the star pass
+        var lt=ls/lsteps, lpx=ax+ldx*lt, lpy=ay+ldy*lt; if(lpx<-1||lpx>SW+1) continue;
+        var lfa=Math.min(1,Math.max(0,(Math.min(a.alt,b.alt)-3)/16));               // fade links that dip toward the city glow
+        g.globalAlpha=(0.11*fade*(0.4+0.6*lfa)); g.fillStyle="#9bbae8"; g.fillRect(lpx|0,lpy|0,1,1); g.globalAlpha=1; }
+    }
   }
   // stars
   for(i=0;i<STARS.length;i++){ var aa=P[i]; if(aa.alt<1.5) continue; var mag=STARS[i][2];
