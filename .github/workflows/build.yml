@@ -107,10 +107,17 @@ jobs:
         run: |
           if [ -n "$(find artifacts -type f 2>/dev/null | head -1)" ]; then echo "found=true" >> "$GITHUB_OUTPUT"; else echo "found=false" >> "$GITHUB_OUTPUT"; fi
       - name: Publish release
+        id: publish
         if: ${{ steps.haveart.outputs.found == 'true' }}
+        continue-on-error: true          # softprops intermittently 404s on an asset UPDATE mid-upload (has aborted the job & left a draft twice) — the assets still land; the next step guarantees publication
         uses: softprops/action-gh-release@v2
         with:
           files: artifacts/**/*
           generate_release_notes: true
-          draft: false          # publish LIVE so electron-updater sees it immediately (no manual un-drafting)
+          draft: false
           make_latest: true
+      - name: Ensure the release is published        # belt-and-suspenders: even if the action above flaked mid-upload, the release exists with its assets — flip it live so electron-updater sees it
+        if: ${{ always() && steps.haveart.outputs.found == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit "${{ github.ref_name }}" --draft=false --latest --repo "${{ github.repository }}"
