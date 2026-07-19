@@ -4903,12 +4903,13 @@ function drawRealFlights(g,L,now){
     var dt=Math.max(0,Math.min(180,(now-(f.t0||now))/1000));   // seconds since the fetch (clamped: a stalled feed can't fling planes to infinity)
     var gms=(f.gs||0)*0.514444;                           // knots→m/s
     var e=f.e0+gms*Math.sin(f.track*d2r)*dt, n=f.n0+gms*Math.cos(f.track*d2r)*dt;   // advance the ground vector
-    var dstM=Math.sqrt(e*e+n*n); if(dstM<1) dstM=1;
     var az=(Math.atan2(e,n)*R2D+360)%360;                 // bearing user→plane, right now
-    var altFt=(f.alt0||0)+(f.vr||0)*dt/60, altM=altFt*0.3048;
-    var elev=Math.atan2(altM,dstM)*R2D;                   // true geometric elevation (distant jets hug the horizon)
-    var elevD=Math.min(80, 3+elev*1.7);                   // lift it into a readable sky band (nearer/higher rises more)
-    var y=Math.round(skyY(elevD));
+    var altFt=(f.alt0||0)+(f.vr||0)*dt/60;
+    // vertical position tracks ALTITUDE directly (not slant elevation): a high-flying jet rides high in the
+    // sky and a low prop skims the rooftops, however far off it is. Bearing still fixes the x. This also
+    // separates same-airway traffic vertically by flight level, so the tags don't pile up.
+    var altFrac=Math.max(0,Math.min(1,altFt/40000));      // 0 at ground → 1 at 40,000 ft+
+    var y=Math.round(skyY(4+altFrac*74));                 // 4° (low, near the rooftops) .. 78° (cruising jets) up the sky band
     // which way does it slide across the screen? sample the azimuth a few seconds ahead (handle the 0/360 wrap)
     var e2=f.e0+gms*Math.sin(f.track*d2r)*(dt+4), n2=f.n0+gms*Math.cos(f.track*d2r)*(dt+4);
     var az2=(Math.atan2(e2,n2)*R2D+360)%360, daz=az2-az; if(daz>180)daz-=360; if(daz<-180)daz+=360;
