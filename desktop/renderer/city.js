@@ -3037,22 +3037,47 @@ function drawRegimeBanners(g,L,now){
     drawOrderEmblem(g,bxc+(bw>>1),top+Math.min(len-4,6),Math.max(1,(bw>>1)-1),"#f4eee2",null);         // white emblem
   }
 }
-// the LEADER'S colossal STATUE looms over the plaza (stands stage 4+; the TOPPLE is handled in the fall, RP3)
+// the LEADER'S COLOSSAL STATUE looms over the plaza (stands stage 4+). In the fall (stage 6) it TOPPLES —
+// rotated manually around the pedestal top (no g.rotate, FBO-safe), accelerating over, then lies broken.
 function drawLeaderStatue(g,L,now){
   var R=curRegime; if(!R||!R.active||R.stage<4) return;
   var wx=Math.round(0.365*WW)+34, sx=wx-WOFF;
-  for(var off=-WW;off<=WW;off+=WW){ var X=(sx+off)|0; if(X<-24||X>SW+24) continue;
-    var baseY=HORIZON, pedH=9, figH=26, stone=L>0.5?"#7a6a4a":"#3a3226", hi=L>0.5?"#8f7c56":"#4a4030"; // bronze
-    g.fillStyle=L>0.5?"#5a5148":"#2a2620"; g.fillRect(X-5,baseY-pedH,10,pedH);                         // pedestal
-    g.fillStyle=L>0.5?"#6a6156":"#332e28"; g.fillRect(X-6,baseY-pedH,12,1);
-    drawOrderEmblem(g,X,baseY-2,2,"#c0182a",null);                                                     // emblem on the plinth
-    var fy=baseY-pedH;
-    g.fillStyle=stone; g.fillRect(X-3,fy-figH,6,figH);                                                 // body
-    g.fillRect(X-3,fy-figH-5,6,5);                                                                     // head/cap
-    g.fillRect(X+3,fy-figH+4,5,2);                                                                     // outstretched saluting arm
-    g.fillRect(X-5,fy-figH+6,2,figH-8);                                                                // other arm at the side
-    g.fillStyle=hi; g.fillRect(X-3,fy-figH,6,1); g.fillRect(X-3,fy-figH-5,6,1);                        // rim light
-    g.fillStyle="rgba(0,0,0,0.35)"; g.fillRect(X+2,fy-figH,1,figH);                                    // shaded side
+  var tP=(R.stage===6)?Math.max(0,Math.min(1,(R.sub-0.14)/0.30)):0;              // 0..1 topple through stage 6
+  var ang=(tP*tP)*(Math.PI*0.5), sA=Math.sin(ang), cA=Math.cos(ang), fd=((R.seed>>>9)&1)?1:-1;   // accelerating fall
+  for(var off=-WW;off<=WW;off+=WW){ var X=(sx+off)|0; if(X<-40||X>SW+40) continue;
+    var baseY=HORIZON, pedH=12, figH=46, stone=L>0.5?"#7a6a4a":"#3a3226", hi=L>0.5?"#8f7c56":"#4a4030", sh=L>0.5?"#5a4e36":"#241f16";
+    g.fillStyle=L>0.5?"#5a5148":"#2a2620"; g.fillRect(X-7,baseY-pedH,14,pedH);                       // grand tiered pedestal
+    g.fillStyle=L>0.5?"#6a6156":"#332e28"; g.fillRect(X-8,baseY-pedH,16,2); g.fillRect(X-6,baseY-pedH-2,12,2);
+    drawOrderEmblem(g,X,baseY-4,3,tP>=1?"#5a5148":"#c0182a",null);                                   // emblem on the plinth (defaced once fallen)
+    var pvY=baseY-pedH-2;
+    if(tP<1){                                                                                       // the standing / toppling figure — rows along the (rotated) spine
+      for(var h=0;h<figH;h++){ var rx=X+Math.round(h*sA*fd), ry=pvY-Math.round(h*cA), w=(h>figH-8)?3:2;
+        g.fillStyle=stone; g.fillRect(rx-w,ry,w*2,1); g.fillStyle=sh; g.fillRect(rx-w,ry,1,1); }
+      var hh=figH, hx=X+Math.round(hh*sA*fd), hy=pvY-Math.round(hh*cA);                              // head/cap
+      g.fillStyle=stone; g.fillRect(hx-3,hy-4,6,5); g.fillStyle=hi; g.fillRect(hx-3,hy-4,6,1);
+      var ah=Math.round(figH*0.64), ax=X+Math.round(ah*sA*fd), ay=pvY-Math.round(ah*cA);            // outstretched saluting arm
+      g.fillStyle=stone; g.fillRect(ax+(fd>0?2:-6),ay-1,4,2);
+      if(tP>0.35){ g.fillStyle="rgba(150,140,128,"+(0.5*Math.min(1,(tP-0.35)/0.3))+")"; g.fillRect(X-16,baseY-3,32,3); }  // dust as it comes down
+    } else {                                                                                        // FALLEN — broken on the ground
+      var bx=(fd>0?X+3:X-figH-3);
+      g.fillStyle=stone; g.fillRect(bx,baseY-5,figH,4); g.fillStyle=sh; g.fillRect(bx,baseY-5,figH,1);
+      g.fillStyle=stone; g.fillRect(fd>0?bx+figH:bx-5,baseY-8,5,5);                                  // the severed head lies apart
+      g.fillStyle="rgba(120,110,100,0.45)"; for(var rb=0;rb<7;rb++) g.fillRect(X-12+rb*4,baseY-1,2,1);   // rubble
+    }
+  }
+}
+// LIBERATION: as the statue comes down, jubilant crowds flood the plaza and the lights come back on
+function drawLiberation(g,L,now){
+  var R=curRegime; if(!R||!R.active||R.stage!==6) return;
+  var joy=Math.max(0,Math.min(1,(R.sub-0.10)/0.4));                                                  // ramps up through the fall
+  var wx=Math.round(0.365*WW), cxs=wx-WOFF;
+  for(var off=-WW;off<=WW;off+=WW){ var X=(cxs+off)|0; if(X<-90||X>SW+90) continue;
+    var n=Math.round(26*joy);
+    for(var p=0;p<n;p++){ var hh=((p*2654435761+ (R.seed||0))>>>0), px=X-56+((hh%112)), jump=((Math.floor(now/160)+p)%3===0)?1:0;
+      var pc=((hh>>>3)&3)===0?"#e8e2d0":PEDC[(hh>>>5)%PEDC.length];
+      drawPerson(g,px|0,HORIZON-1-jump,pc,SKINC[(hh>>>7)%SKINC.length],(Math.floor(now/220)+p)&1);
+      if(((hh>>>9)%4)===0){ g.fillStyle=["#ffd24a","#6ad0ff","#ff7ad0","#7affb0"][(hh>>>11)%4]; g.fillRect(px|0,HORIZON-7-jump,1,2); } }  // raised flags/sparks
+    if(joy>0.2){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,236,180,"+(0.10*joy)+")"; g.fillRect(X-64,HORIZON-40,128,40); g.globalCompositeOperation="source-over"; }  // the lights come back on
   }
 }
 // the whole regime world-overlay dispatcher (banners + statue + …), drawn over the near layer
@@ -3060,6 +3085,7 @@ function drawRegime(g,L,now,night){
   if(!curRegime||!curRegime.active) return;
   drawRegimeBanners(g,L,now);
   drawLeaderStatue(g,L,now);
+  drawLiberation(g,L,now);
 }
 // the sky clock: local time + date, floating top-centre of every monitor
 function drawSkyClock(g,nd,L){
