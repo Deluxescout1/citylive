@@ -3470,6 +3470,37 @@ function drawMotorcade(g,L,now){
     g.fillStyle=beac?"#ff2a2a":"#3a7aff"; g.fillRect((X+2)|0,ly-3,2,1);
     g.globalCompositeOperation="lighter"; g.fillStyle=beac?"rgba(255,50,50,0.5)":"rgba(60,130,255,0.5)"; g.fillRect((X+1)|0,ly-4,4,2); g.globalCompositeOperation="source-over"; } }
 }
+// ===== THE PLAGUE set-pieces (all gated on curPlague; mutually exclusive with the regime) =====
+// FIELD HOSPITALS — white red-cross tents cluster in the plaza through LOCKDOWN→RECOVERY, most at the SURGE.
+function drawFieldHospital(g,L,now){
+  var P=curPlague; if(!P||!P.active||P.stage<2||P.stage>4) return;
+  var intensity=(P.stage===3)?1:(P.stage===2?Math.max(0.3,P.sub):Math.max(0.3,1-P.sub*0.6)), day=L>0.5;
+  var wx=Math.round(0.365*WW), nTents=Math.max(1,Math.round(4*intensity));
+  for(var off=-WW;off<=WW;off+=WW){ var X0=(wx-WOFF+off)|0; if(X0<-90||X0>SW+90) continue;
+    for(var t=0;t<nTents;t++){ var tx=(X0-42+t*22)|0, tw=16, th=9, ty=HORIZON-th;
+      g.fillStyle=day?"#e6e6de":"#b6b6ae"; g.fillRect(tx,ty,tw,th);                                    // tent body
+      for(var pk=0;pk<=8;pk++){ g.fillStyle=day?"#f0f0e8":"#c8c8c0"; g.fillRect((tx+(tw>>1)-pk)|0,(ty-pk+1)|0,pk*2,1); }   // peaked roof
+      g.fillStyle=day?"#c8c8c0":"#98988f"; g.fillRect(tx,ty+th-1,tw,1);                                // base shade
+      g.fillStyle="#d02424"; g.fillRect(tx+(tw>>1)-2,ty+3,4,2); g.fillRect(tx+(tw>>1)-1,ty+2,2,4);      // red cross
+      if(!day){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,240,200,0.5)"; g.fillRect(tx+(tw>>1)-1,ty+th-3,2,3); g.globalCompositeOperation="source-over"; } }   // lit entrance at night
+  }
+}
+// AMBULANCES — white vans with a red cross + flashing lights hurry the streets (most at the SURGE).
+function drawAmbulances(g,L,now){
+  var P=curPlague; if(!P||!P.active||P.stage<2||P.stage>4) return;
+  var n=(P.stage===3)?2:1;
+  for(var i=0;i<n;i++){ var lane=LANE[(i*2)%LANE.length], ly=HORIZON+lane.o, per=42000, ph=((now+i*21000)%per)/per, dir=lane.d, wx=dir>0?ph*WW:WW*(1-ph);
+    for(var off=-WW;off<=WW;off+=WW){ var X=(wx-WOFF+off)|0; if(X<-14||X>SW+14) continue;
+      drawCar(g,X|0,ly,"#eef0f2",dir,L,"van");                                                        // white ambulance van
+      g.fillStyle="#d02424"; g.fillRect((X+3)|0,ly-2,3,1); g.fillRect((X+4)|0,ly-3,1,3);              // red cross on the side
+      var beac=(Math.floor(now/240)&1); g.fillStyle=beac?"#ff2a2a":"#dfeef8"; g.fillRect((X+(dir>0?1:5))|0,ly-4,2,1);   // flashing beacon
+      g.globalCompositeOperation="lighter"; g.fillStyle=beac?"rgba(255,40,40,0.5)":"rgba(210,235,255,0.4)"; g.fillRect((X+(dir>0?0:4))|0,ly-5,4,2); g.globalCompositeOperation="source-over"; } }
+}
+function drawPlague(g,L,now,night){
+  if(!curPlague||!curPlague.active) return;
+  drawFieldHospital(g,L,now);    // the red-cross tents in the plaza
+  drawAmbulances(g,L,now);       // ambulances hurrying the emptied streets
+}
 function drawRegime(g,L,now,night){
   if(!curRegime||!curRegime.active) return;
   drawRegimeWash(g,L,now);       // the crimson mood over everything drawn so far (flags/city); HUD stays crisp on top
@@ -12476,6 +12507,7 @@ function draw(g,pass){
   if(curWar) drawWar(g,L,now,night);                         // the war for the city plays out on top
   if(cityG>0.5) drawElections(g,L,now,night);                // democracy in the streets
   drawRegime(g,L,now,night);                                 // …or THE ORDER's banners + statue when democracy has fallen
+  drawPlague(g,L,now,night);                                 // …or THE PLAGUE's field hospitals + ambulances (mutually exclusive with the regime)
   if(cityG>0.45) drawCorpAds(g,L,now,night);                 // street billboards for the current companies (corporate ad presence)
 
   // ---- THE GRAND CATACLYSM ends the city's life every ~month, then it's reborn as wilderness ----
