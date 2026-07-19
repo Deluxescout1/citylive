@@ -4551,6 +4551,27 @@ function drawDocks(g,L,now,night){
   }
 }
 // ---- buskers on the neon strip: a musician, floating notes, a small crowd ----
+// FOOD TRUCKS light up the nightlife strip after dark — lit serving windows, awnings, string lights, a queue
+function drawFoodTrucks(g,L,now,night){
+  if(cityG<0.5||night<0.34||cityPhase==="apoc") return;
+  var gy=HORIZON+1;
+  for(var mx=34; mx<WW; mx+=58){ var dn=districtAt(mx).name; if(dn!=="neon"&&dn!=="downtown") continue;
+    for(var off=-WW;off<=WW;off+=WW){ var X=(mx-WOFF+off)|0; if(X<-18||X>SW+18) continue;
+      var seed=(mx*173+29)>>>0, col=["#d23b3b","#3a9ad2","#e0a83a","#7a4ab0","#3ac86a"][(mx>>3)%5];
+      g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,200,120,0.22)"; g.fillRect(X-8,gy-9,17,5);   // warm glow pool
+      for(var sl=0;sl<14;sl+=2){ g.fillStyle="#ffe89a"; g.fillRect(X-6+sl,gy-8,1,1); }                          // string lights
+      g.globalCompositeOperation="source-over";
+      g.fillStyle=col; g.fillRect(X-6,gy-6,12,6); g.fillStyle=pantsOf(col); g.fillRect(X-6,gy-1,12,1);          // truck body + skirt
+      g.fillStyle="rgba(255,255,255,0.2)"; g.fillRect(X-6,gy-6,12,1);                                           // roof sheen
+      g.fillStyle="#2a2e36"; g.fillRect(X+5,gy-5,2,4);                                                          // cab
+      for(var aw=0;aw<7;aw++){ g.fillStyle=(aw&1)?col:"#f2ede2"; g.fillRect(X-4+aw,gy-7,1,1); }                 // striped awning over the window
+      g.fillStyle="#1a1a20"; g.fillRect(X-4,gy-5,6,3); g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,224,150,0.92)"; g.fillRect(X-4,gy-5,6,3); g.globalCompositeOperation="source-over";  // lit serving window
+      g.fillStyle="#2e2620"; g.fillRect(X-8,gy-6,1,5); g.fillStyle="#f4d38a"; g.fillRect(X-9,gy-6,3,2);         // menu board on a pole
+      g.fillStyle="#0b0b10"; g.fillRect(X-4,gy,2,1); g.fillRect(X+2,gy,2,1);                                    // wheels
+      for(var q=0;q<3;q++) if(((seed>>q)&1)) drawPerson(g,X-7-q*2,gy-1,PEDC[(seed+q)%PEDC.length],SKINC[(seed+q*3)%SKINC.length],(Math.floor(now/300)+q)&1);  // a little queue
+    }
+  }
+}
 function drawBuskers(g,L,now,busyN){
   if(busyN<0.42) return;                                     // only when the strip is lively
   var gy=HORIZON-1;
@@ -11716,6 +11737,7 @@ function draw(g,pass){
     } }
   // buskers + gathered crowds on the neon strip (evenings, once there's an entertainment district)
   if(cityG>0.55 && !nukeFull()) drawBuskers(g,L,now,districtBusy("neon",rhythm.hour));
+  if(!nukeFull()) drawFoodTrucks(g,L,now,night);   // nightlife: lit food trucks along the strip after dark
   if(!nukeFull() && (apocPositional()||apocKill<0.3)){ drawPubs(g,L,now); drawSmokers(g,L,now); }   // pub patios & doorway smokers (the vice pass)
 
   // pigeons pecking on the sidewalk / perched on the wires
