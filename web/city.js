@@ -4341,6 +4341,25 @@ function drawBus(g,worldX,dir,L,now,col,colD){ col=col||"#3f7fbf"; colD=colD||"#
   }
 }
 
+// ---- light-rail TRAM: a long articulated rail car on an overhead wire (distinct from the bus) ----
+function drawTram(g,worldX,dir,L,now){
+  var col="#c0392b", colD="#8a2820", trim="#f0e6d0";                              // classic red-and-cream livery
+  var len=26, lane=dir>0?1:2, ey=HORIZON+LANE[lane].o, night=1-L;
+  var vis=[worldX-WOFF]; if(worldX-WOFF-WW>-len-4) vis.push(worldX-WOFF-WW); if(worldX-WOFF+WW<SW+len+4) vis.push(worldX-WOFF+WW);
+  for(var vi=0;vi<vis.length;vi++){ var X=vis[vi]|0; if(X+len<-4||X>SW+4) continue;
+    g.fillStyle=night>0.4?"rgba(130,140,158,0.5)":"rgba(70,76,92,0.45)"; g.fillRect(X-3,ey-9,len+6,1);   // overhead trolley wire
+    g.fillStyle="#5a5f6a"; g.fillRect(X+(len>>1),ey-9,1,5); g.fillStyle="#6a707c"; g.fillRect(X+(len>>1)-2,ey-9,5,1);  // pantograph arm + shoe
+    g.fillStyle=col; g.fillRect(X,ey-4,len,6);                                    // body
+    g.fillStyle=trim; g.fillRect(X,ey-4,len,1); g.fillRect(X,ey+1,len,1);          // cream roof + skirt bands
+    g.fillStyle=colD; g.fillRect(X+(len>>1),ey-4,1,6);                            // articulation joint (two segments)
+    g.fillStyle="#dff0ff"; for(var wx=2;wx<len-2;wx+=4){ if(Math.abs(X+wx-(X+(len>>1)))<1) continue; g.fillRect(X+wx,ey-3,3,3); }  // big tram windows
+    g.fillStyle=colD; g.fillRect(X+(dir>0?len-6:4),ey-3,1,4);                     // door seam
+    g.fillStyle="#242830"; g.fillRect(X+3,ey+2,3,1); g.fillRect(X+len-6,ey+2,3,1);   // bogies (trucks) — no big wheel wells
+    g.fillStyle="#ffd76a"; g.fillRect(X+(dir>0?1:len-3),ey-4,2,1);                // route-number box
+    if(night>0.45){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(214,234,255,0.30)"; g.fillRect(X-1,ey-4,len+2,7); g.globalCompositeOperation="source-over"; }
+    if(L<0.55){ g.fillStyle="rgba(255,240,170,0.95)"; g.fillRect(X+(dir>0?len:-1),ey,1,1); g.fillStyle="rgba(255,60,60,0.9)"; g.fillRect(X+(dir>0?-1:len),ey,1,1); }
+  }
+}
 // ---- window washers on a suspended platform (daytime; descend the facade cleaning) ----
 function drawWashers(g,layer,L,now){
   if(L<0.35) return;                                    // washers work in daylight
@@ -4744,6 +4763,7 @@ function drawRoofParties(g,L,now,nd,hol){
 }
 // street-level SUBWAY entrances — stair kiosks that swallow & release riders
 function drawSubways(g,L,now,night){
+  var nd0=nowDate(), hr0=nd0.getHours()+nd0.getMinutes()/60, subRush=((hr0>=7&&hr0<9.5)||(hr0>=16&&hr0<19));   // rush hour → crowds
   for(var i=0;i<subways.length;i++){ var sb=subways[i];
     if(cityG < 0.42+sb.k*0.05) continue;                        // stations open one at a time
     for(var wp=-1;wp<=1;wp++){ var X=(sb.x-WOFF+wp*WW)|0; if(X<-9||X>SW+9) continue;
@@ -4756,6 +4776,11 @@ function drawSubways(g,L,now,night){
       g.fillStyle=L>0.5?"#4a5568":"#242c3a"; g.fillRect(X,gy-4,1,1);                                // totem post
       if(night>0.4){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,220,140,0.30)";
         g.fillRect(X-2,gy-2,5,3); g.globalCompositeOperation="source-over"; }                       // warm light up the stairs
+      if(subRush && cityG>0.5){                                    // RUSH HOUR: a knot of commuters streaming to the stairs
+        var nq=3+((sb.s>>3)%3);                                    // 3-5 waiting/shuffling commuters
+        for(var rq=0;rq<nq;rq++){ var side=(rq&1)?1:-1, base=3+((rq>>1)*3);
+          var shuf=((now*0.015 + rq*11)%30)/30, qx=X+side*(base+2-Math.round(shuf*2));   // slow shuffle toward the entrance
+          drawPerson(g,qx|0,gy-1,PEDC[(sb.s+rq*3)%PEDC.length],SKINC[(sb.s+rq)%SKINC.length],(Math.floor(now/260)+rq)&1); } }
       // riders: every few seconds someone descends or climbs out (sinking into / rising from the steps)
       var PER=6500, cyc=Math.floor((now+sb.s)/PER), rr=rng((sb.s^(cyc*2654435761))>>>0);
       if(rr()<0.7){ var goingDown=rr()<0.5, tph=((now+sb.s)%PER)/PER;
@@ -11048,16 +11073,20 @@ function draw(g,pass){
   // two-wheelers weave through the traffic once the town has real roads (motos, scooters, bicycles)
   if(cityG>0.4 && (apocPositional() || apocKill<0.4)){
     var BIKES=[["moto",21000,0.052,0],["bicycle",27000,0.030,6000],["scooter",24000,0.040,12000],
-      ["bicycle",31000,0.028,18000],["moto",29000,0.056,24000],["scooter",34000,0.038,30000]];
+      ["bicycle",31000,0.028,18000],["moto",29000,0.056,24000],["scooter",34000,0.038,30000],
+      ["bicycle",25000,0.032,4000],["bicycle",33000,0.027,15000],["bicycle",29000,0.031,26000]];   // more cyclists
     for(var bki=0;bki<BIKES.length;bki++){ var BK=BIKES[bki];
       if(fx.snow||fx.thunder) continue;                                  // fair-weather riders
       var bk=crosser(now+BK[3], BK[1], BK[2], 8, 0.8);
       if(bk && !nukeHit(bk.x)) drawBike(g, bk.x, bk.dir, L, now, BK[0]);
     }
   }
-  if(curPolicies.carfree && cityG>0.35 && (apocPositional()||apocKill<0.4)){   // CAR-FREE: a light-rail tram glides through + people reclaim the asphalt
-    var tram=crosser(now, 30000, 0.03, 26, 0.82);
-    if(tram && !nukeHit(tram.x)) drawBus(g, tram.x, tram.dir, L, now, "#3aa864", "#1f6b3e");   // green light-rail livery reads as a tram
+  // LIGHT-RAIL TRAM — a mature city runs one on the boulevard; a car-free city runs it early
+  if((cityG>0.6 || (curPolicies.carfree && cityG>0.35)) && (apocPositional()||apocKill<0.4) && !fx.thunder){
+    var tram=crosser(now, curPolicies.carfree?30000:34000, 0.028, 26, 0.82);
+    if(tram && !nukeHit(tram.x)) drawTram(g, tram.x, tram.dir, L, now);
+  }
+  if(curPolicies.carfree && cityG>0.35 && (apocPositional()||apocKill<0.4)){   // CAR-FREE: people reclaim the asphalt
     for(var pf=0;pf<9;pf++){ var phh=((pf*2654435761+97)>>>0), plane=(phh&1)?1:2;
       var prx=((phh%WW)+Math.floor(now/900)*LANE[plane].d*3), psx=((((prx%WW)+WW)%WW)-WOFF);
       if(psx>SW+4&&psx-WW>-4)psx-=WW; if(psx<-4&&psx+WW<SW+4)psx+=WW; if(psx<-2||psx>SW+2) continue;
