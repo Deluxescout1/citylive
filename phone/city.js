@@ -151,7 +151,7 @@ function resetNotifLanes(){ for(var r=0;r<_notifTaken.length;r++) _notifTaken[r]
 var CLOCK = null;   // test-harness override: ms timestamp for time-of-day (null = real wall clock)
 var NOWOVR = null;  // test-harness override: ms value returned as Date.now() inside draw() (null = real)
 var NOFETCH = false;  // headless flag (own line = QML-namespace writable): almanac callers set this so setup() makes NO network calls
-var VERSION = "1.29.0";  // the build the user is running — surfaced in the Almanac + KDE config page (keep in sync with desktop/package.json)
+var VERSION = "1.30.0";  // the build the user is running — surfaced in the Almanac + KDE config page (keep in sync with desktop/package.json)
 var FORCELAYOUT = null;   // test hook: pin every building's window layout (grid/ribbon/band/punch/corp) — verify per-layout render
 var FORCECROWN = null;    // test hook: pin every building's crown/roof (gable/hip/saltbox/mansard/deco/…) — verify per-roof render
 var FORCEUSE = null;      // test hook: pin every building's functional type (hospital/theater/hotel/bank/cafe/pharmacy) — verify drawUse
@@ -3117,16 +3117,16 @@ function drawPlagueEmblem(g,cx,cy,r,fg,bg){
 // recovered), blinking at the SURGE peak. Mutually exclusive with the regime HUD (never both same life).
 function drawPlagueHud(g,now,night){
   var P=curPlague; if(!P||!P.active) return;
-  var recovered=(P.stage===5&&P.sub>=0.6);
-  var lab=recovered?"RECOVERED":PLAGUE_STAGE_LABEL[P.stage];
-  var full="PLAGUE - "+lab, col=recovered?"rgba(60,200,120,":"rgba(224,168,32,";
-  var blink=(P.stage===3&&!recovered)?((Math.floor(now/320))%2):1, a=0.72+0.28*blink;               // blinks at the SURGE
+  var zomb=(P.zombie&&P.stage>=4), recovered=(!P.zombie&&P.stage===5&&P.sub>=0.6);
+  var lab=recovered?"RECOVERED":(P.zombie?ZOMBIE_STAGE_LABEL[P.stage]:PLAGUE_STAGE_LABEL[P.stage]);
+  var full="PLAGUE - "+lab, col=zomb?"rgba(90,205,60,":recovered?"rgba(60,200,120,":"rgba(224,168,32,";   // sickly green once the dead rise
+  var blink=((P.stage===3||zomb)&&!recovered)?((Math.floor(now/300))%2):1, a=0.72+0.28*blink;       // blinks at the SURGE and the OVERRUN
   var tw=textW(full), ew=9, W=ew+tw+4, cx=(SW>>1), ty=notifLane(0), x0=(cx-(W>>1))|0;
-  g.fillStyle="rgba(8,6,2,0.85)"; g.fillRect(x0-2,ty-3,W+4,11);
-  g.fillStyle=col+(0.95*a)+")"; g.fillRect(x0-2,ty-4,W+4,1); g.fillRect(x0-2,ty+7,W+4,1);            // amber rails
-  g.fillStyle=col+(0.28*a)+")"; g.fillRect(x0-2,ty-3,W+4,11);                                        // amber wash → reads as an alert
-  drawPlagueEmblem(g,x0+3,ty+2,3,recovered?"#eafff0":"#fff4d8",recovered?"#2fa85a":"#c04a10");       // medical emblem
-  drawUiText(g,full,x0+ew,ty,recovered?"#d6ffe2":"#ffeecc",1);
+  g.fillStyle="rgba(6,8,2,0.85)"; g.fillRect(x0-2,ty-3,W+4,11);
+  g.fillStyle=col+(0.95*a)+")"; g.fillRect(x0-2,ty-4,W+4,1); g.fillRect(x0-2,ty+7,W+4,1);            // rails
+  g.fillStyle=col+(0.28*a)+")"; g.fillRect(x0-2,ty-3,W+4,11);                                        // wash → reads as an alert
+  drawPlagueEmblem(g,x0+3,ty+2,3,zomb?"#eaffea":recovered?"#eafff0":"#fff4d8",zomb?"#3a8a1e":recovered?"#2fa85a":"#c04a10");
+  drawUiText(g,full,x0+ew,ty,zomb?"#e6ffd6":recovered?"#d6ffe2":"#ffeecc",1);
 }
 // THE ORDER's crimson BANNERS hang down the facades once the dictatorship takes hold (stage 3+, dense at 5)
 // ---- v1.24 TOTAL CONTROL — a rooftop flag flying from a tower top (waving crimson pennant + emblem)
@@ -3543,12 +3543,102 @@ function drawPlagueCelebration(g,L,now){
     drawUiText(g,msg,bx2,by2,"#d6ffe2",1);
   }
 }
+// v1.30 — VACCINE ROLLOUT (RECOVERY): a blue clinic tent with a VACCINE sign + syringe and a spaced-out queue.
+function drawVaccineClinic(g,L,now){
+  var P=curPlague; if(!P||!P.active||P.stage!==4) return;
+  var open=Math.max(0.15,Math.min(1,P.sub*1.4)), day=L>0.5, wx=Math.round(0.365*WW)+52;
+  for(var off=-WW;off<=WW;off+=WW){ var X=(wx-WOFF+off)|0; if(X<-90||X>SW+90) continue;
+    var tw=18, th=10, tx=(X-(tw>>1))|0, ty=HORIZON-th;
+    g.fillStyle=day?"#3a6a9a":"#1e3a56"; g.fillRect(tx,ty,tw,th);
+    for(var pk=0;pk<=9;pk++){ g.fillStyle=day?"#4a7aaa":"#264866"; g.fillRect((tx+(tw>>1)-pk)|0,(ty-pk+1)|0,pk*2,1); }   // peaked roof
+    g.fillStyle="#e8e8f0"; g.fillRect(tx+3,ty+4,6,1); g.fillStyle="#8ab0e0"; g.fillRect(tx+2,ty+3,1,3);                   // a syringe on the flap
+    var sign="VACCINE", slen=sign.length*4-1, sbx=(X-(slen>>1))|0, sby=ty-8;                                             // sign board
+    g.fillStyle="#dfe8f4"; g.fillRect(sbx-1,sby,slen+2,6); g.fillStyle="#2a6ab0"; g.fillRect(sbx-1,sby,slen+2,1); drawUiText(g,sign,sbx,sby+1,"#1a4a8a",1);
+    var qn=Math.round(9*open); for(var q=0;q<qn;q++){ var hh=((q*2654435761+(P.seed||0))>>>0), px=X+(tw>>1)+2+q*6;        // a spaced-out queue (6px apart)
+      drawPerson(g,px|0,HORIZON-1,PEDC[(hh>>>5)%PEDC.length],SKINC[(hh>>>7)%SKINC.length],0); } }
+}
+// v1.30 — HOSPITAL SHIP (coastal): a big white naval ship w/ red crosses docks in the harbor for extra wards.
+function drawHospitalShip(g,L,now){
+  var P=curPlague; if(!P||!P.active||P.stage<2||P.stage>4) return; if(!hasOcean||seaW<=0) return;
+  var spanW=WW*seaW; if(spanW<48) return;
+  var len=42, wx=WW*seaW*0.5, sx=wx-WOFF, day=L>0.5;
+  for(var off=-WW;off<=WW;off+=WW){ var X=(sx+off)|0; if(X+(len>>1)<-4||X-(len>>1)>SW+4) continue;
+    var wl=HORIZON-3, hx0=(X-(len>>1))|0;
+    g.fillStyle=day?"#e8ecf0":"#b4b8c0"; g.fillRect(hx0,wl-5,len,6);                                                     // white hull
+    g.fillStyle=day?"#c8ccd2":"#8c909a"; g.fillRect(hx0,wl+1,len,1);                                                     // waterline
+    g.fillStyle=day?"#f0f2f6":"#c4c8ce"; g.fillRect(hx0+5,wl-10,len-14,5);                                              // superstructure
+    for(var cx2=hx0+7;cx2<hx0+len-7;cx2+=13){ g.fillStyle="#d02424"; g.fillRect(cx2,wl-3,3,1); g.fillRect(cx2+1,wl-4,1,3); }   // red crosses on the hull
+    g.fillStyle=day?"#dadde4":"#a4a8b0"; g.fillRect(hx0+len-11,wl-8,7,3); g.fillStyle="#d02424"; g.fillRect(hx0+len-9,wl-7,3,1);   // helipad + cross
+    if(!day){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,240,200,0.5)"; for(var lx=hx0+2;lx<hx0+len;lx+=5) g.fillRect(lx,wl-9,1,1);
+      if((Math.floor(now/700))%2===0){ g.fillStyle="#ff4040"; g.fillRect(hx0+len-8,wl-11,1,1); } g.globalCompositeOperation="source-over"; } }   // lights + helipad beacon
+}
+// v1.30 — MEMORIAL VIGIL (RECOVERY→REOPENING): candles + flowers + IN MEMORY, a moment of remembrance.
+function drawMemorial(g,L,now){
+  var P=curPlague; if(!P||!P.active||P.stage<4) return; var night=1-L, wx=Math.round(0.365*WW)-46;
+  for(var off=-WW;off<=WW;off+=WW){ var X=(wx-WOFF+off)|0; if(X<-60||X>SW+60) continue;
+    g.fillStyle=L>0.5?"#82828a":"#42424a"; g.fillRect(X-16,HORIZON-3,32,3);                                             // low memorial wall
+    var sign="IN MEMORY", slen=sign.length*4-1; drawUiText(g,sign,(X-(slen>>1))|0,HORIZON-10,L>0.5?"#c4c4cc":"#9a9aa8",1);
+    for(var c=0;c<13;c++){ var cx2=X-15+c*3, fl=(Math.floor(now/220)+c)&1;                                              // rows of candles
+      g.fillStyle="#e8e0d0"; g.fillRect(cx2,HORIZON-1,1,1);
+      g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,190,90,"+(0.55+0.35*fl).toFixed(2)+")"; g.fillRect(cx2,HORIZON-2,1,1);
+      g.fillStyle="rgba(255,210,130,"+(0.14*night).toFixed(2)+")"; g.fillRect(cx2-1,HORIZON-3,3,3); g.globalCompositeOperation="source-over"; }
+    for(var fw=0;fw<6;fw++){ var fx=X-15+fw*6; g.fillStyle=["#ff6a8a","#ffd24a","#c06ad0","#6ad0ff"][fw%4]; g.fillRect(fx,HORIZON-1,1,1); } }   // flowers
+}
+// v1.30 — RAINBOW "THANK YOU" — gratitude to the health workers: rainbows/hearts in windows + a THANK YOU
+// on a hero tower. PER-BUILDING → mirrors drawLayer's culls (no floating).
+function drawGratitudeWindows(g,L,now){
+  var P=curPlague; if(!P||!P.active||P.stage<2||(P.stage===5&&P.sub>=0.7)) return;
+  var frac=Math.min(0.5,0.18+0.32*(P.stage>=3?1:P.sub)), RB=["#ff5a5a","#ff9a3c","#ffd24a","#5ac86a","#4a90e0","#a05ad0"], thanks=0;
+  for(var i=0;i<near.blds.length;i++){ var b=near.blds[i];
+    if(b.type==="park"||b.h<22||b.w<9) continue;
+    if(overSite(b.x,b.w)||overLandmark(b.x,b.w)) continue;
+    if(b.bAge!==undefined && cityG-b.bAge<bandOf(b)) continue;
+    if((((b.seed^0x9A17)>>>1)%100) >= frac*100) continue;
+    var bx=(b.x-WOFF)|0; if(bx>SW+4&&bx-WW>-4)bx-=WW; if(bx<-4-b.w&&bx+WW<SW+4)bx+=WW;
+    if(bx+b.w<-4||bx>SW+4) continue;
+    var top=(HORIZON-b.h)|0, wx2=(bx+3+((b.seed>>>3)%Math.max(1,b.w-6)))|0, wy=(top+6+((b.seed>>>5)%Math.max(1,b.h-12)))|0;
+    if(b.seed&1){ for(var rb=0;rb<6;rb++){ g.fillStyle=RB[rb]; g.fillRect(wx2-3+rb,wy,1,1); } g.fillStyle=RB[0]; g.fillRect(wx2-2,wy-1,4,1); }   // a little rainbow
+    else { g.fillStyle="#ff6a8a"; g.fillRect(wx2-1,wy,3,1); g.fillRect(wx2,wy-1,1,1); g.fillRect(wx2,wy+1,1,1); }                                // …or a heart
+    if(thanks<2 && b.w>=16 && ((b.seed>>>9)&1)){ var msg="THANK YOU", ml=msg.length*4-1; if(b.w-2>=ml){                     // a THANK YOU on a couple of wide towers
+      g.fillStyle="#efe6cc"; g.fillRect((bx+((b.w-ml)>>1)-1)|0,top+3,ml+2,6); drawUiText(g,msg,(bx+((b.w-ml)>>1))|0,top+4,"#2a6ab0",1); thanks++; } }
+  }
+}
+// THE ZOMBIE PLAGUE OVERRUN — reuses the shipped zombie DISASTER renderer (drawZombies is standalone; it
+// reads only the cd we pass + L/now). Spreading hordes fill the city as zprog climbs; it rages until the
+// end-of-life apocalypse wipes the fallen city. Same PG level as the shipped zombie disaster.
+function drawPlagueZombies(g,L,now){
+  var P=curPlague; if(!P||!P.active||!P.zombie||P.stage<4) return;
+  var z=P.zprog;
+  // a sickly green pall settles over the whole overrun city (grows with the outbreak)
+  g.globalCompositeOperation="lighter"; g.fillStyle="rgba(70,150,50,"+(0.05+0.13*z).toFixed(3)+")"; g.fillRect(0,0,SW,HORIZON+4); g.globalCompositeOperation="source-over";
+  // reuse the shipped zombie DISASTER renderer for a few spreading fronts (miasma + conversions)
+  var nFronts=Math.max(1,1+Math.round(z*3)), fbase=0.10+z*0.36;
+  for(var h=0;h<nFronts;h++){ var hx=(0.18+0.64*(h/(Math.max(1,nFronts-1)||1)))*WW + ((h*97)%17)-8;
+    drawZombies(g,{ type:"zombie", x:Math.round(hx), w:60, seed:1234+h*31, intensity:5, f:Math.min(0.49,Math.max(0.10,fbase+h*0.015)) },L,now); }
+  // …and a SHAMBLING HORDE across the whole street so the overrun is unmistakable (green figures, lurching)
+  var nZ=Math.round(14+z*46);
+  for(var i=0;i<nZ;i++){ var hh=((i*2654435761+Math.floor(now/500)*13)>>>0), zx=((hh%(SW+40))-20)|0, sh=(Math.floor(now/360)+i)&1;
+    if(zx<-3||zx>SW+3) continue;
+    var zc=["#4a6a38","#3e5a34","#54744a"][(hh>>>5)%3], zs=["#8aa878","#7a9a68","#96b486"][(hh>>>7)%3];
+    drawPerson(g,zx,(HORIZON-1)|0,zc,zs,sh?2:0);                                          // undead: sickly green skin + tattered green clothes
+    if((hh>>>9)&1){ g.fillStyle=zc; g.fillRect(zx+(sh?-1:2),(HORIZON-2)|0,1,1); }          // an outstretched arm
+    if(((hh>>>11)%5)===0){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(120,255,90,0.5)"; g.fillRect(zx,(HORIZON-3)|0,1,1); g.globalCompositeOperation="source-over"; } }  // a glowing eye
+}
 function drawPlague(g,L,now,night){
-  if(!curPlague||!curPlague.active) return;
-  drawFieldHospital(g,L,now);    // the red-cross tents in the plaza
+  var P=curPlague; if(!P||!P.active) return;
+  var overrun=(P.zombie&&P.stage>=4);
+  drawHospitalShip(g,L,now);     // the naval hospital ship in the harbor (coastal)
+  drawFieldHospital(g,L,now);    // the red-cross tents in the plaza (up through the surge/turn)
   drawPlagueSigns(g,L,now);      // boarded storefronts + STAY HOME signs
+  if(!overrun) drawGratitudeWindows(g,L,now); // rainbows / hearts / THANK YOU (nobody's thanking anyone once the dead rise)
   drawAmbulances(g,L,now);       // ambulances hurrying the emptied streets
-  drawPlagueCelebration(g,L,now);// …then at REOPENING, the jubilant maskless crowd + confetti
+  if(overrun){
+    drawPlagueZombies(g,L,now);  // THE TURN → OVERRUN: the dead rise and the city falls
+  } else {
+    drawVaccineClinic(g,L,now);  // the vaccine rollout at RECOVERY
+    drawMemorial(g,L,now);       // the candlelight memorial
+    drawPlagueCelebration(g,L,now);// …then at REOPENING, the jubilant maskless crowd + confetti
+  }
 }
 function drawRegime(g,L,now,night){
   if(!curRegime||!curRegime.active) return;
@@ -8940,6 +9030,10 @@ var curRegime=null;   // set each frame; the whole arc reads this
 var PLAGUE_SALT=0x50142E1D;                                        // "Plag" — isolated hash stream
 var PLAGUE_STAGES=[0.42,0.48,0.54,0.62,0.70,0.78];                // 5 stages then RECOVERED (healed end)
 var PLAGUE_STAGE_LABEL=["","OUTBREAK","LOCKDOWN","SURGE","RECOVERY","REOPENING"];   // unmistakable stage names
+// THE ZOMBIE PLAGUE (rare): the same start, but the infected TURN and the city is OVERRUN — it never
+// recovers; the overrun rages ALL THE WAY to the end-of-life apocalypse (which wipes the zombie city).
+var PLAGUE_ZSTAGES=[0.42,0.48,0.54,0.62,0.70,0.955];             // 1-3 as normal, 4=THE TURN, 5=OVERRUN → to the apoc
+var ZOMBIE_STAGE_LABEL=["","OUTBREAK","LOCKDOWN","SURGE","THE TURN","OVERRUN"];
 var FORCEPLAGUE=null;                                              // test hook (own line — QML-namespace writable)
 function plagueState(now){
   if(FORCEPLAGUE) return FORCEPLAGUE;
@@ -8950,12 +9044,15 @@ function plagueState(now){
   if((rh%100) < 37) return null;                                  // YIELD to REGIME lives (regimeState claims those)
   var ph=((((li*2654435761)>>>0) ^ PLAGUE_SALT)>>>0);
   if((ph%100) >= 45) return null;                                 // ~45% of what's left → ~11% overall (uncommon, like the regime)
-  if(cy<PLAGUE_STAGES[0] || cy>=PLAGUE_STAGES[5]) return null;    // NORMAL before the outbreak & after recovery (life-scoped)
-  var stage=1; for(var s=1;s<5;s++){ if(cy>=PLAGUE_STAGES[s]) stage=s+1; }
-  var sub=Math.max(0,Math.min(1,(cy-PLAGUE_STAGES[stage-1])/(PLAGUE_STAGES[stage]-PLAGUE_STAGES[stage-1])));
-  var prog=(cy-PLAGUE_STAGES[0])/(PLAGUE_STAGES[5]-PLAGUE_STAGES[0]);                 // 0..1 across the whole arc
-  var severity=Math.max(0,Math.min(1, prog<0.42 ? prog/0.42 : 1-(prog-0.42)/0.58));  // cases rise to the SURGE peak (~stage 3) then fall
-  return { active:true, stage:stage, sub:sub, severity:severity, cyStart:PLAGUE_STAGES[0], cyEnd:PLAGUE_STAGES[5], li:li, seed:ph };
+  var zombie=((ph>>>16)%100) < 14;                                // ~14% of plague lives TURN — the dead rise (≈1.5% of all lives)
+  var ST=zombie?PLAGUE_ZSTAGES:PLAGUE_STAGES, cyEnd=ST[5];        // the zombie plague rages to the apoc; a normal one recovers by 0.78
+  if(cy<ST[0] || cy>=cyEnd) return null;                          // NORMAL before the outbreak & (non-zombie) after recovery (life-scoped)
+  var stage=1; for(var s=1;s<5;s++){ if(cy>=ST[s]) stage=s+1; }
+  var sub=Math.max(0,Math.min(1,(cy-ST[stage-1])/(ST[stage]-ST[stage-1])));
+  var severity, zprog=0;
+  if(zombie){ severity=Math.max(0,Math.min(1,(cy-ST[0])/0.30)); zprog=Math.max(0,Math.min(1,(cy-ST[3])/(cyEnd-ST[3]))); }   // keeps climbing → total overrun
+  else { var prog=(cy-ST[0])/(ST[5]-ST[0]); severity=Math.max(0,Math.min(1, prog<0.42?prog/0.42:1-(prog-0.42)/0.58)); }     // rise to the SURGE, then fall
+  return { active:true, stage:stage, sub:sub, severity:severity, zombie:zombie, zprog:zprog, cyStart:ST[0], cyEnd:cyEnd, li:li, seed:ph };
 }
 var curPlague=null;   // set each frame; the whole plague arc reads this
 // explicit, unmistakable per-stage news — dominates the ticker while the takeover is underway
@@ -8985,6 +9082,10 @@ function plagueTicker(now){
     5:(P.sub<0.6?["THE CITY REOPENS - MASKS COME OFF","SHOPS RAISE THEIR SHUTTERS ONCE MORE","LIFE RETURNS TO THE STREETS"]
               :[cityName+" IS FREE OF THE PLAGUE","A CELEBRATION FILLS THE PLAZA - WE MADE IT","THE PLAGUE IS OVER - "+cityName+" ENDURES"])
   };
+  if(P.zombie && P.stage>=4){                                          // the plague TURNS — horror headlines
+    S[4]=["THE DEAD ARE RISING - "+cityName+" IN CHAOS","THE INFECTED TURN - THIS IS NO ORDINARY PLAGUE","THE DEAD WALK THE STREETS - RUN"];
+    S[5]=["OVERRUN - "+cityName+" HAS FALLEN TO THE HORDE","THE DEAD OWN THE CITY NOW","NO ESCAPE - THE OUTBREAK IS TOTAL"];
+  }
   var arr=S[P.stage]||["PLAGUE"]; return arr[((slow%arr.length)+arr.length)%arr.length];
 }
 function mayorState(now){
@@ -11683,13 +11784,13 @@ function draw(g,pass){
   // on curPlague → both stay 0 on every non-plague life (plague never co-occurs with war/regime/curfew).
   curMaskK=0; curPlagueEmpty=0;
   if(curPlague&&curPlague.active){
-    var psev=curPlague.severity||0;
-    curMaskK=Math.max(0,Math.min(0.95, curPlague.stage>=5?0.15:0.30+0.65*psev));   // masks ramp to the surge, mostly off at reopening
-    curPlagueEmpty=Math.max(0,Math.min(1, psev*(curPlague.stage>=5?0.30:1)));       // streets emptiest at the surge, refill at reopening
+    var psev=curPlague.severity||0, zomb=(curPlague.zombie&&curPlague.stage>=4);
+    curMaskK=zomb?0.10:Math.max(0,Math.min(0.95, curPlague.stage>=5?0.15:0.30+0.65*psev));            // masks abandoned once the dead rise
+    curPlagueEmpty=zomb?Math.max(0.55,psev):Math.max(0,Math.min(1, psev*(curPlague.stage>=5?0.30:1)));// OVERRUN empties the streets (fled/turned); a normal plague refills at reopening
     if(curPlagueEmpty>0){
-      curLit=Math.max(0.18,curLit*(1-0.30*curPlagueEmpty));                         // storefronts dim (lighter than curfew)
-      wmood.pedFactor*=(1-0.78*curPlagueEmpty);                                     // sidewalks clear (people stay home)
-      rhythm.carPresence*=(1-0.70*curPlagueEmpty);                                  // fewer cars on the road
+      curLit=Math.max(zomb?0.12:0.18,curLit*(1-(zomb?0.55:0.30)*curPlagueEmpty));   // the overrun city goes dark
+      wmood.pedFactor*=(1-0.78*curPlagueEmpty);                                     // sidewalks clear (people stay home / are gone)
+      rhythm.carPresence*=(1-(zomb?0.90:0.70)*curPlagueEmpty);                      // the roads empty (abandoned in the panic)
     }
   }
   curWar=(cityG>0.5)?warState(now):null;                     // is this the life the enemy comes?
