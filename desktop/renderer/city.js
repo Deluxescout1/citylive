@@ -2135,6 +2135,8 @@ function landRoute(x){ if(!hasOcean||seaW<=0) return x;
   var a=WW*seaW+8, b=WW*(1-seaW)-8; return a+(x/WW)*(b-a); }
 var curLit=1;        // fraction of night windows actually on (ramps up through the evening, dims after midnight)
 var curCurfew=0;     // v1.24 THE ORDER curfew strength 0..1 (Martial Law nights): dark windows + empty streets. 0 on every non-regime life.
+var curMaskK=0;      // v1.29 THE PLAGUE mask prevalence 0..1: citizens wear surgical masks. 0 on every non-plague life (drawPerson reads it).
+var curPlagueEmpty=0;// v1.29 THE PLAGUE emptiness 0..1 (peaks at the SURGE): dims the streets like the curfew. 0 on every non-plague life.
 var curSunDf=0.5;    // where the sun is in its arc (0 sunrise .. 1 sunset) — drives light direction
 // THE GOLDEN HOUR — one global light state, computed once per frame, consumed everywhere
 // (sky, buildings, terrain, water, mountains, clouds) so low-sun light reads as ONE event.
@@ -2646,6 +2648,8 @@ function drawPerson(g,x,y,cloth,skin,bob,kind){
     g.fillRect(X,yy-4,2,1); g.fillRect(X+((hseed&1)?1:-0),yy-3,1,1);      // hair + a little sweep
     g.fillStyle=skin; g.fillRect(X,yy-3,2,1);                             // face…
     g.fillStyle="rgba(20,16,14,0.85)"; g.fillRect(X+((hseed>>2)&1),yy-3,1,1);   // …with an eye
+    if(curMaskK>0 && ((hseed*7+X*3)>>>0)%100 < curMaskK*100){ g.fillStyle="#bcd6ec"; g.fillRect(X,yy-3,2,1);   // v1.29 a surgical mask (pale blue over the face)…
+      g.fillStyle="rgba(30,24,20,0.7)"; g.fillRect(X+((hseed>>2)&1),yy-4,1,1); }                              // …the eye peeks above the mask
     g.fillStyle=cloth; g.fillRect(X-1,yy-2,4,1);                          // shoulders
     g.fillRect(X,yy-1,2,2);                                               // jacket
     if(f===1){ g.fillStyle=cloth; g.fillRect(X-1,yy-1,1,1); g.fillRect(X+2,yy,1,1);      // arms swing
@@ -11593,6 +11597,19 @@ function draw(g,pass){
       curLit=Math.max(0.10,curLit*(1-0.72*curCurfew));                             // the city goes dark
       wmood.pedFactor*=(1-0.90*curCurfew);                                         // the sidewalks clear
       rhythm.carPresence*=(1-0.88*curCurfew);                                      // the roads empty
+    }
+  }
+  // v1.29 THE PLAGUE — quarantine empties the streets (peaks at the SURGE) & citizens mask up. Strictly gated
+  // on curPlague → both stay 0 on every non-plague life (plague never co-occurs with war/regime/curfew).
+  curMaskK=0; curPlagueEmpty=0;
+  if(curPlague&&curPlague.active){
+    var psev=curPlague.severity||0;
+    curMaskK=Math.max(0,Math.min(0.95, curPlague.stage>=5?0.15:0.30+0.65*psev));   // masks ramp to the surge, mostly off at reopening
+    curPlagueEmpty=Math.max(0,Math.min(1, psev*(curPlague.stage>=5?0.30:1)));       // streets emptiest at the surge, refill at reopening
+    if(curPlagueEmpty>0){
+      curLit=Math.max(0.18,curLit*(1-0.30*curPlagueEmpty));                         // storefronts dim (lighter than curfew)
+      wmood.pedFactor*=(1-0.78*curPlagueEmpty);                                     // sidewalks clear (people stay home)
+      rhythm.carPresence*=(1-0.70*curPlagueEmpty);                                  // fewer cars on the road
     }
   }
   curWar=(cityG>0.5)?warState(now):null;                     // is this the life the enemy comes?
