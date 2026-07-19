@@ -8265,7 +8265,7 @@ function civicWOf(t){ for(var i=0;i<CIVICS.length;i++) if(CIVICS[i].t===t) retur
 function civicX(type,hx,hh){ var j=((hh>>>11)%40)-20;
   if(type==="marina"&&hasOcean) return Math.round(WW*(seaW+0.05))+((hh>>>13)%16);
   if(type==="grandcentral") return (Math.round(WW*0.52)+j+WW)%WW;
-  if(type==="observatory") return (Math.round(WW*(mts?0.13:0.9))+j+WW)%WW;
+  if(type==="observatory") return Math.round(WW*(hasOcean?(seaW+0.04):0.05))+((hh>>>13)%8);   // a bluff at the city's LEFT edge (inside any sea), clear of downtown towers
   return hx; }
 function civicProjects(li,term){
   if(term<0) return [];
@@ -8708,6 +8708,12 @@ function drawZoo(g,cx,cb,L,now,night){
 function drawObservatory(g,cx,cb,L,now,night){
   var gy=HORIZON, w=cb.w||40, x0=(cx-(w>>1))|0, seed=(cb.seed>>>0), H=14+(seed%4);
   var stone=L>0.5?"#c4bca8":"#413c33", dome=L>0.5?"#b8c0cc":"#3a4250", domeHi=L>0.5?"#dfe6ee":"#586274";
+  // RAISED ROCKY BLUFF at the city's edge — lifts the dome above the rooftops, against the mountains
+  var blH=16, rock=L>0.5?"#6f6a5a":"#2a2720", rockD=L>0.5?"#5a5648":"#201e18";
+  for(var by=0;by<blH;by++){ var bwid=w+2-Math.round((by/blH)*(w*0.35)); g.fillStyle=(by<2)?rock:rockD; g.fillRect((cx-(bwid>>1))|0,gy-by-1,bwid,1); }
+  g.fillStyle=rock; for(var rk=0;rk<5;rk++){ var rx=x0+2+((seed>>(rk*3))%Math.max(1,w-4)); g.fillRect(rx,gy-2-((seed>>rk)%blH),1,1); }   // rock texture flecks
+  gy=gy-blH;                                                                                          // build the observatory ON TOP of the bluff
+  x0=(cx-(w>>1))|0;
   g.fillStyle=stone; g.fillRect(x0,gy-H,w,H); g.fillStyle=L>0.5?"#a89f8a":"#322e27"; g.fillRect(x0,gy-H,w,1);   // stone drum base
   g.fillStyle=night>0.4?"#ffe6a0":(L>0.5?"#8fb0d0":"#2a3550"); for(var wx=x0+3;wx<x0+w-3;wx+=5) g.fillRect(wx,gy-H+4,2,3);  // windows
   var dw=Math.round(w*0.62), dx=x0+(w>>1)-(dw>>1), dh=Math.round(dw*0.55), dcx=x0+(w>>1);             // the DOME (half-circle)
