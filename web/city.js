@@ -4942,12 +4942,12 @@ function drawHelis(g,L,now){
     }
   }
 }
-// LIVE FLIGHTS — the REAL aircraft overhead right now (fetchFlights, ADS-B). Unlike the decorative
-// high-altitude jets, each of these is placed at its TRUE compass bearing (azimuth→skyWX) and a lifted
-// geometric elevation (altitude/distance→skyY), dead-reckoned along its real heading & ground speed
-// between the ~90s fetches. They read as "live": a cooler cyan airframe, a cyan (not white) beacon, a
-// short cyan contrail, and — on the closest / most-overhead aircraft — a callsign + altitude data tag
-// that FADES IN as the plane grows prominent and fades back to a bare silhouette otherwise.
+// LIVE FLIGHTS — the REAL aircraft overhead right now (fetchFlights, ADS-B). Unlike the decorative jets,
+// each is placed at its TRUE compass bearing (azimuth→x) with its height set by REAL ALTITUDE, kept in a
+// band above the skyline, dead-reckoned along its heading/speed between the ~90s fetches and eased so it
+// never jumps. Sized by aircraft class (heavy jet → light prop → helicopter); only high jets leave a
+// contrail. Always-on callsign+altitude tag on a dark plate with a ▲/▼ climb-descent arrow. And once the
+// city has a working airport, low climbing/descending aircraft fly their departure/approach to its runway.
 function drawRealFlights(g,L,now){
   if(!FLIGHTS_ON || !realFlights || !realFlights.length) return;
   if(cityPhase==="apoc") return;                          // the sky is meteors / fire / ash — no ADS-B overlay
@@ -4976,7 +4976,8 @@ function drawRealFlights(g,L,now){
     var tDir=(daz>=0)?1:-1;
     // AIRPORT: a low aircraft that's CLIMBING or DESCENDING is taking off / landing here → put it on the
     // airport's glide path (positioned by its real altitude) rather than a distant fly-by. Others pass by.
-    var arriving=apReady&&talt<11000&&vr<-180, departing=apReady&&talt<11000&&vr>180;
+    var apUse=apReady&&f.cat!=="A7"&&talt<11000;          // fixed-wing only — helicopters don't fly runway approaches
+    var arriving=apUse&&vr<-180, departing=apUse&&vr>180;
     if(arriving||departing){
       var gf=Math.max(0,Math.min(1,talt/9000));           // 0 at the runway → 1 at pattern altitude
       var sd=(((f.hex||f.cs||"x").charCodeAt(0))&1)?1:-1;  // this plane's side of the field (stable per aircraft)
