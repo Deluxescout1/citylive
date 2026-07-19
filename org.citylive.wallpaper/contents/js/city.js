@@ -8683,11 +8683,18 @@ function drawZoo(g,cx,cb,L,now,night){
   var gy=HORIZON, w=cb.w||58, x0=(cx-(w>>1))|0, seed=(cb.seed>>>0);
   g.fillStyle=L>0.5?"#3f6a34":"#16301a"; g.fillRect(x0,gy-4,w,4);                                     // grounds
   g.fillStyle=L>0.5?"#7a6a4a":"#2c2618"; for(var fx=x0;fx<x0+w;fx+=3) g.fillRect(fx,gy-6,1,6);        // perimeter fence
-  var gw=12, gx=x0+(w>>1)-(gw>>1), stone=L>0.5?"#c9b58a":"#3a3223";                                   // ornate arch GATE
-  g.fillStyle=stone; g.fillRect(gx-1,gy-15,2,15); g.fillRect(gx+gw-1,gy-15,2,15);                     // gate pillars
-  g.fillStyle=stone; g.fillRect(gx-1,gy-16,gw+2,3);                                                   // arch beam
-  for(var ga=0;ga<(gw>>1);ga++){ g.fillStyle=stone; g.fillRect(gx+ga,gy-16-ga,1,1); g.fillRect(gx+gw-1-ga,gy-16-ga,1,1); }
-  drawPixText(g,"ZOO",gx+1,gy-15,L>0.5?"#5a3f26":"#d8c090",0.8);
+  var gw=16, gx=x0+(w>>1)-(gw>>1), aH=34, stone=L>0.5?"#cbb78c":"#3b3324", stoneD=L>0.5?"#a89268":"#2b241a"; // TALL ceremonial arch — rises above the viaduct
+  g.fillStyle=stone; g.fillRect(gx-2,gy-aH,3,aH); g.fillRect(gx+gw-1,gy-aH,3,aH);                     // tall pillars
+  g.fillStyle=stoneD; g.fillRect(gx-2,gy-aH,3,1); g.fillRect(gx+gw-1,gy-aH,3,1);
+  g.fillStyle=stone; g.fillRect(gx-2,gy-aH-3,gw+4,4);                                                 // entablature
+  civicPediment(g,gx-2,gy-aH-3,gw+4,stone,stoneD);                                                    // pediment cap w/ flag
+  g.fillStyle="#c0392b"; g.fillRect(gx+(gw>>1),gy-aH-11,1,4); g.fillRect(gx+(gw>>1)+1,gy-aH-11,3,2);
+  for(var ga=0;ga<(gw>>1);ga++){ g.fillStyle=stoneD; g.fillRect(gx+1+ga,gy-aH+4+ga,1,1); g.fillRect(gx+gw-2-ga,gy-aH+4+ga,1,1); }  // arched opening
+  g.fillStyle=stoneD; g.fillRect(gx+1,gy-aH+11,gw-2,aH-11);                                           // shaded gateway throat
+  drawPixText(g,"ZOO",gx+2,gy-aH+2,L>0.5?"#5a3f26":"#e6cf9a",0.8);
+  var avx=x0+4, avH=20; g.fillStyle=stoneD; g.fillRect(avx,gy-avH,1,avH); g.fillRect(avx+8,gy-avH,1,avH);   // tall AVIARY dome cage
+  for(var ad=0;ad<5;ad++){ g.fillStyle=L>0.5?"#8a94a0":"#39424e"; g.fillRect(avx+ad,gy-avH-1-Math.round(Math.sqrt(Math.max(0,16-(ad*2-4)*(ad*2-4)))),1,1); }
+  g.fillStyle=L>0.5?"#e8ecf2":"#8a909c"; g.fillRect((avx+3+((now*0.01)%4))|0,(gy-avH+4)|0,1,1);      // a bird inside
   // enclosures: a leafy tree, an elephant, a giraffe silhouette
   var ex=x0+4; g.fillStyle=L>0.5?"#3c6e30":"#16321c"; g.fillRect(ex,gy-9,5,4); g.fillStyle=L>0.5?"#5a3f26":"#241a10"; g.fillRect(ex+2,gy-5,1,3);  // tree
   var elx=x0+w-16; g.fillStyle=L>0.5?"#9a9aa4":"#3a3a44"; g.fillRect(elx,gy-6,7,4); g.fillRect(elx-1,gy-4,1,3); g.fillRect(elx,gy-2,1,2); g.fillRect(elx+6,gy-2,1,2);  // elephant body+trunk+legs
@@ -8724,11 +8731,20 @@ function drawMarina(g,cx,cb,L,now,night){
   var hb=Math.round(w*0.2), hx=x0;                                                                     // harbormaster hut
   g.fillStyle=L>0.5?"#b64a3a":"#3a1a14"; g.fillRect(hx,gy-9,hb,7); g.fillStyle=L>0.5?"#8a3428":"#2a120e"; g.fillRect(hx,gy-11,hb,2);
   g.fillStyle=night>0.4?"#ffe6a0":"#8fb0d0"; g.fillRect(hx+2,gy-7,2,2);
-  var boats=[[0.42,"#e8e2d0","#c0392b"],[0.66,"#dfe6ee","#2f6fb0"],[0.86,"#e8e2d0","#3a9a6f"]];       // moored sailboats (hull + sail)
-  for(var b=0;b<boats.length;b++){ var bx=x0+Math.round(boats[b][0]*w)+Math.round(Math.sin(now*0.001+b*2)*1);
-    g.fillStyle=boats[b][1]; g.fillRect(bx-3,gy+1,7,2); g.fillStyle=boats[b][2];                      // hull
-    g.fillStyle="#6a5a3a"; g.fillRect(bx,gy-8,1,9);                                                   // mast
-    g.fillStyle=boats[b][2]; for(var sr=0;sr<7;sr++) g.fillRect(bx+1,gy-8+sr,Math.round((7-sr)*0.6),1); }  // triangular sail
+  // LIGHTHOUSE beacon at the pier head — rises tall above the viaduct with a sweeping night light
+  var lhx=x0+w-4, lhH=30; g.fillStyle=L>0.5?"#e8e2d4":"#5a5448"; g.fillRect(lhx,gy-lhH,3,lhH);
+  g.fillStyle="#c0392b"; g.fillRect(lhx,gy-lhH+4,3,2); g.fillRect(lhx,gy-lhH+11,3,2); g.fillRect(lhx,gy-lhH+18,3,2);   // red bands
+  g.fillStyle=L>0.5?"#3a3f48":"#20242c"; g.fillRect(lhx-1,gy-lhH-3,5,3);                              // lantern gallery
+  g.fillStyle="#ffe08a"; g.fillRect(lhx,gy-lhH-2,3,1);
+  if(night>0.35){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,224,140,0.5)"; g.fillRect(lhx-2,gy-lhH-4,7,4);
+    var sweep=Math.sin(now*0.0016)*10; g.fillStyle="rgba(255,236,170,0.16)"; g.fillRect((lhx+1+sweep)|0,gy-lhH-2,6,2); g.globalCompositeOperation="source-over"; }
+  var boats=[[0.34,"#e8e2d0","#c0392b"],[0.56,"#dfe6ee","#2f6fb0"]];                                  // moored YACHTS with tall masts (rise above the rail)
+  for(var b=0;b<boats.length;b++){ var bx=x0+Math.round(boats[b][0]*w)+Math.round(Math.sin(now*0.001+b*2)*1), mH=24+b*3;
+    g.fillStyle=boats[b][1]; g.fillRect(bx-4,gy+1,9,2); g.fillStyle=boats[b][2]; g.fillRect(bx-4,gy,9,1);   // hull + trim stripe
+    g.fillStyle="#6a5a3a"; g.fillRect(bx,gy-mH,1,mH+1);                                                // tall mast
+    g.fillStyle=boats[b][2]; for(var sr=0;sr<mH-4;sr++) g.fillRect(bx+1,gy-mH+2+sr,Math.round((mH-4-sr)*0.42)+1,1);   // mainsail
+    g.fillStyle="#f0f0f0"; for(var jb=0;jb<8;jb++) g.fillRect(bx-1-Math.round((8-jb)*0.3),gy-mH+6+jb,1,1);            // jib
+    if(night>0.4){ g.fillStyle="#ffe08a"; g.fillRect(bx,gy-2,1,1); } }                                // cabin light
   var sx2=x0+Math.round(((now*0.008)%1)*w);                                                            // a sailboat drifting across
   g.fillStyle="#e8e2d0"; g.fillRect(sx2-2,gy+2,5,1); g.fillStyle="#6a5a3a"; g.fillRect(sx2,gy-5,1,6);
   g.fillStyle="#f0f0f0"; for(var sr2=0;sr2<6;sr2++) g.fillRect(sx2+1,gy-5+sr2,Math.round((6-sr2)*0.5),1);
