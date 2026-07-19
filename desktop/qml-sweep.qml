@@ -39,6 +39,9 @@ Item {
             // THE ORDER — regime HUD/banner/ticker across all 6 stages (day+night)
             for (var rg = 1; rg <= 6; rg++) jobs.push({ age: 0.66, clock: [clk, night][rg % 2],
                 regime: { active: true, stage: rg, sub: 0.5, party: { k: "THE ORDER", c: "#c0182a" }, leaderName: "CHANCELLOR VOSS", path: "revolution", cyStart: 0.42, cyEnd: 0.80 } });
+            // weather spectacle — thunderstorm+lightning strike & god-rays (broken cloud) draw paths
+            jobs.push({ age: 0.7, clock: night, weather: { code: 95, cloud: 92, wind: 26, temp: 60, precip: 8 }, lightning: 0.85 });
+            jobs.push({ age: 0.7, clock: clk, weather: { code: 3, cloud: 50, wind: 8, temp: 68, precip: 0 } });
 
             var ok = true;
             try { City.setup('neon', { cw: 853, ch: 480, woff: 0, ww: 2269, pxk: 3, zoom: 1, quality: 'spectacle' }); }
@@ -51,6 +54,8 @@ Item {
                 City.FORCEEVENT = (jobs[j].event !== undefined ? jobs[j].event : null);
                 City.FORCEELECT = (jobs[j].civics !== undefined ? { civics: jobs[j].civics } : null);
                 City.FORCEREGIME = (jobs[j].regime !== undefined ? jobs[j].regime : null);
+                if (jobs[j].weather !== undefined) { for (var wk in jobs[j].weather) City.weather[wk] = jobs[j].weather[wk]; }
+                if (jobs[j].lightning !== undefined) City.lightning = jobs[j].lightning;
                 try { City.draw(g); }
                 catch (e) { console.log("SWEEP_FAIL job " + j + " " + JSON.stringify(jobs[j]).slice(0,70) + ": " + e); ok = false; }
             }

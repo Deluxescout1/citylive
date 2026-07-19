@@ -27,6 +27,8 @@ if(Q.get('cloud')!=null){ setInterval(function(){ weather.cloud=+Q.get('cloud');
 if(Q.get('wind')!=null){ setInterval(function(){ weather.wind=+Q.get('wind'); weather.gust=+Q.get('wind')+4; },150); }   // pin wind speed (km/h) — drives leaf/petal gusting
 if(Q.get('snow')!=null){ setInterval(function(){ snowpack=+Q.get('snow'); },100); }   // pin snowpack 0..1 (snow accumulation on roofs/cars/trees)
 if(Q.get('temp')!=null){ setInterval(function(){ weather.temp=+Q.get('temp'); weather.feels=+Q.get('temp'); },150); }   // pin temperature °F (drives wmood.hot heat shimmer)
+if(Q.get('wcode')!=null){ setInterval(function(){ weather.code=+Q.get('wcode'); },120); }   // pin the WMO weather code (95=thunder, 61=rain, 71=snow, 45=fog)
+if(Q.get('bolt')!=null){ setInterval(function(){ lightning=+Q.get('bolt'); },80); }   // force a lightning strike frame
 if(Q.get('apoc')!=null){ var _ap=+Q.get('apoc'); FORCEAGE={g:1,phase:'apoc',apoc:_ap,cy:0.955+0.045*_ap}; }
 if(Q.get('space')!=null){ var _sp=+Q.get('space'); FORCEAGE={g:1,phase:'peak',apoc:0,cy:0.80+0.13*_sp}; }   // pins the SPACE AGE ramp (curSpace≈_sp, EDUB aside)
 if(Q.get('dis')){ FORCEDIS={type:Q.get('dis'),intensity:4,xf:0.5,w:60,seed:77,f:qn('disf',0.25)}; }

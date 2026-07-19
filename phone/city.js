@@ -105,7 +105,7 @@ var LANE = [{o:5,d:1},{o:10,d:1},{o:16,d:-1},{o:21,d:-1}];
 var PEDC = ["#d24a4a","#4a7fd2","#3fae6a","#d2a63f","#b060c0","#e6e6ea","#c05a8a","#5ac0c0","#e07a3a",
   "#3a5a8a","#7a9a3a","#8a3a3a","#d0b040","#6a4a9a","#2a8a7a","#c86a3a","#4a4a55","#d0d0d8","#b83a6a","#4f7f4a"];
 var SKINC = ["#e8b088","#c68a5a","#8a5a3a","#f0c6a0","#5a3a24","#ffd8b4","#a06a44"];
-var fog = { t: 0 }, snowpack = 0, lightning = 0, lightNext = 0, lboltX = 0;
+var fog = { t: 0 }, snowpack = 0, lightning = 0, lightNext = 0, lboltX = 0, lboltY = 0;
 var leaves = [], petals = [];   // ambient seasonal drifters (autumn leaves / spring petals), wind-reactive
 var weather = { code: 0, cloud: 30, wind: 5, temp: 60, precip: 0, feels: 60, gust: 8 };   // temp/feels °F, wind/gust km/h, precip mm
 var tPrev = 0;
@@ -4983,6 +4983,19 @@ function drawShootingStar(g,L,now){
   g.globalCompositeOperation="source-over";
 }
 // a rainbow arc when a shower has just cleared under a low sun (wet ground, clearing sky, morning/evening light)
+// GOD-RAYS: crepuscular sunbeams fan down from the sun when the sky is partly broken by cloud
+function drawGodRays(g,L,now,fx){
+  if(L<0.4||cityPhase==="apoc"||fx.rain||fx.snow||fx.thunder||fx.fog) return;
+  var cl=weather.cloud||0; if(cl<26||cl>76) return;                              // needs SOME cloud to break the light (not clear, not overcast)
+  var df=Math.max(0.06,Math.min(0.94,curSunDf)), sunX=Math.round(SW*df), sunY=Math.round(HORIZON*0.46-Math.sin(df*Math.PI)*HORIZON*0.4);
+  var warm=(goldenK>0.2)?"255,222,164":"255,250,228", str=0.05+(goldenK||0)*0.09;
+  g.globalCompositeOperation="lighter";
+  for(var r=0;r<7;r++){ var ang=(r-3)*0.17+Math.sin(now*0.0002+r)*0.015, len=(HORIZON-sunY)+HORIZON*0.4;
+    for(var s=6;s<len;s+=5){ var by=sunY+s; if(by>HORIZON+4) break;
+      var bx=sunX+Math.tan(ang)*s, w=1+((s/len)*3|0);
+      g.fillStyle="rgba("+warm+","+(str*(1-s/len)).toFixed(3)+")"; g.fillRect((bx-(w>>1))|0,by|0,w,5); } }
+  g.globalCompositeOperation="source-over";
+}
 function drawRainbow(g,L,fx){
   if(fx.rain||fx.thunder||fx.snow||fx.cloudy||fx.fog) return;
   if(wetness<0.28) return; if(L<0.34||L>0.74) return;
@@ -11103,6 +11116,7 @@ function draw(g,pass){
   drawShower(g,nd,L,now,fx);                    // real-date meteor showers
   drawSatellite(g,L,now);                       // a satellite/ISS ghosting steadily across the dark sky
   drawShootingStar(g,L,now);                    // the occasional wish-worthy shooting star
+  drawGodRays(g,L,now,fx);                      // crepuscular sunbeams through broken cloud
   drawRainbow(g,L,fx);                          // an arc when a shower clears under a low sun
 
   // clouds (deterministic drift)
@@ -11976,12 +11990,22 @@ function draw(g,pass){
       g.fillRect(smx|0,smy|0,1,1); }
   }
 
-  if(fx.thunder){ if(now>lightNext){ lightning=1; lightNext=now+2000+Math.random()*7000; lboltX=Math.random()*SW; }
-    if(lightning>0){ g.fillStyle="rgba(240,245,255,"+(lightning*0.7)+")"; g.fillRect(0,0,SW,SH);
-      if(lightning>0.7){ g.strokeStyle="rgba(255,255,255,0.9)"; g.beginPath();
-        var bx3=lboltX, by3=0; g.moveTo(bx3,by3);
-        for(var seg=0;seg<6;seg++){ bx3+=(Math.random()-0.5)*10; by3+=HORIZON/6; g.lineTo(bx3|0,by3|0); }
-        g.stroke(); }
+  if(fx.thunder){ if(now>lightNext){ lightning=1; lightNext=now+1800+Math.random()*6000;
+      lboltX=Math.random()*SW; lboltY=HORIZON;                                              // default: a ground strike
+      if(near&&near.blds){ var tallB=null, tth=0;                                           // …but usually STRIKE THE TALLEST TOWER on screen
+        for(var lt=0;lt<near.blds.length;lt++){ var lbB=near.blds[lt]; if(lbB.type==="park"||lbB.h<42) continue;
+          var lbx=(lbB.x-WOFF); if(lbx<10||lbx>SW-10) continue; if(lbB.h>tth){ tth=lbB.h; tallB=lbB; } }
+        if(tallB&&Math.random()<0.8){ lboltX=(tallB.x-WOFF)+(tallB.w>>1); lboltY=HORIZON-tallB.h; } }
+    }
+    if(lightning>0){ g.fillStyle="rgba(240,245,255,"+(lightning*0.72)+")"; g.fillRect(0,0,SW,SH);  // the flash lights the whole sky
+      if(lightning>0.6){ g.strokeStyle="rgba(255,255,255,0.95)"; g.lineWidth=1;
+        var bx3=lboltX+(Math.random()-0.5)*30, by3=0, segs=8, dy=Math.max(1,lboltY/segs);      // a jagged bolt that FORKS down onto the tower
+        g.beginPath(); g.moveTo(bx3|0,by3|0);
+        for(var seg=0;seg<segs;seg++){ bx3+=(lboltX-bx3)*0.34+(Math.random()-0.5)*13; by3+=dy; g.lineTo(bx3|0,by3|0);
+          if(seg===4){ var fkx=bx3+(Math.random()-0.5)*40, fky=by3+dy*1.6; g.lineTo(fkx|0,fky|0); g.moveTo(bx3|0,by3|0); } }
+        g.lineTo(lboltX|0,lboltY|0); g.stroke();
+        g.globalCompositeOperation="lighter"; g.fillStyle="rgba(210,235,255,0.7)"; g.fillRect((lboltX-5)|0,(lboltY-2)|0,10,8);  // the strike blazes on the tower top
+        g.fillStyle="rgba(255,255,255,0.5)"; g.fillRect((lboltX-2)|0,(lboltY-1)|0,4,4); g.globalCompositeOperation="source-over"; }
       lightning-=dt*0.008; } }
 
   // festive overlays celebrate at EVERY life stage (wilderness→metropolis) but fall silent while the city is dying
