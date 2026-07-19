@@ -1958,6 +1958,7 @@ function fetchFlights(bucket){
             if(typeof a.dir!=="number"||typeof a.dst!=="number"||typeof a.lat!=="number") continue;  // need real bearing+distance
             var dstM=a.dst*1852, azr=a.dir*Math.PI/180;                              // nm→m · bearing→radians
             out.push({ cs:(((a.flight||a.r||"").trim())||"FLIGHT").toUpperCase(), ty:(a.t||""),
+                       cat:(typeof a.category==="string"?a.category:""),          // A1 light · A3 airliner · A5 heavy · A7 rotorcraft → size the sprite
                        e0:dstM*Math.sin(azr), n0:dstM*Math.cos(azr), alt0:(+alt||0), // local East/North metres from the user
                        track:(typeof a.track==="number"?a.track:a.dir),
                        gs:(typeof a.gs==="number"?a.gs:0),
@@ -4916,18 +4917,32 @@ function drawRealFlights(g,L,now){
     // prominence → tag fade-in: close overhead OR high in the sky
     var near=1-Math.min(1,dstM/(FL_RADIUS*1852)), high=Math.min(1,elev/25);
     var prom=Math.max(near*0.9,high), tagA=Math.max(0,Math.min(1,(prom-0.45)/0.3));
+    // ---- aircraft CLASS from the ADS-B category (altitude/speed fallback) → size the sprite so a heavy
+    //      widebody reads bigger than a little Cessna, a helicopter is unmistakable, and only high jets trail ----
+    var cat=f.cat||"", heavy=(cat==="A5"||cat==="A4"), light=(cat==="A1"), small=(cat==="A2"), rotor=(cat==="A7");
+    if(!cat){ heavy=altFt>33000; light=(altFt<9000&&(f.gs||0)<150); small=(!heavy&&!light&&altFt<16000); }
+    var fw=heavy?5:small?2:light?1:3;                                             // fuselage half-length by class
+    var trail=(!light&&!rotor&&altFt>25000)?(heavy?15:10):0;                      // contrails form only high & cold
+    var vr=f.vr||0, climb=(vr>256?1:vr<-256?-1:0);                                // departing (climb) vs arriving (descent)
     // ---- airframe + lights, drawn on every world-wrap copy that lands on this screen ----
     var vis=[wx-WOFF]; if(wx-WOFF-WW>-40) vis.push(wx-WOFF-WW); if(wx-WOFF+WW<SW+40) vis.push(wx-WOFF+WW);
     for(var vi=0;vi<vis.length;vi++){ var X=vis[vi]|0, Y=y; if(X<-40||X>SW+40) continue;
-      g.globalCompositeOperation="lighter";
-      for(var c=0;c<10;c++){ var cx=X-dir*(3+c*1.5); if(cx<-2||cx>SW+2) continue;   // short cyan contrail behind
-        g.fillStyle="rgba(150,225,255,"+(0.22*(1-c/10)).toFixed(3)+")"; g.fillRect(cx|0,Y,1,1); }
-      g.globalCompositeOperation="source-over";
-      g.fillStyle=L>0.5?"#dff0ff":"#8fb6d8"; g.fillRect(X-3,Y,7,2);                 // fuselage (cooler than the ambient jets)
-      g.fillRect(X+(dir>0?-1:2),Y-1,2,1);                                          // tail fin
-      g.fillStyle=L>0.5?"#bcd8ef":"#5f83a4"; g.fillRect(X-1,Y+1,4,1);              // wing
-      g.fillStyle="#ff3344"; g.fillRect((X+(dir>0?-3:3))|0,Y,1,1);                 // port nav light
-      g.fillStyle="#33ff66"; g.fillRect((X+(dir>0?4:-4))|0,Y,1,1);                 // starboard nav light
+      if(rotor){                                                                  // a real helicopter: rotor blur + stubby body + tail boom (no trail, no strobe)
+        g.fillStyle="rgba(185,205,220,0.5)"; g.fillRect(X-3,Y-2,7,1);
+        g.fillStyle=L>0.5?"#cfe6f5":"#6f93b0"; g.fillRect(X-2,Y,4,2); g.fillRect((X+(dir>0?-4:3))|0,Y,2,1);
+        g.fillStyle="#20242c"; g.fillRect(X,Y-2,1,2);
+        if((Math.floor(now/300))%2===0){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(120,230,255,0.9)"; g.fillRect(X|0,(Y+2)|0,1,1); g.globalCompositeOperation="source-over"; }
+        continue;
+      }
+      if(trail>0){ g.globalCompositeOperation="lighter";                          // cyan contrail behind, length by class
+        for(var c=0;c<trail;c++){ var cx=X-dir*(fw+c*1.5); if(cx<-2||cx>SW+2) continue;
+          g.fillStyle="rgba(150,225,255,"+(0.22*(1-c/trail)).toFixed(3)+")"; g.fillRect(cx|0,Y,1,1); }
+        g.globalCompositeOperation="source-over"; }
+      g.fillStyle=L>0.5?"#dff0ff":"#8fb6d8"; g.fillRect(X-fw,Y,fw*2+1,2);         // fuselage (cooler than the ambient jets), sized by class
+      g.fillRect(X+(dir>0?-1:fw-1),Y-1,2,1);                                      // tail fin
+      g.fillStyle=L>0.5?"#bcd8ef":"#5f83a4"; g.fillRect(X-(fw-1),Y+1,fw*2-1,1);   // wing
+      g.fillStyle="#ff3344"; g.fillRect((X+(dir>0?-fw:fw))|0,Y,1,1);              // port nav light (wingtip)
+      g.fillStyle="#33ff66"; g.fillRect((X+(dir>0?fw+1:-fw-1))|0,Y,1,1);          // starboard nav light (wingtip)
       if((Math.floor(now/450))%2===0){ g.globalCompositeOperation="lighter";       // CYAN beacon — the "live" tell (ambient jets strobe white)
         g.fillStyle="rgba(120,230,255,0.95)"; g.fillRect(X,Y-1,1,1);
         g.fillStyle="rgba(120,230,255,0.35)"; g.fillRect(X-1,Y-1,3,3); g.globalCompositeOperation="source-over"; }
@@ -4939,6 +4954,14 @@ function drawRealFlights(g,L,now){
       var lblX=wx-(textW(f.cs)>>1), subX=wx-(textW(sub)>>1), ty=y-16;   // sit the two-line tag clear ABOVE the airframe
       drawPixText(g,f.cs,lblX+1,ty+1,"#04090f",tagA*0.7);  drawPixText(g,f.cs,lblX,ty,"#c8f2ff",tagA);   // callsign (shadow + cyan)
       drawPixText(g,sub, subX+1,ty+7,"#04090f",tagA*0.7);  drawPixText(g,sub, subX,ty+6,"#8fdcff",tagA*0.9);  // altitude
+      if(climb!==0){                                                              // tiny climb/descent triangle beside the altitude — arrival vs departure at a glance
+        var tcol=climb>0?"#7dff9e":"#ffc266", tx0=subX+textW(sub)+2, tyr=y-10;    // green climbing · amber descending
+        for(var wv=-1;wv<=1;wv++){ var sxt=tx0-WOFF+wv*WW; if(sxt<-4||sxt>SW+2) continue;
+          g.globalAlpha=tagA*0.95; g.fillStyle=tcol;
+          if(climb>0){ g.fillRect((sxt+1)|0,tyr|0,1,1); g.fillRect(sxt|0,(tyr+1)|0,3,1); }             // ▲
+          else       { g.fillRect(sxt|0,tyr|0,3,1);     g.fillRect((sxt+1)|0,(tyr+1)|0,1,1); }         // ▼
+          g.globalAlpha=1; }
+      }
     }
   }
 }
