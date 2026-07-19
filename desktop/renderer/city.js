@@ -8252,6 +8252,50 @@ function passedBuilds(now){
 }
 // does a given permanent build stand this life? (cheap scan of the tiny curBuilds list, set each frame)
 function cityHasBuild(t){ for(var i=0;i<curBuilds.length;i++) if(curBuilds[i].t===t) return true; return false; }
+// ---------- CIVIC PROJECTS (votable LANDMARKS) ----------
+// A SEPARATE ballot pool from MEASURES (own salt) so landmarks reliably appear WITHOUT making
+// stadiums/casinos/parks rarer — and appending here never shifts the MEASURES hash for past lives.
+// Each passed project is a life-scoped permanent BUILD with the same cons→open→done lifecycle.
+var CIVIC_SALT=0x1CED9A11;   // isolated from MEASURE/CORP/CITIZEN streams
+var CIVICS=[ {t:"university",w:52}, {t:"marina",w:64}, {t:"zoo",w:58}, {t:"observatory",w:40}, {t:"grandcentral",w:60} ];
+var CIVIC_LABEL={university:"UNIVERSITY",marina:"MARINA",zoo:"CITY ZOO",observatory:"OBSERVATORY",grandcentral:"GRAND CENTRAL"};
+function civicWOf(t){ for(var i=0;i<CIVICS.length;i++) if(CIVICS[i].t===t) return CIVICS[i].w; return 56; }
+// where a landmark sits: marina on the shore, grand central by downtown, observatory out at the mountains/edge,
+// university & zoo wherever the ballot drew them (with a little jitter so repeats don't stack).
+function civicX(type,hx,hh){ var j=((hh>>>11)%40)-20;
+  if(type==="marina"&&hasOcean) return Math.round(WW*(seaW+0.05))+((hh>>>13)%16);
+  if(type==="grandcentral") return (Math.round(WW*0.52)+j+WW)%WW;
+  if(type==="observatory") return (Math.round(WW*(mts?0.13:0.9))+j+WW)%WW;
+  return hx; }
+function civicProjects(li,term){
+  if(term<0) return [];
+  var mh=((((li*2654435761)>>>0) ^ (((term+1)*2246822519)>>>0) ^ CIVIC_SALT)>>>0);
+  var roll=(mh>>>3)%100; if(roll<32) return [];                  // ~1/3 of terms put NO civic project on the ballot (pacing)
+  var n=(roll>=91)?2:1, out=[], used=-1;                         // usually one project, occasionally two
+  for(var i=0;i<n;i++){ var hh=((mh + i*0x9E3779B9)>>>0);
+    var ci=hh%CIVICS.length; if(ci===used) ci=(ci+1)%CIVICS.length; used=ci;
+    var type=CIVICS[ci].t;
+    if(type==="marina"&&!hasOcean) type="university";           // landlocked → no marina (mirrors the seawall→stadium swap)
+    var yes=42+((hh>>>8)%26);                                    // 42..67 → ~65% pass
+    out.push({t:type,kind:"build",civic:true,pass:(yes>=50),yes:yes,w:civicWOf(type),x:civicX(type,((hh>>>3)%Math.max(1,WW))|0,hh),seed:hh,term:term}); }
+  return out;
+}
+// PERMANENT CIVIC LANDMARKS standing this life (same shape/lifecycle as passedBuilds, own pool)
+function passedCivics(now){
+  if(FORCEELECT&&FORCEELECT.civics) return FORCEELECT.civics;
+  var out=[], cg=cityGrowth(now); if(cg.g<0.42||cg.phase==="apoc") return out;   // landmarks arrive a bit later than basic measures
+  var li=lifeIndexOf(now), curTerm=Math.floor(cg.cy/TERM);
+  for(var t=0;t<=curTerm;t++){ var cs=civicProjects(li,t);
+    for(var i=0;i<cs.length;i++){ var m=cs[i]; if(!m.pass) continue;
+      if(t===curTerm){ var bt=(cg.cy-t*TERM)/TERM;
+        if(bt<0.06) continue;                                                       // ground not broken (just after the vote)
+        else if(bt<0.30){ m.bp="cons"; m.prog=Math.max(0.05,(bt-0.06)/0.24); }      // under construction
+        else if(bt<0.37){ m.bp="open"; m.prog=1; }                                  // GRAND OPENING
+        else { m.bp="done"; m.prog=1; }
+      } else { m.bp="done"; m.prog=1; }
+      out.push(m); } }
+  return out;
+}
 // TERM POLICIES in force this term (soft, repealable): the seated mayor's passed policy-measures.
 function curPoliciesOf(now){
   var p={heightcap:false,carfree:false,surveil:false};
@@ -10555,7 +10599,7 @@ function draw(g,pass){
   laborK=1.5-0.95*Math.min(1,cityG/0.55);                    // few hands in the village build SLOW; the boomtown workforce builds FAST (1.5×→0.55× duration)
   computeLmFoot();                                           // clear plazas where the civic landmarks stand
   curMayor=mayorState(now);                                  // who runs city hall right now?
-  curBuilds=passedBuilds(now);                               // permanent landmarks the city voted to build this life
+  curBuilds=passedBuilds(now).concat(passedCivics(now));     // permanent landmarks the city voted to build this life (measures + civic projects)
   curPolicies=curPoliciesOf(now);                            // soft policy-measures in force this term
   curCorps=corpState(now);                                   // the corporate landscape (rising/juggernaut/fading firms) this life
   if(curMayor&&curMayor.party.k==="BUILDERS") curEcon=Math.min(1,curEcon+0.15);   // builders juice the economy

@@ -118,6 +118,21 @@ function checkLife(ctx, L) {
     }
     if (reachedCity && !sawCitizen) problems.push(`life ${L}: reached city stage but no citizen beats ever surfaced`);
   }
+  // civic-landmark coherence: lifecycle monotone (cons→open→done, never regress) + never a landlocked marina
+  if (typeof ctx.passedCivics === 'function') {
+    const BP = { cons: 0, open: 1, done: 2 };
+    const peak = {};
+    for (const row of lifeStream(ctx, L, 120).stream) {
+      const cvs = ctx.passedCivics(row.now);
+      for (const c of cvs) {
+        if (c.t === 'marina' && !ctx.hasOcean) problems.push(`life ${L} cy ${row.cy}: marina built while landlocked`);
+        const key = c.term + ':' + (c.seed >>> 0), r = BP[c.bp];
+        if (r === undefined) continue;
+        if (peak[key] !== undefined && r < peak[key]) problems.push(`life ${L} cy ${row.cy}: civic ${c.t} regressed ${peak[key]}→${r}`);
+        if (peak[key] === undefined || r > peak[key]) peak[key] = r;
+      }
+    }
+  }
   return problems;
 }
 
