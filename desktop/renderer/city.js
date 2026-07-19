@@ -3100,6 +3100,30 @@ function drawRegimeHud(g,now,night){
   drawOrderEmblem(g,x0+3,ty+2,3,fallen?"#eafff0":"#f7f0e6",fallen?"#2fa85a":"#c0182a");              // the emblem
   drawUiText(g,full,x0+ew,ty,fallen?"#d6ffe2":"#ffe2e2",1);                                          // BRIGHT screen-space text — unmistakable
 }
+// THE PLAGUE's emblem — a white medical CROSS on an amber roundel (distinct from the Order's angular star)
+function drawPlagueEmblem(g,cx,cy,r,fg,bg){
+  cx=cx|0; cy=cy|0;
+  if(bg){ g.fillStyle=bg; fillEllipse(g,cx,cy,r+1,r+1); }
+  g.fillStyle=fg||"#fff4d8";
+  var a=r-1, t=Math.max(1,Math.floor(r/2)-1);
+  g.fillRect(cx-a,cy-t,2*a+1,2*t+1);                                                                 // horizontal bar
+  g.fillRect(cx-t,cy-a,2*t+1,2*a+1);                                                                 // vertical bar
+}
+// THE CLEAR INDICATION a pandemic is underway: an amber medical alert banner top-centre (green once
+// recovered), blinking at the SURGE peak. Mutually exclusive with the regime HUD (never both same life).
+function drawPlagueHud(g,now,night){
+  var P=curPlague; if(!P||!P.active) return;
+  var recovered=(P.stage===5&&P.sub>=0.6);
+  var lab=recovered?"RECOVERED":PLAGUE_STAGE_LABEL[P.stage];
+  var full="PLAGUE - "+lab, col=recovered?"rgba(60,200,120,":"rgba(224,168,32,";
+  var blink=(P.stage===3&&!recovered)?((Math.floor(now/320))%2):1, a=0.72+0.28*blink;               // blinks at the SURGE
+  var tw=textW(full), ew=9, W=ew+tw+4, cx=(SW>>1), ty=notifLane(0), x0=(cx-(W>>1))|0;
+  g.fillStyle="rgba(8,6,2,0.85)"; g.fillRect(x0-2,ty-3,W+4,11);
+  g.fillStyle=col+(0.95*a)+")"; g.fillRect(x0-2,ty-4,W+4,1); g.fillRect(x0-2,ty+7,W+4,1);            // amber rails
+  g.fillStyle=col+(0.28*a)+")"; g.fillRect(x0-2,ty-3,W+4,11);                                        // amber wash → reads as an alert
+  drawPlagueEmblem(g,x0+3,ty+2,3,recovered?"#eafff0":"#fff4d8",recovered?"#2fa85a":"#c04a10");       // medical emblem
+  drawUiText(g,full,x0+ew,ty,recovered?"#d6ffe2":"#ffeecc",1);
+}
 // THE ORDER's crimson BANNERS hang down the facades once the dictatorship takes hold (stage 3+, dense at 5)
 // ---- v1.24 TOTAL CONTROL — a rooftop flag flying from a tower top (waving crimson pennant + emblem)
 function drawOrderFlag(g,cx,cy,ph,L,now,scale){
@@ -5575,6 +5599,7 @@ function tickerMsg(now){
   if(curWar&&curWar.f>=1&&!curWar.win) return "CURFEW IN EFFECT BY ORDER OF THE OCCUPATION";
   if(curDis) return "BREAKING - CAT-"+curDis.intensity+" "+DIS_NAME[curDis.type]+" - SEEK SHELTER";
   var rgm=regimeTicker(now); if(rgm && (Math.floor(now/12000))%4!==0) return rgm;   // THE ORDER dominates the news (3 of 4 slots) while the takeover is underway
+  var pgm=plagueTicker(now); if(pgm && (Math.floor(now/12000))%4!==0) return pgm;   // THE PLAGUE dominates the news while the pandemic rages (mutually exclusive with the regime)
   var fx=wfx();
   if(fireBurning) return "WILDFIRE ON THE RIDGE - STAY CLEAR OF THE TREELINE";
   if(iceNow) return "THE BAY IS FROZEN - SKATE AT YOUR OWN JOY";
@@ -8863,6 +8888,20 @@ function regimeTicker(now){
                 :["THE ORDER HAS FALLEN - "+cityName+" IS FREE","THE STATUE COMES DOWN - CROWDS FLOOD THE PLAZA","LIBERATION - THE RED BANNERS ARE TORN DOWN"])
   };
   var arr=S[R.stage]||["THE ORDER"]; return arr[((slow%arr.length)+arr.length)%arr.length];
+}
+// explicit per-stage plague news — dominates the ticker while the pandemic rages
+function plagueTicker(now){
+  var P=curPlague; if(!P||!P.active) return null;
+  var slow=Math.floor(now/16000);
+  var S={
+    1:["A NEW ILLNESS SPREADS THROUGH "+cityName,"HEALTH OFFICIALS URGE CAUTION - WASH YOUR HANDS","FIRST CASES CONFIRMED DOWNTOWN"],
+    2:["LOCKDOWN DECLARED - "+cityName+" STAYS HOME","SCHOOLS AND SHOPS CLOSE AS CASES CLIMB","STREETS EMPTY UNDER QUARANTINE ORDERS"],
+    3:["HOSPITALS OVERWHELMED - FIELD WARDS GO UP","THE SURGE PEAKS - "+cityName+" HOLDS ITS BREATH","STAY HOME - PROTECT EACH OTHER"],
+    4:["THE CURVE BENDS - CASES BEGIN TO FALL","RECOVERY UNDERWAY - HOPE RETURNS TO "+cityName,"HEALTH WORKERS HAILED AS HEROES"],
+    5:(P.sub<0.6?["THE CITY REOPENS - MASKS COME OFF","SHOPS RAISE THEIR SHUTTERS ONCE MORE","LIFE RETURNS TO THE STREETS"]
+              :[cityName+" IS FREE OF THE PLAGUE","A CELEBRATION FILLS THE PLAZA - WE MADE IT","THE PLAGUE IS OVER - "+cityName+" ENDURES"])
+  };
+  var arr=S[P.stage]||["PLAGUE"]; return arr[((slow%arr.length)+arr.length)%arr.length];
 }
 function mayorState(now){
   var cg2=cityGrowth(now); if(cg2.g<0.35||cg2.phase==="apoc") return null;   // no politics in a hamlet or an inferno
@@ -12620,5 +12659,6 @@ function draw(g,pass){
   drawSkyClock(g,nd,L);   // local time & date in the sky, top-centre of every monitor
   drawCivicHud(g,now,night);   // who runs the city + approval + mandates + next-vote countdown, top-right
   drawRegimeHud(g,now,night);  // THE ORDER — the unmistakable alert banner while the takeover is underway
+  drawPlagueHud(g,now,night);  // THE PLAGUE — the amber medical alert banner while the pandemic rages
   drawDoomClock(g,now,night);  // top-left: the exact time this city's fated end will strike, so nobody misses it
 }
