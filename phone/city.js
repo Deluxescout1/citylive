@@ -3394,15 +3394,65 @@ function drawCurfewChase(g,L,now){
     drawPerson(g,X|0,(HORIZON-1-step)|0,"#d0c8b8","#caa07a",step?1:3);                                  // the runner (pale, panicked)
     drawPerson(g,(X-dir*13)|0,HORIZON-1,"#2f3540","#caa07a",step?3:1); }                                // a patrol closing in
 }
+// v1.28 — a COLOSSAL Order emblem lit on the mountainside above the city (drawn right after the range so
+// nearer buildings occlude it correctly). Floodlit crimson at night. Gated on curRegime.
+function drawHillEmblem(g,L,now){
+  var R=curRegime; if(!R||!R.active||R.stage<3) return; if(R.stage===6&&R.sub>=0.5) return;
+  if(!mtsCache||!mtsCache.h||!mtsCache.h[1]) return;
+  var bestX=Math.round(SW*0.62), bestH=0;                                            // sit it just below the tallest near-ridge peak in view
+  for(var sx=Math.round(SW*0.32);sx<Math.round(SW*0.88);sx+=3){ var hh=mtsCache.h[1][sx]||0; if(hh>bestH){bestH=hh;bestX=sx;} }
+  if(bestH<22) return;                                                               // no real mountain in view → skip
+  var cx=bestX, cy=((HORIZON-bestH)|0)+14, r=13, night=1-L;
+  g.globalCompositeOperation="lighter"; g.fillStyle="rgba(180,20,30,"+(0.08+0.16*night).toFixed(3)+")"; fillEllipse(g,cx,cy,r+4,r+4); g.globalCompositeOperation="source-over";  // glow
+  g.fillStyle=L>0.5?"#8a1420":"#5a0e18"; fillEllipse(g,cx,cy,r,r);                    // crimson roundel
+  g.fillStyle=L>0.5?"#a01828":"#701018"; fillEllipse(g,cx,cy,r-1,r-1);
+  g.fillStyle="#f0e8da"; for(var d=-(r-3);d<=r-3;d++){ var w=Math.max(0,(r-3)-Math.abs(d)); g.fillRect(cx-w,cy+d,2*w+1,1); }   // white angular star
+  g.fillRect(cx-(r-2),cy,2*(r-2)+1,1); g.fillRect(cx,cy-(r-2),1,2*(r-2)+1);
+  if(night>0.4){ g.globalCompositeOperation="lighter"; for(var bb=-1;bb<=1;bb+=2){ g.fillStyle="rgba(255,210,150,0.05)";
+    for(var t=0;t<22;t+=2) g.fillRect((cx+bb*8+bb*t)|0,(cy+r+2+t)|0,2,2); } g.globalCompositeOperation="source-over"; }
+}
+// v1.28 — the ORDER MINISTRY: a monumental brutalist slab rises downtown during the regime (built over
+// stage 3), the giant emblem down its face; defaced/X'd at the fall. Gated on curRegime.
+function drawMinistryHQ(g,L,now){
+  var R=curRegime; if(!R||!R.active||R.stage<3) return;
+  var rise=(R.stage>=4)?1:Math.max(0,Math.min(1,R.sub/0.7)); if(rise<=0.03) return;
+  var wx=Math.round(0.365*WW)-64, sx=wx-WOFF, fullH=72, w=20, H=Math.round(fullH*rise), fallen=(R.stage===6&&R.sub>=0.45);
+  for(var off=-WW;off<=WW;off+=WW){ var X=(sx+off)|0; if(X<-(w)-4||X>SW+w+4) continue;
+    var top=HORIZON-H;
+    g.fillStyle=L>0.5?"#2a2e36":"#14161c"; g.fillRect(X-(w>>1),top,w,H);             // dark brutalist slab
+    g.fillStyle=L>0.5?"#333842":"#191c24"; g.fillRect(X-(w>>1),top,2,H);             // edge light
+    g.fillStyle=L>0.5?"#1c2028":"#0c0e12"; g.fillRect(X+(w>>1)-2,top,2,H);           // edge shade
+    for(var wy=top+5;wy<HORIZON-4;wy+=6){ for(var wx2=X-(w>>1)+3;wx2<X+(w>>1)-3;wx2+=5){ if(((wx2*7+wy*3)%11)<7) continue;
+      g.fillStyle=L>0.5?"#5a6270":"rgba(210,220,120,0.45)"; g.fillRect(wx2,wy,2,2); } }   // cold lit windows
+    if(H>30){ drawOrderEmblem(g,X,top+16,7,fallen?"#3a2226":"#f4eee2",fallen?"#2a1418":"#c0182a");   // giant emblem
+      if(fallen){ g.strokeStyle="rgba(236,72,82,0.9)"; g.lineWidth=1; g.beginPath(); g.moveTo(X-7,top+9); g.lineTo(X+7,top+23); g.moveTo(X+7,top+9); g.lineTo(X-7,top+23); g.stroke(); } }   // X'd at the fall
+    g.fillStyle=L>0.5?"#3a3f48":"#1c2028"; g.fillRect(X-3,top-3,6,3); g.fillRect(X-1,top-6,2,3);   // roof crown + mast
+    if((Math.floor(now/700))%2===0){ g.fillStyle="#ff4040"; g.fillRect(X,top-6,1,1); } }           // aviation beacon
+}
+// v1.28 — THE LEADER'S MOTORCADE: a black limo + escort cars with emblem pennants + flashing lights sweep
+// the avenue (distinct from the troop parade). Martial Law+. Gated on curRegime.
+function drawMotorcade(g,L,now){
+  var R=curRegime; if(!R||!R.active||R.stage<4) return; if(R.stage===6&&R.sub>=0.5) return;
+  var lane=LANE[1], ly=HORIZON+lane.o, per=78000, ph=(now%per)/per; if(ph>0.46) return;
+  var dir=lane.d, t=ph/0.46, cx=dir>0?t*(WW+44)-22:WW-t*(WW+44)+22, beac=(Math.floor(now/220)&1);
+  var cars=[{d:-12,limo:false},{d:0,limo:true},{d:12,limo:false}];                    // escort · LIMO · escort
+  for(var off=-WW;off<=WW;off+=WW){ for(var c=0;c<cars.length;c++){ var X=(cx-dir*cars[c].d-WOFF+off)|0; if(X<-14||X>SW+14) continue;
+    drawCar(g,X|0,ly,cars[c].limo?"#141620":"#20242c",dir,L,cars[c].limo?"van":"suv");
+    if(cars[c].limo){ var pnx=X+(dir>0?-1:6); g.fillStyle="#c0182a"; g.fillRect(pnx|0,ly-5,2,3); g.fillStyle="#f4eee2"; g.fillRect(pnx|0,ly-5,2,1); }   // emblem pennant
+    g.fillStyle=beac?"#ff2a2a":"#3a7aff"; g.fillRect((X+2)|0,ly-3,2,1);
+    g.globalCompositeOperation="lighter"; g.fillStyle=beac?"rgba(255,50,50,0.5)":"rgba(60,130,255,0.5)"; g.fillRect((X+1)|0,ly-4,4,2); g.globalCompositeOperation="source-over"; } }
+}
 function drawRegime(g,L,now,night){
   if(!curRegime||!curRegime.active) return;
   drawRegimeWash(g,L,now);       // the crimson mood over everything drawn so far (flags/city); HUD stays crisp on top
+  drawMinistryHQ(g,L,now);       // the monumental Order Ministry, risen downtown
   drawSeizure(g,L,now);          // stage 2: the banner drops over City Hall
   drawRegimeAirship(g,L,now);    // the propaganda dirigible, high over downtown
   drawDrones(g,L,now);           // surveillance quads between the towers
   drawRegimeStreets(g,L,now,night);   // searchlights + patrols + checkpoint
   drawLoudspeakers(g,L,now);     // horn poles broadcasting across the city
   drawRegimeParade(g,L,now);     // the military column down the avenue
+  drawMotorcade(g,L,now);        // the leader's VIP convoy
   drawCurfewChase(g,L,now);      // a curfew-runner caught in a searchlight (restrained)
   // (flags/banners are drawn per-layer via drawLayerRegime for correct depth; here = the plaza overlay)
   drawLeaderStatue(g,L,now);     // …erected first (stage 4), then looming, then toppled
@@ -3411,11 +3461,18 @@ function drawRegime(g,L,now,night){
   drawLiberation(g,L,now);
 }
 // the sky clock: local time + date, floating top-centre of every monitor
+// v1.28 — under THE ORDER the city is RE-BRANDED (first word + a heavy suffix), reverting when it falls.
+function regimeCityName(){
+  var R=curRegime; if(!R||!R.active||R.stage<2||(R.stage===6&&R.sub>=0.5)) return null;
+  var base=cityName.split(" ")[0]; if(base.length>6) base=base.slice(0,5);
+  return base+["GRAD","BURG","POLIS","STADT"][((R.seed||0)>>>13)%4];
+}
 function drawSkyClock(g,nd,L){
   var h=nd.getHours(), mi=nd.getMinutes(), h12=(h%12)||12, ap=h<12?"AM":"PM";
   var str=h12+":"+(mi<10?"0":"")+mi+" "+ap+"  "+DAYS3[nd.getDay()]+" "+MONS3[nd.getMonth()]+" "+nd.getDate();
   var sc=2, tw=(str.length*4-1)*sc, x=((SW-tw)/2)|0, y=6;
-  var l2=cityName+"  POP "+popFmt(cityPop());
+  var rgName=regimeCityName();
+  var l2=rgName ? (rgName+" - CAPITAL OF THE ORDER") : (cityName+"  POP "+popFmt(cityPop()));
   var tw2=(l2.length*4-1), x2=((SW-tw2)/2)|0, y2=y+5*sc+4;
   var l3=wxHudLine();                                          // current + projected weather
   var tw3=(l3.length*4-1), x3=((SW-tw3)/2)|0, y3=y2+5+3;
@@ -3439,13 +3496,13 @@ function drawSkyClock(g,nd,L){
   // --- legibility shadow, then tinted text ---
   drawUiText(g,str,x+1,y+1,"rgba(0,0,0,0.5)",sc);
   drawUiText(g,str,x,y,"rgba(228,250,255,0.97)",sc);           // time — bright cyan-white
-  drawUiText(g,l2,x2,y2,"rgba(255,150,220,0.92)",1);           // city + pop — neon magenta
+  drawUiText(g,l2,x2,y2,rgName?"rgba(255,120,120,0.95)":"rgba(255,150,220,0.92)",1);   // city + pop — neon magenta (crimson under THE ORDER)
   if(l3) drawUiText(g,l3,x3,y3,"rgba(152,226,242,0.9)",1);     // weather — neon cyan
   // --- additive neon bloom ---
   g.globalCompositeOperation="lighter";
   drawUiText(g,str,x,y,"rgba(60,190,255,"+(0.24*pulse)+")",sc);
   drawUiText(g,str,x,y-1,"rgba(70,200,255,0.09)",sc);
-  drawUiText(g,l2,x2,y2,"rgba(255,80,200,"+(0.16*pulse)+")",1);
+  drawUiText(g,l2,x2,y2,rgName?"rgba(255,40,40,"+(0.18*pulse)+")":"rgba(255,80,200,"+(0.16*pulse)+")",1);
   if(l3) drawUiText(g,l3,x3,y3,"rgba(70,210,235,"+(0.16*pulse)+")",1);
   g.globalCompositeOperation="source-over";
 }
@@ -11597,6 +11654,7 @@ function draw(g,pass){
   // (the Moon is drawn in drawSky() at its real Norwich position/phase)
 
   drawMountains(g,L,now,nd);      // the distant range — behind the clouds, the city, everything
+  if(curRegime&&curRegime.active) drawHillEmblem(g,L,now);   // THE ORDER's colossal emblem on the mountainside (nearer buildings occlude it)
   drawGondola(g,L,now);           // a cable-car + summit lodge on the tallest peak (mature cities)
   drawClimbers(g,L,now,nd,fx);    // tiny mountaineers roping up the tallest peaks (fair-weather days)
   }                                                          // end of the backdrop stack
