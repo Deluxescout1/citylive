@@ -3249,12 +3249,86 @@ function drawRegimeStreets(g,L,now,night){
       g.fillStyle="#1a0c0e"; g.fillRect((CX-6)|0,HORIZON+1,1,4); g.fillRect((CX+4)|0,HORIZON+1,1,4);                            // posts
       drawPerson(g,(CX+7)|0,HORIZON+1,"#2f3540","#caa07a",(Math.floor(now/520))&1); } }                                        // a guard
 }
+// ===== v1.24+ THE ORDER set-pieces: rally · resistance · propaganda airship · military parade =====
+// 1) MANDATORY RALLY — at TOTAL CONTROL the plaza fills with ranked crowds before the statue, flags up,
+// searchlights on the podium. The one crowd that defies the curfew ("attendance mandatory").
+function drawRegimeRally(g,L,now){
+  var R=curRegime; if(!R||!R.active||R.stage!==5) return;
+  var wx=Math.round(0.365*WW);
+  for(var off=-WW;off<=WW;off+=WW){ var X=(wx-WOFF+off)|0; if(X<-110||X>SW+110) continue;
+    for(var r=0;r<3;r++){ for(var c=0;c<24;c++){ var px=X-74+c*6, py=(HORIZON-1-r*3)|0; if(px<-4||px>SW+4) continue;
+      var hh=((r*97+c*31+(R.seed||0))>>>0);
+      drawPerson(g,px|0,py,PEDC[(hh>>>5)%PEDC.length],SKINC[(hh>>>7)%SKINC.length],0);              // at attention (no bob)
+      if(((hh>>>3)%3)===0){ g.fillStyle="#b01828"; g.fillRect(px|0,py-6,1,3); g.fillStyle="#f4eee2"; g.fillRect(px|0,py-6,1,1); } } }   // raised crimson flag
+    if(L<0.55){ g.globalCompositeOperation="lighter";                                              // searchlights converge on the podium
+      for(var s=-1;s<=1;s+=2){ var lx=X+s*46;
+        for(var t=0;t<54;t+=3){ var bt=t/54; g.fillStyle="rgba(255,238,208,"+(0.09*(1-bt)*(1-L*2)).toFixed(3)+")"; g.fillRect((lx+(X+30-lx)*bt)|0,(HORIZON-4-t)|0,2,2); } }
+      g.globalCompositeOperation="source-over"; } }
+}
+// 2) RESISTANCE RISING — before the fall the city fights back: spray-tags + X'd-out emblems on the banners.
+// (Late TOTAL CONTROL → into THE PEOPLE RISE, before the liberation crowd floods in.)
+function drawResistance(g,L,now){
+  var R=curRegime; if(!R||!R.active) return;
+  var act=(R.stage===5&&R.sub>0.62)?(R.sub-0.62)/0.38:(R.stage===6&&R.sub<0.5)?1:0; if(act<=0) return;
+  var seed=(R.seed||0), TAGS=["NO","RISE","FREE"];
+  for(var i=0;i<near.blds.length;i++){ var b=near.blds[i]; if(b.type==="park"||b.h<24||b.w<9) continue;
+    if(((b.seed>>>5)%4)!==0) continue;
+    if(b.bAge!==undefined && cityG-b.bAge<=bandOf(b)) continue;
+    if((((seed^b.seed)>>>1)%100) >= act*100) continue;
+    var bx=(b.x-WOFF)|0; if(bx>SW+4&&bx-WW>-4)bx-=WW; if(bx<-4-b.w&&bx+WW<SW+4)bx+=WW;
+    if(bx+b.w<-4||bx>SW+4) continue;
+    drawUiText(g,TAGS[(b.seed>>>7)%TAGS.length],(bx+2)|0,(HORIZON-8)|0,"rgba(232,60,72,0.92)",1);   // spray-tag at street level
+    var top=(HORIZON-b.h+2)|0, mcx=(bx+(b.w>>1))|0;                                                  // X slashed over the banner emblem
+    g.strokeStyle="rgba(236,72,82,0.88)"; g.lineWidth=1;
+    g.beginPath(); g.moveTo(mcx-3,top+4); g.lineTo(mcx+3,top+10); g.moveTo(mcx+3,top+4); g.lineTo(mcx-3,top+10); g.stroke();
+  }
+}
+// 3) PROPAGANDA AIRSHIP — a dark dirigible with the Order emblem drifts over downtown, a searchlight cone
+// sweeping below. Martial Law+; the state always watching.
+function drawRegimeAirship(g,L,now){
+  var R=curRegime; if(!R||!R.active||R.stage<4) return; if(R.stage===6&&R.sub>=0.5) return;
+  var per=90000, ph=(now%per)/per, wx=ph*WW*1.2-WW*0.1, ay=(HORIZON*0.40+Math.sin(now*0.0004)*6)|0, hl=34, hh2=11;
+  for(var off=-WW;off<=WW;off+=WW){ var X=(wx-WOFF+off)|0; if(X<-56||X>SW+56) continue;
+    for(var yy=-(hh2>>1);yy<=(hh2>>1);yy++){ var tt=1-Math.abs(yy)/(hh2/2), w=Math.round(hl*Math.sqrt(Math.max(0,tt)));
+      g.fillStyle=L>0.5?"#241b21":"#120b10"; g.fillRect((X-w)|0,(ay+yy)|0,w*2,1); }                 // dark opaque hull
+    g.fillStyle=L>0.5?"#4a3a42":"#2a2028"; g.fillRect((X-hl)|0,(ay-1)|0,hl*2,1);                     // top ridge highlight
+    g.fillStyle="#0b0709"; g.fillRect((X-hl)|0,ay|0,3,1); g.fillStyle=L>0.5?"#3a2e34":"#221820"; g.fillRect((X+hl-3)|0,(ay-1)|0,3,3);   // nose + tail fin
+    drawOrderEmblem(g,X,ay,3,"#f4eee2","#c0182a");                                                   // BIG emblem on the flank
+    if(((Math.floor(now/600))&1)){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,70,70,0.8)"; g.fillRect((X-hl+1)|0,ay|0,1,1); g.fillRect((X+hl-2)|0,ay|0,1,1); g.globalCompositeOperation="source-over"; }   // blinking running lights
+    g.fillStyle=L>0.5?"#1a1418":"#0c080c"; g.fillRect((X-3)|0,(ay+(hh2>>1))|0,6,2);                  // gondola
+    if(L<0.5){ g.globalCompositeOperation="lighter"; var sxc=X+Math.round(Math.sin(now*0.001)*22);   // downward searchlight
+      for(var t2=0;t2<44;t2+=3){ var bt=t2/44, ww2=1+bt*5; g.fillStyle="rgba(255,244,214,"+(0.075*(1-bt)*(1-L*2)).toFixed(3)+")"; g.fillRect((X+(sxc-X)*bt-ww2)|0,(ay+5+t2)|0,(ww2*2)|0,3); }
+      g.globalCompositeOperation="source-over"; } }
+}
+// a small armoured vehicle for the parade — hull + turret + barrel + treads, Order emblem on the hull
+function drawTank(g,x,y,dir,L){
+  var d=L>0.5, body=d?"#3a4436":"#20261e", trk=d?"#2a2e26":"#14170f";
+  g.fillStyle=trk; g.fillRect(x-6,y+1,12,2); for(var w=-6;w<6;w+=2){ g.fillStyle=d?"#4a5040":"#2a2e22"; g.fillRect((x+w)|0,y+1,1,2); }
+  g.fillStyle=body; g.fillRect(x-5,y-2,10,3); g.fillRect(x-2,y-5,5,3);                               // hull + turret
+  g.fillStyle=body; g.fillRect(dir>0?x+3:x-6,y-4,3,1);                                               // barrel
+  drawOrderEmblem(g,x,y-1,1,"#f4eee2","#c0182a");
+}
+// 4) MILITARY PARADE — a column of troops + armour rolls down the main avenue with flags. Martial Law+;
+// a show of force through the curfew-emptied city.
+function drawRegimeParade(g,L,now){
+  var R=curRegime; if(!R||!R.active||R.stage<4) return; if(R.stage===6&&R.sub>=0.5) return;
+  var lane=LANE[2], ly=HORIZON+lane.o, per=60000, ph=(now%per)/per, dir=lane.d, lead=dir>0?ph*WW:WW*(1-ph), march=(Math.floor(now/300))&1;
+  for(var off=-WW;off<=WW;off+=WW){ var base=(lead-WOFF+off);
+    var tx=base|0; if(tx>-20&&tx<SW+20) drawTank(g,tx,ly,dir,L);
+    for(var k=1;k<=12;k++){ var px=(base-dir*(10+k*5))|0; if(px<-4||px>SW+4) continue;
+      drawPerson(g,px,ly+1,"#2f3540","#caa07a",march?1:0);
+      if((k%4)===0){ g.fillStyle="#b01828"; g.fillRect(px|0,ly-6,1,3); g.fillStyle="#f4eee2"; g.fillRect(px|0,ly-6,1,1); } } }
+}
 function drawRegime(g,L,now,night){
   if(!curRegime||!curRegime.active) return;
   drawRegimeWash(g,L,now);       // the crimson mood over everything drawn so far (flags/city); HUD stays crisp on top
+  drawRegimeAirship(g,L,now);    // the propaganda dirigible, high over downtown
   drawRegimeStreets(g,L,now,night);   // searchlights + patrols + checkpoint
+  drawRegimeParade(g,L,now);     // the military column down the avenue
   // (flags/banners are drawn per-layer via drawLayerRegime for correct depth; here = the plaza overlay)
   drawLeaderStatue(g,L,now);
+  drawRegimeRally(g,L,now);      // the mandatory rally massed before the statue
+  drawResistance(g,L,now);       // …and, near the end, the graffiti/tags of the resistance
   drawLiberation(g,L,now);
 }
 // the sky clock: local time + date, floating top-centre of every monitor
