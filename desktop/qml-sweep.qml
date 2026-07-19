@@ -33,6 +33,9 @@ Item {
             var lms = ["university","marina","zoo","observatory","grandcentral"];
             for (var lm = 0; lm < lms.length; lm++) for (var bp = 0; bp < 2; bp++)
                 jobs.push({ age: 0.72, clock: [clk, night][lm % 2], civics: [{ t: lms[lm], kind: "build", civic: true, pass: true, bp: ["done","cons"][bp], prog: 0.5, x: 1200, w: 60, seed: 998877 }] });
+            // seasons — exercise the ambient leaf/petal drifters + snow/shimmer paths (autumn/spring/summer/winter, grown city)
+            var seasonClocks = [1792087200000, 1776276000000, 1784138400000, 1768500000000];
+            for (var sc = 0; sc < seasonClocks.length; sc++) jobs.push({ age: 0.7, clock: seasonClocks[sc] });
 
             var ok = true;
             try { City.setup('neon', { cw: 853, ch: 480, woff: 0, ww: 2269, pxk: 3, zoom: 1, quality: 'spectacle' }); }

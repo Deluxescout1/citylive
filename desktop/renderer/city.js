@@ -106,6 +106,7 @@ var PEDC = ["#d24a4a","#4a7fd2","#3fae6a","#d2a63f","#b060c0","#e6e6ea","#c05a8a
   "#3a5a8a","#7a9a3a","#8a3a3a","#d0b040","#6a4a9a","#2a8a7a","#c86a3a","#4a4a55","#d0d0d8","#b83a6a","#4f7f4a"];
 var SKINC = ["#e8b088","#c68a5a","#8a5a3a","#f0c6a0","#5a3a24","#ffd8b4","#a06a44"];
 var fog = { t: 0 }, snowpack = 0, lightning = 0, lightNext = 0, lboltX = 0;
+var leaves = [], petals = [];   // ambient seasonal drifters (autumn leaves / spring petals), wind-reactive
 var weather = { code: 0, cloud: 30, wind: 5, temp: 60, precip: 0, feels: 60, gust: 8 };   // temp/feels °F, wind/gust km/h, precip mm
 var tPrev = 0;
 // WEATHER SYNC — the three monitors each run their own copy of this engine, so weather (the one
@@ -11701,6 +11702,24 @@ function draw(g,pass){
       g.fillStyle=f.s>1?"rgba(250,252,255,0.95)":"rgba(238,244,255,0.85)"; g.fillRect(f.x|0,f.y|0,f.s,f.s); }
     snowpack=Math.min(1,snowpack+dt*0.000008);
   } else { if(flakes.length) flakes.length=0; snowpack=Math.max(0,snowpack-dt*0.0000015); }
+
+  // ---- AMBIENT SEASONAL DRIFTERS: autumn leaves / spring petals on the breeze (WIND-REACTIVE) ----
+  var drift=(curSeason&&cityPhase!=="apoc"&&!fx.rain&&!fx.snow&&!fx.thunder&&!fx.fog&&L>0.16);
+  var isAut=drift&&curSeason.name==="autumn", isSpr=drift&&curSeason.name==="spring"&&curSeason.blossom;
+  if(isAut||isSpr){
+    var arr=isAut?leaves:petals, N=isAut?64:74, windK=Math.min(2.4,(weather.wind||5)/13);          // gust factor 0..2.4 from real wind
+    var pal=isAut?["#c9852e","#b5651d","#d9822b","#8a3b1e","#e0b040"]:["#f4bcda","#ffffff","#ffd6e8","#f7c9df"];
+    while(arr.length<N) arr.push({x:Math.random()*SW,y:Math.random()*HORIZON,v:0.18+Math.random()*0.5,ph:Math.random()*6,c:(Math.random()*pal.length)|0});
+    if(arr.length>N) arr.length=N;
+    for(var di=0;di<arr.length;di++){ var p=arr[di];
+      p.y+=(p.v+windK*0.45)*dt*0.05;                                                                 // fall faster in wind
+      p.x+=(Math.sin(now*0.0016+p.ph)*(0.6+windK)+windK*1.5)*dt*0.045;                               // sway + downwind gust
+      if(p.y>HORIZON-1){ p.y=-2; p.x=Math.random()*SW; }
+      if(p.x>SW+2) p.x=-2; else if(p.x<-2) p.x=SW+2;
+      g.fillStyle=pal[p.c];
+      if(isAut){ var tw2=(Math.sin(now*0.004+p.ph*2)>0)?1:0; g.fillRect(p.x|0,p.y|0,2,1); g.fillRect((p.x+tw2)|0,(p.y+1)|0,1,1); }  // a small tumbling leaf
+      else g.fillRect(p.x|0,p.y|0,1,1); }                                                            // a petal speck
+  } else { if(leaves.length) leaves.length=0; if(petals.length) petals.length=0; }
 
   var fogTarget=fx.fog?0.92:0; fog.t+=(fogTarget-fog.t)*0.002*dt;
   if(fog.t>0.01){ for(i=0;i<4;i++){ var fy=HORIZON*0.6+i*18, drift=Math.sin(now*0.0001*(i+1))*24;
