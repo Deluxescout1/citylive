@@ -17,6 +17,10 @@ node_modules/
 **/node_modules/
 desktop/dist/
 dist/
+# scratch render captures (kde-repro / sweep output) live loose in desktop/ — never commit them (build/ assets stay tracked)
+desktop/*.png
+desktop/*.ppm
+desktop/ci-win/
 *.AppImage
 *.deb
 *.dmg

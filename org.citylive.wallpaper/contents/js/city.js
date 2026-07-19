@@ -1134,6 +1134,24 @@ function drawShimmer(g,L,now){
   g.globalCompositeOperation="source-over";
 }
 // 2. the FISHING FLEET works the dawn tide, gulls in tow
+// a big CONTAINER SHIP crossing the harbour — stacked colourful boxes, a stern bridge + funnel, bow wake
+function drawContainerShip(g,L,now){
+  if(!hasOcean||seaW<=0||cityG<0.5||cityPhase==="apoc") return;
+  var spanW=WW*seaW; if(spanW<44) return;                                     // need a real sea span (the left coast)
+  var per=170000, idx=Math.floor(now/per), ph=now-idx*per, dur=per*0.92; if(ph>dur) return;
+  var t=ph/dur, dir=(idx&1)?1:-1, len=34, wx=(dir>0?t*(spanW+len)-len/2:(spanW+len)-t*(spanW+len)-len/2);
+  var sx=wx-WOFF; if(sx>SW+40&&sx-WW>-40)sx-=WW; if(sx<-40&&sx+WW<SW+40)sx+=WW; if(sx+len/2<-4||sx-len/2>SW+4) return;
+  var wl=HORIZON-3, hx0=(sx-len/2)|0;
+  g.fillStyle=L>0.5?"#3a4550":"#161c24"; g.fillRect(hx0,wl-3,len,4); g.fillStyle=L>0.5?"#242c34":"#0c1016"; g.fillRect(hx0,wl+1,len,1);  // hull + waterline
+  g.fillStyle=dir>0?"#8a2820":"#5a1a14"; g.fillRect(dir>0?hx0:hx0+len-1,wl-2,1,3);                              // bow accent
+  var cc=["#c0392b","#2f6fb0","#3a9a6f","#e0a83a","#7a4ab0","#c85030"];                                         // stacked containers
+  for(var cx2=4; cx2<len-9; cx2+=3){ var stack=2+((hx0+cx2)%3);
+    for(var s2=0;s2<stack;s2++){ g.fillStyle=cc[((hx0+cx2+s2)>>>0)%cc.length]; g.fillRect((hx0+cx2)|0,(wl-3-s2*2)|0,2,2); } }
+  var bst=dir>0?hx0+len-6:hx0+2;                                                                                // stern bridge + funnel
+  g.fillStyle=L>0.5?"#dfe6ee":"#3a4450"; g.fillRect(bst,wl-8,5,6); g.fillStyle="#20242c"; g.fillRect(bst+2,wl-10,2,2);
+  if(L<0.55){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,240,190,0.9)"; g.fillRect(bst+1,wl-6,3,1); g.fillStyle="rgba(255,80,80,0.9)"; g.fillRect(bst+2,wl-11,1,1); g.globalCompositeOperation="source-over"; }  // bridge + mast lights
+  g.globalCompositeOperation="lighter"; g.fillStyle="rgba(200,230,255,0.4)"; g.fillRect((dir>0?hx0+len:hx0-3)|0,wl,3,1); g.globalCompositeOperation="source-over";  // bow wake
+}
 function drawFishingFleet(g,L,now,nd){
   if(!hasOcean||seaW<=0||cityG<0.3) return;
   var h6=nd.getHours(); if(h6<5||h6>=9) return;
@@ -11447,6 +11465,7 @@ function draw(g,pass){
   if(cityG>0.3 && !nukeFull()){ drawWindowVignettes(g,L,now); drawRoofCat(g,L,now); }   // after-dark rooftop life & lit windows
   if(cityG>0.42 && !nukeFull()) drawSubways(g,L,now,night);                    // subway kiosks join the streetscape
   if(cityG>0.3 && hasOcean && !nukeFull()) drawDocks(g,L,now,night);   // dock hardware accumulates as trade grows (needs a waterfront)
+  if(hasOcean && !nukeFull()) drawContainerShip(g,L,now);             // a big container ship works the harbour
 
   // rare traffic incident (deterministic → identical on every screen; needs real traffic)
   var crash=(cityG>0.52)?crashNow(now):null, qn=0, jamLen=0;
