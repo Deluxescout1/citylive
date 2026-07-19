@@ -41,8 +41,10 @@ if(Q.get('flights')){   // inject synthetic live aircraft so the real-flight ove
   // [callsign, bearing°, altFt, distNm, type, category, climbRate] — a spread across the compass covering
   // every size class + climb/descent: heavy widebody (contrail), light prop (tiny, descending ▼),
   // narrowbody departing (▲), a helicopter (A7). bearing 0=N so they ring the whole sky panorama.
+  // arrivals/departures (low + climbing/descending) route to the airport; the rest fly by. A spread of
+  // classes, altitudes and vertical trends so every path shows: high cruisers, a landing sequence, a takeoff.
   var _demo=[['DAL880',12,33000,4,'B752','A5',0],['N811VL',85,3900,30,'C172','A1',-600],['JBU12',150,12000,18,'A320','A3',1800],
-             ['UAL634',210,28000,8,'B739','A3',-900],['FDX55',300,8500,38,'B763','A5',-1200],['AAL21',340,41000,25,'B77W','A5',0],
+             ['UAL634',210,28000,8,'B739','A3',-900],['FDX55',300,5000,38,'B763','A5',2200],['AAL21',340,8000,25,'B77W','A3',-1400],
              ['LIFE1',190,1200,6,'EC35','A7',0]];
   for(var _i=0;_i<Math.min(_fn,_demo.length);_i++){ var _d=_demo[_i], _dm=_d[3]*1852, _az=_d[1]*Math.PI/180;
     _ff.push({cs:_d[0],ty:_d[4],cat:_d[5],e0:_dm*Math.sin(_az),n0:_dm*Math.cos(_az),alt0:_d[2],track:(_d[1]+90)%360,gs:180+_i*40,vr:_d[6],t0:_t0}); }

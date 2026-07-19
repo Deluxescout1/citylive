@@ -4821,37 +4821,88 @@ function drawPlane(g,fl,L,now){
       g.fillRect((X+d*4)|0,Y+1,2,1); g.globalCompositeOperation="source-over"; }
   }
 }
+// a control-tower rotating beacon (white/green alternation + halo) — shared by all airport designs
+function airportBeacon(g,x,y,now){
+  var white=(Math.floor(now/1000))%2===0;
+  g.globalCompositeOperation="lighter";
+  g.fillStyle=white?"#f6ffff":"#2fff7a"; g.fillRect(x|0,y|0,1,1);
+  g.fillStyle=white?"rgba(246,255,255,0.4)":"rgba(47,255,122,0.4)"; g.fillRect((x-1)|0,(y-1)|0,3,3);
+  g.globalCompositeOperation="source-over";
+}
+// THE AIRPORT — a real runway (where the live arrivals/departures touch down & roll) plus one of three
+// distinct designs, picked per city so no two look the same: a REGIONAL field, an INTERNATIONAL hub, or
+// a small MUNICIPAL airfield. Rises with construction (ap2), lit up at night with edge/PAPI/approach lights.
 function drawAirport(g,L,now,night){
   var ap2=gstage(0.55,0.68); if(ap2<=0) return;                     // the airport is built, not conjured
-  var tx=airportX-WOFF, twr=Math.round(HORIZON*0.42*(0.25+0.75*ap2));   // tower climbs as construction rises
-  for(var w=-1;w<=1;w++){ var X=tx+w*WW; if(X<-14||X>SW+14) continue;
-    var top=HORIZON-twr;
-    g.fillStyle=L>0.5?"#5a6172":"#191d28"; g.fillRect(X|0,top,3,twr);          // tower shaft
-    if(ap2<1){ g.fillStyle=L>0.5?"#e0a83a":"#5a4418";                          // build crane alongside
-      g.fillRect((X+5)|0,top-8,1,twr+8); g.fillRect((X-6)|0,top-8,12,1);
-      if((Math.floor(now/700))%2===0){ g.fillStyle="#ff4040"; g.fillRect((X+5)|0,top-9,1,1); } }
-    else { g.fillStyle=L>0.5?"#6b7688":"#20242f"; g.fillRect((X-2)|0,top-3,7,4); }   // glass cab tops it out
-    if(ap2>=1&&L<0.62){ g.fillStyle="rgba(190,230,255,0.85)"; g.fillRect((X-1)|0,top-2,5,2); }  // lit cab
-    var white=(Math.floor(now/1000))%2===0;
-    if(ap2>=1){
-    g.globalCompositeOperation="lighter";
-    g.fillStyle=white?"#f6ffff":"#2fff7a"; g.fillRect((X+1)|0,top-5,1,1);           // beacon
-    g.fillStyle=white?"rgba(246,255,255,0.4)":"rgba(47,255,122,0.4)"; g.fillRect(X|0,top-6,3,3);  // beacon halo
-    g.globalCompositeOperation="source-over";
-    if((Math.floor(now/900))%2===0){ g.fillStyle="#ff4040"; g.fillRect((X+1)|0,top-4,1,1); }
+  var variant=((curLife*2654435761+0x9E37)>>>0)%3;                  // regional · int'l hub · municipal field
+  var day=L>0.5, lit=L<0.62;
+  for(var w=-1;w<=1;w++){ var X=Math.round(airportX-WOFF+w*WW); if(X<-74||X>SW+74) continue;
+    // ---- the RUNWAY on the ground — arrivals touch down here, departures roll from it (all variants) ----
+    var rwW=66, rwX=X-(rwW>>1), rwY=HORIZON-1;
+    g.fillStyle=day?"#495062":"#181c26"; g.fillRect(rwX,rwY,rwW,3);
+    g.fillStyle=day?"#3a4150":"#12151d"; g.fillRect(rwX,rwY+3,rwW,1);
+    for(var cl=5;cl<rwW-4;cl+=9){ g.fillStyle="rgba(222,222,204,0.6)"; g.fillRect(rwX+cl,rwY+1,4,1); }        // centreline dashes
+    g.fillStyle="rgba(230,236,246,0.8)"; g.fillRect(rwX+1,rwY,1,3); g.fillRect(rwX+rwW-2,rwY,1,3);            // threshold bars
+    if(night>0.32){ g.globalCompositeOperation="lighter";
+      for(var el=3;el<rwW-2;el+=6){ g.fillStyle="rgba(90,150,255,0.72)"; g.fillRect(rwX+el,rwY-1,1,1); }      // blue edge lights
+      g.fillStyle="rgba(120,255,150,0.95)"; g.fillRect(rwX+1,rwY-1,1,1);                                      // green threshold
+      g.fillStyle="rgba(255,80,80,0.95)"; g.fillRect(rwX+rwW-2,rwY-1,1,1);                                    // red far end
+      for(var pp=0;pp<4;pp++){ g.fillStyle=pp<2?"rgba(255,255,255,0.9)":"rgba(255,90,90,0.9)"; g.fillRect(rwX-5+pp,rwY-2,1,1); }  // PAPI slope lights
+      g.globalCompositeOperation="source-over"; }
+    // ---- the structures behind the runway, unique per city ----
+    // a SHORT, chunky control tower with a flared glass cab — the classic ATC silhouette (drawn per variant)
+    if(variant===0){                                                 // REGIONAL: control tower + a broad terminal with jet bridges
+      var twr=Math.round(HORIZON*0.22*(0.4+0.6*ap2)), tX=X-23, top=HORIZON-twr;
+      g.fillStyle=day?"#c3c9d2":"#333b47"; g.fillRect(tX,top,4,twr);                    // stubby shaft
+      g.fillStyle=day?"#8f99ab":"#28303c"; g.fillRect(tX-2,top-3,8,4);                  // flared cab base
+      g.fillStyle=day?"#6b7f9c":"#20303f"; g.fillRect(tX-3,top-6,10,3);                 // angled glass cab
+      if(lit){ g.fillStyle="rgba(190,230,255,0.9)"; g.fillRect(tX-2,top-5,8,2); }
+      var tmX=X-16, tmW=40, tmH=17;                                                     // broad terminal (clears the viaduct)
+      g.fillStyle=day?"#7c8698":"#2a3140"; g.fillRect(tmX,HORIZON-tmH,tmW,tmH);
+      g.fillStyle=day?"#93a0b6":"#38424f"; g.fillRect(tmX-1,HORIZON-tmH,tmW+2,3);       // overhanging roof
+      for(var wr=0;wr<2;wr++) for(var gw=3;gw<tmW-2;gw+=4){ g.fillStyle=lit?"rgba(255,224,160,0.9)":"rgba(150,170,190,0.55)"; g.fillRect(tmX+gw,HORIZON-tmH+6+wr*6,2,3); }
+      g.fillStyle=day?"#6a7488":"#242c38"; g.fillRect(tmX+9,HORIZON-4,6,2); g.fillRect(tmX+26,HORIZON-4,6,2);   // jet bridges
+      var pp0=X+30; g.fillStyle=day?"#e6edf5":"#8f9aac"; g.fillRect(pp0,HORIZON-4,10,2); g.fillRect(pp0+9,HORIZON-6,2,2);  // a parked regional jet
+      if(ap2>=1) airportBeacon(g,tX+1,top-8,now);
+    } else if(variant===1){                                          // INTERNATIONAL HUB: taller cab tower + radar + a BIG terminal + a parked airliner
+      var twr2=Math.round(HORIZON*0.28*(0.4+0.6*ap2)), tX2=X-30, top2=HORIZON-twr2;
+      g.fillStyle=day?"#aeb8c6":"#2b3340"; g.fillRect(tX2,top2,5,twr2);                 // shaft
+      g.fillStyle=day?"#8f99ab":"#28303c"; g.fillRect(tX2-2,top2-3,9,4);                // cab base
+      g.fillStyle=day?"#7fa4d0":"#243444"; g.fillRect(tX2-3,top2-7,11,4);               // big flared glass cab
+      if(lit){ g.fillStyle="rgba(200,236,255,0.92)"; g.fillRect(tX2-2,top2-6,9,3); }
+      g.fillStyle=day?"#9aa6ba":"#3a4658"; g.fillRect(tX2+2,top2-10,1,3);               // radar mast
+      if((Math.floor(now/220))%2===0){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(120,255,180,0.8)"; g.fillRect(tX2+1,top2-11,3,1); g.globalCompositeOperation="source-over"; }
+      var hmX=X-14, hmW=54, hmH=19;                                                     // big terminal, long low roofline
+      g.fillStyle=day?"#6f7a8e":"#232b38"; g.fillRect(hmX,HORIZON-hmH,hmW,hmH);
+      g.fillStyle=day?"#828ea2":"#2b3442"; g.fillRect(hmX-1,HORIZON-hmH,hmW+2,3); g.fillRect(hmX+12,HORIZON-hmH-2,hmW-24,2);   // stepped roof
+      for(var wr2=0;wr2<2;wr2++) for(var gw2=3;gw2<hmW-3;gw2+=4){ g.fillStyle=lit?"rgba(190,230,255,0.9)":"rgba(150,175,200,0.55)"; g.fillRect(hmX+gw2,HORIZON-hmH+6+wr2*7,2,4); }
+      var plX=hmX+hmW+2;                                                                // parked airliner at a gate
+      g.fillStyle=day?"#e6edf5":"#8f9aac"; g.fillRect(plX,HORIZON-6,15,3); g.fillRect(plX+14,HORIZON-9,2,3);
+      g.fillStyle=day?"#c2ccd8":"#6b7484"; g.fillRect(plX+4,HORIZON-3,8,1);
+      if(ap2>=1) airportBeacon(g,tX2+2,top2-9,now);
+    } else {                                                         // MUNICIPAL FIELD: a small tower + two big arched hangars + a windsock
+      var twr3=Math.round(HORIZON*0.18*(0.45+0.55*ap2)), tX3=X-24, top3=HORIZON-twr3;
+      g.fillStyle=day?"#c8c2b4":"#33302a"; g.fillRect(tX3,top3,4,twr3);
+      g.fillStyle=day?"#7a776c":"#26241d"; g.fillRect(tX3-2,top3-3,8,4);                // cab
+      g.fillStyle=day?"#6b8f66":"#20301c"; g.fillRect(tX3-3,top3-5,10,2);               // green glass cab
+      if(lit){ g.fillStyle="rgba(255,236,190,0.85)"; g.fillRect(tX3-2,top3-4,8,1); }
+      for(var hg=0;hg<2;hg++){ var hX=X-14+hg*24, hW=21, hH=13;
+        g.fillStyle=day?"#8a8478":"#2c2a22"; g.fillRect(hX,HORIZON-hH,hW,hH);
+        g.fillStyle=day?"#9b9587":"#333027"; g.fillRect(hX+1,HORIZON-hH-1,hW-2,1); g.fillRect(hX+4,HORIZON-hH-2,hW-8,1); g.fillRect(hX+8,HORIZON-hH-3,hW-16,1);   // arched roof
+        g.fillStyle=day?"#5f5b50":"#191712"; g.fillRect(hX+4,HORIZON-hH+3,hW-8,hH-3); }                        // big hangar door
+      var wsX=X+34; g.fillStyle=day?"#8a8478":"#2c2a22"; g.fillRect(wsX,HORIZON-11,1,11);                      // windsock pole
+      var wsD=(Math.floor(now/1400))%2;
+      g.fillStyle="#e8802a"; g.fillRect(wsX+1,HORIZON-11,4+wsD,2); g.fillStyle="#f0a050"; g.fillRect(wsX+1,HORIZON-9,3+wsD,1);
+      if(ap2>=1) airportBeacon(g,tX3+1,top3-6,now);
     }
-    // low terminal apron to one side with a row of gate lights
-    g.fillStyle=L>0.5?"#3f4655":"#12151d"; g.fillRect((X+4)|0,HORIZON-4,10,4);
-    if(L<0.62){ for(var gt=0;gt<10;gt+=2){ g.fillStyle="rgba(255,220,150,0.8)"; g.fillRect((X+5+gt)|0,HORIZON-3,1,1); } }
-    // blue taxiway edge lights along the ground in front
-    if(L<0.6){ for(var bl=-2;bl<14;bl+=3){ g.globalCompositeOperation="lighter";
-      g.fillStyle="rgba(90,150,255,0.8)"; g.fillRect((X+bl)|0,HORIZON+2,1,1); g.globalCompositeOperation="source-over"; } }
+    if(ap2<1){ g.fillStyle=day?"#e0a83a":"#5a4418"; g.fillRect(X+11,HORIZON-30,1,30); g.fillRect(X-1,HORIZON-30,16,1);   // construction crane
+      if((Math.floor(now/700))%2===0){ g.fillStyle="#ff4040"; g.fillRect(X+11,HORIZON-31,1,1); } }
   }
-  // sequenced approach strobes ("the rabbit") leading in along the arrival path, at night
+  // sequenced approach strobes ("the rabbit") leading in along the arrival corridor, at night
   if(ap2>=1&&night>0.4){ var seq=(Math.floor(now/120))%6;
     for(var a=0;a<6;a++){ if(a!==seq) continue;
-      var kk=0.30+a*0.05, ax=airportX+kk*(WW*0.62), ay=(HORIZON-6)-kk*(HORIZON*0.72);
-      for(w=-1;w<=1;w++){ var SX=ax-WOFF+w*WW; if(SX<-2||SX>SW+2) continue;
+      var kk=0.30+a*0.06, ax=airportX-kk*(WW*0.16), ay=(HORIZON-4)-kk*(HORIZON*0.30);
+      for(var w2=-1;w2<=1;w2++){ var SX=ax-WOFF+w2*WW; if(SX<-2||SX>SW+2) continue;
         g.globalCompositeOperation="lighter"; g.fillStyle="rgba(230,244,255,0.9)";
         g.fillRect(SX|0,ay|0,1,1); g.globalCompositeOperation="source-over"; } }
   }
@@ -4908,36 +4959,47 @@ function drawRealFlights(g,L,now){
     if(bb.bAge!==undefined && cityG-bb.bAge<=bandOf(bb)) continue;   // not yet grown → doesn't occlude
     var bt=HORIZON-bb.h; if(bt<skyTop) skyTop=bt; }
   var floorY=Math.max(20,Math.min(skyTop-5,Math.round(HORIZON*0.40))), ceilY=Math.min(floorY-2,14);   // keep the whole band in the upper sky, above the skyline (incl. landmarks/regime towers) · high jets near the top
+  var apReady=(gstage(0.55,0.68)>=1), apX=airportX;      // once the airport is up & running, real arrivals/departures use it
   var seen={};
   for(var i=0;i<realFlights.length;i++){ var f=realFlights[i];
     var dt=Math.max(0,Math.min(180,(nowMs-(f.t0||nowMs))/1000));   // seconds since the fetch (clamped: a stalled feed can't fling planes to infinity)
     var gms=(f.gs||0)*0.514444;                           // knots→m/s
     var te=f.e0+gms*Math.sin(f.track*d2r)*dt, tn=f.n0+gms*Math.cos(f.track*d2r)*dt;   // dead-reckoned TARGET ground vector
-    var talt=(f.alt0||0)+(f.vr||0)*dt/60;
-    // ease the DISPLAYED position toward that target so the sparse ~90s fetch corrections glide in instead of
-    // snapping (keyed by the stable ICAO hex). A newly-seen plane starts exactly on target (no lurch).
+    var talt=(f.alt0||0)+(f.vr||0)*dt/60, vr=f.vr||0;
+    var az=(Math.atan2(te,tn)*R2D+360)%360;               // true bearing user→plane
+    // DEFAULT (fly-by): bearing sets x, altitude sets height within the above-skyline band
+    var altFrac=Math.max(0,Math.min(1,talt/40000));
+    var tWX=skyWX(az), tY=Math.round(floorY-altFrac*(floorY-ceilY));
+    // facing = which way it slides across the screen (sample a few seconds ahead; 0/360 wrap-safe)
+    var te2=te+gms*Math.sin(f.track*d2r)*4, tn2=tn+gms*Math.cos(f.track*d2r)*4;
+    var az2=(Math.atan2(te2,tn2)*R2D+360)%360, daz=az2-az; if(daz>180)daz-=360; if(daz<-180)daz+=360;
+    var tDir=(daz>=0)?1:-1;
+    // AIRPORT: a low aircraft that's CLIMBING or DESCENDING is taking off / landing here → put it on the
+    // airport's glide path (positioned by its real altitude) rather than a distant fly-by. Others pass by.
+    var arriving=apReady&&talt<11000&&vr<-180, departing=apReady&&talt<11000&&vr>180;
+    if(arriving||departing){
+      var gf=Math.max(0,Math.min(1,talt/9000));           // 0 at the runway → 1 at pattern altitude
+      var sd=(((f.hex||f.cs||"x").charCodeAt(0))&1)?1:-1;  // this plane's side of the field (stable per aircraft)
+      tWX=(apX+sd*gf*WW*0.16+WW*2)%WW;                     // out along the approach / departure corridor
+      tY=Math.round((HORIZON-2)-gf*((HORIZON-2)-Math.round(HORIZON*0.34)));   // down at the runway → up at pattern top
+      tDir=arriving?-sd:sd;                                // arrivals slide toward the field, departures away
+    }
+    // ease the FINAL screen position toward target so the sparse ~90s corrections AND the pattern entry glide
+    // in without a jump (x eased the SHORT way around the sky cylinder). A newly-seen plane starts on target.
     var id=f.hex||f.cs||("i"+i); seen[id]=1;
     var S=flightSmooth[id];
-    if(!S){ S=flightSmooth[id]={e:te,n:tn,alt:talt,t:nowMs}; }
-    else { var sk=Math.max(0,Math.min(1,(nowMs-S.t)/380)); S.e+=(te-S.e)*sk; S.n+=(tn-S.n)*sk; S.alt+=(talt-S.alt)*sk; S.t=nowMs; }
-    var e=S.e, n=S.n, altFt=S.alt;
-    var az=(Math.atan2(e,n)*R2D+360)%360;                 // bearing user→plane, right now (smoothed)
-    // vertical position tracks ALTITUDE, remapped into the band ABOVE the skyline: a high jet rides near the
-    // top, a low prop just clears the rooftops. Bearing still fixes x; altitude separates traffic vertically.
-    var altFrac=Math.max(0,Math.min(1,altFt/40000));      // 0 at ground → 1 at 40,000 ft+
-    var y=Math.round(floorY-altFrac*(floorY-ceilY));
-    // which way does it slide across the screen? sample a few seconds ahead along the heading (0/360 wrap-safe)
-    var e2=e+gms*Math.sin(f.track*d2r)*4, n2=n+gms*Math.cos(f.track*d2r)*4;
-    var az2=(Math.atan2(e2,n2)*R2D+360)%360, daz=az2-az; if(daz>180)daz-=360; if(daz<-180)daz+=360;
-    var dir=(daz>=0)?1:-1;                                // increasing azimuth = sliding right
-    var wx=skyWX(az);
+    if(!S){ S=flightSmooth[id]={wx:tWX,y:tY,alt:talt,dir:tDir,t:nowMs}; }
+    else { var sk=Math.max(0,Math.min(1,(nowMs-S.t)/380));
+      var dwx=tWX-S.wx; while(dwx>WW/2)dwx-=WW; while(dwx<-WW/2)dwx+=WW;
+      S.wx=(S.wx+dwx*sk+WW)%WW; S.y+=(tY-S.y)*sk; S.alt+=(talt-S.alt)*sk; S.dir=tDir; S.t=nowMs; }
+    var wx=S.wx, y=Math.round(S.y), altFt=S.alt, dir=S.dir;
     // ---- aircraft CLASS from the ADS-B category (altitude/speed fallback) → size the sprite so a heavy
     //      widebody reads bigger than a little Cessna, a helicopter is unmistakable, and only high jets trail ----
     var cat=f.cat||"", heavy=(cat==="A5"||cat==="A4"), light=(cat==="A1"), small=(cat==="A2"), rotor=(cat==="A7");
     if(!cat){ heavy=altFt>33000; light=(altFt<9000&&(f.gs||0)<150); small=(!heavy&&!light&&altFt<16000); }
     var fw=heavy?5:small?2:light?1:3;                                             // fuselage half-length by class
     var trail=(!light&&!rotor&&altFt>25000)?(heavy?15:10):0;                      // contrails form only high & cold
-    var vr=f.vr||0, climb=(vr>256?1:vr<-256?-1:0);                                // departing (climb) vs arriving (descent)
+    var climb=(vr>256?1:vr<-256?-1:0);                                           // departing (climb) vs arriving (descent) — drives the tag ▲/▼
     // ---- airframe + lights, drawn on every world-wrap copy that lands on this screen ----
     var vis=[wx-WOFF]; if(wx-WOFF-WW>-40) vis.push(wx-WOFF-WW); if(wx-WOFF+WW<SW+40) vis.push(wx-WOFF+WW);
     for(var vi=0;vi<vis.length;vi++){ var X=vis[vi]|0, Y=y; if(X<-40||X>SW+40) continue;
@@ -6332,7 +6394,9 @@ function computeLmFoot(){ lmFoot.length=0;
     var pol=Math.round(LM_POLICE*WW); lmFoot.push([pol-13,pol+13]);         // police + fire (public safety; they grow with the city now)
     var fir=Math.round(LM_FIRE*WW); lmFoot.push([fir-13,fir+13]);
     var lib=Math.round(LM_LIBRARY*WW); lmFoot.push([lib-14,lib+14]);        // library + post office
-    var pos=Math.round(LM_POST*WW); lmFoot.push([pos-14,pos+14]); } }
+    var pos=Math.round(LM_POST*WW); lmFoot.push([pos-14,pos+14]); }
+  if(cityG>0.55){ lmFoot.push([airportX-52,airportX+58]); }      // clear an APRON around the airport so its runway/terminal read as an airfield, not buried among towers
+}
 function overLandmark(bx,bw){ for(var i=0;i<lmFoot.length;i++){ if(bx<lmFoot[i][1] && bx+bw>lmFoot[i][0]) return true; } return false; }
 
 function gameNight(nd){ var d=nd.getDay(); return d===3||d===5||d===6; }   // Wed/Fri/Sat home games
