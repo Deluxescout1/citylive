@@ -54,6 +54,7 @@ if(Q.get('noflights')==='1'){ FLIGHTS_ON=false; }
 if(Q.get('nolivesky')==='1'){ NOLIVESKY=true; }   // suppress the live ISS + Starlink (containment byte-identical)   // hard-disable the live-flight overlay (containment A/B: the pre-v1.24 ref engine has no flight code, so this keeps the render byte-identical)
 if(Q.get('nonewstv')==='1'){ NONEWSTV=true; }   // suppress the rooftop news jumbotrons (containment byte-identical)
 if(Q.get('nopartyfx')==='1'){ NOPARTYFX=true; }   // suppress the persistent party-legacy visuals (containment byte-identical)
+if(Q.get('nosports')==='1'){ NOSPORTS=true; }   // suppress the sports district (containment byte-identical)
 if(Q.get('noeconfx')==='1'){ NOECONFX=true; }   // suppress the hard-times street decay (containment byte-identical)
 if(Q.get('slump')!=null){ FORCESLUMP=qn('slump',0.8); }   // force the recession depth 0..1
 if(Q.get('party')){ FORCEELECT=Object.assign(FORCEELECT||{},{partyK:Q.get('party')}); }   // force the mayor's party (GREENS/TRANSIT/SAFETY/BUILDERS) — test the hard-times response

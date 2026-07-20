@@ -156,7 +156,7 @@ function resetNotifLanes(){ for(var r=0;r<_notifTaken.length;r++) _notifTaken[r]
 var CLOCK = null;   // test-harness override: ms timestamp for time-of-day (null = real wall clock)
 var NOWOVR = null;  // test-harness override: ms value returned as Date.now() inside draw() (null = real)
 var NOFETCH = false;  // headless flag (own line = QML-namespace writable): almanac callers set this so setup() makes NO network calls
-var VERSION = "1.42.0";  // the build the user is running — surfaced in the Almanac + KDE config page (keep in sync with desktop/package.json)
+var VERSION = "1.43.0";  // the build the user is running — surfaced in the Almanac + KDE config page (keep in sync with desktop/package.json)
 var FORCELAYOUT = null;   // test hook: pin every building's window layout (grid/ribbon/band/punch/corp) — verify per-layout render
 var FORCECROWN = null;    // test hook: pin every building's crown/roof (gable/hip/saltbox/mansard/deco/…) — verify per-roof render
 var FORCEUSE = null;      // test hook: pin every building's functional type (hospital/theater/hotel/bank/cafe/pharmacy) — verify drawUse
@@ -9144,6 +9144,102 @@ function teamOf(li,era){
   var h=((li*2654435761+8887)>>>0), M=MASCOTS[famOf(era)];
   return M[h%M.length];
 }
+// ============================ SPORTS TEAMS — real, by the user's region (v1.43) ============================
+// Nick: the arenas carry the user's REAL local teams across the 4 majors, chosen by DISTANCE from LAT/LON
+// (Norwich CT → Boston + NY). Each entry: [NAME, lat, lon, primaryColor]. Metro-level coords are plenty for
+// a nearest pick. Pure data + a pure pick fn → the almanac/harness can read it; every city shows the same
+// region's teams (like the real weather), with a stable random tie-break among the few closest.
+var TEAMS_NBA=[["CELTICS",42.37,-71.06,"#008348"],["NETS",40.68,-73.97,"#111111"],["KNICKS",40.75,-73.99,"#F58426"],["76ERS",39.90,-75.17,"#006BB6"],["RAPTORS",43.64,-79.38,"#CE1141"],["BULLS",41.88,-87.67,"#CE1141"],["CAVALIERS",41.50,-81.69,"#860038"],["PISTONS",42.34,-83.05,"#C8102E"],["PACERS",39.76,-86.16,"#FDBB30"],["BUCKS",43.04,-87.92,"#00471B"],["HAWKS",33.76,-84.40,"#E03A3E"],["HORNETS",35.23,-80.84,"#00788C"],["HEAT",25.78,-80.19,"#98002E"],["MAGIC",28.54,-81.38,"#0077C0"],["WIZARDS",38.90,-77.02,"#002B5C"],["NUGGETS",39.75,-105.01,"#0E2240"],["TIMBERWOLVES",44.98,-93.28,"#236192"],["THUNDER",35.46,-97.52,"#007AC1"],["TRAIL BLAZERS",45.53,-122.67,"#E03A3E"],["JAZZ",40.77,-111.90,"#002B5C"],["WARRIORS",37.77,-122.39,"#1D428A"],["CLIPPERS",34.04,-118.27,"#C8102E"],["LAKERS",34.04,-118.27,"#552583"],["SUNS",33.45,-112.07,"#E56020"],["KINGS",38.58,-121.50,"#5A2D81"],["MAVERICKS",32.79,-96.81,"#00538C"],["ROCKETS",29.75,-95.36,"#CE1141"],["GRIZZLIES",35.14,-90.05,"#5D76A9"],["PELICANS",29.95,-90.08,"#0C2340"],["SPURS",29.43,-98.44,"#8A8D8F"]];
+var TEAMS_MLB=[["RED SOX",42.35,-71.10,"#BD3039"],["YANKEES",40.83,-73.93,"#0C2340"],["METS",40.76,-73.85,"#FF5910"],["BLUE JAYS",43.64,-79.39,"#134A8E"],["ORIOLES",39.28,-76.62,"#DF4601"],["RAYS",27.77,-82.65,"#092C5C"],["PHILLIES",39.91,-75.17,"#E81828"],["NATIONALS",38.87,-77.01,"#AB0003"],["BRAVES",33.89,-84.47,"#CE1141"],["MARLINS",25.78,-80.22,"#00A3E0"],["PIRATES",40.45,-80.01,"#FDB827"],["REDS",39.10,-84.51,"#C6011F"],["GUARDIANS",41.50,-81.69,"#00385D"],["TIGERS",42.34,-83.05,"#0C2340"],["WHITE SOX",41.83,-87.63,"#27251F"],["CUBS",41.95,-87.66,"#0E3386"],["BREWERS",43.03,-87.97,"#12284B"],["TWINS",44.98,-93.28,"#002B5C"],["CARDINALS",38.62,-90.19,"#C41E3A"],["ROYALS",39.05,-94.48,"#004687"],["ASTROS",29.76,-95.36,"#EB6E1F"],["RANGERS",32.75,-97.08,"#003278"],["ROCKIES",39.76,-104.99,"#33006F"],["DIAMONDBACKS",33.45,-112.07,"#A71930"],["PADRES",32.71,-117.16,"#2F241D"],["DODGERS",34.07,-118.24,"#005A9C"],["ANGELS",33.80,-117.88,"#BA0021"],["GIANTS",37.78,-122.39,"#FD5A1E"],["ATHLETICS",37.75,-122.20,"#003831"],["MARINERS",47.59,-122.33,"#0C2C56"]];
+var TEAMS_NHL=[["BRUINS",42.37,-71.06,"#FFB81C"],["RANGERS",40.75,-73.99,"#0038A8"],["ISLANDERS",40.72,-73.59,"#00539B"],["DEVILS",40.73,-74.17,"#CE1126"],["FLYERS",39.90,-75.17,"#F74902"],["PENGUINS",40.44,-79.99,"#FCB514"],["CAPITALS",38.90,-77.02,"#C8102E"],["HURRICANES",35.80,-78.72,"#CC0000"],["BLUE JACKETS",39.97,-83.01,"#002654"],["RED WINGS",42.34,-83.05,"#CE1126"],["SABRES",42.87,-78.87,"#003087"],["MAPLE LEAFS",43.64,-79.38,"#00205B"],["SENATORS",45.30,-75.93,"#C8102E"],["CANADIENS",45.50,-73.57,"#AF1E2D"],["LIGHTNING",27.94,-82.45,"#002868"],["PANTHERS",26.16,-80.33,"#C8102E"],["PREDATORS",36.16,-86.78,"#FFB81C"],["BLUES",38.63,-90.20,"#002F87"],["BLACKHAWKS",41.88,-87.67,"#CF0A2C"],["WILD",44.94,-93.10,"#154734"],["JETS",49.89,-97.14,"#041E42"],["AVALANCHE",39.75,-105.01,"#6F263D"],["STARS",32.79,-96.81,"#006847"],["MAMMOTH",40.77,-111.90,"#71AFE5"],["GOLDEN KNIGHTS",36.10,-115.18,"#B4975A"],["KINGS",34.04,-118.27,"#A2AAAD"],["DUCKS",33.81,-117.88,"#F47A38"],["SHARKS",37.33,-121.90,"#006D75"],["KRAKEN",47.62,-122.35,"#99D9D9"],["CANUCKS",49.28,-123.11,"#00205B"],["FLAMES",51.04,-114.07,"#C8102E"],["OILERS",53.55,-113.50,"#FF4C00"]];
+var TEAMS_NFL=[["PATRIOTS",42.09,-71.26,"#002244"],["BILLS",42.77,-78.79,"#00338D"],["JETS",40.81,-74.07,"#125740"],["GIANTS",40.81,-74.07,"#0B2265"],["DOLPHINS",25.96,-80.24,"#008E97"],["EAGLES",39.90,-75.17,"#004C54"],["COMMANDERS",38.91,-76.86,"#5A1414"],["COWBOYS",32.75,-97.09,"#003594"],["STEELERS",40.45,-80.02,"#FFB612"],["RAVENS",39.28,-76.62,"#241773"],["BENGALS",39.10,-84.52,"#FB4F14"],["BROWNS",41.51,-81.70,"#FF3C00"],["TITANS",36.17,-86.77,"#0C2340"],["COLTS",39.76,-86.16,"#002C5F"],["TEXANS",29.68,-95.41,"#03202F"],["JAGUARS",30.32,-81.64,"#006778"],["BEARS",41.86,-87.62,"#0B162A"],["PACKERS",44.50,-88.06,"#203731"],["LIONS",42.34,-83.05,"#0076B6"],["VIKINGS",44.97,-93.26,"#4F2683"],["FALCONS",33.76,-84.40,"#A71930"],["PANTHERS",35.23,-80.85,"#0085CA"],["SAINTS",29.95,-90.08,"#D3BC8D"],["BUCCANEERS",27.98,-82.50,"#D50A0A"],["CHIEFS",39.05,-94.48,"#E31837"],["BRONCOS",39.74,-105.02,"#FB4F14"],["RAIDERS",36.09,-115.18,"#A5ACAF"],["CHARGERS",33.95,-118.34,"#0080C6"],["RAMS",33.95,-118.34,"#003594"],["49ERS",37.40,-121.97,"#AA0000"],["SEAHAWKS",47.60,-122.33,"#002244"],["CARDINALS",33.53,-112.26,"#97233F"]];
+var SPORT_DEFS=[{k:"NBA",label:"BASKETBALL",data:TEAMS_NBA},{k:"MLB",label:"BASEBALL",data:TEAMS_MLB},{k:"NHL",label:"HOCKEY",data:TEAMS_NHL},{k:"NFL",label:"FOOTBALL",data:TEAMS_NFL}];
+// nearest team in a league to (la,lo), with a STABLE random pick among the few closest (so CT ↔ Boston/NY
+// varies per life but never jumps mid-life). Returns {name,color,dist}.
+function nearestTeam(data,la,lo,salt){
+  var cl=Math.cos(la*Math.PI/180), scored=[];
+  for(var i=0;i<data.length;i++){ var t=data[i], dx=(t[2]-lo)*cl, dy=(t[1]-la); scored.push({t:t,d2:dx*dx+dy*dy}); }
+  scored.sort(function(a,b){return a.d2-b.d2;});
+  var near=[scored[0]];                                             // gather the closest few (within ~1.6× the nearest distance) to pick among
+  for(var j=1;j<scored.length && near.length<4;j++){ if(scored[j].d2 <= scored[0].d2*2.6) near.push(scored[j]); else break; }
+  var pick=near[(salt>>>0)%near.length].t;
+  return {name:pick[0], color:pick[3]};
+}
+// this city's four home teams — chosen once per life from LAT/LON (the user's region). FORCETEAMS test hook.
+var FORCETEAMS=null;
+function cityTeams(now){
+  if(FORCETEAMS) return FORCETEAMS;
+  var li=lifeIndexOf(now), out=[];
+  for(var s=0;s<SPORT_DEFS.length;s++){ var sd=SPORT_DEFS[s];
+    var salt=((li*2654435761 + (s+1)*2246822519 + 0x59021)>>>0);   // per-life, per-sport tie-break
+    var tm=nearestTeam(sd.data,LAT,LON,salt);
+    out.push({sport:sd.k, label:sd.label, name:tm.name, color:tm.color}); }
+  return out;
+}
+// ---- THE SPORTS DISTRICT (v1.43): four DISTINCT venues, one per major sport, each named + coloured for the
+// user's real local team. New code the containment ref lacks → gated NOSPORTS (pinned in the guard). Drawn
+// in the foreground at HORIZON; appear as the city matures. Recognisable by SILHOUETTE. ----
+var NOSPORTS=false;
+var SPORTS_X=[0.36,0.50,0.70,0.84];   // spread across the cityscape (clear of cathedral 0.24 / ferris 0.93)
+function drawArenaName(g,x,topY,name,col,L){                     // a lit marquee/nameplate over a venue
+  var w=Math.max(18,textW(name)+6), bx=x-(w>>1);
+  g.fillStyle=L>0.5?"#14171e":"#0a0c11"; g.fillRect(bx,topY,w,7);
+  g.fillStyle=col; g.fillRect(bx,topY,w,1); g.fillRect(bx,topY+6,w,1);
+  drawUiText(g,name,bx+3,topY+1,"#f4f8ff",1);
+}
+function drawBaseballPark(g,x,L,now,team){                       // OPEN diamond + outfield + curved grandstand
+  var y=HORIZON, col=team.color, night=1-L, w=54;
+  g.fillStyle=L>0.5?"#2e6a34":"#16351f"; g.fillRect(x-w/2,y-16,w,16);                       // green outfield grass
+  g.fillStyle=L>0.5?"#b98a4a":"#6a4c28"; g.beginPath(); g.moveTo(x-8,y-2); g.lineTo(x,y-11); g.lineTo(x+8,y-2); g.closePath(); g.fill();   // tan infield DIAMOND (the tell)
+  g.fillStyle=L>0.5?"#f0ead8":"#8a8478"; g.fillRect(x-1,y-7,2,2); g.fillRect(x-6,y-3,2,1); g.fillRect(x+5,y-3,2,1); g.fillRect(x-1,y-3,2,1);   // bases
+  g.fillStyle=col; g.fillRect(x-w/2-2,y-20,4,20); g.fillRect(x+w/2-2,y-20,4,20);              // grandstand wings (team colour) curving up at the sides
+  g.fillStyle=L>0.5?"#3a4150":"#191d26"; g.fillRect(x-w/2-2,y-22,6,4); g.fillRect(x+w/2-4,y-22,6,4);
+  g.fillStyle=L>0.5?"#c9cdd6":"#5a606c"; g.fillRect(x-w/2-4,y-24,1,10); g.fillRect(x+w/2+3,y-24,1,10);   // foul poles
+  for(var t=0;t<2;t++){ var tx=x-w/3+t*(2*w/3); g.fillStyle=L>0.5?"#8a919c":"#3a4048"; g.fillRect(tx,y-26,1,10);   // light towers
+    g.fillStyle=night>0.4?"#fff6cc":"#c9cdb0"; g.fillRect(tx-2,y-28,5,3); if(night>0.4){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,246,180,0.3)"; g.fillRect(tx-4,y-30,9,8); g.globalCompositeOperation="source-over"; } }
+  drawArenaName(g,x,y-25,team.name,col,L);
+}
+function drawBasketballArena(g,x,L,now,team){                    // rounded DOMED indoor arena
+  var y=HORIZON, col=team.color, night=1-L, w=40;
+  g.fillStyle=L>0.5?"#6b7280":"#2a2f39"; g.fillRect(x-w/2,y-14,w,14);                         // arena body
+  g.fillStyle=col; g.beginPath(); g.moveTo(x-w/2,y-14); g.quadraticCurveTo(x,y-26,x+w/2,y-14); g.closePath(); g.fill();   // curved DOME roof (team colour)
+  g.fillStyle=L>0.5?"#8a92a0":"#3a4150"; g.fillRect(x-w/2,y-15,w,1);
+  for(var wcol=x-w/2+3;wcol<x+w/2-2;wcol+=4){ g.fillStyle=night>0.4?"#ffe6a0":(L>0.5?"#aeb6c2":"#3a4250"); g.fillRect(wcol,y-11,2,7); }   // lit windows/concourse
+  g.fillStyle=L>0.5?"#20242c":"#12151b"; g.fillRect(x-4,y-6,8,6);                              // entrance
+  if(night>0.3){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,230,160,0.18)"; g.fillRect(x-w/2,y-26,w,26); g.globalCompositeOperation="source-over"; }
+  drawArenaName(g,x,y-25,team.name,col,L);
+}
+function drawHockeyArena(g,x,L,now,team){                        // boxier indoor arena, ICE-BLUE accent + rink hint
+  var y=HORIZON, col=team.color, night=1-L, w=40;
+  g.fillStyle=L>0.5?"#5a6572":"#242a33"; g.fillRect(x-w/2,y-15,w,15);                          // arena body
+  g.fillStyle=col; g.fillRect(x-w/2-1,y-19,w+2,5);                                             // flat-ish barrel roof band (team colour)
+  g.fillStyle=L>0.5?"#bfe4ff":"#3a5a72"; g.fillRect(x-w/2,y-14,w,2);                           // ICE-BLUE ribbon (the hockey tell)
+  for(var wc2=x-w/2+3;wc2<x+w/2-2;wc2+=5){ g.fillStyle=night>0.4?"#cfeaff":(L>0.5?"#9ab6c8":"#33424e"); g.fillRect(wc2,y-11,2,7); }
+  g.fillStyle=L>0.5?"#20242c":"#12151b"; g.fillRect(x-4,y-6,8,6);                              // entrance
+  g.fillStyle=L>0.5?"#eef6ff":"#4a5a66"; g.fillRect(x-8,y-1,16,1);                             // a sliver of the rink glowing out the doors
+  drawArenaName(g,x,y-25,team.name,col,L);
+}
+function drawFootballBowl(g,x,L,now,team){                       // the big oval BOWL — largest, tiered, floodlights
+  var y=HORIZON, col=team.color, night=1-L, w=64;
+  g.fillStyle=L>0.5?"#5f6672":"#23272f"; fillEllipse(g,x,y-6,w/2,13);                          // the bowl mass
+  g.fillStyle=L>0.5?"#2e6a34":"#16351f"; fillEllipse(g,x,y-4,w/2-8,8);                          // green field inside
+  g.fillStyle="#eef4ff"; for(var yl=x-14;yl<=x+14;yl+=7) g.fillRect(yl,y-6,1,5);               // yard lines
+  g.fillStyle=col; g.fillRect(x-w/2,y-16,w,3);                                                 // upper-deck team-colour ring
+  g.fillStyle=L>0.5?"#c9cdd6":"#5a606c"; g.fillRect(x-14,y-14,1,4); g.fillRect(x-13,y-14,2,1); g.fillRect(x+13,y-14,1,4); g.fillRect(x+11,y-14,2,1);   // goalposts
+  for(var ft=0;ft<4;ft++){ var fx=x-w/2+6+ft*(w-12)/3; g.fillStyle=L>0.5?"#8a919c":"#3a4048"; g.fillRect(fx,y-24,1,10);   // 4 floodlight towers
+    g.fillStyle=night>0.4?"#fff6cc":"#c9cdb0"; g.fillRect(fx-2,y-26,5,3); if(night>0.4){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,246,180,0.28)"; g.fillRect(fx-4,y-28,9,10); g.globalCompositeOperation="source-over"; } }
+  drawArenaName(g,x,y-25,team.name,col,L);
+}
+function drawSportsDistrict(g,L,now){
+  if(NOSPORTS || nukeStruck() || cityPhase==="apoc") return;
+  var g2=gstage(0.50,0.66); if(g2<=0) return;                    // the venues rise as the city matures
+  var teams=cityTeams(now), drawers=[drawBasketballArena,drawBaseballPark,drawHockeyArena,drawFootballBowl];
+  for(var i=0;i<4;i++){ var wx=Math.round(SPORTS_X[i]*WW), sx=wx-WOFF;
+    if(sx>SW+40&&sx-WW>-40)sx-=WW; if(sx<-40&&sx+WW<SW+40)sx+=WW;
+    if(sx<-40||sx>SW+40) continue; if(inSea(wx)) continue;
+    drawers[i](g,sx|0,L,now,teams[i]);
+  }
+}
 function nameOf(li,era){
   if(li===0) return "NEO NORWICH";                              // life zero honours home
   var h=((li*2654435761+331)>>>0), h2=(((h^(h>>>13))*2246822519)>>>0);
@@ -13347,6 +13443,7 @@ function draw(g,pass){
   // civic landmarks — stadium, cathedral, ferris wheel (rise with the maturing city)
   drawLandmarks(g,L,now,night,nd);   // civic landmarks rip away individually as the blast front reaches each (see drawLandmarks)
   drawBuilds(g,L,now,night);         // permanent VOTED landmarks (stadium/park/casino/…) the city built via ballot measures — near layer, traffic passes in front
+  drawSportsDistrict(g,L,now);       // the 4 real-team venues (basketball/baseball/hockey/football) — the city's sports scene
   // big LED news screens on the downtown towers — run local news, cut to BREAKING coverage as events happen
   // (deliberately NOT gated by nukeFull: they keep reporting the disaster right up until each tower is hit)
   if(cityG>0.5) drawNewsScreens(g,L,now,night);
