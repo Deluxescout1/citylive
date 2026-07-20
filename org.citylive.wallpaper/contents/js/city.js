@@ -156,7 +156,7 @@ function resetNotifLanes(){ for(var r=0;r<_notifTaken.length;r++) _notifTaken[r]
 var CLOCK = null;   // test-harness override: ms timestamp for time-of-day (null = real wall clock)
 var NOWOVR = null;  // test-harness override: ms value returned as Date.now() inside draw() (null = real)
 var NOFETCH = false;  // headless flag (own line = QML-namespace writable): almanac callers set this so setup() makes NO network calls
-var VERSION = "1.34.0";  // the build the user is running — surfaced in the Almanac + KDE config page (keep in sync with desktop/package.json)
+var VERSION = "1.35.0";  // the build the user is running — surfaced in the Almanac + KDE config page (keep in sync with desktop/package.json)
 var FORCELAYOUT = null;   // test hook: pin every building's window layout (grid/ribbon/band/punch/corp) — verify per-layout render
 var FORCECROWN = null;    // test hook: pin every building's crown/roof (gable/hip/saltbox/mansard/deco/…) — verify per-roof render
 var FORCEUSE = null;      // test hook: pin every building's functional type (hospital/theater/hotel/bank/cafe/pharmacy) — verify drawUse
@@ -3203,13 +3203,29 @@ function drawCivicHud(g,now,night){
   g.fillStyle="rgba(90,210,255,0.85)"; g.fillRect(ix,bY,Math.round(iw*Math.min(1,Math.max(0,M.tf))),3);
 }
 // THE ORDER's emblem — a stark white angular star on a crimson roundel (fictional; no real symbols)
+var ORDER_NIGHT=0;   // 0 day → 1 deep night; set by drawRegime so every Order emblem/banner/structure LIGHTS UP after dark
 function drawOrderEmblem(g,cx,cy,r,fg,bg){
   cx=cx|0; cy=cy|0;
+  if(ORDER_NIGHT>0.04){ g.globalCompositeOperation="lighter";                                       // a lit crimson halo so the emblem glows at night (like the airship lights)
+    g.fillStyle="rgba(220,40,54,"+(0.5*ORDER_NIGHT).toFixed(3)+")"; fillEllipse(g,cx,cy,r+2,r+2);
+    g.fillStyle="rgba(255,210,210,"+(0.35*ORDER_NIGHT).toFixed(3)+")"; fillEllipse(g,cx,cy,r,r);
+    g.globalCompositeOperation="source-over"; }
   if(bg){ g.fillStyle=bg; fillEllipse(g,cx,cy,r+1,r+1); }
   g.fillStyle=fg||"#f4eee2";
   var inr=Math.max(1,r-1);
   for(var d=-inr;d<=inr;d++){ var w=Math.max(0,inr-Math.abs(d)); g.fillRect(cx-w,cy+d,2*w+1,1); }   // angular diamond
   g.fillRect(cx-r,cy,2*r+1,1); g.fillRect(cx,cy-r,1,2*r+1);                                          // star points
+}
+// an ORDER TROOPER — a dark uniform + peaked cap + a bright CRIMSON armband, so the regime's people read
+// instantly apart from civilians, day or night (the armband glows after dark).
+function drawTrooper(g,x,y,now,bob){
+  x|=0; y|=0; var yy=y-((bob===1||bob===3)?1:0);                     // match drawPerson's walk-frame body lift
+  drawPerson(g,x,y,"#17171f","#c09a76",bob);                         // near-black uniform
+  g.fillStyle="#08080d"; g.fillRect(x-1,yy-4,3,1);                   // peaked cap
+  g.fillStyle="#c0182a"; g.fillRect(x-1,yy-3,3,1);                   // CRIMSON cap band — the instant "Order" tell
+  g.fillStyle="#c0182a"; g.fillRect(x,yy,1,2);                       // crimson chest sash
+  if(ORDER_NIGHT>0.15){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(235,55,64,"+(0.85*ORDER_NIGHT).toFixed(2)+")";
+    g.fillRect(x,yy,1,2); g.fillRect(x-1,yy-3,3,1); g.globalCompositeOperation="source-over"; }   // the crimson glows after dark
 }
 // THE CLEAR INDICATION the takeover is happening: a bold persistent alert banner top-centre,
 // the emblem + "THE ORDER" + the current stage, crimson (green once it falls), blinking under martial law.
@@ -3281,6 +3297,7 @@ function drawGiantBanner(g,bx,top,bw,bh,L,now,seed){
 // city draped at TOTAL CONTROL. Gated on curRegime.active → invisible (byte-identical) on non-regime lives.
 function drawLayerRegime(g,layer,L,now,night){
   var R=curRegime; if(!R||!R.active||R.stage<3) return;
+  ORDER_NIGHT=Math.max(0,Math.min(1,(0.55-L)/0.35));                     // set early so the banner emblems glow this frame (dispatcher re-sets it identically)
   if(R.stage===6&&R.sub>=0.5) return;                                    // torn down at the liberation
   var isNear=(layer===near), isFar=(layer===far);
   var denom = R.stage>=5?1 : R.stage===4?2 : 4;                          // 1-in-N eligible towers → all of them at TOTAL CONTROL
@@ -3325,6 +3342,13 @@ function drawLeaderStatue(g,L,now){
     g.fillStyle=L>0.5?"#6a6156":"#332e28"; g.fillRect(X-8,baseY-pedH,16,2); g.fillRect(X-6,baseY-pedH-2,12,2);
     drawOrderEmblem(g,X,baseY-4,3,tP>=1?"#5a5148":"#c0182a",null);                                   // emblem on the plinth (defaced once fallen)
     var pvY=baseY-pedH-2;
+    if(ORDER_NIGHT>0.15 && tP<0.9){                                                                 // FLOODLIT at night — uplights at the plinth wash the figure in light
+      g.globalCompositeOperation="lighter";
+      for(var fl=-1;fl<=1;fl+=2){ var flx=X+fl*7;
+        for(var ft=0;ft<figH+6;ft+=3){ var bt=ft/(figH+6), fw=1+bt*4; g.fillStyle="rgba(255,238,200,"+(0.10*(1-bt)*ORDER_NIGHT).toFixed(3)+")"; g.fillRect((flx+(X-flx)*bt-fw)|0,(pvY-ft)|0,(fw*2)|0,3); }
+        g.fillStyle="rgba(255,244,214,"+(0.8*ORDER_NIGHT).toFixed(2)+")"; g.fillRect(flx|0,baseY-2,2,2); }   // the hot lamps at the base
+      g.globalCompositeOperation="source-over";
+    }
     var ep=(R.stage===4)?Math.max(0,Math.min(1,R.sub/0.5)):1;                                       // WATCH IT RISE: erected over the first half of stage 4
     var topH=(tP>0)?figH:Math.round(figH*ep);                                                        // build height (full once toppling begins)
     if(tP<1){                                                                                       // the rising / standing / toppling figure — rows along the (rotated) spine
@@ -3411,7 +3435,7 @@ function drawRegimeStreets(g,L,now,night){
     for(var off3=-WW;off3<=WW;off3+=WW){ var CX=cwx-WOFF+off3; if(CX<-12||CX>SW+12) continue;
       for(var bar=0;bar<10;bar+=2){ g.fillStyle=(((bar>>1)&1))?"#e8e2d0":"#c0182a"; g.fillRect((CX-5+bar)|0,HORIZON+2,2,2); }   // striped barrier
       g.fillStyle="#1a0c0e"; g.fillRect((CX-6)|0,HORIZON+1,1,4); g.fillRect((CX+4)|0,HORIZON+1,1,4);                            // posts
-      drawPerson(g,(CX+7)|0,HORIZON+1,"#2f3540","#caa07a",(Math.floor(now/520))&1); } }                                        // a guard
+      drawTrooper(g,(CX+7)|0,HORIZON+1,now,(Math.floor(now/520))&1); } }                                                       // an Order guard (uniform + armband)
 }
 // ===== v1.24+ THE ORDER set-pieces: rally · resistance · propaganda airship · military parade =====
 // 1) MANDATORY RALLY — at TOTAL CONTROL the plaza fills with ranked crowds before the statue, flags up,
@@ -3481,7 +3505,7 @@ function drawRegimeParade(g,L,now){
   for(var off=-WW;off<=WW;off+=WW){ var base=(lead-WOFF+off);
     var tx=base|0; if(tx>-20&&tx<SW+20) drawTank(g,tx,ly,dir,L);
     for(var k=1;k<=12;k++){ var px=(base-dir*(10+k*5))|0; if(px<-4||px>SW+4) continue;
-      drawPerson(g,px,ly+1,"#2f3540","#caa07a",march?1:0);
+      drawTrooper(g,px,ly+1,now,march?1:0);                                                          // the marching column, in uniform
       if((k%4)===0){ g.fillStyle="#b01828"; g.fillRect(px|0,ly-6,1,3); g.fillStyle="#f4eee2"; g.fillRect(px|0,ly-6,1,1); } } }
 }
 // 5) SEIZURE OF CITY HALL (stage 2) — the moment democracy falls: a crimson banner unfurls down the
@@ -3764,6 +3788,7 @@ function drawPlague(g,L,now,night){
 }
 function drawRegime(g,L,now,night){
   if(!curRegime||!curRegime.active) return;
+  ORDER_NIGHT=Math.max(0,Math.min(1,(0.55-L)/0.35));    // how lit the Order's stuff glows (0 day → 1 deep night)
   drawRegimeWash(g,L,now);       // the crimson mood over everything drawn so far (flags/city); HUD stays crisp on top
   drawMinistryHQ(g,L,now);       // the monumental Order Ministry, risen downtown
   drawSeizure(g,L,now);          // stage 2: the banner drops over City Hall
@@ -5844,10 +5869,10 @@ function drawSatellite(g,L,now){
     if(S.alt>0.5){
       var wx=skyWX(S.az), y=skyY(S.alt);
       g.globalCompositeOperation="lighter";
-      for(var tr=1;tr<=5;tr++){ var ba=issLookAngle(la-vlat*tr*4, lo-vlon*tr*4); if(ba.alt<=0) break;   // curved trail along the real track
+      for(var tr=1;tr<=3;tr++){ var ba=issLookAngle(la-vlat*tr*2.5, lo-vlon*tr*2.5); if(ba.alt<=0) break;   // a SHORT curved trail along the real track
         var bx=skyWX(ba.az), by=skyY(ba.alt);
         for(var wt=-1;wt<=1;wt++){ var tx=bx-WOFF+wt*WW; if(tx<-2||tx>SW+2) continue;
-          g.fillStyle="rgba(226,238,255,"+(0.5*(1-tr/5)).toFixed(3)+")"; g.fillRect(tx|0,by|0,1,1); } }
+          g.fillStyle="rgba(226,238,255,"+(0.45*(1-tr/3)).toFixed(3)+")"; g.fillRect(tx|0,by|0,1,1); } }
       for(var wm=-1;wm<=1;wm++){ var X=(wx-WOFF+wm*WW)|0; if(X<-3||X>SW+3) continue;                    // the station: a bright steady point + halo
         g.fillStyle="rgba(200,224,255,0.35)"; g.fillRect(X-1,(y-1)|0,3,3);
         g.fillStyle="rgba(255,255,255,0.97)"; g.fillRect(X,y|0,1,1); g.fillRect(X-1,y|0,1,1); g.fillRect(X+1,y|0,1,1); g.fillRect(X,(y-1)|0,1,1); g.fillRect(X,(y+1)|0,1,1); }
@@ -5892,6 +5917,29 @@ function drawStarlinkTrain(g,L,now){
   g.globalCompositeOperation="source-over";
   if(p>0.18&&p<0.86){ var lwx=(dir>0?p:1-p)*WW, ly=baseY0-14*Math.sin(p*Math.PI);   // name it near the head of the train
     drawPixText(g,"STARLINK",(lwx-(textW("STARLINK")>>1)),(ly+3)|0,"#9fc4ef",0.7); }
+}
+// A SKY FULL OF SATELLITES — on a clear dark night dozens of faint points drift steadily across (there
+// really ARE thousands up there, and hundreds are catchable over an evening). These aren't individually
+// real (per-satellite orbital data can't be fetched cross-origin from the desktop app), so it's a plausible
+// field rather than the true catalogue — but it fills the sky so there's always plenty to spot, and the
+// REAL ISS (drawSatellite) still crosses at its true position, labelled, when it's genuinely overhead.
+// STEADY (never twinkle — that's the tell of a satellite vs a star). World-anchored so all screens agree.
+function drawSatelliteField(g,L,now){
+  if(NOLIVESKY || L>0.24 || cityPhase==="apoc") return;                 // deep, clear night only
+  var fade=Math.min(1,(0.24-L)/0.10), N=44;
+  g.globalCompositeOperation="lighter";
+  for(var i=0;i<N;i++){ var h=((i*2654435761+0x5A71)>>>0);
+    var period=88000+(h%86000), idx=Math.floor((now+h)/period), ph=((now+h)%period)/period;
+    var seed=((idx*40503+i*97)>>>0); if((seed%6)===0) continue;         // ~5/6 are up on any given pass
+    var dir=(seed&1)?1:-1, slant=(((seed>>1)%40)-20)/100;
+    var y0=6+((seed>>6)%Math.max(1,Math.round(HORIZON*0.72)));
+    var travelled=(dir>0?ph:1-ph), wx=travelled*WW, y=y0+travelled*slant*HORIZON;
+    var mag=0.62+((seed>>12)%55)/100;                                    // brighter than background stars so the field READS as satellites; a few are ISS-bright
+    var tl=(mag>0.95)?2:1;                                               // the brightest few leave a longer streak
+    for(var w=-1;w<=1;w++){ var X=(wx-WOFF+w*WW)|0; if(X<-2||X>SW+1) continue;
+      g.fillStyle="rgba(226,238,255,"+Math.min(1,mag*fade).toFixed(3)+")"; g.fillRect(X,y|0,1,1);
+      for(var tt=1;tt<=tl;tt++){ g.fillStyle="rgba(190,214,255,"+(mag*fade*0.4/tt).toFixed(3)+")"; g.fillRect(X-dir*tt,(y-(slant>0?tt:0))|0,1,1); } } }   // a directional trail = the moving-point tell of a satellite (vs a twinkling star)
+  g.globalCompositeOperation="source-over";
 }
 // an occasional lone shooting star (distinct from the dated showers) — and someone below makes a wish (a rising heart)
 function drawShootingStar(g,L,now){
@@ -12325,7 +12373,8 @@ function draw(g,pass){
   if(curSpace>0.4 && !nukeFull()) drawExodus(g,L,now);         // crewed departures → the exodus to the colonies
   drawAurora(g,nd,L,now,fx);                    // rare frigid-night light show
   drawShower(g,nd,L,now,fx);                    // real-date meteor showers
-  drawSatellite(g,L,now);                       // a satellite/ISS ghosting steadily across the dark sky
+  drawSatelliteField(g,L,now);                  // the whole sky of drifting satellites (dozens, faint & steady)
+  drawSatellite(g,L,now);                       // the REAL ISS at its true position (labelled) when overhead
   drawStarlinkTrain(g,L,now);                   // a Starlink "train" glides over on some nights
   drawShootingStar(g,L,now);                    // the occasional wish-worthy shooting star
   drawGodRays(g,L,now,fx);                      // crepuscular sunbeams through broken cloud
