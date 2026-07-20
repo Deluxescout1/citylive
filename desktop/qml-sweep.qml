@@ -39,6 +39,10 @@ Item {
             // THE ORDER — regime HUD/banner/ticker across all 6 stages (day+night)
             for (var rg = 1; rg <= 6; rg++) jobs.push({ age: 0.66, clock: [clk, night][rg % 2],
                 regime: { active: true, stage: rg, sub: 0.5, party: { k: "THE ORDER", c: "#c0182a" }, leaderName: "CHANCELLOR VOSS", path: "revolution", cyStart: 0.42, cyEnd: 0.80 } });
+            // THE FESTIVAL — World's Fair wheel/bunting/monorail/monument/HUD across all 5 stages (day+night),
+            // so the stroke/arc-heavy Ferris wheel + globe draw bodies actually EXECUTE on the QML Canvas
+            for (var ft = 1; ft <= 5; ft++) jobs.push({ age: 0.66, clock: [clk, night][ft % 2],
+                festival: { active: true, stage: ft, sub: 0.5, festivity: 0.7, theme: "WORLD", cyStart: 0.44, cyEnd: 0.83 } });
             // weather spectacle — thunderstorm+lightning strike & god-rays (broken cloud) draw paths
             jobs.push({ age: 0.7, clock: night, weather: { code: 95, cloud: 92, wind: 26, temp: 60, precip: 8 }, lightning: 0.85 });
             jobs.push({ age: 0.7, clock: clk, weather: { code: 3, cloud: 50, wind: 8, temp: 68, precip: 0 } });
@@ -54,6 +58,7 @@ Item {
                 City.FORCEEVENT = (jobs[j].event !== undefined ? jobs[j].event : null);
                 City.FORCEELECT = (jobs[j].civics !== undefined ? { civics: jobs[j].civics } : null);
                 City.FORCEREGIME = (jobs[j].regime !== undefined ? jobs[j].regime : null);
+                City.FORCEFESTIVAL = (jobs[j].festival !== undefined ? jobs[j].festival : null);
                 if (jobs[j].weather !== undefined) { for (var wk in jobs[j].weather) City.weather[wk] = jobs[j].weather[wk]; }
                 if (jobs[j].lightning !== undefined) City.lightning = jobs[j].lightning;
                 try { City.draw(g); }

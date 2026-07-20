@@ -156,7 +156,7 @@ function resetNotifLanes(){ for(var r=0;r<_notifTaken.length;r++) _notifTaken[r]
 var CLOCK = null;   // test-harness override: ms timestamp for time-of-day (null = real wall clock)
 var NOWOVR = null;  // test-harness override: ms value returned as Date.now() inside draw() (null = real)
 var NOFETCH = false;  // headless flag (own line = QML-namespace writable): almanac callers set this so setup() makes NO network calls
-var VERSION = "1.36.0";  // the build the user is running — surfaced in the Almanac + KDE config page (keep in sync with desktop/package.json)
+var VERSION = "1.37.0";  // the build the user is running — surfaced in the Almanac + KDE config page (keep in sync with desktop/package.json)
 var FORCELAYOUT = null;   // test hook: pin every building's window layout (grid/ribbon/band/punch/corp) — verify per-layout render
 var FORCECROWN = null;    // test hook: pin every building's crown/roof (gable/hip/saltbox/mansard/deco/…) — verify per-roof render
 var FORCEUSE = null;      // test hook: pin every building's functional type (hospital/theater/hotel/bank/cafe/pharmacy) — verify drawUse
@@ -2952,6 +2952,7 @@ function fireworksLevel(nd,L){
   var lvl=0;
   if(m===7&&(d>=3&&d<=5)) lvl=(d===4)?2:1;                      // the 4th gets the grand show; 3rd & 5th still celebrate
   if((m===12&&d===31&&h>=18)||(m===1&&d===1&&h<3)) lvl=2;        // New Year's Eve into the small hours
+  if(curFestival&&curFestival.active&&curFestival.stage===3) lvl=Math.max(lvl,2);   // THE FESTIVAL's GRAND OPENING lights the sky (reuses the whole polished show)
   if(lvl>0&&((Math.floor(nd.getMinutes()/2))%4===0)) lvl++;      // FINALE waves every few minutes
   return lvl;
 }
@@ -3265,6 +3266,18 @@ function drawPlagueHud(g,now,night){
   g.fillStyle=col+(0.28*a)+")"; g.fillRect(x0-2,ty-3,W+4,11);                                        // wash → reads as an alert
   drawPlagueEmblem(g,x0+3,ty+2,3,zomb?"#eaffea":recovered?"#eafff0":"#fff4d8",zomb?"#3a8a1e":recovered?"#2fa85a":"#c04a10");
   drawUiText(g,full,x0+ew,ty,zomb?"#e6ffd6":recovered?"#d6ffe2":"#ffeecc",1);
+}
+// THE FESTIVAL's celebratory GOLD banner while the World's Fair is on (a happy shimmer, not an alarm blink)
+function drawFestivalHud(g,now,night){
+  var F=curFestival; if(!F||!F.active) return;
+  var full=F.theme+" EXPO - "+FESTIVAL_STAGE_LABEL[F.stage], col="rgba(255,196,64,";
+  var pulse=0.82+0.18*Math.sin(now*0.004);                             // gentle celebratory shimmer
+  var tw=textW(full), ew=9, W=ew+tw+4, cx=(SW>>1), ty=notifLane(0), x0=(cx-(W>>1))|0;
+  g.fillStyle="rgba(10,6,2,0.85)"; g.fillRect(x0-2,ty-3,W+4,11);
+  g.fillStyle=col+(0.95*pulse).toFixed(3)+")"; g.fillRect(x0-2,ty-4,W+4,1); g.fillRect(x0-2,ty+7,W+4,1);   // rails
+  g.fillStyle=col+(0.24*pulse).toFixed(3)+")"; g.fillRect(x0-2,ty-3,W+4,11);                              // gold wash
+  drawFestivalEmblem(g,x0+3,ty+2,3,"#fff0c0");
+  drawUiText(g,full,x0+ew,ty,"#ffeeba",1);
 }
 // THE ORDER's crimson BANNERS hang down the facades once the dictatorship takes hold (stage 3+, dense at 5)
 // ---- v1.24 TOTAL CONTROL — a rooftop flag flying from a tower top (waving crimson pennant + emblem)
@@ -3785,6 +3798,115 @@ function drawPlague(g,L,now,night){
     drawMemorial(g,L,now);       // the candlelight memorial
     drawPlagueCelebration(g,L,now);// …then at REOPENING, the jubilant maskless crowd + confetti
   }
+}
+// ===== THE FESTIVAL — the World's Fair set-pieces (all gated on curFestival.active; mutually exclusive
+// with war/regime/plague). Lead element = the GREAT WHEEL (tall, sky-level → always reads); pavilions &
+// monorail sit at its foot (partly occluded by the skyline, kept simple, per the airport-terminal lesson).
+// The legacy MONUMENT is unveiled DURING the CLOSING stage — never persisted past cyEnd (would break the
+// containment byte-identical guard). =====
+var FEST_CABIN=["255,90,90","255,180,60","120,220,120","90,180,255","220,120,255","255,230,90"];   // festive cabin/light palette
+function festGroundX(){ return Math.round(WW*0.50); }               // the fairgrounds' world x (draw-over, no footprint reserved)
+function drawFestivalEmblem(g,cx,cy,r,fg){                          // a small radiant sunburst mark
+  g.fillStyle=fg; for(var a=0;a<8;a++){ var an=a*Math.PI/4; g.fillRect((cx+Math.cos(an)*r)|0,(cy+Math.sin(an)*r)|0,1,1); }
+  g.fillRect(cx-1,cy,3,1); g.fillRect(cx,cy-1,1,3);
+}
+// pennant bunting strung in catenary arcs across the skyline — the whole city dresses up for the fair
+// pennant garlands strung ROOFTOP-TO-ROOFTOP between the front-row buildings (attached to real structures,
+// following the skyline) — the whole city dresses up for the fair. Each string ties off on two roofs and droops.
+function drawFestivalBunting(g,L,now){
+  var F=curFestival; if(!F||!F.active||!near||!near.blds||near.blds.length<2) return;
+  var night=1-L;
+  var tops=[];                                                                       // roof anchor points (world x, roof y)
+  for(var i=0;i<near.blds.length;i++){ var b=near.blds[i]; if(b.type==="park"||b.h<10) continue;
+    tops.push({x:b.x+(b.w>>1), y:near.y0-b.h}); }
+  if(tops.length<2) return;
+  tops.sort(function(a,c){return a.x-c.x;});
+  for(var k=0;k<tops.length-1;k++){ var A=tops[k], B=tops[k+1];
+    var gap=B.x-A.x; if(gap<7||gap>Math.round(SW*0.45)) continue;                     // skip touching pairs & huge (seam-spanning) gaps
+    var sag=Math.min(13, 4+gap*0.11), steps=Math.max(2,Math.round(gap/4));            // longer spans droop more
+    for(var w=-1;w<=1;w++){ var ax=A.x-WOFF+w*WW, bx=B.x-WOFF+w*WW;
+      if((ax<-4&&bx<-4)||(ax>SW+4&&bx>SW+4)) continue;
+      for(var t=0;t<=steps;t++){ var u=t/steps,
+          px=ax+(bx-ax)*u, lineY=A.y+(B.y-A.y)*u, py=lineY+Math.sin(u*Math.PI)*sag;   // straight roof-to-roof line + catenary droop below it
+        if(px<-2||px>SW+2) continue;
+        var col=FEST_CABIN[(t+k)%FEST_CABIN.length];
+        g.fillStyle="rgb("+col+")"; g.fillRect(px|0,py|0,2,3);                        // triangular pennant hanging off the string
+        g.fillStyle="rgba("+col+",0.5)"; g.fillRect(px|0,(py+3)|0,1,1);
+        if(night>0.4){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba("+col+",0.5)"; g.fillRect(px|0,py|0,2,2); g.globalCompositeOperation="source-over"; } }
+      g.fillStyle=L>0.5?"#cfc8b8":"#6a6458"; g.fillRect(ax|0,(A.y-1)|0,1,2); g.fillRect(bx|0,(B.y-1)|0,1,2); }   // a tie-off knot on each roof
+  }
+}
+// the GREAT WHEEL — the fair's signature, tall & sky-level so it always reads; rises through BUILD, spins
+// & lights up once the fair is OPEN. Colourful cabins glow at night.
+function drawFerrisWheel(g,L,now){
+  var F=curFestival; if(!F||!F.active||F.stage<2) return;           // starts rising at BUILD (stage 2)
+  var rise=F.stage>=3?1:Math.max(0.15,Math.min(1,F.sub)), night=1-L;
+  var gx=festGroundX(), R=Math.round(37*rise); if(R<5) return;
+  var hubY=HORIZON-6-Math.round(44*rise), spin=F.stage>=3?now*0.0006:0;
+  for(var w=-1;w<=1;w++){ var cx=gx-WOFF+w*WW; if(cx<-R-8||cx>SW+R+8) continue;
+    g.strokeStyle=L>0.5?"rgba(150,160,175,0.75)":"rgba(96,108,130,0.75)"; g.lineWidth=1;         // A-frame supports to the ground
+    g.beginPath(); g.moveTo(cx-R*0.5,HORIZON); g.lineTo(cx,hubY); g.lineTo(cx+R*0.5,HORIZON); g.stroke();
+    g.strokeStyle=L>0.5?"rgba(205,213,225,0.9)":"rgba(150,165,190,0.85)";                         // rim
+    g.beginPath(); g.arc(cx,hubY,R,0,2*Math.PI); g.stroke();
+    var NC=12; for(var c=0;c<NC;c++){ var an=spin+c*2*Math.PI/NC, ex=cx+Math.cos(an)*R, ey=hubY+Math.sin(an)*R;
+      g.strokeStyle=L>0.5?"rgba(180,190,205,0.45)":"rgba(120,135,160,0.5)"; g.beginPath(); g.moveTo(cx,hubY); g.lineTo(ex,ey); g.stroke();   // spoke
+      var col=FEST_CABIN[c%FEST_CABIN.length];
+      if(night>0.35&&F.stage>=3){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba("+col+",0.85)"; g.fillRect((ex-1)|0,(ey-1)|0,3,3); g.globalCompositeOperation="source-over"; }
+      g.fillStyle="rgb("+col+")"; g.fillRect((ex-1)|0,(ey-1)|0,2,2); }                            // cabin
+    g.fillStyle=L>0.5?"#e8ecf2":"#aab4c8"; g.fillRect((cx-1)|0,(hubY-1)|0,3,3);                    // hub
+  }
+}
+// the fairgrounds at the wheel's foot: colourful dome/tent pavilions, a monorail on pylons, warm crowd glow.
+// Ground-level → partly occluded by the skyline (kept simple on purpose).
+function drawFestivalGrounds(g,L,now,night){
+  var F=curFestival; if(!F||!F.active||F.stage<2) return;
+  var build=F.stage===2?F.sub:1, gx=festGroundX(), gy=HORIZON;
+  for(var w=-1;w<=1;w++){ var bx=gx-WOFF+w*WW; if(bx<-70||bx>SW+70) continue;
+    // three pavilions of different colours, heights scaling in during BUILD
+    for(var p=0;p<3;p++){ var px=bx-34+p*30, ph=Math.round((8+p*3)*build), pw=14-p*2;
+      if(ph<2) continue; var col=FEST_CABIN[(p*2)%FEST_CABIN.length];
+      g.fillStyle=L>0.5?"rgb("+col+")":"rgba("+col+",0.55)"; g.fillRect((px-(pw>>1))|0,(gy-ph)|0,pw,ph);   // pavilion body
+      g.fillStyle=L>0.5?"#eef2f8":"rgba(230,238,250,0.6)";                                                 // domed roof
+      for(var dr=0;dr<(pw>>1)+1;dr++){ g.fillRect((px-(pw>>1)+dr)|0,(gy-ph-dr)|0,pw-dr*2,1); }
+      g.fillStyle="rgb("+FEST_CABIN[(p*2+3)%FEST_CABIN.length]+")"; g.fillRect(px|0,(gy-ph-(pw>>1)-2)|0,1,2);  // pennant on top
+      if(night>0.4){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,236,180,"+(0.16*build).toFixed(2)+")"; fillEllipse(g,px,gy-2,pw,4); g.globalCompositeOperation="source-over"; }   // window/entrance glow
+    }
+    // MONORAIL — a slim elevated track on pylons sweeping across the grounds, a pod gliding (open+)
+    if(F.stage>=2){ var mrY=gy-Math.round(14*build);
+      g.fillStyle=L>0.5?"#9aa4b4":"#4a5464"; g.fillRect((bx-44)|0,mrY|0,88,1);                             // track
+      for(var py2=-44;py2<=44;py2+=22){ g.fillStyle=L>0.5?"#8a94a4":"#3e4856"; g.fillRect((bx+py2)|0,mrY|0,1,gy-mrY); }  // pylons
+      if(F.stage>=3){ var pod=((now*0.02)%88)-44; g.fillStyle="#dfe8f6"; g.fillRect((bx+pod)|0,(mrY-2)|0,7,3);           // gliding pod
+        g.fillStyle="rgba(120,200,255,0.9)"; g.fillRect((bx+pod+1)|0,(mrY-1)|0,5,1); } }
+    // warm crowd glow on the ground while the fair is open
+    if(F.stage>=3&&night>0.3){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,214,150,0.10)"; fillEllipse(g,bx,gy,52,6); g.globalCompositeOperation="source-over"; }
+  }
+}
+// the legacy MONUMENT — a slim spire crowned with a lit sphere (a Unisphere/Needle motif), UNVEILED during
+// the CLOSING ceremony: it rises out of scaffolding as sub climbs, then stands lit. Gated to stage 5 only.
+function drawFestivalMonument(g,L,now){
+  var F=curFestival; if(!F||!F.active||F.stage!==5) return;
+  var reveal=Math.min(1,F.sub/0.6), night=1-L, gx=festGroundX()+40, gy=HORIZON;
+  var H=Math.round(46*reveal); if(H<3) return;
+  for(var w=-1;w<=1;w++){ var cx=gx-WOFF+w*WW; if(cx<-8||cx>SW+8) continue;
+    g.fillStyle=L>0.5?"#c8ccd4":"#6a7080"; g.fillRect((cx-1)|0,(gy-H)|0,2,H);                     // the spire
+    g.fillStyle=L>0.5?"#e6e9f0":"#8a90a0"; g.fillRect((cx-1)|0,(gy-H)|0,1,H);                     // lit edge
+    var sr=3+Math.round(2*reveal), sy=gy-H-sr;                                                    // crowning sphere
+    g.strokeStyle=L>0.5?"rgba(150,200,235,0.85)":"rgba(120,180,235,0.85)"; g.lineWidth=1;
+    g.beginPath(); g.arc(cx,sy,sr,0,2*Math.PI); g.stroke();                                       // globe outline (meridians)
+    g.beginPath(); g.moveTo(cx-sr,sy); g.lineTo(cx+sr,sy); g.stroke();
+    g.beginPath(); g.arc(cx,sy,Math.max(1,sr*0.55),0,2*Math.PI); g.stroke();
+    if(night>0.25){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(150,210,255,"+(0.5*reveal).toFixed(2)+")"; fillEllipse(g,cx,sy,sr+2,sr+2);   // beacon glow
+      g.fillStyle="rgba(255,244,210,0.5)"; g.fillRect((cx-1)|0,gy-2,2,2); g.globalCompositeOperation="source-over"; }   // a lamp at the spire base
+    if(reveal<1){ g.fillStyle=L>0.5?"rgba(150,120,70,0.7)":"rgba(90,72,44,0.7)";                  // scaffolding while it's unveiled
+      g.fillRect((cx-4)|0,(gy-H)|0,1,H); g.fillRect((cx+3)|0,(gy-H)|0,1,H); }
+  }
+}
+function drawFestival(g,L,now,night){
+  var F=curFestival; if(!F||!F.active) return;
+  drawFestivalBunting(g,L,now);            // pennants across the skyline (all stages)
+  drawFestivalGrounds(g,L,now,night);      // pavilions + monorail + crowd glow (BUILD onward)
+  drawFerrisWheel(g,L,now);                // the great wheel (BUILD onward) — the signature, sky-level
+  if(F.stage===5) drawFestivalMonument(g,L,now);   // the legacy monument, UNVEILED at the closing ceremony
 }
 function drawRegime(g,L,now,night){
   if(!curRegime||!curRegime.active) return;
@@ -6599,6 +6721,7 @@ var CORP_TAGLINES=["THE FUTURE IS NOW","SAVE BIG TODAY","EVERYONE IS SWITCHING",
   "LIVE BETTER","IT JUST WORKS","GRAND OPENING","WE MEAN BUSINESS"];
 function blimpMsg(nd,idx){
   var m=nd.getMonth()+1, day=nd.getDate();       // holidays pre-empt the ad — a civic greeting flies instead
+  if(curFestival&&curFestival.active&&curFestival.stage>=2) return {t:curFestival.theme+" EXPO !", c:[255,196,64]};   // the fair's ad-blimp advertises the World's Fair
   if(m===7&&day>=1&&day<=6) return {t:"HAPPY JULY 4 !", c:[255,92,80]};
   if(m===12&&day>=20) return {t:"HAPPY HOLIDAYS", c:[92,214,120]};
   if(m===1&&day<=2) return {t:"HAPPY NEW YEAR", c:[240,210,80]};
@@ -6973,7 +7096,7 @@ function drawFerris(g,L,now,night){
 // ---- HOT-AIR BALLOONS drift across calm clear skies (daytime) ----
 function drawBalloons(g,L,now,fx){
   if(L<0.42||fx.cloudy||fx.rain||fx.snow||(weather.wind||5)>14) return;             // calm, clear, daylit
-  if(curEvents&&curEvents.balloonfest){                                             // J3: FESTIVAL morning — a sky full of them
+  if((curEvents&&curEvents.balloonfest) || (curFestival&&curFestival.active&&curFestival.stage>=3&&curFestival.stage<=4)){   // J3 balloon FESTIVAL morning — or the World's Fair (OPENING/FAIR): a sky full of them
     var fenv=[[255,90,90],[90,150,255],[255,200,70],[110,220,140],[240,120,220],[120,230,230],[255,150,90]];
     for(var fb2=0;fb2<11;fb2++){ var fh2=((fb2*2654435761+77)>>>0);
       var fwx=wrapW((fh2%1000)/1000*WW + Math.sin(now*0.00035+fb2)*9);
@@ -13184,6 +13307,7 @@ function draw(g,pass){
   if(cityG>0.5) drawElections(g,L,now,night);                // democracy in the streets
   drawRegime(g,L,now,night);                                 // …or THE ORDER's banners + statue when democracy has fallen
   drawPlague(g,L,now,night);                                 // …or THE PLAGUE's field hospitals + ambulances (mutually exclusive with the regime)
+  drawFestival(g,L,now,night);                               // …or THE FESTIVAL's great wheel + fairgrounds (mutually exclusive with war/regime/plague)
   if(cityG>0.45) drawCorpAds(g,L,now,night);                 // street billboards for the current companies (corporate ad presence)
 
   // ---- THE GRAND CATACLYSM ends the city's life every ~month, then it's reborn as wilderness ----
@@ -13385,5 +13509,6 @@ function draw(g,pass){
   drawCivicHud(g,now,night);   // who runs the city + approval + mandates + next-vote countdown, top-right
   drawRegimeHud(g,now,night);  // THE ORDER — the unmistakable alert banner while the takeover is underway
   drawPlagueHud(g,now,night);  // THE PLAGUE — the amber medical alert banner while the pandemic rages
+  drawFestivalHud(g,now,night);// THE FESTIVAL — the celebratory gold expo banner while the World's Fair is on
   drawDoomClock(g,now,night);  // top-left: the exact time this city's fated end will strike, so nobody misses it
 }
