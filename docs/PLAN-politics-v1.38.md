@@ -98,3 +98,23 @@ Two gated versions, building on v1.40's curSlump/drawHardTimes:
   community beats, the crisis receding).
 - Economy-driven emergence (deep/prolonged recession seeds it); mirror the plague arc architecture (pure
   state fn, life-scoped, staged, containment-suppressed via a NO- flag).
+
+## ADDENDUM 2 — SPORTS ARENAS OVERHAUL (Nick-locked 2026-07-20) → v1.43
+- **Real local teams, real names**, by DISTANCE from the user's detected location (Norwich CT → Boston+NY:
+  Celtics, Red Sox/Yankees, Bruins, Rangers/Islanders, Patriots/Giants/Jets…). Every city shows the USER's
+  teams (like real weather). Build a team dataset (NBA/MLB/NHL/NFL, each with metro lat/lon) → nearest-per-
+  sport by haversine to user coords; if the state has none / several are close, randomly pick among the few
+  closest (stable per life).
+- **One arena per sport (4): a SPORTS DISTRICT** that appears as the city matures.
+- **4 DISTINCT venues** (revamp the single drawStadium at LM_STADIUM=0.63): baseball PARK (open diamond +
+  outfield), domed BASKETBALL/indoor arena, HOCKEY rink arena, football BOWL — recognizable by silhouette,
+  each named + team-coloured for its real team. Existing: teamOf(li,era) procedural team + drawStadium bowl.
+
+## ADDENDUM 3 — APOCALYPSE ONLY WHILE PC IS ON (Nick-locked 2026-07-20) → own version
+End-time disasters must only fire while the PC is ON. If an apoc is scheduled during off/sleep time, it
+should play a LITTLE AFTER the PC turns back on (so the user never misses it). Currently the apoc is a pure
+f(clock) at cy 0.955 → if the PC is off during that window the user resumes to a dead/reborn city and misses
+it. Implementation: detect a large inter-frame time gap (PC was asleep/off); if the gap crossed the apoc
+run-up unwitnessed, DEFER the apoc to ~N sec after resume (persist a per-life apoc-time offset). The DOOMSDAY
+CLOCK (v1.21, apocAtOf) MUST reflect the deferred strike time. Delicate (breaks pure-f(now) for the apoc,
+needs persisted state + time-gap detection) → build in isolation, test resume scenarios.

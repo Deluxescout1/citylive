@@ -43,6 +43,10 @@ Item {
             // so the stroke/arc-heavy Ferris wheel + globe draw bodies actually EXECUTE on the QML Canvas
             for (var ft = 1; ft <= 5; ft++) jobs.push({ age: 0.66, clock: [clk, night][ft % 2],
                 festival: { active: true, stage: ft, sub: 0.5, festivity: 0.7, theme: "WORLD", cyStart: 0.44, cyEnd: 0.83 } });
+            // THE ADDICTION CRISIS — addict figures/clusters + clinic/van/crackdown/recovery + HUD across all 5
+            // stages (day+night, treatment & crackdown paths), so those draw bodies EXECUTE on the QML Canvas
+            for (var ad = 1; ad <= 5; ad++) for (var ck = 0; ck < 2; ck++) jobs.push({ age: 0.7, clock: [clk, night][ad % 2],
+                addict: { active: true, stage: ad, sub: 0.5, severity: ad >= 3 ? 0.9 : 0.5, crackdown: ck === 1, cyStart: 0.45, cyEnd: 0.86, li: 1, seed: 12345 } });
             // weather spectacle — thunderstorm+lightning strike & god-rays (broken cloud) draw paths
             jobs.push({ age: 0.7, clock: night, weather: { code: 95, cloud: 92, wind: 26, temp: 60, precip: 8 }, lightning: 0.85 });
             jobs.push({ age: 0.7, clock: clk, weather: { code: 3, cloud: 50, wind: 8, temp: 68, precip: 0 } });
@@ -59,6 +63,7 @@ Item {
                 City.FORCEELECT = (jobs[j].civics !== undefined ? { civics: jobs[j].civics } : null);
                 City.FORCEREGIME = (jobs[j].regime !== undefined ? jobs[j].regime : null);
                 City.FORCEFESTIVAL = (jobs[j].festival !== undefined ? jobs[j].festival : null);
+                City.FORCEADDICT = (jobs[j].addict !== undefined ? jobs[j].addict : null);
                 if (jobs[j].weather !== undefined) { for (var wk in jobs[j].weather) City.weather[wk] = jobs[j].weather[wk]; }
                 if (jobs[j].lightning !== undefined) City.lightning = jobs[j].lightning;
                 try { City.draw(g); }

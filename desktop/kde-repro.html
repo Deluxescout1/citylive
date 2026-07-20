@@ -57,6 +57,7 @@ if(Q.get('nopartyfx')==='1'){ NOPARTYFX=true; }   // suppress the persistent par
 if(Q.get('noeconfx')==='1'){ NOECONFX=true; }   // suppress the hard-times street decay (containment byte-identical)
 if(Q.get('slump')!=null){ FORCESLUMP=qn('slump',0.8); }   // force the recession depth 0..1
 if(Q.get('party')){ FORCEELECT=Object.assign(FORCEELECT||{},{partyK:Q.get('party')}); }   // force the mayor's party (GREENS/TRANSIT/SAFETY/BUILDERS) — test the hard-times response
+if(Q.get('addict')!=null){ var _as=parseInt(Q.get('addict'),10)||1; FORCEADDICT={active:true,stage:_as,sub:qn('asub',0.5),severity:qn('asev',_as>=3?0.9:0.5),crackdown:Q.get('acrack')==='1',cyStart:0.45,cyEnd:0.86,li:1,seed:12345}; }   // force the addiction crisis at a stage
 if(Q.get('greens')!=null||Q.get('builders')!=null||Q.get('safety')!=null||Q.get('transit')!=null){   // force party-legacy levels for render tests
   FORCEPARTYLEG={ GREENS:qn('greens',0), BUILDERS:qn('builders',0), SAFETY:qn('safety',0), TRANSIT:qn('transit',0) }; }
 if(Q.get('starlink')!=null){ FORCESTARLINK=qn('starlink',0.5); }   // force a Starlink train mid-pass

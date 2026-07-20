@@ -156,7 +156,7 @@ function resetNotifLanes(){ for(var r=0;r<_notifTaken.length;r++) _notifTaken[r]
 var CLOCK = null;   // test-harness override: ms timestamp for time-of-day (null = real wall clock)
 var NOWOVR = null;  // test-harness override: ms value returned as Date.now() inside draw() (null = real)
 var NOFETCH = false;  // headless flag (own line = QML-namespace writable): almanac callers set this so setup() makes NO network calls
-var VERSION = "1.41.0";  // the build the user is running — surfaced in the Almanac + KDE config page (keep in sync with desktop/package.json)
+var VERSION = "1.42.0";  // the build the user is running — surfaced in the Almanac + KDE config page (keep in sync with desktop/package.json)
 var FORCELAYOUT = null;   // test hook: pin every building's window layout (grid/ribbon/band/punch/corp) — verify per-layout render
 var FORCECROWN = null;    // test hook: pin every building's crown/roof (gable/hip/saltbox/mansard/deco/…) — verify per-roof render
 var FORCEUSE = null;      // test hook: pin every building's functional type (hospital/theater/hotel/bank/cafe/pharmacy) — verify drawUse
@@ -6343,6 +6343,7 @@ function tickerMsg(now){
   var rgm=regimeTicker(now); if(rgm && (Math.floor(now/12000))%4!==0) return rgm;   // THE ORDER dominates the news (3 of 4 slots) while the takeover is underway
   var pgm=plagueTicker(now); if(pgm && (Math.floor(now/12000))%4!==0) return pgm;   // THE PLAGUE dominates the news while the pandemic rages (mutually exclusive with the regime)
   var ftm=festivalTicker(now); if(ftm && (Math.floor(now/12000))%4!==0) return ftm;  // THE FESTIVAL's expo news while the World's Fair is on (mutually exclusive with war/regime/plague)
+  var adm=addictionTicker(now); if(adm && (Math.floor(now/12000))%4!==0) return adm;  // THE ADDICTION CRISIS dominates the news while it rages (mutually exclusive with the others)
   var fx=wfx();
   if(fireBurning) return "WILDFIRE ON THE RIDGE - STAY CLEAR OF THE TREELINE";
   if(iceNow) return "THE BAY IS FROZEN - SKATE AT YOUR OWN JOY";
@@ -10026,6 +10027,39 @@ function festivalState(now){
   return { active:true, stage:stage, sub:sub, festivity:festivity, theme:theme, cyStart:ST[0], cyEnd:cyEnd, li:li, seed:fh };
 }
 var curFestival=null;   // set each frame; the whole festival arc reads this
+// ===== THE ADDICTION CRISIS — v1.42. A slow social epidemic (opioid/addiction) that GROWS out of hard
+// times: it starts among the homeless in the camps and SPREADS citywide, becoming a public-health emergency
+// before the city fights it back. Its own escalating arc, mirroring THE PLAGUE architecture: pure f(clock),
+// life-scoped, MUTUALLY EXCLUSIVE with war/regime/plague/festival (yields to ALL of them → OVERLAP 0). Depicted
+// TASTEFULLY & IMPLIED (no gore, no drug use/paraphernalia): gaunt, grey, slumped/swaying figures + the city's
+// RESPONSE. Every draw gated on curAddiction.active → byte-identical on the ~96% of lives without it. =====
+var ADDICT_SALT=0x0ADD1C7;                                          // "Addict" — isolated hash stream
+var ADDICT_STAGES=[0.45,0.52,0.60,0.68,0.78,0.86];               // 5 stages then RECOVERED (the city heals)
+var ADDICT_STAGE_LABEL=["","EMERGING","SPREADING","EPIDEMIC","PUBLIC HEALTH EMERGENCY","RECOVERY"];
+var FORCEADDICT=null;                                              // test hook (own line — QML-namespace writable)
+function addictionState(now){
+  if(FORCEADDICT) return FORCEADDICT;
+  var cg=cityGrowth(now); if(cg.g<0.40||cg.phase==="apoc") return null;   // real cities only, never the apocalypse
+  var li=lifeIndexOf(now), cy=cg.cy;
+  if(((li*2654435761+7717)>>>0)%100 < 62) return null;            // YIELD to war lives
+  var rh=((((li*2654435761)>>>0) ^ REGIME_SALT)>>>0);
+  if((rh%100) < 37) return null;                                  // YIELD to REGIME lives
+  var ph=((((li*2654435761)>>>0) ^ PLAGUE_SALT)>>>0);
+  if((ph%100) < 45) return null;                                  // YIELD to PLAGUE lives
+  var fh=((((li*2654435761)>>>0) ^ FESTIVAL_SALT)>>>0);
+  if((fh%100) < 50) return null;                                  // YIELD to FESTIVAL lives
+  var ah=((((li*2654435761)>>>0) ^ ADDICT_SALT)>>>0);
+  if((ah%100) >= 62) return null;                                 // addiction claims ~62% of what's left → ~4% overall (a special arc)
+  var ST=ADDICT_STAGES, cyEnd=ST[5];
+  if(cy<ST[0] || cy>=cyEnd) return null;                          // NORMAL before it emerges & after recovery (life-scoped)
+  var stage=1; for(var s=1;s<5;s++){ if(cy>=ST[s]) stage=s+1; }
+  var sub=Math.max(0,Math.min(1,(cy-ST[stage-1])/(ST[stage]-ST[stage-1])));
+  var prog=(cy-ST[0])/(ST[5]-ST[0]);                              // 0 emerging → 1 recovered
+  var severity=Math.max(0,Math.min(1, prog<0.62?prog/0.62:1-(prog-0.62)/0.38));   // climbs to the EMERGENCY, then recovery pulls it down
+  var crackdown=((ah>>>15)&1)===1;                                // this life's path: some cities treat it as CRIME (a SAFETY-style crackdown) rather than health
+  return { active:true, stage:stage, sub:sub, severity:severity, crackdown:crackdown, cyStart:ST[0], cyEnd:cyEnd, li:li, seed:ah };
+}
+var curAddiction=null;   // set each frame; the whole addiction arc reads this
 // explicit per-stage EXPO news — shares the ticker while the fair is on (a celebratory beat between city stories)
 function festivalTicker(now){
   var F=curFestival; if(!F||!F.active) return null;               // early-out on non-festival lives → byte-identical ticker there
@@ -10071,6 +10105,20 @@ function plagueTicker(now){
     S[5]=["OVERRUN - "+cityName+" HAS FALLEN TO THE HORDE","THE DEAD OWN THE CITY NOW","NO ESCAPE - THE OUTBREAK IS TOTAL"];
   }
   var arr=S[P.stage]||["PLAGUE"]; return arr[((slow%arr.length)+arr.length)%arr.length];
+}
+// THE ADDICTION CRISIS ticker — tasteful, focused on the crisis + the RESPONSE (never glorifying it).
+function addictionTicker(now){
+  var A=curAddiction; if(!A||!A.active) return null;
+  var slow=Math.floor(now/12000), cd=A.crackdown;
+  var S={
+    1:["A NEW ADDICTION CRISIS TAKES HOLD IN THE CAMPS","OUTREACH WORKERS SOUND THE ALARM DOWNTOWN","OVERDOSE CALLS RISE ACROSS "+cityName],
+    2:["THE CRISIS SPREADS BEYOND THE CAMPS - CITYWIDE","OPIOID CRISIS DECLARED IN "+cityName,cd?"CITY VOWS A CRACKDOWN ON THE STREETS":"CLINICS OPEN AS THE NEED GROWS"],
+    3:["EPIDEMIC - "+cityName+" STRUGGLES TO COPE",cd?"POLICE SWEEPS REPLACE TREATMENT - ADVOCATES WARN":"NARCAN TEAMS WORK AROUND THE CLOCK","A GENERATION CAUGHT IN THE CRISIS"],
+    4:["PUBLIC HEALTH EMERGENCY DECLARED",cd?"THE CRACKDOWN DEEPENS THE CRISIS - EXPERTS SAY":"EVERY HAND ON DECK - THE CITY MOBILIZES","RECOVERY CENTERS OVERWHELMED BUT FIGHTING"],
+    5:(A.sub<0.6?["THE TIDE TURNS - RECOVERY TAKES ROOT","MORE ENTER TREATMENT THAN EVER BEFORE","HOPE RETURNS TO THE STREETS OF "+cityName]
+              :["A CITY IN RECOVERY - "+cityName+" HEALS","THE SOBER COMMUNITY GROWS STRONGER","REMEMBERING THOSE LOST - "+cityName+" ENDURES"])
+  };
+  var arr=S[A.stage]||["ADDICTION CRISIS"]; return arr[((slow%arr.length)+arr.length)%arr.length];
 }
 function mayorState(now){
   var cg2=cityGrowth(now); if(cg2.g<0.35||cg2.phase==="apoc") return null;   // no politics in a hamlet or an inferno
@@ -10622,6 +10670,91 @@ function drawShelter(g,L,now,y){
   var qn=4+((Math.floor(now/2000))%3);                                       // a served line outside
   for(var q=0;q<qn;q++){ var qx=x-14-q*4; if(qx<-4) break; drawHFigure(g,qx,y,["#e8b890","#c98a5e","#8a5a3a"][q%3],["#4a5a6a","#5a4a4a","#4a4a5a"][q%3],0); }
   g.fillStyle=L>0.5?"#c9a85a":"#8a7440"; g.fillRect(x+6,y-6,4,2);            // a soup pot / serving table
+}
+// ---- THE ADDICTION CRISIS visuals (v1.42) — TASTEFUL & IMPLIED (no gore, no drugs/paraphernalia). ----
+// A gaunt, GREY, slumped/swaying figure — CLEARLY distinct from the upright, colourful, striding pedestrians
+// (Nick: "actually see a difference between normal people and the addicts"). Head HANGS forward & down.
+function drawAddict(g,x,y,now,seed){
+  var X=x|0, nod=Math.floor(now/450+seed)%4, lean=(nod===1)?1:(nod===3?-1:0);   // slow, unsteady sway
+  // DRAINED-OF-COLOUR palette — sickly grey-green skin + muted grey clothes → reads as "washed out" among
+  // the vibrant crowd (the clearest tasteful tell at this scale). Deeply HUNCHED (a C-curl), head below the
+  // shoulders. No drugs/paraphernalia — implied only.
+  var pal="#8f978c", palsh="#6e766a", cloth=["#3e4038","#44423a","#3a3e40","#403c3a"][seed%4];
+  if(seed%2===0){                                            // slumped SITTING low against the wall — a low huddle, a distinct silhouette vs upright walkers
+    g.fillStyle=cloth; g.fillRect(X-1,y-2,5,2);              // low huddled body
+    g.fillStyle=cloth; g.fillRect(X,y-3,3,1);
+    g.fillStyle=pal; g.fillRect(X+1,y-4,2,1); g.fillStyle=palsh; g.fillRect(X+1,y-4,1,1);   // bowed head
+    g.fillStyle="#242028"; g.fillRect(X+2,y-4,1,1);
+  } else {                                                   // STANDING but deeply hunched, head dropped forward BELOW the shoulder line, swaying
+    g.fillStyle=cloth; g.fillRect(X-1+lean,y-3,4,1);         // hunched shoulders sit HIGH…
+    g.fillStyle=cloth; g.fillRect(X+lean,y-2,3,2);           // curled torso
+    g.fillStyle=pal; g.fillRect(X+2+lean,y-3,2,1);           // …the head hangs FORWARD & DOWN, at shoulder level (never the upright head of drawPerson)
+    g.fillStyle=palsh; g.fillRect(X+2+lean,y-3,1,1);
+    g.fillStyle="#242028"; g.fillRect(X+3+lean,y-3,1,1);     // downcast
+    g.fillStyle=cloth; g.fillRect(X,y-1,1,1); g.fillRect(X+2,y-1,1,1);   // unsteady stance
+  }
+}
+function drawAddictHud(g,now,night){
+  var A=curAddiction; if(!A||!A.active) return;
+  var recovering=(A.stage===5), lab=ADDICT_STAGE_LABEL[A.stage];
+  var full="ADDICTION CRISIS - "+lab, col=recovering?"rgba(80,200,140,":"rgba(150,120,210,";   // muted violet crisis → green recovery
+  var blink=(A.stage>=4&&!recovering)?((Math.floor(now/350))%2):1, a=0.72+0.28*blink;
+  var tw=textW(full), ew=9, W=ew+tw+4, cx=(SW>>1), ty=notifLane(0), x0=(cx-(W>>1))|0;
+  g.fillStyle="rgba(6,6,10,0.85)"; g.fillRect(x0-2,ty-3,W+4,11);
+  g.fillStyle=col+(0.95*a).toFixed(3)+")"; g.fillRect(x0-2,ty-4,W+4,1); g.fillRect(x0-2,ty+7,W+4,1);
+  g.fillStyle=col+(0.26*a).toFixed(3)+")"; g.fillRect(x0-2,ty-3,W+4,11);
+  g.fillStyle=recovering?"#d6ffe6":"#e6ddff"; g.fillRect(x0+3,ty+1,5,2); g.fillRect(x0+5,ty,1,4);   // a small medical + cross
+  drawUiText(g,full,x0+ew,ty,recovering?"#d6ffe6":"#eee2ff",1);
+}
+// THE CITY'S RESPONSE to the crisis (Nick's fightback picks): a recovery CLINIC + treatment queue, a mobile
+// NARCAN/OUTREACH van, a SAFETY-style CRACKDOWN on a crackdown-path life (police instead of help), and a
+// RECOVERY banner as the city heals. Tasteful, hopeful where the city fights it well.
+function drawAddictResponse(g,L,now){
+  var A=curAddiction, stage=A.stage, y=HORIZON;
+  if(stage>=2 && !A.crackdown){                              // RECOVERY CLINIC / REHAB (health response)
+    var cx=(Math.round(WW*0.40)-WOFF); if(cx>SW+30&&cx-WW>-30)cx-=WW; if(cx<-30&&cx+WW<SW+30)cx+=WW;
+    if(cx>-30&&cx<SW+30){ var x=cx|0;
+      g.fillStyle=L>0.5?"#dfe8ee":"#8a97a4"; g.fillRect(x-9,y-11,20,11);
+      g.fillStyle="#3aa0a0"; g.fillRect(x-9,y-13,20,2);
+      g.fillStyle="#eafcff"; g.fillRect(x-1,y-10,3,3); g.fillStyle="#3aa0a0"; g.fillRect(x,y-10,1,3); g.fillRect(x-1,y-9,3,1);   // + cross
+      drawUiText(g,"CLINIC",x-8,y-8,L>0.5?"#2a5a5a":"#bfeaea",1);
+      for(var q=0;q<3;q++){ drawHFigure(g,x-13-q*4,y,["#e8b890","#c98a5e","#8a5a3a"][q%3],["#4a6a6a","#4a5a6a","#5a5a6a"][q%3],0); }   // a hopeful treatment queue
+    }
+  }
+  if(stage>=3){                                              // NARCAN / OUTREACH van working the street
+    var vx=((now*0.03)%(SW+120))-60, vy=y-6;
+    g.fillStyle="#eef4f6"; g.fillRect(vx|0,vy,11,6);
+    g.fillStyle="#3aa0a0"; g.fillRect(vx|0,vy,11,1);
+    g.fillStyle="#e04a4a"; g.fillRect((vx+2)|0,vy+2,3,1); g.fillRect((vx+3)|0,vy+1,1,3);   // red cross
+    g.fillStyle="#8ab0c0"; g.fillRect((vx+9)|0,vy+1,2,2);
+    g.fillStyle="#20242c"; g.fillRect(vx|0,vy+6,2,1); g.fillRect((vx+8)|0,vy+6,2,1);
+    drawUiText(g,"OUTREACH",(vx-2)|0,vy-5,"#bfeaea",1);
+  }
+  if(A.crackdown && stage>=3){                               // CRACKDOWN — police instead of help (a darker path)
+    var px2=(Math.round(WW*0.40)-WOFF); if(px2>SW+20&&px2-WW>-20)px2-=WW; if(px2<-20&&px2+WW<SW+20)px2+=WW;
+    if(px2>-20&&px2<SW+20){ for(var p=0;p<3;p++){ var ox=(px2|0)+p*5; g.fillStyle=L>0.5?"#20304a":"#0f1830"; g.fillRect(ox,y-6,2,6); g.fillStyle="#1a3a6a"; g.fillRect(ox,y-8,2,2);
+      g.globalCompositeOperation="lighter"; g.fillStyle=((Math.floor(now/300)+p)&1)?"rgba(80,150,255,0.9)":"rgba(255,60,60,0.9)"; g.fillRect(ox,y-8,1,1); g.globalCompositeOperation="source-over"; } } }
+  if(stage===5){                                             // RECOVERY WINS — a green ribbon banner as the city heals
+    var rx=(Math.round(WW*0.34)-WOFF); if(rx>SW+30&&rx-WW>-30)rx-=WW; if(rx<-30&&rx+WW<SW+30)rx+=WW;
+    if(rx>-30&&rx<SW+30){ var x2=rx|0; g.fillStyle="#2fa85a"; g.fillRect(x2-14,y-14,28,4); drawUiText(g,"RECOVERY",x2-13,y-13,"#eafff0",1); } }
+}
+// place the addicts: clustered near the CAMPS while it's EMERGING (stage 1-2), spreading CITYWIDE as it
+// worsens (stage 3-4), receding in RECOVERY (stage 5). Count scales with severity. Drawn in the foreground.
+function drawAddiction(g,L,now){
+  if(!curAddiction||!curAddiction.active||nukeStruck()||cityPhase==="apoc"||cityG<0.42) return;
+  var A=curAddiction, sev=A.severity, stage=A.stage, y=HORIZON;
+  // CLUSTERS (they congregate) read far better than scattered individuals lost in the crowd — same lesson as
+  // the homeless camps. Near the CAMPS while EMERGING, spreading CITYWIDE as it worsens.
+  var clusters=1+Math.round(sev*5), citywide=(stage>=3);
+  for(var c=0;c<clusters;c++){ var h=((c*2654435761+(A.seed>>>0)+31)>>>0);
+    var wx=citywide ? (h%WW) : (((Math.round(WW*0.30)+((h%600)-300))%WW)+WW)%WW;   // clustered near the camps early; everywhere as it spreads
+    var sx=wx-WOFF; if(sx>SW+12&&sx-WW>-12)sx-=WW; if(sx<-12&&sx+WW<SW+12)sx+=WW;
+    if(sx<-12||sx>SW+12){ continue; } if(inSea(wx)||!onPavedRoad(wx)) continue;
+    var group=2+(h%3);                                        // 2-4 slumped figures together
+    for(var k=0;k<group;k++){ drawAddict(g,(sx|0)+k*4-((group-1)*2),y,now,((h>>>(k*4))^(k*2654435761))>>>0); }
+  }
+  drawAddictResponse(g,L,now);
+  drawAddictHud(g,now,1-L);
 }
 // ============================ WAR ============================
 // Some lives get invaded (deterministic per life). An election sets the defense budget
@@ -12921,6 +13054,7 @@ function draw(g,pass){
   curRegime=regimeState(now);                                // THE ORDER's political arc this life (null on most lives)
   curPlague=plagueState(now);                                // THE PLAGUE's pandemic arc this life (null on most lives; never overlaps war/regime)
   curFestival=festivalState(now);                            // THE FESTIVAL's World's Fair arc (null on most lives; never overlaps war/regime/plague)
+  curAddiction=addictionState(now);                          // THE ADDICTION CRISIS arc (null on most lives; never overlaps war/regime/plague/festival)
   curBuilds=passedBuilds(now).concat(passedCivics(now));     // permanent landmarks the city voted to build this life (measures + civic projects)
   curPolicies=curPoliciesOf(now);                            // soft policy-measures in force this term
   curPartyLeg=partyLegacy(now);                              // the accumulated, persistent marks of every party that has held City Hall this life
@@ -13695,6 +13829,7 @@ function draw(g,pass){
   }
 
   if(!nukeFull()) drawHardTimes(g,L,now);      // a deep recession on the street: homeless camps, panhandlers, barrel fires — drawn AFTER the crowd so they read in the FOREGROUND (not occluded by pedestrians)
+  if(!nukeFull()) drawAddiction(g,L,now);      // THE ADDICTION CRISIS: gaunt, grey, slumped figures (foreground, so the difference reads)
   drawTicker(g,L,now,night);                   // the downtown LED news band
   // (newspaper flurry removed 2026-07-12 — user found the sky papers weird/unclear; the LED ticker still narrates events)
   // the mature city drips with extra shopfront neon (neon-family eras only)
