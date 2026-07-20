@@ -577,6 +577,19 @@ var COMET_SEASON=["2026-4","2027-10"];                                          
 function ymd(nd){ return nd.getFullYear()+"-"+(nd.getMonth()+1)+"-"+nd.getDate(); }
 function ym(nd){ return nd.getFullYear()+"-"+(nd.getMonth()+1); }
 var eclipseMoon=false, solarEclDim=0;                                                             // eclipse state (moon reddens / daytime dims)
+// The major annual meteor showers — REAL peak-night windows + radiant (RA hours, Dec deg) + relative
+// strength. Meteors streak away from the radiant (its real sky position via altAz), and the shower is
+// named on-sky. Keep the date windows in lockstep with meteorShowerActive() (both copies).
+var METEOR_SHOWERS=[
+  {n:"QUADRANTID", m:1,  d0:1,  d1:5,  ra:15.33, dec:49, s:1.0 },
+  {n:"LYRID",      m:4,  d0:21, d1:23, ra:18.13, dec:34, s:0.45},
+  {n:"PERSEID",    m:8,  d0:11, d1:14, ra:3.20,  dec:58, s:1.0 },
+  {n:"ORIONID",    m:10, d0:20, d1:22, ra:6.33,  dec:16, s:0.5 },
+  {n:"LEONID",     m:11, d0:16, d1:18, ra:10.13, dec:22, s:0.45},
+  {n:"GEMINID",    m:12, d0:12, d1:15, ra:7.47,  dec:33, s:1.1 }
+];
+function currentShower(nd){ var m=nd.getMonth()+1, d=nd.getDate();
+  for(var i=0;i<METEOR_SHOWERS.length;i++){ var s=METEOR_SHOWERS[i]; if(s.m===m&&d>=s.d0&&d<=s.d1) return s; } return null; }
 function meteorShowerActive(nd){ var m=nd.getMonth()+1,d=nd.getDate();
   return (m===1&&d>=1&&d<=5)||(m===4&&d>=21&&d<=23)||(m===8&&d>=11&&d<=14)||(m===10&&d>=20&&d<=22)||(m===11&&d>=16&&d<=18)||(m===12&&d>=12&&d<=15); }   // Quadrantids/Lyrids/Perseids/Orionids/Leonids/Geminids (keep both copies in lockstep)
 function auroraActive(nd){ var t=(weather.temp==null?60:weather.temp); if(t>=36) return false;
@@ -5840,20 +5853,36 @@ function drawAurora(g,nd,L,now,fx){
 // METEOR SHOWERS on their real dates: Lyrids (Apr), Perseids (Aug), Geminids (Dec)
 function meteorShowerActive(nd){ var m=nd.getMonth()+1,d=nd.getDate();
   return (m===1&&d>=1&&d<=5)||(m===4&&d>=21&&d<=23)||(m===8&&d>=11&&d<=14)||(m===10&&d>=20&&d<=22)||(m===11&&d>=16&&d<=18)||(m===12&&d>=12&&d<=15); }   // Quadrantids/Lyrids/Perseids/Orionids/Leonids/Geminids (lockstep with the copy above)
+// A named METEOR SHOWER on its real peak nights: streaks radiate AWAY from the shower's true radiant
+// (its live sky position via altAz), the rate scales with the shower's real strength, and it's labelled
+// on-sky at the radiant. World-anchored so every monitor agrees.
 function drawShower(g,nd,L,now,fx){
-  if(L>0.3||fx.cloudy||fx.rain||fx.snow||fx.thunder||fx.fog||!meteorShowerActive(nd)) return;
+  if(L>0.3||fx.cloudy||fx.rain||fx.snow||fx.thunder||fx.fog) return;
+  var sh=currentShower(nd); if(!sh) return;
+  var lst=lstHours(nd), raa=altAz(sh.ra,sh.dec,lst);          // the radiant's REAL position in the sky right now
+  var radUp=raa.alt>3, radWX=skyWX(raa.az), radY=skyY(raa.alt);
   var SL=2600;
-  for(var k=0;k<3;k++){ var idx=Math.floor((now+k*867)/SL), ph3=((now+k*867)%SL)/SL;
+  for(var k=0;k<(radUp?4:2);k++){ var idx=Math.floor((now+k*867)/SL), ph3=((now+k*867)%SL)/SL;
     var h4=((idx*2654435761+k*97)>>>0);
-    if((h4%10)>=6||ph3>0.32) continue;
-    var sx0=(h4%WW)-WOFF, sy0=8+((h4>>>8)%60);
-    if(sx0<-30||sx0>SW+30) continue;
-    var t3=ph3/0.32;
+    if((h4%100)>=Math.round(58*sh.s) || ph3>0.32) continue;   // stronger showers fire more meteors
+    var t3=ph3/0.32, sx0=(h4%WW), sy0=6+((h4>>>8)%70), travel=22+((h4>>>11)%40), dirx, diry;
+    if(radUp){ var dxr=sx0-radWX; while(dxr>WW/2)dxr-=WW; while(dxr<-WW/2)dxr+=WW;   // meteors streak radially AWAY from the radiant
+      var dyr=sy0-radY, mag=Math.sqrt(dxr*dxr+dyr*dyr)||1; dirx=dxr/mag; diry=dyr/mag; }
+    else { dirx=(h4&1)?0.9:-0.9; diry=0.5; sy0=8+((h4>>>8)%40); }                    // radiant still below the horizon → low grazers
     g.globalCompositeOperation="lighter";
-    for(var q2=0;q2<6;q2++){ var qq=t3*26-q2*2;
-      g.fillStyle="rgba(220,240,255,"+(0.8*(1-q2/6)*(1-t3))+")";
-      g.fillRect((sx0+qq)|0,(sy0+qq*0.55)|0,1,1); }
+    for(var q2=0;q2<7;q2++){ var tp=t3-q2*0.11; if(tp<0) break;
+      var qx=wrapW(sx0+tp*travel*dirx), qy=sy0+tp*travel*diry;
+      for(var wq=-1;wq<=1;wq++){ var qsx=qx-WOFF+wq*WW; if(qsx<-2||qsx>SW+2) continue;
+        g.fillStyle="rgba(224,240,255,"+(0.85*(1-q2/7)*(1-t3*0.5)).toFixed(3)+")"; g.fillRect(qsx|0,qy|0,q2<2?2:1,1); } }
     g.globalCompositeOperation="source-over";
+  }
+  if(radUp){                                                  // ✦ a pulsing spark + name at the radiant — "that's where they come from"
+    var puls=(0.5+0.4*Math.sin(now*0.006)).toFixed(2);
+    for(var wr=-1;wr<=1;wr++){ var rx=(radWX-WOFF+wr*WW)|0; if(rx<-3||rx>SW+3) continue;
+      g.globalCompositeOperation="lighter"; g.fillStyle="rgba(210,230,255,"+puls+")";
+      g.fillRect(rx,radY|0,1,1); g.fillRect(rx-1,radY|0,1,1); g.fillRect(rx+1,radY|0,1,1); g.fillRect(rx,(radY-1)|0,1,1); g.fillRect(rx,(radY+1)|0,1,1);
+      g.globalCompositeOperation="source-over"; }
+    var lab=sh.n+" SHOWER"; drawPixText(g,lab,radWX-(textW(lab)>>1),(radY+4)|0,"#9fc4ef",0.85);
   }
 }
 // THE RIVAL CITY across the bay: it grows on its own schedule, out on the seam of the world
