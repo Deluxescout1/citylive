@@ -156,7 +156,7 @@ function resetNotifLanes(){ for(var r=0;r<_notifTaken.length;r++) _notifTaken[r]
 var CLOCK = null;   // test-harness override: ms timestamp for time-of-day (null = real wall clock)
 var NOWOVR = null;  // test-harness override: ms value returned as Date.now() inside draw() (null = real)
 var NOFETCH = false;  // headless flag (own line = QML-namespace writable): almanac callers set this so setup() makes NO network calls
-var VERSION = "1.39.0";  // the build the user is running — surfaced in the Almanac + KDE config page (keep in sync with desktop/package.json)
+var VERSION = "1.40.0";  // the build the user is running — surfaced in the Almanac + KDE config page (keep in sync with desktop/package.json)
 var FORCELAYOUT = null;   // test hook: pin every building's window layout (grid/ribbon/band/punch/corp) — verify per-layout render
 var FORCECROWN = null;    // test hook: pin every building's crown/roof (gable/hip/saltbox/mansard/deco/…) — verify per-roof render
 var FORCEUSE = null;      // test hook: pin every building's functional type (hospital/theater/hotel/bank/cafe/pharmacy) — verify drawUse
@@ -2638,6 +2638,9 @@ var cityName="NEO NORWICH";   // this life's name (theme-flavoured, set in build
 var curWar=null;     // active/finished war state for this life (null = peaceful life)
 var teamName="VOLTS", teamCols=["#05d9e8","#ff2a9d"];   // this life's sports franchise
 var curEcon=0.5;     // 0 bust … 1 boom (1-2 slow swings per life)
+var curSlump=0;      // v1.40: how deep the DEPRESSION is right now (0 = fine … 1 = deep recession) → drives street decay: homeless, litter, fewer cars
+var NOECONFX=false;  // containment A/B: suppress the post-v1.39 hard-times street decay (drawHardTimes) the ref engine lacks — keeps the guard render byte-identical
+var FORCESLUMP=null; // test hook: pin the slump level (?slump=)
 var wetness=0;       // how rain-soaked the streets are (drives puddles, dries out after)
 
 // ---- deterministic scheduled crossers (identical on every screen) ----
@@ -10517,6 +10520,32 @@ function drawPartyLegacy(g,L,now){
     g.fillStyle="rgba(80,150,255,"+(bl?0.9:0.5)+")"; g.fillRect((scx+(ldir>0?3:-1))|0,camY,1,1); g.globalCompositeOperation="source-over";
   }
 }
+// HARD TIMES — v1.40: a deep recession you can SEE on the street. Homeless tents & figures appear, litter
+// collects, the city stops being tended (fewer cars are handled via carPresence; the pall via curLit).
+// Scales with curSlump, world-anchored on the paved sidewalk. New post-v1.39 code the containment ref
+// lacks → gated behind NOECONFX so the A/B guard stays byte-identical. Hard-bounded loops, no gore.
+function drawHardTimes(g,L,now){
+  if(NOECONFX||curSlump<0.1||nukeStruck()||cityPhase==="apoc"||cityG<0.42) return;
+  var camps=Math.round(curSlump*7), night=1-L, y=HORIZON;
+  for(var i=0;i<camps;i++){ var h=((i*2654435761+419)>>>0), wx=(h%WW)-WOFF; if(wx>SW+8&&wx-WW>-8)wx-=WW; if(wx<-8&&wx+WW<SW+8)wx+=WW;
+    if(wx<-8||wx>SW+8){ continue; } var worldx=((wx+WOFF)%WW+WW)%WW; if(inSea(worldx)||!onPavedRoad(worldx)) continue;
+    var x=wx|0, tents=1+(h%3);                                 // an ENCAMPMENT: a cluster of TENTS (the unmistakable signal) + a figure + a cart
+    for(var tt=0;tt<tents;tt++){ var tx=x+tt*8-((tents-1)*4), tc=((h>>>(tt*3))&1)?"#6f6a48":"#566878";
+      g.fillStyle=tc; g.fillRect(tx-3,y-5,7,5);               // tent body (taller → reads over the crowd)
+      g.fillStyle="#3a3f48"; g.fillRect(tx-1,y-6,2,1);        // ridge
+      g.fillStyle="#20252b"; g.fillRect(tx-3,y-1,7,1); g.fillRect(tx,y-4,1,3); }   // shadow + a dark door slit
+    var sk=["#e8b890","#c98a5e","#8a5a3a"][h%3], fx=x-((tents-1)*4)-5;             // a hunched figure sitting at the camp's edge
+    g.fillStyle=(h&4)?"#585148":"#48485a"; g.fillRect(fx-1,y-3,4,3);
+    g.fillStyle=sk; g.fillRect(fx,y-5,3,2); g.fillStyle="#332f2a"; g.fillRect(fx,y-6,3,1);
+    var cx2=x+((tents-1)*4)+5;                                 // a shopping cart of belongings on the other side
+    g.fillStyle="#6a6f78"; g.fillRect(cx2,y-5,5,5); g.fillStyle="#eceff3"; g.fillRect(cx2,y-5,5,1); g.fillStyle="#20252b"; g.fillRect(cx2,y,1,1); g.fillRect(cx2+4,y,1,1);
+    g.fillStyle=night>0.4?"#3a3a34":"#6a6a5e"; g.fillRect(fx-3,y,1,1); g.fillRect(cx2+6,y,1,1);   // scraps
+  }
+  var lt=Math.round(curSlump*24);                              // litter drifting along the neglected sidewalk
+  for(var t=0;t<lt;t++){ var lh=((t*2654435761+733)>>>0), lx=(lh%WW)-WOFF; if(lx>SW+4&&lx-WW>-4)lx-=WW; if(lx<-4&&lx+WW<SW+4)lx+=WW;
+    if(lx<0||lx>SW){ continue; } var lw=((lx+WOFF)%WW+WW)%WW; if(inSea(lw)||!onPavedRoad(lw)) continue;
+    g.fillStyle=(lh&1)?(night>0.4?"#33332c":"#5e5e50"):(night>0.4?"#2e2a24":"#54463a"); g.fillRect(lx|0,y,1,1); }
+}
 // ============================ WAR ============================
 // Some lives get invaded (deterministic per life). An election sets the defense budget
 // everyone can see; the battle's outcome depends on it. Victory ends in funerals and
@@ -12826,6 +12855,13 @@ function draw(g,pass){
   if(cityHasBuild("grandcentral")) curEcon=Math.min(1,curEcon+0.03);              // GRAND CENTRAL — the transit hub keeps commerce moving
   if(curPolicies.heightcap) curEcon=Math.max(0,curEcon-0.08);                     // a HEIGHT CAP throttles development → softer economy, more empty storefronts (see FOR LEASE at ~9248)
   if(curEcon<0.35) curLit*=0.9;                                                    // a mandate-driven slump also dims the town a touch more
+  // v1.40 HARD TIMES: a deep slump visibly grips the STREET — set the depth, then thin the traffic and the
+  // sidewalk crowd (drawHardTimes adds the homeless + litter). Ramps in below econ 0.42, deep by 0.12.
+  curSlump = (FORCESLUMP!=null) ? FORCESLUMP : Math.max(0, Math.min(1,(0.42-curEcon)/0.30));
+  if(curSlump>0 && cityPhase!=="apoc"){
+    rhythm.carPresence*=(1-0.42*curSlump);                                         // fewer cars can afford the road
+    wmood.pedFactor*=(1-0.22*curSlump);                                            // a quieter, emptier sidewalk (the homeless fill some of it back in)
+  }
   // v1.24 CURFEW — Martial Law (stage 4-5) empties the NIGHT: windows go dark, sidewalks clear, roads
   // empty (only patrols move). Strictly gated on curRegime → curCurfew stays 0 on every non-regime life,
   // so the containment guard's non-regime render is untouched. curLit keeps a nonzero floor (a few holdouts).
@@ -13262,6 +13298,7 @@ function draw(g,pass){
       drawTree(g,gsx|0,HORIZON+1,L>0.5,now,gt2); } }
   if(!nukeFull()) drawCivicPolicy(g,L,now);              // the winning party's visible policies (solar/cameras/cranes/yard signs)
   if(!nukeFull()) drawPartyLegacy(g,L,now);              // the PERSISTENT, stacking marks of every party that has governed this life
+  if(!nukeFull()) drawHardTimes(g,L,now);                // a deep recession on the street: homeless, litter, neglect
   // street furniture + the people using it (lamps, benches, bus stops, carts…) — on the sidewalk
   if(cityG>0.3 && !nukeFull()) drawStreetProps(g,L,now,night);   // street furniture + the people at them — gone
   if(!nukeFull()) drawGreenery(g,L,now);                 // base street trees, ivy on brick, curb weeds — nature softening the grid
