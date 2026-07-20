@@ -156,7 +156,7 @@ function resetNotifLanes(){ for(var r=0;r<_notifTaken.length;r++) _notifTaken[r]
 var CLOCK = null;   // test-harness override: ms timestamp for time-of-day (null = real wall clock)
 var NOWOVR = null;  // test-harness override: ms value returned as Date.now() inside draw() (null = real)
 var NOFETCH = false;  // headless flag (own line = QML-namespace writable): almanac callers set this so setup() makes NO network calls
-var VERSION = "1.32.0";  // the build the user is running — surfaced in the Almanac + KDE config page (keep in sync with desktop/package.json)
+var VERSION = "1.33.0";  // the build the user is running — surfaced in the Almanac + KDE config page (keep in sync with desktop/package.json)
 var FORCELAYOUT = null;   // test hook: pin every building's window layout (grid/ribbon/band/punch/corp) — verify per-layout render
 var FORCECROWN = null;    // test hook: pin every building's crown/roof (gable/hip/saltbox/mansard/deco/…) — verify per-roof render
 var FORCEUSE = null;      // test hook: pin every building's functional type (hospital/theater/hotel/bank/cafe/pharmacy) — verify drawUse
@@ -5860,6 +5860,29 @@ function drawSatellite(g,L,now){
         g.fillStyle="rgba(226,238,255,"+(0.9*(1-tr/5)).toFixed(3)+")"; g.fillRect(xt|0,yt|0,1,1); } }
     g.globalCompositeOperation="source-over";
   }
+}
+// A STARLINK "TRAIN": in the days after a launch the newly-deployed satellites glide over in a long,
+// evenly-spaced string-of-pearls before they disperse — an unmistakable, much-photographed sight. Shown
+// on ~1/3 of nights (date-hashed) as a shallow twilight pass; labelled so people know what it is.
+var FORCESTARLINK=null;   // test hook: a progress 0..1 pins a train mid-pass
+function drawStarlinkTrain(g,L,now){
+  if(L>0.30 && FORCESTARLINK==null) return;
+  var p, dir, baseY0, N;
+  if(FORCESTARLINK!=null){ p=FORCESTARLINK; dir=1; baseY0=30; N=20; }
+  else {
+    var day=Math.floor(now/86400000), sh=rng((day*2654435761+0x57A2)>>>0);
+    if(sh()>0.35) return;                                     // a train passes on ~1/3 of nights (post-launch)
+    var t0=day*86400000+(0.02+sh()*0.30)*86400000, pt=now-t0, DUR=140000; if(pt<0||pt>DUR) return;   // ~140s to cross
+    p=pt/DUR; dir=(sh()<0.5)?1:-1; baseY0=20+sh()*30; N=16+((sh()*8)|0);   // 16-24 sats
+  }
+  g.globalCompositeOperation="lighter";
+  for(var i=0;i<N;i++){ var lead=p-i*0.012; if(lead<0||lead>1) continue;   // each sat trails the one ahead
+    var wx=(dir>0?lead:1-lead)*WW, y=baseY0-14*Math.sin(lead*Math.PI), fade=Math.sin(lead*Math.PI);   // shallow arc; brighter mid-pass
+    for(var w=-1;w<=1;w++){ var X=wx-WOFF+w*WW; if(X<-2||X>SW+2) continue;
+      g.fillStyle="rgba(224,236,255,"+(0.66*fade+0.22).toFixed(3)+")"; g.fillRect(X|0,y|0,1,1); } }
+  g.globalCompositeOperation="source-over";
+  if(p>0.18&&p<0.86){ var lwx=(dir>0?p:1-p)*WW, ly=baseY0-14*Math.sin(p*Math.PI);   // name it near the head of the train
+    drawPixText(g,"STARLINK",(lwx-(textW("STARLINK")>>1)),(ly+3)|0,"#9fc4ef",0.7); }
 }
 // an occasional lone shooting star (distinct from the dated showers) — and someone below makes a wish (a rising heart)
 function drawShootingStar(g,L,now){
@@ -12278,6 +12301,7 @@ function draw(g,pass){
   drawAurora(g,nd,L,now,fx);                    // rare frigid-night light show
   drawShower(g,nd,L,now,fx);                    // real-date meteor showers
   drawSatellite(g,L,now);                       // a satellite/ISS ghosting steadily across the dark sky
+  drawStarlinkTrain(g,L,now);                   // a Starlink "train" glides over on some nights
   drawShootingStar(g,L,now);                    // the occasional wish-worthy shooting star
   drawGodRays(g,L,now,fx);                      // crepuscular sunbeams through broken cloud
   drawRainbow(g,L,fx);                          // an arc when a shower clears under a low sun
