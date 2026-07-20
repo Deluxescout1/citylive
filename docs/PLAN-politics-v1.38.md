@@ -68,3 +68,33 @@ the other finales (meteors/sunburst/alienwar) and for balloons/blimp/helis.
 - Works on BOTH Linux(KDE/QML Canvas) and Windows(Electron/Chromium). **NO sound.**
 - Gate every version: `npm test` · qml-sweep · regime-contain.sh CONTAIN_OK · KDE live deploy ·
   Windows build. Push version tags ONE AT A TIME.
+
+## ADDENDUM — THE HOMELESS + ADDICTION CRISIS (Nick-locked 2026-07-20, "push more into the homeless")
+Two gated versions, building on v1.40's curSlump/drawHardTimes:
+
+### v1.41 THE STREETS (rich homeless) — locked
+- **Placements (all):** tent city UNDER THE OVERPASS (clear span beneath the elevated-train viaduct — reads
+  well); a growing TENT CITY in a vacant lot that visibly expands with the slump + shrinks in recovery;
+  individuals in DOORWAYS/BENCHES/corners; PANHANDLERS with signs at the crosswalk medians.
+- **Behaviors (all):** BARREL FIRES at night (glowing → reads through clutter), pushing SHOPPING CARTS,
+  CARDBOARD SIGNS (HELP/HUNGRY), a FOOD LINE queue.
+- **City response = MAYOR-DEPENDENT:** GREENS/TRANSIT build a SHELTER + SOUP KITCHEN (camps smaller, people
+  helped, a line); SAFETY SWEEPS camps (police clear them — fewer tents, a darker path); a neglectful
+  mayor lets it SPRAWL bigger.
+- **Driver = economy now** (curSlump), with a RECOVERY arc (camps shrink as econ heals + a "SHELTER OPENS /
+  RECOVERY" news beat). War/disaster refugees + faction crackdowns wired in LATER.
+- **KEY READABILITY FIX:** draw the homeless AFTER the pedestrian loop (currently before → peds occlude
+  them). Foreground = visible. Make camps bigger/clustered; barrel-fire glow is the night anchor.
+
+### v1.42 THE ADDICTION CRISIS — locked (its own escalating arc, like THE PLAGUE)
+- **Scope:** a full escalating crisis arc — EMERGING → SPREADING → EPIDEMIC → PUBLIC-HEALTH EMERGENCY →
+  RECOVERY. Own state (addiction level/stage), HUD, news beats.
+- **Reach:** STARTS in the camps/hardest-hit, SPREADS citywide as it worsens (feels like a real epidemic).
+- **Tone: TASTEFUL & IMPLIED (strict no-gore).** Slumped/nodding figures, somber, news ("OPIOID CRISIS
+  DECLARED"), and the RESPONSE shown — NO drug use or paraphernalia depicted. Dignified, not exploitative.
+- **Fightback (all):** recovery CLINICS/REHAB centers (buildings, GREENS/TRANSIT invest more), NARCAN/
+  OUTREACH vans + medic teams working the streets, SAFETY-mayor CRACKDOWN (police sweeps/arrests instead of
+  treatment — a darker path that can worsen it), and RECOVERY/AWARENESS wins (banners, a memorial, sober-
+  community beats, the crisis receding).
+- Economy-driven emergence (deep/prolonged recession seeds it); mirror the plague arc architecture (pure
+  state fn, life-scoped, staged, containment-suppressed via a NO- flag).

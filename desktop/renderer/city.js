@@ -156,7 +156,7 @@ function resetNotifLanes(){ for(var r=0;r<_notifTaken.length;r++) _notifTaken[r]
 var CLOCK = null;   // test-harness override: ms timestamp for time-of-day (null = real wall clock)
 var NOWOVR = null;  // test-harness override: ms value returned as Date.now() inside draw() (null = real)
 var NOFETCH = false;  // headless flag (own line = QML-namespace writable): almanac callers set this so setup() makes NO network calls
-var VERSION = "1.40.0";  // the build the user is running — surfaced in the Almanac + KDE config page (keep in sync with desktop/package.json)
+var VERSION = "1.41.0";  // the build the user is running — surfaced in the Almanac + KDE config page (keep in sync with desktop/package.json)
 var FORCELAYOUT = null;   // test hook: pin every building's window layout (grid/ribbon/band/punch/corp) — verify per-layout render
 var FORCECROWN = null;    // test hook: pin every building's crown/roof (gable/hip/saltbox/mansard/deco/…) — verify per-roof render
 var FORCEUSE = null;      // test hook: pin every building's functional type (hospital/theater/hotel/bank/cafe/pharmacy) — verify drawUse
@@ -6397,6 +6397,10 @@ function tickerMsg(now){
   if(curMayor&&curMayor.scandal) msgs.push(curMayor.ousted?("MAYOR OUSTED - "+curMayor.winName+" SWORN IN"):(curMayor.recallVote?"RECALL VOTE UNDERWAY AT CITY HALL":"CITY HALL ROCKED BY SCANDAL"));
   if(curEcon>0.65) msgs.push("MARKETS RALLY - CRANES OVER "+cityName);
   if(curEcon<0.35) msgs.push("MARKETS SLUMP - STOREFRONTS GO DARK");
+  if(curSlump>0.55) msgs.push("HOMELESS CRISIS DEEPENS - TENT CITIES SPREAD DOWNTOWN");   // v1.41 hard times on the ticker
+  else if(curSlump>0.2 && curSlump<=0.55) msgs.push("SHELTERS REPORT FEWER IN NEED AS THE ECONOMY STEADIES");   // recovery beat
+  if(curSlump>0.25 && curMayor && (curMayor.party.k==="GREENS"||curMayor.party.k==="TRANSIT")) msgs.push("MAYOR "+curMayor.winName+" OPENS A NEW SHELTER AND SOUP KITCHEN");
+  if(curSlump>0.25 && curMayor && curMayor.party.k==="SAFETY") msgs.push("CITY CLEARS DOWNTOWN ENCAMPMENTS - ADVOCATES PROTEST");
   if(cityHasBuild("casino")){ msgs.push("CASINO ZONE DRAWS RECORD CROWDS - TOURISM UP"); msgs.push("POLICE ADD PATROLS AROUND THE CASINO DISTRICT"); }
   if(curPolicies.heightcap&&curEcon<0.45) msgs.push("DEVELOPERS BLAME HEIGHT CAP FOR STALLED GROWTH");
   if(cityHasBuild("park")) msgs.push("CITY PARK NAMED BEST NEW PUBLIC SPACE");
@@ -10520,31 +10524,104 @@ function drawPartyLegacy(g,L,now){
     g.fillStyle="rgba(80,150,255,"+(bl?0.9:0.5)+")"; g.fillRect((scx+(ldir>0?3:-1))|0,camY,1,1); g.globalCompositeOperation="source-over";
   }
 }
-// HARD TIMES — v1.40: a deep recession you can SEE on the street. Homeless tents & figures appear, litter
-// collects, the city stops being tended (fewer cars are handled via carPresence; the pall via curLit).
-// Scales with curSlump, world-anchored on the paved sidewalk. New post-v1.39 code the containment ref
-// lacks → gated behind NOECONFX so the A/B guard stays byte-identical. Hard-bounded loops, no gore.
+// ---- HARD-TIMES building blocks (v1.41) ----
+function drawHTent(g,x,y,c,L){                                 // one tent
+  g.fillStyle=c; g.fillRect(x-3,y-5,7,5);
+  g.fillStyle=(L>0.5?"#3a3f48":"#262a32"); g.fillRect(x-1,y-6,2,1);          // ridge
+  g.fillStyle="#20252b"; g.fillRect(x-3,y-1,7,1); g.fillRect(x,y-4,1,3);     // shadow + door slit
+  g.fillStyle=(L>0.5?"#7f7a58":"#4a4838"); g.fillRect(x-3,y-5,1,5);          // lit edge
+}
+function drawHFigure(g,x,y,sk,c,sit){                          // a hunched figure (sit=blanketed, else standing worn)
+  if(sit){ g.fillStyle=c; g.fillRect(x-1,y-3,4,3); g.fillStyle=sk; g.fillRect(x,y-5,3,2); g.fillStyle="#332f2a"; g.fillRect(x,y-6,3,1); }
+  else   { g.fillStyle=c; g.fillRect(x,y-4,2,4); g.fillStyle=sk; g.fillRect(x,y-6,2,2); g.fillStyle="#332f2a"; g.fillRect(x,y-7,2,1); }
+}
+function drawHCart(g,x,y,L){                                   // a shopping cart of belongings
+  g.fillStyle=(L>0.5?"#8a8f98":"#54596a"); g.fillRect(x,y-5,5,5); g.fillStyle="#c9a85a"; g.fillRect(x,y-5,5,1); g.fillStyle="#c05a6a"; g.fillRect(x+1,y-6,2,1);
+  g.fillStyle="#20252b"; g.fillRect(x,y,1,1); g.fillRect(x+4,y,1,1);
+}
+function drawBarrelFire(g,x,y,now,L){                          // a burning barrel — the strongest NIGHT read (glow), with people warming their hands
+  g.fillStyle=(L>0.5?"#4a4038":"#2a241e"); g.fillRect(x-2,y-4,4,4);          // the barrel
+  var fl=(Math.floor(now/120)+x)&3, fh=5+(fl&2);                             // taller flickering flame
+  g.globalCompositeOperation="lighter";
+  var wide=0.55+0.35*(1-L);                                                  // the whole glow scales up at night → a clear beacon
+  g.fillStyle="rgba(255,140,40,"+(0.12+0.16*(1-L)).toFixed(2)+")"; g.fillRect(x-7,y-10,15,11);   // outer glow pool
+  g.fillStyle="rgba(255,170,60,"+(0.22+0.24*(1-L)).toFixed(2)+")"; g.fillRect(x-4,y-9,9,10);      // inner glow
+  g.fillStyle="rgba(255,150,40,0.95)"; g.fillRect(x-1,y-4-fh,3,fh);                                // flame body
+  g.fillStyle="rgba(255,240,160,0.95)"; g.fillRect(x,y-4-fh+1,1,fh-1);                             // flame core
+  g.fillStyle="rgba(255,120,30,"+(0.6*wide).toFixed(2)+")"; g.fillRect(x-2,y-4-(fh>>1),5,fh>>1);
+  g.globalCompositeOperation="source-over";
+  drawHFigure(g,x-6,y,"#c98a5e","#4a4438",0);                                // two figures warming their hands
+  drawHFigure(g,x+5,y,"#e8b890","#3a3a44",0);
+}
+function drawHSign(g,x,y,L){                                   // a sitting figure with a cardboard sign
+  drawHFigure(g,x,y,"#c98a5e","#50483c",1);
+  g.fillStyle=(L>0.5?"#c9a878":"#8a7450"); g.fillRect(x-4,y-4,4,3);          // the cardboard
+  g.fillStyle=(L>0.5?"#3a2f22":"#c9b088"); g.fillRect(x-3,y-3,1,1); g.fillRect(x-1,y-3,1,1);   // scrawl
+}
+// HARD TIMES — v1.41: a recession you can SEE. Tent encampments (barrel fires at night), panhandlers with
+// cardboard signs, cart-pushers, litter — and the CITY'S RESPONSE varies by mayor: GREENS/TRANSIT stand up
+// a SHELTER + SOUP KITCHEN (a served line; smaller camps), SAFETY SWEEPS the camps (a patrol clears them,
+// fewer tents), a neglectful mayor lets it SPRAWL. Scales with curSlump, drawn in the foreground (after the
+// crowd) so it reads. New code the ref lacks → gated NOECONFX. Hard-bounded, no gore, dignified.
 function drawHardTimes(g,L,now){
   if(NOECONFX||curSlump<0.1||nukeStruck()||cityPhase==="apoc"||cityG<0.42) return;
-  var camps=Math.round(curSlump*7), night=1-L, y=HORIZON;
-  for(var i=0;i<camps;i++){ var h=((i*2654435761+419)>>>0), wx=(h%WW)-WOFF; if(wx>SW+8&&wx-WW>-8)wx-=WW; if(wx<-8&&wx+WW<SW+8)wx+=WW;
-    if(wx<-8||wx>SW+8){ continue; } var worldx=((wx+WOFF)%WW+WW)%WW; if(inSea(worldx)||!onPavedRoad(worldx)) continue;
-    var x=wx|0, tents=1+(h%3);                                 // an ENCAMPMENT: a cluster of TENTS (the unmistakable signal) + a figure + a cart
-    for(var tt=0;tt<tents;tt++){ var tx=x+tt*8-((tents-1)*4), tc=((h>>>(tt*3))&1)?"#6f6a48":"#566878";
-      g.fillStyle=tc; g.fillRect(tx-3,y-5,7,5);               // tent body (taller → reads over the crowd)
-      g.fillStyle="#3a3f48"; g.fillRect(tx-1,y-6,2,1);        // ridge
-      g.fillStyle="#20252b"; g.fillRect(tx-3,y-1,7,1); g.fillRect(tx,y-4,1,3); }   // shadow + a dark door slit
-    var sk=["#e8b890","#c98a5e","#8a5a3a"][h%3], fx=x-((tents-1)*4)-5;             // a hunched figure sitting at the camp's edge
-    g.fillStyle=(h&4)?"#585148":"#48485a"; g.fillRect(fx-1,y-3,4,3);
-    g.fillStyle=sk; g.fillRect(fx,y-5,3,2); g.fillStyle="#332f2a"; g.fillRect(fx,y-6,3,1);
-    var cx2=x+((tents-1)*4)+5;                                 // a shopping cart of belongings on the other side
-    g.fillStyle="#6a6f78"; g.fillRect(cx2,y-5,5,5); g.fillStyle="#eceff3"; g.fillRect(cx2,y-5,5,1); g.fillStyle="#20252b"; g.fillRect(cx2,y,1,1); g.fillRect(cx2+4,y,1,1);
-    g.fillStyle=night>0.4?"#3a3a34":"#6a6a5e"; g.fillRect(fx-3,y,1,1); g.fillRect(cx2+6,y,1,1);   // scraps
+  var night=1-L, y=HORIZON, mk=curMayor?curMayor.party.k:"";
+  var helped=(mk==="GREENS"||mk==="TRANSIT"), sweeps=(mk==="SAFETY");
+  var scale=Math.min(1.25, curSlump*(helped?0.62:sweeps?0.72:(mk==="BUILDERS"||mk==="")?1.15:1));
+  var SKINS=["#e8b890","#c98a5e","#8a5a3a"];
+  // --- THE TENT CITY: a CONCENTRATED encampment that GROWS with the slump (the anchor). Under the overpass
+  //     span, a long row of tents with barrel fires — the unmistakable "the crisis is here" landmark. ---
+  var tcX0=Math.round(WW*0.30), ntents=2+Math.round(scale*10);              // 2 … ~14 tents as it deepens
+  for(var tc=0;tc<ntents;tc++){ var twx=tcX0+tc*7-(ntents*3), tsx=twx-WOFF; if(tsx>SW+8&&tsx-WW>-8)tsx-=WW; if(tsx<-8&&tsx+WW<SW+8)tsx+=WW;
+    if(tsx<-8||tsx>SW+8){ continue; } var tworld=((twx)%WW+WW)%WW; if(inSea(tworld)||!onPavedRoad(tworld)) continue;
+    drawHTent(g,tsx|0,y,((tc*2654435761>>>3)&1)?"#6f6a48":"#566878",L);
+    if(night>0.4 && tc%4===1) drawBarrelFire(g,(tsx-3)|0,y,now,L);          // a fire every few tents after dark
+    else if(tc%2===0) drawHFigure(g,(tsx-4)|0,y,SKINS[tc%3],"#4a4438",1); }
+  if(sweeps){ var swx=(tcX0-WOFF); if(swx>SW+8&&swx-WW>-8)swx-=WW; if(swx<-8&&swx+WW<SW+8)swx+=WW;   // SAFETY: a patrol line clearing the tent city
+    if(swx>-8&&swx<SW+8){ for(var so=0;so<3;so++){ var ox=(swx|0)-24-so*5; g.fillStyle=L>0.5?"#20304a":"#0f1830"; g.fillRect(ox,y-6,2,6); g.fillStyle="#1a3a6a"; g.fillRect(ox,y-8,2,2);
+      g.globalCompositeOperation="lighter"; g.fillStyle=((Math.floor(now/300)+so)&1)?"rgba(80,150,255,0.9)":"rgba(255,60,60,0.9)"; g.fillRect(ox+(so&1),y-8,1,1); g.globalCompositeOperation="source-over"; } } }
+  // --- scattered ENCAMPMENTS elsewhere (spread), most with a fire at night ---
+  var camps=Math.round(scale*6);
+  for(var i=0;i<camps;i++){ var h=((i*2654435761+419)>>>0), wx=(h%WW)-WOFF; if(wx>SW+10&&wx-WW>-10)wx-=WW; if(wx<-10&&wx+WW<SW+10)wx+=WW;
+    if(wx<-10||wx>SW+10){ continue; } var worldx=((wx+WOFF)%WW+WW)%WW; if(inSea(worldx)||!onPavedRoad(worldx)) continue;
+    var x=wx|0, tents=1+Math.round(scale*(h%3));               // more tents in a deeper crisis / a neglectful city
+    for(var tt=0;tt<tents;tt++){ drawHTent(g,x+tt*8-((tents-1)*4),y,((h>>>(tt*3))&1)?"#6f6a48":"#566878",L); }
+    if(night>0.4 && (h%3)!==0) drawBarrelFire(g,x-((tents-1)*4)-8,y,now,L);   // most camps warm a fire after dark
+    else drawHFigure(g,x-((tents-1)*4)-5,y,SKINS[h%3],(h&4)?"#585148":"#48485a",1);
+    drawHCart(g,x+((tents-1)*4)+5,y,L);
   }
-  var lt=Math.round(curSlump*24);                              // litter drifting along the neglected sidewalk
+  // --- PANHANDLERS with cardboard signs at the medians ---
+  var pans=Math.round(scale*4);
+  for(var p=0;p<pans;p++){ var ph=((p*2654435761+877)>>>0), wx2=(ph%WW)-WOFF; if(wx2>SW+4&&wx2-WW>-4)wx2-=WW; if(wx2<-4&&wx2+WW<SW+4)wx2+=WW;
+    if(wx2<0||wx2>SW){ continue; } var w2=((wx2+WOFF)%WW+WW)%WW; if(inSea(w2)||!onPavedRoad(w2)) continue;
+    drawHSign(g,wx2|0,y,L); }
+  // --- CART-PUSHERS shuffling along ---
+  var carts=Math.round(scale*3);
+  for(var c=0;c<carts;c++){ var chh=((c*2654435761+psX(now,c))>>>0)%WW; var cwx=(chh)-WOFF; if(cwx>SW+6&&cwx-WW>-6)cwx-=WW; if(cwx<-6&&cwx+WW<SW+6)cwx+=WW;
+    if(cwx<-4||cwx>SW+4){ continue; } var cw=((cwx+WOFF)%WW+WW)%WW; if(inSea(cw)||!onPavedRoad(cw)) continue;
+    drawHFigure(g,cwx|0,y,SKINS[c%3],"#4a4438",0); drawHCart(g,(cwx+3)|0,y,L); }
+  // --- THE CITY'S RESPONSE: a helped city stands up a shelter + soup-kitchen line ---
+  if(helped && curSlump>0.25) drawShelter(g,L,now,y);
+  // --- litter along the neglected sidewalk ---
+  var lt=Math.round(scale*24);
   for(var t=0;t<lt;t++){ var lh=((t*2654435761+733)>>>0), lx=(lh%WW)-WOFF; if(lx>SW+4&&lx-WW>-4)lx-=WW; if(lx<-4&&lx+WW<SW+4)lx+=WW;
     if(lx<0||lx>SW){ continue; } var lw=((lx+WOFF)%WW+WW)%WW; if(inSea(lw)||!onPavedRoad(lw)) continue;
     g.fillStyle=(lh&1)?(night>0.4?"#33332c":"#5e5e50"):(night>0.4?"#2e2a24":"#54463a"); g.fillRect(lx|0,y,1,1); }
+}
+// a small horizontal shuffle for the cart-pushers (slow, wrap-safe, per index)
+function psX(now,c){ return ((now*0.006)|0)+c*257+19; }
+// the city's RESPONSE (helped mayors): a SHELTER tent/awning + SOUP KITCHEN with a served queue.
+function drawShelter(g,L,now,y){
+  var sx=(Math.round(WW*0.36)-WOFF); if(sx>SW+30&&sx-WW>-30)sx-=WW; if(sx<-30&&sx+WW<SW+30)sx+=WW;
+  if(sx<-30||sx>SW+30) return;
+  var x=sx|0;
+  g.fillStyle=L>0.5?"#dfe6ee":"#8a94a4"; g.fillRect(x-10,y-9,22,9);          // shelter structure
+  g.fillStyle=L>0.5?"#c05a6a":"#7a3a44"; g.fillRect(x-10,y-11,22,2);         // awning (aid red)
+  g.fillStyle="#eceff3"; g.fillRect(x-1,y-9,3,3); g.fillStyle="#c05a6a"; g.fillRect(x,y-9,1,3); g.fillRect(x-1,y-8,3,1);  // relief cross
+  drawUiText(g,"SHELTER",x-9,y-8,L>0.5?"#3a4150":"#cdd6e2",1);
+  var qn=4+((Math.floor(now/2000))%3);                                       // a served line outside
+  for(var q=0;q<qn;q++){ var qx=x-14-q*4; if(qx<-4) break; drawHFigure(g,qx,y,["#e8b890","#c98a5e","#8a5a3a"][q%3],["#4a5a6a","#5a4a4a","#4a4a5a"][q%3],0); }
+  g.fillStyle=L>0.5?"#c9a85a":"#8a7440"; g.fillRect(x+6,y-6,4,2);            // a soup pot / serving table
 }
 // ============================ WAR ============================
 // Some lives get invaded (deterministic per life). An election sets the defense budget
@@ -12859,8 +12936,8 @@ function draw(g,pass){
   // sidewalk crowd (drawHardTimes adds the homeless + litter). Ramps in below econ 0.42, deep by 0.12.
   curSlump = (FORCESLUMP!=null) ? FORCESLUMP : Math.max(0, Math.min(1,(0.42-curEcon)/0.30));
   if(curSlump>0 && cityPhase!=="apoc"){
-    rhythm.carPresence*=(1-0.42*curSlump);                                         // fewer cars can afford the road
-    wmood.pedFactor*=(1-0.22*curSlump);                                            // a quieter, emptier sidewalk (the homeless fill some of it back in)
+    rhythm.carPresence*=(1-0.45*curSlump);                                         // fewer cars can afford the road
+    wmood.pedFactor*=(1-0.40*curSlump);                                            // a markedly quieter, emptier sidewalk in a deep slump (the homeless become the street's presence)
   }
   // v1.24 CURFEW — Martial Law (stage 4-5) empties the NIGHT: windows go dark, sidewalks clear, roads
   // empty (only patrols move). Strictly gated on curRegime → curCurfew stays 0 on every non-regime life,
@@ -13298,7 +13375,6 @@ function draw(g,pass){
       drawTree(g,gsx|0,HORIZON+1,L>0.5,now,gt2); } }
   if(!nukeFull()) drawCivicPolicy(g,L,now);              // the winning party's visible policies (solar/cameras/cranes/yard signs)
   if(!nukeFull()) drawPartyLegacy(g,L,now);              // the PERSISTENT, stacking marks of every party that has governed this life
-  if(!nukeFull()) drawHardTimes(g,L,now);                // a deep recession on the street: homeless, litter, neglect
   // street furniture + the people using it (lamps, benches, bus stops, carts…) — on the sidewalk
   if(cityG>0.3 && !nukeFull()) drawStreetProps(g,L,now,night);   // street furniture + the people at them — gone
   if(!nukeFull()) drawGreenery(g,L,now);                 // base street trees, ivy on brick, curb weeds — nature softening the grid
@@ -13618,6 +13694,7 @@ function draw(g,pass){
     }
   }
 
+  if(!nukeFull()) drawHardTimes(g,L,now);      // a deep recession on the street: homeless camps, panhandlers, barrel fires — drawn AFTER the crowd so they read in the FOREGROUND (not occluded by pedestrians)
   drawTicker(g,L,now,night);                   // the downtown LED news band
   // (newspaper flurry removed 2026-07-12 — user found the sky papers weird/unclear; the LED ticker still narrates events)
   // the mature city drips with extra shopfront neon (neon-family eras only)
