@@ -3818,6 +3818,9 @@ function drawFestivalBunting(g,L,now){
   var night=1-L;
   var tops=[];                                                                       // roof anchor points (world x, roof y)
   for(var i=0;i<near.blds.length;i++){ var b=near.blds[i]; if(b.type==="park"||b.h<10) continue;
+    if(overSite(b.x,b.w)||overLandmark(b.x,b.w)) continue;                            // plot holds a construction site / civic landmark, not this building → nothing at b.h to tie to
+    if(b.bAge!==undefined){ var born=cityG-b.bAge;                                    // only anchor to a plot once its FULL building actually stands (else it's a house/land/grow-site drawn short of b.h)
+      if(born<=0 || born<bandOf(b)) continue; }
     tops.push({x:b.x+(b.w>>1), y:near.y0-b.h}); }
   if(tops.length<2) return;
   tops.sort(function(a,c){return a.x-c.x;});
