@@ -23,9 +23,12 @@ Item {
             jobs.push({ age: {g:1,phase:'peak',apoc:0,cy:0.9}, clock: clk });   // space age
             // Weather/attack disasters (drawDisaster paths) on a grown city, at the active-funnel phase
             // (f=0.25) AND the later/rebuild phase (f=0.55) so both draw branches are throw-checked.
-            var diss = ["asteroid","volcano","zombie","alien","kaiju","tornado","flood","mech","kraken","sandstorm","iceage","rift","blackout","smog"];
+            var diss = ["asteroid","volcano","zombie","alien","kaiju","tornado","flood","mech","kraken","sandstorm","iceage","rift","blackout","smog","planecrash"];
             for (var s = 0; s < diss.length; s++) for (var fp = 0; fp < 2; fp++)
                 jobs.push({ age: 0.6, clock: clk, dis: { type: diss[s], intensity: 4, xf: 0.5, w: 60, seed: 77, f: [0.25, 0.55][fp] } });
+            // the plane crash APPROACH branch (f<0.11: descending plane + smoke trail + impact flash) + an OPEN-ground crash
+            jobs.push({ age: 0.6, clock: clk, dis: { type: "planecrash", intensity: 4, xf: 0.5, w: 20, seed: 77, f: 0.05 } });
+            jobs.push({ age: 0.6, clock: night, dis: { type: "planecrash", intensity: 3, xf: 0.12, w: 16, seed: 8, f: 0.08, open: true } });
             // street events (drawConcert/drawFoodFest/drawChampionship/drawIceRink + the older ones) on a grown city, day & night
             var evs = ["concert","foodfest","champ","icerink","market","parade","movie","marathon","protest","film","balloonfest"];
             for (var ev = 0; ev < evs.length; ev++) jobs.push({ age: 0.7, clock: [clk, night][ev % 2], event: evs[ev] });

@@ -161,7 +161,7 @@ function resetNotifLanes(){ for(var r=0;r<_notifTaken.length;r++) _notifTaken[r]
 var CLOCK = null;   // test-harness override: ms timestamp for time-of-day (null = real wall clock)
 var NOWOVR = null;  // test-harness override: ms value returned as Date.now() inside draw() (null = real)
 var NOFETCH = false;  // headless flag (own line = QML-namespace writable): almanac callers set this so setup() makes NO network calls
-var VERSION = "1.46.0";  // the build the user is running — surfaced in the Almanac + KDE config page (keep in sync with desktop/package.json)
+var VERSION = "1.47.0";  // the build the user is running — surfaced in the Almanac + KDE config page (keep in sync with desktop/package.json)
 var FORCELAYOUT = null;   // test hook: pin every building's window layout (grid/ribbon/band/punch/corp) — verify per-layout render
 var FORCECROWN = null;    // test hook: pin every building's crown/roof (gable/hip/saltbox/mansard/deco/…) — verify per-roof render
 var FORCEUSE = null;      // test hook: pin every building's functional type (hospital/theater/hotel/bank/cafe/pharmacy) — verify drawUse
@@ -8257,10 +8257,10 @@ var DIS_DUR=240000;          // full lifecycle length (4 min): warn→build→st
 var DIS_LOOKBACK=10;         // how many past slots to remember rebuilt towers for
 var RUIN_CHANCE=0.20;        // of the RARE lost CAT-5 events, the fraction that scar the district PERMANENTLY (rest of this life) instead of eventually rebuilding — tuned so a week-long life sees only ~a handful of dead districts (a real, memorable event; use FORCERUIN to see one on demand)
 var RUIN_MAXSCAN=2000;       // hard cap on how many past slots the ruin scan walks (covers a full week-life; clamped tighter to this life's birth)
-var DIS_TYPES=["asteroid","volcano","zombie","alien","kaiju","tornado","flood","mech","kraken","sandstorm","iceage","rift","blackout","smog"];
+var DIS_TYPES=["asteroid","volcano","zombie","alien","kaiju","tornado","flood","mech","kraken","sandstorm","iceage","rift","blackout","smog","planecrash"];
 var DIS_NAME={asteroid:"ASTEROID",volcano:"VOLCANO",zombie:"ZOMBIES",alien:"ALIENS",kaiju:"KAIJU",
   tornado:"TORNADO",flood:"FLOOD",mech:"MECH WAR",kraken:"KRAKEN",sandstorm:"SANDSTORM",iceage:"ICE AGE",rift:"RIFT",
-  blackout:"BLACKOUT",smog:"SMOG"};
+  blackout:"BLACKOUT",smog:"SMOG",planecrash:"PLANE CRASH"};
 // non-destructive threats (blackout, smog) skip the collapse→rubble→rebuild machinery: they veil the city, they don't level it.
 function disDestroys(t){ return t!=="blackout" && t!=="smog"; }
 var FORCEDIS=null;           // test hook: {type,intensity,xf,w,seed,f}
@@ -8278,8 +8278,14 @@ function disasterInfo(idx){
   var win=r() < (0.80-intensity*0.06)*(0.7+0.6*milFund);   // the city USUALLY wins — but not always (funding matters)
   var w=Math.round((14+intensity*11)*(win?1:1.7));  // wider footprint at higher CAT; a lost battle a far wider ruin
   var seed=(r()*1e6)|0;
+  var open=false;
+  if(type==="planecrash"){                                       // a downed aircraft hits ONE building (narrow) — or, ~1 in 4, comes down clear of the skyline (open ground/water)
+    w=Math.round(12+intensity*4);                                 // one-building footprint (not a wide swath)
+    open=(r()<0.28);
+    if(open){ if(hasOcean && r()<0.5) cx=Math.round(WW*seaW*0.5); else cx=Math.round(WW*(0.08+r()*0.10)); }   // splash down in the bay, or a scar in the open ground at the edge
+  }
   var ruin = disDestroys(type) && intensity>=5 && !win && (r()<RUIN_CHANCE);   // a RARE lost CAT-5 that scars the district PERMANENTLY (rest of this life)
-  return { idx:idx, type:type, intensity:intensity, t0:t0, x:cx, w:w, seed:seed, win:win, ruin:ruin };
+  return { idx:idx, type:type, intensity:intensity, t0:t0, x:cx, w:w, seed:seed, win:win, ruin:ruin, open:open };
 }
 // the disaster active RIGHT NOW (with phase fields), or null
 function disasterNow(now){
@@ -8290,6 +8296,22 @@ function disasterNow(now){
   var tp=now-idx*DIS_SLOT-di.t0;
   if(tp<0||tp>DIS_DUR) return null;
   di.tp=tp; di.f=tp/DIS_DUR; return di;
+}
+// WORSE IN BAD WEATHER (Nick): on top of the rare scheduled plane crash, severe weather (thunderstorms,
+// blizzards, dense fog) spawns EXTRA crashes — so a stormy sky feels genuinely dangerous. Deterministic per
+// ~25-min window; skipped in pinned/harness renders (NOWOVR) so the containment A/B stays byte-identical.
+function stormCrash(now){
+  if(NOWOVR!=null || cityG<0.45 || cityPhase==="apoc") return null;
+  var fx=wfx(), severe = fx.thunder || (fx.snow && (weather.wind||0)>24) || (fx.fog && (weather.cloud||0)>=92);
+  if(!severe) return null;
+  var win=Math.floor(now/1500000), h=((win*2654435761 + (fx.thunder?7:fx.snow?3:1))>>>0);
+  if((h%100) >= 12) return null;                       // ~12% of severe-weather windows down a plane → rare, but weather-driven
+  var t0=(h>>>8)%(1500000-DIS_DUR), tp=now-win*1500000-t0;
+  if(tp<0||tp>DIS_DUR) return null;
+  var intensity=2+((h>>>16)%3), open=((h>>>20)%100)<28;
+  var cx=Math.round(0.18*WW + ((h>>>4)%1000)/1000*0.64*WW);
+  if(open){ if(hasOcean&&((h>>>21)&1)) cx=Math.round(WW*seaW*0.5); else cx=Math.round(WW*(0.08+((h>>>22)%100)/1000)); }
+  return { idx:-2, type:"planecrash", intensity:intensity, x:cx, w:Math.round(12+intensity*4), seed:(h%1000000)|0, win:true, ruin:false, open:open, f:tp/DIS_DUR, tp:tp };
 }
 // past disasters whose rebuild has completed — their block wears the NEW tower now
 function rebuiltZones(now){
@@ -9074,6 +9096,42 @@ function drawVictoryBeat(g,cd,L,now){
     g.fillStyle="rgba(255,"+(170+s%70)+",90,"+(0.7*(1-t/52))+")"; g.fillRect(sx|0,sy|0,1,1); }   // confetti / sparks
   g.globalCompositeOperation="source-over";
 }
+// PLANE CRASH (v1.49) — a doomed aircraft streaks in trailing smoke, hits (a building collapses via the
+// disaster framework, or an open-ground/water crash draws its own fire), then FIRE CREWS respond. No gore.
+function drawPlaneCrash(g,cd,L,now){
+  var cx=disX(cd.x), f=cd.f, seed=cd.seed, dir=(seed&1)?1:-1;
+  var impactY=cd.open?(HORIZON-4):(HORIZON-Math.min(46,20+cd.intensity*6));
+  if(f<0.11){                                                   // APPROACH — descending, on fire, trailing smoke
+    var fp=Math.min(1,f/0.11), startX=cx-dir*140, startY=impactY-96;
+    var px=startX+(cx-startX)*fp, py=startY+(impactY-startY)*fp, X=px|0, Y=py|0;
+    for(var s=1;s<=11;s++){ var sx=X-dir*s*4, sy=Y-s*3, a=0.42*(1-s/12);   // black smoke trail streaming back & up
+      g.fillStyle="rgba(38,38,44,"+a.toFixed(3)+")"; g.fillRect((sx-1)|0,sy|0,3,3); }
+    var tl=Math.floor(now/70)&1;                                // shudder
+    g.fillStyle=L>0.5?"#b9c0cc":"#6a7280"; g.fillRect(X-4,Y+tl,8,2); g.fillRect((X+(dir>0?-5:4))|0,Y-1+tl,2,1);   // fuselage + tail
+    g.fillStyle=L>0.5?"#9aa3b4":"#586070"; g.fillRect(X-1,Y+2+tl,4,1);                                            // wing
+    g.globalCompositeOperation="lighter";
+    g.fillStyle="rgba(255,150,40,0.95)"; g.fillRect((X+dir*4)|0,(Y+tl)|0,2,2); g.fillStyle="rgba(255,240,180,0.85)"; g.fillRect((X+dir*4)|0,(Y+tl)|0,1,1);   // engine fire
+    if(f>0.088){ var flash=(0.11-f)/0.022; g.fillStyle="rgba(255,232,150,"+(0.95*Math.max(0,flash)).toFixed(2)+")"; fillEllipse(g,cx,impactY,15,15); }   // impact flash
+    g.globalCompositeOperation="source-over";
+    return;
+  }
+  if(cd.open && f<0.5){                                         // OPEN CRASH — ground scar / water splashdown (no building to collapse)
+    if(cx>-40&&cx<SW+40){ var ff=1-f/0.5, inWater=hasOcean && (cd.x<WW*seaW);
+      if(inWater){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,150,60,"+(0.30*ff).toFixed(2)+")"; fillEllipse(g,cx,HORIZON-2,16,5); g.globalCompositeOperation="source-over";
+        for(var wv=0;wv<6;wv++){ g.fillStyle="rgba(228,240,255,0.4)"; g.fillRect((cx-8+wv*3)|0,(HORIZON-2-((now/80+wv)%3))|0,2,1); }   // steam plume
+        drawSmoke(g,cx,HORIZON-5,0.7*ff,now,cd.intensity);
+      } else { g.fillStyle=L>0.5?"#2a2620":"#141110"; g.fillRect((cx-cd.w)|0,HORIZON-2,(cd.w*2)|0,3);   // scorched scar
+        drawFlame(g,cx,HORIZON-2,Math.min(18,cd.w),9+cd.intensity*2,now,seed,0.85*ff);
+        drawSmoke(g,cx,HORIZON-6,ff,now,cd.intensity);
+        for(var wr=0;wr<5;wr++){ g.fillStyle="#3a3640"; g.fillRect((cx-cd.w+wr*5+((now*0.02+wr)%4))|0,HORIZON-1,2,1); } }   // wreckage bits
+    }
+  }
+  if(f>=0.12 && f<0.5){                                         // FIRE CREWS on the scene — trucks + strobes
+    var nt=1+Math.min(3,cd.intensity);
+    for(var t=0;t<nt;t++){ var tx=cd.x-cd.w-14-t*11+((now*0.02)%6);
+      drawEmv(g, ((tx%WW)+WW)%WW, {w:9,lights:["#ff2828","#ffffff"],body:"#c81818",trim:"#e8c020"}, 1, 0, L, now); }
+  }
+}
 function drawDisaster(g,cd,L,now){
   drawDisasterAtmosphere(g,cd,L,now);        // the sky itself reacts before any sprite is drawn
   // a general catastrophe glow over the whole block, so the emergency reads at any zoom (skip the veil threats)
@@ -9098,7 +9156,8 @@ function drawDisaster(g,cd,L,now){
   else if(cd.type==="rift") drawRift(g,cd,L,now);
   else if(cd.type==="blackout") drawBlackout(g,cd,L,now);
   else if(cd.type==="smog") drawSmog(g,cd,L,now);
-  if(disDestroys(cd.type)){ drawMilitaryResponse(g,cd,L,now); drawVictoryBeat(g,cd,L,now); }   // no tanks/jets fight a power cut or an inversion layer
+  else if(cd.type==="planecrash") drawPlaneCrash(g,cd,L,now);
+  if(disDestroys(cd.type) && cd.type!=="planecrash"){ drawMilitaryResponse(g,cd,L,now); drawVictoryBeat(g,cd,L,now); }   // no tanks/jets fight a power cut, an inversion layer, or a plane crash (fire crews handle that — in drawPlaneCrash)
 }
 // ---- emergency HUD: flashing alert bar + intensity rating, world-anchored over the impact ----
 function drawDisasterHud(g,cd,now){
@@ -13381,6 +13440,7 @@ function draw(g,pass){
   }
   curWar=(cityG>0.5)?warState(now):null;                     // is this the life the enemy comes?
   curDis=disasterNow(now);            // is a disaster striking right now?
+  if(!curDis) curDis=stormCrash(now);  // …and severe weather downs extra planes (Nick: crashes are worse in bad weather)
   if(curWar&&curWar.f>=0&&curWar.f<1) curDis=null;           // a war eclipses lesser troubles
   curRebuilt=rebuiltZones(now);       // blocks wearing their post-disaster (rebuilt) tower
   curRuins=ruinZones(now);            // blocks a rare lost CAT-5 left permanently ruined this life

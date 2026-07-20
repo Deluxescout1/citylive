@@ -134,3 +134,8 @@ visible; normal buildings overlapping is fine. World is landmark-packed → only
   BRANDED construction company (name/logo on hoardings + crane booms); buildings visibly RISE floor-by-floor.
 - **v1.49 PLANE CRASHES:** add plane crashes (a real aircraft goes down — smoke/fire, emergency response).
   Keep no-gore.
+
+## ADDENDUM 5 — MORE (Nick 2026-07-20)
+- ECONOMY TRACKER on the news: the CITY 9 news reports should also show the economy tracker + whether the
+  JOB MARKET is booming or not (add a market/jobs segment/ticker to drawJumbotron/newsBeat — marketIndex +
+  econOf + a JOBS status). Small add to the news system.
