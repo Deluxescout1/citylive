@@ -156,7 +156,7 @@ function resetNotifLanes(){ for(var r=0;r<_notifTaken.length;r++) _notifTaken[r]
 var CLOCK = null;   // test-harness override: ms timestamp for time-of-day (null = real wall clock)
 var NOWOVR = null;  // test-harness override: ms value returned as Date.now() inside draw() (null = real)
 var NOFETCH = false;  // headless flag (own line = QML-namespace writable): almanac callers set this so setup() makes NO network calls
-var VERSION = "1.33.0";  // the build the user is running — surfaced in the Almanac + KDE config page (keep in sync with desktop/package.json)
+var VERSION = "1.34.0";  // the build the user is running — surfaced in the Almanac + KDE config page (keep in sync with desktop/package.json)
 var FORCELAYOUT = null;   // test hook: pin every building's window layout (grid/ribbon/band/punch/corp) — verify per-layout render
 var FORCECROWN = null;    // test hook: pin every building's crown/roof (gable/hip/saltbox/mansard/deco/…) — verify per-roof render
 var FORCEUSE = null;      // test hook: pin every building's functional type (hospital/theater/hotel/bank/cafe/pharmacy) — verify drawUse
@@ -10677,56 +10677,70 @@ function drawApocMoonfall(g,ap,L,now){
 // kind 1 = the ape (broad shoulders, long arms, amber rim, fists). pose: 0 advance · 1 attack ·
 // 2 stagger · 3 grapple-lean · 4 topple(prog via tp) · 5 victor roar. facing: +1 faces right.
 function drawTitan(g,sx,gy,H,kind,facing,pose,now,tp){
-  var W=Math.round(H*(kind?0.30:0.22));
-  var lean=(pose===2)?-facing*Math.round(W*0.30):(pose===3)?facing*Math.round(W*0.20):0;
-  var sink=(pose===4)?Math.round(H*0.55*tp):0, tilt=(pose===4)?Math.round(tp*W*0.6):0;
+  var W=Math.round(H*(kind?0.34:0.26));
+  var lean=(pose===2)?-facing*Math.round(W*0.28):(pose===3)?facing*Math.round(W*0.22):0;
+  var sink=(pose===4)?Math.round(H*0.55*tp):0, tilt=(pose===4)?Math.round(tp*W*0.7):0;
   var top=gy-H+sink, cx=(sx+lean+facing*tilt)|0;
-  var body=kind?"#241d16":"#1b2a1c", dark=kind?"#161009":"#142115";
-  var rimL=kind?"rgba(255,180,90,0.5)":"rgba(90,225,255,0.55)", rimR=kind?"rgba(255,120,60,0.5)":"rgba(255,90,200,0.55)";
+  var body=kind?"#2a2018":"#1c2c1d", dark=kind?"#17100a":"#122011", dk2=kind?"#0e0906":"#0b160c";
   g.globalCompositeOperation="lighter";
-  g.fillStyle=kind?"rgba(200,140,60,0.07)":"rgba(120,70,170,0.08)"; fillEllipse(g,cx,top+H*0.5,W*0.85,H*0.55);
+  g.fillStyle=kind?"rgba(200,140,60,0.06)":"rgba(120,70,170,0.07)"; fillEllipse(g,cx,top+H*0.5,W*0.9,H*0.55);
   g.globalCompositeOperation="source-over";
-  var neckY=top+Math.round(H*(kind?0.16:0.20)), hipY=gy-Math.round(H*0.30)+sink;
-  // torso rows — ape: broad shoulders tapering DOWN · reptile: narrow neck broadening to the hips.
-  // Rim light hugs each row's edges (every other row) so it follows the body, never floats.
-  for(var by2=neckY; by2<hipY; by2++){ var tf2=(by2-neckY)/Math.max(1,hipY-neckY);
-    var tw=kind?Math.round(W*(1.0-0.38*tf2)):Math.round(W*(0.44+0.56*tf2));
-    var rx=cx-(tw>>1)+((pose===4)?Math.round(tilt*tf2):0);
-    g.fillStyle=body; g.fillRect(rx,by2,tw,1);
-    if((by2&1)===0){ g.globalCompositeOperation="lighter";
-      g.fillStyle=rimL; g.fillRect(rx,by2,1,1); g.fillStyle=rimR; g.fillRect(rx+tw-1,by2,1,1);
-      g.globalCompositeOperation="source-over"; } }
-  g.fillStyle=body;
-  g.fillRect(cx-2,top+Math.round(H*0.09),4,Math.round(H*0.12));                          // neck
-  var hd=Math.round(W*(kind?0.55:0.6)), hh7=Math.round(H*(kind?0.12:0.09)), hy=top+Math.round(H*(kind?0.02:0.04));
-  var hx0=(facing>0?cx-(hd>>2):cx+(hd>>2)-hd)|0;
-  g.fillRect(hx0,hy,hd,hh7);                                                             // head (mostly centered, jutting slightly forward)
-  if(!kind){ g.fillRect((facing>0?hx0+hd-2:hx0-3)|0,hy+2,4,Math.max(2,(hh7*0.6)|0)); }   // reptile snout
-  if(kind){ g.fillStyle=dark; g.fillRect(hx0+1,hy-2,hd-2,2); g.fillStyle=body; }         // ape brow ridge
-  var legW=Math.round(W*(kind?0.26:0.24));
-  g.fillRect(cx-Math.round(W*0.30),hipY,legW,Math.max(0,gy-hipY));
-  g.fillRect(cx+Math.round(W*0.30)-legW,hipY,legW,Math.max(0,gy-hipY));                  // legs
-  // arms — the ape's are long and heavy, knuckles near the ground; punch extends the lead arm
-  var armW=kind?4:3, armL=Math.round(H*(kind?0.46:0.24)), armY=neckY+Math.round(H*0.02);
-  var punch=(pose===1&&kind)?Math.round(W*0.6+((Math.floor(now/220))&1)*5):0;
-  g.fillStyle=dark;
-  var shW=kind?Math.round(W*0.5):(W>>1);
-  if(punch){ g.fillRect((facing>0?cx+shW-2:cx-shW+2-armL)|0,armY+2,armL,armW); }         // punching: the lead arm goes HORIZONTAL at the foe
-  else g.fillRect((facing>0?cx+shW-armW:cx-shW)|0,armY,armW,armL);
-  g.fillRect((facing>0?cx-shW:cx+shW-armW)|0,armY,armW,Math.round(armL*0.85));           // trailing arm
-  if(!kind){ for(var tl=0;tl<Math.round(H*0.4);tl++){ var txp=cx-facing*(Math.round(W*0.5)+tl), typ=hipY+2+Math.round(Math.sin(tl*0.28)*4)+Math.round(tl*0.22);
-    g.fillStyle=dark; g.fillRect(txp|0,Math.min(gy-1,typ)|0,2,3); } }                    // reptile tail
-  g.globalCompositeOperation="lighter";
-  if(!kind){ for(var sp=0;sp<hipY-neckY;sp+=3){ var fw=1+((sp/3)&1);
-    g.fillStyle="rgba(150,235,255,0.85)"; g.fillRect((cx-(fw>>1))|0,(neckY+sp)|0,fw,2); } }   // dorsal fins
-  g.fillStyle=kind?"rgba(255,200,60,1)":"rgba(255,70,50,1)";
-  g.fillRect((facing>0?hx0+hd-3:hx0+2)|0,(hy+2)|0,2,2);                                  // the eye
-  if(pose===5&&((now%6000)<900)){ var rr=((now%900)/900)*W*2.2;                          // victor roar ring
-    g.fillStyle="rgba(255,240,210,"+(0.4*(1-(now%900)/900))+")";
-    g.fillRect((cx-rr)|0,(hy-2)|0,Math.max(2,rr*2)|0,1); g.fillRect((cx-rr*0.7)|0,(hy+3)|0,Math.max(2,rr*1.4)|0,1); }
-  g.globalCompositeOperation="source-over";
-  if(pose!==4){ g.fillStyle="rgba(120,100,86,0.4)"; g.fillRect(cx-W,gy-3,W*2,3); }       // stomp dust
-  return {cx:cx, headY:hy, headX:(facing>0?hx0+hd:hx0), W:W, top:top};
+  var headX, headY;
+  if(kind){
+    // ===== THE GREAT APE — hulking, hunched, huge shoulders, long knuckle-dragging arms =====
+    var shY=top+Math.round(H*0.15), hipY=gy-Math.round(H*0.32)+sink;
+    for(var by=shY;by<hipY;by++){ var tf=(by-shY)/Math.max(1,hipY-shY);
+      var tw=Math.round(W*(1.02-0.42*tf)), fwd=Math.round(facing*W*0.14*(1-tf));         // broad shoulders → narrow hips, hunched forward
+      var rx=cx-(tw>>1)+fwd; g.fillStyle=body; g.fillRect(rx,by,tw,1);
+      if((by&1)===0){ g.fillStyle=dk2; g.fillRect(rx,by,1,1); g.fillRect(rx+tw-1,by,1,1); } }
+    g.fillStyle=body; g.fillRect(cx-(W>>1)-1,shY-Math.round(H*0.02),W+2,Math.round(H*0.09));   // massive shoulder hump
+    var hd=Math.round(W*0.44), hh=Math.round(H*0.13), hx=(cx+facing*Math.round(W*0.20)-(hd>>1))|0, hy=shY-Math.round(H*0.04);
+    g.fillStyle=body; g.fillRect(hx,hy,hd,hh);                                            // head, sunk between the shoulders
+    g.fillStyle=dark; g.fillRect(hx,hy+2,hd,2);                                           // heavy sloped brow
+    g.fillStyle=dk2; g.fillRect((facing>0?hx+hd-3:hx)|0,hy+Math.round(hh*0.55),3,Math.round(hh*0.4));   // muzzle
+    var aw=Math.max(3,Math.round(W*0.17)), aTop=shY+2, aLen=Math.round(H*0.52);
+    var punch=(pose===1)?Math.round(W*0.55+((Math.floor(now/220))&1)*6):0;
+    g.fillStyle=dark;
+    if(punch){ var pax=(facing>0?cx+(W>>1)-aw:cx-(W>>1)-punch)|0; g.fillRect(pax,aTop,punch+aw,aw+2);   // lead arm thrown at the foe
+      g.fillRect((facing>0?pax+punch+aw-3:pax-2)|0,aTop-1,aw+4,aw+5); }                    // fist
+    else { var hax=(facing>0?cx+(W>>1)-aw:cx-(W>>1))|0; g.fillRect(hax,aTop,aw,aLen); g.fillRect(hax-1,aTop+aLen-4,aw+2,5); }   // long arm + knuckle
+    var tax=(facing>0?cx-(W>>1):cx+(W>>1)-aw)|0; g.fillRect(tax,aTop,aw,Math.round(aLen*0.92)); g.fillRect(tax-1,aTop+Math.round(aLen*0.92)-4,aw+2,5);
+    var lw=Math.round(W*0.22); g.fillStyle=body;
+    g.fillRect(cx-Math.round(W*0.26),hipY,lw,Math.max(0,gy-hipY)); g.fillRect(cx+Math.round(W*0.26)-lw,hipY,lw,Math.max(0,gy-hipY));   // stout legs
+    headX=(facing>0?hx+hd:hx); headY=hy;
+    g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,200,60,1)"; g.fillRect((facing>0?hx+hd-4:hx+2)|0,(hy+3)|0,2,2); g.globalCompositeOperation="source-over";
+  } else {
+    // ===== THE LIZARD KING — hunched, jagged dorsal plates, a thick sweeping tail, a jawed head =====
+    var neckY=top+Math.round(H*0.22), hipR=gy-Math.round(H*0.28)+sink;
+    for(var by2=neckY;by2<hipR;by2++){ var tf2=(by2-neckY)/Math.max(1,hipR-neckY);
+      var tw2=Math.round(W*(0.52+0.6*tf2)), fwd2=Math.round(facing*W*0.30*(1-tf2));       // narrow hunched neck → broad hips
+      var rx2=cx-(tw2>>1)+fwd2; g.fillStyle=body; g.fillRect(rx2,by2,tw2,1);
+      if((by2&1)===0){ g.fillStyle=dk2; g.fillRect((facing>0?rx2:rx2+tw2-1),by2,1,1); } }
+    for(var sp=3;sp<hipR-neckY;sp+=4){ var ph=sp/(hipR-neckY), syv=neckY+sp;              // JAGGED DORSAL PLATES protruding along the BACK edge, nape to tail
+      var twp=Math.round(W*(0.52+0.6*ph)), fwp=Math.round(facing*W*0.30*(1-ph)), backE=cx+fwp-facing*(twp>>1);
+      var pltH=Math.round(4+(1-Math.abs(ph-0.4)*1.5)*7);
+      g.fillStyle="#4c6040"; for(var pr=0;pr<pltH;pr++){ var pw=Math.max(1,pltH-pr); g.fillRect((backE-facing*pr)|0,(syv-pr)|0,pw,1); }   // triangle jutting up-and-back
+      if(pose===1){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(150,235,255,0.95)"; g.fillRect((backE-facing*pltH)|0,(syv-pltH)|0,2,2); g.globalCompositeOperation="source-over"; } }
+    var hd2=Math.round(W*0.5), hh2=Math.round(H*0.12), hy2=neckY-Math.round(H*0.10), hx2=(facing>0?cx-Math.round(hd2*0.1):cx-hd2+Math.round(hd2*0.1))|0;
+    g.fillStyle=body; g.fillRect(hx2,hy2,hd2,Math.round(hh2*0.55));                        // upper head
+    var snx=(facing>0?hx2+Math.round(hd2*0.4):hx2)|0, snw=Math.round(hd2*0.6);
+    g.fillRect(snx,hy2+Math.round(hh2*0.1),snw,Math.round(hh2*0.35));                      // upper snout
+    g.fillStyle=dark; g.fillRect(snx,hy2+Math.round(hh2*0.72),Math.round(snw*0.85),Math.round(hh2*0.3));   // lower jaw (gap = open mouth)
+    g.fillStyle=body; var tN=Math.round(H*0.5);
+    for(var tl=0;tl<tN;tl++){ var tfr=tl/tN, tw3=Math.max(1,Math.round(W*0.42*(1-tfr)));   // thick TAIL sweeping down & back
+      var txp=cx-facing*(Math.round(W*0.38)+Math.round(tl*0.95)), typ=hipR+Math.round(Math.pow(tfr,1.7)*H*0.34)-Math.round(Math.sin(tfr*3.2)*3);
+      g.fillRect((txp-(tw3>>1))|0,Math.min(gy-1,typ)|0,tw3,2);
+      if((tl%5)===0&&tfr<0.65){ g.fillStyle=dark; g.fillRect(txp|0,(typ-2)|0,1,2); g.fillStyle=body; } }
+    var lw2=Math.round(W*0.26); g.fillStyle=body;
+    g.fillRect(cx-Math.round(W*0.28),hipR,lw2,Math.max(0,gy-hipR)); g.fillRect(cx+Math.round(W*0.28)-lw2,hipR,lw2,Math.max(0,gy-hipR));   // clawed legs
+    g.fillStyle=dark; g.fillRect((facing>0?cx+Math.round(W*0.15):cx-Math.round(W*0.15)-Math.round(W*0.3))|0,neckY+Math.round(H*0.05),Math.round(W*0.3),3);   // short forward arm
+    headX=(facing>0?hx2+hd2:hx2); headY=hy2;
+    g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,70,50,1)"; g.fillRect((facing>0?hx2+hd2-4:hx2+2)|0,(hy2+2)|0,2,2); g.globalCompositeOperation="source-over";
+  }
+  if(pose!==4){ g.fillStyle="rgba(120,100,86,0.4)"; g.fillRect(cx-W,gy-3,W*2,3); }         // stomp dust
+  if(pose===5&&((now%6000)<900)){ var rr=((now%900)/900)*W*2.2; g.globalCompositeOperation="lighter";   // victor roar ring
+    g.fillStyle="rgba(255,240,210,"+(0.4*(1-(now%900)/900))+")"; g.fillRect((cx-rr)|0,(headY-2)|0,Math.max(2,rr*2)|0,1); g.globalCompositeOperation="source-over"; }
+  return {cx:cx, headY:headY, headX:headX, W:W, top:top};
 }
 function drawApocKaijuWar(g,ap,L,now){
   var gy=HORIZON, winner=kwWinner(now), loser=1-winner;
