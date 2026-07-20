@@ -3,7 +3,7 @@
 // The renderer (renderer/index.html + renderer/city.js) is the exact same engine
 // that powers the KDE Plasma wallpaper, so the city looks identical everywhere.
 
-const { app, BrowserWindow, Menu, Tray, nativeImage, shell, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, Menu, Tray, nativeImage, shell, ipcMain, dialog, Notification } = require('electron');
 const path = require('path');
 const store = require('./config-store');
 const screensaver = require('./screensaver');
@@ -583,9 +583,41 @@ if (SS.preview) {
       } catch (e) { /* screen module should exist post-ready; best effort */ }
       // Auto-update: check at startup AND every 6 hours — a wallpaper runs for months, one
       // launch-time check isn't enough. Silent; downloads in background, installs on next launch.
+      // (electron-updater self-installs on Windows, macOS and the Linux AppImage.)
       const checkUpdates = () => { if (autoUpdater) { try { autoUpdater.checkForUpdatesAndNotify(); } catch (e) { /* offline / no release yet */ } } };
-      checkUpdates();
-      setInterval(checkUpdates, 6 * 3600 * 1000);
+      // Linux .deb (dpkg-managed) can't self-install via electron-updater — so on a NON-AppImage packaged
+      // Linux build, check the GitHub release manually and, if newer, show a clickable "update available"
+      // notification pointing at the release (the user updates the .deb through their package manager).
+      const semverNewer = (a, b) => {
+        const pa = String(a).split('.').map(Number), pb = String(b).split('.').map(Number);
+        for (let i = 0; i < 3; i++) { const x = pa[i] || 0, y = pb[i] || 0; if (x !== y) return x > y; }
+        return false;
+      };
+      const checkDebUpdate = () => {
+        if (!(app.isPackaged && process.platform === 'linux' && !process.env.APPIMAGE)) return;
+        try {
+          require('https').get({ host: 'api.github.com', path: '/repos/Deluxescout1/citylive/releases/latest',
+            headers: { 'User-Agent': 'CityLive', 'Accept': 'application/vnd.github+json' } }, (res) => {
+            let body = ''; res.on('data', (d) => body += d); res.on('end', () => {
+              try {
+                const tag = (JSON.parse(body).tag_name || '').replace(/^v/, '');
+                if (tag && semverNewer(tag, app.getVersion())) {
+                  const url = 'https://github.com/Deluxescout1/citylive/releases/latest';
+                  if (ccWin && !ccWin.isDestroyed()) ccWin.webContents.send('citylive:update-status',
+                    'Update v' + tag + ' available — click to download (the .deb updates via your package manager).');
+                  if (Notification.isSupported()) {
+                    const n = new Notification({ title: 'CityLive v' + tag + ' available', body: 'Click to download the update.' });
+                    n.on('click', () => shell.openExternal(url)); n.show();
+                  }
+                }
+              } catch (e) { /* malformed / offline */ }
+            });
+          }).on('error', () => {}).setTimeout(15000, function () { this.destroy(); });
+        } catch (e) { /* best effort */ }
+      };
+      const runUpdateChecks = () => { checkUpdates(); checkDebUpdate(); };
+      runUpdateChecks();
+      setInterval(runUpdateChecks, 6 * 3600 * 1000);
       // Forward updater status to the Control Center's Updates line.
       if (autoUpdater) {
         const fwd = (msg) => { if (ccWin && !ccWin.isDestroyed()) ccWin.webContents.send('citylive:update-status', msg); };

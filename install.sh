@@ -77,6 +77,41 @@ DESK
   command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || true
 fi
 
+# Auto-update: a daily systemd --user timer that stages the latest release into place. It NEVER reloads
+# plasmashell (plasma keeps the old QML in memory), so a new version applies at your next login with zero
+# desktop disruption — no mid-session flash, no interrupted game. Re-run this installer to apply immediately.
+if [ -f "$HERE/citylive-update.sh" ] && command -v systemctl >/dev/null 2>&1; then
+  echo "==> Installing the auto-updater (daily check; new versions apply at your next login)"
+  mkdir -p "$HOME/.local/bin" "$HOME/.config/systemd/user"
+  cp -f "$HERE/citylive-update.sh" "$HOME/.local/bin/citylive-update"
+  chmod +x "$HOME/.local/bin/citylive-update"
+  cat > "$HOME/.config/systemd/user/citylive-update.service" <<'UNIT'
+[Unit]
+Description=CityLive KDE wallpaper auto-update (stage the latest release for next login)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/citylive-update
+UNIT
+  cat > "$HOME/.config/systemd/user/citylive-update.timer" <<'UNIT'
+[Unit]
+Description=CityLive KDE wallpaper daily auto-update check
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=1d
+RandomizedDelaySec=30min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+UNIT
+  systemctl --user daemon-reload 2>/dev/null || true
+  systemctl --user enable --now citylive-update.timer 2>/dev/null || true
+fi
+
 echo "==> Reloading plasmashell"
 if command -v systemctl >/dev/null && systemctl --user is-active plasma-plasmashell.service >/dev/null 2>&1; then
   systemctl --user restart plasma-plasmashell.service
