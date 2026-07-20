@@ -156,7 +156,7 @@ function resetNotifLanes(){ for(var r=0;r<_notifTaken.length;r++) _notifTaken[r]
 var CLOCK = null;   // test-harness override: ms timestamp for time-of-day (null = real wall clock)
 var NOWOVR = null;  // test-harness override: ms value returned as Date.now() inside draw() (null = real)
 var NOFETCH = false;  // headless flag (own line = QML-namespace writable): almanac callers set this so setup() makes NO network calls
-var VERSION = "1.35.0";  // the build the user is running — surfaced in the Almanac + KDE config page (keep in sync with desktop/package.json)
+var VERSION = "1.36.0";  // the build the user is running — surfaced in the Almanac + KDE config page (keep in sync with desktop/package.json)
 var FORCELAYOUT = null;   // test hook: pin every building's window layout (grid/ribbon/band/punch/corp) — verify per-layout render
 var FORCECROWN = null;    // test hook: pin every building's crown/roof (gable/hip/saltbox/mansard/deco/…) — verify per-roof render
 var FORCEUSE = null;      // test hook: pin every building's functional type (hospital/theater/hotel/bank/cafe/pharmacy) — verify drawUse
@@ -8140,29 +8140,57 @@ function drawKaiju(g,cd,L,now){
   // backlight halo so the beast reads against the night sky
   g.globalCompositeOperation="lighter"; g.fillStyle="rgba(120,70,170,0.16)"; g.fillRect(X0-5,(top-8)|0,W+10,(H+8)|0);
   g.globalCompositeOperation="source-over";
-  var neckY=top+7, hipY=gy-Math.round(H*0.34);
-  g.fillStyle=body;
-  g.fillRect(X0+1,neckY,W-2,hipY-neckY);                                 // torso
-  g.fillRect(X0+2,top+3,W-4,5);                                          // neck
-  g.fillRect(X0+(breathDir<0?0:2),top,6,5);                             // head/snout (juts toward the city)
-  g.fillRect(X0+2,hipY,3,gy-hipY); g.fillRect(X0+W-5,hipY,3,gy-hipY);    // two legs straddling the block
-  g.fillRect(X0-1,neckY+2,2,7); g.fillRect(X0+W-1,neckY+2,2,7);          // arms
-  // sweeping tail out the back
-  for(var tl=0;tl<10;tl++){ var txp=X0+(breathDir<0?W+tl:-1-tl), typ=hipY+2+Math.round(Math.sin(tl*0.5)*2);
-    g.fillStyle=dark; g.fillRect(txp|0,typ|0,2,2); }
-  // dorsal fins (neon-tipped), rim light, eyes — all additive so they glow
+  var fd=breathDir;                                                     // head faces the city (fd=-1 left, +1 right); tail sweeps the other way
+  var cxB=X0+(W>>1), hipY=gy-Math.round(H*0.30), chestY=top+Math.round(H*0.22),
+      headY=top+1, headX=cxB+fd*Math.round(W*0.34),
+      belly=L>0.5?"#3a4a34":"#243521", mawing=(Math.floor(now/240))%3===0;
+  // ---- TAIL: thick at the hip, sweeping out the BACK and arcing down to the ground ----
+  var tailN=11+i;
+  for(var tl=0;tl<tailN;tl++){ var tp=tl/tailN,
+      txp=cxB - fd*(W*0.30 + tp*(W*0.95+i)),
+      typ=hipY + tp*tp*(gy-hipY-1) + Math.sin(tp*3.2+now*0.002)*1.5,
+      tw=Math.max(1,Math.round((1-tp)*W*0.32));
+    g.fillStyle=(tl&1)?dark:body; g.fillRect((txp-tw)|0,typ|0,(tw*2)|0,2); }
+  // ---- HIND LEGS: haunch + canted shin + clawed foot (one strides) ----
+  var legF=(Math.floor(now/300))&1;
+  function kleg(lx,fwd){ var kneeY=hipY+Math.round((gy-hipY)*0.52);
+    g.fillStyle=body; g.fillRect((lx-2)|0,hipY-1,4,kneeY-hipY+1);                       // thigh/haunch
+    g.fillStyle=dark; g.fillRect((lx-2+fwd)|0,kneeY,4,gy-kneeY);                        // shin (canted)
+    g.fillStyle=dark; g.fillRect((lx-3+fwd)|0,gy-2,6,2); }                              // clawed foot
+  kleg(cxB-Math.round(W*0.20), legF?1:0); kleg(cxB+Math.round(W*0.20), legF?0:1);
+  // ---- BODY: a bulky chest tapering to the belly (tapered rows lean forward — not a slab) ----
+  for(var yy=chestY; yy<=hipY; yy++){ var bt=(yy-chestY)/Math.max(1,(hipY-chestY)),
+      hw=Math.round(W*0.5*(0.62+0.55*Math.sin((0.18+bt*0.72)*Math.PI))),               // slim neck → broad chest/belly
+      lean=Math.round(fd*(1-bt)*W*0.14);                                                // torso leans toward the city
+    g.fillStyle=body; g.fillRect((cxB-hw+lean)|0,yy,(hw*2)|0,1);
+    g.fillStyle=belly; g.fillRect((cxB+fd*(hw-2)+lean)|0,yy,2,1); }                     // lit belly on the front
+  // ---- NECK + JAWED HEAD jutting toward the city ----
+  for(var ny=headY; ny<chestY; ny++){ var q=(ny-headY)/Math.max(1,chestY-headY),
+      nx=cxB+fd*Math.round(W*0.34*(1-q)); g.fillStyle=body; g.fillRect((nx-2)|0,ny|0,4,1); }
+  g.fillStyle=body; g.fillRect((headX-2)|0,headY|0,5,4);                                // skull block
+  var snoutX=(fd<0)?headX-5:headX+3;                                                    // snout juts toward the city
+  g.fillStyle=dark; g.fillRect(snoutX|0,(headY+1)|0,3,2);                               // snout
+  if(mawing){ g.fillStyle=dark; g.fillRect(snoutX|0,(headY+3)|0,3,1); }                 // lower jaw drops (roaring / breathing)
+  g.fillStyle=dark; g.fillRect((cxB+fd*Math.round(W*0.24))|0,chestY+2,2,4);             // small forelimb held forward
+  // ---- JAGGED DORSAL PLATES down the spine and onto the tail (neon-tipped, additive glow) ----
   g.globalCompositeOperation="lighter";
-  for(var sp=0;sp<hipY-neckY;sp+=3){ g.fillStyle="rgba(150,235,255,0.8)"; g.fillRect((X0+(W>>1))|0,(neckY+sp)|0,1,2); }
-  g.fillStyle="rgba(90,225,255,0.6)"; g.fillRect(X0,top,1,H);            // cyan rim (left)
-  g.fillStyle="rgba(255,90,200,0.6)"; g.fillRect(X0+W-1,top,1,H);       // magenta rim (right)
-  g.fillStyle="rgba(255,70,50,1)"; g.fillRect(X0+(breathDir<0?1:3),top+1,1,1); g.fillRect(X0+(breathDir<0?3:5),top+1,1,1); // eyes
-  if((Math.floor(now/240))%3===0){                                              // atomic breath — a bright cyan beam
-    for(var br=0;br<20;br++){ var bxp=X0+(breathDir<0?-1-br:W+br);
-      g.fillStyle="rgba("+(170-br*4)+",240,255,"+(0.9*(1-br/20))+")"; g.fillRect(bxp|0,(top+1)|0,1,3); } }
-  if(hurt){ for(var hs=0;hs<4;hs++){ var hx=X0+((hs*7+((now/90)|0))%W), hy=neckY+((hs*11+((now/70)|0))%Math.max(1,hipY-neckY));
-    g.fillStyle="rgba(255,180,80,0.9)"; g.fillRect(hx|0,hy|0,1,1); } }                 // tank/jet hits sparking off its hide
+  var plN=7+i;
+  for(var pl=0;pl<plN;pl++){ var pp=pl/plN, pxp,pyp;
+    if(pp<0.45){ var q3=pp/0.45; pxp=cxB - fd*(W*0.10 + q3*W*0.28); pyp=chestY-1 + q3*(hipY-chestY); }
+    else { var q4=(pp-0.45)/0.55; pxp=cxB - fd*(W*0.30 + q4*(W*0.95+i)); pyp=hipY + q4*q4*(gy-hipY-1)*0.75; }
+    var psz=Math.max(1,Math.round((1-pp*0.5)*3));
+    g.fillStyle="rgba(150,235,255,0.85)"; g.fillRect(pxp|0,(pyp-psz)|0,1,psz);          // spine spike
+    g.fillStyle="rgba(120,220,255,0.35)"; g.fillRect((pxp-1)|0,(pyp-1)|0,3,1); }        // glow base
+  g.fillStyle="rgba(90,225,255,0.55)"; g.fillRect((cxB-Math.round(W*0.5))|0,chestY,1,hipY-chestY);   // cyan rim (back)
+  g.fillStyle="rgba(255,90,200,0.5)"; g.fillRect((cxB+Math.round(W*0.5)-1)|0,chestY,1,hipY-chestY);  // magenta rim (front)
+  g.fillStyle="rgba(255,70,50,1)"; g.fillRect((headX+fd)|0,(headY+1)|0,1,1);                          // glowing red eye
+  if(mawing){                                                                                          // atomic breath — a bright cyan beam from the maw
+    for(var br=0;br<20;br++){ var bxp=snoutX+fd*(1+br);
+      g.fillStyle="rgba("+(170-br*4)+",240,255,"+(0.9*(1-br/20))+")"; g.fillRect(bxp|0,(headY+2)|0,1,3); } }
+  if(hurt){ for(var hs=0;hs<4;hs++){ var hx=(cxB-Math.round(W*0.4))+((hs*7+((now/90)|0))%W), hy=chestY+((hs*11+((now/70)|0))%Math.max(1,hipY-chestY));
+    g.fillStyle="rgba(255,180,80,0.9)"; g.fillRect(hx|0,hy|0,1,1); } }                                // tank/jet hits sparking off its hide
   g.globalCompositeOperation="source-over";
-  if((Math.floor(now/380))%2===0){ g.fillStyle="rgba(120,120,130,0.4)"; g.fillRect(X0-3,gy-1,W+6,1); }   // stomp dust at its feet
+  if((Math.floor(now/380))%2===0){ g.fillStyle="rgba(120,120,130,0.4)"; g.fillRect((cxB-Math.round(W*0.6))|0,gy-1,(W*1.2)|0,1); }   // stomp dust at its feet
   if(rise>0.5&&(Math.floor(now/500))%2===0){ g.strokeStyle="rgba(255,255,255,0.22)"; g.lineWidth=1;   // roar shockwave
     g.beginPath(); g.arc(X0+(W>>1),top+2,12+((now%500)/500)*18,0,2*Math.PI); g.stroke(); }
 }
