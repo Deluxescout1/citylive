@@ -13,7 +13,7 @@
         "Id": "org.citylive.wallpaper",
         "License": "MIT",
         "Name": "CityLive Pixel City",
-        "Version": "1.37.0"
+        "Version": "1.37.1"
     },
     "X-Plasma-API-Minimum-Version": "6.0"
 }
