@@ -156,7 +156,7 @@ function resetNotifLanes(){ for(var r=0;r<_notifTaken.length;r++) _notifTaken[r]
 var CLOCK = null;   // test-harness override: ms timestamp for time-of-day (null = real wall clock)
 var NOWOVR = null;  // test-harness override: ms value returned as Date.now() inside draw() (null = real)
 var NOFETCH = false;  // headless flag (own line = QML-namespace writable): almanac callers set this so setup() makes NO network calls
-var VERSION = "1.43.0";  // the build the user is running — surfaced in the Almanac + KDE config page (keep in sync with desktop/package.json)
+var VERSION = "1.44.0";  // the build the user is running — surfaced in the Almanac + KDE config page (keep in sync with desktop/package.json)
 var FORCELAYOUT = null;   // test hook: pin every building's window layout (grid/ribbon/band/punch/corp) — verify per-layout render
 var FORCECROWN = null;    // test hook: pin every building's crown/roof (gable/hip/saltbox/mansard/deco/…) — verify per-roof render
 var FORCEUSE = null;      // test hook: pin every building's functional type (hospital/theater/hotel/bank/cafe/pharmacy) — verify drawUse
@@ -1990,6 +1990,46 @@ function fetchFlights(bucket){
     xhr.send();
   }catch(e){}
 }
+// ---- LIVE SPORTS SCORES (v1.44): ESPN's public scoreboard API (CORS `*` → works in QML XHR + Electron).
+// When THIS city's real local team is actually playing right now, the stadium's board shows the REAL live
+// score + opponent + game state, in real time. Otherwise a plausible FAKE game plays on game nights. Polled
+// ~2 min, never-throw, node-guarded. Works for any US region (the team is chosen from the user's LAT/LON). ----
+var SCORE_ON=(CFG.scores!==false), SCORE_BUCKET=120000;
+var SCORE_EP={NBA:"basketball/nba",MLB:"baseball/mlb",NHL:"hockey/nhl",NFL:"football/nfl"};
+var liveScores={NBA:null,MLB:null,NHL:null,NFL:null}, scBucket=-1, scReqAt=0, FORCESCORES=null, FORCEGAMEON=false;
+function maybeFetchScores(){
+  if(FORCESCORES){ liveScores=FORCESCORES; return; }
+  if(!SCORE_ON || cityG<0.5) return;                          // only once the city has stadiums
+  var rn=Date.now(), b=Math.floor(rn/SCORE_BUCKET);
+  if(b!==scBucket && rn-scReqAt>15000){ scBucket=b; scReqAt=rn; for(var k in SCORE_EP) fetchScores(k); }
+}
+function fetchScores(sport){
+  if(typeof XMLHttpRequest==="undefined") return;             // node/tooling has no XHR → live scores simply absent (fake games stand in)
+  try{ var xhr=new XMLHttpRequest();
+    xhr.onreadystatechange=function(){
+      if(xhr.readyState===XMLHttpRequest.DONE && xhr.status===200){ try{
+        var j=JSON.parse(xhr.responseText), evs=(j&&j.events)||[], out=[];
+        for(var i=0;i<evs.length;i++){ try{ var ev=evs[i], c=ev.competitions[0], st=ev.status.type, cs=c.competitors, h=null,a=null;
+          for(var q=0;q<cs.length;q++){ if(cs[q].homeAway==="home") h=cs[q]; else a=cs[q]; }
+          if(!h||!a) continue;
+          out.push({home:(h.team.name||"").toUpperCase(), away:(a.team.name||"").toUpperCase(),
+            ha:(h.team.abbreviation||""), aa:(a.team.abbreviation||""),
+            hs:(parseInt(h.score,10)||0), as:(parseInt(a.score,10)||0),
+            state:st.state, detail:(st.shortDetail||"")}); }catch(e2){} }
+        liveScores[sport]=out;
+      }catch(e){} } };
+    xhr.open("GET","https://site.api.espn.com/apis/site/v2/sports/"+SCORE_EP[sport]+"/scoreboard");
+    xhr.send();
+  }catch(e){}
+}
+// the city team's REAL game today (if the feed has loaded): {live,done,us,them,opp,detail} or null.
+function realGameFor(sport, teamUpper){
+  var arr=liveScores[sport]; if(!arr||!arr.length) return null;
+  for(var i=0;i<arr.length;i++){ var g=arr[i];
+    if(g.home===teamUpper) return {live:g.state==="in", done:g.state==="post", us:g.hs, them:g.as, opp:g.aa, detail:g.detail};
+    if(g.away===teamUpper) return {live:g.state==="in", done:g.state==="post", us:g.as, them:g.hs, opp:g.ha, detail:g.detail}; }
+  return null;
+}
 // ---- THE REAL ISS: its live sub-satellite point (open-notify), refreshed ~25s. The look angle from the
 // user's coordinates decides whether it's actually above the horizon right now — so when the engine shows
 // the ISS gliding over, it's REALLY up there. Falls back to a scripted pass if the feed is unreachable.
@@ -2478,6 +2518,7 @@ function setup(scene,opts){
     maybeFetchKp();                // and the shared 30-min planetary-K window (aurora)
     maybeFetchISS();              // and the real ISS sub-point (~25s) — shown only when it is truly above the horizon here
     maybeFetchFlights();           // and the ~90s live-aircraft window (real flights overhead)
+    maybeFetchScores();            // and the ~2min live sports scores (real games matched on the stadium boards)
   }
   tPrev=Date.now();
 }
@@ -9182,62 +9223,109 @@ function cityTeams(now){
 var NOSPORTS=false;
 var SPORTS_X=[0.36,0.50,0.70,0.84];   // spread across the cityscape (clear of cathedral 0.24 / ferris 0.93)
 function drawArenaName(g,x,topY,name,col,L){                     // a lit marquee/nameplate over a venue
-  var w=Math.max(18,textW(name)+6), bx=x-(w>>1);
+  var w=Math.max(20,textW(name)+6), bx=x-(w>>1);
   g.fillStyle=L>0.5?"#14171e":"#0a0c11"; g.fillRect(bx,topY,w,7);
   g.fillStyle=col; g.fillRect(bx,topY,w,1); g.fillRect(bx,topY+6,w,1);
   drawUiText(g,name,bx+3,topY+1,"#f4f8ff",1);
 }
-function drawBaseballPark(g,x,L,now,team){                       // OPEN diamond + outfield + curved grandstand
+// which league a venue belongs to (index 0-3 → NBA/MLB/NHL/NFL) — for the fake opponent + period wording
+function fakeOpp(sIdx,h){ var d=SPORT_DEFS[sIdx].data, t=d[h%d.length][0]; return (t.replace(/[^A-Z]/gi,"").substr(0,3)||"OPP").toUpperCase(); }
+function fakePeriod(sIdx,prog){
+  var p=Math.min(1,Math.max(0,prog));
+  if(sIdx===1){ return (p<0.5?"TOP ":"BOT ")+(1+Math.min(8,Math.floor(p*9)))+"TH"; }   // baseball inning
+  if(sIdx===3){ return "Q"+(1+Math.min(3,Math.floor(p*4))); }                          // football quarter
+  if(sIdx===2){ return "P"+(1+Math.min(2,Math.floor(p*3))); }                          // hockey period
+  return "Q"+(1+Math.min(3,Math.floor(p*4)));                                          // basketball quarter
+}
+// what game (if any) this venue is showing right now: the REAL live game when the team is actually playing,
+// else a plausible FAKE game on a game-night evening, else null (dark board). {real,live,us,them,opp,detail}
+function venueGame(sIdx,team,now){
+  var sport=SPORT_DEFS[sIdx].k, real=realGameFor(sport,team.name);
+  if(real && (real.live||real.done)) return {real:true, live:real.live, us:real.us, them:real.them, opp:(real.opp||"OPP").toUpperCase(), detail:(real.detail||"").toUpperCase()};
+  var nd=nowDate(), hr=nd.getHours();
+  if(FORCEGAMEON || (hr>=18 && hr<23 && gameNight(nd))){         // a fake home game in progress this evening (or forced for tests)
+    var li=lifeIndexOf(now), fh=((li*2654435761 + (sIdx+1)*7919 + nd.getDate()*131)>>>0);
+    var prog=Math.min(1,(hr-18)/4 + nd.getMinutes()/240);
+    return {real:false, live:true, us:Math.round(prog*(2+(fh%5)))+(fh%2), them:Math.round(prog*(1+((fh>>3)%5)))+((fh>>5)%2),
+            opp:fakeOpp(sIdx,fh), detail:fakePeriod(sIdx,prog)};
+  }
+  return null;
+}
+// the venue's big SCOREBOARD — reads the game and shows US vs OPP + score + period; a red LIVE dot when it's
+// the REAL game happening right now (Nick: fake games normally, the real score when the team truly plays).
+function drawScoreboard(g,x,topY,w,sIdx,team,now,L,active){
+  if(!active) return false;
+  var gm=venueGame(sIdx,team,now); if(!gm) return false;
+  var abbr=(team.name.replace(/[^A-Z]/gi,"").substr(0,3)||"HOM").toUpperCase(), col=team.color, bx=x-(w>>1);
+  g.fillStyle="#06080e"; g.fillRect(bx,topY,w,13);                                         // board
+  g.fillStyle=col; g.fillRect(bx,topY,w,1);
+  drawUiText(g,abbr,bx+2,topY+1,"#f4f8ff",1); drawUiText(g,""+gm.us,bx+w-6,topY+1,"#ffe14a",1);   // home line
+  drawUiText(g,gm.opp,bx+2,topY+6,"#cfd6e0",1); drawUiText(g,""+gm.them,bx+w-6,topY+6,"#ffe14a",1);  // away line
+  g.fillStyle="#1a2230"; g.fillRect(bx,topY+11,w,2);
+  var dt=gm.detail.substr(0,Math.max(3,((w-8)/4)|0)); drawUiText(g,dt,bx+2,topY+11,gm.real?"#8fe0ff":"#9aa4b0",1);
+  if(gm.real&&gm.live){ if((Math.floor(now/500))&1){ g.fillStyle="#ff3b3b"; g.fillRect(bx+w-4,topY+1,2,2); } }   // LIVE tell
+  return true;                                                                            // a game is on → venue lit + crowd
+}
+// crowd glow + a few spectators when a game is on
+function venueLively(g,x,y,w,now,L){ var night=1-L;
+  if(night>0.25){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,240,190,0.10)"; g.fillRect(x-w/2,y-24,w,24); g.globalCompositeOperation="source-over"; }
+  for(var s=0;s<(w>>3);s++){ var sx=x-w/2+4+s*8+((Math.floor(now/600)+s)%2); g.fillStyle=["#e8b890","#c98a5e","#8a5a3a"][s%3]; g.fillRect(sx|0,y-1,1,1); }
+}
+function drawBaseballPark(g,x,L,now,team,sIdx){                  // OPEN diamond + outfield + curved grandstand
+  var y=HORIZON, col=team.color, night=1-L, w=74;
+  g.fillStyle=L>0.5?"#2e6a34":"#16351f"; g.fillRect(x-w/2,y-22,w,22);                       // green outfield grass
+  g.fillStyle=L>0.5?"#b98a4a":"#6a4c28"; g.beginPath(); g.moveTo(x-11,y-2); g.lineTo(x,y-15); g.lineTo(x+11,y-2); g.closePath(); g.fill();   // tan infield DIAMOND (the tell)
+  g.fillStyle=L>0.5?"#f0ead8":"#8a8478"; g.fillRect(x-1,y-10,2,2); g.fillRect(x-8,y-4,2,2); g.fillRect(x+7,y-4,2,2); g.fillRect(x-1,y-4,2,2);   // bases
+  g.fillStyle=col; g.fillRect(x-w/2-3,y-28,5,28); g.fillRect(x+w/2-2,y-28,5,28);              // grandstand wings (team colour)
+  g.fillStyle=L>0.5?"#3a4150":"#191d26"; g.fillRect(x-w/2-3,y-31,7,5); g.fillRect(x+w/2-4,y-31,7,5);
+  g.fillStyle=L>0.5?"#c9cdd6":"#5a606c"; g.fillRect(x-w/2-5,y-34,1,14); g.fillRect(x+w/2+4,y-34,1,14);   // foul poles
+  for(var t=0;t<2;t++){ var tx=x-w/3+t*(2*w/3); g.fillStyle=L>0.5?"#8a919c":"#3a4048"; g.fillRect(tx,y-36,1,14);   // light towers
+    g.fillStyle=night>0.4?"#fff6cc":"#c9cdb0"; g.fillRect(tx-2,y-39,5,4); if(night>0.4){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,246,180,0.3)"; g.fillRect(tx-5,y-41,11,10); g.globalCompositeOperation="source-over"; } }
+  var on=drawScoreboard(g,x,y-24,40,sIdx,team,now,L,true); if(on) venueLively(g,x,y,w,now,L);
+  drawArenaName(g,x,y-40,team.name,col,L);
+}
+function drawBasketballArena(g,x,L,now,team,sIdx){              // rounded DOMED indoor arena
   var y=HORIZON, col=team.color, night=1-L, w=54;
-  g.fillStyle=L>0.5?"#2e6a34":"#16351f"; g.fillRect(x-w/2,y-16,w,16);                       // green outfield grass
-  g.fillStyle=L>0.5?"#b98a4a":"#6a4c28"; g.beginPath(); g.moveTo(x-8,y-2); g.lineTo(x,y-11); g.lineTo(x+8,y-2); g.closePath(); g.fill();   // tan infield DIAMOND (the tell)
-  g.fillStyle=L>0.5?"#f0ead8":"#8a8478"; g.fillRect(x-1,y-7,2,2); g.fillRect(x-6,y-3,2,1); g.fillRect(x+5,y-3,2,1); g.fillRect(x-1,y-3,2,1);   // bases
-  g.fillStyle=col; g.fillRect(x-w/2-2,y-20,4,20); g.fillRect(x+w/2-2,y-20,4,20);              // grandstand wings (team colour) curving up at the sides
-  g.fillStyle=L>0.5?"#3a4150":"#191d26"; g.fillRect(x-w/2-2,y-22,6,4); g.fillRect(x+w/2-4,y-22,6,4);
-  g.fillStyle=L>0.5?"#c9cdd6":"#5a606c"; g.fillRect(x-w/2-4,y-24,1,10); g.fillRect(x+w/2+3,y-24,1,10);   // foul poles
-  for(var t=0;t<2;t++){ var tx=x-w/3+t*(2*w/3); g.fillStyle=L>0.5?"#8a919c":"#3a4048"; g.fillRect(tx,y-26,1,10);   // light towers
-    g.fillStyle=night>0.4?"#fff6cc":"#c9cdb0"; g.fillRect(tx-2,y-28,5,3); if(night>0.4){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,246,180,0.3)"; g.fillRect(tx-4,y-30,9,8); g.globalCompositeOperation="source-over"; } }
-  drawArenaName(g,x,y-25,team.name,col,L);
+  g.fillStyle=L>0.5?"#6b7280":"#2a2f39"; g.fillRect(x-w/2,y-20,w,20);                         // arena body
+  g.fillStyle=col; g.beginPath(); g.moveTo(x-w/2,y-20); g.quadraticCurveTo(x,y-36,x+w/2,y-20); g.closePath(); g.fill();   // curved DOME roof (team colour)
+  g.fillStyle=L>0.5?"#8a92a0":"#3a4150"; g.fillRect(x-w/2,y-21,w,1);
+  for(var wcol=x-w/2+3;wcol<x+w/2-2;wcol+=4){ g.fillStyle=night>0.4?"#ffe6a0":(L>0.5?"#aeb6c2":"#3a4250"); g.fillRect(wcol,y-16,2,10); }   // lit concourse
+  g.fillStyle=L>0.5?"#20242c":"#12151b"; g.fillRect(x-6,y-8,12,8);                            // entrance
+  if(night>0.3){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,230,160,0.16)"; g.fillRect(x-w/2,y-36,w,36); g.globalCompositeOperation="source-over"; }
+  var on=drawScoreboard(g,x,y-20,40,sIdx,team,now,L,true); if(on) venueLively(g,x,y,w,now,L);
+  drawArenaName(g,x,y-40,team.name,col,L);
 }
-function drawBasketballArena(g,x,L,now,team){                    // rounded DOMED indoor arena
-  var y=HORIZON, col=team.color, night=1-L, w=40;
-  g.fillStyle=L>0.5?"#6b7280":"#2a2f39"; g.fillRect(x-w/2,y-14,w,14);                         // arena body
-  g.fillStyle=col; g.beginPath(); g.moveTo(x-w/2,y-14); g.quadraticCurveTo(x,y-26,x+w/2,y-14); g.closePath(); g.fill();   // curved DOME roof (team colour)
-  g.fillStyle=L>0.5?"#8a92a0":"#3a4150"; g.fillRect(x-w/2,y-15,w,1);
-  for(var wcol=x-w/2+3;wcol<x+w/2-2;wcol+=4){ g.fillStyle=night>0.4?"#ffe6a0":(L>0.5?"#aeb6c2":"#3a4250"); g.fillRect(wcol,y-11,2,7); }   // lit windows/concourse
-  g.fillStyle=L>0.5?"#20242c":"#12151b"; g.fillRect(x-4,y-6,8,6);                              // entrance
-  if(night>0.3){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,230,160,0.18)"; g.fillRect(x-w/2,y-26,w,26); g.globalCompositeOperation="source-over"; }
-  drawArenaName(g,x,y-25,team.name,col,L);
+function drawHockeyArena(g,x,L,now,team,sIdx){                  // boxier indoor arena, ICE-BLUE accent + rink hint
+  var y=HORIZON, col=team.color, night=1-L, w=54;
+  g.fillStyle=L>0.5?"#5a6572":"#242a33"; g.fillRect(x-w/2,y-21,w,21);                          // arena body
+  g.fillStyle=col; g.fillRect(x-w/2-1,y-27,w+2,7);                                             // barrel roof band (team colour)
+  g.fillStyle=L>0.5?"#bfe4ff":"#3a5a72"; g.fillRect(x-w/2,y-20,w,3);                           // ICE-BLUE ribbon (the hockey tell)
+  for(var wc2=x-w/2+3;wc2<x+w/2-2;wc2+=5){ g.fillStyle=night>0.4?"#cfeaff":(L>0.5?"#9ab6c8":"#33424e"); g.fillRect(wc2,y-16,2,9); }
+  g.fillStyle=L>0.5?"#20242c":"#12151b"; g.fillRect(x-6,y-8,12,8);                             // entrance
+  g.fillStyle=L>0.5?"#eef6ff":"#4a5a66"; g.fillRect(x-11,y-1,22,1);                            // a sliver of the rink glowing out the doors
+  var on=drawScoreboard(g,x,y-21,40,sIdx,team,now,L,true); if(on) venueLively(g,x,y,w,now,L);
+  drawArenaName(g,x,y-34,team.name,col,L);
 }
-function drawHockeyArena(g,x,L,now,team){                        // boxier indoor arena, ICE-BLUE accent + rink hint
-  var y=HORIZON, col=team.color, night=1-L, w=40;
-  g.fillStyle=L>0.5?"#5a6572":"#242a33"; g.fillRect(x-w/2,y-15,w,15);                          // arena body
-  g.fillStyle=col; g.fillRect(x-w/2-1,y-19,w+2,5);                                             // flat-ish barrel roof band (team colour)
-  g.fillStyle=L>0.5?"#bfe4ff":"#3a5a72"; g.fillRect(x-w/2,y-14,w,2);                           // ICE-BLUE ribbon (the hockey tell)
-  for(var wc2=x-w/2+3;wc2<x+w/2-2;wc2+=5){ g.fillStyle=night>0.4?"#cfeaff":(L>0.5?"#9ab6c8":"#33424e"); g.fillRect(wc2,y-11,2,7); }
-  g.fillStyle=L>0.5?"#20242c":"#12151b"; g.fillRect(x-4,y-6,8,6);                              // entrance
-  g.fillStyle=L>0.5?"#eef6ff":"#4a5a66"; g.fillRect(x-8,y-1,16,1);                             // a sliver of the rink glowing out the doors
-  drawArenaName(g,x,y-25,team.name,col,L);
-}
-function drawFootballBowl(g,x,L,now,team){                       // the big oval BOWL — largest, tiered, floodlights
-  var y=HORIZON, col=team.color, night=1-L, w=64;
-  g.fillStyle=L>0.5?"#5f6672":"#23272f"; fillEllipse(g,x,y-6,w/2,13);                          // the bowl mass
-  g.fillStyle=L>0.5?"#2e6a34":"#16351f"; fillEllipse(g,x,y-4,w/2-8,8);                          // green field inside
-  g.fillStyle="#eef4ff"; for(var yl=x-14;yl<=x+14;yl+=7) g.fillRect(yl,y-6,1,5);               // yard lines
-  g.fillStyle=col; g.fillRect(x-w/2,y-16,w,3);                                                 // upper-deck team-colour ring
-  g.fillStyle=L>0.5?"#c9cdd6":"#5a606c"; g.fillRect(x-14,y-14,1,4); g.fillRect(x-13,y-14,2,1); g.fillRect(x+13,y-14,1,4); g.fillRect(x+11,y-14,2,1);   // goalposts
-  for(var ft=0;ft<4;ft++){ var fx=x-w/2+6+ft*(w-12)/3; g.fillStyle=L>0.5?"#8a919c":"#3a4048"; g.fillRect(fx,y-24,1,10);   // 4 floodlight towers
-    g.fillStyle=night>0.4?"#fff6cc":"#c9cdb0"; g.fillRect(fx-2,y-26,5,3); if(night>0.4){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,246,180,0.28)"; g.fillRect(fx-4,y-28,9,10); g.globalCompositeOperation="source-over"; } }
-  drawArenaName(g,x,y-25,team.name,col,L);
+function drawFootballBowl(g,x,L,now,team,sIdx){                 // the big oval BOWL — largest, tiered, floodlights
+  var y=HORIZON, col=team.color, night=1-L, w=90;
+  g.fillStyle=L>0.5?"#5f6672":"#23272f"; fillEllipse(g,x,y-8,w/2,18);                          // the bowl mass
+  g.fillStyle=L>0.5?"#2e6a34":"#16351f"; fillEllipse(g,x,y-5,w/2-10,11);                        // green field inside
+  g.fillStyle="#eef4ff"; for(var yl=x-20;yl<=x+20;yl+=8) g.fillRect(yl,y-9,1,7);               // yard lines
+  g.fillStyle=col; g.fillRect(x-w/2,y-22,w,4);                                                 // upper-deck team-colour ring
+  g.fillStyle=L>0.5?"#c9cdd6":"#5a606c"; g.fillRect(x-20,y-19,1,5); g.fillRect(x-19,y-19,3,1); g.fillRect(x+19,y-19,1,5); g.fillRect(x+16,y-19,3,1);   // goalposts
+  for(var ft=0;ft<4;ft++){ var fx=x-w/2+8+ft*(w-16)/3; g.fillStyle=L>0.5?"#8a919c":"#3a4048"; g.fillRect(fx,y-32,1,14);   // 4 floodlight towers
+    g.fillStyle=night>0.4?"#fff6cc":"#c9cdb0"; g.fillRect(fx-2,y-35,6,4); if(night>0.4){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,246,180,0.26)"; g.fillRect(fx-5,y-37,11,12); g.globalCompositeOperation="source-over"; } }
+  var on=drawScoreboard(g,x,y-24,44,sIdx,team,now,L,true); if(on) venueLively(g,x,y,w,now,L);
+  drawArenaName(g,x,y-40,team.name,col,L);
 }
 function drawSportsDistrict(g,L,now){
   if(NOSPORTS || nukeStruck() || cityPhase==="apoc") return;
   var g2=gstage(0.50,0.66); if(g2<=0) return;                    // the venues rise as the city matures
   var teams=cityTeams(now), drawers=[drawBasketballArena,drawBaseballPark,drawHockeyArena,drawFootballBowl];
   for(var i=0;i<4;i++){ var wx=Math.round(SPORTS_X[i]*WW), sx=wx-WOFF;
-    if(sx>SW+40&&sx-WW>-40)sx-=WW; if(sx<-40&&sx+WW<SW+40)sx+=WW;
-    if(sx<-40||sx>SW+40) continue; if(inSea(wx)) continue;
-    drawers[i](g,sx|0,L,now,teams[i]);
+    if(sx>SW+50&&sx-WW>-50)sx-=WW; if(sx<-50&&sx+WW<SW+50)sx+=WW;
+    if(sx<-50||sx>SW+50) continue; if(inSea(wx)) continue;
+    drawers[i](g,sx|0,L,now,teams[i],i);
   }
 }
 function nameOf(li,era){
@@ -13082,6 +13170,7 @@ function draw(g,pass){
   maybeFetchKp();                // and the planetary K-index (aurora on real storm nights)
   maybeFetchISS();              // live ISS position (real overhead passes)
   maybeFetchFlights();           // and the live aircraft near the user's coordinates (real flights)
+  maybeFetchScores();            // live sports scores (real games matched on the stadium boards)
   var nd=nowDate();
   var ph=dayPhase(nd), fx=wfx(), hol=holidays(nd);
   var L=ph.light, night=1-L;
