@@ -28,6 +28,11 @@ var CFG = (function(){
   return {};
 })();
 if (CFG.lat != null && CFG.lon != null) { LAT = +CFG.lat; LON = +CFG.lon; }
+// AUTO-LOCATION (v1.44): if the user hasn't set a location, detect it once from their IP so EVERYTHING
+// location-based — the weather, sun/moon times, the real flights overhead, AND the local sports teams +
+// live scores — is accurate for THEM, anywhere, automatically. ipwho.is is HTTPS + CORS `*`. A manually
+// configured location always wins (LOC_AUTO stays false). One shot per session; transient (never persisted).
+var LOC_AUTO = (CFG.lat == null || CFG.lon == null), geoDone = false, NOGEO = false;
 // LIVE FLIGHTS: opt-out toggle for the real-aircraft overlay (see drawRealFlights / fetchFlights).
 // Default ON. Set config `flights:false` to disable (it calls a public ADS-B API with the area's
 // coordinates, so a privacy-minded host can turn it off).
@@ -2022,6 +2027,24 @@ function fetchScores(sport){
     xhr.send();
   }catch(e){}
 }
+// one-shot IP geolocation → sets LAT/LON (+ re-derives REGION) so the whole wallpaper localises to the user.
+function maybeGeolocate(){
+  if(!LOC_AUTO || geoDone || NOFETCH || NOGEO || typeof XMLHttpRequest==="undefined") return;
+  geoDone=true;                                             // fire once per session
+  try{ var xhr=new XMLHttpRequest();
+    xhr.onreadystatechange=function(){
+      if(xhr.readyState===XMLHttpRequest.DONE && xhr.status===200){ try{
+        var j=JSON.parse(xhr.responseText);
+        if(j && j.success!==false && isFinite(+j.latitude) && isFinite(+j.longitude)){
+          LAT=+j.latitude; LON=+j.longitude;
+          if(typeof regionOf==="function") REGION=regionOf(LAT,LON);   // re-derive the architectural region for the new place
+          wxBucket=-1; issBucket=-1; flBucket=-1; scBucket=-1;         // let the location-based feeds refresh for the new coords
+        }
+      }catch(e){} } };
+    xhr.open("GET","https://ipwho.is/");
+    xhr.send();
+  }catch(e){}
+}
 // the city team's REAL game today (if the feed has loaded): {live,done,us,them,opp,detail} or null.
 function realGameFor(sport, teamUpper){
   var arr=liveScores[sport]; if(!arr||!arr.length) return null;
@@ -2518,6 +2541,7 @@ function setup(scene,opts){
     maybeFetchKp();                // and the shared 30-min planetary-K window (aurora)
     maybeFetchISS();              // and the real ISS sub-point (~25s) — shown only when it is truly above the horizon here
     maybeFetchFlights();           // and the ~90s live-aircraft window (real flights overhead)
+    maybeGeolocate();              // one-shot: localise the whole wallpaper to the user (weather/sun/flights/teams) if they haven't set a location
     maybeFetchScores();            // and the ~2min live sports scores (real games matched on the stadium boards)
   }
   tPrev=Date.now();
@@ -13170,6 +13194,7 @@ function draw(g,pass){
   maybeFetchKp();                // and the planetary K-index (aurora on real storm nights)
   maybeFetchISS();              // live ISS position (real overhead passes)
   maybeFetchFlights();           // and the live aircraft near the user's coordinates (real flights)
+  maybeGeolocate();              // one-shot IP auto-location (localises everything if no manual location set)
   maybeFetchScores();            // live sports scores (real games matched on the stadium boards)
   var nd=nowDate();
   var ph=dayPhase(nd), fx=wfx(), hol=holidays(nd);
