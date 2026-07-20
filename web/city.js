@@ -1989,6 +1989,47 @@ function fetchFlights(bucket){
     xhr.send();
   }catch(e){}
 }
+// ---- THE REAL ISS: its live sub-satellite point (open-notify), refreshed ~25s. The look angle from the
+// user's coordinates decides whether it's actually above the horizon right now — so when the engine shows
+// the ISS gliding over, it's REALLY up there. Falls back to a scripted pass if the feed is unreachable.
+// (open-notify is http-only but sends CORS `*`, and http-from-file is allowed in both QML XHR and the
+// Electron/Chromium renderer — verified — so no mixed-content block.)
+var FORCEISS=null;                 // test hook: {lat,lon} sub-point (+optional vlat/vlon) — pins the live fetch
+var issData=null, issBucket=-1, issReqAt=0;
+function maybeFetchISS(){
+  if(FORCEISS){ var t=Date.now(); issData={lat:FORCEISS.lat,lon:FORCEISS.lon,ts:t,plat:FORCEISS.lat-(FORCEISS.vlat||0),plon:FORCEISS.lon-(FORCEISS.vlon||0),pts:t-1000}; return; }
+  var rn=Date.now(), b=Math.floor(rn/25000);
+  if(b!==issBucket && rn-issReqAt>8000){ issBucket=b; issReqAt=rn; fetchISS(); }
+}
+function fetchISS(){
+  if(typeof XMLHttpRequest==="undefined") return;   // node tooling → the scripted pass is used instead
+  try{
+    var xhr=new XMLHttpRequest();
+    xhr.onreadystatechange=function(){
+      if(xhr.readyState===XMLHttpRequest.DONE && xhr.status===200){
+        try{ var j=JSON.parse(xhr.responseText), pos=j&&j.iss_position;
+          if(pos){ var la=+pos.latitude, lo=+pos.longitude, ts=Date.now();
+            if(isFinite(la)&&isFinite(lo)){
+              if(issData){ issData={lat:la,lon:lo,ts:ts, plat:issData.lat,plon:issData.lon,pts:issData.ts}; }
+              else issData={lat:la,lon:lo,ts:ts, plat:la,plon:lo,pts:ts-25000}; } }
+        }catch(e){}
+      }
+    };
+    xhr.open("GET","http://api.open-notify.org/iss-now.json");
+    xhr.send();
+  }catch(e){}
+}
+// sub-satellite point (deg) → look angle {alt,az deg} from the user's LAT/LON (spherical-Earth topocentric,
+// ISS altitude ~420km). alt>0 ⇒ above the horizon here right now.
+function issLookAngle(latS,lonS){
+  var d2r=Math.PI/180, R2D=180/Math.PI, rho=6371/(6371+420);
+  var lo=LAT*d2r, ls=latS*d2r, dl=(lonS-LON)*d2r;
+  var cg=Math.sin(lo)*Math.sin(ls)+Math.cos(lo)*Math.cos(ls)*Math.cos(dl);
+  cg=Math.max(-1,Math.min(1,cg)); var sg=Math.sqrt(1-cg*cg)||1e-6;
+  var alt=Math.atan2(cg-rho,sg)*R2D;
+  var az=Math.atan2(Math.sin(dl)*Math.cos(ls), Math.cos(lo)*Math.sin(ls)-Math.sin(lo)*Math.cos(ls)*Math.cos(dl))*R2D;
+  return { alt:alt, az:((az%360)+360)%360 };
+}
 var FORCEWX=null;   // test hook: a full weather object {code,cloud,wind,temp,precip,feels,gust} — pins the live fetch
 function maybeFetchWeather(){
   if(FORCEWX){ weather=FORCEWX; return; }   // forced weather sticks (harness) — no live fetch can clobber it
@@ -2420,6 +2461,7 @@ function setup(scene,opts){
     maybeFetchWeather();          // seed the shared 10-min window on boot (draw() keeps it fresh thereafter)
     maybeFetchAirq();             // seed the shared 30-min air-quality window too
     maybeFetchKp();                // and the shared 30-min planetary-K window (aurora)
+    maybeFetchISS();              // and the real ISS sub-point (~25s) — shown only when it is truly above the horizon here
     maybeFetchFlights();           // and the ~90s live-aircraft window (real flights overhead)
   }
   tPrev=Date.now();
@@ -5779,11 +5821,33 @@ function drawKites(g,L,now){
     g.fillStyle="rgba(255,255,255,0.6)"; g.fillRect(kx|0,ky|0,1,1);
     g.fillStyle=c; g.fillRect(kx|0,(ky+2)|0,1,1); g.fillRect((kx-1)|0,(ky+3)|0,1,1); }   // tail
 }
-// the ISS: a STEADY (non-twinkling, non-blinking — unlike a plane) bright point that glides the whole
-// sky on a shallow arc, ~200s, only 1-2 flyovers on a given night (date-hashed) so it's a real event.
-// A short trailing fade marks its track. World-anchored → every monitor agrees where it is.
+// the ISS. With a live sub-point (fetchISS) it's drawn at its TRUE position — only when it's actually
+// above the horizon here right now, so seeing it means the station really is passing over. A STEADY
+// (non-twinkling) bright point + short track + "ISS" tag. If the feed is unreachable, a scripted 1-2
+// nightly passes stand in. World-anchored → every monitor agrees where it is.
 function drawSatellite(g,L,now){
   if(L>0.30) return;
+  if(issData){                                                    // ---- REAL ISS at its true position ----
+    var span=(issData.ts-issData.pts)/1000; if(span<1) span=25;
+    var dla=issData.lat-issData.plat, dlo=issData.lon-issData.plon;
+    if(dlo>180) dlo-=360; if(dlo<-180) dlo+=360;                  // unwrap a ±180 longitude seam
+    var vlat=dla/span, vlon=dlo/span, dt=Math.max(-8,Math.min(45,(now-issData.ts)/1000));   // dead-reckon (clamped)
+    var la=issData.lat+vlat*dt, lo=issData.lon+vlon*dt, aa=issLookAngle(la,lo);
+    if(aa.alt>0.5){
+      var wx=skyWX(aa.az), y=skyY(aa.alt);
+      g.globalCompositeOperation="lighter";
+      for(var tr=1;tr<=5;tr++){ var ba=issLookAngle(la-vlat*tr*4, lo-vlon*tr*4); if(ba.alt<=0) break;   // curved trail along the real track
+        var bx=skyWX(ba.az), by=skyY(ba.alt);
+        for(var wt=-1;wt<=1;wt++){ var tx=bx-WOFF+wt*WW; if(tx<-2||tx>SW+2) continue;
+          g.fillStyle="rgba(226,238,255,"+(0.5*(1-tr/5)).toFixed(3)+")"; g.fillRect(tx|0,by|0,1,1); } }
+      for(var wm=-1;wm<=1;wm++){ var X=(wx-WOFF+wm*WW)|0; if(X<-3||X>SW+3) continue;                    // the station: a bright steady point + halo
+        g.fillStyle="rgba(200,224,255,0.35)"; g.fillRect(X-1,(y-1)|0,3,3);
+        g.fillStyle="rgba(255,255,255,0.97)"; g.fillRect(X,y|0,1,1); g.fillRect(X-1,y|0,1,1); g.fillRect(X+1,y|0,1,1); g.fillRect(X,(y-1)|0,1,1); g.fillRect(X,(y+1)|0,1,1); }
+      g.globalCompositeOperation="source-over";
+      drawPixText(g,"ISS",wx+3,(y-2)|0,"#cfe4ff",0.85);
+    }
+    return;                                                       // live data present → the real ISS only (no scripted stand-in)
+  }
   var day=Math.floor(now/86400000);
   for(var s=0;s<2;s++){ var sh=rng((day*2654435761+71+s*40503)>>>0);
     if(sh()>0.6) continue;                                           // ~1-2 passes on a given day survive this gate
@@ -11971,6 +12035,7 @@ function draw(g,pass){
   maybeFetchWeather();          // all monitors fetch on the same 10-min wall-clock window → identical weather
   maybeFetchAirq();             // and the same 30-min window for air quality (wildfire smoke)
   maybeFetchKp();                // and the planetary K-index (aurora on real storm nights)
+  maybeFetchISS();              // live ISS position (real overhead passes)
   maybeFetchFlights();           // and the live aircraft near the user's coordinates (real flights)
   var nd=nowDate();
   var ph=dayPhase(nd), fx=wfx(), hol=holidays(nd);
