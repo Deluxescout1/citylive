@@ -6123,6 +6123,7 @@ function tickerMsg(now){
   if(curEvents&&curEvents.movie) return "MOVIE NIGHT IN THE PLAZA AT DUSK";
   if(curSpace>0.3) return cityName+" SPACEPORT - NEXT LAUNCH BOARDING";
   var nd2=nowDate(), gm=gameNight(nd2);
+  var shw=currentShower(nd2); if(shw && (Math.floor(now/8000))%4===0) return shw.n+" METEOR SHOWER PEAKS TONIGHT - LOOK UP";   // announce the real shower so nobody misses it
   var msgs=["WELCOME TO "+cityName,"POP "+popFmt(cityPop())+" AND GROWING",cityName+" TRANSIT - ALL LINES RUNNING"];
   var appr=approvalNow(now);   // N3 (shared with the civic HUD)
   msgs.push("CITY APPROVAL "+appr+" PCT");
