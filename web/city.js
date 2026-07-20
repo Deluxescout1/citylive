@@ -6161,6 +6161,7 @@ function tickerMsg(now){
   if(curDis) return "BREAKING - CAT-"+curDis.intensity+" "+DIS_NAME[curDis.type]+" - SEEK SHELTER";
   var rgm=regimeTicker(now); if(rgm && (Math.floor(now/12000))%4!==0) return rgm;   // THE ORDER dominates the news (3 of 4 slots) while the takeover is underway
   var pgm=plagueTicker(now); if(pgm && (Math.floor(now/12000))%4!==0) return pgm;   // THE PLAGUE dominates the news while the pandemic rages (mutually exclusive with the regime)
+  var ftm=festivalTicker(now); if(ftm && (Math.floor(now/12000))%4!==0) return ftm;  // THE FESTIVAL's expo news while the World's Fair is on (mutually exclusive with war/regime/plague)
   var fx=wfx();
   if(fireBurning) return "WILDFIRE ON THE RIDGE - STAY CLEAR OF THE TREELINE";
   if(iceNow) return "THE BAY IS FROZEN - SKATE AT YOUR OWN JOY";
@@ -9515,6 +9516,52 @@ function plagueState(now){
   return { active:true, stage:stage, sub:sub, severity:severity, zombie:zombie, zprog:zprog, cyStart:ST[0], cyEnd:cyEnd, li:li, seed:ph };
 }
 var curPlague=null;   // set each frame; the whole plague arc reads this
+// ===== THE FESTIVAL — a World's Fair / Expo arc, the CELEBRATORY counterpart to THE ORDER & THE PLAGUE.
+// Pure f(clock), life-scoped, and MUTUALLY EXCLUSIVE with war + regime + plague: it yields to ALL THREE
+// (a life is at most one of war/regime/plague/festival), claiming only lives none of the others touch —
+// so the older arcs never even see it (purely additive, no collision). Reads only the same rolls (no
+// state-fn call → no cycle). Every festival draw is gated on curFestival.active → invisible & byte-identical
+// on the other ~93% of lives; the legacy monument is unveiled DURING the CLOSING stage (inside the window),
+// never persisted past cyEnd (that would break containment). =====
+var FESTIVAL_SALT=0x5E77A1;                                         // "Festa" — isolated hash stream
+var FESTIVAL_STAGES=[0.44,0.50,0.57,0.65,0.75,0.83];              // 5 stages (BID→CLOSING) then back to NORMAL
+var FESTIVAL_STAGE_LABEL=["","EXPO BID WON","BUILDING THE EXPO","GRAND OPENING","THE WORLD'S FAIR","CLOSING CEREMONY"];
+var FESTIVAL_THEMES=["WORLD","FUTURE","HARBOR","CENTENNIAL","OCEAN","SPACE","HERITAGE","INNOVATION"];   // this life's expo name
+var FORCEFESTIVAL=null;                                             // test hook (own line — QML-namespace writable)
+function festivalState(now){
+  if(FORCEFESTIVAL) return FORCEFESTIVAL;
+  var cg=cityGrowth(now); if(cg.g<0.40||cg.phase==="apoc") return null;   // real cities only, never the apocalypse
+  var li=lifeIndexOf(now), cy=cg.cy;
+  if(((li*2654435761+7717)>>>0)%100 < 62) return null;            // YIELD to war lives (warState's existence roll)
+  var rh=((((li*2654435761)>>>0) ^ REGIME_SALT)>>>0);
+  if((rh%100) < 37) return null;                                  // YIELD to REGIME lives
+  var ph=((((li*2654435761)>>>0) ^ PLAGUE_SALT)>>>0);
+  if((ph%100) < 45) return null;                                  // YIELD to PLAGUE lives (they claim ph%100<45)
+  var fh=((((li*2654435761)>>>0) ^ FESTIVAL_SALT)>>>0);
+  if((fh%100) >= 50) return null;                                 // festival claims ~50% of what's left → ~7% overall (special, like the others)
+  var ST=FESTIVAL_STAGES, cyEnd=ST[5];
+  if(cy<ST[0] || cy>=cyEnd) return null;                          // NORMAL before the bid & after the closing (life-scoped)
+  var stage=1; for(var s=1;s<5;s++){ if(cy>=ST[s]) stage=s+1; }
+  var sub=Math.max(0,Math.min(1,(cy-ST[stage-1])/(ST[stage]-ST[stage-1])));
+  var prog=(cy-ST[0])/(ST[5]-ST[0]);                              // 0 at the bid → 1 at the close
+  var festivity=Math.max(0,Math.min(1, prog<0.55?prog/0.55:1-(prog-0.55)/0.45));   // builds to THE FAIR, eases at closing
+  var theme=FESTIVAL_THEMES[(fh>>>11)%FESTIVAL_THEMES.length];
+  return { active:true, stage:stage, sub:sub, festivity:festivity, theme:theme, cyStart:ST[0], cyEnd:cyEnd, li:li, seed:fh };
+}
+var curFestival=null;   // set each frame; the whole festival arc reads this
+// explicit per-stage EXPO news — shares the ticker while the fair is on (a celebratory beat between city stories)
+function festivalTicker(now){
+  var F=curFestival; if(!F||!F.active) return null;               // early-out on non-festival lives → byte-identical ticker there
+  var slow=Math.floor(now/16000), expo=F.theme+" EXPO";
+  var S={
+    1:[cityName+" WINS THE BID TO HOST THE "+expo,"THE "+expo+" IS COMING TO "+cityName,"GROUND BREAKS ON THE "+expo+" FAIRGROUNDS"],
+    2:["THE "+expo+" RISES - PAVILIONS AND A MONORAIL TAKE SHAPE","CRANES CROWD THE SKYLINE AS THE EXPO IS BUILT","THE GREAT WHEEL GOES UP OVER THE FAIRGROUNDS"],
+    3:["THE "+expo+" OPENS TONIGHT - FIREWORKS OVER "+cityName,"GRAND OPENING - CROWDS POUR INTO THE FAIRGROUNDS","THE "+expo+" IS DECLARED OPEN"],
+    4:["MILLIONS VISIT THE "+expo,"THE "+expo+" DAZZLES - THE GREAT WHEEL TURNS ALL NIGHT","'THE FUTURE IS HERE' - CROWDS THRONG THE "+expo],
+    5:["THE "+expo+" CLOSES - A MONUMENT IS UNVEILED","CLOSING CEREMONY LIGHTS UP "+cityName,"THE "+expo+" LEAVES "+cityName+" A LANDMARK"]
+  };
+  var arr=S[F.stage]||[expo]; return arr[((slow%arr.length)+arr.length)%arr.length];
+}
 // explicit, unmistakable per-stage news — dominates the ticker while the takeover is underway
 function regimeTicker(now){
   var R=curRegime; if(!R||!R.active) return null;
@@ -12232,6 +12279,7 @@ function draw(g,pass){
   curMayor=mayorState(now);                                  // who runs city hall right now?
   curRegime=regimeState(now);                                // THE ORDER's political arc this life (null on most lives)
   curPlague=plagueState(now);                                // THE PLAGUE's pandemic arc this life (null on most lives; never overlaps war/regime)
+  curFestival=festivalState(now);                            // THE FESTIVAL's World's Fair arc (null on most lives; never overlaps war/regime/plague)
   curBuilds=passedBuilds(now).concat(passedCivics(now));     // permanent landmarks the city voted to build this life (measures + civic projects)
   curPolicies=curPoliciesOf(now);                            // soft policy-measures in force this term
   curCorps=corpState(now);                                   // the corporate landscape (rising/juggernaut/fading firms) this life
