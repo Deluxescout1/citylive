@@ -9229,12 +9229,16 @@ function drawRuins(g,cg,L,now){
     for(var wp=-1;wp<=1;wp++){ var X=(rx+wp*WW)|0; if(X<-16||X>SW+16) continue;
       g.globalAlpha=wild;
       var stone=day?"#8a8478":"#3a382f", moss=day?"#5a7048":"#243824";
-      if(kind===0){ // a broken obelisk / cracked tower
-        var h=18; g.fillStyle=stone; g.fillRect(X,gy-h,5,h); g.fillStyle=day?"#6a6458":"#2a2820"; g.fillRect(X+4,gy-h,1,h);
-        g.fillStyle=(day?"#b8c8f0":"#0a0c14"); g.fillRect(X+1,gy-h+3,1,2); g.fillRect(X+3,gy-h+7,1,2);   // window holes
-        g.fillStyle=day?"#7a7468":"#2f2d25"; g.fillRect(X-1,(gy-h-2)|0,3,3); g.fillRect(X+3,(gy-h-1)|0,3,2);  // broken jagged top
-        g.fillStyle=moss; g.fillRect(X,gy-4,5,1); g.fillRect(X+1,gy-7,1,1);
-        g.fillStyle=stone; g.fillRect(X-3,gy-2,11,2);        // rubble base
+      if(kind===0){ // a BROKEN TOWER of the old world — snapped off, cracked, mossed over
+        var colH=[20,19,17,13,16,9], lit=day?"#9a9488":"#3e3b31", shad=day?"#6a6458":"#26241d", crack=day?"#544e42":"#161408";
+        for(var cc=0;cc<6;cc++){ var hc=colH[cc];                                         // per-column heights → a jagged, SNAPPED-OFF top silhouette
+          g.fillStyle=stone; g.fillRect(X+cc,gy-hc,1,hc);
+          g.fillStyle=lit; g.fillRect(X+cc,gy-hc,1,1); }                                  // weathered broken lip on each shard
+        g.fillStyle=shad; g.fillRect(X+5,gy-9,1,9);                                       // shaded right face
+        g.fillStyle=(day?"#3a3d48":"#0a0c14"); g.fillRect(X+2,gy-16,2,2); g.fillRect(X+1,gy-10,2,2); g.fillRect(X+3,gy-6,1,2);   // dark EMPTY window holes
+        g.fillStyle=crack; g.fillRect(X+3,gy-13,1,7); g.fillRect(X+1,gy-15,1,4);          // cracks running down the stone
+        g.fillStyle=moss; g.fillRect(X,gy-5,6,2); g.fillRect(X+4,gy-11,1,4); g.fillRect(X,gy-14,1,3); g.fillRect(X+2,gy-8,1,2);   // moss & vines climbing it
+        g.fillStyle=stone; g.fillRect(X-3,gy-2,12,2); g.fillRect(X-4,gy-1,3,1); g.fillRect(X+8,gy-3,2,3); g.fillRect(X-2,gy-3,2,1);   // rubble + fallen blocks at the base
       } else if(kind===1){ // a ruined arch / gateway
         g.fillStyle=stone; g.fillRect(X,gy-14,3,14); g.fillRect(X+9,gy-14,3,14); g.fillRect(X,gy-16,7,2);   // one side of the lintel broken off
         g.fillStyle=moss; g.fillRect(X,gy-8,3,1); g.fillRect(X+9,gy-11,3,1);
