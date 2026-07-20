@@ -156,7 +156,7 @@ function resetNotifLanes(){ for(var r=0;r<_notifTaken.length;r++) _notifTaken[r]
 var CLOCK = null;   // test-harness override: ms timestamp for time-of-day (null = real wall clock)
 var NOWOVR = null;  // test-harness override: ms value returned as Date.now() inside draw() (null = real)
 var NOFETCH = false;  // headless flag (own line = QML-namespace writable): almanac callers set this so setup() makes NO network calls
-var VERSION = "1.37.1";  // the build the user is running — surfaced in the Almanac + KDE config page (keep in sync with desktop/package.json)
+var VERSION = "1.38.0";  // the build the user is running — surfaced in the Almanac + KDE config page (keep in sync with desktop/package.json)
 var FORCELAYOUT = null;   // test hook: pin every building's window layout (grid/ribbon/band/punch/corp) — verify per-layout render
 var FORCECROWN = null;    // test hook: pin every building's crown/roof (gable/hip/saltbox/mansard/deco/…) — verify per-roof render
 var FORCEUSE = null;      // test hook: pin every building's functional type (hospital/theater/hotel/bank/cafe/pharmacy) — verify drawUse
@@ -1996,6 +1996,7 @@ function fetchFlights(bucket){
 // Electron/Chromium renderer — verified — so no mixed-content block.)
 var FORCEISS=null;                 // test hook: {lat,lon} sub-point (+optional vlat/vlon) — pins the live fetch
 var NOLIVESKY=false;               // containment A/B: suppress the post-v1.24 live-sky extras (real ISS + Starlink) the ref engine lacks, so the render stays byte-identical
+var NONEWSTV=false;                // containment A/B: suppress the post-v1.37 rooftop news jumbotrons (drawJumbotrons) the ref engine lacks — keeps the guard render byte-identical
 var issData=null, issBucket=-1, issReqAt=0;
 function maybeFetchISS(){
   if(NOLIVESKY) return;            // (leaves issData null → the scripted pass stands in, matching the pre-v1.24 reference)
@@ -5159,6 +5160,53 @@ function drawHelis(g,L,now){
     }
   }
 }
+// NUKE AIRCRAFT — planes don't just vanish when the bomb goes off (the old behaviour); the blast
+// shockwave RACES out from ground zero across the sky and, as it reaches each aircraft, SWATS it out of
+// the air — lofted, flung outward, tumbling and burning, trailing black smoke as it falls. Keys off the
+// same ground-zero + blast timing as the building collapse, so the sky front and the ground front agree.
+function drawNukePlanes(g,L,now){
+  if(cityPhase!=="apoc"||curDeath!=="nuke") return;
+  var nowT=(NOWOVR!=null?NOWOVR:now), gz=nukeGZX(nowT), did=nukeDetId(nowT);
+  var reach=WW*0.72, shockR=(blastMs/NUKE_WIPE_MS)*reach;    // how far the air-blast front has raced from GZ
+  for(var i=0;i<6;i++){ var hsh=((did*2654435761+i*40503+7)>>>0);
+    var wx0=Math.round(WW*(0.05+0.9*(((hsh>>>3)%10000)/10000)));   // where this plane was cruising at detonation
+    var y0=Math.round(HORIZON*(0.09+0.17*(((hsh>>>11)%100)/100)));  // upper-sky band
+    var dir0=((hsh>>>1)&1)?1:-1, hd=nukeDist(wx0,gz);
+    for(var off=-WW;off<=WW;off+=WW){ var Xw=wx0+off;
+      if(shockR<hd){                                          // the front hasn't reached it yet — still airborne (banking away)
+        var Xa=(Xw-WOFF)|0; if(Xa<-20||Xa>SW+20) continue;
+        drawDoomJet(g,Xa,y0,dir0,L,0,now,i);
+      } else {                                                // HIT: flung away from ground zero, lofted then falling, tumbling & burning
+        var bmHit=hd*NUKE_WIPE_MS/reach, tHit=Math.max(0,(blastMs-bmHit)/1000);
+        var fdir=(((Xw-gz)%WW+WW*1.5)%WW-WW*0.5>=0)?1:-1;
+        var x=Xw+fdir*150*tHit, y=y0-70*tHit+130*tHit*tHit;
+        var Xa=(x-WOFF)|0; if(Xa<-40||Xa>SW+40) continue;
+        if(y>HORIZON+14) continue;                            // it has hit the ground — gone
+        drawDoomJet(g,Xa,y|0,fdir,L,tHit,now,i);
+      }
+    }
+  }
+}
+// one aircraft: intact (wreck<=0) or a tumbling, burning wreck (wreck = seconds since the shock hit it).
+function drawDoomJet(g,X,y,dir,L,wreck,now,seed){
+  if(wreck<=0){ g.fillStyle=L>0.5?"#e2e8f2":"#9aa3b4"; g.fillRect(X-2,y,4,1); g.fillRect((X+(dir>0?-3:2))|0,y-1,1,1); return; }
+  // smoke trail — puffs streaming BACK toward ground zero and up (opposite the fling), fading with age
+  g.globalCompositeOperation="source-over";
+  for(var s=1;s<=9;s++){ var sx=X-dir*s*3, sy=y-s*2, a=0.5*(1-s/10), sz=s<4?3:2;
+    g.fillStyle="rgba(34,34,40,"+a.toFixed(3)+")"; g.fillRect((sx-1)|0,sy|0,sz,sz); }
+  // the tumbling fuselage — a short canted body, orientation spinning with time+seed
+  var spin=(Math.floor(wreck*7)+seed)&3;
+  g.fillStyle=L>0.5?"#b9c0cc":"#6a7280";
+  if(spin===0){ g.fillRect(X-2,y,4,1); g.fillRect(X,y-1,1,1); }
+  else if(spin===1){ g.fillRect(X-1,y-1,2,3); g.fillRect(X+1,y,1,1); }
+  else if(spin===2){ g.fillRect(X-2,y,4,1); g.fillRect(X-1,y+1,1,1); }
+  else { g.fillRect(X-1,y-1,2,3); g.fillRect(X-2,y+1,1,1); }
+  // fire at the wreck (brightest just after the hit)
+  g.globalCompositeOperation="lighter"; var fa=Math.max(0.2,1-wreck*0.5);
+  g.fillStyle="rgba(255,150,40,"+(0.8*fa).toFixed(2)+")"; g.fillRect(X-1,y-1,2,2);
+  g.fillStyle="rgba(255,240,180,"+(0.7*fa).toFixed(2)+")"; g.fillRect(X,y-1,1,1);
+  g.globalCompositeOperation="source-over";
+}
 // LIVE FLIGHTS — the REAL aircraft overhead right now (fetchFlights, ADS-B). Unlike the decorative jets,
 // each is placed at its TRUE compass bearing (azimuth→x) with its height set by REAL ALTITUDE, kept in a
 // band above the skyline, dead-reckoned along its heading/speed between the ~90s fetches and eased so it
@@ -6434,6 +6482,215 @@ function drawNewsScreens(g,L,now,night){
     drawUiText(g,msg,(sx+sw2-1-off+tw2)|0,sy+6,tcol,1);
     g.restore();
     if(night>0.3){ g.globalCompositeOperation="lighter"; g.fillStyle=emerg?"rgba(255,60,50,0.12)":"rgba(90,180,255,0.10)"; g.fillRect(sx,sy,sw2,sh2); g.globalCompositeOperation="source-over"; }
+  }
+}
+
+// ============================ CITY 9 NEWS — the rooftop jumbotrons ============================
+// v1.38: GIANT screens mounted on masts ABOVE the skyline (clears the viaduct/crowd occlusion that
+// swallows facade-level detail) carrying a pixel NEWS ANCHOR who reads the news, a READABLE two-line
+// headline in a coloured lower-third, and a scrolling ticker. Scattered on a few downtown rooftops.
+// The segment ROTATES across beats — POLITICS · BREAKING · MARKETS · CRIME · TECH · COSMOS · WEATHER ·
+// CITY — and cuts to red BREAKING the instant anything happens. Builds on the same news sources as the
+// facade screens (drawNewsScreens) + tickerMsg; distinct big rooftop presentation.
+var NEWS_CATS=[
+  {k:"POLITICS", c:"#e0b23a", hdr:"CITY 9 NEWS"},
+  {k:"MARKETS",  c:"#3ac86a", hdr:"MONEY 9"},
+  {k:"CRIME",    c:"#e0653a", hdr:"CITY 9 NEWS"},
+  {k:"TECH",     c:"#4aa0e0", hdr:"TECH 9"},
+  {k:"COSMOS",   c:"#a86ae0", hdr:"SKYWATCH 9"},
+  {k:"WEATHER",  c:"#4ac8d0", hdr:"WX 9"},
+  {k:"CITY",     c:"#c05ad0", hdr:"CITY 9 NEWS"} ];
+// the current on-air segment: {cat, color, hdr, kick, line} — kick = coloured kicker, line = headline body.
+// PURE f(now): rotates on a ~9s slot; a live emergency preempts everything with red BREAKING.
+function newsSegment(now){
+  if(newsEmergency()){
+    var bk="BREAKING", bl;
+    if(cityPhase==="apoc"){ var mn=meteorNews(now); bl=mn?mn.replace(/^☄ ?/,""):("EVACUATE "+cityName+" NOW"); }
+    else if(curDis) bl="CAT-"+curDis.intensity+" "+DIS_NAME[curDis.type]+" - SEEK SHELTER";
+    else if(curWar&&curWar.f>=0&&curWar.f<1) bl="INVASION UNDERWAY - SHELTER IN PLACE";
+    else if(fireBurning) bl="WILDFIRE ON THE RIDGE - STAY CLEAR";
+    else if(curBlk) bl="POWER OUT DOWNTOWN - CREWS EN ROUTE";
+    else if(curOutbreak) bl="HEALTH EMERGENCY - MASKS ADVISED CITYWIDE";
+    else bl="EMERGENCY - STAY TUNED";
+    return {cat:"BREAKING", color:"#ff3b3b", hdr:"BREAKING NEWS", kick:bk, line:bl};
+  }
+  // under THE ORDER the screens are state media — a defiant/propaganda tone
+  if(curRegime&&curRegime.active&&curRegime.stage>=3){
+    return {cat:"STATE", color:"#c0182a", hdr:"STATE NEWS", kick:"THE ORDER",
+      line:ORDER_SLOGANS[(Math.floor(now/4200))%ORDER_SLOGANS.length]};
+  }
+  // otherwise cycle the beats; each returns null when it has nothing, so we skip to the next with content
+  var order=[0,1,2,3,4,5,6], slot=Math.floor(now/9000), tries=0, ci=slot%order.length;
+  while(tries<order.length){
+    var cat=NEWS_CATS[ci], seg=newsBeat(cat.k, now, slot);
+    if(seg){ return {cat:cat.k, color:cat.c, hdr:cat.hdr, kick:seg[0], line:seg[1]}; }
+    ci=(ci+1)%order.length; tries++;
+  }
+  return {cat:"CITY", color:"#c05ad0", hdr:"CITY 9 NEWS", kick:cityName.toUpperCase().substr(0,10), line:"POP "+popFmt(cityPop())+" AND GROWING"};
+}
+// content for one beat → [kicker, headline] or null. Reuses the live city state the ticker reads.
+function newsBeat(cat, now, slot){
+  var M=curMayor, appr=approvalNow(now), eco=curEcon;
+  if(cat==="POLITICS"){
+    if(M&&M.electionDay) return ["ELECTION DAY","POLLS OPEN - "+M.winName+" VS "+M.loseName];
+    if(M&&M.debate) return ["DEBATE NIGHT",M.winName+" MEETS "+M.loseName+" AT CITY HALL"];
+    if(M&&M.campaign) return ["CAMPAIGN","LATEST POLL - "+M.winName+" LEADS "+M.loseName];
+    if(M&&M.justElected) return ["CITY HALL","MAYOR "+M.winName+" - "+M.party.k+" AGENDA"];
+    if(M&&M.scandal) return ["SCANDAL",M.recallVote?"RECALL VOTE UNDERWAY":"CITY HALL ROCKED BY SCANDAL"];
+    if(M) return ["CITY HALL","APPROVAL "+appr+" PCT FOR MAYOR "+M.winName];
+    return null;
+  }
+  if(cat==="MARKETS"){
+    var idx=marketIndex(now), up=idx.chg>=0;
+    return [up?"MARKETS UP":"MARKETS DOWN", idx.name+" "+(up?"+":"")+idx.chg+"% - "+(eco>0.6?"BOOM ROLLS ON":eco<0.35?"RECESSION FEARS GROW":"MIXED SESSION")];
+  }
+  if(cat==="CRIME"){
+    var cr=crimeBeat(now); return cr;
+  }
+  if(cat==="TECH"){
+    var tb=techBeat(now, slot); return tb;
+  }
+  if(cat==="COSMOS"){
+    var nd=nowDate(), shw=currentShower(nd);
+    if(shw) return ["SKYWATCH",shw.n+" SHOWER PEAKS TONIGHT - LOOK UP"];
+    var issp=issAltAzNow(now); if(issp&&issp.alt>12&&dayPhase(nd).light<0.30) return ["SKYWATCH","THE ISS PASSES OVER "+cityName+" NOW"];
+    if(curSpace>0.3) return ["SPACEPORT",cityName+" SPACEPORT - NEXT LAUNCH BOARDING"];
+    var COS=[["ASTRONOMY","ASTRONOMERS SPOT A COMET OVER "+cityName],["COSMOS","A NEW EXOPLANET NAMED FOR "+cityName],["NIGHT SKY","AURORA FORECAST - CHECK THE NORTHERN HORIZON"]];
+    return COS[slot%COS.length];
+  }
+  if(cat==="WEATHER"){
+    var fx=wfx(), t=Math.round(weather.temp==null?60:weather.temp);
+    if(fx.thunder) return ["SEVERE WX","THUNDERSTORM WARNING FOR "+cityName];
+    if(fx.snow) return ["WINTER WX","SNOW - PLOWS DEPLOYED CITYWIDE - "+t+"F"];
+    if(fx.rain||fx.drizzle) return ["WEATHER","RAIN CONTINUES - "+t+"F DOWNTOWN"];
+    if(fx.fog) return ["WEATHER","DENSE FOG - LOW VISIBILITY DOWNTOWN"];
+    if(fx.cloudy) return ["WEATHER",((weather.cloud||0)>=88?"OVERCAST":"CLOUDY")+" - "+t+"F"];
+    return ["FORECAST","CLEAR SKIES - "+t+"F OVER "+cityName];
+  }
+  if(cat==="CITY"){
+    var CTY=[["CITY LIFE","POP "+popFmt(cityPop())+" AND GROWING"],["TRANSIT",cityName+" TRANSIT - ALL LINES RUNNING"]];
+    if(curEvents&&curEvents.parade) CTY.push(["EVENTS","PARADE TODAY ON MAIN STREET"]);
+    if(curEvents&&curEvents.champ) CTY.push(["SPORTS",teamName+" WIN THE TITLE - PARADE DOWNTOWN"]);
+    if(gameNight(nowDate())) CTY.push(["SPORTS","GAME NIGHT - "+cityName+" "+teamName+" AT 7"]);
+    if(cityHasBuild("park")) CTY.push(["CITY LIFE","CITY PARK NAMED BEST NEW PUBLIC SPACE"]);
+    return CTY[slot%CTY.length];
+  }
+  return null;
+}
+// a synthetic market index — a slow deterministic walk anchored to econOf so the board AGREES with the
+// economy (boom = green climbing, bust = red falling), plus a small stable intraday wobble. Pure f(now).
+function marketIndex(now){
+  var e=econOf(now), base=1200+Math.round(e*2600);           // 1200 (bust) … 3800 (boom)
+  var day=Math.floor(now/86400000), wob=((day*2654435761)>>>0)/4294967296;   // stable per-day wobble
+  var chg=Math.round(((e-0.5)*9 + (wob-0.5)*4)*10)/10;       // pct: tracks the economy, small daily noise
+  var nm=(cityName.replace(/[^A-Z]/gi,"").substr(0,3).toUpperCase()||"CTY")+"X";
+  return {name:nm, val:base, chg:chg};
+}
+// CRIME beat — synthetic, keyed to the economy (busts raise crime) and the SAFETY levers already in play.
+function crimeBeat(now){
+  var e=econOf(now), slot=Math.floor(now/9000);
+  if(curPolicies&&curPolicies.surveil) return ["SAFETY","SAFE-CAM NETWORK - POLICE REPORT CRIME DOWN"];
+  if(cityHasBuild("casino")) return ["CRIME","EXTRA PATROLS ADDED AROUND THE CASINO DISTRICT"];
+  var CR=e<0.4
+    ? [["CRIME","BURGLARIES UP DOWNTOWN - POLICE URGE VIGILANCE"],["CRIME","POLICE CHIEF ASKS FOR MORE PATROLS"]]
+    : [["POLICE BLOTTER","A QUIET NIGHT ON THE BEAT DOWNTOWN"],["SAFETY","NEIGHBORHOOD WATCH EXPANDS TO THE WATERFRONT"]];
+  return CR[slot%CR.length];
+}
+// TECH / AI beat — synthetic future-flavour, deepens with the space age.
+function techBeat(now, slot){
+  var TB=[["TECH","A "+cityName+" STARTUP RAISES A ROUND - HIRING NOW"],
+    ["AI","CITY ROLLS OUT AN AI TRAFFIC PILOT DOWNTOWN"],
+    ["TECH","FIBER REACHES THE LAST NEIGHBORHOOD THIS WEEK"]];
+  if(curSpace>0.4) TB.push(["SPACE TECH","ORBITAL FACTORY SHIPS ITS FIRST PARTS HOME"]);
+  if(curRegime&&curRegime.active) TB.push(["SURVEILLANCE","NEW CAMERAS GO LIVE ACROSS THE CENTRE"]);
+  return TB[slot%TB.length];
+}
+// draw a small pixel NEWS ANCHOR bust (head + hair + suit + desk) inside a screen region, "talking".
+function drawAnchor(g,ax,ay,now,skin){
+  var talk=(Math.floor(now/220))%3;                          // mouth opens/closes → reads as speaking
+  g.fillStyle="#2a2438"; g.fillRect(ax-1,ay+7,12,7);         // suit shoulders
+  g.fillStyle="#efe9df"; g.fillRect(ax+3,ay+7,4,7);          // shirt/collar V
+  g.fillStyle=skin.c; g.fillRect(ax+2,ay+1,6,6);             // face
+  g.fillStyle=skin.sh; g.fillRect(ax+2,ay+1,1,6);            // cheek shade
+  g.fillStyle=skin.hair; g.fillRect(ax+1,ay,8,2); g.fillRect(ax+1,ay+1,1,3); g.fillRect(ax+8,ay+1,1,3);   // hair
+  g.fillStyle="#20242c"; g.fillRect(ax+3,ay+3,1,1); g.fillRect(ax+6,ay+3,1,1);   // eyes
+  g.fillStyle="#7a4a44"; if(talk===0) g.fillRect(ax+4,ay+5,2,1); else g.fillRect(ax+4,ay+5,2,2);   // mouth (opens)
+}
+// a 1px pixel diagonal (Bresenham) — used for the billboard's cross-bracing so it reads as a steel truss.
+function trussLine(g,x1,y1,x2,y2){
+  var dx=Math.abs(x2-x1), dy=Math.abs(y2-y1), sx=x1<x2?1:-1, sy=y1<y2?1:-1, err=dx-dy, x=x1,y=y1;
+  for(var n=0;n<200;n++){ g.fillRect(x|0,y|0,1,1); if(x===x2&&y===y2) break; var e2=2*err; if(e2>-dy){err-=dy;x+=sx;} if(e2<dx){err+=dx;y+=sy;} }
+}
+// mount + draw ONE rooftop jumbotron. (rx,ry) = screen top-left in SCREEN space; roofY = the roof it stands on.
+function drawJumbotron(g,rx,ry,sw,sh,roofY,now,L){
+  var seg=newsSegment(now), col=seg.color, brk=(seg.cat==="BREAKING"), night=1-L;
+  // ---- the SUPPORT STRUCTURE: a braced steel billboard truss bolted to the rooftop (not perched on it) ----
+  var beamY=ry+sh, botY=roofY, legL=rx+7, legC=rx+(sw>>1), legR=rx+sw-9;   // three legs planted on the roof
+  g.fillStyle="#333942";
+  g.fillRect(rx+2,beamY,sw-4,2);                             // top gantry beam (screen hangs off it)
+  g.fillRect(legL-1,beamY,3,botY-beamY); g.fillRect(legC-1,beamY,3,botY-beamY); g.fillRect(legR-1,beamY,3,botY-beamY);   // three thick legs
+  g.fillStyle="#2a2f37";                                     // cross-bracing (X-trusses) — reads as engineered, not floating
+  var mY=(beamY+botY)>>1;
+  trussLine(g,legL,botY,legC,beamY); trussLine(g,legC,botY,legL,beamY);   // left bay X
+  trussLine(g,legC,botY,legR,beamY); trussLine(g,legR,botY,legC,beamY);   // right bay X
+  g.fillStyle="#333942"; g.fillRect(legL,mY,legR-legL,1);    // a mid horizontal member ties the legs
+  g.fillStyle="#20242b";                                     // foot plates bolt each leg to the roof
+  g.fillRect(legL-3,botY-1,7,2); g.fillRect(legC-3,botY-1,7,2); g.fillRect(legR-3,botY-1,7,2);
+  // bezel + studio background
+  g.fillStyle=brk?"#4a0a0e":"#0b0f18"; g.fillRect(rx-2,ry-2,sw+4,sh+4);   // dark bezel
+  g.fillStyle="#0c1524"; g.fillRect(rx,ry,sw,sh);            // studio backdrop
+  g.fillStyle="#12203a"; for(var s=0;s<sh;s+=3) g.fillRect(rx,ry+s,sw,1);   // faint studio scanlines
+  // header bar
+  g.fillStyle=col; g.fillRect(rx,ry,sw,6);
+  drawUiText(g,seg.hdr.substr(0,Math.max(1,((sw-20)/4)|0)),rx+2,ry+1,brk?"#ffffff":"#0a0f18",1);
+  if((Math.floor(now/500))&1){ g.fillStyle="#ff3b3b"; g.fillRect(rx+sw-19,ry+1,3,3); }   // blinking LIVE dot
+  drawUiText(g,"LIVE",rx+sw-15,ry+1,"#ffe0e0",1);
+  // the anchor bust, centred in the upper studio area
+  var skin=ANCHOR_SKINS[((cityName.charCodeAt(0)||65)+((Math.floor(now/9000))%ANCHOR_SKINS.length))%ANCHOR_SKINS.length];
+  drawAnchor(g,rx+(sw>>1)-5,ry+9,now,skin);
+  // desk bar under the anchor
+  g.fillStyle="#141b2c"; g.fillRect(rx,ry+sh-21,sw,3);
+  g.fillStyle=col; g.fillRect(rx,ry+sh-21,sw,1);
+  // lower-third headline band (coloured flag) — the READABLE part: a kicker + up to two static lines. No
+  // scrolling on the big screen; the point is legibility (the street LED ticker still scrolls the crawl).
+  var ly=ry+sh-20, lh=20;
+  g.fillStyle="#0a1220"; g.fillRect(rx,ly,sw,lh);
+  g.fillStyle=col; g.fillRect(rx,ly,3,lh);                   // colour flag
+  var per=Math.max(4,((sw-8)/4)|0);
+  drawUiText(g,seg.kick.substr(0,per),rx+6,ly+1,col,1);      // kicker
+  var wrapped=wrapNews(seg.line, per);
+  drawUiText(g,wrapped[0],rx+6,ly+7,"#eef4ff",1);            // headline line 1
+  if(wrapped[1]) drawUiText(g,wrapped[1].substr(0,per),rx+6,ly+13,"#cfe0f2",1);   // headline line 2
+  // screen glow at night
+  if(night>0.25){ g.globalCompositeOperation="lighter"; g.fillStyle=(brk?"rgba(255,60,50,":"rgba(90,170,255,")+(0.06+0.09*night).toFixed(2)+")"; g.fillRect(rx,ry,sw,sh); g.globalCompositeOperation="source-over"; }
+}
+var ANCHOR_SKINS=[{c:"#e8b890",sh:"#cf9c74",hair:"#3a2a1e"},{c:"#c98a5e",sh:"#a86f48",hair:"#221812"},
+  {c:"#8a5a3a",sh:"#6e442c",hair:"#161010"},{c:"#f0cfa8",sh:"#d8b088",hair:"#5a4632"}];
+function wrapNews(str, per){
+  if(str.length<=per) return [str,""];
+  var cut=str.lastIndexOf(" ",per); if(cut<per*0.5) cut=per;
+  return [str.substr(0,cut), str.substr(cut).replace(/^ /,"")];
+}
+// place a few BIG jumbotrons on downtown rooftops — tall, wide towers, spread across the view so they
+// read as scattered. Standing-tower predicate (mirrors drawLayer) so a screen never floats over an empty
+// plot; dies with its tower in the cataclysm. NONEWSTV suppresses it for the containment A/B guard.
+function drawJumbotrons(g,L,now,night){
+  if(NONEWSTV || cityG<0.55) return;
+  var sw=74, sh=50, placed=[], drawn=0, lastX=-999;
+  for(var i=0;i<near.blds.length && drawn<3;i++){ var b=near.blds[i];
+    if(b.type==="park"||b.h<40||b.w<16) continue;                          // a tall, wide downtown tower
+    if(((b.seed>>>6)%5)!==0) continue;                                      // only some rooftops carry a jumbotron
+    if(overSite(b.x,b.w)||overLandmark(b.x,b.w)) continue;                  // plot holds a site / civic landmark
+    if(b.bAge!==undefined && cityG-b.bAge<=bandOf(b)) continue;             // tower not built yet
+    if(apocHit(b.x)) continue;                                             // gone once the tower is destroyed
+    var bx=b.x-WOFF; if(bx>SW+4&&bx-WW>-4)bx-=WW; if(bx<-4-b.w&&bx+WW<SW+4)bx+=WW;
+    var cx=bx+(b.w>>1), rx=Math.round(cx-(sw>>1));
+    if(rx<-sw||rx>SW) continue;
+    if(Math.abs(cx-lastX)<sw+30) continue;                                  // spread them out
+    var roofY=HORIZON-b.h, ry=roofY-14-sh;                                  // the truss lifts the screen a clear span above the roof
+    if(ry<6){ ry=6; roofY=Math.min(roofY,ry+sh+14); }                       // keep it on-canvas (and the truss sane)
+    drawJumbotron(g,rx,ry,sw,sh,roofY,now,L);
+    lastX=cx; drawn++;
   }
 }
 
@@ -12648,6 +12905,7 @@ function draw(g,pass){
   if(cityG>0.35 && !nukeStruck()) drawBalloons(g,L,now,fx);   // the flash pops the hot-air balloons
   if(cityG>0.5 && !nukeFull()) drawBlimp(g,L,now,night,nd);
   if(!nukeFull()){ drawHighFlights(g,L,now,fx); drawHelis(g,L,now); drawRealFlights(g,L,now); }   // busier skies: high cruisers + contrails + downtown choppers + the REAL aircraft overhead
+  if(cityPhase==="apoc"&&curDeath==="nuke") drawNukePlanes(g,L,now);   // …and in the exchange, the blast wave swats aircraft out of the sky (they don't just disappear)
 
   // the wilderness the city grows out of (hills, grass, river, trees, the first cabin) — recedes as it matures
   if(cityG<0.985) drawTerrain(g,cityG,L,now,nd,pass==="fg"?"fg":undefined);
@@ -12688,6 +12946,7 @@ function draw(g,pass){
   // big LED news screens on the downtown towers — run local news, cut to BREAKING coverage as events happen
   // (deliberately NOT gated by nukeFull: they keep reporting the disaster right up until each tower is hit)
   if(cityG>0.5) drawNewsScreens(g,L,now,night);
+  drawJumbotrons(g,L,now,night);                              // the BIG rooftop news jumbotrons (anchor + readable headline)
   // window washers riding suspended platforms down the facades (daytime)
   if(cityG>0.5 && !nukeFull()){ drawWashers(g,mid,L,now); drawWashers(g,near,L,now); }
   // space-age retrofits: holo rings, uplink beams, the space elevator

@@ -52,6 +52,7 @@ if(Q.get('flights')){   // inject synthetic live aircraft so the real-flight ove
   FORCEFLIGHTS=_ff; }
 if(Q.get('noflights')==='1'){ FLIGHTS_ON=false; }
 if(Q.get('nolivesky')==='1'){ NOLIVESKY=true; }   // suppress the live ISS + Starlink (containment byte-identical)   // hard-disable the live-flight overlay (containment A/B: the pre-v1.24 ref engine has no flight code, so this keeps the render byte-identical)
+if(Q.get('nonewstv')==='1'){ NONEWSTV=true; }   // suppress the rooftop news jumbotrons (containment byte-identical)
 if(Q.get('starlink')!=null){ FORCESTARLINK=qn('starlink',0.5); }   // force a Starlink train mid-pass
 if(Q.get('iss')){ var _ip=Q.get('iss').split(','); FORCEISS={lat:+_ip[0],lon:+_ip[1],vlat:(_ip[2]!=null?+_ip[2]:0.06),vlon:(_ip[3]!=null?+_ip[3]:0.9)}; }   // pin the ISS sub-point "lat,lon[,vlat,vlon]" to test the real-position overhead pass
 if(Q.get('kp')!=null){ FORCEKP=+Q.get('kp'); }   // pins the planetary K-index (aurora): 5-6 band, ≥7 curtains
