@@ -1995,8 +1995,10 @@ function fetchFlights(bucket){
 // (open-notify is http-only but sends CORS `*`, and http-from-file is allowed in both QML XHR and the
 // Electron/Chromium renderer — verified — so no mixed-content block.)
 var FORCEISS=null;                 // test hook: {lat,lon} sub-point (+optional vlat/vlon) — pins the live fetch
+var NOLIVESKY=false;               // containment A/B: suppress the post-v1.24 live-sky extras (real ISS + Starlink) the ref engine lacks, so the render stays byte-identical
 var issData=null, issBucket=-1, issReqAt=0;
 function maybeFetchISS(){
+  if(NOLIVESKY) return;            // (leaves issData null → the scripted pass stands in, matching the pre-v1.24 reference)
   if(FORCEISS){ var t=Date.now(); issData={lat:FORCEISS.lat,lon:FORCEISS.lon,ts:t,plat:FORCEISS.lat-(FORCEISS.vlat||0),plon:FORCEISS.lon-(FORCEISS.vlon||0),pts:t-1000}; return; }
   var rn=Date.now(), b=Math.floor(rn/25000);
   if(b!==issBucket && rn-issReqAt>8000){ issBucket=b; issReqAt=rn; fetchISS(); }
@@ -2029,6 +2031,16 @@ function issLookAngle(latS,lonS){
   var alt=Math.atan2(cg-rho,sg)*R2D;
   var az=Math.atan2(Math.sin(dl)*Math.cos(ls), Math.cos(lo)*Math.sin(ls)-Math.sin(lo)*Math.cos(ls)*Math.cos(dl))*R2D;
   return { alt:alt, az:((az%360)+360)%360 };
+}
+// the ISS look angle right now (dead-reckoned between fetches) + the ground vector/velocity for the trail.
+// null when there's no live sub-point. Shared by the sky draw and the news ticker.
+function issAltAzNow(now){
+  if(!issData) return null;
+  var span=(issData.ts-issData.pts)/1000; if(span<1) span=25;
+  var dlo=issData.lon-issData.plon; if(dlo>180)dlo-=360; if(dlo<-180)dlo+=360;
+  var vlat=(issData.lat-issData.plat)/span, vlon=dlo/span, dt=Math.max(-8,Math.min(45,(now-issData.ts)/1000));
+  var la=issData.lat+vlat*dt, lo=issData.lon+vlon*dt, aa=issLookAngle(la,lo);
+  return { alt:aa.alt, az:aa.az, la:la, lo:lo, vlat:vlat, vlon:vlon };
 }
 var FORCEWX=null;   // test hook: a full weather object {code,cloud,wind,temp,precip,feels,gust} — pins the live fetch
 function maybeFetchWeather(){
@@ -5828,13 +5840,9 @@ function drawKites(g,L,now){
 function drawSatellite(g,L,now){
   if(L>0.30) return;
   if(issData){                                                    // ---- REAL ISS at its true position ----
-    var span=(issData.ts-issData.pts)/1000; if(span<1) span=25;
-    var dla=issData.lat-issData.plat, dlo=issData.lon-issData.plon;
-    if(dlo>180) dlo-=360; if(dlo<-180) dlo+=360;                  // unwrap a ±180 longitude seam
-    var vlat=dla/span, vlon=dlo/span, dt=Math.max(-8,Math.min(45,(now-issData.ts)/1000));   // dead-reckon (clamped)
-    var la=issData.lat+vlat*dt, lo=issData.lon+vlon*dt, aa=issLookAngle(la,lo);
-    if(aa.alt>0.5){
-      var wx=skyWX(aa.az), y=skyY(aa.alt);
+    var S=issAltAzNow(now), la=S.la, lo=S.lo, vlat=S.vlat, vlon=S.vlon;   // dead-reckoned look angle + ground track
+    if(S.alt>0.5){
+      var wx=skyWX(S.az), y=skyY(S.alt);
       g.globalCompositeOperation="lighter";
       for(var tr=1;tr<=5;tr++){ var ba=issLookAngle(la-vlat*tr*4, lo-vlon*tr*4); if(ba.alt<=0) break;   // curved trail along the real track
         var bx=skyWX(ba.az), by=skyY(ba.alt);
@@ -5866,6 +5874,7 @@ function drawSatellite(g,L,now){
 // on ~1/3 of nights (date-hashed) as a shallow twilight pass; labelled so people know what it is.
 var FORCESTARLINK=null;   // test hook: a progress 0..1 pins a train mid-pass
 function drawStarlinkTrain(g,L,now){
+  if(NOLIVESKY && FORCESTARLINK==null) return;
   if(L>0.30 && FORCESTARLINK==null) return;
   var p, dir, baseY0, N;
   if(FORCESTARLINK!=null){ p=FORCESTARLINK; dir=1; baseY0=30; N=20; }
@@ -6124,6 +6133,7 @@ function tickerMsg(now){
   if(curSpace>0.3) return cityName+" SPACEPORT - NEXT LAUNCH BOARDING";
   var nd2=nowDate(), gm=gameNight(nd2);
   var shw=currentShower(nd2); if(shw && (Math.floor(now/8000))%4===0) return shw.n+" METEOR SHOWER PEAKS TONIGHT - LOOK UP";   // announce the real shower so nobody misses it
+  var issp=issAltAzNow(now); if(issp && issp.alt>12 && dayPhase(nd2).light<0.30) return "THE ISS IS PASSING OVERHEAD NOW - LOOK UP";   // a real overhead pass is a brief, unmissable event
   var msgs=["WELCOME TO "+cityName,"POP "+popFmt(cityPop())+" AND GROWING",cityName+" TRANSIT - ALL LINES RUNNING"];
   var appr=approvalNow(now);   // N3 (shared with the civic HUD)
   msgs.push("CITY APPROVAL "+appr+" PCT");

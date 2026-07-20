@@ -9,7 +9,7 @@
 # global changed. Run after EACH phase.  Usage: bash tools/regime-contain.sh
 set -euo pipefail
 cd "$(dirname "$0")/.."
-BASE="now=1784255400000&clock=1784255400000&space=0.4&woff=0&noflights=1"   # noflights: the live-aircraft overlay is new code the pre-v1.24 ref lacks — suppress it so the A/B stays byte-identical
+BASE="now=1784255400000&clock=1784255400000&space=0.4&woff=0&noflights=1&nolivesky=1"   # noflights: the live-aircraft overlay is new code the pre-v1.24 ref lacks — suppress it so the A/B stays byte-identical
 REF="tools/regime-contain.ref.js"
 CUR="renderer/city.js"
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
