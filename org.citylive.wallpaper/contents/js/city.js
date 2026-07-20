@@ -161,7 +161,7 @@ function resetNotifLanes(){ for(var r=0;r<_notifTaken.length;r++) _notifTaken[r]
 var CLOCK = null;   // test-harness override: ms timestamp for time-of-day (null = real wall clock)
 var NOWOVR = null;  // test-harness override: ms value returned as Date.now() inside draw() (null = real)
 var NOFETCH = false;  // headless flag (own line = QML-namespace writable): almanac callers set this so setup() makes NO network calls
-var VERSION = "1.45.0";  // the build the user is running — surfaced in the Almanac + KDE config page (keep in sync with desktop/package.json)
+var VERSION = "1.46.0";  // the build the user is running — surfaced in the Almanac + KDE config page (keep in sync with desktop/package.json)
 var FORCELAYOUT = null;   // test hook: pin every building's window layout (grid/ribbon/band/punch/corp) — verify per-layout render
 var FORCECROWN = null;    // test hook: pin every building's crown/roof (gable/hip/saltbox/mansard/deco/…) — verify per-roof render
 var FORCEUSE = null;      // test hook: pin every building's functional type (hospital/theater/hotel/bank/cafe/pharmacy) — verify drawUse
@@ -7132,6 +7132,7 @@ function computeLmFoot(){ lmFoot.length=0;
     var lib=Math.round(LM_LIBRARY*WW); lmFoot.push([lib-14,lib+14]);        // library + post office
     var pos=Math.round(LM_POST*WW); lmFoot.push([pos-14,pos+14]); }
   if(cityG>0.55){ lmFoot.push([airportX-52,airportX+58]); }      // clear an APRON around the airport so its runway/terminal read as an airfield, not buried among towers
+  if(!NOSPORTS && cityG>0.45){ lmFoot.push([Math.round(SPORTS_X[0]*WW)-56, Math.round(SPORTS_X[3]*WW)+76]); }   // v1.46: reserve the whole SPORTS COMPLEX span → no towers or jumbotrons land on the arenas (NOSPORTS-gated so the containment A/B stays byte-identical)
 }
 function overLandmark(bx,bw){ for(var i=0;i<lmFoot.length;i++){ if(bx<lmFoot[i][1] && bx+bw>lmFoot[i][0]) return true; } return false; }
 
@@ -9287,7 +9288,18 @@ function cityTeams(now){
 // user's real local team. New code the containment ref lacks → gated NOSPORTS (pinned in the guard). Drawn
 // in the foreground at HORIZON; appear as the city matures. Recognisable by SILHOUETTE. ----
 var NOSPORTS=false;
-var SPORTS_X=[0.36,0.50,0.70,0.84];   // spread across the cityscape (clear of cathedral 0.24 / ferris 0.93)
+// v1.46 — a reserved SPORTS COMPLEX in the LEFT clear zone [0,0.21] (the only landmark-free span), the four
+// venues ADJACENT (a real cities' sports complex) so no big feature overlaps another. Order matches drawers:
+// [0]=basketball [1]=baseball [2]=hockey [3]=football.  Footprint reserved in lmFoot → nothing builds on it.
+var SPORTS_X=[0.029,0.077,0.125,0.182];
+var SPORTS_FOOT=[Math.round(0.004*2269), Math.round(0.212*2269)];   // world-x range reserved for the complex (WW≈2269; refined at setup)
+// which sports are IN SEASON right now (by real month, Northern-Hemisphere pro calendar). Nick: arenas only
+// show when their sport is in season. sIdx 0=NBA 1=MLB 2=NHL 3=NFL.
+function sportInSeason(sIdx,nd){ var m=nd.getMonth()+1;   // 1..12
+  if(sIdx===1) return m>=4 && m<=10;                        // MLB  Apr–Oct
+  if(sIdx===3) return m>=9 || m<=2;                          // NFL  Sep–Feb
+  return (m>=10 || m<=6);                                    // NBA/NHL  Oct–Jun
+}
 function drawArenaName(g,x,topY,name,col,L){                     // a lit marquee/nameplate over a venue
   var w=Math.max(20,textW(name)+6), bx=x-(w>>1);
   g.fillStyle=L>0.5?"#14171e":"#0a0c11"; g.fillRect(bx,topY,w,7);
@@ -9342,7 +9354,7 @@ function venueLively(g,x,y,w,now,L){ var night=1-L;
 // v1.45 — the venues are now MONUMENTAL (Nick: "make them bigger, think how big they are IRL"): a real
 // stadium dwarfs the office blocks around it. All four rise well above the skyline + viaduct.
 function drawBaseballPark(g,x,L,now,team,sIdx){                  // OPEN diamond + outfield + curved grandstand
-  var y=HORIZON, col=team.color, night=1-L, w=136;
+  var y=HORIZON, col=team.color, night=1-L, w=108;
   g.fillStyle=L>0.5?"#2e6a34":"#16351f"; g.fillRect(x-w/2,y-40,w,40);                        // green outfield grass
   g.fillStyle=L>0.5?"#b98a4a":"#6a4c28"; g.beginPath(); g.moveTo(x-20,y-3); g.lineTo(x,y-27); g.lineTo(x+20,y-3); g.closePath(); g.fill();   // tan infield DIAMOND
   g.fillStyle=L>0.5?"#f0ead8":"#8a8478"; g.fillRect(x-2,y-18,3,3); g.fillRect(x-14,y-7,3,3); g.fillRect(x+12,y-7,3,3); g.fillRect(x-2,y-7,3,3);   // bases
@@ -9356,7 +9368,7 @@ function drawBaseballPark(g,x,L,now,team,sIdx){                  // OPEN diamond
   drawArenaName(g,x,y-66,team.name,col,L);
 }
 function drawBasketballArena(g,x,L,now,team,sIdx){             // rounded DOMED indoor arena
-  var y=HORIZON, col=team.color, night=1-L, w=100;
+  var y=HORIZON, col=team.color, night=1-L, w=90;
   g.fillStyle=L>0.5?"#6b7280":"#2a2f39"; g.fillRect(x-w/2,y-36,w,36);                         // arena body
   g.fillStyle=col; g.beginPath(); g.moveTo(x-w/2,y-36); g.quadraticCurveTo(x,y-64,x+w/2,y-36); g.closePath(); g.fill();   // sweeping DOME roof (team colour)
   g.fillStyle=L>0.5?"#8a92a0":"#3a4150"; g.fillRect(x-w/2,y-37,w,2);
@@ -9368,7 +9380,7 @@ function drawBasketballArena(g,x,L,now,team,sIdx){             // rounded DOMED 
   drawArenaName(g,x,y-68,team.name,col,L);
 }
 function drawHockeyArena(g,x,L,now,team,sIdx){                 // boxier indoor arena, ICE-BLUE accent + rink hint
-  var y=HORIZON, col=team.color, night=1-L, w=100;
+  var y=HORIZON, col=team.color, night=1-L, w=90;
   g.fillStyle=L>0.5?"#5a6572":"#242a33"; g.fillRect(x-w/2,y-38,w,38);                          // arena body
   g.fillStyle=col; g.fillRect(x-w/2-2,y-47,w+4,11);                                            // big barrel roof band (team colour)
   g.fillStyle=L>0.5?"#bfe4ff":"#3a5a72"; g.fillRect(x-w/2,y-36,w,4);                            // ICE-BLUE ribbon (the hockey tell)
@@ -9379,7 +9391,7 @@ function drawHockeyArena(g,x,L,now,team,sIdx){                 // boxier indoor 
   drawArenaName(g,x,y-58,team.name,col,L);
 }
 function drawFootballBowl(g,x,L,now,team,sIdx){                // the COLOSSAL oval BOWL — largest, tiered, floodlights
-  var y=HORIZON, col=team.color, night=1-L, w=168;
+  var y=HORIZON, col=team.color, night=1-L, w=136;
   g.fillStyle=L>0.5?"#5f6672":"#23272f"; fillEllipse(g,x,y-14,w/2,30);                          // the bowl mass
   for(var tr2=y-32;tr2<y-2;tr2+=5){ g.fillStyle=L>0.5?"rgba(255,255,255,0.05)":"rgba(0,0,0,0.13)"; var hw=Math.round((w/2)*Math.sqrt(Math.max(0,1-Math.pow((tr2-(y-14))/30,2)))); g.fillRect(x-hw,tr2,hw*2,1); }   // stacked tiers
   g.fillStyle=L>0.5?"#2e6a34":"#16351f"; fillEllipse(g,x,y-8,w/2-18,18);                         // green field inside
@@ -9394,8 +9406,9 @@ function drawFootballBowl(g,x,L,now,team,sIdx){                // the COLOSSAL o
 function drawSportsDistrict(g,L,now){
   if(NOSPORTS || nukeStruck() || cityPhase==="apoc") return;
   var g2=gstage(0.50,0.66); if(g2<=0) return;                    // the venues rise as the city matures
-  var teams=cityTeams(now), drawers=[drawBasketballArena,drawBaseballPark,drawHockeyArena,drawFootballBowl];
-  for(var i=0;i<4;i++){ var wx=Math.round(SPORTS_X[i]*WW), sx=wx-WOFF;
+  var teams=cityTeams(now), drawers=[drawBasketballArena,drawBaseballPark,drawHockeyArena,drawFootballBowl], nd=nowDate();
+  for(var i=0;i<4;i++){ if(!sportInSeason(i,nd)) continue;        // Nick: an arena only shows when its sport is in season
+    var wx=Math.round(SPORTS_X[i]*WW), sx=wx-WOFF;
     if(sx>SW+100&&sx-WW>-100)sx-=WW; if(sx<-100&&sx+WW<SW+100)sx+=WW;
     if(sx<-100||sx>SW+100) continue; if(inSea(wx)) continue;
     drawers[i](g,sx|0,L,now,teams[i],i);
@@ -13609,11 +13622,10 @@ function draw(g,pass){
   // civic landmarks — stadium, cathedral, ferris wheel (rise with the maturing city)
   drawLandmarks(g,L,now,night,nd);   // civic landmarks rip away individually as the blast front reaches each (see drawLandmarks)
   drawBuilds(g,L,now,night);         // permanent VOTED landmarks (stadium/park/casino/…) the city built via ballot measures — near layer, traffic passes in front
-  drawSportsDistrict(g,L,now);       // the 4 real-team venues (basketball/baseball/hockey/football) — the city's sports scene
   // big LED news screens on the downtown towers — run local news, cut to BREAKING coverage as events happen
   // (deliberately NOT gated by nukeFull: they keep reporting the disaster right up until each tower is hit)
   if(cityG>0.5) drawNewsScreens(g,L,now,night);
-  drawJumbotrons(g,L,now,night);                              // the BIG rooftop news jumbotrons (anchor + readable headline)
+  // (drawSportsDistrict + drawJumbotrons moved to AFTER the viaduct below, so the big features read in FRONT of it)
   // window washers riding suspended platforms down the facades (daytime)
   if(cityG>0.5 && !nukeFull()){ drawWashers(g,mid,L,now); drawWashers(g,near,L,now); }
   // space-age retrofits: holo rings, uplink beams, the space elevator
@@ -13645,6 +13657,8 @@ function draw(g,pass){
 
   // elevated train line + scheduled train (mass transit arrives with the city)
   drawTrainLine(g,L,now,fx);   // (self-gated: builds itself pillar by pillar)
+  drawSportsDistrict(g,L,now);       // the sports complex + jumbotrons draw IN FRONT of the viaduct so they're never hidden (Nick: "see everything")
+  drawJumbotrons(g,L,now,night);     // the BIG rooftop news jumbotrons — in front of the viaduct now
 
   // drones (deterministic world paths) — only over a developed city
   if(cityG>0.42) for(i=0;i<drones.length;i++){ var dr=drones[i];

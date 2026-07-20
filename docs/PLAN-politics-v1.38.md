@@ -118,3 +118,19 @@ it. Implementation: detect a large inter-frame time gap (PC was asleep/off); if 
 run-up unwitnessed, DEFER the apoc to ~N sec after resume (persist a per-life apoc-time offset). The DOOMSDAY
 CLOCK (v1.21, apocAtOf) MUST reflect the deferred strike time. Delicate (breaks pure-f(now) for the apoc,
 needs persisted state + time-gap detection) → build in isolation, test resume scenarios.
+
+## ADDENDUM 4 — SPORTS + LAYOUT + CONSTRUCTION OVERHAUL (Nick-locked 2026-07-20)
+Clutter problem: big features (jumbotron + stadium) overlap; viaduct hides arenas. Nick wants everything
+visible; normal buildings overlapping is fine. World is landmark-packed → only clear zone is [0,0.175].
+- **v1.46 SPORTS COMPLEX + IN-SEASON + ANTI-CLUTTER:** a reserved SPORTS COMPLEX in the left clear zone
+  (4 big arenas adjacent, a realistic complex), reserved in lmFoot so NO buildings/jumbotrons land on it.
+  Draw arenas IN FRONT of the viaduct (currently drawTrainLine @13647 draws after → occludes; move it
+  before drawSportsDistrict). Arenas ONLY SHOW WHEN THEIR SPORT IS IN SEASON (MLB Apr-Oct, NBA/NHL Oct-Jun,
+  NFL Sep-Feb, by real month). Jumbotrons reserve/avoid each other + landmarks + the complex.
+- **v1.47 LIVE GAME ACTION:** when a game's on, see it played — an OPEN stadium (baseball) has a ball fly
+  out occasionally, fans emoting/cheering/screaming, and FANS WEAR THE PLAYING TEAM'S COLORS.
+- **v1.48 CONSTRUCTION OVERHAUL:** arena BUILD ARC (empty lot + "FUTURE HOME OF [TEAM]" → cranes/foundation
+  → stands rise → grand opening); richer construction SITES (cranes/scaffold/workers/materials/phases); a
+  BRANDED construction company (name/logo on hoardings + crane booms); buildings visibly RISE floor-by-floor.
+- **v1.49 PLANE CRASHES:** add plane crashes (a real aircraft goes down — smoke/fire, emergency response).
+  Keep no-gore.
