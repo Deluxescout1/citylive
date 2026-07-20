@@ -161,7 +161,7 @@ function resetNotifLanes(){ for(var r=0;r<_notifTaken.length;r++) _notifTaken[r]
 var CLOCK = null;   // test-harness override: ms timestamp for time-of-day (null = real wall clock)
 var NOWOVR = null;  // test-harness override: ms value returned as Date.now() inside draw() (null = real)
 var NOFETCH = false;  // headless flag (own line = QML-namespace writable): almanac callers set this so setup() makes NO network calls
-var VERSION = "1.47.0";  // the build the user is running — surfaced in the Almanac + KDE config page (keep in sync with desktop/package.json)
+var VERSION = "1.49.0";  // the build the user is running — surfaced in the Almanac + KDE config page (keep in sync with desktop/package.json)
 var FORCELAYOUT = null;   // test hook: pin every building's window layout (grid/ribbon/band/punch/corp) — verify per-layout render
 var FORCECROWN = null;    // test hook: pin every building's crown/roof (gable/hip/saltbox/mansard/deco/…) — verify per-roof render
 var FORCEUSE = null;      // test hook: pin every building's functional type (hospital/theater/hotel/bank/cafe/pharmacy) — verify drawUse
@@ -2555,6 +2555,7 @@ var curLife=null;
 function buildWorld(li){
   curLife=li;
   var seed=1337+li*7919;                      // ► fresh DNA for every life of the city
+  WORLD_SEED=seed;                            // expose this life's seed to top-level draw fns (branded firms) that run outside buildWorld's scope
   // GEOGRAPHY ROLL: is this city on a coast? (~60% are). No ocean → no harbour, no docks,
   // no boats, no sea life — the industrial edges become inland rail-yard districts instead.
   var geo=rng((seed+61)>>>0);
@@ -2694,6 +2695,7 @@ function buildWorld(li){
   airportX=Math.round(WW*0.8);
 }
 var cars=[], sprops=[], busstops=[], vents=[], pigeons=[], docks=[], buskers=[], boats=[], helipads=[], sites=[], pubs=[];
+var WORLD_SEED=1337;   // this life's world seed, mirrored out of buildWorld() so branded-firm code can reseed deterministically
 var hasOcean=true;   // set per life in buildWorld — landlocked cities have no waterfront at all
 var subways=[];      // street-level subway entrances (generated per life)
 var skybridges=[];   // G1: lit tube bridges between adjacent transformed towers
@@ -6619,7 +6621,8 @@ var NEWS_CATS=[
   {k:"TECH",     c:"#4aa0e0", hdr:"TECH 9"},
   {k:"COSMOS",   c:"#a86ae0", hdr:"SKYWATCH 9"},
   {k:"WEATHER",  c:"#4ac8d0", hdr:"WX 9"},
-  {k:"CITY",     c:"#c05ad0", hdr:"CITY 9 NEWS"} ];
+  {k:"CITY",     c:"#c05ad0", hdr:"CITY 9 NEWS"},
+  {k:"BUILD",    c:"#e0a83a", hdr:"CITY 9 NEWS"} ];
 // the current on-air segment: {cat, color, hdr, kick, line} — kick = coloured kicker, line = headline body.
 // PURE f(now): rotates on a ~9s slot; a live emergency preempts everything with red BREAKING.
 function newsSegment(now){
@@ -6640,7 +6643,7 @@ function newsSegment(now){
       line:ORDER_SLOGANS[(Math.floor(now/4200))%ORDER_SLOGANS.length]};
   }
   // otherwise cycle the beats; each returns null when it has nothing, so we skip to the next with content
-  var order=[0,1,2,3,4,5,6], slot=Math.floor(now/9000), tries=0, ci=slot%order.length;
+  var order=[0,1,2,3,4,5,6,7], slot=Math.floor(now/9000), tries=0, ci=slot%order.length;
   while(tries<order.length){
     var cat=NEWS_CATS[ci], seg=newsBeat(cat.k, now, slot);
     if(seg){ return {cat:cat.k, color:cat.c, hdr:cat.hdr, kick:seg[0], line:seg[1]}; }
@@ -6661,8 +6664,10 @@ function newsBeat(cat, now, slot){
     return null;
   }
   if(cat==="MARKETS"){
-    var idx=marketIndex(now), up=idx.chg>=0;
-    return [up?"MARKETS UP":"MARKETS DOWN", idx.name+" "+(up?"+":"")+idx.chg+"% - "+(eco>0.6?"BOOM ROLLS ON":eco<0.35?"RECESSION FEARS GROW":"MIXED SESSION")];
+    var r=econReport(now), up=r.chg>=0, msub=(slot%3);
+    if(msub===0) return [up?"MARKETS UP":"MARKETS DOWN", r.name+" "+(up?"+":"")+r.chg+"% - "+(r.boom?"BOOM ROLLS ON":r.bust?"RECESSION FEARS GROW":"MIXED SESSION")];
+    if(msub===1) return ["JOB MARKET", r.jobs+" - UNEMPLOYMENT "+r.unemp+" PCT"];
+    return ["THE ECONOMY", r.boom?"BUSINESSES EXPAND - CRANES OVER "+cityName:r.bust?"HIRING FREEZE - BELTS TIGHTEN":"STEADY GROWTH DOWNTOWN"];
   }
   if(cat==="CRIME"){
     var cr=crimeBeat(now); return cr;
@@ -6695,6 +6700,22 @@ function newsBeat(cat, now, slot){
     if(cityHasBuild("park")) CTY.push(["CITY LIFE","CITY PARK NAMED BEST NEW PUBLIC SPACE"]);
     return CTY[slot%CTY.length];
   }
+  if(cat==="BUILD"){
+    var fm=cityFirms(), fp=fm[slot%fm.length], er=econReport(now), bsub=(slot%3);
+    if(er.boom){
+      if(bsub===0) return ["DEVELOPMENT",fp.name+" BREAKS GROUND ON NEW TOWER"];
+      if(bsub===1) return ["BUILDING BOOM","CRANES RISE ACROSS "+cityName+" SKYLINE"];
+      return ["JOBS","BUILDERS HIRING - "+fp.name+" ADDS CREWS"];
+    }
+    if(er.bust){
+      if(bsub===0) return ["SLOWDOWN",fp.name+" HALTS WORK - SITES STALL"];
+      if(bsub===1) return ["CONSTRUCTION","BUILDING SLUMP HITS "+cityName];
+      return ["LAYOFFS","CRANES IDLE AS DOWNTURN BITES"];
+    }
+    if(bsub===0) return ["OPENING","BUILT BY "+fp.name+" - RIBBON CUT DOWNTOWN"];
+    if(bsub===1) return ["DEVELOPMENT",fp.name+" TOPS OUT NEW HIGH-RISE"];
+    return ["CITY SKYLINE",fp.name+" WINS "+cityName+" BUILD OF THE YEAR"];
+  }
   return null;
 }
 // a synthetic market index — a slow deterministic walk anchored to econOf so the board AGREES with the
@@ -6705,6 +6726,20 @@ function marketIndex(now){
   var chg=Math.round(((e-0.5)*9 + (wob-0.5)*4)*10)/10;       // pct: tracks the economy, small daily noise
   var nm=(cityName.replace(/[^A-Z]/gi,"").substr(0,3).toUpperCase()||"CTY")+"X";
   return {name:nm, val:base, chg:chg};
+}
+// v1.48 — the economy tracker: the market index + JOB MARKET status + UNEMPLOYMENT, all read off curEcon so
+// the news AGREES with the street (boom→hiring/low-unemp/cranes; bust→layoffs/high-unemp/stalled sites).
+function econReport(now){
+  var e=econOf(now), idx=marketIndex(now);
+  var jobs=e>0.62?"HIRING SURGE":e<0.38?"LAYOFFS ANNOUNCED":"JOBS STEADY";
+  return {name:idx.name, val:idx.val, chg:idx.chg, unemp:(3.4+(1-e)*9.2).toFixed(1), jobs:jobs, boom:e>0.62, bust:e<0.38};
+}
+var TICKER_SYMS=["ZORP","NIMB","VOLT","GENO","APEX","LUXE","HALE","MERI","IRON","OMNI","NOVA","KYRA"];
+function marketCrawl(now){                                     // a stock-ticker string of a few symbols +/- (tracks curEcon)
+  var e=econOf(now), out="", base=Math.floor(now/45000);
+  for(var i=0;i<6;i++){ var h=(((base+i*7919)*2654435761)>>>0)/4294967296, ch=Math.round(((e-0.5)*8+(h-0.5)*7)*10)/10;
+    out+=TICKER_SYMS[(base+i)%TICKER_SYMS.length]+" "+(ch>=0?"+":"")+ch+"  "; }
+  return out;
 }
 // CRIME beat — synthetic, keyed to the economy (busts raise crime) and the SAFETY levers already in play.
 function crimeBeat(now){
@@ -6818,7 +6853,7 @@ function drawJumbotron(g,rx,ry,sw,sh,roofY,now,L,seed){
   drawUiText(g,hdr.substr(0,Math.max(1,((sw-20)/4)|0)),rx+2,ry+1,brk?"#ffffff":"#0a0f18",1);
   if(type==="news"){ if((Math.floor(now/500))&1){ g.fillStyle="#ff3b3b"; g.fillRect(rx+sw-19,ry+1,3,3); } drawUiText(g,"LIVE",rx+sw-15,ry+1,"#ffe0e0",1); }
   else drawUiText(g,type==="ad"?"AD":"TV",rx+sw-9,ry+1,"#0a0f18",1);
-  var per=Math.max(4,((sw-8)/4)|0), ly=ry+sh-20, lh=20, kick, line;
+  var per=Math.max(4,((sw-8)/4)|0), ly=ry+sh-20, lh=16, kick, line;   // lh 16 → leaves a 4px stock-ticker crawl below
   if(type==="news"){
     var skin=ANCHOR_SKINS[(((seed>>>3))%ANCHOR_SKINS.length)];    // each channel its own anchor
     drawAnchor(g,rx+(sw>>1)-5,ry+9,now,skin);
@@ -6836,8 +6871,16 @@ function drawJumbotron(g,rx,ry,sw,sh,roofY,now,L,seed){
   g.fillStyle=col; g.fillRect(rx,ly,3,lh);
   drawUiText(g,kick.substr(0,per),rx+6,ly+1,col,1);
   var wrapped=wrapNews(line, per);
-  drawUiText(g,wrapped[0],rx+6,ly+7,"#eef4ff",1);
-  if(wrapped[1]) drawUiText(g,wrapped[1].substr(0,per),rx+6,ly+13,"#cfe0f2",1);
+  drawUiText(g,wrapped[0],rx+6,ly+6,"#eef4ff",1);
+  if(wrapped[1]) drawUiText(g,wrapped[1].substr(0,per),rx+6,ly+11,"#cfe0f2",1);
+  // STOCK-TICKER CRAWL along the very bottom (a live market ticker, green boom / red bust) — the economy tracker
+  var cyb=ry+sh-4, r2=econReport(now), tcol=r2.boom?"#7dff9e":r2.bust?"#ff7d7d":"#ffd27d";
+  g.fillStyle="#05070c"; g.fillRect(rx,cyb,sw,4);
+  g.save(); g.beginPath(); g.rect(rx+1,cyb,sw-2,4); g.clip();
+  var crawl=marketCrawl(now), cwid=(crawl.length*4-1)+16, coff=((now*0.02)+rx*3)%cwid;
+  drawUiText(g,crawl,(rx+sw-1-coff)|0,cyb,tcol,1);
+  drawUiText(g,crawl,(rx+sw-1-coff+cwid)|0,cyb,tcol,1);
+  g.restore();
   // screen glow at night
   if(night>0.25){ g.globalCompositeOperation="lighter"; g.fillStyle=(brk?"rgba(255,60,50,":"rgba(90,170,255,")+(0.06+0.09*night).toFixed(2)+")"; g.fillRect(rx,ry,sw,sh); g.globalCompositeOperation="source-over"; }
 }
@@ -8202,6 +8245,23 @@ function drawParade(g,L,now){
 // is a world x-range on a construction site? (so we hide the finished building there)
 function overSite(bx,bw){ for(var i=0;i<sites.length;i++){ var s=sites[i];
   if(bx< s.x+s.w+2 && bx+bw> s.x-2) return true; } return false; }
+// ---- v1.49 BRANDED CONSTRUCTION FIRMS: a FEW competing, founder-named builders per world (from the surname
+// pool). Every site, teardown and rising tower is BUILT BY one of them; branding shows on hoardings, truck
+// cabs, crane bands, hard-hats and the news. Deterministic from the world seed, rebuilt on world reset. ----
+var FIRM_SUFFIX=[" & SONS"," BUILDERS"," CONSTRUCTION"," & CO"," GROUP"," CONTRACTORS"];
+var FIRM_COL=["#e0a83a","#e07a2a","#3f8ad0","#3ac86a"];   // hi-vis hard-hat / plant palette
+var _firms=null, _firmsSeed=null;
+function cityFirms(){
+  if(_firms && _firmsSeed===WORLD_SEED) return _firms;
+  var r=rng(WORLD_SEED+811), n=2+((r()*2)|0), used={}, out=[];        // 2 or 3 firms
+  for(var i=0;i<n;i++){ var li; do{ li=(r()*LNAMES.length)|0; }while(used[li]); used[li]=1;
+    out.push({ name:LNAMES[li]+FIRM_SUFFIX[(r()*FIRM_SUFFIX.length)|0], short:LNAMES[li], c:FIRM_COL[i%FIRM_COL.length], seed:(r()*1e6)|0 }); }
+  _firms=out; _firmsSeed=WORLD_SEED; return out;
+}
+function firmFor(s){ var f=cityFirms(); return f[((s>>>0)%f.length)]; }
+// a site is STALLED only in a downturn — deeper bust freezes more of them (pure econOf → freeze-safe, no curEcon)
+function siteStalled(st,now){ var e=econOf(now); if(e>=0.42) return false;
+  return (((st.seed*2654435761)>>>0)/4294967296) < (0.42-e)*1.7; }
 // ---- construction site: scaffolded tower grows floor-by-floor over real days + a tower crane ----
 function drawSite(g,st,L,now,nd){
   var dayF=nd.getTime()/86400000, buildDays=st.floors*st.dpf, hold=5, cyc=buildDays+hold;
@@ -8240,6 +8300,44 @@ function drawSite(g,st,L,now,nd){
     // hoarding / fence at the base
     g.fillStyle=L>0.5?"#3f6ab0":"#1f3048"; g.fillRect(X-1,gy-2,w+2,2);
     for(var hp=X;hp<X+w;hp+=3){ g.fillStyle="rgba(255,220,80,0.55)"; g.fillRect(hp,gy-2,1,1); }
+    // ---- v1.49 CONSTRUCTION OVERHAUL: branded firm, richer site detail, econ stall (all additive, gated) ----
+    if(!NOCONSTR){
+      var firm=firmFor(st.seed), stall=building&&siteStalled(st,now), day=L>0.5;
+      // material piles at the plot edge (timber/aggregate + a steel/rebar stack) — always present
+      g.fillStyle=day?"#8a6a3a":"#43331d"; g.fillRect(X-4,gy-3,3,3); g.fillRect(X-7,gy-2,2,2);
+      g.fillStyle=day?"#6a7280":"#2a3038"; g.fillRect(X-10,gy-2,3,2);
+      // firm contractor board mounted above the hoarding (surname fits the plot; full name lives in the news)
+      var fnw=firm.short.length*4-1, fbx=X+((w-fnw)>>1);
+      g.fillStyle=stall?"rgba(70,74,80,0.9)":firm.c; g.fillRect(fbx-1,gy-9,fnw+2,6);
+      drawUiText(g,firm.short,fbx,gy-8,stall?"#c0c4ca":"#0a0c10",1);
+      if(building && !stall){
+        // a parked flatbed truck (cab in the firm's colour) just outside the hoarding
+        var tx=X+w+3; g.fillStyle="#20242c"; g.fillRect(tx,gy-3,7,3);
+        g.fillStyle=firm.c; g.fillRect(tx+7,gy-4,3,4);
+        g.fillStyle="#0a0c10"; g.fillRect(tx+1,gy,1,1); g.fillRect(tx+7,gy,1,1);
+        // night work-lights: a warm pool over the active deck + a lamp point
+        if(!day){ g.fillStyle="rgba(255,224,150,0.16)"; g.fillRect(X-2,topY,w+4,Math.min(builtH,14));
+          g.fillStyle="#fff0c0"; g.fillRect(X+(st.seed%Math.max(1,w-1)),topY+1,1,1); }
+        // extra crew on the deck (firm colours) + a ground spotter by the truck
+        drawPerson(g,X+w-3-((st.seed>>3)%Math.max(1,w-4)),topY-2,firm.c,SKINC[(st.seed+2)%SKINC.length],(Math.floor(now/420))&1);
+        drawPerson(g,tx-2,gy-3,firm.c,SKINC[(st.seed+5)%SKINC.length],0);
+        // welding sparks at the top course + a firm-coloured cap on the crane mast
+        if((Math.floor(now/160)+st.seed)%3===0){ g.fillStyle="#dff0ff"; g.fillRect(X+2+((st.seed>>1)%Math.max(1,w-3)),topY+2,1,1); }
+        g.fillStyle=firm.c; g.fillRect(X+w+2,gy-builtH-19,2,2);
+      } else if(!building){
+        // FINISHED (hold phase): a firm-coloured completion ribbon across the crown
+        g.fillStyle=firm.c; g.fillRect(X,gy-builtH-2,w,1);
+        g.fillStyle="#fff0c0"; g.fillRect(X+(w>>1),gy-builtH-3,1,2);
+      }
+      if(stall){
+        // STALLED by the downturn: a grey wash over the shell, weeds through the fence, a red CLOSED board
+        g.fillStyle="rgba(88,94,102,0.30)"; g.fillRect(X,topY,w,builtH);
+        g.fillStyle=day?"#3a5a2a":"#1c2c14"; for(var wd=X;wd<X+w;wd+=4) g.fillRect(wd,gy-3,1,3);
+        var scw=24, scx=X+((w-scw)>>1);
+        g.fillStyle="rgba(120,30,30,0.9)"; g.fillRect(scx-1,gy-16,scw+2,7);
+        drawUiText(g,"CLOSED",scx,gy-15,"#ffd0d0",1);
+      }
+    }
   }
 }
 
@@ -9347,6 +9445,7 @@ function cityTeams(now){
 // user's real local team. New code the containment ref lacks → gated NOSPORTS (pinned in the guard). Drawn
 // in the foreground at HORIZON; appear as the city matures. Recognisable by SILHOUETTE. ----
 var NOSPORTS=false;
+var NOCONSTR=false;    // containment A/B: suppress the post-v1.48 CONSTRUCTION OVERHAUL (branded firms, richer sites, econ stall, teardowns) the pre-v1.24 ref lacks — all new drawSite pixels sit behind !NOCONSTR so the guard render stays byte-identical to the original scaffolded tower
 // v1.46 — a reserved SPORTS COMPLEX in the LEFT clear zone [0,0.21] (the only landmark-free span), the four
 // venues ADJACENT (a real cities' sports complex) so no big feature overlaps another. Order matches drawers:
 // [0]=basketball [1]=baseball [2]=hockey [3]=football.  Footprint reserved in lmFoot → nothing builds on it.
@@ -9403,12 +9502,31 @@ function drawScoreboard(g,x,topY,w,sIdx,team,now,L,active){
   drawUiText(g,gm.opp,bx+3,topY+11,"#cfd6e0",1); drawUiText(g,""+gm.them,bx+w-7,topY+11,"#ffe14a",1);  // away line
   g.fillStyle="#141c28"; g.fillRect(bx,topY+h-5,w,5);
   drawUiText(g,gm.detail.substr(0,per),bx+3,topY+h-4,gm.real?"#8fe0ff":"#9aa4b0",1);          // period / clock
-  return true;                                                                              // a game is on → venue lit + crowd
+  return gm;                                                                                 // the live game → venue lit, crowd reacts to it
 }
-// crowd glow + rows of spectators when a game is on
-function venueLively(g,x,y,w,now,L){ var night=1-L;
-  if(night>0.25){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,240,190,0.10)"; g.fillRect(x-w/2,y-34,w,34); g.globalCompositeOperation="source-over"; }
-  for(var s=0;s<(w>>2);s++){ var sx=x-w/2+3+s*4+((Math.floor(now/600)+s)%2); g.fillStyle=["#e8b890","#c98a5e","#8a5a3a"][s%3]; g.fillRect(sx|0,y-2,1,2); }
+// v1.48 LIVE GAME ACTION — the crowd is on its feet when a game's on: fans in the TEAM'S COLOURS (mostly home,
+// some visiting), doing THE WAVE, standing to ROAR when the home team scores; an OPEN ballpark also launches a
+// home-run ball out of the park + a mascot on the rail; a home WIN sets off night fireworks over the stands.
+function venueLively(g,x,y,w,now,L,team,gm,open){
+  var night=1-L, col=team&&team.color||"#e0a83a", homeLead=!!(gm&&gm.us>gm.them);
+  var roar=(homeLead && ((Math.floor(now/2200)+(x|0))%6)===0);       // a periodic surge when winning
+  if(night>0.2){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,240,190,"+(0.10+(roar?0.09:0)).toFixed(2)+")"; g.fillRect(x-w/2,y-34,w,34); g.globalCompositeOperation="source-over"; }
+  var awayC="#dcdce6", wave=((now*0.03)%(w+10))-5;                    // the wave sweeps across the stands
+  for(var s=0;s<(w>>1);s++){ var sx=x-w/2+2+s*2, onW=Math.abs(sx-(x-w/2+wave))<3, lift=(onW||roar)?4:3;
+    g.fillStyle=((s*7+3)%5===0)?awayC:col; g.fillRect(sx,(y-lift)|0,1,lift);                    // a packed tier of fans in the team colours
+    g.fillStyle="#2a2620"; g.fillRect(sx,(y-lift)|0,1,1); }                                     // heads read against the colour
+  if(open){                                                          // OPEN ballpark extras
+    var hr=(now+x*13)%9000;                                          // a home-run/foul ball arcs out now and then
+    if(hr<1500){ var hp=hr/1500, dir=((x>>3)&1)?1:-1, bx=x+dir*hp*w*0.55, by=y-6-Math.sin(hp*Math.PI)*42;
+      g.fillStyle="#f4f0e2"; g.fillRect(bx|0,by|0,2,2); }
+    var mx=x-w/2+6+((now*0.02)%Math.max(6,w-12));                    // a mascot pacing the rail
+    g.fillStyle=col; g.fillRect(mx|0,y-4,2,3); g.fillStyle="#f4f8ff"; g.fillRect(mx|0,y-5,2,1);
+  }
+  if(night>0.4 && gm && gm.us>gm.them+2){                            // NIGHT FIREWORKS on a home win
+    for(var fw=0;fw<3;fw++){ var fh=(((now/500)|0)+fw*4)%6; if(fh>2) continue;
+      var fx=x-w/3+fw*(w/3), fy=y-46-fh*3; g.globalCompositeOperation="lighter"; g.fillStyle=["#ff5a8a","#5ad0ff","#ffd24a"][fw%3];
+      for(var rr=0;rr<7;rr++){ var ra=rr/7*6.283; g.fillRect((fx+Math.cos(ra)*(2+fh))|0,(fy+Math.sin(ra)*(2+fh))|0,1,1); } g.globalCompositeOperation="source-over"; }
+  }
 }
 // v1.45 — the venues are now MONUMENTAL (Nick: "make them bigger, think how big they are IRL"): a real
 // stadium dwarfs the office blocks around it. All four rise well above the skyline + viaduct.
@@ -9423,7 +9541,7 @@ function drawBaseballPark(g,x,L,now,team,sIdx){                  // OPEN diamond
   g.fillStyle=L>0.5?"#c9cdd6":"#5a606c"; g.fillRect(x-w/2-7,y-58,1,24); g.fillRect(x+w/2+6,y-58,1,24);   // foul poles
   for(var t=0;t<3;t++){ var tx=x-w/2+16+t*(w-32)/2; g.fillStyle=L>0.5?"#8a919c":"#3a4048"; g.fillRect(tx,y-62,2,22);   // light towers
     g.fillStyle=night>0.4?"#fff6cc":"#c9cdb0"; g.fillRect(tx-3,y-66,8,5); if(night>0.4){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,246,180,0.3)"; g.fillRect(tx-7,y-69,16,14); g.globalCompositeOperation="source-over"; } }
-  var on=drawScoreboard(g,x,y-40,60,sIdx,team,now,L,true); if(on) venueLively(g,x,y,w,now,L);
+  var on=drawScoreboard(g,x,y-40,60,sIdx,team,now,L,true); if(on) venueLively(g,x,y,w,now,L,team,on,true);
   drawArenaName(g,x,y-66,team.name,col,L);
 }
 function drawBasketballArena(g,x,L,now,team,sIdx){             // rounded DOMED indoor arena
@@ -9435,7 +9553,7 @@ function drawBasketballArena(g,x,L,now,team,sIdx){             // rounded DOMED 
   g.fillStyle=L>0.5?"#20242c":"#12151b"; g.fillRect(x-10,y-12,20,12);                         // grand entrance
   g.fillStyle=night>0.4?"#ffe6a0":"#5a6472"; g.fillRect(x-8,y-10,16,2);
   if(night>0.3){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,230,160,0.16)"; g.fillRect(x-w/2,y-64,w,64); g.globalCompositeOperation="source-over"; }
-  var on=drawScoreboard(g,x,y-34,60,sIdx,team,now,L,true); if(on) venueLively(g,x,y,w,now,L);
+  var on=drawScoreboard(g,x,y-34,60,sIdx,team,now,L,true); if(on) venueLively(g,x,y,w,now,L,team,on,false);
   drawArenaName(g,x,y-68,team.name,col,L);
 }
 function drawHockeyArena(g,x,L,now,team,sIdx){                 // boxier indoor arena, ICE-BLUE accent + rink hint
@@ -9446,7 +9564,7 @@ function drawHockeyArena(g,x,L,now,team,sIdx){                 // boxier indoor 
   for(var wc2=x-w/2+4;wc2<x+w/2-3;wc2+=6){ g.fillStyle=night>0.4?"#cfeaff":(L>0.5?"#9ab6c8":"#33424e"); g.fillRect(wc2,y-30,3,16); }
   g.fillStyle=L>0.5?"#20242c":"#12151b"; g.fillRect(x-10,y-12,20,12);                          // grand entrance
   g.fillStyle=L>0.5?"#eef6ff":"#4a5a66"; g.fillRect(x-18,y-1,36,1);                             // a sliver of the rink glowing out the doors
-  var on=drawScoreboard(g,x,y-38,60,sIdx,team,now,L,true); if(on) venueLively(g,x,y,w,now,L);
+  var on=drawScoreboard(g,x,y-38,60,sIdx,team,now,L,true); if(on) venueLively(g,x,y,w,now,L,team,on,false);
   drawArenaName(g,x,y-58,team.name,col,L);
 }
 function drawFootballBowl(g,x,L,now,team,sIdx){                // the COLOSSAL oval BOWL — largest, tiered, floodlights
@@ -9459,18 +9577,94 @@ function drawFootballBowl(g,x,L,now,team,sIdx){                // the COLOSSAL o
   g.fillStyle=L>0.5?"#c9cdd6":"#5a606c"; g.fillRect(x-36,y-33,1,8); g.fillRect(x-34,y-33,5,1); g.fillRect(x+35,y-33,1,8); g.fillRect(x+30,y-33,5,1);   // goalposts
   for(var ft=0;ft<4;ft++){ var fx=x-w/2+14+ft*(w-28)/3; g.fillStyle=L>0.5?"#8a919c":"#3a4048"; g.fillRect(fx,y-54,2,24);   // 4 tall floodlight towers
     g.fillStyle=night>0.4?"#fff6cc":"#c9cdb0"; g.fillRect(fx-4,y-58,10,5); if(night>0.4){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,246,180,0.26)"; g.fillRect(fx-8,y-61,18,16); g.globalCompositeOperation="source-over"; } }
-  var on=drawScoreboard(g,x,y-40,64,sIdx,team,now,L,true); if(on) venueLively(g,x,y,w,now,L);
+  var on=drawScoreboard(g,x,y-40,64,sIdx,team,now,L,true); if(on) venueLively(g,x,y,w,now,L,team,on,false);
   drawArenaName(g,x,y-62,team.name,col,L);
+}
+// v1.49 ARENA BUILD ARC (Nick: "see the Big Sports areas getting built"). Each venue rises on its own
+// STAGGERED schedule as the city matures: empty lot + FUTURE HOME OF [TEAM] → groundbreaking (excavator, dirt)
+// → stands rise course-by-course (tiered bowl + tower cranes) → grand-opening ribbon + fireworks → the finished
+// arena. All inside drawSportsDistrict (NOSPORTS-gated + drawn IN FRONT of the viaduct), so it reads and the
+// containment A/B stays byte-identical. Pure f(cityG) → deterministic on every screen.
+var ARENA_W=[90,108,90,136], ARENA_H=[48,42,47,54];   // basketball, baseball, hockey, football
+function arenaBuildProg(i){ var s=0.48+i*0.045, e=s+0.15; return Math.max(0,Math.min(1,(cityG-s)/(e-s))); }
+function drawArenaSite(g,x,L,now,team,sIdx,prog){
+  var y=HORIZON, w=ARENA_W[sIdx], H=ARENA_H[sIdx], col=team.color, day=L>0.5, hw=w>>1, firm=firmFor((sIdx+1)*99173);
+  // perimeter hoarding fence (firm-striped) around the whole plot
+  g.fillStyle=day?"#4a5566":"#1f2732"; g.fillRect(x-hw,y-7,w,7);
+  g.fillStyle=firm.c; g.fillRect(x-hw,y-7,w,1);
+  for(var hpx=x-hw+1;hpx<x+hw;hpx+=6){ g.fillStyle="rgba(255,220,90,0.5)"; g.fillRect(hpx,y-5,1,3); }
+  if(prog<0.16){
+    // EMPTY LOT: graded pad + survey stakes + a "FUTURE HOME OF [TEAM]" billboard
+    g.fillStyle=day?"#6a5a3e":"#2e2618"; g.fillRect(x-hw+2,y-2,w-4,2);
+    g.fillStyle="#e0653a"; g.fillRect(x-hw+5,y-9,1,2); g.fillRect(x+hw-6,y-9,1,2);
+    var s1="FUTURE HOME OF", s2=team.name.toUpperCase();
+    var sw=Math.max(textW(s1),textW(s2))+8, sx=x-(sw>>1), sTop=y-34, sH=17;
+    g.fillStyle=day?"#2a3442":"#141b26"; g.fillRect(sx+2,sTop+sH,2,(y-8)-(sTop+sH)); g.fillRect(sx+sw-4,sTop+sH,2,(y-8)-(sTop+sH));  // two posts
+    g.fillStyle=day?"#eef2f8":"#c8d0dc"; g.fillRect(sx,sTop,sw,sH);
+    g.fillStyle=col; g.fillRect(sx,sTop,sw,3);
+    drawUiText(g,s1,sx+4,sTop+5,"#1a2230",1);
+    drawUiText(g,s2,x-(textW(s2)>>1),sTop+11,day?"#0a1018":col,1);
+  } else if(prog<0.34){
+    // GROUNDBREAKING: churned earth, spoil mound, an excavator (firm colour) + a couple of hard-hats + dust
+    g.fillStyle=day?"#5a4a30":"#2a2214"; g.fillRect(x-hw+2,y-3,w-4,3);
+    g.fillStyle=day?"#6a5a3e":"#332b1d"; g.fillRect(x-9,y-6,18,3);
+    var ex=x+((now*0.006)%12)-6;
+    g.fillStyle=firm.c; g.fillRect((ex-4)|0,y-6,8,4); g.fillStyle="#20242c"; g.fillRect((ex-4)|0,y-2,8,2);
+    var ba=Math.sin(now*0.004)*3; g.fillStyle="#3a3f48"; g.fillRect((ex+3)|0,y-8,6,1); g.fillRect((ex+8)|0,(y-8+ba)|0,1,4);
+    g.fillStyle=firm.c; g.fillRect((ex+7)|0,(y-4+ba)|0,3,2);
+    if((Math.floor(now/300))&1){ g.fillStyle="rgba(200,190,170,0.4)"; g.fillRect((ex+9)|0,y-3,3,2); }
+    drawPerson(g,x-hw+8,y-8,firm.c,SKINC[sIdx%SKINC.length],0);
+    drawPerson(g,x+hw-9,y-8,firm.c,SKINC[(sIdx+3)%SKINC.length],(Math.floor(now/500))&1);
+    if(w>=90) drawArenaName(g,x,y-24,"BREAKING GROUND",col,L);
+  } else {
+    // STANDS RISE course-by-course: a tiered bowl grows from the ground + TWO tower cranes + sparks/work-lights
+    var rp=(prog-0.34)/0.54, builtH=Math.max(4,Math.round(H*rp));
+    for(var ty=0;ty<builtH;ty+=1){ var frac=ty/H, tw=Math.round(w*(0.72+0.28*(1-frac)));
+      g.fillStyle=day?"#5a6572":"#242a33"; g.fillRect(x-(tw>>1),y-1-ty,tw,1); }
+    g.fillStyle=day?"#7a828e":"#333a44"; for(var cxp=x-hw+4;cxp<x+hw-3;cxp+=8) g.fillRect(cxp,y-builtH-3,1,4);   // exposed steel at the top course
+    g.fillStyle="rgba(90,180,120,0.2)"; g.fillRect(x-hw+3,y-builtH,w-6,Math.min(builtH,8));                     // safety mesh
+    if(rp>0.6){ g.fillStyle=col; g.fillRect(x-hw+4,y-builtH+1,w-8,1); }                                          // team-colour trim shows near the top
+    for(var ck=0;ck<2;ck++){ var mX=x+(ck?hw-2:-hw+1), mTop=y-builtH-22, jdir=ck?-1:1, jib=Math.round(w*0.4);
+      g.fillStyle=firm.c; g.fillRect(mX,mTop,2,y-mTop);
+      g.fillRect(jdir<0?(mX-jib):(mX+2),mTop,jib,1);
+      var trX=mX+jdir*(0.4+0.4*(0.5+0.5*Math.sin(now*0.001+ck*2)))*jib;
+      var lY=y-((0.4+0.4*(0.5+0.5*Math.sin(now*0.0008+ck)))*builtH);
+      g.fillStyle="rgba(24,24,30,0.85)"; g.fillRect(trX|0,mTop,1,Math.max(1,(lY-mTop)|0));
+      g.fillStyle="#c9a23a"; g.fillRect((trX-1)|0,lY|0,3,2);
+      if(L<0.6&&(Math.floor(now/700))%2===0){ g.fillStyle="#ff4040"; g.fillRect(mX,mTop-1,1,1); }
+    }
+    if(!day){ g.fillStyle="rgba(255,224,150,0.14)"; g.fillRect(x-hw,y-builtH,w,Math.min(builtH,12)); }
+    if((Math.floor(now/150))%2===0){ g.fillStyle="#dff0ff"; g.fillRect((x-hw+6+((now>>7)%Math.max(1,w-10)))|0,y-builtH+1,1,1); }
+    drawPerson(g,x-hw+7,y-8,firm.c,SKINC[sIdx%SKINC.length],(Math.floor(now/440))&1);
+    if(w>=90) drawArenaName(g,x,y-builtH-30,"BUILDING "+team.name.toUpperCase(),col,L);
+  }
+}
+// the grand-opening overlay: a ribbon across the gate + fireworks + a marquee + opening-day crowd, laid OVER
+// the finished arena for the last slice of the build window (prog 0.88 → 1.0), then it's just the venue.
+function arenaOpeningFx(g,x,L,now,team,sIdx,prog){
+  var y=HORIZON, w=ARENA_W[sIdx], H=ARENA_H[sIdx], col=team.color, hw=w>>1;
+  g.fillStyle="#ff3b6b"; g.fillRect(x-16,y-10,32,2);                              // the ribbon across the entrance
+  g.fillStyle="#ffd24a"; g.fillRect(x-1,y-11,2,4);                                // ribbon bow
+  var gp="GRAND OPENING", gpw=textW(gp)+6;                                        // a small opening banner over the ribbon (venue keeps its own nameplate)
+  g.fillStyle="#ff3b6b"; g.fillRect(x-(gpw>>1),y-20,gpw,7); drawUiText(g,gp,x-(gpw>>1)+3,y-19,"#fff0c0",1);
+  for(var fw=0;fw<4;fw++){ var fh=(((now/380)|0)+fw*3)%7; if(fh>3) continue;
+    var fx=x-w/3+fw*(w/4.5), fy=y-H-12-fh*3; g.globalCompositeOperation="lighter"; g.fillStyle=["#ff5a8a","#5ad0ff","#ffd24a","#7dff9e"][fw%4];
+    for(var rr=0;rr<8;rr++){ var ra=rr/8*6.283; g.fillRect((fx+Math.cos(ra)*(2+fh))|0,(fy+Math.sin(ra)*(2+fh))|0,1,1); }
+    g.globalCompositeOperation="source-over"; }
+  for(var cc=0;cc<(w>>3);cc++){ drawPerson(g,x-hw+6+cc*8,y-6,["#e0653a","#4aa0e0","#3ac86a",col][cc%4],SKINC[cc%SKINC.length],(Math.floor(now/300)+cc)&1); }
 }
 function drawSportsDistrict(g,L,now){
   if(NOSPORTS || nukeStruck() || cityPhase==="apoc") return;
-  var g2=gstage(0.50,0.66); if(g2<=0) return;                    // the venues rise as the city matures
+  if(cityG<0.48) return;                                          // the venues rise as the city matures (from the FUTURE-HOME lot at cy~0.48)
   var teams=cityTeams(now), drawers=[drawBasketballArena,drawBaseballPark,drawHockeyArena,drawFootballBowl], nd=nowDate();
   for(var i=0;i<4;i++){ if(!sportInSeason(i,nd)) continue;        // Nick: an arena only shows when its sport is in season
     var wx=Math.round(SPORTS_X[i]*WW), sx=wx-WOFF;
     if(sx>SW+100&&sx-WW>-100)sx-=WW; if(sx<-100&&sx+WW<SW+100)sx+=WW;
     if(sx<-100||sx>SW+100) continue; if(inSea(wx)) continue;
-    drawers[i](g,sx|0,L,now,teams[i],i);
+    var bpg=arenaBuildProg(i);
+    if(bpg<0.88){ drawArenaSite(g,sx|0,L,now,teams[i],i,bpg); }   // still rising → the build site
+    else { drawers[i](g,sx|0,L,now,teams[i],i);                   // the finished venue
+      if(bpg<1) arenaOpeningFx(g,sx|0,L,now,teams[i],i,bpg); }    // grand-opening ribbon + fireworks overlay
   }
 }
 function nameOf(li,era){
@@ -9732,6 +9926,11 @@ function drawGrowSite(g,X,w,targetH,frac,seed,L,now,crew){
   for(var cwk=0;cwk<crew;cwk++){ var hm2=(Math.floor(now/380)+cwk)&1;
     var wy2=(cwk===0)?gy-3:(cwk===1?top-1:top+Math.min(builtH-2,(builtH>>1)));
     drawPerson(g,X+2+((cwk*5+(seed&3))%Math.max(3,w-3)),wy2,hiv,SKINC[(seed+cwk)%SKINC.length],hm2); }
+  // v1.49: brand the birth-site with its builder — a firm-colour hoarding stripe + a mast cap (additive, gated)
+  if(!NOCONSTR){ var gfirm=firmFor(seed);
+    g.fillStyle=gfirm.c; g.fillRect(X-1,gy-3,w+2,1);                                  // firm stripe along the top of the hoarding
+    g.fillRect(mastX,mastTop-1,1,2);                                                  // firm cap on the crane mast
+    if(w>=14){ var gn=gfirm.short.length*4-1; drawUiText(g,gfirm.short,X+((w-gn)>>1),gy-9,gfirm.c,1); } }  // surname board on wider plots
 }
 // ---- the distant MOUNTAIN RANGE: two hazy ridges behind everything, snow on the high peaks.
 // Snowline drops in winter and after real snowfalls; snow blushes pink at sunset (alpenglow);

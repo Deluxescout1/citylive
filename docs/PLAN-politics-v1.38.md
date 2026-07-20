@@ -139,3 +139,29 @@ visible; normal buildings overlapping is fine. World is landmark-packed → only
 - ECONOMY TRACKER on the news: the CITY 9 news reports should also show the economy tracker + whether the
   JOB MARKET is booming or not (add a market/jobs segment/ticker to drawJumbotron/newsBeat — marketIndex +
   econOf + a JOBS status). Small add to the news system.
+
+## ADDENDUM 6 — LIVE GAMES + CONSTRUCTION OVERHAUL + ECONOMY TRACKER (Nick-locked 2026-07-20, 15 Qs)
+### LIVE GAME ACTION
+- Ballpark (open): home-run/foul BALLS fly out; fans do THE WAVE; fans STAND & CHEER on big plays; mascot/
+  vendors/organ touches. Fans MOSTLY home-team colors + some visiting.
+- Indoor arenas (basketball/hockey/football): on game night → LIT UP + crowd streams in (team colors) + live
+  scoreboard + the building PULSES with a roar on big scores (feel the game without seeing the field).
+- Crowd REACTS to the score: roars/celebrates on a home score, quieter when trailing; NIGHT FIREWORKS on a
+  home win.
+### CONSTRUCTION OVERHAUL
+- ARENA BUILD ARC (full): empty lot + "FUTURE HOME OF [TEAM]" hoarding → groundbreaking/foundation → stands
+  rise course-by-course → GRAND OPENING (ribbon + fireworks). STAGGERED as the city matures.
+- RICHER SITES (everywhere): tower cranes + swinging loads; scaffolding + safety mesh; workers/hard-hats +
+  material piles + trucks; dust/sparks + night work-lights.
+- AMOUNT SCALES WITH ECONOMY: boom = cranes everywhere/skyline growing; bust = stalled/abandoned sites, idle
+  cranes. Construction = an economic barometer.
+- BRANDED COMPANIES: a FEW competing firms, FOUNDER-STYLE names (HALE & SONS, OKONKWO BUILDERS — from the
+  surname pool). Branding on crane booms + site hoardings + a company HQ tower + company-colour trucks/hard-
+  hats + news beats ("[FIRM] BREAKS GROUND…") + "BUILT BY [FIRM]" on big projects/arenas.
+- VISIBLE RISE: growing plots rise floor-by-floor under a crane; a redeveloping plot visibly DEMOLISHES the
+  old building first, then the new rises (full lifecycle).
+### ECONOMY TRACKER ON THE NEWS
+- Show: market index up/down + JOB MARKET status (HIRING SURGE/STEADY/LAYOFFS) + UNEMPLOYMENT % + a scrolling
+  stock-TICKER of symbols. Placement: a rotating MARKETS/JOBS anchor segment on the jumbotron AND a ticker
+  crawl along the bottom. FULLY TIED to curEcon (agrees with the street: homeless/hard-times + construction
+  all line up: boom=green/hiring/low-unemp/cranes; bust=red/layoffs/high-unemp/stalled sites).

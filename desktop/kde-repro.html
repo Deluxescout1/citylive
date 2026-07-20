@@ -55,6 +55,7 @@ if(Q.get('nolivesky')==='1'){ NOLIVESKY=true; }   // suppress the live ISS + Sta
 if(Q.get('nonewstv')==='1'){ NONEWSTV=true; }   // suppress the rooftop news jumbotrons (containment byte-identical)
 if(Q.get('nopartyfx')==='1'){ NOPARTYFX=true; }   // suppress the persistent party-legacy visuals (containment byte-identical)
 if(Q.get('nosports')==='1'){ NOSPORTS=true; }   // suppress the sports district (containment byte-identical)
+if(Q.get('noconstr')==='1'){ NOCONSTR=true; }   // suppress the construction overhaul (branded firms/richer sites/stall/teardowns) — containment byte-identical
 if(Q.get('gameon')==='1'){ FORCEGAMEON=true; }   // force a (fake) game on the stadium scoreboards for render tests
 if(Q.get('nogeo')==='1'){ NOGEO=true; }   // suppress IP auto-location (keeps LAT/LON pinned so the containment A/B stays byte-identical)
 if(Q.get('apocbuild')!=null){ var _rn=(Q.get('now')?+Q.get('now'):Date.now()), _d=(+Q.get('apocbuild')||120)*1000; FORCEAPOCREPLAY={base:_rn,startAt:_rn+_d,until:_rn+_d+95000}; }   // render the "missed cataclysm — replay in M:SS" buildup banner
