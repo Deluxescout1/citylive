@@ -161,7 +161,7 @@ function resetNotifLanes(){ for(var r=0;r<_notifTaken.length;r++) _notifTaken[r]
 var CLOCK = null;   // test-harness override: ms timestamp for time-of-day (null = real wall clock)
 var NOWOVR = null;  // test-harness override: ms value returned as Date.now() inside draw() (null = real)
 var NOFETCH = false;  // headless flag (own line = QML-namespace writable): almanac callers set this so setup() makes NO network calls
-var VERSION = "1.44.0";  // the build the user is running — surfaced in the Almanac + KDE config page (keep in sync with desktop/package.json)
+var VERSION = "1.45.0";  // the build the user is running — surfaced in the Almanac + KDE config page (keep in sync with desktop/package.json)
 var FORCELAYOUT = null;   // test hook: pin every building's window layout (grid/ribbon/band/punch/corp) — verify per-layout render
 var FORCECROWN = null;    // test hook: pin every building's crown/roof (gable/hip/saltbox/mansard/deco/…) — verify per-roof render
 var FORCEUSE = null;      // test hook: pin every building's functional type (hospital/theater/hotel/bank/cafe/pharmacy) — verify drawUse
@@ -3196,6 +3196,48 @@ function fmtCountdown(dt){
   if(h>0) return "IN "+h+"h "+m+"m";
   if(m>=10) return "IN "+m+" MIN";
   return "IN "+m+":"+(ss<10?"0":"")+ss;                 // final <10 min → live M:SS
+}
+// ---- APOCALYPSE ONLY WHILE YOU'RE WATCHING (v1.45, Nick) ----
+// The end-of-life cataclysm should only PLAY while the PC is on. If it was scheduled while the PC was
+// off/asleep, we detect the wake-up time gap and REPLAY the missed cataclysm a few minutes later — so you
+// never miss it (Nick: "always play the most recent missed one"). Keep-wall-clock: ONLY the apoc is deferred;
+// the city's age still tracks real time. The replay warps the render `now` to that missed life for ~95s.
+var apocLastReal=0, apocReplay=null, FORCEAPOCREPLAY=null, NOAPOCDEFER=false;
+var APOC_GAP_MS=90000;            // an inter-frame gap this big ⇒ the PC slept / was off
+var APOC_WAKE_DELAY=240000;       // ~4 min after wake before the replay strikes (Nick: 3-5 min)
+var APOC_REPLAY_MS=95000;         // play ~95s of the cataclysm (whole finale + a little aftermath), then back to reality
+function lastApocStrike(now){                            // most recent cataclysm strike at or before `now`
+  var basis=now-GROW_EPOCH+GROW_OFFSET_DAYS*86400000+WORLD_SHIFT, m=((basis%GROW_CYCLE)+GROW_CYCLE)%GROW_CYCLE;
+  var at=(now-m)+0.955*GROW_CYCLE;
+  if(now<at) at-=GROW_CYCLE;                             // this life's strike is still future → the previous life's was the last
+  return at;
+}
+function apocDeferTick(realNow){                         // detect a missed cataclysm across an off-gap; queue a replay
+  if(NOAPOCDEFER || NOWOVR!=null) return;                // harness / pinned renders never defer
+  if(apocLastReal>0){ var gap=realNow-apocLastReal;
+    if(gap>APOC_GAP_MS){                                 // the PC was off/asleep across [apocLastReal, realNow]
+      var strike=lastApocStrike(realNow);
+      if(strike>apocLastReal && strike<realNow && (!apocReplay||apocReplay.base!==strike))   // a cataclysm struck UNWITNESSED in the gap
+        apocReplay={ base:strike, startAt:realNow+APOC_WAKE_DELAY, until:realNow+APOC_WAKE_DELAY+APOC_REPLAY_MS };
+    }
+  }
+  apocLastReal=realNow;
+}
+function apocEffNow(realNow){                            // warp `now` to the missed cataclysm during the replay window
+  var R=FORCEAPOCREPLAY||apocReplay; if(!R) return realNow;
+  if(realNow>=R.until){ if(!FORCEAPOCREPLAY) apocReplay=null; return realNow; }   // replay done → resume reality
+  if(realNow<R.startAt) return realNow;                                            // buildup: the real, living city (+ a notice)
+  return R.base + (realNow - R.startAt);                                           // replay: warp to the cataclysm, real-time
+}
+function drawApocReplayHud(g,realNow,night){            // makes it clear this is a REPLAY of the end you missed
+  var R=FORCEAPOCREPLAY||apocReplay; if(!R || realNow>=R.until) return;
+  var replaying=(realNow>=R.startAt), msg, col=replaying?"rgba(255,90,60,":"rgba(255,178,74,";
+  if(replaying) msg="▶ REPLAY - THE END YOU MISSED";
+  else msg="⚠ MISSED CATACLYSM - REPLAY "+fmtCountdown(R.startAt-realNow);
+  var tw=textW(msg), W=tw+8, cx=(SW>>1), ty=notifLane(1), x0=(cx-(W>>1))|0, pulse=0.7+0.3*Math.sin(realNow*0.006);
+  g.fillStyle="rgba(8,4,4,0.82)"; g.fillRect(x0-2,ty-3,W+4,11);
+  g.fillStyle=col+(0.9*pulse).toFixed(3)+")"; g.fillRect(x0-2,ty-4,W+4,1); g.fillRect(x0-2,ty+7,W+4,1);
+  drawUiText(g,msg,x0+2,ty,replaying?"#ffd0c4":"#ffe6c4",1);
 }
 function drawWarnTri(g,x,y,col,a){                       // a tiny 5px warning triangle
   g.globalAlpha=(a==null?1:a); g.fillStyle=col;
@@ -9275,80 +9317,87 @@ function venueGame(sIdx,team,now){
   }
   return null;
 }
-// the venue's big SCOREBOARD — reads the game and shows US vs OPP + score + period; a red LIVE dot when it's
-// the REAL game happening right now (Nick: fake games normally, the real score when the team truly plays).
+// the venue's big JUMBOTRON SCOREBOARD — reads the game, shows US vs OPP + score + period; red LIVE dot when
+// it's the REAL game happening right now (Nick: fake games normally, the real score when the team truly plays).
 function drawScoreboard(g,x,topY,w,sIdx,team,now,L,active){
   if(!active) return false;
   var gm=venueGame(sIdx,team,now); if(!gm) return false;
-  var abbr=(team.name.replace(/[^A-Z]/gi,"").substr(0,3)||"HOM").toUpperCase(), col=team.color, bx=x-(w>>1);
-  g.fillStyle="#06080e"; g.fillRect(bx,topY,w,13);                                         // board
-  g.fillStyle=col; g.fillRect(bx,topY,w,1);
-  drawUiText(g,abbr,bx+2,topY+1,"#f4f8ff",1); drawUiText(g,""+gm.us,bx+w-6,topY+1,"#ffe14a",1);   // home line
-  drawUiText(g,gm.opp,bx+2,topY+6,"#cfd6e0",1); drawUiText(g,""+gm.them,bx+w-6,topY+6,"#ffe14a",1);  // away line
-  g.fillStyle="#1a2230"; g.fillRect(bx,topY+11,w,2);
-  var dt=gm.detail.substr(0,Math.max(3,((w-8)/4)|0)); drawUiText(g,dt,bx+2,topY+11,gm.real?"#8fe0ff":"#9aa4b0",1);
-  if(gm.real&&gm.live){ if((Math.floor(now/500))&1){ g.fillStyle="#ff3b3b"; g.fillRect(bx+w-4,topY+1,2,2); } }   // LIVE tell
-  return true;                                                                            // a game is on → venue lit + crowd
+  var abbr=(team.name.replace(/[^A-Z]/gi,"").substr(0,3)||"HOM").toUpperCase(), col=team.color, bx=x-(w>>1), h=20, per=Math.max(3,((w-6)/4)|0);
+  g.fillStyle="#05070c"; g.fillRect(bx-1,topY-1,w+2,h+2);                                    // bezel
+  g.fillStyle="#0a0f18"; g.fillRect(bx,topY,w,h);                                            // board
+  g.fillStyle=col; g.fillRect(bx,topY,w,3);                                                  // team-colour header band
+  drawUiText(g,gm.real&&gm.live?"LIVE":"SCORE",bx+2,topY-1,gm.real&&gm.live?"#ffffff":"#0a0f18",1);
+  if(gm.real&&gm.live && ((Math.floor(now/500))&1)){ g.fillStyle="#ff3b3b"; g.fillRect(bx+w-5,topY,3,3); }   // blinking LIVE dot
+  drawUiText(g,abbr,bx+3,topY+5,"#f4f8ff",1);   drawUiText(g,""+gm.us,  bx+w-7,topY+5,"#ffe14a",1);   // home line
+  drawUiText(g,gm.opp,bx+3,topY+11,"#cfd6e0",1); drawUiText(g,""+gm.them,bx+w-7,topY+11,"#ffe14a",1);  // away line
+  g.fillStyle="#141c28"; g.fillRect(bx,topY+h-5,w,5);
+  drawUiText(g,gm.detail.substr(0,per),bx+3,topY+h-4,gm.real?"#8fe0ff":"#9aa4b0",1);          // period / clock
+  return true;                                                                              // a game is on → venue lit + crowd
 }
-// crowd glow + a few spectators when a game is on
+// crowd glow + rows of spectators when a game is on
 function venueLively(g,x,y,w,now,L){ var night=1-L;
-  if(night>0.25){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,240,190,0.10)"; g.fillRect(x-w/2,y-24,w,24); g.globalCompositeOperation="source-over"; }
-  for(var s=0;s<(w>>3);s++){ var sx=x-w/2+4+s*8+((Math.floor(now/600)+s)%2); g.fillStyle=["#e8b890","#c98a5e","#8a5a3a"][s%3]; g.fillRect(sx|0,y-1,1,1); }
+  if(night>0.25){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,240,190,0.10)"; g.fillRect(x-w/2,y-34,w,34); g.globalCompositeOperation="source-over"; }
+  for(var s=0;s<(w>>2);s++){ var sx=x-w/2+3+s*4+((Math.floor(now/600)+s)%2); g.fillStyle=["#e8b890","#c98a5e","#8a5a3a"][s%3]; g.fillRect(sx|0,y-2,1,2); }
 }
+// v1.45 — the venues are now MONUMENTAL (Nick: "make them bigger, think how big they are IRL"): a real
+// stadium dwarfs the office blocks around it. All four rise well above the skyline + viaduct.
 function drawBaseballPark(g,x,L,now,team,sIdx){                  // OPEN diamond + outfield + curved grandstand
-  var y=HORIZON, col=team.color, night=1-L, w=74;
-  g.fillStyle=L>0.5?"#2e6a34":"#16351f"; g.fillRect(x-w/2,y-22,w,22);                       // green outfield grass
-  g.fillStyle=L>0.5?"#b98a4a":"#6a4c28"; g.beginPath(); g.moveTo(x-11,y-2); g.lineTo(x,y-15); g.lineTo(x+11,y-2); g.closePath(); g.fill();   // tan infield DIAMOND (the tell)
-  g.fillStyle=L>0.5?"#f0ead8":"#8a8478"; g.fillRect(x-1,y-10,2,2); g.fillRect(x-8,y-4,2,2); g.fillRect(x+7,y-4,2,2); g.fillRect(x-1,y-4,2,2);   // bases
-  g.fillStyle=col; g.fillRect(x-w/2-3,y-28,5,28); g.fillRect(x+w/2-2,y-28,5,28);              // grandstand wings (team colour)
-  g.fillStyle=L>0.5?"#3a4150":"#191d26"; g.fillRect(x-w/2-3,y-31,7,5); g.fillRect(x+w/2-4,y-31,7,5);
-  g.fillStyle=L>0.5?"#c9cdd6":"#5a606c"; g.fillRect(x-w/2-5,y-34,1,14); g.fillRect(x+w/2+4,y-34,1,14);   // foul poles
-  for(var t=0;t<2;t++){ var tx=x-w/3+t*(2*w/3); g.fillStyle=L>0.5?"#8a919c":"#3a4048"; g.fillRect(tx,y-36,1,14);   // light towers
-    g.fillStyle=night>0.4?"#fff6cc":"#c9cdb0"; g.fillRect(tx-2,y-39,5,4); if(night>0.4){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,246,180,0.3)"; g.fillRect(tx-5,y-41,11,10); g.globalCompositeOperation="source-over"; } }
-  var on=drawScoreboard(g,x,y-24,40,sIdx,team,now,L,true); if(on) venueLively(g,x,y,w,now,L);
-  drawArenaName(g,x,y-40,team.name,col,L);
+  var y=HORIZON, col=team.color, night=1-L, w=136;
+  g.fillStyle=L>0.5?"#2e6a34":"#16351f"; g.fillRect(x-w/2,y-40,w,40);                        // green outfield grass
+  g.fillStyle=L>0.5?"#b98a4a":"#6a4c28"; g.beginPath(); g.moveTo(x-20,y-3); g.lineTo(x,y-27); g.lineTo(x+20,y-3); g.closePath(); g.fill();   // tan infield DIAMOND
+  g.fillStyle=L>0.5?"#f0ead8":"#8a8478"; g.fillRect(x-2,y-18,3,3); g.fillRect(x-14,y-7,3,3); g.fillRect(x+12,y-7,3,3); g.fillRect(x-2,y-7,3,3);   // bases
+  g.fillStyle=col; g.fillRect(x-w/2-4,y-50,7,50); g.fillRect(x+w/2-3,y-50,7,50);              // towering grandstand wings (team colour)
+  g.fillStyle=L>0.5?"#3a4150":"#191d26"; g.fillRect(x-w/2-4,y-54,10,6); g.fillRect(x+w/2-6,y-54,10,6);
+  for(var tr=y-46;tr<y-4;tr+=6){ g.fillStyle=L>0.5?"rgba(255,255,255,0.06)":"rgba(0,0,0,0.14)"; g.fillRect(x-w/2-3,tr,w+6,1); }   // deck tiers
+  g.fillStyle=L>0.5?"#c9cdd6":"#5a606c"; g.fillRect(x-w/2-7,y-58,1,24); g.fillRect(x+w/2+6,y-58,1,24);   // foul poles
+  for(var t=0;t<3;t++){ var tx=x-w/2+16+t*(w-32)/2; g.fillStyle=L>0.5?"#8a919c":"#3a4048"; g.fillRect(tx,y-62,2,22);   // light towers
+    g.fillStyle=night>0.4?"#fff6cc":"#c9cdb0"; g.fillRect(tx-3,y-66,8,5); if(night>0.4){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,246,180,0.3)"; g.fillRect(tx-7,y-69,16,14); g.globalCompositeOperation="source-over"; } }
+  var on=drawScoreboard(g,x,y-40,60,sIdx,team,now,L,true); if(on) venueLively(g,x,y,w,now,L);
+  drawArenaName(g,x,y-66,team.name,col,L);
 }
-function drawBasketballArena(g,x,L,now,team,sIdx){              // rounded DOMED indoor arena
-  var y=HORIZON, col=team.color, night=1-L, w=54;
-  g.fillStyle=L>0.5?"#6b7280":"#2a2f39"; g.fillRect(x-w/2,y-20,w,20);                         // arena body
-  g.fillStyle=col; g.beginPath(); g.moveTo(x-w/2,y-20); g.quadraticCurveTo(x,y-36,x+w/2,y-20); g.closePath(); g.fill();   // curved DOME roof (team colour)
-  g.fillStyle=L>0.5?"#8a92a0":"#3a4150"; g.fillRect(x-w/2,y-21,w,1);
-  for(var wcol=x-w/2+3;wcol<x+w/2-2;wcol+=4){ g.fillStyle=night>0.4?"#ffe6a0":(L>0.5?"#aeb6c2":"#3a4250"); g.fillRect(wcol,y-16,2,10); }   // lit concourse
-  g.fillStyle=L>0.5?"#20242c":"#12151b"; g.fillRect(x-6,y-8,12,8);                            // entrance
-  if(night>0.3){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,230,160,0.16)"; g.fillRect(x-w/2,y-36,w,36); g.globalCompositeOperation="source-over"; }
-  var on=drawScoreboard(g,x,y-20,40,sIdx,team,now,L,true); if(on) venueLively(g,x,y,w,now,L);
-  drawArenaName(g,x,y-40,team.name,col,L);
+function drawBasketballArena(g,x,L,now,team,sIdx){             // rounded DOMED indoor arena
+  var y=HORIZON, col=team.color, night=1-L, w=100;
+  g.fillStyle=L>0.5?"#6b7280":"#2a2f39"; g.fillRect(x-w/2,y-36,w,36);                         // arena body
+  g.fillStyle=col; g.beginPath(); g.moveTo(x-w/2,y-36); g.quadraticCurveTo(x,y-64,x+w/2,y-36); g.closePath(); g.fill();   // sweeping DOME roof (team colour)
+  g.fillStyle=L>0.5?"#8a92a0":"#3a4150"; g.fillRect(x-w/2,y-37,w,2);
+  for(var wcol=x-w/2+4;wcol<x+w/2-3;wcol+=5){ g.fillStyle=night>0.4?"#ffe6a0":(L>0.5?"#aeb6c2":"#3a4250"); g.fillRect(wcol,y-30,3,18); }   // lit concourse rows
+  g.fillStyle=L>0.5?"#20242c":"#12151b"; g.fillRect(x-10,y-12,20,12);                         // grand entrance
+  g.fillStyle=night>0.4?"#ffe6a0":"#5a6472"; g.fillRect(x-8,y-10,16,2);
+  if(night>0.3){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,230,160,0.16)"; g.fillRect(x-w/2,y-64,w,64); g.globalCompositeOperation="source-over"; }
+  var on=drawScoreboard(g,x,y-34,60,sIdx,team,now,L,true); if(on) venueLively(g,x,y,w,now,L);
+  drawArenaName(g,x,y-68,team.name,col,L);
 }
-function drawHockeyArena(g,x,L,now,team,sIdx){                  // boxier indoor arena, ICE-BLUE accent + rink hint
-  var y=HORIZON, col=team.color, night=1-L, w=54;
-  g.fillStyle=L>0.5?"#5a6572":"#242a33"; g.fillRect(x-w/2,y-21,w,21);                          // arena body
-  g.fillStyle=col; g.fillRect(x-w/2-1,y-27,w+2,7);                                             // barrel roof band (team colour)
-  g.fillStyle=L>0.5?"#bfe4ff":"#3a5a72"; g.fillRect(x-w/2,y-20,w,3);                           // ICE-BLUE ribbon (the hockey tell)
-  for(var wc2=x-w/2+3;wc2<x+w/2-2;wc2+=5){ g.fillStyle=night>0.4?"#cfeaff":(L>0.5?"#9ab6c8":"#33424e"); g.fillRect(wc2,y-16,2,9); }
-  g.fillStyle=L>0.5?"#20242c":"#12151b"; g.fillRect(x-6,y-8,12,8);                             // entrance
-  g.fillStyle=L>0.5?"#eef6ff":"#4a5a66"; g.fillRect(x-11,y-1,22,1);                            // a sliver of the rink glowing out the doors
-  var on=drawScoreboard(g,x,y-21,40,sIdx,team,now,L,true); if(on) venueLively(g,x,y,w,now,L);
-  drawArenaName(g,x,y-34,team.name,col,L);
+function drawHockeyArena(g,x,L,now,team,sIdx){                 // boxier indoor arena, ICE-BLUE accent + rink hint
+  var y=HORIZON, col=team.color, night=1-L, w=100;
+  g.fillStyle=L>0.5?"#5a6572":"#242a33"; g.fillRect(x-w/2,y-38,w,38);                          // arena body
+  g.fillStyle=col; g.fillRect(x-w/2-2,y-47,w+4,11);                                            // big barrel roof band (team colour)
+  g.fillStyle=L>0.5?"#bfe4ff":"#3a5a72"; g.fillRect(x-w/2,y-36,w,4);                            // ICE-BLUE ribbon (the hockey tell)
+  for(var wc2=x-w/2+4;wc2<x+w/2-3;wc2+=6){ g.fillStyle=night>0.4?"#cfeaff":(L>0.5?"#9ab6c8":"#33424e"); g.fillRect(wc2,y-30,3,16); }
+  g.fillStyle=L>0.5?"#20242c":"#12151b"; g.fillRect(x-10,y-12,20,12);                          // grand entrance
+  g.fillStyle=L>0.5?"#eef6ff":"#4a5a66"; g.fillRect(x-18,y-1,36,1);                             // a sliver of the rink glowing out the doors
+  var on=drawScoreboard(g,x,y-38,60,sIdx,team,now,L,true); if(on) venueLively(g,x,y,w,now,L);
+  drawArenaName(g,x,y-58,team.name,col,L);
 }
-function drawFootballBowl(g,x,L,now,team,sIdx){                 // the big oval BOWL — largest, tiered, floodlights
-  var y=HORIZON, col=team.color, night=1-L, w=90;
-  g.fillStyle=L>0.5?"#5f6672":"#23272f"; fillEllipse(g,x,y-8,w/2,18);                          // the bowl mass
-  g.fillStyle=L>0.5?"#2e6a34":"#16351f"; fillEllipse(g,x,y-5,w/2-10,11);                        // green field inside
-  g.fillStyle="#eef4ff"; for(var yl=x-20;yl<=x+20;yl+=8) g.fillRect(yl,y-9,1,7);               // yard lines
-  g.fillStyle=col; g.fillRect(x-w/2,y-22,w,4);                                                 // upper-deck team-colour ring
-  g.fillStyle=L>0.5?"#c9cdd6":"#5a606c"; g.fillRect(x-20,y-19,1,5); g.fillRect(x-19,y-19,3,1); g.fillRect(x+19,y-19,1,5); g.fillRect(x+16,y-19,3,1);   // goalposts
-  for(var ft=0;ft<4;ft++){ var fx=x-w/2+8+ft*(w-16)/3; g.fillStyle=L>0.5?"#8a919c":"#3a4048"; g.fillRect(fx,y-32,1,14);   // 4 floodlight towers
-    g.fillStyle=night>0.4?"#fff6cc":"#c9cdb0"; g.fillRect(fx-2,y-35,6,4); if(night>0.4){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,246,180,0.26)"; g.fillRect(fx-5,y-37,11,12); g.globalCompositeOperation="source-over"; } }
-  var on=drawScoreboard(g,x,y-24,44,sIdx,team,now,L,true); if(on) venueLively(g,x,y,w,now,L);
-  drawArenaName(g,x,y-40,team.name,col,L);
+function drawFootballBowl(g,x,L,now,team,sIdx){                // the COLOSSAL oval BOWL — largest, tiered, floodlights
+  var y=HORIZON, col=team.color, night=1-L, w=168;
+  g.fillStyle=L>0.5?"#5f6672":"#23272f"; fillEllipse(g,x,y-14,w/2,30);                          // the bowl mass
+  for(var tr2=y-32;tr2<y-2;tr2+=5){ g.fillStyle=L>0.5?"rgba(255,255,255,0.05)":"rgba(0,0,0,0.13)"; var hw=Math.round((w/2)*Math.sqrt(Math.max(0,1-Math.pow((tr2-(y-14))/30,2)))); g.fillRect(x-hw,tr2,hw*2,1); }   // stacked tiers
+  g.fillStyle=L>0.5?"#2e6a34":"#16351f"; fillEllipse(g,x,y-8,w/2-18,18);                         // green field inside
+  g.fillStyle="#eef4ff"; for(var yl=x-36;yl<=x+36;yl+=9) g.fillRect(yl,y-14,1,12);               // yard lines
+  g.fillStyle=col; g.fillRect(x-w/2,y-38,w,6);                                                  // upper-deck team-colour ring
+  g.fillStyle=L>0.5?"#c9cdd6":"#5a606c"; g.fillRect(x-36,y-33,1,8); g.fillRect(x-34,y-33,5,1); g.fillRect(x+35,y-33,1,8); g.fillRect(x+30,y-33,5,1);   // goalposts
+  for(var ft=0;ft<4;ft++){ var fx=x-w/2+14+ft*(w-28)/3; g.fillStyle=L>0.5?"#8a919c":"#3a4048"; g.fillRect(fx,y-54,2,24);   // 4 tall floodlight towers
+    g.fillStyle=night>0.4?"#fff6cc":"#c9cdb0"; g.fillRect(fx-4,y-58,10,5); if(night>0.4){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,246,180,0.26)"; g.fillRect(fx-8,y-61,18,16); g.globalCompositeOperation="source-over"; } }
+  var on=drawScoreboard(g,x,y-40,64,sIdx,team,now,L,true); if(on) venueLively(g,x,y,w,now,L);
+  drawArenaName(g,x,y-62,team.name,col,L);
 }
 function drawSportsDistrict(g,L,now){
   if(NOSPORTS || nukeStruck() || cityPhase==="apoc") return;
   var g2=gstage(0.50,0.66); if(g2<=0) return;                    // the venues rise as the city matures
   var teams=cityTeams(now), drawers=[drawBasketballArena,drawBaseballPark,drawHockeyArena,drawFootballBowl];
   for(var i=0;i<4;i++){ var wx=Math.round(SPORTS_X[i]*WW), sx=wx-WOFF;
-    if(sx>SW+50&&sx-WW>-50)sx-=WW; if(sx<-50&&sx+WW<SW+50)sx+=WW;
-    if(sx<-50||sx>SW+50) continue; if(inSea(wx)) continue;
+    if(sx>SW+100&&sx-WW>-100)sx-=WW; if(sx<-100&&sx+WW<SW+100)sx+=WW;
+    if(sx<-100||sx>SW+100) continue; if(inSea(wx)) continue;
     drawers[i](g,sx|0,L,now,teams[i],i);
   }
 }
@@ -13188,6 +13237,9 @@ function draw(g,pass){
   resetNotifLanes();              // fresh alert-row bookings each frame (see notifLane) so banners never overprint
   var now=(NOWOVR!=null?NOWOVR:Date.now()), dt=Math.max(0,Math.min(50, now-tPrev));
   if(pass!=="bg") tPrev=now;
+  var apocRealNow=now;                          // keep the true wall-clock; `now` may be warped below for a missed-apoc REPLAY
+  apocDeferTick(apocRealNow);                    // did the PC sleep through a cataclysm? queue a replay if so
+  now=apocEffNow(apocRealNow);                   // during a queued replay, warp `now` to that missed life so its end plays out
   var lifeI=lifeIndexOf(now); if(lifeI!==curLife) buildWorld(lifeI);   // REBIRTH: roll a brand-new city (masked by the ash veil)
   maybeFetchWeather();          // all monitors fetch on the same 10-min wall-clock window → identical weather
   maybeFetchAirq();             // and the same 30-min window for air quality (wildfire smoke)
@@ -14391,4 +14443,5 @@ function draw(g,pass){
   drawPlagueHud(g,now,night);  // THE PLAGUE — the amber medical alert banner while the pandemic rages
   drawFestivalHud(g,now,night);// THE FESTIVAL — the celebratory gold expo banner while the World's Fair is on
   drawDoomClock(g,now,night);  // top-left: the exact time this city's fated end will strike, so nobody misses it
+  drawApocReplayHud(g,apocRealNow,night);  // if the PC slept through a cataclysm: a countdown, then a REPLAY of the end you missed
 }
