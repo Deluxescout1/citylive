@@ -156,7 +156,7 @@ function resetNotifLanes(){ for(var r=0;r<_notifTaken.length;r++) _notifTaken[r]
 var CLOCK = null;   // test-harness override: ms timestamp for time-of-day (null = real wall clock)
 var NOWOVR = null;  // test-harness override: ms value returned as Date.now() inside draw() (null = real)
 var NOFETCH = false;  // headless flag (own line = QML-namespace writable): almanac callers set this so setup() makes NO network calls
-var VERSION = "1.38.0";  // the build the user is running — surfaced in the Almanac + KDE config page (keep in sync with desktop/package.json)
+var VERSION = "1.39.0";  // the build the user is running — surfaced in the Almanac + KDE config page (keep in sync with desktop/package.json)
 var FORCELAYOUT = null;   // test hook: pin every building's window layout (grid/ribbon/band/punch/corp) — verify per-layout render
 var FORCECROWN = null;    // test hook: pin every building's crown/roof (gable/hip/saltbox/mansard/deco/…) — verify per-roof render
 var FORCEUSE = null;      // test hook: pin every building's functional type (hospital/theater/hotel/bank/cafe/pharmacy) — verify drawUse
@@ -165,6 +165,7 @@ function nowDate(){ return CLOCK ? new Date(CLOCK) : new Date(); }
 function rng(seed){ var a=seed>>>0; return function(){ a|=0; a=a+0x6D2B79F5|0; var t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
 function lerp(a,b,t){ return a+(b-a)*t; }
 function mixc(c1,c2,t){ return [lerp(c1[0],c2[0],t)|0, lerp(c1[1],c2[1],t)|0, lerp(c1[2],c2[2],t)|0]; }
+function hexA(hex,a){ var h=hex.charAt(0)==="#"?hex.substr(1):hex; return "rgba("+parseInt(h.substr(0,2),16)+","+parseInt(h.substr(2,2),16)+","+parseInt(h.substr(4,2),16)+","+a+")"; }   // "#rrggbb" → rgba() string
 function css(c){ return "rgb("+c[0]+","+c[1]+","+c[2]+")"; }
 function rgba(c,a){ return "rgba("+c[0]+","+c[1]+","+c[2]+","+a+")"; }
 function hex2rgb(h){ return [parseInt(h.substr(1,2),16),parseInt(h.substr(3,2),16),parseInt(h.substr(5,2),16)]; }
@@ -1997,6 +1998,7 @@ function fetchFlights(bucket){
 var FORCEISS=null;                 // test hook: {lat,lon} sub-point (+optional vlat/vlon) — pins the live fetch
 var NOLIVESKY=false;               // containment A/B: suppress the post-v1.24 live-sky extras (real ISS + Starlink) the ref engine lacks, so the render stays byte-identical
 var NONEWSTV=false;                // containment A/B: suppress the post-v1.37 rooftop news jumbotrons (drawJumbotrons) the ref engine lacks — keeps the guard render byte-identical
+var NOPARTYFX=false;               // containment A/B: suppress the post-v1.38 persistent party-legacy visuals (drawPartyLegacy) the ref engine lacks — keeps the guard render byte-identical
 var issData=null, issBucket=-1, issReqAt=0;
 function maybeFetchISS(){
   if(NOLIVESKY) return;            // (leaves issData null → the scripted pass stands in, matching the pre-v1.24 reference)
@@ -5255,9 +5257,12 @@ function drawRealFlights(g,L,now){
     var id=f.hex||f.cs||("i"+i); seen[id]=1;
     var S=flightSmooth[id];
     if(!S){ S=flightSmooth[id]={wx:tWX,y:tY,alt:talt,dir:tDir,t:nowMs}; }
-    else { var sk=Math.max(0,Math.min(1,(nowMs-S.t)/380));
+    else { var fdt=Math.max(1,Math.min(1000,nowMs-S.t));     // ms since this plane was last drawn (clamped)
+      var k=1-Math.exp(-fdt/900);                            // FRAME-RATE-INDEPENDENT exponential ease, ~0.9s time constant: a sparse ~90s fetch correction glides in smoothly instead of snapping (no jumping), yet steady dead-reckoned flight is tracked closely
       var dwx=tWX-S.wx; while(dwx>WW/2)dwx-=WW; while(dwx<-WW/2)dwx+=WW;
-      S.wx=(S.wx+dwx*sk+WW)%WW; S.y+=(tY-S.y)*sk; S.alt+=(talt-S.alt)*sk; S.dir=tDir; S.t=nowMs; }
+      S.wx=(S.wx+dwx*k+WW)%WW; S.y+=(tY-S.y)*k; S.alt+=(talt-S.alt)*k;
+      if(tDir!==S.dir && Math.abs(dwx)>2) S.dir=tDir;        // only flip which way it faces when it's genuinely tracking that way → no jittery facing flips when nearly stationary on screen
+      S.t=nowMs; }
     var wx=S.wx, y=Math.round(S.y), altFt=S.alt, dir=S.dir;
     // ---- aircraft CLASS from the ADS-B category (altitude/speed fallback) → size the sprite so a heavy
     //      widebody reads bigger than a little Cessna, a helicopter is unmistakable, and only high jets trail ----
@@ -6621,46 +6626,103 @@ function trussLine(g,x1,y1,x2,y2){
   var dx=Math.abs(x2-x1), dy=Math.abs(y2-y1), sx=x1<x2?1:-1, sy=y1<y2?1:-1, err=dx-dy, x=x1,y=y1;
   for(var n=0;n<200;n++){ g.fillRect(x|0,y|0,1,1); if(x===x2&&y===y2) break; var e2=2*err; if(e2>-dy){err-=dy;x+=sx;} if(e2<dx){err+=dx;y+=sy;} }
 }
+// ADS + SHOWS a screen can run instead of news (Nick: each screen its own channel; not all news).
+var AD_POOL=[
+  {kick:"ZORP COLA", line:"TASTE THE FIZZ", color:"#e04a4a", art:"can"},
+  {kick:"NIMBUS AIR", line:"FLY HIGHER TODAY", color:"#4aa0e0", art:"plane"},
+  {kick:"VOLT MOTORS", line:"DRIVE THE FUTURE", color:"#e0b23a", art:"car"},
+  {kick:"BLOOM BURGERS", line:"NOW OPEN DOWNTOWN", color:"#e0653a", art:"burger"},
+  {kick:"LUXE 9 PHONE", line:"THE FUTURE IN HAND", color:"#c05ad0", art:"phone"},
+  {kick:"GIGA GYM", line:"FIRST MONTH FREE", color:"#3ac86a", art:"gym"} ];
+var SHOW_POOL=[
+  {net:"CH 12", kick:"THE MAYORS", line:"NEW EPISODE 9PM", color:"#c05ad0", art:"drama"},
+  {net:"CH 7",  kick:"COP CITY",   line:"NOW PLAYING",     color:"#4a90e0", art:"drama"},
+  {net:"CH 5",  kick:"GARDEN HOUR",line:"LIVE FROM THE PARK",color:"#3ac86a", art:"garden"},
+  {net:"CH 21", kick:"STAR VOYAGE",line:"SEASON FINALE",    color:"#4aa0e0", art:"space"},
+  {net:"CH 3",  kick:"CATCH IT",   line:"GAME SHOW TONIGHT",color:"#e0b23a", art:"quiz"},
+  {net:"CH 9",  kick:"LATE LAUGHS",line:"COMEDY HOUR",      color:"#e0653a", art:"drama"} ];
+// what a given screen (identified by its host-tower seed) is showing right now. Each screen runs an
+// INDEPENDENT channel, offset by its seed so neighbouring screens differ: ~70% news (category varied per
+// screen), ~20% ad, ~10% a TV show. A live emergency + STATE media override every screen at once.
+function screenContent(seed, now){
+  if((curRegime&&curRegime.active&&curRegime.stage>=3) || newsEmergency()) return {type:"news", seg:newsSegment(now)};
+  var key=((seed*2654435761)>>>0);
+  var pslot=Math.floor(now/12000)+(key%6);            // this screen's programme index — offset by seed so screens are OUT OF PHASE, advances every ~12s so each one cycles news→ad→show over time
+  var roll=((key+pslot*7)>>>0)%10, sub=pslot;
+  if(roll<2) return {type:"ad", c:AD_POOL[sub%AD_POOL.length]};
+  if(roll<3) return {type:"show", c:SHOW_POOL[sub%SHOW_POOL.length]};
+  var ci=((key+pslot)>>>0)%NEWS_CATS.length, tries=0, beat=null, cat;
+  while(tries<NEWS_CATS.length){ cat=NEWS_CATS[ci]; beat=newsBeat(cat.k, now, pslot+seed); if(beat) break; ci=(ci+1)%NEWS_CATS.length; tries++; }
+  if(!beat){ cat=NEWS_CATS[0]; beat=["CITY","POP "+popFmt(cityPop())+" AND GROWING"]; }
+  return {type:"news", seg:{cat:cat.k, color:cat.c, hdr:cat.hdr, kick:beat[0], line:beat[1]}};
+}
+// a small pixel graphic for an ad / show, centred at (cx,cy).
+function drawScreenArt(g,cx,cy,kind,col,now){
+  g.fillStyle=col;
+  if(kind==="can"){ g.fillRect(cx-3,cy-6,6,12); g.fillStyle="#dfe6ee"; g.fillRect(cx-3,cy-2,6,3); g.fillStyle=col; g.fillRect(cx-1,cy-8,2,2); }
+  else if(kind==="plane"){ g.fillRect(cx-6,cy-1,13,2); g.fillRect(cx+2,cy-4,2,8); g.fillRect(cx-6,cy-3,2,3); }
+  else if(kind==="car"){ g.fillRect(cx-6,cy,12,4); g.fillRect(cx-3,cy-3,7,3); g.fillStyle="#12151b"; g.fillRect(cx-4,cy+4,2,2); g.fillRect(cx+3,cy+4,2,2); }
+  else if(kind==="burger"){ g.fillStyle="#d8a24a"; g.fillRect(cx-5,cy-4,10,3); g.fillStyle="#5a3a22"; g.fillRect(cx-5,cy-1,10,2); g.fillStyle="#3ac86a"; g.fillRect(cx-5,cy+1,10,1); g.fillStyle="#d8a24a"; g.fillRect(cx-5,cy+2,10,3); }
+  else if(kind==="phone"){ g.fillStyle="#20242c"; g.fillRect(cx-4,cy-7,8,14); g.fillStyle=col; g.fillRect(cx-3,cy-5,6,9); }
+  else if(kind==="gym"){ g.fillRect(cx-6,cy-1,12,2); g.fillRect(cx-6,cy-3,2,6); g.fillRect(cx+4,cy-3,2,6); }
+  else if(kind==="drama"){ g.fillStyle="#e8b890"; g.fillRect(cx-6,cy-3,5,6); g.fillStyle="#8a5a3a"; g.fillRect(cx+1,cy-3,5,6); g.fillStyle=col; g.fillRect(cx-6,cy+3,5,2); g.fillRect(cx+1,cy+3,5,2); }
+  else if(kind==="garden"){ g.fillStyle="#e0c040"; g.fillRect(cx+3,cy-6,3,3); g.fillStyle="#6a4a2a"; g.fillRect(cx-4,cy-1,2,5); g.fillStyle="#3ac86a"; g.fillRect(cx-7,cy-5,8,5); }
+  else if(kind==="space"){ g.fillStyle="#cfd8e2"; g.fillRect(cx-1,cy-6,3,9); g.fillStyle=col; g.fillRect(cx-1,cy-8,3,3); g.fillStyle="#e0653a"; g.fillRect(cx-1,cy+3,3,3); g.fillStyle="#fff"; g.fillRect(cx-6,cy-4,1,1); g.fillRect(cx+5,cy-1,1,1); }
+  else if(kind==="quiz"){ g.fillStyle=col; g.fillRect(cx-2,cy-6,5,2); g.fillRect(cx+1,cy-4,2,3); g.fillRect(cx-1,cy-1,3,2); g.fillRect(cx-1,cy+3,3,2); }
+}
 // mount + draw ONE rooftop jumbotron. (rx,ry) = screen top-left in SCREEN space; roofY = the roof it stands on.
-function drawJumbotron(g,rx,ry,sw,sh,roofY,now,L){
-  var seg=newsSegment(now), col=seg.color, brk=(seg.cat==="BREAKING"), night=1-L;
-  // ---- the SUPPORT STRUCTURE: a braced steel billboard truss bolted to the rooftop (not perched on it) ----
-  var beamY=ry+sh, botY=roofY, legL=rx+7, legC=rx+(sw>>1), legR=rx+sw-9;   // three legs planted on the roof
+// seed = the host tower's seed → picks this screen's independent channel (so neighbours differ).
+function drawJumbotron(g,rx,ry,sw,sh,roofY,now,L,seed){
+  var content=screenContent(seed,now), type=content.type, night=1-L, col, hdr, brk=false, seg=null;
+  if(type==="news"){ seg=content.seg; col=seg.color; hdr=seg.hdr; brk=(seg.cat==="BREAKING"); }
+  else if(type==="ad"){ col=content.c.color; hdr="ADVERT"; }
+  else { col=content.c.color; hdr=content.c.net; }
+  // ---- the SUPPORT STRUCTURE: a full-width braced steel frame planted flush on the roof. Legs run to the
+  //      screen's OUTER EDGES (nothing overhangs unsupported) + inner legs + X-bracing + a base sill bolted
+  //      across the whole rooftop footprint → reads as a billboard rigidly ATTACHED, not perched on stilts. ----
+  var beamY=ry+sh, botY=roofY;
+  g.fillStyle="#20242b"; g.fillRect(rx-2,botY-2,sw+4,3);      // base sill spanning the full footprint, flush on the roof
+  var legs=[rx+1, rx+Math.round(sw*0.34), rx+Math.round(sw*0.66), rx+sw-3];   // 4 legs; the outer two sit under the screen edges (no overhang)
   g.fillStyle="#333942";
-  g.fillRect(rx+2,beamY,sw-4,2);                             // top gantry beam (screen hangs off it)
-  g.fillRect(legL-1,beamY,3,botY-beamY); g.fillRect(legC-1,beamY,3,botY-beamY); g.fillRect(legR-1,beamY,3,botY-beamY);   // three thick legs
-  g.fillStyle="#2a2f37";                                     // cross-bracing (X-trusses) — reads as engineered, not floating
-  var mY=(beamY+botY)>>1;
-  trussLine(g,legL,botY,legC,beamY); trussLine(g,legC,botY,legL,beamY);   // left bay X
-  trussLine(g,legC,botY,legR,beamY); trussLine(g,legR,botY,legC,beamY);   // right bay X
-  g.fillStyle="#333942"; g.fillRect(legL,mY,legR-legL,1);    // a mid horizontal member ties the legs
-  g.fillStyle="#20242b";                                     // foot plates bolt each leg to the roof
-  g.fillRect(legL-3,botY-1,7,2); g.fillRect(legC-3,botY-1,7,2); g.fillRect(legR-3,botY-1,7,2);
-  // bezel + studio background
+  g.fillRect(rx,beamY,sw,2);                                 // top beam runs the FULL screen width
+  var mY=(beamY+botY)>>1; g.fillRect(rx+1,mY,sw-2,1);         // mid horizontal member ties the legs
+  for(var lg=0;lg<legs.length;lg++) g.fillRect(legs[lg]-1,beamY,3,botY-beamY);   // thick legs
+  g.fillStyle="#2a2f37";                                     // X cross-bracing in every bay (upper + lower halves)
+  for(var lb=0;lb<legs.length-1;lb++){ var a=legs[lb], b=legs[lb+1];
+    trussLine(g,a,mY,b,beamY); trussLine(g,b,mY,a,beamY);     // upper-bay X
+    trussLine(g,a,botY,b,mY);  trussLine(g,b,botY,a,mY);      // lower-bay X
+  }
+  g.fillStyle="#20242b"; for(var lf=0;lf<legs.length;lf++) g.fillRect(legs[lf]-2,botY-1,5,2);   // gusset foot plates bolting each leg down
+  // bezel + backdrop
   g.fillStyle=brk?"#4a0a0e":"#0b0f18"; g.fillRect(rx-2,ry-2,sw+4,sh+4);   // dark bezel
-  g.fillStyle="#0c1524"; g.fillRect(rx,ry,sw,sh);            // studio backdrop
-  g.fillStyle="#12203a"; for(var s=0;s<sh;s+=3) g.fillRect(rx,ry+s,sw,1);   // faint studio scanlines
-  // header bar
+  var bg=(type==="ad")?"#10121c":(type==="show")?"#0a0f1e":"#0c1524";
+  g.fillStyle=bg; g.fillRect(rx,ry,sw,sh);                   // studio/programme backdrop
+  g.fillStyle="#12203a"; for(var s=0;s<sh;s+=3) g.fillRect(rx,ry+s,sw,1);   // faint scanlines
+  // header bar (channel identity)
   g.fillStyle=col; g.fillRect(rx,ry,sw,6);
-  drawUiText(g,seg.hdr.substr(0,Math.max(1,((sw-20)/4)|0)),rx+2,ry+1,brk?"#ffffff":"#0a0f18",1);
-  if((Math.floor(now/500))&1){ g.fillStyle="#ff3b3b"; g.fillRect(rx+sw-19,ry+1,3,3); }   // blinking LIVE dot
-  drawUiText(g,"LIVE",rx+sw-15,ry+1,"#ffe0e0",1);
-  // the anchor bust, centred in the upper studio area
-  var skin=ANCHOR_SKINS[((cityName.charCodeAt(0)||65)+((Math.floor(now/9000))%ANCHOR_SKINS.length))%ANCHOR_SKINS.length];
-  drawAnchor(g,rx+(sw>>1)-5,ry+9,now,skin);
-  // desk bar under the anchor
-  g.fillStyle="#141b2c"; g.fillRect(rx,ry+sh-21,sw,3);
-  g.fillStyle=col; g.fillRect(rx,ry+sh-21,sw,1);
-  // lower-third headline band (coloured flag) — the READABLE part: a kicker + up to two static lines. No
-  // scrolling on the big screen; the point is legibility (the street LED ticker still scrolls the crawl).
-  var ly=ry+sh-20, lh=20;
+  drawUiText(g,hdr.substr(0,Math.max(1,((sw-20)/4)|0)),rx+2,ry+1,brk?"#ffffff":"#0a0f18",1);
+  if(type==="news"){ if((Math.floor(now/500))&1){ g.fillStyle="#ff3b3b"; g.fillRect(rx+sw-19,ry+1,3,3); } drawUiText(g,"LIVE",rx+sw-15,ry+1,"#ffe0e0",1); }
+  else drawUiText(g,type==="ad"?"AD":"TV",rx+sw-9,ry+1,"#0a0f18",1);
+  var per=Math.max(4,((sw-8)/4)|0), ly=ry+sh-20, lh=20, kick, line;
+  if(type==="news"){
+    var skin=ANCHOR_SKINS[(((seed>>>3))%ANCHOR_SKINS.length)];    // each channel its own anchor
+    drawAnchor(g,rx+(sw>>1)-5,ry+9,now,skin);
+    g.fillStyle="#141b2c"; g.fillRect(rx,ry+sh-21,sw,3); g.fillStyle=col; g.fillRect(rx,ry+sh-21,sw,1);   // desk bar
+    kick=seg.kick; line=seg.line;
+  } else {
+    // AD / SHOW: a big centred graphic in the upper area, title card in the lower third
+    var scx=rx+(sw>>1), scy=ry+18;
+    if(night>0.2){ g.globalCompositeOperation="lighter"; g.fillStyle=hexA(col,0.10); g.fillRect(rx,ry+6,sw,sh-26); g.globalCompositeOperation="source-over"; }
+    drawScreenArt(g,scx,scy,content.c.art,col,now);
+    kick=content.c.kick; line=content.c.line;
+  }
+  // lower-third band — kicker + up to two static, READABLE lines (no scroll: legibility is the point)
   g.fillStyle="#0a1220"; g.fillRect(rx,ly,sw,lh);
-  g.fillStyle=col; g.fillRect(rx,ly,3,lh);                   // colour flag
-  var per=Math.max(4,((sw-8)/4)|0);
-  drawUiText(g,seg.kick.substr(0,per),rx+6,ly+1,col,1);      // kicker
-  var wrapped=wrapNews(seg.line, per);
-  drawUiText(g,wrapped[0],rx+6,ly+7,"#eef4ff",1);            // headline line 1
-  if(wrapped[1]) drawUiText(g,wrapped[1].substr(0,per),rx+6,ly+13,"#cfe0f2",1);   // headline line 2
+  g.fillStyle=col; g.fillRect(rx,ly,3,lh);
+  drawUiText(g,kick.substr(0,per),rx+6,ly+1,col,1);
+  var wrapped=wrapNews(line, per);
+  drawUiText(g,wrapped[0],rx+6,ly+7,"#eef4ff",1);
+  if(wrapped[1]) drawUiText(g,wrapped[1].substr(0,per),rx+6,ly+13,"#cfe0f2",1);
   // screen glow at night
   if(night>0.25){ g.globalCompositeOperation="lighter"; g.fillStyle=(brk?"rgba(255,60,50,":"rgba(90,170,255,")+(0.06+0.09*night).toFixed(2)+")"; g.fillRect(rx,ry,sw,sh); g.globalCompositeOperation="source-over"; }
 }
@@ -6689,7 +6751,7 @@ function drawJumbotrons(g,L,now,night){
     if(Math.abs(cx-lastX)<sw+30) continue;                                  // spread them out
     var roofY=HORIZON-b.h, ry=roofY-14-sh;                                  // the truss lifts the screen a clear span above the roof
     if(ry<6){ ry=6; roofY=Math.min(roofY,ry+sh+14); }                       // keep it on-canvas (and the truss sane)
-    drawJumbotron(g,rx,ry,sw,sh,roofY,now,L);
+    drawJumbotron(g,rx,ry,sw,sh,roofY,now,L,b.seed);
     lastX=cx; drawn++;
   }
 }
@@ -9838,6 +9900,31 @@ var PARTIES=[ {k:"BUILDERS",c:"#e0a83a"}, {k:"GREENS",c:"#3ac86a"}, {k:"SAFETY",
 var curMayor=null;
 var curBuilds=[];                                              // permanent build-measures standing this life (set each frame)
 var curPolicies={heightcap:false,carfree:false,surveil:false}; // term-scoped policy-measures in force right now
+// which party HELD City Hall in a given term — mirrors mayorState's base winner hash (the ambient legacy
+// ignores the rare econ-flip/recall nuance; the CURRENT term's exact party always comes from curMayor).
+function termWinnerK(li,term){
+  if(term<0) return null;
+  var h=((li*2654435761+term*7919+101)>>>0);
+  var pi=(h>>>4)%4, pj=(pi+1+((h>>>9)%3))%4, aWins=((h>>>16)&1)===0;
+  return PARTIES[aWins?pi:pj].k;
+}
+// PARTY LEGACY — v1.39: an election you can WATCH reshape the city. Each term a party holds City Hall it
+// leaves a PERMANENT, STACKING mark (GREENS green the skyline, BUILDERS keep it under cranes, TRANSIT lay
+// bike lanes, SAFETY wire cameras) — and those marks REMAIN after the party loses, so a city that has
+// elected GREENS three times is visibly greener than one that elected them once. Pure, life-scoped (scans
+// t=0..curTerm → nothing bleeds across the reincarnation wipe), the current term ramps in over its first half.
+var curPartyLeg={BUILDERS:0,GREENS:0,SAFETY:0,TRANSIT:0};
+var FORCEPARTYLEG=null;                                        // test hook: pin the legacy levels for render tests
+function partyLegacy(now){
+  if(FORCEPARTYLEG) return FORCEPARTYLEG;
+  var lev={BUILDERS:0,GREENS:0,SAFETY:0,TRANSIT:0};
+  var cg=cityGrowth(now); if(cg.g<0.4||cg.phase==="apoc") return lev;
+  var li=lifeIndexOf(now), curTerm=Math.floor(cg.cy/TERM);
+  for(var t=0;t<=curTerm;t++){ var k=termWinnerK(li,t); if(!k) continue;
+    lev[k]+= (t===curTerm) ? Math.min(1,((cg.cy-t*TERM)/TERM)/0.5) : 1;   // current term ramps in over its first half
+  }
+  return lev;
+}
 var FORCEELECT=null;   // test hook: {partyK,party2K,winName,loseName,phase,measures,builds,policies,scandal} — own line (QML namespace writable)
 var curCorps=null;     // this life's corporate landscape (rising/juggernaut/fading companies) — set each frame
 var FORCECORP=null;    // test hook: pin a corpState() {li,era,cos,king,cy} for render tests — own line (QML namespace writable)
@@ -10363,6 +10450,71 @@ function drawCivicPolicy(g,L,now){
       if(yx<-2||yx>SW+2||inSea(yx+WOFF)) continue;
       g.fillStyle="#c9cdd6"; g.fillRect(yx|0,HORIZON-3,1,3);
       g.fillStyle=((yh>>3)&1)?curMayor.party.c:curMayor.party2.c; g.fillRect((yx-1)|0,HORIZON-4,3,2); }
+  }
+}
+// PARTY LEGACY VISUALS — the PERSISTENT, STACKING marks each party leaves (v1.39). Additive overlays that
+// scale with curPartyLeg (terms held), so the city physically records its political history. New post-v1.38
+// code the containment ref lacks → gated behind NOPARTYFX so the A/B guard stays byte-identical. All loops
+// hard-bounded, world-anchored (every screen agrees), standing-tower predicate so nothing floats.
+function drawPartyLegacy(g,L,now){
+  if(NOPARTYFX||nukeStruck()||!near||!near.blds) return;
+  var lg=curPartyLeg, night=1-L, nd=nowDate(), day=dayPhase(nd).light;
+  // ---- GREENS: the boulevard GREENS OVER — a denser tree line along the street (always-visible primary
+  //      signal), scaling & persisting, + rooftop gardens as a bonus where a flat roof allows ----
+  var gt=Math.min(34, Math.round(lg.GREENS*6));
+  for(var t=0;t<gt;t++){ var th=((t*2654435761+77)>>>0), tx=(th%WW)-WOFF; if(tx>SW+6&&tx-WW>-6)tx-=WW; if(tx<-6&&tx+WW<SW+6)tx+=WW;
+    if(tx<-4||tx>SW+4||inSea(tx+WOFF)) continue;
+    drawTree(g,tx|0,HORIZON+1,day,now,th,0.6+((th>>8)%40)/100); }
+  var gN=Math.min(18, Math.round(lg.GREENS*3.2));
+  if(gN>0){ var placed=0;
+    for(var i=0;i<near.blds.length && placed<gN;i++){ var b=near.blds[i];
+      if(b.type==="park"||b.h<16||((b.seed>>>7)%3)!==0) continue;
+      if(b.crown||b.hero||b.nePitch) continue;                             // only FLAT-roofed towers — a crown/steeple above would make the garden read mid-building
+      if(overSite(b.x,b.w)||overLandmark(b.x,b.w)) continue;
+      if(b.bAge!==undefined && cityG-b.bAge<=bandOf(b)) continue;
+      var top=near.y0-b.h, sx=(b.x-WOFF); if(sx>SW+4&&sx-WW>-4)sx-=WW; if(sx<-4-b.w&&sx+WW<SW+4)sx+=WW;
+      if(sx>SW+2||sx+b.w<-2){ continue; } placed++;
+      g.fillStyle=L>0.5?"#2f6a34":"#1a3a20"; g.fillRect((sx+1)|0,top-1,b.w-2,2);          // planter bed along the roof edge
+      for(var hx=2;hx<b.w-2;hx+=4){ g.fillStyle=L>0.5?"#3fae4c":"#1f5a2a"; g.fillRect((sx+hx)|0,top-2,2,2); }   // hedges
+      var trx=sx+(b.w>>1); g.fillStyle=L>0.5?"#6a4a2a":"#3a2818"; g.fillRect(trx|0,top-4,1,3);                  // a rooftop sapling
+      g.fillStyle=L>0.5?"#4fbe5c":"#256a30"; g.fillRect((trx-1)|0,top-6,3,3);
+    }
+  }
+  // ---- BUILDERS: the city stays UNDER CRANES — permanent tower cranes on the skyline, count scales ----
+  var bN=Math.min(6, Math.round(lg.BUILDERS*1.3));
+  for(var c=0;c<bN;c++){ var ch=((c*2654435761+311)>>>0), pick=ch%Math.max(1,near.blds.length), b3=near.blds[pick];
+    if(!b3||b3.type==="park"||b3.h<20) continue;
+    if(overSite(b3.x,b3.w)||overLandmark(b3.x,b3.w)) continue;
+    if(b3.bAge!==undefined && cityG-b3.bAge<=bandOf(b3)) continue;
+    var top3=near.y0-b3.h, mx=(b3.x-WOFF)+b3.w-2; if(mx>SW+4&&mx-WW>-4)mx-=WW; if(mx<-4&&mx+WW<SW+4)mx+=WW;
+    if(mx<-14||mx>SW+14) continue;
+    var mastH=16+((ch>>>4)%10), cdir=((ch>>>3)&1)?1:-1, jib=12;
+    g.fillStyle=L>0.5?"#d8a838":"#5a4418"; g.fillRect(mx|0,top3-mastH,2,mastH);                                // mast
+    g.fillRect((cdir>0?mx:mx-jib+2)|0,top3-mastH,jib,1);                                                        // jib
+    g.fillStyle="#c99a30"; g.fillRect((mx+cdir*Math.round(jib*0.7))|0,top3-mastH,1,4);                          // trolley + hook cable
+    if(night>0.4){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,80,60,0.9)"; g.fillRect(mx|0,top3-mastH-1,1,1); g.globalCompositeOperation="source-over"; }   // aviation light
+  }
+  // ---- TRANSIT: a painted BIKE LANE down the boulevard + cyclists; length/riders scale ----
+  if(lg.TRANSIT>=0.6){ var laneY=HORIZON+2, tcol="#c05ad0";
+    g.globalCompositeOperation="lighter"; g.fillStyle="rgba(150,70,190,0.22)"; g.fillRect(0,laneY,SW,3); g.globalCompositeOperation="source-over";
+    for(var dl=(((now/90)|0)%10);dl<SW;dl+=10){ g.fillStyle="rgba(230,180,255,0.5)"; g.fillRect(dl,laneY+1,5,1); }   // dashed lane line
+    var nr=Math.min(9, 2+Math.round(lg.TRANSIT*2)), spd=0.05;
+    for(var r=0;r<nr;r++){ var rx=(((now*spd)+(r*WW/nr))% (WW)) - WOFF; if(rx>SW+6&&rx-WW>-6)rx-=WW; if(rx<-6&&rx+WW<SW+6)rx+=WW;
+      if(rx<-4||rx>SW+4||inSea(rx+WOFF)) continue; var ry=laneY-2;
+      g.fillStyle="#2a2f38"; g.fillRect(rx|0,ry+1,4,1);                                                         // frame
+      g.fillStyle=L>0.5?"#20242c":"#12151b"; g.fillRect(rx|0,ry+2,1,1); g.fillRect((rx+3)|0,ry+2,1,1);          // wheels
+      g.fillStyle=((r*7+3)%2)?"#e0663a":"#3a90e0"; g.fillRect((rx+1)|0,ry-1,2,2); g.fillRect((rx+1)|0,ry,1,1);  // rider
+    }
+  }
+  // ---- SAFETY: permanent CAMERA POLES along the street (blue watch-ring), count scales & persists ----
+  var sN=Math.min(14, Math.round(lg.SAFETY*2.6));
+  for(var s=0;s<sN;s++){ var sh2=((s*2654435761+131)>>>0), scx=(sh2%WW)-WOFF; if(scx>SW+4&&scx-WW>-4)scx-=WW; if(scx<-4&&scx+WW<SW+4)scx+=WW;
+    if(scx<-3||scx>SW+3||inSea(scx+WOFF)) continue; var camY=HORIZON-13, ldir=(sh2&1)?1:-1;
+    g.fillStyle="#5a6068"; g.fillRect((scx+1)|0,camY+2,1,5);                                                    // pole
+    g.fillStyle=L>0.5?"#2c3038":"#12141a"; g.fillRect(scx|0,camY,3,2);                                         // housing
+    g.fillStyle=L>0.5?"#1a1c22":"#0a0b0f"; g.fillRect((scx+(ldir>0?3:-1))|0,camY,1,2);                         // lens
+    g.globalCompositeOperation="lighter"; var bl=((Math.floor(now/600)+s)&1);                                  // steady blue watch-eye (distinct from the regime's red)
+    g.fillStyle="rgba(80,150,255,"+(bl?0.9:0.5)+")"; g.fillRect((scx+(ldir>0?3:-1))|0,camY,1,1); g.globalCompositeOperation="source-over";
   }
 }
 // ============================ WAR ============================
@@ -12665,6 +12817,7 @@ function draw(g,pass){
   curFestival=festivalState(now);                            // THE FESTIVAL's World's Fair arc (null on most lives; never overlaps war/regime/plague)
   curBuilds=passedBuilds(now).concat(passedCivics(now));     // permanent landmarks the city voted to build this life (measures + civic projects)
   curPolicies=curPoliciesOf(now);                            // soft policy-measures in force this term
+  curPartyLeg=partyLegacy(now);                              // the accumulated, persistent marks of every party that has held City Hall this life
   curCorps=corpState(now);                                   // the corporate landscape (rising/juggernaut/fading firms) this life
   if(curMayor&&curMayor.party.k==="BUILDERS") curEcon=Math.min(1,curEcon+0.15);   // builders juice the economy
   if(cityHasBuild("casino")) curEcon=Math.min(1,curEcon+0.06);                    // CASINO nightlife brings tourist money (but also crime — see crimeNow)
@@ -13108,6 +13261,7 @@ function draw(g,pass){
       if(gsx<-5||gsx>SW+5||inSea(gsx+WOFF)||nukeHit(gh2%WW)) continue;
       drawTree(g,gsx|0,HORIZON+1,L>0.5,now,gt2); } }
   if(!nukeFull()) drawCivicPolicy(g,L,now);              // the winning party's visible policies (solar/cameras/cranes/yard signs)
+  if(!nukeFull()) drawPartyLegacy(g,L,now);              // the PERSISTENT, stacking marks of every party that has governed this life
   // street furniture + the people using it (lamps, benches, bus stops, carts…) — on the sidewalk
   if(cityG>0.3 && !nukeFull()) drawStreetProps(g,L,now,night);   // street furniture + the people at them — gone
   if(!nukeFull()) drawGreenery(g,L,now);                 // base street trees, ivy on brick, curb weeds — nature softening the grid
