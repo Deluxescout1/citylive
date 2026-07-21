@@ -1,0 +1,18 @@
+Generate a JOB TAXONOMY for a pixel-art city simulation ("CityLive"). Return a JSON object:
+{ "jobs": [ { "id": "kebab-id", "label": "OFFICER", "verb": "on patrol",
+    "building": "<one of the allowed building types>", "districts": ["..."],
+    "class": 0, "clothes": "#RRGGBB", "clothesAlt": "#RRGGBB", "commutes": true,
+    "wageTier": 2, "desc": "one short clause" } ] }
+
+Rules:
+- Produce EXACTLY 40 jobs covering a realistic small American city's workforce.
+- "label" is a SHORT, UPPERCASE occupation noun shown on a news ticker (e.g. BAKER, HARBOR PILOT, ER NURSE, MACHINIST, BARISTA, LONGSHOREMAN, TEACHER, DETECTIVE, ELECTRICIAN, JANITOR, CHEF, ACCOUNTANT, LIBRARIAN, WELDER, PARAMEDIC, BUS DRIVER, DOCK WORKER, SHOPKEEPER, LOAN OFFICER, CURATOR).
+- "building" MUST be exactly one of these allowed types (the workplace sprite the citizen walks to):
+  factory, warehouse, depot, hotel, bank, theater, store, office, cafe, hospital, school, fire, apartment, pharmacy, museum, cityhall, park, docks, corp
+- "districts": subset of ["downtown","entertainment","residential","oldtown","industrial"] where this job's building appears.
+- "class": integer 0..3 (0=working poor, 1=working, 2=middle/professional, 3=wealthy) — the typical class this job affords.
+- "clothes"/"clothesAlt": two plausible WORK-UNIFORM colors (hex) the citizen wears WHEN COMMUTING TO WORK so you can read their job on sight (e.g. nurse=teal scrubs, officer=navy, welder=tan coverall, chef=white, banker=charcoal suit). Muted, pixel-art-friendly tones.
+- "wageTier": integer 1..5 (higher = better paid), roughly consistent with class.
+- "commutes": true if they travel to a fixed workplace building; false for e.g. street vendors/artists who work in public space.
+- Spread classes realistically: mostly 0-2, only a few class 3. Include blue-collar, service, civic, healthcare, education, maritime/dock, and professional jobs.
+- Keep every string short. Output ONLY the JSON object.

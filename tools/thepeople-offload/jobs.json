@@ -1,0 +1,586 @@
+{
+  "jobs": [
+    {
+      "id": "officer-id",
+      "label": "OFFICER",
+      "verb": "on patrol",
+      "building": "fire",
+      "districts": [
+        "downtown",
+        "residential"
+      ],
+      "class": 2,
+      "clothes": "#003366",
+      "clothesAlt": "#005599",
+      "commutes": true,
+      "wageTier": 4,
+      "desc": "Protects the city streets."
+    },
+    {
+      "id": "teacher-id",
+      "label": "TEACHER",
+      "verb": "in class",
+      "building": "school",
+      "districts": [
+        "residential",
+        "downtown"
+      ],
+      "class": 1,
+      "clothes": "#669900",
+      "clothesAlt": "#336600",
+      "commutes": true,
+      "wageTier": 3,
+      "desc": "Educates children."
+    },
+    {
+      "id": "doctor-id",
+      "label": "DOCTOR",
+      "verb": "on rounds",
+      "building": "hospital",
+      "districts": [
+        "downtown",
+        "residential"
+      ],
+      "class": 3,
+      "clothes": "#ffffff",
+      "clothesAlt": "#000000",
+      "commutes": true,
+      "wageTier": 5,
+      "desc": "Heals the sick."
+    },
+    {
+      "id": "cashier-id",
+      "label": "CASHIER",
+      "verb": "ringing up",
+      "building": "store",
+      "districts": [
+        "downtown",
+        "residential"
+      ],
+      "class": 0,
+      "clothes": "#cc9900",
+      "clothesAlt": "#996600",
+      "commutes": true,
+      "wageTier": 2,
+      "desc": "Serves customers."
+    },
+    {
+      "id": "cook-id",
+      "label": "CHEF",
+      "verb": "in kitchen",
+      "building": "cafe",
+      "districts": [
+        "downtown",
+        "entertainment"
+      ],
+      "class": 1,
+      "clothes": "#ffffff",
+      "clothesAlt": "#000000",
+      "commutes": true,
+      "wageTier": 3,
+      "desc": "Prepares meals."
+    },
+    {
+      "id": "janitor-id",
+      "label": "JANITOR",
+      "verb": "cleaning",
+      "building": "office",
+      "districts": [
+        "downtown",
+        "residential"
+      ],
+      "class": 0,
+      "clothes": "#999999",
+      "clothesAlt": "#666666",
+      "commutes": true,
+      "wageTier": 2,
+      "desc": "Keeps buildings clean."
+    },
+    {
+      "id": "nurse-id",
+      "label": "NURSE",
+      "verb": "tending to",
+      "building": "hospital",
+      "districts": [
+        "downtown",
+        "residential"
+      ],
+      "class": 1,
+      "clothes": "#009999",
+      "clothesAlt": "#006666",
+      "commutes": true,
+      "wageTier": 3,
+      "desc": "Cares for patients."
+    },
+    {
+      "id": "firefighter-id",
+      "label": "FIREFIGHTER",
+      "verb": "fighting fire",
+      "building": "fire",
+      "districts": [
+        "downtown",
+        "industrial"
+      ],
+      "class": 2,
+      "clothes": "#ff0000",
+      "clothesAlt": "#cc0000",
+      "commutes": true,
+      "wageTier": 4,
+      "desc": "Extinguishes fires."
+    },
+    {
+      "id": "librarian-id",
+      "label": "LIBRARIAN",
+      "verb": "organizing",
+      "building": "museum",
+      "districts": [
+        "downtown",
+        "residential"
+      ],
+      "class": 1,
+      "clothes": "#336699",
+      "clothesAlt": "#224466",
+      "commutes": true,
+      "wageTier": 3,
+      "desc": "Manages books."
+    },
+    {
+      "id": "banker-id",
+      "label": "BANKER",
+      "verb": "processing",
+      "building": "bank",
+      "districts": [
+        "downtown"
+      ],
+      "class": 3,
+      "clothes": "#000000",
+      "clothesAlt": "#333333",
+      "commutes": true,
+      "wageTier": 5,
+      "desc": "Handles money."
+    },
+    {
+      "id": "electrician-id",
+      "label": "ELECTRICIAN",
+      "verb": "repairing",
+      "building": "office",
+      "districts": [
+        "downtown",
+        "residential"
+      ],
+      "class": 2,
+      "clothes": "#ffcc00",
+      "clothesAlt": "#cc9900",
+      "commutes": true,
+      "wageTier": 4,
+      "desc": "Repairs wires."
+    },
+    {
+      "id": "welder-id",
+      "label": "WELDER",
+      "verb": "working",
+      "building": "factory",
+      "districts": [
+        "industrial"
+      ],
+      "class": 2,
+      "clothes": "#8b4513",
+      "clothesAlt": "#5d2906",
+      "commutes": true,
+      "wageTier": 4,
+      "desc": "Joins metal."
+    },
+    {
+      "id": "busdriver-id",
+      "label": "BUS DRIVER",
+      "verb": "driving",
+      "building": "depot",
+      "districts": [
+        "downtown",
+        "residential"
+      ],
+      "class": 1,
+      "clothes": "#ff6600",
+      "clothesAlt": "#cc5200",
+      "commutes": true,
+      "wageTier": 3,
+      "desc": "Transports passengers."
+    },
+    {
+      "id": "mechanic-id",
+      "label": "MECHANIC",
+      "verb": "fixing car",
+      "building": "factory",
+      "districts": [
+        "industrial"
+      ],
+      "class": 1,
+      "clothes": "#666666",
+      "clothesAlt": "#333333",
+      "commutes": true,
+      "wageTier": 3,
+      "desc": "Repairs vehicles."
+    },
+    {
+      "id": "shopkeeper-id",
+      "label": "SHOPKEEPER",
+      "verb": "selling goods",
+      "building": "store",
+      "districts": [
+        "downtown",
+        "residential"
+      ],
+      "class": 1,
+      "clothes": "#993300",
+      "clothesAlt": "#662200",
+      "commutes": true,
+      "wageTier": 3,
+      "desc": "Sells products."
+    },
+    {
+      "id": "paramedic-id",
+      "label": "PARAMEDIC",
+      "verb": "on call",
+      "building": "hospital",
+      "districts": [
+        "downtown",
+        "residential"
+      ],
+      "class": 2,
+      "clothes": "#ff0000",
+      "clothesAlt": "#cc0000",
+      "commutes": true,
+      "wageTier": 4,
+      "desc": "Assists doctors."
+    },
+    {
+      "id": "bartender-id",
+      "label": "BARISTA",
+      "verb": "making coffee",
+      "building": "cafe",
+      "districts": [
+        "downtown",
+        "entertainment"
+      ],
+      "class": 0,
+      "clothes": "#cc6633",
+      "clothesAlt": "#994422",
+      "commutes": true,
+      "wageTier": 2,
+      "desc": "Serves drinks."
+    },
+    {
+      "id": "security-id",
+      "label": "SECURITY",
+      "verb": "guarding",
+      "building": "hotel",
+      "districts": [
+        "downtown",
+        "residential"
+      ],
+      "class": 1,
+      "clothes": "#000000",
+      "clothesAlt": "#333333",
+      "commutes": true,
+      "wageTier": 3,
+      "desc": "Protects guests."
+    },
+    {
+      "id": "accountant-id",
+      "label": "ACCOUNTANT",
+      "verb": "calculating",
+      "building": "office",
+      "districts": [
+        "downtown",
+        "residential"
+      ],
+      "class": 2,
+      "clothes": "#000000",
+      "clothesAlt": "#333333",
+      "commutes": true,
+      "wageTier": 4,
+      "desc": "Manages finances."
+    },
+    {
+      "id": "plumber-id",
+      "label": "PLUMBER",
+      "verb": "fixing pipes",
+      "building": "office",
+      "districts": [
+        "downtown",
+        "residential"
+      ],
+      "class": 1,
+      "clothes": "#669900",
+      "clothesAlt": "#336600",
+      "commutes": true,
+      "wageTier": 3,
+      "desc": "Repairs plumbing."
+    },
+    {
+      "id": "architect-id",
+      "label": "ARCHITECT",
+      "verb": "designing",
+      "building": "office",
+      "districts": [
+        "downtown"
+      ],
+      "class": 3,
+      "clothes": "#000000",
+      "clothesAlt": "#333333",
+      "commutes": true,
+      "wageTier": 5,
+      "desc": "Plans buildings."
+    },
+    {
+      "id": "curator-id",
+      "label": "CURATOR",
+      "verb": "organizing",
+      "building": "museum",
+      "districts": [
+        "downtown",
+        "residential"
+      ],
+      "class": 2,
+      "clothes": "#336699",
+      "clothesAlt": "#224466",
+      "commutes": true,
+      "wageTier": 4,
+      "desc": "Manages art."
+    },
+    {
+      "id": "artist-id",
+      "label": "ARTIST",
+      "verb": "creating",
+      "building": "park",
+      "districts": [
+        "residential",
+        "downtown"
+      ],
+      "class": 0,
+      "clothes": "#ffcc00",
+      "clothesAlt": "#cc9900",
+      "commutes": false,
+      "wageTier": 2,
+      "desc": "Makes paintings."
+    },
+    {
+      "id": "streetvendor-id",
+      "label": "STREET VENDOR",
+      "verb": "selling goods",
+      "building": "park",
+      "districts": [
+        "residential",
+        "downtown"
+      ],
+      "class": 0,
+      "clothes": "#996633",
+      "clothesAlt": "#664422",
+      "commutes": false,
+      "wageTier": 2,
+      "desc": "Sells items."
+    },
+    {
+      "id": "dockworker-id",
+      "label": "DOCK WORKER",
+      "verb": "loading cargo",
+      "building": "docks",
+      "districts": [
+        "industrial"
+      ],
+      "class": 1,
+      "clothes": "#003366",
+      "clothesAlt": "#005599",
+      "commutes": true,
+      "wageTier": 3,
+      "desc": "Loads ships."
+    },
+    {
+      "id": "warehouseworker-id",
+      "label": "WAREHOUSE WORKER",
+      "verb": "packing goods",
+      "building": "warehouse",
+      "districts": [
+        "industrial"
+      ],
+      "class": 1,
+      "clothes": "#669900",
+      "clothesAlt": "#336600",
+      "commutes": true,
+      "wageTier": 2,
+      "desc": "Stores items."
+    },
+    {
+      "id": "factoryworker-id",
+      "label": "FACTORY WORKER",
+      "verb": "operating machines",
+      "building": "factory",
+      "districts": [
+        "industrial"
+      ],
+      "class": 1,
+      "clothes": "#996633",
+      "clothesAlt": "#664422",
+      "commutes": true,
+      "wageTier": 3,
+      "desc": "Runs production."
+    },
+    {
+      "id": "citycouncil-id",
+      "label": "CITY COUNCIL",
+      "verb": "discussing",
+      "building": "cityhall",
+      "districts": [
+        "downtown"
+      ],
+      "class": 3,
+      "clothes": "#000000",
+      "clothesAlt": "#333333",
+      "commutes": true,
+      "wageTier": 5,
+      "desc": "Makes laws."
+    },
+    {
+      "id": "policechief-id",
+      "label": "POLICE CHIEF",
+      "verb": "overseeing",
+      "building": "fire",
+      "districts": [
+        "downtown",
+        "residential"
+      ],
+      "class": 3,
+      "clothes": "#003366",
+      "clothesAlt": "#005599",
+      "commutes": true,
+      "wageTier": 5,
+      "desc": "Leads police."
+    },
+    {
+      "id": "firechief-id",
+      "label": "FIRE CHIEF",
+      "verb": "commanding",
+      "building": "fire",
+      "districts": [
+        "downtown",
+        "industrial"
+      ],
+      "class": 3,
+      "clothes": "#ff0000",
+      "clothesAlt": "#cc0000",
+      "commutes": true,
+      "wageTier": 5,
+      "desc": "Leads firefighters."
+    },
+    {
+      "id": "museumguard-id",
+      "label": "MUSEUM GUARD",
+      "verb": "watching art",
+      "building": "museum",
+      "districts": [
+        "downtown",
+        "residential"
+      ],
+      "class": 2,
+      "clothes": "#000000",
+      "clothesAlt": "#333333",
+      "commutes": true,
+      "wageTier": 4,
+      "desc": "Protects exhibits."
+    },
+    {
+      "id": "hotelmanager-id",
+      "label": "HOTEL MANAGER",
+      "verb": "supervising",
+      "building": "hotel",
+      "districts": [
+        "downtown",
+        "residential"
+      ],
+      "class": 2,
+      "clothes": "#000000",
+      "clothesAlt": "#333333",
+      "commutes": true,
+      "wageTier": 4,
+      "desc": "Manages guests."
+    },
+    {
+      "id": "pharmacist-id",
+      "label": "PHARMACIST",
+      "verb": "filling prescriptions",
+      "building": "pharmacy",
+      "districts": [
+        "downtown",
+        "residential"
+      ],
+      "class": 2,
+      "clothes": "#ffffff",
+      "clothesAlt": "#000000",
+      "commutes": true,
+      "wageTier": 4,
+      "desc": "Dispenses medicine."
+    },
+    {
+      "id": "loanofficer-id",
+      "label": "LOAN OFFICER",
+      "verb": "reviewing",
+      "building": "bank",
+      "districts": [
+        "downtown"
+      ],
+      "class": 2,
+      "clothes": "#000000",
+      "clothesAlt": "#333333",
+      "commutes": true,
+      "wageTier": 4,
+      "desc": "Approves loans."
+    },
+    {
+      "id": "parkworker-id",
+      "label": "PARK WORKER",
+      "verb": "maintaining",
+      "building": "park",
+      "districts": [
+        "residential",
+        "downtown"
+      ],
+      "class": 0,
+      "clothes": "#669900",
+      "clothesAlt": "#336600",
+      "commutes": true,
+      "wageTier": 2,
+      "desc": "Keeps parks clean."
+    },
+    {
+      "id": "bartender-id2",
+      "label": "BAR TENDER",
+      "verb": "mixing drinks",
+      "building": "theater",
+      "districts": [
+        "entertainment"
+      ],
+      "class": 1,
+      "clothes": "#cc6633",
+      "clothesAlt": "#994422",
+      "commutes": true,
+      "wageTier": 3,
+      "desc": "Serves patrons."
+    },
+    {
+      "id": "receptionist-id",
+      "label": "RECEPTIONIST",
+      "verb": "answering calls",
+      "building": "office",
+      "districts": [
+        "downtown",
+        "residential"
+      ],
+      "class": 1,
+      "clothes": "#336699",
+      "clothesAlt": "#224466",
+      "commutes": true,
+      "wageTier": 3,
+      "desc": "Greets visitors."
+    }
+  ]
+}

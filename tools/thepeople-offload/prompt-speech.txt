@@ -1,0 +1,16 @@
+Generate SPEECH-BUBBLE lines for citizens in a pixel-art city sim. When two named citizens meet on
+the street they exchange ONE short line each. Lines must fit a tiny pixel speech bubble: MAX 32
+characters, plain ASCII, UPPERCASE, no emoji. Return JSON:
+{ "greet":["..."], "gossip":["..."], "economy":["..."], "politics":["..."], "weather":["..."],
+  "work":["..."], "family":["..."], "class_rich":["..."], "class_poor":["..."], "smalltalk":["..."] }
+Rules:
+- Exactly 14 lines in EACH of the 10 categories (140 total). All <=32 chars, UPPERCASE, ASCII.
+- "greet": hellos / how-are-yous. "gossip": mild neighborly gossip about unnamed others.
+- "economy": rent, prices, jobs, business good/bad. "politics": the mayor/council/an election/a vote,
+  never real-world parties — keep it civic and generic. "weather": small weather remarks.
+- "work": job/commute chatter. "family": kids/spouse/home. "class_rich": things a well-off citizen
+  might say (light, not cartoonish). "class_poor": things a struggling citizen might say (dignified,
+  not grim). "smalltalk": harmless filler.
+- Natural, varied, a little warmth and humor. No proper names (the engine fills those). No quotes
+  inside strings. Keep each punchy and readable at a glance.
+- Output ONLY the JSON object.

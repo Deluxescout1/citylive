@@ -1,0 +1,14 @@
+Generate REGION-AWARE NAME POOLS for a pixel-art American city simulation. Return JSON:
+{ "newengland": { "first": ["..."], "last": ["..."] },
+  "generic":    { "first": ["..."], "last": ["..."] } }
+
+Rules:
+- "newengland": names evocative of coastal New England (Norwich/Mystic CT, Maine, Massachusetts) —
+  a believable MIX of old Yankee/English/Irish/Italian/Portuguese/French-Canadian and some newer
+  Latino, West-African, and East-Asian family names, reflecting a real modern small New England city.
+- "generic": a broad, diverse contemporary AMERICAN mix (all backgrounds) for any other location.
+- For EACH region: exactly 60 "first" names (unisex-friendly mix of masculine/feminine) and 80 "last" names.
+- ALL UPPERCASE. Single word each, no punctuation, no accents (ASCII only, pixel font). Short (<=10 chars).
+- No duplicates within a list. No celebrity/real-famous full-name combos.
+- These label ~200 tracked citizens, so favor variety and readability on a tiny pixel ticker.
+- Output ONLY the JSON object.

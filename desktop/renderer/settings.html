@@ -15,7 +15,31 @@
   .wrap{width:min(680px,100%)}
   .tabs{display:flex;gap:8px;margin:0 0 16px;position:sticky;top:8px;z-index:20;background:rgba(5,7,12,.92);padding:7px;border:1px solid var(--line);border-radius:11px;backdrop-filter:blur(10px)}
   .tabs button{flex:1}.tabs button.active{border-color:var(--cyan);color:var(--cyan);background:#10202b}
-  body.chronicle-tab .main-card{display:none} body:not(.chronicle-tab) #cardChronicle{display:none}
+  body.chronicle-tab .main-card, body.citizens-tab .main-card{display:none}
+  #cardChronicle, #cardCitizens{display:none}
+  body.chronicle-tab #cardChronicle{display:block} body.citizens-tab #cardCitizens{display:block}
+  /* Citizens roster */
+  .cz-summary{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 12px}
+  .cz-stat{background:#10151f;border:1px solid var(--line);border-radius:9px;padding:7px 11px;font-size:12px}
+  .cz-stat b{color:var(--cyan);font-size:15px;display:block;font-variant-numeric:tabular-nums}
+  .cz-stat.mayor b{color:#ffd76a;font-size:13px}
+  .cz-controls{display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
+  .cz-controls input[type=search]{flex:1;min-width:160px}
+  .cz-chip{font-size:11px;padding:4px 9px;border-radius:20px;border:1px solid var(--line);background:#0d1119;color:var(--txt);cursor:pointer}
+  .cz-chip.on{border-color:var(--cyan);color:var(--cyan);background:#10202b}
+  .cz-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(232px,1fr));gap:9px}
+  .cz-card{background:#10151f;border:1px solid var(--line);border-radius:10px;padding:10px 11px;position:relative;overflow:hidden}
+  .cz-card.dead{opacity:.5}
+  .cz-card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--sw,#888)}
+  .cz-name{font-weight:600;font-size:13px;display:flex;align-items:center;gap:6px}
+  .cz-badge{font-size:9px;font-weight:700;padding:1px 5px;border-radius:6px;letter-spacing:.4px}
+  .cz-badge.mayor{background:#ffd76a;color:#1a1400} .cz-badge.council{background:#7ea8ff;color:#04102a}
+  .cz-badge.rap{background:#ff5e6e;color:#2a0006}
+  .cz-job{font-size:11px;color:var(--cyan);margin:2px 0}
+  .cz-line{font-size:11px;color:var(--sub);margin-top:3px;line-height:1.45}
+  .cz-klass{display:inline-block;font-size:10px;padding:1px 6px;border-radius:5px;background:#0a0d14;border:1px solid var(--line)}
+  .cz-k0{color:#e08a7a} .cz-k1{color:#c9cfda} .cz-k2{color:#7ad6a0} .cz-k3{color:#ffd76a}
+  .cz-empty{color:var(--sub);padding:14px;text-align:center}
   h1{margin:0 0 4px;color:var(--cyan);letter-spacing:1px;font-size:20px;
     text-shadow:0 0 10px rgba(57,230,255,.4)}
   .tagline{margin:0 0 22px;color:var(--sub);font-size:11px}
@@ -79,7 +103,7 @@
 <div class="wrap">
   <h1>CityLive Control Center</h1>
   <p class="tagline">Wallpaper, screensaver, and city settings — all in one place.</p>
-  <nav class="tabs" aria-label="Control Center sections"><button id="tabSettings" class="active">Settings</button><button id="tabChronicle">City Chronicle</button></nav>
+  <nav class="tabs" aria-label="Control Center sections"><button id="tabSettings" class="active">Settings</button><button id="tabCitizens">Citizens</button><button id="tabChronicle">City Chronicle</button></nav>
 
   <div class="card main-card" id="cardWallpaper">
     <h2>Wallpaper</h2>
@@ -201,6 +225,13 @@
     <div class="row"><button id="almanacRefresh" class="ghost">↻ Refresh</button></div>
   </div>
 
+  <div class="card" id="cardCitizens">
+    <div class="chron-head"><div><h2>Citizens</h2><p class="hint">The people living in the city on your screen right now — every one has a name, a job, a family and a story. This is who they are at this moment; leave CityLive running and their lives unfold.</p></div><button id="czRefresh" class="ghost" title="Refresh">↻</button></div>
+    <div class="cz-summary" id="czSummary"></div>
+    <div class="cz-controls"><input id="czSearch" type="search" placeholder="Search a name or job…" autocomplete="off"><span id="czFilters"></span></div>
+    <div class="cz-grid" id="czGrid"><div class="cz-empty">Loading citizens…</div></div>
+  </div>
+
   <div class="card" id="cardChronicle">
     <div class="chron-head"><div><h2>City Chronicle</h2><p class="hint">Only moments witnessed while CityLive was running are recorded. The future is never shown. The latest 25 civilizations are retained.</p></div><button id="chronRefresh" class="ghost" title="Refresh">↻</button></div>
     <label class="checkrow"><input id="chronEnabled" type="checkbox" checked> Record witnessed city history</label>
@@ -223,10 +254,15 @@
 (function(){
   var api = window.citylive;
 
-  function showTab(tab){ var chron=tab==='chronicle';document.body.classList.toggle('chronicle-tab',chron);
-    document.getElementById('tabSettings').classList.toggle('active',!chron);document.getElementById('tabChronicle').classList.toggle('active',chron);
-    if(chron){loadChronicle();setTimeout(function(){document.getElementById('cardChronicle').scrollIntoView({block:'start'});},0);} }
+  function showTab(tab){ var chron=tab==='chronicle', citz=tab==='citizens';
+    document.body.classList.toggle('chronicle-tab',chron);document.body.classList.toggle('citizens-tab',citz);
+    document.getElementById('tabSettings').classList.toggle('active',!chron&&!citz);
+    document.getElementById('tabChronicle').classList.toggle('active',chron);
+    document.getElementById('tabCitizens').classList.toggle('active',citz);
+    if(chron){loadChronicle();setTimeout(function(){document.getElementById('cardChronicle').scrollIntoView({block:'start'});},0);}
+    if(citz){renderCitizens();setTimeout(function(){document.getElementById('cardCitizens').scrollIntoView({block:'start'});},0);} }
   document.getElementById('tabSettings').addEventListener('click',function(){showTab('settings');});
+  document.getElementById('tabCitizens').addEventListener('click',function(){showTab('citizens');});
   document.getElementById('tabChronicle').addEventListener('click',function(){showTab('chronicle');});
   try{api.onNavigate(showTab);}catch(e){}
 
@@ -246,6 +282,57 @@
   [['chronTxt','txt'],['chronPng','png'],['chronJson','json']].forEach(function(x){document.getElementById(x[0]).addEventListener('click',function(){api.exportChronicle(x[1]).then(function(ok){chronNote.textContent=ok?'Chronicle exported.':'';});});});
   document.getElementById('chronClear').addEventListener('click',function(){if(!confirm('Clear the entire City Chronicle? This cannot be undone.'))return;api.clearChronicle().then(renderChronicle);});
   loadChronicle();
+
+  // ---------------------------------------------------------------------
+  // Citizens roster — reads read-only projections from the engine (window.peopleRoster). Never
+  // touches canonical sim state; every card is a fresh, safe projection.
+  var czState={q:'',klass:-1,dead:false};
+  function czEsc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+  function czHex(c){return /^#[0-9a-fA-F]{3,8}$/.test(c)?c:'#888888';}   // validate before it enters a style attr
+  function czCard(p){ var badge='';
+    if(p.office===2) badge='<span class="cz-badge mayor">MAYOR</span>';
+    else if(p.office===1) badge='<span class="cz-badge council">COUNCIL</span>';
+    var rap=p.crimes>0?'<span class="cz-badge rap">RAP SHEET</span>':'';
+    var fam=[]; if(p.spouseName) fam.push('married to '+czEsc(p.spouseName.split(' ')[0]));
+    if(p.kidCount>0) fam.push(p.kidCount+' child'+(p.kidCount>1?'ren':''));
+    if(p.parents&&p.parents.length) fam.push('child of '+czEsc(p.parents.map(function(x){return x.split(' ')[0];}).join(' & ')));
+    var life=['Age '+p.age]; if(p.retired) life.push('retired'); if(!p.alive) life.unshift('the late');
+    return '<div class="cz-card'+(p.alive?'':' dead')+'" style="--sw:'+czHex(p.clothes)+'">'+
+      '<div class="cz-name">'+czEsc(p.name)+badge+rap+'</div>'+
+      '<div class="cz-job">'+czEsc(p.job)+(p.verb?' · '+czEsc(p.verb):'')+'</div>'+
+      '<div class="cz-line"><span class="cz-klass cz-k'+p.klass+'">'+czEsc(p.klassName)+'</span> · $'+p.netWorth.toLocaleString()+' · '+czEsc(p.partyName)+'</div>'+
+      '<div class="cz-line">'+life.join(' · ')+(fam.length?' · '+fam.join(' · '):'')+(p.crimes>0?' · '+p.crimes+' offence'+(p.crimes>1?'s':''):'')+'</div>'+
+    '</div>'; }
+  function renderCitizens(){
+    var grid=document.getElementById('czGrid'), sum=document.getElementById('czSummary'), fil=document.getElementById('czFilters');
+    if(typeof window.peopleRoster!=='function'){ grid.innerHTML='<div class="cz-empty">Citizens unavailable — the engine isn\'t loaded in this window yet. Turn the wallpaper on, or reopen this panel.</div>'; sum.innerHTML=''; return; }
+    var now=Date.now(), R;
+    try{ R=window.peopleRoster(now, window.lifeIndexOf(now), window.cityGrowth(now).cy); }
+    catch(e){ grid.innerHTML='<div class="cz-empty">Citizens error: '+czEsc(e.message||e)+'</div>'; return; }
+    var s=R.stats;
+    sum.innerHTML=
+      '<div class="cz-stat"><b>'+s.pop+'</b>living citizens</div>'+
+      '<div class="cz-stat mayor"><b>'+(R.mayor?czEsc(R.mayor.name):'— no mayor yet —')+'</b>'+(R.mayor?czEsc(R.mayor.job)+', mayor':'awaiting the first election')+'</div>'+
+      '<div class="cz-stat"><b>'+Math.round(s.unemp*100)+'%</b>unemployment</div>'+
+      '<div class="cz-stat"><b>'+Math.round(s.poorPct*100)+'% / '+Math.round(s.richPct*100)+'%</b>poor / wealthy</div>'+
+      '<div class="cz-stat"><b>'+Math.round(s.gini*100)/100+'</b>inequality (Gini)</div>'+
+      '<div class="cz-stat"><b>'+s.crimeTotal+'</b>offences this era</div>';
+    var chips=[['Everyone',-1],['Poor',0],['Working',1],['Professional',2],['Wealthy',3]];
+    fil.innerHTML=chips.map(function(c){return '<span class="cz-chip'+(czState.klass===c[1]?' on':'')+'" data-k="'+c[1]+'">'+c[0]+'</span>';}).join('')+
+      '<span class="cz-chip'+(czState.dead?' on':'')+'" data-dead="1">In memoriam ('+R.dead.length+')</span>';
+    Array.prototype.forEach.call(fil.querySelectorAll('[data-k]'),function(ch){ch.addEventListener('click',function(){czState.klass=+ch.dataset.k;renderCitizens();});});
+    Array.prototype.forEach.call(fil.querySelectorAll('[data-dead]'),function(ch){ch.addEventListener('click',function(){czState.dead=!czState.dead;renderCitizens();});});
+    var pool=(czState.dead?R.dead:R.living).slice();
+    if(czState.klass>=0) pool=pool.filter(function(p){return p.klass===czState.klass;});
+    var q=czState.q.trim().toLowerCase();
+    if(q) pool=pool.filter(function(p){return p.name.toLowerCase().indexOf(q)>=0 || p.job.toLowerCase().indexOf(q)>=0;});
+    if(!pool.length){ grid.innerHTML='<div class="cz-empty">'+(R.cy<0.06?'The city is barely founded — the first citizens are still arriving.':'No one matches that.')+'</div>'; return; }
+    grid.innerHTML=pool.map(czCard).join('');
+  }
+  var czSearch=document.getElementById('czSearch');
+  if(czSearch) czSearch.addEventListener('input',function(){czState.q=this.value;renderCitizens();});
+  var czRefreshBtn=document.getElementById('czRefresh');
+  if(czRefreshBtn) czRefreshBtn.addEventListener('click',renderCitizens);
 
   // ---------------------------------------------------------------------
   // Wallpaper

@@ -88,6 +88,7 @@ function applyConfig(cfg){ if(!cfg) return;
   if(cfg.flights!==undefined) FLIGHTS_ON=(cfg.flights!==false);   // live real-aircraft overlay on/off
   if(cfg.bills!==undefined) BILLS_ON=(cfg.bills===true);          // Buffalo Bills gameday takeover on/off
   if(cfg.billsEvent!==undefined) BILLS_EVENT=(cfg.billsEvent===true);   // force a live Bills Mafia takeover (demo/preview)
+  if(cfg.people!=null){ var _pn=+cfg.people; if(_pn>=20&&_pn<=400) PEOPLE_N=_pn|0; }   // THE PEOPLE: cast size (default 175)
 }
 // ================================================================================
 
@@ -7632,6 +7633,514 @@ function citizenMilestones(now){
     [0.90, s.star.name+" THE "+s.star.kind+" MAKES IT BIG"]
   ];
 }
+
+// ======================= THE PEOPLE — CITIZEN SIM (v2.0) =======================
+// Deterministic, freeze-safe, pure fn of the override clock. THE roster source of truth on all 4
+// shells. (idx,gen) identity, real children, read-only projections, death ledger, honest stats.
+// Data offloaded to the GameServer LiteLLM, validated, inlined (QML has no filesystem).
+// Public: peopleRoster(now,lifeIndex,cy) · peopleStats(...). DORMANT until menu/draw call it.
+// ---- deterministic helpers (mirror engine style: var, bit-twiddle hashes) ----
+function P_hash(x){ x|=0; x=Math.imul(x^x>>>16,0x45d9f3b); x=Math.imul(x^x>>>16,0x45d9f3b); return (x^x>>>16)>>>0; }
+function P_rng(seed){ var a=seed>>>0; return function(){ a=a+0x6D2B79F5|0; var t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+var P_SALT=0x50656F70;  // "Peop"
+
+// ---- config ----
+var PEOPLE_N=175;            // default cast size (150-200 proven; config-adjustable via cfg.people)
+var P_LIFE_TICKS=900;        // ticks per full city-life (bounds the cold fold)
+var P_ELECT_EVERY=90;        // ticks between municipal elections
+var P_ADULT=18, P_ELDER=62, P_MAXAGE=82, P_FERTILE_LO=24, P_FERTILE_HI=46;
+var P_KLABEL=['working poor','working class','professional','wealthy'];
+var P_PARTY=['Green Party','Blue Party','Red Party','Independents'];
+
+// ---- data (injected from the offloaded JSON at splice time) ----
+var JOB_TAX=[
+  {id:"officer-id",label:"OFFICER",verb:"on patrol",building:"fire",districts:["downtown", "residential"],klass:2,clothes:"#003366",clothesAlt:"#005599",commutes:true,wageTier:4,desc:"Protects the city streets."},
+  {id:"teacher-id",label:"TEACHER",verb:"in class",building:"school",districts:["residential", "downtown"],klass:1,clothes:"#669900",clothesAlt:"#336600",commutes:true,wageTier:3,desc:"Educates children."},
+  {id:"doctor-id",label:"DOCTOR",verb:"on rounds",building:"hospital",districts:["downtown", "residential"],klass:3,clothes:"#ffffff",clothesAlt:"#000000",commutes:true,wageTier:5,desc:"Heals the sick."},
+  {id:"cashier-id",label:"CASHIER",verb:"ringing up",building:"store",districts:["downtown", "residential"],klass:0,clothes:"#cc9900",clothesAlt:"#996600",commutes:true,wageTier:2,desc:"Serves customers."},
+  {id:"cook-id",label:"CHEF",verb:"in kitchen",building:"cafe",districts:["downtown", "entertainment"],klass:1,clothes:"#ffffff",clothesAlt:"#000000",commutes:true,wageTier:3,desc:"Prepares meals."},
+  {id:"janitor-id",label:"JANITOR",verb:"cleaning",building:"office",districts:["downtown", "residential"],klass:0,clothes:"#999999",clothesAlt:"#666666",commutes:true,wageTier:2,desc:"Keeps buildings clean."},
+  {id:"nurse-id",label:"NURSE",verb:"tending to",building:"hospital",districts:["downtown", "residential"],klass:1,clothes:"#009999",clothesAlt:"#006666",commutes:true,wageTier:3,desc:"Cares for patients."},
+  {id:"firefighter-id",label:"FIREFIGHTER",verb:"fighting fire",building:"fire",districts:["downtown", "industrial"],klass:2,clothes:"#ff0000",clothesAlt:"#cc0000",commutes:true,wageTier:4,desc:"Extinguishes fires."},
+  {id:"librarian-id",label:"LIBRARIAN",verb:"organizing",building:"museum",districts:["downtown", "residential"],klass:1,clothes:"#336699",clothesAlt:"#224466",commutes:true,wageTier:3,desc:"Manages books."},
+  {id:"banker-id",label:"BANKER",verb:"processing",building:"bank",districts:["downtown"],klass:3,clothes:"#000000",clothesAlt:"#333333",commutes:true,wageTier:5,desc:"Handles money."},
+  {id:"electrician-id",label:"ELECTRICIAN",verb:"repairing",building:"office",districts:["downtown", "residential"],klass:2,clothes:"#ffcc00",clothesAlt:"#cc9900",commutes:true,wageTier:4,desc:"Repairs wires."},
+  {id:"welder-id",label:"WELDER",verb:"working",building:"factory",districts:["industrial"],klass:2,clothes:"#8b4513",clothesAlt:"#5d2906",commutes:true,wageTier:4,desc:"Joins metal."},
+  {id:"busdriver-id",label:"BUS DRIVER",verb:"driving",building:"depot",districts:["downtown", "residential"],klass:1,clothes:"#ff6600",clothesAlt:"#cc5200",commutes:true,wageTier:3,desc:"Transports passengers."},
+  {id:"mechanic-id",label:"MECHANIC",verb:"fixing car",building:"factory",districts:["industrial"],klass:1,clothes:"#666666",clothesAlt:"#333333",commutes:true,wageTier:3,desc:"Repairs vehicles."},
+  {id:"shopkeeper-id",label:"SHOPKEEPER",verb:"selling goods",building:"store",districts:["downtown", "residential"],klass:1,clothes:"#993300",clothesAlt:"#662200",commutes:true,wageTier:3,desc:"Sells products."},
+  {id:"paramedic-id",label:"PARAMEDIC",verb:"on call",building:"hospital",districts:["downtown", "residential"],klass:2,clothes:"#ff0000",clothesAlt:"#cc0000",commutes:true,wageTier:4,desc:"Assists doctors."},
+  {id:"bartender-id",label:"BARISTA",verb:"making coffee",building:"cafe",districts:["downtown", "entertainment"],klass:0,clothes:"#cc6633",clothesAlt:"#994422",commutes:true,wageTier:2,desc:"Serves drinks."},
+  {id:"security-id",label:"SECURITY",verb:"guarding",building:"hotel",districts:["downtown", "residential"],klass:1,clothes:"#000000",clothesAlt:"#333333",commutes:true,wageTier:3,desc:"Protects guests."},
+  {id:"accountant-id",label:"ACCOUNTANT",verb:"calculating",building:"office",districts:["downtown", "residential"],klass:2,clothes:"#000000",clothesAlt:"#333333",commutes:true,wageTier:4,desc:"Manages finances."},
+  {id:"plumber-id",label:"PLUMBER",verb:"fixing pipes",building:"office",districts:["downtown", "residential"],klass:1,clothes:"#669900",clothesAlt:"#336600",commutes:true,wageTier:3,desc:"Repairs plumbing."},
+  {id:"architect-id",label:"ARCHITECT",verb:"designing",building:"office",districts:["downtown"],klass:3,clothes:"#000000",clothesAlt:"#333333",commutes:true,wageTier:5,desc:"Plans buildings."},
+  {id:"curator-id",label:"CURATOR",verb:"organizing",building:"museum",districts:["downtown", "residential"],klass:2,clothes:"#336699",clothesAlt:"#224466",commutes:true,wageTier:4,desc:"Manages art."},
+  {id:"artist-id",label:"ARTIST",verb:"creating",building:"park",districts:["residential", "downtown"],klass:0,clothes:"#ffcc00",clothesAlt:"#cc9900",commutes:false,wageTier:2,desc:"Makes paintings."},
+  {id:"streetvendor-id",label:"STREET VENDOR",verb:"selling goods",building:"park",districts:["residential", "downtown"],klass:0,clothes:"#996633",clothesAlt:"#664422",commutes:false,wageTier:2,desc:"Sells items."},
+  {id:"dockworker-id",label:"DOCK WORKER",verb:"loading cargo",building:"docks",districts:["industrial"],klass:1,clothes:"#003366",clothesAlt:"#005599",commutes:true,wageTier:3,desc:"Loads ships."},
+  {id:"warehouseworker-id",label:"WAREHOUSE WORKER",verb:"packing goods",building:"warehouse",districts:["industrial"],klass:1,clothes:"#669900",clothesAlt:"#336600",commutes:true,wageTier:2,desc:"Stores items."},
+  {id:"factoryworker-id",label:"FACTORY WORKER",verb:"operating machines",building:"factory",districts:["industrial"],klass:1,clothes:"#996633",clothesAlt:"#664422",commutes:true,wageTier:3,desc:"Runs production."},
+  {id:"citycouncil-id",label:"CITY COUNCIL",verb:"discussing",building:"cityhall",districts:["downtown"],klass:3,clothes:"#000000",clothesAlt:"#333333",commutes:true,wageTier:5,desc:"Makes laws."},
+  {id:"policechief-id",label:"POLICE CHIEF",verb:"overseeing",building:"fire",districts:["downtown", "residential"],klass:3,clothes:"#003366",clothesAlt:"#005599",commutes:true,wageTier:5,desc:"Leads police."},
+  {id:"firechief-id",label:"FIRE CHIEF",verb:"commanding",building:"fire",districts:["downtown", "industrial"],klass:3,clothes:"#ff0000",clothesAlt:"#cc0000",commutes:true,wageTier:5,desc:"Leads firefighters."},
+  {id:"museumguard-id",label:"MUSEUM GUARD",verb:"watching art",building:"museum",districts:["downtown", "residential"],klass:2,clothes:"#000000",clothesAlt:"#333333",commutes:true,wageTier:4,desc:"Protects exhibits."},
+  {id:"hotelmanager-id",label:"HOTEL MANAGER",verb:"supervising",building:"hotel",districts:["downtown", "residential"],klass:2,clothes:"#000000",clothesAlt:"#333333",commutes:true,wageTier:4,desc:"Manages guests."},
+  {id:"pharmacist-id",label:"PHARMACIST",verb:"filling prescriptions",building:"pharmacy",districts:["downtown", "residential"],klass:2,clothes:"#ffffff",clothesAlt:"#000000",commutes:true,wageTier:4,desc:"Dispenses medicine."},
+  {id:"loanofficer-id",label:"LOAN OFFICER",verb:"reviewing",building:"bank",districts:["downtown"],klass:2,clothes:"#000000",clothesAlt:"#333333",commutes:true,wageTier:4,desc:"Approves loans."},
+  {id:"parkworker-id",label:"PARK WORKER",verb:"maintaining",building:"park",districts:["residential", "downtown"],klass:0,clothes:"#669900",clothesAlt:"#336600",commutes:true,wageTier:2,desc:"Keeps parks clean."},
+  {id:"bartender-id2",label:"BAR TENDER",verb:"mixing drinks",building:"theater",districts:["entertainment"],klass:1,clothes:"#cc6633",clothesAlt:"#994422",commutes:true,wageTier:3,desc:"Serves patrons."},
+  {id:"receptionist-id",label:"RECEPTIONIST",verb:"answering calls",building:"office",districts:["downtown", "residential"],klass:1,clothes:"#336699",clothesAlt:"#224466",commutes:true,wageTier:3,desc:"Greets visitors."}
+];
+var NAME_POOLS={
+  "newengland":{first:["ALEX","BRIAN","CARRIE","DANIEL","EMILY","FIONA","GABE","HANNAH","ISAAC","JAMIE","KAREN","LEO","MATT","NATALIE","OLIVIA","PATRICK","QUINN","RAVEN","SAM","TOM","URSULA","VICTOR","WALTER","XAVIER","YARA","ZACH","ABBY","BEN","CASEY","DANA","EDWARD","FRED","GREG","HELEN","IVAN","JESSICA","KEVIN","LUCY","MIKE","NICK","ORION","PETER","ROSE","SARA","TINA","URIEL","VICTORIA","WILLIAM","XENA","YU","ZOE"],last:["ALMEIDA","BROWN","CARVALHO","DOUGLAS","FERNANDES","GARCIA","HARRIS","IRIZARRY","JOHNSON","KENNEDY","LEONARD","MARTINEZ","NELSON","OLIVEIRA","PEREZ","QUINN","RAMOS","SILVA","TAYLOR","URBANO","VARGAS","WALKER","XAVIER","YATES","ZHANG","ANDREWS","BURNS","CARPENTER","DOUGLASS","FISHER","GIBSON","HARRISON","IRISH","JOSEPH","KELLY","LEWIS","MURPHY","NELSEN","OLSON","PERKINS","QUINTANA","RODRIGUEZ","SANDERS","TOWNSEND","URBAN","VAUGHN","WHITE","XIAO","YUAN"]},
+  "generic":{first:["ALEXA","BRAD","CASEY","DANA","EMILIO","FREDERICK","GABRIELLA","HARRISON","ISABELLA","JAMESON","KARINA","LUCAS","MAYA","NATHAN","OLIVIA","PATRICK","QUINLAN","RAVEN","SAMANTHA","TAYLOR","URSULA","VICTORIA","WALTER","XAVIER","YARA","ZACHARY","ADRIAN","BRENDAN","CLARA","DOMINIC","EVELYN","FRANKLIN","GABRIEL","HEATHER","IVAN","JESSICA","KEVIN","LILIANA","MATTHEW","NADIA","ORION","PENELOPE","QUINN","ROBERTO","SARAH","THERESA","URIEL","VICTOR","WENDY","XIMENA","YASMIN","ZOE"],last:["ADAMS","BROWN","CARPENTER","DAVIS","FERNANDEZ","GARCIA","HARRISON","IRIZARRY","JOHNSON","KELLY","LEWIS","MARTINEZ","NICHOLS","OLSON","PEREZ","QUINN","RAMOS","SANCHEZ","TAYLOR","URBANO","VARGAS","WALKER","XIAO","YUAN","ZHANG","ALVAREZ","BURNS","CARVALHO","DOUGLAS","FISHER","GIBSON","IRISH","JOSEPH","KENNEDY","LEONARD","MURPHY","NELSON","OLIVEIRA","PERKINS","QUINTANA","RODRIGUEZ","SANDERS","TOWNSEND","URBAN","VAUGHN","WHITE","YATES"]}
+};
+function P_region(){ try { return (typeof REGION!=='undefined' && NAME_POOLS[REGION]) ? REGION : (NAME_POOLS.newengland?'newengland':'generic'); } catch(e){ return 'newengland'; } }
+function P_pool(){ return NAME_POOLS[P_region()] || NAME_POOLS.generic || NAME_POOLS.newengland || {first:['SAM'],last:['HALE']}; }
+function P_first(seed){ var pl=P_pool(); return pl.first[P_hash(seed)%pl.first.length]; }
+function P_last(seed){ var pl=P_pool(); return pl.last[P_hash(seed^0x51ED)%pl.last.length]; }
+function P_job(p){ return JOB_TAX[p.job] || {label:'RESIDENT',verb:'',building:'office',klass:1,clothes:'#888',clothesAlt:'#888',commutes:true,wageTier:2,desc:''}; }
+
+// index-stable trajectory decisions (functions of idx+life ONLY, so raising N never rewrites an
+// existing citizen's history — SOL P1). A "founder" is present from founding; others arrive later.
+function P_isFounder(idx, lifeSeed){ return (P_hash((idx*0x9E3779B9)^lifeSeed^0xF00D)%100) < 55; }
+function P_arriveTick(idx, lifeSeed){ return P_isFounder(idx,lifeSeed) ? 0 : (P_hash((idx*0x27D4EB2F)^lifeSeed^0xA5)%((P_LIFE_TICKS*0.6)|0))+1; }
+
+// ---- build a person for slot idx. `spec` carries lineage for a child, else null (founder/immigrant). ----
+function P_make(lifeSeed, idx, gen, bornTick, spec){
+  var s=P_hash((idx*0x9E3779B9) ^ (gen*0x85EBCA6B) ^ lifeSeed);
+  var r=P_rng(s);
+  var job=JOB_TAX.length? (r()*JOB_TAX.length|0) : 0, J=JOB_TAX[job]||{klass:1};
+  var first, last, pA=-1,pAg=-1,pB=-1,pBg=-1, age;
+  if(spec){                                   // a CHILD born into a living couple — real parentage
+    first=P_first(s^0xC1D); last=spec.last;    // inherit a parent's surname (lineage within a life)
+    pA=spec.aIdx; pAg=spec.aGen; pB=spec.bIdx; pBg=spec.bGen; age=0;
+  } else {                                    // founder or adult immigrant
+    first=P_first(s); last=P_last(s>>>7); age=P_ADULT+(r()*40|0);
+  }
+  return { idx:idx, gen:gen, seed:s, first:first, last:last, alive:true, bornTick:bornTick, arrived:false,
+    age:age, maxAge:P_MAXAGE+((r()-0.5)*22|0),
+    job:job, employer:-2, home:-1,
+    wealth: 8 + r()*18 + (J.klass|0)*10, baseClass:(J.klass|0), klass:(J.klass|0),
+    party:(r()*4|0), conv:0.3+r()*0.5, traits:(r()*0x3f|0),
+    spouse:-1, spouseGen:-1, pA:pA,pAg:pAg,pB:pB,pBg:pBg, kids:0,
+    office:0, crimes:0, scandal:0, retired:false, mood:r() };
+}
+function P_name(p){ return p.first+' '+p.last; }
+// resolve a stored (idx,gen) reference to the CURRENT living person in that slot, or null (SOL P0)
+function P_ref(pop, idx, gen){ if(idx<0) return null; var q=pop[idx]; return (q && q.gen===gen && q.alive) ? q : null; }
+
+// ---- the roster + its incremental cache (fold-once, advance; never re-fold per frame) ----
+var P_cache={ key:'', tick:-1, pop:null, econ:null };
+function P_cacheKey(lifeIndex){ return lifeIndex+'|'+PEOPLE_N+'|'+P_region()+'|'+JOB_TAX.length+'|v2'; }  // full input identity (SOL)
+
+var P_NBLDG=60;              // placeholder building count (Stage 2 — real building registry is Stage 3)
+function P_place(pop, i, lifeSeed, tick){
+  var p=pop[i], J=P_job(p);
+  if(J.commutes===false){ p.employer=-3; return; }         // -3 = self-employed (vendor/artist): EMPLOYED, no fixed bldg
+  p.employer = P_hash(p.seed ^ (tick+7)) % P_NBLDG;
+  if(p.home<0) p.home = P_hash(p.seed ^ 0x1234) % P_NBLDG;
+}
+function P_isWorking(p, bldgDead){
+  if(p.retired || p.age<P_ADULT) return false;
+  if(p.employer===-3) return true;                         // self-employed
+  return p.employer>=0 && !bldgDead[p.employer];
+}
+
+// replace a dead slot: a CHILD of a living couple (deterministic pick) or an adult immigrant (SOL P0).
+// returns TRUE if the replacement is a real child (a birth), so P_step can count it.
+function P_respawn(pop, i, lifeSeed, tick){
+  var old=pop[i], gen=old.gen+1;
+  var rr=P_rng(P_hash((i*0x165667B1)^(gen*0xD3A2646C)^lifeSeed^tick));
+  var spec=null;
+  if(rr()<0.62){                                           // most renewal is by birth into a family
+    var j=P_hash((i*0x9E3779B9)^gen^lifeSeed) % pop.length, par=pop[j];
+    var mate=par && par.alive ? P_ref(pop, par.spouse, par.spouseGen) : null;
+    if(par && par.alive && mate && par.age>=P_FERTILE_LO && par.age<=P_FERTILE_HI){
+      spec={ last: (rr()<0.5?par.last:mate.last), aIdx:j, aGen:par.gen, bIdx:par.spouse, bGen:par.spouseGen };
+      par.kids++; mate.kids++;                             // kids are REAL now (a child took a slot)
+    }
+  }
+  pop[i]=P_make(lifeSeed, i, gen, tick+1, spec);
+  return !!spec;
+}
+
+// bounded death ledger — the deceased survive here for "in memoriam" (SOL P1: slots respawn instantly,
+// so the live pop never holds the dead). Part of the folded econ state ⇒ freeze-safe & deterministic.
+var P_DEAD_MAX=48;
+function P_deadPush(econ, pop, p, tick){
+  var J=P_job(p), sp=P_ref(pop,p.spouse,p.spouseGen);
+  econ.deadLedger.push({ pid:p.idx*1024+p.gen, name:P_name(p), first:p.first, last:p.last,
+    job:J.label, verb:J.verb||'', jobDesc:J.desc||'', clothes:J.clothes||'#888',
+    klass:p.klass, klassName:P_KLABEL[p.klass], age:p.age|0, party:p.party, partyName:P_PARTY[p.party]||'',
+    netWorth:Math.round(p.wealth*1000), crimes:p.crimes, office:p.office, kidCount:p.kids,
+    spouseName:sp?P_name(sp):null, parents:[], retired:!!p.retired, alive:false, diedTick:tick });
+  if(econ.deadLedger.length>P_DEAD_MAX) econ.deadLedger.shift();
+}
+
+// forward-step ONE tick over the whole cast. O(N) + O(N) rollup + periodic O(N) election.
+function P_step(pop, tick, lifeSeed, bldgDead, econ, evt){
+  var N=pop.length, e=evt(tick, lifeSeed, bldgDead);
+  var employed=0, wforce=0, wealthSum=0, poor=0, working=0, prof=0, rich=0, alive=0;
+  var newCrime=0, deaths=0, births=0;
+  var v=[0,0,0,0];
+  var doElect = tick>0 && (tick%P_ELECT_EVERY)===0;
+  var prevRich = econ.richPct||0;                          // prior-tick inequality signal (SOL P2: no index bias)
+
+  for(var i=0;i<N;i++){
+    var p=pop[i];
+    if(p.bornTick>tick) continue;                          // not arrived yet
+    if(!p.arrived){ p.arrived=true; if(p.employer===-2) P_place(pop,i,lifeSeed,tick); }
+    if(!p.alive) continue;
+    var r=P_rng(p.seed ^ (tick*0x9E3779B9));
+
+    // lazy reference cleanup — a widowed person loses a dead spouse deterministically (SOL P0)
+    if(p.spouse>=0 && !P_ref(pop,p.spouse,p.spouseGen)){ p.spouse=-1; p.spouseGen=-1; }
+
+    p.age++;
+    // natural death (+ disaster in home district)
+    var dP = p.age>p.maxAge ? 0.22 : p.age>p.maxAge-10 ? 0.02 : p.age>P_ELDER ? 0.004 : 0.0004;
+    if(e.disK.length){ for(var d=0;d<e.disK.length;d++){ if(p.home===e.disK[d]){ dP+=0.14; break; } } }
+    if(r()<dP){ p.alive=false; deaths++;
+      P_deadPush(econ, pop, p, tick);                     // remember the deceased (in memoriam)
+      if(P_respawn(pop,i,lifeSeed,tick)) births++;        // a replacement born INTO a family = a birth
+      continue; }
+    if(p.age>=P_ELDER && !p.retired && r()<0.06){ p.retired=true; }
+
+    // employment reacts to the economy
+    if(p.age>=P_ADULT && !p.retired){
+      if(e.bankrupt.length){ for(var b=0;b<e.bankrupt.length;b++){ if(p.employer===e.bankrupt[b]) p.employer=-1; } }
+      if(p.employer===-1 && r() < (0.55 - (econ.unemp||0)*0.4)) P_place(pop,i,lifeSeed,tick);   // rehire; harder in a slump
+      wforce++;
+      var wk = P_isWorking(p, bldgDead);
+      if(wk){ employed++; p.wealth += 0.30 + P_job(p).wageTier*0.30; } else { p.wealth -= 0.32; }
+    }
+    // sticky cost of living by class (keeps the poor poor) …
+    p.wealth -= 0.16 + p.baseClass*0.10;
+    // … and capital begets capital: wealth above a cushion compounds, so a real upper class forms
+    // and the rich/poor gap WIDENS over a life (the engine of Nick's class-warfare arc, Q10/Q23).
+    if(p.wealth>45) p.wealth *= 1.006;
+    if(p.wealth<0) p.wealth=0;
+    p.klass = p.wealth>95?3 : p.wealth>52?2 : p.wealth>20?1 : 0;
+
+    // crime: poverty + low-honesty trait; opportunity scales with LAST tick's inequality (SOL P2)
+    if(p.klass===0 && !(p.traits&2) && r() < 0.015 + prevRich*0.03){ p.crimes++; newCrime++; }
+
+    // marriage: deterministic O(1) candidate probe; store the mate's generation for safe refs
+    if(p.spouse<0 && p.age>24 && p.age<70 && r()<0.02){
+      var cand=(P_hash(p.seed^0xABCD)>>>(tick&7))%N, q=pop[cand];
+      if(cand!==i && q.alive && q.spouse<0 && q.bornTick<=tick && q.age>24){
+        p.spouse=cand; p.spouseGen=q.gen; q.spouse=i; q.spouseGen=p.gen;
+      }
+    }
+    // minds can change: conviction drifts with fortune (Nick Q17)
+    if(r()<0.04){ p.conv += (p.klass>=2?0.02:-0.03); if(p.conv<0){ p.party=(p.party+1+(r()*3|0))&3; p.conv=0.4; } }
+
+    alive++; wealthSum+=p.wealth;
+    if(p.klass===0)poor++; else if(p.klass===1)working++; else if(p.klass===2)prof++; else rich++;
+    if(doElect && p.age>=P_ADULT) v[p.party]++;
+  }
+
+  // aggregates roll up FROM the agents, over the LIVING population (SOL P1 denominators)
+  econ.alive=alive; econ.unemp = wforce? (1-employed/wforce) : 0;
+  econ.avgWealth = alive? wealthSum/alive : 0; econ.gdp = wealthSum;
+  econ.poorPct = alive? poor/alive : 0; econ.workingPct = alive? working/alive : 0;
+  econ.profPct = alive? prof/alive : 0; econ.richPct = alive? rich/alive : 0;
+  econ.crimeTotal = (econ.crimeTotal||0) + newCrime;       // cumulative this life
+  econ.crimeRecent = newCrime; econ.births=(econ.births||0)+births; econ.deaths=(econ.deaths||0)+deaths;
+
+  // mayor validity: a dead mayor vacates immediately (SOL P1)
+  if(econ.mayor>=0 && !P_ref(pop, econ.mayor, econ.mayorGen)){ econ.mayor=-1; econ.mayorGen=-1; }
+
+  if(doElect){
+    var mx=Math.max(v[0],v[1],v[2],v[3]), win=v.indexOf(mx);
+    var best=-1, bs=-1;                                     // winning party's most prominent living adult
+    for(var k=0;k<N;k++){ var c=pop[k]; if(c.alive && c.party===win && c.age>=P_ADULT && c.bornTick<=tick){ var sc=c.conv*100+c.wealth*0.5+c.age; if(sc>bs){ bs=sc; best=k; } } }
+    if(econ.mayor>=0 && P_ref(pop,econ.mayor,econ.mayorGen)) pop[econ.mayor].office=0;
+    if(best>=0){ pop[best].office=2; econ.mayor=best; econ.mayorGen=pop[best].gen; econ.winParty=win; econ.elections=(econ.elections||0)+1; }
+  }
+  econ.tick=tick;
+}
+
+// deterministic city-event stream (standalone; in-engine this reads the real pure-clock subsystems)
+function P_defaultEvents(tick, lifeSeed, bldgDead){
+  var h=P_hash((tick*2654435761 ^ lifeSeed)>>>0), disK=[], bankrupt=[];
+  if((h%130)===0){ var c=h%P_NBLDG; disK.push(c,(c+1)%P_NBLDG,(c+2)%P_NBLDG); }
+  if((h%40)===0){ var b=(h>>>7)%P_NBLDG; bankrupt.push(b); bldgDead[b]=1; }
+  if((tick%13)===0){ bldgDead[P_hash(tick)%P_NBLDG]=0; }
+  return {disK:disK, bankrupt:bankrupt};
+}
+
+// fold the whole life to `tick` (cold path) — bounded, deterministic.
+function P_fold(lifeIndex, toTick, evt){
+  var lifeSeed=P_hash((lifeIndex*2654435761 + 12345)>>>0);
+  var pop=new Array(PEOPLE_N);
+  for(var i=0;i<PEOPLE_N;i++) pop[i]=P_make(lifeSeed, i, 0, P_arriveTick(i,lifeSeed), null);
+  var bldgDead=new Array(P_NBLDG); for(var z=0;z<P_NBLDG;z++) bldgDead[z]=0;   // QML V4: no Array.fill
+  var econ={alive:0,unemp:0,gdp:0,avgWealth:0,poorPct:0,workingPct:0,profPct:0,richPct:0,
+    crimeTotal:0,crimeRecent:0,births:0,deaths:0,mayor:-1,mayorGen:-1,winParty:-1,elections:0,tick:-1,deadLedger:[]};
+  for(var t=0;t<=toTick;t++) P_step(pop,t,lifeSeed,bldgDead,econ, evt||P_defaultEvents);
+  return {pop:pop, econ:econ, bldgDead:bldgDead, lifeSeed:lifeSeed};
+}
+
+// internal: cached fold to `now`. Maps now->tick via cy. Advances incrementally; re-folds on key change.
+function P_sim(lifeIndex, cy, evt){
+  if(!isFinite(cy)) cy=0; if(cy<0) cy=0; if(cy>1) cy=1;        // SOL: non-finite cy must clamp, not yield a misleading empty roster
+  var tick=Math.max(0, Math.min(P_LIFE_TICKS, Math.floor(cy*P_LIFE_TICKS)));
+  var key=P_cacheKey(lifeIndex);
+  if(P_cache.key===key && P_cache.tick===tick) return P_cache;
+  if(P_cache.key===key && P_cache.tick<tick && P_cache.pop){                  // warm incremental advance
+    var lifeSeed=P_hash((lifeIndex*2654435761 + 12345)>>>0);
+    for(var t=P_cache.tick+1;t<=tick;t++) P_step(P_cache.pop,t,lifeSeed,P_cache.bldgDead,P_cache.econ, evt||P_defaultEvents);
+    P_cache.tick=tick; return P_cache;
+  }
+  var r=P_fold(lifeIndex, tick, evt);                                         // cold fold (key change / rewind)
+  P_cache={ key:key, tick:tick, pop:r.pop, econ:r.econ, bldgDead:r.bldgDead };
+  return P_cache;
+}
+
+// ---- read-only projections (fresh objects; canonical state never escapes) ----
+function P_proj(pop, p){
+  var J=P_job(p), sp=P_ref(pop,p.spouse,p.spouseGen), pa=P_ref(pop,p.pA,p.pAg), pb=P_ref(pop,p.pB,p.pBg);
+  var parents=[]; if(pa)parents.push(P_name(pa)); if(pb)parents.push(P_name(pb));
+  return { pid:p.idx*1024+p.gen, name:P_name(p), first:p.first, last:p.last,
+    job:J.label, verb:J.verb||'', jobDesc:J.desc||'', clothes:J.clothes||'#888',
+    klass:p.klass, klassName:P_KLABEL[p.klass], age:p.age|0, alive:!!p.alive, retired:!!p.retired,
+    office:p.office, party:p.party, partyName:P_PARTY[p.party]||'',
+    netWorth:Math.round(p.wealth*1000), crimes:p.crimes,
+    spouseName:sp?P_name(sp):null, kidCount:p.kids, parents:parents };
+}
+// deterministic display-name uniqueness: if two projections collide, append a middle initial (SOL P1)
+function P_dedupeNames(projs){
+  var seen={}, INIT='ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  for(var i=0;i<projs.length;i++){ var pr=projs[i], nm=pr.name, k=0;
+    while(seen[nm]){ var mi=INIT[(P_hash(pr.pid^k)%26)]; nm=pr.first+' '+mi+'. '+pr.last; k++; if(k>26)break; }
+    seen[nm]=1; pr.name=nm; }
+  return projs;
+}
+function P_gini(vals){ // real, bounded Gini over living net worths (O(N log N), N<=~200 → cheap)
+  var n=vals.length; if(n<2) return 0;
+  var a=vals.slice().sort(function(x,y){return x-y;}), sum=0, cum=0;
+  for(var i=0;i<n;i++) sum+=a[i];
+  if(sum<=0) return 0;
+  for(var j=0;j<n;j++) cum+=(j+1)*a[j];
+  return Math.max(0, Math.min(1, (2*cum)/(n*sum) - (n+1)/n));
+}
+
+// PUBLIC — the only entry points consumers call.
+function peopleRoster(now, lifeIndex, cy, evt){
+  var C=P_sim(lifeIndex, cy, evt||null), pop=C.pop, econ=C.econ;
+  var living=[], dead=[], nets=[];
+  for(var i=0;i<pop.length;i++){ var p=pop[i]; if(!p.arrived||!p.alive) continue;
+    living.push(P_proj(pop,p)); nets.push(p.wealth); }
+  var L=econ.deadLedger;                                       // the deceased (bounded ledger), most recent first
+  for(var d=L.length-1; d>=0; d--){ var rec=L[d], c={}; for(var kk in rec) c[kk]=rec[kk]; dead.push(c); }
+  P_dedupeNames(living.concat(dead));                       // unique display names across everyone shown
+  var mayor=null; if(econ.mayor>=0 && P_ref(pop,econ.mayor,econ.mayorGen)) mayor=P_proj(pop,pop[econ.mayor]);
+  living.sort(function(a,b){ return (b.office-a.office) || (b.netWorth-a.netWorth); });
+  var stats={ pop:econ.alive, unemp:econ.unemp, poorPct:econ.poorPct, workingPct:econ.workingPct,
+    profPct:econ.profPct, richPct:econ.richPct, avgNetWorth:Math.round(econ.avgWealth*1000),
+    crimeTotal:econ.crimeTotal, crimeRecent:econ.crimeRecent, gini:P_gini(nets),
+    elections:econ.elections, births:econ.births, deaths:econ.deaths, mayorName:mayor?mayor.name:null };
+  return { living:living, dead:dead, mayor:mayor, stats:stats, cy:cy };
+}
+function peopleStats(now, lifeIndex, cy, evt){ return peopleRoster(now,lifeIndex,cy,evt).stats; }
+// ===================== end THE PEOPLE — CITIZEN SIM =====================
+
+// ============ THE PEOPLE — WORLD BINDING + EMBODIMENT (v2.0 Stage 3) ============
+// CENTRAL birth predicate — canonical "this building is fully built". Fixes the engine's < vs <= drift:
+// equality (cityG-bAge === bandOf) counts as STILL SCAFFOLDING (matches line 6232's strict `>`); the
+// one-frame boundary instant simply isn't yet a valid destination — harmless.
+function buildingBuilt(b, cityG){ return b && (b.bAge===undefined || (cityG - b.bAge) > bandOf(b)); }
+// standing = built AND not currently destroyed. Destruction predicates are ENGINE globals present only
+// in the draw context; typeof-guarded so this is safe headless and active once spliced. VERIFY the exact
+// names when splicing (nukeStruck/nukeHit confirmed; ruin predicate TBD at splice).
+function buildingStanding(b, cityG){
+  if(!b) return false;
+  if(b.type!=='park' && !buildingBuilt(b, cityG)) return false;   // parks are open land — always "there"
+  // currently destroyed? (engine globals; typeof-guarded so headless is a no-op)
+  if(typeof nukeStruck==='function' && nukeStruck() && typeof nukeHit==='function' && nukeHit(b.x)) return false;  // apocalypse blast zone
+  if(typeof curRuins!=='undefined' && curRuins && curRuins.length && typeof inZone==='function'){
+    for(var r=0;r<curRuins.length;r++) if(inZone(b.x, b.w, curRuins[r])) return false;                            // permanent ruin
+  }
+  if(typeof curDis!=='undefined' && curDis){                                                                     // SOL P1: an ACTIVE disaster is razing this block
+    var dd=((wrapW(b.x)-curDis.x+WW*1.5)%WW)-WW*0.5; if(Math.abs(dd) < (curDis.w>>1)+8) return false;
+  }
+  return true;
+}
+function bldUse(b){ return b.use || (b.type==='park' ? 'park' : useFor(b.district, b.h, b.seed)); }
+
+// job building-type → the useFor bucket that hosts it (for types useFor never emits)
+var BIND_FALLBACK = { cityhall:'office', docks:'warehouse', corp:'office' };
+
+// EXPLICIT world identity for the registry cache (SOL): rebuild on life / WW / KSP / region change,
+// not merely when `near` is a fresh object — a resize can mutate WW/KSP under a reused layer.
+function peopleWorldKey(){
+  var now=(typeof NOWOVR!=='undefined'&&NOWOVR!=null)?NOWOVR:Date.now();
+  return lifeIndexOf(now)+'|'+(typeof WW!=='undefined'?WW:0)+'|'+(typeof KSP!=='undefined'?KSP:0)+'|'+(typeof REGION!=='undefined'?REGION:'');
+}
+// Registry: immutable per world identity. Cached on the layer, keyed. Candidate INDEX pools by role.
+function peopleBuildRegistry(near){
+  if(!near || !near.blds) return null;
+  var key=peopleWorldKey();
+  if(near._peopleReg && near._peopleReg.key===key) return near._peopleReg;
+  var blds=near.blds, byUse={}, homes=[];
+  for(var i=0;i<blds.length;i++){ var u=bldUse(blds[i]);
+    (byUse[u]=byUse[u]||[]).push(i);
+    if(u==='apartment') homes.push(i);
+  }
+  if(!homes.length){ for(var k=0;k<blds.length;k++) if(blds[k].type!=='park') homes.push(k); }  // hamlet: any shelter
+  near._peopleReg = { key:key, byUse:byUse, homes:homes };
+  return near._peopleReg;
+}
+function workPool(reg, jobBuilding){
+  var pool=reg.byUse[jobBuilding];
+  if(!pool||!pool.length){ pool=reg.byUse[BIND_FALLBACK[jobBuilding]||'office']; }
+  if(!pool||!pool.length){ pool=reg.homes; }
+  return pool||[];
+}
+
+// rendezvous weight of a candidate building for a given citizen+role salt
+function rvw(seed, bId, salt){ return P_hash((seed ^ P_hash((bId*2654435761 ^ salt)>>>0))>>>0); }
+// pick the highest-weight STANDING candidate index from a pool (or -1). Stable building id = b.x.
+function peoplePick(near, pool, seed, salt, cityG){
+  var best=-1, bw=-1;
+  for(var i=0;i<pool.length;i++){ var idx=pool[i], b=near.blds[idx];
+    if(!buildingStanding(b, cityG)) continue;
+    var wgt=rvw(seed, b.x|0, salt);
+    if(wgt>bw){ bw=wgt; best=idx; }
+  }
+  return best;
+}
+// public: this citizen's currently-embodied home + work building indices (or -1 = not embodied now)
+function peopleHomeWork(near, seed, jobBuilding, commutes, cityG){
+  var reg=peopleBuildRegistry(near); if(!reg) return {homeB:-1, workB:-1};
+  var homeB=peoplePick(near, reg.homes, seed, 0x484F4D45, cityG);        // "HOME"
+  var workB=(commutes===false) ? -2 : peoplePick(near, workPool(reg, jobBuilding), seed, 0x574F524B, cityG);  // "WORK"
+  return { homeB:homeB, workB:workB };
+}
+
+// ---- STATIC EMBODIMENT (Stage 3 step 2): draw named citizens at their home/work building in job
+// clothing. Read-only fn of (cached roster, registry, effective clock). Records drawnNamed[] for
+// inspect (step 4). Commute (home<->work walking) is step 3. Effective clock only (no Date.now).
+var drawnNamed=[];
+// a spot on a building's frontage (deterministic per citizen+salt) so co-workers/neighbours spread out
+function frontX(b, seed, salt){ return b.x + 2 + ((seed>>>salt) % Math.max(1,(b.w|0)-3)); }
+// interpolate world-x along the SHORTEST wrapped path (SOL): a commuter never walks the long way round
+function lerpWX(a, b, t){ var d=b-a; if(d>WW/2)d-=WW; if(d<-WW/2)d+=WW; return wrapW(a + d*t); }
+function drawNamedCitizens(g, now){
+  drawnNamed.length=0;
+  if(!near || !near.blds) return;
+  if(cityG<0.22 || cityPhase==="apoc" || (typeof nukeStruck==='function' && nukeStruck())) return;  // peds handle apoc/flee
+  var li=lifeIndexOf(now), cy=cityGrowth(now).cy, C=P_sim(li, cy), pop=C.pop;
+  var nd=new Date(now), hh=nd.getHours()+nd.getMinutes()/60;    // SOL P1: the EFFECTIVE clock (now is NOWOVR-aware); nowDate() uses CLOCK and breaks freeze
+  var night=(hh<6 || hh>=22), shelter=(curDis!=null || curOutbreak);   // disaster/plague: people stay home
+  var cap=(QUAL>=2?PEOPLE_N:(QUAL>=1?120:70)), drawn=0;
+  for(var i=0;i<pop.length && drawn<cap;i++){ var p=pop[i];
+    if(!p.arrived || !p.alive) continue;
+    if(night && ((p.seed>>>20)%5)!==0) continue;                  // most are asleep inside at night
+    var J=P_job(p), hw=peopleHomeWork(near, p.seed, J.building, J.commutes, cityG);   // P_job: fallback-safe
+    if(hw.homeB<0) continue;
+    var hb=near.blds[hw.homeB], homeX=frontX(hb, p.seed, 3);
+    var wx, phase;                                                // phase: 0 home · 1 to-work · 2 at-work · 3 to-home
+    // per-citizen staggered shift (±0.9h) so the whole city doesn't move in lockstep
+    var ph=((p.seed>>>17)%108)/60 - 0.9, leaveH=8+ph, arriveW=9+ph, leaveW=17+ph, arriveH=18+ph;
+    if(shelter){ wx=homeX; phase=0; }
+    else if(hw.workB===-2){                                       // self-employed: out in public near home by day
+      if(hh>=leaveH && hh<arriveH){ wx=wrapW(homeX + ((p.seed>>>9)%40)-20); phase=2; } else { wx=homeX; phase=0; }
+    } else if(hw.workB<0){ wx=homeX; phase=0; }                   // workplace not standing → stay home
+    else {
+      var workX=frontX(near.blds[hw.workB], p.seed, 5);
+      if(hh<leaveH || hh>=arriveH){ wx=homeX; phase=0; }
+      else if(hh<arriveW){ wx=lerpWX(homeX, workX, (hh-leaveH)/(arriveW-leaveH)); phase=1; }
+      else if(hh<leaveW){ wx=workX; phase=2; }
+      else { wx=lerpWX(workX, homeX, (hh-leaveW)/(arriveH-leaveW)); phase=3; }
+    }
+    // SOL P1: named citizens obey the same road/sea/disaster rules as anonymous peds — no standing on
+    // dirt ahead of the paver, on open water, or inside an active disaster's danger zone (they've fled).
+    if(inSea(wx) || !onPavedRoad(wx)) continue;
+    if(curDis){ var ddz=((wrapW(wx)-curDis.x+WW*1.5)%WW)-WW*0.5; if(Math.abs(ddz) < (curDis.w>>1)+10) continue; }
+    var sx=disX(wx); if(sx<-4 || sx>SW+4) continue;               // spatial cull (exact disX used to draw)
+    var moving=(phase===1||phase===3), onClock=(phase!==0);
+    var row=(p.seed>>>15)%3, py=HORIZON-1+row;
+    var cloth=onClock ? J.clothes : PEDC[(p.seed>>>0)%PEDC.length];   // work uniform on the clock, civvies off
+    var skin=SKINC[(p.seed>>>11)%SKINC.length];
+    var bob=moving ? (Math.floor(now*0.006 + i*2.7)&3) : (Math.floor(now*0.002 + i)&1);   // brisk walk vs idle sway
+    drawPerson(g, sx|0, py, cloth, skin, bob, 0);
+    drawnNamed.push({idx:p.idx, gen:p.gen, pid:p.idx*1024+p.gen, k:p.klass, sx:sx|0, y:py, order:drawn});
+    drawn++;
+  }
+}
+// SPEECH BUBBLES (Stage 3 step 5): when two embodied citizens stand together one speaks a short line.
+// Deterministic (pure fn of pids + a slow time slot), spatial-bucketed adjacency, rate-limited to ≤2/
+// screen (SOL). Lines offloaded to the GameServer, validated ≤29 chars ASCII, inlined below.
+var SPEECH_LINES={
+  "greet":["HELLO THERE!","HOW ARE YOU?","WHAT'S UP?","GOOD TO SEE YOU!","HI FRIEND!","YOU LOOK WELL!","GREETINGS!","LONG TIME NO SEE!","HOW'S EVERYTHING?","ALL GOOD?","WELL HELLO!","NICE DAY, HUH?","HOW'S LIFE?","THE USUAL"],
+  "gossip":["HE'S MOVING TO THE SUBURBS.","SHE GOT A NEW CAR.","THEY'RE GETTING MARRIED.","HE'S GOT A NEW JOB.","SHE'S TAKING VACATION.","THEY'RE RENOVATING.","HE'S JOINING THE COUNCIL.","SHE'S LEAVING TOWN.","THEY'RE DOWNIZING.","HE'S RETIRING SOON.","SHE'S STARTING A BUSINESS.","THEY'RE HAVING A BABY.","HE'S GETTING A PET.","SHE'S JOINING THE BOARD."],
+  "economy":["PRICES ARE RISING.","RENT IS OUT OF CONTROL.","JOBS ARE HARD TO FIND.","BUSINESS IS BOOMING.","ECONOMY IS STRONG.","MARKET IS VOLATILE.","COST OF LIVING IS HIGH.","INFLATION IS WORRYING.","STOCKS ARE FALLING.","THERE'S A SHORTAGE.","SAVINGS ARE LOW.","INVESTMENTS ARE PAYING OFF.","THE RENT IS TOO DAMN HIGH!","ECONOMY NEEDS IMPROVEMENT."],
+  "politics":["MAYOR'S DOING WELL.","COUNCIL IS DIVIDED.","TIME FOR A NEW CANDIDATE.","VOTERS ARE UNHAPPY.","ELECTION IS CLOSE.","CITY TAXES ARE LOW.","ZONING LAWS NEED CHANGE.","GOVERNMENT IS INEFFICIENT.","MAYOR'S CAMPAIGN IS STRONG.","NEW LAWS ARE COMING.","POLITICIANS ARE BUSY.","TOWN HALLS ARE HEATED.","COUNCIL MEETINGS ARE LONG.","POLITICS ARE COMPLICATED."],
+  "weather":["IT'S A BEAUTIFUL DAY!","RAIN AGAIN, GREAT.","COULD USE SOME SUN.","COLD WIND TODAY.","SUMMER IS FINALLY HERE.","RAINING CATS AND DOGS.","NICE AND COOL.","HOTTER THAN HELL.","SNOW IS COMING.","RAIN, RAIN, GO AWAY!","THE SKIES ARE CLOUDY.","WARMER THAN YESTERDAY.","IT'S A BIT WINDY.","THE SUN IS SHINING."],
+  "work":["COMMUTE WAS ROUGH.","WORK IS BUSY.","MEETING WENT WELL.","NEED A BREAK!","PROJECTS ARE DONE.","TEAM IS MOTIVATED.","BUSINESS IS SLOW.","WORKLOAD IS HEAVY.","COFFEE BREAK TIME!","PRODUCTIVITY IS UP.","MANAGING STRESS WELL.","COLLEAGUES ARE GREAT.","BUSINESS IS BUSY.","OFFICE IS NOISY."],
+  "family":["KIDS ARE GROWING FAST.","SPOUSE IS COOKING.","HOME NEEDS CLEANING.","GRANDCHILDREN ARE HERE.","KIDS ARE IN SCHOOL.","SPOUSE WORKS LATE.","HOUSE NEEDS PAINT.","FAMILY TRIP SOON!","KIDS ARE TALKATIVE.","SPOUSE'S HOLIDAY IS GREAT.","HOME IS COZY.","KIDS ARE PLAYING OUTSIDE.","GRANDPARENTS VISIT NEXT WEEK.","SIBLINGS ARE IN TOWN."],
+  "class_rich":["JUST BACK FROM TRAVEL.","NEW CAR IS SPECTACULAR.","HOUSE IS BEAUTIFUL.","VACATION WAS WONDERFUL.","COLLECTION IS GROWING.","INVESTMENTS ARE DOUBLING.","WEEKENDS ARE LUXURIOUS.","HOME IS COMFORTABLE.","FINE ART IS BEAUTIFUL.","NEW WATCH IS SLEEK.","GARDEN IS BLOOMING.","LUXURY LIFE IS GREAT.","YACHT IS READY.","VILLA IS MAGNIFICENT."],
+  "class_poor":["STRUGGLING TO MAKE ENDS MEET.","NEED HELP WITH RENT.","WORKING TWO JOBS.","BILLS ARE PILING UP.","KIDS NEED NEW CLOTHES.","HOPING FOR BETTER DAYS.","SOMETIMES IT'S TIGHT.","JUST MANAGING.","NEED A LITTLE HELP.","HOPE FOR A RAISE.","FEELING A BIT STRESSED.","TRYING TO SAVE.","JUST MAKING IT.","WORK IS TOUGH."],
+  "smalltalk":["NICE DAY OUT, HUH?","LIFE'S GOOD.","HOW'S WORK?","THE USUAL STUFF.","JUST DOING FINE.","HOPE YOU'RE WELL.","EVERYTHING OK?","JUST TAKING IT EASY.","GOOD TO BE OUT.","THE WEATHER'S GREAT.","FEELING LUCKY.","HOPE YOU'RE HEALTHY.","ALL'S WELL.","ENJOYING THE DAY."]
+};
+function bubbleLine(a, slot){
+  var cat;
+  if(a.k===0) cat='class_poor'; else if(a.k===3) cat='class_rich';
+  else { var cats=['greet','smalltalk','weather','work','gossip','economy','politics','family']; cat=cats[((a.pid^slot)>>>0)%cats.length]; }
+  var L=SPEECH_LINES[cat]||SPEECH_LINES.greet; return L[((a.pid*7^slot)>>>0)%L.length];
+}
+function drawSpeechBubble(g, cx, topY, text, night){
+  var w=textW(text); if(w+6>SW) return;                        // SOL: a caption wider than the screen can't be laid out
+  var x=(cx-(w>>1))|0, y=(topY-9)|0;
+  if(x<3)x=3; if(x+w+3>SW)x=SW-w-3;                            // keep the box fully on-screen
+  var tailX=Math.max(x, Math.min(x+w-2, (cx-1)|0));            // clamp the tail to under the (clamped) box
+  g.fillStyle=night?"rgba(18,22,32,0.92)":"rgba(248,249,255,0.94)";
+  g.fillRect(x-2,y-2,w+4,9);
+  g.fillRect(tailX,y+7,2,2);                                   // little downward tail
+  drawUiText(g, text, x, y, night?"#dfe6f4":"#1a2030", 1);
+}
+function drawSpeechBubbles(g, now, night){
+  if(!drawnNamed || drawnNamed.length<2 || cityG<0.22 || cityPhase==="apoc") return;
+  var arr=drawnNamed.slice().sort(function(a,b){return a.sx-b.sx;});
+  var slot=(now/2600)|0, shown=0, taken=[];
+  for(var i=0;i<arr.length-1 && shown<2;i++){ var a=arr[i], b=arr[i+1];
+    if(Math.abs(a.sx-b.sx)>7 || Math.abs(a.y-b.y)>3) continue;    // co-located (adjacency bucket, not float equality)
+    if(((a.pid ^ b.pid ^ slot)>>>0) % 6 !== 0) continue;         // only some pairs talk, rotating slowly
+    var line=bubbleLine(a,slot), w=textW(line), cx=Math.min(a.sx,b.sx)+(Math.abs(a.sx-b.sx)>>1);
+    var lo=cx-(w>>1)-4, hi=cx+(w>>1)+4, clash=false;             // no two bubbles may overlap (SOL: text-measure & separate)
+    for(var t=0;t<taken.length;t++){ if(hi>taken[t][0] && lo<taken[t][1]){ clash=true; break; } }
+    if(clash) continue;
+    taken.push([lo,hi]);
+    drawSpeechBubble(g, cx, Math.min(a.y,b.y)-2, line, night);
+    shown++;
+  }
+}
+// INSPECT (Stage 3 step 4): resolve a click/tap in DRAW-space (sx,sy — the same coords used to draw,
+// i.e. canvasX/ZOOM) to the citizen under the cursor. Read-only projection; generation-checked so a
+// respawned slot never impersonates the deceased (SOL). Overlap → nearest → highest draw order.
+function peopleInspectAt(sx, sy){
+  if(!drawnNamed || !drawnNamed.length) return null;
+  var best=null, bestD=1e9;
+  for(var i=0;i<drawnNamed.length;i++){ var d=drawnNamed[i];
+    var dx=sx-d.sx, dyc=sy-(d.y-3);                              // sprite ≈ 5w × 7h, torso near (sx, y-3)
+    if(dx<-5||dx>5||dyc<-7||dyc>4) continue;                     // hit rect (expanded for touch)
+    var dist=dx*dx+dyc*dyc;
+    if(best===null || dist<bestD || (dist===bestD && d.order>best.order)){ best=d; bestD=dist; }
+  }
+  if(!best) return null;
+  var now=(typeof NOWOVR!=='undefined'&&NOWOVR!=null)?NOWOVR:Date.now(), C=P_sim(lifeIndexOf(now), cityGrowth(now).cy);
+  var p=C.pop[best.idx];
+  if(!p || p.gen!==best.gen || !p.alive) return null;           // slot was refilled since the draw → nobody there
+  return P_proj(C.pop, p);
+}
+// ============ end THE PEOPLE — WORLD BINDING + EMBODIMENT ============
+
+
+
 // STREET BILLBOARDS: a few fixed hoardings along the boulevards carrying the current companies' ads (readable
 // name + brand logo). Rotate slowly; skip the dead. Fixed count → cheap/freeze-safe.
 // Every sign is VISIBLY MOUNTED (Nick: no floating signs): flush on a wide building's facade
@@ -14717,6 +15226,7 @@ function draw(g,pass){
     else if(curWar&&curWar.f>=0.2&&curWar.f<1){ var wdx=pwx-curWar.x; if(wdx>WW/2)wdx-=WW; if(wdx<-WW/2)wdx+=WW;
       if(Math.abs(wdx)<110){ fleeing=true; pwx=wrapW(pwx+(wdx>=0?1:-1)*(now%4000)*0.03); } }
     var keep=wmood.pedFactor*districtBusy(pdist,rhythm.hour)*growPop;     // fewer in quiet districts/hours + a young city
+    if(cityG>=0.22 && cityPhase!=="apoc") keep*=0.4;                      // THE PEOPLE: named citizens now supply most of the crowd — thin the anonymous strollers so the street isn't overpacked
     if(curOutbreak) keep*=0.6;                                            // N5: people stay home
     if((((i*2654435761+977)>>>0)/4294967296) >= keep) continue;           // >= so keep=0 really means NOBODY (hash of i=0 is 0)
     var px=pwx-WOFF;
@@ -14763,6 +15273,8 @@ function draw(g,pass){
     }
   }
 
+  drawNamedCitizens(g, now);                   // THE PEOPLE: named citizens embodied at their buildings (Stage 3)
+  drawSpeechBubbles(g, now, night>0.5);         // THE PEOPLE: they chat when they meet (night is 1-L → boolean)
   if(!nukeFull()) drawHardTimes(g,L,now);      // a deep recession on the street: homeless camps, panhandlers, barrel fires — drawn AFTER the crowd so they read in the FOREGROUND (not occluded by pedestrians)
   if(!nukeFull()) drawAddiction(g,L,now);      // THE ADDICTION CRISIS: gaunt, grey, slumped figures (foreground, so the difference reads)
   drawTicker(g,L,now,night);                   // the downtown LED news band
