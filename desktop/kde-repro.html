@@ -35,10 +35,11 @@ if(Q.get('dis')){ FORCEDIS={type:Q.get('dis'),intensity:(Q.get('disi')!=null?+Q.
 if(Q.get('event')){ FORCEEVENT=Q.get('event'); }   // force a calendar event on (concert/foodfest/champ/icerink/market/parade/…)
 if(Q.get('civic')){ FORCEELECT={civics:[{t:Q.get('civic'),kind:"build",civic:true,pass:true,bp:(Q.get('bp')==='cons'?'cons':'done'),prog:qn('prog',1),x:Math.round(ww*qn('cx',0.5)),w:56,seed:998877}]}; }   // force a civic landmark (uses local ww; WW isn't set until setup runs below)
 if(Q.get('regime')){ var _rbills=(Q.get('bills')==='1');   // ?regime=<1-6>&bills=1 → force the BILLS MAFIA reskin instead of THE ORDER
+  var _rout=Q.get('outcome')||((Q.get('perm')==='1')?'putdown':'win');   // ?outcome=putdown|win (perm=putdown)
   FORCEREGIME={active:true,stage:+Q.get('regime'),sub:qn('rsub',0.5),
     party:_rbills?{k:"BILLS MAFIA",c:"#00338d"}:{k:"THE ORDER",c:"#c0182a"}, theme:_rbills?"bills":"order",
     leaderName:_rbills?("COACH "+(Q.get('leader')||"ALLEN")):("CHANCELLOR "+(Q.get('leader')||"VOSS")),
-    path:(Q.get('rpath')||"revolution"),cyStart:0.42,cyEnd:(Q.get('perm')==='1'?0.955:0.80),perm:(Q.get('perm')==='1'),seed:1337}; }   // force stage 1-6 (?perm=1 = permanent Bills takeover)
+    path:(Q.get('rpath')||"revolution"),outcome:_rout,perm:(_rout==='putdown'),cyStart:0.42,cyEnd:(_rout==='putdown'?0.955:0.80),seed:1337}; }   // ?regime=1-6 (&outcome=putdown|win)
 if(Q.get('plague')){ FORCEPLAGUE={active:true,stage:+Q.get('plague'),sub:qn('psub',0.5),severity:qn('psev',+Q.get('plague')>=3?1:0.5),zombie:(Q.get('pz')==='1'),zprog:qn('pzprog',0.5),cyStart:0.42,cyEnd:(Q.get('pz')==='1'?0.955:0.78),seed:12345}; }   // force THE PLAGUE stage 1-5 (?pz=1 = zombie)
 if(Q.get('festival')){ FORCEFESTIVAL={active:true,stage:+Q.get('festival'),sub:qn('fsub',0.5),festivity:qn('ffest',0.7),theme:(Q.get('ftheme')||'WORLD'),cyStart:0.44,cyEnd:0.83,seed:20205}; }   // force THE FESTIVAL stage 1-5 (BID/BUILD/OPENING/FAIR/CLOSING)
 if(Q.get('flights')){   // inject synthetic live aircraft so the real-flight overlay can be eyeballed offline. ?flights=N (1..6)
@@ -63,6 +64,7 @@ if(Q.get('noconstr')==='1'){ NOCONSTR=true; }   // suppress the construction ove
 if(Q.get('gameon')==='1'){ FORCEGAMEON=true; }   // force a (fake) game on the stadium scoreboards for render tests
 if(Q.get('bills')==='1'){ FORCEBILLS=true; }   // force the Buffalo Bills gameday takeover (no live game / config needed)
 if(Q.get('nogeo')==='1'){ NOGEO=true; }   // suppress IP auto-location (keeps LAT/LON pinned so the containment A/B stays byte-identical)
+if(Q.get('noregime')==='1'){ NOREGIME=true; }   // force NO regime this render (containment: put-down takeovers can now run past cy 0.80, so the guard must pin a truly regime-free life)
 if(Q.get('apocbuild')!=null){ var _rn=(Q.get('now')?+Q.get('now'):Date.now()), _d=(+Q.get('apocbuild')||120)*1000; FORCEAPOCREPLAY={base:_rn,startAt:_rn+_d,until:_rn+_d+95000}; }   // render the "missed cataclysm — replay in M:SS" buildup banner
 if(Q.get('noeconfx')==='1'){ NOECONFX=true; }   // suppress the hard-times street decay (containment byte-identical)
 if(Q.get('slump')!=null){ FORCESLUMP=qn('slump',0.8); }   // force the recession depth 0..1

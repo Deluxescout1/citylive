@@ -52,7 +52,7 @@ const ctx = load();
 if (typeof ctx.regimeState !== 'function') { console.log('regimeState not present yet — baseline-only mode'); process.exit(0); }
 const problems = []; let regimeLives = 0;
 for (const L of LIVES) {
-  const start = lifeStart(ctx, L); let peakStage = 0, seenActive = false, leader = null, pth = null, endedNull = true;
+  const start = lifeStart(ctx, L); let peakStage = 0, seenActive = false, leader = null, pth = null, outcome = null;
   for (let s = 0; s <= 120; s++) {
     const now = Math.round(start + (s / 120) * ctx.GROW_CYCLE);
     const r = ctx.regimeState(now), cg = ctx.cityGrowth(now);
@@ -61,11 +61,16 @@ for (const L of LIVES) {
       if (typeof r.stage === 'number') { if (r.stage < peakStage) problems.push(`life ${L} cy ${cg.cy.toFixed(3)}: regime stage regressed ${peakStage}→${r.stage}`); if (r.stage > peakStage) peakStage = r.stage; }
       if (leader === null) leader = r.leaderName; else if (r.leaderName !== leader) problems.push(`life ${L}: leader name changed ${leader}→${r.leaderName}`);
       if (pth === null) pth = r.path; else if (r.path !== pth) problems.push(`life ${L}: fall path changed ${pth}→${r.path}`);
-      if (cg.cy > 0.82) problems.push(`life ${L} cy ${cg.cy.toFixed(3)}: regime still active past cyEnd (should have cleared)`);
+      if (outcome === null) outcome = r.outcome; else if (r.outcome !== outcome) problems.push(`life ${L}: outcome changed ${outcome}→${r.outcome}`);
+      // WIN takeovers clear by ~0.82; PUT-DOWN takeovers legitimately rule on to the apocalypse (~0.955)
+      const limit = (r.outcome === 'putdown') ? 0.955 : 0.82;
+      if (cg.cy > limit) problems.push(`life ${L} cy ${cg.cy.toFixed(3)}: ${r.outcome} regime active past its end`);
     }
   }
-  if (seenActive) { regimeLives++; if (peakStage < 6) problems.push(`life ${L}: regime never reached the fall (peak stage ${peakStage})`); }
+  if (seenActive) { regimeLives++;
+    if (outcome === 'win' && peakStage < 6) problems.push(`life ${L}: 'win' regime never reached the fall (peak stage ${peakStage})`);
+    if (outcome === 'putdown' && peakStage < 5) problems.push(`life ${L}: 'putdown' regime never reached total control (peak stage ${peakStage})`); }
 }
 const rate = (regimeLives / LIVES.length * 100).toFixed(0);
 if (problems.length) { console.log('REGIME_ARC_FAIL (' + problems.length + '):'); console.log(problems.slice(0, 20).join('\n')); process.exit(1); }
-console.log(`REGIME_ARC_OK — ${regimeLives}/${LIVES.length} lives (${rate}%) had the arc, all coherent (stages 1→6, cleared by cyEnd, stable leader+path)`);
+console.log(`REGIME_ARC_OK — ${regimeLives}/${LIVES.length} lives (${rate}%) had the arc, all coherent (win→falls by cyEnd, put-down→holds to apoc, stable leader+path+outcome)`);

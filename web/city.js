@@ -171,7 +171,7 @@ function resetNotifLanes(){ for(var r=0;r<_notifTaken.length;r++) _notifTaken[r]
 var CLOCK = null;   // test-harness override: ms timestamp for time-of-day (null = real wall clock)
 var NOWOVR = null;  // test-harness override: ms value returned as Date.now() inside draw() (null = real)
 var NOFETCH = false;  // headless flag (own line = QML-namespace writable): almanac callers set this so setup() makes NO network calls
-var VERSION = "1.55.0";  // the build the user is running — surfaced in the Almanac + KDE config page (keep in sync with desktop/package.json)
+var VERSION = "1.56.0";  // the build the user is running — surfaced in the Almanac + KDE config page (keep in sync with desktop/package.json)
 var FORCELAYOUT = null;   // test hook: pin every building's window layout (grid/ribbon/band/punch/corp) — verify per-layout render
 var FORCECROWN = null;    // test hook: pin every building's crown/roof (gable/hip/saltbox/mansard/deco/…) — verify per-roof render
 var FORCEUSE = null;      // test hook: pin every building's functional type (hospital/theater/hotel/bank/cafe/pharmacy) — verify drawUse
@@ -3410,9 +3410,12 @@ function drawTrooper(g,x,y,now,bob){
 function drawRegimeHud(g,now,night){
   var R=curRegime; if(!R||!R.active) return;
   var bills=regimeBills();
-  var fallen=(R.stage===6&&R.sub>=0.55);
-  var lab=fallen?(bills?"CHAMPIONS":"HAS FALLEN"):regimeLabelFor(R)[R.stage];
-  if(bills&&R.perm&&R.stage>=5) lab="BILLS COUNTRY FOREVER";     // the takeover that never leaves
+  var fallen=(R.stage===6&&R.sub>=0.55);                                 // the protests WON — overthrown
+  var lab=fallen?"OVERTHROWN":regimeLabelFor(R)[R.stage];
+  if(R.perm&&R.stage>=5){                                                // the protests were PUT DOWN — it rules on
+    lab=(R.outcome==="putdown"&&R.sub>0.5&&R.sub<0.74)?"PROTESTS CRUSHED"
+       :bills?"BILLS COUNTRY FOREVER":"TOTAL CONTROL - NO SURRENDER";
+  }     // the takeover that never leaves
   var full=(bills?"BILLS MAFIA - ":"THE ORDER - ")+lab;
   var col=fallen?"rgba(60,216,110,":(bills?"rgba(0,90,220,":"rgba(224,28,52,");                      // blue rails for the Bills Mafia
   var blink=(R.stage>=4&&!fallen)?((Math.floor(now/300))%2):1, a=0.72+0.28*blink;
@@ -4166,6 +4169,56 @@ function drawMafiaEnforcement(g,L,now){
     if(converted && ((Math.floor(now/180))&1)){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(120,170,255,0.45)"; fillEllipse(g,X,HORIZON-4,5,5); g.globalCompositeOperation="source-over"; }
   }
 }
+// PROTESTS & RIOTS — every takeover is resisted. Crowds gather with placards (stage 3), throw up barricades
+// and clash with the riot line (stage 4-5), and it resolves per the life's OUTCOME: PUT DOWN (the crackdown
+// scatters them, searchlights, the line advances) or the protests WIN (the line breaks and flees → liberation).
+// Non-gory: placards, fists, barricades, smoke, thrown objects, scattering — no harm is ever shown.
+function drawUprising(g,L,now){
+  var R=curRegime; if(!R||!R.active||R.stage<3) return;
+  var bills=(R.theme==="bills"), night=1-L;
+  var inten=R.stage>=5?1:(R.stage===4?0.62:0.3);
+  var crushed=(R.outcome==="putdown" && R.stage===5 && R.sub>0.5), disperse=crushed?Math.min(1,(R.sub-0.5)/0.4):0;
+  var winning=(R.outcome==="win" && ((R.stage===5&&R.sub>0.62)||(R.stage===6&&R.sub<0.55)));
+  var wx=Math.round(0.55*WW), spread=Math.round(52+inten*44);
+  var tagC=bills?"#00338d":"#b01828", shieldC=bills?"#0a2a6a":"#3a0a10";
+  for(var off=-WW;off<=WW;off+=WW){
+    var X=(wx-WOFF+off)|0; if(X<-140||X>SW+140) continue;
+    // barricades + smoke (stage 4+) — drawn behind the crowd
+    if(R.stage>=4){
+      g.fillStyle=L>0.5?"#4a4038":"#221d16"; g.fillRect((X-(spread>>1)-6)|0,HORIZON-4,11,4); g.fillRect((X+(spread>>1)-5)|0,HORIZON-4,11,4);
+      g.globalCompositeOperation="lighter";
+      for(var sm=0;sm<3+((inten*3)|0);sm++){ var smx=X-(spread>>1)+((sm*19)%spread), sph=((now*0.02+sm*30)%30);
+        g.fillStyle="rgba(120,122,132,"+(0.11*(1-sph/30)).toFixed(3)+")"; fillEllipse(g,smx|0,(HORIZON-4-sph)|0,3+sph*0.16,3+sph*0.16); }
+      g.globalCompositeOperation="source-over";
+    }
+    // the protest crowd (civilian / anti-regime colours), fanning out; scatters when put down, surges when winning
+    var n=Math.round(14+inten*26);
+    for(var p=0;p<n;p++){ var hh=((p*2654435761+(R.seed||0))>>>0);
+      var basePx=X-spread/2 + (hh%1000)/1000*spread;
+      var px=basePx + (disperse>0?((basePx<X?-1:1)*disperse*42):0) + (winning?Math.round(Math.sin(now*0.004+p)*2):0);
+      var pc=(bills?["#d6c8b0","#a83a3a","#586a8c","#e0e6ee"]:["#c6b6a4","#8a3a3a","#586a8c","#4a7a5a"])[(hh>>>5)%4];
+      drawPerson(g,px|0,HORIZON-1,pc,SKINC[(hh>>>7)%SKINC.length],(Math.floor(now/180)+p)&1);
+      var rk=(hh>>>9)%3;
+      if(rk===0){ g.fillStyle="#6a5a3a"; g.fillRect(px|0,HORIZON-9,1,5);                         // placard on a stick
+        g.fillStyle=bills?"#eef2f8":"#e8e0d0"; g.fillRect((px-1)|0,HORIZON-12,4,3);
+        drawUiText(g,(bills?["NO","FREE","GO"]:["NO","RISE","FREE"])[(hh>>>11)%3].charAt(0),px|0,HORIZON-12,tagC,1); }
+      else if(rk===1){ g.fillStyle=SKINC[(hh>>>7)%SKINC.length]; g.fillRect(px|0,HORIZON-8,1,2); } // a raised fist
+      // thrown objects arcing toward the line (stage 5)
+      if(R.stage>=5 && ((hh>>>13)%5)===0){ var tt=((now*0.5+p*260)%1500)/1500, ox=px+tt*26, oy=HORIZON-6-Math.sin(tt*Math.PI)*15;
+        g.fillStyle="#3a332a"; g.fillRect(ox|0,oy|0,1,1); }
+    }
+    // the RIOT LINE holding the plaza (regime troopers with shields) — advances in a crackdown, breaks when losing
+    var lineX=X + (crushed?(-8-disperse*22):winning?22:8), tn=Math.round(4+inten*4);
+    for(var t=0;t<tn;t++){ var tx=lineX + spread/2 + t*4;
+      if(winning && (((Math.floor(now/200)+t)&1))) continue;                                       // the line breaks and flees
+      g.fillStyle=shieldC; g.fillRect((tx-2)|0,HORIZON-5,1,4);                                      // riot shield
+      drawTrooper(g,tx|0,HORIZON-1,now,(Math.floor(now/150)+t)&1); }
+    // searchlights raking the plaza as the crackdown succeeds
+    if(crushed && night>0.4){ g.globalCompositeOperation="lighter";
+      for(var sl=-1;sl<=1;sl+=2){ var lx=X+sl*32; for(var q=0;q<44;q+=3){ var bt=q/44; g.fillStyle="rgba(255,244,200,"+(0.08*(1-bt)).toFixed(3)+")"; g.fillRect((lx+(X-lx)*bt)|0,(HORIZON-2-q)|0,2,2); } }
+      g.globalCompositeOperation="source-over"; }
+  }
+}
 function drawRegime(g,L,now,night){
   if(!curRegime||!curRegime.active) return;
   ORDER_NIGHT=Math.max(0,Math.min(1,(0.55-L)/0.35));    // how lit the Order's stuff glows (0 day → 1 deep night)
@@ -4183,6 +4236,7 @@ function drawRegime(g,L,now,night){
   drawLeaderStatue(g,L,now);     // …erected first (stage 4), then looming, then toppled
   drawRegimeRally(g,L,now);      // the mandatory rally massed before the statue
   drawResistance(g,L,now);       // …and, near the end, the graffiti/tags of the resistance
+  drawUprising(g,L,now);           // the protests & riots against the takeover — put down, or they win
   drawLiberation(g,L,now);
   drawMafiaEnforcement(g,L,now);   // the Bills Mafia enforcing the uniform mandate (non-lethal — a blue-paint conversion)
 }
@@ -10691,15 +10745,17 @@ function regimeLabelFor(R){ return (R&&R.theme==="bills")?REGIME_BILLS_LABELS:RE
 function regimeSlogansFor(R){ return (R&&R.theme==="bills")?BILLS_SLOGANS:ORDER_SLOGANS; }
 function regimeBills(){ return !!(curRegime&&curRegime.theme==="bills"); }   // is THIS life's takeover the Bills Mafia?
 var FORCEREGIME=null;                                            // test hook (kde-repro ?regime=<stage>) — own line (QML namespace writable)
+var NOREGIME=false;                                              // containment A/B: force NO regime this render (so the guard stays valid now that put-down takeovers can run past cy 0.80)
 function regimeState(now){
   if(FORCEREGIME) return FORCEREGIME;
+  if(NOREGIME) return null;
   var cg=cityGrowth(now); if(cg.g<0.40||cg.phase==="apoc") return null;   // real cities only, never the apocalypse
   var li=lifeIndexOf(now), cy=cg.cy;
   var rh=((((li*2654435761)>>>0) ^ REGIME_SALT)>>>0);
   // DEMO / PREVIEW FORCE: any grown city is a live Bills Mafia takeover at peak BILLS COUNTRY, so it can be
   // watched on demand. Off unless a host sets billsEvent — the guards never do, so they stay unaffected.
   if(BILLS_EVENT){
-    return { active:true, stage:5, sub:0.55, perm:true,
+    return { active:true, stage:5, sub:0.55, perm:true, outcome:"putdown",
       party:{k:"BILLS MAFIA",c:BILLS_BLUE}, theme:"bills",
       leaderName:REGIME_BILLS_TITLES[(rh>>>7)%REGIME_BILLS_TITLES.length]+" "+REGIME_BILLS_NAMES[(rh>>>11)%REGIME_BILLS_NAMES.length],
       path:"revolution", cyStart:0.12, cyEnd:0.999, li:li, seed:rh };
@@ -10710,19 +10766,20 @@ function regimeState(now){
   // for EVERYONE else — ~30% of regime arcs become a Bills Mafia takeover regardless of the toggle or the
   // city's location/sport (Nick). So any city can, occasionally, get taken over by the Mafia.
   var bills=BILLS_ON || ((rh>>>19)%100 < 30);
-  // The PERMANENT "forever" takeover (holds past cy 0.80 to the apocalypse) is a superfan-only reward — it
-  // stays gated on the toggle so, for everyone else, no regime is ever active past 0.80 (containment premise).
-  var perm=BILLS_ON && ((rh>>>23)%100 < 30);
-  var cyEnd=perm?0.955:REGIME_STAGES[6];
-  if(cy<REGIME_STAGES[0] || cy>=cyEnd) return null;              // NORMAL before the rise & (unless permanent) after the fall
+  // EVERY takeover faces PROTESTS & RIOTS, and ends one of two ways (deterministic per life): the protests are
+  // PUT DOWN — the regime crushes them and rules on to the end of the city's life (holds stage 5) — or the
+  // protests WIN and it's overthrown at stage 6 (liberation). ~45% are put down; the rest are toppled.
+  var putdown=((rh>>>25)%100 < 45);
+  var cyEnd=putdown?0.955:REGIME_STAGES[6];
+  if(cy<REGIME_STAGES[0] || cy>=cyEnd) return null;              // NORMAL before the rise & (unless the protests are crushed) after the fall
   var stage, sub;
-  if(perm && cy>=REGIME_STAGES[4]){                              // perpetual peak — HOLD stage 5, never reach the stage-6 fall
+  if(putdown && cy>=REGIME_STAGES[4]){                           // protests crushed → HOLD stage 5 (TOTAL CONTROL) to the apocalypse, never the stage-6 fall
     stage=5; sub=Math.max(0,Math.min(1,(cy-REGIME_STAGES[4])/(cyEnd-REGIME_STAGES[4])));
   } else {
     stage=1; for(var s=1;s<6;s++){ if(cy>=REGIME_STAGES[s]) stage=s+1; }
     sub=Math.max(0,Math.min(1,(cy-REGIME_STAGES[stage-1])/(REGIME_STAGES[stage]-REGIME_STAGES[stage-1])));
   }
-  return { active:true, stage:stage, sub:sub, perm:perm,
+  return { active:true, stage:stage, sub:sub, perm:putdown, outcome:(putdown?"putdown":"win"),
     party: bills?{k:"BILLS MAFIA",c:BILLS_BLUE}:THE_ORDER, theme: bills?"bills":"order",
     leaderName: bills ? (REGIME_BILLS_TITLES[(rh>>>7)%REGIME_BILLS_TITLES.length]+" "+REGIME_BILLS_NAMES[(rh>>>11)%REGIME_BILLS_NAMES.length])
                       : (REGIME_TITLES[(rh>>>7)%REGIME_TITLES.length]+" "+LNAMES[(rh>>>11)%LNAMES.length]),
@@ -10842,7 +10899,13 @@ function festivalTicker(now){
 // explicit, unmistakable per-stage news — dominates the ticker while the takeover is underway
 function regimeTicker(now){
   var R=curRegime; if(!R||!R.active) return null;
-  var nm=R.leaderName, slow=Math.floor(now/16000);
+  var nm=R.leaderName, slow=Math.floor(now/16000), bz=(R.theme==="bills");
+  if(R.stage>=4){                                                       // PROTESTS & RIOTS take over the news at the climax
+    var pj=slow%3;
+    if(R.outcome==="putdown" && R.stage===5 && R.sub>0.5 && pj===0)
+      return bz? "MAFIA CRUSHES THE HOLDOUTS - GAMEDAY IS FOREVER NOW" : "CRACKDOWN - THE PROTESTS ARE CRUSHED - "+nm+" TIGHTENS THE GRIP";
+    if(pj===1) return bz? "ANTI-MANDATE PROTESTERS FLOOD THE STREETS - RIOT LINE HOLDS" : "PROTESTERS FILL THE STREETS - RIOT POLICE DEPLOY DOWNTOWN";
+  }
   if(R.theme==="bills"){                                              // the Bills Mafia's (jubilant) takeover coverage
     var BN={
       1:["A NEW FORCE - THE BILLS MAFIA - RALLIES DOWNTOWN","BILLS MAFIA VOWS TO MAKE "+cityName+" BILLS COUNTRY"],

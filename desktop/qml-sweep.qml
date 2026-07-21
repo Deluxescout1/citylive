@@ -41,10 +41,18 @@ Item {
             for (var sc = 0; sc < seasonClocks.length; sc++) jobs.push({ age: 0.7, clock: seasonClocks[sc] });
             // THE ORDER — regime HUD/banner/ticker across all 6 stages (day+night)
             for (var rg = 1; rg <= 6; rg++) jobs.push({ age: 0.66, clock: [clk, night][rg % 2],
-                regime: { active: true, stage: rg, sub: 0.5, party: { k: "THE ORDER", c: "#c0182a" }, leaderName: "CHANCELLOR VOSS", path: "revolution", cyStart: 0.42, cyEnd: 0.80 } });
+                regime: { active: true, stage: rg, sub: 0.5, party: { k: "THE ORDER", c: "#c0182a" }, leaderName: "CHANCELLOR VOSS", path: "revolution", outcome: "win", cyStart: 0.42, cyEnd: 0.80 } });
             // BILLS MAFIA — the same arc reskinned (theme "bills"): exercises every themed draw branch on the real Qt Canvas
             for (var bg2 = 1; bg2 <= 6; bg2++) jobs.push({ age: 0.66, clock: [clk, night][bg2 % 2],
-                regime: { active: true, stage: bg2, sub: bg2 === 6 ? 0.7 : 0.5, party: { k: "BILLS MAFIA", c: "#00338d" }, theme: "bills", leaderName: "COACH ALLEN", path: "revolution", cyStart: 0.42, cyEnd: 0.80, seed: 1337 } });
+                regime: { active: true, stage: bg2, sub: bg2 === 6 ? 0.7 : 0.5, party: { k: "BILLS MAFIA", c: "#00338d" }, theme: "bills", leaderName: "COACH ALLEN", path: "revolution", outcome: "win", cyStart: 0.42, cyEnd: 0.80, seed: 1337 } });
+            // PROTESTS & RIOTS — the crackdown (put-down, stage 5 late) + the overthrow (win, stage 6) for both themes
+            var upJobs = [
+                { th: null, out: "putdown", st: 5, sb: 0.62 }, { th: "bills", out: "putdown", st: 5, sb: 0.62 },
+                { th: null, out: "win", st: 6, sb: 0.45 }, { th: "bills", out: "win", st: 6, sb: 0.45 },
+                { th: null, out: "putdown", st: 5, sb: 0.90 }, { th: "bills", out: "putdown", st: 5, sb: 0.90 } ];
+            for (var uj = 0; uj < upJobs.length; uj++) { var U = upJobs[uj];
+                jobs.push({ age: 0.7, clock: [clk, night][uj % 2],
+                    regime: { active: true, stage: U.st, sub: U.sb, party: U.th === "bills" ? { k: "BILLS MAFIA", c: "#00338d" } : { k: "THE ORDER", c: "#c0182a" }, theme: U.th === "bills" ? "bills" : "order", leaderName: U.th === "bills" ? "COACH ALLEN" : "CHANCELLOR VOSS", path: "revolution", outcome: U.out, perm: U.out === "putdown", cyStart: 0.42, cyEnd: U.out === "putdown" ? 0.955 : 0.80, seed: 4242 } }); }
             // THE FESTIVAL — World's Fair wheel/bunting/monorail/monument/HUD across all 5 stages (day+night),
             // so the stroke/arc-heavy Ferris wheel + globe draw bodies actually EXECUTE on the QML Canvas
             for (var ft = 1; ft <= 5; ft++) jobs.push({ age: 0.66, clock: [clk, night][ft % 2],
