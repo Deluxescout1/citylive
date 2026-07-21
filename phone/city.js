@@ -42,6 +42,9 @@ var FLIGHTS_ON = (CFG.flights !== false);
 // whole city goes Bills Mafia — every sign, screen, ticker line and citizen rallies the team. A shared
 // build never imposes it on anyone; set config `bills:true` (config.local.json / the KDE config page).
 var BILLS_ON = (CFG.bills === true);
+// DEMO / preview switch: force a live Bills Mafia takeover right now (peak BILLS COUNTRY) so it can be
+// SEEN on demand. config.local.json only — not a shipped user setting, and never touched by the guards.
+var BILLS_EVENT = (CFG.billsEvent === true);
 
 // BIRTHDAYS: strung banner + fireworks + hearts on the given day. Each entry {m,d,label,pink?}.
 // None are baked in here; a build supplies its own list via config (or [] for none, so the
@@ -84,6 +87,7 @@ function applyConfig(cfg){ if(!cfg) return;
     if(cfg.era && cfg.era!=="auto"){ for(var ei=0;ei<ERAS.length;ei++){ if(ERAS[ei].name===cfg.era){ FORCEERA=ei; break; } } } }
   if(cfg.flights!==undefined) FLIGHTS_ON=(cfg.flights!==false);   // live real-aircraft overlay on/off
   if(cfg.bills!==undefined) BILLS_ON=(cfg.bills===true);          // Buffalo Bills gameday takeover on/off
+  if(cfg.billsEvent!==undefined) BILLS_EVENT=(cfg.billsEvent===true);   // force a live Bills Mafia takeover (demo/preview)
 }
 // ================================================================================
 
@@ -167,7 +171,7 @@ function resetNotifLanes(){ for(var r=0;r<_notifTaken.length;r++) _notifTaken[r]
 var CLOCK = null;   // test-harness override: ms timestamp for time-of-day (null = real wall clock)
 var NOWOVR = null;  // test-harness override: ms value returned as Date.now() inside draw() (null = real)
 var NOFETCH = false;  // headless flag (own line = QML-namespace writable): almanac callers set this so setup() makes NO network calls
-var VERSION = "1.53.0";  // the build the user is running — surfaced in the Almanac + KDE config page (keep in sync with desktop/package.json)
+var VERSION = "1.54.0";  // the build the user is running — surfaced in the Almanac + KDE config page (keep in sync with desktop/package.json)
 var FORCELAYOUT = null;   // test hook: pin every building's window layout (grid/ribbon/band/punch/corp) — verify per-layout render
 var FORCECROWN = null;    // test hook: pin every building's crown/roof (gable/hip/saltbox/mansard/deco/…) — verify per-roof render
 var FORCEUSE = null;      // test hook: pin every building's functional type (hospital/theater/hotel/bank/cafe/pharmacy) — verify drawUse
@@ -10631,14 +10635,24 @@ function regimeState(now){
   if(FORCEREGIME) return FORCEREGIME;
   var cg=cityGrowth(now); if(cg.g<0.40||cg.phase==="apoc") return null;   // real cities only, never the apocalypse
   var li=lifeIndexOf(now), cy=cg.cy;
-  if(((li*2654435761+7717)>>>0)%100 < 62) return null;           // YIELD to war lives (replicates warState's existence roll — no mayorState call → no cycle)
   var rh=((((li*2654435761)>>>0) ^ REGIME_SALT)>>>0);
+  // DEMO / PREVIEW FORCE: any grown city is a live Bills Mafia takeover at peak BILLS COUNTRY, so it can be
+  // watched on demand. Off unless a host sets billsEvent — the guards never do, so they stay unaffected.
+  if(BILLS_EVENT){
+    return { active:true, stage:5, sub:0.55, perm:true,
+      party:{k:"BILLS MAFIA",c:BILLS_BLUE}, theme:"bills",
+      leaderName:REGIME_BILLS_TITLES[(rh>>>7)%REGIME_BILLS_TITLES.length]+" "+REGIME_BILLS_NAMES[(rh>>>11)%REGIME_BILLS_NAMES.length],
+      path:"revolution", cyStart:0.12, cyEnd:0.999, li:li, seed:rh };
+  }
+  if(((li*2654435761+7717)>>>0)%100 < 62) return null;           // YIELD to war lives (replicates warState's existence roll — no mayorState call → no cycle)
   if((rh%100) >= 37) return null;                                // ~37% of the war-free lives → ~14% overall (uncommon; Nick: ~1 in 7)
-  var bills=BILLS_ON;   // the same arc, reskinned as the Bills Mafia when the takeover is enabled (cosmetic only)
-  // ~30% of Bills Mafia takeovers are PERMANENT — they never leave: the city holds at peak BILLS COUNTRY
-  // (stage 5) all the way to the end-of-life apocalypse (the only thing that ever resets it). The Order,
-  // and the other ~70% of Bills takeovers, still rise → peak → fall (parade) → back to normal by cy 0.80.
-  var perm=bills && ((rh>>>23)%100 < 30);
+  // THE BILLS MAFIA is (a) always the theme for opted-in fans (bills:true), AND (b) a rare SPECIAL EVENT
+  // for EVERYONE else — ~30% of regime arcs become a Bills Mafia takeover regardless of the toggle or the
+  // city's location/sport (Nick). So any city can, occasionally, get taken over by the Mafia.
+  var bills=BILLS_ON || ((rh>>>19)%100 < 30);
+  // The PERMANENT "forever" takeover (holds past cy 0.80 to the apocalypse) is a superfan-only reward — it
+  // stays gated on the toggle so, for everyone else, no regime is ever active past 0.80 (containment premise).
+  var perm=BILLS_ON && ((rh>>>23)%100 < 30);
   var cyEnd=perm?0.955:REGIME_STAGES[6];
   if(cy<REGIME_STAGES[0] || cy>=cyEnd) return null;              // NORMAL before the rise & (unless permanent) after the fall
   var stage, sub;
