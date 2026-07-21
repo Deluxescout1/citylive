@@ -21,6 +21,8 @@ Grab the installer for your OS from the **[Releases page](https://github.com/cit
 - **Controls:** hover the top edge of the window for the control bar — pick a **city/era**,
   scrub the **time of day** and the **city's age**, choose a **quality** tier, pause, or go
   full screen. Leave everything on **Live** and it follows real time + real weather.
+- **What's happening:** the compact upper-left card names the active event and stage and
+  shows live-data freshness. It can be disabled in City Settings.
 - **Full screen:** press **F11** (or the ⛶ button).
 - **Wallpaper mode:** menu → *Wallpaper Mode* (or **Ctrl/Cmd+Shift+W**) for a clean,
   borderless, full-screen ambient view you can leave running behind everything.
@@ -59,8 +61,8 @@ Or trigger it manually from the repo's **Actions** tab (*Build CityLive desktop 
 
 ## Notes
 
-- `renderer/city.js` is the **same engine** as the KDE wallpaper; `../install.sh` keeps it
-  synced. To update by hand: `cp ../org.citylive.wallpaper/contents/js/city.js renderer/`.
+- `renderer/city.js` is generated from the canonical KDE engine. After changing the
+  canonical file, run `npm run sync:engine`; `npm test` rejects stale platform copies.
 - Builds are unsigned (fine for personal use). To code-sign, add `CSC_LINK`/`CSC_KEY_PASSWORD`
   (Windows) or Apple signing secrets and flip `CSC_IDENTITY_AUTO_DISCOVERY` in the workflow.
 - `npm run pack` makes an unpacked build in `dist/*-unpacked/` for quick testing without an installer.

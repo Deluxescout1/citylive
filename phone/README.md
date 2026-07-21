@@ -13,7 +13,8 @@ Windows, macOS, Linux, Android, iOS. Verified rendering in headless Chromium.
    fullscreen app (PWA). Launch it from the home screen for the kiosk look.
 
 Notes
-- Runs the "performance" quality tier at 10fps -- easy on the battery.
+- Runs the Performance tier at 8fps with a separate 0.5fps backdrop, reducing battery use.
+- A compact status card identifies the current event and live-data state.
 - The whole city fits the phone screen (single-screen SMALLW mode: it keeps
   the stadium, city hall, school, museum, Ferris wheel and one mega-tower).
 - Portrait works; landscape shows more of the skyline.

@@ -23,6 +23,13 @@ contextBridge.exposeInMainWorld('citylive', {
   resetConfig: () => ipcRenderer.invoke('citylive:reset-config'),
   openConfigFile: () => ipcRenderer.invoke('citylive:open-config-file'),
   getVersion: () => ipcRenderer.invoke('citylive:get-version'),
+  getChronicle: () => ipcRenderer.invoke('citylive:get-chronicle'),
+  recordChronicle: (snapshot) => ipcRenderer.invoke('citylive:chronicle-record', snapshot),
+  setChronicleEnabled: (enabled) => ipcRenderer.invoke('citylive:chronicle-enabled', !!enabled),
+  clearChronicle: () => ipcRenderer.invoke('citylive:chronicle-clear'),
+  removeChronicleLife: (life) => ipcRenderer.invoke('citylive:chronicle-remove-life', life),
+  exportChronicle: (format) => ipcRenderer.invoke('citylive:chronicle-export', format),
+  openChronicle: () => ipcRenderer.invoke('citylive:open-chronicle'),
   geocode: (q) => ipcRenderer.invoke('citylive:geocode', q),
   // Control Center:
   setWallpaper: (on) => ipcRenderer.invoke('citylive:set-wallpaper', !!on),
@@ -30,5 +37,6 @@ contextBridge.exposeInMainWorld('citylive', {
   refreshWallpaper: () => ipcRenderer.invoke('citylive:refresh-wallpaper'),
   checkUpdates: () => ipcRenderer.invoke('citylive:check-updates'),
   onState: (cb) => ipcRenderer.on('citylive:state', (_e, s) => cb(s)),
-  onUpdateStatus: (cb) => ipcRenderer.on('citylive:update-status', (_e, s) => cb(s))
+  onUpdateStatus: (cb) => ipcRenderer.on('citylive:update-status', (_e, s) => cb(s)),
+  onNavigate: (cb) => ipcRenderer.on('citylive:navigate', (_e, tab) => cb(tab))
 });

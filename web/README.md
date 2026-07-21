@@ -6,6 +6,9 @@ bar: pick a **city/era**, scrub the **time of day** and the **city's age**, choo
 **quality** tier, pause, or go fullscreen. Leave everything on **Live** and it follows
 real local time + real weather, growing on its own week-long cycle.
 
+The web build uses the same canonical engine and split renderer as KDE and Electron.
+Its optional status card names the active event and reports live/stale/offline data.
+
 ## Easiest: just open it
 Double-click **`web/index.html`** — it opens in your default browser on any OS. That's it.
 (No server, no install. Live weather needs internet; it degrades gracefully offline.)
@@ -33,7 +36,7 @@ On a phone, use the browser's **"Add to Home Screen"** for a fullscreen kiosk ap
 - **Any OS:** [Wallpaper Engine](https://www.wallpaperengine.io/) (Steam) also accepts a local web page.
 
 ## Notes
-- `web/city.js` is the **same engine** as the KDE wallpaper; `../install.sh` keeps it synced.
-  To update by hand: `cp ../org.citylive.wallpaper/contents/js/city.js .`
+- `web/city.js` is generated from the canonical KDE engine. Run
+  `cd ../desktop && npm run sync:engine`; automated tests reject stale copies.
 - Controls map to the engine's live hooks (era, growth age, clock) — nothing is faked.
 - Rendering is nearest-neighbour pixel-art; the canvas auto-sizes to the window & device pixel ratio.

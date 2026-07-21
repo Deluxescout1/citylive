@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover">
 <title>CityLive Settings</title>
 <meta name="theme-color" content="#0a0c14">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'none'; img-src 'self' data:;">
 <style>
   :root{ --panel:rgba(14,18,28,.82); --line:#2a3550; --txt:#e6ecf7; --sub:#93a2c0; --cyan:#39e6ff; --magenta:#ff4fd8; }
   *{box-sizing:border-box}
@@ -12,6 +13,9 @@
     font:13px/1.4 "JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--txt)}
   body{padding:28px 18px 60px;display:flex;justify-content:center}
   .wrap{width:min(680px,100%)}
+  .tabs{display:flex;gap:8px;margin:0 0 16px;position:sticky;top:8px;z-index:20;background:rgba(5,7,12,.92);padding:7px;border:1px solid var(--line);border-radius:11px;backdrop-filter:blur(10px)}
+  .tabs button{flex:1}.tabs button.active{border-color:var(--cyan);color:var(--cyan);background:#10202b}
+  body.chronicle-tab .main-card{display:none} body:not(.chronicle-tab) #cardChronicle{display:none}
   h1{margin:0 0 4px;color:var(--cyan);letter-spacing:1px;font-size:20px;
     text-shadow:0 0 10px rgba(57,230,255,.4)}
   .tagline{margin:0 0 22px;color:var(--sub);font-size:11px}
@@ -65,14 +69,19 @@
   .alm .hist .cap{color:var(--magenta);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:5px}
   .alm .hist .row3{display:flex;justify-content:space-between;gap:8px;color:var(--sub);font-size:11px;padding:2px 0}
   .alm .hist .row3 b{color:var(--txt)}
+  .chron-head{display:flex;gap:10px;align-items:flex-start;justify-content:space-between}.chron-empty{padding:24px 8px;text-align:center;color:var(--sub)}
+  .life{margin-top:12px;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#0b101b}.life summary{cursor:pointer;padding:11px 12px;color:var(--cyan);list-style:none}.life summary::-webkit-details-marker{display:none}
+  .life-meta{display:block;color:var(--sub);font-size:10px;margin-top:2px}.event{position:relative;margin:0 12px;padding:10px 0 10px 18px;border-top:1px solid #1d2940}.event:before{content:'';position:absolute;left:2px;top:16px;width:7px;height:7px;border-radius:50%;background:var(--magenta);box-shadow:0 0 8px var(--magenta)}
+  .event .when{color:var(--sub);font-size:9px;text-transform:uppercase}.event .et{font-size:12px;color:var(--txt);margin-top:2px}.event .ed{color:var(--sub);font-size:10px;margin-top:2px}.person{display:inline-block;margin:5px 4px 0 0;padding:2px 6px;border:1px solid #334461;border-radius:999px;color:#b9d8ff;font-size:9px}.danger{color:#ff9aa2!important;border-color:#763544!important}
 </style>
 </head>
 <body>
 <div class="wrap">
   <h1>CityLive Control Center</h1>
   <p class="tagline">Wallpaper, screensaver, and city settings — all in one place.</p>
+  <nav class="tabs" aria-label="Control Center sections"><button id="tabSettings" class="active">Settings</button><button id="tabChronicle">City Chronicle</button></nav>
 
-  <div class="card" id="cardWallpaper">
+  <div class="card main-card" id="cardWallpaper">
     <h2>Wallpaper</h2>
     <p class="hint">Runs CityLive live, behind your desktop icons.</p>
     <button id="wpToggle" class="big off">Wallpaper: OFF — click to turn on</button>
@@ -81,7 +90,7 @@
     </div>
   </div>
 
-  <div class="card" id="cardScreensaver">
+  <div class="card main-card" id="cardScreensaver">
     <h2>Screensaver</h2>
     <p class="status" id="ssStatus">CityLive isn't your screensaver.</p>
     <div class="row">
@@ -91,7 +100,7 @@
     </div>
   </div>
 
-  <div class="card" id="cardCity">
+  <div class="card main-card" id="cardCity">
     <h2>City Settings</h2>
     <p class="hint">These are saved on your computer and kept when CityLive updates itself.</p>
     <section>
@@ -141,6 +150,7 @@
         <label>Render quality
           <select id="quality">
             <option value="spectacle">Spectacle</option>
+            <option value="balanced">Balanced</option>
             <option value="performance">Performance</option>
           </select></label>
         <label>City / era
@@ -152,6 +162,7 @@
             <option value="frequent">Frequent</option>
           </select></label>
         <label class="checkrow"><input id="flights" type="checkbox" checked> Live flights (real aircraft near your location)</label>
+        <label class="checkrow"><input id="showStatus" type="checkbox" checked> Show the compact “What’s happening?” panel</label>
       </div>
       <p class="note">Real planes overhead from a free flight-tracking feed (~90s refresh), drawn at their true bearing with a callsign tag on the closest pass. Uncheck to keep only the decorative jets — it calls a public API with your area's coordinates.</p>
     </section>
@@ -162,7 +173,7 @@
     <div class="note" id="citySaveNote"></div>
   </div>
 
-  <div class="card" id="cardWorld">
+  <div class="card main-card" id="cardWorld">
     <h2>World</h2>
     <p class="hint">Every life the city lives ends in an apocalypse, then is reborn. Pin which one — or let fate decide — and rewind or fast-forward right now.</p>
     <section>
@@ -183,14 +194,21 @@
     </section>
   </div>
 
-  <div class="card" id="cardAlmanac">
+  <div class="card main-card" id="cardAlmanac">
     <h2>City Almanac</h2>
     <p class="hint">A living record of the city on your screen right now — and the civilizations that rose and fell here before it.</p>
     <div id="almanacBody" class="alm">Loading…</div>
     <div class="row"><button id="almanacRefresh" class="ghost">↻ Refresh</button></div>
   </div>
 
-  <div class="card" id="cardUpdates">
+  <div class="card" id="cardChronicle">
+    <div class="chron-head"><div><h2>City Chronicle</h2><p class="hint">Only moments witnessed while CityLive was running are recorded. The future is never shown. The latest 25 civilizations are retained.</p></div><button id="chronRefresh" class="ghost" title="Refresh">↻</button></div>
+    <label class="checkrow"><input id="chronEnabled" type="checkbox" checked> Record witnessed city history</label>
+    <div class="row"><button id="chronTxt">Export text</button><button id="chronPng">Export image</button><button id="chronJson" class="ghost">Backup JSON</button><span class="grow"></span><button id="chronClear" class="ghost danger">Clear history</button></div>
+    <div class="note" id="chronNote"></div><div id="chronBody"><div class="chron-empty">No witnessed events yet. Leave CityLive running and its story will appear here.</div></div>
+  </div>
+
+  <div class="card main-card" id="cardUpdates">
     <h2>Updates</h2>
     <div class="row">
       <button id="checkUpdates">Check for Updates</button>
@@ -204,6 +222,30 @@
 <script>
 (function(){
   var api = window.citylive;
+
+  function showTab(tab){ var chron=tab==='chronicle';document.body.classList.toggle('chronicle-tab',chron);
+    document.getElementById('tabSettings').classList.toggle('active',!chron);document.getElementById('tabChronicle').classList.toggle('active',chron);
+    if(chron){loadChronicle();setTimeout(function(){document.getElementById('cardChronicle').scrollIntoView({block:'start'});},0);} }
+  document.getElementById('tabSettings').addEventListener('click',function(){showTab('settings');});
+  document.getElementById('tabChronicle').addEventListener('click',function(){showTab('chronicle');});
+  try{api.onNavigate(showTab);}catch(e){}
+
+  var chronBody=document.getElementById('chronBody'),chronEnabled=document.getElementById('chronEnabled'),chronNote=document.getElementById('chronNote');
+  function cesc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+  function cdate(ms){var d=new Date(ms);return d.toLocaleString([], {dateStyle:'medium',timeStyle:'short'});}
+  function renderChronicle(data){data=data||{lives:[]};chronEnabled.checked=data.enabled!==false;var lives=(data.lives||[]).slice().reverse();
+    if(!lives.length){chronBody.innerHTML='<div class="chron-empty">No witnessed events yet. Leave CityLive running and its story will appear here.</div>';return;}
+    chronBody.innerHTML=lives.map(function(l,ix){var ev=(l.events||[]).slice().reverse().map(function(e){var ppl=(e.people||[]).map(function(p){return '<span class="person">'+cesc(p.name)+(p.role?' · '+cesc(p.role):'')+(p.party?' · '+cesc(p.party):'')+'</span>';}).join('');
+      var addStage=e.stage&&String(e.title).toUpperCase().indexOf(String(e.stage).toUpperCase())<0;
+      return '<div class="event"><div class="when">'+cesc(cdate(e.at))+' · '+cesc(e.kind)+'</div><div class="et">'+cesc(e.title)+(addStage?' · '+cesc(e.stage):'')+'</div><div class="ed">'+cesc(e.detail)+'</div>'+ppl+'</div>';}).join(''), n=(l.events||[]).length;
+      return '<details class="life" '+(ix===0?'open':'')+'><summary>'+cesc(l.cityName)+'<span class="life-meta">Life '+l.life+(l.era?' · '+cesc(l.era):'')+' · '+n+' witnessed '+(n===1?'moment':'moments')+'</span></summary>'+ev+'<div class="row" style="padding:0 12px 10px"><button class="ghost danger removeLife" data-life="'+l.life+'">Delete this civilization</button></div></details>';}).join('');
+    Array.prototype.forEach.call(chronBody.querySelectorAll('.removeLife'),function(b){b.addEventListener('click',function(){if(!confirm('Delete this civilization from the Chronicle?'))return;api.removeChronicleLife(+b.dataset.life).then(renderChronicle);});}); }
+  function loadChronicle(){try{api.getChronicle().then(renderChronicle).catch(function(){});}catch(e){}}
+  document.getElementById('chronRefresh').addEventListener('click',loadChronicle);
+  chronEnabled.addEventListener('change',function(){api.setChronicleEnabled(this.checked).then(renderChronicle);});
+  [['chronTxt','txt'],['chronPng','png'],['chronJson','json']].forEach(function(x){document.getElementById(x[0]).addEventListener('click',function(){api.exportChronicle(x[1]).then(function(ok){chronNote.textContent=ok?'Chronicle exported.':'';});});});
+  document.getElementById('chronClear').addEventListener('click',function(){if(!confirm('Clear the entire City Chronicle? This cannot be undone.'))return;api.clearChronicle().then(renderChronicle);});
+  loadChronicle();
 
   // ---------------------------------------------------------------------
   // Wallpaper
@@ -317,10 +359,8 @@
     });
   })();
 
-  // Finale select: "Auto" (a different fate each life) + the 11 engine apocalypse names,
-  // with friendly labels. Value = engine name; the first 9 are kept in the exact order the
-  // engine cycles them (DEATHS in city.js); kaijuwar/pollution are picker-only fates (not
-  // yet in DEATHS' auto-cycle) and are appended after.
+  // Finale select: "Auto" (a different fate each life) + all 12 apocalypse names,
+  // with friendly labels. Value = the engine's stable internal name.
   var FINALES = [
     ['meteors', 'Meteor Storm'], ['nuke', 'Nuclear Strike'], ['sunburst', 'Solar Flare'],
     ['ai', 'AI Uprising'], ['bh', 'Black Hole'], ['alienwar', 'Alien War'],
@@ -350,11 +390,12 @@
         var cyc = cfg.cycle==='weekly' ? '1w' : cfg.cycle;                          // map legacy alias
         if(['1w','2w','3w','1mo'].indexOf(cyc)<0) cyc='1w';                          // test/unknown → show 1 week
         document.getElementById('cycle').value = cyc;
-        document.getElementById('quality').value = (cfg.quality==='performance') ? 'performance' : 'spectacle';
+        document.getElementById('quality').value = ['spectacle','balanced','performance'].indexOf(cfg.quality)>=0 ? cfg.quality : 'spectacle';
         eraSel.value = (cfg.era && ERA_NAMES.indexOf(cfg.era)>=0) ? cfg.era : 'auto';
         var disF = ['rare','normal','frequent'].indexOf(cfg.disasters)>=0 ? cfg.disasters : 'normal';
         document.getElementById('disasters').value = disF;
         document.getElementById('flights').checked = (cfg.flights !== false);   // live-aircraft overlay (default on)
+        document.getElementById('showStatus').checked = (cfg.showStatus !== false);
         var finaleNames = FINALES.map(function(f){ return f[0]; });
         finaleSel.value = (cfg.finale && finaleNames.indexOf(cfg.finale)>=0) ? cfg.finale : 'auto';
       }).catch(function(){});
@@ -378,7 +419,8 @@
       era: eraSel.value,
       disasters: document.getElementById('disasters').value,
       finale: finaleSel.value,
-      flights: document.getElementById('flights').checked
+      flights: document.getElementById('flights').checked,
+      showStatus: document.getElementById('showStatus').checked
     };
     var lat=parseFloat(document.getElementById('lat').value), lon=parseFloat(document.getElementById('lon').value);
     if(isFinite(lat)&&isFinite(lon)){ cfg.lat=lat; cfg.lon=lon; }

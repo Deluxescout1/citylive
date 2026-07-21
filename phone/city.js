@@ -142,17 +142,17 @@ var WX_BUCKET = 120000;                          // 2-minute shared fetch window
                                                  // the model cadence, but we ALSO pull `minutely_15` precipitation and read the
                                                  // bucket for right-now, so a shower starting/stopping shows within ~15 min instead
                                                  // of waiting on the hourly current — this is why "it's raining outside but not here".
-var wxBucket = -1, wxReqAt = 0, wxOkBucket = -2; // current window · last request time · window that actually landed
+var wxBucket = -1, wxReqAt = 0, wxOkBucket = -2, wxUpdatedAt = 0; // current window · request/success freshness
 // AIR QUALITY (wildfire smoke etc): same shared-wall-clock-bucket pattern as weather, so every
 // screen fetches in the same 30-min window and converges on identical smoke. Data is hourly
 // upstream (interval:3600), so 30 min is plenty fresh.
 var airq = { pm25:null, aqi:null };
 var AQ_BUCKET = 1800000;
-var aqBucket = -1, aqReqAt = 0, aqOkBucket = -2;
+var aqBucket = -1, aqReqAt = 0, aqOkBucket = -2, aqUpdatedAt = 0;
 var FORCEAQ = null;   // test hook: {pm25,aqi} — pins the live air-quality fetch
 // planetary K-index (geomagnetic storms) → the REAL aurora. 0 offline → the aurora is simply absent
 // (it only shows on genuine storm nights, matching the real-world space-weather news). Shared 30-min bucket.
-var kpNow = 0, KP_BUCKET = 1800000, kpBucket = -1, kpReqAt = 0, kpOkBucket = -2;
+var kpNow = 0, KP_BUCKET = 1800000, kpBucket = -1, kpReqAt = 0, kpOkBucket = -2, kpUpdatedAt = 0;
 var FORCEKP = null;   // test hook: a number (the KP index 0..9) — pins the live fetch
 // notification lanes — stacked BELOW the 3-line sky-clock pill (which ends ~y41) so alerts never overlap it or each other
 var NOTIF_LANE1 = 47;   // lane 1: disaster / weather alerts (world-anchored over the event)
@@ -171,7 +171,7 @@ function resetNotifLanes(){ for(var r=0;r<_notifTaken.length;r++) _notifTaken[r]
 var CLOCK = null;   // test-harness override: ms timestamp for time-of-day (null = real wall clock)
 var NOWOVR = null;  // test-harness override: ms value returned as Date.now() inside draw() (null = real)
 var NOFETCH = false;  // headless flag (own line = QML-namespace writable): almanac callers set this so setup() makes NO network calls
-var VERSION = "1.56.0";  // the build the user is running — surfaced in the Almanac + KDE config page (keep in sync with desktop/package.json)
+var VERSION = "1.58.0";  // the build the user is running — surfaced in the Almanac + KDE config page (keep in sync with desktop/package.json)
 var FORCELAYOUT = null;   // test hook: pin every building's window layout (grid/ribbon/band/punch/corp) — verify per-layout render
 var FORCECROWN = null;    // test hook: pin every building's crown/roof (gable/hip/saltbox/mansard/deco/…) — verify per-roof render
 var FORCEUSE = null;      // test hook: pin every building's functional type (hospital/theater/hotel/bank/cafe/pharmacy) — verify drawUse
@@ -1926,7 +1926,7 @@ function fetchAirq(bucket){
       if(xhr.readyState===XMLHttpRequest.DONE && xhr.status===200){
         try{ var j=JSON.parse(xhr.responseText), cu=j.current;
           if(cu){ airq={ pm25:(cu.pm2_5!=null?cu.pm2_5:null), aqi:(cu.us_aqi!=null?cu.us_aqi:null) };
-            if(bucket!==undefined) aqOkBucket=bucket; }
+            if(bucket!==undefined) aqOkBucket=bucket; aqUpdatedAt=Date.now(); }
         }catch(e){}
       }
     };
@@ -1948,7 +1948,7 @@ function fetchKp(bucket){
       if(xhr.readyState===XMLHttpRequest.DONE && xhr.status===200){
         try{ var j=JSON.parse(xhr.responseText);                              // [ [header...], ...rows ]; last row = latest
           if(Array.isArray(j) && j.length>1){ var last=j[j.length-1], kp=parseFloat(last[1]);
-            if(!isNaN(kp)){ kpNow=kp; if(bucket!==undefined) kpOkBucket=bucket; } }
+            if(!isNaN(kp)){ kpNow=kp; if(bucket!==undefined) kpOkBucket=bucket; kpUpdatedAt=Date.now(); } }
         }catch(e){}
       }
     };
@@ -1966,7 +1966,7 @@ function fetchKp(bucket){
 // renderer (which enforces CORS). Any failure (offline, no aircraft, parse error) leaves the last list
 // untouched and simply draws nothing — the feature degrades silently.
 var FORCEFLIGHTS=null;   // test hook: an array of flight records {cs,ty,e0,n0,alt0,track,gs,vr,t0} — pins the live fetch
-var realFlights=[], flBucket=-1, flReqAt=0, flOkBucket=-1;
+var realFlights=[], flBucket=-1, flReqAt=0, flOkBucket=-1, flUpdatedAt=0;
 var flightSmooth={};     // per-aircraft (hex) render state {e,n,alt,t} — eases the sparse ~90s position corrections so planes glide instead of jumping
 var FL_BUCKET=90000, FL_RADIUS=45;   // 90s poll window · 45nm radius (local air; the API caps ~250nm)
 function maybeFetchFlights(){
@@ -1997,7 +1997,7 @@ function fetchFlights(bucket){
           }
           out.sort(function(p,q){ return (p.e0*p.e0+p.n0*p.n0)-(q.e0*q.e0+q.n0*q.n0); });  // nearest aircraft first
           realFlights=out.slice(0,20);                                              // cap the panorama at the 20 closest
-          if(bucket!==undefined) flOkBucket=bucket;
+          if(bucket!==undefined) flOkBucket=bucket; flUpdatedAt=Date.now();
         }catch(e){}
       }
     };
@@ -2011,7 +2011,7 @@ function fetchFlights(bucket){
 // ~2 min, never-throw, node-guarded. Works for any US region (the team is chosen from the user's LAT/LON). ----
 var SCORE_ON=(CFG.scores!==false), SCORE_BUCKET=120000;
 var SCORE_EP={NBA:"basketball/nba",MLB:"baseball/mlb",NHL:"hockey/nhl",NFL:"football/nfl"};
-var liveScores={NBA:null,MLB:null,NHL:null,NFL:null}, scBucket=-1, scReqAt=0, FORCESCORES=null, FORCEGAMEON=false;
+var liveScores={NBA:null,MLB:null,NHL:null,NFL:null}, scBucket=-1, scReqAt=0, scUpdatedAt=0, FORCESCORES=null, FORCEGAMEON=false;
 function maybeFetchScores(){
   if(FORCESCORES){ liveScores=FORCESCORES; return; }
   if(!SCORE_ON && !BILLS_ON) return;                          // scores + takeover both off → never poll
@@ -2032,7 +2032,7 @@ function fetchScores(sport){
             ha:(h.team.abbreviation||""), aa:(a.team.abbreviation||""),
             hs:(parseInt(h.score,10)||0), as:(parseInt(a.score,10)||0),
             state:st.state, detail:(st.shortDetail||"")}); }catch(e2){} }
-        liveScores[sport]=out;
+        liveScores[sport]=out; scUpdatedAt=Date.now();
       }catch(e){} } };
     xhr.open("GET","https://site.api.espn.com/apis/site/v2/sports/"+SCORE_EP[sport]+"/scoreboard");
     xhr.send();
@@ -2096,7 +2096,7 @@ var FORCEISS=null;                 // test hook: {lat,lon} sub-point (+optional 
 var NOLIVESKY=false;               // containment A/B: suppress the post-v1.24 live-sky extras (real ISS + Starlink) the ref engine lacks, so the render stays byte-identical
 var NONEWSTV=false;                // containment A/B: suppress the post-v1.37 rooftop news jumbotrons (drawJumbotrons) the ref engine lacks — keeps the guard render byte-identical
 var NOPARTYFX=false;               // containment A/B: suppress the post-v1.38 persistent party-legacy visuals (drawPartyLegacy) the ref engine lacks — keeps the guard render byte-identical
-var issData=null, issBucket=-1, issReqAt=0;
+var issData=null, issBucket=-1, issReqAt=0, issUpdatedAt=0;
 function maybeFetchISS(){
   if(NOLIVESKY) return;            // (leaves issData null → the scripted pass stands in, matching the pre-v1.24 reference)
   if(FORCEISS){ var t=Date.now(); issData={lat:FORCEISS.lat,lon:FORCEISS.lon,ts:t,plat:FORCEISS.lat-(FORCEISS.vlat||0),plon:FORCEISS.lon-(FORCEISS.vlon||0),pts:t-1000}; return; }
@@ -2113,7 +2113,7 @@ function fetchISS(){
           if(pos){ var la=+pos.latitude, lo=+pos.longitude, ts=Date.now();
             if(isFinite(la)&&isFinite(lo)){
               if(issData){ issData={lat:la,lon:lo,ts:ts, plat:issData.lat,plon:issData.lon,pts:issData.ts}; }
-              else issData={lat:la,lon:lo,ts:ts, plat:la,plon:lo,pts:ts-25000}; } }
+              else issData={lat:la,lon:lo,ts:ts, plat:la,plon:lo,pts:ts-25000}; issUpdatedAt=ts; } }
         }catch(e){}
       }
     };
@@ -2187,7 +2187,7 @@ function fetchWeather(bucket){
             weather.proj={ hi:(phi>-900?Math.round(phi):null), lo:(plo<900?Math.round(plo):null),
                            pp:ppp, code:pcode };
           }
-          if(bucket!==undefined) wxOkBucket=bucket;   // this window's fetch succeeded → stop retrying it
+          if(bucket!==undefined) wxOkBucket=bucket; wxUpdatedAt=rn2;   // this window's fetch succeeded → stop retrying it
         }catch(e){}
       }
     };
@@ -10980,8 +10980,13 @@ function mayorState(now){
   // SCANDAL → RECALL, isolated on its OWN hash so it never perturbs the core term math or who won the race.
   var sh=((((li*2654435761)>>>0) ^ (((term+3)*19349663)>>>0) ^ 0x2545F491)>>>0);
   var scandalTerm=((sh%100)<16), recalled=(scandalTerm&&(((sh>>>8)&1)===0)), recallCy=0.50;
+  // Candidates are real, stable citizens rather than floating surnames. Their full
+  // identities are deterministic per life/term, so the Chronicle can follow the same
+  // person through campaign, election, term, scandal, and recall.
+  var af=(h>>>20)%FNAMES.length, bf=(af+1+((h>>>24)%(FNAMES.length-1)))%FNAMES.length;
+  var aName=FNAMES[af]+" "+LNAMES[a], bName=FNAMES[bf]+" "+LNAMES[b2];
   var M={ term:term, tf:tf,
-    winName:LNAMES[aWins?a:b2], loseName:LNAMES[aWins?b2:a],
+    winName:aWins?aName:bName, loseName:aWins?bName:aName,
     party:PARTIES[aWins?pi:pj], party2:PARTIES[aWins?pj:pi], electedParty:PARTIES[aWins?pi:pj], share:share,
     campaign:(tf>0.80&&tf<=0.965), electionDay:(tf>0.965), justElected:(tf<0.07), debate:(tf>0.71&&tf<=0.80),
     hold:hold,                                       // incumbent party re-elected (a "hold"); a fresh party is a "flip"
@@ -10990,7 +10995,7 @@ function mayorState(now){
     measures:termMeasures(li,term),                 // props decided at THIS term's election (already law)
     nextMeasures:termMeasures(li,term+1) };          // props on the ballot in the upcoming race (campaign signage)
   if(recalled && tf>=recallCy){                      // the mayor is thrown out mid-term — the RIVAL party takes City Hall for the rest of the term (a consequence you can watch: party policies flip)
-    M.party=PARTIES[aWins?pj:pi]; M.winName=LNAMES[aWins?b2:a]; M.ousted=true; }
+    M.party=PARTIES[aWins?pj:pi]; M.winName=aWins?bName:aName; M.ousted=true; }
   if(FORCEELECT){                                    // test hook: pin party / phase / candidates / scandal for render tests
     if(FORCEELECT.partyK) for(var pk=0;pk<PARTIES.length;pk++){ if(PARTIES[pk].k===FORCEELECT.partyK) M.party=PARTIES[pk]; }
     if(FORCEELECT.party2K) for(var p2=0;p2<PARTIES.length;p2++){ if(PARTIES[p2].k===FORCEELECT.party2K) M.party2=PARTIES[p2]; }
@@ -11180,6 +11185,79 @@ function almanacData(now){
     landmarks:marks, topCompany:topCo, space:space, history:history,
     version:VERSION                                // the running build, so the user can always see it
   };
+}
+
+// Compact host-facing status API. Desktop/web shells use this for the unobtrusive
+// "What's happening?" card and live-data freshness without duplicating simulation rules.
+function liveDataStatus(now){
+  now=now||Date.now();
+  function feed(name,updated,maxAge,enabled){
+    if(enabled===false) return {name:name,state:"off",ageMs:null};
+    if(!updated) return {name:name,state:(NOFETCH?"offline":"connecting"),ageMs:null};
+    var age=Math.max(0,now-updated); return {name:name,state:age<=maxAge?"live":"stale",ageMs:age};
+  }
+  var feeds=[
+    feed("Weather",wxUpdatedAt,20*60000,true),
+    feed("Air quality",aqUpdatedAt,90*60000,true),
+    feed("Aurora",kpUpdatedAt,90*60000,true),
+    feed("ISS",issUpdatedAt,2*60000,!NOLIVESKY),
+    feed("Flights",flUpdatedAt,5*60000,FLIGHTS_ON),
+    feed("Sports",scUpdatedAt,10*60000,true)
+  ];
+  var live=0,stale=0,connecting=0;
+  for(var i=0;i<feeds.length;i++){ if(feeds[i].state==="live")live++; else if(feeds[i].state==="stale")stale++; else if(feeds[i].state==="connecting")connecting++; }
+  var label=stale?"LIVE DATA: "+live+" LIVE, "+stale+" STALE":connecting&&!live?"LIVE DATA: CONNECTING":"LIVE DATA: "+live+" FEEDS LIVE";
+  if(NOFETCH) label="OFFLINE MODE - SIMULATED FALLBACKS";
+  return {label:label,feeds:feeds};
+}
+function cityStatus(now){
+  now=(NOWOVR!=null?NOWOVR:(now||Date.now()));
+  var A=almanacData(now), title=A.cityName+" · "+A.phase, detail=A.population.toLocaleString("en-US")+" residents", major=false;
+  if(cityPhase==="apoc") { major=true; title="APOCALYPSE · "+(DEATH_LABEL[curDeath]||curDeath||"Unknown"); detail="Civilization-ending event in progress"; }
+  else if(curDis){ major=true; title="EMERGENCY · "+String(curDis.type||"disaster").replace(/([a-z])([A-Z])/g,"$1 $2").toUpperCase(); detail="Response crews are active"; }
+  else if(curWar&&curWar.f>=0&&curWar.f<1.4){ major=true; title="WAR · CITY DEFENSE ACTIVE"; detail=curWar.win===false?"Invading forces are advancing":"Defenders are holding the city"; }
+  else if(curRegime&&curRegime.active){ major=true; title=(curRegime.theme==="bills"?"BILLS MAFIA":"THE ORDER")+" · "+(regimeLabelFor(curRegime)[curRegime.stage]||"TAKEOVER"); detail=curRegime.outcome==="putdown"&&curRegime.stage>=5?"Protests suppressed; control continues":"Public resistance is active"; }
+  else if(curPlague&&curPlague.active){ major=true; title=(curPlague.zombie?"ZOMBIE PLAGUE":"THE PLAGUE")+" · "+((curPlague.zombie?ZOMBIE_STAGE_LABEL:PLAGUE_STAGE_LABEL)[curPlague.stage]||""); detail="Public-health response in progress"; }
+  else if(curFestival&&curFestival.active){ major=true; title=curFestival.theme+" EXPO · "+(FESTIVAL_STAGE_LABEL[curFestival.stage]||""); detail="World's Fair activity across the city"; }
+  else if(curAddiction&&curAddiction.active){ major=true; title="ADDICTION CRISIS · "+(ADDICT_STAGE_LABEL[curAddiction.stage]||""); detail=curAddiction.crackdown?"Enforcement-led response":"Public-health response"; }
+  else if(curBills){ major=true; title="BUFFALO BILLS GAMEDAY"; detail="Live-game city takeover is active"; }
+  else if(curBlk){ major=true; title="POWER OUTAGE"; detail="Utility crews are restoring the affected block"; }
+  else if(curMayor&&curMayor.campaign){ major=true; title="CITY ELECTION CAMPAIGN"; detail="Candidates are campaigning downtown"; }
+  // Ordinary festivals, construction milestones, sports, weather and civic moments already
+  // have a carefully authored ticker line; surface that line here so smaller events are named too.
+  if(!major){ var news=tickerMsg(now); if(news) detail=news; }
+  var data=liveDataStatus(Date.now());
+  return {title:title,detail:detail,dataLabel:data.label,data:data,version:VERSION};
+}
+
+// Witness-only Chronicle event. This intentionally returns null for ordinary time and
+// never derives future milestones: hosts may persist only what actually appeared while
+// a render process was alive. Stable keys collapse repeated one-second observations.
+function chronicleSnapshot(now){
+  now=(NOWOVR!=null?NOWOVR:(now||Date.now()));
+  var A=almanacData(now), kind="", stage="", key="", title="", detail="", people=[];
+  function person(name,role,party){ if(name) people.push({name:name,role:role||"Citizen",party:party||""}); }
+  if(cityPhase==="apoc"){
+    kind="finale"; stage=cityApoc<0.34?"Approach":(cityApoc<0.74?"Impact":"Aftermath");
+    title="APOCALYPSE · "+(DEATH_LABEL[curDeath]||curDeath||"Unknown"); detail="Civilization-ending event witnessed";
+    key="finale:"+curDeath+":"+stage;
+  } else if(curDis){ kind="disaster"; stage=(curDis.f||0)<0.45?"Emergency":"Recovery";
+    title="EMERGENCY · "+String(curDis.type||"disaster").replace(/([a-z])([A-Z])/g,"$1 $2").toUpperCase(); detail="Response crews are active"; key="disaster:"+curDis.type+":"+stage;
+  } else if(curWar&&curWar.f>=0&&curWar.f<1.4){ kind="war"; stage=curWar.f<1?"City defense":"Outcome"; title="WAR · CITY DEFENSE ACTIVE"; detail=curWar.win===false?"Invading forces are advancing":"Defenders are holding the city"; key="war:"+stage+":"+String(curWar.win); }
+  else if(curRegime&&curRegime.active){ kind="government"; stage=regimeLabelFor(curRegime)[curRegime.stage]||"Takeover"; title=(curRegime.theme==="bills"?"BILLS MAFIA":"THE ORDER")+" · "+stage; detail=curRegime.outcome==="putdown"&&curRegime.stage>=5?"Protests suppressed; control continues":"Public resistance is active"; key="regime:"+curRegime.theme+":"+curRegime.stage+":"+curRegime.outcome; person(curRegime.leaderName,"Leader",curRegime.party&&curRegime.party.k); }
+  else if(curPlague&&curPlague.active){ kind="health"; stage=((curPlague.zombie?ZOMBIE_STAGE_LABEL:PLAGUE_STAGE_LABEL)[curPlague.stage]||""); title=(curPlague.zombie?"ZOMBIE PLAGUE":"THE PLAGUE")+" · "+stage; detail="Public-health response witnessed"; key="plague:"+(curPlague.zombie?"zombie":"normal")+":"+curPlague.stage; }
+  else if(curFestival&&curFestival.active){ kind="festival"; stage=FESTIVAL_STAGE_LABEL[curFestival.stage]||""; title=curFestival.theme+" EXPO · "+stage; detail="World's Fair activity across the city"; key="festival:"+curFestival.theme+":"+curFestival.stage; }
+  else if(curAddiction&&curAddiction.active){ kind="health"; stage=ADDICT_STAGE_LABEL[curAddiction.stage]||""; title="ADDICTION CRISIS · "+stage; detail=curAddiction.crackdown?"Enforcement-led response":"Public-health response"; key="addiction:"+curAddiction.stage+":"+(curAddiction.crackdown?"crackdown":"care"); }
+  else if(curBills){ kind="sports"; stage="Gameday"; title="BUFFALO BILLS GAMEDAY"; detail="Live-game city takeover witnessed"; key="bills:"+nowDate(now).toDateString(); }
+  else if(curBlk){ kind="infrastructure"; stage=(curBlk.f||0)>0.7?"Restoration":"Outage"; title="POWER OUTAGE · "+stage.toUpperCase(); detail="Utility response witnessed"; key="blackout:"+Math.floor(now/360000)+":"+stage; }
+  else if(curMayor){
+    var ek=""; if(curMayor.justElected) ek="Elected"; else if(curMayor.electionDay) ek="Election day"; else if(curMayor.debate) ek="Debate"; else if(curMayor.recallVote) ek="Recall vote"; else if(curMayor.scandal) ek="Scandal"; else if(curMayor.campaign) ek="Campaign";
+    if(ek){ kind="election"; stage=ek; title="CITY ELECTION · "+ek.toUpperCase(); detail=curMayor.winName+" vs "+curMayor.loseName; key="election:"+curMayor.term+":"+ek; person(curMayor.winName,curMayor.justElected?"Mayor":"Candidate",curMayor.party&&curMayor.party.k); person(curMayor.loseName,"Candidate",curMayor.party2&&curMayor.party2.k); }
+  }
+  if(!key&&curEvents){ var names=["champ","parade","market","foodfest","concert","icerink","movie","marathon","protest","film","balloonfest"];
+    for(var i=0;i<names.length;i++) if(curEvents[names[i]]){ kind="event"; stage="In progress"; title="CITY EVENT · "+names[i].replace(/([a-z])([A-Z])/g,"$1 $2").toUpperCase(); detail=tickerMsg(now)||"Public event witnessed"; key="event:"+names[i]+":"+nowDate(now).toDateString(); break; } }
+  if(!key) return null;
+  return {recordable:true,at:Date.now(),life:A.life,cityName:A.cityName,era:A.era,eventKey:key,kind:kind,title:title,detail:detail,stage:stage,people:people};
 }
 function drawElections(g,L,now,night){
   var M=curMayor; if(!M) return;
@@ -14835,6 +14913,7 @@ function draw(g,pass){
 
   // ---- THE GRAND CATACLYSM ends the city's life every ~month, then it's reborn as wilderness ----
   if(cityApoc>0) drawApocalypse(g,cityApoc,L,now);
+  if(cityApoc>0 && curSpace>0.4) drawEvacuation(g,cityApoc,now);   // the space-age payoff: evacuation ships launch during the endtimes
   if(cityApoc>0) drawApocMoon(g,now,nd,L);      // the Moon's end-events ride ON TOP of the doom sky (portent/shatter/colony-fall)
 
   // weather + holidays (local to each screen — no need to line up)

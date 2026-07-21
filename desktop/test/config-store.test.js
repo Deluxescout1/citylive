@@ -104,11 +104,19 @@ test('a Settings-panel-shaped save merged with an explicit wallpaper decision pr
 
 test('quality: valid values survive, invalid/absent drop', () => {
   assert.strictEqual(store.sanitizeConfig({ quality: 'spectacle' }).quality, 'spectacle');
+  assert.strictEqual(store.sanitizeConfig({ quality: 'balanced' }).quality, 'balanced');
   assert.strictEqual(store.sanitizeConfig({ quality: 'performance' }).quality, 'performance');
-  for (const v of ['ultra', 'balanced', 42, '', null]) {
+  for (const v of ['ultra', 42, '', null]) {
     assert.ok(!('quality' in store.sanitizeConfig({ quality: v })), `expected no key for ${JSON.stringify(v)}`);
   }
   assert.ok(!('quality' in store.sanitizeConfig({})));
+});
+
+test('showStatus: explicit booleans survive, junk and absence drop', () => {
+  assert.strictEqual(store.sanitizeConfig({ showStatus: true }).showStatus, true);
+  assert.strictEqual(store.sanitizeConfig({ showStatus: false }).showStatus, false);
+  for (const v of [0, 1, 'true', null]) assert.ok(!('showStatus' in store.sanitizeConfig({ showStatus: v })));
+  assert.ok(!('showStatus' in store.sanitizeConfig({})));
 });
 
 test('era: "auto" and lowercase-alpha names survive, invalid/absent drop', () => {
@@ -188,8 +196,8 @@ test('write → read round-trip persists quality / era / disasters', () => {
   }
 });
 
-test('finale: "auto" and the 11 exact apocalypse names survive, invalid/absent drop', () => {
-  const NAMES = ['meteors', 'nuke', 'sunburst', 'ai', 'bh', 'alienwar', 'frost', 'kaiju', 'flood', 'kaijuwar', 'pollution'];
+test('finale: "auto" and all 12 exact apocalypse names survive, invalid/absent drop', () => {
+  const NAMES = ['meteors', 'nuke', 'sunburst', 'ai', 'bh', 'alienwar', 'frost', 'kaiju', 'flood', 'kaijuwar', 'pollution', 'moonfall'];
   assert.strictEqual(store.sanitizeConfig({ finale: 'auto' }).finale, 'auto');
   NAMES.forEach((n) => {
     assert.strictEqual(store.sanitizeConfig({ finale: n }).finale, n);

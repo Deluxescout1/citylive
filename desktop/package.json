@@ -1,7 +1,7 @@
 {
   "name": "citylive",
   "productName": "CityLive",
-  "version": "1.56.0",
+  "version": "1.58.0",
   "description": "CityLive — a living pixel-art city for your desktop. Real time, real weather, day & night, seasons, festivals and the occasional disaster.",
   "author": "Deluxescout1",
   "homepage": "https://github.com/Deluxescout1/citylive",
@@ -12,7 +12,10 @@
     "koffi": "^3.1.1"
   },
   "scripts": {
-    "test": "node --test",
+    "test": "npm run check:engine && node --test",
+    "check:engine": "node ../tools/check-engine-sync.js",
+    "sync:engine": "node ../tools/sync-engine.js",
+    "verify:fps": "electron verify-fps.js",
     "start": "electron .",
     "dist": "electron-builder",
     "dist:linux": "electron-builder --linux",
@@ -43,6 +46,7 @@
       "main.js",
       "preload.js",
       "config-store.js",
+      "chronicle-store.js",
       "geocode.js",
       "screensaver.js",
       "wallpaper.js",

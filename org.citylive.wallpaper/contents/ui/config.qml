@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls as QQC2
 import QtQuick.Layouts
+import QtQuick.LocalStorage
 import org.kde.kirigami as Kirigami
 import "../js/city.js" as City   // the real engine (its own instance here; no .pragma library) — for the read-only Almanac
 
@@ -16,6 +17,25 @@ ColumnLayout {
     property string cfg_worldRestartMode: "apoc"
     property bool cfg_flights: true
     property bool cfg_bills: false
+    property string cfg_quality: ""
+    property bool cfg_showStatus: true
+    property bool cfg_chronicleEnabled: true
+    property string chronicleText: i18n("No witnessed events yet. Leave CityLive running and its story will appear here.")
+    property bool chronicleClearArmed: false
+
+    function refreshChronicle() {
+        try {
+            var db = LocalStorage.openDatabaseSync("CityLiveChronicle", "1.0", "Witnessed CityLive history", 1048576), lines=[];
+            db.transaction(function(tx) {
+                tx.executeSql("CREATE TABLE IF NOT EXISTS events (life INTEGER, city TEXT, era TEXT, at INTEGER, event_key TEXT, kind TEXT, title TEXT, detail TEXT, stage TEXT, people TEXT, UNIQUE(life,event_key))");
+                var rs=tx.executeSql("SELECT * FROM events ORDER BY at DESC LIMIT 100");
+                for(var i=0;i<rs.rows.length;i++){ var e=rs.rows.item(i), d=new Date(e.at);
+                    lines.push("<b>"+e.city+" · "+e.title+"</b><br><font color='#93a2c0'>"+d.toLocaleString()+" · "+e.stage+"<br>"+e.detail+"</font>"); }
+            });
+            chronicleText=lines.length?lines.join("<br><br>"):i18n("No witnessed events yet. Leave CityLive running and its story will appear here.");
+        } catch(e) { chronicleText=i18n("Chronicle unavailable: %1",e); }
+    }
+    function clearChronicle() { try { var db=LocalStorage.openDatabaseSync("CityLiveChronicle","1.0","Witnessed CityLive history",1048576);db.transaction(function(tx){tx.executeSql("DELETE FROM events");});refreshChronicle(); } catch(e){} }
 
     // Friendly name -> engine name for the finale picker (first 9 in the order DEATHS
     // cycles them in city.js; kaijuwar/pollution are picker-only fates appended after).
@@ -96,7 +116,7 @@ ColumnLayout {
             almanacLabel.text = i18n("Almanac unavailable: %1", err);
         }
     }
-    Component.onCompleted: refreshAlmanac()
+    Component.onCompleted: { refreshAlmanac(); refreshChronicle(); }
 
     Kirigami.FormLayout {
         Layout.fillWidth: true
@@ -114,6 +134,52 @@ ColumnLayout {
             onActivated: cfgRoot.cfg_scene = currentValue
             Component.onCompleted: currentIndex = Math.max(0, indexOfValue(cfgRoot.cfg_scene))
         }
+
+        QQC2.ComboBox {
+            Kirigami.FormData.label: i18n("Render quality:")
+            model: [
+                { text: i18n("Automatic (recommended)"), value: "" },
+                { text: i18n("Spectacle — maximum detail"), value: "spectacle" },
+                { text: i18n("Balanced — detail and efficiency"), value: "balanced" },
+                { text: i18n("Performance — battery friendly"), value: "performance" }
+            ]
+            textRole: "text"
+            valueRole: "value"
+            currentIndex: Math.max(0, indexOfValue(cfgRoot.cfg_quality))
+            onActivated: cfgRoot.cfg_quality = currentValue
+            Component.onCompleted: currentIndex = Math.max(0, indexOfValue(cfgRoot.cfg_quality))
+        }
+
+        QQC2.CheckBox {
+            Kirigami.FormData.label: i18n("City status:")
+            text: i18n("Show the compact “What’s happening?” panel")
+            checked: cfgRoot.cfg_showStatus
+            onToggled: cfgRoot.cfg_showStatus = checked
+        }
+
+        Kirigami.Separator {
+            Kirigami.FormData.isSection: true
+            Kirigami.FormData.label: i18n("City Chronicle")
+        }
+        QQC2.CheckBox {
+            Kirigami.FormData.label: i18n("History recording:")
+            text: i18n("Record only events witnessed while CityLive is running")
+            checked: cfgRoot.cfg_chronicleEnabled
+            onToggled: cfgRoot.cfg_chronicleEnabled = checked
+        }
+        QQC2.Label {
+            Kirigami.FormData.label: i18n("Witnessed history:")
+            Layout.fillWidth: true
+            wrapMode: Text.WordWrap
+            textFormat: Text.RichText
+            text: cfgRoot.chronicleText
+        }
+        RowLayout {
+            Kirigami.FormData.label: " "
+            QQC2.Button { text: i18n("Refresh"); onClicked: cfgRoot.refreshChronicle() }
+            QQC2.Button { text: cfgRoot.chronicleClearArmed ? i18n("Click again to confirm") : i18n("Clear history"); onClicked: { if(cfgRoot.chronicleClearArmed){cfgRoot.clearChronicle();cfgRoot.chronicleClearArmed=false;}else{cfgRoot.chronicleClearArmed=true;clearArmTimer.restart();} } }
+        }
+        Timer { id: clearArmTimer; interval: 5000; onTriggered: cfgRoot.chronicleClearArmed=false }
 
         Kirigami.Separator {
             Kirigami.FormData.isSection: true

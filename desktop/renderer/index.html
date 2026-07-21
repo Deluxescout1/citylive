@@ -5,12 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover">
 <title>CityLive</title>
 <meta name="theme-color" content="#0a0c14">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src https://api.open-meteo.com https://air-quality-api.open-meteo.com https://services.swpc.noaa.gov https://api.airplanes.live https://site.api.espn.com https://ipwho.is http://api.open-notify.org; img-src 'self' data:;">
 <style>
   :root{ --panel:rgba(14,18,28,.82); --line:#2a3550; --txt:#e6ecf7; --sub:#93a2c0; --cyan:#39e6ff; }
   *{box-sizing:border-box}
   html,body{margin:0;height:100%;background:#05070c;overflow:hidden;
     font:13px/1.4 "JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--txt)}
-  #cv{display:block;width:100vw;height:100vh;image-rendering:pixelated;image-rendering:crisp-edges}
+  .city-canvas{position:fixed;inset:0;display:block;width:100vw;height:100vh;image-rendering:pixelated;image-rendering:crisp-edges}
+  #cvbg{z-index:0} #cv{z-index:1}
   /* control bar — auto-hides; hover/tap the top edge to reveal */
   #bar{position:fixed;left:0;right:0;top:0;display:flex;flex-wrap:wrap;gap:10px;align-items:center;
     padding:8px 12px;background:var(--panel);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);
@@ -26,6 +28,11 @@
   #hud{position:fixed;left:12px;bottom:10px;color:var(--sub);background:var(--panel);border:1px solid var(--line);
     border-radius:7px;padding:5px 9px;z-index:8;opacity:.9}
   #hud b{color:var(--txt)}
+  #happening{position:fixed;left:12px;top:12px;max-width:min(390px,calc(100vw - 24px));z-index:8;
+    color:var(--sub);background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:7px 10px;opacity:.92}
+  #happening .title{color:var(--txt);font-weight:700} #happening .meta{font-size:11px;margin-top:2px}
+  #renderError{position:fixed;right:12px;top:12px;z-index:30;display:none;max-width:min(520px,calc(100vw - 24px));
+    color:#ffe8e8;background:rgba(92,13,24,.94);border:1px solid #e65b6d;border-radius:9px;padding:8px 10px;font-size:11px}
   #help{position:fixed;right:12px;bottom:10px;color:var(--sub);z-index:8;opacity:.7;font-size:11px}
   @media (max-width:640px){ #bar{gap:6px;padding:6px 8px} input[type=range]{width:84px} .lbl{display:none} }
   /* ---- Settings panel (birthdays / location / speed) ---- */
@@ -56,7 +63,8 @@
 </style>
 </head>
 <body>
-<canvas id="cv"></canvas>
+<canvas id="cvbg" class="city-canvas"></canvas>
+<canvas id="cv" class="city-canvas"></canvas>
 <div id="hot"></div>
 <div id="bar">
   <span class="brand">CityLive</span>
@@ -78,6 +86,8 @@
   <button id="full" title="Fullscreen">⛶</button>
 </div>
 <div id="hud">— </div>
+<div id="happening" aria-live="polite"><div class="title">CityLive is starting…</div><div class="meta">Building the current city state</div></div>
+<div id="renderError" role="alert"></div>
 <div id="help">drag <b>time</b> to scrub the day · <b>age</b> to grow the city · hover top edge for controls</div>
 
 
@@ -95,14 +105,17 @@
 <script src="city.js"></script>
 <script>
 (function(){
-  var cv=document.getElementById('cv'), g=cv.getContext('2d');
+  var cv=document.getElementById('cv'), bgcv=document.getElementById('cvbg'), g=cv.getContext('2d'), bg=bgcv.getContext('2d');
   var PXK=4;
   // Environment facts from the main process (desktop app only; empty {} on the web):
   // wallpaper mode → reserve street above the Windows taskbar; primaryW → feature-scale
   // reference so a multi-monitor union canvas scales to ONE monitor, not the whole desktop.
   var ENV={}; try{ if(window.citylive&&window.citylive.envJSON) ENV=JSON.parse(window.citylive.envJSON)||{}; }catch(e){}
   var CFG0=(typeof window!=='undefined'&&window.CITYLIVE_CFG)||{};
-  var st={ era:null, hour:null, age:null, quality:(CFG0.quality==='performance'?'performance':'spectacle'), paused:false };
+  var savedQuality=['spectacle','balanced','performance'].indexOf(CFG0.quality)>=0?CFG0.quality:'spectacle';
+  var st={ era:null, hour:null, age:null, quality:savedQuality, paused:false };
+  document.getElementById('q').value=st.quality;
+  if(CFG0.showStatus===false) document.getElementById('happening').style.display='none';
   // config era name → session override index (the control bar can still change it live)
   try{ if(CFG0.era&&CFG0.era!=='auto'){ var _ci=ERAS.findIndex(function(e){return e.name===CFG0.era;}); if(_ci>=0) st.era=_ci; } }catch(e){}
 
@@ -131,13 +144,14 @@
     var refW=(ENV.primaryW&&ENV.displayCount>1)?ENV.primaryW:window.innerWidth;
     PXK=Math.max(2,Math.min(10,Math.round(refW*dpr/430)||PXK));
     var cw=Math.max(160,Math.round(window.innerWidth*dpr/PXK)), ch=Math.max(120,Math.round(window.innerHeight*dpr/PXK));
-    cv.width=cw; cv.height=ch;
+    cv.width=bgcv.width=cw; cv.height=bgcv.height=ch;
     // Wallpaper mode sits UNDER the Windows taskbar — raise the street so the traffic and
     // sidewalks stay visible above it (same trick as the KDE panel handling).
     var tbWp=0;
     // taskbarPx is in DIP (≈CSS px); dpr converts to physical, /PXK to canvas-logical px.
     if(ENV.wallpaper&&ENV.taskbarPx>0) tbWp=Math.ceil(ENV.taskbarPx*dpr/PXK);
     setup('neon',{cw:cw,ch:ch,woff:0,ww:cw,pxk:PXK,kspAuto:true,kspw:Math.round(refW*dpr/PXK),taskbarWp:tbWp,zoom:1,quality:st.quality});
+    bgDirty=true;
   }
 
   function applyOverrides(){
@@ -153,6 +167,25 @@
     var t=(st.hour==null)?'live':((st.hour/10).toFixed(1)+'h');
     var a=(st.age==null)?'live':(st.age+'%');
     el.innerHTML='<b>'+name+'</b> · time '+t+' · age '+a+' · '+st.quality;
+  }
+
+  var lastError='', lastErrorAt=0;
+  function reportRenderError(err){
+    var msg=String(err&&err.stack||err||'Unknown render error'), now=Date.now();
+    if(msg!==lastError||now-lastErrorAt>10000){ console.error('CityLive render failure:',err); lastError=msg; lastErrorAt=now; }
+    var el=document.getElementById('renderError'); el.textContent='CityLive recovered from a render error: '+msg.split('\n')[0]; el.style.display='block';
+  }
+  function updateHappening(){
+    var el=document.getElementById('happening');
+    try{
+      var s=typeof cityStatus==='function'?cityStatus(Date.now()):null;
+      if(!s) return;
+      el.querySelector('.title').textContent=s.title||'City running normally';
+      el.querySelector('.meta').textContent=[s.detail,s.dataLabel].filter(Boolean).join(' · ');
+      if(window.citylive&&window.citylive.recordChronicle&&typeof chronicleSnapshot==='function'){
+        var witness=chronicleSnapshot(Date.now()); if(witness) window.citylive.recordChronicle(witness).catch(function(){});
+      }
+    }catch(e){ reportRenderError(e); }
   }
 
   var t=null;
@@ -172,9 +205,29 @@
   // tap top to toggle the bar on touch devices
   document.getElementById('hot').addEventListener('click',function(){ document.getElementById('bar').classList.toggle('show'); });
 
-  fillEras(); boot(); hud();
-  // render loop — 12fps spectacle/balanced, 8fps performance
-  setInterval(function(){ if(st.paused) return; try{ applyOverrides(); draw(g); }catch(e){} }, 1000/12);
+  fillEras(); boot(); hud(); updateHappening();
+  document.getElementById('happening').title='Open the City Chronicle';
+  document.getElementById('happening').style.cursor='pointer';
+  document.getElementById('happening').addEventListener('click',function(){
+    if(window.citylive&&window.citylive.openChronicle) window.citylive.openChronicle().catch(function(){});
+  });
+  // Two-layer, drift-aware renderer: the expensive sky/terrain backdrop updates slowly;
+  // motion stays smooth at the selected tier. requestAnimationFrame also yields when hidden.
+  var lastFg=0,lastBg=0,bgDirty=true;
+  function frame(ts){
+    requestAnimationFrame(frame);
+    if(st.paused||document.hidden) return;
+    var fps=st.quality==='performance'?8:(st.quality==='balanced'?10:12), fgStep=1000/fps;
+    if(ts-lastFg<fgStep) return;
+    try{
+      applyOverrides();
+      var bgStep=st.quality==='performance'?2000:(st.quality==='balanced'?1000:500);
+      if(bgDirty||ts-lastBg>=bgStep){ draw(bg,'bg'); lastBg=ts; bgDirty=false; }
+      draw(g,'fg'); lastFg=ts;
+    }catch(e){ reportRenderError(e); lastFg=ts; }
+  }
+  requestAnimationFrame(frame);
+  setInterval(updateHappening,1000);
   // keep the screen awake if displayed as a kiosk (best effort)
   if(navigator.wakeLock) navigator.wakeLock.request('screen').catch(function(){});
   document.addEventListener('visibilitychange',function(){ if(!document.hidden&&navigator.wakeLock) navigator.wakeLock.request('screen').catch(function(){}); });

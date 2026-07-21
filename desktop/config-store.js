@@ -71,9 +71,10 @@ function sanitizeConfig(raw) {
   if (cfg.wallpaper) out.wallpaper = true;
   else if (cfg.wallpaper === false) out.wallpaper = false;
 
-  // Render quality override: only these two exact strings survive; absent lets the
+  // Render quality override: only these three exact strings survive; absent lets the
   // engine pick its own default (currently "spectacle").
-  if (cfg.quality === 'spectacle' || cfg.quality === 'performance') out.quality = cfg.quality;
+  if (cfg.quality === 'spectacle' || cfg.quality === 'balanced' || cfg.quality === 'performance') out.quality = cfg.quality;
+  if (typeof cfg.showStatus === 'boolean') out.showStatus = cfg.showStatus;
 
   // City era override: 'auto' (follow the live evolving city) or a lowercase-alpha
   // engine era name. Stored as-is — the engine itself resolves an unrecognized name
@@ -93,7 +94,7 @@ function sanitizeConfig(raw) {
   if (typeof cfg.flights === 'boolean') out.flights = cfg.flights;
 
   // Finale pin: 'auto' (a different fate each life, the engine's own default) or one of
-  // the 11 exact apocalypse names below; absent/junk drops so the engine picks auto.
+  // the 12 exact apocalypse names below; absent/junk drops so the engine picks auto.
   const FINALES = ['meteors', 'nuke', 'sunburst', 'ai', 'bh', 'alienwar', 'frost', 'kaiju', 'flood', 'kaijuwar', 'pollution', 'moonfall'];
   if (cfg.finale === 'auto' || FINALES.indexOf(cfg.finale) >= 0) {
     out.finale = cfg.finale;

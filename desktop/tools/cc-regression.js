@@ -21,14 +21,19 @@ app.whenReady().then(() => {
             wp: (document.getElementById('wpToggle')||{}).textContent||'',
             hasAlm: typeof window.almanacData==='function',
             almFilled: ((document.getElementById('almanacBody')||{}).innerText||'').length,
+            chronicle: ((document.getElementById('chronBody')||{}).innerText||''),
             ssBtn: !!document.getElementById('ssEnable'),
             saveBtn: !!document.getElementById('citySave')
           };})()`);
         // the IIFE's renderWpToggle() sets wpToggle text — if the IIFE broke, it'd be empty/default
         const iifeOk = /Wallpaper:/.test(probe.wp);
-        const bad = errs.length > 0 || !iifeOk || !probe.hasAlm || probe.almFilled < 20;
+        const bad = errs.length > 0 || !iifeOk || !probe.hasAlm || probe.almFilled < 20 || !/Testhaven/.test(probe.chronicle);
+        await win.webContents.executeJavaScript("document.getElementById('tabChronicle').click(); 'ok'");
+        await new Promise((resolve) => setTimeout(resolve, 250));
+        const shot = await win.webContents.capturePage();
+        require('fs').writeFileSync('/tmp/citylive-chronicle-tab.png', shot.toPNG());
         console.log('wpToggle="' + probe.wp.slice(0, 40) + '" hasAlm=' + probe.hasAlm + ' almLen=' + probe.almFilled +
-          ' ssBtn=' + probe.ssBtn + ' saveBtn=' + probe.saveBtn);
+          ' chronicle=' + /Testhaven/.test(probe.chronicle) + ' ssBtn=' + probe.ssBtn + ' saveBtn=' + probe.saveBtn);
         if (errs.length) console.log('ERRORS:\n' + errs.join('\n'));
         console.log(bad ? 'CC_REGRESSION_FAIL' : 'CC_REGRESSION_OK (existing IIFE intact alongside the engine)');
       } catch (e) { console.log('CC_REGRESSION_ERR ' + e); }

@@ -85,15 +85,38 @@ org.citylive.wallpaper/
   contents/ui/main.qml     per-screen canvas + self-location
   contents/ui/config.qml   settings page
   contents/config/main.xml config keys (scene, worldW, worldX, taskbarPx)
-  contents/js/city.js       the whole engine (~1000 lines of pixel city)
+  contents/js/city.js       canonical simulation/render engine (~15,000 lines)
 ```
 
 MIT licensed. Built for fun. 🌆
 
 ## Quality tiers (2026-07-06)
 Per-screen setting: right-click desktop > Configure Desktop and Wallpaper — each
-monitor's wallpaper config accepts quality = performance | balanced | spectacle.
+monitor offers Automatic, Performance (8fps), Balanced (10fps), and Spectacle
+(12fps). CityLive separates its slow backdrop from moving foreground content so
+cars and people no longer force the entire sky and terrain to repaint every frame.
 (The usually-covered center monitor is a good candidate for "performance".)
+
+## v1.57 Foundation
+
+- One canonical engine is synchronized to KDE, Electron, web, and phone builds;
+  automated tests reject platform drift.
+- Split background/foreground rendering reduces repeated work on every platform.
+- Quality-aware frame pacing now works consistently, including persistent Balanced mode.
+- The optional **What's happening?** panel names the current event and stage and reports
+  whether live data is connected, stale, or using offline fallbacks.
+- Render failures are logged and surfaced instead of being silently swallowed.
+- Automated smoke renders cover every finale and the major long-running story arcs.
+
+## v1.58 The City Chronicle
+
+- The Control Center now has a dedicated **City Chronicle** tab containing only events that
+  appeared while CityLive was running—nothing from the future is revealed or reconstructed.
+- The latest 25 civilizations are retained with staged elections, disasters, finales,
+  takeovers, crises, festivals, public events, named candidates, and other witnessed moments.
+- Open it from Settings, the status card, tray/application menu, or `Ctrl+H`.
+- Export a polished image, readable text timeline, or JSON backup; recording can be paused
+  and individual civilizations or the complete history can be removed.
 
 ## Tools (2026-07-06)
 - tools/chronicle.js [life]  — writes the full written history of any life

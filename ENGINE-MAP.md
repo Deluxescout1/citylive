@@ -1,6 +1,6 @@
 # CityLive engine map (`contents/js/city.js`)
 
-A navigation + labelling guide to the whole engine. `city.js` is **one ~6970-line
+A navigation + labelling guide to the whole engine. `city.js` is **one ~15,000-line
 file** of pure JavaScript, loaded by `contents/ui/main.qml` and drawn into a QML
 `Canvas` 2D context. There is no build step and no framework — every subsystem is a
 plain function drawing pixels.
@@ -15,7 +15,10 @@ plain function drawing pixels.
 | Function | Line ~ | Role |
 |---|---|---|
 | `setup(scene, opts)` | 1764 | Builds the world for this screen. `opts = {cw,ch,woff,ww,taskbarWp,pxk,zoom,quality}`. Called on bring-up and whenever geometry/scene changes. |
-| `draw(g, pass)` | ~6142 | Paints one frame. `pass`: `undefined` = single canvas · `"bg"` = slow backdrop · `"fg"` = moving content. Called every timer tick (8–12 fps by quality). |
+| `draw(g, pass)` | ~13800 | Paints one frame. `pass`: `undefined` = legacy single canvas · `"bg"` = slow backdrop · `"fg"` = moving content. Platform shells use foreground 8/10/12fps and backdrop 0.5/1/2fps by quality. |
+
+The KDE copy above is canonical. Run `cd desktop && npm run sync:engine` after
+editing it; `npm test` verifies that Electron, web, and phone copies are identical.
 
 `main.qml` computes per-screen geometry (device-pixel-ratio, zoom, world offset,
 taskbar height) and passes it in; **all world geometry inside `city.js` is in world
@@ -143,7 +146,7 @@ pixels**, mapped to canvas pixels by `ZOOM`.
     `desktop/renderer/settings.html` `FINALES`, `org.citylive.wallpaper/contents/ui/config.qml`
     `finaleChoices`).
 
-## 11. The frame: `draw(g, pass)` (lines ~6142–6971)
+## 11. The frame: `draw(g, pass)` (lines ~13800–end)
 Order per frame: reset alert lanes → rebirth check → weather → sky/celestial → mountains →
 rival city → skyline (bg buildings → near buildings, with night radiance & eclipse) → street +
 lane markings + **crosswalks** → **traffic** (queue at red lights; see below) → buses/EMS/crash →
@@ -167,5 +170,5 @@ rank backs each car off one body length. `STOPZ` = detection zone, `CARLEN` = bo
 
 ## Still open
 - **#5 Asset accuracy audit** — walk every `drawX` for proportion/colour correctness.
-- **#7 Cross-OS** — reconcile the stale `phone/` browser fork (missing ~40 functions) with this
-  engine so one `city.js` runs in both QML and any browser (`city.js` is already nearly QML-free).
+- Continue expanding image-diff baselines beyond the current all-finale and major-arc
+  smoke matrix; cross-platform engine drift was completed in v1.57.

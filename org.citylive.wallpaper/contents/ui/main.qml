@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Window
+import QtQuick.LocalStorage
 import org.kde.plasma.plasmoid
 import "../js/city.js" as City
 import "../js/localcfg.js" as Local   // per-machine personal settings (birthdays/location/cycle); committed EMPTY, filled by install.sh from config.local.json
@@ -9,6 +10,12 @@ WallpaperItem {
 
     readonly property string scene: (configuration && configuration.scene) ? configuration.scene : "neon"
     property bool cfgApplied: false   // local personal config (birthdays/location/cycle) is injected once, at first boot
+    property string statusTitle: "CityLive is starting…"
+    property string statusDetail: "Building the current city state"
+    property string renderError: ""
+    property string lastChronicleKey: ""
+    readonly property bool showStatus: !configuration || configuration.showStatus === undefined || configuration.showStatus
+    readonly property bool chronicleEnabled: !configuration || configuration.chronicleEnabled === undefined || configuration.chronicleEnabled
     // DEVICE px per world/canvas pixel — the chunkiness of the pixel art.
     readonly property int pxk: 3    // hi-res "128-bit" mode (6→4→3; ~1.8x pixels of pxk4; KSP=6/pxk in city.js adapts speeds/masses)
     // QUALITY tier: spectacle (full 12fps everything) / balanced / performance (8fps, thinner
@@ -57,6 +64,23 @@ WallpaperItem {
 
     Rectangle { anchors.fill: parent; color: "black" }
 
+    // Slow-changing sky/terrain layer. Keeping it separate avoids repainting the most
+    // expensive static scenery for every car/pedestrian animation frame.
+    Canvas {
+        id: bgcv
+        width: Math.max(8, root.zoom * Math.ceil(root.width * root.dpr / (root.texelBuf * root.zoom)))
+        height: Math.max(8, root.zoom * Math.ceil(root.height * root.dpr / (root.texelBuf * root.zoom)))
+        smooth: root.dpr !== 1
+        antialiasing: false
+        renderTarget: Canvas.FramebufferObject
+        transformOrigin: Item.TopLeft
+        scale: root.texelBuf / root.dpr
+        onPaint: {
+            try { City.draw(getContext("2d"), "bg"); }
+            catch (e) { root.renderError = "Backdrop: " + e; console.error("CityLive backdrop render failure: " + e); }
+        }
+    }
+
     Canvas {
         id: cv
         // one canvas per screen, sized to THIS screen's aspect ratio (all fed from one world)
@@ -80,20 +104,72 @@ WallpaperItem {
 
         onPaint: {
             var g = getContext("2d");
-            City.draw(g);
+            try { City.draw(g, "fg"); }
+            catch (e) { root.renderError = "Foreground: " + e; console.error("CityLive foreground render failure: " + e); }
         }
     }
 
+    Rectangle {
+        visible: root.showStatus
+        anchors.left: parent.left; anchors.top: parent.top
+        anchors.margins: 12
+        width: Math.min(390, Math.max(220, statusText.implicitWidth + 20))
+        height: statusText.implicitHeight + 14
+        radius: 8; color: "#d9141824"; border.color: "#52617d"; border.width: 1
+        Text {
+            id: statusText; anchors.fill: parent; anchors.margins: 7
+            text: "<b>" + root.statusTitle + "</b><br><font color='#a9b6ce'>" + root.statusDetail + "</font>"
+            textFormat: Text.RichText; color: "#edf3ff"; wrapMode: Text.Wrap
+            font.pixelSize: 12
+        }
+    }
+    Rectangle {
+        visible: root.renderError.length > 0
+        anchors.right: parent.right; anchors.top: parent.top; anchors.margins: 12
+        width: Math.min(520, errorText.implicitWidth + 20); height: errorText.implicitHeight + 14
+        radius: 8; color: "#ed5c0d18"; border.color: "#e65b6d"
+        Text { id: errorText; anchors.fill: parent; anchors.margins: 7; color: "#ffe8e8"; font.pixelSize: 11; wrapMode: Text.Wrap; text: "CityLive recovered from a render error: " + root.renderError }
+    }
+
     Timer {
-        interval: root.quality === "performance" ? 125 : 100   // 8 vs 10 fps by quality tier (10fps offsets the pxk3 hi-res cost; motion is time-based so no speed change)
+        interval: root.quality === "performance" ? 125 : (root.quality === "balanced" ? 100 : 83) // 8 / 10 / ~12 fps
         running: root.visible
         repeat: true
         onTriggered: cv.requestPaint()
     }
+    Timer {
+        interval: root.quality === "performance" ? 2000 : (root.quality === "balanced" ? 1000 : 500)
+        running: root.visible
+        repeat: true
+        onTriggered: bgcv.requestPaint()
+    }
+    Timer {
+        interval: 1000; running: root.visible; repeat: true
+        onTriggered: {
+            try {
+                var s = City.cityStatus(Date.now());
+                root.statusTitle = s.title || "City running normally";
+                root.statusDetail = [s.detail, s.dataLabel].filter(function(v){ return !!v; }).join(" · ");
+                var w = City.chronicleSnapshot(Date.now());
+                if (root.chronicleEnabled && w && w.recordable && w.eventKey !== root.lastChronicleKey) {
+                    root.recordChronicle(w); root.lastChronicleKey = w.eventKey;
+                }
+            } catch (e) { root.renderError = "Status: " + e; console.error("CityLive status failure: " + e); }
+        }
+    }
+
+    function recordChronicle(w) {
+        var db = LocalStorage.openDatabaseSync("CityLiveChronicle", "1.0", "Witnessed CityLive history", 1048576);
+        db.transaction(function(tx) {
+            tx.executeSql("CREATE TABLE IF NOT EXISTS events (life INTEGER, city TEXT, era TEXT, at INTEGER, event_key TEXT, kind TEXT, title TEXT, detail TEXT, stage TEXT, people TEXT, UNIQUE(life,event_key))");
+            tx.executeSql("INSERT OR IGNORE INTO events VALUES (?,?,?,?,?,?,?,?,?,?)", [w.life,w.cityName,w.era,w.at,w.eventKey,w.kind,w.title,w.detail,w.stage,JSON.stringify(w.people||[])]);
+            tx.executeSql("DELETE FROM events WHERE life NOT IN (SELECT life FROM events GROUP BY life ORDER BY life DESC LIMIT 25)");
+        });
+    }
 
     function boot() {
         // ignore the transient boots during screen bring-up (dimensions not settled yet)
-        if (root.width < 8 || root.height < 8 || cv.width < 8 || cv.height < 8)
+        if (root.width < 8 || root.height < 8 || cv.width < 8 || cv.height < 8 || bgcv.width < 8 || bgcv.height < 8)
             return;
         // Inject personal settings (birthdays/location/cycle) from localcfg.js — committed EMPTY in the public
         // repo, filled on THIS machine by install.sh from the gitignored config.local.json. Absent/empty → no
@@ -146,6 +222,8 @@ WallpaperItem {
             zoom: root.zoom,                                      // canvas px per world px on this screen
             quality: root.quality                                 // effect-density tier
         });
+        bgcv.requestPaint();
+        cv.requestPaint();
         console.log("CityLive screen located: virtualX=" + Screen.virtualX + " " + root.width + "x" + root.height
                     + " dpr=" + root.dpr + " zoom=" + root.zoom + " -> woff=" + Math.round(root.worldLeftPx / root.pxk) + "wp " + cv.width + "x" + cv.height
                     + " panelBottom=" + root.panelBottomPx + "px (" + Math.ceil(root.panelBottomPx / root.pxk) + "wp)");
@@ -155,7 +233,7 @@ WallpaperItem {
     Timer { id: bootTimer; interval: 60; onTriggered: root.boot() }
     // one-shot SETTLE pass: 6s after bring-up, re-run setup + repaint — shakes out any
     // transient geometry/scale state from login/output reconfiguration (stripe insurance)
-    Timer { id: settleTimer; interval: 6000; running: true; onTriggered: { root.boot(); cv.requestPaint() } }
+    Timer { id: settleTimer; interval: 6000; running: true; onTriggered: { root.boot(); bgcv.requestPaint(); cv.requestPaint() } }
     Component.onCompleted: bootTimer.restart()
     onSceneChanged: bootTimer.restart()
     // location changed in the config dialog → re-boot with the new place (weather/sun/stars/architecture)
@@ -172,4 +250,5 @@ WallpaperItem {
     onWorldLeftPxChanged: bootTimer.restart()
     onPanelBottomPxChanged: bootTimer.restart()
     Connections { target: cv; function onWidthChanged(){ bootTimer.restart() } function onHeightChanged(){ bootTimer.restart() } }
+    Connections { target: bgcv; function onWidthChanged(){ bootTimer.restart() } function onHeightChanged(){ bootTimer.restart() } }
 }

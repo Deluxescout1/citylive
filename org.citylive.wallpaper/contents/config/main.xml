@@ -16,6 +16,12 @@
     <entry name="quality" type="String">
       <default></default>
     </entry>
+    <entry name="showStatus" type="Bool">
+      <default>true</default>
+    </entry>
+    <entry name="chronicleEnabled" type="Bool">
+      <default>true</default>
+    </entry>
     <!-- This screen's left edge in the global desktop (logical px). -1 = auto
          (read Screen.virtualX). Set explicitly only if auto-detect is wrong. -->
     <entry name="worldX" type="Int">
@@ -42,7 +48,7 @@
       <default></default>
     </entry>
     <!-- Pinned apocalypse: "auto" (a different fate each life, the engine's own default)
-         or one of the 11 exact engine death names (DEATHS in js/city.js, plus the
+         or one of the 12 exact engine death names (DEATHS in js/city.js, plus the
          picker-only kaijuwar/pollution fates). -->
     <entry name="finale" type="String">
       <default>auto</default>

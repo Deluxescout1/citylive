@@ -6,6 +6,7 @@
 const { app, BrowserWindow, Menu, Tray, nativeImage, shell, ipcMain, dialog, Notification } = require('electron');
 const path = require('path');
 const store = require('./config-store');
+const chronicle = require('./chronicle-store');
 const screensaver = require('./screensaver');
 const wallpaper = require('./wallpaper');
 
@@ -21,6 +22,7 @@ const START_SETTINGS = process.argv.includes('--settings');
 // the OS user-data folder, OUTSIDE the app bundle, so auto-updates never overwrite it.
 // Set once the app is ready (needs app.getPath). All config I/O goes through config-store.
 let CONFIG_PATH = null;
+let CHRONICLE_PATH = null;
 
 // Auto-update from GitHub Releases: when you tag a new version and CI publishes a release, installed
 // apps download it in the background and apply it on the next launch. Optional in dev (module may be absent).
@@ -268,8 +270,9 @@ function reloadCity() { if (win && !win.isDestroyed()) win.reload(); }
 // you edit settings. Replaces the old "drop the wallpaper to a window to reach Settings"
 // excursion entirely. Reached from the tray, the app menu, the "CityLive Settings"
 // desktop/Start-menu shortcut (--settings), and the screensaver Settings button (/c).
-function openControlCenter() {
-  if (ccWin && !ccWin.isDestroyed()) { ccWin.show(); ccWin.focus(); return; }
+function openControlCenter(tab) {
+  const wanted = tab === 'chronicle' ? 'chronicle' : 'settings';
+  if (ccWin && !ccWin.isDestroyed()) { ccWin.show(); ccWin.focus(); ccWin.webContents.send('citylive:navigate', wanted); return; }
   ccWin = new BrowserWindow({
     width: 620, height: 760, minWidth: 480, minHeight: 520,
     title: 'CityLive Settings',
@@ -283,7 +286,7 @@ function openControlCenter() {
     }
   });
   ccWin.loadFile(path.join(__dirname, 'renderer', 'settings.html'));
-  ccWin.webContents.once('did-finish-load', () => pushStateToCC());
+  ccWin.webContents.once('did-finish-load', () => { pushStateToCC(); ccWin.webContents.send('citylive:navigate', wanted); });
   ccWin.on('closed', () => { ccWin = null; });
 }
 
@@ -335,6 +338,25 @@ function registerConfigIpc() {
   ipcMain.handle('citylive:reset-config', () => { const def = writeUserConfig(store.DEFAULT_CONFIG); reloadCity(); return def; });
   ipcMain.handle('citylive:open-config-file', () => (CONFIG_PATH ? shell.openPath(CONFIG_PATH) : Promise.resolve('')));
   ipcMain.handle('citylive:get-version', () => app.getVersion());
+  ipcMain.handle('citylive:open-chronicle', () => { openControlCenter('chronicle'); return true; });
+  ipcMain.handle('citylive:get-chronicle', () => chronicle.read(CHRONICLE_PATH));
+  ipcMain.handle('citylive:chronicle-record', (e, snapshot) => chronicle.record(CHRONICLE_PATH, snapshot));
+  ipcMain.handle('citylive:chronicle-enabled', (e, enabled) => chronicle.setEnabled(CHRONICLE_PATH, enabled));
+  ipcMain.handle('citylive:chronicle-clear', () => chronicle.clear(CHRONICLE_PATH));
+  ipcMain.handle('citylive:chronicle-remove-life', (e, life) => chronicle.removeLife(CHRONICLE_PATH, life));
+  ipcMain.handle('citylive:chronicle-export', async (e, format) => {
+    const type = ['json','txt','png'].includes(format) ? format : 'txt';
+    const data = chronicle.read(CHRONICLE_PATH), stamp = new Date().toISOString().slice(0,10);
+    const pick = await dialog.showSaveDialog(ccWin || undefined, { title:'Export City Chronicle',
+      defaultPath:'CityLive-Chronicle-'+stamp+'.'+type,
+      filters:type==='png'?[{name:'PNG image',extensions:['png']}]:type==='json'?[{name:'JSON backup',extensions:['json']}]:[{name:'Text document',extensions:['txt']}] });
+    if(pick.canceled || !pick.filePath) return false;
+    if(type==='json') require('fs').writeFileSync(pick.filePath,JSON.stringify(data,null,2)+'\n');
+    else if(type==='txt') require('fs').writeFileSync(pick.filePath,chronicle.toText(data));
+    else { const rect=await e.sender.executeJavaScript(`(function(){var r=document.getElementById('cardChronicle').getBoundingClientRect();return{x:Math.max(0,Math.floor(r.x)),y:Math.max(0,Math.floor(r.y)),width:Math.ceil(r.width),height:Math.min(Math.ceil(r.height),4000)}})()`);
+      const image=await e.sender.capturePage(rect); require('fs').writeFileSync(pick.filePath,image.toPNG()); }
+    return true;
+  });
   // Settings panel location lookup: city/ZIP/address → candidate {label,lat,lon,name}
   // list. Delegates to geocode.js (no Electron dependency, unit-tested standalone).
   ipcMain.handle('citylive:geocode', (e, q) => require('./geocode').lookup(q));
@@ -427,7 +449,8 @@ function rebuildMenu() {
     {
       label: 'CityLive',
       submenu: [
-        { label: 'Open Control Center…', accelerator: 'CmdOrCtrl+,', click: openControlCenter },
+        { label: 'Open Control Center…', accelerator: 'CmdOrCtrl+,', click: () => openControlCenter('settings') },
+        { label: 'City Chronicle…', accelerator: 'CmdOrCtrl+H', click: () => openControlCenter('chronicle') },
         { label: 'Open Config File', click: () => CONFIG_PATH && shell.openPath(CONFIG_PATH) },
         { label: 'Reset Settings to Defaults', click: resetSettings },
         { type: 'separator' },
@@ -472,7 +495,8 @@ function rebuildTrayMenu() {
       { label: 'Show', click: () => { if (win) { win.show(); win.focus(); } } },
       { label: 'Full Screen', click: toggleFullScreen }
     ]),
-    { label: 'Control Center / Settings…', click: openControlCenter },
+    { label: 'Control Center / Settings…', click: () => openControlCenter('settings') },
+    { label: 'City Chronicle…', click: () => openControlCenter('chronicle') },
     { label: 'Open Config File', click: () => CONFIG_PATH && shell.openPath(CONFIG_PATH) },
     (trayIsWin
       ? { label: 'Desktop Wallpaper (behind icons)', type: 'checkbox', checked: desktopWallpaper, click: (i) => setDesktopWallpaper(i.checked) }
@@ -515,6 +539,7 @@ if (SS.preview) {
   // not take the single-instance lock, or it would just focus a running app and quit.
   app.whenReady().then(() => {
     CONFIG_PATH = path.join(app.getPath('userData'), 'config.json');
+    CHRONICLE_PATH = path.join(app.getPath('userData'), 'chronicle.json');
     store.ensureConfig(CONFIG_PATH);
     registerConfigIpc();
     createWindow();
@@ -544,6 +569,7 @@ if (SS.preview) {
       // Personal settings live in userData (survives auto-updates). Seed + wire the IPC
       // BEFORE createWindow, so the preload's sync request is answered as the page loads.
       CONFIG_PATH = path.join(app.getPath('userData'), 'config.json');
+      CHRONICLE_PATH = path.join(app.getPath('userData'), 'chronicle.json');
       store.ensureConfig(CONFIG_PATH);
       registerConfigIpc();
       // It's a WALLPAPER app: on Windows a fresh install becomes the desktop background
