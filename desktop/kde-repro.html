@@ -69,7 +69,7 @@ if(Q.get('starlink')!=null){ FORCESTARLINK=qn('starlink',0.5); }   // force a St
 if(Q.get('iss')){ var _ip=Q.get('iss').split(','); FORCEISS={lat:+_ip[0],lon:+_ip[1],vlat:(_ip[2]!=null?+_ip[2]:0.06),vlon:(_ip[3]!=null?+_ip[3]:0.9)}; }   // pin the ISS sub-point "lat,lon[,vlat,vlon]" to test the real-position overhead pass
 if(Q.get('kp')!=null){ FORCEKP=+Q.get('kp'); }   // pins the planetary K-index (aurora): 5-6 band, ≥7 curtains
 if(Q.get('colony')!=null){ FORCECOLONY={moon:+Q.get('colony'), mars:+Q.get('colony'), venus:+Q.get('colony'), europa:+Q.get('colony'), titan:+Q.get('colony')}; }   // pins every colony's level
-try{ setup('neon',{cw:cw,ch:ch,woff:woff,ww:ww,pxk:3,zoom:1,quality:'spectacle'}); document.title='SETUP_OK'; }
+try{ setup('neon',{cw:cw,ch:ch,woff:woff,ww:ww,pxk:qn('pxk',3),zoom:qn('zoom',1),quality:'spectacle'}); document.title='SETUP_OK'; }
 catch(e){ document.title='SETUP_ERR '+(e&&e.message); }
 function frame(){ if(window.__stop) return; try{ draw(g); }catch(e){ document.title='DRAW_ERR '+((e&&e.stack)||e).toString().replace(/\n/g,' | ').slice(0,300); } requestAnimationFrame(frame); }
 frame();

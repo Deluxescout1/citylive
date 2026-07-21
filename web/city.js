@@ -161,7 +161,7 @@ function resetNotifLanes(){ for(var r=0;r<_notifTaken.length;r++) _notifTaken[r]
 var CLOCK = null;   // test-harness override: ms timestamp for time-of-day (null = real wall clock)
 var NOWOVR = null;  // test-harness override: ms value returned as Date.now() inside draw() (null = real)
 var NOFETCH = false;  // headless flag (own line = QML-namespace writable): almanac callers set this so setup() makes NO network calls
-var VERSION = "1.50.0";  // the build the user is running — surfaced in the Almanac + KDE config page (keep in sync with desktop/package.json)
+var VERSION = "1.51.0";  // the build the user is running — surfaced in the Almanac + KDE config page (keep in sync with desktop/package.json)
 var FORCELAYOUT = null;   // test hook: pin every building's window layout (grid/ribbon/band/punch/corp) — verify per-layout render
 var FORCECROWN = null;    // test hook: pin every building's crown/roof (gable/hip/saltbox/mansard/deco/…) — verify per-roof render
 var FORCEUSE = null;      // test hook: pin every building's functional type (hospital/theater/hotel/bank/cafe/pharmacy) — verify drawUse
@@ -6244,16 +6244,37 @@ function drawShootingStar(g,L,now){
 }
 // a rainbow arc when a shower has just cleared under a low sun (wet ground, clearing sky, morning/evening light)
 // GOD-RAYS: crepuscular sunbeams fan down from the sun when the sky is partly broken by cloud
+// CREPUSCULAR RAYS — a FEW broad, soft shafts of light fan from the sun when cloud breaks it. Drawn as WIDE
+// gradient WEDGES that fade to nothing along their length (gradients rasterise seam-free), NOT thin hard
+// fillRect strips. The old thin-strip version read as harsh vertical lines — and on fractionally-scaled
+// displays (e.g. a 4K@165% monitor, where KWin downsamples the 2x buffer) those 1px beams sharpened into
+// the recurring "vertical lines over the mountains/sky" artifact. Broad soft shafts can't alias into lines.
 function drawGodRays(g,L,now,fx){
   if(L<0.4||cityPhase==="apoc"||fx.rain||fx.snow||fx.thunder||fx.fog) return;
   var cl=weather.cloud||0; if(cl<26||cl>76) return;                              // needs SOME cloud to break the light (not clear, not overcast)
   var df=Math.max(0.06,Math.min(0.94,curSunDf)), sunX=Math.round(SW*df), sunY=Math.round(HORIZON*0.46-Math.sin(df*Math.PI)*HORIZON*0.4);
-  var warm=(goldenK>0.2)?"255,222,164":"255,250,228", str=0.05+(goldenK||0)*0.09;
+  var warm=(goldenK>0.2)?[255,222,164]:[255,250,228], str=0.03+(goldenK||0)*0.05;
+  var rays=4, maxLen=Math.max(20,(HORIZON-sunY)*0.9);
   g.globalCompositeOperation="lighter";
-  for(var r=0;r<7;r++){ var ang=(r-3)*0.17+Math.sin(now*0.0002+r)*0.015, len=(HORIZON-sunY)+HORIZON*0.4;
-    for(var s=6;s<len;s+=5){ var by=sunY+s; if(by>HORIZON+4) break;
-      var bx=sunX+Math.tan(ang)*s, w=1+((s/len)*3|0);
-      g.fillStyle="rgba("+warm+","+(str*(1-s/len)).toFixed(3)+")"; g.fillRect((bx-(w>>1))|0,by|0,w,5); } }
+  for(var r=0;r<rays;r++){
+    var ang=(r-(rays-1)/2)*0.28 + Math.sin(now*0.00018+r*1.7)*0.02;             // a few well-separated shafts
+    var len=maxLen, endY=sunY+len; if(endY>HORIZON+2){ len=HORIZON+2-sunY; endY=HORIZON+2; }
+    var dx=Math.tan(ang), endX=sunX+dx*len;
+    // 3 NESTED wedges (wide+faint → narrow+brighter) → a soft core with FEATHERED sides: no hard edge anywhere,
+    // so nothing can sharpen into a thin line even after a fractional-scale downsample.
+    for(var k=0;k<3;k++){
+      var halfW=(20+r*3)*(1-k*0.33), a=str*(0.4+k*0.22);
+      var grd=g.createLinearGradient(sunX,sunY,endX,endY);                      // fade to transparent along the shaft
+      grd.addColorStop(0,   "rgba("+warm[0]+","+warm[1]+","+warm[2]+","+a.toFixed(3)+")");
+      grd.addColorStop(0.6, "rgba("+warm[0]+","+warm[1]+","+warm[2]+","+(a*0.45).toFixed(3)+")");
+      grd.addColorStop(1,   "rgba("+warm[0]+","+warm[1]+","+warm[2]+",0)");
+      g.fillStyle=grd;
+      g.beginPath();                                                           // a wedge: near-a-point at the sun, wide at the end
+      g.moveTo(sunX-2,sunY); g.lineTo(sunX+2,sunY);
+      g.lineTo(endX+halfW,endY); g.lineTo(endX-halfW,endY);
+      g.closePath(); g.fill();
+    }
+  }
   g.globalCompositeOperation="source-over";
 }
 function drawRainbow(g,L,fx){
