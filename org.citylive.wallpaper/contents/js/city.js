@@ -171,7 +171,7 @@ function resetNotifLanes(){ for(var r=0;r<_notifTaken.length;r++) _notifTaken[r]
 var CLOCK = null;   // test-harness override: ms timestamp for time-of-day (null = real wall clock)
 var NOWOVR = null;  // test-harness override: ms value returned as Date.now() inside draw() (null = real)
 var NOFETCH = false;  // headless flag (own line = QML-namespace writable): almanac callers set this so setup() makes NO network calls
-var VERSION = "1.54.0";  // the build the user is running — surfaced in the Almanac + KDE config page (keep in sync with desktop/package.json)
+var VERSION = "1.55.0";  // the build the user is running — surfaced in the Almanac + KDE config page (keep in sync with desktop/package.json)
 var FORCELAYOUT = null;   // test hook: pin every building's window layout (grid/ribbon/band/punch/corp) — verify per-layout render
 var FORCECROWN = null;    // test hook: pin every building's crown/roof (gable/hip/saltbox/mansard/deco/…) — verify per-roof render
 var FORCEUSE = null;      // test hook: pin every building's functional type (hospital/theater/hotel/bank/cafe/pharmacy) — verify drawUse
@@ -2339,6 +2339,7 @@ function cityEvents(nd){
 var curEvents=null;
 var curDis=null, curRebuilt=[], curRuins=[];   // active disaster (or null) + completed-rebuild zones + permanently-ruined zones, set each frame
 var curBills=null;   // Buffalo Bills gameday takeover state (or null) — set each frame in draw()
+var curBillsDress=false;   // is the whole city dressed in Bills gear right now? (gameday OR the Mafia's uniform mandate)
 var cityG=1, cityPhase="peak", growPop=1, cityApoc=0, apocVeil=0;   // maturity, phase, pop factor, apocalypse progress + ash-out veil
 var curSpace=0;   // SPACE AGE 0..1 — the mature metropolis' final evolution before the endtimes
 var lpK=0;        // LIGHT POLLUTION 0..1 — how far the city's glow drowns the dark sky (Milky Way/Andromeda wash-out)
@@ -2866,9 +2867,10 @@ function drawPerson(g,x,y,cloth,skin,bob,kind){
   // kind: undefined/0 adult · 1 child (one head shorter, no accessories) · 2 elder (silver + cane)
   var f=(bob|0)&3, lift=(f===1||f===3)?1:0, yy=(y-lift)|0, X=x|0;
   if(cloth==null) cloth="#3a3a44"; if(skin==null) skin=SKINC[0];            // guard a bad palette index (e.g. a signed-shift hash gone negative) — draw a person, never blank the frame
-  if(curBills){                                                            // gameday: most citizens don Bills gear. Decision keyed off the ORIGINAL cloth/skin (a world seed) so a person crossing a bezel decides the same on both screens.
+  if(curBillsDress){                                                       // gameday, OR the Mafia's uniform mandate: citizens don Bills gear. Keyed off the ORIGINAL cloth/skin (a world seed) so a person crossing a bezel decides the same on both screens.
     var fanH=((cloth.charCodeAt(1)*7+cloth.charCodeAt(3)*13+skin.charCodeAt(2)*17)>>>0);
-    if(fanH%5!==0) cloth=(fanH%3===0)?BILLS_RED:BILLS_BLUE;                // ~80% are fans — mostly royal blue, some red
+    var strict=(curRegime&&curRegime.theme==="bills");                     // the Mafia enforces harder than a gameday crowd
+    if(fanH%(strict?9:5)!==0) cloth=(fanH%3===0)?BILLS_RED:BILLS_BLUE;     // ~89% under mandate / ~80% on gameday — mostly royal blue, some red
   }
   var hseed=(cloth.charCodeAt(1)+cloth.charCodeAt(3)+skin.charCodeAt(2));
   var pants=pantsOf(cloth);
@@ -3362,15 +3364,23 @@ function drawCivicHud(g,now,night){
 // THE ORDER's emblem — a stark white angular star on a crimson roundel (fictional; no real symbols)
 var ORDER_NIGHT=0;   // 0 day → 1 deep night; set by drawRegime so every Order emblem/banner/structure LIGHTS UP after dark
 var ORDER_THEME="order";   // "order" (crimson dictatorship) or "bills" (the Bills Mafia reskin) — set each frame from curRegime.theme
+// the BILLS MAFIA crest is a charging BUFFALO (like the team's). Two silhouettes — a compact one for small
+// emblems, a detailed one for big ones — both facing LEFT, head low, shoulder hump, four legs, tail.
+var BISON_S=["0011100","0111110","1111111","1011010","1001010"];                                     // 7x5
+var BISON_L=["00011100000","00111110000","01111111100","11111111110","11111111111","11111111110","11011011010","10010010010"];   // 11x8
+function drawBuffalo(g,cx,cy,w,col){
+  var big=(w>=22), bmp=big?BISON_L:BISON_S, cols=big?11:7, rows=big?8:5;
+  var cw=Math.max(1,Math.round(w/cols)), ch=cw, W=cw*cols, H=ch*rows, x0=Math.round(cx-W/2), y0=Math.round(cy-H/2);
+  g.fillStyle=col;
+  for(var r=0;r<rows;r++){ var ln=bmp[r]; for(var c=0;c<cols;c++) if(ln.charAt(c)==="1") g.fillRect(x0+c*cw,y0+r*ch,cw,ch); }
+}
 function drawOrderEmblem(g,cx,cy,r,fg,bg){
   cx=cx|0; cy=cy|0;
-  if(ORDER_THEME==="bills"){                                                                         // BILLS MAFIA crest — a football on a royal-blue roundel (replaces the angular star everywhere)
+  if(ORDER_THEME==="bills"){                                                                         // BILLS MAFIA crest — a charging buffalo (replaces the angular star everywhere)
     if(ORDER_NIGHT>0.04){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(60,120,235,"+(0.5*ORDER_NIGHT).toFixed(3)+")"; fillEllipse(g,cx,cy,r+2,r+2); g.globalCompositeOperation="source-over"; }
-    if(bg!==null){ g.fillStyle="#00338d"; fillEllipse(g,cx,cy,r+1,r+1); g.fillStyle="#c60c30"; fillEllipse(g,cx,cy,r,r); }   // blue ring, red field
-    var fry=Math.max(1,r-1);                                                                         // the football: a brown pointed ellipse, wider than tall
-    g.fillStyle="#8a4a22"; fillEllipse(g,cx,cy,r,fry);
-    g.fillStyle="#f4f0e6"; g.fillRect(cx,cy-fry,1,2*fry+1);                                           // centre lace line
-    if(r>=3) for(var lc=-1;lc<=1;lc++) g.fillRect(cx-1,cy+lc*2,3,1);                                  // lace ticks
+    if(r<2){ g.fillStyle="#00338d"; fillEllipse(g,cx,cy,Math.max(1,r),Math.max(1,r)); return; }      // too small for the buffalo → a royal-blue dot
+    if(bg!==null){ g.fillStyle="#c60c30"; fillEllipse(g,cx,cy,r+1,r+1); g.fillStyle="#eef2f8"; fillEllipse(g,cx,cy,r,r); }   // red ring, white field (the Bills palette)
+    drawBuffalo(g,cx,cy,2*r,"#00338d");                                                              // royal-blue charging buffalo
     return;
   }
   if(ORDER_NIGHT>0.04){ g.globalCompositeOperation="lighter";                                       // a lit crimson halo so the emblem glows at night (like the airship lights)
@@ -3776,13 +3786,11 @@ function drawHillEmblem(g,L,now){
   for(var sx=Math.round(SW*0.32);sx<Math.round(SW*0.88);sx+=3){ var hh=mtsCache.h[1][sx]||0; if(hh>bestH){bestH=hh;bestX=sx;} }
   if(bestH<22) return;                                                               // no real mountain in view → skip
   var cx=bestX, cy=((HORIZON-bestH)|0)+14, r=13, night=1-L, bills=regimeBills();
-  if(bills){                                                                          // a COLOSSAL football crest floodlit on the mountainside
+  if(bills){                                                                          // a COLOSSAL charging-buffalo crest floodlit on the mountainside
     g.globalCompositeOperation="lighter"; g.fillStyle="rgba(40,110,230,"+(0.08+0.16*night).toFixed(3)+")"; fillEllipse(g,cx,cy,r+4,r+4); g.globalCompositeOperation="source-over";
-    g.fillStyle=L>0.5?"#0a3a8c":"#06215a"; fillEllipse(g,cx,cy,r,r);                   // royal-blue roundel
-    g.fillStyle=L>0.5?"#c60c30":"#7a0a20"; fillEllipse(g,cx,cy,r-1,r-1);              // red field
-    g.fillStyle="#8a4a22"; fillEllipse(g,cx,cy,r-3,r-6);                              // brown football
-    g.fillStyle="#f0e8da"; g.fillRect(cx,cy-(r-6),1,2*(r-6)+1);                        // centre lace
-    for(var lk=-2;lk<=2;lk++) g.fillRect(cx-2,cy+lk*2,5,1);                            // laces
+    g.fillStyle=L>0.5?"#c60c30":"#7a0a20"; fillEllipse(g,cx,cy,r,r);                   // red ring
+    g.fillStyle=L>0.5?"#eef2f8":"#c8d2e0"; fillEllipse(g,cx,cy,r-1,r-1);              // white field (Bills palette)
+    drawBuffalo(g,cx,cy,2*(r-2),L>0.5?"#0a3a8c":"#06215a");                            // royal-blue charging buffalo
   } else {
   g.globalCompositeOperation="lighter"; g.fillStyle="rgba(180,20,30,"+(0.08+0.16*night).toFixed(3)+")"; fillEllipse(g,cx,cy,r+4,r+4); g.globalCompositeOperation="source-over";  // glow
   g.fillStyle=L>0.5?"#8a1420":"#5a0e18"; fillEllipse(g,cx,cy,r,r);                    // crimson roundel
@@ -4107,6 +4115,57 @@ function drawFestival(g,L,now,night){
   drawFerrisWheel(g,L,now);                // the great wheel (BUILD onward) — the signature, sky-level
   if(F.stage===5) drawFestivalMonument(g,L,now);   // the legacy monument, UNVEILED at the closing ceremony
 }
+// Bills days — a few pairs of citizens play CATCH in the street: a football arcs between them, back and forth.
+function drawTosser(g,x,sk,seed,armUp){
+  drawPerson(g,x,HORIZON-1,((seed%3)===0)?BILLS_RED:BILLS_BLUE,sk,0);
+  if(armUp){ g.fillStyle=((seed%3)===0)?BILLS_RED:BILLS_BLUE; g.fillRect((x+2)|0,HORIZON-6,1,2); g.fillStyle=sk; g.fillRect((x+2)|0,HORIZON-7,1,1); }   // a raised throwing / catching arm
+}
+function drawFootballTossers(g,L,now){
+  if(!curBillsDress || cityG<0.5) return;
+  var SPOTS=[0.30,0.52,0.73];
+  for(var i=0;i<SPOTS.length;i++){
+    var cwx=Math.round(SPOTS[i]*WW), aWx=cwx-11, bWx=cwx+11;
+    var per=3200, tt=(((now + i*1100)%per)/per);                        // 0..1 arc of the throw
+    var fromA=(Math.floor((now+i*1100)/per)%2)===0, fromWx=fromA?aWx:bWx, toWx=fromA?bWx:aWx;
+    var ballWx=fromWx+(toWx-fromWx)*tt, arc=Math.sin(tt*Math.PI)*11;    // spiral height
+    var aArm=fromA?(tt<0.18):(tt>0.82), bArm=fromA?(tt>0.82):(tt<0.18);
+    for(var off=-WW;off<=WW;off+=WW){
+      var A=(aWx-WOFF+off)|0, B=(bWx-WOFF+off)|0, BALL=(ballWx-WOFF+off)|0;
+      if(B<-8||A>SW+8) continue;
+      drawTosser(g,A,SKINC[(i*5)%SKINC.length],i,aArm);
+      drawTosser(g,B,SKINC[(i*5+2)%SKINC.length],i+3,bArm);
+      var by=(HORIZON-2-arc)|0;                                          // the football, spiralling across
+      g.fillStyle="#8a4a22"; g.fillRect(BALL-1,by,3,2); g.fillRect(BALL,by-1,1,1); g.fillRect(BALL,by+2,1,1);
+      g.fillStyle="#f0e8da"; g.fillRect(BALL,by,1,1);
+    }
+  }
+}
+// THE UNIFORM MANDATE, enforced (non-lethal): a Bills Mafia trooper catches a citizen NOT in team colours and
+// "converts" them with a blast of blue paint/confetti — hands go up and they turn Bills-blue. No harm shown
+// (the wallpaper's no-gore rule) — a comic crackdown. Stage 4+ (MAFIA LAW), eases off once the parade starts.
+function drawMafiaEnforcement(g,L,now){
+  var R=curRegime; if(!R||!R.active||R.theme!=="bills"||R.stage<4||cityG<0.5) return;
+  if(R.stage===6&&R.sub>=0.5) return;
+  var per=26000, ph=(now%per)/per; if(ph>0.46) return;                 // a brief scene ~ every 26s
+  var slot=Math.floor(now/per), t=ph/0.46;
+  var wx=Math.round((0.34 + (slot%5)*0.07)*WW);
+  var converted=(t>0.72), blasting=(t>0.5&&t<=0.72), handsUp=(t>0.45);
+  for(var off=-WW;off<=WW;off+=WW){
+    var X=(wx-WOFF+off)|0; if(X<-26||X>SW+26) continue;
+    var step=(Math.floor(now/150))&1, encX=X-18+Math.round(Math.min(1,t/0.45)*8);
+    var tcol=converted?BILLS_BLUE:"#cabfa6";                            // plain clothes → converted to Bills blue
+    drawPerson(g,X,HORIZON-1,tcol,"#caa07a",handsUp?0:(step?1:3));
+    if(handsUp){ g.fillStyle=tcol; g.fillRect(X-1,HORIZON-6,1,2); g.fillRect(X+2,HORIZON-6,1,2); g.fillStyle="#caa07a"; g.fillRect(X-1,HORIZON-7,1,1); g.fillRect(X+2,HORIZON-7,1,1); }
+    drawTrooper(g,encX,HORIZON-1,now,step?1:3);                         // the enforcer
+    g.fillStyle="#0a1a44"; g.fillRect((encX+2)|0,HORIZON-4,4,2);        // the (paint) cannon
+    if(blasting){ var bt=(t-0.5)/0.22, cr=rng((0x8117+slot*131)>>>0);
+      g.globalCompositeOperation="lighter";
+      for(var p=0;p<12;p++){ var pxp=encX+6+(X-encX-6)*bt+(cr()-0.5)*7, pyp=HORIZON-3+(cr()-0.5)*7;
+        g.fillStyle=(p%4===0)?"rgba(198,12,48,0.9)":"rgba(50,120,240,0.9)"; g.fillRect(pxp|0,pyp|0,1,1); }
+      g.globalCompositeOperation="source-over"; }
+    if(converted && ((Math.floor(now/180))&1)){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(120,170,255,0.45)"; fillEllipse(g,X,HORIZON-4,5,5); g.globalCompositeOperation="source-over"; }
+  }
+}
 function drawRegime(g,L,now,night){
   if(!curRegime||!curRegime.active) return;
   ORDER_NIGHT=Math.max(0,Math.min(1,(0.55-L)/0.35));    // how lit the Order's stuff glows (0 day → 1 deep night)
@@ -4125,6 +4184,7 @@ function drawRegime(g,L,now,night){
   drawRegimeRally(g,L,now);      // the mandatory rally massed before the statue
   drawResistance(g,L,now);       // …and, near the end, the graffiti/tags of the resistance
   drawLiberation(g,L,now);
+  drawMafiaEnforcement(g,L,now);   // the Bills Mafia enforcing the uniform mandate (non-lethal — a blue-paint conversion)
 }
 // the sky clock: local time + date, floating top-centre of every monitor
 // v1.28 — under THE ORDER the city is RE-BRANDED (first word + a heavy suffix), reverting when it falls.
@@ -12251,38 +12311,42 @@ function drawApocalypse(g,ap,L,now){
 function drawApocMoonfall(g,ap,L,now){
   function fillCircle(gg,x,y,r,c){ gg.fillStyle=c; fillEllipse(gg,x,y,Math.max(1,r),Math.max(1,r)); }
   function mixByte(a,b,t){ return Math.round(a+(b-a)*t); }
-  // the sky curdles green-black then hellish orange as the Moon fills it
-  var SKB=[[18,26,20],[40,30,24],[86,42,26],[150,66,30],[210,120,50]], segN=SKB.length-1;
-  for(var yy=0;yy<HORIZON;yy+=6){ var tt=yy/HORIZON*segN, si=Math.min(segN-1,tt|0), tf=tt-si, ca=SKB[si], cb=SKB[si+1];
-    g.fillStyle="rgba("+((ca[0]+(cb[0]-ca[0])*tf)|0)+","+((ca[1]+(cb[1]-ca[1])*tf)|0)+","+((ca[2]+(cb[2]-ca[2])*tf)|0)+","+(0.55+0.4*ap)+")"; g.fillRect(0,yy,SW,6); }
-  var mR=Math.round(7 + ap*ap*(SH*0.62)), mcx=(SW*0.5)|0, mcy=Math.round(-mR*0.35 + ap*ap*(HORIZON*0.55 + mR*0.5));   // grows huge + descends toward the city
-  var tint=Math.min(1,ap*1.2), pulse=1+0.02*Math.sin(now*0.006);
-  // the enormous pallid Moon, reddening with menace as it falls
+  // Nick: EVERYTHING stays normal (sky + city + the Moon's colour) through the WHOLE descent — the world only
+  // curdles at the very end as the Moon strikes. impactK is 0 for the fall, ramping 0→1 over the final moments.
+  var impactK=Math.max(0,Math.min(1,(ap-0.86)/0.14));
+  if(impactK>0){                                                                   // the sky curdles green-black → hellish orange ONLY as it hits
+    var SKB=[[18,26,20],[40,30,24],[86,42,26],[150,66,30],[210,120,50]], segN=SKB.length-1;
+    for(var yy=0;yy<HORIZON;yy+=6){ var tt=yy/HORIZON*segN, si=Math.min(segN-1,tt|0), tf=tt-si, ca=SKB[si], cb=SKB[si+1];
+      g.fillStyle="rgba("+((ca[0]+(cb[0]-ca[0])*tf)|0)+","+((ca[1]+(cb[1]-ca[1])*tf)|0)+","+((ca[2]+(cb[2]-ca[2])*tf)|0)+","+((0.55+0.4*ap)*impactK).toFixed(3)+")"; g.fillRect(0,yy,SW,6); }
+  }
+  var mR=Math.round(7 + ap*ap*(SH*0.62)), tint=impactK, pulse=1+0.02*Math.sin(now*0.006);   // pallid grey the whole way down; reddens only at impact
+  var mcy=Math.round(-mR*0.35 + ap*ap*(HORIZON*0.55 + mR*0.5));                     // grows huge + descends toward the city
   var base=[mixByte(214,150,tint), mixByte(210,120,tint), mixByte(196,80,tint)];
-  g.globalCompositeOperation="lighter"; g.fillStyle="rgba("+base[0]+","+base[1]+","+base[2]+",0.10)"; g.fillRect((mcx-mR-8)|0,(mcy-mR-8)|0,2*mR+16,2*mR+16); g.globalCompositeOperation="source-over";  // sickly halo
-  fillCircle(g, mcx, mcy, mR*pulse, "rgb("+base[0]+","+base[1]+","+base[2]+")");
-  // pocked craters
-  var cr=rng(0x4D4F4F4E);
-  for(var k=0;k<14;k++){ var caa=cr()*6.283, crd=Math.sqrt(cr())*mR*0.9, kx=mcx+Math.cos(caa)*crd, ky=mcy+Math.sin(caa)*crd, ksz=Math.max(1,mR*(0.04+cr()*0.06));
-    fillCircle(g,kx,ky,ksz,"rgba("+(base[0]-30)+","+(base[1]-34)+","+(base[2]-30)+",0.5)"); }
-  // ---- THE CARVED FACE (Majora's Mask): furrowed brow, slanted glaring eyes, gritted teeth ----
-  if(ap>0.12 && mR>14){ var fa=Math.min(1,(ap-0.12)*2.2), ex=mR*0.42, ey=mcy-mR*0.16, es=mR*0.26;
-    var dark="rgba(46,20,16,"+(0.85*fa)+")", glow=(Math.floor(now/300)%2?"rgba(255,150,40,":"rgba(255,90,30,");
-    // furrowed brow (two heavy angled ridges meeting in a scowl)
-    g.strokeStyle=dark; g.lineWidth=Math.max(2,mR*0.06); g.lineCap="round";
-    g.beginPath(); g.moveTo(mcx-ex-es*0.6, ey-es*0.9); g.lineTo(mcx-es*0.2, ey-es*0.2); g.stroke();
-    g.beginPath(); g.moveTo(mcx+ex+es*0.6, ey-es*0.9); g.lineTo(mcx+es*0.2, ey-es*0.2); g.stroke();
-    // slanted glaring eyes (angry triangles) with burning pupils
-    for(var e=0;e<2;e++){ var sgn=e?1:-1, exc=mcx+sgn*ex;
-      g.fillStyle=dark; g.beginPath(); g.moveTo(exc-sgn*es*0.9, ey-es*0.2); g.lineTo(exc+sgn*es*0.9, ey+es*0.1); g.lineTo(exc-sgn*es*0.2, ey+es*0.7); g.closePath(); g.fill();
-      g.globalCompositeOperation="lighter"; g.fillStyle=glow+(0.9*fa)+")"; fillCircle(g,exc,ey+es*0.15,es*0.32*pulse,glow+(0.9*fa)+")"); g.globalCompositeOperation="source-over"; }
-    // the nose
-    g.fillStyle=dark; g.beginPath(); g.moveTo(mcx,ey+es*0.4); g.lineTo(mcx-es*0.35,mcy+mR*0.18); g.lineTo(mcx+es*0.35,mcy+mR*0.18); g.closePath(); g.fill();
-    // the wide gritted mouth with big teeth
-    var mw=mR*0.86, my=mcy+mR*0.42, mh=mR*0.26;
-    g.fillStyle=dark; g.fillRect((mcx-mw*0.5)|0,(my-mh*0.5)|0,(mw)|0,(mh)|0);
-    g.fillStyle="rgba(220,206,180,"+(0.9*fa)+")"; var tn=7, tw=mw/tn;
-    for(var t=0;t<tn;t++){ g.fillRect((mcx-mw*0.5+t*tw+1)|0,(my-mh*0.5+1)|0,(tw-1.5)|0,(mh*0.42)|0); g.fillRect((mcx-mw*0.5+t*tw+1)|0,(my+mh*0.08)|0,(tw-1.5)|0,(mh*0.42)|0); }
+  // ONE Moon — anchored to the impact epicentre in WORLD space, so every monitor renders the SAME single Moon.
+  // (The old screen-centred position drew one per screen → three moons across a multi-monitor desktop.)
+  var mWx=(typeof apocEpiX==="function")?apocEpiX(now):Math.round(WW*0.5);
+  for(var off=-WW;off<=WW;off+=WW){
+    var mcx=(mWx-WOFF+off)|0; if(mcx+mR<-8||mcx-mR>SW+8) continue;
+    g.globalCompositeOperation="lighter"; g.fillStyle="rgba("+base[0]+","+base[1]+","+base[2]+",0.10)"; g.fillRect((mcx-mR-8)|0,(mcy-mR-8)|0,2*mR+16,2*mR+16); g.globalCompositeOperation="source-over";  // halo
+    fillCircle(g, mcx, mcy, mR*pulse, "rgb("+base[0]+","+base[1]+","+base[2]+")");
+    var cr=rng(0x4D4F4F4E);                                                         // pocked craters
+    for(var k=0;k<14;k++){ var caa=cr()*6.283, crd=Math.sqrt(cr())*mR*0.9, kx=mcx+Math.cos(caa)*crd, ky=mcy+Math.sin(caa)*crd, ksz=Math.max(1,mR*(0.04+cr()*0.06));
+      fillCircle(g,kx,ky,ksz,"rgba("+(base[0]-30)+","+(base[1]-34)+","+(base[2]-30)+",0.5)"); }
+    // ---- THE CARVED FACE (Majora's Mask): dark carved features on the pale Moon; the eyes only BURN at impact ----
+    if(ap>0.12 && mR>14){ var fa=Math.min(1,(ap-0.12)*2.2), ex=mR*0.42, ey=mcy-mR*0.16, es=mR*0.26;
+      var dark="rgba(46,20,16,"+(0.85*fa)+")", glow=(Math.floor(now/300)%2?"rgba(255,150,40,":"rgba(255,90,30,");
+      g.strokeStyle=dark; g.lineWidth=Math.max(2,mR*0.06); g.lineCap="round";
+      g.beginPath(); g.moveTo(mcx-ex-es*0.6, ey-es*0.9); g.lineTo(mcx-es*0.2, ey-es*0.2); g.stroke();
+      g.beginPath(); g.moveTo(mcx+ex+es*0.6, ey-es*0.9); g.lineTo(mcx+es*0.2, ey-es*0.2); g.stroke();
+      for(var e=0;e<2;e++){ var sgn=e?1:-1, exc=mcx+sgn*ex;
+        g.fillStyle=dark; g.beginPath(); g.moveTo(exc-sgn*es*0.9, ey-es*0.2); g.lineTo(exc+sgn*es*0.9, ey+es*0.1); g.lineTo(exc-sgn*es*0.2, ey+es*0.7); g.closePath(); g.fill();
+        if(impactK>0){ g.globalCompositeOperation="lighter"; g.fillStyle=glow+(0.9*fa*impactK)+")"; fillCircle(g,exc,ey+es*0.15,es*0.32*pulse,glow+(0.9*fa*impactK)+")"); g.globalCompositeOperation="source-over"; } }   // eyes ignite at impact
+      g.fillStyle=dark; g.beginPath(); g.moveTo(mcx,ey+es*0.4); g.lineTo(mcx-es*0.35,mcy+mR*0.18); g.lineTo(mcx+es*0.35,mcy+mR*0.18); g.closePath(); g.fill();   // nose
+      var mw=mR*0.86, my=mcy+mR*0.42, mh=mR*0.26;
+      g.fillStyle=dark; g.fillRect((mcx-mw*0.5)|0,(my-mh*0.5)|0,(mw)|0,(mh)|0);       // gritted mouth
+      g.fillStyle="rgba(220,206,180,"+(0.9*fa)+")"; var tn=7, tw=mw/tn;
+      for(var t=0;t<tn;t++){ g.fillRect((mcx-mw*0.5+t*tw+1)|0,(my-mh*0.5+1)|0,(tw-1.5)|0,(mh*0.42)|0); g.fillRect((mcx-mw*0.5+t*tw+1)|0,(my+mh*0.08)|0,(tw-1.5)|0,(mh*0.42)|0); }
+    }
   }
   // impact: the Moon meets the city — a searing white-out
   if(ap>0.9){ var f=(ap-0.9)/0.1; g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,240,210,"+(f*f)+")"; g.fillRect(0,0,SW,HORIZON+GROUND); g.globalCompositeOperation="source-over"; }
@@ -13777,6 +13841,8 @@ function draw(g,pass){
   curMayor=mayorState(now);                                  // who runs city hall right now?
   curRegime=regimeState(now);                                // THE ORDER's political arc this life (null on most lives)
   ORDER_THEME=(curRegime&&curRegime.theme==="bills")?"bills":"order";   // Bills Mafia reskin vs the crimson dictatorship
+  // everyone wears Bills gear on gameday, OR under the Mafia's UNIFORM MANDATE (stage 3+, "wear the jersey")
+  curBillsDress = !!curBills || (curRegime && curRegime.active && curRegime.theme==="bills" && curRegime.stage>=3);
   curPlague=plagueState(now);                                // THE PLAGUE's pandemic arc this life (null on most lives; never overlaps war/regime)
   curFestival=festivalState(now);                            // THE FESTIVAL's World's Fair arc (null on most lives; never overlaps war/regime/plague)
   curAddiction=addictionState(now);                          // THE ADDICTION CRISIS arc (null on most lives; never overlaps war/regime/plague/festival)
@@ -14702,6 +14768,7 @@ function draw(g,pass){
   drawPlague(g,L,now,night);                                 // …or THE PLAGUE's field hospitals + ambulances (mutually exclusive with the regime)
   drawFestival(g,L,now,night);                               // …or THE FESTIVAL's great wheel + fairgrounds (mutually exclusive with war/regime/plague)
   if(cityG>0.45) drawCorpAds(g,L,now,night);                 // street billboards for the current companies (corporate ad presence)
+  drawFootballTossers(g,L,now);                              // Bills days: people playing catch with a football in the street
 
   // ---- THE GRAND CATACLYSM ends the city's life every ~month, then it's reborn as wilderness ----
   if(cityApoc>0) drawApocalypse(g,cityApoc,L,now);
