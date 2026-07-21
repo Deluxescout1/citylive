@@ -42,6 +42,9 @@ Item {
             // THE ORDER — regime HUD/banner/ticker across all 6 stages (day+night)
             for (var rg = 1; rg <= 6; rg++) jobs.push({ age: 0.66, clock: [clk, night][rg % 2],
                 regime: { active: true, stage: rg, sub: 0.5, party: { k: "THE ORDER", c: "#c0182a" }, leaderName: "CHANCELLOR VOSS", path: "revolution", cyStart: 0.42, cyEnd: 0.80 } });
+            // BILLS MAFIA — the same arc reskinned (theme "bills"): exercises every themed draw branch on the real Qt Canvas
+            for (var bg2 = 1; bg2 <= 6; bg2++) jobs.push({ age: 0.66, clock: [clk, night][bg2 % 2],
+                regime: { active: true, stage: bg2, sub: bg2 === 6 ? 0.7 : 0.5, party: { k: "BILLS MAFIA", c: "#00338d" }, theme: "bills", leaderName: "COACH ALLEN", path: "revolution", cyStart: 0.42, cyEnd: 0.80, seed: 1337 } });
             // THE FESTIVAL — World's Fair wheel/bunting/monorail/monument/HUD across all 5 stages (day+night),
             // so the stroke/arc-heavy Ferris wheel + globe draw bodies actually EXECUTE on the QML Canvas
             for (var ft = 1; ft <= 5; ft++) jobs.push({ age: 0.66, clock: [clk, night][ft % 2],

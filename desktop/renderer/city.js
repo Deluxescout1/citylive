@@ -167,7 +167,7 @@ function resetNotifLanes(){ for(var r=0;r<_notifTaken.length;r++) _notifTaken[r]
 var CLOCK = null;   // test-harness override: ms timestamp for time-of-day (null = real wall clock)
 var NOWOVR = null;  // test-harness override: ms value returned as Date.now() inside draw() (null = real)
 var NOFETCH = false;  // headless flag (own line = QML-namespace writable): almanac callers set this so setup() makes NO network calls
-var VERSION = "1.52.0";  // the build the user is running — surfaced in the Almanac + KDE config page (keep in sync with desktop/package.json)
+var VERSION = "1.53.0";  // the build the user is running — surfaced in the Almanac + KDE config page (keep in sync with desktop/package.json)
 var FORCELAYOUT = null;   // test hook: pin every building's window layout (grid/ribbon/band/punch/corp) — verify per-layout render
 var FORCECROWN = null;    // test hook: pin every building's crown/roof (gable/hip/saltbox/mansard/deco/…) — verify per-roof render
 var FORCEUSE = null;      // test hook: pin every building's functional type (hospital/theater/hotel/bank/cafe/pharmacy) — verify drawUse
@@ -3316,7 +3316,9 @@ function drawCivicHud(g,now,night){
   g.fillStyle="rgba(6,9,18,"+(night>0.5?0.46:0.34)+")"; g.fillRect(bx,by+1,W,bh-2); g.fillRect(bx+2,by,W-4,bh);
   // neon frame — cyan rails top/bottom, party-colour rails on the sides
   g.globalCompositeOperation="lighter";
-  var reg=M.regime, frameC=reg?"rgba(224,28,52,":"rgba(40,200,235,", tickC=reg?"rgba(255,90,110,":"rgba(122,240,255,";   // frame goes CRIMSON under THE ORDER
+  var reg=M.regime, rbz=regimeBills(),
+      frameC=reg?(rbz?"rgba(0,90,220,":"rgba(224,28,52,"):"rgba(40,200,235,",
+      tickC=reg?(rbz?"rgba(90,150,255,":"rgba(255,90,110,"):"rgba(122,240,255,";   // frame goes CRIMSON under THE ORDER — royal blue under the Bills Mafia
   g.fillStyle=frameC+(0.55*pulse)+")"; g.fillRect(bx+2,by,W-4,1); g.fillRect(bx+2,by+bh-1,W-4,1);
   g.globalAlpha=0.55*pulse; g.fillStyle=pc; g.fillRect(bx,by+2,1,bh-4); g.fillRect(bx+W-1,by+2,1,bh-4); g.globalAlpha=1;
   g.fillStyle=tickC+(0.9*pulse)+")"; g.fillRect(bx,by,4,1); g.fillRect(bx+W-4,by,4,1);   // corner ticks
@@ -3348,15 +3350,25 @@ function drawCivicHud(g,now,night){
   // Row 4 — countdown to the next vote (or the live phase)
   var lbl=M.electionDay?"ELECTION DAY":M.recallVote?"RECALL VOTE":M.campaign?"CAMPAIGN":M.debate?"DEBATE NIGHT":M.justElected?"NEW TERM":"NEXT VOTE";
   var lcol=M.electionDay?"#ffe14a":M.recallVote?"#ff6a6a":M.campaign?"#ff9a4a":M.debate?"#c0a0ff":"rgba(150,200,230,0.9)";
-  if(reg){ lbl=reg>=3?"NO ELECTIONS":"SEIZED POWER"; lcol="#ff4a5e"; }   // under THE ORDER the ballot is dead
+  if(reg){ lbl=rbz?(reg>=3?"GAMEDAY RULE":"MAFIA RISING"):(reg>=3?"NO ELECTIONS":"SEIZED POWER"); lcol=rbz?"#7ea8ff":"#ff4a5e"; }   // ballot dead under THE ORDER; permanent gameday under the Mafia
   drawUiText(g,lbl,ix,y4,lcol,1);
   var bY=y4+6; g.fillStyle="rgba(255,255,255,0.12)"; g.fillRect(ix,bY,iw,3);
   g.fillStyle="rgba(90,210,255,0.85)"; g.fillRect(ix,bY,Math.round(iw*Math.min(1,Math.max(0,M.tf))),3);
 }
 // THE ORDER's emblem — a stark white angular star on a crimson roundel (fictional; no real symbols)
 var ORDER_NIGHT=0;   // 0 day → 1 deep night; set by drawRegime so every Order emblem/banner/structure LIGHTS UP after dark
+var ORDER_THEME="order";   // "order" (crimson dictatorship) or "bills" (the Bills Mafia reskin) — set each frame from curRegime.theme
 function drawOrderEmblem(g,cx,cy,r,fg,bg){
   cx=cx|0; cy=cy|0;
+  if(ORDER_THEME==="bills"){                                                                         // BILLS MAFIA crest — a football on a royal-blue roundel (replaces the angular star everywhere)
+    if(ORDER_NIGHT>0.04){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(60,120,235,"+(0.5*ORDER_NIGHT).toFixed(3)+")"; fillEllipse(g,cx,cy,r+2,r+2); g.globalCompositeOperation="source-over"; }
+    if(bg!==null){ g.fillStyle="#00338d"; fillEllipse(g,cx,cy,r+1,r+1); g.fillStyle="#c60c30"; fillEllipse(g,cx,cy,r,r); }   // blue ring, red field
+    var fry=Math.max(1,r-1);                                                                         // the football: a brown pointed ellipse, wider than tall
+    g.fillStyle="#8a4a22"; fillEllipse(g,cx,cy,r,fry);
+    g.fillStyle="#f4f0e6"; g.fillRect(cx,cy-fry,1,2*fry+1);                                           // centre lace line
+    if(r>=3) for(var lc=-1;lc<=1;lc++) g.fillRect(cx-1,cy+lc*2,3,1);                                  // lace ticks
+    return;
+  }
   if(ORDER_NIGHT>0.04){ g.globalCompositeOperation="lighter";                                       // a lit crimson halo so the emblem glows at night (like the airship lights)
     g.fillStyle="rgba(220,40,54,"+(0.5*ORDER_NIGHT).toFixed(3)+")"; fillEllipse(g,cx,cy,r+2,r+2);
     g.fillStyle="rgba(255,210,210,"+(0.35*ORDER_NIGHT).toFixed(3)+")"; fillEllipse(g,cx,cy,r,r);
@@ -3371,27 +3383,31 @@ function drawOrderEmblem(g,cx,cy,r,fg,bg){
 // instantly apart from civilians, day or night (the armband glows after dark).
 function drawTrooper(g,x,y,now,bob){
   x|=0; y|=0; var yy=y-((bob===1||bob===3)?1:0);                     // match drawPerson's walk-frame body lift
-  drawPerson(g,x,y,"#17171f","#c09a76",bob);                         // near-black uniform
+  var bnd=regimeBills()?"#00338d":"#c0182a", bglow=regimeBills()?"rgba(60,120,235,":"rgba(235,55,64,";   // royal-blue Mafia colours vs the Order's crimson
+  drawPerson(g,x,y,regimeBills()?"#12245a":"#17171f","#c09a76",bob); // uniform (deep navy for the Mafia, near-black for the Order)
   g.fillStyle="#08080d"; g.fillRect(x-1,yy-4,3,1);                   // peaked cap
-  g.fillStyle="#c0182a"; g.fillRect(x-1,yy-3,3,1);                   // CRIMSON cap band — the instant "Order" tell
-  g.fillStyle="#c0182a"; g.fillRect(x,yy,1,2);                       // crimson chest sash
-  if(ORDER_NIGHT>0.15){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(235,55,64,"+(0.85*ORDER_NIGHT).toFixed(2)+")";
-    g.fillRect(x,yy,1,2); g.fillRect(x-1,yy-3,3,1); g.globalCompositeOperation="source-over"; }   // the crimson glows after dark
+  g.fillStyle=bnd; g.fillRect(x-1,yy-3,3,1);                         // cap band — the instant regime tell
+  g.fillStyle=bnd; g.fillRect(x,yy,1,2);                             // chest sash
+  if(ORDER_NIGHT>0.15){ g.globalCompositeOperation="lighter"; g.fillStyle=bglow+(0.85*ORDER_NIGHT).toFixed(2)+")";
+    g.fillRect(x,yy,1,2); g.fillRect(x-1,yy-3,3,1); g.globalCompositeOperation="source-over"; }   // glows after dark
 }
 // THE CLEAR INDICATION the takeover is happening: a bold persistent alert banner top-centre,
 // the emblem + "THE ORDER" + the current stage, crimson (green once it falls), blinking under martial law.
 function drawRegimeHud(g,now,night){
   var R=curRegime; if(!R||!R.active) return;
+  var bills=regimeBills();
   var fallen=(R.stage===6&&R.sub>=0.55);
-  var lab=fallen?"HAS FALLEN":REGIME_STAGE_LABEL[R.stage];
-  var full="THE ORDER - "+lab, col=fallen?"rgba(60,216,110,":"rgba(224,28,52,";
+  var lab=fallen?(bills?"CHAMPIONS":"HAS FALLEN"):regimeLabelFor(R)[R.stage];
+  if(bills&&R.perm&&R.stage>=5) lab="BILLS COUNTRY FOREVER";     // the takeover that never leaves
+  var full=(bills?"BILLS MAFIA - ":"THE ORDER - ")+lab;
+  var col=fallen?"rgba(60,216,110,":(bills?"rgba(0,90,220,":"rgba(224,28,52,");                      // blue rails for the Bills Mafia
   var blink=(R.stage>=4&&!fallen)?((Math.floor(now/300))%2):1, a=0.72+0.28*blink;
   var tw=textW(full), ew=9, W=ew+tw+4, cx=(SW>>1), ty=notifLane(0), x0=(cx-(W>>1))|0;
   g.fillStyle="rgba(10,4,6,0.85)"; g.fillRect(x0-2,ty-3,W+4,11);
-  g.fillStyle=col+(0.95*a)+")"; g.fillRect(x0-2,ty-4,W+4,1); g.fillRect(x0-2,ty+7,W+4,1);            // crimson rails
-  g.fillStyle=col+(0.30*a)+")"; g.fillRect(x0-2,ty-3,W+4,11);                                        // crimson wash so the bar reads as an ALERT
-  drawOrderEmblem(g,x0+3,ty+2,3,fallen?"#eafff0":"#f7f0e6",fallen?"#2fa85a":"#c0182a");              // the emblem
-  drawUiText(g,full,x0+ew,ty,fallen?"#d6ffe2":"#ffe2e2",1);                                          // BRIGHT screen-space text — unmistakable
+  g.fillStyle=col+(0.95*a)+")"; g.fillRect(x0-2,ty-4,W+4,1); g.fillRect(x0-2,ty+7,W+4,1);            // rails
+  g.fillStyle=col+(0.30*a)+")"; g.fillRect(x0-2,ty-3,W+4,11);                                        // wash so the bar reads as an ALERT
+  drawOrderEmblem(g,x0+3,ty+2,3,fallen?"#eafff0":"#f7f0e6",fallen?"#2fa85a":"#c0182a");              // the emblem (auto-themed to the football under bills)
+  drawUiText(g,full,x0+ew,ty,fallen?"#d6ffe2":(bills?"#e2ecff":"#ffe2e2"),1);                        // BRIGHT screen-space text — unmistakable
 }
 // THE PLAGUE's emblem — a white medical CROSS on an amber roundel (distinct from the Order's angular star)
 function drawPlagueEmblem(g,cx,cy,r,fg,bg){
@@ -3436,22 +3452,24 @@ function drawOrderFlag(g,cx,cy,ph,L,now,scale){
   g.fillStyle=L>0.5?"#2a2226":"#141014"; g.fillRect(cx,cy-poleH,1,poleH);                        // pole
   g.fillStyle=L>0.5?"#ffe14a":"#b0a030"; g.fillRect(cx,cy-poleH,1,1);                            // finial
   var fy=cy-poleH;
+  var bills=regimeBills();
   for(var r=0;r<fh;r++){ var off=Math.round(Math.sin(now*0.006+ph+r*0.7)*scale);                 // the pennant waves
-    g.fillStyle=L>0.5?"#c01828":"#7a1018"; g.fillRect(cx+1+off,fy+r,fw,1);
-    g.fillStyle=L>0.5?"#8a1018":"#4a0810"; g.fillRect(cx+1+off,fy+r,1,1); }                       // hoist shade
+    g.fillStyle=bills?(L>0.5?"#0a44b0":"#06215a"):(L>0.5?"#c01828":"#7a1018"); g.fillRect(cx+1+off,fy+r,fw,1);   // royal blue for the Mafia
+    g.fillStyle=bills?(L>0.5?"#c60c30":"#7a0a20"):(L>0.5?"#8a1018":"#4a0810"); g.fillRect(cx+1+off,fy+r,1,1); }   // red hoist
   if(fw>=4&&fh>=3) drawOrderEmblem(g,cx+1+(fw>>1),fy+(fh>>1),1,"#f4eee2",null);                   // tiny emblem
 }
 // a GIANT propaganda banner draped down a hero tower's face — emblem + a vertical slogan
 var ORDER_SLOGANS=["ORDER","OBEY","UNITY","ONE CITY","STRENGTH","LOYALTY"];
 function drawGiantBanner(g,bx,top,bw,bh,L,now,seed){
   var w=Math.min(bw-2,10), x=(bx+((bw-w)>>1))|0, len=Math.min(bh-3,Math.round(bh*0.72));
+  var bills=regimeBills();
   g.fillStyle="#150a0c"; g.fillRect(x-1,top,w+2,1);                                               // rod
-  g.fillStyle=L>0.5?"#a81624":"#5c0c14"; g.fillRect(x,top+1,w,len);                               // crimson field
-  g.fillStyle=L>0.5?"#7a1018":"#420810"; g.fillRect(x,top+1,1,len); g.fillRect(x+w-1,top+1,1,len);
-  g.fillStyle=L>0.5?"#c33040":"#7a121e"; g.fillRect(x+1,top+1,1,len);                             // fold hilight
+  g.fillStyle=bills?(L>0.5?"#0a3a8c":"#06215a"):(L>0.5?"#a81624":"#5c0c14"); g.fillRect(x,top+1,w,len);   // field — royal blue for the Mafia
+  g.fillStyle=bills?(L>0.5?"#c60c30":"#7a0a20"):(L>0.5?"#7a1018":"#420810"); g.fillRect(x,top+1,1,len); g.fillRect(x+w-1,top+1,1,len);   // red trim edges
+  g.fillStyle=bills?(L>0.5?"#3a6ec0":"#204a92"):(L>0.5?"#c33040":"#7a121e"); g.fillRect(x+1,top+1,1,len);                             // fold hilight
   for(var nk=0;nk<w;nk+=2){ g.fillStyle="rgba(0,0,0,0.4)"; g.fillRect(x+nk,top+1+len,1,1); }       // notched tail
-  drawOrderEmblem(g,x+(w>>1),top+5,Math.max(2,(w>>1)-1),"#f4eee2",null);                          // emblem near the top
-  if(w>=6){ var sl=ORDER_SLOGANS[(seed>>>0)%ORDER_SLOGANS.length], ty=top+10, tx=x+(w>>1)-1;       // vertical stacked slogan
+  drawOrderEmblem(g,x+(w>>1),top+5,Math.max(2,(w>>1)-1),"#f4eee2",null);                          // emblem near the top (auto-themed)
+  if(w>=6){ var SLP=regimeSlogansFor(curRegime), sl=SLP[(seed>>>0)%SLP.length], ty=top+10, tx=x+(w>>1)-1;       // vertical stacked slogan (Bills chants under the Mafia)
     for(var ci=0;ci<sl.length && ty+6<top+1+len;ci++){ if(sl[ci]===" "){ ty+=3; continue; }
       drawUiText(g,sl[ci],tx,ty,"rgba(245,238,226,0.95)",1); ty+=6; } }
 }
@@ -3483,10 +3501,11 @@ function drawLayerRegime(g,layer,L,now,night){
       continue;
     }
     var bw=Math.max(3,Math.min(Math.round(9*lscale),b.w>>1)), bxc=(bx+((b.w-bw)>>1))|0, len=Math.min(b.h-4,Math.round((14+(b.h>>1))*lscale));
+    var rbnr=regimeBills();
     g.fillStyle="#1a0c0e"; g.fillRect(bxc-1,top+1,bw+2,1);                                             // rod
-    g.fillStyle=L>0.5?"#b01828":"#6c0e18"; g.fillRect(bxc,top+2,bw,len);                               // crimson banner
-    g.fillStyle=L>0.5?"#7a1018":"#490810"; g.fillRect(bxc,top+2,1,len); g.fillRect(bxc+bw-1,top+2,1,len);
-    g.fillStyle=L>0.5?"#c83040":"#82121e"; g.fillRect(bxc+1,top+2,1,len);                              // fold hilight
+    g.fillStyle=rbnr?(L>0.5?"#0a3a8c":"#06215a"):(L>0.5?"#b01828":"#6c0e18"); g.fillRect(bxc,top+2,bw,len);   // banner field — royal blue for the Mafia
+    g.fillStyle=rbnr?(L>0.5?"#c60c30":"#7a0a20"):(L>0.5?"#7a1018":"#490810"); g.fillRect(bxc,top+2,1,len); g.fillRect(bxc+bw-1,top+2,1,len);   // red trim
+    g.fillStyle=rbnr?(L>0.5?"#3a6ec0":"#204a92"):(L>0.5?"#c83040":"#82121e"); g.fillRect(bxc+1,top+2,1,len);                              // fold hilight
     for(var nk=0;nk<bw;nk+=2){ g.fillStyle="rgba(0,0,0,0.45)"; g.fillRect(bxc+nk,top+2+len,1,1); }     // notched tail
     if(bw>=4) drawOrderEmblem(g,bxc+(bw>>1),top+2+Math.min(len-4,6),Math.max(1,(bw>>1)-1),"#f4eee2",null);
     if(!isFar && b.h>=26 && R.stage>=4) drawOrderFlag(g,(bx+b.w-2)|0,top,(b.seed%628)/100,L,now,lscale);        // a rooftop flag too
@@ -3497,10 +3516,14 @@ function drawLayerRegime(g,layer,L,now,night){
 function drawLeaderStatue(g,L,now){
   var R=curRegime; if(!R||!R.active||R.stage<4) return;
   var wx=Math.round(0.365*WW)+34, sx=wx-WOFF;
-  var tP=(R.stage===6)?Math.max(0,Math.min(1,(R.sub-0.14)/0.30)):0;              // 0..1 topple through stage 6
+  var bills=regimeBills();
+  var tP=(R.stage===6&&!bills)?Math.max(0,Math.min(1,(R.sub-0.14)/0.30)):0;      // 0..1 topple through stage 6 — the Bills' hero statue NEVER falls
   var ang=(tP*tP)*(Math.PI*0.5), sA=Math.sin(ang), cA=Math.cos(ang), fd=((R.seed>>>9)&1)?1:-1;   // accelerating fall
   for(var off=-WW;off<=WW;off+=WW){ var X=(sx+off)|0; if(X<-40||X>SW+40) continue;
-    var baseY=HORIZON, pedH=12, figH=46, stone=L>0.5?"#7a6a4a":"#3a3226", hi=L>0.5?"#8f7c56":"#4a4030", sh=L>0.5?"#5a4e36":"#241f16";
+    var baseY=HORIZON, pedH=12, figH=46,
+        stone=bills?(L>0.5?"#3f6aa8":"#22406e"):(L>0.5?"#7a6a4a":"#3a3226"),      // Bills royal-blue bronze
+        hi=bills?(L>0.5?"#5a86c4":"#345a92"):(L>0.5?"#8f7c56":"#4a4030"),
+        sh=bills?(L>0.5?"#2a4c80":"#152a50"):(L>0.5?"#5a4e36":"#241f16");
     g.fillStyle=L>0.5?"#5a5148":"#2a2620"; g.fillRect(X-7,baseY-pedH,14,pedH);                       // grand tiered pedestal
     g.fillStyle=L>0.5?"#6a6156":"#332e28"; g.fillRect(X-8,baseY-pedH,16,2); g.fillRect(X-6,baseY-pedH-2,12,2);
     drawOrderEmblem(g,X,baseY-4,3,tP>=1?"#5a5148":"#c0182a",null);                                   // emblem on the plinth (defaced once fallen)
@@ -3526,8 +3549,9 @@ function drawLeaderStatue(g,L,now){
         g.fillStyle=stone; g.fillRect(rx-w,ry,w*2,1); g.fillStyle=sh; g.fillRect(rx-w,ry,1,1); }
       if(topH>=figH){ var hh=figH, hx=X+Math.round(hh*sA*fd), hy=pvY-Math.round(hh*cA);              // head/cap (only once fully built)
         g.fillStyle=stone; g.fillRect(hx-3,hy-4,6,5); g.fillStyle=hi; g.fillRect(hx-3,hy-4,6,1);
-        var ah=Math.round(figH*0.64), ax=X+Math.round(ah*sA*fd), ay=pvY-Math.round(ah*cA);          // outstretched saluting arm
-        g.fillStyle=stone; g.fillRect(ax+(fd>0?2:-6),ay-1,4,2); }
+        var ah=Math.round(figH*0.64), ax=X+Math.round(ah*sA*fd), ay=pvY-Math.round(ah*cA);          // outstretched arm (a salute for the Order; holding the ball for Allen)
+        g.fillStyle=stone; g.fillRect(ax+(fd>0?2:-6),ay-1,4,2);
+        if(bills){ var hx=ax+(fd>0?6:-8); g.fillStyle="#8a4a22"; g.fillRect(hx,ay-2,4,3); g.fillStyle="#f4f0e6"; g.fillRect(hx+2,ay-2,1,3); } }   // Josh Allen palms a football
       if(tP>0.35){ g.fillStyle="rgba(150,140,128,"+(0.5*Math.min(1,(tP-0.35)/0.3))+")"; g.fillRect(X-16,baseY-3,32,3); }  // dust as it comes down
     } else {                                                                                        // FALLEN — broken on the ground
       var bx=(fd>0?X+3:X-figH-3);
@@ -3547,7 +3571,7 @@ function drawLiberation(g,L,now){
     for(var p=0;p<n;p++){ var hh=((p*2654435761+ (R.seed||0))>>>0), px=X-56+((hh%112)), jump=((Math.floor(now/160)+p)%3===0)?1:0;
       var pc=((hh>>>3)&3)===0?"#e8e2d0":PEDC[(hh>>>5)%PEDC.length];
       drawPerson(g,px|0,HORIZON-1-jump,pc,SKINC[(hh>>>7)%SKINC.length],(Math.floor(now/220)+p)&1);
-      if(((hh>>>9)%4)===0){ g.fillStyle=["#ffd24a","#6ad0ff","#ff7ad0","#7affb0"][(hh>>>11)%4]; g.fillRect(px|0,HORIZON-7-jump,1,2); } }  // raised flags/sparks
+      if(((hh>>>9)%4)===0){ g.fillStyle=(regimeBills()?["#00338d","#c60c30","#ffffff","#6ad0ff"]:["#ffd24a","#6ad0ff","#ff7ad0","#7affb0"])[(hh>>>11)%4]; g.fillRect(px|0,HORIZON-7-jump,1,2); } }  // raised flags/sparks (Bills colours during the parade)
     if(joy>0.2){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,236,180,"+(0.10*joy)+")"; g.fillRect(X-64,HORIZON-40,128,40); g.globalCompositeOperation="source-over"; }  // the lights come back on
   }
 }
@@ -3560,11 +3584,17 @@ function drawRegimeWash(g,L,now){
   var amt = R.stage>=5?0.24 : R.stage===4?0.16 : R.stage===3?0.09 : R.stage===2?0.045 : 0.02;
   if(R.stage===6) amt*=Math.max(0,1-(R.sub-0.08)/0.40);            // the red lifts as the city is freed
   if(amt<=0.004) return;
-  amt*=1+0.05*Math.sin(now*0.0011);                                // a slow, ominous breathe
+  amt*=1+0.05*Math.sin(now*0.0011);                                // a slow breathe
   var gd=g.createLinearGradient(0,0,0,SH);
-  gd.addColorStop(0,    "rgba(60,6,12,"+(amt*0.42).toFixed(3)+")");  // sky: a light crimson touch
-  gd.addColorStop(0.55, "rgba(80,8,14,"+(amt*0.85).toFixed(3)+")");
-  gd.addColorStop(1,    "rgba(96,10,16,"+(amt).toFixed(3)+")");      // streets: full oppressive crimson
+  if(regimeBills()){                                               // royal-blue civic pride wash instead of crimson dread
+    gd.addColorStop(0,    "rgba(8,26,74,"+(amt*0.42).toFixed(3)+")");
+    gd.addColorStop(0.55, "rgba(6,34,102,"+(amt*0.85).toFixed(3)+")");
+    gd.addColorStop(1,    "rgba(0,45,130,"+(amt).toFixed(3)+")");   // streets: deep Bills royal blue
+  } else {
+    gd.addColorStop(0,    "rgba(60,6,12,"+(amt*0.42).toFixed(3)+")");  // sky: a light crimson touch
+    gd.addColorStop(0.55, "rgba(80,8,14,"+(amt*0.85).toFixed(3)+")");
+    gd.addColorStop(1,    "rgba(96,10,16,"+(amt).toFixed(3)+")");      // streets: full oppressive crimson
+  }
   g.fillStyle=gd; g.fillRect(0,0,SW,SH);
 }
 // v1.24 — THE ORDER on the ground: searchlights raking the night sky, patrol cars with flashing beacons
@@ -3610,7 +3640,7 @@ function drawRegimeRally(g,L,now){
     for(var r=0;r<3;r++){ for(var c=0;c<24;c++){ var px=X-74+c*6, py=(HORIZON-1-r*3)|0; if(px<-4||px>SW+4) continue;
       var hh=((r*97+c*31+(R.seed||0))>>>0);
       drawPerson(g,px|0,py,PEDC[(hh>>>5)%PEDC.length],SKINC[(hh>>>7)%SKINC.length],0);              // at attention (no bob)
-      if(((hh>>>3)%3)===0){ g.fillStyle="#b01828"; g.fillRect(px|0,py-6,1,3); g.fillStyle="#f4eee2"; g.fillRect(px|0,py-6,1,1); } } }   // raised crimson flag
+      if(((hh>>>3)%3)===0){ g.fillStyle=regimeBills()?"#00338d":"#b01828"; g.fillRect(px|0,py-6,1,3); g.fillStyle="#f4eee2"; g.fillRect(px|0,py-6,1,1); } } }   // raised flag (royal blue for the Mafia)
     if(L<0.55){ g.globalCompositeOperation="lighter";                                              // searchlights converge on the podium
       for(var s=-1;s<=1;s+=2){ var lx=X+s*46;
         for(var t=0;t<54;t+=3){ var bt=t/54; g.fillStyle="rgba(255,238,208,"+(0.09*(1-bt)*(1-L*2)).toFixed(3)+")"; g.fillRect((lx+(X+30-lx)*bt)|0,(HORIZON-4-t)|0,2,2); } }
@@ -3620,6 +3650,7 @@ function drawRegimeRally(g,L,now){
 // (Late TOTAL CONTROL → into THE PEOPLE RISE, before the liberation crowd floods in.)
 function drawResistance(g,L,now){
   var R=curRegime; if(!R||!R.active) return;
+  if(regimeBills()) return;                                          // nobody resists a championship — the Bills Mafia is beloved
   var act=(R.stage===5&&R.sub>0.62)?(R.sub-0.62)/0.38:(R.stage===6&&R.sub<0.5)?1:0; if(act<=0) return;
   var seed=(R.seed||0), TAGS=["NO","RISE","FREE"];
   for(var i=0;i<near.blds.length;i++){ var b=near.blds[i]; if(b.type==="park"||b.h<24||b.w<9) continue;
@@ -3721,6 +3752,7 @@ function drawLoudspeakers(g,L,now){
 // in. Implied tension only; no harm is ever shown.
 function drawCurfewChase(g,L,now){
   var R=curRegime; if(!R||!R.active||R.stage<4||R.stage>5||L>=0.4) return;
+  if(regimeBills()) return;                                          // no menace under the Bills Mafia — only tailgates
   var per=45000, ph=(now%per)/per; if(ph>0.4) return; var t=ph/0.4, dir=((Math.floor(now/per))&1)?1:-1;
   var runWx=0.55*WW + dir*t*84;
   for(var off=-WW;off<=WW;off+=WW){ var X=(runWx-WOFF+off)|0; if(X<-20||X>SW+20) continue;
@@ -3739,12 +3771,21 @@ function drawHillEmblem(g,L,now){
   var bestX=Math.round(SW*0.62), bestH=0;                                            // sit it just below the tallest near-ridge peak in view
   for(var sx=Math.round(SW*0.32);sx<Math.round(SW*0.88);sx+=3){ var hh=mtsCache.h[1][sx]||0; if(hh>bestH){bestH=hh;bestX=sx;} }
   if(bestH<22) return;                                                               // no real mountain in view → skip
-  var cx=bestX, cy=((HORIZON-bestH)|0)+14, r=13, night=1-L;
+  var cx=bestX, cy=((HORIZON-bestH)|0)+14, r=13, night=1-L, bills=regimeBills();
+  if(bills){                                                                          // a COLOSSAL football crest floodlit on the mountainside
+    g.globalCompositeOperation="lighter"; g.fillStyle="rgba(40,110,230,"+(0.08+0.16*night).toFixed(3)+")"; fillEllipse(g,cx,cy,r+4,r+4); g.globalCompositeOperation="source-over";
+    g.fillStyle=L>0.5?"#0a3a8c":"#06215a"; fillEllipse(g,cx,cy,r,r);                   // royal-blue roundel
+    g.fillStyle=L>0.5?"#c60c30":"#7a0a20"; fillEllipse(g,cx,cy,r-1,r-1);              // red field
+    g.fillStyle="#8a4a22"; fillEllipse(g,cx,cy,r-3,r-6);                              // brown football
+    g.fillStyle="#f0e8da"; g.fillRect(cx,cy-(r-6),1,2*(r-6)+1);                        // centre lace
+    for(var lk=-2;lk<=2;lk++) g.fillRect(cx-2,cy+lk*2,5,1);                            // laces
+  } else {
   g.globalCompositeOperation="lighter"; g.fillStyle="rgba(180,20,30,"+(0.08+0.16*night).toFixed(3)+")"; fillEllipse(g,cx,cy,r+4,r+4); g.globalCompositeOperation="source-over";  // glow
   g.fillStyle=L>0.5?"#8a1420":"#5a0e18"; fillEllipse(g,cx,cy,r,r);                    // crimson roundel
   g.fillStyle=L>0.5?"#a01828":"#701018"; fillEllipse(g,cx,cy,r-1,r-1);
   g.fillStyle="#f0e8da"; for(var d=-(r-3);d<=r-3;d++){ var w=Math.max(0,(r-3)-Math.abs(d)); g.fillRect(cx-w,cy+d,2*w+1,1); }   // white angular star
   g.fillRect(cx-(r-2),cy,2*(r-2)+1,1); g.fillRect(cx,cy-(r-2),1,2*(r-2)+1);
+  }
   if(night>0.4){ g.globalCompositeOperation="lighter"; for(var bb=-1;bb<=1;bb+=2){ g.fillStyle="rgba(255,210,150,0.05)";
     for(var t=0;t<22;t+=2) g.fillRect((cx+bb*8+bb*t)|0,(cy+r+2+t)|0,2,2); } g.globalCompositeOperation="source-over"; }
 }
@@ -3761,8 +3802,9 @@ function drawMinistryHQ(g,L,now){
     g.fillStyle=L>0.5?"#1c2028":"#0c0e12"; g.fillRect(X+(w>>1)-2,top,2,H);           // edge shade
     for(var wy=top+5;wy<HORIZON-4;wy+=6){ for(var wx2=X-(w>>1)+3;wx2<X+(w>>1)-3;wx2+=5){ if(((wx2*7+wy*3)%11)<7) continue;
       g.fillStyle=L>0.5?"#5a6270":"rgba(210,220,120,0.45)"; g.fillRect(wx2,wy,2,2); } }   // cold lit windows
-    if(H>30){ drawOrderEmblem(g,X,top+16,7,fallen?"#3a2226":"#f4eee2",fallen?"#2a1418":"#c0182a");   // giant emblem
-      if(fallen){ g.strokeStyle="rgba(236,72,82,0.9)"; g.lineWidth=1; g.beginPath(); g.moveTo(X-7,top+9); g.lineTo(X+7,top+23); g.moveTo(X+7,top+9); g.lineTo(X-7,top+23); g.stroke(); } }   // X'd at the fall
+    var mfall=(fallen&&!regimeBills());   // the Bills HQ is never defaced — no "fall", just the offseason
+    if(H>30){ drawOrderEmblem(g,X,top+16,7,mfall?"#3a2226":"#f4eee2",mfall?"#2a1418":"#c0182a");   // giant emblem (auto-themed to the football)
+      if(mfall){ g.strokeStyle="rgba(236,72,82,0.9)"; g.lineWidth=1; g.beginPath(); g.moveTo(X-7,top+9); g.lineTo(X+7,top+23); g.moveTo(X+7,top+9); g.lineTo(X-7,top+23); g.stroke(); } }   // X'd at the fall (Order only)
     g.fillStyle=L>0.5?"#3a3f48":"#1c2028"; g.fillRect(X-3,top-3,6,3); g.fillRect(X-1,top-6,2,3);   // roof crown + mast
     if((Math.floor(now/700))%2===0){ g.fillStyle="#ff4040"; g.fillRect(X,top-6,1,1); } }           // aviation beacon
 }
@@ -4084,6 +4126,7 @@ function drawRegime(g,L,now,night){
 // v1.28 — under THE ORDER the city is RE-BRANDED (first word + a heavy suffix), reverting when it falls.
 function regimeCityName(){
   var R=curRegime; if(!R||!R.active||R.stage<2||(R.stage===6&&R.sub>=0.5)) return null;
+  if(R.theme==="bills") return REGIME_BILLS_CITIES[((R.seed||0)>>>13)%REGIME_BILLS_CITIES.length];
   var base=cityName.split(" ")[0]; if(base.length>6) base=base.slice(0,5);
   return base+["GRAD","BURG","POLIS","STADT"][((R.seed||0)>>>13)%4];
 }
@@ -4092,7 +4135,7 @@ function drawSkyClock(g,nd,L){
   var str=h12+":"+(mi<10?"0":"")+mi+" "+ap+"  "+DAYS3[nd.getDay()]+" "+MONS3[nd.getMonth()]+" "+nd.getDate();
   var sc=2, tw=(str.length*4-1)*sc, x=((SW-tw)/2)|0, y=6;
   var rgName=regimeCityName();
-  var l2=rgName ? (rgName+" - CAPITAL OF THE ORDER") : (cityName+"  POP "+popFmt(cityPop()));
+  var l2=rgName ? (rgName+(regimeBills()?" - BILLS COUNTRY":" - CAPITAL OF THE ORDER")) : (cityName+"  POP "+popFmt(cityPop()));
   var tw2=(l2.length*4-1), x2=((SW-tw2)/2)|0, y2=y+5*sc+4;
   var l3=wxHudLine();                                          // current + projected weather
   var tw3=(l3.length*4-1), x3=((SW-tw3)/2)|0, y3=y2+5+3;
@@ -6696,8 +6739,9 @@ function newsSegment(now){
   }
   // under THE ORDER the screens are state media — a defiant/propaganda tone
   if(curRegime&&curRegime.active&&curRegime.stage>=3){
-    return {cat:"STATE", color:"#c0182a", hdr:"STATE NEWS", kick:"THE ORDER",
-      line:ORDER_SLOGANS[(Math.floor(now/4200))%ORDER_SLOGANS.length]};
+    var rbz=regimeBills();
+    return {cat:"STATE", color:rbz?"#00338d":"#c0182a", hdr:rbz?"BILLS STATE TV":"STATE NEWS", kick:rbz?"BILLS MAFIA":"THE ORDER",
+      line:regimeSlogansFor(curRegime)[(Math.floor(now/4200))%regimeSlogansFor(curRegime).length]};
   }
   // otherwise cycle the beats; each returns null when it has nothing, so we skip to the next with content
   var order=[0,1,2,3,4,5,6,7], slot=Math.floor(now/9000), tries=0, ci=slot%order.length;
@@ -10571,6 +10615,17 @@ var THE_ORDER={k:"THE ORDER",c:"#c0182a"};                        // crimson; di
 var REGIME_TITLES=["CHANCELLOR","THE MARSHAL","THE DIRECTOR","THE PREMIER","THE GENERAL"];
 var REGIME_STAGES=[0.42,0.48,0.53,0.58,0.64,0.73,0.80];          // 6 stage boundaries then the healed end
 var REGIME_STAGE_LABEL=["","RISING","SEIZES CITY HALL","EMERGENCY POWERS","MARTIAL LAW","TOTAL CONTROL","THE PEOPLE RISE"];   // unmistakable stage names
+// ---- BILLS MAFIA — a Bills-Mafia reskin of THE ORDER, active only when the Bills takeover is enabled
+// (config bills:true). COSMETIC ONLY: identical existence roll, stage boundaries and structure; just a
+// themed identity + a TONE FLIP — celebratory, not menacing. No resistance, the Josh Allen statue never
+// topples, and the stage-6 "fall" is a championship PARADE / the offseason (the city returns to normal). ----
+var REGIME_BILLS_LABELS=["","RALLYING","STORMS CITY HALL","GAMEDAY RULE","MAFIA LAW","BILLS COUNTRY","THE PARADE"];
+var REGIME_BILLS_TITLES=["COACH","GENERAL MANAGER","CAPTAIN","THE FRANCHISE","SKIPPER"];
+var REGIME_BILLS_NAMES=["ALLEN","MAFIA","BUFFALO","DIGGS","MILANO","KINCAID","KNOX"];
+var REGIME_BILLS_CITIES=["BILLSBURGH","ALLENTOWN","MAFIAGRAD","BUFFALGRAD"];
+function regimeLabelFor(R){ return (R&&R.theme==="bills")?REGIME_BILLS_LABELS:REGIME_STAGE_LABEL; }
+function regimeSlogansFor(R){ return (R&&R.theme==="bills")?BILLS_SLOGANS:ORDER_SLOGANS; }
+function regimeBills(){ return !!(curRegime&&curRegime.theme==="bills"); }   // is THIS life's takeover the Bills Mafia?
 var FORCEREGIME=null;                                            // test hook (kde-repro ?regime=<stage>) — own line (QML namespace writable)
 function regimeState(now){
   if(FORCEREGIME) return FORCEREGIME;
@@ -10579,12 +10634,25 @@ function regimeState(now){
   if(((li*2654435761+7717)>>>0)%100 < 62) return null;           // YIELD to war lives (replicates warState's existence roll — no mayorState call → no cycle)
   var rh=((((li*2654435761)>>>0) ^ REGIME_SALT)>>>0);
   if((rh%100) >= 37) return null;                                // ~37% of the war-free lives → ~14% overall (uncommon; Nick: ~1 in 7)
-  if(cy<REGIME_STAGES[0] || cy>=REGIME_STAGES[6]) return null;   // NORMAL before the rise & after the fall (life-scoped)
-  var stage=1; for(var s=1;s<6;s++){ if(cy>=REGIME_STAGES[s]) stage=s+1; }
-  var sub=Math.max(0,Math.min(1,(cy-REGIME_STAGES[stage-1])/(REGIME_STAGES[stage]-REGIME_STAGES[stage-1])));
-  return { active:true, stage:stage, sub:sub, party:THE_ORDER,
-    leaderName:REGIME_TITLES[(rh>>>7)%REGIME_TITLES.length]+" "+LNAMES[(rh>>>11)%LNAMES.length],
-    path:["vote","revolution","uprising"][(rh>>>17)%3], cyStart:REGIME_STAGES[0], cyEnd:REGIME_STAGES[6], li:li, seed:rh };
+  var bills=BILLS_ON;   // the same arc, reskinned as the Bills Mafia when the takeover is enabled (cosmetic only)
+  // ~30% of Bills Mafia takeovers are PERMANENT — they never leave: the city holds at peak BILLS COUNTRY
+  // (stage 5) all the way to the end-of-life apocalypse (the only thing that ever resets it). The Order,
+  // and the other ~70% of Bills takeovers, still rise → peak → fall (parade) → back to normal by cy 0.80.
+  var perm=bills && ((rh>>>23)%100 < 30);
+  var cyEnd=perm?0.955:REGIME_STAGES[6];
+  if(cy<REGIME_STAGES[0] || cy>=cyEnd) return null;              // NORMAL before the rise & (unless permanent) after the fall
+  var stage, sub;
+  if(perm && cy>=REGIME_STAGES[4]){                              // perpetual peak — HOLD stage 5, never reach the stage-6 fall
+    stage=5; sub=Math.max(0,Math.min(1,(cy-REGIME_STAGES[4])/(cyEnd-REGIME_STAGES[4])));
+  } else {
+    stage=1; for(var s=1;s<6;s++){ if(cy>=REGIME_STAGES[s]) stage=s+1; }
+    sub=Math.max(0,Math.min(1,(cy-REGIME_STAGES[stage-1])/(REGIME_STAGES[stage]-REGIME_STAGES[stage-1])));
+  }
+  return { active:true, stage:stage, sub:sub, perm:perm,
+    party: bills?{k:"BILLS MAFIA",c:BILLS_BLUE}:THE_ORDER, theme: bills?"bills":"order",
+    leaderName: bills ? (REGIME_BILLS_TITLES[(rh>>>7)%REGIME_BILLS_TITLES.length]+" "+REGIME_BILLS_NAMES[(rh>>>11)%REGIME_BILLS_NAMES.length])
+                      : (REGIME_TITLES[(rh>>>7)%REGIME_TITLES.length]+" "+LNAMES[(rh>>>11)%LNAMES.length]),
+    path:["vote","revolution","uprising"][(rh>>>17)%3], cyStart:REGIME_STAGES[0], cyEnd:cyEnd, li:li, seed:rh };
 }
 var curRegime=null;   // set each frame; the whole arc reads this
 // ===== THE PLAGUE — a pandemic arc, same shape as THE ORDER but its own story. Pure f(clock), life-scoped,
@@ -10701,6 +10769,18 @@ function festivalTicker(now){
 function regimeTicker(now){
   var R=curRegime; if(!R||!R.active) return null;
   var nm=R.leaderName, slow=Math.floor(now/16000);
+  if(R.theme==="bills"){                                              // the Bills Mafia's (jubilant) takeover coverage
+    var BN={
+      1:["A NEW FORCE - THE BILLS MAFIA - RALLIES DOWNTOWN","BILLS MAFIA VOWS TO MAKE "+cityName+" BILLS COUNTRY"],
+      2:["BILLS MAFIA SWEEPS THE ELECTION - "+nm+" TAKES CITY HALL","ROYAL BLUE BANNERS RISE OVER CITY HALL"],
+      3:["COUNCIL ADJOURNED - "+nm+" DECLARES PERMANENT GAMEDAY","CITY HALL RETIRES THE OLD SEAL FOR THE CHARGING BUFFALO"],
+      4:["TAILGATE CURFEW - NO WORK ON GAMEDAY BY ORDER OF THE MAFIA","EVERY STREET RENAMED FOR A BILL - WELCOME TO BILLS COUNTRY","THE MAFIA IS WATCHING - AND IT WANTS YOU IN BLUE"],
+      5:(R.perm?["THE BILLS MAFIA IS HERE TO STAY - THIS IS FOREVER BILLS COUNTRY","ALL HAIL "+nm+" - RULER OF BILLS COUNTRY FOR LIFE","THEY SAID IT COULD NOT LAST - THE MAFIA RULES ON","NO OFFSEASON - THE MAFIA REIGN HAS NO END"]
+                :["ALL HAIL "+nm+" - BILLS MAFIA SUPREME","STATE MEDIA - JOSH ALLEN IS GOD - IT IS OFFICIAL NOW","MANDATORY WING NIGHT - ATTENDANCE ENFORCED CITYWIDE"]),
+      6:["CHAMPIONSHIP PARADE FILLS THE PLAZA - "+cityName+" GOES WILD","THE STATUE OF ALLEN GLEAMS AS THE CONFETTI FALLS","BILLS MAFIA DECLARES A CITY HOLIDAY - GO BILLS"]
+    };
+    var ba=BN[R.stage]||["GO BILLS"]; return ba[((slow%ba.length)+ba.length)%ba.length];
+  }
   var S={
     1:["A NEW PARTY - THE ORDER - RALLIES DOWNTOWN","THE ORDER VOWS TO 'RESTORE ORDER' TO "+cityName],
     2:["THE ORDER SWEEPS THE ELECTION - "+nm+" TAKES CITY HALL","THE ORDER'S RED BANNERS RISE OVER CITY HALL"],
@@ -10943,7 +11023,7 @@ function almanacData(now){
   var mayor=null;
   if(M) mayor={name:M.winName,party:(M.party&&M.party.k)||"—",term:M.term+1,share:M.share,ousted:!!M.ousted,scandal:!!M.scandal};
   var regime=null;
-  if(R&&R.active) regime={stage:R.stage,label:REGIME_STAGE_LABEL[R.stage]||"",leader:R.leaderName,path:R.path,fallen:(R.stage>=6&&R.sub>=0.55)};
+  if(R&&R.active) regime={stage:R.stage,label:regimeLabelFor(R)[R.stage]||"",leader:R.leaderName,path:R.path,fallen:(R.stage>=6&&R.sub>=0.55)};
   // PAST CIVILIZATIONS: the lives that rose & fell on these lands before this one, and how each met its end
   var history=[];
   for(var p=1;p<=6 && (li-p)>=0;p++){ var pl=li-p;
@@ -13682,6 +13762,7 @@ function draw(g,pass){
   computeLmFoot();                                           // clear plazas where the civic landmarks stand
   curMayor=mayorState(now);                                  // who runs city hall right now?
   curRegime=regimeState(now);                                // THE ORDER's political arc this life (null on most lives)
+  ORDER_THEME=(curRegime&&curRegime.theme==="bills")?"bills":"order";   // Bills Mafia reskin vs the crimson dictatorship
   curPlague=plagueState(now);                                // THE PLAGUE's pandemic arc this life (null on most lives; never overlaps war/regime)
   curFestival=festivalState(now);                            // THE FESTIVAL's World's Fair arc (null on most lives; never overlaps war/regime/plague)
   curAddiction=addictionState(now);                          // THE ADDICTION CRISIS arc (null on most lives; never overlaps war/regime/plague/festival)

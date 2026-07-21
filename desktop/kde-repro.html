@@ -34,7 +34,11 @@ if(Q.get('space')!=null){ var _sp=+Q.get('space'); FORCEAGE={g:1,phase:'peak',ap
 if(Q.get('dis')){ FORCEDIS={type:Q.get('dis'),intensity:(Q.get('disi')!=null?+Q.get('disi'):4),xf:qn('disx',0.5),w:(Q.get('dis')==='planecrash'?20:60),seed:77,f:qn('disf',0.25)}; }   // ?disi=1..5 sets the CAT level
 if(Q.get('event')){ FORCEEVENT=Q.get('event'); }   // force a calendar event on (concert/foodfest/champ/icerink/market/parade/…)
 if(Q.get('civic')){ FORCEELECT={civics:[{t:Q.get('civic'),kind:"build",civic:true,pass:true,bp:(Q.get('bp')==='cons'?'cons':'done'),prog:qn('prog',1),x:Math.round(ww*qn('cx',0.5)),w:56,seed:998877}]}; }   // force a civic landmark (uses local ww; WW isn't set until setup runs below)
-if(Q.get('regime')){ FORCEREGIME={active:true,stage:+Q.get('regime'),sub:qn('rsub',0.5),party:{k:"THE ORDER",c:"#c0182a"},leaderName:"CHANCELLOR "+(Q.get('leader')||"VOSS"),path:(Q.get('rpath')||"revolution"),cyStart:0.42,cyEnd:0.80}; }   // force THE ORDER stage 1-6
+if(Q.get('regime')){ var _rbills=(Q.get('bills')==='1');   // ?regime=<1-6>&bills=1 → force the BILLS MAFIA reskin instead of THE ORDER
+  FORCEREGIME={active:true,stage:+Q.get('regime'),sub:qn('rsub',0.5),
+    party:_rbills?{k:"BILLS MAFIA",c:"#00338d"}:{k:"THE ORDER",c:"#c0182a"}, theme:_rbills?"bills":"order",
+    leaderName:_rbills?("COACH "+(Q.get('leader')||"ALLEN")):("CHANCELLOR "+(Q.get('leader')||"VOSS")),
+    path:(Q.get('rpath')||"revolution"),cyStart:0.42,cyEnd:(Q.get('perm')==='1'?0.955:0.80),perm:(Q.get('perm')==='1'),seed:1337}; }   // force stage 1-6 (?perm=1 = permanent Bills takeover)
 if(Q.get('plague')){ FORCEPLAGUE={active:true,stage:+Q.get('plague'),sub:qn('psub',0.5),severity:qn('psev',+Q.get('plague')>=3?1:0.5),zombie:(Q.get('pz')==='1'),zprog:qn('pzprog',0.5),cyStart:0.42,cyEnd:(Q.get('pz')==='1'?0.955:0.78),seed:12345}; }   // force THE PLAGUE stage 1-5 (?pz=1 = zombie)
 if(Q.get('festival')){ FORCEFESTIVAL={active:true,stage:+Q.get('festival'),sub:qn('fsub',0.5),festivity:qn('ffest',0.7),theme:(Q.get('ftheme')||'WORLD'),cyStart:0.44,cyEnd:0.83,seed:20205}; }   // force THE FESTIVAL stage 1-5 (BID/BUILD/OPENING/FAIR/CLOSING)
 if(Q.get('flights')){   // inject synthetic live aircraft so the real-flight overlay can be eyeballed offline. ?flights=N (1..6)
