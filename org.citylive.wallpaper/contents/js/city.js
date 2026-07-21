@@ -6884,6 +6884,7 @@ function newsBeat(cat, now, slot){
     return null;
   }
   if(cat==="MARKETS"){
+    var pb=peopleMarketBeat(now, slot); if(pb && (slot&1)) return pb;   // THE PEOPLE: real citizen-driven economy news, alternating with the market index
     var r=econReport(now), up=r.chg>=0, msub=(slot%3);
     if(msub===0) return [up?"MARKETS UP":"MARKETS DOWN", r.name+" "+(up?"+":"")+r.chg+"% - "+(r.boom?"BOOM ROLLS ON":r.bust?"RECESSION FEARS GROW":"MIXED SESSION")];
     if(msub===1) return ["JOB MARKET", r.jobs+" - UNEMPLOYMENT "+r.unemp+" PCT"];
@@ -8136,6 +8137,22 @@ function peopleInspectAt(sx, sy){
   var p=C.pop[best.idx];
   if(!p || p.gen!==best.gen || !p.alive) return null;           // slot was refilled since the draw → nobody there
   return P_proj(C.pop, p);
+}
+// ECONOMY TV (Stage 4a): the MONEY 9 / MARKETS jumbotron channel, now driven by the REAL citizen economy —
+// live unemployment, inequality (Gini), and named citizens' fortunes. This is the "TV station" (Nick Q24)
+// showing the economy the 175 citizens actually generate (Q21). Read-only; cached roster.
+function peopleMarketBeat(now, slot){
+  if(cityG<0.3 || cityPhase==="apoc") return null;
+  var R=peopleRoster(now, lifeIndexOf(now), cityGrowth(now).cy), s=R.stats;
+  if(!R.living.length) return null;
+  var mod=(slot>>>0)%5;
+  if(mod===0) return ["JOBS REPORT","UNEMPLOYMENT "+Math.round(s.unemp*100)+" PCT IN "+cityName];
+  if(mod===1){ var gi=Math.round(s.gini*100); return [gi>=45?"INEQUALITY WIDENS":"WEALTH WATCH","TOP TIER HOLD "+Math.round(s.richPct*100)+" PCT - GINI "+gi]; }
+  if(mod===2){ var rich=R.living[0]; for(var i=1;i<R.living.length;i++) if(R.living[i].netWorth>rich.netWorth) rich=R.living[i];
+    return ["FORTUNES", rich.name+" IS "+cityName+"'S RICHEST - "+rich.job]; }
+  if(mod===3){ for(var j=R.living.length-1;j>=0;j--){ if(R.living[j].klass===0) return ["HARD TIMES", R.living[j].name+" THE "+R.living[j].job+" STRUGGLES TO GET BY"]; } }
+  for(var k=0;k<R.living.length;k++){ if(R.living[k].klass===2) return ["MAIN STREET", R.living[k].name+" THE "+R.living[k].job+" MAKES ENDS MEET"]; }
+  return null;
 }
 // ============ end THE PEOPLE — WORLD BINDING + EMBODIMENT ============
 
