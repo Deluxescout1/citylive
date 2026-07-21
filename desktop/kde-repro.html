@@ -57,6 +57,7 @@ if(Q.get('nopartyfx')==='1'){ NOPARTYFX=true; }   // suppress the persistent par
 if(Q.get('nosports')==='1'){ NOSPORTS=true; }   // suppress the sports district (containment byte-identical)
 if(Q.get('noconstr')==='1'){ NOCONSTR=true; }   // suppress the construction overhaul (branded firms/richer sites/stall/teardowns) — containment byte-identical
 if(Q.get('gameon')==='1'){ FORCEGAMEON=true; }   // force a (fake) game on the stadium scoreboards for render tests
+if(Q.get('bills')==='1'){ FORCEBILLS=true; }   // force the Buffalo Bills gameday takeover (no live game / config needed)
 if(Q.get('nogeo')==='1'){ NOGEO=true; }   // suppress IP auto-location (keeps LAT/LON pinned so the containment A/B stays byte-identical)
 if(Q.get('apocbuild')!=null){ var _rn=(Q.get('now')?+Q.get('now'):Date.now()), _d=(+Q.get('apocbuild')||120)*1000; FORCEAPOCREPLAY={base:_rn,startAt:_rn+_d,until:_rn+_d+95000}; }   // render the "missed cataclysm — replay in M:SS" buildup banner
 if(Q.get('noeconfx')==='1'){ NOECONFX=true; }   // suppress the hard-times street decay (containment byte-identical)

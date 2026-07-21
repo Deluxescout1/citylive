@@ -37,6 +37,11 @@ var LOC_AUTO = (CFG.lat == null || CFG.lon == null), geoDone = false, NOGEO = fa
 // Default ON. Set config `flights:false` to disable (it calls a public ADS-B API with the area's
 // coordinates, so a privacy-minded host can turn it off).
 var FLIGHTS_ON = (CFG.flights !== false);
+// BUFFALO BILLS GAMEDAY TAKEOVER: opt-in, OFF by default. When on AND the real Bills are actually
+// playing a game right now (checked against the same live ESPN feed the stadium scoreboards use), the
+// whole city goes Bills Mafia — every sign, screen, ticker line and citizen rallies the team. A shared
+// build never imposes it on anyone; set config `bills:true` (config.local.json / the KDE config page).
+var BILLS_ON = (CFG.bills === true);
 
 // BIRTHDAYS: strung banner + fireworks + hearts on the given day. Each entry {m,d,label,pink?}.
 // None are baked in here; a build supplies its own list via config (or [] for none, so the
@@ -78,6 +83,7 @@ function applyConfig(cfg){ if(!cfg) return;
   if(cfg.era!==undefined){ FORCEERA=null;
     if(cfg.era && cfg.era!=="auto"){ for(var ei=0;ei<ERAS.length;ei++){ if(ERAS[ei].name===cfg.era){ FORCEERA=ei; break; } } } }
   if(cfg.flights!==undefined) FLIGHTS_ON=(cfg.flights!==false);   // live real-aircraft overlay on/off
+  if(cfg.bills!==undefined) BILLS_ON=(cfg.bills===true);          // Buffalo Bills gameday takeover on/off
 }
 // ================================================================================
 
@@ -161,7 +167,7 @@ function resetNotifLanes(){ for(var r=0;r<_notifTaken.length;r++) _notifTaken[r]
 var CLOCK = null;   // test-harness override: ms timestamp for time-of-day (null = real wall clock)
 var NOWOVR = null;  // test-harness override: ms value returned as Date.now() inside draw() (null = real)
 var NOFETCH = false;  // headless flag (own line = QML-namespace writable): almanac callers set this so setup() makes NO network calls
-var VERSION = "1.51.0";  // the build the user is running — surfaced in the Almanac + KDE config page (keep in sync with desktop/package.json)
+var VERSION = "1.52.0";  // the build the user is running — surfaced in the Almanac + KDE config page (keep in sync with desktop/package.json)
 var FORCELAYOUT = null;   // test hook: pin every building's window layout (grid/ribbon/band/punch/corp) — verify per-layout render
 var FORCECROWN = null;    // test hook: pin every building's crown/roof (gable/hip/saltbox/mansard/deco/…) — verify per-roof render
 var FORCEUSE = null;      // test hook: pin every building's functional type (hospital/theater/hotel/bank/cafe/pharmacy) — verify drawUse
@@ -2004,7 +2010,8 @@ var SCORE_EP={NBA:"basketball/nba",MLB:"baseball/mlb",NHL:"hockey/nhl",NFL:"foot
 var liveScores={NBA:null,MLB:null,NHL:null,NFL:null}, scBucket=-1, scReqAt=0, FORCESCORES=null, FORCEGAMEON=false;
 function maybeFetchScores(){
   if(FORCESCORES){ liveScores=FORCESCORES; return; }
-  if(!SCORE_ON || cityG<0.5) return;                          // only once the city has stadiums
+  if(!SCORE_ON && !BILLS_ON) return;                          // scores + takeover both off → never poll
+  if(cityG<0.5 && !BILLS_ON) return;                          // scores need stadiums — but the Bills takeover polls even in a young city so gameday is caught the moment it starts
   var rn=Date.now(), b=Math.floor(rn/SCORE_BUCKET);
   if(b!==scBucket && rn-scReqAt>15000){ scBucket=b; scReqAt=rn; for(var k in SCORE_EP) fetchScores(k); }
 }
@@ -2052,6 +2059,29 @@ function realGameFor(sport, teamUpper){
     if(g.home===teamUpper) return {live:g.state==="in", done:g.state==="post", us:g.hs, them:g.as, opp:g.aa, detail:g.detail};
     if(g.away===teamUpper) return {live:g.state==="in", done:g.state==="post", us:g.as, them:g.hs, opp:g.ha, detail:g.detail}; }
   return null;
+}
+// ---- BUFFALO BILLS GAMEDAY MODE ----------------------------------------------------------------
+// Bills team colours (royal blue + red). FONT-safe slogans (uppercase / digits / space / hyphen / "!").
+var BILLS_BLUE="#00338d", BILLS_RED="#c60c30";
+var BILLS_SLOGANS=["GO BILLS!","JOSH ALLEN IS GOD","BILLS MAFIA","LETS GO BUFFALO","BILLIEVE",
+  "CIRCLE THE WAGONS","ONE BUFFALO","FEAR THE BILLS","MVP JOSH ALLEN","TALKIN PROUD",
+  "BILLS BY A MILLION","THIS IS THE YEAR","BILLS BILLS BILLS","JOSH ALLEN FOR MAYOR","SQUISH THE FISH"];
+var FORCEBILLS=false;   // test hook: force the takeover on (no live game / no config needed) for headless renders
+// The takeover is live ONLY while a real Bills game is: {live, g} or null. Gated on the opt-in config.
+function billsMode(now){
+  if(FORCEBILLS) return {live:true, g:null};
+  if(!BILLS_ON) return null;
+  var g=realGameFor("NFL","BILLS");
+  return (g && g.live) ? {live:true, g:g} : null;
+}
+// one ticker line for gameday: the live score every 3rd slot (when the feed has it), else a rotating chant.
+function billsTicker(now){
+  var g=curBills&&curBills.g, slot=Math.floor(now/9000);
+  if(g && g.opp && slot%3===0){
+    var s="BILLS "+g.us+" "+g.opp+" "+g.them; if(g.detail) s+=" - "+(""+g.detail).toUpperCase();
+    return s;
+  }
+  return BILLS_SLOGANS[((slot%BILLS_SLOGANS.length)+BILLS_SLOGANS.length)%BILLS_SLOGANS.length];
 }
 // ---- THE REAL ISS: its live sub-satellite point (open-notify), refreshed ~25s. The look angle from the
 // user's coordinates decides whether it's actually above the horizon right now — so when the engine shows
@@ -2304,6 +2334,7 @@ function cityEvents(nd){
 }
 var curEvents=null;
 var curDis=null, curRebuilt=[], curRuins=[];   // active disaster (or null) + completed-rebuild zones + permanently-ruined zones, set each frame
+var curBills=null;   // Buffalo Bills gameday takeover state (or null) — set each frame in draw()
 var cityG=1, cityPhase="peak", growPop=1, cityApoc=0, apocVeil=0;   // maturity, phase, pop factor, apocalypse progress + ash-out veil
 var curSpace=0;   // SPACE AGE 0..1 — the mature metropolis' final evolution before the endtimes
 var lpK=0;        // LIGHT POLLUTION 0..1 — how far the city's glow drowns the dark sky (Milky Way/Andromeda wash-out)
@@ -2831,6 +2862,10 @@ function drawPerson(g,x,y,cloth,skin,bob,kind){
   // kind: undefined/0 adult · 1 child (one head shorter, no accessories) · 2 elder (silver + cane)
   var f=(bob|0)&3, lift=(f===1||f===3)?1:0, yy=(y-lift)|0, X=x|0;
   if(cloth==null) cloth="#3a3a44"; if(skin==null) skin=SKINC[0];            // guard a bad palette index (e.g. a signed-shift hash gone negative) — draw a person, never blank the frame
+  if(curBills){                                                            // gameday: most citizens don Bills gear. Decision keyed off the ORIGINAL cloth/skin (a world seed) so a person crossing a bezel decides the same on both screens.
+    var fanH=((cloth.charCodeAt(1)*7+cloth.charCodeAt(3)*13+skin.charCodeAt(2)*17)>>>0);
+    if(fanH%5!==0) cloth=(fanH%3===0)?BILLS_RED:BILLS_BLUE;                // ~80% are fans — mostly royal blue, some red
+  }
   var hseed=(cloth.charCodeAt(1)+cloth.charCodeAt(3)+skin.charCodeAt(2));
   var pants=pantsOf(cloth);
   if(kind===1){                                                          // a child — same feet, smaller frame
@@ -6470,6 +6505,7 @@ function tickerMsg(now){
   if(curWar&&curWar.f>=0&&curWar.f<1) return "INVASION UNDERWAY - SHELTER IN PLACE";
   if(curWar&&curWar.f>=1&&!curWar.win) return "CURFEW IN EFFECT BY ORDER OF THE OCCUPATION";
   if(curDis) return "BREAKING - CAT-"+curDis.intensity+" "+DIS_NAME[curDis.type]+" - SEEK SHELTER";
+  if(curBills) return billsTicker(now);   // gameday takes over the news entirely — every ticker + news screen goes Bills (real safety broadcasts above still win)
   var rgm=regimeTicker(now); if(rgm && (Math.floor(now/12000))%4!==0) return rgm;   // THE ORDER dominates the news (3 of 4 slots) while the takeover is underway
   var pgm=plagueTicker(now); if(pgm && (Math.floor(now/12000))%4!==0) return pgm;   // THE PLAGUE dominates the news while the pandemic rages (mutually exclusive with the regime)
   var ftm=festivalTicker(now); if(ftm && (Math.floor(now/12000))%4!==0) return ftm;  // THE FESTIVAL's expo news while the World's Fair is on (mutually exclusive with war/regime/plague)
@@ -6816,6 +6852,7 @@ var SHOW_POOL=[
 // INDEPENDENT channel, offset by its seed so neighbouring screens differ: ~70% news (category varied per
 // screen), ~20% ad, ~10% a TV show. A live emergency + STATE media override every screen at once.
 function screenContent(seed, now){
+  if(curBills) return {type:"ad", c:{kick:"GO BILLS!", line:BILLS_SLOGANS[((Math.floor(now/5000)+((seed>>>3)%BILLS_SLOGANS.length))%BILLS_SLOGANS.length)], color:BILLS_BLUE, art:"ball"}};   // gameday: the big screens go Bills
   if((curRegime&&curRegime.active&&curRegime.stage>=3) || newsEmergency()) return {type:"news", seg:newsSegment(now)};
   var key=((seed*2654435761)>>>0);
   var pslot=Math.floor(now/12000)+(key%6);            // this screen's programme index — offset by seed so screens are OUT OF PHASE, advances every ~12s so each one cycles news→ad→show over time
@@ -6840,6 +6877,8 @@ function drawScreenArt(g,cx,cy,kind,col,now){
   else if(kind==="garden"){ g.fillStyle="#e0c040"; g.fillRect(cx+3,cy-6,3,3); g.fillStyle="#6a4a2a"; g.fillRect(cx-4,cy-1,2,5); g.fillStyle="#3ac86a"; g.fillRect(cx-7,cy-5,8,5); }
   else if(kind==="space"){ g.fillStyle="#cfd8e2"; g.fillRect(cx-1,cy-6,3,9); g.fillStyle=col; g.fillRect(cx-1,cy-8,3,3); g.fillStyle="#e0653a"; g.fillRect(cx-1,cy+3,3,3); g.fillStyle="#fff"; g.fillRect(cx-6,cy-4,1,1); g.fillRect(cx+5,cy-1,1,1); }
   else if(kind==="quiz"){ g.fillStyle=col; g.fillRect(cx-2,cy-6,5,2); g.fillRect(cx+1,cy-4,2,3); g.fillRect(cx-1,cy-1,3,2); g.fillRect(cx-1,cy+3,3,2); }
+  else if(kind==="ball"){ g.fillStyle="#7a3b18"; g.fillRect(cx-5,cy-2,10,5); g.fillRect(cx-6,cy-1,1,3); g.fillRect(cx+5,cy-1,1,3);   // a football
+    g.fillStyle="#f4f0e6"; g.fillRect(cx-2,cy,4,1); g.fillRect(cx-1,cy-1,1,3); g.fillRect(cx+1,cy-1,1,3); }                          // white laces
 }
 // mount + draw ONE rooftop jumbotron. (rx,ry) = screen top-left in SCREEN space; roofY = the roof it stands on.
 // seed = the host tower's seed → picks this screen's independent channel (so neighbours differ).
@@ -7449,6 +7488,7 @@ function adMountAt(wx){
   return best;
 }
 function drawCorpAds(g,L,now,night){
+  if(curBills){ drawBillsAds(g,L,now,night); return; }   // gameday: the boulevards go Bills
   var C=curCorps; if(!C||!C.cos.length||nukeStruck()) return;
   for(var i=0;i<CORP_AD_X.length;i++){
     var wx=Math.round(CORP_AD_X[i]*WW), sx=disX(wx); if(sx<-70||sx>SW+70) continue;
@@ -7485,6 +7525,37 @@ function drawCorpAds(g,L,now,night){
     drawUiText(g,co.g,x0+pad,py+3,"rgba(10,12,18,0.95)",1);
     drawUiText(g,co.n,x0+pad+tagW+4,py+3, L>0.5?css(mixc(brand,[22,24,30],0.32)):css(brand),1);   // company name
     if(night>0.3){ g.globalCompositeOperation="lighter"; drawUiText(g,co.n,x0+pad+tagW+4,py+3,rgba(brand,0.3+0.35*night),1); g.globalCompositeOperation="source-over"; }
+  }
+}
+// GAMEDAY street billboards: the same three hoardings, mounted exactly like the corp ads, but every
+// panel now roars for the Bills — royal-blue board, red rails, a rotating chant, glowing at night.
+function drawBillsAds(g,L,now,night){
+  if(nukeStruck()) return;
+  for(var i=0;i<CORP_AD_X.length;i++){
+    var wx=Math.round(CORP_AD_X[i]*WW), sx=disX(wx); if(sx<-70||sx>SW+70) continue;
+    var msg=BILLS_SLOGANS[(((i*3+Math.floor(now/6000))%BILLS_SLOGANS.length)+BILLS_SLOGANS.length)%BILLS_SLOGANS.length];
+    var pw=textW(msg)+6;
+    var b=adMountAt(wx), py, x0, mount;
+    if(b && b.w>=pw+4 && b.h>=24){
+      mount="facade"; var bx=(b.x-WOFF)|0; if(sx-bx>WW/2) bx+=WW; if(bx-sx>WW/2) bx-=WW;
+      py=HORIZON-Math.min(b.h-8,26);
+      x0=Math.max(bx+2,Math.min(bx+b.w-pw-2,(sx-(pw>>1))|0));
+    } else if(b && b.w>=14){ mount="roof"; py=(HORIZON-b.h-15)|0; x0=(sx-(pw>>1))|0; }
+    else { mount="ground"; py=HORIZON-24; x0=(sx-(pw>>1))|0; }
+    if(mount!=="facade"){
+      var legC=L>0.5?"#6a6152":"#2c2620", legY0=py+11, legY1=(mount==="roof")?((HORIZON-b.h)|0):HORIZON;
+      g.fillStyle=legC; g.fillRect(x0+2,legY0,2,Math.max(1,legY1-legY0)); g.fillRect(x0+pw-4,legY0,2,Math.max(1,legY1-legY0));
+      if(mount==="ground"){ g.fillRect(x0-1,py+12,pw+2,1); }
+      g.fillStyle="rgba(0,0,0,0.25)"; g.fillRect(x0+2,legY1-1,pw-4,1);
+    } else {
+      var brC=L>0.5?"#7a7264":"#3a342c";
+      g.fillStyle=brC; g.fillRect(x0-1,py+2,1,7); g.fillRect(x0+pw,py+2,1,7);
+      g.fillStyle="rgba(0,0,0,0.3)"; g.fillRect(x0,py+12,pw,1);
+    }
+    g.fillStyle=BILLS_BLUE; g.fillRect(x0,py,pw,11);                                  // royal-blue panel
+    g.fillStyle=BILLS_RED;  g.fillRect(x0,py-1,pw,1); g.fillRect(x0,py+11,pw,1);       // red rails
+    drawUiText(g,msg,x0+3,py+3,"#ffffff",1);                                          // white slogan
+    if(night>0.3){ g.globalCompositeOperation="lighter"; drawUiText(g,msg,x0+3,py+3,"rgba(120,170,255,"+(0.25+0.35*night).toFixed(2)+")",1); g.globalCompositeOperation="source-over"; }
   }
 }
 
@@ -13590,6 +13661,7 @@ function draw(g,pass){
   curEcon=econOf(now);                                        // boom or bust?
   if(curEcon<0.35) curLit*=0.82;                              // recessions dim the town
   curEvents=cityEvents(nd);           // calendar-driven special days (market, parade, marathon, movie)
+  curBills=billsMode(now);            // Buffalo Bills gameday takeover (opt-in; live only while the real game is)
   curMishap=blimpMishapNow(now);      // …and the rare blimp mishap (suppresses the ad blimp)
   curBlk=blackoutNow(now,fx);         // storm blackout state (L1)
   // LIGHT POLLUTION: the city's own glow drowns the night sky. Grows with the city (cityG), scaled by

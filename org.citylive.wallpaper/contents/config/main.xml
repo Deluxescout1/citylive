@@ -64,5 +64,8 @@
     <entry name="flights" type="Bool">
       <default>true</default>
     </entry>
+    <entry name="bills" type="Bool">
+      <default>false</default>
+    </entry>
   </group>
 </kcfg>

@@ -130,6 +130,11 @@ WallpaperItem {
             if (configuration && configuration.flights !== undefined) {
                 City.applyConfig({ flights: configuration.flights });
             }
+            // bills: EITHER source enables it — the config-dialog checkbox OR config.local.json.
+            // (Only turn ON here; a false dialog default must not clobber a config.local.json bills:true.)
+            if (configuration && configuration.bills) {
+                City.applyConfig({ bills: true });
+            }
         } catch (e) { /* unset → engine default (on) */ }
         City.setup(root.scene, {
             cw:   cv.width,

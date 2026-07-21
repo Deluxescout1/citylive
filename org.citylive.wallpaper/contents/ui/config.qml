@@ -15,6 +15,7 @@ ColumnLayout {
     property real cfg_worldRestartAt: 0
     property string cfg_worldRestartMode: "apoc"
     property bool cfg_flights: true
+    property bool cfg_bills: false
 
     // Friendly name -> engine name for the finale picker (first 9 in the order DEATHS
     // cycles them in city.js; kaijuwar/pollution are picker-only fates appended after).
@@ -329,6 +330,23 @@ ColumnLayout {
             text: i18n("Show real aircraft near your location")
             checked: cfgRoot.cfg_flights
             onToggled: cfgRoot.cfg_flights = checked
+        }
+
+        QQC2.CheckBox {
+            Kirigami.FormData.label: i18n("Buffalo Bills:")
+            text: i18n("Gameday takeover when the Bills are really playing")
+            checked: cfgRoot.cfg_bills
+            onToggled: cfgRoot.cfg_bills = checked
+        }
+
+        QQC2.Label {
+            Kirigami.FormData.label: " "
+            Layout.fillWidth: true
+            Layout.preferredWidth: Kirigami.Units.gridUnit * 22
+            wrapMode: Text.WordWrap
+            opacity: 0.7
+            font.pointSize: Kirigami.Theme.smallFont.pointSize
+            text: i18n("When the real Buffalo Bills are playing a live game, the whole city turns into Bills Mafia — the citizens don team colours and every sign, billboard and jumbotron rallies the Bills. Off outside of live games. Uses the same free ESPN scoreboard feed as the stadium scoreboards.")
         }
 
         QQC2.Label {
