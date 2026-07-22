@@ -10,11 +10,8 @@ WallpaperItem {
 
     readonly property string scene: (configuration && configuration.scene) ? configuration.scene : "neon"
     property bool cfgApplied: false   // local personal config (birthdays/location/cycle) is injected once, at first boot
-    property string statusTitle: "CityLive is starting…"
-    property string statusDetail: "Building the current city state"
     property string renderError: ""
     property string lastChronicleKey: ""
-    readonly property bool showStatus: !configuration || configuration.showStatus === undefined || configuration.showStatus
     readonly property bool chronicleEnabled: !configuration || configuration.chronicleEnabled === undefined || configuration.chronicleEnabled
     // QUALITY tier: spectacle (full 12fps everything) / balanced / performance (8fps, thinner
     // effects — laptop & battery friendly). Config override, else auto by total canvas load.
@@ -169,22 +166,6 @@ WallpaperItem {
     }
 
     Rectangle {
-        visible: root.showStatus
-        // Keep the live feed out of the engine's top alert/countdown lanes and away from street
-        // action. The right-side sky rail is intentionally reserved for this persistent panel.
-        anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
-        anchors.rightMargin: 12
-        width: Math.min(390, Math.max(220, statusText.implicitWidth + 20))
-        height: statusText.implicitHeight + 14
-        radius: 8; color: "#d9141824"; border.color: "#52617d"; border.width: 1
-        Text {
-            id: statusText; anchors.fill: parent; anchors.margins: 7
-            text: "<b>" + root.statusTitle + "</b><br><font color='#a9b6ce'>" + root.statusDetail + "</font>"
-            textFormat: Text.RichText; color: "#edf3ff"; wrapMode: Text.Wrap
-            font.pixelSize: 12
-        }
-    }
-    Rectangle {
         visible: root.renderError.length > 0
         anchors.right: parent.right; anchors.top: parent.top; anchors.margins: 12
         width: Math.min(520, errorText.implicitWidth + 20); height: errorText.implicitHeight + 14
@@ -229,9 +210,6 @@ WallpaperItem {
         interval: 1000; running: root.visible; repeat: true
         onTriggered: {
             try {
-                var s = City.cityStatus(Date.now());
-                root.statusTitle = s.title || "City running normally";
-                root.statusDetail = [s.detail, s.dataLabel].filter(function(v){ return !!v; }).join(" · ");
                 var w = City.chronicleSnapshot(Date.now());
                 if (root.chronicleEnabled && w && w.recordable && w.eventKey !== root.lastChronicleKey) {
                     root.recordChronicle(w); root.lastChronicleKey = w.eventKey;

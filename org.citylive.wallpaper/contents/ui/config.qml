@@ -18,7 +18,6 @@ ColumnLayout {
     property bool cfg_flights: true
     property bool cfg_bills: false
     property string cfg_quality: ""
-    property bool cfg_showStatus: true
     property bool cfg_notifyEvents: true
     property bool cfg_chronicleEnabled: true
     property string chronicleText: i18n("No witnessed events yet. Leave CityLive running and its story will appear here.")
@@ -149,13 +148,6 @@ ColumnLayout {
             currentIndex: Math.max(0, indexOfValue(cfgRoot.cfg_quality))
             onActivated: cfgRoot.cfg_quality = currentValue
             Component.onCompleted: currentIndex = Math.max(0, indexOfValue(cfgRoot.cfg_quality))
-        }
-
-        QQC2.CheckBox {
-            Kirigami.FormData.label: i18n("City status:")
-            text: i18n("Show the compact “What’s happening?” panel")
-            checked: cfgRoot.cfg_showStatus
-            onToggled: cfgRoot.cfg_showStatus = checked
         }
 
         QQC2.CheckBox {

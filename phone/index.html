@@ -11,16 +11,12 @@
   html,body{margin:0;padding:0;background:#0a0c14;height:100%;overflow:hidden}
   canvas{position:fixed;inset:0;display:block;width:100vw;height:100vh;image-rendering:pixelated;image-rendering:crisp-edges}
   #cvbg{z-index:0} #cv{z-index:1}
-  #status{position:fixed;z-index:4;left:8px;right:8px;bottom:max(8px,env(safe-area-inset-bottom));padding:6px 8px;
-    border:1px solid #2a3550;border-radius:8px;background:rgba(14,18,28,.82);color:#dfe8f7;font:11px/1.35 system-ui,sans-serif}
-  #status small{display:block;color:#93a2c0}
   #renderError{position:fixed;z-index:8;left:8px;right:8px;top:max(8px,env(safe-area-inset-top));display:none;
     padding:7px;background:rgba(92,13,24,.94);color:#ffe8e8;border:1px solid #e65b6d;border-radius:8px;font:11px system-ui,sans-serif}
 </style>
 </head>
 <body>
 <canvas id="cvbg"></canvas><canvas id="cv"></canvas>
-<div id="status" aria-live="polite">CityLive is starting…<small>Building the current city state</small></div>
 <div id="renderError" role="alert"></div>
 <script src="config.js"></script>
 <script src="city.js"></script>
@@ -54,10 +50,6 @@
     if(bgDirty||ts-lastBg>=bgStep){draw(bg,'bg');lastBg=ts;bgDirty=false;}draw(g,'fg');lastFg=ts;
   }catch(e){renderError(e);lastFg=ts;}}
   requestAnimationFrame(frame);
-  function updateStatus(){try{var s=typeof cityStatus==='function'?cityStatus(Date.now()):null;if(!s)return;
-    var el=document.getElementById('status');el.firstChild.nodeValue=(s.title||'City running normally');el.querySelector('small').textContent=[s.detail,s.dataLabel].filter(Boolean).join(' · ');
-  }catch(e){renderError(e);}}
-  updateStatus();setInterval(updateStatus,1000);
   // TOUCH: drag horizontally to scrub the city's whole life under your finger; release to
   // return to live time. Double-tap toggles performance/spectacle.
   var lastTap=0;

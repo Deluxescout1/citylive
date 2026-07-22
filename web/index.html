@@ -28,14 +28,11 @@
   #hud{position:fixed;left:12px;bottom:10px;color:var(--sub);background:var(--panel);border:1px solid var(--line);
     border-radius:7px;padding:5px 9px;z-index:8;opacity:.9}
   #hud b{color:var(--txt)}
-  #happening{position:fixed;right:12px;top:50%;transform:translateY(-50%);max-width:min(390px,calc(100vw - 24px));z-index:8;
-    color:var(--sub);background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:7px 10px;opacity:.92}
-  #happening .title{color:var(--txt);font-weight:700} #happening .meta{font-size:11px;margin-top:2px}
   #renderError{position:fixed;right:12px;top:12px;z-index:30;display:none;color:#ffe8e8;background:rgba(92,13,24,.94);
     border:1px solid #e65b6d;border-radius:9px;padding:8px 10px;font-size:11px}
   #help{position:fixed;right:12px;bottom:10px;color:var(--sub);z-index:8;opacity:.7;font-size:11px}
   /* wallpaper mode (?wallpaper=1) — pure city, no on-screen controls/labels behind the desktop icons */
-  body.wallpaper #bar,body.wallpaper #hot,body.wallpaper #hud,body.wallpaper #help,body.wallpaper #happening{display:none!important}
+  body.wallpaper #bar,body.wallpaper #hot,body.wallpaper #hud,body.wallpaper #help{display:none!important}
   @media (max-width:640px){ #bar{gap:6px;padding:6px 8px} input[type=range]{width:84px} .lbl{display:none} }
 </style>
 </head>
@@ -63,7 +60,6 @@
   <button id="full" title="Fullscreen">⛶</button>
 </div>
 <div id="hud">— </div>
-<div id="happening" aria-live="polite"><div class="title">CityLive is starting…</div><div class="meta">Building the current city state</div></div>
 <div id="renderError" role="alert"></div>
 <div id="help">drag <b>time</b> to scrub the day · <b>age</b> to grow the city · hover top edge for controls</div>
 
@@ -117,7 +113,6 @@
   var cfg=(typeof window!=='undefined'&&window.CITYLIVE_CFG)||{};
   var st={ era:null, hour:null, age:null, quality:['spectacle','balanced','performance'].indexOf(cfg.quality)>=0?cfg.quality:'spectacle', paused:false };
   document.getElementById('q').value=st.quality;
-  if(cfg.showStatus===false) document.getElementById('happening').style.display='none';
 
   // build the city/era dropdown from the engine's own ERAS table (+ a Live option)
   var eraSel=document.getElementById('era');
@@ -163,10 +158,6 @@
   function reportRenderError(err){ var msg=String(err&&err.stack||err||'Unknown render error'),now=Date.now();
     if(msg!==lastError||now-lastErrorAt>10000){ console.error('CityLive render failure:',err);lastError=msg;lastErrorAt=now; }
     var el=document.getElementById('renderError');el.textContent='CityLive recovered from a render error: '+msg.split('\n')[0];el.style.display='block'; }
-  function updateHappening(){ try{ var s=typeof cityStatus==='function'?cityStatus(Date.now()):null;if(!s)return;
-    var el=document.getElementById('happening');el.querySelector('.title').textContent=s.title||'City running normally';
-    el.querySelector('.meta').textContent=[s.detail,s.dataLabel].filter(Boolean).join(' · '); }catch(e){reportRenderError(e);} }
-
   var t=null;
   function resize(){ clearTimeout(t); t=setTimeout(boot,250); }
   window.addEventListener('resize',resize);
@@ -184,14 +175,14 @@
   // tap top to toggle the bar on touch devices
   document.getElementById('hot').addEventListener('click',function(){ document.getElementById('bar').classList.toggle('show'); });
 
-  fillEras(); boot(); hud(); updateHappening();
+  fillEras(); boot(); hud();
   var lastFg=0,lastBg=0,bgDirty=true;
   function frame(ts){ requestAnimationFrame(frame);if(st.paused||document.hidden)return;
     var fps=st.quality==='performance'?8:(st.quality==='balanced'?10:12),step=1000/fps;if(ts-lastFg<step)return;
     try{applyOverrides();var bgStep=st.quality==='performance'?2000:(st.quality==='balanced'?1000:500);
       if(bgDirty||ts-lastBg>=bgStep){draw(bg,'bg');lastBg=ts;bgDirty=false;}draw(g,'fg');lastFg=ts;
     }catch(e){reportRenderError(e);lastFg=ts;} }
-  requestAnimationFrame(frame);setInterval(updateHappening,1000);
+  requestAnimationFrame(frame);
   // keep the screen awake if displayed as a kiosk (best effort)
   if(navigator.wakeLock) navigator.wakeLock.request('screen').catch(function(){});
   document.addEventListener('visibilitychange',function(){ if(!document.hidden&&navigator.wakeLock) navigator.wakeLock.request('screen').catch(function(){}); });

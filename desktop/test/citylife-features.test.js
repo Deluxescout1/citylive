@@ -38,6 +38,19 @@ function canvasStub() {
   });
 }
 
+test('the intrusive live-feed panel is absent from every host surface', () => {
+  const root = path.join(__dirname, '..', '..');
+  for (const rel of [
+    'org.citylive.wallpaper/contents/ui/main.qml',
+    'desktop/renderer/index.html',
+    'web/index.html',
+    'phone/index.html'
+  ]) {
+    const source = fs.readFileSync(path.join(root, rel), 'utf8');
+    assert.doesNotMatch(source, /id=["'](?:happening|status)["']|id:\s*statusText\b/, rel);
+  }
+});
+
 test('the billboard library contains exactly 50 distinct realistic campaigns', () => {
   const ctx = loadEngine();
   assert.strictEqual(ctx.AD_LIB.length, 50);

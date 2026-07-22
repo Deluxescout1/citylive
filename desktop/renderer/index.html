@@ -28,9 +28,6 @@
   #hud{position:fixed;left:12px;bottom:10px;color:var(--sub);background:var(--panel);border:1px solid var(--line);
     border-radius:7px;padding:5px 9px;z-index:8;opacity:.9}
   #hud b{color:var(--txt)}
-  #happening{position:fixed;right:12px;top:50%;transform:translateY(-50%);max-width:min(390px,calc(100vw - 24px));z-index:8;
-    color:var(--sub);background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:7px 10px;opacity:.92}
-  #happening .title{color:var(--txt);font-weight:700} #happening .meta{font-size:11px;margin-top:2px}
   #renderError{position:fixed;right:12px;top:12px;z-index:30;display:none;max-width:min(520px,calc(100vw - 24px));
     color:#ffe8e8;background:rgba(92,13,24,.94);border:1px solid #e65b6d;border-radius:9px;padding:8px 10px;font-size:11px}
   #help{position:fixed;right:12px;bottom:10px;color:var(--sub);z-index:8;opacity:.7;font-size:11px}
@@ -86,7 +83,6 @@
   <button id="full" title="Fullscreen">⛶</button>
 </div>
 <div id="hud">— </div>
-<div id="happening" aria-live="polite"><div class="title">CityLive is starting…</div><div class="meta">Building the current city state</div></div>
 <div id="renderError" role="alert"></div>
 <div id="help">drag <b>time</b> to scrub the day · <b>age</b> to grow the city · hover top edge for controls</div>
 
@@ -115,7 +111,6 @@
   var savedQuality=['spectacle','balanced','performance'].indexOf(CFG0.quality)>=0?CFG0.quality:'spectacle';
   var st={ era:null, hour:null, age:null, quality:savedQuality, paused:false };
   document.getElementById('q').value=st.quality;
-  if(CFG0.showStatus===false) document.getElementById('happening').style.display='none';
   // config era name → session override index (the control bar can still change it live)
   try{ if(CFG0.era&&CFG0.era!=='auto'){ var _ci=ERAS.findIndex(function(e){return e.name===CFG0.era;}); if(_ci>=0) st.era=_ci; } }catch(e){}
 
@@ -175,13 +170,8 @@
     if(msg!==lastError||now-lastErrorAt>10000){ console.error('CityLive render failure:',err); lastError=msg; lastErrorAt=now; }
     var el=document.getElementById('renderError'); el.textContent='CityLive recovered from a render error: '+msg.split('\n')[0]; el.style.display='block';
   }
-  function updateHappening(){
-    var el=document.getElementById('happening');
+  function updateChronicle(){
     try{
-      var s=typeof cityStatus==='function'?cityStatus(Date.now()):null;
-      if(!s) return;
-      el.querySelector('.title').textContent=s.title||'City running normally';
-      el.querySelector('.meta').textContent=[s.detail,s.dataLabel].filter(Boolean).join(' · ');
       if(window.citylive&&window.citylive.recordChronicle&&typeof chronicleSnapshot==='function'){
         var witness=chronicleSnapshot(Date.now()); if(witness) window.citylive.recordChronicle(witness).catch(function(){});
       }
@@ -205,12 +195,7 @@
   // tap top to toggle the bar on touch devices
   document.getElementById('hot').addEventListener('click',function(){ document.getElementById('bar').classList.toggle('show'); });
 
-  fillEras(); boot(); hud(); updateHappening();
-  document.getElementById('happening').title='Open the City Chronicle';
-  document.getElementById('happening').style.cursor='pointer';
-  document.getElementById('happening').addEventListener('click',function(){
-    if(window.citylive&&window.citylive.openChronicle) window.citylive.openChronicle().catch(function(){});
-  });
+  fillEras(); boot(); hud(); updateChronicle();
   // Two-layer, drift-aware renderer: the expensive sky/terrain backdrop updates slowly;
   // motion stays smooth at the selected tier. requestAnimationFrame also yields when hidden.
   var lastFg=0,lastBg=0,bgDirty=true;
@@ -227,7 +212,7 @@
     }catch(e){ reportRenderError(e); lastFg=ts; }
   }
   requestAnimationFrame(frame);
-  setInterval(updateHappening,1000);
+  setInterval(updateChronicle,1000);
   // keep the screen awake if displayed as a kiosk (best effort)
   if(navigator.wakeLock) navigator.wakeLock.request('screen').catch(function(){});
   document.addEventListener('visibilitychange',function(){ if(!document.hidden&&navigator.wakeLock) navigator.wakeLock.request('screen').catch(function(){}); });
