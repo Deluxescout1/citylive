@@ -6666,7 +6666,7 @@ function tickerMsg(now){
   if(cityPhase==="apoc") return "EMERGENCY BROADCAST - EVACUATE "+cityName+" NOW";
   if(curWar&&curWar.f>=0&&curWar.f<1) return "INVASION UNDERWAY - SHELTER IN PLACE";
   if(curWar&&curWar.f>=1&&!curWar.win) return "CURFEW IN EFFECT BY ORDER OF THE OCCUPATION";
-  if(curDis) return "BREAKING - CAT-"+curDis.intensity+" "+DIS_NAME[curDis.type]+" - SEEK SHELTER";
+  if(curDis) return "BREAKING - CAT-"+curDis.intensity+" "+DIS_NAME[curDis.type]+(curDis.type==="rift"?" - "+riftInvaderNames(curDis)+" SIGHTED":"")+" - SEEK SHELTER";
   if(curBills) return billsTicker(now);   // gameday takes over the news entirely — every ticker + news screen goes Bills (real safety broadcasts above still win)
   var rgm=regimeTicker(now); if(rgm && (Math.floor(now/12000))%4!==0) return rgm;   // THE ORDER dominates the news (3 of 4 slots) while the takeover is underway
   var pgm=plagueTicker(now); if(pgm && (Math.floor(now/12000))%4!==0) return pgm;   // THE PLAGUE dominates the news while the pandemic rages (mutually exclusive with the regime)
@@ -6848,7 +6848,7 @@ function newsSegment(now){
   if(newsEmergency()){
     var bk="BREAKING", bl;
     if(cityPhase==="apoc"){ var mn=meteorNews(now); bl=mn?mn.replace(/^☄ ?/,""):("EVACUATE "+cityName+" NOW"); }
-    else if(curDis) bl="CAT-"+curDis.intensity+" "+DIS_NAME[curDis.type]+" - SEEK SHELTER";
+    else if(curDis) bl="CAT-"+curDis.intensity+" "+DIS_NAME[curDis.type]+(curDis.type==="rift"?" - "+riftInvaderNames(curDis)+" SIGHTED":"")+" - SEEK SHELTER";
     else if(curWar&&curWar.f>=0&&curWar.f<1) bl="INVASION UNDERWAY - SHELTER IN PLACE";
     else if(fireBurning) bl="WILDFIRE ON THE RIDGE - STAY CLEAR";
     else if(curBlk) bl="POWER OUT DOWNTOWN - CREWS EN ROUTE";
@@ -9978,9 +9978,12 @@ var BESTIARY=[
   {id:"gargoyle",name:"STONE GOLEM",arch:"gargoyle",size:"large",body:"#8B4513",accent:"#DAA520",eye:"#FFFFFF",behav:"stomp",legs:2,menace:5}
 ];
 // one creature sprite by archetype, at screen (x,y). Tiny, distinct, animated. Pure fn of (now,k).
-function drawCreature(g, x, y, C, L, now, k){
-  x=x|0; y=y|0; var b=C.body, ac=C.accent, ey=C.eye, a=C.arch, t=(Math.floor(now*0.012)+k);
-  function P(dx,dy,w,h,col){ g.fillStyle=col; g.fillRect(x+dx,y+dy,w||1,h||1); }
+function drawCreature(g, x, y, C, L, now, k, sc){
+  x=x|0; y=y|0; sc=sc||1; var b=C.body, ac=C.accent, ey=C.eye, a=C.arch, t=(Math.floor(now*0.012)+k);
+  function P(dx,dy,w,h,col){ g.fillStyle=col; g.fillRect(x+dx*sc, y+dy*sc, Math.max(1,(w||1)*sc), Math.max(1,(h||1)*sc)); }
+  if(C.menace>=4&&sc>=2){ g.globalCompositeOperation="lighter";                          // menace aura — the big ones read as THREATS
+    g.fillStyle="rgba(255,40,60,"+(0.10+0.05*Math.sin(now*0.01+k)).toFixed(3)+")";
+    g.fillRect(x-6*sc,y-8*sc,12*sc,9*sc); g.globalCompositeOperation="source-over"; }
   if(a==="crawler"){ P(-2,-3,4,3,b); var nl=Math.min(8,C.legs);
     for(var l=0;l<nl;l++){ var lo=(l&1)?1:-1, wob=((t+l)&1); P(lo*(3),-2+((l>>1))-wob,1,1,ac); }
     P(-1,-3,1,1,ey); P(1,-3,1,1,ey); }
@@ -10006,6 +10009,26 @@ function riftRoster(seed, cat){
     while(used[idx]&&t<BESTIARY.length){ idx=(idx+1)%BESTIARY.length; t++; } used[idx]=1; out.push(idx); }
   return out;
 }
+// the lead invaders BY NAME for the news ticker ("VOID SERPENT & BRUTE SIGHTED") — deterministic per rift
+function riftInvaderNames(cd){
+  var r=riftRoster(cd.seed, cd.intensity);
+  return BESTIARY[r[0]].name + (r.length>1 ? " & "+BESTIARY[r[1]].name : "");
+}
+// stomp targets: the REAL standing towers in the blast zone. MIRRORS drawLayer's standing-tower culls
+// (overSite/overLandmark/born>=band/park) — any per-building overlay that skips these culls floats in
+// air over plots drawLayer never drew (the v1.27 floating-flag lesson).
+function riftSmashTargets(cd){
+  var out=[];
+  if(!near || !near.blds) return out;
+  for(var i=0;i<near.blds.length && out.length<4;i++){ var b=near.blds[i];
+    if(b.type==="park") continue;
+    if(!inZone(b.x,b.w,cd)) continue;
+    if(overSite(b.x,b.w) || overLandmark(b.x,b.w)) continue;
+    if(b.bAge!==undefined){ var born=cityG-b.bAge; if(born<=0 || born<bandOf(b)) continue; }
+    out.push(b);
+  }
+  return out;
+}
 function drawRift(g,cd,L,now){
   var f=cd.f, i=cd.intensity; if(f>=0.80) return;
   var open=Math.min(1,f/0.12), close=(f>0.64)?(f-0.64)/0.16:0, life=Math.max(0,open*(1-close));
@@ -10022,16 +10045,37 @@ function drawRift(g,cd,L,now){
     for(var sp=0;sp<14;sp++){ var an=now*0.02+sp*0.45+pi, rr=R+3+(sp%5)*2.5; g.fillStyle="rgba(195,120,255,"+(0.8*life)+")"; g.fillRect((cx+Math.cos(an)*rr)|0,(cy2+Math.sin(an)*rr*0.7)|0,1,1); }
     g.globalCompositeOperation="source-over";
     var ncr=Math.round(2+i*1.4);                                       // creatures per portal, leaping out to ATTACK
+    var targets=riftSmashTargets(cd);                                  // real in-zone towers for the stompers
     for(var cr=0; cr<ncr; cr++){ var C=BESTIARY[roster[(pi*ncr+cr)%roster.length]];
       var ph=((now*0.00045 + cr*0.173 + pi*0.31 + (cd.seed%1000)*0.001)%1), side=(cr&1)?1:-1;
       if(ph>open+0.04) continue;                                       // hasn't leapt out yet (portal still opening)
+      var sc=(C.size==="large")?(i>=5?3:2):(C.size==="medium"&&i>=4?2:1);   // BIGGER at higher CAT — invaders, not vermin
+      // BRUTES SMASH BUILDINGS: stomp-behaviour creatures march to a REAL tower and batter it through
+      // the strike window — the same frames drawDisasterBuilding collapses it, so the wreck reads as THEIRS.
+      if(C.behav==="stomp" && targets.length && f<0.44){
+        var tgt=targets[(pi*3+cr)%targets.length], tx=(tgt.x-WOFF)|0;
+        var fromP=(tx+(tgt.w>>1)>cx), standX=fromP? tx-2*sc : tx+tgt.w+2*sc;   // stand on the portal-facing wall
+        var appr=Math.min(1,Math.max(0,(f-0.02)/0.08));                // march portal → tower during the warning
+        var gx2=(cx+(standX-cx)*appr)|0, gy2=HORIZON-1;
+        drawCreature(g, gx2, gy2, C, L, now, cr*7+pi, sc);
+        if(f>=0.10 && appr>=1){                                        // BATTERING the wall
+          var hitX=fromP? tx : tx+tgt.w, hitY=gy2-3*sc, beat=(Math.floor(now*0.008+cr)&1);
+          if(beat){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,230,150,0.85)";   // impact flash
+            g.fillRect(hitX-1,hitY-1,3,3); g.globalCompositeOperation="source-over"; }
+          for(var ch=0; ch<4; ch++){ var ct=((now*0.02+ch*35+cr*11)%70)/70;                       // chips of masonry arcing off the wall
+            g.fillStyle="#5a5266"; g.fillRect((hitX+(fromP?1:-1)*(2+ct*7*(1+(ch&1))))|0,(hitY-4*ct+9*ct*ct)|0,1,1); }
+          g.fillStyle="rgba(120,110,124,0.5)"; var puff=(Math.floor(now*0.01+cr)%3);              // dust at the footing
+          g.fillRect(hitX-2-puff,HORIZON-2,4+puff*2,1);
+        }
+        continue;
+      }
       var reach=(cd.w*0.85+i*11), gx=cx+side*ph*reach, aerial=(C.arch==="flyer"||C.arch==="wraith"), gy;
       if(C.arch==="hopper"||C.behav==="leap") gy=HORIZON-1-Math.abs(Math.sin(now*0.006+cr*1.7))*11*(1-ph*0.3);   // pouncing arc
       else if(aerial) gy=cy2+7+Math.sin(now*0.004+cr)*5;               // hovering
       else { gy=cy2+ph*(HORIZON-cy2); if(gy>HORIZON-1) gy=HORIZON-1; } // charge down to the street
-      drawCreature(g, gx, gy, C, L, now, cr*7+pi);
+      drawCreature(g, gx, gy, C, L, now, cr*7+pi, sc);
       if(C.behav==="spit" && f>0.18){ var pr=((now*0.02+cr)%1); g.globalCompositeOperation="lighter"; g.fillStyle=C.eye;
-        g.fillRect((gx-side*pr*34)|0,(gy+(pr*pr*16))|0,1,1); g.globalCompositeOperation="source-over"; }   // acid/poison bolt at the city
+        g.fillRect((gx-side*pr*34)|0,(gy+(pr*pr*16))|0,sc,sc); g.globalCompositeOperation="source-over"; }   // acid/poison bolt at the city
     }
   }
 }
