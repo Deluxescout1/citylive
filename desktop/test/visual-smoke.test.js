@@ -50,6 +50,7 @@ function loadEngine() {
 function splitFrame(ctx) {
   assert.doesNotThrow(() => ctx.draw(canvasStub(), 'bg'));
   assert.doesNotThrow(() => ctx.draw(canvasStub(), 'sky'));
+  assert.doesNotThrow(() => ctx.draw(canvasStub(), 'cloud'));
   assert.doesNotThrow(() => ctx.draw(canvasStub(), 'skyfast'));
   assert.doesNotThrow(() => ctx.draw(canvasStub(), 'city'));
   assert.doesNotThrow(() => ctx.draw(canvasStub(), 'fg'));
@@ -80,7 +81,7 @@ test('retained layers preserve every original drawing operation', () => {
   split.NOWOVR = at;
   split.FORCEAGE = 0.72;
   const splitCounts = {};
-  for (const pass of ['bg', 'sky', 'skyfast', 'city', 'fg']) split.draw(countingCanvas(splitCounts), pass);
+  for (const pass of ['bg', 'sky', 'cloud', 'skyfast', 'city', 'fg']) split.draw(countingCanvas(splitCounts), pass);
 
   // Layer canvases require their own transform/clear calls. All visible primitives and paths
   // must otherwise match the original monolithic frame exactly—no feature may disappear.
@@ -94,7 +95,7 @@ test('retained layers preserve every original drawing operation', () => {
 test('every transparent animation layer clears its previous frame', () => {
   const ctx = loadEngine();
   ctx.NOWOVR = 1784219400000;
-  for (const pass of ['sky', 'skyfast', 'city', 'fg']) {
+  for (const pass of ['sky', 'cloud', 'skyfast', 'city', 'fg']) {
     const counts = {};
     ctx.draw(countingCanvas(counts), pass);
     assert.strictEqual(counts.clearRect, 1, pass + ' must not leave motion trails');

@@ -73,6 +73,7 @@ WallpaperItem {
     // expensive static scenery for every car/pedestrian animation frame.
     Canvas {
         id: bgcv
+        z: 0
         width: Math.max(8, root.zoom * Math.ceil(root.width * root.dpr / (root.texelBuf * root.zoom)))
         height: Math.max(8, root.zoom * Math.ceil(root.height * root.dpr / (root.texelBuf * root.zoom)))
         smooth: root.fractionalDpr
@@ -91,6 +92,7 @@ WallpaperItem {
 
     Canvas {
         id: skycv
+        z: 1
         width: bgcv.width; height: bgcv.height
         smooth: root.fractionalDpr
         antialiasing: false
@@ -106,6 +108,7 @@ WallpaperItem {
 
     Canvas {
         id: skyfastcv
+        z: 3
         width: bgcv.width; height: bgcv.height
         smooth: root.fractionalDpr
         antialiasing: false
@@ -120,7 +123,21 @@ WallpaperItem {
     }
 
     Canvas {
+        id: cloudcv
+        z: 2
+        width: bgcv.width; height: bgcv.height
+        smooth: root.fractionalDpr; antialiasing: false
+        renderTarget: Canvas.FramebufferObject; renderStrategy: Canvas.Threaded
+        transformOrigin: Item.TopLeft; scale: root.texelBuf / root.dpr
+        onPaint: {
+            try { City.draw(getContext("2d"), "cloud"); }
+            catch (e) { root.renderError = "Cloud motion: " + e; console.error("CityLive cloud render failure: " + e); }
+        }
+    }
+
+    Canvas {
         id: citycv
+        z: 4
         width: bgcv.width; height: bgcv.height
         smooth: root.fractionalDpr
         antialiasing: false
@@ -136,6 +153,7 @@ WallpaperItem {
 
     Canvas {
         id: cv
+        z: 5
         // one canvas per screen, sized to THIS screen's aspect ratio (all fed from one world)
         // ceil + DEVICE-integer scale: the canvas may overshoot the screen by a few px (clipped),
         // but every canvas pixel maps to EXACTLY pxk DEVICE px. Anything fractional (from display
@@ -193,6 +211,13 @@ WallpaperItem {
         running: root.visible
         repeat: true
         onTriggered: skycv.requestPaint()
+    }
+    Timer {
+        // Clouds need their own inexpensive cadence: tying them to the slow atmosphere cache made
+        // several pixels of continuous drift appear all at once as a visible jump.
+        interval: root.quality === "performance" ? 200 : (root.quality === "balanced" ? 125 : 100)
+        running: root.visible; repeat: true
+        onTriggered: cloudcv.requestPaint()
     }
     Timer {
         interval: root.quality === "performance" ? 1000 : (root.quality === "balanced" ? 500 : 333)

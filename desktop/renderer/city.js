@@ -15214,7 +15214,7 @@ function draw(g,pass){
   var ocTop=isDay?(fx.thunder?[118,126,144]:[178,185,197]):[40,40,50],
       ocBot=isDay?(fx.thunder?[148,154,168]:[203,207,214]):[60,60,70];
 
-  if(pass==="fg"||pass==="sky"||pass==="skyfast"||pass==="city"){ g.clearRect(0,0,SW,SH); }   // transparent layers must discard their previous frame (no motion trails)
+  if(pass==="fg"||pass==="sky"||pass==="skyfast"||pass==="cloud"||pass==="city"){ g.clearRect(0,0,SW,SH); }   // transparent layers must discard their previous frame (no motion trails)
   if(pass==="bg"||pass===undefined){
   // sky
   var cA=mixc(SKY[ph.a][0],SKY[ph.b][0],ph.t), cB=mixc(SKY[ph.a][1],SKY[ph.b][1],ph.t);
@@ -15338,11 +15338,14 @@ function draw(g,pass){
   drawShootingStar(g,L,now);                    // the occasional wish-worthy shooting star
   }
   if(pass!=="skyfast"){
+  if(pass!=="cloud"){
   drawAurora(g,nd,L,now,fx);                    // rare frigid-night light show
   drawGodRays(g,L,now,fx);                      // crepuscular sunbeams through broken cloud
   drawRainbow(g,L,fx);                          // an arc when a shower clears under a low sun
+  }
 
   // clouds (deterministic drift)
+  if(pass!=="sky"){
   var windPush=0.6+(weather.wind||5)*0.06;
   var cloudA=fx.cloudy?0.85:(fx.rain||fx.snow)?0.9:0.5;
   for(i=0;i<clouds.length;i++){ c=clouds[i];
@@ -15354,20 +15357,23 @@ function draw(g,pass){
     if(sunsetK>0.02) cc0=mixc(cc0,(i&1)?[255,150,175]:[255,170,115],sunsetK*0.8);   // cotton-candy twilight
     var CX0=cx|0, CY0=c.y|0, CW0=c.w|0, CH0=c.h|0;
     g.fillStyle=rgba(cc0,cloudA*c.d);
-    if(c.t===1){                                                                    // cumulus: flat base + 3 rounded lobes
+    if(c.t===1){                                                                    // cumulus: layered cotton body + rounded lobes
       g.fillRect(CX0,CY0,CW0,CH0);
-      fillEllipse(g,CX0+(CW0*0.25|0),CY0,Math.max(2,(CW0*0.22)|0),3);
-      fillEllipse(g,CX0+(CW0*0.55|0),CY0-1,Math.max(2,(CW0*0.24)|0),5);              // middle lobe tallest
-      fillEllipse(g,CX0+(CW0*0.8|0),CY0,Math.max(2,(CW0*0.2)|0),4);
+      fillEllipse(g,CX0+(CW0*0.14|0),CY0+1,Math.max(2,(CW0*0.16)|0),3);
+      fillEllipse(g,CX0+(CW0*0.34|0),CY0-1,Math.max(2,(CW0*0.22)|0),5);
+      fillEllipse(g,CX0+(CW0*0.57|0),CY0-3,Math.max(3,(CW0*0.25)|0),7);              // billowing sunlit crown
+      fillEllipse(g,CX0+(CW0*0.78|0),CY0-1,Math.max(2,(CW0*0.20)|0),5);
+      fillEllipse(g,CX0+(CW0*0.92|0),CY0+1,Math.max(2,(CW0*0.12)|0),3);
       g.fillStyle=rgba([255,255,255],cloudA*c.d*0.5);
-      fillEllipse(g,CX0+(CW0*0.55|0),CY0-3,Math.max(1,(CW0*0.16)|0),2);              // top-light
+      fillEllipse(g,CX0+(CW0*0.53|0),CY0-5,Math.max(2,(CW0*0.15)|0),3);              // soft top-light
       g.fillStyle=rgba(mixc(cc0,[40,50,80],0.5),cloudA*c.d*0.5);
       g.fillRect(CX0+1,CY0+CH0-1,CW0-2,1);                                          // flat shaded base
       if(sunsetK>0.3){ g.fillStyle=rgba([255,205,160],0.35*sunsetK*c.d);            // sunlit underside
         g.fillRect((cx+2)|0,(c.y+c.h-1)|0,(c.w*0.8)|0,1); }
     } else if(c.t===0){                                                             // wisp: two offset rects + a soft feather
-      g.fillRect(CX0,CY0,CW0,Math.max(1,(CH0*0.5)|0));
-      g.fillRect(CX0-(CW0*0.18|0),CY0+1,(CW0*1.15|0),Math.max(1,(CH0*0.3)|0));
+      g.fillRect(CX0,CY0,CW0,Math.max(1,(CH0*0.45)|0));
+      g.fillRect(CX0-(CW0*0.12|0),CY0+1,(CW0*1.08|0),Math.max(1,(CH0*0.3)|0));
+      fillEllipse(g,CX0+(CW0*0.28|0),CY0,Math.max(3,(CW0*0.24)|0),2);
       g.fillStyle=rgba(cc0,cloudA*c.d*0.5);
       g.fillRect(CX0-(CW0*0.18|0),CY0+2,(CW0*1.3|0),1);
     } else {                                                                        // high-streak: thin wide band up high + feather
@@ -15390,7 +15396,9 @@ function draw(g,pass){
     }
   }
   }
+  }
 
+  if(pass==="cloud") return;
   if(pass!=="sky"){
   // high plane on a schedule
   var pl=crosser(now, 120000, 0.02, 6, 0.6);
@@ -15414,7 +15422,7 @@ function draw(g,pass){
   }
 
   }
-  if(pass==="sky"||pass==="skyfast") return;
+  if(pass==="sky"||pass==="skyfast"||pass==="cloud") return;
 
   // Values used by both the cached city and live street overlay must be computed in every pass.
   var roadY=HORIZON+3, roadF=Math.max(0,Math.min(1,(cityG-0.1)/0.4));
