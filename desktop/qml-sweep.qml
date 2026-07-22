@@ -28,6 +28,10 @@ Item {
                 jobs.push({ age: 0.6, clock: clk, dis: { type: diss[s], intensity: 4, xf: 0.5, w: 60, seed: 77, f: [0.25, 0.55][fp] } });
             // the plane crash APPROACH branch (f<0.11: descending plane + smoke trail + impact flash) + an OPEN-ground crash
             jobs.push({ age: 0.6, clock: clk, dis: { type: "planecrash", intensity: 4, xf: 0.5, w: 20, seed: 77, f: 0.05 } });
+            // RIFT EDGE FRAMES: at open/close the portal radius ~0 — an unclamped ring arc went NEGATIVE
+            // and Qt's Canvas throws "Incorrect argument radius" (the v2.1 live Render-error). Regression.
+            jobs.push({ age: 0.6, clock: clk, dis: { type: "rift", intensity: 5, xf: 0.5, w: 44, seed: 777, f: 0.005 } });
+            jobs.push({ age: 0.6, clock: clk, dis: { type: "rift", intensity: 5, xf: 0.5, w: 44, seed: 777, f: 0.79 } });
             jobs.push({ age: 0.6, clock: night, dis: { type: "planecrash", intensity: 3, xf: 0.12, w: 16, seed: 8, f: 0.08, open: true } });
             // street events (drawConcert/drawFoodFest/drawChampionship/drawIceRink + the older ones) on a grown city, day & night
             var evs = ["concert","foodfest","champ","icerink","market","parade","movie","marathon","protest","film","balloonfest"];
