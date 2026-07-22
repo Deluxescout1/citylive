@@ -5,7 +5,7 @@
 (function(){
   'use strict';
   if (typeof document === 'undefined') return;
-  var st = { q:'', klass:-1, dead:false, open:false };
+  var st = { q:'', klass:-1, dead:false, open:false, grab:false };
   function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
   function hex(c){ return /^#[0-9a-fA-F]{3,8}$/.test(c)?c:'#888888'; }   // validate before it enters a style attr
 
@@ -139,7 +139,7 @@
     window.addEventListener('pointerdown', function(e){ down={x:e.clientX,y:e.clientY,t:e.timeStamp}; }, true);
     window.addEventListener('pointerup', function(e){
       var dn=down; down=null; if(!dn) return;
-      if(st.open) return;                                     // roster panel open → ignore taps
+      if(st.open || st.grab) return;                          // roster panel open / grabber mode → not an inspect tap
       if(e.target && e.target.closest && e.target.closest('#clzInspect,#clzBtn,#clzPanel,#bar,#hot')) return;
       var moved=Math.abs(e.clientX-dn.x)+Math.abs(e.clientY-dn.y);
       if(moved>6 || (e.timeStamp-dn.t)>500) return;           // a drag/scrub, not a tap
@@ -151,7 +151,71 @@
     }, true);
   }
 
+  // ---- THE HAND OF FATE: an OPT-IN gag (off by default so it never disturbs a normal desktop) — grab a
+  // citizen and drop them from the sky. Purely COSMETIC: it draws on its own fx canvas and NEVER touches
+  // the deterministic sim/roster (the real citizen is untouched; this is a local visual toy). SOL-approved. ----
+  var GRAB_CSS = ''
+    + '#clzGrab{position:fixed;right:118px;bottom:12px;z-index:40;font:12px/1 ui-monospace,Menlo,Consolas,monospace;'
+    + 'color:#ff9a5a;background:rgba(14,18,28,.9);border:1px solid #2a3550;border-radius:20px;padding:9px 12px;cursor:pointer;backdrop-filter:blur(8px)}'
+    + '#clzGrab.on{color:#ff5e6e;border-color:#ff5e6e}'
+    + '#clzFx{position:fixed;inset:0;z-index:39;pointer-events:none}'
+    + 'body.clz-grabbing{cursor:grabbing}';
+  var fx=null, fctx=null, held=null, poofs=[], rafOn=false;
+  function fxResize(){ if(!fx) return; var dpr=window.devicePixelRatio||1; fx.width=innerWidth*dpr; fx.height=innerHeight*dpr; fx.style.width=innerWidth+'px'; fx.style.height=innerHeight+'px'; fctx.setTransform(dpr,0,0,dpr,0,0); }
+  function pixPerson(x,y,cloth,skin,s,wob){ // a chunky pixel person, s px per cell
+    function r(dx,dy,w,h,c){ fctx.fillStyle=c; fctx.fillRect((x+dx*s)|0,(y+dy*s)|0,(w*s)|0,(h*s)|0); }
+    r(-1,-6,2,2,skin); r(-1,-4,2,3,cloth); r(-1,-1,1,2,cloth); r(0,-1,1,2,cloth);            // head/body/legs
+    r(-2,-4+(wob?0:1),1,1,cloth); r(1,-4+(wob?1:0),1,1,cloth);                                // flailing arms
+    r(-1,-6,1,1,'#101018'); r(0,-6,1,1,'#101018');                                            // eyes (wide with terror)
+  }
+  function tick(){
+    if(!fx){ rafOn=false; return; }
+    fctx.clearRect(0,0,fx.width,fx.height);
+    var wob=(Math.floor(Date.now()/90)&1);
+    if(held) pixPerson(held.x, held.y, held.cloth, held.skin, 4, wob);
+    var now=Date.now(), alive=[];
+    for(var i=0;i<poofs.length;i++){ var p=poofs[i], t=(now-p.t0)/p.dur;
+      if(t>=1) continue; alive.push(p);
+      if(p.kind==='fall'){ var yy=p.y+(p.vy*t + 900*t*t), xx=p.x+p.vx*t; pixPerson(xx,yy,p.cloth,p.skin,4,(Math.floor(now/60)&1));
+        if(yy>=p.groundY){ p.kind='splat'; p.t0=now; p.dur=520; p.x=xx; p.y=p.groundY; } }
+      else { // splat puff + a little ghost rising
+        for(var k=0;k<12;k++){ var a=k*0.52, rr=t*22; fctx.fillStyle='rgba('+(200-k*6)+',120,'+(90+k*8)+','+(1-t)+')'; fctx.fillRect((p.x+Math.cos(a)*rr)|0,(p.y+Math.sin(a)*rr*0.5)|0,2,2); }
+        fctx.fillStyle='rgba(220,225,240,'+(0.8*(1-t))+')'; fctx.fillRect((p.x-2)|0,(p.y-18*t)|0,4,4); fctx.fillRect((p.x-3)|0,(p.y-18*t+2)|0,1,2); fctx.fillRect((p.x+2)|0,(p.y-18*t+2)|0,1,2); }
+    }
+    poofs=alive;
+    if(held || poofs.length){ requestAnimationFrame(tick); } else rafOn=false;
+  }
+  function kick(){ if(!rafOn){ rafOn=true; requestAnimationFrame(tick); } }
+  function bindGrabber(){
+    var s=document.createElement('style'); s.textContent=GRAB_CSS; document.head.appendChild(s);
+    var btn=document.createElement('button'); btn.id='clzGrab'; btn.textContent='✋ Grab'; btn.title='Opt-in gag: grab a citizen and drop them from the sky (cosmetic only)';
+    btn.addEventListener('click', function(){ st.grab=!st.grab; btn.classList.toggle('on',st.grab); btn.textContent=st.grab?'✋ Grabbing':'✋ Grab'; });
+    document.body.appendChild(btn);
+    fx=document.createElement('canvas'); fx.id='clzFx'; document.body.appendChild(fx); fctx=fx.getContext('2d'); fxResize();
+    window.addEventListener('resize', fxResize);
+    var cv=document.getElementById('cv')||document.querySelector('canvas'); if(!cv) return;
+    function toDraw(e){ var r=cv.getBoundingClientRect(), z=(window.ZOOM||1); return { sx:((e.clientX-r.left)*(cv.width/r.width))/z, sy:((e.clientY-r.top)*(cv.height/r.height))/z }; }
+    window.addEventListener('pointerdown', function(e){
+      if(!st.grab || st.open) return;
+      if(e.target && e.target.closest && e.target.closest('#clzGrab,#clzBtn,#clzPanel,#bar,#hot,#clzInspect')) return;
+      if(typeof window.peopleInspectAt!=='function') return;
+      var d=toDraw(e), c=window.peopleInspectAt(d.sx,d.sy); if(!c) return;
+      e.preventDefault(); e.stopPropagation();
+      var J=c; held={ x:e.clientX, y:e.clientY, cloth:hex(c.clothes), skin:'#e8b890', name:c.name }; document.body.classList.add('clz-grabbing'); kick();
+    }, true);
+    window.addEventListener('pointermove', function(e){ if(held){ held.x=e.clientX; held.y=e.clientY; kick(); } }, true);
+    window.addEventListener('pointerup', function(e){
+      if(!held) return; var streetY=innerHeight*0.72;
+      if(e.clientY < streetY-40){                                   // released up in the sky → a long fall to their doom
+        poofs.push({ kind:'fall', x:held.x, y:held.y, vx:(Math.random?0:0), vy:60, groundY:streetY+innerHeight*0.12, cloth:held.cloth, skin:held.skin, t0:Date.now(), dur:1400 });
+      } else {                                                      // set gently back down
+        poofs.push({ kind:'splat', x:held.x, y:e.clientY, cloth:held.cloth, skin:held.skin, t0:Date.now(), dur:300 });
+      }
+      held=null; document.body.classList.remove('clz-grabbing'); kick();
+    }, true);
+  }
+
   // build the button once the engine + DOM are ready
-  function boot(){ ensureDom(); bindInspect(); }
+  function boot(){ ensureDom(); bindInspect(); bindGrabber(); }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();
