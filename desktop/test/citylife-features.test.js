@@ -173,3 +173,29 @@ test('live aircraft visibly follow altitude changes and stay inside the sky', ()
   assert.ok(climb[1] < climb[0], 'climbing aircraft must move upward');
   assert.ok(descent[1] > descent[0], 'descending aircraft must move downward');
 });
+
+test('live aircraft corrections are slew-limited instead of jumping to noisy feed fixes', () => {
+  const at = 1784219400000;
+  const ctx = loadEngine();
+  const flight = { cs:'SMOOTH', hex:'smooth', cat:'A3', e0:12000, n0:18000,
+    alt0:5000, track:90, gs:220, vr:0, t0:at, lastSeen:at };
+  ctx.FORCEAGE = 0.72;
+  ctx.FORCEFLIGHTS = [flight];
+  ctx.NOWOVR = at;
+  ctx.draw(canvasStub(), 'skyfast');
+
+  const before = { ...ctx.flightSmooth.smooth };
+  flight.e0 = -30000;
+  flight.n0 = -12000;
+  flight.alt0 = 35000;
+  ctx.NOWOVR = at + 100;
+  ctx.draw(canvasStub(), 'skyfast');
+
+  const after = ctx.flightSmooth.smooth;
+  let dx = after.wx - before.wx;
+  while (dx > ctx.WW / 2) dx -= ctx.WW;
+  while (dx < -ctx.WW / 2) dx += ctx.WW;
+  assert.ok(Math.abs(dx) <= 1.5001, 'horizontal feed correction must not teleport');
+  assert.ok(Math.abs(after.y - before.y) <= 0.7501, 'vertical feed correction must not teleport');
+  assert.ok(Math.abs(after.alt - before.alt) <= 250.001, 'altitude correction must settle gradually');
+});

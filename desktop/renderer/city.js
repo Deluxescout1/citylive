@@ -5676,9 +5676,15 @@ function drawRealFlights(g,L,now){
     var S=flightSmooth[id];
     if(!S){ S=flightSmooth[id]={wx:tWX,y:tY,alt:talt,dir:tDir,t:nowMs}; }
     else { var fdt=Math.max(1,Math.min(1000,nowMs-S.t));     // ms since this plane was last drawn (clamped)
-      var k=1-Math.exp(-fdt/900);                            // FRAME-RATE-INDEPENDENT exponential ease, ~0.9s time constant: a sparse ~90s fetch correction glides in smoothly instead of snapping (no jumping), yet steady dead-reckoned flight is tracked closely
+      var k=1-Math.exp(-fdt/3500);                           // long correction horizon: sparse ADS-B fixes settle gently
       var dwx=tWX-S.wx; while(dwx>WW/2)dwx-=WW; while(dwx<-WW/2)dwx+=WW;
-      S.wx=(S.wx+dwx*k+WW)%WW; S.y+=(tY-S.y)*k; S.alt+=(talt-S.alt)*k;
+      // Hard per-frame slew limits are the final defense against a bad/noisy fix. At the 10fps
+      // wallpaper cadence no correction can teleport an aircraft; ordinary dead-reckoned movement
+      // is well below these caps and remains fluid.
+      var xStep=Math.max(-1.5,Math.min(1.5,dwx*k));
+      var yStep=Math.max(-0.75,Math.min(0.75,(tY-S.y)*k));
+      var aStep=Math.max(-250,Math.min(250,(talt-S.alt)*k));
+      S.wx=(S.wx+xStep+WW)%WW; S.y+=yStep; S.alt+=aStep;
       if(tDir!==S.dir && Math.abs(dwx)>2) S.dir=tDir;        // only flip which way it faces when it's genuinely tracking that way → no jittery facing flips when nearly stationary on screen
       S.t=nowMs; }
     var wx=S.wx, y=Math.round(S.y), altFt=S.alt, dir=S.dir;
