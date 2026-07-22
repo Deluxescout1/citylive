@@ -2089,8 +2089,18 @@ function fetchFlights(bucket){
                        e0:dstM*Math.sin(azr), n0:dstM*Math.cos(azr), alt0:(+alt||0), // local East/North metres from the user
                        track:(typeof a.track==="number"?a.track:a.dir),
                        gs:(typeof a.gs==="number"?a.gs:0),
-                       vr:(typeof a.baro_rate==="number"?a.baro_rate:0), t0:now });
+                       vr:(typeof a.baro_rate==="number"?a.baro_rate:0), t0:now, lastSeen:now });
           }
+          // ADS-B snapshots occasionally omit a still-airborne plane for one poll. Retain it for
+          // three minutes and continue dead-reckoning rather than blinking it off the wallpaper.
+          // A stable ICAO id prevents duplicates when it reappears in the next response.
+          var fresh={}; for(var ni=0;ni<out.length;ni++) if(out[ni].hex) fresh[out[ni].hex]=1;
+          for(var oi=0;oi<realFlights.length;oi++){ var old=realFlights[oi], oid=old.hex;
+            if(!oid||fresh[oid]||now-(old.lastSeen||old.t0||0)>180000) continue;
+            var odt=Math.max(0,Math.min(180,(now-(old.t0||now))/1000)), ogms=(old.gs||0)*0.514444;
+            var oe=old.e0+ogms*Math.sin((old.track||0)*Math.PI/180)*odt;
+            var on=old.n0+ogms*Math.cos((old.track||0)*Math.PI/180)*odt;
+            if(Math.sqrt(oe*oe+on*on)<=FL_RADIUS*1852*1.25) out.push(old); }
           out.sort(function(p,q){ return (p.e0*p.e0+p.n0*p.n0)-(q.e0*q.e0+q.n0*q.n0); });  // nearest aircraft first
           realFlights=out.slice(0,20);                                              // cap the panorama at the 20 closest
           if(bucket!==undefined) flOkBucket=bucket; flUpdatedAt=Date.now();
@@ -5632,7 +5642,7 @@ function drawRealFlights(g,L,now){
   for(var bi=0;bi<near.blds.length;bi++){ var bb=near.blds[bi];
     if(bb.bAge!==undefined && cityG-bb.bAge<=bandOf(bb)) continue;   // not yet grown → doesn't occlude
     var bt=HORIZON-bb.h; if(bt<skyTop) skyTop=bt; }
-  var floorY=Math.max(20,Math.min(skyTop-5,Math.round(HORIZON*0.40))), ceilY=Math.min(floorY-2,14);   // keep the whole band in the upper sky, above the skyline (incl. landmarks/regime towers) · high jets near the top
+  var floorY=Math.max(28,Math.min(skyTop-5,Math.round(HORIZON*0.40))), ceilY=Math.min(floorY-2,22);   // reserve 18px above high jets so their callsign/altitude plate remains fully on-screen
   var apReady=(gstage(0.55,0.68)>=1), apX=airportX;      // once the airport is up & running, real arrivals/departures use it
   var seen={};
   for(var i=0;i<realFlights.length;i++){ var f=realFlights[i];
@@ -5659,6 +5669,7 @@ function drawRealFlights(g,L,now){
       tY=Math.round((HORIZON-2)-gf*((HORIZON-2)-Math.round(HORIZON*0.34)));   // down at the runway → up at pattern top
       tDir=arriving?-sd:sd;                                // arrivals slide toward the field, departures away
     }
+    tY=Math.max(22,Math.min(HORIZON-2,tY));                 // aircraft + two-line live tag always remain inside the visible canvas
     // ease the FINAL screen position toward target so the sparse ~90s corrections AND the pattern entry glide
     // in without a jump (x eased the SHORT way around the sky cylinder). A newly-seen plane starts on target.
     var id=f.hex||f.cs||("i"+i); seen[id]=1;

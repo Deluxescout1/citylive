@@ -25,6 +25,19 @@ function loadEngine() {
   return context;
 }
 
+function canvasStub() {
+  const gradient = { addColorStop() {} };
+  return new Proxy({}, {
+    get(_target, prop) {
+      if (prop === 'measureText') return (s) => ({ width: String(s || '').length * 4 });
+      if (prop === 'createLinearGradient' || prop === 'createRadialGradient' || prop === 'createPattern') return () => gradient;
+      if (prop === 'canvas') return { width: 853, height: 480 };
+      return () => {};
+    },
+    set() { return true; }
+  });
+}
+
 test('the billboard library contains exactly 50 distinct realistic campaigns', () => {
   const ctx = loadEngine();
   assert.strictEqual(ctx.AD_LIB.length, 50);
@@ -138,4 +151,25 @@ test('street ads use framed landscape billboard faces', () => {
   assert.match(ads, /maintenance catwalk/);
   assert.match(ads, /Thick steel casing/);
   assert.match(ads, /bold brand\/logo field/);
+});
+
+test('live aircraft visibly follow altitude changes and stay inside the sky', () => {
+  const at = 1784219400000;
+  function flightY(rate) {
+    const ctx = loadEngine();
+    ctx.FORCEAGE = 0.72;
+    ctx.FORCEFLIGHTS = [{ cs:'TEST1', hex:rate > 0 ? 'climb' : 'desc', cat:'A3', e0:12000, n0:18000,
+      alt0:rate > 0 ? 3000 : 8000, track:90, gs:220, vr:rate, t0:at, lastSeen:at }];
+    ctx.NOWOVR = at;
+    ctx.draw(canvasStub(), 'skyfast');
+    const first = ctx.flightSmooth[rate > 0 ? 'climb' : 'desc'].y;
+    ctx.NOWOVR = at + 60000;
+    ctx.draw(canvasStub(), 'skyfast');
+    const last = ctx.flightSmooth[rate > 0 ? 'climb' : 'desc'].y;
+    assert.ok(first >= 22 && last >= 22, 'aircraft data plate must remain on-screen');
+    return [first, last];
+  }
+  const climb = flightY(1800), descent = flightY(-1800);
+  assert.ok(climb[1] < climb[0], 'climbing aircraft must move upward');
+  assert.ok(descent[1] > descent[0], 'descending aircraft must move downward');
 });
