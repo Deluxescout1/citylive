@@ -22,6 +22,10 @@
     <entry name="chronicleEnabled" type="Bool">
       <default>true</default>
     </entry>
+    <!-- Desktop notifications for major city events (elections, big disasters, takeovers, eclipses). -->
+    <entry name="notifyEvents" type="Bool">
+      <default>true</default>
+    </entry>
     <!-- This screen's left edge in the global desktop (logical px). -1 = auto
          (read Screen.virtualX). Set explicitly only if auto-detect is wrong. -->
     <entry name="worldX" type="Int">

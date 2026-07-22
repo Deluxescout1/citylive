@@ -87,6 +87,28 @@ function createWindow(opts) {
 
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
 
+  // NOTIFICATIONS (Nick): poll the engine ~1/min for something of SUBSTANCE on screen (elections,
+  // CAT-3+ disasters, the takeover, the finale approach, eclipse days). The engine's notifySnapshot
+  // is pure/stateless; the HOST dedupes by its stable event key. Toggle: Settings → notifications.
+  if (!global.__cityNotifyTimer) {
+    let lastNotifyKey = '';
+    global.__cityNotifyTimer = setInterval(() => {
+      try {
+        if (!win || win.isDestroyed()) return;
+        const ncfg = store.readConfig(CONFIG_PATH);
+        if (ncfg && ncfg.notifications === false) return;
+        win.webContents.executeJavaScript('(typeof notifySnapshot==="function")?JSON.stringify(notifySnapshot(Date.now())||null):"null"', true)
+          .then((raw) => {
+            const n = JSON.parse(raw);
+            if (n && n.key && n.key !== lastNotifyKey) {
+              lastNotifyKey = n.key;
+              if (Notification.isSupported()) new Notification({ title: 'CityLive — ' + n.title, body: n.body || '' }).show();
+            }
+          }).catch(() => {});
+      } catch (e) { /* never let the notifier hurt the wallpaper */ }
+    }, 60000);
+  }
+
   // External links (if any) open in the user's real browser, never inside the app.
   win.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);

@@ -19,6 +19,7 @@ ColumnLayout {
     property bool cfg_bills: false
     property string cfg_quality: ""
     property bool cfg_showStatus: true
+    property bool cfg_notifyEvents: true
     property bool cfg_chronicleEnabled: true
     property string chronicleText: i18n("No witnessed events yet. Leave CityLive running and its story will appear here.")
     property bool chronicleClearArmed: false
@@ -155,6 +156,13 @@ ColumnLayout {
             text: i18n("Show the compact “What’s happening?” panel")
             checked: cfgRoot.cfg_showStatus
             onToggled: cfgRoot.cfg_showStatus = checked
+        }
+
+        QQC2.CheckBox {
+            Kirigami.FormData.label: i18n("Notifications:")
+            text: i18n("Notify me of major city events (elections, big disasters, takeovers, eclipses)")
+            checked: cfgRoot.cfg_notifyEvents
+            onToggled: cfgRoot.cfg_notifyEvents = checked
         }
 
         Kirigami.Separator {

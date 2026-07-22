@@ -187,6 +187,7 @@
           </select></label>
         <label class="checkrow"><input id="flights" type="checkbox" checked> Live flights (real aircraft near your location)</label>
         <label class="checkrow"><input id="showStatus" type="checkbox" checked> Show the compact “What’s happening?” panel</label>
+        <label class="checkrow"><input id="notifyEvents" type="checkbox" checked> Desktop notifications for major city events (elections, big disasters, takeovers, eclipses)</label>
       </div>
       <p class="note">Real planes overhead from a free flight-tracking feed (~90s refresh), drawn at their true bearing with a callsign tag on the closest pass. Uncheck to keep only the decorative jets — it calls a public API with your area's coordinates.</p>
     </section>
@@ -483,6 +484,7 @@
         document.getElementById('disasters').value = disF;
         document.getElementById('flights').checked = (cfg.flights !== false);   // live-aircraft overlay (default on)
         document.getElementById('showStatus').checked = (cfg.showStatus !== false);
+        document.getElementById('notifyEvents').checked = (cfg.notifications !== false);
         var finaleNames = FINALES.map(function(f){ return f[0]; });
         finaleSel.value = (cfg.finale && finaleNames.indexOf(cfg.finale)>=0) ? cfg.finale : 'auto';
       }).catch(function(){});
@@ -507,7 +509,8 @@
       disasters: document.getElementById('disasters').value,
       finale: finaleSel.value,
       flights: document.getElementById('flights').checked,
-      showStatus: document.getElementById('showStatus').checked
+      showStatus: document.getElementById('showStatus').checked,
+      notifications: document.getElementById('notifyEvents').checked
     };
     var lat=parseFloat(document.getElementById('lat').value), lon=parseFloat(document.getElementById('lon').value);
     if(isFinite(lat)&&isFinite(lon)){ cfg.lat=lat; cfg.lon=lon; }

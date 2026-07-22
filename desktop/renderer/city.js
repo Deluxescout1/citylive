@@ -651,6 +651,58 @@ function auroraActive(nd){ var t=(weather.temp==null?60:weather.temp); if(t>=36)
   return (rng((Math.floor(nd.getTime()/86400000)*2654435761)>>>0)()<0.18); }                     // ~18% of cold clear nights
 // ============ STREET LIFE 2 & RARE SPECTACLES (K/J/M batch) ============
 var FORCEK=null;      // test hook (own line!): {gull:1,whale:f,ufo:f,mishap:f,sax:1,ice:1,prof:1,cats:1,prem:1,caps:1}
+// THE DIMENSION DUO — an ORIGINAL rare easter egg (Nick chose the safe-to-ship duo over trademarked
+// characters): a wild-haired scientist and a nervous kid burst from a GREEN portal (not the violet
+// rift), scurry down the street chased by a wobbling blob, grab a glowing gizmo, and dive back in.
+// Deterministic: fires in ~1 slot per day (hash of the 2h slot), runs ~45s. FORCEK.dimduo=f forces it.
+var DUO_SLOT=7200000;
+function dimDuoNow(now){
+  if(FORCEK&&FORCEK.dimduo!=null) return {f:Math.max(0,Math.min(1,FORCEK.dimduo)), slot:1};
+  var slot=Math.floor(now/DUO_SLOT);
+  if((P_hash((slot*2654435761+99)>>>0)%12)!==0) return null;     // ~1 slot in 12 (≈once a day)
+  var t=now-slot*DUO_SLOT; if(t>45000) return null;
+  return {f:t/45000, slot:slot};
+}
+function drawDimDuo(g,L,now){
+  var duo=dimDuoNow(now); if(!duo||cityPhase==="apoc"||curDis) return;
+  var f=duo.f, pf=Math.max(0,Math.min(1,(cityG-0.20)/0.25));
+  var px=disX(wrapW(0.25*WW*pf+((P_hash((duo.slot|1)>>>0))%1000)/1000*WW*pf*0.5)); if(px<-80||px>SW+80) return;
+  var gy=HORIZON-1, open=Math.min(1,f/0.08)*(f>0.92?Math.max(0,(1-(f-0.92)/0.08)):1);
+  // the GREEN portal: swirling iris, distinct from the violet rift
+  if(open>0.02){ g.globalCompositeOperation="lighter";
+    for(var r=0;r<3;r++){ g.strokeStyle="rgba("+(90-r*20)+","+(230-r*40)+",70,"+(0.6*(1-r*0.28)*open).toFixed(3)+")"; g.lineWidth=1;
+      g.beginPath(); g.arc(px,gy-8,Math.max(0.5,(9-r*2)*open+Math.sin(now*0.03+r)),0,6.283); g.stroke(); }
+    for(var sp2=0;sp2<8;sp2++){ var an2=now*0.025+sp2*0.785; g.fillStyle="rgba(150,255,110,"+(0.7*open)+")";
+      g.fillRect((px+Math.cos(an2)*(11*open))|0,(gy-8+Math.sin(an2)*(8*open))|0,1,1); }
+    g.globalCompositeOperation="source-over";
+    g.fillStyle="#08140a"; g.beginPath(); g.arc(px,gy-8,Math.max(1,7*open),0,6.283); g.fill();
+  }
+  if(f<0.06||f>0.96) return;                                     // still opening / closed behind them
+  // the run: out (0.06-0.5) to the gizmo, back (0.5-0.94). ex = how far from the portal
+  var out=(f<0.5)?(f-0.06)/0.44:1-((f-0.5)/0.44), ex=out*66, dir=(f<0.5)?1:-1;
+  var sx=(px+ex)|0, kx=(px+Math.max(0,ex-9))|0;                  // kid trails the scientist
+  var bob=Math.floor(now*0.012)&3;
+  // THE SCIENTIST: lab coat, wild grey shock of hair, goggles, a flask arm
+  g.fillStyle="#e8ecf2"; g.fillRect(sx-1,gy-5,3,4);              // coat
+  g.fillStyle="#f0d9c0"; g.fillRect(sx-1,gy-7,2,2);              // face
+  g.fillStyle="#cfd6dd"; g.fillRect(sx-2,gy-9,4,2); g.fillRect(sx-3,gy-8,1,1); g.fillRect(sx+2,gy-8,1,1);   // WILD hair
+  g.fillStyle="#58c8e8"; g.fillRect(sx,gy-7,1,1);                // goggle glint
+  g.fillStyle="#9adf60"; g.fillRect(sx+dir*2,gy-4,1,1);          // the flask, held ahead
+  g.fillStyle="#3a3f4a"; g.fillRect(sx-1+((bob&1)?1:0),gy-1,1,1); g.fillRect(sx+((bob&1)?0:1),gy-1,1,1);    // scurrying legs
+  // THE KID: yellow shirt, small, arms up in a panic
+  g.fillStyle="#f2d24a"; g.fillRect(kx-1,gy-4,3,3);              // shirt
+  g.fillStyle="#f0d9c0"; g.fillRect(kx,gy-6,1,2);                // face
+  g.fillStyle="#6a4a2a"; g.fillRect(kx-1,gy-6,3,1);              // hair
+  g.fillStyle="#f0d9c0"; g.fillRect(kx-2,gy-5,1,1); g.fillRect(kx+2,gy-5,1,1);   // arms UP
+  g.fillStyle="#2a3040"; g.fillRect(kx+((bob&1)?0:1),gy-1,1,1);  // legs
+  // the GIZMO out at the turn point, glowing until grabbed
+  if(f<0.5){ var gzx=(px+66)|0; g.globalCompositeOperation="lighter";
+    g.fillStyle="rgba(120,255,150,"+(0.5+0.3*Math.sin(now*0.02))+")"; g.fillRect(gzx-1,gy-3,3,3); g.globalCompositeOperation="source-over";
+    g.fillStyle="#3adf7a"; g.fillRect(gzx,gy-2,1,1); }
+  // the wobbling BLOB gives chase on the way back
+  if(f>0.52&&f<0.94){ var bx2=(px+ex+14)|0, wob3=Math.floor(now*0.015)&1;
+    g.fillStyle="#7a4adf"; g.fillRect(bx2-2,gy-3+wob3,5,3-wob3); g.fillStyle="#fff"; g.fillRect(bx2-1,gy-2,1,1); g.fillRect(bx2+1,gy-2,1,1); }
+}
 // a real little BIRD: 4-frame wingbeat (up / level / down / level) so the flap reads as a smooth
 // stroke, not a blink; wings are 2px each side. big=1 draws the wider gull silhouette with
 // crooked (M-shaped) wings on the glide. ph=1 with no flapping = a soaring glide pose.
@@ -6741,6 +6793,7 @@ function tickerMsg(now){
   var nd2=nowDate(), gm=gameNight(nd2);
   var shw=currentShower(nd2); if(shw && (Math.floor(now/8000))%4===0) return shw.n+" METEOR SHOWER PEAKS TONIGHT - LOOK UP";   // announce the real shower so nobody misses it
   var adm=astroDesk(nd2); if(adm && (Math.floor(now/8000))%4===1) return adm;   // the astronomy desk: eclipses (with the time), supermoons, conjunctions, comet season, advance notices
+  if(dimDuoNow(now)) return "STRANGE VISITORS FROM ANOTHER DIMENSION SPOTTED DOWNTOWN";
   var issp=issAltAzNow(now); if(issp && issp.alt>12 && dayPhase(nd2).light<0.30) return "THE ISS IS PASSING OVERHEAD NOW - LOOK UP";   // a real overhead pass is a brief, unmissable event
   var msgs=["WELCOME TO "+cityName,"POP "+popFmt(cityPop())+" AND GROWING",cityName+" TRANSIT - ALL LINES RUNNING"];
   var appr=approvalNow(now);   // N3 (shared with the civic HUD)
@@ -8299,9 +8352,13 @@ var SPEECH_EVENT={
   finale:["IT WAS AN HONOR.","SEE YOU ON THE OTHER SIDE.","HOLD MY HAND.","WE HAD A GOOD RUN.","LOOK AT IT... IT'S BEAUTIFUL.","NO REGRETS. NOT ONE."]
 };
 // upcoming-takeover probe (pure): does a regime arc start within ~5% of the life just ahead?
+// Cached per minute — it's asked per speaking pair per frame and regimeState isn't free.
+var _rgSoon={key:-1,v:false};
 function regimeSoon(now){
   if(typeof curRegime!=='undefined'&&curRegime&&curRegime.active) return false;
-  var f=regimeState(now+GROW_CYCLE*0.05); return !!(f&&f.active&&f.stage<=2);
+  var k=(now/60000)|0; if(_rgSoon.key===k) return _rgSoon.v;
+  var f=regimeState(now+GROW_CYCLE*0.05);
+  _rgSoon.key=k; _rgSoon.v=!!(f&&f.active&&f.stage<=2); return _rgSoon.v;
 }
 // REAL-context lines rebuilt each slot from live sim state (weather, the actual mayor, events, economy)
 var _ctxCache={slot:-1,arr:null};
@@ -12247,6 +12304,27 @@ function chronicleSnapshot(now){
   if(!key) return null;
   return {recordable:true,at:Date.now(),life:A.life,cityName:A.cityName,era:A.era,eventKey:key,kind:kind,title:title,detail:detail,stage:stage,people:people};
 }
+// NOTIFICATIONS (Nick): a pure probe the hosts poll ~1/min. Returns {key,title,body} when something
+// of SUBSTANCE is on screen — elections (the vote itself), CAT-3+ disasters, war, the takeover, the
+// plague, the finale approach, eclipse days — or null. Rides chronicleSnapshot's stable eventKeys so
+// the host's one-line dedupe (last key) is enough. The engine stays stateless; the HOST remembers.
+function notifySnapshot(now){
+  now=(NOWOVR!=null?NOWOVR:(now||Date.now()));
+  var KINDS={disaster:1,war:1,government:1,health:1,finale:1,election:1};
+  var cs=chronicleSnapshot(now);
+  if(cs&&cs.recordable&&KINDS[cs.kind]){
+    if(cs.kind==='disaster'&&typeof curDis!=='undefined'&&curDis&&curDis.intensity<3) cs=null;                   // small stuff stays on the ticker
+    else if(cs.kind==='election'&&!(typeof curMayor!=='undefined'&&curMayor&&(curMayor.electionDay||curMayor.justElected))) cs=null;   // the VOTE, not campaign noise
+    if(cs) return {key:cs.eventKey, title:cs.title, body:cs.detail||cs.stage||""};
+  }
+  var end=apocAtOf(now)-now;                                     // the fated end, 30 minutes out — last call
+  if(end>0&&end<1800000&&cityGrowth(now).phase!=="apoc")
+    return {key:"finale:approach:"+lifeIndexOf(now), title:"THE END APPROACHES", body:"The cataclysm strikes in "+Math.max(1,Math.round(end/60000))+" minutes"};
+  var nd=nowDate(now), t=ymd(nd);
+  if(SOLAR_ECLIPSES.indexOf(t)>=0) return {key:"sky:solar:"+t, title:"SOLAR ECLIPSE TODAY", body:astroDesk(nd)||"Watch the sky"};
+  if(LUNAR_ECLIPSES.indexOf(t)>=0) return {key:"sky:lunar:"+t, title:"BLOOD MOON TONIGHT", body:"A total lunar eclipse rises after dark"};
+  return null;
+}
 function drawElections(g,L,now,night){
   var M=curMayor; if(!M) return;
   if(M.campaign){
@@ -15756,6 +15834,7 @@ function draw(g,pass){
     }
   }
 
+  drawDimDuo(g,L,now);                         // rare: strange visitors from another dimension (over the street)
   drawNamedCitizens(g, now);                   // THE PEOPLE: named citizens embodied at their buildings (Stage 3)
   drawSpeechBubbles(g, now, night>0.5);         // THE PEOPLE: they chat when they meet (night is 1-L → boolean)
   if(!nukeFull()) drawHardTimes(g,L,now);      // a deep recession on the street: homeless camps, panhandlers, barrel fires — drawn AFTER the crowd so they read in the FOREGROUND (not occluded by pedestrians)

@@ -80,6 +80,7 @@ function sanitizeConfig(raw) {
   // engine pick its own default (currently "spectacle").
   if (cfg.quality === 'spectacle' || cfg.quality === 'balanced' || cfg.quality === 'performance') out.quality = cfg.quality;
   if (typeof cfg.showStatus === 'boolean') out.showStatus = cfg.showStatus;
+  if (typeof cfg.notifications === 'boolean') out.notifications = cfg.notifications;   // desktop notifications for major city events (default on)
 
   // City era override: 'auto' (follow the live evolving city) or a lowercase-alpha
   // engine era name. Stored as-is — the engine itself resolves an unrecognized name

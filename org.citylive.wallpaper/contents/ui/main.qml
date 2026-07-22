@@ -231,6 +231,25 @@ WallpaperItem {
 
     // debounce the flurry of width/height/x changes at bring-up into one setup
     Timer { id: bootTimer; interval: 60; onTriggered: root.boot() }
+
+    // NOTIFICATIONS (Nick): ~1/min, only when something of SUBSTANCE is on screen. Engine probe is
+    // pure; this screen dedupes by the stable event key. ONLY the leftmost screen notifies (one
+    // desktop = one notification, not one per monitor). Toggle: wallpaper config → notifyEvents.
+    Loader { id: notifier; source: "Notifier.qml"; asynchronous: true }
+    Timer {
+        interval: 60000; repeat: true
+        running: root.visible && configuration.notifyEvents && root.worldLeftPx === 0 && notifier.status === Loader.Ready
+        property string lastKey: ""
+        onTriggered: {
+            try {
+                var n = City.notifySnapshot(Date.now());
+                if (n && n.key && n.key !== lastKey) {
+                    lastKey = n.key;
+                    notifier.item.fire("CityLive — " + n.title, n.body || "");
+                }
+            } catch (e) { /* the notifier must never hurt the wallpaper */ }
+        }
+    }
     // one-shot SETTLE pass: 6s after bring-up, re-run setup + repaint — shakes out any
     // transient geometry/scale state from login/output reconfiguration (stripe insurance)
     Timer { id: settleTimer; interval: 6000; running: true; onTriggered: { root.boot(); bgcv.requestPaint(); cv.requestPaint() } }
