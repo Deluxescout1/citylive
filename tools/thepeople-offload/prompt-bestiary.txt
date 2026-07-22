@@ -1,0 +1,22 @@
+Generate a BESTIARY of monsters that pour out of interdimensional PORTALS to attack a pixel-art city.
+They render as TINY pixel sprites (a few pixels), so each must map to a fixed set of ARCHETYPES and
+simple attributes the renderer supports. Return JSON:
+{ "creatures": [ { "id":"kebab", "name":"CRAWLER", "archetype":"<one allowed>", "size":"small|medium|large",
+    "body":"#RRGGBB", "accent":"#RRGGBB", "eye":"#RRGGBB", "behavior":"<one allowed>", "legs":0,
+    "menace":1, "blurb":"one short clause" } ] }
+
+Rules:
+- EXACTLY 16 creatures, each DISTINCT and evocative (imps, wraiths, crawlers, brutes, gargoyles,
+  slimes, hounds, floaters, maws, spitters, etc.).
+- "archetype" MUST be exactly one of: crawler (spider/insectoid, many legs), imp (small biped),
+  wraith (floating wispy ghost), brute (big heavy stomper), flyer (winged, aerial), hopper (leaps),
+  maw (mostly teeth/mouth), serpent (long low body), slime (blob), gargoyle (stone, perches).
+- "size": mostly small/medium, only 2-3 large (the brutes/serpents).
+- "behavior" MUST be one of: swarm (rush the crowd), stomp (smash buildings), snatch (grab a citizen),
+  spit (ranged projectile), lurk (menace slowly), leap (pounce). Match it to the archetype sensibly.
+- "legs": integer 0-8 (0 for wraith/slime/flyer/serpent; 2 for imp; 4-8 for crawler/hound).
+- colors: eerie/otherworldly (violets, sickly greens, bruised reds, void-black, bone-white). Pixel-art
+  friendly hex. "eye" is a bright glow color.
+- "menace": integer 1-5 (how dangerous / how big a threat it reads as).
+- "name": SHORT UPPERCASE (<=12 chars), for the disaster ticker (e.g. "VOID CRAWLER", "GNASHER").
+- Output ONLY the JSON object.

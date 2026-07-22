@@ -9905,25 +9905,78 @@ function drawIceAge(g,cd,L,now){
   if(shatter>0){ for(var sh=0;sh<Math.round(22+i*6);sh++){ var a=sh*0.3, sx=cx+Math.cos(a)*shatter*(30+i*8), sy=(gy-16)-Math.sin(a)*shatter*(22+i*4);
     g.fillStyle="rgba(205,238,255,"+(1-shatter).toFixed(3)+")"; g.fillRect(sx|0,sy|0,2,2); } }                          // the thaw shatters it into shards
 }
+// ======================= THE PORTAL BESTIARY (v2.1) =======================
+// A menagerie of creatures that pour out of a RIFT to attack the city. Data offloaded to the
+// GameServer LiteLLM (name/colours/menace), constrained to 10 renderable pixel archetypes, inlined.
+var BESTIARY=[
+  {id:"kebab",name:"CRAWLER",arch:"crawler",size:"small",body:"#6A5ACD",accent:"#FF69B4",eye:"#FFFF00",behav:"swarm",legs:8,menace:2},
+  {id:"imp",name:"SPIRIT IMP",arch:"imp",size:"small",body:"#00FF7F",accent:"#FFFF00",eye:"#FFFFFF",behav:"snatch",legs:2,menace:1},
+  {id:"wraith",name:"VOID WRAITH",arch:"wraith",size:"small",body:"#483D8B",accent:"#0000FF",eye:"#FFFFFF",behav:"lurk",legs:0,menace:2},
+  {id:"brute",name:"BRUTE",arch:"brute",size:"large",body:"#8B0000",accent:"#FF6347",eye:"#FFFF00",behav:"stomp",legs:2,menace:5},
+  {id:"flyer",name:"FLOATER",arch:"flyer",size:"medium",body:"#8A2BE2",accent:"#FF1493",eye:"#FFFFFF",behav:"spit",legs:0,menace:3},
+  {id:"hopper",name:"HOPPER",arch:"hopper",size:"small",body:"#FFD700",accent:"#FFA500",eye:"#FFFFFF",behav:"leap",legs:4,menace:2},
+  {id:"maw",name:"GNASHER",arch:"maw",size:"medium",body:"#FF0000",accent:"#FF69B4",eye:"#FFFF00",behav:"swarm",legs:2,menace:4},
+  {id:"serpent",name:"VOID SERPENT",arch:"serpent",size:"large",body:"#00FFFF",accent:"#00FF7F",eye:"#FFFFFF",behav:"spit",legs:0,menace:5},
+  {id:"slime",name:"SLIME",arch:"slime",size:"small",body:"#2E8B57",accent:"#ADFF2F",eye:"#FFFFFF",behav:"lurk",legs:0,menace:1},
+  {id:"gargoyle",name:"STONE GOLEM",arch:"gargoyle",size:"large",body:"#8B4513",accent:"#DAA520",eye:"#FFFFFF",behav:"stomp",legs:2,menace:5}
+];
+// one creature sprite by archetype, at screen (x,y). Tiny, distinct, animated. Pure fn of (now,k).
+function drawCreature(g, x, y, C, L, now, k){
+  x=x|0; y=y|0; var b=C.body, ac=C.accent, ey=C.eye, a=C.arch, t=(Math.floor(now*0.012)+k);
+  function P(dx,dy,w,h,col){ g.fillStyle=col; g.fillRect(x+dx,y+dy,w||1,h||1); }
+  if(a==="crawler"){ P(-2,-3,4,3,b); var nl=Math.min(8,C.legs);
+    for(var l=0;l<nl;l++){ var lo=(l&1)?1:-1, wob=((t+l)&1); P(lo*(3),-2+((l>>1))-wob,1,1,ac); }
+    P(-1,-3,1,1,ey); P(1,-3,1,1,ey); }
+  else if(a==="imp"){ P(-1,-4,3,3,b); P(-2,-6,1,2,ac); P(2,-6,1,2,ac);           // horns
+    P(-1,-1,1,2,b); P(1,-1,1,2,b); P(0,-3,1,1,ey); }
+  else if(a==="wraith"){ g.globalAlpha=0.8; P(-1,-5,3,4,b); P(-1,-1,1,1+(t&1),ac); P(1,-1,1,1+((t+1)&1),ac); g.globalAlpha=1;
+    g.globalCompositeOperation="lighter"; P(-1,-4,1,1,ey); P(1,-4,1,1,ey); g.globalCompositeOperation="source-over"; }
+  else if(a==="brute"){ P(-3,-7,6,6,b); P(-4,-5,1,4,b); P(3,-5,1,4,b);           // arms
+    P(-3,-1,2,2,ac); P(1,-1,2,2,ac); P(-2,-6,1,1,ey); P(1,-6,1,1,ey); }
+  else if(a==="flyer"){ var wf=(t&1); P(-1,-2,3,2,b); P(-4,-3+wf,3,1,ac); P(1,-3+wf,3,1,ac); P(0,-2,1,1,ey); }
+  else if(a==="hopper"){ P(-2,-3,4,3,b); P(-2,0,1,1,ac); P(2,0,1,1,ac); P(-1,-3,1,1,ey); P(1,-3,1,1,ey); }
+  else if(a==="maw"){ P(-3,-4,6,5,b); g.fillStyle="#f4eee2"; for(var tt=0;tt<5;tt++) g.fillRect(x-3+tt,y-1,1,1);
+    g.globalCompositeOperation="lighter"; P(-1,-3,1,1,ey); P(1,-3,1,1,ey); g.globalCompositeOperation="source-over"; }
+  else if(a==="serpent"){ for(var s=0;s<7;s++){ var sy=(Math.sin((t+s)*0.6)*1.5)|0; P(-4+s,-1+sy,1,2, (s&1)?ac:b); } P(2,-3,1,1,ey); }
+  else if(a==="slime"){ var wob2=(t&1); P(-2,-2-wob2,5,3+wob2,b); P(-1,-1,1,1,ey); P(1,-1,1,1,ey); }
+  else if(a==="gargoyle"){ P(-2,-6,5,6,b); P(-4,-5,2,3,ac); P(2,-5,2,3,ac);      // folded wings
+    P(-1,-5,1,1,ey); P(1,-5,1,1,ey); }
+}
+// deterministic subset of the bestiary for THIS rift — more, meaner creatures at higher CAT
+function riftRoster(seed, cat){
+  var n=Math.min(BESTIARY.length, 3+cat), out=[], used={};
+  for(var k=0;k<n;k++){ var idx=(P_hash((seed^(k*2654435761))>>>0))%BESTIARY.length, t=0;
+    while(used[idx]&&t<BESTIARY.length){ idx=(idx+1)%BESTIARY.length; t++; } used[idx]=1; out.push(idx); }
+  return out;
+}
 function drawRift(g,cd,L,now){
-  var cx=disX(cd.x), f=cd.f, i=cd.intensity; if(f>=0.50) return;
-  var open=Math.min(1,f/0.12), close=(f>0.40)?(f-0.40)/0.10:0, R=(8+i*4)*open*(1-close), cy2=HORIZON-20;   // a wider tear at higher CAT
-  g.globalCompositeOperation="lighter";
-  for(var ring=0;ring<3;ring++){ g.strokeStyle="rgba("+(150-ring*30)+",80,225,"+(0.5*(1-ring*0.3))+")"; g.lineWidth=1;
-    g.beginPath(); g.arc(cx,cy2,R+ring*2+Math.sin(now*0.02)*1,0,2*Math.PI); g.stroke(); }
-  g.globalCompositeOperation="source-over";
-  g.fillStyle="#0a0512"; g.beginPath(); g.arc(cx,cy2,Math.max(1,R),0,2*Math.PI); g.fill();
-  g.globalCompositeOperation="lighter";
-  for(var p=0;p<16;p++){ var a=now*0.02+p*0.42, rr=R+4+(p%5)*3, px=cx+Math.cos(a)*rr, py=cy2+Math.sin(a)*rr*0.7;
-    g.fillStyle="rgba(195,120,255,0.85)"; g.fillRect(px|0,py|0,1,1); }
-  g.globalCompositeOperation="source-over";
-  // ---- VOID CREATURES pour out of the tear, descend to the street & spread (count scales with CAT) ----
-  var ncr=Math.round((3+i*3)*open);
-  for(var cr=0;cr<ncr;cr++){ var em=((now*0.0006+cr*0.211+cd.seed)%1), side=(cr&1)?1:-1;   // em 0=at the portal → 1=on the ground, spread out
-    var crx=cx+side*em*(cd.w*0.7+i*6)*0.7, cry=cy2+em*(HORIZON-cy2); if(cry>HORIZON) cry=HORIZON;
-    g.fillStyle=L>0.5?"#1a1024":"#0a0612"; g.fillRect(crx|0,(cry-2)|0,3,2);                 // shadow body
-    g.fillStyle="rgba(60,20,90,0.7)"; g.fillRect(crx|0,cry|0,1,1); g.fillRect((crx+2)|0,cry|0,1,1);   // wispy legs
-    g.globalCompositeOperation="lighter"; g.fillStyle="rgba(200,90,255,0.95)"; g.fillRect(crx|0,(cry-2)|0,1,1); g.fillRect((crx+2)|0,(cry-2)|0,1,1); g.globalCompositeOperation="source-over"; }  // glowing violet eyes
+  var f=cd.f, i=cd.intensity; if(f>=0.80) return;
+  var open=Math.min(1,f/0.12), close=(f>0.64)?(f-0.64)/0.16:0, life=Math.max(0,open*(1-close));
+  var nP=1+(i>=3?1:0)+(i>=5?1:0), roster=riftRoster(cd.seed, i);       // 1-3 portals at higher CAT
+  for(var pi=0; pi<nP; pi++){
+    var cx=disX(wrapW(cd.x+(pi-(nP-1)/2)*(cd.w*0.6+24))); if(cx<-44||cx>SW+44) continue;
+    var cy2=HORIZON-18-(pi%2)*7, R=(7+i*3.2)*life;
+    g.globalCompositeOperation="lighter";                              // the tear: violet rings
+    for(var ring=0;ring<3;ring++){ g.strokeStyle="rgba("+(160-ring*30)+",70,235,"+(0.55*(1-ring*0.3)*life)+")"; g.lineWidth=1;
+      g.beginPath(); g.arc(cx,cy2,R+ring*2+Math.sin(now*0.02+pi),0,2*Math.PI); g.stroke(); }
+    g.globalCompositeOperation="source-over";
+    g.fillStyle="#0a0512"; g.beginPath(); g.arc(cx,cy2,Math.max(1,R),0,2*Math.PI); g.fill();     // the void
+    g.globalCompositeOperation="lighter";
+    for(var sp=0;sp<14;sp++){ var an=now*0.02+sp*0.45+pi, rr=R+3+(sp%5)*2.5; g.fillStyle="rgba(195,120,255,"+(0.8*life)+")"; g.fillRect((cx+Math.cos(an)*rr)|0,(cy2+Math.sin(an)*rr*0.7)|0,1,1); }
+    g.globalCompositeOperation="source-over";
+    var ncr=Math.round(2+i*1.4);                                       // creatures per portal, leaping out to ATTACK
+    for(var cr=0; cr<ncr; cr++){ var C=BESTIARY[roster[(pi*ncr+cr)%roster.length]];
+      var ph=((now*0.00045 + cr*0.173 + pi*0.31 + (cd.seed%1000)*0.001)%1), side=(cr&1)?1:-1;
+      if(ph>open+0.04) continue;                                       // hasn't leapt out yet (portal still opening)
+      var reach=(cd.w*0.85+i*11), gx=cx+side*ph*reach, aerial=(C.arch==="flyer"||C.arch==="wraith"), gy;
+      if(C.arch==="hopper"||C.behav==="leap") gy=HORIZON-1-Math.abs(Math.sin(now*0.006+cr*1.7))*11*(1-ph*0.3);   // pouncing arc
+      else if(aerial) gy=cy2+7+Math.sin(now*0.004+cr)*5;               // hovering
+      else { gy=cy2+ph*(HORIZON-cy2); if(gy>HORIZON-1) gy=HORIZON-1; } // charge down to the street
+      drawCreature(g, gx, gy, C, L, now, cr*7+pi);
+      if(C.behav==="spit" && f>0.18){ var pr=((now*0.02+cr)%1); g.globalCompositeOperation="lighter"; g.fillStyle=C.eye;
+        g.fillRect((gx-side*pr*34)|0,(gy+(pr*pr*16))|0,1,1); g.globalCompositeOperation="source-over"; }   // acid/poison bolt at the city
+    }
+  }
 }
 // CITYWIDE ATMOSPHERE — even a single-block catastrophe should feel like it's swallowing the sky.
 // A wide, soft, centre-weighted wash in the threat's signature colour, over sky AND skyline. Luminous

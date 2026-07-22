@@ -1,0 +1,11 @@
+<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;background:#0a0c14}</style></head>
+<body><canvas id="c" width="1600" height="360"></canvas>
+<script src="../renderer/city.js"></script>
+<script>
+  window.NOFETCH=true; var d=new Date(); d.setHours(14,0,0,0); window.NOWOVR=d.getTime(); window.CLOCK=window.NOWOVR; window.FORCEAGE=0.7;
+  window.FORCEDIS={type:"rift", intensity:5, xf:0.5, w:44, seed:777, f:0.24};
+  var g=document.getElementById('c').getContext('2d');
+  setup('neon',{cw:1600,ch:360,woff:0,ww:1600,pxk:3,zoom:1,quality:'spectacle'});
+  for(var f=0;f<3;f++) draw(g);
+  window._dis = (typeof curDis!=='undefined'&&curDis)?curDis.type+' f='+curDis.f.toFixed(2)+' cat'+curDis.intensity:'NO DISASTER';
+</script></body></html>
