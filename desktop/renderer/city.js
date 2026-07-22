@@ -5847,7 +5847,7 @@ function drawGreenery(g,L,now){
     if(((h>>16)%100)/100 > dens*Math.min(1,(cityG-0.3)/0.2)) continue;
     var tx=twx-WOFF; if(tx>SW+6&&tx-WW>-6)tx-=WW; if(tx<-6&&tx+WW<SW+6)tx+=WW; if(tx<-5||tx>SW+5||inSea(twx)) continue;
     if(overLandmark(twx-4,8)) continue;                                                            // keep landmark plazas (stadium, amusement park…) clear of trees
-    drawTree(g,tx|0,HORIZON+1,day,now,t,0.68+((h>>8)%42)/100);                                    // organic size variation
+    drawTree(g,tx|0,HORIZON+1,day,now,t,0.68+((h>>8)%42)/100,true);                               // organic size + smooth sway
   }
   for(var i=0;i<near.blds.length;i++){ var b=near.blds[i]; if(b.type==="park") continue;
     var bx=(b.x-WOFF); if(bx>SW+4||bx+b.w<-4) continue; var h2=((b.seed*40503)>>>0);
@@ -5855,6 +5855,13 @@ function drawGreenery(g,L,now){
       g.fillStyle=day?"#3a6a3a":"#1c3320";
       for(var vy=HORIZON-1; vy>top+2; vy--){ if(((vy*7+h2)%3)!==0) continue; g.fillRect((bx+side+((vy&1)?0:(h2&1?1:-1)))|0,vy,1,1); } }
     if((h2%2)===0){ g.fillStyle=day?"#3f7f3a":"#1e3a1e"; g.fillRect((bx-1)|0,HORIZON-1,1,1); g.fillRect((bx+b.w)|0,HORIZON-1,1,1); }   // weed tufts at the base
+    var abandon=(curSlump>0.38&&(i%4)===0)?Math.min(1,(curSlump-0.38)/0.55):0;
+    if(abandon>0){ var ah=Math.max(2,Math.round(b.h*abandon*0.72)), vineX=bx+((h2&1)?1:b.w-2);
+      g.fillStyle=day?"#39743a":"#17361d";
+      for(var av=0;av<ah;av+=2){ g.fillRect((vineX+(((av>>1)&1)?1:0))|0,HORIZON-2-av,1,3);
+        if(av%6===0) g.fillRect((vineX+(((av>>1)&1)?-1:1))|0,HORIZON-2-av,2,1); }
+      if(abandon>0.62&&b.w>8) drawTree(g,(bx+(b.w>>1))|0,HORIZON-b.h+1,day,now,b.seed,0.28+0.28*abandon,true);
+    }
   }
 }
 // STREET SIGNAGE: green street-name signs & red stop signs on the corners, plus projecting hanging shop
@@ -9806,12 +9813,15 @@ function drawRuinBuilding(g,b,X,ruz,L,now){
   var rh=3+((seed>>3)%3);
   for(var rx=-2;rx<w+2;rx++){ var hh=(rh-Math.abs(rx-(w>>1))*0.28+(((rx*17+seed)%3)))|0; if(hh<1) continue;
     g.fillStyle=((rx+seed)&1)?dark:body; g.fillRect(X+rx,gy-hh,1,hh); }
-  // NATURE RECLAIMS IT — weeds along the rubble, vines climbing the husk (static)
+  // NATURE RECLAIMS IT — growth thickens as the abandoned ruin is left sitting.
+  var ruinEnd=(ruz.idx>=0)?ruz.idx*DIS_SLOT+(ruz.t0||0)+DIS_DUR:now-REGROW_T;
+  var reclaim=Math.max(0.18,Math.min(1,(now-ruinEnd)/REGROW_T));
   for(var vg=0;vg<w;vg++){ if(((vg*5+seed)%4)!==0) continue; var vh=2+((vg*7+seed)%5);
-    g.fillStyle=L>0.5?"#4a7a3a":"#1b3a1d"; g.fillRect(X+vg,gy-vh,1,vh);
+    vh=Math.max(1,Math.round(vh*reclaim)); g.fillStyle=L>0.5?"#4a7a3a":"#1b3a1d"; g.fillRect(X+vg,gy-vh,1,vh);
     g.fillStyle=L>0.5?"#6aa050":"#2a5a2c"; g.fillRect(X+vg,gy-vh,1,1); }                        // leafy tip
-  for(var vc=2;vc<coreH;vc+=2){ if(((vc*3+seed)%5)!==0) continue; var vx=X+1+((vc*11+seed)%Math.max(1,w-2));
+  for(var vc=2;vc<coreH*reclaim;vc+=2){ if(((vc*3+seed)%5)!==0) continue; var vx=X+1+((vc*11+seed)%Math.max(1,w-2));
     g.fillStyle=L>0.5?"#3a6a30":"#163316"; g.fillRect(vx,gy-vc,1,2); }
+  if(reclaim>0.72&&w>7) drawTree(g,X+(w>>1),gy-coreH+1,L>0.5,now,seed,0.22+0.32*reclaim,false); // cached ruin: grow, don't jump
   // a squatter's fire flickering in the shell at night (one cheap ember)
   if(L<0.5){ var ex=X+(w>>1)+((seed%3)-1), fl=((Math.floor(now/450)+seed)%5)<2;
     g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,140,50,"+(fl?0.85:0.5)+")"; g.fillRect(ex,gy-2,1,2);
@@ -11130,11 +11140,10 @@ function treeSC(seed){ var h=((seed*40503+11)>>>0)%100;
 // TREES KEEP GROWING: every tree matures over the city's life — planted small, filling out season after
 // season toward a full crown (and creeping a touch beyond, so an old city has old growth). Pure f(cityG).
 function treeGrow(){ return 0.60+0.55*Math.min(1.0,Math.max(0,cityG)*1.35); }
-function drawTree(g,X,gy,day,now,seed,mul){
+function drawTree(g,X,gy,day,now,seed,mul,swayOn){
   var sc=treeSC(seed)*(mul||1)*treeGrow(), v=seed%7;
-  // Rooted vegetation stays rooted. Whole-pixel canopy sway on the retained terrain cadence made
-  // the meadow appear to wobble; genuinely loose reeds and foliage animate in the fast layer.
-  var tx=X;
+  // Only smooth foreground vegetation sways; cached terrain trees stay rooted.
+  var tx=X+(swayOn?Math.round(Math.sin(now*0.0010+seed*1.7)*(sc>1.8?1.5:0.75)):0);
   var trunk=day?"#5a4028":"#3c3020", tw=sc>=2.5?3:(sc>=1.7?2:1);
   var season=curSeason||seasonInfo(nowDate());
   var can, can2;
@@ -15447,6 +15456,7 @@ function draw(g,pass){
   // Values used by both the cached city and live street overlay must be computed in every pass.
   var roadY=HORIZON+3, roadF=Math.max(0,Math.min(1,(cityG-0.1)/0.4));
   var paveFrac=Math.max(0,Math.min(1,(cityG-0.20)/0.25)), frontW=WW*paveFrac, roadPaved=paveFrac>=1;
+  var paintFrac=Math.max(0,Math.min(paveFrac,(cityG-0.27)/0.25)), paintFrontW=WW*paintFrac; // striping crew follows the roller
 
   // Buildings, landmarks and the road surface change slowly. Paint them into their own retained
   // canvas; the live foreground pass can then spend its budget solely on moving street life.
@@ -15598,6 +15608,18 @@ function draw(g,pass){
         g.fillStyle="#ff7422"; for(var pvCn=0;pvCn<3;pvCn++){ var pvCnx=(pfx+9+pvCn*6)|0; if(pvCnx<SW+2){ g.fillRect(pvCnx,roadY+4,2,3); g.fillStyle="#f4f4f4"; g.fillRect(pvCnx,roadY+5,2,1); g.fillStyle="#ff7422"; } }
       }
     }
+    if(paintFrac>0&&paintFrac<1){                                            // separate LINE-PAINTING MACHINE behind the roller
+      var lpx=disX(paintFrontW);
+      if(lpx>-18&&lpx<SW+12){
+        g.fillStyle=L>0.5?"#f2b33f":"#8d6522"; g.fillRect((lpx-3)|0,HORIZON+10,8,5);     // compact striping truck
+        g.fillStyle=L>0.5?"#dce8f2":"#7590a5"; g.fillRect((lpx+2)|0,HORIZON+9,3,3);     // cab
+        g.fillStyle="#f4f4f0"; g.fillRect((lpx-2)|0,HORIZON+11,2,2);                    // white paint tank
+        g.fillStyle="#f1c232"; g.fillRect(lpx|0,HORIZON+13,2,1);                        // yellow paint tank
+        g.fillStyle="#12151b"; g.fillRect((lpx-2)|0,HORIZON+15,2,1); g.fillRect((lpx+3)|0,HORIZON+15,2,1);
+        g.fillStyle="rgba(235,240,245,0.9)"; g.fillRect((lpx-6)|0,HORIZON+8,5,1); g.fillRect((lpx-6)|0,HORIZON+19,5,1); // fresh white spray
+        g.fillStyle="rgba(255,205,60,0.9)"; g.fillRect((lpx-6)|0,HORIZON+13,5,2);          // fresh centre stripe
+      }
+    }
   }
   // wet-street neon reflections (district-coloured) — only from buildings that actually exist yet, on a paved road
   if(L<0.5 && roadF>0.5){ for(i=0;i<near.blds.length;i++){ var rb=near.blds[i];
@@ -15608,8 +15630,12 @@ function draw(g,pass){
     g.globalAlpha=1; }
   if(snowpack>0){ g.fillStyle="rgba(240,244,255,"+Math.min(0.92,snowpack)+")"; g.fillRect(0,HORIZON,SW,1+Math.round(snowpack*3)); }
   // lane markings + crosswalks — only once the city has proper paved multi-lane roads
-  if(cityG>0.38){
-  g.globalAlpha=gstage(0.38,0.52);                                   // fresh road paint fades in
+  if(paintFrac>0){
+  g.save(); g.beginPath();                                            // markings exist only where the paint truck has reached
+  if(paintFrac>=1) g.rect(0,HORIZON,SW,GROUND+4);
+  else for(var pmw=-1;pmw<=1;pmw++){ var pma=Math.max(0,-WOFF+pmw*WW), pmb=Math.min(SW,paintFrontW-WOFF+pmw*WW); if(pmb>pma)g.rect(pma|0,HORIZON,(pmb-pma)|0,GROUND+4); }
+  g.clip();
+  g.globalAlpha=Math.min(1,paintFrac*4);
   g.fillStyle="rgba(230,235,245,"+(0.4*(1-curSpace*0.8)).toFixed(2)+")";
   for(var dw=Math.floor(WOFF/10)*10; dw<WOFF+SW+10; dw+=10){ var dsx=dw-WOFF;
     g.fillRect(dsx|0,HORIZON+8,5,1); g.fillRect(dsx|0,HORIZON+19,5,1); }   // lane dividers
@@ -15624,8 +15650,9 @@ function draw(g,pass){
     for(var wrp=-1;wrp<=1;wrp++){ var CX=xwx+wrp*WW; if(CX<-8||CX>SW+8) continue;
       g.fillStyle=L>0.5?"rgba(238,241,248,0.9)":"rgba(206,212,228,0.72)";
       for(var zb=HORIZON+4; zb<HORIZON+24; zb+=2) g.fillRect((CX-4)|0, zb, 9, 1); } }
-  }
   g.globalAlpha=1;
+  g.restore();
+  }
   // rain leaves PUDDLES that mirror the lights, then slowly dry
   if(wetness>0.04&&roadF>0.5){
     for(var pu=0;pu<36;pu++){ var puh=((pu*2654435761+17)>>>0), psx2=(puh%WW)-WOFF;

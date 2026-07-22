@@ -86,6 +86,30 @@ test('road heat shimmer cannot resemble full-width ocean waves', () => {
   assert.match(shimmer, /Math\.round\(WW\/150\)/, 'heat haze should remain sparse');
 });
 
+test('vegetation sways only in smooth layers and reclaims abandoned buildings', () => {
+  const source = fs.readFileSync(ENGINE, 'utf8');
+  const treeAt = source.indexOf('function drawTree');
+  const tree = source.slice(treeAt, treeAt + 5000);
+  assert.match(tree, /swayOn\?Math\.round/);
+  const greenery = source.slice(source.indexOf('function drawGreenery'), source.indexOf('function drawStreetSigns'));
+  assert.match(greenery, /curSlump>0\.38/);
+  assert.match(greenery, /drawTree\([^\n]*true\)/);
+  const ruin = source.slice(source.indexOf('function drawRuinBuilding'), source.indexOf('function disX'));
+  assert.match(ruin, /reclaim=Math\.max/);
+  assert.match(ruin, /REGROW_T/);
+});
+
+test('a separate striping machine paints only behind the paving front', () => {
+  const source = fs.readFileSync(ENGINE, 'utf8');
+  const road = source.slice(source.indexOf('var paveFrac='), source.indexOf('// wet-street neon reflections'));
+  assert.match(road, /paintFrac=Math\.max\(0,Math\.min\(paveFrac/);
+  assert.match(road, /LINE-PAINTING MACHINE/);
+  assert.match(road, /paintFrontW/);
+  const markings = source.slice(source.indexOf('// lane markings + crosswalks'), source.indexOf('// rain leaves PUDDLES'));
+  assert.match(markings, /if\(paintFrac>0\)/);
+  assert.match(markings, /g\.clip\(\)/);
+});
+
 test('the billboard library contains exactly 50 distinct realistic campaigns', () => {
   const ctx = loadEngine();
   assert.strictEqual(ctx.AD_LIB.length, 50);
