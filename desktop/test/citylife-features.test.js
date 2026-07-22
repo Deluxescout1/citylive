@@ -199,3 +199,19 @@ test('live aircraft corrections are slew-limited instead of jumping to noisy fee
   assert.ok(Math.abs(after.y - before.y) <= 0.7501, 'vertical feed correction must not teleport');
   assert.ok(Math.abs(after.alt - before.alt) <= 250.001, 'altitude correction must settle gradually');
 });
+
+test('every end-times fate visibly destroys the road surface', () => {
+  const ctx = loadEngine();
+  vm.runInContext('apocHit=function(){return true}', ctx);
+  ctx.cityPhase = 'apoc'; ctx.cityG = 1; ctx.cityApoc = 1; ctx.apocKill = 1;
+  for (const fate of Array.from(ctx.DEATHS)) {
+    let fills = 0;
+    const g = new Proxy({}, {
+      get(_target, prop) { return prop === 'fillRect' ? () => { fills++; } : () => {}; },
+      set() { return true; }
+    });
+    ctx.curDeath = fate;
+    ctx.drawApocRoadDamage(g, 0.7);
+    assert.ok(fills > 0, fate + ' must leave broken pavement behind');
+  }
+});

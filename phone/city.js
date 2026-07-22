@@ -15007,6 +15007,36 @@ function drawDoomHud(g,ap,now,early,late){
   drawPixText(g,msg,tx,ty,col+(0.6+0.4*blink)+")",1);
 }
 
+// The skyline has per-cataclysm destruction, but the asphalt used to be repainted pristine beneath it.
+// Shatter the road in the same world-space as the catastrophe so damage advances continuously across
+// multi-monitor desktops. This is deterministic and cheap: only the visible road is sampled.
+function drawApocRoadDamage(g,L){
+  if(cityPhase!=="apoc"||cityG<0.38) return;
+  for(var sx=-8;sx<SW+12;sx+=10){
+    var wx=wrapW(WOFF+sx), hit=apocHit(wx), damage=0;
+    // Pollution ruins infrastructure through long neglect rather than an impact; moonfall's global
+    // tidal upheaval has no positional apocHit front. Every other finale follows its real hit map.
+    if(curDeath==="pollution") damage=Math.max(0,Math.min(1,(cityApoc-0.02)/0.78));
+    else if(curDeath==="moonfall") damage=Math.max(0,Math.min(1,(cityApoc-0.22)/0.48));
+    else if(hit) damage=Math.max(0.36,Math.min(1,apocKill));
+    if(damage<=0) continue;
+    var h=((wx*2654435761+1709)>>>0), chance=(h%1000)/1000;
+    if(chance>0.18+damage*0.72) continue;
+    var x=sx+((h>>>8)%7)-3, y=HORIZON+3+((h>>>12)%Math.max(3,GROUND-6));
+    var pw=2+((h>>>17)%5), ph=1+((h>>>21)%3);
+    // Torn holes cover lane paint and reflections; a lighter lip and branching cracks make the
+    // missing chunks read as broken pavement rather than ordinary asphalt texture.
+    g.fillStyle=L>0.5?"#171922":"#090b11"; g.fillRect(x|0,y|0,pw,ph);
+    g.fillStyle=L>0.5?"#5b5260":"#302b39"; g.fillRect((x-1)|0,(y-1)|0,pw+1,1);
+    g.fillStyle=L>0.5?"rgba(20,18,24,0.82)":"rgba(3,3,7,0.9)";
+    g.fillRect((x+pw)|0,(y-2)|0,1,3); g.fillRect((x+pw+1)|0,(y-3)|0,2,1);
+    if(damage>0.62 && (h&3)===0){                                  // late-stage buckled slab / rubble
+      g.fillStyle=L>0.5?"#34313a":"#17151d"; g.fillRect((x-3)|0,(HORIZON+1)|0,pw+5,2);
+      g.fillStyle=L>0.5?"#777078":"#403b48"; g.fillRect((x-2)|0,HORIZON,pw+2,1);
+    }
+  }
+}
+
 function draw(g,pass){
   // pass: undefined = classic single-canvas · "bg" = slow backdrop (sky/stars/mountains/still
   // terrain, ~2fps) · "fg" = everything that moves (12fps, painted over the bg canvas)
@@ -15570,6 +15600,8 @@ function draw(g,pass){
       g.fillStyle=L>0.5?"#aeb6c2":"#4a5468"; g.fillRect(ra,HORIZON-1,rb-ra,1);
       for(var px2=ra;px2<rb;px2+=4) g.fillRect(px2,HORIZON,1,2);
     } } }
+
+  drawApocRoadDamage(g,L);                         // every end-time fate now tears up its road too
 
   // a GREENS administration plants trees along the boulevard
   if(curMayor&&curMayor.party.k==="GREENS"&&roadF>0.8&&!nukeFull()){
