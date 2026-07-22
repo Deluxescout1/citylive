@@ -7349,8 +7349,25 @@ function drawMovie(g,L,now,night){
   }
 }
 // ---- concert: a lit stage at the fairground with light beams, a band, and a dense crowd ----
+// the concert now sets up at a REAL venue: the widest standing THEATER in town gets the stage out
+// front (marquee glowing behind the band). No theater built yet -> the old fairground pitch.
+function concertVenueX(){
+  if(!near||!near.blds) return null;
+  var theater=null, club=null;
+  for(var i=0;i<near.blds.length;i++){ var b=near.blds[i];
+    if(b.type==="park") continue;
+    if(!buildingStanding(b,cityG)) continue;
+    if(overSite(b.x,b.w)||overLandmark(b.x,b.w)) continue;
+    if(bldUse(b)==="theater"){ if(!theater||b.w>theater.w) theater=b; }
+    else if(b.district==="neon"){ if(!club||b.w>club.w) club=b; }   // no theater built → the biggest club on the strip
+  }
+  var v=theater||club;
+  if(v) return Math.round(v.x+v.w/2);
+  if(cityG>0.5 && typeof LM_STADIUM!=='undefined') return Math.round(LM_STADIUM*WW+62);   // stadium show — out front of the big bowl
+  return null;
+}
 function drawConcert(g,L,now,night){
-  var mx=Math.round(0.885*WW), stW=28, stH=9;
+  var vx=concertVenueX(), mx=(vx!=null)?vx:Math.round(0.885*WW), stW=28, stH=9;
   for(var off=-WW;off<=WW;off+=WW){ var X=(mx-WOFF+off)|0; if(X<-50||X>SW+50) continue;
     var sy=HORIZON-stH, x0=X-(stW>>1);
     g.fillStyle=L>0.5?"#241c30":"#0a0712"; g.fillRect(x0,sy-9,stW,9);                       // backdrop screen
@@ -8453,7 +8470,36 @@ function peopleMarketBeat(now, slot){
 // with brackets, on rooftop legs over a narrower one, or as a classic framed highway billboard
 // on the ground when no born building covers the anchor. Selection is a pure function of the
 // near-layer DNA + cityG, so every screen slices the same mounting.
-var CORP_AD_X=[0.16,0.35,0.71];
+var CORP_AD_X=[0.16,0.35,0.52,0.71,0.88];   // five hoardings along the boulevards (Nick: more advertising)
+// THE AD LIBRARY — 50 realistic fictional campaigns rotating on the city's billboards at any hour.
+// Same fields the corp ads use: n=advertiser, g=tagline (the coloured logo box), c=brand colour.
+var AD_LIB=[
+  {n:"ZORP COLA",g:"TASTE THE FIZZ",c:[224,46,64]},        {n:"AEROLUX AIR",g:"FLY RESTED",c:[52,128,224]},
+  {n:"NEXACORP",g:"THE FUTURE. SOONER.",c:[150,74,224]},   {n:"VOLTA MOTORS",g:"GO EV",c:[40,196,146]},
+  {n:"GLOWMART",g:"EVERYTHING. CHEAP.",c:[240,150,34]},    {n:"BYTEHIVE",g:"YOUR CLOUD",c:[44,178,222]},
+  {n:"MOONBUX",g:"BREW BOLDLY",c:[176,126,72]},            {n:"TITAN TRUST",g:"SOLID AS STONE",c:[214,182,66]},
+  {n:"CRISPY CLUCK",g:"FRIED RIGHT",c:[236,120,40]},       {n:"NOODLE BARN",g:"SLURP HAPPY",c:[230,180,60]},
+  {n:"FROSTBITE",g:"ICE CREAM LAB",c:[130,200,240]},       {n:"PIZZA PLANET 9",g:"OUT OF THIS WORLD",c:[220,70,60]},
+  {n:"BURGER BARON",g:"ROYALLY STACKED",c:[190,60,50]},    {n:"KELP! SNACKS",g:"SEAWEED, BUT FUN",c:[60,170,110]},
+  {n:"SUNNYSIDE JUICE",g:"SQUEEZE THE DAY",c:[240,190,50]},{n:"GRANDMA'S OATS",g:"LIKE SHE MADE",c:[180,140,90]},
+  {n:"CLOUDPUFF",g:"MARSHMALLOW CO",c:[235,200,220]},      {n:"PEAK WATER",g:"BOTTLED AT DAWN",c:[110,190,230]},
+  {n:"STELLAR SODA",g:"ZERO GRAVITY TASTE",c:[140,110,230]},{n:"HOTPOT HEROES",g:"BRING FRIENDS",c:[220,90,60]},
+  {n:"THREADS & CO",g:"WEAR THE CITY",c:[90,110,140]},     {n:"SOLESTRIDE",g:"SHOES THAT GO",c:[70,160,200]},
+  {n:"LUNARWEAR",g:"NIGHT FASHION",c:[120,100,200]},       {n:"RAINLAB",g:"COATS FOR CT SKIES",c:[80,140,190]},
+  {n:"GADGETRON",g:"BEEPS RESPONSIBLY",c:[100,180,160]},   {n:"PIXELPHONE",g:"THE SHARPEST CALL",c:[80,120,220]},
+  {n:"ROBOVAC KING",g:"DUST FEARS US",c:[150,160,180]},    {n:"HOMEGLOW",g:"SMART LIGHTBULBS",c:[240,210,110]},
+  {n:"TURBOTOASTER",g:"BREAKFAST AT MACH 2",c:[210,120,60]},{n:"QUANTUM MATTRESS",g:"SLEEP IN TWO PLACES",c:[130,150,220]},
+  {n:"STARLINE CRUISES",g:"SEE THE COAST",c:[60,150,200]}, {n:"MOUNTAIN PASS",g:"HIKE MORE",c:[110,160,110]},
+  {n:"CITY ZOO",g:"NEW OTTERS!",c:[90,170,90]},            {n:"GRAND ARCADE",g:"TOKENS HALF OFF",c:[220,100,180]},
+  {n:"RETRO CINEMA",g:"FILMS LIKE BEFORE",c:[200,80,90]},  {n:"WAVEPOOL WORLD",g:"ALWAYS SUMMER",c:[70,180,210]},
+  {n:"KART KANYON",g:"DRIFT LEGALLY",c:[230,140,50]},      {n:"MUSEUM AFTER DARK",g:"ART + SNACKS",c:[150,120,200]},
+  {n:"PARAGON GYM",g:"LIFT. REPEAT.",c:[200,90,70]},       {n:"ZEN DEN",g:"BREATHE IN. IN.",c:[120,180,150]},
+  {n:"BRIGHTSMILE",g:"DENTISTS WHO WAVE",c:[130,200,220]}, {n:"PAWS & CLAWS",g:"VETS FOR PETS",c:[180,140,100]},
+  {n:"LEDGERLY",g:"TAXES, TAMED",c:[100,140,120]},         {n:"SAFEHARBOR INS",g:"COVERED, ALWAYS",c:[90,120,170]},
+  {n:"SPARKY'S ELECTRIC",g:"WIRED FOR GOOD",c:[240,180,60]},{n:"EVERGREEN REALTY",g:"FIND YOUR BLOCK",c:[100,160,120]},
+  {n:"NIGHTOWL DELIVERY",g:"WHILE YOU SLEEP",c:[110,110,180]},{n:"SUDS CYCLE",g:"LAUNDRY + COFFEE",c:[150,190,220]},
+  {n:"ORBIT TOYS",g:"FUN IN ZERO G",c:[220,130,190]},      {n:"HARVEST TABLE",g:"FARM TO STOOP",c:[170,150,80]}
+];
 function adMountAt(wx){
   if(!near||!near.blds) return null;
   var B=near.blds, best=null, bd=1e9;
@@ -8466,12 +8512,16 @@ function adMountAt(wx){
 }
 function drawCorpAds(g,L,now,night){
   if(curBills){ drawBillsAds(g,L,now,night); return; }   // gameday: the boulevards go Bills
-  var C=curCorps; if(!C||!C.cos.length||nukeStruck()) return;
+  if(nukeStruck()) return;
+  var C=curCorps;
   for(var i=0;i<CORP_AD_X.length;i++){
     var wx=Math.round(CORP_AD_X[i]*WW), sx=disX(wx); if(sx<-70||sx>SW+70) continue;
-    var live=[]; for(var j=0;j<C.cos.length;j++){ if(!C.cos[j].bankrupt&&C.cos[j].size>=0.12) live.push(C.cos[j]); }
-    if(!live.length) continue;
-    var e=live[((i*5+((now/9000)|0))%live.length+live.length)%live.length], co=e.co, brand=co.c;
+    var live=[]; if(C&&C.cos) for(var j=0;j<C.cos.length;j++){ if(!C.cos[j].bankrupt&&C.cos[j].size>=0.12) live.push(C.cos[j]); }
+    // the pool: this life's real companies PLUS the ad library — billboards sell something at any hour
+    var pool=[]; for(var lj=0;lj<live.length;lj++) pool.push(live[lj].co);
+    for(var aj=0;aj<AD_LIB.length;aj++) pool.push(AD_LIB[aj]);
+    if(!pool.length) continue;
+    var co=pool[((i*7+((now/9000)|0))%pool.length+pool.length)%pool.length], brand=co.c;
     var tagW=textW(co.g), nmW=textW(co.n), pad=2, pw=pad+(tagW+3)+3+nmW+pad;
     var b=adMountAt(wx), py, x0, mount;
     if(b && b.w>=pw+4 && b.h>=24){
