@@ -6447,9 +6447,14 @@ function drawShootingStar(g,L,now){
 // displays (e.g. a 4K@165% monitor, where KWin downsamples the 2x buffer) those 1px beams sharpened into
 // the recurring "vertical lines over the mountains/sky" artifact. Broad soft shafts can't alias into lines.
 function drawGodRays(g,L,now,fx){
-  if(L<0.4||cityPhase==="apoc"||fx.rain||fx.snow||fx.thunder||fx.fog) return;
+  if(L<0.4||cityPhase==="apoc"||fx.rain||fx.drizzle||fx.snow||fx.thunder||fx.fog) return;
   var cl=weather.cloud||0; if(cl<26||cl>76) return;                              // needs SOME cloud to break the light (not clear, not overcast)
-  var df=Math.max(0.06,Math.min(0.94,curSunDf)), sunX=Math.round(SW*df), sunY=Math.round(HORIZON*0.46-Math.sin(df*Math.PI)*HORIZON*0.4);
+  // anchor the shafts to the REAL drawn sun disc (df*WW world-anchored, the disc's own arc) — the old
+  // screen-relative SW*df put the apex on empty sky, different on every monitor (Nick's report).
+  var df=Math.max(0.06,Math.min(0.94,curSunDf));
+  var sunX=Math.round(df*WW-WOFF), sunY=Math.round(HORIZON*0.9-Math.sin(df*Math.PI)*HORIZON*0.75);
+  if(sunX<-40||sunX>SW+40) return;                                               // the sun isn't over this screen — its rays aren't either
+  if(solarEclDim>0.5) return;                                                    // totality: no sunbeams from a blacked-out sun
   var warm=(goldenK>0.2)?[255,222,164]:[255,250,228], str=0.03+(goldenK||0)*0.05;
   var rays=4, maxLen=Math.max(20,(HORIZON-sunY)*0.9);
   g.globalCompositeOperation="lighter";
