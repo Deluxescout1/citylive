@@ -5,7 +5,7 @@
 (function(){
   'use strict';
   if (typeof document === 'undefined') return;
-  var st = { q:'', klass:-1, dead:false, open:false, grab:false };
+  var st = { q:'', klass:-1, dead:false, open:false, grab:false, regime:null };
   function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
   function hex(c){ return /^#[0-9a-fA-F]{3,8}$/.test(c)?c:'#888888'; }   // validate before it enters a style attr
 
@@ -33,7 +33,7 @@
     + '.clz-c::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--sw,#888)}'
     + '.clz-n{font-weight:600;font-size:13px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}'
     + '.clz-b{font-size:9px;font-weight:700;padding:1px 5px;border-radius:6px;letter-spacing:.4px}'
-    + '.clz-b.mayor{background:#ffd76a;color:#1a1400}.clz-b.council{background:#7ea8ff;color:#04102a}.clz-b.rap{background:#ff5e6e;color:#2a0006}'
+    + '.clz-b.mayor{background:#ffd76a;color:#1a1400}.clz-b.council{background:#7ea8ff;color:#04102a}.clz-b.ruler{background:#c0182a;color:#fff}.clz-b.rap{background:#ff5e6e;color:#2a0006}'
     + '.clz-j{font-size:11px;color:#39e6ff;margin:2px 0}'
     + '.clz-l{font-size:11px;color:#93a2c0;margin-top:2px}'
     + '.clz-k{display:inline-block;font-size:10px;padding:1px 6px;border-radius:5px;background:#0a0d14;border:1px solid #2a3550}'
@@ -56,6 +56,7 @@
 
   function card(p){
     var badge = p.office===2?'<span class="clz-b mayor">MAYOR</span>':p.office===1?'<span class="clz-b council">COUNCIL</span>':'';
+    if(st.regime && st.regime.leaderPid===p.pid) badge+='<span class="clz-b ruler">'+(st.regime.theme==='bills'?'RINGLEADER':'RULER')+'</span>';
     var rap = p.crimes>0?'<span class="clz-b rap">RAP SHEET</span>':'';
     var fam=[]; if(p.spouseName) fam.push('married to '+esc(p.spouseName.split(' ')[0]));
     if(p.kidCount>0) fam.push(p.kidCount+' child'+(p.kidCount>1?'ren':''));
@@ -75,12 +76,14 @@
     if (st.open) panel.classList.add('on'); else { panel.classList.remove('on'); return; }
     var sum=document.getElementById('clzSum'), fil=document.getElementById('clzFil'), list=document.getElementById('clzList');
     if (typeof window.peopleRoster !== 'function'){ list.innerHTML='<div class="clz-e">The city engine is still loading…</div>'; sum.innerHTML=''; return; }
-    var now = (window.NOWOVR!=null)?window.NOWOVR:Date.now(), R;   // mirror the city being rendered (time-scrub aware)
-    try { R = window.peopleRoster(now, window.lifeIndexOf(now), window.cityGrowth(now).cy); }
+    var now = (window.NOWOVR!=null)?window.NOWOVR:Date.now(), R, RG=null;   // mirror the city being rendered (time-scrub aware)
+    try { R = window.peopleRoster(now, window.lifeIndexOf(now), window.cityGrowth(now).cy); if(typeof window.regimeState==='function') RG=window.regimeState(now); }
     catch(e){ list.innerHTML='<div class="clz-e">Citizens error: '+esc(e.message||e)+'</div>'; return; }
+    st.regime=(RG&&RG.active)?RG:null;
     var s=R.stats;
     sum.innerHTML = '<div class="clz-s"><b>'+s.pop+'</b>living</div>'
-      + '<div class="clz-s m"><b>'+(R.mayor?esc(R.mayor.name):'no mayor yet')+'</b>'+(R.mayor?esc(R.mayor.job):'awaiting election')+'</div>'
+      + (st.regime?'<div class="clz-s m"><b>'+(st.regime.theme==='bills'?'RINGLEADER ':'RULER ')+esc(st.regime.leaderCitizenName||st.regime.leaderName)+'</b>'+esc(st.regime.leaderJob||st.regime.leaderTitle||'')+'</div>':'')
+      + (st.regime&&st.regime.stage>=2?'<div class="clz-s m"><b>DEPOSED MAYOR '+(R.mayor?esc(R.mayor.name):'VACANT')+'</b>'+(R.mayor?esc(R.mayor.job):'no elected office-holder')+'</div>':'<div class="clz-s m"><b>'+(R.mayor?esc(R.mayor.name):'no mayor yet')+'</b>'+(R.mayor?esc(R.mayor.job):'awaiting election')+'</div>')
       + '<div class="clz-s"><b>'+Math.round(s.unemp*100)+'%</b>unemployed</div>'
       + '<div class="clz-s"><b>'+Math.round(s.poorPct*100)+'/'+Math.round(s.richPct*100)+'%</b>poor/rich</div>'
       + '<div class="clz-s"><b>'+(Math.round(s.gini*100)/100)+'</b>Gini</div>'
@@ -107,12 +110,15 @@
     + '#clzInspect .in-j{color:#39e6ff;margin:2px 0}'
     + '#clzInspect .in-l{color:#93a2c0;margin-top:3px}'
     + '#clzInspect .in-badge{display:inline-block;font-size:9px;font-weight:700;padding:1px 5px;border-radius:6px;margin-left:5px}'
-    + '#clzInspect .mayor{background:#ffd76a;color:#1a1400}#clzInspect .council{background:#7ea8ff;color:#04102a}#clzInspect .rap{background:#ff5e6e;color:#2a0006}';
+    + '#clzInspect .mayor{background:#ffd76a;color:#1a1400}#clzInspect .council{background:#7ea8ff;color:#04102a}#clzInspect .ruler{background:#c0182a;color:#fff}#clzInspect .rap{background:#ff5e6e;color:#2a0006}';
   var inspectEl=null;
   function hideInspect(){ if(inspectEl){ inspectEl.remove(); inspectEl=null; } }
   function showInspect(c, px, py){
     hideInspect();
     var badge = c.office===2?'<span class="in-badge mayor">MAYOR</span>':c.office===1?'<span class="in-badge council">COUNCIL</span>':'';
+    var inspectNow=(window.NOWOVR!=null)?window.NOWOVR:Date.now(), inspectRegime=null;
+    if(typeof window.regimeState==='function') inspectRegime=window.regimeState(inspectNow);
+    if(inspectRegime&&inspectRegime.active&&inspectRegime.leaderPid===c.pid) badge+='<span class="in-badge ruler">'+(inspectRegime.theme==='bills'?'RINGLEADER':'RULER')+'</span>';
     if(c.crimes>0) badge+='<span class="in-badge rap">RAP SHEET</span>';
     var fam=[]; if(c.spouseName) fam.push('married to '+esc(c.spouseName.split(' ')[0]));
     if(c.kidCount>0) fam.push(c.kidCount+' child'+(c.kidCount>1?'ren':''));

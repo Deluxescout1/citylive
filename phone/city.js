@@ -7991,6 +7991,28 @@ function peopleElectionState(lifeIndex, cy){
     recalled: !!(cur&&cur.recalled), ousted: !!(cur&&cur.ousted), winnerName: cur?cur.winnerName:null, winnerParty: cur?cur.winnerParty:-1,
     elections: C.econ.elections };
 }
+// Narrow regime-leader API. Identity is selected at the FIXED takeover boundary, never at the
+// caller's current clock, and never through elections/peopleRoster. Prefer an adult who survives
+// the complete arc; if none do, retain the best adult from the rise rather than repicking after death.
+var P_regimeLeaderCache={key:'',value:null};
+function peopleRegimeLeader(lifeIndex, anchorCy, endCy){
+  var at=Math.max(0,Math.min(P_LIFE_TICKS,Math.floor(anchorCy*P_LIFE_TICKS)));
+  var et=Math.max(at,Math.min(P_LIFE_TICKS,Math.floor(endCy*P_LIFE_TICKS)));
+  var key=P_cacheKey(lifeIndex)+'|'+at+'|'+et, cached=P_regimeLeaderCache;
+  if(cached.key!==key){
+    var rise=P_fold(lifeIndex,at), end=P_fold(lifeIndex,et), best=null, bestScore=-1;
+    for(var i=0;i<rise.pop.length;i++){
+      var p=rise.pop[i]; if(!(p.arrived&&p.alive&&p.age>=P_ADULT)) continue;
+      var ep=end.pop[i], survives=!!(ep&&ep.arrived&&ep.alive&&ep.gen===p.gen);
+      var score=(survives?1000000:0)+Math.round(p.conv*1000)+p.klass*200+p.age+(P_hash(p.seed^at)%100)/100;
+      if(score>bestScore){ bestScore=score; best=p; }
+    }
+    P_regimeLeaderCache={key:key,value:best?{pid:best.idx*1024+best.gen,name:P_name(best),job:P_job(best).label,party:best.party}:null};
+    cached=P_regimeLeaderCache;
+  }
+  if(!cached.value) return null;
+  return {pid:cached.value.pid,name:cached.value.name,job:cached.value.job,party:cached.value.party};
+}
 // ===================== end THE PEOPLE — CITIZEN SIM =====================
 
 // ============ THE PEOPLE — WORLD BINDING + EMBODIMENT (v2.0 Stage 3) ============
@@ -11378,9 +11400,12 @@ function regimeState(now){
   // DEMO / PREVIEW FORCE: any grown city is a live Bills Mafia takeover at peak BILLS COUNTRY, so it can be
   // watched on demand. Off unless a host sets billsEvent — the guards never do, so they stay unaffected.
   if(BILLS_EVENT){
+    var bel=(typeof peopleRegimeLeader==='function')?peopleRegimeLeader(li,REGIME_STAGES[0],0.999):null;
+    var btitle=REGIME_BILLS_TITLES[(rh>>>7)%REGIME_BILLS_TITLES.length];
+    var bname=bel?bel.name:REGIME_BILLS_NAMES[(rh>>>11)%REGIME_BILLS_NAMES.length];
     return { active:true, stage:5, sub:0.55, perm:true, outcome:"putdown",
       party:{k:"BILLS MAFIA",c:BILLS_BLUE}, theme:"bills",
-      leaderName:REGIME_BILLS_TITLES[(rh>>>7)%REGIME_BILLS_TITLES.length]+" "+REGIME_BILLS_NAMES[(rh>>>11)%REGIME_BILLS_NAMES.length],
+      leaderPid:bel?bel.pid:-1, leaderCitizenName:bname, leaderTitle:btitle, leaderName:btitle+" "+bname, leaderJob:bel?bel.job:null,
       path:"revolution", cyStart:0.12, cyEnd:0.999, li:li, seed:rh };
   }
   if(((li*2654435761+7717)>>>0)%100 < 62) return null;           // YIELD to war lives (replicates warState's existence roll — no mayorState call → no cycle)
@@ -11402,10 +11427,12 @@ function regimeState(now){
     stage=1; for(var s=1;s<6;s++){ if(cy>=REGIME_STAGES[s]) stage=s+1; }
     sub=Math.max(0,Math.min(1,(cy-REGIME_STAGES[stage-1])/(REGIME_STAGES[stage]-REGIME_STAGES[stage-1])));
   }
+  var rl=(typeof peopleRegimeLeader==='function')?peopleRegimeLeader(li,REGIME_STAGES[0],cyEnd):null;
+  var rt=bills?REGIME_BILLS_TITLES[(rh>>>7)%REGIME_BILLS_TITLES.length]:REGIME_TITLES[(rh>>>7)%REGIME_TITLES.length];
+  var rn=rl?rl.name:(bills?REGIME_BILLS_NAMES[(rh>>>11)%REGIME_BILLS_NAMES.length]:LNAMES[(rh>>>11)%LNAMES.length]);
   return { active:true, stage:stage, sub:sub, perm:putdown, outcome:(putdown?"putdown":"win"),
     party: bills?{k:"BILLS MAFIA",c:BILLS_BLUE}:THE_ORDER, theme: bills?"bills":"order",
-    leaderName: bills ? (REGIME_BILLS_TITLES[(rh>>>7)%REGIME_BILLS_TITLES.length]+" "+REGIME_BILLS_NAMES[(rh>>>11)%REGIME_BILLS_NAMES.length])
-                      : (REGIME_TITLES[(rh>>>7)%REGIME_TITLES.length]+" "+LNAMES[(rh>>>11)%LNAMES.length]),
+    leaderPid:rl?rl.pid:-1, leaderCitizenName:rn, leaderTitle:rt, leaderName:rt+" "+rn, leaderJob:rl?rl.job:null,
     path:["vote","revolution","uprising"][(rh>>>17)%3], cyStart:REGIME_STAGES[0], cyEnd:cyEnd, li:li, seed:rh };
 }
 var curRegime=null;   // set each frame; the whole arc reads this
@@ -11649,6 +11676,7 @@ function mayorState(now){
   var RG=regimeState(now);
   if(RG&&RG.active&&RG.stage>=2){
     M.party=RG.party; M.party2=RG.party; M.electedParty=RG.party; M.winName=RG.leaderName; M.regime=RG.stage;
+    M.leaderPid=(RG.leaderPid!==undefined?RG.leaderPid:-1);
     if(RG.stage>=3){ M.campaign=false; M.electionDay=false; M.debate=false; M.scandal=false; M.recallVote=false; M.justElected=false; }
   }
   return M;
@@ -11801,9 +11829,9 @@ function almanacData(now){
   var space={agePct:Math.round(spAge*100), colonies:cols};
   // mayor / regime — mayorState already applies THE ORDER's override internally, so these MATCH the rendered city
   var mayor=null;
-  if(M) mayor={name:M.winName,party:(M.party&&M.party.k)||"—",term:M.term+1,share:M.share,ousted:!!M.ousted,scandal:!!M.scandal};
+  if(M) mayor={name:M.winName,party:(M.party&&M.party.k)||"—",term:M.term+1,share:M.share,ousted:!!M.ousted,scandal:!!M.scandal,leaderPid:(M.leaderPid!==undefined?M.leaderPid:null)};
   var regime=null;
-  if(R&&R.active) regime={stage:R.stage,label:regimeLabelFor(R)[R.stage]||"",leader:R.leaderName,path:R.path,fallen:(R.stage>=6&&R.sub>=0.55)};
+  if(R&&R.active) regime={stage:R.stage,label:regimeLabelFor(R)[R.stage]||"",leader:R.leaderName,leaderPid:(R.leaderPid!==undefined?R.leaderPid:null),leaderCitizenName:R.leaderCitizenName||R.leaderName,leaderTitle:R.leaderTitle||"",leaderJob:R.leaderJob||null,path:R.path,fallen:(R.stage>=6&&R.sub>=0.55)};
   // PAST CIVILIZATIONS: the lives that rose & fell on these lands before this one, and how each met its end
   var history=[];
   for(var p=1;p<=6 && (li-p)>=0;p++){ var pl=li-p;
@@ -11874,7 +11902,7 @@ function cityStatus(now){
 function chronicleSnapshot(now){
   now=(NOWOVR!=null?NOWOVR:(now||Date.now()));
   var A=almanacData(now), kind="", stage="", key="", title="", detail="", people=[];
-  function person(name,role,party){ if(name) people.push({name:name,role:role||"Citizen",party:party||""}); }
+  function person(name,role,party,pid){ if(name) people.push({name:name,role:role||"Citizen",party:party||"",pid:(pid!==undefined?pid:null)}); }
   if(cityPhase==="apoc"){
     kind="finale"; stage=cityApoc<0.34?"Approach":(cityApoc<0.74?"Impact":"Aftermath");
     title="APOCALYPSE · "+(DEATH_LABEL[curDeath]||curDeath||"Unknown"); detail="Civilization-ending event witnessed";
@@ -11882,7 +11910,7 @@ function chronicleSnapshot(now){
   } else if(curDis){ kind="disaster"; stage=(curDis.f||0)<0.45?"Emergency":"Recovery";
     title="EMERGENCY · "+String(curDis.type||"disaster").replace(/([a-z])([A-Z])/g,"$1 $2").toUpperCase(); detail="Response crews are active"; key="disaster:"+curDis.type+":"+stage;
   } else if(curWar&&curWar.f>=0&&curWar.f<1.4){ kind="war"; stage=curWar.f<1?"City defense":"Outcome"; title="WAR · CITY DEFENSE ACTIVE"; detail=curWar.win===false?"Invading forces are advancing":"Defenders are holding the city"; key="war:"+stage+":"+String(curWar.win); }
-  else if(curRegime&&curRegime.active){ kind="government"; stage=regimeLabelFor(curRegime)[curRegime.stage]||"Takeover"; title=(curRegime.theme==="bills"?"BILLS MAFIA":"THE ORDER")+" · "+stage; detail=curRegime.outcome==="putdown"&&curRegime.stage>=5?"Protests suppressed; control continues":"Public resistance is active"; key="regime:"+curRegime.theme+":"+curRegime.stage+":"+curRegime.outcome; person(curRegime.leaderName,"Leader",curRegime.party&&curRegime.party.k); }
+  else if(curRegime&&curRegime.active){ kind="government"; stage=regimeLabelFor(curRegime)[curRegime.stage]||"Takeover"; title=(curRegime.theme==="bills"?"BILLS MAFIA":"THE ORDER")+" · "+stage; detail=curRegime.outcome==="putdown"&&curRegime.stage>=5?"Protests suppressed; control continues":"Public resistance is active"; key="regime:"+curRegime.theme+":"+curRegime.stage+":"+curRegime.outcome; person(curRegime.leaderName,"Leader",curRegime.party&&curRegime.party.k,curRegime.leaderPid); }
   else if(curPlague&&curPlague.active){ kind="health"; stage=((curPlague.zombie?ZOMBIE_STAGE_LABEL:PLAGUE_STAGE_LABEL)[curPlague.stage]||""); title=(curPlague.zombie?"ZOMBIE PLAGUE":"THE PLAGUE")+" · "+stage; detail="Public-health response witnessed"; key="plague:"+(curPlague.zombie?"zombie":"normal")+":"+curPlague.stage; }
   else if(curFestival&&curFestival.active){ kind="festival"; stage=FESTIVAL_STAGE_LABEL[curFestival.stage]||""; title=curFestival.theme+" EXPO · "+stage; detail="World's Fair activity across the city"; key="festival:"+curFestival.theme+":"+curFestival.stage; }
   else if(curAddiction&&curAddiction.active){ kind="health"; stage=ADDICT_STAGE_LABEL[curAddiction.stage]||""; title="ADDICTION CRISIS · "+stage; detail=curAddiction.crackdown?"Enforcement-led response":"Public-health response"; key="addiction:"+curAddiction.stage+":"+(curAddiction.crackdown?"crackdown":"care"); }
