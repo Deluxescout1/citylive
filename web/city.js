@@ -7363,8 +7363,8 @@ function drawConcert(g,L,now,night){
       for(var lb=0;lb<4;lb++){ var sweep=Math.sin(now*0.0011+lb*1.9)*16; g.fillStyle=bc[lb];
         g.beginPath(); g.moveTo(x0+4+lb*6,sy-9); g.lineTo(X-24+sweep+lb*12,sy-66); g.lineTo(X-14+sweep+lb*12,sy-66); g.closePath(); g.fill(); }
       g.globalCompositeOperation="source-over"; }
-    for(var c=0;c<30;c++){ var row=c%2, cxp=x0-6+((c>>1)*3)+(row?1:0), bob=((c*5+(Math.floor(now/170)))&1);   // crowd facing the stage
-      if(cxp<X-40||cxp>X+40) continue; drawPerson(g,cxp,HORIZON-1-row,PEDC[(c*2)%PEDC.length],SKINC[c%SKINC.length],bob); }
+    for(var c=0;c<30;c++){ var row=c%2, cxp=x0-16+((c>>1)*5)+(row?2:0)+((c*7)%3), bob=((c*5+(Math.floor(now/170)))&1);   // crowd facing the stage — LOOSE, not a wall (Nick)
+      if(cxp<X-62||cxp>X+62) continue; drawPerson(g,cxp,HORIZON-1-row,PEDC[(c*2)%PEDC.length],SKINC[c%SKINC.length],bob); }
   }
 }
 // ---- food festival: a run of food stalls with striped awnings, string lights, grill smoke, crowds ----
@@ -8166,11 +8166,12 @@ function milledX(seed, salt, anchor, spread, now){
 }
 // interpolate world-x along the SHORTEST wrapped path (SOL): a commuter never walks the long way round
 function lerpWX(a, b, t){ var d=b-a; if(d>WW/2)d-=WW; if(d<-WW/2)d+=WW; return wrapW(a + d*t); }
+var drawnPopRef=null;   // the roster the current drawnNamed[] was drawn from (for relationship-aware speech)
 function drawNamedCitizens(g, now){
-  drawnNamed.length=0;
+  drawnNamed.length=0; drawnPopRef=null;
   if(!near || !near.blds) return;
   if(cityG<0.22 || cityPhase==="apoc" || (typeof nukeStruck==='function' && nukeStruck())) return;  // peds handle apoc/flee
-  var li=lifeIndexOf(now), cy=cityGrowth(now).cy, C=P_sim(li, cy), pop=C.pop;
+  var li=lifeIndexOf(now), cy=cityGrowth(now).cy, C=P_sim(li, cy), pop=C.pop; drawnPopRef=pop;
   var nd=new Date(now), hh=nd.getHours()+nd.getMinutes()/60;    // SOL P1: the EFFECTIVE clock (now is NOWOVR-aware); nowDate() uses CLOCK and breaks freeze
   var night=(hh<6 || hh>=22), shelter=(curDis!=null || curOutbreak);   // disaster/plague: people stay home
   var curf=(typeof curCurfew!=='undefined')?curCurfew:0;               // THE ORDER's Martial Law empties the streets of NAMED citizens too (anon peds already thin via wmood.pedFactor)
@@ -8182,7 +8183,7 @@ function drawNamedCitizens(g, now){
     var J=P_job(p), hw=peopleHomeWork(near, p.seed, J.building, J.commutes, cityG);   // P_job: fallback-safe
     if(hw.homeB<0) continue;
     var hb=near.blds[hw.homeB], homeX=frontX(hb, p.seed, 3);
-    var wx, phase;                                                // phase: 0 home · 1 to-work · 2 at-work · 3 to-home
+    var wx, phase, strollMv=false;                                // phase: 0 home · 1 to-work · 2 at-work · 3 to-home; strollMv: ambling (walk anim)
     // per-citizen staggered shift (±0.9h) so the whole city doesn't move in lockstep
     var ph=((p.seed>>>17)%108)/60 - 0.9, leaveH=8+ph, arriveW=9+ph, leaveW=17+ph, arriveH=18+ph;
     if(shelter){ wx=homeX; phase=0; }
@@ -8196,8 +8197,9 @@ function drawNamedCitizens(g, now){
       else if(hh<leaveW){                                          // on shift: NOT stacked on the frontage —
         if(((p.seed>>>16)%4)===0){                                 // 1/4 roam city-wide (couriers, errands, rounds):
           var pf2=Math.max(0,Math.min(1,(cityG-0.20)/0.25));       // a uniform spot on the WHOLE paved span, continuous as pavement grows
-          wx=strollX(p.seed^0x524F414D, wrapW(((P_hash((p.seed^0x524F414D)>>>0)>>>0)/4294967296)*WW*pf2), 10+(p.seed>>>24)%14, now);
-        } else wx=milledX(p.seed, 0x4D494C, workX, 70, now);       // the rest mill around the workplace block
+          var rSpot=wrapW(((P_hash((p.seed^0x524F414D)>>>0)>>>0)/4294967296)*WW*pf2), rRch=10+(p.seed>>>24)%14;
+          wx=strollX(p.seed^0x524F414D, rSpot, rRch, now); strollMv=Math.abs(strollX(p.seed^0x524F414D,rSpot,rRch,now+450)-wx)>0.2;
+        } else { wx=milledX(p.seed, 0x4D494C, workX, 70, now); strollMv=Math.abs(milledX(p.seed,0x4D494C,workX,70,now+450)-wx)>0.2; }   // the rest mill around the workplace block
         phase=2; }
       else { wx=lerpWX(workX, homeX, (hh-leaveW)/(arriveH-leaveW)); phase=3; }
     }
@@ -8205,14 +8207,14 @@ function drawNamedCitizens(g, now){
     // citizens are always the homebodies). Evenings (17-22) two thirds are out, else one third.
     if(phase===0 && !night && !shelter && curf<0.3){              // nobody strolls for leisure under Martial Law
       var soc=(p.seed>>>7)%3, eve=(hh>=17);
-      if(soc===0 || (eve && soc===1)) wx=milledX(p.seed, 0x5EED, homeX, 110, now);
+      if(soc===0 || (eve && soc===1)){ wx=milledX(p.seed, 0x5EED, homeX, 110, now); strollMv=Math.abs(milledX(p.seed,0x5EED,homeX,110,now+450)-wx)>0.2; }
     }
     // SOL P1: named citizens obey the same road/sea/disaster rules as anonymous peds — no standing on
     // dirt ahead of the paver, on open water, or inside an active disaster's danger zone (they've fled).
     if(inSea(wx) || !onPavedRoad(wx)) continue;
     if(curDis){ var ddz=((wrapW(wx)-curDis.x+WW*1.5)%WW)-WW*0.5; if(Math.abs(ddz) < (curDis.w>>1)+10) continue; }
     var sx=disX(wx); if(sx<-4 || sx>SW+4) continue;               // spatial cull (exact disX used to draw)
-    var moving=(phase===1||phase===3), onClock=(phase!==0);
+    var moving=(phase===1||phase===3||strollMv), onClock=(phase!==0);   // commuters AND amblers walk — they live like people (Nick)
     var row=(p.seed>>>15)%3, py=HORIZON-1+row;
     var cloth=onClock ? J.clothes : PEDC[(p.seed>>>0)%PEDC.length];   // work uniform on the clock, civvies off
     var skin=SKINC[(p.seed>>>11)%SKINC.length];
@@ -8237,11 +8239,48 @@ var SPEECH_LINES={
   "class_poor":["STRUGGLING TO MAKE ENDS MEET.","NEED HELP WITH RENT.","WORKING TWO JOBS.","BILLS ARE PILING UP.","KIDS NEED NEW CLOTHES.","HOPING FOR BETTER DAYS.","SOMETIMES IT'S TIGHT.","JUST MANAGING.","NEED A LITTLE HELP.","HOPE FOR A RAISE.","FEELING A BIT STRESSED.","TRYING TO SAVE.","JUST MAKING IT.","WORK IS TOUGH."],
   "smalltalk":["NICE DAY OUT, HUH?","LIFE'S GOOD.","HOW'S WORK?","THE USUAL STUFF.","JUST DOING FINE.","HOPE YOU'RE WELL.","EVERYTHING OK?","JUST TAKING IT EASY.","GOOD TO BE OUT.","THE WEATHER'S GREAT.","FEELING LUCKY.","HOPE YOU'RE HEALTHY.","ALL'S WELL.","ENJOYING THE DAY."]
 };
-function bubbleLine(a, slot){
-  var cat;
-  if(a.k===0) cat='class_poor'; else if(a.k===3) cat='class_rich';
-  else { var cats=['greet','smalltalk','weather','work','gossip','economy','politics','family']; cat=cats[((a.pid^slot)>>>0)%cats.length]; }
-  var L=SPEECH_LINES[cat]||SPEECH_LINES.greet; return L[((a.pid*7^slot)>>>0)%L.length];
+// short agreeing/deflecting replies — the second half of a back-and-forth exchange
+var SPEECH_REPLIES=["SAME HERE.","TELL ME ABOUT IT.","YOU SAID IT.","NO KIDDING.","I HEAR YOU.","TRUE ENOUGH.","EVERY TIME.","COULD BE WORSE.","SO I HEARD.","THAT'S THE TRUTH.","YOU'RE NOT WRONG.","HA! EXACTLY."];
+// REAL-context lines rebuilt each slot from live sim state (weather, the actual mayor, events, economy)
+var _ctxCache={slot:-1,arr:null};
+function speechCtxLines(slot){
+  if(_ctxCache.slot===slot) return _ctxCache.arr;
+  var L=[], T=weather.temp, wc=weather.code||0, nd=nowDate();
+  if(T!=null){ if(T>=90) L.push("SCORCHER - "+Math.round(T)+"F TODAY."); else if(T<=28) L.push("FREEZING - "+Math.round(T)+"F OUT."); }
+  if(wc>=51&&wc<=67) L.push("THIS RAIN WON'T QUIT.");
+  if(wc>=71&&wc<=77) L.push("SNOW'S REALLY COMING DOWN.");
+  if(typeof curMayor!=='undefined'&&curMayor&&curMayor.winName){ var sur=curMayor.winName.split(" ").pop();
+    if(sur.length<=17){ L.push("MAYOR "+sur+" HAS MY VOTE."); L.push("TIME TO VOTE "+sur+" OUT."); } }
+  if(typeof curFestival!=='undefined'&&curFestival&&curFestival.active&&curFestival.stage>=3) L.push("HAVE YOU SEEN THE EXPO?");
+  if(typeof curEvents!=='undefined'&&curEvents&&curEvents.market) L.push("MARKET DAY - FRESH PRODUCE.");
+  if(currentShower(nd)) L.push("METEORS TONIGHT - LOOK UP!");
+  if(SOLAR_ECLIPSES.indexOf(ymd(nd))>=0) L.push("ECLIPSE TODAY - GOT GLASSES?");
+  if(isSupermoon(nd)) L.push("SUPERMOON TONIGHT!");
+  if(typeof curEcon!=='undefined'){ if(curEcon<0.35) L.push("TIMES ARE TOUGH ALL OVER."); else if(curEcon>0.7) L.push("BUSINESS IS BOOMING!"); }
+  _ctxCache.slot=slot; _ctxCache.arr=L; return L;
+}
+// the pair's relationship decides the topic: spouses talk family, coworkers shop-talk, a big class gap sparks
+function bubbleCat(a, b, slot){
+  var pa=drawnPopRef&&drawnPopRef[a.idx], pb=drawnPopRef&&drawnPopRef[b.idx];
+  if(pa&&pb&&pa.gen===a.gen&&pb.gen===b.gen){
+    if(pa.spouse===b.idx&&pa.spouseGen===b.gen) return 'family';
+    if(pa.employer>=0&&pa.employer===pb.employer) return 'work';
+    if(Math.abs(pa.klass-pb.klass)>=2) return (a.k<=1?'class_poor':'class_rich');
+  }
+  if(a.k===0) return 'class_poor'; if(a.k===3) return 'class_rich';
+  var cats=['greet','smalltalk','weather','work','gossip','economy','politics','family']; return cats[((a.pid^slot)>>>0)%cats.length];
+}
+function bubbleLine(a, b, slot){
+  var h=(P_hash((a.pid^slot*31)>>>0));
+  var ctx=speechCtxLines(slot);
+  if(ctx.length && (h%10)<4) return ctx[h%ctx.length];                          // ~40%: talk about what's ACTUALLY happening
+  if((h%10)===4 && drawnPopRef){                                                // gossip about a REAL neighbour by name
+    var q=drawnPopRef[(h>>>4)%drawnPopRef.length];
+    if(q&&q.alive&&q.arrived&&q.idx!==a.idx&&q.idx!==b.idx&&q.first.length<=10){
+      var G=["%N GOT A NEW JOB.","%N IS MOVING UPTOWN.","%N BOUGHT A CAR.","SAW %N AT THE MARKET.","%N MADE FOREMAN.","%N IS RETIRING SOON."];
+      return G[(h>>>8)%G.length].replace("%N",q.first); } }
+  var cat=bubbleCat(a,b,slot), L=SPEECH_LINES[cat]||SPEECH_LINES.greet;
+  return L[((a.pid*7^slot)>>>0)%L.length];
 }
 function drawSpeechBubble(g, cx, topY, text, night){
   var w=textW(text); if(w+6>SW) return;                        // SOL: a caption wider than the screen can't be laid out
@@ -8256,16 +8295,20 @@ function drawSpeechBubble(g, cx, topY, text, night){
 function drawSpeechBubbles(g, now, night){
   if(!drawnNamed || drawnNamed.length<2 || cityG<0.22 || cityPhase==="apoc") return;
   var arr=drawnNamed.slice().sort(function(a,b){return a.sx-b.sx;});
-  var slot=(now/2600)|0, shown=0, taken=[], cand=[];
+  var slot=(now/2600)|0, sub=(Math.floor(now/1300)&1), shown=0, taken=[], cand=[];
   for(var i=0;i<arr.length-1;i++){ var a=arr[i], b=arr[i+1];
     if(Math.abs(a.sx-b.sx)>7 || Math.abs(a.y-b.y)>3) continue;    // co-located (adjacency bucket, not float equality)
     if(((a.pid ^ b.pid ^ slot)>>>0) % 6 !== 0) continue;         // only some pairs talk, rotating slowly
     cand.push([P_hash((a.pid^b.pid^slot)>>>0), a, b]);           // hash-ordered, NOT leftmost-first — else both
   }                                                              // bubbles always land in the densest knot
   cand.sort(function(x,y){return x[0]-y[0];});
-  for(var c=0;c<cand.length && shown<2;c++){ var a2=cand[c][1], b2=cand[c][2];
-    var line=bubbleLine(a2,slot), w=textW(line), cx=Math.min(a2.sx,b2.sx)+(Math.abs(a2.sx-b2.sx)>>1);
-    var lo=cx-(w>>1)-4, hi=cx+(w>>1)+4, clash=false;             // no two bubbles may overlap (SOL: text-measure & separate)
+  for(var c=0;c<cand.length && shown<4;c++){ var a2=cand[c][1], b2=cand[c][2];
+    // a real EXCHANGE: first beat one speaks, second beat the other answers (tail follows the speaker)
+    var line, spk;
+    if(sub===0){ spk=a2; line=bubbleLine(a2,b2,slot); }
+    else { spk=b2; line=SPEECH_REPLIES[(((b2.pid*13)^slot)>>>0)%SPEECH_REPLIES.length]; }
+    var w=textW(line), cx=spk.sx;
+    var lo=cx-(w>>1)-34, hi=cx+(w>>1)+34, clash=false;           // ±30px breathing room: bubbles spread down the street
     for(var t=0;t<taken.length;t++){ if(hi>taken[t][0] && lo<taken[t][1]){ clash=true; break; } }
     if(clash) continue;
     taken.push([lo,hi]);
