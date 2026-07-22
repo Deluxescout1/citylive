@@ -15149,7 +15149,7 @@ function draw(g,pass){
   var ocTop=isDay?(fx.thunder?[118,126,144]:[178,185,197]):[40,40,50],
       ocBot=isDay?(fx.thunder?[148,154,168]:[203,207,214]):[60,60,70];
 
-  if(pass==="fg"||pass==="sky"||pass==="city"){ g.clearRect(0,0,SW,SH); }   // cached layers are transparent glass over the backdrop
+  if(pass==="fg"||pass==="sky"||pass==="skyfast"||pass==="city"){ g.clearRect(0,0,SW,SH); }   // transparent layers must discard their previous frame (no motion trails)
   if(pass==="bg"||pass===undefined){
   // sky
   var cA=mixc(SKY[ph.a][0],SKY[ph.b][0],ph.t), cB=mixc(SKY[ph.a][1],SKY[ph.b][1],ph.t);

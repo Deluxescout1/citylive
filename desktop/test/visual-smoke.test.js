@@ -91,6 +91,16 @@ test('retained layers preserve every original drawing operation', () => {
   assert.deepStrictEqual(splitCounts, wholeCounts);
 });
 
+test('every transparent animation layer clears its previous frame', () => {
+  const ctx = loadEngine();
+  ctx.NOWOVR = 1784219400000;
+  for (const pass of ['sky', 'skyfast', 'city', 'fg']) {
+    const counts = {};
+    ctx.draw(countingCanvas(counts), pass);
+    assert.strictEqual(counts.clearRect, 1, pass + ' must not leave motion trails');
+  }
+});
+
 test('long-running story arcs expose a clear status and render without throwing', () => {
   const ctx = loadEngine();
   ctx.DEMO_APOC_SEC = 0;
