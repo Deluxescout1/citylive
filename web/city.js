@@ -7294,7 +7294,7 @@ function waterTex(g,xa,xb,yTop,yBot,L,now){
   g.fillStyle=day?"rgba(255,255,255,0.12)":"rgba(140,175,215,0.08)"; g.fillRect(xa,yTop,w,1);
   for(var y=yTop+2;y<yBot;y+=2){ var dpt=(y-yTop)/h;                 // the SWELL, row by row
     var stride=(QUAL===0?8:6)+((y*13)%4)-((dpt*3)|0);                // irregular spacing, denser up close
-    var drift=Math.floor(now*(0.008+dpt*0.013)) + ((Math.sin(y*0.9)*5)|0);   // each row rolls at its own pace
+    var drift=Math.floor(now*(0.0030+dpt*0.0048)) + ((Math.sin(y*0.9)*5)|0); // gentle swell at the smooth water cadence
     var ca=(day?0.05:0.045)+dpt*(day?0.09:0.06);
     for(var x=xa+(((drift%stride)+stride)%stride); x<xb-1; x+=stride){
       var pk=Math.sin((x+drift*0.4)*0.05+y*0.47+now*0.00035);        // the sea moves in PATCHES —
@@ -9398,21 +9398,30 @@ function drawSeaLife(g,L,now,wTop){
     if(dr()<0.6){ var dph=now-dslot*7000, base=sa+span*(0.25+dr()*0.5), dir=dr()<0.5?1:-1, wl=(wTop+HORIZON)/2;
       for(var k=0;k<3;k++){ var kt=(dph-k*260)/900; if(kt<0||kt>1) continue;
         var dx=base+dir*kt*18, arc=Math.sin(kt*Math.PI), dy=wl-arc*6;
-        g.fillStyle=css(mixc([60,70,86],[150,164,182],L*0.6));
-        g.fillRect(dx|0,dy|0,3,1); g.fillRect((dx+(dir>0?1:1))|0,(dy-1)|0,1,1);        // back
-        g.fillRect((dx+(dir>0?-1:3))|0,(dy+1)|0,1,1);                                  // tail flick
-        if(kt<0.2||kt>0.8){ g.fillStyle="rgba(210,232,255,0.7)"; g.fillRect(dx|0,(wl+1)|0,2,1); } }
+        var DX=dx|0,DY=dy|0,nose=dir>0?DX+4:DX-1,tail=dir>0?DX-2:DX+5;
+        g.fillStyle=L>0.5?"#172737":"#08111c"; g.fillRect(DX-1,DY,6,2);               // readable outline
+        g.fillStyle=css(mixc([58,82,106],[145,190,214],L*0.72));
+        g.fillRect(DX,DY-1,4,2); g.fillRect(nose,DY,1,1);                              // body + beak
+        g.fillStyle=L>0.5?"#d5e8ee":"#7798aa"; g.fillRect(DX+1,DY+1,3,1);             // pale belly
+        g.fillStyle=L>0.5?"#284d68":"#10293d"; g.fillRect(DX+1,DY-2,1,1);             // dorsal fin
+        g.fillRect(tail,DY-1,2,1); g.fillRect(tail,DY+1,2,1);                          // split tail
+        g.fillStyle="#f5fbff"; g.fillRect(dir>0?DX+3:DX,DY-1,1,1);                    // eye
+        if(kt<0.22||kt>0.78){ g.fillStyle="rgba(220,242,255,0.82)"; g.fillRect(DX-2,(wl+1)|0,7,1); g.fillRect(DX,(wl-1)|0,1,1); } }
     }
     // a whale surfaces occasionally with a spout
     var wslot=Math.floor(now/16000), wr=rng((wslot*40503 + (wcx|0)+7)>>>0);
     if(wr()<0.5){ var wph=now-wslot*16000; if(wph<4000){ var wt=wph/4000, wl2=(wTop+HORIZON)/2+2,
       wx=sa+span*(0.3+wr()*0.4), hump=Math.sin(Math.min(1,wt*1.4)*Math.PI)*3;
-      g.fillStyle=css(mixc([44,52,66],[110,122,140],L*0.55));
-      g.fillRect((wx-4)|0,(wl2-hump)|0,9,2); g.fillRect((wx-2)|0,(wl2-hump-1)|0,5,1);   // broad back
+      var WY=(wl2-hump)|0, body=css(mixc([38,55,72],[104,145,170],L*0.66));
+      g.fillStyle=L>0.5?"#152431":"#070e18"; g.fillRect((wx-6)|0,WY,13,3);             // strong silhouette
+      g.fillStyle=body; g.fillRect((wx-5)|0,WY-1,11,3); g.fillRect((wx-3)|0,WY-2,7,1);  // surfaced back
+      g.fillStyle=L>0.5?"#b9d2dc":"#5f8296"; g.fillRect((wx-3)|0,WY+2,7,1);            // lighter flank
+      g.fillStyle="#f4fbff"; g.fillRect((wx+4)|0,WY,1,1);                              // eye
       if(wt>0.35&&wt<0.7){ g.fillStyle="rgba(210,230,255,0.65)";                        // spout
-        for(var sp=0;sp<4;sp++) g.fillRect((wx+3)|0,(wl2-hump-2-sp)|0,1,1); }
-      if(wt>0.7){ g.fillStyle=css(mixc([44,52,66],[110,122,140],L*0.55)); g.fillRect((wx+4)|0,(wl2-hump-2)|0,2,3); } }  // fluke
-    }
+        for(var sp=0;sp<5;sp++){ g.fillRect((wx+3-sp%2)|0,WY-2-sp,1,1); g.fillRect((wx+4+sp%2)|0,WY-2-sp,1,1); } }
+      if(wt>0.7){ g.fillStyle=body; g.fillRect((wx-7)|0,WY-2,3,1); g.fillRect((wx-7)|0,WY+1,3,1); }
+      g.fillStyle="rgba(220,242,255,0.72)"; g.fillRect((wx-8)|0,wl2+2,17,1);             // long wake
+      } }
   });
 }
 
@@ -11115,7 +11124,9 @@ function treeSC(seed){ var h=((seed*40503+11)>>>0)%100;
 function treeGrow(){ return 0.60+0.55*Math.min(1.0,Math.max(0,cityG)*1.35); }
 function drawTree(g,X,gy,day,now,seed,mul){
   var sc=treeSC(seed)*(mul||1)*treeGrow(), v=seed%7;
-  var sway=Math.round(Math.sin(now*0.0008+seed)*(sc>1.8?2:1)), tx=X+sway;
+  // Rooted vegetation stays rooted. Whole-pixel canopy sway on the retained terrain cadence made
+  // the meadow appear to wobble; genuinely loose reeds and foliage animate in the fast layer.
+  var tx=X;
   var trunk=day?"#5a4028":"#3c3020", tw=sc>=2.5?3:(sc>=1.7?2:1);
   var season=curSeason||seasonInfo(nowDate());
   var can, can2;
@@ -15214,7 +15225,7 @@ function draw(g,pass){
   var ocTop=isDay?(fx.thunder?[118,126,144]:[178,185,197]):[40,40,50],
       ocBot=isDay?(fx.thunder?[148,154,168]:[203,207,214]):[60,60,70];
 
-  if(pass==="fg"||pass==="sky"||pass==="skyfast"||pass==="cloud"||pass==="city"){ g.clearRect(0,0,SW,SH); }   // transparent layers must discard their previous frame (no motion trails)
+  if(pass==="fg"||pass==="sky"||pass==="skyfast"||pass==="cloud"||pass==="water"||pass==="city"){ g.clearRect(0,0,SW,SH); }   // transparent layers must discard their previous frame (no motion trails)
   if(pass==="bg"||pass===undefined){
   // sky
   var cA=mixc(SKY[ph.a][0],SKY[ph.b][0],ph.t), cB=mixc(SKY[ph.a][1],SKY[ph.b][1],ph.t);
@@ -15327,7 +15338,7 @@ function draw(g,pass){
   if(pass==="bg"){ if(cityG<0.985) drawTerrain(g,cityG,L,now,nd,"bg"); return; }
   // The animated sky sits behind the cached city. It keeps every aerial/weather feature, but no
   // longer forces buildings and roads to be rebuilt at the same cadence as traffic and people.
-  if(pass!=="city"&&pass!=="fg"){
+  if(pass!=="city"&&pass!=="fg"&&pass!=="water"){
   if(pass!=="sky"){
   if(curSpace>0.35 && !nukeFull()) drawOrbitals(g,L,now,fx);   // the orbital station + ring + shuttle re-entries
   if(curSpace>0.4 && !nukeFull()) drawExodus(g,L,now);         // crewed departures → the exodus to the colonies
@@ -15423,6 +15434,7 @@ function draw(g,pass){
 
   }
   if(pass==="sky"||pass==="skyfast"||pass==="cloud") return;
+  if(pass==="water"){ drawOpenSea(g,L,now,night); return; }
 
   // Values used by both the cached city and live street overlay must be computed in every pass.
   var roadY=HORIZON+3, roadF=Math.max(0,Math.min(1,(cityG-0.1)/0.4));
@@ -15451,7 +15463,7 @@ function draw(g,pass){
   if(curRegime&&curRegime.active) drawLayerRegime(g,mid,L,now,night);   // …the mid skyline
   // waterfront harbour fills the industrial edges (behind the near shoreline)
   if(hasOcean) drawHarbor(g,L,now,night,nd);   // the coast is there from day one — the city grows out to meet it
-  if(hasOcean) drawOpenSea(g,L,now,night);     // …and beyond the harbour, the OPEN sea
+  // Open sea lives on its smooth retained layer; the static city no longer advances it once a second.
   if(hasOcean&&cityG>0.004&&roadFNow()<0.85&&!iceNow&&!nukeFull()) drawFerry(g,L,now);   // no causeway yet → the raft ferry runs
   if(!nukeFull()) drawIce(g,L,now);                            // deep winter: the bay is a skating rink (skaters gone with the blast)
   if(hasOcean && !nukeFull()) drawRival(g,L,now);              // the rival city, growing across the bay (also gone in the exchange)

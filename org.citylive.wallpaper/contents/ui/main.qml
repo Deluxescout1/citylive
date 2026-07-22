@@ -136,6 +136,19 @@ WallpaperItem {
     }
 
     Canvas {
+        id: watercv
+        z: 3.5
+        width: bgcv.width; height: bgcv.height
+        smooth: root.fractionalDpr; antialiasing: false
+        renderTarget: Canvas.FramebufferObject; renderStrategy: Canvas.Threaded
+        transformOrigin: Item.TopLeft; scale: root.texelBuf / root.dpr
+        onPaint: {
+            try { City.draw(getContext("2d"), "water"); }
+            catch (e) { root.renderError = "Water motion: " + e; console.error("CityLive water render failure: " + e); }
+        }
+    }
+
+    Canvas {
         id: citycv
         z: 4
         width: bgcv.width; height: bgcv.height
@@ -218,6 +231,11 @@ WallpaperItem {
         interval: root.quality === "performance" ? 200 : (root.quality === "balanced" ? 125 : 100)
         running: root.visible; repeat: true
         onTriggered: cloudcv.requestPaint()
+    }
+    Timer {
+        interval: root.quality === "performance" ? 200 : (root.quality === "balanced" ? 150 : 100)
+        running: root.visible; repeat: true
+        onTriggered: watercv.requestPaint()
     }
     Timer {
         interval: root.quality === "performance" ? 1000 : (root.quality === "balanced" ? 500 : 333)
