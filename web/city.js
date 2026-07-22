@@ -8170,10 +8170,11 @@ var drawnPopRef=null;   // the roster the current drawnNamed[] was drawn from (f
 function drawNamedCitizens(g, now){
   drawnNamed.length=0; drawnPopRef=null;
   if(!near || !near.blds) return;
-  if(cityG<0.22 || cityPhase==="apoc" || (typeof nukeStruck==='function' && nukeStruck())) return;  // peds handle apoc/flee
+  var apocFinal=(cityPhase==="apoc" && typeof apocStruck==='function' && !apocStruck());   // the APPROACH: the end is falling but hasn't hit — survivors stand together for FINAL WORDS
+  if(cityG<0.22 || (cityPhase==="apoc" && !apocFinal)) return;  // once it strikes, the peds' flee/panic takes over
   var li=lifeIndexOf(now), cy=cityGrowth(now).cy, C=P_sim(li, cy), pop=C.pop; drawnPopRef=pop;
   var nd=new Date(now), hh=nd.getHours()+nd.getMinutes()/60;    // SOL P1: the EFFECTIVE clock (now is NOWOVR-aware); nowDate() uses CLOCK and breaks freeze
-  var night=(hh<6 || hh>=22), shelter=(curDis!=null || curOutbreak);   // disaster/plague: people stay home
+  var night=(hh<6 || hh>=22), shelter=(curDis!=null || curOutbreak || apocFinal);   // disaster/plague/the end: people gather at home
   var curf=(typeof curCurfew!=='undefined')?curCurfew:0;               // THE ORDER's Martial Law empties the streets of NAMED citizens too (anon peds already thin via wmood.pedFactor)
   var cap=(QUAL>=2?PEOPLE_N:(QUAL>=1?120:70)), drawn=0;
   for(var i=0;i<pop.length && drawn<cap;i++){ var p=pop[i];
@@ -8207,7 +8208,13 @@ function drawNamedCitizens(g, now){
     // citizens are always the homebodies). Evenings (17-22) two thirds are out, else one third.
     if(phase===0 && !night && !shelter && curf<0.3){              // nobody strolls for leisure under Martial Law
       var soc=(p.seed>>>7)%3, eve=(hh>=17);
-      if(soc===0 || (eve && soc===1)){ wx=milledX(p.seed, 0x5EED, homeX, 110, now); strollMv=Math.abs(milledX(p.seed,0x5EED,homeX,110,now+450)-wx)>0.2; }
+      if(soc===0 || (eve && soc===1)){
+        if(((p.seed>>>23)&1)===0){                               // half go OUT ON THE TOWN — a uniform spot across
+          var pf3=Math.max(0,Math.min(1,(cityG-0.20)/0.25));     // the WHOLE paved span, so every screen gets life
+          var tSpot=wrapW(((P_hash((p.seed^0x544F574E)>>>0)>>>0)/4294967296)*WW*pf3), tRch=10+(p.seed>>>24)%14;
+          wx=strollX(p.seed^0x544F574E, tSpot, tRch, now); strollMv=Math.abs(strollX(p.seed^0x544F574E,tSpot,tRch,now+450)-wx)>0.2;
+        } else { wx=milledX(p.seed, 0x5EED, homeX, 110, now); strollMv=Math.abs(milledX(p.seed,0x5EED,homeX,110,now+450)-wx)>0.2; }
+      }
     }
     // SOL P1: named citizens obey the same road/sea/disaster rules as anonymous peds — no standing on
     // dirt ahead of the paver, on open water, or inside an active disaster's danger zone (they've fled).
@@ -8239,8 +8246,46 @@ var SPEECH_LINES={
   "class_poor":["STRUGGLING TO MAKE ENDS MEET.","NEED HELP WITH RENT.","WORKING TWO JOBS.","BILLS ARE PILING UP.","KIDS NEED NEW CLOTHES.","HOPING FOR BETTER DAYS.","SOMETIMES IT'S TIGHT.","JUST MANAGING.","NEED A LITTLE HELP.","HOPE FOR A RAISE.","FEELING A BIT STRESSED.","TRYING TO SAVE.","JUST MAKING IT.","WORK IS TOUGH."],
   "smalltalk":["NICE DAY OUT, HUH?","LIFE'S GOOD.","HOW'S WORK?","THE USUAL STUFF.","JUST DOING FINE.","HOPE YOU'RE WELL.","EVERYTHING OK?","JUST TAKING IT EASY.","GOOD TO BE OUT.","THE WEATHER'S GREAT.","FEELING LUCKY.","HOPE YOU'RE HEALTHY.","ALL'S WELL.","ENJOYING THE DAY."]
 };
-// short agreeing/deflecting replies — the second half of a back-and-forth exchange
+// short agreeing/deflecting replies — beats 2/4 of an exchange
 var SPEECH_REPLIES=["SAME HERE.","TELL ME ABOUT IT.","YOU SAID IT.","NO KIDDING.","I HEAR YOU.","TRUE ENOUGH.","EVERY TIME.","COULD BE WORSE.","SO I HEARD.","THAT'S THE TRUTH.","YOU'RE NOT WRONG.","HA! EXACTLY."];
+var SPEECH_CLOSERS=["ANYWAY - GOTTA RUN.","SEE YOU AROUND.","SAY HI TO THE FAMILY.","SAME TIME TOMORROW?","TAKE CARE NOW.","THAT'S LIFE, HUH?","WELL, BACK TO IT.","CATCH YOU LATER."];
+// AUTHORED 4-beat scenes — real little exchanges. o: optional visible outcome ("heart" | "storm")
+var SPEECH_SCENES=[
+  {c:'humor',   b:["WHY DO PIGEONS WALK?","WHY?","FLYING'S TOO MAINSTREAM.","HA! GOOD ONE."]},
+  {c:'humor',   b:["I GOT A CEILING JOB.","A CEILING JOB?","HIGHEST WORK IN TOWN.","OH NO. TERRIBLE."]},
+  {c:'humor',   b:["MY DIET STARTS TODAY.","YOU SAID THAT YESTERDAY.","DIETS NEED WARMUPS.","MINE'S BEEN WARMING YEARS."]},
+  {c:'humor',   b:["TRAFFIC WAS WILD TODAY.","HOW WILD?","A PIGEON PASSED MY BUS.","SHOW-OFF."]},
+  {c:'humor',   b:["I NAMED MY PLANT STEVE.","WHY STEVE?","HE LOOKED LIKE A STEVE.","CAN'T ARGUE WITH THAT."]},
+  {c:'humor',   b:["TOLD MY BOSS A JOKE.","DID HE LAUGH?","HE SAID SEE HR.","TOTALLY WORTH IT."]},
+  {c:'drama',   b:["WE NEED TO TALK.","ABOUT WHAT?","YOU KNOW WHAT.","...FINE."], o:'storm'},
+  {c:'drama',   b:["YOU FORGOT, DIDN'T YOU?","FORGOT WHAT?","UNBELIEVABLE.","WAIT- COME BACK!"], o:'storm'},
+  {c:'drama',   b:["I SAW YOU AT THE CAFE.","IT WASN'T LIKE THAT.","IT NEVER IS.","LET ME EXPLAIN!"], o:'storm'},
+  {c:'drama',   b:["I'M SORRY ABOUT IT ALL.","...YOU MEAN THAT?","EVERY WORD.","OK. WE'RE OK."], o:'heart'},
+  {c:'romance', b:["I HAVE A QUESTION...","YES?","MARRY ME?","YES! A THOUSAND TIMES!"], o:'heart'},
+  {c:'romance', b:["DINNER TONIGHT?","ARE YOU ASKING ME OUT?","I SUPPOSE I AM.","TOOK YOU LONG ENOUGH."], o:'heart'},
+  {c:'romance', b:["I MADE YOU SOMETHING.","YOU DIDN'T HAVE TO!","I WANTED TO.","COME HERE, YOU."], o:'heart'},
+  {c:'sports',  b:["CATCH THE GAME LAST NIGHT?","EVERY MINUTE.","THAT FINAL PLAY!","STILL SHAKING."]},
+  {c:'sports',  b:["OUR TEAM IS CURSED.","EVERY SEASON.","AND YET WE WATCH.","AND YET WE WATCH."]}
+];
+// event banks — surfaced ONLY while their event is live (Nick: talk Order/Bills only around the takeover)
+var SPEECH_EVENT={
+  disaster:["STAY CLOSE TO ME.","IS EVERYONE SAFE?","IT'LL PASS. IT ALWAYS DOES.","GET THE KIDS INSIDE.","WE'LL REBUILD. WE ALWAYS DO."],
+  rift:["SOMETHING ATE MY MAILBOX!","DID YOU SEE THOSE THINGS?","THEY CAME OUT OF THE SKY!","BOLT THE DOORS TONIGHT."],
+  regime:["CAREFUL WHAT YOU SAY.","THE WALLS HAVE EARS.","HAVE YOU SEEN THE POSTERS?","CURFEW AGAIN TONIGHT.","THIS CAN'T LAST FOREVER.","MY COUSIN JUST... VANISHED."],
+  regimeFree:["WE ARE FREE AGAIN!","TEAR THEM ALL DOWN!","I NEVER DOUBTED US.","THE FLAGS ARE COMING DOWN!"],
+  preRegime:["STRANGE FLAGS DOWNTOWN.","WHO FUNDS THIS ORDER?","MY NEIGHBOR JOINED THEM.","SOMETHING'S BREWING, I TELL YOU."],
+  bills:["GO BILLS!","THE TAILGATE STARTS AT NOON.","BILLS BY 20, MARK ME.","WHO'S GOT WINGS FOR THE GAME?","SHOUT! SHOUT! SHOUT!"],
+  plague:["COVER YOUR COUGH.","IS YOUR FAMILY WELL?","THE TENTS ARE FULL DOWNTOWN.","WASH UP BEFORE DINNER.","STAY SAFE OUT THERE."],
+  war:["THE DEFENSES WILL HOLD.","DID YOU HEAR THE SIRENS?","MY BOY IS AT THE FRONT.","KEEP THE LIGHTS OFF TONIGHT."],
+  election:["DEBATE NIGHT TONIGHT.","I'M VOTING EARLY.","THE POLLS ARE SO CLOSE.","SIGNS ON EVERY LAWN NOW."],
+  doom:["IS THIS REALLY THE END?","THE SKY FEELS WRONG LATELY.","HOLD YOUR FAMILY CLOSE.","NO POINT MOWING THE LAWN NOW.","I HEAR IT'S COMING SOON.","LIVE TODAY LIKE THE LAST."],
+  finale:["IT WAS AN HONOR.","SEE YOU ON THE OTHER SIDE.","HOLD MY HAND.","WE HAD A GOOD RUN.","LOOK AT IT... IT'S BEAUTIFUL.","NO REGRETS. NOT ONE."]
+};
+// upcoming-takeover probe (pure): does a regime arc start within ~5% of the life just ahead?
+function regimeSoon(now){
+  if(typeof curRegime!=='undefined'&&curRegime&&curRegime.active) return false;
+  var f=regimeState(now+GROW_CYCLE*0.05); return !!(f&&f.active&&f.stage<=2);
+}
 // REAL-context lines rebuilt each slot from live sim state (weather, the actual mayor, events, economy)
 var _ctxCache={slot:-1,arr:null};
 function speechCtxLines(slot){
@@ -8292,27 +8337,75 @@ function drawSpeechBubble(g, cx, topY, text, night){
   g.fillRect(tailX,y+7,2,2);                                   // little downward tail
   drawUiText(g, text, x, y, night?"#dfe6f4":"#1a2030", 1);
 }
+// the pair's topic for a whole 4-beat scene: live events outrank relationships outrank smalltalk.
+// Nick's rules: Order/Bills chatter ONLY while (or just before) their takeover; disasters and the
+// approaching end get talked about while people still stand; the first moments of the cataclysm get
+// final words.
+function sceneTopic(a, b, sslot, now){
+  var h=P_hash((a.pid^b.pid^sslot*17)>>>0);
+  if(cityPhase==="apoc") return {ev:'finale'};
+  if(typeof curDis!=='undefined'&&curDis) return {ev:(curDis.type==="rift"?'rift':'disaster')};
+  var end=apocAtOf(now)-now;
+  if(end>0&&end<GROW_CYCLE*0.05&&(h%10)<5) return {ev:'doom'};
+  if(typeof curRegime!=='undefined'&&curRegime&&curRegime.active) return {ev:(curRegime.theme==='bills'?'bills':(curRegime.stage>=6?'regimeFree':'regime'))};
+  if((h%10)<3&&regimeSoon(now)) return {ev:'preRegime'};
+  if(typeof curBills!=='undefined'&&curBills) return {ev:'bills'};
+  if(typeof curPlague!=='undefined'&&curPlague&&curPlague.active&&(h%10)<6) return {ev:'plague'};
+  if(typeof curWar!=='undefined'&&curWar&&curWar.f>=0&&curWar.f<1.4&&(h%10)<6) return {ev:'war'};
+  if(typeof curMayor!=='undefined'&&curMayor&&(curMayor.campaign||curMayor.debate||curMayor.electionDay)&&(h%10)<4) return {ev:'election'};
+  // authored scene ~30%: humor / drama / romance (spouses only) / sports
+  if((h%10)<3){ var pool=[], pa=drawnPopRef&&drawnPopRef[a.idx], pb=drawnPopRef&&drawnPopRef[b.idx];
+    var spouses=!!(pa&&pb&&pa.gen===a.gen&&pb.gen===b.gen&&pa.spouse===b.idx&&pa.spouseGen===b.gen);
+    for(var i=0;i<SPEECH_SCENES.length;i++){ var sc=SPEECH_SCENES[i];
+      if(sc.c==='romance'&&!spouses) continue; if(sc.c==='drama'&&!spouses&&(h&1)) continue;
+      pool.push(sc); }
+    if(pool.length) return {scene:pool[(h>>>8)%pool.length]};
+  }
+  return {};                                                     // free chat: context/relationship/gossip lines
+}
 function drawSpeechBubbles(g, now, night){
-  if(!drawnNamed || drawnNamed.length<2 || cityG<0.22 || cityPhase==="apoc") return;
+  var apocFinal=(cityPhase==="apoc"&&typeof apocStruck==='function'&&!apocStruck());   // the FINAL-WORDS window (the approach, before it strikes)
+  if(!drawnNamed || drawnNamed.length<2 || cityG<0.22 || (cityPhase==="apoc"&&!apocFinal)) return;
   var arr=drawnNamed.slice().sort(function(a,b){return a.sx-b.sx;});
-  var slot=(now/2600)|0, sub=(Math.floor(now/1300)&1), shown=0, taken=[], cand=[];
+  var sslot=(now/5200)|0, beat=(Math.floor(now/1300)&3), shown=0, taken=[], cand=[];
+  var gate=apocFinal?2:5;                                        // everyone talks at the end
   for(var i=0;i<arr.length-1;i++){ var a=arr[i], b=arr[i+1];
-    if(Math.abs(a.sx-b.sx)>7 || Math.abs(a.y-b.y)>3) continue;    // co-located (adjacency bucket, not float equality)
-    if(((a.pid ^ b.pid ^ slot)>>>0) % 6 !== 0) continue;         // only some pairs talk, rotating slowly
-    cand.push([P_hash((a.pid^b.pid^slot)>>>0), a, b]);           // hash-ordered, NOT leftmost-first — else both
+    if(Math.abs(a.sx-b.sx)>8 || Math.abs(a.y-b.y)>3) continue;    // co-located (adjacency bucket, not float equality)
+    if(((a.pid ^ b.pid ^ sslot)>>>0) % gate !== 0) continue;     // only some pairs talk, rotating slowly
+    cand.push([P_hash((a.pid^b.pid^sslot)>>>0), a, b]);          // hash-ordered, NOT leftmost-first — else both
   }                                                              // bubbles always land in the densest knot
   cand.sort(function(x,y){return x[0]-y[0];});
   for(var c=0;c<cand.length && shown<4;c++){ var a2=cand[c][1], b2=cand[c][2];
-    // a real EXCHANGE: first beat one speaks, second beat the other answers (tail follows the speaker)
-    var line, spk;
-    if(sub===0){ spk=a2; line=bubbleLine(a2,b2,slot); }
-    else { spk=b2; line=SPEECH_REPLIES[(((b2.pid*13)^slot)>>>0)%SPEECH_REPLIES.length]; }
+    // a 4-beat SCENE: line → reply → counter → closer; speakers alternate, the tail follows the speaker
+    var top=apocFinal?{ev:'finale'}:sceneTopic(a2,b2,sslot,now), line=null, spk=(beat&1)?b2:a2;
+    var h2=P_hash((a2.pid^b2.pid^sslot*29)>>>0);
+    if(top.scene){ line=top.scene.b[beat]; }
+    else if(top.ev){ var EB=SPEECH_EVENT[top.ev]||[];
+      if(beat===0||beat===2) line=EB[((h2>>>3)+beat)%EB.length];
+      else if(beat===1) line=SPEECH_REPLIES[(((b2.pid*13)^sslot)>>>0)%SPEECH_REPLIES.length];
+      else line=(top.ev==='finale')?EB[((h2>>>9)+3)%EB.length]:SPEECH_CLOSERS[(((b2.pid*17)^sslot)>>>0)%SPEECH_CLOSERS.length];
+    } else {
+      if(beat===0) line=bubbleLine(a2,b2,sslot);
+      else if(beat===1) line=SPEECH_REPLIES[(((b2.pid*13)^sslot)>>>0)%SPEECH_REPLIES.length];
+      else if(beat===2) line=bubbleLine(a2,b2,sslot+1);          // a second topic keeps the scene moving
+      else line=SPEECH_CLOSERS[(((b2.pid*17)^sslot)>>>0)%SPEECH_CLOSERS.length];
+    }
+    if(!line) continue;
     var w=textW(line), cx=spk.sx;
     var lo=cx-(w>>1)-34, hi=cx+(w>>1)+34, clash=false;           // ±30px breathing room: bubbles spread down the street
     for(var t=0;t<taken.length;t++){ if(hi>taken[t][0] && lo<taken[t][1]){ clash=true; break; } }
     if(clash) continue;
     taken.push([lo,hi]);
     drawSpeechBubble(g, cx, Math.min(a2.y,b2.y)-2, line, night);
+    // small VISIBLE outcome on the last beat (Nick): a heart blooms, or someone storms off in a huff
+    if(beat===3&&top.scene&&top.scene.o){
+      var mx2=Math.min(a2.sx,b2.sx)+(Math.abs(a2.sx-b2.sx)>>1), oy=Math.min(a2.y,b2.y)-13;
+      if(top.scene.o==='heart'){ g.fillStyle="#ff5a9a";
+        g.fillRect(mx2-2,oy,2,2); g.fillRect(mx2+1,oy,2,2); g.fillRect(mx2-2,oy+1,5,2); g.fillRect(mx2-1,oy+3,3,1); g.fillRect(mx2,oy+4,1,1); }
+      else { var st3=1+((Math.floor(now/220))%3);                // the storm-off: an angry "!" + scuff dust as one turns away
+        g.fillStyle="#ff5a4a"; g.fillRect(b2.sx,oy,1,3); g.fillRect(b2.sx,oy+4,1,1);
+        g.fillStyle="rgba(150,140,130,0.6)"; g.fillRect(b2.sx+2,HORIZON-2,st3,1); }
+    }
     shown++;
   }
 }
