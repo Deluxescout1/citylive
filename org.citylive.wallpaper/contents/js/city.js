@@ -1250,14 +1250,18 @@ function drawHail(g,L,now,fx){
 }
 // 1b. HEAT SHIMMER over summer asphalt
 function drawShimmer(g,L,now){
-  if(L<0.4) return;                                                    // heat haze only in real daylight
+  var hot=(weather.feels==null?weather.temp:weather.feels);
+  if(L<0.55||hot<88||wmood.wet||wmood.snow) return;                    // only genuinely hot, dry daylight
   g.globalCompositeOperation="lighter";
-  // warm heat-haze bands RISING off the hot asphalt, rippling side to side and fading as they climb
-  for(var i=0;i<7;i++){ var rise=((now*0.02+i*37)%42), y=HORIZON+3+i*4-Math.round(rise*0.18);
-    var wob=Math.sin(now*0.005+i*1.3)*2.2+Math.sin(now*0.011+i)*0.8, a=(0.075*(1-rise/42)).toFixed(3);
-    g.fillStyle="rgba(255,246,216,"+a+")"; g.fillRect(wob|0,y,SW,1); }
-  for(var j=0;j<3;j++){ var yy=HORIZON+7+j*3, ox=Math.sin(now*0.007+j*2.1)*3.2;                    // low wobble glaze over the road
-    g.fillStyle="rgba(255,250,232,0.05)"; g.fillRect(ox|0,yy,SW,2); }
+  // Sparse vertical wisps replace the old full-width horizontal bands, which looked like ocean
+  // waves travelling across dirt and asphalt. World anchoring keeps these continuous at bezels.
+  for(var i=0;i<Math.max(3,Math.round(WW/150));i++){ var h=((i*2654435761+913)>>>0), wx=h%WW;
+    var rise=((now*0.006+(h>>>9)%31)%28), x=wx-WOFF+Math.sin(now*0.0012+i)*1.2;
+    if(x<-4&&x+WW<SW+4)x+=WW; if(x>SW+4&&x-WW>-4)x-=WW; if(x<-4||x>SW+4)continue;
+    var y=HORIZON+9-Math.round(rise*0.42), a=0.075*(1-rise/28);
+    g.fillStyle="rgba(255,246,216,"+a.toFixed(3)+")"; g.fillRect(x|0,y|0,2,2);
+    if((h&1)===0) g.fillRect((x+1)|0,(y-2)|0,1,2);
+  }
   g.globalCompositeOperation="source-over";
 }
 // 2. the FISHING FLEET works the dawn tide, gulls in tow

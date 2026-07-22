@@ -78,6 +78,14 @@ test('animated shoreline foam is clamped to the ocean side of dirt', () => {
   assert.match(sea, /Math\.max\(ex\+1,bx2\+2\)/, 'right-coast breakers must stay seaward');
 });
 
+test('road heat shimmer cannot resemble full-width ocean waves', () => {
+  const source = fs.readFileSync(ENGINE, 'utf8');
+  const shimmer = source.slice(source.indexOf('function drawShimmer'), source.indexOf('// 2. the FISHING FLEET'));
+  assert.match(shimmer, /hot<88/, 'shimmer must require genuinely hot weather');
+  assert.doesNotMatch(shimmer, /fillRect\([^\n]*SW\s*,\s*[12]\)/, 'shimmer must never paint moving full-road bands');
+  assert.match(shimmer, /Math\.round\(WW\/150\)/, 'heat haze should remain sparse');
+});
+
 test('the billboard library contains exactly 50 distinct realistic campaigns', () => {
   const ctx = loadEngine();
   assert.strictEqual(ctx.AD_LIB.length, 50);
