@@ -1,0 +1,41 @@
+<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;background:#0a0c14}</style></head>
+<body><canvas id="c" width="1600" height="360"></canvas>
+<script src="../renderer/city.js"></script>
+<script>
+  // PEOPLE DISTRIBUTION PROBE: renders one frame and reports HOW the named citizens are spread —
+  // cluster count/sizes, paved span, unique home/work buildings — so "they're all clumped up" is a
+  // measured number, not a feeling. ?h=hour&age=FORCEAGE(optional; omit = real clock)&cycle=1w
+  window.NOFETCH=true;
+  var q=new URLSearchParams(location.search);
+  var h=parseFloat(q.get('h')||'11.5');
+  var d=new Date(); d.setHours(h|0,(h%1)*60,0,0); window.NOWOVR=d.getTime(); window.CLOCK=window.NOWOVR;
+  if(q.get('age')!=null) window.FORCEAGE=parseFloat(q.get('age'));
+  var cv=document.getElementById('c'), g=cv.getContext('2d');
+  try{
+    setup('neon',{cw:1600,ch:360,woff:0,ww:1600,pxk:3,zoom:1,quality:'spectacle'});
+    applyConfig({cycle:q.get('cycle')||'1w'});
+    for(var f=0;f<3;f++) draw(g);
+    var out={cityG:+cityG.toFixed(3), phase:cityPhase, SW:SW, WW:WW};
+    out.pavedWpx=Math.round(WW*Math.max(0,Math.min(1,(cityG-0.20)/0.25)));
+    var sx=drawnNamed.map(function(p){return p.sx;}).sort(function(a,b){return a-b;});
+    out.n=sx.length;
+    if(sx.length){
+      out.sxMin=sx[0]; out.sxMax=sx[sx.length-1];
+      // crowding = the max number of citizens inside any 40px sliding window (uniform spread → low)
+      var maxIn40=0;
+      for(var i=0,j=0;i<sx.length;i++){ while(sx[i]-sx[j]>40) j++; if(i-j+1>maxIn40) maxIn40=i-j+1; }
+      out.maxIn40=maxIn40; out.spanUsed=sx[sx.length-1]-sx[0];
+    }
+    // binding diversity across the whole living cast (not just drawn)
+    var li=lifeIndexOf(window.NOWOVR), cy=cityGrowth(window.NOWOVR).cy, C=P_sim(li,cy);
+    var homes={}, works={}, bound=0, reg=peopleBuildRegistry(near);
+    for(var j=0;j<C.pop.length;j++){ var p=C.pop[j]; if(!p.arrived||!p.alive) continue;
+      var J=P_job(p), hw=peopleHomeWork(near,p.seed,J.building,J.commutes,cityG);
+      if(hw.homeB<0) continue; bound++;
+      homes[hw.homeB]=1; if(hw.workB>=0) works[hw.workB]=1;
+    }
+    out.bound=bound; out.uniqHomes=Object.keys(homes).length; out.uniqWorks=Object.keys(works).length;
+    out.homePool=reg?reg.homes.length:0; out.blds=near.blds.length;
+    window._m=JSON.stringify(out);
+  }catch(e){ window._m='ERR:'+e.message; }
+</script></body></html>

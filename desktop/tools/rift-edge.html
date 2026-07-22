@@ -1,0 +1,25 @@
+<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;background:#0a0c14}</style></head>
+<body><canvas id="c" width="1600" height="360"></canvas>
+<script src="../renderer/city.js"></script>
+<script>
+  // RIFT EDGE CHECK: at the portal's open/close edges R→0 and the ring radius (R+ring*2+sin) went
+  // NEGATIVE → Canvas throws "Incorrect argument radius" (Qt QML *and* Chromium). Sweep the edge
+  // frames across CATs; any throw = regression. window._edge = "EDGE_OK n" or "EDGE_FAIL ...".
+  window.NOFETCH=true; var d=new Date(); d.setHours(14,0,0,0); window.NOWOVR=d.getTime(); window.CLOCK=window.NOWOVR; window.FORCEAGE=0.7;
+  var g=document.getElementById('c').getContext('2d');
+  setup('neon',{cw:1600,ch:360,woff:0,ww:1600,pxk:3,zoom:1,quality:'spectacle'});
+  var fails=[], n=0;
+  var edges=[0.0003,0.001,0.003,0.008,0.02,0.76,0.78,0.79,0.795,0.799];
+  for(var ci=1;ci<=5;ci+=2){
+    for(var e=0;e<edges.length;e++){
+      // scan a few clock offsets so sin(now*0.02+pi) covers its negative range
+      for(var t=0;t<8;t++){
+        window.FORCEDIS={type:"rift", intensity:ci, xf:0.5, w:44, seed:777, f:edges[e]};
+        window.NOWOVR=d.getTime()+t*39;                  // 0.02*39 ≈ 0.78 rad steps
+        try{ draw(g); n++; }
+        catch(err){ fails.push('cat'+ci+' f='+edges[e]+' t'+t+': '+err); }
+      }
+    }
+  }
+  window._edge = fails.length ? 'EDGE_FAIL '+fails.slice(0,3).join(' | ') : 'EDGE_OK '+n;
+</script></body></html>

@@ -8094,6 +8094,26 @@ function peopleHomeWork(near, seed, jobBuilding, commutes, cityG){
 var drawnNamed=[];
 // a spot on a building's frontage (deterministic per citizen+salt) so co-workers/neighbours spread out
 function frontX(b, seed, salt){ return b.x + 2 + ((seed>>>salt) % Math.max(1,(b.w|0)-3)); }
+// a slow, continuous amble around an anchor — the cast binds to only ~11 home + ~13 work buildings
+// (near band has ~30), so ~16 people STACKED on each frontage read as one clump ("all talking in one
+// spot"). Strolling spreads them along the street. Pure fn of (seed, now): deterministic, freeze-safe,
+// no slot jumps (sin is continuous). Falls back to the anchor if the amble leaves pavement or hits sea.
+function strollX(seed, anchor, reach, now){
+  var sp=0.00003+((seed>>>21)%16)*0.000004, ph=((seed>>>3)%6283)/1000;   // ~1-3.5 min half-period, per-citizen phase
+  var wxp=wrapW(anchor + Math.sin(now*sp+ph)*reach);
+  return (!inSea(wxp) && onPavedRoad(wxp)) ? wxp : anchor;
+}
+// a citizen's personal spot along the street + a stroll around it. The cast binds to only ~11 home +
+// ~13 work buildings (near band has ~30), so ~16 people STACKED on each frontage read as one clump
+// ("all talking in one spot" — Nick). A fixed UNIFORM per-citizen offset (hash, not sin — sin density
+// piles at the extremes) breaks the stacks; the stroll adds life. Off-pavement offsets fold back.
+function milledX(seed, salt, anchor, spread, now){
+  var s2=(seed^salt)>>>0, off=(P_hash(s2)%(2*spread+1))-spread;          // uniform in [-spread, +spread]
+  var spot=wrapW(anchor+off);
+  if(inSea(spot) || !onPavedRoad(spot)) spot=wrapW(anchor-off);          // fold to the other side
+  if(inSea(spot) || !onPavedRoad(spot)) spot=anchor;                     // give up: stand at the frontage
+  return strollX(s2, spot, 10+(s2>>>24)%14, now);
+}
 // interpolate world-x along the SHORTEST wrapped path (SOL): a commuter never walks the long way round
 function lerpWX(a, b, t){ var d=b-a; if(d>WW/2)d-=WW; if(d<-WW/2)d+=WW; return wrapW(a + d*t); }
 function drawNamedCitizens(g, now){
@@ -8121,8 +8141,19 @@ function drawNamedCitizens(g, now){
       var workX=frontX(near.blds[hw.workB], p.seed, 5);
       if(hh<leaveH || hh>=arriveH){ wx=homeX; phase=0; }
       else if(hh<arriveW){ wx=lerpWX(homeX, workX, (hh-leaveH)/(arriveW-leaveH)); phase=1; }
-      else if(hh<leaveW){ wx=workX; phase=2; }
+      else if(hh<leaveW){                                          // on shift: NOT stacked on the frontage —
+        if(((p.seed>>>16)%4)===0){                                 // 1/4 roam city-wide (couriers, errands, rounds):
+          var pf2=Math.max(0,Math.min(1,(cityG-0.20)/0.25));       // a uniform spot on the WHOLE paved span, continuous as pavement grows
+          wx=strollX(p.seed^0x524F414D, wrapW(((P_hash((p.seed^0x524F414D)>>>0)>>>0)/4294967296)*WW*pf2), 10+(p.seed>>>24)%14, now);
+        } else wx=milledX(p.seed, 0x4D494C, workX, 70, now);       // the rest mill around the workplace block
+        phase=2; }
       else { wx=lerpWX(workX, homeX, (hh-leaveW)/(arriveH-leaveW)); phase=3; }
+    }
+    // OFF-shift daytime: a fixed slice of the cast are out-and-about people (personality — the same
+    // citizens are always the homebodies). Evenings (17-22) two thirds are out, else one third.
+    if(phase===0 && !night && !shelter){
+      var soc=(p.seed>>>7)%3, eve=(hh>=17);
+      if(soc===0 || (eve && soc===1)) wx=milledX(p.seed, 0x5EED, homeX, 110, now);
     }
     // SOL P1: named citizens obey the same road/sea/disaster rules as anonymous peds — no standing on
     // dirt ahead of the paver, on open water, or inside an active disaster's danger zone (they've fled).
@@ -8173,16 +8204,20 @@ function drawSpeechBubble(g, cx, topY, text, night){
 function drawSpeechBubbles(g, now, night){
   if(!drawnNamed || drawnNamed.length<2 || cityG<0.22 || cityPhase==="apoc") return;
   var arr=drawnNamed.slice().sort(function(a,b){return a.sx-b.sx;});
-  var slot=(now/2600)|0, shown=0, taken=[];
-  for(var i=0;i<arr.length-1 && shown<2;i++){ var a=arr[i], b=arr[i+1];
+  var slot=(now/2600)|0, shown=0, taken=[], cand=[];
+  for(var i=0;i<arr.length-1;i++){ var a=arr[i], b=arr[i+1];
     if(Math.abs(a.sx-b.sx)>7 || Math.abs(a.y-b.y)>3) continue;    // co-located (adjacency bucket, not float equality)
     if(((a.pid ^ b.pid ^ slot)>>>0) % 6 !== 0) continue;         // only some pairs talk, rotating slowly
-    var line=bubbleLine(a,slot), w=textW(line), cx=Math.min(a.sx,b.sx)+(Math.abs(a.sx-b.sx)>>1);
+    cand.push([P_hash((a.pid^b.pid^slot)>>>0), a, b]);           // hash-ordered, NOT leftmost-first — else both
+  }                                                              // bubbles always land in the densest knot
+  cand.sort(function(x,y){return x[0]-y[0];});
+  for(var c=0;c<cand.length && shown<2;c++){ var a2=cand[c][1], b2=cand[c][2];
+    var line=bubbleLine(a2,slot), w=textW(line), cx=Math.min(a2.sx,b2.sx)+(Math.abs(a2.sx-b2.sx)>>1);
     var lo=cx-(w>>1)-4, hi=cx+(w>>1)+4, clash=false;             // no two bubbles may overlap (SOL: text-measure & separate)
     for(var t=0;t<taken.length;t++){ if(hi>taken[t][0] && lo<taken[t][1]){ clash=true; break; } }
     if(clash) continue;
     taken.push([lo,hi]);
-    drawSpeechBubble(g, cx, Math.min(a.y,b.y)-2, line, night);
+    drawSpeechBubble(g, cx, Math.min(a2.y,b2.y)-2, line, night);
     shown++;
   }
 }
@@ -9980,7 +10015,7 @@ function drawRift(g,cd,L,now){
     var cy2=HORIZON-18-(pi%2)*7, R=(7+i*3.2)*life;
     g.globalCompositeOperation="lighter";                              // the tear: violet rings
     for(var ring=0;ring<3;ring++){ g.strokeStyle="rgba("+(160-ring*30)+",70,235,"+(0.55*(1-ring*0.3)*life)+")"; g.lineWidth=1;
-      g.beginPath(); g.arc(cx,cy2,R+ring*2+Math.sin(now*0.02+pi),0,2*Math.PI); g.stroke(); }
+      g.beginPath(); g.arc(cx,cy2,Math.max(0.5,R+ring*2+Math.sin(now*0.02+pi)),0,2*Math.PI); g.stroke(); }   // clamped: R→0 at open/close edges and Qt throws on a negative arc radius
     g.globalCompositeOperation="source-over";
     g.fillStyle="#0a0512"; g.beginPath(); g.arc(cx,cy2,Math.max(1,R),0,2*Math.PI); g.fill();     // the void
     g.globalCompositeOperation="lighter";
