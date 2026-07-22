@@ -15400,8 +15400,6 @@ function draw(g,pass){
   if(cityG>0.5) drawNewsScreens(g,L,now,night);
   drawSportsDistrict(g,L,now);       // the sports complex + jumbotrons draw IN FRONT of the viaduct so they're never hidden (Nick: "see everything")
   drawJumbotrons(g,L,now,night);     // the BIG rooftop news jumbotrons — in front of the viaduct now
-  // Stations, riders, and trains are the readable service layer: nothing structural may cover them.
-  drawTrainLine(g,L,now,fx,"service");
 
   // drones (deterministic world paths) — only over a developed city
   if(cityG>0.42) for(i=0;i<drones.length;i++){ var dr=drones[i];
@@ -15534,6 +15532,9 @@ function draw(g,pass){
   if(!nukeFull()) drawPartyLegacy(g,L,now);              // the PERSISTENT, stacking marks of every party that has governed this life
   }
   if(pass==="city") return;
+  // Stations, riders, and trains stay in the fast live layer: nothing structural covers them and
+  // the train does not inherit the deliberately slow city-cache cadence.
+  drawTrainLine(g,L,now,fx,"service");
   // street furniture + the people using it (lamps, benches, bus stops, carts…) — on the sidewalk
   if(cityG>0.3 && !nukeFull()) drawStreetProps(g,L,now,night);   // street furniture + the people at them — gone
   if(!nukeFull()) drawGreenery(g,L,now);                 // base street trees, ivy on brick, curb weeds — nature softening the grid

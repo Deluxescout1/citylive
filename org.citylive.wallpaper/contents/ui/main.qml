@@ -22,9 +22,9 @@ WallpaperItem {
         if (configuration && configuration.quality) return configuration.quality;
         return (width * height > 2200000) ? "balanced" : "spectacle";
     }
-    // DEVICE px per world/canvas pixel — Performance must reduce raster work, not merely hide a few
-    // effects. pxk4 renders ~44% fewer world pixels than pxk3 while preserving the pixel-art style.
-    readonly property int pxk: quality === "performance" ? 4 : 3
+    // DEVICE px per world/canvas pixel. Keep the original wide pxk3 composition in every quality
+    // tier; performance comes from retained layers and scheduling, never by zooming the city in.
+    readonly property int pxk: 3
     // This screen's device-pixel ratio (fractional display scaling, e.g. 1.1 at 110%). ALL world
     // geometry below is in DEVICE pixels: with fractional scaling Qt rasterizes the scene at device
     // resolution, so only a device-integer canvas scale avoids duplicated-pixel seam lines.
@@ -174,19 +174,19 @@ WallpaperItem {
     }
 
     Timer {
-        interval: root.quality === "performance" ? 83 : (root.quality === "balanced" ? 83 : 67) // 12 / 12 / 15 fps
+        interval: root.quality === "performance" ? 100 : (root.quality === "balanced" ? 83 : 67) // 10 / 12 / 15 fps
         running: root.visible
         repeat: true
         onTriggered: cv.requestPaint()
     }
     Timer {
-        interval: root.quality === "performance" ? 500 : (root.quality === "balanced" ? 333 : 250)
+        interval: root.quality === "performance" ? 750 : (root.quality === "balanced" ? 500 : 333)
         running: root.visible
         repeat: true
         onTriggered: skycv.requestPaint()
     }
     Timer {
-        interval: root.quality === "performance" ? 500 : (root.quality === "balanced" ? 333 : 250)
+        interval: root.quality === "performance" ? 1000 : (root.quality === "balanced" ? 500 : 333)
         running: root.visible
         repeat: true
         onTriggered: citycv.requestPaint()
