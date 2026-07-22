@@ -16,18 +16,24 @@ WallpaperItem {
     property string lastChronicleKey: ""
     readonly property bool showStatus: !configuration || configuration.showStatus === undefined || configuration.showStatus
     readonly property bool chronicleEnabled: !configuration || configuration.chronicleEnabled === undefined || configuration.chronicleEnabled
-    // DEVICE px per world/canvas pixel — the chunkiness of the pixel art.
-    readonly property int pxk: 3    // hi-res "128-bit" mode (6→4→3; ~1.8x pixels of pxk4; KSP=6/pxk in city.js adapts speeds/masses)
     // QUALITY tier: spectacle (full 12fps everything) / balanced / performance (8fps, thinner
     // effects — laptop & battery friendly). Config override, else auto by total canvas load.
     readonly property string quality: {
         if (configuration && configuration.quality) return configuration.quality;
         return (width * height > 2200000) ? "balanced" : "spectacle";
     }
+    // DEVICE px per world/canvas pixel — Performance must reduce raster work, not merely hide a few
+    // effects. pxk4 renders ~44% fewer world pixels than pxk3 while preserving the pixel-art style.
+    readonly property int pxk: quality === "performance" ? 4 : 3
     // This screen's device-pixel ratio (fractional display scaling, e.g. 1.1 at 110%). ALL world
     // geometry below is in DEVICE pixels: with fractional scaling Qt rasterizes the scene at device
     // resolution, so only a device-integer canvas scale avoids duplicated-pixel seam lines.
     readonly property real dpr: (Screen.devicePixelRatio > 0) ? Screen.devicePixelRatio : 1
+    // Integer HiDPI (notably this desktop's exact 2x center display) can use the normal chunky
+    // texels without resampling. Only a genuinely fractional DPR needs the fine-texture defense.
+    // Treating every DPR != 1 as fractional made the 2x screen render ~3.05M canvas pixels instead
+    // of ~1.36M, then smooth them unnecessarily—enough to pin plasmashell on a three-screen setup.
+    readonly property bool fractionalDpr: Math.abs(dpr - Math.round(dpr)) > 0.01
     // buffer px per canvas pixel: pxk logical px worth, rounded to an INTEGER number of buffer
     // px (Qt rasterizes at dpr x logical). Integer -> no duplicated-pixel seams; ~pxk logical
     // -> the city has the SAME apparent size on every screen regardless of display scaling.
@@ -36,7 +42,7 @@ WallpaperItem {
     // stripes chunky pixel blocks (verified with a comb test pattern). Defense: render FINE
     // texels there (texelBuf buffer px per canvas px) and draw the world at ZOOM canvas px per
     // world px — a dropped column then costs a sliver of a feature, like any native-res window.
-    readonly property real texelBuf: (dpr === 1) ? pxk : 2
+    readonly property real texelBuf: fractionalDpr ? 2 : pxk
     readonly property int zoom: Math.max(1, Math.round(pxk * dpr / texelBuf))
     // total width (logical px) of the whole desktop the city spans. If unset in config,
     // auto-detect by summing every screen's width (works for a single laptop screen or
@@ -70,14 +76,47 @@ WallpaperItem {
         id: bgcv
         width: Math.max(8, root.zoom * Math.ceil(root.width * root.dpr / (root.texelBuf * root.zoom)))
         height: Math.max(8, root.zoom * Math.ceil(root.height * root.dpr / (root.texelBuf * root.zoom)))
-        smooth: root.dpr !== 1
+        smooth: root.fractionalDpr
         antialiasing: false
         renderTarget: Canvas.FramebufferObject
+        // Keep JavaScript painting off Plasma's GUI thread so a slow scenery refresh cannot
+        // stall pointer movement, panels, or the foreground animation.
+        renderStrategy: Canvas.Threaded
         transformOrigin: Item.TopLeft
         scale: root.texelBuf / root.dpr
         onPaint: {
             try { City.draw(getContext("2d"), "bg"); }
             catch (e) { root.renderError = "Backdrop: " + e; console.error("CityLive backdrop render failure: " + e); }
+        }
+    }
+
+    Canvas {
+        id: skycv
+        width: bgcv.width; height: bgcv.height
+        smooth: root.fractionalDpr
+        antialiasing: false
+        renderTarget: Canvas.FramebufferObject
+        renderStrategy: Canvas.Threaded
+        transformOrigin: Item.TopLeft
+        scale: root.texelBuf / root.dpr
+        onPaint: {
+            try { City.draw(getContext("2d"), "sky"); }
+            catch (e) { root.renderError = "Sky motion: " + e; console.error("CityLive sky render failure: " + e); }
+        }
+    }
+
+    Canvas {
+        id: citycv
+        width: bgcv.width; height: bgcv.height
+        smooth: root.fractionalDpr
+        antialiasing: false
+        renderTarget: Canvas.FramebufferObject
+        renderStrategy: Canvas.Threaded
+        transformOrigin: Item.TopLeft
+        scale: root.texelBuf / root.dpr
+        onPaint: {
+            try { City.draw(getContext("2d"), "city"); }
+            catch (e) { root.renderError = "City cache: " + e; console.error("CityLive city render failure: " + e); }
         }
     }
 
@@ -94,11 +133,14 @@ WallpaperItem {
         // KWin downsamples those (Qt renders 2x, output is e.g. 1.65x) with unfiltered sampling,
         // and nearest+nearest makes periodic dropped-column beat lines stripe the whole screen.
         // The linear ramp (~1 physical px) absorbs the dropped columns; verified on the 4K@165%.
-        smooth: root.dpr !== 1   // crisp NEAREST on integer-scale screens; LINEAR on fractionally-
+        smooth: root.fractionalDpr   // crisp NEAREST on integer-scale screens; LINEAR on fractionally-
                                  // scaled ones (e.g. 1.65x) so KWin's downsample doesn't stripe the
                                  // screen with dropped-column beat lines. The ~1px ramp is imperceptible.
         antialiasing: false
         renderTarget: Canvas.FramebufferObject
+        // Each monitor can paint independently instead of serializing all city work on the
+        // plasmashell UI thread. This is the key to smooth motion on multi-monitor desktops.
+        renderStrategy: Canvas.Threaded
         transformOrigin: Item.TopLeft
         scale: root.texelBuf / root.dpr
 
@@ -132,13 +174,25 @@ WallpaperItem {
     }
 
     Timer {
-        interval: root.quality === "performance" ? 125 : (root.quality === "balanced" ? 100 : 83) // 8 / 10 / ~12 fps
+        interval: root.quality === "performance" ? 83 : (root.quality === "balanced" ? 83 : 67) // 12 / 12 / 15 fps
         running: root.visible
         repeat: true
         onTriggered: cv.requestPaint()
     }
     Timer {
-        interval: root.quality === "performance" ? 2000 : (root.quality === "balanced" ? 1000 : 500)
+        interval: root.quality === "performance" ? 500 : (root.quality === "balanced" ? 333 : 250)
+        running: root.visible
+        repeat: true
+        onTriggered: skycv.requestPaint()
+    }
+    Timer {
+        interval: root.quality === "performance" ? 500 : (root.quality === "balanced" ? 333 : 250)
+        running: root.visible
+        repeat: true
+        onTriggered: citycv.requestPaint()
+    }
+    Timer {
+        interval: root.quality === "performance" ? 10000 : (root.quality === "balanced" ? 2000 : 1000)
         running: root.visible
         repeat: true
         onTriggered: bgcv.requestPaint()
@@ -169,7 +223,7 @@ WallpaperItem {
 
     function boot() {
         // ignore the transient boots during screen bring-up (dimensions not settled yet)
-        if (root.width < 8 || root.height < 8 || cv.width < 8 || cv.height < 8 || bgcv.width < 8 || bgcv.height < 8)
+        if (root.width < 8 || root.height < 8 || cv.width < 8 || cv.height < 8 || bgcv.width < 8 || bgcv.height < 8 || skycv.width < 8 || citycv.width < 8)
             return;
         // Inject personal settings (birthdays/location/cycle) from localcfg.js — committed EMPTY in the public
         // repo, filled on THIS machine by install.sh from the gitignored config.local.json. Absent/empty → no
@@ -223,6 +277,8 @@ WallpaperItem {
             quality: root.quality                                 // effect-density tier
         });
         bgcv.requestPaint();
+        skycv.requestPaint();
+        citycv.requestPaint();
         cv.requestPaint();
         console.log("CityLive screen located: virtualX=" + Screen.virtualX + " " + root.width + "x" + root.height
                     + " dpr=" + root.dpr + " zoom=" + root.zoom + " -> woff=" + Math.round(root.worldLeftPx / root.pxk) + "wp " + cv.width + "x" + cv.height
@@ -252,7 +308,7 @@ WallpaperItem {
     }
     // one-shot SETTLE pass: 6s after bring-up, re-run setup + repaint — shakes out any
     // transient geometry/scale state from login/output reconfiguration (stripe insurance)
-    Timer { id: settleTimer; interval: 6000; running: true; onTriggered: { root.boot(); bgcv.requestPaint(); cv.requestPaint() } }
+    Timer { id: settleTimer; interval: 6000; running: true; onTriggered: { root.boot(); bgcv.requestPaint(); skycv.requestPaint(); citycv.requestPaint(); cv.requestPaint() } }
     Component.onCompleted: bootTimer.restart()
     onSceneChanged: bootTimer.restart()
     // location changed in the config dialog → re-boot with the new place (weather/sun/stars/architecture)
@@ -270,4 +326,6 @@ WallpaperItem {
     onPanelBottomPxChanged: bootTimer.restart()
     Connections { target: cv; function onWidthChanged(){ bootTimer.restart() } function onHeightChanged(){ bootTimer.restart() } }
     Connections { target: bgcv; function onWidthChanged(){ bootTimer.restart() } function onHeightChanged(){ bootTimer.restart() } }
+    Connections { target: skycv; function onWidthChanged(){ bootTimer.restart() } function onHeightChanged(){ bootTimer.restart() } }
+    Connections { target: citycv; function onWidthChanged(){ bootTimer.restart() } function onHeightChanged(){ bootTimer.restart() } }
 }

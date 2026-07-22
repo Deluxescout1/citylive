@@ -15120,8 +15120,8 @@ function draw(g,pass){
   var ocTop=isDay?(fx.thunder?[118,126,144]:[178,185,197]):[40,40,50],
       ocBot=isDay?(fx.thunder?[148,154,168]:[203,207,214]):[60,60,70];
 
-  if(pass==="fg"){ g.clearRect(0,0,SW,SH); }   // the fg canvas is transparent glass over the backdrop
-  if(pass!=="fg"){
+  if(pass==="fg"||pass==="sky"||pass==="city"){ g.clearRect(0,0,SW,SH); }   // cached layers are transparent glass over the backdrop
+  if(pass==="bg"||pass===undefined){
   // sky
   var cA=mixc(SKY[ph.a][0],SKY[ph.b][0],ph.t), cB=mixc(SKY[ph.a][1],SKY[ph.b][1],ph.t);
   var grd=g.createLinearGradient(0,0,0,SH);
@@ -15231,6 +15231,9 @@ function draw(g,pass){
   drawClimbers(g,L,now,nd,fx);    // tiny mountaineers roping up the tallest peaks (fair-weather days)
   }                                                          // end of the backdrop stack
   if(pass==="bg"){ if(cityG<0.985) drawTerrain(g,cityG,L,now,nd,"bg"); return; }
+  // The animated sky sits behind the cached city. It keeps every aerial/weather feature, but no
+  // longer forces buildings and roads to be rebuilt at the same cadence as traffic and people.
+  if(pass!=="city"&&pass!=="fg"){
   if(curSpace>0.35 && !nukeFull()) drawOrbitals(g,L,now,fx);   // the orbital station + ring + shuttle re-entries
   if(curSpace>0.4 && !nukeFull()) drawExodus(g,L,now);         // crewed departures → the exodus to the colonies
   drawAurora(g,nd,L,now,fx);                    // rare frigid-night light show
@@ -15310,8 +15313,18 @@ function draw(g,pass){
   if(!nukeFull()){ drawHighFlights(g,L,now,fx); drawHelis(g,L,now); drawRealFlights(g,L,now); }   // busier skies: high cruisers + contrails + downtown choppers + the REAL aircraft overhead
   if(cityPhase==="apoc"&&curDeath==="nuke") drawNukePlanes(g,L,now);   // …and in the exchange, the blast wave swats aircraft out of the sky (they don't just disappear)
 
+  }
+  if(pass==="sky") return;
+
+  // Values used by both the cached city and live street overlay must be computed in every pass.
+  var roadY=HORIZON+3, roadF=Math.max(0,Math.min(1,(cityG-0.1)/0.4));
+  var paveFrac=Math.max(0,Math.min(1,(cityG-0.20)/0.25)), frontW=WW*paveFrac, roadPaved=paveFrac>=1;
+
+  // Buildings, landmarks and the road surface change slowly. Paint them into their own retained
+  // canvas; the live foreground pass can then spend its budget solely on moving street life.
+  if(pass!=="fg"){
   // the wilderness the city grows out of (hills, grass, river, trees, the first cabin) — recedes as it matures
-  if(cityG<0.985) drawTerrain(g,cityG,L,now,nd,pass==="fg"?"fg":undefined);
+  if(cityG<0.985) drawTerrain(g,cityG,L,now,nd,(pass==="fg"||pass==="city")?"fg":undefined);
 
   drawLayer(g,far,L,now,fx,hol,0.42);
   if(curRegime&&curRegime.active) drawLayerRegime(g,far,L,now,night);   // THE ORDER drapes the far skyline
@@ -15417,8 +15430,7 @@ function draw(g,pass){
   // cityG≈0.30, LEADING the population (cars open at 0.42, street folk at 0.30) so nobody stands on unpaved ground.
   // World-anchored (paved band = world-x [0, WW*paveFrac]) → the front is continuous across every monitor.
   // Freeze-safe: bounded loops, ≤3-rect clip, the machinery vanishes once paved.
-  var roadY=HORIZON+3, roadF=Math.max(0,Math.min(1,(cityG-0.1)/0.4));
-  var paveFrac=Math.max(0,Math.min(1,(cityG-0.20)/0.25)), frontW=WW*paveFrac, roadPaved=paveFrac>=1;   // paving 0.20→0.45 (matches onPavedRoad): roads appear once the town is more established
+  // paving 0.20→0.45 (matches onPavedRoad): roads appear once the town is more established
   if(paveFrac>0.001){
     if(!roadPaved){                                                          // graded earth roadbed ahead of the paver
       g.fillStyle=L>0.5?"#6e5c46":"#332a20"; g.fillRect(0,HORIZON+1,SW,SH-HORIZON-1);
@@ -15514,6 +15526,8 @@ function draw(g,pass){
       drawTree(g,gsx|0,HORIZON+1,L>0.5,now,gt2); } }
   if(!nukeFull()) drawCivicPolicy(g,L,now);              // the winning party's visible policies (solar/cameras/cranes/yard signs)
   if(!nukeFull()) drawPartyLegacy(g,L,now);              // the PERSISTENT, stacking marks of every party that has governed this life
+  }
+  if(pass==="city") return;
   // street furniture + the people using it (lamps, benches, bus stops, carts…) — on the sidewalk
   if(cityG>0.3 && !nukeFull()) drawStreetProps(g,L,now,night);   // street furniture + the people at them — gone
   if(!nukeFull()) drawGreenery(g,L,now);                 // base street trees, ivy on brick, curb weeds — nature softening the grid

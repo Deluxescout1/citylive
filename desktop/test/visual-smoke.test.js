@@ -20,6 +20,21 @@ function canvasStub() {
     set() { return true; }
   });
 }
+function countingCanvas(counts) {
+  const gradient = { addColorStop() { counts.addColorStop = (counts.addColorStop || 0) + 1; } };
+  return new Proxy({}, {
+    get(_target, prop) {
+      if (prop === 'measureText') return (s) => ({ width: String(s || '').length * 4 });
+      if (prop === 'createLinearGradient' || prop === 'createRadialGradient' || prop === 'createPattern') {
+        return () => { counts[prop] = (counts[prop] || 0) + 1; return gradient; };
+      }
+      if (prop === 'getImageData') return () => ({ data: [] });
+      if (prop === 'canvas') return { width: 853, height: 480 };
+      return () => { counts[prop] = (counts[prop] || 0) + 1; };
+    },
+    set() { return true; }
+  });
+}
 function loadEngine() {
   const sandbox = { Math, Date, JSON, Object, Array, String, Number, Boolean, RegExp,
     isNaN, isFinite, parseInt, parseFloat, console,
@@ -34,12 +49,14 @@ function loadEngine() {
 }
 function splitFrame(ctx) {
   assert.doesNotThrow(() => ctx.draw(canvasStub(), 'bg'));
+  assert.doesNotThrow(() => ctx.draw(canvasStub(), 'sky'));
+  assert.doesNotThrow(() => ctx.draw(canvasStub(), 'city'));
   assert.doesNotThrow(() => ctx.draw(canvasStub(), 'fg'));
   const status = ctx.cityStatus(Date.now());
   assert.ok(status && status.title && status.dataLabel);
 }
 
-test('every finale survives a split background/foreground smoke frame', () => {
+test('every finale survives the four retained render layers', () => {
   const ctx = loadEngine();
   ctx.DEMO_APOC_SEC = 60;
   const finales = Array.from(new Set(Array.from(ctx.DEATHS).concat(['kaijuwar', 'pollution', 'moonfall'])));
@@ -48,6 +65,29 @@ test('every finale survives a split background/foreground smoke frame', () => {
     splitFrame(ctx);
     assert.match(ctx.cityStatus(Date.now()).title, /APOCALYPSE/);
   }
+});
+
+test('retained layers preserve every original drawing operation', () => {
+  const at = 1784219400000;
+  const whole = loadEngine();
+  whole.NOWOVR = at;
+  whole.FORCEAGE = 0.72;
+  const wholeCounts = {};
+  whole.draw(countingCanvas(wholeCounts));
+
+  const split = loadEngine();
+  split.NOWOVR = at;
+  split.FORCEAGE = 0.72;
+  const splitCounts = {};
+  for (const pass of ['bg', 'sky', 'city', 'fg']) split.draw(countingCanvas(splitCounts), pass);
+
+  // Layer canvases require their own transform/clear calls. All visible primitives and paths
+  // must otherwise match the original monolithic frame exactly—no feature may disappear.
+  delete wholeCounts.setTransform;
+  delete splitCounts.setTransform;
+  delete wholeCounts.clearRect;
+  delete splitCounts.clearRect;
+  assert.deepStrictEqual(splitCounts, wholeCounts);
 });
 
 test('long-running story arcs expose a clear status and render without throwing', () => {
