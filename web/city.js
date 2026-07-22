@@ -15700,6 +15700,10 @@ function draw(g,pass){
   if(!nukeFull()) drawCivicPolicy(g,L,now);              // the winning party's visible policies (solar/cameras/cranes/yard signs)
   if(!nukeFull()) drawPartyLegacy(g,L,now);              // the PERSISTENT, stacking marks of every party that has governed this life
   }
+  // Static streetscape belongs in the retained city cache. Keeping these out of the fast
+  // foreground pass prevents signage and billboard text from being repainted at motion cadence.
+  if(!nukeFull()) drawStreetSigns(g,L,now);
+  if(cityG>0.45) drawCorpAds(g,L,now,night);
   if(pass==="city") return;
   drawMonorailService(g,L,now);                         // voted top tram: live, world-continuous across screens
   // Stations, riders, and trains stay in the fast live layer: nothing structural covers them and
@@ -15708,7 +15712,6 @@ function draw(g,pass){
   // street furniture + the people using it (lamps, benches, bus stops, carts…) — on the sidewalk
   if(cityG>0.3 && !nukeFull()) drawStreetProps(g,L,now,night);   // street furniture + the people at them — gone
   if(!nukeFull()) drawGreenery(g,L,now);                 // base street trees, ivy on brick, curb weeds — nature softening the grid
-  if(!nukeFull()) drawStreetSigns(g,L,now);              // corner street/stop signs + hanging shop signs
   // snowmen the neighbourhood builds while the snow lies on the ground
   if(fx.snow && cityG>0.3){ for(var swi=0;swi<6;swi++){ var swh=((swi*2654435761+4113)>>>0), swwx=swh%WW, swx=swwx-WOFF;
     if(swx>SW+4&&swx-WW>-4) swx-=WW; if(swx<-4&&swx+WW<SW+4) swx+=WW;
@@ -16173,7 +16176,6 @@ function draw(g,pass){
   drawRegime(g,L,now,night);                                 // …or THE ORDER's banners + statue when democracy has fallen
   drawPlague(g,L,now,night);                                 // …or THE PLAGUE's field hospitals + ambulances (mutually exclusive with the regime)
   drawFestival(g,L,now,night);                               // …or THE FESTIVAL's great wheel + fairgrounds (mutually exclusive with war/regime/plague)
-  if(cityG>0.45) drawCorpAds(g,L,now,night);                 // street billboards for the current companies (corporate ad presence)
   drawFootballTossers(g,L,now);                              // Bills days: people playing catch with a football in the street
 
   // ---- THE GRAND CATACLYSM ends the city's life every ~month, then it's reborn as wilderness ----
