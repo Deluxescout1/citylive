@@ -7864,6 +7864,14 @@ function P_step(pop, tick, lifeSeed, bldgDead, econ, evt){
     if(succ){ succ.office=2; econ.mayor=succ.idx; econ.mayorGen=succ.gen; if(lr) lr.succeeded=true; }
     else { econ.mayor=-1; econ.mayorGen=-1; }
   }
+  // mid-term RECALL (one truth): a scandal-ridden mayor is thrown out at ~half-term; the runner-up takes
+  // City Hall for the rest of the term. The office actually moves in the sim, so HUD == menu == Chronicle.
+  var cr=econ.elecRecords.length?econ.elecRecords[econ.elecRecords.length-1]:null;
+  if(cr && cr.recalled && !cr.applied && tick>=cr.recallTick){
+    cr.applied=true;
+    var cm=P_ref(pop, econ.mayor, econ.mayorGen), ru=(cr.runnerIdx>=0)?P_ref(pop, cr.runnerIdx, cr.runnerGen):null;
+    if(cm && ru){ cm.office=0; ru.office=2; econ.mayor=ru.idx; econ.mayorGen=ru.gen; cr.ousted=true; }
+  }
 
   if(doElect){
     var mx=Math.max(v[0],v[1],v[2],v[3]), win=v.indexOf(mx), total=v[0]+v[1]+v[2]+v[3];
@@ -7874,10 +7882,13 @@ function P_step(pop, tick, lifeSeed, bldgDead, econ, evt){
       else if(sc>rs){ rs=sc; runner=k; runP=c.party; } }
     if(econ.mayor>=0 && P_ref(pop,econ.mayor,econ.mayorGen)) pop[econ.mayor].office=0;
     if(best>=0){ pop[best].office=2; econ.mayor=best; econ.mayorGen=pop[best].gen; econ.winParty=win; econ.elections=(econ.elections||0)+1;
-      econ.elecRecords.push({ term:Math.round(tick/termLen),
+      var eterm=Math.round(tick/termLen);
+      var recH=P_hash((lifeSeed ^ (((eterm+3)*19349663)>>>0) ^ 0x2545F491)>>>0);   // this term's scandal/recall roll (owned by the sim → one truth)
+      econ.elecRecords.push({ term:eterm,
         winnerIdx:best, winnerGen:pop[best].gen, winnerPid:pop[best].idx*1024+pop[best].gen, winnerName:P_name(pop[best]), winnerParty:win, winnerJob:P_job(pop[best]).label,
         runnerIdx:runner, runnerGen:runner>=0?pop[runner].gen:-1, runnerName:runner>=0?P_name(pop[runner]):'', runnerParty:runP,
-        votes:[v[0],v[1],v[2],v[3]], totalVotes:total, share:total?Math.round(v[win]/total*100):52, tick:tick, succeeded:false });
+        votes:[v[0],v[1],v[2],v[3]], totalVotes:total, share:total?Math.round(v[win]/total*100):52, tick:tick, succeeded:false,
+        recalled:(runner>=0 && (recH%100)<10), recallTick:Math.round((eterm+0.5)*termLen), applied:false, ousted:false });   // ~10% of terms end in a recall (needs a runner-up to install)
       if(econ.elecRecords.length>16) econ.elecRecords.shift(); }
   }
   econ.tick=tick;
@@ -7976,7 +7987,9 @@ function peopleElectionState(lifeIndex, cy){
     mayorName: m?P_name(m):null, mayorPid: m?(m.idx*1024+m.gen):-1,     // vacant → null (consistent with the Citizens menu)
     mayorParty: m?m.party:(cur?cur.winnerParty:-1), mayorJob: m?P_job(m).label:(cur?cur.winnerJob:null),
     loseName: cur?cur.runnerName:null, loseParty: cur?cur.runnerParty:-1,
-    share: cur?cur.share:0, succeeded: !!(cur&&cur.succeeded), elections: C.econ.elections };
+    share: cur?cur.share:0, succeeded: !!(cur&&cur.succeeded),
+    recalled: !!(cur&&cur.recalled), ousted: !!(cur&&cur.ousted), winnerName: cur?cur.winnerName:null, winnerParty: cur?cur.winnerParty:-1,
+    elections: C.econ.elections };
 }
 // ===================== end THE PEOPLE — CITIZEN SIM =====================
 
@@ -11551,7 +11564,22 @@ function mayorState(now){
     recalled:recalled, ousted:false,
     measures:termMeasures(li,term),                 // props decided at THIS term's election (already law)
     nextMeasures:termMeasures(li,term+1) };          // props on the ballot in the upcoming race (campaign signage)
-  if(recalled && tf>=recallCy){                      // the mayor is thrown out mid-term — the RIVAL party takes City Hall for the rest of the term (a consequence you can watch: party policies flip)
+  // THE PEOPLE (Stage 4b): ONE political truth. Keep all the drama above; replace only WHO — the mayor
+  // IS the citizen the sim elected this term (same person on the HUD, the Citizens menu, and the
+  // Chronicle). Folded with explicit (li,cy) so it's freeze-safe. Vacant → keep the abstract fallback.
+  var es=(typeof peopleElectionState==='function')?peopleElectionState(li, cg2.cy):null;
+  if(es && (es.mayorName || es.winnerName)){
+    // WHO: the sim already moved the office on recall/succession, so es.mayorName is the CURRENT holder.
+    M.winName=es.mayorName||es.winnerName; if(es.loseName) M.loseName=es.loseName;
+    var wp=es.hasMayor?es.mayorParty:es.winnerParty;
+    if(wp>=0){ M.party=PARTIES[wp]; M.electedParty=PARTIES[(es.ousted?es.winnerParty:wp)]; }   // electedParty = who won the vote; party = who holds City Hall now
+    if(es.loseParty>=0) M.party2=PARTIES[es.loseParty];
+    if(es.share) M.share=es.share; M.mayorPid=es.mayorPid; M.mayorJob=es.mayorJob;
+    // RECALL/scandal drama now comes from the sim (one truth). Keep the tf-based windows for WHEN the
+    // scandal/recall-vote banners show; the OUTCOME (ousted + who holds office) is already applied above.
+    M.scandalTerm=es.recalled; M.recalled=es.recalled; M.ousted=es.ousted;
+    M.scandal=(es.recalled && tf>0.34 && tf<0.60); M.recallVote=(es.recalled && tf>=0.47 && tf<0.58);
+  } else if(recalled && tf>=recallCy){               // no sim mayor (early/vacant) → the old abstract recall
     M.party=PARTIES[aWins?pj:pi]; M.winName=aWins?bName:aName; M.ousted=true; }
   if(FORCEELECT){                                    // test hook: pin party / phase / candidates / scandal for render tests
     if(FORCEELECT.partyK) for(var pk=0;pk<PARTIES.length;pk++){ if(PARTIES[pk].k===FORCEELECT.partyK) M.party=PARTIES[pk]; }
