@@ -7651,7 +7651,7 @@ var P_LIFE_TICKS=900;        // ticks per full city-life (bounds the cold fold)
 var P_ELECT_EVERY=90;        // ticks between municipal elections
 var P_ADULT=18, P_ELDER=62, P_MAXAGE=82, P_FERTILE_LO=24, P_FERTILE_HI=46;
 var P_KLABEL=['working poor','working class','professional','wealthy'];
-var P_PARTY=['Green Party','Blue Party','Red Party','Independents'];
+var P_PARTY=['Builders','Greens','Safety','Transit'];   // index 0-3 maps to the engine PARTIES[].k (one political truth)
 
 // ---- data (injected from the offloaded JSON at splice time) ----
 var JOB_TAX=[
@@ -7786,7 +7786,10 @@ function P_step(pop, tick, lifeSeed, bldgDead, econ, evt){
   var employed=0, wforce=0, wealthSum=0, poor=0, working=0, prof=0, rich=0, alive=0;
   var newCrime=0, deaths=0, births=0;
   var v=[0,0,0,0];
-  var doElect = tick>0 && (tick%P_ELECT_EVERY)===0;
+  // elections land on the ENGINE's mayoral-term boundaries (TERM of a life) — ONE political truth, so the
+  // HUD/almanac/Chronicle mayor is exactly this elected citizen and never flips mid-term (SOL P0).
+  var termLen = ((typeof TERM!=='undefined'?TERM:0.18) * P_LIFE_TICKS) || 162;
+  var doElect = tick>0 && (Math.floor(tick/termLen) > Math.floor((tick-1)/termLen));
   var prevRich = econ.richPct||0;                          // prior-tick inequality signal (SOL P2: no index bias)
 
   for(var i=0;i<N;i++){
@@ -7800,8 +7803,10 @@ function P_step(pop, tick, lifeSeed, bldgDead, econ, evt){
     if(p.spouse>=0 && !P_ref(pop,p.spouse,p.spouseGen)){ p.spouse=-1; p.spouseGen=-1; }
 
     p.age++;
-    // natural death (+ disaster in home district)
-    var dP = p.age>p.maxAge ? 0.22 : p.age>p.maxAge-10 ? 0.02 : p.age>P_ELDER ? 0.004 : 0.0004;
+    // natural death (+ disaster in home district). The sitting MAYOR serves out the term — no natural
+    // death (a term is longer than a lifespan, so this keeps the office stable & the HUD name from
+    // flipping mid-term, SOL P0); a disaster can still take them (dramatic, rare).
+    var dP = (p.office===2) ? 0 : (p.age>p.maxAge ? 0.22 : p.age>p.maxAge-10 ? 0.02 : p.age>P_ELDER ? 0.004 : 0.0004);
     if(e.disK.length){ for(var d=0;d<e.disK.length;d++){ if(p.home===e.disK[d]){ dP+=0.14; break; } } }
     if(r()<dP){ p.alive=false; deaths++;
       P_deadPush(econ, pop, p, tick);                     // remember the deceased (in memoriam)
@@ -7851,15 +7856,29 @@ function P_step(pop, tick, lifeSeed, bldgDead, econ, evt){
   econ.crimeTotal = (econ.crimeTotal||0) + newCrime;       // cumulative this life
   econ.crimeRecent = newCrime; econ.births=(econ.births||0)+births; econ.deaths=(econ.deaths||0)+deaths;
 
-  // mayor validity: a dead mayor vacates immediately (SOL P1)
-  if(econ.mayor>=0 && !P_ref(pop, econ.mayor, econ.mayorGen)){ econ.mayor=-1; econ.mayorGen=-1; }
+  // mayor validity + SUCCESSION: a dead mayor is replaced by the term's runner-up if still living,
+  // else the office falls vacant (SOL P1: death must not silently empty the office).
+  if(econ.mayor>=0 && !P_ref(pop, econ.mayor, econ.mayorGen)){
+    var lr=econ.elecRecords.length?econ.elecRecords[econ.elecRecords.length-1]:null;
+    var succ=(lr && lr.runnerIdx>=0)?P_ref(pop, lr.runnerIdx, lr.runnerGen):null;
+    if(succ){ succ.office=2; econ.mayor=succ.idx; econ.mayorGen=succ.gen; if(lr) lr.succeeded=true; }
+    else { econ.mayor=-1; econ.mayorGen=-1; }
+  }
 
   if(doElect){
-    var mx=Math.max(v[0],v[1],v[2],v[3]), win=v.indexOf(mx);
-    var best=-1, bs=-1;                                     // winning party's most prominent living adult
-    for(var k=0;k<N;k++){ var c=pop[k]; if(c.alive && c.party===win && c.age>=P_ADULT && c.bornTick<=tick){ var sc=c.conv*100+c.wealth*0.5+c.age; if(sc>bs){ bs=sc; best=k; } } }
+    var mx=Math.max(v[0],v[1],v[2],v[3]), win=v.indexOf(mx), total=v[0]+v[1]+v[2]+v[3];
+    var best=-1, bs=-1, runner=-1, rs=-1, runP=-1;          // winner (top of winning party) + runner-up (top challenger, any losing party)
+    for(var k=0;k<N;k++){ var c=pop[k]; if(!(c.alive && c.age>=P_ADULT && c.bornTick<=tick)) continue;
+      var sc=c.conv*100+c.wealth*0.5+c.age;
+      if(c.party===win){ if(sc>bs){ bs=sc; best=k; } }
+      else if(sc>rs){ rs=sc; runner=k; runP=c.party; } }
     if(econ.mayor>=0 && P_ref(pop,econ.mayor,econ.mayorGen)) pop[econ.mayor].office=0;
-    if(best>=0){ pop[best].office=2; econ.mayor=best; econ.mayorGen=pop[best].gen; econ.winParty=win; econ.elections=(econ.elections||0)+1; }
+    if(best>=0){ pop[best].office=2; econ.mayor=best; econ.mayorGen=pop[best].gen; econ.winParty=win; econ.elections=(econ.elections||0)+1;
+      econ.elecRecords.push({ term:Math.round(tick/termLen),
+        winnerIdx:best, winnerGen:pop[best].gen, winnerPid:pop[best].idx*1024+pop[best].gen, winnerName:P_name(pop[best]), winnerParty:win, winnerJob:P_job(pop[best]).label,
+        runnerIdx:runner, runnerGen:runner>=0?pop[runner].gen:-1, runnerName:runner>=0?P_name(pop[runner]):'', runnerParty:runP,
+        votes:[v[0],v[1],v[2],v[3]], totalVotes:total, share:total?Math.round(v[win]/total*100):52, tick:tick, succeeded:false });
+      if(econ.elecRecords.length>16) econ.elecRecords.shift(); }
   }
   econ.tick=tick;
 }
@@ -7880,7 +7899,7 @@ function P_fold(lifeIndex, toTick, evt){
   for(var i=0;i<PEOPLE_N;i++) pop[i]=P_make(lifeSeed, i, 0, P_arriveTick(i,lifeSeed), null);
   var bldgDead=new Array(P_NBLDG); for(var z=0;z<P_NBLDG;z++) bldgDead[z]=0;   // QML V4: no Array.fill
   var econ={alive:0,unemp:0,gdp:0,avgWealth:0,poorPct:0,workingPct:0,profPct:0,richPct:0,
-    crimeTotal:0,crimeRecent:0,births:0,deaths:0,mayor:-1,mayorGen:-1,winParty:-1,elections:0,tick:-1,deadLedger:[]};
+    crimeTotal:0,crimeRecent:0,births:0,deaths:0,mayor:-1,mayorGen:-1,winParty:-1,elections:0,tick:-1,deadLedger:[],elecRecords:[]};
   for(var t=0;t<=toTick;t++) P_step(pop,t,lifeSeed,bldgDead,econ, evt||P_defaultEvents);
   return {pop:pop, econ:econ, bldgDead:bldgDead, lifeSeed:lifeSeed};
 }
@@ -7947,6 +7966,18 @@ function peopleRoster(now, lifeIndex, cy, evt){
   return { living:living, dead:dead, mayor:mayor, stats:stats, cy:cy };
 }
 function peopleStats(now, lifeIndex, cy, evt){ return peopleRoster(now,lifeIndex,cy,evt).stats; }
+// narrow election API for mayorState (SOL): folds with EXPLICIT (li,cy) — never peopleRoster(now) which
+// clamps to tick 0 — and avoids building/sorting the whole roster. Returns the current term's record +
+// the LIVE office-holder (which may be a successor after a mid-term death).
+function peopleElectionState(lifeIndex, cy){
+  var C=P_sim(lifeIndex, cy), recs=C.econ.elecRecords, cur=recs.length?recs[recs.length-1]:null;
+  var m=(C.econ.mayor>=0 && P_ref(C.pop,C.econ.mayor,C.econ.mayorGen))?C.pop[C.econ.mayor]:null;
+  return { rec:cur, hasMayor:!!m,
+    mayorName: m?P_name(m):null, mayorPid: m?(m.idx*1024+m.gen):-1,     // vacant → null (consistent with the Citizens menu)
+    mayorParty: m?m.party:(cur?cur.winnerParty:-1), mayorJob: m?P_job(m).label:(cur?cur.winnerJob:null),
+    loseName: cur?cur.runnerName:null, loseParty: cur?cur.runnerParty:-1,
+    share: cur?cur.share:0, succeeded: !!(cur&&cur.succeeded), elections: C.econ.elections };
+}
 // ===================== end THE PEOPLE — CITIZEN SIM =====================
 
 // ============ THE PEOPLE — WORLD BINDING + EMBODIMENT (v2.0 Stage 3) ============
