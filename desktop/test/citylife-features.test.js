@@ -78,6 +78,25 @@ test('animated shoreline foam is clamped to the ocean side of dirt', () => {
   assert.match(sea, /Math\.max\(ex\+1,bx2\+2\)/, 'right-coast breakers must stay seaward');
 });
 
+test('signage is staged, aligned, and kept clear of neighboring billboards', () => {
+  const source = fs.readFileSync(ENGINE, 'utf8');
+  const signs = source.slice(source.indexOf('function drawStreetSigns'), source.indexOf('function drawStreetProps'));
+  assert.match(signs, /signProg=Math\.max/);
+  assert.match(signs, /if\(signProg<0\.55\) continue/);
+  assert.match(signs, /if\(bladeW>=5\)/, 'street-name text should wait for a readable face');
+  assert.match(signs, /buildingSignProg/);
+  const ads = source.slice(source.indexOf('function drawCorpAds'), source.indexOf('function drawBillsAds'));
+  assert.match(ads, /occupied=\[\]/);
+  assert.match(ads, /if\(overlaps\) continue/);
+});
+
+test('ocean edges include a visible beach band above the water layer', () => {
+  const source = fs.readFileSync(ENGINE, 'utf8');
+  assert.match(source, /bw2=5\+Math\.round\(dp2\*5\)/);
+  const qml = fs.readFileSync(path.join(__dirname, '..', '..', 'org.citylive.wallpaper/contents/ui/main.qml'), 'utf8');
+  assert.match(qml, /id: watercv[\s\S]{0,80}z: 4\.5/);
+});
+
 test('road heat shimmer cannot resemble full-width ocean waves', () => {
   const source = fs.readFileSync(ENGINE, 'utf8');
   const shimmer = source.slice(source.indexOf('function drawShimmer'), source.indexOf('// 2. the FISHING FLEET'));

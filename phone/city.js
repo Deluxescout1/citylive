@@ -5868,23 +5868,29 @@ function drawGreenery(g,L,now){
 // signs on the commercial blocks (neon-lit in a neon age, hand-painted otherwise). Works in every era.
 function drawStreetSigns(g,L,now){
   if(cityG<0.42||!near||!near.blds) return; var day=L>0.5;
-  for(var i=0;i<crosswalks.length;i++){ var cw=crosswalks[i]; if(!cwInst(cw)) continue;
+  for(var i=0;i<crosswalks.length;i++){ var cw=crosswalks[i], signAt=0.34+((cw.seed%997)/997)*0.2;
+    var signProg=Math.max(0,Math.min(1,(cityG-signAt)/0.075)); if(signProg<=0) continue;
     var sx=cw.x-WOFF, h=(cw.seed>>>0);
     for(var wrp=-1;wrp<=1;wrp++){ var CX=(sx+wrp*WW)|0; if(CX<-8||CX>SW+8) continue;
-      var pole=CX-7; g.fillStyle=day?"#2a2d36":"#12141a"; g.fillRect(pole,HORIZON-9,1,9);            // sign pole
-      if((h%4)<3){ g.fillStyle="#2a7a48"; g.fillRect(pole-3,HORIZON-10,7,2);                          // green street-name blade
-        g.fillStyle="#eef4ee"; g.fillRect(pole-2,HORIZON-10,1,1); g.fillRect(pole,HORIZON-10,1,1); g.fillRect(pole+2,HORIZON-10,1,1); }
-      else { g.fillStyle="#c0342a"; g.fillRect(pole-2,HORIZON-10,4,3); g.fillStyle="#eef4ee"; g.fillRect(pole-1,HORIZON-9,2,1); }   // red STOP sign
+      var pole=CX-7, poleH=Math.max(2,Math.round(9*signProg)), signY=HORIZON-1-poleH;
+      g.fillStyle=day?"#2a2d36":"#12141a"; g.fillRect(pole,signY,1,poleH);                           // installed pole rises first
+      if(signProg<0.55) continue;                                                                       // blade arrives after the post crew
+      var bladeW=Math.max(2,Math.round(7*Math.min(1,(signProg-0.55)/0.45)));
+      if((h%4)<3){ g.fillStyle="#2a7a48"; g.fillRect(pole-(bladeW>>1),signY-1,bladeW,2);             // green street-name blade
+        if(bladeW>=5){ var labelY=signY-1; g.fillStyle="#eef4ee"; g.fillRect(pole-2,labelY,1,1); g.fillRect(pole,labelY,1,1); g.fillRect(pole+2,labelY,1,1); } }
+      else { g.fillStyle="#c0342a"; g.fillRect(pole-(bladeW>>1),signY-2,bladeW,3); g.fillStyle="#eef4ee"; g.fillRect(pole-1,signY-1,2,1); } // red STOP sign
     }
   }
   for(var bi=0;bi<near.blds.length;bi++){ var b=near.blds[bi]; if(b.type==="park") continue;
     var d2=b.district; if(d2!=="downtown"&&d2!=="entertainment"&&d2!=="oldtown") continue;
     if(((b.seed>>>7)%3)!==0) continue;
+    var buildingSignAt=(b.bAge==null?0.44:Math.max(0.44,b.bAge+0.055));
+    var buildingSignProg=Math.max(0,Math.min(1,(cityG-buildingSignAt)/0.08)); if(buildingSignProg<=0) continue;
     var bx=(b.x-WOFF); if(bx<-6||bx>SW+6) continue;
-    var hx=bx+2, hy=HORIZON-7, col=NEON[(b.seed>>2)%NEON.length];
+    var hx=bx+2, hy=HORIZON-7, col=NEON[(b.seed>>2)%NEON.length], sh=Math.max(1,Math.round(3*buildingSignProg));
     g.fillStyle=day?"#3a3e46":"#1a1c22"; g.fillRect(hx,hy-1,1,1);                                     // wall bracket
-    g.fillStyle=(cityEra.neon&&L<0.6)?col:(day?"#c9a04a":"#5a4a2a"); g.fillRect(hx-2,hy,4,3);         // hanging shingle sign
-    if(cityEra.neon&&L<0.6){ g.globalCompositeOperation="lighter"; g.fillStyle=rgba(hex2rgb(col),0.45); g.fillRect(hx-2,hy,4,3); g.globalCompositeOperation="source-over"; }
+    g.fillStyle=(cityEra.neon&&L<0.6)?col:(day?"#c9a04a":"#5a4a2a"); g.fillRect(hx-2,hy+3-sh,4,sh);    // shingle lowers into place
+    if(cityEra.neon&&L<0.6&&buildingSignProg>0.65){ g.globalCompositeOperation="lighter"; g.fillStyle=rgba(hex2rgb(col),0.45); g.fillRect(hx-2,hy+3-sh,4,sh); g.globalCompositeOperation="source-over"; }
   }
 }
 function drawStreetProps(g,L,now,night){
@@ -7357,7 +7363,7 @@ function drawOpenSea(g,L,now,night){
       for(var sy=wTop;sy<wTop+depth;sy++){                     // the BEACH — a meandering, lapping shoreline
         var dp2=(sy-wTop)/depth;
         var curve=Math.sin(sy*0.16+A*0.3)*1.6+Math.sin(sy*0.05+1.7)*2.2;     // the coast wanders as it nears
-        var bx2=Math.round(ex+curve*(0.35+dp2)), bw2=3+((sy*7)%2);           // beach widens subtly downward
+        var bx2=Math.round(ex+curve*(0.35+dp2)), bw2=5+Math.round(dp2*5)+((sy*7)%2); // broad visible beach widens toward the viewer
         g.fillStyle=css(sand); g.fillRect(side>0?bx2:bx2-bw2,sy,bw2,1);      // dry sand
         g.fillStyle=rgba(sand,0.45); g.fillRect(side>0?bx2+bw2:bx2-bw2-2,sy,2,1);   // fades into the grass
         g.fillStyle=css(wet); g.fillRect(side>0?bx2-1:bx2+1-1,sy,1,1);       // wet sand at the waterline
@@ -8628,7 +8634,7 @@ function adMountAt(wx){
 function drawCorpAds(g,L,now,night){
   if(curBills){ drawBillsAds(g,L,now,night); return; }   // gameday: the boulevards go Bills
   if(nukeStruck()) return;
-  var C=curCorps;
+  var C=curCorps, occupied=[];
   for(var i=0;i<CORP_AD_X.length;i++){
     var wx=Math.round(CORP_AD_X[i]*WW), sx=disX(wx); if(sx<-70||sx>SW+70) continue;
     var live=[]; if(C&&C.cos) for(var j=0;j<C.cos.length;j++){ if(!C.cos[j].bankrupt&&C.cos[j].size>=0.12) live.push(C.cos[j]); }
@@ -8653,6 +8659,10 @@ function drawCorpAds(g,L,now,night){
       // GROUND billboard: framed panel on two stout legs (classic highway hoarding)
       mount="ground"; py=HORIZON-ph-13; x0=(sx-(pw>>1))|0;
     }
+    var overlaps=false;
+    for(var oi=0;oi<occupied.length;oi++){ var op=occupied[oi]; if(x0-3<op.x+op.w+3 && x0+pw+3>op.x-3){ overlaps=true; break; } }
+    if(overlaps) continue; // leave a clear gap between adjacent faces
+    occupied.push({x:x0,w:pw});
     if(mount!=="facade"){
       var legC=L>0.5?"#6a6152":"#2c2620", legY0=py+ph+2, legY1=(mount==="roof")?((HORIZON-b.h)|0):HORIZON;
       g.fillStyle=legC; g.fillRect(x0+2,legY0,2,Math.max(1,legY1-legY0)); g.fillRect(x0+pw-4,legY0,2,Math.max(1,legY1-legY0));
@@ -8683,6 +8693,7 @@ function drawCorpAds(g,L,now,night){
 // panel now roars for the Bills — royal-blue board, red rails, a rotating chant, glowing at night.
 function drawBillsAds(g,L,now,night){
   if(nukeStruck()) return;
+  var occupied=[];
   for(var i=0;i<CORP_AD_X.length;i++){
     var wx=Math.round(CORP_AD_X[i]*WW), sx=disX(wx); if(sx<-70||sx>SW+70) continue;
     var msg=BILLS_SLOGANS[(((i*3+Math.floor(now/6000))%BILLS_SLOGANS.length)+BILLS_SLOGANS.length)%BILLS_SLOGANS.length];
@@ -8694,6 +8705,10 @@ function drawBillsAds(g,L,now,night){
       x0=Math.max(bx+2,Math.min(bx+b.w-pw-2,(sx-(pw>>1))|0));
     } else if(b && b.w>=14){ mount="roof"; py=(HORIZON-b.h-15)|0; x0=(sx-(pw>>1))|0; }
     else { mount="ground"; py=HORIZON-24; x0=(sx-(pw>>1))|0; }
+    var overlaps=false;
+    for(var oi=0;oi<occupied.length;oi++){ var op=occupied[oi]; if(x0-3<op.x+op.w+3 && x0+pw+3>op.x-3){ overlaps=true; break; } }
+    if(overlaps) continue;
+    occupied.push({x:x0,w:pw});
     if(mount!=="facade"){
       var legC=L>0.5?"#6a6152":"#2c2620", legY0=py+11, legY1=(mount==="roof")?((HORIZON-b.h)|0):HORIZON;
       g.fillStyle=legC; g.fillRect(x0+2,legY0,2,Math.max(1,legY1-legY0)); g.fillRect(x0+pw-4,legY0,2,Math.max(1,legY1-legY0));

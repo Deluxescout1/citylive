@@ -137,7 +137,7 @@ WallpaperItem {
 
     Canvas {
         id: watercv
-        z: 3.5
+        z: 4.5
         width: bgcv.width; height: bgcv.height
         smooth: root.fractionalDpr; antialiasing: false
         renderTarget: Canvas.FramebufferObject; renderStrategy: Canvas.Threaded
