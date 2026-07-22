@@ -4354,12 +4354,29 @@ function regimeCityName(){
   var base=cityName.split(" ")[0]; if(base.length>6) base=base.slice(0,5);
   return base+["GRAD","BURG","POLIS","STADT"][((R.seed||0)>>>13)%4];
 }
-function drawSkyClock(g,nd,L){
+// Urgent town-wide timing belongs beside the town name, not in another floating panel. Local
+// disasters take temporary priority; otherwise the mature city's fated end counts down here.
+function townBarUpdate(now){
+  if(curDis){
+    var left=Math.max(0,DIS_DUR-(curDis.tp!=null?curDis.tp:(curDis.f||0)*DIS_DUR));
+    var phase=(curDis.f||0)<0.10?"WARNING":(curDis.f||0)<0.50?("CAT-"+curDis.intensity+" "+DIS_NAME[curDis.type]):(curDis.ruin?"DISTRICT LOST":(curDis.f||0)<0.95?"REBUILDING":"CLEARED");
+    return {text:phase+" "+fmtCountdown(left), urgent:(curDis.f||0)<0.50};
+  }
+  var cg=cityGrowth(now);
+  if(cg.phase==="peak"){
+    var dt=apocAtOf(now)-now, fate=(DEATH_LABEL[curDeath]||curDeath||"CATACLYSM").toUpperCase();
+    return {text:fate+" "+fmtCountdown(dt), urgent:dt<10*60000};
+  }
+  if(cg.phase==="apoc") return {text:(DEATH_LABEL[curDeath]||curDeath||"CATACLYSM").toUpperCase()+" NOW",urgent:true};
+  return null;
+}
+function drawSkyClock(g,nd,L,now){
   var h=nd.getHours(), mi=nd.getMinutes(), h12=(h%12)||12, ap=h<12?"AM":"PM";
   var str=h12+":"+(mi<10?"0":"")+mi+" "+ap+"  "+DAYS3[nd.getDay()]+" "+MONS3[nd.getMonth()]+" "+nd.getDate();
   var sc=2, tw=(str.length*4-1)*sc, x=((SW-tw)/2)|0, y=6;
   var rgName=regimeCityName();
   var l2=rgName ? (rgName+(regimeBills()?" - BILLS COUNTRY":" - CAPITAL OF THE ORDER")) : (cityName+"  POP "+popFmt(cityPop()));
+  var townUpdate=townBarUpdate(now); if(townUpdate) l2+=" - "+townUpdate.text;
   var tw2=(l2.length*4-1), x2=((SW-tw2)/2)|0, y2=y+5*sc+4;
   var l3=wxHudLine();                                          // current + projected weather
   var tw3=(l3.length*4-1), x3=((SW-tw3)/2)|0, y3=y2+5+3;
@@ -4383,13 +4400,14 @@ function drawSkyClock(g,nd,L){
   // --- legibility shadow, then tinted text ---
   drawUiText(g,str,x+1,y+1,"rgba(0,0,0,0.5)",sc);
   drawUiText(g,str,x,y,"rgba(228,250,255,0.97)",sc);           // time — bright cyan-white
-  drawUiText(g,l2,x2,y2,rgName?"rgba(255,120,120,0.95)":"rgba(255,150,220,0.92)",1);   // city + pop — neon magenta (crimson under THE ORDER)
+  var townCol=townUpdate?(townUpdate.urgent?"rgba(255,100,100,0.98)":"rgba(255,190,110,0.96)"):(rgName?"rgba(255,120,120,0.95)":"rgba(255,150,220,0.92)");
+  drawUiText(g,l2,x2,y2,townCol,1);                            // city + pop + civic emergency timer
   if(l3) drawUiText(g,l3,x3,y3,"rgba(152,226,242,0.9)",1);     // weather — neon cyan
   // --- additive neon bloom ---
   g.globalCompositeOperation="lighter";
   drawUiText(g,str,x,y,"rgba(60,190,255,"+(0.24*pulse)+")",sc);
   drawUiText(g,str,x,y-1,"rgba(70,200,255,0.09)",sc);
-  drawUiText(g,l2,x2,y2,rgName?"rgba(255,40,40,"+(0.18*pulse)+")":"rgba(255,80,200,"+(0.16*pulse)+")",1);
+  drawUiText(g,l2,x2,y2,townUpdate?(townUpdate.urgent?"rgba(255,45,45,"+(0.22*pulse)+")":"rgba(255,150,40,"+(0.18*pulse)+")"):(rgName?"rgba(255,40,40,"+(0.18*pulse)+")":"rgba(255,80,200,"+(0.16*pulse)+")"),1);
   if(l3) drawUiText(g,l3,x3,y3,"rgba(70,210,235,"+(0.16*pulse)+")",1);
   g.globalCompositeOperation="source-over";
 }
@@ -16284,11 +16302,10 @@ function draw(g,pass){
     for(var af=0;af<48;af++){ var ax=((af*97+now*0.03)%SW), ay=((af*53+now*0.05)%SH);
       g.fillStyle="rgba(140,128,120,"+(0.55*apocVeil)+")"; g.fillRect(ax|0,ay|0,1,1); } }   // drifting ash
 
-  drawSkyClock(g,nd,L);   // local time & date in the sky, top-centre of every monitor
+  drawSkyClock(g,nd,L,now);   // local time, town name, weather + civic emergency timer, top-centre
   drawCivicHud(g,now,night);   // who runs the city + approval + mandates + next-vote countdown, top-right
   drawRegimeHud(g,now,night);  // THE ORDER — the unmistakable alert banner while the takeover is underway
   drawPlagueHud(g,now,night);  // THE PLAGUE — the amber medical alert banner while the pandemic rages
   drawFestivalHud(g,now,night);// THE FESTIVAL — the celebratory gold expo banner while the World's Fair is on
-  drawDoomClock(g,now,night);  // top-left: the exact time this city's fated end will strike, so nobody misses it
   drawApocReplayHud(g,apocRealNow,night);  // if the PC slept through a cataclysm: a countdown, then a REPLAY of the end you missed
 }

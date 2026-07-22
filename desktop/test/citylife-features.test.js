@@ -51,6 +51,24 @@ test('the intrusive live-feed panel is absent from every host surface', () => {
   }
 });
 
+test('the town-name bar carries disaster and end-times countdowns', () => {
+  const ctx = loadEngine();
+  const now = 1784219400000;
+  ctx.curDis = { type:'tornado', intensity:4, f:0.25, tp:60000 };
+  let update = ctx.townBarUpdate(now);
+  assert.match(update.text, /CAT-4 TORNADO IN 3:00/);
+  assert.strictEqual(update.urgent, true);
+
+  ctx.curDis = null;
+  ctx.FORCEAGE = { g:1, phase:'peak', apoc:0, cy:0.90 };
+  ctx.curDeath = 'meteors';
+  update = ctx.townBarUpdate(now);
+  assert.match(update.text, /^METEOR STORM IN /);
+
+  const frame = fs.readFileSync(ENGINE, 'utf8').slice(fs.readFileSync(ENGINE, 'utf8').indexOf('function draw(g,pass)'));
+  assert.doesNotMatch(frame, /drawDoomClock\(g,now,night\)/, 'the old detached top-left timer must stay removed');
+});
+
 test('the billboard library contains exactly 50 distinct realistic campaigns', () => {
   const ctx = loadEngine();
   assert.strictEqual(ctx.AD_LIB.length, 50);
