@@ -5251,12 +5251,13 @@ function drawLayer(g,layer,L,now,fx,hol,haze){
 }
 
 // ---- elevated train line (always present) + train (on schedule) ----
-function drawTrainLine(g,L,now,fx){
+function drawTrainLine(g,L,now,fx,part){
   var twf=gstage(0.42,0.58); if(twf<=0) return;               // the viaduct is BUILT west→east across the world
   var built=WW*twf, bEnd=Math.min(SW,built-WOFF);             // how much of the line reaches this screen
   var ty=(HORIZON-Math.round(GROUND*1.1))|0;
   var night=1-L;
   var p0=Math.floor(WOFF/40)*40, blasted=nukeStruck();       // the nuke blows the viaduct apart span by span
+  if(part!=="service"){
   g.fillStyle=L>0.5?"#3a3346":"#12101c";
   for(var wx=p0; wx<WOFF+SW+40; wx+=40){ if(wx>built||(blasted&&nukeHit(wx))) continue; var sx=wx-WOFF;
     g.fillRect(sx-1, ty+3, 3, HORIZON-ty-3);
@@ -5294,6 +5295,8 @@ function drawTrainLine(g,L,now,fx){
       if((Math.floor(now/700))%2===0){ g.fillStyle="#ff4040"; g.fillRect(hx|0,ty-11,1,1); }
       drawPerson(g,(hx-3)|0,ty-1,"#c8742a",SKINC[1],(Math.floor(now/400))&1);   // hi-vis crew on the deck
     } }
+  }
+  if(part==="base") return;
   // the train itself — service begins once the line is complete
   var tr=(twf>=1 && (apocPositional() ? !apocFull() : apocKill<0.3))?trainNow(now):null;   // service runs until the wave/barrage takes the whole line (positional deaths break it per-span too)
   var trC=(tr&&tr.stopped)?(tr.x+tr.dir*36):null;               // a train is AT a platform (riders board)
@@ -15389,7 +15392,7 @@ function draw(g,pass){
     var chop=chopperNow(now); if(chop && !nukeHit(chop.x)) drawChopper(g,chop.x,chop.y,chop.dir,chop.rotor,L,now); }  // rooftop helipad chopper
 
   // elevated train line + scheduled train (mass transit arrives with the city)
-  drawTrainLine(g,L,now,fx);   // (self-gated: builds itself pillar by pillar)
+  drawTrainLine(g,L,now,fx,"base");   // supports/deck route behind important civic places
   drawLandmarks(g,L,now,night,nd);   // civic landmarks rip away individually as the blast front reaches each (see drawLandmarks)
   drawBuilds(g,L,now,night);         // permanent VOTED landmarks — still behind foreground traffic/people
   // Big LED news screens keep reporting disasters until their host tower is hit; never let the
@@ -15397,6 +15400,8 @@ function draw(g,pass){
   if(cityG>0.5) drawNewsScreens(g,L,now,night);
   drawSportsDistrict(g,L,now);       // the sports complex + jumbotrons draw IN FRONT of the viaduct so they're never hidden (Nick: "see everything")
   drawJumbotrons(g,L,now,night);     // the BIG rooftop news jumbotrons — in front of the viaduct now
+  // Stations, riders, and trains are the readable service layer: nothing structural may cover them.
+  drawTrainLine(g,L,now,fx,"service");
 
   // drones (deterministic world paths) — only over a developed city
   if(cityG>0.42) for(i=0;i<drones.length;i++){ var dr=drones[i];

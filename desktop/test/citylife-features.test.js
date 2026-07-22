@@ -97,8 +97,10 @@ test('major-event notifications filter minor disasters and expose eclipse days',
 test('the elevated train cannot cover important landmarks or information surfaces', () => {
   const source = fs.readFileSync(ENGINE, 'utf8');
   const frame = source.slice(source.indexOf('function draw(g,pass)'));
-  const train = frame.indexOf('drawTrainLine(g,L,now,fx)');
-  assert.ok(train >= 0, 'train draw call must remain in the main frame');
+  const train = frame.indexOf('drawTrainLine(g,L,now,fx,"base")');
+  const service = frame.indexOf('drawTrainLine(g,L,now,fx,"service")');
+  assert.ok(train >= 0, 'train base draw call must remain in the main frame');
+  assert.ok(service > train, 'station and train service layer must render after the viaduct');
   for (const protectedDraw of [
     'drawLandmarks(g,L,now,night,nd)',
     'drawBuilds(g,L,now,night)',
@@ -107,5 +109,6 @@ test('the elevated train cannot cover important landmarks or information surface
     'drawJumbotrons(g,L,now,night)'
   ]) {
     assert.ok(frame.indexOf(protectedDraw, train) > train, protectedDraw + ' must render in front of the train');
+    assert.ok(frame.indexOf(protectedDraw, train) < service, protectedDraw + ' must stay behind train stations');
   }
 });
