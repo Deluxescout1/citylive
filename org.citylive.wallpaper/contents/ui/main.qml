@@ -228,12 +228,12 @@ WallpaperItem {
     Timer {
         // Clouds need their own inexpensive cadence: tying them to the slow atmosphere cache made
         // several pixels of continuous drift appear all at once as a visible jump.
-        interval: root.quality === "performance" ? 200 : (root.quality === "balanced" ? 125 : 100)
+        interval: root.quality === "performance" ? 500 : (root.quality === "balanced" ? 333 : 200)
         running: root.visible; repeat: true
         onTriggered: cloudcv.requestPaint()
     }
     Timer {
-        interval: root.quality === "performance" ? 200 : (root.quality === "balanced" ? 150 : 100)
+        interval: root.quality === "performance" ? 500 : (root.quality === "balanced" ? 333 : 200)
         running: root.visible; repeat: true
         onTriggered: watercv.requestPaint()
     }
