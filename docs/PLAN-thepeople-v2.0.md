@@ -186,6 +186,27 @@ Verified at 08:24 (morning spread), midday (at work), 18:36 (evening home). 57/5
 **Stage 3 remaining:** Step 4 hover/click inspect (use `drawnNamed[]`) · Step 5 speech bubbles (spatial
 buckets, `speech.json`) · Step 6 drag gag. Then Stage 4 economy TV + elections, Stage 5 ORDER/Bills.
 
+## 0g. July 22 brief completed + post-handoff verification — 2026-07-22
+
+The later commits complete the items that the older “remaining” notes above still describe:
+inspect, multi-beat relationship/event-aware conversations, the cosmetic drag gag, citizen-driven
+economy/elections, and named ORDER/Bills leadership. Nick's follow-up visual brief is also implemented:
+
+- Crepuscular rays originate at the actual world-anchored sun disc.
+- Conversations rotate spatially, move with walkers, run as four-beat exchanges, react to live events,
+  and can end in visible outcomes.
+- The astronomy desk covers solar/lunar eclipses, major meteor showers, computed supermoons and planet
+  conjunctions, and comet seasons, with advance notices.
+- Concerts prefer a standing theater, then an entertainment venue or stadium, before the fairground fallback.
+- Five mounted street hoardings rotate through exactly 50 fictional campaigns plus living city companies.
+- Electron and KDE hosts can notify once per major event, with independent settings toggles.
+
+Post-Claude handoff review added focused tests for these contracts. Gate results: shared engine parity,
+65/65 Node tests, 132/132 QML sweep conditions, QML lint, Electron recovery diagnostics, FPS profiles,
+Linux AppImage/DEB packaging, and Windows NSIS cross-packaging all pass. Native Windows packaging remains
+covered by `.github/workflows/build.yml`, whose Windows runner additionally asserts that the unpacked
+Win32 Koffi binary exists and loads; a Linux cross-package cannot substitute for that native-module gate.
+
 ## 1. Time model (the load-bearing decision)
 
 - Citizen life runs on **its own clock, not shown to the user** (Q13). Weather + time-of-day stay

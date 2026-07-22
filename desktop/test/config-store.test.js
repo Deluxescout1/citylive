@@ -130,6 +130,13 @@ test('showStatus: explicit booleans survive, junk and absence drop', () => {
   assert.ok(!('showStatus' in store.sanitizeConfig({})));
 });
 
+test('notifications: explicit booleans survive, junk and absence drop', () => {
+  assert.strictEqual(store.sanitizeConfig({ notifications: true }).notifications, true);
+  assert.strictEqual(store.sanitizeConfig({ notifications: false }).notifications, false);
+  for (const v of [0, 1, 'true', null]) assert.ok(!('notifications' in store.sanitizeConfig({ notifications: v })));
+  assert.ok(!('notifications' in store.sanitizeConfig({})));
+});
+
 test('era: "auto" and lowercase-alpha names survive, invalid/absent drop', () => {
   assert.strictEqual(store.sanitizeConfig({ era: 'auto' }).era, 'auto');
   assert.strictEqual(store.sanitizeConfig({ era: 'tokyo' }).era, 'tokyo');
