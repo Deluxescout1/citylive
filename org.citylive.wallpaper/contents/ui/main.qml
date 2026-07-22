@@ -170,8 +170,10 @@ WallpaperItem {
 
     Rectangle {
         visible: root.showStatus
-        anchors.left: parent.left; anchors.top: parent.top
-        anchors.margins: 12
+        // Keep the live feed out of the engine's top alert/countdown lanes and away from street
+        // action. The right-side sky rail is intentionally reserved for this persistent panel.
+        anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
+        anchors.rightMargin: 12
         width: Math.min(390, Math.max(220, statusText.implicitWidth + 20))
         height: statusText.implicitHeight + 14
         radius: 8; color: "#d9141824"; border.color: "#52617d"; border.width: 1
