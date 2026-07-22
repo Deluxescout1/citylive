@@ -609,6 +609,44 @@ function currentShower(nd){ var m=nd.getMonth()+1, d=nd.getDate();
   for(var i=0;i<METEOR_SHOWERS.length;i++){ var s=METEOR_SHOWERS[i]; if(s.m===m&&d>=s.d0&&d<=s.d1) return s; } return null; }
 function meteorShowerActive(nd){ var m=nd.getMonth()+1,d=nd.getDate();
   return (m===1&&d>=1&&d<=5)||(m===4&&d>=21&&d<=23)||(m===8&&d>=11&&d<=14)||(m===10&&d>=20&&d<=22)||(m===11&&d>=16&&d<=18)||(m===12&&d>=12&&d<=15); }   // Quadrantids/Lyrids/Perseids/Orionids/Leonids/Geminids (keep both copies in lockstep)
+// ---- ASTRONOMY DESK (v2.2 — "everything we would see IRL happens in this wallpaper", Nick) ----
+// lunar distance via the mean-anomaly approximation (±~1%) — enough to call a perigee full moon
+function moonDistKm(nd){
+  var JD=nd.valueOf()/86400000+2440587.5, T=(JD-2451545.0)/36525.0;
+  var M=(134.963+477198.867*T)*DEG, D=(297.850+445267.111*T)*DEG;
+  return 385000.56-20905.36*Math.cos(M)-3699.11*Math.cos(2*D-M)-2955.97*Math.cos(2*D);
+}
+function isSupermoon(nd){ var mp=moonPhase(nd), il=(1-Math.cos(2*Math.PI*mp))/2; return il>0.96 && moonDistKm(nd)<363300; }
+// tonight's planet conjunction (any pair within 2.5 degrees), or null. Real positions; cached per day.
+var _conjCache={key:'',v:null};
+function conjunctionNow(nd){
+  var key=ymd(nd); if(_conjCache.key===key) return _conjCache.v;
+  var v=null, rds=[];
+  for(var i=0;i<PLANETS.length;i++) rds.push(planetRaDec(PLANETS[i].el,nd));
+  for(var a=0;a<PLANETS.length-1&&!v;a++) for(var b=a+1;b<PLANETS.length;b++){
+    var d1=rds[a].dec*DEG, d2=rds[b].dec*DEG, dra=(rds[a].ra-rds[b].ra)*15*DEG;
+    var sep=Math.acos(Math.max(-1,Math.min(1,Math.sin(d1)*Math.sin(d2)+Math.cos(d1)*Math.cos(d2)*Math.cos(dra))))/DEG;
+    if(sep<2.5){ v={a:PLANETS[a].name,b:PLANETS[b].name}; break; }
+  }
+  _conjCache.key=key; _conjCache.v=v; return v;
+}
+// today's headline sky event (or an advance notice up to 5 days out), or null — feeds the ticker
+function astroDesk(nd){
+  var t=ymd(nd);
+  if(SOLAR_ECLIPSES.indexOf(t)>=0){ var st=sunTimes(nd), when="";
+    if(st.rise){ var tot=new Date(st.rise.getTime()+0.505*(st.set-st.rise)), th=tot.getHours(), tm=tot.getMinutes();
+      when=" AT "+((th%12)||12)+":"+(tm<10?"0":"")+tm+(th<12?"AM":"PM"); }
+    return "SOLAR ECLIPSE TODAY"+when+" - DO NOT MISS IT"; }
+  if(LUNAR_ECLIPSES.indexOf(t)>=0) return "BLOOD MOON TONIGHT - TOTAL LUNAR ECLIPSE";
+  if(isSupermoon(nd)) return "SUPERMOON TONIGHT - THE MOON AT ITS CLOSEST";
+  var cj=conjunctionNow(nd); if(cj) return cj.a+" MEETS "+cj.b+" IN TONIGHT'S SKY";
+  if(COMET_SEASON.indexOf(ym(nd))>=0) return "THE GREAT COMET IS VISIBLE AFTER DARK";
+  for(var ah=1; ah<=5; ah++){ var f=new Date(nd.getTime()+ah*86400000), fy=ymd(f);
+    if(SOLAR_ECLIPSES.indexOf(fy)>=0) return "SOLAR ECLIPSE "+(ah===1?"TOMORROW":"IN "+ah+" DAYS")+" - GET YOUR GLASSES";
+    if(LUNAR_ECLIPSES.indexOf(fy)>=0) return "LUNAR ECLIPSE "+(ah===1?"TOMORROW":"IN "+ah+" DAYS")+" - A BLOOD MOON RISES";
+  }
+  return null;
+}
 function auroraActive(nd){ var t=(weather.temp==null?60:weather.temp); if(t>=36) return false;
   return (rng((Math.floor(nd.getTime()/86400000)*2654435761)>>>0)()<0.18); }                     // ~18% of cold clear nights
 // ============ STREET LIFE 2 & RARE SPECTACLES (K/J/M batch) ============
@@ -1869,7 +1907,12 @@ function drawPlanets(g,now,nd,lst,dayFade){
   for(var pi=0;pi<PLANETS.length;pi++){ var P=PLANETS[pi]; if(day&&!P.day) continue;
     var rd=planetRaDec(P.el,nd), aa=altAz(rd.ra,rd.dec,lst); if(aa.alt<2) continue;
     var lvl=colonyLevel(P.colony||P.k, now), pwx=skyWX(aa.az), pwy=skyY(aa.alt), a=day?0.45:1;
-    var bright=P.mag<-1, pr=lvl>0.06?Math.round(1+lvl*2.3):0;
+    var cj=conjunctionNow(nd), inCj=!!(cj && (cj.a===P.name||cj.b===P.name) && !day);
+    var bright=P.mag<-1||inCj, pr=lvl>0.06?Math.round(1+lvl*2.3):0;
+    if(inCj){ g.globalCompositeOperation="lighter";                       // conjunction night: the meeting pair blazes
+      for(var wj=-1;wj<=1;wj++){ var pxj=pwx-WOFF+wj*WW; if(pxj<-8||pxj>SW+8) continue;
+        g.fillStyle=rgba(P.col,0.10+0.06*Math.sin(now*0.004+pi)); g.fillRect((pxj-3)|0,(pwy-3)|0,7,7); }
+      g.globalCompositeOperation="source-over"; }
     for(var w=-1;w<=1;w++){ var px=pwx-WOFF+w*WW; if(px<-8||px>SW+8) continue;
       if(bright && !day){ g.globalCompositeOperation="lighter"; g.fillStyle=rgba(P.col,0.18); g.fillRect((px-2)|0,(pwy-2)|0,5,5); g.globalCompositeOperation="source-over"; }
       if(pr>0){ for(var dy=-pr;dy<=pr;dy++)for(var dx=-pr;dx<=pr;dx++){ if(dx*dx+dy*dy>pr*pr+0.4) continue; g.fillStyle=rgba(P.col,a); g.fillRect((px+dx)|0,(pwy+dy)|0,1,1); }
@@ -1896,7 +1939,7 @@ function drawCelestial(g,now,nd,L,fx){
     var mcol=colonyLevel('moon',now);
     var colFall=(curWar && curWar.f>=0 && curWar.f<1.4 && mcol>0.12 && dayFade<0.4)?Math.min(1,curWar.f):0;   // war reaches the colony (can happen mid-life)
     var colonyArg = colFall>0 ? mcol*(1-colFall*0.75) : mcol;
-    var R=9, mwx=skyWX(maa.az), mwy=skyY(maa.alt)*0.96;   // BIGGER moon (Nick 2026-07-18)
+    var R=isSupermoon(nd)?11:9, mwx=skyWX(maa.az), mwy=skyY(maa.alt)*0.96;   // BIGGER moon (Nick 2026-07-18); perigee full moon = SUPERMOON, bigger still
     for(var w=-1;w<=1;w++){ var mx=mwx-WOFF+w*WW; if(mx<-R-10||mx>SW+R+10) continue;
       drawMoon(g,mx,mwy,mp,colonyArg,R,dayFade,0,now);
       if(colFall>0) drawColonyFall(g,mx,mwy,R,colFall,now);
@@ -6697,6 +6740,7 @@ function tickerMsg(now){
   if(curSpace>0.3) return cityName+" SPACEPORT - NEXT LAUNCH BOARDING";
   var nd2=nowDate(), gm=gameNight(nd2);
   var shw=currentShower(nd2); if(shw && (Math.floor(now/8000))%4===0) return shw.n+" METEOR SHOWER PEAKS TONIGHT - LOOK UP";   // announce the real shower so nobody misses it
+  var adm=astroDesk(nd2); if(adm && (Math.floor(now/8000))%4===1) return adm;   // the astronomy desk: eclipses (with the time), supermoons, conjunctions, comet season, advance notices
   var issp=issAltAzNow(now); if(issp && issp.alt>12 && dayPhase(nd2).light<0.30) return "THE ISS IS PASSING OVERHEAD NOW - LOOK UP";   // a real overhead pass is a brief, unmissable event
   var msgs=["WELCOME TO "+cityName,"POP "+popFmt(cityPop())+" AND GROWING",cityName+" TRANSIT - ALL LINES RUNNING"];
   var appr=approvalNow(now);   // N3 (shared with the civic HUD)
