@@ -8124,10 +8124,12 @@ function drawNamedCitizens(g, now){
   var li=lifeIndexOf(now), cy=cityGrowth(now).cy, C=P_sim(li, cy), pop=C.pop;
   var nd=new Date(now), hh=nd.getHours()+nd.getMinutes()/60;    // SOL P1: the EFFECTIVE clock (now is NOWOVR-aware); nowDate() uses CLOCK and breaks freeze
   var night=(hh<6 || hh>=22), shelter=(curDis!=null || curOutbreak);   // disaster/plague: people stay home
+  var curf=(typeof curCurfew!=='undefined')?curCurfew:0;               // THE ORDER's Martial Law empties the streets of NAMED citizens too (anon peds already thin via wmood.pedFactor)
   var cap=(QUAL>=2?PEOPLE_N:(QUAL>=1?120:70)), drawn=0;
   for(var i=0;i<pop.length && drawn<cap;i++){ var p=pop[i];
     if(!p.arrived || !p.alive) continue;
     if(night && ((p.seed>>>20)%5)!==0) continue;                  // most are asleep inside at night
+    if(curf>0 && ((p.seed>>>10)%10) < curf*9) continue;           // curfew: ~90% obey and stay inside at full strength
     var J=P_job(p), hw=peopleHomeWork(near, p.seed, J.building, J.commutes, cityG);   // P_job: fallback-safe
     if(hw.homeB<0) continue;
     var hb=near.blds[hw.homeB], homeX=frontX(hb, p.seed, 3);
@@ -8152,7 +8154,7 @@ function drawNamedCitizens(g, now){
     }
     // OFF-shift daytime: a fixed slice of the cast are out-and-about people (personality — the same
     // citizens are always the homebodies). Evenings (17-22) two thirds are out, else one third.
-    if(phase===0 && !night && !shelter){
+    if(phase===0 && !night && !shelter && curf<0.3){              // nobody strolls for leisure under Martial Law
       var soc=(p.seed>>>7)%3, eve=(hh>=17);
       if(soc===0 || (eve && soc===1)) wx=milledX(p.seed, 0x5EED, homeX, 110, now);
     }
@@ -10021,12 +10023,17 @@ function riftInvaderNames(cd){
 function riftSmashTargets(cd){
   var out=[];
   if(!near || !near.blds) return out;
-  for(var i=0;i<near.blds.length && out.length<4;i++){ var b=near.blds[i];
-    if(b.type==="park") continue;
-    if(!inZone(b.x,b.w,cd)) continue;
-    if(overSite(b.x,b.w) || overLandmark(b.x,b.w)) continue;
-    if(b.bAge!==undefined){ var born=cityG-b.bAge; if(born<=0 || born<bandOf(b)) continue; }
-    out.push(b);
+  // pass 1: towers strictly IN the zone (these collapse via drawDisasterBuilding — best sync);
+  // pass 2 (zone landmark/site-heavy → empty): towers within ±70px, battered but RESISTING (the city holds).
+  for(var pass=0; pass<2 && !out.length; pass++){
+    for(var i=0;i<near.blds.length && out.length<4;i++){ var b=near.blds[i];
+      if(b.type==="park") continue;
+      if(pass===0){ if(!inZone(b.x,b.w,cd)) continue; }
+      else { var dd=((wrapW(b.x+(b.w>>1))-cd.x+WW*1.5)%WW)-WW*0.5; if(Math.abs(dd)>(cd.w>>1)+70) continue; }
+      if(overSite(b.x,b.w) || overLandmark(b.x,b.w)) continue;
+      if(b.bAge!==undefined){ var born=cityG-b.bAge; if(born<=0 || born<bandOf(b)) continue; }
+      out.push(b);
+    }
   }
   return out;
 }
