@@ -7987,6 +7987,7 @@ function peopleElectionState(lifeIndex, cy){
     mayorName: m?P_name(m):null, mayorPid: m?(m.idx*1024+m.gen):-1,     // vacant → null (consistent with the Citizens menu)
     mayorParty: m?m.party:(cur?cur.winnerParty:-1), mayorJob: m?P_job(m).label:(cur?cur.winnerJob:null),
     loseName: cur?cur.runnerName:null, loseParty: cur?cur.runnerParty:-1,
+    losePid: (cur&&cur.runnerIdx>=0)?(cur.runnerIdx*1024+cur.runnerGen):-1,
     share: cur?cur.share:0, succeeded: !!(cur&&cur.succeeded),
     recalled: !!(cur&&cur.recalled), ousted: !!(cur&&cur.ousted), winnerName: cur?cur.winnerName:null, winnerParty: cur?cur.winnerParty:-1,
     elections: C.econ.elections };
@@ -11733,7 +11734,7 @@ function mayorState(now){
     var wp=es.hasMayor?es.mayorParty:es.winnerParty;
     if(wp>=0){ M.party=PARTIES[wp]; M.electedParty=PARTIES[(es.ousted?es.winnerParty:wp)]; }   // electedParty = who won the vote; party = who holds City Hall now
     if(es.loseParty>=0) M.party2=PARTIES[es.loseParty];
-    if(es.share) M.share=es.share; M.mayorPid=es.mayorPid; M.mayorJob=es.mayorJob;
+    if(es.share) M.share=es.share; M.mayorPid=es.mayorPid; M.losePid=es.losePid; M.mayorJob=es.mayorJob;
     // RECALL/scandal drama now comes from the sim (one truth). Keep the tf-based windows for WHEN the
     // scandal/recall-vote banners show; the OUTCOME (ousted + who holds office) is already applied above.
     M.scandalTerm=es.recalled; M.recalled=es.recalled; M.ousted=es.ousted;
@@ -11997,7 +11998,7 @@ function chronicleSnapshot(now){
   else if(curBlk){ kind="infrastructure"; stage=(curBlk.f||0)>0.7?"Restoration":"Outage"; title="POWER OUTAGE · "+stage.toUpperCase(); detail="Utility response witnessed"; key="blackout:"+Math.floor(now/360000)+":"+stage; }
   else if(curMayor){
     var ek=""; if(curMayor.justElected) ek="Elected"; else if(curMayor.electionDay) ek="Election day"; else if(curMayor.debate) ek="Debate"; else if(curMayor.recallVote) ek="Recall vote"; else if(curMayor.scandal) ek="Scandal"; else if(curMayor.campaign) ek="Campaign";
-    if(ek){ kind="election"; stage=ek; title="CITY ELECTION · "+ek.toUpperCase(); detail=curMayor.winName+" vs "+curMayor.loseName; key="election:"+curMayor.term+":"+ek; person(curMayor.winName,curMayor.justElected?"Mayor":"Candidate",curMayor.party&&curMayor.party.k); person(curMayor.loseName,"Candidate",curMayor.party2&&curMayor.party2.k); }
+    if(ek){ kind="election"; stage=ek; title="CITY ELECTION · "+ek.toUpperCase(); detail=curMayor.winName+" vs "+curMayor.loseName; key="election:"+curMayor.term+":"+ek; person(curMayor.winName,curMayor.justElected?"Mayor":"Candidate",curMayor.party&&curMayor.party.k,curMayor.mayorPid); person(curMayor.loseName,"Candidate",curMayor.party2&&curMayor.party2.k,curMayor.losePid); }
   }
   if(!key&&curEvents){ var names=["champ","parade","market","foodfest","concert","icerink","movie","marathon","protest","film","balloonfest"];
     for(var i=0;i<names.length;i++) if(curEvents[names[i]]){ kind="event"; stage="In progress"; title="CITY EVENT · "+names[i].replace(/([a-z])([A-Z])/g,"$1 $2").toUpperCase(); detail=tickerMsg(now)||"Public event witnessed"; key="event:"+names[i]+":"+nowDate(now).toDateString(); break; } }
@@ -12037,7 +12038,11 @@ function drawElections(g,L,now,night){
     // LIVE POLL board to the left of the rally — the two candidates' numbers drift toward the result as election day nears
     var campProg=Math.max(0,Math.min(1,(M.tf-0.80)/0.165)), wob=Math.round(1.5*Math.sin(now*0.0009+M.term));
     var pnum=Math.max(1,Math.min(99,Math.round(50+(M.share-50)*campProg)+wob));
-    var pl1=M.winName.substr(0,4)+" "+pnum, pl2=M.loseName.substr(0,4)+" "+(100-pnum), plW=Math.max(textW(pl1),textW(pl2),textW("LIVE POLL")), polX=Math.round(0.30*WW);
+    var wn4=M.winName.substr(0,4), ln4=M.loseName.substr(0,4);
+    if(wn4===ln4){ var wns=M.winName.split(" "), lns=M.loseName.split(" ");                       // same 4-char first names → use surnames
+      wn4=(wns[wns.length-1]||wn4).substr(0,4); ln4=(lns[lns.length-1]||ln4).substr(0,4); }
+    var pl1=wn4+" "+pnum, pl2=ln4+" "+(100-pnum), plW=Math.max(textW(pl1),textW(pl2),textW("LIVE POLL")), polX=Math.round(0.30*WW);
+    polX-=Math.max(0,(polX+(plW>>1)+4)-(rxw-(pw>>1)-2));                                          // a wide billboard never overlaps the poll board
     for(var wp=-1;wp<=1;wp++){ var pbx=polX-(plW>>1)-2-WOFF+wp*WW; if(pbx>SW+2||pbx+plW+4<-2) continue;
       g.fillStyle="rgba(8,12,22,0.82)"; g.fillRect(pbx|0,HORIZON-31,plW+4,18);
       g.fillStyle="#5ad0ff"; g.fillRect(pbx|0,HORIZON-32,plW+4,1);

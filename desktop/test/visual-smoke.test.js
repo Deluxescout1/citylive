@@ -86,6 +86,6 @@ test('Chronicle exposes only a witnessed election and stable full candidate name
   assert.strictEqual(witness.kind, 'election');
   assert.match(witness.eventKey, /^election:/);
   assert.strictEqual(witness.people.length, 2);
-  witness.people.forEach((p) => assert.match(p.name, /^[A-Z]+ [A-Z]+$/));
+  witness.people.forEach((p) => assert.match(p.name, /^[A-Z]+( [A-Z]\.)? [A-Z]+$/));   // dedup inserts a middle initial ("IVAN Q. WHITE")
   assert.ok(!Object.prototype.hasOwnProperty.call(witness, 'future'));
 });

@@ -1,3 +1,10 @@
+// ⚠⚠⚠ SUPERSEDED DEV SCAFFOLD — DO NOT EDIT, DO NOT RE-SPLICE ⚠⚠⚠
+// This was the standalone workbench THE PEOPLE was developed in, then spliced into the engine.
+// Since Stage 4b the canonical citizen sim lives (and evolved: SOL fixes, election unification,
+// Stage 5 regime leaders) DIRECTLY in org.citylive.wallpaper/contents/js/city.js — the single
+// source of truth, mirrored to the 4 shells by `npm run sync:engine`, guarded by
+// desktop/test/people-sim.test.js. Re-splicing THIS file would ROLL BACK those fixes.
+// Kept only so verify-core.js's native perf/contract harness still runs against the original core.
 // ============================ THE PEOPLE — CITIZEN SIM CORE (v2.0) ============================
 // Deterministic, freeze-safe, pure function of the override clock. Single source of truth on ALL
 // four shells. Fold-once-then-cache; never re-fold per frame. Keyed to the EXISTING city-life clock
