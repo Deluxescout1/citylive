@@ -5868,7 +5868,7 @@ function drawGreenery(g,L,now){
 // signs on the commercial blocks (neon-lit in a neon age, hand-painted otherwise). Works in every era.
 function drawStreetSigns(g,L,now){
   if(cityG<0.42||!near||!near.blds) return; var day=L>0.5;
-  for(var i=0;i<crosswalks.length;i++){ var cw=crosswalks[i], signAt=0.34+((cw.seed%997)/997)*0.2;
+  for(var i=0;i<crosswalks.length;i++){ var cw=crosswalks[i]; if(!cwInst(cw)) continue; var signAt=0.34+((cw.seed%997)/997)*0.2;
     var signProg=Math.max(0,Math.min(1,(cityG-signAt)/0.075)); if(signProg<=0) continue;
     var sx=cw.x-WOFF, h=(cw.seed>>>0);
     for(var wrp=-1;wrp<=1;wrp++){ var CX=(sx+wrp*WW)|0; if(CX<-8||CX>SW+8) continue;
