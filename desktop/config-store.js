@@ -44,8 +44,13 @@ function sanitizeConfig(raw) {
   for (let i = 0; i < list.length && out.birthdays.length < 50; i++) {
     const b = list[i];
     if (!b || typeof b !== 'object') continue;
-    const m = parseInt(b.m, 10), d = parseInt(b.d, 10);
-    if (!(m >= 1 && m <= 12) || !(d >= 1 && d <= 31)) continue;
+    const m = Number(b.m), d = Number(b.d);
+    // Require whole numbers and a date that can actually occur.  The old broad
+    // 1..31 check persisted entries such as February 31, which could never be
+    // displayed, while parseInt also accepted corrupt values such as "3junk".
+    if (!Number.isInteger(m) || !Number.isInteger(d) || m < 1 || m > 12 || d < 1) continue;
+    const maxDay = new Date(2000, m, 0).getDate(); // leap year keeps Feb 29 valid
+    if (d > maxDay) continue;
     const entry = { m: m, d: d, label: sanitizeLabel(b.label) || 'HAPPY BIRTHDAY' };
     if (b.pink) entry.pink = true;
     out.birthdays.push(entry);

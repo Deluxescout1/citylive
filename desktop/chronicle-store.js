@@ -25,7 +25,9 @@ function sanitizeEvent(e) {
 }
 function sanitizeLife(l) {
   if (!l || typeof l !== 'object') return null;
-  const life = Math.max(1, Math.floor(finite(l.life, 0))); if (!life) return null;
+  const rawLife = Number(l.life);
+  if (!Number.isFinite(rawLife) || rawLife < 1) return null;
+  const life = Math.floor(rawLife);
   const events = Array.isArray(l.events) ? l.events.map(sanitizeEvent).filter(Boolean).slice(-MAX_EVENTS) : [];
   return { life, cityName: text(l.cityName, 80) || ('Civilization ' + life), era: text(l.era, 60),
     firstSeenAt: Math.max(1, Math.floor(finite(l.firstSeenAt, events[0] && events[0].at || Date.now()))),
@@ -47,7 +49,9 @@ function write(file, data) {
 }
 function record(file, snapshot) {
   const data = read(file); if (!data.enabled || !snapshot || snapshot.recordable !== true) return data;
-  const lifeNo = Math.max(1, Math.floor(finite(snapshot.life, 0))); if (!lifeNo) return data;
+  const rawLife = Number(snapshot.life);
+  if (!Number.isFinite(rawLife) || rawLife < 1) return data;
+  const lifeNo = Math.floor(rawLife);
   let life = data.lives.find((l) => l.life === lifeNo);
   const now = Math.max(1, Math.floor(finite(snapshot.at, Date.now())));
   const event = sanitizeEvent({ key: snapshot.eventKey, at: now, kind: snapshot.kind, title: snapshot.title,

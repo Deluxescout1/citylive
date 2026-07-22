@@ -53,6 +53,17 @@ test('birthdays / cycle / lat-lon sanitize behavior is preserved (regression net
   assert.strictEqual(out.lon, -72.1);
 });
 
+test('birthdays reject impossible and partially numeric dates', () => {
+  const out = store.sanitizeConfig({ birthdays: [
+    { m: 2, d: 29, label: 'LEAP DAY' },
+    { m: 2, d: 30, label: 'IMPOSSIBLE' },
+    { m: 4, d: 31, label: 'IMPOSSIBLE' },
+    { m: '3junk', d: 4, label: 'CORRUPT' },
+    { m: 3, d: 4.5, label: 'FRACTIONAL' }
+  ] });
+  assert.deepStrictEqual(out.birthdays, [{ m: 2, d: 29, label: 'LEAP DAY' }]);
+});
+
 test('write → read round-trip persists the wallpaper flag', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'citylive-cfg-'));
   const file = path.join(dir, 'config.json');
