@@ -88,7 +88,7 @@ Item {
                 City.FORCEBILLS = (jobs[j].bills === true);
                 if (jobs[j].weather !== undefined) { for (var wk in jobs[j].weather) City.weather[wk] = jobs[j].weather[wk]; }
                 if (jobs[j].lightning !== undefined) City.lightning = jobs[j].lightning;
-                try { City.draw(g, "bg"); City.draw(g, "sky"); City.draw(g, "city"); City.draw(g, "fg"); }
+                try { City.draw(g, "bg"); City.draw(g, "sky"); City.draw(g, "skyfast"); City.draw(g, "city"); City.draw(g, "fg"); }
                 catch (e) { console.log("SWEEP_FAIL job " + j + " " + JSON.stringify(jobs[j]).slice(0,70) + ": " + e); ok = false; }
             }
             console.log(ok ? ("SWEEP_OK " + jobs.length + " conditions clean") : "SWEEP_HAD_ERRORS");

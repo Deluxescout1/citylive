@@ -50,13 +50,14 @@ function loadEngine() {
 function splitFrame(ctx) {
   assert.doesNotThrow(() => ctx.draw(canvasStub(), 'bg'));
   assert.doesNotThrow(() => ctx.draw(canvasStub(), 'sky'));
+  assert.doesNotThrow(() => ctx.draw(canvasStub(), 'skyfast'));
   assert.doesNotThrow(() => ctx.draw(canvasStub(), 'city'));
   assert.doesNotThrow(() => ctx.draw(canvasStub(), 'fg'));
   const status = ctx.cityStatus(Date.now());
   assert.ok(status && status.title && status.dataLabel);
 }
 
-test('every finale survives the four retained render layers', () => {
+test('every finale survives the retained render layers', () => {
   const ctx = loadEngine();
   ctx.DEMO_APOC_SEC = 60;
   const finales = Array.from(new Set(Array.from(ctx.DEATHS).concat(['kaijuwar', 'pollution', 'moonfall'])));
@@ -79,7 +80,7 @@ test('retained layers preserve every original drawing operation', () => {
   split.NOWOVR = at;
   split.FORCEAGE = 0.72;
   const splitCounts = {};
-  for (const pass of ['bg', 'sky', 'city', 'fg']) split.draw(countingCanvas(splitCounts), pass);
+  for (const pass of ['bg', 'sky', 'skyfast', 'city', 'fg']) split.draw(countingCanvas(splitCounts), pass);
 
   // Layer canvases require their own transform/clear calls. All visible primitives and paths
   // must otherwise match the original monolithic frame exactly—no feature may disappear.

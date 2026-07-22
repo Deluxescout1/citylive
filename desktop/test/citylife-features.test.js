@@ -112,3 +112,30 @@ test('the elevated train cannot cover important landmarks or information surface
     assert.ok(frame.indexOf(protectedDraw, train) < service, protectedDraw + ' must stay behind train stations');
   }
 });
+
+test('dialogue is readable, sparse, and never overwhelms the street', () => {
+  const source = fs.readFileSync(ENGINE, 'utf8');
+  const speech = source.slice(source.indexOf('function drawSpeechBubbles'), source.indexOf('function peopleMarketBeat'));
+  assert.match(speech, /beatMs=apocFinal\?1800:3200/);
+  assert.match(speech, /sceneCycle=apocFinal\?9000:24000/);
+  assert.match(speech, /gate=apocFinal\?2:11/);
+  assert.match(speech, /shown<2/);
+});
+
+test('top monorail uses world coordinates and renders in the live service layer', () => {
+  const source = fs.readFileSync(ENGINE, 'utf8');
+  const mono = source.slice(source.indexOf('function drawMonorail(g,L,now,cb,part)'), source.indexOf('function drawMonoTrain'));
+  assert.match(mono, /route=WW\+trainW\+90/);
+  assert.doesNotMatch(mono, /route=SW\+/);
+  const frame = source.slice(source.indexOf('function draw(g,pass)'));
+  assert.ok(frame.indexOf('drawMonorailService(g,L,now)') > frame.indexOf('if(pass==="city") return'));
+});
+
+test('street ads use framed landscape billboard faces', () => {
+  const source = fs.readFileSync(ENGINE, 'utf8');
+  const ads = source.slice(source.indexOf('function drawCorpAds'), source.indexOf('function drawBillsAds'));
+  assert.match(ads, /ph=19/);
+  assert.match(ads, /maintenance catwalk/);
+  assert.match(ads, /Thick steel casing/);
+  assert.match(ads, /bold brand\/logo field/);
+});

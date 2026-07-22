@@ -22,6 +22,8 @@ WallpaperItem {
         if (configuration && configuration.quality) return configuration.quality;
         return (width * height > 2200000) ? "balanced" : "spectacle";
     }
+    readonly property int motionFrameMs: quality === "performance" ? 100 : (quality === "balanced" ? 83 : 67)
+    property double lastMotionSlot: -1
     // DEVICE px per world/canvas pixel. Keep the original wide pxk3 composition in every quality
     // tier; performance comes from retained layers and scheduling, never by zooming the city in.
     readonly property int pxk: 3
@@ -106,6 +108,21 @@ WallpaperItem {
     }
 
     Canvas {
+        id: skyfastcv
+        width: bgcv.width; height: bgcv.height
+        smooth: root.fractionalDpr
+        antialiasing: false
+        renderTarget: Canvas.FramebufferObject
+        renderStrategy: Canvas.Threaded
+        transformOrigin: Item.TopLeft
+        scale: root.texelBuf / root.dpr
+        onPaint: {
+            try { City.draw(getContext("2d"), "skyfast"); }
+            catch (e) { root.renderError = "Sky traffic: " + e; console.error("CityLive sky traffic render failure: " + e); }
+        }
+    }
+
+    Canvas {
         id: citycv
         width: bgcv.width; height: bgcv.height
         smooth: root.fractionalDpr
@@ -174,10 +191,19 @@ WallpaperItem {
     }
 
     Timer {
-        interval: root.quality === "performance" ? 100 : (root.quality === "balanced" ? 83 : 67) // 10 / 12 / 15 fps
+        // Poll a shared wall-clock slot instead of free-running per wallpaper instance. Every
+        // monitor therefore paints the same world instant at a seam, so cars/trams cross cleanly.
+        interval: 20
         running: root.visible
         repeat: true
-        onTriggered: cv.requestPaint()
+        onTriggered: {
+            var slot = Math.floor(Date.now() / root.motionFrameMs)
+            if (slot !== root.lastMotionSlot) {
+                root.lastMotionSlot = slot
+                skyfastcv.requestPaint()
+                cv.requestPaint()
+            }
+        }
     }
     Timer {
         interval: root.quality === "performance" ? 750 : (root.quality === "balanced" ? 500 : 333)
@@ -223,7 +249,7 @@ WallpaperItem {
 
     function boot() {
         // ignore the transient boots during screen bring-up (dimensions not settled yet)
-        if (root.width < 8 || root.height < 8 || cv.width < 8 || cv.height < 8 || bgcv.width < 8 || bgcv.height < 8 || skycv.width < 8 || citycv.width < 8)
+        if (root.width < 8 || root.height < 8 || cv.width < 8 || cv.height < 8 || bgcv.width < 8 || bgcv.height < 8 || skycv.width < 8 || skyfastcv.width < 8 || citycv.width < 8)
             return;
         // Inject personal settings (birthdays/location/cycle) from localcfg.js — committed EMPTY in the public
         // repo, filled on THIS machine by install.sh from the gitignored config.local.json. Absent/empty → no
@@ -278,6 +304,7 @@ WallpaperItem {
         });
         bgcv.requestPaint();
         skycv.requestPaint();
+        skyfastcv.requestPaint();
         citycv.requestPaint();
         cv.requestPaint();
         console.log("CityLive screen located: virtualX=" + Screen.virtualX + " " + root.width + "x" + root.height
@@ -308,7 +335,7 @@ WallpaperItem {
     }
     // one-shot SETTLE pass: 6s after bring-up, re-run setup + repaint — shakes out any
     // transient geometry/scale state from login/output reconfiguration (stripe insurance)
-    Timer { id: settleTimer; interval: 6000; running: true; onTriggered: { root.boot(); bgcv.requestPaint(); skycv.requestPaint(); citycv.requestPaint(); cv.requestPaint() } }
+    Timer { id: settleTimer; interval: 6000; running: true; onTriggered: { root.boot(); bgcv.requestPaint(); skycv.requestPaint(); skyfastcv.requestPaint(); citycv.requestPaint(); cv.requestPaint() } }
     Component.onCompleted: bootTimer.restart()
     onSceneChanged: bootTimer.restart()
     // location changed in the config dialog → re-boot with the new place (weather/sun/stars/architecture)
@@ -327,5 +354,6 @@ WallpaperItem {
     Connections { target: cv; function onWidthChanged(){ bootTimer.restart() } function onHeightChanged(){ bootTimer.restart() } }
     Connections { target: bgcv; function onWidthChanged(){ bootTimer.restart() } function onHeightChanged(){ bootTimer.restart() } }
     Connections { target: skycv; function onWidthChanged(){ bootTimer.restart() } function onHeightChanged(){ bootTimer.restart() } }
+    Connections { target: skyfastcv; function onWidthChanged(){ bootTimer.restart() } function onHeightChanged(){ bootTimer.restart() } }
     Connections { target: citycv; function onWidthChanged(){ bootTimer.restart() } function onHeightChanged(){ bootTimer.restart() } }
 }

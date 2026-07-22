@@ -8444,15 +8444,20 @@ function drawSpeechBubbles(g, now, night){
   var apocFinal=(cityPhase==="apoc"&&typeof apocStruck==='function'&&!apocStruck());   // the FINAL-WORDS window (the approach, before it strikes)
   if(!drawnNamed || drawnNamed.length<2 || cityG<0.22 || (cityPhase==="apoc"&&!apocFinal)) return;
   var arr=drawnNamed.slice().sort(function(a,b){return a.sx-b.sx;});
-  var sslot=(now/5200)|0, beat=(Math.floor(now/1300)&3), shown=0, taken=[], cand=[];
-  var gate=apocFinal?2:5;                                        // everyone talks at the end
+  // A readable exchange has four held lines followed by a real quiet spell. Previously a new line
+  // replaced the old one every 1.3s and another scene began immediately, making the street feel
+  // like a wall of chatter. Normal dialogue now holds for 3.2s, rests for 11.2s, and uses fewer pairs.
+  var beatMs=apocFinal?1800:3200, sceneCycle=apocFinal?9000:24000;
+  var scenePos=now%sceneCycle; if(scenePos>=beatMs*4) return;
+  var sslot=(now/sceneCycle)|0, beat=(scenePos/beatMs)|0, shown=0, taken=[], cand=[];
+  var gate=apocFinal?2:11;                                       // urgent final words remain exceptional
   for(var i=0;i<arr.length-1;i++){ var a=arr[i], b=arr[i+1];
     if(Math.abs(a.sx-b.sx)>8 || Math.abs(a.y-b.y)>3) continue;    // co-located (adjacency bucket, not float equality)
     if(((a.pid ^ b.pid ^ sslot)>>>0) % gate !== 0) continue;     // only some pairs talk, rotating slowly
     cand.push([P_hash((a.pid^b.pid^sslot)>>>0), a, b]);          // hash-ordered, NOT leftmost-first — else both
   }                                                              // bubbles always land in the densest knot
   cand.sort(function(x,y){return x[0]-y[0];});
-  for(var c=0;c<cand.length && shown<4;c++){ var a2=cand[c][1], b2=cand[c][2];
+  for(var c=0;c<cand.length && shown<2;c++){ var a2=cand[c][1], b2=cand[c][2];
     // a 4-beat SCENE: line → reply → counter → closer; speakers alternate, the tail follows the speaker
     var top=apocFinal?{ev:'finale'}:sceneTopic(a2,b2,sslot,now), line=null, spk=(beat&1)?b2:a2;
     var h2=P_hash((a2.pid^b2.pid^sslot*29)>>>0);
@@ -8581,8 +8586,10 @@ function drawCorpAds(g,L,now,night){
     var pool=[]; for(var lj=0;lj<live.length;lj++) pool.push(live[lj].co);
     for(var aj=0;aj<AD_LIB.length;aj++) pool.push(AD_LIB[aj]);
     if(!pool.length) continue;
-    var co=pool[((i*7+((now/9000)|0))%pool.length+pool.length)%pool.length], brand=co.c;
-    var tagW=textW(co.g), nmW=textW(co.n), pad=2, pw=pad+(tagW+3)+3+nmW+pad;
+    var co=pool[((i*7+((now/18000)|0))%pool.length+pool.length)%pool.length], brand=co.c;
+    // A real billboard has a landscape face, heavy frame, separated logo and two-line campaign—not
+    // one long 11px strip. Cap the width so it still belongs to the pixel city rather than becoming UI.
+    var pad=3, pw=Math.max(58,Math.min(86,20+Math.max(textW(co.n),textW(co.g)))), ph=19;
     var b=adMountAt(wx), py, x0, mount;
     if(b && b.w>=pw+4 && b.h>=24){
       // FACADE mount: flush on the wall band, clamped fully inside the building
@@ -8591,27 +8598,35 @@ function drawCorpAds(g,L,now,night){
       x0=Math.max(bx+2,Math.min(bx+b.w-pw-2,(sx-(pw>>1))|0));
     } else if(b && b.w>=14){
       // ROOFTOP mount: panel on two legs above the roofline
-      mount="roof"; py=(HORIZON-b.h-15)|0; x0=(sx-(pw>>1))|0;
+      mount="roof"; py=(HORIZON-b.h-ph-5)|0; x0=(sx-(pw>>1))|0;
     } else {
       // GROUND billboard: framed panel on two stout legs (classic highway hoarding)
-      mount="ground"; py=HORIZON-24; x0=(sx-(pw>>1))|0;
+      mount="ground"; py=HORIZON-ph-13; x0=(sx-(pw>>1))|0;
     }
     if(mount!=="facade"){
-      var legC=L>0.5?"#6a6152":"#2c2620", legY0=py+11, legY1=(mount==="roof")?((HORIZON-b.h)|0):HORIZON;
+      var legC=L>0.5?"#6a6152":"#2c2620", legY0=py+ph+2, legY1=(mount==="roof")?((HORIZON-b.h)|0):HORIZON;
       g.fillStyle=legC; g.fillRect(x0+2,legY0,2,Math.max(1,legY1-legY0)); g.fillRect(x0+pw-4,legY0,2,Math.max(1,legY1-legY0));
-      if(mount==="ground"){ g.fillRect(x0-1,py+12,pw+2,1); }                                     // catwalk line
+      if(mount==="ground"){ g.fillRect(x0-2,py+ph+1,pw+4,2); }                                  // maintenance catwalk
       g.fillStyle="rgba(0,0,0,0.25)"; g.fillRect(x0+2,legY1-1,pw-4,1);                            // contact shadow
     } else {
       var brC=L>0.5?"#7a7264":"#3a342c";
-      g.fillStyle=brC; g.fillRect(x0-1,py+2,1,7); g.fillRect(x0+pw,py+2,1,7);                     // wall brackets
-      g.fillStyle="rgba(0,0,0,0.3)"; g.fillRect(x0,py+12,pw,1);                                   // drop shadow on wall
+      g.fillStyle=brC; g.fillRect(x0-2,py+2,2,ph-3); g.fillRect(x0+pw,py+2,2,ph-3);               // wall brackets
+      g.fillStyle="rgba(0,0,0,0.3)"; g.fillRect(x0,py+ph+2,pw,2);                                 // drop shadow on wall
     }
-    g.fillStyle="rgba(10,12,18,0.9)"; g.fillRect(x0,py,pw,11);                                   // panel
-    g.fillStyle=rgba(brand,0.95); g.fillRect(x0,py-1,pw,1); g.fillRect(x0,py+11,pw,1);            // brand rails
-    g.fillStyle=rgba(brand,1); g.fillRect(x0+pad-1,py+1,tagW+3,9);                                // logo box
-    drawUiText(g,co.g,x0+pad,py+3,"rgba(10,12,18,0.95)",1);
-    drawUiText(g,co.n,x0+pad+tagW+4,py+3, L>0.5?css(mixc(brand,[22,24,30],0.32)):css(brand),1);   // company name
-    if(night>0.3){ g.globalCompositeOperation="lighter"; drawUiText(g,co.n,x0+pad+tagW+4,py+3,rgba(brand,0.3+0.35*night),1); g.globalCompositeOperation="source-over"; }
+    // Thick steel casing + inset poster face + corner fasteners.
+    g.fillStyle=L>0.5?"#3c4148":"#171b22"; g.fillRect(x0-2,py-2,pw+4,ph+4);
+    g.fillStyle=L>0.5?"#78808a":"#343b46"; g.fillRect(x0-1,py-1,pw+2,1); g.fillRect(x0-1,py+ph,pw+2,1);
+    g.fillStyle="rgba(9,12,18,0.96)"; g.fillRect(x0,py,pw,ph);
+    g.fillStyle=rgba(brand,0.96); g.fillRect(x0,py,15,ph);                                      // bold brand/logo field
+    g.fillStyle="rgba(255,255,255,0.22)"; g.fillRect(x0+15,py,1,ph);
+    var mark=(co.n||"AD").replace(/[^A-Z0-9]/g,"").substr(0,2);
+    drawUiText(g,mark,x0+3,py+6,"#ffffff",1);
+    var chars=Math.max(4,((pw-22)/4)|0);
+    drawUiText(g,co.n.substr(0,chars),x0+19,py+3,L>0.5?"#f4f6fa":"#eef4ff",1);
+    drawUiText(g,co.g.substr(0,chars),x0+19,py+10,css(brand),1);
+    g.fillStyle=rgba(brand,0.9); g.fillRect(x0+18,py+16,pw-21,1);                                // campaign underline
+    g.fillStyle="#c8cdd5"; g.fillRect(x0-1,py-1,1,1); g.fillRect(x0+pw,py-1,1,1);              // casing bolts
+    if(night>0.3){ g.globalCompositeOperation="lighter"; g.fillStyle=rgba(brand,0.10+0.12*night); g.fillRect(x0,py,pw,ph); g.globalCompositeOperation="source-over"; }
   }
 }
 // GAMEDAY street billboards: the same three hoardings, mounted exactly like the corp ads, but every
@@ -12773,7 +12788,7 @@ function isZoneBuild(t){ return t==="stadium"||t==="park"||t==="casino"||t==="un
 function drawBuilds(g,L,now,night){
   if(!curBuilds.length||nukeStruck()) return;
   for(var i=0;i<curBuilds.length;i++){ var cb=curBuilds[i];
-    if(cb.t==="monorail"){ drawMonorail(g,L,now,cb); continue; }          // full-width elevated line (positions itself)
+    if(cb.t==="monorail"){ drawMonorail(g,L,now,cb,"base"); continue; }   // retained beam; the moving train is a live overlay
     if(cb.t==="seawall"){ if(hasOcean) drawSeawall(g,L,now,cb); continue; } // runs along the shore
     var cx=disX(cb.x); if(cx<-(cb.w||70)-24||cx>SW+(cb.w||70)+24) continue;  // zone-builds: offscreen cull (disX wraps)
     if(cb.bp==="cons"){ drawBuildSite(g,cx,cb,L,now,night); continue; }      // still going up → construction site, not the finished landmark
@@ -13037,11 +13052,12 @@ function drawMarina(g,cx,cb,L,now,night){
 // A voted MONORAIL: a full-width elevated beam on world-anchored pylons, with a sleek train gliding along.
 // Rides HIGH above the pre-existing el-train viaduct (which sits at ~HORIZON-GROUND*1.1) so the two lines never
 // share a level; under construction, a railhead crane lays the beam left→right (supports leading the deck).
-function drawMonorail(g,L,now,cb){
+function drawMonorail(g,L,now,cb,part){
   var gy=HORIZON, ry=gy-(Math.round(GROUND*1.1)+34)-((cb.seed||0)%4), spacing=64, prog=(cb.prog==null?1:cb.prog);
   var beamEnd=Math.round(SW*prog);                                                            // under construction: the line extends left→right
   var pylonEnd=Math.min(SW,beamEnd+(prog<1?spacing:0));                                        // supports are erected a span AHEAD of the laid beam
   var startW=Math.floor((WOFF-spacing)/spacing)*spacing;
+  if(part!=="service"){
   for(var wx=startW; wx<WOFF+SW+spacing; wx+=spacing){ var sx=(wx-WOFF)|0; if(sx>pylonEnd+2) continue;   // world-anchored pylons
     g.fillStyle=L>0.5?"#8a9099":"#20252e"; g.fillRect(sx,ry+3,2,gy-(ry+3)); g.fillRect(sx-2,ry+1,6,2); }
   g.fillStyle=L>0.5?"#9aa0a8":"#252b34"; g.fillRect(0,ry,beamEnd,3);                          // the beam
@@ -13062,8 +13078,18 @@ function drawMonorail(g,L,now,cb){
       g.globalCompositeOperation="source-over"; }
     return;                                                                                   // no train until the line is finished
   }
-  var trainW=42, tx=((now*0.05)%(SW+trainW+90))-trainW-50;                                    // the train glides across
+  }
+  if(part==="base") return;
+  if(prog<1) return;
+  // World-space travel makes one continuous monorail cross monitor boundaries. The old SW-based
+  // position restarted a different train on every screen and visibly jumped at every seam.
+  var trainW=42, route=WW+trainW+90, mwx=((now*0.05)%route)-trainW-50, tx=mwx-WOFF;
   if(tx>-trainW-4&&tx<SW+4) drawMonoTrain(g,tx|0,ry,L);
+}
+function drawMonorailService(g,L,now){
+  if(!curBuilds||nukeStruck()) return;
+  for(var i=0;i<curBuilds.length;i++) if(curBuilds[i].t==="monorail"&&curBuilds[i].bp!=="cons")
+    drawMonorail(g,L,now,curBuilds[i],"service");
 }
 function drawMonoTrain(g,x,ry,L){
   var carC=L>0.5?"#e8edf3":"#c8d2e0", win=L>0.5?"#2a3550":"#0a1830", winLit="#8fd0ff";
@@ -15237,14 +15263,17 @@ function draw(g,pass){
   // The animated sky sits behind the cached city. It keeps every aerial/weather feature, but no
   // longer forces buildings and roads to be rebuilt at the same cadence as traffic and people.
   if(pass!=="city"&&pass!=="fg"){
+  if(pass!=="sky"){
   if(curSpace>0.35 && !nukeFull()) drawOrbitals(g,L,now,fx);   // the orbital station + ring + shuttle re-entries
   if(curSpace>0.4 && !nukeFull()) drawExodus(g,L,now);         // crewed departures → the exodus to the colonies
-  drawAurora(g,nd,L,now,fx);                    // rare frigid-night light show
   drawShower(g,nd,L,now,fx);                    // real-date meteor showers
   drawSatelliteField(g,L,now);                  // the whole sky of drifting satellites (dozens, faint & steady)
   drawSatellite(g,L,now);                       // the REAL ISS at its true position (labelled) when overhead
   drawStarlinkTrain(g,L,now);                   // a Starlink "train" glides over on some nights
   drawShootingStar(g,L,now);                    // the occasional wish-worthy shooting star
+  }
+  if(pass!=="skyfast"){
+  drawAurora(g,nd,L,now,fx);                    // rare frigid-night light show
   drawGodRays(g,L,now,fx);                      // crepuscular sunbeams through broken cloud
   drawRainbow(g,L,fx);                          // an arc when a shower clears under a low sun
 
@@ -15295,7 +15324,9 @@ function draw(g,pass){
         g.fillRect(OX|0,oy|0,ow,oh); g.fillRect((OX+8)|0,(oy-3)|0,(ow*0.6)|0,4); g.fillRect((OX+ow*0.3)|0,(oy+oh-1)|0,(ow*0.5)|0,3); }
     }
   }
+  }
 
+  if(pass!=="sky"){
   // high plane on a schedule
   var pl=crosser(now, 120000, 0.02, 6, 0.6);
   if(pl){ var px=pl.x-WOFF, py=12+((pl.idx*37)%28);
@@ -15315,9 +15346,10 @@ function draw(g,pass){
   if(cityG>0.5 && !nukeFull()) drawBlimp(g,L,now,night,nd);
   if(!nukeFull()){ drawHighFlights(g,L,now,fx); drawHelis(g,L,now); drawRealFlights(g,L,now); }   // busier skies: high cruisers + contrails + downtown choppers + the REAL aircraft overhead
   if(cityPhase==="apoc"&&curDeath==="nuke") drawNukePlanes(g,L,now);   // …and in the exchange, the blast wave swats aircraft out of the sky (they don't just disappear)
+  }
 
   }
-  if(pass==="sky") return;
+  if(pass==="sky"||pass==="skyfast") return;
 
   // Values used by both the cached city and live street overlay must be computed in every pass.
   var roadY=HORIZON+3, roadF=Math.max(0,Math.min(1,(cityG-0.1)/0.4));
@@ -15532,6 +15564,7 @@ function draw(g,pass){
   if(!nukeFull()) drawPartyLegacy(g,L,now);              // the PERSISTENT, stacking marks of every party that has governed this life
   }
   if(pass==="city") return;
+  drawMonorailService(g,L,now);                         // voted top tram: live, world-continuous across screens
   // Stations, riders, and trains stay in the fast live layer: nothing structural covers them and
   // the train does not inherit the deliberately slow city-cache cadence.
   drawTrainLine(g,L,now,fx,"service");
