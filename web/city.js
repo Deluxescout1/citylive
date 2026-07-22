@@ -5842,14 +5842,16 @@ function drawSunShade(g,x,y){ x=x|0; y=y|0;
 // climbing old brick, and weeds sprouting at the curb — nature softening the grid in every era.
 function drawGreenery(g,L,now){
   if(cityG<0.34||!near||!near.blds) return; var day=L>0.5;
-  for(var t=0;t<36;t++){ var h=((t*2654435761+321)>>>0), twx=h%WW, dn=districtAt(twx).name;
+  var treeCount=QUAL===0?16:36;
+  for(var t=0;t<treeCount;t++){ var h=((t*2654435761+321)>>>0), twx=h%WW, dn=districtAt(twx).name;
     var dens=dn==="residential"?0.9:dn==="oldtown"?0.62:dn==="downtown"?0.3:dn==="neon"?0.34:0.22;
     if(((h>>16)%100)/100 > dens*Math.min(1,(cityG-0.3)/0.2)) continue;
     var tx=twx-WOFF; if(tx>SW+6&&tx-WW>-6)tx-=WW; if(tx<-6&&tx+WW<SW+6)tx+=WW; if(tx<-5||tx>SW+5||inSea(twx)) continue;
     if(overLandmark(twx-4,8)) continue;                                                            // keep landmark plazas (stadium, amusement park…) clear of trees
     drawTree(g,tx|0,HORIZON+1,day,now,t,0.68+((h>>8)%42)/100,true);                               // organic size + smooth sway
   }
-  for(var i=0;i<near.blds.length;i++){ var b=near.blds[i]; if(b.type==="park") continue;
+  var bStride=QUAL===0?2:1;
+  for(var i=0;i<near.blds.length;i+=bStride){ var b=near.blds[i]; if(b.type==="park") continue;
     var bx=(b.x-WOFF); if(bx>SW+4||bx+b.w<-4) continue; var h2=((b.seed*40503)>>>0);
     if(b.brick && (h2%3)===0){ var top=near.y0-b.h, side=(h2&1)?0:b.w-1;                           // ivy up a brick edge
       g.fillStyle=day?"#3a6a3a":"#1c3320";
