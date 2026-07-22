@@ -93,3 +93,19 @@ test('major-event notifications filter minor disasters and expose eclipse days',
   ctx.CLOCK = ctx.NOWOVR;
   assert.strictEqual(ctx.notifySnapshot(ctx.NOWOVR).key, 'sky:solar:2026-8-12');
 });
+
+test('the elevated train cannot cover important landmarks or information surfaces', () => {
+  const source = fs.readFileSync(ENGINE, 'utf8');
+  const frame = source.slice(source.indexOf('function draw(g,pass)'));
+  const train = frame.indexOf('drawTrainLine(g,L,now,fx)');
+  assert.ok(train >= 0, 'train draw call must remain in the main frame');
+  for (const protectedDraw of [
+    'drawLandmarks(g,L,now,night,nd)',
+    'drawBuilds(g,L,now,night)',
+    'drawNewsScreens(g,L,now,night)',
+    'drawSportsDistrict(g,L,now)',
+    'drawJumbotrons(g,L,now,night)'
+  ]) {
+    assert.ok(frame.indexOf(protectedDraw, train) > train, protectedDraw + ' must render in front of the train');
+  }
+});

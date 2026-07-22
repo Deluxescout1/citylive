@@ -15356,13 +15356,9 @@ function draw(g,pass){
   if(!nukeHit(airportX)) drawAirport(g,L,now,night);   // (self-gated: rises under a crane; obliterated when the blast front arrives)
   // the launch complex — the space-faring era's crown jewel (falls silent during the endtimes)
   if(curSpace>0.05 && cityPhase!=="apoc") drawSpaceport(g,L,now,night);
-  // civic landmarks — stadium, cathedral, ferris wheel (rise with the maturing city)
-  drawLandmarks(g,L,now,night,nd);   // civic landmarks rip away individually as the blast front reaches each (see drawLandmarks)
-  drawBuilds(g,L,now,night);         // permanent VOTED landmarks (stadium/park/casino/…) the city built via ballot measures — near layer, traffic passes in front
-  // big LED news screens on the downtown towers — run local news, cut to BREAKING coverage as events happen
-  // (deliberately NOT gated by nukeFull: they keep reporting the disaster right up until each tower is hit)
-  if(cityG>0.5) drawNewsScreens(g,L,now,night);
-  // (drawSportsDistrict + drawJumbotrons moved to AFTER the viaduct below, so the big features read in FRONT of it)
+  // Civic landmarks, voted builds, and information screens draw after the viaduct below. The
+  // railway therefore reads as routed behind important places instead of masking their entrances,
+  // signs, animals, scoreboards, or breaking-news text.
   // window washers riding suspended platforms down the facades (daytime)
   if(cityG>0.5 && !nukeFull()){ drawWashers(g,mid,L,now); drawWashers(g,near,L,now); }
   // space-age retrofits: holo rings, uplink beams, the space elevator
@@ -15394,6 +15390,11 @@ function draw(g,pass){
 
   // elevated train line + scheduled train (mass transit arrives with the city)
   drawTrainLine(g,L,now,fx);   // (self-gated: builds itself pillar by pillar)
+  drawLandmarks(g,L,now,night,nd);   // civic landmarks rip away individually as the blast front reaches each (see drawLandmarks)
+  drawBuilds(g,L,now,night);         // permanent VOTED landmarks — still behind foreground traffic/people
+  // Big LED news screens keep reporting disasters until their host tower is hit; never let the
+  // viaduct hide the information the player is meant to read.
+  if(cityG>0.5) drawNewsScreens(g,L,now,night);
   drawSportsDistrict(g,L,now);       // the sports complex + jumbotrons draw IN FRONT of the viaduct so they're never hidden (Nick: "see everything")
   drawJumbotrons(g,L,now,night);     // the BIG rooftop news jumbotrons — in front of the viaduct now
 
