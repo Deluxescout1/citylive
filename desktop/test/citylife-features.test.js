@@ -69,6 +69,15 @@ test('the town-name bar carries disaster and end-times countdowns', () => {
   assert.doesNotMatch(frame, /drawDoomClock\(g,now,night\)/, 'the old detached top-left timer must stay removed');
 });
 
+test('animated shoreline foam is clamped to the ocean side of dirt', () => {
+  const source = fs.readFileSync(ENGINE, 'utf8');
+  const sea = source.slice(source.indexOf('function drawOpenSea'), source.indexOf('function drawCorpAds'));
+  assert.match(sea, /Math\.min\(ex-1-fw,bx2-1-fw\)/, 'left-coast foam must stay seaward');
+  assert.match(sea, /Math\.max\(ex\+1,bx2\+1\)/, 'right-coast foam must stay seaward');
+  assert.match(sea, /Math\.min\(ex-3,bx2-4\)/, 'left-coast breakers must stay seaward');
+  assert.match(sea, /Math\.max\(ex\+1,bx2\+2\)/, 'right-coast breakers must stay seaward');
+});
+
 test('the billboard library contains exactly 50 distinct realistic campaigns', () => {
   const ctx = loadEngine();
   assert.strictEqual(ctx.AD_LIB.length, 50);

@@ -7353,10 +7353,14 @@ function drawOpenSea(g,L,now,night){
         var lap=Math.sin(now*0.0016+sy*0.55+A);                              // FOAM laps in and out
         if(lap>-0.2){ var fw=1+(lap>0.55?1:0);
           g.fillStyle="rgba(255,255,255,"+(0.24+0.30*Math.max(0,lap)).toFixed(2)+")";
-          g.fillRect(side>0?bx2-1-fw:bx2+1,sy,fw,1); }
+          // The decorative beach meanders inland, but moving foam must remain on the TRUE sea
+          // side of the coast. Without this clamp, curved rows flashed over brown dirt/roadbed.
+          var foamX=side>0?Math.min(ex-1-fw,bx2-1-fw):Math.max(ex+1,bx2+1);
+          g.fillRect(foamX,sy,fw,1); }
         if(((sy*13+((now/900)|0))%11)===0){                                  // an occasional breaker rolling in
           g.fillStyle=day?"rgba(255,255,255,0.5)":"rgba(200,220,255,0.35)";
-          g.fillRect(side>0?bx2-4:bx2+2,sy,2,1); }
+          var breakX=side>0?Math.min(ex-3,bx2-4):Math.max(ex+1,bx2+2);
+          g.fillRect(breakX,sy,2,1); }
       }
       if(!day&&night>0.3){                                     // the moon lays a glint path on dark water
         var gx2=Math.max(xa+3,Math.min(xb-3,((xa+xb)>>1)+((A>0?-6:6))));
