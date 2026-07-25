@@ -76,7 +76,9 @@ test('the two passes do not double-paint (terrain excepted, which is split by ha
   const live = drawFns('live');
   const both = [...bg].filter(f => live.has(f));
   // drawTerrain takes an explicit "bg"/"fg" half, and drawTree is called from inside each half.
-  const allowed = new Set(['drawTerrain', 'drawTree']);
+  // drawBiomePlant is reached ONLY through drawTree — it is the biome's replacement for the ordinary
+  // tree body — so it inherits that same legitimate split rather than being a second painter.
+  const allowed = new Set(['drawTerrain', 'drawTree', 'drawBiomePlant']);
   const unexpected = both.filter(f => !allowed.has(f));
   assert.deepStrictEqual(unexpected, [], `painted by BOTH canvases: ${unexpected.join(', ')}`);
 });

@@ -12146,6 +12146,8 @@ function drawBiomeDetail(g,L,now,nd){
   // A spire the same tone as the butte behind it is invisible. Lift the detail toward the caprock so
   // it reads as a separate rock, and only stand one where the ridge is LOW enough to leave it sky.
   var detC=css(mixc(det, day?B.cap:[210,220,235], 0.34)), hs=mtsCache?mtsCache.h[1]:null;
+  var sd=rng((WORLD_SEED+9173)>>>0);        // declared BEFORE standSpot closes over it — hoisting made
+                                            // this work but QML V4 warns "used before its declaration"
   function ridgeAt(sx){ if(!hs) return 0; var i=Math.max(0,Math.min(SW-1,sx|0)); return hs[i]||0; }
   function clearSky(sx,need){ return ridgeAt(sx) < need*0.82; }
   // Stand something where it will actually meet SKY. The old accept/reject test demanded the local
@@ -12162,7 +12164,6 @@ function drawBiomeDetail(g,L,now,nd){
     }
     return bestx;
   }
-  var sd=rng((WORLD_SEED+9173)>>>0);
 
   if(B.k==="forest"){
     // MIST lying between the boles at dawn and dusk. (The fire lookout that used to stand here hung
@@ -12238,6 +12239,76 @@ function drawBiomeDetail(g,L,now,nd){
       for(var bl3=0;bl3<3;bl3++){ var a3=ang+bl3*2.094;
         for(var r3=1;r3<Math.round(9*K);r3++)
           g.fillRect((msx+Math.cos(a3)*r3)|0,(hub+Math.sin(a3)*r3)|0,1,1); } }
+  }
+}
+// WEATHER WITH A LOCAL ACCENT. Every one of these reads the REAL Norwich measurements — the actual
+// wind speed, the actual temperature, the actual precipitation — and only changes how that weather
+// EXPRESSES itself on this particular land. A calm day has still grass and no dust; a wet one has
+// neither, because dust does not blow in the rain. The biome never invents weather of its own.
+function drawBiomeWeather(g,L,now,nd,fx){
+  var B=curBiome; if(!B.fauna||cityPhase==="apoc") return;     // fauna:null ⇒ alpine, unchanged
+  var wind=(weather.wind==null?5:weather.wind), day=L>0.5, gy=HORIZON, K=Math.max(1,KSP);
+  var wet=!!(fx.rain||fx.snow||fx.drizzle||fx.thunder);
+  if(B.k==="mesa"){
+    // DUST DEVILS — only when it is genuinely windy, warm and dry. A slender rotating column that
+    // wanders across the flats and dies out; the desert's answer to the alpine gondola's motion.
+    if(wet||wind<7||!day) return;
+    var str=Math.min(1,(wind-7)/12), cyc=42000, slot=Math.floor(now/cyc);
+    var dr=rng((slot*40503+8161)>>>0);
+    if(dr()>0.30+str*0.45) return;
+    var ph=(now-slot*cyc)/cyc; if(ph>0.72) return;
+    var life=Math.min(1,Math.min(ph,0.72-ph)/0.16);             // fades in, fades out
+    var dwx=wrapW(dr()*WW+ph*WW*0.34), dh=Math.round((26+dr()*22)*K*(0.5+0.5*str));
+    for(var w=-1;w<=1;w++){
+      var X=Math.round(dwx-WOFF+w*WW); if(X<-30||X>SW+30) continue;
+      for(var y=0;y<dh;y++){
+        var f=y/dh, wob=Math.sin(now*0.006+f*7)*(2+f*7)*K*0.35;
+        var rad=Math.max(1,Math.round((1.2+f*4.2)*K));
+        g.fillStyle="rgba(206,172,132,"+(0.30*life*(1-f*0.55)).toFixed(3)+")";
+        g.fillRect(Math.round(X+wob-rad/2),gy-y,rad,1);
+      }
+      g.fillStyle="rgba(188,152,110,"+(0.34*life).toFixed(3)+")";   // the debris scuffed up at its foot
+      g.fillRect(X-Math.round(3*K),gy,Math.round(6*K),Math.max(1,Math.round(K)));
+    }
+  } else if(B.k==="cliffs"){
+    // SPRAY bursting where the swell meets the rock. Scales straight off the real wind — a flat calm
+    // gets nothing, a gale throws it over the headland.
+    if(!hasOcean||seaW<=0||wet&&fx.snow) return;
+    var sstr=Math.min(1,Math.max(0,(wind-4)/16)); if(sstr<=0.05) return;
+    for(var s=0;s<6;s++){
+      var sside=(s&1)?1:-1;
+      var swx=(sside>0)?WW*(1-seaW)-2-((s*13)%9):WW*seaW+2+((s*13)%9);
+      var beat=((now*0.0011)+s*1.7)%(Math.PI*2), burst=Math.max(0,Math.sin(beat));
+      if(burst<0.45) continue;
+      var bh=Math.round((5+18*sstr)*K*burst);
+      for(var w2=-1;w2<=1;w2++){
+        var SX=Math.round(swx-WOFF+w2*WW); if(SX<-20||SX>SW+20) continue;
+        for(var p=0;p<9;p++){
+          var pf=p/9, px=SX+Math.round((pf*10*sstr*sside+((p*7)%5)-2)*K);
+          var py=gy-Math.round(bh*Math.sin(pf*Math.PI))-((p*3)%4);
+          g.fillStyle="rgba(238,244,250,"+(0.50*burst*(1-pf*0.6)).toFixed(3)+")";
+          g.fillRect(px,py,Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
+        }
+      }
+    }
+  } else if(B.k==="plains"){
+    // WIND WAVES running through the grass — the only way an open plain shows you it is windy.
+    if(wet||wind<4) return;
+    // Run them from just ABOVE the horizon down to the bottom of the frame. GROUND is only ~26 world
+    // px (it exists to clear a taskbar), so confining the waves to the near strip squeezed five bands
+    // into a few pixels and they read as nothing. The meadow above the horizon is where the room is.
+    var pstr=Math.min(1,(wind-4)/14), top=gy-Math.round(9*K), gh=SH-top; if(gh<8) return;
+    g.globalAlpha=0.24*pstr;
+    g.fillStyle=day?"#e6ecc8":"#8f9a86";
+    for(var b=0;b<5;b++){
+      var band=top+Math.round(b*(gh/5));
+      var off=((now*(0.045+0.03*pstr)*(1+b*0.15))|0)%Math.max(40,Math.round(120*K));
+      for(var x=-Math.round(120*K)+off;x<SW;x+=Math.round(120*K)){
+        var wlen=Math.round((44+b*11)*K);
+        g.fillRect(x,band,wlen,Math.max(1,Math.round(1.4*K)));
+      }
+    }
+    g.globalAlpha=1;
   }
 }
 // ONE STRUCTURE that says where you are — the other four biomes' answer to alpine's cable car and
@@ -17243,6 +17314,7 @@ function draw(g,pass){
   drawSportsDay(g,L,now,nd);
   drawHail(g,L,now,fx);
   if(wmood.hot) drawShimmer(g,L,now);
+  drawBiomeWeather(g,L,now,nd,fx);               // how THIS land expresses the real weather
   drawCruise(g,L,now,night);
   drawBlkCrew(g,L,now);
   if(!nukeStruck()) drawGulls(g,L,now);          // K/J/M batch: coast, meadow & street spectacles (gulls killed by the flash)

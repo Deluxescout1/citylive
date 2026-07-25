@@ -27,10 +27,19 @@ Item {
                 console.log("PERF " + label + " biome=" + biome + " " + (el/N).toFixed(2) + " ms/frame  (" + N + " frames, " + el + " ms)");
                 return el/N;
             }
+            // Wind high enough that the dust devils, sea spray and wind waves are all ACTIVE — they
+            // are keyed to the real measurement, so timing them on a calm day measures nothing.
+            City.weather.wind = 20; City.weather.temp = 86;
             var N = 120;
             var alpine = timeLife(6, "alpine", N);
             var forest = timeLife(8, "forest", N);
-            console.log("PERF ratio forest/alpine = " + (forest/alpine).toFixed(2) + "x");
+            var mesa   = timeLife(11, "mesa",  N);
+            var cliffs = timeLife(1, "cliffs", N);
+            var plains = timeLife(3, "plains", N);
+            console.log("PERF vs alpine — forest " + (forest/alpine).toFixed(2)
+                      + "x  mesa " + (mesa/alpine).toFixed(2)
+                      + "x  cliffs " + (cliffs/alpine).toFixed(2)
+                      + "x  plains " + (plains/alpine).toFixed(2) + "x");
             Qt.quit();
         }
     }
