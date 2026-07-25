@@ -2531,7 +2531,24 @@ var BIOMES=[
     walls:[[178,72,58],[150,60,48],[196,190,166],[214,206,178],[132,118,86],[170,158,124],[186,176,146],[142,132,104]],
     fauna:{ keep:{deer:0,rabbit:1,fox:1,goat:0}, big:["bison","pronghorn","cattle"], small:["prairiedog"], air:["hawk"] },
     flora:{ kinds:["grass","grass","cottonwood","grass","scrub"], bloom:["#e8c860","#d8a0c8","#ffffff","#e0d070"] },
-    sky:{ top:[150,180,222], bot:[212,222,232], k:0.26, haze:[214,220,214] } }
+    sky:{ top:[150,180,222], bot:[212,222,232], k:0.26, haze:[214,220,214] } },
+  // THE LAST TWO ARE NOT EARTH. Everything else in this table is plausible geography under one sun;
+  // these are not, and they are the only rows whose `sky.k` runs high enough to genuinely repaint the
+  // day. They still obey the same rule every other biome does: the REAL Norwich clock and the REAL
+  // weather drive them, and the infernal or divine light is layered over that. Hell gets a red sky
+  // over a real Tuesday afternoon, and it still rains there when it rains here.
+  { k:"hell",   name:"THE ASHLANDS", amp:0.98, base:0.72, flat:0.15, steep:0.78, snow:false, water:"river",
+    far:[104,44,46],   near:[64,24,30],   cap:[214,92,50],  ground:[48,28,30],
+    walls:[[62,44,46],[44,30,34],[86,54,50],[38,26,30],[104,62,52],[52,36,40],[74,46,44],[40,28,32]],
+    fauna:{ keep:{deer:0,rabbit:0,fox:0,goat:0}, big:[], small:[], air:["vulture"] },
+    flora:{ kinds:["snag","snag","scrub","snag"], bloom:["#d8562e","#a8321e","#e08a3a"] },
+    sky:{ top:[28,8,14], bot:[178,46,24], k:0.82, haze:[210,72,30] } },
+  { k:"heaven", name:"THE EMPYREAN", amp:0.76, base:0.52, flat:0.62, steep:0.34, snow:false, water:null,
+    far:[228,224,242],  near:[204,198,228], cap:[255,250,228], ground:[228,222,204],
+    walls:[[246,244,236],[228,224,212],[255,252,244],[238,228,198],[250,246,232],[232,226,206],[255,248,220],[240,236,222]],
+    fauna:{ keep:{deer:0,rabbit:0,fox:0,goat:0}, big:[], small:[], air:["dove"] },
+    flora:{ kinds:["goldtree","generic","goldtree","grass"], bloom:["#ffe9a8","#ffffff","#ffd66a"] },
+    sky:{ top:[150,196,246], bot:[255,238,190], k:0.64, haze:[255,242,206] } }
 ];
 // The animals themselves. One sprite writer per BODY PLAN, one table row per species, so a new
 // animal costs a row rather than a renderer — the same economy the BIOMES table itself is built on.
@@ -2558,8 +2575,18 @@ var FAUNA={
   puffin:    {plan:"spot", c:[36,34,38],   c2:[240,238,232], beak:[236,140,52], upright:1},
   owl:       {plan:"bird", c:[128,110,84], perch:1, night:1},
   vulture:   {plan:"bird", c:[46,40,38],   soar:1},
-  hawk:      {plan:"bird", c:[112,86,56],  soar:1, perch:1}
+  hawk:      {plan:"bird", c:[112,86,56],  soar:1, perch:1},
+  dove:      {plan:"bird", c:[248,248,255], soar:1}
 };
+// Distance haze fades everything toward THE SKY IT IS UNDER. This was a hardcoded pale blue, which
+// is right for five biomes and wrong for the two that repaint the day — under an infernal sky the
+// far ridges were still fading toward a soft blue-grey, so a mountain range in Hell came out dusty
+// mauve. One helper, read by drawMountains, drawBiomeDetail and the forest backdrop alike.
+function biomeSkc(day){
+  var B=curBiome;
+  if(B&&B.sky) return day?B.sky.bot:mixc(B.sky.top,[0,0,0],0.55);
+  return day?[168,186,214]:[24,28,46];
+}
 var curBiome=BIOMES[0];
 var bioTrees=null;     // the OLD FOREST's colossal trees ({far:[],near:[]}), null in every other biome
 function biomeOf(li){
@@ -11608,6 +11635,31 @@ function drawBiomePlant(g,X,gy,day,now,seed,sc,kind,swayOn){
     for(var fr=0;fr<4;fr++){ var fd=(fr<2?-1:1), fx2=fd*(0.6+fr%2)*K;
       for(var s4=0;s4<fh;s4+=Math.max(1,Math.round(K)))
         R(fx2+fd*s4*0.55,-s4,Math.max(1,Math.round(K)),Math.max(1,Math.round(K))); }
+  } else if(kind==="snag"){
+    // a burnt standing dead tree — bare forked limbs, and an ember still alive at the base
+    var nh=Math.round((7+(seed%5))*K), nw=Math.max(1,Math.round(1.3*K));
+    g.fillStyle=C([38,28,28]);
+    R(-nw/2,-nh,nw,nh);
+    for(var lb=0;lb<3;lb++){
+      var ly2=-nh+Math.round(lb*1.9*K), ld=(lb&1)?1:-1;
+      for(var ls=0;ls<Math.round((2.4+lb*0.7)*K);ls++)
+        R(ld*ls,ly2-Math.round(ls*0.8),Math.max(1,Math.round(K*0.8)),Math.max(1,Math.round(K*0.8)));
+    }
+    if(((seed>>3)&3)===0){ g.fillStyle=(Math.floor(now/620)&1)?"#ff8a3a":"#c8461e";   // an ember, breathing
+      R(-nw,-Math.round(K),Math.max(1,Math.round(1.4*K)),Math.max(1,Math.round(K))); }
+  } else if(kind==="goldtree"){
+    // a tree in blossom that never drops it — pale trunk, gold canopy, a soft glow under it
+    var gh2=Math.round((10+(seed%5))*K), gw2=Math.max(2,Math.round(1.7*K));
+    g.fillStyle=C([224,216,196]);
+    R(-gw2/2,-gh2,gw2,gh2);
+    g.fillStyle=day?"rgba(255,226,150,0.30)":"rgba(255,214,140,0.16)";
+    R(-4*K+sway,-gh2-2.4*K,8*K,5*K);                                    // the glow it sits inside
+    g.fillStyle=C([250,222,138]);
+    R(-3.2*K+sway,-gh2-2*K,6.4*K,3.2*K);
+    R(-2.2*K+sway,-gh2-3.4*K,4.4*K,1.7*K);
+    R(-2.6*K+sway,-gh2+1.1*K,5.2*K,1.5*K);
+    g.fillStyle=C([255,244,200]);
+    R(-1.6*K+sway,-gh2-2.8*K,3.2*K,Math.max(1,Math.round(K)));          // lit crown
   } else if(kind==="log"){
     var lw2=Math.round((6+(seed%5))*K), lh2=Math.max(2,Math.round(1.8*K));
     g.fillStyle=C([78,62,46]); R(-lw2/2,-lh2,lw2,lh2);                    // a fallen giant, going back
@@ -11870,7 +11922,7 @@ function drawBole(g,t,sx,gy,cTrunk,cBark,cFol,K,detail){
 function drawForestBackdrop(g,L,now,nd){
   if(!bioTrees) return;
   var gy=HORIZON, day=L>0.5, sunsetK=goldenK, B=curBiome, K=Math.max(1,KSP);
-  var skc=day?[168,186,214]:[24,28,46];
+  var skc=biomeSkc(day);
   // THE CANOPY OVERHEAD — the shade it throws across the upper sky, the only proof the viewer gets
   // that the boles resolve into anything at all. THREE octaves on the lower edge plus foliage masses
   // hanging below it: a single sine gave a scalloped hem that read as a solid ceiling — a curtain
@@ -12046,6 +12098,10 @@ function drawRiver(g,L,now){
   var day=L>0.5, gy=HORIZON, roadY=HORIZON+3;
   var K=Math.max(1,KSP);                                        // bank furniture scales like the rest of the city
   var deep=day?[38,84,126]:[8,17,34], shallow=day?[104,158,190]:[20,38,62];
+  // In the Ashlands the channel carries LAVA, not water. Same geography, same bridge, same barges
+  // working it — only what is flowing has changed, and it is bright enough to light its own banks.
+  var lava=curBiome.k==="hell";
+  if(lava){ deep=[168,42,14]; shallow=[255,186,64]; }
   var halfPx=Math.max(8*K,Math.round(riverW*WW));
   var deckY=roadY+1, deckH=Math.max(3,Math.round(3*K));         // the bridge deck sits at street level
   for(var w=-1;w<=1;w++){
@@ -12141,7 +12197,7 @@ function drawRiver(g,L,now){
 function drawBiomeDetail(g,L,now,nd){
   if(cityPhase==="apoc") return;
   var B=curBiome, day=L>0.5, gy=HORIZON, K=Math.max(1,KSP), sunsetK=goldenK;
-  var skc=day?[168,186,214]:[24,28,46];
+  var skc=biomeSkc(day);
   var det=mixc(mixc(day?B.near:[10,14,22], skc, day?0.30:0.24),[150,92,124],sunsetK*0.28);
   // A spire the same tone as the butte behind it is invisible. Lift the detail toward the caprock so
   // it reads as a separate rock, and only stand one where the ridge is LOW enough to leave it sky.
@@ -12210,6 +12266,61 @@ function drawBiomeDetail(g,L,now,nd){
             var bang=(now*0.0007+bd*2.1+st2)%(Math.PI*2);
             var bxp=ssx+stw/2+Math.cos(bang)*(9*K), byp=(gy-sth-4*K)+Math.sin(bang)*(5*K);
             g.fillRect(bxp|0,byp|0,Math.max(1,Math.round(K)),1); } }
+      }
+    }
+  } else if(B.k==="hell"){
+    // BRIMSTONE SPIRES lit from within, and fire vents guttering along the ridge line. Placed with
+    // standSpot like the hoodoos, so they meet sky instead of being buried in the ridge behind them.
+    for(var bs=0;bs<9;bs++){
+      var bh4=Math.round((16+sd()*22)*K), bw4=Math.max(2,Math.round((2+sd()*3)*K));
+      var bx4=standSpot(bh4);
+      for(var w7=-1;w7<=1;w7++){ var sx7=bx4-WOFF+w7*WW; if(sx7<-10||sx7>SW+10) continue;
+        g.fillStyle=css(mixc(day?[46,24,26]:[18,10,12],[0,0,0],0.2));
+        g.fillRect(sx7|0,(gy-bh4)|0,bw4,bh4);                                    // the black spire…
+        var glow=0.5+0.5*Math.sin(now*0.0013+bs*1.7);
+        g.fillStyle="rgba(255,120,40,"+(0.55*glow).toFixed(2)+")";               // …lit from inside
+        g.fillRect(sx7|0,(gy-bh4)|0,Math.max(1,Math.round(K)),bh4);
+        g.fillStyle="rgba(255,214,140,"+(0.75*glow).toFixed(2)+")";
+        g.fillRect(sx7|0,(gy-bh4)|0,bw4,Math.max(1,Math.round(K*1.2)));          // molten cap
+      }
+    }
+    for(var fv=0;fv<6;fv++){                                                     // fire vents on the flat
+      var fvw=Math.round(sd()*WW);
+      for(var w8=-1;w8<=1;w8++){ var fsx=fvw-WOFF+w8*WW; if(fsx<-8||fsx>SW+8) continue;
+        var fl4=Math.abs(Math.sin(now*0.004+fv*2.2));
+        var fh4=Math.round((3+fl4*6)*K);
+        g.fillStyle="rgba(255,"+((70+120*fl4)|0)+",30,0.80)";
+        g.fillRect(fsx|0,(gy-fh4)|0,Math.max(1,Math.round(1.6*K)),fh4);
+        g.fillStyle="rgba(255,236,180,0.75)";
+        g.fillRect(fsx|0,(gy-Math.round(fh4*0.4))|0,Math.max(1,Math.round(1.6*K)),Math.round(fh4*0.4));
+      }
+    }
+  } else if(B.k==="heaven"){
+    // FLOATING ISLANDS hanging in the air over the city, each trailing a fall of light, with the
+    // whole sky-sea of cloud lying below them. Static per life, so they read as geography.
+    for(var fi=0;fi<5;fi++){
+      var fiw=Math.round(sd()*WW), fiy=Math.round(gy*(0.20+sd()*0.42)), fiW=Math.round((14+sd()*20)*K);
+      for(var w9=-1;w9<=1;w9++){ var isx=fiw-WOFF+w9*WW; if(isx<-fiW-10||isx>SW+fiW+10) continue;
+        var bobY=fiy+Math.round(Math.sin(now*0.00035+fi*1.9)*1.6*K);            // they drift very slowly
+        g.fillStyle=css(day?[236,232,244]:[92,90,104]);
+        g.fillRect(isx-fiW,bobY,fiW*2,Math.round(2.4*K));                        // the green/pale top
+        g.fillStyle=css(day?[206,198,226]:[62,60,74]);
+        for(var un=0;un<6;un++)                                                  // the rock tapering under
+          g.fillRect(isx-Math.round(fiW*(1-un*0.17)),bobY+Math.round((2.4+un*1.9)*K),
+                     Math.round(fiW*(1-un*0.17))*2,Math.round(2.1*K));
+        // The fall of light — WIDE and fading out well before the ground. Drawn narrow and solid it
+        // read as a stalk, which turned every island into a mushroom standing on a pole.
+        var fallH=Math.round(gy*0.30), fw0=Math.round(fiW*0.55);
+        for(var fq=0;fq<7;fq++){
+          var ff=fq/7, fy3=bobY+Math.round(13*K)+Math.round(ff*fallH);
+          if(fy3>gy) break;
+          var fwq=Math.round(fw0*(1-ff*0.45)), fa=(day?0.13:0.07)*(1-ff);
+          if(fa<=0.012) break;
+          g.fillStyle=(day?"rgba(255,246,208,":"rgba(206,198,226,")+fa.toFixed(3)+")";
+          g.fillRect(isx-fwq,fy3,fwq*2,Math.round(fallH/7)+1);
+        }
+        if(sd()<0.6){ g.fillStyle=css(day?[250,240,196]:[120,112,96]);           // a small building on it
+          g.fillRect(isx-Math.round(2*K),bobY-Math.round(4*K),Math.round(4*K),Math.round(4*K)); }
       }
     }
   } else if(B.k==="plains"){
@@ -12516,6 +12627,37 @@ function drawBiomeWeather(g,L,now,nd,fx){
         }
       }
     }
+  } else if(B.k==="hell"){
+    // ASH falling and EMBERS rising. Ash is the Ashlands' native weather and falls whatever the sky
+    // is doing — but real rain still beats it down, and the real wind still decides how far it slants,
+    // because this is a place on the same planet with the same forecast.
+    var slant=(wind/14)*1.6, ashA=wet?0.16:0.34;
+    g.fillStyle="rgba(196,188,182,"+ashA.toFixed(2)+")";
+    for(var a2=0;a2<46;a2++){
+      var afall=(now*0.030+a2*137)%(SH+40), ay=afall-20;
+      var ax=((a2*163+((WOFF*0.4)|0))%(SW+60))-30+afall*slant*0.14;
+      g.fillRect(Math.round(ax),Math.round(ay),Math.max(1,Math.round(K*0.8)),Math.max(1,Math.round(K*0.8)));
+    }
+    if(!wet){                                                            // embers only when it is dry
+      for(var em=0;em<16;em++){
+        var erise=(now*0.045+em*211)%(gy*0.85), ey=gy-erise;
+        var ex=((em*271+((WOFF*0.3)|0))%(SW+40))-20+Math.sin(now*0.003+em)*3*K;
+        var efade=1-erise/(gy*0.85);
+        g.fillStyle="rgba(255,"+((120+100*efade)|0)+",50,"+(0.85*efade).toFixed(2)+")";
+        g.fillRect(Math.round(ex),Math.round(ey),Math.max(1,Math.round(K*0.9)),Math.max(1,Math.round(K*0.9)));
+      }
+    }
+  } else if(B.k==="heaven"){
+    // MOTES of light drifting upward, and the air itself faintly gold. Rain still falls here; the
+    // Empyrean is a place with a forecast, and a wet day dims the motes exactly as it should.
+    var moteA=wet?0.22:0.55;
+    for(var mo2=0;mo2<34;mo2++){
+      var mrise=(now*0.016+mo2*181)%(gy*0.95), my2=gy-mrise;
+      var mx3=((mo2*197+((WOFF*0.25)|0))%(SW+50))-25+Math.sin(now*0.0011+mo2*1.3)*4*K;
+      var mf=Math.sin((mrise/(gy*0.95))*Math.PI);
+      g.fillStyle="rgba(255,244,196,"+(moteA*mf).toFixed(2)+")";
+      g.fillRect(Math.round(mx3),Math.round(my2),Math.max(1,Math.round(K*0.9)),Math.max(1,Math.round(K*0.9)));
+    }
   } else if(B.k==="plains"){
     // WIND WAVES running through the grass — the only way an open plain shows you it is windy.
     if(wet||wind<4) return;
@@ -12656,7 +12798,7 @@ function drawMountains(g,L,now,nd){
   var mo=nd.getMonth();
   var winter=(mo===11||mo<=1)?1:((mo===2||mo===10)?0.5:0);
   var snowLo=Math.min(0.5, winter*0.26 + snowpack*0.22);          // how far the snowline creeps down
-  var skc=day?[168,186,214]:[24,28,46];                           // fade the ridges toward the sky
+  var skc=biomeSkc(day);                           // fade the ridges toward the sky
   // The biome supplies the rock; night still drains it toward the sky colour and sunset still
   // blushes it, so red mesa and grey sea-cliff read as the same world under the same light.
   var B=curBiome, dim=function(c){ return [(c[0]*0.16)|0,(c[1]*0.18)|0,(c[2]*0.30)|0]; };
@@ -13027,6 +13169,37 @@ function drawBiomeGround(g,gy,day,now,wild){
       g.fillRect(px,py,pwd,Math.max(1,Math.round(1.6*K)));
       g.fillStyle=day?"rgba(210,235,245,0.45)":"rgba(150,175,215,0.25)";        // the sky caught in it
       g.fillRect(px+Math.round(K),py,Math.round(pwd*0.4),Math.max(1,Math.round(K*0.6)));
+    }
+  } else if(B.k==="hell"){
+    // BLACKENED CRUST with the fire showing through it — cracks that glow from underneath
+    g.fillStyle=css(day?[26,16,18]:[14,8,10]);
+    for(var hc=0;hc<22;hc++){
+      var hw2=(hc*151)%WW, hx2=Math.round(hw2-WOFF), hy2=gy+3+((hc*41)%Math.max(4,gh-5));
+      if(hx2<-30||hx2>SW+30) continue;
+      g.fillRect(hx2,hy2,Math.round((9+(hc%5)*5)*K),Math.max(1,Math.round(1.4*K)));
+    }
+    for(var cr=0;cr<16;cr++){
+      var cw2=(cr*233)%WW, cx2=Math.round(cw2-WOFF), cy2=gy+5+((cr*67)%Math.max(4,gh-6));
+      if(cx2<-24||cx2>SW+24) continue;
+      var pulse=0.55+0.45*Math.sin(now*0.0016+cr*1.3);                 // the fire below breathes
+      g.fillStyle="rgba(255,"+((96+70*pulse)|0)+",40,"+(0.55*pulse).toFixed(2)+")";
+      g.fillRect(cx2,cy2,Math.round((6+(cr%4)*4)*K),Math.max(1,Math.round(K*0.9)));
+      g.fillStyle="rgba(255,220,150,"+(0.30*pulse).toFixed(2)+")";
+      g.fillRect(cx2+Math.round(K),cy2,Math.round(2*K),Math.max(1,Math.round(K*0.6)));
+    }
+  } else if(B.k==="heaven"){
+    // POLISHED PALE STONE with veins of gold running through it
+    g.fillStyle=css(day?[248,244,232]:[70,68,74]);
+    for(var pv=0;pv<20;pv++){
+      var pw2=(pv*167)%WW, px2=Math.round(pw2-WOFF), py2=gy+3+((pv*43)%Math.max(4,gh-5));
+      if(px2<-30||px2>SW+30) continue;
+      g.fillRect(px2,py2,Math.round((10+(pv%5)*6)*K),Math.max(1,Math.round(1.2*K)));
+    }
+    for(var gv=0;gv<12;gv++){
+      var gw3=(gv*271)%WW, gx3=Math.round(gw3-WOFF), gy3=gy+5+((gv*59)%Math.max(4,gh-6));
+      if(gx3<-24||gx3>SW+24) continue;
+      g.fillStyle=day?"rgba(230,190,96,0.55)":"rgba(190,160,90,0.32)";
+      g.fillRect(gx3,gy3,Math.round((7+(gv%4)*5)*K),Math.max(1,Math.round(K*0.8)));
     }
   } else if(B.k==="forest"){
     // LEAF LITTER — the floor of a wood that has never been cleared

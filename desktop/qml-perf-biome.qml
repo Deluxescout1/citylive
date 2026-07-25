@@ -34,20 +34,32 @@ Item {
             // are keyed to the real measurement, so timing them on a calm day measures nothing.
             City.weather.wind = 20; City.weather.temp = 86;
             var N = 120;
-            var alpine = timeLife(6, "alpine", N);
-            var forest = timeLife(8, "forest", N);
-            var mesa   = timeLife(11, "mesa",  N);
-            var cliffs = timeLife(1, "cliffs", N);
-            var plains = timeLife(3, "plains", N);
-            var alpineM = timeLife(6, "alpine@0.85", N, 0.85);
-            var mesaM   = timeLife(11, "mesa@0.85",  N, 0.85);
-            var cliffsM = timeLife(1, "cliffs@0.85", N, 0.85);
+            // ⚠ LIVES REMAPPED when hell+heaven took BIOMES from 5 to 7. Every life re-rolled its
+            // biome, so the old numbers here (8=forest, 11=mesa, 1=cliffs, 3=plains) now point at
+            // completely different lands. Re-derived: alpine 6 · forest 1 · mesa 2 · heaven 8 ·
+            // hell 16 · plains 21 · cliffs 29.
+            var alpine = timeLife(6,  "alpine", N);
+            var forest = timeLife(1,  "forest", N);
+            var mesa   = timeLife(2,  "mesa",   N);
+            var cliffs = timeLife(29, "cliffs", N);
+            var plains = timeLife(21, "plains", N);
+            var hell   = timeLife(16, "hell",   N);
+            var heaven = timeLife(8,  "heaven", N);
+            var alpineM = timeLife(6,  "alpine@0.85", N, 0.85);
+            var mesaM   = timeLife(2,  "mesa@0.85",   N, 0.85);
+            var cliffsM = timeLife(29, "cliffs@0.85", N, 0.85);
+            var hellM   = timeLife(16, "hell@0.85",   N, 0.85);
+            var heavenM = timeLife(8,  "heaven@0.85", N, 0.85);
             console.log("PERF MATURE vs alpine — mesa " + (mesaM/alpineM).toFixed(2)
-                      + "x  cliffs " + (cliffsM/alpineM).toFixed(2) + "x");
+                      + "x  cliffs " + (cliffsM/alpineM).toFixed(2)
+                      + "x  hell " + (hellM/alpineM).toFixed(2)
+                      + "x  heaven " + (heavenM/alpineM).toFixed(2) + "x");
             console.log("PERF vs alpine — forest " + (forest/alpine).toFixed(2)
                       + "x  mesa " + (mesa/alpine).toFixed(2)
                       + "x  cliffs " + (cliffs/alpine).toFixed(2)
-                      + "x  plains " + (plains/alpine).toFixed(2) + "x");
+                      + "x  plains " + (plains/alpine).toFixed(2)
+                      + "x  hell " + (hell/alpine).toFixed(2)
+                      + "x  heaven " + (heaven/alpine).toFixed(2) + "x");
             Qt.quit();
         }
     }
