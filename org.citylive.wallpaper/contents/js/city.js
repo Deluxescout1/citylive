@@ -8672,14 +8672,27 @@ var SPEECH_SCENES=[
 ];
 // event banks — surfaced ONLY while their event is live (Nick: talk Order/Bills only around the takeover)
 var SPEECH_EVENT={
-  disaster:["STAY CLOSE TO ME.","IS EVERYONE SAFE?","IT'LL PASS. IT ALWAYS DOES.","GET THE KIDS INSIDE.","WE'LL REBUILD. WE ALWAYS DO."],
+  // TONE. Nick's brief: under the regime, a plague or a disaster people are FRIGHTENED and quietly
+  // dissenting — fear, rumour, guarded criticism, grief afterwards. Not apolitical, and not comic.
+  disaster:["STAY CLOSE TO ME.","IS EVERYONE SAFE?","IT'LL PASS. IT ALWAYS DOES.","GET THE KIDS INSIDE.","WE'LL REBUILD. WE ALWAYS DO.",
+            "HAVE YOU SEEN MY BROTHER?","THE PHONES ARE ALL DEAD.","OUR STREET IS GONE.","I CAN'T FIND HER.","DON'T LOOK. JUST WALK.",
+            "THEY SAID IT WAS SAFE HERE.","NOBODY WARNED US.","THAT WAS MY HOUSE."],
   rift:["SOMETHING ATE MY MAILBOX!","DID YOU SEE THOSE THINGS?","THEY CAME OUT OF THE SKY!","BOLT THE DOORS TONIGHT."],
-  regime:["CAREFUL WHAT YOU SAY.","THE WALLS HAVE EARS.","HAVE YOU SEEN THE POSTERS?","CURFEW AGAIN TONIGHT.","THIS CAN'T LAST FOREVER.","MY COUSIN JUST... VANISHED."],
+  regime:["CAREFUL WHAT YOU SAY.","THE WALLS HAVE EARS.","HAVE YOU SEEN THE POSTERS?","CURFEW AGAIN TONIGHT.","THIS CAN'T LAST FOREVER.","MY COUSIN JUST... VANISHED.",
+          "NOT HERE. NOT OUT LOUD.","THEY TOOK THE PRINTER AWAY.","DID YOU SIGN THE LIST?","I BURNED MY OLD PHOTOS.",
+          "MY BOY WON'T STOP ASKING.","THEY CALL IT ORDER NOW.","WHO'S THAT ON THE CORNER?","WE USED TO VOTE, REMEMBER.",
+          "SAY NOTHING AT THE GATE.","THREE DOORS DOWN. LAST NIGHT.","KEEP WALKING. DON'T LOOK UP."],
   regimeFree:["WE ARE FREE AGAIN!","TEAR THEM ALL DOWN!","I NEVER DOUBTED US.","THE FLAGS ARE COMING DOWN!"],
-  preRegime:["STRANGE FLAGS DOWNTOWN.","WHO FUNDS THIS ORDER?","MY NEIGHBOR JOINED THEM.","SOMETHING'S BREWING, I TELL YOU."],
+  preRegime:["STRANGE FLAGS DOWNTOWN.","WHO FUNDS THIS ORDER?","MY NEIGHBOR JOINED THEM.","SOMETHING'S BREWING, I TELL YOU.",
+             "THEY'RE RECRUITING AT WORK.","IT STARTS SMALL. ALWAYS.","MY FATHER SAW THIS BEFORE.",
+             "PEOPLE ARE CHOOSING SIDES.","I DON'T LIKE THE QUIET."],
   bills:["GO BILLS!","THE TAILGATE STARTS AT NOON.","BILLS BY 20, MARK ME.","WHO'S GOT WINGS FOR THE GAME?","SHOUT! SHOUT! SHOUT!"],
-  plague:["COVER YOUR COUGH.","IS YOUR FAMILY WELL?","THE TENTS ARE FULL DOWNTOWN.","WASH UP BEFORE DINNER.","STAY SAFE OUT THERE."],
-  war:["THE DEFENSES WILL HOLD.","DID YOU HEAR THE SIRENS?","MY BOY IS AT THE FRONT.","KEEP THE LIGHTS OFF TONIGHT."],
+  plague:["COVER YOUR COUGH.","IS YOUR FAMILY WELL?","THE TENTS ARE FULL DOWNTOWN.","WASH UP BEFORE DINNER.","STAY SAFE OUT THERE.",
+          "THE WARD TURNED US AWAY.","WE BURIED HIM ON TUESDAY.","DON'T TOUCH ANYTHING.","HOW MANY TODAY?","I HAVEN'T HUGGED ANYONE.",
+          "THEY SAY IT'S SLOWING.","THEY SAID THAT LAST WEEK.","MY WHOLE FLOOR IS EMPTY."],
+  war:["THE DEFENSES WILL HOLD.","DID YOU HEAR THE SIRENS?","MY BOY IS AT THE FRONT.","KEEP THE LIGHTS OFF TONIGHT.",
+       "NO LETTER IN THREE WEEKS.","THE TRAINS ONLY GO ONE WAY.","THEY'RE TAKING THE YOUNG.","I DREAM OF THE SIRENS NOW.",
+       "WE DON'T TALK ABOUT IT.","HIS CHAIR IS STILL THERE."],
   election:["DEBATE NIGHT TONIGHT.","I'M VOTING EARLY.","THE POLLS ARE SO CLOSE.","SIGNS ON EVERY LAWN NOW."],
   doom:["IS THIS REALLY THE END?","THE SKY FEELS WRONG LATELY.","HOLD YOUR FAMILY CLOSE.","NO POINT MOWING THE LAWN NOW.","I HEAR IT'S COMING SOON.","LIVE TODAY LIKE THE LAST."],
   finale:["IT WAS AN HONOR.","SEE YOU ON THE OTHER SIDE.","HOLD MY HAND.","WE HAD A GOOD RUN.","LOOK AT IT... IT'S BEAUTIFUL.","NO REGRETS. NOT ONE."]
@@ -8709,6 +8722,32 @@ function speechCtxLines(slot){
   if(SOLAR_ECLIPSES.indexOf(ymd(nd))>=0) L.push("ECLIPSE TODAY - GOT GLASSES?");
   if(isSupermoon(nd)) L.push("SUPERMOON TONIGHT!");
   if(typeof curEcon!=='undefined'){ if(curEcon<0.35) L.push("TIMES ARE TOUGH ALL OVER."); else if(curEcon>0.7) L.push("BUSINESS IS BOOMING!"); }
+  // THINGS THAT HAVEN'T HAPPENED YET. The astronomy desk already computes eclipses, showers and
+  // supermoons days ahead and the news forecasts them — but citizens only ever remarked on what was
+  // happening TODAY, so the city never once looked forward to anything. People now mention what is
+  // coming, the way you would actually hear it mentioned a few days out.
+  var DAYNM=["SUNDAY","MONDAY","TUESDAY","WEDNESDAY","THURSDAY","FRIDAY","SATURDAY"];
+  for(var d=1;d<=6;d++){
+    var fwd=new Date(nd.getTime()+d*86400000), dn=DAYNM[fwd.getDay()];
+    if(SOLAR_ECLIPSES.indexOf(ymd(fwd))>=0){ L.push("ECLIPSE ON "+dn+"!"); L.push("GETTING GLASSES FOR IT."); break; }
+  }
+  for(var d2=1;d2<=5;d2++){
+    var fwd2=new Date(nd.getTime()+d2*86400000);
+    if(!currentShower(nd)&&currentShower(fwd2)){ L.push("METEORS "+DAYNM[fwd2.getDay()]+" NIGHT."); break; }
+  }
+  for(var d3=1;d3<=4;d3++){
+    var fwd3=new Date(nd.getTime()+d3*86400000);
+    if(!isSupermoon(nd)&&isSupermoon(fwd3)){ L.push("SUPERMOON "+DAYNM[fwd3.getDay()]+"."); break; }
+  }
+  if(typeof curMayor!=='undefined'&&curMayor){
+    if(curMayor.debate) L.push("BIG DEBATE COMING UP.");
+    if(curMayor.campaign){ L.push("I'VE MADE UP MY MIND."); L.push("THE VOTE'S ALMOST HERE."); }
+    // the measures on the UPCOMING ballot, not the ones already law
+    var nm=curMayor.nextMeasures;
+    if(nm&&nm.length){ var m0=nm[0];
+      var mk=(typeof m0==='string')?m0:(m0&&(m0.k||m0.key||m0.id));
+      if(mk&&(""+mk).length<=14) L.push("HOW'S "+(""+mk).toUpperCase()+" POLLING?"); }
+  }
   _ctxCache.slot=slot; _ctxCache.arr=L; return L;
 }
 // the pair's relationship decides the topic: spouses talk family, coworkers shop-talk, a big class gap sparks
@@ -8760,14 +8799,30 @@ function sceneTopic(a, b, sslot, now){
   var h=P_hash((a.pid^b.pid^sslot*17)>>>0);
   if(cityPhase==="apoc") return {ev:'finale'};
   if(typeof curDis!=='undefined'&&curDis) return {ev:(curDis.type==="rift"?'rift':'disaster')};
+  // Nick's rule: ordinary days stay everyday talk, but when something IS happening the city's talk
+  // turns overwhelmingly to it and then fades back. These gates were flat constants — a plague got
+  // talked about exactly as much on its first day as at the height of the surge, and an election as
+  // much a fortnight out as on polling day. Each now scales with its OWN event's intensity.
   var end=apocAtOf(now)-now;
-  if(end>0&&end<GROW_CYCLE*0.05&&(h%10)<5) return {ev:'doom'};
+  if(end>0&&end<GROW_CYCLE*0.05){
+    var dm=1-(end/(GROW_CYCLE*0.05));                              // 0 far out → 1 at the last hour
+    if((h%10) < Math.round(2+7*dm)) return {ev:'doom'};
+  }
   if(typeof curRegime!=='undefined'&&curRegime&&curRegime.active) return {ev:(curRegime.theme==='bills'?'bills':(curRegime.stage>=6?'regimeFree':'regime'))};
   if((h%10)<3&&regimeSoon(now)) return {ev:'preRegime'};
   if(typeof curBills!=='undefined'&&curBills) return {ev:'bills'};
-  if(typeof curPlague!=='undefined'&&curPlague&&curPlague.active&&(h%10)<6) return {ev:'plague'};
-  if(typeof curWar!=='undefined'&&curWar&&curWar.f>=0&&curWar.f<1.4&&(h%10)<6) return {ev:'war'};
-  if(typeof curMayor!=='undefined'&&curMayor&&(curMayor.campaign||curMayor.debate||curMayor.electionDay)&&(h%10)<4) return {ev:'election'};
+  if(typeof curPlague!=='undefined'&&curPlague&&curPlague.active){
+    var pk=(curPlague.severity==null)?0.6:curPlague.severity;      // already rises to the SURGE, then falls
+    if((h%10) < Math.round(2+8*pk)) return {ev:'plague'};
+  }
+  if(typeof curWar!=='undefined'&&curWar&&curWar.f>=0&&curWar.f<1.4){
+    var wk=1-Math.min(1,Math.abs(curWar.f-0.55)/0.85);             // peaks while the fighting is on
+    if((h%10) < Math.round(3+7*wk)) return {ev:'war'};
+  }
+  if(typeof curMayor!=='undefined'&&curMayor&&(curMayor.campaign||curMayor.debate||curMayor.electionDay)){
+    var ek=curMayor.electionDay?9:(curMayor.debate?7:4);           // polling day is nearly all anyone says
+    if((h%10) < ek) return {ev:'election'};
+  }
   // authored scene ~30%: humor / drama / romance (spouses only) / sports
   if((h%10)<3){ var pool=[], pa=drawnPopRef&&drawnPopRef[a.idx], pb=drawnPopRef&&drawnPopRef[b.idx];
     var spouses=!!(pa&&pb&&pa.gen===a.gen&&pb.gen===b.gen&&pa.spouse===b.idx&&pa.spouseGen===b.gen);
