@@ -80,6 +80,26 @@ test('no NaN / infinities; valid job ids', () => {
   }
 });
 
+// The Citizens roster shipped a mayor aged 218: the sitting office-holder's death reprieve had no
+// upper bound, so whoever held office never died and aged forever. Nobody alive may outlive their own
+// lifespan by more than a hair, whatever office they hold, at any point in the life.
+test('nobody outlives their lifespan — not even the mayor', () => {
+  const ctx = load();
+  for (const cy of [0.15, 0.35, 0.55, 0.75, 0.95]) {
+    const C = ctx.P_sim(LI, cy, ctx.P_defaultEvents);
+    for (const p of C.pop) {
+      if (!p.alive || !p.arrived) continue;
+      // an ordinary citizen may overshoot their lifespan a little — death past maxAge is a 0.22 roll
+      // per tick, not a certainty — but never by a generation.
+      assert.ok(p.age <= p.maxAge + 25,
+        'living citizen age ' + p.age + ' far exceeds lifespan ' + p.maxAge + ' at cy=' + cy + ' (office=' + p.office + ')');
+      // the mayor is the one spared that roll, so their age must stop exactly at their lifespan
+      if (p.office === 2) assert.ok(p.age <= p.maxAge,
+        'sitting mayor aged ' + p.age + ' past lifespan ' + p.maxAge + ' at cy=' + cy + ' (death reprieve must not also grant immortality)');
+    }
+  }
+});
+
 test('stats: living-population denominators, bounded real Gini', () => {
   const ctx = load();
   const s = ctx.peopleStats(Date.now(), LI, 0.7);

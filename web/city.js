@@ -7991,9 +7991,12 @@ function P_step(pop, tick, lifeSeed, bldgDead, econ, evt){
     if(p.spouse>=0 && !P_ref(pop,p.spouse,p.spouseGen)){ p.spouse=-1; p.spouseGen=-1; }
 
     p.age++;
-    // natural death (+ disaster in home district). The sitting MAYOR serves out the term — no natural
-    // death (a term is longer than a lifespan, so this keeps the office stable & the HUD name from
-    // flipping mid-term, SOL P0); a disaster can still take them (dramatic, rare).
+    // A term is longer than a lifespan, so the sitting MAYOR is spared natural death to serve it out —
+    // that keeps the office stable and the HUD name from flipping mid-term (SOL P0). But the reprieve
+    // let them keep AGING, and the Citizens roster showed mayors aged 218. Hold an office-holder at
+    // their natural lifespan: they still serve the full term, they just stop counting birthdays.
+    if(p.office===2 && p.age>p.maxAge) p.age=p.maxAge;
+    // natural death (+ disaster in home district); a disaster can still take a mayor (dramatic, rare).
     var dP = (p.office===2) ? 0 : (p.age>p.maxAge ? 0.22 : p.age>p.maxAge-10 ? 0.02 : p.age>P_ELDER ? 0.004 : 0.0004);
     if(e.disK.length){ for(var d=0;d<e.disK.length;d++){ if(p.home===e.disK[d]){ dP+=0.14; break; } } }
     if(r()<dP){ p.alive=false; deaths++;
