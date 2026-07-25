@@ -68,9 +68,11 @@ app.whenReady().then(() => {
     const ageJs = isFinite(APOC)
       ? `FORCEAGE={g:1,phase:'apoc',apoc:${APOC},cy:0.955+0.045*${APOC}}; `
       : `FORCEAGE=${AGE}; `;
+    const LIFE=process.env.CLLIFE?parseInt(process.env.CLLIFE,10):null;
+    const lifeJs = (LIFE!==null&&isFinite(LIFE)) ? `buildWorld(${LIFE}); mtsCache=null; ` : '';
     const js = DIS
-      ? `${overrideJs}FORCEDIS={type:'${DIS}',intensity:4,xf:0.5,w:60,seed:77,f:0.25}; ${ageJs}'ok'`
-      : `${overrideJs}${ageJs}'ok'`;
+      ? `${overrideJs}${lifeJs}FORCEDIS={type:'${DIS}',intensity:4,xf:0.5,w:60,seed:77,f:0.25}; ${ageJs}'ok'`
+      : `${overrideJs}${lifeJs}${ageJs}'ok'`;
     win.webContents.executeJavaScript(js).then(() => {
       setTimeout(async () => {
         try {

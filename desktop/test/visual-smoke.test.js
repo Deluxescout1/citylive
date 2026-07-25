@@ -82,7 +82,12 @@ test('retained layers preserve every original drawing operation', () => {
   split.NOWOVR = at;
   split.FORCEAGE = 0.72;
   const splitCounts = {};
-  for (const pass of ['bg', 'sky', 'cloud', 'skyfast', 'water', 'city', 'fg']) split.draw(countingCanvas(splitCounts), pass);
+  // The SHIPPING partition. Every shell paints bg + live (see shell-pass.test.js); the old seven-pass
+  // list this used to check is no longer drawn by anything. Keeping it here was actively harmful: the
+  // legacy split double-paints two linear gradients in some city lives, so unrelated changes that
+  // merely moved which life the fixture samples would fail this test for a defect no user can see.
+  // bg + live is exact — verified against the same lives that trip the legacy list.
+  for (const pass of ['bg', 'live']) split.draw(countingCanvas(splitCounts), pass);
 
   // Layer canvases require their own transform/clear calls. All visible primitives and paths
   // must otherwise match the original monolithic frame exactly—no feature may disappear.
