@@ -57,7 +57,11 @@ app.whenReady().then(() => {
     const nowMs = NOW ? parseInt(NOW, 10) : NaN;
     const nowJs = isFinite(nowMs) ? `NOWOVR=${nowMs}; ` : '';
     const deathJs = DEATH ? `FORCEDEATH='${DEATH}'; ` : '';
-    const overrideJs = eraJs + weatherJs + aqJs + nowJs + deathJs;
+    // The shell's control bar re-runs applyOverrides() and RESETS NOWOVR/FORCEAGE/FORCEERA from its
+    // own state, silently undoing everything a harness injects. Neutralise it first or CLNOW/CLAGE
+    // appear to work (the assignment succeeds) and are gone a frame later.
+    const neutralise = `try{ applyOverrides=function(){}; }catch(e){}; `;
+    const overrideJs = neutralise + eraJs + weatherJs + aqJs + nowJs + deathJs;
     // CLAPOC forces the apocalypse phase at a given progress; it overrides CLAGE (the
     // plain grow/peak maturity number) when both are set, since the two are mutually
     // exclusive phases of the same FORCEAGE hook.

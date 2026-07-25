@@ -11489,9 +11489,12 @@ function drawMountains(g,L,now,nd){
     for(var pi0=0;pi0<2;pi0++){ var list0=lists[pi0];
       for(var i0=0;i0<list0.length;i0++) if(list0[i0].h>mtsCache.mx[pi0]) mtsCache.mx[pi0]=list0[i0].h;
       var strata=Math.max(2,Math.round(5*KSP*(0.5+B.flat)));      // mesa bedding planes — the step a flat top snaps to
+      // Flat biomes must not undulate: quantising a sine into strata turns the whole skyline into a
+      // sawtooth. Damp the rolling base and the crags by `flat` so a mesa top comes out genuinely flat.
+      var wob=1-B.flat;
       for(var cx0=0;cx0<SW;cx0++){ var wx0=cx0+WOFF;
-        var rh0=((pi0===0)? (9+Math.sin(wx0*0.011+3)*5+Math.sin(wx0*0.033)*2.5)*KSP       // rolling base ridge
-                          : Math.max(0,(Math.sin(wx0*0.014+7)*9-3.5))*KSP) * B.base;      // sparse foothills
+        var rh0=((pi0===0)? (9+(Math.sin(wx0*0.011+3)*5+Math.sin(wx0*0.033)*2.5)*wob)*KSP  // rolling base ridge
+                          : Math.max(0,(Math.sin(wx0*0.014+7)*9-3.5)*wob)*KSP) * B.base;   // sparse foothills
         for(var i1=0;i1<list0.length;i1++){ var p0=list0[i1];
           var d0=(((wx0-p0.x)%WW)+WW*1.5)%WW-WW*0.5; if(d0<0)d0=-d0;
           if(d0>=p0.w) continue;
@@ -11500,7 +11503,7 @@ function drawMountains(g,L,now,nd){
           // mesa wall or a sea cliff drops straight down instead of easing off like a mountain flank.
           if(B.steep>0) t0=Math.min(1, t0/Math.max(0.10,1-B.steep*0.88));
           var crag=(Math.sin(wx0*0.19+p0.ph)*1.4+Math.sin(wx0*0.047+p0.ph*2.3)*2.4+Math.sin(wx0*0.093+p0.ph*5)*1.1)
-                   *t0*(p0.h/(46*KSP))*(1-B.flat*0.9);            // crags grow with the mountain; flat tops stay smooth
+                   *t0*(p0.h/(46*KSP))*wob;                       // crags grow with the mountain; flat tops stay smooth
           var hh0=p0.h*t0+crag*KSP;
           if(hh0>rh0) rh0=hh0; }
         if(B.flat>0 && rh0>2) rh0=Math.round(rh0/strata)*strata;  // quantise into bedding planes → flat tops
@@ -11517,13 +11520,19 @@ function drawMountains(g,L,now,nd){
     g.fillStyle=mc; var rs=-1, rtop=0;
     for(var sx=0;sx<=SW;sx++){ var rh=(sx<SW)?hs[sx]:-1, top=(rh>=2)?Math.max(2,(gy-rh)|0):-999;
       if(top!==rtop){ if(rs>=0&&rtop>-999) g.fillRect(rs,rtop,sx-rs,gy-rtop+2); rs=(top>-999)?sx:-1; rtop=top; } }
-    // SNOW CAPS — per column (dithered melt edge); one fillStyle set for the whole ridge
+    // SNOW CAPS — per column (dithered melt edge); one fillStyle set for the whole ridge.
+    // On rock biomes this same band becomes CAPROCK: the paler hard stratum on top of a mesa or a
+    // sea cliff. Snow wanders and melts unevenly; a bed of rock does neither, so the snowline wobble
+    // and the dither are snow-only — left on, they saw-tooth every flat top.
+    var capOn = B.snow || B.flat>0.4;
+    if(capOn){
     g.fillStyle=sc;
     for(var sx2=0;sx2<SW;sx2++){ var rh2=hs[sx2]; if(rh2<2) continue;
       var top2=(gy-rh2)|0; if(top2<2) top2=2;
-      var cap=Math.round(rh2-(snl+mtsCache.wig[sx2]));
-      if(cap>0&&((sx2+(rh2*2|0))&1)) cap+=1;
+      var cap=Math.round(rh2-(snl+(B.snow?mtsCache.wig[sx2]:0)));
+      if(B.snow&&cap>0&&((sx2+(rh2*2|0))&1)) cap+=1;
       if(cap>0) g.fillRect(sx2,top2,1,Math.min(cap,gy-top2));
+    }
     }
   }
 }
@@ -11799,8 +11808,12 @@ function drawTerrain(g,cg,L,now,nd,pass){
         g.fillRect(hx2,(gy-hh2)|0,2,(hh2+8)|0); }
       g.globalAlpha=1; }
   }
-  // grass foreground (greens fading toward city-grey as it paves over)
-  var grass=mixc(day?[74,116,58]:[48,68,52], day?[150,158,150]:[44,48,60], cg*0.9);
+  // grass foreground (greens fading toward city-grey as it paves over). The BIOME re-tints the bare
+  // ground so the land in front agrees with the horizon behind it — red dust under a mesa, pale dry
+  // grass on the plains — while still greying out as the city paves over it.
+  var wildC=day?[74,116,58]:[48,68,52];
+  if(curBiome.ground) wildC=mixc(wildC, day?curBiome.ground:mixc(curBiome.ground,[0,0,0],0.62), 0.80);
+  var grass=mixc(wildC, day?[150,158,150]:[44,48,60], cg*0.9);
   if(BGp){ g.globalAlpha=Math.min(1,wild+0.12); g.fillStyle=css(grass); g.fillRect(0,gy,SW,SH-gy); g.globalAlpha=1; }
   if(!day&&BGp){                                                            // moonlight: the meadow stays visible on a dark night
     var mgl=g.createLinearGradient(0,gy,0,SH);

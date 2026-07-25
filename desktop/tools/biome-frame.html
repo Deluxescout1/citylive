@@ -1,0 +1,32 @@
+<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;background:#0a0c14}</style></head>
+<body><canvas id="c" width="1500" height="800"></canvas>
+<script src="../renderer/city.js"></script>
+<script>
+  // BIOME PROBE — one still frame of a chosen city LIFE at a chosen age.
+  // Deliberately does NOT load renderer/index.html: that shell's control bar re-runs applyOverrides()
+  // from inside an IIFE and RESETS NOWOVR/FORCEAGE every frame, so anything injected into the app
+  // page is silently undone a frame later. Driving setup()/draw() here is the only reliable way to
+  // pin a life. ?life=N picks the life (clock is placed inside it), ?age=0..1 the city's maturity.
+  window.NOFETCH=true;
+  var Q=new URLSearchParams(location.search);
+  var life=parseInt(Q.get('life')||'0',10), age=parseFloat(Q.get('age')||'0.30');
+  window.GROW_CYCLE=604800000;                            // no config.js here, so pin the weekly cycle
+  var CYC=604800000, EPOCH=1783972450746;                 // must match GROW_CYCLE (cycle "1w") + GROW_EPOCH
+  window.NOWOVR = EPOCH + life*CYC + Math.round(0.45*CYC);
+  // ?hour=13 snaps the clock to that hour of the SAME day so palettes can be judged in daylight.
+  // A shift of at most half a day cannot move a week-long life, so the biome is unaffected.
+  if(Q.get('hour')!==null){
+    var hh=parseFloat(Q.get('hour')), dd=new Date(window.NOWOVR);
+    dd.setHours(hh|0,Math.round((hh%1)*60),0,0); window.NOWOVR=dd.getTime();
+  }
+  window.CLOCK  = window.NOWOVR;
+  window.FORCEAGE = age;
+  var cv=document.getElementById('c'), g=cv.getContext('2d');
+  try{
+    setup('neon',{cw:1500,ch:800,woff:0,ww:1500,pxk:3,zoom:1,quality:'spectacle'});
+    for(var f=0;f<3;f++) draw(g);
+    window._named = 'life='+curLife+' biome='+curBiome.k+' ocean='+hasOcean+' river='+hasRiver+
+                    ' peaks='+(mts?(mts.far.length+mts.near.length):0)+
+                    ' trees='+(bioTrees?(bioTrees.far.length+bioTrees.near.length):0);
+  }catch(e){ window._named='ERR:'+e.message; }
+</script></body></html>
