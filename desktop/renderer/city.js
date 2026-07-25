@@ -12147,7 +12147,21 @@ function drawBiomeDetail(g,L,now,nd){
   // it reads as a separate rock, and only stand one where the ridge is LOW enough to leave it sky.
   var detC=css(mixc(det, day?B.cap:[210,220,235], 0.34)), hs=mtsCache?mtsCache.h[1]:null;
   function ridgeAt(sx){ if(!hs) return 0; var i=Math.max(0,Math.min(SW-1,sx|0)); return hs[i]||0; }
-  function clearSky(sx,need){ return ridgeAt(sx) < need*0.55; }
+  function clearSky(sx,need){ return ridgeAt(sx) < need*0.82; }
+  // Stand something where it will actually meet SKY. The old accept/reject test demanded the local
+  // ridge be under 55% of the piece's height — but on a mesa the buttes cover most of the width and
+  // stand taller than any hoodoo, so nearly every draw was rejected and typically one or two of seven
+  // ever appeared. This samples candidates instead, takes the first that out-tops the ridge, and
+  // failing that stands the piece in the LOWEST gap it found rather than dropping it entirely.
+  function standSpot(h){
+    var bestv=1e9, bestx=0;
+    for(var tr=0;tr<8;tr++){
+      var cx=Math.round(sd()*WW), rv=ridgeAt(((cx-WOFF)%WW+WW)%WW);
+      if(rv<bestv){ bestv=rv; bestx=cx; }
+      if(rv<h*0.92) return cx;
+    }
+    return bestx;
+  }
   var sd=rng((WORLD_SEED+9173)>>>0);
 
   if(B.k==="forest"){
@@ -12161,17 +12175,17 @@ function drawBiomeDetail(g,L,now,nd){
           g.fillRect(mx,my,SW,Math.max(1,Math.round(K))); } } }
   } else if(B.k==="mesa"){
     // HOODOOS — slender wind-carved spires standing off the buttes — and a natural ARCH
-    for(var h2=0;h2<7;h2++){
-      var hx=Math.round(sd()*WW), hh=Math.round((10+sd()*16)*K), hw=Math.max(2,Math.round((2+sd()*2)*K));
+    for(var h2=0;h2<10;h2++){
+      var hh=Math.round((14+sd()*20)*K), hw=Math.max(2,Math.round((2+sd()*2)*K));
+      var hx=standSpot(hh);                                                      // placed in a gap, not rejected
       for(var w3=-1;w3<=1;w3++){ var sx3=hx-WOFF+w3*WW; if(sx3<-8||sx3>SW+8) continue;
-        if(!clearSky(sx3,hh)) continue;                                          // buried in the butte — skip it
         var base=gy;
         g.fillStyle=detC;
         g.fillRect(sx3|0,(base-hh)|0,hw,hh);                                     // the column
         g.fillRect((sx3-1)|0,(base-hh)|0,hw+2,Math.max(1,Math.round(2*K)));      // the harder caprock hat
       }
     }
-    var ax=Math.round(sd()*WW), ah=Math.round(16*K), aw=Math.round(20*K);
+    var ah=Math.round(16*K), aw=Math.round(20*K), ax=standSpot(ah);
     for(var w4=-1;w4<=1;w4++){ var asx=ax-WOFF+w4*WW; if(asx<-aw||asx>SW+aw) continue;
       if(!clearSky(asx,ah)||!clearSky(asx+aw,ah)) continue;                       // the arch needs sky through it
       g.fillStyle=detC;
@@ -12181,10 +12195,10 @@ function drawBiomeDetail(g,L,now,nd){
     }
   } else if(B.k==="cliffs"){
     // SEA STACKS standing off the headland, and seabirds wheeling around them
-    for(var st2=0;st2<5;st2++){
-      var stx=Math.round(sd()*WW), sth=Math.round((14+sd()*22)*K), stw=Math.round((4+sd()*5)*K);
+    for(var st2=0;st2<8;st2++){
+      var sth=Math.round((18+sd()*24)*K), stw=Math.round((4+sd()*5)*K);
+      var stx=standSpot(sth);                                                     // same: placed, not rejected
       for(var w5=-1;w5<=1;w5++){ var ssx=stx-WOFF+w5*WW; if(ssx<-12||ssx>SW+12) continue;
-        if(!clearSky(ssx,sth)) continue;                                          // a stack inside the headland reads as nothing
         g.fillStyle=detC; g.fillRect(ssx|0,(gy-sth)|0,stw,sth);
         g.fillStyle=day?"rgba(255,255,255,0.16)":"rgba(0,0,0,0.18)";             // lit face
         g.fillRect(ssx|0,(gy-sth)|0,Math.max(1,Math.round(K)),sth);
@@ -12224,6 +12238,118 @@ function drawBiomeDetail(g,L,now,nd){
       for(var bl3=0;bl3<3;bl3++){ var a3=ang+bl3*2.094;
         for(var r3=1;r3<Math.round(9*K);r3++)
           g.fillRect((msx+Math.cos(a3)*r3)|0,(hub+Math.sin(a3)*r3)|0,1,1); } }
+  }
+}
+// ONE STRUCTURE that says where you are — the other four biomes' answer to alpine's cable car and
+// summit lodge. Industry, so it arrives only once there is a town to build it, and it wears the
+// biome's own wall palette so it belongs to this city rather than being pasted on.
+function drawBiomeLandmark(g,L,now,nd){
+  var B=curBiome; if(!B.fauna||cityPhase==="apoc") return;      // fauna:null ⇒ alpine, which has its own
+  if(cityG<0.24) return;                                        // nobody has built it yet
+  // Half again the usual scale: at plain KSP the headframe stood shorter than the office blocks
+  // beside it and read as street furniture rather than as the reason the town is here.
+  var day=L>0.5, gy=HORIZON, K=Math.max(1,KSP)*1.7;
+  var sd2=rng((WORLD_SEED+4457)>>>0);
+  var wood=day?"#7a5c3a":"#2a2018", wood2=day?"#5e4630":"#1d1610";
+  var metal=day?"#9aa0a8":"#33363c", metal2=day?"#6a6e74":"#24272c";
+  // Stood in the OUTSKIRTS, not the middle. edgeBias already thins the city toward the world's edges,
+  // so a landmark dropped at a uniform-random x lands behind the downtown blocks and is never seen.
+  var lx=Math.round((sd2()<0.5 ? (0.03+sd2()*0.13) : (0.84+sd2()*0.13))*WW);
+  function at(cb){ for(var w=-1;w<=1;w++){ var X=Math.round(lx-WOFF+w*WW);
+    if(X<-90||X>SW+90) continue; cb(X); } }
+  if(B.k==="mesa"){
+    // A MINE HEADFRAME and its water tower — the reason a town exists out here at all
+    at(function(X){
+      var hgt=Math.round(20*K), wdt=Math.round(11*K);
+      g.fillStyle=metal;
+      g.fillRect(X,gy-hgt,Math.max(1,Math.round(1.4*K)),hgt);                       // the two legs…
+      g.fillRect(X+wdt,gy-hgt,Math.max(1,Math.round(1.4*K)),hgt);
+      for(var b=0;b<5;b++){ var by=gy-Math.round(hgt*(0.20+b*0.18));                // …cross-braced
+        g.fillStyle=metal2; g.fillRect(X,by,wdt,Math.max(1,Math.round(K*0.7))); }
+      g.fillStyle=metal; g.fillRect(X-Math.round(K),gy-hgt,wdt+Math.round(2*K),Math.round(2.5*K));
+      g.fillStyle=day?"#3c4046":"#14161a";                                          // the sheave wheel
+      var wr=Math.round(3*K), cxw=X+wdt/2, cyw=gy-hgt-Math.round(2*K);
+      for(var a=0;a<10;a++){ var an=a*0.628+now*0.0004;
+        g.fillRect(Math.round(cxw+Math.cos(an)*wr),Math.round(cyw+Math.sin(an)*wr),
+                   Math.max(1,Math.round(K)),Math.max(1,Math.round(K))); }
+      g.fillStyle=wood;                                                             // ore shed at the foot
+      g.fillRect(X-Math.round(9*K),gy-Math.round(6*K),Math.round(9*K),Math.round(6*K));
+      g.fillStyle=wood2; g.fillRect(X-Math.round(9*K),gy-Math.round(6*K),Math.round(9*K),Math.round(K));
+      var tx=X+Math.round(20*K), th=Math.round(13*K);                               // the water tower
+      g.fillStyle=metal2;
+      g.fillRect(tx,gy-th,Math.max(1,Math.round(K)),th);
+      g.fillRect(tx+Math.round(6*K),gy-th,Math.max(1,Math.round(K)),th);
+      g.fillStyle=metal;
+      g.fillRect(tx-Math.round(K),gy-th-Math.round(6*K),Math.round(9*K),Math.round(6*K));
+      g.fillStyle=day?"#6a4a34":"#241a12";
+      g.fillRect(tx-Math.round(K),gy-th-Math.round(6*K),Math.round(9*K),Math.round(K));
+    });
+  } else if(B.k==="cliffs"){
+    // A STAIR VILLAGE pinned to the rock — cottages stepping down a zig-zag of steps to the water
+    at(function(X){
+      var steps=7, sw=Math.round(7*K), shh=Math.round(4*K);
+      for(var i=0;i<steps;i++){
+        var hx2=X+i*Math.round(5*K), hy2=gy-Math.round((26-i*3.4)*K);
+        g.fillStyle=(i&1)?(day?"#d8d2c4":"#2e2c2a"):(day?"#c8bfae":"#26241f");
+        g.fillRect(hx2,hy2,sw,shh);                                                 // the cottage
+        g.fillStyle=day?"#8e5a4a":"#221614";
+        g.fillRect(hx2-Math.round(K),hy2-Math.round(1.6*K),sw+Math.round(2*K),Math.round(1.8*K));  // pantile roof
+        if(!day){ g.fillStyle="#ffd489";                                            // a window lit at night
+          g.fillRect(hx2+Math.round(2*K),hy2+Math.round(K),Math.max(1,Math.round(1.4*K)),Math.max(1,Math.round(1.4*K))); }
+        g.fillStyle=day?"#9a958a":"#1e1c1a";                                        // the steps between them
+        g.fillRect(hx2+sw,hy2+shh,Math.round(5*K),Math.max(1,Math.round(K)));
+      }
+    });
+  } else if(B.k==="plains"){
+    // A ROW OF GRAIN ELEVATORS and the railroad that exists to empty them
+    at(function(X){
+      var eh=Math.round(21*K), ew=Math.round(5*K);
+      for(var e=0;e<5;e++){
+        var ex=X+e*Math.round(5.4*K);
+        g.fillStyle=(e&1)?(day?"#cfc7b4":"#2b2924"):(day?"#bdb4a0":"#24221e");
+        g.fillRect(ex,gy-eh,ew,eh);                                                 // the silo barrel
+        g.fillStyle=day?"rgba(0,0,0,0.14)":"rgba(0,0,0,0.30)";                      // shaded side of each
+        g.fillRect(ex+ew-Math.max(1,Math.round(K)),gy-eh,Math.max(1,Math.round(K)),eh);
+      }
+      g.fillStyle=day?"#8e8676":"#1c1a17";
+      g.fillRect(X-Math.round(K),gy-eh-Math.round(3*K),Math.round(5*5.4*K),Math.round(3*K));   // the headhouse along the top
+      g.fillStyle=day?"#6e675c":"#141310";
+      g.fillRect(X+Math.round(26*K),gy-Math.round(9*K),Math.round(3*K),Math.round(9*K));       // the leg/elevator
+      g.fillStyle=day?"#4a4640":"#141310";                                          // the track, running off flat
+      g.fillRect(0,gy+Math.round(2*K),SW,Math.max(1,Math.round(K)));
+      g.fillStyle=day?"#6a5c48":"#1a1712";
+      for(var t=(((WOFF*2)|0)%Math.round(4*K));t<SW;t+=Math.round(4*K))
+        g.fillRect(t,gy+Math.round(2*K),Math.max(1,Math.round(K)),Math.max(1,Math.round(1.6*K)));   // sleepers
+    });
+  } else if(B.k==="forest"){
+    // A SAWMILL and its log flume — what a town does when it lives among trees this size
+    at(function(X){
+      var mw=Math.round(18*K), mh=Math.round(9*K);
+      g.fillStyle=wood; g.fillRect(X,gy-mh,mw,mh);                                  // the mill shed
+      g.fillStyle=wood2; g.fillRect(X,gy-mh-Math.round(1.6*K),mw,Math.round(1.8*K));
+      g.fillStyle=day?"#4a4038":"#16120e";
+      g.fillRect(X+Math.round(13*K),gy-mh-Math.round(7*K),Math.round(2.4*K),Math.round(7*K));    // the stack
+      if(cityG>0.3){ g.fillStyle=day?"rgba(210,210,205,0.5)":"rgba(120,125,135,0.35)";
+        for(var p=0;p<4;p++){ var pu=(now*0.02+p*40)%70;                            // smoke drifting off it
+          g.fillRect(X+Math.round(13*K)+Math.round(pu*0.10),gy-mh-Math.round(7*K)-Math.round(pu*0.30),
+                     Math.round((2+p)*K),Math.max(1,Math.round(1.6*K))); } }
+      var fx2=X+mw, fy2=gy-Math.round(13*K);                                        // the flume, on trestles
+      g.fillStyle=wood2;
+      for(var fseg=0;fseg<9;fseg++){
+        var sx4=fx2+fseg*Math.round(4*K), sy4=fy2+Math.round(fseg*1.1*K);
+        g.fillRect(sx4,sy4,Math.round(4*K),Math.max(1,Math.round(1.4*K)));
+        g.fillRect(sx4,sy4,Math.max(1,Math.round(K)),gy-sy4);                       // its trestle leg
+      }
+      g.fillStyle=day?"rgba(150,195,215,0.75)":"rgba(60,90,130,0.6)";               // water running down it
+      for(var wsg=0;wsg<9;wsg++){
+        var wx4=fx2+wsg*Math.round(4*K), wy4=fy2+Math.round(wsg*1.1*K);
+        if(((wsg*7+((now*0.006)|0))%3)===0) continue;
+        g.fillRect(wx4,wy4-Math.max(1,Math.round(K)),Math.round(4*K),Math.max(1,Math.round(K)));
+      }
+      g.fillStyle=wood;                                                             // logs stacked in the yard
+      for(var lg=0;lg<3;lg++)
+        g.fillRect(X-Math.round((10-lg*2)*K),gy-Math.round((2+lg*1.6)*K),Math.round(9*K),Math.max(1,Math.round(1.5*K)));
+    });
   }
 }
 function drawMountains(g,L,now,nd){
@@ -16404,6 +16530,7 @@ function draw(g,pass){
 
   drawMountains(g,L,now,nd);      // the distant range — behind the clouds, the city, everything
   drawBiomeDetail(g,L,now,nd);    // and whatever else lives on this particular land
+  drawBiomeLandmark(g,L,now,nd);  // and the one structure that says where you are
   if(curRegime&&curRegime.active) drawHillEmblem(g,L,now);   // THE ORDER's colossal emblem on the mountainside (nearer buildings occlude it)
   drawGondola(g,L,now);           // a cable-car + summit lodge on the tallest peak (mature cities)
   drawClimbers(g,L,now,nd,fx);    // tiny mountaineers roping up the tallest peaks (fair-weather days)
