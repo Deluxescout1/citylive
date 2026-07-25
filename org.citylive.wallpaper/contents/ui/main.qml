@@ -19,8 +19,6 @@ WallpaperItem {
         if (configuration && configuration.quality) return configuration.quality;
         return (width * height > 2200000) ? "balanced" : "spectacle";
     }
-    readonly property int motionFrameMs: quality === "performance" ? 100 : (quality === "balanced" ? 83 : 67)
-    property double lastMotionSlot: -1
     // DEVICE px per world/canvas pixel. Keep the original wide pxk3 composition in every quality
     // tier; performance comes from retained layers and scheduling, never by zooming the city in.
     readonly property int pxk: 3
@@ -69,104 +67,11 @@ WallpaperItem {
 
     Rectangle { anchors.fill: parent; color: "black" }
 
-    // Slow-changing sky/terrain layer. Keeping it separate avoids repainting the most
-    // expensive static scenery for every car/pedestrian animation frame.
-    Canvas {
-        id: bgcv
-        z: 0
-        width: Math.max(8, root.zoom * Math.ceil(root.width * root.dpr / (root.texelBuf * root.zoom)))
-        height: Math.max(8, root.zoom * Math.ceil(root.height * root.dpr / (root.texelBuf * root.zoom)))
-        smooth: root.fractionalDpr
-        antialiasing: false
-        renderTarget: Canvas.FramebufferObject
-        // Keep JavaScript painting off Plasma's GUI thread so a slow scenery refresh cannot
-        // stall pointer movement, panels, or the foreground animation.
-        renderStrategy: Canvas.Threaded
-        transformOrigin: Item.TopLeft
-        scale: root.texelBuf / root.dpr
-        onPaint: {
-            try { City.draw(getContext("2d"), "bg"); }
-            catch (e) { root.renderError = "Backdrop: " + e; console.error("CityLive backdrop render failure: " + e); }
-        }
-    }
-
-    Canvas {
-        id: skycv
-        z: 1
-        width: bgcv.width; height: bgcv.height
-        smooth: root.fractionalDpr
-        antialiasing: false
-        renderTarget: Canvas.FramebufferObject
-        renderStrategy: Canvas.Threaded
-        transformOrigin: Item.TopLeft
-        scale: root.texelBuf / root.dpr
-        onPaint: {
-            try { City.draw(getContext("2d"), "sky"); }
-            catch (e) { root.renderError = "Sky motion: " + e; console.error("CityLive sky render failure: " + e); }
-        }
-    }
-
-    Canvas {
-        id: skyfastcv
-        z: 3
-        width: bgcv.width; height: bgcv.height
-        smooth: root.fractionalDpr
-        antialiasing: false
-        renderTarget: Canvas.FramebufferObject
-        renderStrategy: Canvas.Threaded
-        transformOrigin: Item.TopLeft
-        scale: root.texelBuf / root.dpr
-        onPaint: {
-            try { City.draw(getContext("2d"), "skyfast"); }
-            catch (e) { root.renderError = "Sky traffic: " + e; console.error("CityLive sky traffic render failure: " + e); }
-        }
-    }
-
-    Canvas {
-        id: cloudcv
-        z: 2
-        width: bgcv.width; height: bgcv.height
-        smooth: root.fractionalDpr; antialiasing: false
-        renderTarget: Canvas.FramebufferObject; renderStrategy: Canvas.Threaded
-        transformOrigin: Item.TopLeft; scale: root.texelBuf / root.dpr
-        onPaint: {
-            try { City.draw(getContext("2d"), "cloud"); }
-            catch (e) { root.renderError = "Cloud motion: " + e; console.error("CityLive cloud render failure: " + e); }
-        }
-    }
-
-    Canvas {
-        id: watercv
-        z: 4.5
-        width: bgcv.width; height: bgcv.height
-        smooth: root.fractionalDpr; antialiasing: false
-        renderTarget: Canvas.FramebufferObject; renderStrategy: Canvas.Threaded
-        transformOrigin: Item.TopLeft; scale: root.texelBuf / root.dpr
-        onPaint: {
-            try { City.draw(getContext("2d"), "water"); }
-            catch (e) { root.renderError = "Water motion: " + e; console.error("CityLive water render failure: " + e); }
-        }
-    }
-
-    Canvas {
-        id: citycv
-        z: 4
-        width: bgcv.width; height: bgcv.height
-        smooth: root.fractionalDpr
-        antialiasing: false
-        renderTarget: Canvas.FramebufferObject
-        renderStrategy: Canvas.Threaded
-        transformOrigin: Item.TopLeft
-        scale: root.texelBuf / root.dpr
-        onPaint: {
-            try { City.draw(getContext("2d"), "city"); }
-            catch (e) { root.renderError = "City cache: " + e; console.error("CityLive city render failure: " + e); }
-        }
-    }
-
+    // SINGLE CANVAS — one FBO per screen. The old multi-canvas architecture (7 canvases × 3
+    // monitors = 21 full-screen FBOs) was the root cause of desktop-wide lag. Drawing everything
+    // in one pass is cheaper than allocating, rendering, and compositing 7 separate FBOs.
     Canvas {
         id: cv
-        z: 5
         // one canvas per screen, sized to THIS screen's aspect ratio (all fed from one world)
         // ceil + DEVICE-integer scale: the canvas may overshoot the screen by a few px (clipped),
         // but every canvas pixel maps to EXACTLY pxk DEVICE px. Anything fractional (from display
@@ -181,18 +86,18 @@ WallpaperItem {
         smooth: root.fractionalDpr   // crisp NEAREST on integer-scale screens; LINEAR on fractionally-
                                  // scaled ones (e.g. 1.65x) so KWin's downsample doesn't stripe the
                                  // screen with dropped-column beat lines. The ~1px ramp is imperceptible.
-        antialiasing: false
+        antialiasing: true   // smooth path edges — fixes flat bands on mountain ridges
         renderTarget: Canvas.FramebufferObject
-        // Each monitor can paint independently instead of serializing all city work on the
-        // plasmashell UI thread. This is the key to smooth motion on multi-monitor desktops.
+        // Keep JavaScript painting off Plasma's GUI thread so a slow scenery refresh cannot
+        // stall pointer movement, panels, or the foreground animation.
         renderStrategy: Canvas.Threaded
         transformOrigin: Item.TopLeft
         scale: root.texelBuf / root.dpr
 
         onPaint: {
             var g = getContext("2d");
-            try { City.draw(g, "fg"); }
-            catch (e) { root.renderError = "Foreground: " + e; console.error("CityLive foreground render failure: " + e); }
+            try { City.draw(g); }
+            catch (e) { root.renderError = "Render: " + e; console.error("CityLive render failure: " + e); }
         }
     }
 
@@ -204,51 +109,25 @@ WallpaperItem {
         Text { id: errorText; anchors.fill: parent; anchors.margins: 7; color: "#ffe8e8"; font.pixelSize: 11; wrapMode: Text.Wrap; text: "CityLive recovered from a render error: " + root.renderError }
     }
 
+    // SINGLE TIMER — drives the one canvas. Frame rate scales with quality tier.
+    // The old multi-canvas version had 6 timers polling at different intervals, causing
+    // overlapping paint storms. One timer = one predictable paint cadence.
+    // It polls a SHARED WALL-CLOCK SLOT rather than free-running: each monitor is its own
+    // wallpaper instance, so an independent timer lets them drift apart and a car crossing a
+    // screen seam jumps. Keying the paint to a common slot means every screen renders the same
+    // world instant and the city stays continuous across the whole desktop.
+    readonly property int frameMs: quality === "performance" ? 500 : (quality === "balanced" ? 200 : 83)
+    property double lastSlot: -1
     Timer {
-        // Poll a shared wall-clock slot instead of free-running per wallpaper instance. Every
-        // monitor therefore paints the same world instant at a seam, so cars/trams cross cleanly.
         interval: 20
         running: root.visible
         repeat: true
         onTriggered: {
-            var slot = Math.floor(Date.now() / root.motionFrameMs)
-            if (slot !== root.lastMotionSlot) {
-                root.lastMotionSlot = slot
-                skyfastcv.requestPaint()
-                cv.requestPaint()
-            }
+            var slot = Math.floor(Date.now() / root.frameMs)
+            if (slot !== root.lastSlot) { root.lastSlot = slot; cv.requestPaint() }
         }
     }
-    Timer {
-        interval: root.quality === "performance" ? 750 : (root.quality === "balanced" ? 500 : 333)
-        running: root.visible
-        repeat: true
-        onTriggered: skycv.requestPaint()
-    }
-    Timer {
-        // Clouds need their own inexpensive cadence: tying them to the slow atmosphere cache made
-        // several pixels of continuous drift appear all at once as a visible jump.
-        interval: root.quality === "performance" ? 500 : (root.quality === "balanced" ? 333 : 200)
-        running: root.visible; repeat: true
-        onTriggered: cloudcv.requestPaint()
-    }
-    Timer {
-        interval: root.quality === "performance" ? 500 : (root.quality === "balanced" ? 333 : 200)
-        running: root.visible; repeat: true
-        onTriggered: watercv.requestPaint()
-    }
-    Timer {
-        interval: root.quality === "performance" ? 1000 : (root.quality === "balanced" ? 500 : 333)
-        running: root.visible
-        repeat: true
-        onTriggered: citycv.requestPaint()
-    }
-    Timer {
-        interval: root.quality === "performance" ? 10000 : (root.quality === "balanced" ? 2000 : 1000)
-        running: root.visible
-        repeat: true
-        onTriggered: bgcv.requestPaint()
-    }
+
     Timer {
         interval: 1000; running: root.visible; repeat: true
         onTriggered: {
@@ -272,7 +151,7 @@ WallpaperItem {
 
     function boot() {
         // ignore the transient boots during screen bring-up (dimensions not settled yet)
-        if (root.width < 8 || root.height < 8 || cv.width < 8 || cv.height < 8 || bgcv.width < 8 || bgcv.height < 8 || skycv.width < 8 || skyfastcv.width < 8 || citycv.width < 8)
+        if (root.width < 8 || root.height < 8 || cv.width < 8 || cv.height < 8)
             return;
         // Inject personal settings (birthdays/location/cycle) from localcfg.js — committed EMPTY in the public
         // repo, filled on THIS machine by install.sh from the gitignored config.local.json. Absent/empty → no
@@ -325,10 +204,6 @@ WallpaperItem {
             zoom: root.zoom,                                      // canvas px per world px on this screen
             quality: root.quality                                 // effect-density tier
         });
-        bgcv.requestPaint();
-        skycv.requestPaint();
-        skyfastcv.requestPaint();
-        citycv.requestPaint();
         cv.requestPaint();
         console.log("CityLive screen located: virtualX=" + Screen.virtualX + " " + root.width + "x" + root.height
                     + " dpr=" + root.dpr + " zoom=" + root.zoom + " -> woff=" + Math.round(root.worldLeftPx / root.pxk) + "wp " + cv.width + "x" + cv.height
@@ -358,7 +233,7 @@ WallpaperItem {
     }
     // one-shot SETTLE pass: 6s after bring-up, re-run setup + repaint — shakes out any
     // transient geometry/scale state from login/output reconfiguration (stripe insurance)
-    Timer { id: settleTimer; interval: 6000; running: true; onTriggered: { root.boot(); bgcv.requestPaint(); skycv.requestPaint(); skyfastcv.requestPaint(); citycv.requestPaint(); cv.requestPaint() } }
+    Timer { id: settleTimer; interval: 6000; running: true; onTriggered: { root.boot(); cv.requestPaint() } }
     Component.onCompleted: bootTimer.restart()
     onSceneChanged: bootTimer.restart()
     // location changed in the config dialog → re-boot with the new place (weather/sun/stars/architecture)
@@ -375,8 +250,4 @@ WallpaperItem {
     onWorldLeftPxChanged: bootTimer.restart()
     onPanelBottomPxChanged: bootTimer.restart()
     Connections { target: cv; function onWidthChanged(){ bootTimer.restart() } function onHeightChanged(){ bootTimer.restart() } }
-    Connections { target: bgcv; function onWidthChanged(){ bootTimer.restart() } function onHeightChanged(){ bootTimer.restart() } }
-    Connections { target: skycv; function onWidthChanged(){ bootTimer.restart() } function onHeightChanged(){ bootTimer.restart() } }
-    Connections { target: skyfastcv; function onWidthChanged(){ bootTimer.restart() } function onHeightChanged(){ bootTimer.restart() } }
-    Connections { target: citycv; function onWidthChanged(){ bootTimer.restart() } function onHeightChanged(){ bootTimer.restart() } }
 }
