@@ -47,7 +47,9 @@
   function frame(ts){requestAnimationFrame(frame);var fps=curQ==='performance'?8:(curQ==='balanced'?10:12);
     if(document.hidden||ts-lastFg<1000/fps)return;try{
     var bgStep=curQ==='performance'?2000:(curQ==='balanced'?1000:500);
-    if(bgDirty||ts-lastBg>=bgStep){draw(bg,'bg');lastBg=ts;bgDirty=false;}draw(g,'fg');lastFg=ts;
+    // "live" is the exact complement of "bg" (buildings included); "fg" is the old
+    // single-canvas foreground and skips them, leaving a city with no buildings.
+    if(bgDirty||ts-lastBg>=bgStep){draw(bg,'bg');lastBg=ts;bgDirty=false;}draw(g,'live');lastFg=ts;
   }catch(e){renderError(e);lastFg=ts;}}
   requestAnimationFrame(frame);
   // TOUCH: drag horizontally to scrub the city's whole life under your finger; release to

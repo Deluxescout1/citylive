@@ -208,7 +208,10 @@
       applyOverrides();
       var bgStep=st.quality==='performance'?2000:(st.quality==='balanced'?1000:500);
       if(bgDirty||ts-lastBg>=bgStep){ draw(bg,'bg'); lastBg=ts; bgDirty=false; }
-      draw(g,'fg'); lastFg=ts;
+      // "live", NOT "fg": fg is the old single-canvas foreground and deliberately skips the
+      // buildings. "live" is the exact complement of "bg", so the two canvases together are a
+      // whole city. Getting this wrong renders a city with no buildings and no road.
+      draw(g,'live'); lastFg=ts;
     }catch(e){ reportRenderError(e); lastFg=ts; }
   }
   requestAnimationFrame(frame);

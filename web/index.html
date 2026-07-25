@@ -180,7 +180,9 @@
   function frame(ts){ requestAnimationFrame(frame);if(st.paused||document.hidden)return;
     var fps=st.quality==='performance'?8:(st.quality==='balanced'?10:12),step=1000/fps;if(ts-lastFg<step)return;
     try{applyOverrides();var bgStep=st.quality==='performance'?2000:(st.quality==='balanced'?1000:500);
-      if(bgDirty||ts-lastBg>=bgStep){draw(bg,'bg');lastBg=ts;bgDirty=false;}draw(g,'fg');lastFg=ts;
+      // "live" is the exact complement of "bg" (buildings included); "fg" is the old
+      // single-canvas foreground and skips them, leaving a city with no buildings.
+      if(bgDirty||ts-lastBg>=bgStep){draw(bg,'bg');lastBg=ts;bgDirty=false;}draw(g,'live');lastFg=ts;
     }catch(e){reportRenderError(e);lastFg=ts;} }
   requestAnimationFrame(frame);
   // keep the screen awake if displayed as a kiosk (best effort)

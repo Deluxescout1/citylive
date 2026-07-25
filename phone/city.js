@@ -65,6 +65,10 @@ function cycleMs(v){
     case "3w":                 return 1814400000;   // 3 weeks
     case "1mo": case "monthly":return 2592000000;   // 1 month (30 days)
     case "test":               return 3600000;      // 1 hour (fast preview)
+    // TODO: an unset cycle falls back to the 1-hour PREVIEW, so a fresh KDE install (localcfg.js
+    // ships an empty CONFIG) gets a city flattened and reborn every hour. Should default to a week,
+    // but flipping it moves which life the fixtures sample and trips visual-smoke's pass-split
+    // check on a latent double-paint — fix that first, then change this.
     default: return (typeof v==="number" && isFinite(v) && v>0) ? v : 3600000;
   }
 }
@@ -172,7 +176,7 @@ function resetNotifLanes(){ for(var r=0;r<_notifTaken.length;r++) _notifTaken[r]
 var CLOCK = null;   // test-harness override: ms timestamp for time-of-day (null = real wall clock)
 var NOWOVR = null;  // test-harness override: ms value returned as Date.now() inside draw() (null = real)
 var NOFETCH = false;  // headless flag (own line = QML-namespace writable): almanac callers set this so setup() makes NO network calls
-var VERSION = "2.0.0";  // the build the user is running — surfaced in the Almanac + KDE config page (keep in sync with desktop/package.json)
+var VERSION = "2.0.1";  // the build the user is running — surfaced in the Almanac + KDE config page (keep in sync with desktop/package.json)
 var FORCELAYOUT = null;   // test hook: pin every building's window layout (grid/ribbon/band/punch/corp) — verify per-layout render
 var FORCECROWN = null;    // test hook: pin every building's crown/roof (gable/hip/saltbox/mansard/deco/…) — verify per-roof render
 var FORCEUSE = null;      // test hook: pin every building's functional type (hospital/theater/hotel/bank/cafe/pharmacy) — verify drawUse
@@ -10711,7 +10715,7 @@ function drawBattleBars(g,cd,now,ty){
 //  building has a birth age (b.bAge) and rises as a construction site when due.
 // ============================================================================
 var GROW_CYCLE=cycleMs(CFG.cycle);   // life length. Config cycle: "1w"/"2w"/"3w"/"1mo" (or "weekly") / "test"=1 hour. See cycleMs() near the top.
-var GROW_EPOCH=1783972450746;          // TEST MODE reset 2026-07-13 ~16:xx — set so cy≈0.88 at deploy (apocalypse ~4.5 min after restart, life 0 = alien war), then a new life every hour
+var GROW_EPOCH=1783972450746;          // phase anchor for the life cycle (any fixed epoch works — it only decides where in its life the city is at a given clock)
 var GROW_OFFSET_DAYS=0;                // ►► FAST-FORWARD KNOB: bump this to jump ahead N days into the city's life.
 // RESTART-THE-WORLD (user-triggered): config stores the CLICK TIMESTAMP + mode; every screen
 // derives the exact same phase shift from it, so the whole desktop ends/restarts in lockstep
