@@ -119,8 +119,11 @@ setTimeout(function(){ try{
       if(b.hero) hs.push((li===0?'N':li===1?'M':'F')+' x'+Math.round(b.x)+' h'+Math.round(b.h)+' '+b.crown+(b.bAge<=cityGrowth(rn).g?'':' UNBORN'));
       if(b.district==='downtown'&&b.h>60) dts.push(Math.round(b.x)+':'+b.crown); }); });
     console.log('HEROES '+hs.length+' -> '+hs.join(' | ')+'  ||  DOWNTOWN-TALL '+dts.join(', ')); }
-  if(Q.get('probe')==='perf'){ var N=40, t0p=performance.now(); for(var pf=0;pf<N;pf++) draw(g); var dt=(performance.now()-t0p)/N;
-    console.log('PERF avg draw() = '+dt.toFixed(2)+' ms/frame over '+N+' frames'); }
+  if(Q.get('probe')==='perf'){ var N=40, passes=[undefined,'bg','live','sky','skyfast','cloud','water','city','fg'], perf=[];
+    for(var pi=0;pi<passes.length;pi++){ var pp=passes[pi], t0p=performance.now();
+      for(var pf=0;pf<N;pf++) draw(g,pp);
+      perf.push((pp||'full')+'='+((performance.now()-t0p)/N).toFixed(2)+'ms'); }
+    console.log('PERF '+perf.join(' ')); }
   document.title='WW='+WW+' SW='+SW+' WOFF='+WOFF+' liveEpi='+Math.round(apocEpiX(rn))+' liveXA='+Math.round(kwTitanX(rn,0))+' liveXB='+Math.round(kwTitanX(rn,1))+' apocMs='+Math.round(apocMs)+ex;
 }catch(e){ document.title='PROBE_ERR '+e; } }, 1800);
 </script>
