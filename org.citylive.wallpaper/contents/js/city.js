@@ -11479,9 +11479,10 @@ function drawForestBackdrop(g,L,now,nd){
 function drawRiver(g,L,now){
   if(!hasRiver||riverW<=0||cityG<0.06) return;
   var day=L>0.5, gy=HORIZON, roadY=HORIZON+3;
-  var deep=day?[46,92,132]:[10,20,38], shallow=day?[92,146,178]:[18,34,56];
-  var halfPx=Math.max(6,Math.round(riverW*WW));
-  var deckY=roadY+1, deckH=3;                                   // the bridge deck sits at street level
+  var K=Math.max(1,KSP);                                        // bank furniture scales like the rest of the city
+  var deep=day?[38,84,126]:[8,17,34], shallow=day?[104,158,190]:[20,38,62];
+  var halfPx=Math.max(8*K,Math.round(riverW*WW));
+  var deckY=roadY+1, deckH=Math.max(3,Math.round(3*K));         // the bridge deck sits at street level
   for(var w=-1;w<=1;w++){
     var cx=Math.round(riverX*WW-WOFF+w*WW);
     if(cx+halfPx<-4||cx-halfPx>SW+4) continue;
@@ -11492,63 +11493,79 @@ function drawRiver(g,L,now){
       g.fillStyle=css(mixc(shallow,deep,f*f));
       g.fillRect(sx,gy+4,1,SH-gy-4);
     }
+    // surface glitter: a few horizontal ripple dashes so it reads as moving water, not a blue slab
+    g.fillStyle=day?"rgba(255,255,255,0.20)":"rgba(150,180,220,0.13)";
+    for(var rp=0;rp<14;rp++){
+      var ry=gy+8+((rp*7+((now*0.004)|0))%Math.max(6,(SH-gy-12)));
+      var rx=cx-halfPx+4+((rp*29+((now*0.010)|0))%Math.max(6,(halfPx*2-8)));
+      g.fillRect(rx|0,ry|0,Math.round(3*K),1);
+    }
     // ---- STONE EMBANKMENT: coped walls with steps down to the water
-    var wallC=day?"#8d8778":"#33323a", copeC=day?"#b3ab98":"#4a4852";
+    var wallW=Math.max(3,Math.round(3*K)), wallC=day?"#8d8778":"#33323a", copeC=day?"#c0b7a2":"#4a4852";
     for(var s2=0;s2<2;s2++){
-      var bxw=(s2===0)?(cx-halfPx-3):(cx+halfPx);
-      if(bxw+3<0||bxw>SW) continue;
-      g.fillStyle=wallC; g.fillRect(bxw,gy+3,3,SH-gy-3);
-      g.fillStyle=copeC; g.fillRect(bxw,gy+3,3,1);
-      for(var st=0;st<3;st++){                                   // steps down into the channel
-        var stx=(s2===0)?(bxw+3):(bxw-1-st);
-        g.fillStyle=copeC; g.fillRect(stx+(s2===0?st:0),gy+6+st*2,1,1);
+      var bxw=(s2===0)?(cx-halfPx-wallW):(cx+halfPx);
+      if(bxw+wallW<0||bxw>SW) continue;
+      g.fillStyle=wallC; g.fillRect(bxw,gy+3,wallW,SH-gy-3);
+      g.fillStyle=copeC; g.fillRect(bxw,gy+3,wallW,Math.max(1,Math.round(K)));   // coping course
+      for(var st=0;st<4;st++){                                                   // steps down into the channel
+        var stx=(s2===0)?(bxw+wallW):(bxw-Math.round(2*K));
+        g.fillStyle=copeC; g.fillRect(stx,gy+5+st*Math.round(2*K),Math.round(2*K),Math.max(1,Math.round(K)));
       }
     }
-    // ---- WHARF (left bank): mooring bollards, stacked cargo and a small crane
-    var wx0=cx-halfPx-16;
-    if(wx0<SW&&wx0+16>0&&cityG>0.30){
-      g.fillStyle=day?"#6d6152":"#2b2822"; g.fillRect(wx0,gy+3,14,2);           // the quay
+    // ---- WHARF (left bank): mooring bollards, stacked cargo and a crane
+    var wW=Math.round(26*K), wx0=cx-halfPx-wallW-wW;
+    if(wx0<SW&&wx0+wW>0&&cityG>0.30){
+      g.fillStyle=day?"#6d6152":"#2b2822"; g.fillRect(wx0,gy+3,wW,Math.round(3*K));            // the quay
       g.fillStyle=day?"#4b463c":"#1e1c1a";
-      for(var bl2=0;bl2<3;bl2++) g.fillRect(wx0+2+bl2*5,gy+1,2,2);               // bollards
-      var crates=[[0,"#8a6a3a"],[4,"#6a7a4a"],[8,"#7a5a4a"]];
+      for(var bl=0;bl<3;bl++) g.fillRect(wx0+Math.round((3+bl*8)*K),gy,Math.round(2*K),Math.round(3*K));  // bollards
+      var crates=[[2,"#9a763f"],[9,"#6a7a4a"],[16,"#8a5a44"]];
       for(var ci=0;ci<crates.length;ci++){ g.fillStyle=day?crates[ci][1]:"#2a2620";
-        g.fillRect(wx0+1+crates[ci][0],gy-2,4,3); }                              // stacked cargo
-      g.fillStyle=day?"#c8a23a":"#4a3c18";                                       // wharf crane
-      g.fillRect(wx0+12,gy-11,1,12); g.fillRect(wx0+6,gy-11,7,1);
-      g.fillStyle="rgba(150,150,160,0.7)"; g.fillRect(wx0+7,gy-10,1,4);          // hanging cable
+        g.fillRect(wx0+Math.round(crates[ci][0]*K),gy-Math.round(5*K),Math.round(6*K),Math.round(5*K)); }  // stacked cargo
+      g.fillStyle=day?"#c8a23a":"#4a3c18";                                                       // wharf crane
+      var cmx=wx0+Math.round(21*K), cmTop=gy-Math.round(20*K);
+      g.fillRect(cmx,cmTop,Math.max(1,Math.round(2*K)),Math.round(20*K));                        // mast
+      g.fillRect(cmx-Math.round(11*K),cmTop,Math.round(13*K),Math.max(1,Math.round(2*K)));       // jib
+      g.fillStyle="rgba(160,160,172,0.75)";
+      g.fillRect(cmx-Math.round(8*K),cmTop,1,Math.round(9*K));                                   // hanging cable
+      g.fillStyle=day?"#8a7a5a":"#2a241c"; g.fillRect(cmx-Math.round(9*K),cmTop+Math.round(9*K),Math.round(3*K),Math.round(2*K)); // load
     }
     // ---- RIVERSIDE PARK (right bank): a green strip with trees and a bench
-    var px0=cx+halfPx+4;
-    if(px0<SW&&px0+18>0&&cityG>0.24){
-      g.fillStyle=day?"#4f7c42":"#1f2e26"; g.fillRect(px0,gy+3,16,2);            // lawn
-      for(var tr=0;tr<3;tr++){ var tx=px0+2+tr*6;
-        g.fillStyle=day?"#5a4432":"#241d18"; g.fillRect(tx,gy-3,1,4);            // trunk
-        g.fillStyle=day?"#3f7a3a":"#1c3226"; g.fillRect(tx-2,gy-6,5,3); }        // canopy
-      g.fillStyle=day?"#7a6248":"#2a231c"; g.fillRect(px0+11,gy,3,1);            // bench
+    var pW=Math.round(28*K), px0=cx+halfPx+wallW;
+    if(px0<SW&&px0+pW>0&&cityG>0.24){
+      g.fillStyle=day?"#4f7c42":"#1f2e26"; g.fillRect(px0,gy+3,pW,Math.round(3*K));              // lawn
+      for(var tr=0;tr<3;tr++){ var tx=px0+Math.round((4+tr*9)*K);
+        g.fillStyle=day?"#5a4432":"#241d18"; g.fillRect(tx,gy-Math.round(6*K),Math.max(1,Math.round(2*K)),Math.round(7*K));
+        g.fillStyle=day?"#3f7a3a":"#1c3226"; g.fillRect(tx-Math.round(3*K),gy-Math.round(11*K),Math.round(8*K),Math.round(6*K)); }
+      g.fillStyle=day?"#7a6248":"#2a231c"; g.fillRect(px0+Math.round(20*K),gy,Math.round(5*K),Math.max(1,Math.round(2*K)));  // bench
     }
     // ---- BARGES working the channel, under the bridge
     if(cityG>0.22){
       for(var b=0;b<3;b++){
         var per=54000+b*15000, ph=((now+b*19000)%per)/per;
-        var lane=gy+12+b*5; if(lane>SH-3) continue;
-        var span=halfPx*2-12; if(span<8) continue;
-        var bx=(b&1) ? (cx+halfPx-6-Math.round(ph*span)) : (cx-halfPx+6+Math.round(ph*span));
-        g.fillStyle=day?"#54453a":"#221c18"; g.fillRect(bx,lane,10,2);           // hull
-        g.fillStyle=day?"#c2ae86":"#463c30"; g.fillRect(bx+((b&1)?7:1),lane-2,2,2);  // wheelhouse
-        g.fillStyle=day?"#7a6a4a":"#2a241c"; g.fillRect(bx+3,lane-1,4,1);        // deck load
+        var lane=gy+Math.round((14+b*9)*K); if(lane>SH-Math.round(4*K)) continue;
+        var span=halfPx*2-Math.round(16*K); if(span<8) continue;
+        var bx=(b&1) ? (cx+halfPx-Math.round(8*K)-Math.round(ph*span)) : (cx-halfPx+Math.round(8*K)+Math.round(ph*span));
+        var bw2=Math.round(16*K), bh2=Math.max(2,Math.round(3*K));
+        g.fillStyle=day?"#54453a":"#221c18"; g.fillRect(bx,lane,bw2,bh2);                        // hull
+        g.fillStyle=day?"#c2ae86":"#463c30"; g.fillRect(bx+((b&1)?bw2-Math.round(4*K):Math.round(2*K)),lane-Math.round(3*K),Math.round(3*K),Math.round(3*K)); // wheelhouse
+        g.fillStyle=day?"#7a6a4a":"#2a241c"; g.fillRect(bx+Math.round(5*K),lane-Math.round(2*K),Math.round(6*K),Math.round(2*K)); // deck load
+        g.fillStyle="rgba(255,255,255,0.22)"; g.fillRect(bx,lane+bh2,bw2,1);                     // wake
       }
     }
     // ---- THE BRIDGE: piers standing in the water, then the deck laid back across the road gap
     if(onPavedRoad(riverX*WW)){
-      var pierC=day?"#7e7768":"#2e2d33";
-      for(var pi2=-1;pi2<=1;pi2+=2){ var pxp=cx+pi2*Math.round(halfPx*0.5);
-        g.fillStyle=pierC; g.fillRect(pxp-1,deckY+deckH,3,SH-deckY-deckH); }     // piers to the riverbed
-      g.fillStyle=day?"#3a3f4c":"#272c39";                                       // the deck carries the asphalt over
-      g.fillRect(cx-halfPx-4,deckY,halfPx*2+8,deckH);
-      g.fillStyle=day?"#666b78":"#3c4254"; g.fillRect(cx-halfPx-4,deckY-1,halfPx*2+8,1);   // kerb line
-      g.fillStyle=day?"rgba(230,235,245,0.75)":"rgba(150,165,195,0.5)";          // railings
-      for(var rl=cx-halfPx-4;rl<cx+halfPx+4;rl+=3) g.fillRect(rl,deckY-3,1,2);
-      g.fillRect(cx-halfPx-4,deckY-3,halfPx*2+8,1);
+      var pierC=day?"#7e7768":"#2e2d33", pierW=Math.max(2,Math.round(3*K));
+      for(var pi2=-1;pi2<=1;pi2+=2){ var pxp=cx+pi2*Math.round(halfPx*0.55);
+        g.fillStyle=pierC; g.fillRect(pxp-(pierW>>1),deckY+deckH,pierW,SH-deckY-deckH);          // piers to the riverbed
+        g.fillStyle=day?"rgba(255,255,255,0.14)":"rgba(0,0,0,0.2)"; g.fillRect(pxp-(pierW>>1),deckY+deckH,1,SH-deckY-deckH); }
+      var dx0=cx-halfPx-wallW, dW=halfPx*2+wallW*2;
+      g.fillStyle=day?"#3a3f4c":"#272c39"; g.fillRect(dx0,deckY,dW,deckH);                       // deck carries the asphalt over
+      g.fillStyle=day?"#666b78":"#3c4254"; g.fillRect(dx0,deckY-1,dW,1);                         // kerb line
+      g.fillStyle=day?"rgba(20,24,32,0.5)":"rgba(0,0,0,0.5)"; g.fillRect(dx0,deckY+deckH,dW,1);  // deck underside shadow
+      var railY=deckY-Math.round(5*K);                                                           // railings
+      g.fillStyle=day?"rgba(232,238,248,0.9)":"rgba(150,165,195,0.6)";
+      g.fillRect(dx0,railY,dW,Math.max(1,Math.round(K)));
+      for(var rl=dx0;rl<dx0+dW;rl+=Math.round(5*K)) g.fillRect(rl,railY,1,Math.round(5*K));
     }
   }
 }
