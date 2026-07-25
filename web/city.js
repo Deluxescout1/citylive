@@ -12241,6 +12241,118 @@ function drawBiomeDetail(g,L,now,nd){
           g.fillRect((msx+Math.cos(a3)*r3)|0,(hub+Math.sin(a3)*r3)|0,1,1); } }
   }
 }
+// WHAT STANDS ON TOP OF A FLAT-TOPPED MOUNTAIN.
+// Found GEOMETRICALLY rather than per biome: scan the near ridge for a run of columns that is level,
+// wide enough to build on and high enough to be worth the climb. mtsCache already quantises flat
+// biomes into bedding planes, so a mesa hands us real tables and an alpine crag hands us nothing,
+// without either being special-cased. Static per life, so it caches onto mtsCache exactly like the
+// canopy walkways cache onto bioTrees — nothing re-scans per frame.
+function plateaus(){
+  if(!mtsCache) return [];
+  if(mtsCache.plats) return mtsCache.plats;
+  var hs=mtsCache.h[1], out=[], K=Math.max(1,KSP);
+  var minH=Math.round(15*K), minW=Math.round(30*K), tol=Math.max(1,Math.round(1.6*K));
+  var i=0;
+  while(i<SW){
+    var h0=hs[i]||0;
+    if(h0<minH){ i++; continue; }
+    var j=i+1, lo=h0, hi=h0;
+    while(j<SW){
+      var hj=hs[j]||0, nlo=Math.min(lo,hj), nhi=Math.max(hi,hj);
+      if(nhi-nlo>tol) break;
+      lo=nlo; hi=nhi; j++;
+    }
+    if(j-i>=minW) out.push({x0:i, x1:j-1, h:(lo+hi)*0.5});
+    i=j;
+  }
+  mtsCache.plats=out; return out;
+}
+// Each table rolls WHICH of the three it can host, and the ones it has arrive IN ORDER as the city
+// below grows: the ruins were always there and predate every city this world has had, the outpost
+// grows once there is a town to supply it, and the mansions only if that town gets rich. So one
+// butte may stay ruins forever while its neighbour fills up across the life.
+function drawPlateauTowns(g,L,now,nd){
+  if(!mtsCache||cityPhase==="apoc") return;
+  var pls=plateaus(); if(!pls.length) return;
+  var day=L>0.5, gy=HORIZON, K=Math.max(1,KSP), B=curBiome;
+  var rock=day?B.cap:mixc(B.cap,[0,0,0],0.60);
+  var wallC=css(mixc(rock,day?[92,80,68]:[16,14,18],0.62));      // built things read darker than caprock
+  var roofC=css(mixc(rock,day?[64,54,46]:[10,9,12],0.76));
+  var ruinC=css(mixc(rock,day?[120,108,94]:[22,20,22],0.40));    // ruins are the same stone, sun-bleached
+  var roadC=css(mixc(rock,day?[104,96,84]:[18,17,20],0.50));
+  for(var i=0;i<pls.length;i++){
+    var p=pls[i], hsh=((i*2654435761+(WORLD_SEED|0)*31+17)>>>0);
+    var top=Math.round(gy-p.h), w=p.x1-p.x0;
+    if(top<2) continue;
+    var ruins=(hsh%100)<58, outpost=((hsh>>>7)%100)<62, heights=((hsh>>>14)%100)<32;
+    if(!ruins&&!outpost&&!heights) ruins=true;                   // a bare table is a wasted one
+    var hasO=outpost&&cityG>0.28, hasH=heights&&cityG>0.62&&curEcon>0.45;
+    // the small road along the top, laid once there is anything living up there to connect
+    if(hasO||hasH){
+      g.fillStyle=roadC;
+      g.fillRect(p.x0+Math.round(3*K),top-Math.max(1,Math.round(K)),w-Math.round(6*K),Math.max(1,Math.round(K)));
+    }
+    // thirds of the table: ruins at one end, the outpost in the middle, the big houses at the other.
+    // Written out rather than as a helper declared inside the loop — a function declaration in a
+    // block closing over per-iteration state is exactly the shape QML V4 warned about for `sd`.
+    var seg=w/3, bandR=p.x0+Math.round(2*K), bandO=p.x0+Math.round(seg)+Math.round(2*K),
+        bandH=p.x0+Math.round(seg*2)+Math.round(2*K);
+    // How many of each will actually FIT in its third. A mesa hands us a 300px table and a sea cliff
+    // hands us 78 — at that width the thirds are ~26px and un-clamped groups walk over each other and
+    // straight off the edge of the rock. A small table simply holds less, and can hold nothing.
+    var fitR=Math.floor((seg-2*K)/(7*K)), fitO=Math.floor((seg-2*K)/(7*K)), fitH=Math.floor((seg-2*K)/(11*K));
+    // RUINS — roofless walls and a doorway gap, in the same stone as the mesa. Never lit, never grow.
+    if(ruins&&fitR>=1){
+      var rx=bandR, rn=Math.min(fitR,2+((hsh>>>3)%3));
+      g.fillStyle=ruinC;
+      for(var r=0;r<rn;r++){
+        var bx=rx+r*Math.round(7*K), bh=Math.round((4+((hsh>>>(r+2))%3))*K), bw=Math.round(5*K);
+        g.fillRect(bx,top-bh,Math.max(1,Math.round(K)),bh);                       // two standing walls…
+        g.fillRect(bx+bw,top-bh,Math.max(1,Math.round(K)),bh);
+        if((r&1)===0) g.fillRect(bx,top-bh,bw,Math.max(1,Math.round(K)));         // …one lintel still up
+      }
+    }
+    // THE OUTPOST — small working buildings, a few windows lit at night. Grows with the city below.
+    if(hasO&&fitO>=1){
+      var ox=bandO, on=Math.min(fitO,2+Math.round(Math.min(3,(cityG-0.28)*7)));
+      for(var o=0;o<on;o++){
+        var bx2=ox+o*Math.round(7*K), bh2=Math.round((5+((hsh>>>(o+5))%4))*K), bw2=Math.round(5*K);
+        g.fillStyle=wallC; g.fillRect(bx2,top-bh2,bw2,bh2);
+        g.fillStyle=roofC; g.fillRect(bx2-Math.round(K),top-bh2-Math.max(1,Math.round(K)),bw2+Math.round(2*K),Math.max(1,Math.round(K)));
+        if(!day&&((Math.floor(now/3000)+o+i)%4)){ g.fillStyle="#ffd489";
+          g.fillRect(bx2+Math.round(K),top-bh2+Math.round(1.5*K),Math.max(1,Math.round(1.4*K)),Math.max(1,Math.round(1.4*K))); }
+      }
+    }
+    // THE HEIGHTS — a few big houses above the dust, blazing at night while the city works below
+    if(hasH&&fitH>=1){
+      var mx2=bandH, mn=Math.min(fitH,1+((hsh>>>11)%2));
+      for(var m=0;m<mn;m++){
+        var bx3=mx2+m*Math.round(11*K), bh3=Math.round(7*K), bw3=Math.round(9*K);
+        g.fillStyle=css(mixc(rock,day?[228,222,208]:[30,28,34],0.55));
+        g.fillRect(bx3,top-bh3,bw3,bh3);
+        g.fillStyle=roofC; g.fillRect(bx3-Math.round(K),top-bh3-Math.max(1,Math.round(K)),bw3+Math.round(2*K),Math.max(1,Math.round(1.2*K)));
+        if(!day){ g.fillStyle="#fff0c0";                                          // every window on
+          for(var wq=0;wq<3;wq++)
+            g.fillRect(bx3+Math.round((1.5+wq*2.6)*K),top-bh3+Math.round(2*K),Math.max(1,Math.round(1.4*K)),Math.max(1,Math.round(1.6*K))); }
+      }
+    }
+    // THE SWITCHBACK — a zig-zag cut into the face, joining the road on top to the city below. Only
+    // where something up there is actually inhabited; nobody cuts a road to a ruin.
+    if(hasO||hasH){
+      var fx3=(((hsh>>>17)&1)?p.x1-Math.round(6*K):p.x0+Math.round(6*K));
+      var legs=Math.max(3,Math.round(p.h/(9*K))), span=Math.round(11*K);
+      // Cut darker and thicker than the road on top. At one pixel in the road tone it read as a
+      // scratch on the rock rather than as a way up, which is the whole point of drawing it.
+      g.fillStyle=css(mixc(rock,day?[70,58,46]:[10,9,11],0.72));
+      for(var lg=0;lg<legs;lg++){
+        var ly=top+Math.round(lg*(p.h/legs)), lh=Math.max(1,Math.round(1.6*K));
+        var dir=(lg&1)?1:-1, sx0=fx3+((dir>0)?0:-span);
+        g.fillRect(sx0,ly,span,lh);                                               // the traverse…
+        g.fillRect((dir>0)?sx0+span-lh:sx0,ly,lh,Math.round(p.h/legs)+lh);        // …and the hairpin turning down
+      }
+    }
+  }
+}
 // WEATHER WITH A LOCAL ACCENT. Every one of these reads the REAL Norwich measurements — the actual
 // wind speed, the actual temperature, the actual precipitation — and only changes how that weather
 // EXPRESSES itself on this particular land. A calm day has still grass and no dust; a wet one has
@@ -16602,6 +16714,7 @@ function draw(g,pass){
   drawMountains(g,L,now,nd);      // the distant range — behind the clouds, the city, everything
   drawBiomeDetail(g,L,now,nd);    // and whatever else lives on this particular land
   drawBiomeLandmark(g,L,now,nd);  // and the one structure that says where you are
+  drawPlateauTowns(g,L,now,nd);   // and whatever stands on top of a flat-topped mountain
   if(curRegime&&curRegime.active) drawHillEmblem(g,L,now);   // THE ORDER's colossal emblem on the mountainside (nearer buildings occlude it)
   drawGondola(g,L,now);           // a cable-car + summit lodge on the tallest peak (mature cities)
   drawClimbers(g,L,now,nd,fx);    // tiny mountaineers roping up the tallest peaks (fair-weather days)
