@@ -2545,10 +2545,14 @@ function makeLayer(seed,y0,baseHMin,baseHMax,layerK){
     // BLEND (Nick 2026-07-17): the colonial reskin applies to the TOWN districts only — the downtown +
     // entertainment core stays a MODERN glass-tower city (heroes/landmarks/material colour) even in New
     // England. So Norwich reads as brick-and-steeple neighbourhoods around a real metropolis skyline.
-    var neColonial=(REGION==="newengland" && d.name!=="downtown" && d.name!=="neon");
+    // The BIOME outranks the region for vernacular: people build from what the land gives them, so a
+    // city under a red mesa is adobe and one in the old forest is timber, wherever the map says it is.
+    // Alpine carries no palette of its own, so it falls through to the region — life 0 is unchanged.
+    var vernWalls=curBiome.walls || (REGION==="newengland" ? NE_WALLS : null);
+    var neColonial=(!!vernWalls && d.name!=="downtown" && d.name!=="neon");
     var neClap=false, nePitch=false, accMix=(d.brick?0.06:0.10);
     if(neColonial){
-      var nw=NE_WALLS[(r()*NE_WALLS.length)|0]; base=[nw[0],nw[1],nw[2]];
+      var nw=vernWalls[(r()*vernWalls.length)|0]; base=[nw[0],nw[1],nw[2]];
       neClap=(nw[0]+nw[1]+nw[2])>430;                        // light walls → wood clapboard siding
       accMix=0.03;                                           // colonial colours are muted
     }
@@ -11467,6 +11471,39 @@ function drawForestBackdrop(g,L,now,nd){
     }
   }
 }
+// THE RIVER — what a dry biome gets instead of a coast. A channel crossing the world, cut into the
+// ground plane, with barges working up and down it in place of the harbour's deep-water shipping.
+// Static geometry (pure geography, like the range); only the barges move.
+function drawRiver(g,L,now){
+  if(!hasRiver||riverW<=0) return;
+  var day=L>0.5, gy=HORIZON;
+  var deep = day?[58,104,140]:[12,24,44], shallow = day?[96,148,176]:[20,38,60];
+  var halfPx=Math.round(riverW*WW);
+  for(var w=-1;w<=1;w++){
+    var cx=Math.round(riverX*WW-WOFF+w*WW);
+    if(cx+halfPx<-2||cx-halfPx>SW+2) continue;
+    for(var dx=-halfPx;dx<=halfPx;dx++){
+      var sx=cx+dx; if(sx<0||sx>=SW) continue;
+      var f=1-Math.abs(dx)/halfPx;                                  // 0 at the bank, 1 mid-channel
+      g.fillStyle=css(mixc(shallow,deep,f));
+      g.fillRect(sx,gy,1,SH-gy);
+    }
+    // banks: a pale gravel lip either side so the channel reads as cut, not painted on
+    g.fillStyle=day?"rgba(190,180,150,0.55)":"rgba(60,60,70,0.5)";
+    g.fillRect(cx-halfPx-1,gy,2,SH-gy); g.fillRect(cx+halfPx-1,gy,2,SH-gy);
+    // BARGES: long low working boats, drifting the channel on a slow deterministic loop
+    if(cityG>0.22){
+      for(var b=0;b<3;b++){
+        var per=52000+b*14000, ph=((now+b*17000)%per)/per;
+        var by=gy+6+((SH-gy-10)*((b*0.33+0.15)%1));
+        var bx=cx-halfPx+2+Math.round(ph*(halfPx*2-10));
+        var dir=(b&1)?1:-1; if(dir<0) bx=cx+halfPx-2-Math.round(ph*(halfPx*2-10));
+        g.fillStyle=day?"#5a4a3a":"#241d18"; g.fillRect(bx,by|0,9,2);      // hull
+        g.fillStyle=day?"#c8b48a":"#4a4034"; g.fillRect(bx+(dir>0?6:1),(by-2)|0,2,2);  // wheelhouse
+      }
+    }
+  }
+}
 function drawMountains(g,L,now,nd){
   if(curBiome.k==="forest"){ drawForestBackdrop(g,L,now,nd); return; }   // the forest is the range here
   if(!mts) return;
@@ -15551,6 +15588,9 @@ function draw(g,pass){
   drawGondola(g,L,now);           // a cable-car + summit lodge on the tallest peak (mature cities)
   drawClimbers(g,L,now,nd,fx);    // tiny mountaineers roping up the tallest peaks (fair-weather days)
   }                                                          // end of the backdrop stack
+  // The river belongs to the backdrop: drawn for "bg" AND for a whole undrawn frame, never for
+  // "live", so bg + live still add up to exactly one frame (see pass-split.test.js).
+  if(pass==="bg"||pass===undefined) drawRiver(g,L,now);
   if(pass==="bg"){ if(cityG<0.985) drawTerrain(g,cityG,L,now,nd,"bg"); return; }
   // The animated sky sits behind the cached city. It keeps every aerial/weather feature, but no
   // longer forces buildings and roads to be rebuilt at the same cadence as traffic and people.
