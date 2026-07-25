@@ -2780,14 +2780,32 @@ function buildWorld(li){
     for(mi=0;mi<nN;mi++){ var nh=(58+mg()*86)*MSC;                 // the bolder front ridge — the peaks
       mts.near.push({x:mg()*WW, w:(80+mg()*130)*MSC, h:nh, sn:curBiome.snow&&((nh>92*MSC)||mg()<0.35), ph:mg()*9}); }   // clear the skyline
   }
-  // THE OLD FOREST: not a ridge but a stand of colossal trees — two depth bands, the near ones
-  // tall enough to rival the towers. Trunks and crowns are laid out once per life, like the peaks.
+  // THE OLD FOREST: not a ridge but a stand of COLOSSAL trees, in three depth bands.
+  //   far  — ordinary old-growth on the horizon. The only band whose CROWNS are drawn; it gives the
+  //          stand a treeline and something in the sky to read the giants against.
+  //   near — the giants, standing behind the skyline.
+  //   fore — two or three monsters standing IN FRONT of the city (drawn after everything).
+  // Both giant bands run OFF THE TOP OF THE FRAME: their canopy is never drawn, only implied by the
+  // shade it throws and the shafts that come through it. Heights are keyed to HORIZON rather than to
+  // KSP so "off-frame" stays true on any monitor — a 4K panel must not turn the giants back into
+  // ordinary trees. Two forms share the stand (`broad`): columnar sequoia, foliage skirts hugging the
+  // bole all the way up · broadleaf, buttressed and bare, forking wide and high. Only the lower third
+  // of a giant is ever on screen, so the form has to read in the BASE — flare, bark and first branch.
   if(curBiome.k==="forest"){
-    var TSC=KSP*Math.max(0.45,Math.min(1,WW/1300));
-    bioTrees={far:[],near:[]};
-    var nFT=14+((mg()*8)|0), nNT=9+((mg()*6)|0), ti;
-    for(ti=0;ti<nFT;ti++) bioTrees.far.push({x:mg()*WW, h:(48+mg()*40)*TSC, w:(15+mg()*12)*TSC, ph:mg()*9});
-    for(ti=0;ti<nNT;ti++) bioTrees.near.push({x:mg()*WW, h:(78+mg()*76)*TSC, w:(22+mg()*20)*TSC, ph:mg()*9});
+    var TSC=KSP*Math.max(0.45,Math.min(1,WW/1300)), HZ=Math.max(60,HORIZON);
+    bioTrees={far:[],near:[],fore:[]};
+    // STRATIFIED across the world, not uniformly random: a random x on this few trunks clumps, and a
+    // clump plus a gap reads worse than an even stand. Each tree gets its own slice and jitters
+    // inside it. Counts are deliberately LOW — the first render of this put ~14 giants across the
+    // frame and the city they stand over was completely buried behind a picket fence of trunks.
+    var nFT=13+((mg()*5)|0), nNT=5+((mg()*3)|0), nOT=2, ti;
+    function slot(i,n,j){ return ((i+0.5+(mg()-0.5)*j)/n)*WW; }
+    for(ti=0;ti<nFT;ti++) bioTrees.far.push({x:slot(ti,nFT,0.85), h:(44+mg()*36)*TSC, w:(14+mg()*11)*TSC,
+      ph:mg()*9, broad:mg()<0.42});
+    for(ti=0;ti<nNT;ti++) bioTrees.near.push({x:slot(ti,nNT,0.60), h:HZ*(1.10+mg()*0.55), w:(20+mg()*16)*TSC,
+      ph:mg()*9, broad:mg()<0.42});
+    for(ti=0;ti<nOT;ti++) bioTrees.fore.push({x:slot(ti,nOT,0.55), h:HZ*(1.70+mg()*0.80), w:(40+mg()*26)*TSC,
+      ph:mg()*9, broad:mg()<0.50});
   }
   var eraNm=ERAS[eraPickOf(li)].name;
   cityName = nameOf(li, eraNm);                      // every civilization names itself
@@ -11439,37 +11457,239 @@ function drawGrowSite(g,X,w,targetH,frac,seed,L,now,crew){
 // THE OLD FOREST backdrop — colossal trees instead of a ridge. Two depth bands: a hazy far stand
 // faded toward the sky, then a near stand tall enough to stand shoulder to shoulder with the towers.
 // Same contract as the range: pure geography, laid out once per life, drawn behind everything.
+// ---- THE OLD FOREST ---------------------------------------------------------------------------
+// The giants' canopy is NEVER DRAWN. Everything that sells the scale is what the canopy implies:
+// boles that leave the top of the frame without resolving, the shade it throws across the upper sky,
+// green twilight on the ground below, and shafts of light coming down through gaps far overhead.
+//
+// ONE BOLE, ground-up. `top` is deliberately UNCLAMPED — a giant's top is negative and the canvas
+// clips it, which is precisely what puts the canopy off screen. (The conifer version this replaced
+// clamped top to y=2 and then stacked its crown from the *clamped* value, so every tall tree shared
+// one top edge and its tiers spilled back down over the horizon. Scaling that up could never have
+// produced a giant; it had to be restructured.)
+// Only the lower third of a giant is ever on screen, so its FORM has to read in the base: the
+// broadleaf swells into a buttress and forks its limbs out and up, the columnar sequoia stays a
+// straight shaft with foliage skirts hugging it all the way.
+// `detail` = draw this one's limbs/foliage. The far rank passes false: it is small background
+// old-growth that gets a plain crown, and running the giants' limb code at that size turned every
+// far tree into a television aerial standing on the horizon.
+function drawBole(g,t,sx,gy,cTrunk,cBark,cFol,K,detail){
+  var hw0=Math.max(2,Math.round(t.w*(t.broad?0.30:0.24))), hwTip=Math.max(1,Math.round(hw0*0.42));
+  var y0=Math.max(-4,Math.round(gy-t.h)), step=Math.max(2,Math.round(3*K)), bot=gy+2;
+  function halfW(y){
+    var f=Math.min(1,Math.max(0,(gy-y)/t.h)), w=hw0+(hwTip-hw0)*f;   // 0 at the ground, 1 at the tip
+    if(t.broad){ var fl=Math.max(0,(y-(gy-t.h*0.09))/(t.h*0.09));    // BUTTRESS — the broadleaf giants
+      w+=hw0*0.95*fl*fl; }                                           // swell hard in the last few metres
+    return Math.max(1,Math.round(w));
+  }
+  var y,hw;
+  g.fillStyle=cTrunk;
+  for(y=y0;y<bot;y+=step){ hw=halfW(y); g.fillRect(sx-hw,y,hw*2,Math.min(step,bot-y)); }
+  g.fillStyle=cBark;                                                 // two flutes down the shaded side,
+  for(var fl2=0;fl2<2;fl2++){                                        // so a 40px bole isn't a flat slab
+    for(y=y0;y<bot;y+=step){ hw=halfW(y);
+      g.fillRect(sx+Math.round(hw*(0.18+fl2*0.48)),y,Math.max(1,Math.round(K)),Math.min(step,bot-y)); }
+  }
+  if(!detail){ return; }
+  if(t.broad){
+    // limbs fork wide and HIGH, then leave frame — no crown ever resolves. Marched a pixel at a time
+    // and TAPERED: stepping them by `step` with a fixed square left a dotted diagonal that read as a
+    // twig rather than as a limb thicker than a bus.
+    g.fillStyle=cTrunk;
+    for(var li=0;li<4;li++){
+      var ly=gy-t.h*(0.52+li*0.10), dir=(li&1)?1:-1;
+      if(ly>gy) continue;
+      var reach=t.w*(0.85+((li*7+(t.ph|0))%3)*0.28), lw0=Math.max(2,Math.round(hw0*0.42));
+      for(var s=0;s<reach;s++){
+        var lyy=ly-s*0.95; if(lyy<-6) break;                         // out and up
+        var lw=Math.max(1,Math.round(lw0*(1-(s/reach)*0.62)));
+        g.fillRect(Math.round(sx+dir*s),Math.round(lyy),lw+1,lw+1);
+      }
+    }
+  } else {
+    // sequoia: an irregular MASS of foliage hugging the bole. Two earlier tries failed for the same
+    // reason — a single bar per level read as a ladder rung, and a narrowing stack read as a plate
+    // bolted to a pole. Both were symmetric with a hard horizontal top edge, which is what says
+    // "machined part" instead of "leaves". This scatters unequal clumps either side at uneven
+    // heights, so the silhouette never repeats and never squares off.
+    g.fillStyle=cFol;
+    var seedF=(t.ph*1013)|0;
+    for(var sk=0;sk<34;sk++){
+      var hsh=((sk*2654435761+seedF*97)>>>0), q=(hsh%1000)/1000, q2=((hsh>>>10)%1000)/1000;
+      var sy=gy-t.h*(0.15+sk*0.025+q*0.018); if(sy<-8) break; if(sy>gy) continue;
+      var side=(hsh&1)?1:-1, rch=t.w*(0.20+q2*0.34)*(1-sk*0.012);
+      if(rch<2) continue;
+      var cw=Math.max(2,Math.round(rch)), chh=Math.max(2,Math.round((1.6+q*2.4)*K));
+      g.fillRect(sx+(side>0?0:-cw), Math.round(sy), cw, chh);          // the clump, one side only
+      g.fillRect(sx+(side>0?Math.round(cw*0.25):-Math.round(cw*0.75)), // and a smaller lobe drooping
+                 Math.round(sy+chh), Math.max(1,Math.round(cw*0.5)), Math.max(1,Math.round(chh*0.7)));
+    }
+  }
+}
 function drawForestBackdrop(g,L,now,nd){
   if(!bioTrees) return;
-  var gy=HORIZON, day=L>0.5, sunsetK=goldenK, B=curBiome;
+  var gy=HORIZON, day=L>0.5, sunsetK=goldenK, B=curBiome, K=Math.max(1,KSP);
   var skc=day?[168,186,214]:[24,28,46];
-  var bands=[
-    { list:bioTrees.far,  crown:mixc(mixc(day?B.far:[10,16,14], skc, day?0.46:0.36),[200,124,152],sunsetK*0.30),
-      trunk:mixc(day?[86,66,48]:[12,12,16], skc, day?0.40:0.30) },
-    { list:bioTrees.near, crown:mixc(mixc(day?B.near:[7,12,11], skc, day?0.18:0.18),[150,92,124],sunsetK*0.26),
-      trunk:mixc(day?[64,46,32]:[8,9,12], skc, day?0.14:0.16) }
-  ];
-  for(var bi=0;bi<bands.length;bi++){
-    var bd=bands[bi], list=bd.list;
-    for(var i=0;i<list.length;i++){ var t=list[i];
-      for(var w=-1;w<=1;w++){
-        var sx=Math.round(t.x-WOFF+w*WW), hw=Math.round(t.w/2);
-        if(sx+hw<-2||sx-hw>SW+2) continue;
-        var top=Math.max(2,(gy-t.h)|0), trunkW=Math.max(1,Math.round(t.w*0.16));
-        g.fillStyle=css(bd.trunk); g.fillRect((sx-(trunkW>>1))|0, top, trunkW, gy-top+2);   // the bole
-        // crown: stacked tapering tiers, widest low down — a conifer the size of a tower block
-        g.fillStyle=css(bd.crown);
-        var tiers=5, ch=Math.max(3,Math.round(t.h*0.62));
-        for(var k=0;k<tiers;k++){
-          var f=k/(tiers-1);                                     // 0 at the crown tip, 1 at the skirt
-          var tw2=Math.max(2,Math.round(hw*(0.30+0.70*f)));
-          var ty=Math.round(top + ch*f*0.88);
-          var th=Math.max(2,Math.round(ch*0.30));
-          g.fillRect((sx-tw2)|0, ty, tw2*2, th);
-        }
+  // THE CANOPY OVERHEAD — the shade it throws across the upper sky, the only proof the viewer gets
+  // that the boles resolve into anything at all. THREE octaves on the lower edge plus foliage masses
+  // hanging below it: a single sine gave a scalloped hem that read as a solid ceiling — a curtain
+  // pulled across the top of the frame — rather than as leaves a very long way up.
+  var canH=Math.round(SH*0.075), canC=mixc(day?[30,50,34]:[7,13,11], skc, day?0.24:0.30);
+  g.fillStyle=css(canC); g.fillRect(0,0,SW,canH);
+  for(var cx=0;cx<SW;cx+=2){ var wx3=cx+WOFF;
+    g.fillRect(cx,canH,2,Math.round((Math.sin(wx3*0.037)+Math.sin(wx3*0.011+now*0.0003)*0.8
+      +Math.sin(wx3*0.101)*0.45+2.25)*3.2*K));
+  }
+  for(var cm=0;cm<9;cm++){                                   // heavier masses, so the edge has depth
+    var mwx=(cm*197)%WW;
+    for(var mo=-1;mo<=1;mo++){ var MX=Math.round(mwx-WOFF+mo*WW);
+      var mw=Math.round((24+(cm*13)%20)*K), mh=Math.round((6+(cm*7)%8)*K);
+      if(MX+mw<0||MX-mw>SW) continue;
+      g.fillRect(MX-mw,canH,mw*2,mh);
+      g.fillRect(MX-Math.round(mw*0.55),canH+mh,Math.round(mw*1.1),Math.round(mh*0.6));
+    }
+  }
+  // the far rank: ordinary old-growth on the horizon. The ONLY band whose crowns are drawn — it gives
+  // the stand a treeline and something in the sky to read the giants against.
+  var fT=css(mixc(day?[86,66,48]:[12,12,16], skc, day?0.40:0.30));
+  var fB=css(mixc(day?[64,50,36]:[9,9,12],  skc, day?0.40:0.30));
+  var fC=css(mixc(mixc(day?B.far:[10,16,14], skc, day?0.46:0.36),[200,124,152],sunsetK*0.30));
+  var i,w,sx,t;
+  for(i=0;i<bioTrees.far.length;i++){ t=bioTrees.far[i];
+    for(w=-1;w<=1;w++){ sx=Math.round(t.x-WOFF+w*WW);
+      if(sx+t.w<-2||sx-t.w>SW+2) continue;
+      drawBole(g,t,sx,gy,fT,fB,fC,K,false);
+      g.fillStyle=fC;                                        // a crown, because this one has a top
+      var top=Math.round(gy-t.h), hw2=Math.round(t.w/2), ch=Math.max(3,Math.round(t.h*0.34));
+      for(var k=0;k<4;k++){ var f2=k/3;
+        g.fillRect(sx-Math.max(2,Math.round(hw2*(0.34+0.66*f2))), Math.round(top+ch*f2*0.9),
+                   Math.max(4,Math.round(hw2*(0.34+0.66*f2)))*2, Math.max(2,Math.round(ch*0.34))); }
+    }
+  }
+  // the giants standing BEHIND the skyline
+  var nT=css(mixc(day?[58,42,30]:[8,9,12], skc, day?0.16:0.18));
+  var nB=css(mixc(day?[40,29,20]:[5,6,8],  skc, day?0.16:0.18));
+  var nC=css(mixc(mixc(day?B.near:[7,12,11], skc, day?0.18:0.18),[150,92,124],sunsetK*0.26));
+  for(i=0;i<bioTrees.near.length;i++){ t=bioTrees.near[i];
+    for(w=-1;w<=1;w++){ sx=Math.round(t.x-WOFF+w*WW);
+      if(sx+t.w<-2||sx-t.w>SW+2) continue;
+      drawBole(g,t,sx,gy,nT,nB,nC,K,true);
+    }
+  }
+}
+// The two or three monsters standing IN FRONT of the city, drawn after everything else so they
+// occlude the skyline, the road and the traffic — the city was built around them and they are still
+// here. Darker and cooler than the back ranks (they are in their own shade, not the sky's light),
+// which is also what keeps them reading as NEAR rather than as more backdrop.
+function drawForestNear(g,L,now,nd){
+  if(!bioTrees||!bioTrees.fore||curBiome.k!=="forest"||cityPhase==="apoc") return;
+  var gy=HORIZON+4, day=L>0.5, K=Math.max(1,KSP);
+  var fT=css(day?[38,28,20]:[6,7,9]), fB=css(day?[24,17,12]:[3,4,5]), fC=css(day?[24,40,26]:[5,9,8]);
+  for(var i=0;i<bioTrees.fore.length;i++){ var t=bioTrees.fore[i];
+    for(var w=-1;w<=1;w++){ var sx=Math.round(t.x-WOFF+w*WW);
+      if(sx+t.w*1.4<-2||sx-t.w*1.4>SW+2) continue;
+      drawBole(g,t,sx,gy,fT,fB,fC,K,true);
+      // roots buckling the pavement the city laid around the trunk
+      g.fillStyle=fB;
+      for(var r=1;r<=3;r++){ var rw=Math.round(t.w*(0.34+r*0.16)), rh=Math.max(1,Math.round(K));
+        g.fillRect(sx-rw,gy-Math.round(r*1.6*K),rw*2,rh); }
+    }
+  }
+  drawCanopyWalks(g,L,now,K,gy);
+}
+// Which gaps between the giants carry a span. Worked out once and cached ON bioTrees, which is
+// rebuilt every life, so the cache invalidates itself — no per-frame sort. (The citizen-sim freeze
+// was exactly this mistake: re-deriving stable per-life data on every frame.)
+function canopyWalks(){
+  if(bioTrees.walks) return bioTrees.walks;
+  var p=bioTrees.near.concat(bioTrees.fore).sort(function(a,b){ return a.x-b.x; }), out=[];
+  for(var i=0;i+1<p.length;i++){
+    var a=p[i], b=p[i+1], gap=b.x-a.x;
+    if(gap<34*KSP||gap>WW*0.20) continue;                       // too close to bridge, too far to span
+    if(((i*2654435761+13)>>>0)%100 > 58) continue;              // and only some gaps carry one
+    var hf=0.60+((((i*40503+17)>>>0)%100)/100)*0.24;            // how high up the boles it is slung
+    out.push({x0:a.x, x1:b.x, y:Math.round(HORIZON-Math.min(a.h,b.h)*hf), ph:(i*37)%100});
+  }
+  bioTrees.walks=out; return out;
+}
+// CANOPY WALKWAYS — rope bridges and lit platforms strung between the giants: the forest's answer to
+// the alpine gondola and its climbers, and what replaced the fire lookout that used to hang off the
+// first near tree. Slung high, well above the skyline, so nothing occludes them. Figures cross by day;
+// at night the lanterns are the only warm light up there.
+function drawCanopyWalks(g,L,now,K,gy){
+  if(cityG<0.20) return;                             // nobody has strung anything up there yet
+  var day=L>0.5, walks=canopyWalks();
+  var deckC=day?"#6b5334":"#241c12", ropeC=day?"#8d7a55":"#332a1c", plC=day?"#7d6540":"#2a2216";
+  for(var i=0;i<walks.length;i++){ var wk=walks[i];
+    if(wk.y<2||wk.y>gy-6) continue;
+    for(var o=-1;o<=1;o++){
+      var a=Math.round(wk.x0-WOFF+o*WW), b=Math.round(wk.x1-WOFF+o*WW);
+      if(b<-8||a>SW+8) continue;
+      var span=b-a, sag=Math.max(2,Math.round(span*0.07)), stp=Math.max(2,Math.round(2*K));
+      var dh=Math.max(1,Math.round(K));
+      for(var s=0;s<=span;s+=stp){
+        var f=s/span, y=wk.y+Math.round(Math.sin(Math.PI*f)*sag);
+        var X=a+s; if(X<-2||X>SW+2) continue;
+        g.fillStyle=deckC; g.fillRect(X,y,stp,dh);                        // the plank deck
+        g.fillStyle=ropeC; g.fillRect(X,y-Math.round(4*K),stp,dh);        // the hand rope above it
+        if((s/stp|0)%4===0) g.fillRect(X,y-Math.round(4*K),dh,Math.round(4*K));   // stanchion ties
+      }
+      // a lit platform lashed round each bole the span lands on
+      for(var e=0;e<2;e++){
+        var px=(e?b:a), pw=Math.round(7*K);
+        if(px<-pw||px>SW+pw) continue;
+        g.fillStyle=plC; g.fillRect(px-pw,wk.y-Math.round(2*K),pw*2,Math.max(1,Math.round(2*K)));
+        if(!day){ g.fillStyle=((Math.floor(now/1600)+i+e)&3)?"#ffcf7a":"#ffe6b0";   // lantern, guttering
+          g.fillRect(px-dh,wk.y-Math.round(5*K),Math.max(1,Math.round(1.5*K)),Math.round(2*K)); }
+      }
+      // someone crossing — slow, because it is a long way down
+      var cyc=26000+wk.ph*90, tp=((now+wk.ph*430)%cyc)/cyc;
+      if(tp<0.62){ var wf=tp/0.62, wx=a+span*wf;
+        var wy=wk.y+Math.round(Math.sin(Math.PI*wf)*sag)-Math.round(3*K);
+        if(wx>=-2&&wx<=SW+2){
+          g.fillStyle=day?"#2b2620":"#0d0b09";
+          g.fillRect(Math.round(wx),wy,Math.max(1,Math.round(1.4*K)),Math.round(3*K));      // body
+          g.fillStyle=day?"#c9a888":"#4a3e30";
+          g.fillRect(Math.round(wx),wy-Math.round(1.4*K),Math.max(1,Math.round(1.4*K)),Math.max(1,Math.round(1.4*K))); }   // head
       }
     }
   }
+}
+// GREEN TWILIGHT — the forest's light, applied as a LATE full-frame tint plus shafts coming down
+// through gaps in a canopy that is never drawn. Deliberately NOT plumbed into goldenK/goldC: those
+// are one shared global that the sky, buildings, terrain, water, the golden hour, every disaster and
+// every finale all read, and tinting them here would change the light in all four other biomes and
+// in every ending. Scoping it to a veil keeps the effect exactly as wide as the biome.
+function drawCanopyLight(g,L,now){
+  if(curBiome.k!=="forest"||cityPhase==="apoc") return;
+  var day=L>0.5, K=Math.max(1,KSP);
+  // filtered shade: strongest at midday (when the contrast with open sky is greatest), never black
+  var shade=day?(0.30+0.16*Math.max(0,1-Math.abs(L-0.78)*3)):0.14;
+  g.fillStyle="rgba(18,48,26,"+shade.toFixed(3)+")";
+  g.fillRect(0,0,SW,SH);
+  // …and a second, weaker wash that kills the SKY's blue specifically. Green over blue still reads
+  // blue; the sky between the boles has to lose its saturation before the world looks like it is
+  // under a canopy rather than merely dim. Stops at the horizon so the ground keeps its own colour.
+  g.fillStyle=day?"rgba(96,110,78,0.15)":"rgba(30,44,34,0.12)";
+  g.fillRect(0,0,SW,HORIZON);
+  if(!day) return;
+  // and the shafts that make the shade legible — slanted columns from off the top of the frame,
+  // leaning with the sun and softly breathing as the canopy stirs
+  var lean=(curSunDf-0.5)*1.5, sh2=Math.max(0,1-Math.abs(L-0.72)*2.2);
+  if(sh2<=0.02) return;
+  g.globalCompositeOperation="lighter";
+  for(var s=0;s<7;s++){
+    var bx=((s*173+((WOFF*0.35)|0))%(SW+120))-60;
+    var wdt=Math.round((7+((s*13)%9))*K);
+    var a=(0.030+0.022*Math.sin(now*0.0004+s*1.9))*sh2*(goldenK>0.2?1.5:1);
+    if(a<=0.004) continue;
+    g.fillStyle="rgba("+(goldenK>0.2?"255,214,150":"196,226,176")+","+a.toFixed(3)+")";
+    for(var y=0;y<HORIZON;y+=Math.max(3,Math.round(4*K))){        // slant: each slice steps sideways
+      var xx=bx+y*lean*0.30, hstep=Math.max(3,Math.round(4*K));
+      g.fillRect(Math.round(xx),y,wdt,hstep);
+    }
+  }
+  g.globalCompositeOperation="source-over";
 }
 // THE RIVER — what a dry biome gets instead of a coast. It crosses the near ground IN FRONT of the
 // city (the skyline stands above the horizon, the channel is cut below it), so the boulevard has to
@@ -11586,26 +11806,14 @@ function drawBiomeDetail(g,L,now,nd){
   var sd=rng((WORLD_SEED+9173)>>>0);
 
   if(B.k==="forest"){
-    // MIST lying between the trunks at dawn and dusk, and a FIRE LOOKOUT on stilts above the canopy
+    // MIST lying between the boles at dawn and dusk. (The fire lookout that used to stand here hung
+    // off bioTrees.near[0] and assumed a tree with a visible top — the giants have none, and the
+    // canopy walkways in drawCanopyWalks are the people-up-in-the-trees now.)
     var mistA=(L<0.42?0.20:(L<0.62?0.13:0.05))*(1-(weather.wind||5)*0.01);
     if(mistA>0.02){ g.fillStyle="rgba(226,236,244,"+mistA.toFixed(3)+")";
-      for(var m=0;m<4;m++){ var my=gy-Math.round((6+m*7)*K), mo=Math.round(((now*0.004*(1+m*0.3))%(WW))); 
+      for(var m=0;m<4;m++){ var my=gy-Math.round((6+m*7)*K), mo=Math.round(((now*0.004*(1+m*0.3))%(WW)));
         for(var seg=-1;seg<=1;seg++){ var mx=((mo-WOFF+seg*WW)|0);
           g.fillRect(mx,my,SW,Math.max(1,Math.round(K))); } } }
-    if(bioTrees&&bioTrees.near.length){
-      var lt=bioTrees.near[0], ltx=Math.round(lt.x-WOFF);
-      for(var w2=-1;w2<=1;w2++){ var lx=ltx+w2*WW; if(lx<-20||lx>SW+20) continue;
-        var lty=gy-Math.round(lt.h*0.86);
-        g.fillStyle=day?"#6b5638":"#221a12";                                     // stilt legs
-        g.fillRect(lx-Math.round(4*K),lty,Math.max(1,Math.round(K)),Math.round(12*K));
-        g.fillRect(lx+Math.round(4*K),lty,Math.max(1,Math.round(K)),Math.round(12*K));
-        g.fillStyle=day?"#8a6f45":"#2c2318";                                     // the cabin
-        g.fillRect(lx-Math.round(6*K),lty-Math.round(6*K),Math.round(13*K),Math.round(6*K));
-        g.fillStyle=day?"#c9d6e2":"#3a4656";                                     // glazed lookout band
-        g.fillRect(lx-Math.round(5*K),lty-Math.round(4*K),Math.round(11*K),Math.round(2*K));
-        if(!day&&(Math.floor(now/1400)&1)){ g.fillStyle="#ffd88a";               // the warden's lamp
-          g.fillRect(lx-Math.round(1*K),lty-Math.round(4*K),Math.round(2*K),Math.round(2*K)); } }
-    }
   } else if(B.k==="mesa"){
     // HOODOOS — slender wind-carved spires standing off the buttes — and a natural ARCH
     for(var h2=0;h2<7;h2++){
@@ -16758,6 +16966,12 @@ function draw(g,pass){
   if(festive && hol.valentine&&L<0.6&&Math.random()<0.02)
     fwx.push({parts:[{x:Math.random()*WW,y:SH*0.8,vx:0,vy:-0.25,c:"#ff5aa0",life:4000,heart:true}]});
   stepFireworks(g,dt);
+
+  // THE OLD FOREST closes over the city: the giants that stand in front of it (drawn last so they
+  // occlude the skyline, the road and the traffic), then the green shade of a canopy far overhead.
+  // Both sit UNDER the eclipse/ash veils and the HUD, so an eclipse still darkens the forest too.
+  drawForestNear(g,L,now,nd);
+  drawCanopyLight(g,L,now);
 
   // solar-eclipse twilight: an unnatural cool dusk falls over the whole city at totality, then lifts
   if(solarEclDim>0.01){ var ev=Math.pow(solarEclDim,1.7)*0.74; g.fillStyle="rgba(18,20,40,"+ev+")"; g.fillRect(0,0,SW,SH); }
