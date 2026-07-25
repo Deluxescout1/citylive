@@ -11471,36 +11471,84 @@ function drawForestBackdrop(g,L,now,nd){
     }
   }
 }
-// THE RIVER — what a dry biome gets instead of a coast. A channel crossing the world, cut into the
-// ground plane, with barges working up and down it in place of the harbour's deep-water shipping.
-// Static geometry (pure geography, like the range); only the barges move.
+// THE RIVER — what a dry biome gets instead of a coast. It crosses the near ground IN FRONT of the
+// city (the skyline stands above the horizon, the channel is cut below it), so the boulevard has to
+// bridge it. Drawn AFTER the road so the water carves through the asphalt, then the deck is laid back
+// over the gap. Banks carry a stone embankment, a working wharf on one side and a park on the other —
+// the inland echo of the harbour these biomes gave up. Pure geography; only the barges move.
 function drawRiver(g,L,now){
-  if(!hasRiver||riverW<=0) return;
-  var day=L>0.5, gy=HORIZON;
-  var deep = day?[58,104,140]:[12,24,44], shallow = day?[96,148,176]:[20,38,60];
-  var halfPx=Math.round(riverW*WW);
+  if(!hasRiver||riverW<=0||cityG<0.06) return;
+  var day=L>0.5, gy=HORIZON, roadY=HORIZON+3;
+  var deep=day?[46,92,132]:[10,20,38], shallow=day?[92,146,178]:[18,34,56];
+  var halfPx=Math.max(6,Math.round(riverW*WW));
+  var deckY=roadY+1, deckH=3;                                   // the bridge deck sits at street level
   for(var w=-1;w<=1;w++){
     var cx=Math.round(riverX*WW-WOFF+w*WW);
-    if(cx+halfPx<-2||cx-halfPx>SW+2) continue;
+    if(cx+halfPx<-4||cx-halfPx>SW+4) continue;
+    // ---- the channel: water from just under the sidewalk to the bottom of the frame
     for(var dx=-halfPx;dx<=halfPx;dx++){
       var sx=cx+dx; if(sx<0||sx>=SW) continue;
-      var f=1-Math.abs(dx)/halfPx;                                  // 0 at the bank, 1 mid-channel
-      g.fillStyle=css(mixc(shallow,deep,f));
-      g.fillRect(sx,gy,1,SH-gy);
+      var f=1-Math.abs(dx)/halfPx;                              // 0 at the bank, 1 mid-channel
+      g.fillStyle=css(mixc(shallow,deep,f*f));
+      g.fillRect(sx,gy+4,1,SH-gy-4);
     }
-    // banks: a pale gravel lip either side so the channel reads as cut, not painted on
-    g.fillStyle=day?"rgba(190,180,150,0.55)":"rgba(60,60,70,0.5)";
-    g.fillRect(cx-halfPx-1,gy,2,SH-gy); g.fillRect(cx+halfPx-1,gy,2,SH-gy);
-    // BARGES: long low working boats, drifting the channel on a slow deterministic loop
+    // ---- STONE EMBANKMENT: coped walls with steps down to the water
+    var wallC=day?"#8d8778":"#33323a", copeC=day?"#b3ab98":"#4a4852";
+    for(var s2=0;s2<2;s2++){
+      var bxw=(s2===0)?(cx-halfPx-3):(cx+halfPx);
+      if(bxw+3<0||bxw>SW) continue;
+      g.fillStyle=wallC; g.fillRect(bxw,gy+3,3,SH-gy-3);
+      g.fillStyle=copeC; g.fillRect(bxw,gy+3,3,1);
+      for(var st=0;st<3;st++){                                   // steps down into the channel
+        var stx=(s2===0)?(bxw+3):(bxw-1-st);
+        g.fillStyle=copeC; g.fillRect(stx+(s2===0?st:0),gy+6+st*2,1,1);
+      }
+    }
+    // ---- WHARF (left bank): mooring bollards, stacked cargo and a small crane
+    var wx0=cx-halfPx-16;
+    if(wx0<SW&&wx0+16>0&&cityG>0.30){
+      g.fillStyle=day?"#6d6152":"#2b2822"; g.fillRect(wx0,gy+3,14,2);           // the quay
+      g.fillStyle=day?"#4b463c":"#1e1c1a";
+      for(var bl2=0;bl2<3;bl2++) g.fillRect(wx0+2+bl2*5,gy+1,2,2);               // bollards
+      var crates=[[0,"#8a6a3a"],[4,"#6a7a4a"],[8,"#7a5a4a"]];
+      for(var ci=0;ci<crates.length;ci++){ g.fillStyle=day?crates[ci][1]:"#2a2620";
+        g.fillRect(wx0+1+crates[ci][0],gy-2,4,3); }                              // stacked cargo
+      g.fillStyle=day?"#c8a23a":"#4a3c18";                                       // wharf crane
+      g.fillRect(wx0+12,gy-11,1,12); g.fillRect(wx0+6,gy-11,7,1);
+      g.fillStyle="rgba(150,150,160,0.7)"; g.fillRect(wx0+7,gy-10,1,4);          // hanging cable
+    }
+    // ---- RIVERSIDE PARK (right bank): a green strip with trees and a bench
+    var px0=cx+halfPx+4;
+    if(px0<SW&&px0+18>0&&cityG>0.24){
+      g.fillStyle=day?"#4f7c42":"#1f2e26"; g.fillRect(px0,gy+3,16,2);            // lawn
+      for(var tr=0;tr<3;tr++){ var tx=px0+2+tr*6;
+        g.fillStyle=day?"#5a4432":"#241d18"; g.fillRect(tx,gy-3,1,4);            // trunk
+        g.fillStyle=day?"#3f7a3a":"#1c3226"; g.fillRect(tx-2,gy-6,5,3); }        // canopy
+      g.fillStyle=day?"#7a6248":"#2a231c"; g.fillRect(px0+11,gy,3,1);            // bench
+    }
+    // ---- BARGES working the channel, under the bridge
     if(cityG>0.22){
       for(var b=0;b<3;b++){
-        var per=52000+b*14000, ph=((now+b*17000)%per)/per;
-        var by=gy+6+((SH-gy-10)*((b*0.33+0.15)%1));
-        var bx=cx-halfPx+2+Math.round(ph*(halfPx*2-10));
-        var dir=(b&1)?1:-1; if(dir<0) bx=cx+halfPx-2-Math.round(ph*(halfPx*2-10));
-        g.fillStyle=day?"#5a4a3a":"#241d18"; g.fillRect(bx,by|0,9,2);      // hull
-        g.fillStyle=day?"#c8b48a":"#4a4034"; g.fillRect(bx+(dir>0?6:1),(by-2)|0,2,2);  // wheelhouse
+        var per=54000+b*15000, ph=((now+b*19000)%per)/per;
+        var lane=gy+12+b*5; if(lane>SH-3) continue;
+        var span=halfPx*2-12; if(span<8) continue;
+        var bx=(b&1) ? (cx+halfPx-6-Math.round(ph*span)) : (cx-halfPx+6+Math.round(ph*span));
+        g.fillStyle=day?"#54453a":"#221c18"; g.fillRect(bx,lane,10,2);           // hull
+        g.fillStyle=day?"#c2ae86":"#463c30"; g.fillRect(bx+((b&1)?7:1),lane-2,2,2);  // wheelhouse
+        g.fillStyle=day?"#7a6a4a":"#2a241c"; g.fillRect(bx+3,lane-1,4,1);        // deck load
       }
+    }
+    // ---- THE BRIDGE: piers standing in the water, then the deck laid back across the road gap
+    if(onPavedRoad(riverX*WW)){
+      var pierC=day?"#7e7768":"#2e2d33";
+      for(var pi2=-1;pi2<=1;pi2+=2){ var pxp=cx+pi2*Math.round(halfPx*0.5);
+        g.fillStyle=pierC; g.fillRect(pxp-1,deckY+deckH,3,SH-deckY-deckH); }     // piers to the riverbed
+      g.fillStyle=day?"#3a3f4c":"#272c39";                                       // the deck carries the asphalt over
+      g.fillRect(cx-halfPx-4,deckY,halfPx*2+8,deckH);
+      g.fillStyle=day?"#666b78":"#3c4254"; g.fillRect(cx-halfPx-4,deckY-1,halfPx*2+8,1);   // kerb line
+      g.fillStyle=day?"rgba(230,235,245,0.75)":"rgba(150,165,195,0.5)";          // railings
+      for(var rl=cx-halfPx-4;rl<cx+halfPx+4;rl+=3) g.fillRect(rl,deckY-3,1,2);
+      g.fillRect(cx-halfPx-4,deckY-3,halfPx*2+8,1);
     }
   }
 }
@@ -15588,9 +15636,6 @@ function draw(g,pass){
   drawGondola(g,L,now);           // a cable-car + summit lodge on the tallest peak (mature cities)
   drawClimbers(g,L,now,nd,fx);    // tiny mountaineers roping up the tallest peaks (fair-weather days)
   }                                                          // end of the backdrop stack
-  // The river belongs to the backdrop: drawn for "bg" AND for a whole undrawn frame, never for
-  // "live", so bg + live still add up to exactly one frame (see pass-split.test.js).
-  if(pass==="bg"||pass===undefined) drawRiver(g,L,now);
   if(pass==="bg"){ if(cityG<0.985) drawTerrain(g,cityG,L,now,nd,"bg"); return; }
   // The animated sky sits behind the cached city. It keeps every aerial/weather feature, but no
   // longer forces buildings and roads to be rebuilt at the same cadence as traffic and people.
@@ -15836,6 +15881,7 @@ function draw(g,pass){
       g.fillStyle=ng; g.fillRect(0,HORIZON,SW,SH-HORIZON); }
     g.globalAlpha=1;
     g.restore();                                                             // end paved-band clip
+    drawRiver(g,L,now);                                                      // the channel cuts the asphalt; the bridge carries it back over
     if(!roadPaved){                                                          // the paving FRONT: fresh-tar strip + road roller + cones
       var pfx=disX(frontW);
       if(pfx>-20&&pfx<SW+10){ var pj=L>0.5;
