@@ -12271,6 +12271,52 @@ function plateaus(){
 // below grows: the ruins were always there and predate every city this world has had, the outpost
 // grows once there is a town to supply it, and the mansions only if that town gets rich. So one
 // butte may stay ruins forever while its neighbour fills up across the life.
+// ONE BUILDING on the tableland, carrying the same vocabulary as the city below: a grid of windows
+// lit one at a time by curLit rather than a single token square, a door, a pitched or flat roof, a
+// chimney that smokes, and a scaffold while it is still going up. The structures were deliberately
+// scaled up to afford this — at ten pixels tall there is no room for a window grid, and a person
+// standing next to one would have been half the height of the building.
+function drawPlateauBuilding(g,x,top,bw,bh,grow,seed,day,now,K,wallC,roofC,trimC){
+  var built=grow>=1;
+  g.fillStyle=wallC; g.fillRect(x,top-bh,bw,bh);
+  // SCAFFOLD while it rises — the city below shows its cranes, this shows its poles
+  if(!built){
+    g.fillStyle=trimC;
+    for(var s=0;s<=2;s++) g.fillRect(x+Math.round(s*(bw/2))-1,top-bh-Math.round(2*K),Math.max(1,Math.round(K*0.7)),bh+Math.round(2*K));
+    g.fillRect(x-Math.round(K),top-bh-Math.round(2*K),bw+Math.round(2*K),Math.max(1,Math.round(K*0.7)));
+    return;
+  }
+  var u=Math.max(1,Math.round(K*0.9));
+  // WINDOW GRID — each pane decides for itself, so the place lights up unevenly like a real street
+  var cols=Math.max(1,Math.floor((bw-2*u)/(u*2.4))), rows=Math.max(1,Math.floor((bh-3*u)/(u*2.6)));
+  for(var c=0;c<cols;c++) for(var r=0;r<rows;r++){
+    var wx=x+u+Math.round(c*u*2.4), wy=top-bh+u+Math.round(r*u*2.6);
+    if(wy+u>top-u) continue;
+    var h2=((seed*2654435761+c*7919+r*104729)>>>0)%1000/1000;
+    if(day){ g.fillStyle=trimC; }
+    else { g.fillStyle=(h2<curLit)?((h2<curLit*0.35)?"#fff0c0":"#ffd489"):trimC; }
+    g.fillRect(wx,wy,u,Math.max(1,Math.round(u*1.3)));
+  }
+  g.fillStyle=trimC;                                                    // the door, always on the ground
+  g.fillRect(x+Math.round(bw*0.42),top-Math.round(u*2.4),Math.max(1,Math.round(u*1.2)),Math.round(u*2.4));
+  // ROOF — pitched or flat, per building, plus a chimney that actually smokes on a cold day
+  var pitched=(seed>>>4)&1;
+  g.fillStyle=roofC;
+  if(pitched){
+    var st=Math.max(1,Math.round(u*0.9)), steps=Math.max(2,Math.round(bw/(st*2)));
+    for(var k=0;k<steps;k++)
+      g.fillRect(x+k*st,top-bh-Math.round((steps-k)*st*0.55),bw-k*st*2,Math.max(1,Math.round(st*0.6)));
+  } else {
+    g.fillRect(x-u,top-bh-u,bw+u*2,u);
+  }
+  var chx=x+Math.round(bw*(((seed>>>6)&1)?0.72:0.18)), chh=Math.round(u*2.2);
+  g.fillStyle=roofC; g.fillRect(chx,top-bh-chh,Math.max(1,Math.round(u*1.1)),chh);
+  if(wmood&&wmood.cold&&((seed>>>8)&1)){
+    g.fillStyle=day?"rgba(214,214,210,0.42)":"rgba(150,155,165,0.30)";
+    for(var pf=0;pf<3;pf++){ var pu=((now*0.014)+pf*26)%54;
+      g.fillRect(chx+Math.round(pu*0.07),top-bh-chh-Math.round(pu*0.28),Math.max(1,Math.round(u*(1+pf*0.4))),Math.max(1,u)); }
+  }
+}
 function drawPlateauTowns(g,L,now,nd){
   if(!mtsCache||cityPhase==="apoc") return;
   var pls=plateaus(); if(!pls.length) return;
@@ -12280,6 +12326,7 @@ function drawPlateauTowns(g,L,now,nd){
   var roofC=css(mixc(rock,day?[64,54,46]:[10,9,12],0.76));
   var ruinC=css(mixc(rock,day?[120,108,94]:[22,20,22],0.40));    // ruins are the same stone, sun-bleached
   var roadC=css(mixc(rock,day?[104,96,84]:[18,17,20],0.50));
+  var trimC=css(mixc(rock,day?[58,50,42]:[8,8,10],0.80));        // window glass by day, door, scaffold
   for(var i=0;i<pls.length;i++){
     var p=pls[i], hsh=((i*2654435761+(WORLD_SEED|0)*31+17)>>>0);
     var top=Math.round(gy-p.h), w=p.x1-p.x0;
@@ -12301,7 +12348,9 @@ function drawPlateauTowns(g,L,now,nd){
     // How many of each will actually FIT in its third. A mesa hands us a 300px table and a sea cliff
     // hands us 78 — at that width the thirds are ~26px and un-clamped groups walk over each other and
     // straight off the edge of the rock. A small table simply holds less, and can hold nothing.
-    var fitR=Math.floor((seg-2*K)/(7*K)), fitO=Math.floor((seg-2*K)/(7*K)), fitH=Math.floor((seg-2*K)/(11*K));
+    // Spacing follows the LARGER structures — see drawPlateauBuilding on why they had to grow.
+    var OW=Math.round(7*K), OSP=Math.round(9.5*K), HW=Math.round(11*K), HSP=Math.round(14*K);
+    var fitR=Math.floor((seg-2*K)/(7*K)), fitO=Math.floor((seg-2*K)/OSP), fitH=Math.floor((seg-2*K)/HSP);
     // RUINS — roofless walls and a doorway gap, in the same stone as the mesa. Never lit, never grow.
     if(ruins&&fitR>=1){
       var rx=bandR, rn=Math.min(fitR,2+((hsh>>>3)%3));
@@ -12322,13 +12371,9 @@ function drawPlateauTowns(g,L,now,nd){
         var born=OSTART+o*OSTEP, grow=(cityG-born)/RAISE;
         if(grow<=0) break;                                                        // not built yet
         grow=Math.min(1,grow);
-        var bx2=ox+o*Math.round(7*K), bw2=Math.round(5*K);
-        var full2=Math.round((5+((hsh>>>(o+5))%4))*K), bh2=Math.max(1,Math.round(full2*(0.22+0.78*grow)));
-        g.fillStyle=wallC; g.fillRect(bx2,top-bh2,bw2,bh2);
-        if(grow>0.55){ g.fillStyle=roofC;                                         // the roof goes on last
-          g.fillRect(bx2-Math.round(K),top-bh2-Math.max(1,Math.round(K)),bw2+Math.round(2*K),Math.max(1,Math.round(K))); }
-        if(!day&&grow>0.8&&((Math.floor(now/3000)+o+i)%4)){ g.fillStyle="#ffd489";
-          g.fillRect(bx2+Math.round(K),top-bh2+Math.round(1.5*K),Math.max(1,Math.round(1.4*K)),Math.max(1,Math.round(1.4*K))); }
+        var bx2=ox+o*OSP, bw2=OW;
+        var full2=Math.round((9+((hsh>>>(o+5))%5))*K), bh2=Math.max(2,Math.round(full2*(0.22+0.78*grow)));
+        drawPlateauBuilding(g,bx2,top,bw2,bh2,grow,(hsh^(o*7919))>>>0,day,now,K,wallC,roofC,trimC);
         if(builtFrom<0) builtFrom=bx2;
         builtTo=bx2+bw2;
       }
@@ -12340,15 +12385,10 @@ function drawPlateauTowns(g,L,now,nd){
         var bornH=HSTART+m*HSTEP, growH=(cityG-bornH)/RAISE;
         if(growH<=0) break;
         growH=Math.min(1,growH);
-        var bx3=mx2+m*Math.round(11*K), bw3=Math.round(9*K);
-        var bh3=Math.max(1,Math.round(7*K*(0.22+0.78*growH)));
-        g.fillStyle=css(mixc(rock,day?[228,222,208]:[30,28,34],0.55));
-        g.fillRect(bx3,top-bh3,bw3,bh3);
-        if(growH>0.55){ g.fillStyle=roofC;
-          g.fillRect(bx3-Math.round(K),top-bh3-Math.max(1,Math.round(K)),bw3+Math.round(2*K),Math.max(1,Math.round(1.2*K))); }
-        if(!day&&growH>0.8){ g.fillStyle="#fff0c0";                               // every window on
-          for(var wq=0;wq<3;wq++)
-            g.fillRect(bx3+Math.round((1.5+wq*2.6)*K),top-bh3+Math.round(2*K),Math.max(1,Math.round(1.4*K)),Math.max(1,Math.round(1.6*K))); }
+        var bx3=mx2+m*HSP, bw3=HW;
+        var bh3=Math.max(2,Math.round(12*K*(0.22+0.78*growH)));
+        drawPlateauBuilding(g,bx3,top,bw3,bh3,growH,(hsh^(m*40503)^0x5a5a)>>>0,day,now,K,
+                            css(mixc(rock,day?[228,222,208]:[30,28,34],0.55)),roofC,trimC);
         if(builtFrom<0) builtFrom=bx3;
         builtTo=bx3+bw3;
       }
@@ -12358,8 +12398,51 @@ function drawPlateauTowns(g,L,now,nd){
     if(builtTo>0){
       var rd0=Math.max(p.x0+Math.round(3*K),builtFrom-Math.round(4*K));
       var rd1=Math.min(p.x1-Math.round(3*K),builtTo+Math.round(4*K));
-      if(rd1>rd0){ g.fillStyle=roadC;
-        g.fillRect(rd0,top-Math.max(1,Math.round(K)),rd1-rd0,Math.max(1,Math.round(K))); }
+      if(rd1>rd0){
+        g.fillStyle=roadC;
+        g.fillRect(rd0,top-Math.max(1,Math.round(K)),rd1-rd0,Math.max(1,Math.round(K)));
+        // A street up here is a street: lamps that come on at dusk, people walking it, a truck
+        // working it, and the biome's own plants along the verge. Without these the tableland was a
+        // row of buildings on a bare line while the city below had a whole life on its road.
+        var lampN=Math.max(1,Math.floor((rd1-rd0)/(14*K)));
+        for(var lp=0;lp<=lampN;lp++){
+          var lpx=Math.round(rd0+lp*((rd1-rd0)/lampN)), lph=Math.round(4.5*K);
+          g.fillStyle=trimC;
+          g.fillRect(lpx,top-Math.round(K)-lph,Math.max(1,Math.round(K*0.7)),lph);
+          if(!day){ g.fillStyle="#ffe6a8";
+            g.fillRect(lpx-Math.max(1,Math.round(K*0.5)),top-Math.round(K)-lph,Math.max(1,Math.round(K*1.6)),Math.max(1,Math.round(K*0.9)));
+            g.fillStyle="rgba(255,220,150,0.16)";                    // the pool of light it throws down
+            g.fillRect(lpx-Math.round(2.5*K),top-Math.round(K)-Math.round(lph*0.5),Math.round(5*K),Math.round(lph*0.5)); }
+        }
+        // PEOPLE — walking the plateau road, turning round at each end
+        var pN=1+Math.min(3,Math.floor((rd1-rd0)/(22*K)));
+        for(var pi=0;pi<pN;pi++){
+          var per=17000+pi*4300, tp=((now+pi*6100)%per)/per;
+          var back=tp>0.5, ft=back?(1-tp)*2:tp*2;
+          var pxx=Math.round(rd0+2*K+ft*((rd1-rd0)-4*K));
+          if(pxx<-4||pxx>SW+4) continue;
+          drawPerson(g,pxx,top-Math.round(K),
+                     ["#3e4038","#4a4238","#3a3e40","#50463a"][(i+pi)%4],
+                     SKINC[(i*3+pi)%SKINC.length], Math.floor(now/150+pi)&3);
+        }
+        // and a truck working the road, out and back, once the place is worth supplying
+        if(cityG>0.40){
+          var vper=31000, vt=((now+i*9000)%vper)/vper;
+          var vback=vt>0.5, vf=vback?(1-vt)*2:vt*2;
+          var vxx=Math.round(rd0+2*K+vf*((rd1-rd0)-6*K));
+          if(vxx>-8&&vxx<SW+8) drawCar(g,vxx,top-Math.round(K),"#8a7a5a",vback?-1:1,L);
+        }
+        // the biome's own vegetation along the verge — a mesa top grows what the mesa grows
+        if(curBiome.flora&&curBiome.flora.kinds){
+          for(var vg=0;vg<3;vg++){
+            var vgx=Math.round(rd0+((vg*37+((hsh>>>9)%23))%Math.max(1,(rd1-rd0))));
+            if(vgx<-6||vgx>SW+6) continue;
+            var vk=curBiome.flora.kinds[(vg+i)%curBiome.flora.kinds.length];
+            if(vk==="generic") vk="scrub";
+            drawBiomePlant(g,vgx,top-Math.round(K),day,now,(hsh>>>(vg+2))&255,Math.max(0.8,K*0.55),vk,false);
+          }
+        }
+      }
     }
     // THE SWITCHBACK — a zig-zag cut into the face, joining the road on top to the city below. Only
     // where something up there is actually inhabited; nobody cuts a road to a ruin.

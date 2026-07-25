@@ -14,11 +14,14 @@ Item {
             var g = getContext("2d");
             var CYC = 604800000, EPOCH = 1783972450746;
             City.GROW_CYCLE = CYC;
-            function timeLife(life, label, N) {
+            // AGE MATTERS. Timing only a young city misses everything that exists because the city
+            // grew — the plateau settlements, their people and traffic, the landmarks. A mesa timed at
+            // 0.30 has one shack on one table and reads CHEAPER than alpine, which is meaningless.
+            function timeLife(life, label, N, age) {
                 City.NOWOVR = EPOCH + life*CYC + Math.round(0.45*CYC);
                 City.CLOCK  = City.NOWOVR;
                 City.setup('neon', { cw: 853, ch: 480, woff: 0, ww: 2269, pxk: 3, zoom: 1, quality: 'spectacle' });
-                City.FORCEAGE = 0.30;
+                City.FORCEAGE = (age === undefined ? 0.30 : age);
                 var biome = City.curBiome.k;
                 City.draw(g, "bg");                                   // warm the cached backdrop once
                 var t0 = Date.now();
@@ -36,6 +39,11 @@ Item {
             var mesa   = timeLife(11, "mesa",  N);
             var cliffs = timeLife(1, "cliffs", N);
             var plains = timeLife(3, "plains", N);
+            var alpineM = timeLife(6, "alpine@0.85", N, 0.85);
+            var mesaM   = timeLife(11, "mesa@0.85",  N, 0.85);
+            var cliffsM = timeLife(1, "cliffs@0.85", N, 0.85);
+            console.log("PERF MATURE vs alpine — mesa " + (mesaM/alpineM).toFixed(2)
+                      + "x  cliffs " + (cliffsM/alpineM).toFixed(2) + "x");
             console.log("PERF vs alpine — forest " + (forest/alpine).toFixed(2)
                       + "x  mesa " + (mesa/alpine).toFixed(2)
                       + "x  cliffs " + (cliffs/alpine).toFixed(2)
