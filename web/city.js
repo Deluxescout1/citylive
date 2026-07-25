@@ -2465,6 +2465,40 @@ var QUAL=2;            // quality tier: 0 performance · 1 balanced · 2 spectac
 var ZOOM=1;            // canvas px per world px (per-screen; >1 when a fractionally-scaled screen needs a denser canvas)
 var mts=null;          // this life's mountain range ({far:[peaks],near:[peaks]}), null on flatland lives
 var mtsCache=null;     // per-screen silhouette cache (the range never moves within a life)
+
+// ============ BIOMES — the land the city is planted in ============
+// Every life rolls one. Alpine is the range the city has always had; the rest change the horizon
+// completely. Four of the five are HEIGHT FIELDS and share the silhouette cache — only their shape
+// law and palette differ — so a new one costs a table row, not a new renderer. The forest is the odd
+// one out: individual colossal trees rather than a ridge.
+//   amp/base  — peak height and the rolling floor, as a fraction of the alpine numbers
+//   flat      — 0 sharp crags · 1 mesa-flat tops (height quantised into strata)
+//   steep     — how vertical the sides run (cliffs and mesas cut straight down)
+//   snow      — does the top wear snow
+//   water     — "sea" forces a coast · "river" forces inland + a river · null keeps the normal roll
+//   walls     — wall palette the buildings wear here (the vernacular follows the land)
+var BIOMES=[
+  { k:"alpine", name:"ALPINE",     amp:1.00, base:1.00, flat:0.0, steep:0.0, snow:true,  water:null,
+    far:[126,146,182], near:[100,116,152], cap:[234,240,250], ground:null, walls:null },
+  { k:"forest", name:"OLD FOREST", amp:0.86, base:0.55, flat:0.0, steep:0.0, snow:false, water:null,
+    far:[74,104,86],   near:[46,74,58],    cap:[120,152,110], ground:[62,92,64],
+    walls:[[112,84,58],[96,72,48],[138,106,72],[196,186,164],[86,96,74],[120,110,88],[150,132,102],[72,84,66]] },
+  { k:"mesa",   name:"RED MESA",   amp:0.72, base:0.40, flat:1.0, steep:0.85, snow:false, water:"river",
+    far:[186,118,86],  near:[152,86,62],   cap:[214,158,116], ground:[196,150,110],
+    walls:[[206,158,116],[186,140,100],[214,178,140],[228,206,180],[168,116,84],[196,166,132],[176,146,116],[210,190,164]] },
+  { k:"cliffs", name:"SEA CLIFFS", amp:0.92, base:0.62, flat:0.55, steep:1.0, snow:false, water:"sea",
+    far:[126,132,140],  near:[92,98,108],  cap:[168,176,182], ground:[132,138,126],
+    walls:[[196,196,190],[172,176,178],[212,210,202],[150,158,162],[128,136,142],[186,178,166],[160,152,144],[204,198,186]] },
+  { k:"plains", name:"OPEN PLAINS",amp:0.30, base:0.85, flat:0.25, steep:0.0, snow:false, water:"river",
+    far:[150,164,132],  near:[122,140,104],cap:[186,196,158], ground:[158,166,116],
+    walls:[[178,72,58],[150,60,48],[196,190,166],[214,206,178],[132,118,86],[170,158,124],[186,176,146],[142,132,104]] }
+];
+var curBiome=BIOMES[0];
+var bioTrees=null;     // the OLD FOREST's colossal trees ({far:[],near:[]}), null in every other biome
+function biomeOf(li){
+  if(li===0) return BIOMES[0];                       // life 0 keeps the alpine range the city grew up under
+  return BIOMES[((li*2654435761+7717)>>>0)%BIOMES.length];
+}
 function inSea(wx){ return hasOcean && seaW>0 && (wx < WW*seaW || wx > WW*(1-seaW)); }   // the open coast at the world's seam
 // squeeze a whole-world crosser path onto DRY LAND — nothing rides over open water without a boat
 function landRoute(x){ if(!hasOcean||seaW<=0) return x;
@@ -2709,8 +2743,16 @@ function buildWorld(li){
   // GEOGRAPHY ROLL: is this city on a coast? (~60% are). No ocean → no harbour, no docks,
   // no boats, no sea life — the industrial edges become inland rail-yard districts instead.
   var geo=rng((seed+61)>>>0);
-  hasOcean = (li===0) ? true : (geo()<0.6);   // life 0 keeps its ocean (the city you know)
+  // BIOME first — it has the final say on the water, because the land and the water have to agree:
+  // sea cliffs without a sea are nonsense, and so is a harbour in a red-rock desert.
+  curBiome = biomeOf(li);
+  hasOcean = (li===0) ? true : (curBiome.water==="sea" ? true : curBiome.water==="river" ? false : geo()<0.6);
   seaW = hasOcean ? (0.045+geo()*0.035) : 0;  // and how much OPEN water laps at the coast
+  // Dry biomes get a RIVER through the city instead of a coast: the waterfront becomes a riverbank,
+  // and the harbour's deep-water shipping becomes barge traffic (drawRiver / riverAt).
+  hasRiver = !hasOcean && curBiome.water==="river";
+  riverX   = hasRiver ? (0.30+geo()*0.40) : -1;      // where it crosses, as a world fraction
+  riverW   = hasRiver ? (0.030+geo()*0.028) : 0;     // and how wide
   milFund = 0.25+geo()*0.7;                   // how well this civilization funds its defenders
   // MOUNTAIN roll: most lives grow up under a distant range (two ridges for depth);
   // the tallest peaks wear snow. Life 0 gets mountains (the city being watched).
@@ -2719,14 +2761,29 @@ function buildWorld(li){
   POPK=(((li*2654435761+4441)>>>0)%1000)/1000;                 // relative bigness of this city (rush-jam factor)
   var mg=rng((seed+71)>>>0);
   mtsCache=null;                              // new life → new silhouette
-  mts = (li===0||mg()<0.72) ? {far:[],near:[]} : null;
+  bioTrees=null;
+  // The four height-field biomes build the same two ridges; the biome's amp/base scale them, and its
+  // flat/steep/snow decide how they're cut and coloured at draw time. Alpine on a flatland roll still
+  // gets no ridge at all (some lives have always been open country) — the other biomes ARE the land,
+  // so they always stand.
+  var flatLife = (li!==0 && curBiome.k==="alpine" && mg()>=0.72);
+  mts = (curBiome.k==="forest"||flatLife) ? null : {far:[],near:[]};
   if(mts){
-    var MSC=KSP*Math.max(0.45,Math.min(1,WW/1300));               // small worlds get proportionate peaks
+    var MSC=KSP*Math.max(0.45,Math.min(1,WW/1300))*curBiome.amp;   // small worlds get proportionate peaks
     var nF=6+((mg()*4)|0), nN=4+((mg()*4)|0), mi;
     for(mi=0;mi<nF;mi++){ var fh=(40+mg()*56)*MSC;                 // the pale back ridge — TALL
-      mts.far.push({x:mg()*WW, w:(100+mg()*150)*MSC, h:fh, sn:(fh>66*MSC)||mg()<0.25, ph:mg()*9}); }
+      mts.far.push({x:mg()*WW, w:(100+mg()*150)*MSC, h:fh, sn:curBiome.snow&&((fh>66*MSC)||mg()<0.25), ph:mg()*9}); }
     for(mi=0;mi<nN;mi++){ var nh=(58+mg()*86)*MSC;                 // the bolder front ridge — the peaks
-      mts.near.push({x:mg()*WW, w:(80+mg()*130)*MSC, h:nh, sn:(nh>92*MSC)||mg()<0.35, ph:mg()*9}); }   // clear the skyline
+      mts.near.push({x:mg()*WW, w:(80+mg()*130)*MSC, h:nh, sn:curBiome.snow&&((nh>92*MSC)||mg()<0.35), ph:mg()*9}); }   // clear the skyline
+  }
+  // THE OLD FOREST: not a ridge but a stand of colossal trees — two depth bands, the near ones
+  // tall enough to rival the towers. Trunks and crowns are laid out once per life, like the peaks.
+  if(curBiome.k==="forest"){
+    var TSC=KSP*Math.max(0.45,Math.min(1,WW/1300));
+    bioTrees={far:[],near:[]};
+    var nFT=14+((mg()*8)|0), nNT=9+((mg()*6)|0), ti;
+    for(ti=0;ti<nFT;ti++) bioTrees.far.push({x:mg()*WW, h:(48+mg()*40)*TSC, w:(15+mg()*12)*TSC, ph:mg()*9});
+    for(ti=0;ti<nNT;ti++) bioTrees.near.push({x:mg()*WW, h:(78+mg()*76)*TSC, w:(22+mg()*20)*TSC, ph:mg()*9});
   }
   var eraNm=ERAS[eraPickOf(li)].name;
   cityName = nameOf(li, eraNm);                      // every civilization names itself
@@ -2846,6 +2903,16 @@ function buildWorld(li){
 }
 var cars=[], sprops=[], busstops=[], vents=[], pigeons=[], docks=[], buskers=[], boats=[], helipads=[], sites=[], pubs=[];
 var WORLD_SEED=1337;   // this life's world seed, mirrored out of buildWorld() so branded-firm code can reseed deterministically
+var hasRiver=false;  // dry biomes (mesa/plains) run a river through the city instead of meeting a sea
+var riverX=-1;       // where it crosses (world fraction) · riverW = half-width, same units
+var riverW=0;
+// world-x → how deep into the river we are, 0 outside it and 1 mid-channel. Wrap-safe like inSea().
+function riverAt(wx){
+  if(!hasRiver) return 0;
+  var d=Math.abs((((wx/WW)-riverX)%1+1.5)%1-0.5);   // fractional distance to the channel centre
+  return d>=riverW ? 0 : 1-(d/riverW);
+}
+function inRiver(wx){ return riverAt(wx)>0.34; }    // the wet part — nothing is built here
 var hasOcean=true;   // set per life in buildWorld — landlocked cities have no waterfront at all
 var subways=[];      // street-level subway entrances (generated per life)
 var skybridges=[];   // G1: lit tube bridges between adjacent transformed towers
@@ -11365,7 +11432,43 @@ function drawGrowSite(g,X,w,targetH,frac,seed,L,now,crew){
 // Snowline drops in winter and after real snowfalls; snow blushes pink at sunset (alpenglow);
 // at night the range is a dark silhouette with faintly moonlit caps. Pure geography — it
 // outlives every city that rises and falls beneath it.
+// THE OLD FOREST backdrop — colossal trees instead of a ridge. Two depth bands: a hazy far stand
+// faded toward the sky, then a near stand tall enough to stand shoulder to shoulder with the towers.
+// Same contract as the range: pure geography, laid out once per life, drawn behind everything.
+function drawForestBackdrop(g,L,now,nd){
+  if(!bioTrees) return;
+  var gy=HORIZON, day=L>0.5, sunsetK=goldenK, B=curBiome;
+  var skc=day?[168,186,214]:[24,28,46];
+  var bands=[
+    { list:bioTrees.far,  crown:mixc(mixc(day?B.far:[10,16,14], skc, day?0.46:0.36),[200,124,152],sunsetK*0.30),
+      trunk:mixc(day?[86,66,48]:[12,12,16], skc, day?0.40:0.30) },
+    { list:bioTrees.near, crown:mixc(mixc(day?B.near:[7,12,11], skc, day?0.18:0.18),[150,92,124],sunsetK*0.26),
+      trunk:mixc(day?[64,46,32]:[8,9,12], skc, day?0.14:0.16) }
+  ];
+  for(var bi=0;bi<bands.length;bi++){
+    var bd=bands[bi], list=bd.list;
+    for(var i=0;i<list.length;i++){ var t=list[i];
+      for(var w=-1;w<=1;w++){
+        var sx=Math.round(t.x-WOFF+w*WW), hw=Math.round(t.w/2);
+        if(sx+hw<-2||sx-hw>SW+2) continue;
+        var top=Math.max(2,(gy-t.h)|0), trunkW=Math.max(1,Math.round(t.w*0.16));
+        g.fillStyle=css(bd.trunk); g.fillRect((sx-(trunkW>>1))|0, top, trunkW, gy-top+2);   // the bole
+        // crown: stacked tapering tiers, widest low down — a conifer the size of a tower block
+        g.fillStyle=css(bd.crown);
+        var tiers=5, ch=Math.max(3,Math.round(t.h*0.62));
+        for(var k=0;k<tiers;k++){
+          var f=k/(tiers-1);                                     // 0 at the crown tip, 1 at the skirt
+          var tw2=Math.max(2,Math.round(hw*(0.30+0.70*f)));
+          var ty=Math.round(top + ch*f*0.88);
+          var th=Math.max(2,Math.round(ch*0.30));
+          g.fillRect((sx-tw2)|0, ty, tw2*2, th);
+        }
+      }
+    }
+  }
+}
 function drawMountains(g,L,now,nd){
+  if(curBiome.k==="forest"){ drawForestBackdrop(g,L,now,nd); return; }   // the forest is the range here
   if(!mts) return;
   var gy=HORIZON, day=L>0.5;
   var sunsetK=goldenK;   // sourced from the shared golden-hour global (identical law)
@@ -11373,26 +11476,34 @@ function drawMountains(g,L,now,nd){
   var winter=(mo===11||mo<=1)?1:((mo===2||mo===10)?0.5:0);
   var snowLo=Math.min(0.5, winter*0.26 + snowpack*0.22);          // how far the snowline creeps down
   var skc=day?[168,186,214]:[24,28,46];                           // fade the ridges toward the sky
-  var farC =mixc(mixc(day?[126,146,182]:[17,21,37], skc, day?0.5:0.38), [200,124,152], sunsetK*0.34);
-  var nearC=mixc(mixc(day?[100,116,152]:[13,17,30], skc, day?0.24:0.2), [150,92,124], sunsetK*0.3);
-  var snF=mixc(day?[234,240,250]:[88,102,142], [255,168,148], sunsetK*0.55);   // alpenglow on the snow
-  var snN=mixc(day?[246,250,255]:[110,126,168], [255,150,128], sunsetK*0.6);
+  // The biome supplies the rock; night still drains it toward the sky colour and sunset still
+  // blushes it, so red mesa and grey sea-cliff read as the same world under the same light.
+  var B=curBiome, dim=function(c){ return [(c[0]*0.16)|0,(c[1]*0.18)|0,(c[2]*0.30)|0]; };
+  var farC =mixc(mixc(day?B.far:dim(B.far),  skc, day?0.5:0.38), [200,124,152], sunsetK*0.34);
+  var nearC=mixc(mixc(day?B.near:dim(B.near),skc, day?0.24:0.2), [150,92,124], sunsetK*0.3);
+  var snF=mixc(day?B.cap:mixc(B.cap,[0,0,0],0.62), [255,168,148], sunsetK*0.55);   // alpenglow on the snow
+  var snN=mixc(day?mixc(B.cap,[255,255,255],0.35):mixc(B.cap,[0,0,0],0.55), [255,150,128], sunsetK*0.6);
   if(!mtsCache){                                                  // the silhouette is static per life —
     mtsCache={h:[[],[]], wig:[], mx:[0,0]};                       // compute it ONCE per screen, not per frame
     var lists=[mts.far,mts.near];
     for(var pi0=0;pi0<2;pi0++){ var list0=lists[pi0];
       for(var i0=0;i0<list0.length;i0++) if(list0[i0].h>mtsCache.mx[pi0]) mtsCache.mx[pi0]=list0[i0].h;
+      var strata=Math.max(2,Math.round(5*KSP*(0.5+B.flat)));      // mesa bedding planes — the step a flat top snaps to
       for(var cx0=0;cx0<SW;cx0++){ var wx0=cx0+WOFF;
-        var rh0=(pi0===0)? (9+Math.sin(wx0*0.011+3)*5+Math.sin(wx0*0.033)*2.5)*KSP        // rolling base ridge
-                         : Math.max(0,(Math.sin(wx0*0.014+7)*9-3.5))*KSP;                 // sparse foothills
+        var rh0=((pi0===0)? (9+Math.sin(wx0*0.011+3)*5+Math.sin(wx0*0.033)*2.5)*KSP       // rolling base ridge
+                          : Math.max(0,(Math.sin(wx0*0.014+7)*9-3.5))*KSP) * B.base;      // sparse foothills
         for(var i1=0;i1<list0.length;i1++){ var p0=list0[i1];
           var d0=(((wx0-p0.x)%WW)+WW*1.5)%WW-WW*0.5; if(d0<0)d0=-d0;
           if(d0>=p0.w) continue;
           var t0=1-d0/p0.w;
+          // STEEP biomes plateau: the profile climbs over the outer sliver then runs dead flat, so a
+          // mesa wall or a sea cliff drops straight down instead of easing off like a mountain flank.
+          if(B.steep>0) t0=Math.min(1, t0/Math.max(0.10,1-B.steep*0.88));
           var crag=(Math.sin(wx0*0.19+p0.ph)*1.4+Math.sin(wx0*0.047+p0.ph*2.3)*2.4+Math.sin(wx0*0.093+p0.ph*5)*1.1)
-                   *t0*(p0.h/(46*KSP));                           // crags grow with the mountain
+                   *t0*(p0.h/(46*KSP))*(1-B.flat*0.9);            // crags grow with the mountain; flat tops stay smooth
           var hh0=p0.h*t0+crag*KSP;
           if(hh0>rh0) rh0=hh0; }
+        if(B.flat>0 && rh0>2) rh0=Math.round(rh0/strata)*strata;  // quantise into bedding planes → flat tops
         mtsCache.h[pi0][cx0]=rh0;
         if(pi0===0) mtsCache.wig[cx0]=Math.sin(wx0*0.23)*2.2*KSP; // snowline wander, also static
       } }
