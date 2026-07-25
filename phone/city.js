@@ -1151,6 +1151,10 @@ function drawFlora(g,L,now,nd){
   var cols=season.blossom?["#f2b9d8","#ffffff","#ffe27a","#c9a0e8"]
           :(season.name==="autumn"?["#c9b284","#b8a06a"]       // autumn seed heads
           :["#e05252","#ffd23a","#b06ad0","#ffffff","#ff9a3c"]);
+  // the land's own blooms outrank the default meadow mix — but only OUTSIDE blossom and autumn, so
+  // the real season still shows through. A red desert scattered with the same purple and scarlet
+  // wildflowers as a New England meadow was the vegetation half of the goats-on-the-mesa bug.
+  if(curBiome.flora&&curBiome.flora.bloom&&!season.blossom&&season.name!=="autumn") cols=curBiome.flora.bloom;
   for(var i=0;i<Math.round(WW/15);i++){ var h=((i*2654435761+37)>>>0);
     if(((h>>>9)%1000)/1000>wild2) continue;                    // this patch is paved over
     var ffs=fireStateAt(WW*seaW+14+((h%1000)/1000)*(WW*(1-2*seaW)-28),now);
@@ -2482,6 +2486,11 @@ var mtsCache=null;     // per-screen silhouette cache (the range never moves wit
 //   snow      — does the top wear snow
 //   water     — "sea" forces a coast · "river" forces inland + a river · null keeps the normal roll
 //   walls     — wall palette the buildings wear here (the vernacular follows the land)
+//   flora     — what GROWS here, same null-on-alpine rule. `kinds` is sampled per tree slot (repeat an
+//               entry to weight it; "generic" keeps the ordinary tree), `bloom` recolours the ground
+//               flowers. Without this every biome grew the same green oaks and scattered the same red
+//               and yellow wildflowers — a red desert with oaks on it is the goats-on-the-mesa bug
+//               again, just in the vegetation.
 //   fauna     — what lives here. NULL on alpine, exactly like `walls`, so life 0 falls through to
 //               the roster that has always rendered and stays byte-for-byte unchanged.
 //                 keep  — which of the four classic sprites belong here (deer/rabbit/fox/goat)
@@ -2492,23 +2501,28 @@ var mtsCache=null;     // per-screen silhouette cache (the range never moves wit
 //                         roll itself a coast.
 var BIOMES=[
   { k:"alpine", name:"ALPINE",     amp:1.00, base:1.00, flat:0.0, steep:0.0, snow:true,  water:null,
-    far:[126,146,182], near:[100,116,152], cap:[234,240,250], ground:null, walls:null, fauna:null },
+    far:[126,146,182], near:[100,116,152], cap:[234,240,250], ground:null, walls:null, fauna:null,
+    flora:null },
   { k:"forest", name:"OLD FOREST", amp:0.86, base:0.55, flat:0.0, steep:0.0, snow:false, water:null,
     far:[74,104,86],   near:[46,74,58],    cap:[120,152,110], ground:[62,92,64],
     walls:[[112,84,58],[96,72,48],[138,106,72],[196,186,164],[86,96,74],[120,110,88],[150,132,102],[72,84,66]],
-    fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:0}, big:["elk","bear","boar"], small:["squirrel"], air:["owl"] } },
+    fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:0}, big:["elk","bear","boar"], small:["squirrel"], air:["owl"] },
+    flora:{ kinds:["fern","generic","fern","log","generic"], bloom:["#e8e0c0","#cfd8b0","#ffffff"] } },
   { k:"mesa",   name:"RED MESA",   amp:0.72, base:0.40, flat:1.0, steep:0.85, snow:false, water:"river",
     far:[186,118,86],  near:[152,86,62],   cap:[214,158,116], ground:[196,150,110],
     walls:[[206,158,116],[186,140,100],[214,178,140],[228,206,180],[168,116,84],[196,166,132],[176,146,116],[210,190,164]],
-    fauna:{ keep:{deer:0,rabbit:1,fox:0,goat:0}, big:["bighorn","coyote"], small:["lizard","roadrunner"], air:["vulture"] } },
+    fauna:{ keep:{deer:0,rabbit:1,fox:0,goat:0}, big:["bighorn","coyote"], small:["lizard","roadrunner"], air:["vulture"] },
+    flora:{ kinds:["saguaro","scrub","ocotillo","scrub","saguaro"], bloom:["#e8c04a","#d8734a","#c8506a"] } },
   { k:"cliffs", name:"SEA CLIFFS", amp:0.92, base:0.62, flat:0.55, steep:1.0, snow:false, water:"sea",
     far:[126,132,140],  near:[92,98,108],  cap:[168,176,182], ground:[132,138,126],
     walls:[[196,196,190],[172,176,178],[212,210,202],[150,158,162],[128,136,142],[186,178,166],[160,152,144],[204,198,186]],
-    fauna:{ keep:{deer:0,rabbit:1,fox:1,goat:0}, big:["seal"], small:["otter","puffin"], air:[] } },
+    fauna:{ keep:{deer:0,rabbit:1,fox:1,goat:0}, big:["seal"], small:["otter","puffin"], air:[] },
+    flora:{ kinds:["windbent","gorse","gorse","windbent","gorse"], bloom:["#f0d878","#e8a0c0","#ffffff"] } },
   { k:"plains", name:"OPEN PLAINS",amp:0.30, base:0.85, flat:0.25, steep:0.0, snow:false, water:"river",
     far:[150,164,132],  near:[122,140,104],cap:[186,196,158], ground:[158,166,116],
     walls:[[178,72,58],[150,60,48],[196,190,166],[214,206,178],[132,118,86],[170,158,124],[186,176,146],[142,132,104]],
-    fauna:{ keep:{deer:0,rabbit:1,fox:1,goat:0}, big:["bison","pronghorn","cattle"], small:["prairiedog"], air:["hawk"] } }
+    fauna:{ keep:{deer:0,rabbit:1,fox:1,goat:0}, big:["bison","pronghorn","cattle"], small:["prairiedog"], air:["hawk"] },
+    flora:{ kinds:["grass","grass","cottonwood","grass","scrub"], bloom:["#e8c860","#d8a0c8","#ffffff","#e0d070"] } }
 ];
 // The animals themselves. One sprite writer per BODY PLAN, one table row per species, so a new
 // animal costs a row rather than a renderer — the same economy the BIOMES table itself is built on.
@@ -11499,8 +11513,120 @@ function treeSC(seed){ var h=((seed*40503+11)>>>0)%100;
 // TREES KEEP GROWING: every tree matures over the city's life — planted small, filling out season after
 // season toward a full crown (and creeping a touch beyond, so an old city has old growth). Pure f(cityG).
 function treeGrow(){ return 0.60+0.55*Math.min(1.0,Math.max(0,cityG)*1.35); }
+// What grows on THIS land. One writer per plant, dispatched from drawTree by the biome's `flora.kinds`
+// — so the desert stops growing oaks without every caller having to know which biome it is in.
+// Desert and coastal plants ignore `season.bare`: a saguaro does not drop its leaves in February.
+function drawBiomePlant(g,X,gy,day,now,seed,sc,kind,swayOn){
+  var K=Math.max(1,sc), wind=Math.min(14,(weather.wind||5));
+  var sway=swayOn?Math.sin(now*0.0011+seed*1.7)*(0.5+wind*0.10):0;
+  function C(c){ return css(day?c:mixc(c,[14,20,20],0.58)); }
+  var R=function(x,y,w,h){ g.fillRect(Math.round(X+x),Math.round(gy+y),Math.max(1,Math.round(w)),Math.max(1,Math.round(h))); };
+  if(kind==="saguaro"){
+    // Arms have to GROW OUT OF the column. Offsetting them by a multiple of the trunk width left a
+    // gap, so the first render was a row of bare green posts with the arms floating alongside.
+    var sh=Math.round((15+(seed%7))*K), sw=Math.max(2,Math.round(2*K)), hw3=sw/2;
+    var armT=Math.max(2,Math.round(1.6*K));
+    g.fillStyle=C([74,112,72]);
+    R(-hw3,-sh,sw,sh);                                                    // the column
+    function arm(side,atY,len,rise){
+      var x0=(side>0)?hw3-1:-(hw3-1)-len;                                 // starts INSIDE the trunk
+      R(x0,atY,len+1,armT);                                               // out…
+      R((side>0)?(x0+len-armT+1):x0,atY-rise,armT,rise+armT);             // …then up, elbowed
+    }
+    var aL=(seed&1)?-1:1, armY=-Math.round(sh*(0.46+((seed>>3)%3)*0.08));
+    arm(aL,armY,Math.round(3.2*K),Math.round(sh*0.30));
+    if((seed>>5)&1) arm(-aL,armY+Math.round(sh*0.20),Math.round(2.6*K),Math.round(sh*0.24));
+    g.fillStyle=C([52,84,54]); R(-hw3,-sh,Math.max(1,Math.round(K*0.8)),sh);   // shaded rib
+    if(!season_bare_ok(seed)){ g.fillStyle=C([236,232,214]);               // crown of white blooms
+      R(-hw3,-sh-Math.round(K),sw,Math.max(1,Math.round(K))); }
+  } else if(kind==="ocotillo"){
+    // A wide spray of bare whippy canes from one point at the ground. The first version leaned them
+    // by a fraction of their own height, which spread the whole plant about two pixels and read as a
+    // brown cone with red dots on it rather than as a spray.
+    var oh=Math.round((10+(seed%5))*K), un=Math.max(1,Math.round(K));
+    for(var w2=0;w2<5;w2++){
+      var lean=(w2-2)*0.42;                                               // fans hard left to right
+      g.fillStyle=C([104,90,62]);
+      for(var t2=0;t2<oh;t2+=un){
+        var f4=t2/oh;
+        R(lean*t2*0.90+sway*f4, -t2, un, un);                             // curving out as it rises
+      }
+      if(!season_bare_ok(seed)){ g.fillStyle=C([206,58,48]);              // scarlet flower at each tip
+        R(lean*oh*0.90+sway,-oh-un,un,Math.max(1,Math.round(1.8*K))); }
+    }
+  } else if(kind==="scrub"){
+    var bw=Math.round((3+(seed%3))*K), bh=Math.round((2+(seed%2))*K);
+    g.fillStyle=C(curBiome.k==="mesa"?[112,116,78]:[96,110,72]);
+    R(-bw,-bh,bw*2,bh); R(-bw*0.6,-bh-Math.round(K),bw*1.2,Math.round(K));
+    g.fillStyle=C([70,74,50]); R(-bw*0.3,-1,Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
+  } else if(kind==="gorse"){
+    var gw=Math.round((3+(seed%3))*K), gh=Math.round((2+(seed%2))*K);
+    g.fillStyle=C([46,70,44]);                                            // low dense wind-clipped mound
+    R(-gw,-gh,gw*2,gh); R(-gw*0.7,-gh-Math.round(K),gw*1.4,Math.round(K));
+    if(!season_bare_ok(seed)){ g.fillStyle=C([232,200,72]);               // its yellow flecks
+      R(-gw*0.5,-gh,Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
+      R(gw*0.4,-gh-Math.round(K*0.5),Math.max(1,Math.round(K)),Math.max(1,Math.round(K))); }
+  } else if(kind==="windbent"){
+    // everything on a sea cliff leans the same way, because the wind has always come from there
+    var th=Math.round((8+(seed%5))*K), dir=1, tw2=Math.max(1,Math.round(1.4*K));
+    g.fillStyle=C([84,68,50]);
+    for(var y2=0;y2<th;y2+=Math.max(1,Math.round(K)))
+      R(dir*Math.pow(y2/th,1.8)*th*0.45,-y2,tw2,Math.max(1,Math.round(K)));
+    var cx2=dir*th*0.45, cy2=-th;
+    g.fillStyle=C([58,86,58]);                                            // canopy streams downwind
+    R(cx2-Math.round(K),cy2,Math.round(4.5*K),Math.round(2*K));
+    R(cx2+Math.round(1.5*K),cy2+Math.round(1.6*K),Math.round(3*K),Math.round(1.4*K));
+  } else if(kind==="grass"){
+    var nb=3+(seed%3);
+    g.fillStyle=C(season_autumn_ok()?[178,158,96]:[132,152,86]);          // prairie grass, wind-combed
+    for(var b2=0;b2<nb;b2++){
+      var bx=(b2-nb/2)*1.6*K, bh2=Math.round((3+((seed>>b2)%4))*K);
+      for(var y3=0;y3<bh2;y3+=Math.max(1,Math.round(K)))
+        R(bx+(sway*0.5)*(y3/bh2),-y3,Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
+    }
+  } else if(kind==="cottonwood"){
+    var ch2=Math.round((13+(seed%6))*K), cw2=Math.max(2,Math.round(1.8*K));
+    g.fillStyle=C([120,110,92]);                                          // pale bark, tall and lone
+    R(-cw2/2,-ch2,cw2,ch2);
+    if(!season_bare_ok(seed)){ g.fillStyle=C([146,168,104]);
+      R(-3.2*K+sway,-ch2-2*K,6.4*K,3.4*K); R(-2.2*K+sway,-ch2-3.6*K,4.4*K,1.8*K);
+      R(-2.6*K+sway,-ch2+1.2*K,5.2*K,1.6*K); }
+    else { g.fillStyle=C([120,110,92]);
+      for(var br2=0;br2<4;br2++) R((br2&1?1:-1)*(1.4*K),-ch2+br2*1.4*K,2*K,Math.max(1,Math.round(K))); }
+  } else if(kind==="fern"){
+    var fh=Math.round((3+(seed%3))*K);
+    g.fillStyle=C([54,92,58]);                                            // arching fronds on the floor
+    for(var fr=0;fr<4;fr++){ var fd=(fr<2?-1:1), fx2=fd*(0.6+fr%2)*K;
+      for(var s4=0;s4<fh;s4+=Math.max(1,Math.round(K)))
+        R(fx2+fd*s4*0.55,-s4,Math.max(1,Math.round(K)),Math.max(1,Math.round(K))); }
+  } else if(kind==="log"){
+    var lw2=Math.round((6+(seed%5))*K), lh2=Math.max(2,Math.round(1.8*K));
+    g.fillStyle=C([78,62,46]); R(-lw2/2,-lh2,lw2,lh2);                    // a fallen giant, going back
+    g.fillStyle=C([72,104,64]); R(-lw2/2,-lh2-Math.round(K*0.8),lw2,Math.max(1,Math.round(K*0.8)));  // moss
+    g.fillStyle=C([58,46,34]); R(-lw2/2,-lh2*0.6,Math.max(1,Math.round(K)),lh2*0.6);
+  }
+  biomePlantSnow(g,X,gy,sc,kind);      // the city's real weather still lands on the biome's plants
+}
+// Real Norwich weather still reaches every biome. A saguaro keeps its ribs through February, but if
+// it is actually snowing on the city it lies on the desert too — the biome decides what GROWS, never
+// what the sky is doing. Called last by drawBiomePlant so the cap sits on whatever was drawn.
+function biomePlantSnow(g,X,gy,sc,kind){
+  if(snowpack<=0.1) return;
+  var K=Math.max(1,sc), h={saguaro:11,ocotillo:9,cottonwood:13,windbent:8,fern:3,log:2,gorse:2,scrub:2,grass:3}[kind]||3;
+  g.fillStyle="rgba(240,244,255,"+Math.min(0.9,0.35+snowpack*0.6).toFixed(2)+")";
+  var top=Math.round(gy-h*K), wdt=Math.max(2,Math.round((kind==="log"?6:3)*K));
+  g.fillRect(Math.round(X-wdt/2),top,wdt,Math.max(1,Math.round(K)));
+}
+function season_bare_ok(seed){ var s=curSeason||seasonInfo(nowDate()); return !!s.bare; }
+function season_autumn_ok(){ var s=curSeason||seasonInfo(nowDate()); return s.name==="autumn"||!!s.bare; }
 function drawTree(g,X,gy,day,now,seed,mul,swayOn){
   var sc=treeSC(seed)*(mul||1)*treeGrow(), v=seed%7;
+  // the land decides what grows on it before the season decides what the leaves are doing
+  var BF=curBiome.flora;
+  if(BF&&BF.kinds&&BF.kinds.length){
+    var kd=BF.kinds[seed%BF.kinds.length];
+    if(kd!=="generic"){ drawBiomePlant(g,X,gy,day,now,seed,sc,kd,swayOn); return; }
+  }
   // Only smooth foreground vegetation sways; cached terrain trees stay rooted.
   var tx=X+(swayOn?Math.round(Math.sin(now*0.0010+seed*1.7)*(sc>1.8?1.5:0.75)):0);
   var trunk=day?"#5a4028":"#3c3020", tw=sc>=2.5?3:(sc>=1.7?2:1);
