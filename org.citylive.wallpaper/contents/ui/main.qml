@@ -86,7 +86,7 @@ WallpaperItem {
         smooth: root.fractionalDpr   // crisp NEAREST on integer-scale screens; LINEAR on fractionally-
                                  // scaled ones (e.g. 1.65x) so KWin's downsample doesn't stripe the
                                  // screen with dropped-column beat lines. The ~1px ramp is imperceptible.
-        antialiasing: true   // smooth path edges — fixes flat bands on mountain ridges
+        antialiasing: false  // crisp pixel edges; the ridge is batched fillRects, not an AA path
         renderTarget: Canvas.FramebufferObject
         // Keep JavaScript painting off Plasma's GUI thread so a slow scenery refresh cannot
         // stall pointer movement, panels, or the foreground animation.
@@ -112,20 +112,17 @@ WallpaperItem {
     // SINGLE TIMER — drives the one canvas. Frame rate scales with quality tier.
     // The old multi-canvas version had 6 timers polling at different intervals, causing
     // overlapping paint storms. One timer = one predictable paint cadence.
-    // It polls a SHARED WALL-CLOCK SLOT rather than free-running: each monitor is its own
-    // wallpaper instance, so an independent timer lets them drift apart and a car crossing a
-    // screen seam jumps. Keying the paint to a common slot means every screen renders the same
-    // world instant and the city stays continuous across the whole desktop.
+    // Each screen keeps its OWN free-running timer rather than polling a shared wall-clock slot.
+    // A shared slot lines the monitors up on the same world instant (nice for a car crossing a
+    // seam) but it also fires all of them on the SAME millisecond, so three full-screen paints
+    // land together and the desktop stutters in bursts. Independent timers drift a frame apart —
+    // invisible at these speeds — and spread the load across the interval instead.
     readonly property int frameMs: quality === "performance" ? 500 : (quality === "balanced" ? 200 : 83)
-    property double lastSlot: -1
     Timer {
-        interval: 20
+        interval: root.frameMs
         running: root.visible
         repeat: true
-        onTriggered: {
-            var slot = Math.floor(Date.now() / root.frameMs)
-            if (slot !== root.lastSlot) { root.lastSlot = slot; cv.requestPaint() }
-        }
+        onTriggered: cv.requestPaint()
     }
 
     Timer {
