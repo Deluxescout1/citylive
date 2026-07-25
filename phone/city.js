@@ -7913,7 +7913,15 @@ function P_name(p){ return p.first+' '+p.last; }
 function P_ref(pop, idx, gen){ if(idx<0) return null; var q=pop[idx]; return (q && q.gen===gen && q.alive) ? q : null; }
 
 // ---- the roster + its incremental cache (fold-once, advance; never re-fold per frame) ----
-var P_cache={ key:'', tick:-1, pop:null, econ:null };
+// Several call sites want DIFFERENT ticks in the same frame (the roster wants "now", mayorState
+// looks ahead to the term boundary). One slot thrashed: the look-ahead advanced it, then the
+// roster's rewind cold-folded the WHOLE life every frame (~520 P_step calls, 77% of the frame).
+// Independent slots — each folds its own state and only ever advances — settle to a 1-tick step.
+var P_caches=[ { key:'', tick:-1, pop:null, econ:null, bldgDead:null, used:0 },
+               { key:'', tick:-1, pop:null, econ:null, bldgDead:null, used:0 },
+               { key:'', tick:-1, pop:null, econ:null, bldgDead:null, used:0 } ];
+var P_cacheN=P_caches.length, P_cacheUse=0;
+var P_cache=P_caches[0];   // most recently served slot
 function P_cacheKey(lifeIndex){ return lifeIndex+'|'+PEOPLE_N+'|'+P_region()+'|'+JOB_TAX.length+'|v2'; }  // full input identity (SOL)
 
 var P_NBLDG=60;              // placeholder building count (Stage 2 — real building registry is Stage 3)
@@ -8099,16 +8107,22 @@ function P_fold(lifeIndex, toTick, evt){
 function P_sim(lifeIndex, cy, evt){
   if(!isFinite(cy)) cy=0; if(cy<0) cy=0; if(cy>1) cy=1;        // SOL: non-finite cy must clamp, not yield a misleading empty roster
   var tick=Math.max(0, Math.min(P_LIFE_TICKS, Math.floor(cy*P_LIFE_TICKS)));
-  var key=P_cacheKey(lifeIndex);
-  if(P_cache.key===key && P_cache.tick===tick) return P_cache;
-  if(P_cache.key===key && P_cache.tick<tick && P_cache.pop){                  // warm incremental advance
+  var key=P_cacheKey(lifeIndex), i, C;
+  for(i=0;i<P_cacheN;i++){ C=P_caches[i];                                     // exact hit
+    if(C.key===key && C.tick===tick && C.pop){ C.used=++P_cacheUse; P_cache=C; return C; } }
+  var best=null;                                                             // cheapest forward advance (never rewind)
+  for(i=0;i<P_cacheN;i++){ C=P_caches[i];
+    if(C.key===key && C.pop && C.tick<tick && (!best || C.tick>best.tick)) best=C; }
+  if(best){
     var lifeSeed=P_hash((lifeIndex*2654435761 + 12345)>>>0);
-    for(var t=P_cache.tick+1;t<=tick;t++) P_step(P_cache.pop,t,lifeSeed,P_cache.bldgDead,P_cache.econ, evt||P_defaultEvents);
-    P_cache.tick=tick; return P_cache;
+    for(var t=best.tick+1;t<=tick;t++) P_step(best.pop,t,lifeSeed,best.bldgDead,best.econ, evt||P_defaultEvents);
+    best.tick=tick; best.used=++P_cacheUse; P_cache=best; return best;
   }
-  var r=P_fold(lifeIndex, tick, evt);                                         // cold fold (key change / rewind)
-  P_cache={ key:key, tick:tick, pop:r.pop, econ:r.econ, bldgDead:r.bldgDead };
-  return P_cache;
+  var slot=P_caches[0];                                                       // cold fold into a free / least-recently-used slot
+  for(i=1;i<P_cacheN;i++){ if(!P_caches[i].pop){ slot=P_caches[i]; break; } if(P_caches[i].used<slot.used) slot=P_caches[i]; }
+  var r=P_fold(lifeIndex, tick, evt);                                         // (key change / rewind with no usable slot)
+  slot.key=key; slot.tick=tick; slot.pop=r.pop; slot.econ=r.econ; slot.bldgDead=r.bldgDead; slot.used=++P_cacheUse;
+  P_cache=slot; return slot;
 }
 
 // ---- read-only projections (fresh objects; canonical state never escapes) ----
