@@ -12286,12 +12286,13 @@ function drawPlateauTowns(g,L,now,nd){
     if(top<2) continue;
     var ruins=(hsh%100)<58, outpost=((hsh>>>7)%100)<62, heights=((hsh>>>14)%100)<32;
     if(!ruins&&!outpost&&!heights) ruins=true;                   // a bare table is a wasted one
-    var hasO=outpost&&cityG>0.28, hasH=heights&&cityG>0.62&&curEcon>0.45;
-    // the small road along the top, laid once there is anything living up there to connect
-    if(hasO||hasH){
-      g.fillStyle=roadC;
-      g.fillRect(p.x0+Math.round(3*K),top-Math.max(1,Math.round(K)),w-Math.round(6*K),Math.max(1,Math.round(K)));
-    }
+    // NOTHING is up here when a life begins except the ruins, which are older than the city and are
+    // part of the land rather than part of the town. Everything the city builds starts at zero and
+    // arrives ONE STRUCTURE AT A TIME, each rising from a stub to its full height over the following
+    // stretch of the city's growth — the same way the skyline below fills in, instead of a finished
+    // settlement appearing whole the moment a threshold is crossed.
+    var OSTART=0.26, OSTEP=0.085, HSTART=0.60, HSTEP=0.10, RAISE=0.07;
+    var hasO=outpost&&cityG>OSTART, hasH=heights&&cityG>HSTART&&curEcon>0.45;
     // thirds of the table: ruins at one end, the outpost in the middle, the big houses at the other.
     // Written out rather than as a helper declared inside the loop — a function declaration in a
     // block closing over per-iteration state is exactly the shape QML V4 warned about for `sd`.
@@ -12312,39 +12313,68 @@ function drawPlateauTowns(g,L,now,nd){
         if((r&1)===0) g.fillRect(bx,top-bh,bw,Math.max(1,Math.round(K)));         // …one lintel still up
       }
     }
-    // THE OUTPOST — small working buildings, a few windows lit at night. Grows with the city below.
+    // THE OUTPOST — one shack first, then another, each rising as it is built. builtTo tracks how far
+    // along the table the settlement actually reaches, so the road can be laid to it and no further.
+    var builtTo=-1, builtFrom=-1;
     if(hasO&&fitO>=1){
-      var ox=bandO, on=Math.min(fitO,2+Math.round(Math.min(3,(cityG-0.28)*7)));
-      for(var o=0;o<on;o++){
-        var bx2=ox+o*Math.round(7*K), bh2=Math.round((5+((hsh>>>(o+5))%4))*K), bw2=Math.round(5*K);
+      var ox=bandO;
+      for(var o=0;o<fitO;o++){
+        var born=OSTART+o*OSTEP, grow=(cityG-born)/RAISE;
+        if(grow<=0) break;                                                        // not built yet
+        grow=Math.min(1,grow);
+        var bx2=ox+o*Math.round(7*K), bw2=Math.round(5*K);
+        var full2=Math.round((5+((hsh>>>(o+5))%4))*K), bh2=Math.max(1,Math.round(full2*(0.22+0.78*grow)));
         g.fillStyle=wallC; g.fillRect(bx2,top-bh2,bw2,bh2);
-        g.fillStyle=roofC; g.fillRect(bx2-Math.round(K),top-bh2-Math.max(1,Math.round(K)),bw2+Math.round(2*K),Math.max(1,Math.round(K)));
-        if(!day&&((Math.floor(now/3000)+o+i)%4)){ g.fillStyle="#ffd489";
+        if(grow>0.55){ g.fillStyle=roofC;                                         // the roof goes on last
+          g.fillRect(bx2-Math.round(K),top-bh2-Math.max(1,Math.round(K)),bw2+Math.round(2*K),Math.max(1,Math.round(K))); }
+        if(!day&&grow>0.8&&((Math.floor(now/3000)+o+i)%4)){ g.fillStyle="#ffd489";
           g.fillRect(bx2+Math.round(K),top-bh2+Math.round(1.5*K),Math.max(1,Math.round(1.4*K)),Math.max(1,Math.round(1.4*K))); }
+        if(builtFrom<0) builtFrom=bx2;
+        builtTo=bx2+bw2;
       }
     }
-    // THE HEIGHTS — a few big houses above the dust, blazing at night while the city works below
+    // THE HEIGHTS — same, later and slower, and only while the city can still afford them
     if(hasH&&fitH>=1){
-      var mx2=bandH, mn=Math.min(fitH,1+((hsh>>>11)%2));
-      for(var m=0;m<mn;m++){
-        var bx3=mx2+m*Math.round(11*K), bh3=Math.round(7*K), bw3=Math.round(9*K);
+      var mx2=bandH;
+      for(var m=0;m<fitH;m++){
+        var bornH=HSTART+m*HSTEP, growH=(cityG-bornH)/RAISE;
+        if(growH<=0) break;
+        growH=Math.min(1,growH);
+        var bx3=mx2+m*Math.round(11*K), bw3=Math.round(9*K);
+        var bh3=Math.max(1,Math.round(7*K*(0.22+0.78*growH)));
         g.fillStyle=css(mixc(rock,day?[228,222,208]:[30,28,34],0.55));
         g.fillRect(bx3,top-bh3,bw3,bh3);
-        g.fillStyle=roofC; g.fillRect(bx3-Math.round(K),top-bh3-Math.max(1,Math.round(K)),bw3+Math.round(2*K),Math.max(1,Math.round(1.2*K)));
-        if(!day){ g.fillStyle="#fff0c0";                                          // every window on
+        if(growH>0.55){ g.fillStyle=roofC;
+          g.fillRect(bx3-Math.round(K),top-bh3-Math.max(1,Math.round(K)),bw3+Math.round(2*K),Math.max(1,Math.round(1.2*K))); }
+        if(!day&&growH>0.8){ g.fillStyle="#fff0c0";                               // every window on
           for(var wq=0;wq<3;wq++)
             g.fillRect(bx3+Math.round((1.5+wq*2.6)*K),top-bh3+Math.round(2*K),Math.max(1,Math.round(1.4*K)),Math.max(1,Math.round(1.6*K))); }
+        if(builtFrom<0) builtFrom=bx3;
+        builtTo=bx3+bw3;
       }
+    }
+    // THE ROAD ON TOP — laid only as far as there is something to reach, so it extends along the
+    // table as the settlement does rather than appearing full-length the moment the first shack does.
+    if(builtTo>0){
+      var rd0=Math.max(p.x0+Math.round(3*K),builtFrom-Math.round(4*K));
+      var rd1=Math.min(p.x1-Math.round(3*K),builtTo+Math.round(4*K));
+      if(rd1>rd0){ g.fillStyle=roadC;
+        g.fillRect(rd0,top-Math.max(1,Math.round(K)),rd1-rd0,Math.max(1,Math.round(K))); }
     }
     // THE SWITCHBACK — a zig-zag cut into the face, joining the road on top to the city below. Only
     // where something up there is actually inhabited; nobody cuts a road to a ruin.
-    if(hasO||hasH){
+    if(builtTo>0){
       var fx3=(((hsh>>>17)&1)?p.x1-Math.round(6*K):p.x0+Math.round(6*K));
       var legs=Math.max(3,Math.round(p.h/(9*K))), span=Math.round(11*K);
+      // …and it is CUT DOWNWARD over time, from the top, reaching the valley floor only once the
+      // settlement is properly established. A finished road appearing the same instant as the first
+      // shack was the thing that made this pop into existence rather than grow.
+      var cut=Math.max(0,Math.min(1,(cityG-(OSTART+0.03))/0.26));
+      var legsCut=Math.max(1,Math.ceil(legs*cut));
       // Cut darker and thicker than the road on top. At one pixel in the road tone it read as a
       // scratch on the rock rather than as a way up, which is the whole point of drawing it.
       g.fillStyle=css(mixc(rock,day?[70,58,46]:[10,9,11],0.72));
-      for(var lg=0;lg<legs;lg++){
+      for(var lg=0;lg<legsCut;lg++){
         var ly=top+Math.round(lg*(p.h/legs)), lh=Math.max(1,Math.round(1.6*K));
         var dir=(lg&1)?1:-1, sx0=fx3+((dir>0)?0:-span);
         g.fillRect(sx0,ly,span,lh);                                               // the traverse…
