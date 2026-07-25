@@ -2486,6 +2486,11 @@ var mtsCache=null;     // per-screen silhouette cache (the range never moves wit
 //   snow      — does the top wear snow
 //   water     — "sea" forces a coast · "river" forces inland + a river · null keeps the normal roll
 //   walls     — wall palette the buildings wear here (the vernacular follows the land)
+//   sky       — this land's own AIR, as a mix INTO the day's phase colour plus a horizon haze band.
+//               Never a replacement: the real time of day and the real Norwich cloud cover still
+//               drive the sky, and the golden hour, night radiance, eclipses and every finale draw
+//               over the top of it untouched. Damped hard at night so the stars stay readable.
+//               Forest is null — its canopy twilight already owns that job and would double-tint.
 //   flora     — what GROWS here, same null-on-alpine rule. `kinds` is sampled per tree slot (repeat an
 //               entry to weight it; "generic" keeps the ordinary tree), `bloom` recolours the ground
 //               flowers. Without this every biome grew the same green oaks and scattered the same red
@@ -2502,27 +2507,31 @@ var mtsCache=null;     // per-screen silhouette cache (the range never moves wit
 var BIOMES=[
   { k:"alpine", name:"ALPINE",     amp:1.00, base:1.00, flat:0.0, steep:0.0, snow:true,  water:null,
     far:[126,146,182], near:[100,116,152], cap:[234,240,250], ground:null, walls:null, fauna:null,
-    flora:null },
+    flora:null, sky:null },
   { k:"forest", name:"OLD FOREST", amp:0.86, base:0.55, flat:0.0, steep:0.0, snow:false, water:null,
     far:[74,104,86],   near:[46,74,58],    cap:[120,152,110], ground:[62,92,64],
     walls:[[112,84,58],[96,72,48],[138,106,72],[196,186,164],[86,96,74],[120,110,88],[150,132,102],[72,84,66]],
     fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:0}, big:["elk","bear","boar"], small:["squirrel"], air:["owl"] },
-    flora:{ kinds:["fern","generic","fern","log","generic"], bloom:["#e8e0c0","#cfd8b0","#ffffff"] } },
+    flora:{ kinds:["fern","generic","fern","log","generic"], bloom:["#e8e0c0","#cfd8b0","#ffffff"] },
+    sky:null },
   { k:"mesa",   name:"RED MESA",   amp:0.72, base:0.40, flat:1.0, steep:0.85, snow:false, water:"river",
     far:[186,118,86],  near:[152,86,62],   cap:[214,158,116], ground:[196,150,110],
     walls:[[206,158,116],[186,140,100],[214,178,140],[228,206,180],[168,116,84],[196,166,132],[176,146,116],[210,190,164]],
     fauna:{ keep:{deer:0,rabbit:1,fox:0,goat:0}, big:["bighorn","coyote"], small:["lizard","roadrunner"], air:["vulture"] },
-    flora:{ kinds:["saguaro","scrub","ocotillo","scrub","saguaro"], bloom:["#e8c04a","#d8734a","#c8506a"] } },
+    flora:{ kinds:["saguaro","scrub","ocotillo","scrub","saguaro"], bloom:["#e8c04a","#d8734a","#c8506a"] },
+    sky:{ top:[132,150,196], bot:[214,182,150], k:0.34, haze:[206,166,126] } },
   { k:"cliffs", name:"SEA CLIFFS", amp:0.92, base:0.62, flat:0.55, steep:1.0, snow:false, water:"sea",
     far:[126,132,140],  near:[92,98,108],  cap:[168,176,182], ground:[132,138,126],
     walls:[[196,196,190],[172,176,178],[212,210,202],[150,158,162],[128,136,142],[186,178,166],[160,152,144],[204,198,186]],
     fauna:{ keep:{deer:0,rabbit:1,fox:1,goat:0}, big:["seal"], small:["otter","puffin"], air:[] },
-    flora:{ kinds:["windbent","gorse","gorse","windbent","gorse"], bloom:["#f0d878","#e8a0c0","#ffffff"] } },
+    flora:{ kinds:["windbent","gorse","gorse","windbent","gorse"], bloom:["#f0d878","#e8a0c0","#ffffff"] },
+    sky:{ top:[142,156,172], bot:[186,196,202], k:0.30, haze:[196,206,210] } },
   { k:"plains", name:"OPEN PLAINS",amp:0.30, base:0.85, flat:0.25, steep:0.0, snow:false, water:"river",
     far:[150,164,132],  near:[122,140,104],cap:[186,196,158], ground:[158,166,116],
     walls:[[178,72,58],[150,60,48],[196,190,166],[214,206,178],[132,118,86],[170,158,124],[186,176,146],[142,132,104]],
     fauna:{ keep:{deer:0,rabbit:1,fox:1,goat:0}, big:["bison","pronghorn","cattle"], small:["prairiedog"], air:["hawk"] },
-    flora:{ kinds:["grass","grass","cottonwood","grass","scrub"], bloom:["#e8c860","#d8a0c8","#ffffff","#e0d070"] } }
+    flora:{ kinds:["grass","grass","cottonwood","grass","scrub"], bloom:["#e8c860","#d8a0c8","#ffffff","#e0d070"] },
+    sky:{ top:[150,180,222], bot:[212,222,232], k:0.26, haze:[214,220,214] } }
 ];
 // The animals themselves. One sprite writer per BODY PLAN, one table row per species, so a new
 // animal costs a row rather than a renderer — the same economy the BIOMES table itself is built on.
@@ -12541,6 +12550,74 @@ function drawStoneWall(g,X,gy,day){
   for(var s=0;s<24;s++){ var sx=X-14+s*2, sy=gy-1-((s*7+3)%3?0:1); g.fillRect(sx,sy,2,2);
     if(s&1){ g.fillStyle=day?"#8a867c":"#3e3c36"; g.fillRect(sx,sy+1,2,1); g.fillStyle=day?"#9a968c":"#4a4842"; } }   // shadowed underside
 }
+// THE SURFACE of each land, over the tinted grass: what you would see looking down at your feet.
+// Colour alone made every biome the same meadow under a wash; this is the texture that says which
+// ground it is. Cheap and static — it lives in the cached backdrop, not the live pass. Everything is
+// derived from world-x so it does not crawl as the view pans, and it fades out as the city paves it.
+function drawBiomeGround(g,gy,day,now,wild){
+  var B=curBiome; if(!B.ground||wild<0.12) return;
+  var K=Math.max(1,KSP), gh=SH-gy, A=Math.min(1,wild*1.1);
+  var dk=day?mixc(B.ground,[0,0,0],0.30):mixc(B.ground,[0,0,0],0.66);
+  var lt=day?mixc(B.ground,[255,255,255],0.26):mixc(B.ground,[120,140,190],0.18);
+  g.globalAlpha=A;
+  if(B.k==="mesa"){
+    // CRACKED HARDPAN — a polygonal craze in the baked mud, plus wind-drifted sand ripples
+    g.fillStyle=css(dk);
+    for(var c=0;c<26;c++){
+      var cw=(c*137+((WOFF*0.5)|0))%WW, cx=Math.round(cw-WOFF), cy=gy+4+((c*53)%Math.max(4,gh-6));
+      if(cx<-30||cx>SW+30) continue;
+      var ln=Math.round((5+(c%4)*3)*K);
+      g.fillRect(cx,cy,ln,Math.max(1,Math.round(K*0.6)));                       // a crack…
+      g.fillRect(cx+ln,cy,Math.max(1,Math.round(K*0.6)),Math.round(ln*0.5));    // …turning a corner
+      g.fillRect(cx-Math.round(ln*0.4),cy+Math.round(ln*0.5),Math.round(ln*0.5),Math.max(1,Math.round(K*0.6)));
+    }
+    g.fillStyle=css(lt);
+    for(var d2=0;d2<16;d2++){                                                   // sand drifts
+      var dw=(d2*311)%WW, dx=Math.round(dw-WOFF), dy=gy+6+((d2*37)%Math.max(4,gh-8));
+      if(dx<-40||dx>SW+40) continue;
+      g.fillRect(dx,dy,Math.round((10+(d2%5)*6)*K),Math.max(1,Math.round(K*0.8)));
+    }
+  } else if(B.k==="plains"){
+    // FURROWED FIELDS — long ploughed lines running to the horizon, and the odd bare strip
+    g.fillStyle=css(dk); g.globalAlpha=A*0.5;
+    for(var f=0;f<9;f++){
+      var fy=gy+3+Math.round(f*(gh/9));
+      g.fillRect(0,fy,SW,Math.max(1,Math.round(K*0.7)));
+    }
+    g.globalAlpha=A*0.7; g.fillStyle=css(lt);
+    for(var t=0;t<7;t++){                                                       // stubble between them
+      var ty=gy+5+Math.round(t*(gh/7));
+      for(var tx=((WOFF*3)|0)%6;tx<SW;tx+=6) g.fillRect(tx,ty,Math.max(1,Math.round(K)),Math.max(1,Math.round(K*0.6)));
+    }
+  } else if(B.k==="cliffs"){
+    // ROCK SHELVES with TIDE POOLS — flat wet slabs stepping down, water caught in the hollows
+    g.fillStyle=css(dk);
+    for(var r=0;r<7;r++){
+      var ry=gy+3+Math.round(r*(gh/7)), rx0=Math.round(-((r*61+((WOFF*0.4)|0))%40));
+      for(var rx=rx0;rx<SW;rx+=Math.round((26+(r%3)*12)*K))
+        g.fillRect(rx,ry,Math.round((18+(r%4)*8)*K),Math.max(1,Math.round(K*0.9)));
+    }
+    for(var pl=0;pl<8;pl++){                                                    // the pools themselves
+      var pw=(pl*223)%WW, px=Math.round(pw-WOFF), py=gy+6+((pl*47)%Math.max(4,gh-8));
+      if(px<-30||px>SW+30) continue;
+      var pwd=Math.round((7+(pl%4)*4)*K);
+      g.fillStyle=day?"rgba(96,146,168,0.55)":"rgba(38,58,88,0.55)";
+      g.fillRect(px,py,pwd,Math.max(1,Math.round(1.6*K)));
+      g.fillStyle=day?"rgba(210,235,245,0.45)":"rgba(150,175,215,0.25)";        // the sky caught in it
+      g.fillRect(px+Math.round(K),py,Math.round(pwd*0.4),Math.max(1,Math.round(K*0.6)));
+    }
+  } else if(B.k==="forest"){
+    // LEAF LITTER — the floor of a wood that has never been cleared
+    for(var l=0;l<70;l++){
+      var lw=(l*89+((WOFF*0.7)|0))%WW, lx=Math.round(lw-WOFF);
+      if(lx<-6||lx>SW+6) continue;
+      var ly=gy+3+((l*29)%Math.max(4,gh-4));
+      g.fillStyle=css((l&3)?dk:lt); g.globalAlpha=A*0.55;
+      g.fillRect(lx,ly,Math.max(1,Math.round(1.6*K)),Math.max(1,Math.round(K*0.8)));
+    }
+  }
+  g.globalAlpha=1;
+}
 // the wilderness the city grows out of — hills, grass, a river, scattered trees, the first cabin
 function drawTerrain(g,cg,L,now,nd,pass){
   if(cg>=0.985) return;                                     // fully urban
@@ -12549,13 +12626,19 @@ function drawTerrain(g,cg,L,now,nd,pass){
   // rolling hills on the horizon (behind the skyline). They dominate the wild era but never fully vanish —
   // a faint band of soft green hills lingers behind the mature city so the backdrop is never a hard flat line.
   var hillA=Math.max(0.16,wild-0.12);
-  if(hillA>0&&BGp){ var hc=day?[64,112,58]:[38,58,44];
+  // The rolling hills follow the biome too. Left at their hardcoded green, a bright meadow ridge sat
+  // across the middle of a red desert — the single most jarring thing left in the mesa render once
+  // its plants were right. Derived from BIOMES[].ground the same way the near grass already is, so a
+  // new biome still costs no new field.
+  var hillB=function(c){ return curBiome.ground
+      ? mixc(c, day?curBiome.ground:mixc(curBiome.ground,[0,0,0],0.62), 0.78) : c; };
+  if(hillA>0&&BGp){ var hc=hillB(day?[64,112,58]:[38,58,44]);
     g.globalAlpha=hillA; g.fillStyle=css(hc);
     for(var hx=0;hx<SW;hx+=2){ var wx=hx+WOFF, hh=7+Math.sin(wx*0.03)*4+Math.sin(wx*0.011+2)*5+Math.sin(wx*0.006)*4;
       g.fillRect(hx,(gy-hh)|0,2,(hh+8)|0); }                        // 2px step: the soft hill band is a faint backdrop — halves the per-frame column rects
     g.globalAlpha=1;
     // a second, gentler ridge a touch lower for depth (only once the town has grown past the wild era)
-    if(cg>0.3){ g.globalAlpha=hillA*0.7; g.fillStyle=css(day?[78,126,68]:[44,66,50]);
+    if(cg>0.3){ g.globalAlpha=hillA*0.7; g.fillStyle=css(hillB(day?[78,126,68]:[44,66,50]));
       for(var hx2=0;hx2<SW;hx2+=2){ var wx3=hx2+WOFF, hh2=4+Math.sin(wx3*0.02+1.5)*3+Math.sin(wx3*0.009)*3;
         g.fillRect(hx2,(gy-hh2)|0,2,(hh2+8)|0); }
       g.globalAlpha=1; }
@@ -12572,9 +12655,12 @@ function drawTerrain(g,cg,L,now,nd,pass){
     mgl.addColorStop(0,"rgba(168,190,232,"+(0.10*wild+0.03)+")");
     mgl.addColorStop(1,"rgba(120,140,190,"+(0.04*wild)+")");
     g.fillStyle=mgl; g.fillRect(0,gy,SW,SH-gy); }
-  if(wild>0.3&&BGp){ g.fillStyle=day?"rgba(58,94,46,0.5)":"rgba(34,52,38,0.6)";
+  if(wild>0.3&&BGp){ g.fillStyle=css(hillB(day?[58,94,46]:[34,52,38]));                 // scrub speckle, biome-tinted
+    g.globalAlpha=day?0.5:0.6;
     for(var gx=0;gx<SW;gx+=3){ var wx2=gx+WOFF; if(((wx2*7)%5)<2) g.fillRect(gx,(gy+2+((wx2*3)%6))|0,1,1); }
+    g.globalAlpha=1;
     g.fillStyle=day?"rgba(122,96,58,0.7)":"rgba(84,70,48,0.7)"; g.fillRect(0,(gy+Math.round((SH-gy)*0.5))|0,SW,3); }  // dirt trail where the road will be
+  if(BGp) drawBiomeGround(g,gy,day,now,wild);                    // and the land's own surface on top
   // a river winding through, present early, culverted as the city grows
   var riverW=Math.round(6*wild);
   if(riverW>0&&BGp){ var rvx=Math.round(0.62*WW), rsx=rvx-WOFF;
@@ -16197,6 +16283,11 @@ function draw(g,pass){
   if(pass==="bg"||pass===undefined){
   // sky
   var cA=mixc(SKY[ph.a][0],SKY[ph.b][0],ph.t), cB=mixc(SKY[ph.a][1],SKY[ph.b][1],ph.t);
+  // the land's own air, mixed INTO the phase colour rather than over it, so dawn is still dawn and a
+  // socked-in overcast still greys the desert. Damped at night — a tinted night sky loses its stars.
+  var BSky=curBiome.sky;
+  if(BSky){ var bsk=BSky.k*(isDay?1:0.30);
+    cA=mixc(cA,BSky.top,bsk); cB=mixc(cB,BSky.bot,bsk); }
   var grd=g.createLinearGradient(0,0,0,SH);
   grd.addColorStop(0,css(mixc(cA,ocTop,ocMix)));
   grd.addColorStop(1,css(mixc(cB,ocBot,ocMix)));
@@ -16212,6 +16303,19 @@ function draw(g,pass){
     g.globalCompositeOperation="lighter";
     g.fillStyle=ggo; g.fillRect(0,(HORIZON*0.35)|0,SW,(HORIZON*0.65)|0+5);
     g.globalCompositeOperation="source-over";
+  }
+
+  // HORIZON HAZE — the band of dust or salt air where this land meets its sky. Sits under the golden
+  // hour and the night glow, and thins right out as cloud closes in: you cannot see haze through an
+  // overcast, and the real cloud cover has to keep winning.
+  if(BSky&&BSky.haze&&isDay){
+    var hzA=0.34*(1-ocMix)*(1-goldenK*0.4), hzH=Math.round(HORIZON*0.22);
+    if(hzA>0.02){
+      var hzg=g.createLinearGradient(0,HORIZON-hzH,0,HORIZON+2);
+      hzg.addColorStop(0, rgba(BSky.haze,0));
+      hzg.addColorStop(1, rgba(BSky.haze,hzA));
+      g.fillStyle=hzg; g.fillRect(0,HORIZON-hzH,SW,hzH+2);
+    }
   }
 
   // NIGHT RADIANCE: light-pollution dome glowing up from the skyline (a subtle bloom, tinted by this life's lights)
