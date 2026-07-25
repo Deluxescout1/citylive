@@ -26,10 +26,6 @@ WallpaperItem {
     // geometry below is in DEVICE pixels: with fractional scaling Qt rasterizes the scene at device
     // resolution, so only a device-integer canvas scale avoids duplicated-pixel seam lines.
     readonly property real dpr: (Screen.devicePixelRatio > 0) ? Screen.devicePixelRatio : 1
-    // Integer HiDPI (notably this desktop's exact 2x center display) can use the normal chunky
-    // texels without resampling. Only a genuinely fractional DPR needs the fine-texture defense.
-    // Treating every DPR != 1 as fractional made the 2x screen render ~3.05M canvas pixels instead
-    // of ~1.36M, then smooth them unnecessarily—enough to pin plasmashell on a three-screen setup.
     readonly property bool fractionalDpr: Math.abs(dpr - Math.round(dpr)) > 0.01
     // buffer px per canvas pixel: pxk logical px worth, rounded to an INTEGER number of buffer
     // px (Qt rasterizes at dpr x logical). Integer -> no duplicated-pixel seams; ~pxk logical
@@ -39,7 +35,17 @@ WallpaperItem {
     // stripes chunky pixel blocks (verified with a comb test pattern). Defense: render FINE
     // texels there (texelBuf buffer px per canvas px) and draw the world at ZOOM canvas px per
     // world px — a dropped column then costs a sliver of a feature, like any native-res window.
-    readonly property real texelBuf: fractionalDpr ? 2 : pxk
+    // Any dpr > 1 gets the fine texels, not just an arithmetically-fractional one. A 4K at 165%
+    // reports dpr EXACTLY 2 (Plasma renders integer-2x and KWin does the 1.65x downsample itself),
+    // so `fractionalDpr` is false on the very screen that stripes. With pxk texels each canvas
+    // pixel covers 3 buffer px, and that block size beats against KWin's 4656->3840 resample into
+    // vertical lines every ~58px. The engine's own render is provably clean — the same frame drawn
+    // at integer scale has zero anomalous columns — so this is purely a texel-size artefact.
+    // This used to be rejected as too expensive (~3.05M canvas px instead of ~1.36M). Re-measured
+    // on the three-screen desktop AFTER the two-canvas split, back to back: 54.4% of one core with
+    // fine texels vs 55.2% without — free, because the mountains live on the slow `bg` canvas that
+    // barely repaints. Don't re-reject it on the old number.
+    readonly property real texelBuf: (fractionalDpr || dpr > 1) ? 2 : pxk
     readonly property int zoom: Math.max(1, Math.round(pxk * dpr / texelBuf))
     // total width (logical px) of the whole desktop the city spans. If unset in config,
     // auto-detect by summing every screen's width (works for a single laptop screen or

@@ -176,7 +176,7 @@ function resetNotifLanes(){ for(var r=0;r<_notifTaken.length;r++) _notifTaken[r]
 var CLOCK = null;   // test-harness override: ms timestamp for time-of-day (null = real wall clock)
 var NOWOVR = null;  // test-harness override: ms value returned as Date.now() inside draw() (null = real)
 var NOFETCH = false;  // headless flag (own line = QML-namespace writable): almanac callers set this so setup() makes NO network calls
-var VERSION = "2.0.1";  // the build the user is running — surfaced in the Almanac + KDE config page (keep in sync with desktop/package.json)
+var VERSION = "2.0.2";  // the build the user is running — surfaced in the Almanac + KDE config page (keep in sync with desktop/package.json)
 var FORCELAYOUT = null;   // test hook: pin every building's window layout (grid/ribbon/band/punch/corp) — verify per-layout render
 var FORCECROWN = null;    // test hook: pin every building's crown/roof (gable/hip/saltbox/mansard/deco/…) — verify per-roof render
 var FORCEUSE = null;      // test hook: pin every building's functional type (hospital/theater/hotel/bank/cafe/pharmacy) — verify drawUse
@@ -3432,6 +3432,7 @@ function drawCivicHud(g,now,night){
   var pad=5, W=94, mr=6, bx=(SW-W-mr)|0, by=6, ix=bx+pad, iw=W-2*pad;
   var y0=by+5, y1=y0+7, y2=y1+7, y3=y2+8, y4=y3+9, bh=(y4+11)-by;
   var pulse=0.7+0.3*Math.sin(now*0.0022), pc=M.party.c;
+  chromeClaim(now,bx,by,W,bh);                          // the mayor/approval panel keeps its corner
   // glassy dark pill
   g.fillStyle="rgba(6,9,18,"+(night>0.5?0.46:0.34)+")"; g.fillRect(bx,by+1,W,bh-2); g.fillRect(bx+2,by,W-4,bh);
   // neon frame — cyan rails top/bottom, party-colour rails on the sides
@@ -4391,6 +4392,7 @@ function drawSkyClock(g,nd,L,now){
   var pw=Math.max(tw,tw2,tw3);
   var ph=5*sc+4 + 5+ (l3?(5+3):0) +6;                          // pill tall enough for however many lines show
   var bx=((SW-pw)/2-7)|0, by=y-4, bw=pw+14, bh=ph+4;           // HUD frame bounds
+  chromeClaim(now,bx,by,bw,bh);                                // this patch is spoken for — flight tags route around it
   var pulse=0.68+0.32*Math.sin(nd.getTime()*0.0022);           // gentle breathing neon
   // --- glassy dark pill (rounded feel via inset rows) ---
   g.fillStyle="rgba(6,9,18,"+(L>0.5?0.32:0.46)+")";
@@ -4425,6 +4427,8 @@ function drawBanner(g,msg,now,night,pink){
   var bx0=tx-4, bx1=tx+tw+3, by=ty-3, bh=11;
   var edge=pink?[255,120,190]:[120,220,255], cloth=pink?[60,20,45]:[20,40,64];
   var flick=0.75+0.25*Math.sin(now*0.006);
+  for(var wc=-1;wc<=1;wc++){ var csx=(bx0-WOFF+wc*WW)|0;      // the strung banner keeps its patch of sky too
+    if(csx>SW+2||csx+(bx1-bx0)<-2) continue; chromeClaim(now,csx,by|0,(bx1-bx0)|0,bh); break; }
   // sag rope to two anchor points
   g.strokeStyle="rgba(180,160,120,0.7)"; g.lineWidth=1; g.beginPath();
   for(var w=-1;w<=1;w++){ var ax=bx0-10-WOFF+w*WW, bx=bx1+10-WOFF+w*WW;
@@ -5652,6 +5656,23 @@ function drawDoomJet(g,X,y,dir,L,wreck,now,seed){
   g.fillStyle="rgba(255,240,180,"+(0.7*fa).toFixed(2)+")"; g.fillRect(X,y-1,1,1);
   g.globalCompositeOperation="source-over";
 }
+// ---- SCREEN CHROME: patches of screen that own their space (the clock pill, and anything else that
+// has to stay readable). Labels that are free to move or vanish — the live flight tags — check here
+// first and drop themselves rather than paint over text. Claims are made in SCREEN px.
+// The chrome draws LATE in the frame and the flight tags draw EARLY, so tags read the claims made on
+// the PREVIOUS frame. That is deliberate and safe: the pill is anchored to the top centre and does not
+// move, and a one-frame lag costs nothing. Stamped by `now` so the list rebuilds once per frame
+// instead of growing forever.
+var chromeBoxes=[], chromeStamp=-1;
+function chromeClaim(now,x,y,w,h){
+  if(chromeStamp!==now){ chromeBoxes.length=0; chromeStamp=now; }
+  chromeBoxes.push(x,y,x+w,y+h);
+}
+function boxesHit(list,x,y,w,h){
+  for(var i=0;i<list.length;i+=4)
+    if(x<list[i+2] && x+w>list[i] && y<list[i+3] && y+h>list[i+1]) return true;
+  return false;
+}
 // LIVE FLIGHTS — the REAL aircraft overhead right now (fetchFlights, ADS-B). Unlike the decorative jets,
 // each is placed at its TRUE compass bearing (azimuth→x) with its height set by REAL ALTITUDE, kept in a
 // band above the skyline, dead-reckoned along its heading/speed between the ~90s fetches and eased so it
@@ -5670,7 +5691,7 @@ function drawRealFlights(g,L,now){
     var bt=HORIZON-bb.h; if(bt<skyTop) skyTop=bt; }
   var floorY=Math.max(28,Math.min(skyTop-5,Math.round(HORIZON*0.40))), ceilY=Math.min(floorY-2,22);   // reserve 18px above high jets so their callsign/altitude plate remains fully on-screen
   var apReady=(gstage(0.55,0.68)>=1), apX=airportX;      // once the airport is up & running, real arrivals/departures use it
-  var seen={};
+  var seen={}, tagBoxes=[];                              // tag plates already placed this frame (screen px) — later tags yield to them
   for(var i=0;i<realFlights.length;i++){ var f=realFlights[i];
     var dt=Math.max(0,Math.min(180,(nowMs-(f.t0||nowMs))/1000));   // seconds since the fetch (clamped: a stalled feed can't fling planes to infinity)
     var gms=(f.gs||0)*0.514444;                           // knots→m/s
@@ -5752,9 +5773,17 @@ function drawRealFlights(g,L,now){
       var tw=Math.max(textW(f.cs),textW(sub)), ty=y-16;                            // two lines, sat clear ABOVE the airframe
       var lblX=wx-(textW(f.cs)>>1), subX=wx-(textW(sub)>>1);
       var plX=wx-(tw>>1)-3, plW=tw+6+(climb!==0?5:0), plY=ty-2, plH=14;            // the backing plate (extra width on the right for the trend arrow)
-      for(var wp=-1;wp<=1;wp++){ var psx=(plX-WOFF+wp*WW)|0; if(psx>SW+2||psx+plW<-2) continue;
-        g.fillStyle="rgba(6,12,20,0.82)"; g.fillRect(psx,plY|0,plW,plH);           // dark plate for contrast
-        g.fillStyle="rgba(120,205,255,0.55)"; g.fillRect(psx,plY|0,plW,1);         // a cyan top edge (HUD feel + separates it from sky)
+      // A tag is the lowest-priority thing on screen. Where it would land on the HUD pill or on a tag
+      // already placed this frame, DROP it — the aircraft still flies, it just stops shouting over
+      // something you were trying to read. Busy skies stack a dozen of these into an unreadable pile.
+      var tagSX=null;
+      for(var wp=-1;wp<=1;wp++){ var psx=(plX-WOFF+wp*WW)|0; if(psx>SW+2||psx+plW<-2) continue; tagSX=psx; break; }
+      var tagOK = tagSX!==null && !boxesHit(chromeBoxes,tagSX,plY|0,plW,plH) && !boxesHit(tagBoxes,tagSX,plY|0,plW,plH);
+      if(tagOK){
+      tagBoxes.push(tagSX,plY|0,tagSX+plW,(plY|0)+plH);                            // later tags route around this one
+      for(var wp2=-1;wp2<=1;wp2++){ var psx2=(plX-WOFF+wp2*WW)|0; if(psx2>SW+2||psx2+plW<-2) continue;
+        g.fillStyle="rgba(6,12,20,0.82)"; g.fillRect(psx2,plY|0,plW,plH);          // dark plate for contrast
+        g.fillStyle="rgba(120,205,255,0.55)"; g.fillRect(psx2,plY|0,plW,1);        // a cyan top edge (HUD feel + separates it from sky)
       }
       drawPixText(g,f.cs,lblX,ty,"#eaffff",1);                                     // callsign — bright, FULL opacity
       drawPixText(g,sub, subX,ty+6,"#a8e8ff",1);                                   // altitude
@@ -5765,6 +5794,7 @@ function drawRealFlights(g,L,now){
           if(climb>0){ g.fillRect(sxt+1,tyr|0,1,1); g.fillRect(sxt,(tyr+1)|0,3,1); }               // ▲
           else       { g.fillRect(sxt,tyr|0,3,1);   g.fillRect(sxt+1,(tyr+1)|0,1,1); }             // ▼
         }
+      }
       }
     }
   }
@@ -8686,6 +8716,7 @@ function drawCorpAds(g,L,now,night){
     for(var oi=0;oi<occupied.length;oi++){ var op=occupied[oi]; if(x0-3<op.x+op.w+3 && x0+pw+3>op.x-3){ overlaps=true; break; } }
     if(overlaps) continue; // leave a clear gap between adjacent faces
     occupied.push({x:x0,w:pw});
+    chromeClaim(now,x0,py|0,pw,ph);                                                             // a hoarding owns its face — flight tags route around it
     if(mount!=="facade"){
       var legC=L>0.5?"#6a6152":"#2c2620", legY0=py+ph+2, legY1=(mount==="roof")?((HORIZON-b.h)|0):HORIZON;
       g.fillStyle=legC; g.fillRect(x0+2,legY0,2,Math.max(1,legY1-legY0)); g.fillRect(x0+pw-4,legY0,2,Math.max(1,legY1-legY0));
@@ -8732,6 +8763,7 @@ function drawBillsAds(g,L,now,night){
     for(var oi=0;oi<occupied.length;oi++){ var op=occupied[oi]; if(x0-3<op.x+op.w+3 && x0+pw+3>op.x-3){ overlaps=true; break; } }
     if(overlaps) continue;
     occupied.push({x:x0,w:pw});
+    chromeClaim(now,x0,py|0,pw,11);                                                             // a hoarding owns its face — flight tags route around it
     if(mount!=="facade"){
       var legC=L>0.5?"#6a6152":"#2c2620", legY0=py+11, legY1=(mount==="roof")?((HORIZON-b.h)|0):HORIZON;
       g.fillStyle=legC; g.fillRect(x0+2,legY0,2,Math.max(1,legY1-legY0)); g.fillRect(x0+pw-4,legY0,2,Math.max(1,legY1-legY0));
