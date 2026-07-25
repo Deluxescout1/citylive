@@ -1191,12 +1191,17 @@ function drawFauna(g,L,now,nd){
   var wild2=1-cityG, day=L>0.5, gy=HORIZON;
   var season=curSeason||seasonInfo(nowDate());
   drawWildlife(g,wild2,day,now,gy);                            // deer herd + rabbits (classic system)
+  drawBiomeFauna(g,L,now,nd,wild2,gy);                         // and whatever else THIS land carries
   var rw2=Math.round(6*wild2);
   if(rw2>0) drawRiverFish(g,now,Math.round(0.62*WW),gy,rw2,day);   // fish arc from the river
   if(hasOcean&&seaW>0&&!nukeFull()) drawSeaLife(g,L,now,HORIZON-22);        // dolphins + surfacing whale
-  // the FOX trots the treeline at dawn & dusk
+  // the FOX trots the treeline at dawn & dusk.
+  // NOTE: drawWildlife draws a fox too, on an overlapping trigger, so at dawn on a fox biome there
+  // are genuinely two of them on screen at once. Left alone rather than fixed here: deleting either
+  // would change what life 0 renders, and life 0 staying byte-identical is the invariant the whole
+  // biome layer is built on. Gated on the biome so at least no fox turns up on a red mesa.
   var hh4=nd.getHours();
-  if(wild2>0.4&&((hh4>=5&&hh4<8)||(hh4>=18&&hh4<21))){
+  if(faunaKeep("fox")&&wild2>0.4&&((hh4>=5&&hh4<8)||(hh4>=18&&hh4<21))){
     var fp=landRoute(wrapW(now*0.004)), fx3=fp-WOFF, fdir=(Math.floor(now*0.004/WW)&1)?-1:1;
     if(fx3>SW+5&&fx3-WW>-5) fx3-=WW; if(fx3<-5&&fx3+WW<SW+5) fx3+=WW;
     if(fx3>=-4&&fx3<=SW+4){ var fy3=gy+2+((Math.floor(now/260))&1?0:1)*0;
@@ -2477,22 +2482,61 @@ var mtsCache=null;     // per-screen silhouette cache (the range never moves wit
 //   snow      — does the top wear snow
 //   water     — "sea" forces a coast · "river" forces inland + a river · null keeps the normal roll
 //   walls     — wall palette the buildings wear here (the vernacular follows the land)
+//   fauna     — what lives here. NULL on alpine, exactly like `walls`, so life 0 falls through to
+//               the roster that has always rendered and stays byte-for-byte unchanged.
+//                 keep  — which of the four classic sprites belong here (deer/rabbit/fox/goat)
+//                 big   — this land's large animals, drawn READABLE (see drawQuad)
+//                 small — its ground critters, at the classic speck scale
+//                 air   — what circles overhead or perches. Coastal birds are NOT listed here:
+//                         gulls key off hasOcean, because forest carries water:null and can still
+//                         roll itself a coast.
 var BIOMES=[
   { k:"alpine", name:"ALPINE",     amp:1.00, base:1.00, flat:0.0, steep:0.0, snow:true,  water:null,
-    far:[126,146,182], near:[100,116,152], cap:[234,240,250], ground:null, walls:null },
+    far:[126,146,182], near:[100,116,152], cap:[234,240,250], ground:null, walls:null, fauna:null },
   { k:"forest", name:"OLD FOREST", amp:0.86, base:0.55, flat:0.0, steep:0.0, snow:false, water:null,
     far:[74,104,86],   near:[46,74,58],    cap:[120,152,110], ground:[62,92,64],
-    walls:[[112,84,58],[96,72,48],[138,106,72],[196,186,164],[86,96,74],[120,110,88],[150,132,102],[72,84,66]] },
+    walls:[[112,84,58],[96,72,48],[138,106,72],[196,186,164],[86,96,74],[120,110,88],[150,132,102],[72,84,66]],
+    fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:0}, big:["elk","bear","boar"], small:["squirrel"], air:["owl"] } },
   { k:"mesa",   name:"RED MESA",   amp:0.72, base:0.40, flat:1.0, steep:0.85, snow:false, water:"river",
     far:[186,118,86],  near:[152,86,62],   cap:[214,158,116], ground:[196,150,110],
-    walls:[[206,158,116],[186,140,100],[214,178,140],[228,206,180],[168,116,84],[196,166,132],[176,146,116],[210,190,164]] },
+    walls:[[206,158,116],[186,140,100],[214,178,140],[228,206,180],[168,116,84],[196,166,132],[176,146,116],[210,190,164]],
+    fauna:{ keep:{deer:0,rabbit:1,fox:0,goat:0}, big:["bighorn","coyote"], small:["lizard","roadrunner"], air:["vulture"] } },
   { k:"cliffs", name:"SEA CLIFFS", amp:0.92, base:0.62, flat:0.55, steep:1.0, snow:false, water:"sea",
     far:[126,132,140],  near:[92,98,108],  cap:[168,176,182], ground:[132,138,126],
-    walls:[[196,196,190],[172,176,178],[212,210,202],[150,158,162],[128,136,142],[186,178,166],[160,152,144],[204,198,186]] },
+    walls:[[196,196,190],[172,176,178],[212,210,202],[150,158,162],[128,136,142],[186,178,166],[160,152,144],[204,198,186]],
+    fauna:{ keep:{deer:0,rabbit:1,fox:1,goat:0}, big:["seal"], small:["otter","puffin"], air:[] } },
   { k:"plains", name:"OPEN PLAINS",amp:0.30, base:0.85, flat:0.25, steep:0.0, snow:false, water:"river",
     far:[150,164,132],  near:[122,140,104],cap:[186,196,158], ground:[158,166,116],
-    walls:[[178,72,58],[150,60,48],[196,190,166],[214,206,178],[132,118,86],[170,158,124],[186,176,146],[142,132,104]] }
+    walls:[[178,72,58],[150,60,48],[196,190,166],[214,206,178],[132,118,86],[170,158,124],[186,176,146],[142,132,104]],
+    fauna:{ keep:{deer:0,rabbit:1,fox:1,goat:0}, big:["bison","pronghorn","cattle"], small:["prairiedog"], air:["hawk"] } }
 ];
+// The animals themselves. One sprite writer per BODY PLAN, one table row per species, so a new
+// animal costs a row rather than a renderer — the same economy the BIOMES table itself is built on.
+//   quad  — large four-legged animals. Drawn noticeably bigger than the classic 4px deer: at that
+//           scale a bear is an indistinguishable dark smudge, which is the lesson the river banks
+//           taught when every piece of quay furniture came out a few invisible pixels wide.
+//   spot  — small ground critters, at the classic speck scale (a lizard SHOULD be a speck)
+//   bird  — perched or circling
+var FAUNA={
+  elk:       {plan:"quad", w:12,h:9, c:[122,92,56],  c2:[70,52,32],   head:"antler"},
+  bear:      {plan:"quad", w:12,h:8, c:[56,45,41],   c2:[33,26,24],   head:"round", hump:1},
+  boar:      {plan:"quad", w:9, h:6, c:[78,68,60],   c2:[46,40,35],   head:"tusk",  hump:1},
+  bighorn:   {plan:"quad", w:9, h:7, c:[152,128,96], c2:[98,82,60],   head:"curl"},
+  coyote:    {plan:"quad", w:9, h:6, c:[160,134,98], c2:[106,86,62],  head:"snout"},
+  bison:     {plan:"quad", w:14,h:10,c:[88,66,49],   c2:[52,37,28],   head:"shag",  hump:2},
+  pronghorn: {plan:"quad", w:10,h:8, c:[192,158,110],c2:[248,244,234],head:"prong"},
+  cattle:    {plan:"quad", w:12,h:8, c:[198,190,178],c2:[98,76,60],   head:"horn"},
+  seal:      {plan:"quad", w:11,h:5, c:[104,100,96], c2:[62,60,58],   head:"seal",  legless:1},
+  squirrel:  {plan:"spot", c:[128,92,58],  c2:[196,168,132], tail:"bushy"},
+  lizard:    {plan:"spot", c:[126,116,74],  c2:[86,78,50],   tail:"long"},
+  roadrunner:{plan:"spot", c:[92,84,66],   c2:[196,180,120], tail:"long", legs:1},
+  prairiedog:{plan:"spot", c:[176,146,102], c2:[212,190,150], upright:1},
+  otter:     {plan:"spot", c:[96,72,52],   c2:[150,124,96],  tail:"long"},
+  puffin:    {plan:"spot", c:[36,34,38],   c2:[240,238,232], beak:[236,140,52], upright:1},
+  owl:       {plan:"bird", c:[128,110,84], perch:1, night:1},
+  vulture:   {plan:"bird", c:[46,40,38],   soar:1},
+  hawk:      {plan:"bird", c:[112,86,56],  soar:1, perch:1}
+};
 var curBiome=BIOMES[0];
 var bioTrees=null;     // the OLD FOREST's colossal trees ({far:[],near:[]}), null in every other biome
 function biomeOf(li){
@@ -9506,9 +9550,13 @@ function drawDeer(g,x,y,day,now,seed){
 // may an animal stand at world-x? grass always; PAVED road only while the city is still young
 // (cityG<0.35 = pre-real-town: wildlife still dashes across the street — Nick's cutoff)
 function wildOK(wx){ return !onPavedRoad(wx) || cityG<0.35; }
+// Which of the classic four this land carries. `fauna:null` (alpine, and so life 0) means all of
+// them, exactly as they have always drawn.
+function faunaKeep(k){ var f=curBiome.fauna; return f?!!f.keep[k]:true; }
 function drawWildlife(g,wild,day,now,gy){
   if(wild<0.32) return;
   var nd2=Math.max(2,Math.round(WW/95));
+  if(faunaKeep("deer"))
   for(var d=0;d<nd2;d++){ var seed=(d*2654435761)>>>0, hh=seed/4294967296;
     if(hh>wild*0.9+0.1) continue;                                    // fewer as it urbanises
     var wx=landRoute(wrapW(hh*WW + Math.sin(now*0.00006+d*1.7)*24)), gyy=gy+3+((seed>>4)%7);
@@ -9517,6 +9565,7 @@ function drawWildlife(g,wild,day,now,gy){
     for(var o=-WW;o<=WW;o+=WW){ var X=(wx-WOFF+o)|0; if(X<-6||X>SW+6) continue; drawDeer(g,X,gyy,day,now,seed); }
   }
   var nr=Math.max(3,Math.round(WW/48));
+  if(faunaKeep("rabbit"))
   for(var rb=0;rb<nr;rb++){ var rs=(rb*40503+13)>>>0, rh=(rs%1000)/1000; if(rh>wild) continue;
     var hop=Math.abs(Math.sin(now*0.004+rb*2.1)), rwx=landRoute(wrapW(((rs>>2)/1073741824*WW) + now*0.002*((rb&1)?1:-1)));
     if(!wildOK(rwx)) continue;
@@ -9530,7 +9579,7 @@ function drawWildlife(g,wild,day,now,gy){
         g.fillStyle=rl; g.fillRect(RX-1,ryy,1,1); } }                                            // bobtail
   }
   // THE FOX: a rusty trotter patrolling at dawn/dusk, brush tail high — sometimes on a rabbit's trail
-  if(goldenK>0.15||day===false){ var fs=((7*40503+99)>>>0);
+  if(faunaKeep("fox")&&(goldenK>0.15||day===false)){ var fs=((7*40503+99)>>>0);
     var fwx=landRoute(wrapW((fs%1000)/1000*WW + now*0.004));
     if(wildOK(fwx)){ var fyy=gy+5+((fs>>6)%4), trot=(Math.floor(now/240))&1;
       for(var o3=-WW;o3<=WW;o3+=WW){ var FX=(fwx-WOFF+o3)|0; if(FX<-5||FX>SW+5) continue;
@@ -9539,8 +9588,11 @@ function drawWildlife(g,wild,day,now,gy){
         g.fillStyle="#f2ede2"; g.fillRect(FX-1,fyy-1,1,1);                                            // white tail tip
         g.fillStyle=day?"#7a3f1c":"#3a2010"; g.fillRect(FX+(trot?0:2),fyy,1,1); g.fillRect(FX+(trot?3:1),fyy,1,1); } }   // trotting legs
   }
-  // MOUNTAIN GOATS: white specks with horns on the high foothill shoulders (wild land only)
-  if(wild>0.5){ for(var gt=0;gt<2;gt++){ var gs=((gt*977+41)>>>0);
+  // MOUNTAIN GOATS: white specks with horns on the high foothill shoulders (wild land only).
+  // Gated on the BIOME as well as on how wild the land is: this used to check only `wild`, so goats
+  // picked their way along the shoulders of a red mesa and an open plain, on slopes that are not
+  // there. Exactly the leak the gondola and the climbers had.
+  if(faunaKeep("goat")&&wild>0.5){ for(var gt=0;gt<2;gt++){ var gs=((gt*977+41)>>>0);
     var gwx=wrapW((0.08+0.84*((gs*2654435761>>>0)%1000)/1000)*WW + Math.sin(now*0.00004+gt*2.4)*10);
     if(!wildOK(gwx)) continue;
     var gyy2=gy-8-((gs>>3)%5);                                        // perched above the meadow line on the slope shoulder
@@ -9549,6 +9601,137 @@ function drawWildlife(g,wild,day,now,gy){
       g.fillRect(GX+3,gyy2-2,1,1);                                                                 // head
       g.fillStyle=day?"#4a4238":"#2a251e"; g.fillRect(GX+4,gyy2-3,1,1);                            // horn nub
       g.fillRect(GX,gyy2+1,1,1); g.fillRect(GX+2,gyy2+1,1,1); } }                                  // legs
+  }
+}
+// ---- BIOME FAUNA ------------------------------------------------------------------------------
+// A large four-legged animal, side-on, and deliberately BIGGER than the classic deer: these are the
+// ones you are meant to be able to name at a glance. Scaled by KSP like everything else in the city,
+// so an elk does not shrink back into a speck on a 4K panel.
+function drawQuad(g,x,y,day,now,seed,sp,K){
+  var S=Math.max(0.8,K*0.85), u=Math.max(1,Math.round(S));
+  var w=Math.max(4,Math.round(sp.w*S)), h=Math.max(3,Math.round(sp.h*S));
+  var c=css(day?sp.c:mixc(sp.c,[0,0,0],0.60)), c2=css(day?sp.c2:mixc(sp.c2,[0,0,0],0.58));
+  var graze=(Math.sin(now*0.0004+seed)>0), stp=(Math.floor(now/320+seed)&1);
+  // A DEEP barrel on SHORT legs. The first cut gave these animals a shallow body on legs half their
+  // height and they read as sawhorses — nothing with that much mass stands that far off the ground.
+  var bodyH=Math.max(2,Math.round(h*0.58)), top=y-h, legY=top+bodyH;
+  g.fillStyle=c;
+  g.fillRect(x,top,w,bodyH);                                              // the barrel
+  if(sp.hump) g.fillRect(x+Math.round(w*0.06),top-u*sp.hump,Math.round(w*0.46),u*sp.hump+1);
+  if(sp.legless){ g.fillRect(x-u,top+Math.round(bodyH*0.4),u,Math.max(1,bodyH-Math.round(bodyH*0.4))); }
+  else { g.fillStyle=c2;                                                  // four legs, front pair striding
+    var lw=Math.max(1,Math.round(u*1.4)), lh=Math.max(1,y-legY);
+    g.fillRect(x+Math.round(w*0.10)+(stp?u:0),legY,lw,lh);
+    g.fillRect(x+Math.round(w*0.26),legY,lw,lh);
+    g.fillRect(x+Math.round(w*0.66),legY,lw,lh);
+    g.fillRect(x+Math.round(w*0.84)-(stp?u:0),legY,lw,lh); }
+  g.fillStyle=c2;                                                         // tail, off the rump
+  g.fillRect(x+w,top+u,Math.max(1,u),Math.max(1,Math.round(bodyH*(stp?0.7:0.5))));
+  // head, dropped to the grass when grazing and lifted to watch when not. The NECK is filled as one
+  // solid block spanning body to skull — drawn as a thin stalk it left a gap and the head floated.
+  var hw=Math.max(2,Math.round(w*0.26)), hh=Math.max(2,Math.round(h*0.28));
+  var hx=x-Math.round(w*0.20), hy=graze?(legY-hh):(top-Math.round(h*0.34));
+  var nx=hx+Math.round(hw*0.45), nTop=Math.min(hy,top), nBot=Math.max(hy+hh,top+Math.round(bodyH*0.7));
+  g.fillStyle=c;
+  g.fillRect(nx,nTop,Math.max(2,Math.round(w*0.24)),Math.max(1,nBot-nTop));                  // neck
+  g.fillRect(hx,hy,hw,hh);                                                                   // skull
+  if(sp.head==="tusk"){ g.fillStyle="#e8e2d2"; g.fillRect(hx-u,hy+hh-u,u,u); }
+  else if(sp.head==="seal"){ g.fillStyle=c2; g.fillRect(hx-u,hy+Math.round(hh*0.3),u,u); }
+  else { g.fillStyle=c2;
+    if(sp.head==="antler"){ for(var a=0;a<3;a++){                                            // elk: a rack
+        g.fillRect(hx+a*u,hy-u*(1+a%2),u,u*2); g.fillRect(hx-u+a*u,hy-u*2,u,u); } }
+    else if(sp.head==="prong"){ g.fillRect(hx,hy-u*2,u,u*2); g.fillRect(hx+hw-u,hy-u*2,u,u*2);
+                                g.fillRect(hx-u,hy-u*2,u,u); }
+    else if(sp.head==="curl"){ g.fillRect(hx-u,hy,u,u*2); g.fillRect(hx-u*2,hy+u,u,u);       // bighorn curl
+                               g.fillRect(hx-u,hy+u*2,u,u); }
+    else if(sp.head==="horn"){ g.fillRect(hx-u,hy-u,u,u); g.fillRect(hx+hw,hy-u,u,u); }
+    else if(sp.head==="shag"){ g.fillRect(hx-u,hy,u,hh); g.fillRect(hx-u,hy-u,u*2,u); }      // bison beard
+    else if(sp.head==="round"){ g.fillRect(hx,hy-u,u,u); g.fillRect(hx+hw-u,hy-u,u,u); }     // bear ears
+  }
+}
+// A ground critter, at the classic speck scale — a lizard SHOULD be a speck. Some sit upright.
+function drawSpot(g,x,y,day,now,seed,sp,K){
+  var u=Math.max(1,Math.round(K*0.9));
+  var c=css(day?sp.c:mixc(sp.c,[0,0,0],0.58)), c2=css(day?sp.c2:mixc(sp.c2,[0,0,0],0.55));
+  var mv=(Math.floor(now/260+seed)&1);
+  g.fillStyle=c;
+  if(sp.upright){ g.fillRect(x,y-u*2,u,u*2); g.fillRect(x,y-u*3,u,u);                        // stood up on its haunches
+    g.fillStyle=c2; g.fillRect(x+u,y-u*2,u,u);
+    if(sp.beak){ g.fillStyle=css(sp.beak); g.fillRect(x-u,y-u*3,u,u); } }
+  else { g.fillRect(x,y-u,u*2,u); g.fillStyle=c2; g.fillRect(x+u*2,y-u*2,u,u);               // body + head
+    g.fillStyle=c;
+    if(sp.tail==="bushy") g.fillRect(x-u,y-u*3,u,u*2);
+    else if(sp.tail==="long") g.fillRect(x-u*2,y-u,u*2,Math.max(1,Math.round(u*0.6)));
+    if(sp.legs) { g.fillStyle=c2; g.fillRect(x+(mv?0:u),y,u,u); } }
+}
+// Perched or soaring. Raptors ride a slow circle high over the land; the owl only shows at night,
+// sat still. drawBird already writes the wingbeat, so this only has to decide where and when.
+function drawFaunaBird(g,L,now,sp,seed,gy,K){
+  var day=L>0.5, col=day?"rgba(38,34,32,0.92)":"rgba(150,150,160,0.55)";
+  if(sp.night&&day) return;
+  if(sp.soar&&day){                                                    // a slow thermal circle
+    var t=now*0.00013+seed, cxw=wrapW((seed%997)/997*WW+Math.cos(t)*90);
+    var cy=Math.round(gy*0.34+Math.sin(t*1.7)*10*K);
+    for(var o=-WW;o<=WW;o+=WW){ var X=(cxw-WOFF+o)|0; if(X<-6||X>SW+6) continue;
+      drawBird(g,X,cy,(Math.floor(now/220)+seed)%4,col,Math.cos(t)>0?1:-1,true); }
+    return;
+  }
+  if(sp.perch&&(sp.night?!day:true)){                                  // sat on a post at the field edge
+    var pw=landRoute(wrapW((seed*2654435761>>>0)%1000/1000*WW));
+    var py=gy-Math.round(7*K);
+    for(var o2=-WW;o2<=WW;o2+=WW){ var PX=(pw-WOFF+o2)|0; if(PX<-4||PX>SW+4) continue;
+      g.fillStyle=day?"#6a5a44":"#2a241c";
+      g.fillRect(PX,py,Math.max(1,Math.round(K)),Math.round(7*K));      // the post
+      g.fillStyle=css(day?sp.c:mixc(sp.c,[0,0,0],0.45));
+      g.fillRect(PX-Math.round(K),py-Math.round(3*K),Math.round(3*K),Math.round(3*K));
+      if(sp.night&&!day){ g.fillStyle="#ffd86a";                        // the owl's eyes catch the light
+        g.fillRect(PX-Math.round(K),py-Math.round(3*K),Math.round(K),Math.max(1,Math.round(K))); } }
+  }
+}
+// Everything this land carries that alpine never did. Placed with the same idioms as the classic
+// herd — deterministic per index, kept off the paved road by wildOK, routed onto dry land by
+// landRoute, and drawn at all three wrap offsets — so it thins out as the city urbanises like the
+// rest of the wild does.
+function drawBiomeFauna(g,L,now,nd,wild,gy){
+  var fa=curBiome.fauna; if(!fa||cityPhase==="apoc") return;
+  var day=L>0.5, K=Math.max(1,KSP), i, o, sp, X;
+  // the big animals: a small herd of each, fewer as the land gets built over
+  for(i=0;i<fa.big.length;i++){
+    sp=FAUNA[fa.big[i]]; if(!sp) continue;
+    var herd=(sp.plan==="quad"&&sp.w>=12)?4:3;                         // the big grazers move in numbers
+    for(var n=0;n<herd;n++){
+      var sd2=((i*7919+n*104729+31)>>>0), hsh=(sd2%1000)/1000;
+      if(hsh>wild*0.85+0.15) continue;
+      var wx=landRoute(wrapW(hsh*WW+Math.sin(now*0.00005+n*1.9+i)*26));
+      if(!wildOK(wx)) continue;
+      if(sp.head==="seal"){                                            // seals haul out ON the rocks
+        if(!hasOcean||seaW<=0) continue;
+        wx=wrapW((n&1)?WW*seaW+6+((sd2>>5)%10):WW*(1-seaW)-6-((sd2>>5)%10));
+      }
+      var yy=gy+2+((sd2>>4)%6);
+      for(o=-WW;o<=WW;o+=WW){ X=(wx-WOFF+o)|0; if(X<-20||X>SW+20) continue;
+        drawQuad(g,X,yy,day,now,sd2,sp,K); }
+    }
+  }
+  for(i=0;i<fa.small.length;i++){                                      // and the specks
+    sp=FAUNA[fa.small[i]]; if(!sp) continue;
+    for(var m=0;m<5;m++){
+      var sd3=((i*40503+m*2654435761+17)>>>0), h3=(sd3%1000)/1000;
+      if(h3>wild) continue;
+      var swx=landRoute(wrapW(h3*WW+now*0.0015*((m&1)?1:-1)));
+      if(!wildOK(swx)) continue;
+      if(sp===FAUNA.otter||sp===FAUNA.puffin){                         // both belong at the water's edge
+        if(!hasOcean||seaW<=0) continue;
+        swx=wrapW((m&1)?WW*seaW+3+((sd3>>7)%14):WW*(1-seaW)-3-((sd3>>7)%14));
+      }
+      var syy=gy+4+((sd3>>6)%7);
+      for(o=-WW;o<=WW;o+=WW){ X=(swx-WOFF+o)|0; if(X<-6||X>SW+6) continue;
+        drawSpot(g,X,syy,day,now,sd3,sp,K); }
+    }
+  }
+  for(i=0;i<fa.air.length;i++){                                        // and whatever is overhead
+    sp=FAUNA[fa.air[i]]; if(!sp) continue;
+    for(var b=0;b<2;b++) drawFaunaBird(g,L,now,sp,((i*331+b*7717+5)>>>0),gy,K);
   }
 }
 // fish arcing out of the river (over the river band drawn in drawTerrain)
