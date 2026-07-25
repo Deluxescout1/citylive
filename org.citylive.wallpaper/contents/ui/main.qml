@@ -67,11 +67,32 @@ WallpaperItem {
 
     Rectangle { anchors.fill: parent; color: "black" }
 
-    // SINGLE CANVAS — one FBO per screen. The old multi-canvas architecture (7 canvases × 3
-    // monitors = 21 full-screen FBOs) was the root cause of desktop-wide lag. Drawing everything
-    // in one pass is cheaper than allocating, rendering, and compositing 7 separate FBOs.
+    // TWO CANVASES per screen. Seven (× 3 monitors = 21 full-screen FBOs) measured far worse than
+    // one — the compositing overhead swamped the JS it saved. But one canvas repaints the entire
+    // scene at the motion frame rate, and the static backdrop (sky, stars, mountains, still
+    // terrain) is ~60% of that cost while changing barely at all. So: one slow backdrop canvas
+    // plus one live canvas on top. Two FBOs stays comfortably inside the compositing budget while
+    // cutting most of the redundant work. "bg" + "live" are exact complements — verified by
+    // partitioning every draw function across the two passes.
+    Canvas {
+        id: bgcv
+        z: 0
+        width: cv.width; height: cv.height
+        smooth: cv.smooth
+        antialiasing: false
+        renderTarget: Canvas.FramebufferObject
+        renderStrategy: Canvas.Threaded
+        transformOrigin: Item.TopLeft
+        scale: root.texelBuf / root.dpr
+        onPaint: {
+            try { City.draw(getContext("2d"), "bg"); }
+            catch (e) { root.renderError = "Backdrop: " + e; console.error("CityLive backdrop render failure: " + e); }
+        }
+    }
+
     Canvas {
         id: cv
+        z: 1
         // one canvas per screen, sized to THIS screen's aspect ratio (all fed from one world)
         // ceil + DEVICE-integer scale: the canvas may overshoot the screen by a few px (clipped),
         // but every canvas pixel maps to EXACTLY pxk DEVICE px. Anything fractional (from display
@@ -83,9 +104,17 @@ WallpaperItem {
         // KWin downsamples those (Qt renders 2x, output is e.g. 1.65x) with unfiltered sampling,
         // and nearest+nearest makes periodic dropped-column beat lines stripe the whole screen.
         // The linear ramp (~1 physical px) absorbs the dropped columns; verified on the 4K@165%.
-        smooth: root.fractionalDpr   // crisp NEAREST on integer-scale screens; LINEAR on fractionally-
-                                 // scaled ones (e.g. 1.65x) so KWin's downsample doesn't stripe the
-                                 // screen with dropped-column beat lines. The ~1px ramp is imperceptible.
+        // Crisp NEAREST at dpr 1; LINEAR wherever Qt renders larger than 1:1.
+        // `fractionalDpr` alone is NOT enough to catch the striping: on a 4K at 165% Plasma renders
+        // at an INTEGER 2x and KWin downsamples 2x -> 1.65x itself, so Qt reports devicePixelRatio
+        // exactly 2 and the fractional test is false — precisely on the screen that stripes. Nothing
+        // QML exposes reveals that downsample (pixelDensity/logicalPixelDensity ratio reads 1.0036).
+        // What it does reveal is dpr > 1, and that is the case that upscales the canvas ~3x into the
+        // buffer with hard pixel blocks; KWin's non-integer resample then keeps 5 of every 6 columns
+        // and the dropped columns beat into visible vertical lines. A linear ramp over those ~3 buffer
+        // px absorbs the resample. Costs nothing (texture filtering only — unlike the fine-texel
+        // defense below, which would render 2.2x the canvas pixels).
+        smooth: root.fractionalDpr || root.dpr > 1
         antialiasing: false  // crisp pixel edges; the ridge is batched fillRects, not an AA path
         renderTarget: Canvas.FramebufferObject
         // Keep JavaScript painting off Plasma's GUI thread so a slow scenery refresh cannot
@@ -96,7 +125,7 @@ WallpaperItem {
 
         onPaint: {
             var g = getContext("2d");
-            try { City.draw(g); }
+            try { City.draw(g, "live"); }
             catch (e) { root.renderError = "Render: " + e; console.error("CityLive render failure: " + e); }
         }
     }
@@ -125,6 +154,15 @@ WallpaperItem {
         onTriggered: cv.requestPaint()
     }
 
+    // The backdrop only has to keep up with the sun, the weather and the seasons, so it repaints
+    // about once a second instead of twelve times. This is where the saving actually comes from.
+    Timer {
+        interval: root.quality === "performance" ? 4000 : (root.quality === "balanced" ? 2000 : 1000)
+        running: root.visible
+        repeat: true
+        onTriggered: bgcv.requestPaint()
+    }
+
     Timer {
         interval: 1000; running: root.visible; repeat: true
         onTriggered: {
@@ -148,7 +186,7 @@ WallpaperItem {
 
     function boot() {
         // ignore the transient boots during screen bring-up (dimensions not settled yet)
-        if (root.width < 8 || root.height < 8 || cv.width < 8 || cv.height < 8)
+        if (root.width < 8 || root.height < 8 || cv.width < 8 || cv.height < 8 || bgcv.width < 8 || bgcv.height < 8)
             return;
         // Inject personal settings (birthdays/location/cycle) from localcfg.js — committed EMPTY in the public
         // repo, filled on THIS machine by install.sh from the gitignored config.local.json. Absent/empty → no
@@ -201,6 +239,7 @@ WallpaperItem {
             zoom: root.zoom,                                      // canvas px per world px on this screen
             quality: root.quality                                 // effect-density tier
         });
+        bgcv.requestPaint();
         cv.requestPaint();
         console.log("CityLive screen located: virtualX=" + Screen.virtualX + " " + root.width + "x" + root.height
                     + " dpr=" + root.dpr + " zoom=" + root.zoom + " -> woff=" + Math.round(root.worldLeftPx / root.pxk) + "wp " + cv.width + "x" + cv.height
@@ -230,7 +269,7 @@ WallpaperItem {
     }
     // one-shot SETTLE pass: 6s after bring-up, re-run setup + repaint — shakes out any
     // transient geometry/scale state from login/output reconfiguration (stripe insurance)
-    Timer { id: settleTimer; interval: 6000; running: true; onTriggered: { root.boot(); cv.requestPaint() } }
+    Timer { id: settleTimer; interval: 6000; running: true; onTriggered: { root.boot(); bgcv.requestPaint(); cv.requestPaint() } }
     Component.onCompleted: bootTimer.restart()
     onSceneChanged: bootTimer.restart()
     // location changed in the config dialog → re-boot with the new place (weather/sun/stars/architecture)

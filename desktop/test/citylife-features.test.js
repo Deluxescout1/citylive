@@ -93,8 +93,13 @@ test('signage is staged, aligned, and kept clear of neighboring billboards', () 
 test('ocean edges include a visible beach band above the water layer', () => {
   const source = fs.readFileSync(ENGINE, 'utf8');
   assert.match(source, /bw2=5\+Math\.round\(dp2\*5\)/);
+  // The wallpaper used to give water its own canvas (id: watercv, z: 4.5) and this asserted that
+  // z-order. It now runs two canvases — a slow "bg" backdrop under a fast "live" layer — and the
+  // sea is drawn inside "live", so ordering is guaranteed by draw order within the pass instead.
+  // What still has to hold is the compositing order of the two canvases.
   const qml = fs.readFileSync(path.join(__dirname, '..', '..', 'org.citylive.wallpaper/contents/ui/main.qml'), 'utf8');
-  assert.match(qml, /id: watercv[\s\S]{0,80}z: 4\.5/);
+  assert.match(qml, /id: bgcv[\s\S]{0,60}z: 0/, 'the backdrop canvas must sit underneath');
+  assert.match(qml, /id: cv[\s\S]{0,60}z: 1/, 'the live canvas must sit on top of the backdrop');
 });
 
 test('road heat shimmer cannot resemble full-width ocean waves', () => {

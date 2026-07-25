@@ -15117,6 +15117,11 @@ function drawApocRoadDamage(g,L){
 function draw(g,pass){
   // pass: undefined = classic single-canvas · "bg" = slow backdrop (sky/stars/mountains/still
   // terrain, ~2fps) · "fg" = everything that moves (12fps, painted over the bg canvas)
+  // "live" = the complement of "bg": EVERYTHING except the backdrop stack and the still terrain,
+  // buildings included. Exists so a shell can run just two canvases — a slow backdrop plus one
+  // live layer — and skip repainting sky/stars/mountains twelve times a second. ("fg" alone is
+  // not that complement: it deliberately omits buildings, which the seven-canvas layout drew in
+  // its own "city" pass.) "bg" + "live" composite to exactly the undefined single-canvas frame.
   g.setTransform(ZOOM,0,0,ZOOM,0,0);          // world px -> canvas px (identity when ZOOM=1)
   if(!near||!near.blds) return;   // paint loop can fire before setup() has built the world
   resetNotifLanes();              // fresh alert-row bookings each frame (see notifLane) so banners never overprint
@@ -15273,7 +15278,7 @@ function draw(g,pass){
   var ocTop=isDay?(fx.thunder?[118,126,144]:[178,185,197]):[40,40,50],
       ocBot=isDay?(fx.thunder?[148,154,168]:[203,207,214]):[60,60,70];
 
-  if(pass==="fg"||pass==="sky"||pass==="skyfast"||pass==="cloud"||pass==="water"||pass==="city"){ g.clearRect(0,0,SW,SH); }   // transparent layers must discard their previous frame (no motion trails)
+  if(pass==="fg"||pass==="sky"||pass==="skyfast"||pass==="cloud"||pass==="water"||pass==="city"||pass==="live"){ g.clearRect(0,0,SW,SH); }   // transparent layers must discard their previous frame (no motion trails)
   if(pass==="bg"||pass===undefined){
   // sky
   var cA=mixc(SKY[ph.a][0],SKY[ph.b][0],ph.t), cB=mixc(SKY[ph.a][1],SKY[ph.b][1],ph.t);
@@ -15493,7 +15498,7 @@ function draw(g,pass){
   // canvas; the live foreground pass can then spend its budget solely on moving street life.
   if(pass!=="fg"){
   // the wilderness the city grows out of (hills, grass, river, trees, the first cabin) — recedes as it matures
-  if(cityG<0.985) drawTerrain(g,cityG,L,now,nd,(pass==="fg"||pass==="city")?"fg":undefined);
+  if(cityG<0.985) drawTerrain(g,cityG,L,now,nd,(pass==="fg"||pass==="city"||pass==="live")?"fg":undefined);
 
   drawLayer(g,far,L,now,fx,hol,0.42);
   if(curRegime&&curRegime.active) drawLayerRegime(g,far,L,now,night);   // THE ORDER drapes the far skyline
