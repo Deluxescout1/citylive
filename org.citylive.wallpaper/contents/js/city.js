@@ -9611,22 +9611,34 @@ function drawQuad(g,x,y,day,now,seed,sp,K){
   var S=Math.max(0.8,K*0.85), u=Math.max(1,Math.round(S));
   var w=Math.max(4,Math.round(sp.w*S)), h=Math.max(3,Math.round(sp.h*S));
   var c=css(day?sp.c:mixc(sp.c,[0,0,0],0.60)), c2=css(day?sp.c2:mixc(sp.c2,[0,0,0],0.58));
-  var graze=(Math.sin(now*0.0004+seed)>0), stp=(Math.floor(now/320+seed)&1);
+  var graze=!sp.legless&&(Math.sin(now*0.0004+seed)>0);   // a hauled-out seal has nothing to graze on
+  var stp=(Math.floor(now/320+seed)&1);
   // A DEEP barrel on SHORT legs. The first cut gave these animals a shallow body on legs half their
   // height and they read as sawhorses — nothing with that much mass stands that far off the ground.
   var bodyH=Math.max(2,Math.round(h*0.58)), top=y-h, legY=top+bodyH;
   g.fillStyle=c;
-  g.fillRect(x,top,w,bodyH);                                              // the barrel
-  if(sp.hump) g.fillRect(x+Math.round(w*0.06),top-u*sp.hump,Math.round(w*0.46),u*sp.hump+1);
-  if(sp.legless){ g.fillRect(x-u,top+Math.round(bodyH*0.4),u,Math.max(1,bodyH-Math.round(bodyH*0.4))); }
-  else { g.fillStyle=c2;                                                  // four legs, front pair striding
+  if(sp.legless){
+    // A hauled-out seal has no barrel-on-legs to draw: it is a lump that TAPERS to the tail. Drawn
+    // as the plain rectangle every other animal uses, it read as a plank lying on the sand.
+    for(var tp=0;tp<3;tp++){
+      var tw=Math.round(w*(1-tp*0.26)), th=Math.max(1,Math.round(bodyH/3));
+      g.fillRect(x,top+tp*th,tw,bodyH-tp*th);
+    }
+    g.fillStyle=c2;
+    g.fillRect(x+Math.round(w*0.30),top+bodyH-u,Math.max(2,Math.round(w*0.22)),u*2);   // fore flipper
+    g.fillRect(x+w-Math.round(w*0.10),top+Math.round(bodyH*0.2),u,Math.max(1,u*2));    // tail fluke
+    g.fillStyle=c;
+  } else {
+    g.fillRect(x,top,w,bodyH);                                            // the barrel
+    if(sp.hump) g.fillRect(x+Math.round(w*0.06),top-u*sp.hump,Math.round(w*0.46),u*sp.hump+1);
+    g.fillStyle=c2;                                                       // four legs, front pair striding
     var lw=Math.max(1,Math.round(u*1.4)), lh=Math.max(1,y-legY);
     g.fillRect(x+Math.round(w*0.10)+(stp?u:0),legY,lw,lh);
     g.fillRect(x+Math.round(w*0.26),legY,lw,lh);
     g.fillRect(x+Math.round(w*0.66),legY,lw,lh);
-    g.fillRect(x+Math.round(w*0.84)-(stp?u:0),legY,lw,lh); }
-  g.fillStyle=c2;                                                         // tail, off the rump
-  g.fillRect(x+w,top+u,Math.max(1,u),Math.max(1,Math.round(bodyH*(stp?0.7:0.5))));
+    g.fillRect(x+Math.round(w*0.84)-(stp?u:0),legY,lw,lh);
+    g.fillRect(x+w,top+u,Math.max(1,u),Math.max(1,Math.round(bodyH*(stp?0.7:0.5))));   // tail off the rump
+  }
   // head, dropped to the grass when grazing and lifted to watch when not. The NECK is filled as one
   // solid block spanning body to skull — drawn as a thin stalk it left a gap and the head floated.
   var hw=Math.max(2,Math.round(w*0.26)), hh=Math.max(2,Math.round(h*0.28));
@@ -9703,12 +9715,17 @@ function drawBiomeFauna(g,L,now,nd,wild,gy){
       var sd2=((i*7919+n*104729+31)>>>0), hsh=(sd2%1000)/1000;
       if(hsh>wild*0.85+0.15) continue;
       var wx=landRoute(wrapW(hsh*WW+Math.sin(now*0.00005+n*1.9+i)*26));
-      if(!wildOK(wx)) continue;
       if(sp.head==="seal"){                                            // seals haul out ON the rocks
         if(!hasOcean||seaW<=0) continue;
         wx=wrapW((n&1)?WW*seaW+6+((sd2>>5)%10):WW*(1-seaW)-6-((sd2>>5)%10));
       }
-      var yy=gy+2+((sd2>>4)%6);
+      if(!wildOK(wx)) continue;             // AFTER the shoreline move — testing the discarded inland
+                                            // position gated the animal on ground it never stands on
+      // Feet are set from the animal's OWN height. The classic deer is ~6px tall and stands happily
+      // at gy+3; a bison is nearly three times that, and at the same footing it stood straight up
+      // through the horizon — a marker-colour render showed seals apparently floating in the sea.
+      // Taller animals stand further down the near ground, where their heads clear at the skyline.
+      var yy=gy+4+Math.round(sp.h*KSP*0.34)+((sd2>>4)%5);
       for(o=-WW;o<=WW;o+=WW){ X=(wx-WOFF+o)|0; if(X<-20||X>SW+20) continue;
         drawQuad(g,X,yy,day,now,sd2,sp,K); }
     }
@@ -9719,11 +9736,11 @@ function drawBiomeFauna(g,L,now,nd,wild,gy){
       var sd3=((i*40503+m*2654435761+17)>>>0), h3=(sd3%1000)/1000;
       if(h3>wild) continue;
       var swx=landRoute(wrapW(h3*WW+now*0.0015*((m&1)?1:-1)));
-      if(!wildOK(swx)) continue;
       if(sp===FAUNA.otter||sp===FAUNA.puffin){                         // both belong at the water's edge
         if(!hasOcean||seaW<=0) continue;
         swx=wrapW((m&1)?WW*seaW+3+((sd3>>7)%14):WW*(1-seaW)-3-((sd3>>7)%14));
       }
+      if(!wildOK(swx)) continue;                            // AFTER the move, for the same reason
       var syy=gy+4+((sd3>>6)%7);
       for(o=-WW;o<=WW;o+=WW){ X=(swx-WOFF+o)|0; if(X<-6||X>SW+6) continue;
         drawSpot(g,X,syy,day,now,sd3,sp,K); }
@@ -11678,9 +11695,15 @@ function drawBole(g,t,sx,gy,cTrunk,cBark,cFol,K,detail){
     // limbs fork wide and HIGH, then leave frame — no crown ever resolves. Marched a pixel at a time
     // and TAPERED: stepping them by `step` with a fixed square left a dotted diagonal that read as a
     // twig rather than as a limb thicker than a bus.
+    // The limb heights are fractions of what is STILL ON SCREEN, not of the whole tree. As fixed
+    // fractions of t.h they worked on the near band but sat entirely above the frame on the fore
+    // band — whose trees are 1.7-2.5x the horizon — so the two most prominent giants in the picture,
+    // the ones standing in front of the city, showed no fork at all and read as bare columns. The
+    // hybrid stand Nick asked for would silently have been columnar-only where it mattered most.
     g.fillStyle=cTrunk;
+    var vis=Math.min(0.86,gy/t.h);
     for(var li=0;li<4;li++){
-      var ly=gy-t.h*(0.52+li*0.10), dir=(li&1)?1:-1;
+      var ly=gy-t.h*(vis*(0.42+li*0.16)), dir=(li&1)?1:-1;
       if(ly>gy) continue;
       var reach=t.w*(0.85+((li*7+(t.ph|0))%3)*0.28), lw0=Math.max(2,Math.round(hw0*0.42));
       for(var s=0;s<reach;s++){
@@ -11765,7 +11788,11 @@ function drawForestBackdrop(g,L,now,nd){
 // here. Darker and cooler than the back ranks (they are in their own shade, not the sky's light),
 // which is also what keeps them reading as NEAR rather than as more backdrop.
 function drawForestNear(g,L,now,nd){
-  if(!bioTrees||!bioTrees.fore||curBiome.k!=="forest"||cityPhase==="apoc") return;
+  // No apoc guard. drawBiomeDetail has one and it is right there — mist and hoodoos are DETAIL — but
+  // these giants are structural: with the guard inherited, the moment a cataclysm began the two
+  // largest trunks in the frame blinked out while the back ranks stood. The land does not stop
+  // existing because the city is dying, and the ash veil draws over them anyway.
+  if(!bioTrees||!bioTrees.fore||curBiome.k!=="forest") return;
   var gy=HORIZON+4, day=L>0.5, K=Math.max(1,KSP);
   var fT=css(day?[38,28,20]:[6,7,9]), fB=css(day?[24,17,12]:[3,4,5]), fC=css(day?[24,40,26]:[5,9,8]);
   for(var i=0;i<bioTrees.fore.length;i++){ var t=bioTrees.fore[i];
@@ -11844,7 +11871,7 @@ function drawCanopyWalks(g,L,now,K,gy){
 // every finale all read, and tinting them here would change the light in all four other biomes and
 // in every ending. Scoping it to a veil keeps the effect exactly as wide as the biome.
 function drawCanopyLight(g,L,now){
-  if(curBiome.k!=="forest"||cityPhase==="apoc") return;
+  if(curBiome.k!=="forest") return;        // stands through an apocalypse too, for the same reason
   var day=L>0.5, K=Math.max(1,KSP);
   // filtered shade: strongest at midday (when the contrast with open sky is greatest), never black
   var shade=day?(0.30+0.16*Math.max(0,1-Math.abs(L-0.78)*3)):0.14;
