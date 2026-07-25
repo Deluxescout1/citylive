@@ -171,5 +171,9 @@ test('performance: full-life cold fold stays O(N), no O(N^2) regression', () => 
   let best = 1e9;
   for (let k = 0; k < 3; k++) { const t0 = process.hrtime.bigint(); ctx.P_fold(LI, ctx.P_LIFE_TICKS, ctx.P_defaultEvents); best = Math.min(best, Number(process.hrtime.bigint() - t0) / 1e6); }
   ctx.PEOPLE_N = 175;
-  assert.ok(best < 400, 'cold fold ' + best.toFixed(1) + 'ms should be < 400ms in-vm (native budget ~6ms; O(N^2) guard)');
+  // Ceiling is a CATASTROPHE guard, not a budget: shared CI runners measure ~4x slower than a dev
+  // desktop (200ms here, 426ms on ubuntu-latest), so a tight bound only produces false failures on
+  // the release tag. An actual O(N^2) regression costs ~17x at this cast size, an order of magnitude
+  // above this line, so 2000ms still catches everything the test is here to catch.
+  assert.ok(best < 2000, 'cold fold ' + best.toFixed(1) + 'ms should be < 2000ms in-vm (native budget ~6ms; O(N^2) guard)');
 });
