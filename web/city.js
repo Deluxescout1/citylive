@@ -8609,8 +8609,37 @@ var SPEECH_LINES={
   "family":["KIDS ARE GROWING FAST.","SPOUSE IS COOKING.","HOME NEEDS CLEANING.","GRANDCHILDREN ARE HERE.","KIDS ARE IN SCHOOL.","SPOUSE WORKS LATE.","HOUSE NEEDS PAINT.","FAMILY TRIP SOON!","KIDS ARE TALKATIVE.","SPOUSE'S HOLIDAY IS GREAT.","HOME IS COZY.","KIDS ARE PLAYING OUTSIDE.","GRANDPARENTS VISIT NEXT WEEK.","SIBLINGS ARE IN TOWN."],
   "class_rich":["JUST BACK FROM TRAVEL.","NEW CAR IS SPECTACULAR.","HOUSE IS BEAUTIFUL.","VACATION WAS WONDERFUL.","COLLECTION IS GROWING.","INVESTMENTS ARE DOUBLING.","WEEKENDS ARE LUXURIOUS.","HOME IS COMFORTABLE.","FINE ART IS BEAUTIFUL.","NEW WATCH IS SLEEK.","GARDEN IS BLOOMING.","LUXURY LIFE IS GREAT.","YACHT IS READY.","VILLA IS MAGNIFICENT."],
   "class_poor":["STRUGGLING TO MAKE ENDS MEET.","NEED HELP WITH RENT.","WORKING TWO JOBS.","BILLS ARE PILING UP.","KIDS NEED NEW CLOTHES.","HOPING FOR BETTER DAYS.","SOMETIMES IT'S TIGHT.","JUST MANAGING.","NEED A LITTLE HELP.","HOPE FOR A RAISE.","FEELING A BIT STRESSED.","TRYING TO SAVE.","JUST MAKING IT.","WORK IS TOUGH."],
-  "smalltalk":["NICE DAY OUT, HUH?","LIFE'S GOOD.","HOW'S WORK?","THE USUAL STUFF.","JUST DOING FINE.","HOPE YOU'RE WELL.","EVERYTHING OK?","JUST TAKING IT EASY.","GOOD TO BE OUT.","THE WEATHER'S GREAT.","FEELING LUCKY.","HOPE YOU'RE HEALTHY.","ALL'S WELL.","ENJOYING THE DAY."]
+  "smalltalk":["NICE DAY OUT, HUH?","LIFE'S GOOD.","HOW'S WORK?","THE USUAL STUFF.","JUST DOING FINE.","HOPE YOU'RE WELL.","EVERYTHING OK?","JUST TAKING IT EASY.","GOOD TO BE OUT.","THE WEATHER'S GREAT.","FEELING LUCKY.","HOPE YOU'RE HEALTHY.","ALL'S WELL.","ENJOYING THE DAY."],
+  // WHAT THEY DO decides what they talk about. The sim has tracked p.job and p.party since the
+  // people system landed and neither has ever been spoken aloud — only klass was, via class_rich /
+  // class_poor. A banker and a factory worker now sound like a banker and a factory worker.
+  "job_money":["THE MARKETS CLOSED UP.","CREDIT IS TIGHT NOW.","EVERYONE WANTS A LOAN.","THE NUMBERS DON'T LIE.","RATES ARE UP AGAIN.","I COUNT OTHER MEN'S MONEY.","QUARTER ENDS FRIDAY."],
+  "job_labour":["DOUBLE SHIFT AGAIN.","MY BACK IS FINISHED.","THE LINE NEVER STOPS.","THEY CUT OUR HOURS.","WE BUILT THIS STREET.","NO ONE THANKS NIGHTS.","CLOCKED TEN HOURS TODAY."],
+  "job_care":["WARD WAS FULL AGAIN.","I LOST ONE THIS MORNING.","THE KIDS KEEP ME GOING.","WE NEED MORE HANDS.","TWELVE HOURS ON MY FEET.","SOMEBODY HAS TO DO IT.","I SLEPT AT THE WARD."],
+  "job_safety":["QUIET SHIFT, THANK GOD.","THE CALLS KEEP COMING.","WE RAN IN, NOT AWAY.","I JUST WANT EVERYONE HOME.","LONG NIGHT DOWNTOWN.","NOBODY GOT HURT TODAY."],
+  "job_service":["ON MY FEET SINCE FIVE.","TIPS WERE BAD TONIGHT.","CUSTOMERS, HONESTLY.","THE RUSH NEARLY KILLED ME.","I KNOW EVERYONE'S ORDER.","SMILED FOR NINE HOURS."],
+  "job_civic":["THE GALLERY WAS EMPTY.","NOBODY READS ANYMORE.","I DREW THIS WHOLE BLOCK.","THE PARK NEEDS FUNDING.","ART DOESN'T PAY RENT.","TWO PEOPLE CAME TODAY."],
+  // …and WHO THEY VOTE FOR decides what they want from the place.
+  "party_builders":["BUILD IT ALL, I SAY.","MORE HOMES, FEWER RULES.","CRANES MEAN JOBS.","WE CAN'T STOP GROWING.","EVERY LOT SHOULD BE USED."],
+  "party_greens":["THE AIR WAS BAD AGAIN.","PLANT MORE, PAVE LESS.","THE RIVER'S FILTHY.","WE ONLY GET ONE CITY.","THAT WAS A MEADOW ONCE."],
+  "party_safety":["MORE PATROLS DOWNTOWN.","I LOCK MY DOOR NOW.","IT WASN'T LIKE THIS BEFORE.","ORDER FIRST. THEN THE REST.","I WALK THE LONG WAY HOME."],
+  "party_transit":["THE BUSES ARE ALWAYS LATE.","WE NEED A REAL TRAIN.","I GAVE UP MY CAR.","ANOTHER HOUR IN TRAFFIC.","THIRTY MINUTES FOR ONE STOP."]
 };
+// Jobs group into VOICES. Six families rather than one bank per job: there are forty-odd labels and
+// most of them want to say the same kind of thing, while a nurse and a paramedic plainly do not want
+// to sound different from each other. Anything unlisted falls through to the ordinary topics.
+var JOB_VOICE={
+  "BANKER":"job_money","ACCOUNTANT":"job_money","LOAN OFFICER":"job_money","HOTEL MANAGER":"job_money",
+  "FACTORY WORKER":"job_labour","WAREHOUSE WORKER":"job_labour","DOCK WORKER":"job_labour",
+  "WELDER":"job_labour","PLUMBER":"job_labour","ELECTRICIAN":"job_labour","MECHANIC":"job_labour",
+  "DOCTOR":"job_care","NURSE":"job_care","PARAMEDIC":"job_care","PHARMACIST":"job_care","TEACHER":"job_care",
+  "OFFICER":"job_safety","FIREFIGHTER":"job_safety","POLICE CHIEF":"job_safety","FIRE CHIEF":"job_safety","SECURITY":"job_safety",
+  "CASHIER":"job_service","BARISTA":"job_service","BAR TENDER":"job_service","CHEF":"job_service",
+  "JANITOR":"job_service","SHOPKEEPER":"job_service","STREET VENDOR":"job_service","RECEPTIONIST":"job_service","BUS DRIVER":"job_service",
+  "ARTIST":"job_civic","CURATOR":"job_civic","LIBRARIAN":"job_civic","MUSEUM GUARD":"job_civic",
+  "ARCHITECT":"job_civic","CITY COUNCIL":"job_civic","PARK WORKER":"job_civic"
+};
+var PARTY_VOICE=["party_builders","party_greens","party_safety","party_transit"];   // matches P_PARTY order
 // short agreeing/deflecting replies — beats 2/4 of an exchange
 var SPEECH_REPLIES=["SAME HERE.","TELL ME ABOUT IT.","YOU SAID IT.","NO KIDDING.","I HEAR YOU.","TRUE ENOUGH.","EVERY TIME.","COULD BE WORSE.","SO I HEARD.","THAT'S THE TRUTH.","YOU'RE NOT WRONG.","HA! EXACTLY."];
 var SPEECH_CLOSERS=["ANYWAY - GOTTA RUN.","SEE YOU AROUND.","SAY HI TO THE FAMILY.","SAME TIME TOMORROW?","TAKE CARE NOW.","THAT'S LIFE, HUH?","WELL, BACK TO IT.","CATCH YOU LATER."];
@@ -8630,7 +8659,16 @@ var SPEECH_SCENES=[
   {c:'romance', b:["DINNER TONIGHT?","ARE YOU ASKING ME OUT?","I SUPPOSE I AM.","TOOK YOU LONG ENOUGH."], o:'heart'},
   {c:'romance', b:["I MADE YOU SOMETHING.","YOU DIDN'T HAVE TO!","I WANTED TO.","COME HERE, YOU."], o:'heart'},
   {c:'sports',  b:["CATCH THE GAME LAST NIGHT?","EVERY MINUTE.","THAT FINAL PLAY!","STILL SHAKING."]},
-  {c:'sports',  b:["OUR TEAM IS CURSED.","EVERY SEASON.","AND YET WE WATCH.","AND YET WE WATCH."]}
+  {c:'sports',  b:["OUR TEAM IS CURSED.","EVERY SEASON.","AND YET WE WATCH.","AND YET WE WATCH."]},
+  // DISAGREEMENTS. A single bubble can only ever carry one person's opinion, so a banker and a
+  // factory worker arguing about the economy has to be a four-beat SCENE — the pair predicate in
+  // sceneTopic gates these to people who would actually disagree. Both sides get a real point.
+  {c:'classclash', b:["BUSINESS IS BOOMING!","FOR WHO, EXACTLY?","THE NUMBERS ARE UP.","SO IS MY RENT."]},
+  {c:'classclash', b:["JUST WORK HARDER.","I WORK TWO JOBS ALREADY.","...WELL.","YEAH. THOUGHT SO."]},
+  {c:'classclash', b:["NOBODY WANTS TO WORK.","I'VE NEVER STOPPED.","THAT'S NOT WHAT I MEANT.","IT NEVER IS."]},
+  {c:'partyclash',  b:["WE SHOULD BUILD HERE.","THAT'S THE LAST GREEN LOT.","PEOPLE NEED HOMES.","PEOPLE NEED AIR TOO."]},
+  {c:'partyclash',  b:["MORE PATROLS, I SAY.","MORE BUSES, I SAY.","WE WANT DIFFERENT CITIES.","SAME CITY. DIFFERENT FEARS."]},
+  {c:'partyclash',  b:["THE COUNCIL DOES NOTHING.","THEY DID PLENTY TO ME.","WE CAN'T BOTH BE RIGHT.","NO. WE CAN'T."]}
 ];
 // event banks — surfaced ONLY while their event is live (Nick: talk Order/Bills only around the takeover)
 var SPEECH_EVENT={
@@ -8681,6 +8719,14 @@ function bubbleCat(a, b, slot){
     if(pa.employer>=0&&pa.employer===pb.employer) return 'work';
     if(Math.abs(pa.klass-pb.klass)>=2) return (a.k<=1?'class_poor':'class_rich');
   }
+  // What the SPEAKER does and how they vote, before falling back to generic topics. Roughly a third
+  // of free chat now comes out of a job or a party bank, so the city sounds like it is made of
+  // people with lives rather than of interchangeable citizens.
+  var vh=((a.pid*2654435761^slot*97)>>>0)%10;
+  if(pa&&pa.gen===a.gen){
+    if(vh<3){ var jv=JOB_VOICE[(P_job(pa)||{}).label]; if(jv) return jv; }
+    if(vh<5&&pa.party!=null){ var pv=PARTY_VOICE[pa.party]; if(pv) return pv; }
+  }
   if(a.k===0) return 'class_poor'; if(a.k===3) return 'class_rich';
   var cats=['greet','smalltalk','weather','work','gossip','economy','politics','family']; return cats[((a.pid^slot)>>>0)%cats.length];
 }
@@ -8725,8 +8771,12 @@ function sceneTopic(a, b, sslot, now){
   // authored scene ~30%: humor / drama / romance (spouses only) / sports
   if((h%10)<3){ var pool=[], pa=drawnPopRef&&drawnPopRef[a.idx], pb=drawnPopRef&&drawnPopRef[b.idx];
     var spouses=!!(pa&&pb&&pa.gen===a.gen&&pb.gen===b.gen&&pa.spouse===b.idx&&pa.spouseGen===b.gen);
+    var clashK=!!(pa&&pb&&pa.gen===a.gen&&pb.gen===b.gen&&Math.abs(pa.klass-pb.klass)>=2);
+    var clashP=!!(pa&&pb&&pa.gen===a.gen&&pb.gen===b.gen&&pa.party!=null&&pb.party!=null&&pa.party!==pb.party);
     for(var i=0;i<SPEECH_SCENES.length;i++){ var sc=SPEECH_SCENES[i];
       if(sc.c==='romance'&&!spouses) continue; if(sc.c==='drama'&&!spouses&&(h&1)) continue;
+      if(sc.c==='classclash'&&(!clashK||spouses)) continue;      // spouses don't have this argument here
+      if(sc.c==='partyclash'&&(!clashP||spouses)) continue;
       pool.push(sc); }
     if(pool.length) return {scene:pool[(h>>>8)%pool.length]};
   }
