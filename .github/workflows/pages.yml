@@ -8,6 +8,7 @@ on:
     branches: [main]
     paths:
       - 'web/**'
+      - 'phone/**'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
@@ -30,8 +31,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/configure-pages@v5
+      # Publish BOTH browser builds. `web/` stays at the root because that URL is already what a
+      # Windows user pastes into Lively Wallpaper, and moving it would break their setup. `phone/`
+      # goes to /phone/ because it is the one with a manifest.json — on Android or iOS that is
+      # "Add to Home screen" and you get a fullscreen PWA instead of a browser tab. Without this the
+      # phone build existed in the repo and there was no way to actually open it on a phone.
+      - name: Stage both browser builds
+        run: |
+          mkdir -p _site
+          cp -r web/. _site/
+          mkdir -p _site/phone
+          cp -r phone/. _site/phone/
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: web
+          path: _site
       - id: deployment
         uses: actions/deploy-pages@v4
