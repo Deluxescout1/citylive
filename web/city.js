@@ -905,7 +905,10 @@ function astroDesk(nd){
   }
   if(isSupermoon(nd)) return "SUPERMOON TONIGHT - THE MOON AT ITS CLOSEST";
   var cj=conjunctionNow(nd); if(cj) return cj.a+" MEETS "+cj.b+" IN TONIGHT'S SKY";
-  if(COMET_SEASON.indexOf(ym(nd))>=0) return "THE GREAT COMET IS VISIBLE AFTER DARK";
+  // ⚠ the last claim in this function that wasn't checked against the viewer's own sky. `cometNow`
+  // gives it a real track, so ask whether it is actually up before promising anyone they can see it.
+  var cmt2=cometNow(nd);
+  if(cmt2 && altAz(cmt2.ra,cmt2.dec,lstHours(nd)).alt>3) return "THE GREAT COMET IS VISIBLE AFTER DARK";
   for(var ah=1; ah<=5; ah++){ var f=new Date(nd.getTime()+ah*86400000), fe=eclipseToday(f);
     // advance notice only for one WE will actually see — no point telling Norwich to buy glasses for
     // an eclipse that happens over Egypt before its sun is up.
@@ -924,7 +927,11 @@ function astroDesk(nd){
 function geomagLat(){
   var pLat=80.65, pLon=-72.68;                                  // north geomagnetic pole, IGRF epoch 2020
   var c=Math.sin(LAT*DEG)*Math.sin(pLat*DEG)+Math.cos(LAT*DEG)*Math.cos(pLat*DEG)*Math.cos((LON-pLon)*DEG);
-  return 90-Math.acos(Math.max(-1,Math.min(1,c)))/DEG;
+  // ⚠ ABS: there is a southern oval too. Without it this goes negative below the equator and Hobart
+  // or Ushuaia — both further inside the aurora australis than Norwich ever is inside the borealis —
+  // would never see a single curtain. Nick said "or anywhere on the map". The conjugate-oval
+  // approximation (same |geomagnetic latitude|) is the standard way to cover both.
+  return Math.abs(90-Math.acos(Math.max(-1,Math.min(1,c)))/DEG);
 }
 // 0 = nothing, 0..1 = a glow low on the northern horizon, 1 = the oval is essentially overhead.
 // Equatorward edge of the oval ≈ 67° geomagnetic at Kp 0, marching ~2.2° south per Kp step — so
@@ -20684,7 +20691,12 @@ function draw(g,pass){
           // A 60% partial gives odd flat light and nothing more; the drama is saved for the real thing.
           solarEclDim=Math.max(0,Math.min(1,(solE.obsc-0.55)/0.45));
           eclSunX=sx2; eclSunY=sy; eclSunR=SR;                          // remembered for the post-veil corona
-          var lox=sx2+solE.dx*SR, loy=sy-solE.dy*SR;                    // real relative position, in solar radii
+          // ⚠ MINUS, NOT PLUS, AND THE SIGN IS THE WHOLE POINT. The Moon always drifts EASTWARD past
+          // the Sun (`dx` runs about -1.1 -> 0 -> +1.1 from first to last contact). But this engine
+          // lays the day out left-to-right, `sx2=df*WW-WOFF` with df=0 at sunrise — so screen-RIGHT is
+          // WEST and east is screen-LEFT. Adding dx ran the whole transit backwards, which is a
+          // mirrored eclipse in a feature whose entire argument is that the real measurement drives it.
+          var lox=sx2-solE.dx*SR, loy=sy-solE.dy*SR;                    // real relative position, in solar radii
           var totalNow=solE.total&&solE.obsc>0.999;
           if(totalNow){ g.globalCompositeOperation="lighter";           // the corona is a TOTALITY thing only
             g.fillStyle="rgba(245,248,255,0.30)"; g.fillRect((sx2-SR*2)|0,(sy-SR*2)|0,SR*4+1,SR*4+1);
@@ -20700,7 +20712,7 @@ function draw(g,pass){
             g.fillRect((sx2-SR-1)|0,sy|0,SR*2+3,1); g.fillRect(sx2|0,(sy-SR-1)|0,1,SR*2+3);
             g.globalCompositeOperation="source-over"; }
           if(solE.obsc>0.985&&!totalNow){ g.globalCompositeOperation="lighter";   // "diamond ring" at 2nd/3rd contact
-            var bead=solE.dx<0?-1:1; g.fillStyle="rgba(255,255,250,0.95)";
+            var bead=solE.dx<0?-1:1; g.fillStyle="rgba(255,255,250,0.95)";   // opposite limb to the Moon
             g.fillRect((sx2+bead*(SR-1))|0,sy|0,2,2);
             g.globalCompositeOperation="source-over"; }
         }

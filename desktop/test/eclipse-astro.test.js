@@ -202,6 +202,23 @@ test('a shallow partial draws the bite but does NOT veil the city', () => {
   assert.strictEqual(r.veils, 0, 'no twilight veil for a shallow partial');
 });
 
+test('the Moon crosses the Sun in the right DIRECTION', () => {
+  // ⚠ This is the check the draw-call recorder structurally cannot make: it counts rects near the
+  // Sun, and a mirrored transit puts exactly as many rects there as a correct one. The Moon always
+  // drifts EASTWARD past the Sun, so dx must run negative -> positive through the eclipse…
+  const c = loadEngine(); c.applyConfig({ lat: 42.8864, lon: -78.8784 });
+  const dxAt = (h, m) => c.solarEclipseAt(new Date(Date.UTC(2024, 3, 8, h, m, 0))).dx;
+  assert.ok(dxAt(18, 30) < -0.5, 'first contact: Moon east of Sun, dx ' + dxAt(18, 30));
+  assert.ok(Math.abs(dxAt(19, 21)) < 0.2, 'greatest eclipse: centred, dx ' + dxAt(19, 21));
+  assert.ok(dxAt(20, 10) > 0.5, 'last contact: Moon west of Sun, dx ' + dxAt(20, 10));
+  // …and because this engine lays the day out left-to-right (sx2 = df*WW, df=0 at sunrise), screen
+  // RIGHT is WEST. So on screen the dark disc must travel right -> left. That is why the renderer
+  // uses `sx2 - dx*SR`; with a plus the whole transit ran backwards.
+  const screenX = (h, m) => -dxAt(h, m);
+  assert.ok(screenX(18, 30) > screenX(19, 21), 'disc enters from screen right');
+  assert.ok(screenX(19, 21) > screenX(20, 10), 'and exits screen left');
+});
+
 // ---- no date tables left anywhere --------------------------------------------------------------
 test('the hardcoded eclipse date lists are gone from every engine copy', () => {
   for (const rel of ['renderer/city.js', '../web/city.js', '../phone/city.js',
