@@ -2558,6 +2558,16 @@ var BIOMES=[
     fauna:{ keep:{deer:1,rabbit:0,fox:0,goat:0}, big:["gator"], small:["frog","turtle2"], air:["heron","egret"] },
     flora:{ kinds:["cypress","cypress","reeds","cypress","willow"], bloom:["#e8d8a0","#c8b070","#ffffff"] },
     sky:{ top:[128,142,152], bot:[196,196,176], k:0.30, haze:[198,200,182] } },
+  // THE VOLCANIC ISLAND. `volcanic:1` rather than reusing hell's `molten`: the Ashlands are hot rock
+  // everywhere, whereas a volcano is COLD rock with one hot place in it. What that flag turns on is a
+  // summit plume, a crater glow at night, and a slow restless cycle that occasionally sends a lava
+  // tongue down one flank — never at the city, which lives with the mountain rather than under it.
+  { k:"volcano", name:"THE NEW ISLAND", amp:1.04, base:0.42, flat:0.0, steep:0.0,  snow:false, water:"sea", volcanic:1,
+    far:[92,86,88],    near:[56,52,56],   cap:[136,120,116], ground:[62,58,58],
+    walls:[[196,192,186],[168,162,156],[212,208,200],[142,138,134],[182,176,168],[156,150,144],[204,198,190],[130,126,122]],
+    fauna:{ keep:{deer:0,rabbit:0,fox:0,goat:1}, big:["goat"], small:["lizard","crab"], air:["frigate","tern"] },
+    flora:{ kinds:["scrub","fern","scrub","scrub","fern"], bloom:["#e8785a","#f0b060","#ffffff"] },
+    sky:{ top:[112,142,178], bot:[196,200,200], k:0.28, haze:[200,204,202] } },
   // THE LAST TWO ARE NOT EARTH. Everything else in this table is plausible geography under one sun;
   // these are not, and they are the only rows whose `sky.k` runs high enough to genuinely repaint the
   // day. They still obey the same rule every other biome does: the REAL Norwich clock and the REAL
@@ -2754,6 +2764,20 @@ var BIOME_VARIANTS={
       flora:{ kinds:["reeds","scrub","willow","reeds","scrub"], bloom:["#c890b8","#e0c890","#ffffff"] },
       fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:0}, big:["elk"], small:["frog","turtle2"], air:["heron","raven"] },
       sky:{ top:[130,142,150], bot:[196,196,186], k:0.30, haze:[198,198,188] } } ],
+
+  volcano:[ {},
+    { name:"THE GREEN ISLAND",   // old flows gone to jungle: waterfalls off the cliffs, bright reef below
+      far:[74,110,80],   near:[44,78,56],   cap:[118,150,104], ground:[68,96,64], amp:0.94,
+      walls:[[248,242,230],[220,208,192],[196,224,220],[236,220,190],[210,232,226],[188,178,164],[244,234,208],[172,198,196]],
+      flora:{ kinds:["palm","fern","palm","seagrape","fern"], bloom:["#f26a8d","#ffd166","#ffffff","#f4977a"] },
+      fauna:{ keep:{deer:0,rabbit:0,fox:0,goat:1}, big:["goat","turtle"], small:["crab","lizard"], air:["frigate","tern"] },
+      sky:{ top:[104,168,216], bot:[204,230,226], k:0.28, haze:[208,232,226] } },
+    { name:"THE CALDERA",        // the cone blown open and flooded: a lagoon inside a ring wall
+      far:[118,104,96],  near:[78,68,64],   cap:[164,142,128], ground:[96,86,78], amp:0.72, steep:0.55, flat:0.30,
+      walls:[[214,204,192],[186,174,162],[228,220,206],[160,150,140],[200,188,176],[172,162,152],[220,212,198],[148,140,132]],
+      flora:{ kinds:["scrub","grass","windbent","scrub","grass"], bloom:["#e8c060","#d88a5a","#ffffff"] },
+      fauna:{ keep:{deer:0,rabbit:1,fox:0,goat:1}, big:["goat"], small:["lizard","crab"], air:["frigate","tern","vulture"] },
+      sky:{ top:[126,152,190], bot:[210,206,196], k:0.28, haze:[212,210,198] } } ],
 
   hell:[ {},
     { name:"THE CINDER WASTE", // burnt out and grey: the fire has mostly gone out of this one
@@ -3083,6 +3107,21 @@ function buildWorld(li){
       mts.far.push({x:mg()*WW, w:(100+mg()*150)*MSC, h:fh, sn:curBiome.snow&&((fh>66*MSC)||mg()<0.25), ph:mg()*9}); }
     for(mi=0;mi<nN;mi++){ var nh=(58+mg()*86)*MSC;                 // the bolder front ridge — the peaks
       mts.near.push({x:mg()*WW, w:(80+mg()*130)*MSC, h:nh, sn:curBiome.snow&&((nh>92*MSC)||mg()<0.35), ph:mg()*9}); }   // clear the skyline
+    // ⚠ A VOLCANO IS NOT A RANGE. The roll above scatters four to eight peaks of similar height, which
+    // is right for every other rock land and produced a broad flat-topped ridge for the volcanic
+    // island — no cone anywhere in it, and `drawVolcano` politely put a plume on the tallest bump. An
+    // island volcano is ONE dominant cone with at most a couple of low satellites, so the near band is
+    // replaced outright rather than tuned. The triangular peak profile (`h*t0`, with steep:0) IS the
+    // cone; nothing else has to draw it.
+    if(curBiome.volcanic){
+      var vX=(0.30+mg()*0.40)*WW;                                  // the summit, kept off the world's seam
+      mts.near=[{ x:vX, w:(300+mg()*140)*MSC, h:(150+mg()*40)*MSC, sn:false, ph:mg()*9 }];
+      var nSat=1+((mg()*2)|0);
+      for(mi=0;mi<nSat;mi++)                                       // a parasitic cone or two on its flank
+        mts.near.push({ x:vX+(mg()<0.5?-1:1)*(0.16+mg()*0.12)*WW, w:(90+mg()*70)*MSC,
+                        h:(38+mg()*30)*MSC, sn:false, ph:mg()*9 });
+      mts.far=mts.far.slice(0,2);                                  // and only a hint of anything beyond
+    }
   }
   // THE OLD FOREST: not a ridge but a stand of COLOSSAL trees, in three depth bands.
   //   far  — ordinary old-growth on the horizon. The only band whose CROWNS are drawn; it gives the
@@ -14285,6 +14324,48 @@ function drawBiomeLandmark(g,L,now,nd){
       for(var lg=0;lg<3;lg++)
         g.fillRect(X-Math.round((10-lg*2)*K),gy-Math.round((2+lg*1.6)*K),Math.round(9*K),Math.max(1,Math.round(1.5*K)));
     });
+  } else if(B.k==="volcano"){
+    // THE OBSERVATORY. It exists BECAUSE the mountain is dangerous, which is what ties this landmark to
+    // this land — the cone itself is terrain, not a landmark. Bolted to the upper flank, so like the
+    // alpine monastery it is placed off the cached ridge profile rather than standing on the flat.
+    if(!mtsCache||!mtsCache.h||!mtsCache.h[1]) return;
+    var vhs=mtsCache.h[1], vbest=-1, vbh=0;
+    for(var vx=Math.round(SW*0.08);vx<Math.round(SW*0.92);vx+=Math.max(2,Math.round(3*K))){
+      var lvl=Math.min(vhs[vx],vhs[Math.min(SW-1,vx+Math.round(6*K))]);
+      if(lvl>18*K&&lvl<mtsCache.mx[1]*0.86&&lvl>vbh){ vbh=lvl; vbest=vx; }   // high, but not ON the summit
+    }
+    if(vbest<0) return;
+    // ⚠ SCALE. Landmark K is sized to stand over a mature skyline from the flat; bolted to a mountain
+    // flank at that size the dome came out 130px across, bigger than the crater. A building on a
+    // mountain is read against the MOUNTAIN, so it gets its own much smaller scale.
+    var VK=Math.max(1,K*0.34);
+    var OX=vbest, OY=gy-Math.round(vbh);
+    var obw=Math.round(9*VK), obh=Math.round(5*VK);
+    g.fillStyle=day?"#d8d4cc":"#33343a"; g.fillRect(OX,OY-obh,obw,obh);            // the block
+    g.fillStyle=day?"#b4b0a8":"#25262b"; g.fillRect(OX+obw-Math.round(1.4*VK),OY-obh,Math.round(1.4*VK),obh);
+    g.fillStyle=day?"#e8e6e0":"#3c3e44";                                            // and its dome
+    var dr=Math.round(obw*0.42);
+    for(var dq=0;dq<dr;dq++){
+      var dfw=Math.round(Math.sqrt(Math.max(0,dr*dr-dq*dq)));
+      g.fillRect(OX+Math.round(obw*0.5)-dfw,OY-obh-dq,dfw*2,Math.max(1,Math.round(VK)));
+    }
+    g.fillStyle=day?"#5a5c62":"#16181c";                                            // the shutter slit
+    g.fillRect(OX+Math.round(obw*0.44),OY-obh-dr,Math.max(1,Math.round(1.4*VK)),dr);
+    g.fillStyle=day?"#8a8c92":"#20222a";                                            // mast and aerials
+    g.fillRect(OX+obw+Math.round(VK),OY-obh-Math.round(9*VK),Math.max(1,Math.round(VK)),Math.round(9*VK));
+    for(var aq=0;aq<3;aq++)
+      g.fillRect(OX+obw-Math.round(VK),OY-obh-Math.round((8-aq*2.4)*VK),Math.round(4*VK),Math.max(1,Math.round(VK*0.7)));
+    if(!day){ g.globalCompositeOperation="lighter";
+      g.fillStyle="rgba(180,230,255,0.7)";                                          // it is lit all night
+      g.fillRect(OX+Math.round(2*VK),OY-Math.round(obh*0.6),Math.round(2*VK),Math.round(1.6*VK));
+      if((Math.floor(now/1100))&1){ g.fillStyle="rgba(255,70,60,0.9)";              // and the mast light
+        g.fillRect(OX+obw+Math.round(VK),OY-obh-Math.round(9.6*VK),Math.max(1,Math.round(1.4*VK)),Math.max(1,Math.round(1.4*VK))); }
+      g.globalCompositeOperation="source-over"; }
+    g.fillStyle=day?"#6e6a60":"#1c1c18";                                            // the service road, switchbacking
+    for(var rq3=0;rq3<Math.round(vbh*0.5);rq3+=Math.max(2,Math.round(3*VK))){
+      var rz=rq3/Math.max(1,Math.round(vbh*0.5));
+      g.fillRect(OX-Math.round(6*VK)+Math.round(Math.sin(rz*9)*4*VK),OY+rq3,Math.round(5*VK),Math.max(1,Math.round(VK*0.8)));
+    }
   } else if(B.k==="swamp"){
     // THE RAISED CEMETERY — whitewashed above-ground tombs on the only dry rise, because you cannot
     // bury anyone in a swamp. Nick's test for every land was that the detail be authentic to the real
@@ -14455,6 +14536,132 @@ function drawBiomeLandmark(g,L,now,nd){
     });
   }
 }
+// THE RESTLESS MOUNTAIN. Nick's call: always smoking, and every so often it stirs — never destroying
+// the city, which lives WITH the volcano rather than under it. Deliberately separate from the
+// apocalypse and disaster systems: this is the land's normal state, not an event, so it has no banner,
+// no ticker line and no death. It is also separate from hell's `molten`: the Ashlands are hot rock
+// everywhere, a volcano is cold rock with one hot place in it.
+// The cycle is a pure function of the clock, like everything else here, so it is freeze-safe and the
+// same moment always renders the same mountain.
+function drawVolcano(g,L,now,nd){
+  var B=curBiome; if(!B.volcanic||!mtsCache||!mtsCache.h||!mtsCache.h[1]) return;
+  if(cityPhase==="apoc") return;                      // an ending has its own sky; don't compete with it
+  var hs=mtsCache.h[1], gy=HORIZON, day=L>0.5, K=Math.max(1,KSP);
+  // THE SUMMIT is the tallest column of the near ridge on this screen — found, not stored, because the
+  // ridge is per-screen and the same world peak lands at a different x on each monitor.
+  var sx=-1, sh=0;
+  for(var x=Math.round(4*K);x<SW-Math.round(4*K);x+=Math.max(1,Math.round(2*K)))
+    if(hs[x]>sh){ sh=hs[x]; sx=x; }
+  if(sx<0||sh<26*K) return;                           // no real cone on this screen
+  var sy=gy-Math.round(sh);
+  // THE STIR. A slow cycle: mostly quiet, occasionally restless. `unrest` 0..1.
+  var per=1080000, ph=((now%per)/per);                // ~18 minutes end to end
+  var unrest=ph<0.62?0:Math.sin(((ph-0.62)/0.38)*Math.PI);
+  // THE CRATER — a notch in the summit, darker inside, glowing when it is up to something.
+  // ⚠ Drawn as one dark RECT across the summit this read as a plank balanced on the peak. A crater is
+  // a notch cut DOWN INTO the cone with a rim standing either side of it, so: a tapering bowl sunk
+  // below the summit line, then two rim shoulders drawn back up in the rock's own colour.
+  var crW=Math.round(sh*0.10)+Math.round(2*K), crD=Math.round(4.5*K);
+  var rock=css(mixc(day?B.near:[16,14,16],biomeSkc(day),day?0.24:0.20));
+  g.fillStyle=day?"rgba(26,22,22,0.82)":"rgba(8,6,6,0.85)";
+  for(var cq=0;cq<crD;cq++){                                  // the bowl, narrowing as it goes down
+    var cf=cq/crD, cw2=Math.round(crW*(1-cf*0.45));
+    g.fillRect(sx-cw2,sy+cq,cw2*2,1);
+  }
+  g.fillStyle=rock;                                           // and the rim standing up either side
+  for(var rq=0;rq<Math.round(2.4*K);rq++){
+    var rw2=Math.round(crW*0.34*(1-rq/Math.max(1,Math.round(2.4*K))));
+    g.fillRect(sx-crW-rw2,sy-rq,rw2+Math.round(K),1);
+    g.fillRect(sx+crW,sy-rq,rw2+Math.round(K),1);
+  }
+  var glow=(1-L)*0.55+unrest*0.55;                     // reads at night, and by day only when stirring
+  if(glow>0.06){
+    g.globalCompositeOperation="lighter";
+    g.fillStyle="rgba(255,"+((92+90*unrest)|0)+",40,"+(0.34*glow).toFixed(3)+")";
+    g.fillRect(sx-crW,sy-Math.round(K),crW*2,crD+Math.round(K));
+    // ⚠ FEATHERED, not one rect. As a single fillRect this was a hard-edged pale BOX hanging over the
+    // summit in daylight — the artifact class this engine has already shipped twice. Rows of falling
+    // alpha have no edge to sharpen.
+    var glH=Math.round(10*K);
+    for(var gq=0;gq<glH;gq++){
+      var gf=gq/glH, ga=0.16*glow*(1-gf)*(1-gf);
+      if(ga<=0.006) break;
+      var gw=Math.round(crW*(1.2+gf*1.6));
+      g.fillStyle="rgba(255,150,70,"+ga.toFixed(3)+")";
+      g.fillRect(sx-gw,sy-gq,gw*2,1);
+    }
+    g.globalCompositeOperation="source-over";
+  }
+  // THE PLUME. Always there; it darkens and thickens with unrest, and it LEANS on the real wind, so on
+  // a still day it stands straight up and in a gale it lies over — same rule as every other accent.
+  var wind=(weather.wind==null?5:weather.wind), lean=Math.min(2.2,wind/9);
+  var pH=Math.round((16+unrest*30)*K), pw0=Math.round((2.4+unrest*2.6)*K);
+  for(var q=0;q<pH;q++){
+    var f=q/pH;
+    var px=sx+Math.round(f*f*lean*10*K)+Math.round(Math.sin(now*0.0006+f*3.1)*2.2*K*f);
+    var pw=Math.round(pw0*(1+f*2.6));
+    var a=(0.30-0.24*f)*(0.55+unrest*0.45);
+    if(a<=0.012) break;
+    // white steam when quiet, grey-brown ash when it is stirring
+    var pc=unrest>0.35?("196,182,168"):("226,228,226");
+    g.fillStyle="rgba("+pc+","+a.toFixed(3)+")";
+    g.fillRect(px-pw,sy-Math.round(K)-q,pw*2,Math.max(1,Math.round(K)));
+  }
+  // A LAVA TONGUE down one flank at the height of the stir — it cools to nothing before the shore, so
+  // it never reaches the city. Follows the ridge profile so it stays ON the mountain.
+  if(unrest>0.45){
+    var run=(unrest-0.45)/0.55, side=((Math.floor(now/per)&1)?1:-1);
+    var len=Math.round(sh*0.62*run);
+    for(var t=0;t<len;t++){
+      var tf=t/Math.max(1,len);
+      var tx=sx+side*Math.round(tf*sh*0.34+Math.sin(tf*5.5)*1.6*K);
+      var ci=Math.max(0,Math.min(SW-1,tx|0));
+      var ty=gy-Math.round(hs[ci]) + Math.round(tf*2*K);
+      if(ty>gy) break;
+      var heat=1-tf*0.85;
+      g.fillStyle="rgba(255,"+((70+150*heat)|0)+","+((20+60*heat)|0)+","+(0.34+0.5*heat).toFixed(2)+")";
+      g.fillRect(tx,ty,Math.max(2,Math.round(2.2*K)),Math.max(1,Math.round(1.6*K)));
+      if(((t*3+((now*0.01)|0))%17)===0){                            // and the steam coming off it
+        g.fillStyle="rgba(220,214,206,0.30)";
+        g.fillRect(tx,ty-Math.round(3*K),Math.max(1,Math.round(1.6*K)),Math.round(3*K));
+      }
+    }
+    g.globalCompositeOperation="lighter";                            // the glow it lays on the flank
+    g.fillStyle="rgba(255,120,50,"+(0.10*run).toFixed(3)+")";
+    g.fillRect(sx-Math.round(sh*0.4),sy,Math.round(sh*0.8),Math.round(sh*0.7));
+    g.globalCompositeOperation="source-over";
+  }
+  // THE FUNICULAR — this land's traversal layer. A cable railway up the flank with one car climbing as
+  // the other descends, which is the whole read: a single car on a wire is a gondola, two counterposed
+  // cars on a rail is a funicular.
+  if(cityG>0.34){
+    var fSide=((((WORLD_SEED*7)>>>3)&1)?1:-1);
+    var topX=sx+fSide*Math.round(sh*0.20), topY=gy-Math.round(hs[Math.max(0,Math.min(SW-1,topX|0))]);
+    var botX=sx+fSide*Math.round(sh*0.86), botY=gy-Math.round(hs[Math.max(0,Math.min(SW-1,botX|0))]);
+    if(botY>gy-4) botY=gy-4;
+    g.strokeStyle=day?"rgba(58,58,64,0.85)":"rgba(120,124,136,0.55)"; g.lineWidth=1;
+    g.beginPath(); g.moveTo(botX,botY); g.lineTo(topX,topY); g.stroke();
+    for(var sl=0;sl<7;sl++){                                          // sleepers up the incline
+      var slf=sl/7;
+      g.fillStyle=day?"#4a4a50":"#1a1c20";
+      g.fillRect(Math.round(botX+(topX-botX)*slf),Math.round(botY+(topY-botY)*slf),Math.round(2.4*K),Math.max(1,Math.round(K)));
+    }
+    var fper=52000, fp=((now%fper)/fper), up=fp<0.5?fp*2:2-fp*2;
+    var carA=up, carB=1-up;                                           // counterposed, always
+    for(var c=0;c<2;c++){
+      var cf=c?carB:carA;
+      var cx=Math.round(botX+(topX-botX)*cf), cy=Math.round(botY+(topY-botY)*cf);
+      g.fillStyle=c?"#d24a3a":"#3a8ad2";
+      g.fillRect(cx-Math.round(2*K),cy-Math.round(2.6*K),Math.round(4*K),Math.round(2.6*K));
+      g.fillStyle="#bfe3ff"; g.fillRect(cx-Math.round(K),cy-Math.round(2*K),Math.round(2*K),Math.max(1,Math.round(K)));
+      if(!day){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,224,160,0.8)";
+        g.fillRect(cx-Math.round(K),cy-Math.round(2*K),Math.round(2*K),Math.max(1,Math.round(K)));
+        g.globalCompositeOperation="source-over"; }
+    }
+    g.fillStyle=day?"#6a6156":"#2a2620";                              // the bottom station
+    g.fillRect(botX-Math.round(3*K),botY,Math.round(6*K),Math.round(3*K));
+  }
+}
 // One ridge silhouette, run-length batched: the profile is static per life, so consecutive columns
 // share the same integer top and one wide fillRect covers the run (it was one 1px rect per column).
 // Identical pixels, far fewer draw calls — and now three bands share it instead of two.
@@ -14512,6 +14719,10 @@ function drawMountains(g,L,now,nd){
           if(B.steep>0) t0=Math.min(1, t0/Math.max(0.10,1-B.steep*0.88));
           var crag=(Math.sin(wx0*0.19+p0.ph)*1.4+Math.sin(wx0*0.047+p0.ph*2.3)*2.4+Math.sin(wx0*0.093+p0.ph*5)*1.1)
                    *t0*(p0.h/(46*KSP))*wob;                       // crags grow with the mountain; flat tops stay smooth
+          // ⚠ A VOLCANIC CONE IS SMOOTH. Full-strength crags gave the island's summit a jagged rim
+          // that read as an eroded massif, not a cone with a crater in it — and drawVolcano then drew
+          // the plume off whichever tooth happened to be highest. Damped hard, and hardest at the top.
+          if(B.volcanic) crag*=0.18*(1-t0*0.7);
           var hh0=p0.h*t0+crag*KSP;
           if(hh0>rh0) rh0=hh0; }
         if(B.flat>0 && rh0>2) rh0=Math.round(rh0/strata)*strata;  // quantise into bedding planes → flat tops
@@ -18888,6 +19099,7 @@ function draw(g,pass){
   // (the Moon is drawn in drawSky() at its real Norwich position/phase)
 
   drawMountains(g,L,now,nd);      // the distant range — behind the clouds, the city, everything
+  drawVolcano(g,L,now,nd);        // …and if it is a volcano, what the mountain is doing today
   drawBiomeDetail(g,L,now,nd);    // and whatever else lives on this particular land
   drawBiomeLandmark(g,L,now,nd);  // and the one structure that says where you are
   drawPlateauTowns(g,L,now,nd);   // and whatever stands on top of a flat-topped mountain
