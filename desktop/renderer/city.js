@@ -11027,7 +11027,13 @@ function drawBlackout(g,cd,L,now){
       g.fillStyle="rgba(255,120,40,"+((flick?0.7:0.45)*inten).toFixed(3)+")"; g.fillRect(lfx|0,HORIZON-2,1,2);
       g.fillStyle="rgba(255,90,20,0.30)"; g.fillRect((lfx-1)|0,HORIZON-3,3,3);
       var beamx=lfx+8+Math.sin(now*0.003+lf)*10; g.fillStyle="rgba(220,235,255,"+(0.18*inten).toFixed(3)+")"; g.fillRect(beamx|0,HORIZON-6,2,6); } }  // flashlight beam
-  if(surge){ g.fillStyle="rgba(120,150,255,"+(0.09*inten)+")"; g.fillRect(x0,0,x1-x0,HORIZON); }                          // whole-grid surge flash
+  // whole-grid surge flash. ⚠ This was the ONE veil in this family drawn as a single hard-edged
+  // rect while every one of its siblings (the glow above, the outage below it, the smog) uses a
+  // cosine bell — so a surge put a blue RECTANGLE with two razor-straight vertical edges across the
+  // full height of the sky. Same bell as the rest now.
+  if(surge){ for(var sg=x0;sg<x1;sg++){ var sd=Math.abs(sg-cx)/(w/2), sf=sd>=1?0:(0.5+0.5*Math.cos(sd*Math.PI));
+    if(sf<=0.02) continue;
+    g.fillStyle="rgba(120,150,255,"+(0.10*inten*sf).toFixed(3)+")"; g.fillRect(sg,0,1,HORIZON); } }
   g.globalCompositeOperation="source-over";
 }
 // SMOG: a choking brown inversion settles over the district (worse in economic busts) — a muddy veil
@@ -12861,7 +12867,9 @@ function drawPlateauTowns(g,L,now,nd){
     // where something up there is actually inhabited; nobody cuts a road to a ruin.
     if(builtTo>0){
       var fx3=(((hsh>>>17)&1)?p.x1-Math.round(6*K):p.x0+Math.round(6*K));
-      var legs=Math.max(3,Math.round(p.h/(9*K))), span=Math.round(11*K);
+      // Fewer, longer legs. Once the zig-zag actually joined up, the old tight pitch stopped reading
+      // as a road and started reading as a crack in the rock.
+      var legs=Math.max(3,Math.round(p.h/(15*K))), span=Math.round(18*K);
       // …and it is CUT DOWNWARD over time, from the top, reaching the valley floor only once the
       // settlement is properly established. A finished road appearing the same instant as the first
       // shack was the thing that made this pop into existence rather than grow.
@@ -12869,12 +12877,19 @@ function drawPlateauTowns(g,L,now,nd){
       var legsCut=Math.max(1,Math.ceil(legs*cut));
       // Cut darker and thicker than the road on top. At one pixel in the road tone it read as a
       // scratch on the rock rather than as a way up, which is the whole point of drawing it.
+      // ⚠ This did not join up. Each leg took its own x-band (`sx0` alternated by `dir`) and dropped
+      // its hairpin at the END THE NEXT LEG DOES NOT START FROM, so the road rendered as a staircase
+      // of disconnected right-angle brackets marching down the rock — a broken glyph, not a way up.
+      // A switchback reverses inside ONE band: every leg runs the full width, sloping, and each ends
+      // where the next begins.
       g.fillStyle=css(mixc(rock,day?[70,58,46]:[10,9,11],0.72));
+      var xL=fx3-span, seg=Math.max(1,Math.round(p.h/legs)), lh=Math.max(1,Math.round(1.6*K));
       for(var lg=0;lg<legsCut;lg++){
-        var ly=top+Math.round(lg*(p.h/legs)), lh=Math.max(1,Math.round(1.6*K));
-        var dir=(lg&1)?1:-1, sx0=fx3+((dir>0)?0:-span);
-        g.fillRect(sx0,ly,span,lh);                                               // the traverse…
-        g.fillRect((dir>0)?sx0+span-lh:sx0,ly,lh,Math.round(p.h/legs)+lh);        // …and the hairpin turning down
+        var ly=top+lg*seg, rev=(lg&1);
+        for(var st2=0;st2<span;st2++){
+          var yy=ly+Math.round((st2/span)*seg);
+          g.fillRect(rev?(xL+span-st2):(xL+st2),yy,lh+1,lh);
+        }
       }
     }
   }
@@ -13092,6 +13107,17 @@ function drawBiomeLandmark(g,L,now,nd){
     });
   }
 }
+// One ridge silhouette, run-length batched: the profile is static per life, so consecutive columns
+// share the same integer top and one wide fillRect covers the run (it was one 1px rect per column).
+// Identical pixels, far fewer draw calls — and now three bands share it instead of two.
+function ridgeFill(g,style,hs,gy){
+  g.fillStyle=style;
+  var rs=-1, rtop=-999, sx, rh, top;
+  for(sx=0;sx<=SW;sx++){
+    rh=(sx<SW)?hs[sx]:-1; top=(rh>=2)?Math.max(2,(gy-rh)|0):-999;
+    if(top!==rtop){ if(rs>=0&&rtop>-999) g.fillRect(rs,rtop,sx-rs,gy-rtop+2); rs=(top>-999)?sx:-1; rtop=top; }
+  }
+}
 function drawMountains(g,L,now,nd){
   if(curBiome.k==="forest"){ drawForestBackdrop(g,L,now,nd); return; }   // the forest is the range here
   if(!mts) return;
@@ -13108,10 +13134,18 @@ function drawMountains(g,L,now,nd){
   var nearC=mixc(mixc(day?B.near:dim(B.near),skc, day?0.24:0.2), [150,92,124], sunsetK*0.3);
   var snF=mixc(day?B.cap:mixc(B.cap,[0,0,0],0.62), [255,168,148], sunsetK*0.55);   // alpenglow on the snow
   var snN=mixc(day?mixc(B.cap,[255,255,255],0.35):mixc(B.cap,[0,0,0],0.55), [255,150,128], sunsetK*0.6);
+  var litK=Math.max(0,Math.min(1,(L-0.34)*2.4));                  // how hard the sun models the rock
   if(!mtsCache){                                                  // the silhouette is static per life —
-    mtsCache={h:[[],[]], wig:[], mx:[0,0]};                       // compute it ONCE per screen, not per frame
-    var lists=[mts.far,mts.near];
-    for(var pi0=0;pi0<2;pi0++){ var list0=lists[pi0];
+    mtsCache={h:[[],[],[]], sl:[[],[],[]], wig:[], mx:[0,0,0]};   // compute it ONCE per screen, not per frame
+    // A THIRD, FURTHEST band, DERIVED from the far peaks rather than rolled — half the height, wider,
+    // shifted along the world so it is not an echo. Deriving it keeps every existing life's layout
+    // byte-identical: one extra mg() roll in buildWorld would have re-rolled the peaks of all six
+    // height-field biomes at once, which is a lot of look to re-verify for a band you can barely see.
+    var dist=[];
+    for(var dq=0;dq<mts.far.length;dq++){ var dp=mts.far[dq];
+      dist.push({x:(dp.x+WW*0.37)%WW, h:dp.h*0.58, w:dp.w*1.34, ph:dp.ph*1.7+1.1}); }
+    var lists=[mts.far,mts.near,dist];
+    for(var pi0=0;pi0<3;pi0++){ var list0=lists[pi0];
       for(var i0=0;i0<list0.length;i0++) if(list0[i0].h>mtsCache.mx[pi0]) mtsCache.mx[pi0]=list0[i0].h;
       var strata=Math.max(2,Math.round(5*KSP*(0.5+B.flat)));      // mesa bedding planes — the step a flat top snaps to
       // Flat biomes must not undulate: quantising a sine into strata turns the whole skyline into a
@@ -13119,7 +13153,8 @@ function drawMountains(g,L,now,nd){
       var wob=1-B.flat;
       for(var cx0=0;cx0<SW;cx0++){ var wx0=cx0+WOFF;
         var rh0=((pi0===0)? (9+(Math.sin(wx0*0.011+3)*5+Math.sin(wx0*0.033)*2.5)*wob)*KSP  // rolling base ridge
-                          : Math.max(0,(Math.sin(wx0*0.014+7)*9-3.5)*wob)*KSP) * B.base;   // sparse foothills
+                : (pi0===1)? Math.max(0,(Math.sin(wx0*0.014+7)*9-3.5)*wob)*KSP             // sparse foothills
+                : (7+Math.sin(wx0*0.009+1.7)*3*wob)*KSP) * B.base;                         // the far haze band
         for(var i1=0;i1<list0.length;i1++){ var p0=list0[i1];
           var d0=(((wx0-p0.x)%WW)+WW*1.5)%WW-WW*0.5; if(d0<0)d0=-d0;
           if(d0>=p0.w) continue;
@@ -13134,17 +13169,101 @@ function drawMountains(g,L,now,nd){
         if(B.flat>0 && rh0>2) rh0=Math.round(rh0/strata)*strata;  // quantise into bedding planes → flat tops
         mtsCache.h[pi0][cx0]=rh0;
         if(pi0===0) mtsCache.wig[cx0]=Math.sin(wx0*0.23)*2.2*KSP; // snowline wander, also static
-      } }
+      }
+      // SLOPE BUCKETS, cached with the silhouette they are derived from. Which way a column FACES is
+      // a pure function of h[] and h[] never changes within a life, so re-deriving it per frame would
+      // be the citizen-sim freeze mistake in a new place. What is NOT cached is which side the sun is
+      // on: that flips at midday, so it is applied at draw time.
+      // ⚠ The baseline is WIDE on purpose. Taking the slope between immediate neighbours reads the
+      // CRAG NOISE rather than the flank: adjacent columns land in different buckets and the range
+      // comes out covered in vertical stripes — the same artifact as the god-ray/mountain-lines bug,
+      // arrived at from a different direction. Averaging over ±5 columns follows the shape of the
+      // flank instead, so a whole mountainside lights as one face.
+      // The baseline widens with `steep`, because that is what sets how violently the profile swings
+      // inside a short run: the Ashlands' spires moved so much over ±5 columns that the range came
+      // out looking like columnar basalt. Then the raw signal is smoothed once more before bucketing,
+      // so a bucket boundary lands where the flank actually turns and not on every third crag.
+      var hh1=mtsCache.h[pi0], slp=mtsCache.sl[pi0];
+      var bw=Math.max(4,Math.round((5+14*B.steep)*KSP)), raw=new Array(SW), cs, ca, cb;
+      for(cs=0;cs<SW;cs++){
+        ca=cs-bw; if(ca<0)ca=0; cb=cs+bw; if(cb>SW-1)cb=SW-1;
+        raw[cs]=(hh1[cb]-hh1[ca])/((cb-ca)*Math.max(1,KSP));
+      }
+      var sm=Math.max(2,Math.round(3*KSP));
+      for(cs=0;cs<SW;cs++){
+        ca=cs-sm; if(ca<0)ca=0; cb=cs+sm; if(cb>SW-1)cb=SW-1;
+        var acc=0; for(var cq=ca;cq<=cb;cq++) acc+=raw[cq];
+        slp[cs]=Math.max(-2,Math.min(2,Math.round((acc/(cb-ca+1))*3.2)));
+      }
+    }
   }
+  // THE FURTHEST RIDGE, almost all sky. It exists to give the eye a third distance: two bands is a
+  // cut-out in front of a cut-out, and every one of these lands was reading as exactly that.
+  var dstC=mixc(mixc(day?B.far:dim(B.far), skc, day?0.72:0.56),[200,124,152],sunsetK*0.30);
+  ridgeFill(g,css(dstC),mtsCache.h[2],gy);
   var passes=[[css(farC),css(snF)],[css(nearC),css(snN)]];
   for(var pi=0;pi<2;pi++){
     var mc=passes[pi][0], sc=passes[pi][1], hs=mtsCache.h[pi];
     var snl=mtsCache.mx[pi]*(0.72-snowLo);                        // one ABSOLUTE snowline per ridge —
-    // BASE RIDGE — run-length batched: the silhouette is static per life, so consecutive columns share the same
-    // integer top; one wide fillRect per run (was one 1px rect per column). Identical pixels, far fewer draw calls.
-    g.fillStyle=mc; var rs=-1, rtop=0;
-    for(var sx=0;sx<=SW;sx++){ var rh=(sx<SW)?hs[sx]:-1, top=(rh>=2)?Math.max(2,(gy-rh)|0):-999;
-      if(top!==rtop){ if(rs>=0&&rtop>-999) g.fillRect(rs,rtop,sx-rs,gy-rtop+2); rs=(top>-999)?sx:-1; rtop=top; } }
+    ridgeFill(g,mc,hs,gy);
+    // SLOPE LIGHT — the change that turned six flat silhouettes into landforms. Every ridge was a
+    // single flat fill: right shape, no surface, which is why a mesa read as a sheet of card and a
+    // mountain range as a paper cut-out. Shading each column by which way it FACES, against the side
+    // the real sun is actually on, gives every one of these lands a lit flank and a shaded one — and
+    // it costs one pass over a cached array, batched exactly like the base ridge above it.
+    var slb=mtsCache.sl[pi], sunL=curSunDf<0.5, lk=litK*(pi===0?0.72:1);
+    if(lk>0.03){
+      var ls=-1, ltop=-999, lbk=0, mx2, mh, mtop, mbk;
+      for(mx2=0;mx2<=SW;mx2++){
+        mh=(mx2<SW)?hs[mx2]:-1; mtop=(mh>=3)?Math.max(2,(gy-mh)|0):-999;
+        mbk=(mtop>-999)?(sunL?-slb[mx2]:slb[mx2]):0;
+        if(mtop!==ltop||mbk!==lbk){
+          if(ls>=0&&ltop>-999&&lbk!==0){
+            g.fillStyle= lbk>0 ? "rgba(255,246,220,"+(0.070*lbk*lk).toFixed(3)+")"
+                               : "rgba(16,12,30,"+(0.078*(-lbk)*lk).toFixed(3)+")";
+            g.fillRect(ls,ltop,mx2-ls,gy-ltop+2);
+          }
+          ls=(mtop>-999)?mx2:-1; ltop=mtop; lbk=mbk;
+        }
+      }
+    }
+    // BEDDING PLANES — the sedimentary layers a mesa wall or a sea cliff is actually made of. Measured
+    // from the GROUND rather than from each column's own top, so the lines run dead level and continue
+    // across the whole formation, which is what says "one rock, laid down in beds" instead of "a shape
+    // with lines on it". Only the flat biomes: crags have no visible bedding at this scale.
+    if(B.flat>0.25){
+      var stt=Math.max(2,Math.round(5*KSP*(0.5+B.flat))), lh2=Math.max(1,Math.round(KSP));
+      g.fillStyle="rgba(0,0,0,"+(0.07+0.07*B.flat).toFixed(3)+")";
+      for(var by=gy-stt;by>gy-mtsCache.mx[pi]-stt;by-=stt){
+        var bs=-1, bx, on;
+        for(bx=0;bx<=SW;bx++){
+          on=(bx<SW)&&hs[bx]>=3&&((gy-hs[bx])<by-lh2);
+          if(on){ if(bs<0) bs=bx; }
+          else if(bs>=0){ g.fillRect(bs,by,bx-bs,lh2); bs=-1; }
+        }
+      }
+      // …the shadow the hard caprock throws down the wall under its own overhang, and the erosion
+      // gullies cut into the face. On a flat biome the slope light above does almost nothing —
+      // a mesa is level tops and sheer walls, so the only columns with any slope at all are the one
+      // or two at each edge. This is what actually gives that wall a surface.
+      g.fillStyle="rgba(0,0,0,0.15)";
+      var csh=Math.max(1,Math.round(stt*0.9)), cs2=-1, ctop=-999, cx2, ch2, ct2;
+      for(cx2=0;cx2<=SW;cx2++){
+        ch2=(cx2<SW)?hs[cx2]:-1; ct2=(ch2>=6)?Math.max(2,(gy-ch2)|0):-999;
+        if(ct2!==ctop){ if(cs2>=0&&ctop>-999) g.fillRect(cs2,ctop+lh2,cx2-cs2,csh);
+          cs2=(ct2>-999)?cx2:-1; ctop=ct2; }
+      }
+      g.fillStyle="rgba(0,0,0,0.16)";
+      var gsp=Math.max(14,Math.round(26*KSP));
+      for(var gx=0;gx<SW;gx++){
+        var gwx=gx+WOFF; if(((gwx%gsp)|0)!==0) continue;
+        var gh=hs[gx]; if(gh<14) continue;
+        var gtop=Math.max(2,(gy-gh)|0)+csh;
+        var glen=Math.round((gh-csh)*(0.35+(((gwx*2654435761)>>>0)%100)/100*0.5));
+        if(glen<3) continue;
+        g.fillRect(gx,gtop,Math.max(1,Math.round(1.8*KSP)),Math.min(glen,gy-gtop));
+      }
+    }
     // SNOW CAPS — per column (dithered melt edge); one fillStyle set for the whole ridge.
     // On rock biomes this same band becomes CAPROCK: the paler hard stratum on top of a mesa or a
     // sea cliff. Snow wanders and melts unevenly; a bed of rock does neither, so the snowline wobble
