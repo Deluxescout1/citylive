@@ -11988,6 +11988,26 @@ function drawGrowSite(g,X,w,targetH,frac,seed,L,now,crew){
 // width is wobbled and its centre is shifted, so the edge comes out ragged and the silhouette never
 // repeats. Seeded, so a given clump is identical every frame (nothing here may animate per-frame —
 // that is the citizen-sim freeze lesson in miniature).
+// A MOSS FRINGE hanging under a mass of foliage. Drawn immediately after the mass it belongs to, so
+// attachment is guaranteed — the first attempt placed drapes at trunk-relative coordinates in a
+// separate pass and they came out as pale gauze strips hanging in mid-air beside the trees. And it
+// is SHORT and WIDE rather than long and narrow: a fringe under a bough reads as moss, a long narrow
+// strip reads as cloth. Deliberately static — moss barely moves; the lianas are what swing.
+function mossFringe(g,cx,cy,rx,seed,K,col){
+  var strands=Math.max(2,Math.round(rx/(2.2*K))), st=Math.max(1,Math.round(K));
+  g.fillStyle=col;
+  for(var s=0;s<strands;s++){
+    var h=(((seed+s*7919)*2654435761)>>>0);
+    if((h&7)<3) continue;                                   // not every gap carries one
+    var sx=cx-rx+Math.round((s+0.5)*(rx*2/strands));
+    var len=Math.round((2+((h>>>9)%7))*K*1.1);
+    var wd=Math.max(1,Math.round(((h>>>17)&1?1.6:1)*K));
+    for(var y=0;y<len;y+=st){
+      var wob=Math.round((((h>>>(y&11))&1)?1:0)*K);          // the strand wanders a pixel as it falls
+      g.fillRect(sx+wob,cy+y,wd,st);
+    }
+  }
+}
 // rx/ry are RADII in canvas px; the caller is responsible for scaling them by K.
 function folMass(g,cx,cy,rx,ry,seed,K){
   if(rx<1||ry<1) return;
@@ -12040,7 +12060,9 @@ function drawTreeCrown(g,t,sx,gy,K,i){
 // one colour is what made the first stand read as scaffolding poles: the eye gets no curvature cue
 // at all. The shaded flutes alone were not enough because they all sat on ONE side at a fixed
 // spacing, which is a stripe pattern, not a round surface.
-function drawBole(g,t,sx,gy,cTrunk,cBark,cFol,K,detail,litK){
+// `mossC` — the moss tone this depth band wears, or null for the far rank (moss on a 40px background
+// tree is one grey pixel). Passed in rather than derived here so each band's haze stays its own.
+function drawBole(g,t,sx,gy,cTrunk,cBark,cFol,K,detail,litK,mossC){
   var hw0=Math.max(2,Math.round(t.w*(t.broad?0.30:0.24))), hwTip=Math.max(1,Math.round(hw0*0.42));
   var y0=Math.max(-4,Math.round(gy-t.h)), step=Math.max(2,Math.round(3*K)), bot=gy+2;
   // A LEAN. Every trunk was mathematically vertical, and nothing in nature that big is: a column of
@@ -12124,6 +12146,8 @@ function drawBole(g,t,sx,gy,cTrunk,cBark,cFol,K,detail,litK){
         var mx=lx+dir*reach*mf, my=ly-reach*mf*0.95;
         if(my+mr*0.7<-4||my-mr>gy) continue;
         folMass(g,mx,my,mr,mr*0.66,((li*7919+m*104729+((t.ph*811)|0))>>>0),K);
+        if(mossC){ mossFringe(g,mx,my+mr*0.58,mr*0.92,((li*211+m*613)>>>0),K,mossC);
+          g.fillStyle=cFol; }                                   // moss hanging off the limb
       }
       // and one riding the fork, higher and inboard, so the two tiers overlap instead of lining up
       var fr=t.w*0.34, fx=lx+dir*reach*0.78, fy=ly-reach*0.47*0.95-reach*0.42*1.35;
@@ -12174,7 +12198,10 @@ function drawBole(g,t,sx,gy,cTrunk,cBark,cFol,K,detail,litK){
       for(var cl=0;cl<4;cl++){
         var cf=0.10+cl*0.26, cr=t.w*(0.34-cl*0.058)*(0.88+q*0.34);
         if(cr<1.5*K) continue;
-        folMass(g,sxx+side*rch*cf,sy+cf*cf*droop+cr*0.30,cr,cr*0.84,((hsh+cl*104729)>>>0),K);
+        var mcy=sy+cf*cf*droop+cr*0.30;
+        folMass(g,sxx+side*rch*cf,mcy,cr,cr*0.84,((hsh+cl*104729)>>>0),K);
+        if(mossC&&cl>0){ mossFringe(g,sxx+side*rch*cf,mcy+cr*0.72,cr*0.9,((hsh+cl*613)>>>0),K,mossC);
+          g.fillStyle=cFol; }                                   // …and the moss hanging under it
       }
       // a shorter tuft on the OPPOSITE side of the same tier — every bough on one side left the
       // other flank of the bole bare all the way up, which is a hedge on a stick, not a conifer.
@@ -12259,6 +12286,30 @@ function drawForestBackdrop(g,L,now,nd){
       g.fillStyle=fC; drawTreeCrown(g,t,sx,gy,K,i);          // a crown, because this one has a top
     }
   }
+  // THE UNDERSTORY — a dense low band of saplings, tree ferns and thicket packed along the horizon,
+  // in front of the far rank. Nick asked for "more trees", and adding more GIANTS is the one thing
+  // that cannot work: fourteen of them across the frame was a picket fence that buried the city.
+  // What a real forest has under the big trees is a crowd of small ones, and that band is also the
+  // only place more green can go without taking sky away from the city.
+  var uT=css(mixc(day?[58,74,50]:[9,12,11], skc, day?0.30:0.26));
+  var uD=css(mixc(day?[42,56,38]:[6,9,8],  skc, day?0.30:0.26));
+  var uN=Math.max(18,Math.round(SW/(11*K)));
+  for(i=0;i<uN;i++){
+    var uh=((i*2654435761+((WOFF*7)|0))>>>0);
+    var ux=Math.round((i+((uh%100)/100))*(SW/uN));
+    var uhh=Math.round((7+((uh>>>7)%16))*K), uw=Math.round((4+((uh>>>13)%7))*K);
+    g.fillStyle=((uh>>>3)&1)?uT:uD;
+    if((uh>>>19)&1){                                        // a tree fern: a short stem and a spray
+      g.fillRect(ux,gy-uhh,Math.max(1,Math.round(1.4*K)),uhh);
+      for(var fr=0;fr<5;fr++){ var fa=-2.4+fr*0.6;
+        for(var fq=1;fq<uw;fq++)
+          g.fillRect(Math.round(ux+Math.cos(fa)*fq),Math.round(gy-uhh+Math.sin(fa)*fq*0.55),
+                     Math.max(1,Math.round(K)),Math.max(1,Math.round(K))); }
+    } else {                                                // or a sapling: a small ragged crown
+      g.fillRect(ux,gy-uhh,Math.max(1,Math.round(1.4*K)),uhh);
+      folMass(g,ux,gy-uhh+uw*0.4,uw,uw*0.72,uh,K);
+    }
+  }
   // THE MID RANK — old-growth between the treeline and the giants. Hazed halfway between the two so
   // the eye reads three distances instead of two, and tall enough that its crowns sit in the middle
   // of the frame, which is the band that was empty sky.
@@ -12279,7 +12330,7 @@ function drawForestBackdrop(g,L,now,nd){
   for(i=0;i<bioTrees.near.length;i++){ t=bioTrees.near[i];
     for(w=-1;w<=1;w++){ sx=Math.round(t.x-WOFF+w*WW);
       if(sx+t.w<-2||sx-t.w>SW+2) continue;
-      drawBole(g,t,sx,gy,nT,nB,nC,K,true,litK*0.8);
+      drawBole(g,t,sx,gy,nT,nB,nC,K,true,litK*0.8,day?"rgba(122,142,96,0.62)":"rgba(20,30,24,0.7)");
     }
   }
 }
@@ -12287,6 +12338,193 @@ function drawForestBackdrop(g,L,now,nd){
 // occlude the skyline, the road and the traffic — the city was built around them and they are still
 // here. Darker and cooler than the back ranks (they are in their own shade, not the sky's light),
 // which is also what keeps them reading as NEAR rather than as more backdrop.
+// WHERE THINGS HANG FROM, and WHERE THE TROOP TRAVELS. Both are stable per life, so both cache onto
+// bioTrees — which is rebuilt every life, so the cache invalidates itself. Same idiom as
+// `bioTrees.walks` and `mtsCache.plats`; re-deriving stable per-life data every frame is exactly
+// what caused the citizen-sim freeze.
+function forestHangs(){
+  if(bioTrees.hangs) return bioTrees.hangs;
+  var out=[], all=bioTrees.near.concat(bioTrees.fore), i, j, K=Math.max(1,KSP);
+  for(i=0;i<all.length;i++){
+    var t=all[i], n=3+(((i*2654435761)>>>0)%3);
+    for(j=0;j<n;j++){
+      var h=((i*7919+j*104729+((t.ph*1013)|0))>>>0);
+      // ⚠ The anchor sits ON THE BOLE, at its edge. The first version offset x by up to 0.85 of the
+      // trunk width and the curtains came out hanging in mid-air beside the tree — pale gauze strips
+      // floating in the sky with nothing holding them. A drape has to visibly touch what it hangs
+      // from or it isn't a drape.
+      var side=(h&1)?1:-1;
+      out.push({ x:t.x+side*t.w*0.34,
+                 y:HORIZON-Math.min(t.h*0.88, HORIZON*(0.22+(((h>>>8)%60)/100)*0.58)),
+                 len:(20+((h>>>14)%76))*K, w:(3+((h>>>20)%6))*K,
+                 kind:1,                                            // lianas only (moss rides the foliage)
+                 ph:(((h>>>5)%628)/100) });
+    }
+  }
+  // …and drapes off the canopy band itself. These matter most: the upper third of the frame is where
+  // the giants have left and nothing else lives, and a curtain of moss coming down out of that band
+  // is the single thing that says the ceiling is real and a very long way up.
+  for(i=0;i<11;i++){
+    var h2=((i*40503+17)>>>0);
+    out.push({ x:(h2%Math.max(1,WW)), y:Math.round(SH*0.075)+((h2>>>7)%18),
+               len:(34+((h2>>>13)%96))*K, w:(4+((h2>>>19)%8))*K,
+               kind:(h2&1)?0:1, ph:(((h2>>>3)%628)/100) });   // the canopy band keeps both
+  }
+  bioTrees.hangs=out; return out;
+}
+// HANGING MOSS AND LIANAS — what turns a stand of tall trees into a RAINFOREST. The giants came out
+// of the last pass clean-shafted with empty air between them; a forest this old and this wet has
+// curtains of moss on every limb and vines running all the way down to the floor. Drawn in the LIVE
+// pass so they sway on the REAL measured wind — on a calm day this is correctly almost motionless,
+// which is the same contract every other biome accent here obeys.
+function drawForestHangings(g,L,now,K){
+  if(curBiome.k!=="forest"||!bioTrees) return;
+  var day=L>0.5, hangs=forestHangs(), gy=HORIZON;
+  var wind=(weather.wind==null?5:weather.wind), swayK=Math.min(1.4,wind/14);
+  var mossC=day?"rgba(112,136,88,0.80)":"rgba(22,34,26,0.80)";
+  var mossD=day?"rgba(82,104,66,0.72)":"rgba(13,22,17,0.74)";
+  var vineC=day?"rgba(70,88,54,0.82)":"rgba(12,20,15,0.85)";
+  var leafC=day?"rgba(104,136,78,0.85)":"rgba(16,28,19,0.85)";
+  var st=Math.max(1,Math.round(K));
+  for(var i=0;i<hangs.length;i++){ var hg=hangs[i];
+    if(hg.y>gy-4) continue;
+    for(var w=-1;w<=1;w++){ var sx=Math.round(hg.x-WOFF+w*WW);
+      if(sx+hg.w*3<-2||sx-hg.w*3>SW+2) continue;
+      var end=Math.min(hg.len,gy-hg.y-1);
+      if(end<3) continue;
+      if(hg.kind===0){
+        // a MOSS CURTAIN: rows of unequal width, tapering and fraying toward the bottom. Banded the
+        // same way folMass is — a per-row width roll combs into single-pixel hair.
+        for(var y=0;y<end;y+=st){
+          var f=y/end, band=Math.floor(y/(4*K));
+          var hh=(((i*2654435761)+band*7919)>>>0);
+          var ww=Math.round(hg.w*(1-f*0.55)*(0.62+((hh%1000)/1000)*0.62));
+          if(ww<1) continue;
+          var dx=Math.sin(now*0.00055+hg.ph+f*1.6)*swayK*f*3.2*K;
+          g.fillStyle=(band&1)?mossC:mossD;
+          g.fillRect(Math.round(sx+dx-ww),Math.round(hg.y+y),ww*2,st);
+        }
+      } else {
+        // a LIANA: one cord with leaf nodes down it, swinging further the lower you look
+        for(var y2=0;y2<end;y2+=st){
+          var f2=y2/end, dx2=Math.sin(now*0.00048+hg.ph+f2*1.1)*swayK*f2*5*K;
+          g.fillStyle=vineC;
+          g.fillRect(Math.round(sx+dx2),Math.round(hg.y+y2),Math.max(1,Math.round(K*1.2)),st);
+          if(y2>4*K&&((y2/st)|0)%Math.max(3,Math.round(7*K))===0){
+            g.fillStyle=leafC;
+            var lw=Math.max(1,Math.round(2.2*K)), sd2=((i*31+y2)&1)?1:-1;
+            g.fillRect(Math.round(sx+dx2+(sd2>0?K:-lw)),Math.round(hg.y+y2),lw,Math.max(1,Math.round(1.4*K)));
+          }
+        }
+      }
+    }
+  }
+}
+// THE BRANCH LINES the troop travels. Between neighbouring giants, well below the canopy walkways so
+// the two never share a rope.
+function forestBrachs(){
+  if(bioTrees.brachs) return bioTrees.brachs;
+  var p=bioTrees.near.concat(bioTrees.fore).sort(function(a,b){ return a.x-b.x; }), out=[];
+  for(var i=0;i+1<p.length;i++){
+    var a=p[i], b=p[i+1], gap=b.x-a.x;
+    if(gap<30*KSP||gap>WW*0.20) continue;
+    if(((i*2654435761+91)>>>0)%100 > 78) continue;             // not every gap carries a route
+    var hf=0.30+((((i*40503+29)>>>0)%100)/100)*0.20;           // low in the canopy, under the walkways
+    out.push({x0:a.x, x1:b.x, y:Math.round(HORIZON-Math.min(a.h,b.h)*hf), ph:(i*53)%100,
+              n:1+(((i*7919)>>>0)%3)});                        // one to three of them on this line
+  }
+  bioTrees.brachs=out; return out;
+}
+// THE TROOP. Every animal this engine draws stands on the GROUND — nothing had ever used the trees as
+// a surface. These brachiate along a branch line hand over hand, and one in a while stops and just
+// hangs there. The swing is the whole read: a primate that slides along at a constant height is a
+// sprite on a rail, so the body rises and falls with each reach and the arm above it alternates.
+function drawPrimates(g,L,now,K){
+  if(curBiome.k!=="forest"||!bioTrees||cityPhase==="apoc") return;
+  var day=L>0.5, lines=forestBrachs();
+  var body=day?"#4a3a2c":"#14100c", fur=day?"#6b5540":"#1c1712", face=day?"#c19a72":"#3a2e22";
+  var bw=Math.max(3,Math.round(3.6*K)), bh=Math.max(4,Math.round(5*K));
+  for(var i=0;i<lines.length;i++){ var ln=lines[i];
+    if(ln.y<2||ln.y>HORIZON-6) continue;
+    for(var o=-1;o<=1;o++){
+      var a=Math.round(ln.x0-WOFF+o*WW), b=Math.round(ln.x1-WOFF+o*WW), span=b-a;
+      if(b<-12||a>SW+12||span<=0) continue;
+      var sag=Math.max(3,Math.round(span*0.12));
+      g.fillStyle=day?"rgba(58,48,34,0.75)":"rgba(10,9,7,0.85)";      // the branch they work along
+      for(var s=0;s<=span;s+=Math.max(1,Math.round(K))){
+        var fy=Math.sin(Math.PI*(s/span))*sag;
+        g.fillRect(a+s,Math.round(ln.y+fy),Math.max(1,Math.round(K)),Math.max(2,Math.round(2.6*K)));
+      }
+      for(var m=0;m<ln.n;m++){
+        var cyc=14000+ln.ph*70+m*2600, tp=((now+m*3100+ln.ph*260)%cyc)/cyc;
+        // out and back, with a PAUSE at each end — a troop that never stops reads as a conveyor
+        var f, resting=false;
+        if(tp<0.08){ f=0; resting=true; }
+        else if(tp<0.46){ f=(tp-0.08)/0.38; }
+        else if(tp<0.54){ f=1; resting=true; }
+        else if(tp<0.92){ f=1-(tp-0.54)/0.38; }
+        else { f=0; resting=true; }
+        var px=a+span*f, py=ln.y+Math.sin(Math.PI*f)*sag;
+        if(px<-6||px>SW+6) continue;
+        // ⚠ THE SPRITE HAD TO BE REBUILT. The first one drew the head as a pale bar sitting exactly
+        // where the arm met the body, and hung the tail off the side as a floating squiggle — at 4x
+        // zoom it read as a SUITCASE ON A HOOK. What makes it read as an animal is that the parts
+        // stack the way a body does: arm to a shoulder, head above and inboard of the shoulders,
+        // legs dangling BENT below, and a tail that leaves the base of the spine and curls back up.
+        var reach=resting?0:Math.abs(Math.sin(now*0.006+m*2.1));      // the swing itself
+        var hang=Math.round((4+reach*2.2)*K);
+        var X=Math.round(px), Y=Math.round(py+hang), u=Math.max(1,Math.round(K));
+        var hw3=(bw/2)|0;
+        g.fillStyle=fur;                                              // the gripping arm
+        g.fillRect(X-u,Math.round(py),u,hang);
+        if(!resting){                                                 // …and the one reaching ahead
+          var swing=(now*0.006+m*2.1)%(Math.PI*2), dir=swing<Math.PI?1:-1;
+          for(var aq=0;aq<hang;aq+=u)                                 // angled, so it reads as a reach
+            g.fillRect(X-u+Math.round(dir*aq*0.42),Math.round(py)+aq,u,u);
+        }
+        g.fillStyle=body; g.fillRect(X-hw3,Y,bw,bh);                  // torso
+        g.fillStyle=fur;  g.fillRect(X-hw3+u,Y+u,Math.max(1,bw-2*u),Math.max(1,bh-2*u));  // paler belly
+        g.fillStyle=body;                                             // two bent legs, dangling
+        g.fillRect(X-hw3,Y+bh,u,Math.round(1.6*K));
+        g.fillRect(X+hw3-u,Y+bh,u,Math.round(1.6*K));
+        g.fillRect(X-hw3-u,Y+bh+Math.round(1.6*K),u*2,u);
+        g.fillRect(X+hw3-u,Y+bh+Math.round(1.6*K),u*2,u);
+        g.fillStyle=body;                                             // head, above and INBOARD
+        var hs=Math.max(2,Math.round(2.6*K));
+        g.fillRect(X-((hs/2)|0),Y-hs,hs,hs);
+        g.fillStyle=face; g.fillRect(X-((hs/2)|0)+u,Y-hs+u,Math.max(1,hs-2*u),Math.max(1,hs-2*u));
+        g.fillStyle=fur;                                              // the tail: off the spine, curling up
+        var tl=Math.round(7*K), tx=X-hw3, ty=Y+bh-u;
+        for(var tq=0;tq<tl;tq++){
+          var tf=tq/tl;
+          g.fillRect(Math.round(tx-tf*5*K),Math.round(ty+Math.sin(tf*3.1)*3.4*K-tf*1.4*K),u,u);
+        }
+      }
+    }
+  }
+  // SQUIRRELS RUNNING THE BOLES. The roster has had a squirrel since the fauna table landed, drawn
+  // as a `spot` — a speck on the GROUND, which is the one place a squirrel in an old-growth forest
+  // mostly is not. These go up and down the trunks of the near giants in short bursts with a pause
+  // at the top, which is what a squirrel actually does.
+  for(var q=0;q<bioTrees.near.length;q++){
+    var qt=bioTrees.near[q], qh=((q*2654435761+331)>>>0);
+    if((qh%100)>62) continue;                                       // not every tree has one on it
+    var qcyc=9000+(qh%5000), qp=((now+q*2200)%qcyc)/qcyc;
+    var climb=qp<0.40?(qp/0.40):(qp<0.55?1:(qp<0.95?1-(qp-0.55)/0.40:0));
+    var qy=HORIZON-4*K-climb*Math.min(qt.h*0.7,HORIZON*0.55);
+    for(var qo=-1;qo<=1;qo++){
+      var qx=Math.round(qt.x-WOFF+qo*WW)+Math.round(qt.w*((qh&1)?0.22:-0.22));
+      if(qx<-6||qx>SW+6) continue;
+      var qu=Math.max(1,Math.round(K)), bob=(Math.floor(now/110)+q)&1?0:qu;
+      g.fillStyle=day?"#6d4d2e":"#160f09";
+      g.fillRect(qx,Math.round(qy)+bob,qu*2,Math.max(1,Math.round(1.6*K)));      // the body, low to the bark
+      g.fillRect(qx+qu*2,Math.round(qy)+bob-qu,qu,qu);                            // head
+      g.fillStyle=day?"#8a6741":"#1d140c";                                        // and the big tail, arched
+      g.fillRect(qx-qu,Math.round(qy)+bob-qu,qu,Math.round(2.4*K));
+      g.fillRect(qx-qu,Math.round(qy)+bob-Math.round(2.4*K),qu*2,qu);
+    }
+  }
+}
 function drawForestNear(g,L,now,nd){
   // No apoc guard. drawBiomeDetail has one and it is right there — mist and hoodoos are DETAIL — but
   // these giants are structural: with the guard inherited, the moment a cataclysm began the two
@@ -12298,14 +12536,16 @@ function drawForestNear(g,L,now,nd){
   for(var i=0;i<bioTrees.fore.length;i++){ var t=bioTrees.fore[i];
     for(var w=-1;w<=1;w++){ var sx=Math.round(t.x-WOFF+w*WW);
       if(sx+t.w*1.4<-2||sx-t.w*1.4>SW+2) continue;
-      drawBole(g,t,sx,gy,fT,fB,fC,K,true,litK);
+      drawBole(g,t,sx,gy,fT,fB,fC,K,true,litK,day?"rgba(96,118,74,0.78)":"rgba(14,22,17,0.8)");
       // roots buckling the pavement the city laid around the trunk
       g.fillStyle=fB;
       for(var r=1;r<=3;r++){ var rw=Math.round(t.w*(0.34+r*0.16)), rh=Math.max(1,Math.round(K));
         g.fillRect(sx-rw,gy-Math.round(r*1.6*K),rw*2,rh); }
     }
   }
-  drawCanopyWalks(g,L,now,K,gy);
+  drawForestHangings(g,L,now,K);   // moss curtains and lianas, swaying on the real wind
+  drawPrimates(g,L,now,K);         // …and the troop working the branch lines between the giants
+  drawCanopyWalks(g,L,now,K,gy);   // (people last, so a walkway reads as in front of the vines)
 }
 // Which gaps between the giants carry a span. Worked out once and cached ON bioTrees, which is
 // rebuilt every life, so the cache invalidates itself — no per-frame sort. (The citizen-sim freeze
@@ -18487,9 +18727,16 @@ function draw(g,pass){
   // ---- AMBIENT SEASONAL DRIFTERS: autumn leaves / spring petals on the breeze (WIND-REACTIVE) ----
   var drift=(curSeason&&cityPhase!=="apoc"&&!fx.rain&&!fx.snow&&!fx.thunder&&!fx.fog&&L>0.16);
   var isAut=drift&&curSeason.name==="autumn", isSpr=drift&&curSeason.name==="spring"&&curSeason.blossom;
-  if(isAut||isSpr){
-    var arr=isAut?leaves:petals, N=isAut?64:74, windK=Math.min(2.4,(weather.wind||5)/13);          // gust factor 0..2.4 from real wind
-    var pal=isAut?["#c9852e","#b5651d","#d9822b","#8a3b1e","#e0b040"]:["#f4bcda","#ffffff","#ffd6e8","#f7c9df"];
+  // THE OLD FOREST SHEDS ALL YEAR. Everywhere else leaf-fall is a season — autumn, once — but a wet
+  // old-growth canopy is always dropping something, and Nick asked for leaves coming down from the
+  // top. Rather than a second particle system, the forest just qualifies for this one in every
+  // season, in its own green, and autumn there is heavier than autumn anywhere else.
+  var isFor=drift&&curBiome.k==="forest"&&!isSpr;
+  if(isAut||isSpr||isFor){
+    var arr=(isSpr?petals:leaves), N=isSpr?74:(isAut?(isFor?92:64):46), windK=Math.min(2.4,(weather.wind||5)/13);
+    var pal=isSpr?["#f4bcda","#ffffff","#ffd6e8","#f7c9df"]
+          :(isAut?["#c9852e","#b5651d","#d9822b","#8a3b1e","#e0b040"]
+                 :["#6f8f4e","#84a45c","#587a42","#9aad68","#c2a24a"]);   // green litter, one gone gold
     while(arr.length<N) arr.push({x:Math.random()*SW,y:Math.random()*HORIZON,v:0.18+Math.random()*0.5,ph:Math.random()*6,c:(Math.random()*pal.length)|0});
     if(arr.length>N) arr.length=N;
     for(var di=0;di<arr.length;di++){ var p=arr[di];
@@ -18498,7 +18745,7 @@ function draw(g,pass){
       if(p.y>HORIZON-1){ p.y=-2; p.x=Math.random()*SW; }
       if(p.x>SW+2) p.x=-2; else if(p.x<-2) p.x=SW+2;
       g.fillStyle=pal[p.c];
-      if(isAut){ var tw2=(Math.sin(now*0.004+p.ph*2)>0)?1:0; g.fillRect(p.x|0,p.y|0,2,1); g.fillRect((p.x+tw2)|0,(p.y+1)|0,1,1); }  // a small tumbling leaf
+      if(isAut||isFor){ var tw2=(Math.sin(now*0.004+p.ph*2)>0)?1:0; g.fillRect(p.x|0,p.y|0,2,1); g.fillRect((p.x+tw2)|0,(p.y+1)|0,1,1); }  // a small tumbling leaf
       else g.fillRect(p.x|0,p.y|0,1,1); }                                                            // a petal speck
   } else { if(leaves.length) leaves.length=0; if(petals.length) petals.length=0; }
 
