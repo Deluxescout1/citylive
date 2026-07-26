@@ -6498,16 +6498,69 @@ function drawReefLagoon(g,L,now,sa,sb,zi,wTop){
   if(curBiome.k!=="beach") return;
   var span=sb-sa; if(span<12) return;
   var day=L>0.5, K=Math.max(1,KSP);
-  var inner=zi?sa:sb, sgn=zi?-1:1;
-  // THE LAGOON: a pale turquoise shelf hugging the shore, which is what makes tropical water read as
-  // tropical. Open sea keeps the deep blue every other coast uses.
-  g.fillStyle=day?"rgba(104,214,206,0.34)":"rgba(26,80,92,0.36)";
-  var shelf=Math.round(span*0.42);
-  for(var lq=0;lq<shelf;lq++)
-    g.fillRect(inner-sgn*lq,wTop+Math.round((lq/Math.max(1,span))*7*K),1,HORIZON-wTop);
+  var inner=zi?sa:sb, sgn=zi?-1:1, wDep=Math.max(1,HORIZON-wTop);
+  // ⚠⚠ NICK, ON SEEING THE FIRST VERSION: "it just looks like blocks of water it doesn't even look
+  // natural." He was right, and the reason is structural, not palette. The bay is an x-RANGE, so the
+  // waterline came out as a dead-straight VERTICAL edge — a wall of water beside the city — and the
+  // depth banding ran horizontally in from that wall, which is the wrong axis: in this projection y
+  // IS distance, so depth has to grade UP the frame, not sideways.
+  // Everything below rebuilds the coast around a SHORELINE CURVE instead. For each row, the sand edge
+  // sits further inland the nearer the row is to the viewer, so the bay OPENS toward us the way a cove
+  // does, and it meanders on top of that. It runs at every city age: a resort coast does not grow
+  // concrete quays, which is what used to replace the natural shore at cityG 0.62.
+  function shoreAt(y){
+    var f=(y-wTop)/wDep;
+    // ⚠ The sweep was 0.30 of the span and the meander was small next to it, so the shoreline came
+    // out a clean DIAGONAL — a sand ramp, not a beach. A coastline's shape is mostly wander; the
+    // sweep only has to be enough to say "this recedes". Three octaves so it never repeats.
+    var sweep=span*0.13*Math.pow(Math.max(0,f),1.25);
+    var meander=Math.sin(y*0.043+sa*0.21)*5.5*K
+               +Math.sin(y*0.014+1.9)*11*K
+               +Math.sin(y*0.101+sa*0.07)*2.2*K;
+    return inner+sgn*Math.round(sweep+meander*(0.45+f*0.7));
+  }
+  // ---- THE WATER, graded by DISTANCE (up the frame), and hazed into the horizon at the far edge ----
+  var deepC =day?[24,86,132] :[7,20,38];
+  var midC  =day?[38,150,170]:[10,40,58];
+  var shalC =day?[142,224,214]:[26,74,86];
+  for(var wy=wTop;wy<HORIZON;wy++){
+    var wf=(wy-wTop)/wDep;
+    var band=wf<0.55?mixc(deepC,midC,wf/0.55):mixc(midC,shalC,(wf-0.55)/0.45);
+    var haze=Math.max(0,1-wf*4.5);                             // the far water melts into the sky
+    if(haze>0) band=mixc(band,biomeSkc(day),haze*0.55);
+    var edge=shoreAt(wy);
+    var x0=Math.min(edge,zi?sb:sa), x1=Math.max(edge,zi?sb:sa);
+    if(x1<=x0) continue;
+    g.fillStyle=css(band);
+    g.fillRect(x0,wy,x1-x0,1);
+    // a few glints riding the swell, denser in the shallows where the bottom is close
+    if(((wy*7+((now*0.004)|0))%Math.max(3,Math.round(7-wf*4)))===0){
+      g.fillStyle=day?"rgba(255,255,255,"+(0.10+0.16*wf).toFixed(2)+")":"rgba(170,206,236,0.09)";
+      var gx=x0+((wy*53+((now*0.02)|0))%Math.max(2,x1-x0));
+      g.fillRect(gx,wy,Math.round(3*K),1);
+    }
+  }
+  // ---- THE WATERLINE: foam on the curve, then wet sand, then dry sand widening toward the city ----
+  for(var sy2=wTop+Math.round(2*K);sy2<HORIZON;sy2++){
+    var e2=shoreAt(sy2), sf=(sy2-wTop)/wDep;
+    var lap=Math.sin(now*0.0017+sy2*0.5+sa);
+    var fw2=Math.max(1,Math.round((1.2+Math.max(0,lap)*2.2)*K));
+    g.fillStyle="rgba(255,255,255,"+(0.24+0.34*Math.max(0,lap)).toFixed(2)+")";
+    g.fillRect(e2-(sgn>0?fw2:0),sy2,fw2,1);                                          // foam, always wet
+    g.fillStyle=day?"rgba(186,164,124,0.9)":"rgba(48,44,36,0.9)";                    // wet sand, darker
+    g.fillRect(sgn>0?e2:e2-Math.round(2.4*K),sy2,Math.round(2.4*K),1);
+    // and the DRY BEACH behind it — this is the band that holds the city back off the water. Without
+    // it the road ran straight to the waterline and the town looked like it was standing in the sea.
+    var dw=Math.round((4+sf*4.5)*K);
+    g.fillStyle=day?(((sy2*7)%5)<2?"rgba(244,232,200,0.95)":"rgba(234,218,180,0.95)"):"rgba(74,68,54,0.9)";
+    g.fillRect(sgn>0?e2+Math.round(2.4*K):e2-Math.round(2.4*K)-dw,sy2,dw,1);
+    if(((sy2*11)%13)===0){ g.fillStyle=day?"rgba(210,192,152,0.7)":"rgba(52,48,38,0.7)";
+      g.fillRect(sgn>0?e2+Math.round(3*K):e2-Math.round(4*K),sy2,Math.round(2*K),1); }   // shell/wrack line
+  }
   // THE REEF CREST — breakers standing in one place, because a reef does not move. The single
   // strongest "coral coast" cue in the frame.
-  var rfX=inner-sgn*Math.round(span*0.46);
+  var rfMidY=wTop+Math.round(wDep*0.55);
+  var rfX=shoreAt(rfMidY)-sgn*Math.round(span*0.46);
   g.fillStyle=day?"rgba(214,238,228,0.40)":"rgba(64,102,110,0.32)";
   g.fillRect(Math.min(rfX,inner),wTop,Math.abs(inner-rfX),Math.max(1,Math.round(K)));
   for(var ry=wTop+Math.round(2*K);ry<HORIZON;ry+=Math.max(1,Math.round(2*K))){
