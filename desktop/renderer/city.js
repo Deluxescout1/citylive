@@ -2836,9 +2836,21 @@ var mtsCache=null;     // per-screen silhouette cache (the range never moves wit
 //                         gulls key off hasOcean, because forest carries water:null and can still
 //                         roll itself a coast.
 var BIOMES=[
-  { k:"alpine", name:"ALPINE",     amp:1.00, base:1.00, flat:0.0, steep:0.0, snow:true,  water:null,
-    far:[126,146,182], near:[100,116,152], cap:[234,240,250], ground:null, walls:null, fauna:null,
-    flora:null, sky:null },
+  // ⚠ THIS ENTRY WAS `fauna:null, flora:null, ground:null, walls:null, sky:null` — the ONLY land in
+  // the table with nothing living on it, while its own two variants (THE DOLOMITES, THE DRY RANGE)
+  // both carried full rosters. Nick called the mountains his gold standard; a contact sheet of all
+  // seventeen lands showed they were in fact the thinnest thing we shipped, and they read well only
+  // because a mountain range is a strong silhouette. Nulls here also meant `drawBiomeLandmark`
+  // early-returns on `!B.fauna`, so alpine could not have a landmark either.
+  { k:"alpine", name:"ALPINE",     amp:1.00, base:1.00, flat:0.0, steep:0.0, snow:true,  water:null, alpine:1,
+    far:[126,146,182], near:[100,116,152], cap:[234,240,250], ground:[132,140,124],
+    // stone-and-timber chalets: whitewashed render, weathered larch, slate
+    walls:[[228,224,212],[196,188,172],[142,110,78],[240,238,230],[168,132,92],[178,176,170],[210,204,190],[120,96,70]],
+    // ibex work the rock itself, marmots the scree, eagles the ridge lift — see drawAlpineLife
+    fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:1}, big:["ibex","bighorn"], small:["marmot"], air:["eagle","raven"] },
+    // krummholz at the treeline (a wind-bent pine IS the alpine plant), juniper and meadow below it
+    flora:{ kinds:["windbent","juniper","grass","windbent","scrub"], bloom:["#e8b0d0","#ffe08a","#ffffff","#b0c8f0"] },
+    sky:{ top:[74,132,206], bot:[198,220,240], k:0.30, haze:[210,226,240] } },
   { k:"forest", name:"OLD FOREST", amp:0.86, base:0.55, flat:0.0, steep:0.0, snow:false, water:null,
     far:[74,104,86],   near:[46,74,58],    cap:[120,152,110], ground:[62,92,64],
     walls:[[112,84,58],[96,72,48],[138,106,72],[196,186,164],[86,96,74],[120,110,88],[150,132,102],[72,84,66]],
@@ -15745,15 +15757,40 @@ function drawBiomeLandmark(g,L,now,nd){
     // is built into the range itself, on whatever ledge the cached ridge profile actually offers, and
     // reached by a rope stair cut down the rock. Older than the city; it does not wait for cityG.
     if(!mtsCache||!mtsCache.h||!mtsCache.h[1]) return;
-    var hs9=mtsCache.h[1], best=-1, bestH=0;
-    for(var mx9=Math.round(SW*0.10);mx9<Math.round(SW*0.90);mx9+=Math.max(2,Math.round(3*K))){
-      var lv=Math.min(hs9[mx9],hs9[Math.min(SW-1,mx9+Math.round(8*K))]);            // wants a LEVEL run
-      var dv=Math.abs(hs9[mx9]-hs9[Math.min(SW-1,mx9+Math.round(8*K))]);
-      if(lv>24*K&&dv<5*K&&lv>bestH){ bestH=lv; best=mx9; }
+    var hs9=mtsCache.h[1], mw9=Math.round(13*K), mh9=Math.round(9*K);
+    // ⚠⚠ TWO BUGS, AND THEY COMPOUNDED INTO A MONASTERY HANGING IN MID-AIR ABOVE THE SUMMIT.
+    // (1) The search maximised HEIGHT subject to being level — but on a cone the highest level run is
+    //     the APEX itself, so "the monastery on the ledge" crowned the peak like a hat. A ledge is a
+    //     shelf on the FLANK; the top of the range is excluded outright now.
+    // (2) It sampled only two columns 8K apart and anchored the base to their MINIMUM, while the
+    //     building is 13K wide. Wherever the rock fell away under the rest of that width, the base sat
+    //     above the mountain with sky beneath it. Anchor to the LOWEST terrain under the FULL
+    //     footprint — a building cannot float if its floor is at the lowest ground it covers.
+    // ⚠ AND THE STRICT VERSION OF THIS SEARCH SILENTLY DELETED THE LANDMARK FROM THE DRY RANGE.
+    // A lower, rougher range has no shelf that is both high and flat to within 4K, so nothing passed
+    // and the variant lost its landmark altogether — trading a visible bug for an invisible one.
+    // Relax the levelness in passes and take the first that finds anywhere; the base anchor to the
+    // LOWEST ground under the full footprint is what actually prevents floating, so a rougher ledge
+    // is safe, it just beds the building deeper into the rock.
+    var mxTop=mtsCache.mx[1]||0, best=-1, bestScore=-1, bestBase=0, tol;
+    for(var pass9=0;pass9<3&&best<0;pass9++){
+      tol=[4,8,14][pass9]*K;
+      var minH=[22,16,10][pass9]*K, capF=[0.80,0.88,1.00][pass9];
+      for(var mx9=Math.round(SW*0.10);mx9<Math.round(SW*0.90)-mw9;mx9+=Math.max(2,Math.round(3*K))){
+        var lo=1e9, hi=-1e9;
+        for(var fx9=0;fx9<=mw9;fx9++){ var hv=hs9[Math.min(SW-1,mx9+fx9)]|0;
+          if(hv<lo) lo=hv; if(hv>hi) hi=hv; }
+        if(lo<minH) continue;                       // needs real mountain under the whole footprint
+        if(hi-lo>tol) continue;                     // and reasonably level across it
+        if(lo>mxTop*capF) continue;                 // ⚠ not the summit — a LEDGE, on the flank
+        // prefer a high ledge with a big drop below it: that is what "clinging to a cliff" means
+        var belowX=Math.min(SW-1,mx9+mw9+Math.round(6*K)), drop=lo-(hs9[belowX]|0);
+        var score=lo+drop*1.6;
+        if(score>bestScore){ bestScore=score; best=mx9; bestBase=lo; }
+      }
     }
     if(best<0) return;
-    var LX=best, LY=gy-Math.round(bestH);
-    var mw9=Math.round(13*K), mh9=Math.round(9*K);
+    var LX=best, LY=gy-Math.round(bestBase);
     g.fillStyle=day?"#a89a86":"#3b3630";                                            // the main block
     g.fillRect(LX,LY-mh9,mw9,mh9);
     g.fillStyle=day?"#8d7f6c":"#2b2723";                                            // its stepped roof
@@ -15770,7 +15807,7 @@ function drawBiomeLandmark(g,L,now,nd){
       g.globalCompositeOperation="source-over"; }
     // THE ROPE STAIR. ⚠ Rungs alone read as a stack of loose bars floating beside the rock — a
     // ladder has to have RAILS or it is just tally marks. Two cords plus rungs between them.
-    var stH=Math.round(bestH*0.55), stStep=Math.max(2,Math.round(2.4*K)), rW=Math.max(1,Math.round(K));
+    var stH=Math.round(bestBase*0.55), stStep=Math.max(2,Math.round(2.4*K)), rW=Math.max(1,Math.round(K));
     for(var st9=0;st9<stH;st9++){
       var sxx9=LX-Math.round(2*K)-Math.round(st9*0.30);
       g.fillStyle=day?"#5c5245":"#14120d";
@@ -16200,6 +16237,140 @@ function drawSpireWorld(g,L,now,nd){
       g.globalCompositeOperation="source-over"; }
   }
 }
+// ================================================================================================
+// THE MOUNTAIN, ALIVE
+// ------------------------------------------------------------------------------------------------
+// A contact sheet of all seventeen lands said one thing louder than anything else: every land except
+// the OLD FOREST is a thin band of content under 50-70% of empty sky. The forest is the only one that
+// fills the frame, and it does it with CANOPY — content above the horizon. So the fix for a mountain
+// is not more sprites on the ground band, where you can barely see them behind the city; it is to put
+// life and weather ON THE ROCK and IN THE AIR, which on this land is most of the picture.
+//
+// Everything here is placed off the cached ridge profile (`mtsCache.h[1]`), so it sits on the real
+// silhouette of THIS life's range rather than at invented coordinates, and everything is a pure
+// function of (seed, now) so all three of Nick's monitors agree without talking to each other.
+// Runs in the LIVE pass: the backdrop repaints slowly by design, and a soaring bird that updates
+// twice a second is a stuttering bird.
+function drawAlpineLife(g,L,now,nd,fx){
+  if(!curBiome.alpine || !mtsCache || !mtsCache.h || !mtsCache.h[1]) return;
+  if(cityPhase==="apoc") return;
+  var K=Math.max(1,KSP), gy=HORIZON, hs=mtsCache.h[1], day=L>0.5;
+  var wind=(weather.wind==null?6:weather.wind), windDir=(wind<0?-1:1);
+  function ridgeY(sx){ var ci=Math.max(0,Math.min(SW-1,sx|0)); return gy-(hs[ci]|0); }
+  function ridgeH(sx){ var ci=Math.max(0,Math.min(SW-1,sx|0)); return hs[ci]|0; }
+
+  // ---- THE SUMMITS: find the few real high points, once, off the cached profile ----------------
+  var peaks=[], step=Math.max(2,Math.round(3*K));
+  for(var px=step;px<SW-step;px+=step){
+    var h0=ridgeH(px);
+    if(h0<34*K) continue;
+    if(h0>=ridgeH(px-step)&&h0>=ridgeH(px+step)) peaks.push({x:px,h:h0});
+  }
+  peaks.sort(function(a,b){ return b.h-a.h; });
+  var tops=[], tsep=Math.round(52*K);
+  for(var pi=0;pi<peaks.length&&tops.length<3;pi++){
+    var okp=true;
+    for(var ti=0;ti<tops.length;ti++) if(Math.abs(peaks[pi].x-tops[ti].x)<tsep){ okp=false; break; }
+    if(okp) tops.push(peaks[pi]);
+  }
+
+  // ---- SPINDRIFT: snow torn off the summit ridge and streaming downwind ------------------------
+  // The one weather effect that only exists on a mountain, and it is driven by the REAL wind speed —
+  // calm days get nothing, and it is the plume that tells you how hard it is blowing up there.
+  if(curBiome.snow && wind>7 && !fx.fog){
+    var plume=Math.min(1,(wind-7)/22);
+    for(var s=0;s<tops.length;s++){
+      var tp=tops[s], tx=tp.x, ty=gy-tp.h;
+      var n=Math.round((10+18*plume)*K);
+      for(var q=0;q<n;q++){
+        var seedq=((s*7919+q*104729)>>>0), ph=((now*(0.00028+0.00016*plume)+seedq%997/997)%1);
+        var run=ph*(46+70*plume)*K;
+        var sx3=tx+windDir*run, sy3=ty-Math.sin(ph*2.1)*7*K-run*0.10+((seedq>>7)%5)-2;
+        if(sx3<-4||sx3>SW+4) continue;
+        var a3=(0.34-0.30*ph)*(0.45+0.55*plume);
+        if(a3<=0.01) continue;
+        g.fillStyle="rgba(250,252,255,"+a3.toFixed(3)+")";
+        g.fillRect(sx3|0,sy3|0,Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
+      }
+    }
+  }
+
+  // ---- BANNER CLOUD: the lens of cloud that hangs off a big peak on a humid day ------------------
+  if(tops.length && (weather.cloud==null?30:weather.cloud)>22 && !fx.rain && !fx.snow){
+    var bt=tops[0], bx=bt.x+windDir*Math.round(9*K), by=gy-bt.h-Math.round(3*K);
+    var bw=Math.round((30+((weather.cloud||30)*0.34))*K), bh=Math.round(5*K);
+    var bwob=Math.sin(now*0.00019)*2*K;
+    for(var bq=0;bq<bh;bq++){
+      var bf=bq/bh, ww2=Math.round(bw*(1-bf*0.45));
+      g.fillStyle="rgba(248,250,255,"+(0.30-0.20*bf).toFixed(3)+")";
+      g.fillRect((bx-(windDir<0?ww2:0)+bwob)|0,(by+bq)|0,ww2,1);
+    }
+  }
+
+  // ---- EAGLES RIDING THE RIDGE LIFT ------------------------------------------------------------
+  // Nick asked for "animals that DO things", and what a raptor DOES on a mountain is soar: it hangs
+  // on the updraught where wind hits the ridge and turns slow circles without a wingbeat. So these
+  // do not fly across the frame like the generic birds — they orbit a point just above the crest,
+  // and they only flap when they are climbing away.
+  var nEagle=(wind>3?2:1)+(tops.length>2?1:0);
+  for(var e2=0;e2<nEagle;e2++){
+    var esd=((e2*2654435761+911)>>>0);
+    var anchor=tops.length?tops[e2%tops.length]:null; if(!anchor) break;
+    var orbT=(now*0.000055+(esd%1000)/1000)%1, ang=orbT*2*Math.PI;
+    var rx=(26+((esd>>5)%16))*K, ry=(7+((esd>>9)%5))*K;
+    var ex=anchor.x+Math.cos(ang)*rx+((esd>>13)%9-4)*K;
+    var ey=gy-anchor.h-(10+((esd>>17)%12))*K+Math.sin(ang)*ry;
+    if(ex<-6||ex>SW+6) continue;
+    // wings: a soaring bird holds them flat and level; the slow roll is what reads as circling
+    var roll=Math.cos(ang), span=Math.max(2,Math.round(3.4*K));
+    var ec=day?"rgba(46,40,34,0.92)":"rgba(24,22,20,0.75)";
+    g.fillStyle=ec;
+    g.fillRect((ex-span)|0,(ey-Math.round(roll*K))|0,span,Math.max(1,Math.round(K)));
+    g.fillRect(ex|0,(ey+Math.round(roll*K))|0,span,Math.max(1,Math.round(K)));
+    g.fillRect(ex|0,ey|0,Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));   // body
+  }
+
+  // ---- IBEX TRAVERSING THE ROCK FACE -----------------------------------------------------------
+  // The generic fauna walks the ground band, where the city hides it. An ibex's whole point is that
+  // it is somewhere nothing else can stand, so these walk the SILHOUETTE — pinned to the ridge line
+  // itself, moving along it, which also puts them in the empty upper half of the frame.
+  var nIbex=2+((cityG<0.6)?1:0);
+  for(var ib=0;ib<nIbex;ib++){
+    var isd=((ib*104729+7717)>>>0);
+    var travel=((now*0.0000075+(isd%1000)/1000)%1);
+    var dir=(isd&1)?1:-1;
+    var ix=Math.round((dir>0?travel:1-travel)*SW);
+    if(ridgeH(ix)<24*K) continue;                    // only where there is real mountain under them
+    var iy=ridgeY(ix)-Math.round(2*K);
+    var bob=((now*0.004+ib*2.1)|0)%2;                 // a slow, deliberate step
+    var bodyC=day?"rgba(92,74,54,0.95)":"rgba(48,40,32,0.85)";
+    g.fillStyle=bodyC;
+    g.fillRect(ix|0,(iy-bob)|0,Math.max(2,Math.round(2.6*K)),Math.max(1,Math.round(1.8*K)));   // body
+    g.fillRect((ix+dir*Math.round(2.2*K))|0,(iy-bob-Math.round(K))|0,Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));  // head
+    // the horns — the reason you can tell an ibex from a goat at four pixels
+    g.fillStyle=day?"rgba(62,50,38,0.95)":"rgba(34,28,22,0.8)";
+    g.fillRect((ix+dir*Math.round(2.2*K))|0,(iy-bob-Math.round(2.2*K))|0,Math.max(1,Math.round(K)),Math.max(1,Math.round(1.4*K)));
+    g.fillRect((ix-dir*Math.round(0.4*K))|0,(iy-bob+Math.round(1.8*K))|0,Math.max(1,Math.round(K)),Math.max(1,Math.round(1.2*K)));  // legs
+  }
+
+  // ---- AVALANCHE: rare, brief, and only where the face is genuinely steep -----------------------
+  // Roughly a couple of minutes in every hour and a half, so it is a thing you CATCH rather than a
+  // thing that is always happening. Pure f(now), so every monitor sees the same slide.
+  var AV=5400000, avPh=((now%AV)/AV);
+  if(curBiome.snow && avPh<0.022 && tops.length){
+    var af=avPh/0.022, at=tops[(Math.floor(now/AV))%tops.length];
+    var asx=at.x+((Math.floor(now/AV)*7919)%17)-8, atop=gy-at.h;
+    var fall=(gy-atop)*Math.min(1,af*1.25);
+    for(var av=0;av<Math.round(26*K);av++){
+      var avf=av/Math.round(26*K), ay=atop+fall*avf;
+      if(ay>gy-2) break;
+      var aw=Math.round((2+10*avf*af)*K), ax=asx-aw*0.5+Math.sin(avf*5+now*0.004)*3*K;
+      g.fillStyle="rgba(252,253,255,"+((0.62-0.42*avf)*(1-Math.max(0,(af-0.72)/0.28))).toFixed(3)+")";
+      g.fillRect(ax|0,ay|0,Math.max(1,aw),Math.max(1,Math.round(1.6*K)));
+    }
+  }
+}
+
 // THE FALLS. Enormous cascades pouring off the edges of the plateau the city stands on — this land's
 // entire identity, and the only moving water in the set that falls rather than lies. Found from the
 // cached ridge: wherever a flat top DROPS sharply, that is an edge, and an edge is where water goes over.
@@ -21732,6 +21903,7 @@ function draw(g,pass){
   // Both sit UNDER the eclipse/ash veils and the HUD, so an eclipse still darkens the forest too.
   drawForestNear(g,L,now,nd);
   drawCanopyLight(g,L,now);
+  drawAlpineLife(g,L,now,nd,fx);   // eagles on the ridge lift, ibex on the rock, spindrift off the summits
   drawRoofRunners(g,L,now,nd);     // the Hidden Village crossing itself by rooftop
   drawNeonCity(g,L,now,nd);        // the neon style, over the city, whatever land it landed on
 
