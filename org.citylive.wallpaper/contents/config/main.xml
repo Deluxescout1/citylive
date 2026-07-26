@@ -26,6 +26,13 @@
     <entry name="notifyEvents" type="Bool">
       <default>true</default>
     </entry>
+    <!-- PERFORMANCE GUARD: stop drawing a screen whose wallpaper is completely covered by a window.
+         Measured on Nick's desktop: fully occluded by a fullscreen window cost 45.8% of one core
+         versus 43.5% visible — i.e. the wallpaper pays full price behind every game and video.
+         Plasma never marks the item invisible, so we have to work it out from the window list. -->
+    <entry name="pauseWhenCovered" type="Bool">
+      <default>true</default>
+    </entry>
     <!-- This screen's left edge in the global desktop (logical px). -1 = auto
          (read Screen.virtualX). Set explicitly only if auto-detect is wrong. -->
     <entry name="worldX" type="Int">

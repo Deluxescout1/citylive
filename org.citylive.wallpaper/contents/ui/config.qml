@@ -19,6 +19,7 @@ ColumnLayout {
     property bool cfg_bills: false
     property string cfg_quality: ""
     property bool cfg_notifyEvents: true
+    property bool cfg_pauseWhenCovered: true
     property bool cfg_chronicleEnabled: true
     property string chronicleText: i18n("No witnessed events yet. Leave CityLive running and its story will appear here.")
     property bool chronicleClearArmed: false
@@ -155,6 +156,19 @@ ColumnLayout {
             text: i18n("Notify me of major city events (elections, big disasters, takeovers, eclipses)")
             checked: cfgRoot.cfg_notifyEvents
             onToggled: cfgRoot.cfg_notifyEvents = checked
+        }
+
+        QQC2.CheckBox {
+            Kirigami.FormData.label: i18n("Performance:")
+            text: i18n("Stop drawing a screen while a window covers it")
+            checked: cfgRoot.cfg_pauseWhenCovered
+            onToggled: cfgRoot.cfg_pauseWhenCovered = checked
+        }
+        QQC2.Label {
+            Kirigami.FormData.label: ""
+            text: i18n("The city keeps its own time either way \u2014 it simply stops painting a picture nobody can see.")
+            opacity: 0.7; font.pointSize: theme.smallestFont.pointSize
+            wrapMode: Text.Wrap; Layout.maximumWidth: 460
         }
 
         Kirigami.Separator {

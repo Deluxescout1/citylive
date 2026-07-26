@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Window
 import QtQuick.LocalStorage
 import org.kde.plasma.plasmoid
+import org.kde.taskmanager as TaskManager
 import "../js/city.js" as City
 import "../js/localcfg.js" as Local   // per-machine personal settings (birthdays/location/cycle); committed EMPTY, filled by install.sh from config.local.json
 
@@ -82,6 +83,59 @@ WallpaperItem {
             return Math.max(0, Math.round(root.height - (r.y + r.height)));
         return 0;
     }
+
+    // ---- PERFORMANCE GUARD: never pay to draw a screen nobody can see ----
+    // Plasma does NOT mark a wallpaper invisible when a window covers it. Measured on this desktop:
+    // fully occluded by a fullscreen window cost 45.8% of one core versus 43.5% visible — the
+    // wallpaper pays full price behind every game, every fullscreen video, every maximised window,
+    // for a picture no one is looking at. When the probe that found this was first run, two of the
+    // three screens were completely covered and both were still drawing at full cost.
+    // So we work it out ourselves from the window list. This is the ONE throttle that costs nothing
+    // visually — by definition you cannot see what it turns off — which is why it runs by default.
+    // libtaskmanager refuses this protocol to untrusted clients, but a wallpaper lives inside
+    // plasmashell, which KWin trusts. It yields nothing when run standalone; test it in place.
+    readonly property bool guardOn: !configuration || configuration.pauseWhenCovered === undefined || configuration.pauseWhenCovered
+    property bool covered: false
+    TaskManager.TasksModel {
+        id: winModel
+        groupMode: TaskManager.TasksModel.GroupDisabled
+        filterByVirtualDesktop: true       // a maximised window on another desktop is not covering this one
+        filterByActivity: true
+    }
+    // Poll rather than react to model signals: a dozen rows once a second is free next to a frame,
+    // and it cannot get wedged in a stale state the way a missed signal can.
+    Timer {
+        interval: 1000; repeat: true; running: root.guardOn && root.visible
+        onTriggered: root.covered = root.isCovered()
+    }
+    function isCovered() {
+        // ⚠ COMPARE AGAINST THE AVAILABLE RECT, NOT THE SCREEN. A *maximised* window covers the
+        // screen MINUS the panels — the first version of this tested against the full screen rect
+        // and so never fired even once: Brave maximised on the 4K measured 2327x1259 against a
+        // 1309-tall screen, exactly the 50px panel short. What is left uncovered is the strip behind
+        // an opaque panel, which nobody can see either. Auto-hidden panels give the whole screen
+        // back, and then this is the full-screen test again.
+        var sx = Screen.virtualX, sy = Screen.virtualY, sw = root.width, sh = root.height;
+        if (sw < 8 || sh < 8) return false;
+        try {
+            var r = Plasmoid.availableScreenRect;
+            if (r && r.width > 8 && r.height > 8) { sx += r.x; sy += r.y; sw = r.width; sh = r.height; }
+        } catch (e) { /* unreachable → fall back to the whole screen */ }
+        for (var i = 0; i < winModel.count; i++) {
+            var idx = winModel.index(i, 0);
+            if (winModel.data(idx, TaskManager.AbstractTasksModel.IsMinimized)) continue;
+            var g = winModel.data(idx, TaskManager.AbstractTasksModel.Geometry);
+            if (!g || g.width < 8 || g.height < 8) continue;
+            // A couple of px of slack: a "maximised" window is often a hair short of the screen rect.
+            if (g.x <= sx + 2 && g.y <= sy + 2 && g.x + g.width >= sx + sw - 2 && g.y + g.height >= sy + sh - 2)
+                return true;
+        }
+        return false;
+    }
+    // Coming back has to be instant — a revealed desktop must not sit on a stale frame waiting for
+    // the next tick. The engine is clock-driven, so the city simply resumes at the correct moment;
+    // the dt cap (see FRAME_MS) already absorbs the gap so nothing lurches on the first frame back.
+    onCoveredChanged: if (!covered) { bgcv.requestPaint(); cv.requestPaint(); }
 
     Rectangle { anchors.fill: parent; color: "black" }
 
@@ -176,7 +230,7 @@ WallpaperItem {
     readonly property int frameMs: quality === "performance" ? 500 : (quality === "balanced" ? 125 : 83)
     Timer {
         interval: root.frameMs
-        running: root.visible
+        running: root.visible && !root.covered      // nothing to draw for while a window covers this screen
         repeat: true
         onTriggered: cv.requestPaint()
     }
@@ -185,7 +239,7 @@ WallpaperItem {
     // about once a second instead of twelve times. This is where the saving actually comes from.
     Timer {
         interval: root.quality === "performance" ? 4000 : (root.quality === "balanced" ? 2000 : 1000)
-        running: root.visible
+        running: root.visible && !root.covered
         repeat: true
         onTriggered: bgcv.requestPaint()
     }
