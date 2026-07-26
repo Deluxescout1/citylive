@@ -2912,7 +2912,13 @@ var EGG_BIOMES=[
     walls:[[214,196,168],[182,160,132],[228,214,188],[152,132,108],[198,178,150],[168,148,124],[220,206,180],[140,122,100]],
     fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:0}, big:["boar"], small:["squirrel","frog"], air:["hawk","crow"] },
     flora:{ kinds:["generic","fern","generic","willow","fern"], bloom:["#f0a0c0","#ffffff","#f8d8e8"] },
-    sky:{ top:[128,168,208], bot:[210,226,214], k:0.22, haze:[214,228,216] } }
+    sky:{ top:[128,168,208], bot:[210,226,214], k:0.22, haze:[214,228,216] } },
+  { k:"core",   name:"THE CORE WORLD", egg:1, amp:0.0, base:0.0, flat:0.0, steep:0.0, snow:false, water:null,
+    far:[92,102,124],  near:[58,66,86],   cap:[128,140,168], ground:[52,58,74],
+    walls:[[74,82,104],[52,58,76],[96,104,128],[40,46,62],[110,118,142],[62,70,90],[84,92,114],[46,52,68]],
+    fauna:null,
+    flora:null,
+    sky:{ top:[58,70,110], bot:[150,150,178], k:0.30, haze:[158,158,184] } }
 ];
 function eggOf(li){
   if(!EGG_BIOMES.length) return null;
@@ -3220,7 +3226,7 @@ function buildWorld(li){
   // gets no ridge at all (some lives have always been open country) — the other biomes ARE the land,
   // so they always stand.
   var flatLife = (li!==0 && curBiome.k==="alpine" && mg()>=0.72);
-  mts = (curBiome.k==="forest"||flatLife) ? null : {far:[],near:[]};
+  mts = (curBiome.k==="forest"||curBiome.k==="core"||flatLife) ? null : {far:[],near:[]};   // the core world has NO terrain at all
   if(mts){
     var MSC=KSP*Math.max(0.45,Math.min(1,WW/1300))*curBiome.amp;   // small worlds get proportionate peaks
     var nF=6+((mg()*4)|0), nN=4+((mg()*4)|0), mi;
@@ -14976,6 +14982,11 @@ function drawBiomeLandmark(g,L,now,nd){
       for(var lg=0;lg<3;lg++)
         g.fillRect(X-Math.round((10-lg*2)*K),gy-Math.round((2+lg*1.6)*K),Math.round(9*K),Math.max(1,Math.round(1.5*K)));
     });
+  } else if(B.k==="core"){
+    // ⚠ NOT HERE. The dome is drawn by drawCoreWorld, among the tower ranks — see drawCoreDome. Every
+    // other landmark survives by standing in the thin OUTSKIRTS, and on a world that is city everywhere
+    // there are no thin outskirts: the normal building layers draw after this function and painted
+    // straight over it. Being embedded in the fabric is also simply more right for this place.
   } else if(B.k==="leaf"){
     // THE ROCK. Faces carved in relief into a cliff above the village — the one thing that identifies
     // this place before you read a word. Generic carved elders, deliberately: unmistakable in silhouette
@@ -15417,6 +15428,161 @@ function drawVolcano(g,L,now,nd){
     g.fillRect(botX-Math.round(3*K),botY,Math.round(6*K),Math.round(3*K));
   }
 }
+// ============ THE CORE WORLD ============
+// The one land with NO TERRAIN. There is no range, no ground and no horizon line you can see — city to
+// the top of the frame and city below the street. Dispatched from drawMountains the way the forest is,
+// because on this world the CITY is the geography.
+//
+// ⚠ IT GROWS UPWARD, NOT OUTWARD. Nick's call, and it is the only growth law that makes sense here: on
+// day one it is already city to the horizon, but LOW, dense and dim. Over the week the towers extend,
+// levels stack, more traffic lanes open and more of it lights up. `cityG` drives height and light, never
+// extent — a village on Coruscant is a contradiction, and so is a CityLive land with no arc.
+//
+// Real weather still wins: the sky is drawn by the normal sky stack and shows between the towers, so a
+// clear June afternoon here is a clear June afternoon.
+function drawCoreWorld(g,L,now,nd){
+  var gy=HORIZON, day=L>0.5, K=Math.max(1,KSP), skc=biomeSkc(day);
+  var B=curBiome, up=Math.max(0.18,Math.min(1,cityG));      // how far the build has gone VERTICALLY
+  var lit=curLit!=null?curLit:1;
+  // FOUR DEPTH BANDS of towers, furthest first, each hazed harder toward the sky it stands in. The
+  // furthest band reaches the TOP of the frame — that is what removes the horizon.
+  var bands=[{d:0.80,h:1.00,step:11},{d:0.58,h:0.82,step:14},{d:0.34,h:0.64,step:18},{d:0.12,h:0.46,step:24}];
+  for(var bi=0;bi<bands.length;bi++){
+    if(bi===2) drawCoreDome(g,L,now,Math.max(Math.max(1,KSP)*1.7, gy/80));   // half the city behind it, half in front
+    var bd=bands[bi];
+    var base=mixc(day?B.near:[10,12,18], skc, bd.d);
+    var faceC=css(base), sideC=css(mixc(base,[0,0,0],0.22)), topC=css(mixc(base,[255,255,255],0.10));
+    var step=Math.max(4,Math.round(bd.step*K));
+    for(var x=-step;x<SW+step;x+=step){
+      var h=(((x+((WOFF*3)|0))*2654435761+bi*7919)>>>0);
+      var tw=Math.round(step*(0.62+((h%100)/100)*0.30));
+      // height: the band's reach, this tower's own roll, and the week's vertical build
+      var th=Math.round(gy*bd.h*(0.30+((h>>>7)%100)/100*0.70)*(0.34+0.66*up));
+      if(th<6*K) continue;
+      var tx=x+Math.round(((h>>>13)%40)/40*step*0.3), ty=gy-th;
+      g.fillStyle=faceC; g.fillRect(tx,ty,tw,gy-ty+2);
+      g.fillStyle=sideC; g.fillRect(tx+tw-Math.max(1,Math.round(tw*0.22)),ty,Math.max(1,Math.round(tw*0.22)),gy-ty+2);
+      g.fillStyle=topC;  g.fillRect(tx,ty,tw,Math.max(1,Math.round(K)));
+      // SETBACKS — a stack of levels rather than one extrusion, which is what says "built on top of
+      // itself for millennia" instead of "office block".
+      var lv=2+((h>>>17)%3);
+      for(var s=1;s<lv;s++){
+        var sy=ty+Math.round((th/lv)*s);
+        g.fillStyle=topC; g.fillRect(tx-Math.round(K),sy,tw+Math.round(2*K),Math.max(1,Math.round(K)));
+      }
+      // WINDOWS, in horizontal runs, and more of them lit the further the week has gone.
+      var wq=Math.max(3,Math.round(3.4*K));
+      for(var wy=ty+wq;wy<gy-wq;wy+=wq){
+        if((((wy*31+x)>>>0)%100) > 24+56*up) continue;
+        var wlit=day?0:lit;
+        g.fillStyle=day?"rgba(180,196,224,"+(0.30*(1-bd.d)).toFixed(2)+")"
+                       :"rgba(255,214,152,"+(0.16+0.5*wlit*(1-bd.d)).toFixed(2)+")";
+        g.fillRect(tx+Math.round(K),wy,tw-Math.round(2*K),Math.max(1,Math.round(K)));
+      }
+      if(!day&&bd.d<0.4&&((h>>>21)%5)===0){                  // a red aviation strobe on the near ranks
+        g.globalCompositeOperation="lighter";
+        if((Math.floor(now/1000)+x)&1){ g.fillStyle="rgba(255,72,60,0.9)";
+          g.fillRect(tx+Math.round(tw*0.4),ty-Math.round(1.6*K),Math.max(1,Math.round(1.4*K)),Math.max(1,Math.round(1.4*K))); }
+        g.globalCompositeOperation="source-over";
+      }
+    }
+  }
+  // SKY LANES. Streams of small lit craft at several heights, each running one way, the nearer lanes
+  // faster and brighter. This is the other half of what identifies the place, and it opens more lanes
+  // as the week goes on — traffic is part of how the city grows here.
+  var lanes=2+Math.round(up*3);
+  for(var ln=0;ln<lanes;ln++){
+    var lf=(ln+1)/(lanes+1);
+    var ly=Math.round(gy*(0.10+lf*0.66));
+    var dir=(ln&1)?1:-1, near=1-lf;
+    var spd=(0.06+near*0.16), gapx=Math.round((26+ln*9)*K);
+    for(var cx=0;cx<SW+gapx;cx+=gapx){
+      var off=((now*spd+ln*400)%gapx);
+      var px=dir>0?(cx+off):(SW-cx-off);
+      if(px<-4||px>SW+4) continue;
+      var cw=Math.max(1,Math.round((1.2+near*1.6)*K));
+      g.fillStyle=day?"rgba(48,54,72,"+(0.35+0.4*near).toFixed(2)+")":"rgba(20,22,30,0.8)";
+      g.fillRect(px,ly,cw*2,cw);
+      g.globalCompositeOperation="lighter";                  // headlight ahead, tail-light behind
+      g.fillStyle=day?"rgba(255,246,214,"+(0.25*near).toFixed(2)+")":"rgba(255,240,200,"+(0.55+0.35*near).toFixed(2)+")";
+      g.fillRect(px+(dir>0?cw*2:-cw),ly,cw,cw);
+      g.fillStyle="rgba(255,70,60,"+(day?0.16:0.45)+")";
+      g.fillRect(px+(dir>0?-cw:cw*2),ly,cw,cw);
+      g.globalCompositeOperation="source-over";
+    }
+  }
+}
+// THE GREAT DOME — the Core World's landmark, drawn from drawCoreWorld BETWEEN the tower bands so some
+// of the city stands behind it and some in front. A ribbed dome on a buttressed plinth with its own ring
+// of orbiting traffic; the ribs are the whole read, because a plain half-circle is a planetarium.
+function drawCoreDome(g,L,now,K){
+  var day=L>0.5, gy=HORIZON;
+  var X=Math.round(coreDomeX()-WOFF);
+  for(var o=-1;o<=1;o++){
+    var DX=X+o*WW;
+    if(DX<-Math.round(60*K)||DX>SW+Math.round(60*K)) continue;
+
+      var dr=Math.round(20*K), plw=Math.round(30*K), plh=Math.round(10*K);
+      var stone=day?"#b8bcc8":"#2c313c", stone2=day?"#8f95a4":"#1c2028", rib=day?"#d2d6e0":"#3c424e";
+      g.fillStyle=stone2;                                          // the plinth it stands on
+      g.fillRect(DX-plw,gy-plh,plw*2,plh);
+      g.fillStyle=stone;
+      g.fillRect(DX-plw,gy-plh,plw*2,Math.max(1,Math.round(1.6*K)));
+      for(var bt=0;bt<9;bt++){                                     // buttresses round the plinth
+        var bx=DX-plw+Math.round(bt*(plw*2/8));
+        g.fillStyle=stone; g.fillRect(bx,gy-plh,Math.max(1,Math.round(1.6*K)),plh);
+      }
+      // THE DOME, drawn row by row so it is actually round, with vertical ribs over it
+      for(var dy=0;dy<dr;dy++){
+        var f=dy/dr, w2=Math.round(dr*Math.sqrt(Math.max(0,1-f*f))*1.5);
+        if(w2<1) continue;
+        g.fillStyle=stone; g.fillRect(DX-w2,gy-plh-dy,w2*2,1);
+        g.fillStyle=stone2; g.fillRect(DX+w2-Math.round(w2*0.26),gy-plh-dy,Math.max(1,Math.round(w2*0.26)),1);
+      }
+      g.fillStyle=rib;
+      for(var rb=-4;rb<=4;rb++){                                   // the ribs, meeting at the crown
+        for(var ry=0;ry<dr;ry++){
+          var rf=ry/dr, rw=Math.round(dr*Math.sqrt(Math.max(0,1-rf*rf))*1.5);
+          var rx=Math.round(DX+(rb/4.4)*rw);
+          if(Math.abs(rx-DX)>rw) continue;
+          g.fillRect(rx,gy-plh-ry,Math.max(1,Math.round(K*0.8)),1);
+        }
+      }
+      g.fillStyle=stone;                                           // a lantern on the crown
+      g.fillRect(DX-Math.round(2*K),gy-plh-dr-Math.round(3*K),Math.round(4*K),Math.round(3.4*K));
+      if(!day){
+        g.globalCompositeOperation="lighter";
+        g.fillStyle="rgba(210,228,255,0.16)";                      // the floodlights washing up it
+        for(var fl=0;fl<5;fl++){
+          var fx4=DX-plw+Math.round(fl*(plw*2/4));
+          for(var fq=0;fq<Math.round(dr*1.2);fq++){
+            var ff4=fq/(dr*1.2);
+            g.globalAlpha=0.10*(1-ff4);
+            g.fillRect(fx4-Math.round(ff4*4*K),gy-plh-fq,Math.round((2+ff4*6)*K),1);
+          }
+        }
+        g.globalAlpha=1;
+        g.fillStyle="rgba(255,240,200,0.9)";                       // the crown lantern lit
+        g.fillRect(DX-Math.round(1.4*K),gy-plh-dr-Math.round(2.4*K),Math.round(2.8*K),Math.round(2*K));
+        g.globalCompositeOperation="source-over";
+      }
+      // AND ITS OWN RING OF TRAFFIC, circling rather than running in a lane — nothing else in the set
+      // orbits anything, and it is what says this building matters more than the ones around it.
+      for(var t2=0;t2<10;t2++){
+        var a4=now*0.00035+t2*0.628;
+        var ox=Math.round(Math.cos(a4)*(dr*1.7)), oy=Math.round(Math.sin(a4)*(dr*0.42));
+        var far4=Math.sin(a4)<0;                                   // behind the dome half the time
+        if(far4) continue;
+        g.fillStyle=day?"rgba(52,58,74,0.8)":"rgba(18,20,28,0.9)";
+        g.fillRect(DX+ox,gy-plh-Math.round(dr*0.55)+oy,Math.max(1,Math.round(1.6*K)),Math.max(1,Math.round(K)));
+        g.globalCompositeOperation="lighter";
+        g.fillStyle=day?"rgba(255,246,214,0.30)":"rgba(255,240,200,0.85)";
+        g.fillRect(DX+ox+(Math.cos(a4)>0?Math.round(1.6*K):-Math.round(K)),gy-plh-Math.round(dr*0.55)+oy,Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
+        g.globalCompositeOperation="source-over";
+      }
+      }
+}
+function coreDomeX(){ var r=rng((WORLD_SEED+9311)>>>0); return Math.round((0.30+r()*0.40)*WW); }
 // One ridge silhouette, run-length batched: the profile is static per life, so consecutive columns
 // share the same integer top and one wide fillRect covers the run (it was one 1px rect per column).
 // Identical pixels, far fewer draw calls — and now three bands share it instead of two.
@@ -15430,6 +15596,7 @@ function ridgeFill(g,style,hs,gy){
 }
 function drawMountains(g,L,now,nd){
   if(curBiome.k==="forest"){ drawForestBackdrop(g,L,now,nd); return; }   // the forest is the range here
+  if(curBiome.k==="core"){ drawCoreWorld(g,L,now,nd); return; }         // …and on the core world the CITY is
   if(!mts) return;
   var gy=HORIZON, day=L>0.5;
   var sunsetK=goldenK;   // sourced from the shared golden-hour global (identical law)
