@@ -147,8 +147,13 @@ test('the billboard library contains exactly 50 distinct realistic campaigns', (
 
 test('astronomy desk covers eclipses, major showers, and computed sky events', () => {
   const ctx = loadEngine();
+  // ⚠ These two dates used to sit on a hardcoded list that labelled BOTH as totals. They are not.
+  // From Norwich the 2026-08-12 eclipse is a small partial (the total runs over Iceland and Spain),
+  // and the 2026-08-28 lunar eclipse is a 93% PARTIAL, not a blood moon. The engine computes both
+  // from the real geometry now, so the headline names what this city actually gets — the old
+  // assertions were pinning the date table's mistakes. See test/eclipse-astro.test.js.
   assert.match(ctx.astroDesk(new Date(2026, 7, 12, 12)), /SOLAR ECLIPSE TODAY/);
-  assert.match(ctx.astroDesk(new Date(2026, 7, 28, 20)), /BLOOD MOON TONIGHT/);
+  assert.match(ctx.astroDesk(new Date(2026, 7, 28, 20)), /PARTIAL LUNAR ECLIPSE TONIGHT/);
   assert.strictEqual(ctx.currentShower(new Date(2026, 7, 12, 23)).n, 'PERSEID');
   assert.strictEqual(ctx.currentShower(new Date(2026, 11, 13, 23)).n, 'GEMINID');
   assert.strictEqual(typeof ctx.isSupermoon(new Date(2026, 0, 1)), 'boolean');

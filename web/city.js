@@ -344,6 +344,10 @@ function drawMoon(g,mx,my,mp,colony,R,dayFade,portent,now){
       var xt=ca*mw, mlit=blood?true:(wax?(dx>=xt-0.001):(dx<=-xt+0.001));              // phase terminator
       if(mlit) g.fillStyle=blood?"#b83c28":(day?"rgba(240,242,250,"+litA+")":"#eef0e6");
       else     g.fillStyle=blood?"#7a2818":(day?"rgba(214,222,236,"+darkA+")":"rgba(150,158,178,0.16)");
+      // PARTIAL LUNAR ECLIPSE: Earth's shadow eats the disc from one limb. Honest by design — a 40%
+      // partial is a bite out of a white Moon, not a blood moon, and that is what you would see.
+      if(!blood && eclipseMoonBite>0){ var shEdge=R-2*R*eclipseMoonBite;
+        if(dx<=shEdge) g.fillStyle=day?"rgba(150,120,120,"+darkA+")":"rgba(96,44,36,0.85)"; }
       g.fillRect((mx+dx)|0,(my+dy)|0,1,1); } }
   if(!blood){ for(var s=0;s<MOON_MARIA.length;s++){ var px=Math.round(MOON_MARIA[s][0]*R), py=Math.round(MOON_MARIA[s][1]*R);
     if(px*px+py*py>R*R-1.5) continue; var xt3=ca*Math.sqrt(Math.max(0,R*R-py*py)), onLit=wax?(px>=xt3):(px<=-xt3);
@@ -395,7 +399,7 @@ function drawColonyFall(g,mx,my,R,cf,now){
 function drawApocMoon(g,now,nd,L){
   if(cityPhase!=="apoc"||curDeath==="moonfall") return; var fx=wfx(); if(fx.rain||fx.snow||fx.fog||fx.thunder) return;
   var lst=lstHours(nd), mrd=moonRaDec(nd), maa=altAz(mrd.ra,mrd.dec,lst); if(maa.alt<2) return;
-  eclipseMoon = LUNAR_ECLIPSES.indexOf(ymd(nd))>=0; var mp=eclipseMoon?0.5:moonPhase(nd);
+  refreshMoonEclipse(nd); var mp=moonPhase(nd);
   var portent=Math.min(1,cityApoc*1.15), shatter=(curDeath==="bh")?Math.max(0,Math.min(1,(cityApoc-0.25)/0.5)):0;
   var mcol=colonyLevel('moon',now), colFall=(curWar&&curWar.f>=0&&curWar.f<1.4&&mcol>0.12)?Math.min(1,curWar.f):0;
   var colonyArg=colFall>0?mcol*(1-colFall*0.75):(portent>0.3?mcol*(1-portent):mcol);
@@ -595,13 +599,254 @@ function buildMilkyWay(){
 }
 
 // draw the real Norwich star field + moon (only when dark & clear)
+// ================================================================================================
+// ECLIPSES, COMPUTED FROM WHERE THE VIEWER ACTUALLY IS
+// ------------------------------------------------------------------------------------------------
+// Nick, 2026-07-26: "I want to make sure … you see it HOW you'd see it based on your Location. So
+// like I would see it different in Norwich than Buffalo or even Houston."
+//
+// There is no eclipse date table any more, and that is the point. An eclipse is not a day on a list;
+// it is the moment the Sun and Moon overlap IN YOUR SKY. Compute that and every date, past or future,
+// works forever with nobody maintaining anything — and Norwich, Buffalo and Houston disagree the way
+// they really do.
+//
+// ⚠⚠ THE STEP THAT MAKES IT LOCAL, AND THE ONE THAT IS EASY TO LEAVE OUT: the Moon's PARALLAX.
+// Comparing GEOCENTRIC positions gives every observer on Earth an identical eclipse — you can replace
+// the whole ephemeris, delete the date list, and still ship the original bug. The Moon's horizontal
+// parallax is about 1°, roughly TWICE its own diameter, and that shift is exactly why an eclipse is
+// total in one town and nothing at all three states over. Both bodies are converted geocentric ->
+// TOPOCENTRIC for the observer before their separation is measured. `topoRaDec` is load-bearing.
+//
+// Positions: Meeus "Astronomical Algorithms" 2nd ed — Sun ch.25, Moon ch.47 (60 longitude/distance
+// and 60 latitude terms), nutation ch.22, topocentric ch.40, lunar shadow ch.54. Validated in
+// `desktop/test/eclipse-astro.test.js` against Meeus's own worked examples AND against published
+// circumstances for real eclipses: the 2024-04-08 total reads Buffalo TOTAL at 15:21 EDT, Norwich
+// 90% and Houston 93%, all within ~1% of the published values.
+// ================================================================================================
+function ecRev(x){ x=x%360; return x<0?x+360:x; }
+function ecSin(x){ return Math.sin(x*DEG); }
+function ecCos(x){ return Math.cos(x*DEG); }
+function ecJD(nd){ return nd.valueOf()/86400000+2440587.5; }
+// Sun, geocentric apparent (Meeus 25) — ~1 arcsec, far better than an eclipse needs
+function ecSunPos(jd){
+  var T=(jd-2451545.0)/36525.0;
+  var L0=280.46646+36000.76983*T+0.0003032*T*T;
+  var M=357.52911+35999.05029*T-0.0001537*T*T;
+  var e=0.016708634-0.000042037*T-0.0000001267*T*T;
+  var C=(1.914602-0.004817*T-0.000014*T*T)*ecSin(M)+(0.019993-0.000101*T)*ecSin(2*M)+0.000289*ecSin(3*M);
+  var nu=M+C, R=1.000001018*(1-e*e)/(1+e*ecCos(nu));
+  var Om=125.04-1934.136*T;
+  return { lon:ecRev(L0+C-0.00569-0.00478*ecSin(Om)), lat:0, dist:R };     // dist in AU
+}
+// Moon table 47.A — D, M, M', F, Σl (1e-6 deg), Σr (1e-3 km)
+var MOON_LR=[
+  [0,0,1,0,6288774,-20905355],[2,0,-1,0,1274027,-3699111],[2,0,0,0,658314,-2955968],
+  [0,0,2,0,213618,-569925],[0,1,0,0,-185116,48888],[0,0,0,2,-114332,-3149],
+  [2,0,-2,0,58793,246158],[2,-1,-1,0,57066,-152138],[2,0,1,0,53322,-170733],
+  [2,-1,0,0,45758,-204586],[0,1,-1,0,-40923,-129620],[1,0,0,0,-34720,108743],
+  [0,1,1,0,-30383,104755],[2,0,0,-2,15327,10321],[0,0,1,2,-12528,0],
+  [0,0,1,-2,10980,79661],[4,0,-1,0,10675,-34782],[0,0,3,0,10034,-23210],
+  [4,0,-2,0,8548,-21636],[2,1,-1,0,-7888,24208],[2,1,0,0,-6766,30824],
+  [1,0,-1,0,-5163,-8379],[1,1,0,0,4987,-16675],[2,-1,1,0,4036,-12831],
+  [2,0,2,0,3994,-10445],[4,0,0,0,3861,-11650],[2,0,-3,0,3665,14403],
+  [0,1,-2,0,-2689,-7003],[2,0,-1,2,-2602,0],[2,-1,-2,0,2390,10056],
+  [1,0,1,0,-2348,6322],[2,-2,0,0,2236,-9884],[0,1,2,0,-2120,5751],
+  [0,2,0,0,-2069,0],[2,-2,-1,0,2048,-4950],[2,0,1,-2,-1773,4130],
+  [2,0,0,2,-1595,0],[4,-1,-1,0,1215,-3958],[0,0,2,2,-1110,0],
+  [3,0,-1,0,-892,3258],[2,1,1,0,-810,2616],[4,-1,-2,0,759,-1897],
+  [0,2,-1,0,-713,-2117],[2,2,-1,0,-700,2354],[2,1,-2,0,691,0],
+  [2,-1,0,-2,596,0],[4,0,1,0,549,-1423],[0,0,4,0,537,-1117],
+  [4,-1,0,0,520,-1571],[1,0,-2,0,-487,-1739],[2,1,0,-2,-399,0],
+  [0,0,2,-2,-381,-4421],[1,1,1,0,351,0],[3,0,-2,0,-340,0],
+  [4,0,-3,0,330,0],[2,-1,2,0,327,0],[0,2,1,0,-323,1165],
+  [1,1,-1,0,299,0],[2,0,3,0,294,0],[2,0,-1,-2,0,8752]];
+// Moon table 47.B — D, M, M', F, Σb (1e-6 deg)
+var MOON_B=[
+  [0,0,0,1,5128122],[0,0,1,1,280602],[0,0,1,-1,277693],[2,0,0,-1,173237],
+  [2,0,-1,1,55413],[2,0,-1,-1,46271],[2,0,0,1,32573],[0,0,2,1,17198],
+  [2,0,1,-1,9266],[0,0,2,-1,8822],[2,-1,0,-1,8216],[2,0,-2,-1,4324],
+  [2,0,1,1,4200],[2,1,0,-1,-3359],[2,-1,-1,1,2463],[2,-1,0,1,2211],
+  [2,-1,-1,-1,2065],[0,1,-1,-1,-1870],[4,0,-1,-1,1828],[0,1,0,1,-1794],
+  [0,0,0,3,-1749],[0,1,-1,1,-1565],[1,0,0,1,-1491],[0,1,1,1,-1475],
+  [0,1,1,-1,-1410],[0,1,0,-1,-1344],[1,0,0,-1,-1335],[0,0,3,1,1107],
+  [4,0,0,-1,1021],[4,0,-1,1,833],[0,0,1,-3,777],[4,0,-2,1,671],
+  [2,0,0,-3,607],[2,0,2,-1,596],[2,-1,1,-1,491],[2,0,-2,1,-451],
+  [0,0,3,-1,439],[2,0,2,1,422],[2,0,-3,-1,421],[2,1,-1,1,-366],
+  [2,1,0,1,-351],[4,0,0,1,331],[2,-1,1,1,315],[2,-2,0,-1,302],
+  [0,0,1,3,-283],[2,1,1,-1,-229],[1,1,0,-1,223],[1,1,0,1,223],
+  [0,1,-2,-1,-220],[2,1,-1,-1,-220],[1,0,1,1,-185],[2,-1,-2,-1,181],
+  [0,1,2,1,-177],[4,0,-2,-1,176],[4,-1,-1,-1,166],[1,0,1,-1,-164],
+  [4,0,1,-1,132],[1,0,-1,-1,-119],[4,-1,0,-1,115],[2,-2,0,1,107]];
+function ecMoonPos(jd){
+  var T=(jd-2451545.0)/36525.0, T2=T*T, T3=T2*T, T4=T3*T;
+  var Lp=218.3164477+481267.88123421*T-0.0015786*T2+T3/538841-T4/65194000;
+  var D =297.8501921+445267.1114034*T-0.0018819*T2+T3/545868-T4/113065000;
+  var M =357.5291092+35999.0502909*T-0.0001536*T2+T3/24490000;
+  var Mp=134.9633964+477198.8675055*T+0.0087414*T2+T3/69699-T4/14712000;
+  var F = 93.2720950+483202.0175233*T-0.0036539*T2-T3/3526000+T4/863310000;
+  var A1=119.75+131.849*T, A2=53.09+479264.290*T, A3=313.45+481266.484*T;
+  var E=1-0.002516*T-0.0000074*T2, sl=0, sr=0, sb=0, i, t, arg, f;
+  for(i=0;i<MOON_LR.length;i++){ t=MOON_LR[i]; arg=t[0]*D+t[1]*M+t[2]*Mp+t[3]*F;
+    f=(t[1]===0)?1:(Math.abs(t[1])===1?E:E*E);
+    sl+=t[4]*f*ecSin(arg); sr+=t[5]*f*ecCos(arg); }
+  for(i=0;i<MOON_B.length;i++){ t=MOON_B[i]; arg=t[0]*D+t[1]*M+t[2]*Mp+t[3]*F;
+    f=(t[1]===0)?1:(Math.abs(t[1])===1?E:E*E);
+    sb+=t[4]*f*ecSin(arg); }
+  sl+=3958*ecSin(A1)+1962*ecSin(Lp-F)+318*ecSin(A2);
+  sb+=-2235*ecSin(Lp)+382*ecSin(A3)+175*ecSin(A1-F)+175*ecSin(A1+F)+127*ecSin(Lp-Mp)-115*ecSin(Lp+Mp);
+  return { lon:ecRev(Lp+sl/1e6), lat:sb/1e6, dist:385000.56+sr/1000 };      // dist in km
+}
+function ecNutation(jd){
+  var T=(jd-2451545.0)/36525.0, Om=125.04452-1934.136261*T;
+  var Ls=280.4665+36000.7698*T, Lm=218.3165+481267.8813*T;
+  var dpsi=(-17.20*ecSin(Om)-1.32*ecSin(2*Ls)-0.23*ecSin(2*Lm)+0.21*ecSin(2*Om))/3600;
+  var deps=(9.20*ecCos(Om)+0.57*ecCos(2*Ls)+0.10*ecCos(2*Lm)-0.09*ecCos(2*Om))/3600;
+  var e0=(23*3600+26*60+21.448-46.8150*T-0.00059*T*T+0.001813*T*T*T)/3600;
+  return { dpsi:dpsi, eps:e0+deps };
+}
+function ecToEq(lon,lat,eps){
+  var sl=ecSin(lon), cl=ecCos(lon), sb=ecSin(lat), cb=ecCos(lat), se=ecSin(eps), ce=ecCos(eps);
+  return { ra:ecRev(Math.atan2(sl*ce-(sb/cb)*se, cl)/DEG), dec:Math.asin(sb*ce+cb*se*sl)/DEG };
+}
+function ecGAST(jd){
+  var T=(jd-2451545.0)/36525.0, n=ecNutation(jd);
+  var th=280.46061837+360.98564736629*(jd-2451545.0)+0.000387933*T*T-T*T*T/38710000;
+  return ecRev(th+n.dpsi*ecCos(n.eps));
+}
+// ⚠ THE LOAD-BEARING FUNCTION. Without this every location on Earth sees the same eclipse.
+function topoRaDec(ra,dec,distKm,jd){
+  var u=Math.atan(0.99664719*Math.tan(LAT*DEG));
+  var rhoSin=0.99664719*Math.sin(u), rhoCos=Math.cos(u);
+  var sinPi=6378.14/distKm;                                   // equatorial horizontal parallax
+  var H=ecRev(ecGAST(jd)+LON-ra);
+  var A=ecCos(dec)*ecSin(H), B=ecCos(dec)*ecCos(H)-rhoCos*sinPi, C=ecSin(dec)-rhoSin*sinPi;
+  var q=Math.sqrt(A*A+B*B+C*C);
+  return { ra:ecRev(ra+(H-Math.atan2(A,B)/DEG)), dec:Math.asin(C/q)/DEG, q:q };
+}
+function ecSep(ra1,dec1,ra2,dec2){
+  var c=ecSin(dec1)*ecSin(dec2)+ecCos(dec1)*ecCos(dec2)*ecCos(ra1-ra2);
+  return Math.acos(Math.max(-1,Math.min(1,c)))/DEG;
+}
+function ecAlt(ra,dec,jd){
+  var H=ecRev(ecGAST(jd)+LON-ra);
+  return Math.asin(ecSin(dec)*ecSin(LAT)+ecCos(dec)*ecCos(LAT)*ecCos(H))/DEG;
+}
+var EC_AU=149597870.7;
+// SOLAR eclipse for THIS observer at THIS instant.
+// mag = fraction of the Sun's DIAMETER hidden · obsc = fraction of its AREA (what the light follows)
+function solarEclipseAt(nd){
+  var jd=ecJD(nd), eps=ecNutation(jd).eps;
+  var s=ecSunPos(jd), m=ecMoonPos(jd);
+  var sE=ecToEq(s.lon,s.lat,eps), mE=ecToEq(m.lon,m.lat,eps);
+  var sT=topoRaDec(sE.ra,sE.dec,s.dist*EC_AU,jd), mT=topoRaDec(mE.ra,mE.dec,m.dist,jd);
+  var rSun=959.63/(s.dist*sT.q)/3600;                                        // apparent radii, degrees
+  var rMoon=Math.asin(0.272481*(6378.14/(m.dist*mT.q)))/DEG;
+  var d=ecSep(sT.ra,sT.dec,mT.ra,mT.dec), alt=ecAlt(sT.ra,sT.dec,jd);
+  // rMoonK = the Moon's apparent size in units of the Sun's. It is why some eclipses are ANNULAR:
+  // at apogee the Moon is genuinely too small to cover the disc and leaves a ring of fire.
+  var o={ mag:0, obsc:0, sunAlt:alt, total:false, annular:false, visible:false, dx:0, dy:0,
+          rSun:rSun, rMoonK:rMoon/rSun };
+  if(d>=rSun+rMoon) return o;
+  o.mag=(rSun+rMoon-d)/(2*rSun);
+  if(d<=Math.abs(rMoon-rSun)){ o.obsc=(rMoon>=rSun)?1:(rMoon*rMoon)/(rSun*rSun);
+    o.total=rMoon>=rSun; o.annular=rMoon<rSun; }
+  else { var a=rSun, b=rMoon,
+    c1=Math.acos(Math.max(-1,Math.min(1,(d*d+a*a-b*b)/(2*d*a)))),
+    c2=Math.acos(Math.max(-1,Math.min(1,(d*d+b*b-a*a)/(2*d*b))));
+    o.obsc=(a*a*(c1-Math.sin(2*c1)/2)+b*b*(c2-Math.sin(2*c2)/2))/(Math.PI*a*a); }
+  // which SIDE the Moon is on, in units of the Sun's radius — so the dark disc slides across the way
+  // it really does instead of always left-to-right at a fixed hour.
+  o.dx=(((mT.ra-sT.ra+540)%360)-180)*ecCos(sT.dec)/rSun;
+  o.dy=(mT.dec-sT.dec)/rSun;
+  o.visible=o.obsc>0 && alt>-0.5;                              // below your horizon = not your eclipse
+  return o;
+}
+// LUNAR eclipse. ⚠ A DIFFERENT PROBLEM FROM SOLAR and worth saying plainly: the Moon is physically
+// inside Earth's shadow, so the umbral magnitude is the SAME for everyone who can see it. The only
+// local part is WHETHER THE MOON IS UP. Norwich and Houston get the same blood moon; Tokyo gets none.
+function lunarEclipseAt(nd){
+  var jd=ecJD(nd), eps=ecNutation(jd).eps;
+  var s=ecSunPos(jd), m=ecMoonPos(jd);
+  var dLon=((((m.lon-ecRev(s.lon+180)+540)%360)-180))*ecCos(m.lat), dLat=m.lat;
+  var d=Math.sqrt(dLon*dLon+dLat*dLat);
+  var piM=Math.asin(6378.14/m.dist)/DEG, piS=8.794/3600/s.dist, sS=959.63/3600/s.dist;
+  var sM=Math.asin(0.272481*ecSin(piM))/DEG;
+  var fPen=1.02*(0.998340*piM+piS+sS), fUmb=1.02*(0.998340*piM+piS-sS);   // 1.02 = atmosphere
+  var mE=ecToEq(m.lon,m.lat,eps), alt=ecAlt(mE.ra,mE.dec,jd);
+  var um=(fUmb+sM-d)/(2*sM), pen=(fPen+sM-d)/(2*sM);
+  return { umbMag:um, penMag:pen, moonAlt:alt, total:um>=1, partial:um>0&&um<1,
+           visible:pen>0&&alt>-0.5, deep:um>0 };
+}
+// ---- per-instant cache: the Moon series is 120 trig terms, far too much for 8 fps ----
+// ⚠ THE LOCATION IS PART OF THE KEY. LAT/LON are not fixed: the one-shot IP geolocation lands
+// asynchronously after boot, and the user can retype coordinates in the settings dialog. A cache
+// keyed on time alone keeps serving the eclipse for wherever the wallpaper THOUGHT it was.
+var _ecCache={ k:"", sol:null, lun:null };
+function eclipseNow(nd){
+  var k=Math.floor(nd.getTime()/20000)+"@"+LAT+","+LON;        // 20 s is finer than the eye can tell
+  if(_ecCache.k!==k){ _ecCache.k=k; _ecCache.sol=solarEclipseAt(nd); _ecCache.lun=lunarEclipseAt(nd); }
+  return _ecCache;
+}
+// ---- "is there one today, and when is greatest?" — cached per calendar day ----------------------
+// An eclipse only happens within a couple of days of syzygy, so one cheap elongation test throws out
+// ~93% of days before any scanning happens.
+var _ecDay={};
+function eclipseToday(nd){
+  var key=nd.getFullYear()+"-"+nd.getMonth()+"-"+nd.getDate()+"@"+LAT+","+LON;   // ⚠ location too — see eclipseNow
+  if(_ecDay[key]!==undefined) return _ecDay[key];
+  var d0=new Date(nd.getFullYear(),nd.getMonth(),nd.getDate(),12,0,0,0);
+  var jd0=ecJD(d0), s0=ecSunPos(jd0), m0=ecMoonPos(jd0);
+  var elong=Math.abs((((m0.lon-s0.lon+540)%360)-180));         // 0 = new moon, 180 = full
+  var out={ solar:null, lunar:null }, i, t, r;
+  if(elong<20){                                                // possible solar eclipse somewhere
+    var bs=null;
+    for(i=0;i<=1440;i+=10){ t=new Date(d0.getTime()-43200000+i*60000); r=solarEclipseAt(t);
+      if(r.obsc>0 && (!bs||r.obsc>bs.obsc)){ bs=r; bs.when=t; } }
+    if(bs){ for(i=-10;i<=10;i++){ t=new Date(bs.when.getTime()+i*60000); r=solarEclipseAt(t);
+        if(r.obsc>bs.obsc){ r.when=t; bs=r; } }
+      out.solar=bs; }
+  }
+  if(Math.abs(elong-180)<20){                                  // possible lunar eclipse somewhere
+    var bl=null;
+    for(i=0;i<=1440;i+=10){ t=new Date(d0.getTime()-43200000+i*60000); r=lunarEclipseAt(t);
+      if(r.penMag>0 && (!bl||r.penMag>bl.penMag)){ bl=r; bl.when=t; } }
+    if(bl){ for(i=-10;i<=10;i++){ t=new Date(bl.when.getTime()+i*60000); r=lunarEclipseAt(t);
+        if(r.penMag>bl.penMag){ r.when=t; bl=r; } }
+      out.lunar=bl; }
+  }
+  _ecDay[key]=out; return out;
+}
+function clockStr(d){ var h=d.getHours(), m=d.getMinutes();
+  return ((h%12)||12)+":"+(m<10?"0":"")+m+(h<12?"AM":"PM"); }
 // ---- real-ish celestial calendar ----
-var LUNAR_ECLIPSES=["2026-3-3","2026-8-28","2027-2-20","2027-7-18","2028-1-12","2028-7-6"];     // blood-moon nights
-var SOLAR_ECLIPSES=["2026-2-17","2026-8-12","2027-2-6","2027-8-2","2028-1-26","2028-7-22"];      // sun-occulted days
 var COMET_SEASON=["2026-4","2027-10"];                                                            // a great comet visits (year-month)
+// the Sun's real RA/Dec — the comet's tail points away from it, and several checks need it
+function sunRaDecApprox(nd){ var jd=ecJD(nd), s=ecSunPos(jd); return ecToEq(s.lon,s.lat,ecNutation(jd).eps); }
+// THE GREAT COMET. It gets a real track: a fixed entry point per apparition and a steady drift of
+// about 1.4°/day along a great circle, so it moves against the stars night to night and rises and sets
+// with them. Whether you can see it is then just the ordinary question of whether it is above YOUR
+// horizon in a dark sky — which is the whole point.
+function cometNow(nd){
+  var key=ym(nd); if(COMET_SEASON.indexOf(key)<0) return null;
+  var h=rng((((nd.getFullYear()*12+nd.getMonth())*2654435761)>>>0))();
+  var ra0=h*24, dec0=-20+h*70;                                  // this apparition's entry point
+  var day=nd.getDate()+nd.getHours()/24;
+  return { ra:(ra0+day*0.093)%24, dec:Math.max(-85,Math.min(85,dec0-day*0.55)) };
+}
 function ymd(nd){ return nd.getFullYear()+"-"+(nd.getMonth()+1)+"-"+nd.getDate(); }
 function ym(nd){ return nd.getFullYear()+"-"+(nd.getMonth()+1); }
 var eclipseMoon=false, solarEclDim=0;                                                             // eclipse state (moon reddens / daytime dims)
+var eclipseMoonBite=0;      // 0..1 umbral magnitude — how much of the disc Earth's shadow has taken
+var eclSunX=-9999, eclSunY=0, eclSunR=4;   // where the Sun was drawn this frame (see the totality corona)
+// Publish tonight's lunar state into the globals the Moon sprite reads. ⚠ It goes red ONLY near
+// totality; a partial takes a bite out of a still-white Moon, which is what a partial actually looks
+// like. The old code reddened the whole disc all night for every date on a list.
+function refreshMoonEclipse(nd){
+  var lun=eclipseNow(nd).lun;
+  eclipseMoonBite=(lun.visible&&lun.umbMag>0)?Math.max(0,Math.min(1,lun.umbMag)):0;
+  eclipseMoon=(lun.visible&&lun.umbMag>=0.9);
+  return lun;
+}
 // The major annual meteor showers — REAL peak-night windows + radiant (RA hours, Dec deg) + relative
 // strength. Meteors streak away from the radiant (its real sky position via altAz), and the shower is
 // named on-sky. Keep the date windows in lockstep with meteorShowerActive() (both copies).
@@ -640,23 +885,59 @@ function conjunctionNow(nd){
 }
 // today's headline sky event (or an advance notice up to 5 days out), or null — feeds the ticker
 function astroDesk(nd){
-  var t=ymd(nd);
-  if(SOLAR_ECLIPSES.indexOf(t)>=0){ var st=sunTimes(nd), when="";
-    if(st.rise){ var tot=new Date(st.rise.getTime()+0.505*(st.set-st.rise)), th=tot.getHours(), tm=tot.getMinutes();
-      when=" AT "+((th%12)||12)+":"+(tm<10?"0":"")+tm+(th<12?"AM":"PM"); }
-    return "SOLAR ECLIPSE TODAY"+when+" - DO NOT MISS IT"; }
-  if(LUNAR_ECLIPSES.indexOf(t)>=0) return "BLOOD MOON TONIGHT - TOTAL LUNAR ECLIPSE";
+  // ⚠ THE OLD TIME HERE WAS FICTION: `rise + 0.505*(set-rise)` is just local noon dressed up as a
+  // precise clock reading. The greatest-eclipse time is computed for real now, and the headline
+  // describes what THIS city actually gets — an 18% partial does not get told it is a spectacle.
+  var ecl=eclipseToday(nd);
+  if(ecl.solar && ecl.solar.visible){
+    var pc=Math.round(ecl.solar.obsc*100), at=" AT "+clockStr(ecl.solar.when);
+    if(ecl.solar.total)   return "TOTAL SOLAR ECLIPSE TODAY"+at+" - DO NOT MISS IT";
+    if(ecl.solar.annular) return "RING OF FIRE TODAY"+at+" - ANNULAR ECLIPSE";
+    if(pc>=80) return "DEEP PARTIAL ECLIPSE TODAY"+at+" - "+pc+"% OF THE SUN GONE";
+    if(pc>=15) return "PARTIAL SOLAR ECLIPSE TODAY"+at+" - "+pc+"% COVERED";
+    return "SLIGHT SOLAR ECLIPSE TODAY"+at+" - A NICK OUT OF THE SUN";
+  }
+  if(ecl.lunar && ecl.lunar.visible){
+    var lat2=" AT "+clockStr(ecl.lunar.when);
+    if(ecl.lunar.total)   return "BLOOD MOON TONIGHT"+lat2+" - TOTAL LUNAR ECLIPSE";
+    if(ecl.lunar.partial) return "PARTIAL LUNAR ECLIPSE TONIGHT"+lat2+" - "+Math.round(ecl.lunar.umbMag*100)+"% IN SHADOW";
+    return "PENUMBRAL LUNAR ECLIPSE TONIGHT - THE MOON DIMS A LITTLE";
+  }
   if(isSupermoon(nd)) return "SUPERMOON TONIGHT - THE MOON AT ITS CLOSEST";
   var cj=conjunctionNow(nd); if(cj) return cj.a+" MEETS "+cj.b+" IN TONIGHT'S SKY";
   if(COMET_SEASON.indexOf(ym(nd))>=0) return "THE GREAT COMET IS VISIBLE AFTER DARK";
-  for(var ah=1; ah<=5; ah++){ var f=new Date(nd.getTime()+ah*86400000), fy=ymd(f);
-    if(SOLAR_ECLIPSES.indexOf(fy)>=0) return "SOLAR ECLIPSE "+(ah===1?"TOMORROW":"IN "+ah+" DAYS")+" - GET YOUR GLASSES";
-    if(LUNAR_ECLIPSES.indexOf(fy)>=0) return "LUNAR ECLIPSE "+(ah===1?"TOMORROW":"IN "+ah+" DAYS")+" - A BLOOD MOON RISES";
+  for(var ah=1; ah<=5; ah++){ var f=new Date(nd.getTime()+ah*86400000), fe=eclipseToday(f);
+    // advance notice only for one WE will actually see — no point telling Norwich to buy glasses for
+    // an eclipse that happens over Egypt before its sun is up.
+    if(fe.solar && fe.solar.visible && fe.solar.obsc>0.10)
+      return "SOLAR ECLIPSE "+(ah===1?"TOMORROW":"IN "+ah+" DAYS")+" - GET YOUR GLASSES";
+    if(fe.lunar && fe.lunar.visible && fe.lunar.umbMag>0.10)
+      return "LUNAR ECLIPSE "+(ah===1?"TOMORROW":"IN "+ah+" DAYS")+(fe.lunar.total?" - A BLOOD MOON RISES":" - THE MOON GOES INTO SHADOW");
   }
   return null;
 }
-function auroraActive(nd){ var t=(weather.temp==null?60:weather.temp); if(t>=36) return false;
-  return (rng((Math.floor(nd.getTime()/86400000)*2654435761)>>>0)()<0.18); }                     // ~18% of cold clear nights
+// ---- AURORA, BY WHERE YOU ACTUALLY ARE ---------------------------------------------------------
+// The old rule was a flat ~18% roll on any night below 36F, which gave Norwich as much aurora as
+// Fairbanks. Aurora does not care about temperature at all — it cares about GEOMAGNETIC latitude and
+// the size of the storm. The auroral oval sits over the geomagnetic pole (about 80.65N 72.68W, which
+// is why the US east coast sees aurora at lower geographic latitudes than Europe does).
+function geomagLat(){
+  var pLat=80.65, pLon=-72.68;                                  // north geomagnetic pole, IGRF epoch 2020
+  var c=Math.sin(LAT*DEG)*Math.sin(pLat*DEG)+Math.cos(LAT*DEG)*Math.cos(pLat*DEG)*Math.cos((LON-pLon)*DEG);
+  return 90-Math.acos(Math.max(-1,Math.min(1,c)))/DEG;
+}
+// 0 = nothing, 0..1 = a glow low on the northern horizon, 1 = the oval is essentially overhead.
+// Equatorward edge of the oval ≈ 67° geomagnetic at Kp 0, marching ~2.2° south per Kp step — so
+// Fairbanks (~65° geomag) sees it on quiet nights, Norwich (~52°) needs a severe storm, and Houston
+// (~39°) effectively never does. That is exactly the real behaviour.
+function auroraLevel(){
+  if(kpNow<=0) return 0;
+  var gm=geomagLat(), bnd=67-2.2*kpNow;
+  if(gm>=bnd) return 1;                                          // inside the oval
+  var below=bnd-gm;
+  return below<9 ? Math.max(0,1-below/9) : 0;                    // beyond ~9° south of the oval: nothing
+}
+function auroraActive(nd){ return auroraLevel()>0.02; }
 // ============ STREET LIFE 2 & RARE SPECTACLES (K/J/M batch) ============
 var FORCEK=null;      // test hook (own line!): {gull:1,whale:f,ufo:f,mishap:f,sax:1,ice:1,prof:1,cats:1,prem:1,caps:1}
 // THE DIMENSION DUO — an ORIGINAL rare easter egg (Nick chose the safe-to-ship duo over trademarked
@@ -1900,14 +2181,18 @@ function drawSky(g,now,nd,L,fx){
   // ---- AURORA — driven by the REAL planetary K-index (kpNow). KP≥5: a green shimmer low on the
   // NORTHERN horizon; KP≥7: full green/violet curtains. Offline (kp 0) → absent; it only lights up on
   // genuine geomagnetic-storm nights, matching the real space-weather news. Localized north via azimuth. ----
-  if(kpNow>=5){ var kpI=Math.min(1,(kpNow-4)/4);                          // 0 at KP4 → 1 at KP8+
+  // ⚠ THE STORM IS GLOBAL BUT THE VIEW IS NOT. kpNow alone gave Houston the same curtains as Fairbanks.
+  // `auroraLevel()` folds in the viewer's GEOMAGNETIC latitude, so the same Kp 6 night is overhead in
+  // Alaska, a green glow on the northern horizon in Connecticut, and nothing at all on the Gulf coast.
+  var auL=auroraLevel();
+  if(kpNow>=3 && auL>0.02){ var kpI=Math.min(1,(kpNow-4)/4)*0.35+0.65*auL;
     g.globalCompositeOperation="lighter";
     for(var band=0;band<3;band++){ var by=14+band*9;
       for(var ax2=0;ax2<SW;ax2+=2){ var az=(((ax2+WOFF)/WW*360)%360+360)%360, nf=Math.max(0,Math.cos(az*DEG)); if(nf<0.06) continue;   // brightest due N, fades to E/W, gone in the south
         var wxA=ax2+WOFF, wav=Math.sin(wxA*0.02+now*0.0006+band)*6+Math.sin(wxA*0.05+now*0.0013)*3, h=12+Math.sin(wxA*0.03+now*0.001+band)*7;
         var ba=(0.05+0.05*Math.sin(now*0.0011+band*2))*fade*nf*(0.55+0.45*kpI);
         g.fillStyle=(band<2?"rgba(80,235,150,":"rgba(170,110,255,")+ba.toFixed(3)+")"; g.fillRect(ax2,(by+wav)|0,2,h|0); } }
-    if(kpNow>=7 && QUAL>0){ var nc=8+Math.round(6*kpI);                   // KP≥7: hanging curtains sweep the northern sky
+    if(kpNow>=7 && auL>0.55 && QUAL>0){ var nc=8+Math.round(6*kpI);       // KP≥7 AND the oval near you: hanging curtains
       for(var cc=0;cc<nc;cc++){ var caz=-72+cc/(nc-1)*144, cwx=(((caz+360)%360)/360)*WW;   // spread across the northern span
         var chh=30+50*kpI*(0.65+0.35*Math.sin(now*0.0005+cc*1.7)), csway=Math.sin(now*0.0004+cc*1.3)*9;
         for(var cw=-1;cw<=1;cw++){ var cx=cwx-WOFF+cw*WW+csway; if(cx<-6||cx>SW+6) continue;
@@ -1932,14 +2217,23 @@ function drawSky(g,now,nd,L,fx){
   }
 
   // ---- a GREAT COMET visits for its season (bright head + long gradient tail, drifts night to night) ----
-  if(COMET_SEASON.indexOf(ym(nd))>=0){ var cdr=rng((Math.floor(nd.getTime()/86400000)*2246822519)>>>0);
-    var cwxw=0.2*WW+cdr()*0.6*WW, cyy=24+cdr()*40, cwob=Math.sin(now*0.0007)*2;
+  // ⚠ THE COMET USED TO BE PINNED AT A RANDOM SCREEN X EACH NIGHT, which meant it hung in the same
+  // place all night and appeared identically to every observer on Earth. It has a real position now:
+  // it creeps along its own track through the sky over the apparition, RISES AND SETS with everything
+  // else, and is simply absent when it is below YOUR horizon. Its tail points away from the Sun.
+  var cmt=cometNow(nd);
+  if(cmt){ var caa=altAz(cmt.ra,cmt.dec,lstHours(nd));
+    if(caa.alt>2){
+    var cwxw=skyWX(caa.az), cyy=skyY(caa.alt), cwob=Math.sin(now*0.0007)*2;
+    var sunAA=altAz(sunRaDecApprox(nd).ra,sunRaDecApprox(nd).dec,lstHours(nd));
+    var tdx=(skyWX(caa.az)-skyWX(sunAA.az)), tdy=(skyY(caa.alt)-skyY(sunAA.alt));
+    var tln=Math.sqrt(tdx*tdx+tdy*tdy)||1; tdx/=tln; tdy/=tln;         // unit vector away from the Sun
     for(var w3=-1;w3<=1;w3++){ var csx=cwxw-WOFF+w3*WW; if(csx<-40||csx>SW+40) continue;
       g.globalCompositeOperation="lighter";
-      for(var tt=0;tt<28;tt++){ g.fillStyle="rgba(180,220,255,"+(0.5*(1-tt/28))+")"; g.fillRect((csx+tt*1.5)|0,(cyy+cwob+tt*0.4)|0,2,1); }  // tail
+      for(var tt=0;tt<28;tt++){ g.fillStyle="rgba(180,220,255,"+(0.5*(1-tt/28))+")"; g.fillRect((csx+tdx*tt*1.5)|0,(cyy+cwob+tdy*tt*1.5)|0,2,1); }  // tail, anti-sunward
       g.fillStyle="rgba(235,245,255,0.95)"; g.fillRect(csx|0,(cyy+cwob)|0,2,2);                                                          // head
       g.globalCompositeOperation="source-over"; }
-  }
+  } }
 
   // (the Moon is drawn by drawCelestial — day AND night — so it can also hang in the morning sky)
 }
@@ -2005,8 +2299,8 @@ function drawCelestial(g,now,nd,L,fx){
   if(fx.rain||fx.snow||fx.fog||fx.thunder) return;                         // hidden by heavy weather
   if(cityPhase==="apoc" && curDeath==="moonfall") return;                  // the giant plunging Moon is drawn by the finale instead
   var lst=lstHours(nd);
-  eclipseMoon = LUNAR_ECLIPSES.indexOf(ymd(nd))>=0;
-  var mrd=moonRaDec(nd), maa=altAz(mrd.ra,mrd.dec,lst), mp=eclipseMoon?0.5:moonPhase(nd), illum=(1-Math.cos(2*Math.PI*mp))/2;
+  refreshMoonEclipse(nd);
+  var mrd=moonRaDec(nd), maa=altAz(mrd.ra,mrd.dec,lst), mp=moonPhase(nd), illum=(1-Math.cos(2*Math.PI*mp))/2;
   var dayFade=Math.max(0,Math.min(1,(L-0.30)/0.20));                        // 0 night → 1 full day
   if(cityPhase!=="apoc" && maa.alt>1.5 && (dayFade<0.4 || (maa.alt>4 && illum>0.18))){   // by day: only a well-up, gibbous-enough Moon shows; apoc moon-events draw LATE (on top) via drawApocMoon
     var mcol=colonyLevel('moon',now);
@@ -2985,6 +3279,7 @@ function eggOf(li){
   return EGG_BIOMES[mixLi(li,911)%EGG_BIOMES.length];    // …and then which one, independently
 }
 var FORCEEGG=CFG_EGG;   // `egg:"leaf"` in config.local.json, or set directly by the render harness
+var FORCEBIOME=null, FORCEVARIANT=null;   // render-harness only: pin the land while the clock moves
 var curEgg=false;    // is this life an egg land
 var curBiome=BIOMES[0];
 var curNeon=false;   // this life's city wears the neon style (always in THE SPRAWL, ~1/12 elsewhere)
@@ -3250,6 +3545,21 @@ function buildWorld(li){
   var eg=eggOf(li);
   curEgg=!!eg;
   curBiome = eg ? eg : variantOf(li, biomeOf(li));    // the land, then which of its three faces
+  // TEST HOOK: pin the land while the CLOCK moves. The life index is derived from the clock, so
+  // without this there is no way to render a specific biome on a specific real-world date — which is
+  // exactly what checking an eclipse (fixed date, needs a sky you can read) or comparing one land
+  // across a day requires. `FORCEBIOME="alpine"`, optionally `FORCEVARIANT=0..2`. Never set in ship.
+  if(FORCEBIOME!=null){
+    for(var fb=0;fb<BIOMES.length;fb++) if(BIOMES[fb].k===FORCEBIOME){
+      var fv=BIOME_VARIANTS[FORCEBIOME];
+      curBiome=BIOMES[fb]; curEgg=false;
+      if(fv&&fv.length&&FORCEVARIANT!=null){ var vv=fv[FORCEVARIANT%fv.length], oo={}, kq;
+        for(kq in curBiome) if(curBiome.hasOwnProperty(kq)) oo[kq]=curBiome[kq];
+        for(kq in vv) if(vv.hasOwnProperty(kq)) oo[kq]=vv[kq];
+        oo.k=BIOMES[fb].k; curBiome=oo; }
+      else if(fv&&fv.length) curBiome=variantOf(li,BIOMES[fb]);
+      break; }
+  }
   // THE NEON STYLE. Always on in THE SPRAWL, and rolled on about 1 life in 12 of every OTHER land —
   // Nick's call, so a neon megacity can end up standing in a swamp or under a volcano. It restyles the
   // CITY ONLY: the mesa is still a mesa. A separate hash from the biome and variant rolls so it is
@@ -7899,11 +8209,20 @@ function drawShower(g,nd,L,now,fx){
   if(L>0.3||fx.cloudy||fx.rain||fx.snow||fx.thunder||fx.fog) return;
   var sh=currentShower(nd); if(!sh) return;
   var lst=lstHours(nd), raa=altAz(sh.ra,sh.dec,lst);          // the radiant's REAL position in the sky right now
+  // ⚠ A SHOWER YOU CANNOT SEE IS NOT A SHOWER. The peak night is the same worldwide, but whether the
+  // radiant is UP is entirely local — the Geminids are overhead in Connecticut at 2am and below the
+  // horizon in Sydney at the same moment. And a full Moon washes out all but the brightest meteors,
+  // which is why some famous peaks are a write-off in some years.
+  if(raa.alt<-12) return;                                     // radiant well below your horizon: nothing
   var radUp=raa.alt>3, radWX=skyWX(raa.az), radY=skyY(raa.alt);
+  var mIll=(1-Math.cos(2*Math.PI*moonPhase(nd)))/2;
+  var mrd2=moonRaDec(nd), moonUp=altAz(mrd2.ra,mrd2.dec,lst).alt>0;
+  var wash=moonUp?(1-0.62*mIll*mIll):1;                       // bright Moon up → far fewer visible
+  var rate=Math.round(58*sh.s*wash*(radUp?1:0.35));
   var SL=2600;
   for(var k=0;k<(radUp?4:2);k++){ var idx=Math.floor((now+k*867)/SL), ph3=((now+k*867)%SL)/SL;
     var h4=((idx*2654435761+k*97)>>>0);
-    if((h4%100)>=Math.round(58*sh.s) || ph3>0.32) continue;   // stronger showers fire more meteors
+    if((h4%100)>=rate || ph3>0.32) continue;                  // stronger showers fire more meteors
     var t3=ph3/0.32, sx0=(h4%WW), sy0=6+((h4>>>8)%70), travel=22+((h4>>>11)%40), dirx, diry;
     if(radUp){ var dxr=sx0-radWX; while(dxr>WW/2)dxr-=WW; while(dxr<-WW/2)dxr+=WW;   // meteors streak radially AWAY from the radiant
       var dyr=sy0-radY, mag=Math.sqrt(dxr*dxr+dyr*dyr)||1; dirx=dxr/mag; diry=dyr/mag; }
@@ -9985,7 +10304,8 @@ function speechCtxLines(slot){
   if(typeof curFestival!=='undefined'&&curFestival&&curFestival.active&&curFestival.stage>=3) L.push("HAVE YOU SEEN THE EXPO?");
   if(typeof curEvents!=='undefined'&&curEvents&&curEvents.market) L.push("MARKET DAY - FRESH PRODUCE.");
   if(currentShower(nd)) L.push("METEORS TONIGHT - LOOK UP!");
-  if(SOLAR_ECLIPSES.indexOf(ymd(nd))>=0) L.push("ECLIPSE TODAY - GOT GLASSES?");
+  var _ce=eclipseToday(nd);
+  if(_ce.solar&&_ce.solar.visible&&_ce.solar.obsc>0.10) L.push("ECLIPSE TODAY - GOT GLASSES?");
   if(isSupermoon(nd)) L.push("SUPERMOON TONIGHT!");
   if(typeof curEcon!=='undefined'){ if(curEcon<0.35) L.push("TIMES ARE TOUGH ALL OVER."); else if(curEcon>0.7) L.push("BUSINESS IS BOOMING!"); }
   // THINGS THAT HAVEN'T HAPPENED YET. The astronomy desk already computes eclipses, showers and
@@ -9995,7 +10315,8 @@ function speechCtxLines(slot){
   var DAYNM=["SUNDAY","MONDAY","TUESDAY","WEDNESDAY","THURSDAY","FRIDAY","SATURDAY"];
   for(var d=1;d<=6;d++){
     var fwd=new Date(nd.getTime()+d*86400000), dn=DAYNM[fwd.getDay()];
-    if(SOLAR_ECLIPSES.indexOf(ymd(fwd))>=0){ L.push("ECLIPSE ON "+dn+"!"); L.push("GETTING GLASSES FOR IT."); break; }
+    var _cf=eclipseToday(fwd);
+    if(_cf.solar&&_cf.solar.visible&&_cf.solar.obsc>0.10){ L.push("ECLIPSE ON "+dn+"!"); L.push("GETTING GLASSES FOR IT."); break; }
   }
   for(var d2=1;d2<=5;d2++){
     var fwd2=new Date(nd.getTime()+d2*86400000);
@@ -17400,8 +17721,12 @@ function notifySnapshot(now){
   if(end>0&&end<1800000&&cityGrowth(now).phase!=="apoc")
     return {key:"finale:approach:"+lifeIndexOf(now), title:"THE END APPROACHES", body:"The cataclysm strikes in "+Math.max(1,Math.round(end/60000))+" minutes"};
   var nd=nowDate(now), t=ymd(nd);
-  if(SOLAR_ECLIPSES.indexOf(t)>=0) return {key:"sky:solar:"+t, title:"SOLAR ECLIPSE TODAY", body:astroDesk(nd)||"Watch the sky"};
-  if(LUNAR_ECLIPSES.indexOf(t)>=0) return {key:"sky:lunar:"+t, title:"BLOOD MOON TONIGHT", body:"A total lunar eclipse rises after dark"};
+  // ⚠ only notify for one that is actually visible FROM HERE — see eclipseToday/solarEclipseAt.
+  var _cn=eclipseToday(nd);
+  if(_cn.solar&&_cn.solar.visible&&_cn.solar.obsc>0.10)
+    return {key:"sky:solar:"+t, title:(_cn.solar.total?"TOTAL SOLAR ECLIPSE TODAY":_cn.solar.annular?"RING OF FIRE TODAY":"PARTIAL SOLAR ECLIPSE TODAY"), body:astroDesk(nd)||"Watch the sky"};
+  if(_cn.lunar&&_cn.lunar.visible&&_cn.lunar.umbMag>0.10)
+    return {key:"sky:lunar:"+t, title:(_cn.lunar.total?"BLOOD MOON TONIGHT":"PARTIAL LUNAR ECLIPSE TONIGHT"), body:astroDesk(nd)||"The Moon goes into Earth's shadow"};
   return null;
 }
 function drawElections(g,L,now,night){
@@ -20347,25 +20672,37 @@ function draw(g,pass){
               g.fillRect((sx2+gdx*st5)|0,(sy+gdy*st5)|0,2+(st5>>3),1); } }
           g.globalCompositeOperation="source-over"; }
         if(T>90 && (Math.floor(now/160))%2===0){ g.fillStyle=rgba([255,120,60],0.5); g.fillRect((sx2-1)|0,(sy+4)|0,3,1); }  // heat ripple
-        // ---- SOLAR ECLIPSE: the Moon slides across the sun near midday; totality goes eerie-dark with a corona ----
-        if(SOLAR_ECLIPSES.indexOf(ymd(nd))>=0){
-          var ep=(df-0.42)/0.17;                                        // -1..+1 as the moon transits (window ~3h around late morning)
-          if(ep>-1&&ep<1){ var cov=1-Math.abs(ep); solarEclDim=cov;      // coverage 0..1 (1 = totality)
-            var lox=sx2+ep*7, loy=sy-ep*1.2;                            // occluding disk slides across the sun
-            if(cov>0.45){ g.globalCompositeOperation="lighter";         // corona blooms as the disk closes in
-              g.fillStyle="rgba(245,248,255,"+(0.30*cov)+")"; g.fillRect((sx2-8)|0,(sy-8)|0,17,17);
-              g.fillStyle="rgba(255,252,240,"+(0.22*cov)+")"; g.fillRect((sx2-6)|0,sy|0,13,1); g.fillRect(sx2|0,(sy-6)|0,1,13);
-              g.globalCompositeOperation="source-over"; }
-            g.fillStyle="#080810";                                      // the dark lunar disk (radius ~4, rounded)
-            g.fillRect((lox-2)|0,(loy-4)|0,5,9); g.fillRect((lox-4)|0,(loy-2)|0,9,5); g.fillRect((lox-3)|0,(loy-3)|0,7,7);
-            if(cov>0.70){ g.globalCompositeOperation="lighter";         // thin corona ring hugging the dark disk at/near totality
-              g.fillStyle="rgba(255,253,246,"+(0.6*(cov-0.7)/0.3)+")";
-              g.fillRect((sx2-5)|0,sy|0,11,1); g.fillRect(sx2|0,(sy-5)|0,1,11);
-              g.globalCompositeOperation="source-over"; }
-            if(cov>0.80&&cov<0.97){ g.globalCompositeOperation="lighter";   // "diamond ring" bead on the emerging limb
-              var bead=ep<0?-1:1; g.fillStyle="rgba(255,255,250,0.95)"; g.fillRect((sx2+bead*3)|0,sy|0,2,2);
-              g.globalCompositeOperation="source-over"; }
-          }
+        // ---- SOLAR ECLIPSE, AS SEEN FROM HERE -------------------------------------------------
+        // Everything below comes from the real topocentric geometry: the Moon covers what it really
+        // covers from THIS latitude and longitude, at the real time of day, entering from the side it
+        // really enters from. Nothing is on a schedule and nothing is on a list.
+        // ⚠ The old code faked all three — `(df-0.42)/0.17` put every eclipse at late morning
+        // everywhere on Earth and drove it to totality regardless of where the viewer was.
+        var solE=eclipseNow(nd).sol;
+        if(solE.visible){
+          // HONEST DIMMING (Nick's call): daylight barely moves until the Sun is most of the way gone.
+          // A 60% partial gives odd flat light and nothing more; the drama is saved for the real thing.
+          solarEclDim=Math.max(0,Math.min(1,(solE.obsc-0.55)/0.45));
+          eclSunX=sx2; eclSunY=sy; eclSunR=SR;                          // remembered for the post-veil corona
+          var lox=sx2+solE.dx*SR, loy=sy-solE.dy*SR;                    // real relative position, in solar radii
+          var totalNow=solE.total&&solE.obsc>0.999;
+          if(totalNow){ g.globalCompositeOperation="lighter";           // the corona is a TOTALITY thing only
+            g.fillStyle="rgba(245,248,255,0.30)"; g.fillRect((sx2-SR*2)|0,(sy-SR*2)|0,SR*4+1,SR*4+1);
+            g.fillStyle="rgba(255,252,240,0.22)"; g.fillRect((sx2-SR-2)|0,sy|0,SR*2+5,1); g.fillRect(sx2|0,(sy-SR-2)|0,1,SR*2+5);
+            g.globalCompositeOperation="source-over"; }
+          g.fillStyle="#080810";                                        // the dark lunar disc, drawn round
+          var MR=SR*(solE.rMoonK||1.02);
+          for(var edy=-MR;edy<=MR;edy++){ for(var edx=-MR;edx<=MR;edx++){
+            if(edx*edx+edy*edy>MR*MR-1.2) continue;
+            g.fillRect((lox+edx)|0,(loy+edy)|0,1,1); } }
+          if(totalNow){ g.globalCompositeOperation="lighter";           // ring hugging the black disc
+            g.fillStyle="rgba(255,253,246,0.6)";
+            g.fillRect((sx2-SR-1)|0,sy|0,SR*2+3,1); g.fillRect(sx2|0,(sy-SR-1)|0,1,SR*2+3);
+            g.globalCompositeOperation="source-over"; }
+          if(solE.obsc>0.985&&!totalNow){ g.globalCompositeOperation="lighter";   // "diamond ring" at 2nd/3rd contact
+            var bead=solE.dx<0?-1:1; g.fillStyle="rgba(255,255,250,0.95)";
+            g.fillRect((sx2+bead*(SR-1))|0,sy|0,2,2);
+            g.globalCompositeOperation="source-over"; }
         }
       } }
   }
@@ -21387,7 +21724,33 @@ function draw(g,pass){
   drawNeonCity(g,L,now,nd);        // the neon style, over the city, whatever land it landed on
 
   // solar-eclipse twilight: an unnatural cool dusk falls over the whole city at totality, then lifts
-  if(solarEclDim>0.01){ var ev=Math.pow(solarEclDim,1.7)*0.74; g.fillStyle="rgba(18,20,40,"+ev+")"; g.fillRect(0,0,SW,SH); }
+  if(solarEclDim>0.01){ var ev=Math.pow(solarEclDim,1.7)*0.74; g.fillStyle="rgba(18,20,40,"+ev+")"; g.fillRect(0,0,SW,SH);
+    // ⚠ THE VEIL WOULD OTHERWISE ERASE THE ONE THING YOU CAME TO SEE. It is a full-screen darkening
+    // painted long after the Sun, so at totality it laid 74% black over the corona and left an empty
+    // dark sky — which is precisely backwards: in a real totality the sky goes dark and the corona
+    // becomes the brightest thing in it. Put it back, on top.
+    if(solarEclDim>0.55 && eclSunX>-9000){
+      var cw2=Math.max(0,Math.min(1,(solarEclDim-0.55)/0.45)), R2=eclSunR;
+      g.globalCompositeOperation="lighter";
+      var cg2=g.createRadialGradient(eclSunX,eclSunY,R2*0.9, eclSunX,eclSunY,R2*5.2);
+      cg2.addColorStop(0,   "rgba(232,240,255,"+(0.55*cw2).toFixed(3)+")");
+      cg2.addColorStop(0.28,"rgba(214,228,255,"+(0.22*cw2).toFixed(3)+")");
+      cg2.addColorStop(1,   "rgba(200,220,255,0)");
+      g.fillStyle=cg2; g.fillRect((eclSunX-R2*6)|0,(eclSunY-R2*6)|0,R2*12,R2*12);
+      g.fillStyle="rgba(255,253,246,"+(0.5*cw2).toFixed(3)+")";     // the streamers
+      g.fillRect((eclSunX-R2*3)|0,eclSunY|0,R2*6,1); g.fillRect(eclSunX|0,(eclSunY-R2*3)|0,1,R2*6);
+      g.globalCompositeOperation="source-over";
+      g.fillStyle="#05050c";                                        // and the black disc, back on top
+      for(var vdy=-R2;vdy<=R2;vdy++){ for(var vdx=-R2;vdx<=R2;vdx++){
+        if(vdx*vdx+vdy*vdy>R2*R2-1.2) continue; g.fillRect((eclSunX+vdx)|0,(eclSunY+vdy)|0,1,1); } }
+    }
+  }
+  // ⚠ eclSunX is deliberately NOT cleared here. The Sun is drawn in the "bg" pass and this veil runs
+  // in "live" — two different canvases that do NOT necessarily repaint on the same tick (bg is the
+  // slow backdrop, and Qt coalesces requestPaint). Clearing it after use meant that on every frame
+  // where only the live canvas repainted, the corona silently vanished — which is exactly what
+  // totality rendered as: a dark sky with nothing in it. `solarEclDim` is set in the same bg pass, so
+  // the two always agree; leaving the last known position in place is what keeps them in step.
 
   // ash-out veil: whites/greys everything at the height of the cataclysm and as wilderness re-emerges,
   // masking the hard wrap from a fallen city back to the newborn wilderness of the next life
