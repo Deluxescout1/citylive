@@ -2850,7 +2850,12 @@ function buildWorld(li){
   // sea cliffs without a sea are nonsense, and so is a harbour in a red-rock desert.
   curBiome = biomeOf(li);
   hasOcean = (li===0) ? true : (curBiome.water==="sea" ? true : curBiome.water==="river" ? false : geo()<0.6);
-  seaW = hasOcean ? (0.045+geo()*0.035) : 0;  // and how much OPEN water laps at the coast
+  // The SEA CLIFFS get a far wider coast than anywhere else. Nick named that land the weakest of the
+  // seven, and the reason was that a biome literally called SEA CLIFFS was rendering with no visible
+  // water at all — 4.5-8% of the world per side is a sliver at the seam you only meet on the outer
+  // monitor. A real expanse is the difference between a grey wall and a coastline.
+  seaW = hasOcean ? (curBiome.k==="cliffs" ? (0.15+geo()*0.06) : (0.045+geo()*0.035)) : 0;
+  WATER_W = (curBiome.k==="cliffs") ? 0.21 : 0.11;   // the SEA CLIFFS get a bay you can see
   // Dry biomes get a RIVER through the city instead of a coast: the waterfront becomes a riverbank,
   // and the harbour's deep-water shipping becomes barge traffic (drawRiver / riverAt).
   hasRiver = !hasOcean && curBiome.water==="river";
@@ -3015,7 +3020,7 @@ function buildWorld(li){
   sites.push({x:Math.round(0.33*WW), w:15, floors:11, fh:4, seed:(r()*1e6)|0, offset:r()*24, dpf:1.7});
   // waterfront: boats patrolling the two industrial harbours (world edges = the coast)
   r=rng(seed+53); boats=[];
-  if(hasOcean){ var iw=Math.round(0.11*WW);   // industrial water span each edge
+  if(hasOcean){ var iw=Math.round(WATER_W*WW);   // industrial water span each edge
     var zones=[[4, iw-3],[WW-iw+3, WW-4]];
     for(i=0;i<8;i++){ var zn=zones[i%2];
       boats.push({za:zn[0], zb:zn[1], sp:1.4+r()*2.2, ph:r()*2, y:2+((r()*10)|0),
@@ -3045,6 +3050,10 @@ var hasOcean=true;   // set per life in buildWorld — landlocked cities have no
 var subways=[];      // street-level subway entrances (generated per life)
 var skybridges=[];   // G1: lit tube bridges between adjacent transformed towers
 var seaW=0;          // open-sea width (world fraction per side of the seam) — 0 on landlocked lives
+// How wide the VISIBLE bay is, per side, as a world fraction. ⚠ Not the same thing as `seaW`, and
+// this is the one that matters: `seaW` only gates what may not be BUILT in the water, while the water
+// you can actually see is painted by drawHarbor over eachWaterSpan, which was a hardcoded 0.11.
+var WATER_W=0.11;
 var milFund=0.5;     // this life's military funding level 0..1 (the election announces it)
 var cityName="NEO NORWICH";   // this life's name (theme-flavoured, set in buildWorld)
 var curWar=null;     // active/finished war state for this life (null = peaceful life)
@@ -6397,10 +6406,14 @@ function drawSmokers(g,L,now){
 // ---- waterfront harbour (in the industrial edge districts) ----
 function eachWaterSpan(cb){                                  // industrial zones = f<0.11 or f>=0.89
   if(!hasOcean) return;                                      // a landlocked life has no water at all
-  var iw=0.11*WW, zs=[[0,iw],[WW-iw,WW]];
+  var iw=WATER_W*WW, zs=[[0,iw],[WW-iw,WW]];
+  // `z` is passed on: the two spans meet across the world seam and together make ONE bay, so the
+  // LAND edge is the right end of span 0 and the left end of span 1. Anything that needs to know
+  // which way the shore faces (the tide, the surf, what the tide uncovers) cannot work it out from
+  // screen coordinates alone once the world has wrapped.
   for(var z=0;z<zs.length;z++) for(var off=-WW;off<=WW;off+=WW){
     var sa=Math.max(0, zs[z][0]-WOFF+off), sb=Math.min(SW, zs[z][1]-WOFF+off);
-    if(sb>sa+0.5) cb(sa|0,sb|0);
+    if(sb>sa+0.5) cb(sa|0,sb|0,z);
   }
 }
 function drawBoat(g,sx,wl,kind,dir,L,now){
@@ -6459,8 +6472,12 @@ function drawHarborBridge(g,L,now,night,wTop){
   }
 }
 function drawHarbor(g,L,now,night,nd){
-  var wTop=HORIZON-22, dayW=mixc([26,58,84],[92,152,188],L), wc=css(dayW);
-  eachWaterSpan(function(sa,sb){ var ww=sb-sa; if(ww<=0) return;
+  // ⚠ THIS is the water the wallpaper actually shows. `drawOpenSea` below looks like the ocean
+  // renderer and is NOT REACHED by any shipped shell — it hangs off a `pass==="water"` branch and
+  // both real shells draw only "bg" and "live". Anything added there is invisible in production;
+  // that is the shell-pass trap wearing a different hat.
+  var wTop=HORIZON-(curBiome.k==="cliffs"?Math.round(46*Math.max(1,KSP)):22), dayW=mixc([26,58,84],[92,152,188],L), wc=css(dayW);
+  eachWaterSpan(function(sa,sb,zi){ var ww=sb-sa; if(ww<=0) return;
     var shoreA=gstage(0.3,0.6);                                                   // the far shore builds up with the city
     if(shoreA>0){ g.globalAlpha=shoreA;
     for(var fx=sa;fx<sb;fx++){ if(((fx*13+7)%5)===0){ var fh=2+((fx*7)%3);        // far-shore skyline
@@ -6485,6 +6502,17 @@ function drawHarbor(g,L,now,night,nd){
         if(lap3>0.1){ g.fillStyle="rgba(255,255,255,"+(0.16+0.22*lap3).toFixed(2)+")";
           g.fillRect(fx2,HORIZON-2,2,1); } }
       g.globalAlpha=ga3;
+    }
+    // ---- THE TIDE AND WHAT IT UNCOVERS ----
+    // Unlike the reeds-and-driftwood block below, this does NOT fade out as the quays pave in: a
+    // rocky coast keeps its tide pools next door to a working harbour, and on the sea cliffs the
+    // shore is the whole reason the land is interesting. Land edge is the far end of span 0 and the
+    // near end of span 1 — the two spans meet across the world seam and make one bay.
+    if(curBiome.k==="cliffs"){
+      var shSide=zi?-1:1, shEx=(zi?sa:sb);
+      var tK=tideLevel(now,nd||nowDate());
+      shEx+=Math.round(tK*11*Math.max(1,KSP))*shSide;                 // high water advances onto the land
+      drawShoreLife(g,shEx,shSide,wTop,HORIZON-wTop,tK,L,now,sa,sb);
     }
     // ---- SHORE LIFE (fades as the quays pave in): reeds, rocks, a driftwood log ----
     var wildA=1-dockA;
@@ -7578,9 +7606,115 @@ function drawMtsReflection(g,xa,xb,yTop,maxD,L){
     if(refH>0) g.fillRect(sx,yTop+1,1,refH);
   }
 }
+// THE TIDE — a real one. Semidiurnal on the LUNAR day (12h25m, not 12h), with SPRINGS at new and
+// full moon and NEAPS at the quarters, off the same `moonPhase` the sky already draws. Returns
+// -1 (dead low) .. +1 (high). Nick's call, and it obeys the same rule every accent in this engine
+// obeys: the real measurement drives it. On the sea cliffs the difference between low and high water
+// is the difference between a shore with tide pools and kelp on it and a shore with none.
+function tideLevel(now,nd){
+  var ph=((now%44714000)/44714000)*Math.PI*2;                 // 12h25.2m, the semidiurnal beat
+  var mp=moonPhase(nd||nowDate());
+  var spring=Math.abs(Math.cos(mp*Math.PI*2));                // 1 at new/full · 0 at the quarters
+  return Math.sin(ph)*(0.52+0.48*spring);
+}
+// WHAT THE TIDE UNCOVERS. Nick, on the sea cliffs being the weakest of the seven: put the sea back
+// in frame at their foot — surf on rock, tide pools, kelp, seals and gulls actually on the water.
+// All of it keys off `tideK`, so at high water the pools and the kelp are simply GONE and the seals
+// have left; a still frame at high tide correctly shows almost none of this, which is the point.
+function drawShoreLife(g,ex,side,wTop,depth,tideK,L,now,xa,xb){
+  var K=Math.max(1,KSP), day=L>0.5;
+  var low=Math.max(0,-tideK);                                  // 0 at high water, 1 at dead low
+  var rock=day?"#6e7278":"#22262c", rock2=day?"#585c62":"#171a1f";
+  // SURF ON THE ROCK — bursts where the swell hits, at any tide, harder in real wind.
+  var wind=(weather.wind==null?5:weather.wind), surfK=Math.min(1.6,0.5+wind/16);
+  for(var s=0;s<7;s++){
+    var sy=wTop+Math.round(((s*37)%Math.max(1,depth-4))+2);
+    var burst=Math.sin(now*0.0022+s*1.9);
+    if(burst<0.45) continue;
+    var bx=ex-side*Math.round((1+((s*13)%4))*K);
+    var bh=Math.round((2+burst*5)*K*surfK);
+    // ⚠ A vertical bar crossed by a horizontal one renders as a PLUS SIGN — it read as a crosshair
+    // floating on the rock, not as water hitting it. A splash is a fan: widest at the base where it
+    // strikes, thinning and scattering as it goes up.
+    var a9=(0.30+0.35*(burst-0.45)/0.55);
+    for(var by=0;by<bh;by++){
+      var bf=by/bh, spread=Math.round((1-bf)*3*K)+1;
+      g.fillStyle="rgba(255,255,255,"+(a9*(1-bf*0.7)).toFixed(2)+")";
+      g.fillRect(bx-spread,sy-by,spread*2,Math.max(1,Math.round(K)));
+    }
+    for(var dq=0;dq<3;dq++){                                    // and a few drops thrown clear of it
+      var dh=((s*97+dq*31)>>>0);
+      g.fillStyle="rgba(255,255,255,"+(a9*0.7).toFixed(2)+")";
+      g.fillRect(bx-side*Math.round(((dh%5)+1)*K),sy-bh-Math.round(((dh>>>4)%4)*K),Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
+    }
+  }
+  if(low<0.10) return;                                         // high water: the rest of this is under the sea
+  // TIDE POOLS on the rock the sea has just left, each with a bright rim and something living in it.
+  for(var p=0;p<6;p++){
+    var h=((p*2654435761+((xa*31)|0))>>>0);
+    var py=wTop+Math.round(((h%Math.max(1,depth-6))+3));
+    var px=ex-side*Math.round((3+(h>>>7)%9)*K*low);
+    if(px<xa-4||px>xb+4) continue;
+    var pw=Math.round((3+((h>>>13)%5))*K), pht=Math.max(1,Math.round(1.6*K));
+    g.fillStyle=day?"rgba(58,104,110,0.85)":"rgba(14,28,34,0.85)";
+    g.fillRect(px-pw,py,pw*2,pht);
+    g.fillStyle=day?"rgba(178,196,196,0.6)":"rgba(70,86,96,0.5)";   // the wet rim catching the light
+    g.fillRect(px-pw,py-Math.max(1,Math.round(K*0.7)),pw*2,Math.max(1,Math.round(K*0.7)));
+    if((h>>>19)&1){ g.fillStyle=day?"#c0603e":"#3a1c12";             // a starfish in it
+      g.fillRect(px-Math.round(K),py,Math.round(2*K),Math.max(1,Math.round(K))); }
+  }
+  // KELP, lying flat and glistening where it has been left dry, still swaying where it has not.
+  for(var kq=0;kq<9;kq++){
+    var kh=((kq*40503+((xa*7)|0))>>>0);
+    var ky=wTop+Math.round((kh%Math.max(1,depth-3))+2);
+    var kx=ex-side*Math.round((1+(kh>>>5)%7)*K);
+    if(kx<xa-6||kx>xb+6) continue;
+    var kl=Math.round((4+((kh>>>11)%7))*K), lying=low>0.55;
+    g.fillStyle=day?"rgba(66,74,38,0.9)":"rgba(16,20,12,0.9)";
+    for(var kb=0;kb<kl;kb++){
+      var kf=kb/kl;
+      var kdx=lying? Math.round(-side*kb) : Math.round(Math.sin(now*0.0018+kq)*kf*2.6*K);
+      var kdy=lying? Math.round(Math.sin(kf*3.0)*1.4*K) : -kb;
+      g.fillRect(kx+kdx,ky+kdy,Math.max(1,Math.round(1.4*K)),Math.max(1,Math.round(K)));
+    }
+  }
+  if(low<0.35) return;
+  // SEALS HAULED OUT. They come up on the exposed rock and lie there, and one lifts its head now and
+  // then. `drawQuad` draws standing animals; a hauled-out seal is a different posture entirely.
+  for(var sl=0;sl<3;sl++){
+    var sh=((sl*7919+((xa*13)|0))>>>0);
+    var sy2=wTop+Math.round((sh%Math.max(1,depth-8))+5);
+    var sx2=ex-side*Math.round((5+(sh>>>9)%11)*K*low);
+    if(sx2<xa-8||sx2>xb+8) continue;
+    var sw2=Math.round((7+((sh>>>15)%4))*K), sh2=Math.max(2,Math.round(2.4*K));
+    g.fillStyle=day?"#7c7a76":"#26262a";
+    g.fillRect(sx2-sw2/2,sy2,sw2,sh2);                                        // the body, low and long
+    g.fillStyle=day?"#63615e":"#1b1b1f";
+    g.fillRect(sx2-sw2/2,sy2+sh2,Math.round(sw2*0.35),Math.max(1,Math.round(K)));   // the tail flippers
+    var lift=(Math.floor(now/2600)+sl)%4===0?Math.round(2*K):0;               // …and the head, lifting
+    g.fillStyle=day?"#87857f":"#2b2b30";
+    g.fillRect(sx2+sw2/2-Math.round(2*K),sy2-lift-Math.round(K),Math.round(2.4*K),Math.max(1,Math.round(1.8*K)));
+  }
+  // GULLS standing on the wet sand — the ones in the air already key off hasOcean elsewhere.
+  for(var gq=0;gq<5;gq++){
+    var gh=((gq*104729+((xa*17)|0))>>>0);
+    var gy3=wTop+Math.round((gh%Math.max(1,depth-4))+3);
+    var gx3=ex-side*Math.round((2+(gh>>>7)%13)*K*low);
+    if(gx3<xa-4||gx3>xb+4) continue;
+    var step=((Math.floor(now/700)+gq)%5===0)?Math.round(K):0;
+    g.fillStyle=day?"#eef1f5":"#4a5058";
+    g.fillRect(gx3+step,gy3-Math.round(2*K),Math.max(1,Math.round(2*K)),Math.round(2*K));
+    g.fillStyle=day?"#3a4048":"#20242a";
+    g.fillRect(gx3+step,gy3,Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
+  }
+}
 function drawOpenSea(g,L,now,night){
   if(!hasOcean||seaW<=0) return;
-  var wTop=HORIZON-22, day=L>0.5;
+  // How far BACK the water goes. Higher on screen is further away here, so this is the depth of the
+  // bay, not just a stripe. 22px is right for a city that merely happens to have a waterfront; on the
+  // SEA CLIFFS the water is the point, and a 22px strip behind the harbour sheds is why that land
+  // read as a grey wall with no sea in it at all.
+  var wTop=HORIZON-(curBiome.k==="cliffs"?Math.round(54*Math.max(1,KSP)):22), day=L>0.5;
   var sand=day?[216,196,150]:[86,80,64], wet=day?[168,148,110]:[62,58,46];
   var depth=(roadFNow()>0.5)?(HORIZON-wTop):(SH-wTop);        // before the causeway is paved, water runs to the screen bottom
   var bands=[[0,WW*seaW,+1],[WW*(1-seaW),WW,-1]];
@@ -7590,6 +7724,12 @@ function drawOpenSea(g,L,now,night){
       waterTex(g,xa,xb,wTop,wTop+depth,L,now);
       drawMtsReflection(g,xa,xb,wTop,depth-2,L);               // the range mirrored in the sea
       var ex=((side>0? B : A)-WOFF+w2*WW)|0;                   // the land's edge
+      // …and where the WATER's edge is right now. The land does not move; the sea does. On the sea
+      // cliffs the range is wide enough to expose a real shore at low water and drown it at high.
+      var tideK=tideLevel(now,nowDate());
+      var tideR=Math.round((curBiome.k==="cliffs"?11:4)*Math.max(1,KSP));
+      var tideX=Math.round(tideK*tideR)*side;                   // high water advances onto the land
+      ex+=tideX;
       if(ex<-10||ex>SW+10) continue;
       for(var sy=wTop;sy<wTop+depth;sy++){                     // the BEACH — a meandering, lapping shoreline
         var dp2=(sy-wTop)/depth;
@@ -7610,6 +7750,7 @@ function drawOpenSea(g,L,now,night){
           var breakX=side>0?Math.min(ex-3,bx2-4):Math.max(ex+1,bx2+2);
           g.fillRect(breakX,sy,2,1); }
       }
+      drawShoreLife(g,ex,side,wTop,depth,tideK,L,now,xa,xb);   // what the tide uncovers, and what lives on it
       if(!day&&night>0.3){                                     // the moon lays a glint path on dark water
         var gx2=Math.max(xa+3,Math.min(xb-3,((xa+xb)>>1)+((A>0?-6:6))));
         g.globalCompositeOperation="lighter";
@@ -13283,17 +13424,25 @@ function drawBiomeWeather(g,L,now,nd,fx){
 // summit lodge. Industry, so it arrives only once there is a town to build it, and it wears the
 // biome's own wall palette so it belongs to this city rather than being pasted on.
 function drawBiomeLandmark(g,L,now,nd){
-  var B=curBiome; if(!B.fauna||cityPhase==="apoc") return;      // fauna:null ⇒ alpine, which has its own
+  // ⚠ This used to early-return on `!B.fauna`, which is the alpine sentinel — so the one land the
+  // city grew up under, and the most-seen of the seven, was the only one with NOTHING that says where
+  // you are. That gate existed to protect the life-0 byte-unchanged invariant, which Nick has since
+  // deliberately retired. Alpine gets a landmark like everything else now.
+  var B=curBiome; if(cityPhase==="apoc") return;
   if(cityG<0.24) return;                                        // nobody has built it yet
-  // Half again the usual scale: at plain KSP the headframe stood shorter than the office blocks
-  // beside it and read as street furniture rather than as the reason the town is here.
-  var day=L>0.5, gy=HORIZON, K=Math.max(1,KSP)*1.7;
+  // ⚠ SCALED TO THE FRAME, NOT TO KSP. The previous fix here was "half again the usual scale",
+  // because at plain KSP the mine headframe stood shorter than the office blocks beside it. That was
+  // the right diagnosis and an insufficient dose: 1.7x KSP is still a fraction of a MATURE skyline,
+  // so every one of these was drawn every frame and buried behind the outskirts by the time the city
+  // was grown. Keying the scale to the horizon height means a landmark is always the same fraction of
+  // the picture, on any monitor, at any city age — which is the whole job of a landmark.
+  var day=L>0.5, gy=HORIZON, K=Math.max(Math.max(1,KSP)*1.7, gy/80);
   var sd2=rng((WORLD_SEED+4457)>>>0);
   var wood=day?"#7a5c3a":"#2a2018", wood2=day?"#5e4630":"#1d1610";
   var metal=day?"#9aa0a8":"#33363c", metal2=day?"#6a6e74":"#24272c";
   // Stood in the OUTSKIRTS, not the middle. edgeBias already thins the city toward the world's edges,
   // so a landmark dropped at a uniform-random x lands behind the downtown blocks and is never seen.
-  var lx=Math.round((sd2()<0.5 ? (0.03+sd2()*0.13) : (0.84+sd2()*0.13))*WW);
+  var lx=Math.round((sd2()<0.5 ? (0.07+sd2()*0.12) : (0.79+sd2()*0.12))*WW);   // outskirts, but not half off the world's edge
   function at(cb){ for(var w=-1;w<=1;w++){ var X=Math.round(lx-WOFF+w*WW);
     if(X<-90||X>SW+90) continue; cb(X); } }
   if(B.k==="mesa"){
@@ -13388,6 +13537,117 @@ function drawBiomeLandmark(g,L,now,nd){
       g.fillStyle=wood;                                                             // logs stacked in the yard
       for(var lg=0;lg<3;lg++)
         g.fillRect(X-Math.round((10-lg*2)*K),gy-Math.round((2+lg*1.6)*K),Math.round(9*K),Math.max(1,Math.round(1.5*K)));
+    });
+  } else if(B.k==="alpine"){
+    // THE MONASTERY ON THE LEDGE. It does NOT stand on the flat like every other landmark here — it
+    // is built into the range itself, on whatever ledge the cached ridge profile actually offers, and
+    // reached by a rope stair cut down the rock. Older than the city; it does not wait for cityG.
+    if(!mtsCache||!mtsCache.h||!mtsCache.h[1]) return;
+    var hs9=mtsCache.h[1], best=-1, bestH=0;
+    for(var mx9=Math.round(SW*0.10);mx9<Math.round(SW*0.90);mx9+=Math.max(2,Math.round(3*K))){
+      var lv=Math.min(hs9[mx9],hs9[Math.min(SW-1,mx9+Math.round(8*K))]);            // wants a LEVEL run
+      var dv=Math.abs(hs9[mx9]-hs9[Math.min(SW-1,mx9+Math.round(8*K))]);
+      if(lv>24*K&&dv<5*K&&lv>bestH){ bestH=lv; best=mx9; }
+    }
+    if(best<0) return;
+    var LX=best, LY=gy-Math.round(bestH);
+    var mw9=Math.round(13*K), mh9=Math.round(9*K);
+    g.fillStyle=day?"#a89a86":"#3b3630";                                            // the main block
+    g.fillRect(LX,LY-mh9,mw9,mh9);
+    g.fillStyle=day?"#8d7f6c":"#2b2723";                                            // its stepped roof
+    g.fillRect(LX-Math.round(K),LY-mh9-Math.round(2*K),mw9+Math.round(2*K),Math.round(2.2*K));
+    g.fillRect(LX+Math.round(2*K),LY-mh9-Math.round(4*K),mw9-Math.round(4*K),Math.round(2*K));
+    g.fillStyle=day?"#b6a894":"#443f38";                                            // the tower at one end
+    g.fillRect(LX+mw9-Math.round(4*K),LY-mh9-Math.round(9*K),Math.round(4*K),Math.round(9*K));
+    g.fillStyle=day?"#8d7f6c":"#211e1b";
+    g.fillRect(LX+mw9-Math.round(5*K),LY-mh9-Math.round(11*K),Math.round(6*K),Math.round(2*K));
+    if(L<0.62){ g.globalCompositeOperation="lighter";                               // windows, lit late
+      g.fillStyle="rgba(255,196,110,0.85)";
+      for(var wq=0;wq<4;wq++) if((wq+((now/2600)|0))%5) g.fillRect(LX+Math.round((2+wq*3)*K),LY-Math.round(6*K),Math.max(1,Math.round(1.4*K)),Math.round(2*K));
+      g.fillStyle="rgba(255,214,150,0.7)"; g.fillRect(LX+mw9-Math.round(3*K),LY-mh9-Math.round(6*K),Math.round(2*K),Math.round(2*K));
+      g.globalCompositeOperation="source-over"; }
+    // THE ROPE STAIR. ⚠ Rungs alone read as a stack of loose bars floating beside the rock — a
+    // ladder has to have RAILS or it is just tally marks. Two cords plus rungs between them.
+    var stH=Math.round(bestH*0.55), stStep=Math.max(2,Math.round(2.4*K)), rW=Math.max(1,Math.round(K));
+    for(var st9=0;st9<stH;st9++){
+      var sxx9=LX-Math.round(2*K)-Math.round(st9*0.30);
+      g.fillStyle=day?"#5c5245":"#14120d";
+      g.fillRect(sxx9,LY+st9,rW,1); g.fillRect(sxx9+Math.round(3.4*K),LY+st9,rW,1);       // the two cords
+      if(st9%stStep===0){ g.fillStyle=day?"#7d7160":"#1b1812";
+        g.fillRect(sxx9,LY+st9,Math.round(3.4*K),rW); }                                    // …and a rung
+    }
+    // PRAYER FLAGS. ⚠ First pass drew nine at 1.6x2 K on no line at all and they came out as a row
+    // of coloured CARDS hovering over the roof, bigger than the monastery's own windows. They are
+    // small pennants strung on a sagging cord between the tower and the far corner.
+    var pf=[[214,86,72],[236,196,86],[86,146,204],[240,240,236],[104,178,126]];
+    var fA=LX-Math.round(3*K), fB=LX+mw9+Math.round(2*K), fY=LY-mh9-Math.round(3*K);
+    var fSag=Math.round(3*K), wK9=Math.min(1.5,(weather.wind||5)/10);
+    g.fillStyle=day?"#8b8272":"#241f18";
+    for(var cq=0;cq<=fB-fA;cq++)                                                           // the cord itself
+      g.fillRect(fA+cq,fY+Math.round(Math.sin(Math.PI*(cq/(fB-fA)))*fSag),1,1);
+    for(var pq=0;pq<8;pq++){
+      var pf2=(pq+0.5)/8, pxq=fA+Math.round(pf2*(fB-fA));
+      var pyq=fY+Math.round(Math.sin(Math.PI*pf2)*fSag);
+      var flap=Math.round(Math.sin(now*0.003+pq*1.4)*wK9*K);
+      g.fillStyle=css(pf[pq%5]);
+      g.fillRect(pxq,pyq+1,Math.max(1,Math.round(K)),Math.max(2,Math.round(1.8*K)));       // a small pennant
+      g.fillRect(pxq+flap,pyq+1+Math.max(2,Math.round(1.8*K)),Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
+    }
+  } else if(B.k==="hell"){
+    // THE GREAT FOUNDRY — a blast furnace built into the slope. The Ashlands had fire but nothing
+    // MADE of it; this is the reason anyone lives on burning rock. It pours at intervals, and the
+    // pour is the whole point: a static furnace is a shed with a chimney.
+    at(function(X){
+      var fw=Math.round(16*K), fh=Math.round(14*K);
+      g.fillStyle=day?"#3a2c28":"#171012"; g.fillRect(X,gy-fh,fw,fh);               // the furnace block
+      g.fillStyle=day?"#4a3833":"#1f1618";
+      g.fillRect(X-Math.round(2*K),gy-fh-Math.round(2*K),fw+Math.round(4*K),Math.round(2.4*K));
+      for(var sk9=0;sk9<3;sk9++){                                                   // three stacks
+        var skx=X+Math.round((2+sk9*5)*K), skh=Math.round((8+sk9*4)*K);
+        g.fillStyle=day?"#2e2422":"#120d0e"; g.fillRect(skx,gy-fh-skh,Math.round(2.4*K),skh);
+        g.fillStyle="rgba(255,138,52,"+(0.35+0.3*Math.abs(Math.sin(now*0.0011+sk9))).toFixed(2)+")";
+        g.fillRect(skx,gy-fh-skh,Math.round(2.4*K),Math.round(1.6*K));              // flare at the lip
+      }
+      // THE POUR. Roughly every 40s the tap opens and slag runs down the rock, bright at the lip and
+      // cooling to a dull glow as it goes. Between pours the runnel is still warm.
+      var per=40000, ph9=(now%per)/per, pouring=ph9<0.30;
+      var rx9=X+Math.round(fw*0.5), runL=Math.round(18*K);
+      for(var rq=0;rq<runL;rq++){
+        var rf=rq/runL;
+        var live=pouring?Math.max(0,1-Math.abs(rf-(ph9/0.30))*2.2):0;
+        var a9=0.16+0.72*live;
+        g.fillStyle="rgba(255,"+((90+150*(1-rf))|0)+","+((20+60*(1-rf)*live)|0)+","+a9.toFixed(2)+")";
+        g.fillRect(rx9+Math.round(rf*8*K),gy-fh+Math.round(rf*fh*1.05),Math.max(2,Math.round(2.4*K)),Math.max(1,Math.round(1.6*K)));
+      }
+      if(pouring){ g.globalCompositeOperation="lighter";                            // the light it throws
+        g.fillStyle="rgba(255,140,50,0.16)"; g.fillRect(X-Math.round(14*K),gy-fh-Math.round(6*K),fw+Math.round(28*K),fh+Math.round(8*K));
+        g.globalCompositeOperation="source-over"; }
+    });
+  } else if(B.k==="heaven"){
+    // THE GREAT GATE — a free-standing arch on the terrace that goes nowhere and predates everything.
+    // The one thing it does that no other landmark here does: the light through the opening is
+    // brighter than the light around it, so the gap reads as the subject rather than the stone.
+    at(function(X){
+      var gw=Math.round(22*K), gh=Math.round(26*K), pw=Math.round(4.5*K);
+      g.globalCompositeOperation="lighter";                                          // what comes through it
+      g.fillStyle="rgba(255,246,214,"+(L>0.5?0.14:0.10).toFixed(2)+")";
+      g.fillRect(X+pw,gy-gh+Math.round(4*K),gw-pw*2,gh-Math.round(4*K));
+      g.globalCompositeOperation="source-over";
+      var stone=day?"#efe9d6":"#4a4a52", shade=day?"#d6cfba":"#35353c";
+      g.fillStyle=stone; g.fillRect(X,gy-gh,pw,gh);                                  // the two piers
+      g.fillRect(X+gw-pw,gy-gh,pw,gh);
+      g.fillStyle=shade; g.fillRect(X+pw-Math.round(K),gy-gh,Math.round(K),gh);       // and their shaded inner face
+      g.fillRect(X+gw-pw,gy-gh,Math.round(K),gh);
+      g.fillStyle=stone;                                                             // the arch itself, stepped
+      for(var aq=0;aq<5;aq++){
+        var inset=Math.round(aq*1.1*K), rise=Math.round((4-aq)*1.2*K);
+        g.fillRect(X+inset,gy-gh-rise,gw-inset*2,Math.max(1,Math.round(1.4*K)));
+      }
+      g.fillStyle=day?"#f7f2e2":"#5a5a64";                                            // the lintel above
+      g.fillRect(X-Math.round(2*K),gy-gh-Math.round(7*K),gw+Math.round(4*K),Math.round(2.4*K));
+      if(!day){ g.globalCompositeOperation="lighter";                                 // it holds the light at night
+        g.fillStyle="rgba(255,238,196,0.20)"; g.fillRect(X+pw,gy-gh+Math.round(4*K),gw-pw*2,gh-Math.round(4*K));
+        g.globalCompositeOperation="source-over"; }
     });
   }
 }
