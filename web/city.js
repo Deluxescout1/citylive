@@ -3268,7 +3268,27 @@ function buildWorld(li){
     // island volcano is ONE dominant cone with at most a couple of low satellites, so the near band is
     // replaced outright rather than tuned. The triangular peak profile (`h*t0`, with steep:0) IS the
     // cone; nothing else has to draw it.
-    if(curBiome.volcanic){
+    // ⚠ A STEEPER HEIGHT FIELD DOES NOT MAKE COLUMNS. `steep:0.94` produced one continuous scalloped
+    // ridge, so the temples came out a picket fence of fifteen identical structures instead of a few on
+    // isolated spires. Same lesson the volcano taught: when the LANDFORM is the identity, replace the
+    // band outright rather than tuning the field. Six needle columns, narrow and very tall.
+    if(curBiome.spires){
+      mts.near=[]; mts.far=mts.far.slice(0,2);
+      var nSp=5+((mg()*3)|0);
+      for(mi=0;mi<nSp;mi++)
+        mts.near.push({ x:(0.08+(mi+mg()*0.6)/nSp*0.84)*WW, w:(16+mg()*10)*MSC,
+                        h:(120+mg()*70)*MSC, sn:false, ph:mg()*9 });
+    }
+    // ⚠ AND A CALDERA IS A RING, NOT A MASS. Seen side-on from outside, one big peak is just a wall —
+    // which is exactly how the first Cinder Throne read. Two tall wide walls with a LOW GAP between them
+    // is what puts the city inside the crater instead of in front of it.
+    if(curBiome.k==="fire"){
+      var cGap=(0.34+mg()*0.30)*WW, cW=(150+mg()*70)*MSC;
+      mts.near=[{ x:cGap-cW*0.92, w:cW, h:(120+mg()*40)*MSC, sn:false, ph:mg()*9 },
+                { x:cGap+cW*0.92, w:cW, h:(120+mg()*40)*MSC, sn:false, ph:mg()*9 }];
+      mts.far=mts.far.slice(0,3);
+    }
+    if(curBiome.volcanic&&!curBiome.spires&&curBiome.k!=="fire"){
       var vX=(0.30+mg()*0.40)*WW;                                  // the summit, kept off the world's seam
       mts.near=[{ x:vX, w:(300+mg()*140)*MSC, h:(150+mg()*40)*MSC, sn:false, ph:mg()*9 }];
       var nSat=1+((mg()*2)|0);
@@ -15654,18 +15674,22 @@ function drawSpireWorld(g,L,now,nd){
   var tops=[], last=-999;
   for(var x=Math.round(3*K);x<SW-Math.round(3*K);x++){
     if(hs[x]<26*K) continue;
-    if(hs[x]>=hs[x-1]&&hs[x]>=hs[x+1]&&x-last>Math.round(22*K)){ tops.push({x:x,h:hs[x]}); last=x; }
+    if(hs[x]>=hs[x-1]&&hs[x]>=hs[x+1]&&x-last>Math.round(46*K)){ tops.push({x:x,h:hs[x]}); last=x; }
   }
   // THE CLOUD FLOOR — banded, drifting, and drawn high enough to swallow the feet of the spires.
-  var floorY=gy-Math.round(18*K);
+  // ⚠ The cloud floor was 18*K tall — a 36px strip that left the spire feet and the ridge base
+  // plainly visible, so the land still had a bottom. It has to be a real SEA: nearly a third of the
+  // frame, banded and drifting, with solid cloud under it.
+  var floorY=gy-Math.round(gy*0.30);
   for(var b=0;b<5;b++){
-    var by=floorY+Math.round(b*3.4*K)+Math.round(Math.sin(now*0.00009+b*1.3)*1.6*K);
+    var by=floorY+Math.round(b*(gy*0.30/6))+Math.round(Math.sin(now*0.00009+b*1.3)*2.2*K);
     var a=(0.46-b*0.07);
     g.fillStyle=day?"rgba(238,242,248,"+a.toFixed(3)+")":"rgba(96,106,126,"+(a*0.75).toFixed(3)+")";
     g.fillRect(0,by,SW,Math.round((5+b*2)*K));
   }
-  g.fillStyle=day?"rgba(244,248,252,0.92)":"rgba(70,80,100,0.9)";      // and solid below it: no ground
-  g.fillRect(0,floorY+Math.round(14*K),SW,gy-(floorY+Math.round(14*K))+2);
+  g.fillStyle=day?"rgba(244,248,252,0.95)":"rgba(70,80,100,0.94)";     // and solid below it: no ground
+  var solidY=floorY+Math.round(gy*0.30*0.55);
+  g.fillRect(0,solidY,SW,gy-solidY+2);
   // TEMPLES on the tops, and BRIDGES between neighbours — this land's traversal layer.
   var stone=day?"#e8e2d2":"#3a3a3e", stone2=day?"#c4bca8":"#26262a", roof=day?"#c96a4a":"#3a1e16";
   for(var i=0;i<tops.length;i++){
@@ -15711,15 +15735,32 @@ function drawSpireWorld(g,L,now,nd){
 function drawCascades(g,L,now,nd){
   if(!curBiome.cascades||!mtsCache||!mtsCache.h||!mtsCache.h[1]) return;
   var day=L>0.5, K=Math.max(1,KSP), gy=HORIZON, hs=mtsCache.h[1];
-  var edges=[], lastE=-999;
-  for(var x=Math.round(2*K);x<SW-Math.round(2*K);x++){
-    var drop=hs[x]-hs[x+1];
-    if(drop>10*K&&hs[x]>26*K&&x-lastE>Math.round(30*K)){ edges.push({x:x,top:gy-hs[x],foot:gy-hs[x+1]}); lastE=x; }
+  // ⚠ THE RIM IS NOT A ONE-COLUMN GRADIENT. Looking for `hs[x]-hs[x+1] > 10*K` never fired: the plateau
+  // is QUANTISED into bedding planes, so it steps down in several small stairs rather than one cliff, and
+  // the land's whole identity silently never drew. Measured over a WINDOW instead, which is what a rim
+  // actually is.
+  // ⚠ AND TAKING THE FIRST THREE WAS THE SECOND BUG. 47 columns passed the test, but they cluster —
+  // so `edges[0..2]` were all within 70px of the LEFT FRAME EDGE and the falls drew in a corner, mostly
+  // off-screen and behind the city. Collect every candidate, sort by how far it actually drops, then
+  // take the biggest few with real separation. A waterfall belongs at the deepest part of the rim.
+  var cand=[], win=Math.max(3,Math.round(5*K));
+  for(var x=Math.round(SW*0.06);x<Math.round(SW*0.94)-win;x++){
+    var drop=hs[x]-hs[x+win];
+    if(drop>7*K&&hs[x]>20*K) cand.push({x:x,drop:drop,top:gy-hs[x],foot:gy-hs[x+win]});
+  }
+  cand.sort(function(a,b){ return b.drop-a.drop; });
+  var edges=[], sep=Math.round(70*K);
+  for(var ci=0;ci<cand.length&&edges.length<3;ci++){
+    var ok=true;
+    for(var ei=0;ei<edges.length;ei++) if(Math.abs(cand[ci].x-edges[ei].x)<sep){ ok=false; break; }
+    if(ok) edges.push(cand[ci]);
   }
   var wTopC=day?[236,248,252]:[120,140,166], wMid=day?[176,214,234]:[60,84,112];
   for(var e=0;e<edges.length&&e<3;e++){
-    var ed=edges[e], fw=Math.round((7+((e*7919)>>>0)%6)*K);
-    var fx=ed.x-Math.round(fw*0.5), len=Math.max(4,ed.foot-ed.top);
+    var ed=edges[e], fw=Math.round((15+((e*7919)>>>0)%11)*K);   // wide: the falls ARE the land
+    // the sheet runs from the lip to the FLOOR, not merely to the next bedding step: a plateau
+    // rim quantised into stairs would otherwise give a two-pixel dribble instead of a waterfall.
+    var fx=ed.x-Math.round(fw*0.5), len=Math.max(8,(gy-Math.round(2*K))-ed.top);
     // the lip, then the sheet, widening and breaking up as it falls
     g.fillStyle=css(wTopC); g.fillRect(fx,ed.top-Math.max(1,Math.round(K)),fw,Math.round(2*K));
     for(var q=0;q<len;q++){
@@ -15733,7 +15774,7 @@ function drawCascades(g,L,now,nd){
       }
     }
     // THE PLUNGE POOL and its mist — a fall with no spray at the bottom reads as a painted stripe
-    var pooly=ed.foot;
+    var pooly=ed.top+len;
     for(var m=0;m<Math.round(14*K);m++){
       var mf=m/Math.round(14*K), ma=(0.30-0.26*mf)*(0.7+0.3*Math.sin(now*0.0013+e+m*0.4));
       if(ma<=0.01) break;
