@@ -45,13 +45,20 @@ Item {
             var plains = timeLife(21, "plains", N);
             var hell   = timeLife(16, "hell",   N);
             var heaven = timeLife(8,  "heaven", N);
+            // ⚠ THE MATURE BLOCK USED TO SKIP FOREST AND PLAINS — the two biomes whose accents draw
+            // in the LIVE pass every frame, i.e. exactly the two whose cost the mature case was most
+            // likely to expose. All seven are timed at 0.85 now.
             var alpineM = timeLife(6,  "alpine@0.85", N, 0.85);
+            var forestM = timeLife(1,  "forest@0.85", N, 0.85);
             var mesaM   = timeLife(2,  "mesa@0.85",   N, 0.85);
             var cliffsM = timeLife(29, "cliffs@0.85", N, 0.85);
+            var plainsM = timeLife(21, "plains@0.85", N, 0.85);
             var hellM   = timeLife(16, "hell@0.85",   N, 0.85);
             var heavenM = timeLife(8,  "heaven@0.85", N, 0.85);
-            console.log("PERF MATURE vs alpine — mesa " + (mesaM/alpineM).toFixed(2)
+            console.log("PERF MATURE vs alpine — forest " + (forestM/alpineM).toFixed(2)
+                      + "x  mesa " + (mesaM/alpineM).toFixed(2)
                       + "x  cliffs " + (cliffsM/alpineM).toFixed(2)
+                      + "x  plains " + (plainsM/alpineM).toFixed(2)
                       + "x  hell " + (hellM/alpineM).toFixed(2)
                       + "x  heaven " + (heavenM/alpineM).toFixed(2) + "x");
             console.log("PERF vs alpine — forest " + (forest/alpine).toFixed(2)

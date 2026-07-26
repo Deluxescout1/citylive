@@ -2887,15 +2887,22 @@ function buildWorld(li){
   // of a giant is ever on screen, so the form has to read in the BASE — flare, bark and first branch.
   if(curBiome.k==="forest"){
     var TSC=KSP*Math.max(0.45,Math.min(1,WW/1300)), HZ=Math.max(60,HORIZON);
-    bioTrees={far:[],near:[],fore:[]};
+    bioTrees={far:[],mid:[],near:[],fore:[]};
     // STRATIFIED across the world, not uniformly random: a random x on this few trunks clumps, and a
     // clump plus a gap reads worse than an even stand. Each tree gets its own slice and jitters
     // inside it. Counts are deliberately LOW — the first render of this put ~14 giants across the
     // frame and the city they stand over was completely buried behind a picket fence of trunks.
-    var nFT=13+((mg()*5)|0), nNT=5+((mg()*3)|0), nOT=2, ti;
+    // FOUR depth bands, not three. With only far/near/fore the frame had a treeline of lollipops on
+    // the horizon, then nothing at all until the giants — a hard cut from "100px tall" to "leaves the
+    // top of the screen", which is why the middle of the picture was an empty wall of sky and why
+    // near and fore read as one object at two sizes. The mid band is old-growth that still HAS a top:
+    // tall enough to fill the middle of the frame, short enough that its crown is in it.
+    var nFT=13+((mg()*5)|0), nMT=7+((mg()*4)|0), nNT=5+((mg()*3)|0), nOT=2, ti;
     function slot(i,n,j){ return ((i+0.5+(mg()-0.5)*j)/n)*WW; }
     for(ti=0;ti<nFT;ti++) bioTrees.far.push({x:slot(ti,nFT,0.85), h:(44+mg()*36)*TSC, w:(14+mg()*11)*TSC,
       ph:mg()*9, broad:mg()<0.42});
+    for(ti=0;ti<nMT;ti++) bioTrees.mid.push({x:slot(ti,nMT,0.75), h:HZ*(0.40+mg()*0.34), w:(15+mg()*11)*TSC,
+      ph:mg()*9, broad:mg()<0.46});
     for(ti=0;ti<nNT;ti++) bioTrees.near.push({x:slot(ti,nNT,0.60), h:HZ*(1.10+mg()*0.55), w:(20+mg()*16)*TSC,
       ph:mg()*9, broad:mg()<0.42});
     for(ti=0;ti<nOT;ti++) bioTrees.fore.push({x:slot(ti,nOT,0.55), h:HZ*(1.70+mg()*0.80), w:(40+mg()*26)*TSC,
@@ -11962,25 +11969,104 @@ function drawGrowSite(g,X,w,targetH,frac,seed,L,now,crew){
 // Only the lower third of a giant is ever on screen, so its FORM has to read in the base: the
 // broadleaf swells into a buttress and forks its limbs out and up, the columnar sequoia stays a
 // straight shaft with foliage skirts hugging it all the way.
+// FOLIAGE MASS — one irregular clump of leaves, drawn as a stack of unequal rows. SHARED, and
+// deliberately biome-agnostic: the forest giants use it, and every other biome's own trees want the
+// same primitive rather than six more hand-rolled crowns. Two shapes were tried first and both
+// failed for the reason the sequoia skirt failed — a true ellipse reads as a BALLOON and a plain
+// rectangle reads as a HEDGE. What makes it read as leaves is that no two rows agree: each row's
+// width is wobbled and its centre is shifted, so the edge comes out ragged and the silhouette never
+// repeats. Seeded, so a given clump is identical every frame (nothing here may animate per-frame —
+// that is the citizen-sim freeze lesson in miniature).
+// rx/ry are RADII in canvas px; the caller is responsible for scaling them by K.
+function folMass(g,cx,cy,rx,ry,seed,K){
+  if(rx<1||ry<1) return;
+  var st=Math.max(1,Math.round(K)), y, h, prof, wob, off, w, band;
+  // The wobble is per BAND, not per row. Re-rolling the width on every single row makes a comb —
+  // long single-pixel spikes off both sides that read as hair, which is what the first render of
+  // this showed. Bands a few pixels deep give chunky lobes instead, which is both what leaves look
+  // like at this scale and what the rest of the engine's pixel art does.
+  var bandH=Math.max(st,Math.round(ry*0.30));
+  for(y=-ry;y<=ry;y+=st){
+    prof=Math.sqrt(Math.max(0,1-(y/ry)*(y/ry)*0.90));       // fat through the middle, not elliptical
+    band=Math.floor((y+ry)/bandH);
+    h=(((seed+band*7919)*2654435761)>>>0);
+    wob=0.80+((h%1000)/1000)*0.34;                          // each lobe its own width
+    off=((((h>>>11)%1000)/1000)-0.5)*rx*0.22;               // and off-centre, so the edge stays ragged
+    w=Math.round(rx*prof*wob);
+    if(w<1) continue;
+    g.fillRect(Math.round(cx+off-w),Math.round(cy+y),w*2,st);
+  }
+}
+// THE CROWN of a tree whose top is actually in frame — the far and mid ranks. (The giants have no
+// crown by design: theirs is off the top of the screen.) Caller sets fillStyle, which is what keeps
+// each depth band at its own haze. `i` only has to differ between trees.
+function drawTreeCrown(g,t,sx,gy,K,i){
+  var top=Math.round(gy-t.h), hw2=Math.round(t.w/2), ch=Math.max(3,Math.round(t.h*0.34));
+  if(t.broad){                                             // a round head of leaves, not a spire
+    folMass(g,sx,top+ch*0.42,hw2*1.25,ch*0.52,((i*2654435761+((t.ph*613)|0))>>>0),K);
+    folMass(g,sx-hw2*0.7,top+ch*0.75,hw2*0.8,ch*0.34,((i*40503+7)>>>0),K);
+    folMass(g,sx+hw2*0.8,top+ch*0.70,hw2*0.7,ch*0.30,((i*7919+13)>>>0),K);
+  } else {
+    // A TAPERED spire built row by row, banded like folMass so the edge steps unevenly. Four stacked
+    // rectangles was fine at far-rank size and became unmistakable the moment the mid band existed:
+    // at 400px tall it reads as a RADIO MAST, which is the same "machined part" failure the sequoia
+    // skirt kept hitting.
+    var st=Math.max(1,Math.round(K)), bh=Math.max(st,Math.round(ch*0.14)), y, f2, h2, kw, jx;
+    for(y=0;y<ch;y+=st){
+      f2=y/ch;
+      h2=(((i*7919+Math.floor(y/bh)*2654435761)+((t.ph*401)|0))>>>0);
+      kw=Math.round(hw2*(0.12+1.28*f2)*(0.78+((h2%1000)/1000)*0.40));
+      if(kw<1) continue;
+      jx=((((h2>>>11)%1000)/1000)-0.5)*hw2*0.28;
+      g.fillRect(Math.round(sx+jx)-kw, Math.round(top+y), kw*2, st);
+    }
+  }
+}
 // `detail` = draw this one's limbs/foliage. The far rank passes false: it is small background
 // old-growth that gets a plain crown, and running the giants' limb code at that size turned every
 // far tree into a television aerial standing on the horizon.
-function drawBole(g,t,sx,gy,cTrunk,cBark,cFol,K,detail){
+// `litK` = how hard the directional light models the bole (0 at night). A perfectly flat slab of
+// one colour is what made the first stand read as scaffolding poles: the eye gets no curvature cue
+// at all. The shaded flutes alone were not enough because they all sat on ONE side at a fixed
+// spacing, which is a stripe pattern, not a round surface.
+function drawBole(g,t,sx,gy,cTrunk,cBark,cFol,K,detail,litK){
   var hw0=Math.max(2,Math.round(t.w*(t.broad?0.30:0.24))), hwTip=Math.max(1,Math.round(hw0*0.42));
   var y0=Math.max(-4,Math.round(gy-t.h)), step=Math.max(2,Math.round(3*K)), bot=gy+2;
+  // A LEAN. Every trunk was mathematically vertical, and nothing in nature that big is: a column of
+  // pixels with two parallel edges reads as a pole no matter what is drawn on it. The lean is tiny
+  // (a few px over the visible height) and constant per tree, so the bole still stands but its two
+  // edges are no longer parallel, which is the whole cue.
+  var lean=((((t.ph*1000)|0)%100)/100-0.5)*0.055;
+  function offX(y){ return Math.round((gy-y)*lean); }
   function halfW(y){
     var f=Math.min(1,Math.max(0,(gy-y)/t.h)), w=hw0+(hwTip-hw0)*f;   // 0 at the ground, 1 at the tip
     if(t.broad){ var fl=Math.max(0,(y-(gy-t.h*0.09))/(t.h*0.09));    // BUTTRESS — the broadleaf giants
       w+=hw0*0.95*fl*fl; }                                           // swell hard in the last few metres
     return Math.max(1,Math.round(w));
   }
-  var y,hw;
+  var y,hw,cx;
   g.fillStyle=cTrunk;
-  for(y=y0;y<bot;y+=step){ hw=halfW(y); g.fillRect(sx-hw,y,hw*2,Math.min(step,bot-y)); }
-  g.fillStyle=cBark;                                                 // two flutes down the shaded side,
-  for(var fl2=0;fl2<2;fl2++){                                        // so a 40px bole isn't a flat slab
-    for(y=y0;y<bot;y+=step){ hw=halfW(y);
-      g.fillRect(sx+Math.round(hw*(0.18+fl2*0.48)),y,Math.max(1,Math.round(K)),Math.min(step,bot-y)); }
+  for(y=y0;y<bot;y+=step){ hw=halfW(y); cx=sx+offX(y); g.fillRect(cx-hw,y,hw*2,Math.min(step,bot-y)); }
+  // BARK: flutes down the shaded side, as many as the bole is wide (a 40px giant carried the same
+  // two as a 14px background tree and came out a flat plank), each at its own depth and each BROKEN
+  // into runs rather than drawn as one unbroken rule from ground to frame edge.
+  var nFl=Math.max(2,Math.min(6,Math.round(hw0/(3*K))));
+  g.fillStyle=cBark;
+  for(var fl2=0;fl2<nFl;fl2++){
+    var fp=0.16+(fl2/nFl)*0.72, fw=Math.max(1,Math.round(K*(fl2&1?1:1.7)));
+    for(y=y0;y<bot;y+=step){
+      if(((((y*131+fl2*977+((t.ph*7)|0))>>>0)%29))<4) continue;      // gaps, so it is grain not pinstripe
+      hw=halfW(y); g.fillRect(sx+offX(y)+Math.round(hw*fp),y,fw,Math.min(step,bot-y));
+    }
+  }
+  // …and the lit rim on the side the sun is actually on. One narrow highlight down the leading edge
+  // turns the slab into a cylinder — the cheapest roundness there is, and it follows the real sun so
+  // it swaps sides over the day exactly like the buildings' highlight already does.
+  if(litK>0.02){
+    var sunL=curSunDf<0.5, rw=Math.max(1,Math.round(K*1.4));
+    g.fillStyle="rgba(255,246,224,"+(0.11*litK).toFixed(3)+")";
+    for(y=y0;y<bot;y+=step){ hw=halfW(y); cx=sx+offX(y);
+      g.fillRect(sunL?cx-hw:cx+hw-rw,y,rw,Math.min(step,bot-y)); }
   }
   if(!detail){ return; }
   if(t.broad){
@@ -11992,16 +12078,55 @@ function drawBole(g,t,sx,gy,cTrunk,cBark,cFol,K,detail){
     // band — whose trees are 1.7-2.5x the horizon — so the two most prominent giants in the picture,
     // the ones standing in front of the city, showed no fork at all and read as bare columns. The
     // hybrid stand Nick asked for would silently have been columnar-only where it mattered most.
+    var vis=Math.min(0.86,gy/t.h), li, ly, dir, reach, lw0, s, lyy, lw, lx;
+    var LIMB=4;
     g.fillStyle=cTrunk;
-    var vis=Math.min(0.86,gy/t.h);
-    for(var li=0;li<4;li++){
-      var ly=gy-t.h*(vis*(0.42+li*0.16)), dir=(li&1)?1:-1;
+    for(li=0;li<LIMB;li++){
+      ly=gy-t.h*(vis*(0.42+li*0.16)); dir=(li&1)?1:-1;
       if(ly>gy) continue;
-      var reach=t.w*(0.85+((li*7+(t.ph|0))%3)*0.28), lw0=Math.max(2,Math.round(hw0*0.42));
-      for(var s=0;s<reach;s++){
-        var lyy=ly-s*0.95; if(lyy<-6) break;                         // out and up
-        var lw=Math.max(1,Math.round(lw0*(1-(s/reach)*0.62)));
-        g.fillRect(Math.round(sx+dir*s),Math.round(lyy),lw+1,lw+1);
+      reach=t.w*(0.85+((li*7+(t.ph|0))%3)*0.28); lw0=Math.max(2,Math.round(hw0*0.42));
+      lx=sx+offX(ly);
+      for(s=0;s<reach;s++){
+        lyy=ly-s*0.95; if(lyy<-6) break;                             // out and up
+        lw=Math.max(1,Math.round(lw0*(1-(s/reach)*0.62)));
+        g.fillRect(Math.round(lx+dir*s),Math.round(lyy),lw+1,lw+1);
+        // a secondary branch off the halfway point, climbing steeper — one straight stick per limb
+        // reads as a broken spar; a limb that DIVIDES reads as a tree.
+        if(s>reach*0.5&&s<reach*0.5+reach*0.4){
+          var bs=s-reach*0.5;
+          g.fillRect(Math.round(lx+dir*(reach*0.5+bs*0.55)),Math.round(ly-reach*0.5*0.95-bs*1.35),
+                     Math.max(1,Math.round(lw0*0.5)),Math.max(1,Math.round(lw0*0.5)));
+        }
+      }
+    }
+    // THE LEAVES. `cFol` was passed into this branch and never used — the broadleaf giants drew a
+    // buttressed trunk and four bare sticks and read, correctly, as DEAD SNAGS. Masses ride the
+    // outer half of each limb and its fork, never against the trunk, so the crown opens outward the
+    // way a spreading hardwood's does.
+    g.fillStyle=cFol;
+    for(li=0;li<LIMB;li++){
+      ly=gy-t.h*(vis*(0.42+li*0.16)); dir=(li&1)?1:-1;
+      if(ly>gy) continue;
+      reach=t.w*(0.85+((li*7+(t.ph|0))%3)*0.28); lx=sx+offX(ly);
+      for(var m=0;m<3;m++){
+        var mf=0.52+m*0.22, mr=t.w*(0.30+m*0.09);
+        var mx=lx+dir*reach*mf, my=ly-reach*mf*0.95;
+        if(my+mr*0.7<-4||my-mr>gy) continue;
+        folMass(g,mx,my,mr,mr*0.66,((li*7919+m*104729+((t.ph*811)|0))>>>0),K);
+      }
+      // and one riding the fork, higher and inboard, so the two tiers overlap instead of lining up
+      var fr=t.w*0.34, fx=lx+dir*reach*0.78, fy=ly-reach*0.47*0.95-reach*0.42*1.35;
+      if(fy+fr>-4) folMass(g,fx,fy,fr,fr*0.60,((li*40503+((t.ph*277)|0))>>>0),K);
+      // sunlit crowns on top of the masses. Flat single-tone foliage is the last thing that still
+      // read as cut paper once the shapes were right — the light has to fall on the top of a crown.
+      if(litK>0.02){
+        g.fillStyle="rgba(255,248,220,"+(0.13*litK).toFixed(3)+")";
+        for(var hm=0;hm<2;hm++){
+          var hf=0.56+hm*0.30, hr=t.w*(0.20-hm*0.05);
+          var hx=lx+dir*reach*hf, hy=ly-reach*hf*0.95-t.w*0.13;
+          if(hy+hr>-4) folMass(g,hx,hy,hr*1.1,hr*0.52,((li*911+hm*613)>>>0),K);
+        }
+        g.fillStyle=cFol;
       }
     }
   } else {
@@ -12010,24 +12135,54 @@ function drawBole(g,t,sx,gy,cTrunk,cBark,cFol,K,detail){
     // bolted to a pole. Both were symmetric with a hard horizontal top edge, which is what says
     // "machined part" instead of "leaves". This scatters unequal clumps either side at uneven
     // heights, so the silhouette never repeats and never squares off.
+    // 34 clumps 2-4px tall, evenly spaced, was the fourth failure and the subtlest: at that size and
+    // spacing they read as SHELF FUNGUS growing on a pole — texture stuck to the surface rather than
+    // structure hanging off it. What a sequoia actually has is a handful of heavy BOUGHS with open
+    // trunk between them. So: few, big, and clustered — each tier is a bough with two or three
+    // masses on it, and the gaps between tiers are as important as the tiers.
     g.fillStyle=cFol;
-    var seedF=(t.ph*1013)|0;
-    for(var sk=0;sk<34;sk++){
+    var seedF=(t.ph*1013)|0, tiers=7+((seedF>>>3)%3), tf=0.15;
+    for(var sk=0;sk<tiers;sk++){
       var hsh=((sk*2654435761+seedF*97)>>>0), q=(hsh%1000)/1000, q2=((hsh>>>10)%1000)/1000;
-      var sy=gy-t.h*(0.15+sk*0.025+q*0.018); if(sy<-8) break; if(sy>gy) continue;
-      var side=(hsh&1)?1:-1, rch=t.w*(0.20+q2*0.34)*(1-sk*0.012);
-      if(rch<2) continue;
-      var cw=Math.max(2,Math.round(rch)), chh=Math.max(2,Math.round((1.6+q*2.4)*K));
-      g.fillRect(sx+(side>0?0:-cw), Math.round(sy), cw, chh);          // the clump, one side only
-      g.fillRect(sx+(side>0?Math.round(cw*0.25):-Math.round(cw*0.75)), // and a smaller lobe drooping
-                 Math.round(sy+chh), Math.max(1,Math.round(cw*0.5)), Math.max(1,Math.round(chh*0.7)));
+      tf+=0.075+q*0.085;                                              // UNEVEN spacing: six boughs at
+      var sy=gy-t.h*tf; if(sy<-t.w) break; if(sy>gy) continue;        // one pitch is a ladder again
+      var side=(hsh&1)?1:-1, sxx=sx+offX(sy);
+      var rch=t.w*(0.50+q2*0.55)*(1-sk*0.03);                         // reach of this bough
+      if(rch<2*K) continue;
+      var droop=rch*0.50;                                             // how far the tip hangs below
+      // the bough itself. It has to be drawn thick and it has to start AT the bole: the first try
+      // hung the masses out at 0.3-0.9 of the reach on a 1px stem, and what that renders is three
+      // leaf-CLOUDS floating in the air beside a bare pole.
+      var bw=Math.max(2,Math.round(K*2.2)), bstep=Math.max(1,Math.round(K));
+      for(var bq=0;bq<rch;bq+=bstep){ var bf2=bq/rch;
+        g.fillRect(Math.round(sxx+side*bq),Math.round(sy+bf2*bf2*droop),bw,bw);
+      }
+      // four masses marching out and DOWN along it, shrinking as they go. The droop is the whole
+      // trick: three same-height blobs in a row make a flat lens — a flying saucer bolted to the
+      // trunk — no matter how ragged their edges are.
+      for(var cl=0;cl<4;cl++){
+        var cf=0.10+cl*0.26, cr=t.w*(0.34-cl*0.058)*(0.88+q*0.34);
+        if(cr<1.5*K) continue;
+        folMass(g,sxx+side*rch*cf,sy+cf*cf*droop+cr*0.30,cr,cr*0.84,((hsh+cl*104729)>>>0),K);
+      }
+      // a shorter tuft on the OPPOSITE side of the same tier — every bough on one side left the
+      // other flank of the bole bare all the way up, which is a hedge on a stick, not a conifer.
+      var orr=t.w*0.24*(0.8+q2*0.4);
+      folMass(g,sxx-side*orr*1.0,sy+orr*0.7,orr,orr*0.80,((hsh*31+5)>>>0),K);
+      // a lighter crest along the top of the bough, on the side the sun is on: without it the whole
+      // skirt is one flat green and reads as cut paper.
+      if(litK>0.02){
+        g.fillStyle="rgba(255,248,220,"+(0.12*litK).toFixed(3)+")";
+        folMass(g,sxx+side*rch*0.30,sy-t.w*0.02,t.w*0.24,t.w*0.11,((hsh*7)>>>0),K);
+        g.fillStyle=cFol;
+      }
     }
   }
 }
 function drawForestBackdrop(g,L,now,nd){
   if(!bioTrees) return;
   var gy=HORIZON, day=L>0.5, sunsetK=goldenK, B=curBiome, K=Math.max(1,KSP);
-  var skc=biomeSkc(day);
+  var skc=biomeSkc(day), litK=Math.max(0,Math.min(1,(L-0.34)*2.4));   // how hard the sun models a bole
   // THE CANOPY OVERHEAD — the shade it throws across the upper sky, the only proof the viewer gets
   // that the boles resolve into anything at all. THREE octaves on the lower edge plus foliage masses
   // hanging below it: a single sine gave a scalloped hem that read as a solid ceiling — a curtain
@@ -12047,6 +12202,39 @@ function drawForestBackdrop(g,L,now,nd){
       g.fillRect(MX-Math.round(mw*0.55),canH+mh,Math.round(mw*1.1),Math.round(mh*0.6));
     }
   }
+  // GAPS OF REAL SKY punched back through it. Three octaves on the lower HEM were never going to fix
+  // this, because the failure is in the BODY: a solid band of one colour across the top of the frame
+  // is a curtain rail whatever shape its bottom edge is. Holes are what say "the canopy is far
+  // overhead and full of light", and they are also what the shafts below are supposed to be coming
+  // through — until now those shafts had no visible source.
+  g.fillStyle=css(skc);
+  for(var hg=0;hg<7;hg++){
+    var hwx=((hg*373+149)%WW), hr=Math.round((5+(hg*11)%9)*K);
+    for(var ho=-1;ho<=1;ho++){ var HX=Math.round(hwx-WOFF+ho*WW);
+      if(HX+hr*2<0||HX-hr*2>SW) continue;
+      var hy=Math.round(canH*(0.30+((hg*7)%5)*0.13));
+      folMass(g,HX,hy,hr*1.8,hr*0.8,((hg*2654435761+41)>>>0),K);
+    }
+  }
+  // and BOUGHS hanging down out of it into the empty upper third — the only thing in the frame that
+  // says the canopy has an underside. They descend well past the band so the top of the picture is
+  // not a clean horizontal cut across the sky.
+  g.fillStyle=css(mixc(canC,[0,0,0],0.18));
+  for(var bg=0;bg<6;bg++){
+    var bwx=((bg*541+83)%WW);
+    for(var bo=-1;bo<=1;bo++){ var BX=Math.round(bwx-WOFF+bo*WW);
+      if(BX+40*K<0||BX-40*K>SW) continue;
+      var bdrop=(18+(bg*29)%46)*K, bdir=(bg&1)?1:-1;
+      var bth=Math.max(2,Math.round(K*2.4));
+      for(var bs=0;bs<bdrop;bs+=Math.max(1,Math.round(K))){       // the limb, arcing down and out
+        g.fillRect(Math.round(BX+bdir*bs*0.55),Math.round(canH-4*K+bs),bth,Math.max(1,Math.round(K*1.4)));
+      }
+      for(var bm=0;bm<3;bm++){                                    // leaf masses hung along it,
+        var bf=0.10+bm*0.38, br=(6+(bg*5)%7)*K*(1-bm*0.18);       // the first one right at the band
+        folMass(g,BX+bdir*bdrop*bf*0.55,canH-2*K+bdrop*bf,br*1.6,br*0.80,((bg*104729+bm*7919)>>>0),K);
+      }
+    }
+  }
   // the far rank: ordinary old-growth on the horizon. The ONLY band whose crowns are drawn — it gives
   // the stand a treeline and something in the sky to read the giants against.
   var fT=css(mixc(day?[86,66,48]:[12,12,16], skc, day?0.40:0.30));
@@ -12056,12 +12244,21 @@ function drawForestBackdrop(g,L,now,nd){
   for(i=0;i<bioTrees.far.length;i++){ t=bioTrees.far[i];
     for(w=-1;w<=1;w++){ sx=Math.round(t.x-WOFF+w*WW);
       if(sx+t.w<-2||sx-t.w>SW+2) continue;
-      drawBole(g,t,sx,gy,fT,fB,fC,K,false);
-      g.fillStyle=fC;                                        // a crown, because this one has a top
-      var top=Math.round(gy-t.h), hw2=Math.round(t.w/2), ch=Math.max(3,Math.round(t.h*0.34));
-      for(var k=0;k<4;k++){ var f2=k/3;
-        g.fillRect(sx-Math.max(2,Math.round(hw2*(0.34+0.66*f2))), Math.round(top+ch*f2*0.9),
-                   Math.max(4,Math.round(hw2*(0.34+0.66*f2)))*2, Math.max(2,Math.round(ch*0.34))); }
+      drawBole(g,t,sx,gy,fT,fB,fC,K,false,litK*0.6);
+      g.fillStyle=fC; drawTreeCrown(g,t,sx,gy,K,i);          // a crown, because this one has a top
+    }
+  }
+  // THE MID RANK — old-growth between the treeline and the giants. Hazed halfway between the two so
+  // the eye reads three distances instead of two, and tall enough that its crowns sit in the middle
+  // of the frame, which is the band that was empty sky.
+  var mT=css(mixc(day?[72,54,39]:[10,10,13], skc, day?0.28:0.24));
+  var mB=css(mixc(day?[52,39,27]:[7,7,10],  skc, day?0.28:0.24));
+  var mC=css(mixc(mixc(day?B.far:[9,14,12], skc, day?0.30:0.26),[176,108,138],sunsetK*0.28));
+  for(i=0;i<bioTrees.mid.length;i++){ t=bioTrees.mid[i];
+    for(w=-1;w<=1;w++){ sx=Math.round(t.x-WOFF+w*WW);
+      if(sx+t.w*1.6<-2||sx-t.w*1.6>SW+2) continue;
+      drawBole(g,t,sx,gy,mT,mB,mC,K,false,litK*0.7);
+      g.fillStyle=mC; drawTreeCrown(g,t,sx,gy,K,i+97);
     }
   }
   // the giants standing BEHIND the skyline
@@ -12071,7 +12268,7 @@ function drawForestBackdrop(g,L,now,nd){
   for(i=0;i<bioTrees.near.length;i++){ t=bioTrees.near[i];
     for(w=-1;w<=1;w++){ sx=Math.round(t.x-WOFF+w*WW);
       if(sx+t.w<-2||sx-t.w>SW+2) continue;
-      drawBole(g,t,sx,gy,nT,nB,nC,K,true);
+      drawBole(g,t,sx,gy,nT,nB,nC,K,true,litK*0.8);
     }
   }
 }
@@ -12085,12 +12282,12 @@ function drawForestNear(g,L,now,nd){
   // largest trunks in the frame blinked out while the back ranks stood. The land does not stop
   // existing because the city is dying, and the ash veil draws over them anyway.
   if(!bioTrees||!bioTrees.fore||curBiome.k!=="forest") return;
-  var gy=HORIZON+4, day=L>0.5, K=Math.max(1,KSP);
+  var gy=HORIZON+4, day=L>0.5, K=Math.max(1,KSP), litK=Math.max(0,Math.min(1,(L-0.34)*2.4));
   var fT=css(day?[38,28,20]:[6,7,9]), fB=css(day?[24,17,12]:[3,4,5]), fC=css(day?[24,40,26]:[5,9,8]);
   for(var i=0;i<bioTrees.fore.length;i++){ var t=bioTrees.fore[i];
     for(var w=-1;w<=1;w++){ var sx=Math.round(t.x-WOFF+w*WW);
       if(sx+t.w*1.4<-2||sx-t.w*1.4>SW+2) continue;
-      drawBole(g,t,sx,gy,fT,fB,fC,K,true);
+      drawBole(g,t,sx,gy,fT,fB,fC,K,true,litK);
       // roots buckling the pavement the city laid around the trunk
       g.fillStyle=fB;
       for(var r=1;r<=3;r++){ var rw=Math.round(t.w*(0.34+r*0.16)), rh=Math.max(1,Math.round(K));
