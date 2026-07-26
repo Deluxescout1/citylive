@@ -37,6 +37,10 @@ var LOC_AUTO = (CFG.lat == null || CFG.lon == null), geoDone = false, NOGEO = fa
 // Default ON. Set config `flights:false` to disable (it calls a public ADS-B API with the area's
 // coordinates, so a privacy-minded host can turn it off).
 var FLIGHTS_ON = (CFG.flights !== false);
+// EGG LAND OVERRIDE: `egg: "leaf"` in config.local.json (or the render harness) pins one of the rare
+// homage lands so you can summon it on demand instead of waiting for the ~1-in-12 roll. Any other
+// value, or absent, leaves the roll alone. Applied after the egg table is declared, further down.
+var CFG_EGG = (typeof CFG.egg === 'string' && CFG.egg) ? CFG.egg : null;
 // BUFFALO BILLS GAMEDAY TAKEOVER: opt-in, OFF by default. When on AND the real Bills are actually
 // playing a game right now (checked against the same live ESPN feed the stadium scoreboards use), the
 // whole city goes Bills Mafia — every sign, screen, ticker line and citizen rallies the team. A shared
@@ -2870,13 +2874,58 @@ var BIOME_VARIANTS={
 function variantOf(li,B){
   var vs=BIOME_VARIANTS[B.k];
   if(!vs||!vs.length) return B;
-  var v=vs[((li*2246822519+104729)>>>0)%vs.length];
+  var v=vs[mixLi(li,104729)%vs.length];
   var out={}, kk;
   for(kk in B) if(B.hasOwnProperty(kk)) out[kk]=B[kk];
   for(kk in v) if(v.hasOwnProperty(kk)) out[kk]=v[kk];
   out.k=B.k;
   return out;
 }
+// ============ THE EGG LANDS ============
+// Five places from stories Nick loves, as unnamed homages — unmistakable to anyone who knows them, no
+// copied logos, our own on-screen names. Every city system still runs on them, in costume.
+//
+// ⚠⚠ THEY LIVE OUTSIDE `BIOMES` ON PURPOSE, and it is not a stylistic choice. Two things break if they
+// go in the main table: they become 1-in-N like every ordinary land instead of rare, and — worse —
+// `biomeOf` is a hash modulo BIOMES.length, so every added egg would RE-ROLL every ordinary life's
+// biome. Adding a land has already re-rolled the whole map five times this project; the eggs must not
+// be able to do it again.
+//
+// ONE SHARED SLOT at ~1 life in 12 (Nick widened it from 1-in-40 once there were five), and which egg
+// you get is then a second independent hash. About four egg lives a year across all five.
+// One strong look each — no variants. A "variant" of the Hidden Leaf is a contradiction.
+// ⚠⚠ A SINGLE MULTIPLY IS NOT A HASH. `(li*K + salt) % 12` is PERIODIC: the first egg lives came out
+// 55, 63, 71, 79 — exactly eight apart forever, so the "rare surprise" was a timetable you could read
+// off a calendar. The same flaw was in the neon roll and the variant roll. `mixLi` is a proper
+// avalanche (multiply-xorshift x3), so low-order bits actually depend on all the input bits and a
+// modulo of it is not a stride. Anything that rolls per-life goes through this.
+function mixLi(li,salt){
+  var h=(li*2654435761+salt)>>>0;
+  h^=h>>>15; h=(h*2246822519)>>>0;
+  h^=h>>>13; h=(h*3266489917)>>>0;
+  h^=h>>>16;
+  return h>>>0;
+}
+var EGG_BIOMES=[
+  { k:"leaf",   name:"THE HIDDEN VILLAGE", egg:1, amp:0.74, base:0.60, flat:0.30, steep:0.42, snow:false, water:"river",
+    far:[96,120,88],   near:[62,88,62],   cap:[142,158,118], ground:[86,104,72],
+    walls:[[214,196,168],[182,160,132],[228,214,188],[152,132,108],[198,178,150],[168,148,124],[220,206,180],[140,122,100]],
+    fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:0}, big:["boar"], small:["squirrel","frog"], air:["hawk","crow"] },
+    flora:{ kinds:["generic","fern","generic","willow","fern"], bloom:["#f0a0c0","#ffffff","#f8d8e8"] },
+    sky:{ top:[128,168,208], bot:[210,226,214], k:0.22, haze:[214,228,216] } }
+];
+function eggOf(li){
+  if(!EGG_BIOMES.length) return null;
+  if(FORCEEGG!=null){                                   // config.local.json / harness override
+    for(var i=0;i<EGG_BIOMES.length;i++) if(EGG_BIOMES[i].k===FORCEEGG) return EGG_BIOMES[i];
+    return null;
+  }
+  if(li===0) return null;                               // life 0 is always the alpine range it grew up under
+  if((mixLi(li,31337)%12)!==0) return null;              // ~1 life in 12 is an egg at all…
+  return EGG_BIOMES[mixLi(li,911)%EGG_BIOMES.length];    // …and then which one, independently
+}
+var FORCEEGG=CFG_EGG;   // `egg:"leaf"` in config.local.json, or set directly by the render harness
+var curEgg=false;    // is this life an egg land
 var curBiome=BIOMES[0];
 var curNeon=false;   // this life's city wears the neon style (always in THE SPRAWL, ~1/12 elsewhere)
 var bioTrees=null;     // the OLD FOREST's colossal trees ({far:[],near:[]}), null in every other biome
@@ -3134,12 +3183,15 @@ function buildWorld(li){
   var geo=rng((seed+61)>>>0);
   // BIOME first — it has the final say on the water, because the land and the water have to agree:
   // sea cliffs without a sea are nonsense, and so is a harbour in a red-rock desert.
-  curBiome = variantOf(li, biomeOf(li));    // the land, then which of its three faces
+  // An egg land REPLACES the ordinary roll for this life and takes no variant (one strong look each).
+  var eg=eggOf(li);
+  curEgg=!!eg;
+  curBiome = eg ? eg : variantOf(li, biomeOf(li));    // the land, then which of its three faces
   // THE NEON STYLE. Always on in THE SPRAWL, and rolled on about 1 life in 12 of every OTHER land —
   // Nick's call, so a neon megacity can end up standing in a swamp or under a volcano. It restyles the
   // CITY ONLY: the mesa is still a mesa. A separate hash from the biome and variant rolls so it is
   // genuinely independent of which land you got.
-  curNeon = !!curBiome.neon || ((((li*3266489917+374761393)>>>0)%12)===0);
+  curNeon = !!curBiome.neon || ((mixLi(li,374761393)%12)===0);
   hasOcean = (li===0) ? true : (curBiome.water==="sea" ? true : curBiome.water==="river" ? false : geo()<0.6);
   // The SEA CLIFFS get a far wider coast than anywhere else. Nick named that land the weakest of the
   // seven, and the reason was that a biome literally called SEA CLIFFS was rendering with no visible
@@ -13727,6 +13779,46 @@ function drawPrimates(g,L,now,K){
     }
   }
 }
+// THE ROOF RUNNERS — the Hidden Village's traversal layer. Figures crossing the town by rooftop in
+// long arcs, which is the other half of what identifies this place. Same machinery family as the
+// forest's primates on branch lines and the alpine gondola: an arc between two fixed anchors, a body
+// that RISES AND FALLS along it, and a pause at each end. A figure sliding along at constant height is
+// a sprite on a rail; the arc is the whole read.
+function drawRoofRunners(g,L,now,nd){
+  if(curBiome.k!=="leaf"||cityPhase==="apoc") return;
+  if(cityG<0.22) return;                                  // nothing to run across yet
+  var day=L>0.5, K=Math.max(1,KSP), gy=HORIZON;
+  var body=day?"#2e3138":"#0b0d10", cloth=day?"#8a4a3a":"#2a1512", skin=day?"#c9a888":"#3a3226";
+  var n=Math.max(2,Math.round(SW/(120*K)));
+  for(var i=0;i<n;i++){
+    var h=((i*2654435761+((WORLD_SEED*17)|0))>>>0);
+    // two rooftops to cross between, at heights that read as roofs rather than as sky
+    var ax=Math.round(((h%1000)/1000)*SW), span=Math.round((36+((h>>>9)%54))*K);
+    var bx=ax+span;
+    var ay=gy-Math.round((14+((h>>>13)%22))*K), by=gy-Math.round((14+((h>>>17)%22))*K);
+    var cyc=5200+((h>>>5)%3200), tp=((now+i*1100)%cyc)/cyc;
+    var out=tp<0.44, back=tp>=0.52&&tp<0.96;
+    if(!out&&!back) continue;                             // crouched on the ridge between runs
+    var f=out?(tp/0.44):(1-(tp-0.52)/0.44);
+    var px=ax+(bx-ax)*f;
+    var arc=Math.sin(Math.PI*f)*Math.min(span*0.34,Math.round(16*K));   // the leap
+    var py=ay+(by-ay)*f-arc;
+    if(px<-6||px>SW+6) continue;
+    var u=Math.max(1,Math.round(K)), lean=out?1:-1;
+    // the scarf trailing behind is what sells the speed, so it is drawn first and long
+    g.fillStyle=cloth;
+    for(var sq=0;sq<Math.round(7*K);sq++)
+      g.fillRect(Math.round(px-lean*sq),Math.round(py+Math.sin(now*0.01+sq*0.5)*1.2*K),u,u);
+    g.fillStyle=body;                                      // body, pitched forward in the jump
+    g.fillRect(Math.round(px),Math.round(py),u*2,Math.round(3.4*K));
+    g.fillRect(Math.round(px)+lean*u,Math.round(py)+Math.round(2.6*K),u*2,Math.round(1.6*K));   // trailing leg
+    g.fillRect(Math.round(px)-lean*u,Math.round(py)+Math.round(1.2*K),u*2,u);                   // lead arm
+    g.fillStyle=skin;
+    g.fillRect(Math.round(px)+Math.round(u*0.4),Math.round(py)-Math.round(1.6*K),Math.round(1.6*K),Math.round(1.6*K));
+    g.fillStyle=cloth;                                     // and the band across the brow
+    g.fillRect(Math.round(px)+Math.round(u*0.4),Math.round(py)-Math.round(1.6*K),Math.round(1.6*K),Math.max(1,Math.round(K*0.8)));
+  }
+}
 // ============ THE NEON STYLE ============
 // Nick: one map should look completely cyberpunk — and he chose BOTH a dedicated land and a style that
 // can take over any other land. This is the style. It is always on in THE SPRAWL and rolls on about one
@@ -14884,6 +14976,62 @@ function drawBiomeLandmark(g,L,now,nd){
       for(var lg=0;lg<3;lg++)
         g.fillRect(X-Math.round((10-lg*2)*K),gy-Math.round((2+lg*1.6)*K),Math.round(9*K),Math.max(1,Math.round(1.5*K)));
     });
+  } else if(B.k==="leaf"){
+    // THE ROCK. Faces carved in relief into a cliff above the village — the one thing that identifies
+    // this place before you read a word. Generic carved elders, deliberately: unmistakable in silhouette
+    // without being any specific character's likeness (Nick's call).
+    // Placed off the cached ridge profile like the alpine monastery, because it is part of the LAND.
+    if(!mtsCache||!mtsCache.h||!mtsCache.h[1]) return;
+    // ⚠⚠ UNITS. The threshold was written as `22*K`, but K here is the LANDMARK scale (gy/80 ≈ 7.6),
+    // while ridge heights in mtsCache are in KSP pixels. 22*K came out 167 against a tallest ridge of
+    // 160, so the scan could never succeed and the rock silently never drew — a landmark that is not
+    // missing, just impossible. Threshold is now a fraction of this range's OWN maximum, which cannot
+    // go out of units, and the span it needs is measured in KSP too.
+    var lhs=mtsCache.h[1], lbest=-1, lbh=0;
+    var need=Math.max(14*Math.max(1,KSP), mtsCache.mx[1]*0.55);
+    var reach=Math.round(22*Math.max(1,KSP));
+    for(var lx2=Math.round(SW*0.08);lx2<Math.round(SW*0.92);lx2+=Math.max(2,Math.round(3*KSP))){
+      var wide=Math.min(lhs[lx2],lhs[Math.min(SW-1,lx2+reach)]);
+      if(wide>need&&wide>lbh){ lbh=wide; lbest=lx2; }          // wants a broad, tall face of rock
+    }
+    if(lbest<0) return;
+    var RX=lbest, RY=gy-Math.round(lbh);
+    var FK=Math.max(1,KSP)*1.6;                                 // the carving's own scale
+    var faces=5, fw=Math.round(6.5*FK), fh=Math.round(9*FK);
+    var stone=day?"#a89a86":"#2e2a26", cut=day?"#7e7161":"#1c1a17", lit2=day?"#c4b8a4":"#403a33";
+    // the dressed panel the faces are cut into, so they read as carved rather than painted on
+    g.fillStyle=cut;
+    g.fillRect(RX-Math.round(2*FK),RY+Math.round(3*FK),Math.round(faces*(fw+2*FK)+4*FK),fh+Math.round(4*FK));
+    for(var fi2=0;fi2<faces;fi2++){
+      var FX=RX+Math.round(fi2*(fw+2*FK)), FY=RY+Math.round(5*FK);
+      var newest=(fi2===faces-1);
+      g.fillStyle=stone; g.fillRect(FX,FY,fw,fh);                       // the head block
+      g.fillStyle=lit2;                                                 // brow ridge and cheekbone,
+      g.fillRect(FX,FY+Math.round(fh*0.24),fw,Math.max(1,Math.round(1.4*FK)));   // which is all a face
+      g.fillRect(FX,FY+Math.round(fh*0.60),fw,Math.max(1,Math.round(FK)));       // needs at this size
+      g.fillStyle=cut;
+      g.fillRect(FX+Math.round(fw*0.18),FY+Math.round(fh*0.32),Math.max(1,Math.round(1.3*FK)),Math.max(1,Math.round(1.6*FK)));  // eyes, deep
+      g.fillRect(FX+Math.round(fw*0.62),FY+Math.round(fh*0.32),Math.max(1,Math.round(1.3*FK)),Math.max(1,Math.round(1.6*FK)));
+      g.fillRect(FX+Math.round(fw*0.40),FY+Math.round(fh*0.36),Math.max(1,Math.round(1.2*FK)),Math.round(fh*0.26));            // the nose
+      g.fillRect(FX+Math.round(fw*0.26),FY+Math.round(fh*0.74),Math.round(fw*0.48),Math.max(1,Math.round(FK)));               // mouth
+      g.fillStyle=day?"#8d8071":"#242120";                               // hair, and a headpiece
+      g.fillRect(FX-Math.max(1,Math.round(FK)),FY-Math.round(1.6*FK),fw+Math.round(2*FK),Math.round(2.4*FK));
+      if(newest&&cityG<0.72){                                           // the newest is still being cut
+        g.fillStyle=day?"rgba(140,128,110,0.85)":"rgba(40,36,32,0.85)";
+        g.fillRect(FX,FY+Math.round(fh*(0.30+cityG*0.5)),fw,fh);        // unfinished below the working line
+        g.fillStyle=day?"#6a5f52":"#191714";                            // and the scaffold on it
+        for(var sc2=0;sc2<3;sc2++) g.fillRect(FX-Math.round(FK),FY+Math.round(fh*(0.4+sc2*0.22)),fw+Math.round(2*FK),Math.max(1,Math.round(FK)));
+        g.fillRect(FX+Math.round(fw*0.5),FY,Math.max(1,Math.round(FK)),fh);
+      }
+    }
+    // and the village's mark cut above them
+    g.fillStyle=day?"#6f7f58":"#1b2018";
+    var mx2=RX+Math.round(faces*(fw+2*FK)*0.5), my2=RY-Math.round(3*FK);
+    for(var lf3=0;lf3<5;lf3++){
+      var la2=-2.2+lf3*0.55, lr2=Math.round(3.4*FK);
+      for(var lq2=1;lq2<lr2;lq2++)
+        g.fillRect(Math.round(mx2+Math.cos(la2)*lq2),Math.round(my2+Math.sin(la2)*lq2*0.7),Math.max(1,Math.round(FK)),Math.max(1,Math.round(FK)));
+    }
   } else if(B.k==="sprawl"){
     // THE ARCOLOGY — one colossal stepped megastructure that dwarfs the rest of the city. It is its own
     // district stacked vertically, so unlike every other landmark here it is drawn TALLER than the
@@ -20715,6 +20863,7 @@ function draw(g,pass){
   // Both sit UNDER the eclipse/ash veils and the HUD, so an eclipse still darkens the forest too.
   drawForestNear(g,L,now,nd);
   drawCanopyLight(g,L,now);
+  drawRoofRunners(g,L,now,nd);     // the Hidden Village crossing itself by rooftop
   drawNeonCity(g,L,now,nd);        // the neon style, over the city, whatever land it landed on
 
   // solar-eclipse twilight: an unnatural cool dusk falls over the whole city at totality, then lifts
