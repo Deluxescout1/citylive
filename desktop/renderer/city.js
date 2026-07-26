@@ -2919,6 +2919,34 @@ var EGG_BIOMES=[
     fauna:null,
     flora:null,
     sky:{ top:[58,70,110], bot:[150,150,178], k:0.30, haze:[158,158,184] } }
+  ,
+  // THE FIRE NATION CAPITAL. A city terraced up the inside of a volcanic crater. It reuses the volcanic
+  // island's machinery wholesale — the cone roll, the plume, the crater glow — but the caldera numbers
+  // (very steep, quantised, lower amp) turn the cone into a RING WALL with the city inside it.
+  { k:"fire",   name:"THE CINDER THRONE", egg:1, amp:0.80, base:0.46, flat:0.34, steep:0.72, snow:false, water:"river", volcanic:1,
+    far:[104,68,62],   near:[68,40,40],   cap:[168,96,64],  ground:[74,52,46],
+    walls:[[62,40,42],[44,26,30],[86,50,46],[38,24,26],[110,58,48],[52,32,34],[74,44,42],[42,26,28]],
+    fauna:{ keep:{deer:0,rabbit:0,fox:0,goat:1}, big:["goat"], small:["lizard"], air:["vulture","crow"] },
+    flora:{ kinds:["snag","scrub","snag","scrub"], bloom:["#e8562e","#ffa63a","#c8321e"] },
+    sky:{ top:[74,34,44], bot:[186,96,64], k:0.52, haze:[196,108,72] } },
+  // THE AIR TEMPLES. Needle-thin rock columns rising out of a sea of cloud, temples on top, rope bridges
+  // between them, and NOTHING visible below — the cloud floor is drawn over the base of every spire so
+  // the land has no bottom. `steep` is pushed to the limit the height field allows, which is what turns
+  // the peak profile into a column instead of a mountain.
+  { k:"air",    name:"THE HIGH TEMPLES", egg:1, amp:1.06, base:0.10, flat:0.0, steep:0.94, snow:false, water:null, spires:1,
+    far:[188,180,186],  near:[148,138,148], cap:[228,222,228], ground:[168,160,166],
+    walls:[[236,228,214],[212,200,182],[248,242,230],[196,182,164],[228,216,198],[206,194,176],[242,236,222],[188,176,158]],
+    fauna:{ keep:{deer:0,rabbit:0,fox:0,goat:1}, big:["goat"], small:[], air:["eagle","dove"] },
+    flora:{ kinds:["windbent","grass","windbent","scrub"], bloom:["#ffd166","#ffffff","#f0c0a0"] },
+    sky:{ top:[132,172,220], bot:[224,232,240], k:0.26, haze:[228,234,242] } },
+  // NABOO / THEED. A city on a cliff plateau with enormous waterfalls pouring off the edge. The plateau
+  // is the mesa's flat-top machinery; the falls are this land's own, and they are the whole identity.
+  { k:"falls",  name:"THE FALLS CITY", egg:1, amp:0.72, base:0.68, flat:0.86, steep:0.92, snow:false, water:"river", cascades:1,
+    far:[142,158,126],  near:[104,124,96],  cap:[196,204,168], ground:[124,146,104],
+    walls:[[236,228,206],[212,202,176],[246,240,222],[196,184,158],[226,216,192],[206,196,170],[240,234,214],[188,176,152]],
+    fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:0}, big:["cattle"], small:["frog"], air:["heron","dove"] },
+    flora:{ kinds:["generic","willow","generic","reeds","grass"], bloom:["#f0a0c0","#ffe08a","#ffffff"] },
+    sky:{ top:[118,164,214], bot:[214,228,214], k:0.22, haze:[218,230,216] } }
 ];
 function eggOf(li){
   if(!EGG_BIOMES.length) return null;
@@ -14982,6 +15010,38 @@ function drawBiomeLandmark(g,L,now,nd){
       for(var lg=0;lg<3;lg++)
         g.fillRect(X-Math.round((10-lg*2)*K),gy-Math.round((2+lg*1.6)*K),Math.round(9*K),Math.max(1,Math.round(1.5*K)));
     });
+  } else if(B.k==="fire"){
+    // THE PALACE ON THE CALDERA FLOOR. Placed at the LOWEST point of the ring rather than in the
+    // outskirts, because on a caldera the outskirts ARE the rim wall — a palace up there would be
+    // standing on the crater lip instead of inside it, which is the opposite of the idea.
+    if(!mtsCache||!mtsCache.h||!mtsCache.h[1]) return;
+    var fhs=mtsCache.h[1], flow=1e9, fbest=-1;
+    for(var fx5=Math.round(SW*0.24);fx5<Math.round(SW*0.76);fx5+=Math.max(2,Math.round(3*KSP))){
+      if(fhs[fx5]<flow){ flow=fhs[fx5]; fbest=fx5; }
+    }
+    if(fbest<0) return;
+    var PX=fbest, PY=gy-Math.round(flow), PK=Math.max(1,KSP)*1.5;
+    var blk=day?"#2e2024":"#120a0c", blk2=day?"#1e1418":"#0a0608", red=day?"#a8302c":"#3c1210", gold=day?"#d8a63a":"#4a3a16";
+    for(var tr=0;tr<4;tr++){                                        // four tiers, narrowing upward
+      var tw5=Math.round((16-tr*3)*PK), th5=Math.round(5*PK);
+      var tyv=PY-Math.round((tr+1)*4.6*PK);
+      g.fillStyle=blk;  g.fillRect(PX-tw5,tyv,tw5*2,th5);
+      g.fillStyle=blk2; g.fillRect(PX+tw5-Math.round(tw5*0.24),tyv,Math.round(tw5*0.24),th5);
+      g.fillStyle=red;                                              // the upswept roof over each tier
+      g.fillRect(PX-tw5-Math.round(2*PK),tyv-Math.round(2*PK),tw5*2+Math.round(4*PK),Math.round(2.2*PK));
+      g.fillStyle=gold;
+      g.fillRect(PX-tw5-Math.round(2*PK),tyv-Math.round(2*PK),Math.round(2*PK),Math.max(1,Math.round(PK)));
+      g.fillRect(PX+tw5,tyv-Math.round(2*PK),Math.round(2*PK),Math.max(1,Math.round(PK)));
+      if(!day){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,150,70,0.7)";
+        for(var wq5=0;wq5<3;wq5++) g.fillRect(PX-Math.round(tw5*0.5)+wq5*Math.round(tw5*0.5),tyv+Math.round(1.6*PK),Math.round(1.6*PK),Math.round(1.6*PK));
+        g.globalCompositeOperation="source-over"; }
+    }
+    g.fillStyle=gold;                                               // a flame finial on the crown
+    g.fillRect(PX-Math.max(1,Math.round(PK)),PY-Math.round(22*PK),Math.max(2,Math.round(2*PK)),Math.round(3*PK));
+    g.globalCompositeOperation="lighter";
+    g.fillStyle="rgba(255,140,50,"+(0.35+0.25*Math.abs(Math.sin(now*0.0018))).toFixed(2)+")";
+    g.fillRect(PX-Math.round(2*PK),PY-Math.round(25*PK),Math.round(4*PK),Math.round(3*PK));
+    g.globalCompositeOperation="source-over";
   } else if(B.k==="core"){
     // ⚠ NOT HERE. The dome is drawn by drawCoreWorld, among the tower ranks — see drawCoreDome. Every
     // other landmark survives by standing in the thin OUTSKIRTS, and on a world that is city everywhere
@@ -15583,6 +15643,110 @@ function drawCoreDome(g,L,now,K){
       }
 }
 function coreDomeX(){ var r=rng((WORLD_SEED+9311)>>>0); return Math.round((0.30+r()*0.40)*WW); }
+// THE HIGH TEMPLES. Needle spires out of a sea of cloud with temples on top and rope bridges between
+// them. The trick that makes the land work is the CLOUD FLOOR: it is drawn over the base of every spire,
+// so nothing has a bottom and the columns read as impossibly tall rather than as narrow hills.
+function drawSpireWorld(g,L,now,nd){
+  if(!curBiome.spires||!mtsCache||!mtsCache.h||!mtsCache.h[1]) return;
+  var day=L>0.5, K=Math.max(1,KSP), gy=HORIZON, hs=mtsCache.h[1];
+  var skc=biomeSkc(day);
+  // find the spire tops: local maxima of the near ridge, which after steep:0.94 are genuine columns
+  var tops=[], last=-999;
+  for(var x=Math.round(3*K);x<SW-Math.round(3*K);x++){
+    if(hs[x]<26*K) continue;
+    if(hs[x]>=hs[x-1]&&hs[x]>=hs[x+1]&&x-last>Math.round(22*K)){ tops.push({x:x,h:hs[x]}); last=x; }
+  }
+  // THE CLOUD FLOOR — banded, drifting, and drawn high enough to swallow the feet of the spires.
+  var floorY=gy-Math.round(18*K);
+  for(var b=0;b<5;b++){
+    var by=floorY+Math.round(b*3.4*K)+Math.round(Math.sin(now*0.00009+b*1.3)*1.6*K);
+    var a=(0.46-b*0.07);
+    g.fillStyle=day?"rgba(238,242,248,"+a.toFixed(3)+")":"rgba(96,106,126,"+(a*0.75).toFixed(3)+")";
+    g.fillRect(0,by,SW,Math.round((5+b*2)*K));
+  }
+  g.fillStyle=day?"rgba(244,248,252,0.92)":"rgba(70,80,100,0.9)";      // and solid below it: no ground
+  g.fillRect(0,floorY+Math.round(14*K),SW,gy-(floorY+Math.round(14*K))+2);
+  // TEMPLES on the tops, and BRIDGES between neighbours — this land's traversal layer.
+  var stone=day?"#e8e2d2":"#3a3a3e", stone2=day?"#c4bca8":"#26262a", roof=day?"#c96a4a":"#3a1e16";
+  for(var i=0;i<tops.length;i++){
+    var t=tops[i], tx=t.x, ty=gy-Math.round(t.h);
+    if(i+1<tops.length){                                              // the rope bridge across the gap
+      var n2=tops[i+1], ny=gy-Math.round(n2.h);
+      var span=n2.x-tx, sag=Math.max(2,Math.round(span*0.10));
+      g.fillStyle=day?"rgba(120,110,96,0.85)":"rgba(30,28,26,0.8)";
+      for(var q=0;q<=span;q+=Math.max(1,Math.round(K))){
+        var f=q/span, byy=ty+(ny-ty)*f+Math.sin(Math.PI*f)*sag;
+        g.fillRect(tx+q,Math.round(byy),Math.max(1,Math.round(K)),Math.max(1,Math.round(1.2*K)));
+      }
+      var wp=((now*0.00004+i*0.37)%1);                                 // someone crossing it
+      if(wp<0.7){ var wf=wp/0.7, wx=tx+span*wf;
+        var wy=ty+(ny-ty)*wf+Math.sin(Math.PI*wf)*sag;
+        g.fillStyle=day?"#c96a4a":"#3a1e16";
+        g.fillRect(Math.round(wx),Math.round(wy)-Math.round(3*K),Math.max(1,Math.round(1.4*K)),Math.round(3*K));
+        g.fillStyle=day?"#e8d8c0":"#4a4038";
+        g.fillRect(Math.round(wx),Math.round(wy)-Math.round(4.4*K),Math.max(1,Math.round(1.4*K)),Math.round(1.4*K)); }
+    }
+    // the temple: a stepped plinth, a hall, and a slender tapering tower with a flared roof
+    var pw=Math.round((7+((i*7919)>>>0)%4)*K);
+    g.fillStyle=stone2; g.fillRect(tx-pw,ty-Math.round(1.6*K),pw*2,Math.round(2*K));
+    g.fillStyle=stone;  g.fillRect(tx-Math.round(pw*0.7),ty-Math.round(6*K),Math.round(pw*1.4),Math.round(4.6*K));
+    g.fillStyle=roof;   g.fillRect(tx-pw,ty-Math.round(7.6*K),pw*2,Math.round(1.8*K));
+    var th2=Math.round((10+((i*331)>>>0)%7)*K);
+    for(var ty2=0;ty2<th2;ty2++){
+      var tf=ty2/th2, tw2=Math.max(1,Math.round(pw*0.42*(1-tf*0.45)));
+      g.fillStyle=stone; g.fillRect(tx-tw2,ty-Math.round(7*K)-ty2,tw2*2,1);
+      g.fillStyle=stone2; g.fillRect(tx+tw2-Math.max(1,Math.round(K)),ty-Math.round(7*K)-ty2,Math.max(1,Math.round(K)),1);
+    }
+    g.fillStyle=roof;                                                  // the flared cap
+    g.fillRect(tx-Math.round(pw*0.6),ty-Math.round(7*K)-th2-Math.round(1.6*K),Math.round(pw*1.2),Math.round(2*K));
+    g.fillRect(tx-Math.max(1,Math.round(K)),ty-Math.round(7*K)-th2-Math.round(4*K),Math.max(2,Math.round(2*K)),Math.round(2.4*K));
+    if(!day){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,206,140,0.8)";
+      g.fillRect(tx-Math.round(pw*0.3),ty-Math.round(4.4*K),Math.round(pw*0.6),Math.round(1.6*K));
+      g.globalCompositeOperation="source-over"; }
+  }
+}
+// THE FALLS. Enormous cascades pouring off the edges of the plateau the city stands on — this land's
+// entire identity, and the only moving water in the set that falls rather than lies. Found from the
+// cached ridge: wherever a flat top DROPS sharply, that is an edge, and an edge is where water goes over.
+function drawCascades(g,L,now,nd){
+  if(!curBiome.cascades||!mtsCache||!mtsCache.h||!mtsCache.h[1]) return;
+  var day=L>0.5, K=Math.max(1,KSP), gy=HORIZON, hs=mtsCache.h[1];
+  var edges=[], lastE=-999;
+  for(var x=Math.round(2*K);x<SW-Math.round(2*K);x++){
+    var drop=hs[x]-hs[x+1];
+    if(drop>10*K&&hs[x]>26*K&&x-lastE>Math.round(30*K)){ edges.push({x:x,top:gy-hs[x],foot:gy-hs[x+1]}); lastE=x; }
+  }
+  var wTopC=day?[236,248,252]:[120,140,166], wMid=day?[176,214,234]:[60,84,112];
+  for(var e=0;e<edges.length&&e<3;e++){
+    var ed=edges[e], fw=Math.round((7+((e*7919)>>>0)%6)*K);
+    var fx=ed.x-Math.round(fw*0.5), len=Math.max(4,ed.foot-ed.top);
+    // the lip, then the sheet, widening and breaking up as it falls
+    g.fillStyle=css(wTopC); g.fillRect(fx,ed.top-Math.max(1,Math.round(K)),fw,Math.round(2*K));
+    for(var q=0;q<len;q++){
+      var f=q/len, w2=Math.round(fw*(1+f*0.55));
+      var band=mixc(wTopC,wMid,Math.min(1,f*1.3));
+      g.fillStyle=rgba(band,0.86-0.18*f);
+      g.fillRect(fx-Math.round((w2-fw)*0.5),ed.top+q,w2,1);
+      if(((q*7+((now*0.06)|0))%13)<3){                                  // streaks running down it
+        g.fillStyle="rgba(255,255,255,"+(0.34-0.2*f).toFixed(2)+")";
+        g.fillRect(fx+((q*13)%Math.max(1,w2))-Math.round((w2-fw)*0.5),ed.top+q,Math.max(1,Math.round(K)),Math.max(1,Math.round(2*K)));
+      }
+    }
+    // THE PLUNGE POOL and its mist — a fall with no spray at the bottom reads as a painted stripe
+    var pooly=ed.foot;
+    for(var m=0;m<Math.round(14*K);m++){
+      var mf=m/Math.round(14*K), ma=(0.30-0.26*mf)*(0.7+0.3*Math.sin(now*0.0013+e+m*0.4));
+      if(ma<=0.01) break;
+      g.fillStyle=day?"rgba(246,250,252,"+ma.toFixed(3)+")":"rgba(150,168,192,"+(ma*0.7).toFixed(3)+")";
+      g.fillRect(fx-Math.round(mf*10*K),pooly-m,fw+Math.round(mf*20*K),Math.max(1,Math.round(1.6*K)));
+    }
+    if(day&&goldenK<0.2){                                               // a rainbow standing in the spray
+      var rb=["rgba(255,120,120,0.16)","rgba(255,210,120,0.16)","rgba(180,255,160,0.14)","rgba(140,190,255,0.14)"];
+      for(var r2=0;r2<rb.length;r2++){ g.fillStyle=rb[r2];
+        g.fillRect(fx-Math.round(6*K)+r2*Math.max(1,Math.round(K)),pooly-Math.round(9*K),Math.max(1,Math.round(K)),Math.round(9*K)); }
+    }
+  }
+}
 // One ridge silhouette, run-length batched: the profile is static per life, so consecutive columns
 // share the same integer top and one wide fillRect covers the run (it was one 1px rect per column).
 // Identical pixels, far fewer draw calls — and now three bands share it instead of two.
@@ -20022,6 +20186,8 @@ function draw(g,pass){
 
   drawMountains(g,L,now,nd);      // the distant range — behind the clouds, the city, everything
   drawVolcano(g,L,now,nd);        // …and if it is a volcano, what the mountain is doing today
+  drawSpireWorld(g,L,now,nd);     // the high temples, standing on cloud
+  drawCascades(g,L,now,nd);       // …or the falls pouring off the plateau
   drawBiomeDetail(g,L,now,nd);    // and whatever else lives on this particular land
   drawBiomeLandmark(g,L,now,nd);  // and the one structure that says where you are
   drawPlateauTowns(g,L,now,nd);   // and whatever stands on top of a flat-topped mountain

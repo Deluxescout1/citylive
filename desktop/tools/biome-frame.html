@@ -24,9 +24,11 @@
   // four minutes inside a 42-hour slot, so "life 50 at 1pm" cannot land on it. Find the moment with a
   // node probe against titanEvent(), then render it here.
   if(Q.get('nowms')!==null) window.NOWOVR=parseInt(Q.get('nowms'),10);
-  // ?egg=leaf summons a rare homage land instead of waiting for the ~1-in-12 roll. Same override the
-  // `egg:` key in config.local.json uses, so what you render here is what Nick would actually get.
-  if(Q.get('egg')!==null) window.CITYLIVE_CFG=Object.assign({},window.CITYLIVE_CFG||{},{egg:Q.get('egg')});
+  // ?egg=leaf summons a rare homage land instead of waiting for the ~1-in-12 roll.
+  // ⚠ Sets FORCEEGG *directly*, not CITYLIVE_CFG. The config object is read by city.js at LOAD time and
+  // this script runs after the <script src> above it, so a CITYLIVE_CFG written here is always too late
+  // — which silently gave the wrong land and looked like a broken override.
+  if(Q.get('egg')!==null) window.FORCEEGG=Q.get('egg');
   window.CLOCK  = window.NOWOVR;
   window.FORCEAGE = age;
   // ?wx=<WMO code> pins the weather BEFORE setup, so maybeFetchWeather() never overwrites it (see
