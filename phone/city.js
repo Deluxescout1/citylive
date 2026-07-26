@@ -12637,6 +12637,45 @@ function drawBiomeDetail(g,L,now,nd){
       }
     }
   } else if(B.k==="plains"){
+    // THE WIND FARM ON THE HORIZON.
+    // Everything the plains drew — silos, barn, windbreak rows, the little windmill — stands 7 to 22
+    // px tall AT the horizon line, so on a mature city the skyline hides the lot and this biome
+    // rendered as an empty sky over an ordinary town. It is the only one of the seven with no ridge
+    // to put anything on (`amp:0.30`), and that is not a defect to fix in the height field: open sky
+    // IS what the plains are. So the thing that says "prairie" has to be tall enough to stand over
+    // the city, and a wind farm is exactly that.
+    // Blades turn at the REAL measured wind and stand still on a calm day, like everything else here.
+    var wnd0=(weather.wind==null?5:weather.wind), hzC=biomeSkc(day);
+    for(var wt=0;wt<8;wt++){
+      var wtx=Math.round(sd()*WW), wth=Math.round(gy*(0.19+(((wt*37)%13)/13)*0.13));
+      var deep=0.28+((wt*7)%5)*0.06;                    // how far into the haze this one stands
+      var twC=css(mixc(day?[176,180,186]:[38,44,56], hzC, deep));
+      var tw2=Math.max(1,Math.round(2*K)), R2=Math.round(wth*0.34);
+      for(var w9=-1;w9<=1;w9++){ var wsx2=wtx-WOFF+w9*WW; if(wsx2<-R2-8||wsx2>SW+R2+8) continue;
+        g.fillStyle=twC; g.fillRect(wsx2|0,(gy-wth)|0,tw2,wth);                       // the tower
+        var hub2=gy-wth, spin=now*0.00026*(0.20+Math.min(1,wnd0/22));
+        for(var bl5=0;bl5<3;bl5++){ var a5=spin+bl5*2.0944;
+          for(var r5=Math.round(2*K);r5<R2;r5+=Math.max(1,Math.round(K*0.8)))
+            g.fillRect((wsx2+Math.cos(a5)*r5)|0,(hub2+Math.sin(a5)*r5*0.96)|0,tw2,tw2); }
+        g.fillRect((wsx2-tw2)|0,(hub2-tw2)|0,tw2*3,tw2*2);                            // the nacelle
+        if(!day&&((wt+Math.floor(now/1500))&1)){                                      // aviation light
+          g.fillStyle="rgba(255,72,64,0.85)"; g.fillRect(wsx2|0,(hub2-Math.round(2.4*K))|0,tw2,Math.max(1,Math.round(1.4*K))); }
+      }
+    }
+    // …and the tall elevators the grain actually goes into, which unlike the little trackside silos
+    // below are built to be seen from the next county.
+    for(var ge=0;ge<3;ge++){
+      var gex=Math.round(sd()*WW), geh=Math.round(gy*(0.15+(((ge*23)%7)/7)*0.06)), gew=Math.round(5*K);
+      var geC=css(mixc(day?[204,198,182]:[42,46,52], hzC, 0.22));
+      for(var w10=-1;w10<=1;w10++){ var gsx=gex-WOFF+w10*WW; if(gsx<-30||gsx>SW+30) continue;
+        for(var cyl=0;cyl<4;cyl++){
+          g.fillStyle=geC; g.fillRect((gsx+cyl*(gew+1))|0,(gy-geh)|0,gew,geh);
+          g.fillStyle="rgba(0,0,0,0.10)"; g.fillRect((gsx+cyl*(gew+1)+gew-Math.max(1,Math.round(K)))|0,(gy-geh)|0,Math.max(1,Math.round(K)),geh);
+        }
+        g.fillStyle=geC;                                                              // the headhouse on top
+        g.fillRect((gsx-Math.round(K))|0,(gy-geh-Math.round(geh*0.18))|0,Math.round(gew*4.4),Math.round(geh*0.18));
+      }
+    }
     // GRAIN SILOS, WINDBREAK rows and a turning WINDMILL — the plains earn their horizon
     for(var wb=0;wb<9;wb++){
       var wbx=Math.round(sd()*WW), wbn=3+((sd()*4)|0);
