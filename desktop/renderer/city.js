@@ -7794,6 +7794,46 @@ function meteorNews(now){
   return null;
 }
 // the downtown LED NEWS TICKER — it reports what is actually happening in the simulation
+// ============ THE TREELINE — a running battle among the giants ============
+// Nick asked to see, now and then, titans and scouts fighting in the tall trees. It is an EVENT inside
+// the OLD FOREST rather than a land of its own, so it has its own frequency: roughly four battles
+// spread through the week a forest life lasts, each a few minutes long. On a weekly cycle the forest
+// itself comes up 4-5 times a year, so realistically this is a once-or-twice-a-year sight — which is
+// what makes it worth having.
+//
+// A PURE FUNCTION OF THE CLOCK, like every other arc in this engine: no state, no accumulation, so it
+// is freeze-safe, it renders identically on all three monitors, and the same moment always gives the
+// same battle. Returns null, or {f, colossal, outcome, wx, seed} with f the 0..1 progress.
+//
+// Deliberately NOT part of the disaster or apocalypse systems even in the `breach` outcome: those own
+// the alert banner, the death list and the ticker's top priority, and a spectacle in the treeline
+// should not be able to look like the end of the world.
+var TITAN_SLOT=151200000;                            // ~42h — four slots to a week-long life
+var TITAN_DUR=240000;                                // and each battle runs about four minutes
+function titanEvent(now){
+  if(curBiome.k!=="forest"||!bioTrees) return null;
+  if(cityPhase==="apoc"||curWar||curDis) return null;             // never compete with a real emergency
+  var slot=Math.floor(now/TITAN_SLOT), h=((slot*2654435761+7717)>>>0);
+  var at=slot*TITAN_SLOT+((h%1000)/1000)*(TITAN_SLOT-TITAN_DUR);  // somewhere inside this slot
+  if(now<at||now>=at+TITAN_DUR) return null;
+  var f=(now-at)/TITAN_DUR;
+  // Nick's calls: MIXED scale — usually an ordinary titan dwarfed by trees that leave the frame, and
+  // rarely a colossal one whose head clears the canopy. And rarely, it gets through.
+  var colossal=((h>>>7)%100)<14;
+  var oc=((h>>>13)%100);
+  var outcome=oc<12?"breach":(oc<62?"killed":"withdraws");
+  return { f:f, colossal:colossal, outcome:outcome, seed:h,
+           wx:((h>>>19)%1000)/1000*WW };
+}
+function titanTicker(now){
+  var T=titanEvent(now); if(!T) return null;
+  if(T.f<0.16) return "MOVEMENT IN THE TREELINE - SURVEY CORPS SCRAMBLED";
+  if(T.outcome==="breach"&&T.f>0.62) return "IT IS PAST THE TREELINE - CLEAR THE BOULEVARD";
+  if(T.f<0.70) return T.colossal?"COLOSSAL CLASS IN THE OLD GROWTH - CORPS ENGAGING":"ENGAGEMENT UNDERWAY ABOVE THE CANOPY WALKS";
+  if(T.outcome==="killed") return "TARGET DOWN IN THE OLD GROWTH - CORPS ACCOUNTED FOR";
+  if(T.outcome==="withdraws") return "IT HAS TURNED BACK INTO THE TREES - WATCH CONTINUES";
+  return "BOULEVARD CLOSED - CORPS DRIVING IT BACK TO THE TREELINE";
+}
 function tickerMsg(now){
   var mn=meteorNews(now); if(mn) return mn;                     // the incoming planet-killer dominates the news for ~2 days out
   if(cityPhase==="apoc") return "EMERGENCY BROADCAST - EVACUATE "+cityName+" NOW";
@@ -7805,6 +7845,7 @@ function tickerMsg(now){
   var pgm=plagueTicker(now); if(pgm && (Math.floor(now/12000))%4!==0) return pgm;   // THE PLAGUE dominates the news while the pandemic rages (mutually exclusive with the regime)
   var ftm=festivalTicker(now); if(ftm && (Math.floor(now/12000))%4!==0) return ftm;  // THE FESTIVAL's expo news while the World's Fair is on (mutually exclusive with war/regime/plague)
   var adm=addictionTicker(now); if(adm && (Math.floor(now/12000))%4!==0) return adm;  // THE ADDICTION CRISIS dominates the news while it rages (mutually exclusive with the others)
+  var ttk=titanTicker(now); if(ttk) return ttk;   // the treeline outranks weather but never a real emergency
   var fx=wfx();
   if(fireBurning) return "WILDFIRE ON THE RIDGE - STAY CLEAR OF THE TREELINE";
   if(iceNow) return "THE BAY IS FROZEN - SKATE AT YOUR OWN JOY";
@@ -9550,6 +9591,12 @@ var SPEECH_EVENT={
             "HAVE YOU SEEN MY BROTHER?","THE PHONES ARE ALL DEAD.","OUR STREET IS GONE.","I CAN'T FIND HER.","DON'T LOOK. JUST WALK.",
             "THEY SAID IT WAS SAFE HERE.","NOBODY WARNED US.","THAT WAS MY HOUSE."],
   rift:["SOMETHING ATE MY MAILBOX!","DID YOU SEE THOSE THINGS?","THEY CAME OUT OF THE SKY!","BOLT THE DOORS TONIGHT."],
+  // THE TREELINE. Nick's call: the city NOTICES without panicking — the ticker reports it and people
+  // stop and look toward the trees. So this is awe and rubbernecking, not the disaster bank's fear.
+  treeline:["LOOK AT THE SIZE OF IT.","THE CORPS IS UP THERE.","IT'S IN THE OLD GROWTH AGAIN.",
+            "DON'T CROWD THE ROAD.","I COUNTED FOUR LINES.","MY GRANDFATHER SAW ONE ONCE.",
+            "THEY'LL HANDLE IT. THEY ALWAYS DO.","IT'S NOT COMING THIS WAY. IS IT?",
+            "GET A PICTURE, NOBODY WILL BELIEVE US.","THAT IS WHY WE KEEP THE WALKS LIT."],
   regime:["CAREFUL WHAT YOU SAY.","THE WALLS HAVE EARS.","HAVE YOU SEEN THE POSTERS?","CURFEW AGAIN TONIGHT.","THIS CAN'T LAST FOREVER.","MY COUSIN JUST... VANISHED.",
           "NOT HERE. NOT OUT LOUD.","THEY TOOK THE PRINTER AWAY.","DID YOU SIGN THE LIST?","I BURNED MY OLD PHOTOS.",
           "MY BOY WON'T STOP ASKING.","THEY CALL IT ORDER NOW.","WHO'S THAT ON THE CORNER?","WE USED TO VOTE, REMEMBER.",
@@ -9671,6 +9718,12 @@ function sceneTopic(a, b, sslot, now){
   var h=P_hash((a.pid^b.pid^sslot*17)>>>0);
   if(cityPhase==="apoc") return {ev:'finale'};
   if(typeof curDis!=='undefined'&&curDis) return {ev:(curDis.type==="rift"?'rift':'disaster')};
+  // THE TREELINE. Below a real emergency and above everything else: while a battle is on, most of the
+  // city's talk is about it, and the gate scales with the battle's own progress the way every other
+  // event's does — nobody is talking about it in the first seconds, everybody is by the middle.
+  var TT=titanEvent(now);
+  if(TT){ var tm=Math.min(1,TT.f*2.2);
+    if((h%10) < Math.round(3+6*tm)) return {ev:'treeline'}; }
   // Nick's rule: ordinary days stay everyday talk, but when something IS happening the city's talk
   // turns overwhelmingly to it and then fades back. These gates were flat constants — a plague got
   // talked about exactly as much on its first day as at the height of the surge, and an election as
@@ -13561,6 +13614,139 @@ function drawPrimates(g,L,now,K){
     }
   }
 }
+// THE BATTLE. Drawn at the START of drawForestNear, so the two colossal fore trunks pass IN FRONT of
+// it — that occlusion is what puts the fight among the giants instead of pasted over them, and it is
+// also what keeps an ordinary titan reading as small against trees that leave the frame.
+function drawTitanFight(g,L,now,K){
+  var T=titanEvent(now); if(!T) return;
+  var day=L>0.5, gy=HORIZON, f=T.f;
+  // WHERE IT IS. It wades in from the treeline, fights in the middle, then either falls, turns back, or
+  // in the rare `breach` outcome keeps coming until it is out past the trunks and over the boulevard.
+  var march;
+  if(f<0.22) march=f/0.22*0.55;                                  // wading in
+  else if(f<0.72) march=0.55+Math.sin((f-0.22)/0.50*Math.PI*2)*0.06;   // holding, swaying, being worked
+  else if(T.outcome==="withdraws") march=0.55-((f-0.72)/0.28)*0.62;    // back into the trees
+  else if(T.outcome==="breach") march=0.55+((f-0.72)/0.28)*0.55;       // …or straight on through
+  else march=0.55;
+  var hgt=Math.round((T.colossal?gy*0.92:gy*0.46)*Math.min(1,0.4+march*1.1));
+  var down=(T.outcome==="killed"&&f>0.72)?Math.min(1,(f-0.72)/0.20):0;  // it goes down over four seconds
+  if(down>=1&&f>0.94) return;                                     // and then there is nothing left to draw
+  hgt=Math.round(hgt*(1-down*0.72));
+  var baseY=gy+Math.round(4*K)+Math.round(down*3*K);
+  // ⚠ CONTRAST. The first pass used a pale skin against the forest's pale hazed sky and read as a beige
+  // CABINET. A titan has to be darker than the air behind it or its silhouette does no work at all.
+  var skin=day?"#a8785a":"#2a2019", skin2=day?"#7a5238":"#1a1310", edge=day?"#5c3a26":"#0e0a08";
+  var mouth=day?"#5a1f1a":"#170a08";
+  var steam="rgba(226,214,206,";
+  for(var o=-1;o<=1;o++){
+    var X=Math.round(T.wx-WOFF+o*WW); if(X<-hgt||X>SW+hgt) continue;
+    // ⚠ PROPORTIONS ARE THE WHOLE SPRITE. The first pass gave the head the same width as the torso's
+    // half-width, drew the torso as one flat rectangle and hid the limbs behind it — at size it read as
+    // a beige VENDING MACHINE with a face on it. What makes a titan a titan is a small head on very
+    // wide shoulders, long arms, and heavy legs mid-stride. So: shoulders 0.17 of height, head 0.085,
+    // and a lit side / shadow side down the body instead of horizontal rib bars.
+    var sway=Math.sin(now*0.0011+T.seed)*Math.round(1.6*K);
+    var hw=Math.round(hgt*0.17), topY=baseY-hgt, sunL8=curSunDf<0.5;
+    var shH=topY+Math.round(hgt*0.20);                            // the shoulder line
+    // LEGS. A titan that stands still is a statue; the stride is most of the menace.
+    var stride=Math.sin(now*0.0016+T.seed*0.7)*hgt*0.09;
+    var legW=Math.round(hw*0.62), legTop=topY+Math.round(hgt*0.54);
+    g.fillStyle=skin2;
+    g.fillRect(X-hw+Math.round(stride)+sway,legTop,legW,baseY-legTop);
+    g.fillStyle=skin;
+    g.fillRect(X+hw-legW-Math.round(stride)+sway,legTop,legW,baseY-legTop);
+    // ARMS — long, hanging past the hip, one swinging up at the lines.
+    var reach=Math.sin(now*0.0021+T.seed*1.3), armW=Math.round(hw*0.34);
+    g.fillStyle=skin2;
+    g.fillRect(X-hw-armW+sway,shH+Math.round(hgt*(reach>0?-0.02:0.06)),armW,Math.round(hgt*0.36));
+    g.fillStyle=skin;
+    g.fillRect(X+hw+sway,shH+Math.round(hgt*(reach>0?0.06:-0.02)),armW,Math.round(hgt*0.36));
+    // ⚠⚠ CONTOURED, NOT RECTANGLES. At 2.6x zoom the boxed version read as a wooden MANNEQUIN: a
+    // rectangular head with two dot eyes on a rectangular torso between two slab arms. Nothing about
+    // the proportions was wrong by then — the SHAPES were. Same fix that worked for the boles and the
+    // foliage: build the body out of row loops with a contoured half-width, so shoulders round off, the
+    // chest swells, the waist pulls in and the hips flare. Every silhouette in this engine that reads
+    // as organic is built this way; every one that read as furniture was a fillRect.
+    var tH=Math.round(hgt*0.36);
+    for(var ty2=0;ty2<tH;ty2++){
+      var tf2=ty2/tH;
+      // deltoid shoulder → chest → waist → hip, as one profile
+      var prof=tf2<0.16 ? (0.72+0.28*(tf2/0.16))            // the shoulder rounding out
+             : tf2<0.42 ? 1.0                                // the chest, widest
+             : tf2<0.74 ? (1.0-0.26*((tf2-0.42)/0.32))       // pulling in to the waist
+             : (0.74+0.16*((tf2-0.74)/0.26));                // and flaring at the hip
+      var tw3=Math.max(1,Math.round(hw*prof));
+      g.fillStyle=skin; g.fillRect(X-tw3+sway,shH+ty2,tw3*2,1);
+      g.fillStyle=skin2;                                          // the shaded flank follows the contour
+      g.fillRect(sunL8?X+tw3-Math.round(tw3*0.36)+sway:X-tw3+sway,shH+ty2,Math.max(1,Math.round(tw3*0.36)),1);
+      g.fillStyle=edge;                                           // and so does the edge
+      g.fillRect(X-tw3+sway,shH+ty2,Math.max(1,Math.round(K)),1);
+      g.fillRect(X+tw3-Math.max(1,Math.round(K))+sway,shH+ty2,Math.max(1,Math.round(K)),1);
+      // ⚠ NO horizontal definition bars here. Evenly spaced dark rules across the chest render as a
+      // BARCODE, which is the same failure the sequoia "ladder rung" skirt hit. One vertical sternum
+      // shadow instead: it follows the contour and reads as depth rather than as stripes.
+      if(tf2>0.18&&tf2<0.52){
+        g.fillStyle=skin2; g.fillRect(X+Math.round(tw3*0.02)+sway,shH+ty2,Math.max(1,Math.round(K)),1); }
+    }
+    g.fillStyle=skin;                                             // NECK, thick and short
+    g.fillRect(X-Math.round(hgt*0.045)+sway,topY+Math.round(hgt*0.13),Math.round(hgt*0.09),Math.round(hgt*0.08));
+    // HEAD — small, and contoured too: a skull that narrows to a jaw, with hair over the crown. A
+    // rectangle with two dots is a robot no matter how small you make it.
+    var hs=Math.round(hgt*0.052), hTop=topY+Math.round(hgt*0.050), hH=Math.round(hgt*0.095);
+    for(var hy=0;hy<hH;hy++){
+      var hf=hy/hH;
+      var hwid=Math.max(1,Math.round(hs*(hf<0.62?1:(1-0.42*((hf-0.62)/0.38)))));   // narrowing to the jaw
+      g.fillStyle=skin; g.fillRect(X-hwid+sway,hTop+hy,hwid*2,1);
+      g.fillStyle=skin2; g.fillRect(sunL8?X+hwid-Math.max(1,Math.round(K))+sway:X-hwid+sway,hTop+hy,Math.max(1,Math.round(K)),1);
+      if(hf<0.24){ g.fillStyle=edge; g.fillRect(X-hwid+sway,hTop+hy,hwid*2,1); }   // dark hair over the crown
+    }
+    g.fillStyle=mouth;                                            // the grin, too wide for the jaw
+    g.fillRect(X-Math.round(hs*0.92)+sway,hTop+Math.round(hH*0.70),Math.round(hs*1.84),Math.max(1,Math.round(1.4*K)));
+    g.fillStyle=day?"#1e120c":"#080504";                           // sunken eyes, set deep
+    g.fillRect(X-Math.round(hs*0.62)+sway,hTop+Math.round(hH*0.42),Math.max(1,Math.round(1.3*K)),Math.max(1,Math.round(1.6*K)));
+    g.fillRect(X+Math.round(hs*0.16)+sway,hTop+Math.round(hH*0.42),Math.max(1,Math.round(1.3*K)),Math.max(1,Math.round(1.6*K)));
+    // THE NAPE. What the Corps is actually for, and the only place a hit counts.
+    var napeX=X+Math.round(hs*0.5)+sway, napeY=topY+Math.round(hgt*0.17);
+    if(f>0.28&&f<0.80&&((Math.floor(now/700)+T.seed)&3)===0){      // a strike landing, now and then
+      g.globalCompositeOperation="lighter";
+      g.fillStyle="rgba(255,120,90,0.55)"; g.fillRect(napeX-Math.round(2*K),napeY-Math.round(2*K),Math.round(5*K),Math.round(4*K));
+      g.globalCompositeOperation="source-over";
+    }
+    if(down>0){                                                   // it steams away as it falls
+      for(var st=0;st<7;st++){
+        var sf=st/7, sa2=(0.34-0.30*sf)*down;
+        if(sa2<=0.01) break;
+        g.fillStyle=steam+sa2.toFixed(3)+")";
+        g.fillRect(X-hw-Math.round(sf*hgt*0.18)+sway,topY+Math.round(hgt*0.1)-Math.round(sf*hgt*0.5),
+                   hw*2+Math.round(sf*hgt*0.36),Math.max(1,Math.round(hgt*0.08)));
+      }
+    }
+    // THE SCOUTS. Grapple lines anchored high on the trunks, a swing arc, and a figure at the end of it
+    // — the LINE is what makes them scouts rather than birds, so it is drawn first and always.
+    var nS=T.colossal?4:3;
+    for(var sc=0;sc<nS;sc++){
+      var sh=((T.seed*31+sc*7919)>>>0);
+      var cyc=2600+((sh%900)), sp=((now+sc*640)%cyc)/cyc;
+      var side=(sc&1)?1:-1;
+      var ax=X+side*Math.round(hgt*(0.55+((sh>>>5)%40)/100)), ay=topY-Math.round(hgt*(0.10+((sh>>>9)%30)/100));
+      var tx=napeX-side*Math.round(hgt*0.06), ty=napeY;
+      var px=ax+(tx-ax)*sp, py=ay+(ty-ay)*sp+Math.sin(sp*Math.PI)*hgt*0.16;   // a slack, swinging arc
+      g.strokeStyle=day?"rgba(226,226,220,0.75)":"rgba(150,156,168,0.55)"; g.lineWidth=1;
+      g.beginPath(); g.moveTo(ax,ay); g.lineTo(px,py); g.stroke();
+      var u=Math.max(1,Math.round(K));
+      g.fillStyle=day?"#4a4a42":"#16161a";                        // the cloak
+      g.fillRect(Math.round(px),Math.round(py),u*2,Math.round(3*K));
+      g.fillStyle=day?"#9a9a8a":"#2a2a2e";                        // the harness
+      g.fillRect(Math.round(px),Math.round(py)+Math.round(1.4*K),u*2,Math.max(1,Math.round(K)));
+      g.fillStyle=day?"#c9a888":"#3a3226";                        // head
+      g.fillRect(Math.round(px),Math.round(py)-u,u*2,u);
+      if(sp>0.86){ g.globalCompositeOperation="lighter";           // the blade flash at the top of the arc
+        g.fillStyle="rgba(220,240,255,0.8)";
+        g.fillRect(Math.round(px)-side*Math.round(2*K),Math.round(py),Math.round(3*K),Math.max(1,Math.round(K)));
+        g.globalCompositeOperation="source-over"; }
+    }
+  }
+}
 function drawForestNear(g,L,now,nd){
   // No apoc guard. drawBiomeDetail has one and it is right there — mist and hoodoos are DETAIL — but
   // these giants are structural: with the guard inherited, the moment a cataclysm began the two
@@ -13568,6 +13754,7 @@ function drawForestNear(g,L,now,nd){
   // existing because the city is dying, and the ash veil draws over them anyway.
   if(!bioTrees||!bioTrees.fore||curBiome.k!=="forest") return;
   var gy=HORIZON+4, day=L>0.5, K=Math.max(1,KSP), litK=Math.max(0,Math.min(1,(L-0.34)*2.4));
+  drawTitanFight(g,L,now,K);        // among the giants, so the fore trunks below pass in front of it
   var fT=css(day?[38,28,20]:[6,7,9]), fB=css(day?[24,17,12]:[3,4,5]), fC=css(day?[24,40,26]:[5,9,8]);
   for(var i=0;i<bioTrees.fore.length;i++){ var t=bioTrees.fore[i];
     for(var w=-1;w<=1;w++){ var sx=Math.round(t.x-WOFF+w*WW);

@@ -19,6 +19,11 @@
     var hh=parseFloat(Q.get('hour')), dd=new Date(window.NOWOVR);
     dd.setHours(hh|0,Math.round((hh%1)*60),0,0); window.NOWOVR=dd.getTime();
   }
+  // ?nowms=<epoch ms> pins the clock ABSOLUTELY, overriding ?life/?hour. Needed for anything whose
+  // arc is a function of the clock rather than of the city's age — the treeline battle only exists for
+  // four minutes inside a 42-hour slot, so "life 50 at 1pm" cannot land on it. Find the moment with a
+  // node probe against titanEvent(), then render it here.
+  if(Q.get('nowms')!==null) window.NOWOVR=parseInt(Q.get('nowms'),10);
   window.CLOCK  = window.NOWOVR;
   window.FORCEAGE = age;
   // ?wx=<WMO code> pins the weather BEFORE setup, so maybeFetchWeather() never overwrites it (see
