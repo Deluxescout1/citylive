@@ -10022,7 +10022,16 @@ function drawBiomeFauna(g,L,now,nd,wild,gy){
     for(var n=0;n<herd;n++){
       var sd2=((i*7919+n*104729+31)>>>0), hsh=(sd2%1000)/1000;
       if(hsh>wild*0.85+0.15) continue;
-      var wx=landRoute(wrapW(hsh*WW+Math.sin(now*0.00005+n*1.9+i)*26));
+      // A HERD MOVES TOGETHER. Each animal used to drift on its own slow sine, so four bison ended up
+      // spread right across the world grazing independently — four lone animals that happen to be the
+      // same species, which is not what a herd looks like. There is one centre per species now; it
+      // walks slowly across its patch and the members hold station around it, each with only enough
+      // jitter of its own to keep them from marching in step.
+      var herdC=((i*2654435761+7)>>>0)%1000/1000;                     // this species' patch of country
+      var walk=Math.sin(now*0.000035+i*1.7)*0.055;                    // …which the whole herd crosses
+      var slotX=(n-(herd-1)/2)*Math.max(10,sp.w*KSP*1.9);             // spacing inside the herd
+      var jitter=Math.sin(now*0.00022+n*2.3+i)*3.2*KSP;
+      var wx=landRoute(wrapW((herdC+walk)*WW+slotX+jitter));
       if(sp.head==="seal"){                                            // seals haul out ON the rocks
         if(!hasOcean||seaW<=0) continue;
         wx=wrapW((n&1)?WW*seaW+6+((sd2>>5)%10):WW*(1-seaW)-6-((sd2>>5)%10));
@@ -10043,7 +10052,14 @@ function drawBiomeFauna(g,L,now,nd,wild,gy){
     for(var m=0;m<5;m++){
       var sd3=((i*40503+m*2654435761+17)>>>0), h3=(sd3%1000)/1000;
       if(h3>wild) continue;
-      var swx=landRoute(wrapW(h3*WW+now*0.0015*((m&1)?1:-1)));
+      // SMALL THINGS MOVE IN BURSTS. A lizard or a roadrunner crossing the world at a constant
+      // 0.0015 px/ms is a sprite on a conveyor; what they actually do is dart, stop dead, and dart
+      // again. The distance is the same over a minute — only the delivery changes, and the stopping
+      // is what makes it read as an animal deciding something.
+      var dcyc=2600+((sd3>>>11)%2400), dph=((now+sd3%dcyc)%dcyc)/dcyc;
+      var dart=dph<0.30?(dph/0.30):1;                                  // 30% running, 70% stock still
+      var laps=Math.floor((now+sd3%dcyc)/dcyc);
+      var swx=landRoute(wrapW(h3*WW+(laps+dart)*((m&1)?11:-11)*Math.max(1,KSP)));
       if(sp===FAUNA.otter||sp===FAUNA.puffin){                         // both belong at the water's edge
         if(!hasOcean||seaW<=0) continue;
         swx=wrapW((m&1)?WW*seaW+3+((sd3>>7)%14):WW*(1-seaW)-3-((sd3>>7)%14));
@@ -12998,20 +13014,37 @@ function drawBiomeDetail(g,L,now,nd){
         var bobY=fiy+Math.round(Math.sin(now*0.00035+fi*1.9)*1.6*K);            // they drift very slowly
         g.fillStyle=css(day?[236,232,244]:[92,90,104]);
         g.fillRect(isx-fiW,bobY,fiW*2,Math.round(2.4*K));                        // the green/pale top
+        // ⚠ THE KEEL, not a cone. Six tiers each 17% narrower comes to a POINT, and a point over a
+        // narrow column of light is a martini glass — which is what these have read as through two
+        // passes. A floating island's underside is a ragged keel: it narrows unevenly, hangs deepest
+        // off-centre, and ends in broken rock rather than a tip.
         g.fillStyle=css(day?[206,198,226]:[62,60,74]);
-        for(var un=0;un<6;un++)                                                  // the rock tapering under
-          g.fillRect(isx-Math.round(fiW*(1-un*0.17)),bobY+Math.round((2.4+un*1.9)*K),
-                     Math.round(fiW*(1-un*0.17))*2,Math.round(2.1*K));
-        // The fall of light — WIDE and fading out well before the ground. Drawn narrow and solid it
-        // read as a stalk, which turned every island into a mushroom standing on a pole.
-        var fallH=Math.round(gy*0.30), fw0=Math.round(fiW*0.55);
-        for(var fq=0;fq<7;fq++){
-          var ff=fq/7, fy3=bobY+Math.round(13*K)+Math.round(ff*fallH);
+        var keel=8, lean=((fi&1)?1:-1)*0.18;
+        for(var un=0;un<keel;un++){
+          var uf=un/keel;
+          var kh=((fi*7919+un*104729)>>>0);
+          var uw=Math.round(fiW*(1-uf*0.62)*(0.78+((kh%1000)/1000)*0.42));
+          if(uw<1) break;
+          var uo=Math.round(fiW*lean*uf);
+          g.fillRect(isx+uo-uw,bobY+Math.round((2.4+un*1.7)*K),uw*2,Math.round(2.0*K));
+        }
+        g.fillStyle=css(day?[188,180,210]:[50,48,60]);                           // broken rock at the base
+        for(var br=0;br<4;br++){
+          var bh4=((fi*331+br*613)>>>0);
+          g.fillRect(isx+Math.round(fiW*lean)+Math.round((((bh4%100)/100)-0.5)*fiW*0.5),
+                     bobY+Math.round((2.4+keel*1.7+((bh4>>>7)%3))*K),
+                     Math.max(1,Math.round(1.6*K)),Math.max(1,Math.round(2.4*K)));
+        }
+        // THE FALL OF LIGHT — as wide as the island it comes off, WIDENING as it falls and fading out
+        // long before the ground. Any column narrower than the island reads as the thing holding it up.
+        var fallH=Math.round(gy*0.34), fw0=Math.round(fiW*1.05), FN=12;
+        for(var fq=0;fq<FN;fq++){
+          var ff=fq/FN, fy3=bobY+Math.round(11*K)+Math.round(ff*fallH);
           if(fy3>gy) break;
-          var fwq=Math.round(fw0*(1-ff*0.45)), fa=(day?0.13:0.07)*(1-ff);
-          if(fa<=0.012) break;
+          var fwq=Math.round(fw0*(1+ff*0.5)), fa=(day?0.085:0.05)*(1-ff)*(1-ff);
+          if(fa<=0.006) break;
           g.fillStyle=(day?"rgba(255,246,208,":"rgba(206,198,226,")+fa.toFixed(3)+")";
-          g.fillRect(isx-fwq,fy3,fwq*2,Math.round(fallH/7)+1);
+          g.fillRect(isx-fwq,fy3,fwq*2,Math.round(fallH/FN)+1);
         }
         if(sd()<0.6){ g.fillStyle=css(day?[250,240,196]:[120,112,96]);           // a small building on it
           g.fillRect(isx-Math.round(2*K),bobY-Math.round(4*K),Math.round(4*K),Math.round(4*K)); }
