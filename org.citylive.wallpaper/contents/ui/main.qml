@@ -13,8 +13,11 @@ WallpaperItem {
     property string renderError: ""
     property string lastChronicleKey: ""
     readonly property bool chronicleEnabled: !configuration || configuration.chronicleEnabled === undefined || configuration.chronicleEnabled
-    // QUALITY tier: spectacle (full 12fps everything) / balanced / performance (8fps, thinner
-    // effects — laptop & battery friendly). Config override, else auto by total canvas load.
+    // QUALITY tier — this only ever set the frame rate; EVERY feature draws in every tier, which is
+    // the point (Nick: "still show all the features by default"). Live pass:
+    //   spectacle 83ms = 12fps · balanced 125ms = 8fps · performance 500ms = 2fps (battery)
+    // The comment here used to claim performance was 8fps; it has always been 500ms. Config
+    // override, else auto by total canvas load.
     readonly property string quality: {
         if (configuration && configuration.quality) return configuration.quality;
         return (width * height > 2200000) ? "balanced" : "spectacle";
@@ -41,11 +44,20 @@ WallpaperItem {
     // pixel covers 3 buffer px, and that block size beats against KWin's 4656->3840 resample into
     // vertical lines every ~58px. The engine's own render is provably clean — the same frame drawn
     // at integer scale has zero anomalous columns — so this is purely a texel-size artefact.
-    // This used to be rejected as too expensive (~3.05M canvas px instead of ~1.36M). Re-measured
-    // on the three-screen desktop AFTER the two-canvas split, back to back: 54.4% of one core with
-    // fine texels vs 55.2% without — free, because the mountains live on the slow `bg` canvas that
-    // barely repaints. Don't re-reject it on the old number.
-    readonly property real texelBuf: (fractionalDpr || dpr > 1) ? 2 : pxk
+    // ⚠ THE FINE TEXELS ARE NOT FREE, and the note that used to sit here saying they were is wrong.
+    // "54.4% with vs 55.2% without" holds only at the 200ms (5fps) cadence, where the canvas render
+    // thread has time to spare. Re-measured back to back at 125ms on the same three screens:
+    //     5 fps  fine 38.8%   coarse 31.7%
+    //     8 fps  fine 63.6%   coarse 51.2%
+    // Fine texels cost TWELVE POINTS the moment the frame rate goes up, because they make this
+    // screen's LIVE canvas 2328x1311 instead of 1552x874 — 2.24x the pixels, repainted every frame.
+    // Nick chose to spend that on smoothness instead (8fps), so the defense comes off and the 4K
+    // screen goes back to the SAME texel density as the other two monitors: 3 device px per canvas
+    // px, which is what pxk 3 has always meant. The cheap half of the defense stays — `smooth:` on
+    // the live canvas below is linear filtering, costs nothing, and per the note above is what
+    // actually absorbs KWin's dropped columns. If the vertical lines ever come back on the 4K@165%,
+    // this line is the first thing to put back (and it is a QUALITY choice, not a bug fix).
+    readonly property real texelBuf: pxk
     readonly property int zoom: Math.max(1, Math.round(pxk * dpr / texelBuf))
     // total width (logical px) of the whole desktop the city spans. If unset in config,
     // auto-detect by summing every screen's width (works for a single laptop screen or
@@ -152,7 +164,16 @@ WallpaperItem {
     // seam) but it also fires all of them on the SAME millisecond, so three full-screen paints
     // land together and the desktop stutters in bursts. Independent timers drift a frame apart —
     // invisible at these speeds — and spread the load across the interval instead.
-    readonly property int frameMs: quality === "performance" ? 500 : (quality === "balanced" ? 200 : 83)
+    // "balanced" was 200ms — FIVE frames a second, and that is what Nick meant by "jittery". It is
+    // also far slower than the other shells' balanced tier (Electron/web/phone run 10fps there), so
+    // the KDE wallpaper was the choppiest surface we ship, on the machine it was written for.
+    // 125ms = 8fps, measured back to back on his three screens at 51.2% of one core (vs 31.7% at
+    // 5fps). CPU scales almost exactly linearly with this number — 1.6x the frames cost 1.6x the
+    // CPU — because engine JS is only ~1/3 of the cost and rasterising/uploading/compositing is the
+    // rest, and none of that shrinks when the JS does. So this is a deliberate spend, not a free
+    // win: don't raise it further without re-measuring with tools/perf-ab.sh. 10fps was 62.2%.
+    // (Weather no longer changes speed when this does — see MOTION_RATE in city.js.)
+    readonly property int frameMs: quality === "performance" ? 500 : (quality === "balanced" ? 125 : 83)
     Timer {
         interval: root.frameMs
         running: root.visible
