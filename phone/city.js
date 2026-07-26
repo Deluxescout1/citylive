@@ -2865,7 +2865,7 @@ var BIOMES=[
     fauna:{ keep:{deer:0,rabbit:1,fox:0,goat:0}, big:["bighorn","coyote"], small:["lizard","roadrunner"], air:["vulture"] },
     flora:{ kinds:["saguaro","scrub","ocotillo","scrub","saguaro"], bloom:["#e8c04a","#d8734a","#c8506a"] },
     sky:{ top:[132,150,196], bot:[214,182,150], k:0.34, haze:[206,166,126] } },
-  { k:"cliffs", name:"SEA CLIFFS", amp:0.92, base:0.62, flat:0.55, steep:1.0, snow:false, water:"sea",
+  { k:"cliffs", name:"SEA CLIFFS", amp:0.92, base:0.62, flat:0.55, steep:1.0, snow:false, water:"sea", cliffLife:1,
     far:[126,132,140],  near:[92,98,108],  cap:[168,176,182], ground:[132,138,126],
     walls:[[196,196,190],[172,176,178],[212,210,202],[150,158,162],[128,136,142],[186,178,166],[160,152,144],[204,198,186]],
     fauna:{ keep:{deer:0,rabbit:1,fox:1,goat:0}, big:["seal"], small:["otter","puffin"], air:[] },
@@ -16240,6 +16240,91 @@ function drawSpireWorld(g,L,now,nd){
   }
 }
 // ================================================================================================
+// THE SEA CLIFF, ALIVE — the colony, and the stacks
+// ------------------------------------------------------------------------------------------------
+// The audit found sea cliffs reading as a grey wall under an empty sky, with the sea only present at
+// the world's seam. This covers the two things that fill the frame without recomposing the coast:
+// the seabird COLONY that makes a real sea cliff loud, and the offshore STACKS that break the wall.
+//
+// ⚠ A colony is not "some birds". What reads is DENSITY ON LEDGES plus a loose cloud of birds
+// wheeling off the rock — thousands of individuals occupying strata, which is why they are drawn as
+// packed rows keyed to the bedding planes rather than as scattered sprites.
+function drawCliffLife(g,L,now,nd,fx){
+  if(!curBiome.cliffLife || !mtsCache || !mtsCache.h || !mtsCache.h[1]) return;
+  if(cityPhase==="apoc") return;
+  var K=Math.max(1,KSP), gy=HORIZON, hs=mtsCache.h[1], day=L>0.5;
+  var storm=fx.thunder||(weather.wind!=null&&weather.wind>26);
+  function ridgeH(sx){ var ci=Math.max(0,Math.min(SW-1,sx|0)); return hs[ci]|0; }
+
+  // ---- THE COLONY ON THE LEDGES ----------------------------------------------------------------
+  // Nesting birds pack onto horizontal breaks in the rock. Static per position (a nest site does not
+  // wander), so this is pure f(x) — and it costs nothing to keep still.
+  var bandN=3, bird=day?"rgba(248,250,252,0.92)":"rgba(196,204,214,0.55)";
+  var dark=day?"rgba(52,58,66,0.75)":"rgba(28,32,38,0.5)";
+  for(var cx=Math.round(SW*0.03);cx<Math.round(SW*0.97);cx+=Math.max(2,Math.round(2*K))){
+    var h=ridgeH(cx); if(h<18*K) continue;
+    var faceTop=gy-h;
+    for(var b=0;b<bandN;b++){
+      // ledges sit at fixed fractions of the face, so they run level across the cliff like real strata
+      var ly=faceTop+Math.round(h*(0.22+b*0.20));
+      if(ly>gy-4*K) continue;
+      var hsh=((cx*2654435761+b*7919)>>>0);
+      if((hsh%100)>58) continue;                              // gaps: no colony is continuous
+      g.fillStyle=bird;
+      g.fillRect(cx|0,ly|0,Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
+      if((hsh>>7)%3===0){ g.fillStyle=dark;                   // a darker back among the white breasts
+        g.fillRect((cx+Math.round(K))|0,ly|0,Math.max(1,Math.round(K)),Math.max(1,Math.round(K))); }
+    }
+  }
+
+  // ---- THE BIRDS OFF THE ROCK ------------------------------------------------------------------
+  // The loose wheeling cloud in front of the face. Each bird runs its own slow ellipse; in a blow
+  // they are pushed out and fly faster, which is what a colony actually looks like in wind.
+  var nAir=Math.round((14+(storm?10:0))*Math.min(2,K));
+  for(var a=0;a<nAir;a++){
+    var as=((a*104729+5171)>>>0);
+    var homeX=(as%1000)/1000*SW, hh2=ridgeH(homeX);
+    if(hh2<16*K) continue;
+    var spd=0.00016+((as>>5)%40)/40*0.00022+(storm?0.00016:0);
+    var th=((now*spd+(as>>11)%997/997)%1)*2*Math.PI;
+    var rax=(9+((as>>7)%16))*K*(storm?1.5:1), ray=(4+((as>>13)%7))*K;
+    var bx=homeX+Math.cos(th)*rax, by=(gy-hh2)+Math.round(hh2*0.42)+Math.sin(th)*ray;
+    if(bx<-4||bx>SW+4||by<2) continue;
+    var flap=((now*0.012+a*1.9)|0)%2;
+    g.fillStyle=day?"rgba(250,251,253,0.9)":"rgba(180,190,202,0.5)";
+    g.fillRect(bx|0,by|0,Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
+    g.fillStyle=day?"rgba(238,242,246,0.75)":"rgba(160,170,182,0.4)";
+    g.fillRect((bx-Math.round(K))|0,(by-flap*Math.round(K))|0,Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
+    g.fillRect((bx+Math.round(K))|0,(by-flap*Math.round(K))|0,Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
+  }
+
+  // ---- SEA STACKS, standing off the headland ----------------------------------------------------
+  // ⚠ Placed INSIDE the open-sea band at the world's seam (`inSea`), because that is where there is
+  // actually water to stand in. Anywhere else they would be pillars in a field.
+  if(hasOcean&&seaW>0){
+    var seaEdgePx=Math.round(WW*seaW)-WOFF;                   // the left seam's inner edge, in screen px
+    for(var st=0;st<3;st++){
+      var ss=((st*40503+2237)>>>0);
+      var sxs=Math.round(seaEdgePx-(14+((ss>>3)%54))*K);
+      if(sxs<-8||sxs>SW+8) continue;
+      var sh2=Math.round((10+((ss>>9)%16))*K), sw2=Math.max(2,Math.round((3+((ss>>5)%4))*K));
+      var base=gy-Math.round(2*K);
+      var rc=day?curBiome.near:[(curBiome.near[0]*0.34)|0,(curBiome.near[1]*0.36)|0,(curBiome.near[2]*0.5)|0];
+      g.fillStyle=css(rc);
+      for(var sq=0;sq<sh2;sq++){                              // taper: wider at the waterline
+        var sf=sq/sh2, wq=Math.max(1,Math.round(sw2*(1-sf*0.34)));
+        g.fillRect((sxs-wq*0.5)|0,(base-sq)|0,wq,1);
+      }
+      g.fillStyle=day?"rgba(250,252,255,0.55)":"rgba(150,166,186,0.3)";   // surf collar at the foot
+      var sw3=sw2+Math.round((1.6+Math.sin(now*0.0022+st)*1.1)*K);
+      g.fillRect((sxs-sw3*0.5)|0,base|0,Math.max(2,Math.round(sw3)),Math.max(1,Math.round(K)));
+      if(day){ g.fillStyle="rgba(255,255,255,0.5)";           // a few birds on the top of each stack
+        for(var sb=0;sb<3;sb++) if(((ss>>(sb+2))&1)) g.fillRect((sxs-sw2*0.4+sb*Math.round(K))|0,(base-sh2)|0,Math.max(1,Math.round(K)),Math.max(1,Math.round(K))); }
+    }
+  }
+}
+
+// ================================================================================================
 // THE DESERT, ALIVE — vultures on the thermals, dust devils, heat shimmer, and the arch
 // ------------------------------------------------------------------------------------------------
 // Same diagnosis as the mountain: the land was a band of rock under an empty sky. What a desert has
@@ -22017,6 +22102,7 @@ function draw(g,pass){
   drawCanopyLight(g,L,now);
   drawAlpineLife(g,L,now,nd,fx);   // eagles on the ridge lift, ibex on the rock, spindrift off the summits
   drawMesaLife(g,L,now,nd,fx);     // vultures on the thermals, heat shimmer, dust devils, the arch
+  drawCliffLife(g,L,now,nd,fx);    // the seabird colony on the ledges, and the stacks off the headland
   drawRoofRunners(g,L,now,nd);     // the Hidden Village crossing itself by rooftop
   drawNeonCity(g,L,now,nd);        // the neon style, over the city, whatever land it landed on
 
