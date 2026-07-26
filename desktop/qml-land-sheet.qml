@@ -24,12 +24,7 @@ Item {
     // variant 0 of each ordinary land — i.e. the look that shipped in v2.2.0 — then the five hidden
     // worlds at the life index where each one NATURALLY rolls (no FORCEEGG: this also proves the roll).
     property var lands: [
-        { n:"alpine-0",  li:19  }, { n:"forest-0",  li:92  }, { n:"mesa-0",    li:25  },
-        { n:"cliffs-0",  li:58  }, { n:"plains-0",  li:7   }, { n:"beach-0",   li:32  },
-        { n:"swamp-0",   li:5   }, { n:"volcano-0", li:30  }, { n:"arctic-0",  li:95  },
-        { n:"sprawl-0",  li:36  }, { n:"hell-0",    li:21  }, { n:"heaven-0",  li:110 },
-        { n:"egg-leaf",  li:22  }, { n:"egg-core",  li:3   }, { n:"egg-fire",  li:23  },
-        { n:"egg-air",   li:12  }, { n:"egg-falls", li:38  }
+        { n:"egg-falls", li:38 }, { n:"arctic-0", li:95 }
     ]
     property int idx: 0
     property int warm: 0            // paints of the current land so far (the first builds mtsCache)

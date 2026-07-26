@@ -2917,7 +2917,11 @@ var BIOMES=[
   // snow as weather laid over it, here the ice IS the geography. `snow:true` and a high `cap` so the
   // pack is white at any season, but the real Norwich temperature still decides how much MELT shows —
   // a July arctic life has meltwater on the floes and a February one does not.
-  { k:"arctic",  name:"THE PACK ICE", amp:0.46, base:0.58, flat:0.42, steep:0.30, snow:true, water:"sea", polar:1,
+  // ⚠ amp RAISED and `buttes` reused as OPEN LEADS. The pack read as a flat pale plain — no relief at
+  // all — because amp 0.46 over a quantised flat field gives an unbroken sheet. Real pack ice is
+  // BROKEN: floes with pressure ridges shoved up between them and leads of open water in the gaps.
+  // The gap-carving written for the mesa's buttes is exactly that shape, at a tighter threshold.
+  { k:"arctic",  name:"THE PACK ICE", amp:0.74, base:0.58, flat:0.42, steep:0.30, snow:true, water:"sea", polar:1, buttes:-0.58,
     far:[214,226,238], near:[184,202,220], cap:[248,252,255], ground:[222,232,242],
     walls:[[222,228,236],[196,204,216],[238,242,248],[172,182,196],[208,216,228],[184,194,208],[232,238,244],[160,172,188]],
     fauna:{ keep:{deer:0,rabbit:0,fox:1,goat:0}, big:["polarbear","walrus","seal"], small:["ptarmigan"], air:["skua"] },
@@ -3282,7 +3286,12 @@ var EGG_BIOMES=[
     sky:{ top:[132,172,220], bot:[224,232,240], k:0.26, haze:[228,234,242] } },
   // NABOO / THEED. A city on a cliff plateau with enormous waterfalls pouring off the edge. The plateau
   // is the mesa's flat-top machinery; the falls are this land's own, and they are the whole identity.
-  { k:"falls",  name:"THE FALLS CITY", egg:1, amp:0.72, base:0.68, flat:0.86, steep:0.92, snow:false, water:"river", cascades:1,
+  // ⚠ amp/base RAISED (0.72/0.68 -> 1.06/0.88). `drawCascades` was working the whole time — 62 rim
+  // candidates passed on a full-world frame — but the plateau only stood ~60 world px above the ground
+  // band, which is a BUMP, not a cliff. There was nothing for water to fall off, so the land's entire
+  // identity was invisible. The bug was never in the cascade code; it was that the landform was too
+  // small to carry it. When a land's identity is a 300-foot waterfall, the plateau has to be tall.
+  { k:"falls",  name:"THE FALLS CITY", egg:1, amp:1.06, base:0.88, flat:0.86, steep:0.92, snow:false, water:"river", cascades:1,
     far:[142,158,126],  near:[104,124,96],  cap:[196,204,168], ground:[124,146,104],
     walls:[[236,228,206],[212,202,176],[246,240,222],[196,184,158],[226,216,192],[206,196,170],[240,234,214],[188,176,152]],
     fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:0}, big:["cattle"], small:["frog"], air:["heron","dove"] },
