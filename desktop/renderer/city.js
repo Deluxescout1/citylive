@@ -9680,15 +9680,48 @@ function peopleHomeWork(near, seed, jobBuilding, commutes, cityG){
 var drawnNamed=[];
 // a spot on a building's frontage (deterministic per citizen+salt) so co-workers/neighbours spread out
 function frontX(b, seed, salt){ return b.x + 2 + ((seed>>>salt) % Math.max(1,(b.w|0)-3)); }
-// a slow, continuous amble around an anchor — the cast binds to only ~11 home + ~13 work buildings
-// (near band has ~30), so ~16 people STACKED on each frontage read as one clump ("all talking in one
-// spot"). Strolling spreads them along the street. Pure fn of (seed, now): deterministic, freeze-safe,
-// no slot jumps (sin is continuous). Falls back to the anchor if the amble leaves pavement or hits sea.
+// An amble around an anchor — the cast binds to only ~11 home + ~13 work buildings (near band has
+// ~30), so ~16 people STACKED on each frontage read as one clump ("all talking in one spot").
+// Strolling spreads them along the street. Pure fn of (seed, now): deterministic, freeze-safe, no
+// slot jumps. Falls back to the anchor if the amble leaves pavement or hits sea.
+//
+// ⚠ THIS USED TO BE A SINE, AND A SINE IS THE WRONG SHAPE FOR WALKING. Nick: "a bunch of people on
+// the street that aren't moving, what is going on with them?" Measured: outside the ~2 hours a day
+// anyone is commuting, EVERY citizen is doing this, and the sine's PEAK speed was a median of
+// 0.96 world px per SECOND — so a person needed a full second to move one pixel at their fastest,
+// and a sine is slowest exactly where it spends most of its time, at the two turnarounds. Half the
+// people on screen did not change position in any given second. They were statues, and once the
+// weather stopped crawling (see MOTION_RATE) they were obvious ones.
+// milledX's own comment already knew the shape was wrong — it rejected a sine for POSITION because
+// "sin density piles at the extremes" — but the motion kept using one.
+//
+// So: WALK to a nearby spot, STAND a while, walk again. That is what people actually do, and it
+// means the ones standing still read as deliberately standing rather than frozen. Each leg is
+// continuous with the last (leg n ends where leg n+1 begins), stays inside `reach`, and is still a
+// pure function of (seed, now) — no state, safe across a freeze and identical on both sides of a
+// bezel. Walking pace comes out ~2-3 world px/s, which at pxk 3 is about a real 1.4 m/s.
+function strollSpot(seed, n, reach){
+  var h=P_hash((seed ^ ((n*2654435761)>>>0))>>>0);
+  return (h % (2*reach+1)) - reach;                                      // uniform in [-reach, +reach]
+}
 function strollX(seed, anchor, reach, now){
-  var sp=0.00003+((seed>>>21)%16)*0.000004, ph=((seed>>>3)%6283)/1000;   // ~1-3.5 min half-period, per-citizen phase
-  var wxp=wrapW(anchor + Math.sin(now*sp+ph)*reach);
+  // Leg length and walk share are bounded so that NOBODY EVER STANDS LONGER THAN ~3.5 s. That is
+  // the number that matters: a person still in the same spot after a five-second glance is the one
+  // Nick reads as broken, and a generous stand phase reintroduces exactly that.
+  var per=3500+((seed>>>21)%16)*300;             // 3.5-8.0 s per leg, per citizen (no lockstep)
+  var walkF=0.55+((seed>>>9)%7)*0.05;            // 55-85% of it spent walking, the rest standing
+  var tt=now+((seed>>>3)%6283)*(per/6283);       // per-citizen phase, spread over one whole leg
+  var n=Math.floor(tt/per), u=(tt-n*per)/per;
+  var a=strollSpot(seed,n,reach), b=strollSpot(seed,n+1,reach);
+  var k=u<walkF ? u/walkF : 1;                   // walk at a steady pace, then hold at the target
+  var wxp=wrapW(anchor + a + (b-a)*k);
   return (!inSea(wxp) && onPavedRoad(wxp)) ? wxp : anchor;
 }
+// A DOORSTEP SHUFFLE — someone standing about at a fixed spot, not a statue at one pixel. Tight
+// reach: they stay by their own door, they just don't hold a single coordinate for hours.
+var DOORSTEP_REACH=6;
+function doorstep(seed, salt, anchor, now){ return strollX((seed^salt)>>>0, anchor, DOORSTEP_REACH, now); }
+function doorstepMv(seed, salt, anchor, now, atNow){ return Math.abs(doorstep(seed,salt,anchor,now+450)-atNow)>0.2; }
 // a citizen's personal spot along the street + a stroll around it. The cast binds to only ~11 home +
 // ~13 work buildings (near band has ~30), so ~16 people STACKED on each frontage read as one clump
 // ("all talking in one spot" — Nick). A fixed UNIFORM per-citizen offset (hash, not sin — sin density
@@ -9723,13 +9756,26 @@ function drawNamedCitizens(g, now){
     var wx, phase, strollMv=false;                                // phase: 0 home · 1 to-work · 2 at-work · 3 to-home; strollMv: ambling (walk anim)
     // per-citizen staggered shift (±0.9h) so the whole city doesn't move in lockstep
     var ph=((p.seed>>>17)%108)/60 - 0.9, leaveH=8+ph, arriveW=9+ph, leaveW=17+ph, arriveH=18+ph;
-    if(shelter){ wx=homeX; phase=0; }
+    // ⚠ EVERY "stay at home" branch below used to be a CONSTANT — literally `wx=homeX` — so those
+    // citizens were not slow, they were mathematically incapable of moving. At 20:00 that is a
+    // third of the cast (the homebodies who don't go out), standing at one pixel forever, and it is
+    // the most likely thing Nick actually saw. Someone standing about outside their own door still
+    // shifts their feet, so they get a tight doorstep shuffle instead of a fixed point. Same pure
+    // (seed, now) contract as the amble — no state, freeze-safe, identical across a bezel.
+    if(shelter){ wx=doorstep(p.seed,0x484F4D,homeX,now); phase=0; strollMv=doorstepMv(p.seed,0x484F4D,homeX,now,wx); }
     else if(hw.workB===-2){                                       // self-employed: out in public near home by day
-      if(hh>=leaveH && hh<arriveH){ wx=wrapW(homeX + ((p.seed>>>9)%40)-20); phase=2; } else { wx=homeX; phase=0; }
-    } else if(hw.workB<0){ wx=homeX; phase=0; }                   // workplace not standing → stay home
+      if(hh>=leaveH && hh<arriveH){ var seX=wrapW(homeX + ((p.seed>>>9)%40)-20);   // their pitch for the day…
+        wx=strollX(p.seed^0x53454C46, seX, 12, now); phase=2;                       // …worked, not stood at
+        strollMv=Math.abs(strollX(p.seed^0x53454C46,seX,12,now+450)-wx)>0.2; }
+      else { wx=doorstep(p.seed,0x484F4D,homeX,now); phase=0; strollMv=doorstepMv(p.seed,0x484F4D,homeX,now,wx); }
+    } else if(hw.workB<0){ wx=doorstep(p.seed,0x484F4D,homeX,now); phase=0;         // workplace not standing → stay home
+      strollMv=doorstepMv(p.seed,0x484F4D,homeX,now,wx); }
     else {
       var workX=frontX(near.blds[hw.workB], p.seed, 5);
-      if(hh<leaveH || hh>=arriveH){ wx=homeX; phase=0; }
+      // the big one: everyone who is simply not at work right now. The homebodies among them are
+      // never reassigned by the leisure block below, so this was the largest block of frozen people.
+      if(hh<leaveH || hh>=arriveH){ wx=doorstep(p.seed,0x484F4D,homeX,now); phase=0;
+        strollMv=doorstepMv(p.seed,0x484F4D,homeX,now,wx); }
       else if(hh<arriveW){ wx=lerpWX(homeX, workX, (hh-leaveH)/(arriveW-leaveH)); phase=1; }
       else if(hh<leaveW){                                          // on shift: NOT stacked on the frontage —
         if(((p.seed>>>16)%4)===0){                                 // 1/4 roam city-wide (couriers, errands, rounds):
