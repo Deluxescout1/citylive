@@ -2475,6 +2475,16 @@ function gstage(a,b){ return Math.max(0,Math.min(1,(cityG-a)/(b-a))); }   // 0..
 function roadFNow(){ return Math.max(0,Math.min(1,(cityG-0.1)/0.4)); }
 var KSP=1;             // resolution scale (6/pxk): 1 at classic PXK 6, 1.5 in PXK-4 fine-pixel mode
 var QUAL=2;            // quality tier: 0 performance · 1 balanced · 2 spectacle
+// The host shell's LIVE-pass interval in ms. Every integrator in draw() (snow, rain, splashes,
+// wetness, drifting leaves, fog, lightning, fireworks) advances by `dt` = real elapsed time, and
+// `dt` has to be capped so that waking from sleep doesn't fling every particle off-screen in one
+// step. That cap used to be a hardcoded 50ms — BELOW the interval of every shell we ship, so the
+// cap was hit on EVERY ordinary frame and all of it ran in slow motion: 0.6x at the 83ms tier and
+// 0.25x at KDE's 200ms "balanced". Worse, the speed was then a function of the frame rate, so
+// raising the frame rate would have sped the weather up instead of smoothing it. Cap against the
+// real interval instead and the motion is frame-rate independent, which is what the code always
+// meant. Shells pass this; the fallback tracks the tier for any caller that doesn't.
+var FRAME_MS=83;
 var ZOOM=1;            // canvas px per world px (per-screen; >1 when a fractionally-scaled screen needs a denser canvas)
 var mts=null;          // this life's mountain range ({far:[peaks],near:[peaks]}), null on flatland lives
 var mtsCache=null;     // per-screen silhouette cache (the range never moves within a life)
@@ -3182,6 +3192,9 @@ function setup(scene,opts){
   // one screen's logical width here so features scale to a MONITOR, not the whole desktop.
   KSP=opts.kspAuto ? Math.max(0.55,Math.min(2.2,((opts.kspw||opts.cw)||480)/427)) : 6/(opts.pxk||6);
   QUAL=opts.quality==="performance"?0:(opts.quality==="balanced"?1:2);
+  // live-pass interval (see FRAME_MS). Clamped to something sane so a bad host value can't
+  // either freeze the weather or let one frame jump it a whole second.
+  FRAME_MS=Math.max(16,Math.min(600, opts.frameMs||(QUAL===0?125:QUAL===1?100:83)));
   // Foreground depth (world-px from the bottom). Default 26wp (≈156px) — room for a
   // sidewalk + 4 lanes and clears a standard ~44px taskbar. But if THIS screen reports
   // a taller bottom panel (taskbarWp), grow it so the lowest lane still sits above the
@@ -9612,12 +9625,42 @@ function peoplePick(near, pool, seed, salt, cityG){
   }
   return best;
 }
+// ---- WHERE EVERYONE LIVES AND WORKS — cached, because deriving it is the most expensive thing
+// the wallpaper does.
+// peoplePick is a linear scan of a candidate pool with two hashes per candidate, and it ran for
+// EVERY citizen on EVERY frame: ~175 citizens x 2 picks x ~55 candidates = ~19k hash calls and as
+// many buildingStanding calls per frame, which measured as 63-70% of the entire street-life pass
+// (desktop/qml-ablate.qml). It is the same mistake as the P_sim cache thrash in
+// docs/PERF-freeze-diagnosis-20260724.md, in a new place: re-deriving something per frame that
+// only changes when the city itself changes.
+//
+// The binding is a pure function of (citizen seed, job building, whether they commute, which pool
+// the registry offers, which buildings are STANDING). Everything but the last is already keyed by
+// reg.key. So: hash the standing set once per frame and use it as the cache generation. That is
+// exact — no quantised clock, no staleness window — so a building finishing, being nuked, ruined
+// or razed by a disaster re-binds its residents on the very next frame, exactly as before.
+var PHW_sigNear=null, PHW_sigG=NaN, PHW_sigV=0;
+function peopleStandingSig(near, cityG){
+  // Every citizen in a frame is asked with the SAME cityG, so this collapses to one scan per frame;
+  // the next frame's cityG differs and it recomputes. ~55 buildingStanding calls instead of ~19k.
+  if(near===PHW_sigNear && cityG===PHW_sigG) return PHW_sigV;
+  var blds=near.blds, h=2166136261;
+  for(var i=0;i<blds.length;i++) if(buildingStanding(blds[i], cityG)) h=(h*33+i+1)>>>0;
+  PHW_sigNear=near; PHW_sigG=cityG; PHW_sigV=h>>>0;
+  return PHW_sigV;
+}
+var PHW_key="", PHW_map=null;
 // public: this citizen's currently-embodied home + work building indices (or -1 = not embodied now)
 function peopleHomeWork(near, seed, jobBuilding, commutes, cityG){
   var reg=peopleBuildRegistry(near); if(!reg) return {homeB:-1, workB:-1};
+  var key=reg.key+"|"+peopleStandingSig(near, cityG);
+  if(PHW_key!==key){ PHW_key=key; PHW_map={}; }                        // the city changed → everyone re-binds
+  var ck=seed+"|"+jobBuilding+"|"+(commutes===false?"n":"y");
+  var hit=PHW_map[ck]; if(hit!==undefined) return hit;
   var homeB=peoplePick(near, reg.homes, seed, 0x484F4D45, cityG);        // "HOME"
   var workB=(commutes===false) ? -2 : peoplePick(near, workPool(reg, jobBuilding), seed, 0x574F524B, cityG);  // "WORK"
-  return { homeB:homeB, workB:workB };
+  // NOTE the result is shared across frames now — read it, never mutate it.
+  return (PHW_map[ck]={ homeB:homeB, workB:workB });
 }
 
 // ---- STATIC EMBODIMENT (Stage 3 step 2): draw named citizens at their home/work building in job
@@ -19949,7 +19992,8 @@ function draw(g,pass){
   g.setTransform(ZOOM,0,0,ZOOM,0,0);          // world px -> canvas px (identity when ZOOM=1)
   if(!near||!near.blds) return;   // paint loop can fire before setup() has built the world
   resetNotifLanes();              // fresh alert-row bookings each frame (see notifLane) so banners never overprint
-  var now=(NOWOVR!=null?NOWOVR:Date.now()), dt=Math.max(0,Math.min(50, now-tPrev));
+  // dt = real elapsed, capped at 2.5 frame intervals (late frame = fine, resumed-from-sleep = not).
+  var now=(NOWOVR!=null?NOWOVR:Date.now()), dt=Math.max(0,Math.min(FRAME_MS*2.5, now-tPrev));
   if(pass!=="bg") tPrev=now;
   var apocRealNow=now;                          // keep the true wall-clock; `now` may be warped below for a missed-apoc REPLAY
   apocDeferTick(apocRealNow);                    // did the PC sleep through a cataclysm? queue a replay if so

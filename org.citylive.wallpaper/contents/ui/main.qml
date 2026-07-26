@@ -243,7 +243,8 @@ WallpaperItem {
             taskbarWp: Math.ceil(root.panelBottomPx / root.pxk),  // keep the road above the taskbar
             pxk:  root.pxk,                                       // resolution → city.js KSP scale
             zoom: root.zoom,                                      // canvas px per world px on this screen
-            quality: root.quality                                 // effect-density tier
+            quality: root.quality,                                // effect-density tier
+            frameMs: root.frameMs                                 // live-pass interval → frame-rate-independent weather (see FRAME_MS in city.js)
         });
         bgcv.requestPaint();
         cv.requestPaint();

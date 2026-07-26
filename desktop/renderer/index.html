@@ -145,7 +145,7 @@
     var tbWp=0;
     // taskbarPx is in DIP (≈CSS px); dpr converts to physical, /PXK to canvas-logical px.
     if(ENV.wallpaper&&ENV.taskbarPx>0) tbWp=Math.ceil(ENV.taskbarPx*dpr/PXK);
-    setup('neon',{cw:cw,ch:ch,woff:0,ww:cw,pxk:PXK,kspAuto:true,kspw:Math.round(refW*dpr/PXK),taskbarWp:tbWp,zoom:1,quality:st.quality});
+    setup('neon',{cw:cw,ch:ch,woff:0,ww:cw,pxk:PXK,kspAuto:true,kspw:Math.round(refW*dpr/PXK),taskbarWp:tbWp,zoom:1,quality:st.quality,frameMs:fgStepFor(st.quality)});
     bgDirty=true;
   }
 
@@ -199,10 +199,13 @@
   // Two-layer, drift-aware renderer: the expensive sky/terrain backdrop updates slowly;
   // motion stays smooth at the selected tier. requestAnimationFrame also yields when hidden.
   var lastFg=0,lastBg=0,bgDirty=true;
+  // ONE definition of the live-pass interval: the frame loop paces off it and the engine caps its
+  // dt against it, so weather advances at the same real speed in every tier (see FRAME_MS).
+  function fgStepFor(q){ var fps=q==='performance'?8:(q==='balanced'?10:12); return 1000/fps; }
   function frame(ts){
     requestAnimationFrame(frame);
     if(st.paused||document.hidden) return;
-    var fps=st.quality==='performance'?8:(st.quality==='balanced'?10:12), fgStep=1000/fps;
+    var fgStep=fgStepFor(st.quality);
     if(ts-lastFg<fgStep) return;
     try{
       applyOverrides();

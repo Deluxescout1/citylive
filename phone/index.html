@@ -33,7 +33,7 @@
     PXK=Math.max(2,Math.min(10,Math.round(Math.min(pw,ph)/430)||PXK));
     var cw=Math.max(120,Math.round(pw/PXK)), ch=Math.max(120,Math.round(ph/PXK));
     cv.width=bgcv.width=cw; cv.height=bgcv.height=ch;
-    setup("neon",{cw:cw,ch:ch,woff:0,ww:cw,pxk:PXK,kspAuto:true,zoom:ZOOMP,quality:curQ});
+    setup("neon",{cw:cw,ch:ch,woff:0,ww:cw,pxk:PXK,kspAuto:true,zoom:ZOOMP,quality:curQ,frameMs:fgStepFor(curQ)});
     bgDirty=true;
   }
   boot();
@@ -44,8 +44,11 @@
   var lastFg=0,lastBg=0,bgDirty=true,lastError='';
   function renderError(e){var msg=String(e&&e.stack||e||'Unknown render error');if(msg!==lastError){console.error('CityLive render failure:',e);lastError=msg;}
     var el=document.getElementById('renderError');el.textContent='CityLive recovered from a render error: '+msg.split('\n')[0];el.style.display='block';}
-  function frame(ts){requestAnimationFrame(frame);var fps=curQ==='performance'?8:(curQ==='balanced'?10:12);
-    if(document.hidden||ts-lastFg<1000/fps)return;try{
+  // ONE definition of the live-pass interval: the loop paces off it and the engine caps dt
+  // against it, so weather runs at the same real speed in every tier (see FRAME_MS in city.js).
+  function fgStepFor(q){ var fps=q==='performance'?8:(q==='balanced'?10:12); return 1000/fps; }
+  function frame(ts){requestAnimationFrame(frame);
+    if(document.hidden||ts-lastFg<fgStepFor(curQ))return;try{
     var bgStep=curQ==='performance'?2000:(curQ==='balanced'?1000:500);
     // "live" is the exact complement of "bg" (buildings included); "fg" is the old
     // single-canvas foreground and skips them, leaving a city with no buildings.
@@ -70,7 +73,7 @@
     var pw=Math.round(window.innerWidth*dpr), ph=Math.round(window.innerHeight*dpr);
     var cw=Math.max(120,Math.round(pw/PXK)), ch=Math.max(120,Math.round(ph/PXK));
     cv.width=bgcv.width=cw; cv.height=bgcv.height=ch;
-    setup("neon",{cw:cw,ch:ch,woff:0,ww:cw,pxk:PXK,kspAuto:true,zoom:ZOOMP,quality:curQ});
+    setup("neon",{cw:cw,ch:ch,woff:0,ww:cw,pxk:PXK,kspAuto:true,zoom:ZOOMP,quality:curQ,frameMs:fgStepFor(curQ)});
     bgDirty=true;
   }
   // keep the screen awake while displayed (best effort)
