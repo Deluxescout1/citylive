@@ -2857,7 +2857,9 @@ var BIOMES=[
     fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:0}, big:["elk","bear","boar"], small:["squirrel"], air:["owl"] },
     flora:{ kinds:["fern","generic","fern","log","generic"], bloom:["#e8e0c0","#cfd8b0","#ffffff"] },
     sky:null },
-  { k:"mesa",   name:"RED MESA",   amp:0.72, base:0.40, flat:1.0, steep:0.85, snow:false, water:"river",
+  // `buttes` is the gap-field threshold that breaks the rampart into standalone blocks — see the
+  // height-field build. Higher = more sky between them. Variants inherit it unless they override.
+  { k:"mesa",   name:"RED MESA",   amp:0.72, base:0.40, flat:1.0, steep:0.85, snow:false, water:"river", buttes:-0.42, mesaLife:1,
     far:[186,118,86],  near:[152,86,62],   cap:[214,158,116], ground:[196,150,110],
     walls:[[206,158,116],[186,140,100],[214,178,140],[228,206,180],[168,116,84],[196,166,132],[176,146,116],[210,190,164]],
     fauna:{ keep:{deer:0,rabbit:1,fox:0,goat:0}, big:["bighorn","coyote"], small:["lizard","roadrunner"], air:["vulture"] },
@@ -16238,6 +16240,101 @@ function drawSpireWorld(g,L,now,nd){
   }
 }
 // ================================================================================================
+// THE DESERT, ALIVE — vultures on the thermals, dust devils, heat shimmer, and the arch
+// ------------------------------------------------------------------------------------------------
+// Same diagnosis as the mountain: the land was a band of rock under an empty sky. What a desert has
+// that a mountain does not is AIR YOU CAN SEE — rising heat, dust picked up off the floor, and birds
+// using both. All of it is keyed to the REAL temperature, so a cold snap genuinely calms it down.
+function drawMesaLife(g,L,now,nd,fx){
+  if(!curBiome.mesaLife || !mtsCache || !mtsCache.h || !mtsCache.h[1]) return;
+  if(cityPhase==="apoc") return;
+  var K=Math.max(1,KSP), gy=HORIZON, hs=mtsCache.h[1], day=L>0.5;
+  var T=(weather.temp==null?70:weather.temp);
+  var heat=Math.max(0,Math.min(1,(T-62)/34));                    // 0 below 62F, full by ~96F
+  if(fx.rain||fx.snow||fx.fog) heat*=0.15;
+  function ridgeH(sx){ var ci=Math.max(0,Math.min(SW-1,sx|0)); return hs[ci]|0; }
+
+  // ---- THE RIMS: the tops of the standalone buttes, found off the cached profile ----------------
+  var rims=[], run=null, step=Math.max(2,Math.round(2*K));
+  for(var rx=0;rx<SW;rx+=step){
+    var h=ridgeH(rx);
+    if(h>16*K){ if(!run) run={x0:rx,h:h}; else if(h>run.h) run.h=h; run.x1=rx; }
+    else if(run){ if(run.x1-run.x0>10*K) rims.push(run); run=null; }
+  }
+  if(run&&run.x1-run.x0>10*K) rims.push(run);
+
+  // ---- VULTURES ON THE THERMALS ----------------------------------------------------------------
+  // A vulture does not flap — it finds the column of hot air lifting off a sunlit rock face and rides
+  // it in a slow spiral, gaining height each turn. So these CLIMB as they circle, then reset. They
+  // only fly when there is heat to fly on, which is the honest behaviour and also means a cold
+  // morning has a still sky.
+  if(heat>0.12 && day && rims.length){
+    var nV=1+Math.round(heat*3);
+    for(var v=0;v<nV;v++){
+      var vs=((v*2654435761+433)>>>0), rim=rims[v%rims.length];
+      var cxv=(rim.x0+rim.x1)/2+((vs>>7)%21-10)*K;
+      var cyc=((now*0.000045+(vs%1000)/1000)%1), ang=cyc*2*Math.PI*3;   // three turns per climb
+      var climb=cyc;
+      var rxv=(18+((vs>>5)%14))*K, ryv=(5+((vs>>11)%4))*K;
+      var vx=cxv+Math.cos(ang)*rxv, vy=(gy-rim.h)-(6+climb*34)*K+Math.sin(ang)*ryv;
+      if(vx<-6||vx>SW+6||vy<0) continue;
+      var roll=Math.cos(ang), span=Math.max(2,Math.round(3*K));
+      g.fillStyle=day?"rgba(38,32,28,0.88)":"rgba(22,20,18,0.6)";
+      // held in a shallow V, the way a vulture's wings sit — that dihedral is how you tell it from a hawk
+      g.fillRect((vx-span)|0,(vy-Math.round(roll*K)-Math.round(0.6*K))|0,span,Math.max(1,Math.round(K)));
+      g.fillRect(vx|0,(vy+Math.round(roll*K)-Math.round(0.6*K))|0,span,Math.max(1,Math.round(K)));
+      g.fillRect(vx|0,vy|0,Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
+    }
+  }
+
+  // ---- HEAT SHIMMER over the sunlit rock -------------------------------------------------------
+  if(heat>0.3 && day){
+    for(var r2=0;r2<rims.length;r2++){
+      var rm=rims[r2], ry=gy-rm.h;
+      for(var sxh=rm.x0;sxh<rm.x1;sxh+=Math.max(2,Math.round(3*K))){
+        var wob=Math.sin(sxh*0.4+now*0.0032)*1.4*K;
+        g.fillStyle="rgba(255,238,214,"+(0.05+0.07*heat).toFixed(3)+")";
+        g.fillRect(sxh|0,(ry-2*K+wob)|0,Math.max(1,Math.round(2*K)),Math.max(1,Math.round(K)));
+      }
+    }
+  }
+
+  // ---- A DUST DEVIL crossing the floor ---------------------------------------------------------
+  // Rare and brief, like the avalanche: a couple of minutes in every twenty, so it is a thing you
+  // catch. Rises off the flat between the buttes, which is exactly where one forms.
+  var DD=1200000, dph=((now%DD)/DD);
+  if(heat>0.45 && day && dph<0.14){
+    var df2=dph/0.14, dseed=((Math.floor(now/DD)*7919)>>>0);
+    var dx0=((dseed%1000)/1000)*SW, dx2=dx0+(df2-0.5)*70*K;
+    var dh=Math.round((16+22*heat)*K*Math.sin(Math.min(1,df2*1.6)*Math.PI));
+    for(var dq=0;dq<dh;dq++){
+      var dfq=dq/Math.max(1,dh), lean=Math.sin(dfq*2.4+now*0.006)*3*K;
+      var dwid=Math.max(1,Math.round((1.2+dfq*3.4)*K));
+      g.fillStyle="rgba(206,166,124,"+((0.34-0.24*dfq)*Math.min(1,df2*3)*(1-Math.max(0,(df2-0.7)/0.3))).toFixed(3)+")";
+      g.fillRect((dx2+lean-dwid*0.5)|0,(gy-dq)|0,dwid,1);
+    }
+  }
+
+  // ---- THE ARCH — PULLED, DELIBERATELY, AND HERE IS EXACTLY WHERE IT GOT TO ---------------------
+  // Nick asked for a natural arch and it is worth having; two of its three problems are already
+  // solved, but the third needs the sky gradient and I would rather ship no arch than a tan blob.
+  //   1. FIXED — a rectangle is not an arch. Square legs and a straight lintel read as a PICTURE
+  //      FRAME. The opening needs a curved head: half-round above the spring line, straight jambs
+  //      below it.
+  //   2. FIXED — it floated. It was anchored to `wide.h`, the tallest column anywhere in the butte's
+  //      run, while sitting near that run's END where the rock is lower. Anchor to the LOWEST column
+  //      under the arch's own footprint. ⚠ This is the identical mistake as the floating monastery,
+  //      made twice in one session: ANY sprite placed on terrain must be anchored to the terrain
+  //      under ITS OWN footprint, never to a summary statistic of the region it sits in.
+  //   3. OPEN — the hole is punched by filling it with "sky", and there is no single sky colour to
+  //      fill it with. `biomeSkc()` is the haze the ridges FADE TOWARD, and `curBiome.sky.bot` on the
+  //      mesa is a warm sand horizon — both paint a solid tan dome instead of a hole. The opening sits
+  //      partway up a vertical gradient, so it needs the sky sampled AT ITS OWN Y, or the arch drawn
+  //      before the sky and masked, or the two legs drawn as rock against untouched sky instead of
+  //      cutting a hole out of rock. The last is probably the cheapest and most robust.
+}
+
+// ================================================================================================
 // THE MOUNTAIN, ALIVE
 // ------------------------------------------------------------------------------------------------
 // A contact sheet of all seventeen lands said one thing louder than anything else: every land except
@@ -16495,6 +16592,21 @@ function drawMountains(g,L,now,nd){
           var hh0=p0.h*t0+crag*KSP;
           if(hh0>rh0) rh0=hh0; }
         if(B.flat>0 && rh0>2) rh0=Math.round(rh0/strata)*strata;  // quantise into bedding planes → flat tops
+        // ---- BUTTES, NOT A WALL -------------------------------------------------------------
+        // ⚠ The mesa read as ONE unbroken flat line across the entire world, which is the single
+        // thing Nick picked out about it. That is not a tuning problem: `steep` makes every peak's
+        // profile plateau, so neighbouring peaks merge into a continuous rampart with no sky between
+        // them. Real badlands are ISOLATED buttes standing out of a flat floor, and the gaps are what
+        // make them read as buttes at all. Carve the gaps explicitly, after quantising, so each
+        // remaining block keeps its dead-flat top and gains vertical walls on both sides.
+        if(B.buttes && pi0<=1 && rh0>2){
+          var gp0=Math.sin(wx0*0.0075+2.1)*0.62+Math.sin(wx0*0.0163+5.3)*0.38;   // slow two-octave gap field
+          if(gp0<B.buttes){
+            var floor0=(2.5+Math.sin(wx0*0.021)*1.4)*KSP*B.base;                  // drop to the desert floor
+            var edge0=Math.min(1,(B.buttes-gp0)/0.10);                            // a short ramp = a vertical wall
+            rh0=rh0+(floor0-rh0)*edge0;
+          }
+        }
         mtsCache.h[pi0][cx0]=rh0;
         if(pi0===0) mtsCache.wig[cx0]=Math.sin(wx0*0.23)*2.2*KSP; // snowline wander, also static
       }
@@ -21904,6 +22016,7 @@ function draw(g,pass){
   drawForestNear(g,L,now,nd);
   drawCanopyLight(g,L,now);
   drawAlpineLife(g,L,now,nd,fx);   // eagles on the ridge lift, ibex on the rock, spindrift off the summits
+  drawMesaLife(g,L,now,nd,fx);     // vultures on the thermals, heat shimmer, dust devils, the arch
   drawRoofRunners(g,L,now,nd);     // the Hidden Village crossing itself by rooftop
   drawNeonCity(g,L,now,nd);        // the neon style, over the city, whatever land it landed on
 
