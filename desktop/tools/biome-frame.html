@@ -21,9 +21,23 @@
   }
   window.CLOCK  = window.NOWOVR;
   window.FORCEAGE = age;
+  // ?wx=<WMO code> pins the weather BEFORE setup, so maybeFetchWeather() never overwrites it (see
+  // FORCEWX in city.js; wfx() derives fog/drizzle/rain/snow/thunder/freezing from the code). Without
+  // this the probe could only ever show a clear day, and "does this biome work in the rain" was not
+  // a question it could answer — a feature that is correctly invisible in fair weather looks exactly
+  // like a feature that is broken. ?wet=0..1 pins how soaked the ground already is: puddles build up
+  // over real minutes of rain, so a single still frame starts with a dry street otherwise.
+  if(Q.get('wx')!==null){
+    var wc=parseInt(Q.get('wx'),10);
+    var frozen=[56,57,66,67,71,73,75,77,85,86].indexOf(wc)>=0;
+    window.FORCEWX={code:wc,cloud:92,wind:parseFloat(Q.get('wind')||'14'),
+                    temp:parseFloat(Q.get('temp')||(frozen?'26':'56')),precip:2.4,feels:null,gust:24};
+  }
   var cv=document.getElementById('c'), g=cv.getContext('2d');
   try{
     setup('neon',{cw:1500,ch:800,woff:0,ww:1500,pxk:3,zoom:1,quality:'spectacle'});
+    if(Q.get('wet')!==null) wetness=parseFloat(Q.get('wet'));
+    if(Q.get('snowpack')!==null) snowpack=parseFloat(Q.get('snowpack'));
     // ?wind=N&temp=N override the fetched observation AFTER setup, so the biome weather accents
     // (dust devils, sea spray, wind waves) can be seen on demand — they are deliberately keyed to
     // the REAL measurement, so on a calm day they correctly draw nothing at all and a render taken
@@ -31,7 +45,13 @@
     if(Q.get('wind')!==null) weather.wind=parseFloat(Q.get('wind'));
     if(Q.get('temp')!==null) weather.temp=parseFloat(Q.get('temp'));
     for(var f=0;f<3;f++) draw(g);
+    if(Q.get('wet')!==null) wetness=parseFloat(Q.get('wet'));    // draw() ages wetness; re-pin, then repaint
+    if(Q.get('snowpack')!==null) snowpack=parseFloat(Q.get('snowpack'));
+    draw(g);
+    var _d=new Date(window.NOWOVR);
     window._named = 'life='+curLife+' biome='+curBiome.k+' ocean='+hasOcean+' river='+hasRiver+
+                    ' date='+(_d.getMonth()+1)+'/'+_d.getDate()+
+                    ' wx='+JSON.stringify(wfx())+' wet='+wetness.toFixed(2)+' snowpack='+snowpack.toFixed(2)+
                     ' wind='+weather.wind+
                     ' peaks='+(mts?(mts.far.length+mts.near.length):0)+
                     ' trees='+(bioTrees?(bioTrees.far.length+bioTrees.near.length):0);
