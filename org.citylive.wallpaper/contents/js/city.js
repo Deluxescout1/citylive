@@ -2537,7 +2537,12 @@ var BIOMES=[
   // day. They still obey the same rule every other biome does: the REAL Norwich clock and the REAL
   // weather drive them, and the infernal or divine light is layered over that. Hell gets a red sky
   // over a real Tuesday afternoon, and it still rains there when it rains here.
-  { k:"hell",   name:"THE ASHLANDS", amp:0.98, base:0.72, flat:0.15, steep:0.78, snow:false, water:"river",
+  //   molten    — this land's rock is still hot: veins of lava run down its faces and its crests are
+  //               rimmed by the fire behind them. Everything molten in the Ashlands used to sit at or
+  //               below the HORIZON (the brimstone spires, the fire vents, the lava river), which on a
+  //               mature city is exactly where the skyline and the taskbar cover it — so the land
+  //               itself never read as hot. This puts the fire up on the mass, where it is visible.
+  { k:"hell",   name:"THE ASHLANDS", amp:0.98, base:0.72, flat:0.15, steep:0.78, snow:false, water:"river", molten:1,
     far:[104,44,46],   near:[64,24,30],   cap:[214,92,50],  ground:[48,28,30],
     walls:[[62,44,46],[44,30,34],[86,54,50],[38,26,30],[104,62,52],[52,36,40],[74,46,44],[40,28,32]],
     fauna:{ keep:{deer:0,rabbit:0,fox:0,goat:0}, big:[], small:[], air:["vulture"] },
@@ -13227,6 +13232,61 @@ function drawMountains(g,L,now,nd){
         }
       }
     }
+    // LAVA IN THE ROCK. The Ashlands had fire in three places — brimstone spires, ground vents and
+    // the river — and every one of them draws at or below HORIZON, which on a mature city is under
+    // the skyline and, on Nick's desktop, under the taskbar. The land read as cold red stone. Veins
+    // run down the faces where nothing occludes them, and the far crests are rimmed by whatever is
+    // burning behind them.
+    if(B.molten){
+      var mk=0.62+0.38*Math.sin(now*0.0009+pi*2.1), kk=Math.max(1,Math.round(KSP));
+      if(pi===0){                                             // the fire BEHIND the far ridge
+        g.fillStyle="rgba(255,150,60,0.55)";
+        var qs=-1, qtop=-999, qx, qh, qt;
+        for(qx=0;qx<=SW;qx++){
+          qh=(qx<SW)?hs[qx]:-1; qt=(qh>=4)?Math.max(2,(gy-qh)|0):-999;
+          if(qt!==qtop){ if(qs>=0&&qtop>-999) g.fillRect(qs,qtop,qx-qs,kk*2); qs=(qt>-999)?qx:-1; qtop=qt; }
+        }
+      }
+      for(var v=0;v<15;v++){
+        var vh4=((v*2654435761+pi*7919+(((WOFF/97)|0)*40503))>>>0);
+        var vx=vh4%Math.max(1,SW);
+        if(hs[vx]<18*KSP) continue;
+        var vy=Math.max(2,(gy-hs[vx])|0)+Math.round(hs[vx]*0.16), vdx=0;
+        var vw=Math.max(2,Math.round(2.4*KSP)), vsp=Math.max(1,Math.round(KSP));
+        for(var vq=vy;vq<gy;vq+=vsp){
+          vdx+=(((vh4>>>(vq&15))&3)-1.5)*0.5;                 // the vein wanders as it runs
+          var vxx=Math.round(vx+vdx); if(vxx<0||vxx>=SW) break;
+          if((gy-hs[vxx])>vq) continue;                       // …but never leaves the rock
+          var f4=(vq-vy)/Math.max(1,gy-vy);                   // and runs hotter the further it falls
+          g.fillStyle="rgba(255,"+((88+124*f4)|0)+","+((18+52*f4)|0)+","+((0.44+0.50*f4)*mk).toFixed(3)+")";
+          g.fillRect(vxx,vq,vw,vsp);
+          g.fillStyle="rgba(255,236,176,"+((0.30+0.42*f4)*mk).toFixed(3)+")";      // the white-hot core
+          g.fillRect(vxx+((vw/3)|0),vq,Math.max(1,Math.round(KSP)),vsp);
+        }
+      }
+    }
+    // SNOW LIES WHERE THE LAND IS LEVEL. A February render of every biome came back in its summer
+    // colours: only alpine showed any snow, because only alpine carries `snow:true`, and that band is
+    // a permanent SNOWLINE — geography, not weather. Real snowpack settles on all seven now, and it
+    // settles BY SLOPE, reusing the buckets the light already caches: it caps the mesa tables and the
+    // terraces of the Empyrean and slides off the sheer faces, which is what it does outside.
+    // Keyed to the real measurement, so it is absent all summer and correctly draws nothing.
+    var lay=Math.max(0,Math.min(1,snowpack*1.15));
+    if(lay>0.04){
+      var lthk=Math.max(1,Math.round((1.2+2.6*lay)*KSP)), lsb=mtsCache.sl[pi];
+      var ns=-1, ntop=-999, nlv=0, nx, nh, nt, nl;
+      for(nx=0;nx<=SW;nx++){
+        nh=(nx<SW)?hs[nx]:-1; nt=(nh>=3)?Math.max(2,(gy-nh)|0):-999;
+        nl=(nt>-999)?(Math.abs(lsb[nx])>=2?0:(Math.abs(lsb[nx])===1?1:2)):0;   // 2 level · 1 canted · 0 sheer
+        if(nt!==ntop||nl!==nlv){
+          if(ns>=0&&ntop>-999&&nlv>0){
+            g.fillStyle="rgba(240,246,255,"+((nlv===2?0.62:0.30)*lay).toFixed(3)+")";
+            g.fillRect(ns,ntop,nx-ns,nlv===2?lthk:Math.max(1,Math.round(lthk*0.5)));
+          }
+          ns=(nt>-999)?nx:-1; ntop=nt; nlv=nl;
+        }
+      }
+    }
     // BEDDING PLANES — the sedimentary layers a mesa wall or a sea cliff is actually made of. Measured
     // from the GROUND rather than from each column's own top, so the lines run dead level and continue
     // across the whole formation, which is what says "one rock, laid down in beds" instead of "a shape
@@ -13635,6 +13695,72 @@ function drawBiomeGround(g,gy,day,now,wild){
   g.globalAlpha=1;
 }
 // the wilderness the city grows out of — hills, grass, a river, scattered trees, the first cabin
+// PUDDLES — standing water after real rain, on EVERY land.
+// There were puddles before this: 36 one-pixel dashes, gated on `roadF>0.5` so they only ever
+// appeared on finished asphalt, drawn in RAW PIXELS while the entire engine scales by KSP. On a 4K
+// panel that is a row of invisible dots — the same trap the river bank furniture and the plateau
+// buildings each fell into, now three for three.
+// These are pools: sized in K, spread across the road AND the bare ground beside it (water does not
+// respect zoning), and what they SHOW is the sky this particular land is under — the same fix
+// `biomeSkc` was for the distance haze, so a puddle in the Ashlands mirrors a red sky and one on the
+// red mesa mirrors a dusty one. They ripple while it is still falling and dry from the edges in.
+// Everything here is keyed to the REAL measurement: `wetness` only rises when it is actually raining
+// in Norwich, and on a dry day this correctly draws nothing at all.
+function drawPuddles(g,L,now){
+  if(wetness<=0.05||cityPhase==="apoc") return;
+  var fx=wfx(); if(fx.snow&&!fx.rain&&!fx.drizzle) return;   // it lies as snow, it does not pool
+  var K=Math.max(1,KSP), day=L>0.5, gy=HORIZON, wet=Math.min(1,wetness*1.7);
+  var raining=!!(fx.rain||fx.drizzle||fx.thunder);
+  // Everything from the verge to the bottom of the frame, not just the verge. GROUND is only ~26
+  // world px (it is sized for taskbar clearance), so puddles confined to it were half-hidden behind
+  // the pedestrians standing on it — and the widest, most visible surface in the whole picture, the
+  // road itself, had none at all. This is the same mistake the wind waves made on the plains.
+  var band=Math.max(6,(SH-gy-6)|0);
+  var refl=curBiome.k==="hell"?[255,150,66]:biomeSkc(day);   // molten rock lights its own puddles
+  var rim=fx.freezing?[186,214,240]:mixc(refl,day?[255,255,255]:[120,150,200],0.34);
+  var n=Math.round(26+18*wet);
+  for(var pu=0;pu<n;pu++){
+    var puh=((pu*2654435761+17)>>>0), psx=(puh%WW)-WOFF;
+    if(psx>SW+24&&psx-WW>-24) psx-=WW; if(psx<-24&&psx+WW<SW+24) psx+=WW;
+    if(psx<-24||psx>SW+24) continue;
+    if(hasRiver&&typeof inRiver==="function"&&inRiver(psx+WOFF)) continue;    // that is the river, not a puddle
+    var py=gy+3+((puh>>>8)%band);
+    // dries from the EDGES IN, so a drying street loses its small puddles first and the big ones
+    // shrink — which is what actually happened outside, and it gives the whole effect an arc.
+    var full=(4+((puh>>>5)%9))*K, rx=full*(0.35+0.65*wet);
+    if(rx<1.2*K) continue;
+    var ry=Math.max(1,Math.round(rx*0.24));
+    var a=(0.22+0.32*wet)*(day?1:0.82);
+    for(var qy=-ry;qy<=ry;qy++){                              // a flat pool, widest through the middle
+      var w2=Math.round(rx*Math.sqrt(Math.max(0,1-(qy/(ry+0.5))*(qy/(ry+0.5)))));
+      if(w2<1) continue;
+      g.fillStyle="rgba("+refl[0]+","+refl[1]+","+refl[2]+","+(a*(qy<0?1:0.82)).toFixed(3)+")";
+      g.fillRect(Math.round(psx-w2),py+qy,w2*2,1);
+    }
+    g.fillStyle="rgba("+rim[0]+","+rim[1]+","+rim[2]+","+(a*0.9).toFixed(3)+")";   // the bright far lip
+    g.fillRect(Math.round(psx-rx*0.7),py-ry,Math.round(rx*1.4),Math.max(1,Math.round(K*0.8)));
+    if(raining){                                              // rings, while it is still coming down
+      var rp=((now*0.0016+pu*0.37)%1), rr=Math.round(rx*rp);
+      if(rr>0&&rp<0.9){
+        g.fillStyle="rgba("+rim[0]+","+rim[1]+","+rim[2]+","+(a*(1-rp)*0.8).toFixed(3)+")";
+        g.fillRect(Math.round(psx-rr),py,Math.max(1,Math.round(K*0.8)),Math.max(1,Math.round(K*0.8)));
+        g.fillRect(Math.round(psx+rr),py,Math.max(1,Math.round(K*0.8)),Math.max(1,Math.round(K*0.8)));
+      }
+    }
+    if(!day){                                                 // and at night they carry the streetlights
+      g.globalCompositeOperation="lighter";
+      g.fillStyle="rgba(255,214,150,"+(0.13*wet).toFixed(3)+")";
+      g.fillRect(Math.round(psx-rx*0.3+((Math.floor(now/700)+pu)%3)),py,Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
+      g.globalCompositeOperation="source-over";
+    }
+    if(curBiome.k==="hell"&&day){                             // water on hot rock does not just sit there
+      g.fillStyle="rgba(230,190,170,"+(0.10*wet).toFixed(3)+")";
+      var stp=(now*0.004+pu*17)%22;
+      g.fillRect(Math.round(psx+Math.sin(now*0.002+pu)*2*K),Math.round(py-ry-stp*K*0.4),
+                 Math.max(1,Math.round(K)),Math.max(1,Math.round(2*K)));
+    }
+  }
+}
 function drawTerrain(g,cg,L,now,nd,pass){
   if(cg>=0.985) return;                                     // fully urban
   var BGp=pass!=="fg", FGp=pass!=="bg";                     // which halves of the landscape to paint
@@ -17728,18 +17854,7 @@ function draw(g,pass){
   g.globalAlpha=1;
   g.restore();
   }
-  // rain leaves PUDDLES that mirror the lights, then slowly dry
-  if(wetness>0.04&&roadF>0.5){
-    for(var pu=0;pu<36;pu++){ var puh=((pu*2654435761+17)>>>0), psx2=(puh%WW)-WOFF;
-      if(psx2>SW+8&&psx2-WW>-8) psx2-=WW; if(psx2<-8&&psx2+WW<SW+8) psx2+=WW;
-      if(psx2<-8||psx2>SW+8) continue;
-      var pyy=HORIZON+5+((puh>>>8)%Math.max(2,GROUND-9)), pw3=3+((puh>>>5)%5);
-      g.fillStyle="rgba(130,160,205,"+(0.20*wetness)+")"; g.fillRect(psx2|0,pyy,pw3,1);
-      if(L<0.5){ g.globalCompositeOperation="lighter";
-        g.fillStyle="rgba(200,225,255,"+(0.16*wetness)+")";
-        g.fillRect((psx2+((Math.floor(now/700)+pu)%pw3))|0,pyy,1,1);
-        g.globalCompositeOperation="source-over"; }
-    } }
+  drawPuddles(g,L,now);                            // rain leaves standing water, on every land
   // coastal causeway: railing where the highway crosses the open water
   if(hasOcean&&seaW>0&&roadF>0.8){ var rlz=[[0,WW*seaW],[WW*(1-seaW),WW]];
     for(var ri2=0;ri2<rlz.length;ri2++){ for(var w3=-1;w3<=1;w3++){
