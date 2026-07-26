@@ -2871,7 +2871,7 @@ var BIOMES=[
     fauna:{ keep:{deer:0,rabbit:1,fox:1,goat:0}, big:["seal"], small:["otter","puffin"], air:[] },
     flora:{ kinds:["windbent","gorse","gorse","windbent","gorse"], bloom:["#f0d878","#e8a0c0","#ffffff"] },
     sky:{ top:[142,156,172], bot:[186,196,202], k:0.30, haze:[196,206,210] } },
-  { k:"plains", name:"OPEN PLAINS",amp:0.30, base:0.85, flat:0.25, steep:0.0, snow:false, water:"river",
+  { k:"plains", name:"OPEN PLAINS",amp:0.30, base:0.85, flat:0.25, steep:0.0, snow:false, water:"river", bigSky:1,
     far:[150,164,132],  near:[122,140,104],cap:[186,196,158], ground:[158,166,116],
     walls:[[178,72,58],[150,60,48],[196,190,166],[214,206,178],[132,118,86],[170,158,124],[186,176,146],[142,132,104]],
     fauna:{ keep:{deer:0,rabbit:1,fox:1,goat:0}, big:["bison","pronghorn","cattle"], small:["prairiedog"], air:["hawk"] },
@@ -16240,6 +16240,110 @@ function drawSpireWorld(g,L,now,nd){
   }
 }
 // ================================================================================================
+// THE PLAINS: WHERE THE WEATHER IS THE LANDSCAPE
+// ------------------------------------------------------------------------------------------------
+// Of the seventeen lands this was the emptiest by a distance — no landform at all, just city on flat
+// ground under 70% empty sky. Nick's answer for it was the right one: on a plain the SKY is the
+// scenery, because nothing else is tall. So this land gets its relief in the air instead of the rock:
+// towering cumulus that build through a hot afternoon, rain curtains hanging under distant cells, a
+// supercell shelf when there is a real thunderstorm, and a far butte on the horizon for the eye.
+//
+// ⚠ Drawn in the BACKDROP pass, not the live one. These sit on the horizon, which is BEHIND the city
+// — putting them in the live pass would paint thunderheads over the buildings.
+// Everything scales off the REAL weather, so a cold clear February plain is genuinely bare and a
+// humid July afternoon genuinely towers.
+function drawPlainsSky(g,L,now,nd,fx){
+  if(!curBiome.bigSky || cityPhase==="apoc") return;
+  var K=Math.max(1,KSP), gy=HORIZON, day=L>0.5;
+  var cloud=(weather.cloud==null?30:weather.cloud), T=(weather.temp==null?60:weather.temp);
+  var heat=Math.max(0,Math.min(1,(T-52)/38));
+  // convective potential: warm AND some moisture in the air is what builds a tower
+  var conv=Math.max(0,Math.min(1,heat*0.65+Math.min(1,cloud/70)*0.5-0.15));
+  if(fx.thunder) conv=Math.max(conv,0.92);
+  if(fx.snow||fx.fog) conv*=0.2;
+
+  // ---- DISTANT RELIEF: a butte far out, and low bluffs -----------------------------------------
+  // Static per life. Not to make the plain hilly — to give the eye somewhere to land on a flat line.
+  var bl=rng(((lifeIndexOf(now)*2654435761+8191)>>>0));
+  for(var b=0;b<3;b++){
+    var bx=bl()*WW-WOFF, bw=Math.round((26+bl()*44)*K), bh=Math.round((3+bl()*6)*K);
+    for(var wq=-1;wq<=1;wq++){ var sx=bx+wq*WW;
+      if(sx+bw<-4||sx>SW+4) continue;
+      var bc=mixc(curBiome.far, biomeSkc(day), 0.62);              // far enough to be half haze
+      g.fillStyle=css(bc);
+      for(var q=0;q<bh;q++){                                       // a flat-topped shoulder, not a cone
+        var qf=q/bh, wgt=Math.round(bw*(0.55+0.45*(1-qf*qf)));
+        g.fillRect((sx+(bw-wgt)*0.5)|0,(gy-q)|0,wgt,1);
+      }
+    }
+  }
+
+  // ---- THE TOWERS ------------------------------------------------------------------------------
+  // A cumulus tower has a hard cauliflower shoulder and a flat base, and on a plain you see the WHOLE
+  // thing from base to anvil, which is exactly the vertical the frame is missing.
+  if(conv>0.08){
+    var nT=1+Math.round(conv*3);
+    for(var t=0;t<nT;t++){
+      var ts=((t*2654435761+1733)>>>0);
+      var drift=(now*0.0000042*(1+(ts%5)/5));
+      var tx=(((ts%1000)/1000+drift)%1)*WW-WOFF;
+      // ⚠⚠ PROPORTIONS MATTER MORE THAN THE ANVIL HERE. The first version was tall and narrow with a
+      // sharp flare and it read as a MUSHROOM CLOUD — which in a wallpaper that has a nuclear finale
+      // is about the worst wrong association available. A real cumulonimbus is roughly as WIDE as it
+      // is tall, keeps most of its width up the middle, and its anvil SPREADS sideways into a broad
+      // flat lens rather than capping a stem.
+      var top=Math.round((22+conv*46+((ts>>7)%16))*K);              // how high it towers
+      var basew=Math.round((58+((ts>>11)%54)+conv*46)*K);           // …and it is at least as wide
+      var baseY=gy-Math.round(6*K);
+      for(var wq2=-1;wq2<=1;wq2++){ var sx2=tx+wq2*WW;
+        if(sx2+basew<-6||sx2-basew>SW+6) continue;
+        for(var h2=0;h2<top;h2++){
+          var hf=h2/top;
+          // narrow through the middle, then FLARE at the top — that flare is the anvil, and it is the
+          // single silhouette that says "thunderstorm" rather than "big cloud"
+          var wgt2=basew*(1-hf*0.22)+ (hf>0.80&&conv>0.6 ? basew*(hf-0.80)*1.5 : 0);   // barely tapers, then spreads
+          var lump=Math.sin(h2*0.5+ts%7)*0.06+Math.sin(h2*0.17+ts%11)*0.05;
+          wgt2*=(1+lump);
+          var lit=day?(1-hf*0.32):0.34;                             // sun on the shoulder, shadow beneath
+          var cc=day?[Math.round(250*lit+8),Math.round(250*lit+10),Math.round(252*lit+14)]
+                    :[Math.round(96*lit+22),Math.round(104*lit+26),Math.round(124*lit+34)];
+          g.fillStyle="rgba("+cc[0]+","+cc[1]+","+cc[2]+","+(0.30+0.52*Math.min(1,conv*1.5)).toFixed(2)+")";
+          g.fillRect((sx2-wgt2*0.5)|0,(baseY-h2)|0,Math.max(1,Math.round(wgt2)),1);
+        }
+        // the dark flat base
+        g.fillStyle=day?"rgba(96,104,120,0.34)":"rgba(24,28,40,0.42)";
+        g.fillRect((sx2-basew*0.5)|0,baseY|0,Math.max(1,basew),Math.max(1,Math.round(1.6*K)));
+        // ---- RAIN CURTAIN hanging under the cell ------------------------------------------------
+        // Rain you can see FROM OUTSIDE, miles off, which only happens where the view is this long.
+        if(conv>0.55&&((ts>>5)&1)){
+          var cw=Math.round(basew*0.40), cxr=sx2-basew*0.16;
+          for(var r=0;r<Math.round(6*K);r++){
+            var rf=r/Math.round(6*K);
+            g.fillStyle=day?"rgba(120,134,158,"+(0.26-0.20*rf).toFixed(3)+")":"rgba(60,70,94,"+(0.24-0.18*rf).toFixed(3)+")";
+            g.fillRect((cxr-cw*0.5+rf*3*K)|0,(baseY+r)|0,Math.max(1,Math.round(cw*(1-rf*0.3))),1);
+          }
+        }
+      }
+    }
+  }
+
+  // ---- THE SHELF: a real storm gets the wall, low and dark, right across the horizon -------------
+  if(fx.thunder){
+    var shY=gy-Math.round(15*K);
+    for(var s2=0;s2<Math.round(7*K);s2++){
+      var sf=s2/Math.round(7*K);
+      g.fillStyle="rgba(38,44,60,"+(0.40-0.30*sf).toFixed(3)+")";
+      g.fillRect(0,(shY+s2)|0,SW,1);
+    }
+    for(var sx3=0;sx3<SW;sx3+=Math.max(2,Math.round(4*K))){          // a ragged underside
+      var rag=Math.round((Math.sin(sx3*0.09+now*0.0004)*2+Math.sin(sx3*0.031)*2.4)*K);
+      g.fillStyle="rgba(30,36,52,0.36)";
+      g.fillRect(sx3,(shY+Math.round(6*K))|0,Math.max(2,Math.round(4*K)),Math.max(1,rag+Math.round(2*K)));
+    }
+  }
+}
+
+// ================================================================================================
 // THE SEA CLIFF, ALIVE — the colony, and the stacks
 // ------------------------------------------------------------------------------------------------
 // The audit found sea cliffs reading as a grey wall under an empty sky, with the sea only present at
@@ -21089,6 +21193,7 @@ function draw(g,pass){
   // (the Moon is drawn in drawSky() at its real Norwich position/phase)
 
   drawMountains(g,L,now,nd);      // the distant range — behind the clouds, the city, everything
+  drawPlainsSky(g,L,now,nd,fx);   // on a plain the SKY is the scenery — towers, curtains, a far butte
   drawVolcano(g,L,now,nd);        // …and if it is a volcano, what the mountain is doing today
   drawSpireWorld(g,L,now,nd);     // the high temples, standing on cloud
   drawCascades(g,L,now,nd);       // …or the falls pouring off the plateau
