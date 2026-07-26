@@ -964,7 +964,7 @@ function drawSax(g,L,now,nd){
   var wx=hasOcean&&seaW>0?WW*seaW+9:Math.round(0.31*WW), sx=wx-WOFF;
   if(sx>SW+6&&sx-WW>-6) sx-=WW; if(sx<-6&&sx+WW<SW+6) sx+=WW;
   if(sx<-5||sx>SW+5) return;
-  drawPerson(g,sx|0,HORIZON-1,"#3a3444",SKINC[2],0);
+  drawPerson(g,sx|0,HORIZON-1,"#3a3444",SKINC[2],-1);
   var sway=(Math.floor(now/600))&1;
   g.fillStyle="#d9a72b"; g.fillRect((sx+2)|0,HORIZON-1+sway,1,2); g.fillRect((sx+3)|0,HORIZON+sway,1,1);   // the sax
   g.globalCompositeOperation="lighter";
@@ -993,7 +993,7 @@ function drawPremiere(g,L,now,nd){
   g.globalCompositeOperation="source-over";
   g.fillStyle="#b02030"; g.fillRect((sx-7)|0,HORIZON+1,15,2);                        // the red carpet
   g.fillStyle="#d9a72b"; g.fillRect((sx-7)|0,HORIZON-2,1,3); g.fillRect((sx+7)|0,HORIZON-2,1,3);   // rope posts
-  for(var cr3=0;cr3<5;cr3++) drawPerson(g,(sx-11+cr3*2)|0,HORIZON-1,PEDC[cr3%PEDC.length],SKINC[cr3%SKINC.length],0);
+  for(var cr3=0;cr3<5;cr3++) drawPerson(g,(sx-11+cr3*2)|0,HORIZON-1,PEDC[cr3%PEDC.length],SKINC[cr3%SKINC.length],-1);
   drawPerson(g,(sx+3)|0,HORIZON-1,"#e8e2d2",SKINC[1],((Math.floor(now/500))&1));     // the star arrives
   if(((Math.floor(now/130))%5)===0){ g.fillStyle="#ffffff";                          // camera flash
     g.fillRect((sx-9+((Math.floor(now/130)*7)%16))|0,HORIZON-4,1,1); }
@@ -1009,8 +1009,8 @@ function drawCapsule(g,L,now){
   g.fillStyle="#c9ccd4"; g.fillRect(sx|0,HORIZON-2+low,2,2);                         // the capsule, lowered
   g.fillStyle="rgba(150,150,160,0.6)"; g.fillRect(sx|0,HORIZON-5,1,3+low);           // the rope
   var mc2=curMayor?curMayor.party.c:"#e0a83a";
-  drawPerson(g,(sx-4)|0,HORIZON-1,mc2,SKINC[0],0);                                   // the mayor presides
-  for(var cw2=0;cw2<4;cw2++) drawPerson(g,(sx+4+cw2*2)|0,HORIZON-1,PEDC[(cw2*2+1)%PEDC.length],SKINC[cw2%SKINC.length],0);
+  drawPerson(g,(sx-4)|0,HORIZON-1,mc2,SKINC[0],-1);                                   // the mayor presides
+  for(var cw2=0;cw2<4;cw2++) drawPerson(g,(sx+4+cw2*2)|0,HORIZON-1,PEDC[(cw2*2+1)%PEDC.length],SKINC[cw2%SKINC.length],-1);
   g.fillStyle="#e8e2d2"; g.fillRect((sx-6)|0,HORIZON-8,1,7); g.fillStyle="#d23b3b"; g.fillRect((sx-5)|0,HORIZON-8,2,1);   // flag
   if(((Math.floor(now/160))%3)===0){ g.fillStyle=NEON[(Math.floor(now/160))%NEON.length];
     g.fillRect((sx-6+((Math.floor(now/70))%13))|0,(HORIZON-9+((Math.floor(now/110))%5))|0,1,1); }   // confetti
@@ -1336,7 +1336,7 @@ function drawNightMarket(g,L,now,nd){
     g.fillStyle="rgba(255,160,60,0.16)"; g.fillRect(X-1,HORIZON-6,9,7);
     g.globalCompositeOperation="source-over";
     if(st===1){ g.fillStyle="rgba(200,200,205,0.5)"; g.fillRect(X+3,(HORIZON-8-((now/300|0)%3))|0,1,1); }   // grill smoke
-    drawPerson(g,X+2,HORIZON-1,PEDC[(st*3+1)%PEDC.length],SKINC[st%SKINC.length],0);   // stallholder
+    drawPerson(g,X+2,HORIZON-1,PEDC[(st*3+1)%PEDC.length],SKINC[st%SKINC.length],-1);   // stallholder
     if(((st+Math.floor(now/4000))&1)===0) drawPerson(g,X+8,HORIZON-1,PEDC[(st*5+2)%PEDC.length],SKINC[(st+2)%SKINC.length],(Math.floor(now/400)+st)&1);
   }
 }
@@ -1348,11 +1348,11 @@ function drawPerformers(g,L,now,nd){
   if(sx>SW+16&&sx-WW>-16) sx-=WW; if(sx<-16&&sx+WW<SW+16) sx+=WW;
   if(sx>=-14&&sx<=SW+14){
     if((d8===0||d8===6)&&L>0.4&&h8>=11&&h8<18){                                  // the JUGGLER
-      drawPerson(g,sx|0,HORIZON-1,"#b03a8a",SKINC[1],0);
+      drawPerson(g,sx|0,HORIZON-1,"#b03a8a",SKINC[1],-1);
       for(var jb=0;jb<3;jb++){ var jp=(now*0.003+jb*Math.PI*2/3)%(Math.PI*2);
         g.fillStyle=["#ffd23a","#4aa8ff","#ff5a5a"][jb];
         g.fillRect((sx+1+Math.cos(jp)*2.5)|0,(HORIZON-7-Math.abs(Math.sin(jp))*4)|0,1,1); }
-      if(((Math.floor(now/6000))&1)===0) drawPerson(g,(sx-4)|0,HORIZON-1,PEDC[3],SKINC[2],0);   // an admirer
+      if(((Math.floor(now/6000))&1)===0) drawPerson(g,(sx-4)|0,HORIZON-1,PEDC[3],SKINC[2],-1);   // an admirer
     }
     var cx4=sx+8;                                                                 // the CHALK ARTIST
     if(L>0.4&&h8>=9&&h8<19&&!fxRainNow){
@@ -1362,7 +1362,7 @@ function drawPerformers(g,L,now,nd){
       for(var c8=0;c8<n8;c8++){ var hh8=((dn8*2654435761+c8*7919)>>>0);          // today's drawing, stroke by stroke
         g.fillStyle=CC[(hh8>>>3)%CC.length];
         g.fillRect((cx4+(hh8%5))|0,(HORIZON+1+((hh8>>>6)%2))|0,1+((hh8>>>9)&1),1); }
-      if(prog<1) drawPerson(g,(cx4+2)|0,HORIZON,"#3a6a8a",SKINC[3],0);           // crouched, mid-stroke
+      if(prog<1) drawPerson(g,(cx4+2)|0,HORIZON,"#3a6a8a",SKINC[3],-1);           // crouched, mid-stroke
     }
   }
 }
@@ -1388,7 +1388,7 @@ function drawFestivals(g,L,now,nd){
       g.fillStyle="#e07028";                                                     // the pumpkin pile
       g.fillRect((sx+11)|0,HORIZON-1,2,1); g.fillRect((sx+13)|0,HORIZON-1,2,1); g.fillRect((sx+12)|0,HORIZON-2,2,1);
       g.fillStyle="#3a5a2a"; g.fillRect((sx+13)|0,HORIZON-3,1,1);
-      drawPerson(g,(sx+7)|0,HORIZON-1,"#8a5a2a",SKINC[1],0);
+      drawPerson(g,(sx+7)|0,HORIZON-1,"#8a5a2a",SKINC[1],-1);
       if(((Math.floor(now/5000))&1)===0) drawPerson(g,(sx+16)|0,HORIZON-1,PEDC[2],SKINC[3],(Math.floor(now/400))&1);
     }
   }
@@ -1610,9 +1610,9 @@ function drawFamily(g,L,now,nd){
     var wxw=Math.round(0.365*WW)-6, sxw=wxw-WOFF;
     if(sxw>SW+12&&sxw-WW>-12) sxw-=WW; if(sxw<-12&&sxw+WW<SW+12) sxw+=WW;
     if(sxw>=-10&&sxw<=SW+10){
-      drawPerson(g,sxw|0,HORIZON-1,"#eef2f8",SKINC[1],0);                        // the couple
-      drawPerson(g,(sxw+3)|0,HORIZON-1,"#2a2c34",SKINC[2],0);
-      for(var gst=0;gst<5;gst++) drawPerson(g,(sxw-4-gst*2)|0,HORIZON-1,PEDC[gst%PEDC.length],SKINC[gst%SKINC.length],0);
+      drawPerson(g,sxw|0,HORIZON-1,"#eef2f8",SKINC[1],-1);                        // the couple
+      drawPerson(g,(sxw+3)|0,HORIZON-1,"#2a2c34",SKINC[2],-1);
+      for(var gst=0;gst<5;gst++) drawPerson(g,(sxw-4-gst*2)|0,HORIZON-1,PEDC[gst%PEDC.length],SKINC[gst%SKINC.length],-1);
       if(((Math.floor(now/140))%3)===0){ g.fillStyle="#f2b9d8";                  // thrown petals
         g.fillRect((sxw-2+((Math.floor(now/60))%9))|0,(HORIZON-7+((Math.floor(now/90))%4))|0,1,1); }
     }
@@ -1632,8 +1632,8 @@ function drawVignettes(g,L,now,nd){
     var wx=landRoute((h%WW)), sx=wx-WOFF;
     if(sx>SW+5&&sx-WW>-5) sx-=WW; if(sx<-5&&sx+WW<SW+5) sx+=WW;
     if(sx<-4||sx>SW+4||inSea(wx)) continue;
-    drawPerson(g,sx|0,HORIZON-1,PEDC[h%PEDC.length],SKINC[h%SKINC.length],0);
-    drawPerson(g,(sx+3)|0,HORIZON-1,PEDC[(h>>>4)%PEDC.length],SKINC[(h>>>6)%SKINC.length],0);
+    drawPerson(g,sx|0,HORIZON-1,PEDC[h%PEDC.length],SKINC[h%SKINC.length],-1);
+    drawPerson(g,(sx+3)|0,HORIZON-1,PEDC[(h>>>4)%PEDC.length],SKINC[(h>>>6)%SKINC.length],-1);
     var talk=(Math.floor(now/700)+i)%2;                                           // speech marks alternate
     g.fillStyle="rgba(255,255,255,0.75)"; g.fillRect((sx+(talk?0:3))|0,HORIZON-8,1,1);
   }
@@ -1656,7 +1656,7 @@ function drawVignettes(g,L,now,nd){
         if(f13>0.6){ dogx=ox+throwD-(f13-0.6)/0.4*throwD; ballx=dogx+ (throwD>0?2:-1); bally=HORIZON+1; }
         var osx=ox-WOFF; if(osx>SW+30&&osx-WW>-30) osx-=WW; if(osx<-30&&osx+WW<SW+30) osx+=WW;
         if(osx>=-28&&osx<=SW+28){ var off13=osx-ox;
-          drawPerson(g,(ox+off13)|0,HORIZON-1,PEDC[id13%PEDC.length],SKINC[id13%SKINC.length],0);
+          drawPerson(g,(ox+off13)|0,HORIZON-1,PEDC[id13%PEDC.length],SKINC[id13%SKINC.length],-1);
           g.fillStyle="#e8482a"; g.fillRect((ballx+off13)|0,bally|0,1,1);
           var db13=(Math.floor(now/120))&1;
           g.fillStyle="#8a6a4a"; g.fillRect((dogx+off13)|0,(HORIZON+1-db13)|0,3,1);
@@ -1744,7 +1744,7 @@ function drawRegatta(g,L,now,nd){
     g.fillStyle="rgba(255,255,255,0.4)"; g.fillRect((sx-2)|0,wl+1,2,1); }
   g.fillStyle="#e8482a"; g.fillRect((band[0]+span*0.9-WOFF)|0,wl-8,1,8);           // the finish buoy
   var crx=(WW*seaW+6)-WOFF;                                                        // shore crowd
-  if(crx>-20&&crx<SW+20) for(var c2=0;c2<6;c2++) drawPerson(g,(crx+c2*3)|0,HORIZON-1,PEDC[c2%PEDC.length],SKINC[c2%SKINC.length],0);
+  if(crx>-20&&crx<SW+20) for(var c2=0;c2<6;c2++) drawPerson(g,(crx+c2*3)|0,HORIZON-1,PEDC[c2%PEDC.length],SKINC[c2%SKINC.length],-1);
 }
 // dawn FOG BANKS roll off the sea and burn away by mid-morning
 function drawSeaFog(g,L,now,nd,fx){
@@ -2496,6 +2496,11 @@ var FRAME_MS=83;
 // behaviour (83 * 50/83 = 50), which is why the desktop, web and phone builds are untouched by
 // this; only KDE's 200 ms "balanced" tier changes, and it changes to match them.
 var MOTION_RATE=50/83;
+// This frame's effective clock, published for the sprite helpers that are called from a hundred
+// places and can't reasonably all be given a `now` argument (drawPerson's idle sway). Set once at
+// the top of draw(), and NOWOVR-aware like everything else, so harnesses and the freeze replay
+// drive it correctly instead of reading a real wall clock.
+var FRAME_NOW=0;
 var ZOOM=1;            // canvas px per world px (per-screen; >1 when a fractionally-scaled screen needs a denser canvas)
 var mts=null;          // this life's mountain range ({far:[peaks],near:[peaks]}), null on flatland lives
 var mtsCache=null;     // per-screen silhouette cache (the range never moves within a life)
@@ -3621,8 +3626,23 @@ function drawPerson(g,x,y,cloth,skin,bob,kind){
   // bob is a WALK FRAME 0..3: 0 contact / 1 stride (lifted) / 2 contact / 3 counter-stride
   // (lifted, other leg leads). Legacy callers pass 0/1 and render exactly as before.
   // kind: undefined/0 adult · 1 child (one head shorter, no accessories) · 2 elder (silver + cane)
-  var f=(bob|0)&3, lift=(f===1||f===3)?1:0, yy=(y-lift)|0, X=x|0;
+  var X=x|0;
   if(cloth==null) cloth="#3a3a44"; if(skin==null) skin=SKINC[0];            // guard a bad palette index (e.g. a signed-shift hash gone negative) — draw a person, never blank the frame
+  // bob is a WALK FRAME 0..3 — or -1, meaning "standing about". A standing person is NOT a
+  // mannequin: they shift their weight. FORTY-NINE of this engine's call sites used to pass a
+  // literal 0 here (a third of every drawPerson there is), which pinned that person into one fixed
+  // pose forever. Together with the fixed-x callers that is 30% of everyone on screen frozen solid
+  // — Nick: "there are still people still standing there it looks bad af".
+  // 0 could not simply be redefined: a walking caller passing `…&3` legitimately yields 0 on every
+  // fourth frame, and overloading it would have corrupted the walk cycle. Hence a sentinel.
+  // Phase comes from the person's own position and palette so a crowd shifts out of step rather
+  // than pulsing in unison, and the period is slow (1.5 s) so it reads as weight-shifting, not
+  // marching on the spot.
+  var f;
+  if(bob<0){ var iph=((X*37 + skin.charCodeAt(2)*13 + cloth.charCodeAt(3)*7)>>>0)%1700;
+             f=(Math.floor((FRAME_NOW+iph)/760))&1; }
+  else f=(bob|0)&3;
+  var lift=(f===1||f===3)?1:0, yy=(y-lift)|0;
   if(curBillsDress){                                                       // gameday, OR the Mafia's uniform mandate: citizens don Bills gear. Keyed off the ORIGINAL cloth/skin (a world seed) so a person crossing a bezel decides the same on both screens.
     var fanH=((cloth.charCodeAt(1)*7+cloth.charCodeAt(3)*13+skin.charCodeAt(2)*17)>>>0);
     var strict=(curRegime&&curRegime.theme==="bills");                     // the Mafia enforces harder than a gameday crowd
@@ -4413,7 +4433,7 @@ function drawRegimeRally(g,L,now){
   for(var off=-WW;off<=WW;off+=WW){ var X=(wx-WOFF+off)|0; if(X<-110||X>SW+110) continue;
     for(var r=0;r<3;r++){ for(var c=0;c<24;c++){ var px=X-74+c*6, py=(HORIZON-1-r*3)|0; if(px<-4||px>SW+4) continue;
       var hh=((r*97+c*31+(R.seed||0))>>>0);
-      drawPerson(g,px|0,py,PEDC[(hh>>>5)%PEDC.length],SKINC[(hh>>>7)%SKINC.length],0);              // at attention (no bob)
+      drawPerson(g,px|0,py,PEDC[(hh>>>5)%PEDC.length],SKINC[(hh>>>7)%SKINC.length],-1);              // at attention (no bob)
       if(((hh>>>3)%3)===0){ g.fillStyle=regimeBills()?"#00338d":"#b01828"; g.fillRect(px|0,py-6,1,3); g.fillStyle="#f4eee2"; g.fillRect(px|0,py-6,1,1); } } }   // raised flag (royal blue for the Mafia)
     if(L<0.55){ g.globalCompositeOperation="lighter";                                              // searchlights converge on the podium
       for(var s=-1;s<=1;s+=2){ var lx=X+s*46;
@@ -4492,7 +4512,7 @@ function drawSeizure(g,L,now){
     g.fillStyle=L>0.5?"#a81624":"#5c0c14"; g.fillRect(bx,topBar+2,bw,len);                              // unfurling crimson banner
     g.fillStyle=L>0.5?"#7a1018":"#420810"; g.fillRect(bx,topBar+2,1,len); g.fillRect(bx+bw-1,topBar+2,1,len);
     if(len>6) drawOrderEmblem(g,X,topBar+6,2,"#f4eee2",null);
-    drawPerson(g,(X-13)|0,HORIZON-1,"#2f3540","#caa07a",0); drawPerson(g,(X+12)|0,HORIZON-1,"#2f3540","#caa07a",0);   // guards flank
+    drawPerson(g,(X-13)|0,HORIZON-1,"#2f3540","#caa07a",-1); drawPerson(g,(X+12)|0,HORIZON-1,"#2f3540","#caa07a",-1);   // guards flank
     var n=Math.round(11*unf); for(var p=0;p<n;p++){ var hh=((p*2654435761+(R.seed||0))>>>0), px=X-28+((hh%56));
       drawPerson(g,px|0,HORIZON-1,PEDC[(hh>>>5)%PEDC.length],SKINC[(hh>>>7)%SKINC.length],(Math.floor(now/300)+p)&1); } }
 }
@@ -4678,7 +4698,7 @@ function drawVaccineClinic(g,L,now){
     var sign="VACCINE", slen=sign.length*4-1, sbx=(X-(slen>>1))|0, sby=ty-8;                                             // sign board
     g.fillStyle="#dfe8f4"; g.fillRect(sbx-1,sby,slen+2,6); g.fillStyle="#2a6ab0"; g.fillRect(sbx-1,sby,slen+2,1); drawUiText(g,sign,sbx,sby+1,"#1a4a8a",1);
     var qn=Math.round(9*open); for(var q=0;q<qn;q++){ var hh=((q*2654435761+(P.seed||0))>>>0), px=X+(tw>>1)+2+q*6;        // a spaced-out queue (6px apart)
-      drawPerson(g,px|0,HORIZON-1,PEDC[(hh>>>5)%PEDC.length],SKINC[(hh>>>7)%SKINC.length],0); } }
+      drawPerson(g,px|0,HORIZON-1,PEDC[(hh>>>5)%PEDC.length],SKINC[(hh>>>7)%SKINC.length],-1); } }
 }
 // v1.30 — HOSPITAL SHIP (coastal): a big white naval ship w/ red crosses docks in the harbor for extra wards.
 function drawHospitalShip(g,L,now){
@@ -4877,7 +4897,7 @@ function drawFestival(g,L,now,night){
 }
 // Bills days — a few pairs of citizens play CATCH in the street: a football arcs between them, back and forth.
 function drawTosser(g,x,sk,seed,armUp){
-  drawPerson(g,x,HORIZON-1,((seed%3)===0)?BILLS_RED:BILLS_BLUE,sk,0);
+  drawPerson(g,x,HORIZON-1,((seed%3)===0)?BILLS_RED:BILLS_BLUE,sk,-1);
   if(armUp){ g.fillStyle=((seed%3)===0)?BILLS_RED:BILLS_BLUE; g.fillRect((x+2)|0,HORIZON-6,1,2); g.fillStyle=sk; g.fillRect((x+2)|0,HORIZON-7,1,1); }   // a raised throwing / catching arm
 }
 function drawFootballTossers(g,L,now){
@@ -5349,12 +5369,12 @@ function drawPark(g,p,bx,L,now,dayLit,night){
     for(var kt=1;kt<4;kt++) g.fillRect((kX+1+Math.sin(now*0.004+kt)*1.4)|0,kY+1+kt*2,1,1);          // the tail flicks
     g.fillStyle="rgba(200,205,215,0.30)";
     for(var ks=1;ks<5;ks++) g.fillRect((kX+1+(bx+(p.w>>1)-kX-1)*ks/5)|0,(kY+2+(grassTop-2-kY)*ks/5)|0,1,1);   // the string
-    drawPerson(g,bx+(p.w>>1),grassTop,PEDC[p.w%PEDC.length],SKINC[(p.w*3)%SKINC.length],0,1);      // the kid flying it
+    drawPerson(g,bx+(p.w>>1),grassTop,PEDC[p.w%PEDC.length],SKINC[(p.w*3)%SKINC.length],-1,1);      // the kid flying it
   }
   // a birthday-bright balloon in a small fist on weekend afternoons
   if(dayLit>0.55 && (pdow===0||pdow===6) && p.w>10 && ((p.w*11)%4)===0){
     var blx=bx+3+((p.w*13)%Math.max(1,p.w-6)), blc=["#ffe08a","#ff7ad0","#7affd7"][((blx>>1)+(Math.floor(now/700)))%3];
-    drawPerson(g,blx,grassTop+1,PEDC[(p.w+2)%PEDC.length],SKINC[(p.w+1)%SKINC.length],0,1);
+    drawPerson(g,blx,grassTop+1,PEDC[(p.w+2)%PEDC.length],SKINC[(p.w+1)%SKINC.length],-1,1);
     g.fillStyle="rgba(200,205,215,0.35)"; g.fillRect(blx+2,grassTop-4,1,3);                        // the string
     g.fillStyle=blc; g.fillRect(blx+1,grassTop-6,3,2); g.fillRect(blx+2,grassTop-7,1,1);           // the balloon bobbing
   }
@@ -5423,7 +5443,7 @@ function drawRooftop(g,b,tX,top,tW,L,now,night){
     g.fillStyle=L>0.5?"#6a5238":"#241a12"; g.fillRect(tX+1,roofY-1,Math.min(tW-2,5),1);                 // bar counter
     var np=1+(b.seed%2);
     for(var p=0;p<np;p++){ var prx=tX+2+p*3, lift9=(((Math.floor(now/700)+b.seed*3+p*5)%5)===0)?2:0;    // and every so often a toast goes up
-      drawPerson(g,prx,roofY-3,["#c05a8a","#5ac0c0","#e6e6ea"][(b.seed+p)%3],SKINC[(b.seed+p)%SKINC.length],0);
+      drawPerson(g,prx,roofY-3,["#c05a8a","#5ac0c0","#e6e6ea"][(b.seed+p)%3],SKINC[(b.seed+p)%SKINC.length],-1);
       g.fillStyle="#ffb23a"; g.fillRect(prx+2,roofY-2-lift9,1,1);                                       // the amber pint
       g.fillStyle="rgba(255,246,224,0.8)"; g.fillRect(prx+2,roofY-3-lift9,1,1); }                       // with its foam head
     if(night>0.3&&tW>=10){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,90,180,0.5)";     // a little cocktail-glass neon by the door
@@ -6007,7 +6027,7 @@ function drawTrainLine(g,L,now,fx,part){
         var nw=1+((Math.floor(now/8000)+st2)%3);
         for(var rw=0;rw<nw;rw++){ var rxp=SXs-6+rw*3+((st2*7+rw*13)%2);
           var wcheck=(((Math.floor(now/700)+st2*3+rw*5)%9)===0)?1:0;               // a glance at the watch now and then
-          drawPerson(g,rxp,ty-4,PEDC[(st2*5+rw)%PEDC.length],SKINC[(st2+rw)%SKINC.length],0);
+          drawPerson(g,rxp,ty-4,PEDC[(st2*5+rw)%PEDC.length],SKINC[(st2+rw)%SKINC.length],-1);
           if(wcheck){ g.fillStyle=SKINC[(st2+rw)%SKINC.length]; g.fillRect(rxp-1,ty-7,1,1); } }
         drawSeated(g,SXs+3,ty-5,PEDC[(st2*3+1)%PEDC.length],SKINC[(st2*2+1)%SKINC.length]);   // and one waits on the bench
       }
@@ -6501,8 +6521,14 @@ function drawHorse(g,wx,y,dir,L,now,kind){
 }
 
 // a seated person (head + torso, legs tucked) — used on benches
+// Sitting still is not the same as being a statue: someone at a pub table turns to whoever they are
+// with, leans in, sits back. This sprite is only two rects, so that life has to come out of a 1px
+// head turn — but it is the last thing on screen that rendered identical pixels minute after minute.
+// Phased per person off position and palette so a whole table never moves as one body.
 function drawSeated(g,x,y,cloth,skin){ x=x|0; y=y|0;
-  g.fillStyle=skin; g.fillRect(x,y,2,1); g.fillStyle=cloth; g.fillRect(x,y+1,2,1); }
+  var ph=((x*29 + (skin?skin.charCodeAt(2):0)*11 + (cloth?cloth.charCodeAt(1):0)*5)>>>0)%2300;
+  var turn=(Math.floor((FRAME_NOW+ph)/1150))&1;
+  g.fillStyle=skin; g.fillRect(x+turn,y,2,1); g.fillStyle=cloth; g.fillRect(x,y+1,2,1); }
 var UMB=["#d23b3b","#2f6bb0","#2b2b33","#d9a72b","#3a9a5f","#c8ccd6","#b0508a"];   // umbrella colours
 // an umbrella held over a walker's head (y = their head row)
 function drawUmbrella(g,x,y,col){ x=x|0; y=y|0;
@@ -6598,7 +6624,7 @@ function drawStreetProps(g,L,now,night){
       } else if(k==="newsstand"){ g.fillStyle=L>0.5?"#4a4030":"#15120c"; g.fillRect(X-2,gy-5,6,5);
         g.fillStyle=NEON[(sp.s)%NEON.length]; g.fillRect(X-2,gy-5,6,1);                 // awning
         if(L<0.66){ g.fillStyle="#ffcf6a"; g.fillRect(X-1,gy-4,4,2); }                  // lit magazines
-        drawPerson(g,X+3,gy-4,PEDC[(pr()*PEDC.length)|0],SKINC[(pr()*SKINC.length)|0],0);   // a browsing customer
+        drawPerson(g,X+3,gy-4,PEDC[(pr()*PEDC.length)|0],SKINC[(pr()*SKINC.length)|0],-1);   // a browsing customer
       } else if(k==="busstop"){ g.fillStyle=L>0.5?"#40454f":"#12141a";
         g.fillRect(X-3,gy-7,8,1); g.fillRect(X-3,gy-7,1,7); g.fillRect(X+4,gy-7,1,7);   // roof + posts
         g.fillStyle=L>0.5?"#6a5238":"#1a1510"; g.fillRect(X-2,gy-2,5,1);                // bench
@@ -6608,7 +6634,7 @@ function drawStreetProps(g,L,now,night){
         else if(hrB>=2&&hrB<5) nW=0;                                                    // nobody in the dead of night,
         else if(hrB>=22||hrB<2) nW=rollW>1?1:0;                                         // a late soul or two,
         else nW=rollW;                                                                  // and a daytime trickle
-        for(var q2=0;q2<nW;q2++) drawPerson(g,X-2+q2*2,gy-4,PEDC[(pr()*PEDC.length)|0],SKINC[(pr()*SKINC.length)|0],0);
+        for(var q2=0;q2<nW;q2++) drawPerson(g,X-2+q2*2,gy-4,PEDC[(pr()*PEDC.length)|0],SKINC[(pr()*SKINC.length)|0],-1);
         if(hrB>=1&&hrB<4&&((sp.s%3)===0)){                                              // the 2am lonesoul on the bench
           drawSeated(g,X,gy-4,"#3a3a44",SKINC[sp.s%SKINC.length]);
           if(((Math.floor(now/1500))%6)===0){ g.fillStyle="#c9c2a8"; g.fillRect(X+2,gy-5,1,1); }   // a quiet pull from the flask
@@ -6619,8 +6645,8 @@ function drawStreetProps(g,L,now,night){
         g.fillStyle=uc; g.fillRect(X-3,gy-8,8,1); g.fillStyle="#6a6a76"; g.fillRect(X,gy-8,1,5);   // umbrella + pole
         if(L<0.62){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,180,90,0.55)"; g.fillRect(X-1,gy-4,4,2); g.globalCompositeOperation="source-over"; }  // grill glow
         for(var sk=0;sk<2;sk++){ var stt=(now*0.02+sk*90)%40; g.fillStyle="rgba(210,214,222,"+(0.3*(1-stt/40))+")"; g.fillRect((X+1)|0,(gy-4-stt*0.4)|0,1,1); }   // steam
-        drawPerson(g,X-3,gy-4,"#e8e8ee",SKINC[(pr()*SKINC.length)|0],0);                // vendor
-        if(pr()<0.7) drawPerson(g,X+4,gy-4,PEDC[(pr()*PEDC.length)|0],SKINC[(pr()*SKINC.length)|0],0);  // customer
+        drawPerson(g,X-3,gy-4,"#e8e8ee",SKINC[(pr()*SKINC.length)|0],-1);                // vendor
+        if(pr()<0.7) drawPerson(g,X+4,gy-4,PEDC[(pr()*PEDC.length)|0],SKINC[(pr()*SKINC.length)|0],-1);  // customer
       }
     }
   }
@@ -6717,8 +6743,8 @@ function drawWashers(g,layer,L,now){
     g.fillStyle="rgba(20,18,26,0.8)"; g.fillRect(colx-1,top,1,py-top); g.fillRect(colx+3,top,1,py-top);   // rig cables
     g.fillStyle=L>0.5?"#6a6e78":"#2a2d36"; g.fillRect(colx-1,py+3,6,1);        // platform
     var swing=(Math.sin(now*0.006)>0)?0:1;
-    drawPerson(g,colx,py,"#ffd24a",SKINC[bi%SKINC.length],0);                  // washer (hi-vis)
-    if(b.topW>=12) drawPerson(g,colx+3,py,"#4aa8ff",SKINC[(bi+1)%SKINC.length],0);
+    drawPerson(g,colx,py,"#ffd24a",SKINC[bi%SKINC.length],-1);                  // washer (hi-vis)
+    if(b.topW>=12) drawPerson(g,colx+3,py,"#4aa8ff",SKINC[(bi+1)%SKINC.length],-1);
     g.fillStyle="rgba(200,230,255,0.6)"; g.fillRect(colx+1+swing,py+1,1,1);    // squeegee glint
     g.globalCompositeOperation="lighter"; g.fillStyle="rgba(220,240,255,0.10)"; g.fillRect(tX,py+2,b.topW,Math.min(HORIZON-py,20));  // freshly-cleaned sheen below
     g.globalCompositeOperation="source-over";
@@ -6777,12 +6803,12 @@ function drawBuskers(g,L,now,busyN){
   for(var i=0;i<buskers.length;i++){ var bk=buskers[i];
     for(var wp=-1;wp<=1;wp++){ var X=(bk.x-WOFF+wp*WW)|0; if(X<-8||X>SW+8) continue;
       var pr=rng(bk.s);
-      drawPerson(g,X,gy,"#8a3ab0",SKINC[bk.s%SKINC.length],0);                 // musician
+      drawPerson(g,X,gy,"#8a3ab0",SKINC[bk.s%SKINC.length],-1);                 // musician
       g.fillStyle="#a0642a"; g.fillRect(X+2,gy,1,2); g.fillStyle="#5a3a1a"; g.fillRect(X+2,gy-1,1,1);  // guitar
       for(var n=0;n<2;n++){ var t=(now*0.02+n*60+bk.s)%50;
         g.fillStyle="rgba(255,220,120,"+(0.85*(1-t/50))+")"; g.fillRect((X+3+Math.sin(now*0.004+n)*2)|0,(gy-2-t*0.3)|0,1,1); }
       var crowd=2+((pr()*2)|0);
-      for(var c2=0;c2<crowd;c2++) drawPerson(g,X-2-c2*2,gy,PEDC[(pr()*PEDC.length)|0],SKINC[(pr()*SKINC.length)|0],0);
+      for(var c2=0;c2<crowd;c2++) drawPerson(g,X-2-c2*2,gy,PEDC[(pr()*PEDC.length)|0],SKINC[(pr()*SKINC.length)|0],-1);
     }
   }
 }
@@ -6831,7 +6857,7 @@ function drawSmokers(g,L,now){
     var wx9=b9.x+2+(hh9>>>4)%Math.max(1,b9.w-4);                          // >>> (unsigned): hh9 can exceed 2^31, a signed >> would go negative → negative modulo
     for(var wp2=-1;wp2<=1;wp2+=1){ var SX9=(wx9-WOFF+wp2*WW)|0; if(SX9<-4||SX9>SW+4) continue;
       var gy9=HORIZON-1, drag=((now+((hh9>>>2)%3000))%3400)<420;          // the pull on the cigarette
-      drawPerson(g,SX9,gy9,["#3a3a44","#4a3a5a","#2f4a3a"][hh9%3],SKINC[(hh9>>>8)%SKINC.length],0);
+      drawPerson(g,SX9,gy9,["#3a3a44","#4a3a5a","#2f4a3a"][hh9%3],SKINC[(hh9>>>8)%SKINC.length],-1);
       g.fillStyle=drag?"#ff7a2a":"#b03a1a"; g.fillRect(SX9+2,gy9-3,1,1);  // the ember
       if(drag){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,140,60,0.35)"; g.fillRect(SX9+1,gy9-4,3,3); g.globalCompositeOperation="source-over"; }
       if(QUAL>0) for(var pw9=0;pw9<2;pw9++){ var t9=((now*0.02)+pw9*40+(hh9%97))%70;
@@ -7480,7 +7506,7 @@ function drawHarbor(g,L,now,night,nd){
       g.fillStyle=L>0.5?"#7a6247":"#3a2f22";
       g.fillRect(pxr,HORIZON-4,plen,1);                                                       // deck planks
       g.fillRect(pxr+2,HORIZON-3,1,3); g.fillRect(pxr+plen-2,HORIZON-3,1,3); g.fillRect(pxr+5,HORIZON-3,1,3);  // posts
-      drawPerson(g,pxr+plen-3,HORIZON-5,"#5a4a6a","#d8b090",0);                              // the fisher, sat at the end
+      drawPerson(g,pxr+plen-3,HORIZON-5,"#5a4a6a","#d8b090",-1);                              // the fisher, sat at the end
       g.fillStyle=L>0.5?"#2c2620":"#181410"; g.fillRect(pxr+plen-1,HORIZON-5,1,1);            // rod stub
       g.fillStyle="rgba(200,220,240,0.5)"; g.fillRect(pxr+plen+1,(HORIZON-3+((Math.floor(now/900))%2))|0,1,2);  // line + bobber
       g.globalAlpha=ga5; }
@@ -7567,8 +7593,8 @@ function drawCrime(g,cd2,L,now){
       g.fillStyle="#ffd24a"; g.fillRect(X+(cd2.dir>0?-2:3),HORIZON-2,1,1);          // the snatched bag
       for(var c5=0;c5<2;c5++) drawPerson(g,X-cd2.dir*(4+c5*4),HORIZON-1,"#2a4a8a","#c9a184",(Math.floor(now/90)+c5)&1);
     } else {                                                         // collar made
-      drawPerson(g,X,HORIZON-1,"#1a1c24","#c9a184",0);
-      drawPerson(g,X-cd2.dir*3,HORIZON-1,"#2a4a8a","#c9a184",0);
+      drawPerson(g,X,HORIZON-1,"#1a1c24","#c9a184",-1);
+      drawPerson(g,X-cd2.dir*3,HORIZON-1,"#2a4a8a","#c9a184",-1);
       if(((Math.floor(now/300))&1)===0){ g.fillStyle="#aaddff"; g.fillRect((X-cd2.dir)|0,HORIZON-2,1,1); }
     }
   }
@@ -8788,8 +8814,8 @@ function drawMarket(g,L,now){
       for(var aw=0;aw<8;aw++){ g.fillStyle=((aw&1)?c:"#eef1f6"); g.fillRect(X-3+aw,gy-6,1,1); }  // striped awning
       g.fillStyle=L>0.5?"#6a5238":"#241a12"; g.fillRect(X-3,gy-2,8,2);                     // table
       for(var pp=0;pp<6;pp++){ g.fillStyle=prod[(pp+ (mx>>1))%prod.length]; g.fillRect(X-3+pp+((pp>2)?1:0),gy-3,1,1); }  // produce
-      drawPerson(g,X+3,gy-2,"#5a7a4a",SKINC[(mx)%SKINC.length],0);                          // stallholder
-      if(pr()<0.75) drawPerson(g,X-4,gy-2,PEDC[(mx>>1)%PEDC.length],SKINC[(mx>>2)%SKINC.length],0);  // shopper
+      drawPerson(g,X+3,gy-2,"#5a7a4a",SKINC[(mx)%SKINC.length],-1);                          // stallholder
+      if(pr()<0.75) drawPerson(g,X-4,gy-2,PEDC[(mx>>1)%PEDC.length],SKINC[(mx>>2)%SKINC.length],-1);  // shopper
     }
   }
 }
@@ -8878,7 +8904,7 @@ function drawFoodFest(g,L,now,night){
         g.globalCompositeOperation="source-over"; }
       g.fillStyle="#ffd86a"; g.fillRect(X,gy-6,1,2);                                             // lantern body (crisp)
       for(var bl=0;bl<4;bl++){ g.fillStyle="#fff0b4"; g.fillRect(x0+1+bl*3,gy-9,1,1); }            // bright bulb string
-      drawPerson(g,X+2,gy-3,"#8a5a3a",SKINC[mx%SKINC.length],0);                                  // vendor
+      drawPerson(g,X+2,gy-3,"#8a5a3a",SKINC[mx%SKINC.length],-1);                                  // vendor
       if(pr()<0.7) drawPerson(g,x0-3,gy-2,PEDC[(mx>>1)%PEDC.length],SKINC[(mx>>2)%SKINC.length],((now*0.02|0)&1));  // one customer
     }
   }
@@ -11253,7 +11279,7 @@ function drawFilmShoot(g,L,now){
     g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,245,210,0.45)"; g.fillRect(X-14,HORIZON-11,11,9); g.globalCompositeOperation="source-over";
     g.fillStyle="#1c1e24"; g.fillRect(X+8,HORIZON-6,4,3); g.fillRect(X+9,HORIZON-3,1,3); g.fillRect(X+7,HORIZON-1,5,1);   // camera + tripod
     g.fillStyle="#3a3e46"; g.fillRect(X+12,HORIZON-5,1,1);                                              // lens
-    drawPerson(g,X+5,HORIZON-1,"#2a2c34",SKINC[0],0); g.fillStyle="#5a4a30"; g.fillRect(X+4,HORIZON-3,3,1);   // director + chair
+    drawPerson(g,X+5,HORIZON-1,"#2a2c34",SKINC[0],-1); g.fillStyle="#5a4a30"; g.fillRect(X+4,HORIZON-3,3,1);   // director + chair
     drawPerson(g,X-6,HORIZON-1,"#d24a4a",SKINC[1],(Math.floor(now/500))&1);                             // actors under the light
     drawPerson(g,X-3,HORIZON-1,"#4a7fd2",SKINC[3],(Math.floor(now/500)+1)&1);
     if((Math.floor(now/1200))%4===0){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,255,255,0.28)"; g.fillRect(X-14,HORIZON-12,13,11); g.globalCompositeOperation="source-over"; }  // clapper flash
@@ -11331,7 +11357,7 @@ function drawSite(g,st,L,now,nd){
       g.fillStyle="rgba(28,28,34,0.85)"; g.fillRect(troX|0,jy,1,Math.max(1,(loadY-jy)|0));    // hoist cable
       g.fillStyle="#c9a23a"; g.fillRect((troX-1)|0,loadY|0,3,2);                              // hanging load
       if(L<0.6&&(Math.floor(now/700))%2===0){ g.fillStyle="#ff4040"; g.fillRect(mastX,mastTop-1,1,1); }  // aviation light
-      if(L>0.4) drawPerson(g,X+2+(st.seed%Math.max(1,w-4)),topY-2,"#ffd24a",SKINC[st.seed%SKINC.length],0);  // a hi-vis worker
+      if(L>0.4) drawPerson(g,X+2+(st.seed%Math.max(1,w-4)),topY-2,"#ffd24a",SKINC[st.seed%SKINC.length],-1);  // a hi-vis worker
     }
     // hoarding / fence at the base
     g.fillStyle=L>0.5?"#3f6ab0":"#1f3048"; g.fillRect(X-1,gy-2,w+2,2);
@@ -11356,7 +11382,7 @@ function drawSite(g,st,L,now,nd){
           g.fillStyle="#fff0c0"; g.fillRect(X+(st.seed%Math.max(1,w-1)),topY+1,1,1); }
         // extra crew on the deck (firm colours) + a ground spotter by the truck
         drawPerson(g,X+w-3-((st.seed>>3)%Math.max(1,w-4)),topY-2,firm.c,SKINC[(st.seed+2)%SKINC.length],(Math.floor(now/420))&1);
-        drawPerson(g,tx-2,gy-3,firm.c,SKINC[(st.seed+5)%SKINC.length],0);
+        drawPerson(g,tx-2,gy-3,firm.c,SKINC[(st.seed+5)%SKINC.length],-1);
         // welding sparks at the top course + a firm-coloured cap on the crane mast
         if((Math.floor(now/160)+st.seed)%3===0){ g.fillStyle="#dff0ff"; g.fillRect(X+2+((st.seed>>1)%Math.max(1,w-3)),topY+2,1,1); }
         g.fillStyle=firm.c; g.fillRect(X+w+2,gy-builtH-19,2,2);
@@ -11571,7 +11597,7 @@ function drawDisasterBuilding(g,b,X,cd,L,now){
     var jib=w+8, slew=Math.sin(now*0.0006+cd.seed);
     if(slew>0) g.fillRect(mastX+2,mastTop,jib,1); else g.fillRect(mastX-jib,mastTop,jib,1);              // slewing jib
     if(L<0.6&&(Math.floor(now/700))%2===0){ g.fillStyle="#ff4040"; g.fillRect(mastX,mastTop-1,1,1); }
-    if(L>0.4) drawPerson(g,X+2+(cd.seed%Math.max(1,w-4)),top-2,"#ffd24a",SKINC[cd.seed%SKINC.length],0); // hi-vis worker
+    if(L>0.4) drawPerson(g,X+2+(cd.seed%Math.max(1,w-4)),top-2,"#ffd24a",SKINC[cd.seed%SKINC.length],-1); // hi-vis worker
     g.fillStyle=L>0.5?"#3f6ab0":"#1f3048"; g.fillRect(X-1,gy-2,w+2,2);                                   // hoarding
     return;
   }
@@ -12760,7 +12786,7 @@ function drawArenaSite(g,x,L,now,team,sIdx,prog){
     var ba=Math.sin(now*0.004)*3; g.fillStyle="#3a3f48"; g.fillRect((ex+3)|0,y-8,6,1); g.fillRect((ex+8)|0,(y-8+ba)|0,1,4);
     g.fillStyle=firm.c; g.fillRect((ex+7)|0,(y-4+ba)|0,3,2);
     if((Math.floor(now/300))&1){ g.fillStyle="rgba(200,190,170,0.4)"; g.fillRect((ex+9)|0,y-3,3,2); }
-    drawPerson(g,x-hw+8,y-8,firm.c,SKINC[sIdx%SKINC.length],0);
+    drawPerson(g,x-hw+8,y-8,firm.c,SKINC[sIdx%SKINC.length],-1);
     drawPerson(g,x+hw-9,y-8,firm.c,SKINC[(sIdx+3)%SKINC.length],(Math.floor(now/500))&1);
     if(w>=90) drawArenaName(g,x,y-24,"BREAKING GROUND",col,L);
   } else {
@@ -13292,7 +13318,7 @@ function drawFelling(g,X,gy,day,now,seed,p){
     var tipx=X+dir*Math.sin(a)*trunkL, tipy=gy-Math.cos(a)*trunkL;
     g.fillStyle=day?"#3e7a34":"#2e5232";
     g.fillRect((tipx-1)|0,(tipy-1)|0,3,2); g.fillRect(tipx|0,(tipy-2)|0,1,1);
-    drawPerson(g,X-dir*5,gy-1,day?"#7a5a3a":"#55432c",SKINC[1],0);   // axeman stands well back
+    drawPerson(g,X-dir*5,gy-1,day?"#7a5a3a":"#55432c",SKINC[1],-1);   // axeman stands well back
   } else {                                                      // DOWN — stump, bucked logs, sawing
     g.fillStyle=day?"#6a4a2a":"#42301c"; g.fillRect(X,gy-1,1,2);              // stump
     g.fillStyle=day?"#7a5a34":"#4a3826";
@@ -17378,7 +17404,7 @@ function drawElections(g,L,now,night){
     for(var w=-1;w<=1;w++){ var RX=(rx+w*WW)|0; if(RX<-30||RX>SW+30) continue;
       g.fillStyle=L>0.5?"#6a4a30":"#3e3020"; g.fillRect(RX-2,HORIZON-4,6,3);          // podium
       drawPerson(g,RX,HORIZON-5,M.party.c,"#c9a184",(Math.floor(now/500))&1);         // the candidate, mid-speech
-      for(var cr2=0;cr2<8;cr2++) drawPerson(g,RX-14+cr2*3+((cr2*7)%2),HORIZON-1,PEDC[cr2%PEDC.length],SKINC[cr2%SKINC.length],0);
+      for(var cr2=0;cr2<8;cr2++) drawPerson(g,RX-14+cr2*3+((cr2*7)%2),HORIZON-1,PEDC[cr2%PEDC.length],SKINC[cr2%SKINC.length],-1);
       g.fillStyle=M.party.c; g.fillRect(RX-14,HORIZON-12,1,8); g.fillRect(RX-13,HORIZON-12,4,2);   // banners
       g.fillStyle=M.party2.c; g.fillRect(RX+16,HORIZON-12,1,8); g.fillRect(RX+13,HORIZON-12,3,2);
     }
@@ -17421,7 +17447,7 @@ function drawElections(g,L,now,night){
       g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,250,220,0.13)";                     // crossing spotlights
       for(var sl=0;sl<8;sl++){ g.fillRect((DX-10+Math.sin(now*0.001)*4)|0,(HORIZON-24+sl*3)|0,1+sl,1); g.fillRect((DX+10-Math.sin(now*0.001)*4-sl)|0,(HORIZON-24+sl*3)|0,1+sl,1); }
       g.globalCompositeOperation="source-over";
-      for(var dc=0;dc<10;dc++) drawPerson(g,DX-16+dc*3+((dc*5)%2),HORIZON-1,PEDC[dc%PEDC.length],SKINC[dc%SKINC.length],0); }
+      for(var dc=0;dc<10;dc++) drawPerson(g,DX-16+dc*3+((dc*5)%2),HORIZON-1,PEDC[dc%PEDC.length],SKINC[dc%SKINC.length],-1); }
     var dl="DEBATE TONIGHT", dlw=textW(dl);
     for(var wdb=-1;wdb<=1;wdb++){ var dbxp=dxw-(dlw>>1)-2-WOFF+wdb*WW; if(dbxp>SW+2||dbxp+dlw+4<-2) continue;
       g.fillStyle="rgba(10,14,26,0.82)"; g.fillRect(dbxp|0,HORIZON-27,dlw+4,8); g.fillStyle="#e0d24a"; g.fillRect(dbxp|0,HORIZON-28,dlw+4,1); }
@@ -18303,7 +18329,7 @@ function drawWar(g,L,now,night){
     if(f<1.5){ var FP=wx-WOFF;
       for(var w7=-1;w7<=1;w7++){ var PX2=FP+w7*WW; if(PX2<-40||PX2>SW+40) continue;
         var mx3=((f-1)*40)%30;
-        for(var m5=0;m5<6;m5++) drawPerson(g,PX2-20+m5*4-mx3,HORIZON-1,"#20222c","#c9a184",0);   // the procession, in black
+        for(var m5=0;m5<6;m5++) drawPerson(g,PX2-20+m5*4-mx3,HORIZON-1,"#20222c","#c9a184",-1);   // the procession, in black
         g.fillStyle="#3a3f4a"; g.fillRect(PX2+6-mx3,HORIZON-3,6,2);                              // the casket, carried slow
         g.fillStyle="#5a6172"; g.fillRect(PX2+26,HORIZON-12,1,12);                               // the flag at half-mast
         g.fillStyle="#c02030"; g.fillRect(PX2+27,HORIZON-8,3,2); }
@@ -20056,6 +20082,7 @@ function draw(g,pass){
   var apocRealNow=now;                          // keep the true wall-clock; `now` may be warped below for a missed-apoc REPLAY
   apocDeferTick(apocRealNow);                    // did the PC sleep through a cataclysm? queue a replay if so
   now=apocEffNow(apocRealNow);                   // during a queued replay, warp `now` to that missed life so its end plays out
+  FRAME_NOW=now;                                 // publish the settled clock for sprite helpers (see FRAME_NOW)
   var lifeI=lifeIndexOf(now); if(lifeI!==curLife) buildWorld(lifeI);   // REBIRTH: roll a brand-new city (masked by the ash veil)
   maybeFetchWeather();          // all monitors fetch on the same 10-min wall-clock window → identical weather
   maybeFetchAirq();             // and the same 30-min window for air quality (wildfire smoke)

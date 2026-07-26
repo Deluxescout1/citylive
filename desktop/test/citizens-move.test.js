@@ -98,6 +98,89 @@ for (const hour of [13, 20]) {
   });
 }
 
+// ⚠⚠ THE TESTS ABOVE ONLY WATCH drawNamedCitizens, AND THAT IS AT MOST 120 OF ~195 PEOPLE ON
+// SCREEN. They passed while a third of the crowd was still frozen solid, and Nick said so: "that
+// didn't do anything there are still people still standing there it looks bad af". Forty-nine
+// drawPerson call sites passed a literal 0 bob — a fixed pose forever — and drawSeated had no
+// animation at all. Neither was visible to a test that only looks at the named roster.
+//
+// So this one watches EVERY person the frame draws, by hashing the actual fillRects each one emits.
+// If a person's pixels never change over a five-second glance, they are a statue, whoever drew them.
+function frozenCensus(hour, life) {
+  const E = engine();
+  E.NOFETCH = true;
+  E.GROW_CYCLE = CYC;
+  const d = new Date(EPOCH + life * CYC + Math.round(0.45 * CYC));
+  d.setHours(hour, 0, 0, 0);
+  E.NOWOVR = E.CLOCK = d.getTime();
+  E.setup('neon', { cw: 854, ch: 480, woff: 776, ww: 2269, pxk: 3, zoom: 1, taskbarWp: 28, quality: 'balanced', frameMs: 125 });
+  E.FORCEAGE = 0.85;
+  E.weather.code = 0; E.weather.wind = 6; E.weather.temp = 62;
+
+  let rec = null;                       // when non-null, collect the ops of the sprite being drawn
+  const g = new Proxy({}, {
+    get(_t, p) {
+      if (p === 'measureText') return (x) => ({ width: String(x || '').length * 4 });
+      if (p === 'createLinearGradient' || p === 'createRadialGradient' || p === 'createPattern') return () => ({ addColorStop() {} });
+      if (p === 'getImageData') return () => ({ data: [] });
+      if (p === 'canvas') return { width: 854, height: 480 };
+      return (...a) => { if (rec) rec.push(p + a.join(',')); };
+    },
+    set(_t, p, v) { if (rec) rec.push(p + '=' + v); return true; }
+  });
+  const owners = [];
+  for (const n of Object.keys(E).filter(k => typeof E[k] === 'function' && /^draw/.test(k) && k !== 'draw' && k !== 'drawPerson' && k !== 'drawSeated')) {
+    const o = E[n];
+    E[n] = function () { owners.push(n); try { return o.apply(this, arguments); } finally { owners.pop(); } };
+  }
+  let frame = [];
+  for (const fn of ['drawPerson', 'drawSeated']) {
+    const orig = E[fn];
+    E[fn] = function () {
+      const outer = rec; rec = [];
+      try { return orig.apply(this, arguments); }
+      finally {
+        const sig = rec.join('|'); rec = outer; if (rec) rec.push(sig);
+        frame.push({ who: (owners.length ? owners[owners.length - 1] : 'draw()') + (fn === 'drawSeated' ? ' (seated)' : ''), sig });
+      }
+    };
+  }
+  const series = [];
+  for (let f = 0; f < 41; f++) { frame = []; rec = null; E.draw(g, 'live'); series.push(frame); E.NOWOVR = E.CLOCK = E.NOWOVR + 125; }
+
+  // people are drawn in a stable order per calling function, so index-within-caller identifies one
+  const tracks = new Map();
+  for (const fr of series) {
+    const seen = new Map();
+    for (const p of fr) {
+      const i = seen.get(p.who) || 0; seen.set(p.who, i + 1);
+      const k = p.who + '#' + i;
+      if (!tracks.has(k)) tracks.set(k, []);
+      tracks.get(k).push(p.sig);
+    }
+  }
+  const worst = new Map();
+  let people = 0, frozen = 0;
+  for (const [k, sigs] of tracks) {
+    if (sigs.length < 38) continue;                 // only people present for the whole glance
+    people++;
+    if (new Set(sigs).size === 1) { frozen++; const who = k.split('#')[0]; worst.set(who, (worst.get(who) || 0) + 1); }
+  }
+  return { people, frozen, worst };
+}
+
+for (const hour of [9, 13, 20]) {
+  test(`at ${hour}:00 not one person on screen is a statue`, () => {
+    const r = frozenCensus(hour, 76);
+    assert.ok(r.people > 80, `only ${r.people} people were drawn — the scenario is wrong`);
+    const blame = [...r.worst.entries()].sort((a, b) => b[1] - a[1]).map(([w, n]) => `${w} x${n}`).join(', ');
+    assert.ok(r.frozen / r.people <= 0.03,
+      `${r.frozen} of ${r.people} people rendered IDENTICAL PIXELS for 5 seconds (${blame}). ` +
+      `Was 30% before the fix. A new drawPerson call site passing a literal 0 bob is the usual cause — ` +
+      `pass -1 for "standing about" instead.`);
+  });
+}
+
 test('the amble is still a pure, continuous function of (seed, now)', () => {
   // The whole reason a sine was chosen: no state, safe across a freeze, and identical on both sides
   // of a bezel where two screens draw the same citizen. A walk-stand-walk cycle has to keep that.
