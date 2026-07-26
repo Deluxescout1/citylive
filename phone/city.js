@@ -2532,6 +2532,18 @@ var BIOMES=[
     fauna:{ keep:{deer:0,rabbit:1,fox:1,goat:0}, big:["bison","pronghorn","cattle"], small:["prairiedog"], air:["hawk"] },
     flora:{ kinds:["grass","grass","cottonwood","grass","scrub"], bloom:["#e8c860","#d8a0c8","#ffffff","#e0d070"] },
     sky:{ top:[150,180,222], bot:[212,222,232], k:0.26, haze:[214,220,214] } },
+  // The coast Nick asked for by name: "the beach needs to feel like a beach." Almost no relief — its
+  // landform is DUNES — `flat:0` on purpose, because quantising low mounds into strata turns them
+  // into stepped ZIGGURATS, which is what the first render of this land showed. Everything that
+  // identifies it is the water, the palms and the reef rather
+  // than a ridge. `water:"sea"` forces a coast, and buildWorld gives it a wide bay like the cliffs,
+  // because a beach with a sliver of sea at the world's seam is not a beach.
+  { k:"beach",  name:"CORAL COAST", amp:0.15, base:0.74, flat:0.0,  steep:0.0, snow:false, water:"sea",
+    far:[222,206,170],  near:[198,176,134], cap:[242,232,204], ground:[234,220,182],
+    walls:[[248,244,236],[236,206,196],[196,228,228],[240,226,190],[228,238,236],[214,178,158],[250,238,214],[186,214,212]],
+    fauna:{ keep:{deer:0,rabbit:0,fox:0,goat:0}, big:["turtle"], small:["crab","hermitcrab"], air:["tern","frigate"] },
+    flora:{ kinds:["palm","palm","seagrape","palm","pandanus"], bloom:["#f26a8d","#ffd166","#ffffff","#f4977a"] },
+    sky:{ top:[104,172,224], bot:[208,236,238], k:0.30, haze:[214,238,234] } },
   // THE LAST TWO ARE NOT EARTH. Everything else in this table is plausible geography under one sun;
   // these are not, and they are the only rows whose `sky.k` runs high enough to genuinely repaint the
   // day. They still obey the same rule every other biome does: the REAL Norwich clock and the REAL
@@ -2581,7 +2593,14 @@ var FAUNA={
   owl:       {plan:"bird", c:[128,110,84], perch:1, night:1},
   vulture:   {plan:"bird", c:[46,40,38],   soar:1},
   hawk:      {plan:"bird", c:[112,86,56],  soar:1, perch:1},
-  dove:      {plan:"bird", c:[248,248,255], soar:1}
+  dove:      {plan:"bird", c:[248,248,255], soar:1},
+  // CORAL COAST. The turtle is a `quad` with `legless` — the same posture the hauled-out seal uses,
+  // because a sea turtle on sand is a low shell on flippers and not a barrel on legs.
+  turtle:    {plan:"quad", w:10,h:5, c:[86,102,72],   c2:[58,72,50],   head:"seal", legless:1, shell:1},
+  crab:      {plan:"spot", c:[196,84,58],  c2:[236,140,104], claws:1},
+  hermitcrab:{plan:"spot", c:[164,140,104], c2:[204,186,152], shell:1},
+  tern:      {plan:"bird", c:[244,246,250], soar:1},
+  frigate:   {plan:"bird", c:[42,44,52],   soar:1}
 };
 // Distance haze fades everything toward THE SKY IT IS UNDER. This was a hardcoded pale blue, which
 // is right for five biomes and wrong for the two that repaint the day — under an infernal sky the
@@ -2854,8 +2873,8 @@ function buildWorld(li){
   // seven, and the reason was that a biome literally called SEA CLIFFS was rendering with no visible
   // water at all — 4.5-8% of the world per side is a sliver at the seam you only meet on the outer
   // monitor. A real expanse is the difference between a grey wall and a coastline.
-  seaW = hasOcean ? (curBiome.k==="cliffs" ? (0.15+geo()*0.06) : (0.045+geo()*0.035)) : 0;
-  WATER_W = (curBiome.k==="cliffs") ? 0.21 : 0.11;   // the SEA CLIFFS get a bay you can see
+  seaW = hasOcean ? ((curBiome.k==="cliffs"||curBiome.k==="beach") ? (0.15+geo()*0.06) : (0.045+geo()*0.035)) : 0;
+  WATER_W = (curBiome.k==="cliffs"||curBiome.k==="beach") ? 0.21 : 0.11;   // the coasts get a bay you can see
   // Dry biomes get a RIVER through the city instead of a coast: the waterfront becomes a riverbank,
   // and the harbour's deep-water shipping becomes barge traffic (drawRiver / riverAt).
   hasRiver = !hasOcean && curBiome.water==="river";
@@ -6471,12 +6490,98 @@ function drawHarborBridge(g,L,now,night,wTop){
       for(var lx=xa+2;lx<xb;lx+=4) g.fillRect(lx|0,deckY-1,1,1); g.globalCompositeOperation="source-over"; }
   }
 }
+// THE REEF AND THE LAGOON. Called from drawHarbor, immediately after the water body is painted, for
+// the same reason drawShoreLife is: the water is drawn late, so anything belonging IN it has to be
+// drawn later still. The coral coast carries almost no relief by design, so unlike every other land
+// here none of its identity is in its skyline — it is all in the water and on the sand.
+function drawReefLagoon(g,L,now,sa,sb,zi,wTop){
+  if(curBiome.k!=="beach") return;
+  var span=sb-sa; if(span<12) return;
+  var day=L>0.5, K=Math.max(1,KSP);
+  var inner=zi?sa:sb, sgn=zi?-1:1;
+  // THE LAGOON: a pale turquoise shelf hugging the shore, which is what makes tropical water read as
+  // tropical. Open sea keeps the deep blue every other coast uses.
+  g.fillStyle=day?"rgba(104,214,206,0.34)":"rgba(26,80,92,0.36)";
+  var shelf=Math.round(span*0.42);
+  for(var lq=0;lq<shelf;lq++)
+    g.fillRect(inner-sgn*lq,wTop+Math.round((lq/Math.max(1,span))*7*K),1,HORIZON-wTop);
+  // THE REEF CREST — breakers standing in one place, because a reef does not move. The single
+  // strongest "coral coast" cue in the frame.
+  var rfX=inner-sgn*Math.round(span*0.46);
+  g.fillStyle=day?"rgba(214,238,228,0.40)":"rgba(64,102,110,0.32)";
+  g.fillRect(Math.min(rfX,inner),wTop,Math.abs(inner-rfX),Math.max(1,Math.round(K)));
+  for(var ry=wTop+Math.round(2*K);ry<HORIZON;ry+=Math.max(1,Math.round(2*K))){
+    var br=Math.sin(now*0.0021+ry*0.42+sa);
+    if(br<0.1) continue;
+    g.fillStyle="rgba(255,255,255,"+(0.24+0.46*br).toFixed(2)+")";
+    g.fillRect(rfX-Math.round(2*K),ry,Math.round(4*K)+Math.round(br*2*K),Math.max(1,Math.round(K)));
+  }
+  // HUTS OVER THE WATER on stilts, with a walkway out to them — this land's traversal layer.
+  if(cityG>0.30){
+    var nH=2+(((sa*2654435761)>>>0)%2);
+    for(var hq=0;hq<nH;hq++){
+      var hxx=inner-sgn*Math.round(span*(0.14+hq*0.11)), hyy=wTop+Math.round((7+hq*6)*K);
+      g.fillStyle=day?"rgba(170,142,104,0.85)":"rgba(38,30,20,0.85)";
+      g.fillRect(Math.min(hxx,inner),hyy-Math.round(3*K),Math.abs(inner-hxx),Math.max(1,Math.round(K)));  // walkway
+      g.fillStyle=day?"#8a6a44":"#2a2016";
+      for(var stq=0;stq<3;stq++) g.fillRect(hxx+stq*Math.round(2*K),hyy,Math.max(1,Math.round(K)),Math.round(4*K));  // stilts
+      g.fillStyle=day?"#c9ab7a":"#3a2e1e"; g.fillRect(hxx-Math.round(K),hyy-Math.round(3*K),Math.round(7*K),Math.round(3*K));
+      g.fillStyle=day?"#a8763e":"#2e2214"; g.fillRect(hxx-Math.round(2*K),hyy-Math.round(5*K),Math.round(9*K),Math.round(2.4*K));  // thatch
+      if(!day){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,198,120,0.8)";
+        g.fillRect(hxx+Math.round(2*K),hyy-Math.round(2*K),Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
+        g.globalCompositeOperation="source-over"; }
+    }
+  }
+  // THE WRECK — this land's signature landmark, and the one that had to live in the water rather than
+  // in `drawBiomeLandmark` with the others: a freighter driven onto the reef long enough ago that the
+  // town grew up looking at it. It LISTS, it is broken in two, and the sea shows through the gap —
+  // an upright unbroken hull just reads as a moored ship.
+  if(zi===0){
+    var wkX=rfX-sgn*Math.round(span*0.06), wkY=wTop+Math.round(13*K);
+    var hullW=Math.round(26*K), hullH=Math.round(5*K), list=Math.round(2*K);
+    var rust=day?"#8a4a34":"#2c1a14", rust2=day?"#6a3626":"#1e120e", deck=day?"#9a9689":"#2e2c28";
+    for(var hq2=0;hq2<hullW;hq2++){
+      if(hq2>hullW*0.44&&hq2<hullW*0.56) continue;                      // the break amidships
+      var lf=hq2/hullW, tilt=Math.round(lf*list);
+      var hh2=Math.round(hullH*(1-Math.abs(lf-0.5)*0.5));
+      g.fillStyle=(hq2%Math.max(2,Math.round(4*K))===0)?rust2:rust;
+      g.fillRect(wkX-Math.round(hullW*0.5)+hq2,wkY+tilt-hh2,Math.max(1,Math.round(K)),hh2);
+      if(hq2%Math.max(2,Math.round(3*K))===0){ g.fillStyle=deck;
+        g.fillRect(wkX-Math.round(hullW*0.5)+hq2,wkY+tilt-hh2,Math.max(1,Math.round(K)),Math.max(1,Math.round(K))); }
+    }
+    g.fillStyle=rust;                                                    // the superstructure, canted aft
+    g.fillRect(wkX+Math.round(hullW*0.20),wkY+list-Math.round(hullH*1.9),Math.round(5*K),Math.round(4*K));
+    g.fillStyle=rust2;
+    g.fillRect(wkX+Math.round(hullW*0.24),wkY+list-Math.round(hullH*2.9),Math.round(2*K),Math.round(3*K));   // funnel
+    g.fillStyle=deck;                                                    // a mast still standing forward
+    g.fillRect(wkX-Math.round(hullW*0.30),wkY-Math.round(hullH*2.6),Math.max(1,Math.round(K)),Math.round(6*K));
+    g.fillStyle="rgba(255,255,255,"+(0.30+0.30*Math.abs(Math.sin(now*0.0019+sa))).toFixed(2)+")";
+    g.fillRect(wkX-Math.round(hullW*0.5),wkY+Math.round(1.4*K),hullW,Math.max(1,Math.round(K)));             // surf against it
+    if(!day){ g.globalCompositeOperation="lighter";                      // a warning light someone rigged
+      if(((Math.floor(now/1200))&1)){ g.fillStyle="rgba(255,90,70,0.9)";
+        g.fillRect(wkX-Math.round(hullW*0.30),wkY-Math.round(hullH*2.6)-Math.round(K),Math.max(1,Math.round(1.4*K)),Math.max(1,Math.round(1.4*K))); }
+      g.globalCompositeOperation="source-over"; }
+  }
+  // OUTRIGGER CANOES working the lagoon.
+  for(var cq=0;cq<2;cq++){
+    var ccyc=54000+cq*13000, cp=((now+cq*21000)%ccyc)/ccyc, cf=cp<0.5?cp*2:2-cp*2;
+    var cxx=inner-sgn*Math.round(span*(0.10+cf*0.32)), cyy=wTop+Math.round((10+cq*8)*K);
+    g.fillStyle=day?"#7a5a34":"#241a10";
+    g.fillRect(cxx-Math.round(3*K),cyy,Math.round(6*K),Math.max(1,Math.round(1.4*K)));                 // hull
+    g.fillRect(cxx-Math.round(4*K),cyy+Math.round(2*K),Math.round(3*K),Math.max(1,Math.round(K)));     // the float
+    g.fillStyle=day?"#5a4228":"#1a1208";
+    g.fillRect(cxx-Math.round(2*K),cyy+Math.round(K),Math.max(1,Math.round(K)),Math.round(K));         // spar
+    g.fillStyle=day?"#e8e2d0":"#3a3830";
+    for(var sq=0;sq<Math.round(4*K);sq++)
+      g.fillRect(cxx+Math.round(K),cyy-sq,Math.max(1,Math.round(K*(1-sq/(5*K)))+1),1);                 // a small sail
+  }
+}
 function drawHarbor(g,L,now,night,nd){
   // ⚠ THIS is the water the wallpaper actually shows. `drawOpenSea` below looks like the ocean
   // renderer and is NOT REACHED by any shipped shell — it hangs off a `pass==="water"` branch and
   // both real shells draw only "bg" and "live". Anything added there is invisible in production;
   // that is the shell-pass trap wearing a different hat.
-  var wTop=HORIZON-(curBiome.k==="cliffs"?Math.round(46*Math.max(1,KSP)):22), dayW=mixc([26,58,84],[92,152,188],L), wc=css(dayW);
+  var wTop=HORIZON-((curBiome.k==="cliffs"||curBiome.k==="beach")?Math.round(46*Math.max(1,KSP)):22), dayW=mixc([26,58,84],[92,152,188],L), wc=css(dayW);
   eachWaterSpan(function(sa,sb,zi){ var ww=sb-sa; if(ww<=0) return;
     var shoreA=gstage(0.3,0.6);                                                   // the far shore builds up with the city
     if(shoreA>0){ g.globalAlpha=shoreA;
@@ -6486,6 +6591,7 @@ function drawHarbor(g,L,now,night,nd){
     g.globalAlpha=1; }
     waterTex(g,sa,sb,wTop,HORIZON,L,now);                                           // water body w/ rolling swell
     drawMtsReflection(g,sa,sb,wTop,HORIZON-wTop-2,L);                               // the range mirrored in the bay
+    drawReefLagoon(g,L,now,sa,sb,zi,wTop);                                          // …and the coral coast's reef
     var dockA=gstage(0.32,0.62);                                                    // before the quays pave in,
     if(dockA<1){                                                                    // the bay wears a natural sand ring
       var ga3=g.globalAlpha; g.globalAlpha=(1-dockA);
@@ -6508,7 +6614,7 @@ function drawHarbor(g,L,now,night,nd){
     // rocky coast keeps its tide pools next door to a working harbour, and on the sea cliffs the
     // shore is the whole reason the land is interesting. Land edge is the far end of span 0 and the
     // near end of span 1 — the two spans meet across the world seam and make one bay.
-    if(curBiome.k==="cliffs"){
+    if(curBiome.k==="cliffs"||curBiome.k==="beach"){
       var shSide=zi?-1:1, shEx=(zi?sa:sb);
       var tK=tideLevel(now,nd||nowDate());
       shEx+=Math.round(tK*11*Math.max(1,KSP))*shSide;                 // high water advances onto the land
@@ -7727,7 +7833,7 @@ function drawOpenSea(g,L,now,night){
       // …and where the WATER's edge is right now. The land does not move; the sea does. On the sea
       // cliffs the range is wide enough to expose a real shore at low water and drown it at high.
       var tideK=tideLevel(now,nowDate());
-      var tideR=Math.round((curBiome.k==="cliffs"?11:4)*Math.max(1,KSP));
+      var tideR=Math.round(((curBiome.k==="cliffs"||curBiome.k==="beach")?11:4)*Math.max(1,KSP));
       var tideX=Math.round(tideK*tideR)*side;                   // high water advances onto the land
       ex+=tideX;
       if(ex<-10||ex>SW+10) continue;
@@ -9935,6 +10041,15 @@ function drawQuad(g,x,y,day,now,seed,sp,K){
     g.fillStyle=c2;
     g.fillRect(x+Math.round(w*0.30),top+bodyH-u,Math.max(2,Math.round(w*0.22)),u*2);   // fore flipper
     g.fillRect(x+w-Math.round(w*0.10),top+Math.round(bodyH*0.2),u,Math.max(1,u*2));    // tail fluke
+    if(sp.shell){                                                                      // a turtle's carapace,
+      g.fillStyle=c2;                                                                  // domed and plated
+      g.fillRect(x+Math.round(w*0.12),top-u,Math.round(w*0.76),u);
+      g.fillStyle=c;
+      for(var pl=0;pl<3;pl++)
+        g.fillRect(x+Math.round(w*(0.22+pl*0.22)),top,Math.max(1,u),Math.max(1,Math.round(bodyH*0.6)));
+      g.fillStyle=c2;
+      g.fillRect(x+Math.round(w*0.06),top+bodyH-u,Math.max(2,Math.round(w*0.18)),u*2); // rear flipper
+    }
     g.fillStyle=c;
   } else {
     g.fillRect(x,top,w,bodyH);                                            // the barrel
@@ -9982,12 +10097,21 @@ function drawSpot(g,x,y,day,now,seed,sp,K){
     g.fillStyle=c;
     if(sp.tail==="bushy") g.fillRect(x-u,y-u*3,u,u*2);
     else if(sp.tail==="long") g.fillRect(x-u*2,y-u,u*2,Math.max(1,Math.round(u*0.6)));
-    if(sp.legs) { g.fillStyle=c2; g.fillRect(x+(mv?0:u),y,u,u); } }
+    if(sp.legs) { g.fillStyle=c2; g.fillRect(x+(mv?0:u),y,u,u); }
+    if(sp.claws){ g.fillStyle=c2;                                    // a crab carries its claws AHEAD
+      g.fillRect(x+u*2,y-u,u,u); g.fillRect(x+u*3,y-u*(mv?2:1),u,u);
+      g.fillStyle=c; g.fillRect(x-u,y,u,u); g.fillRect(x+u*2,y,u,u); }   // and walks on legs either side
+    if(sp.shell){ g.fillStyle=c2;                                    // a hermit crab wears its house
+      g.fillRect(x-u,y-u*2,u*2,u*2); g.fillStyle=c; g.fillRect(x,y-u*2,u,u); } }
 }
 // Perched or soaring. Raptors ride a slow circle high over the land; the owl only shows at night,
 // sat still. drawBird already writes the wingbeat, so this only has to decide where and when.
 function drawFaunaBird(g,L,now,sp,seed,gy,K){
-  var day=L>0.5, col=day?"rgba(38,34,32,0.92)":"rgba(150,150,160,0.55)";
+  // ⚠ This used to hardcode a dark silhouette for every soaring bird, which meant the Empyrean's
+  // WHITE DOVES have been rendering as black specks since they were added, and a white tern on the
+  // coral coast would have done the same. The species' own colour, drained toward the night.
+  var day=L>0.5;
+  var col=day?rgba(sp.c,0.92):rgba(mixc(sp.c,[40,44,58],0.6),0.6);
   if(sp.night&&day) return;
   if(sp.soar&&day){                                                    // a slow thermal circle
     var t=now*0.00013+seed, cxw=wrapW((seed%997)/997*WW+Math.cos(t)*90);
@@ -11945,6 +12069,55 @@ function drawBiomePlant(g,X,gy,day,now,seed,sc,kind,swayOn){
     g.fillStyle=C([78,62,46]); R(-lw2/2,-lh2,lw2,lh2);                    // a fallen giant, going back
     g.fillStyle=C([72,104,64]); R(-lw2/2,-lh2-Math.round(K*0.8),lw2,Math.max(1,Math.round(K*0.8)));  // moss
     g.fillStyle=C([58,46,34]); R(-lw2/2,-lh2*0.6,Math.max(1,Math.round(K)),lh2*0.6);
+  } else if(kind==="palm"){
+    // A COCONUT PALM. The whole plant is the CURVE and the droop: a straight stem with a symmetric
+    // star of fronds on top is a dandelion, and it is the single thing that would stop a beach
+    // reading as a beach. The stem leans, and each frond arcs out and then falls — so the silhouette
+    // is asymmetric even before the wind touches it.
+    var ph2=Math.round((15+(seed%9))*K), lean=(((seed>>2)%100)/100-0.5)*0.55+sway*0.05;
+    var stw=Math.max(1,Math.round(1.6*K));
+    g.fillStyle=C([132,104,70]);
+    for(var py2=0;py2<ph2;py2++){                                          // the leaning, ringed stem
+      var pf3=py2/ph2;
+      R(lean*py2*0.55-stw/2,-py2,stw+(pf3<0.25?Math.round(K*0.6):0),1);
+      if(py2%Math.max(2,Math.round(3*K))===0){ g.fillStyle=C([104,80,52]);
+        R(lean*py2*0.55-stw/2,-py2,stw,1); g.fillStyle=C([132,104,70]); }
+    }
+    var cx4=lean*ph2*0.55, cy4=-ph2;
+    var nF=6+((seed>>7)%3);
+    for(var fr2=0;fr2<nF;fr2++){
+      var fa2=(fr2/nF)*Math.PI*2+((seed>>4)%10)/10;
+      var reach2=(4.5+((seed>>(fr2%5))&3))*K, droop=0.5+((fr2*7)%5)*0.12;
+      g.fillStyle=C(fr2&1?[52,104,58]:[68,124,66]);
+      for(var fq2=1;fq2<reach2;fq2++){
+        var ff3=fq2/reach2;
+        var fx4=cx4+Math.cos(fa2)*fq2+sway*ff3*1.4;
+        var fy4=cy4+Math.sin(fa2)*fq2*0.45+ff3*ff3*reach2*droop*0.55;      // out, then falling away
+        R(fx4,fy4,Math.max(1,Math.round(K*(1-ff3*0.4))),Math.max(1,Math.round(K)));
+      }
+    }
+    g.fillStyle=C([86,64,40]);                                             // the nuts, under the crown
+    for(var nq=0;nq<3;nq++) if(((seed>>(nq+3))&3)) R(cx4-K+nq*K*1.1,cy4+K*0.8,Math.max(1,Math.round(1.4*K)),Math.max(1,Math.round(1.4*K)));
+  } else if(kind==="seagrape"){
+    var gh2=Math.round((4+(seed%3))*K);                                    // a low, dense salt-tolerant bush
+    g.fillStyle=C([64,102,68]);
+    folMass(g,X+sway*0.6,gy-gh2*0.55,gh2*0.95,gh2*0.55,seed,K);
+    g.fillStyle=C([96,132,84]);
+    folMass(g,X+sway*0.6-gh2*0.3,gy-gh2*0.85,gh2*0.45,gh2*0.3,(seed*31)>>>0,K);
+    if(!season_bare_ok(seed)){ g.fillStyle=C([182,74,96]);                 // clusters of dark red fruit
+      R(-gh2*0.2,-gh2*0.5,Math.max(1,Math.round(K)),Math.max(1,Math.round(1.6*K))); }
+  } else if(kind==="pandanus"){
+    var pnh=Math.round((7+(seed%4))*K);                                    // strap leaves off a stilt-root base
+    g.fillStyle=C([118,96,64]);
+    R(-Math.round(K*0.7),-pnh,Math.max(1,Math.round(1.4*K)),pnh);
+    for(var st4=0;st4<3;st4++)                                             // the prop roots it stands on
+      R(-Math.round(K*2)+st4*Math.round(K*1.6),-Math.round(pnh*0.28),Math.max(1,Math.round(K)),Math.round(pnh*0.28));
+    for(var lf2=0;lf2<7;lf2++){
+      var la=-2.5+lf2*0.62;
+      g.fillStyle=C(lf2&1?[74,116,72]:[56,96,60]);
+      for(var lq=1;lq<Math.round(5*K);lq++)
+        R(Math.cos(la)*lq+sway*(lq/(5*K)),-pnh+Math.sin(la)*lq*0.7+ (lq*lq)/(9*K),Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
+    }
   }
   biomePlantSnow(g,X,gy,sc,kind);      // the city's real weather still lands on the biome's plants
 }
@@ -13116,6 +13289,27 @@ function drawBiomeDetail(g,L,now,nd){
       for(var bl3=0;bl3<3;bl3++){ var a3=ang+bl3*2.094;
         for(var r3=1;r3<Math.round(9*K);r3++)
           g.fillRect((msx+Math.cos(a3)*r3)|0,(hub+Math.sin(a3)*r3)|0,1,1); } }
+  } else if(B.k==="beach"){
+    // ⚠ The reef, the lagoon and the huts over the water are NOT here, even though this is where a
+    // biome's detail belongs. drawBiomeDetail runs early in the backdrop and `drawHarbor` paints the
+    // water LATER, so anything drawn here that belongs in the sea is painted over and invisible —
+    // exactly what happened to the river before it was moved. See drawReefLagoon, called from
+    // drawHarbor. What stays here is what happens over the SAND.
+    // COCONUTS FALL. The land's "hanging and falling" beat, and Nick asked for it by name. One drops
+    // every few seconds somewhere along the shore, and it BOUNCES — a nut that lands and stops dead
+    // reads as a dropped pixel; the bounce is what says it had weight.
+    var cslot=Math.floor(now/4200), cr2=rng((cslot*40503+7)>>>0);
+    if(cr2()<0.75){
+      var cwx=cr2()*WW, cph=(now-cslot*4200)/1400;
+      if(cph<1.6){
+        var fallH2=Math.round(14*K), cyc2;
+        if(cph<=1) cyc2=gy-fallH2+cph*cph*fallH2;                     // accelerating down
+        else { var bb=(cph-1)/0.6; cyc2=gy-Math.sin(bb*Math.PI)*3.2*K; }   // then one small bounce
+        for(var o5=-WW;o5<=WW;o5+=WW){ var CX5=(cwx-WOFF+o5)|0; if(CX5<-4||CX5>SW+4) continue;
+          g.fillStyle=day?"#6b4f2c":"#160f08";
+          g.fillRect(CX5,Math.round(cyc2),Math.max(1,Math.round(1.6*K)),Math.max(1,Math.round(1.6*K))); }
+      }
+    }
   }
 }
 // WHAT STANDS ON TOP OF A FLAT-TOPPED MOUNTAIN.
