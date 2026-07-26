@@ -2544,6 +2544,20 @@ var BIOMES=[
     fauna:{ keep:{deer:0,rabbit:0,fox:0,goat:0}, big:["turtle"], small:["crab","hermitcrab"], air:["tern","frigate"] },
     flora:{ kinds:["palm","palm","seagrape","palm","pandanus"], bloom:["#f26a8d","#ffd166","#ffffff","#f4977a"] },
     sky:{ top:[104,172,224], bot:[208,236,238], k:0.30, haze:[214,238,234] } },
+  // THE BAYOU. Like the coral coast it has almost no relief (`flat:0` — a swamp with bedding planes is
+  // not a swamp), and where the beach's identity is in bright water, this land's is in DARK water that
+  // is everywhere.
+  // ⚠ It carries `water:"sea"`, NOT `"river"`, and the reason is worth keeping. A river only draws
+  // BELOW the horizon, and the near-ground band there is about 26 world px (it is sized for taskbar
+  // clearance) — so the first version of this land had a channel three times normal width that was
+  // still almost entirely off the bottom of the frame. A swamp is a wide expanse of water RECEDING to
+  // the horizon, which is exactly what the coast machinery already draws.
+  { k:"swamp",  name:"THE BAYOU",   amp:0.13, base:0.66, flat:0.0,  steep:0.0, snow:false, water:"sea",
+    far:[92,104,84],   near:[64,78,60],   cap:[126,138,104], ground:[74,84,62],
+    walls:[[178,170,150],[142,132,112],[196,190,172],[120,112,96],[166,152,128],[134,140,120],[188,178,152],[110,104,88]],
+    fauna:{ keep:{deer:1,rabbit:0,fox:0,goat:0}, big:["gator"], small:["frog","turtle2"], air:["heron","egret"] },
+    flora:{ kinds:["cypress","cypress","reeds","cypress","willow"], bloom:["#e8d8a0","#c8b070","#ffffff"] },
+    sky:{ top:[128,142,152], bot:[196,196,176], k:0.30, haze:[198,200,182] } },
   // THE LAST TWO ARE NOT EARTH. Everything else in this table is plausible geography under one sun;
   // these are not, and they are the only rows whose `sky.k` runs high enough to genuinely repaint the
   // day. They still obey the same rule every other biome does: the REAL Norwich clock and the REAL
@@ -2600,7 +2614,14 @@ var FAUNA={
   crab:      {plan:"spot", c:[196,84,58],  c2:[236,140,104], claws:1},
   hermitcrab:{plan:"spot", c:[164,140,104], c2:[204,186,152], shell:1},
   tern:      {plan:"bird", c:[244,246,250], soar:1},
-  frigate:   {plan:"bird", c:[42,44,52],   soar:1}
+  frigate:   {plan:"bird", c:[42,44,52],   soar:1},
+  // THE BAYOU. The gator is a `quad` with `legless` — the seal/turtle posture — because an alligator
+  // at rest is a long low body on the waterline, not a barrel on legs.
+  gator:     {plan:"quad", w:15,h:4, c:[62,74,54],   c2:[40,50,36],   head:"snout", legless:1, ridged:1},
+  frog:      {plan:"spot", c:[92,126,72],  c2:[164,190,116], upright:1},
+  turtle2:   {plan:"spot", c:[86,96,70],   c2:[122,132,96],  shell:1},
+  heron:     {plan:"bird", c:[128,142,152], perch:1, wader:1},
+  egret:     {plan:"bird", c:[246,248,246], perch:1, wader:1}
 };
 // Distance haze fades everything toward THE SKY IT IS UNDER. This was a hardcoded pale blue, which
 // is right for five biomes and wrong for the two that repaint the day — under an infernal sky the
@@ -2873,13 +2894,15 @@ function buildWorld(li){
   // seven, and the reason was that a biome literally called SEA CLIFFS was rendering with no visible
   // water at all — 4.5-8% of the world per side is a sliver at the seam you only meet on the outer
   // monitor. A real expanse is the difference between a grey wall and a coastline.
-  seaW = hasOcean ? ((curBiome.k==="cliffs"||curBiome.k==="beach") ? (0.15+geo()*0.06) : (0.045+geo()*0.035)) : 0;
-  WATER_W = (curBiome.k==="cliffs"||curBiome.k==="beach") ? 0.21 : 0.11;   // the coasts get a bay you can see
+  seaW = hasOcean ? ((curBiome.k==="cliffs"||curBiome.k==="beach") ? (0.15+geo()*0.06) : (curBiome.k==="swamp" ? (0.22+geo()*0.06) : (0.045+geo()*0.035))) : 0;
+  WATER_W = (curBiome.k==="cliffs"||curBiome.k==="beach") ? 0.21 : (curBiome.k==="swamp" ? 0.22 : 0.11);   // the coasts get a bay you can see; the bayou is mostly water
   // Dry biomes get a RIVER through the city instead of a coast: the waterfront becomes a riverbank,
   // and the harbour's deep-water shipping becomes barge traffic (drawRiver / riverAt).
   hasRiver = !hasOcean && curBiome.water==="river";
   riverX   = hasRiver ? (0.30+geo()*0.40) : -1;      // where it crosses, as a world fraction
-  riverW   = hasRiver ? (0.030+geo()*0.028) : 0;     // and how wide
+  // The BAYOU's channel is roughly three times a normal river's: the land there is what is left over
+  // between the water, not the other way round, and a 3%-wide creek across a swamp reads as a ditch.
+  riverW   = hasRiver ? ((curBiome.k==="swamp") ? (0.085+geo()*0.045) : (0.030+geo()*0.028)) : 0;
   milFund = 0.25+geo()*0.7;                   // how well this civilization funds its defenders
   // MOUNTAIN roll: most lives grow up under a distant range (two ridges for depth);
   // the tallest peaks wear snow. Life 0 gets mountains (the city being watched).
@@ -6494,8 +6517,117 @@ function drawHarborBridge(g,L,now,night,wTop){
 // the same reason drawShoreLife is: the water is drawn late, so anything belonging IN it has to be
 // drawn later still. The coral coast carries almost no relief by design, so unlike every other land
 // here none of its identity is in its skyline — it is all in the water and on the sand.
+// WHAT STANDS IN THE BAYOU'S WATER. The cypress are the point: a swamp is not a lake with trees
+// beside it, it is trees standing IN it, and their reflections in almost-still black water are half
+// the picture. Drawn from drawHarbor with the water, for the same draw-order reason as the reef.
+function drawBayouWater(g,L,now,sa,sb,zi,wTop,shoreAt,sgn){
+  var day=L>0.5, K=Math.max(1,KSP), span=sb-sa, wDep=Math.max(1,HORIZON-wTop);
+  var trunk=day?"#7c7462":"#191c18", trunk2=day?"#5e5849":"#0f110e";
+  var canopy=day?"#5a7050":"#111811", mossC=day?"rgba(158,158,132,0.62)":"rgba(30,34,28,0.6)";
+  // TREES IN THE WATER. Stratified across the span so they never clump, each with its own depth: the
+  // further back it stands the smaller and the more it fades into the haze over the water.
+  // ⚠ COUNT IS THE PERF LEVER HERE. drawHarbor runs in the LIVE pass, not only the cached backdrop,
+  // so every tree in this water is re-drawn every frame with three crown tiers, two moss fringes and
+  // a per-row reflection. At span/16K the bayou measured 1.42x alpine at a mature city — the most
+  // expensive land in the set by a wide margin and over a 60Hz budget. span/30K holds the look.
+  var nT=Math.max(4,Math.round(span/(30*K)));
+  for(var i=0;i<nT;i++){
+    var h=((i*2654435761+((sa*31)|0))>>>0);
+    var tx=sa+Math.round(((i+0.5+(((h%100)/100)-0.5)*0.8)/nT)*span);
+    // ⚠ depth was uniform and then SQUARED for the y position, which piles almost every tree at the
+    // back of the water at the same small size — a row of identical street trees. sqrt biases the
+    // draw toward the FRONT instead, so the stand has a few big ones near you and many small far off.
+    var depth=Math.sqrt(((h>>>7)%1000)/1000);                    // 0 = far back, 1 = right at the front
+    var ty=wTop+Math.round(depth*wDep*0.94);
+    if(ty>=HORIZON-1) continue;
+    var edge=shoreAt(ty);
+    if(sgn>0? tx>edge-2 : tx<edge+2) continue;                   // it has to be standing in WATER
+    var th=Math.round((6+depth*30)*K), tw=Math.max(1,Math.round((1+depth*3)*K));
+    var fade=0.30*(1-depth);                                     // distance haze over the water
+    g.fillStyle=trunk;
+    for(var q=0;q<th;q++){
+      var flare=q<th*0.18?Math.round((1-q/(th*0.18))*tw*1.5):0;  // the buttress at the waterline
+      g.fillRect(tx-flare,ty-q,tw+flare,1);
+    }
+    g.fillStyle=trunk2; g.fillRect(tx+Math.round(tw*0.6),ty-th,Math.max(1,Math.round(K*0.7)),th);
+    // THE CROWN. ⚠ One wide flat folMass reads as an ACACIA — an umbrella on a pole, which is the
+    // wrong continent. A bald cypress is a RAGGED, tapering, open head with bare branch structure
+    // showing through it, so: three tiers narrowing upward, unequal, plus bare limbs out the sides.
+    var crw=Math.round((3+depth*8)*K);
+    g.fillStyle=trunk2;
+    for(var lb=0;lb<3;lb++){                                     // bare limbs first, so leaves sit on them
+      var ldir=(lb&1)?1:-1, ly=ty-th+Math.round(crw*(0.35+lb*0.42));
+      for(var lq=0;lq<Math.round(crw*0.9);lq++)
+        g.fillRect(tx+ldir*lq,ly-Math.round(lq*0.35),Math.max(1,Math.round(K*0.8)),Math.max(1,Math.round(K*0.8)));
+    }
+    for(var tier=0;tier<2;tier++){
+      var tf=tier/2, tw2=crw*(1-tf*0.42)*(0.8+(((h>>>(tier+11))%100)/100)*0.45);
+      g.fillStyle=tier===1?canopy:(day?"#4c6044":"#0d130d");
+      folMass(g,tx+((tier-1)*crw*0.22),ty-th+Math.round(crw*(0.2+tf*0.62)),tw2,Math.max(1,Math.round((1.4+depth*1.6)*K)),(h*(tier+7))>>>0,K);
+    }
+    if(depth>0.28){
+      mossFringe(g,tx,ty-th+Math.round(crw*0.55),crw*0.85,h,K,mossC);
+    }
+    // THE KNEES around its base, breaking the surface
+    g.fillStyle=trunk2;
+    for(var kn=0;kn<3;kn++){
+      var kx=tx+Math.round((-2+kn*2)*tw), kh=Math.max(1,Math.round((0.8+((h>>>(kn+3))&1))*tw));
+      g.fillRect(kx,ty-kh,Math.max(1,Math.round(tw*0.7)),kh);
+    }
+    // THE REFLECTION — the reason the water is worth drawing black. Compressed, dimmer, and broken
+    // by a slow ripple, because a mirror-perfect copy reads as a bug rather than as still water.
+    var rH=Math.round(th*0.55);
+    var rStep=Math.max(1,Math.round(K));
+    for(var r=0;r<rH;r+=rStep){
+      var rf=r/rH, jig=Math.round(Math.sin(now*0.0007+r*0.6+i)*1.4*K*rf);
+      if(((r*5+((now*0.002)|0))%7)===0) continue;                // the ripple breaks it up
+      g.fillStyle="rgba("+(day?"92,96,74,":"20,24,18,")+((0.30-0.24*rf)).toFixed(3)+")";
+      g.fillRect(tx+jig,ty+r,tw,rStep);
+    }
+    if(fade>0.02){ g.fillStyle=rgba(biomeSkc(day),fade);         // haze the far ones back
+      g.fillRect(tx-Math.round(crw),ty-th,Math.round(crw*2),th); }
+  }
+  // FOG LYING ON THE WATER — bayou weather, layered above the trees' feet so they wade out of it.
+  var fogB=day?0.13:0.09;
+  for(var fb=0;fb<3;fb++){
+    var fy=wTop+Math.round(wDep*(0.28+fb*0.22))+Math.round(Math.sin(now*0.00013+fb)*2*K);
+    g.fillStyle="rgba("+(day?"206,210,192,":"96,104,96,")+(fogB*(1-fb*0.22)).toFixed(3)+")";
+    g.fillRect(sa,fy,span,Math.round((3+fb*2)*K));
+  }
+  // THE PIROGUE — a flat-bottomed pole boat, and this land's traversal layer. Poled, not rowed: the
+  // standing figure with the pole is the whole silhouette.
+  var pcyc=76000, pp=((now)%pcyc)/pcyc, pf=pp<0.5?pp*2:2-pp*2;
+  var py=wTop+Math.round(wDep*0.72), pedge=shoreAt(py);
+  var px=sa+Math.round(span*(0.12+pf*0.62));
+  if(!(sgn>0? px>pedge-4 : px<pedge+4)){
+    g.fillStyle=day?"#6b5a3c":"#171208";
+    g.fillRect(px-Math.round(4*K),py,Math.round(8*K),Math.max(1,Math.round(1.4*K)));            // the hull
+    g.fillStyle=day?"#2e2a22":"#0b0a08";
+    g.fillRect(px,py-Math.round(4*K),Math.max(1,Math.round(1.2*K)),Math.round(4*K));            // the poler
+    g.fillStyle=day?"#c9a888":"#3a3226";
+    g.fillRect(px,py-Math.round(5.4*K),Math.max(1,Math.round(1.2*K)),Math.round(1.4*K));        // head
+    g.fillStyle=day?"#8a7a58":"#221c12";
+    for(var pq=0;pq<Math.round(7*K);pq++)                                                        // the pole
+      g.fillRect(px+Math.round(1.4*K)+Math.round(pq*0.5),py-Math.round(5*K)+pq,Math.max(1,Math.round(K*0.8)),1);
+  }
+  // FIREFLIES over the water at dusk — the land's "hanging and falling" beat.
+  if(L<0.42&&L>0.06){
+    g.globalCompositeOperation="lighter";
+    for(var ff=0;ff<16;ff++){
+      var fh=((ff*40503+((sa*7)|0))>>>0);
+      var fx=sa+((fh%Math.max(1,span))+Math.round(Math.sin(now*0.0009+ff*1.7)*7*K))%Math.max(1,span);
+      var fy2=wTop+((fh>>>9)%Math.max(1,wDep));
+      var blink=Math.sin(now*0.004+ff*2.3);
+      if(blink<0.55) continue;
+      g.fillStyle="rgba(214,255,140,"+(0.55*(blink-0.55)/0.45).toFixed(2)+")";
+      g.fillRect(sa+((fx-sa)|0),fy2,Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
+    }
+    g.globalCompositeOperation="source-over";
+  }
+}
 function drawReefLagoon(g,L,now,sa,sb,zi,wTop){
-  if(curBiome.k!=="beach") return;
+  if(curBiome.k!=="beach"&&curBiome.k!=="swamp") return;
+  var bayou=curBiome.k==="swamp";
   var span=sb-sa; if(span<12) return;
   var day=L>0.5, K=Math.max(1,KSP);
   var inner=zi?sa:sb, sgn=zi?-1:1, wDep=Math.max(1,HORIZON-wTop);
@@ -6520,9 +6652,11 @@ function drawReefLagoon(g,L,now,sa,sb,zi,wTop){
     return inner+sgn*Math.round(sweep+meander*(0.45+f*0.7));
   }
   // ---- THE WATER, graded by DISTANCE (up the frame), and hazed into the horizon at the far edge ----
-  var deepC =day?[24,86,132] :[7,20,38];
-  var midC  =day?[38,150,170]:[10,40,58];
-  var shalC =day?[142,224,214]:[26,74,86];
+  // Palette per coast. The BAYOU's water is tannin-black and almost still: it MIRRORS what stands in
+  // it rather than glittering, so its shallows go darker than its deeps instead of paler.
+  var deepC =bayou?(day?[54,62,48] :[10,13,11]) :(day?[24,86,132] :[7,20,38]);
+  var midC  =bayou?(day?[38,46,36] :[7,10,9])   :(day?[38,150,170]:[10,40,58]);
+  var shalC =bayou?(day?[26,32,26] :[5,7,6])    :(day?[142,224,214]:[26,74,86]);
   for(var wy=wTop;wy<HORIZON;wy++){
     var wf=(wy-wTop)/wDep;
     var band=wf<0.55?mixc(deepC,midC,wf/0.55):mixc(midC,shalC,(wf-0.55)/0.45);
@@ -6531,32 +6665,37 @@ function drawReefLagoon(g,L,now,sa,sb,zi,wTop){
     var edge=shoreAt(wy);
     var x0=Math.min(edge,zi?sb:sa), x1=Math.max(edge,zi?sb:sa);
     if(x1<=x0) continue;
+    if(bayou&&((wy*3+((wy/7)|0))%11)<2) band=mixc(band,day?[74,84,60]:[16,20,15],0.5);   // slow tonal bands
     g.fillStyle=css(band);
     g.fillRect(x0,wy,x1-x0,1);
     // a few glints riding the swell, denser in the shallows where the bottom is close
-    if(((wy*7+((now*0.004)|0))%Math.max(3,Math.round(7-wf*4)))===0){
+    if(!bayou&&((wy*7+((now*0.004)|0))%Math.max(3,Math.round(7-wf*4)))===0){
       g.fillStyle=day?"rgba(255,255,255,"+(0.10+0.16*wf).toFixed(2)+")":"rgba(170,206,236,0.09)";
       var gx=x0+((wy*53+((now*0.02)|0))%Math.max(2,x1-x0));
       g.fillRect(gx,wy,Math.round(3*K),1);
     }
   }
-  // ---- THE WATERLINE: foam on the curve, then wet sand, then dry sand widening toward the city ----
+  // ---- THE MARGIN: foam and sand on a beach; mud, reeds and stumps in a bayou ----
   for(var sy2=wTop+Math.round(2*K);sy2<HORIZON;sy2++){
     var e2=shoreAt(sy2), sf=(sy2-wTop)/wDep;
     var lap=Math.sin(now*0.0017+sy2*0.5+sa);
     var fw2=Math.max(1,Math.round((1.2+Math.max(0,lap)*2.2)*K));
-    g.fillStyle="rgba(255,255,255,"+(0.24+0.34*Math.max(0,lap)).toFixed(2)+")";
-    g.fillRect(e2-(sgn>0?fw2:0),sy2,fw2,1);                                          // foam, always wet
-    g.fillStyle=day?"rgba(186,164,124,0.9)":"rgba(48,44,36,0.9)";                    // wet sand, darker
+    if(!bayou){ g.fillStyle="rgba(255,255,255,"+(0.24+0.34*Math.max(0,lap)).toFixed(2)+")";
+      g.fillRect(e2-(sgn>0?fw2:0),sy2,fw2,1); }                                      // foam, always wet
+    else { g.fillStyle=day?"rgba(96,102,74,0.55)":"rgba(20,24,18,0.5)";              // a bayou has no surf;
+      g.fillRect(e2-(sgn>0?fw2:0),sy2,fw2,1); }                                      // it has a green scum line
+    g.fillStyle=bayou?(day?"rgba(74,72,54,0.92)":"rgba(20,22,17,0.9)"):(day?"rgba(186,164,124,0.9)":"rgba(48,44,36,0.9)");   // wet sand / black mud
     g.fillRect(sgn>0?e2:e2-Math.round(2.4*K),sy2,Math.round(2.4*K),1);
     // and the DRY BEACH behind it — this is the band that holds the city back off the water. Without
     // it the road ran straight to the waterline and the town looked like it was standing in the sea.
     var dw=Math.round((4+sf*4.5)*K);
-    g.fillStyle=day?(((sy2*7)%5)<2?"rgba(244,232,200,0.95)":"rgba(234,218,180,0.95)"):"rgba(74,68,54,0.9)";
+    g.fillStyle=bayou?(day?(((sy2*7)%5)<2?"rgba(96,104,72,0.95)":"rgba(84,92,64,0.95)"):"rgba(28,32,24,0.9)")
+                     :(day?(((sy2*7)%5)<2?"rgba(244,232,200,0.95)":"rgba(234,218,180,0.95)"):"rgba(74,68,54,0.9)");
     g.fillRect(sgn>0?e2+Math.round(2.4*K):e2-Math.round(2.4*K)-dw,sy2,dw,1);
     if(((sy2*11)%13)===0){ g.fillStyle=day?"rgba(210,192,152,0.7)":"rgba(52,48,38,0.7)";
       g.fillRect(sgn>0?e2+Math.round(3*K):e2-Math.round(4*K),sy2,Math.round(2*K),1); }   // shell/wrack line
   }
+  if(bayou){ drawBayouWater(g,L,now,sa,sb,zi,wTop,shoreAt,sgn); return; }
   // THE REEF CREST — breakers standing in one place, because a reef does not move. The single
   // strongest "coral coast" cue in the frame.
   var rfMidY=wTop+Math.round(wDep*0.55);
@@ -6634,7 +6773,7 @@ function drawHarbor(g,L,now,night,nd){
   // renderer and is NOT REACHED by any shipped shell — it hangs off a `pass==="water"` branch and
   // both real shells draw only "bg" and "live". Anything added there is invisible in production;
   // that is the shell-pass trap wearing a different hat.
-  var wTop=HORIZON-((curBiome.k==="cliffs"||curBiome.k==="beach")?Math.round(46*Math.max(1,KSP)):22), dayW=mixc([26,58,84],[92,152,188],L), wc=css(dayW);
+  var wTop=HORIZON-((curBiome.k==="cliffs"||curBiome.k==="beach"||curBiome.k==="swamp")?Math.round(46*Math.max(1,KSP)):22), dayW=mixc([26,58,84],[92,152,188],L), wc=css(dayW);
   eachWaterSpan(function(sa,sb,zi){ var ww=sb-sa; if(ww<=0) return;
     var shoreA=gstage(0.3,0.6);                                                   // the far shore builds up with the city
     if(shoreA>0){ g.globalAlpha=shoreA;
@@ -6667,7 +6806,7 @@ function drawHarbor(g,L,now,night,nd){
     // rocky coast keeps its tide pools next door to a working harbour, and on the sea cliffs the
     // shore is the whole reason the land is interesting. Land edge is the far end of span 0 and the
     // near end of span 1 — the two spans meet across the world seam and make one bay.
-    if(curBiome.k==="cliffs"||curBiome.k==="beach"){
+    if(curBiome.k==="cliffs"){
       var shSide=zi?-1:1, shEx=(zi?sa:sb);
       var tK=tideLevel(now,nd||nowDate());
       shEx+=Math.round(tK*11*Math.max(1,KSP))*shSide;                 // high water advances onto the land
@@ -12151,6 +12290,48 @@ function drawBiomePlant(g,X,gy,day,now,seed,sc,kind,swayOn){
     }
     g.fillStyle=C([86,64,40]);                                             // the nuts, under the crown
     for(var nq=0;nq<3;nq++) if(((seed>>(nq+3))&3)) R(cx4-K+nq*K*1.1,cy4+K*0.8,Math.max(1,Math.round(1.4*K)),Math.max(1,Math.round(1.4*K)));
+  } else if(kind==="cypress"){
+    // A BALD CYPRESS. Three things identify it and none of them is the crown: the FLARED buttress at
+    // the waterline, the KNEES standing in the water around it, and the Spanish moss. The crown is
+    // deliberately thin and grey-green — a cypress read as a big leafy tree is just an oak.
+    var ch5=Math.round((16+(seed%10))*K), cw5=Math.max(2,Math.round(2.2*K));
+    g.fillStyle=C([124,116,100]);
+    for(var cy5=0;cy5<ch5;cy5++){
+      var flare=cy5<ch5*0.16?Math.round((1-cy5/(ch5*0.16))*2.6*K):0;   // the buttress swelling out
+      R(-cw5/2-flare,-cy5,cw5+flare*2,1);
+    }
+    g.fillStyle=C([96,90,76]);                                          // shaded side of the bole
+    R(cw5*0.1,-ch5,Math.max(1,Math.round(K*0.8)),ch5);
+    for(var kn=0;kn<4;kn++){                                            // THE KNEES, standing off the trunk
+      var kx5=(-2.5+kn*1.7)*K*(1+((seed>>kn)&1)*0.4), kh5=Math.round((1.4+((seed>>(kn+2))&1)*1.6)*K);
+      g.fillStyle=C([112,104,88]); R(kx5,-kh5,Math.max(1,Math.round(1.4*K)),kh5);
+      g.fillStyle=C([88,82,68]);   R(kx5,-kh5,Math.max(1,Math.round(K*0.7)),Math.max(1,Math.round(K)));
+    }
+    var ccy=-ch5, crw=Math.round((5+(seed%4))*K);                       // a thin, wide, flat-topped crown
+    for(var lay=0;lay<3;lay++){
+      g.fillStyle=C(lay&1?[104,124,90]:[86,106,76]);
+      folMass(g,X+sway*0.7+((lay-1)*crw*0.5),gy+ccy+lay*Math.round(1.8*K),crw*(1-lay*0.18),Math.round(1.6*K),(seed*(lay+3))>>>0,K);
+    }
+    g.fillStyle=day?"rgba(158,158,132,0.72)":"rgba(34,38,32,0.7)";      // and the moss it is hung with
+    mossFringe(g,X+sway*0.7,gy+ccy+Math.round(3*K),crw*0.9,seed,K,day?"rgba(158,158,132,0.72)":"rgba(34,38,32,0.7)");
+    mossFringe(g,X+sway*0.7-crw*0.5,gy+ccy+Math.round(5*K),crw*0.6,(seed*17)>>>0,K,day?"rgba(146,148,124,0.62)":"rgba(28,32,27,0.62)");
+  } else if(kind==="reeds"){
+    var rn5=5+(seed%4);                                                 // a clump standing in the water
+    for(var rq5=0;rq5<rn5;rq5++){
+      var rh5=Math.round((3+((seed>>rq5)&3))*K), rx5=(rq5-rn5/2)*K*1.3;
+      g.fillStyle=C(rq5&1?[118,126,80]:[96,106,66]);
+      for(var ry5=0;ry5<rh5;ry5++) R(rx5+sway*(ry5/rh5)*1.2,-ry5,Math.max(1,Math.round(K*0.8)),1);
+      g.fillStyle=C([146,132,86]); R(rx5+sway*1.2,-rh5,Math.max(1,Math.round(K*0.8)),Math.max(1,Math.round(1.4*K)));
+    }
+  } else if(kind==="willow"){
+    var wh5=Math.round((11+(seed%6))*K);
+    g.fillStyle=C([104,92,72]); R(-Math.round(K*0.8),-wh5,Math.max(1,Math.round(1.6*K)),wh5);
+    for(var st5=0;st5<7;st5++){                                         // WEEPING strands, hanging not spraying
+      var sx5=(-3+st5)*K*1.1, sl5=Math.round((3+((seed>>st5)&3)*2)*K);
+      g.fillStyle=C(st5&1?[112,140,84]:[92,120,70]);
+      for(var sq5=0;sq5<sl5;sq5++)
+        R(sx5+sway*(sq5/sl5)*1.6+Math.sin(sq5*0.5)*K*0.4,-wh5+Math.round(K*1.2)+sq5,Math.max(1,Math.round(K*0.8)),1);
+    }
   } else if(kind==="seagrape"){
     var gh2=Math.round((4+(seed%3))*K);                                    // a low, dense salt-tolerant bush
     g.fillStyle=C([64,102,68]);
@@ -13038,6 +13219,11 @@ function drawRiver(g,L,now){
   // working it — only what is flowing has changed, and it is bright enough to light its own banks.
   var lava=curBiome.k==="hell";
   if(lava){ deep=[168,42,14]; shallow=[255,186,64]; }
+  // THE BAYOU'S water is BLACK — tannin-stained, barely moving, and it mirrors the cypress above it
+  // instead of glittering. Same channel, same bridge, same boats; only what is flowing has changed,
+  // which is exactly the seam the Ashlands' lava already proved out.
+  var tannin=curBiome.k==="swamp";
+  if(tannin){ deep=day?[26,32,26]:[8,11,10]; shallow=day?[62,72,54]:[16,20,16]; }
   var halfPx=Math.max(8*K,Math.round(riverW*WW));
   var deckY=roadY+1, deckH=Math.max(3,Math.round(3*K));         // the bridge deck sits at street level
   for(var w=-1;w<=1;w++){

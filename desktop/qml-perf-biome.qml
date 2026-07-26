@@ -36,36 +36,39 @@ Item {
             var N = 120;
             // ⚠⚠ LIVES REMAP EVERY TIME A BIOME IS ADDED — `biomeOf` is a hash modulo BIOMES.length,
             // so every life re-rolls and every number in this file goes stale. This has now happened
-            // twice: 5→7 (hell+heaven) and 7→8 (the coral coast). Re-derived for EIGHT:
-            // hell 1 · heaven 2 · alpine 3 · forest 4 · mesa 5 · cliffs 6 · plains 7 · beach 8.
-            // Distribution over 4000 lives is 12.5% each. If you add a ninth, re-derive again or this
-            // harness silently times the wrong lands and labels them confidently.
-            var alpine = timeLife(3,  "alpine", N);
-            var forest = timeLife(4,  "forest", N);
-            var mesa   = timeLife(5,  "mesa",   N);
-            var cliffs = timeLife(6,  "cliffs", N);
-            var plains = timeLife(7,  "plains", N);
-            var hell   = timeLife(1,  "hell",   N);
-            var heaven = timeLife(2,  "heaven", N);
-            var beach  = timeLife(8,  "beach",  N);
+            // three times: 5→7 (hell+heaven), 7→8 (coral coast), 8→9 (the bayou). For NINE:
+            // mesa 1 · beach 2 · cliffs 3 · swamp 4 · alpine 5 · hell 6 · forest 7 · heaven 8 ·
+            // plains 21. Distribution over 4500 lives is 11.1% each. Add a tenth and re-derive again,
+            // or this harness silently times the wrong lands and labels them confidently.
+            var alpine = timeLife(5,  "alpine", N);
+            var forest = timeLife(7,  "forest", N);
+            var mesa   = timeLife(1,  "mesa",   N);
+            var cliffs = timeLife(3,  "cliffs", N);
+            var plains = timeLife(21, "plains", N);
+            var hell   = timeLife(6,  "hell",   N);
+            var heaven = timeLife(8,  "heaven", N);
+            var beach  = timeLife(2,  "beach",  N);
+            var swamp  = timeLife(4,  "swamp",  N);
             // ⚠ THE MATURE BLOCK USED TO SKIP FOREST AND PLAINS — the two biomes whose accents draw
             // in the LIVE pass every frame, i.e. exactly the two whose cost the mature case was most
             // likely to expose. All seven are timed at 0.85 now.
-            var alpineM = timeLife(3,  "alpine@0.85", N, 0.85);
-            var forestM = timeLife(4,  "forest@0.85", N, 0.85);
-            var mesaM   = timeLife(5,  "mesa@0.85",   N, 0.85);
-            var cliffsM = timeLife(6,  "cliffs@0.85", N, 0.85);
-            var plainsM = timeLife(7,  "plains@0.85", N, 0.85);
-            var hellM   = timeLife(1,  "hell@0.85",   N, 0.85);
-            var heavenM = timeLife(2,  "heaven@0.85", N, 0.85);
-            var beachM  = timeLife(8,  "beach@0.85",  N, 0.85);
+            var alpineM = timeLife(5,  "alpine@0.85", N, 0.85);
+            var forestM = timeLife(7,  "forest@0.85", N, 0.85);
+            var mesaM   = timeLife(1,  "mesa@0.85",   N, 0.85);
+            var cliffsM = timeLife(3,  "cliffs@0.85", N, 0.85);
+            var plainsM = timeLife(21, "plains@0.85", N, 0.85);
+            var hellM   = timeLife(6,  "hell@0.85",   N, 0.85);
+            var heavenM = timeLife(8,  "heaven@0.85", N, 0.85);
+            var beachM  = timeLife(2,  "beach@0.85",  N, 0.85);
+            var swampM  = timeLife(4,  "swamp@0.85",  N, 0.85);
             console.log("PERF MATURE vs alpine — forest " + (forestM/alpineM).toFixed(2)
                       + "x  mesa " + (mesaM/alpineM).toFixed(2)
                       + "x  cliffs " + (cliffsM/alpineM).toFixed(2)
                       + "x  plains " + (plainsM/alpineM).toFixed(2)
                       + "x  hell " + (hellM/alpineM).toFixed(2)
                       + "x  heaven " + (heavenM/alpineM).toFixed(2)
-                      + "x  beach " + (beachM/alpineM).toFixed(2) + "x");
+                      + "x  beach " + (beachM/alpineM).toFixed(2)
+                      + "x  swamp " + (swampM/alpineM).toFixed(2) + "x");
             console.log("PERF vs alpine — forest " + (forest/alpine).toFixed(2)
                       + "x  mesa " + (mesa/alpine).toFixed(2)
                       + "x  cliffs " + (cliffs/alpine).toFixed(2)
