@@ -8805,9 +8805,25 @@ function drawFerry(g,L,now){
 }
 
 // ---- weekend farmers' market: striped stalls + produce + shoppers (residential/oldtown) ----
+// A MARKET IS A PLACE, NOT A WALL TEXTURE.
+// This used to drop a stall every 15 world px across every residential and oldtown block — and each
+// stall is 8 px wide with a stallholder AND a shopper. Eight pixels of stall in every fifteen of
+// frontage, tiled unbroken across most of the city, every one the same table under the same striped
+// awning. That is the solid wall of bodies in Nick's screenshot, and it is why "the people aren't
+// moving" kept surviving every fix: they were not the citizen sim at all, they were two static
+// figures stamped into an endlessly repeating tile.
+// Now it is a handful of real market ROWS — four to eight stalls together, with open pavement
+// between them. Still a pure function of position and the world seed: no state, no new arrays.
 function drawMarket(g,L,now){
   var gy=HORIZON+1, ac=["#d23b3b","#2f9a5f","#e0a83a","#3a70b0","#a04a8a"], prod=["#e0402a","#f0a828","#3ac85a","#f07028","#e060c0","#ffd23a"];
-  for(var mx=14; mx<WW; mx+=15){ var dn=districtAt(mx).name; if(dn!=="residential"&&dn!=="oldtown") continue;
+  var SITE=260;                                                        // one candidate market per ~260 world px
+  for(var si=0; si*SITE<WW; si++){
+    var sh=P_hash((si*2654435761 ^ (WORLD_SEED>>>0))>>>0);
+    if((sh>>>7)%10 < 3) continue;                                      // not every stretch of the city has one
+    var sx0=si*SITE + (sh%150), nSt=4+((sh>>>11)%5);                   // where it sits, and how long the row is
+    for(var st=0; st<nSt; st++){
+      var mx=sx0+st*13; if(mx>=WW) break;
+      var dn=districtAt(mx).name; if(dn!=="residential"&&dn!=="oldtown") continue;
     for(var off=-WW;off<=WW;off+=WW){ var X=(mx-WOFF+off)|0; if(X<-6||X>SW+8) continue;
       var pr=rng((mx*131+7)>>>0), c=ac[(mx>>2)%ac.length];
       g.fillStyle="#8a6a4a"; g.fillRect(X-3,gy-6,1,6); g.fillRect(X+4,gy-6,1,6);           // posts
@@ -8816,6 +8832,7 @@ function drawMarket(g,L,now){
       for(var pp=0;pp<6;pp++){ g.fillStyle=prod[(pp+ (mx>>1))%prod.length]; g.fillRect(X-3+pp+((pp>2)?1:0),gy-3,1,1); }  // produce
       drawPerson(g,X+3,gy-2,"#5a7a4a",SKINC[(mx)%SKINC.length],-1);                          // stallholder
       if(pr()<0.75) drawPerson(g,X-4,gy-2,PEDC[(mx>>1)%PEDC.length],SKINC[(mx>>2)%SKINC.length],-1);  // shopper
+    }
     }
   }
 }
