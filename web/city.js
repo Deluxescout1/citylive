@@ -2532,6 +2532,52 @@ var BIOMES=[
     fauna:{ keep:{deer:0,rabbit:1,fox:1,goat:0}, big:["bison","pronghorn","cattle"], small:["prairiedog"], air:["hawk"] },
     flora:{ kinds:["grass","grass","cottonwood","grass","scrub"], bloom:["#e8c860","#d8a0c8","#ffffff","#e0d070"] },
     sky:{ top:[150,180,222], bot:[212,222,232], k:0.26, haze:[214,220,214] } },
+  // The coast Nick asked for by name: "the beach needs to feel like a beach." Almost no relief — its
+  // landform is DUNES — `flat:0` on purpose, because quantising low mounds into strata turns them
+  // into stepped ZIGGURATS, which is what the first render of this land showed. Everything that
+  // identifies it is the water, the palms and the reef rather
+  // than a ridge. `water:"sea"` forces a coast, and buildWorld gives it a wide bay like the cliffs,
+  // because a beach with a sliver of sea at the world's seam is not a beach.
+  { k:"beach",  name:"CORAL COAST", amp:0.15, base:0.74, flat:0.0,  steep:0.0, snow:false, water:"sea",
+    far:[222,206,170],  near:[198,176,134], cap:[242,232,204], ground:[234,220,182],
+    walls:[[248,244,236],[236,206,196],[196,228,228],[240,226,190],[228,238,236],[214,178,158],[250,238,214],[186,214,212]],
+    fauna:{ keep:{deer:0,rabbit:0,fox:0,goat:0}, big:["turtle"], small:["crab","hermitcrab"], air:["tern","frigate"] },
+    flora:{ kinds:["palm","palm","seagrape","palm","pandanus"], bloom:["#f26a8d","#ffd166","#ffffff","#f4977a"] },
+    sky:{ top:[104,172,224], bot:[208,236,238], k:0.30, haze:[214,238,234] } },
+  // THE BAYOU. Like the coral coast it has almost no relief (`flat:0` — a swamp with bedding planes is
+  // not a swamp), and where the beach's identity is in bright water, this land's is in DARK water that
+  // is everywhere.
+  // ⚠ It carries `water:"sea"`, NOT `"river"`, and the reason is worth keeping. A river only draws
+  // BELOW the horizon, and the near-ground band there is about 26 world px (it is sized for taskbar
+  // clearance) — so the first version of this land had a channel three times normal width that was
+  // still almost entirely off the bottom of the frame. A swamp is a wide expanse of water RECEDING to
+  // the horizon, which is exactly what the coast machinery already draws.
+  { k:"swamp",  name:"THE BAYOU",   amp:0.13, base:0.66, flat:0.0,  steep:0.0, snow:false, water:"sea", waterTree:"cypress", waterPal:{deep:[54,62,48],mid:[38,46,36],shal:[26,32,26]},
+    far:[92,104,84],   near:[64,78,60],   cap:[126,138,104], ground:[74,84,62],
+    walls:[[178,170,150],[142,132,112],[196,190,172],[120,112,96],[166,152,128],[134,140,120],[188,178,152],[110,104,88]],
+    fauna:{ keep:{deer:1,rabbit:0,fox:0,goat:0}, big:["gator"], small:["frog","turtle2"], air:["heron","egret"] },
+    flora:{ kinds:["cypress","cypress","reeds","cypress","willow"], bloom:["#e8d8a0","#c8b070","#ffffff"] },
+    sky:{ top:[128,142,152], bot:[196,196,176], k:0.30, haze:[198,200,182] } },
+  // THE VOLCANIC ISLAND. `volcanic:1` rather than reusing hell's `molten`: the Ashlands are hot rock
+  // everywhere, whereas a volcano is COLD rock with one hot place in it. What that flag turns on is a
+  // summit plume, a crater glow at night, and a slow restless cycle that occasionally sends a lava
+  // tongue down one flank — never at the city, which lives with the mountain rather than under it.
+  { k:"volcano", name:"THE NEW ISLAND", amp:1.04, base:0.42, flat:0.0, steep:0.0,  snow:false, water:"sea", volcanic:1,
+    far:[92,86,88],    near:[56,52,56],   cap:[136,120,116], ground:[62,58,58],
+    walls:[[196,192,186],[168,162,156],[212,208,200],[142,138,134],[182,176,168],[156,150,144],[204,198,190],[130,126,122]],
+    fauna:{ keep:{deer:0,rabbit:0,fox:0,goat:1}, big:["goat"], small:["lizard","crab"], air:["frigate","tern"] },
+    flora:{ kinds:["scrub","fern","scrub","scrub","fern"], bloom:["#e8785a","#f0b060","#ffffff"] },
+    sky:{ top:[112,142,178], bot:[196,200,200], k:0.28, haze:[200,204,202] } },
+  // THE ARCTIC. The one land where the SNOW SYSTEM LEADS instead of following: every other biome takes
+  // snow as weather laid over it, here the ice IS the geography. `snow:true` and a high `cap` so the
+  // pack is white at any season, but the real Norwich temperature still decides how much MELT shows —
+  // a July arctic life has meltwater on the floes and a February one does not.
+  { k:"arctic",  name:"THE PACK ICE", amp:0.46, base:0.58, flat:0.42, steep:0.30, snow:true, water:"sea", polar:1,
+    far:[214,226,238], near:[184,202,220], cap:[248,252,255], ground:[222,232,242],
+    walls:[[222,228,236],[196,204,216],[238,242,248],[172,182,196],[208,216,228],[184,194,208],[232,238,244],[160,172,188]],
+    fauna:{ keep:{deer:0,rabbit:0,fox:1,goat:0}, big:["polarbear","walrus","seal"], small:["ptarmigan"], air:["skua"] },
+    flora:{ kinds:["lichen","dwarfwillow","lichen","lichen","dwarfwillow"], bloom:["#e8c8d8","#d8e0e8","#ffffff"] },
+    sky:{ top:[138,168,206], bot:[224,234,242], k:0.30, haze:[228,236,244] } },
   // THE LAST TWO ARE NOT EARTH. Everything else in this table is plausible geography under one sun;
   // these are not, and they are the only rows whose `sky.k` runs high enough to genuinely repaint the
   // day. They still obey the same rule every other biome does: the REAL Norwich clock and the REAL
@@ -2581,7 +2627,35 @@ var FAUNA={
   owl:       {plan:"bird", c:[128,110,84], perch:1, night:1},
   vulture:   {plan:"bird", c:[46,40,38],   soar:1},
   hawk:      {plan:"bird", c:[112,86,56],  soar:1, perch:1},
-  dove:      {plan:"bird", c:[248,248,255], soar:1}
+  dove:      {plan:"bird", c:[248,248,255], soar:1},
+  // CORAL COAST. The turtle is a `quad` with `legless` — the same posture the hauled-out seal uses,
+  // because a sea turtle on sand is a low shell on flippers and not a barrel on legs.
+  turtle:    {plan:"quad", w:10,h:5, c:[86,102,72],   c2:[58,72,50],   head:"seal", legless:1, shell:1},
+  crab:      {plan:"spot", c:[196,84,58],  c2:[236,140,104], claws:1},
+  hermitcrab:{plan:"spot", c:[164,140,104], c2:[204,186,152], shell:1},
+  tern:      {plan:"bird", c:[244,246,250], soar:1},
+  frigate:   {plan:"bird", c:[42,44,52],   soar:1},
+  // THE BAYOU. The gator is a `quad` with `legless` — the seal/turtle posture — because an alligator
+  // at rest is a long low body on the waterline, not a barrel on legs.
+  gator:     {plan:"quad", w:15,h:4, c:[62,74,54],   c2:[40,50,36],   head:"snout", legless:1, ridged:1},
+  frog:      {plan:"spot", c:[92,126,72],  c2:[164,190,116], upright:1},
+  turtle2:   {plan:"spot", c:[86,96,70],   c2:[122,132,96],  shell:1},
+  heron:     {plan:"bird", c:[128,142,152], perch:1, wader:1},
+  egret:     {plan:"bird", c:[246,248,246], perch:1, wader:1},
+  // Species the VARIANTS need. A missing key is silently skipped by drawBiomeFauna (`if(!sp) continue`),
+  // so a variant referencing one of these before it existed would just quietly have no animals.
+  ibex:      {plan:"quad", w:9, h:8, c:[164,142,108],c2:[104,88,64],  head:"curl"},
+  wolf:      {plan:"quad", w:10,h:7, c:[124,124,120],c2:[76,76,74],   head:"snout"},
+  marmot:    {plan:"spot", c:[152,124,84],  c2:[196,172,132], upright:1},
+  eagle:     {plan:"bird", c:[92,72,52],    soar:1, perch:1},
+  raven:     {plan:"bird", c:[36,34,40],    soar:1, perch:1},
+  // THE ARCTIC. The bear is drawn big and pale on purpose — it is the largest land animal in the set
+  // and the only one that reads as a threat rather than as scenery.
+  polarbear: {plan:"quad", w:15,h:10,c:[238,240,240],c2:[198,206,214],head:"round", hump:1},
+  walrus:    {plan:"quad", w:14,h:6, c:[150,116,106],c2:[104,80,74],  head:"seal", legless:1, tusks:1},
+  caribou:   {plan:"quad", w:11,h:9, c:[156,142,124],c2:[214,208,198],head:"antler"},
+  ptarmigan: {plan:"spot", c:[240,242,244], c2:[176,182,190], upright:1},
+  skua:      {plan:"bird", c:[92,84,74],    soar:1}
 };
 // Distance haze fades everything toward THE SKY IT IS UNDER. This was a hardcoded pale blue, which
 // is right for five biomes and wrong for the two that repaint the day — under an infernal sky the
@@ -2591,6 +2665,185 @@ function biomeSkc(day){
   var B=curBiome;
   if(B&&B.sky) return day?B.sky.bot:mixc(B.sky.top,[0,0,0],0.55);
   return day?[168,186,214]:[24,28,46];
+}
+// ============ VARIANTS — three sub-landscapes per land ============
+// Nick: "like the mountains, make sure there are multiple/random variants of each map so it always
+// doesn't look the same." A land is no longer one look: it rolls one of three per life, with its own
+// rock, its own plants, its own animals, its own sky and its own NAME.
+//
+// A variant overrides LOOK and never `k`. Every renderer in this file branches on `curBiome.k`
+// (`B.k==="mesa"`, `B.k==="forest"` …), so a variant that changed the kind would silently take a
+// different code path — the hoodoos would vanish, the giants would become a height field. `variantOf`
+// forces `k` back after merging for exactly that reason.
+//
+// ⚠ VARIANT 0 OF EVERY LAND IS `{}` ON PURPOSE. An empty override is the look that shipped in
+// v2.2.0, already reviewed and approved, so a new roll can only ever ADD. This also means the table
+// stays a diff rather than nine full duplicated palettes.
+//
+// This does NOT change BIOMES.length, so unlike adding a biome it does not re-roll every life.
+var BIOME_VARIANTS={
+  alpine:[ {},
+    { name:"THE DOLOMITES",   // pale limestone, sheer and bare: the range as a wall rather than a cone
+      far:[176,172,168], near:[146,142,140], cap:[242,240,238], steep:0.45, flat:0.18, snow:true,
+      ground:[150,150,138],
+      walls:[[228,224,214],[206,200,188],[240,238,230],[188,182,170],[214,208,196],[196,192,182],[236,230,218],[176,172,162]],
+      flora:{ kinds:["scrub","grass","windbent","scrub","grass"], bloom:["#e8e0f0","#c8d0e8","#ffffff"] },
+      fauna:{ keep:{deer:0,rabbit:1,fox:1,goat:1}, big:["bighorn","ibex"], small:["marmot"], air:["eagle"] },
+      sky:{ top:[132,164,208], bot:[220,226,236], k:0.22, haze:[228,230,236] } },
+    { name:"THE DRY RANGE",   // brown semi-arid mountains, no snow, juniper and sage on the flanks
+      far:[168,140,102], near:[132,106,74], cap:[196,172,132], snow:false, amp:0.86,
+      ground:[176,156,116],
+      walls:[[206,178,138],[182,152,112],[224,204,168],[164,134,98],[198,172,132],[176,150,116],[214,192,152],[156,130,96]],
+      flora:{ kinds:["juniper","scrub","sage","juniper","grass"], bloom:["#e0c060","#c88a4a","#ffffff"] },
+      fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:1}, big:["bighorn","coyote"], small:["marmot","lizard"], air:["eagle","vulture"] },
+      sky:{ top:[142,166,206], bot:[226,214,186], k:0.24, haze:[228,214,184] } } ],
+
+  forest:[ {},
+    { name:"THE BLACK PINES", // boreal: near-black spruce, cold light, no primates this far north
+      far:[46,68,66],   near:[26,44,44],   cap:[92,116,108], ground:[44,58,48],
+      walls:[[92,82,70],[74,66,56],[112,100,84],[168,162,150],[68,74,66],[96,92,78],[124,112,92],[60,66,60]],
+      flora:{ kinds:["fern","snag","fern","log","snag"], bloom:["#d8e0e8","#b0c0c8","#ffffff"] },
+      fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:0}, big:["elk","bear","wolf"], small:["squirrel"], air:["owl","raven"] },
+      sky:{ top:[110,134,158], bot:[186,198,206], k:0.26, haze:[196,206,210] } },
+    { name:"THE GOLDEN WOOD", // autumn birch and aspen: white boles, gold crowns, warm low light
+      far:[186,158,86],  near:[152,120,58],  cap:[228,204,132], ground:[152,126,72],
+      walls:[[226,220,206],[198,190,174],[240,236,224],[178,166,146],[212,204,188],[190,182,166],[234,228,212],[166,156,138]],
+      flora:{ kinds:["generic","fern","log","generic","fern"], bloom:["#e8b44a","#d88a3a","#ffe0a0"] },
+      fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:0}, big:["elk","bear","boar"], small:["squirrel"], air:["owl","raven"] },
+      sky:{ top:[132,168,208], bot:[236,214,168], k:0.24, haze:[238,220,176] } } ],
+
+  mesa:[ {},
+    { name:"THE WHITE BADLANDS", // pale clay, finely banded, almost nothing growing on it
+      far:[216,208,190], near:[188,178,158], cap:[240,236,224], ground:[212,204,182],
+      walls:[[240,236,226],[220,214,200],[248,246,238],[204,196,180],[232,226,212],[214,208,192],[244,240,230],[196,190,176]],
+      flora:{ kinds:["scrub","grass","scrub","scrub","grass"], bloom:["#e8d8a0","#c8b880","#ffffff"] },
+      fauna:{ keep:{deer:0,rabbit:1,fox:0,goat:0}, big:["bighorn","coyote"], small:["lizard","prairiedog"], air:["vulture","hawk"] },
+      sky:{ top:[146,172,214], bot:[230,226,214], k:0.24, haze:[232,228,214] } },
+    { name:"THE BLACK MESA",     // basalt caprock over ochre sand: the darkest daylight land in the set
+      far:[86,82,84],    near:[54,52,56],   cap:[120,116,116], ground:[168,140,96],
+      walls:[[112,106,102],[86,82,80],[140,132,124],[196,186,168],[74,72,72],[124,116,108],[152,144,132],[96,92,88]],
+      flora:{ kinds:["saguaro","scrub","ocotillo","scrub","saguaro"], bloom:["#e8c04a","#d8734a","#ffffff"] },
+      fauna:{ keep:{deer:0,rabbit:1,fox:0,goat:0}, big:["bighorn","coyote"], small:["lizard","roadrunner"], air:["vulture"] },
+      sky:{ top:[128,150,190], bot:[204,180,146], k:0.30, haze:[206,182,148] } } ],
+
+  cliffs:[ {},
+    { name:"THE CHALK COAST",  // brilliant white chalk with turf on top — the brightest cliff there is
+      far:[236,234,228], near:[212,210,202], cap:[250,250,246], ground:[142,164,110],
+      walls:[[246,244,238],[228,226,218],[252,252,248],[210,208,198],[238,236,228],[220,218,208],[248,246,240],[202,200,190]],
+      flora:{ kinds:["gorse","grass","windbent","gorse","grass"], bloom:["#f0d878","#e8a0c0","#ffffff"] },
+      fauna:{ keep:{deer:0,rabbit:1,fox:1,goat:0}, big:["seal"], small:["puffin","otter"], air:[] },
+      sky:{ top:[136,172,216], bot:[206,222,230], k:0.24, haze:[212,226,232] } },
+    { name:"THE BASALT COAST", // dark columnar basalt, black shingle, cold grey water
+      far:[74,78,84],    near:[44,48,54],   cap:[104,108,114], ground:[62,66,64],
+      walls:[[128,132,136],[100,104,110],[152,154,156],[80,84,90],[116,120,126],[92,96,102],[140,142,146],[70,74,80]],
+      flora:{ kinds:["windbent","gorse","windbent","grass","gorse"], bloom:["#e8e0a0","#c0d0c0","#ffffff"] },
+      fauna:{ keep:{deer:0,rabbit:0,fox:1,goat:0}, big:["seal"], small:["puffin","otter"], air:[] },
+      sky:{ top:[112,128,146], bot:[172,182,190], k:0.32, haze:[178,188,194] } } ],
+
+  plains:[ {},
+    { name:"THE GOLDEN STEPPE", // dry tan grass to the horizon, dust in the air
+      far:[196,178,120], near:[170,148,90],  cap:[220,206,158], ground:[204,182,120],
+      walls:[[214,196,164],[190,170,136],[232,220,192],[172,150,116],[204,186,152],[186,168,134],[224,210,180],[164,146,114]],
+      flora:{ kinds:["grass","grass","scrub","grass","scrub"], bloom:["#e8c860","#d8b040","#ffffff"] },
+      fauna:{ keep:{deer:0,rabbit:1,fox:1,goat:0}, big:["bison","pronghorn"], small:["prairiedog","lizard"], air:["hawk","eagle"] },
+      sky:{ top:[152,178,216], bot:[228,214,178], k:0.26, haze:[230,216,180] } },
+    { name:"THE HIGH PASTURE",  // deep green grazing country, hedgerows, more cattle than wild things
+      far:[132,164,110], near:[100,134,84],  cap:[168,192,132], ground:[120,152,96],
+      walls:[[228,224,212],[198,192,176],[240,236,226],[178,170,152],[212,206,190],[192,186,170],[234,230,218],[166,160,144]],
+      flora:{ kinds:["grass","cottonwood","grass","generic","grass"], bloom:["#f0e070","#e0a0c8","#ffffff","#d8d060"] },
+      fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:0}, big:["cattle","cattle","pronghorn"], small:["prairiedog"], air:["hawk"] },
+      sky:{ top:[142,174,218], bot:[214,224,226], k:0.22, haze:[216,226,220] } } ],
+
+  beach:[ {},
+    { name:"THE BLACK SAND",  // volcanic sand, deep blue water — the same coast with the light inverted
+      far:[92,88,86],   near:[62,60,60],   cap:[126,120,116], ground:[68,66,64],
+      walls:[[240,236,228],[214,206,196],[196,220,224],[228,216,190],[206,212,208],[184,176,166],[236,228,208],[170,182,184]],
+      flora:{ kinds:["palm","palm","pandanus","palm","seagrape"], bloom:["#f26a8d","#ffd166","#ffffff"] },
+      fauna:{ keep:{deer:0,rabbit:0,fox:0,goat:0}, big:["turtle"], small:["crab","hermitcrab"], air:["frigate","tern"] },
+      sky:{ top:[86,142,198], bot:[186,214,222], k:0.30, haze:[192,216,220] } },
+    { name:"THE PINK SHORE",  // coral sand with a jade lagoon: the softest palette in the set
+      far:[238,208,196], near:[218,180,168], cap:[250,232,224], ground:[246,218,206],
+      walls:[[252,246,240],[240,214,208],[212,238,232],[248,232,208],[236,244,240],[226,192,182],[254,244,226],[200,228,224]],
+      flora:{ kinds:["palm","seagrape","palm","palm","pandanus"], bloom:["#ff7fa8","#ffe08a","#ffffff","#ffa98a"] },
+      fauna:{ keep:{deer:0,rabbit:0,fox:0,goat:0}, big:["turtle"], small:["crab","hermitcrab"], air:["tern","frigate"] },
+      sky:{ top:[126,186,230], bot:[248,226,222], k:0.28, haze:[250,230,224] } } ],
+
+  swamp:[ {},
+    { name:"THE MANGROVE", waterTree:"mangrove", waterPal:{deep:[38,116,118],mid:[26,88,92],shal:[18,62,66]},  // tangled red-rooted mangrove over teal water, hot and bright
+      far:[86,116,86],   near:[56,88,64],   cap:[128,158,110], ground:[70,92,64],
+      walls:[[212,204,182],[178,168,144],[228,222,204],[152,144,124],[196,186,162],[166,158,138],[220,214,194],[140,134,116]],
+      flora:{ kinds:["mangrove","mangrove","reeds","mangrove","pandanus"], bloom:["#e8e0a0","#d8c070","#ffffff"] },
+      fauna:{ keep:{deer:0,rabbit:0,fox:0,goat:0}, big:["gator"], small:["crab","frog"], air:["heron","egret"] },
+      sky:{ top:[112,166,196], bot:[206,220,196], k:0.26, haze:[208,222,198] } },
+    { name:"THE PEAT MOSS", waterTree:"birch", waterPal:{deep:[86,66,44],mid:[62,48,32],shal:[42,32,22]},   // a northern bog: brown water, stunted birch, heather, cold flat light
+      far:[112,104,86],  near:[80,74,60],   cap:[142,134,110], ground:[96,88,68],
+      walls:[[196,190,176],[164,158,146],[214,210,198],[140,134,124],[182,176,162],[152,146,134],[206,200,186],[128,122,112]],
+      flora:{ kinds:["reeds","scrub","willow","reeds","scrub"], bloom:["#c890b8","#e0c890","#ffffff"] },
+      fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:0}, big:["elk"], small:["frog","turtle2"], air:["heron","raven"] },
+      sky:{ top:[130,142,150], bot:[196,196,186], k:0.30, haze:[198,198,188] } } ],
+
+  arctic:[ {},
+    { name:"THE TUNDRA",   // arctic SUMMER: the sea ice gone, brown-green moss, meltwater pools, low sun
+      far:[150,150,124], near:[116,120,96],  cap:[186,182,150], ground:[130,134,102], snow:false, amp:0.34,
+      walls:[[212,204,186],[182,176,160],[228,222,206],[158,152,140],[198,192,176],[170,164,150],[220,214,198],[146,140,130]],
+      flora:{ kinds:["lichen","dwarfwillow","cottongrass","lichen","dwarfwillow"], bloom:["#e8a0c0","#f0d878","#ffffff"] },
+      fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:0}, big:["caribou","polarbear"], small:["ptarmigan","marmot"], air:["skua","raven"] },
+      sky:{ top:[146,176,210], bot:[218,222,204], k:0.26, haze:[220,224,206] } },
+    { name:"THE GLACIER",  // a calving front: deep blue ice cliffs standing straight out of the water
+      far:[186,214,232], near:[132,178,208], cap:[240,250,255], ground:[196,218,234], steep:0.86, flat:0.55, amp:0.72,
+      walls:[[228,236,244],[198,210,224],[242,246,250],[176,192,210],[214,224,236],[190,202,218],[236,240,246],[164,180,200]],
+      flora:{ kinds:["lichen","lichen","dwarfwillow","lichen"], bloom:["#d8e8f0","#ffffff","#c0d8e8"] },
+      fauna:{ keep:{deer:0,rabbit:0,fox:1,goat:0}, big:["seal","walrus"], small:["ptarmigan"], air:["skua","tern"] },
+      sky:{ top:[124,158,200], bot:[212,228,240], k:0.32, haze:[216,232,244] } } ],
+
+  volcano:[ {},
+    { name:"THE GREEN ISLAND",   // old flows gone to jungle: waterfalls off the cliffs, bright reef below
+      far:[74,110,80],   near:[44,78,56],   cap:[118,150,104], ground:[68,96,64], amp:0.94,
+      walls:[[248,242,230],[220,208,192],[196,224,220],[236,220,190],[210,232,226],[188,178,164],[244,234,208],[172,198,196]],
+      flora:{ kinds:["palm","fern","palm","seagrape","fern"], bloom:["#f26a8d","#ffd166","#ffffff","#f4977a"] },
+      fauna:{ keep:{deer:0,rabbit:0,fox:0,goat:1}, big:["goat","turtle"], small:["crab","lizard"], air:["frigate","tern"] },
+      sky:{ top:[104,168,216], bot:[204,230,226], k:0.28, haze:[208,232,226] } },
+    { name:"THE CALDERA",        // the cone blown open and flooded: a lagoon inside a ring wall
+      far:[118,104,96],  near:[78,68,64],   cap:[164,142,128], ground:[96,86,78], amp:0.72, steep:0.55, flat:0.30,
+      walls:[[214,204,192],[186,174,162],[228,220,206],[160,150,140],[200,188,176],[172,162,152],[220,212,198],[148,140,132]],
+      flora:{ kinds:["scrub","grass","windbent","scrub","grass"], bloom:["#e8c060","#d88a5a","#ffffff"] },
+      fauna:{ keep:{deer:0,rabbit:1,fox:0,goat:1}, big:["goat"], small:["lizard","crab"], air:["frigate","tern","vulture"] },
+      sky:{ top:[126,152,190], bot:[210,206,196], k:0.28, haze:[212,210,198] } } ],
+
+  hell:[ {},
+    { name:"THE CINDER WASTE", // burnt out and grey: the fire has mostly gone out of this one
+      far:[92,84,80],   near:[56,50,48],   cap:[152,110,72], ground:[62,58,54],
+      walls:[[78,72,68],[54,50,48],[98,88,82],[46,42,40],[112,98,88],[64,58,54],[86,78,72],[50,46,44]],
+      flora:{ kinds:["snag","snag","scrub","snag"], bloom:["#b8823a","#8a6228","#c89a4a"] },
+      sky:{ top:[52,44,42], bot:[168,126,88], k:0.62, haze:[178,138,96] } },
+    { name:"THE OBSIDIAN",     // black glass under violet fire — the coldest-looking hell there is
+      far:[52,40,64],   near:[28,20,38],   cap:[142,92,196], ground:[34,26,42],
+      walls:[[48,38,56],[30,24,38],[66,52,78],[26,20,32],[80,62,96],[38,30,46],[58,46,68],[28,22,34]],
+      flora:{ kinds:["snag","snag","scrub","snag"], bloom:["#a24ad8","#7a2ea8","#c86ae8"] },
+      sky:{ top:[18,8,28], bot:[126,38,168], k:0.80, haze:[148,56,196] } } ],
+
+  heaven:[ {},
+    { name:"THE SILVER REACHES", // cool silver and blue instead of gold: the same place before dawn
+      far:[220,228,242], near:[196,206,228], cap:[248,252,255], ground:[214,222,232],
+      walls:[[238,244,250],[218,226,238],[250,252,255],[226,234,244],[244,248,252],[222,230,240],[248,250,254],[232,238,246]],
+      flora:{ kinds:["silvertree","generic","silvertree","grass"], bloom:["#cfe4ff","#ffffff","#a8c8f0"] },
+      sky:{ top:[126,168,226], bot:[214,230,246], k:0.58, haze:[220,234,248] } },
+    { name:"THE ROSE VAULT",     // dawn rose and amber, warmer and lower than the white Empyrean
+      far:[244,214,208], near:[228,188,184], cap:[255,238,228], ground:[240,214,200],
+      walls:[[252,240,232],[240,216,208],[255,248,240],[246,226,206],[250,238,228],[238,214,204],[255,244,232],[244,222,212]],
+      flora:{ kinds:["goldtree","generic","goldtree","grass"], bloom:["#ffb0c0","#ffffff","#ffd08a"] },
+      sky:{ top:[186,150,206], bot:[255,206,176], k:0.66, haze:[255,214,188] } } ]
+};
+// Merge a variant over its land. `k` is forced back afterwards — see the warning above.
+function variantOf(li,B){
+  var vs=BIOME_VARIANTS[B.k];
+  if(!vs||!vs.length) return B;
+  var v=vs[((li*2246822519+104729)>>>0)%vs.length];
+  var out={}, kk;
+  for(kk in B) if(B.hasOwnProperty(kk)) out[kk]=B[kk];
+  for(kk in v) if(v.hasOwnProperty(kk)) out[kk]=v[kk];
+  out.k=B.k;
+  return out;
 }
 var curBiome=BIOMES[0];
 var bioTrees=null;     // the OLD FOREST's colossal trees ({far:[],near:[]}), null in every other biome
@@ -2848,19 +3101,21 @@ function buildWorld(li){
   var geo=rng((seed+61)>>>0);
   // BIOME first — it has the final say on the water, because the land and the water have to agree:
   // sea cliffs without a sea are nonsense, and so is a harbour in a red-rock desert.
-  curBiome = biomeOf(li);
+  curBiome = variantOf(li, biomeOf(li));    // the land, then which of its three faces
   hasOcean = (li===0) ? true : (curBiome.water==="sea" ? true : curBiome.water==="river" ? false : geo()<0.6);
   // The SEA CLIFFS get a far wider coast than anywhere else. Nick named that land the weakest of the
   // seven, and the reason was that a biome literally called SEA CLIFFS was rendering with no visible
   // water at all — 4.5-8% of the world per side is a sliver at the seam you only meet on the outer
   // monitor. A real expanse is the difference between a grey wall and a coastline.
-  seaW = hasOcean ? (curBiome.k==="cliffs" ? (0.15+geo()*0.06) : (0.045+geo()*0.035)) : 0;
-  WATER_W = (curBiome.k==="cliffs") ? 0.21 : 0.11;   // the SEA CLIFFS get a bay you can see
+  seaW = hasOcean ? ((curBiome.k==="cliffs"||curBiome.k==="beach") ? (0.15+geo()*0.06) : ((curBiome.k==="swamp"||curBiome.k==="arctic") ? (0.22+geo()*0.06) : (0.045+geo()*0.035))) : 0;
+  WATER_W = (curBiome.k==="cliffs"||curBiome.k==="beach") ? 0.21 : ((curBiome.k==="swamp"||curBiome.k==="arctic") ? 0.22 : 0.11);   // the coasts get a bay you can see; the bayou is mostly water
   // Dry biomes get a RIVER through the city instead of a coast: the waterfront becomes a riverbank,
   // and the harbour's deep-water shipping becomes barge traffic (drawRiver / riverAt).
   hasRiver = !hasOcean && curBiome.water==="river";
   riverX   = hasRiver ? (0.30+geo()*0.40) : -1;      // where it crosses, as a world fraction
-  riverW   = hasRiver ? (0.030+geo()*0.028) : 0;     // and how wide
+  // The BAYOU's channel is roughly three times a normal river's: the land there is what is left over
+  // between the water, not the other way round, and a 3%-wide creek across a swamp reads as a ditch.
+  riverW   = hasRiver ? ((curBiome.k==="swamp") ? (0.085+geo()*0.045) : (0.030+geo()*0.028)) : 0;
   milFund = 0.25+geo()*0.7;                   // how well this civilization funds its defenders
   // MOUNTAIN roll: most lives grow up under a distant range (two ridges for depth);
   // the tallest peaks wear snow. Life 0 gets mountains (the city being watched).
@@ -2883,6 +3138,21 @@ function buildWorld(li){
       mts.far.push({x:mg()*WW, w:(100+mg()*150)*MSC, h:fh, sn:curBiome.snow&&((fh>66*MSC)||mg()<0.25), ph:mg()*9}); }
     for(mi=0;mi<nN;mi++){ var nh=(58+mg()*86)*MSC;                 // the bolder front ridge — the peaks
       mts.near.push({x:mg()*WW, w:(80+mg()*130)*MSC, h:nh, sn:curBiome.snow&&((nh>92*MSC)||mg()<0.35), ph:mg()*9}); }   // clear the skyline
+    // ⚠ A VOLCANO IS NOT A RANGE. The roll above scatters four to eight peaks of similar height, which
+    // is right for every other rock land and produced a broad flat-topped ridge for the volcanic
+    // island — no cone anywhere in it, and `drawVolcano` politely put a plume on the tallest bump. An
+    // island volcano is ONE dominant cone with at most a couple of low satellites, so the near band is
+    // replaced outright rather than tuned. The triangular peak profile (`h*t0`, with steep:0) IS the
+    // cone; nothing else has to draw it.
+    if(curBiome.volcanic){
+      var vX=(0.30+mg()*0.40)*WW;                                  // the summit, kept off the world's seam
+      mts.near=[{ x:vX, w:(300+mg()*140)*MSC, h:(150+mg()*40)*MSC, sn:false, ph:mg()*9 }];
+      var nSat=1+((mg()*2)|0);
+      for(mi=0;mi<nSat;mi++)                                       // a parasitic cone or two on its flank
+        mts.near.push({ x:vX+(mg()<0.5?-1:1)*(0.16+mg()*0.12)*WW, w:(90+mg()*70)*MSC,
+                        h:(38+mg()*30)*MSC, sn:false, ph:mg()*9 });
+      mts.far=mts.far.slice(0,2);                                  // and only a hint of anything beyond
+    }
   }
   // THE OLD FOREST: not a ridge but a stand of COLOSSAL trees, in three depth bands.
   //   far  — ordinary old-growth on the horizon. The only band whose CROWNS are drawn; it gives the
@@ -6471,12 +6741,459 @@ function drawHarborBridge(g,L,now,night,wTop){
       for(var lx=xa+2;lx<xb;lx+=4) g.fillRect(lx|0,deckY-1,1,1); g.globalCompositeOperation="source-over"; }
   }
 }
+// THE REEF AND THE LAGOON. Called from drawHarbor, immediately after the water body is painted, for
+// the same reason drawShoreLife is: the water is drawn late, so anything belonging IN it has to be
+// drawn later still. The coral coast carries almost no relief by design, so unlike every other land
+// here none of its identity is in its skyline — it is all in the water and on the sand.
+// WHAT STANDS IN THE BAYOU'S WATER. The cypress are the point: a swamp is not a lake with trees
+// beside it, it is trees standing IN it, and their reflections in almost-still black water are half
+// the picture. Drawn from drawHarbor with the water, for the same draw-order reason as the reef.
+function drawBayouWater(g,L,now,sa,sb,zi,wTop,shoreAt,sgn){
+  var day=L>0.5, K=Math.max(1,KSP), span=sb-sa, wDep=Math.max(1,HORIZON-wTop);
+  // WHICH TREE STANDS IN THIS WATER. Off the table, so THE MANGROVE and THE PEAT MOSS are not the
+  // bayou with a filter over it — they grow different things, which is the whole point of a variant.
+  var wt=curBiome.waterTree||"cypress", mang=wt==="mangrove", birch=wt==="birch";
+  var trunk =mang?(day?"#8a4a38":"#1c100c"):birch?(day?"#e0dcd0":"#2a2a26"):(day?"#7c7462":"#191c18");
+  var trunk2=mang?(day?"#6a3628":"#120a08"):birch?(day?"#b0aca0":"#1c1c1a"):(day?"#5e5849":"#0f110e");
+  var canopy=mang?(day?"#3e8a4e":"#0b1a10"):birch?(day?"#8a9a5c":"#151a12"):(day?"#5a7050":"#111811");
+  var mossC=day?"rgba(158,158,132,0.62)":"rgba(30,34,28,0.6)";
+  // THE LAST LIGHT ON THE TREES. Nick, on the dusk render: the water goes near-black and the cypress
+  // disappear into it. His call was to KEEP the water dark — that is what makes a bayou a bayou — and
+  // light the trees instead, so they read as silhouettes against it rather than dissolving.
+  var lowSun=Math.max(0,1-Math.abs(L-0.42)*3.4);               // strongest right at dusk and dawn
+  var rimC=goldenK>0.15?"rgba(255,196,132,":"rgba(206,214,196,";
+  var sunL7=curSunDf<0.5;
+  // TREES IN THE WATER. Stratified across the span so they never clump, each with its own depth: the
+  // further back it stands the smaller and the more it fades into the haze over the water.
+  // ⚠ COUNT IS THE PERF LEVER HERE. drawHarbor runs in the LIVE pass, not only the cached backdrop,
+  // so every tree in this water is re-drawn every frame with three crown tiers, two moss fringes and
+  // a per-row reflection. At span/16K the bayou measured 1.42x alpine at a mature city — the most
+  // expensive land in the set by a wide margin and over a 60Hz budget. span/30K holds the look.
+  var nT=Math.max(4,Math.round(span/(30*K)));
+  for(var i=0;i<nT;i++){
+    var h=((i*2654435761+((sa*31)|0))>>>0);
+    var tx=sa+Math.round(((i+0.5+(((h%100)/100)-0.5)*0.8)/nT)*span);
+    // ⚠ depth was uniform and then SQUARED for the y position, which piles almost every tree at the
+    // back of the water at the same small size — a row of identical street trees. sqrt biases the
+    // draw toward the FRONT instead, so the stand has a few big ones near you and many small far off.
+    var depth=Math.sqrt(((h>>>7)%1000)/1000);                    // 0 = far back, 1 = right at the front
+    var ty=wTop+Math.round(depth*wDep*0.94);
+    if(ty>=HORIZON-1) continue;
+    var edge=shoreAt(ty);
+    if(sgn>0? tx>edge-2 : tx<edge+2) continue;                   // it has to be standing in WATER
+    var th=Math.round((6+depth*30)*K), tw=Math.max(1,Math.round((1+depth*3)*K));
+    var fade=0.30*(1-depth);                                     // distance haze over the water
+    g.fillStyle=trunk;
+    for(var q=0;q<th;q++){
+      var flare=q<th*0.18?Math.round((1-q/(th*0.18))*tw*1.5):0;  // the buttress at the waterline
+      g.fillRect(tx-flare,ty-q,tw+flare,1);
+    }
+    g.fillStyle=trunk2; g.fillRect(tx+Math.round(tw*0.6),ty-th,Math.max(1,Math.round(K*0.7)),th);
+    if(birch) for(var bk=0;bk<Math.round(th/(4*K));bk++){        // a birch wears black bands, not flutes
+      g.fillStyle=day?"#3a3a34":"#0e0e0c";
+      g.fillRect(tx,ty-Math.round(bk*4*K)-Math.round(2*K),tw,Math.max(1,Math.round(K*0.8))); }
+    if(mang){                                                    // MANGROVE PROP ROOTS — the plant's whole
+      g.fillStyle=trunk2;                                        // identity, arching out of the water
+      for(var pr=0;pr<5;pr++){
+        var pdir=(pr<2)?-1:1, pspr=(1+(pr%3))*tw*1.4, plen=Math.round(th*0.30);
+        for(var pq=0;pq<plen;pq++){
+          var pf=pq/plen;
+          g.fillRect(tx+Math.round(pdir*pspr*(1-pf)),ty-pq,Math.max(1,Math.round(K*0.8)),1);
+        }
+      }
+    }
+    if(lowSun>0.05){                                             // the rim of last light down one side
+      g.fillStyle=rimC+(0.34*lowSun*(0.45+depth*0.55)).toFixed(3)+")";
+      g.fillRect(sunL7?tx-Math.round(tw*0.2):tx+tw-Math.max(1,Math.round(K)),ty-th,Math.max(1,Math.round(K*1.2)),th);
+    }
+    // THE CROWN. ⚠ One wide flat folMass reads as an ACACIA — an umbrella on a pole, which is the
+    // wrong continent. A bald cypress is a RAGGED, tapering, open head with bare branch structure
+    // showing through it, so: three tiers narrowing upward, unequal, plus bare limbs out the sides.
+    var crw=Math.round((3+depth*8)*K);
+    g.fillStyle=trunk2;
+    for(var lb=0;lb<3;lb++){                                     // bare limbs first, so leaves sit on them
+      var ldir=(lb&1)?1:-1, ly=ty-th+Math.round(crw*(0.35+lb*0.42));
+      for(var lq=0;lq<Math.round(crw*0.9);lq++)
+        g.fillRect(tx+ldir*lq,ly-Math.round(lq*0.35),Math.max(1,Math.round(K*0.8)),Math.max(1,Math.round(K*0.8)));
+    }
+    for(var tier=0;tier<2;tier++){
+      var tf=tier/2, tw2=crw*(1-tf*0.42)*(0.8+(((h>>>(tier+11))%100)/100)*0.45);
+      g.fillStyle=tier===1?canopy:(day?"#4c6044":"#0d130d");
+      folMass(g,tx+((tier-1)*crw*0.22),ty-th+Math.round(crw*(0.2+tf*0.62)),tw2,Math.max(1,Math.round((1.4+depth*1.6)*K)),(h*(tier+7))>>>0,K);
+    }
+    if(depth>0.28){
+      mossFringe(g,tx,ty-th+Math.round(crw*0.55),crw*0.85,h,K,mossC);
+    }
+    // THE KNEES around its base, breaking the surface
+    g.fillStyle=trunk2;
+    for(var kn=0;kn<3;kn++){
+      var kx=tx+Math.round((-2+kn*2)*tw), kh=Math.max(1,Math.round((0.8+((h>>>(kn+3))&1))*tw));
+      g.fillRect(kx,ty-kh,Math.max(1,Math.round(tw*0.7)),kh);
+    }
+    // THE REFLECTION — the reason the water is worth drawing black. Compressed, dimmer, and broken
+    // by a slow ripple, because a mirror-perfect copy reads as a bug rather than as still water.
+    var rH=Math.round(th*0.55);
+    var rStep=Math.max(1,Math.round(K));
+    for(var r=0;r<rH;r+=rStep){
+      var rf=r/rH, jig=Math.round(Math.sin(now*0.0007+r*0.6+i)*1.4*K*rf);
+      if(((r*5+((now*0.002)|0))%7)===0) continue;                // the ripple breaks it up
+      g.fillStyle="rgba("+(day?"92,96,74,":"20,24,18,")+((0.30-0.24*rf)).toFixed(3)+")";
+      g.fillRect(tx+jig,ty+r,tw,rStep);
+    }
+    if(fade>0.02){ g.fillStyle=rgba(biomeSkc(day),fade);         // haze the far ones back
+      g.fillRect(tx-Math.round(crw),ty-th,Math.round(crw*2),th); }
+  }
+  // FOG LYING ON THE WATER — bayou weather, layered above the trees' feet so they wade out of it.
+  var fogB=day?0.13:0.09;
+  for(var fb=0;fb<3;fb++){
+    var fy=wTop+Math.round(wDep*(0.28+fb*0.22))+Math.round(Math.sin(now*0.00013+fb)*2*K);
+    g.fillStyle="rgba("+(day?"206,210,192,":"96,104,96,")+(fogB*(1-fb*0.22)).toFixed(3)+")";
+    g.fillRect(sa,fy,span,Math.round((3+fb*2)*K));
+  }
+  // THE SHANTY ROW. Nick's call: a WORKING bayou — people live out on the water and you can see them.
+  // A row of shacks on pilings with boardwalks running between them, crab traps stacked on the decks,
+  // nets hung out to dry, someone sitting fishing off the end, and warm windows after dark. It grows
+  // in with the city rather than existing from day one, like the plateau towns do.
+  if(cityG>0.24){
+    var nS=2+(((sa*2654435761)>>>0)%2), prevX=null, prevY=null;
+    for(var sh=0;sh<nS;sh++){
+      var shh=((sh*7919+((sa*13)|0))>>>0);
+      var sdep=0.42+((shh%100)/100)*0.34;                        // out in the shallows, not mid-channel
+      var syy=wTop+Math.round(sdep*wDep);
+      var sxx=sa+Math.round(((sh+0.5+(((shh>>>7)%100)/100-0.5)*0.5)/nS)*span);
+      var sedge=shoreAt(syy);
+      if(sgn>0? sxx>sedge-6*K : sxx<sedge+6*K) continue;
+      var sw3=Math.round((9+((shh>>>11)%5))*K), sh3=Math.round((5+((shh>>>15)%3))*K);
+      var pil=Math.round(4*K);
+      g.fillStyle=day?"#6b5a40":"#161208";                       // the pilings, standing in the water
+      for(var pz=0;pz<4;pz++) g.fillRect(sxx+Math.round(pz*(sw3/3.4)),syy,Math.max(1,Math.round(K)),pil);
+      if(prevX!==null){                                          // …and the boardwalk to the last one
+        g.fillStyle=day?"rgba(148,126,92,0.9)":"rgba(28,22,14,0.9)";
+        var bA=Math.min(prevX,sxx), bB=Math.max(prevX,sxx);
+        for(var bq=bA;bq<bB;bq+=Math.max(1,Math.round(K))){
+          var bt=(bq-bA)/Math.max(1,bB-bA);
+          g.fillRect(bq,Math.round(prevY+(syy-prevY)*bt),Math.max(1,Math.round(K)),Math.max(1,Math.round(1.4*K)));
+        }
+      }
+      prevX=sxx; prevY=syy-Math.round(1.4*K);
+      g.fillStyle=day?"#b09268":"#2a2216";                       // the deck
+      g.fillRect(sxx-Math.round(K),syy-Math.round(1.6*K),sw3+Math.round(2*K),Math.round(1.8*K));
+      g.fillStyle=day?"#9a8a72":"#22201a";                       // weathered board walls
+      g.fillRect(sxx,syy-sh3,sw3,sh3-Math.round(1.6*K));
+      g.fillStyle=day?"#7a6a54":"#191712";
+      for(var pl3=0;pl3<3;pl3++) g.fillRect(sxx,syy-sh3+Math.round(pl3*(sh3/3.2)),sw3,Math.max(1,Math.round(K*0.7)));
+      g.fillStyle=day?"#5e5346":"#141210";                       // a rusted tin roof, pitched
+      g.fillRect(sxx-Math.round(1.4*K),syy-sh3-Math.round(2*K),sw3+Math.round(2.8*K),Math.round(2.2*K));
+      g.fillStyle=day?"#8a7a5e":"#1a1814";
+      g.fillRect(sxx+Math.round(sw3*0.6),syy-sh3-Math.round(4*K),Math.max(1,Math.round(1.4*K)),Math.round(2.2*K));   // stove pipe
+      // CRAB TRAPS stacked on the deck, and a net hung to dry off the rail
+      g.fillStyle=day?"#8a8a7a":"#1e1e1a";
+      for(var ct=0;ct<2;ct++) g.fillRect(sxx+sw3-Math.round((2+ct*2.2)*K),syy-Math.round((3+ct*1.6)*K),Math.round(1.8*K),Math.round(1.6*K));
+      g.fillStyle=day?"rgba(196,186,160,0.55)":"rgba(40,38,32,0.5)";
+      g.fillRect(sxx-Math.round(2*K),syy-Math.round(1.6*K),Math.round(2.4*K),Math.round(3.4*K));                     // the net
+      // SOMEONE FISHING off the end, rod out over the water
+      if(((shh>>>19)&1)&&L>0.24){
+        var fpx=sxx-Math.round(2.4*K), fpy=syy-Math.round(1.6*K);
+        g.fillStyle=day?"#3a4a5c":"#12161c"; g.fillRect(fpx,fpy-Math.round(3*K),Math.max(1,Math.round(1.4*K)),Math.round(3*K));
+        g.fillStyle=day?"#c9a888":"#3a3226"; g.fillRect(fpx,fpy-Math.round(4.4*K),Math.max(1,Math.round(1.4*K)),Math.round(1.4*K));
+        g.fillStyle=day?"rgba(60,52,40,0.8)":"rgba(24,22,18,0.8)";
+        for(var rq2=0;rq2<Math.round(6*K);rq2++)                                                                     // the rod
+          g.fillRect(fpx-Math.round(rq2*0.9),fpy-Math.round(4*K)+Math.round(rq2*0.5),Math.max(1,Math.round(K*0.7)),1);
+      }
+      if(!day){ g.globalCompositeOperation="lighter";            // warm windows, and one bare bulb outside
+        if(((sh+Math.floor(now/3400))&3)!==3){
+          g.fillStyle="rgba(255,196,116,0.85)";
+          g.fillRect(sxx+Math.round(sw3*0.24),syy-Math.round(sh3*0.62),Math.round(2*K),Math.round(1.8*K));
+        }
+        g.fillStyle="rgba(255,224,164,0.5)";
+        g.fillRect(sxx-Math.round(2*K),syy-Math.round(sh3+3*K),Math.round(2*K),Math.round(2*K));
+        g.globalCompositeOperation="source-over"; }
+    }
+  }
+  // THE PIROGUE — a flat-bottomed pole boat, and this land's traversal layer. Poled, not rowed: the
+  // standing figure with the pole is the whole silhouette.
+  var pcyc=76000, pp=((now)%pcyc)/pcyc, pf=pp<0.5?pp*2:2-pp*2;
+  var py=wTop+Math.round(wDep*0.72), pedge=shoreAt(py);
+  var px=sa+Math.round(span*(0.12+pf*0.62));
+  if(!(sgn>0? px>pedge-4 : px<pedge+4)){
+    g.fillStyle=day?"#6b5a3c":"#171208";
+    g.fillRect(px-Math.round(4*K),py,Math.round(8*K),Math.max(1,Math.round(1.4*K)));            // the hull
+    g.fillStyle=day?"#2e2a22":"#0b0a08";
+    g.fillRect(px,py-Math.round(4*K),Math.max(1,Math.round(1.2*K)),Math.round(4*K));            // the poler
+    g.fillStyle=day?"#c9a888":"#3a3226";
+    g.fillRect(px,py-Math.round(5.4*K),Math.max(1,Math.round(1.2*K)),Math.round(1.4*K));        // head
+    g.fillStyle=day?"#8a7a58":"#221c12";
+    for(var pq=0;pq<Math.round(7*K);pq++)                                                        // the pole
+      g.fillRect(px+Math.round(1.4*K)+Math.round(pq*0.5),py-Math.round(5*K)+pq,Math.max(1,Math.round(K*0.8)),1);
+  }
+  // FIREFLIES over the water at dusk — the land's "hanging and falling" beat.
+  if(L<0.42&&L>0.06){
+    g.globalCompositeOperation="lighter";
+    for(var ff=0;ff<16;ff++){
+      var fh=((ff*40503+((sa*7)|0))>>>0);
+      var fx=sa+((fh%Math.max(1,span))+Math.round(Math.sin(now*0.0009+ff*1.7)*7*K))%Math.max(1,span);
+      var fy2=wTop+((fh>>>9)%Math.max(1,wDep));
+      var blink=Math.sin(now*0.004+ff*2.3);
+      if(blink<0.55) continue;
+      g.fillStyle="rgba(214,255,140,"+(0.55*(blink-0.55)/0.45).toFixed(2)+")";
+      g.fillRect(sa+((fx-sa)|0),fy2,Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
+    }
+    g.globalCompositeOperation="source-over";
+  }
+}
+// THE PACK ICE. This is the one land where the snow system LEADS: everywhere else snow is weather laid
+// over the land, here the ice IS the geography. Drawn from drawHarbor with the water, like the reef and
+// the bayou, for the same draw-order reason.
+// ⚠ How much ice there is keys off the REAL Norwich temperature, so a July arctic life has open leads
+// and meltwater on the floes and a February one is frozen shore to horizon. Same contract as every
+// other accent in this project — the real measurement drives it, the biome only decides how it shows.
+function drawPackIce(g,L,now,nd,sa,sb,zi,wTop){
+  if(!curBiome.polar) return;
+  var span=sb-sa; if(span<12) return;
+  var day=L>0.5, K=Math.max(1,KSP), wDep=Math.max(1,HORIZON-wTop);
+  var temp=(weather.temp==null?30:weather.temp);
+  var frozen=Math.max(0,Math.min(1,(38-temp)/34));            // 1 hard frozen · 0 open water
+  if(curBiome.name==="THE TUNDRA") frozen*=0.35;              // the summer variant keeps its sea open
+  var iceT=day?[240,246,252]:[92,104,126], iceS=day?[198,214,232]:[62,74,96];
+  var meltC=day?"rgba(120,178,214,0.55)":"rgba(30,52,78,0.5)";
+  // THE FLOES. Irregular plates with a bright top edge and a shadowed lower one, packed tighter and
+  // bigger the further out you look, with dark LEADS of open water between them.
+  var rows=Math.max(3,Math.round(wDep/(7*K)));
+  for(var r=0;r<rows;r++){
+    var rf=r/rows, ry=wTop+Math.round(rf*wDep);
+    var packHere=frozen*(0.55+0.45*(1-rf));                    // the shore fast-ice is the last to go
+    if(packHere<0.10) continue;
+    var fw=Math.round((10+rf*26)*K), step=Math.round(fw*(1.25-packHere*0.34));
+    for(var fx=sa-Math.round(fw);fx<sb+fw;fx+=step){
+      var hh=(((fx*2654435761)^(r*40503))>>>0);
+      if((hh%100)>packHere*100+8) continue;                    // a gap in the pack is a lead
+      var w2=Math.round(fw*(0.55+((hh%100)/100)*0.7)), h2=Math.max(1,Math.round((1.4+rf*2.2)*K));
+      var jx=Math.round((((hh>>>9)%100)/100-0.5)*fw*0.5);
+      if(fx+jx+w2<sa||fx+jx>sb) continue;
+      var x0=Math.max(sa,fx+jx), x1=Math.min(sb,fx+jx+w2);
+      if(x1<=x0) continue;
+      g.fillStyle=css(iceS); g.fillRect(x0,ry,x1-x0,h2);                         // the plate
+      g.fillStyle=css(iceT); g.fillRect(x0,ry,x1-x0,Math.max(1,Math.round(K)));  // its sunlit upper edge
+      if(((hh>>>17)&3)===0&&frozen<0.86){                                        // meltwater ponded on top
+        g.fillStyle=meltC;
+        g.fillRect(x0+Math.round(w2*0.25),ry+Math.max(1,Math.round(K)),Math.round(w2*0.4),Math.max(1,Math.round(K)));
+      }
+      if(((hh>>>21)&7)===0){                                                     // a PRESSURE RIDGE where two
+        g.fillStyle=css(iceT);                                                   // floes have driven together
+        var pr=Math.round((2+rf*3)*K);
+        for(var pq=0;pq<pr;pq++) g.fillRect(x0+Math.round(w2*0.5)-pq,ry-pq,pq*2+1,Math.max(1,Math.round(K)));
+      }
+    }
+  }
+  // AN ICEBERG or two standing well clear of the pack — the glacier variant gets more of them.
+  var nB=curBiome.name==="THE GLACIER"?3:1;
+  for(var b=0;b<nB;b++){
+    var bh2=(((sa*7919)+b*104729)>>>0);
+    var bx=sa+Math.round(((bh2%1000)/1000)*span), by=wTop+Math.round((0.20+((bh2>>>9)%100)/100*0.45)*wDep);
+    var bw=Math.round((7+((bh2>>>13)%8))*K), bht=Math.round((6+((bh2>>>17)%9))*K);
+    g.fillStyle=css(iceS);
+    for(var bq=0;bq<bht;bq++){                                 // a blocky berg, wider at the waterline
+      var bf=bq/bht, bwq=Math.round(bw*(1-bf*0.55)*(0.8+(((bh2>>>(bq&7))%10)/10)*0.4));
+      g.fillRect(bx-bwq,by-bq,bwq*2,1);
+    }
+    g.fillStyle=css(iceT); g.fillRect(bx-Math.round(bw*0.5),by-bht,Math.round(bw),Math.max(1,Math.round(1.4*K)));
+    g.fillStyle=day?"rgba(120,178,214,0.35)":"rgba(40,66,96,0.35)";               // its blue reflection
+    for(var rq=0;rq<Math.round(bht*0.5);rq++)
+      g.fillRect(bx-Math.round(bw*(1-rq/bht)*0.8),by+rq,Math.round(bw*(1-rq/bht)*1.6),1);
+  }
+  // THE ICEBREAKER — this land's traversal layer. It works a LEAD through the pack, and the broken
+  // channel behind it is the point: a ship on open water is just a ship, a ship with a wake of shattered
+  // ice is an icebreaker.
+  if(cityG>0.26&&frozen>0.15){
+    var per=96000, ph=((now%per)/per), dir=ph<0.5?1:-1, f=ph<0.5?ph*2:2-ph*2;
+    var sy=wTop+Math.round(wDep*0.58), sxp=sa+Math.round(span*(0.08+f*0.80));
+    g.fillStyle=day?"rgba(226,234,242,0.95)":"rgba(78,90,108,0.9)";               // the shattered channel astern
+    for(var cq=0;cq<Math.round(22*K);cq++){
+      var cx2=sxp-dir*cq*Math.round(1.4*K);
+      if(cx2<sa||cx2>sb) continue;
+      g.fillRect(cx2,sy+Math.round(Math.sin(cq*0.9)*1.4*K),Math.max(1,Math.round(1.6*K)),Math.max(1,Math.round(K)));
+    }
+    g.fillStyle=day?"#c04a2e":"#3a1810";                                          // the red hull
+    g.fillRect(sxp-Math.round(6*K),sy-Math.round(2*K),Math.round(12*K),Math.round(2.4*K));
+    g.fillStyle=day?"#22262c":"#0c0e12";
+    g.fillRect(sxp-Math.round(6*K),sy+Math.round(0.4*K),Math.round(12*K),Math.max(1,Math.round(K)));
+    g.fillStyle=day?"#e4e8ee":"#464e5c";                                          // white superstructure
+    g.fillRect(sxp-Math.round(1.6*K),sy-Math.round(5.4*K),Math.round(5*K),Math.round(3.6*K));
+    g.fillStyle=day?"#3a4048":"#181c22";
+    g.fillRect(sxp+Math.round(2.4*K),sy-Math.round(7*K),Math.round(1.8*K),Math.round(1.8*K));   // the funnel
+    if(!day){ g.globalCompositeOperation="lighter";
+      g.fillStyle="rgba(255,232,180,0.85)";
+      g.fillRect(sxp-Math.round(0.6*K),sy-Math.round(4.6*K),Math.round(2*K),Math.max(1,Math.round(K)));
+      g.fillStyle="rgba(190,230,255,0.7)";                                        // and its working floodlight
+      g.fillRect(sxp+dir*Math.round(6*K),sy-Math.round(3*K),Math.round(6*K),Math.round(2*K));
+      g.globalCompositeOperation="source-over"; }
+  }
+  // SPINDRIFT — dry snow streaming off the floes when the real wind is up. On a calm day: nothing.
+  var wind=(weather.wind==null?5:weather.wind);
+  if(wind>9&&frozen>0.3){
+    var sk=Math.min(1,(wind-9)/16);
+    g.fillStyle=day?"rgba(255,255,255,"+(0.16*sk).toFixed(3)+")":"rgba(196,216,240,"+(0.10*sk).toFixed(3)+")";
+    for(var dq2=0;dq2<9;dq2++){
+      var dy=wTop+((dq2*37)%Math.max(1,wDep));
+      var dx=sa+((dq2*211+((now*0.05*sk)|0))%Math.max(1,span));
+      g.fillRect(dx,dy,Math.round((6+dq2)*K),Math.max(1,Math.round(K)));
+    }
+  }
+}
+function drawReefLagoon(g,L,now,sa,sb,zi,wTop){
+  if(curBiome.k!=="beach"&&curBiome.k!=="swamp") return;
+  var bayou=curBiome.k==="swamp";
+  var span=sb-sa; if(span<12) return;
+  var day=L>0.5, K=Math.max(1,KSP);
+  var inner=zi?sa:sb, sgn=zi?-1:1, wDep=Math.max(1,HORIZON-wTop);
+  // ⚠⚠ NICK, ON SEEING THE FIRST VERSION: "it just looks like blocks of water it doesn't even look
+  // natural." He was right, and the reason is structural, not palette. The bay is an x-RANGE, so the
+  // waterline came out as a dead-straight VERTICAL edge — a wall of water beside the city — and the
+  // depth banding ran horizontally in from that wall, which is the wrong axis: in this projection y
+  // IS distance, so depth has to grade UP the frame, not sideways.
+  // Everything below rebuilds the coast around a SHORELINE CURVE instead. For each row, the sand edge
+  // sits further inland the nearer the row is to the viewer, so the bay OPENS toward us the way a cove
+  // does, and it meanders on top of that. It runs at every city age: a resort coast does not grow
+  // concrete quays, which is what used to replace the natural shore at cityG 0.62.
+  function shoreAt(y){
+    var f=(y-wTop)/wDep;
+    // ⚠ The sweep was 0.30 of the span and the meander was small next to it, so the shoreline came
+    // out a clean DIAGONAL — a sand ramp, not a beach. A coastline's shape is mostly wander; the
+    // sweep only has to be enough to say "this recedes". Three octaves so it never repeats.
+    var sweep=span*0.13*Math.pow(Math.max(0,f),1.25);
+    var meander=Math.sin(y*0.043+sa*0.21)*5.5*K
+               +Math.sin(y*0.014+1.9)*11*K
+               +Math.sin(y*0.101+sa*0.07)*2.2*K;
+    return inner+sgn*Math.round(sweep+meander*(0.45+f*0.7));
+  }
+  // ---- THE WATER, graded by DISTANCE (up the frame), and hazed into the horizon at the far edge ----
+  // Palette per coast. The BAYOU's water is tannin-black and almost still: it MIRRORS what stands in
+  // it rather than glittering, so its shallows go darker than its deeps instead of paler.
+  // The bayou's three variants each carry their own water: tannin-black, mangrove teal, or peat brown.
+  // Reading it off the table rather than hardcoding it is what stops the other two being the same
+  // swamp with a filter over it, which is the thing Nick explicitly did not want from variants.
+  var wp=bayou?(curBiome.waterPal||{deep:[54,62,48],mid:[38,46,36],shal:[26,32,26]}):null;
+  var dim3=function(c){ return [(c[0]*0.20)|0,(c[1]*0.22)|0,(c[2]*0.24)|0]; };
+  var deepC =bayou?(day?wp.deep:dim3(wp.deep)) :(day?[24,86,132] :[7,20,38]);
+  var midC  =bayou?(day?wp.mid :dim3(wp.mid))  :(day?[38,150,170]:[10,40,58]);
+  var shalC =bayou?(day?wp.shal:dim3(wp.shal)) :(day?[142,224,214]:[26,74,86]);
+  for(var wy=wTop;wy<HORIZON;wy++){
+    var wf=(wy-wTop)/wDep;
+    var band=wf<0.55?mixc(deepC,midC,wf/0.55):mixc(midC,shalC,(wf-0.55)/0.45);
+    var haze=Math.max(0,1-wf*4.5);                             // the far water melts into the sky
+    if(haze>0) band=mixc(band,biomeSkc(day),haze*0.55);
+    var edge=shoreAt(wy);
+    var x0=Math.min(edge,zi?sb:sa), x1=Math.max(edge,zi?sb:sa);
+    if(x1<=x0) continue;
+    if(bayou&&((wy*3+((wy/7)|0))%11)<2) band=mixc(band,mixc(wp.deep,[255,255,255],day?0.18:0.0),0.5);   // slow tonal bands
+    g.fillStyle=css(band);
+    g.fillRect(x0,wy,x1-x0,1);
+    // a few glints riding the swell, denser in the shallows where the bottom is close
+    if(!bayou&&((wy*7+((now*0.004)|0))%Math.max(3,Math.round(7-wf*4)))===0){
+      g.fillStyle=day?"rgba(255,255,255,"+(0.10+0.16*wf).toFixed(2)+")":"rgba(170,206,236,0.09)";
+      var gx=x0+((wy*53+((now*0.02)|0))%Math.max(2,x1-x0));
+      g.fillRect(gx,wy,Math.round(3*K),1);
+    }
+  }
+  // ---- THE MARGIN: foam and sand on a beach; mud, reeds and stumps in a bayou ----
+  for(var sy2=wTop+Math.round(2*K);sy2<HORIZON;sy2++){
+    var e2=shoreAt(sy2), sf=(sy2-wTop)/wDep;
+    var lap=Math.sin(now*0.0017+sy2*0.5+sa);
+    var fw2=Math.max(1,Math.round((1.2+Math.max(0,lap)*2.2)*K));
+    if(!bayou){ g.fillStyle="rgba(255,255,255,"+(0.24+0.34*Math.max(0,lap)).toFixed(2)+")";
+      g.fillRect(e2-(sgn>0?fw2:0),sy2,fw2,1); }                                      // foam, always wet
+    else { g.fillStyle=day?"rgba(96,102,74,0.55)":"rgba(20,24,18,0.5)";              // a bayou has no surf;
+      g.fillRect(e2-(sgn>0?fw2:0),sy2,fw2,1); }                                      // it has a green scum line
+    g.fillStyle=bayou?(day?"rgba(74,72,54,0.92)":"rgba(20,22,17,0.9)"):(day?"rgba(186,164,124,0.9)":"rgba(48,44,36,0.9)");   // wet sand / black mud
+    g.fillRect(sgn>0?e2:e2-Math.round(2.4*K),sy2,Math.round(2.4*K),1);
+    // and the DRY BEACH behind it — this is the band that holds the city back off the water. Without
+    // it the road ran straight to the waterline and the town looked like it was standing in the sea.
+    var dw=Math.round((4+sf*4.5)*K);
+    g.fillStyle=bayou?(day?(((sy2*7)%5)<2?"rgba(96,104,72,0.95)":"rgba(84,92,64,0.95)"):"rgba(28,32,24,0.9)")
+                     :(day?(((sy2*7)%5)<2?"rgba(244,232,200,0.95)":"rgba(234,218,180,0.95)"):"rgba(74,68,54,0.9)");
+    g.fillRect(sgn>0?e2+Math.round(2.4*K):e2-Math.round(2.4*K)-dw,sy2,dw,1);
+    if(((sy2*11)%13)===0){ g.fillStyle=day?"rgba(210,192,152,0.7)":"rgba(52,48,38,0.7)";
+      g.fillRect(sgn>0?e2+Math.round(3*K):e2-Math.round(4*K),sy2,Math.round(2*K),1); }   // shell/wrack line
+  }
+  if(bayou){ drawBayouWater(g,L,now,sa,sb,zi,wTop,shoreAt,sgn); return; }
+  // THE REEF CREST — breakers standing in one place, because a reef does not move. The single
+  // strongest "coral coast" cue in the frame.
+  var rfMidY=wTop+Math.round(wDep*0.55);
+  var rfX=shoreAt(rfMidY)-sgn*Math.round(span*0.46);
+  g.fillStyle=day?"rgba(214,238,228,0.40)":"rgba(64,102,110,0.32)";
+  g.fillRect(Math.min(rfX,inner),wTop,Math.abs(inner-rfX),Math.max(1,Math.round(K)));
+  for(var ry=wTop+Math.round(2*K);ry<HORIZON;ry+=Math.max(1,Math.round(2*K))){
+    var br=Math.sin(now*0.0021+ry*0.42+sa);
+    if(br<0.1) continue;
+    g.fillStyle="rgba(255,255,255,"+(0.24+0.46*br).toFixed(2)+")";
+    g.fillRect(rfX-Math.round(2*K),ry,Math.round(4*K)+Math.round(br*2*K),Math.max(1,Math.round(K)));
+  }
+  // HUTS OVER THE WATER on stilts, with a walkway out to them — this land's traversal layer.
+  if(cityG>0.30){
+    var nH=2+(((sa*2654435761)>>>0)%2);
+    for(var hq=0;hq<nH;hq++){
+      var hxx=inner-sgn*Math.round(span*(0.14+hq*0.11)), hyy=wTop+Math.round((7+hq*6)*K);
+      g.fillStyle=day?"rgba(170,142,104,0.85)":"rgba(38,30,20,0.85)";
+      g.fillRect(Math.min(hxx,inner),hyy-Math.round(3*K),Math.abs(inner-hxx),Math.max(1,Math.round(K)));  // walkway
+      g.fillStyle=day?"#8a6a44":"#2a2016";
+      for(var stq=0;stq<3;stq++) g.fillRect(hxx+stq*Math.round(2*K),hyy,Math.max(1,Math.round(K)),Math.round(4*K));  // stilts
+      g.fillStyle=day?"#c9ab7a":"#3a2e1e"; g.fillRect(hxx-Math.round(K),hyy-Math.round(3*K),Math.round(7*K),Math.round(3*K));
+      g.fillStyle=day?"#a8763e":"#2e2214"; g.fillRect(hxx-Math.round(2*K),hyy-Math.round(5*K),Math.round(9*K),Math.round(2.4*K));  // thatch
+      if(!day){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,198,120,0.8)";
+        g.fillRect(hxx+Math.round(2*K),hyy-Math.round(2*K),Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
+        g.globalCompositeOperation="source-over"; }
+    }
+  }
+  // THE WRECK — this land's signature landmark, and the one that had to live in the water rather than
+  // in `drawBiomeLandmark` with the others: a freighter driven onto the reef long enough ago that the
+  // town grew up looking at it. It LISTS, it is broken in two, and the sea shows through the gap —
+  // an upright unbroken hull just reads as a moored ship.
+  if(zi===0){
+    var wkX=rfX-sgn*Math.round(span*0.06), wkY=wTop+Math.round(13*K);
+    var hullW=Math.round(26*K), hullH=Math.round(5*K), list=Math.round(2*K);
+    var rust=day?"#8a4a34":"#2c1a14", rust2=day?"#6a3626":"#1e120e", deck=day?"#9a9689":"#2e2c28";
+    for(var hq2=0;hq2<hullW;hq2++){
+      if(hq2>hullW*0.44&&hq2<hullW*0.56) continue;                      // the break amidships
+      var lf=hq2/hullW, tilt=Math.round(lf*list);
+      var hh2=Math.round(hullH*(1-Math.abs(lf-0.5)*0.5));
+      g.fillStyle=(hq2%Math.max(2,Math.round(4*K))===0)?rust2:rust;
+      g.fillRect(wkX-Math.round(hullW*0.5)+hq2,wkY+tilt-hh2,Math.max(1,Math.round(K)),hh2);
+      if(hq2%Math.max(2,Math.round(3*K))===0){ g.fillStyle=deck;
+        g.fillRect(wkX-Math.round(hullW*0.5)+hq2,wkY+tilt-hh2,Math.max(1,Math.round(K)),Math.max(1,Math.round(K))); }
+    }
+    g.fillStyle=rust;                                                    // the superstructure, canted aft
+    g.fillRect(wkX+Math.round(hullW*0.20),wkY+list-Math.round(hullH*1.9),Math.round(5*K),Math.round(4*K));
+    g.fillStyle=rust2;
+    g.fillRect(wkX+Math.round(hullW*0.24),wkY+list-Math.round(hullH*2.9),Math.round(2*K),Math.round(3*K));   // funnel
+    g.fillStyle=deck;                                                    // a mast still standing forward
+    g.fillRect(wkX-Math.round(hullW*0.30),wkY-Math.round(hullH*2.6),Math.max(1,Math.round(K)),Math.round(6*K));
+    g.fillStyle="rgba(255,255,255,"+(0.30+0.30*Math.abs(Math.sin(now*0.0019+sa))).toFixed(2)+")";
+    g.fillRect(wkX-Math.round(hullW*0.5),wkY+Math.round(1.4*K),hullW,Math.max(1,Math.round(K)));             // surf against it
+    if(!day){ g.globalCompositeOperation="lighter";                      // a warning light someone rigged
+      if(((Math.floor(now/1200))&1)){ g.fillStyle="rgba(255,90,70,0.9)";
+        g.fillRect(wkX-Math.round(hullW*0.30),wkY-Math.round(hullH*2.6)-Math.round(K),Math.max(1,Math.round(1.4*K)),Math.max(1,Math.round(1.4*K))); }
+      g.globalCompositeOperation="source-over"; }
+  }
+  // OUTRIGGER CANOES working the lagoon.
+  for(var cq=0;cq<2;cq++){
+    var ccyc=54000+cq*13000, cp=((now+cq*21000)%ccyc)/ccyc, cf=cp<0.5?cp*2:2-cp*2;
+    var cxx=inner-sgn*Math.round(span*(0.10+cf*0.32)), cyy=wTop+Math.round((10+cq*8)*K);
+    g.fillStyle=day?"#7a5a34":"#241a10";
+    g.fillRect(cxx-Math.round(3*K),cyy,Math.round(6*K),Math.max(1,Math.round(1.4*K)));                 // hull
+    g.fillRect(cxx-Math.round(4*K),cyy+Math.round(2*K),Math.round(3*K),Math.max(1,Math.round(K)));     // the float
+    g.fillStyle=day?"#5a4228":"#1a1208";
+    g.fillRect(cxx-Math.round(2*K),cyy+Math.round(K),Math.max(1,Math.round(K)),Math.round(K));         // spar
+    g.fillStyle=day?"#e8e2d0":"#3a3830";
+    for(var sq=0;sq<Math.round(4*K);sq++)
+      g.fillRect(cxx+Math.round(K),cyy-sq,Math.max(1,Math.round(K*(1-sq/(5*K)))+1),1);                 // a small sail
+  }
+}
 function drawHarbor(g,L,now,night,nd){
   // ⚠ THIS is the water the wallpaper actually shows. `drawOpenSea` below looks like the ocean
   // renderer and is NOT REACHED by any shipped shell — it hangs off a `pass==="water"` branch and
   // both real shells draw only "bg" and "live". Anything added there is invisible in production;
   // that is the shell-pass trap wearing a different hat.
-  var wTop=HORIZON-(curBiome.k==="cliffs"?Math.round(46*Math.max(1,KSP)):22), dayW=mixc([26,58,84],[92,152,188],L), wc=css(dayW);
+  var wTop=HORIZON-((curBiome.k==="cliffs"||curBiome.k==="beach"||curBiome.k==="swamp"||curBiome.k==="arctic")?Math.round(46*Math.max(1,KSP)):22), dayW=mixc([26,58,84],[92,152,188],L), wc=css(dayW);
   eachWaterSpan(function(sa,sb,zi){ var ww=sb-sa; if(ww<=0) return;
     var shoreA=gstage(0.3,0.6);                                                   // the far shore builds up with the city
     if(shoreA>0){ g.globalAlpha=shoreA;
@@ -6486,6 +7203,8 @@ function drawHarbor(g,L,now,night,nd){
     g.globalAlpha=1; }
     waterTex(g,sa,sb,wTop,HORIZON,L,now);                                           // water body w/ rolling swell
     drawMtsReflection(g,sa,sb,wTop,HORIZON-wTop-2,L);                               // the range mirrored in the bay
+    drawReefLagoon(g,L,now,sa,sb,zi,wTop);                                          // …and the coral coast's reef
+    drawPackIce(g,L,now,nd,sa,sb,zi,wTop);                                          // …or the arctic's floes
     var dockA=gstage(0.32,0.62);                                                    // before the quays pave in,
     if(dockA<1){                                                                    // the bay wears a natural sand ring
       var ga3=g.globalAlpha; g.globalAlpha=(1-dockA);
@@ -7727,7 +8446,7 @@ function drawOpenSea(g,L,now,night){
       // …and where the WATER's edge is right now. The land does not move; the sea does. On the sea
       // cliffs the range is wide enough to expose a real shore at low water and drown it at high.
       var tideK=tideLevel(now,nowDate());
-      var tideR=Math.round((curBiome.k==="cliffs"?11:4)*Math.max(1,KSP));
+      var tideR=Math.round(((curBiome.k==="cliffs"||curBiome.k==="beach")?11:4)*Math.max(1,KSP));
       var tideX=Math.round(tideK*tideR)*side;                   // high water advances onto the land
       ex+=tideX;
       if(ex<-10||ex>SW+10) continue;
@@ -9935,6 +10654,15 @@ function drawQuad(g,x,y,day,now,seed,sp,K){
     g.fillStyle=c2;
     g.fillRect(x+Math.round(w*0.30),top+bodyH-u,Math.max(2,Math.round(w*0.22)),u*2);   // fore flipper
     g.fillRect(x+w-Math.round(w*0.10),top+Math.round(bodyH*0.2),u,Math.max(1,u*2));    // tail fluke
+    if(sp.shell){                                                                      // a turtle's carapace,
+      g.fillStyle=c2;                                                                  // domed and plated
+      g.fillRect(x+Math.round(w*0.12),top-u,Math.round(w*0.76),u);
+      g.fillStyle=c;
+      for(var pl=0;pl<3;pl++)
+        g.fillRect(x+Math.round(w*(0.22+pl*0.22)),top,Math.max(1,u),Math.max(1,Math.round(bodyH*0.6)));
+      g.fillStyle=c2;
+      g.fillRect(x+Math.round(w*0.06),top+bodyH-u,Math.max(2,Math.round(w*0.18)),u*2); // rear flipper
+    }
     g.fillStyle=c;
   } else {
     g.fillRect(x,top,w,bodyH);                                            // the barrel
@@ -9982,12 +10710,21 @@ function drawSpot(g,x,y,day,now,seed,sp,K){
     g.fillStyle=c;
     if(sp.tail==="bushy") g.fillRect(x-u,y-u*3,u,u*2);
     else if(sp.tail==="long") g.fillRect(x-u*2,y-u,u*2,Math.max(1,Math.round(u*0.6)));
-    if(sp.legs) { g.fillStyle=c2; g.fillRect(x+(mv?0:u),y,u,u); } }
+    if(sp.legs) { g.fillStyle=c2; g.fillRect(x+(mv?0:u),y,u,u); }
+    if(sp.claws){ g.fillStyle=c2;                                    // a crab carries its claws AHEAD
+      g.fillRect(x+u*2,y-u,u,u); g.fillRect(x+u*3,y-u*(mv?2:1),u,u);
+      g.fillStyle=c; g.fillRect(x-u,y,u,u); g.fillRect(x+u*2,y,u,u); }   // and walks on legs either side
+    if(sp.shell){ g.fillStyle=c2;                                    // a hermit crab wears its house
+      g.fillRect(x-u,y-u*2,u*2,u*2); g.fillStyle=c; g.fillRect(x,y-u*2,u,u); } }
 }
 // Perched or soaring. Raptors ride a slow circle high over the land; the owl only shows at night,
 // sat still. drawBird already writes the wingbeat, so this only has to decide where and when.
 function drawFaunaBird(g,L,now,sp,seed,gy,K){
-  var day=L>0.5, col=day?"rgba(38,34,32,0.92)":"rgba(150,150,160,0.55)";
+  // ⚠ This used to hardcode a dark silhouette for every soaring bird, which meant the Empyrean's
+  // WHITE DOVES have been rendering as black specks since they were added, and a white tern on the
+  // coral coast would have done the same. The species' own colour, drained toward the night.
+  var day=L>0.5;
+  var col=day?rgba(sp.c,0.92):rgba(mixc(sp.c,[40,44,58],0.6),0.6);
   if(sp.night&&day) return;
   if(sp.soar&&day){                                                    // a slow thermal circle
     var t=now*0.00013+seed, cxw=wrapW((seed%997)/997*WW+Math.cos(t)*90);
@@ -11945,6 +12682,148 @@ function drawBiomePlant(g,X,gy,day,now,seed,sc,kind,swayOn){
     g.fillStyle=C([78,62,46]); R(-lw2/2,-lh2,lw2,lh2);                    // a fallen giant, going back
     g.fillStyle=C([72,104,64]); R(-lw2/2,-lh2-Math.round(K*0.8),lw2,Math.max(1,Math.round(K*0.8)));  // moss
     g.fillStyle=C([58,46,34]); R(-lw2/2,-lh2*0.6,Math.max(1,Math.round(K)),lh2*0.6);
+  } else if(kind==="palm"){
+    // A COCONUT PALM. The whole plant is the CURVE and the droop: a straight stem with a symmetric
+    // star of fronds on top is a dandelion, and it is the single thing that would stop a beach
+    // reading as a beach. The stem leans, and each frond arcs out and then falls — so the silhouette
+    // is asymmetric even before the wind touches it.
+    var ph2=Math.round((15+(seed%9))*K), lean=(((seed>>2)%100)/100-0.5)*0.55+sway*0.05;
+    var stw=Math.max(1,Math.round(1.6*K));
+    g.fillStyle=C([132,104,70]);
+    for(var py2=0;py2<ph2;py2++){                                          // the leaning, ringed stem
+      var pf3=py2/ph2;
+      R(lean*py2*0.55-stw/2,-py2,stw+(pf3<0.25?Math.round(K*0.6):0),1);
+      if(py2%Math.max(2,Math.round(3*K))===0){ g.fillStyle=C([104,80,52]);
+        R(lean*py2*0.55-stw/2,-py2,stw,1); g.fillStyle=C([132,104,70]); }
+    }
+    var cx4=lean*ph2*0.55, cy4=-ph2;
+    var nF=6+((seed>>7)%3);
+    for(var fr2=0;fr2<nF;fr2++){
+      var fa2=(fr2/nF)*Math.PI*2+((seed>>4)%10)/10;
+      var reach2=(4.5+((seed>>(fr2%5))&3))*K, droop=0.5+((fr2*7)%5)*0.12;
+      g.fillStyle=C(fr2&1?[52,104,58]:[68,124,66]);
+      for(var fq2=1;fq2<reach2;fq2++){
+        var ff3=fq2/reach2;
+        var fx4=cx4+Math.cos(fa2)*fq2+sway*ff3*1.4;
+        var fy4=cy4+Math.sin(fa2)*fq2*0.45+ff3*ff3*reach2*droop*0.55;      // out, then falling away
+        R(fx4,fy4,Math.max(1,Math.round(K*(1-ff3*0.4))),Math.max(1,Math.round(K)));
+      }
+    }
+    g.fillStyle=C([86,64,40]);                                             // the nuts, under the crown
+    for(var nq=0;nq<3;nq++) if(((seed>>(nq+3))&3)) R(cx4-K+nq*K*1.1,cy4+K*0.8,Math.max(1,Math.round(1.4*K)),Math.max(1,Math.round(1.4*K)));
+  } else if(kind==="lichen"){
+    var lw=Math.round((3+(seed%3))*K);                                  // a crust on the rock, barely a plant
+    g.fillStyle=C([164,172,150]);
+    for(var lq3=0;lq3<4;lq3++){
+      var lo=((seed>>(lq3*2))%5)-2;
+      R(lo*K,-Math.max(1,Math.round(K)),Math.round(lw*(0.5+((seed>>lq3)&1)*0.5)),Math.max(1,Math.round(K)));
+    }
+    g.fillStyle=C([196,142,150]); R(0,-Math.round(1.6*K),Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
+  } else if(kind==="dwarfwillow"){
+    var dh=Math.round((2+(seed%2))*K);                                  // knee-high and wind-flattened
+    g.fillStyle=C([104,96,74]);
+    for(var dq=0;dq<4;dq++) R((-2+dq*1.3)*K,-dh*(0.5+((seed>>dq)&1)*0.5),Math.max(1,Math.round(K*0.8)),dh);
+    g.fillStyle=C([124,142,96]); folMass(g,X+sway*0.4,gy-dh,dh*1.6,dh*0.5,seed,K);
+  } else if(kind==="cottongrass"){
+    var cn=4+(seed%3);                                                  // tufts with white cotton heads
+    for(var cq5=0;cq5<cn;cq5++){
+      var ch5=Math.round((3+((seed>>cq5)&3))*K), cx5=(cq5-cn/2)*K*1.4;
+      g.fillStyle=C([132,140,96]);
+      for(var cy5=0;cy5<ch5;cy5++) R(cx5+sway*(cy5/ch5),-cy5,Math.max(1,Math.round(K*0.8)),1);
+      g.fillStyle=C([246,248,244]); R(cx5+sway,-ch5-Math.round(K),Math.max(1,Math.round(1.4*K)),Math.max(1,Math.round(1.4*K)));
+    }
+  } else if(kind==="juniper"){
+    var jh=Math.round((6+(seed%4))*K);                                  // a dense dark shrub-tree, gnarled
+    g.fillStyle=C([104,84,62]); R(-Math.round(K*0.7),-jh*0.45,Math.max(1,Math.round(1.4*K)),jh*0.45);
+    g.fillStyle=C([54,84,62]);  folMass(g,X+sway*0.5,gy-jh*0.7,jh*0.62,jh*0.44,seed,K);
+    g.fillStyle=C([72,104,74]); folMass(g,X+sway*0.5-jh*0.2,gy-jh*0.92,jh*0.34,jh*0.24,(seed*7)>>>0,K);
+  } else if(kind==="sage"){
+    var gh=Math.round((2+(seed%2))*K);                                  // low silver-grey desert bush
+    g.fillStyle=C([146,150,128]); folMass(g,X+sway*0.4,gy-gh*0.6,gh*1.3,gh*0.6,seed,K);
+    g.fillStyle=C([172,176,154]); folMass(g,X+sway*0.4,gy-gh*0.95,gh*0.7,gh*0.3,(seed*13)>>>0,K);
+  } else if(kind==="mangrove"){
+    // The PROP ROOTS are the plant. A mangrove drawn as a crown on a trunk is just a shrub; what makes
+    // it unmistakable is that it stands on a tangle of arches out of the water.
+    var mh=Math.round((6+(seed%4))*K);
+    g.fillStyle=C([120,68,54]);
+    for(var rt=0;rt<5;rt++){
+      var rdir=(rt<2)?-1:1, rspr=(1+(rt%3))*K*1.3;
+      for(var rq=0;rq<Math.round(mh*0.55);rq++){
+        var rf=rq/Math.max(1,Math.round(mh*0.55));
+        R(rdir*rspr*(1-rf),-rq,Math.max(1,Math.round(K*0.8)),1);
+      }
+    }
+    g.fillStyle=C([112,62,48]); R(-Math.round(K*0.7),-mh*0.75,Math.max(1,Math.round(1.6*K)),mh*0.45);
+    g.fillStyle=C([52,102,64]);  folMass(g,X+sway*0.6,gy-mh*0.9,mh*0.85,mh*0.4,seed,K);
+    g.fillStyle=C([76,132,80]);  folMass(g,X+sway*0.6+mh*0.25,gy-mh*1.05,mh*0.45,mh*0.24,(seed*11)>>>0,K);
+  } else if(kind==="silvertree"){
+    var sh6=Math.round((9+(seed%5))*K);
+    g.fillStyle=C([206,212,220]); R(-Math.round(K*0.7),-sh6,Math.max(1,Math.round(1.4*K)),sh6);
+    g.fillStyle=C([182,190,204]); R(Math.round(K*0.2),-sh6,Math.max(1,Math.round(K*0.7)),sh6);
+    g.fillStyle=C([228,236,246]); folMass(g,X+sway*0.7,gy-sh6-Math.round(K),sh6*0.5,sh6*0.3,seed,K);
+    g.fillStyle=C([200,214,238]); folMass(g,X+sway*0.7-sh6*0.2,gy-sh6+Math.round(2*K),sh6*0.34,sh6*0.2,(seed*17)>>>0,K);
+  } else if(kind==="cypress"){
+    // A BALD CYPRESS. Three things identify it and none of them is the crown: the FLARED buttress at
+    // the waterline, the KNEES standing in the water around it, and the Spanish moss. The crown is
+    // deliberately thin and grey-green — a cypress read as a big leafy tree is just an oak.
+    var ch5=Math.round((16+(seed%10))*K), cw5=Math.max(2,Math.round(2.2*K));
+    g.fillStyle=C([124,116,100]);
+    for(var cy5=0;cy5<ch5;cy5++){
+      var flare=cy5<ch5*0.16?Math.round((1-cy5/(ch5*0.16))*2.6*K):0;   // the buttress swelling out
+      R(-cw5/2-flare,-cy5,cw5+flare*2,1);
+    }
+    g.fillStyle=C([96,90,76]);                                          // shaded side of the bole
+    R(cw5*0.1,-ch5,Math.max(1,Math.round(K*0.8)),ch5);
+    for(var kn=0;kn<4;kn++){                                            // THE KNEES, standing off the trunk
+      var kx5=(-2.5+kn*1.7)*K*(1+((seed>>kn)&1)*0.4), kh5=Math.round((1.4+((seed>>(kn+2))&1)*1.6)*K);
+      g.fillStyle=C([112,104,88]); R(kx5,-kh5,Math.max(1,Math.round(1.4*K)),kh5);
+      g.fillStyle=C([88,82,68]);   R(kx5,-kh5,Math.max(1,Math.round(K*0.7)),Math.max(1,Math.round(K)));
+    }
+    var ccy=-ch5, crw=Math.round((5+(seed%4))*K);                       // a thin, wide, flat-topped crown
+    for(var lay=0;lay<3;lay++){
+      g.fillStyle=C(lay&1?[104,124,90]:[86,106,76]);
+      folMass(g,X+sway*0.7+((lay-1)*crw*0.5),gy+ccy+lay*Math.round(1.8*K),crw*(1-lay*0.18),Math.round(1.6*K),(seed*(lay+3))>>>0,K);
+    }
+    g.fillStyle=day?"rgba(158,158,132,0.72)":"rgba(34,38,32,0.7)";      // and the moss it is hung with
+    mossFringe(g,X+sway*0.7,gy+ccy+Math.round(3*K),crw*0.9,seed,K,day?"rgba(158,158,132,0.72)":"rgba(34,38,32,0.7)");
+    mossFringe(g,X+sway*0.7-crw*0.5,gy+ccy+Math.round(5*K),crw*0.6,(seed*17)>>>0,K,day?"rgba(146,148,124,0.62)":"rgba(28,32,27,0.62)");
+  } else if(kind==="reeds"){
+    var rn5=5+(seed%4);                                                 // a clump standing in the water
+    for(var rq5=0;rq5<rn5;rq5++){
+      var rh5=Math.round((3+((seed>>rq5)&3))*K), rx5=(rq5-rn5/2)*K*1.3;
+      g.fillStyle=C(rq5&1?[118,126,80]:[96,106,66]);
+      for(var ry5=0;ry5<rh5;ry5++) R(rx5+sway*(ry5/rh5)*1.2,-ry5,Math.max(1,Math.round(K*0.8)),1);
+      g.fillStyle=C([146,132,86]); R(rx5+sway*1.2,-rh5,Math.max(1,Math.round(K*0.8)),Math.max(1,Math.round(1.4*K)));
+    }
+  } else if(kind==="willow"){
+    var wh5=Math.round((11+(seed%6))*K);
+    g.fillStyle=C([104,92,72]); R(-Math.round(K*0.8),-wh5,Math.max(1,Math.round(1.6*K)),wh5);
+    for(var st5=0;st5<7;st5++){                                         // WEEPING strands, hanging not spraying
+      var sx5=(-3+st5)*K*1.1, sl5=Math.round((3+((seed>>st5)&3)*2)*K);
+      g.fillStyle=C(st5&1?[112,140,84]:[92,120,70]);
+      for(var sq5=0;sq5<sl5;sq5++)
+        R(sx5+sway*(sq5/sl5)*1.6+Math.sin(sq5*0.5)*K*0.4,-wh5+Math.round(K*1.2)+sq5,Math.max(1,Math.round(K*0.8)),1);
+    }
+  } else if(kind==="seagrape"){
+    var gh2=Math.round((4+(seed%3))*K);                                    // a low, dense salt-tolerant bush
+    g.fillStyle=C([64,102,68]);
+    folMass(g,X+sway*0.6,gy-gh2*0.55,gh2*0.95,gh2*0.55,seed,K);
+    g.fillStyle=C([96,132,84]);
+    folMass(g,X+sway*0.6-gh2*0.3,gy-gh2*0.85,gh2*0.45,gh2*0.3,(seed*31)>>>0,K);
+    if(!season_bare_ok(seed)){ g.fillStyle=C([182,74,96]);                 // clusters of dark red fruit
+      R(-gh2*0.2,-gh2*0.5,Math.max(1,Math.round(K)),Math.max(1,Math.round(1.6*K))); }
+  } else if(kind==="pandanus"){
+    var pnh=Math.round((7+(seed%4))*K);                                    // strap leaves off a stilt-root base
+    g.fillStyle=C([118,96,64]);
+    R(-Math.round(K*0.7),-pnh,Math.max(1,Math.round(1.4*K)),pnh);
+    for(var st4=0;st4<3;st4++)                                             // the prop roots it stands on
+      R(-Math.round(K*2)+st4*Math.round(K*1.6),-Math.round(pnh*0.28),Math.max(1,Math.round(K)),Math.round(pnh*0.28));
+    for(var lf2=0;lf2<7;lf2++){
+      var la=-2.5+lf2*0.62;
+      g.fillStyle=C(lf2&1?[74,116,72]:[56,96,60]);
+      for(var lq=1;lq<Math.round(5*K);lq++)
+        R(Math.cos(la)*lq+sway*(lq/(5*K)),-pnh+Math.sin(la)*lq*0.7+ (lq*lq)/(9*K),Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
+    }
   }
   biomePlantSnow(g,X,gy,sc,kind);      // the city's real weather still lands on the biome's plants
 }
@@ -12812,6 +13691,11 @@ function drawRiver(g,L,now){
   // working it — only what is flowing has changed, and it is bright enough to light its own banks.
   var lava=curBiome.k==="hell";
   if(lava){ deep=[168,42,14]; shallow=[255,186,64]; }
+  // THE BAYOU'S water is BLACK — tannin-stained, barely moving, and it mirrors the cypress above it
+  // instead of glittering. Same channel, same bridge, same boats; only what is flowing has changed,
+  // which is exactly the seam the Ashlands' lava already proved out.
+  var tannin=curBiome.k==="swamp";
+  if(tannin){ deep=day?[26,32,26]:[8,11,10]; shallow=day?[62,72,54]:[16,20,16]; }
   var halfPx=Math.max(8*K,Math.round(riverW*WW));
   var deckY=roadY+1, deckH=Math.max(3,Math.round(3*K));         // the bridge deck sits at street level
   for(var w=-1;w<=1;w++){
@@ -13116,6 +14000,27 @@ function drawBiomeDetail(g,L,now,nd){
       for(var bl3=0;bl3<3;bl3++){ var a3=ang+bl3*2.094;
         for(var r3=1;r3<Math.round(9*K);r3++)
           g.fillRect((msx+Math.cos(a3)*r3)|0,(hub+Math.sin(a3)*r3)|0,1,1); } }
+  } else if(B.k==="beach"){
+    // ⚠ The reef, the lagoon and the huts over the water are NOT here, even though this is where a
+    // biome's detail belongs. drawBiomeDetail runs early in the backdrop and `drawHarbor` paints the
+    // water LATER, so anything drawn here that belongs in the sea is painted over and invisible —
+    // exactly what happened to the river before it was moved. See drawReefLagoon, called from
+    // drawHarbor. What stays here is what happens over the SAND.
+    // COCONUTS FALL. The land's "hanging and falling" beat, and Nick asked for it by name. One drops
+    // every few seconds somewhere along the shore, and it BOUNCES — a nut that lands and stops dead
+    // reads as a dropped pixel; the bounce is what says it had weight.
+    var cslot=Math.floor(now/4200), cr2=rng((cslot*40503+7)>>>0);
+    if(cr2()<0.75){
+      var cwx=cr2()*WW, cph=(now-cslot*4200)/1400;
+      if(cph<1.6){
+        var fallH2=Math.round(14*K), cyc2;
+        if(cph<=1) cyc2=gy-fallH2+cph*cph*fallH2;                     // accelerating down
+        else { var bb=(cph-1)/0.6; cyc2=gy-Math.sin(bb*Math.PI)*3.2*K; }   // then one small bounce
+        for(var o5=-WW;o5<=WW;o5+=WW){ var CX5=(cwx-WOFF+o5)|0; if(CX5<-4||CX5>SW+4) continue;
+          g.fillStyle=day?"#6b4f2c":"#160f08";
+          g.fillRect(CX5,Math.round(cyc2),Math.max(1,Math.round(1.6*K)),Math.max(1,Math.round(1.6*K))); }
+      }
+    }
   }
 }
 // WHAT STANDS ON TOP OF A FLAT-TOPPED MOUNTAIN.
@@ -13571,6 +14476,105 @@ function drawBiomeLandmark(g,L,now,nd){
       for(var lg=0;lg<3;lg++)
         g.fillRect(X-Math.round((10-lg*2)*K),gy-Math.round((2+lg*1.6)*K),Math.round(9*K),Math.max(1,Math.round(1.5*K)));
     });
+  } else if(B.k==="volcano"){
+    // THE OBSERVATORY. It exists BECAUSE the mountain is dangerous, which is what ties this landmark to
+    // this land — the cone itself is terrain, not a landmark. Bolted to the upper flank, so like the
+    // alpine monastery it is placed off the cached ridge profile rather than standing on the flat.
+    if(!mtsCache||!mtsCache.h||!mtsCache.h[1]) return;
+    var vhs=mtsCache.h[1], vbest=-1, vbh=0;
+    for(var vx=Math.round(SW*0.08);vx<Math.round(SW*0.92);vx+=Math.max(2,Math.round(3*K))){
+      var lvl=Math.min(vhs[vx],vhs[Math.min(SW-1,vx+Math.round(6*K))]);
+      if(lvl>18*K&&lvl<mtsCache.mx[1]*0.86&&lvl>vbh){ vbh=lvl; vbest=vx; }   // high, but not ON the summit
+    }
+    if(vbest<0) return;
+    // ⚠ SCALE. Landmark K is sized to stand over a mature skyline from the flat; bolted to a mountain
+    // flank at that size the dome came out 130px across, bigger than the crater. A building on a
+    // mountain is read against the MOUNTAIN, so it gets its own much smaller scale.
+    var VK=Math.max(1,K*0.34);
+    var OX=vbest, OY=gy-Math.round(vbh);
+    var obw=Math.round(9*VK), obh=Math.round(5*VK);
+    g.fillStyle=day?"#d8d4cc":"#33343a"; g.fillRect(OX,OY-obh,obw,obh);            // the block
+    g.fillStyle=day?"#b4b0a8":"#25262b"; g.fillRect(OX+obw-Math.round(1.4*VK),OY-obh,Math.round(1.4*VK),obh);
+    g.fillStyle=day?"#e8e6e0":"#3c3e44";                                            // and its dome
+    var dr=Math.round(obw*0.42);
+    for(var dq=0;dq<dr;dq++){
+      var dfw=Math.round(Math.sqrt(Math.max(0,dr*dr-dq*dq)));
+      g.fillRect(OX+Math.round(obw*0.5)-dfw,OY-obh-dq,dfw*2,Math.max(1,Math.round(VK)));
+    }
+    g.fillStyle=day?"#5a5c62":"#16181c";                                            // the shutter slit
+    g.fillRect(OX+Math.round(obw*0.44),OY-obh-dr,Math.max(1,Math.round(1.4*VK)),dr);
+    g.fillStyle=day?"#8a8c92":"#20222a";                                            // mast and aerials
+    g.fillRect(OX+obw+Math.round(VK),OY-obh-Math.round(9*VK),Math.max(1,Math.round(VK)),Math.round(9*VK));
+    for(var aq=0;aq<3;aq++)
+      g.fillRect(OX+obw-Math.round(VK),OY-obh-Math.round((8-aq*2.4)*VK),Math.round(4*VK),Math.max(1,Math.round(VK*0.7)));
+    if(!day){ g.globalCompositeOperation="lighter";
+      g.fillStyle="rgba(180,230,255,0.7)";                                          // it is lit all night
+      g.fillRect(OX+Math.round(2*VK),OY-Math.round(obh*0.6),Math.round(2*VK),Math.round(1.6*VK));
+      if((Math.floor(now/1100))&1){ g.fillStyle="rgba(255,70,60,0.9)";              // and the mast light
+        g.fillRect(OX+obw+Math.round(VK),OY-obh-Math.round(9.6*VK),Math.max(1,Math.round(1.4*VK)),Math.max(1,Math.round(1.4*VK))); }
+      g.globalCompositeOperation="source-over"; }
+    g.fillStyle=day?"#6e6a60":"#1c1c18";                                            // the service road, switchbacking
+    for(var rq3=0;rq3<Math.round(vbh*0.5);rq3+=Math.max(2,Math.round(3*VK))){
+      var rz=rq3/Math.max(1,Math.round(vbh*0.5));
+      g.fillRect(OX-Math.round(6*VK)+Math.round(Math.sin(rz*9)*4*VK),OY+rq3,Math.round(5*VK),Math.max(1,Math.round(VK*0.8)));
+    }
+  } else if(B.k==="swamp"){
+    // THE RAISED CEMETERY — whitewashed above-ground tombs on the only dry rise, because you cannot
+    // bury anyone in a swamp. Nick's test for every land was that the detail be authentic to the real
+    // place, and this is the most literal answer to it in the whole set: the graves are above the
+    // ground for a REASON, and nothing else in these nine lands looks anything like it.
+    at(function(X){
+      // ⚠ SCALE: the CLUSTER is the landmark, not the individual grave. Drawn at the full landmark K
+      // the tombs came out taller than the chapel and merged into one white slab — a quarry, not a
+      // cemetery. Tombs get their own smaller scale; only the chapel uses the landmark scale, so the
+      // silhouette is one tall white building over many small ones.
+      var TK=Math.max(1,K*0.42);
+      var rows=4, per=7, tw3=Math.round(4.5*TK), th3=Math.round(6*TK), gap=Math.round(6.2*TK);
+      // The rise it stands on — a low pale mound, so the tombs are not floating on the flat.
+      g.fillStyle=day?"#8e9070":"#1e2018";
+      var mH=Math.round(rows*gap*0.5);
+      for(var mq=0;mq<mH;mq++){
+        var mf=mq/Math.max(1,mH);
+        g.fillRect(X-Math.round(5*TK)+Math.round(mf*2*TK),gy-Math.round((1-mf)*2.2*TK),
+                   Math.round(per*gap+9*TK)-Math.round(mf*4*TK),Math.max(1,Math.round(TK)));
+      }
+      for(var r3=rows-1;r3>=0;r3--){                              // back rows first, so front ones overlap
+        var ry3=gy-Math.round(r3*gap*0.42), scale=1-r3*0.13;
+        for(var c3=0;c3<per;c3++){
+          var hx3=((r3*97+c3*31)>>>0);
+          var cx3=X+Math.round((c3*gap+r3*gap*0.3)*1.0);
+          var tw4=Math.round(tw3*scale), th4=Math.round(th3*scale*(0.78+((hx3%100)/100)*0.5));
+          g.fillStyle=day?"#eae6da":"#3c3c38";                     // the whitewashed tomb
+          g.fillRect(cx3,ry3-th4,tw4,th4);
+          g.fillStyle=day?"#cdc8b8":"#2c2c2a";                     // its shaded face and stepped cap
+          g.fillRect(cx3+tw4-Math.max(1,Math.round(TK)),ry3-th4,Math.max(1,Math.round(TK)),th4);
+          g.fillStyle=day?"#f4f1e8":"#464642";
+          g.fillRect(cx3-Math.max(1,Math.round(TK)),ry3-th4-Math.max(1,Math.round(TK)),tw4+Math.round(2*TK),Math.max(1,Math.round(1.4*TK)));
+          if((hx3>>>5)&1){ g.fillStyle=day?"#dcd8cc":"#343430";    // some carry a small cross on top
+            g.fillRect(cx3+Math.round(tw4*0.4),ry3-th4-Math.round(3.2*TK),Math.max(1,Math.round(TK*0.9)),Math.round(2.4*TK));
+            g.fillRect(cx3+Math.round(tw4*0.4)-Math.round(TK),ry3-th4-Math.round(2.6*TK),Math.round(2.8*TK),Math.max(1,Math.round(TK*0.9))); }
+          if(!day&&((hx3>>>9)%5)===0){ g.globalCompositeOperation="lighter";   // a candle left on a ledge
+            g.fillStyle="rgba(255,186,110,0.8)";
+            g.fillRect(cx3+Math.round(tw4*0.3),ry3-Math.round(1.6*TK),Math.max(1,Math.round(TK)),Math.max(1,Math.round(TK)));
+            g.globalCompositeOperation="source-over"; }
+        }
+      }
+      // THE CHAPEL at the end of the rows — small, white, with a bell arch rather than a spire.
+      var chx=X-Math.round(13*K*0.42)-Math.round(9*K*0.62), chw=Math.round(9*K*0.62), chh=Math.round(11*K*0.62);
+      g.fillStyle=day?"#f0ede2":"#3e3e3a"; g.fillRect(chx,gy-chh,chw,chh);
+      g.fillStyle=day?"#d6d0bf":"#2e2e2c"; g.fillRect(chx+chw-Math.round(1.4*K),gy-chh,Math.round(1.4*K),chh);
+      g.fillStyle=day?"#b8a888":"#262622";                        // shallow roof
+      g.fillRect(chx-Math.round(1.4*K),gy-chh-Math.round(2*K),chw+Math.round(2.8*K),Math.round(2.2*K));
+      g.fillStyle=day?"#f4f1e8":"#484844";                        // the bell arch above it
+      g.fillRect(chx+Math.round(chw*0.3),gy-chh-Math.round(6.4*K),Math.round(chw*0.4),Math.round(4.4*K));
+      g.fillStyle=day?"#8a8272":"#1c1c1a";
+      g.fillRect(chx+Math.round(chw*0.38),gy-chh-Math.round(5.4*K),Math.round(chw*0.24),Math.round(2.4*K));
+      g.fillStyle=day?"#40403c":"#141412";                        // the doorway
+      g.fillRect(chx+Math.round(chw*0.36),gy-Math.round(4.4*K),Math.round(chw*0.28),Math.round(4.4*K));
+      if(!day){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,206,140,0.7)";
+        g.fillRect(chx+Math.round(chw*0.36),gy-Math.round(4*K),Math.round(chw*0.28),Math.round(2*K));
+        g.globalCompositeOperation="source-over"; }
+    });
   } else if(B.k==="alpine"){
     // THE MONASTERY ON THE LEDGE. It does NOT stand on the flat like every other landmark here — it
     // is built into the range itself, on whatever ledge the cached ridge profile actually offers, and
@@ -13684,6 +14688,132 @@ function drawBiomeLandmark(g,L,now,nd){
     });
   }
 }
+// THE RESTLESS MOUNTAIN. Nick's call: always smoking, and every so often it stirs — never destroying
+// the city, which lives WITH the volcano rather than under it. Deliberately separate from the
+// apocalypse and disaster systems: this is the land's normal state, not an event, so it has no banner,
+// no ticker line and no death. It is also separate from hell's `molten`: the Ashlands are hot rock
+// everywhere, a volcano is cold rock with one hot place in it.
+// The cycle is a pure function of the clock, like everything else here, so it is freeze-safe and the
+// same moment always renders the same mountain.
+function drawVolcano(g,L,now,nd){
+  var B=curBiome; if(!B.volcanic||!mtsCache||!mtsCache.h||!mtsCache.h[1]) return;
+  if(cityPhase==="apoc") return;                      // an ending has its own sky; don't compete with it
+  var hs=mtsCache.h[1], gy=HORIZON, day=L>0.5, K=Math.max(1,KSP);
+  // THE SUMMIT is the tallest column of the near ridge on this screen — found, not stored, because the
+  // ridge is per-screen and the same world peak lands at a different x on each monitor.
+  var sx=-1, sh=0;
+  for(var x=Math.round(4*K);x<SW-Math.round(4*K);x+=Math.max(1,Math.round(2*K)))
+    if(hs[x]>sh){ sh=hs[x]; sx=x; }
+  if(sx<0||sh<26*K) return;                           // no real cone on this screen
+  var sy=gy-Math.round(sh);
+  // THE STIR. A slow cycle: mostly quiet, occasionally restless. `unrest` 0..1.
+  var per=1080000, ph=((now%per)/per);                // ~18 minutes end to end
+  var unrest=ph<0.62?0:Math.sin(((ph-0.62)/0.38)*Math.PI);
+  // THE CRATER — a notch in the summit, darker inside, glowing when it is up to something.
+  // ⚠ Drawn as one dark RECT across the summit this read as a plank balanced on the peak. A crater is
+  // a notch cut DOWN INTO the cone with a rim standing either side of it, so: a tapering bowl sunk
+  // below the summit line, then two rim shoulders drawn back up in the rock's own colour.
+  var crW=Math.round(sh*0.10)+Math.round(2*K), crD=Math.round(4.5*K);
+  var rock=css(mixc(day?B.near:[16,14,16],biomeSkc(day),day?0.24:0.20));
+  g.fillStyle=day?"rgba(26,22,22,0.82)":"rgba(8,6,6,0.85)";
+  for(var cq=0;cq<crD;cq++){                                  // the bowl, narrowing as it goes down
+    var cf=cq/crD, cw2=Math.round(crW*(1-cf*0.45));
+    g.fillRect(sx-cw2,sy+cq,cw2*2,1);
+  }
+  g.fillStyle=rock;                                           // and the rim standing up either side
+  for(var rq=0;rq<Math.round(2.4*K);rq++){
+    var rw2=Math.round(crW*0.34*(1-rq/Math.max(1,Math.round(2.4*K))));
+    g.fillRect(sx-crW-rw2,sy-rq,rw2+Math.round(K),1);
+    g.fillRect(sx+crW,sy-rq,rw2+Math.round(K),1);
+  }
+  var glow=(1-L)*0.55+unrest*0.55;                     // reads at night, and by day only when stirring
+  if(glow>0.06){
+    g.globalCompositeOperation="lighter";
+    g.fillStyle="rgba(255,"+((92+90*unrest)|0)+",40,"+(0.34*glow).toFixed(3)+")";
+    g.fillRect(sx-crW,sy-Math.round(K),crW*2,crD+Math.round(K));
+    // ⚠ FEATHERED, not one rect. As a single fillRect this was a hard-edged pale BOX hanging over the
+    // summit in daylight — the artifact class this engine has already shipped twice. Rows of falling
+    // alpha have no edge to sharpen.
+    var glH=Math.round(10*K);
+    for(var gq=0;gq<glH;gq++){
+      var gf=gq/glH, ga=0.16*glow*(1-gf)*(1-gf);
+      if(ga<=0.006) break;
+      var gw=Math.round(crW*(1.2+gf*1.6));
+      g.fillStyle="rgba(255,150,70,"+ga.toFixed(3)+")";
+      g.fillRect(sx-gw,sy-gq,gw*2,1);
+    }
+    g.globalCompositeOperation="source-over";
+  }
+  // THE PLUME. Always there; it darkens and thickens with unrest, and it LEANS on the real wind, so on
+  // a still day it stands straight up and in a gale it lies over — same rule as every other accent.
+  var wind=(weather.wind==null?5:weather.wind), lean=Math.min(2.2,wind/9);
+  var pH=Math.round((16+unrest*30)*K), pw0=Math.round((2.4+unrest*2.6)*K);
+  for(var q=0;q<pH;q++){
+    var f=q/pH;
+    var px=sx+Math.round(f*f*lean*10*K)+Math.round(Math.sin(now*0.0006+f*3.1)*2.2*K*f);
+    var pw=Math.round(pw0*(1+f*2.6));
+    var a=(0.30-0.24*f)*(0.55+unrest*0.45);
+    if(a<=0.012) break;
+    // white steam when quiet, grey-brown ash when it is stirring
+    var pc=unrest>0.35?("196,182,168"):("226,228,226");
+    g.fillStyle="rgba("+pc+","+a.toFixed(3)+")";
+    g.fillRect(px-pw,sy-Math.round(K)-q,pw*2,Math.max(1,Math.round(K)));
+  }
+  // A LAVA TONGUE down one flank at the height of the stir — it cools to nothing before the shore, so
+  // it never reaches the city. Follows the ridge profile so it stays ON the mountain.
+  if(unrest>0.45){
+    var run=(unrest-0.45)/0.55, side=((Math.floor(now/per)&1)?1:-1);
+    var len=Math.round(sh*0.62*run);
+    for(var t=0;t<len;t++){
+      var tf=t/Math.max(1,len);
+      var tx=sx+side*Math.round(tf*sh*0.34+Math.sin(tf*5.5)*1.6*K);
+      var ci=Math.max(0,Math.min(SW-1,tx|0));
+      var ty=gy-Math.round(hs[ci]) + Math.round(tf*2*K);
+      if(ty>gy) break;
+      var heat=1-tf*0.85;
+      g.fillStyle="rgba(255,"+((70+150*heat)|0)+","+((20+60*heat)|0)+","+(0.34+0.5*heat).toFixed(2)+")";
+      g.fillRect(tx,ty,Math.max(2,Math.round(2.2*K)),Math.max(1,Math.round(1.6*K)));
+      if(((t*3+((now*0.01)|0))%17)===0){                            // and the steam coming off it
+        g.fillStyle="rgba(220,214,206,0.30)";
+        g.fillRect(tx,ty-Math.round(3*K),Math.max(1,Math.round(1.6*K)),Math.round(3*K));
+      }
+    }
+    g.globalCompositeOperation="lighter";                            // the glow it lays on the flank
+    g.fillStyle="rgba(255,120,50,"+(0.10*run).toFixed(3)+")";
+    g.fillRect(sx-Math.round(sh*0.4),sy,Math.round(sh*0.8),Math.round(sh*0.7));
+    g.globalCompositeOperation="source-over";
+  }
+  // THE FUNICULAR — this land's traversal layer. A cable railway up the flank with one car climbing as
+  // the other descends, which is the whole read: a single car on a wire is a gondola, two counterposed
+  // cars on a rail is a funicular.
+  if(cityG>0.34){
+    var fSide=((((WORLD_SEED*7)>>>3)&1)?1:-1);
+    var topX=sx+fSide*Math.round(sh*0.20), topY=gy-Math.round(hs[Math.max(0,Math.min(SW-1,topX|0))]);
+    var botX=sx+fSide*Math.round(sh*0.86), botY=gy-Math.round(hs[Math.max(0,Math.min(SW-1,botX|0))]);
+    if(botY>gy-4) botY=gy-4;
+    g.strokeStyle=day?"rgba(58,58,64,0.85)":"rgba(120,124,136,0.55)"; g.lineWidth=1;
+    g.beginPath(); g.moveTo(botX,botY); g.lineTo(topX,topY); g.stroke();
+    for(var sl=0;sl<7;sl++){                                          // sleepers up the incline
+      var slf=sl/7;
+      g.fillStyle=day?"#4a4a50":"#1a1c20";
+      g.fillRect(Math.round(botX+(topX-botX)*slf),Math.round(botY+(topY-botY)*slf),Math.round(2.4*K),Math.max(1,Math.round(K)));
+    }
+    var fper=52000, fp=((now%fper)/fper), up=fp<0.5?fp*2:2-fp*2;
+    var carA=up, carB=1-up;                                           // counterposed, always
+    for(var c=0;c<2;c++){
+      var cf=c?carB:carA;
+      var cx=Math.round(botX+(topX-botX)*cf), cy=Math.round(botY+(topY-botY)*cf);
+      g.fillStyle=c?"#d24a3a":"#3a8ad2";
+      g.fillRect(cx-Math.round(2*K),cy-Math.round(2.6*K),Math.round(4*K),Math.round(2.6*K));
+      g.fillStyle="#bfe3ff"; g.fillRect(cx-Math.round(K),cy-Math.round(2*K),Math.round(2*K),Math.max(1,Math.round(K)));
+      if(!day){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,224,160,0.8)";
+        g.fillRect(cx-Math.round(K),cy-Math.round(2*K),Math.round(2*K),Math.max(1,Math.round(K)));
+        g.globalCompositeOperation="source-over"; }
+    }
+    g.fillStyle=day?"#6a6156":"#2a2620";                              // the bottom station
+    g.fillRect(botX-Math.round(3*K),botY,Math.round(6*K),Math.round(3*K));
+  }
+}
 // One ridge silhouette, run-length batched: the profile is static per life, so consecutive columns
 // share the same integer top and one wide fillRect covers the run (it was one 1px rect per column).
 // Identical pixels, far fewer draw calls — and now three bands share it instead of two.
@@ -13741,6 +14871,10 @@ function drawMountains(g,L,now,nd){
           if(B.steep>0) t0=Math.min(1, t0/Math.max(0.10,1-B.steep*0.88));
           var crag=(Math.sin(wx0*0.19+p0.ph)*1.4+Math.sin(wx0*0.047+p0.ph*2.3)*2.4+Math.sin(wx0*0.093+p0.ph*5)*1.1)
                    *t0*(p0.h/(46*KSP))*wob;                       // crags grow with the mountain; flat tops stay smooth
+          // ⚠ A VOLCANIC CONE IS SMOOTH. Full-strength crags gave the island's summit a jagged rim
+          // that read as an eroded massif, not a cone with a crater in it — and drawVolcano then drew
+          // the plume off whichever tooth happened to be highest. Damped hard, and hardest at the top.
+          if(B.volcanic) crag*=0.18*(1-t0*0.7);
           var hh0=p0.h*t0+crag*KSP;
           if(hh0>rh0) rh0=hh0; }
         if(B.flat>0 && rh0>2) rh0=Math.round(rh0/strata)*strata;  // quantise into bedding planes → flat tops
@@ -18117,6 +19251,7 @@ function draw(g,pass){
   // (the Moon is drawn in drawSky() at its real Norwich position/phase)
 
   drawMountains(g,L,now,nd);      // the distant range — behind the clouds, the city, everything
+  drawVolcano(g,L,now,nd);        // …and if it is a volcano, what the mountain is doing today
   drawBiomeDetail(g,L,now,nd);    // and whatever else lives on this particular land
   drawBiomeLandmark(g,L,now,nd);  // and the one structure that says where you are
   drawPlateauTowns(g,L,now,nd);   // and whatever stands on top of a flat-topped mountain

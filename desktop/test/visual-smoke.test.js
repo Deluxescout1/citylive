@@ -141,11 +141,20 @@ test('offline fallback is explicit and still renders', () => {
 
 test('Chronicle exposes only a witnessed election and stable full candidate names', () => {
   const ctx = loadEngine();
+  // ⚠ THE CLOCK IS PINNED, and it has to be. This ran on the LIVE clock and passed for months purely
+  // because the current life happened to be inside an election window — then a session ran past
+  // midnight, the date rolled over, `curMayor` came back with no phase set, and the test failed with
+  // no code change behind it. FORCEELECT only chooses WHICH phase; it cannot conjure an election on a
+  // day the city is not holding one. NOWOVR is the engine's own override for exactly this, used
+  // everywhere else in the project, and the sim is deterministic — so a pinned moment is a real
+  // assertion about the engine rather than about what day you happen to run the suite.
+  ctx.NOWOVR = 1784909890746;                                     // life 1, mid-term: a campaign is on
+  ctx.CLOCK  = ctx.NOWOVR;
   ctx.FORCEAGE = 0.72;
   ctx.FORCEELECT = { phase:'campaign', partyK:'GREENS', party2K:'TRANSIT' };
   ctx.draw(canvasStub());
   ctx.curWar = ctx.curDis = ctx.curRegime = ctx.curPlague = ctx.curFestival = ctx.curAddiction = null;
-  const witness = ctx.chronicleSnapshot(Date.now());
+  const witness = ctx.chronicleSnapshot(ctx.NOWOVR);
   assert.ok(witness && witness.recordable);
   assert.strictEqual(witness.kind, 'election');
   assert.match(witness.eventKey, /^election:/);
