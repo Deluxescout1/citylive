@@ -2485,6 +2485,17 @@ var QUAL=2;            // quality tier: 0 performance · 1 balanced · 2 spectac
 // real interval instead and the motion is frame-rate independent, which is what the code always
 // meant. Shells pass this; the fallback tracks the tier for any caller that doesn't.
 var FRAME_MS=83;
+// …but frame-rate independence alone would also CHANGE THE LOOK, and not in Nick's favour. Every
+// integrator constant in this engine (f.v*dt*0.06, wetness+dt*0.00004, fog.t+=…*0.002*dt, and the
+// rest) was tuned against that fixed 50 ms step as taken at the 83 ms tier — so particle time has
+// always run at 50/83 of the wall clock, and THAT is the snowfall that shipped and that Nick has
+// approved. Feeding raw elapsed time in would have made snow fall 1.67x faster than the desktop
+// app has ever shown it and 4x faster than his own screens show it today.
+// So: keep the approved apparent speed exactly, but derive it from real elapsed time so it stops
+// changing when the frame rate does. At the 83 ms tier this is byte-identical to the old
+// behaviour (83 * 50/83 = 50), which is why the desktop, web and phone builds are untouched by
+// this; only KDE's 200 ms "balanced" tier changes, and it changes to match them.
+var MOTION_RATE=50/83;
 var ZOOM=1;            // canvas px per world px (per-screen; >1 when a fractionally-scaled screen needs a denser canvas)
 var mts=null;          // this life's mountain range ({far:[peaks],near:[peaks]}), null on flatland lives
 var mtsCache=null;     // per-screen silhouette cache (the range never moves within a life)
@@ -19992,8 +20003,9 @@ function draw(g,pass){
   g.setTransform(ZOOM,0,0,ZOOM,0,0);          // world px -> canvas px (identity when ZOOM=1)
   if(!near||!near.blds) return;   // paint loop can fire before setup() has built the world
   resetNotifLanes();              // fresh alert-row bookings each frame (see notifLane) so banners never overprint
-  // dt = real elapsed, capped at 2.5 frame intervals (late frame = fine, resumed-from-sleep = not).
-  var now=(NOWOVR!=null?NOWOVR:Date.now()), dt=Math.max(0,Math.min(FRAME_MS*2.5, now-tPrev));
+  // dt = real elapsed, capped at 2.5 frame intervals (late frame = fine, resumed-from-sleep = not),
+  // then scaled to the approved apparent speed (see MOTION_RATE).
+  var now=(NOWOVR!=null?NOWOVR:Date.now()), dt=Math.max(0,Math.min(FRAME_MS*2.5, now-tPrev))*MOTION_RATE;
   if(pass!=="bg") tPrev=now;
   var apocRealNow=now;                          // keep the true wall-clock; `now` may be warped below for a missed-apoc REPLAY
   apocDeferTick(apocRealNow);                    // did the PC sleep through a cataclysm? queue a replay if so
