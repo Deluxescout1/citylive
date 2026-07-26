@@ -9,6 +9,11 @@ import "../org.citylive.wallpaper/contents/js/city.js" as City
 // lands against a FIXED set of lives in ONE run, because ratios taken across different runs are not
 // comparable: every time a biome is added the life map re-rolls and each land gets timed against a
 // different city. Only within-run numbers mean anything.
+// ⚠⚠ THE LIVES BELOW GO STALE EVERY TIME A BIOME IS ADDED. It has already happened once here: after
+// THE SPRAWL took the count to 12, this file was timing heaven and printing "alpine". The label it
+// prints includes the biome it ACTUALLY resolved, so check that line before trusting any number.
+// For TWELVE: mesa 1 · heaven 2 · alpine 3 · sprawl 4 · swamp 5 · volcano 6 · plains 7 · beach 8 ·
+// hell 21 · cliffs 42 · arctic 55 · forest 76.
 Item {
     width: 1552; height: 874
     Canvas {
@@ -35,16 +40,16 @@ Item {
             City.weather.wind = 14; City.weather.temp = 62;
             var N = 90;
             // Reference: a land with no water work at all, timed in the same run.
-            var alp = timeLife(2, "alpine   ", N, 0.85);
+            var alp = timeLife(3, "alpine   ", N, 0.85);
             // Every coast, and every beach variant, so a slow VARIANT cannot hide behind a fast average.
-            var b1 = timeLife(1,  "beach BLACK", N, 0.85);
-            var b2 = timeLife(4,  "beach PINK ", N, 0.85);
-            var b3 = timeLife(153,"beach CORAL", N, 0.85);
-            var cl = timeLife(21, "cliffs   ", N, 0.85);
-            var sw = timeLife(55, "swamp    ", N, 0.85);
-            var ar = timeLife(29, "arctic   ", N, 0.85);
-            console.log("COAST RATIOS vs alpine @1552 — beach " + (b1/alp).toFixed(2) + "/" + (b2/alp).toFixed(2)
-                        + "/" + (b3/alp).toFixed(2) + "  cliffs " + (cl/alp).toFixed(2)
+            var b1 = timeLife(8,  "beach     ", N, 0.85);
+            var b2 = timeLife(4,  "sprawl    ", N, 0.85);
+            var b3 = timeLife(76, "forest    ", N, 0.85);
+            var cl = timeLife(42, "cliffs   ", N, 0.85);
+            var sw = timeLife(5,  "swamp    ", N, 0.85);
+            var ar = timeLife(55, "arctic   ", N, 0.85);
+            console.log("COAST RATIOS vs alpine @1552 — beach " + (b1/alp).toFixed(2) + "  sprawl " + (b2/alp).toFixed(2)
+                        + "  forest " + (b3/alp).toFixed(2) + "  cliffs " + (cl/alp).toFixed(2)
                         + "  swamp " + (sw/alp).toFixed(2) + "  arctic " + (ar/alp).toFixed(2));
             Qt.quit();
         }

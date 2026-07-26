@@ -2578,6 +2578,20 @@ var BIOMES=[
     fauna:{ keep:{deer:0,rabbit:0,fox:1,goat:0}, big:["polarbear","walrus","seal"], small:["ptarmigan"], air:["skua"] },
     flora:{ kinds:["lichen","dwarfwillow","lichen","lichen","dwarfwillow"], bloom:["#e8c8d8","#d8e0e8","#ffffff"] },
     sky:{ top:[138,168,206], bot:[224,234,242], k:0.30, haze:[228,236,244] } },
+  // THE SPRAWL. A drowned industrial plain: standing water between concrete berms, pylons marching
+  // through it, almost no relief. The flatness is deliberate — the megatowers, the haze and the neon do
+  // all the work, and the water is what justifies the wet-look streets.
+  // ⚠ REAL WEATHER STILL WINS HERE. Nick chose this explicitly over perpetual night-and-rain: the noir
+  // comes from what is BUILT, so it reads cyberpunk at noon in July. `neon:1` is a CITY style, not a
+  // sky — and the same flag is rolled on ~1 life in 12 of every OTHER land, which is why a neon sprawl
+  // can end up standing in a swamp.
+  { k:"sprawl",  name:"THE SPRAWL", amp:0.20, base:0.70, flat:0.30, steep:0.20, snow:false, water:"sea", neon:1,
+    far:[104,108,120],  near:[70,74,86],   cap:[136,140,154], ground:[78,80,88],
+    walls:[[62,66,78],[44,48,58],[80,84,98],[36,40,50],[92,96,112],[52,56,68],[70,74,88],[40,44,54]],
+    waterPal:{deep:[26,32,44],mid:[18,24,34],shal:[12,17,25]},
+    fauna:{ keep:{deer:0,rabbit:0,fox:1,goat:0}, big:[], small:["rat","pigeon"], air:["crow"] },   // ⚠ `small` is drawSpot; a BIRD in here has no c2 and crashes the frame
+    flora:{ kinds:["scrub","reeds","scrub","weedtree","reeds"], bloom:["#4be0d0","#f04a8a","#ffe14a"] },
+    sky:{ top:[52,58,84], bot:[132,124,148], k:0.34, haze:[142,132,156] } },
   // THE LAST TWO ARE NOT EARTH. Everything else in this table is plausible geography under one sun;
   // these are not, and they are the only rows whose `sky.k` runs high enough to genuinely repaint the
   // day. They still obey the same rule every other biome does: the REAL Norwich clock and the REAL
@@ -2655,7 +2669,11 @@ var FAUNA={
   walrus:    {plan:"quad", w:14,h:6, c:[150,116,106],c2:[104,80,74],  head:"seal", legless:1, tusks:1},
   caribou:   {plan:"quad", w:11,h:9, c:[156,142,124],c2:[214,208,198],head:"antler"},
   ptarmigan: {plan:"spot", c:[240,242,244], c2:[176,182,190], upright:1},
-  skua:      {plan:"bird", c:[92,84,74],    soar:1}
+  skua:      {plan:"bird", c:[92,84,74],    soar:1},
+  // THE SPRAWL. Nothing large lives here; what thrives is what always thrives.
+  rat:       {plan:"spot", c:[86,78,74],   c2:[122,112,106], tail:"long"},
+  crow:      {plan:"bird", c:[34,34,40],   soar:1, perch:1},
+  pigeon:    {plan:"spot", c:[104,108,120], c2:[150,154,166], upright:1}
 };
 // Distance haze fades everything toward THE SKY IT IS UNDER. This was a hardcoded pale blue, which
 // is right for five biomes and wrong for the two that repaint the day — under an infernal sky the
@@ -2782,6 +2800,20 @@ var BIOME_VARIANTS={
       fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:0}, big:["elk"], small:["frog","turtle2"], air:["heron","raven"] },
       sky:{ top:[130,142,150], bot:[196,196,186], k:0.30, haze:[198,198,188] } } ],
 
+  sprawl:[ {},
+    { name:"THE RED DISTRICT",   // hotter, denser, seedier: everything runs red and amber
+      far:[118,96,96],   near:[80,60,62],   cap:[152,120,116], ground:[86,68,66],
+      walls:[[74,54,56],[52,38,40],[92,66,64],[40,30,32],[104,74,68],[60,44,46],[82,60,58],[46,34,36]],
+      waterPal:{deep:[44,26,30],mid:[30,18,21],shal:[20,12,14]},
+      flora:{ kinds:["scrub","reeds","weedtree","scrub","reeds"], bloom:["#ff3a5c","#ffa63a","#ff6ad5"] },
+      sky:{ top:[64,40,58], bot:[152,110,118], k:0.36, haze:[160,116,122] } },
+    { name:"THE COLD STACK",     // corporate, sterile, blue-white: the clean end of the same city
+      far:[124,136,152], near:[86,98,116], cap:[164,176,192], ground:[96,104,116],
+      walls:[[86,96,112],[62,72,88],[104,116,134],[52,62,76],[118,130,148],[74,84,100],[96,108,126],[58,68,84]],
+      waterPal:{deep:[28,40,58],mid:[20,30,44],shal:[14,21,32]},
+      flora:{ kinds:["scrub","grass","scrub","weedtree","grass"], bloom:["#7ce8ff","#c0d8ff","#ffffff"] },
+      sky:{ top:[58,74,104], bot:[150,162,182], k:0.32, haze:[158,168,188] } } ],
+
   arctic:[ {},
     { name:"THE TUNDRA",   // arctic SUMMER: the sea ice gone, brown-green moss, meltwater pools, low sun
       far:[150,150,124], near:[116,120,96],  cap:[186,182,150], ground:[130,134,102], snow:false, amp:0.34,
@@ -2846,6 +2878,7 @@ function variantOf(li,B){
   return out;
 }
 var curBiome=BIOMES[0];
+var curNeon=false;   // this life's city wears the neon style (always in THE SPRAWL, ~1/12 elsewhere)
 var bioTrees=null;     // the OLD FOREST's colossal trees ({far:[],near:[]}), null in every other biome
 function biomeOf(li){
   if(li===0) return BIOMES[0];                       // life 0 keeps the alpine range the city grew up under
@@ -3102,13 +3135,18 @@ function buildWorld(li){
   // BIOME first — it has the final say on the water, because the land and the water have to agree:
   // sea cliffs without a sea are nonsense, and so is a harbour in a red-rock desert.
   curBiome = variantOf(li, biomeOf(li));    // the land, then which of its three faces
+  // THE NEON STYLE. Always on in THE SPRAWL, and rolled on about 1 life in 12 of every OTHER land —
+  // Nick's call, so a neon megacity can end up standing in a swamp or under a volcano. It restyles the
+  // CITY ONLY: the mesa is still a mesa. A separate hash from the biome and variant rolls so it is
+  // genuinely independent of which land you got.
+  curNeon = !!curBiome.neon || ((((li*3266489917+374761393)>>>0)%12)===0);
   hasOcean = (li===0) ? true : (curBiome.water==="sea" ? true : curBiome.water==="river" ? false : geo()<0.6);
   // The SEA CLIFFS get a far wider coast than anywhere else. Nick named that land the weakest of the
   // seven, and the reason was that a biome literally called SEA CLIFFS was rendering with no visible
   // water at all — 4.5-8% of the world per side is a sliver at the seam you only meet on the outer
   // monitor. A real expanse is the difference between a grey wall and a coastline.
-  seaW = hasOcean ? ((curBiome.k==="cliffs"||curBiome.k==="beach") ? (0.15+geo()*0.06) : ((curBiome.k==="swamp"||curBiome.k==="arctic") ? (0.22+geo()*0.06) : (0.045+geo()*0.035))) : 0;
-  WATER_W = (curBiome.k==="cliffs"||curBiome.k==="beach") ? 0.21 : ((curBiome.k==="swamp"||curBiome.k==="arctic") ? 0.22 : 0.11);   // the coasts get a bay you can see; the bayou is mostly water
+  seaW = hasOcean ? ((curBiome.k==="cliffs"||curBiome.k==="beach") ? (0.15+geo()*0.06) : ((curBiome.k==="swamp"||curBiome.k==="arctic"||curBiome.k==="sprawl") ? (0.22+geo()*0.06) : (0.045+geo()*0.035))) : 0;
+  WATER_W = (curBiome.k==="cliffs"||curBiome.k==="beach") ? 0.21 : ((curBiome.k==="swamp"||curBiome.k==="arctic"||curBiome.k==="sprawl") ? 0.22 : 0.11);   // the coasts get a bay you can see; the bayou is mostly water
   // Dry biomes get a RIVER through the city instead of a coast: the waterfront becomes a riverbank,
   // and the harbour's deep-water shipping becomes barge traffic (drawRiver / riverAt).
   hasRiver = !hasOcean && curBiome.water==="river";
@@ -7040,9 +7078,68 @@ function drawPackIce(g,L,now,nd,sa,sb,zi,wTop){
     }
   }
 }
+// THE FLOODED FLATS. The Sprawl's water: standing, oily, and mostly interesting for what it REFLECTS.
+// Concrete berms cut across it, pylons march through it, and sluice gates hold it back. Drawn from
+// drawHarbor with the water, like every other coast detail, for the same draw-order reason.
+function drawFloodedFlats(g,L,now,sa,sb,zi,wTop,shoreAt,sgn){
+  var day=L>0.5, K=Math.max(1,KSP), span=sb-sa, wDep=Math.max(1,HORIZON-wTop);
+  var conc=day?"#8a8e98":"#20242c", conc2=day?"#6a6e78":"#161a20";
+  var neonC=["#4be0d0","#f04a8a","#ffe14a","#7c6cff"];
+  // CONCRETE BERMS — long low walls cutting the water into cells, which is what makes it read as
+  // drained industrial land rather than a lake.
+  for(var b=0;b<4;b++){
+    var by=wTop+Math.round(((b+0.6)/4.6)*wDep);
+    var bh2=Math.max(1,Math.round((1.4+b*0.5)*K));
+    g.fillStyle=conc2; g.fillRect(sa,by,span,bh2);
+    g.fillStyle=conc;  g.fillRect(sa,by,span,Math.max(1,Math.round(K*0.7)));
+    if((b&1)===0){                                                   // a sluice gate in this one
+      var gx=sa+Math.round(span*(0.22+b*0.19));
+      g.fillStyle=conc; g.fillRect(gx-Math.round(2*K),by-Math.round(4*K),Math.round(4*K),Math.round(4*K));
+      g.fillStyle=conc2; g.fillRect(gx-Math.round(3*K),by-Math.round(5*K),Math.round(6*K),Math.max(1,Math.round(K)));
+    }
+  }
+  // PYLONS standing in the water, with the line strung between them. Cheap, and instantly industrial.
+  var nP=Math.max(3,Math.round(span/(30*K))), prev=null;
+  for(var p=0;p<nP;p++){
+    var px=sa+Math.round(((p+0.5)/nP)*span);
+    var pdep=0.30+(((p*2654435761)>>>0)%100)/100*0.45;
+    var py=wTop+Math.round(pdep*wDep), ph2=Math.round((10+pdep*16)*K);
+    g.fillStyle=day?"#5c626e":"#12151a";
+    for(var q=0;q<ph2;q++){                                          // a tapering lattice mast
+      var w2=Math.max(1,Math.round((1+(1-q/ph2)*2.2)*K));
+      g.fillRect(px-w2,py-q,w2*2,1);
+      if(q%Math.max(2,Math.round(3*K))===0) g.fillRect(px-w2*2,py-q,w2*4,Math.max(1,Math.round(K*0.6)));
+    }
+    if(prev){ g.strokeStyle=day?"rgba(40,44,52,0.7)":"rgba(96,102,116,0.45)"; g.lineWidth=1;
+      g.beginPath(); g.moveTo(prev.x,prev.y-prev.h+2);
+      g.lineTo((prev.x+px)/2,((prev.y-prev.h)+(py-ph2))/2+Math.round(3*K));
+      g.lineTo(px,py-ph2+2); g.stroke(); }
+    prev={x:px,y:py,h:ph2};
+    if(!day){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,70,60,0.8)";
+      if(((p+Math.floor(now/1300))&1)) g.fillRect(px-Math.max(1,Math.round(K*0.6)),py-ph2-Math.round(K),Math.max(1,Math.round(1.2*K)),Math.max(1,Math.round(1.2*K)));
+      g.globalCompositeOperation="source-over"; }
+  }
+  // AND WHAT THE WATER IS FOR — the city's neon, broken up on the surface. This is the whole reason to
+  // flood the land: the reflection doubles every sign without drawing a single extra building.
+  g.globalCompositeOperation="lighter";
+  for(var r=0;r<26;r++){
+    var h=((r*40503+((sa*13)|0))>>>0);
+    var rx=sa+(h%Math.max(1,span)), ry=wTop+Math.round((((h>>>9)%100)/100)*wDep);
+    var edge=shoreAt(ry);
+    if(sgn>0? rx>edge : rx<edge) continue;
+    var wob=Math.round(Math.sin(now*0.0012+r*1.3)*1.6*K);
+    var col=neonC[(h>>>17)%neonC.length];
+    g.fillStyle=col;
+    g.globalAlpha=(day?0.10:0.30)*(0.5+0.5*Math.abs(Math.sin(now*0.0009+r)));
+    g.fillRect(rx+wob,ry,Math.round((3+((h>>>21)%7))*K),Math.max(1,Math.round(K)));
+    g.globalAlpha=1;
+  }
+  g.globalCompositeOperation="source-over";
+}
 function drawReefLagoon(g,L,now,sa,sb,zi,wTop){
-  if(curBiome.k!=="beach"&&curBiome.k!=="swamp") return;
-  var bayou=curBiome.k==="swamp";
+  if(curBiome.k!=="beach"&&curBiome.k!=="swamp"&&curBiome.k!=="sprawl") return;
+  var bayou=curBiome.k==="swamp"||curBiome.k==="sprawl";   // both are dark still water with things standing in it
+  var sprawl=curBiome.k==="sprawl";
   var span=sb-sa; if(span<12) return;
   var day=L>0.5, K=Math.max(1,KSP);
   var inner=zi?sa:sb, sgn=zi?-1:1, wDep=Math.max(1,HORIZON-wTop);
@@ -7115,6 +7212,7 @@ function drawReefLagoon(g,L,now,sa,sb,zi,wTop){
     if(((sy2*11)%13)===0){ g.fillStyle=day?"rgba(210,192,152,0.7)":"rgba(52,48,38,0.7)";
       g.fillRect(sgn>0?e2+Math.round(3*K):e2-Math.round(4*K),sy2,Math.round(2*K),1); }   // shell/wrack line
   }
+  if(sprawl){ drawFloodedFlats(g,L,now,sa,sb,zi,wTop,shoreAt,sgn); return; }
   if(bayou){ drawBayouWater(g,L,now,sa,sb,zi,wTop,shoreAt,sgn); return; }
   // THE REEF CREST — breakers standing in one place, because a reef does not move. The single
   // strongest "coral coast" cue in the frame.
@@ -7193,7 +7291,7 @@ function drawHarbor(g,L,now,night,nd){
   // renderer and is NOT REACHED by any shipped shell — it hangs off a `pass==="water"` branch and
   // both real shells draw only "bg" and "live". Anything added there is invisible in production;
   // that is the shell-pass trap wearing a different hat.
-  var wTop=HORIZON-((curBiome.k==="cliffs"||curBiome.k==="beach"||curBiome.k==="swamp"||curBiome.k==="arctic")?Math.round(46*Math.max(1,KSP)):22), dayW=mixc([26,58,84],[92,152,188],L), wc=css(dayW);
+  var wTop=HORIZON-((curBiome.k==="cliffs"||curBiome.k==="beach"||curBiome.k==="swamp"||curBiome.k==="arctic"||curBiome.k==="sprawl")?Math.round(46*Math.max(1,KSP)):22), dayW=mixc([26,58,84],[92,152,188],L), wc=css(dayW);
   eachWaterSpan(function(sa,sb,zi){ var ww=sb-sa; if(ww<=0) return;
     var shoreA=gstage(0.3,0.6);                                                   // the far shore builds up with the city
     if(shoreA>0){ g.globalAlpha=shoreA;
@@ -10751,7 +10849,13 @@ function drawQuad(g,x,y,day,now,seed,sp,K){
   }
 }
 // A ground critter, at the classic speck scale — a lizard SHOULD be a speck. Some sit upright.
+// ⚠ `sp.c2` is defaulted. A BIOMES roster that names a bird in its `small` list reaches here with no
+// c2 and `mixc` throws — which does not merely lose one critter, it kills the entire frame from that
+// draw onward. That is exactly what a fresh biome row did, and the test that caught it did so 240 steps
+// into a ticker sweep rather than anywhere near the biome table. Data bug fixed at the source too.
 function drawSpot(g,x,y,day,now,seed,sp,K){
+  if(!sp||!sp.c) return;
+  if(!sp.c2) sp={plan:sp.plan,c:sp.c,c2:sp.c,tail:sp.tail,legs:sp.legs,upright:sp.upright,claws:sp.claws,shell:sp.shell,beak:sp.beak};
   var u=Math.max(1,Math.round(K*0.9));
   var c=css(day?sp.c:mixc(sp.c,[0,0,0],0.58)), c2=css(day?sp.c2:mixc(sp.c2,[0,0,0],0.55));
   var mv=(Math.floor(now/260+seed)&1);
@@ -12764,6 +12868,15 @@ function drawBiomePlant(g,X,gy,day,now,seed,sc,kind,swayOn){
     }
     g.fillStyle=C([86,64,40]);                                             // the nuts, under the crown
     for(var nq=0;nq<3;nq++) if(((seed>>(nq+3))&3)) R(cx4-K+nq*K*1.1,cy4+K*0.8,Math.max(1,Math.round(1.4*K)),Math.max(1,Math.round(1.4*K)));
+  } else if(kind==="weedtree"){
+    var wth=Math.round((7+(seed%5))*K);                                 // a buddleia off a wall: scrappy, thin
+    g.fillStyle=C([96,88,72]);
+    for(var wq=0;wq<wth;wq++) R(Math.sin(wq*0.4)*K*0.7-Math.round(K*0.5),-wq,Math.max(1,Math.round(K*0.9)),1);
+    g.fillStyle=C([84,110,72]);
+    folMass(g,X+sway*0.8,gy-wth+Math.round(K),wth*0.42,wth*0.26,seed,K);
+    folMass(g,X+sway*0.8+wth*0.22,gy-wth*0.72,wth*0.30,wth*0.20,(seed*19)>>>0,K);
+    if(!season_bare_ok(seed)){ g.fillStyle=C([150,110,170]);            // and its purple spike
+      R(wth*0.1,-wth-Math.round(1.6*K),Math.max(1,Math.round(K)),Math.round(2.4*K)); }
   } else if(kind==="lichen"){
     var lw=Math.round((3+(seed%3))*K);                                  // a crust on the rock, barely a plant
     g.fillStyle=C([164,172,150]);
@@ -13613,6 +13726,114 @@ function drawPrimates(g,L,now,K){
       g.fillRect(qx-qu,Math.round(qy)+bob-Math.round(2.4*K),qu*2,qu);
     }
   }
+}
+// ============ THE NEON STYLE ============
+// Nick: one map should look completely cyberpunk — and he chose BOTH a dedicated land and a style that
+// can take over any other land. This is the style. It is always on in THE SPRAWL and rolls on about one
+// life in twelve everywhere else, so a neon megacity can end up standing in a swamp.
+//
+// ⚠⚠ IT TOUCHES THE CITY ONLY, and the REAL WEATHER STILL WINS. Both are Nick's explicit calls. The
+// noir has to come from what is BUILT — holograms, light pollution, wet-look streets, drones, steam —
+// so it reads cyberpunk at noon in July. Nothing here darkens the sky or forces rain; a bright June
+// afternoon in the Sprawl is a bright June afternoon with a neon city standing in it.
+function drawNeonCity(g,L,now,nd){
+  if(!curNeon||cityPhase==="apoc") return;
+  var day=L>0.5, K=Math.max(1,KSP), gy=HORIZON, night=1-L;
+  var pal=["#4be0d0","#f04a8a","#ffe14a","#7c6cff","#4bff9a"];
+  if(curBiome.name==="THE RED DISTRICT") pal=["#ff3a5c","#ffa63a","#ff6ad5","#ffd23a"];
+  if(curBiome.name==="THE COLD STACK")   pal=["#7ce8ff","#c0d8ff","#ffffff","#8ab4ff"];
+  // LIGHT POLLUTION — a warm-cool dome over the city that lifts the low sky. It is what a big city
+  // actually does to the air above it, and it works in daylight as haze rather than as glow.
+  var lp=g.createLinearGradient(0,gy-Math.round(gy*0.55),0,gy);
+  lp.addColorStop(0,"rgba("+(day?"152,146,168,0.0":"92,64,120,0.0")+")");
+  lp.addColorStop(1,"rgba("+(day?"162,152,176,0.20":"128,74,150,0.30")+")");
+  g.fillStyle=lp; g.fillRect(0,gy-Math.round(gy*0.55),SW,Math.round(gy*0.55));
+  // HOLOGRAMS over the skyline — tall translucent panels of scrolling colour, the single most legible
+  // cyberpunk cue there is. Anchored to fixed world positions so they read as installed, not as VFX.
+  for(var h=0;h<7;h++){
+    var hh=((h*2654435761+((WORLD_SEED*31)|0))>>>0);
+    var hwx=(hh%Math.max(1,WW));
+    for(var o=-1;o<=1;o++){
+      var HX=Math.round(hwx-WOFF+o*WW);
+      var hw2=Math.round((7+((hh>>>7)%9))*K), hgt2=Math.round((22+((hh>>>11)%34))*K);
+      if(HX+hw2<0||HX-hw2>SW) continue;
+      var hy=gy-Math.round((26+((hh>>>15)%40))*K)-hgt2;
+      var col=pal[(hh>>>19)%pal.length];
+      g.globalCompositeOperation="lighter";
+      for(var q=0;q<hgt2;q+=Math.max(1,Math.round(2*K))){
+        var qf=q/hgt2;
+        var a=(day?0.055:0.16)*(1-qf*0.55)*(0.6+0.4*Math.sin(now*0.0016+h+qf*6));
+        if(a<=0.006) continue;
+        g.fillStyle=col; g.globalAlpha=a;
+        g.fillRect(HX-hw2,hy+q,hw2*2,Math.max(1,Math.round(1.4*K)));
+      }
+      g.globalAlpha=1;
+      // ⚠ MOUNT IT. Unframed and unsupported these read as coloured rectangles FLOATING in the sky.
+      // A mast down to the rooftops and a thin frame is all it takes to make them installed hardware.
+      g.globalCompositeOperation="source-over";
+      g.fillStyle=day?"rgba(38,40,50,0.85)":"rgba(10,11,16,0.85)";
+      g.fillRect(HX-Math.max(1,Math.round(K)),hy+hgt2,Math.max(2,Math.round(2*K)),Math.round(22*K));
+      g.fillRect(HX-hw2,hy+hgt2,hw2*2,Math.max(1,Math.round(1.4*K)));
+      g.fillRect(HX-hw2,hy,Math.max(1,Math.round(K)),hgt2);
+      g.fillRect(HX+hw2-Math.max(1,Math.round(K)),hy,Math.max(1,Math.round(K)),hgt2);
+      g.globalCompositeOperation="lighter";
+      // a scan line running down it, which is what stops it reading as a flat coloured slab
+      var scan=hy+Math.round(((now*0.05+h*140)%hgt2));
+      g.fillStyle=col; g.globalAlpha=day?0.14:0.34;
+      g.fillRect(HX-hw2,scan,hw2*2,Math.max(1,Math.round(1.6*K)));
+      g.globalAlpha=1;
+      g.globalCompositeOperation="source-over";
+    }
+  }
+  // DRONES — small, blinking, holding station or crossing slowly. They belong to the city, so they fly
+  // low over the skyline rather than up in the flight lanes the engine already uses.
+  for(var d=0;d<9;d++){
+    var dh=((d*7919+41)>>>0);
+    var per=42000+((dh%9000)), dp=((now+d*3400)%per)/per;
+    var dir=(dh&1)?1:-1;
+    var dx=dir>0?(dp*(SW+40)-20):(SW+20-dp*(SW+40));
+    var dy=gy-Math.round((30+((dh>>>7)%52))*K)+Math.round(Math.sin(now*0.0015+d*1.7)*2*K);
+    g.fillStyle=day?"#2a2e36":"#0c0e12";
+    g.fillRect(Math.round(dx),dy,Math.round(2.4*K),Math.max(1,Math.round(1.2*K)));
+    g.globalCompositeOperation="lighter";
+    if(((Math.floor(now/420)+d)&3)!==3){
+      g.fillStyle=pal[(dh>>>11)%pal.length];
+      g.fillRect(Math.round(dx),dy+Math.round(K),Math.max(1,Math.round(1.2*K)),Math.max(1,Math.round(1.2*K)));
+    }
+    g.globalCompositeOperation="source-over";
+  }
+  // STEAM off the roofs and the street — vents, always, day or night. Free atmosphere and it is the one
+  // element here that is genuinely weather-independent.
+  for(var v=0;v<10;v++){
+    var vh=((v*104729+7)>>>0), vwx=(vh%Math.max(1,WW));
+    for(var o2=-1;o2<=1;o2++){
+      var VX=Math.round(vwx-WOFF+o2*WW); if(VX<-8||VX>SW+8) continue;
+      var vy=gy-Math.round(((vh>>>9)%22)*K);
+      var rise=((now*0.012+v*70)%Math.round(26*K));
+      var a2=(0.16-0.14*(rise/Math.round(26*K)))*(day?0.7:1);
+      if(a2<=0.008) continue;
+      g.fillStyle="rgba(206,206,214,"+a2.toFixed(3)+")";
+      g.fillRect(VX-Math.round(rise*0.10),vy-Math.round(rise),Math.round((2+rise*0.22)*K),Math.max(1,Math.round(2*K)));
+    }
+  }
+  // WET-LOOK STREET. The sprawl's asphalt is always dark and always reflecting, whatever the real
+  // weather is doing — that is a property of the place, not of the forecast. Reuses nothing from
+  // `wetness`, deliberately, so a dry July day still looks like this.
+  var band=Math.max(4,SH-gy-2);
+  g.fillStyle=day?"rgba(30,32,44,0.22)":"rgba(10,12,22,0.34)";
+  g.fillRect(0,gy+2,SW,band);
+  g.globalCompositeOperation="lighter";
+  for(var rf=0;rf<30;rf++){
+    var rh=((rf*2654435761+13)>>>0);
+    var rx=(rh%Math.max(1,SW));
+    var ry=gy+3+((rh>>>9)%band);
+    var col2=pal[(rh>>>15)%pal.length];
+    g.fillStyle=col2;
+    g.globalAlpha=(day?0.06:0.20)*(0.4+0.6*Math.abs(Math.sin(now*0.0011+rf*0.9)));
+    g.fillRect(rx,ry,Math.round((2+((rh>>>19)%6))*K),Math.max(1,Math.round(K)));
+    g.globalAlpha=1;
+  }
+  g.globalCompositeOperation="source-over";
 }
 // THE BATTLE. Drawn at the START of drawForestNear, so the two colossal fore trunks pass IN FRONT of
 // it — that occlusion is what puts the fight among the giants instead of pasted over them, and it is
@@ -14662,6 +14883,53 @@ function drawBiomeLandmark(g,L,now,nd){
       g.fillStyle=wood;                                                             // logs stacked in the yard
       for(var lg=0;lg<3;lg++)
         g.fillRect(X-Math.round((10-lg*2)*K),gy-Math.round((2+lg*1.6)*K),Math.round(9*K),Math.max(1,Math.round(1.5*K)));
+    });
+  } else if(B.k==="sprawl"){
+    // THE ARCOLOGY — one colossal stepped megastructure that dwarfs the rest of the city. It is its own
+    // district stacked vertically, so unlike every other landmark here it is drawn TALLER than the
+    // skyline rather than merely clear of it: the point is that nothing else comes close.
+    at(function(X){
+      var aw=Math.round(30*K), ah=Math.round(64*K), tiers=6;
+      var body=day?"#4a4e5c":"#141720", body2=day?"#33374480":"#0c0e14", lip=day?"#5e6474":"#1c202a";
+      var pal2=["#4be0d0","#f04a8a","#ffe14a","#7c6cff"];
+      if(B.name==="THE RED DISTRICT") pal2=["#ff3a5c","#ffa63a","#ff6ad5"];
+      if(B.name==="THE COLD STACK")   pal2=["#7ce8ff","#c0d8ff","#ffffff"];
+      for(var t=0;t<tiers;t++){
+        var tf=t/tiers;
+        var tw=Math.round(aw*(1-tf*0.52)), th=Math.round(ah/tiers);
+        var ty=gy-Math.round(ah*(tf+1/tiers));
+        g.fillStyle=body;  g.fillRect(X-tw,ty,tw*2,th);
+        g.fillStyle=body2; g.fillRect(X+tw-Math.round(tw*0.28),ty,Math.round(tw*0.28),th);   // shaded face
+        g.fillStyle=lip;   g.fillRect(X-tw-Math.round(K),ty,tw*2+Math.round(2*K),Math.max(1,Math.round(1.6*K)));
+        // WINDOW BANDS. Lit in horizontal runs rather than as a grid — at this size a grid turns to mush
+        // and the banding is what makes it read as one enormous structure instead of many towers.
+        for(var wb=Math.round(3*K);wb<th-Math.round(2*K);wb+=Math.max(3,Math.round(4*K))){
+          var lit=((t*7+wb)>>>0)%5;
+          g.fillStyle=day?"rgba(150,166,190,0.5)":"rgba(255,214,150,"+(0.30+0.18*(lit&1))+")";
+          g.fillRect(X-tw+Math.round(2*K),ty+wb,tw*2-Math.round(4*K),Math.max(1,Math.round(1.4*K)));
+        }
+        if(!day){ g.globalCompositeOperation="lighter";           // a neon band round each setback
+          g.fillStyle=pal2[t%pal2.length];
+          g.globalAlpha=0.55;
+          g.fillRect(X-tw,ty+Math.max(1,Math.round(1.6*K)),tw*2,Math.max(1,Math.round(1.2*K)));
+          g.globalAlpha=1; g.globalCompositeOperation="source-over"; }
+      }
+      // AIRCRAFT WARNING STROBES up the corners — what actually says "this thing is enormous".
+      var topY=gy-ah;
+      for(var sb=0;sb<4;sb++){
+        var sy2=topY+Math.round(sb*(ah/4.4)), sw2=Math.round(aw*(1-(sb/4.4)*0.52));
+        if(((Math.floor(now/900)+sb)&1)){
+          g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,70,60,0.9)";
+          g.fillRect(X-sw2,sy2,Math.max(1,Math.round(1.6*K)),Math.max(1,Math.round(1.6*K)));
+          g.fillRect(X+sw2-Math.round(1.6*K),sy2,Math.max(1,Math.round(1.6*K)),Math.max(1,Math.round(1.6*K)));
+          g.globalCompositeOperation="source-over";
+        }
+      }
+      g.fillStyle=day?"#6a7080":"#20242e";                        // a mast off the crown
+      g.fillRect(X-Math.max(1,Math.round(K)),topY-Math.round(10*K),Math.max(2,Math.round(2*K)),Math.round(10*K));
+      if(!day){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,90,70,0.95)";
+        g.fillRect(X-Math.max(1,Math.round(K)),topY-Math.round(11*K),Math.max(2,Math.round(2*K)),Math.round(1.6*K));
+        g.globalCompositeOperation="source-over"; }
     });
   } else if(B.k==="volcano"){
     // THE OBSERVATORY. It exists BECAUSE the mountain is dangerous, which is what ties this landmark to
@@ -20447,6 +20715,7 @@ function draw(g,pass){
   // Both sit UNDER the eclipse/ash veils and the HUD, so an eclipse still darkens the forest too.
   drawForestNear(g,L,now,nd);
   drawCanopyLight(g,L,now);
+  drawNeonCity(g,L,now,nd);        // the neon style, over the city, whatever land it landed on
 
   // solar-eclipse twilight: an unnatural cool dusk falls over the whole city at totality, then lifts
   if(solarEclDim>0.01){ var ev=Math.pow(solarEclDim,1.7)*0.74; g.fillStyle="rgba(18,20,40,"+ev+")"; g.fillRect(0,0,SW,SH); }
