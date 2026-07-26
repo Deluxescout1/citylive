@@ -2621,7 +2621,14 @@ var FAUNA={
   frog:      {plan:"spot", c:[92,126,72],  c2:[164,190,116], upright:1},
   turtle2:   {plan:"spot", c:[86,96,70],   c2:[122,132,96],  shell:1},
   heron:     {plan:"bird", c:[128,142,152], perch:1, wader:1},
-  egret:     {plan:"bird", c:[246,248,246], perch:1, wader:1}
+  egret:     {plan:"bird", c:[246,248,246], perch:1, wader:1},
+  // Species the VARIANTS need. A missing key is silently skipped by drawBiomeFauna (`if(!sp) continue`),
+  // so a variant referencing one of these before it existed would just quietly have no animals.
+  ibex:      {plan:"quad", w:9, h:8, c:[164,142,108],c2:[104,88,64],  head:"curl"},
+  wolf:      {plan:"quad", w:10,h:7, c:[124,124,120],c2:[76,76,74],   head:"snout"},
+  marmot:    {plan:"spot", c:[152,124,84],  c2:[196,172,132], upright:1},
+  eagle:     {plan:"bird", c:[92,72,52],    soar:1, perch:1},
+  raven:     {plan:"bird", c:[36,34,40],    soar:1, perch:1}
 };
 // Distance haze fades everything toward THE SKY IT IS UNDER. This was a hardcoded pale blue, which
 // is right for five biomes and wrong for the two that repaint the day — under an infernal sky the
@@ -2631,6 +2638,157 @@ function biomeSkc(day){
   var B=curBiome;
   if(B&&B.sky) return day?B.sky.bot:mixc(B.sky.top,[0,0,0],0.55);
   return day?[168,186,214]:[24,28,46];
+}
+// ============ VARIANTS — three sub-landscapes per land ============
+// Nick: "like the mountains, make sure there are multiple/random variants of each map so it always
+// doesn't look the same." A land is no longer one look: it rolls one of three per life, with its own
+// rock, its own plants, its own animals, its own sky and its own NAME.
+//
+// A variant overrides LOOK and never `k`. Every renderer in this file branches on `curBiome.k`
+// (`B.k==="mesa"`, `B.k==="forest"` …), so a variant that changed the kind would silently take a
+// different code path — the hoodoos would vanish, the giants would become a height field. `variantOf`
+// forces `k` back after merging for exactly that reason.
+//
+// ⚠ VARIANT 0 OF EVERY LAND IS `{}` ON PURPOSE. An empty override is the look that shipped in
+// v2.2.0, already reviewed and approved, so a new roll can only ever ADD. This also means the table
+// stays a diff rather than nine full duplicated palettes.
+//
+// This does NOT change BIOMES.length, so unlike adding a biome it does not re-roll every life.
+var BIOME_VARIANTS={
+  alpine:[ {},
+    { name:"THE DOLOMITES",   // pale limestone, sheer and bare: the range as a wall rather than a cone
+      far:[176,172,168], near:[146,142,140], cap:[242,240,238], steep:0.45, flat:0.18, snow:true,
+      ground:[150,150,138],
+      walls:[[228,224,214],[206,200,188],[240,238,230],[188,182,170],[214,208,196],[196,192,182],[236,230,218],[176,172,162]],
+      flora:{ kinds:["scrub","grass","windbent","scrub","grass"], bloom:["#e8e0f0","#c8d0e8","#ffffff"] },
+      fauna:{ keep:{deer:0,rabbit:1,fox:1,goat:1}, big:["bighorn","ibex"], small:["marmot"], air:["eagle"] },
+      sky:{ top:[132,164,208], bot:[220,226,236], k:0.22, haze:[228,230,236] } },
+    { name:"THE DRY RANGE",   // brown semi-arid mountains, no snow, juniper and sage on the flanks
+      far:[168,140,102], near:[132,106,74], cap:[196,172,132], snow:false, amp:0.86,
+      ground:[176,156,116],
+      walls:[[206,178,138],[182,152,112],[224,204,168],[164,134,98],[198,172,132],[176,150,116],[214,192,152],[156,130,96]],
+      flora:{ kinds:["juniper","scrub","sage","juniper","grass"], bloom:["#e0c060","#c88a4a","#ffffff"] },
+      fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:1}, big:["bighorn","coyote"], small:["marmot","lizard"], air:["eagle","vulture"] },
+      sky:{ top:[142,166,206], bot:[226,214,186], k:0.24, haze:[228,214,184] } } ],
+
+  forest:[ {},
+    { name:"THE BLACK PINES", // boreal: near-black spruce, cold light, no primates this far north
+      far:[46,68,66],   near:[26,44,44],   cap:[92,116,108], ground:[44,58,48],
+      walls:[[92,82,70],[74,66,56],[112,100,84],[168,162,150],[68,74,66],[96,92,78],[124,112,92],[60,66,60]],
+      flora:{ kinds:["fern","snag","fern","log","snag"], bloom:["#d8e0e8","#b0c0c8","#ffffff"] },
+      fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:0}, big:["elk","bear","wolf"], small:["squirrel"], air:["owl","raven"] },
+      sky:{ top:[110,134,158], bot:[186,198,206], k:0.26, haze:[196,206,210] } },
+    { name:"THE GOLDEN WOOD", // autumn birch and aspen: white boles, gold crowns, warm low light
+      far:[186,158,86],  near:[152,120,58],  cap:[228,204,132], ground:[152,126,72],
+      walls:[[226,220,206],[198,190,174],[240,236,224],[178,166,146],[212,204,188],[190,182,166],[234,228,212],[166,156,138]],
+      flora:{ kinds:["generic","fern","log","generic","fern"], bloom:["#e8b44a","#d88a3a","#ffe0a0"] },
+      fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:0}, big:["elk","bear","boar"], small:["squirrel"], air:["owl","raven"] },
+      sky:{ top:[132,168,208], bot:[236,214,168], k:0.24, haze:[238,220,176] } } ],
+
+  mesa:[ {},
+    { name:"THE WHITE BADLANDS", // pale clay, finely banded, almost nothing growing on it
+      far:[216,208,190], near:[188,178,158], cap:[240,236,224], ground:[212,204,182],
+      walls:[[240,236,226],[220,214,200],[248,246,238],[204,196,180],[232,226,212],[214,208,192],[244,240,230],[196,190,176]],
+      flora:{ kinds:["scrub","grass","scrub","scrub","grass"], bloom:["#e8d8a0","#c8b880","#ffffff"] },
+      fauna:{ keep:{deer:0,rabbit:1,fox:0,goat:0}, big:["bighorn","coyote"], small:["lizard","prairiedog"], air:["vulture","hawk"] },
+      sky:{ top:[146,172,214], bot:[230,226,214], k:0.24, haze:[232,228,214] } },
+    { name:"THE BLACK MESA",     // basalt caprock over ochre sand: the darkest daylight land in the set
+      far:[86,82,84],    near:[54,52,56],   cap:[120,116,116], ground:[168,140,96],
+      walls:[[112,106,102],[86,82,80],[140,132,124],[196,186,168],[74,72,72],[124,116,108],[152,144,132],[96,92,88]],
+      flora:{ kinds:["saguaro","scrub","ocotillo","scrub","saguaro"], bloom:["#e8c04a","#d8734a","#ffffff"] },
+      fauna:{ keep:{deer:0,rabbit:1,fox:0,goat:0}, big:["bighorn","coyote"], small:["lizard","roadrunner"], air:["vulture"] },
+      sky:{ top:[128,150,190], bot:[204,180,146], k:0.30, haze:[206,182,148] } } ],
+
+  cliffs:[ {},
+    { name:"THE CHALK COAST",  // brilliant white chalk with turf on top — the brightest cliff there is
+      far:[236,234,228], near:[212,210,202], cap:[250,250,246], ground:[142,164,110],
+      walls:[[246,244,238],[228,226,218],[252,252,248],[210,208,198],[238,236,228],[220,218,208],[248,246,240],[202,200,190]],
+      flora:{ kinds:["gorse","grass","windbent","gorse","grass"], bloom:["#f0d878","#e8a0c0","#ffffff"] },
+      fauna:{ keep:{deer:0,rabbit:1,fox:1,goat:0}, big:["seal"], small:["puffin","otter"], air:[] },
+      sky:{ top:[136,172,216], bot:[206,222,230], k:0.24, haze:[212,226,232] } },
+    { name:"THE BASALT COAST", // dark columnar basalt, black shingle, cold grey water
+      far:[74,78,84],    near:[44,48,54],   cap:[104,108,114], ground:[62,66,64],
+      walls:[[128,132,136],[100,104,110],[152,154,156],[80,84,90],[116,120,126],[92,96,102],[140,142,146],[70,74,80]],
+      flora:{ kinds:["windbent","gorse","windbent","grass","gorse"], bloom:["#e8e0a0","#c0d0c0","#ffffff"] },
+      fauna:{ keep:{deer:0,rabbit:0,fox:1,goat:0}, big:["seal"], small:["puffin","otter"], air:[] },
+      sky:{ top:[112,128,146], bot:[172,182,190], k:0.32, haze:[178,188,194] } } ],
+
+  plains:[ {},
+    { name:"THE GOLDEN STEPPE", // dry tan grass to the horizon, dust in the air
+      far:[196,178,120], near:[170,148,90],  cap:[220,206,158], ground:[204,182,120],
+      walls:[[214,196,164],[190,170,136],[232,220,192],[172,150,116],[204,186,152],[186,168,134],[224,210,180],[164,146,114]],
+      flora:{ kinds:["grass","grass","scrub","grass","scrub"], bloom:["#e8c860","#d8b040","#ffffff"] },
+      fauna:{ keep:{deer:0,rabbit:1,fox:1,goat:0}, big:["bison","pronghorn"], small:["prairiedog","lizard"], air:["hawk","eagle"] },
+      sky:{ top:[152,178,216], bot:[228,214,178], k:0.26, haze:[230,216,180] } },
+    { name:"THE HIGH PASTURE",  // deep green grazing country, hedgerows, more cattle than wild things
+      far:[132,164,110], near:[100,134,84],  cap:[168,192,132], ground:[120,152,96],
+      walls:[[228,224,212],[198,192,176],[240,236,226],[178,170,152],[212,206,190],[192,186,170],[234,230,218],[166,160,144]],
+      flora:{ kinds:["grass","cottonwood","grass","generic","grass"], bloom:["#f0e070","#e0a0c8","#ffffff","#d8d060"] },
+      fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:0}, big:["cattle","cattle","pronghorn"], small:["prairiedog"], air:["hawk"] },
+      sky:{ top:[142,174,218], bot:[214,224,226], k:0.22, haze:[216,226,220] } } ],
+
+  beach:[ {},
+    { name:"THE BLACK SAND",  // volcanic sand, deep blue water — the same coast with the light inverted
+      far:[92,88,86],   near:[62,60,60],   cap:[126,120,116], ground:[68,66,64],
+      walls:[[240,236,228],[214,206,196],[196,220,224],[228,216,190],[206,212,208],[184,176,166],[236,228,208],[170,182,184]],
+      flora:{ kinds:["palm","palm","pandanus","palm","seagrape"], bloom:["#f26a8d","#ffd166","#ffffff"] },
+      fauna:{ keep:{deer:0,rabbit:0,fox:0,goat:0}, big:["turtle"], small:["crab","hermitcrab"], air:["frigate","tern"] },
+      sky:{ top:[86,142,198], bot:[186,214,222], k:0.30, haze:[192,216,220] } },
+    { name:"THE PINK SHORE",  // coral sand with a jade lagoon: the softest palette in the set
+      far:[238,208,196], near:[218,180,168], cap:[250,232,224], ground:[246,218,206],
+      walls:[[252,246,240],[240,214,208],[212,238,232],[248,232,208],[236,244,240],[226,192,182],[254,244,226],[200,228,224]],
+      flora:{ kinds:["palm","seagrape","palm","palm","pandanus"], bloom:["#ff7fa8","#ffe08a","#ffffff","#ffa98a"] },
+      fauna:{ keep:{deer:0,rabbit:0,fox:0,goat:0}, big:["turtle"], small:["crab","hermitcrab"], air:["tern","frigate"] },
+      sky:{ top:[126,186,230], bot:[248,226,222], k:0.28, haze:[250,230,224] } } ],
+
+  swamp:[ {},
+    { name:"THE MANGROVE",  // tangled red-rooted mangrove over teal water, hot and bright
+      far:[86,116,86],   near:[56,88,64],   cap:[128,158,110], ground:[70,92,64],
+      walls:[[212,204,182],[178,168,144],[228,222,204],[152,144,124],[196,186,162],[166,158,138],[220,214,194],[140,134,116]],
+      flora:{ kinds:["mangrove","mangrove","reeds","mangrove","pandanus"], bloom:["#e8e0a0","#d8c070","#ffffff"] },
+      fauna:{ keep:{deer:0,rabbit:0,fox:0,goat:0}, big:["gator"], small:["crab","frog"], air:["heron","egret"] },
+      sky:{ top:[112,166,196], bot:[206,220,196], k:0.26, haze:[208,222,198] } },
+    { name:"THE PEAT MOSS",  // a northern bog: brown water, stunted birch, heather, cold flat light
+      far:[112,104,86],  near:[80,74,60],   cap:[142,134,110], ground:[96,88,68],
+      walls:[[196,190,176],[164,158,146],[214,210,198],[140,134,124],[182,176,162],[152,146,134],[206,200,186],[128,122,112]],
+      flora:{ kinds:["reeds","scrub","willow","reeds","scrub"], bloom:["#c890b8","#e0c890","#ffffff"] },
+      fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:0}, big:["elk"], small:["frog","turtle2"], air:["heron","raven"] },
+      sky:{ top:[130,142,150], bot:[196,196,186], k:0.30, haze:[198,198,188] } } ],
+
+  hell:[ {},
+    { name:"THE CINDER WASTE", // burnt out and grey: the fire has mostly gone out of this one
+      far:[92,84,80],   near:[56,50,48],   cap:[152,110,72], ground:[62,58,54],
+      walls:[[78,72,68],[54,50,48],[98,88,82],[46,42,40],[112,98,88],[64,58,54],[86,78,72],[50,46,44]],
+      flora:{ kinds:["snag","snag","scrub","snag"], bloom:["#b8823a","#8a6228","#c89a4a"] },
+      sky:{ top:[52,44,42], bot:[168,126,88], k:0.62, haze:[178,138,96] } },
+    { name:"THE OBSIDIAN",     // black glass under violet fire — the coldest-looking hell there is
+      far:[52,40,64],   near:[28,20,38],   cap:[142,92,196], ground:[34,26,42],
+      walls:[[48,38,56],[30,24,38],[66,52,78],[26,20,32],[80,62,96],[38,30,46],[58,46,68],[28,22,34]],
+      flora:{ kinds:["snag","snag","scrub","snag"], bloom:["#a24ad8","#7a2ea8","#c86ae8"] },
+      sky:{ top:[18,8,28], bot:[126,38,168], k:0.80, haze:[148,56,196] } } ],
+
+  heaven:[ {},
+    { name:"THE SILVER REACHES", // cool silver and blue instead of gold: the same place before dawn
+      far:[220,228,242], near:[196,206,228], cap:[248,252,255], ground:[214,222,232],
+      walls:[[238,244,250],[218,226,238],[250,252,255],[226,234,244],[244,248,252],[222,230,240],[248,250,254],[232,238,246]],
+      flora:{ kinds:["silvertree","generic","silvertree","grass"], bloom:["#cfe4ff","#ffffff","#a8c8f0"] },
+      sky:{ top:[126,168,226], bot:[214,230,246], k:0.58, haze:[220,234,248] } },
+    { name:"THE ROSE VAULT",     // dawn rose and amber, warmer and lower than the white Empyrean
+      far:[244,214,208], near:[228,188,184], cap:[255,238,228], ground:[240,214,200],
+      walls:[[252,240,232],[240,216,208],[255,248,240],[246,226,206],[250,238,228],[238,214,204],[255,244,232],[244,222,212]],
+      flora:{ kinds:["goldtree","generic","goldtree","grass"], bloom:["#ffb0c0","#ffffff","#ffd08a"] },
+      sky:{ top:[186,150,206], bot:[255,206,176], k:0.66, haze:[255,214,188] } } ]
+};
+// Merge a variant over its land. `k` is forced back afterwards — see the warning above.
+function variantOf(li,B){
+  var vs=BIOME_VARIANTS[B.k];
+  if(!vs||!vs.length) return B;
+  var v=vs[((li*2246822519+104729)>>>0)%vs.length];
+  var out={}, kk;
+  for(kk in B) if(B.hasOwnProperty(kk)) out[kk]=B[kk];
+  for(kk in v) if(v.hasOwnProperty(kk)) out[kk]=v[kk];
+  out.k=B.k;
+  return out;
 }
 var curBiome=BIOMES[0];
 var bioTrees=null;     // the OLD FOREST's colossal trees ({far:[],near:[]}), null in every other biome
@@ -2888,7 +3046,7 @@ function buildWorld(li){
   var geo=rng((seed+61)>>>0);
   // BIOME first — it has the final say on the water, because the land and the water have to agree:
   // sea cliffs without a sea are nonsense, and so is a harbour in a red-rock desert.
-  curBiome = biomeOf(li);
+  curBiome = variantOf(li, biomeOf(li));    // the land, then which of its three faces
   hasOcean = (li===0) ? true : (curBiome.water==="sea" ? true : curBiome.water==="river" ? false : geo()<0.6);
   // The SEA CLIFFS get a far wider coast than anywhere else. Nick named that land the weakest of the
   // seven, and the reason was that a biome literally called SEA CLIFFS was rendering with no visible
@@ -12290,6 +12448,36 @@ function drawBiomePlant(g,X,gy,day,now,seed,sc,kind,swayOn){
     }
     g.fillStyle=C([86,64,40]);                                             // the nuts, under the crown
     for(var nq=0;nq<3;nq++) if(((seed>>(nq+3))&3)) R(cx4-K+nq*K*1.1,cy4+K*0.8,Math.max(1,Math.round(1.4*K)),Math.max(1,Math.round(1.4*K)));
+  } else if(kind==="juniper"){
+    var jh=Math.round((6+(seed%4))*K);                                  // a dense dark shrub-tree, gnarled
+    g.fillStyle=C([104,84,62]); R(-Math.round(K*0.7),-jh*0.45,Math.max(1,Math.round(1.4*K)),jh*0.45);
+    g.fillStyle=C([54,84,62]);  folMass(g,X+sway*0.5,gy-jh*0.7,jh*0.62,jh*0.44,seed,K);
+    g.fillStyle=C([72,104,74]); folMass(g,X+sway*0.5-jh*0.2,gy-jh*0.92,jh*0.34,jh*0.24,(seed*7)>>>0,K);
+  } else if(kind==="sage"){
+    var gh=Math.round((2+(seed%2))*K);                                  // low silver-grey desert bush
+    g.fillStyle=C([146,150,128]); folMass(g,X+sway*0.4,gy-gh*0.6,gh*1.3,gh*0.6,seed,K);
+    g.fillStyle=C([172,176,154]); folMass(g,X+sway*0.4,gy-gh*0.95,gh*0.7,gh*0.3,(seed*13)>>>0,K);
+  } else if(kind==="mangrove"){
+    // The PROP ROOTS are the plant. A mangrove drawn as a crown on a trunk is just a shrub; what makes
+    // it unmistakable is that it stands on a tangle of arches out of the water.
+    var mh=Math.round((6+(seed%4))*K);
+    g.fillStyle=C([120,68,54]);
+    for(var rt=0;rt<5;rt++){
+      var rdir=(rt<2)?-1:1, rspr=(1+(rt%3))*K*1.3;
+      for(var rq=0;rq<Math.round(mh*0.55);rq++){
+        var rf=rq/Math.max(1,Math.round(mh*0.55));
+        R(rdir*rspr*(1-rf),-rq,Math.max(1,Math.round(K*0.8)),1);
+      }
+    }
+    g.fillStyle=C([112,62,48]); R(-Math.round(K*0.7),-mh*0.75,Math.max(1,Math.round(1.6*K)),mh*0.45);
+    g.fillStyle=C([52,102,64]);  folMass(g,X+sway*0.6,gy-mh*0.9,mh*0.85,mh*0.4,seed,K);
+    g.fillStyle=C([76,132,80]);  folMass(g,X+sway*0.6+mh*0.25,gy-mh*1.05,mh*0.45,mh*0.24,(seed*11)>>>0,K);
+  } else if(kind==="silvertree"){
+    var sh6=Math.round((9+(seed%5))*K);
+    g.fillStyle=C([206,212,220]); R(-Math.round(K*0.7),-sh6,Math.max(1,Math.round(1.4*K)),sh6);
+    g.fillStyle=C([182,190,204]); R(Math.round(K*0.2),-sh6,Math.max(1,Math.round(K*0.7)),sh6);
+    g.fillStyle=C([228,236,246]); folMass(g,X+sway*0.7,gy-sh6-Math.round(K),sh6*0.5,sh6*0.3,seed,K);
+    g.fillStyle=C([200,214,238]); folMass(g,X+sway*0.7-sh6*0.2,gy-sh6+Math.round(2*K),sh6*0.34,sh6*0.2,(seed*17)>>>0,K);
   } else if(kind==="cypress"){
     // A BALD CYPRESS. Three things identify it and none of them is the crown: the FLARED buttress at
     // the waterline, the KNEES standing in the water around it, and the Spanish moss. The crown is
