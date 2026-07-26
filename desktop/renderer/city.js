@@ -2568,6 +2568,16 @@ var BIOMES=[
     fauna:{ keep:{deer:0,rabbit:0,fox:0,goat:1}, big:["goat"], small:["lizard","crab"], air:["frigate","tern"] },
     flora:{ kinds:["scrub","fern","scrub","scrub","fern"], bloom:["#e8785a","#f0b060","#ffffff"] },
     sky:{ top:[112,142,178], bot:[196,200,200], k:0.28, haze:[200,204,202] } },
+  // THE ARCTIC. The one land where the SNOW SYSTEM LEADS instead of following: every other biome takes
+  // snow as weather laid over it, here the ice IS the geography. `snow:true` and a high `cap` so the
+  // pack is white at any season, but the real Norwich temperature still decides how much MELT shows —
+  // a July arctic life has meltwater on the floes and a February one does not.
+  { k:"arctic",  name:"THE PACK ICE", amp:0.46, base:0.58, flat:0.42, steep:0.30, snow:true, water:"sea", polar:1,
+    far:[214,226,238], near:[184,202,220], cap:[248,252,255], ground:[222,232,242],
+    walls:[[222,228,236],[196,204,216],[238,242,248],[172,182,196],[208,216,228],[184,194,208],[232,238,244],[160,172,188]],
+    fauna:{ keep:{deer:0,rabbit:0,fox:1,goat:0}, big:["polarbear","walrus","seal"], small:["ptarmigan"], air:["skua"] },
+    flora:{ kinds:["lichen","dwarfwillow","lichen","lichen","dwarfwillow"], bloom:["#e8c8d8","#d8e0e8","#ffffff"] },
+    sky:{ top:[138,168,206], bot:[224,234,242], k:0.30, haze:[228,236,244] } },
   // THE LAST TWO ARE NOT EARTH. Everything else in this table is plausible geography under one sun;
   // these are not, and they are the only rows whose `sky.k` runs high enough to genuinely repaint the
   // day. They still obey the same rule every other biome does: the REAL Norwich clock and the REAL
@@ -2638,7 +2648,14 @@ var FAUNA={
   wolf:      {plan:"quad", w:10,h:7, c:[124,124,120],c2:[76,76,74],   head:"snout"},
   marmot:    {plan:"spot", c:[152,124,84],  c2:[196,172,132], upright:1},
   eagle:     {plan:"bird", c:[92,72,52],    soar:1, perch:1},
-  raven:     {plan:"bird", c:[36,34,40],    soar:1, perch:1}
+  raven:     {plan:"bird", c:[36,34,40],    soar:1, perch:1},
+  // THE ARCTIC. The bear is drawn big and pale on purpose — it is the largest land animal in the set
+  // and the only one that reads as a threat rather than as scenery.
+  polarbear: {plan:"quad", w:15,h:10,c:[238,240,240],c2:[198,206,214],head:"round", hump:1},
+  walrus:    {plan:"quad", w:14,h:6, c:[150,116,106],c2:[104,80,74],  head:"seal", legless:1, tusks:1},
+  caribou:   {plan:"quad", w:11,h:9, c:[156,142,124],c2:[214,208,198],head:"antler"},
+  ptarmigan: {plan:"spot", c:[240,242,244], c2:[176,182,190], upright:1},
+  skua:      {plan:"bird", c:[92,84,74],    soar:1}
 };
 // Distance haze fades everything toward THE SKY IT IS UNDER. This was a hardcoded pale blue, which
 // is right for five biomes and wrong for the two that repaint the day — under an infernal sky the
@@ -2764,6 +2781,20 @@ var BIOME_VARIANTS={
       flora:{ kinds:["reeds","scrub","willow","reeds","scrub"], bloom:["#c890b8","#e0c890","#ffffff"] },
       fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:0}, big:["elk"], small:["frog","turtle2"], air:["heron","raven"] },
       sky:{ top:[130,142,150], bot:[196,196,186], k:0.30, haze:[198,198,188] } } ],
+
+  arctic:[ {},
+    { name:"THE TUNDRA",   // arctic SUMMER: the sea ice gone, brown-green moss, meltwater pools, low sun
+      far:[150,150,124], near:[116,120,96],  cap:[186,182,150], ground:[130,134,102], snow:false, amp:0.34,
+      walls:[[212,204,186],[182,176,160],[228,222,206],[158,152,140],[198,192,176],[170,164,150],[220,214,198],[146,140,130]],
+      flora:{ kinds:["lichen","dwarfwillow","cottongrass","lichen","dwarfwillow"], bloom:["#e8a0c0","#f0d878","#ffffff"] },
+      fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:0}, big:["caribou","polarbear"], small:["ptarmigan","marmot"], air:["skua","raven"] },
+      sky:{ top:[146,176,210], bot:[218,222,204], k:0.26, haze:[220,224,206] } },
+    { name:"THE GLACIER",  // a calving front: deep blue ice cliffs standing straight out of the water
+      far:[186,214,232], near:[132,178,208], cap:[240,250,255], ground:[196,218,234], steep:0.86, flat:0.55, amp:0.72,
+      walls:[[228,236,244],[198,210,224],[242,246,250],[176,192,210],[214,224,236],[190,202,218],[236,240,246],[164,180,200]],
+      flora:{ kinds:["lichen","lichen","dwarfwillow","lichen"], bloom:["#d8e8f0","#ffffff","#c0d8e8"] },
+      fauna:{ keep:{deer:0,rabbit:0,fox:1,goat:0}, big:["seal","walrus"], small:["ptarmigan"], air:["skua","tern"] },
+      sky:{ top:[124,158,200], bot:[212,228,240], k:0.32, haze:[216,232,244] } } ],
 
   volcano:[ {},
     { name:"THE GREEN ISLAND",   // old flows gone to jungle: waterfalls off the cliffs, bright reef below
@@ -3076,8 +3107,8 @@ function buildWorld(li){
   // seven, and the reason was that a biome literally called SEA CLIFFS was rendering with no visible
   // water at all — 4.5-8% of the world per side is a sliver at the seam you only meet on the outer
   // monitor. A real expanse is the difference between a grey wall and a coastline.
-  seaW = hasOcean ? ((curBiome.k==="cliffs"||curBiome.k==="beach") ? (0.15+geo()*0.06) : (curBiome.k==="swamp" ? (0.22+geo()*0.06) : (0.045+geo()*0.035))) : 0;
-  WATER_W = (curBiome.k==="cliffs"||curBiome.k==="beach") ? 0.21 : (curBiome.k==="swamp" ? 0.22 : 0.11);   // the coasts get a bay you can see; the bayou is mostly water
+  seaW = hasOcean ? ((curBiome.k==="cliffs"||curBiome.k==="beach") ? (0.15+geo()*0.06) : ((curBiome.k==="swamp"||curBiome.k==="arctic") ? (0.22+geo()*0.06) : (0.045+geo()*0.035))) : 0;
+  WATER_W = (curBiome.k==="cliffs"||curBiome.k==="beach") ? 0.21 : ((curBiome.k==="swamp"||curBiome.k==="arctic") ? 0.22 : 0.11);   // the coasts get a bay you can see; the bayou is mostly water
   // Dry biomes get a RIVER through the city instead of a coast: the waterfront becomes a riverbank,
   // and the harbour's deep-water shipping becomes barge traffic (drawRiver / riverAt).
   hasRiver = !hasOcean && curBiome.water==="river";
@@ -6910,6 +6941,105 @@ function drawBayouWater(g,L,now,sa,sb,zi,wTop,shoreAt,sgn){
     g.globalCompositeOperation="source-over";
   }
 }
+// THE PACK ICE. This is the one land where the snow system LEADS: everywhere else snow is weather laid
+// over the land, here the ice IS the geography. Drawn from drawHarbor with the water, like the reef and
+// the bayou, for the same draw-order reason.
+// ⚠ How much ice there is keys off the REAL Norwich temperature, so a July arctic life has open leads
+// and meltwater on the floes and a February one is frozen shore to horizon. Same contract as every
+// other accent in this project — the real measurement drives it, the biome only decides how it shows.
+function drawPackIce(g,L,now,nd,sa,sb,zi,wTop){
+  if(!curBiome.polar) return;
+  var span=sb-sa; if(span<12) return;
+  var day=L>0.5, K=Math.max(1,KSP), wDep=Math.max(1,HORIZON-wTop);
+  var temp=(weather.temp==null?30:weather.temp);
+  var frozen=Math.max(0,Math.min(1,(38-temp)/34));            // 1 hard frozen · 0 open water
+  if(curBiome.name==="THE TUNDRA") frozen*=0.35;              // the summer variant keeps its sea open
+  var iceT=day?[240,246,252]:[92,104,126], iceS=day?[198,214,232]:[62,74,96];
+  var meltC=day?"rgba(120,178,214,0.55)":"rgba(30,52,78,0.5)";
+  // THE FLOES. Irregular plates with a bright top edge and a shadowed lower one, packed tighter and
+  // bigger the further out you look, with dark LEADS of open water between them.
+  var rows=Math.max(3,Math.round(wDep/(7*K)));
+  for(var r=0;r<rows;r++){
+    var rf=r/rows, ry=wTop+Math.round(rf*wDep);
+    var packHere=frozen*(0.55+0.45*(1-rf));                    // the shore fast-ice is the last to go
+    if(packHere<0.10) continue;
+    var fw=Math.round((10+rf*26)*K), step=Math.round(fw*(1.25-packHere*0.34));
+    for(var fx=sa-Math.round(fw);fx<sb+fw;fx+=step){
+      var hh=(((fx*2654435761)^(r*40503))>>>0);
+      if((hh%100)>packHere*100+8) continue;                    // a gap in the pack is a lead
+      var w2=Math.round(fw*(0.55+((hh%100)/100)*0.7)), h2=Math.max(1,Math.round((1.4+rf*2.2)*K));
+      var jx=Math.round((((hh>>>9)%100)/100-0.5)*fw*0.5);
+      if(fx+jx+w2<sa||fx+jx>sb) continue;
+      var x0=Math.max(sa,fx+jx), x1=Math.min(sb,fx+jx+w2);
+      if(x1<=x0) continue;
+      g.fillStyle=css(iceS); g.fillRect(x0,ry,x1-x0,h2);                         // the plate
+      g.fillStyle=css(iceT); g.fillRect(x0,ry,x1-x0,Math.max(1,Math.round(K)));  // its sunlit upper edge
+      if(((hh>>>17)&3)===0&&frozen<0.86){                                        // meltwater ponded on top
+        g.fillStyle=meltC;
+        g.fillRect(x0+Math.round(w2*0.25),ry+Math.max(1,Math.round(K)),Math.round(w2*0.4),Math.max(1,Math.round(K)));
+      }
+      if(((hh>>>21)&7)===0){                                                     // a PRESSURE RIDGE where two
+        g.fillStyle=css(iceT);                                                   // floes have driven together
+        var pr=Math.round((2+rf*3)*K);
+        for(var pq=0;pq<pr;pq++) g.fillRect(x0+Math.round(w2*0.5)-pq,ry-pq,pq*2+1,Math.max(1,Math.round(K)));
+      }
+    }
+  }
+  // AN ICEBERG or two standing well clear of the pack — the glacier variant gets more of them.
+  var nB=curBiome.name==="THE GLACIER"?3:1;
+  for(var b=0;b<nB;b++){
+    var bh2=(((sa*7919)+b*104729)>>>0);
+    var bx=sa+Math.round(((bh2%1000)/1000)*span), by=wTop+Math.round((0.20+((bh2>>>9)%100)/100*0.45)*wDep);
+    var bw=Math.round((7+((bh2>>>13)%8))*K), bht=Math.round((6+((bh2>>>17)%9))*K);
+    g.fillStyle=css(iceS);
+    for(var bq=0;bq<bht;bq++){                                 // a blocky berg, wider at the waterline
+      var bf=bq/bht, bwq=Math.round(bw*(1-bf*0.55)*(0.8+(((bh2>>>(bq&7))%10)/10)*0.4));
+      g.fillRect(bx-bwq,by-bq,bwq*2,1);
+    }
+    g.fillStyle=css(iceT); g.fillRect(bx-Math.round(bw*0.5),by-bht,Math.round(bw),Math.max(1,Math.round(1.4*K)));
+    g.fillStyle=day?"rgba(120,178,214,0.35)":"rgba(40,66,96,0.35)";               // its blue reflection
+    for(var rq=0;rq<Math.round(bht*0.5);rq++)
+      g.fillRect(bx-Math.round(bw*(1-rq/bht)*0.8),by+rq,Math.round(bw*(1-rq/bht)*1.6),1);
+  }
+  // THE ICEBREAKER — this land's traversal layer. It works a LEAD through the pack, and the broken
+  // channel behind it is the point: a ship on open water is just a ship, a ship with a wake of shattered
+  // ice is an icebreaker.
+  if(cityG>0.26&&frozen>0.15){
+    var per=96000, ph=((now%per)/per), dir=ph<0.5?1:-1, f=ph<0.5?ph*2:2-ph*2;
+    var sy=wTop+Math.round(wDep*0.58), sxp=sa+Math.round(span*(0.08+f*0.80));
+    g.fillStyle=day?"rgba(226,234,242,0.95)":"rgba(78,90,108,0.9)";               // the shattered channel astern
+    for(var cq=0;cq<Math.round(22*K);cq++){
+      var cx2=sxp-dir*cq*Math.round(1.4*K);
+      if(cx2<sa||cx2>sb) continue;
+      g.fillRect(cx2,sy+Math.round(Math.sin(cq*0.9)*1.4*K),Math.max(1,Math.round(1.6*K)),Math.max(1,Math.round(K)));
+    }
+    g.fillStyle=day?"#c04a2e":"#3a1810";                                          // the red hull
+    g.fillRect(sxp-Math.round(6*K),sy-Math.round(2*K),Math.round(12*K),Math.round(2.4*K));
+    g.fillStyle=day?"#22262c":"#0c0e12";
+    g.fillRect(sxp-Math.round(6*K),sy+Math.round(0.4*K),Math.round(12*K),Math.max(1,Math.round(K)));
+    g.fillStyle=day?"#e4e8ee":"#464e5c";                                          // white superstructure
+    g.fillRect(sxp-Math.round(1.6*K),sy-Math.round(5.4*K),Math.round(5*K),Math.round(3.6*K));
+    g.fillStyle=day?"#3a4048":"#181c22";
+    g.fillRect(sxp+Math.round(2.4*K),sy-Math.round(7*K),Math.round(1.8*K),Math.round(1.8*K));   // the funnel
+    if(!day){ g.globalCompositeOperation="lighter";
+      g.fillStyle="rgba(255,232,180,0.85)";
+      g.fillRect(sxp-Math.round(0.6*K),sy-Math.round(4.6*K),Math.round(2*K),Math.max(1,Math.round(K)));
+      g.fillStyle="rgba(190,230,255,0.7)";                                        // and its working floodlight
+      g.fillRect(sxp+dir*Math.round(6*K),sy-Math.round(3*K),Math.round(6*K),Math.round(2*K));
+      g.globalCompositeOperation="source-over"; }
+  }
+  // SPINDRIFT — dry snow streaming off the floes when the real wind is up. On a calm day: nothing.
+  var wind=(weather.wind==null?5:weather.wind);
+  if(wind>9&&frozen>0.3){
+    var sk=Math.min(1,(wind-9)/16);
+    g.fillStyle=day?"rgba(255,255,255,"+(0.16*sk).toFixed(3)+")":"rgba(196,216,240,"+(0.10*sk).toFixed(3)+")";
+    for(var dq2=0;dq2<9;dq2++){
+      var dy=wTop+((dq2*37)%Math.max(1,wDep));
+      var dx=sa+((dq2*211+((now*0.05*sk)|0))%Math.max(1,span));
+      g.fillRect(dx,dy,Math.round((6+dq2)*K),Math.max(1,Math.round(K)));
+    }
+  }
+}
 function drawReefLagoon(g,L,now,sa,sb,zi,wTop){
   if(curBiome.k!=="beach"&&curBiome.k!=="swamp") return;
   var bayou=curBiome.k==="swamp";
@@ -7063,7 +7193,7 @@ function drawHarbor(g,L,now,night,nd){
   // renderer and is NOT REACHED by any shipped shell — it hangs off a `pass==="water"` branch and
   // both real shells draw only "bg" and "live". Anything added there is invisible in production;
   // that is the shell-pass trap wearing a different hat.
-  var wTop=HORIZON-((curBiome.k==="cliffs"||curBiome.k==="beach"||curBiome.k==="swamp")?Math.round(46*Math.max(1,KSP)):22), dayW=mixc([26,58,84],[92,152,188],L), wc=css(dayW);
+  var wTop=HORIZON-((curBiome.k==="cliffs"||curBiome.k==="beach"||curBiome.k==="swamp"||curBiome.k==="arctic")?Math.round(46*Math.max(1,KSP)):22), dayW=mixc([26,58,84],[92,152,188],L), wc=css(dayW);
   eachWaterSpan(function(sa,sb,zi){ var ww=sb-sa; if(ww<=0) return;
     var shoreA=gstage(0.3,0.6);                                                   // the far shore builds up with the city
     if(shoreA>0){ g.globalAlpha=shoreA;
@@ -7074,6 +7204,7 @@ function drawHarbor(g,L,now,night,nd){
     waterTex(g,sa,sb,wTop,HORIZON,L,now);                                           // water body w/ rolling swell
     drawMtsReflection(g,sa,sb,wTop,HORIZON-wTop-2,L);                               // the range mirrored in the bay
     drawReefLagoon(g,L,now,sa,sb,zi,wTop);                                          // …and the coral coast's reef
+    drawPackIce(g,L,now,nd,sa,sb,zi,wTop);                                          // …or the arctic's floes
     var dockA=gstage(0.32,0.62);                                                    // before the quays pave in,
     if(dockA<1){                                                                    // the bay wears a natural sand ring
       var ga3=g.globalAlpha; g.globalAlpha=(1-dockA);
@@ -12580,6 +12711,27 @@ function drawBiomePlant(g,X,gy,day,now,seed,sc,kind,swayOn){
     }
     g.fillStyle=C([86,64,40]);                                             // the nuts, under the crown
     for(var nq=0;nq<3;nq++) if(((seed>>(nq+3))&3)) R(cx4-K+nq*K*1.1,cy4+K*0.8,Math.max(1,Math.round(1.4*K)),Math.max(1,Math.round(1.4*K)));
+  } else if(kind==="lichen"){
+    var lw=Math.round((3+(seed%3))*K);                                  // a crust on the rock, barely a plant
+    g.fillStyle=C([164,172,150]);
+    for(var lq3=0;lq3<4;lq3++){
+      var lo=((seed>>(lq3*2))%5)-2;
+      R(lo*K,-Math.max(1,Math.round(K)),Math.round(lw*(0.5+((seed>>lq3)&1)*0.5)),Math.max(1,Math.round(K)));
+    }
+    g.fillStyle=C([196,142,150]); R(0,-Math.round(1.6*K),Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
+  } else if(kind==="dwarfwillow"){
+    var dh=Math.round((2+(seed%2))*K);                                  // knee-high and wind-flattened
+    g.fillStyle=C([104,96,74]);
+    for(var dq=0;dq<4;dq++) R((-2+dq*1.3)*K,-dh*(0.5+((seed>>dq)&1)*0.5),Math.max(1,Math.round(K*0.8)),dh);
+    g.fillStyle=C([124,142,96]); folMass(g,X+sway*0.4,gy-dh,dh*1.6,dh*0.5,seed,K);
+  } else if(kind==="cottongrass"){
+    var cn=4+(seed%3);                                                  // tufts with white cotton heads
+    for(var cq5=0;cq5<cn;cq5++){
+      var ch5=Math.round((3+((seed>>cq5)&3))*K), cx5=(cq5-cn/2)*K*1.4;
+      g.fillStyle=C([132,140,96]);
+      for(var cy5=0;cy5<ch5;cy5++) R(cx5+sway*(cy5/ch5),-cy5,Math.max(1,Math.round(K*0.8)),1);
+      g.fillStyle=C([246,248,244]); R(cx5+sway,-ch5-Math.round(K),Math.max(1,Math.round(1.4*K)),Math.max(1,Math.round(1.4*K)));
+    }
   } else if(kind==="juniper"){
     var jh=Math.round((6+(seed%4))*K);                                  // a dense dark shrub-tree, gnarled
     g.fillStyle=C([104,84,62]); R(-Math.round(K*0.7),-jh*0.45,Math.max(1,Math.round(1.4*K)),jh*0.45);

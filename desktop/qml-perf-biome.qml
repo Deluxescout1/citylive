@@ -36,33 +36,35 @@ Item {
             var N = 120;
             // ⚠⚠ LIVES REMAP EVERY TIME A BIOME IS ADDED — `biomeOf` is a hash modulo BIOMES.length,
             // so every life re-rolls and every number in this file goes stale. This has now happened
-            // four times now: 5→7 (hell+heaven), 7→8 (coral coast), 8→9 (bayou), 9→10 (volcano).
-            // For TEN: hell 1 · cliffs 2 · plains 3 · heaven 4 · beach 6 · alpine 7 · forest 8 ·
-            // swamp 9 · mesa 11 · volcano 12. 10% each over 5000 lives. Add an eleventh and re-derive
-            // again, or this harness silently times the wrong lands and labels them confidently.
-            var alpine = timeLife(7,  "alpine", N);
-            var forest = timeLife(8,  "forest", N);
-            var mesa   = timeLife(11, "mesa",   N);
-            var cliffs = timeLife(2,  "cliffs", N);
-            var plains = timeLife(3,  "plains", N);
-            var hell   = timeLife(1,  "hell",   N);
-            var heaven = timeLife(4,  "heaven", N);
-            var beach  = timeLife(6,  "beach",  N);
-            var swamp  = timeLife(9,  "swamp",  N);
-            var volc   = timeLife(12, "volcano",N);
+            // FIVE times now: 5→7, 7→8, 8→9, 9→10, 10→11 (the arctic). For ELEVEN:
+            // beach 1 · alpine 2 · heaven 3 · plains 8 · hell 16 · cliffs 21 · arctic 29 · mesa 37 ·
+            // volcano 42 · forest 50 · swamp 55. Add a twelfth and re-derive AGAIN, or this harness
+            // silently times the wrong lands and labels them confidently.
+            var alpine = timeLife(2,  "alpine", N);
+            var forest = timeLife(50, "forest", N);
+            var mesa   = timeLife(37, "mesa",   N);
+            var cliffs = timeLife(21, "cliffs", N);
+            var plains = timeLife(8,  "plains", N);
+            var hell   = timeLife(16, "hell",   N);
+            var heaven = timeLife(3,  "heaven", N);
+            var beach  = timeLife(1,  "beach",  N);
+            var swamp  = timeLife(55, "swamp",  N);
+            var volc   = timeLife(42, "volcano",N);
+            var arct   = timeLife(29, "arctic", N);
             // ⚠ THE MATURE BLOCK USED TO SKIP FOREST AND PLAINS — the two biomes whose accents draw
             // in the LIVE pass every frame, i.e. exactly the two whose cost the mature case was most
             // likely to expose. All seven are timed at 0.85 now.
-            var alpineM = timeLife(7,  "alpine@0.85", N, 0.85);
-            var forestM = timeLife(8,  "forest@0.85", N, 0.85);
-            var mesaM   = timeLife(11, "mesa@0.85",   N, 0.85);
-            var cliffsM = timeLife(2,  "cliffs@0.85", N, 0.85);
-            var plainsM = timeLife(3,  "plains@0.85", N, 0.85);
-            var hellM   = timeLife(1,  "hell@0.85",   N, 0.85);
-            var heavenM = timeLife(4,  "heaven@0.85", N, 0.85);
-            var beachM  = timeLife(6,  "beach@0.85",  N, 0.85);
-            var swampM  = timeLife(9,  "swamp@0.85",  N, 0.85);
-            var volcM   = timeLife(12, "volcano@0.85",N, 0.85);
+            var alpineM = timeLife(2,  "alpine@0.85", N, 0.85);
+            var forestM = timeLife(50, "forest@0.85", N, 0.85);
+            var mesaM   = timeLife(37, "mesa@0.85",   N, 0.85);
+            var cliffsM = timeLife(21, "cliffs@0.85", N, 0.85);
+            var plainsM = timeLife(8,  "plains@0.85", N, 0.85);
+            var hellM   = timeLife(16, "hell@0.85",   N, 0.85);
+            var heavenM = timeLife(3,  "heaven@0.85", N, 0.85);
+            var beachM  = timeLife(1,  "beach@0.85",  N, 0.85);
+            var swampM  = timeLife(55, "swamp@0.85",  N, 0.85);
+            var volcM   = timeLife(42, "volcano@0.85",N, 0.85);
+            var arctM   = timeLife(29, "arctic@0.85", N, 0.85);
             console.log("PERF MATURE vs alpine — forest " + (forestM/alpineM).toFixed(2)
                       + "x  mesa " + (mesaM/alpineM).toFixed(2)
                       + "x  cliffs " + (cliffsM/alpineM).toFixed(2)
@@ -71,7 +73,8 @@ Item {
                       + "x  heaven " + (heavenM/alpineM).toFixed(2)
                       + "x  beach " + (beachM/alpineM).toFixed(2)
                       + "x  swamp " + (swampM/alpineM).toFixed(2)
-                      + "x  volcano " + (volcM/alpineM).toFixed(2) + "x");
+                      + "x  volcano " + (volcM/alpineM).toFixed(2)
+                      + "x  arctic " + (arctM/alpineM).toFixed(2) + "x");
             console.log("PERF vs alpine — forest " + (forest/alpine).toFixed(2)
                       + "x  mesa " + (mesa/alpine).toFixed(2)
                       + "x  cliffs " + (cliffs/alpine).toFixed(2)
