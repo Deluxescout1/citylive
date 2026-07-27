@@ -3480,7 +3480,19 @@ function makeLayer(seed,y0,baseHMin,baseHMax,layerK){
     // GROWTH: when in the city's life does this building appear? Small/outlying structures
     // are born early (a village), tall & central towers rise last (the metropolis core).
     // Uses a hash of bseed (NOT r()) so the existing city layout is byte-for-byte unchanged.
-    var cen=1-Math.abs(x/WW-0.5)*2, hN=Math.min(1,bh/(112*KSP)), jit=((bseed*2654435761)>>>0)/4294967296;
+    // ⚠⚠ CENTRALITY IS MEASURED ACROSS THE BUILDABLE LAND, NOT ACROSS THE WHOLE WORLD.
+    // Nick: "I want to make sure that all the Buildings grow as normal despite the map." They did not.
+    // `cen` used to be `1-|x/WW-0.5|*2` — centrality against the FULL world — and it feeds houseAge,
+    // where high centrality means born LATE. But the ocean occupies the world's SEAMS, so on a water
+    // land every building is squeezed toward the middle, scores high `cen`, and is therefore born
+    // late. Measured headless at age 0.30 the built fraction ran from 33% (hell, mesa) down to
+    // literally ZERO on the swamp, which is 56% ocean — an empty world for the first third of the
+    // week, purely because of which land rolled. Normalising against the buildable span makes the
+    // growth curve the same shape on every map, which is what a "centre of town" means anyway: the
+    // middle of the TOWN, not the middle of the coordinate system.
+    var _bLo=(hasOcean&&seaW>0)?WW*seaW:0, _bHi=(hasOcean&&seaW>0)?WW*(1-seaW):WW;
+    var _bSpan=Math.max(1,_bHi-_bLo);
+    var cen=1-Math.min(1,Math.abs((x-_bLo)/_bSpan-0.5)*2), hN=Math.min(1,bh/(112*KSP)), jit=((bseed*2654435761)>>>0)/4294967296;
     // NATURAL GROWTH: a plot is first settled with a small HOUSE (houseAge — the town spreads by
     // position), then redeveloped into this plot's DESIGNED building (bAge) only once the city has
     // grown enough to NEED that density — gated by how TALL the building is: a cottage formalises
