@@ -9542,6 +9542,16 @@ function computeLmFoot(){ lmFoot.length=0;
     lmFoot.push([vg-22,vg+22]);        // the great gates
     lmFoot.push([va-26,va+26]);        // the academy tower
     lmFoot.push([vt-30,vt+30]);        // the training ground
+    // …and a plaza for each restyled civic compound, sized to the compound rather than to the
+    // metropolis building it replaces. ⚠ These MUST be reserved or houses stand inside the council
+    // hall — but they must also stay small: over-reserving is exactly what emptied this land before.
+    var VC=[[LM_CITYHALL,26],[LM_CAPITOL,29],[LM_COURTHOUSE,20],[LM_CATHEDRAL,18],[LM_LIBRARY,19],
+            [LM_POST,16],[LM_MUSEUM,20],[LM_SCHOOL,20],[LM_POLICE,16],[LM_FIRE,16],
+            [LM_STADIUM,33],[LM_COASTER,25],[LM_FERRIS,18],[LM_HERO,14]];
+    for(var vi=0;vi<VC.length;vi++){
+      var vcx=Math.round(VC[vi][0]*WW), vch=VC[vi][1];
+      lmFoot.push([vcx-vch,vcx+vch]);
+    }
     return;
   }
   // the plots are reserved from the start (fairground), so no buildings get "demolished" when landmarks rise
@@ -11718,6 +11728,118 @@ function drawVillageLane(g,L,now,roadY){
     g.fillStyle=vg2; g.fillRect(0,HORIZON,SW,SH-HORIZON);
   }
 }
+// A VILLAGE COMPOUND — the building block every restyled civic landmark is made from.
+// Nick chose "restyle ALL of them in village form" over removing them, and thirteen bespoke sprites
+// would be thirteen chances to draw something that does not match. So they share one grammar —
+// a walled courtyard, one to three tile-roofed halls, a gated front — and differ by SIZE, HALL COUNT
+// and a single distinguishing FEATURE on the roof. That is how a real vernacular works: the post
+// office and the courthouse are the same carpentry with different signage.
+// `spec = {w, halls, feature, tall}` · feature: bell·torii·scrolls·hawks·watch·statue·arena·lanterns·drum
+function drawVillageCompound(g,X,spec,L,now){
+  var day=L>0.5, K=Math.max(1,KSP), gy=HORIZON;
+  var w=Math.round(spec.w*K), halls=spec.halls||1;
+  var wallH=Math.round(7*K);
+  var plaster=day?[232,224,204]:[36,32,26], plaster2=day?[204,194,172]:[26,23,19];
+  var tile=day?[168,74,52]:[26,15,12], tile2=day?[126,50,38]:[19,11,9];
+  var wood=day?[110,76,48]:[24,17,11];
+  // the perimeter wall + its own little tiled coping — the thing that makes a compound a compound
+  g.fillStyle=css(plaster2); g.fillRect(X-(w>>1),gy-wallH,w,wallH);
+  g.fillStyle=css(tile2);    g.fillRect(X-(w>>1)-Math.round(K),gy-wallH-Math.round(1.4*K),w+Math.round(2*K),Math.round(1.6*K));
+  // the gateway in the wall
+  var gwW=Math.round(6*K);
+  g.fillStyle=css(wood); g.fillRect(X-(gwW>>1),gy-Math.round(6*K),gwW,Math.round(6*K));
+  g.fillStyle=css(mixc(wood,[0,0,0],0.4)); g.fillRect(X-(gwW>>1)+Math.round(K),gy-Math.round(5*K),gwW-Math.round(2*K),Math.round(5*K));
+  // the halls behind it, tallest in the middle
+  for(var hi2=0;hi2<halls;hi2++){
+    var off=(halls===1)?0:Math.round((hi2-(halls-1)/2)*(w/halls));
+    var hw=Math.round((w/halls)*0.86), hh2=Math.round(((spec.tall?20:13)-(hi2===((halls-1)>>1)?0:4))*K);
+    var hx2=X+off-(hw>>1), hy2=gy-wallH-hh2;
+    g.fillStyle=css(plaster); g.fillRect(hx2,hy2,hw,hh2);
+    g.fillStyle=css(plaster2); g.fillRect(hx2+hw-Math.round(1.6*K),hy2,Math.round(1.6*K),hh2);
+    g.fillStyle=css(mixc(wood,[0,0,0],day?0:0.3));                       // timber posts + a sill band
+    g.fillRect(hx2,hy2,Math.max(1,Math.round(K*0.8)),hh2);
+    g.fillRect(hx2+hw-Math.max(1,Math.round(K*0.8)),hy2,Math.max(1,Math.round(K*0.8)),hh2);
+    g.fillRect(hx2,hy2+Math.round(hh2*0.55),hw,Math.max(1,Math.round(K*0.7)));
+    // the hipped tile roof, overhanging as everything here does
+    var rov=Math.round(2.2*K), rw5=hw+rov*2, rh5=Math.round(hw*0.34);
+    for(var rr5=0;rr5<rh5;rr5++){
+      var ww5=Math.max(1,Math.round(rw5*(1-(rr5/rh5)*0.80)));
+      g.fillStyle=css((rr5%2===0)?tile:tile2);
+      g.fillRect(hx2+((hw-ww5)>>1),hy2-1-rr5,ww5,1);
+    }
+    g.fillStyle=css(mixc(tile2,[0,0,0],0.35)); g.fillRect(hx2-rov,hy2-1,rw5,Math.max(1,Math.round(K*0.7)));
+    // windows, warm at night
+    var lit3=(L<0.62);
+    g.fillStyle=lit3?"rgba(255,206,140,0.95)":(day?"#6b7a86":"#171b24");
+    for(var wq=0;wq<Math.max(1,Math.round(hw/(6*K)));wq++)
+      g.fillRect(hx2+Math.round(3*K)+wq*Math.round(6*K),hy2+Math.round(3*K),Math.round(2.4*K),Math.round(2.4*K));
+  }
+  // THE FEATURE — one idea per landmark, sitting on or beside the central hall
+  var cy3=gy-wallH-Math.round((spec.tall?20:13)*K);
+  var F=spec.feature;
+  if(F==="bell"){                                                       // council hall: an open belfry
+    g.fillStyle=css(wood); g.fillRect(X-Math.round(3*K),cy3-Math.round(8*K),Math.round(6*K),Math.max(1,Math.round(K)));
+    g.fillRect(X-Math.round(3*K),cy3-Math.round(8*K),Math.max(1,Math.round(K)),Math.round(8*K));
+    g.fillRect(X+Math.round(2*K),cy3-Math.round(8*K),Math.max(1,Math.round(K)),Math.round(8*K));
+    g.fillStyle=day?"#b8912e":"#3a2e14";
+    g.fillRect(X-Math.round(1.4*K),cy3-Math.round(6*K),Math.round(2.8*K),Math.round(3.4*K));
+  } else if(F==="torii"){                                               // shrine: a red gate on the approach
+    var tw6=Math.round(9*K);
+    g.fillStyle=day?"#c0392b":"#2a100c";
+    g.fillRect(X-(tw6>>1),gy-Math.round(11*K),Math.max(1,Math.round(1.4*K)),Math.round(11*K));
+    g.fillRect(X+(tw6>>1),gy-Math.round(11*K),Math.max(1,Math.round(1.4*K)),Math.round(11*K));
+    g.fillRect(X-(tw6>>1)-Math.round(2*K),gy-Math.round(11*K),tw6+Math.round(5*K),Math.round(1.4*K));
+    g.fillRect(X-(tw6>>1),gy-Math.round(8.6*K),tw6+Math.round(1.4*K),Math.max(1,Math.round(K)));
+  } else if(F==="scrolls"){                                             // archive: racks visible under the eave
+    g.fillStyle=day?"#d8c9a4":"#2a2419";
+    for(var sc4=0;sc4<5;sc4++) g.fillRect(X-Math.round(6*K)+sc4*Math.round(3*K),cy3+Math.round(3*K),Math.round(2*K),Math.round(4*K));
+  } else if(F==="hawks"){                                               // the messenger loft — post office
+    g.fillStyle=css(wood); g.fillRect(X-Math.round(4*K),cy3-Math.round(7*K),Math.round(8*K),Math.round(7*K));
+    g.fillStyle=day?"#3a3026":"#14100b";
+    for(var hk=0;hk<3;hk++) g.fillRect(X-Math.round(3*K)+hk*Math.round(3*K),cy3-Math.round(5*K),Math.round(1.6*K),Math.round(1.6*K));
+    var fly=((now%7000)/7000);                                          // one hawk away on an errand
+    if(fly<0.5){ g.fillStyle=day?"#4a3c2c":"#181209";
+      var fx3=X+Math.round((fly-0.25)*40*K), fy3=cy3-Math.round(12*K)-Math.round(Math.sin(fly*6.3)*3*K);
+      g.fillRect(fx3|0,fy3|0,Math.round(2*K),Math.max(1,Math.round(K)));
+      g.fillRect((fx3-Math.round(1.4*K))|0,(fy3-((Math.floor(now/160)&1)?1:0))|0,Math.round(1.4*K),Math.max(1,Math.round(K*0.8))); }
+  } else if(F==="watch"){                                               // fire/guard watchtower with a drum
+    g.fillStyle=css(wood);
+    g.fillRect(X-Math.round(2.4*K),cy3-Math.round(14*K),Math.round(4.8*K),Math.round(14*K));
+    g.fillStyle=css(plaster); g.fillRect(X-Math.round(4*K),cy3-Math.round(18*K),Math.round(8*K),Math.round(4.4*K));
+    g.fillStyle=css(tile);
+    for(var wr=0;wr<Math.round(2.4*K);wr++) g.fillRect(X-Math.round(5*K)+wr,cy3-Math.round(18*K)-1-wr,Math.round(10*K)-wr*2,1);
+    if(L<0.6){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,170,90,0.55)";
+      g.fillRect(X-Math.round(1.4*K),cy3-Math.round(17*K),Math.round(2.8*K),Math.round(2.4*K)); g.globalCompositeOperation="source-over"; }
+  } else if(F==="statue"){                                              // the hero monument, in stone
+    var stH=Math.round(15*K);
+    g.fillStyle=day?"#9a9082":"#232019"; g.fillRect(X-Math.round(3*K),gy-Math.round(4*K),Math.round(6*K),Math.round(4*K));
+    g.fillStyle=day?"#b0a698":"#2b271f";
+    g.fillRect(X-Math.round(1.6*K),gy-stH,Math.round(3.2*K),stH-Math.round(3*K));
+    g.fillRect(X-Math.round(3.4*K),gy-stH+Math.round(3*K),Math.round(7*K),Math.max(1,Math.round(K)));   // outstretched arms
+    g.fillStyle=day?"#c6bcae":"#333026"; g.fillRect(X-Math.round(1.6*K),gy-stH,Math.round(3.2*K),Math.round(2.4*K));
+  } else if(F==="arena"){                                               // the tournament ground: a ringed sand floor
+    g.fillStyle=day?"#c2ab7e":"#241f16"; g.fillRect(X-(w>>1),gy-Math.round(2.4*K),w,Math.round(2.4*K));
+    g.fillStyle=css(wood);
+    for(var pr=0;pr<5;pr++) g.fillRect(X-(w>>1)+pr*Math.round(w/4),gy-Math.round(8*K),Math.max(1,Math.round(K)),Math.round(8*K));
+    g.fillStyle=day?"#b8442e":"#28100a"; g.fillRect(X-(w>>1),gy-Math.round(8*K),w,Math.max(1,Math.round(K)));
+  } else if(F==="lanterns"){                                            // the festival ground
+    for(var ln2=0;ln2<7;ln2++){
+      var lx4=X-(w>>1)+ln2*Math.round(w/6), ly4=gy-Math.round(12*K)+Math.round(Math.sin(ln2*1.3)*2*K);
+      g.fillStyle=css(wood); g.fillRect(lx4|0,ly4|0,Math.max(1,Math.round(K*0.6)),Math.round(3*K));
+      g.fillStyle=day?"#e0654a":"#48120c";
+      g.fillRect((lx4-Math.round(K))|0,(ly4+Math.round(3*K))|0,Math.round(2.4*K),Math.round(3*K));
+      if(L<0.62){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,150,80,0.5)";
+        g.fillRect((lx4-Math.round(1.6*K))|0,(ly4+Math.round(2.6*K))|0,Math.round(3.6*K),Math.round(4*K));
+        g.globalCompositeOperation="source-over"; }
+    }
+  } else if(F==="drum"){                                                // the courthouse/assembly drum tower
+    g.fillStyle=css(plaster); g.fillRect(X-Math.round(4.4*K),cy3-Math.round(10*K),Math.round(8.8*K),Math.round(10*K));
+    g.fillStyle=css(tile);
+    for(var dr2=0;dr2<Math.round(3*K);dr2++) g.fillRect(X-Math.round(6*K)+dr2,cy3-Math.round(10*K)-1-dr2,Math.round(12*K)-dr2*2,1);
+    g.fillStyle=day?"#8a5a30":"#22150a";
+    g.fillRect(X-Math.round(2.4*K),cy3-Math.round(7*K),Math.round(4.8*K),Math.round(4.4*K));
+  }
+}
 function drawVillageLandmarks(g,L,now,night,nd){
   var day=L>0.5, K=Math.max(1,KSP), gy=HORIZON;
   function at(frac,fn){                                   // draw once per world wrap that lands on-screen
@@ -11776,6 +11898,34 @@ function drawVillageLandmarks(g,L,now,night,nd){
     g.fillStyle=day?"#4e7a44":"#16241a";                                                   // the crest banner on the face
     g.fillRect(X-Math.round(1.4*K),gy-th+Math.round(4*K),Math.round(2.8*K),Math.round(6*K));
   });
+  // ---- EVERY METROPOLIS LANDMARK, REBUILT IN VILLAGE FORM ----
+  // Nick chose restyling over removal, so each civic institution keeps its PLACE in the world and its
+  // growth stage, and changes only its architecture. Same world fractions as the city (LM_*), so a
+  // person who knows the city knows where the council hall is. `gstage` gates them exactly as
+  // drawLandmarks does, which is what keeps the village's institutions arriving in the same order.
+  var VCIVIC=[
+    { f:LM_CITYHALL,   at:0.52, spec:{w:46, halls:3, feature:"bell",     tall:1} },  // the council hall
+    { f:LM_CAPITOL,    at:0.60, spec:{w:52, halls:3, feature:"drum",     tall:1} },  // the elders' assembly
+    { f:LM_COURTHOUSE, at:0.54, spec:{w:34, halls:2, feature:"drum"} },              // the judgement hall
+    { f:LM_CATHEDRAL,  at:0.57, spec:{w:30, halls:1, feature:"torii",    tall:1} },  // the shrine
+    { f:LM_LIBRARY,    at:0.58, spec:{w:32, halls:2, feature:"scrolls"} },           // the scroll archive
+    { f:LM_POST,       at:0.58, spec:{w:26, halls:1, feature:"hawks"} },             // the messenger loft
+    { f:LM_MUSEUM,     at:0.58, spec:{w:34, halls:2, feature:"scrolls"} },           // the hall of relics
+    { f:LM_SCHOOL,     at:0.42, spec:{w:34, halls:2, feature:"bell"} },              // the children's school
+    { f:LM_POLICE,     at:0.50, spec:{w:26, halls:1, feature:"watch"} },             // the guard post
+    { f:LM_FIRE,       at:0.50, spec:{w:26, halls:1, feature:"watch"} },             // the fire watchtower
+    { f:LM_STADIUM,    at:0.55, spec:{w:60, halls:1, feature:"arena"} },             // the tournament ground
+    { f:LM_COASTER,    at:0.70, spec:{w:44, halls:1, feature:"lanterns"} },          // the festival ground
+    { f:LM_FERRIS,     at:0.50, spec:{w:30, halls:1, feature:"lanterns"} },          // the summer fair
+    { f:LM_HERO,       at:0.54, spec:{w:22, halls:1, feature:"statue"} }             // this life's monument
+  ];
+  for(var vc=0;vc<VCIVIC.length;vc++){
+    var E=VCIVIC[vc];
+    if(cityG<E.at) continue;                                  // arrives at the same stage as the city's version
+    (function(SPEC){ at(E.f,function(X){ drawVillageCompound(g,X,SPEC,L,now); }); })(E.spec);
+  }
+  // ⚠ NO MEGA TOWERS AND NO CORPORATE HQ. Those two are the only landmarks with no village form:
+  // their entire meaning is "taller than everything else", and this land's meaning is that nothing is.
   // ---- THE TRAINING GROUND: posts, a target board, and a raked dirt yard behind a low fence ----
   if(cityG>0.16) at(VLM_TRAINING,function(X){
     var yw=Math.round(26*K), dirt=day?"#b09a72":"#221d16", dirt2=day?"#9c8763":"#1b1712";
