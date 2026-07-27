@@ -4184,13 +4184,23 @@ function drawPerson(g,x,y,cloth,skin,bob,kind){
 // kind: "car" (default) | "taxi" (yellow cab + roof light) | "van" (boxy delivery)
 // two-wheelers: a motorcycle, a kick-scooter, or a bicycle, ridden along an inner lane. worldX in world px
 // (handles bezel wrap like the other cross-city vehicles). Small — they read as nimble traffic between cars.
-function drawBike(g,worldX,dir,L,now,kind){
+function drawBike(g,worldX,dir,L,now,kind,rid){
   if(curVillage) return;   // VILLAGE BAN: scooters and motorbikes on a village lane
 
   var night=L<0.55;
+  // ⚠⚠ THE RIDER USED TO CHANGE COLOUR AS HE RODE. Nick: "the motorcycle person changes color
+  // whenever he drives by." The clothing and skin were indexed by `worldX` — the bike's CURRENT
+  // position — so every frame he moved, both re-rolled out of the palettes. He was not one person
+  // crossing the city; he was a different person in every frame.
+  // A sprite's IDENTITY must never be derived from its POSITION. Position is the one property that
+  // is guaranteed to change. `rid` is a stable per-journey id from the caller, so the rider keeps his
+  // clothes all the way across and is somebody new on the next trip.
+  var idn=(rid==null)?0:(rid|0);
+  var rc=PEDC[((idn*7+kind.length)%PEDC.length+PEDC.length)%PEDC.length];
+  var sk=SKINC[((idn*5+kind.length)%SKINC.length+SKINC.length)%SKINC.length];
   for(var wp=-1;wp<=1;wp++){ var x=(worldX-WOFF+wp*WW)|0; if(x<-8||x>SW+8) continue;
     var y=HORIZON+LANE[dir>0?1:2].o;
-    var rc=PEDC[((worldX|0)*7+kind.length)%PEDC.length], sk=SKINC[(((worldX|0)>>3)+kind.length)%SKINC.length], lift=(Math.floor(now/160)+x)&1;
+    var lift=(Math.floor(now/160)+x)&1;
     g.fillStyle="#0b0b10";
     if(kind==="bicycle"){
       g.fillRect(x,y+1,1,1); g.fillRect(x+5,y+1,1,1);                                   // two thin wheels
@@ -7123,10 +7133,13 @@ function drawOffroad(g,wx,y,dir,L,now,kind){
 // HORSE-era travel: before the roads are paved, everyone rides or hauls behind a horse
 // kinds: 0 = lone rider · 1 = horse + log cart · 2 = covered settler wagon
 var HORSEC=["#6a4a2a","#3a2e22","#8a6a48","#54432e"];   // bay/black/palomino/dun coats
-function drawHorse(g,wx,y,dir,L,now,kind){
+function drawHorse(g,wx,y,dir,L,now,kind,rid){
   for(var off=-WW;off<=WW;off+=WW){ var X=(wx-WOFF+off)|0; if(X<-16||X>SW+16) continue;
     var step=(Math.floor(now/170)+X)&1, day=L>0.5;                 // trotting gait
-    var coat=HORSEC[(kind+((wx|0)>>3))%HORSEC.length];
+    // ⚠ AND THE HORSE ITSELF CHANGED COLOUR — the coat was keyed to `wx` exactly like the rider's
+    // face, so a bay became a grey became a chestnut as it crossed. Same rule: identity from the
+    // caller's stable id, never from position.
+    var coat=HORSEC[(((rid==null?kind:rid|0)*3+kind)%HORSEC.length+HORSEC.length)%HORSEC.length];
     var hx=X+(dir>0?0:(kind===0?0:8));                             // horse leads the cart
     g.fillStyle=day?coat:"#221a12";
     g.fillRect(hx,y-3,4,2);                                        // body
@@ -7136,7 +7149,10 @@ function drawHorse(g,wx,y,dir,L,now,kind){
     g.fillStyle=day?"#2a2018":"#181008"; g.fillRect(hx+(dir>0?-1:4),y-4,1,2);   // tail
     if(kind===0){                                                  // rider up top
       g.fillStyle=day?"#7a5a3a":"#3e3020"; g.fillRect(hx+1,y-5,2,2);
-      g.fillStyle=SKINC[((wx|0)>>2)%SKINC.length]; g.fillRect(hx+1,y-6,2,1);   // head
+      // ⚠ SAME BUG AS THE MOTORCYCLE RIDER: this was SKINC[(wx>>2)%len], keyed to the horse's moving
+      // world position, so the scout's face changed as he rode. Identity comes from `kind` + the
+      // caller's stable index now, never from where the sprite happens to be this frame.
+      g.fillStyle=SKINC[((rid==null?kind:rid|0)*5+3)%SKINC.length]; g.fillRect(hx+1,y-6,2,1);   // head
       g.fillStyle=day?"#5a4028":"#2c2014"; g.fillRect(hx+1,y-7,2,1); }         // hat
     else{
       var cx2=X+(dir>0?5:0);                                       // the cart, hitched behind
@@ -13281,7 +13297,9 @@ function drawAbductee(g,x,y,kind,spin,L){
     g.fillRect(x-3,y-2,1,2); g.fillRect(x-1,y-3,1,3); g.fillRect(x+1,y-3,1,3); g.fillRect(x+3,y-2,1,2);
     return;
   }
-  var body=L>0.5?"#2c2c36":"#1c1c26", skin=SKINC[((x>>1)+kind)%SKINC.length];
+  // ⚠ SAME BUG: skin was SKINC[((x>>1)+kind)%len] and this figure is being LIFTED, so its face
+  // changed on the way up. Keyed to `kind` alone, which is stable for the whole abduction.
+  var body=L>0.5?"#2c2c36":"#1c1c26", skin=SKINC[((kind|0)*7+2)%SKINC.length];
   if(spin){                                                                // arms & legs flung wide (tumbling)
     g.fillStyle=body; g.fillRect(x-1,y,2,3);                               // torso
     g.fillStyle=skin; g.fillRect(x-1,y-2,2,2);                             // head
@@ -22946,7 +22964,7 @@ function draw(g,pass){
     var hFade=cityG>0.38?1-(cityG-0.38)/0.08:1;                    // horses retire as pavement arrives
     for(var hfi=0;hfi<nHrs;hfi++){ if(hFade<((hfi+0.5)/nHrs)) continue;
       var hv=crosser(now+hfi*9241, 42000+hfi*8000, 0.006+hfi*0.0016, 8, 0.72);
-      if(hv && !nukeHit(hv.x)) drawHorse(g, landRoute(hv.x), HORIZON+5+((hfi*5)%12), hv.dir, L, now, hfi%3); } }
+      if(hv && !nukeHit(hv.x)) drawHorse(g, landRoute(hv.x), HORIZON+5+((hfi*5)%12), hv.dir, L, now, hfi%3, hfi); } }
   // once real building starts, motor rigs join the horses on the open ground
   if(cityG>0.26 && cityG<0.55){ var nOff=1+Math.round(2*gstage(0.26,0.42));
     for(var ofi=0;ofi<nOff;ofi++){ var ov=crosser(now+ofi*8123, 34000+ofi*7000, 0.011+ofi*0.0025, 10, 0.7);
@@ -23039,7 +23057,10 @@ function draw(g,pass){
     for(var bki=0;bki<BIKES.length;bki++){ var BK=BIKES[bki];
       if(fx.snow||fx.thunder) continue;                                  // fair-weather riders
       var bk=crosser(now+BK[3], BK[1], BK[2], 8, 0.8);
-      if(bk && !nukeHit(bk.x)) drawBike(g, bk.x, bk.dir, L, now, BK[0]);
+      // a stable id for THIS journey: which crossing of this bike's period we are in, plus which of
+      // the nine bikes it is. Constant for the whole traverse, different next time round.
+      var bkTrip=Math.floor((now+BK[3])/BK[1]);
+      if(bk && !nukeHit(bk.x)) drawBike(g, bk.x, bk.dir, L, now, BK[0], bkTrip*17+bki);
     }
   }
   // LIGHT-RAIL TRAM — a mature city runs one on the boulevard; a car-free city runs it early
