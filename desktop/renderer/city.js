@@ -13291,9 +13291,23 @@ function drawZombies(g,cd,L,now){
         g.fillStyle="#ffe27a"; g.fillRect(fpx|0,HORIZON-4,1,1); } }                    // arms thrown up in panic
   }
   // the shambling horde
-  for(var z=0;z<horde;z++){ var side2=(z&1)?1:-1, phase=(((now*0.004+z*0.37)%1)),
-      zx=cx+side2*reach*(0.12+phase*0.8), fall=(((z*97+(Math.floor(now/1400)))%14)===0);
+  // ⚠⚠ THE SAME SAWTOOTH THE RIFT HAD, in a different costume. `phase` was
+  // `((now*0.004 + z*0.37) % 1)` and the zombie's x came straight off it, so it shambled outward and
+  // then SNAPPED BACK toward the centre every time the phase wrapped. It did not blink out like a
+  // rift creature, it teleported backwards — which is the same underlying mistake: a creature's
+  // position driven by a wrapping CLOCK instead of by its own progress through the event.
+  // A zombie now advances monotonically with the disaster and is put down by the military, unless
+  // the city loses this one (see invaderFate / cd.win).
+  for(var z=0;z<horde;z++){ var side2=(z&1)?1:-1;
+    var zFT=invaderFate(cd,z*13+7);
+    if(f<zFT.born) continue;                                                            // not yet risen
+    var zDead=(f>zFT.kill), zGone=(f>zFT.kill+0.06);
+    if(zGone) continue;                                                                 // put down, and cleared
+    var march=Math.min(1,(f-zFT.born)/0.42);                                            // a steady shamble outward
+    var zx=cx+side2*reach*(0.12+march*0.8)+Math.sin(now*0.002+z)*1.5,
+        fall=zDead||(((z*97+(Math.floor(now/1400)))%14)===0);
     if(zx<-3||zx>SW+3) continue; var zy=HORIZON-1, bob=((Math.floor(now/150))+z)&1;
+    if(zDead) g.globalAlpha=Math.max(0,1-(f-zFT.kill)/0.06);
     if(fall){ g.fillStyle="#3a5a2a"; g.fillRect(zx|0,zy+1,3,1); }                       // downed
     else { g.fillStyle="#7aa845"; g.fillRect(zx|0,(zy-1-bob)|0,2,1);                    // head (sickly green)
       g.fillStyle="#5a8a30"; g.fillRect(zx|0,(zy-bob)|0,2,2);                           // torso+legs
@@ -13301,6 +13315,7 @@ function drawZombies(g,cd,L,now){
       if((z%4)===0){ g.fillStyle="#7a2020"; g.fillRect((zx+(side2>0?-1:2))|0,(zy-bob+1)|0,1,1); }   // bloodied claw
       g.globalCompositeOperation="lighter"; g.fillStyle="rgba(150,255,90,0.5)"; g.fillRect(zx|0,(zy-1-bob)|0,1,1); // glowing eye
       g.globalCompositeOperation="source-over"; }
+    g.globalAlpha=1;                                                                    // ⚠ the fade above is per-zombie; never leak it to the next one
   }
 }
 // a victim caught in an alien tractor beam — lifted helpless off the street. kind 0-2 = a person
@@ -13989,7 +14004,12 @@ function drawDisaster(g,cd,L,now){
 // appears at the same point in the story on a one-hour test cycle and on a one-week life.
 function casualtyCount(cd){
   if(!cd||!disDestroys(cd.type)) return 0;
-  return Math.min(26, 3+cd.intensity*4);            // a CAT-5 leaves a lot more behind than a CAT-1
+  // ⚠ `cd.win` was ALREADY rolled — the city usually beats a disaster, but not always, and milFund
+  // and CAT both move the odds. It has been sitting there widening the ruin footprint and nothing
+  // else. A battle the city LOSES should cost lives, so the toll follows the same roll rather than a
+  // new one: one truth about whether this went badly, not two that can disagree.
+  var lost=(cd.win===false);
+  return Math.min(lost?44:26, (3+cd.intensity*4)*(lost?1.8:1));
 }
 // the n-th victim of this disaster: where they fell, and at what disaster-progress
 function casualtyAt(cd,n){
@@ -14051,6 +14071,11 @@ function invaderFate(cd,k){
   var born=0.02+((h%1000)/1000)*0.10;
   var span=0.30+((h>>>9)%1000)/1000*0.26;
   var kill=born+span*(1.25-0.5*milFund);             // a well-funded army ends it faster
+  // ⚠ SOMETIMES THEY WIN — Nick's call, and the roll for it already existed as `cd.win`. When the
+  // city LOSES, the military never puts these down: they hunt for the entire disaster and the toll
+  // is far higher (see casualtyCount). That is the difference between a monster attack you watch
+  // the army handle and one you watch it fail to.
+  if(cd.win===false) return { born:born, kill:99 };  // never killed inside this disaster
   return { born:born, kill:Math.min(0.78,kill) };
 }
 // ---- emergency HUD: flashing alert bar + intensity rating, world-anchored over the impact ----
