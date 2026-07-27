@@ -17268,11 +17268,22 @@ function drawCoreWorld(g,L,now,nd){
   var lit=curLit!=null?curLit:1;
   // FOUR DEPTH BANDS of towers, furthest first, each hazed harder toward the sky it stands in. The
   // furthest band reaches the TOP of the frame — that is what removes the horizon.
-  var bands=[{d:0.80,h:1.00,step:11},{d:0.58,h:0.82,step:14},{d:0.34,h:0.64,step:18},{d:0.12,h:0.46,step:24}];
+  // ⚠ THE HAZE RANGE WAS TOO NARROW — 0.80 down to 0.12 with the same base colour left every rank at
+  // roughly the same VALUE, so four depth bands rendered as one flat wall of grey slabs. Depth is a
+  // value range, not a count of layers. The far rank is now almost sky and the near rank is nearly
+  // black, which is what makes a city recede for miles instead of standing on one plane.
+  var bands=[{d:0.90,h:1.00,step:11},{d:0.66,h:0.82,step:14},{d:0.38,h:0.64,step:18},{d:0.06,h:0.46,step:24}];
+  // FULL CYBERPUNK (Nick's call). ⚠ THE SPRAWL IS ALSO CYBERPUNK, so this had to differ by something
+  // other than palette or we would ship the same land twice. The distinction is SCALE and FRAMING:
+  // the Sprawl is street-level noir you stand in — wet asphalt, steam, holograms over your head —
+  // while the Core World is a planet-wide city seen from ABOVE, where the neon is a million windows
+  // and signs too far away to read, and the tallest structures fade into haze rather than loom.
+  var neon=["#4be0d0","#f04a8a","#ffe14a","#7c6cff","#4bff9a","#ff7a3c"];
   for(var bi=0;bi<bands.length;bi++){
     if(bi===2) drawCoreDome(g,L,now,Math.max(Math.max(1,KSP)*1.7, gy/80));   // half the city behind it, half in front
     var bd=bands[bi];
     var base=mixc(day?B.near:[10,12,18], skc, bd.d);
+    if(!day) base=mixc(base,[6,8,20],0.35*(1-bd.d));          // near ranks sink toward black at night
     var faceC=css(base), sideC=css(mixc(base,[0,0,0],0.22)), topC=css(mixc(base,[255,255,255],0.10));
     var step=Math.max(4,Math.round(bd.step*K));
     for(var x=-step;x<SW+step;x+=step){
@@ -17285,6 +17296,29 @@ function drawCoreWorld(g,L,now,nd){
       g.fillStyle=faceC; g.fillRect(tx,ty,tw,gy-ty+2);
       g.fillStyle=sideC; g.fillRect(tx+tw-Math.max(1,Math.round(tw*0.22)),ty,Math.max(1,Math.round(tw*0.22)),gy-ty+2);
       g.fillStyle=topC;  g.fillRect(tx,ty,tw,Math.max(1,Math.round(K)));
+      // ---- CROWNS. Every roofline used to be a flat rectangle, so a skyline of hundreds of towers
+      // had no rhythm at all — the eye read one serrated bar. Five crown types, chosen off the
+      // tower's own hash, cost a few rects each and are most of what makes a skyline legible.
+      var crown=(h>>>25)%5;
+      if(crown===0){                                            // a mast with a strobe
+        g.fillStyle=sideC;
+        g.fillRect(tx+(tw>>1),ty-Math.round(7*K),Math.max(1,Math.round(K)),Math.round(7*K));
+      } else if(crown===1){                                     // a tapered spire
+        for(var cs=0;cs<Math.round(6*K);cs++){
+          var cw2=Math.max(1,Math.round(tw*(1-cs/Math.round(6*K))*0.5));
+          g.fillStyle=faceC; g.fillRect(tx+((tw-cw2)>>1),ty-1-cs,cw2,1);
+        }
+      } else if(crown===2){                                     // a stepped ziggurat cap
+        for(var cz=0;cz<3;cz++){
+          var zw=Math.max(1,Math.round(tw*(0.78-cz*0.22))), zh=Math.max(1,Math.round(1.6*K));
+          g.fillStyle=faceC; g.fillRect(tx+((tw-zw)>>1),ty-(cz+1)*zh,zw,zh);
+          g.fillStyle=topC;  g.fillRect(tx+((tw-zw)>>1),ty-(cz+1)*zh,zw,Math.max(1,Math.round(K*0.6)));
+        }
+      } else if(crown===3){                                     // a cantilevered slab overhanging one side
+        g.fillStyle=faceC;
+        g.fillRect(tx-Math.round(tw*0.28),ty-Math.round(2.4*K),Math.round(tw*1.28),Math.round(2.4*K));
+        g.fillStyle=topC; g.fillRect(tx-Math.round(tw*0.28),ty-Math.round(2.4*K),Math.round(tw*1.28),Math.max(1,Math.round(K*0.6)));
+      }                                                         // crown 4 = flat, so the rhythm has rests
       // SETBACKS — a stack of levels rather than one extrusion, which is what says "built on top of
       // itself for millennia" instead of "office block".
       var lv=2+((h>>>17)%3);
@@ -17300,6 +17334,49 @@ function drawCoreWorld(g,L,now,nd){
         g.fillStyle=day?"rgba(180,196,224,"+(0.30*(1-bd.d)).toFixed(2)+")"
                        :"rgba(255,214,152,"+(0.16+0.5*wlit*(1-bd.d)).toFixed(2)+")";
         g.fillRect(tx+Math.round(K),wy,tw-Math.round(2*K),Math.max(1,Math.round(K)));
+      }
+      // ---- NEON. At this scale the cyberpunk is not readable signage, it is a million lights too far
+      // away to resolve: coloured edge-strips up the near towers and a sign band on some faces.
+      // Gated to the two nearest bands — colour in the haze would destroy the depth just bought.
+      if(bd.d<0.45){
+        var nc=neon[(h>>>19)%neon.length];
+        // ⚠ DAYTIME NEON WAS 0.16 AND INVISIBLE. Nick chose "full cyberpunk" for this land, and a
+        // cyberpunk city that only exists after dark is a night skin, not an identity — the same
+        // point the Sprawl brief makes ("must read cyberpunk at NOON"). Signage is bright enough to
+        // compete with daylight in a real megacity; that is why it is switched on.
+        var na=day?0.34:0.55;
+        g.globalCompositeOperation="lighter";
+        g.fillStyle=nc; g.globalAlpha=na*(1-bd.d);
+        g.fillRect(tx,ty,Math.max(1,Math.round(K*0.8)),th);                 // an edge strip up one corner
+        if(((h>>>23)%3)===0){                                                // a sign band across the face
+          var sby=ty+Math.round(th*(0.18+((h>>>11)%40)/100));
+          g.fillRect(tx,sby,tw,Math.max(1,Math.round(1.8*K)));
+        }
+        if(((h>>>15)%4)===0){                                                // a second, taller sign column
+          var scy=ty+Math.round(th*(0.42+((h>>>9)%30)/100));
+          g.globalAlpha=na*(1-bd.d)*0.8;
+          g.fillRect(tx+Math.round(tw*0.62),scy,Math.max(1,Math.round(1.6*K)),Math.round(th*0.22));
+          g.globalAlpha=na*(1-bd.d);
+        }
+        if(!day&&((h>>>27)%4)===0){                                          // a crown light on some towers
+          g.globalAlpha=0.7; g.fillRect(tx+((tw>>1))-Math.round(K),ty-Math.round(2*K),Math.round(2*K),Math.round(2*K));
+        }
+        g.globalAlpha=1; g.globalCompositeOperation="source-over";
+      }
+      // ---- SKY-BRIDGES between neighbouring towers. This is what sells the SCALE: it puts something
+      // in the gaps, so the towers read as one connected structure rather than as separate objects.
+      if(bd.d<0.62&&((h>>>29)%3)===0){
+        var byy=ty+Math.round(th*(0.30+((h>>>5)%50)/100));
+        if(byy<gy-Math.round(6*K)){
+          g.fillStyle=sideC; g.fillRect(tx+tw,byy,step,Math.max(1,Math.round(1.6*K)));
+          g.fillStyle=topC;  g.fillRect(tx+tw,byy,step,Math.max(1,Math.round(K*0.6)));
+          if(!day){                                                          // lit from within
+            g.globalCompositeOperation="lighter";
+            g.fillStyle="rgba(255,220,160,0.30)";
+            g.fillRect(tx+tw,byy,step,Math.max(1,Math.round(K)));
+            g.globalCompositeOperation="source-over";
+          }
+        }
       }
       if(!day&&bd.d<0.4&&((h>>>21)%5)===0){                  // a red aviation strobe on the near ranks
         g.globalCompositeOperation="lighter";

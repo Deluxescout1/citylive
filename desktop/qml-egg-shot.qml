@@ -24,12 +24,9 @@ Item {
 
     // age sweep matters here: the village is meant to grow by DENSITY, so early/mid/late must differ.
     property var shots: [
-        { n:"egg-air",     egg:"air",   mode:"primary", hour:13, age:0.85 },
-        { n:"egg-fire",    egg:"fire",  mode:"primary", hour:13, age:0.85 },
-        { n:"egg-core",    egg:"core",  mode:"primary", hour:13, age:0.85 },
-        { n:"egg-air-w",   egg:"air",   mode:"world",   hour:13, age:0.85 },
-        { n:"egg-fire-w",  egg:"fire",  mode:"world",   hour:13, age:0.85 },
-        { n:"egg-core-w",  egg:"core",  mode:"world",   hour:13, age:0.85 }
+        { n:"egg-core",     egg:"core", mode:"primary", hour:13, age:0.85 },
+        { n:"egg-core-night", egg:"core", mode:"primary", hour:22, age:0.85 },
+        { n:"egg-fire-night", egg:"fire", mode:"primary", hour:22, age:0.85 }
     ]
     property int idx: 0
     property int warm: 0
