@@ -2867,7 +2867,7 @@ var BIOMES=[
   // Lifted roughly 40% in value while keeping the same hue relationships, so it is still a forest
   // and still darker than open country, just legible.
   { k:"forest", name:"OLD FOREST", amp:0.86, base:0.55, flat:0.0, steep:0.0, snow:false, water:null,
-    far:[96,156,104],   near:[64,132,78],   cap:[150,206,128], ground:[80,142,80],
+    far:[116,184,118],  near:[80,158,94],   cap:[170,224,142], ground:[98,166,96],
     walls:[[112,84,58],[96,72,48],[138,106,72],[196,186,164],[86,96,74],[120,110,88],[150,132,102],[72,84,66]],
     fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:0}, big:["elk","bear","boar"], small:["squirrel"], air:["owl"] },
     flora:{ kinds:["fern","generic","fern","log","generic"], bloom:["#e8e0c0","#cfd8b0","#ffffff"] },
@@ -15883,9 +15883,9 @@ function drawForestBackdrop(g,L,now,nd){
   }
   // the far rank: ordinary old-growth on the horizon. The ONLY band whose crowns are drawn — it gives
   // the stand a treeline and something in the sky to read the giants against.
-  var fT=css(mixc(day?[104,80,56]:[12,12,16], skc, day?0.30:0.28));
-  var fB=css(mixc(day?[82,62,42]:[9,9,12],  skc, day?0.30:0.28));
-  var fC=css(mixc(mixc(day?B.far:[10,16,14], skc, day?0.34:0.34),[200,124,152],sunsetK*0.30));
+  var fT=css(mixc(day?[118,92,64]:[12,12,16], skc, day?0.22:0.26));
+  var fB=css(mixc(day?[96,72,48]:[9,9,12],  skc, day?0.22:0.26));
+  var fC=css(mixc(mixc(day?B.far:[10,16,14], skc, day?0.24:0.32),[200,124,152],sunsetK*0.30));
   var i,w,sx,t;
   // THE GIANTS GROW TOO (Nick's call — I flagged that they are meant to be ancient and he chose it).
   // Their height is scaled from a stored ORIGINAL each frame rather than by allocating a copy per
@@ -16068,7 +16068,12 @@ function drawPrimates(g,L,now,K){
   if(curBiome.k!=="forest"||!bioTrees||cityPhase==="apoc") return;
   var day=L>0.5, lines=forestBrachs();
   var body=day?"#4a3a2c":"#14100c", fur=day?"#6b5540":"#1c1712", face=day?"#c19a72":"#3a2e22";
-  var bw=Math.max(3,Math.round(3.6*K)), bh=Math.max(4,Math.round(5*K));
+  // ⚠⚠ THIS is the troop Nick called MASSIVE — not the little ones on the canopy walkways, which I
+  // shrank first and which were never the problem. 3.6*K x 5*K is 7x10 px at his KSP, and a PERSON
+  // is a fixed 7 px: the monkeys were TALLER than the people. Third sprite family caught sizing
+  // itself in K while the reference it should match does not scale at all.
+  // ~3x4 px now — about half a person, which is roughly right for a monkey and still reads on a line.
+  var bw=Math.max(2,Math.round(1.4*K)), bh=Math.max(3,Math.round(2*K));
   for(var i=0;i<lines.length;i++){ var ln=lines[i];
     if(ln.y<2||ln.y>HORIZON-6) continue;
     for(var o=-1;o<=1;o++){
