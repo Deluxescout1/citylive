@@ -16548,13 +16548,22 @@ function drawCanopyLight(g,L,now){
   if(curBiome.k!=="forest") return;        // stands through an apocalypse too, for the same reason
   var day=L>0.5, K=Math.max(1,KSP);
   // filtered shade: strongest at midday (when the contrast with open sky is greatest), never black
-  var shade=day?(0.30+0.16*Math.max(0,1-Math.abs(L-0.78)*3)):0.14;
-  g.fillStyle="rgba(18,48,26,"+shade.toFixed(3)+")";
+  // ⚠⚠ THIS WAS THE MUTING, and it is why three passes at the biome PALETTE never fixed it.
+  // Nick said the trunks, the crowns, the background AND the city all read muted — everything, which
+  // is the signature of a veil rather than a palette. This drew rgba(18,48,26) at up to 0.46 over the
+  // WHOLE FRAME: a 46%-opacity near-black green wash across the sky, the giants, the buildings, the
+  // road and the people alike. Of course the land looked dark; every pixel was behind it.
+  // The effect is still wanted — this land IS under a canopy — but it should TINT, not extinguish.
+  // Roughly halved, and the veil colour lifted well off black so it reads as filtered light rather
+  // than as dusk. Anything that fills (0,0,SW,SH) deserves this much suspicion.
+  var shade=day?(0.15+0.08*Math.max(0,1-Math.abs(L-0.78)*3)):0.10;
+  g.fillStyle="rgba(46,96,54,"+shade.toFixed(3)+")";
   g.fillRect(0,0,SW,SH);
   // …and a second, weaker wash that kills the SKY's blue specifically. Green over blue still reads
   // blue; the sky between the boles has to lose its saturation before the world looks like it is
   // under a canopy rather than merely dim. Stops at the horizon so the ground keeps its own colour.
-  g.fillStyle=day?"rgba(96,110,78,0.15)":"rgba(30,44,34,0.12)";
+  // the desaturating sky wash, likewise halved — it was compounding with the veil above it
+  g.fillStyle=day?"rgba(120,140,96,0.07)":"rgba(30,44,34,0.09)";
   g.fillRect(0,0,SW,HORIZON);
   if(!day) return;
   // and the shafts that make the shade legible — slanted columns from off the top of the frame,
