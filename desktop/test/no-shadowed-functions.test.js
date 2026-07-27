@@ -25,7 +25,9 @@ const path = require('path');
 const ENGINE = path.join(__dirname, '..', 'renderer', 'city.js');
 
 test('no top-level function name is declared twice', () => {
-  const src = fs.readFileSync(ENGINE, 'utf8');
+  // ⚠ normalise CRLF: the Windows CI checkout uses it, and regex `.` does not match \r, which
+  // silently broke the sibling guard in sprite-identity.test.js and failed the v3.0.1 build.
+  const src = fs.readFileSync(ENGINE, 'utf8').replace(/\r/g, '');
   const seen = new Map();
   const dupes = [];
   const re = /^function\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*\(/gm;

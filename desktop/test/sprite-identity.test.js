@@ -107,7 +107,14 @@ test('an abductee keeps his face on the way up the beam', () => {
 test('no character palette is indexed by a position variable', () => {
   // strip line comments first — the fixes are documented in comments that quote the OLD broken code,
   // and a guard that trips on its own explanation is a guard nobody keeps.
+  // ⚠⚠ NORMALISE CRLF BEFORE STRIPPING, or this passes on Linux and fails on Windows CI — which is
+  // exactly what it did, breaking the v3.0.1 build. `.` in a JS regex matches any character EXCEPT a
+  // line terminator, and \r IS a line terminator. So on a CRLF checkout every line ends "...\r",
+  // `//.*$` can never consume that \r, the match fails, and NOTHING is stripped. The guard then
+  // tripped on its own documentation. A silent no-op is the worst failure mode for a sanitiser:
+  // it looks like it ran.
   const source = fs.readFileSync(ENGINE, 'utf8')
+    .replace(/\r/g, '')
     .split('\n').map((l) => l.replace(/\/\/.*$/, '')).join('\n');
   const offenders = [];
   const re = /(PEDC|SKINC|HAIRC|HORSEC)\s*\[[^\]]*\b(worldX|wx|sx|px|screenX)\b[^\]]*\]/g;
