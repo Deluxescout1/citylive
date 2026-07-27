@@ -3393,7 +3393,7 @@ function makeLayer(seed,y0,baseHMin,baseHMax,layerK){
     // drawApocBuilding, drawRuinBuilding and the ruin/occlusion bookkeeping, so a plot drawn 9 px tall
     // while `b.h` claims 60 would collapse an INVISIBLE SKYSCRAPER over the village every time the nuke
     // or the kaiju came through. One truth: the plot really is small.
-    if(curVillage) bh=Math.max(Math.round(7*KSP), Math.round(bh*0.20));
+    if(curVillage) bh=Math.max(Math.round(18*KSP), Math.round(bh*0.34));
     // …and small plots stand CLOSE. A village is packed; a city has setbacks and frontage.
     var vGapK=curVillage?0.34:1;
     var base=d.brick ? hex2rgb(["#2a1a14","#31201a","#241712","#2e1c14"][(r()*4)|0]) : hex2rgb(BLDBASE[(r()*BLDBASE.length)|0]);
@@ -5945,10 +5945,16 @@ function drawCreole(g,bx,b,L,now,dayLit){
 function drawVillageHouse(g,bx,b,L,now,dayLit,night){
   var K=Math.max(1,KSP), s=b.seed>>>0;
   var big=(s%7)===0;                                             // a few larger compounds among the homes
-  var storeys=big?2:((s>>>3)%5===0?2:1);
-  // the drum. Roughly as wide as it is tall per storey — a squat cylinder, not a tower.
-  var dw=Math.min(b.w, Math.round((big?15:10)*K)+((s>>>5)%Math.max(1,Math.round(4*K))));
-  var sh=Math.round((big?7:6)*K)+((s>>>9)%Math.max(1,Math.round(2*K)));   // storey height
+  var storeys=big?3:((s>>>3)%4===0?2:(((s>>>7)%3)===0?2:1));
+  // ⚠⚠ SCALE. The first version of this was tuned by eye on a ×5 CROP and looked right there — at the
+  // REAL geometry (KSP 2, HORIZON 411 in a 437 wp frame) a one-storey house came out 12-16 wp tall and
+  // the whole village was a sliver along the bottom edge. A plot census proved 48 of 52 plots were
+  // drawing correctly; they were simply too small to see. That is the Phase 4 headline complaint —
+  // "a thin band of content under an empty sky" — reintroduced by the very land meant to fix it.
+  // ⚠ Judge a sprite's SIZE from the full frame; a crop can only judge its DETAIL.
+  // The drum is roughly as wide as it is tall per storey — a squat cylinder, never a tower.
+  var dw=Math.min(b.w+Math.round(5*K), Math.round((big?21:15)*K)+((s>>>5)%Math.max(1,Math.round(6*K))));
+  var sh=Math.round((big?11:10)*K)+((s>>>9)%Math.max(1,Math.round(3*K)));   // storey height
   var dh=sh*storeys;
   var dx=bx+((b.w-dw)>>1), top=HORIZON-dh;
   // PLASTER. Warm white, weathered slightly per house so a hillside of them is not one flat field.
@@ -6481,6 +6487,15 @@ function drawLayer(g,layer,L,now,fx,hol,haze){
 
 // ---- elevated train line (always present) + train (on schedule) ----
 function drawTrainLine(g,L,now,fx,part){
+  // VILLAGE BAN, and this one was doing more damage than every billboard put together. The el-train
+  // viaduct is "always present" and runs at HORIZON-GROUND*1.1 — which, once the village's houses
+  // became low-rise, is exactly ROOF HEIGHT. It drew a full-width concrete deck straight through the
+  // village and BURIED almost every house behind it; only the rare two-storey compound poked above.
+  // The frame looked like an empty village, and the houses were there the whole time.
+  // ⚠ A reminder that suppressing metropolis furniture is not cosmetic once the architecture shrinks:
+  // anything anchored to the OLD skyline height lands on top of the new one.
+  // The village's traversal layer is the roof-to-roof runners; it does not want a railway.
+  if(curVillage) return;
   var twf=gstage(0.42,0.58); if(twf<=0) return;               // the viaduct is BUILT west→east across the world
   var built=WW*twf, bEnd=Math.min(SW,built-WOFF);             // how much of the line reaches this screen
   var ty=(HORIZON-Math.round(GROUND*1.1))|0;
@@ -8762,6 +8777,8 @@ function drawStateScreen(g,sx,sy,sw,sh,now,L){
   g.globalCompositeOperation="lighter"; g.fillStyle="rgba(220,40,40,"+(0.10+0.10*(1-L)).toFixed(2)+")"; g.fillRect(sx,sy,sw,sh); g.globalCompositeOperation="source-over";   // screen glow
 }
 function drawNewsScreens(g,L,now,night){
+  if(curVillage) return;   // VILLAGE BAN: building-scale LED news screens
+
   if(cityG<0.5) return;
   var msg=tickerMsg(now), emerg=newsEmergency();
   var parts=cityName.split(" "), tag=""; for(var pi=0;pi<parts.length&&pi<3;pi++) tag+=parts[pi].charAt(0);
@@ -9085,6 +9102,8 @@ function wrapNews(str, per){
 // read as scattered. Standing-tower predicate (mirrors drawLayer) so a screen never floats over an empty
 // plot; dies with its tower in the cataclysm. NONEWSTV suppresses it for the containment A/B guard.
 function drawJumbotrons(g,L,now,night){
+  if(curVillage) return;   // VILLAGE BAN: rooftop jumbotrons
+
   if(NONEWSTV || cityG<0.55) return;
   var sw=74, sh=50, placed=[], drawn=0, lastX=-999;
   for(var i=0;i<near.blds.length && drawn<3;i++){ var b=near.blds[i];
@@ -9497,7 +9516,24 @@ var LM_CITYHALL=0.415, LM_SCHOOL=0.685, LM_MUSEUM=0.275, LM_COASTER=0.885, LM_ME
 var LM_COURTHOUSE=0.468, LM_CAPITOL=0.505, LM_POLICE=0.335, LM_FIRE=0.365, LM_LIBRARY=0.72, LM_POST=0.78;  // government district (courthouse shifted left so the winged capitol has room)
 var schoolAt=0.42, EDUB=0, POPK=0.5, SMALLW=false;   // SMALLW: single-monitor world — fewer, tighter landmarks     // per-life school timing; early schooling hastens the space age (N8)
 var lmFoot=[];                                                 // cleared plaza footprints (world x-ranges), rebuilt each frame
+// THE VILLAGE'S OWN THREE ANCHORS, as fractions of the world. Everything else the metropolis reserves
+// — stadium, capitol, courthouse, airport apron, the whole sports complex — is released back to
+// housing here, which is the entire reason the village looked empty: those plazas cover most of a
+// 2269 wp world, and once the metropolis landmarks were banned they were simply holes.
+var VLM_GATES=0.155, VLM_ACADEMY=0.505, VLM_TRAINING=0.815;
 function computeLmFoot(){ lmFoot.length=0;
+  // 🚨 THE VILLAGE CLEARS ALMOST NOTHING. A plot census said 54 plots should draw and a draw-call
+  // recorder said only 7 did; the difference was `overLandmark`, true for nearly every plot on screen.
+  // ⚠ AND THE FIRST PROBE MISSED IT — I sampled `overLandmark` BEFORE calling draw(), and `lmFoot` is
+  // rebuilt every frame, so it read empty and cleared the mechanism of suspicion. Per-frame state has
+  // to be sampled AFTER the frame that builds it.
+  if(curVillage){
+    var vg=Math.round(VLM_GATES*WW),   va=Math.round(VLM_ACADEMY*WW), vt=Math.round(VLM_TRAINING*WW);
+    lmFoot.push([vg-22,vg+22]);        // the great gates
+    lmFoot.push([va-26,va+26]);        // the academy tower
+    lmFoot.push([vt-30,vt+30]);        // the training ground
+    return;
+  }
   // the plots are reserved from the start (fairground), so no buildings get "demolished" when landmarks rise
   var sc=Math.round(LM_STADIUM*WW); lmFoot.push([sc-56,sc+56]);   // MASSIVE stadium needs a wider cleared plaza
   var hc=Math.round(LM_CITYHALL*WW); lmFoot.push([hc-36,hc+36]);   // wide plaza — city hall + annexes grow MONUMENTAL with the city
@@ -10783,6 +10819,8 @@ function adMountAt(wx){
   return best;
 }
 function drawCorpAds(g,L,now,night){
+  if(curVillage) return;   // VILLAGE BAN: brand billboards — a hidden village has no MEGACORP hoardings
+
   if(curBills){ drawBillsAds(g,L,now,night); return; }   // gameday: the boulevards go Bills
   if(nukeStruck()) return;
   var C=curCorps, occupied=[];
@@ -10844,6 +10882,8 @@ function drawCorpAds(g,L,now,night){
 // GAMEDAY street billboards: the same three hoardings, mounted exactly like the corp ads, but every
 // panel now roars for the Bills — royal-blue board, red rails, a rotating chant, glowing at night.
 function drawBillsAds(g,L,now,night){
+  if(curVillage) return;   // VILLAGE BAN: the same, in Bills livery
+
   if(nukeStruck()) return;
   var occupied=[];
   for(var i=0;i<CORP_AD_X.length;i++){
@@ -10881,6 +10921,8 @@ function drawBillsAds(g,L,now,night){
 
 // ---- the STADIUM: a tiered grandstand bowl with tall floodlight pylons; roars on game nights + fireworks ----
 function drawStadium(g,L,now,night,nd){
+  if(curVillage) return;   // VILLAGE BAN: a 40,000-seat bowl
+
   var cx=Math.round(LM_STADIUM*WW), baseY=HORIZON, rw=52, rh=30, game=gameNight(nd)&&L<0.55, lit=game?1:(night*0.55);   // MASSIVE bowl (Nick)
   for(var off=-WW;off<=WW;off+=WW){ var X=(cx-WOFF+off)|0; if(X+rw<-4||X-rw>SW+4) continue;
     // grandstand: the near (front) bowl wall, curving down toward the pitch, tiered seating rows
@@ -11430,7 +11472,98 @@ function drawCityHero(g,L,now){ var he=heroEra(); if(!he) return; var cx=Math.ro
     else if(he==="houston") drawGlassSuper(g,X,gy,L,now);
   }
 }
+// ============ THE HIDDEN VILLAGE'S CIVIC SET ============
+// Replaces drawLandmarks wholesale on this land. Nick asked for "the great gates with the leaf crest
+// + an academy/tower for the eye to land on", and a training ground. The metropolis set — capitol,
+// courthouse, stadium, airport, amusement park — is not restyled but REMOVED: a hidden village with
+// an international airport is not a hidden village.
+// All three are placed on world fractions and drawn for every screen the span crosses, so they line
+// up across monitors like every other world-anchored feature.
+function drawVillageLandmarks(g,L,now,night,nd){
+  var day=L>0.5, K=Math.max(1,KSP), gy=HORIZON;
+  function at(frac,fn){                                   // draw once per world wrap that lands on-screen
+    var wx=Math.round(frac*WW);
+    for(var o=-1;o<=1;o++){ var X=Math.round(wx-WOFF+o*WW); if(X>-160&&X<SW+160) fn(X); }
+  }
+  // ---- THE GREAT GATES: two heavy timber posts, a lintel, and the leaf crest above the road ----
+  if(cityG>0.10) at(VLM_GATES,function(X){
+    var gh=Math.round(30*K), gw=Math.round(19*K), pw=Math.round(3.4*K);
+    var wood=day?"#6e4a30":"#1d1410", wood2=day?"#8a5e3c":"#251a14", trim=day?"#c8b48a":"#2e2822";
+    g.fillStyle=wood;  g.fillRect(X-gw,gy-gh,pw,gh); g.fillRect(X+gw-pw,gy-gh,pw,gh);   // the two posts
+    g.fillStyle=wood2; g.fillRect(X-gw,gy-gh,pw,Math.round(2*K)); g.fillRect(X+gw-pw,gy-gh,pw,Math.round(2*K));
+    g.fillStyle=wood;  g.fillRect(X-gw-Math.round(3*K),gy-gh,gw*2+Math.round(6*K),Math.round(3.4*K));  // lintel
+    g.fillStyle=trim;  g.fillRect(X-gw-Math.round(3*K),gy-gh,gw*2+Math.round(6*K),Math.max(1,Math.round(K*0.8)));
+    g.fillStyle=day?"#8f3f2e":"#241310";                                                  // tiled cap over the lintel
+    for(var rq=0;rq<Math.round(2.4*K);rq++){
+      var rw3=gw*2+Math.round(8*K)-rq*Math.round(1.6*K);
+      g.fillRect(X-(rw3>>1),gy-gh-Math.round(1*K)-rq,rw3,1);
+    }
+    // the leaf crest on a pale roundel — the village's mark, the thing you read it by
+    var cy2=gy-gh+Math.round(9*K), cr=Math.round(4.6*K);
+    g.fillStyle=day?"#e8e0c8":"#2a2620"; g.fillRect(X-cr,cy2-cr,cr*2,cr*2);
+    g.fillStyle=day?"#c9bfa2":"#201c18"; g.fillRect(X-cr,cy2-cr,cr*2,1); g.fillRect(X-cr,cy2+cr-1,cr*2,1);
+    g.fillStyle=day?"#4e7a44":"#16241a";
+    for(var lf=0;lf<5;lf++){ var la=-2.25+lf*0.56, lr=Math.round(3.2*K);
+      for(var lq=1;lq<lr;lq++)
+        g.fillRect(Math.round(X+Math.cos(la)*lq),Math.round(cy2+Math.sin(la)*lq*0.72),Math.max(1,Math.round(K*0.7)),Math.max(1,Math.round(K*0.7))); }
+    if(!day){ g.globalCompositeOperation="lighter";                                        // lanterns either side at night
+      g.fillStyle="rgba(255,176,96,0.5)";
+      g.fillRect(X-gw-Math.round(2*K),gy-Math.round(15*K),Math.round(3*K),Math.round(3*K));
+      g.fillRect(X+gw-Math.round(1*K),gy-Math.round(15*K),Math.round(3*K),Math.round(3*K));
+      g.globalCompositeOperation="source-over"; }
+  });
+  // ---- THE ACADEMY: the one TALL thing in a place with no towers, so the eye has somewhere to land ----
+  if(cityG>0.20) at(VLM_ACADEMY,function(X){
+    var th=Math.round((34+22*Math.min(1,cityG))*K), tw=Math.round(13*K);
+    var wall=day?"#e6dcc2":"#252118", wall2=day?"#cabf9f":"#1b1813";
+    var tile=day?"#a8452f":"#20120e", tile2=day?"#7e3122":"#180d0a";
+    g.fillStyle=wall;  g.fillRect(X-tw,gy-th,tw*2,th);                                    // the drum
+    g.fillStyle=wall2; g.fillRect(X+tw-Math.round(2.6*K),gy-th,Math.round(2.6*K),th);      // shaded limb
+    g.fillStyle=day?"#f2ebd6":"#2c2820"; g.fillRect(X-tw,gy-th,Math.round(2.6*K),th);      // lit limb
+    for(var tr2=0;tr2<3;tr2++){                                                            // three tiled tiers
+      var ty2=gy-th+Math.round(tr2*(th/3)), tw3=tw+Math.round((3-tr2)*1.4*K);
+      g.fillStyle=(tr2%2===0)?tile:tile2;
+      for(var q2=0;q2<Math.round(2.6*K);q2++)
+        g.fillRect(X-tw3+q2,ty2-q2,(tw3-q2)*2,1);
+      g.fillStyle=day?"#5e4630":"#171008";                                                 // the timber walkway under each tier
+      g.fillRect(X-tw3,ty2+Math.round(0.6*K),tw3*2,Math.max(1,Math.round(K*0.8)));
+    }
+    var wOn=(L<0.62);
+    g.fillStyle=wOn?"rgba(255,206,140,0.95)":(day?"#6b7a86":"#171b24");                    // windows up the drum
+    for(var wy3=gy-th+Math.round(6*K);wy3<gy-Math.round(4*K);wy3+=Math.round(9*K)){
+      g.fillRect(X-Math.round(5*K),wy3,Math.round(2.6*K),Math.round(2.6*K));
+      g.fillRect(X+Math.round(2.4*K),wy3,Math.round(2.6*K),Math.round(2.6*K));
+    }
+    g.fillStyle=day?"#4e7a44":"#16241a";                                                   // the crest banner on the face
+    g.fillRect(X-Math.round(1.4*K),gy-th+Math.round(4*K),Math.round(2.8*K),Math.round(6*K));
+  });
+  // ---- THE TRAINING GROUND: posts, a target board, and a raked dirt yard behind a low fence ----
+  if(cityG>0.16) at(VLM_TRAINING,function(X){
+    var yw=Math.round(26*K), dirt=day?"#b09a72":"#221d16", dirt2=day?"#9c8763":"#1b1712";
+    g.fillStyle=dirt;  g.fillRect(X-yw,gy-Math.round(3*K),yw*2,Math.round(3*K));           // the raked yard
+    g.fillStyle=dirt2;
+    for(var rk=0;rk<yw*2;rk+=Math.round(4*K)) g.fillRect(X-yw+rk,gy-Math.round(3*K),Math.max(1,Math.round(K*0.7)),Math.round(3*K));
+    g.fillStyle=day?"#6e4a30":"#1d1410";                                                    // low fence along the front
+    for(var fp2=-yw;fp2<yw;fp2+=Math.round(6*K)) g.fillRect(X+fp2,gy-Math.round(6*K),Math.max(1,Math.round(K*0.8)),Math.round(6*K));
+    g.fillRect(X-yw,gy-Math.round(6*K),yw*2,Math.max(1,Math.round(K*0.7)));
+    // three training posts, worn pale at the top where they get hit
+    for(var tp2=0;tp2<3;tp2++){
+      var px2=X-Math.round(14*K)+tp2*Math.round(13*K), ph2=Math.round(11*K);
+      g.fillStyle=day?"#7a5638":"#20160f"; g.fillRect(px2,gy-ph2,Math.round(2.4*K),ph2);
+      g.fillStyle=day?"#c2a884":"#2c2218"; g.fillRect(px2,gy-ph2,Math.round(2.4*K),Math.round(2.4*K));
+    }
+    // the target board on the right, with a red centre
+    var bx3=X+Math.round(19*K), bh3=Math.round(9*K);
+    g.fillStyle=day?"#d8cba8":"#272219"; g.fillRect(bx3,gy-bh3-Math.round(4*K),Math.round(7*K),bh3);
+    g.fillStyle=day?"#b4402e":"#2a1210";
+    g.fillRect(bx3+Math.round(2.4*K),gy-bh3-Math.round(4*K)+Math.round(3*K),Math.round(2.4*K),Math.round(2.4*K));
+    g.fillStyle=day?"#7a5638":"#20160f";
+    g.fillRect(bx3+Math.round(2.8*K),gy-Math.round(4*K),Math.round(1.4*K),Math.round(4*K));
+  });
+}
 function drawLandmarks(g,L,now,night,nd){
+  // VILLAGE: the metropolis civic set is replaced, not restyled — see drawVillageLandmarks.
+  if(curVillage){ drawVillageLandmarks(g,L,now,night,nd); return; }
   // each landmark RISES bottom-up out of the ground while it's being built (clip reveal)
   function rise(st,fn){ if(st<=0) return;
     if(st>=1){ fn(); return; }
@@ -13406,6 +13539,8 @@ function arenaOpeningFx(g,x,L,now,team,sIdx,prog){
   for(var cc=0;cc<(w>>3);cc++){ drawPerson(g,x-hw+6+cc*8,y-6,["#e0653a","#4aa0e0","#3ac86a",col][cc%4],SKINC[cc%SKINC.length],(Math.floor(now/300)+cc)&1); }
 }
 function drawSportsDistrict(g,L,now){
+  if(curVillage) return;   // VILLAGE BAN: the sports complex + jumbotrons (RED SOX / KNICKS / RANGERS signage)
+
   if(NOSPORTS || nukeStruck() || cityPhase==="apoc") return;
   if(cityG<0.48) return;                                          // the venues rise as the city matures (from the FUTURE-HOME lot at cy~0.48)
   var teams=cityTeams(now), drawers=[drawBasketballArena,drawBaseballPark,drawHockeyArena,drawFootballBowl], nd=nowDate();
@@ -15783,17 +15918,54 @@ function drawBiomeLandmark(g,L,now,nd){
     // 160, so the scan could never succeed and the rock silently never drew — a landmark that is not
     // missing, just impossible. Threshold is now a fraction of this range's OWN maximum, which cannot
     // go out of units, and the span it needs is measured in KSP too.
+    // ⚠⚠ SIZE FIRST, THEN THE SEARCH — because the footprint the search has to satisfy depends on it.
+    // Nick: the rock "should dominate one side of the frame, currently easy to miss". It was drawn at
+    // FK = KSP*1.6 and read as a small brown billboard propped on a green hill. It is now scaled off
+    // the FRAME, not off the texel size, so it occupies about a third of the screen width whatever the
+    // geometry — that is what "dominates one side" means and it cannot drift with resolution.
+    var FK=Math.max(Math.max(1,KSP)*1.6, SW/150);               // the carving's own scale
+    var faces=5, fw=Math.round(6.5*FK), fh=Math.round(9*FK);
+    var panelW=Math.round(faces*(fw+2*FK)+4*FK);                // the REAL width the rock will occupy
     var lhs=mtsCache.h[1], lbest=-1, lbh=0;
     var need=Math.max(14*Math.max(1,KSP), mtsCache.mx[1]*0.55);
-    var reach=Math.round(22*Math.max(1,KSP));
-    for(var lx2=Math.round(SW*0.08);lx2<Math.round(SW*0.92);lx2+=Math.max(2,Math.round(3*KSP))){
-      var wide=Math.min(lhs[lx2],lhs[Math.min(SW-1,lx2+reach)]);
-      if(wide>need&&wide>lbh){ lbh=wide; lbest=lx2; }          // wants a broad, tall face of rock
+    // 🚨 ANCHOR TO THE WHOLE FOOTPRINT, NOT TO TWO SAMPLE COLUMNS. This is the third time this exact
+    // bug has come up: the monastery floated above the alpine summit and the mesa arch floated in mid
+    // air, both because they were anchored to a SUMMARY STATISTIC of a region (a run's max height, the
+    // higher of two probes) instead of the terrain under their own width. The old code here sampled
+    // `lhs[lx2]` and `lhs[lx2+22*KSP]` while the panel is `panelW` wide — harmless only because the
+    // panel used to be small. Scaling it up widens exactly that gap. So: scan EVERY column the panel
+    // covers, keep the MINIMUM, and seat the rock on that. A carving cannot hang off a cliff it is cut
+    // into, and a thing seated at the lowest ground it covers physically cannot float.
+    for(var lx2=Math.round(SW*0.04);lx2<Math.round(SW*0.96)-panelW;lx2+=Math.max(2,Math.round(3*KSP))){
+      var lo=1e9;
+      for(var lp=0;lp<panelW;lp+=Math.max(1,Math.round(2*KSP))){
+        var hcol=lhs[Math.min(SW-1,lx2+lp)];
+        if(hcol<lo) lo=hcol;
+      }
+      if(lo>need&&lo>lbh){ lbh=lo; lbest=lx2; }                 // wants a broad, tall face of rock
+    }
+    // …and if no ridge is broad enough for the bigger panel, RELAX rather than vanish. The stricter
+    // alpine search silently deleted the monastery from THE DRY RANGE — a visible bug traded for an
+    // invisible one. Here the rock IS the land's identity, so it must never simply not appear.
+    if(lbest<0){
+      for(var rl=0;rl<3&&lbest<0;rl++){
+        var relax=need*(0.78-rl*0.18), fw2=Math.round(panelW*(1-0.18*(rl+1)));
+        for(var lx3=Math.round(SW*0.04);lx3<Math.round(SW*0.96)-fw2;lx3+=Math.max(2,Math.round(3*KSP))){
+          var lo2=1e9;
+          for(var lp2=0;lp2<fw2;lp2+=Math.max(1,Math.round(2*KSP))){
+            var hc2=lhs[Math.min(SW-1,lx3+lp2)];
+            if(hc2<lo2) lo2=hc2;
+          }
+          if(lo2>relax&&lo2>lbh){ lbh=lo2; lbest=lx3; }
+        }
+        if(lbest>=0){                                           // shrink the carving to the ledge we found
+          FK*=(1-0.18*(rl+1)); fw=Math.round(6.5*FK); fh=Math.round(9*FK);
+          panelW=Math.round(faces*(fw+2*FK)+4*FK);
+        }
+      }
     }
     if(lbest<0) return;
     var RX=lbest, RY=gy-Math.round(lbh);
-    var FK=Math.max(1,KSP)*1.6;                                 // the carving's own scale
-    var faces=5, fw=Math.round(6.5*FK), fh=Math.round(9*FK);
     var stone=day?"#a89a86":"#2e2a26", cut=day?"#7e7161":"#1c1a17", lit2=day?"#c4b8a4":"#403a33";
     // the dressed panel the faces are cut into, so they read as carved rather than painted on
     g.fillStyle=cut;
@@ -19149,6 +19321,8 @@ function drawMarina(g,cx,cb,L,now,night){
 // Rides HIGH above the pre-existing el-train viaduct (which sits at ~HORIZON-GROUND*1.1) so the two lines never
 // share a level; under construction, a railhead crane lays the beam left→right (supports leading the deck).
 function drawMonorail(g,L,now,cb,part){
+  if(curVillage) return;   // VILLAGE BAN: an elevated concrete viaduct straight through the village
+
   var gy=HORIZON, ry=gy-(Math.round(GROUND*1.1)+34)-((cb.seed||0)%4), spacing=64, prog=(cb.prog==null?1:cb.prog);
   var beamEnd=Math.round(SW*prog);                                                            // under construction: the line extends left→right
   var pylonEnd=Math.min(SW,beamEnd+(prog<1?spacing:0));                                        // supports are erected a span AHEAD of the laid beam
@@ -19183,6 +19357,8 @@ function drawMonorail(g,L,now,cb,part){
   if(tx>-trainW-4&&tx<SW+4) drawMonoTrain(g,tx|0,ry,L);
 }
 function drawMonorailService(g,L,now){
+  if(curVillage) return;   // VILLAGE BAN: the monorail train that rides it
+
   if(!curBuilds||nukeStruck()) return;
   for(var i=0;i<curBuilds.length;i++) if(curBuilds[i].t==="monorail"&&curBuilds[i].bp!=="cons")
     drawMonorail(g,L,now,curBuilds[i],"service");
