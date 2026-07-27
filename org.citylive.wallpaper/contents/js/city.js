@@ -13209,7 +13209,15 @@ function drawAsteroid(g,cd,L,now){
     }
   }
 }
-function drawVolcano(g,cd,L,now){
+// ⚠⚠ RENAMED FROM `drawVolcano`, WHICH IS WHY THE VOLCANO DISASTER NEVER APPEARED.
+// A second `function drawVolcano` — the BIOME volcano, signature (g,L,now,nd) — is declared later
+// in this file, and a later function declaration silently replaces an earlier one of the same
+// name. So `drawVolcano(g,cd,L,now)` below was calling the BIOME renderer with the disaster's
+// arguments: `cd` (an object) arrived as `L`, and the first thing that function does is check
+// `curBiome.volcanic` and return. On every land that is not already a volcano — i.e. almost all of
+// them — the volcano disaster drew literally nothing, silently, with no error.
+// Verified by asking the loaded engine which body survived: the biome one, arity 4.
+function drawVolcanoDisaster(g,cd,L,now){
   var cx=disX(cd.x), f=cd.f, i=cd.intensity, big=(i-1)/4; if(f>=0.50) return;
   var grow=Math.min(1,f/0.14), coneH=(16+i*7)*grow, coneW=28+i*10, gy=HORIZON, craterY=gy-coneH;   // a proper cone (not as wide as the whole footprint)
   // hellish red sky glow above the volcano
@@ -13893,7 +13901,7 @@ function drawDisaster(g,cd,L,now){
       g.fillStyle=rgba(gc,0.12+0.06*Math.sin(now*0.02)); g.fillRect((gx-cd.w)|0,HORIZON-46,(cd.w*2)|0,50);
       g.globalCompositeOperation="source-over"; } }
   if(cd.type==="asteroid") drawAsteroid(g,cd,L,now);
-  else if(cd.type==="volcano") drawVolcano(g,cd,L,now);
+  else if(cd.type==="volcano") drawVolcanoDisaster(g,cd,L,now);
   else if(cd.type==="zombie") drawZombies(g,cd,L,now);
   else if(cd.type==="alien") drawAliens(g,cd,L,now);
   else if(cd.type==="kaiju") drawKaiju(g,cd,L,now);
@@ -22566,8 +22574,11 @@ function draw(g,pass){
   // (the Moon is drawn in drawSky() at its real Norwich position/phase)
 
   drawMountains(g,L,now,nd);      // the distant range — behind the clouds, the city, everything
-  drawPlainsSky(g,L,now,nd,fx);   // on a plain the SKY is the scenery — towers, curtains, a far butte
-  drawVolcano(g,L,now,nd);        // …and if it is a volcano, what the mountain is doing today
+  // ⚠ THE VOLCANO AND THE PLAINS SKY ALSO MOVED PAST THE "bg" RETURN. Both are OVERLAYS on the
+  // landform rather than the landform itself — the volcano adds a crater, a breathing glow, a plume
+  // that leans on the real wind and a lava tongue; the plains add cumulus that build and drift and
+  // rain curtains that hang under them. Almost every rect either function emits is animated, so
+  // there was nothing worth leaving behind on a 0.5 fps canvas.
   drawSpireWorld(g,L,now,nd);     // the high temples, standing on cloud
   drawBiomeDetail(g,L,now,nd);    // and whatever else lives on this particular land
   drawBiomeLandmark(g,L,now,nd);  // and the one structure that says where you are
@@ -22590,9 +22601,12 @@ function draw(g,pass){
   // pass-split test caught it immediately (test/pass-split.test.js: the two passes must not
   // double-paint), which is exactly what that test is for.
   if(pass===undefined) drawCascades(g,L,now,nd);     // classic single-canvas path only
-  if(pass==="bg"){ if(cityG<0.985) drawTerrain(g,cityG,L,now,nd,"bg");
-    drawCascades(g,L,now,nd);                        // …the falls pouring off the plateau, ON TOP
-    return; }
+  if(pass==="bg"){ if(cityG<0.985) drawTerrain(g,cityG,L,now,nd,"bg"); return; }
+  // ⚠ THE CASCADES LEFT THE BACKDROP TOO — they are falling water, and at 0.5 fps a waterfall does
+  // not fall, it flickers between two poses. They now draw in the live pass, AFTER the live
+  // drawTerrain, which is the same "on top of the terrain that used to bury them" position they had
+  // in the backdrop. Being on the live canvas puts them above the ENTIRE backdrop, so the burial
+  // that hid them for two whole sessions is now structurally impossible rather than merely fixed.
   // ================= THE MOVING BACKDROP =================
   // Nick: "if there are windmills or anything in the background those animations must also be smooth.
   // I often find the bottom of the screen runs great but the top of it is slow and weird."
@@ -22606,6 +22620,8 @@ function draw(g,pass){
   // ⚠ Z-ORDER IS WHY THEY GO HERE AND NOT LATER. This point is above the entire backdrop canvas
   // (mountains, terrain) but above nothing else yet, so a cable car still passes IN FRONT of the
   // ridge it is strung across and BEHIND every building — exactly where it sat before.
+  drawPlainsSky(g,L,now,nd,fx);   // on a plain the SKY is the scenery — towers, curtains, a far butte
+  drawVolcano(g,L,now,nd);        // …and if it is a volcano, what the mountain is doing today
   drawGondola(g,L,now);           // a cable-car + summit lodge on the tallest peak (mature cities)
   drawClimbers(g,L,now,nd,fx);    // tiny mountaineers roping up the tallest peaks (fair-weather days)
   // The animated sky sits behind the cached city. It keeps every aerial/weather feature, but no
@@ -22718,6 +22734,9 @@ function draw(g,pass){
   if(pass!=="fg"){
   // the wilderness the city grows out of (hills, grass, river, trees, the first cabin) — recedes as it matures
   if(cityG<0.985) drawTerrain(g,cityG,L,now,nd,(pass==="fg"||pass==="city"||pass==="live")?"fg":undefined);
+  // the falls, at the live rate. `undefined` already drew them on the classic single-canvas path
+  // further up, so this is the split-canvas half only — double-painting is what pass-split guards.
+  if(pass==="fg"||pass==="city"||pass==="live") drawCascades(g,L,now,nd);
 
   drawLayer(g,far,L,now,fx,hol,0.42);
   if(curRegime&&curRegime.active) drawLayerRegime(g,far,L,now,night);   // THE ORDER drapes the far skyline
