@@ -20053,9 +20053,13 @@ function drawMushroom(g,nx,nph,now,seed,L,scale){
     var dome=Math.sqrt(Math.max(0,1-ex*ex));
     var y0=(capCy-capRy*dome*(1+lump))|0, y1=(capCy+capRy*0.5*Math.sqrt(Math.max(0,1-ex*ex*0.7))*(1+lump*1.5)+capRy*0.3)|0;
     var colX=(nx+dx)|0, hh=Math.max(1,y1-y0), bA=(hh*0.42)|0, bB=(hh*0.76)|0;   // top-lit → dark underside, 3 bands
-    g.fillStyle=capTop; g.fillRect(colX,y0,1,Math.max(1,bA));
-    g.fillStyle=capMid; g.fillRect(colX,y0+bA,1,Math.max(1,bB-bA));
-    g.fillStyle=capBot; g.fillRect(colX,y0+bB,1,Math.max(1,hh-bB));
+    // ⚠ WIDTH 2, NOT 1. The cap is built column-by-column and 1 px columns leave SEAMS between them
+    // wherever the dome height steps — 436 tall thin rects in one frame, which is what the vertical
+    // striping through the cloud in Nick's screenshot is. Overlapping each column onto its neighbour
+    // closes the seam; the overdraw is one extra pixel per column and invisible.
+    g.fillStyle=capTop; g.fillRect(colX,y0,2,Math.max(1,bA));
+    g.fillStyle=capMid; g.fillRect(colX,y0+bA,2,Math.max(1,bB-bA));
+    g.fillStyle=capBot; g.fillRect(colX,y0+bB,2,Math.max(1,hh-bB));
     g.globalCompositeOperation="lighter";                                    // heat still glowing under the cap
     g.fillStyle="rgba(255,120,40,"+(0.34*(1-nph*0.6))+")"; g.fillRect(colX,y1-1,1,2);
     g.globalCompositeOperation="source-over";
@@ -22171,8 +22175,17 @@ function draw(g,pass){
   var fogTarget=fx.fog?0.92:0; fog.t+=(fogTarget-fog.t)*0.002*dt;
   if(fog.t>0.01){ for(i=0;i<4;i++){ var fy=HORIZON*0.6+i*18, drift=Math.sin(now*0.0001*(i+1))*24;
       var fbA=fog.t*(0.30-i*0.05), fbY=(fy+drift*0.2)|0;
-      g.fillStyle="rgba(198,204,214,"+fbA+")"; g.fillRect(0,fbY,SW,36);
-      g.fillStyle="rgba(198,204,214,"+(fbA*0.5)+")"; g.fillRect(0,fbY-1,SW,1); g.fillRect(0,fbY+36,SW,1); }  // 2px alpha-feathered top+bottom edges
+      // ⚠⚠ THESE WERE THE FULL-WIDTH HORIZONTAL LINES ACROSS NICK'S DEATH SCREEN. The two edge rects
+      // were meant to be "alpha-feathered edges", but a standalone 1 px full-width rect at half the
+      // band's alpha is not a feather — it is a HAIRLINE, drawn against the sky just outside the band,
+      // and at the coarse 4K texel size it reads as a hard rule straight across all three monitors.
+      // A soft edge needs a GRADIENT, so the band is one now: transparent -> fbA -> transparent.
+      var fgd=g.createLinearGradient(0,fbY-2,0,fbY+38);
+      fgd.addColorStop(0,   "rgba(198,204,214,0)");
+      fgd.addColorStop(0.18,"rgba(198,204,214,"+fbA+")");
+      fgd.addColorStop(0.82,"rgba(198,204,214,"+fbA+")");
+      fgd.addColorStop(1,   "rgba(198,204,214,0)");
+      g.fillStyle=fgd; g.fillRect(0,fbY-2,SW,40); }
     var fogPeak=fog.t*0.45, fogG=g.createLinearGradient(0,HORIZON*0.85,0,SH);
     fogG.addColorStop(0,"rgba(188,194,208,0)"); fogG.addColorStop(0.5,"rgba(188,194,208,"+fogPeak+")"); fogG.addColorStop(1,"rgba(188,194,208,0)");
     g.fillStyle=fogG; g.fillRect(0,(HORIZON*0.85)|0,SW,SH*0.5); }
