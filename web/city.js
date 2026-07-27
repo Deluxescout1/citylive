@@ -13235,43 +13235,170 @@ function drawAsteroid(g,cd,L,now){
 // them — the volcano disaster drew literally nothing, silently, with no error.
 // Verified by asking the loaded engine which body survived: the biome one, arity 4.
 function drawVolcanoDisaster(g,cd,L,now){
-  var cx=disX(cd.x), f=cd.f, i=cd.intensity, big=(i-1)/4; if(f>=0.50) return;
-  var grow=Math.min(1,f/0.14), coneH=(16+i*7)*grow, coneW=28+i*10, gy=HORIZON, craterY=gy-coneH;   // a proper cone (not as wide as the whole footprint)
-  // hellish red sky glow above the volcano
-  g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,70,20,"+(0.10+0.05*Math.sin(now*0.015))+")";
-  g.fillRect((cx-coneW)|0,(craterY-28)|0,(coneW*2)|0,coneH+28); g.globalCompositeOperation="source-over";
-  // cone body with ember-lit slopes so it reads against the sky
-  for(var y=0;y<coneH;y++){ var ww=coneW*(1-y/coneH*0.66); g.fillStyle=L>0.5?"#5a4636":"#2a1e18";
-    g.fillRect((cx-ww/2)|0,(gy-y)|0,ww|0,1); }
+  // ============ THE ERUPTION ============
+  // Nick: rebuild this properly — "it's effectively a new feature". He is right that it needed it,
+  // and the reason it was never noticed is instructive: this function was DEAD CODE until today (a
+  // duplicate `drawVolcano` shadowed it, see no-shadowed-functions.test.js), and even once revived
+  // it drew a 44 world-px cone into a city of 100 px towers, so it was invisible among the buildings
+  // rather than absent. A volcano that does not out-scale the skyline is not a volcano.
+  //
+  // THE ARC, all driven by disaster progress `f` so it plays identically on a 1-hour test cycle and
+  // a 1-week life: the ground swells and vents -> the cone builds -> the column goes up and leans on
+  // the REAL wind -> bombs arc out -> a pyroclastic surge rolls along the street -> lava creeps down
+  // the flanks and SETS FIRE TO WHAT IT TOUCHES (Nick's explicit ask) -> ash falls downwind.
+  var cx=disX(cd.x), f=cd.f, i=cd.intensity, big=(i-1)/4, gy=HORIZON;
+  if(f>=0.86) return;
+  var K=Math.max(1,KSP), day=L>0.5;
+  var wind=((weather&&weather.wind)||8), lean=Math.max(-1,Math.min(1,wind/26))*(cd.seed&1?1:-1);
+  // the cone OUT-SCALES the skyline — that is the whole point of a mountain appearing in your city
+  var grow=Math.min(1,f/0.16);
+  var coneH=Math.round((70+i*26)*grow*K*0.5), coneW=Math.round((46+i*18)*K*0.5);
+  var craterY=gy-coneH;
+  var blast=Math.min(1,Math.max(0,(f-0.14)/0.14));      // the main eruption ramps in
+  var wane=Math.max(0,Math.min(1,(f-0.62)/0.24));       // and subsides
+
+  // ---- SKY: a hot dome over the mountain, strongest at the peak of the blast ----
   g.globalCompositeOperation="lighter";
-  for(var sl=0;sl<coneH;sl+=1){ var sww=coneW*(1-sl/coneH*0.66);        // glowing lava veins down both slopes
-    g.fillStyle="rgba(255,"+(70+sl*2%90)+",20,0.6)";
-    g.fillRect((cx-sww/2+((now/160+sl)%3))|0,(gy-sl)|0,1,1); g.fillRect((cx+sww/2-1-((now/140+sl)%3))|0,(gy-sl)|0,1,1); }
-  // big bright lava fountain (taller at higher CAT)
-  for(var lv=0;lv<16+i*6;lv++){ var la=(now*0.035+lv*29)%64, lx=cx+Math.sin(lv*1.3)*(la*0.22)*(lv&1?1:-1),
-      ly=craterY-Math.sin(la/64*Math.PI)*(20+i*6);
-    g.fillStyle="rgba(255,"+(120+lv%90)+",30,"+(0.9*(1-la/64))+")"; g.fillRect(lx|0,ly|0,2,2); }
-  for(var th=0;th<coneH*0.7;th++){ g.fillStyle="rgba(255,"+((100+th*3)|0)+",25,"+(0.55*(1-th/(coneH*0.7))).toFixed(3)+")"; g.fillRect((cx-1)|0,(craterY+th)|0,3,1); }  // glowing lava throat down the cone
-  g.fillStyle="rgba(255,180,70,1)"; g.fillRect((cx-coneW/4)|0,(craterY-1)|0,(coneW/2)|0,3);   // white-hot crater
+  var domeA=(0.05+0.14*blast)*(1-wane*0.7)*(day?0.55:1);
+  for(var dq=0;dq<Math.round(40*K);dq+=Math.max(1,Math.round(2*K))){
+    var df=dq/(40*K);
+    g.fillStyle="rgba(255,88,26,"+(domeA*(1-df)).toFixed(3)+")";
+    g.fillRect((cx-coneW*1.6)|0,(craterY-dq)|0,(coneW*3.2)|0,Math.max(1,Math.round(2*K)));
+  }
   g.globalCompositeOperation="source-over";
-  // ---- LAVA RIVERS creep out along the street in both directions (reach scales with CAT) ----
-  if(f>0.12){ var flow=Math.min(1,(f-0.12)/0.22), reach=(18+i*22)*flow;
-    g.globalCompositeOperation="lighter";
-    for(var side=-1;side<=1;side+=2){ for(var lr=0;lr<reach;lr++){ var rx=cx+side*(coneW*0.3+lr), a=0.7*(1-lr/reach);
-      var glow=(Math.sin(lr*0.4+now*0.01)*0.5+0.5);
-      g.fillStyle="rgba(255,"+((70+glow*100)|0)+",20,"+a.toFixed(3)+")"; g.fillRect(rx|0,gy-1,1,2);
-      if((lr+((now/120)|0))%4===0){ g.fillStyle="rgba(255,220,120,"+a.toFixed(3)+")"; g.fillRect(rx|0,gy-1,1,1); } } }   // bright crust cracks
-    g.globalCompositeOperation="source-over"; }
-  // ---- ASHFALL raining down over the skyline ----
-  var ashSpan=coneW*2+i*30;
-  for(var ah=0;ah<Math.round(20+i*10);ah++){ var axp=cx-ashSpan/2+((ah*53+now*0.02)%ashSpan), ayp=((ah*ah*7+now*0.05)%(gy-4));
-    g.fillStyle="rgba("+(40+ah%14)+","+(38+ah%12)+","+(40+ah%12)+","+(0.30+0.2*big).toFixed(3)+")"; g.fillRect(axp|0,ayp|0,1,1+(ah%2)); }
-  drawSmoke(g,cx,craterY-2,1,now,i+3);                               // thick ash plume
-  // ---- PYROCLASTIC BLAST at the peak (CAT-4/5): a fast dark cloud rolls out & buries the block — radius HARD-CLAMPED ----
-  if(i>=4 && f>0.24 && f<0.44){ var pb=(f-0.24)/0.20, PR=Math.min(WW*0.42, pb*(WW*0.5));
-    for(var side2=-1;side2<=1;side2+=2){ for(var pc=0;pc<10;pc++){ var pr2=PR*(0.4+pc*0.07), pcx=cx+side2*pr2,
-        pch=(coneH*0.7)*(1-pc/12)*(0.6+0.4*Math.sin(pc+now*0.01)), pa=0.5*(1-pb)*(1-pc/12); if(pa<=0.02) continue;
-      g.fillStyle="rgba("+(60+pc*3)+","+(52+pc*2)+","+(54+pc*2)+","+pa.toFixed(3)+")"; g.fillRect((pcx-3)|0,(gy-pch)|0,6,pch|0); } }
+
+  // ---- THE CONE: a stratovolcano, concave-sided, with strata and old flow channels ----
+  var rock=day?[74,60,54]:[26,20,20], rock2=day?[52,41,38]:[17,13,14];
+  for(var y=0;y<coneH;y++){
+    var yn=y/coneH;
+    // concave profile — a stratovolcano flares at the base rather than running straight
+    var ww=coneW*Math.pow(1-yn,0.62);
+    var shade=mixc(rock,rock2,0.25+0.5*yn);
+    g.fillStyle=css(shade);
+    g.fillRect((cx-ww)|0,(gy-y)|0,(ww*2)|0,1);
+    if((y%Math.max(2,Math.round(5*K)))===0){                       // ash/lava strata
+      g.fillStyle=css(mixc(shade,[0,0,0],0.30));
+      g.fillRect((cx-ww)|0,(gy-y)|0,(ww*2)|0,1);
+    }
+    if(day&&y<coneH*0.9){                                          // sunlit flank
+      g.fillStyle=css(mixc(shade,[255,238,210],0.16));
+      g.fillRect((cx-ww)|0,(gy-y)|0,Math.max(1,Math.round(ww*0.22)),1);
+    }
+  }
+  // the crater notch
+  var crW=Math.round(coneW*0.30);
+  g.fillStyle=css(mixc(rock2,[0,0,0],0.45));
+  g.fillRect((cx-crW)|0,(craterY)|0,(crW*2)|0,Math.max(1,Math.round(3*K)));
+
+  // ---- LAVA DOWN THE FLANKS, and it SETS FIRE TO WHAT IT TOUCHES ----
+  // Nick, explicitly: "the lava needs to flow and catch things on fire as it touches it."
+  // Each flow advances with `f`, so its snout has a real position; anything standing at that
+  // position is alight. The fires are keyed to the SNOUT, not sprinkled at random, so the causation
+  // reads: the lava arrives, then that spot burns.
+  var flows=2+((cd.seed>>>3)%3);
+  for(var fl=0;fl<flows;fl++){
+    var fh=((fl*2654435761+cd.seed)>>>0);
+    var fside=(fh&1)?1:-1, fx0=cx+fside*Math.round(coneW*(0.15+((fh>>>5)%40)/100));
+    var reach=Math.min(1,Math.max(0,(f-0.20-fl*0.06)/0.36));       // how far down it has crept
+    if(reach<=0) continue;
+    var snoutY=gy-Math.round(coneH*(1-reach)*0.92);
+    for(var ly=craterY+Math.round(2*K); ly<snoutY; ly+=1){
+      var lp=(gy-ly)/Math.max(1,coneH);
+      var lx=fx0+fside*Math.round((1-lp)*coneW*0.42)+Math.round(Math.sin(ly*0.22+fl)*1.6*K);
+      var hot=Math.max(0,1-(snoutY-ly)/Math.max(1,coneH*0.34));     // the leading edge is brightest
+      g.fillStyle="rgb("+Math.round(120+135*hot)+","+Math.round(24+110*hot)+","+Math.round(12+20*hot)+")";
+      g.fillRect(lx|0,ly|0,Math.max(1,Math.round(2*K)),1);
+      if(hot>0.55){ g.globalCompositeOperation="lighter";
+        g.fillStyle="rgba(255,190,90,0.30)"; g.fillRect((lx-1)|0,ly|0,Math.max(2,Math.round(3*K)),1);
+        g.globalCompositeOperation="source-over"; }
+    }
+    // WHAT THE SNOUT IS BURNING, right where it stands
+    if(snoutY>gy-Math.round(coneH*0.5)){
+      var bx2=fx0+fside*Math.round(coneW*0.42);
+      var flick=(Math.floor(now/90)+fl)&3;
+      g.globalCompositeOperation="lighter";
+      for(var fq=0;fq<4;fq++){
+        var fa=0.55-fq*0.11;
+        g.fillStyle="rgba(255,"+(150-fq*22)+",40,"+fa.toFixed(2)+")";
+        g.fillRect((bx2-2+((flick+fq)&1))|0,(snoutY-fq*Math.round(2*K))|0,Math.round(4*K),Math.round(2*K));
+      }
+      g.globalCompositeOperation="source-over";
+      g.fillStyle="rgba(40,34,32,0.5)";                              // smoke off the burning ground
+      g.fillRect((bx2-1)|0,(snoutY-Math.round(9*K))|0,Math.round(3*K),Math.round(7*K));
+    }
+  }
+
+  // ---- THE ASH COLUMN: straight up, then sheared over by the real wind into an anvil ----
+  var colH=Math.round(coneH*(0.6+2.4*blast)*(1-wane*0.5));
+  for(var cq=0;cq<colH;cq+=Math.max(1,Math.round(2*K))){
+    var cf=cq/Math.max(1,colH);
+    var shear=lean*cf*cf*coneW*2.2;                                  // shear grows with height
+    var cw3=coneW*(0.30+cf*0.95);
+    var ca=(0.72-cf*0.45)*(1-wane*0.8);
+    if(ca<=0.02) continue;
+    var tone=Math.round(58+cf*36);
+    g.fillStyle="rgba("+tone+","+(tone-6)+","+(tone-4)+","+ca.toFixed(3)+")";
+    g.fillRect((cx+shear-cw3*0.5)|0,(craterY-cq)|0,cw3|0,Math.max(1,Math.round(2*K)));
+    if(cf<0.22){                                                     // incandescent base of the column
+      g.globalCompositeOperation="lighter";
+      g.fillStyle="rgba(255,120,40,"+(0.30*(1-cf/0.22)*blast).toFixed(3)+")";
+      g.fillRect((cx+shear-cw3*0.35)|0,(craterY-cq)|0,(cw3*0.7)|0,Math.max(1,Math.round(2*K)));
+      g.globalCompositeOperation="source-over";
+    }
+  }
+
+  // ---- VOLCANIC BOMBS: lobbed out of the crater on real arcs, trailing smoke ----
+  if(blast>0.1){
+    var nb=Math.round(3+i*1.6);
+    for(var b=0;b<nb;b++){
+      var bh=((b*40503+cd.seed*7)>>>0);
+      var per=1400+(bh%1600), bp=((now+(bh%per))%per)/per;
+      var bdir=(bh&1)?1:-1, brange=coneW*(1.0+((bh>>>7)%60)/100)*1.6;
+      var bxp=cx+bdir*bp*brange;
+      var byp=craterY-Math.sin(bp*Math.PI)*coneH*0.85+bp*bp*6*K;
+      if(byp>gy) continue;
+      g.fillStyle="rgba(60,50,48,0.45)";                              // trail
+      g.fillRect((bxp-bdir*3)|0,(byp+2)|0,Math.round(3*K),Math.max(1,Math.round(K)));
+      g.globalCompositeOperation="lighter";
+      g.fillStyle="rgba(255,150,60,"+(0.85*(1-bp*0.5)).toFixed(2)+")";
+      g.fillRect(bxp|0,byp|0,Math.max(2,Math.round(2*K)),Math.max(2,Math.round(2*K)));
+      g.globalCompositeOperation="source-over";
+    }
+  }
+
+  // ---- PYROCLASTIC SURGE: a dense grey wall rolling along the ground away from the cone ----
+  var surge=Math.min(1,Math.max(0,(f-0.24)/0.30));
+  if(surge>0){
+    var sr=surge*(coneW*2.6+i*22*K);
+    for(var ss=-1;ss<=1;ss+=2){
+      for(var pc=0;pc<14;pc++){
+        var pr2=sr*(0.25+pc*0.058), pcx2=cx+ss*pr2;
+        if(pcx2<-20||pcx2>SW+20) continue;
+        var pch=Math.round(coneH*0.44*(1-pc/16)*(0.62+0.38*Math.sin(pc*1.4+now*0.006)));
+        var pa2=0.52*(1-surge*0.45)*(1-pc/16);
+        if(pa2<=0.02) continue;
+        var pt=Math.round(64+pc*4);
+        g.fillStyle="rgba("+pt+","+(pt-6)+","+(pt-4)+","+pa2.toFixed(3)+")";
+        g.fillRect((pcx2-3*K)|0,(gy-pch)|0,Math.round(6*K),pch);
+      }
+    }
+  }
+
+  // ---- ASHFALL ON THE CITY, downwind. Ties the mountain to the streets. ----
+  if(f>0.22){
+    var afA=Math.min(0.5,(f-0.22)*1.6)*(1-wane*0.6);
+    g.globalAlpha=afA*0.5;
+    g.fillStyle=day?"#6e6a66":"#2a2828";
+    for(var ax=0;ax<SW;ax+=Math.max(3,Math.round(4*K))){
+      var awx=ax+WOFF;
+      if(lean>0 ? (ax<cx) : (ax>cx)) continue;                        // only downwind
+      var ay=((awx*13+Math.floor(now*0.05))%Math.max(1,gy));
+      g.fillRect(ax,ay,1,Math.max(1,Math.round(K*0.8)));
+    }
+    g.globalAlpha=1;
+    g.fillStyle=day?"rgba(120,116,112,0.20)":"rgba(40,38,38,0.28)";   // ash lying on the street downwind
+    var a0=lean>0?cx:0, a1=lean>0?SW:cx;
+    g.fillRect(a0|0,gy,Math.max(0,(a1-a0))|0,Math.max(1,Math.round(2*K)));
   }
 }
 function drawZombies(g,cd,L,now){
