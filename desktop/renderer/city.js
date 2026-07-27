@@ -4350,11 +4350,11 @@ var HUD_MANDATE={ monorail:["M","#c05ad0"], seawall:["S","#4aa0e0"], stadium:["T
 // So nobody MISSES the apocalypse: an unmistakable top-left warning of exactly WHEN this city's fated
 // end will strike. Shows through the mature "peak" phase, escalating amber→red as it nears; the finale
 // takes over once it hits. Time is REAL wall-clock, so it's right whether a life is a week or (test mode)
-// an hour. apocAtOf() derives the strike time from the SAME formula cityGrowth uses (cy 0.955 = "apoc").
+// an hour. apocAtOf() derives the strike time from the SAME formula cityGrowth uses (cy APOC_AT = "apoc").
 function apocAtOf(now){
   var basis=now-GROW_EPOCH+GROW_OFFSET_DAYS*86400000+WORLD_SHIFT;
   var m=((basis%GROW_CYCLE)+GROW_CYCLE)%GROW_CYCLE;   // ms elapsed in the current life
-  var at=(now-m)+0.955*GROW_CYCLE;                     // 0.955 = the cy where cityGrowth flips to "apoc"
+  var at=(now-m)+APOC_AT*GROW_CYCLE;                     // APOC_AT = the cy where cityGrowth flips to "apoc"
   if(now>=at) at+=GROW_CYCLE;                          // already erupting → point at the NEXT life's end
   return at;
 }
@@ -4380,7 +4380,7 @@ var APOC_WAKE_DELAY=240000;       // ~4 min after wake before the replay strikes
 var APOC_REPLAY_MS=95000;         // play ~95s of the cataclysm (whole finale + a little aftermath), then back to reality
 function lastApocStrike(now){                            // most recent cataclysm strike at or before `now`
   var basis=now-GROW_EPOCH+GROW_OFFSET_DAYS*86400000+WORLD_SHIFT, m=((basis%GROW_CYCLE)+GROW_CYCLE)%GROW_CYCLE;
-  var at=(now-m)+0.955*GROW_CYCLE;
+  var at=(now-m)+APOC_AT*GROW_CYCLE;
   if(now<at) at-=GROW_CYCLE;                             // this life's strike is still future → the previous life's was the last
   return at;
 }
@@ -4420,7 +4420,7 @@ function drawDoomClock(g,now,night){
   var cg=cityGrowth(now); if(cg.phase!=="peak") return;   // only the mature run-up (grow=too early; apoc=the finale itself shows)
   var at=apocAtOf(now), dt=at-now;
   var fate=(DEATH_LABEL[curDeath]||curDeath||"CATACLYSM").toUpperCase();
-  var urg=Math.max(0,Math.min(1,(cg.cy-0.78)/(0.955-0.78)));   // 0 at start of peak → 1 at the brink
+  var urg=Math.max(0,Math.min(1,(cg.cy-0.78)/(APOC_AT-0.78)));   // 0 at start of peak → 1 at the brink
   var soon=urg>0.6;                                       // last ~40% of the run-up → red alert
   var pulse=0.6+0.4*Math.sin(now*(soon?0.008:0.0032));
   var pad=5, W=106, mr=6, bx=mr, by=6, ix=bx+pad, iw=W-2*pad;
@@ -8403,7 +8403,7 @@ function meteorNews(now){
     if(apocMs>METEOR_IMPACT_MS-7000) return "☄ BRACE FOR IMPACT - SECONDS TO STRIKE ☄";
     return "IMPACT IMMINENT - EVACUATE "+cityName+" NOW";
   }
-  var cy=cityGrowth(now).cy;                                    // ~2 days = the last cy∈[0.714,0.955] of the week-long life
+  var cy=cityGrowth(now).cy;                                    // ~2 days = the last cy∈[0.714,APOC_AT] of the week-long life
   if(cy>=0.90)  return "GLOBAL ALERT - "+meteorDesig(now)+" ON COLLISION COURSE WITH "+cityName;
   if(cy>=0.83)  return "ASTRONOMERS WARN OBJECT "+meteorDesig(now)+" MAY STRIKE "+cityName;
   if(cy>=0.714) return "OBSERVATORY TRACKING NEAR-EARTH OBJECT "+meteorDesig(now);
@@ -12881,7 +12881,7 @@ var GROW_OFFSET_DAYS=0;                // ►► FAST-FORWARD KNOB: bump this to
 var WORLD_SHIFT=0;
 function worldShiftFrom(at,mode){
   if(!at||!isFinite(+at)) return 0;
-  var target=(mode==="fresh")?0.0005:0.9550;                         // fresh = reborn wilderness; apoc = the finale begins AT DETONATION (cy 0.955 → apocMs≈0, so you WITNESS it play out in real time, not land in the aftermath)
+  var target=(mode==="fresh")?0.0005:APOC_AT;                         // fresh = reborn wilderness; apoc = the finale begins AT DETONATION (cy APOC_AT → apocMs≈0, so you WITNESS it play out in real time, not land in the aftermath)
   var base=(((+at)-GROW_EPOCH+GROW_OFFSET_DAYS*86400000)%GROW_CYCLE+GROW_CYCLE)%GROW_CYCLE;
   return target*GROW_CYCLE-base;
 }
@@ -12890,6 +12890,16 @@ if(CFG.worldRestartAt) WORLD_SHIFT=worldShiftFrom(CFG.worldRestartAt, CFG.worldR
 var GROWBAND=0.03;                     // how much of the cycle a building spends "under construction" (base, before workforce)
 var laborK=1;                          // WORKFORCE → BUILD SPEED: a bigger population raises towers faster (set per-frame in draw)
 function bandOf(b){ return (b.band||GROWBAND)*laborK; }   // a building's effective construction duration, scaled by the labour pool
+// HOW LONG THE CITY TAKES TO DIE. Nick, 2026-07-27: "these death screens seem too long."
+// The apocalypse used to run the last 4.5% of the life — on a 7-day cycle that is **7.6 HOURS** of
+// dying, i.e. most of a working day staring at a ruined city. Cut to 2%, about 3h20m, which is still
+// long enough to catch the whole arc by accident but no longer takes over the day. The peak
+// metropolis absorbs the difference, so the city simply gets to be a thriving city for longer.
+// ⚠ THREE SITES ARE COUPLED and must move together — the phase test in `cityGrowth`, the `urg`
+// ramp that counts down to the brink, and `apocMs`, which converts apoc progress into REAL
+// milliseconds since detonation and drives the fast bang/heat-wave/vaporize timings. Leaving apocMs
+// on the old band would make the blast play at 2.25x speed against a 2% window.
+var APOC_AT=0.98, APOC_BAND=1-APOC_AT;
 var ARRIVE=0.012;                      // cityG when the founding caravan reaches the townsite (people FIRST, then buildings)
 var FORCEAGE=null;                     // test hook: a number 0..1, or a {g,phase,apoc} object
 // SUMMON THE FINALE. `"finaleDemo": 300` in config.local.json replays the last 22% of a life — the
@@ -12910,8 +12920,8 @@ function cityGrowth(now){
   }
   var cy=((((now-GROW_EPOCH+GROW_OFFSET_DAYS*86400000+WORLD_SHIFT)%GROW_CYCLE)+GROW_CYCLE)%GROW_CYCLE)/GROW_CYCLE;   // 0..1 through the life
   if(cy<0.78) return {g:cy/0.78, phase:"grow", apoc:0, cy:cy};                // wilderness → metropolis
-  if(cy<0.955) return {g:1, phase:"peak", apoc:0, cy:cy};                     // the thriving metropolis
-  return {g:1, phase:"apoc", apoc:(cy-0.955)/0.045, cy:cy};                   // the cataclysm, then wraps to wilderness
+  if(cy<APOC_AT) return {g:1, phase:"peak", apoc:0, cy:cy};                   // the thriving metropolis
+  return {g:1, phase:"apoc", apoc:(cy-APOC_AT)/APOC_BAND, cy:cy};             // the cataclysm, then wraps to wilderness
 }
 // REINCARNATION: every life the city rebuilds in a different architectural age. The DNA is generated
 // once, so the era is applied as a render-time material/palette transform in drawLayer.
@@ -17723,7 +17733,7 @@ function regimeState(now){
   // PUT DOWN — the regime crushes them and rules on to the end of the city's life (holds stage 5) — or the
   // protests WIN and it's overthrown at stage 6 (liberation). ~45% are put down; the rest are toppled.
   var putdown=((rh>>>25)%100 < 45);
-  var cyEnd=putdown?0.955:REGIME_STAGES[6];
+  var cyEnd=putdown?APOC_AT:REGIME_STAGES[6];
   if(cy<REGIME_STAGES[0] || cy>=cyEnd) return null;              // NORMAL before the rise & (unless the protests are crushed) after the fall
   var stage, sub;
   if(putdown && cy>=REGIME_STAGES[4]){                           // protests crushed → HOLD stage 5 (TOTAL CONTROL) to the apocalypse, never the stage-6 fall
@@ -17749,7 +17759,7 @@ var PLAGUE_STAGES=[0.42,0.48,0.54,0.62,0.70,0.78];                // 5 stages th
 var PLAGUE_STAGE_LABEL=["","OUTBREAK","LOCKDOWN","SURGE","RECOVERY","REOPENING"];   // unmistakable stage names
 // THE ZOMBIE PLAGUE (rare): the same start, but the infected TURN and the city is OVERRUN — it never
 // recovers; the overrun rages ALL THE WAY to the end-of-life apocalypse (which wipes the zombie city).
-var PLAGUE_ZSTAGES=[0.42,0.48,0.54,0.62,0.70,0.955];             // 1-3 as normal, 4=THE TURN, 5=OVERRUN → to the apoc
+var PLAGUE_ZSTAGES=[0.42,0.48,0.54,0.62,0.70,APOC_AT];             // 1-3 as normal, 4=THE TURN, 5=OVERRUN → to the apoc
 var ZOMBIE_STAGE_LABEL=["","OUTBREAK","LOCKDOWN","SURGE","THE TURN","OVERRUN"];
 var FORCEPLAGUE=null;                                              // test hook (own line — QML-namespace writable)
 function plagueState(now){
@@ -20980,7 +20990,7 @@ function draw(g,pass){
   cityEra=cityEraOf(now);                                    // which architectural age is this life rebuilt in?
   curSpace = spaceLevelOf(now);   // the space age dawns in the city's final days (pure f(clock); university hastens it — see spaceLevelOf)
   cityApoc=(cityPhase==="apoc")?cg.apoc:0;                   // the grand cataclysm progress (0..1)
-  apocMs=cityApoc*0.045*GROW_CYCLE;                          // REAL ms since detonation (drives the fast bang/heat-wave/vaporize)
+  apocMs=cityApoc*APOC_BAND*GROW_CYCLE;                      // REAL ms since detonation (drives the fast bang/heat-wave/vaporize)
   curDeath=FORCEDEATH||deathOf(lifeI);                       // how this civilization is fated to end
   if(DEMO_APOC_SEC>0){ cityPhase="apoc"; cityG=1; curSpace=1;   // TEST: play the apocalypse live on a short repeating loop
     apocMs=Date.now()%(DEMO_APOC_SEC*1000); cityApoc=Math.min(1,apocMs/(DEMO_APOC_SEC*1000)); curDeath=FORCEDEATH||"nuke"; }
@@ -21027,7 +21037,7 @@ function draw(g,pass){
   computeIce(nd);                     // does the bay freeze today?
   if(rhythm.rush) rhythm.carSpeed*=1-0.16*POPK;   // N9: big cities gridlock harder at rush hour
   // ash-out veil: only masks the death→rebirth WRAP itself (~last hour rising, ~first hour fading).
-  // (was 0.955/0.04 of the cycle = a 70% black overlay for ~29 REAL HOURS after every rebirth — far too long)
+  // (was APOC_AT/0.04 of the cycle = a 70% black overlay for ~29 REAL HOURS after every rebirth — far too long)
   apocVeil = cg.cy>=0.9985 ? Math.min(1,(cg.cy-0.9985)/0.0012) : (cg.cy<0.0015 ? 1-cg.cy/0.0015 : 0);
   growPop=Math.max(0,Math.min(1,(cityG-0.25)/0.45));         // traffic/crowds/infra scale up as it matures (shifted later to match the later road-paving — a more established town first)
   laborK=1.5-0.95*Math.min(1,cityG/0.55);                    // few hands in the village build SLOW; the boomtown workforce builds FAST (1.5×→0.55× duration)

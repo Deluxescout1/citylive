@@ -65,8 +65,12 @@ for (const L of LIVES) {
       if (!(r.leaderPid >= 0) || !r.leaderCitizenName || r.leaderName !== `${r.leaderTitle} ${r.leaderCitizenName}`) problems.push(`life ${L}: incomplete citizen leader projection`);
       if (pth === null) pth = r.path; else if (r.path !== pth) problems.push(`life ${L}: fall path changed ${pth}→${r.path}`);
       if (outcome === null) outcome = r.outcome; else if (r.outcome !== outcome) problems.push(`life ${L}: outcome changed ${outcome}→${r.outcome}`);
-      // WIN takeovers clear by ~0.82; PUT-DOWN takeovers legitimately rule on to the apocalypse (~0.955)
-      const limit = (r.outcome === 'putdown') ? 0.955 : 0.82;
+      // WIN takeovers clear by ~0.82; PUT-DOWN takeovers legitimately rule on to the apocalypse.
+      // ⚠ Read the boundary FROM THE ENGINE. This was hardcoded 0.955, so shortening the death
+      // sequence (APOC_AT 0.955 -> 0.98, cutting a 7.6h apocalypse to ~3h20m) failed the test even
+      // though the engine was behaving correctly — a put-down regime is SUPPOSED to rule right up to
+      // the cataclysm, wherever that boundary now sits.
+      const limit = (r.outcome === 'putdown') ? ctx.APOC_AT : 0.82;
       if (cg.cy > limit) problems.push(`life ${L} cy ${cg.cy.toFixed(3)}: ${r.outcome} regime active past its end`);
     }
   }
