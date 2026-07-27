@@ -3315,10 +3315,34 @@ var curEgg=false;    // is this life an egg land
 var curBiome=BIOMES[0];
 var curNeon=false;   // this life's city wears the neon style (always in THE SPRAWL, ~1/12 elsewhere)
 var bioTrees=null;     // the OLD FOREST's colossal trees ({far:[],near:[]}), null in every other biome
-function biomeOf(li){
-  if(li===0) return BIOMES[0];                       // life 0 keeps the alpine range the city grew up under
-  return BIOMES[((li*2654435761+7717)>>>0)%BIOMES.length];
+// ⚠⚠ THE LAND ROLL WAS A SHORT FIXED LOOP, NOT A SHUFFLE. Nick reported "the same landscape" and he
+// was reading something real: the old line was `((li*2654435761+7717)>>>0) % BIOMES.length`, and
+// **2654435761 is congruent to 1 mod 12**, so with twelve lands it was very nearly a plain +1
+// rotation. Measured, it dealt `mesa heaven alpine sprawl swamp volcano plains beach` and then the
+// SAME EIGHT IN THE SAME ORDER again, with four lands barely appearing at all. Only the 32-bit wrap
+// perturbed it. A weak multiply-modulo is fine for jitter and useless as a shuffle.
+// `mixLi` is the avalanche hash already used everywhere else, and it has no such relationship to the
+// table length -- so the order is genuinely unpredictable and every land comes up equally often.
+function biomeRawIdx(li){ return mixLi(li,60077)%BIOMES.length; }
+// ...and never the same land twice running. With twelve lands a fair shuffle repeats about 8% of the
+// time, and a back-to-back repeat is exactly what makes a random roll FEEL broken.
+// ⚠ It compares against the previous life's RESOLVED land, not its raw hash -- otherwise a deflected
+// life can still collide with the one after it. Resolving needs the chain, so it is walked from a
+// bounded window back: 8 steps, pure f(li), no shared state, so all three monitors agree without
+// talking to each other. `(p+1+k) mod N` for k in 0..N-2 spans every index EXCEPT p, which makes a
+// repeat impossible rather than merely unlikely.
+function biomeIdxOf(li){
+  if(li<=0) return 0;                                // life 0 keeps the alpine range the city grew up under
+  var start=li-8; if(start<1) start=1;
+  var prev=(start===1)?0:biomeRawIdx(start-1), idx=0;
+  for(var k=start;k<=li;k++){
+    idx=biomeRawIdx(k);
+    if(idx===prev) idx=(prev+1+(mixLi(k,5171)%(BIOMES.length-1)))%BIOMES.length;
+    prev=idx;
+  }
+  return idx;
 }
+function biomeOf(li){ return BIOMES[biomeIdxOf(li)]; }
 function inSea(wx){ return hasOcean && seaW>0 && (wx < WW*seaW || wx > WW*(1-seaW)); }   // the open coast at the world's seam
 // squeeze a whole-world crosser path onto DRY LAND — nothing rides over open water without a boat
 function landRoute(x){ if(!hasOcean||seaW<=0) return x;
