@@ -11704,6 +11704,76 @@ function drawVillageLife(g,L,now,nd){
     }
   }
 }
+// THE QUAY WALL AND THE GUARDRAIL — the two things that make a road beside water read as built
+// rather than as a rendering error. Every coastal land gets both; only the MATERIAL changes, because
+// a seafront in a bayou and a seafront on pack ice are the same civil engineering in different stuff.
+// Drawn over the road's outer edge (the road fills to SH) and under nothing, so it always reads.
+function drawSeaFrontEdge(g,L,now,top,h,K,day,k,nm){
+  var wallH=Math.round(5*K);                       // the quay wall standing in the water
+  var railH=Math.round(5*K);                       // the barrier on the road side
+  var wall, wall2, rail, post, cap;
+  if(k==="swamp"){                                  // creosoted timber bulkhead + a boardwalk rail
+    wall=day?[74,60,44]:[16,13,10];   wall2=day?[54,44,32]:[11,9,7];
+    rail=day?[110,88,60]:[22,18,12];  post=day?[86,68,46]:[17,14,10]; cap=day?[128,104,72]:[26,21,15];
+  } else if(k==="arctic"){                          // galvanised rail, rimed with ice, on a snow-capped wall
+    wall=day?[150,164,178]:[28,36,48];  wall2=day?[118,132,148]:[20,26,36];
+    rail=day?[214,230,242]:[62,78,96];  post=day?[176,192,208]:[44,56,72]; cap=day?[238,246,252]:[80,96,116];
+  } else if(k==="volcano"){                         // basalt block, black and glassy
+    wall=day?[62,56,58]:[13,11,13];   wall2=day?[44,39,41]:[9,8,9];
+    rail=day?[96,88,84]:[20,18,17];   post=day?[72,66,64]:[15,14,13]; cap=day?[112,102,96]:[24,22,20];
+  } else if(nm==="CORAL COAST"){                    // whitewashed sea wall + a painted rail
+    wall=day?[232,224,206]:[38,36,32]; wall2=day?[204,194,172]:[28,26,23];
+    rail=day?[248,244,236]:[52,50,46]; post=day?[220,214,200]:[40,38,34]; cap=day?[255,252,246]:[60,58,54];
+  } else {                                          // cliffs + beach: poured concrete + a steel barrier
+    wall=day?[144,140,132]:[26,26,28];  wall2=day?[116,112,106]:[19,19,21];
+    rail=day?[196,198,202]:[44,46,52];  post=day?[150,152,158]:[32,34,40]; cap=day?[214,216,220]:[54,56,62];
+  }
+  // ---- THE QUAY WALL: a face standing in the water, with a shadow it casts on the surface ----
+  g.fillStyle=css(wall);  g.fillRect(0,top-Math.round(1*K),SW,wallH);
+  g.fillStyle=css(wall2); g.fillRect(0,top+wallH-Math.round(1.6*K),SW,Math.round(1.6*K));
+  // vertical joints — a blank wall of one colour reads as a bar, and a bar reads as a bug
+  g.fillStyle=css(mixc(wall,[0,0,0],day?0.22:0.35));
+  for(var jx=((-WOFF%Math.max(4,Math.round(9*K)))+Math.max(4,Math.round(9*K)))%Math.max(4,Math.round(9*K));
+      jx<SW; jx+=Math.max(4,Math.round(9*K)))
+    g.fillRect(jx,top-Math.round(1*K),Math.max(1,Math.round(K*0.7)),wallH);
+  // the wall's own shadow lying on the water, which is what seats it IN the water rather than on it
+  g.globalAlpha=0.30; g.fillStyle="#000000";
+  g.fillRect(0,top+wallH,SW,Math.round(2.4*K)); g.globalAlpha=1;
+  // a wet tide line where the water has been
+  g.fillStyle=css(mixc(wall,[40,60,70],day?0.34:0.20));
+  g.fillRect(0,top+wallH-Math.round(2.6*K),SW,Math.max(1,Math.round(K*0.9)));
+  // ---- THE GUARDRAIL along the road ----
+  var ry=top-Math.round(1*K)-railH;
+  var pitch=Math.max(5,Math.round(11*K));
+  g.fillStyle=css(post);                                     // posts
+  for(var px6=((-WOFF%pitch)+pitch)%pitch; px6<SW; px6+=pitch)
+    g.fillRect(px6,ry,Math.max(1,Math.round(K*0.9)),railH);
+  g.fillStyle=css(rail);                                     // the top rail, and a lower one
+  g.fillRect(0,ry,SW,Math.max(1,Math.round(1.5*K)));
+  g.fillRect(0,ry+Math.round(railH*0.55),SW,Math.max(1,Math.round(K)));
+  g.fillStyle=css(cap);                                      // a lit top edge so the rail catches light
+  g.fillRect(0,ry,SW,Math.max(1,Math.round(K*0.6)));
+  if(k==="arctic"){                                          // rime built up on the windward side
+    g.fillStyle="rgba(240,248,255,0.75)";
+    for(var rz=((-WOFF%pitch)+pitch)%pitch; rz<SW; rz+=pitch)
+      g.fillRect(rz,ry-Math.round(1*K),Math.max(1,Math.round(1.6*K)),Math.max(1,Math.round(1.4*K)));
+  }
+  if(k==="swamp"){                                           // pilings marching out into the water
+    g.fillStyle=css(mixc(wall,[0,0,0],0.35));
+    for(var pl=((-WOFF%Math.max(9,Math.round(23*K)))+Math.max(9,Math.round(23*K)))%Math.max(9,Math.round(23*K));
+        pl<SW; pl+=Math.max(9,Math.round(23*K))){
+      var plh=Math.round((7+((pl+WOFF)*7%6))*K);
+      g.fillRect(pl,top+Math.round(2*K),Math.max(1,Math.round(1.6*K)),plh);
+    }
+  }
+  // at night the rail is picked out by the street lighting behind it
+  if(L<0.55){
+    g.globalCompositeOperation="lighter";
+    g.fillStyle="rgba(255,206,150,0.10)";
+    g.fillRect(0,ry-Math.round(1*K),SW,Math.round(2*K));
+    g.globalCompositeOperation="source-over";
+  }
+}
 // ============ THE OPEN WATER ALONG THE BOTTOM OF THE FRAME ============
 // Drawn in the LIVE pass, because swell and foam move. It paints the band [SEA_Y, SH] full width,
 // plus the edge where the land ends — which is the piece that actually sells it: a beach needs wet
@@ -11749,46 +11819,64 @@ function drawSeaFrontBand(g,L,now){
     g.globalAlpha=1;
   }
   // --- THE EDGE. Where the land stops is the whole illusion. ---
+  // ⚠ Nick, on the first version: "how you moved the road doesn't read well… make sure it has
+  // guardrails". He was right, and the reason is structural rather than decorative. A road that ends
+  // in open water with NOTHING between them does not read as a waterfront — it reads as a mistake,
+  // because no real road is built that way. The barrier is the thing that says "this edge is
+  // intentional", and once it is there the eye accepts the whole composition.
+  // He also called the water "the lake/river you put there", which is the honest read: a band of
+  // water whose far bank is a road IS a channel, not an ocean. So the job is not to fake a horizon
+  // that cannot exist in this framing — it is to make it a good WATERFRONT: a quay wall the water
+  // meets, a barrier along the road, and depth increasing toward the viewer.
+  drawSeaFrontEdge(g,L,now,top,h,K,day,k,nm);
+  // ⚠ THE QUAY WALL IS NOW THE EDGE, so everything below works BELOW it (`wTop`), in the water.
+  // The first version had each land draw its own shoreline ABOVE the waterline — a rock face, a strip
+  // of wet sand, an ice shelf — and with a built wall in front of them they simply stacked two
+  // different edges on top of each other. One edge, then the water's own behaviour against it.
+  var wTop=top+Math.round(6*K);
   var eh=Math.round(6*K);
   if(k==="cliffs"){
-    // a rock face dropping from the street baseline into deep water, with a surf collar at its foot
-    var face=day?mixc(curBiome.near,[120,116,108],0.5):mixc(curBiome.near,[10,12,20],0.6);
-    for(var cx6=0;cx6<SW;cx6++){
-      var wx6=cx6+WOFF;
-      var fh6=Math.round((eh*0.7)+Math.sin(wx6/(37*K))*2.2*K+((wx6*13)%3));
-      g.fillStyle=css(face); g.fillRect(cx6,top-fh6,1,fh6+Math.round(2*K));
-      if(day&&((wx6*7)%11)===0){ g.fillStyle=css(mixc(face,[255,246,220],0.28)); g.fillRect(cx6,top-fh6,1,Math.round(2*K)); }
-    }
+    // deep water right up against the wall, and a surf collar that surges up its face
     g.fillStyle=day?"rgba(255,255,255,0.6)":"rgba(190,210,235,0.4)";
     for(var fo=0;fo<SW;fo++){
       var wf=fo+WOFF, surge=Math.sin(wf/(26*K)+now*0.0006)*0.5+0.5;
-      if(surge>0.45) g.fillRect(fo,top+Math.round(1*K),1,Math.max(1,Math.round((surge-0.4)*4*K)));
+      if(surge>0.45) g.fillRect(fo,wTop-Math.round((surge-0.4)*5*K),1,Math.max(1,Math.round((surge-0.4)*6*K)));
+    }
+    // spray thrown over the wall where the swell hits hardest
+    var wind5=Math.max(2,(weather&&weather.wind)||6);
+    if(wind5>8){
+      g.fillStyle=day?"rgba(255,255,255,0.34)":"rgba(200,220,240,0.22)";
+      for(var sp5=0;sp5<SW;sp5+=Math.max(7,Math.round(19*K))){
+        var wsp=sp5+WOFF, burst=Math.sin(wsp/(41*K)+now*0.0011);
+        if(burst>0.72) g.fillRect(sp5,top-Math.round(6*K),Math.round(3*K),Math.round(7*K));
+      }
     }
   } else if(k==="beach"){
-    // wet sand, then a run-up of foam that actually advances and retreats
+    // sand BELOW the wall — a slipway of beach between the seawall and the water, with a run-up of
+    // foam that actually advances and retreats over it
     var sand=day?[214,196,158]:[42,38,32], wet=day?[176,158,124]:[30,28,24];
-    g.fillStyle=css(wet); g.fillRect(0,top-Math.round(2*K),SW,Math.round(3*K));
-    g.fillStyle=css(sand); g.fillRect(0,top-Math.round(5*K),SW,Math.round(3*K));
+    g.fillStyle=css(sand); g.fillRect(0,wTop-Math.round(3*K),SW,Math.round(4*K));
+    g.fillStyle=css(wet);  g.fillRect(0,wTop,SW,Math.round(2.4*K));
     var run=(Math.sin(now*0.00045)*0.5+0.5);
     g.fillStyle=day?"rgba(255,255,255,0.75)":"rgba(200,216,238,0.5)";
     for(var bf=0;bf<SW;bf++){
       var wb=bf+WOFF, lip=Math.sin(wb/(48*K))*1.6*K;
-      var fy=top+Math.round(run*3.4*K+lip);
+      var fy=wTop+Math.round(run*3.4*K+lip);
       g.fillRect(bf,fy,1,Math.max(1,Math.round(1.4*K)));
     }
   } else if(k==="swamp"){
-    // no edge at all — the land simply dissolves into the water, which is what a bayou looks like
-    g.globalAlpha=0.55; g.fillStyle=css(day?[46,54,40]:[12,16,14]);
-    for(var sg=0;sg<SW;sg+=Math.max(1,Math.round(K))){
-      var wsg=sg+WOFF, dz=Math.round(((wsg*11)%5)*K*0.4);
-      g.fillRect(sg,top-dz,Math.max(1,Math.round(K)),dz+Math.round(2*K));
+    // duckweed and lily mats drifting against the bulkhead — the bayou's water is a surface, not a sea
+    g.globalAlpha=0.6;
+    for(var sg=0;sg<SW;sg+=Math.max(2,Math.round(5*K))){
+      var wsg=sg+WOFF; if(((wsg*11)%4)>1) continue;
+      g.fillStyle=css(day?[74,102,58]:[14,20,15]);
+      g.fillRect(sg,wTop+Math.round(((wsg*7)%Math.max(1,Math.round(h*0.6)))),Math.round(4*K),Math.max(1,Math.round(1.4*K)));
     }
     g.globalAlpha=1;
   } else if(k==="arctic"){
-    // an ice shelf with a broken lip, and floes drifting in the lead beyond it
-    g.fillStyle=day?"#dfeaf4":"#2c3a4c"; g.fillRect(0,top-Math.round(4*K),SW,Math.round(5*K));
-    g.fillStyle=day?"#b9ccdd":"#1e2a38";
-    for(var ic=0;ic<SW;ic++){ var wic=ic+WOFF; if(((wic*5)%7)<3) g.fillRect(ic,top+Math.round(((wic*3)%3)*K),1,Math.round(1.6*K)); }
+    // brash ice packed against the wall, and floes drifting in the open lead beyond it
+    g.fillStyle=day?"#dfeaf4":"#2c3a4c";
+    for(var ic=0;ic<SW;ic++){ var wic=ic+WOFF; if(((wic*5)%7)<3) g.fillRect(ic,wTop-Math.round(1*K)+Math.round(((wic*3)%3)*K),1,Math.round(2.2*K)); }
     for(var fl=0;fl<6;fl++){
       var fhx=((fl*2654435761)>>>0), fw7=Math.round((14+(fhx%22))*K);
       var fx7=Math.round(((fhx%1000)/1000)*WW - WOFF + Math.sin(now*0.00002+fl)*8*K);
@@ -11798,8 +11886,8 @@ function drawSeaFrontBand(g,L,now){
         g.fillStyle=day?"#c3d5e6":"#243244"; g.fillRect(FX2,fy7+Math.round(2.4*K),fw7,Math.max(1,Math.round(K))); }
     }
   } else if(k==="volcano"){
-    // black sand and a steam line where the flows still reach the water
-    g.fillStyle=day?"#3a3436":"#141215"; g.fillRect(0,top-Math.round(3*K),SW,Math.round(4*K));
+    // black sand below the basalt wall, and a steam line where the flows still reach the water
+    g.fillStyle=day?"#3a3436":"#141215"; g.fillRect(0,wTop-Math.round(3*K),SW,Math.round(4*K));
     g.globalCompositeOperation="lighter";
     for(var stm=0;stm<SW;stm+=Math.max(6,Math.round(11*K))){
       var wst=stm+WOFF; if(((wst*7)%5)!==0) continue;
