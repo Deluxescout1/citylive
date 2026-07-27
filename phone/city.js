@@ -3989,6 +3989,12 @@ var EMV_TYPES=[
 
 // an emergency vehicle drawn at a WORLD x (handles bezel wrap + strobes/glow)
 function drawEmv(g, worldX, ev, dir, lane, L, now){
+  // VILLAGE BAN: ambulances, fire engines and squad cars. ⚠ This one survived emptying the `cars`
+  // fleet AND banning drawAmbulances/drawBus/drawTram, because emergency response is its own system
+  // running on LANE offsets rather than off the fleet — a lone squad car kept cruising a dirt lane in
+  // a village with no roads. Found by attributing fillRects in the lane band to their drawing
+  // function; four rounds of guessing had missed it.
+  if(curVillage) return;
   var ew=ev.w, ey=HORIZON+LANE[lane].o, ex=worldX-WOFF;
   var vis=[ex]; if(ex-WW>-ew-8) vis.push(ex-WW); if(ex+WW<SW+ew+8) vis.push(ex+WW);
   for(var di=0;di<vis.length;di++){ var X=vis[di]|0; if(X+ew<-8||X>SW+8) continue;
@@ -4105,6 +4111,8 @@ function drawPerson(g,x,y,cloth,skin,bob,kind){
 // two-wheelers: a motorcycle, a kick-scooter, or a bicycle, ridden along an inner lane. worldX in world px
 // (handles bezel wrap like the other cross-city vehicles). Small — they read as nimble traffic between cars.
 function drawBike(g,worldX,dir,L,now,kind){
+  if(curVillage) return;   // VILLAGE BAN: scooters and motorbikes on a village lane
+
   var night=L<0.55;
   for(var wp=-1;wp<=1;wp++){ var x=(worldX-WOFF+wp*WW)|0; if(x<-8||x>SW+8) continue;
     var y=HORIZON+LANE[dir>0?1:2].o;
@@ -5045,6 +5053,8 @@ function drawFieldHospital(g,L,now){
 }
 // AMBULANCES — white vans with a red cross + flashing lights hurry the streets (most at the SURGE).
 function drawAmbulances(g,L,now){
+  if(curVillage) return;   // VILLAGE BAN: an ambulance fleet
+
   var P=curPlague; if(!P||!P.active||P.stage<2||P.stage>4) return;
   var n=(P.stage===3)?2:1;
   for(var i=0;i<n;i++){ var lane=LANE[(i*2)%LANE.length], ly=HORIZON+lane.o, per=42000, ph=((now+i*21000)%per)/per, dir=lane.d, wx=dir>0?ph*WW:WW*(1-ph);
@@ -7234,7 +7244,9 @@ function drawPigeons(g,now,L){
 }
 
 // ---- a city bus on a schedule (long, lit windows, route sign) ----
-function drawBus(g,worldX,dir,L,now,col,colD){ col=col||"#3f7fbf"; colD=colD||"#2b5f95";
+function drawBus(g,worldX,dir,L,now,col,colD){
+  if(curVillage) return;   // VILLAGE BAN: a city bus
+ col=col||"#3f7fbf"; colD=colD||"#2b5f95";
   var len=20, lane=dir>0?1:2, ey=HORIZON+LANE[lane].o, night=1-L;
   var vis=[worldX-WOFF]; if(worldX-WOFF-WW>-len-4) vis.push(worldX-WOFF-WW); if(worldX-WOFF+WW<SW+len+4) vis.push(worldX-WOFF+WW);
   for(var vi=0;vi<vis.length;vi++){ var X=vis[vi]|0; if(X+len<-4||X>SW+4) continue;
@@ -7256,6 +7268,8 @@ function drawBus(g,worldX,dir,L,now,col,colD){ col=col||"#3f7fbf"; colD=colD||"#
 
 // ---- light-rail TRAM: a long articulated rail car on an overhead wire (distinct from the bus) ----
 function drawTram(g,worldX,dir,L,now){
+  if(curVillage) return;   // VILLAGE BAN: a tram
+
   var col="#c0392b", colD="#8a2820", trim="#f0e6d0";                              // classic red-and-cream livery
   var len=26, lane=dir>0?1:2, ey=HORIZON+LANE[lane].o, night=1-L;
   var vis=[worldX-WOFF]; if(worldX-WOFF-WW>-len-4) vis.push(worldX-WOFF-WW); if(worldX-WOFF+WW<SW+len+4) vis.push(worldX-WOFF+WW);
