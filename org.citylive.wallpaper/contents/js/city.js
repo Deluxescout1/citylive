@@ -3314,6 +3314,11 @@ var FORCEBIOME=null, FORCEVARIANT=null;   // render-harness only: pin the land w
 var curEgg=false;    // is this life an egg land
 var curBiome=BIOMES[0];
 var curNeon=false;   // this life's city wears the neon style (always in THE SPRAWL, ~1/12 elsewhere)
+// THE HIDDEN VILLAGE flag. This land does not merely decorate the city, it REPLACES its architecture:
+// round white-plaster houses under red tile, low-rise, packed close, and no tower ever. Every place
+// that would otherwise build a metropolis has to ask this first, so it is hoisted to a global rather
+// than re-testing `curBiome.k` in a dozen hot loops.
+var curVillage=false;
 var bioTrees=null;     // the OLD FOREST's colossal trees ({far:[],near:[]}), null in every other biome
 // ⚠⚠ THE LAND ROLL WAS A SHORT FIXED LOOP, NOT A SHUFFLE. Nick reported "the same landscape" and he
 // was reading something real: the old line was `((li*2654435761+7717)>>>0) % BIOMES.length`, and
@@ -3382,6 +3387,15 @@ function makeLayer(seed,y0,baseHMin,baseHMax,layerK){
     var bw=Math.round((d.wRange[0]+((r()*(d.wRange[1]-d.wRange[0]))|0))*KSP);
     // buildings stand ≥ a few storeys tall so a person (7px) reads as ~one floor, not half a house
     var bh=Math.max(Math.round(15*KSP), Math.round((baseHMin+((r()*(baseHMax-baseHMin))|0))*d.hMul*layerK*KSP));
+    // THE HIDDEN VILLAGE IS LOW-RISE, AND `b.h` HAS TO SAY SO — not just the draw call.
+    // It is tempting to leave the height alone and simply paint something short, because the village
+    // bypasses the designed-building path anyway. That is a trap: `b.h` is read by drawDisasterBuilding,
+    // drawApocBuilding, drawRuinBuilding and the ruin/occlusion bookkeeping, so a plot drawn 9 px tall
+    // while `b.h` claims 60 would collapse an INVISIBLE SKYSCRAPER over the village every time the nuke
+    // or the kaiju came through. One truth: the plot really is small.
+    if(curVillage) bh=Math.max(Math.round(7*KSP), Math.round(bh*0.20));
+    // …and small plots stand CLOSE. A village is packed; a city has setbacks and frontage.
+    var vGapK=curVillage?0.34:1;
     var base=d.brick ? hex2rgb(["#2a1a14","#31201a","#241712","#2e1c14"][(r()*4)|0]) : hex2rgb(BLDBASE[(r()*BLDBASE.length)|0]);
     var bseed=(r()*1e9)>>>0, winHue=(r()*winPal.length)|0;
     // REGION: New England reskins the walls to a colonial palette (barely any neon accent), and
@@ -3524,6 +3538,17 @@ function makeLayer(seed,y0,baseHMin,baseHMax,layerK){
     // almost at once, a downtown high-rise waits until the metropolis demands it.
     b.houseAge=Math.max(0.006, Math.min(0.42, 0.008+0.4*(0.6*cen+0.4*jit)));
     b.bAge=Math.max(b.houseAge, Math.min(0.95, b.houseAge+0.02+0.88*Math.pow(hN,1.3)));
+    // GROWTH IN A PLACE THAT NEVER BUILDS UPWARD. Nick's call: the village's week reads as MORE
+    // buildings packed CLOSER, never as taller ones. The plot-settlement clock (`houseAge`) already
+    // spreads by position, so the mechanism exists — but its range tops out at 0.42, which would fill
+    // the whole village by Wednesday and leave the back half of the week visually static. Stretched
+    // across nearly the entire life so the place is visibly still growing on day six.
+    // `bAge` is pinned ABOVE 1 so the redevelopment gate can never fire: no plot here ever becomes a
+    // tower, at any age. That is the single line that keeps this a village.
+    if(curVillage){
+      b.houseAge=Math.max(0.004, Math.min(0.88, 0.006+0.9*(0.55*cen+0.45*jit)));
+      b.bAge=2;
+    }
     // G1: when in the SPACE AGE does this building transform? Tall/central towers convert
     // first, the sprawl follows — the future radiates outward from the core.
     var jit2=((bseed*40503+29)>>>0)%1000/1000;
@@ -3531,7 +3556,7 @@ function makeLayer(seed,y0,baseHMin,baseHMax,layerK){
     // C1: the size of the construction crew decides how fast this one goes up
     b.crew=1+(((bseed*40503+11)>>>0)%3);                       // 1-3 builders on site
     b.band=GROWBAND*(1.55-0.35*b.crew);                        // 3 builders finish in ~40% the time of 1
-    blds.push(b); x+=bw+Math.round((d.gap[0]+((r()*d.gap[1])|0))*KSP);
+    blds.push(b); x+=bw+Math.max(curVillage?1:2,Math.round((d.gap[0]+((r()*d.gap[1])|0))*KSP*vGapK));
   }
   return {y0:y0, blds:blds};
 }
@@ -3631,7 +3656,11 @@ function buildWorld(li){
   // Nick's call, so a neon megacity can end up standing in a swamp or under a volcano. It restyles the
   // CITY ONLY: the mesa is still a mesa. A separate hash from the biome and variant rolls so it is
   // genuinely independent of which land you got.
-  curNeon = !!curBiome.neon || ((mixLi(li,374761393)%12)===0);
+  // THE HIDDEN VILLAGE is decided before the neon roll, because it VETOES it. The village's whole
+  // identity is that it is not a city, and a 1-in-12 chance of holograms over the tile roofs would
+  // throw that away roughly once a year — precisely on the rare life somebody finally gets the egg.
+  curVillage = (curBiome.k==="leaf");
+  curNeon = !curVillage && (!!curBiome.neon || ((mixLi(li,374761393)%12)===0));
   hasOcean = (li===0) ? true : (curBiome.water==="sea" ? true : curBiome.water==="river" ? false : geo()<0.6);
   // The SEA CLIFFS get a far wider coast than anywhere else. Nick named that land the weakest of the
   // seven, and the reason was that a biome literally called SEA CLIFFS was rendering with no visible
@@ -5898,7 +5927,123 @@ function drawCreole(g,bx,b,L,now,dayLit){
   g.fillStyle=L>0.5?"#3a2418":"#180f08"; g.fillRect(hx+((hw-3)>>1),HORIZON-5,3,5);                       // tall door
   if(L<0.62){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,190,90,0.75)"; g.fillRect(hx,HORIZON-6,1,1); g.globalCompositeOperation="source-over"; }  // gas lamp
 }
+// ============ THE HIDDEN VILLAGE: ITS ARCHITECTURE ============
+// Nick, on why the leaf land did not read as the village even with the carved faces and the roof
+// runners in place: it had "ordinary CityLive city blocks". Right diagnosis — the single most
+// recognisable thing about this place is not any prop, it is the BUILDING: a round white-plaster
+// drum under a red tile roof that overhangs it, low, packed close, repeated up a hillside.
+//
+// WHAT MAKES IT READ, in priority order (a pixel sprite gets about three ideas, so spend them well):
+//   1. the SILHOUETTE — a cylinder capped by a cone WIDER than the cylinder. The overhanging eave is
+//      the whole tell; without it a round drum is just a rectangle with soft corners.
+//   2. the COLOUR PAIR — warm white plaster against terracotta. Nothing else in the engine is that pair.
+//   3. curvature — a lit limb, a shaded limb, and a soft terminator, so the drum reads as round
+//      rather than as a flat panel. Three columns of shading do this; a gradient at this size is mush.
+// Everything else (banners, balconies, vents, the odd second drum) is variety, and variety is the
+// point: the market-stall wall of [[citylive-smoothness]] was one identical sprite stamped on a fixed
+// pitch, and it read as a wall of people. Nothing here may be on a fixed pitch.
+function drawVillageHouse(g,bx,b,L,now,dayLit,night){
+  var K=Math.max(1,KSP), s=b.seed>>>0;
+  var big=(s%7)===0;                                             // a few larger compounds among the homes
+  var storeys=big?2:((s>>>3)%5===0?2:1);
+  // the drum. Roughly as wide as it is tall per storey — a squat cylinder, not a tower.
+  var dw=Math.min(b.w, Math.round((big?15:10)*K)+((s>>>5)%Math.max(1,Math.round(4*K))));
+  var sh=Math.round((big?7:6)*K)+((s>>>9)%Math.max(1,Math.round(2*K)));   // storey height
+  var dh=sh*storeys;
+  var dx=bx+((b.w-dw)>>1), top=HORIZON-dh;
+  // PLASTER. Warm white, weathered slightly per house so a hillside of them is not one flat field.
+  var wear=((s>>>13)%24)/100;
+  var plaster=[238-wear*90, 232-wear*86, 214-wear*82];
+  if(cityEra.tint) plaster=mixc(plaster,cityEra.tint,cityEra.blend*0.35);
+  var lit=mixc(plaster,[255,244,214],0.30*dayLit), shade=mixc(plaster,[64,58,64],0.34);
+  var mid=mixc(plaster,[120,112,104],0.10);
+  // the drum, shaded across its width so it reads ROUND: lit limb, body, terminator, shadow limb.
+  var q=Math.max(1,Math.round(dw*0.22));
+  g.fillStyle=css(dayLit>0.12?lit:mixc(plaster,[40,44,60],0.55));  g.fillRect(dx,top,q,dh);
+  g.fillStyle=css(dayLit>0.12?plaster:mixc(plaster,[34,38,54],0.62)); g.fillRect(dx+q,top,dw-q*2,dh);
+  g.fillStyle=css(dayLit>0.12?mid:mixc(plaster,[28,32,48],0.68));  g.fillRect(dx+dw-q,top,q,dh);
+  g.fillStyle=css(shade); g.fillRect(dx+dw-Math.max(1,Math.round(K*0.7)),top,Math.max(1,Math.round(K*0.7)),dh);
+  // a storey band on the two-storey drums (a timber walkway ring — very much this vernacular)
+  if(storeys>1){ g.fillStyle=css(mixc(plaster,[122,88,58],0.55));
+    g.fillRect(dx-Math.max(1,Math.round(K*0.5)),top+sh,dw+Math.max(2,Math.round(K)),Math.max(1,Math.round(K*0.8))); }
+  // THE ROOF — a terracotta cone that OVERHANGS the drum. This is the recognisable part.
+  var ov=Math.max(1,Math.round(1.6*K));                          // the eave's overhang each side
+  var rw=dw+ov*2, rh=Math.max(Math.round(3*K), Math.round(dw*(big?0.46:0.40)));
+  var tileA=[196,86,58], tileB=[150,58,42];
+  if(cityEra.tint) { tileA=mixc(tileA,cityEra.tint,cityEra.blend*0.3); tileB=mixc(tileB,cityEra.tint,cityEra.blend*0.3); }
+  var tA=dayLit>0.12?mixc(tileA,[255,208,150],0.26*dayLit):mixc(tileA,[26,30,48],0.60);
+  var tB=dayLit>0.12?tileB:mixc(tileB,[22,26,44],0.64);
+  for(var rr=0;rr<rh;rr++){
+    var f=rr/rh;
+    var w2=Math.max(Math.max(1,Math.round(K)), Math.round(rw*(1-f*0.86)));
+    // alternating courses give the tile its texture; the lit half stays lighter all the way up
+    g.fillStyle=css((rr%2===0)?tA:tB);
+    g.fillRect(dx+((dw-w2)>>1),top-1-rr,w2,1);
+    if(dayLit>0.12&&w2>3){ g.fillStyle=css(mixc(tA,[255,236,196],0.34*dayLit));
+      g.fillRect(dx+((dw-w2)>>1),top-1-rr,Math.max(1,Math.round(w2*0.26)),1); }
+  }
+  // the eave line itself — one dark course under the overhang so the roof visibly SITS ON the drum
+  g.fillStyle=css(dayLit>0.12?[110,44,34]:[16,18,30]);
+  g.fillRect(dx-ov,top-1,rw,Math.max(1,Math.round(K*0.7)));
+  if(snowpack>0.15){ g.fillStyle="rgba(240,246,255,"+Math.min(0.85,snowpack*0.9).toFixed(2)+")";
+    for(var sr=0;sr<Math.round(rh*0.5);sr++){ var sw2=Math.max(1,Math.round(rw*(1-(sr/rh)*0.86)));
+      g.fillRect(dx+((dw-sw2)>>1),top-1-sr,sw2,1); } }
+  // ROUND WINDOWS — few, dark by day, warm by night. Round-ish means a 2x2 with the corners bitten.
+  var wu=Math.max(1,Math.round(1.3*K));
+  var winOn=(L<0.6 && (((Math.floor(now/9000)+s)%4)!==0));
+  var wc=winOn?"rgba(255,206,140,0.95)":(dayLit>0.4?"#6b7a86":"#171b24");
+  for(var st=0;st<storeys;st++){
+    var wy=top+st*sh+Math.round(sh*0.34);
+    var nwin=dw>Math.round(11*K)?2:1;
+    for(var wi=0;wi<nwin;wi++){
+      var wx2=dx+Math.round(dw*(nwin===1?0.42:(0.22+wi*0.42)));
+      g.fillStyle=css(mixc(plaster,[92,80,70],0.5));                       // the reveal around the opening
+      g.fillRect(wx2-1,wy-1,wu*2+2,wu*2+2);
+      g.fillStyle=wc; g.fillRect(wx2,wy,wu*2,wu*2);
+      g.fillStyle=css(mixc(plaster,[92,80,70],0.5));                        // bitten corners = round
+      g.fillRect(wx2,wy,1,1); g.fillRect(wx2+wu*2-1,wy,1,1);
+      g.fillRect(wx2,wy+wu*2-1,1,1); g.fillRect(wx2+wu*2-1,wy+wu*2-1,1,1);
+      if(winOn){ g.globalCompositeOperation="lighter";
+        g.fillStyle="rgba(255,190,110,0.35)"; g.fillRect(wx2-1,wy-1,wu*2+2,wu*2+2);
+        g.globalCompositeOperation="source-over"; }
+    }
+  }
+  // DOORWAY — a dark arch with a short noren curtain, which is a second cheap cue
+  var dwid=Math.max(2,Math.round(3*K)), ddx=dx+Math.round(dw*0.5)-(dwid>>1), ddh=Math.min(Math.round(4.4*K),sh-1);
+  g.fillStyle=L>0.5?"#3a2a1e":"#120d09"; g.fillRect(ddx,HORIZON-ddh,dwid,ddh);
+  g.fillStyle=css(dayLit>0.12?[74,104,72]:[20,30,24]);                      // the curtain over the top half
+  g.fillRect(ddx,HORIZON-ddh,dwid,Math.max(1,Math.round(1.4*K)));
+  if(L<0.6){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,196,120,"+(0.34*night+0.08)+")";
+    g.fillRect(ddx,HORIZON-ddh+Math.round(1.4*K),dwid,ddh-Math.round(1.4*K)); g.globalCompositeOperation="source-over"; }
+  // VARIETY, none of it on a fixed pitch — every one of these is gated on a different bit of the seed.
+  if(((s>>>17)%3)===0){                                                     // a lean-to annexe drum
+    var aw=Math.max(2,Math.round(dw*0.42)), ah=Math.round(sh*0.72);
+    var ax2=((s>>>19)&1)?dx-aw+1:dx+dw-1;
+    g.fillStyle=css(dayLit>0.12?mixc(plaster,[240,236,220],0.2):mixc(plaster,[32,36,52],0.6));
+    g.fillRect(ax2,HORIZON-ah,aw,ah);
+    for(var ar=0;ar<Math.round(2*K);ar++){ var aw2=Math.max(1,aw+Math.round(K)-ar*2);
+      g.fillStyle=css((ar%2===0)?tA:tB); g.fillRect(ax2+((aw-aw2)>>1),HORIZON-ah-1-ar,aw2,1); }
+  }
+  if(((s>>>21)%4)===0&&storeys>1){                                          // a timber balcony on the upper drum
+    g.fillStyle=css(dayLit>0.12?[128,96,62]:[26,22,18]);
+    g.fillRect(dx-1,top+Math.round(sh*0.6),dw+2,Math.max(1,Math.round(K*0.8)));
+    for(var bp=0;bp<3;bp++) g.fillRect(dx+Math.round(dw*(0.2+bp*0.3)),top+Math.round(sh*0.6)-Math.round(1.6*K),Math.max(1,Math.round(K*0.6)),Math.round(1.6*K));
+  }
+  if(((s>>>23)%5)===0){                                                     // a banner hung from the eave
+    var bnc=[[196,74,58],[70,104,158],[212,168,60]][(s>>>25)%3];
+    g.fillStyle=css(dayLit>0.12?bnc:mixc(bnc,[20,24,40],0.6));
+    var bnx=dx+Math.round(dw*0.16), bnh=Math.round(3.4*K);
+    g.fillRect(bnx,top,Math.max(1,Math.round(1.6*K)),bnh);
+  }
+  // a water butt / crate at the door on some plots, so the ground line is not perfectly clean
+  if(((s>>>27)%3)===0){ g.fillStyle=css(dayLit>0.12?[122,98,70]:[26,24,20]);
+    g.fillRect(dx+dw+1,HORIZON-Math.round(2*K),Math.max(1,Math.round(2*K)),Math.round(2*K)); }
+}
 function drawHouse(g,bx,b,L,now,dayLit,night){
+  // THE HIDDEN VILLAGE replaces the vernacular outright — see drawVillageHouse. It comes first
+  // because on this land the "starter house" is not a stage the plot grows out of, it IS the
+  // architecture: `bAge` is pinned above 1 in makeLayer so no plot here ever redevelops into a tower.
+  if(curVillage){ drawVillageHouse(g,bx,b,L,now,dayLit,night); return; }
   var era=cityEra.name, style="colonial";                                              // pick an architectural style for this house
   if(era==="boston") style="brownstone"; else if(era==="london"||era==="paris"||era==="china"||era==="tokyo") style="terrace";   // themed lives → whole-city look
   else if(era==="neworleans") style="creole";
@@ -5971,7 +6116,12 @@ function drawLayer(g,layer,L,now,fx,hol,haze){
     if(b.bAge!==undefined){                                    // ---- GROWTH: has this plot been redeveloped yet? ----
       var born=cityG-b.bAge;
       if(born<=0){                                             // its DESIGNED building isn't demanded yet…
-        if(b.type!=="park" && cityG>=b.houseAge && (layer===near||layer===mid))
+        // ⚠ THE FAR ROW IS NORMALLY EXCLUDED HERE, and that is right for an ordinary city: starter
+        // houses are a temporary stage and a horizon full of cottages would read as fog. But the
+        // village's houses are not a stage, they are the FINAL architecture — skipping `far` would
+        // leave an empty skyline behind the village and undo the whole point. So the village draws
+        // all three rows; everywhere else keeps the original near+mid behaviour exactly.
+        if(b.type!=="park" && cityG>=b.houseAge && (layer===near||layer===mid||curVillage))
           drawHouse(g,bx,b,L,now,dayLit,night);                // …so a small house settles the plot first (open land before that)
         continue;
       }
