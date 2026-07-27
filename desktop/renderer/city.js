@@ -3279,7 +3279,15 @@ var EGG_BIOMES=[
   // between them, and NOTHING visible below — the cloud floor is drawn over the base of every spire so
   // the land has no bottom. `steep` is pushed to the limit the height field allows, which is what turns
   // the peak profile into a column instead of a mountain.
-  { k:"air",    name:"THE HIGH TEMPLES", egg:1, amp:1.06, base:0.10, flat:0.0, steep:0.94, snow:false, water:null, spires:1,
+  // ⚠⚠ amp WAS 1.06 AND IT PUT THE TEMPLES OFF THE TOP OF THE SCREEN. Nick: "temple detail on the
+  // High Temples' plain grey columns" — the columns looked bare because the temples were not being
+  // cut off, they were rendered ABOVE y=0. Measured: ridge max 391 world px in a 437 wp frame, so a
+  // spire top sat at y≈20 and the temple, which is drawn UPWARD from the spire top, landed at y≈-30.
+  // A land whose entire identity is "temples on top" was drawing everything except the temples.
+  // 0.78 leaves ~120 wp of headroom above the tallest spire, which is room for a temple and sky.
+  // ⚠ The lesson generalises: anything drawn UPWARD from a landform's summit needs the summit capped
+  // to the frame MINUS its own height, not to the frame.
+  { k:"air",    name:"THE HIGH TEMPLES", egg:1, amp:0.78, base:0.10, flat:0.0, steep:0.94, snow:false, water:null, spires:1,
     far:[188,180,186],  near:[148,138,148], cap:[228,222,228], ground:[168,160,166],
     walls:[[236,228,214],[212,200,182],[248,242,230],[196,182,164],[228,216,198],[206,194,176],[242,236,222],[188,176,158]],
     fauna:{ keep:{deer:0,rabbit:0,fox:0,goat:1}, big:["goat"], small:[], air:["eagle","dove"] },
@@ -17357,20 +17365,44 @@ function drawSpireWorld(g,L,now,nd){
         g.fillStyle=day?"#e8d8c0":"#4a4038";
         g.fillRect(Math.round(wx),Math.round(wy)-Math.round(4.4*K),Math.max(1,Math.round(1.4*K)),Math.round(1.4*K)); }
     }
-    // the temple: a stepped plinth, a hall, and a slender tapering tower with a flared roof
-    var pw=Math.round((7+((i*7919)>>>0)%4)*K);
+    // ---- THE COLUMN ITSELF: strata and jointing, so it is ROCK rather than a grey bar ----
+    // Nick called these "plain grey columns" and at 46*K apart they are the biggest single shape in
+    // the frame. Banding costs a handful of rects and is the difference between stone and a rectangle.
+    var colW=Math.round(9*K);
+    g.fillStyle=day?"rgba(70,66,74,0.16)":"rgba(0,0,0,0.24)";
+    for(var bd2=ty+Math.round(6*K); bd2<gy; bd2+=Math.round(9*K)){
+      var bw3=colW+Math.round(Math.sin(bd2*0.11)*1.6*K);
+      g.fillRect(tx-bw3,bd2,bw3*2,Math.max(1,Math.round(K*0.8)));
+    }
+    g.fillStyle=day?"rgba(255,250,238,0.13)":"rgba(150,170,210,0.06)";   // a sunlit limb down one side
+    g.fillRect(tx-colW,ty+Math.round(4*K),Math.max(1,Math.round(1.6*K)),gy-ty);
+    // the temple: a stepped plinth, a hall, and a slender tapering tower with a flared roof.
+    // ⚠ BUILT MATERIAL, NOT ROCK. Warm plaster and a terracotta roof against grey stone is what makes
+    // it read as put there by somebody; at the old size it was also simply too small to see.
+    var pw=Math.round((10+((i*7919)>>>0)%5)*K);
     g.fillStyle=stone2; g.fillRect(tx-pw,ty-Math.round(1.6*K),pw*2,Math.round(2*K));
-    g.fillStyle=stone;  g.fillRect(tx-Math.round(pw*0.7),ty-Math.round(6*K),Math.round(pw*1.4),Math.round(4.6*K));
-    g.fillStyle=roof;   g.fillRect(tx-pw,ty-Math.round(7.6*K),pw*2,Math.round(1.8*K));
-    var th2=Math.round((10+((i*331)>>>0)%7)*K);
+    g.fillStyle=stone2;                                                   // stepped plinth, two courses
+    g.fillRect(tx-Math.round(pw*1.15),ty-Math.round(0.4*K),Math.round(pw*2.3),Math.round(1.6*K));
+    g.fillStyle=stone;  g.fillRect(tx-Math.round(pw*0.8),ty-Math.round(8*K),Math.round(pw*1.6),Math.round(6.6*K));
+    g.fillStyle=day?"#8a7f68":"#1b1b20";                                  // colonnade under the eave
+    for(var cq=0;cq<4;cq++)
+      g.fillRect(tx-Math.round(pw*0.7)+cq*Math.round(pw*0.44),ty-Math.round(6.4*K),Math.max(1,Math.round(K*0.9)),Math.round(5*K));
+    g.fillStyle=roof;   g.fillRect(tx-Math.round(pw*1.2),ty-Math.round(10*K),Math.round(pw*2.4),Math.round(2.2*K));
+    g.fillStyle=day?"#e0a24a":"#2c1a10";                                  // a gilded ridge line on the eave
+    g.fillRect(tx-Math.round(pw*1.2),ty-Math.round(10*K),Math.round(pw*2.4),Math.max(1,Math.round(K*0.7)));
+    var th2=Math.round((12+((i*331)>>>0)%8)*K);
     for(var ty2=0;ty2<th2;ty2++){
-      var tf=ty2/th2, tw2=Math.max(1,Math.round(pw*0.42*(1-tf*0.45)));
-      g.fillStyle=stone; g.fillRect(tx-tw2,ty-Math.round(7*K)-ty2,tw2*2,1);
-      g.fillStyle=stone2; g.fillRect(tx+tw2-Math.max(1,Math.round(K)),ty-Math.round(7*K)-ty2,Math.max(1,Math.round(K)),1);
+      var tf=ty2/th2, tw2=Math.max(1,Math.round(pw*0.46*(1-tf*0.45)));
+      g.fillStyle=stone; g.fillRect(tx-tw2,ty-Math.round(9.6*K)-ty2,tw2*2,1);
+      g.fillStyle=stone2; g.fillRect(tx+tw2-Math.max(1,Math.round(K)),ty-Math.round(9.6*K)-ty2,Math.max(1,Math.round(K)),1);
+      if(ty2%Math.max(2,Math.round(4*K))===0){                          // tiled tiers stepping up the tower
+        g.fillStyle=roof; g.fillRect(tx-tw2-Math.round(1.4*K),ty-Math.round(9.6*K)-ty2,tw2*2+Math.round(2.8*K),Math.max(1,Math.round(K*0.9)));
+      }
     }
     g.fillStyle=roof;                                                  // the flared cap
-    g.fillRect(tx-Math.round(pw*0.6),ty-Math.round(7*K)-th2-Math.round(1.6*K),Math.round(pw*1.2),Math.round(2*K));
-    g.fillRect(tx-Math.max(1,Math.round(K)),ty-Math.round(7*K)-th2-Math.round(4*K),Math.max(2,Math.round(2*K)),Math.round(2.4*K));
+    g.fillRect(tx-Math.round(pw*0.7),ty-Math.round(9.6*K)-th2-Math.round(1.6*K),Math.round(pw*1.4),Math.round(2.2*K));
+    g.fillStyle=day?"#e8c05a":"#3a2a12";                                // a gold finial on the crown
+    g.fillRect(tx-Math.max(1,Math.round(K)),ty-Math.round(9.6*K)-th2-Math.round(5*K),Math.max(2,Math.round(2*K)),Math.round(3.4*K));
     if(!day){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,206,140,0.8)";
       g.fillRect(tx-Math.round(pw*0.3),ty-Math.round(4.4*K),Math.round(pw*0.6),Math.round(1.6*K));
       g.globalCompositeOperation="source-over"; }
