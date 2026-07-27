@@ -3905,7 +3905,13 @@ function buildWorld(li){
     c:PEDC[(r()*PEDC.length)|0], sk:SKINC[(r()*SKINC.length)|0], row:(r()*2)|0});
   // crosswalks + pedestrian signals, spaced along the city
   r=rng(seed+29); crosswalks=[];
-  for(var cwx=40; cwx<WW-20; cwx+=54+((r()*24)|0)){ if(inSea(cwx)) continue; crosswalks.push({x:cwx, ph:(r()*12000)|0, seed:(r()*1e6)|0}); }
+  // ⚠ SPACING WAS 54-78 world px, which is roughly every block and a half. Nick: "the road looks
+  // weird, can we fix it to look better?" — at that pitch one screen carries 11-14 crossings and the
+  // street reads as a zebra pattern with tarmac between the stripes rather than a road with
+  // crossings on it. Real crosswalks sit at INTERSECTIONS, not continuously.
+  // 132-208 wp puts 4-6 on a screen, which is what a city street actually looks like, and it lets
+  // the lane markings and the traffic read instead of competing with a wall of white bars.
+  for(var cwx=40; cwx<WW-20; cwx+=132+((r()*76)|0)){ if(inSea(cwx)) continue; crosswalks.push({x:cwx, ph:(r()*12000)|0, seed:(r()*1e6)|0}); }
   // drones weave over the city, world coordinates so they cross bezels in sync
   r=rng(seed+17); drones=[]; var dn=Math.round(WW/300)+3;   // uniform across screens (one city)
   for(i=0;i<dn;i++) drones.push({x0:r()*WW, vx:(r()<0.5?-1:1)*(0.0006+r()*0.0008), y:34+r()*90, ay:8+r()*14, wy:0.0009+r()*0.0009, ph:r()*6, led:r()<0.5});
@@ -6145,6 +6151,12 @@ function drawVillageHouse(g,bx,b,L,now,dayLit,night){
     if(dayLit>0.12&&w2>3){ g.fillStyle=css(mixc(tA,[255,236,196],0.34*dayLit));
       g.fillRect(dx+((dw-w2)>>1),top-1-rr,Math.max(1,Math.round(w2*0.26)),1); }
   }
+  // PUBLISH THE ROOFLINE. The roof runners traverse REAL houses, and the only place the drawn roof
+  // apex is known is here — dw, sh, storeys and rh are all derived locally from the seed. Recomputing
+  // that formula inside the runner would be a second copy that silently drifts the first time either
+  // changes; recording it costs two assignments on a sprite that is already being drawn.
+  // ⚠ Refreshed every frame, so it cannot go stale as the village grows.
+  b._roofY=top-rh; b._roofX=dx+(dw>>1);
   // the eave line itself — one dark course under the overhang so the roof visibly SITS ON the drum
   g.fillStyle=css(dayLit>0.12?[110,44,34]:[16,18,30]);
   g.fillRect(dx-ov,top-1,rw,Math.max(1,Math.round(K*0.7)));
@@ -16140,13 +16152,31 @@ function drawRoofRunners(g,L,now,nd){
   if(cityG<0.22) return;                                  // nothing to run across yet
   var day=L>0.5, K=Math.max(1,KSP), gy=HORIZON;
   var body=day?"#2e3138":"#0b0d10", cloth=day?"#8a4a3a":"#2a1512", skin=day?"#c9a888":"#3a3226";
-  var n=Math.max(2,Math.round(SW/(120*K)));
+  // ⚠⚠ REAL ROOFS. This used to invent both rooftops — an x from a hash and a height from
+  // `gy - (14+rand)*K` — so a runner leapt between two points that had nothing to do with the
+  // village underneath it, sometimes through open air and sometimes through a wall. The village
+  // brief calls this the land's TRAVERSAL LAYER, and a traversal layer that ignores the terrain it
+  // traverses is decoration. Houses publish their drawn roof apex (see drawVillageHouse) and the
+  // runners hop between ACTUAL neighbouring roofs.
+  var roofs=[];
+  if(near&&near.blds){
+    for(var ri=0;ri<near.blds.length;ri++){ var rb=near.blds[ri];
+      if(rb._roofY===undefined) continue;
+      if(rb._roofX<-20||rb._roofX>SW+20) continue;
+      roofs.push(rb);
+    }
+    roofs.sort(function(p,q){ return p._roofX-q._roofX; });
+  }
+  if(roofs.length<2) return;                       // nothing to cross between yet
+  var n=Math.min(roofs.length-1, Math.max(2,Math.round(SW/(120*K))));
   for(var i=0;i<n;i++){
     var h=((i*2654435761+((WORLD_SEED*17)|0))>>>0);
-    // two rooftops to cross between, at heights that read as roofs rather than as sky
-    var ax=Math.round(((h%1000)/1000)*SW), span=Math.round((36+((h>>>9)%54))*K);
-    var bx=ax+span;
-    var ay=gy-Math.round((14+((h>>>13)%22))*K), by=gy-Math.round((14+((h>>>17)%22))*K);
+    // pick a real pair of NEIGHBOURING roofs — a leap is only a leap if it lands somewhere
+    var from=roofs[(h>>>3)%(roofs.length-1)], to=roofs[((h>>>3)%(roofs.length-1))+1];
+    var ax=from._roofX, bx=to._roofX;
+    var span=bx-ax;
+    if(span<Math.round(6*K)||span>Math.round(150*K)) continue;   // too close to bother, too far to jump
+    var ay=from._roofY, by=to._roofY;
     var cyc=5200+((h>>>5)%3200), tp=((now+i*1100)%cyc)/cyc;
     var out=tp<0.44, back=tp>=0.52&&tp<0.96;
     if(!out&&!back) continue;                             // crouched on the ridge between runs
