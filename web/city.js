@@ -16698,6 +16698,17 @@ function drawCascades(g,L,now,nd){
     // the sheet runs from the lip to the FLOOR, not merely to the next bedding step: a plateau
     // rim quantised into stairs would otherwise give a two-pixel dribble instead of a waterfall.
     var fx=ed.x-Math.round(fw*0.5), len=Math.max(8,(gy-Math.round(2*K))-ed.top);
+    // ⚠⚠ THE WET-ROCK MARGIN, and without it the falls are INVISIBLE EVEN WHEN CORRECTLY DRAWN.
+    // Once the draw-order bug was fixed the cascades still did not read, because the sheet is pale
+    // blue-white and THE FALLS CITY plateau is pale cream-green — a white waterfall on a near-white
+    // cliff has almost nothing to separate it. Rock behind a fall is soaked dark and stays dark, so
+    // paint that first, slightly wider than the sheet. It gives the water something to be bright
+    // AGAINST, which is what makes it legible on any rock colour rather than only on dark rock.
+    var wetC=[(curBiome.near[0]*0.42)|0,(curBiome.near[1]*0.46)|0,(curBiome.near[2]*0.52)|0];
+    if(!day) wetC=[(wetC[0]*0.5)|0,(wetC[1]*0.5)|0,(wetC[2]*0.62)|0];
+    var mw=fw+Math.round(5*K);
+    g.fillStyle=css(wetC);
+    g.fillRect(ed.x-Math.round(mw*0.5),ed.top,mw,len);
     // the lip, then the sheet, widening and breaking up as it falls
     g.fillStyle=css(wTopC); g.fillRect(fx,ed.top-Math.max(1,Math.round(K)),fw,Math.round(2*K));
     for(var q=0;q<len;q++){
