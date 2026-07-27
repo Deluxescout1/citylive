@@ -11807,6 +11807,90 @@ function drawVillageLife(g,L,now,nd){
     }
   }
 }
+// ============ CYPRESS STANDING IN THE WATER ============
+// The Phase 4 brief for the bayou, in Nick's words: cypress standing IN the water, "not lined up on
+// a bank". That distinction is the whole land. A row of trees along a shoreline is a park with a
+// pond; trees rising OUT of the water, with their own reflections under them, is a swamp — because
+// it says the water has no edge, which is exactly what a bayou is.
+//
+// They stand at world-anchored positions across the whole band and at varying DEPTHS into it, so the
+// water reads as something you are looking across rather than at. Pure f(world x, clock).
+// ⚠ Drawn back-to-front (deepest first) so the near trunks overlap the far ones and the band gains
+// depth; painting them in world order would let a distant tree sit on top of a close one.
+function drawCypress(g,L,now,top,wTop,h,K,day){
+  var trunk=day?[78,66,54]:[16,14,13], trunkD=day?[54,45,38]:[10,9,9];
+  var moss =day?[136,148,116]:[24,30,26];
+  var leaf =day?[74,100,62]:[15,22,18];
+  var wind=Math.min(14,(weather&&weather.wind)||5);
+  // ⚠ COUNT FROM THE WORLD, NOT THE SCREEN. The positions are world-anchored across WW, so sizing
+  // the count by SW put ~12 trees across a 2269 wp world and only about four on any one monitor —
+  // a thin line of trees, which is the "lined up on a bank" reading the brief explicitly rejects.
+  // A bayou wants a stand you cannot see through.
+  var N=Math.round(WW/Math.max(14,Math.round(34*K)));
+  var trees=[];
+  for(var i=0;i<N;i++){
+    var hsh=((i*2654435761+((WORLD_SEED*23)|0))>>>0);
+    trees.push({ x:Math.round(((hsh%1000)/1000)*WW), d:((hsh>>>9)%100)/100, s:hsh });
+  }
+  trees.sort(function(a,b){ return a.d-b.d; });          // deepest (smallest d) first
+  for(var t2=0;t2<trees.length;t2++){
+    var T=trees[t2];
+    for(var o=-1;o<=1;o++){
+      var X=Math.round(T.x-WOFF+o*WW);
+      if(X<-14||X>SW+14) continue;
+      // how far out into the water it stands — and therefore how small and how pale it is
+      var depth=0.12+T.d*0.72;
+      var baseY=Math.round(wTop+depth*Math.max(4,h*0.72));
+      if(baseY>=SH-TASKBAR_WP-1) continue;
+      var far=1-depth;                                    // 1 = close, 0 = far out
+      var sc=(0.55+far*0.75)*K;
+      var th2=Math.round((16+((T.s>>>13)%12))*sc);
+      var haze=day?0.34*(1-far):0.42*(1-far);
+      var sway=Math.sin(now*0.0009+t2)*wind*0.045*sc;
+      // BUTTRESSED BASE — a cypress flares where it meets the water, and that flare is most of why
+      // it reads as standing IN it rather than in front of it
+      g.fillStyle=css(mixc(trunkD,[120,140,150],haze));
+      var bw=Math.max(2,Math.round(3.4*sc));
+      g.fillRect((X-(bw>>1))|0,(baseY-Math.round(2*sc))|0,bw,Math.round(2.6*sc));
+      // the trunk
+      g.fillStyle=css(mixc(trunk,[120,140,150],haze));
+      var tw3=Math.max(1,Math.round(1.8*sc));
+      for(var q=0;q<th2;q++){
+        var qf=q/th2;
+        g.fillRect(Math.round(X-(tw3>>1)+sway*qf),(baseY-Math.round(1.6*sc)-q)|0,tw3,1);
+      }
+      // the crown — flat-topped and ragged, the way a bald cypress reads at distance
+      var cy4=baseY-Math.round(1.6*sc)-th2;
+      g.fillStyle=css(mixc(leaf,[130,150,160],haze));
+      for(var cq=0;cq<Math.round(5*sc);cq++){
+        var cw4=Math.round((7+((T.s>>>17)%5))*sc*(1-cq/Math.round(6*sc)));
+        g.fillRect(Math.round(X-cw4*0.5+sway),(cy4-cq)|0,Math.max(1,cw4),1);
+      }
+      // SPANISH MOSS hanging off the limbs — the single most recognisable thing about the tree
+      g.fillStyle=css(mixc(moss,[130,150,160],haze));
+      for(var m=0;m<3;m++){
+        var mx=Math.round(X-Math.round(3*sc)+m*Math.round(3*sc)+sway);
+        var ml=Math.round((3+((T.s>>>(19+m))%4))*sc);
+        g.fillRect(mx,(cy4+Math.round(1*sc))|0,Math.max(1,Math.round(sc*0.8)),ml);
+      }
+      // KNEES — the little root spikes that break the surface around a cypress
+      if(far>0.4){
+        g.fillStyle=css(mixc(trunkD,[120,140,150],haze));
+        for(var kn=0;kn<3;kn++){
+          var kx=X+Math.round((kn-1)*3.2*sc)+((T.s>>>(23+kn))%3)-1;
+          g.fillRect(kx|0,(baseY-Math.round(1.4*sc))|0,Math.max(1,Math.round(sc*0.7)),Math.round(1.6*sc));
+        }
+      }
+      // THE REFLECTION. The bayou's water is a black mirror, so a tree standing in it has to be IN
+      // the mirror too — without this they look pasted onto the surface.
+      g.globalAlpha=0.26*(0.4+far*0.6);
+      g.fillStyle=css(mixc(trunk,[0,0,0],0.4));
+      for(var r3=0;r3<Math.min(th2*0.5,Math.round(10*sc));r3++)
+        g.fillRect(Math.round(X-(tw3>>1)),(baseY+Math.round(1*sc)+r3)|0,tw3,1);
+      g.globalAlpha=1;
+    }
+  }
+}
 // ============ THE BEACH, USED ============
 // Nick: "let's add people fishing and swimming like they would at a normal beach."
 // A beach with nobody on it is a texture. The point of putting the sea along the bottom of the frame
@@ -12222,6 +12306,7 @@ function drawSeaFrontBand(g,L,now){
       g.fillRect(sg,wTop+Math.round(((wsg*7)%Math.max(1,Math.round(h*0.6)))),Math.round(4*K),Math.max(1,Math.round(1.4*K)));
     }
     g.globalAlpha=1;
+    drawCypress(g,L,now,top,wTop,h,K,day);        // …and the trees standing IN it
   } else if(k==="arctic"){
     // brash ice packed against the wall, and floes drifting in the open lead beyond it
     g.fillStyle=day?"#dfeaf4":"#2c3a4c";
@@ -23276,7 +23361,12 @@ function draw(g,pass){
   drawSpireWorld(g,L,now,nd);     // the high temples, standing on cloud
   drawBiomeDetail(g,L,now,nd);    // and whatever else lives on this particular land
   drawBiomeLandmark(g,L,now,nd);  // and the one structure that says where you are
-  drawPlateauTowns(g,L,now,nd);   // and whatever stands on top of a flat-topped mountain
+  // ⚠ THE PLATEAU TOWNS MOVED TO THE LIVE RATE TOO — see past the "bg" return.
+  // Nick: "the people up there are moving REALLY slow like they are just jumping around, everyone
+  // else is fine." Same bug as the gondola and the climbers, and I missed it when I swept for movers
+  // because this function is MOSTLY STATIC BUILDINGS — but it carries people, and at 0.5 fps a
+  // walking person does not look slow, it looks like it is teleporting between two poses.
+  // ⚠ The lesson: a function is "animated" if ANY part of it moves, not if most of it does.
   if(curRegime&&curRegime.active) drawHillEmblem(g,L,now);   // THE ORDER's colossal emblem on the mountainside (nearer buildings occlude it)
   // ⚠⚠ THE GONDOLA AND THE CLIMBERS MOVED OUT OF THE BACKDROP — see the block just past the "bg"
   // return. They are drawn at the LIVE rate now, because they are the only things in this stack that
@@ -23316,6 +23406,7 @@ function draw(g,pass){
   // ridge it is strung across and BEHIND every building — exactly where it sat before.
   drawPlainsSky(g,L,now,nd,fx);   // on a plain the SKY is the scenery — towers, curtains, a far butte
   drawVolcano(g,L,now,nd);        // …and if it is a volcano, what the mountain is doing today
+  drawPlateauTowns(g,L,now,nd);   // and whatever stands on top of a flat-topped mountain
   drawGondola(g,L,now);           // a cable-car + summit lodge on the tallest peak (mature cities)
   drawClimbers(g,L,now,nd,fx);    // tiny mountaineers roping up the tallest peaks (fair-weather days)
   // The animated sky sits behind the cached city. It keeps every aerial/weather feature, but no
