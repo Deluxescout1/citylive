@@ -106,6 +106,30 @@ jobs:
         id: haveart
         run: |
           if [ -n "$(find artifacts -type f 2>/dev/null | head -1)" ]; then echo "found=true" >> "$GITHUB_OUTPUT"; else echo "found=false" >> "$GITHUB_OUTPUT"; fi
+      # ⚠⚠ IS THE SET *COMPLETE*? The check above only asks "did ANYTHING build", which is why v3.0.1
+      # first shipped broken: the Windows leg failed a unit test, mac and linux succeeded, artifacts
+      # existed, and the release published live and `make_latest` with NO Windows installer and NO
+      # latest.yml. `releases/latest/download/latest.yml` then 404'd and Windows auto-update was dead
+      # for everyone on the previous version — a silent, user-facing outage caused by a green-ish run.
+      # The three update manifests are what electron-updater actually fetches, so they are the test.
+      # This keeps the original intent (one flaky OS leg must not hold the others hostage): an
+      # incomplete set still publishes, but as a DRAFT that is never `latest`, so nobody auto-updates
+      # into a hole — and the job then FAILS so it cannot pass unnoticed.
+      - name: Is the installer set complete?
+        id: complete
+        if: ${{ steps.haveart.outputs.found == 'true' }}
+        run: |
+          missing=""
+          for f in latest.yml latest-mac.yml latest-linux.yml; do
+            [ -n "$(find artifacts -type f -name "$f" 2>/dev/null | head -1)" ] || missing="$missing $f"
+          done
+          if [ -z "$missing" ]; then
+            echo "all=true" >> "$GITHUB_OUTPUT"
+            echo "Complete: all three update manifests present."
+          else
+            echo "all=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::INCOMPLETE RELEASE — missing:$missing. Publishing as a DRAFT so it never becomes 'latest'."
+          fi
       - name: Publish release
         id: publish
         if: ${{ steps.haveart.outputs.found == 'true' }}
@@ -114,10 +138,19 @@ jobs:
         with:
           files: artifacts/**/*
           generate_release_notes: true
-          draft: false
-          make_latest: true
+          draft: ${{ steps.complete.outputs.all != 'true' }}
+          make_latest: ${{ steps.complete.outputs.all == 'true' }}
       - name: Ensure the release is published        # belt-and-suspenders: even if the action above flaked mid-upload, the release exists with its assets — flip it live so electron-updater sees it
-        if: ${{ always() && steps.haveart.outputs.found == 'true' }}
+        if: ${{ always() && steps.haveart.outputs.found == 'true' && steps.complete.outputs.all == 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release edit "${{ github.ref_name }}" --draft=false --latest --repo "${{ github.repository }}"
+      # Fail loudly on an incomplete set. The draft above preserves the work — nothing is lost and the
+      # assets that DID build are attached — but a partial release must never be mistaken for a good
+      # one, and a green run is exactly how the last one slipped through.
+      - name: Refuse to call an incomplete release good
+        if: ${{ always() && steps.haveart.outputs.found == 'true' && steps.complete.outputs.all != 'true' }}
+        run: |
+          echo "::error::Release ${{ github.ref_name }} is INCOMPLETE and was left as a DRAFT."
+          echo "Fix the failing build leg, delete the draft and its tag, then re-tag."
+          exit 1
