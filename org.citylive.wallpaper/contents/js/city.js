@@ -3692,16 +3692,19 @@ function setup(scene,opts){
   SEA_FRONT=Math.round(seaFrontOf(landOf(_li0).b)*Math.max(1,KSP)*0.5);
   // never let the water eat more than a third of the frame on a short screen
   SEA_FRONT=Math.min(SEA_FRONT, Math.round(SH*0.30));
-  HORIZON=SH-GROUND-SEA_FRONT;                // street baseline (back edge of sidewalk)
   // ⚠⚠ THE SEA MUST SIT ABOVE THE TASKBAR. Nick: "the road on the middle screen looks bad."
   // SEA_Y was SH-SEA_FRONT — the bottom-most band of the frame — but that band is exactly where a
   // bottom panel sits. His middle monitor reports taskbarWp=28, so the entire ocean was rendering
   // BEHIND the taskbar: all that was left on screen was an over-tall empty road with a guardrail
   // along its bottom edge and no water at all, which is precisely what "looks bad" describes.
-  // GROUND already carries the panel clearance (max(26, taskbarWp+18)), so HORIZON is unchanged and
-  // no inland land moves; only the waterline comes up out of the panel.
   TASKBAR_WP=Math.max(0,(opts.taskbarWp||0));
   SEA_Y=SH-TASKBAR_WP-SEA_FRONT;              // the waterline: everything below this is open water
+  // ⚠⚠ AND THE ROAD HAS TO END WHERE THE WATER BEGINS. Lifting the waterline out of the panel without
+  // lifting the street with it left the road's lowest LANES below SEA_Y — so on the beach there were
+  // CARS DRIVING ON THE SAND. So on a coastal land the street baseline is measured UP FROM THE
+  // WATERLINE rather than down from the frame, which keeps the whole road band above the sea at any
+  // panel height. Inland lands keep the original expression exactly, so nothing else moves.
+  HORIZON=(SEA_FRONT>0) ? (SEA_Y-GROUND) : (SH-GROUND);   // street baseline (back edge of sidewalk)
   buildWorld(_li0);
   if(!NOFETCH){                  // NOFETCH: headless/almanac callers (Control Center, KDE config page) set this
     maybeFetchWeather();          // seed the shared 10-min window on boot (draw() keeps it fresh thereafter)
@@ -11792,11 +11795,128 @@ function drawVillageLife(g,L,now,nd){
     }
   }
 }
+// ============ THE BEACH, USED ============
+// Nick: "let's add people fishing and swimming like they would at a normal beach."
+// A beach with nobody on it is a texture. The point of putting the sea along the bottom of the frame
+// was to make the coast somewhere the city MEETS the water, and that only lands if people are in it.
+//
+// Everything is a pure function of (world x, clock) like every other live layer, so all three
+// monitors show the same bathers in the same places with no shared state.
+// ⚠ Gated on WEATHER and TIME OF DAY, because an empty beach in February rain is correct and a
+// crowded one would be the lie. Swimmers need warmth; the fishers stay out in almost anything.
+function drawBeachLife(g,L,now,top,wTop,h,K,day){
+  if(cityPhase==="apoc") return;
+  var temp=(weather&&weather.temp!=null)?weather.temp:62;
+  var fx2=(typeof wfx==="function")?wfx():null;
+  var foul=fx2&&(fx2.rain||fx2.snow||fx2.thunder);
+  var hr=(typeof FRAME_NOW==="number")?new Date(FRAME_NOW).getHours():13;
+  var daylight=(hr>=7&&hr<=20);
+  // how busy: hot afternoons pack it, cold or wet empties it
+  var warmth=Math.max(0,Math.min(1,(temp-58)/26));
+  var busy=daylight?warmth*(foul?0.12:1):(foul?0:0.10);
+  var seedW=(WORLD_SEED*2654435761)>>>0;
+
+  // ---- SWIMMERS: heads bobbing in the shallows, with a little wake. They only go in when it is
+  // genuinely warm, which is why the beach reads differently in June and October.
+  if(busy>0.18){
+    var swN=Math.round(14*busy);
+    for(var s=0;s<swN;s++){
+      var sh2=((s*2654435761+seedW)>>>0);
+      var swx=Math.round(((sh2%1000)/1000)*WW)-WOFF;
+      if(swx<-4||swx>SW+4) continue;
+      // they drift along the shore slowly and bob with the swell
+      var drift=Math.sin(now*0.00012+s*1.3)*10*K;
+      var X=Math.round(swx+drift);
+      var depth=0.18+((sh2>>>7)%60)/100;                       // how far out
+      var Y=Math.round(wTop+depth*Math.max(4,h*0.55)+Math.sin(now*0.0016+s)*1.2*K);
+      if(Y>=SH-TASKBAR_WP-1) continue;
+      g.fillStyle=css(SKINC_RGB(sh2));
+      g.fillRect(X,Y,Math.max(1,Math.round(1.6*K)),Math.max(1,Math.round(1.4*K)));   // head
+      g.fillStyle=day?"rgba(255,255,255,0.55)":"rgba(190,210,235,0.35)";
+      g.fillRect(X-Math.round(2*K),Y+Math.round(1.4*K),Math.round(5*K),Math.max(1,Math.round(K*0.7)));  // wake
+      if(((sh2>>>13)%3)===0){                                   // an arm mid-stroke
+        g.fillStyle=css(SKINC_RGB(sh2));
+        g.fillRect(X+Math.round((Math.floor(now/300)+s)%2?2:-2)*K,Y-Math.round(K),Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
+      }
+    }
+  }
+  // ---- ON THE SAND: towels, sunbathers, someone stood at the waterline with their feet in it
+  var sandTop=wTop-Math.round(3*K);
+  var sN=Math.round(16*Math.max(0.15,busy));
+  for(var q=0;q<sN;q++){
+    var qh=((q*40503+(seedW>>>3))>>>0);
+    var qx=Math.round(((qh%1000)/1000)*WW)-WOFF;
+    if(qx<-4||qx>SW+4) continue;
+    var kind=(qh>>>5)%4;
+    var qy=sandTop+Math.round(((qh>>>9)%3)*K);
+    if(kind===0){                                               // a towel with somebody lying on it
+      var tc=[[214,74,90],[70,140,200],[240,200,80],[120,190,140]][(qh>>>11)%4];
+      g.fillStyle=css(day?tc:mixc(tc,[0,0,0],0.62));
+      g.fillRect(qx-Math.round(3*K),qy,Math.round(6*K),Math.max(1,Math.round(1.4*K)));
+      g.fillStyle=css(SKINC_RGB(qh));
+      g.fillRect(qx-Math.round(2*K),qy-Math.round(K),Math.round(4*K),Math.max(1,Math.round(K)));
+    } else if(kind===1&&busy>0.3){                              // a parasol
+      var uc=[[228,96,96],[90,170,220],[245,210,90]][(qh>>>15)%3];
+      g.fillStyle=day?"#8a7a5a":"#241f18";
+      g.fillRect(qx,qy-Math.round(6*K),Math.max(1,Math.round(K*0.8)),Math.round(6*K));
+      g.fillStyle=css(day?uc:mixc(uc,[0,0,0],0.6));
+      for(var ur=0;ur<Math.round(2.4*K);ur++)
+        g.fillRect(qx-Math.round(5*K)+ur,qy-Math.round(6*K)-ur,Math.round(10*K)-ur*2,1);
+    } else {                                                    // somebody stood at the waterline
+      var wob=Math.sin(now*0.0007+q)*1.2*K;
+      drawPerson(g,(qx+wob)|0,(wTop+Math.round(K))|0,PEDC[(qh>>>17)%PEDC.length],SKINC[(qh>>>19)%SKINC.length],
+                 (((qh>>>21)%4)===0)?((Math.floor(now/260)+q)&3):-1);
+    }
+  }
+  // ---- FISHERS: stood on the sand with a rod out over the water, or on the rocks at the ends.
+  // They are the ones who are there in bad weather, which is most of what makes them read as fishers
+  // rather than as beachgoers.
+  var fN=2+((seedW>>>7)%3);
+  for(var fi2=0;fi2<fN;fi2++){
+    var fh2=((fi2*2246822519+(seedW>>>5))>>>0);
+    var fx3=Math.round(((fh2%1000)/1000)*WW)-WOFF;
+    if(fx3<-6||fx3>SW+6) continue;
+    var fy2=wTop-Math.round(K);
+    drawPerson(g,fx3|0,fy2|0,PEDC[(fh2>>>9)%PEDC.length],SKINC[(fh2>>>11)%SKINC.length],-1);
+    // the rod, angled out over the water, with a line down to a float that bobs
+    var dirF=((fh2>>>3)&1)?1:-1;
+    g.fillStyle=day?"#6a5a3a":"#241f14";
+    for(var rq2=0;rq2<Math.round(7*K);rq2++)
+      g.fillRect((fx3+dirF*rq2)|0,(fy2-Math.round(4*K)-Math.round(rq2*0.7))|0,1,1);
+    var tipX=fx3+dirF*Math.round(7*K), tipY=fy2-Math.round(4*K)-Math.round(5*K);
+    var floatY=wTop+Math.round(3*K)+Math.round(Math.sin(now*0.0021+fi2)*1.2*K);
+    g.fillStyle=day?"rgba(240,240,240,0.55)":"rgba(170,190,215,0.4)";
+    for(var ly2=tipY;ly2<floatY;ly2+=2) g.fillRect(tipX|0,ly2|0,1,1);          // the line
+    g.fillStyle="#e04a3a"; g.fillRect(tipX|0,floatY|0,Math.max(1,Math.round(1.4*K)),Math.max(1,Math.round(1.4*K)));  // float
+    if(((fh2>>>17)%5)===0){                                                    // a bucket beside them
+      g.fillStyle=day?"#9aa4ae":"#2a2f34";
+      g.fillRect((fx3+dirF*Math.round(-3*K))|0,(fy2-Math.round(2*K))|0,Math.round(2.4*K),Math.round(2*K));
+    }
+  }
+}
+// small helper: a skin colour as rgb, for the sprites here that fill without css()
+function SKINC_RGB(h){ var c=SKINC[(h>>>0)%SKINC.length]; return hex2rgb(c); }
 // THE QUAY WALL AND THE GUARDRAIL — the two things that make a road beside water read as built
 // rather than as a rendering error. Every coastal land gets both; only the MATERIAL changes, because
 // a seafront in a bayou and a seafront on pack ice are the same civil engineering in different stuff.
 // Drawn over the road's outer edge (the road fills to SH) and under nothing, so it always reads.
 function drawSeaFrontEdge(g,L,now,top,h,K,day,k,nm){
+  // ⚠ A BEACH GETS NO GUARDRAIL. Nick, looking at the working coast: "this probably doesn't need the
+  // guardrail, keep the sidewalk though." He is right and the distinction is physical rather than
+  // decorative — a crash barrier exists where there is a DROP. The sea cliffs have one; a beach is
+  // something you walk down onto, so a rail across it reads as municipal fencing on sand.
+  // The sidewalk stays (it is the promenade), and a low kerb marks where the paving ends.
+  if(k==="beach"){
+    var kerb=day?[196,190,176]:[34,32,30];
+    g.fillStyle=css(kerb);  g.fillRect(0,top-Math.round(2*K),SW,Math.round(2*K));      // the kerb lip
+    g.fillStyle=css(mixc(kerb,[0,0,0],0.30)); g.fillRect(0,top,SW,Math.max(1,Math.round(K*0.8)));
+    // a few worn gaps where people step down onto the sand — a promenade has openings, not a wall
+    g.fillStyle=day?"rgba(206,190,152,0.9)":"rgba(40,36,30,0.9)";
+    for(var gp=((-WOFF%Math.max(20,Math.round(64*K)))+Math.max(20,Math.round(64*K)))%Math.max(20,Math.round(64*K));
+        gp<SW; gp+=Math.max(20,Math.round(64*K)))
+      g.fillRect(gp,top-Math.round(2*K),Math.round(9*K),Math.round(3*K));
+    return;
+  }
   var wallH=Math.round(5*K);                       // the quay wall standing in the water
   var railH=Math.round(5*K);                       // the barrier on the road side
   var wall, wall2, rail, post, cap;
@@ -12017,8 +12137,7 @@ function drawSeaFrontBand(g,L,now){
       }
     }
   } else if(k==="beach"){
-    // sand BELOW the wall — a slipway of beach between the seawall and the water, with a run-up of
-    // foam that actually advances and retreats over it
+    // sand between the promenade and the water, with a run-up of foam that advances and retreats
     var sand=day?[214,196,158]:[42,38,32], wet=day?[176,158,124]:[30,28,24];
     g.fillStyle=css(sand); g.fillRect(0,wTop-Math.round(3*K),SW,Math.round(4*K));
     g.fillStyle=css(wet);  g.fillRect(0,wTop,SW,Math.round(2.4*K));
@@ -12029,6 +12148,7 @@ function drawSeaFrontBand(g,L,now){
       var fy=wTop+Math.round(run*3.4*K+lip);
       g.fillRect(bf,fy,1,Math.max(1,Math.round(1.4*K)));
     }
+    drawBeachLife(g,L,now,top,wTop,h,K,day);       // …and the people who came for it
   } else if(k==="swamp"){
     // duckweed and lily mats drifting against the bulkhead — the bayou's water is a surface, not a sea
     g.globalAlpha=0.6;
