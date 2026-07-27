@@ -13762,10 +13762,51 @@ function drawRift(g,cd,L,now){
         }
         continue;
       }
-      var reach=(cd.w*0.85+i*11), gx=cx+side*ph*reach, aerial=(C.arch==="flyer"||C.arch==="wraith"), gy;
-      if(C.arch==="hopper"||C.behav==="leap") gy=HORIZON-1-Math.abs(Math.sin(now*0.006+cr*1.7))*11*(1-ph*0.3);   // pouncing arc
+      // ⚠⚠ THEY USED TO BLINK OUT. `ph` cycles 0..1 off the wall clock and the cull above drops the
+      // creature whenever it wraps, so an invader slid outward from the portal, vanished mid-street
+      // and reappeared at the portal — which is exactly what Nick reported. An invader now has a
+      // FATE (invaderFate): it emerges, it HUNTS, and it is killed by the military response that is
+      // already on screen. It never simply stops existing.
+      var kId=pi*31+cr, FT=invaderFate(cd,kId);
+      if(f<FT.born) continue;                                          // still coming through
+      if(f>FT.kill+0.05) continue;                                     // shot, and its corpse has been cleared
+      var dying=(f>FT.kill);                                           // the moment the military drops it
+      // HUNT: pick the nearest victim who is still alive and close on them. The victims are the same
+      // deterministic people drawCasualties will lay out, so the creature is visibly going AFTER
+      // somebody and that somebody is the one who ends up on the ground.
+      var hunt=null, hbest=1e9;
+      for(var vn=0; vn<casualtyCount(cd); vn++){
+        var VV=casualtyAt(cd,vn);
+        if((vn%Math.max(1,ncr))!==cr) continue;                        // each creature has its own prey
+        if(f>VV.dieF+0.02) continue;                                   // already taken
+        var vd=Math.abs(VV.x-cd.x);
+        if(vd<hbest){ hbest=vd; hunt=VV; }
+      }
+      var aerial=(C.arch==="flyer"||C.arch==="wraith"), gx, gy;
+      if(hunt){
+        var chase=Math.min(1,Math.max(0,(f-FT.born)/Math.max(0.02,hunt.dieF-FT.born)));
+        gx=cx+(disX(hunt.x)-cx)*chase;                                 // closing on them
+        var lunge=(chase>0.9)?Math.sin((chase-0.9)*31.4)*3*sc:0;       // the last pounce
+        gx+=lunge;
+      } else {
+        var reach=(cd.w*0.85+i*11);                                    // nobody left near — prowl
+        gx=cx+side*(0.35+0.3*Math.sin(now*0.0006+cr))*reach;
+      }
+      if(C.arch==="hopper"||C.behav==="leap") gy=HORIZON-1-Math.abs(Math.sin(now*0.006+cr*1.7))*11*0.7;   // pouncing arc
       else if(aerial) gy=cy2+7+Math.sin(now*0.004+cr)*5;               // hovering
-      else { gy=cy2+ph*(HORIZON-cy2); if(gy>HORIZON-1) gy=HORIZON-1; } // charge down to the street
+      else { var drop=Math.min(1,(f-FT.born)/0.05); gy=cy2+drop*(HORIZON-cy2); if(gy>HORIZON-1) gy=HORIZON-1; }
+      if(dying){                                                       // KILLED: it drops and burns off
+        var dk=(f-FT.kill)/0.05;
+        gy=Math.min(HORIZON-1, gy+dk*6*sc);
+        g.globalAlpha=1-dk;
+        drawCreature(g, gx, gy, C, L, now, cr*7+pi, sc);
+        g.globalAlpha=1;
+        g.globalCompositeOperation="lighter";                          // the hit that killed it
+        g.fillStyle="rgba(255,220,150,"+(0.8*(1-dk)).toFixed(2)+")";
+        g.fillRect((gx-2*sc)|0,(gy-3*sc)|0,4*sc,2*sc);
+        g.globalCompositeOperation="source-over";
+        continue;
+      }
       drawCreature(g, gx, gy, C, L, now, cr*7+pi, sc);
       if(C.behav==="spit" && f>0.18){ var pr=((now*0.02+cr)%1); g.globalCompositeOperation="lighter"; g.fillStyle=C.eye;
         g.fillRect((gx-side*pr*34)|0,(gy+(pr*pr*16))|0,sc,sc); g.globalCompositeOperation="source-over"; }   // acid/poison bolt at the city
@@ -13933,6 +13974,84 @@ function drawDisaster(g,cd,L,now){
   else if(cd.type==="smog") drawSmog(g,cd,L,now);
   else if(cd.type==="planecrash") drawPlaneCrash(g,cd,L,now);
   if(disDestroys(cd.type) && cd.type!=="planecrash"){ drawMilitaryResponse(g,cd,L,now); drawVictoryBeat(g,cd,L,now); }   // no tanks/jets fight a power cut, an inversion layer, or a plane crash (fire crews handle that — in drawPlaneCrash)
+  drawCasualties(g,cd,L,now);   // …and what the thing left behind. Drawn LAST so nothing paints over the dead.
+}
+// ============ THE DEAD ============
+// Nick: "add blood to disasters if people do die. We might need to make a death state for the people
+// so they don't just immediately disappear."
+// He is right that a death state is the missing piece. Until now a catastrophe killed a population
+// counter and nothing else — people carried on walking through it, and anything that DID vanish just
+// blinked out. A disaster with no consequence on the street is a weather effect.
+//
+// Deterministic, like every other thing in this engine: a victim is a pure function of (disaster
+// seed, index), so all three monitors agree on exactly who died, where, and when — with no shared
+// state and nothing to desync. `dieF` is a disaster-progress value, not a wall clock, so a body
+// appears at the same point in the story on a one-hour test cycle and on a one-week life.
+function casualtyCount(cd){
+  if(!cd||!disDestroys(cd.type)) return 0;
+  return Math.min(26, 3+cd.intensity*4);            // a CAT-5 leaves a lot more behind than a CAT-1
+}
+// the n-th victim of this disaster: where they fell, and at what disaster-progress
+function casualtyAt(cd,n){
+  var h=((n*2654435761+((cd.seed*7919)|0))>>>0); h^=h>>>13;
+  var span=cd.w*1.5;                                 // they die near the thing, not across the whole city
+  return { x: wrapW(cd.x - span*0.5 + (h%1000)/1000*span),
+           dieF: 0.12+((h>>>11)%1000)/1000*0.42,     // spread across the strike, not all at once
+           kind: (h>>>7)%3 };                        // which way they fell
+}
+// blood + a body, from the moment they fall until the city has cleared the street
+function drawCasualties(g,cd,L,now){
+  var N=casualtyCount(cd); if(!N) return;
+  var f=cd.f; if(f<0.12) return;
+  var day=L>0.5;
+  for(var n=0;n<N;n++){
+    var V=casualtyAt(cd,n);
+    if(f<V.dieF) continue;                           // not yet
+    var age=f-V.dieF;
+    // the body is carried away during the long aftermath, and the stain outlasts it
+    var bodyGone=age>0.30, stainA=Math.max(0, 1-age/0.62);
+    if(stainA<=0.02) continue;
+    var X=disX(V.x); if(X<-10||X>SW+10) continue;
+    var Y=HORIZON-1;
+    // ---- THE BLOOD. Dark, small, and it SPREADS for the first moments, then dries darker.
+    // Restraint is deliberate: this is a pixel city seen from across the river, and a pool that
+    // reads as a red puddle at 2 px is more disturbing and less silly than a spray.
+    var spread=Math.min(1, age/0.05);
+    var bw=Math.max(2, Math.round((2+V.kind)*spread*Math.max(1,KSP)*0.7));
+    var dry=Math.min(1, age/0.34);
+    var br=Math.round(150-70*dry), bg2=Math.round(18+10*dry), bb=Math.round(22+10*dry);
+    g.globalAlpha=stainA*(day?0.85:0.6);
+    g.fillStyle="rgb("+br+","+bg2+","+bb+")";
+    g.fillRect((X-(bw>>1))|0, Y, bw, Math.max(1,Math.round(KSP*0.5)));
+    if(bw>3){ g.fillStyle="rgb("+Math.round(br*0.7)+","+bg2+","+bb+")";
+      g.fillRect((X-(bw>>1)+1)|0, Y-1, Math.max(1,bw-2), 1); }        // a little pooling at the edge
+    // ---- THE BODY, lying where they fell. Two rects and a head — the same vocabulary as drawPerson,
+    // rotated flat, so it reads as one of the crowd rather than as a prop.
+    if(!bodyGone){
+      var cloth=PEDC[(n*7+(cd.seed|0))%PEDC.length], skin=SKINC[(n*5)%SKINC.length];
+      var dir=(V.kind&1)?1:-1;
+      g.globalAlpha=stainA;
+      g.fillStyle=css(mixc(hex2rgb(cloth),[0,0,0],day?0.25:0.55));
+      g.fillRect((X-2)|0, Y-1, 4, 1);                                  // torso, flat on the ground
+      g.fillStyle=css(mixc(hex2rgb(skin),[0,0,0],day?0.20:0.55));
+      g.fillRect((X+dir*3)|0, Y-1, 1, 1);                              // the head, fallen to one side
+      g.fillStyle=css(mixc(hex2rgb(cloth),[0,0,0],day?0.40:0.62));
+      g.fillRect((X-dir*2)|0, Y, 2, 1);                                // legs
+    }
+    g.globalAlpha=1;
+  }
+}
+// WHEN DOES THE MILITARY KILL INVADER k? Creatures used to blink out when a phase counter wrapped —
+// Nick: "when these things invade don't have them just randomly disappear, they need to start hunting
+// people unless they are shot by the Military." So each one now has a FATE: it emerges, it hunts, and
+// it is killed at a specific point by the response that is already on screen (drawMilitaryResponse
+// puts tanks, troops and jets in the frame from f=0.10). Better funded militaries clear them sooner.
+function invaderFate(cd,k){
+  var h=((k*40503+((cd.seed*2246822519)|0))>>>0); h^=h>>>11;
+  var born=0.02+((h%1000)/1000)*0.10;
+  var span=0.30+((h>>>9)%1000)/1000*0.26;
+  var kill=born+span*(1.25-0.5*milFund);             // a well-funded army ends it faster
+  return { born:born, kill:Math.min(0.78,kill) };
 }
 // ---- emergency HUD: flashing alert bar + intensity rating, world-anchored over the impact ----
 function drawDisasterHud(g,cd,now){
