@@ -17476,6 +17476,81 @@ function drawVolcano(g,L,now,nd){
     g.fillRect(sx-crW-rw2,sy-rq,rw2+Math.round(K),1);
     g.fillRect(sx+crW,sy-rq,rw2+Math.round(K),1);
   }
+  // ============ THE MOUNTAIN ITSELF ============
+  // Nick: the volcanoes "are a little basic — they should get more detail".
+  // The diagnosis is that everything interesting about this land was gated on `unrest`, an ~18-minute
+  // cycle that is at ZERO for the first 62% of it, and the glow additionally needs night. So on a
+  // quiet afternoon — which is most of the time somebody looks at it — a volcano rendered as a plain
+  // grey cone with a notch in the top. Activity should be the ACCENT on a detailed mountain, not the
+  // only thing that makes it worth looking at.
+  // Everything below is permanent and static per world-x, so it costs a few hundred rects once and
+  // reads at any hour, in any mood.
+  var vBase=mixc(day?B.near:[16,14,16],biomeSkc(day),day?0.24:0.20);
+  // --- STRATA: the layered ash-and-lava bedding a stratovolcano is literally named for. Bands follow
+  // the ridge so they wrap the cone instead of lying flat across it.
+  for(var st=1;st<9;st++){
+    var stY=sy+Math.round((gy-sy)*(st/9));
+    var band=css(mixc(vBase,[0,0,0],0.16+0.05*(st%2)));
+    g.fillStyle=band;
+    for(var bxx=Math.max(0,sx-Math.round(sh*1.5)); bxx<Math.min(SW,sx+Math.round(sh*1.5)); bxx++){
+      var bh2=hs[bxx]; if(bh2==null) continue;
+      var top2=gy-Math.round(bh2);
+      if(stY<=top2+1) continue;                                 // above this column's rock
+      var wob=Math.round(Math.sin(bxx*0.09+st)*1.2*K);
+      g.fillRect(bxx,stY+wob,1,Math.max(1,Math.round(K*0.7)));
+    }
+  }
+  // --- OLD LAVA CHANNELS: dark scars from previous eruptions, running from near the crater to the
+  // foot. These are what make a volcano read as something that has DONE this before.
+  var chans=3+((WORLD_SEED>>>5)%3);
+  for(var ch2=0;ch2<chans;ch2++){
+    var chh=((ch2*2654435761+((WORLD_SEED*13)|0))>>>0);
+    var cdir=(chh&1)?1:-1, cOff=Math.round(sh*(0.05+((chh>>>7)%40)/100));
+    g.fillStyle=css(mixc(vBase,[24,16,14],0.42));
+    for(var cy3=sy+Math.round(3*K); cy3<gy; cy3+=1){
+      var cprog=(cy3-sy)/Math.max(1,gy-sy);
+      var cxx=sx+cdir*Math.round(cOff+cprog*sh*0.55)+Math.round(Math.sin(cy3*0.13+ch2)*1.8*K);
+      if(cxx<0||cxx>=SW) continue;
+      if(gy-Math.round(hs[cxx]||0) > cy3) continue;             // stay on the rock
+      g.fillRect(cxx,cy3,Math.max(1,Math.round(1.6*K)),1);
+      if(((cy3+ch2)%7)===0){ g.fillStyle=css(mixc(vBase,[0,0,0],0.55));   // a shadowed levee edge
+        g.fillRect(cxx+Math.round(1.6*K),cy3,1,1);
+        g.fillStyle=css(mixc(vBase,[24,16,14],0.42)); }
+    }
+  }
+  // --- SULPHUR round the vent: the yellow-green staining every active crater has
+  g.fillStyle=day?"rgba(198,186,86,0.30)":"rgba(120,112,50,0.22)";
+  for(var su=0;su<Math.round(10*K);su++){
+    var sud=Math.round(crW*(1.0+su/(6*K)));
+    g.fillRect(sx-sud,sy+Math.round(su*0.5),Math.max(1,Math.round(2*K)),1);
+    g.fillRect(sx+sud-Math.round(2*K),sy+Math.round(su*0.5),Math.max(1,Math.round(2*K)),1);
+  }
+  // --- TALUS: loose scree fanning out at the foot, where a real cone meets the ground
+  g.fillStyle=css(mixc(vBase,[0,0,0],0.10));
+  for(var tx2=Math.max(0,sx-Math.round(sh*1.4)); tx2<Math.min(SW,sx+Math.round(sh*1.4)); tx2+=Math.max(1,Math.round(2*K))){
+    var th3=hs[tx2]; if(th3==null||th3<=0) continue;
+    var edge=1-Math.min(1,Math.abs(tx2-sx)/Math.max(1,sh*1.4));
+    var tal=Math.round((2+edge*5)*K*(0.6+0.4*((tx2*7)%3)/2));
+    g.fillRect(tx2,gy-tal,Math.max(1,Math.round(2*K)),tal);
+  }
+  // --- FUMAROLES: small steam vents on the flanks, ALWAYS going. A quiet volcano still steams, and
+  // this is the cheapest thing that says "this mountain is alive" on a calm afternoon.
+  for(var fu=0;fu<4;fu++){
+    var fuh=((fu*40503+((WORLD_SEED*29)|0))>>>0);
+    var fudir=(fuh&1)?1:-1;
+    var fux=sx+fudir*Math.round(sh*(0.18+((fuh>>>9)%46)/100));
+    if(fux<0||fux>=SW) continue;
+    var fuy=gy-Math.round((hs[fux]||0))-1;
+    if(fuy>=gy-2) continue;
+    var puff=((now*0.0009+fu*0.37)%1);
+    g.globalAlpha=0.34*(1-puff);
+    g.fillStyle=day?"#d8d4d0":"#4a4744";
+    for(var pz=0;pz<4;pz++){
+      var pzy=fuy-Math.round(puff*10*K)-pz*Math.round(2*K);
+      g.fillRect((fux+Math.round(Math.sin(puff*5+pz)*1.6*K))|0,pzy|0,Math.max(1,Math.round((1.4+pz*0.5)*K)),Math.max(1,Math.round(1.4*K)));
+    }
+    g.globalAlpha=1;
+  }
   var glow=(1-L)*0.55+unrest*0.55;                     // reads at night, and by day only when stirring
   if(glow>0.06){
     g.globalCompositeOperation="lighter";
