@@ -2860,8 +2860,14 @@ var BIOMES=[
     // krummholz at the treeline (a wind-bent pine IS the alpine plant), juniper and meadow below it
     flora:{ kinds:["windbent","juniper","grass","windbent","scrub"], bloom:["#e8b0d0","#ffe08a","#ffffff","#b0c8f0"] },
     sky:{ top:[74,132,206], bot:[198,220,240], k:0.30, haze:[210,226,240] } },
+  // ⚠ LIGHTENED. Nick: "the tall trees is too dark… like the map itself." The palette was a set of
+  // deep forest greens, and because the giants' crowns take their colour from `near` and the near
+  // band only mixes ~0.16 toward the sky, the biggest shapes on the map sat almost at [46,74,58] —
+  // near-black against a dim canopy sky. A forest floor IS shaded, but this read as night at 1pm.
+  // Lifted roughly 40% in value while keeping the same hue relationships, so it is still a forest
+  // and still darker than open country, just legible.
   { k:"forest", name:"OLD FOREST", amp:0.86, base:0.55, flat:0.0, steep:0.0, snow:false, water:null,
-    far:[74,104,86],   near:[46,74,58],    cap:[120,152,110], ground:[62,92,64],
+    far:[104,138,114],  near:[74,108,84],   cap:[150,182,138], ground:[88,122,88],
     walls:[[112,84,58],[96,72,48],[138,106,72],[196,186,164],[86,96,74],[120,110,88],[150,132,102],[72,84,66]],
     fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:0}, big:["elk","bear","boar"], small:["squirrel"], air:["owl"] },
     flora:{ kinds:["fern","generic","fern","log","generic"], bloom:["#e8e0c0","#cfd8b0","#ffffff"] },
@@ -15930,8 +15936,8 @@ function drawForestBackdrop(g,L,now,nd){
   // THE MID RANK — old-growth between the treeline and the giants. Hazed halfway between the two so
   // the eye reads three distances instead of two, and tall enough that its crowns sit in the middle
   // of the frame, which is the band that was empty sky.
-  var mT=css(mixc(day?[72,54,39]:[10,10,13], skc, day?0.28:0.24));
-  var mB=css(mixc(day?[52,39,27]:[7,7,10],  skc, day?0.28:0.24));
+  var mT=css(mixc(day?[104,80,58]:[13,13,17], skc, day?0.34:0.28));
+  var mB=css(mixc(day?[78,58,40]:[9,9,13],  skc, day?0.34:0.28));
   var mC=css(mixc(mixc(day?B.far:[9,14,12], skc, day?0.30:0.26),[176,108,138],sunsetK*0.28));
   for(i=0;i<bioTrees.mid.length;i++){ t=bioTrees.mid[i];
     for(w=-1;w<=1;w++){ sx=Math.round(t.x-WOFF+w*WW);
@@ -15941,8 +15947,10 @@ function drawForestBackdrop(g,L,now,nd){
     }
   }
   // the giants standing BEHIND the skyline
-  var nT=css(mixc(day?[58,42,30]:[8,9,12], skc, day?0.16:0.18));
-  var nB=css(mixc(day?[40,29,20]:[5,6,8],  skc, day?0.16:0.18));
+  // ⚠ the NEAR band is the one Nick is looking at — mixing only 0.16 toward the sky left the closest,
+  // largest trunks as near-black slabs. More haze and a warmer base: still the darkest band, but wood.
+  var nT=css(mixc(day?[92,70,50]:[12,13,17], skc, day?0.26:0.22));
+  var nB=css(mixc(day?[70,52,36]:[8,9,12],  skc, day?0.26:0.22));
   var nC=css(mixc(mixc(day?B.near:[7,12,11], skc, day?0.18:0.18),[150,92,124],sunsetK*0.26));
   for(i=0;i<bioTrees.near.length;i++){ t=bioTrees.near[i];
     for(w=-1;w<=1;w++){ sx=Math.round(t.x-WOFF+w*WW);
