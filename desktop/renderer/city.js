@@ -2973,15 +2973,15 @@ var BIOMES=[
 //   spot  — small ground critters, at the classic speck scale (a lizard SHOULD be a speck)
 //   bird  — perched or circling
 var FAUNA={
-  elk:       {plan:"quad", w:12,h:9, c:[122,92,56],  c2:[70,52,32],   head:"antler"},
-  bear:      {plan:"quad", w:12,h:8, c:[56,45,41],   c2:[33,26,24],   head:"round", hump:1},
-  boar:      {plan:"quad", w:9, h:6, c:[78,68,60],   c2:[46,40,35],   head:"tusk",  hump:1},
-  bighorn:   {plan:"quad", w:9, h:7, c:[152,128,96], c2:[98,82,60],   head:"curl"},
-  coyote:    {plan:"quad", w:9, h:6, c:[160,134,98], c2:[106,86,62],  head:"snout"},
-  bison:     {plan:"quad", w:14,h:10,c:[88,66,49],   c2:[52,37,28],   head:"shag",  hump:2},
-  pronghorn: {plan:"quad", w:10,h:8, c:[192,158,110],c2:[248,244,234],head:"prong"},
-  cattle:    {plan:"quad", w:12,h:8, c:[198,190,178],c2:[98,76,60],   head:"horn"},
-  seal:      {plan:"quad", w:11,h:5, c:[104,100,96], c2:[62,60,58],   head:"seal",  legless:1},
+  elk:       {plan:"quad", w:10, h:6, c:[122,92,56],  c2:[70,52,32],   head:"antler"},
+  bear:      {plan:"quad", w:8, h:4, c:[56,45,41],   c2:[33,26,24],   head:"round", hump:1},
+  boar:      {plan:"quad", w:6, h:4, c:[78,68,60],   c2:[46,40,35],   head:"tusk",  hump:1},
+  bighorn:   {plan:"quad", w:7, h:4, c:[152,128,96], c2:[98,82,60],   head:"curl"},
+  coyote:    {plan:"quad", w:5, h:3, c:[160,134,98], c2:[106,86,62],  head:"snout"},
+  bison:     {plan:"quad", w:12, h:8,c:[88,66,49],   c2:[52,37,28],   head:"shag",  hump:2},
+  pronghorn: {plan:"quad", w:6, h:4, c:[192,158,110],c2:[248,244,234],head:"prong"},
+  cattle:    {plan:"quad", w:10, h:6, c:[198,190,178],c2:[98,76,60],   head:"horn"},
+  seal:      {plan:"quad", w:7, h:3, c:[104,100,96], c2:[62,60,58],   head:"seal",  legless:1},
   squirrel:  {plan:"spot", c:[128,92,58],  c2:[196,168,132], tail:"bushy"},
   lizard:    {plan:"spot", c:[126,116,74],  c2:[86,78,50],   tail:"long"},
   roadrunner:{plan:"spot", c:[92,84,66],   c2:[196,180,120], tail:"long", legs:1},
@@ -2994,30 +2994,30 @@ var FAUNA={
   dove:      {plan:"bird", c:[248,248,255], soar:1},
   // CORAL COAST. The turtle is a `quad` with `legless` — the same posture the hauled-out seal uses,
   // because a sea turtle on sand is a low shell on flippers and not a barrel on legs.
-  turtle:    {plan:"quad", w:10,h:5, c:[86,102,72],   c2:[58,72,50],   head:"seal", legless:1, shell:1},
+  turtle:    {plan:"quad", w:5, h:3, c:[86,102,72],   c2:[58,72,50],   head:"seal", legless:1, shell:1},
   crab:      {plan:"spot", c:[196,84,58],  c2:[236,140,104], claws:1},
   hermitcrab:{plan:"spot", c:[164,140,104], c2:[204,186,152], shell:1},
   tern:      {plan:"bird", c:[244,246,250], soar:1},
   frigate:   {plan:"bird", c:[42,44,52],   soar:1},
   // THE BAYOU. The gator is a `quad` with `legless` — the seal/turtle posture — because an alligator
   // at rest is a long low body on the waterline, not a barrel on legs.
-  gator:     {plan:"quad", w:15,h:4, c:[62,74,54],   c2:[40,50,36],   head:"snout", legless:1, ridged:1},
+  gator:     {plan:"quad", w:12, h:3, c:[62,74,54],   c2:[40,50,36],   head:"snout", legless:1, ridged:1},
   frog:      {plan:"spot", c:[92,126,72],  c2:[164,190,116], upright:1},
   turtle2:   {plan:"spot", c:[86,96,70],   c2:[122,132,96],  shell:1},
   heron:     {plan:"bird", c:[128,142,152], perch:1, wader:1},
   egret:     {plan:"bird", c:[246,248,246], perch:1, wader:1},
   // Species the VARIANTS need. A missing key is silently skipped by drawBiomeFauna (`if(!sp) continue`),
   // so a variant referencing one of these before it existed would just quietly have no animals.
-  ibex:      {plan:"quad", w:9, h:8, c:[164,142,108],c2:[104,88,64],  head:"curl"},
-  wolf:      {plan:"quad", w:10,h:7, c:[124,124,120],c2:[76,76,74],   head:"snout"},
+  ibex:      {plan:"quad", w:6, h:4, c:[164,142,108],c2:[104,88,64],  head:"curl"},
+  wolf:      {plan:"quad", w:6, h:3, c:[124,124,120],c2:[76,76,74],   head:"snout"},
   marmot:    {plan:"spot", c:[152,124,84],  c2:[196,172,132], upright:1},
   eagle:     {plan:"bird", c:[92,72,52],    soar:1, perch:1},
   raven:     {plan:"bird", c:[36,34,40],    soar:1, perch:1},
   // THE ARCTIC. The bear is drawn big and pale on purpose — it is the largest land animal in the set
   // and the only one that reads as a threat rather than as scenery.
-  polarbear: {plan:"quad", w:15,h:10,c:[238,240,240],c2:[198,206,214],head:"round", hump:1},
-  walrus:    {plan:"quad", w:14,h:6, c:[150,116,106],c2:[104,80,74],  head:"seal", legless:1, tusks:1},
-  caribou:   {plan:"quad", w:11,h:9, c:[156,142,124],c2:[214,208,198],head:"antler"},
+  polarbear: {plan:"quad", w:10, h:5,c:[238,240,240],c2:[198,206,214],head:"round", hump:1},
+  walrus:    {plan:"quad", w:11, h:4, c:[150,116,106],c2:[104,80,74],  head:"seal", legless:1, tusks:1},
+  caribou:   {plan:"quad", w:8, h:5, c:[156,142,124],c2:[214,208,198],head:"antler"},
   ptarmigan: {plan:"spot", c:[240,242,244], c2:[176,182,190], upright:1},
   skua:      {plan:"bird", c:[92,84,74],    soar:1},
   // THE SPRAWL. Nothing large lives here; what thrives is what always thrives.
@@ -12502,7 +12502,17 @@ function drawWildlife(g,wild,day,now,gy){
 // ones you are meant to be able to name at a glance. Scaled by KSP like everything else in the city,
 // so an elk does not shrink back into a speck on a 4K panel.
 function drawQuad(g,x,y,day,now,seed,sp,K){
-  var S=Math.max(0.8,K*0.85), u=Math.max(1,Math.round(S));
+  // ⚠⚠ ANIMALS ARE SIZED AGAINST THE PERSON, NOT AGAINST K. Nick: "animals must be sized
+  // proportionally to everything else, they should only [be] massive if they are genuinely
+  // that big." The bug was that `S` scaled with K while drawPerson does NOT — every rect in
+  // drawPerson is a literal offset, and the engine's own note says a person is 7 px and reads
+  // as one floor. So at Nick's KSP=2 the animals ran at 1.7x while people stayed at 1x.
+  // Measured against a 7 px human: a coyote was drawn 1.4x a person's height when a real one
+  // is 0.3x — 4.6x too big — and a bear 2.0x when a bear on all fours is 0.6x.
+  // The person is the fixed reference for this whole engine, so the reference is what animals
+  // are measured in. The FAUNA w/h values above are now true proportions in those units
+  // (4.12 px per metre), with floors so nothing shrinks into invisibility.
+  var S=1, u=1;
   var w=Math.max(4,Math.round(sp.w*S)), h=Math.max(3,Math.round(sp.h*S));
   var c=css(day?sp.c:mixc(sp.c,[0,0,0],0.60)), c2=css(day?sp.c2:mixc(sp.c2,[0,0,0],0.58));
   var graze=!sp.legless&&(Math.sin(now*0.0004+seed)>0);   // a hauled-out seal has nothing to graze on
