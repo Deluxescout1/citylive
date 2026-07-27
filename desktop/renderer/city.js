@@ -22573,8 +22573,9 @@ function draw(g,pass){
   drawBiomeLandmark(g,L,now,nd);  // and the one structure that says where you are
   drawPlateauTowns(g,L,now,nd);   // and whatever stands on top of a flat-topped mountain
   if(curRegime&&curRegime.active) drawHillEmblem(g,L,now);   // THE ORDER's colossal emblem on the mountainside (nearer buildings occlude it)
-  drawGondola(g,L,now);           // a cable-car + summit lodge on the tallest peak (mature cities)
-  drawClimbers(g,L,now,nd,fx);    // tiny mountaineers roping up the tallest peaks (fair-weather days)
+  // ⚠⚠ THE GONDOLA AND THE CLIMBERS MOVED OUT OF THE BACKDROP — see the block just past the "bg"
+  // return. They are drawn at the LIVE rate now, because they are the only things in this stack that
+  // actually travel, and the backdrop canvas repaints at 0.5 fps on `balanced`.
   }                                                          // end of the backdrop stack
   // ⚠⚠ THE FALLS GO LAST, AND THIS IS WHY THEY WERE INVISIBLE FOR TWO SESSIONS. `drawCascades` sat
   // in the backdrop stack above, and BOTH `drawPlateauTowns` (1612 rects) and `drawTerrain` (1529)
@@ -22592,6 +22593,21 @@ function draw(g,pass){
   if(pass==="bg"){ if(cityG<0.985) drawTerrain(g,cityG,L,now,nd,"bg");
     drawCascades(g,L,now,nd);                        // …the falls pouring off the plateau, ON TOP
     return; }
+  // ================= THE MOVING BACKDROP =================
+  // Nick: "if there are windmills or anything in the background those animations must also be smooth.
+  // I often find the bottom of the screen runs great but the top of it is slow and weird."
+  // He was describing a real architectural split, not a stutter. The backdrop canvas repaints every
+  // 2000 ms on `balanced` — 0.5 fps — while the street canvas runs at 125 ms (8 fps). Anything
+  // animated that lives in the backdrop stack therefore moves at a SIXTEENTH of the street's rate,
+  // which does not read as slow, it reads as broken.
+  // Most of the sky turned out to be innocent: clouds, aurora, meteors, satellites and the ISS are
+  // all drawn BELOW this line and were already running at the live rate. The genuine offenders were
+  // the few things in the backdrop that actually travel.
+  // ⚠ Z-ORDER IS WHY THEY GO HERE AND NOT LATER. This point is above the entire backdrop canvas
+  // (mountains, terrain) but above nothing else yet, so a cable car still passes IN FRONT of the
+  // ridge it is strung across and BEHIND every building — exactly where it sat before.
+  drawGondola(g,L,now);           // a cable-car + summit lodge on the tallest peak (mature cities)
+  drawClimbers(g,L,now,nd,fx);    // tiny mountaineers roping up the tallest peaks (fair-weather days)
   // The animated sky sits behind the cached city. It keeps every aerial/weather feature, but no
   // longer forces buildings and roads to be rebuilt at the same cadence as traffic and people.
   if(pass!=="city"&&pass!=="fg"&&pass!=="water"){
