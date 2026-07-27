@@ -13210,6 +13210,30 @@ function ruinZones(now){
   return out;   // nearest-first
 }
 function inZone(wx,ww,z){ var a=z.x-(z.w>>1)-2, b=z.x+(z.w>>1)+2; return wx< b && wx+ww> a; }
+// ============ HAS THIS LAND ERUPTED YET, THIS LIFE? ============
+// Nick's volcano brief asks for TWO STATES, pre-eruption and post-eruption. He also chose that the
+// BIOME never erupts on its own — eruptions are the disaster's job. Those reconcile as: the mountain
+// broods until the volcano DISASTER actually strikes, and is permanently CHANGED afterwards.
+// So this is not a new roll; it is a QUESTION ASKED OF HISTORY. Scan this life's finished disaster
+// slots for a volcano, exactly the way ruinZones scans them for permanent ruin. Pure f(clock), so all
+// three monitors agree on whether the mountain has blown without sharing any state.
+// ⚠ Cached per slot: this walks up to RUIN_MAXSCAN slots and is called every frame by the biome.
+var _vErupt={key:-1,v:null};
+function volcanoErupted(now){
+  if(FORCEDIS) return (FORCEDIS.type==="volcano"&&FORCEDIS.f>0.5)?{f:1}:null;
+  var base=Math.floor(now/DIS_SLOT);
+  if(_vErupt.key===base) return _vErupt.v;
+  var lifeStart=GROW_EPOCH - GROW_OFFSET_DAYS*86400000 - WORLD_SHIFT + lifeIndexOf(now)*GROW_CYCLE;
+  var firstSlot=Math.max(Math.ceil(lifeStart/DIS_SLOT), base-RUIN_MAXSCAN);
+  var hit=null;
+  for(var idx=base; idx>=firstSlot; idx--){
+    var di=disasterInfo(idx); if(!di||di.type!=="volcano") continue;
+    var end=idx*DIS_SLOT+di.t0+DIS_DUR;
+    if(end<=now){ hit={x:di.x, w:di.w, i:di.intensity, since:(now-end)}; break; }   // most recent finished eruption
+  }
+  _vErupt.key=base; _vErupt.v=hit;
+  return hit;
+}
 
 // the DNA of the rebuilt tower (deterministic from the disaster seed + footprint)
 function newTowerDNA(bx,bh,seed){
@@ -17751,6 +17775,52 @@ function drawVolcano(g,L,now,nd){
     var edge=1-Math.min(1,Math.abs(tx2-sx)/Math.max(1,sh*1.4));
     var tal=Math.round((2+edge*5)*K*(0.6+0.4*((tx2*7)%3)/2));
     g.fillRect(tx2,gy-tal,Math.max(1,Math.round(2*K)),tal);
+  }
+  // ============ POST-ERUPTION: THE MOUNTAIN REMEMBERS ============
+  // Nick asked for two states. This is the second one, and it is not a new roll — `volcanoErupted`
+  // asks HISTORY whether a volcano disaster has already finished in this life. If one has, the
+  // mountain is permanently changed for the rest of the week: the crater is blown wider and ragged,
+  // fresh black flows lie over the old channels, and the summit is grey with new ash.
+  // It is the difference between a mountain that MIGHT go and one that HAS.
+  var erupted=volcanoErupted(now);
+  if(erupted){
+    var fresh=Math.max(0,1-erupted.since/(GROW_CYCLE*0.28));       // still steaming for a while after
+    // the blown crater: wider than the old notch and asymmetric, because a blast takes one wall out
+    var bcW=Math.round(crW*(1.9+0.5*(erupted.i||3)/5));
+    var bias=((WORLD_SEED>>>11)&1)?1:-1;
+    g.fillStyle=day?"rgba(22,18,18,0.86)":"rgba(6,5,5,0.9)";
+    for(var bq=0;bq<Math.round(7*K);bq++){
+      var bf2=bq/Math.round(7*K);
+      var bw3=Math.round(bcW*(1-bf2*0.35));
+      g.fillRect(sx-bw3+Math.round(bias*bf2*3*K),sy+bq,bw3*2,1);
+    }
+    g.fillStyle=css(mixc(vBase,[210,206,200],day?0.34:0.10));      // fresh ash greying the upper cone
+    for(var ax2=Math.max(0,sx-Math.round(sh*0.8)); ax2<Math.min(SW,sx+Math.round(sh*0.8)); ax2++){
+      var ah2=hs[ax2]; if(ah2==null) continue;
+      var atop=gy-Math.round(ah2);
+      if(atop>sy+Math.round(sh*0.55)) continue;                    // only the upper mountain
+      g.fillRect(ax2,atop,1,Math.round((2+((ax2*5)%3))*K));
+    }
+    // FRESH FLOWS: black, still warm at the edges while `fresh` lasts, lying over the old channels
+    var nfl=2+((WORLD_SEED>>>13)%2);
+    for(var nf=0;nf<nfl;nf++){
+      var nh2=((nf*2246822519+((WORLD_SEED*17)|0))>>>0);
+      var ndir=(nh2&1)?1:-1;
+      for(var ny=sy+Math.round(4*K); ny<gy; ny+=1){
+        var np=(ny-sy)/Math.max(1,gy-sy);
+        var nx=sx+ndir*Math.round(np*sh*0.5)+Math.round(Math.sin(ny*0.1+nf*2)*2.2*K);
+        if(nx<0||nx>=SW) continue;
+        if(gy-Math.round(hs[nx]||0)>ny) continue;
+        g.fillStyle=css(mixc(vBase,[10,8,9],0.72));                // cooled black crust
+        g.fillRect(nx,ny,Math.max(1,Math.round(2.4*K)),1);
+        if(fresh>0.15&&((ny+nf)%11)===0){                          // still glowing in the cracks
+          g.globalCompositeOperation="lighter";
+          g.fillStyle="rgba(255,110,40,"+(0.34*fresh).toFixed(2)+")";
+          g.fillRect(nx,ny,Math.max(1,Math.round(1.4*K)),1);
+          g.globalCompositeOperation="source-over";
+        }
+      }
+    }
   }
   // --- FUMAROLES: small steam vents on the flanks, ALWAYS going. A quiet volcano still steams, and
   // this is the cheapest thing that says "this mountain is alive" on a calm afternoon.
