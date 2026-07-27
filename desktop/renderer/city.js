@@ -41,6 +41,14 @@ var FLIGHTS_ON = (CFG.flights !== false);
 // homage lands so you can summon it on demand instead of waiting for the ~1-in-12 roll. Any other
 // value, or absent, leaves the roll alone. Applied after the egg table is declared, further down.
 var CFG_EGG = (typeof CFG.egg === 'string' && CFG.egg) ? CFG.egg : null;
+// DIAGNOSTIC STAMP: `"debugStamp": true` in config.local.json prints what this screen actually IS —
+// land, variant, life index, city age, phase, active disaster, and this monitor's geometry — in the
+// corner of every monitor. Off by default and never shipped on.
+// It exists because a bug can be impossible to reproduce without knowing the state that produced it.
+// Nick's floating blue boxes cost four eliminated theories and two probes that were themselves wrong,
+// purely because a cropped screenshot cannot say which of ~130 land/age/hour combinations it was.
+// One screenshot with this on answers all of it.
+var CFG_DEBUGSTAMP = !!CFG.debugStamp;
 // BUFFALO BILLS GAMEDAY TAKEOVER: opt-in, OFF by default. When on AND the real Bills are actually
 // playing a game right now (checked against the same live ESPN feed the stadium scoreboards use), the
 // whole city goes Bills Mafia — every sign, screen, ticker line and citizen rallies the team. A shared
@@ -5555,6 +5563,34 @@ function townBarUpdate(now){
   }
   if(cg.phase==="apoc") return {text:(DEATH_LABEL[curDeath]||curDeath||"CATACLYSM").toUpperCase()+" NOW",urgent:true};
   return null;
+}
+// THE DIAGNOSTIC STAMP. `"debugStamp": true` in config.local.json, off by default.
+// Prints, per monitor, the state that produced the frame you are looking at. A cropped screenshot of
+// a bug cannot say which land, which age, which hour or which screen it came from — and without that
+// there are ~130 combinations to sweep blind, which is exactly how the floating-blue-box hunt burned
+// four theories. Deliberately drawn in the BOTTOM-LEFT: the top is full of clock/HUD chrome, and an
+// overlay that covers the thing being reported is worse than no overlay.
+// ⚠ Uses drawUiText, whose font is UPPERCASE + digits only — lowercase renders blank, so every label
+// here is upper case on purpose.
+function drawDebugStamp(g,now,nd){
+  if(!CFG_DEBUGSTAMP) return;
+  var li=(typeof curLife==="number")?curLife:-1;
+  var land=(curBiome&&curBiome.name)?curBiome.name:"?";
+  var dis=(typeof curDis!=="undefined"&&curDis)?(curDis.type+" CAT"+curDis.intensity+" F"+curDis.f.toFixed(2)):"NONE";
+  var lines=[
+    "LAND "+land+(curEgg?" (EGG)":""),
+    "LIFE "+li+"  AGE "+(cityG!=null?cityG.toFixed(3):"?")+"  "+String(cityPhase||"?").toUpperCase(),
+    "SCREEN "+SW+"x"+SH+" WOFF "+WOFF+" ZOOM "+ZOOM+" KSP "+KSP,
+    "WORLD "+WW+"  HORIZON "+HORIZON+"  SEAFRONT "+SEA_FRONT,
+    "DISASTER "+dis.toUpperCase(),
+    "NEON "+(curNeon?"ON":"OFF")+"  VILLAGE "+(curVillage?"ON":"OFF")+"  WX "+((weather&&weather.code)||0)
+  ];
+  var wmax=0; for(var i=0;i<lines.length;i++) wmax=Math.max(wmax,textW(lines[i]));
+  var pad=3, bh=lines.length*6+pad*2, bw=wmax+pad*2;
+  var y0=SH-bh-2, x0=2;
+  g.fillStyle="rgba(8,10,16,0.82)"; g.fillRect(x0,y0,bw,bh);
+  g.fillStyle="rgba(120,230,160,0.9)"; g.fillRect(x0,y0,bw,1);
+  for(var l=0;l<lines.length;l++) drawUiText(g,lines[l],x0+pad,y0+pad+l*6,"#8ef0b0",1);
 }
 function drawSkyClock(g,nd,L,now){
   var h=nd.getHours(), mi=nd.getMinutes(), h12=(h%12)||12, ap=h<12?"AM":"PM";
@@ -24060,6 +24096,7 @@ function draw(g,pass){
       g.fillStyle="rgba(140,128,120,"+(0.55*apocVeil)+")"; g.fillRect(ax|0,ay|0,1,1); } }   // drifting ash
 
   drawSkyClock(g,nd,L,now);   // local time, town name, weather + civic emergency timer, top-centre
+  drawDebugStamp(g,now,nd);   // opt-in diagnostic: what land/age/geometry is this screen actually showing?
   drawCivicHud(g,now,night);   // who runs the city + approval + mandates + next-vote countdown, top-right
   drawRegimeHud(g,now,night);  // THE ORDER — the unmistakable alert banner while the takeover is underway
   drawPlagueHud(g,now,night);  // THE PLAGUE — the amber medical alert banner while the pandemic rages
