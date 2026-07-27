@@ -91,6 +91,7 @@ function applyConfig(cfg){ if(!cfg) return;
   if(cfg.disasters!=null) DIS_PROB=DIS_PROB_BASE*disMul(cfg.disasters);
   if(cfg.finale!==undefined) CFG_FINALE=(cfg.finale&&cfg.finale!=="auto"&&DEATHS.indexOf(cfg.finale)>=0)?cfg.finale:null;
   if(cfg.worldRestartAt!==undefined) WORLD_SHIFT=worldShiftFrom(+cfg.worldRestartAt||0, cfg.worldRestartMode);
+  if(cfg.finaleDemo!==undefined) FINALE_DEMO=(+cfg.finaleDemo>0)?+cfg.finaleDemo:null;   // seconds for a full apocalypse loop
   if(cfg.era!==undefined){ FORCEERA=null;
     if(cfg.era && cfg.era!=="auto"){ for(var ei=0;ei<ERAS.length;ei++){ if(ERAS[ei].name===cfg.era){ FORCEERA=ei; break; } } } }
   if(cfg.flights!==undefined) FLIGHTS_ON=(cfg.flights!==false);   // live real-aircraft overlay on/off
@@ -12891,8 +12892,22 @@ var laborK=1;                          // WORKFORCE → BUILD SPEED: a bigger po
 function bandOf(b){ return (b.band||GROWBAND)*laborK; }   // a building's effective construction duration, scaled by the labour pool
 var ARRIVE=0.012;                      // cityG when the founding caravan reaches the townsite (people FIRST, then buildings)
 var FORCEAGE=null;                     // test hook: a number 0..1, or a {g,phase,apoc} object
+// SUMMON THE FINALE. `"finaleDemo": 300` in config.local.json replays the last 22% of a life — the
+// whole apocalypse — on a loop of that many seconds, so the death screen can be watched on demand
+// instead of once a week.
+// ⚠ It works by moving `cy` through the REAL apoc band rather than by handing back a synthetic
+// FORCEAGE object, and that distinction is the entire point. The finale is CLOCK-driven: passing
+// `{phase:"apoc",apoc:x}` does NOT move the mushroom cloud (four different values render the exact
+// same instant — this cost a debugging session). Driving `cy` uses the same code path the real
+// finale uses, so what you see on screen is genuinely what a real death looks like, which is what
+// makes it usable for chasing rendering artifacts on the live compositor.
+var FINALE_DEMO=null;
 function cityGrowth(now){
   if(FORCEAGE!=null){ if(typeof FORCEAGE==="number") return {g:FORCEAGE, phase:(FORCEAGE>=1?"peak":"grow"), apoc:0, cy:FORCEAGE*0.78}; return FORCEAGE; }
+  if(FINALE_DEMO>0){
+    var dcy=0.78+(((now/(FINALE_DEMO*1000))%1)*0.22);
+    return { g:1, phase:"apoc", apoc:(dcy-0.78)/0.22, cy:dcy };
+  }
   var cy=((((now-GROW_EPOCH+GROW_OFFSET_DAYS*86400000+WORLD_SHIFT)%GROW_CYCLE)+GROW_CYCLE)%GROW_CYCLE)/GROW_CYCLE;   // 0..1 through the life
   if(cy<0.78) return {g:cy/0.78, phase:"grow", apoc:0, cy:cy};                // wilderness → metropolis
   if(cy<0.955) return {g:1, phase:"peak", apoc:0, cy:cy};                     // the thriving metropolis
