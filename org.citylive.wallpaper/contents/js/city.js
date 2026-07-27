@@ -3319,6 +3319,12 @@ var curNeon=false;   // this life's city wears the neon style (always in THE SPR
 // that would otherwise build a metropolis has to ask this first, so it is hoisted to a global rather
 // than re-testing `curBiome.k` in a dozen hot loops.
 var curVillage=false;
+// The screen-x span [lo,hi] the carved cliff occupies THIS frame, published by drawBiomeLandmark so
+// the forest can leave it bare. ⚠ drawTerrain — which hosts the forest — is called AFTER
+// drawBiomeLandmark, so without this the trees paint straight over the monument. That is the same
+// burial that hid the falls for two sessions (drawCascades under drawTerrain + drawPlateauTowns).
+// Nothing grows on a sheer rock face anyway, so the gap is what the land would actually look like.
+var villageRockSpan=null;
 var bioTrees=null;     // the OLD FOREST's colossal trees ({far:[],near:[]}), null in every other biome
 // ⚠⚠ THE LAND ROLL WAS A SHORT FIXED LOOP, NOT A SHUFFLE. Nick reported "the same landscape" and he
 // was reading something real: the old line was `((li*2654435761+7717)>>>0) % BIOMES.length`, and
@@ -11483,6 +11489,199 @@ function drawCityHero(g,L,now){ var he=heroEra(); if(!he) return; var cx=Math.ro
 // an international airport is not a hidden village.
 // All three are placed on world fractions and drawn for every screen the span crosses, so they line
 // up across monitors like every other world-anchored feature.
+// ============ THE HIDDEN VILLAGE, LIVED IN ============
+// Nick's constraint is the important part: it "must stay a living town, not a show". So the ninja
+// material is BACKGROUND TEXTURE and the ordinary life is the foreground — villagers on errands, a
+// market, kids playing — with the drills and the rare set-pieces layered behind, not in front.
+//
+// Everything is a pure function of (world position, clock), like every other live layer here, so it
+// is identical on all three monitors and needs no state. Two rules learned the hard way and obeyed:
+//   ⚠ every drawPerson call passes a REAL walk frame or the -1 "standing about" sentinel — NEVER a
+//     literal 0, which is a frozen pose forever and put 49 sites' worth of statues on the streets.
+//   ⚠ nothing sits on a fixed pitch. The market-stall wall was one identical sprite stamped every 15
+//     world px and it read as a wall of people, so sites here are irregular and sparsely used.
+function drawVillageLife(g,L,now,nd){
+  if(!curVillage||cityPhase==="apoc") return;
+  if(cityG<0.12) return;
+  var K=Math.max(1,KSP), gy=HORIZON, day=L>0.5, hr=nd?nd.getHours():13;
+  var busy=(hr>=7&&hr<=20)?1:(hr>=21||hr<=5)?0.22:0.6;          // a village sleeps properly at night
+  var seedW=(WORLD_SEED*2654435761)>>>0;
+  // ---- VILLAGERS on the lane: errands, baskets, a shopkeeper's stoop, kids at a run ----
+  var pitch=Math.round(34*K);
+  for(var vx=Math.floor(WOFF/pitch)*pitch; vx<WOFF+SW+pitch; vx+=pitch){
+    var h=((vx*2246822519)^seedW)>>>0;
+    if(((h>>>3)%100)>=Math.round(74*busy)) continue;             // not everyone is out, and fewer at night
+    var sx=vx-WOFF+((h>>>5)%Math.max(1,Math.round(18*K)));
+    if(sx<-8||sx>SW+8) continue;
+    var kind=((h>>>9)%9===0)?2:(((h>>>11)%5)===0?1:0);           // an elder, a child, or an adult
+    var cloth=PEDC[(h>>>13)%PEDC.length], skin=SKINC[(h>>>17)%SKINC.length];
+    // walk a slow beat back and forth along a short stretch of lane, then stand a while
+    var per=9000+((h>>>19)%7000), ph=((now+((h>>>7)%per))%per)/per;
+    var walking=ph<0.62, frame, px2;
+    if(walking){
+      var f2=ph/0.62, span=Math.round((14+((h>>>21)%20))*K), dir=((h>>>23)&1)?1:-1;
+      px2=sx+Math.round(dir*(f2-0.5)*span);
+      frame=(Math.floor(now/230)+((h>>>25)&3))&3;                 // a real 4-frame walk cycle
+    } else { px2=sx; frame=-1; }                                  // -1 = standing about, never 0
+    var py2=gy-1;
+    drawPerson(g,px2|0,py2,cloth,skin,frame,kind);
+    if(((h>>>27)%7)===0&&walking){                                // some carry a basket on the shoulder
+      g.fillStyle=day?"#b08a52":"#241c12";
+      g.fillRect((px2+2)|0,py2-Math.round(4*K),Math.max(1,Math.round(2*K)),Math.max(1,Math.round(1.6*K)));
+    }
+  }
+  // ---- THE MARKET: irregular clusters of awnings with a holder and a customer or two ----
+  if(cityG>0.22){
+    var mSite=Math.round(300*K);
+    for(var mx=Math.floor(WOFF/mSite)*mSite; mx<WOFF+SW+mSite; mx+=mSite){
+      var mh=((mx*2654435761)^(seedW>>>3))>>>0;
+      if(((mh>>>4)%10)>=6) continue;                              // only some sites host a market at all
+      var stalls=3+((mh>>>8)%4);
+      for(var st2=0;st2<stalls;st2++){
+        var stx=mx-WOFF+st2*Math.round(17*K)+((mh>>>(10+st2))%Math.max(1,Math.round(4*K)));
+        if(stx<-14||stx>SW+14) continue;
+        var aw=Math.round(12*K), ah=Math.round(9*K);
+        var cl2=[[184,72,58],[70,104,148],[196,158,64],[92,132,88]][(mh>>>(6+st2*3))%4];
+        g.fillStyle=day?"#6e4a30":"#1d1410";                       // the two poles
+        g.fillRect(stx|0,gy-ah,Math.max(1,Math.round(K*0.8)),ah);
+        g.fillRect((stx+aw)|0,gy-ah,Math.max(1,Math.round(K*0.8)),ah);
+        g.fillStyle=css(day?cl2:mixc(cl2,[16,18,30],0.68));        // the awning, sagging a little
+        for(var ax3=0;ax3<aw;ax3++)
+          g.fillRect((stx+ax3)|0,gy-ah-Math.round(Math.sin(ax3/aw*Math.PI)*1.4*K)|0,1,Math.max(1,Math.round(1.8*K)));
+        g.fillStyle=day?"#8a6a44":"#211810";                       // the table + goods
+        g.fillRect(stx|0,gy-Math.round(4*K),aw,Math.max(1,Math.round(K)));
+        for(var gd=0;gd<3;gd++){
+          g.fillStyle=css([[196,120,60],[176,60,52],[132,164,84]][(mh>>>(12+gd))%3]);
+          g.fillRect((stx+2+gd*Math.round(3.4*K))|0,gy-Math.round(5.6*K),Math.max(1,Math.round(1.8*K)),Math.max(1,Math.round(1.6*K)));
+        }
+        // the stallholder stands behind; a customer wanders up now and then
+        drawPerson(g,(stx+Math.round(aw*0.5))|0,gy-1,PEDC[(mh>>>(14+st2))%PEDC.length],SKINC[(mh>>>16)%SKINC.length],-1);
+        var cper=13000+((mh>>>18)%9000), cph=((now+st2*2600)%cper)/cper;
+        if(cph<0.4) drawPerson(g,(stx+Math.round(aw*(0.1+cph)))|0,gy-1,
+          PEDC[(mh>>>(20+st2))%PEDC.length],SKINC[(mh>>>22)%SKINC.length],(Math.floor(now/240)+st2)&3);
+      }
+    }
+  }
+  // ---- DRILLS at the training ground: sparring pairs and a line working the posts ----
+  if(cityG>0.16&&busy>0.5){
+    var tgx=Math.round(VLM_TRAINING*WW);
+    for(var o2=-1;o2<=1;o2++){
+      var TX=Math.round(tgx-WOFF+o2*WW);
+      if(TX<-70||TX>SW+70) continue;
+      // a pair sparring: they close, exchange, and reset — a 4-beat loop, not a jitter
+      var sper=4200, sph=(now%sper)/sper;
+      var close=Math.sin(sph*Math.PI*2)*0.5+0.5;
+      var ax4=TX-Math.round(9*K)+Math.round(close*3*K), bx4=TX+Math.round(9*K)-Math.round(close*3*K);
+      var gi2=(Math.floor(now/210))&3;
+      drawPerson(g,ax4|0,gy-1,"#3a4450","#c9a184",gi2);
+      drawPerson(g,bx4|0,gy-1,"#4a3a34","#a8825e",(gi2+2)&3);
+      // three trainees working the posts, striking on their own offsets
+      for(var tn=0;tn<3;tn++){
+        var tnx=TX-Math.round(14*K)+tn*Math.round(13*K);
+        var strike=((now+tn*700)%1500)<260;
+        drawPerson(g,(tnx-Math.round(3*K))|0,gy-1,PEDC[(tn*3)%PEDC.length],SKINC[tn%SKINC.length],strike?1:-1);
+      }
+      // an instructor watching, arms folded — the one who never moves is the point, so give them
+      // the standing sentinel rather than a frozen 0
+      drawPerson(g,(TX+Math.round(23*K))|0,gy-1,"#2e3a34","#d8b48a",-1,2);
+    }
+  }
+  // ---- RARE SET-PIECES. Alpine-avalanche rarity: mostly you will never catch one. ----
+  // Bucketed by a slow clock so a piece plays for a few seconds and then is gone for a long while.
+  var slot=Math.floor(now/60000), sh2=((slot*2654435761)^(seedW>>>7))>>>0;
+  if((sh2%14)===0){
+    var kindSp=(sh2>>>5)%3, tph=((now%60000)/60000);
+    if(tph<0.22){
+      var spx=Math.round((((sh2>>>9)%1000)/1000)*WW)-WOFF;
+      for(var so=-1;so<=1;so++){
+        var SX=Math.round(spx+so*WW); if(SX<-60||SX>SW+60) continue;
+        var fade=Math.sin(tph/0.22*Math.PI);
+        if(kindSp===0){                                            // a technique flash off a rooftop
+          g.globalCompositeOperation="lighter";
+          g.fillStyle="rgba(140,220,255,"+(0.5*fade).toFixed(2)+")";
+          var fy=gy-Math.round(26*K);
+          for(var ry2=0;ry2<Math.round(9*K);ry2++){
+            var rw4=Math.round((9*K-ry2)*1.6);
+            g.fillRect(SX-(rw4>>1),fy-ry2,rw4,1);
+          }
+          g.globalCompositeOperation="source-over";
+        } else if(kindSp===1){                                     // a summoned shape looming briefly
+          g.fillStyle="rgba("+(day?"46,58,44":"14,20,16")+","+(0.72*fade).toFixed(2)+")";
+          var bh4=Math.round(40*K), bw4=Math.round(26*K);
+          g.fillRect(SX-(bw4>>1),gy-bh4,bw4,bh4);
+          g.fillRect(SX-(bw4>>1)-Math.round(4*K),gy-bh4+Math.round(6*K),Math.round(4*K),Math.round(14*K));
+          g.fillRect(SX+(bw4>>1),gy-bh4+Math.round(6*K),Math.round(4*K),Math.round(14*K));
+          g.fillStyle="rgba(220,90,60,"+(0.85*fade).toFixed(2)+")";
+          g.fillRect(SX-Math.round(5*K),gy-bh4+Math.round(7*K),Math.round(3*K),Math.round(2*K));
+          g.fillRect(SX+Math.round(2*K),gy-bh4+Math.round(7*K),Math.round(3*K),Math.round(2*K));
+        } else {                                                   // two figures duelling on the rock face
+          if(villageRockSpan){
+            var dx4=Math.round((villageRockSpan[0]+villageRockSpan[1])*0.5);
+            var dy4=gy-Math.round(60*K)-Math.round(Math.sin(tph*14)*4*K);
+            drawPerson(g,dx4-Math.round(7*K),dy4,"#2e3a44","#c9a184",(Math.floor(now/160))&3);
+            drawPerson(g,dx4+Math.round(7*K),dy4,"#44302c","#a8825e",(Math.floor(now/160)+2)&3);
+          }
+        }
+      }
+    }
+  }
+}
+// ============ THE FOREST THAT HIDES THE HIDDEN VILLAGE ============
+// Nick: "a dense forest wall enclosing it so it reads as hidden IN a forest, not a town on a hill."
+// The land already carried a `flora` roster of ferns and willows and it was invisible — scattered
+// individual plants cannot make a wall. DENSITY is the whole effect, so this draws overlapping crowns
+// on a tight pitch in THREE depth bands, each darker and larger than the one behind it. Anything
+// sparse enough to count individual trees in reads as landscaping, not as a forest you could hide in.
+//
+// ⚠ BACKDROP PASS ONLY. It is called from the bg branch beside drawBiomeGround: in the live pass it
+// would paint over the houses every frame, which is precisely how drawPlainsSky went wrong.
+// Static per world-x — no time term at all — so it costs nothing per frame beyond its own rects and
+// stays welded to the land across every bezel.
+function drawVillageForest(g,gy,day,now){
+  var K=Math.max(1,KSP);
+  var ridge=(mtsCache&&mtsCache.h&&mtsCache.h[1])?mtsCache.h[1]:null;
+  // three bands: far/hazy high on the slope, mid, and a near-black wall right behind the rooftops
+  var bands=[
+    { c:day?[104,134,96]:[26,38,34], rise:0.86, step:Math.max(3,Math.round(4*K)), h:Math.round(9*K),  jit:Math.round(3*K) },
+    { c:day?[74,110,72]:[20,30,28],  rise:0.55, step:Math.max(3,Math.round(5*K)), h:Math.round(13*K), jit:Math.round(4*K) },
+    { c:day?[46,80,54]:[13,21,21],   rise:0.0,  step:Math.max(3,Math.round(6*K)), h:Math.round(17*K), jit:Math.round(5*K) }
+  ];
+  for(var bi=0;bi<bands.length;bi++){
+    var B2=bands[bi], col=css(B2.c), hi=css(mixc(B2.c,[210,230,180],day?0.22:0.06));
+    for(var x=-B2.step;x<SW+B2.step;x+=B2.step){
+      var wx=x+WOFF;
+      // leave the carved cliff bare — trees do not grow on a sheer face, and drawing over it would
+      // bury the one structure that says where you are.
+      if(villageRockSpan && x>villageRockSpan[0] && x<villageRockSpan[1] && B2.rise>0.2) continue;
+      var hsh=((wx*2654435761)>>>0);
+      // the band's baseline: high up the ridge for the far band, at the rooftops for the near one
+      var base;
+      if(ridge && x>=0 && x<SW) base=gy-Math.round(ridge[x]*B2.rise);
+      else base=gy-Math.round((gy*0.16)*B2.rise);
+      base+=(hsh%Math.max(1,B2.jit))-((B2.jit/2)|0);
+      var th=B2.h+((hsh>>>7)%Math.max(1,Math.round(6*K)));
+      var tw=Math.round(th*0.62);
+      // a conifer (stacked tiers narrowing up) or a broadleaf blob — mixed, so the wall is not a comb
+      if(((hsh>>>13)&3)!==0){
+        g.fillStyle=col;
+        for(var ty=0;ty<th;ty++){
+          var w2=Math.max(1,Math.round(tw*(1-(ty/th)*0.92)));
+          g.fillRect(x-(w2>>1),base-th+ty,w2,1);
+        }
+        if(day){ g.fillStyle=hi;                                   // sun on the south-facing limb
+          for(var ty2=0;ty2<th;ty2+=2){ var w3=Math.max(1,Math.round(tw*(1-(ty2/th)*0.92)));
+            g.fillRect(x-(w3>>1),base-th+ty2,Math.max(1,Math.round(w3*0.28)),1); } }
+      } else {
+        var r2=Math.round(th*0.44);
+        g.fillStyle=col;
+        g.fillRect(x-r2,base-th+Math.round(r2*0.4),r2*2,Math.round(r2*1.5));
+        g.fillRect(x-Math.round(r2*0.7),base-th,Math.round(r2*1.4),Math.round(r2*0.8));
+        g.fillRect(x-Math.round(r2*0.24),base-Math.round(r2*0.4),Math.max(1,Math.round(r2*0.48)),Math.round(r2*0.9));  // trunk
+        if(day){ g.fillStyle=hi; g.fillRect(x-r2,base-th+Math.round(r2*0.4),Math.round(r2*0.7),Math.round(r2*0.5)); }
+      }
+    }
+  }
+}
 // THE VILLAGE LANE — packed earth with a worn stone edge, in place of the asphalt street.
 // World-anchored speckle (ruts, stones, tufts) so it stays continuous across the bezels exactly like
 // the asphalt patina it replaces. No lane paint, no crosswalks, no kerb: those all say "city".
@@ -16006,23 +16205,90 @@ function drawBiomeLandmark(g,L,now,nd){
     }
     if(lbest<0) return;
     var RX=lbest, RY=gy-Math.round(lbh);
-    var stone=day?"#a89a86":"#2e2a26", cut=day?"#7e7161":"#1c1a17", lit2=day?"#c4b8a4":"#403a33";
-    // the dressed panel the faces are cut into, so they read as carved rather than painted on
-    g.fillStyle=cut;
-    g.fillRect(RX-Math.round(2*FK),RY+Math.round(3*FK),Math.round(faces*(fw+2*FK)+4*FK),fh+Math.round(4*FK));
+    // ============ CUT INTO THE HILLSIDE, NOT PROPPED AGAINST IT ============
+    // Nick: it read as "a flat brown panel". It was one — a dressed rectangle laid over the green
+    // hill, so the eye saw a billboard standing in a field. The fix is not more detail on the panel;
+    // it is to make the CLIFF ITSELF the monument. So: replace the terrain across the whole footprint
+    // with a rock face that follows the ridge line it is cut from, band it with strata, pile talus at
+    // its foot — and then carve the elders IN RELIEF out of that same rock, distinguished only by
+    // light and shadow. A carving is the same material as the mountain. The moment the heads are a
+    // different colour from the cliff, they are painted on it instead of cut into it.
+    // ⚠ mostly STONE, only faintly this land's stone. At a 0.62 mix the biome's dark forest green
+    // (near = [62,88,62]) dominated and the cliff read as a dark green wall rather than rock — the
+    // carving disappeared into the hillside it was cut from, which is the opposite failure to the
+    // brown-panel one. A granite grey with a whisper of the land in it is what reads.
+    var rockBase=mixc(B.near,[168,158,142],0.86);                 // stone, but still this land's stone
+    var stoneC=day?rockBase:mixc(rockBase,[16,18,30],0.72);
+    var stone=css(stoneC);
+    var cut=css(mixc(stoneC,[30,26,24],day?0.42:0.55));           // shadow inside a cut
+    var lit2=css(mixc(stoneC,[255,240,214],day?0.30:0.06));       // a lit edge catching the sun
+    var strata=css(mixc(stoneC,[70,62,56],day?0.16:0.26));
+    var pL=RX-Math.round(2*FK), pW=panelW;
+    // publish the footprint so the forest (drawn later, inside drawTerrain) leaves the face bare
+    villageRockSpan=[pL-Math.round(3*FK), pL+pW+Math.round(3*FK)];
+    // THE CLIFF: every column of terrain across the footprint becomes rock, from the ridge top down.
+    // Following `lhs` per column is what welds it to the land — a flat-topped block would be a panel
+    // again, just a grey one.
+    for(var cx2=0;cx2<pW;cx2++){
+      var sxc=pL+cx2; if(sxc<0||sxc>=SW) continue;
+      var topH=lhs[sxc];                                          // this column's ridge height
+      var cyTop=gy-Math.round(topH);
+      g.fillStyle=stone; g.fillRect(sxc,cyTop,1,gy-cyTop);
+      // vertical jointing — sparse darker seams so the wall is not a flat fill
+      if(((sxc+WOFF)*7%23)===0){ g.fillStyle=strata; g.fillRect(sxc,cyTop,1,gy-cyTop); }
+    }
+    // STRATA: horizontal bedding planes across the whole face, each dipping slightly, with a lit
+    // upper lip. Bedding is what makes a rock wall read as rock rather than as grey paint.
+    for(var sy=0;sy<12;sy++){
+      var syY=RY+Math.round((sy+0.5)*(gy-RY)/12);
+      var dip=Math.round(Math.sin(sy*1.7)*FK*0.8);
+      g.fillStyle=strata;
+      g.fillRect(pL,syY+dip,pW,Math.max(1,Math.round(FK*0.5)));
+      if(day){ g.fillStyle=lit2; g.fillRect(pL,syY+dip-1,pW,1); }
+    }
+    // TALUS at the foot — broken rock spilling out onto the slope, so the wall meets the ground
+    // instead of being pasted onto it.
+    var talH=Math.round(5*FK);
+    for(var tx=0;tx<pW;tx++){
+      var txs=pL+tx; if(txs<0||txs>=SW) continue;
+      var e=Math.min(tx,pW-tx)/(pW*0.5);                          // thickest at the middle of the face
+      var th2=Math.round(talH*(0.35+0.65*e)*(0.7+0.3*(((txs+WOFF)*13%7)/7)));
+      g.fillStyle=cut; g.fillRect(txs,gy-th2,1,th2);
+    }
+    g.fillStyle=strata;
+    for(var tb=0;tb<pW;tb+=Math.max(2,Math.round(FK))) {
+      var tbx=pL+tb; if(tbx<0||tbx>=SW) continue;
+      g.fillRect(tbx,gy-Math.round(talH*0.4)-((tbx*5)%Math.max(1,Math.round(2*FK))),Math.max(1,Math.round(FK*0.8)),Math.max(1,Math.round(FK*0.8)));
+    }
     for(var fi2=0;fi2<faces;fi2++){
       var FX=RX+Math.round(fi2*(fw+2*FK)), FY=RY+Math.round(5*FK);
       var newest=(fi2===faces-1);
-      g.fillStyle=stone; g.fillRect(FX,FY,fw,fh);                       // the head block
+      // RELIEF, NOT APPLIQUE. Every mark below is the SAME stone as the cliff; only the VALUE
+      // changes. A recess is darker because less sky reaches it, a brow is lighter because it
+      // catches the sun — that is the entire vocabulary of carving, and using a different hue for
+      // the heads is exactly what made this read as a sign hung on a hill.
+      var u2=Math.max(1,Math.round(FK*0.9));
+      g.fillStyle=cut;                                                  // the niche cut back into the wall
+      g.fillRect(FX-u2,FY-u2,fw+u2*2,fh+u2*2);
+      g.fillStyle=stone; g.fillRect(FX,FY,fw,fh);                       // the head, left proud of the recess
+      g.fillStyle=lit2;                                                 // sunlit top and left limb of the head
+      g.fillRect(FX,FY,fw,u2);
+      g.fillRect(FX,FY,u2,fh);
+      g.fillStyle=cut;                                                  // and its own shadow thrown right
+      g.fillRect(FX+fw-u2,FY,u2,fh);
       g.fillStyle=lit2;                                                 // brow ridge and cheekbone,
       g.fillRect(FX,FY+Math.round(fh*0.24),fw,Math.max(1,Math.round(1.4*FK)));   // which is all a face
       g.fillRect(FX,FY+Math.round(fh*0.60),fw,Math.max(1,Math.round(FK)));       // needs at this size
       g.fillStyle=cut;
+      g.fillRect(FX,FY+Math.round(fh*0.24)+Math.round(1.4*FK),fw,Math.max(1,Math.round(FK*0.7)));   // shadow UNDER the brow — the deepest cue that it is cut
       g.fillRect(FX+Math.round(fw*0.18),FY+Math.round(fh*0.32),Math.max(1,Math.round(1.3*FK)),Math.max(1,Math.round(1.6*FK)));  // eyes, deep
       g.fillRect(FX+Math.round(fw*0.62),FY+Math.round(fh*0.32),Math.max(1,Math.round(1.3*FK)),Math.max(1,Math.round(1.6*FK)));
       g.fillRect(FX+Math.round(fw*0.40),FY+Math.round(fh*0.36),Math.max(1,Math.round(1.2*FK)),Math.round(fh*0.26));            // the nose
+      g.fillStyle=lit2;                                                 // …lit down its left ridge
+      g.fillRect(FX+Math.round(fw*0.40)-Math.max(1,Math.round(FK*0.6)),FY+Math.round(fh*0.36),Math.max(1,Math.round(FK*0.6)),Math.round(fh*0.26));
+      g.fillStyle=cut;
       g.fillRect(FX+Math.round(fw*0.26),FY+Math.round(fh*0.74),Math.round(fw*0.48),Math.max(1,Math.round(FK)));               // mouth
-      g.fillStyle=day?"#8d8071":"#242120";                               // hair, and a headpiece
+      g.fillStyle=css(mixc(stoneC,[60,54,48],day?0.30:0.42));            // hair, and a headpiece
       g.fillRect(FX-Math.max(1,Math.round(FK)),FY-Math.round(1.6*FK),fw+Math.round(2*FK),Math.round(2.4*FK));
       if(newest&&cityG<0.72){                                           // the newest is still being cut
         g.fillStyle=day?"rgba(140,128,110,0.85)":"rgba(40,36,32,0.85)";
@@ -17870,6 +18136,7 @@ function drawTerrain(g,cg,L,now,nd,pass){
     g.globalAlpha=1;
     g.fillStyle=day?"rgba(122,96,58,0.7)":"rgba(84,70,48,0.7)"; g.fillRect(0,(gy+Math.round((SH-gy)*0.5))|0,SW,3); }  // dirt trail where the road will be
   if(BGp) drawBiomeGround(g,gy,day,now,wild);                    // and the land's own surface on top
+  if(BGp && curVillage) drawVillageForest(g,gy,day,now);         // …and the forest that hides the village
   // a river winding through, present early, culverted as the city grows
   var riverW=Math.round(6*wild);
   if(riverW>0&&BGp){ var rvx=Math.round(0.62*WW), rsx=rvx-WOFF;
@@ -22694,6 +22961,7 @@ function draw(g,pass){
   drawMesaLife(g,L,now,nd,fx);     // vultures on the thermals, heat shimmer, dust devils, the arch
   drawCliffLife(g,L,now,nd,fx);    // the seabird colony on the ledges, and the stacks off the headland
   drawRoofRunners(g,L,now,nd);     // the Hidden Village crossing itself by rooftop
+  drawVillageLife(g,L,now,nd);     // …and living in it the rest of the time
   drawNeonCity(g,L,now,nd);        // the neon style, over the city, whatever land it landed on
 
   // solar-eclipse twilight: an unnatural cool dusk falls over the whole city at totality, then lifts
