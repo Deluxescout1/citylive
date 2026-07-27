@@ -3299,6 +3299,54 @@ var EGG_BIOMES=[
     flora:{ kinds:["generic","willow","generic","reeds","grass"], bloom:["#f0a0c0","#ffe08a","#ffffff"] },
     sky:{ top:[118,164,214], bot:[214,228,214], k:0.22, haze:[218,230,216] } }
 ];
+// ONE TRUTH ABOUT WHICH LAND THIS LIFE IS. Extracted from buildWorld because `setup` now has to know
+// the land BEFORE it can place HORIZON: the coastal lands put open water along the bottom of the
+// frame, which moves the street baseline, and HORIZON is read all through buildWorld (layer y0s, the
+// forest giants' heights, cloud altitudes). Resolving the biome twice by copy-paste would be two
+// truths that drift; this is one. Pure f(li) — no state, no side effects.
+function landOf(li){
+  var eg=eggOf(li);
+  var b = eg ? eg : variantOf(li, biomeOf(li));
+  // TEST HOOK: pin the land while the CLOCK moves. The life index is derived from the clock, so
+  // without this there is no way to render a specific biome on a specific real-world date — which is
+  // exactly what checking an eclipse (fixed date, needs a sky you can read) or comparing one land
+  // across a day requires. `FORCEBIOME="alpine"`, optionally `FORCEVARIANT=0..2`. Never set in ship.
+  if(FORCEBIOME!=null){
+    for(var fb=0;fb<BIOMES.length;fb++) if(BIOMES[fb].k===FORCEBIOME){
+      var fv=BIOME_VARIANTS[FORCEBIOME];
+      b=BIOMES[fb]; eg=null;
+      if(fv&&fv.length&&FORCEVARIANT!=null){ var vv=fv[FORCEVARIANT%fv.length], oo={}, kq;
+        for(kq in b) if(b.hasOwnProperty(kq)) oo[kq]=b[kq];
+        for(kq in vv) if(vv.hasOwnProperty(kq)) oo[kq]=vv[kq];
+        oo.k=BIOMES[fb].k; b=oo; }
+      else if(fv&&fv.length) b=variantOf(li,BIOMES[fb]);
+      break; }
+  }
+  return { b:b, egg:!!eg };
+}
+// ============ THE SEA ALONG THE BOTTOM OF THE FRAME ============
+// Nick, on the sea cliffs: he wants "the cliffs standing IN water along the whole frame". The engine
+// has always put the ocean at the WORLD'S SEAMS — `inSea(wx)` is a test on world x — so a land called
+// SEA CLIFFS rendered ~340 world px of water at each far edge of a 2269 wp world and none at all in
+// between. On his primary monitor, which shows world x 0..776, that is an ocean you never see. It is
+// also why the Phase 3 tide pools, kelp and seals have been invisible since they were built: they are
+// drawn at the seam, off-screen.
+// The fix is a composition change, not a parameter: these lands get a band of open water along the
+// BOTTOM of the frame, full width, and the street baseline moves up above it.
+// ⚠ Returns WORLD PX and must be called before HORIZON is set.
+function seaFrontOf(b){
+  if(!b) return 0;
+  switch(b.k){
+    case "cliffs":  return 34;    // a real drop from the clifftop into deep water
+    // ⚠ THE CORAL COAST IS A *VARIANT* OF `beach`, not a biome of its own (BIOME_VARIANTS keys on
+    // b.k), so it is covered here and a `case "coral"` would be dead code that reads like coverage.
+    case "beach":   return 30;    // surf over sand — and swell breaking on the reef on the coral variant
+    case "swamp":   return 32;    // the bayou is water FIRST — cypress stand in it
+    case "volcano": return 26;    // an island, so the sea is on every side
+    case "arctic":  return 28;    // broken floes and open leads
+    default:        return 0;     // every inland land is unchanged
+  }
+}
 function eggOf(li){
   if(!EGG_BIOMES.length) return null;
   if(FORCEEGG!=null){                                   // config.local.json / harness override
@@ -3611,8 +3659,18 @@ function setup(scene,opts){
   // bezels) whenever panels are the normal size, since 26 already covers them.
   GROUND=Math.max(26, (opts.taskbarWp||0)+18);
   SMALLW=WW<1000;                             // H1: one laptop screen carries the whole city
-  HORIZON=SH-GROUND;                          // street baseline (back edge of sidewalk)
-  buildWorld(lifeIndexOf(NOWOVR!=null?NOWOVR:Date.now()));
+  // THE COASTAL LANDS PUT OPEN WATER ALONG THE BOTTOM OF THE FRAME, so their street baseline sits
+  // higher and the city stands on land above the waterline. Resolved HERE, before HORIZON, because
+  // HORIZON is read all through buildWorld — the layer y0s, the forest giants, the cloud altitudes.
+  // ⚠ Scaled by KSP: SEA_FRONT is authored in world px at the reference scale like every other
+  // vertical measurement here, and the raw-pixel trap has bitten this project three times.
+  var _li0=lifeIndexOf(NOWOVR!=null?NOWOVR:Date.now());
+  SEA_FRONT=Math.round(seaFrontOf(landOf(_li0).b)*Math.max(1,KSP)*0.5);
+  // never let the water eat more than a third of the frame on a short screen
+  SEA_FRONT=Math.min(SEA_FRONT, Math.round(SH*0.30));
+  HORIZON=SH-GROUND-SEA_FRONT;                // street baseline (back edge of sidewalk)
+  SEA_Y=SH-SEA_FRONT;                         // the waterline: everything below this is open water
+  buildWorld(_li0);
   if(!NOFETCH){                  // NOFETCH: headless/almanac callers (Control Center, KDE config page) set this
     maybeFetchWeather();          // seed the shared 10-min window on boot (draw() keeps it fresh thereafter)
     maybeFetchAirq();             // seed the shared 30-min air-quality window too
@@ -3642,22 +3700,8 @@ function buildWorld(li){
   // An egg land REPLACES the ordinary roll for this life and takes no variant (one strong look each).
   var eg=eggOf(li);
   curEgg=!!eg;
-  curBiome = eg ? eg : variantOf(li, biomeOf(li));    // the land, then which of its three faces
-  // TEST HOOK: pin the land while the CLOCK moves. The life index is derived from the clock, so
-  // without this there is no way to render a specific biome on a specific real-world date — which is
-  // exactly what checking an eclipse (fixed date, needs a sky you can read) or comparing one land
-  // across a day requires. `FORCEBIOME="alpine"`, optionally `FORCEVARIANT=0..2`. Never set in ship.
-  if(FORCEBIOME!=null){
-    for(var fb=0;fb<BIOMES.length;fb++) if(BIOMES[fb].k===FORCEBIOME){
-      var fv=BIOME_VARIANTS[FORCEBIOME];
-      curBiome=BIOMES[fb]; curEgg=false;
-      if(fv&&fv.length&&FORCEVARIANT!=null){ var vv=fv[FORCEVARIANT%fv.length], oo={}, kq;
-        for(kq in curBiome) if(curBiome.hasOwnProperty(kq)) oo[kq]=curBiome[kq];
-        for(kq in vv) if(vv.hasOwnProperty(kq)) oo[kq]=vv[kq];
-        oo.k=BIOMES[fb].k; curBiome=oo; }
-      else if(fv&&fv.length) curBiome=variantOf(li,BIOMES[fb]);
-      break; }
-  }
+  var _land=landOf(li);
+  curEgg=_land.egg; curBiome=_land.b;    // the land, then which of its three faces
   // THE NEON STYLE. Always on in THE SPRAWL, and rolled on about 1 life in 12 of every OTHER land —
   // Nick's call, so a neon megacity can end up standing in a swamp or under a volcano. It restyles the
   // CITY ONLY: the mesa is still a mesa. A separate hash from the biome and variant rolls so it is
@@ -3673,6 +3717,14 @@ function buildWorld(li){
   // water at all — 4.5-8% of the world per side is a sliver at the seam you only meet on the outer
   // monitor. A real expanse is the difference between a grey wall and a coastline.
   seaW = hasOcean ? ((curBiome.k==="cliffs"||curBiome.k==="beach") ? (0.15+geo()*0.06) : ((curBiome.k==="swamp"||curBiome.k==="arctic"||curBiome.k==="sprawl") ? (0.22+geo()*0.06) : (0.045+geo()*0.035))) : 0;
+  // …but a land whose water runs along the BOTTOM of the frame has no seam ocean at all. Keeping both
+  // would give it two unrelated coastlines, and the seam version is the one nobody can see.
+  // ⚠ CONSEQUENCE, and it is a real one: with the seam gone the whole world becomes buildable, so
+  // these lands get their full building count back (swamp/arctic/cliffs were 26-29 against forest's
+  // 44 precisely because 44-56% of their world was sea). Nick's "leave the building count alone" call
+  // was about not FAKING parity on lands that genuinely have less frontage — this changes the
+  // geography itself, so the counts move honestly rather than being normalised.
+  if(SEA_FRONT>0) seaW=0;
   WATER_W = (curBiome.k==="cliffs"||curBiome.k==="beach") ? 0.21 : ((curBiome.k==="swamp"||curBiome.k==="arctic"||curBiome.k==="sprawl") ? 0.22 : 0.11);   // the coasts get a bay you can see; the bayou is mostly water
   // Dry biomes get a RIVER through the city instead of a coast: the waterfront becomes a riverbank,
   // and the harbour's deep-water shipping becomes barge traffic (drawRiver / riverAt).
@@ -3908,6 +3960,8 @@ var hasOcean=true;   // set per life in buildWorld — landlocked cities have no
 var subways=[];      // street-level subway entrances (generated per life)
 var skybridges=[];   // G1: lit tube bridges between adjacent transformed towers
 var seaW=0;          // open-sea width (world fraction per side of the seam) — 0 on landlocked lives
+var SEA_FRONT=0;     // world px of open water along the BOTTOM of the frame (coastal lands only, 0 elsewhere)
+var SEA_Y=0;         // the waterline in world px — everything below it is open water
 // How wide the VISIBLE bay is, per side, as a world fraction. ⚠ Not the same thing as `seaW`, and
 // this is the one that matters: `seaW` only gates what may not be BUILT in the water, while the water
 // you can actually see is painted by drawHarbor over eachWaterSpan, which was a hardcoded 0.11.
@@ -11648,6 +11702,139 @@ function drawVillageLife(g,L,now,nd){
         }
       }
     }
+  }
+}
+// ============ THE OPEN WATER ALONG THE BOTTOM OF THE FRAME ============
+// Drawn in the LIVE pass, because swell and foam move. It paints the band [SEA_Y, SH] full width,
+// plus the edge where the land ends — which is the piece that actually sells it: a beach needs wet
+// sand and a run-up, a clifftop needs a face dropping into deep water, a bayou needs the land to
+// dissolve into it. Same water, four different edges.
+// All phase terms are keyed to WORLD x so the swell is one continuous sea across three monitors.
+function drawSeaFrontBand(g,L,now){
+  if(SEA_FRONT<=0) return;
+  var K=Math.max(1,KSP), day=L>0.5, k=curBiome.k, nm=curBiome.name;
+  var top=SEA_Y, h=SH-SEA_Y;
+  // --- the water body: deeper and darker toward the viewer ---
+  var shallow, deep;
+  if(k==="swamp"){ shallow=day?[54,62,48]:[14,18,16];  deep=day?[26,32,26]:[7,9,9]; }        // a black mirror
+  else if(k==="arctic"){ shallow=day?[104,146,168]:[22,34,48]; deep=day?[48,86,116]:[10,18,30]; }
+  else if(nm==="CORAL COAST"){ shallow=day?[86,206,196]:[16,54,62]; deep=day?[26,116,150]:[8,28,48]; }
+  else if(k==="volcano"){ shallow=day?[52,92,116]:[10,20,30]; deep=day?[22,48,70]:[5,11,18]; }
+  else { shallow=day?[64,124,164]:[12,26,44]; deep=day?[26,66,104]:[6,14,26]; }
+  var wg=g.createLinearGradient(0,top,0,SH);
+  wg.addColorStop(0,css(shallow)); wg.addColorStop(1,css(deep));
+  g.fillStyle=wg; g.fillRect(0,top,SW,h);
+  // --- swell: long low bands travelling across the world, slower and wider with distance ---
+  var wind=Math.max(2,(weather&&weather.wind)||6), sp=0.00004*(0.6+wind/22);
+  for(var b2=0;b2<5;b2++){
+    var by=top+Math.round((b2+0.6)*(h/5.4));
+    var amp=(1+b2*0.55)*K*0.5, wl=(52-b2*7)*K;
+    g.fillStyle=day?"rgba(255,255,255,"+(0.05+b2*0.022).toFixed(3)+")"
+                   :"rgba(150,180,220,"+(0.03+b2*0.016).toFixed(3)+")";
+    for(var sx5=0;sx5<SW;sx5++){
+      var wxw=sx5+WOFF;
+      var yy=by+Math.round(Math.sin(wxw/wl+now*sp*(1+b2*0.5))*amp);
+      g.fillRect(sx5,yy,1,Math.max(1,Math.round(K*0.6)));
+    }
+  }
+  // --- the mirror: on still water the sky and the land above it reflect, which is most of the read
+  // on the bayou and does no harm anywhere else. Cheap: a translucent wash, not a real reflection. ---
+  if(k==="swamp"){
+    g.globalAlpha=0.30;
+    g.fillStyle=css(day?[92,110,84]:[18,24,22]);
+    for(var mr=0;mr<SW;mr+=Math.max(2,Math.round(3*K))){
+      var mh2=Math.round((3+((mr+WOFF)*7%9))*K*0.5);
+      g.fillRect(mr,top,Math.max(1,Math.round(2*K)),mh2);
+    }
+    g.globalAlpha=1;
+  }
+  // --- THE EDGE. Where the land stops is the whole illusion. ---
+  var eh=Math.round(6*K);
+  if(k==="cliffs"){
+    // a rock face dropping from the street baseline into deep water, with a surf collar at its foot
+    var face=day?mixc(curBiome.near,[120,116,108],0.5):mixc(curBiome.near,[10,12,20],0.6);
+    for(var cx6=0;cx6<SW;cx6++){
+      var wx6=cx6+WOFF;
+      var fh6=Math.round((eh*0.7)+Math.sin(wx6/(37*K))*2.2*K+((wx6*13)%3));
+      g.fillStyle=css(face); g.fillRect(cx6,top-fh6,1,fh6+Math.round(2*K));
+      if(day&&((wx6*7)%11)===0){ g.fillStyle=css(mixc(face,[255,246,220],0.28)); g.fillRect(cx6,top-fh6,1,Math.round(2*K)); }
+    }
+    g.fillStyle=day?"rgba(255,255,255,0.6)":"rgba(190,210,235,0.4)";
+    for(var fo=0;fo<SW;fo++){
+      var wf=fo+WOFF, surge=Math.sin(wf/(26*K)+now*0.0006)*0.5+0.5;
+      if(surge>0.45) g.fillRect(fo,top+Math.round(1*K),1,Math.max(1,Math.round((surge-0.4)*4*K)));
+    }
+  } else if(k==="beach"){
+    // wet sand, then a run-up of foam that actually advances and retreats
+    var sand=day?[214,196,158]:[42,38,32], wet=day?[176,158,124]:[30,28,24];
+    g.fillStyle=css(wet); g.fillRect(0,top-Math.round(2*K),SW,Math.round(3*K));
+    g.fillStyle=css(sand); g.fillRect(0,top-Math.round(5*K),SW,Math.round(3*K));
+    var run=(Math.sin(now*0.00045)*0.5+0.5);
+    g.fillStyle=day?"rgba(255,255,255,0.75)":"rgba(200,216,238,0.5)";
+    for(var bf=0;bf<SW;bf++){
+      var wb=bf+WOFF, lip=Math.sin(wb/(48*K))*1.6*K;
+      var fy=top+Math.round(run*3.4*K+lip);
+      g.fillRect(bf,fy,1,Math.max(1,Math.round(1.4*K)));
+    }
+  } else if(k==="swamp"){
+    // no edge at all — the land simply dissolves into the water, which is what a bayou looks like
+    g.globalAlpha=0.55; g.fillStyle=css(day?[46,54,40]:[12,16,14]);
+    for(var sg=0;sg<SW;sg+=Math.max(1,Math.round(K))){
+      var wsg=sg+WOFF, dz=Math.round(((wsg*11)%5)*K*0.4);
+      g.fillRect(sg,top-dz,Math.max(1,Math.round(K)),dz+Math.round(2*K));
+    }
+    g.globalAlpha=1;
+  } else if(k==="arctic"){
+    // an ice shelf with a broken lip, and floes drifting in the lead beyond it
+    g.fillStyle=day?"#dfeaf4":"#2c3a4c"; g.fillRect(0,top-Math.round(4*K),SW,Math.round(5*K));
+    g.fillStyle=day?"#b9ccdd":"#1e2a38";
+    for(var ic=0;ic<SW;ic++){ var wic=ic+WOFF; if(((wic*5)%7)<3) g.fillRect(ic,top+Math.round(((wic*3)%3)*K),1,Math.round(1.6*K)); }
+    for(var fl=0;fl<6;fl++){
+      var fhx=((fl*2654435761)>>>0), fw7=Math.round((14+(fhx%22))*K);
+      var fx7=Math.round(((fhx%1000)/1000)*WW - WOFF + Math.sin(now*0.00002+fl)*8*K);
+      for(var fo2=-1;fo2<=1;fo2++){ var FX2=Math.round(fx7+fo2*WW); if(FX2+fw7<0||FX2>SW) continue;
+        var fy7=top+Math.round((2+(fhx>>>7)%Math.max(1,h-4)));
+        g.fillStyle=day?"#eef5fb":"#33435a"; g.fillRect(FX2,fy7,fw7,Math.round(2.4*K));
+        g.fillStyle=day?"#c3d5e6":"#243244"; g.fillRect(FX2,fy7+Math.round(2.4*K),fw7,Math.max(1,Math.round(K))); }
+    }
+  } else if(k==="volcano"){
+    // black sand and a steam line where the flows still reach the water
+    g.fillStyle=day?"#3a3436":"#141215"; g.fillRect(0,top-Math.round(3*K),SW,Math.round(4*K));
+    g.globalCompositeOperation="lighter";
+    for(var stm=0;stm<SW;stm+=Math.max(6,Math.round(11*K))){
+      var wst=stm+WOFF; if(((wst*7)%5)!==0) continue;
+      var a5=0.10+0.06*Math.sin(now*0.0011+wst);
+      g.fillStyle="rgba(226,232,238,"+a5.toFixed(3)+")";
+      g.fillRect(stm,top-Math.round(9*K),Math.round(4*K),Math.round(9*K));
+    }
+    g.globalCompositeOperation="source-over";
+  }
+  // --- CORAL COAST: the reef line breaking offshore, drawn over the water ---
+  if(nm==="CORAL COAST"){
+    var ry5=top+Math.round(h*0.42);
+    g.fillStyle=day?"rgba(255,255,255,0.55)":"rgba(190,214,236,0.35)";
+    for(var rf=0;rf<SW;rf++){
+      var wrf=rf+WOFF, brk=Math.sin(wrf/(31*K)+now*0.0009);
+      if(brk>0.55) g.fillRect(rf,ry5+Math.round(Math.sin(wrf/(19*K))*1.4*K),1,Math.max(1,Math.round(2*K)));
+    }
+    g.globalAlpha=0.5; g.fillStyle=day?"#2f9b86":"#0d3a36";
+    for(var cr5=0;cr5<SW;cr5+=Math.max(2,Math.round(3*K))){
+      var wcr=cr5+WOFF; if(((wcr*13)%7)>3) continue;
+      g.fillRect(cr5,ry5+Math.round(3*K)+((wcr*5)%Math.max(1,Math.round(3*K))),Math.round(2*K),Math.max(1,Math.round(K)));
+    }
+    g.globalAlpha=1;
+  }
+  // --- the sun/moon track on the water: one bright column under the light, which is what makes a
+  // flat band of colour read as a liquid surface ---
+  if(day){
+    var sunX=Math.round(SW*0.5);
+    g.globalCompositeOperation="lighter";
+    for(var gl=0;gl<h;gl+=Math.max(1,Math.round(K))){
+      var spread=Math.round((4+gl*0.9)*K), a6=0.10*(1-gl/h);
+      g.fillStyle="rgba(255,246,214,"+a6.toFixed(3)+")";
+      g.fillRect(sunX-spread,top+gl,spread*2,Math.max(1,Math.round(K)));
+    }
+    g.globalCompositeOperation="source-over";
   }
 }
 // ============ THE FOREST THAT HIDES THE HIDDEN VILLAGE ============
@@ -22413,6 +22600,11 @@ function draw(g,pass){
   g.globalAlpha=1;
   g.restore();
   }
+  // THE OPEN WATER along the bottom of the frame, on the six coastal lands. Drawn AFTER the road
+  // surface deliberately: the road code fills to SH and would otherwise lay asphalt over the sea.
+  // ⚠ Drawing it here rather than earlier is what keeps it in front — the mistake that hid the
+  // waterfalls for two sessions was assuming definition order was paint order.
+  drawSeaFrontBand(g,L,now);
   drawPuddles(g,L,now);                            // rain leaves standing water, on every land
   // coastal causeway: railing where the highway crosses the open water
   if(hasOcean&&seaW>0&&roadF>0.8){ var rlz=[[0,WW*seaW],[WW*(1-seaW),WW]];
