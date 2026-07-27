@@ -130,7 +130,10 @@ test('a separate striping machine paints only behind the paving front', () => {
   assert.match(road, /LINE-PAINTING MACHINE/);
   assert.match(road, /paintFrontW/);
   const markings = source.slice(source.indexOf('// lane markings + crosswalks'), source.indexOf('// rain leaves PUDDLES'));
-  assert.match(markings, /if\(paintFrac>0\)/);
+  // still gated on the paint truck's progress — the guard now also excludes the Hidden Village,
+  // whose lane is packed earth with cart ruts and has no lane paint or crosswalks to stripe.
+  assert.match(markings, /paintFrac>0/);
+  assert.match(markings, /!curVillage/);
   assert.match(markings, /g\.clip\(\)/);
 });
 

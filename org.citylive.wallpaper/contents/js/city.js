@@ -3790,7 +3790,10 @@ function buildWorld(li){
     clouds.push({x0:r()*WW, y:ct===2?5+r()*(HORIZON*0.15):5+r()*(HORIZON*0.45), w:26+r()*46, h:5+r()*7, sp:0.004+r()*0.006, d:0.3+r()*0.4, t:ct}); }
   // cross-screen traffic: deterministic vehicles in 4 lanes over the whole world.
   // Mix of ordinary cars + yellow taxis + delivery vans → a real city fleet.
-  r=rng(seed+7); cars=[]; var perLane=Math.round(WW/34);
+  // THE VILLAGE HAS NO CARS. Emptying the fleet at the SOURCE rather than gating a dozen draw sites:
+  // every consumer already loops `for(i=0;i<cars.length;i++)`, so a zero-length fleet makes all of
+  // them no-ops at once — traffic, headlights, jams, the wreck-and-EMS incident, the lot.
+  r=rng(seed+7); cars=[]; var perLane=curVillage?0:Math.round(WW/34);
   // a real mixed fleet: sedans, taxis, delivery vans, pickups, SUVs, compacts, sports cars, convertibles
   var carCols=["#ff5a5a","#4aa8ff","#ffe05a","#eef2ff","#ff7ad0","#6affc0","#c58cff","#ff9a3c","#3a4658","#8a939f",
     "#2ea6a6","#8a3b3b","#5566aa","#a7d84a","#d94b4b","#dfe6ef","#b0752f","#5a5f6a","#e08bbf","#3f7f5a"];
@@ -7113,6 +7116,7 @@ function drawGreenery(g,L,now){
 // STREET SIGNAGE: green street-name signs & red stop signs on the corners, plus projecting hanging shop
 // signs on the commercial blocks (neon-lit in a neon age, hand-painted otherwise). Works in every era.
 function drawStreetSigns(g,L,now){
+  if(curVillage) return;   // VILLAGE BAN: street-name plates and signal posts hang off crosswalks, and the village lane has none
   if(cityG<0.42||!near||!near.blds) return; var day=L>0.5;
   for(var i=0;i<crosswalks.length;i++){ var cw=crosswalks[i]; if(!cwInst(cw)) continue; var signAt=0.34+((cw.seed%997)/997)*0.2;
     var signProg=Math.max(0,Math.min(1,(cityG-signAt)/0.075)); if(signProg<=0) continue;
@@ -11479,6 +11483,42 @@ function drawCityHero(g,L,now){ var he=heroEra(); if(!he) return; var cx=Math.ro
 // an international airport is not a hidden village.
 // All three are placed on world fractions and drawn for every screen the span crosses, so they line
 // up across monitors like every other world-anchored feature.
+// THE VILLAGE LANE — packed earth with a worn stone edge, in place of the asphalt street.
+// World-anchored speckle (ruts, stones, tufts) so it stays continuous across the bezels exactly like
+// the asphalt patina it replaces. No lane paint, no crosswalks, no kerb: those all say "city".
+function drawVillageLane(g,L,now,roadY){
+  var day=L>0.5, K=Math.max(1,KSP);
+  var earth=day?[150,126,94]:[38,32,25], earth2=day?[132,108,80]:[30,25,20];
+  var verge=day?[104,122,74]:[22,30,22];
+  // the grass verge in front of the houses, where a pavement would be
+  g.fillStyle=css(verge); g.fillRect(0,HORIZON,SW,3);
+  g.fillStyle=css(mixc(verge,[255,244,200],day?0.18:0.05)); g.fillRect(0,HORIZON,SW,1);
+  // the lane itself
+  g.fillStyle=css(earth); g.fillRect(0,roadY,SW,SH-roadY);
+  // TWO CART RUTS instead of lane markings — the honest version of a centre line: a village road is
+  // worn where the wheels go, not painted where the law says.
+  g.fillStyle=css(mixc(earth,earth2,0.85));
+  var rut1=roadY+Math.round((SH-roadY)*0.34), rut2=roadY+Math.round((SH-roadY)*0.62);
+  for(var rx=((-WOFF%5)+5)%5; rx<SW; rx+=5){
+    var wob=((rx+WOFF)*7%3)-1;                                   // ruts wander a pixel; a ruler-straight rut reads as paint
+    g.fillRect(rx,rut1+wob,4,Math.max(1,Math.round(K*0.6)));
+    g.fillRect(rx,rut2-wob,4,Math.max(1,Math.round(K*0.6)));
+  }
+  // scatter: stones, dry tufts, packed patches — all keyed to WORLD x so they never swim at a bezel
+  g.fillStyle=css(mixc(earth,[92,76,58],0.5));
+  for(var s1=((-WOFF%9)+9)%9; s1<SW; s1+=9) g.fillRect(s1,roadY+1+((s1*7+WOFF)%Math.max(1,(SH-roadY-2))),2,1);
+  g.fillStyle=css(mixc(earth,[210,190,150],day?0.35:0.10));
+  for(var s2=((-WOFF%13)+13)%13; s2<SW; s2+=13) g.fillRect(s2,roadY+2+((s2*5+WOFF)%Math.max(1,(SH-roadY-3))),1,1);
+  g.fillStyle=css(mixc(verge,[60,80,50],0.4));                   // weeds pushing through at the lane edge
+  for(var s3=((-WOFF%17)+17)%17; s3<SW; s3+=17) g.fillRect(s3,roadY,1,2);
+  if(snowpack>0){ g.fillStyle="rgba(240,244,255,"+Math.min(0.92,snowpack)+")"; g.fillRect(0,HORIZON,SW,1+Math.round(snowpack*3)); }
+  if(L<0.5){                                                      // at night the lane is lit by doorways, not streetlights
+    var vg2=g.createLinearGradient(0,HORIZON,0,SH);
+    vg2.addColorStop(0,"rgba(210,170,110,"+(0.10*(1-L))+")");
+    vg2.addColorStop(1,"rgba(120,90,60,0.03)");
+    g.fillStyle=vg2; g.fillRect(0,HORIZON,SW,SH-HORIZON);
+  }
+}
 function drawVillageLandmarks(g,L,now,night,nd){
   var day=L>0.5, K=Math.max(1,KSP), gy=HORIZON;
   function at(frac,fn){                                   // draw once per world wrap that lands on-screen
@@ -18766,7 +18806,9 @@ function drawCivicPolicy(g,L,now){
     g.fillStyle="rgba(200,225,255,0.28)"; g.fillRect(((dph+2)|0)-4,HORIZON-1,8,1);                       // light pool on the street
     g.globalCompositeOperation="source-over";
   }
-  if(curPolicies.heightcap){                                   // HEIGHT CAP (voted): a zoning ceiling drawn across the skyline — cranes top out here (see drawSite), the city stays low-rise
+  // ⚠ the HEIGHT CAP is meaningless in the village and its surveyor's tape is a loud orange line
+  // across the sky: nothing here is tall enough to cap, so the policy has nothing to draw about.
+  if(curPolicies.heightcap && !curVillage){                    // HEIGHT CAP (voted): a zoning ceiling drawn across the skyline — cranes top out here (see drawSite), the city stays low-rise
     var capY=HORIZON-42;
     g.globalCompositeOperation="lighter";
     for(var zx=((now/140|0)%7); zx<SW; zx+=7){ g.fillStyle="rgba(255,130,60,0.5)"; g.fillRect(zx,capY,4,1); }   // dashed zoning-limit line (slowly marching = surveyor's tape)
@@ -21847,7 +21889,16 @@ function draw(g,pass){
   // World-anchored (paved band = world-x [0, WW*paveFrac]) → the front is continuous across every monitor.
   // Freeze-safe: bounded loops, ≤3-rect clip, the machinery vanishes once paved.
   // paving 0.20→0.45 (matches onPavedRoad): roads appear once the town is more established
-  if(paveFrac>0.001){
+  if(curVillage){
+    // THE VILLAGE LANE. Nick's call: packed earth, no cars, no signals, no crosswalks. The paved
+    // multi-lane road with its double-yellow centre line was the last thing at ground level still
+    // insisting this is a city, and it sits across the full width of every frame.
+    // Deliberately NOT world-clipped to a paving front: nobody paves a village lane, so there is no
+    // paving arc to animate — it is simply there from the first day, which is also why the roller,
+    // the cone line and the paint truck are all skipped below.
+    drawVillageLane(g,L,now,roadY);
+    drawRiver(g,L,now);                                                      // the channel still cuts the lane; the bridge carries it over
+  } else if(paveFrac>0.001){
     if(!roadPaved){                                                          // graded earth roadbed ahead of the paver
       g.fillStyle=L>0.5?"#6e5c46":"#332a20"; g.fillRect(0,HORIZON+1,SW,SH-HORIZON-1);
       g.fillStyle=L>0.5?"rgba(0,0,0,0.14)":"rgba(0,0,0,0.22)";               // gravel/rut speckle on the raw bed
@@ -21908,7 +21959,7 @@ function draw(g,pass){
     g.globalAlpha=1; }
   if(snowpack>0){ g.fillStyle="rgba(240,244,255,"+Math.min(0.92,snowpack)+")"; g.fillRect(0,HORIZON,SW,1+Math.round(snowpack*3)); }
   // lane markings + crosswalks — only once the city has proper paved multi-lane roads
-  if(paintFrac>0){
+  if(!curVillage && paintFrac>0){
   g.save(); g.beginPath();                                            // markings exist only where the paint truck has reached
   if(paintFrac>=1) g.rect(0,HORIZON,SW,GROUND+4);
   else for(var pmw=-1;pmw<=1;pmw++){ var pma=Math.max(0,-WOFF+pmw*WW), pmb=Math.min(SW,paintFrontW-WOFF+pmw*WW); if(pmb>pma)g.rect(pma|0,HORIZON,(pmb-pma)|0,GROUND+4); }
