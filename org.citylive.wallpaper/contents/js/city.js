@@ -18839,10 +18839,26 @@ function drawCascades(g,L,now,nd){
   // so `edges[0..2]` were all within 70px of the LEFT FRAME EDGE and the falls drew in a corner, mostly
   // off-screen and behind the city. Collect every candidate, sort by how far it actually drops, then
   // take the biggest few with real separation. A waterfall belongs at the deepest part of the rim.
+  // ⚠⚠ THIRD TIME THIS LAND'S FALLS HAVE VANISHED, AND THIS ONE WAS A HAIR'S BREADTH.
+  // The test was `drop > 7*K`, i.e. `> 14` at KSP 2 — and the largest drop anywhere on the rim
+  // measured EXACTLY 14.0. It failed by nothing at all. That is not bad luck: the plateau is
+  // QUANTISED into bedding planes, so every drop is a multiple of one step height, and an absolute
+  // threshold expressed in the same units will sooner or later land exactly on a step boundary.
+  // A found-by-sweep bug: nothing about the code looked wrong, the land was simply blank.
+  // So the threshold is now SELF-CALIBRATING — a fraction of the biggest drop this rim actually has.
+  // It cannot sit on a boundary, and it cannot go out of units. (The same fix the leaf landmark
+  // needed when its threshold was written in the wrong scale entirely.)
   var cand=[], win=Math.max(3,Math.round(5*K));
+  var maxDrop=0;
+  for(var mx3=Math.round(SW*0.06);mx3<Math.round(SW*0.94)-win;mx3++){
+    var d0=hs[mx3]-hs[mx3+win];
+    if(hs[mx3]>20*K && d0>maxDrop) maxDrop=d0;
+  }
+  if(maxDrop<3*K) return;                       // genuinely no rim on this screen — a bump, not a cliff
+  var need2=Math.max(3*K, maxDrop*0.55);
   for(var x=Math.round(SW*0.06);x<Math.round(SW*0.94)-win;x++){
     var drop=hs[x]-hs[x+win];
-    if(drop>7*K&&hs[x]>20*K) cand.push({x:x,drop:drop,top:gy-hs[x],foot:gy-hs[x+win]});
+    if(drop>=need2&&hs[x]>20*K) cand.push({x:x,drop:drop,top:gy-hs[x],foot:gy-hs[x+win]});
   }
   cand.sort(function(a,b){ return b.drop-a.drop; });
   var edges=[], sep=Math.round(70*K);
