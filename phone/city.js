@@ -11901,6 +11901,58 @@ function SKINC_RGB(h){ var c=SKINC[(h>>>0)%SKINC.length]; return hex2rgb(c); }
 // a seafront in a bayou and a seafront on pack ice are the same civil engineering in different stuff.
 // Drawn over the road's outer edge (the road fills to SH) and under nothing, so it always reads.
 function drawSeaFrontEdge(g,L,now,top,h,K,day,k,nm){
+  // ⚠⚠ A SEAWALL IS SOMETHING A CITY BUILDS. Nick, on a young wild coastal land: "this also likely
+  // doesn't need the guardrail — also make it so the Sidewalk has to be created/built."
+  // The quay wall and its barrier were unconditional, so a frontier settlement of grass, trees and
+  // deer had poured-concrete revetment and a steel crash barrier along its shoreline from the first
+  // day. Everything else in this city is built — the road is laid west to east by a visible paving
+  // front — and the waterfront had no reason to be exempt.
+  // It now follows the SAME progress the road does, and lags it slightly: you pave the street before
+  // you armour the shore. Before that the land simply meets the water.
+  var seaWallF=Math.max(0,Math.min(1,(cityG-0.26)/0.26));
+  if(seaWallF<=0){ drawWildShore(g,L,now,top,K,day,k); return; }
+  // built west to east, exactly like the paving front, so the two arcs read as one programme of works
+  var builtTo=WW*seaWallF;
+  var clipped=(seaWallF<1);
+  if(clipped){
+    g.save(); g.beginPath();
+    for(var wq2=-1;wq2<=1;wq2++){
+      var ca=Math.max(0,(0-WOFF+wq2*WW)), cb2=Math.min(SW,(builtTo-WOFF+wq2*WW));
+      if(cb2>ca) g.rect(ca|0,(top-Math.round(14*K))|0,(cb2-ca)|0,Math.round(40*K));
+    }
+    g.clip();
+    drawWildShore(g,L,now,top,K,day,k);        // the unbuilt stretch still reads as natural
+  }
+  drawSeaFrontEdgeBuilt(g,L,now,top,h,K,day,k,nm);
+  if(clipped) g.restore();
+}
+// THE SHORE BEFORE THE CITY ARMOURS IT — grass or sand running down to the water, no engineering.
+function drawWildShore(g,L,now,top,K,day,k){
+  var bank = (k==="beach") ? (day?[214,196,158]:[42,38,32])
+           : (k==="arctic") ? (day?[226,236,246]:[36,46,60])
+           : (k==="volcano") ? (day?[58,52,52]:[16,14,15])
+           : (day?[96,124,72]:[20,28,22]);
+  g.fillStyle=css(bank);
+  for(var x=0;x<SW;x++){
+    var wx=x+WOFF;
+    var lip=Math.round(Math.sin(wx*0.055)*1.6*K+((wx*7)%3)*K*0.4);
+    g.fillRect(x,top-Math.round(3*K)+lip,1,Math.round(4*K));
+  }
+  g.fillStyle=css(mixc(bank,[0,0,0],0.28));                 // the damp margin the water works at
+  for(var x2=0;x2<SW;x2++){
+    var wx2=x2+WOFF;
+    var lip2=Math.round(Math.sin(wx2*0.055)*1.6*K+((wx2*7)%3)*K*0.4);
+    g.fillRect(x2,top+lip2,1,Math.max(1,Math.round(K)));
+  }
+  if(k!=="beach"&&k!=="arctic"&&k!=="volcano"){             // reeds and tufts on a natural bank
+    g.fillStyle=css(mixc(bank,[40,70,30],0.5));
+    for(var r2=((-WOFF%5)+5)%5; r2<SW; r2+=5){
+      var wr=r2+WOFF; if(((wr*11)%4)!==0) continue;
+      g.fillRect(r2,top-Math.round(6*K),1,Math.round(4*K));
+    }
+  }
+}
+function drawSeaFrontEdgeBuilt(g,L,now,top,h,K,day,k,nm){
   // ⚠ A BEACH GETS NO GUARDRAIL. Nick, looking at the working coast: "this probably doesn't need the
   // guardrail, keep the sidewalk though." He is right and the distinction is physical rather than
   // decorative — a crash barrier exists where there is a DROP. The sea cliffs have one; a beach is
