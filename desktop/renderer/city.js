@@ -7252,7 +7252,19 @@ function drawGreenery(g,L,now){
   var treeCount=QUAL===0?16:36;
   for(var t=0;t<treeCount;t++){ var h=((t*2654435761+321)>>>0), twx=h%WW, dn=districtAt(twx).name;
     var dens=dn==="residential"?0.9:dn==="oldtown"?0.62:dn==="downtown"?0.3:dn==="neon"?0.34:0.22;
-    if(((h>>16)%100)/100 > dens*Math.min(1,(cityG-0.3)/0.2)) continue;
+    // SPREAD: planting continues most of the way through the life instead of finishing at cityG 0.5,
+    // so the city is visibly still greening itself on day five.
+    var planted=Math.min(1,Math.max(0,(cityG-0.30)/0.45));
+    // …AND GETS CLEARED. Nick asked for this too: a maturing downtown loses its verges to frontage
+    // and paving, so greenery RETREATS from the dense districts late in the life even while the
+    // residential streets keep filling in. Without this the city just gets uniformly leafier, which
+    // is not what happens to a downtown core.
+    var builtOut=Math.max(0,Math.min(1,(cityG-0.58)/0.42));
+    // ⚠ 0.62 here cut the street trees from 135 rects to 41 at maturity, which does not read as a
+    // densifying downtown — it reads as the trees disappearing. A RETREAT has to leave something
+    // behind or it is just a deletion. 0.30 thins the core noticeably while the streets stay lined.
+    var clear=(dn==="downtown"||dn==="neon"||dn==="industrial") ? (1-0.30*builtOut) : 1;
+    if(((h>>16)%100)/100 > dens*planted*clear) continue;
     var tx=twx-WOFF; if(tx>SW+6&&tx-WW>-6)tx-=WW; if(tx<-6&&tx+WW<SW+6)tx+=WW; if(tx<-5||tx>SW+5||inSea(twx)) continue;
     if(overLandmark(twx-4,8)) continue;                                                            // keep landmark plazas (stadium, amusement park…) clear of trees
     drawTree(g,tx|0,HORIZON+1,day,now,t,0.68+((h>>8)%42)/100,true);                               // organic size + smooth sway
@@ -12274,7 +12286,7 @@ function drawSeaFrontBand(g,L,now){
 // Static per world-x — no time term at all — so it costs nothing per frame beyond its own rects and
 // stays welded to the land across every bezel.
 function drawVillageForest(g,gy,day,now){
-  var K=Math.max(1,KSP);
+  var K=Math.max(1,KSP)*standGrow();   // the wall thickens over the week like every other stand
   var ridge=(mtsCache&&mtsCache.h&&mtsCache.h[1])?mtsCache.h[1]:null;
   // three bands: far/hazy high on the slope, mid, and a near-black wall right behind the rooftops
   var bands=[
@@ -14998,7 +15010,22 @@ function treeSC(seed){ var h=((seed*40503+11)>>>0)%100;
   return h<58?1:(h<82?1.7:(h<96?2.5:3.4)); }
 // TREES KEEP GROWING: every tree matures over the city's life — planted small, filling out season after
 // season toward a full crown (and creeping a touch beyond, so an old city has old growth). Pure f(cityG).
-function treeGrow(){ return 0.60+0.55*Math.min(1.0,Math.max(0,cityG)*1.35); }
+// ============ VEGETATION GROWS ============
+// Nick: "I want to make sure the Trees and Vegetation grow over time on every map."
+// It already did — but only from 60% to 115% of full size, and it finished by about a third of the
+// way through the life. A tree that starts at 60% is not a sapling, it is a slightly smaller tree,
+// and an arc nobody notices is not an arc. This starts them genuinely small and keeps them growing
+// most of the way through the week, so a Monday city and a Saturday city do not have the same trees.
+// ⚠ ONE CURVE FOR EVERYTHING, deliberately. drawTree is called by the street planting, the parks,
+// the ruins reclaiming themselves and the wild backdrop, and giving each its own timing is how you
+// end up with a park that matures on a different calendar from the verge outside it.
+function treeGrow(){ return 0.26+0.88*Math.min(1.0,Math.max(0,cityG)*1.12); }
+// The same curve for anything that is a STAND of vegetation rather than a single tree — the old
+// forest's giants and the Hidden Village's forest wall. ⚠ A much higher floor: Nick chose to have the
+// giants grow too, and I flagged that they are meant to be ancient. 0.62 is the compromise the land
+// can carry — they visibly thicken over the week and are still colossal on day one, because a giant
+// that sprouted on Tuesday would undo the one thing that land is about.
+function standGrow(){ return 0.62+0.42*Math.min(1.0,Math.max(0,cityG)*1.2); }
 // What grows on THIS land. One writer per plant, dispatched from drawTree by the biome's `flora.kinds`
 // — so the desert stops growing oaks without every caller having to know which biome it is in.
 // Desert and coastal plants ignore `season.bare`: a saguaro does not drop its leaves in February.
@@ -15757,6 +15784,21 @@ function drawForestBackdrop(g,L,now,nd){
   var fB=css(mixc(day?[64,50,36]:[9,9,12],  skc, day?0.40:0.30));
   var fC=css(mixc(mixc(day?B.far:[10,16,14], skc, day?0.46:0.36),[200,124,152],sunsetK*0.30));
   var i,w,sx,t;
+  // THE GIANTS GROW TOO (Nick's call — I flagged that they are meant to be ancient and he chose it).
+  // Their height is scaled from a stored ORIGINAL each frame rather than by allocating a copy per
+  // tree per frame: this runs over every giant in three depth bands at the live rate.
+  // ⚠ `h0` is captured once and is the only source of truth afterwards — scaling `h` in place without
+  // it would compound every frame and the forest would grow to the moon in about a minute.
+  var gsc=standGrow();
+  var bands=[bioTrees.far,bioTrees.mid,bioTrees.near,bioTrees.fore];
+  for(var bi2=0;bi2<bands.length;bi2++){
+    var arr=bands[bi2]; if(!arr) continue;
+    for(var gi3=0;gi3<arr.length;gi3++){
+      var gt=arr[gi3];
+      if(gt.h0===undefined) gt.h0=gt.h;
+      gt.h=gt.h0*gsc;
+    }
+  }
   for(i=0;i<bioTrees.far.length;i++){ t=bioTrees.far[i];
     for(w=-1;w<=1;w++){ sx=Math.round(t.x-WOFF+w*WW);
       if(sx+t.w<-2||sx-t.w>SW+2) continue;
