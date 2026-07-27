@@ -2867,7 +2867,7 @@ var BIOMES=[
   // Lifted roughly 40% in value while keeping the same hue relationships, so it is still a forest
   // and still darker than open country, just legible.
   { k:"forest", name:"OLD FOREST", amp:0.86, base:0.55, flat:0.0, steep:0.0, snow:false, water:null,
-    far:[104,138,114],  near:[74,108,84],   cap:[150,182,138], ground:[88,122,88],
+    far:[96,156,104],   near:[64,132,78],   cap:[150,206,128], ground:[80,142,80],
     walls:[[112,84,58],[96,72,48],[138,106,72],[196,186,164],[86,96,74],[120,110,88],[150,132,102],[72,84,66]],
     fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:0}, big:["elk","bear","boar"], small:["squirrel"], air:["owl"] },
     flora:{ kinds:["fern","generic","fern","log","generic"], bloom:["#e8e0c0","#cfd8b0","#ffffff"] },
@@ -15883,9 +15883,9 @@ function drawForestBackdrop(g,L,now,nd){
   }
   // the far rank: ordinary old-growth on the horizon. The ONLY band whose crowns are drawn — it gives
   // the stand a treeline and something in the sky to read the giants against.
-  var fT=css(mixc(day?[86,66,48]:[12,12,16], skc, day?0.40:0.30));
-  var fB=css(mixc(day?[64,50,36]:[9,9,12],  skc, day?0.40:0.30));
-  var fC=css(mixc(mixc(day?B.far:[10,16,14], skc, day?0.46:0.36),[200,124,152],sunsetK*0.30));
+  var fT=css(mixc(day?[104,80,56]:[12,12,16], skc, day?0.30:0.28));
+  var fB=css(mixc(day?[82,62,42]:[9,9,12],  skc, day?0.30:0.28));
+  var fC=css(mixc(mixc(day?B.far:[10,16,14], skc, day?0.34:0.34),[200,124,152],sunsetK*0.30));
   var i,w,sx,t;
   // THE GIANTS GROW TOO (Nick's call — I flagged that they are meant to be ancient and he chose it).
   // Their height is scaled from a stored ORIGINAL each frame rather than by allocating a copy per
@@ -15936,9 +15936,9 @@ function drawForestBackdrop(g,L,now,nd){
   // THE MID RANK — old-growth between the treeline and the giants. Hazed halfway between the two so
   // the eye reads three distances instead of two, and tall enough that its crowns sit in the middle
   // of the frame, which is the band that was empty sky.
-  var mT=css(mixc(day?[104,80,58]:[13,13,17], skc, day?0.34:0.28));
-  var mB=css(mixc(day?[78,58,40]:[9,9,13],  skc, day?0.34:0.28));
-  var mC=css(mixc(mixc(day?B.far:[9,14,12], skc, day?0.30:0.26),[176,108,138],sunsetK*0.28));
+  var mT=css(mixc(day?[116,88,60]:[13,13,17], skc, day?0.24:0.26));
+  var mB=css(mixc(day?[88,66,44]:[9,9,13],  skc, day?0.24:0.26));
+  var mC=css(mixc(mixc(day?B.far:[9,14,12], skc, day?0.20:0.24),[176,108,138],sunsetK*0.28));
   for(i=0;i<bioTrees.mid.length;i++){ t=bioTrees.mid[i];
     for(w=-1;w<=1;w++){ sx=Math.round(t.x-WOFF+w*WW);
       if(sx+t.w*1.6<-2||sx-t.w*1.6>SW+2) continue;
@@ -15949,9 +15949,9 @@ function drawForestBackdrop(g,L,now,nd){
   // the giants standing BEHIND the skyline
   // ⚠ the NEAR band is the one Nick is looking at — mixing only 0.16 toward the sky left the closest,
   // largest trunks as near-black slabs. More haze and a warmer base: still the darkest band, but wood.
-  var nT=css(mixc(day?[92,70,50]:[12,13,17], skc, day?0.26:0.22));
-  var nB=css(mixc(day?[70,52,36]:[8,9,12],  skc, day?0.26:0.22));
-  var nC=css(mixc(mixc(day?B.near:[7,12,11], skc, day?0.18:0.18),[150,92,124],sunsetK*0.26));
+  var nT=css(mixc(day?[112,84,58]:[12,13,17], skc, day?0.16:0.20));
+  var nB=css(mixc(day?[86,64,42]:[8,9,12],  skc, day?0.16:0.20));
+  var nC=css(mixc(mixc(day?B.near:[7,12,11], skc, day?0.10:0.16),[150,92,124],sunsetK*0.26));
   for(i=0;i<bioTrees.near.length;i++){ t=bioTrees.near[i];
     for(w=-1;w<=1;w++){ sx=Math.round(t.x-WOFF+w*WW);
       if(sx+t.w<-2||sx-t.w>SW+2) continue;
@@ -16522,10 +16522,14 @@ function drawCanopyWalks(g,L,now,K,gy){
       if(tp<0.62){ var wf=tp/0.62, wx=a+span*wf;
         var wy=wk.y+Math.round(Math.sin(Math.PI*wf)*sag)-Math.round(3*K);
         if(wx>=-2&&wx<=SW+2){
+          // ⚠ SMALLER (Nick). Body 3*K + head 1.4*K came to ~9 px at his KSP — TALLER THAN A PERSON,
+          // who is a fixed 7 px and is this engine's reference for everything. A monkey reading as
+          // bigger than the people below it is the same unit mismatch the quadrupeds had.
+          // ~5 px total now: clearly smaller than a person, still legible on a rope at distance.
           g.fillStyle=day?"#2b2620":"#0d0b09";
-          g.fillRect(Math.round(wx),wy,Math.max(1,Math.round(1.4*K)),Math.round(3*K));      // body
+          g.fillRect(Math.round(wx),wy,Math.max(1,Math.round(K)),Math.round(1.7*K));        // body
           g.fillStyle=day?"#c9a888":"#4a3e30";
-          g.fillRect(Math.round(wx),wy-Math.round(1.4*K),Math.max(1,Math.round(1.4*K)),Math.max(1,Math.round(1.4*K))); }   // head
+          g.fillRect(Math.round(wx),wy-Math.round(K),Math.max(1,Math.round(K)),Math.max(1,Math.round(K))); }   // head
       }
     }
   }
