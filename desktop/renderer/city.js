@@ -3375,6 +3375,14 @@ var curNeon=false;   // this life's city wears the neon style (always in THE SPR
 // that would otherwise build a metropolis has to ask this first, so it is hoisted to a global rather
 // than re-testing `curBiome.k` in a dozen hot loops.
 var curVillage=false;
+// DOES THIS LAND WEAR A MODERN CITY'S BRANDED FURNITURE? Stadiums with real team names, corporate
+// hoardings, rooftop jumbotrons, LED news screens, a voted zoning ceiling. On most lands the answer
+// is yes and that furniture is half of what makes the place feel inhabited. On the mythic lands it is
+// the single loudest wrong note: a RED SOX scoreboard under the High Temples undoes the whole land.
+// ⚠ This is DELIBERATELY NARROWER than curVillage. The village removes its landmarks, its traffic and
+// its road as well, because it has replacements for all of them; air and fire do not, so they opt out
+// of the branding only. Conflating the two would strip the civic life out of lands that still want it.
+var curNoBrands=false;
 // The screen-x span [lo,hi] the carved cliff occupies THIS frame, published by drawBiomeLandmark so
 // the forest can leave it bare. ⚠ drawTerrain — which hosts the forest — is called AFTER
 // drawBiomeLandmark, so without this the trees paint straight over the monument. That is the same
@@ -3718,6 +3726,10 @@ function buildWorld(li){
   // identity is that it is not a city, and a 1-in-12 chance of holograms over the tile roofs would
   // throw that away roughly once a year — precisely on the rare life somebody finally gets the egg.
   curVillage = (curBiome.k==="leaf");
+  // ⚠ THE CORE WORLD AND THE FALLS CITY ARE NOT ON THIS LIST, on purpose. Both are genuinely CITIES —
+  // a world that is city everywhere, and a metropolis on a plateau — so their billboards and their
+  // stadium belong. Only the three lands that are emphatically NOT modern cities opt out.
+  curNoBrands = curVillage || curBiome.k==="air" || curBiome.k==="fire";
   curNeon = !curVillage && (!!curBiome.neon || ((mixLi(li,374761393)%12)===0));
   hasOcean = (li===0) ? true : (curBiome.water==="sea" ? true : curBiome.water==="river" ? false : geo()<0.6);
   // The SEA CLIFFS get a far wider coast than anywhere else. Nick named that land the weakest of the
@@ -8863,7 +8875,7 @@ function drawStateScreen(g,sx,sy,sw,sh,now,L){
   g.globalCompositeOperation="lighter"; g.fillStyle="rgba(220,40,40,"+(0.10+0.10*(1-L)).toFixed(2)+")"; g.fillRect(sx,sy,sw,sh); g.globalCompositeOperation="source-over";   // screen glow
 }
 function drawNewsScreens(g,L,now,night){
-  if(curVillage) return;   // VILLAGE BAN: building-scale LED news screens
+  if(curNoBrands) return;   // VILLAGE BAN: building-scale LED news screens
 
   if(cityG<0.5) return;
   var msg=tickerMsg(now), emerg=newsEmergency();
@@ -9188,7 +9200,7 @@ function wrapNews(str, per){
 // read as scattered. Standing-tower predicate (mirrors drawLayer) so a screen never floats over an empty
 // plot; dies with its tower in the cataclysm. NONEWSTV suppresses it for the containment A/B guard.
 function drawJumbotrons(g,L,now,night){
-  if(curVillage) return;   // VILLAGE BAN: rooftop jumbotrons
+  if(curNoBrands) return;   // VILLAGE BAN: rooftop jumbotrons
 
   if(NONEWSTV || cityG<0.55) return;
   var sw=74, sh=50, placed=[], drawn=0, lastX=-999;
@@ -10915,7 +10927,7 @@ function adMountAt(wx){
   return best;
 }
 function drawCorpAds(g,L,now,night){
-  if(curVillage) return;   // VILLAGE BAN: brand billboards — a hidden village has no MEGACORP hoardings
+  if(curNoBrands) return;   // VILLAGE BAN: brand billboards — a hidden village has no MEGACORP hoardings
 
   if(curBills){ drawBillsAds(g,L,now,night); return; }   // gameday: the boulevards go Bills
   if(nukeStruck()) return;
@@ -10978,7 +10990,7 @@ function drawCorpAds(g,L,now,night){
 // GAMEDAY street billboards: the same three hoardings, mounted exactly like the corp ads, but every
 // panel now roars for the Bills — royal-blue board, red rails, a rotating chant, glowing at night.
 function drawBillsAds(g,L,now,night){
-  if(curVillage) return;   // VILLAGE BAN: the same, in Bills livery
+  if(curNoBrands) return;   // VILLAGE BAN: the same, in Bills livery
 
   if(nukeStruck()) return;
   var occupied=[];
@@ -11017,7 +11029,7 @@ function drawBillsAds(g,L,now,night){
 
 // ---- the STADIUM: a tiered grandstand bowl with tall floodlight pylons; roars on game nights + fireworks ----
 function drawStadium(g,L,now,night,nd){
-  if(curVillage) return;   // VILLAGE BAN: a 40,000-seat bowl
+  if(curNoBrands) return;   // VILLAGE BAN: a 40,000-seat bowl
 
   var cx=Math.round(LM_STADIUM*WW), baseY=HORIZON, rw=52, rh=30, game=gameNight(nd)&&L<0.55, lit=game?1:(night*0.55);   // MASSIVE bowl (Nick)
   for(var off=-WW;off<=WW;off+=WW){ var X=(cx-WOFF+off)|0; if(X+rw<-4||X-rw>SW+4) continue;
@@ -11780,6 +11792,81 @@ function drawSeaFrontEdge(g,L,now,top,h,K,day,k,nm){
     g.fillStyle="rgba(255,206,150,0.10)";
     g.fillRect(0,ry-Math.round(1*K),SW,Math.round(2*K));
     g.globalCompositeOperation="source-over";
+  }
+}
+// ============ THE CINDER THRONE: A CITY INSIDE A LIVING CRATER ============
+// ⚠ THIS LAND HAD NO FIRE IN IT AT ALL. It is flagged `volcanic:1`, but the volcano machinery that
+// draws the cone, the summit plume and the crater glow is gated `curBiome.volcanic && !spires &&
+// curBiome.k!=="fire"` — the Fire Nation is EXPLICITLY EXCLUDED, because its caldera numbers turn the
+// cone into a ring wall rather than a peak and the cone code would have drawn the wrong shape.
+// The exclusion was right and the consequence was not: a land called THE CINDER THRONE rendered as a
+// brown-red canyon with a mauve sky and nothing burning anywhere in it.
+// So it gets its own fire, shaped to a caldera instead of to a cone: heat glowing up out of the
+// crater behind the city, lava seams in the rock, ember fall, and a heat shimmer over the rim.
+// Live pass — all of it moves. Everything keyed to world x so the seams line up across monitors.
+function drawCinderLife(g,L,now,nd,fx){
+  if(curBiome.k!=="fire"||cityPhase==="apoc") return;
+  var K=Math.max(1,KSP), gy=HORIZON, day=L>0.5, night=1-L;
+  var hs=(mtsCache&&mtsCache.h&&mtsCache.h[1])?mtsCache.h[1]:null;
+  // ---- LAVA SEAMS: cracks glowing through the caldera wall, brighter at night, following the rock
+  g.globalCompositeOperation="lighter";
+  for(var s=0;s<26;s++){
+    var sh=((s*2654435761+((WORLD_SEED*29)|0))>>>0);
+    var sx=Math.round(((sh%1000)/1000)*WW)-WOFF;
+    for(var o=-1;o<=1;o++){
+      var SX=Math.round(sx+o*WW); if(SX<-30||SX>SW+30) continue;
+      var base=hs?Math.round(hs[Math.max(0,Math.min(SW-1,SX))]):Math.round(gy*0.35);
+      if(base<Math.round(10*K)) continue;
+      var segs=3+((sh>>>7)%4), sy=gy-Math.round(base*(0.15+((sh>>>11)%50)/100));
+      var pulse=0.55+0.45*Math.sin(now*0.0009+s);
+      var a=(day?0.20:0.55)*pulse;
+      g.fillStyle="rgba(255,110,36,"+a.toFixed(3)+")";
+      var cx=SX, cy=sy;
+      for(var q=0;q<segs;q++){                                   // a crack wanders; a straight line reads as a wire
+        var dx=((sh>>>(13+q))%5)-2, len=Math.round((3+((sh>>>(17+q))%5))*K);
+        for(var t=0;t<len;t++){
+          g.fillRect(Math.round(cx+dx*t*0.4),Math.round(cy+t),Math.max(1,Math.round(K*0.8)),Math.max(1,Math.round(K*0.8)));
+        }
+        cx+=dx*len*0.4; cy+=len;
+      }
+      g.fillStyle="rgba(255,214,120,"+(a*0.5).toFixed(3)+")";     // a hotter core down the middle
+      g.fillRect(SX,sy,Math.max(1,Math.round(K*0.6)),Math.round(4*K));
+    }
+  }
+  // ---- THE CRATER GLOW: light thrown UP out of the caldera behind the ring wall. This is the single
+  // strongest cue that the mountain is alive, and it belongs behind the skyline, not in front of it.
+  var gh=Math.round(gy*0.34), gy0=gy-Math.round(gy*0.55);
+  var breathe=0.62+0.38*Math.sin(now*0.00042);
+  for(var q2=0;q2<gh;q2+=Math.max(1,Math.round(2*K))){
+    var f=q2/gh, a2=(day?0.055:0.15)*(1-f)*breathe;
+    if(a2<=0.004) continue;
+    g.fillStyle="rgba(255,96,30,"+a2.toFixed(3)+")";
+    g.fillRect(0,gy0+q2,SW,Math.max(1,Math.round(2*K)));
+  }
+  // ---- EMBERS: sparse, rising, and dying out. Sparse is the point — a blizzard of them reads as snow.
+  var eN=Math.round(26*(0.5+0.5*night));
+  for(var e=0;e<eN;e++){
+    var eh2=((e*2246822519+((WORLD_SEED*7)|0))>>>0);
+    var per=9000+(eh2%7000), ph=((now+(eh2%per))%per)/per;
+    var ex=Math.round(((eh2%1000)/1000)*WW)-WOFF+Math.round(Math.sin(now*0.0007+e)*7*K);
+    for(var o2=-1;o2<=1;o2++){
+      var EX=Math.round(ex+o2*WW); if(EX<-4||EX>SW+4) continue;
+      var ey=gy-Math.round(ph*gy*0.62);
+      var ea=(1-ph)*(day?0.45:0.9);
+      g.fillStyle="rgba(255,"+(120+Math.round(90*(1-ph)))+",60,"+ea.toFixed(2)+")";
+      g.fillRect(EX,ey,Math.max(1,Math.round(K*0.8)),Math.max(1,Math.round(K*0.8)));
+    }
+  }
+  g.globalCompositeOperation="source-over";
+  // ---- HEAT SHIMMER over the rim: the air above hot rock does not hold still ----
+  if(hs){
+    for(var x2=0;x2<SW;x2+=Math.max(2,Math.round(3*K))){
+      var rh=hs[x2]; if(rh<Math.round(14*K)) continue;
+      var ry2=gy-Math.round(rh);
+      var wob=Math.round(Math.sin(x2*0.09+now*0.0026)*1.3*K);
+      g.fillStyle=day?"rgba(255,190,140,0.09)":"rgba(255,140,80,0.13)";
+      g.fillRect(x2,ry2-Math.round(4*K)+wob,Math.max(2,Math.round(3*K)),Math.round(4*K));
+    }
   }
 }
 // ============ THE OPEN WATER ALONG THE BOTTOM OF THE FRAME ============
@@ -14225,7 +14312,7 @@ function arenaOpeningFx(g,x,L,now,team,sIdx,prog){
   for(var cc=0;cc<(w>>3);cc++){ drawPerson(g,x-hw+6+cc*8,y-6,["#e0653a","#4aa0e0","#3ac86a",col][cc%4],SKINC[cc%SKINC.length],(Math.floor(now/300)+cc)&1); }
 }
 function drawSportsDistrict(g,L,now){
-  if(curVillage) return;   // VILLAGE BAN: the sports complex + jumbotrons (RED SOX / KNICKS / RANGERS signage)
+  if(curNoBrands) return;   // VILLAGE BAN: the sports complex + jumbotrons (RED SOX / KNICKS / RANGERS signage)
 
   if(NOSPORTS || nukeStruck() || cityPhase==="apoc") return;
   if(cityG<0.48) return;                                          // the venues rise as the city matures (from the FUTURE-HOME lot at cy~0.48)
@@ -19546,7 +19633,7 @@ function drawCivicPolicy(g,L,now){
   }
   // ⚠ the HEIGHT CAP is meaningless in the village and its surveyor's tape is a loud orange line
   // across the sky: nothing here is tall enough to cap, so the policy has nothing to draw about.
-  if(curPolicies.heightcap && !curVillage){                    // HEIGHT CAP (voted): a zoning ceiling drawn across the skyline — cranes top out here (see drawSite), the city stays low-rise
+  if(curPolicies.heightcap && !curNoBrands){                    // HEIGHT CAP (voted): a zoning ceiling drawn across the skyline — cranes top out here (see drawSite), the city stays low-rise
     var capY=HORIZON-42;
     g.globalCompositeOperation="lighter";
     for(var zx=((now/140|0)%7); zx<SW; zx+=7){ g.fillStyle="rgba(255,130,60,0.5)"; g.fillRect(zx,capY,4,1); }   // dashed zoning-limit line (slowly marching = surveyor's tape)
@@ -23436,6 +23523,7 @@ function draw(g,pass){
   drawAlpineLife(g,L,now,nd,fx);   // eagles on the ridge lift, ibex on the rock, spindrift off the summits
   drawMesaLife(g,L,now,nd,fx);     // vultures on the thermals, heat shimmer, dust devils, the arch
   drawCliffLife(g,L,now,nd,fx);    // the seabird colony on the ledges, and the stacks off the headland
+  drawCinderLife(g,L,now,nd,fx);   // the Fire Nation's caldera: rim glow, lava seams, ember fall
   drawRoofRunners(g,L,now,nd);     // the Hidden Village crossing itself by rooftop
   drawVillageLife(g,L,now,nd);     // …and living in it the rest of the time
   drawNeonCity(g,L,now,nd);        // the neon style, over the city, whatever land it landed on
