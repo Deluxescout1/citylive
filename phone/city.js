@@ -4985,7 +4985,13 @@ function drawRegimeAirship(g,L,now){
       g.globalCompositeOperation="source-over"; } }
 }
 // a small armoured vehicle for the parade — hull + turret + barrel + treads, Order emblem on the hull
-function drawTank(g,x,y,dir,L){
+// ⚠⚠ RENAMED FROM `drawTank` — a SECOND `function drawTank(g,cx,dir,L,now,firing)` is declared
+// later in this file, and a later declaration silently replaces an earlier one. drawRegimeParade
+// called this 5-arg form and got the 6-arg one, so `ly` (a y coordinate) arrived as `dir` and
+// `dir` (+/-1) arrived as `L`. The parade tank therefore chose its day/night palette from WHICH
+// WAY IT WAS DRIVING, and its animation clock received a 0..1 light value, freezing it.
+// Same bug as the volcano disaster, found by the duplicate-name audit that one prompted.
+function drawParadeTank(g,x,y,dir,L){
   var d=L>0.5, body=d?"#3a4436":"#20261e", trk=d?"#2a2e26":"#14170f";
   g.fillStyle=trk; g.fillRect(x-6,y+1,12,2); for(var w=-6;w<6;w+=2){ g.fillStyle=d?"#4a5040":"#2a2e22"; g.fillRect((x+w)|0,y+1,1,2); }
   g.fillStyle=body; g.fillRect(x-5,y-2,10,3); g.fillRect(x-2,y-5,5,3);                               // hull + turret
@@ -4998,7 +5004,7 @@ function drawRegimeParade(g,L,now){
   var R=curRegime; if(!R||!R.active||R.stage<4) return; if(R.stage===6&&R.sub>=0.5) return;
   var lane=LANE[2], ly=HORIZON+lane.o, per=60000, ph=(now%per)/per, dir=lane.d, lead=dir>0?ph*WW:WW*(1-ph), march=(Math.floor(now/300))&1;
   for(var off=-WW;off<=WW;off+=WW){ var base=(lead-WOFF+off);
-    var tx=base|0; if(tx>-20&&tx<SW+20) drawTank(g,tx,ly,dir,L);
+    var tx=base|0; if(tx>-20&&tx<SW+20) drawParadeTank(g,tx,ly,dir,L);
     for(var k=1;k<=12;k++){ var px=(base-dir*(10+k*5))|0; if(px<-4||px>SW+4) continue;
       drawTrooper(g,px,ly+1,now,march?1:0);                                                          // the marching column, in uniform
       if((k%4)===0){ g.fillStyle="#b01828"; g.fillRect(px|0,ly-6,1,3); g.fillStyle="#f4eee2"; g.fillRect(px|0,ly-6,1,1); } } }
@@ -8546,8 +8552,9 @@ function drawAurora(g,nd,L,now,fx){
   g.globalCompositeOperation="source-over";
 }
 // METEOR SHOWERS on their real dates: Lyrids (Apr), Perseids (Aug), Geminids (Dec)
-function meteorShowerActive(nd){ var m=nd.getMonth()+1,d=nd.getDate();
-  return (m===1&&d>=1&&d<=5)||(m===4&&d>=21&&d<=23)||(m===8&&d>=11&&d<=14)||(m===10&&d>=20&&d<=22)||(m===11&&d>=16&&d<=18)||(m===12&&d>=12&&d<=15); }   // Quadrantids/Lyrids/Perseids/Orionids/Leonids/Geminids (lockstep with the copy above)
+// (the single definition of meteorShowerActive lives near the top of this file — there used to be
+// a byte-identical second copy here, kept "in lockstep" by hand. Two copies of a rule is one copy
+// plus a bug waiting: the later declaration wins, so editing the first would have changed nothing.)
 // A named METEOR SHOWER on its real peak nights: streaks radiate AWAY from the shower's true radiant
 // (its live sky position via altAz), the rate scales with the shower's real strength, and it's labelled
 // on-sky at the radiant. World-anchored so every monitor agrees.
