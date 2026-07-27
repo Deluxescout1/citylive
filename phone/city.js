@@ -3693,7 +3693,15 @@ function setup(scene,opts){
   // never let the water eat more than a third of the frame on a short screen
   SEA_FRONT=Math.min(SEA_FRONT, Math.round(SH*0.30));
   HORIZON=SH-GROUND-SEA_FRONT;                // street baseline (back edge of sidewalk)
-  SEA_Y=SH-SEA_FRONT;                         // the waterline: everything below this is open water
+  // ⚠⚠ THE SEA MUST SIT ABOVE THE TASKBAR. Nick: "the road on the middle screen looks bad."
+  // SEA_Y was SH-SEA_FRONT — the bottom-most band of the frame — but that band is exactly where a
+  // bottom panel sits. His middle monitor reports taskbarWp=28, so the entire ocean was rendering
+  // BEHIND the taskbar: all that was left on screen was an over-tall empty road with a guardrail
+  // along its bottom edge and no water at all, which is precisely what "looks bad" describes.
+  // GROUND already carries the panel clearance (max(26, taskbarWp+18)), so HORIZON is unchanged and
+  // no inland land moves; only the waterline comes up out of the panel.
+  TASKBAR_WP=Math.max(0,(opts.taskbarWp||0));
+  SEA_Y=SH-TASKBAR_WP-SEA_FRONT;              // the waterline: everything below this is open water
   buildWorld(_li0);
   if(!NOFETCH){                  // NOFETCH: headless/almanac callers (Control Center, KDE config page) set this
     maybeFetchWeather();          // seed the shared 10-min window on boot (draw() keeps it fresh thereafter)
@@ -3990,6 +3998,7 @@ var skybridges=[];   // G1: lit tube bridges between adjacent transformed towers
 var seaW=0;          // open-sea width (world fraction per side of the seam) — 0 on landlocked lives
 var SEA_FRONT=0;     // world px of open water along the BOTTOM of the frame (coastal lands only, 0 elsewhere)
 var SEA_Y=0;         // the waterline in world px — everything below it is open water
+var TASKBAR_WP=0;    // this screen's bottom-panel height in world px; the sea stops above it, not under it
 // How wide the VISIBLE bay is, per side, as a world fraction. ⚠ Not the same thing as `seaW`, and
 // this is the one that matters: `seaW` only gates what may not be BUILT in the water, while the water
 // you can actually see is painted by drawHarbor over eachWaterSpan, which was a hardcoded 0.11.
@@ -11937,7 +11946,9 @@ function drawCinderLife(g,L,now,nd,fx){
 function drawSeaFrontBand(g,L,now){
   if(SEA_FRONT<=0) return;
   var K=Math.max(1,KSP), day=L>0.5, k=curBiome.k, nm=curBiome.name;
-  var top=SEA_Y, h=SH-SEA_Y;
+  // ⚠ the band ends at the top of the taskbar, not at the bottom of the frame — otherwise the deepest
+  // (and most visible) water is drawn underneath a panel and the land just looks like a wide road.
+  var top=SEA_Y, h=(SH-TASKBAR_WP)-SEA_Y;
   // --- the water body: deeper and darker toward the viewer ---
   var shallow, deep;
   if(k==="swamp"){ shallow=day?[54,62,48]:[14,18,16];  deep=day?[26,32,26]:[7,9,9]; }        // a black mirror
