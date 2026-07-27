@@ -21205,7 +21205,6 @@ function draw(g,pass){
   drawPlainsSky(g,L,now,nd,fx);   // on a plain the SKY is the scenery — towers, curtains, a far butte
   drawVolcano(g,L,now,nd);        // …and if it is a volcano, what the mountain is doing today
   drawSpireWorld(g,L,now,nd);     // the high temples, standing on cloud
-  drawCascades(g,L,now,nd);       // …or the falls pouring off the plateau
   drawBiomeDetail(g,L,now,nd);    // and whatever else lives on this particular land
   drawBiomeLandmark(g,L,now,nd);  // and the one structure that says where you are
   drawPlateauTowns(g,L,now,nd);   // and whatever stands on top of a flat-topped mountain
@@ -21213,7 +21212,22 @@ function draw(g,pass){
   drawGondola(g,L,now);           // a cable-car + summit lodge on the tallest peak (mature cities)
   drawClimbers(g,L,now,nd,fx);    // tiny mountaineers roping up the tallest peaks (fair-weather days)
   }                                                          // end of the backdrop stack
-  if(pass==="bg"){ if(cityG<0.985) drawTerrain(g,cityG,L,now,nd,"bg"); return; }
+  // ⚠⚠ THE FALLS GO LAST, AND THIS IS WHY THEY WERE INVISIBLE FOR TWO SESSIONS. `drawCascades` sat
+  // in the backdrop stack above, and BOTH `drawPlateauTowns` (1612 rects) and `drawTerrain` (1529)
+  // run afterwards and paint straight over the plateau face — 3141 rects landing exactly on the
+  // waterfall region every frame. The cascade code was never wrong: it ran, found its rims and
+  // emitted 677 rects at correct coordinates above the horizon, and was then buried. Raising the
+  // plateau was a real fix for a real second problem, but it could never have revealed the falls.
+  // ⚠ The draw-call recorder found this in two runs after pixel-hunting failed on it twice. When a
+  // sprite "isn't drawn", first prove whether it is drawn, THEN ask who painted over it.
+  // ⚠ `pass===undefined`, NOT `pass!=="bg"` — this line sits AFTER the backdrop stack so it is reached
+  // by every pass, and `!=="bg"` matched "live" too, painting the falls onto both canvases. The
+  // pass-split test caught it immediately (test/pass-split.test.js: the two passes must not
+  // double-paint), which is exactly what that test is for.
+  if(pass===undefined) drawCascades(g,L,now,nd);     // classic single-canvas path only
+  if(pass==="bg"){ if(cityG<0.985) drawTerrain(g,cityG,L,now,nd,"bg");
+    drawCascades(g,L,now,nd);                        // …the falls pouring off the plateau, ON TOP
+    return; }
   // The animated sky sits behind the cached city. It keeps every aerial/weather feature, but no
   // longer forces buildings and roads to be rebuilt at the same cadence as traffic and people.
   if(pass!=="city"&&pass!=="fg"&&pass!=="water"){
