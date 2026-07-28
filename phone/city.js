@@ -226,7 +226,7 @@ function notifLane(pref){
   for(var r=pref; r<NOTIF_ROWS.length; r++){ if(!_notifTaken[r]){ _notifTaken[r]=true; return NOTIF_ROWS[r]; } }
   _notifTaken[NOTIF_ROWS.length-1]=true; return NOTIF_ROWS[NOTIF_ROWS.length-1];   // all full (rare) → share the last row
 }
-function resetNotifLanes(){ for(var r=0;r<_notifTaken.length;r++) _notifTaken[r]=false; NOTIF.length=0; }
+function resetNotifLanes(){ for(var r=0;r<_notifTaken.length;r++) _notifTaken[r]=false; NOTIF.length=0; DEBUGROWS=null; }
 // ⚠⚠ THE PANEL OWNS THE NOTIFICATIONS NOW. Nick: "add all notifications to the top time/weather panel
 // that should have all the information and look nice and easy to read", and — asked directly whether
 // the floating banners should survive alongside it — "panel replaces them entirely".
@@ -237,6 +237,7 @@ function resetNotifLanes(){ for(var r=0;r<_notifTaken.length;r++) _notifTaken[r]
 // serious they are. The banner code is left in place behind `PANEL_OWNS_NOTIFS` rather than deleted,
 // because "revert one flag" is worth more than a tidy diff if he wants the old look back.
 var NOTIF=[];                     // this frame's alerts: {sev, text, col}
+var DEBUGROWS=null;               // the debug stamp's rows, when it is on — rendered by the panel, not in a corner
 var PANEL_OWNS_NOTIFS=true;
 function pushNotif(sev,text,col){
   if(!PANEL_OWNS_NOTIFS) return false;
@@ -6224,16 +6225,22 @@ function drawDebugStamp(g,now,nd){
     "DISASTER "+dis.toUpperCase(),
     "NEON "+(curNeon?"ON":"OFF")+"  VILLAGE "+(curVillage?"ON":"OFF")+"  WX "+((weather&&weather.code)||0)
   ];
-  var wmax=0; for(var i=0;i<lines.length;i++) wmax=Math.max(wmax,textW(lines[i]));
-  var pad=3, bh=lines.length*6+pad*2, bw=wmax+pad*2;
-  // ⚠ SIT ABOVE THE PANEL. Anchoring to SH alone put the last two lines — DISASTER, and the
-  // NEON/VILLAGE/WX line — underneath Nick's dock, so the stamp lost exactly the fields that say
-  // whether a disaster is running. Same mistake the sea band made (it hid behind the taskbar on the
-  // middle monitor); anything anchored to the bottom of this canvas must subtract TASKBAR_WP.
-  var y0=SH-TASKBAR_WP-bh-2, x0=2;
-  g.fillStyle="rgba(8,10,16,0.82)"; g.fillRect(x0,y0,bw,bh);
-  g.fillStyle="rgba(120,230,160,0.9)"; g.fillRect(x0,y0,bw,1);
-  for(var l=0;l<lines.length;l++) drawUiText(g,lines[l],x0+pad,y0+pad+l*6,"#8ef0b0",1);
+  // ⚠⚠ IT GOES IN THE TOP BAR NOW. Nick: "this also needs to be included in the top bar — not in the
+  // corner." Same ruling he gave for the alert banners, applied to the diagnostic: the panel is where
+  // the information lives, and a slab of green text in the bottom-left corner is one more thing
+  // sitting on top of the city — worse than the banners were, because it never goes away.
+  // ⚠ CONDENSED, because the panel already carries some of this. LAND is line 3 of the pill and the
+  // weather code is on the same line, so repeating them would waste two rows of a panel that is now
+  // load-bearing. Six lines become two, and nothing is lost: every field is still here.
+  // Registered rather than drawn, so it flows through the same collector the alerts use and can never
+  // overlap them. `sev:-1` keeps it last no matter what else is happening — a diagnostic outranks
+  // nothing.
+  DEBUGROWS = [
+    "LIFE "+li+"  AGE "+(cityG!=null?cityG.toFixed(3):"?")+"  "+String(cityPhase||"?").toUpperCase()
+      +"  -  DIS "+dis.toUpperCase()+(curEgg?"  -  EGG":""),
+    "SCR "+SW+"x"+SH+"  WOFF "+WOFF+"  Z"+ZOOM+" K"+KSP+"  -  WORLD "+WW+"  HZ "+HORIZON+"  SF "+SEA_FRONT
+      +"  -  NEON "+(curNeon?"ON":"OFF")+"  VLG "+(curVillage?"ON":"OFF")
+  ];
 }
 // The HUD's colours, derived from whatever land this is. Deliberately DERIVED rather than a table:
 // twenty-one lands and counting, and a table would have to be edited every time one is added — this
@@ -6270,8 +6277,10 @@ function drawSkyClock(g,nd,L,now){
   // to fit rather than truncating or cycling — Nick's call, and the right one: a panel that hides an
   // alert to stay a fixed size is worse than a panel that gets taller.
   var NL=NOTIF.slice(0).sort(function(a,b){ return b.sev-a.sev; });
-  var nRows=Math.min(NL.length,5), nY=y3+(l3?8:0), nH=nRows?(nRows*6+3):0, nTw=0, ni;
+  var DR=DEBUGROWS, dRows=DR?DR.length:0;
+  var nRows=Math.min(NL.length,5), nY=y3+(l3?8:0), nH=(nRows||dRows)?((nRows+dRows)*6+3):0, nTw=0, ni;
   for(ni=0;ni<nRows;ni++) nTw=Math.max(nTw,(NL[ni].text.length*4-1));
+  for(ni=0;ni<dRows;ni++) nTw=Math.max(nTw,(DR[ni].length*4-1));
   var pw=Math.max(tw,tw2,tw3,nTw);
   var ph=5*sc+4 + 5+ (l3?(5+3):0) +6 + nH;                     // pill tall enough for however many lines show
   var bx=((SW-pw)/2-7)|0, by=y-4, bw=pw+14, bh=ph+4;           // HUD frame bounds
@@ -6305,7 +6314,7 @@ function drawSkyClock(g,nd,L,now){
   drawUiText(g,l2,x2,y2,townCol,1);                            // city + pop + civic emergency timer
   if(l3) drawUiText(g,l3,x3,y3,"rgba(152,226,242,0.9)",1);     // weather — neon cyan
   // --- the alerts, under a hairline rule so the standing information and the news are not one blur ---
-  if(nRows){
+  if(nRows||dRows){
     g.fillStyle="rgba("+THEME.rail+",0.30)"; g.fillRect(bx+6,nY-2,bw-12,1);
     for(ni=0;ni<nRows;ni++){
       var NI=NL[ni], nx=((SW-(NI.text.length*4-1))/2)|0, ny=nY+2+ni*6;
@@ -6319,6 +6328,12 @@ function drawSkyClock(g,nd,L,now){
     if(NL.length>nRows){                                       // never silently drop one
       var mstr="+"+(NL.length-nRows)+" MORE", mx2=((SW-(mstr.length*4-1))/2)|0;
       drawUiText(g,mstr,mx2,nY+2+nRows*6,"rgba(190,205,225,0.72)",1);
+    }
+    // the diagnostic last, dimmer and in its own green so it never reads as news
+    for(ni=0;ni<dRows;ni++){
+      var dx2=((SW-(DR[ni].length*4-1))/2)|0, dy2=nY+2+(nRows+ni)*6;
+      drawUiText(g,DR[ni],dx2+1,dy2+1,"rgba(0,0,0,0.5)",1);
+      drawUiText(g,DR[ni],dx2,dy2,"rgba(126,224,158,0.78)",1);
     }
   }
   // --- additive neon bloom ---
@@ -20240,6 +20255,33 @@ function drawBiomeLandmark(g,L,now,nd){
     var LX=best, LY=gy-Math.round(bestBase);
     g.fillStyle=day?"#a89a86":"#3b3630";                                            // the main block
     g.fillRect(LX,LY-mh9,mw9,mh9);
+    // ⚠⚠ AND IT WAS A BROWN BOX. Nick: "give the monastery more detail it is very bare." At K≈5 this
+    // block is 65x45 world px — one of the larger structures on the map — and it carried a roof, a
+    // tower and four lit windows. Everything below is what a building of this kind actually has, and
+    // every piece of it is doing a job at this size rather than adding noise:
+    //   · a PLINTH, because a building on a ledge has to sit on something
+    //   · COURSES, because whitewashed rubble stone is banded and a flat fill is not any material
+    //   · the OCHRE BAND under the eaves — the one detail that says this is a monastery and not a barn
+    //   · an EAVES SHADOW, which is what gives a roof any depth at all
+    //   · a DOOR you could walk through, with its own steps
+    //   · a GALLERY along the front, because the flags have to hang off something
+    var mK=Math.max(1,Math.round(K*0.5));
+    g.fillStyle=day?"#8d8071":"#2c2823";                                            // plinth
+    g.fillRect(LX,LY-mK*2,mw9,mK*2);
+    g.fillStyle=day?"#b3a591":"#403a33";                                            // stone courses
+    for(var cq9=1;cq9<5;cq9++) g.fillRect(LX,LY-Math.round(mh9*cq9/5),mw9,Math.max(1,Math.round(K*0.22)));
+    g.fillStyle=day?"#c2543a":"#3a201a";                                            // the ochre band under the eaves
+    g.fillRect(LX,LY-mh9+Math.round(K*0.7),mw9,Math.max(1,Math.round(K*0.9)));
+    g.fillStyle=day?"rgba(40,32,26,0.34)":"rgba(0,0,0,0.4)";                        // eaves shadow
+    g.fillRect(LX,LY-mh9,mw9,Math.max(1,Math.round(K*0.6)));
+    var dW=Math.max(2,Math.round(3.2*K)), dH=Math.max(3,Math.round(4.4*K)), dX=LX+Math.round(mw9*0.5-dW/2);
+    g.fillStyle=day?"#4a3d31":"#17130f"; g.fillRect(dX,LY-dH,dW,dH);                // the door
+    g.fillStyle=day?"#6d5a49":"#241d17"; g.fillRect(dX-1,LY-dH-mK,dW+2,mK);         // its lintel
+    g.fillStyle=day?"#9c8f7d":"#332e28";                                            // steps up to it
+    g.fillRect(dX-mK,LY,dW+mK*2,mK); g.fillRect(dX-mK*2,LY+mK,dW+mK*4,mK);
+    g.fillStyle=day?"#7b6c5b":"#282320";                                            // the gallery the flags hang from
+    g.fillRect(LX-mK,LY-Math.round(mh9*0.62),mw9+mK*2,Math.max(1,Math.round(K*0.5)));
+    for(var gp9=0;gp9<5;gp9++) g.fillRect(LX+Math.round(gp9*mw9/4.4),LY-Math.round(mh9*0.62),1,Math.round(K*1.2));
     g.fillStyle=day?"#8d7f6c":"#2b2723";                                            // its stepped roof
     g.fillRect(LX-Math.round(K),LY-mh9-Math.round(2*K),mw9+Math.round(2*K),Math.round(2.2*K));
     g.fillRect(LX+Math.round(2*K),LY-mh9-Math.round(4*K),mw9-Math.round(4*K),Math.round(2*K));
@@ -20247,9 +20289,18 @@ function drawBiomeLandmark(g,L,now,nd){
     g.fillRect(LX+mw9-Math.round(4*K),LY-mh9-Math.round(9*K),Math.round(4*K),Math.round(9*K));
     g.fillStyle=day?"#8d7f6c":"#211e1b";
     g.fillRect(LX+mw9-Math.round(5*K),LY-mh9-Math.round(11*K),Math.round(6*K),Math.round(2*K));
+    // WINDOWS — two ranks, deep-set, and the frames read even in daylight when nothing is lit
+    for(var wr9=0;wr9<2;wr9++) for(var wc9=0;wc9<4;wc9++){
+      var wxx=LX+Math.round((1.6+wc9*3.1)*K), wyy=LY-Math.round((4.2+wr9*3.4)*K);
+      if(wxx+Math.round(1.6*K)>LX+mw9) continue;
+      g.fillStyle=day?"#5d4f42":"#191410";
+      g.fillRect(wxx,wyy,Math.max(1,Math.round(1.6*K)),Math.round(2.2*K));
+      g.fillStyle=day?"#c9bca8":"#453e36";                                          // the painted surround
+      g.fillRect(wxx-1,wyy-1,Math.max(1,Math.round(1.6*K))+2,1);
+    }
     if(L<0.62){ g.globalCompositeOperation="lighter";                               // windows, lit late
       g.fillStyle="rgba(255,196,110,0.85)";
-      for(var wq=0;wq<4;wq++) if((wq+((now/2600)|0))%5) g.fillRect(LX+Math.round((2+wq*3)*K),LY-Math.round(6*K),Math.max(1,Math.round(1.4*K)),Math.round(2*K));
+      for(var wq=0;wq<4;wq++) if((wq+((now/2600)|0))%5) g.fillRect(LX+Math.round((1.6+wq*3.1)*K),LY-Math.round(4.2*K),Math.max(1,Math.round(1.6*K)),Math.round(2.2*K));
       g.fillStyle="rgba(255,214,150,0.7)"; g.fillRect(LX+mw9-Math.round(3*K),LY-mh9-Math.round(6*K),Math.round(2*K),Math.round(2*K));
       g.globalCompositeOperation="source-over"; }
     // THE ROPE STAIR. ⚠ Rungs alone read as a stack of loose bars floating beside the rock — a
@@ -22007,7 +22058,19 @@ function drawMountains(g,L,now,nd){
         // three trees were rolled and thrown away — and this is a backdrop pass whose cost doubled.
         // A jittered grid gives the identical placement on all three monitors (tree `q` is always at
         // the same world x) while letting the loop run over only the slots this screen can see.
-        var nTree=Math.round((pi===1?2400:900)*treeK), tSc0=(pi===1?1:0.62);
+        // ⚠⚠⚠ AND THEY LOOKED LIKE POLKA DOTS ON A WALL. Nick, on his own screen: "fix the trees on
+        // the mountains they look sad." He is right and this is my own regression from earlier today.
+        // Three faults, all of them mine:
+        //   · TOO BIG. Individually legible trees at this distance read as a scatter of OBJECTS. A
+        //     forest at any real distance is TEXTURE — you see the mass and the edge, not the trees.
+        //   · TOO EVEN. My clump field was gentle enough that the result was near-uniform, and
+        //     uniform scatter is the one arrangement nature never produces.
+        //   · TOO HIGH. Thinning started at 0.34 of the treeline, so the upper face kept a dusting of
+        //     lone trees where there should be bare rock — which is exactly what makes them read as
+        //     stuck ON the cliff rather than standing on a slope.
+        // Denser, smaller, harder-clumped, and gone from the top half. Same sprites, same species,
+        // same altitude rule — it is the STATISTICS that were wrong, not the drawing.
+        var nTree=Math.round((pi===1?3600:1300)*treeK), tSc0=(pi===1?0.62:0.40);
         var tGap=Math.max(1,WW/Math.max(1,nTree)), tQ0=Math.floor((WOFF-4)/tGap), tQ1=Math.ceil((WOFF+SW+4)/tGap);
         for(var tq=tQ0;tq<=tQ1;tq++){
           var tsd=((((tq%nTree)+nTree)%nTree)*40503+((WORLD_SEED*97)|0)+pi*5171)>>>0;
@@ -22018,12 +22081,19 @@ function drawMountains(g,L,now,nd){
           if(hs[txs]<tah+2*KSP) continue;                                 // …and there has to be rock under it
           var tAf=tah/tlAlt;
           var tRoll=(((twx*2654435761)>>>0)%1000)/1000;
-          // thins with altitude — solid low down, single trees at the top, no line anywhere
-          if(tRoll<Math.max(0,(tAf-0.34)/0.66)*0.92) continue;
-          // …and grows in STANDS: a slow two-octave field along the world says where the ground
-          // actually holds forest, so gullies and bare buttresses stay bare
-          var tCl=0.5+0.5*(Math.sin(twx*0.021/KSP)*0.6+Math.sin(twx*0.0073/KSP+2.1)*0.4);
-          if((((tsd>>>19)%100)/100)>tCl*0.94+0.20) continue;
+          // thins with altitude — solid low down, gone well before the treeline, so the top of the
+          // face is ROCK. A few stragglers at the very top is a real thing and it is not what reads
+          // at this size; it reads as litter.
+          if(tRoll<Math.max(0,(tAf-0.20)/0.80)*1.05) continue;
+          // …and grows in STANDS. Three octaves and a hard threshold, because the gentle version left
+          // trees everywhere: a mountainside is mostly bare, with forest where the ground holds it.
+          var tCl=0.5+0.5*(Math.sin(twx*0.021/KSP)*0.5+Math.sin(twx*0.0073/KSP+2.1)*0.34
+                          +Math.sin(twx*0.047/KSP+4.3)*0.16);
+          // ⚠ AND THE THRESHOLD IS A TUNING, NOT A PRINCIPLE — my first cut at 0.42 deleted almost
+          // the whole forest and left one stand on the left of the frame. Bare buttresses are real;
+          // a bare mountain is not what this land is.
+          if(tCl<0.30) continue;                                          // bare buttress — nothing grows
+          if((((tsd>>>19)%100)/100)>(tCl-0.30)/0.70*1.30) continue;
           var tSc=tSc0*(1.55-1.00*tAf)*KSP;                              // higher up the face = further back
           var tH=Math.max(2,Math.round((3.4+2.6*((tq*13)%3)/2)*tSc));
           var tY=(gy-tah)|0, tW=Math.max(1,Math.round(tH*0.42));
@@ -22065,6 +22135,11 @@ function drawMountains(g,L,now,nd){
               g.fillRect(txs-(trw>>1),tY-tH+tr,trw,1);
             }
           }
+          // ⚠ AND A SHADOW AT THE FOOT. A sprite with nothing under it floats, however well drawn —
+          // one darker pixel where the trunk meets the ground is the whole difference between a tree
+          // standing on a slope and a tree stuck to a wall.
+          if(tH>=3){ g.fillStyle=rgba(day?[38,44,52]:[8,10,14],0.30);
+            g.fillRect(txs-Math.max(1,tW>>1),tY,Math.max(2,tW),1); }
         }
       }
     }
@@ -27676,8 +27751,11 @@ function draw(g,pass){
     for(var af=0;af<48;af++){ var ax=((af*97+now*0.03)%SW), ay=((af*53+now*0.05)%SH);
       g.fillStyle="rgba(140,128,120,"+(0.55*apocVeil)+")"; g.fillRect(ax|0,ay|0,1,1); } }   // drifting ash
 
-  drawSkyClock(g,nd,L,now);   // local time, town name, weather + civic emergency timer, top-centre
+  // ⚠ THE STAMP RUNS FIRST NOW. It no longer draws anything itself — it fills `DEBUGROWS` for the
+  // panel to render — so calling it after the panel would have shown the previous frame's numbers,
+  // or on the first frame, nothing at all.
   drawDebugStamp(g,now,nd);   // opt-in diagnostic: what land/age/geometry is this screen actually showing?
+  drawSkyClock(g,nd,L,now);   // local time, town name, weather + civic emergency timer, top-centre
   drawCivicHud(g,now,night);   // who runs the city + approval + mandates + next-vote countdown, top-right
   drawRegimeHud(g,now,night);  // THE ORDER — the unmistakable alert banner while the takeover is underway
   drawPlagueHud(g,now,night);  // THE PLAGUE — the amber medical alert banner while the pandemic rages
