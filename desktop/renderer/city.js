@@ -23297,12 +23297,32 @@ function drawMonorailService(g,L,now){
   for(var i=0;i<curBuilds.length;i++) if(curBuilds[i].t==="monorail"&&curBuilds[i].bp!=="cons")
     drawMonorail(g,L,now,curBuilds[i],"service");
 }
+// ⚠⚠⚠ THIS IS THE "BLUE BOXES". Nick reported them months of debugging ago: "rows of ~12-16 small
+// blue rectangles floating at several heights, some above the horizon, some over the city, not
+// attached to anything." He finally caught one zoomed in, and the giveaway was a PYLON descending
+// from the left end of the row — a monorail support.
+// The bug: the car body was `#e8edf3`, a near-white, and the windows `#2a3550`, a dark navy. Against a
+// pale daytime sky the BODY IS INVISIBLE and only the windows survive — so a three-car train reads as
+// a neat row of evenly spaced dark blue rectangles hanging in mid-air, at whatever height that life's
+// beam happens to sit. "Several heights" because `ry` varies with the seed and with GROUND per screen.
+// ⚠ THE SAME FAILURE AS THE HOLOGRAM FRAME, in mirror image: there the frame survived and the panel
+// vanished; here the windows survive and the body vanishes. Both are "the visible remnant of a thing
+// whose main mass has no contrast against what is behind it". That is now two confirmed instances, so
+// it is worth stating as a rule: ANY SPRITE DRAWN AGAINST OPEN SKY NEEDS ITS OWN EDGE.
+// The train keeps its light livery — a white monorail is right — but it now carries a dark roofline,
+// an outlined underframe and a shaded nose, so the silhouette exists no matter what is behind it.
 function drawMonoTrain(g,x,ry,L){
   var carC=L>0.5?"#e8edf3":"#c8d2e0", win=L>0.5?"#2a3550":"#0a1830", winLit="#8fd0ff";
+  var edge=L>0.5?"#5a6474":"#161d28";                        // the outline that makes it a train, not a row of dots
   g.fillStyle=carC; g.fillRect(x-2,ry-5,2,4);                                                 // nose
+  g.fillStyle=edge; g.fillRect(x-2,ry-5,1,4);                                                 // …and its shaded front face
   if(L<0.5){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(150,210,255,0.5)"; g.fillRect(x-3,ry-4,1,2); g.globalCompositeOperation="source-over"; }
   for(var c=0;c<3;c++){ var cx0=x+c*14;
-    g.fillStyle=carC; g.fillRect(cx0,ry-6,12,6); g.fillStyle="#8a94a4"; g.fillRect(cx0,ry-1,12,1);
+    g.fillStyle=carC; g.fillRect(cx0,ry-6,12,6);
+    g.fillStyle=edge; g.fillRect(cx0,ry-6,12,1);                                              // dark roofline — the top edge
+    g.fillRect(cx0,ry-1,12,1);                                                                // and a dark underframe
+    if(c>0){ g.fillStyle=edge; g.fillRect(cx0-1,ry-6,1,6); }                                  // the gap between cars
+    g.fillStyle="#8a94a4"; g.fillRect(cx0,ry-2,12,1);                                         // skirt
     for(var wq=cx0+2; wq<cx0+11; wq+=3){ g.fillStyle=(L<0.5)?winLit:win; g.fillRect(wq,ry-4,2,2); } }
 }
 // A voted SEAWALL (ocean lives only): a raised concrete barrier at each shore, wave-washed at its base.
