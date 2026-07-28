@@ -441,6 +441,7 @@ function drawApocMoon(g,now,nd,L){
 // ---- real night sky for Norwich CT (actual bright-star positions, rotating with the clock) ----
 var DEG=Math.PI/180;
 // bright stars: [RA hours, Dec deg, magnitude] (J2000). Covers the recognisable asterisms.
+var SKYFIELD=[];   // procedural faint-star field, built once — see drawSky
 var STARS=[
   [2.530,89.264,1.98],   // 0  Polaris
   [11.062,61.751,1.79],  // 1  Dubhe        }
@@ -2205,6 +2206,36 @@ function drawSky(g,now,nd,L,fx){
         var lfa=Math.min(1,Math.max(0,(Math.min(a.alt,b.alt)-3)/16));               // fade links that dip toward the city glow
         g.globalAlpha=(0.11*fade*(0.4+0.6*lfa)); g.fillStyle="#9bbae8"; g.fillRect(lpx|0,lpy|0,1,1); g.globalAlpha=1; }
     }
+  }
+  // ---- THE STAR FIELD. Nick: "I want the nights to look beautiful, more stars, more colors, more
+  // natural", with a reference shot of a dense sky over his own city.
+  // ⚠ The catalogue is 47 REAL named stars — Polaris, Dubhe, Vega — which is why the sky is accurate
+  // for Norwich and also why it looked nearly empty: 47 points is a constellation diagram, not a
+  // night. This adds a few hundred FAINT background stars behind the named ones. They are generated
+  // once from a fixed seed as real RA/Dec and projected through the same altAz, so they rise, set and
+  // rotate with the sky exactly as the real ones do — a field painted in screen space would slide
+  // against the constellations and look wrong within a minute.
+  // They also carry COLOUR: real stars are not white. Blue-white through gold to red keeps the sky
+  // from reading as grey speckle.
+  if(!SKYFIELD.length){
+    for(var fq=0;fq<420;fq++){
+      var fh=((fq*2654435761+40503)>>>0);
+      SKYFIELD.push([ ((fh>>>3)%24000)/1000,                         // RA hours 0..24
+                      (((fh>>>9)%18000)/100)-90,                      // Dec -90..90
+                      2.9+((fh>>>17)%260)/100,                        // magnitude 2.9..5.5 (faint)
+                      (fh>>>5)%100 ]);                                // colour index
+    }
+  }
+  for(var fi=0;fi<SKYFIELD.length;fi++){
+    var fs2=SKYFIELD[fi], fa2=altAz(fs2[0],fs2[1],lst);
+    if(fa2.alt<2) continue;
+    var fwx=skyWX(fa2.az), fwy=skyY(fa2.alt);
+    var flp=Math.min(1,Math.max(0.18,fa2.alt/26));                    // the city glow drowns the faint ones low down
+    var fal=Math.max(0,Math.min(1,(5.6-fs2[2])/3.2))*fade*flp*0.62;
+    if(fal<0.02) continue;
+    var fc=fs2[3]<8?"255,206,170":(fs2[3]<20?"255,236,214":(fs2[3]<74?"236,242,255":"198,218,255"));
+    for(var fw=-1;fw<=1;fw++){ var fx2=fwx-WOFF+fw*WW; if(fx2<-1||fx2>SW+1) continue;
+      g.fillStyle="rgba("+fc+","+fal.toFixed(3)+")"; g.fillRect(fx2|0,fwy|0,1,1); }
   }
   // stars
   for(i=0;i<STARS.length;i++){ var aa=P[i]; if(aa.alt<1.5) continue; var mag=STARS[i][2];
@@ -25097,7 +25128,19 @@ function draw(g,pass){
   // sun / moon — travels across the whole world so all screens agree
   var st=sunTimes(nd);
   if(st.rise){ var dfx=(nd-st.rise)/(st.set-st.rise); if(dfx>0&&dfx<1) curSunDf=dfx; }   // track the sun for directional light
-  goldenK=Math.max(0,1-Math.abs(L-0.5)*2.4);                                             // golden hour strength (same law the mountains/clouds used locally)
+  // ⚠⚠ THE GOLDEN HOUR IS KEYED TO THE REAL SUN, NOT TO THE LIGHT LEVEL.
+  // Nick: "more dynamic sunsets and sunrises." It used to be `1-|L-0.5|*2.4`, and measuring a whole
+  // day showed why that can never be widened: goldenK was 0.81 at 20:00 and EXACTLY 0.000 at both
+  // 19:00 and 21:00, because `L` is very nearly a STEP around sunset and spends almost no time
+  // between 0 and 1. Reshaping that curve gives either a one-hour spike or a permanent gold tint over
+  // midday — I tried both. The engine already computes true sunrise/sunset, so key off those in
+  // MINUTES, which is what a golden hour actually is: ±80 min, peaking at the crossing.
+  // Falls back to the old light-level law if this location has no sunrise (polar summer/winter).
+  goldenK=Math.max(0,1-Math.abs(L-0.5)*2.4);
+  if(st.rise&&st.set){
+    var _gw=80*60000, _near=Math.min(Math.abs(nd-st.rise),Math.abs(nd-st.set));
+    goldenK = (_near<_gw) ? Math.pow(1-_near/_gw,0.85) : 0;
+  }
   goldC=curSunDf<0.5?[255,196,140]:[255,158,96];                                          // rose-gold dawn · amber dusk
   solarEclDim=0;
   var sunHidden=fx.rain||fx.drizzle||fx.snow||fx.thunder||fx.fog||(fx.cloudy&&(weather.cloud||0)>85);   // no sun disk through rain/fog/thick overcast
