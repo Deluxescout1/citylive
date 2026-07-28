@@ -3103,6 +3103,16 @@ var BIOMES=[
     flora:{ kinds:["scrub","grass","scrub"], bloom:["#ffffff","#f0d0d8","#e8e8f0"] },
     // an enormous pale sky, because on a salt pan there is nothing else to look at and it is doubled
     sky:{ top:[124,166,214], bot:[240,238,236], k:0.52, haze:[244,242,240] } },
+  // ============ THE TERRACES — Phase 5, land #6 ============
+  // WHAT FILLS THE FRAME: stacked water. Dozens of flooded rice terraces climbing the hillside, each
+  // one a horizontal mirror catching the sky — so the frame fills VERTICALLY with human-made landform
+  // rather than with rock. It is the only land whose landscape was built by people.
+  { k:"terrace",name:"THE TERRACES", amp:0.72, base:0.60, flat:0.30, steep:0.44, snow:false, water:"river", steps:1,
+    far:[150,176,132],  near:[104,142,92],  cap:[196,214,158], ground:[124,158,104],
+    walls:[[228,220,200],[196,186,166],[240,236,224],[152,140,120],[212,204,184],[176,166,146],[132,122,104],[236,232,220]],
+    fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:1}, big:["buffalo","boar"], small:["frog","squirrel"], air:["heron","egret"] },
+    flora:{ kinds:["palm","fern","willow","palm","grass"], bloom:["#ffffff","#ffd166","#e8a0c0"] },
+    sky:{ top:[126,166,206], bot:[228,232,214], k:0.48, haze:[232,236,218] } },
   { k:"canyon", name:"THE GORGE",   amp:0.55, base:0.30, flat:0.9,  steep:0.72, snow:false, water:"river", gorge:1,
     far:[188,118,84],   near:[156,86,60],   cap:[224,168,120], ground:[196,150,104],
     // the vernacular of a canyon floor: adobe, sandstone block, sun-bleached timber, painted stucco
@@ -3376,6 +3386,20 @@ var BIOME_VARIANTS={
   // ⚠ FOUR named variants, not two. Nick was offered four and picked all four, and nothing here forces
   // a land to have exactly two: `variantOf` does `vs[mixLi(li,104729)%vs.length]`, so the array length
   // is free. Every other land keys separately, so a five-entry canyon reshuffles nothing but itself.
+  terrace:[ {},
+    { name:"THE GOLD HARVEST",  // ripe rice: the whole hillside gone amber, water only in the low steps
+      far:[212,196,128], near:[192,170,86],  cap:[240,228,168], ground:[204,182,104], harvest:1,
+      walls:[[236,226,202],[204,192,168],[246,240,228],[160,148,126],[220,210,188],[184,172,150],[140,130,110],[242,238,226]],
+      flora:{ kinds:["palm","grass","willow","palm"], bloom:["#ffd166","#ffffff","#f0c060"] },
+      fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:1}, big:["buffalo"], small:["frog","squirrel"], air:["egret","heron"] },
+      sky:{ top:[134,170,206], bot:[240,232,200], k:0.46, haze:[242,234,204] } },
+    { name:"THE FLOODED STEPS", // just planted and brim-full: the hillside is nearly all mirror
+      far:[168,190,180], near:[122,156,150], cap:[212,228,220], ground:[142,174,164], flooded:1,
+      walls:[[232,228,216],[200,194,182],[242,240,232],[156,148,136],[216,212,200],[180,174,162],[136,130,120],[240,238,230]],
+      flora:{ kinds:["palm","fern","willow","grass"], bloom:["#ffffff","#e8d088","#c8e0a0"] },
+      fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:0}, big:["buffalo"], small:["frog"], air:["heron","egret"] },
+      sky:{ top:[118,160,204], bot:[224,232,226], k:0.50, haze:[228,236,230] } } ],
+
   salt:[ {},
     { name:"THE PINK PAN",     // mineral-stained brine: the flats really do go pink
       far:[228,206,206], near:[214,184,188], cap:[252,240,240], ground:[246,224,224],
@@ -4019,7 +4043,7 @@ function buildWorld(li){
   EDUB=schoolAt<0.46?0.012:0;                                  // early schooling → tech (space age) sooner (N8)
   POPK=(((li*2654435761+4441)>>>0)%1000)/1000;                 // relative bigness of this city (rush-jam factor)
   var mg=rng((seed+71)>>>0);
-  mtsCache=null; gorgeCache=null; duneCache=null; karstCache=null;   // new life → new silhouette (gorge, dunes, towers)
+  mtsCache=null; gorgeCache=null; duneCache=null; karstCache=null; terrCache=null;   // new life → new silhouette
   bioTrees=null;
   // The four height-field biomes build the same two ridges; the biome's amp/base scale them, and its
   // flat/steep/snow decide how they're cut and coloured at draw time.
@@ -4042,7 +4066,7 @@ function buildWorld(li){
   // to preserve.
   var flatLife = (li!==0 && curBiome.k==="alpine" && mg()>=0.72);
   var relief = flatLife ? 0.34 : 1;                                // open country: present, but low
-  mts = (curBiome.k==="forest"||curBiome.k==="core"||curBiome.gorge||curBiome.dune||curBiome.tower) ? null : {far:[],near:[]};   // the core world has NO terrain at all; the gorge draws walls, not peaks
+  mts = (curBiome.k==="forest"||curBiome.k==="core"||curBiome.gorge||curBiome.dune||curBiome.tower||curBiome.steps) ? null : {far:[],near:[]};   // the core world has NO terrain at all; the gorge draws walls, not peaks
   if(mts){
     var MSC=KSP*Math.max(0.45,Math.min(1,WW/1300))*curBiome.amp*relief;   // small worlds get proportionate peaks
     var nF=6+((mg()*4)|0), nN=4+((mg()*4)|0), mi;
@@ -16111,6 +16135,81 @@ function stratRuns(g,prof,y0,step,style){
   }
 }
 // ================================================================================================
+// THE TERRACES — a hillside people cut into steps
+// ------------------------------------------------------------------------------------------------
+// The only land in the game whose landscape is MAN-MADE. What fills the frame is stacked water: every
+// terrace is a horizontal mirror catching the sky, so the hillside reads as dozens of bright lines
+// climbing away from you rather than as one green slope.
+//
+// The steps follow the CONTOUR, which is the thing that makes real terraces beautiful and the thing a
+// naive implementation gets wrong: they are not straight shelves stacked like a staircase, they curve
+// with the hill, so each riser wanders left and right as it crosses the frame.
+var terrCache=null;
+function drawTerraces(g,L,now,nd){
+  var day=L>0.5, B=curBiome, K=Math.max(1,KSP), skc=biomeSkc(day);
+  var litK=Math.max(0,Math.min(1,(L-0.34)*2.4));
+  var STEPS=Math.max(8, Math.round(HORIZON/Math.max(4,Math.round(7*K))));
+  if(!terrCache){
+    // the underlying hill: kept as FLOAT (rounding a profile before using it is what striped the dunes)
+    terrCache=new Array(SW);
+    for(var x=0;x<SW;x++){
+      var wx=x+WOFF;
+      var n=Math.sin(wx*0.0031)*0.58 + Math.sin(wx*0.0092+1.3)*0.27 + Math.sin(wx*0.0231)*0.12;
+      terrCache[x]=HORIZON*(0.66 - n*0.30*B.amp);
+    }
+  }
+  var harvest=!!B.harvest, flooded=!!B.flooded;
+  var soil=mixc(day?B.near:[(B.near[0]*0.18)|0,(B.near[1]*0.20)|0,(B.near[2]*0.30)|0], skc, 0.18);
+  var lip =mixc(day?B.cap:mixc(B.cap,[0,0,0],0.55), [0,0,0], 0.30);
+  // ⚠ A PADDY MIRRORS THE SKY'S BLUE, NOT ITS HORIZON HAZE. Taking sky.bot (a near-white haze colour)
+  // and lightening it further made every wet step almost white, so the whole hillside rendered as one
+  // pale mass with no steps visible in it at all. The zenith colour is what standing water actually
+  // reflects, and it is what separates a flooded terrace from a planted one.
+  var skyT=B.sky?B.sky.top:[120,160,210];
+  var waterC=mixc(skyT, day?[255,255,255]:[6,10,20], day?0.20:0.62);
+  var cropC=mixc(day?(harvest?[224,196,96]:[104,158,84]):[18,34,24], skc, 0.16);
+
+  for(var x2=0;x2<SW;x2++){
+    var hy=terrCache[x2];
+    var hyR=Math.round(hy);
+    g.fillStyle=css(soil); g.fillRect(x2,hyR,1,HORIZON-hyR+1);
+    // ⚠ THE RISER HEIGHT MUST COME FROM THE LOCAL SPACING, not a fixed number. With a fixed 3.2*K band
+    // and ~8px of spacing the steps touched and filled the hill solid — the terraces vanished into the
+    // very shape they were supposed to carve. Derived from the gap so a lip is always visible.
+    var span=Math.max(1,HORIZON-hy), gap=span/STEPS;
+    var band=Math.max(1,Math.round(gap*0.62));
+    for(var k=1;k<=STEPS;k++){
+      var y=Math.round(hy+gap*k);
+      if(y<=hyR+1||y>=HORIZON) continue;
+      // which stage is this paddy at? flooded = all water, harvest = mostly crop with water at the
+      // bottom where it drains to, base = alternating, which is what a real hillside looks like
+      var wetStep = flooded ? true : (harvest ? (k>STEPS*0.76) : (((k+((x2+WOFF)/240|0))%3)!==0));
+      g.fillStyle=css(wetStep?waterC:cropC);
+      g.fillRect(x2,y-band,1,band);
+      if(wetStep&&litK>0.1){                                   // the sun glints off standing water
+        g.fillStyle=rgba(mixc(waterC,[255,255,255],0.6),0.30*litK);
+        g.fillRect(x2,y-band,1,Math.max(1,Math.round(band*0.35)));
+      }
+      g.fillStyle=rgba(lip,0.8);                               // the stone lip that holds the water in
+      g.fillRect(x2,y,1,1);
+    }
+  }
+  // a few palms and huts on the ridge line, so the hill has a scale reference
+  for(var t2=0;t2<9;t2++){
+    var twx=((t2*2654435761+((WORLD_SEED*13)|0))>>>0)%Math.max(1,WW);
+    for(var o2=-1;o2<=1;o2++){
+      var tx=Math.round(twx-WOFF+o2*WW);
+      if(tx<0||tx>=SW) continue;
+      var ty=Math.round(terrCache[tx]);
+      g.fillStyle=rgba(mixc(lip,[0,0,0],0.25),0.9);
+      g.fillRect(tx,ty-Math.round(3*K),Math.round(3*K),Math.round(3*K));      // a hut on the crest
+      g.fillStyle=rgba(cropC,0.9);
+      g.fillRect(tx+Math.round(4*K),ty-Math.round(5*K),Math.max(1,Math.round(K)),Math.round(5*K));
+      g.fillRect(tx+Math.round(2.5*K),ty-Math.round(6*K),Math.round(4*K),Math.max(1,Math.round(K)));
+    }
+  }
+}
+// ================================================================================================
 // THE SALT MIRROR — the reflection
 // ------------------------------------------------------------------------------------------------
 // ⚠⚠ THE PERF CONTRACT, WHICH IS THE WHOLE REASON THIS FUNCTION IS SHAPED THE WAY IT IS.
@@ -19837,6 +19936,7 @@ function drawMountains(g,L,now,nd){
   if(curBiome.gorge){ drawGorge(g,L,now,nd); return; }                 // the gorge IS the range here — walls, not peaks
   if(curBiome.dune){ drawDunes(g,L,now,nd); return; }                   // …and a dune sea is not a ridge line either
   if(curBiome.tower){ drawKarst(g,L,now,nd); return; }                  // …nor is a field of limestone towers
+  if(curBiome.steps){ drawTerraces(g,L,now,nd); return; }                // …nor a hillside people cut into steps
   if(!mts) return;
   var gy=HORIZON, day=L>0.5;
   var sunsetK=goldenK;   // sourced from the shared golden-hour global (identical law)
