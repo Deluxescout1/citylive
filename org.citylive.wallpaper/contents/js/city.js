@@ -20263,16 +20263,46 @@ function drawBiomeLandmark(g,L,now,nd){
     // apart, and a length capped to a flight rather than a descent of the whole face.
     // ⚠ And it now refuses to draw a step where there is no rock at that height, so it can never
     // again hang in open air the way the monastery itself once did.
-    var stW=Math.max(2,Math.round(2.4*K)), stH=Math.min(Math.round(26*K),Math.round(bestBase*0.55));
-    var stStep=Math.max(2,Math.round(1.8*K)), rW=Math.max(1,Math.round(K*0.6)), stX=LX-Math.round(1.4*K);
-    for(var st9=0;st9<stH;st9++){
-      var sxx9=Math.round(stX-st9*0.30), syy9=LY+st9;
-      var sci=Math.max(0,Math.min(SW-1,sxx9));
-      if(syy9<gy-(hs9[sci]|0)) continue;                                                   // no rock here — no step
-      g.fillStyle=day?"#5c5245":"#14120d";
-      g.fillRect(sxx9,syy9,rW,1); g.fillRect(sxx9+stW,syy9,rW,1);                          // the two cords
-      if(st9%stStep===0){ g.fillStyle=day?"#7d7160":"#1b1812";
-        g.fillRect(sxx9,syy9,stW,rW); }                                                    // …and a tread
+    // ⚠⚠⚠ AND IT WAS STILL A LADDER. Nick, sending a photo of it on his own desktop: "what are these
+    // ladder things? can we make them look nicer and more realistic?" Shrinking it fixed the SCALE and
+    // left the FORM wrong, and the form was always the bigger problem — two long parallel cords with
+    // evenly spaced rungs is a ladder whatever size you draw it, and nobody builds a 40-metre ladder
+    // up a cliff to a monastery. What actually exists at Meteora, at Taktsang, on every cliff-built
+    // religious house in the world is a STAIR CUT INTO THE ROCK: short flights that zig-zag back on
+    // themselves, with a landing at every turn where the path doubles back.
+    // The switchback is also what makes it read at this size. A diagonal line of steps says "path";
+    // a vertical line of rungs says "ladder"; and the turns give the eye the thing a straight ladder
+    // never had — a sense that it is following the shape of the rock rather than lying across it.
+    // ⚠ Every step still refuses to draw where there is no rock at that height, so it cannot hang in
+    // the air; and the flight now STOPS at the first ledge wide enough to stand on, rather than
+    // running for a fixed count, so it ends somewhere instead of just stopping.
+    var stDrop=Math.min(Math.round(30*K), Math.round(bestBase*0.62));
+    var legH=Math.max(3,Math.round(6*K)), legW=Math.max(3,Math.round(7*K));   // a flight, then a turn
+    var trW=Math.max(1,Math.round(1.6*K));                                    // tread: a path one person wide
+    var sx0=LX+Math.round(mw9*0.30), sy0=LY, sdir=-1, done=0;
+    while(done<stDrop){
+      var run=Math.min(legH,stDrop-done);
+      for(var sq9=0;sq9<run;sq9++){
+        var stepX=Math.round(sx0+sdir*(sq9/Math.max(1,legH))*legW), stepY=sy0+done+sq9;
+        var sci=Math.max(0,Math.min(SW-1,stepX));
+        if(stepY<gy-(hs9[sci]|0)) continue;                                   // no rock here — no step
+        g.fillStyle=day?"#8a7d68":"#221e18";                                  // the tread, catching the light
+        g.fillRect(stepX,stepY,trW,1);
+        g.fillStyle=day?"#4e4538":"#100e0a";                                  // …and the riser under it, in shadow
+        g.fillRect(stepX,stepY+1,Math.max(1,trW-1),1);
+        // an outer handrail, dashed so it reads as posts and rope rather than a drawn line
+        if((sq9&1)===0){ g.fillStyle=day?"#6b5f4c":"#171410";
+          g.fillRect(stepX+(sdir<0?-1:trW),stepY-Math.max(1,Math.round(K*0.8)),1,Math.max(1,Math.round(K*0.8))); }
+      }
+      // the LANDING where the path doubles back — a wider shelf, which is what a switchback looks
+      // like from a distance and the only place two people could pass each other
+      var lx9=Math.round(sx0+sdir*legW), ly9=sy0+done+run;
+      var lci=Math.max(0,Math.min(SW-1,lx9));
+      if(ly9>=gy-(hs9[lci]|0)){
+        g.fillStyle=day?"#8a7d68":"#221e18";
+        g.fillRect(lx9-(sdir<0?Math.round(1.6*K):0),ly9,Math.round(2.6*K),Math.max(1,Math.round(K*0.6)));
+      }
+      sx0=lx9; done+=run; sdir=-sdir;                                         // …and back the other way
     }
     // PRAYER FLAGS. ⚠ First pass drew nine at 1.6x2 K on no line at all and they came out as a row
     // of coloured CARDS hovering over the roof, bigger than the monastery's own windows. They are
