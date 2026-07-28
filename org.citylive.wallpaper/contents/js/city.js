@@ -52,6 +52,19 @@ var CFG_DEBUGSTAMP = !!CFG.debugStamp;
 // LAND PIN: `"land":"alpine"` in config.local.json holds every life on one map so it can be reviewed
 // properly. `"landVariant":0..n` optionally pins one of its named faces too. Both reach the wallpaper
 // through applyConfig — see the note in landOf and the config-parity test.
+// GORE LEVEL: how hard this install draws the consequences of a disaster.
+//   "full"       — the bloodbath. Pools that spread and merge, drag trails, bodies piled at the
+//                  epicentre, splatter on walls and vehicles. Nick's desktop default.
+//   "restrained" — everything that shipped before Phase 8: a 2-4px pool and a four-rect body. Still
+//                  a real death state, just seen from across the river.
+//   "off"        — no blood and no bodies anywhere; the toll is still counted and reported, because
+//                  the ticker and the almanac are information, not gore.
+// ⚠ It scales the DRAWING only. The victim list, the toll and every consequence (memorials, the
+// emergency election, the almanac record) are identical at all three levels — otherwise two monitors
+// on different settings would disagree about who is dead, and the whole engine rests on them not
+// disagreeing about anything.
+var CFG_GORE = (CFG.gore==="off"||CFG.gore==="restrained"||CFG.gore==="full") ? CFG.gore : "full";
+function goreK(){ return CFG_GORE==="off" ? 0 : (CFG_GORE==="restrained" ? 0.34 : 1); }
 var CFG_LAND = (typeof CFG.land === 'string' && CFG.land) ? CFG.land : null;
 var CFG_LANDV = (CFG.landVariant != null && isFinite(CFG.landVariant)) ? (+CFG.landVariant) : null;
 // BUFFALO BILLS GAMEDAY TAKEOVER: opt-in, OFF by default. When on AND the real Bills are actually
@@ -104,6 +117,7 @@ function cycleMs(v){
 // the slot grid itself stays fixed, so timing determinism and cross-screen sync are untouched.
 function disMul(v){ return v==="rare"?0.42 : v==="frequent"?2 : 1; }
 function applyConfig(cfg){ if(!cfg) return;
+  if(cfg.gore==="off"||cfg.gore==="restrained"||cfg.gore==="full") CFG_GORE=cfg.gore;
   if(cfg.birthdays!=null) BIRTHDAYS=cfg.birthdays;
   if(cfg.lat!=null) LAT=+cfg.lat;  if(cfg.lon!=null) LON=+cfg.lon;
   if(cfg.lat!=null||cfg.lon!=null) REGION=regionOf(LAT,LON);   // re-derive the architectural region for the new place
@@ -15290,9 +15304,21 @@ function casualtyAt(cd,n){
 }
 // blood + a body, from the moment they fall until the city has cleared the street
 function drawCasualties(g,cd,L,now){
+  var GK=goreK(); if(GK<=0) return;                  // "off" still counts the dead, it just does not draw them
   var N=casualtyCount(cd); if(!N) return;
   var f=cd.f; if(f<0.12) return;
   var day=L>0.5;
+  // ⚠⚠ PHASE 8 OVERRIDES THE RESTRAINT THIS FUNCTION WAS BUILT WITH. The original note here read
+  // "Restraint is deliberate: a pool that reads as a red puddle at 2 px is more disturbing and less
+  // silly than a spray", and it was a defensible call — but Nick has now asked for the opposite in as
+  // many words: "every disaster is a bloodbath if it applies". So the vocabulary stays (a hashed
+  // victim, a pool, a body, a stain that outlasts it) and the SCALE changes, under `CFG_GORE` so the
+  // old behaviour is still one config key away rather than deleted.
+  // ⚠ EVERYTHING BELOW IS STILL A PURE FUNCTION OF (seed, index, age). Pools that "spread and merge"
+  // are drawn as overlapping hashed discs, NOT accumulated — a fluid sim would diverge across Nick's
+  // three monitors within seconds and the same street would run red on one screen and be clean on the
+  // next. Same rule as the hunts: scripted from a hash, never simulated.
+  var K=Math.max(1,KSP);
   for(var n=0;n<N;n++){
     var V=casualtyAt(cd,n);
     if(f<V.dieF) continue;                           // not yet
@@ -15302,18 +15328,69 @@ function drawCasualties(g,cd,L,now){
     if(stainA<=0.02) continue;
     var X=disX(V.x); if(X<-10||X>SW+10) continue;
     var Y=HORIZON-1;
-    // ---- THE BLOOD. Dark, small, and it SPREADS for the first moments, then dries darker.
-    // Restraint is deliberate: this is a pixel city seen from across the river, and a pool that
-    // reads as a red puddle at 2 px is more disturbing and less silly than a spray.
+    // ---- THE BLOOD. It spreads for the first moments, then dries darker.
     var spread=Math.min(1, age/0.05);
-    var bw=Math.max(2, Math.round((2+V.kind)*spread*Math.max(1,KSP)*0.7));
+    var bw=Math.max(2, Math.round((2+V.kind)*spread*K*0.7*(1+2.2*GK)));
     var dry=Math.min(1, age/0.34);
     var br=Math.round(150-70*dry), bg2=Math.round(18+10*dry), bb=Math.round(22+10*dry);
     g.globalAlpha=stainA*(day?0.85:0.6);
     g.fillStyle="rgb("+br+","+bg2+","+bb+")";
-    g.fillRect((X-(bw>>1))|0, Y, bw, Math.max(1,Math.round(KSP*0.5)));
+    g.fillRect((X-(bw>>1))|0, Y, bw, Math.max(1,Math.round(K*0.5*(1+GK))));
     if(bw>3){ g.fillStyle="rgb("+Math.round(br*0.7)+","+bg2+","+bb+")";
       g.fillRect((X-(bw>>1)+1)|0, Y-1, Math.max(1,bw-2), 1); }        // a little pooling at the edge
+    // ---- THE POOL, at full gore: lobes hashed off the victim's own seed so the edge is ragged and
+    // neighbouring pools OVERLAP into sheets without anything ever being accumulated. Three lobes is
+    // enough — the merging comes from pools of adjacent victims touching, not from lobe count.
+    if(GK>0.5){
+      // ⚠ A POOL IS A SHAPE ON THE GROUND, NOT A LINE. The first pass at this widened the existing
+      // one-row mark to 18 world px and it still read as a dark dash: at three times the width and
+      // one pixel of height, a puddle is a pinstripe. Blood lying on a street has a FOOTPRINT — it
+      // runs out from under the body and pools where the camber takes it. Rows that narrow away from
+      // the body give it that footprint for the cost of four more rects.
+      var pl, ph2, plx, ply, plw, pRows=Math.max(2,Math.round((2.2+1.6*V.kind)*K*spread));
+      for(pl=0;pl<pRows;pl++){
+        ph2=(((V.kind*7919+n*2654435761+pl*104729)>>>0));
+        var pf3=pl/pRows;
+        plw=Math.max(1,Math.round(bw*(1-pf3*0.62)*(0.82+((ph2>>>13)%100)/100*0.36)));
+        plx=X+Math.round(((ph2%100)/100-0.5)*bw*0.42);
+        ply=Y-pl;
+        g.fillStyle="rgb("+Math.round(br*(0.86-0.12*pf3))+","+bg2+","+bb+")";
+        g.fillRect((plx-(plw>>1))|0, ply, plw, 1);
+      }
+      // …and a DRAG TRAIL where a body was pulled clear, which is the detail that says someone has
+      // been working this street rather than that the paint got wider.
+      if(age>0.18){
+        var trl=Math.round(Math.min(1,(age-0.18)/0.18)*bw*1.6), tdir=(V.kind&1)?1:-1;
+        g.fillStyle="rgb("+Math.round(br*0.62)+","+bg2+","+bb+")";
+        g.fillRect((X+(tdir>0?bw>>1:-(bw>>1)-trl))|0, Y, Math.max(1,trl), Math.max(1,Math.round(K*0.4)));
+      }
+      // ⚠⚠ AND IT RUNS OFF THE KERB. Nick, watching the first version: "make sure the blood flows into
+      // the streets." He is right, and it is the detail that sells the whole thing — a pool that stops
+      // dead at the kerb line is PAINT. Blood on a pavement runs downhill, finds the gutter, and
+      // crosses the roadway; that movement is what says liquid rather than decal.
+      // ⚠ Hashed like everything else here: the runnel's wander comes from the victim's own seed, so
+      // it takes the identical path on all three monitors. Nothing accumulates.
+      var runL=Math.round(Math.min(1,age/0.14)*(4+2.6*V.kind)*K);
+      if(runL>0){
+        var rx2=X, rdx=0, rq;
+        for(rq=0;rq<runL;rq++){
+          var rh3=(((n*40503+rq*2654435761+(cd.seed|0))>>>0));
+          rdx+=(((rh3%3)|0)-1)*0.34;                                  // it wanders as it runs
+          rx2=X+Math.round(rdx);
+          var rw2=Math.max(1,Math.round((1.6-1.0*(rq/runL))*K));
+          g.fillStyle="rgb("+Math.round(br*(0.78-0.18*(rq/runL)))+","+bg2+","+bb+")";
+          g.fillRect((rx2-(rw2>>1))|0, (Y+1+rq)|0, rw2, 1);
+        }
+        // the GUTTER — where it collects along the kerb once enough has reached the road, and where
+        // neighbouring runnels join into one sheet without anything being accumulated
+        var gutA=Math.min(1,age/0.22);
+        if(gutA>0.15){
+          var gw2=Math.round(bw*1.35*gutA);
+          g.fillStyle="rgb("+Math.round(br*0.66)+","+bg2+","+bb+")";
+          g.fillRect((X-(gw2>>1))|0, (Y+1+runL)|0, gw2, Math.max(1,Math.round(K*0.6)));
+        }
+      }
+    }
     // ---- THE BODY, lying where they fell. Two rects and a head — the same vocabulary as drawPerson,
     // rotated flat, so it reads as one of the crowd rather than as a prop.
     if(!bodyGone){
