@@ -22095,7 +22095,19 @@ function drawMountains(g,L,now,nd){
     // and sparse — it means something — while the stripes were an artifact of per-column arithmetic.
     // World-anchored so all three monitors show the same mountain.
     if(B.snow){
-      for(var cu=0;cu<26;cu++){
+      // ⚠⚠⚠ "MORE LINES IN THOSE MOUNTAINS" — Nick, photographing his left screen, and he is right for
+      // the fourth time on this subject. These are the couloirs, and they are the deliberate vertical
+      // features I exempted from the striping rule earlier this session on the grounds that a couloir
+      // is "placed, tapered and sparse — it MEANS something". Twenty-six of them per band, two bands,
+      // pale, thin and near-vertical across the whole range is not sparse: it is fifty-two scratches.
+      // ⚠ THE REAL FAULT IS THAT A PALE LINE ON ROCK IS A SCRATCH, NOT A CLEFT. What makes a gully
+      // read as a gully is not the snow in it — it is the DARK ROCK WALL on either side. Without an
+      // edge the snow has nothing to be inside of, so the eye reads a mark on the surface rather than
+      // a channel cut into it. Every previous fix here adjusted the snow: its width, its length, where
+      // it started. None of them gave it walls.
+      // So: less than half as many, each with a shaded edge, and fading out at the bottom rather than
+      // stopping dead — an ending is another kind of line.
+      for(var cu=0;cu<11;cu++){
         var cwx=((cu*104729+((WORLD_SEED*53)|0))>>>0)%Math.max(1,WW);
         var cxs=Math.round(cwx-WOFF); if(cxs<-30) cxs+=WW; if(cxs>SW+30) cxs-=WW;
         if(cxs<0||cxs>=SW) continue;
@@ -22143,11 +22155,18 @@ function drawMountains(g,L,now,nd){
           // The snowline in screen y is `gy-cst`; a gully runs from there DOWN into the rock.
           var cy2=(gy-cst+cq)|0;
           if(cy2<ctop||cy2>=gy) continue;
+          // the ROCK WALL the snow sits between — drawn first, on the shaded side, so the snow reads
+          // as lying IN something. This one rect is the difference between a cleft and a scratch.
+          g.fillStyle=rgba(day?[52,58,74]:[14,16,24],(0.34-0.24*cf));
+          g.fillRect(cxs+lean-Math.max(1,Math.round(KSP*0.7)),cy2,Math.max(1,Math.round(KSP*0.7)),1);
           // ⚠ at night the rock is down around [16,20,45] and a snow value of [126,140,166] at 0.85 is
           // the brightest thing on the face — the couloirs stopped being snow and became scratches
           // again, in the dark. Moonlit snow is still much darker than daylit snow.
-          g.fillStyle=(B.alpine&&!day)?rgba([92,104,134],(0.50-0.34*cf))
-                                      :rgba(day?[240,246,252]:[126,140,166],(0.85-0.55*cf));
+          // ⚠ the tail fades to nothing over the last third. A gully that stops at full strength ends
+          // in a horizontal edge, and a hard end to a vertical feature is just another line.
+          var cFade=cf>0.66?(1-(cf-0.66)/0.34):1;
+          g.fillStyle=(B.alpine&&!day)?rgba([92,104,134],(0.50-0.34*cf)*cFade)
+                                      :rgba(day?[240,246,252]:[126,140,166],(0.85-0.55*cf)*cFade);
           g.fillRect(cxs+lean,cy2,wq2,1);
         }
       }
