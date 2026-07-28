@@ -21181,9 +21181,18 @@ function drawMountains(g,L,now,nd){
         // exposed ridges, and hangs lower on shaded faces. Three octaves plus a per-column jitter give
         // that edge; the average altitude is unchanged, so the physics stays honest and only the line
         // stops being a line.
-        if(pi0===0) mtsCache.wig[cx0]=(Math.sin(wx0*0.23)*2.2 + Math.sin(wx0*0.071+1.3)*3.4
-                                       + Math.sin(wx0*0.017+0.6)*4.6
-                                       + ((mixLi((wx0*7919)>>>0,3571)%100)/100-0.5)*2.6)*KSP;
+        // ⚠⚠ AND THE JITTER MUST BE SPATIALLY COHERENT. My first version added
+        // `((mixLi(wx0*7919)%100)/100-0.5)*2.6` — INDEPENDENT per column, i.e. white noise — so
+        // adjacent columns differed randomly by several pixels and the snow grew a row of vertical
+        // COMB TEETH hanging off its lower edge. Nick photographed exactly that on THE DOLOMITES,
+        // one release after I "fixed" the snowline.
+        // A ragged edge is not a noisy edge: real snow breaks up in CHUNKS several metres across, so
+        // the hash is quantised to ~5 world px and held across each block. Same roughness, no
+        // per-pixel flicker, and the octaves still do the long-wavelength wander.
+        if(pi0===0){ var blk=(wx0/5)|0;
+          mtsCache.wig[cx0]=(Math.sin(wx0*0.23)*1.6 + Math.sin(wx0*0.071+1.3)*3.0
+                             + Math.sin(wx0*0.017+0.6)*4.2
+                             + ((mixLi((blk*7919)>>>0,3571)%100)/100-0.5)*3.2)*KSP; }
       }
       // SLOPE BUCKETS, cached with the silhouette they are derived from. Which way a column FACES is
       // a pure function of h[] and h[] never changes within a life, so re-deriving it per frame would
@@ -21208,7 +21217,17 @@ function drawMountains(g,L,now,nd){
       for(cs=0;cs<SW;cs++){
         ca=cs-sm; if(ca<0)ca=0; cb=cs+sm; if(cb>SW-1)cb=SW-1;
         var acc=0; for(var cq=ca;cq<=cb;cq++) acc+=raw[cq];
-        slp[cs]=Math.max(-2,Math.min(2,Math.round((acc/(cb-ca+1))*3.2)));
+        // ⚠⚠ THE BUCKETING IS WHAT STRIPES THE ROCK. The slope signal is smoothed twice above (a wide
+        // baseline, then a second pass) and that part works — but it is then rounded into FIVE levels,
+        // and quantising a horizontally-varying signal produces vertical BANDS. On the Dolomites those
+        // bands run the full height of the face and read as columns cut into the mountain.
+        // This is the third time this project has produced vertical stripes from per-column work
+        // (gorge crest jitter, dune profile rounding, and now slope bucketing) — the shared lesson is
+        // that anything computed per column and then hard-stepped will show up as a column.
+        // Finer steps (13 levels instead of 5) with proportionally lower alpha per step: the same
+        // overall modelling, gradations too fine to read as bands. Still bucketed, so the run-length
+        // batching below is untouched and this costs nothing.
+        slp[cs]=Math.max(-6,Math.min(6,Math.round((acc/(cb-ca+1))*9.6)));
       }
     }
   }
@@ -21234,8 +21253,8 @@ function drawMountains(g,L,now,nd){
         mbk=(mtop>-999)?(sunL?-slb[mx2]:slb[mx2]):0;
         if(mtop!==ltop||mbk!==lbk){
           if(ls>=0&&ltop>-999&&lbk!==0){
-            g.fillStyle= lbk>0 ? "rgba(255,246,220,"+(0.070*lbk*lk).toFixed(3)+")"
-                               : "rgba(16,12,30,"+(0.078*(-lbk)*lk).toFixed(3)+")";
+            g.fillStyle= lbk>0 ? "rgba(255,246,220,"+(0.0234*lbk*lk).toFixed(3)+")"
+                               : "rgba(16,12,30,"+(0.0260*(-lbk)*lk).toFixed(3)+")";
             g.fillRect(ls,ltop,mx2-ls,gy-ltop+2);
           }
           ls=(mtop>-999)?mx2:-1; ltop=mtop; lbk=mbk;
@@ -21347,8 +21366,52 @@ function drawMountains(g,L,now,nd){
       // term the lighting already uses, so this costs nothing and moves snow the way the sun does.
       var asp=B.snow?(mtsCache.sl[pi][sx2]||0)*(curSunDf<0.5?-1:1)*1.6*KSP:0;
       var cap=Math.round(rh2-(snl+(B.snow?mtsCache.wig[sx2]:0)+asp));
-      if(B.snow&&cap>0&&((sx2+(rh2*2|0))&1)) cap+=1;
+      // ⚠ the old per-column ±1 dither existed to break up a perfectly flat snowline. The edge now has
+      // real structure of its own, and stacking white noise on top of it is what made the teeth worse.
       if(cap>0) g.fillRect(sx2,top2,1,Math.min(cap,gy-top2));
+    }
+    // ⚠⚠ COULOIRS — the thing that actually makes a snowy range read as MOUNTAINS. Nick: "I want to
+    // make sure these mountains look realistic for what they are." Snow does not only sit on top; it
+    // collects and survives in the GULLIES, so a real alpine face is a grey wall with white fingers
+    // running down it. Without them the range is a grey mass wearing a white hat, which is exactly
+    // what it was.
+    // ⚠ Note these are DELIBERATE vertical features, and the striping I have just spent three fixes
+    // removing was accidental vertical features. The difference is that a couloir is placed, tapered
+    // and sparse — it means something — while the stripes were an artifact of per-column arithmetic.
+    // World-anchored so all three monitors show the same mountain.
+    if(B.snow){
+      for(var cu=0;cu<26;cu++){
+        var cwx=((cu*104729+((WORLD_SEED*53)|0))>>>0)%Math.max(1,WW);
+        var cxs=Math.round(cwx-WOFF); if(cxs<-30) cxs+=WW; if(cxs>SW+30) cxs-=WW;
+        if(cxs<0||cxs>=SW) continue;
+        var crh=hs[cxs]; if(crh<26*KSP) continue;
+        var ctop=(gy-crh)|0;
+        var cst=Math.round(snl+(mtsCache.wig[cxs]||0));           // starts at this column's snowline
+        // ⚠ LENGTH FROM THE PEAK, NOT FROM THE CLEARANCE. My first version used `(crh-cst)` — how far
+        // this column clears the snowline — and on a range whose peaks only just reach it that is a
+        // few pixels, so 26 couloirs emitted 99 rects and every one was ~4px long. Instrumenting was
+        // the only way to see it: they WERE drawing, they were just too short to notice, which reads
+        // identically to "not implemented".
+        // Snow survives in a gully well BELOW the general snowline — that is the whole reason a
+        // couloir is visible on a bare face — so the length comes off the peak height instead.
+        var clen=Math.round(crh*(0.22+0.30*(((cu*7919)>>>0)%100)/100));
+        if(clen<4*KSP) continue;
+        var cw2=Math.max(1,Math.round((1.2+((cu*13)%3))*KSP*0.7));
+        for(var cq=0;cq<clen;cq++){
+          var cf=cq/clen;
+          var wq2=Math.max(1,Math.round(cw2*(1-cf*0.75)));         // tapers as it runs down
+          var lean=Math.round(Math.sin(cq*0.18+cu)*1.2*KSP*(1-cf));  // gullies are not plumb lines
+          // ⚠ DOWN FROM THE SNOWLINE, not up into it. My first version computed
+          // `gy-crh+(crh-cst-clen)+cq`, which starts `clen` ABOVE the snowline and runs down to it —
+          // i.e. entirely inside the snowcap, drawing white on white. Invisible, and it looked like
+          // the couloirs simply had not been added.
+          // The snowline in screen y is `gy-cst`; a gully runs from there DOWN into the rock.
+          var cy2=(gy-cst+cq)|0;
+          if(cy2<ctop||cy2>=gy) continue;
+          g.fillStyle=rgba(day?[240,246,252]:[126,140,166],(0.85-0.55*cf));
+          g.fillRect(cxs+lean,cy2,wq2,1);
+        }
+      }
     }
     }
   }
