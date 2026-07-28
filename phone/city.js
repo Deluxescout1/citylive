@@ -226,7 +226,24 @@ function notifLane(pref){
   for(var r=pref; r<NOTIF_ROWS.length; r++){ if(!_notifTaken[r]){ _notifTaken[r]=true; return NOTIF_ROWS[r]; } }
   _notifTaken[NOTIF_ROWS.length-1]=true; return NOTIF_ROWS[NOTIF_ROWS.length-1];   // all full (rare) → share the last row
 }
-function resetNotifLanes(){ for(var r=0;r<_notifTaken.length;r++) _notifTaken[r]=false; }
+function resetNotifLanes(){ for(var r=0;r<_notifTaken.length;r++) _notifTaken[r]=false; NOTIF.length=0; }
+// ⚠⚠ THE PANEL OWNS THE NOTIFICATIONS NOW. Nick: "add all notifications to the top time/weather panel
+// that should have all the information and look nice and easy to read", and — asked directly whether
+// the floating banners should survive alongside it — "panel replaces them entirely".
+// Those banners floated over the CITY: a stack of alert bars across the skyline, each claiming a lane
+// so they would not overprint each other. Even done tidily that is chrome sitting on top of the thing
+// you are meant to be looking at, and with four lanes it could cover a quarter of the frame.
+// Every alert now registers here instead and the sky-clock pill grows to carry them, ranked by how
+// serious they are. The banner code is left in place behind `PANEL_OWNS_NOTIFS` rather than deleted,
+// because "revert one flag" is worth more than a tidy diff if he wants the old look back.
+var NOTIF=[];                     // this frame's alerts: {sev, text, col}
+var PANEL_OWNS_NOTIFS=true;
+function pushNotif(sev,text,col){
+  if(!PANEL_OWNS_NOTIFS) return false;
+  for(var i=0;i<NOTIF.length;i++) if(NOTIF[i].text===text) return true;   // a wrapped world draws thrice
+  NOTIF.push({sev:sev,text:text,col:col||"rgba(210,225,245,"});
+  return true;
+}
 var CLOCK = null;   // test-harness override: ms timestamp for time-of-day (null = real wall clock)
 var NOWOVR = null;  // test-harness override: ms value returned as Date.now() inside draw() (null = real)
 var NOFETCH = false;  // headless flag (own line = QML-namespace writable): almanac callers set this so setup() makes NO network calls
@@ -5186,6 +5203,7 @@ function drawApocReplayHud(g,realNow,night){            // makes it clear this i
   var replaying=(realNow>=R.startAt), msg, col=replaying?"rgba(255,90,60,":"rgba(255,178,74,";
   if(replaying) msg="▶ REPLAY - THE END YOU MISSED";
   else msg="⚠ MISSED CATACLYSM - REPLAY "+fmtCountdown(R.startAt-realNow);
+  if(pushNotif(20,msg,col)) return;
   var tw=textW(msg), W=tw+8, cx=(SW>>1), ty=notifLane(1), x0=(cx-(W>>1))|0, pulse=0.7+0.3*Math.sin(realNow*0.006);
   g.fillStyle="rgba(8,4,4,0.82)"; g.fillRect(x0-2,ty-3,W+4,11);
   g.fillStyle=col+(0.9*pulse).toFixed(3)+")"; g.fillRect(x0-2,ty-4,W+4,1); g.fillRect(x0-2,ty+7,W+4,1);
@@ -5329,6 +5347,7 @@ function drawRegimeHud(g,now,night){
   var full=(bills?"BILLS MAFIA - ":"THE ORDER - ")+lab;
   var col=fallen?"rgba(60,216,110,":(bills?"rgba(0,90,220,":"rgba(224,28,52,");                      // blue rails for the Bills Mafia
   var blink=(R.stage>=4&&!fallen)?((Math.floor(now/300))%2):1, a=0.72+0.28*blink;
+  if(pushNotif(75,full,col)) return;
   var tw=textW(full), ew=9, W=ew+tw+4, cx=(SW>>1), ty=notifLane(0), x0=(cx-(W>>1))|0;
   g.fillStyle="rgba(10,4,6,0.85)"; g.fillRect(x0-2,ty-3,W+4,11);
   g.fillStyle=col+(0.95*a)+")"; g.fillRect(x0-2,ty-4,W+4,1); g.fillRect(x0-2,ty+7,W+4,1);            // rails
@@ -5353,6 +5372,7 @@ function drawPlagueHud(g,now,night){
   var lab=recovered?"RECOVERED":(P.zombie?ZOMBIE_STAGE_LABEL[P.stage]:PLAGUE_STAGE_LABEL[P.stage]);
   var full="PLAGUE - "+lab, col=zomb?"rgba(90,205,60,":recovered?"rgba(60,200,120,":"rgba(224,168,32,";   // sickly green once the dead rise
   var blink=((P.stage===3||zomb)&&!recovered)?((Math.floor(now/300))%2):1, a=0.72+0.28*blink;       // blinks at the SURGE and the OVERRUN
+  if(pushNotif(80,full,col)) return;
   var tw=textW(full), ew=9, W=ew+tw+4, cx=(SW>>1), ty=notifLane(0), x0=(cx-(W>>1))|0;
   g.fillStyle="rgba(6,8,2,0.85)"; g.fillRect(x0-2,ty-3,W+4,11);
   g.fillStyle=col+(0.95*a)+")"; g.fillRect(x0-2,ty-4,W+4,1); g.fillRect(x0-2,ty+7,W+4,1);            // rails
@@ -5365,6 +5385,7 @@ function drawFestivalHud(g,now,night){
   var F=curFestival; if(!F||!F.active) return;
   var full=F.theme+" EXPO - "+FESTIVAL_STAGE_LABEL[F.stage], col="rgba(255,196,64,";
   var pulse=0.82+0.18*Math.sin(now*0.004);                             // gentle celebratory shimmer
+  if(pushNotif(30,full,col)) return;
   var tw=textW(full), ew=9, W=ew+tw+4, cx=(SW>>1), ty=notifLane(0), x0=(cx-(W>>1))|0;
   g.fillStyle="rgba(10,6,2,0.85)"; g.fillRect(x0-2,ty-3,W+4,11);
   g.fillStyle=col+(0.95*pulse).toFixed(3)+")"; g.fillRect(x0-2,ty-4,W+4,1); g.fillRect(x0-2,ty+7,W+4,1);   // rails
@@ -6244,8 +6265,15 @@ function drawSkyClock(g,nd,L,now){
   var l3=wxHudLine();                                          // current + projected weather
   if(landNm) l3=(l3?l3+"  -  ":"")+landNm;
   var tw3=(l3.length*4-1), x3=((SW-tw3)/2)|0, y3=y2+5+3;
-  var pw=Math.max(tw,tw2,tw3);
-  var ph=5*sc+4 + 5+ (l3?(5+3):0) +6;                          // pill tall enough for however many lines show
+  // ---- THE ALERT ROWS. Everything that used to float over the city in a banner lane lives here now.
+  // Ranked by severity so the worst thing is always the first line under the rule, and the panel GROWS
+  // to fit rather than truncating or cycling — Nick's call, and the right one: a panel that hides an
+  // alert to stay a fixed size is worse than a panel that gets taller.
+  var NL=NOTIF.slice(0).sort(function(a,b){ return b.sev-a.sev; });
+  var nRows=Math.min(NL.length,5), nY=y3+(l3?8:0), nH=nRows?(nRows*6+3):0, nTw=0, ni;
+  for(ni=0;ni<nRows;ni++) nTw=Math.max(nTw,(NL[ni].text.length*4-1));
+  var pw=Math.max(tw,tw2,tw3,nTw);
+  var ph=5*sc+4 + 5+ (l3?(5+3):0) +6 + nH;                     // pill tall enough for however many lines show
   var bx=((SW-pw)/2-7)|0, by=y-4, bw=pw+14, bh=ph+4;           // HUD frame bounds
   chromeClaim(now,bx,by,bw,bh);                                // this patch is spoken for — flight tags route around it
   var pulse=0.68+0.32*Math.sin(nd.getTime()*0.0022);           // gentle breathing neon
@@ -6276,12 +6304,30 @@ function drawSkyClock(g,nd,L,now){
   var townCol=townUpdate?(townUpdate.urgent?"rgba(255,100,100,0.98)":"rgba(255,190,110,0.96)"):(rgName?"rgba(255,120,120,0.95)":"rgba(255,150,220,0.92)");
   drawUiText(g,l2,x2,y2,townCol,1);                            // city + pop + civic emergency timer
   if(l3) drawUiText(g,l3,x3,y3,"rgba(152,226,242,0.9)",1);     // weather — neon cyan
+  // --- the alerts, under a hairline rule so the standing information and the news are not one blur ---
+  if(nRows){
+    g.fillStyle="rgba("+THEME.rail+",0.30)"; g.fillRect(bx+6,nY-2,bw-12,1);
+    for(ni=0;ni<nRows;ni++){
+      var NI=NL[ni], nx=((SW-(NI.text.length*4-1))/2)|0, ny=nY+2+ni*6;
+      // the most serious line gets a lit dot and full brightness; the rest step back, so severity is
+      // legible at a glance rather than only by reading
+      var lead=(ni===0), na=lead?0.98:0.80;
+      if(lead){ g.fillStyle=NI.col+"0.95)"; g.fillRect(nx-5,ny+1,2,2); }
+      drawUiText(g,NI.text,nx+1,ny+1,"rgba(0,0,0,0.55)",1);
+      drawUiText(g,NI.text,nx,ny,NI.col+na+")",1);
+    }
+    if(NL.length>nRows){                                       // never silently drop one
+      var mstr="+"+(NL.length-nRows)+" MORE", mx2=((SW-(mstr.length*4-1))/2)|0;
+      drawUiText(g,mstr,mx2,nY+2+nRows*6,"rgba(190,205,225,0.72)",1);
+    }
+  }
   // --- additive neon bloom ---
   g.globalCompositeOperation="lighter";
   drawUiText(g,str,x,y,"rgba(60,190,255,"+(0.24*pulse)+")",sc);
   drawUiText(g,str,x,y-1,"rgba(70,200,255,0.09)",sc);
   drawUiText(g,l2,x2,y2,townUpdate?(townUpdate.urgent?"rgba(255,45,45,"+(0.22*pulse)+")":"rgba(255,150,40,"+(0.18*pulse)+")"):(rgName?"rgba(255,40,40,"+(0.18*pulse)+")":"rgba(255,80,200,"+(0.16*pulse)+")"),1);
   if(l3) drawUiText(g,l3,x3,y3,"rgba(70,210,235,"+(0.16*pulse)+")",1);
+  if(nRows) drawUiText(g,NL[0].text,((SW-(NL[0].text.length*4-1))/2)|0,nY+2,NL[0].col+(0.20*pulse)+")",1);   // the lead alert blooms too
   g.globalCompositeOperation="source-over";
 }
 // a birthday banner strung across the sky over the middle of the city + a little cake
@@ -15434,17 +15480,26 @@ function drawDisasterHud(g,cd,now){
   else if(f<0.95){ msg="REBUILDING"; col="rgba(90,200,255,"; }
   else { msg=DIS_NAME[cd.type]+" CLEARED"; col="rgba(90,230,140,"; }
   var blink=(Math.floor(now/220))%2, a=(f<0.50?(0.55+0.45*blink):0.9);
-  var tw=textW(msg), tx=Math.round(cd.x-tw/2), ty=notifLane(0);   // lane 1 (pref): sits below the 3-line sky-clock pill
-  // backing bar (world-anchored, wraps)
-  for(var wp=-1;wp<=1;wp++){ var px=tx-3-WOFF+wp*WW; if(px+tw+6<-2||px>SW+2) continue;
-    g.fillStyle="rgba(10,8,14,0.7)"; g.fillRect(px|0,ty-2,tw+6,9);
-    g.fillStyle=col+(0.8*a)+")"; g.fillRect(px|0,ty-3,tw+6,1); g.fillRect(px|0,ty+6,tw+6,1); }
-  drawPixText(g,msg,tx,ty,col+a+")",1);
-  // intensity pips under the bar during the active phase
-  if(f<0.50){ for(var ip=0;ip<5;ip++){ var lit=ip<cd.intensity;
-    for(var wp2=-1;wp2<=1;wp2++){ var ppx=(cd.x-8+ip*4)-WOFF+wp2*WW; if(ppx<-2||ppx>SW+2) continue;
-      g.fillStyle=lit?(col+a+")"):"rgba(80,80,90,0.6)"; g.fillRect(ppx|0,ty+9,3,2); } } }
-  drawBattleBars(g,cd,now,ty);
+  // ⚠ THE BANNER MOVES TO THE PANEL — THE GAUGE DOES NOT. My first cut returned here as soon as the
+  // alert was registered, and took the MONSTER vs CITY health bars with it: those are not a
+  // notification, they are an instrument, and you read them by watching them move. "The panel
+  // replaces the banners" is about the alert bars that floated over the skyline, not about every
+  // pixel this function happens to draw. So the text and the intensity pips route to the panel and
+  // the fight bars stay on the city, anchored to the disaster where they belong.
+  var ty=notifLane(0), owned=pushNotif(90,msg,col);
+  if(!owned){
+    var tw=textW(msg), tx=Math.round(cd.x-tw/2);
+    // backing bar (world-anchored, wraps)
+    for(var wp=-1;wp<=1;wp++){ var px=tx-3-WOFF+wp*WW; if(px+tw+6<-2||px>SW+2) continue;
+      g.fillStyle="rgba(10,8,14,0.7)"; g.fillRect(px|0,ty-2,tw+6,9);
+      g.fillStyle=col+(0.8*a)+")"; g.fillRect(px|0,ty-3,tw+6,1); g.fillRect(px|0,ty+6,tw+6,1); }
+    drawPixText(g,msg,tx,ty,col+a+")",1);
+    // intensity pips under the bar during the active phase
+    if(f<0.50){ for(var ip=0;ip<5;ip++){ var lit=ip<cd.intensity;
+      for(var wp2=-1;wp2<=1;wp2++){ var ppx=(cd.x-8+ip*4)-WOFF+wp2*WW; if(ppx<-2||ppx>SW+2) continue;
+        g.fillStyle=lit?(col+a+")"):"rgba(80,80,90,0.6)"; g.fillRect(ppx|0,ty+9,3,2); } } }
+  }
+  drawBattleBars(g,cd,now,owned?Math.round(HORIZON*0.22):ty);
 }
 
 // MONSTER vs CITY health bars — for creature attacks you can now SEE who is winning.
@@ -23362,11 +23417,12 @@ function drawElections(g,L,now,night){
     else if(M.share<=53) rm="RECOUNT CONFIRMS "+M.winName+" - "+M.share+" TO "+(100-M.share);
     else if(M.hold) rm=M.party.k+" HOLDS CITY HALL - "+M.share+" TO "+(100-M.share);
     else rm="MAYOR-ELECT "+M.winName+" - "+M.share+" TO "+(100-M.share);
+    if(!pushNotif(45,rm,"rgba(150,190,255,")){
     var tw4=textW(rm), tx4=Math.round(WW*0.5-tw4/2), ly4=notifLane(1);
     for(var w3=-1;w3<=1;w3++){ var px4=tx4-3-WOFF+w3*WW; if(px4+tw4+6<-2||px4>SW+2) continue;
       g.fillStyle="rgba(8,14,30,0.80)"; g.fillRect(px4|0,ly4,tw4+6,9);
       g.fillStyle=M.party.c; g.fillRect(px4|0,ly4-1,tw4+6,1); g.fillRect(px4|0,ly4+8,tw4+6,1); }
-    drawPixText(g,rm,tx4,ly4+2,"rgba(235,240,250,0.95)",1);
+    drawPixText(g,rm,tx4,ly4+2,"rgba(235,240,250,0.95)",1); }
     // ELECTION-NIGHT PARTY in the winner's plaza — a cheering crowd, party-colour balloons, fireworks over the skyline
     var pxw=Math.round(0.365*WW), pcx=pxw-WOFF;
     for(var w5=-1;w5<=1;w5++){ var PX=(pcx+w5*WW)|0; if(PX<-32||PX>SW+32) continue;
@@ -23664,6 +23720,7 @@ function drawAddictHud(g,now,night){
   var recovering=(A.stage===5), lab=ADDICT_STAGE_LABEL[A.stage];
   var full="ADDICTION CRISIS - "+lab, col=recovering?"rgba(80,200,140,":"rgba(150,120,210,";   // muted violet crisis → green recovery
   var blink=(A.stage>=4&&!recovering)?((Math.floor(now/350))%2):1, a=0.72+0.28*blink;
+  if(pushNotif(60,full,col)) return;
   var tw=textW(full), ew=9, W=ew+tw+4, cx=(SW>>1), ty=notifLane(0), x0=(cx-(W>>1))|0;
   g.fillStyle="rgba(6,6,10,0.85)"; g.fillRect(x0-2,ty-3,W+4,11);
   g.fillStyle=col+(0.95*a).toFixed(3)+")"; g.fillRect(x0-2,ty-4,W+4,1); g.fillRect(x0-2,ty+7,W+4,1);
@@ -24165,11 +24222,12 @@ function drawWar(g,L,now,night){
   if(f<0){ var el=(cw3.cy-(cw3.cyAt-0.055))/0.012;
     if(el>=0&&el<1){ var yes=Math.round(28+milFund*68);
       var em2="ELECTION - DEFENSE FUNDING - YES "+yes+" PCT";
+      if(!pushNotif(40,em2,"rgba(160,205,255,")){
       var tw3=textW(em2), tx3=Math.round(WW*0.5-tw3/2), ly3=notifLane(1);
       for(var wp=-1;wp<=1;wp++){ var px3=tx3-3-WOFF+wp*WW; if(px3+tw3+6<-2||px3>SW+2) continue;
         g.fillStyle="rgba(8,14,30,0.80)"; g.fillRect(px3|0,ly3,tw3+6,9);
         g.fillStyle="rgba(90,160,255,0.85)"; g.fillRect(px3|0,ly3-1,tw3+6,1); g.fillRect(px3|0,ly3+8,tw3+6,1); }
-      drawPixText(g,em2,tx3,ly3+2,"rgba(160,205,255,0.95)",1); }
+      drawPixText(g,em2,tx3,ly3+2,"rgba(160,205,255,0.95)",1); } }
     return; }
   if(f<0.22){ // ---- THE ENEMY ARMY APPROACHES (from the right, marching on the city) ----
     var adv=f/0.22, FXa=wx-WOFF;
@@ -25969,6 +26027,7 @@ function drawApocBuilding(g,b,bx,cl,L,now,bdir){
 // shared doom banner
 function drawDoomHud(g,ap,now,early,late){
   var msg=ap<0.55?early:late, col="rgba(255,45,32,";
+  if(pushNotif(100,msg,col)) return;
   var tw=textW(msg), tx=Math.round(WW*0.5-tw/2), ty=notifLane(1), blink=(Math.floor(now/200))%2;   // lane 2 (pref): war / apocalypse alerts
   for(var wp=-1;wp<=1;wp++){ var px=tx-3-WOFF+wp*WW; if(px+tw+6<-2||px>SW+2) continue;
     g.fillStyle="rgba(10,4,4,0.78)"; g.fillRect(px|0,ty-2,tw+6,9);
