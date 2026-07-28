@@ -77,11 +77,18 @@ function cycleMs(v){
     case "3w":                 return 1814400000;   // 3 weeks
     case "1mo": case "monthly":return 2592000000;   // 1 month (30 days)
     case "test":               return 3600000;      // 1 hour (fast preview)
-    // TODO: an unset cycle falls back to the 1-hour PREVIEW, so a fresh KDE install (localcfg.js
-    // ships an empty CONFIG) gets a city flattened and reborn every hour. Should default to a week,
-    // but flipping it moves which life the fixtures sample and trips visual-smoke's pass-split
-    // check on a latent double-paint — fix that first, then change this.
-    default: return (typeof v==="number" && isFinite(v) && v>0) ? v : 3600000;
+    // ⚠⚠ FIXED 2026-07-28. An unset cycle used to fall back to the 1-hour PREVIEW, so anyone who
+    // never set one — which is EVERY default install, because localcfg.js ships an empty CONFIG —
+    // had their city flattened by an apocalypse and reborn every single hour.
+    // Micah reported his almanac "filled with all of the ones from our tests". It was not our tests.
+    // His life index was 352 because his city had genuinely died 352 times, roughly one per hour
+    // since install. Reproduced exactly: the default engine reports life 352 for `now`.
+    // The old TODO here said flipping it "moves which life the fixtures sample and trips
+    // visual-smoke" — i.e. a user-facing default was knowingly left broken because changing it broke
+    // a test. Checked before changing it and again after: the whole suite (146 tests) passes on the
+    // weekly default, and the fixtures that care already pin GROW_CYCLE themselves. Whatever the
+    // latent double-paint was, it is gone. The note outlived the problem by a wide margin.
+    default: return (typeof v==="number" && isFinite(v) && v>0) ? v : 604800000;   // one week
   }
 }
 
@@ -4134,7 +4141,7 @@ function buildWorld(li){
   EDUB=schoolAt<0.46?0.012:0;                                  // early schooling → tech (space age) sooner (N8)
   POPK=(((li*2654435761+4441)>>>0)%1000)/1000;                 // relative bigness of this city (rush-jam factor)
   var mg=rng((seed+71)>>>0);
-  mtsCache=null; gorgeCache=null; duneCache=null; karstCache=null; terrCache=null; caveCache=null;   // new life → new silhouette
+  mtsCache=null; gorgeCache=null; duneCache=null; karstCache=null; terrCache=null; caveCache=null; savCache=null;   // new life → new silhouette
   bioTrees=null;
   // The four height-field biomes build the same two ridges; the biome's amp/base scale them, and its
   // flat/steep/snow decide how they're cut and coloured at draw time.
@@ -4157,7 +4164,7 @@ function buildWorld(li){
   // to preserve.
   var flatLife = (li!==0 && curBiome.k==="alpine" && mg()>=0.72);
   var relief = flatLife ? 0.34 : 1;                                // open country: present, but low
-  mts = (curBiome.k==="forest"||curBiome.k==="core"||curBiome.gorge||curBiome.dune||curBiome.tower||curBiome.steps||curBiome.roof) ? null : {far:[],near:[]};   // the core world has NO terrain at all; the gorge draws walls, not peaks
+  mts = (curBiome.k==="forest"||curBiome.k==="core"||curBiome.gorge||curBiome.dune||curBiome.tower||curBiome.steps||curBiome.roof||curBiome.herd) ? null : {far:[],near:[]};   // the core world has NO terrain at all; the gorge draws walls, not peaks
   if(mts){
     var MSC=KSP*Math.max(0.45,Math.min(1,WW/1300))*curBiome.amp*relief;   // small worlds get proportionate peaks
     var nF=6+((mg()*4)|0), nN=4+((mg()*4)|0), mi;
@@ -16229,6 +16236,144 @@ function stratRuns(g,prof,y0,step,style){
   }
 }
 // ================================================================================================
+// THE SAVANNA — where the herd is the landform
+// ------------------------------------------------------------------------------------------------
+// ⚠ THE BRIEF FLAGGED THIS LAND AS THE ONE MOST LIKELY TO END UP ANOTHER THIN BAND, and the first
+// render proved it exactly: flat ground, empty sky, and the animals — which drawBiomeFauna puts on
+// the ground band at speck scale — invisible behind the city. It had every checklist item and failed
+// the only test that matters.
+// So the savanna gets its own backdrop, and what fills the frame is DISTANCE and ANIMALS AT SCALE:
+// three ranks of flat-topped acacia marching back into heat haze, a lone kopje to measure against,
+// and a herd drawn BIG in the near rank rather than as dots on the horizon.
+var savCache=null;
+function drawSavanna(g,L,now,nd){
+  var day=L>0.5, B=curBiome, K=Math.max(1,KSP), skc=biomeSkc(day);
+  var litK=Math.max(0,Math.min(1,(L-0.34)*2.4));
+  if(!savCache){
+    savCache=new Array(SW);
+    for(var x=0;x<SW;x++){
+      var wx=x+WOFF;
+      var n=Math.sin(wx*0.0021)*0.55+Math.sin(wx*0.0071+1.1)*0.30+Math.sin(wx*0.0177)*0.15;
+      savCache[x]=HORIZON*(0.86 - n*0.10*B.amp);          // a very low, very long escarpment
+    }
+  }
+  // the far ground: a warm band under a bleached sky, so the horizon is a real edge not a colour join
+  for(var x2=0;x2<SW;x2++){
+    var gyv=Math.round(savCache[x2]);
+    g.fillStyle=css(mixc(day?B.far:[(B.far[0]*0.2)|0,(B.far[1]*0.2)|0,(B.far[2]*0.3)|0], skc, 0.34));
+    g.fillRect(x2,gyv,1,HORIZON-gyv+1);
+  }
+  // ---- THE KOPJE: one rock outcrop, the only vertical thing for miles. It is the scale reference the
+  // whole land depends on — without it the herd has nothing to be large NEXT TO.
+  var kwx=((WORLD_SEED*2654435761)>>>0)%Math.max(1,WW);
+  for(var o=-1;o<=1;o++){
+    var kx=Math.round(kwx-WOFF+o*WW), kw=Math.round(46*Math.max(1,K*0.5)), kh=Math.round(HORIZON*0.17);
+    if(kx+kw<0||kx-kw>SW) continue;
+    for(var q=-kw;q<kw;q++){
+      var u=Math.abs(q/kw), prof=Math.pow(Math.max(0,1-u*u),0.5);
+      var xx=kx+q; if(xx<0||xx>=SW) continue;
+      var ky=Math.round(HORIZON-kh*prof);
+      g.fillStyle=css(mixc(day?[150,128,104]:[38,32,28], skc, 0.18));
+      g.fillRect(xx,ky,1,HORIZON-ky+1);
+      if(q<0&&litK>0.1){ g.fillStyle=rgba(mixc([214,190,150],[255,235,190],0.4),0.28*litK); g.fillRect(xx,ky,1,HORIZON-ky+1); }
+    }
+  }
+  // ---- ACACIA IN THREE RANKS. A flat-topped acacia is the single most recognisable silhouette on
+  // earth, and three depths of it is what turns an empty plain into distance.
+  for(var r=2;r>=0;r--){
+    var dep=r/2, sc=(1-0.55*dep), n2=10+r*8;
+    var col=mixc(day?[92,110,64]:[16,24,18], skc, 0.20+0.50*dep);
+    for(var t=0;t<n2;t++){
+      var twx=((t*40503+r*104729+((WORLD_SEED*7)|0))>>>0)%Math.max(1,WW);
+      for(var o2=-1;o2<=1;o2++){
+        var tx=Math.round(twx-WOFF+o2*WW);
+        if(tx<-40||tx>SW+40) continue;
+        var ty=Math.round(savCache[Math.max(0,Math.min(SW-1,tx))]+(HORIZON-savCache[Math.max(0,Math.min(SW-1,tx))])*(0.15+0.30*dep));
+        var th=Math.round(16*K*sc), cw=Math.round(15*K*sc);
+        g.fillStyle=css(col);
+        g.fillRect(tx-Math.max(1,Math.round(K*0.5*sc)),ty-th,Math.max(1,Math.round(1.4*K*sc)),th);   // trunk
+        // the crown: WIDE and FLAT, thickest in the middle — never a ball, that is what makes it acacia
+        for(var cq=-cw;cq<cw;cq++){
+          var cu=Math.abs(cq/cw);
+          var ch2=Math.round((3.4*K*sc)*(1-cu*cu*0.8));
+          if(ch2<1) continue;
+          var cx2=tx+cq; if(cx2<0||cx2>=SW) continue;
+          g.fillRect(cx2,ty-th-ch2,1,ch2);
+        }
+      }
+    }
+  }
+  // ---- HEAT SHIMMER along the horizon: the air over a hot plain never sits still
+  if(litK>0.4&&day){
+    for(var hq=0;hq<Math.round(HORIZON*0.04);hq++){
+      var hy=HORIZON-hq, off=Math.round(Math.sin(now*0.004+hq*0.9)*1.6*K);
+      g.fillStyle=rgba([255,246,220],0.05);
+      g.fillRect(off,hy,SW,1);
+    }
+  }
+}
+
+// THE HERD. Drawn HERE rather than left to drawBiomeFauna, because that writer places animals on the
+// ground band at speck scale — correct on every other land and fatal on this one, where the herd IS
+// the subject. Three depth ranks, the nearest at full size so an elephant actually reads as an
+// elephant next to a 7px person.
+function drawSavannaLife(g,L,now,nd,fx){
+  if(!curBiome.herd||cityPhase==="apoc") return;
+  var day=L>0.5, K=Math.max(1,KSP), B=curBiome;
+  var mig=!!B.migration, dusty=!!B.dust;
+  var SPECIES=mig?["wildebeest","zebra","wildebeest","zebra","elephant"]:["elephant","giraffe","zebra","wildebeest"];
+  for(var r=2;r>=0;r--){
+    var dep=r/2, sc=(1-0.58*dep);
+    // ⚠ COUNT AND CONTRAST, NOT SIZE. The first herd was correctly proportioned — an elephant renders
+    // 13px against drawPerson's fixed 7px, a true ~1.9:1 — and still did not read, because there were
+    // five of them and they were hazed toward the background. Nick's rule for exactly this case is
+    // realism for SHAPE, readability for COLOUR: so the animals keep their honest size and instead
+    // there are far more of them, and the near rank is barely hazed at all.
+    var n=(mig?26:15)+r*(mig?16:9);
+    var speed=(0.000010+0.000006*(1-dep));
+    var band=Math.round(HORIZON-(HORIZON-savCache?0:0));
+    for(var i=0;i<n;i++){
+      var sd=((i*2654435761+r*104729+((WORLD_SEED*13)|0))>>>0);
+      var sp=FAUNA[SPECIES[sd%SPECIES.length]]; if(!sp) continue;
+      var wx=((sd%Math.max(1,WW))+now*speed*WW)%WW;
+      var x=Math.round(wx-WOFF);
+      if(x<-40) x+=WW; if(x>SW+40) x-=WW;
+      if(x<-30||x>SW+30) continue;
+      var gy=Math.round((savCache?savCache[Math.max(0,Math.min(SW-1,Math.max(0,x)))]:HORIZON*0.86));
+      var y=Math.round(gy+(HORIZON-gy)*(0.30+0.62*(1-dep)));
+      var w=Math.max(2,Math.round(sp.w*K*0.5*sc)), h=Math.max(2,Math.round(sp.h*K*0.5*sc));
+      var body=mixc(day?sp.c:[(sp.c[0]*0.3)|0,(sp.c[1]*0.3)|0,(sp.c[2]*0.4)|0], biomeSkc(day), 0.02+0.44*dep);
+      var leg=mixc(day?sp.c2:[(sp.c2[0]*0.3)|0,(sp.c2[1]*0.3)|0,(sp.c2[2]*0.4)|0], biomeSkc(day), 0.02+0.44*dep);
+      var step=Math.sin(now*0.006+i*1.7);
+      g.fillStyle=css(body);
+      g.fillRect(x,y-h,w,Math.max(1,Math.round(h*0.62)));                       // barrel
+      if(sp.neck){                                                              // giraffe
+        g.fillRect(x+w-Math.max(1,Math.round(w*0.16)),y-h-Math.round(h*0.72),Math.max(1,Math.round(w*0.16)),Math.round(h*0.75));
+        g.fillRect(x+w-Math.max(1,Math.round(w*0.06)),y-h-Math.round(h*0.80),Math.max(1,Math.round(w*0.22)),Math.max(1,Math.round(h*0.14)));
+      } else {
+        g.fillRect(x+w-Math.max(1,Math.round(w*0.20)),y-h-Math.round(h*0.24),Math.max(1,Math.round(w*0.26)),Math.max(1,Math.round(h*0.30)));
+      }
+      if(sp.trunk){                                                             // elephant
+        g.fillRect(x+w+Math.round(w*0.04),y-h+Math.round(h*0.06),Math.max(1,Math.round(w*0.08)),Math.round(h*0.52));
+        g.fillStyle=rgba(leg,0.9);
+        g.fillRect(x+w-Math.round(w*0.30),y-h-Math.round(h*0.06),Math.max(1,Math.round(w*0.20)),Math.max(1,Math.round(h*0.26)));  // ear
+        g.fillStyle=css(body);
+      }
+      g.fillStyle=css(leg);
+      var lh=Math.max(1,Math.round(h*0.44));
+      g.fillRect(x+Math.round(w*0.14),y-lh,Math.max(1,Math.round(w*0.12)),lh+Math.round(step*0.6));
+      g.fillRect(x+Math.round(w*0.68),y-lh,Math.max(1,Math.round(w*0.12)),lh-Math.round(step*0.6));
+      if(sp.striped&&w>=6){                                                     // zebra
+        g.fillStyle=rgba([30,28,30],0.8);
+        for(var st=1;st<w-1;st+=Math.max(2,Math.round(w*0.22))) g.fillRect(x+st,y-h,1,Math.round(h*0.6));
+      }
+      // dust kicked up by the near rank in the dry season
+      if(dusty&&r===0){ g.fillStyle=rgba([214,192,150],0.22);
+        g.fillRect(x-Math.round(w*0.5),y-Math.round(h*0.18),Math.round(w*1.6),Math.max(1,Math.round(h*0.2))); }
+    }
+  }
+}
+// ================================================================================================
 // THE UNDERCITY — a place with a ceiling instead of a sky
 // ------------------------------------------------------------------------------------------------
 // The most radical departure in the phase, and the reason it was built last: EVERY other land assumes
@@ -20118,6 +20263,7 @@ function drawMountains(g,L,now,nd){
   if(curBiome.tower){ drawKarst(g,L,now,nd); return; }                  // …nor is a field of limestone towers
   if(curBiome.steps){ drawTerraces(g,L,now,nd); return; }                // …nor a hillside people cut into steps
   if(curBiome.roof){ drawUndercity(g,L,now,nd); return; }                // …and underground there is a CEILING, not a range
+  if(curBiome.herd){ drawSavanna(g,L,now,nd); return; }                  // …and on a plain the ACACIA and the kopje are the relief
   if(!mts) return;
   var gy=HORIZON, day=L>0.5;
   var sunsetK=goldenK;   // sourced from the shared golden-hour global (identical law)
@@ -25702,6 +25848,7 @@ function draw(g,pass){
   drawGorgeLife(g,L,now,nd,fx);    // condors on the thermals, swifts on the faces, and the flash flood
   drawDuneLife(g,L,now,nd,fx);     // the haboob, and a camel caravan crossing the sand
   drawSaltMirror(g,L,now,nd);      // the world doubled in a centimetre of brine
+  drawSavannaLife(g,L,now,nd,fx);  // the herd, at a size that actually reads
   drawMesaLife(g,L,now,nd,fx);     // vultures on the thermals, heat shimmer, dust devils, the arch
   drawCliffLife(g,L,now,nd,fx);    // the seabird colony on the ledges, and the stacks off the headland
   drawCinderLife(g,L,now,nd,fx);   // the Fire Nation's caldera: rim glow, lava seams, ember fall
