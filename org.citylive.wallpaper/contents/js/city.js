@@ -8821,14 +8821,54 @@ function drawFireIncident(g,fi,L,now){
         var wgy=top+ww2.y, rel=wgy-fy;                              // >0 = below the fire line (untouched)
         if(rel>5) continue;
         if(rel>-flameH-9){ var fk=0.55+0.45*Math.sin(now*0.02+ww2.x*0.7+ww2.y);   // in the blaze → molten orange
-          g.fillStyle="rgba("+((205+50*fk)|0)+","+((70+55*fk)|0)+",22,"+(0.92*burn).toFixed(3)+")";
+          // ⚠ irregular, not uniform: identical orange in every pane is what made this read as a
+          // lattice. Each window burns at its own brightness and some are already blown out and dark.
+          var blown=(((ww2.x*13+ww2.y*7+b.seed)>>>0)%5)===0;
+          g.fillStyle= blown ? "rgba(30,20,16,"+(0.85*burn).toFixed(3)+")"
+            : "rgba("+((205+50*fk)|0)+","+((70+55*fk)|0)+",22,"+((0.55+0.37*fk)*burn).toFixed(3)+")";
           g.fillRect(X+ww2.x,wgy,ww2.w,ww2.h);
         } else if(burn>0.45){ g.fillStyle="rgba(18,14,14,0.72)";    // high above → smoke-blackened & dead
           g.fillRect(X+ww2.x,wgy,ww2.w,ww2.h); }
       }
+      // ⚠⚠ THE FIRE HAS TO BURN THE BUILDING, NOT SIT IN FRONT OF IT. Nick: "make fires look realistic
+      // and actually go with the buildings burning", with a screenshot of what read as a floating
+      // orange blob pasted over a tower. The cause was that the ONLY things drawn were the recoloured
+      // windows and a row of flames — and windows are a regular grid, so painting them orange gives a
+      // dotted orange LATTICE, which is exactly what he photographed. Meanwhile the facade itself
+      // stayed its healthy daytime colour, so nothing about the structure looked harmed.
+      // Three things fix it, all clipped to this building's own footprint:
+      //   · CHAR — the facade blackens from the fire line upward, worst where the flames are
+      //   · a HEAT WASH over the whole burning band, so the orange is continuous rather than a grid
+      //   · EMBERS rising off it, which is what says "this is combusting" rather than "this is lit"
+      var charTop=Math.max(top, fy-flameH*burn-4);
+      for(var cy2=charTop;cy2<Math.min(HORIZON,fy+6);cy2++){
+        var cf=1-Math.max(0,(cy2-charTop)/Math.max(1,(fy+6)-charTop));    // blackest at the top of the blaze
+        g.fillStyle="rgba(26,20,18,"+(0.62*burn*(0.35+0.65*cf)).toFixed(3)+")";
+        g.fillRect(X,cy2,b.w,1);
+      }
+      g.globalCompositeOperation="lighter";
+      for(var hy2=charTop;hy2<fy+4;hy2++){
+        var hf=1-(hy2-charTop)/Math.max(1,(fy+4)-charTop);
+        var flick=0.75+0.25*Math.sin(now*0.013+hy2*0.6+b.seed%7);
+        g.fillStyle="rgba(238,124,32,"+(0.20*burn*hf*flick).toFixed(3)+")";
+        g.fillRect(X,hy2,b.w,1);
+      }
+      g.globalCompositeOperation="source-over";
       // the blaze bursting out — a row of tongues erupting up the facade
       for(var fx3=1;fx3<b.w-1;fx3+=3){
         drawFlame(g,X+fx3+1,fy,4,flameH*burn,now,(b.seed+fx3*31)>>>0,burn); }
+      // EMBERS — lofted off the fire and carried on the real wind
+      var wnd=((weather&&weather.wind)||6)*0.06;
+      for(var em=0;em<10;em++){
+        var es=((b.seed+em*7919)>>>0), ecyc=1800+(es%1400), eph=((now+es%ecyc)%ecyc)/ecyc;
+        if(eph>burn) continue;
+        var ex=X+((es>>>5)%Math.max(1,b.w))+Math.round(eph*eph*22*wnd);
+        var ey=Math.round(fy-eph*(flameH+26));
+        g.globalCompositeOperation="lighter";
+        g.fillStyle="rgba(255,"+((150-90*eph)|0)+",40,"+((0.85-0.8*eph)*burn).toFixed(3)+")";
+        g.fillRect(ex,ey,1,1);
+        g.globalCompositeOperation="source-over";
+      }
       // and licking out of the roofline once it's really going
       if(burn>0.6) drawFlame(g,X+(b.w>>1),top+2,Math.max(4,b.w*0.5),flameH*0.7,now,(b.seed+7)>>>0,(burn-0.6)/0.4);
       drawFireSmoke(g,X+(b.w>>1),fy-flameH*burn-2,now,b.seed,burn,1.2);
