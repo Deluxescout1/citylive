@@ -2899,8 +2899,18 @@ var BIOMES=[
     fauna:{ keep:{deer:0,rabbit:1,fox:1,goat:0}, big:["seal"], small:["otter","puffin"], air:[] },
     flora:{ kinds:["windbent","gorse","gorse","windbent","gorse"], bloom:["#f0d878","#e8a0c0","#ffffff"] },
     sky:{ top:[142,156,172], bot:[186,196,202], k:0.30, haze:[196,206,210] } },
-  { k:"plains", name:"OPEN PLAINS",amp:0.30, base:0.85, flat:0.25, steep:0.0, snow:false, water:"river", bigSky:1,
-    far:[150,164,132],  near:[122,140,104],cap:[186,196,158], ground:[158,166,116],
+  // ⚠ RELIEF RAISED 0.30 -> 0.46, and the ridge palette pulled AWAY from the ground.
+  // Correcting my own measurement: I first reported this land as having "exactly zero" landform above
+  // the horizon. That was a filter artifact — the probe required a rect to sit ENTIRELY in the sky,
+  // which excludes every rect that runs down to the horizon, i.e. all of them. (Same class of mistake
+  // as the <=8px filter that hid the blue boxes.) Measured properly, plains relief rose 72px, 17.9%
+  // of the sky, against the mesa's 41%. So it was never missing — it was LOW and it was the same
+  // green as the grass in front of it, which is why the emptiest map read as having no distance at all.
+  // Per Nick's readability rule (realism for shape, readability for COLOUR) the shape stays a plains
+  // shape — low and long, not mountains — and the separation comes from pushing the far bands cooler
+  // and bluer than the ground so they read as distance rather than as more field.
+  { k:"plains", name:"OPEN PLAINS",amp:0.46, base:0.85, flat:0.25, steep:0.0, snow:false, water:"river", bigSky:1,
+    far:[146,168,166],  near:[118,142,124],cap:[196,204,178], ground:[158,166,116],
     walls:[[178,72,58],[150,60,48],[196,190,166],[214,206,178],[132,118,86],[170,158,124],[186,176,146],[142,132,104]],
     fauna:{ keep:{deer:0,rabbit:1,fox:1,goat:0}, big:["bison","pronghorn","cattle"], small:["prairiedog"], air:["hawk"] },
     flora:{ kinds:["grass","grass","cottonwood","grass","scrub"], bloom:["#e8c860","#d8a0c8","#ffffff","#e0d070"] },
