@@ -3985,6 +3985,18 @@ function setup(scene,opts){
   SEA_FRONT=Math.round(seaFrontOf(landOf(_li0).b)*Math.max(1,KSP)*0.5);
   // never let the water eat more than a third of the frame on a short screen
   SEA_FRONT=Math.min(SEA_FRONT, Math.round(SH*0.30));
+  // ⚠⚠ THE TASKBAR WAS BEING PAID FOR TWICE, AND THE MIDDLE MONITOR PAID MOST.
+  // Nick, twice now: "the roads consistently look this bad on my Middle Screen." Measured on his real
+  // geometry, the empty band between the road and the water is 35px on the primary and 46px on the
+  // middle screen — 31% wider, on the screen with the TALLER panel.
+  // Cause: GROUND is grown by `taskbarWp+18` so the lowest lane clears a bottom panel, which is right
+  // on an inland land where HORIZON = SH - GROUND. But on a WATER land the baseline is
+  // HORIZON = SEA_Y - GROUND, and SEA_Y has ALREADY subtracted TASKBAR_WP — so the panel is
+  // compensated twice and the surplus becomes dead grey foreground. The taller his panel, the worse
+  // it got, which is exactly the pattern he reported.
+  // On a water land the panel allowance belongs to SEA_Y alone; GROUND goes back to the authored
+  // depth (road + verge) it was designed as.
+  if(SEA_FRONT>0) GROUND=Math.max(26, Math.round(26*Math.max(1,KSP)*0.5));
   // ⚠⚠ THE SEA MUST SIT ABOVE THE TASKBAR. Nick: "the road on the middle screen looks bad."
   // SEA_Y was SH-SEA_FRONT — the bottom-most band of the frame — but that band is exactly where a
   // bottom panel sits. His middle monitor reports taskbarWp=28, so the entire ocean was rendering
