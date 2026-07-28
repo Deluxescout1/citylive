@@ -3063,8 +3063,12 @@ var BIOMES=[
     fauna:{ keep:{deer:0,rabbit:0,fox:0,goat:0}, big:[], small:[], air:["vulture"] },
     flora:{ kinds:["snag","snag","scrub","snag"], bloom:["#d8562e","#a8321e","#e08a3a"] },
     sky:{ top:[28,8,14], bot:[178,46,24], k:0.82, haze:[210,72,30] } },
+  // ⚠ NEAR TERRACES DARKENED, GENTLY. Judged in the sweep as pale-on-pale: cream terraces against a
+  // pale sky, so the whole land read flat and the near shelves did not sit in front of anything.
+  // Unlike the karst this land's identity IS luminous, so it gets a much lighter touch — the near band
+  // goes to a cool lavender-grey rather than anything dark. Enough to sit forward; still the Empyrean.
   { k:"heaven", name:"THE EMPYREAN", amp:0.76, base:0.52, flat:0.62, steep:0.34, snow:false, water:null,
-    far:[228,224,242],  near:[204,198,228], cap:[255,250,228], ground:[228,222,204],
+    far:[228,224,242],  near:[168,164,200], cap:[255,250,228], ground:[228,222,204],
     walls:[[246,244,236],[228,224,212],[255,252,244],[238,228,198],[250,246,232],[232,226,206],[255,248,220],[240,236,222]],
     fauna:{ keep:{deer:0,rabbit:0,fox:0,goat:0}, big:[], small:[], air:["dove"] },
     flora:{ kinds:["goldtree","generic","goldtree","grass"], bloom:["#ffe9a8","#ffffff","#ffd66a"] },
@@ -3112,8 +3116,13 @@ var BIOMES=[
   // opposite way, with a forest of ROCK — rank behind rank of towers, each rank separated by a band of
   // mist. The mist is not decoration: it is the only thing that stops a hundred towers reading as one
   // grey mass, and it is what makes the frame feel deep rather than merely busy.
+  // ⚠ NEAR RANK DARKENED. Judged in the full-frame sweep as blending into its own sky: pale sage
+  // towers under a pale sky, with the three ranks washing into each other so a hundred stacks read as
+  // one soft mass. The MIST between ranks was doing its job; the problem was that the nearest rock had
+  // almost the same value as the air. Aerial perspective needs something to recede FROM, so the near
+  // band goes properly dark and the far bands stay pale — that is what makes the depth legible.
   { k:"karst",  name:"THE KARST",   amp:0.88, base:0.46, flat:0.12, steep:0.94, snow:false, water:"river", tower:1,
-    far:[168,180,168],  near:[118,134,120], cap:[214,222,206], ground:[130,150,118],
+    far:[168,180,168],  near:[74,94,80],    cap:[214,222,206], ground:[130,150,118],
     // river-valley vernacular: lime render, dark tile, weathered timber
     walls:[[228,228,216],[196,198,186],[240,240,232],[150,156,146],[212,214,202],[172,176,166],[128,134,126],[236,236,228]],
     // macaques on the stacks, cormorants working the river, swifts in the cave mouths
@@ -3493,12 +3502,12 @@ var BIOME_VARIANTS={
 
   heaven:[ {},
     { name:"THE SILVER REACHES", // cool silver and blue instead of gold: the same place before dawn
-      far:[220,228,242], near:[196,206,228], cap:[248,252,255], ground:[214,222,232],
+      far:[220,228,242], near:[156,172,204], cap:[248,252,255], ground:[214,222,232],
       walls:[[238,244,250],[218,226,238],[250,252,255],[226,234,244],[244,248,252],[222,230,240],[248,250,254],[232,238,246]],
       flora:{ kinds:["silvertree","generic","silvertree","grass"], bloom:["#cfe4ff","#ffffff","#a8c8f0"] },
       sky:{ top:[126,168,226], bot:[214,230,246], k:0.58, haze:[220,234,248] } },
     { name:"THE ROSE VAULT",     // dawn rose and amber, warmer and lower than the white Empyrean
-      far:[244,214,208], near:[228,188,184], cap:[255,238,228], ground:[240,214,200],
+      far:[244,214,208], near:[196,148,152], cap:[255,238,228], ground:[240,214,200],
       walls:[[252,240,232],[240,216,208],[255,248,240],[246,226,206],[250,238,228],[238,214,204],[255,244,232],[244,222,212]],
       flora:{ kinds:["goldtree","generic","goldtree","grass"], bloom:["#ffb0c0","#ffffff","#ffd08a"] },
       sky:{ top:[186,150,206], bot:[255,206,176], k:0.66, haze:[255,214,188] } } ],
@@ -3578,13 +3587,13 @@ var BIOME_VARIANTS={
 
   karst:[ {},
     { name:"THE GREEN TOWERS",  // jungle-clad stacks, the wettest and greenest of the three
-      far:[132,166,128], near:[80,116,84],  cap:[178,206,158], ground:[96,140,92], steep:0.96,
+      far:[132,166,128], near:[48,80,54],  cap:[178,206,158], ground:[96,140,92], steep:0.96,
       walls:[[224,226,210],[188,192,176],[238,238,228],[142,150,138],[206,210,194],[164,170,158],[120,128,118],[232,234,222]],
       flora:{ kinds:["fern","palm","fern","willow","fern"], bloom:["#ffffff","#ffd166","#c8e0a0"] },
       fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:1}, big:["boar"], small:["monkey","squirrel"], air:["heron","owl"] },
       sky:{ top:[128,168,200], bot:[214,228,216], k:0.54, haze:[218,232,220] } },
     { name:"THE GREY STACKS",   // bare weathered limestone under a cold, high, washed-out sky
-      far:[186,190,192], near:[142,148,152], cap:[228,232,234], ground:[158,164,164], steep:0.92,
+      far:[186,190,192], near:[96,102,108], cap:[228,232,234], ground:[158,164,164], steep:0.92,
       walls:[[232,232,230],[202,204,202],[244,244,242],[164,168,168],[218,220,218],[184,188,188],[142,148,148],[238,238,236]],
       flora:{ kinds:["scrub","grass","fern","scrub"], bloom:["#ffffff","#d8e0d8","#c0c8c0"] },
       fauna:{ keep:{deer:0,rabbit:1,fox:1,goat:1}, big:["ibex"], small:["monkey"], air:["eagle","raven"] },
@@ -17330,7 +17339,7 @@ function drawKarst(g,L,now,nd){
   }
   for(var r2=RANKS-1;r2>=0;r2--){
     var rank=karstCache[r2], dep=r2/(RANKS-1);
-    var body=mixc(day?B.near:[(B.near[0]*0.18)|0,(B.near[1]*0.20)|0,(B.near[2]*0.32)|0], skc, 0.20+0.52*dep);
+    var body=mixc(day?B.near:[(B.near[0]*0.18)|0,(B.near[1]*0.20)|0,(B.near[2]*0.32)|0], skc, 0.06+0.62*dep);   // near rank barely hazed; far ranks fully
     var litC=mixc(body, day?B.cap:[92,100,120], 0.30*litK);
     var capC=mixc(day?B.cap:mixc(B.cap,[0,0,0],0.6), skc, 0.30*dep);
     var greenC=mixc(day?[96,140,86]:[22,40,26], skc, 0.30+0.40*dep);
