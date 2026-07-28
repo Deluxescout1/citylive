@@ -3050,6 +3050,22 @@ var BIOMES=[
     // ⚠ sky.k 0.62 is DELIBERATE and above the 0.5 line: over a sand sea the air itself is the
     // landscape — bleached white-gold at the horizon from suspended dust, and it must dominate.
     sky:{ top:[104,152,206], bot:[246,226,178], k:0.62, haze:[248,222,168] } },
+  // ============ THE KARST — Phase 5, land #3 ============
+  // Limestone towers, the Halong Bay / Guilin landform: hundreds of near-vertical stacks left standing
+  // when everything between them dissolved away.
+  // WHAT FILLS THE FRAME: verticals AND depth. The forest fills a frame with canopy; this fills it the
+  // opposite way, with a forest of ROCK — rank behind rank of towers, each rank separated by a band of
+  // mist. The mist is not decoration: it is the only thing that stops a hundred towers reading as one
+  // grey mass, and it is what makes the frame feel deep rather than merely busy.
+  { k:"karst",  name:"THE KARST",   amp:0.88, base:0.46, flat:0.12, steep:0.94, snow:false, water:"river", tower:1,
+    far:[168,180,168],  near:[118,134,120], cap:[214,222,206], ground:[130,150,118],
+    // river-valley vernacular: lime render, dark tile, weathered timber
+    walls:[[228,228,216],[196,198,186],[240,240,232],[150,156,146],[212,214,202],[172,176,166],[128,134,126],[236,236,228]],
+    // macaques on the stacks, cormorants working the river, swifts in the cave mouths
+    fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:1}, big:["ibex","boar"], small:["monkey","squirrel"], air:["heron","eagle"] },
+    flora:{ kinds:["fern","willow","fern","cottonwood","grass"], bloom:["#ffffff","#e8d088","#c8e0a0","#f0b0c0"] },
+    // damp river air: pale, luminous, low-contrast — the sky a karst valley actually sits under
+    sky:{ top:[142,176,206], bot:[226,232,226], k:0.52, haze:[230,236,230] } },
   { k:"canyon", name:"THE GORGE",   amp:0.55, base:0.30, flat:0.9,  steep:0.72, snow:false, water:"river", gorge:1,
     far:[188,118,84],   near:[156,86,60],   cap:[224,168,120], ground:[196,150,104],
     // the vernacular of a canyon floor: adobe, sandstone block, sun-bleached timber, painted stucco
@@ -3323,6 +3339,20 @@ var BIOME_VARIANTS={
   // ⚠ FOUR named variants, not two. Nick was offered four and picked all four, and nothing here forces
   // a land to have exactly two: `variantOf` does `vs[mixLi(li,104729)%vs.length]`, so the array length
   // is free. Every other land keys separately, so a five-entry canyon reshuffles nothing but itself.
+  karst:[ {},
+    { name:"THE GREEN TOWERS",  // jungle-clad stacks, the wettest and greenest of the three
+      far:[132,166,128], near:[80,116,84],  cap:[178,206,158], ground:[96,140,92], steep:0.96,
+      walls:[[224,226,210],[188,192,176],[238,238,228],[142,150,138],[206,210,194],[164,170,158],[120,128,118],[232,234,222]],
+      flora:{ kinds:["fern","palm","fern","willow","fern"], bloom:["#ffffff","#ffd166","#c8e0a0"] },
+      fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:1}, big:["boar"], small:["monkey","squirrel"], air:["heron","owl"] },
+      sky:{ top:[128,168,200], bot:[214,228,216], k:0.54, haze:[218,232,220] } },
+    { name:"THE GREY STACKS",   // bare weathered limestone under a cold, high, washed-out sky
+      far:[186,190,192], near:[142,148,152], cap:[228,232,234], ground:[158,164,164], steep:0.92,
+      walls:[[232,232,230],[202,204,202],[244,244,242],[164,168,168],[218,220,218],[184,188,188],[142,148,148],[238,238,236]],
+      flora:{ kinds:["scrub","grass","fern","scrub"], bloom:["#ffffff","#d8e0d8","#c0c8c0"] },
+      fauna:{ keep:{deer:0,rabbit:1,fox:1,goat:1}, big:["ibex"], small:["monkey"], air:["eagle","raven"] },
+      sky:{ top:[152,178,202], bot:[232,236,236], k:0.50, haze:[236,240,238] } } ],
+
   dunes:[ {},
     { name:"THE ERG",          // the deep sand sea: nothing but dune to the horizon, the purest form
       far:[236,206,158], near:[218,178,120], cap:[252,238,204], ground:[234,204,152], amp:0.52, flat:0.92,
@@ -3919,7 +3949,7 @@ function buildWorld(li){
   EDUB=schoolAt<0.46?0.012:0;                                  // early schooling → tech (space age) sooner (N8)
   POPK=(((li*2654435761+4441)>>>0)%1000)/1000;                 // relative bigness of this city (rush-jam factor)
   var mg=rng((seed+71)>>>0);
-  mtsCache=null; gorgeCache=null; duneCache=null;   // new life → new silhouette (gorge profile, dune field)
+  mtsCache=null; gorgeCache=null; duneCache=null; karstCache=null;   // new life → new silhouette (gorge, dunes, towers)
   bioTrees=null;
   // The four height-field biomes build the same two ridges; the biome's amp/base scale them, and its
   // flat/steep/snow decide how they're cut and coloured at draw time.
@@ -3942,7 +3972,7 @@ function buildWorld(li){
   // to preserve.
   var flatLife = (li!==0 && curBiome.k==="alpine" && mg()>=0.72);
   var relief = flatLife ? 0.34 : 1;                                // open country: present, but low
-  mts = (curBiome.k==="forest"||curBiome.k==="core"||curBiome.gorge||curBiome.dune) ? null : {far:[],near:[]};   // the core world has NO terrain at all; the gorge draws walls, not peaks
+  mts = (curBiome.k==="forest"||curBiome.k==="core"||curBiome.gorge||curBiome.dune||curBiome.tower) ? null : {far:[],near:[]};   // the core world has NO terrain at all; the gorge draws walls, not peaks
   if(mts){
     var MSC=KSP*Math.max(0.45,Math.min(1,WW/1300))*curBiome.amp*relief;   // small worlds get proportionate peaks
     var nF=6+((mg()*4)|0), nN=4+((mg()*4)|0), mi;
@@ -16011,6 +16041,99 @@ function stratRuns(g,prof,y0,step,style){
   }
 }
 // ================================================================================================
+// THE KARST — a forest of rock
+// ------------------------------------------------------------------------------------------------
+// Three RANKS of limestone towers, each rank separated by a band of mist. The mist is the whole
+// design: a hundred towers drawn without it is one grey mass, and the frame reads as busy rather than
+// deep. With it, each rank sits visibly behind the last and the eye gets somewhere to travel.
+//
+// A karst tower is not a mountain and must not be built like one — no snowline, no ridge, no long
+// flanks. It is a near-vertical stack with an overhanging shoulder and a rounded, vegetated top,
+// standing on its own footprint with sky on both sides of it.
+var karstCache=null;
+function drawKarst(g,L,now,nd){
+  var day=L>0.5, B=curBiome, K=Math.max(1,KSP), skc=biomeSkc(day);
+  var litK=Math.max(0,Math.min(1,(L-0.34)*2.4));
+  var RANKS=3;
+  if(!karstCache){
+    karstCache=[];
+    for(var r=0;r<RANKS;r++){
+      var towers=[], depth=r/(RANKS-1);
+      // spacing tightens with distance, which is what actually sells recession — near towers are
+      // sparse and large, far ones crowd together. World-anchored so all three monitors agree.
+      var gap=Math.round(96-34*depth), wx=0, i=0;
+      while(wx<WW+200){
+        var h1=mixLi((wx*7919+r*104729)>>>0, 5171)%1000/1000;
+        var h2=mixLi((wx*40503+r*7717)>>>0, 9973)%1000/1000;
+        towers.push({
+          wx: wx,
+          w:  Math.round((16+h1*20)*(1-0.34*depth)),
+          h:  HORIZON*(0.30+0.42*h2)*(1-0.30*depth)*B.amp,
+          lean:(h1-0.5)*0.22,
+          seed:((wx*2654435761)>>>0)^r
+        });
+        wx += gap + Math.round(h2*gap*0.7); i++;
+      }
+      karstCache.push(towers);
+    }
+  }
+  for(var r2=RANKS-1;r2>=0;r2--){
+    var rank=karstCache[r2], dep=r2/(RANKS-1);
+    var body=mixc(day?B.near:[(B.near[0]*0.18)|0,(B.near[1]*0.20)|0,(B.near[2]*0.32)|0], skc, 0.20+0.52*dep);
+    var litC=mixc(body, day?B.cap:[92,100,120], 0.30*litK);
+    var capC=mixc(day?B.cap:mixc(B.cap,[0,0,0],0.6), skc, 0.30*dep);
+    var greenC=mixc(day?[96,140,86]:[22,40,26], skc, 0.30+0.40*dep);
+    for(var t=0;t<rank.length;t++){
+      var tw=rank[t];
+      for(var o=-1;o<=1;o++){
+        var cx=Math.round(tw.wx-WOFF+o*WW);
+        if(cx+tw.w<0||cx-tw.w>SW) continue;
+        var top=Math.round(HORIZON-tw.h);
+        for(var x=Math.max(0,cx-tw.w);x<Math.min(SW,cx+tw.w);x++){
+          var u=(x-cx)/tw.w;                                  // -1..1 across the tower
+          // THE PROFILE: near-vertical flanks that OVERHANG slightly at mid-height (karst is
+          // undercut by water), and a rounded crown. Not a triangle — a triangle is a mountain.
+          var au=Math.abs(u);
+          if(au>0.98) continue;
+          var crown=Math.pow(Math.max(0,1-au*au),0.30);
+          var y=Math.round(top + tw.h*(1-crown)*0.34 + Math.abs(u)*tw.lean*tw.h);
+          if(y>=HORIZON) continue;
+          g.fillStyle=css(u<-0.15?litC:body);                 // the sun side of every stack
+          g.fillRect(x,y,1,HORIZON-y+1);
+          g.fillStyle=rgba(capC,0.7); g.fillRect(x,y,1,Math.max(1,Math.round(K*0.7)));
+          // vegetation clings to the crown and to any ledge — a karst tower is never bare rock at the top
+          if(au<0.72){ g.fillStyle=rgba(greenC,0.55);
+            g.fillRect(x,y+Math.max(1,Math.round(K*0.7)),1,Math.round((1.6+1.8*Math.abs(Math.sin((x+WOFF)*0.4)))*K)); }
+        }
+        // CAVE MOUTHS at the foot of the nearest rank — karst is hollow, and that is its signature
+        if(r2===0 && (tw.seed%100)<46){
+          var cw=Math.round(tw.w*0.34), ch=Math.round(cw*1.25);
+          g.fillStyle=rgba(day?[26,30,32]:[8,10,12],0.88);
+          for(var q=0;q<cw;q++){
+            var qq=q/cw, arch=Math.round(ch*Math.sqrt(Math.max(0,1-qq*qq)));
+            var ax=cx-Math.round(cw*0.5)+q;
+            if(ax<0||ax>=SW) continue;
+            g.fillRect(ax,HORIZON-arch,1,arch);
+          }
+        }
+      }
+    }
+    // THE MIST between ranks. Sits ON TOP of the rank just drawn, so each successive rank is veiled
+    // by everything in front of it — which is the entire reason this land reads as deep.
+    if(r2>0){
+      var mh=Math.round(HORIZON*0.30), my=Math.round(HORIZON-mh*0.9);
+      var mistC=day?[228,234,230]:[52,60,66];
+      for(var mq=0;mq<mh;mq++){
+        var mf=mq/mh;
+        var aM=(0.05+0.20*dep)*(1-mf)*(0.85+0.15*Math.sin(now*0.0004+r2+mf*3));
+        if(aM<=0.004) continue;
+        g.fillStyle=rgba(mistC,aM);
+        g.fillRect(0,my-mq,SW,1);
+      }
+    }
+  }
+}
+// ================================================================================================
 // THE DUNE SEA
 // ------------------------------------------------------------------------------------------------
 // A dune only reads as a dune because of its TWO FACES: a long windward slope the sun rakes across,
@@ -19563,6 +19686,7 @@ function drawMountains(g,L,now,nd){
   if(curBiome.k==="core"){ drawCoreWorld(g,L,now,nd); return; }         // …and on the core world the CITY is
   if(curBiome.gorge){ drawGorge(g,L,now,nd); return; }                 // the gorge IS the range here — walls, not peaks
   if(curBiome.dune){ drawDunes(g,L,now,nd); return; }                   // …and a dune sea is not a ridge line either
+  if(curBiome.tower){ drawKarst(g,L,now,nd); return; }                  // …nor is a field of limestone towers
   if(!mts) return;
   var gy=HORIZON, day=L>0.5;
   var sunsetK=goldenK;   // sourced from the shared golden-hour global (identical law)
