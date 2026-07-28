@@ -15962,6 +15962,100 @@ function stratRuns(g,prof,y0,step,style){
     }
   }
 }
+// THE GORGE, ALIVE — and the flash flood.
+// The land's weather set-piece is the flood, because a flash flood IS the canyon's signature danger:
+// rain that fell somewhere you cannot see arrives as a wall of water down a gorge that was dry rock a
+// minute ago. Rare and brief on the avalanche's clock — a couple of minutes in every twenty — so it
+// is a thing you CATCH rather than a thing that is always happening.
+// The air is the other half: condors work the thermals that rise off sunlit rock, so they only soar
+// when the sun is actually on the wall, and swifts hug the faces where the insects are.
+function drawGorgeLife(g,L,now,nd,fx){
+  if(!gorgeCache||cityPhase==="apoc") return;
+  var day=L>0.5, K=Math.max(1,KSP), gy=HORIZON, B=curBiome;
+  var litK=Math.max(0,Math.min(1,(L-0.34)*2.4));
+
+  // ---- CONDORS on the thermals. A thermal needs heated rock, so this is a DAY bird and it fades
+  // with the sun; at dusk they go to roost on the ledges instead of hanging in the air.
+  if(litK>0.12){
+    var nb=3+((WORLD_SEED>>>5)%3);
+    for(var b2=0;b2<nb;b2++){
+      var bs=((b2*2654435761+((WORLD_SEED*17)|0))>>>0);
+      // each bird circles its own thermal, anchored to a world position so all three screens agree
+      var twx=(bs%Math.max(1,WW)), rad=(18+(bs>>>7)%26), per=26000+((bs>>>11)%18000);
+      var ph=((now%per)/per)*Math.PI*2 + (bs>>>13)%628/100;
+      var bx=Math.round(twx-WOFF+Math.cos(ph)*rad);
+      // wrap: a bird circling across the world seam must not vanish on one screen
+      if(bx<-20) bx+=WW; if(bx>SW+20) bx-=WW;
+      if(bx<-8||bx>SW+8) continue;
+      var by=Math.round(gy - (0.34+0.22*Math.sin(ph*0.5+b2))*gy + Math.sin(ph)*5*K);
+      var span=Math.max(3,Math.round((3.2+((bs>>>17)%3))*K));     // a condor is BIG: ~3m of wing
+      var flap=Math.abs(Math.cos(ph*3.1));                        // mostly a glide, an occasional beat
+      var dip=Math.round(flap*1.2*K);
+      g.fillStyle=day?"rgba(38,34,32,0.92)":"rgba(20,18,20,0.9)";
+      g.fillRect(bx-span,by+dip,span,Math.max(1,Math.round(K*0.9)));       // one long wing
+      g.fillRect(bx,by+dip,span,Math.max(1,Math.round(K*0.9)));            // …and the other
+      g.fillRect(bx-Math.round(K*0.5),by-Math.round(K*0.4),Math.max(1,Math.round(K)),Math.max(1,Math.round(K*1.2)));  // body
+      if(span>=5){ g.fillStyle="rgba(214,196,180,0.55)";                   // the pale flight-feather bar
+        g.fillRect(bx-span,by+dip,Math.round(span*0.4),1); g.fillRect(bx+Math.round(span*0.6),by+dip,Math.round(span*0.4),1); }
+    }
+  }
+  // ---- SWIFTS: fast, tiny, and they hug the rock rather than soaring. Dawn and dusk are their hours.
+  var swK=1-Math.abs(litK-0.4)*2;
+  if(swK>0.1){
+    for(var sw=0;sw<10;sw++){
+      var ss=((sw*40503+((WORLD_SEED*7)|0))>>>0);
+      var sper=4200+((ss>>>3)%2600), sph=((now%sper)/sper);
+      var swx=Math.round(((ss%Math.max(1,WW))-WOFF) + Math.sin(sph*Math.PI*2+sw)*40*K);
+      if(swx<-10) swx+=WW; if(swx>SW+10) swx-=WW;
+      if(swx<0||swx>SW) continue;
+      var swy=Math.round(gy-(0.12+0.30*((ss>>>9)%100)/100)*gy + Math.sin(sph*Math.PI*6+sw)*7*K);
+      g.fillStyle="rgba(44,40,44,"+(0.75*swK).toFixed(2)+")";
+      g.fillRect(swx,swy,Math.max(1,Math.round(1.6*K)),1);
+    }
+  }
+
+  // ---- THE FLASH FLOOD ----------------------------------------------------------------------
+  // ⚠ It runs on the SHARED clock, not on a roll, so every monitor floods at the same instant. A
+  // per-screen random here would have the water arrive on one screen and not the next.
+  var FD=1200000, fph=((now%FD)/FD);
+  if(fph<0.11){
+    var ff=fph/0.11;                                            // 0..1 through the event
+    var seedF=((Math.floor(now/FD)*104729)>>>0);
+    var muddy=[122,86,52], foam=[206,186,158];
+    // the surge front sweeps down-canyon; everything behind it is running water
+    var front=Math.round((-0.25+1.5*ff)*SW);
+    // ⚠ SCALE IT TO THE CANYON, NOT TO THE RIVER. Sized off SEA_FRONT*0.9 (~14 wp) the surge was a
+    // muddy strip below the road — technically present, and nothing you would ever call a flood. The
+    // whole point is that water arrives where there was dry street a minute ago, so it has to climb
+    // INTO the city. Peaks around a third of the way up the frame and drains back.
+    var rise=Math.sin(Math.min(1,ff*1.5)*Math.PI) * Math.max(10, Math.min(HORIZON*0.30, SEA_FRONT*3.4));
+    for(var x=0;x<SW;x++){
+      if(x>front) continue;
+      var d2=Math.min(1,(front-x)/Math.max(1,SW*0.22));         // deepest just behind the front
+      var wy=Math.round(gy - rise*(0.45+0.55*d2));
+      var h2=gy-wy+Math.round(SEA_FRONT*0.7);
+      g.fillStyle=rgba(muddy, 0.80);
+      g.fillRect(x,wy,1,h2);
+    }
+    // the foaming head of the surge — the thing that actually says "flood" rather than "high river"
+    for(var fq=0;fq<26;fq++){
+      var fx2=front-Math.round(fq*1.6*K)-((seedF>>>(fq%9))%5);
+      if(fx2<0||fx2>SW) continue;
+      var fy=Math.round(gy-rise*(0.55+0.45*Math.sin(now*0.02+fq)));
+      g.fillStyle=rgba(foam, (0.72-0.02*fq));
+      g.fillRect(fx2,fy,Math.max(1,Math.round(1.8*K)),Math.max(1,Math.round(2*K)));
+    }
+    // debris: whole cottonwoods go down a canyon in a flood
+    for(var db=0;db<4;db++){
+      var ds=((seedF+db*7919)>>>0);
+      var dbx=front-Math.round(((ds%100)/100)*SW*0.5);
+      if(dbx<0||dbx>SW) continue;
+      var dby=Math.round(gy-rise*0.5+Math.sin(now*0.01+db)*2*K);
+      g.fillStyle="rgba(72,54,38,0.9)";
+      g.fillRect(dbx,dby,Math.round(7*K),Math.max(1,Math.round(1.4*K)));
+    }
+  }
+}
 // THE HALF OF THE CITY THAT LIVES ON THE ROCK.
 // Nick chose "floor AND walls": the city starts on the canyon floor and CLIMBS as it grows. That
 // makes this the only land whose growth is vertical — everywhere else a week of growth spreads
@@ -24865,6 +24959,7 @@ function draw(g,pass){
   drawForestNear(g,L,now,nd);
   drawCanopyLight(g,L,now);
   drawAlpineLife(g,L,now,nd,fx);   // eagles on the ridge lift, ibex on the rock, spindrift off the summits
+  drawGorgeLife(g,L,now,nd,fx);    // condors on the thermals, swifts on the faces, and the flash flood
   drawMesaLife(g,L,now,nd,fx);     // vultures on the thermals, heat shimmer, dust devils, the arch
   drawCliffLife(g,L,now,nd,fx);    // the seabird colony on the ledges, and the stacks off the headland
   drawCinderLife(g,L,now,nd,fx);   // the Fire Nation's caldera: rim glow, lava seams, ember fall
