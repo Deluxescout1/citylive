@@ -2996,7 +2996,38 @@ var BIOMES=[
     walls:[[246,244,236],[228,224,212],[255,252,244],[238,228,198],[250,246,232],[232,226,206],[255,248,220],[240,236,222]],
     fauna:{ keep:{deer:0,rabbit:0,fox:0,goat:0}, big:[], small:[], air:["dove"] },
     flora:{ kinds:["goldtree","generic","goldtree","grass"], bloom:["#ffe9a8","#ffffff","#ffd66a"] },
-    sky:{ top:[150,196,246], bot:[255,238,190], k:0.64, haze:[255,242,206] } }
+    sky:{ top:[150,196,246], bot:[255,238,190], k:0.64, haze:[255,242,206] } },
+  // ============ THE GORGE — Phase 5, land #1 ============
+  // Fills the frame by INVERSION: the city is on the canyon floor and rock rises around it, so the
+  // "thin band of content under empty sky" failure that every other land had to be rescued from is
+  // impossible here by construction. Nick picked the BROAD gorge (generous sky) over the tight slot,
+  // and a city that lives on the floor AND climbs the walls.
+  //
+  // ⚠⚠ THE WALLS CANNOT BE "ONE AT EACH EDGE OF THE FRAME". That is a SCREEN-space idea, and this
+  // engine is world-space: every sprite is a pure function of (world x, clock) so Nick's three
+  // monitors agree without talking to each other. A wall pinned to each side of the world would put
+  // rock at world 0 and world WW — i.e. on the FIRST and THIRD monitors, with the MIDDLE one showing
+  // no canyon whatsoever. That is exactly the bug the sea cliffs already hit ("sea across the whole
+  // bottom" turned out to be structural: `seaW` puts the ocean at the world's SEAMS, so the middle
+  // screen never saw it). Repeating it here would be unforgivable — it is written down.
+  // So the gorge MEANDERS: rock masses stand at irregular world intervals of ~600-900 wp, closer
+  // together than any single monitor is wide, so every screen always has wall on both sides and the
+  // canyon visibly narrows and opens as the world scrolls. That is also what a real canyon does.
+  //
+  // `gorge:1` routes drawMountains to drawGorge, the same way `forest` and `core` are routed — the
+  // walls are not a height field and must not be built by the ridge roll.
+  { k:"canyon", name:"THE GORGE",   amp:0.55, base:0.30, flat:0.9,  steep:0.72, snow:false, water:"river", gorge:1,
+    far:[188,118,84],   near:[156,86,60],   cap:[224,168,120], ground:[196,150,104],
+    // the vernacular of a canyon floor: adobe, sandstone block, sun-bleached timber, painted stucco
+    walls:[[206,150,104],[178,116,78],[228,196,158],[150,96,66],[236,214,180],[196,132,88],[168,140,110],[214,178,132]],
+    // condors and swifts work the thermals off the rim; bighorn take the ledges nothing else can
+    fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:1}, big:["bighorn","ibex"], small:["marmot"], air:["eagle","raven"] },
+    // cottonwood and willow on the wet floor, hanging gardens where the seeps come out of the rock
+    flora:{ kinds:["cottonwood","willow","scrub","grass","cottonwood"], bloom:["#ffd166","#e8a0c0","#ffffff","#f0c0a0"] },
+    // a deep desert-altitude blue overhead with a warm bounce off the walls at the bottom.
+    // k:0.42 is a deliberate call under the new rule (see SKY_GAIN): the gorge has its own air, but
+    // Nick chose the BROAD gorge specifically for a generous sky, so it must not go opaque like hell's.
+    sky:{ top:[86,138,198], bot:[226,190,150], k:0.42, haze:[224,180,136] } }
 ];
 // The animals themselves. One sprite writer per BODY PLAN, one table row per species, so a new
 // animal costs a row rather than a renderer — the same economy the BIOMES table itself is built on.
@@ -3253,7 +3284,36 @@ var BIOME_VARIANTS={
       far:[244,214,208], near:[228,188,184], cap:[255,238,228], ground:[240,214,200],
       walls:[[252,240,232],[240,216,208],[255,248,240],[246,226,206],[250,238,228],[238,214,204],[255,244,232],[244,222,212]],
       flora:{ kinds:["goldtree","generic","goldtree","grass"], bloom:["#ffb0c0","#ffffff","#ffd08a"] },
-      sky:{ top:[186,150,206], bot:[255,206,176], k:0.66, haze:[255,214,188] } } ]
+      sky:{ top:[186,150,206], bot:[255,206,176], k:0.66, haze:[255,214,188] } } ],
+
+  // ⚠ FOUR named variants, not two. Nick was offered four and picked all four, and nothing here forces
+  // a land to have exactly two: `variantOf` does `vs[mixLi(li,104729)%vs.length]`, so the array length
+  // is free. Every other land keys separately, so a five-entry canyon reshuffles nothing but itself.
+  canyon:[ {},
+    { name:"THE SLOT",           // sculpted sandstone; light bounces down the walls and barely lands
+      far:[212,132,78],  near:[178,92,48],   cap:[248,192,128], ground:[210,158,102], steep:0.9, flat:0.55,
+      walls:[[224,166,112],[196,128,80],[240,206,164],[168,106,68],[246,224,190],[210,146,94],[182,152,118],[228,190,142]],
+      flora:{ kinds:["scrub","grass","scrub","cottonwood"], bloom:["#ffd166","#ffffff","#f0a060"] },
+      fauna:{ keep:{deer:0,rabbit:1,fox:1,goat:1}, big:["bighorn"], small:["marmot","lizard"], air:["raven","vulture"] },
+      sky:{ top:[74,120,182], bot:[248,196,140], k:0.46, haze:[246,190,132] } },
+    { name:"THE GREEN RIVER",    // limestone draped in hanging gardens; the lush answer to red rock
+      far:[150,164,132],  near:[110,128,98],  cap:[206,214,182], ground:[128,152,104], steep:0.62,
+      walls:[[196,196,178],[164,168,150],[218,216,198],[142,148,130],[228,226,208],[178,180,160],[152,158,138],[206,206,188]],
+      flora:{ kinds:["fern","willow","cottonwood","fern","grass"], bloom:["#ffffff","#e8d088","#c8e0a0"] },
+      fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:1}, big:["ibex","bighorn"], small:["marmot"], air:["eagle","raven"] },
+      sky:{ top:[104,152,200], bot:[210,222,198], k:0.36, haze:[206,220,196] } },
+    { name:"THE BLACK BASALT",   // hexagonal stone organ pipes the full height of both walls
+      far:[86,90,102],   near:[52,56,68],    cap:[140,146,162], ground:[74,78,88], steep:0.96, flat:0.2,
+      walls:[[112,116,126],[76,80,92],[140,144,154],[58,62,72],[158,162,172],[92,96,108],[68,72,84],[126,130,140]],
+      flora:{ kinds:["scrub","grass","willow","scrub"], bloom:["#c8d8e8","#ffffff","#a0c0d8"] },
+      fauna:{ keep:{deer:0,rabbit:1,fox:1,goat:1}, big:["ibex"], small:["marmot"], air:["raven","eagle"] },
+      sky:{ top:[70,92,124], bot:[178,190,204], k:0.44, haze:[176,188,202] } },
+    { name:"THE ICE GORGE",      // glacial meltwater cut: blue ice walls, cold low light
+      far:[178,206,226],  near:[136,178,210], cap:[238,248,255], ground:[196,216,230], snow:true, steep:0.84,
+      walls:[[226,238,248],[196,214,232],[240,248,255],[178,200,222],[248,252,255],[210,226,242],[186,206,226],[232,242,250]],
+      flora:{ kinds:["windbent","scrub","grass","windbent"], bloom:["#ffffff","#cfe4ff","#a8c8f0"] },
+      fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:1}, big:["bighorn"], small:["marmot"], air:["raven"] },
+      sky:{ top:[112,150,196], bot:[224,238,250], k:0.38, haze:[228,240,250] } } ]
 };
 // Merge a variant over its land. `k` is forced back afterwards — see the warning above.
 function variantOf(li,B){
@@ -3391,6 +3451,7 @@ function seaFrontOf(b){
     case "swamp":   return 32;    // the bayou is water FIRST — cypress stand in it
     case "volcano": return 26;    // an island, so the sea is on every side
     case "arctic":  return 28;    // broken floes and open leads
+    case "canyon":  return 16;    // the river on the gorge floor — narrower than any coast, but always there
     default:        return 0;     // every inland land is unchanged
   }
 }
@@ -3810,7 +3871,7 @@ function buildWorld(li){
   EDUB=schoolAt<0.46?0.012:0;                                  // early schooling → tech (space age) sooner (N8)
   POPK=(((li*2654435761+4441)>>>0)%1000)/1000;                 // relative bigness of this city (rush-jam factor)
   var mg=rng((seed+71)>>>0);
-  mtsCache=null;                              // new life → new silhouette
+  mtsCache=null; gorgeCache=null;             // new life → new silhouette (and a new gorge profile)
   bioTrees=null;
   // The four height-field biomes build the same two ridges; the biome's amp/base scale them, and its
   // flat/steep/snow decide how they're cut and coloured at draw time.
@@ -3833,7 +3894,7 @@ function buildWorld(li){
   // to preserve.
   var flatLife = (li!==0 && curBiome.k==="alpine" && mg()>=0.72);
   var relief = flatLife ? 0.34 : 1;                                // open country: present, but low
-  mts = (curBiome.k==="forest"||curBiome.k==="core") ? null : {far:[],near:[]};   // the core world has NO terrain at all
+  mts = (curBiome.k==="forest"||curBiome.k==="core"||curBiome.gorge) ? null : {far:[],near:[]};   // the core world has NO terrain at all; the gorge draws walls, not peaks
   if(mts){
     var MSC=KSP*Math.max(0.45,Math.min(1,WW/1300))*curBiome.amp*relief;   // small worlds get proportionate peaks
     var nF=6+((mg()*4)|0), nN=4+((mg()*4)|0), mi;
@@ -15870,6 +15931,129 @@ function drawBole(g,t,sx,gy,cTrunk,cBark,cFol,K,detail,litK,mossC){
     }
   }
 }
+// ================================================================================================
+// THE GORGE — the walls
+// ------------------------------------------------------------------------------------------------
+// ⚠⚠ READ THE WARNING ON THE `canyon` BIOME ROW BEFORE CHANGING ANY OF THIS.
+// The one thing that must never be "simplified" here: there is NO left wall and NO right wall. Those
+// are screen-space ideas. Pinning rock to the two ends of the world would leave the MIDDLE monitor
+// with no canyon at all — the exact structural bug the sea cliffs already shipped with.
+//
+// What this actually draws, all as pure functions of WORLD x so three monitors agree:
+//   · a CONTINUOUS far wall across the entire world — the opposite side of the gorge, seen across it.
+//     This is what makes it a canyon rather than a field of buttes: the rock never stops.
+//   · NEAR BUTTRESSES at irregular world intervals of ~600-900 wp — closer together than any single
+//     monitor is wide, so every screen always has tall rock on both sides of the city, and the gorge
+//     visibly narrows and opens as the world scrolls. Which is what a real canyon does.
+//   · strata, a lit rim, and talus where the wall meets the floor.
+// Nick chose the BROAD gorge over the tight slot, so the far wall tops out around 45% of the sky and
+// the buttresses at ~18%: rock on all sides, but a real sky overhead.
+// Horizontal bedding planes over a wall profile, emitted as CONTIGUOUS RUNS.
+// See the note at the call site: the per-pixel version measured 10.4x the draw calls for the same
+// pixels (36,293 vs 3,493 on the primary screen alone).
+function stratRuns(g,prof,y0,step,style){
+  g.fillStyle=style;
+  for(var y=y0;y<HORIZON;y+=step){
+    var run=-1;
+    for(var x=0;x<=SW;x++){
+      var on=(x<SW && prof[x]<y);
+      if(on && run<0) run=x;
+      else if(!on && run>=0){ g.fillRect(run,y,x-run,1); run=-1; }
+    }
+  }
+}
+var gorgeCache=null;   // per-screen wall profile — static within a life, so build it ONCE
+function drawGorge(g,L,now,nd){
+  var day=L>0.5, B=curBiome, K=Math.max(1,KSP), skc=biomeSkc(day);
+  var farC =mixc(day?B.far:[(B.far[0]*0.20)|0,(B.far[1]*0.22)|0,(B.far[2]*0.34)|0],  skc, day?0.42:0.34);
+  var nearC=mixc(day?B.near:[(B.near[0]*0.16)|0,(B.near[1]*0.18)|0,(B.near[2]*0.30)|0],skc, day?0.16:0.16);
+  var rimC =mixc(day?B.cap:mixc(B.cap,[0,0,0],0.58), [255,178,132], goldenK*0.6);
+  var litK =Math.max(0,Math.min(1,(L-0.34)*2.4));
+  var steep=(B.steep!=null?B.steep:0.72);
+
+  if(!gorgeCache){
+    gorgeCache={far:new Array(SW), but:new Array(SW)};
+    // the far wall: three octaves of world-space noise, so the rim never repeats within a screen
+    for(var x=0;x<SW;x++){
+      var wx=x+WOFF;
+      var n=Math.sin(wx*0.0043)*0.52 + Math.sin(wx*0.0111+1.7)*0.28 + Math.sin(wx*0.0295+0.4)*0.13;
+      gorgeCache.far[x]=Math.round(HORIZON*(0.55 - n*0.16*(0.6+0.8*(1-steep))));
+      gorgeCache.but[x]=1e9;
+    }
+    // the buttresses. Placed off mixLi so they are a property of the WORLD and this life, never of
+    // this screen — and drawn with the -1/0/+1 wrap so one straddling the world seam is not cut in half.
+    // ⚠ SIZES HERE ARE WORLD PIXELS, NOT SCALED BY K. SW/HORIZON/WOFF are already world px (the
+    // primary is 776 wp wide, the middle 854, the right 640 — a 2269 wp world), and drawPerson is a
+    // fixed 7 px in the same units. Multiplying by K here made each spur 300-680 wp wide, i.e. half a
+    // monitor per spur, which is why the first render came out as a row of enormous smooth domes.
+    // ⚠ AND THE SPACING MUST BEAT THE NARROWEST SCREEN, not the widest. At 600-900 wp a 640 wp
+    // monitor saw exactly one spur; the gorge has to read on the SMALL screen too.
+    var span=WW, i=0, wxp=0;
+    while(wxp<span+500){
+      var h=mixLi(((wxp*7919)>>>0)+i*104729, 7717)%1000/1000;
+      var gap=300+Math.round(h*150);                              // 300-450 wp ⇒ 2-3 spurs on every screen
+      var bw=Math.round(60+(mixLi(i*40503+11,5171)%1000/1000)*70);   // 60-130 wp of wall, in world units
+      var bh=HORIZON*(0.16+0.18*(mixLi(i*2654435+7,9973)%1000/1000));
+      // A CANYON WALL IS A CLIFF, NOT A HILL. A bump profile (1-t²) gives a dome; what this needs is a
+      // PLATEAU — a flat top with near-vertical flanks — so the rock reads as a face you could fall
+      // off. `edge` is how much of the half-width is spent on the flank: steep rock spends almost none.
+      var edge=0.10+0.30*(1-steep);
+      for(var w=-1;w<=1;w++){
+        var sx0=Math.round(wxp - WOFF + w*WW);
+        for(var bx=Math.max(0,sx0-bw);bx<Math.min(SW,sx0+bw);bx++){
+          var t=Math.abs((bx-sx0)/bw);                             // 0 at the centre, 1 at the flank
+          var prof=Math.min(1,(1-t)/edge);                         // flat top, then a fast fall to nothing
+          if(prof<=0) continue;
+          // a ragged crest: real rock is not a ruled line, and a perfectly flat top reads as a box
+          var jag=(mixLi(((bx+WOFF)*2654435761)>>>0,3571)%1000/1000-0.5)*4;
+          var y=Math.round(bh+jag + (HORIZON*0.55-bh)*(1-prof));
+          if(y<gorgeCache.but[bx]) gorgeCache.but[bx]=y;
+        }
+      }
+      wxp+=gap; i++;
+    }
+  }
+
+  // ---- the far wall: fill from its rim down to the floor, then band it with strata ----
+  var strat=Math.max(2,Math.round(4*K));
+  for(var fx=0;fx<SW;fx++){
+    var fy=gorgeCache.far[fx];
+    g.fillStyle=css(farC); g.fillRect(fx,fy,1,HORIZON-fy+1);
+    g.fillStyle=css(rimC); g.fillRect(fx,fy,1,Math.max(1,Math.round(K*0.8)));      // the sunlit rim
+  }
+  // ⚠ STRATA AS RUNS, NOT PIXELS. The obvious `for each y { for each x { if(wall) fillRect(x,y,1,1) }}`
+  // costs one draw call per pixel of wall area. MEASURED on the primary screen: 36,293 fillRects in
+  // drawGorge per bg frame, against 3,493 doing it as runs — 10.4x, and that is ONE of three monitors.
+  // This engine holds a ~50%-of-one-core ceiling across all of them. Same output, one fill per
+  // contiguous run instead of one per pixel.
+  // World-anchoring matters too: bedding planes drawn in SCREEN space slide as the world scrolls and
+  // the wall stops looking like rock.
+  stratRuns(g, gorgeCache.far, Math.round(HORIZON*0.20), strat, rgba(mixc(farC,[0,0,0],0.16),0.34));
+
+  // ---- the near buttresses: darker, in front, and they carry the sun on one flank ----
+  for(var nx=0;nx<SW;nx++){
+    var ny=gorgeCache.but[nx];
+    if(ny>=HORIZON) continue;
+    // ⚠ COMPARE ACROSS A REAL DISTANCE, NOT THE NEXT COLUMN. `but[nx-1] > ny` was true wherever the
+    // ragged crest happened to step up by a single pixel — which, with per-column noise, is about half
+    // of every face. The whole wall came out striped like corduroy. A flank is a SUSTAINED rise, so
+    // look several columns back and require a step bigger than the jitter that produced the false hits.
+    var back=gorgeCache.but[Math.max(0,nx-4)];
+    var lit=(back-ny)>5?1:0;                                       // a genuine west-facing flank
+    g.fillStyle=css(nearC); g.fillRect(nx,ny,1,HORIZON-ny+1);
+    if(lit&&litK>0.05){ g.fillStyle=rgba(mixc(nearC,rimC,0.5),0.35*litK); g.fillRect(nx,ny,1,HORIZON-ny+1); }
+    g.fillStyle=css(rimC); g.fillRect(nx,ny,1,Math.max(1,Math.round(K*0.7)));
+  }
+  stratRuns(g, gorgeCache.but, Math.round(HORIZON*0.30), strat, rgba(mixc(nearC,[0,0,0],0.22),0.30));
+
+  // ---- talus: the skirt of fallen rock where wall meets floor, so nothing lands on a hard seam ----
+  var tal=Math.round(5*K);
+  for(var qx=0;qx<SW;qx++){
+    var wq=qx+WOFF, th=Math.round(tal*(0.5+0.5*Math.abs(Math.sin(wq*0.021)+Math.sin(wq*0.0071)*0.6)));
+    g.fillStyle=rgba(mixc(B.ground,farC,0.4), 0.55);
+    g.fillRect(qx,HORIZON-th,1,th+1);
+  }
+}
 function drawForestBackdrop(g,L,now,nd){
   if(!bioTrees) return;
   var gy=HORIZON, day=L>0.5, sunsetK=goldenK, B=curBiome, K=Math.max(1,KSP);
@@ -18996,6 +19180,7 @@ function ridgeFill(g,style,hs,gy){
 function drawMountains(g,L,now,nd){
   if(curBiome.k==="forest"){ drawForestBackdrop(g,L,now,nd); return; }   // the forest is the range here
   if(curBiome.k==="core"){ drawCoreWorld(g,L,now,nd); return; }         // …and on the core world the CITY is
+  if(curBiome.gorge){ drawGorge(g,L,now,nd); return; }                 // the gorge IS the range here — walls, not peaks
   if(!mts) return;
   var gy=HORIZON, day=L>0.5;
   var sunsetK=goldenK;   // sourced from the shared golden-hour global (identical law)
