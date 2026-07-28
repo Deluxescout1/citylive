@@ -49,6 +49,11 @@ var CFG_EGG = (typeof CFG.egg === 'string' && CFG.egg) ? CFG.egg : null;
 // purely because a cropped screenshot cannot say which of ~130 land/age/hour combinations it was.
 // One screenshot with this on answers all of it.
 var CFG_DEBUGSTAMP = !!CFG.debugStamp;
+// LAND PIN: `"land":"alpine"` in config.local.json holds every life on one map so it can be reviewed
+// properly. `"landVariant":0..n` optionally pins one of its named faces too. Both reach the wallpaper
+// through applyConfig — see the note in landOf and the config-parity test.
+var CFG_LAND = (typeof CFG.land === 'string' && CFG.land) ? CFG.land : null;
+var CFG_LANDV = (CFG.landVariant != null && isFinite(CFG.landVariant)) ? (+CFG.landVariant) : null;
 // BUFFALO BILLS GAMEDAY TAKEOVER: opt-in, OFF by default. When on AND the real Bills are actually
 // playing a game right now (checked against the same live ESPN feed the stadium scoreboards use), the
 // whole city goes Bills Mafia — every sign, screen, ticker line and citizen rallies the team. A shared
@@ -126,6 +131,8 @@ function applyConfig(cfg){ if(!cfg) return;
   if(cfg.debugStamp!==undefined) CFG_DEBUGSTAMP=!!cfg.debugStamp;
   if(cfg.egg!==undefined){ CFG_EGG=(typeof cfg.egg==='string'&&cfg.egg)?cfg.egg:null; FORCEEGG=CFG_EGG; }
   if(cfg.scores!==undefined) SCORE_ON=(cfg.scores!==false);
+  if(cfg.land!==undefined) CFG_LAND=(typeof cfg.land==='string'&&cfg.land)?cfg.land:null;
+  if(cfg.landVariant!==undefined) CFG_LANDV=(cfg.landVariant!=null&&isFinite(cfg.landVariant))?(+cfg.landVariant):null;
 }
 // ================================================================================
 
@@ -3784,6 +3791,35 @@ function landOf(li){
   // without this there is no way to render a specific biome on a specific real-world date — which is
   // exactly what checking an eclipse (fixed date, needs a sky you can read) or comparing one land
   // across a day requires. `FORCEBIOME="alpine"`, optionally `FORCEVARIANT=0..2`. Never set in ship.
+  // ⚠ THE SHIPPABLE LAND PIN, distinct from FORCEBIOME below. Nick, for verification: "I want the
+  // city to start with the first map and when it dies it resets to that Map until I say we are done
+  // with it. Then we will move on to the next." So this pins the LAND while lives keep turning over —
+  // the city still grows, dies and reboots on its normal clock, it just always reboots onto the same
+  // map, which is what makes a map reviewable instead of something you wait days to see again.
+  // Separate from FORCEBIOME on purpose: that one is a render-harness global with "never set in ship"
+  // written on it, and it is not reachable from the wallpaper at all. This one arrives through
+  // applyConfig, which is the ONLY channel the Plasma surface has — the lesson from debugStamp/egg.
+  // `"land": "alpine"` pins the biome and lets its variants keep rolling, so a review sees every look
+  // that land can wear. Add `"landVariant": 0` to pin one exact face as well.
+  // ⚠ AND THE PIN OUTRANKS THE EGG ROLL. Guarding this with `&& !eg` let the rare worlds break
+  // through — a 40-life pinned run still produced the Core World, the Hidden Village, Space City and
+  // the Great Plateau. For a REVIEW pin that is useless: the whole point is that every life is the
+  // same map, so `land` suppresses the egg entirely. (An egg can still be pinned deliberately with
+  // `"egg":"leaf"`, which is a separate switch.)
+  if(CFG_LAND!=null){
+    eg=null; curEgg=false;
+    for(var pl=0;pl<BIOMES.length;pl++) if(BIOMES[pl].k===CFG_LAND){
+      b=variantOf(li, BIOMES[pl]);
+      if(CFG_LANDV!=null){
+        var pv=BIOME_VARIANTS[CFG_LAND];
+        if(pv&&pv.length){ var vw=pv[CFG_LANDV%pv.length], po={}, pk;
+          for(pk in BIOMES[pl]) if(BIOMES[pl].hasOwnProperty(pk)) po[pk]=BIOMES[pl][pk];
+          for(pk in vw) if(vw.hasOwnProperty(pk)) po[pk]=vw[pk];
+          po.k=BIOMES[pl].k; b=po; }
+      }
+      break;
+    }
+  }
   if(FORCEBIOME!=null){
     for(var fb=0;fb<BIOMES.length;fb++) if(BIOMES[fb].k===FORCEBIOME){
       var fv=BIOME_VARIANTS[FORCEBIOME];
