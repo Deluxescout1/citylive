@@ -9988,11 +9988,25 @@ function drawJumbotron(g,rx,ry,sw,sh,roofY,now,L,seed){
   drawUiText(g,hdr.substr(0,Math.max(1,((sw-20)/4)|0)),rx+2,ry+1,brk?"#ffffff":"#0a0f18",1);
   if(type==="news"){ if((Math.floor(now/500))&1){ g.fillStyle="#ff3b3b"; g.fillRect(rx+sw-19,ry+1,3,3); } drawUiText(g,"LIVE",rx+sw-15,ry+1,"#ffe0e0",1); }
   else drawUiText(g,type==="ad"?"AD":"TV",rx+sw-9,ry+1,"#0a0f18",1);
-  var per=Math.max(4,((sw-8)/4)|0), ly=ry+sh-20, lh=16, kick, line;   // lh 16 → leaves a 4px stock-ticker crawl below
+  // ⚠⚠ NOTHING DRAWS OUTSIDE THE GLASS. Nick: "make sure the screens display all the text." Every
+  // string here was truncated by a character count derived from the width — `per` — and one of them
+  // (the wrapped headline) was never truncated at all, so a long line simply ran off the bezel and
+  // out over the city. A character budget is a guess about a proportional problem; a CLIP is the
+  // guarantee. Both now: the budget keeps text inside the panel it belongs to, and the clip means a
+  // miscalculated budget can never again spill pixels onto the skyline.
+  // ⚠ The drawable width is what is left after the 6px left inset AND a matching right margin —
+  // `(sw-8)/4` counted the inset once and gave every line two characters more room than it had.
+  // ⚠⚠ AND THE THREE LINES WERE PRINTING ON TOP OF EACH OTHER. This is the actual reason his screen
+  // was unreadable, and it took a 400% crop to see it: the lower third is 16px tall with rows at +1,
+  // +6 and +11, which assumes a 5px line. The pixel font needs SIX, so every row bled into the one
+  // below it and the headline came out as two words superimposed. Truncating strings was never going
+  // to fix a leading problem — I nearly shipped a character-budget fix for a line-height bug.
+  var per=Math.max(4,((sw-12)/4)|0), ly=ry+sh-24, lh=20, kick, line;   // 3 rows at 6px + the ticker below
+  g.save(); g.beginPath(); g.rect(rx,ry,sw,sh); g.clip();
   if(type==="news"){
     var skin=ANCHOR_SKINS[(((seed>>>3))%ANCHOR_SKINS.length)];    // each channel its own anchor
     drawAnchor(g,rx+(sw>>1)-5,ry+9,now,skin);
-    g.fillStyle="#141b2c"; g.fillRect(rx,ry+sh-21,sw,3); g.fillStyle=col; g.fillRect(rx,ry+sh-21,sw,1);   // desk bar
+    g.fillStyle="#141b2c"; g.fillRect(rx,ry+sh-25,sw,3); g.fillStyle=col; g.fillRect(rx,ry+sh-25,sw,1);   // desk bar
     kick=seg.kick; line=seg.line;
   } else {
     // AD / SHOW: a big centred graphic in the upper area, title card in the lower third
@@ -10006,8 +10020,8 @@ function drawJumbotron(g,rx,ry,sw,sh,roofY,now,L,seed){
   g.fillStyle=col; g.fillRect(rx,ly,3,lh);
   drawUiText(g,kick.substr(0,per),rx+6,ly+1,col,1);
   var wrapped=wrapNews(line, per);
-  drawUiText(g,wrapped[0],rx+6,ly+6,"#eef4ff",1);
-  if(wrapped[1]) drawUiText(g,wrapped[1].substr(0,per),rx+6,ly+11,"#cfe0f2",1);
+  drawUiText(g,wrapped[0].substr(0,per),rx+6,ly+8,"#eef4ff",1);
+  if(wrapped[1]) drawUiText(g,wrapped[1].substr(0,per),rx+6,ly+14,"#cfe0f2",1);
   // STOCK-TICKER CRAWL along the very bottom (a live market ticker, green boom / red bust) — the economy tracker
   var cyb=ry+sh-4, r2=econReport(now), tcol=r2.boom?"#7dff9e":r2.bust?"#ff7d7d":"#ffd27d";
   g.fillStyle="#05070c"; g.fillRect(rx,cyb,sw,4);
@@ -10016,8 +10030,22 @@ function drawJumbotron(g,rx,ry,sw,sh,roofY,now,L,seed){
   drawUiText(g,crawl,(rx+sw-1-coff)|0,cyb,tcol,1);
   drawUiText(g,crawl,(rx+sw-1-coff+cwid)|0,cyb,tcol,1);
   g.restore();
+  // ⚠ AND IT HAS TO LOOK LIVE. "Make it look better and more dynamic." A panel of static text with one
+  // blinking dot is a poster. What a real screen does is REFRESH: a bright band sweeps down the
+  // picture, the whole thing flickers when the feed hiccups, and the frame around it is lit.
+  var swp=((now*0.045+seed*37)%(sh+40))-20;                     // the refresh band, drifting down the glass
+  if(swp>0&&swp<sh){ g.globalCompositeOperation="lighter";
+    g.fillStyle="rgba(150,200,255,0.055)"; g.fillRect(rx,ry+(swp|0),sw,Math.max(1,(sh*0.10)|0));
+    g.globalCompositeOperation="source-over"; }
+  var flick=((((now/220)|0)*2654435761+seed)>>>0)%97;           // a rare dropped frame
+  if(flick<2){ g.fillStyle="rgba(120,160,220,0.10)"; g.fillRect(rx,ry,sw,sh); }
+  g.restore();                                                  // …end of the clip: the glass is finished
   // screen glow at night
   if(night>0.25){ g.globalCompositeOperation="lighter"; g.fillStyle=(brk?"rgba(255,60,50,":"rgba(90,170,255,")+(0.06+0.09*night).toFixed(2)+")"; g.fillRect(rx,ry,sw,sh); g.globalCompositeOperation="source-over"; }
+  // a lit bezel, so the screen throws light on its own frame rather than sitting in a dead black box
+  if(night>0.2){ g.globalCompositeOperation="lighter"; g.fillStyle=hexA(col,0.16*night);
+    g.fillRect(rx-2,ry-2,sw+4,2); g.fillRect(rx-2,ry+sh,sw+4,2);
+    g.globalCompositeOperation="source-over"; }
 }
 var ANCHOR_SKINS=[{c:"#e8b890",sh:"#cf9c74",hair:"#3a2a1e"},{c:"#c98a5e",sh:"#a86f48",hair:"#221812"},
   {c:"#8a5a3a",sh:"#6e442c",hair:"#161010"},{c:"#f0cfa8",sh:"#d8b088",hair:"#5a4632"}];
@@ -10046,6 +10074,17 @@ function drawJumbotrons(g,L,now,night){
     if(Math.abs(cx-lastX)<sw+30) continue;                                  // spread them out
     var roofY=HORIZON-b.h, ry=roofY-14-sh;                                  // the truss lifts the screen a clear span above the roof
     if(ry<6){ ry=6; roofY=Math.min(roofY,ry+sh+14); }                       // keep it on-canvas (and the truss sane)
+    // ⚠⚠ AND IT MUST NOT STRADDLE THE ELEVATED LINE. Nick: "make sure the trains go behind it lol."
+    // My first fix moved the whole draw call after the train service pass — and a test caught it
+    // immediately: `drawJumbotrons must stay behind train stations` is a DELIBERATE invariant, and it
+    // is right, because a platform canopy genuinely is in front of a tower behind it. The draw order
+    // was never the problem. The PLACEMENT was: a screen hung off a short tower can sit straight
+    // across the viaduct, and then a train runs through its face no matter which order they draw in.
+    // Two things cannot occupy the same band. Skip the rooftop instead — there is always another.
+    if(!curVillage && gstage(0.42,0.58)>0){
+      var vTy=(HORIZON-Math.round(GROUND*1.1))|0;                           // the deck, as drawTrainLine computes it
+      if(roofY>vTy-4 && ry<vTy+8) continue;                                 // the screen would straddle the line
+    }
     drawJumbotron(g,rx,ry,sw,sh,roofY,now,L,b.seed);
     lastX=cx; drawn++;
   }
