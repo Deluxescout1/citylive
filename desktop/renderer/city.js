@@ -20528,21 +20528,59 @@ function drawCliffLife(g,L,now,nd,fx){
   // ---- THE COLONY ON THE LEDGES ----------------------------------------------------------------
   // Nesting birds pack onto horizontal breaks in the rock. Static per position (a nest site does not
   // wander), so this is pure f(x) — and it costs nothing to keep still.
+  // ⚠⚠ REDESIGNED. Nick: "the white dots are blending in with the seagulls, can we redesign this and
+  // make it less confusing to look at?" He was right and the reason was structural, not a colour
+  // problem: this stepped every 2px across the ENTIRE cliff and dropped a 1px white dot at three
+  // arbitrary heights with 58% density — 443 identical white specks per frame, measured. Worse, the
+  // birds sat on NOTHING. With no ledge under them there was no reason for a row to read as a row, so
+  // they became a noise field, and a 1px white dot on rock is indistinguishable from a 1px white gull
+  // in the air. Two identical marks meaning two different things is exactly the confusion he saw.
+  // Three changes, and the third is the one that actually separates them:
+  //   · DRAW THE LEDGE. A dark break in the rock with a lit top edge, running level. Birds on a shelf
+  //     read as birds on a shelf.
+  //   · CLUSTER them. A colony is patchy — dense knots with real empty rock between, not 58% everywhere.
+  //   · GUANO STREAKS running DOWN from the busy ledges. This is what a seabird cliff actually looks
+  //     like from a distance, and being VERTICAL it is a different shape from a flying bird, so the
+  //     eye separates the two instantly instead of having to count pixels.
   var bandN=3, bird=day?"rgba(248,250,252,0.92)":"rgba(196,204,214,0.55)";
   var dark=day?"rgba(52,58,66,0.75)":"rgba(28,32,38,0.5)";
-  for(var cx=Math.round(SW*0.03);cx<Math.round(SW*0.97);cx+=Math.max(2,Math.round(2*K))){
-    var h=ridgeH(cx); if(h<18*K) continue;
-    var faceTop=gy-h;
-    for(var b=0;b<bandN;b++){
-      // ledges sit at fixed fractions of the face, so they run level across the cliff like real strata
-      var ly=faceTop+Math.round(h*(0.22+b*0.20));
+  var ledgeD=day?"rgba(30,34,40,0.55)":"rgba(12,14,18,0.5)";
+  var ledgeL=day?"rgba(210,216,224,0.30)":"rgba(120,132,150,0.20)";
+  var guano =day?"rgba(238,242,246,0.30)":"rgba(150,160,175,0.16)";
+  var step=Math.max(3,Math.round(3*K));
+  for(var b=0;b<bandN;b++){
+    for(var cx=Math.round(SW*0.03);cx<Math.round(SW*0.97);cx+=step){
+      var h=ridgeH(cx); if(h<18*K) continue;
+      var ly=(gy-h)+Math.round(h*(0.22+b*0.20));
       if(ly>gy-4*K) continue;
-      var hsh=((cx*2654435761+b*7919)>>>0);
-      if((hsh%100)>58) continue;                              // gaps: no colony is continuous
-      g.fillStyle=bird;
-      g.fillRect(cx|0,ly|0,Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
-      if((hsh>>7)%3===0){ g.fillStyle=dark;                   // a darker back among the white breasts
-        g.fillRect((cx+Math.round(K))|0,ly|0,Math.max(1,Math.round(K)),Math.max(1,Math.round(K))); }
+      // the shelf itself, so a row has something to stand on
+      g.fillStyle=ledgeD; g.fillRect(cx|0,(ly+Math.round(K))|0,step,Math.max(1,Math.round(K)));
+      g.fillStyle=ledgeL; g.fillRect(cx|0,ly|0,step,Math.max(1,Math.round(K*0.7)));
+      // colonies come in KNOTS. One low-frequency hash decides whether this stretch is occupied at
+      // all, so there are long empty runs of bare rock between crowded patches.
+      var knot=(mixLi(((cx/Math.max(1,step*7))|0)*7919+b*104729, 5171)%100);
+      if(knot>46) continue;
+      var dens=1-(knot/46);                                   // busiest in the middle of a knot
+      var nb=1+Math.round(dens*2);
+      for(var q=0;q<nb;q++){
+        var bxq=cx+Math.round(q*K*1.4);
+        var hsh=((bxq*2654435761+b*7919)>>>0);
+        if((hsh%100)>72) continue;
+        g.fillStyle=bird;
+        g.fillRect(bxq|0,(ly-Math.round(K))|0,Math.max(1,Math.round(K)),Math.max(1,Math.round(K*1.4)));
+        if((hsh>>>7)%3===0){ g.fillStyle=dark;                // a darker back among the white breasts
+          g.fillRect((bxq+Math.round(K))|0,(ly-Math.round(K))|0,Math.max(1,Math.round(K)),Math.max(1,Math.round(K))); }
+      }
+      // …and the streak the knot leaves down the rock beneath it
+      // ⚠ ONLY THE BUSIEST KNOTS, AND SHORT. The first pass streaked from every half-decent patch and
+      // ran them a fifth of the cliff's height — at that density and length they stopped reading as
+      // weathering under a colony and started reading as RAIN, which is a different confusion for the
+      // same eye. A streak is now a mark a crowded ledge leaves just below itself.
+      if(dens>0.62){
+        var glen=Math.round(h*(0.05+0.07*dens));
+        g.fillStyle=guano;
+        g.fillRect((cx+Math.round(K*0.5))|0,(ly+Math.round(2*K))|0,Math.max(1,Math.round(K)),glen);
+      }
     }
   }
 
