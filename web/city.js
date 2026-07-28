@@ -3678,7 +3678,25 @@ var EGG_BIOMES=[
     fauna:{ keep:{deer:0,rabbit:0,fox:0,goat:0}, big:[], small:[], air:[] },
     flora:{ kinds:["generic","grass","generic"], bloom:["#a0ffd0","#ffffff","#c0e0ff"] },
     // the void. k:0.96 — the highest in the game: no atmosphere means no atmospheric colour at all.
-    sky:{ top:[4,5,10], bot:[10,12,22], k:0.96, haze:[18,22,38] } }
+    sky:{ top:[4,5,10], bot:[10,12,22], k:0.96, haze:[18,22,38] } },
+  // ============ THE GREAT PLATEAU ============
+  // ⚠⚠ AN UNNAMED HOMAGE, EXACTLY LIKE THE HIDDEN VILLAGE. Nick asked for this one by a franchise
+  // name; the rule established when the village was built is that the trademark NEVER appears in a
+  // shipped string. Everything here is costume: a great flat-topped plateau with a ruined temple on
+  // it, a castle on the skyline, a walled field town, shrine-glow, horses, and the invader system
+  // reskinned as wandering guardians. Anyone who knows will know; nothing on screen claims anything.
+  //
+  // WHAT FILLS THE FRAME: the plateau and the castle. A vast flat-topped mesa on one side of the
+  // world and a castle silhouette on the other, with the field town between them — three distinct
+  // masses at three distances, so the eye always has somewhere to go.
+  { k:"plateau",name:"THE GREAT PLATEAU", egg:1, amp:0.92, base:0.72, flat:0.95, steep:0.86, snow:true, water:"river", shrine:1,
+    far:[126,150,116],  near:[86,116,84],   cap:[214,228,186], ground:[112,148,96],
+    // painted timber, thatch and cut stone — a storybook kingdom, deliberately high-saturation
+    walls:[[214,102,72],[236,220,180],[150,110,74],[248,242,224],[92,132,168],[186,160,110],[212,84,96],[228,206,166]],
+    fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:1}, big:["horse","elk","boar"], small:["squirrel","frog"], air:["eagle","owl","dove"] },
+    flora:{ kinds:["generic","windbent","generic","grass","goldtree"], bloom:["#ffd166","#ff9ec4","#ffffff","#a8e0ff"] },
+    // a cel-bright storybook sky: high saturation, high contrast, nothing muddy anywhere in it
+    sky:{ top:[74,150,224], bot:[214,238,236], k:0.44, haze:[220,240,232] } }
 ];
 // ONE TRUTH ABOUT WHICH LAND THIS LIFE IS. Extracted from buildWorld because `setup` now has to know
 // the land BEFORE it can place HORIZON: the coastal lands put open water along the bottom of the
@@ -4162,7 +4180,7 @@ function buildWorld(li){
   EDUB=schoolAt<0.46?0.012:0;                                  // early schooling → tech (space age) sooner (N8)
   POPK=(((li*2654435761+4441)>>>0)%1000)/1000;                 // relative bigness of this city (rush-jam factor)
   var mg=rng((seed+71)>>>0);
-  mtsCache=null; gorgeCache=null; duneCache=null; karstCache=null; terrCache=null; caveCache=null; savCache=null;   // new life → new silhouette
+  mtsCache=null; gorgeCache=null; duneCache=null; karstCache=null; terrCache=null; caveCache=null; savCache=null; plateauCache=null;   // new life → new silhouette
   bioTrees=null;
   // The four height-field biomes build the same two ridges; the biome's amp/base scale them, and its
   // flat/steep/snow decide how they're cut and coloured at draw time.
@@ -4185,7 +4203,7 @@ function buildWorld(li){
   // to preserve.
   var flatLife = (li!==0 && curBiome.k==="alpine" && mg()>=0.72);
   var relief = flatLife ? 0.34 : 1;                                // open country: present, but low
-  mts = (curBiome.k==="forest"||curBiome.k==="core"||curBiome.gorge||curBiome.dune||curBiome.tower||curBiome.steps||curBiome.roof||curBiome.herd||curBiome.orbit) ? null : {far:[],near:[]};   // the core world has NO terrain at all; the gorge draws walls, not peaks
+  mts = (curBiome.k==="forest"||curBiome.k==="core"||curBiome.gorge||curBiome.dune||curBiome.tower||curBiome.steps||curBiome.roof||curBiome.herd||curBiome.orbit||curBiome.shrine) ? null : {far:[],near:[]};   // the core world has NO terrain at all; the gorge draws walls, not peaks
   if(mts){
     var MSC=KSP*Math.max(0.45,Math.min(1,WW/1300))*curBiome.amp*relief;   // small worlds get proportionate peaks
     var nF=6+((mg()*4)|0), nN=4+((mg()*4)|0), mi;
@@ -16257,6 +16275,106 @@ function stratRuns(g,prof,y0,step,style){
   }
 }
 // ================================================================================================
+// THE GREAT PLATEAU — three masses at three distances
+// ------------------------------------------------------------------------------------------------
+// ⚠ UNNAMED HOMAGE. See the biome row. Nothing here names anything; it is all costume.
+// WHAT FILLS THE FRAME: a vast flat-topped plateau on one side, a castle silhouette on the other, and
+// the field town between them. Three distinct masses at three distances is the composition — the eye
+// always has somewhere to travel, which is what the empty maps never gave it.
+var plateauCache=null;
+function drawPlateau(g,L,now,nd){
+  var day=L>0.5, B=curBiome, K=Math.max(1,KSP), skc=biomeSkc(day);
+  var litK=Math.max(0,Math.min(1,(L-0.34)*2.4));
+  var rock=mixc(day?B.near:[(B.near[0]*0.2)|0,(B.near[1]*0.22)|0,(B.near[2]*0.34)|0], skc, 0.22);
+  var rockF=mixc(day?B.far:[(B.far[0]*0.2)|0,(B.far[1]*0.22)|0,(B.far[2]*0.34)|0], skc, 0.46);
+  var grass=mixc(day?[104,158,84]:[20,38,28], skc, 0.20);
+  var capC=mixc(day?B.cap:mixc(B.cap,[0,0,0],0.55), [255,220,180], goldenK*0.5);
+
+  // ---- FAR HILLS, so the plateau and the castle are not floating on bare sky
+  for(var x=0;x<SW;x++){
+    var wx=x+WOFF;
+    var n=Math.sin(wx*0.0034)*0.5+Math.sin(wx*0.0101+1.4)*0.28+Math.sin(wx*0.0241)*0.12;
+    var hy=Math.round(HORIZON*(0.68-n*0.10));
+    g.fillStyle=css(rockF); g.fillRect(x,hy,1,HORIZON-hy+1);
+  }
+  // ---- THE PLATEAU ITSELF: a huge flat top with sheer sides. `flat:0.95` is what it is named for —
+  // the top must be genuinely LEVEL, because a rounded top is a hill and this is a table of rock.
+  var pwx=((WORLD_SEED*2654435761)>>>0)%Math.max(1,WW);
+  for(var o=-1;o<=1;o++){
+    var px=Math.round(pwx-WOFF+o*WW);
+    var pw=Math.round(WW*0.16), pTop=Math.round(HORIZON*0.30);
+    if(px+pw<0||px-pw>SW) continue;
+    for(var q=-pw;q<pw;q++){
+      var xx=px+q; if(xx<0||xx>=SW) continue;
+      var u=Math.abs(q/pw);
+      // level top, then a fast fall to a talus skirt: near-vertical sides, exactly like the mesa
+      var edge=0.86;
+      var y=(u<edge)?pTop:Math.round(pTop+(HORIZON-pTop)*Math.min(1,(u-edge)/(1-edge)));
+      if(y>=HORIZON) continue;
+      g.fillStyle=css(rock); g.fillRect(xx,y,1,HORIZON-y+1);
+      g.fillStyle=rgba(capC,0.85); g.fillRect(xx,y,1,Math.max(1,Math.round(K*0.9)));         // grass on the top
+      if(u<edge){                                                                            // the meadow up there
+        g.fillStyle=rgba(grass,0.75); g.fillRect(xx,y+Math.max(1,Math.round(K*0.9)),1,Math.round(2.4*K));
+      }
+    }
+    // THE RUINED TEMPLE on top — a few broken columns and a fallen lintel, never a whole building
+    var tx=px-Math.round(pw*0.3);
+    for(var c2=0;c2<5;c2++){
+      var cx=tx+Math.round(c2*4*K);
+      if(cx<0||cx>=SW) continue;
+      var ch=Math.round((7+((c2*7919)%5))*K*0.7);
+      if(c2===2) ch=Math.round(ch*0.45);                                                     // one column is broken
+      g.fillStyle=css(mixc([228,222,198],skc,0.14));
+      g.fillRect(cx,Math.round(HORIZON*0.30)-ch,Math.max(1,Math.round(1.8*K)),ch);
+    }
+    g.fillStyle=css(mixc([214,208,184],skc,0.14));
+    g.fillRect(Math.max(0,tx-Math.round(K)),Math.round(HORIZON*0.30)-Math.round(8*K),Math.round(18*K),Math.max(1,Math.round(1.6*K)));
+  }
+  // ---- THE CASTLE on the far skyline: a keep, towers and a curtain wall, all silhouette
+  var cwx=((WORLD_SEED*40503+104729)>>>0)%Math.max(1,WW);
+  for(var o2=-1;o2<=1;o2++){
+    var cx0=Math.round(cwx-WOFF+o2*WW);
+    if(cx0<-200||cx0>SW+200) continue;
+    var base=Math.round(HORIZON*0.62), kw=Math.round(20*K), kh=Math.round(HORIZON*0.30);
+    var cc=mixc(day?[104,116,132]:[26,30,42], skc, 0.30);
+    g.fillStyle=css(cc);
+    g.fillRect(cx0-kw,base-kh*0.55,kw*2,Math.round(kh*0.55));                                 // curtain wall
+    g.fillRect(cx0-Math.round(kw*0.34),base-kh,Math.round(kw*0.68),kh);                       // the keep
+    for(var t2=-2;t2<=2;t2++){                                                                // towers
+      var tw=Math.round(3.4*K), tx2=cx0+Math.round(t2*kw*0.42);
+      var th=Math.round(kh*(t2===0?1.16:0.72));
+      g.fillRect(tx2-tw,base-th,tw*2,th);
+      g.fillStyle=css(mixc([196,86,74],skc,0.20));                                            // a red conical roof
+      for(var r2=0;r2<Math.round(4*K);r2++)
+        g.fillRect(tx2-tw+r2,base-th-Math.round(4*K)+r2,Math.max(1,(tw*2)-r2*2),1);
+      g.fillStyle=css(cc);
+    }
+    // lit windows at night — a castle is never fully dark
+    if(!day){ for(var w2=0;w2<10;w2++){
+      var wx2=cx0-Math.round(kw*0.3)+((w2*5*K)|0)%Math.round(kw*0.6);
+      g.fillStyle="rgba(255,206,130,0.9)";
+      g.fillRect(wx2,base-Math.round(kh*(0.30+0.5*((w2*7)%5)/5)),Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
+    } }
+  }
+  // ---- SHRINE GLOW: soft points of light scattered across the land, pulsing slowly. The one piece of
+  // pure fantasy in the frame, and the thing that says this is not an ordinary countryside.
+  for(var s3=0;s3<7;s3++){
+    var swx=((s3*104729+((WORLD_SEED*17)|0))>>>0)%Math.max(1,WW);
+    var sx=Math.round(swx-WOFF);
+    if(sx<-10) sx+=WW; if(sx>SW+10) sx-=WW;
+    if(sx<0||sx>=SW) continue;
+    var sy=Math.round(HORIZON-Math.round((4+(s3*3)%10)*K));
+    var pulse=0.45+0.55*Math.sin(now*0.0011+s3*1.3);
+    g.globalCompositeOperation="lighter";
+    for(var rr=0;rr<Math.round(5*K);rr++){
+      g.fillStyle=rgba([120,230,255],0.10*pulse*(1-rr/(5*K)));
+      g.fillRect(sx-rr,sy-rr,rr*2,rr*2);
+    }
+    g.globalCompositeOperation="source-over";
+    g.fillStyle=rgba([190,245,255],0.9*pulse); g.fillRect(sx,sy,Math.max(1,Math.round(1.4*K)),Math.max(1,Math.round(1.4*K)));
+  }
+}
+// ================================================================================================
 // SPACE CITY — the planet is the view
 // ------------------------------------------------------------------------------------------------
 // ⚠ THE ONE RULE THAT MAKES THIS LAND ITSELF: it is lit by PLANET-LIGHT and it runs on the ORBITAL
@@ -20378,6 +20496,7 @@ function drawMountains(g,L,now,nd){
   if(curBiome.roof){ drawUndercity(g,L,now,nd); return; }                // …and underground there is a CEILING, not a range
   if(curBiome.herd){ drawSavanna(g,L,now,nd); return; }                  // …and on a plain the ACACIA and the kopje are the relief
   if(curBiome.orbit){ drawOrbit(g,L,now,nd); return; }                  // …and in orbit the PLANET is the view
+  if(curBiome.shrine){ drawPlateau(g,L,now,nd); return; }               // …and here it is the plateau and the castle
   if(!mts) return;
   var gy=HORIZON, day=L>0.5;
   var sunsetK=goldenK;   // sourced from the shared golden-hour global (identical law)
