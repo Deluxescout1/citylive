@@ -21377,7 +21377,10 @@ function drawMountains(g,L,now,nd){
     // the real sun is actually on, gives every one of these lands a lit flank and a shaded one — and
     // it costs one pass over a cached array, batched exactly like the base ridge above it.
     var slb=mtsCache.sl[pi], sunL=curSunDf<0.5, lk=litK*(pi===0?0.72:1);
-    if(lk>0.03){
+    // ⚠ the gate has to open for alpine even at `lk` 0, or the rib floor above never gets to run —
+    // the night face would keep its flat gradient no matter what the rib term says. Every other land
+    // still short-circuits exactly as before.
+    if(lk>0.03||B.alpine){
       // ⚠ PER COLUMN, NOT RUN-LENGTH BATCHED BY BUCKET. Batching required equal values, which required
       // bucketing, which is what created the aliasing edges — see the note where `slp` is computed.
       // One fill per column is ~776 rects per band on the primary screen; the gorge already spends
@@ -21385,14 +21388,21 @@ function drawMountains(g,L,now,nd){
       // the spur/gully ribs ride this same pass — one term added to the value, no extra fills. The
       // sun lights the flank a rib turns toward it, exactly as it does the flank of the whole
       // mountain, so a face gains an internal structure without gaining a single draw call.
-      var rbb=B.alpine?mtsCache.rib[pi]:null, rbk=(sunL?-1:1)*1.35;
+      // ⚠ AND THE RIBS DO NOT GO OUT WITH THE SUN. `litK` is zero at night, which is right for the
+      // slope light — that IS the sun modelling the rock — but it took the ribs with it and the night
+      // face reverted to the flat gradient this commit exists to remove, now with trees and lit ledges
+      // sitting on top of it. A gully is darker than the spur beside it whether or not the sun is up;
+      // that part is ambient occlusion, not lighting. So the sun term keeps `lk` and the rib term gets
+      // a floor under it. Folding `lk` in here rather than in the alpha keeps every other land's value
+      // arithmetically identical to before.
+      var rbb=B.alpine?mtsCache.rib[pi]:null, rbk=(sunL?-1:1)*1.35, rlk=Math.max(lk,0.34);
       for(var mx2=0;mx2<SW;mx2++){
         var mh=hs[mx2]; if(mh<3) continue;
         var mtop=Math.max(2,(gy-mh)|0);
-        var mbk=sunL?-slb[mx2]:slb[mx2];
-        if(rbb) mbk+=rbb[mx2]*rbk;
-        if(mbk>0.02){ g.fillStyle="rgba(255,246,220,"+(0.070*mbk*lk).toFixed(4)+")"; }
-        else if(mbk<-0.02){ g.fillStyle="rgba(16,12,30,"+(0.078*(-mbk)*lk).toFixed(4)+")"; }
+        var mbk=(sunL?-slb[mx2]:slb[mx2])*lk;
+        if(rbb) mbk+=rbb[mx2]*rbk*rlk;
+        if(mbk>0.02){ g.fillStyle="rgba(255,246,220,"+(0.070*mbk).toFixed(4)+")"; }
+        else if(mbk<-0.02){ g.fillStyle="rgba(16,12,30,"+(0.078*(-mbk)).toFixed(4)+")"; }
         else continue;
         g.fillRect(mx2,mtop,1,gy-mtop+2);
       }
@@ -21539,7 +21549,9 @@ function drawMountains(g,L,now,nd){
           if(lyy!==ly2){
             if(ls2>=0&&ly2>-999){
               g.fillStyle="rgba(14,12,22,0.22)"; g.fillRect(ls2,ly2,lx2-ls2,ledTh);
-              g.fillStyle="rgba(255,250,236,0.22)"; g.fillRect(ls2,ly2-lipT,lx2-ls2,lipT);
+              // ⚠ the lip is SUNLIT rock. Left at a hardcoded warm white it became two dozen bright
+              // dashes across a face that had gone almost black — the one new element with no night branch.
+              g.fillStyle=day?"rgba(255,250,236,0.22)":"rgba(150,164,198,0.16)"; g.fillRect(ls2,ly2-lipT,lx2-ls2,lipT);
             }
             ls2=(lyy>-999)?lx2:-1; ly2=lyy;
           }
@@ -21714,6 +21726,13 @@ function drawMountains(g,L,now,nd){
         // Snow survives in a gully well BELOW the general snowline — that is the whole reason a
         // couloir is visible on a bare face — so the length comes off the peak height instead.
         var clen=Math.round(crh*(0.22+0.30*(((cu*7919)>>>0)%100)/100));
+        // ⚠ AND IT STOPS AT THE TREELINE. `snl` sits near 0.72 of the peak and `clen` runs up to 0.52
+        // of the column, so the longest gullies bottomed out around 0.20 — well inside the forest band
+        // (treeline 0.40), painting white snow lines straight down over the conifers. That crossing is
+        // what made the couloirs read as scratches, not their width. Snow in a gully genuinely does not
+        // survive down into standing forest, so the clamp is the honest fix as well as the cheap one.
+        if(B.alpine){ var cTree=(mtsCache.mx[pi]||0)*(B.snow?0.40:0.52);
+          clen=Math.min(clen,Math.max(0,Math.round(cst-cTree))); }
         if(clen<4*KSP) continue;
         // a cleft, not a hairline — but only where the face behind it has ribs for it to sit between.
         // Every other snow land keeps the old width until its own turn in the map-by-map pass.
@@ -21729,7 +21748,11 @@ function drawMountains(g,L,now,nd){
           // The snowline in screen y is `gy-cst`; a gully runs from there DOWN into the rock.
           var cy2=(gy-cst+cq)|0;
           if(cy2<ctop||cy2>=gy) continue;
-          g.fillStyle=rgba(day?[240,246,252]:[126,140,166],(0.85-0.55*cf));
+          // ⚠ at night the rock is down around [16,20,45] and a snow value of [126,140,166] at 0.85 is
+          // the brightest thing on the face — the couloirs stopped being snow and became scratches
+          // again, in the dark. Moonlit snow is still much darker than daylit snow.
+          g.fillStyle=(B.alpine&&!day)?rgba([92,104,134],(0.50-0.34*cf))
+                                      :rgba(day?[240,246,252]:[126,140,166],(0.85-0.55*cf));
           g.fillRect(cxs+lean,cy2,wq2,1);
         }
       }
