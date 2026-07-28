@@ -4394,6 +4394,26 @@ function buildWorld(li){
       ph:mg()*9, broad:mg()<0.42});
     for(ti=0;ti<nOT;ti++) bioTrees.fore.push({x:slot(ti,nOT,0.55), h:HZ*(1.70+mg()*0.80), w:(40+mg()*26)*TSC,
       ph:mg()*9, broad:mg()<0.50});
+    // ⚠⚠ TWO MORE MID RANKS, DERIVED RATHER THAN ROLLED. The middle of this frame measured 64% bare
+    // sky, and the reason is arithmetic: `nMT` is 7-10 trees across the WHOLE world, so a screen
+    // seeing about a third of it gets TWO OR THREE. No amount of canopy overhead fixes that, because
+    // what belongs in the middle of a forest view is more TREES at more distances, not more ceiling.
+    // Deriving them from the mid rank instead of rolling new ones is the same trick the third
+    // mountain band uses, and for the same reason: one extra `mg()` call here would consume rolls the
+    // near and fore giants are still waiting for, re-rolling the whole stand of every forest life
+    // ever generated. Offset along the world, shortened, and flipped in form so they do not read as
+    // an echo of the rank they came from.
+    // ⚠ THREE PER SOURCE TREE, NOT ONE. Instrumented rather than assumed: `nMT` is 7, so one derived
+    // rank each still put only about seven trees across a 2269-px world and TWO on a screen — the
+    // middle measured 62.6% sky, down all of one point. The middle of a forest is not short of ceiling
+    // or of species, it is short of TREES.
+    bioTrees.mid2=[]; bioTrees.mid3=[];
+    for(ti=0;ti<bioTrees.mid.length;ti++){ var mp=bioTrees.mid[ti];
+      for(var mj=0;mj<3;mj++){
+        bioTrees.mid2.push({x:(mp.x+WW*(0.41+mj/3))%WW, h:mp.h*(0.80-mj*0.07), w:mp.w*(0.86-mj*0.06),
+                            ph:mp.ph*1.6+2.3+mj, broad:((mj&1)?!mp.broad:mp.broad)});
+        bioTrees.mid3.push({x:(mp.x+WW*(0.73+mj/3))%WW, h:mp.h*(0.62-mj*0.06), w:mp.w*(0.72-mj*0.05),
+                            ph:mp.ph*2.4+5.1+mj*2, broad:((mj&1)?mp.broad:!mp.broad)}); } }
   }
   var eraNm=ERAS[eraPickOf(li)].name;
   cityName = nameOf(li, eraNm);                      // every civilization names itself
@@ -17939,6 +17959,64 @@ function drawForestBackdrop(g,L,now,nd){
       }
     }
   }
+  // ---- THE CANOPY IS A CEILING, NOT A STRIP ---------------------------------------------------
+  // ⚠⚠ MEASURED, because "it looks empty" is not a diagnosis. Classifying every pixel of the frame
+  // above the street: 50.9% of it is bare sky, and the MIDDLE of the picture is 64.1% sky. The band
+  // above does its job — the top tenth is only 5.8% sky — and then it stops dead at `canH` and
+  // everything below it is open air with a few crowns in it. A strip of green across the top of the
+  // frame is a curtain rail; the fix for that was gaps and boughs, and it made the strip better
+  // without making it a CANOPY.
+  // What you actually see standing under old growth is not one ceiling but many, at many distances:
+  // near boughs almost black overhead, mid masses a tone lighter, far foliage hazed nearly to the
+  // sky, and sky itself only in the gaps between them. So this is three RANKS, each with its own
+  // aerial perspective and its own reach down the frame, and the sky that survives between them is
+  // the point — it is what the light shafts are coming through.
+  // ⚠⚠ AND DENSITY ALONE PRODUCED FOG. The first dense version filled the upper frame to 0.4% sky and
+  // it did not read as a canopy at all — it read as grey-green SMOG BANKS. Two causes, and the count
+  // was neither of them: the masses were four times wider than tall, so overlapping them laid down
+  // horizontal smears; and every mass in a rank shared ONE flat colour, so the moment two touched
+  // they merged into a featureless field with no edge anywhere in it. Foliage reads as foliage
+  // because of the CONTRAST BETWEEN CLUMPS, not because of how much green there is — the same rule
+  // the map-by-map pass arrived at for landforms, one layer up.
+  // So: rounder masses (about 2:1, not 4:1), a tone jitter per mass so overlaps show a seam, and a
+  // dark underside on each one, which is the single detail that says a clump has a lit top and a
+  // shaded belly rather than being a hole cut in the sky.
+  var canRanks=[
+    {n:150, rx:[12,26], ry:[8,18], y0:0.06, y1:0.60, sky:0.40, dk:0.00, pr:373},   // far, hazed toward the sky
+    {n:84,  rx:[16,34], ry:[10,22],y0:0.02, y1:0.38, sky:0.20, dk:0.10, pr:541},   // mid
+    {n:36,  rx:[22,46], ry:[14,30],y0:0.00, y1:0.24, sky:0.04, dk:0.26, pr:733}    // near, almost black
+    // ⚠ the two dark ranks are held UP on purpose. Let them reach as far down as the hazed one and
+    // you get a lone near-black ellipse sitting in open blue sky halfway down the frame, with nothing
+    // around it to belong to — it reads as an object, not as canopy. Depth has to stay ordered.
+  ];
+  for(var cr=0;cr<canRanks.length;cr++){
+    var R=canRanks[cr], rBase=mixc(mixc(canC,skc,R.sky),[0,0,0],R.dk);
+    for(var cq2=0;cq2<R.n;cq2++){
+      var csd=((cq2*R.pr+cr*9973+((WORLD_SEED*13)|0))>>>0), cwx2=(cq2*R.pr+cr*211)%Math.max(1,WW);
+      var cyy=SH*(R.y0+((csd>>>7)%1000)/1000*(R.y1-R.y0));
+      var crx=(R.rx[0]+((csd>>>3)%(R.rx[1]-R.rx[0])))*K, cry=(R.ry[0]+((csd>>>17)%(R.ry[1]-R.ry[0])))*K;
+      var cJit=(((csd>>>23)%100)/100-0.5)*0.30;                    // this clump's own tone
+      var cCol=mixc(rBase,cJit>0?[255,255,255]:[0,0,0],Math.abs(cJit));
+      // ⚠ AND HAZED BY HOW FAR DOWN THE FRAME IT SITS. A clump low in the picture is further away —
+      // you are seeing it through more air and nearer the horizon. Without this, the tone jitter put
+      // the occasional near-black clump halfway down an otherwise open blue sky, and a dark ellipse
+      // alone in the sky is not canopy, it is an object. Depth has to be legible from tone alone.
+      cCol=mixc(cCol,skc,Math.min(0.62,(cyy/Math.max(1,SH))*0.95));
+      for(var co=-1;co<=1;co++){ var CX=Math.round(cwx2-WOFF+co*WW);
+        if(CX+crx<0||CX-crx>SW) continue;
+        g.fillStyle=css(mixc(cCol,[0,0,0],0.34));                  // the shaded underside first…
+        folMass(g,CX,cyy+Math.max(1,Math.round(K*1.6)),crx,cry,csd,K);
+        g.fillStyle=css(cCol);                                     // …then the lit body over it
+        folMass(g,CX,cyy,crx,cry,csd,K);
+        // a liana or two off the heavier masses — the thing that says this ceiling is alive and a
+        // long way up, and the only vertical in the upper frame that is not a trunk
+        if(cr>0&&(csd&3)===0){
+          var vln=Math.round((10+((csd>>>21)%26))*K);
+          g.fillRect(Math.round(CX+crx*0.35),Math.round(cyy+cry*0.6),Math.max(1,Math.round(K)),vln);
+        }
+      }
+    }
+  }
   // the far rank: ordinary old-growth on the horizon. The ONLY band whose crowns are drawn — it gives
   // the stand a treeline and something in the sky to read the giants against.
   var fT=css(mixc(day?[118,92,64]:[12,12,16], skc, day?0.22:0.26));
@@ -17951,7 +18029,7 @@ function drawForestBackdrop(g,L,now,nd){
   // ⚠ `h0` is captured once and is the only source of truth afterwards — scaling `h` in place without
   // it would compound every frame and the forest would grow to the moon in about a minute.
   var gsc=standGrow();
-  var bands=[bioTrees.far,bioTrees.mid,bioTrees.near,bioTrees.fore];
+  var bands=[bioTrees.far,bioTrees.mid,bioTrees.mid2,bioTrees.mid3,bioTrees.near,bioTrees.fore];
   for(var bi2=0;bi2<bands.length;bi2++){
     var arr=bands[bi2]; if(!arr) continue;
     for(var gi3=0;gi3<arr.length;gi3++){
@@ -17994,6 +18072,22 @@ function drawForestBackdrop(g,L,now,nd){
   // THE MID RANK — old-growth between the treeline and the giants. Hazed halfway between the two so
   // the eye reads three distances instead of two, and tall enough that its crowns sit in the middle
   // of the frame, which is the band that was empty sky.
+  // the two derived ranks first — they stand further back than the mid rank they came from, so they
+  // carry more haze and are drawn behind it
+  var dRanks=[{a:bioTrees.mid3, hz:0.30, ci:0.28, sd:311},{a:bioTrees.mid2, hz:0.27, ci:0.24, sd:617}];
+  for(var dr=0;dr<dRanks.length;dr++){
+    var D=dRanks[dr]; if(!D.a) continue;
+    var dT=css(mixc(day?[116,88,60]:[13,13,17], skc, day?D.hz:0.26));
+    var dB=css(mixc(day?[88,66,44]:[9,9,13],  skc, day?D.hz:0.26));
+    var dC=css(mixc(mixc(day?B.far:[9,14,12], skc, day?D.ci:0.28),[176,108,138],sunsetK*0.28));
+    for(i=0;i<D.a.length;i++){ t=D.a[i];
+      for(w=-1;w<=1;w++){ sx=Math.round(t.x-WOFF+w*WW);
+        if(sx+t.w*1.6<-2||sx-t.w*1.6>SW+2) continue;
+        drawBole(g,t,sx,gy,dT,dB,dC,K,false,litK*0.6);
+        g.fillStyle=dC; drawTreeCrown(g,t,sx,gy,K,i+D.sd);
+      }
+    }
+  }
   var mT=css(mixc(day?[116,88,60]:[13,13,17], skc, day?0.24:0.26));
   var mB=css(mixc(day?[88,66,44]:[9,9,13],  skc, day?0.24:0.26));
   var mC=css(mixc(mixc(day?B.far:[9,14,12], skc, day?0.20:0.24),[176,108,138],sunsetK*0.28));
