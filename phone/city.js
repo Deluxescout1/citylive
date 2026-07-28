@@ -16487,9 +16487,23 @@ function drawBole(g,t,sx,gy,cTrunk,cBark,cFol,K,detail,litK,mossC){
   // …and the lit rim on the side the sun is actually on. One narrow highlight down the leading edge
   // turns the slab into a cylinder — the cheapest roundness there is, and it follows the real sun so
   // it swaps sides over the day exactly like the buildings' highlight already does.
+  // ⚠⚠ ONE HIGHLIGHT WAS NOT ENOUGH ON A TRUNK THIS BIG. A 1-2px rim reads as roundness on a
+  // background tree and as a pinstripe on a bole 80px wide standing in the front of the picture:
+  // the fore giant came out a flat black cutout with a bright line down one side. Roundness needs
+  // the OTHER half — a flank that falls away into shadow. Two nested bands on the far side give a
+  // three-step gradient across the width, and the rim widens with the bole so it stays proportional.
   if(litK>0.02){
-    var sunL=curSunDf<0.5, rw=Math.max(1,Math.round(K*1.4));
-    g.fillStyle="rgba(255,246,224,"+(0.11*litK).toFixed(3)+")";
+    var sunL=curSunDf<0.5, shW;
+    for(y=y0;y<bot;y+=step){ hw=halfW(y); cx=sx+offX(y);
+      shW=Math.max(1,Math.round(hw*0.55));
+      g.fillStyle="rgba(10,7,5,"+(0.20*Math.max(0.45,litK)).toFixed(3)+")";
+      g.fillRect(sunL?cx+hw-shW:cx-hw,y,shW,Math.min(step,bot-y));
+      shW=Math.max(1,Math.round(hw*0.24));
+      g.fillStyle="rgba(8,5,4,"+(0.24*Math.max(0.45,litK)).toFixed(3)+")";
+      g.fillRect(sunL?cx+hw-shW:cx-hw,y,shW,Math.min(step,bot-y));
+    }
+    var rw=Math.max(1,Math.round(K*1.4+hw0*0.10));
+    g.fillStyle="rgba(255,246,224,"+(0.15*litK).toFixed(3)+")";
     for(y=y0;y<bot;y+=step){ hw=halfW(y); cx=sx+offX(y);
       g.fillRect(sunL?cx-hw:cx+hw-rw,y,rw,Math.min(step,bot-y)); }
   }
@@ -18634,7 +18648,16 @@ function drawForestNear(g,L,now,nd){
   if(!bioTrees||!bioTrees.fore||curBiome.k!=="forest") return;
   var gy=HORIZON+4, day=L>0.5, K=Math.max(1,KSP), litK=Math.max(0,Math.min(1,(L-0.34)*2.4));
   drawTitanFight(g,L,now,K);        // among the giants, so the fore trunks below pass in front of it
-  var fT=css(day?[38,28,20]:[6,7,9]), fB=css(day?[24,17,12]:[3,4,5]), fC=css(day?[24,40,26]:[5,9,8]);
+  // ⚠ THE NEAREST TRUNK WAS BLACK, AND THAT IS A VALUE PROBLEM, NOT A HAZE ONE. [38,28,20] with bark
+  // at [24,17,12] is fourteen units of range on the biggest object in the frame — every fissure the
+  // bark code draws was invisible and the giant read as a hole cut in the picture. The near band hit
+  // exactly this once before and was fixed by hazing it toward the sky; that is the wrong medicine
+  // here, because these two stand IN FRONT of the city and haze would push them backwards. What a
+  // sunlit bole actually is at this distance is mid-brown wood with near-black fissures in it: keep
+  // the fissures where they are and lift the WOOD, so the range opens instead of the whole thing
+  // going pale. Same lesson as the basalt coast, where rock and walls shared a value and the buildings
+  // disappeared into the cliff.
+  var fT=css(day?[78,57,39]:[9,10,13]), fB=css(day?[26,18,12]:[3,4,5]), fC=css(day?[24,40,26]:[5,9,8]);
   for(var i=0;i<bioTrees.fore.length;i++){ var t=bioTrees.fore[i];
     for(var w=-1;w<=1;w++){ var sx=Math.round(t.x-WOFF+w*WW);
       if(sx+t.w*1.4<-2||sx-t.w*1.4>SW+2) continue;
