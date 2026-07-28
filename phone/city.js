@@ -12757,6 +12757,29 @@ function drawSeaFrontBand(g,L,now){
       g.fillRect(sx5,yy,1,Math.max(1,Math.round(K*0.6)));
     }
   }
+  // --- THE GLITTER PATH. Nick: "make the water at the bottom of the screen more dynamic for the maps
+  // that have it." Swell alone reads as a striped gradient; what actually makes water look alive is
+  // the specular road the sun or moon lays across it, broken into thousands of moving facets. It
+  // tracks the REAL sun position, so it swings across the frame through the day and is dead ahead of
+  // the moon at night — and it widens as the wind gets up, because chop scatters the reflection.
+  var gsun=curSunDf, glX=Math.round(((gsun*WW)-WOFF));
+  if(glX<-SW) glX+=WW; if(glX>SW*2) glX-=WW;
+  var glW=Math.round((26+wind*2.2)*K), glA=day?0.42:0.20;
+  var glC=day?(goldenK>0.15?[255,206,150]:[255,255,255]):[176,198,236];
+  for(var gy2=top;gy2<SH-TASKBAR_WP;gy2++){
+    var gf=(gy2-top)/Math.max(1,h);
+    var spread=glW*(0.35+1.5*gf);                                    // the path widens toward the viewer
+    var rows=Math.round(3+9*gf);
+    for(var gq=0;gq<rows;gq++){
+      var jitter=Math.sin((gy2*3.7+gq*11.3)+now*0.006)*spread;
+      var gx2=Math.round(glX+jitter);
+      if(gx2<-2||gx2>SW+2) continue;
+      var ga=glA*(0.25+0.75*gf)*(0.45+0.55*Math.sin(now*0.01+gy2*0.9+gq));
+      if(ga<=0.02) continue;
+      g.fillStyle=rgba(glC,Math.min(0.9,ga));
+      g.fillRect(gx2,gy2,Math.max(1,Math.round(K*(0.6+gf))),1);
+    }
+  }
   // --- the mirror: on still water the sky and the land above it reflect, which is most of the read
   // on the bayou and does no harm anywhere else. Cheap: a translucent wash, not a real reflection. ---
   if(k==="swamp"){
@@ -20735,6 +20758,38 @@ function drawCascades(g,L,now,nd){
       var rb=["rgba(255,120,120,0.16)","rgba(255,210,120,0.16)","rgba(180,255,160,0.14)","rgba(140,190,255,0.14)"];
       for(var r2=0;r2<rb.length;r2++){ g.fillStyle=rb[r2];
         g.fillRect(fx-Math.round(6*K)+r2*Math.max(1,Math.round(K)),pooly-Math.round(9*K),Math.max(1,Math.round(K)),Math.round(9*K)); }
+    }
+    // ⚠⚠ THE FALL HAS TO REACH THE WATER. Nick, with a screenshot of the fjord: "if there is a
+    // waterfall you should see it flowing into the Ocean/lake." In his shot the cascade simply stopped
+    // in mid-air above the shoreline, because the fall was drawn to its own computed length and
+    // nothing connected it to SEA_Y — the two systems had never been introduced.
+    // So: carry the column down to the waterline, then put the energy where it lands — a bright foam
+    // scar on the surface, an outflow plume spreading away from it, and spray thrown back up.
+    if(SEA_FRONT>0 && pooly<SEA_Y-2){
+      for(var dy=pooly;dy<SEA_Y;dy++){
+        var df=(dy-pooly)/Math.max(1,SEA_Y-pooly);
+        g.fillStyle=rgba(band,(0.70-0.30*df));
+        g.fillRect(fx-Math.round(df*1.5*K),dy,fw+Math.round(df*3*K),1);
+        if(((dy*5+((now*0.07)|0))%11)<3){ g.fillStyle="rgba(255,255,255,0.30)";
+          g.fillRect(fx+((dy*7)%Math.max(1,fw)),dy,Math.max(1,Math.round(K)),Math.max(1,Math.round(1.6*K))); }
+      }
+      // where it hits: a foam scar that breathes, and an outflow spreading downstream on the swell
+      var wsc=Math.round(fw+10*K);
+      for(var fo=0;fo<Math.round(7*K);fo++){
+        var ff=fo/Math.round(7*K);
+        g.fillStyle="rgba(248,252,255,"+((0.55-0.5*ff)*(0.75+0.25*Math.sin(now*0.004+e))).toFixed(3)+")";
+        g.fillRect(fx-Math.round(ff*wsc*0.5),SEA_Y+fo,fw+Math.round(ff*wsc),1);
+      }
+      for(var op=0;op<10;op++){
+        var oph=((now*0.00035+op*0.1)%1);
+        g.fillStyle="rgba(232,244,252,"+(0.30*(1-oph)).toFixed(3)+")";
+        g.fillRect(fx-Math.round(oph*30*K),SEA_Y+Math.round(oph*8*K),Math.round((4+oph*12)*K),Math.max(1,Math.round(K*0.8)));
+      }
+      for(var sp2=0;sp2<8;sp2++){                                       // spray thrown back up off the impact
+        var sph=((now*0.0016+sp2*0.13)%1);
+        g.fillStyle="rgba(255,255,255,"+(0.34*(1-sph)).toFixed(3)+")";
+        g.fillRect(fx+((sp2*5)%Math.max(1,fw))-Math.round(sph*4*K),SEA_Y-Math.round(sph*14*K),1,1);
+      }
     }
   }
 }
