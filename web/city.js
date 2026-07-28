@@ -3066,6 +3066,29 @@ var BIOMES=[
     flora:{ kinds:["fern","willow","fern","cottonwood","grass"], bloom:["#ffffff","#e8d088","#c8e0a0","#f0b0c0"] },
     // damp river air: pale, luminous, low-contrast — the sky a karst valley actually sits under
     sky:{ top:[142,176,206], bot:[226,232,226], k:0.52, haze:[230,236,230] } },
+  // ============ THE FJORD — Phase 5, land #4 ============
+  // WHAT FILLS THE FRAME: sheer walls plus deep water. A fjord is a drowned glacial valley — walls
+  // that go straight into the sea with no shore at all, and water so deep it reads black.
+  // ⚠ THIS IS DELIBERATELY A HEIGHT-FIELD LAND, not a bespoke renderer like the gorge or the karst.
+  // `cascades:1` makes `drawCascades` work here unchanged, and that function is three rounds of
+  // hard-won fixes deep (quantised rims, clustered candidates, a threshold that landed exactly on a
+  // bedding-plane boundary). Reusing it is worth far more than a fourth chance to rediscover all that.
+  // High amp + steep:1 gives the walls; the snowline puts white on the tops; seaFrontOf gives it the
+  // deepest water band of any land.
+  // ⚠ amp PULLED BACK 1.08 -> 0.78 AFTER LOOKING. At 1.08 with steep:1 every peak merged into one
+  // continuous grey mass filling 60% of the frame — a wall of flat colour with a sawtooth top, which
+  // is the opposite of a fjord. A fjord reads as SEPARATE headlands stepping down the inlet with sky
+  // between them and water going in behind. Lower amp and a higher base gives that silhouette; the
+  // land's identity comes from the deep water, the waterfalls and the snow, not from sheer bulk.
+  { k:"fjord",  name:"THE FJORD",   amp:0.78, base:0.66, flat:0.16, steep:0.92, snow:true, water:"sea", cascades:1,
+    far:[104,124,138],  near:[62,82,96],    cap:[238,246,250], ground:[86,102,108],
+    // painted timber above a working waterfront: the north-coast vernacular
+    walls:[[188,72,64],[214,206,190],[142,96,72],[236,232,222],[96,116,132],[168,160,146],[204,120,84],[120,132,140]],
+    fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:1}, big:["ibex","bighorn","seal"], small:["marmot","puffin"], air:["eagle","skua","raven"] },
+    flora:{ kinds:["windbent","juniper","scrub","windbent","grass"], bloom:["#e8d8f0","#ffffff","#c8d8b0"] },
+    // ⚠ k 0.54 — above the 0.5 line on purpose. A fjord sits under a steep, cold, low northern light
+    // that a temperate blue cannot express, and the walls take their haze from this.
+    sky:{ top:[92,128,168], bot:[206,220,226], k:0.54, haze:[210,224,230] } },
   { k:"canyon", name:"THE GORGE",   amp:0.55, base:0.30, flat:0.9,  steep:0.72, snow:false, water:"river", gorge:1,
     far:[188,118,84],   near:[156,86,60],   cap:[224,168,120], ground:[196,150,104],
     // the vernacular of a canyon floor: adobe, sandstone block, sun-bleached timber, painted stucco
@@ -3339,6 +3362,20 @@ var BIOME_VARIANTS={
   // ⚠ FOUR named variants, not two. Nick was offered four and picked all four, and nothing here forces
   // a land to have exactly two: `variantOf` does `vs[mixLi(li,104729)%vs.length]`, so the array length
   // is free. Every other land keys separately, so a five-entry canyon reshuffles nothing but itself.
+  fjord:[ {},
+    { name:"THE BLACK WATER",  // the deepest, darkest inlet: sheer walls, no shore, black water
+      far:[86,102,116],  near:[46,62,74],   cap:[228,238,244], ground:[62,76,84], amp:0.86, steep:0.96,
+      walls:[[168,60,54],[196,188,174],[124,84,64],[224,220,210],[80,98,114],[150,142,130],[184,104,72],[102,114,124]],
+      flora:{ kinds:["windbent","scrub","windbent","juniper"], bloom:["#ffffff","#d0d8e8"] },
+      fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:1}, big:["ibex","seal"], small:["puffin","marmot"], air:["eagle","skua"] },
+      sky:{ top:[70,104,146], bot:[186,204,214], k:0.60, haze:[190,208,218] } },
+    { name:"THE GREEN INLET",  // lower, softer, forested to the waterline — the summer fjord
+      far:[118,144,124], near:[74,104,84],  cap:[232,242,246], ground:[96,124,100], amp:0.70,
+      walls:[[196,84,70],[222,214,198],[150,104,78],[240,236,226],[104,126,138],[176,168,152],[210,128,90],[128,140,146]],
+      flora:{ kinds:["windbent","juniper","fern","windbent","grass"], bloom:["#e8d8f0","#ffffff","#c8e0a0"] },
+      fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:1}, big:["elk","ibex","seal"], small:["marmot","puffin"], air:["eagle","raven"] },
+      sky:{ top:[108,144,182], bot:[214,226,222], k:0.50, haze:[218,230,226] } } ],
+
   karst:[ {},
     { name:"THE GREEN TOWERS",  // jungle-clad stacks, the wettest and greenest of the three
       far:[132,166,128], near:[80,116,84],  cap:[178,206,158], ground:[96,140,92], steep:0.96,
@@ -3530,6 +3567,7 @@ function seaFrontOf(b){
     case "volcano": return 26;    // an island, so the sea is on every side
     case "arctic":  return 28;    // broken floes and open leads
     case "canyon":  return 16;    // the river on the gorge floor — narrower than any coast, but always there
+    case "fjord":   return 40;    // the deepest water in the game: a drowned valley has no shore at all
     default:        return 0;     // every inland land is unchanged
   }
 }
