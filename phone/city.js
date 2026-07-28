@@ -6072,6 +6072,21 @@ function drawDebugStamp(g,now,nd){
   g.fillStyle="rgba(120,230,160,0.9)"; g.fillRect(x0,y0,bw,1);
   for(var l=0;l<lines.length;l++) drawUiText(g,lines[l],x0+pad,y0+pad+l*6,"#8ef0b0",1);
 }
+// The HUD's colours, derived from whatever land this is. Deliberately DERIVED rather than a table:
+// twenty-one lands and counting, and a table would have to be edited every time one is added — this
+// way THE GORGE reads sandstone and THE UNDERCITY reads bioluminescent the day they are written.
+function hudTheme(){
+  var B=curBiome;
+  var cap=(B&&B.cap)||[120,220,255], wall=(B&&B.walls&&B.walls[0])||[240,80,200];
+  // the rail is the land's own highlight, lifted so it always reads against a dark pill
+  var rail=mixc(cap,[255,255,255],0.25);
+  var acc=mixc(wall,[255,255,255],0.18);
+  // the pill picks up a hint of the land instead of being neutral charcoal everywhere
+  var deep=mixc((B&&B.near)||[10,14,26],[4,6,14],0.72);
+  return { rail:rail[0]+","+rail[1]+","+rail[2],
+           acc: acc[0]+","+acc[1]+","+acc[2],
+           bg:  deep[0]+","+deep[1]+","+deep[2] };
+}
 function drawSkyClock(g,nd,L,now){
   var h=nd.getHours(), mi=nd.getMinutes(), h12=(h%12)||12, ap=h<12?"AM":"PM";
   var str=h12+":"+(mi<10?"0":"")+mi+" "+ap+"  "+DAYS3[nd.getDay()]+" "+MONS3[nd.getMonth()]+" "+nd.getDate();
@@ -6080,21 +6095,34 @@ function drawSkyClock(g,nd,L,now){
   var l2=rgName ? (rgName+(regimeBills()?" - BILLS COUNTRY":" - CAPITAL OF THE ORDER")) : (cityName+"  POP "+popFmt(cityPop()));
   var townUpdate=townBarUpdate(now); if(townUpdate) l2+=" - "+townUpdate.text;
   var tw2=(l2.length*4-1), x2=((SW-tw2)/2)|0, y2=y+5*sc+4;
+  // ⚠ AND THE LAND ITSELF GOES IN THE BAR. This is the information Nick screenshotted off the debug
+  // stamp and asked to have promoted: what map am I actually looking at. It sits on the weather line
+  // so the HUD does not grow another row.
+  var landNm=(curBiome&&curBiome.name)?curBiome.name:"";
   var l3=wxHudLine();                                          // current + projected weather
+  if(landNm) l3=(l3?l3+"  -  ":"")+landNm;
   var tw3=(l3.length*4-1), x3=((SW-tw3)/2)|0, y3=y2+5+3;
   var pw=Math.max(tw,tw2,tw3);
   var ph=5*sc+4 + 5+ (l3?(5+3):0) +6;                          // pill tall enough for however many lines show
   var bx=((SW-pw)/2-7)|0, by=y-4, bw=pw+14, bh=ph+4;           // HUD frame bounds
   chromeClaim(now,bx,by,bw,bh);                                // this patch is spoken for — flight tags route around it
   var pulse=0.68+0.32*Math.sin(nd.getTime()*0.0022);           // gentle breathing neon
+  // ⚠ THE HUD IS THEMED BY LAND. Nick, sending a screenshot of the debug stamp: "I feel like this
+  // should be included in the title bar on the top of the screen, which should also have different
+  // themes based off the map." The panel was one fixed cyan-and-magenta pill on all 21 lands, which
+  // is right for the neon city it was designed for and wrong everywhere else — a chrome HUD floating
+  // over a savanna belongs to a different program.
+  // The theme comes from the land's OWN palette (`cap` for the rails, `walls[0]` for the accent), so
+  // a new land is themed the moment it exists and nothing has to be registered anywhere.
+  var THEME=hudTheme();
   // --- glassy dark pill (rounded feel via inset rows) ---
-  g.fillStyle="rgba(6,9,18,"+(L>0.5?0.32:0.46)+")";
+  g.fillStyle="rgba("+THEME.bg+","+(L>0.5?0.32:0.46)+")";
   g.fillRect(bx,by+1,bw,bh-2); g.fillRect(bx+2,by,bw-4,bh);
   // --- neon frame: cyan top/bottom rails, magenta side accents (additive) ---
   g.globalCompositeOperation="lighter";
-  g.fillStyle="rgba(40,200,235,"+(0.55*pulse)+")"; g.fillRect(bx+2,by,bw-4,1); g.fillRect(bx+2,by+bh-1,bw-4,1);
-  g.fillStyle="rgba(232,72,192,"+(0.42*pulse)+")"; g.fillRect(bx,by+2,1,bh-4); g.fillRect(bx+bw-1,by+2,1,bh-4);
-  g.fillStyle="rgba(122,240,255,"+(0.92*pulse)+")"; var kk=4;   // cyan corner brackets
+  g.fillStyle="rgba("+THEME.rail+","+(0.55*pulse)+")"; g.fillRect(bx+2,by,bw-4,1); g.fillRect(bx+2,by+bh-1,bw-4,1);
+  g.fillStyle="rgba("+THEME.acc+","+(0.42*pulse)+")"; g.fillRect(bx,by+2,1,bh-4); g.fillRect(bx+bw-1,by+2,1,bh-4);
+  g.fillStyle="rgba("+THEME.rail+","+(0.92*pulse)+")"; var kk=4;   // corner brackets, in this land's colour
   g.fillRect(bx,by,kk,1); g.fillRect(bx,by,1,kk);
   g.fillRect(bx+bw-kk,by,kk,1); g.fillRect(bx+bw-1,by,1,kk);
   g.fillRect(bx,by+bh-1,kk,1); g.fillRect(bx,by+bh-kk,1,kk);
