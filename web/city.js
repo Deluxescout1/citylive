@@ -15962,6 +15962,93 @@ function stratRuns(g,prof,y0,step,style){
     }
   }
 }
+// THE HALF OF THE CITY THAT LIVES ON THE ROCK.
+// Nick chose "floor AND walls": the city starts on the canyon floor and CLIMBS as it grows. That
+// makes this the only land whose growth is vertical — everywhere else a week of growth spreads
+// sideways — so the wall-city is the land's whole growth story, not decoration.
+//
+// Everything is keyed to (spur seed, cityG), never to a random: three monitors must agree, and a
+// dwelling must not teleport between frames. Ledges fill bottom-up as the city grows, because people
+// take the easy rock first.
+function drawGorgeCity(g,L,now,nd){
+  if(!gorgeCache||!gorgeCache.spurs||cityPhase==="apoc") return;
+  var day=L>0.5, K=Math.max(1,KSP), B=curBiome, gy=HORIZON;
+  var grow=Math.max(0,Math.min(1,(cityG-0.10)/0.72));            // nothing on the walls in the first days
+  if(grow<=0.02) return;
+  var wpal=B.walls||[[206,150,104],[178,116,78],[228,196,158]];
+  var lit=(!day)?1:0;
+  for(var si=0;si<gorgeCache.spurs.length;si++){
+    var sp=gorgeCache.spurs[si], sd=sp.seed;
+    // LEDGES: horizontal shelves up the face. The lowest are settled first.
+    var nL=2+((sd>>>3)%3);                                        // 2-4 shelves on this spur
+    for(var li2=0;li2<nL;li2++){
+      var lf=(li2+1)/(nL+1);                                      // 0..1 up the face
+      if(grow < lf*0.85) continue;                                // this shelf is not settled yet
+      var ly=Math.round(gy - (gy-sp.top)*lf) - 2;
+      if(ly<sp.top+2||ly>gy-4) continue;
+      var half=Math.round(sp.w*(0.62-0.30*lf));                   // the face narrows as it rises
+      var lx0=sp.x-half, lx1=sp.x+half;
+      if(lx1<0||lx0>SW) continue;
+      // the shelf itself — one run, cut back into the rock
+      var shC=mixc(B.ground,[0,0,0],day?0.10:0.55);
+      g.fillStyle=css(shC); g.fillRect(Math.max(0,lx0),ly,Math.min(SW,lx1)-Math.max(0,lx0),Math.max(1,Math.round(1.4*K)));
+      // DWELLINGS along it: square blocks with a dark door and a window that lights at night
+      var step=Math.round(7*K), n=0;
+      for(var dx=lx0+2;dx<lx1-4;dx+=step){
+        var hsd=((dx*2654435761)>>>0)^sd, per=((hsd>>>5)%1000)/1000;
+        if(per > grow*1.25) continue;                             // this one is not built yet
+        var dw=Math.round((4+((hsd>>>9)%3))*K), dh=Math.round((4+((hsd>>>13)%4))*K);
+        if(dx+dw<0||dx>SW) continue;
+        var wc=wpal[(hsd>>>17)%wpal.length];
+        g.fillStyle=css(day?wc:mixc(wc,[0,0,0],0.62));
+        g.fillRect(dx,ly-dh,dw,dh);
+        g.fillStyle=rgba(mixc(wc,[0,0,0],0.55),0.7);              // a flat roof line
+        g.fillRect(dx,ly-dh,dw,Math.max(1,Math.round(0.8*K)));
+        // one window. Lit at night, and only if somebody is home — a hash, so it is stable.
+        var won=((hsd>>>21)%100)<62;
+        g.fillStyle= (lit&&won) ? "rgba(255,206,130,0.95)" : rgba(mixc(wc,[0,0,0],0.5),0.85);
+        g.fillRect(dx+Math.round(dw*0.3),ly-dh+Math.round(dh*0.35),Math.max(1,Math.round(1.2*K)),Math.max(1,Math.round(1.2*K)));
+        n++;
+      }
+      // STAIRS down from this shelf to the one below — a zigzag cut in the rock
+      if(n>0){
+        var stx=sp.x+Math.round(half*0.72)*(((sd>>>7)%2)?1:-1);
+        var sy0=ly, sy1=Math.round(gy-(gy-sp.top)*Math.max(0,(li2)/(nL+1)));
+        g.fillStyle=rgba(mixc(B.ground,[0,0,0],0.42),0.75);
+        for(var yy=sy0;yy<sy1;yy+=Math.max(2,Math.round(2*K))){
+          var zig=((yy>>>2)%2)?Math.round(1.6*K):0;
+          g.fillRect(stx+zig,yy,Math.max(1,Math.round(2.2*K)),Math.max(1,Math.round(1*K)));
+        }
+      }
+      // HANGING GARDENS: where a shelf holds water, green spills over its lip. Only on lands whose
+      // rock actually seeps — the ice gorge and the basalt get none.
+      if(B.name!=="THE ICE GORGE"&&B.name!=="THE BLACK BASALT"&&((sd>>>11)%100)<55){
+        var gxs=sp.x-Math.round(half*0.5);
+        g.fillStyle=rgba(day?[86,138,66]:[24,44,28],0.62);
+        for(var gq=0;gq<Math.round(half*0.9);gq+=Math.max(2,Math.round(2*K))){
+          var gh=Math.round((2+(((gxs+gq)*7919)>>>0)%4)*K);
+          g.fillRect(gxs+gq,ly+1,Math.max(1,Math.round(1.6*K)),gh);
+        }
+      }
+    }
+    // A BRIDGE to the next spur — the gorge is only a city if the two sides are joined.
+    var nx2=gorgeCache.spurs[si+1];
+    if(nx2 && grow>0.45){
+      var bx0=sp.x+sp.w, bx1=nx2.x-nx2.w;
+      if(bx1>bx0 && (bx1-bx0)<Math.round(300) && bx1>0 && bx0<SW){
+        var by=Math.round(gy-(gy-Math.max(sp.top,nx2.top))*0.42);
+        g.fillStyle=rgba(mixc(B.ground,[0,0,0],day?0.30:0.66),0.92);
+        g.fillRect(Math.max(0,bx0),by,Math.min(SW,bx1)-Math.max(0,bx0),Math.max(1,Math.round(1.6*K)));
+        // suspension hangers, so it reads as built rather than as a drawn line
+        for(var hx=bx0+6;hx<bx1-4;hx+=Math.round(9*K)){
+          if(hx<0||hx>SW) continue;
+          g.fillStyle=rgba(mixc(B.ground,[0,0,0],0.5),0.55);
+          g.fillRect(hx,by-Math.round(4*K),1,Math.round(4*K));
+        }
+      }
+    }
+  }
+}
 var gorgeCache=null;   // per-screen wall profile — static within a life, so build it ONCE
 function drawGorge(g,L,now,nd){
   var day=L>0.5, B=curBiome, K=Math.max(1,KSP), skc=biomeSkc(day);
@@ -15988,6 +16075,7 @@ function drawGorge(g,L,now,nd){
     // monitor per spur, which is why the first render came out as a row of enormous smooth domes.
     // ⚠ AND THE SPACING MUST BEAT THE NARROWEST SCREEN, not the widest. At 600-900 wp a 640 wp
     // monitor saw exactly one spur; the gorge has to read on the SMALL screen too.
+    gorgeCache.spurs=[];                                        // where the wall-city can build
     var span=WW, i=0, wxp=0;
     while(wxp<span+500){
       var h=mixLi(((wxp*7919)>>>0)+i*104729, 7717)%1000/1000;
@@ -16000,6 +16088,7 @@ function drawGorge(g,L,now,nd){
       var edge=0.10+0.30*(1-steep);
       for(var w=-1;w<=1;w++){
         var sx0=Math.round(wxp - WOFF + w*WW);
+        if(sx0+bw>=-40 && sx0-bw<=SW+40) gorgeCache.spurs.push({x:sx0, w:bw, top:Math.round(bh), seed:(i*104729+7)>>>0});
         for(var bx=Math.max(0,sx0-bw);bx<Math.min(SW,sx0+bw);bx++){
           var t=Math.abs((bx-sx0)/bw);                             // 0 at the centre, 1 at the flank
           var prof=Math.min(1,(1-t)/edge);                         // flat top, then a fast fall to nothing
@@ -16045,6 +16134,8 @@ function drawGorge(g,L,now,nd){
     g.fillStyle=css(rimC); g.fillRect(nx,ny,1,Math.max(1,Math.round(K*0.7)));
   }
   stratRuns(g, gorgeCache.but, Math.round(HORIZON*0.30), strat, rgba(mixc(nearC,[0,0,0],0.22),0.30));
+
+  drawGorgeCity(g,L,now,nd);      // the half of this city that lives ON the rock
 
   // ---- talus: the skirt of fallen rock where wall meets floor, so nothing lands on a hard seam ----
   var tal=Math.round(5*K);
