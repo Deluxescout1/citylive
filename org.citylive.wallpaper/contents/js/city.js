@@ -16475,9 +16475,25 @@ function drawNeonCity(g,L,now,nd){
       var hy=gy-Math.round((26+((hh>>>15)%40))*K)-hgt2;
       var col=pal[(hh>>>19)%pal.length];
       g.globalCompositeOperation="lighter";
+      // ⚠⚠ THIS BLOCK PRODUCED THREE OF NICK'S BUG REPORTS. Read before touching it.
+      // The old alpha was `(day?0.055:0.16)*(1-qf*0.55)*(0.6+0.4*sin(now+h+qf*6))`, and the sin term
+      // swings with `qf` — i.e. DOWN THE PANEL, not over time. So within a single frame the bars
+      // alternated between visible and below the 0.006 cutoff, and the panel stopped being a panel:
+      // it became a column of DISCONNECTED coloured rectangles hanging in the sky, attached to
+      // nothing (the frame is rgba(10,11,16,0.85), invisible against a night sky). On THE COLD STACK
+      // and the default palette those colours are `#8ab4ff` / `#7c6cff` — blue. That is Nick's
+      // "rows of ~12-16 small blue rectangles floating at several heights, not attached to anything",
+      // a bug that survived four eliminated theories, partly because one of my own probes filtered to
+      // rects <=8px and these are 32-44 wide — the filter discarded the answer.
+      // The oscillation now barely dips, so the panel always reads as ONE surface with a shimmer.
+      // Daylight alpha also goes 0.055 -> 0.15: at 0.055 the hologram was invisible by day while its
+      // dark mounting frame stayed at 0.85, so what actually reached the eye was two tall rails, a
+      // crossbar and a mast — Nick: "wtf are with the random football poles everywhere". It is also
+      // the likeliest source of the "weird stray lines / checkmarks in the sky" report.
+      // And a visible daytime hologram is what the Sprawl was always supposed to have.
       for(var q=0;q<hgt2;q+=Math.max(1,Math.round(2*K))){
         var qf=q/hgt2;
-        var a=(day?0.055:0.16)*(1-qf*0.55)*(0.6+0.4*Math.sin(now*0.0016+h+qf*6));
+        var a=(day?0.15:0.20)*(1-qf*0.45)*(0.86+0.14*Math.sin(now*0.0016+h+qf*6));
         if(a<=0.006) continue;
         g.fillStyle=col; g.globalAlpha=a;
         g.fillRect(HX-hw2,hy+q,hw2*2,Math.max(1,Math.round(1.4*K)));
@@ -16486,7 +16502,11 @@ function drawNeonCity(g,L,now,nd){
       // ⚠ MOUNT IT. Unframed and unsupported these read as coloured rectangles FLOATING in the sky.
       // A mast down to the rooftops and a thin frame is all it takes to make them installed hardware.
       g.globalCompositeOperation="source-over";
-      g.fillStyle=day?"rgba(38,40,50,0.85)":"rgba(10,11,16,0.85)";
+      // ⚠ THE FRAME MUST NEVER OUT-READ THE PANEL IT HOLDS. At 0.85 in daylight it was the most
+      // solid thing in the sky while the hologram itself was invisible — an armature with nothing in
+      // it, which is precisely why it read as a goalpost. Dark enough to say "installed hardware",
+      // faint enough that it is never the thing you notice.
+      g.fillStyle=day?"rgba(44,48,60,0.30)":"rgba(10,11,16,0.62)";
       g.fillRect(HX-Math.max(1,Math.round(K)),hy+hgt2,Math.max(2,Math.round(2*K)),Math.round(22*K));
       g.fillRect(HX-hw2,hy+hgt2,hw2*2,Math.max(1,Math.round(1.4*K)));
       g.fillRect(HX-hw2,hy,Math.max(1,Math.round(K)),hgt2);
