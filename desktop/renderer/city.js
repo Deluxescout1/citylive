@@ -3270,7 +3270,7 @@ var FAUNA={
   bat:       {plan:"bird", c:[46,40,50],   soar:1},
   // PREDATORS the other lands need. Nine of the twelve already existed (wolf, bear, gator, owl,
   // polarbear, skua, eagle, fennec, vulture) — only these three had to be written.
-  lynx:      {plan:"quad", w:6, h:4, c:[186,164,132],c2:[120,102,80],  head:"snout"},
+  lynx:      {plan:"quad", w:6, h:3, c:[186,164,132],c2:[120,102,80],  head:"snout"},   // 4 was 1.6x a real lynx
   orca:      {plan:"quad", w:14,h:5, c:[28,30,34],   c2:[240,244,248], head:"seal", legless:1},
   shark:     {plan:"quad", w:11,h:3, c:[86,96,108],  c2:[214,220,226], head:"seal", legless:1},
   // THE SAVANNA's headline animals. This land has no cliff, tower or dune to fill a frame with, so the
@@ -13428,7 +13428,7 @@ function drawQuad(g,x,y,day,now,seed,sp,K){
   var w=Math.max(4,Math.round(sp.w*S)), h=Math.max(3,Math.round(sp.h*S));
   var c=css(day?sp.c:mixc(sp.c,[0,0,0],0.60)), c2=css(day?sp.c2:mixc(sp.c2,[0,0,0],0.58));
   var graze=!sp.legless&&(Math.sin(now*0.0004+seed)>0);   // a hauled-out seal has nothing to graze on
-  var stp=(Math.floor(now/320+seed)&1);
+  var stp=(Math.floor(now/220+seed)&1);                   // 320ms was slower than a walking animal
   // A DEEP barrel on SHORT legs. The first cut gave these animals a shallow body on legs half their
   // height and they read as sawhorses — nothing with that much mass stands that far off the ground.
   var bodyH=Math.max(2,Math.round(h*0.58)), top=y-h, legY=top+bodyH;
@@ -13456,18 +13456,32 @@ function drawQuad(g,x,y,day,now,seed,sp,K){
   } else {
     g.fillRect(x,top,w,bodyH);                                            // the barrel
     if(sp.hump) g.fillRect(x+Math.round(w*0.06),top-u*sp.hump,Math.round(w*0.46),u*sp.hump+1);
-    g.fillStyle=c2;                                                       // four legs, front pair striding
+    // ⚠ A REAL GAIT. Nick: "their legs barely move." Only two of the four legs shifted, by ONE pixel,
+    // on a 320ms flip — a shuffle, not a walk. A quadruped walks in a two-beat DIAGONAL: front-left
+    // swings with back-right, front-right with back-left, and the swinging leg both moves further and
+    // LIFTS. Grazing animals stand still, which is also true and makes the walkers read as walking.
+    g.fillStyle=c2;
     var lw=Math.max(1,Math.round(u*1.4)), lh=Math.max(1,y-legY);
-    g.fillRect(x+Math.round(w*0.10)+(stp?u:0),legY,lw,lh);
-    g.fillRect(x+Math.round(w*0.26),legY,lw,lh);
-    g.fillRect(x+Math.round(w*0.66),legY,lw,lh);
-    g.fillRect(x+Math.round(w*0.84)-(stp?u:0),legY,lw,lh);
+    var swing=graze?0:Math.round(u*1.8), lift=graze?0:(stp?Math.max(1,Math.round(u*0.7)):0);
+    var lift2=graze?0:(stp?0:Math.max(1,Math.round(u*0.7)));
+    g.fillRect(x+Math.round(w*0.10)+(stp?swing:0),legY,lw,Math.max(1,lh-lift));      // front-left  \
+    g.fillRect(x+Math.round(w*0.26)-(stp?0:swing),legY,lw,Math.max(1,lh-lift2));     // front-right  } diagonal pairs
+    g.fillRect(x+Math.round(w*0.66)+(stp?0:swing),legY,lw,Math.max(1,lh-lift2));     // back-left    }
+    g.fillRect(x+Math.round(w*0.84)-(stp?swing:0),legY,lw,Math.max(1,lh-lift));      // back-right  /
     g.fillRect(x+w,top+u,Math.max(1,u),Math.max(1,Math.round(bodyH*(stp?0.7:0.5))));   // tail off the rump
   }
   // head, dropped to the grass when grazing and lifted to watch when not. The NECK is filled as one
   // solid block spanning body to skull — drawn as a thin stalk it left a gap and the head floated.
   var hw=Math.max(2,Math.round(w*0.26)), hh=Math.max(2,Math.round(h*0.28));
-  var hx=x-Math.round(w*0.20), hy=graze?(legY-hh):(top-Math.round(h*0.34));
+  // ⚠⚠ THE HEAD MUST NOT STACK ON TOP OF THE SHOULDER. Nick: "they are MASSIVE lol."
+  // The FAUNA table is right — checked every species against real shoulder heights and almost all sit
+  // within 0.9-1.1x of correct at the engine's 4.12 px/m. The error was here: `h` IS the shoulder
+  // height, `top` is the withers, and the head was then drawn a further 0.34h ABOVE that. So a bison
+  // whose table value is correct rendered 12px against a 7px person — 1.58x too big — and a pronghorn
+  // 1.95x, purely because every animal wore its head above its own shoulder.
+  // A real quadruped carries its head AT or BELOW the withers; only an alert one lifts slightly past.
+  // Clamped to +1px so the silhouette total matches the number the table already gets right.
+  var hx=x-Math.round(w*0.20), hy=graze?(legY-hh):Math.max(top-u,top-Math.round(h*0.34));
   var nx=hx+Math.round(hw*0.45), nTop=Math.min(hy,top), nBot=Math.max(hy+hh,top+Math.round(bodyH*0.7));
   g.fillStyle=c;
   g.fillRect(nx,nTop,Math.max(2,Math.round(w*0.24)),Math.max(1,nBot-nTop));                  // neck
@@ -13475,10 +13489,14 @@ function drawQuad(g,x,y,day,now,seed,sp,K){
   if(sp.head==="tusk"){ g.fillStyle="#e8e2d2"; g.fillRect(hx-u,hy+hh-u,u,u); }
   else if(sp.head==="seal"){ g.fillStyle=c2; g.fillRect(hx-u,hy+Math.round(hh*0.3),u,u); }
   else { g.fillStyle=c2;
+    // ⚠ HORNS AND ANTLERS ARE THE LAST OF THE HEIGHT. Real headgear does stand above the skull, so
+    // some overshoot is honest — but at u*2 on a 3px pronghorn the horns were a third of the animal
+    // and pushed it to 1.67x a real one. Halved: still clearly horned, no longer the tallest thing
+    // about it.
     if(sp.head==="antler"){ for(var a=0;a<3;a++){                                            // elk: a rack
-        g.fillRect(hx+a*u,hy-u*(1+a%2),u,u*2); g.fillRect(hx-u+a*u,hy-u*2,u,u); } }
-    else if(sp.head==="prong"){ g.fillRect(hx,hy-u*2,u,u*2); g.fillRect(hx+hw-u,hy-u*2,u,u*2);
-                                g.fillRect(hx-u,hy-u*2,u,u); }
+        g.fillRect(hx+a*u,hy-u*(a%2),u,u*2); g.fillRect(hx-u+a*u,hy-u,u,u); } }
+    else if(sp.head==="prong"){ g.fillRect(hx,hy-u,u,u*2); g.fillRect(hx+hw-u,hy-u,u,u*2);
+                                g.fillRect(hx-u,hy-u,u,u); }
     else if(sp.head==="curl"){ g.fillRect(hx-u,hy,u,u*2); g.fillRect(hx-u*2,hy+u,u,u);       // bighorn curl
                                g.fillRect(hx-u,hy+u*2,u,u); }
     else if(sp.head==="horn"){ g.fillRect(hx-u,hy-u,u,u); g.fillRect(hx+hw,hy-u,u,u); }

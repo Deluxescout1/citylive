@@ -26,7 +26,12 @@ const HUMAN_M = 1.70;
 const REAL_M = {
   elk: 1.50, bear: 1.00, boar: 0.90, bighorn: 0.95, coyote: 0.60, bison: 1.85,
   pronghorn: 0.87, cattle: 1.40, seal: 0.45, ibex: 0.90, wolf: 0.80,
-  polarbear: 1.30, walrus: 1.00, caribou: 1.20
+  polarbear: 1.30, walrus: 1.00, caribou: 1.20,
+  // ⚠ EVERY SPECIES ADDED SINCE went unpinned, which is how the herd got big again without this test
+  // saying a word. Nick: "they are MASSIVE lol." A table this test does not know about is a table that
+  // can drift, so anything with a `quad` plan belongs here.
+  buffalo: 1.70, wildebeest: 1.30, elephant: 3.20, giraffe: 3.30, zebra: 1.40,
+  oryx: 1.20, camel: 1.90, lynx: 0.60, goat: 0.75, orca: 2.00, shark: 1.20, turtle: 0.30
 };
 
 function loadEngine(pxk) {
