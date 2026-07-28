@@ -2949,8 +2949,28 @@ var BIOMES=[
     sky:null },
   // `buttes` is the gap-field threshold that breaks the rampart into standalone blocks — see the
   // height-field build. Higher = more sky between them. Variants inherit it unless they override.
-  { k:"mesa",   name:"RED MESA",   amp:0.72, base:0.40, flat:1.0, steep:0.85, snow:false, water:"river", buttes:-0.42, mesaLife:1,
-    far:[186,118,86],  near:[152,86,62],   cap:[214,158,116], ground:[196,150,110],
+  // ⚠⚠ OVERHAULED. Nick: "Red Mesa needs an overhaul", and the measurement is why — classifying every
+  // pixel, 74.1% of this frame above the street was bare sky and the UPPER HALF was 92.1% sky. That is
+  // the thinnest land in the project now that alpine is fixed, on a map whose whole subject is rock.
+  // ⚠ amp/base RAISED TOGETHER (0.72/0.40 -> 1.16/0.64), which lifts the whole range rather than
+  // exaggerating the peaks — the same conservative shape of fix alpine got, and for the same reason: a
+  // low mesa life should still be a low mesa, just one you can find. The roll and the silhouette are
+  // untouched, so no life's layout changes; the buttes are simply the size the name implies.
+  // ⚠ AND IT IS CALLED RED MESA. `far` was [186,118,86] and then the aerial-perspective mix took it
+  // another third of the way to the sky, so the back of this land came out PALE PEACH. Sandstone that
+  // reads as red at distance has to start further into the oxide than it looks like it should.
+  // ⚠⚠ AND THE RED TOWERS WERE MY OWN DOING. I added `spires:1` to this entry meaning "give it
+  // spires", not knowing the flag already EXISTS and does something specific: it REPLACES the near
+  // band outright with six needle columns, which is how THE HIGH TEMPLES is built. So the mesa's
+  // buttes were deleted and replaced by needles, and I spent two rounds tuning amp and base against a
+  // landform that was no longer a mesa at all. Read what a flag does before setting it — this engine
+  // has 20 biomes' worth of them and they are not all inert.
+  // The lift that is actually wanted here is modest, because the ORIGINAL PROPORTIONS WERE RIGHT: a
+  // wide flat-topped butte, just too short and too few. Height comes up a little; the rest of the
+  // missing mass comes from more of them and from hoodoos, per Nick's rule that an empty land gets
+  // its OWN mass rather than a blanket relief bump.
+  { k:"mesa",   name:"RED MESA",   amp:0.80, base:0.56, flat:1.0, steep:0.85, snow:false, water:"river", buttes:-0.42, mesaLife:1,
+    far:[176,96,64],  near:[146,68,44],   cap:[214,158,116], ground:[196,150,110],
     walls:[[206,158,116],[186,140,100],[214,178,140],[228,206,180],[168,116,84],[196,166,132],[176,146,116],[210,190,164]],
     fauna:{ keep:{deer:0,rabbit:1,fox:0,goat:0}, big:["bighorn","coyote"], small:["lizard","roadrunner"], air:["vulture"] },
     flora:{ kinds:["saguaro","scrub","ocotillo","scrub","saguaro"], bloom:["#e8c04a","#d8734a","#c8506a"] },
@@ -4321,6 +4341,21 @@ function buildWorld(li){
       mts.far.push({x:mg()*WW, w:(100+mg()*150)*MSC/relief, h:fh, sn:curBiome.snow&&((fh>66*MSC)||mg()<0.25), ph:mg()*9}); }
     for(mi=0;mi<nN;mi++){ var nh=(58+mg()*86)*MSC;                 // the bolder front ridge — the peaks
       mts.near.push({x:mg()*WW, w:(80+mg()*130)*MSC/relief, h:nh, sn:curBiome.snow&&((nh>92*MSC)||mg()<0.35), ph:mg()*9}); }   // clear the skyline
+    // ⚠⚠ THE MESA'S OWN MISSING MASS, DERIVED NOT ROLLED. Nick's standing rule for an empty land is
+    // that it gets the mass it is actually short of rather than a blanket relief bump, and what
+    // badlands are short of here is COUNT: `nF`/`nN` give six-to-ten peaks across a 2269 px world, so
+    // a screen sees two or three buttes and 86% of its upper half is blue. Monument Valley is not two
+    // buttes; it is buttes behind buttes behind buttes to the horizon.
+    // Derived from the peaks already rolled — no extra `mg()` call, so no existing life re-rolls, the
+    // same rule the third mountain band and the forest's mid ranks follow.
+    if(curBiome.k==="mesa"){
+      var mN=mts.near.length, mF=mts.far.length, mq;
+      for(mq=0;mq<mN;mq++){ var np2=mts.near[mq];
+        mts.far.push({x:(np2.x+WW*0.29)%WW, w:np2.w*0.80, h:np2.h*0.64, sn:false, ph:np2.ph*1.7+1.3});
+        mts.far.push({x:(np2.x+WW*0.63)%WW, w:np2.w*0.64, h:np2.h*0.48, sn:false, ph:np2.ph*2.3+4.1}); }
+      for(mq=0;mq<mF;mq++){ var fp2=mts.far[mq];
+        mts.near.push({x:(fp2.x+WW*0.47)%WW, w:fp2.w*0.88, h:fp2.h*1.10, sn:false, ph:fp2.ph*1.9+2.7}); }
+    }
     // ⚠ A VOLCANO IS NOT A RANGE. The roll above scatters four to eight peaks of similar height, which
     // is right for every other rock land and produced a broad flat-topped ridge for the volcanic
     // island — no cone anywhere in it, and `drawVolcano` politely put a plume on the tallest bump. An
@@ -18941,14 +18976,34 @@ function drawBiomeDetail(g,L,now,nd){
           g.fillRect(mx,my,SW,Math.max(1,Math.round(K))); } } }
   } else if(B.k==="mesa"){
     // HOODOOS — slender wind-carved spires standing off the buttes — and a natural ARCH
-    for(var h2=0;h2<10;h2++){
-      var hh=Math.round((14+sd()*20)*K), hw=Math.max(2,Math.round((2+sd()*2)*K));
-      var hx=standSpot(hh);                                                      // placed in a gap, not rejected
+    // ⚠⚠ THEY WERE TOO SHORT TO BE SEEN. Sized 14-34 K, i.e. 28-68 world px against buttes topping
+    // 170, every hoodoo stood below the skyline and behind the city band: the one vertical this
+    // landform owns, and it never reached the sky it is supposed to be silhouetted against. A spire in
+    // badlands is an erosional REMNANT of the same beds the mesa is made of — the Totem Pole stands as
+    // tall as the wall it eroded out of — so its height belongs to the range, not to a constant.
+    // ⚠ AND SPACED, NOT SAMPLED. `standSpot` picks whichever of eight random world x has the lowest
+    // ridge, which is right for meeting sky and says nothing about coverage: on a 640 wp monitor the
+    // whole set could land off-screen. Stratified across the world first, then nudged to the clearest
+    // spot inside its own slice — the `landmarkXs` rule from Phase 5, which exists because one per
+    // world is too few when a screen sees a quarter of it.
+    var hMx=(mtsCache&&mtsCache.mx?mtsCache.mx[1]:0)||Math.round(40*K), nHoo=10;
+    for(var h2=0;h2<nHoo;h2++){
+      var hh=Math.round(hMx*(0.46+sd()*0.42));                                   // a remnant of the beds beside it
+      var hw=Math.max(2,Math.round(hh*(0.075+sd()*0.055)));                      // slender: a spire, not a stump
+      var hSlice=((h2+0.5+(sd()-0.5)*0.7)/nHoo)*WW, hx=Math.round(hSlice), hBest=1e9;
+      for(var hs2=0;hs2<5;hs2++){                                                // …then the clearest sky in it
+        var hc=Math.round(hSlice+(hs2-2)*(WW/nHoo)*0.30), hrv=ridgeAt(((hc-WOFF)%WW+WW)%WW);
+        if(hrv<hBest){ hBest=hrv; hx=hc; } }
       for(var w3=-1;w3<=1;w3++){ var sx3=hx-WOFF+w3*WW; if(sx3<-8||sx3>SW+8) continue;
         var base=gy;
         g.fillStyle=detC;
         g.fillRect(sx3|0,(base-hh)|0,hw,hh);                                     // the column
-        g.fillRect((sx3-1)|0,(base-hh)|0,hw+2,Math.max(1,Math.round(2*K)));      // the harder caprock hat
+        // a waist — the wind cuts a spire narrower part-way up, and that pinch is what tells a hoodoo
+        // apart from a chimney at this size
+        g.fillStyle=css(mixc(det,day?B.cap:[210,220,235],0.16));
+        g.fillRect(sx3|0,(base-hh*0.62)|0,Math.max(1,hw-Math.max(1,Math.round(K))),Math.round(hh*0.22));
+        g.fillStyle=detC;
+        g.fillRect((sx3-Math.round(K))|0,(base-hh)|0,hw+Math.round(2*K),Math.max(1,Math.round(2.4*K)));   // the harder caprock hat
       }
     }
     var ah=Math.round(16*K), aw=Math.round(20*K), ax=standSpot(ah);
@@ -21387,7 +21442,16 @@ function drawMountains(g,L,now,nd){
           if(B.volcanic) crag*=0.18*(1-t0*0.7);
           var hh0=p0.h*t0+crag*KSP;
           if(hh0>rh0) rh0=hh0; }
-        if(B.flat>0 && rh0>2) rh0=Math.round(rh0/strata)*strata;  // quantise into bedding planes → flat tops
+        // ⚠ A WEDDING CAKE IS NOT A BUTTE. Quantising to a FIXED step gives every bench in the world
+        // the identical thickness, and the stepped cones came out as tiered cakes — the most
+        // artificial shape on this map. Real sedimentary beds are level (that part was right) and
+        // they are NOT all the same thickness. Snapping to a ladder whose rungs are individually
+        // jittered keeps the tops dead flat and the beds world-consistent — bed 7 is bed 7 at every
+        // x, on every monitor — while making no two benches the same depth.
+        if(B.flat>0 && rh0>2){
+          var qb=Math.floor(rh0/strata);
+          rh0=(qb+((mixLi((qb*7919)>>>0,4649)%100)/100-0.5)*0.62)*strata;
+        }
         // ---- BUTTES, NOT A WALL -------------------------------------------------------------
         // ⚠ The mesa read as ONE unbroken flat line across the entire world, which is the single
         // thing Nick picked out about it. That is not a tuning problem: `steep` makes every peak's
