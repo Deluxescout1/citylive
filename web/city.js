@@ -15331,14 +15331,34 @@ function drawDisaster(g,cd,L,now){
 // seed, index), so all three monitors agree on exactly who died, where, and when — with no shared
 // state and nothing to desync. `dieF` is a disaster-progress value, not a wall clock, so a body
 // appears at the same point in the story on a one-hour test cycle and on a one-week life.
+// ⚠ THE MINOR EVENTS KILL TOO, NOW. Nick: "minor disasters make their mark", and asked directly
+// whether a blackout or an inversion actually kills anyone — "yes, a small toll". A power cut takes
+// the people on machines and the ones who cannot get to a hospital; a bad inversion takes the frail.
+// Two to five against a CAT-5's forty-four, so it reads as a different KIND of event rather than a
+// small version of the same one.
+// ⚠ `disDestroys` is deliberately left alone. It gates the military response and the permanent ruin
+// as well as the toll, and no tank has ever been dispatched to fight a power cut — the lethality and
+// the destruction are separate questions and this only answers the first.
+function disMinorEvent(t){ return t==="blackout"||t==="smog"; }
 function casualtyCount(cd){
-  if(!cd||!disDestroys(cd.type)) return 0;
+  if(!cd) return 0;
+  if(disMinorEvent(cd.type)) return Math.min(5, 1+Math.round(cd.intensity*0.8));
+  if(!disDestroys(cd.type)) return 0;
   // ⚠ `cd.win` was ALREADY rolled — the city usually beats a disaster, but not always, and milFund
   // and CAT both move the odds. It has been sitting there widening the ruin footprint and nothing
   // else. A battle the city LOSES should cost lives, so the toll follows the same roll rather than a
   // new one: one truth about whether this went badly, not two that can disagree.
   var lost=(cd.win===false);
   return Math.min(lost?44:26, (3+cd.intensity*4)*(lost?1.8:1));
+}
+// HOW MANY HAVE FALLEN BY NOW. The panel counts up as it happens and then holds the final number
+// through the aftermath, which is Nick's call and the humane one: a toll that vanishes the moment the
+// monster does reads as a score being cleared. Derived from the same hashed victim list the drawing
+// uses, so the number on screen and the bodies on the street can never disagree.
+function casualtyToll(cd){
+  var N=casualtyCount(cd); if(!N) return 0;
+  var n=0; for(var i=0;i<N;i++) if(cd.f>=casualtyAt(cd,i).dieF) n++;
+  return n;
 }
 // the n-th victim of this disaster: where they fell, and at what disaster-progress
 function casualtyAt(cd,n){
@@ -15486,7 +15506,9 @@ function drawDisasterHud(g,cd,now){
   // replaces the banners" is about the alert bars that floated over the skyline, not about every
   // pixel this function happens to draw. So the text and the intensity pips route to the panel and
   // the fight bars stay on the city, anchored to the disaster where they belong.
-  var ty=notifLane(0), owned=pushNotif(90,msg,col);
+  // the toll rides the alert itself rather than taking a second row — one line, everything on it
+  var toll=casualtyToll(cd), pmsg=msg+(toll>0?("   DEAD "+toll):"");
+  var ty=notifLane(0), owned=pushNotif(90,pmsg,col);
   if(!owned){
     var tw=textW(msg), tx=Math.round(cd.x-tw/2);
     // backing bar (world-anchored, wraps)
