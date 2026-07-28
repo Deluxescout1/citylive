@@ -21227,7 +21227,18 @@ function drawMountains(g,L,now,nd){
         // Finer steps (13 levels instead of 5) with proportionally lower alpha per step: the same
         // overall modelling, gradations too fine to read as bands. Still bucketed, so the run-length
         // batching below is untouched and this costs nothing.
-        slp[cs]=Math.max(-6,Math.min(6,Math.round((acc/(cb-ca+1))*9.6)));
+        // ⚠⚠ KEPT CONTINUOUS. Any BUCKETING here puts hard vertical edges between flat bands on the
+        // rock face, and Nick's 4K monitor runs at fractional scaling — so KWin resamples the surface
+        // by a non-integer factor and those hard edges beat into visible vertical LINES down the
+        // mountain. That is the long-running "lines over the mountains" report, and this is the second
+        // time it has been traced to thin vertical structure (the first was god-ray strips, v1.51.0).
+        // ⚠ REPRODUCED, not guessed: rendering this frame offscreen shows a median column-vs-neighbour
+        // deviation of 0.00 and ~14 odd columns; putting the same render through a simulated 3104->3840
+        // resample turns that into 194 deviating columns. The engine output is clean; the resample is
+        // what makes the bands visible, so the fix is to have no bands for it to find.
+        // A continuous value means adjacent columns differ by a fraction of a shade instead of a whole
+        // bucket step — nothing sharp enough to alias.
+        slp[cs]=Math.max(-2,Math.min(2,(acc/(cb-ca+1))*3.2));
       }
     }
   }
@@ -21247,18 +21258,18 @@ function drawMountains(g,L,now,nd){
     // it costs one pass over a cached array, batched exactly like the base ridge above it.
     var slb=mtsCache.sl[pi], sunL=curSunDf<0.5, lk=litK*(pi===0?0.72:1);
     if(lk>0.03){
-      var ls=-1, ltop=-999, lbk=0, mx2, mh, mtop, mbk;
-      for(mx2=0;mx2<=SW;mx2++){
-        mh=(mx2<SW)?hs[mx2]:-1; mtop=(mh>=3)?Math.max(2,(gy-mh)|0):-999;
-        mbk=(mtop>-999)?(sunL?-slb[mx2]:slb[mx2]):0;
-        if(mtop!==ltop||mbk!==lbk){
-          if(ls>=0&&ltop>-999&&lbk!==0){
-            g.fillStyle= lbk>0 ? "rgba(255,246,220,"+(0.0234*lbk*lk).toFixed(3)+")"
-                               : "rgba(16,12,30,"+(0.0260*(-lbk)*lk).toFixed(3)+")";
-            g.fillRect(ls,ltop,mx2-ls,gy-ltop+2);
-          }
-          ls=(mtop>-999)?mx2:-1; ltop=mtop; lbk=mbk;
-        }
+      // ⚠ PER COLUMN, NOT RUN-LENGTH BATCHED BY BUCKET. Batching required equal values, which required
+      // bucketing, which is what created the aliasing edges — see the note where `slp` is computed.
+      // One fill per column is ~776 rects per band on the primary screen; the gorge already spends
+      // 3,493 and the ceiling is fine. Correctness of the surface is worth more than the batching.
+      for(var mx2=0;mx2<SW;mx2++){
+        var mh=hs[mx2]; if(mh<3) continue;
+        var mtop=Math.max(2,(gy-mh)|0);
+        var mbk=sunL?-slb[mx2]:slb[mx2];
+        if(mbk>0.02){ g.fillStyle="rgba(255,246,220,"+(0.070*mbk*lk).toFixed(4)+")"; }
+        else if(mbk<-0.02){ g.fillStyle="rgba(16,12,30,"+(0.078*(-mbk)*lk).toFixed(4)+")"; }
+        else continue;
+        g.fillRect(mx2,mtop,1,gy-mtop+2);
       }
     }
     // LAVA IN THE ROCK. The Ashlands had fire in three places — brimstone spires, ground vents and
