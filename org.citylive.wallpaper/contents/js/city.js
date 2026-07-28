@@ -19359,7 +19359,7 @@ function drawBiomeLandmark(g,L,now,nd){
   // so every one of these was drawn every frame and buried behind the outskirts by the time the city
   // was grown. Keying the scale to the horizon height means a landmark is always the same fraction of
   // the picture, on any monitor, at any city age — which is the whole job of a landmark.
-  var day=L>0.5, gy=HORIZON, K=Math.max(Math.max(1,KSP)*1.7, gy/80);
+  var day=L>0.5, gy=HORIZON, K=Math.max(Math.max(1,KSP)*1.7, gy/80), Kf=K;
   var sd2=rng((WORLD_SEED+4457)>>>0);
   var wood=day?"#7a5c3a":"#2a2018", wood2=day?"#5e4630":"#1d1610";
   var metal=day?"#9aa0a8":"#33363c", metal2=day?"#6a6e74":"#24272c";
@@ -19828,6 +19828,16 @@ function drawBiomeLandmark(g,L,now,nd){
     // is built into the range itself, on whatever ledge the cached ridge profile actually offers, and
     // reached by a rope stair cut down the rock. Older than the city; it does not wait for cityG.
     if(!mtsCache||!mtsCache.h||!mtsCache.h[1]) return;
+    // ⚠⚠ SCALED TO THE MOUNTAIN, NOT TO THE FRAME. `K` above is deliberately keyed to the horizon
+    // height so a landmark is always the same fraction of the picture — right for a headframe or a
+    // lighthouse standing on flat ground, wrong for the one landmark that is built INTO the range.
+    // On a flat alpine life (`relief 0.34`, which is 24.5% of them) the range tops out around 123
+    // world px while the monastery stands 100 tall and 65 wide: a building taller than its own
+    // mountain and wider than the peak it clings to, which reads as a brown box hanging in the sky.
+    // Nick sees this often — his desktop is pinned to alpine on 1-hour cycles, so roughly every
+    // fourth city he watches grow up under it. Capped to a share of the range and floored so it can
+    // never shrink to a speck on a low one; a tall life is unchanged.
+    var K=Math.max(Math.max(1,KSP)*1.2, Math.min(Kf, (mtsCache.mx[1]||0)*0.015));
     var hs9=mtsCache.h[1], mw9=Math.round(13*K), mh9=Math.round(9*K);
     // ⚠⚠ TWO BUGS, AND THEY COMPOUNDED INTO A MONASTERY HANGING IN MID-AIR ABOVE THE SUMMIT.
     // (1) The search maximised HEIGHT subject to being level — but on a cone the highest level run is
@@ -19843,10 +19853,19 @@ function drawBiomeLandmark(g,L,now,nd){
     // Relax the levelness in passes and take the first that finds anywhere; the base anchor to the
     // LOWEST ground under the full footprint is what actually prevents floating, so a rougher ledge
     // is safe, it just beds the building deeper into the rock.
+    // ⚠⚠ AND IT HAS TO FIT ON THE SCREEN. This search runs in SCREEN columns, so each monitor picks
+    // its own ledge — and on Nick's right-hand screen it picked one high enough that the monastery
+    // itself sat entirely above the top of the frame, leaving a rope stair climbing up out of the
+    // picture to nothing. A landmark that is off-screen is not a landmark; the stair is only legible
+    // because you can see what it goes to.
+    // ⚠ Added as a constraint on the first three passes with a FOURTH pass that drops it, because the
+    // strict version of this same search has already silently deleted the monastery from THE DRY
+    // RANGE once. Never trade a visible bug for an invisible one: there is always a last resort.
+    var fitH=mh9+Math.round(13*K);                       // block + roof + tower, i.e. the whole thing
     var mxTop=mtsCache.mx[1]||0, best=-1, bestScore=-1, bestBase=0, tol;
-    for(var pass9=0;pass9<3&&best<0;pass9++){
-      tol=[4,8,14][pass9]*K;
-      var minH=[22,16,10][pass9]*K, capF=[0.80,0.88,1.00][pass9];
+    for(var pass9=0;pass9<4&&best<0;pass9++){
+      tol=[4,8,14,14][pass9]*K;
+      var minH=[22,16,10,10][pass9]*K, capF=[0.80,0.88,1.00,1.00][pass9], mustFit=(pass9<3);
       for(var mx9=Math.round(SW*0.10);mx9<Math.round(SW*0.90)-mw9;mx9+=Math.max(2,Math.round(3*K))){
         var lo=1e9, hi=-1e9;
         for(var fx9=0;fx9<=mw9;fx9++){ var hv=hs9[Math.min(SW-1,mx9+fx9)]|0;
@@ -19854,6 +19873,7 @@ function drawBiomeLandmark(g,L,now,nd){
         if(lo<minH) continue;                       // needs real mountain under the whole footprint
         if(hi-lo>tol) continue;                     // and reasonably level across it
         if(lo>mxTop*capF) continue;                 // ⚠ not the summit — a LEDGE, on the flank
+        if(mustFit && gy-lo-fitH<2) continue;       // …and the building it carries has to be in frame
         // prefer a high ledge with a big drop below it: that is what "clinging to a cliff" means
         var belowX=Math.min(SW-1,mx9+mw9+Math.round(6*K)), drop=lo-(hs9[belowX]|0);
         var score=lo+drop*1.6;
@@ -19878,13 +19898,25 @@ function drawBiomeLandmark(g,L,now,nd){
       g.globalCompositeOperation="source-over"; }
     // THE ROPE STAIR. ⚠ Rungs alone read as a stack of loose bars floating beside the rock — a
     // ladder has to have RAILS or it is just tally marks. Two cords plus rungs between them.
-    var stH=Math.round(bestBase*0.55), stStep=Math.max(2,Math.round(2.4*K)), rW=Math.max(1,Math.round(K));
+    // ⚠⚠ AND IT WAS THE BIGGEST OBJECT IN THE FRAME. Its length was `bestBase*0.55` — a fraction of
+    // the MOUNTAIN — so on a tall life it ran 137 world px down the face at 7 world px wide, with
+    // rungs a person's height apart: a giant wooden ladder pasted diagonally across the range, out of
+    // scale with the monastery it serves and with the people who would climb it. A stair is a piece
+    // of FURNITURE; its size comes from the body using it, never from the landform behind it. Sized
+    // off `drawPerson`'s fixed 7px instead: a flight about four people wide of tread, rungs a stride
+    // apart, and a length capped to a flight rather than a descent of the whole face.
+    // ⚠ And it now refuses to draw a step where there is no rock at that height, so it can never
+    // again hang in open air the way the monastery itself once did.
+    var stW=Math.max(2,Math.round(2.4*K)), stH=Math.min(Math.round(26*K),Math.round(bestBase*0.55));
+    var stStep=Math.max(2,Math.round(1.8*K)), rW=Math.max(1,Math.round(K*0.6)), stX=LX-Math.round(1.4*K);
     for(var st9=0;st9<stH;st9++){
-      var sxx9=LX-Math.round(2*K)-Math.round(st9*0.30);
+      var sxx9=Math.round(stX-st9*0.30), syy9=LY+st9;
+      var sci=Math.max(0,Math.min(SW-1,sxx9));
+      if(syy9<gy-(hs9[sci]|0)) continue;                                                   // no rock here — no step
       g.fillStyle=day?"#5c5245":"#14120d";
-      g.fillRect(sxx9,LY+st9,rW,1); g.fillRect(sxx9+Math.round(3.4*K),LY+st9,rW,1);       // the two cords
+      g.fillRect(sxx9,syy9,rW,1); g.fillRect(sxx9+stW,syy9,rW,1);                          // the two cords
       if(st9%stStep===0){ g.fillStyle=day?"#7d7160":"#1b1812";
-        g.fillRect(sxx9,LY+st9,Math.round(3.4*K),rW); }                                    // …and a rung
+        g.fillRect(sxx9,syy9,stW,rW); }                                                    // …and a tread
     }
     // PRAYER FLAGS. ⚠ First pass drew nine at 1.6x2 K on no line at all and they came out as a row
     // of coloured CARDS hovering over the roof, bigger than the monastery's own windows. They are
@@ -21191,7 +21223,7 @@ function drawMountains(g,L,now,nd){
   var snN=mixc(day?mixc(B.cap,[255,255,255],0.35):mixc(B.cap,[0,0,0],0.55), [255,150,128], sunsetK*0.6);
   var litK=Math.max(0,Math.min(1,(L-0.34)*2.4));                  // how hard the sun models the rock
   if(!mtsCache){                                                  // the silhouette is static per life —
-    mtsCache={h:[[],[],[]], sl:[[],[],[]], wig:[], mx:[0,0,0]};   // compute it ONCE per screen, not per frame
+    mtsCache={h:[[],[],[]], sl:[[],[],[]], rib:[[],[],[]], wig:[], mx:[0,0,0]};   // compute it ONCE per screen, not per frame
     // A THIRD, FURTHEST band, DERIVED from the far peaks rather than rolled — half the height, wider,
     // shifted along the world so it is not an echo. Deriving it keeps every existing life's layout
     // byte-identical: one extra mg() roll in buildWorld would have re-rolled the peaks of all six
@@ -21242,6 +21274,24 @@ function drawMountains(g,L,now,nd){
           }
         }
         mtsCache.h[pi0][cx0]=rh0;
+        // ---- SPURS AND GULLIES: the ribs that run down a mountain face --------------------------
+        // ⚠⚠ THE FACE WAS A GRADIENT. Judged full-frame on Nick's primary, the near ridge fills ~40%
+        // of the alpine frame and every pixel of it below the snowline was one smooth left-to-right
+        // ramp: the slope light shades each column by which way the SKYLINE faces and then paints
+        // that one value down the entire column, so the mountain is a vertical extrusion of its own
+        // profile. A real face is ribbed — spurs catch the sun, the gullies between them are in
+        // shadow — and that alternation is most of what makes rock read as three-dimensional.
+        // ⚠ CONTINUOUS, AND DELIBERATELY SO. This is the fourth time vertical structure has been
+        // added to a face here and the first three striped (gorge crest jitter, dune profile
+        // rounding, slope bucketing). The lesson each time was the same: anything computed per
+        // column and then HARD-STEPPED shows up as a column once KWin resamples a 4K screen by a
+        // fractional factor. So this is two smooth octaves and no quantisation anywhere — adjacent
+        // columns differ by a fraction of a shade, which is nothing for a resample to find. It also
+        // costs no extra rects: it rides the slope-light pass that already runs one fill per column.
+        // Damped where the ridge is low, because a foothill has no spurs to speak of.
+        mtsCache.rib[pi0][cx0]=(Math.sin(wx0*0.115/KSP+pi0*2.7)*0.62
+                               +Math.sin(wx0*0.047/KSP+pi0*4.6+2.2)*0.38)
+                               *Math.max(0,Math.min(1,rh0/(30*KSP)));
         // ⚠⚠ THE SNOWLINE WANDER WAS ONE SINE, AND THAT IS WHY THE FJORD HAD A WHITE BAND.
         // A level snowline is physically honest — snow really does sit at an altitude — but with a
         // single smooth sine as its only variation, peaks of similar height all get capped at the
@@ -21332,10 +21382,15 @@ function drawMountains(g,L,now,nd){
       // bucketing, which is what created the aliasing edges — see the note where `slp` is computed.
       // One fill per column is ~776 rects per band on the primary screen; the gorge already spends
       // 3,493 and the ceiling is fine. Correctness of the surface is worth more than the batching.
+      // the spur/gully ribs ride this same pass — one term added to the value, no extra fills. The
+      // sun lights the flank a rib turns toward it, exactly as it does the flank of the whole
+      // mountain, so a face gains an internal structure without gaining a single draw call.
+      var rbb=B.alpine?mtsCache.rib[pi]:null, rbk=(sunL?-1:1)*1.35;
       for(var mx2=0;mx2<SW;mx2++){
         var mh=hs[mx2]; if(mh<3) continue;
         var mtop=Math.max(2,(gy-mh)|0);
         var mbk=sunL?-slb[mx2]:slb[mx2];
+        if(rbb) mbk+=rbb[mx2]*rbk;
         if(mbk>0.02){ g.fillStyle="rgba(255,246,220,"+(0.070*mbk*lk).toFixed(4)+")"; }
         else if(mbk<-0.02){ g.fillStyle="rgba(16,12,30,"+(0.078*(-mbk)*lk).toFixed(4)+")"; }
         else continue;
@@ -21434,6 +21489,178 @@ function drawMountains(g,L,now,nd){
         g.fillRect(gx,gtop,Math.max(1,Math.round(1.8*KSP)),Math.min(glen,gy-gtop));
       }
     }
+    // ---- THE FACE — cliff bands, scree, and a treeline ------------------------------------------
+    // ⚠⚠ WHY THIS EXISTS AT ALL. The mesa family has had bedding planes, a caprock shadow and
+    // erosion gullies since the biome pass — but every one of them is gated on `B.flat>0.25`, and
+    // alpine is `flat:0.0`. So the one land whose entire identity is a mountain range got NOTHING on
+    // its face: a flat fill, one per-column light value painted down the full height, and 26 one-pixel
+    // couloirs. On Nick's primary that face is ~40% of the frame.
+    // Everything here varies DOWN the face and is batched ALONG it, which is the deliberate opposite
+    // of the ribs above: horizontal edges are the one kind this engine has never been able to alias
+    // into stripes on a fractionally-scaled 4K screen.
+    // Kept to `B.alpine` on purpose. Every rock range in the project would take this, but the queue
+    // is a map-by-map review and alpine is the map under review; widening it would put twelve other
+    // lands up for re-verification in the same commit.
+    if(B.alpine && pi<=1){
+      var fmx=mtsCache.mx[pi]||1, hazeF=(pi===0?0.34:0.15);
+      // CLIFF LEDGES — bands of exposed rock, dark under the overhang and bright on the lip.
+      // ⚠ FIRST VERSION RAN THEM CONTINUOUSLY ACROSS THE FACE at a fraction of each column's own
+      // height, and it came out as CONTOUR LINES: three long wavy stripes swinging up over every peak
+      // and down into every col, which reads as drapery or wood grain, not stone. Two things were
+      // wrong and both matter — a band that tracks `h*fraction` is a graph of the profile rather
+      // than a feature ON it, and an unbroken line at this length reads as a line whatever shape it
+      // takes. Real ledges are SHORT, level, and stop. So: sparse segments at real altitudes, each a
+      // few dozen world px long, world-anchored so the three monitors cut them at the same place.
+      var nLed=(pi===1?26:12), ledTh=Math.max(1,Math.round(1.6*KSP)), lipT=Math.max(1,Math.round(KSP*0.5));
+      for(var cb2=0;cb2<nLed;cb2++){
+        var lsd=((cb2*2654435761+pi*7919+((WORLD_SEED*17)|0))>>>0);
+        var lwx=lsd%Math.max(1,WW);
+        var lxs=Math.round(lwx-WOFF); if(lxs<-120) lxs+=WW; if(lxs>SW+120) lxs-=WW;
+        var lLen=Math.round((16+((lsd>>>7)%46))*KSP);
+        if(lxs+lLen<0||lxs>=SW) continue;
+        var lAlt=0.20+((lsd>>>13)%100)/100*0.56;          // where up the local face this bed sits
+        // ⚠ AND THE ALTITUDE IS FIXED ONCE, AT THE MIDDLE OF THE SEGMENT. Deriving it per column from
+        // that column's own height is what made the first version wavy, and shortening the segments
+        // did not fix it — it just turned three long contour lines into twenty-six short ones, which
+        // came out as grey worms crawling over the face. A bed of rock is LEVEL; that is the whole
+        // reason it reads as rock. One height sample, one y, plus a gentle tilt.
+        var lMid=Math.max(0,Math.min(SW-1,lxs+(lLen>>1))), lhM=hs[lMid];
+        if(lhM<24*KSP) continue;
+        var lY0=Math.round(gy-lhM*lAlt), lTil=((((lsd>>>21)%5)-2)/28);
+        var ls2=-1, ly2=-999, lx2, lh2, lyy;
+        for(lx2=Math.max(0,lxs);lx2<=Math.min(SW,lxs+lLen);lx2++){
+          lyy=-999;
+          if(lx2<SW&&lx2<lxs+lLen){ lh2=hs[lx2];
+            if(lh2>=24*KSP){
+              lyy=Math.round(lY0+(lx2-lxs)*lTil);
+              if(lyy<(gy-lh2)+3*KSP||lyy>gy-3) lyy=-999;   // …and only where there is actually rock at that height
+            }
+          }
+          if(lyy!==ly2){
+            if(ls2>=0&&ly2>-999){
+              g.fillStyle="rgba(14,12,22,0.22)"; g.fillRect(ls2,ly2,lx2-ls2,ledTh);
+              g.fillStyle="rgba(255,250,236,0.22)"; g.fillRect(ls2,ly2-lipT,lx2-ls2,lipT);
+            }
+            ls2=(lyy>-999)?lx2:-1; ly2=lyy;
+          }
+        }
+      }
+      // SCREE — the fan of shattered rock a gully dumps at the foot of the face. It is the pale,
+      // grainy thing at the bottom of every real mountain photograph, and it does the same job here
+      // that the couloirs do at the top: it says the face is made of loose stone rather than card.
+      if(pi===1){
+        var scC=day?mixc(mixc(B.near,[214,208,196],0.42),skc,hazeF):mixc(dim(B.near),skc,0.22);
+        for(var sf=0;sf<7;sf++){
+          var swx=((sf*86243+((WORLD_SEED*29)|0))>>>0)%Math.max(1,WW);
+          var sxs=Math.round(swx-WOFF); if(sxs<-40) sxs+=WW; if(sxs>SW+40) sxs-=WW;
+          if(sxs<-40||sxs>=SW+40) continue;
+          var sfh=hs[Math.max(0,Math.min(SW-1,sxs))]; if(sfh<30*KSP) continue;
+          var sTop=Math.round(sfh*(0.16+((sf*7919)>>>0)%100/100*0.14));   // the fan starts low on the flank
+          var sLen=Math.round(sTop*0.92), sW=Math.max(2,Math.round((5+(sf%4)*2)*KSP));
+          for(var sq=0;sq<sLen;sq++){
+            var sfF=sq/Math.max(1,sLen), sy4=(gy-sTop+sq)|0;
+            if(sy4>=gy) break;
+            var swd=Math.max(1,Math.round(sW*(0.22+0.78*sfF)));           // a cone, narrow at the chute
+            g.fillStyle=rgba(scC,(0.30+0.34*sfF)*(day?1:0.7));
+            g.fillRect(sxs-(swd>>1),sy4,swd,1);
+          }
+        }
+      }
+      // ⚠⚠ THE TREELINE, WHICH DID NOT EXIST. Every `drawTree` call site in the engine passes
+      // `HORIZON+1` — trees only ever grew on the flat ground band, which on a mature city sits
+      // behind the skyline. So the three subalpine conifers added last commit were, on this map,
+      // invisible: a mountain with an empty face and its forest hidden behind the buildings.
+      // A treeline does three things at once that nothing else on this face can: it puts a second
+      // COLOUR on the rock, it gives the range a SCALE reference, and its ragged upper edge is the
+      // single most recognisable thing about a mountain at any resolution.
+      // ⚠ SCALED BY ALTITUDE, NOT BY K. This is the ibex rule from the commit before last: up on the
+      // flank there is no person standing next to the tree to measure it against, so a correctly
+      // proportioned sprite still reads as a boulder. Height up the face IS distance here.
+      var BF2=curBiome.flora, treeK=0;
+      if(BF2&&BF2.kinds){ for(var fk=0;fk<BF2.kinds.length;fk++)
+        if(/spruce|larch|stonepine|windbent|juniper/.test(BF2.kinds[fk])) treeK++;
+        treeK/=BF2.kinds.length; }
+      treeK*=(B.snow?1:0.55);                       // a dry range genuinely has few trees — keep it sparse
+      if(treeK>0.05){
+        var tlAlt=fmx*(B.snow?0.40:0.52);           // the altitude the forest gives up at
+        var conif=day?(B.snow?[40,68,52]:[76,88,58]):[16,24,22];
+        var conC=mixc(conif,skc,hazeF*(day?1:0.5)), conD=mixc(conif,[0,0,0],0.35);
+        // ⚠⚠ A FOREST COVERS AREA, IT DOES NOT SIT ON THE SILHOUETTE. My first version planted every
+        // tree ON the ridge line — `y = gy - hs[x]` — which is where every other tree in this engine
+        // stands, and on a massif that filled the frame it produced almost nothing: the silhouette
+        // only drops below treeline altitude at the extreme edges, so 150 trees became about four.
+        // A mountainside forest is a REGION of the face, not a contour of its top. So each tree takes
+        // its own altitude on the flank and only has to prove there is rock under it at that height.
+        // ⚠ AND IT HAS TO BE DENSE, AND IT HAS TO CLUMP. Scattering trees uniformly over the flank
+        // gave evenly-spaced specks on a wall — the same failure as the savanna herd, where the
+        // sprites were correctly proportioned and still unreadable because there were too few of them
+        // and nothing grouped. Forest closes up at the bottom and breaks into stands as it climbs.
+        // ⚠ PLACED ON A WORLD GRID, NOT BY HASHING INTO THE WHOLE WORLD. Scattering `x = hash % WW`
+        // is world-anchored and correct, but a screen sees ~776 of 2269 world px, so two out of every
+        // three trees were rolled and thrown away — and this is a backdrop pass whose cost doubled.
+        // A jittered grid gives the identical placement on all three monitors (tree `q` is always at
+        // the same world x) while letting the loop run over only the slots this screen can see.
+        var nTree=Math.round((pi===1?2400:900)*treeK), tSc0=(pi===1?1:0.62);
+        var tGap=Math.max(1,WW/Math.max(1,nTree)), tQ0=Math.floor((WOFF-4)/tGap), tQ1=Math.ceil((WOFF+SW+4)/tGap);
+        for(var tq=tQ0;tq<=tQ1;tq++){
+          var tsd=((((tq%nTree)+nTree)%nTree)*40503+((WORLD_SEED*97)|0)+pi*5171)>>>0;
+          var twx=(tq*tGap+((tsd>>>3)%1000)/1000*tGap)%Math.max(1,WW);
+          var txs=Math.round(tq*tGap+((tsd>>>3)%1000)/1000*tGap-WOFF);
+          if(txs<0||txs>=SW) continue;
+          var tah=tlAlt*(((tsd>>>9)%1000)/1000);                          // this tree's own altitude
+          if(hs[txs]<tah+2*KSP) continue;                                 // …and there has to be rock under it
+          var tAf=tah/tlAlt;
+          var tRoll=(((twx*2654435761)>>>0)%1000)/1000;
+          // thins with altitude — solid low down, single trees at the top, no line anywhere
+          if(tRoll<Math.max(0,(tAf-0.34)/0.66)*0.92) continue;
+          // …and grows in STANDS: a slow two-octave field along the world says where the ground
+          // actually holds forest, so gullies and bare buttresses stay bare
+          var tCl=0.5+0.5*(Math.sin(twx*0.021/KSP)*0.6+Math.sin(twx*0.0073/KSP+2.1)*0.4);
+          if((((tsd>>>19)%100)/100)>tCl*0.94+0.20) continue;
+          var tSc=tSc0*(1.55-1.00*tAf)*KSP;                              // higher up the face = further back
+          var tH=Math.max(2,Math.round((3.4+2.6*((tq*13)%3)/2)*tSc));
+          var tY=(gy-tah)|0, tW=Math.max(1,Math.round(tH*0.42));
+          if(tY<2||tY>=gy) continue;
+          // ⚠ AND IT IS NOT ONE TREE REPEATED. Last commit gave alpine three subalpine conifers with
+          // deliberately different OUTLINES, because outline is the only thing that reads at this
+          // size — and then every one of them stayed down on the ground band where the city hides it.
+          // A hillside of the identical spire scaled up and down is the same failure the flora pass
+          // was fixing, one layer up. The kind comes from the variant's own `flora.kinds`, so THE DRY
+          // RANGE gets its stone pine and juniper and the snow ranges get spruce and larch.
+          var tKind=BF2.kinds[(tsd>>>5)%BF2.kinds.length];
+          var tCol=conC, tDrk=conD;
+          if(tKind==="larch"&&curSeason&&curSeason.name==="autumn"){ tCol=mixc([206,168,72],skc,hazeF); tDrk=mixc(tCol,[0,0,0],0.3); }
+          else if(tKind==="larch"){ tCol=mixc(conC,[150,180,120],0.34); tDrk=mixc(tCol,[0,0,0],0.3); }
+          if(tKind==="stonepine"||tKind==="juniper"||tKind==="scrub"||tKind==="sage"||tKind==="grass"){
+            // STONE PINE and the low scrub: a bare trunk under an umbrella, or just a tuft. The one
+            // shape up here that is WIDE rather than tall, which is what breaks a slope of spires.
+            var uT=Math.max(1,Math.round(tH*(tKind==="stonepine"?0.52:0.15)));
+            if(tKind==="stonepine"){ g.fillStyle=rgba(day?[86,68,48]:[24,20,16],0.9);
+              g.fillRect(txs,tY-uT,Math.max(1,Math.round(tSc*0.5)),uT); }
+            // ⚠ ROUNDED, NOT A BLOCK. A crown drawn as rows running 0.55 -> 1.0 of its width is a
+            // rectangle with a slight batter, and at six pixels tall that reads as a tombstone. Both
+            // of these shapes are round things: the width peaks in the middle of the crown and falls
+            // away at both ends, which is the only way a blob says "foliage" rather than "object".
+            var uW=Math.max(2,Math.round(tW*(tKind==="stonepine"?1.6:1.25)));
+            var uH=Math.max(2,(tKind==="stonepine"?tH-uT:Math.round(tH*0.5)));
+            for(var ur=0;ur<uH;ur++){
+              var urf=(ur+0.5)/uH, urw=Math.max(1,Math.round(uW*(0.34+0.66*Math.sin(urf*3.14159))));
+              g.fillStyle=rgba(urf<0.34?tDrk:tCol,day?0.92:0.8);
+              g.fillRect(txs-(urw>>1),tY-uH+ur-(tKind==="stonepine"?uT:0),urw,1);
+            }
+          } else {
+            // a spire, drawn as widening rows — a spruce is narrow and sharply pointed, a larch
+            // broader and softer, and at this size that difference IS the species
+            var spW=(tKind==="larch")?tW*1.35:tW;
+            for(var tr=0;tr<tH;tr++){
+              var trf=tr/tH, trw=Math.max(1,Math.round(spW*(0.18+0.82*trf)));
+              g.fillStyle=rgba(trf>0.72?tDrk:tCol,day?0.92:0.8);
+              g.fillRect(txs-(trw>>1),tY-tH+tr,trw,1);
+            }
+          }
+        }
+      }
+    }
     // SNOW CAPS — per column (dithered melt edge); one fillStyle set for the whole ridge.
     // On rock biomes this same band becomes CAPROCK: the paler hard stratum on top of a mesa or a
     // sea cliff. Snow wanders and melts unevenly; a bed of rock does neither, so the snowline wobble
@@ -21465,6 +21692,17 @@ function drawMountains(g,L,now,nd){
         var cwx=((cu*104729+((WORLD_SEED*53)|0))>>>0)%Math.max(1,WW);
         var cxs=Math.round(cwx-WOFF); if(cxs<-30) cxs+=WW; if(cxs>SW+30) cxs-=WW;
         if(cxs<0||cxs>=SW) continue;
+        // ⚠ SNAPPED INTO A TROUGH OF THE RIB FIELD. A couloir placed on an arbitrary column lands as
+        // often on a spur as in a gully, and a white line running down the middle of a sunlit buttress
+        // reads as a scratch on the picture rather than snow in a cleft — which is exactly what these
+        // looked like before the face had any ribs to sit between. The rib field IS where the gullies
+        // are, so search a short way either side for its local minimum and put the couloir there.
+        if(B.alpine&&mtsCache.rib[pi]){
+          var rbf=mtsCache.rib[pi], bestC=cxs, bestV=rbf[cxs], snap=Math.round(9*KSP);
+          for(var cs3=Math.max(0,cxs-snap);cs3<=Math.min(SW-1,cxs+snap);cs3++)
+            if(rbf[cs3]<bestV){ bestV=rbf[cs3]; bestC=cs3; }
+          cxs=bestC;
+        }
         var crh=hs[cxs]; if(crh<26*KSP) continue;
         var ctop=(gy-crh)|0;
         var cst=Math.round(snl+(mtsCache.wig[cxs]||0));           // starts at this column's snowline
@@ -21477,7 +21715,9 @@ function drawMountains(g,L,now,nd){
         // couloir is visible on a bare face — so the length comes off the peak height instead.
         var clen=Math.round(crh*(0.22+0.30*(((cu*7919)>>>0)%100)/100));
         if(clen<4*KSP) continue;
-        var cw2=Math.max(1,Math.round((1.2+((cu*13)%3))*KSP*0.7));
+        // a cleft, not a hairline — but only where the face behind it has ribs for it to sit between.
+        // Every other snow land keeps the old width until its own turn in the map-by-map pass.
+        var cw2=Math.max(1,Math.round((B.alpine?(1.9+((cu*13)%3))*KSP*0.8:(1.2+((cu*13)%3))*KSP*0.7)));
         for(var cq=0;cq<clen;cq++){
           var cf=cq/clen;
           var wq2=Math.max(1,Math.round(cw2*(1-cf*0.75)));         // tapers as it runs down
