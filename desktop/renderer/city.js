@@ -2968,7 +2968,13 @@ var BIOMES=[
     waterPal:{deep:[26,32,44],mid:[18,24,34],shal:[12,17,25]},
     fauna:{ keep:{deer:0,rabbit:0,fox:1,goat:0}, big:[], small:["rat","pigeon"], air:["crow"] },   // ⚠ `small` is drawSpot; a BIRD in here has no c2 and crashes the frame
     flora:{ kinds:["scrub","reeds","scrub","weedtree","reeds"], bloom:["#4be0d0","#f04a8a","#ffe14a"] },
-    sky:{ top:[52,58,84], bot:[132,124,148], k:0.34, haze:[142,132,156] } },
+    // ⚠ k RAISED 0.34 -> 0.72, into the same band as hell and heaven. Nick's requirement for this land
+    // is that it "read cyberpunk at NOON" and be "dimmer than other lands under the SAME real weather".
+    // Both are impossible while its dark sky is diluted into the shared daylight blue — at 0.34 (and
+    // even at the gained 0.53) the rendered noon sky came out (78,112,159), an ordinary blue. THE
+    // SPRAWL belongs with the lands whose identity IS their sky, so it gets an authored weight rather
+    // than a gained one. >=0.5 also means SKY_GAIN passes it through untouched.
+    sky:{ top:[52,58,84], bot:[132,124,148], k:0.72, haze:[142,132,156] } },
   // THE LAST TWO ARE NOT EARTH. Everything else in this table is plausible geography under one sun;
   // these are not, and they are the only rows whose `sky.k` runs high enough to genuinely repaint the
   // day. They still obey the same rule every other biome does: the REAL Norwich clock and the REAL
@@ -3052,6 +3058,12 @@ var FAUNA={
   crow:      {plan:"bird", c:[34,34,40],   soar:1, perch:1},
   pigeon:    {plan:"spot", c:[104,108,120], c2:[150,154,166], upright:1}
 };
+// How hard a land's own air is allowed to colour its sky. Applied in drawSky to any land asking for
+// LESS than 0.5 — see the long note there. Lands at 0.5+ (hell, heaven) already read as themselves
+// and are passed through untouched, so this only lifts the ones that were washing out to a shared
+// daylight blue. One constant rather than 36 hand-edited numbers, because the authored k values
+// already encode each land's relative intent and only the overall scale was wrong.
+var SKY_GAIN = 1.55;
 // Distance haze fades everything toward THE SKY IT IS UNDER. This was a hardcoded pale blue, which
 // is right for five biomes and wrong for the two that repaint the day — under an infernal sky the
 // far ridges were still fading toward a soft blue-grey, so a mountain range in Hell came out dusty
@@ -3183,13 +3195,13 @@ var BIOME_VARIANTS={
       walls:[[74,54,56],[52,38,40],[92,66,64],[40,30,32],[104,74,68],[60,44,46],[82,60,58],[46,34,36]],
       waterPal:{deep:[44,26,30],mid:[30,18,21],shal:[20,12,14]},
       flora:{ kinds:["scrub","reeds","weedtree","scrub","reeds"], bloom:["#ff3a5c","#ffa63a","#ff6ad5"] },
-      sky:{ top:[64,40,58], bot:[152,110,118], k:0.36, haze:[160,116,122] } },
+      sky:{ top:[64,40,58], bot:[152,110,118], k:0.76, haze:[160,116,122] } },   // see the base sprawl note: authored weight, not gained
     { name:"THE COLD STACK",     // corporate, sterile, blue-white: the clean end of the same city
       far:[124,136,152], near:[86,98,116], cap:[164,176,192], ground:[96,104,116],
       walls:[[86,96,112],[62,72,88],[104,116,134],[52,62,76],[118,130,148],[74,84,100],[96,108,126],[58,68,84]],
       waterPal:{deep:[28,40,58],mid:[20,30,44],shal:[14,21,32]},
       flora:{ kinds:["scrub","grass","scrub","weedtree","grass"], bloom:["#7ce8ff","#c0d8ff","#ffffff"] },
-      sky:{ top:[58,74,104], bot:[150,162,182], k:0.32, haze:[158,168,188] } } ],
+      sky:{ top:[58,74,104], bot:[150,162,182], k:0.68, haze:[158,168,188] } } ],  // the coldest of the three, but still its own sky
 
   arctic:[ {},
     { name:"THE TUNDRA",   // arctic SUMMER: the sea ice gone, brown-green moss, meltwater pools, low sun
@@ -23324,7 +23336,20 @@ function draw(g,pass){
   // the land's own air, mixed INTO the phase colour rather than over it, so dawn is still dawn and a
   // socked-in overcast still greys the desert. Damped at night — a tinted night sky loses its stars.
   var BSky=curBiome.sky;
-  if(BSky){ var bsk=BSky.k*(isDay?1:0.30);
+  // ⚠ THE PER-LAND SKY WAS WIRED CORRECTLY AND STILL DID NOT READ. Sampling the rendered top-centre
+  // pixel of all 36 named looks against each land's declared `sky.top` found every ordinary land
+  // converging on the same daylight blue: THE SPRAWL declares [52,58,84] and rendered (86,131,186),
+  // THE RED DISTRICT declares [64,40,58] and rendered a blue. The mechanism was never the problem —
+  // the WEIGHT was. Only `hell` (0.82) and `heaven` (0.64) asked for enough to survive the mix, and
+  // they are precisely the two lands anyone would name as having their own sky. Every other land sat
+  // at 0.22-0.36, i.e. three quarters shared daylight, so no land could look like itself.
+  // Gain the quiet lands and leave the two loud ones exactly as they are: the authored k values still
+  // express each land's RELATIVE intent (a desert's air really is subtler than the Ashlands'), so they
+  // are scaled rather than replaced, preserving the ordering the author chose.
+  // ⚠ Nick's requirement that THE SPRAWL "read cyberpunk at NOON" and be "dimmer than other lands
+  // under the SAME real weather" is impossible while its dark sky is diluted to a quarter strength.
+  if(BSky){ var bk=BSky.k>=0.5?BSky.k:BSky.k*SKY_GAIN;     // >=0.5 lands are already right — do not touch
+    var bsk=bk*(isDay?1:0.30);
     cA=mixc(cA,BSky.top,bsk); cB=mixc(cB,BSky.bot,bsk); }
   var grd=g.createLinearGradient(0,0,0,SH);
   grd.addColorStop(0,css(mixc(cA,ocTop,ocMix)));
