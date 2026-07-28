@@ -2912,7 +2912,14 @@ var BIOMES=[
   // seventeen lands showed they were in fact the thinnest thing we shipped, and they read well only
   // because a mountain range is a strong silhouette. Nulls here also meant `drawBiomeLandmark`
   // early-returns on `!B.fauna`, so alpine could not have a landmark either.
-  { k:"alpine", name:"ALPINE",     amp:1.00, base:1.00, flat:0.0, steep:0.0, snow:true,  water:null, alpine:1,
+  // ⚠ RELIEF RAISED IN THE READABILITY PASS. Measured across six lives at Nick's real geometry, the
+  // rock lands rose: cliffs 64% of the sky, volcano 68%, arctic 57%, mesa 41% — and ALPINE 37%, with a
+  // range from 18% to 71%. The land literally named after mountains had the weakest and most erratic
+  // landform of all of them, and on its low rolls the range was barely findable behind the city.
+  // This is a SHAPE fix, not a colour one, so it is deliberately conservative: amp and base go up
+  // together, which lifts the whole range rather than exaggerating the peaks, so a low alpine life is
+  // still a low range — just one you can see. The silhouette and the roll are untouched.
+  { k:"alpine", name:"ALPINE",     amp:1.30, base:1.34, flat:0.0, steep:0.0, snow:true,  water:null, alpine:1,
     far:[126,146,182], near:[100,116,152], cap:[234,240,250], ground:[132,140,124],
     // stone-and-timber chalets: whitewashed render, weathered larch, slate
     walls:[[228,224,212],[196,188,172],[142,110,78],[240,238,230],[168,132,92],[178,176,170],[210,204,190],[120,96,70]],
@@ -20853,8 +20860,16 @@ function drawMountains(g,L,now,nd){
   // The biome supplies the rock; night still drains it toward the sky colour and sunset still
   // blushes it, so red mesa and grey sea-cliff read as the same world under the same light.
   var B=curBiome, dim=function(c){ return [(c[0]*0.16)|0,(c[1]*0.18)|0,(c[2]*0.30)|0]; };
-  var farC =mixc(mixc(day?B.far:dim(B.far),  skc, day?0.5:0.38), [200,124,152], sunsetK*0.34);
-  var nearC=mixc(mixc(day?B.near:dim(B.near),skc, day?0.24:0.2), [150,92,124], sunsetK*0.3);
+  // ⚠⚠ THE READABILITY PASS, and the single highest-leverage change in it. Judged full-frame at
+  // Nick's real geometry across all 27 looks, one fault dominated: the ridges were hazed so far toward
+  // the sky colour that they stopped SEPARATING from it. Alpine — a land whose entire identity is a
+  // mountain range — had mountains you could barely find, and the plains, swamp and cliffs read as
+  // empty sky over a thin city band. At 0.5 the far ridge is literally half sky.
+  // Aerial perspective is real and worth keeping, so the shape and the falloff are untouched; only
+  // the AMOUNT comes down. That is Nick's rule for exactly this case: realism for shape, readability
+  // for colour. 0.50 -> 0.34 far, 0.24 -> 0.15 near — still clearly receding, no longer dissolving.
+  var farC =mixc(mixc(day?B.far:dim(B.far),  skc, day?0.34:0.30), [200,124,152], sunsetK*0.34);
+  var nearC=mixc(mixc(day?B.near:dim(B.near),skc, day?0.15:0.16), [150,92,124], sunsetK*0.3);
   var snF=mixc(day?B.cap:mixc(B.cap,[0,0,0],0.62), [255,168,148], sunsetK*0.55);   // alpenglow on the snow
   var snN=mixc(day?mixc(B.cap,[255,255,255],0.35):mixc(B.cap,[0,0,0],0.55), [255,150,128], sunsetK*0.6);
   var litK=Math.max(0,Math.min(1,(L-0.34)*2.4));                  // how hard the sun models the rock
