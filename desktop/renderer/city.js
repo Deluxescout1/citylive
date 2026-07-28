@@ -3380,8 +3380,17 @@ var BIOME_VARIANTS={
       fauna:{ keep:{deer:0,rabbit:1,fox:1,goat:0}, big:["seal"], small:["puffin","otter"], air:[] },
       sky:{ top:[136,172,216], bot:[206,222,230], k:0.24, haze:[212,226,232] } },
     { name:"THE BASALT COAST", // dark columnar basalt, black shingle, cold grey water
-      far:[74,78,84],    near:[44,48,54],   cap:[104,108,114], ground:[62,66,64],
-      walls:[[128,132,136],[100,104,110],[152,154,156],[80,84,90],[116,120,126],[92,96,102],[140,142,146],[70,74,80]],
+      // ⚠⚠ SEPARATED FROM THE CITY IN FRONT OF IT. Nick: "it still looks hard to read." The birds were
+      // only half of it — the other half was that this cliff and these buildings were the SAME TONE.
+      // The basalt sat at [44,48,54] and the walls at [70..152]; against a wall that dark the darker
+      // half of the palette vanished completely, so a whole tower disappeared and only its lit WINDOWS
+      // survived — which is what those scattered dots on the rock actually were. Measured 218 of them
+      // from drawNewTower alone, more than the entire bird colony.
+      // The rock lifts and the walls brighten, so the city reads as objects standing IN FRONT of a
+      // wall rather than as sparks on it. Still unmistakably dark basalt — just no longer the same
+      // value as the things standing on it. (Readability for colour; the shapes are untouched.)
+      far:[96,102,110],  near:[68,74,82],   cap:[126,130,138], ground:[62,66,64],
+      walls:[[168,172,178],[136,140,148],[192,194,198],[118,122,130],[154,158,166],[128,132,140],[180,182,188],[108,112,120]],
       flora:{ kinds:["windbent","gorse","windbent","grass","gorse"], bloom:["#e8e0a0","#c0d0c0","#ffffff"] },
       fauna:{ keep:{deer:0,rabbit:0,fox:1,goat:0}, big:["seal"], small:["puffin","otter"], air:[] },
       sky:{ top:[112,128,146], bot:[172,182,190], k:0.32, haze:[178,188,194] } } ],
@@ -20542,45 +20551,51 @@ function drawCliffLife(g,L,now,nd,fx){
   //   · GUANO STREAKS running DOWN from the busy ledges. This is what a seabird cliff actually looks
   //     like from a distance, and being VERTICAL it is a different shape from a flying bird, so the
   //     eye separates the two instantly instead of having to count pixels.
-  var bandN=3, bird=day?"rgba(248,250,252,0.92)":"rgba(196,204,214,0.55)";
-  var dark=day?"rgba(52,58,66,0.75)":"rgba(28,32,38,0.5)";
-  var ledgeD=day?"rgba(30,34,40,0.55)":"rgba(12,14,18,0.5)";
-  var ledgeL=day?"rgba(210,216,224,0.30)":"rgba(120,132,150,0.20)";
-  var guano =day?"rgba(238,242,246,0.30)":"rgba(150,160,175,0.16)";
-  var step=Math.max(3,Math.round(3*K));
-  for(var b=0;b<bandN;b++){
-    for(var cx=Math.round(SW*0.03);cx<Math.round(SW*0.97);cx+=step){
-      var h=ridgeH(cx); if(h<18*K) continue;
-      var ly=(gy-h)+Math.round(h*(0.22+b*0.20));
-      if(ly>gy-4*K) continue;
-      // the shelf itself, so a row has something to stand on
-      g.fillStyle=ledgeD; g.fillRect(cx|0,(ly+Math.round(K))|0,step,Math.max(1,Math.round(K)));
-      g.fillStyle=ledgeL; g.fillRect(cx|0,ly|0,step,Math.max(1,Math.round(K*0.7)));
-      // colonies come in KNOTS. One low-frequency hash decides whether this stretch is occupied at
-      // all, so there are long empty runs of bare rock between crowded patches.
-      var knot=(mixLi(((cx/Math.max(1,step*7))|0)*7919+b*104729, 5171)%100);
-      if(knot>46) continue;
-      var dens=1-(knot/46);                                   // busiest in the middle of a knot
-      var nb=1+Math.round(dens*2);
+  // ⚠⚠ SECOND REDESIGN. Nick, after the first: "it still looks hard to read."
+  // He was right again, and I had fixed the wrong half. The first pass cut the speck COUNT and gave
+  // the birds ledges to sit on — but it still ran THREE FULL-WIDTH LEDGE BANDS across the entire
+  // cliff, so the face was still covered edge to edge in marks. Less noise is not the same as less
+  // busy. A cliff has to read as A CLIFF first, at a glance, from across the room; the colony is
+  // something you then NOTICE ON it, not a texture applied to all of it.
+  // So the colony is now a handful of DISCRETE sites, and everything between them is bare rock:
+  //   · 5-7 colonies across the whole world, each a short shelf — not a band
+  //   · birds drawn BIGGER (2px, with a dark back) so one bird reads as one bird
+  //   · one streak per site
+  // Bare rock is the feature here. It is what lets the sites stand out at all.
+  var bird=day?"rgba(250,252,254,0.95)":"rgba(200,208,218,0.6)";
+  var dark=day?"rgba(44,50,58,0.85)":"rgba(22,26,32,0.6)";
+  var ledgeD=day?"rgba(26,30,36,0.7)":"rgba(10,12,16,0.55)";
+  var ledgeL=day?"rgba(214,220,228,0.42)":"rgba(126,138,156,0.24)";
+  var guano =day?"rgba(238,242,246,0.26)":"rgba(150,160,175,0.14)";
+  var SITES=5+(((WORLD_SEED*7919)>>>0)%3);
+  for(var si=0;si<SITES;si++){
+    var sseed=((si*104729+((WORLD_SEED*31)|0))>>>0);
+    var swx=(sseed%Math.max(1,WW));
+    for(var w9=-1;w9<=1;w9++){
+      var sx9=Math.round(swx-WOFF+w9*WW);
+      var wid=Math.round((16+(sseed>>>5)%18)*K*0.6);
+      if(sx9+wid<0||sx9-wid>SW) continue;
+      var hh9=ridgeH(sx9); if(hh9<20*K) continue;
+      var ly=(gy-hh9)+Math.round(hh9*(0.24+((sseed>>>11)%100)/100*0.42));
+      if(ly>gy-6*K) continue;
+      // the shelf — short, and the only place on this rock with anything on it
+      g.fillStyle=ledgeD; g.fillRect(sx9|0,(ly+Math.round(K))|0,wid,Math.max(1,Math.round(K*1.2)));
+      g.fillStyle=ledgeL; g.fillRect(sx9|0,ly|0,wid,Math.max(1,Math.round(K*0.8)));
+      // the birds on it, big enough to be birds
+      var nb=3+((sseed>>>17)%4);
       for(var q=0;q<nb;q++){
-        var bxq=cx+Math.round(q*K*1.4);
-        var hsh=((bxq*2654435761+b*7919)>>>0);
-        if((hsh%100)>72) continue;
+        var bx9=sx9+Math.round(2*K)+Math.round(q*(wid-4*K)/Math.max(1,nb-1));
+        var bh9=((bx9*2654435761+si)>>>0);
         g.fillStyle=bird;
-        g.fillRect(bxq|0,(ly-Math.round(K))|0,Math.max(1,Math.round(K)),Math.max(1,Math.round(K*1.4)));
-        if((hsh>>>7)%3===0){ g.fillStyle=dark;                // a darker back among the white breasts
-          g.fillRect((bxq+Math.round(K))|0,(ly-Math.round(K))|0,Math.max(1,Math.round(K)),Math.max(1,Math.round(K))); }
+        g.fillRect(bx9|0,(ly-Math.round(2*K))|0,Math.max(1,Math.round(K*1.3)),Math.max(1,Math.round(2*K)));
+        g.fillStyle=dark;                                        // the dark back, so it has a shape
+        g.fillRect(bx9|0,(ly-Math.round(2*K))|0,Math.max(1,Math.round(K*1.3)),Math.max(1,Math.round(K*0.7)));
+        if((bh9>>>9)%3===0){ g.fillStyle=bird;                    // one with its head up
+          g.fillRect((bx9+Math.round(K*0.4))|0,(ly-Math.round(2.8*K))|0,Math.max(1,Math.round(K*0.6)),Math.max(1,Math.round(K*0.8))); }
       }
-      // …and the streak the knot leaves down the rock beneath it
-      // ⚠ ONLY THE BUSIEST KNOTS, AND SHORT. The first pass streaked from every half-decent patch and
-      // ran them a fifth of the cliff's height — at that density and length they stopped reading as
-      // weathering under a colony and started reading as RAIN, which is a different confusion for the
-      // same eye. A streak is now a mark a crowded ledge leaves just below itself.
-      if(dens>0.62){
-        var glen=Math.round(h*(0.05+0.07*dens));
-        g.fillStyle=guano;
-        g.fillRect((cx+Math.round(K*0.5))|0,(ly+Math.round(2*K))|0,Math.max(1,Math.round(K)),glen);
-      }
+      // one streak, from this site only
+      g.fillStyle=guano;
+      g.fillRect((sx9+Math.round(wid*0.4))|0,(ly+Math.round(2.4*K))|0,Math.max(1,Math.round(K*1.4)),Math.round(hh9*0.09));
     }
   }
 
