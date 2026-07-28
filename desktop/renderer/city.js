@@ -10873,7 +10873,15 @@ function P_step(pop, tick, lifeSeed, bldgDead, econ, evt){
   // elections land on the ENGINE's mayoral-term boundaries (TERM of a life) — ONE political truth, so the
   // HUD/almanac/Chronicle mayor is exactly this elected citizen and never flips mid-term (SOL P0).
   var termLen = ((typeof TERM!=='undefined'?TERM:0.18) * P_LIFE_TICKS) || 162;
+  // ⚠⚠ AN EMERGENCY ELECTION IS AN ELECTION. Nick's ruling for Phase 8: if a disaster kills the sitting
+  // mayor the city goes to an early vote rather than quietly handing City Hall to the runner-up. The
+  // difference matters — a deputy finishing a term is how THE ORDER's arc starts, and he wanted the
+  // opposite here: the death interrupts the political machinery in public.
+  // Scheduled rather than instant, because a city does not vote the same afternoon: the office stands
+  // VACANT for a short compressed campaign, which is also what makes the HUD read "NO MAYOR" and the
+  // ticker have something to talk about.
   var doElect = tick>0 && (Math.floor(tick/termLen) > Math.floor((tick-1)/termLen));
+  if(econ.emergencyAt>0 && tick>=econ.emergencyAt){ doElect=true; econ.emergencyAt=0; econ.emergencyRan=(econ.emergencyRan||0)+1; }
   var prevRich = econ.richPct||0;                          // prior-tick inequality signal (SOL P2: no index bias)
 
   for(var i=0;i<N;i++){
@@ -10946,10 +10954,15 @@ function P_step(pop, tick, lifeSeed, bldgDead, econ, evt){
   // mayor validity + SUCCESSION: a dead mayor is replaced by the term's runner-up if still living,
   // else the office falls vacant (SOL P1: death must not silently empty the office).
   if(econ.mayor>=0 && !P_ref(pop, econ.mayor, econ.mayorGen)){
-    var lr=econ.elecRecords.length?econ.elecRecords[econ.elecRecords.length-1]:null;
-    var succ=(lr && lr.runnerIdx>=0)?P_ref(pop, lr.runnerIdx, lr.runnerGen):null;
-    if(succ){ succ.office=2; econ.mayor=succ.idx; econ.mayorGen=succ.gen; if(lr) lr.succeeded=true; }
-    else { econ.mayor=-1; econ.mayorGen=-1; }
+    // ⚠ THE OFFICE FALLS VACANT AND THE CITY VOTES. This used to install the term's runner-up
+    // silently — correct as a safety net ("death must not silently empty the office") and wrong as
+    // drama, which is what Nick asked to change. The safety net is still here: if the emergency
+    // election cannot run for any reason the vacancy is filled at the next ordinary one, so the office
+    // can never be permanently empty.
+    econ.mayorDiedTick=tick;
+    econ.mayorDiedName=econ.mayorName||null;
+    econ.mayor=-1; econ.mayorGen=-1;
+    if(!(econ.emergencyAt>0)) econ.emergencyAt=tick+Math.max(1,Math.round(termLen*0.10));   // a compressed campaign
   }
   // mid-term RECALL (one truth): a scandal-ridden mayor is thrown out at ~half-term; the runner-up takes
   // City Hall for the rest of the term. The office actually moves in the sim, so HUD == menu == Chronicle.
@@ -10978,6 +10991,10 @@ function P_step(pop, tick, lifeSeed, bldgDead, econ, evt){
         recalled:(runner>=0 && (recH%100)<10), recallTick:Math.round((eterm+0.5)*termLen), applied:false, ousted:false });   // ~10% of terms end in a recall (needs a runner-up to install)
       if(econ.elecRecords.length>16) econ.elecRecords.shift(); }
   }
+  // keep the sitting mayor's name current, so that when they are killed there is still a name to
+  // mourn — by the time the vacancy is noticed the person object is already gone from the roster
+  var _sm=(econ.mayor>=0)?P_ref(pop, econ.mayor, econ.mayorGen):null;
+  if(_sm) econ.mayorName=P_name(_sm);
   econ.tick=tick;
 }
 
