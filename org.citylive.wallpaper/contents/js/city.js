@@ -13384,6 +13384,75 @@ function drawFaunaBird(g,L,now,sp,seed,gy,K){
 // herd — deterministic per index, kept off the paved road by wildOK, routed onto dry land by
 // landRoute, and drawn at all three wrap offsets — so it thins out as the city urbanises like the
 // rest of the wild does.
+// ================================================================================================
+// THE LIVING WILD — behaviour that is SCRIPTED, never simulated
+// ------------------------------------------------------------------------------------------------
+// Nick: "get the animals to act more naturally and not just running from one side of the screen to
+// the other. like add a watering hole and animal hunting animals."
+//
+// ⚠⚠ WHY THIS IS A HASH AND NOT A SIMULATION, which is the whole design and must not be "improved"
+// into a state machine later: every sprite in this engine is a pure function of (world x, clock)
+// precisely so three monitors agree without talking to each other. An animal that ACCUMULATED
+// position would drift apart across screens within seconds, and a hunt whose outcome was rolled at
+// runtime would kill on one monitor and miss on the next — the same zebra alive on the left screen
+// and a carcass on the right. So:
+//   · time is cut into blocks; hash(seed, blockIndex) picks that block's ACTIVITY and DESTINATION
+//   · position eases from the previous block's anchor to this one, so animals stop and start rather
+//     than sliding across at constant speed — which is exactly what Nick was complaining about
+//   · a kill is not an event that happens, it is hash(...) SAYING a kill happened in that block, and
+//     every screen reads the same answer at the same instant
+var WILD_BLOCK=26000;                                     // ~26s per activity block
+function wildHash(seed,bi,salt){ return (mixLi(((seed*2654435761)>>>0)^(bi*40503),(salt||7919))%1000)/1000; }
+// The watering hole: one per life, and the anchor the whole behaviour system hangs off. Everything
+// that gets thirsty walks here, which is what stops the wildlife looking like independent traffic.
+function waterHoleX(){ return ((WORLD_SEED*104729)>>>0)%Math.max(1,WW); }
+// What an animal is doing right now, and where. Pure f(seed, now, light).
+//   act: 0 graze · 1 walk to water · 2 drink · 3 rest · 4 watch (head up, alert)
+function wildAt(seed,now,L){
+  var bi=Math.floor(now/WILD_BLOCK), t=(now%WILD_BLOCK)/WILD_BLOCK;
+  var day=L>0.5, dawnDusk=Math.abs(L-0.5)<0.22;
+  function anchor(b){
+    var r=wildHash(seed,b,7919), r2=wildHash(seed,b,5171), act;
+    // ⚠ THE DAY/NIGHT RHYTHM IS A WEIGHTING, NOT A SCHEDULE. Animals drink at dawn and dusk, shelter
+    // at midday and rest at night — but any animal can be doing anything, or a herd reads as a clock.
+    if(dawnDusk)      act = r<0.42?1:(r<0.58?2:(r<0.86?0:4));      // dawn/dusk: the water shift
+    else if(day)      act = r<0.18?1:(r<0.26?2:(r<0.62?0:(r<0.86?3:4)));  // midday: graze and shade up
+    else              act = r<0.10?1:(r<0.16?2:(r<0.40?0:(r<0.90?3:4)));  // night: mostly resting
+    var x;
+    if(act===1||act===2) x=waterHoleX()+(r2-0.5)*46;              // gather AT the hole, not on it
+    else if(act===3)     x=(seed%Math.max(1,WW))+(r2-0.5)*40;     // rest near where you already were
+    else                 x=r2*WW;                                  // graze anywhere in your range
+    return {x:wrapW(x), act:act};
+  }
+  var a=anchor(bi-1), b=anchor(bi);
+  // ease in the first 55% of the block, then HOLD — the stop-and-start is the whole point
+  var m=Math.min(1,t/0.55), e=m*m*(3-2*m);
+  var dx=b.x-a.x; if(dx>WW/2) dx-=WW; if(dx<-WW/2) dx+=WW;
+  return { x:wrapW(a.x+dx*e), act:b.act, moving:(t<0.55&&Math.abs(dx)>6), face:(dx>=0?1:-1) };
+}
+// A HUNT. Predators get their own block clock; the OUTCOME is hashed too, so a kill is agreed on by
+// every screen. Returns null when this predator is not hunting in this block.
+function huntAt(seed,now,L){
+  var bi=Math.floor(now/WILD_BLOCK), t=(now%WILD_BLOCK)/WILD_BLOCK;
+  var night=L<=0.5;
+  if(wildHash(seed,bi,3571) > (night?0.34:0.14)) return null;      // most blocks are not a hunt, and
+  var preyX=wrapW(wildHash(seed,bi,9973)*WW);                       // cats mostly hunt in the dark
+  var kill=wildHash(seed,bi,1237)<0.34;                             // ~1 hunt in 3 succeeds, as in life
+  return { x:preyX, t:t, kill:kill, phase:(t<0.45?"stalk":(t<0.62?"rush":"after")) };
+}
+// Was there a kill near here recently? A carcass is not an object — it is the hash still saying yes.
+// Persists a couple of blocks so scavengers have time to work, then clears itself.
+function carcassAt(seed,now,L){
+  for(var back=0;back<3;back++){
+    var bi=Math.floor(now/WILD_BLOCK)-back;
+    var age=((now%WILD_BLOCK)+back*WILD_BLOCK)/(WILD_BLOCK*3);
+    if(wildHash(seed,bi,3571) > (L<=0.5?0.34:0.14)) continue;
+    if(wildHash(seed,bi,1237)>=0.34) continue;
+    if(age<0.16) continue;                                          // the kill itself is still happening
+    return { x:wrapW(wildHash(seed,bi,9973)*WW), age:age };
+  }
+  return null;
+}
 function drawBiomeFauna(g,L,now,nd,wild,gy){
   var fa=curBiome.fauna; if(!fa||cityPhase==="apoc") return;
   var day=L>0.5, K=Math.max(1,KSP), i, o, sp, X;
@@ -13399,11 +13468,14 @@ function drawBiomeFauna(g,L,now,nd,wild,gy){
       // same species, which is not what a herd looks like. There is one centre per species now; it
       // walks slowly across its patch and the members hold station around it, each with only enough
       // jitter of its own to keep them from marching in step.
-      var herdC=((i*2654435761+7)>>>0)%1000/1000;                     // this species' patch of country
-      var walk=Math.sin(now*0.000035+i*1.7)*0.055;                    // …which the whole herd crosses
+      // ⚠ THE HERD NOW GOES SOMEWHERE FOR A REASON. This used to be `Math.sin(now*0.000035)` — a slow
+      // constant drift, which is precisely the "just running from one side of the screen to the other"
+      // Nick reported. The herd centre is a scripted animal in its own right: it grazes, walks to the
+      // watering hole, drinks, rests, and stops in between, and the members hold station around it.
+      var W=wildAt(((i*2654435761+7)>>>0), now, L);
       var slotX=(n-(herd-1)/2)*Math.max(10,sp.w*KSP*1.9);             // spacing inside the herd
       var jitter=Math.sin(now*0.00022+n*2.3+i)*3.2*KSP;
-      var wx=landRoute(wrapW((herdC+walk)*WW+slotX+jitter));
+      var wx=landRoute(wrapW(W.x+slotX+jitter));
       if(sp.head==="seal"){                                            // seals haul out ON the rocks
         if(!hasOcean||seaW<=0) continue;
         wx=wrapW((n&1)?WW*seaW+6+((sd2>>5)%10):WW*(1-seaW)-6-((sd2>>5)%10));
@@ -16534,6 +16606,44 @@ function drawSavanna(g,L,now,nd){
       }
     }
   }
+  // ---- THE WATERING HOLE. The anchor of the whole behaviour system: every thirsty animal on this
+  // land walks here, so it is the reason the herd has somewhere to be. Shrinks in the dry season,
+  // which is exactly when everything is most desperate to reach it.
+  var whx=waterHoleX(), dry=!!B.dust;
+  for(var o3=-1;o3<=1;o3++){
+    var wx0=Math.round(whx-WOFF+o3*WW);
+    var ww=Math.round((dry?26:44)*Math.max(1,K*0.5));
+    if(wx0+ww<0||wx0-ww>SW) continue;
+    // ⚠ NOT AT HORIZON. HORIZON is where the CITY stands, so a hole drawn there sits behind the
+    // buildings and is never seen. The visible open country on this land is the band between the
+    // escarpment and the horizon — the same band the herd occupies. Same mistake the herd made.
+    var ghy=savCache?savCache[Math.max(0,Math.min(SW-1,Math.max(0,wx0)))]:HORIZON*0.86;
+    var wy=Math.round(ghy+(HORIZON-ghy)*0.72);
+    for(var q2=-ww;q2<ww;q2++){
+      var xx2=wx0+q2; if(xx2<0||xx2>=SW) continue;
+      var u2=Math.abs(q2/ww);
+      var dep=Math.round((3.2*K)*Math.sqrt(Math.max(0,1-u2*u2)));
+      if(dep<1) continue;
+      g.fillStyle=css(mixc(day?[92,124,146]:[16,26,38], skc, 0.16));
+      g.fillRect(xx2,wy-dep+Math.round(2*K),1,dep);
+      if(litK>0.15&&((xx2+((now*0.01)|0))%9)<3){                    // glints off the surface
+        g.fillStyle=rgba([255,255,255],0.30*litK); g.fillRect(xx2,wy-dep+Math.round(2*K),1,1); }
+    }
+    // the churned mud ring animals have trodden around it
+    g.fillStyle=rgba(day?[142,118,86]:[26,22,18],0.55);
+    g.fillRect(Math.max(0,wx0-ww-Math.round(4*K)),wy+Math.round(1.6*K),Math.min(SW,ww*2+Math.round(8*K)),Math.max(1,Math.round(1.4*K)));
+  }
+  // ---- PREDATOR COVER: long grass the cats stalk through, thicker near the hole where the prey is
+  for(var lg=0;lg<70;lg++){
+    var lwx=((lg*40503+((WORLD_SEED*23)|0))>>>0)%Math.max(1,WW);
+    var lx=Math.round(lwx-WOFF); if(lx<-6) lx+=WW; if(lx>SW+6) lx-=WW;
+    if(lx<0||lx>=SW) continue;
+    var lh=Math.round((2+((lg*7919)%4))*K*0.7);
+    var lgy=Math.round(savCache[lx]+(HORIZON-savCache[lx])*0.86);
+    g.fillStyle=rgba(day?[150,142,86]:[24,30,22],0.55);
+    g.fillRect(lx,lgy-lh,Math.max(1,Math.round(K*0.6)),lh);
+  }
+
   // ---- HEAT SHIMMER along the horizon: the air over a hot plain never sits still
   if(litK>0.4&&day){
     for(var hq=0;hq<Math.round(HORIZON*0.04);hq++){
@@ -16601,6 +16711,62 @@ function drawSavannaLife(g,L,now,nd,fx){
       // dust kicked up by the near rank in the dry season
       if(dusty&&r===0){ g.fillStyle=rgba([214,192,150],0.22);
         g.fillRect(x-Math.round(w*0.5),y-Math.round(h*0.18),Math.round(w*1.6),Math.max(1,Math.round(h*0.2))); }
+    }
+  }
+
+  // ---- THE FOOD CHAIN. Nick asked for predators that really kill, and for scavengers to follow.
+  // ⚠ The hunt and its outcome are HASHED, not rolled — see wildAt/huntAt. Every monitor agrees on
+  // which block was a hunt, whether it succeeded, and where the carcass lies.
+  // predators walk the same visible band as the herd, for the same reason — see the watering hole note
+  function bandY(sxp){ var gh=savCache?savCache[Math.max(0,Math.min(SW-1,Math.max(0,sxp)))]:HORIZON*0.86;
+    return Math.round(gh+(HORIZON-gh)*0.80); }
+  for(var p2=0;p2<2;p2++){
+    var pseed=((p2*104729+((WORLD_SEED*31)|0))>>>0);
+    var hunt=huntAt(pseed,now,L);
+    var cat=day?[190,158,96]:[92,76,48], catD=day?[142,112,64]:[62,50,32];
+    var px, stance;
+    if(hunt){
+      // stalk low through the grass, then RUSH — the speed change is the whole read of a hunt
+      var hx0=wrapW(hunt.x-140), hx1=hunt.x;
+      var f=(hunt.phase==="stalk")?(hunt.t/0.45)*0.75:(hunt.phase==="rush"?0.75+((hunt.t-0.45)/0.17)*0.25:1);
+      px=wrapW(hx0+(hx1-hx0)*f);
+      stance=(hunt.phase==="stalk")?0:1;
+    } else {
+      var W2=wildAt(pseed,now,L); px=W2.x; stance=2;                 // not hunting: just an animal
+    }
+    var sx3=Math.round(px-WOFF); if(sx3<-30) sx3+=WW; if(sx3>SW+30) sx3-=WW;
+    if(sx3>-20&&sx3<SW+20){
+      var cw2=Math.round(7*K*0.6), chh=Math.round((stance===0?2.2:3.2)*K*0.6);
+      g.fillStyle=css(cat);
+      var groundY=bandY(sx3);
+      g.fillRect(sx3,groundY-chh,cw2,Math.max(1,Math.round(chh*0.7)));               // body, low when stalking
+      g.fillRect(sx3+cw2-Math.round(cw2*0.22),groundY-chh-Math.round(chh*0.22),Math.round(cw2*0.30),Math.max(1,Math.round(chh*0.34)));
+      g.fillStyle=css(catD);
+      g.fillRect(sx3+Math.round(cw2*0.12),groundY-Math.round(chh*0.4),Math.max(1,Math.round(cw2*0.14)),Math.round(chh*0.4));
+      g.fillRect(sx3+Math.round(cw2*0.68),groundY-Math.round(chh*0.4),Math.max(1,Math.round(cw2*0.14)),Math.round(chh*0.4));
+      g.fillRect(sx3-Math.round(cw2*0.28),groundY-chh,Math.round(cw2*0.30),Math.max(1,Math.round(K*0.5)));   // tail
+      if(hunt&&hunt.phase==="rush"&&dusty){ g.fillStyle=rgba([214,192,150],0.30);
+        g.fillRect(sx3-Math.round(cw2*1.2),groundY-Math.round(K),Math.round(cw2*1.6),Math.max(1,Math.round(K))); }
+    }
+    // THE CARCASS, and the scavengers working it. It clears itself when the hash stops saying yes.
+    var car=carcassAt(pseed,now,L);
+    if(car){
+      var cx3=Math.round(car.x-WOFF); if(cx3<-30) cx3+=WW; if(cx3>SW+30) cx3-=WW;
+      if(cx3>-20&&cx3<SW+20){
+        var groundY=bandY(cx3);
+        g.fillStyle=rgba(day?[104,76,64]:[34,26,24],0.95-0.35*car.age);
+        g.fillRect(cx3,groundY-Math.round(1.6*K),Math.round(7*K*0.6),Math.max(1,Math.round(1.6*K)));
+        g.fillStyle=rgba([132,34,30],0.55*(1-car.age));                                // blood, fading
+        g.fillRect(cx3-Math.round(2*K),groundY-Math.max(1,Math.round(K*0.5)),Math.round(11*K*0.6),Math.max(1,Math.round(K*0.5)));
+        // vultures walk in and hop around it — they arrive AFTER the kill, never during
+        for(var v2=0;v2<4;v2++){
+          var vx=cx3+Math.round((v2-1.5)*4*K)+Math.round(Math.sin(now*0.003+v2)*1.4*K);
+          g.fillStyle=css(day?[54,48,46]:[20,18,20]);
+          g.fillRect(vx,groundY-Math.round(2.4*K),Math.max(1,Math.round(1.8*K)),Math.round(2.4*K));
+          g.fillStyle=rgba([196,172,150],0.8);
+          g.fillRect(vx,groundY-Math.round(3*K),Math.max(1,Math.round(1.2*K)),Math.max(1,Math.round(K*0.8)));
+        }
+      }
     }
   }
 }
