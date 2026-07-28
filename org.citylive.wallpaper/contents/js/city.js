@@ -20929,14 +20929,31 @@ function drawAlpineLife(g,L,now,nd,fx){
     if(ridgeH(ix)<24*K) continue;                    // only where there is real mountain under them
     var iy=ridgeY(ix)-Math.round(2*K);
     var bob=((now*0.004+ib*2.1)|0)%2;                 // a slow, deliberate step
+    // ⚠⚠ SCALED BY HOW FAR AWAY IT IS. Nick: "what are those things… can we make them look nicer and
+    // be proportion to where they are in the world?" They were drawn at full near-scale — a 5x4 blob —
+    // while standing on a ridge several kilometres back, so an ibex came out roughly the size of a
+    // house on that mountain. Correct-against-a-person is the right rule at STREET level; up here the
+    // same sprite has to shrink with distance or it reads as a boulder that walks.
+    // Distance is read off the ridge itself: the higher up the frame the animal stands, the further
+    // back it is, so `dist` goes 0 (near the treeline) to 1 (on the skyline).
+    var dist=Math.max(0,Math.min(1,1-(iy/Math.max(1,gy))));
+    var isc=Math.max(0.34,1-dist*0.72);                // never smaller than a third, never invisible
+    var IB=function(v){ return Math.max(1,Math.round(v*K*isc)); };
     var bodyC=day?"rgba(92,74,54,0.95)":"rgba(48,40,32,0.85)";
+    // …and it fades into the haze with distance too, exactly as the rock behind it does
+    g.globalAlpha=Math.max(0.45,1-dist*0.45);
     g.fillStyle=bodyC;
-    g.fillRect(ix|0,(iy-bob)|0,Math.max(2,Math.round(2.6*K)),Math.max(1,Math.round(1.8*K)));   // body
-    g.fillRect((ix+dir*Math.round(2.2*K))|0,(iy-bob-Math.round(K))|0,Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));  // head
-    // the horns — the reason you can tell an ibex from a goat at four pixels
+    var bw3=IB(2.6), bh3=IB(1.5);
+    g.fillRect(ix|0,(iy-bob)|0,bw3,bh3);                                                    // barrel
+    g.fillRect((ix+dir*bw3)|0,(iy-bob-IB(0.9))|0,IB(1.0),IB(1.1));                          // head, forward of the body
     g.fillStyle=day?"rgba(62,50,38,0.95)":"rgba(34,28,22,0.8)";
-    g.fillRect((ix+dir*Math.round(2.2*K))|0,(iy-bob-Math.round(2.2*K))|0,Math.max(1,Math.round(K)),Math.max(1,Math.round(1.4*K)));
-    g.fillRect((ix-dir*Math.round(0.4*K))|0,(iy-bob+Math.round(1.8*K))|0,Math.max(1,Math.round(K)),Math.max(1,Math.round(1.2*K)));  // legs
+    // the horns — the reason you can tell an ibex from a goat at four pixels. They sweep BACK over the
+    // neck rather than standing straight up, which is the actual ibex silhouette.
+    g.fillRect((ix+dir*bw3)|0,(iy-bob-IB(2.0))|0,IB(0.9),IB(1.2));
+    if(isc>0.6) g.fillRect((ix+dir*(bw3-IB(0.8)))|0,(iy-bob-IB(2.4))|0,IB(0.8),IB(0.7));    // the backward sweep
+    g.fillRect((ix+IB(0.3))|0,(iy-bob+bh3)|0,IB(0.8),IB(1.0));                              // legs
+    g.fillRect((ix+bw3-IB(1.1))|0,(iy-bob+bh3)|0,IB(0.8),IB(1.0));
+    g.globalAlpha=1;
   }
 
   // ---- AVALANCHE: rare, brief, and only where the face is genuinely steep -----------------------
