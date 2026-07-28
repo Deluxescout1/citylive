@@ -106,6 +106,19 @@ function applyConfig(cfg){ if(!cfg) return;
   if(cfg.bills!==undefined) BILLS_ON=(cfg.bills===true);          // Buffalo Bills gameday takeover on/off
   if(cfg.billsEvent!==undefined) BILLS_EVENT=(cfg.billsEvent===true);   // force a live Bills Mafia takeover (demo/preview)
   if(cfg.people!=null){ var _pn=+cfg.people; if(_pn>=20&&_pn<=400) PEOPLE_N=_pn|0; }   // THE PEOPLE: cast size (default 175)
+  // ⚠⚠ THE THREE THAT WERE DEAD ON THE KDE WALLPAPER. `CITYLIVE_CFG` — the global the `CFG` block at
+  // the top of this file reads — is defined by desktop/renderer/index.html, web/config.js and
+  // phone/config.js, and by NOTHING in the Plasma plugin. The wallpaper's only channel is main.qml
+  // calling applyConfig(Local.CONFIG), which runs LONG AFTER those `var`s were evaluated against an
+  // empty CFG. So any setting handled only at load time silently does nothing on KDE — and KDE is
+  // Nick's actual desktop, i.e. the one surface where it matters.
+  // The cost was real: `debugStamp` is the diagnostic switch for the floating-blue-boxes bug, and I
+  // told Nick to turn it on and screenshot. It could not have fired. `egg:"leaf"` likewise never
+  // pinned the Hidden Village for him — he was still waiting on the 1-in-12 roll and didn't know.
+  // Guarded by test/config-parity.test.js so a future `CFG.foo` cannot be added without a home here.
+  if(cfg.debugStamp!==undefined) CFG_DEBUGSTAMP=!!cfg.debugStamp;
+  if(cfg.egg!==undefined){ CFG_EGG=(typeof cfg.egg==='string'&&cfg.egg)?cfg.egg:null; FORCEEGG=CFG_EGG; }
+  if(cfg.scores!==undefined) SCORE_ON=(cfg.scores!==false);
 }
 // ================================================================================
 
@@ -5611,7 +5624,11 @@ function drawDebugStamp(g,now,nd){
   ];
   var wmax=0; for(var i=0;i<lines.length;i++) wmax=Math.max(wmax,textW(lines[i]));
   var pad=3, bh=lines.length*6+pad*2, bw=wmax+pad*2;
-  var y0=SH-bh-2, x0=2;
+  // ⚠ SIT ABOVE THE PANEL. Anchoring to SH alone put the last two lines — DISASTER, and the
+  // NEON/VILLAGE/WX line — underneath Nick's dock, so the stamp lost exactly the fields that say
+  // whether a disaster is running. Same mistake the sea band made (it hid behind the taskbar on the
+  // middle monitor); anything anchored to the bottom of this canvas must subtract TASKBAR_WP.
+  var y0=SH-TASKBAR_WP-bh-2, x0=2;
   g.fillStyle="rgba(8,10,16,0.82)"; g.fillRect(x0,y0,bw,bh);
   g.fillStyle="rgba(120,230,160,0.9)"; g.fillRect(x0,y0,bw,1);
   for(var l=0;l<lines.length;l++) drawUiText(g,lines[l],x0+pad,y0+pad+l*6,"#8ef0b0",1);
