@@ -58,7 +58,20 @@ WallpaperItem {
     // the live canvas below is linear filtering, costs nothing, and per the note above is what
     // actually absorbs KWin's dropped columns. If the vertical lines ever come back on the 4K@165%,
     // this line is the first thing to put back (and it is a QUALITY choice, not a bug fix).
-    readonly property real texelBuf: pxk
+    // ⚠⚠ AND THEY CAME BACK. Nick, three times in one session: "more lines in those mountains",
+    // "those lines need to be corrected they are back on my left screen - they look bad". The note
+    // above called this shot exactly — the defence was traded away for frame rate and said so, and
+    // said this line is the first thing to put back if the lines returned. They returned.
+    // ⚠ CONFIRMED, NOT ASSUMED: his exact frame (life 363, age 0.482, alpine, cloudy) rendered
+    // offscreen at 1:1 has NO vertical lines anywhere in it. The engine output is clean; the lines
+    // are made downstream by KWin's 4656->3840 resample beating against 3-device-px texel blocks.
+    // ⚠ ONLY THE SCREEN THAT NEEDS IT PAYS. Fine texels go back on for dpr > 1 — the 4K at 165%,
+    // which reports dpr exactly 2 because Plasma renders integer-2x and KWin does the 1.65x itself —
+    // and the other two monitors keep the cheap coarse texels they never had a problem with.
+    // The cost is real and measured, not hand-waved: this screen's live canvas becomes 2328x1311
+    // instead of 1552x874 (2.24x the pixels, repainted every frame), which came to about twelve
+    // points of one core at 8fps across the three screens last time it was measured.
+    readonly property real texelBuf: (dpr > 1) ? 1 : pxk
     readonly property int zoom: Math.max(1, Math.round(pxk * dpr / texelBuf))
     // total width (logical px) of the whole desktop the city spans. If unset in config,
     // auto-detect by summing every screen's width (works for a single laptop screen or

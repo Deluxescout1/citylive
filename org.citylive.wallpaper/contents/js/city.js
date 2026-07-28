@@ -22196,13 +22196,53 @@ function drawGondola(g,L,now){
   for(var sxk=Math.max(4,apxX-40);sxk<Math.min(SW-4,apxX+40);sxk++){ if((hs[sxk]|0)>aH){ aH=hs[sxk]|0; apxX=sxk; } }
   if(aH<40*KSP) return;
   var side=(apxX<SW*0.5)?1:-1;                                                                      // descend toward the city (screen centre)
-  var sumX=Math.max(4,Math.min(SW-4,apxX+side*Math.round(aH*0.28))), baseX=Math.max(4,Math.min(SW-4,apxX+side*Math.round(aH*0.95)));
-  var sumY=terr(sumX)-3, baseY=terr(baseX)-2;
-  if(terr(baseX)>gy-6) baseX=Math.max(4,Math.min(SW-4,apxX+side*Math.round(aH*0.7))), baseY=terr(baseX)-2;  // keep the base up on the slope, not on flat ground
-  g.strokeStyle=L>0.5?"rgba(36,40,50,0.85)":"rgba(120,128,145,0.6)"; g.lineWidth=1;                 // the cable
-  g.beginPath(); g.moveTo(baseX,baseY); g.lineTo(sumX,sumY); g.stroke();
-  var mpx=Math.round((baseX+sumX)/2), mpy=terr(mpx); g.fillStyle=L>0.5?"#4a5160":"#20242f"; g.fillRect(mpx,mpy-9,1,9);   // mid pylon
-  g.fillStyle=L>0.5?"#6a6156":"#2a2620"; g.fillRect(baseX-3,baseY,6,4);                             // base station
+  var sumX=Math.max(4,Math.min(SW-4,apxX+side*Math.round(aH*0.28)));
+  var sumY=terr(sumX)-3;
+  // ⚠⚠ A CABLE CAR THAT DOES NOT REACH THE GROUND IS A LINE ACROSS THE SKY. Nick: "this looks
+  // terrible, what is this even trying to be, this is a very confusing mess — also if there is going
+  // to be tram lines make sure they actually connect to the ground."
+  // He is describing the exact thing the old code went out of its way to do. The line it replaced
+  // read `if(terr(baseX)>gy-6) baseX=... // keep the base up on the slope, not on flat ground` — the
+  // base station was DELIBERATELY held up on the mountainside, so the cable ran from a small brown
+  // box floating halfway up a ridge to a peak, attached to nothing at either end and explaining
+  // itself to nobody.
+  // The whole point of a cable car is legible in one glance in real life because you can see WHERE
+  // YOU GET ON: a valley station at the bottom, in the town, and a summit station at the top. Walk
+  // down the slope from the peak until the mountain actually meets the ground, and put the station
+  // there.
+  var baseX=sumX, guard=0;
+  while(guard++<SW && baseX>4 && baseX<SW-5 && terr(baseX)<gy-2) baseX+=side;   // walk down to where the rock meets the flat
+  baseX=Math.max(4,Math.min(SW-5,baseX+side*Math.round(6*KSP)));                // …and stand clear of the toe of the slope
+  var baseY=gy;                                                                 // ON THE GROUND. That was the whole complaint.
+  // the CABLE, sagging between its towers rather than ruled straight — a dead-straight line is the
+  // other half of why this read as a stray mark rather than as a span under load
+  var spanN=Math.max(2,Math.round(Math.abs(sumX-baseX)/(34*KSP)));              // …and how many towers carry it
+  g.strokeStyle=L>0.5?"rgba(36,40,50,0.85)":"rgba(120,128,145,0.6)"; g.lineWidth=1;
+  g.beginPath(); g.moveTo(baseX,baseY-Math.round(5*KSP));
+  for(var cs=1;cs<=spanN;cs++){
+    var cf2=cs/spanN, cxp=Math.round(baseX+(sumX-baseX)*cf2), cyp=Math.round((baseY-5*KSP)+((sumY)-(baseY-5*KSP))*cf2);
+    var sag=Math.round(Math.sin(cf2*Math.PI)*2.2*KSP/spanN*2);                  // the span dips between towers
+    g.lineTo(cxp,cyp+sag);
+  }
+  g.stroke();
+  // PYLONS, standing on the terrain they actually cross. One mid pylon on a span this long read as a
+  // stray tick; a line of towers is what says "this thing is engineered and it is carrying weight".
+  for(var py=1;py<spanN;py++){
+    var pf=py/spanN, pxp=Math.round(baseX+(sumX-baseX)*pf);
+    var pgnd=Math.min(gy,terr(pxp)), pcab=Math.round((baseY-5*KSP)+(sumY-(baseY-5*KSP))*pf);
+    if(pgnd<=pcab+2) continue;                                                  // the ground is already at the cable — no tower needed
+    g.fillStyle=L>0.5?"#4a5160":"#20242f";
+    g.fillRect(pxp,pcab,Math.max(1,Math.round(KSP*0.7)),pgnd-pcab);             // the tower, foot on the rock
+    g.fillRect(pxp-Math.round(1.6*KSP),pcab-1,Math.round(3.4*KSP),Math.max(1,Math.round(KSP*0.6)));  // its cross-arm
+  }
+  // THE VALLEY STATION — a shed with a pitched roof standing on the ground, which is the thing that
+  // tells you what the whole apparatus is for
+  var vw=Math.round(9*KSP), vh=Math.round(6*KSP);
+  g.fillStyle=L>0.5?"#6a6156":"#2a2620"; g.fillRect(baseX-(vw>>1),baseY-vh,vw,vh);
+  g.fillStyle=L>0.5?"#8a7a62":"#3a342a"; g.fillRect(baseX-(vw>>1)-1,baseY-vh-Math.round(1.6*KSP),vw+2,Math.round(1.8*KSP));
+  if(L<0.62){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,206,132,0.75)";
+    g.fillRect(baseX-Math.round(2*KSP),baseY-Math.round(4*KSP),Math.round(4*KSP),Math.round(2*KSP));
+    g.globalCompositeOperation="source-over"; }
   g.fillStyle=L>0.5?"#8a6a4a":"#3a2c1e"; g.fillRect(sumX-4,sumY-4,8,5);                             // summit LODGE
   g.fillStyle=L>0.5?"#a4603c":"#4a281a"; g.fillRect(sumX-5,sumY-6,10,2);                            // lodge roof
   if(L<0.6){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,222,150,0.9)"; g.fillRect(sumX-2,sumY-3,4,2); g.fillRect(baseX-1,baseY+1,2,1); g.globalCompositeOperation="source-over"; }  // warm windows
