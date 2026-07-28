@@ -22371,14 +22371,36 @@ function drawClimbers(g,L,now,nd,fx){
   var peaks=mts.near; if(!peaks||!peaks.length) return;
   var mx=mtsCache.mx[1]; if(mx<40*KSP) return;                 // needs a real, tall range
   var hs=mtsCache.h[1], gy=HORIZON;
-  var chapF=cityGrowth(now).cy*9, ch=Math.floor(chapF), chF=chapF-ch;
-  if(ch<2) return;                                             // the range rests while the town is young
-  var best=null;                                               // the life's CHOSEN peak: the tallest on the ridge
-  for(var pk=0;pk<peaks.length;pk++){ if(!best||peaks[pk].h>best.h) best=peaks[pk]; }
-  var p0=best;
+  var chapF0=cityGrowth(now).cy*9;
+  if(chapF0<2) return;                                         // the range rests while the town is young
+  // ⚠⚠ ONE EXPEDITION PER WORLD IS ONE EXPEDITION YOU NEVER SEE. Nick: "there should be people trying
+  // to climb to the tops of these" — and there were, the whole time. Instrumented at his exact
+  // geometry, `drawClimbers` ran at every age and reported `apexSx -60`: the party was roped to the
+  // tallest peak IN THE WORLD, which sits 60px off the left edge of his primary screen, so their
+  // entire route was outside the frame at every chapter of every life.
+  // This is the `landmarkXs` rule again, third time: world-anchored placement is correct, and ONE per
+  // world is far too few when a monitor sees about a third of it. The world is cut into fixed bands
+  // and the tallest peak in each band gets a party — fixed bands, so every screen agrees on which
+  // peaks are climbed and where, with no screen-space anything.
+  var bandW=Math.max(200,Math.min(560,WW/4)), parties=[];
+  for(var bd=0; bd<Math.ceil(WW/bandW); bd++){
+    var bLo=bd*bandW, bHi=bLo+bandW, bBest=null;
+    for(var pk=0;pk<peaks.length;pk++){ var pp=peaks[pk];
+      if(pp.x<bLo||pp.x>=bHi) continue;
+      if(!bBest||pp.h>bBest.h) bBest=pp; }
+    if(bBest && bBest.h>=34*KSP) parties.push(bBest);
+  }
+  if(!parties.length) return;
+  for(var pty=0; pty<parties.length; pty++){
+  var p0=parties[pty];
   var apexSx=p0.x-WOFF; if(apexSx>SW+80&&apexSx-WW>-80)apexSx-=WW; if(apexSx<-80&&apexSx+WW<SW+80)apexSx+=WW;
-  if(apexSx<-70||apexSx>SW+70) return;                         // the peak isn't on this screen
+  if(apexSx<-70||apexSx>SW+70) continue;                       // this party's peak is not on this screen
+  // ⚠ each party gets its own seed off its own peak, so they wear different shells, start on
+  // different sides and are NOT all at the same point in the story — a row of identical expeditions
+  // climbing in lockstep would read as wallpaper in the bad sense.
   var ph=(((p0.x*13+7)|0)^(lifeIndexOf(now)*40503))>>>0, side=(ph&1)?1:-1;
+  var chapF=chapF0+((ph>>>7)%100)/100*0.9, ch=Math.floor(chapF), chF=chapF-ch;
+  if(ch<2||ch>8) continue;                                     // this party's own moment in the season
   var routeW=Math.min(p0.w*0.68, 70);
   var col=["#e0503a","#e0a030","#d8d040"][ph%3];               // the party's bright shells
   function routePt(frac){ var cx=apexSx-side*(1-frac)*routeW, ci=Math.round(cx);
@@ -22422,6 +22444,7 @@ function drawClimbers(g,L,now,nd,fx){
       if(ch===5&&chF<0.5){ var cp5=routePt(0.93);              // the party lingers at the top, arms raised
         if(cp5.ok){ g.fillStyle=col; g.fillRect(cp5.x,cp5.y-1,1,2); g.fillRect(cp5.x-1,cp5.y-2,1,1); g.fillRect(cp5.x+1,cp5.y-2,1,1); } }
     } }
+  }                                                            // …next party, on the next band's peak
 }
 
 // ---- THE SETTLEMENT SURVIVES: hunters stalk game, gatherers forage the meadow, a cook-fire
