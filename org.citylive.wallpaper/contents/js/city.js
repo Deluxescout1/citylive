@@ -21117,7 +21117,18 @@ function drawMountains(g,L,now,nd){
           }
         }
         mtsCache.h[pi0][cx0]=rh0;
-        if(pi0===0) mtsCache.wig[cx0]=Math.sin(wx0*0.23)*2.2*KSP; // snowline wander, also static
+        // ⚠⚠ THE SNOWLINE WANDER WAS ONE SINE, AND THAT IS WHY THE FJORD HAD A WHITE BAND.
+        // A level snowline is physically honest — snow really does sit at an altitude — but with a
+        // single smooth sine as its only variation, peaks of similar height all get capped at the
+        // same place and the result is a ruled white stripe across the range. I flagged this myself
+        // when building the fjord and it is the last land I already knew was wrong.
+        // What makes real snow read is that its LOWER EDGE is ragged: it fills gullies, blows off
+        // exposed ridges, and hangs lower on shaded faces. Three octaves plus a per-column jitter give
+        // that edge; the average altitude is unchanged, so the physics stays honest and only the line
+        // stops being a line.
+        if(pi0===0) mtsCache.wig[cx0]=(Math.sin(wx0*0.23)*2.2 + Math.sin(wx0*0.071+1.3)*3.4
+                                       + Math.sin(wx0*0.017+0.6)*4.6
+                                       + ((mixLi((wx0*7919)>>>0,3571)%100)/100-0.5)*2.6)*KSP;
       }
       // SLOPE BUCKETS, cached with the silhouette they are derived from. Which way a column FACES is
       // a pure function of h[] and h[] never changes within a life, so re-deriving it per frame would
@@ -21277,7 +21288,10 @@ function drawMountains(g,L,now,nd){
     g.fillStyle=sc;
     for(var sx2=0;sx2<SW;sx2++){ var rh2=hs[sx2]; if(rh2<2) continue;
       var top2=(gy-rh2)|0; if(top2<2) top2=2;
-      var cap=Math.round(rh2-(snl+(B.snow?mtsCache.wig[sx2]:0)));
+      // aspect: a shaded face holds snow further down than a sun-baked one. `sl` is the slope-facing
+      // term the lighting already uses, so this costs nothing and moves snow the way the sun does.
+      var asp=B.snow?(mtsCache.sl[pi][sx2]||0)*(curSunDf<0.5?-1:1)*1.6*KSP:0;
+      var cap=Math.round(rh2-(snl+(B.snow?mtsCache.wig[sx2]:0)+asp));
       if(B.snow&&cap>0&&((sx2+(rh2*2|0))&1)) cap+=1;
       if(cap>0) g.fillRect(sx2,top2,1,Math.min(cap,gy-top2));
     }
