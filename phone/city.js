@@ -3268,6 +3268,11 @@ var FAUNA={
   scarab:    {plan:"spot", c:[46,52,44],   c2:[92,104,80]},
   flamingo:  {plan:"bird", c:[248,166,190], perch:1, wader:1},
   bat:       {plan:"bird", c:[46,40,50],   soar:1},
+  // PREDATORS the other lands need. Nine of the twelve already existed (wolf, bear, gator, owl,
+  // polarbear, skua, eagle, fennec, vulture) — only these three had to be written.
+  lynx:      {plan:"quad", w:6, h:4, c:[186,164,132],c2:[120,102,80],  head:"snout"},
+  orca:      {plan:"quad", w:14,h:5, c:[28,30,34],   c2:[240,244,248], head:"seal", legless:1},
+  shark:     {plan:"quad", w:11,h:3, c:[86,96,108],  c2:[214,220,226], head:"seal", legless:1},
   // THE SAVANNA's headline animals. This land has no cliff, tower or dune to fill a frame with, so the
   // HERD is its landform — these are sized to actually read at distance rather than as ground specks.
   elephant:  {plan:"quad", w:13,h:8, c:[124,120,118],c2:[86,82,80],   head:"snout", trunk:1},
@@ -16830,6 +16835,78 @@ function drawSavanna(g,L,now,nd){
   }
 }
 
+// WHICH PREDATOR HUNTS ON WHICH LAND. Nick took all four groups: rock/mountain, water, forest/swamp,
+// desert/cold — and ruled that kills happen EVERYWHERE the animals are, including near the city.
+// ⚠ This is a TABLE, not a renderer. The hunt, its outcome and the carcass all come from huntAt/
+// carcassAt, which are hashed rather than simulated, so every land inherits the three-monitor
+// guarantee for free and adding a land costs one row.
+var PREDATORS={
+  alpine:{p:"lynx",  water:0}, canyon:{p:"lynx", water:0}, karst:{p:"lynx", water:0},
+  mesa:  {p:"lynx",  water:0}, plateau:{p:"wolf",water:0}, terrace:{p:"lynx",water:0},
+  forest:{p:"bear",  water:0}, swamp:{p:"gator",water:1},  leaf:{p:"bear", water:0},
+  fjord: {p:"orca",  water:1}, cliffs:{p:"orca",water:1},  beach:{p:"shark",water:1},
+  volcano:{p:"shark",water:1}, arctic:{p:"polarbear",water:1},
+  dunes: {p:"fennec",water:0}, salt:{p:"fennec",water:0},  falls:{p:"bear", water:0},
+  plains:{p:"wolf",  water:0}, hell:{p:"wolf", water:0}
+};
+// A hunt on an ordinary land. Same clock and the same hashed outcome as the savanna's, so a kill is
+// agreed on by all three screens; only the sprite and the ground line differ.
+function drawLandPredators(g,L,now,nd,fx){
+  if(cityPhase==="apoc"||WILD_LAYER==="front") return;
+  var key=(curEgg&&curBiome.k)||curBiome.k, P=PREDATORS[key];
+  if(!P||curBiome.herd) return;                                  // the savanna has its own richer version
+  var sp=FAUNA[P.p]; if(!sp) return;
+  var day=L>0.5, K=Math.max(1,KSP);
+  var gy=P.water ? (SEA_FRONT>0?SEA_Y+Math.round(4*K):HORIZON+Math.round(3*K)) : HORIZON+Math.round(2*K);
+  for(var i=0;i<2;i++){
+    var pseed=((i*104729+((WORLD_SEED*37)|0))>>>0);
+    var hunt=huntAt(pseed,now,L), px, rush=0;
+    if(hunt){
+      var hx0=wrapW(hunt.x-120), f=(hunt.phase==="stalk")?(hunt.t/0.45)*0.72:(hunt.phase==="rush"?0.72+((hunt.t-0.45)/0.17)*0.28:1);
+      px=wrapW(hx0+(hunt.x-hx0)*f); rush=(hunt.phase==="rush")?1:0;
+    } else { px=wildAt(pseed,now,L).x; }
+    var X=Math.round(px-WOFF); if(X<-30) X+=WW; if(X>SW+30) X-=WW;
+    if(X>-20&&X<SW+20){
+      var w=Math.max(2,Math.round(sp.w*K*0.5)), h=Math.max(2,Math.round(sp.h*K*0.5*(rush?0.85:1)));
+      var body=day?sp.c:[(sp.c[0]*0.32)|0,(sp.c[1]*0.32)|0,(sp.c[2]*0.42)|0];
+      g.fillStyle=css(body);
+      g.fillRect(X,gy-h,w,Math.max(1,Math.round(h*0.66)));
+      g.fillRect(X+w-Math.round(w*0.20),gy-h-Math.round(h*0.20),Math.max(1,Math.round(w*0.26)),Math.max(1,Math.round(h*0.28)));
+      if(!sp.legless){
+        g.fillStyle=css(day?sp.c2:[(sp.c2[0]*0.32)|0,(sp.c2[1]*0.32)|0,(sp.c2[2]*0.42)|0]);
+        var lh=Math.max(1,Math.round(h*0.42));
+        g.fillRect(X+Math.round(w*0.16),gy-lh,Math.max(1,Math.round(w*0.13)),lh);
+        g.fillRect(X+Math.round(w*0.66),gy-lh,Math.max(1,Math.round(w*0.13)),lh);
+      } else if(P.water){                                        // a fin, because a shape in water needs one
+        g.fillStyle=css(day?sp.c2:[160,170,180]);
+        g.fillRect(X+Math.round(w*0.45),gy-h-Math.round(h*0.55),Math.max(1,Math.round(w*0.10)),Math.round(h*0.55));
+      }
+      if(rush&&!P.water){ g.fillStyle=rgba(day?[198,186,158]:[40,38,34],0.28);
+        g.fillRect(X-Math.round(w*0.7),gy-Math.round(K),Math.round(w*1.2),Math.max(1,Math.round(K))); }
+    }
+    // the carcass, and whatever comes to it
+    var car=carcassAt(pseed,now,L);
+    if(car){
+      var cx=Math.round(car.x-WOFF); if(cx<-30) cx+=WW; if(cx>SW+30) cx-=WW;
+      if(cx>-20&&cx<SW+20){
+        g.fillStyle=rgba(day?[104,76,64]:[32,24,22],0.92-0.4*car.age);
+        g.fillRect(cx,gy-Math.round(1.5*K),Math.round(6*K),Math.max(1,Math.round(1.5*K)));
+        if(!P.water){
+          g.fillStyle=rgba([132,34,30],0.5*(1-car.age));
+          g.fillRect(cx-Math.round(2*K),gy-Math.max(1,Math.round(K*0.5)),Math.round(10*K),Math.max(1,Math.round(K*0.5)));
+          for(var v=0;v<3;v++){                                  // scavengers, as on the savanna
+            var vx=cx+Math.round((v-1)*4*K)+Math.round(Math.sin(now*0.003+v)*1.2*K);
+            g.fillStyle=css(day?[54,48,46]:[20,18,20]);
+            g.fillRect(vx,gy-Math.round(2.2*K),Math.max(1,Math.round(1.6*K)),Math.round(2.2*K));
+          }
+        } else {                                                  // at sea it is a slick and gulls
+          g.fillStyle=rgba([150,60,50],0.32*(1-car.age));
+          g.fillRect(cx-Math.round(5*K),gy-1,Math.round(16*K),Math.max(1,Math.round(K)));
+        }
+      }
+    }
+  }
+}
 // THE HERD. Drawn HERE rather than left to drawBiomeFauna, because that writer places animals on the
 // ground band at speck scale — correct on every other land and fatal on this one, where the herd IS
 // the subject. Three depth ranks, the nearest at full size so an elephant actually reads as an
@@ -25575,6 +25652,7 @@ function draw(g,pass){
   WILD_LAYER="back"; drawFauna(g,L,now,nd);
   drawAlpineLife(g,L,now,nd,fx); drawGorgeLife(g,L,now,nd,fx);
   drawDuneLife(g,L,now,nd,fx);   drawSavannaLife(g,L,now,nd,fx);
+  drawLandPredators(g,L,now,nd,fx);   // every other land's hunter, same hashed clock
   WILD_LAYER="front";
 
   drawLayer(g,far,L,now,fx,hol,0.42);
