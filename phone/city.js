@@ -22795,8 +22795,31 @@ function drawCivicPolicy(g,L,now){
   if(k==="GREENS"){                                             // rooftop solar arrays
     for(var i=0;i<near.blds.length;i++){ var b=near.blds[i]; if(b.type==="park"||b.nePitch||b.h<12||((b.seed>>>6)%3)!==0) continue;
       var top=near.y0-b.h, sx=(b.x-WOFF); if(sx>SW+4||sx+b.w<-4) continue;
-      for(var p=2;p<b.w-3;p+=3){ g.fillStyle=L>0.5?"#26386a":"#141d38"; g.fillRect((sx+p)|0,top,2,2);
-        g.globalCompositeOperation="lighter"; g.fillStyle="rgba(130,180,255,"+(0.28*L+0.05).toFixed(2)+")"; g.fillRect((sx+p)|0,top,1,1); g.globalCompositeOperation="source-over"; } }
+      // ⚠⚠ THIS IS THE OTHER HALF OF THE "BLUE BOXES", and Nick spotted it the day after the monorail:
+      // "the windows are back." Rooftop solar was a row of 2x2 DARK NAVY squares placed every 3px at
+      // `top` — the building's TOPMOST pixel — so the panels sat ON the skyline edge, silhouetted
+      // against open sky with nothing beneath them. That reads as a row of detached blue rectangles
+      // floating in the air, at as many different heights as there are qualifying rooftops, which is
+      // word for word what he reported months ago.
+      // Same rule the monorail taught: ANY SPRITE DRAWN AGAINST OPEN SKY NEEDS ITS OWN EDGE — and this
+      // one needs something to stand on as well.
+      // So the array now sits ON the roof rather than on its rim: a mounting rail runs the length of
+      // it, the panels are set down onto that rail, and each is TILTED with a lit upper face and a
+      // dark lower edge, which is what a solar panel actually looks like and is unmistakably not a
+      // window.
+      var rail=L>0.5?"#8e96a4":"#2a3040";
+      g.fillStyle=rail; g.fillRect((sx+1)|0,(top+2)|0,Math.max(1,b.w-2),1);              // the mounting rail
+      for(var p=2;p<b.w-3;p+=3){
+        var px0=(sx+p)|0;
+        g.fillStyle=L>0.5?"#3d5386":"#182449";                                            // the panel, tilted
+        g.fillRect(px0,(top+1)|0,2,1);                                                    // upper (sky-facing) face
+        g.fillStyle=L>0.5?"#1d2a52":"#0d1428";
+        g.fillRect(px0,(top+2)|0,2,1);                                                    // shaded lower edge
+        g.globalCompositeOperation="lighter";
+        g.fillStyle="rgba(150,196,255,"+(0.30*L+0.06).toFixed(2)+")";
+        g.fillRect(px0,(top+1)|0,1,1);                                                    // the glint off the glass
+        g.globalCompositeOperation="source-over";
+      } }
   } else if(k==="SAFETY"){                                      // security cameras blink on the light poles
     for(var c=0;c<10;c++){ var hh=((c*2654435761+55)>>>0), cx=(hh%WW)-WOFF; if(cx>SW+4&&cx-WW>-4)cx-=WW; if(cx<-4&&cx+WW<SW+4)cx+=WW;
       if(cx<-2||cx>SW+2||inSea(cx+WOFF)) continue;
