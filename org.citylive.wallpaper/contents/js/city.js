@@ -3669,7 +3669,10 @@ var EGG_BIOMES=[
   // THE FIRE NATION CAPITAL. A city terraced up the inside of a volcanic crater. It reuses the volcanic
   // island's machinery wholesale — the cone roll, the plume, the crater glow — but the caldera numbers
   // (very steep, quantised, lower amp) turn the cone into a RING WALL with the city inside it.
-  { k:"fire",   name:"THE CINDER THRONE", egg:1, amp:0.80, base:0.46, flat:0.34, steep:0.72, snow:false, water:"river", volcanic:1,
+  // ⚠ WALLS RAISED. Judged in the full-frame sweep as mostly empty sky with a cliff at one edge. This
+  // land is a CALDERA — the whole point is being inside a ring of burning rock — so the walls go up
+  // rather than the palette being fiddled with. Its own missing mass, per Nick's rule.
+  { k:"fire",   name:"THE CINDER THRONE", egg:1, amp:1.16, base:0.78, flat:0.34, steep:0.72, snow:false, water:"river", volcanic:1,
     far:[104,68,62],   near:[68,40,40],   cap:[168,96,64],  ground:[74,52,46],
     walls:[[62,40,42],[44,26,30],[86,50,46],[38,24,26],[110,58,48],[52,32,34],[74,44,42],[42,26,28]],
     fauna:{ keep:{deer:0,rabbit:0,fox:0,goat:1}, big:["goat"], small:["lizard"], air:["vulture","crow"] },
@@ -4270,8 +4273,12 @@ function buildWorld(li){
     // isolated spires. Same lesson the volcano taught: when the LANDFORM is the identity, replace the
     // band outright rather than tuning the field. Six needle columns, narrow and very tall.
     if(curBiome.spires){
+      // ⚠ MORE OF THEM. THE HIGH TEMPLES judged as one of the emptiest looks in the sweep: five needle
+      // columns across a 2269 wp world means a 640 wp monitor often sees one, or none, under an
+      // otherwise blank sky. The spires ARE this land — there have to be enough that a screen is
+      // never without a few.
       mts.near=[]; mts.far=mts.far.slice(0,2);
-      var nSp=5+((mg()*3)|0);
+      var nSp=11+((mg()*5)|0);
       for(mi=0;mi<nSp;mi++)
         mts.near.push({ x:(0.08+(mi+mg()*0.6)/nSp*0.84)*WW, w:(16+mg()*10)*MSC,
                         h:(120+mg()*70)*MSC, sn:false, ph:mg()*9 });
@@ -16526,10 +16533,13 @@ function drawPlateau(g,L,now,nd){
   }
   // ---- THE PLATEAU ITSELF: a huge flat top with sheer sides. `flat:0.95` is what it is named for —
   // the top must be genuinely LEVEL, because a rounded top is a hill and this is a table of rock.
-  var pwx=((WORLD_SEED*2654435761)>>>0)%Math.max(1,WW);
+  // ⚠ A SERIES, not a single plateau — see landmarkXs. One per world left whole monitors with none.
+  var PLS=landmarkXs((WORLD_SEED*2654435761)>>>0, 540);
+  for(var pi=0;pi<PLS.length;pi++){
+  var pwx=PLS[pi].x, pseed=PLS[pi].seed;
   for(var o=-1;o<=1;o++){
     var px=Math.round(pwx-WOFF+o*WW);
-    var pw=Math.round(WW*0.16), pTop=Math.round(HORIZON*0.30);
+    var pw=Math.round(WW*0.16*(0.72+0.5*((pseed%1000)/1000))), pTop=Math.round(HORIZON*(0.26+0.16*((pseed>>>7)%100)/100));
     if(px+pw<0||px-pw>SW) continue;
     for(var q=-pw;q<pw;q++){
       var xx=px+q; if(xx<0||xx>=SW) continue;
@@ -16556,6 +16566,7 @@ function drawPlateau(g,L,now,nd){
     }
     g.fillStyle=css(mixc([214,208,184],skc,0.14));
     g.fillRect(Math.max(0,tx-Math.round(K)),Math.round(HORIZON*0.30)-Math.round(8*K),Math.round(18*K),Math.max(1,Math.round(1.6*K)));
+  }
   }
   // ---- THE CASTLE on the far skyline: a keep, towers and a curtain wall, all silhouette
   var cwx=((WORLD_SEED*40503+104729)>>>0)%Math.max(1,WW);
@@ -16723,9 +16734,14 @@ function drawSavanna(g,L,now,nd){
   }
   // ---- THE KOPJE: one rock outcrop, the only vertical thing for miles. It is the scale reference the
   // whole land depends on — without it the herd has nothing to be large NEXT TO.
-  var kwx=((WORLD_SEED*2654435761)>>>0)%Math.max(1,WW);
+  // ⚠ A SERIES, and BIGGER. The savanna judged as the emptiest land in the sweep: one kopje per world
+  // meant most monitors had no vertical reference at all, and at 0.17 of the sky even the one that did
+  // barely registered. This is the land's only landform — it has to be findable.
+  var KPS=landmarkXs((WORLD_SEED*40503+911)>>>0, 520);
+  for(var ki=0;ki<KPS.length;ki++){
+  var kwx=KPS[ki].x, kseed=KPS[ki].seed;
   for(var o=-1;o<=1;o++){
-    var kx=Math.round(kwx-WOFF+o*WW), kw=Math.round(46*Math.max(1,K*0.5)), kh=Math.round(HORIZON*0.17);
+    var kx=Math.round(kwx-WOFF+o*WW), kw=Math.round((54+((kseed>>>5)%26))*Math.max(1,K*0.5)), kh=Math.round(HORIZON*(0.24+0.12*((kseed>>>11)%100)/100));
     if(kx+kw<0||kx-kw>SW) continue;
     for(var q=-kw;q<kw;q++){
       var u=Math.abs(q/kw), prof=Math.pow(Math.max(0,1-u*u),0.5);
@@ -16736,10 +16752,15 @@ function drawSavanna(g,L,now,nd){
       if(q<0&&litK>0.1){ g.fillStyle=rgba(mixc([214,190,150],[255,235,190],0.4),0.28*litK); g.fillRect(xx,ky,1,HORIZON-ky+1); }
     }
   }
+  }
   // ---- ACACIA IN THREE RANKS. A flat-topped acacia is the single most recognisable silhouette on
   // earth, and three depths of it is what turns an empty plain into distance.
+  // ⚠ BIGGER AND CLOSER. In the full-frame sweep the savanna judged as the emptiest land of all 27:
+  // the acacias were small, far and few, so a flat-topped silhouette — the most recognisable shape on
+  // this land — barely registered. Nick's call was to give each empty land its OWN missing mass rather
+  // than a blanket relief bump, and on a grassland the trees ARE the mass.
   for(var r=2;r>=0;r--){
-    var dep=r/2, sc=(1-0.55*dep), n2=10+r*8;
+    var dep=r/2, sc=(1.75-0.85*dep), n2=16+r*10;
     var col=mixc(day?[92,110,64]:[16,24,18], skc, 0.20+0.50*dep);
     for(var t=0;t<n2;t++){
       var twx=((t*40503+r*104729+((WORLD_SEED*7)|0))>>>0)%Math.max(1,WW);
@@ -17567,6 +17588,20 @@ function drawGorgeCity(g,L,now,nd){
       }
     }
   }
+}
+// ⚠⚠ A SIGNATURE LANDMARK MUST BE VISIBLE ON EVERY MONITOR.
+// The Great Plateau's plateau sat entirely off-screen on one of Nick's screens, and he ruled that a
+// land's defining feature has to appear on all of them. This is the SAME CLASS as the sea-cliffs seam
+// bug: world-anchored placement is correct, but ONE PER WORLD is too few when a monitor only sees
+// ~640 of 2269 world px. So a landmark is placed as a SERIES spaced no wider than the narrowest
+// screen — every monitor catches at least one, and the world still reads as that kind of country
+// rather than as a repeating tile, because each instance varies with its own hash.
+// ⚠ Spacing is in WORLD px and must beat the SMALLEST screen, not the average — his right-hand
+// monitor is 640 wp and is the one that decides this.
+function landmarkXs(seed,gapMax){
+  var gap=Math.min(gapMax||560, 560), out=[], i=0, wx=(seed>>>0)%Math.max(1,gap);
+  while(wx<WW+gap){ out.push({x:wx, seed:((seed+i*104729)>>>0)}); wx+=gap*(0.72+0.5*((mixLi(seed+i,7919)%1000)/1000)); i++; }
+  return out;
 }
 var gorgeCache=null;   // per-screen wall profile — static within a life, so build it ONCE
 function drawGorge(g,L,now,nd){
