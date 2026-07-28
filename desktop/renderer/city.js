@@ -2926,7 +2926,10 @@ var BIOMES=[
     walls:[[248,244,236],[236,206,196],[196,228,228],[240,226,190],[228,238,236],[214,178,158],[250,238,214],[186,214,212]],
     fauna:{ keep:{deer:0,rabbit:0,fox:0,goat:0}, big:["turtle"], small:["crab","hermitcrab"], air:["tern","frigate"] },
     flora:{ kinds:["palm","palm","seagrape","palm","pandanus"], bloom:["#f26a8d","#ffd166","#ffffff","#f4977a"] },
-    sky:{ top:[104,172,224], bot:[208,236,238], k:0.30, haze:[214,238,234] } },
+    // ⚠ The three beach looks rendered almost identically — only `ground` differed, and the sand band
+    // is a small part of the frame. A shore's identity is its WATER and its LIGHT far more than its
+    // sand, so each variant now moves its sky and its haze too, not just the grains underfoot.
+    sky:{ top:[72,168,232], bot:[196,240,236], k:0.50, haze:[206,242,236] } },
   // THE BAYOU. Like the coral coast it has almost no relief (`flat:0` — a swamp with bedding planes is
   // not a swamp), and where the beach's identity is in bright water, this land's is in DARK water that
   // is everywhere.
@@ -2964,7 +2967,11 @@ var BIOMES=[
     walls:[[222,228,236],[196,204,216],[238,242,248],[172,182,196],[208,216,228],[184,194,208],[232,238,244],[160,172,188]],
     fauna:{ keep:{deer:0,rabbit:0,fox:1,goat:0}, big:["polarbear","walrus","seal"], small:["ptarmigan"], air:["skua"] },
     flora:{ kinds:["lichen","dwarfwillow","lichen","lichen","dwarfwillow"], bloom:["#e8c8d8","#d8e0e8","#ffffff"] },
-    sky:{ top:[138,168,206], bot:[224,234,242], k:0.30, haze:[228,236,244] } },
+    // ⚠ A POLAR SKY IS NOT A TEMPERATE BLUE, and at k:0.30 this land could not say so — it rendered
+    // (113,168,228), the same daylight blue as the beach and the plains. The high arctic sits under a
+    // pale, cold, low-sun sky with ice-blink off the floes lighting the underside of it. This land's
+    // identity IS its sky (see SKY_GAIN: >=0.5 declares that), so it gets an authored weight.
+    sky:{ top:[118,152,196], bot:[236,242,248], k:0.56, haze:[236,242,250] } },
   // THE SPRAWL. A drowned industrial plain: standing water between concrete berms, pylons marching
   // through it, almost no relief. The flatness is deliberate — the megatowers, the haze and the neon do
   // all the work, and the water is what justifies the wet-look streets.
@@ -3208,13 +3215,13 @@ var BIOME_VARIANTS={
       walls:[[240,236,228],[214,206,196],[196,220,224],[228,216,190],[206,212,208],[184,176,166],[236,228,208],[170,182,184]],
       flora:{ kinds:["palm","palm","pandanus","palm","seagrape"], bloom:["#f26a8d","#ffd166","#ffffff"] },
       fauna:{ keep:{deer:0,rabbit:0,fox:0,goat:0}, big:["turtle"], small:["crab","hermitcrab"], air:["frigate","tern"] },
-      sky:{ top:[86,142,198], bot:[186,214,222], k:0.30, haze:[192,216,220] } },
+      sky:{ top:[44,96,158], bot:[158,192,206], k:0.58, haze:[164,196,208] } },   // deep hard light over black sand
     { name:"THE PINK SHORE",  // coral sand with a jade lagoon: the softest palette in the set
       far:[238,208,196], near:[218,180,168], cap:[250,232,224], ground:[246,218,206],
       walls:[[252,246,240],[240,214,208],[212,238,232],[248,232,208],[236,244,240],[226,192,182],[254,244,226],[200,228,224]],
       flora:{ kinds:["palm","seagrape","palm","palm","pandanus"], bloom:["#ff7fa8","#ffe08a","#ffffff","#ffa98a"] },
       fauna:{ keep:{deer:0,rabbit:0,fox:0,goat:0}, big:["turtle"], small:["crab","hermitcrab"], air:["tern","frigate"] },
-      sky:{ top:[126,186,230], bot:[248,226,222], k:0.28, haze:[250,230,224] } } ],
+      sky:{ top:[150,198,236], bot:[255,226,224], k:0.54, haze:[255,230,226] } } ],  // hazy pastel; the softest of the three
 
   swamp:[ {},
     { name:"THE MANGROVE", waterTree:"mangrove", waterPal:{deep:[38,116,118],mid:[26,88,92],shal:[18,62,66]},  // tangled red-rooted mangrove over teal water, hot and bright
