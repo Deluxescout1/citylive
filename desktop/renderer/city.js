@@ -3113,6 +3113,21 @@ var BIOMES=[
     fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:1}, big:["buffalo","boar"], small:["frog","squirrel"], air:["heron","egret"] },
     flora:{ kinds:["palm","fern","willow","palm","grass"], bloom:["#ffffff","#ffd166","#e8a0c0"] },
     sky:{ top:[126,166,206], bot:[228,232,214], k:0.48, haze:[232,236,218] } },
+  // ============ THE UNDERCITY — Phase 5, land #7 ============
+  // WHAT FILLS THE FRAME: everything. There is NO SKY. A cavern has a ceiling, and a ceiling is the
+  // inverse of a horizon — so this is the most radical departure in the queue and deliberately the
+  // last ordinary land built, on top of a settled sky system rather than under a moving one.
+  // ⚠ `roof:1` is read in drawSky as well as here: the sky gradient must not paint a daylight dome
+  // over a place that is a thousand feet underground.
+  { k:"under",  name:"THE UNDERCITY", amp:0.66, base:0.44, flat:0.30, steep:0.70, snow:false, water:"sea", roof:1,
+    far:[62,58,74],     near:[42,38,54],    cap:[126,120,150], ground:[54,50,64],
+    // built from what is down here: cut stone, poured concrete, and a lot of salvaged metal
+    walls:[[86,80,96],[62,58,72],[110,104,124],[48,44,58],[128,120,142],[74,70,86],[96,90,110],[56,52,66]],
+    fauna:{ keep:{deer:0,rabbit:0,fox:0,goat:0}, big:[], small:["frog","lizard"], air:["bat","owl"] },
+    flora:{ kinds:["fungus","fungus","scrub","fungus"], bloom:["#7cf0d0","#a0e8ff","#c0a0ff","#8affc0"] },
+    // there is no sky, but there IS a colour overhead: bioluminescence and the glow off the water.
+    // k:0.92 — the highest in the game, higher than hell's, because nothing of the real sky survives.
+    sky:{ top:[10,12,20], bot:[30,44,58], k:0.92, haze:[44,66,84] } },
   { k:"canyon", name:"THE GORGE",   amp:0.55, base:0.30, flat:0.9,  steep:0.72, snow:false, water:"river", gorge:1,
     far:[188,118,84],   near:[156,86,60],   cap:[224,168,120], ground:[196,150,104],
     // the vernacular of a canyon floor: adobe, sandstone block, sun-bleached timber, painted stucco
@@ -3386,6 +3401,20 @@ var BIOME_VARIANTS={
   // ⚠ FOUR named variants, not two. Nick was offered four and picked all four, and nothing here forces
   // a land to have exactly two: `variantOf` does `vs[mixLi(li,104729)%vs.length]`, so the array length
   // is free. Every other land keys separately, so a five-entry canyon reshuffles nothing but itself.
+  under:[ {},
+    { name:"THE GLOWSPORE",   // bioluminescent fungus everywhere: the cavern lit blue-green by its own life
+      far:[46,66,72],   near:[28,46,52],   cap:[110,190,180], ground:[38,58,62],
+      walls:[[70,96,98],[48,70,72],[96,128,126],[38,56,58],[112,148,142],[60,84,86],[82,110,110],[44,64,66]],
+      flora:{ kinds:["fungus","fungus","fungus","scrub"], bloom:["#7cf0d0","#8affc0","#a0ffe8"] },
+      fauna:{ keep:{deer:0,rabbit:0,fox:0,goat:0}, big:[], small:["frog"], air:["bat"] },
+      sky:{ top:[8,18,20], bot:[26,58,58], k:0.94, haze:[40,84,82] } },
+    { name:"THE DEEP WORKS",  // a working mine-city: furnace light, iron, and very little that grows
+      far:[74,58,52],   near:[52,40,36],   cap:[168,110,64], ground:[62,48,42],
+      walls:[[98,78,68],[72,58,50],[124,100,84],[56,44,38],[140,112,90],[84,66,58],[108,86,72],[64,50,44]],
+      flora:{ kinds:["fungus","scrub","fungus"], bloom:["#ff9a4a","#ffc06a","#e87a3a"] },
+      fauna:{ keep:{deer:0,rabbit:0,fox:0,goat:0}, big:[], small:["lizard"], air:["bat"] },
+      sky:{ top:[16,10,10], bot:[52,30,20], k:0.90, haze:[86,50,30] } } ],
+
   terrace:[ {},
     { name:"THE GOLD HARVEST",  // ripe rice: the whole hillside gone amber, water only in the low steps
       far:[212,196,128], near:[192,170,86],  cap:[240,228,168], ground:[204,182,104], harvest:1,
@@ -4043,7 +4072,7 @@ function buildWorld(li){
   EDUB=schoolAt<0.46?0.012:0;                                  // early schooling → tech (space age) sooner (N8)
   POPK=(((li*2654435761+4441)>>>0)%1000)/1000;                 // relative bigness of this city (rush-jam factor)
   var mg=rng((seed+71)>>>0);
-  mtsCache=null; gorgeCache=null; duneCache=null; karstCache=null; terrCache=null;   // new life → new silhouette
+  mtsCache=null; gorgeCache=null; duneCache=null; karstCache=null; terrCache=null; caveCache=null;   // new life → new silhouette
   bioTrees=null;
   // The four height-field biomes build the same two ridges; the biome's amp/base scale them, and its
   // flat/steep/snow decide how they're cut and coloured at draw time.
@@ -4066,7 +4095,7 @@ function buildWorld(li){
   // to preserve.
   var flatLife = (li!==0 && curBiome.k==="alpine" && mg()>=0.72);
   var relief = flatLife ? 0.34 : 1;                                // open country: present, but low
-  mts = (curBiome.k==="forest"||curBiome.k==="core"||curBiome.gorge||curBiome.dune||curBiome.tower||curBiome.steps) ? null : {far:[],near:[]};   // the core world has NO terrain at all; the gorge draws walls, not peaks
+  mts = (curBiome.k==="forest"||curBiome.k==="core"||curBiome.gorge||curBiome.dune||curBiome.tower||curBiome.steps||curBiome.roof) ? null : {far:[],near:[]};   // the core world has NO terrain at all; the gorge draws walls, not peaks
   if(mts){
     var MSC=KSP*Math.max(0.45,Math.min(1,WW/1300))*curBiome.amp*relief;   // small worlds get proportionate peaks
     var nF=6+((mg()*4)|0), nN=4+((mg()*4)|0), mi;
@@ -7337,6 +7366,7 @@ function boxesHit(list,x,y,w,h){
 // contrail. Always-on callsign+altitude tag on a dark plate with a ▲/▼ climb-descent arrow. And once the
 // city has a working airport, low climbing/descending aircraft fly their departure/approach to its runway.
 function drawRealFlights(g,L,now){
+  if(curBiome.roof) return;      // ⚠ no airliners underground
   if(!FLIGHTS_ON || !realFlights || !realFlights.length) return;
   if(cityPhase==="apoc") return;                          // the sky is meteors / fire / ash — no ADS-B overlay
   var d2r=Math.PI/180, R2D=180/Math.PI, nowMs=now;
@@ -8847,6 +8877,7 @@ function drawShootingStar(g,L,now){
 // displays (e.g. a 4K@165% monitor, where KWin downsamples the 2x buffer) those 1px beams sharpened into
 // the recurring "vertical lines over the mountains/sky" artifact. Broad soft shafts can't alias into lines.
 function drawGodRays(g,L,now,fx){
+  if(curBiome.roof) return;      // ⚠ the sun cannot rake a ceiling — the undercity has its own shafts
   if(L<0.4||cityPhase==="apoc"||fx.rain||fx.drizzle||fx.snow||fx.thunder||fx.fog) return;
   var cl=weather.cloud||0; if(cl<26||cl>76) return;                              // needs SOME cloud to break the light (not clear, not overcast)
   // anchor the shafts to the REAL drawn sun disc (df*WW world-anchored, the disc's own arc) — the old
@@ -11517,6 +11548,7 @@ function drawFerris(g,L,now,night){
 
 // ---- HOT-AIR BALLOONS drift across calm clear skies (daytime) ----
 function drawBalloons(g,L,now,fx){
+  if(curBiome.roof) return;      // ⚠ nobody is ballooning in a cave
   if(L<0.42||fx.cloudy||fx.rain||fx.snow||(weather.wind||5)>14) return;             // calm, clear, daylit
   if((curEvents&&curEvents.balloonfest) || (curFestival&&curFestival.active&&curFestival.stage>=3&&curFestival.stage<=4)){   // J3 balloon FESTIVAL morning — or the World's Fair (OPENING/FAIR): a sky full of them
     var fenv=[[255,90,90],[90,150,255],[255,200,70],[110,220,140],[240,120,220],[120,230,230],[255,150,90]];
@@ -16135,6 +16167,92 @@ function stratRuns(g,prof,y0,step,style){
   }
 }
 // ================================================================================================
+// THE UNDERCITY — a place with a ceiling instead of a sky
+// ------------------------------------------------------------------------------------------------
+// The most radical departure in the phase, and the reason it was built last: EVERY other land assumes
+// there is a sky. A ceiling is the inverse of a horizon — it comes DOWN toward you from the top of
+// the frame, it is closest where the sky would be furthest, and it is lit from below rather than above.
+//
+// WHAT FILLS THE FRAME: everything. There is no empty half. Rock above, rock at the sides, black water
+// below, and the only light in the world is what the city and the fungus make.
+var caveCache=null;
+function drawUndercity(g,L,now,nd){
+  var B=curBiome, K=Math.max(1,KSP);
+  var glowC = B.name==="THE DEEP WORKS" ? [255,150,60] : (B.name==="THE GLOWSPORE" ? [110,240,208] : [120,200,255]);
+  if(!caveCache){
+    caveCache={ceil:new Array(SW)};
+    for(var x=0;x<SW;x++){
+      var wx=x+WOFF;
+      // kept FLOAT — rounding a profile before using it is what striped the dunes
+      var n=Math.sin(wx*0.0052)*0.52+Math.sin(wx*0.0137+2.2)*0.28+Math.sin(wx*0.0361)*0.14;
+      caveCache.ceil[x]=HORIZON*(0.30+n*0.15);
+    }
+  }
+  var rock=mixc(B.far,[0,0,0],0.30), rock2=mixc(B.near,[0,0,0],0.20);
+  // ---- THE CEILING, hanging from the top of the frame
+  for(var x2=0;x2<SW;x2++){
+    var cy=Math.round(caveCache.ceil[x2]);
+    g.fillStyle=css(rock); g.fillRect(x2,0,1,cy);
+    g.fillStyle=rgba(mixc(rock,glowC,0.16),0.5);          // the underside catches the city's light
+    g.fillRect(x2,cy-Math.max(1,Math.round(K*0.8)),1,Math.max(1,Math.round(K*0.8)));
+  }
+  // ---- STALACTITES. Hung off the ceiling at world positions, so all three monitors agree.
+  for(var t=0;t<40;t++){
+    var twx=((t*2654435761+((WORLD_SEED*29)|0))>>>0)%Math.max(1,WW);
+    for(var o=-1;o<=1;o++){
+      var tx=Math.round(twx-WOFF+o*WW);
+      if(tx<0||tx>=SW) continue;
+      var base=Math.round(caveCache.ceil[tx]);
+      var len=Math.round((6+((t*7919)>>>0)%26)*K*0.6), wdt=Math.max(1,Math.round(2.4*K));
+      for(var q=0;q<len;q++){
+        var wq=Math.max(1,Math.round(wdt*(1-q/len)));
+        g.fillStyle=css(rock2); g.fillRect(tx-((wq/2)|0),base+q,wq,1);
+      }
+      // …and a stalagmite growing to meet it, sometimes joining into a column
+      if(((t*40503)>>>0)%3===0){
+        var gl=Math.round(len*0.7);
+        for(var q2=0;q2<gl;q2++){
+          var wg=Math.max(1,Math.round(wdt*(1-q2/gl)));
+          g.fillStyle=css(rock2); g.fillRect(tx-((wg/2)|0),HORIZON-q2,wg,1);
+        }
+      }
+    }
+  }
+  // ---- LIGHT SHAFTS: holes in the roof, the only daylight that ever gets down here. They track the
+  // REAL sun — they are strongest at local noon and gone at night, which is the one thing that ties
+  // this place to the world above it.
+  var sun=Math.max(0,Math.min(1,(L-0.34)*2.2));
+  if(sun>0.05){
+    for(var sh=0;sh<3;sh++){
+      var swx=((sh*104729+((WORLD_SEED*7)|0))>>>0)%Math.max(1,WW);
+      for(var o2=-1;o2<=1;o2++){
+        var sx=Math.round(swx-WOFF+o2*WW);
+        if(sx<-60||sx>SW+60) continue;
+        var top=Math.round(caveCache.ceil[Math.max(0,Math.min(SW-1,sx))]);
+        var wid=Math.round(10*K);
+        g.globalCompositeOperation="lighter";
+        for(var q3=0;q3<HORIZON-top;q3++){
+          var f=q3/Math.max(1,HORIZON-top);
+          g.fillStyle=rgba([255,244,214],0.10*sun*(1-f));
+          g.fillRect(sx-((wid*(0.5+f*0.6))|0),top+q3,Math.round(wid*(1+f*1.2)),1);
+        }
+        g.globalCompositeOperation="source-over";
+      }
+    }
+  }
+  // ---- BIOLUMINESCENCE on the ceiling and walls: the light that makes this place liveable
+  for(var b2=0;b2<70;b2++){
+    var bwx=((b2*40503+((WORLD_SEED*11)|0))>>>0)%Math.max(1,WW);
+    var bx=Math.round(bwx-WOFF);
+    if(bx<-10) bx+=WW; if(bx>SW+10) bx-=WW;
+    if(bx<0||bx>=SW) continue;
+    var by=Math.round(caveCache.ceil[bx]+((b2*7919)%Math.max(1,Math.round(HORIZON*0.5))));
+    var pulse=0.45+0.55*Math.sin(now*0.0012+b2*0.7);
+    g.fillStyle=rgba(glowC,0.55*pulse);
+    g.fillRect(bx,by,Math.max(1,Math.round(1.4*K)),Math.max(1,Math.round(1.4*K)));
+  }
+}
+// ================================================================================================
 // THE TERRACES — a hillside people cut into steps
 // ------------------------------------------------------------------------------------------------
 // The only land in the game whose landscape is MAN-MADE. What fills the frame is stacked water: every
@@ -19937,6 +20055,7 @@ function drawMountains(g,L,now,nd){
   if(curBiome.dune){ drawDunes(g,L,now,nd); return; }                   // …and a dune sea is not a ridge line either
   if(curBiome.tower){ drawKarst(g,L,now,nd); return; }                  // …nor is a field of limestone towers
   if(curBiome.steps){ drawTerraces(g,L,now,nd); return; }                // …nor a hillside people cut into steps
+  if(curBiome.roof){ drawUndercity(g,L,now,nd); return; }                // …and underground there is a CEILING, not a range
   if(!mts) return;
   var gy=HORIZON, day=L>0.5;
   var sunsetK=goldenK;   // sourced from the shared golden-hour global (identical law)
@@ -24276,7 +24395,12 @@ function draw(g,pass){
   var cA=mixc(SKY[ph.a][0],SKY[ph.b][0],ph.t), cB=mixc(SKY[ph.a][1],SKY[ph.b][1],ph.t);
   // the land's own air, mixed INTO the phase colour rather than over it, so dawn is still dawn and a
   // socked-in overcast still greys the desert. Damped at night — a tinted night sky loses its stars.
-  var BSky=curBiome.sky;
+  // ⚠ NO DAYLIGHT DOME UNDERGROUND. drawSky paints a time-of-day gradient over the whole frame, which
+  // is right for sixteen lands and catastrophic for the one that is a thousand feet below all of them.
+  // The undercity's own `sky` colours are the rock-and-glow tones overhead; `roof` says "use them, and
+  // do not let the sun anywhere near this".
+  if(curBiome.roof){ cA=curBiome.sky.top; cB=curBiome.sky.bot; }
+  var BSky=curBiome.roof?null:curBiome.sky;
   // ⚠ THE PER-LAND SKY WAS WIRED CORRECTLY AND STILL DID NOT READ. Sampling the rendered top-centre
   // pixel of all 36 named looks against each land's declared `sky.top` found every ordinary land
   // converging on the same daylight blue: THE SPRAWL declares [52,58,84] and rendered (86,131,186),
@@ -24500,7 +24624,10 @@ function draw(g,pass){
   }
 
   // clouds (deterministic drift)
-  if(pass!=="sky"){
+  // ⚠ NOT UNDERGROUND. Cumulus drifting across a cavern ceiling was the giveaway that "no sky" has to
+  // be enforced at every sky-owning renderer, not just at the gradient: the first undercity render had
+  // clouds AND airliner labels a thousand feet below the surface.
+  if(pass!=="sky" && !curBiome.roof){
   var windPush=0.6+(weather.wind||5)*0.06;
   var cloudA=fx.cloudy?0.85:(fx.rain||fx.snow)?0.9:0.5;
   for(i=0;i<clouds.length;i++){ c=clouds[i];
