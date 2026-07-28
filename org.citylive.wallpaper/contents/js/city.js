@@ -3099,7 +3099,7 @@ var BIOMES=[
   { k:"salt",   name:"THE SALT MIRROR", amp:0.22, base:0.30, flat:0.94, steep:0.0, snow:false, water:"sea", mirror:1,
     far:[204,206,214],  near:[186,190,200], cap:[246,248,252], ground:[236,238,242],
     walls:[[242,240,236],[220,216,210],[250,248,246],[198,196,192],[232,230,226],[210,208,204],[186,184,182],[246,246,244]],
-    fauna:{ keep:{deer:0,rabbit:1,fox:1,goat:0}, big:["flamingo"], small:["lizard"], air:["tern","skua"] },
+    fauna:{ keep:{deer:0,rabbit:1,fox:1,goat:0}, big:[], small:["lizard"], air:["flamingo","tern","skua"] },
     flora:{ kinds:["scrub","grass","scrub"], bloom:["#ffffff","#f0d0d8","#e8e8f0"] },
     // an enormous pale sky, because on a salt pan there is nothing else to look at and it is doubled
     sky:{ top:[124,166,214], bot:[240,238,236], k:0.52, haze:[244,242,240] } },
@@ -3128,6 +3128,19 @@ var BIOMES=[
     // there is no sky, but there IS a colour overhead: bioluminescence and the glow off the water.
     // k:0.92 — the highest in the game, higher than hell's, because nothing of the real sky survives.
     sky:{ top:[10,12,20], bot:[30,44,58], k:0.92, haze:[44,66,84] } },
+  // ============ THE SAVANNA — Phase 5, land #8 ============
+  // ⚠ FLAGGED IN THE BRIEF AS THE LAND MOST AT RISK OF BEING ANOTHER THIN BAND, and built last for
+  // that reason. It has no cliff, no tower, no ceiling and no dune to fill a frame with.
+  // WHAT FILLS THE FRAME: ANIMALS AT SCALE, and distance. A real herd crossing real distance is this
+  // land's landform — so the herd is drawn BIG and in DEPTH rather than as a few specks on the ground
+  // band, and a lone kopje plus flat-topped acacia give the eye something to measure them against.
+  { k:"savanna",name:"THE SAVANNA",  amp:0.34, base:0.72, flat:0.62, steep:0.16, snow:false, water:"river", herd:1,
+    far:[196,186,140],  near:[172,158,104], cap:[214,206,166], ground:[186,168,108],
+    walls:[[212,176,132],[186,146,102],[232,214,186],[160,122,84],[224,200,168],[196,164,120],[148,116,86],[236,224,202]],
+    fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:0}, big:["elephant","giraffe","zebra","wildebeest"], small:["meerkat","lizard"], air:["vulture","stork"] },
+    flora:{ kinds:["acacia","grass","acacia","scrub","acacia"], bloom:["#ffd166","#ffffff","#e8b060"] },
+    // the huge dry-season sky this land is known for, bleached almost white at the horizon
+    sky:{ top:[112,158,208], bot:[244,232,196], k:0.56, haze:[246,230,190] } },
   { k:"canyon", name:"THE GORGE",   amp:0.55, base:0.30, flat:0.9,  steep:0.72, snow:false, water:"river", gorge:1,
     far:[188,118,84],   near:[156,86,60],   cap:[224,168,120], ground:[196,150,104],
     // the vernacular of a canyon floor: adobe, sandstone block, sun-bleached timber, painted stucco
@@ -3185,6 +3198,29 @@ var FAUNA={
   // Species the VARIANTS need. A missing key is silently skipped by drawBiomeFauna (`if(!sp) continue`),
   // so a variant referencing one of these before it existed would just quietly have no animals.
   ibex:      {plan:"quad", w:6, h:4, c:[164,142,108],c2:[104,88,64],  head:"curl"},
+  // ⚠⚠ NINE SPECIES WERE DECLARED BY A LAND AND DID NOT EXIST HERE, so drawBiomeFauna's
+  // `if(!sp) continue` skipped them in silence and those lands rendered with NO ANIMALS AT ALL.
+  // Two of them (`goat`, `bat`) predate tonight — the beach and volcano variants have been asking for
+  // a goat since Phase 4. Found by auditing every fauna key in BIOMES + BIOME_VARIANTS against this
+  // table rather than by looking at a frame, because "silently nothing" is invisible in a render.
+  // Sizes are held against drawPerson's fixed 7px: an elephant out-masses a person, a fennec does not.
+  goat:      {plan:"quad", w:5, h:4, c:[214,206,190],c2:[150,142,128], head:"curl"},
+  camel:     {plan:"quad", w:8, h:6, c:[196,158,106],c2:[146,112,72],  head:"snout", hump:1},
+  oryx:      {plan:"quad", w:7, h:5, c:[224,214,196],c2:[92,80,70],    head:"horn"},
+  buffalo:   {plan:"quad", w:9, h:5, c:[86,74,64],   c2:[52,44,38],    head:"curl"},
+  monkey:    {plan:"spot", c:[122,98,72],  c2:[176,148,116], upright:1, tail:1},
+  fennec:    {plan:"spot", c:[226,200,152],c2:[248,232,204], upright:1},
+  scarab:    {plan:"spot", c:[46,52,44],   c2:[92,104,80]},
+  flamingo:  {plan:"bird", c:[248,166,190], perch:1, wader:1},
+  bat:       {plan:"bird", c:[46,40,50],   soar:1},
+  // THE SAVANNA's headline animals. This land has no cliff, tower or dune to fill a frame with, so the
+  // HERD is its landform — these are sized to actually read at distance rather than as ground specks.
+  elephant:  {plan:"quad", w:13,h:8, c:[124,120,118],c2:[86,82,80],   head:"snout", trunk:1},
+  giraffe:   {plan:"quad", w:8, h:11,c:[218,178,108],c2:[150,110,62],  head:"horn",  neck:1},
+  zebra:     {plan:"quad", w:8, h:5, c:[238,236,232],c2:[40,38,40],    head:"snout", striped:1},
+  wildebeest:{plan:"quad", w:8, h:5, c:[92,84,80],   c2:[58,52,50],    head:"curl"},
+  meerkat:   {plan:"spot", c:[198,168,124],c2:[232,212,178], upright:1},
+  stork:     {plan:"bird", c:[244,244,240], perch:1, wader:1},
   wolf:      {plan:"quad", w:6, h:3, c:[124,124,120],c2:[76,76,74],   head:"snout"},
   marmot:    {plan:"spot", c:[152,124,84],  c2:[196,172,132], upright:1},
   eagle:     {plan:"bird", c:[92,72,52],    soar:1, perch:1},
@@ -3401,6 +3437,20 @@ var BIOME_VARIANTS={
   // ⚠ FOUR named variants, not two. Nick was offered four and picked all four, and nothing here forces
   // a land to have exactly two: `variantOf` does `vs[mixLi(li,104729)%vs.length]`, so the array length
   // is free. Every other land keys separately, so a five-entry canyon reshuffles nothing but itself.
+  savanna:[ {},
+    { name:"THE GREAT MIGRATION", // the wet-season crossing: green grass and the herd at full size
+      far:[168,190,132], near:[132,166,92],  cap:[198,214,158], ground:[146,176,100], migration:1,
+      walls:[[208,180,140],[180,152,110],[228,216,192],[156,128,92],[220,204,176],[192,168,128],[144,120,90],[234,226,208]],
+      flora:{ kinds:["acacia","grass","acacia","grass","scrub"], bloom:["#ffd166","#ffffff","#f0c060"] },
+      fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:0}, big:["wildebeest","zebra","elephant","giraffe"], small:["meerkat"], air:["stork","vulture"] },
+      sky:{ top:[104,152,204], bot:[228,232,208], k:0.52, haze:[232,234,204] } },
+    { name:"THE DRY SEASON",      // burnt gold, dust, and everything gathered at what water is left
+      far:[210,188,128], near:[192,164,86],  cap:[228,212,164], ground:[204,178,96], dust:1,
+      walls:[[216,178,128],[192,150,98],[236,218,186],[168,128,84],[228,204,168],[202,170,118],[156,120,84],[240,228,204]],
+      flora:{ kinds:["acacia","scrub","acacia","grass"], bloom:["#ffd166","#e8a040","#ffffff"] },
+      fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:0}, big:["elephant","giraffe","zebra"], small:["meerkat","lizard"], air:["vulture"] },
+      sky:{ top:[128,158,196], bot:[248,226,176], k:0.60, haze:[250,222,168] } } ],
+
   under:[ {},
     { name:"THE GLOWSPORE",   // bioluminescent fungus everywhere: the cavern lit blue-green by its own life
       far:[46,66,72],   near:[28,46,52],   cap:[110,190,180], ground:[38,58,62],
@@ -3434,7 +3484,7 @@ var BIOME_VARIANTS={
       far:[228,206,206], near:[214,184,188], cap:[252,240,240], ground:[246,224,224],
       walls:[[250,242,238],[232,214,212],[254,248,246],[212,196,194],[242,230,228],[224,210,208],[198,186,184],[252,248,246]],
       flora:{ kinds:["scrub","grass","scrub"], bloom:["#ffffff","#ffc0cc","#f8e0e8"] },
-      fauna:{ keep:{deer:0,rabbit:0,fox:1,goat:0}, big:["flamingo"], small:["lizard"], air:["tern"] },
+      fauna:{ keep:{deer:0,rabbit:0,fox:1,goat:0}, big:[], small:["lizard"], air:["flamingo","tern"] },
       sky:{ top:[142,170,210], bot:[250,232,232], k:0.54, haze:[252,236,236] } },
     { name:"THE DRY LAKE",     // cracked polygons, no standing water — the mirror only after rain
       far:[214,204,186], near:[196,182,160], cap:[244,238,224], ground:[228,216,192], mirrorDry:1,
