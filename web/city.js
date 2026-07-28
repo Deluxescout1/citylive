@@ -3801,18 +3801,34 @@ function buildWorld(li){
   mtsCache=null;                              // new life → new silhouette
   bioTrees=null;
   // The four height-field biomes build the same two ridges; the biome's amp/base scale them, and its
-  // flat/steep/snow decide how they're cut and coloured at draw time. Alpine on a flatland roll still
-  // gets no ridge at all (some lives have always been open country) — the other biomes ARE the land,
-  // so they always stand.
+  // flat/steep/snow decide how they're cut and coloured at draw time.
+  //
+  // ⚠⚠ `flatLife` USED TO SET `mts = null`, and that was the emptiest frame in the whole project.
+  // Rendering all 36 named looks turned up an ALPINE row — Nick's stated gold standard, "the OG
+  // Mountains" — with no mountains in it at all. The cause was this roll, and it fires on **24.5% of
+  // alpine lives**. The intent ("some lives have always been open country") is good; `null` was the
+  // wrong way to express it, because with no `mts` there is no `mtsCache`, and EVERYTHING on this land
+  // is anchored to the cached ridge profile. So a flat life silently lost the entire alpine detail
+  // pass too: no eagles, no ibex, no marmots, no krummholz, no spindrift — verified by draw-call
+  // recorder, `drawAlpineLife` and `drawBiomeFauna` emitted zero rects. One alpine life in four was
+  // generic terrain under a completely empty sky.
+  // Open country now means LOW ROLLING FOOTHILLS rather than a void: the same range at ~1/3 relief,
+  // so the horizon still has shape, the life still has rock to stand on, and the land still reads as
+  // open rather than alpine.
+  // ⚠ The roll is still CONSUMED either way. Dropping the `mg()` call would re-roll the peaks of all
+  // six height-field biomes at once (see the same warning in drawMountains) and invalidate every
+  // existing life's silhouette. Only lives that currently render FLAT change, and those have no look
+  // to preserve.
   var flatLife = (li!==0 && curBiome.k==="alpine" && mg()>=0.72);
-  mts = (curBiome.k==="forest"||curBiome.k==="core"||flatLife) ? null : {far:[],near:[]};   // the core world has NO terrain at all
+  var relief = flatLife ? 0.34 : 1;                                // open country: present, but low
+  mts = (curBiome.k==="forest"||curBiome.k==="core") ? null : {far:[],near:[]};   // the core world has NO terrain at all
   if(mts){
-    var MSC=KSP*Math.max(0.45,Math.min(1,WW/1300))*curBiome.amp;   // small worlds get proportionate peaks
+    var MSC=KSP*Math.max(0.45,Math.min(1,WW/1300))*curBiome.amp*relief;   // small worlds get proportionate peaks
     var nF=6+((mg()*4)|0), nN=4+((mg()*4)|0), mi;
     for(mi=0;mi<nF;mi++){ var fh=(40+mg()*56)*MSC;                 // the pale back ridge — TALL
-      mts.far.push({x:mg()*WW, w:(100+mg()*150)*MSC, h:fh, sn:curBiome.snow&&((fh>66*MSC)||mg()<0.25), ph:mg()*9}); }
+      mts.far.push({x:mg()*WW, w:(100+mg()*150)*MSC/relief, h:fh, sn:curBiome.snow&&((fh>66*MSC)||mg()<0.25), ph:mg()*9}); }
     for(mi=0;mi<nN;mi++){ var nh=(58+mg()*86)*MSC;                 // the bolder front ridge — the peaks
-      mts.near.push({x:mg()*WW, w:(80+mg()*130)*MSC, h:nh, sn:curBiome.snow&&((nh>92*MSC)||mg()<0.35), ph:mg()*9}); }   // clear the skyline
+      mts.near.push({x:mg()*WW, w:(80+mg()*130)*MSC/relief, h:nh, sn:curBiome.snow&&((nh>92*MSC)||mg()<0.35), ph:mg()*9}); }   // clear the skyline
     // ⚠ A VOLCANO IS NOT A RANGE. The roll above scatters four to eight peaks of similar height, which
     // is right for every other rock land and produced a broad flat-topped ridge for the volcanic
     // island — no cone anywhere in it, and `drawVolcano` politely put a plume on the tallest bump. An
