@@ -3089,6 +3089,20 @@ var BIOMES=[
     // ⚠ k 0.54 — above the 0.5 line on purpose. A fjord sits under a steep, cold, low northern light
     // that a temperate blue cannot express, and the walls take their haze from this.
     sky:{ top:[92,128,168], bot:[206,220,226], k:0.54, haze:[210,224,230] } },
+  // ============ THE SALT MIRROR — Phase 5, land #5 ============
+  // A flooded salt pan: a centimetre of water over white salt, from horizon to horizon.
+  // WHAT FILLS THE FRAME: the REFLECTION. This is the one land where emptiness is the content — the
+  // sky and the whole skyline appear twice, once above the horizon and once below it, so the half of
+  // the frame that is "nothing" on every other map carries as much as the half that is something.
+  // ⚠ `mirror:1`, and see drawSaltMirror for the perf contract. This is the land most capable of
+  // breaking the ~50%-of-a-core ceiling and it is NOT allowed to.
+  { k:"salt",   name:"THE SALT MIRROR", amp:0.22, base:0.30, flat:0.94, steep:0.0, snow:false, water:"sea", mirror:1,
+    far:[204,206,214],  near:[186,190,200], cap:[246,248,252], ground:[236,238,242],
+    walls:[[242,240,236],[220,216,210],[250,248,246],[198,196,192],[232,230,226],[210,208,204],[186,184,182],[246,246,244]],
+    fauna:{ keep:{deer:0,rabbit:1,fox:1,goat:0}, big:["flamingo"], small:["lizard"], air:["tern","skua"] },
+    flora:{ kinds:["scrub","grass","scrub"], bloom:["#ffffff","#f0d0d8","#e8e8f0"] },
+    // an enormous pale sky, because on a salt pan there is nothing else to look at and it is doubled
+    sky:{ top:[124,166,214], bot:[240,238,236], k:0.52, haze:[244,242,240] } },
   { k:"canyon", name:"THE GORGE",   amp:0.55, base:0.30, flat:0.9,  steep:0.72, snow:false, water:"river", gorge:1,
     far:[188,118,84],   near:[156,86,60],   cap:[224,168,120], ground:[196,150,104],
     // the vernacular of a canyon floor: adobe, sandstone block, sun-bleached timber, painted stucco
@@ -3362,6 +3376,20 @@ var BIOME_VARIANTS={
   // ⚠ FOUR named variants, not two. Nick was offered four and picked all four, and nothing here forces
   // a land to have exactly two: `variantOf` does `vs[mixLi(li,104729)%vs.length]`, so the array length
   // is free. Every other land keys separately, so a five-entry canyon reshuffles nothing but itself.
+  salt:[ {},
+    { name:"THE PINK PAN",     // mineral-stained brine: the flats really do go pink
+      far:[228,206,206], near:[214,184,188], cap:[252,240,240], ground:[246,224,224],
+      walls:[[250,242,238],[232,214,212],[254,248,246],[212,196,194],[242,230,228],[224,210,208],[198,186,184],[252,248,246]],
+      flora:{ kinds:["scrub","grass","scrub"], bloom:["#ffffff","#ffc0cc","#f8e0e8"] },
+      fauna:{ keep:{deer:0,rabbit:0,fox:1,goat:0}, big:["flamingo"], small:["lizard"], air:["tern"] },
+      sky:{ top:[142,170,210], bot:[250,232,232], k:0.54, haze:[252,236,236] } },
+    { name:"THE DRY LAKE",     // cracked polygons, no standing water — the mirror only after rain
+      far:[214,204,186], near:[196,182,160], cap:[244,238,224], ground:[228,216,192], mirrorDry:1,
+      walls:[[240,232,218],[218,208,192],[248,244,234],[196,186,170],[230,222,208],[208,198,182],[184,174,158],[244,240,230]],
+      flora:{ kinds:["scrub","grass","scrub","grass"], bloom:["#ffffff","#e8dcc0","#d8ccb0"] },
+      fauna:{ keep:{deer:0,rabbit:1,fox:1,goat:0}, big:["oryx"], small:["lizard","scarab"], air:["vulture"] },
+      sky:{ top:[132,168,212], bot:[246,238,224], k:0.50, haze:[248,240,226] } } ],
+
   fjord:[ {},
     { name:"THE BLACK WATER",  // the deepest, darkest inlet: sheer walls, no shore, black water
       far:[86,102,116],  near:[46,62,74],   cap:[228,238,244], ground:[62,76,84], amp:0.86, steep:0.96,
@@ -3568,6 +3596,10 @@ function seaFrontOf(b){
     case "arctic":  return 28;    // broken floes and open leads
     case "canyon":  return 16;    // the river on the gorge floor — narrower than any coast, but always there
     case "fjord":   return 40;    // the deepest water in the game: a drowned valley has no shore at all
+    // ⚠ 34 WAS TOO THIN TO CARRY THE IDEA. This land's entire thesis is that the world appears TWICE,
+    // and at 34 the mirror was a strip along the bottom — the frame did not read as doubled, it read
+    // as a normal land with a puddle. Widened until the reflection is a real half of the picture.
+    case "salt":    return 58;    // the sheet of brine the whole world is reflected in
     default:        return 0;     // every inland land is unchanged
   }
 }
@@ -16079,6 +16111,86 @@ function stratRuns(g,prof,y0,step,style){
   }
 }
 // ================================================================================================
+// THE SALT MIRROR — the reflection
+// ------------------------------------------------------------------------------------------------
+// ⚠⚠ THE PERF CONTRACT, WHICH IS THE WHOLE REASON THIS FUNCTION IS SHAPED THE WAY IT IS.
+// The obvious way to reflect a world is to render it again upside down. That EXACTLY DOUBLES the
+// frame cost, and this engine holds ~50% of one core across three monitors — so the obvious way is
+// not available and never was. This land was flagged as the perf risk of the whole phase before a
+// line of it was written.
+// So nothing here re-renders anything. The reflection is assembled from things that are already
+// cheap to know:
+//   · the SKY, which is a gradient — one flipped gradient fill, not a redraw
+//   · the SKYLINE, from the building layers' own rectangles (~140 across three layers), drawn as flat
+//     dimmed silhouettes with no windows, no crowns, no detail. A reflection in a centimetre of brine
+//     is a smear of tone, not a photograph, so the cheap version is also the CORRECT version.
+//   · ripple, as a handful of horizontal displacement bands
+// The live pass — citizens, traffic, weather — is never reflected. It would cost the most and read
+// the least: at this scale a reflected pedestrian is one pixel of noise.
+function drawSaltMirror(g,L,now,nd){
+  if(!curBiome.mirror||cityPhase==="apoc") return;
+  if(SEA_FRONT<=0) return;
+  var day=L>0.5, K=Math.max(1,KSP);
+  var top=SEA_Y, botY=SH-TASKBAR_WP;
+  var depth=Math.max(1,botY-top);
+  var dry=!!curBiome.mirrorDry;                                  // THE DRY LAKE reflects only after rain
+  var wet=dry ? Math.max(0,Math.min(1,((weather&&weather.code)?0.9:0)+ (fog&&fog.t?fog.t*0.3:0))) : 1;
+  if(wet<=0.04){
+    // no standing water: cracked polygons instead of a mirror. Still a salt pan, just not a mirror.
+    g.fillStyle=css(mixc(curBiome.ground, day?[0,0,0]:[10,12,20], day?0.06:0.62));
+    g.fillRect(0,top,SW,depth);
+    g.fillStyle=rgba(day?[176,166,148]:[30,32,40],0.5);
+    for(var cxp=0;cxp<SW;cxp+=Math.max(6,Math.round(9*K))){
+      var jx=((cxp+WOFF)*2654435761>>>0)%7;
+      g.fillRect(cxp+jx,top+((cxp*3)%depth),1,Math.round(depth*0.5));
+      g.fillRect(cxp,top+((cxp*5)%depth),Math.round(7*K),1);
+    }
+    return;
+  }
+  // ---- 1. THE SKY, FLIPPED. One gradient: the single cheapest half of a reflection.
+  var grd=g.createLinearGradient(0,top,0,botY);
+  var skB=curBiome.sky?curBiome.sky.bot:[220,228,236], skT=curBiome.sky?curBiome.sky.top:[120,160,210];
+  var dim=day?0.16:0.42;
+  grd.addColorStop(0,css(mixc(skB,[0,0,0],dim)));                 // horizon colour touches the horizon
+  grd.addColorStop(1,css(mixc(skT,[0,0,0],dim+0.10)));            // zenith colour furthest from it
+  g.fillStyle=grd; g.fillRect(0,top,SW,depth);
+
+  // ---- 2. THE SKYLINE, FLIPPED. Flat dimmed silhouettes off the layers that already exist.
+  var layers=[far,mid,near];
+  for(var li3=0;li3<layers.length;li3++){
+    var LY=layers[li3]; if(!LY||!LY.blds) continue;
+    var fade=0.30-0.07*li3;
+    for(var bi3=0;bi3<LY.blds.length;bi3++){
+      var b3=LY.blds[bi3];
+      if(b3.type==="park") continue;
+      // this building's own growth gate — an unbuilt plot must not cast a reflection
+      if(cityG < (b3.houseAge||0)) continue;
+      for(var o3=-1;o3<=1;o3++){
+        var bx3=Math.round(b3.x-WOFF+o3*WW);
+        if(bx3+b3.w<0||bx3>SW) continue;
+        // mirrored height, squashed: a reflection on a shallow sheet is foreshortened, never 1:1
+        var rh=Math.min(depth, Math.round(b3.h*0.44));
+        if(rh<1) continue;
+        g.fillStyle=rgba(mixc(b3.c||[120,120,130],[0,0,0],day?0.30:0.66), fade);
+        g.fillRect(Math.max(0,bx3),top,Math.min(SW,bx3+b3.w)-Math.max(0,bx3),rh);
+      }
+    }
+  }
+  // ---- 3. RIPPLE. A few horizontal bands that break the mirror up and drift, so it reads as liquid
+  // rather than as a photograph pasted upside down.
+  g.fillStyle=rgba(day?[255,255,255]:[150,170,200],0.10);
+  for(var ry2=0;ry2<depth;ry2+=Math.max(3,Math.round(4*K))){
+    var off=Math.round(Math.sin(now*0.0009+ry2*0.22)*2*K);
+    g.fillRect(off,top+ry2,SW,Math.max(1,Math.round(K*0.6)));
+  }
+  // the salt crust itself showing through at the very front, so it is a PAN and not a lake
+  g.fillStyle=rgba(day?[250,250,252]:[92,100,116],0.30);
+  for(var sx3=0;sx3<SW;sx3+=Math.max(4,Math.round(6*K))){
+    var sw3=Math.round(3*K+(((sx3+WOFF)*7919>>>0)%5));
+    g.fillRect(sx3,botY-Math.round(depth*0.14),sw3,Math.max(1,Math.round(K*0.8)));
+  }
+}
+// ================================================================================================
 // THE KARST — a forest of rock
 // ------------------------------------------------------------------------------------------------
 // Three RANKS of limestone towers, each rank separated by a band of mist. The mist is the whole
@@ -25300,6 +25412,7 @@ function draw(g,pass){
   drawAlpineLife(g,L,now,nd,fx);   // eagles on the ridge lift, ibex on the rock, spindrift off the summits
   drawGorgeLife(g,L,now,nd,fx);    // condors on the thermals, swifts on the faces, and the flash flood
   drawDuneLife(g,L,now,nd,fx);     // the haboob, and a camel caravan crossing the sand
+  drawSaltMirror(g,L,now,nd);      // the world doubled in a centimetre of brine
   drawMesaLife(g,L,now,nd,fx);     // vultures on the thermals, heat shimmer, dust devils, the arch
   drawCliffLife(g,L,now,nd,fx);    // the seabird colony on the ledges, and the stacks off the headland
   drawCinderLife(g,L,now,nd,fx);   // the Fire Nation's caldera: rim glow, lava seams, ember fall
