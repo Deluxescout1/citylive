@@ -2933,7 +2933,7 @@ var BIOMES=[
     // ibex work the rock itself, marmots the scree, eagles the ridge lift — see drawAlpineLife
     fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:1}, big:["ibex","bighorn"], small:["marmot"], air:["eagle","raven"] },
     // krummholz at the treeline (a wind-bent pine IS the alpine plant), juniper and meadow below it
-    flora:{ kinds:["windbent","juniper","grass","windbent","scrub"], bloom:["#e8b0d0","#ffe08a","#ffffff","#b0c8f0"] },
+    flora:{ kinds:["spruce","larch","windbent","juniper","spruce","stonepine","grass","scrub"], bloom:["#e8b0d0","#ffe08a","#ffffff","#b0c8f0"] },
     sky:{ top:[74,132,206], bot:[198,220,240], k:0.30, haze:[210,226,240] } },
   // ⚠ LIGHTENED. Nick: "the tall trees is too dark… like the map itself." The palette was a set of
   // deep forest greens, and because the giants' crowns take their colour from `near` and the near
@@ -3156,7 +3156,7 @@ var BIOMES=[
     // painted timber above a working waterfront: the north-coast vernacular
     walls:[[188,72,64],[214,206,190],[142,96,72],[236,232,222],[96,116,132],[168,160,146],[204,120,84],[120,132,140]],
     fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:1}, big:["ibex","bighorn","seal"], small:["marmot","puffin"], air:["eagle","skua","raven"] },
-    flora:{ kinds:["windbent","juniper","scrub","windbent","grass"], bloom:["#e8d8f0","#ffffff","#c8d8b0"] },
+    flora:{ kinds:["spruce","windbent","juniper","spruce","larch","scrub","grass"], bloom:["#e8d8f0","#ffffff","#c8d8b0"] },
     // ⚠ k 0.54 — above the 0.5 line on purpose. A fjord sits under a steep, cold, low northern light
     // that a temperate blue cannot express, and the walls take their haze from this.
     sky:{ top:[92,128,168], bot:[206,220,226], k:0.54, haze:[210,224,230] } },
@@ -3349,14 +3349,14 @@ var BIOME_VARIANTS={
       far:[176,172,168], near:[146,142,140], cap:[242,240,238], steep:0.45, flat:0.18, snow:true,
       ground:[150,150,138],
       walls:[[228,224,214],[206,200,188],[240,238,230],[188,182,170],[214,208,196],[196,192,182],[236,230,218],[176,172,162]],
-      flora:{ kinds:["scrub","grass","windbent","scrub","grass"], bloom:["#e8e0f0","#c8d0e8","#ffffff"] },
+      flora:{ kinds:["spruce","larch","spruce","windbent","scrub","grass"], bloom:["#e8e0f0","#c8d0e8","#ffffff"] },   // subalpine conifer at the treeline
       fauna:{ keep:{deer:0,rabbit:1,fox:1,goat:1}, big:["bighorn","ibex"], small:["marmot"], air:["eagle"] },
       sky:{ top:[132,164,208], bot:[220,226,236], k:0.22, haze:[228,230,236] } },
     { name:"THE DRY RANGE",   // brown semi-arid mountains, no snow, juniper and sage on the flanks
       far:[168,140,102], near:[132,106,74], cap:[196,172,132], snow:false, amp:0.86,
       ground:[176,156,116],
       walls:[[206,178,138],[182,152,112],[224,204,168],[164,134,98],[198,172,132],[176,150,116],[214,192,152],[156,130,96]],
-      flora:{ kinds:["juniper","scrub","sage","juniper","grass"], bloom:["#e0c060","#c88a4a","#ffffff"] },
+      flora:{ kinds:["stonepine","juniper","scrub","sage","juniper","grass"], bloom:["#e0c060","#c88a4a","#ffffff"] },   // stays sparse — a dry range has few trees, and the stone pine is the one that belongs
       fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:1}, big:["bighorn","coyote"], small:["marmot","lizard"], air:["eagle","vulture"] },
       sky:{ top:[142,166,206], bot:[226,214,186], k:0.24, haze:[228,214,184] } } ],
 
@@ -3588,7 +3588,7 @@ var BIOME_VARIANTS={
     { name:"THE GREEN INLET",  // lower, softer, forested to the waterline — the summer fjord
       far:[118,144,124], near:[74,104,84],  cap:[232,242,246], ground:[96,124,100], amp:0.70,
       walls:[[196,84,70],[222,214,198],[150,104,78],[240,236,226],[104,126,138],[176,168,152],[210,128,90],[128,140,146]],
-      flora:{ kinds:["windbent","juniper","fern","windbent","grass"], bloom:["#e8d8f0","#ffffff","#c8e0a0"] },
+      flora:{ kinds:["stonepine","larch","windbent","juniper","spruce","fern","grass"], bloom:["#e8d8f0","#ffffff","#c8e0a0"] },
       fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:1}, big:["elk","ibex","seal"], small:["marmot","puffin"], air:["eagle","raven"] },
       sky:{ top:[108,144,182], bot:[214,226,222], k:0.50, haze:[218,230,226] } } ],
 
@@ -15911,6 +15911,41 @@ function drawBiomePlant(g,X,gy,day,now,seed,sc,kind,swayOn){
     if(!season_bare_ok(seed)){ g.fillStyle=C([232,200,72]);               // its yellow flecks
       R(-gw*0.5,-gh,Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
       R(gw*0.4,-gh-Math.round(K*0.5),Math.max(1,Math.round(K)),Math.max(1,Math.round(K))); }
+  } else if(kind==="spruce"){
+    // ⚠ NEW ALPINE CONIFERS. Nick: "add more types of trees to this map." Alpine had windbent, juniper,
+    // grass and scrub — one tree shape and three ground plants — so a mountain forest was the same
+    // silhouette repeated. These three are the trees that actually grow at that altitude, and each has
+    // a DIFFERENT outline, which is the only thing that reads at this size.
+    // SPRUCE: tall, narrow, and very pointed — the classic dark spire of a subalpine forest.
+    var sh2=Math.round((11+(seed%6))*K), stw=Math.max(1,Math.round(1.2*K));
+    g.fillStyle=C([70,56,40]);
+    R(0,0,stw,-sh2);
+    g.fillStyle=C(season_autumn_ok()?[44,72,52]:[38,74,52]);
+    for(var sq=0;sq<6;sq++){
+      var sf=sq/6, sw3=Math.round((5.2-4.0*sf)*K), sy4=-Math.round(sh2*(0.22+0.72*sf));
+      R(-sw3/2,sy4,sw3,Math.max(1,Math.round(1.8*K)));
+    }
+  } else if(kind==="larch"){
+    // LARCH: the deciduous conifer — open, feathery, and it turns GOLD in autumn, which no other
+    // conifer here does. That seasonal switch is most of why it earns a slot.
+    var lh3=Math.round((9+(seed%5))*K);
+    g.fillStyle=C([88,72,52]);
+    R(0,0,Math.max(1,Math.round(1.1*K)),-lh3);
+    g.fillStyle=C(season_autumn_ok()?[214,168,64]:[104,140,74]);
+    for(var lq=0;lq<5;lq++){
+      var lf=lq/5, lw3=Math.round((4.4-3.0*lf)*K), ly3=-Math.round(lh3*(0.30+0.66*lf));
+      R(-lw3/2,ly3,lw3,Math.max(1,Math.round(K)));                    // sparse, airy whorls
+      R(-lw3/2-Math.round(K),ly3+Math.round(K),Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
+    }
+  } else if(kind==="stonepine"){
+    // STONE PINE: a bare trunk with an umbrella crown — the one alpine tree that is WIDE rather than
+    // tall, so it breaks up a slope of spires.
+    var ph3=Math.round((8+(seed%4))*K);
+    g.fillStyle=C([96,78,58]);
+    R(0,0,Math.max(1,Math.round(1.3*K)),-ph3);
+    g.fillStyle=C([56,92,60]);
+    R(-Math.round(3.6*K),-ph3,Math.round(7.2*K),Math.max(1,Math.round(1.8*K)));
+    R(-Math.round(2.4*K),-ph3-Math.round(1.4*K),Math.round(4.8*K),Math.max(1,Math.round(1.4*K)));
   } else if(kind==="windbent"){
     // everything on a sea cliff leans the same way, because the wind has always come from there
     var th=Math.round((8+(seed%5))*K), dir=1, tw2=Math.max(1,Math.round(1.4*K));
@@ -16133,7 +16168,7 @@ function drawBiomePlant(g,X,gy,day,now,seed,sc,kind,swayOn){
 // what the sky is doing. Called last by drawBiomePlant so the cap sits on whatever was drawn.
 function biomePlantSnow(g,X,gy,sc,kind){
   if(snowpack<=0.1) return;
-  var K=Math.max(1,sc), h={saguaro:11,ocotillo:9,cottonwood:13,windbent:8,fern:3,log:2,gorse:2,scrub:2,grass:3}[kind]||3;
+  var K=Math.max(1,sc), h={saguaro:11,ocotillo:9,cottonwood:13,windbent:8,spruce:12,larch:10,stonepine:9,fern:3,log:2,gorse:2,scrub:2,grass:3}[kind]||3;
   g.fillStyle="rgba(240,244,255,"+Math.min(0.9,0.35+snowpack*0.6).toFixed(2)+")";
   var top=Math.round(gy-h*K), wdt=Math.max(2,Math.round((kind==="log"?6:3)*K));
   g.fillRect(Math.round(X-wdt/2),top,wdt,Math.max(1,Math.round(K)));
@@ -20867,16 +20902,34 @@ function drawAlpineLife(g,L,now,nd,fx){
     var plume=Math.min(1,(wind-7)/22);
     for(var s=0;s<tops.length;s++){
       var tp=tops[s], tx=tp.x, ty=gy-tp.h;
-      var n=Math.round((10+18*plume)*K);
+      // ⚠⚠ A PLUME, NOT A DOTTED LINE. Nick: "if that is wind make it look more realistic." Every
+      // particle was a 1px square, all of them on one shared phase ramp, so they landed at even
+      // intervals along a single path — a row of dots marching up the sky, which is exactly what he
+      // photographed. Three things make blowing snow read as blowing snow:
+      //   · it DISPERSES — the plume is a cone that widens downwind, not a line
+      //   · it STREAKS — a particle moving that fast is a short dash, not a dot
+      //   · it THINS — dense and bright at the crest where it is being torn off, gone by the end
+      // Each particle also gets its own phase offset and its own drift, so they never align.
+      var n=Math.round((22+34*plume)*K);
       for(var q=0;q<n;q++){
-        var seedq=((s*7919+q*104729)>>>0), ph=((now*(0.00028+0.00016*plume)+seedq%997/997)%1);
+        var seedq=((s*7919+q*104729)>>>0);
+        var own=(seedq%997)/997;                                  // this grain's own place in the stream
+        var spd=0.00022+0.00020*plume+((seedq>>>9)%100)/100*0.00016;
+        var ph=((now*spd+own)%1);
         var run=ph*(46+70*plume)*K;
-        var sx3=tx+windDir*run, sy3=ty-Math.sin(ph*2.1)*7*K-run*0.10+((seedq>>7)%5)-2;
-        if(sx3<-4||sx3>SW+4) continue;
-        var a3=(0.34-0.30*ph)*(0.45+0.55*plume);
-        if(a3<=0.01) continue;
+        // the cone: vertical spread grows with distance travelled, and each grain rides its own
+        // turbulent wobble rather than the same sine as its neighbours
+        var spread=(1.5+9*ph)*K;
+        var wob=Math.sin(ph*6.2+own*9.4)*spread + (((seedq>>>17)%100)/100-0.5)*spread;
+        var sx3=tx+windDir*run;
+        var sy3=ty-run*0.16+wob-Math.round(2*K);
+        if(sx3<-6||sx3>SW+6) continue;
+        var a3=(0.42-0.40*ph)*(0.40+0.60*plume);
+        if(a3<=0.012) continue;
+        // a streak, length from how fast this grain is travelling
+        var len=Math.max(1,Math.round((1.4+3.4*ph*plume)*K));
         g.fillStyle="rgba(250,252,255,"+a3.toFixed(3)+")";
-        g.fillRect(sx3|0,sy3|0,Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
+        g.fillRect(sx3|0,sy3|0,len,Math.max(1,Math.round(K*0.8)));
       }
     }
   }
