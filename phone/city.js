@@ -3033,6 +3033,23 @@ var BIOMES=[
   //
   // `gorge:1` routes drawMountains to drawGorge, the same way `forest` and `core` are routed — the
   // walls are not a height field and must not be built by the ridge roll.
+  // ============ THE DUNE SEA — Phase 5, land #2 ============
+  // The only land in the game made of SAND. The mesa is rock and reads as rock; nothing here is.
+  // WHAT FILLS THE FRAME: weather and foreground. A dune sea has no landmarks and no vertical relief
+  // to speak of, so filling the frame with more sprites is hopeless — instead the FOREGROUND dunes
+  // climb into the lower frame and occlude, and the haboob fills the entire sky when the wind gets up.
+  // `dune:1` routes drawMountains to drawDunes: a dune field is not a ridge line and must not be
+  // built by the peak roll, the same way the forest and the gorge are not.
+  { k:"dunes",  name:"THE DUNE SEA", amp:0.42, base:0.52, flat:0.86, steep:0.10, snow:false, water:null, dune:1,
+    far:[226,196,148],  near:[206,166,110], cap:[246,228,190], ground:[224,192,140],
+    // mud-brick, whitewash and sun-bleached timber: what you build from where there is no stone
+    walls:[[228,198,158],[206,170,122],[242,232,214],[186,148,104],[236,220,192],[214,182,138],[172,138,98],[246,238,222]],
+    // a caravan land: camels are the headline, and the small life is nocturnal or armoured
+    fauna:{ keep:{deer:0,rabbit:0,fox:1,goat:1}, big:["camel","oryx"], small:["fennec","scarab","lizard"], air:["vulture","raven"] },
+    flora:{ kinds:["palm","scrub","palm","grass","scrub"], bloom:["#ffd166","#ffffff","#f0a060","#e8d088"] },
+    // ⚠ sky.k 0.62 is DELIBERATE and above the 0.5 line: over a sand sea the air itself is the
+    // landscape — bleached white-gold at the horizon from suspended dust, and it must dominate.
+    sky:{ top:[104,152,206], bot:[246,226,178], k:0.62, haze:[248,222,168] } },
   { k:"canyon", name:"THE GORGE",   amp:0.55, base:0.30, flat:0.9,  steep:0.72, snow:false, water:"river", gorge:1,
     far:[188,118,84],   near:[156,86,60],   cap:[224,168,120], ground:[196,150,104],
     // the vernacular of a canyon floor: adobe, sandstone block, sun-bleached timber, painted stucco
@@ -3306,6 +3323,20 @@ var BIOME_VARIANTS={
   // ⚠ FOUR named variants, not two. Nick was offered four and picked all four, and nothing here forces
   // a land to have exactly two: `variantOf` does `vs[mixLi(li,104729)%vs.length]`, so the array length
   // is free. Every other land keys separately, so a five-entry canyon reshuffles nothing but itself.
+  dunes:[ {},
+    { name:"THE ERG",          // the deep sand sea: nothing but dune to the horizon, the purest form
+      far:[236,206,158], near:[218,178,120], cap:[252,238,204], ground:[234,204,152], amp:0.52, flat:0.92,
+      walls:[[238,212,176],[218,184,138],[248,240,224],[198,162,118],[242,228,202],[224,194,152],[184,150,110],[250,244,230]],
+      flora:{ kinds:["scrub","grass","scrub","palm"], bloom:["#ffd166","#ffffff","#e8d088"] },
+      fauna:{ keep:{deer:0,rabbit:0,fox:1,goat:0}, big:["camel"], small:["fennec","scarab","lizard"], air:["vulture"] },
+      sky:{ top:[118,160,208], bot:[252,232,186], k:0.66, haze:[252,228,176] } },
+    { name:"THE RED SANDS",    // iron-stained dune, the deep orange of an old desert
+      far:[212,140,96],  near:[186,104,64],  cap:[240,180,132], ground:[206,132,86], amp:0.46,
+      walls:[[214,158,116],[188,120,80],[236,206,172],[164,98,64],[228,186,148],[198,140,98],[156,102,70],[240,216,188]],
+      flora:{ kinds:["scrub","grass","scrub","palm","grass"], bloom:["#ffd166","#ff9a5a","#ffffff"] },
+      fauna:{ keep:{deer:0,rabbit:0,fox:1,goat:1}, big:["camel","oryx"], small:["fennec","lizard"], air:["vulture","raven"] },
+      sky:{ top:[92,138,196], bot:[248,196,142], k:0.60, haze:[250,192,134] } } ],
+
   canyon:[ {},
     { name:"THE SLOT",           // sculpted sandstone; light bounces down the walls and barely lands
       far:[212,132,78],  near:[178,92,48],   cap:[248,192,128], ground:[210,158,102], steep:0.9, flat:0.55,
@@ -3888,7 +3919,7 @@ function buildWorld(li){
   EDUB=schoolAt<0.46?0.012:0;                                  // early schooling → tech (space age) sooner (N8)
   POPK=(((li*2654435761+4441)>>>0)%1000)/1000;                 // relative bigness of this city (rush-jam factor)
   var mg=rng((seed+71)>>>0);
-  mtsCache=null; gorgeCache=null;             // new life → new silhouette (and a new gorge profile)
+  mtsCache=null; gorgeCache=null; duneCache=null;   // new life → new silhouette (gorge profile, dune field)
   bioTrees=null;
   // The four height-field biomes build the same two ridges; the biome's amp/base scale them, and its
   // flat/steep/snow decide how they're cut and coloured at draw time.
@@ -3911,7 +3942,7 @@ function buildWorld(li){
   // to preserve.
   var flatLife = (li!==0 && curBiome.k==="alpine" && mg()>=0.72);
   var relief = flatLife ? 0.34 : 1;                                // open country: present, but low
-  mts = (curBiome.k==="forest"||curBiome.k==="core"||curBiome.gorge) ? null : {far:[],near:[]};   // the core world has NO terrain at all; the gorge draws walls, not peaks
+  mts = (curBiome.k==="forest"||curBiome.k==="core"||curBiome.gorge||curBiome.dune) ? null : {far:[],near:[]};   // the core world has NO terrain at all; the gorge draws walls, not peaks
   if(mts){
     var MSC=KSP*Math.max(0.45,Math.min(1,WW/1300))*curBiome.amp*relief;   // small worlds get proportionate peaks
     var nF=6+((mg()*4)|0), nN=4+((mg()*4)|0), mi;
@@ -15979,6 +16010,134 @@ function stratRuns(g,prof,y0,step,style){
     }
   }
 }
+// ================================================================================================
+// THE DUNE SEA
+// ------------------------------------------------------------------------------------------------
+// A dune only reads as a dune because of its TWO FACES: a long windward slope the sun rakes across,
+// and a short, steep, shadowed slip face on the lee side. Take that away and sand is a beige blob —
+// which is what every "desert" in a pixel game that draws one flat colour looks like. So the whole
+// renderer is built around the derivative of the crest line: where the sand falls away steeply, it
+// is in shadow; where it climbs gently, it is lit.
+//
+// Four bands recede toward the horizon, each paler than the last, because a sand sea has no landmarks
+// to give you distance — the only depth cue available is aerial perspective.
+var duneCache=null;
+function drawDunes(g,L,now,nd){
+  var day=L>0.5, B=curBiome, K=Math.max(1,KSP), skc=biomeSkc(day);
+  var litK=Math.max(0,Math.min(1,(L-0.34)*2.4));
+  var BANDS=4;
+  if(!duneCache){
+    duneCache=[];
+    for(var bi=0;bi<BANDS;bi++){
+      var prof=new Array(SW), f=(bi+1)/BANDS;                  // 0..1, 1 = nearest
+      // low-frequency for the dune bodies, higher octaves for the crest detail. World-anchored, so
+      // the field does not slide when the world scrolls and all three monitors see the same desert.
+      var freq=0.0026+0.0018*bi, amp2=(0.30+0.22*bi)*curBiome.amp;
+      for(var x=0;x<SW;x++){
+        var wx=x+WOFF;
+        var n=Math.sin(wx*freq+bi*2.1)*0.60 + Math.sin(wx*freq*2.7+bi)*0.26 + Math.sin(wx*freq*6.1)*0.11;
+        // ⚠ KEEP THIS UNROUNDED. The face of a dune is chosen from the crest's SLOPE, and rounding
+        // the profile to whole pixels first quantises the slope into integer jumps — so the face
+        // flips lit/shadow/lit column by column and the sand comes out striped. Same family as the
+        // corduroy on the gorge walls, different cause: there it was crest jitter, here it is
+        // rounding. Store the float; round only at the moment of drawing.
+        prof[x]=HORIZON*(0.72-0.13*bi) - n*HORIZON*amp2*0.30;
+      }
+      duneCache.push(prof);
+    }
+  }
+  for(var b2=BANDS-1;b2>=0;b2--){                              // far to near, so near sand overlaps far
+    var pr=duneCache[b2], depth=b2/(BANDS-1);                  // 1 = furthest
+    var body=mixc(day?B.near:[(B.near[0]*0.18)|0,(B.near[1]*0.19)|0,(B.near[2]*0.30)|0], skc, 0.16+0.46*depth);
+    var sunC=mixc(body, day?B.cap:[80,86,110], 0.34*litK+0.10);
+    var shadC=mixc(body,[64,48,40], day?0.30:0.16);
+    for(var x2=0;x2<SW;x2++){
+      var y=Math.round(pr[x2]);
+      // THE TWO FACES. `slope` is the crest derivative, taken over a wide span of the FLOAT profile:
+      // negative = the sand is climbing to the right (windward, lit), strongly positive = it is
+      // falling away (the slip face, in shadow). A narrow span on a rounded profile is what striped it.
+      var slope=(pr[Math.min(SW-1,x2+5)]-pr[Math.max(0,x2-5)])*0.4;
+      var face=(slope>1.4)?shadC:((slope<-0.6)?sunC:body);
+      g.fillStyle=css(face);
+      g.fillRect(x2,y,1,HORIZON-y+1);
+      // the crest line itself catches the most light — it is the brightest thing in a desert
+      if(Math.abs(slope)<1.0){ g.fillStyle=rgba(mixc(sunC,[255,250,236],0.45*litK),0.55);
+        g.fillRect(x2,y,1,Math.max(1,Math.round(K*0.7))); }
+    }
+    // WIND RIPPLES on the nearest band only — the fine corrugation that says "this is loose sand and
+    // it is moving". They MIGRATE downwind with `now`, slowly, because a dune field is never still.
+    if(b2===0){
+      var drift=(now*0.004)%1000;
+      g.fillStyle=rgba(mixc(shadC,[0,0,0],0.2),0.22);
+      for(var ry=HORIZON-Math.round(HORIZON*0.06); ry<HORIZON; ry+=Math.max(2,Math.round(2.4*K))){
+        var run=-1;
+        for(var rx=0;rx<=SW;rx++){
+          var on=(rx<SW) && Math.round(pr[rx])<ry && ((((rx+WOFF)*0.7+drift+ry*2)|0)%7)<3;
+          if(on&&run<0) run=rx; else if(!on&&run>=0){ g.fillRect(run,ry,rx-run,1); run=-1; }
+        }
+      }
+    }
+  }
+}
+
+// THE HABOOB — this land's weather set-piece, and the reason a dune sea can fill a frame at all.
+// A haboob is a dust wall thrown up by a collapsing thunderstorm: it arrives as a moving CLIFF of
+// sand a kilometre high that swallows the sky, the sun and the city in about a minute. Nick's Phase 4
+// brief said weather IS the landscape on the empty maps; on this one it is literally true.
+// ⚠ Driven by the REAL wind, not by a roll — so it is the same event on all three monitors, and it
+// only happens when it should. The wallpaper never invents weather the world does not have.
+function drawDuneLife(g,L,now,nd,fx){
+  if(!curBiome.dune||cityPhase==="apoc") return;
+  var day=L>0.5, K=Math.max(1,KSP), B=curBiome;
+  var wind=(weather&&weather.wind)||0;
+  var hb=Math.max(0,Math.min(1,(wind-16)/16));                 // nothing below ~16mph, full wall by ~32
+  if(hb>0.02){
+    var HD=900000, hp=((now%HD)/HD);                           // one pass every 15 minutes of real time
+    if(hp<0.34){
+      var t=hp/0.34, front=Math.round((-0.30+1.55*t)*SW);
+      var dust=day?[196,150,96]:[70,54,38];
+      // the wall: full height, densest just behind the leading edge, ragged along its face
+      for(var x=0;x<SW;x++){
+        if(x>front) continue;
+        var into=Math.min(1,(front-x)/Math.max(1,SW*0.30));
+        // ⚠ RAMP FROM ZERO AT THE FRONT. Starting the alpha at 0.30 put a hard vertical edge on the
+        // wall — a dust front that looked like a wipe transition rather than weather. A haboob's face
+        // is billowing cauliflower; the first thing that has to be true is that it fades IN.
+        var a=hb*Math.min(1,into*3.2)*(0.16+0.72*into)*(1-Math.max(0,(t-0.72)/0.28));
+        if(a<=0.01) continue;
+        // the leading face billows — a haboob edge is cauliflower, never a ruled line
+        var lip=Math.round(Math.sin((x+WOFF)*0.05+now*0.002)*10*K+Math.sin((x+WOFF)*0.017)*16*K);
+        var y0=Math.max(0, Math.round(HORIZON*0.06)+ (into<0.25?lip:0));
+        g.fillStyle=rgba(dust,Math.min(0.92,a));
+        g.fillRect(x,y0,1,HORIZON-y0+Math.round(GROUND*0.8));
+      }
+      // sand streaming off the crest of the wall
+      for(var sq=0;sq<40;sq++){
+        var sx2=front-((sq*37+((now*0.06)|0))%Math.max(1,Math.round(SW*0.5)));
+        if(sx2<0||sx2>SW) continue;
+        g.fillStyle=rgba(day?[236,206,158]:[110,92,70],0.5*hb);
+        g.fillRect(sx2,Math.round(HORIZON*(0.10+0.5*((sq*7)%10)/10)),Math.round(3*K),1);
+      }
+    }
+  }
+  // ---- THE CARAVAN. Camels cross a dune sea in a line, not a herd — that IS the desert image.
+  var cper=210000, cph=((now%cper)/cper);
+  var cx0=Math.round((-0.15+1.3*cph)*SW);
+  for(var ci=0;ci<5;ci++){
+    var cx=cx0-Math.round(ci*9*K);
+    if(cx<-10||cx>SW+10) continue;
+    var cy=HORIZON-Math.round(1*K);
+    var bob=Math.round(Math.sin(now*0.004+ci)*0.6*K);
+    var cc=day?"rgba(146,110,70,0.95)":"rgba(52,42,34,0.95)";
+    g.fillStyle=cc;
+    g.fillRect(cx,cy-Math.round(4*K)+bob,Math.round(5*K),Math.round(2.4*K));       // body
+    g.fillRect(cx+Math.round(4*K),cy-Math.round(6*K)+bob,Math.round(1.4*K),Math.round(3*K)); // neck
+    g.fillRect(cx+Math.round(4.2*K),cy-Math.round(6.6*K)+bob,Math.round(2*K),Math.round(1.2*K)); // head
+    g.fillRect(cx+Math.round(1.4*K),cy-Math.round(5.2*K)+bob,Math.round(1.6*K),Math.round(1.4*K)); // hump
+    g.fillRect(cx+Math.round(0.6*K),cy-Math.round(2*K)+bob,Math.max(1,Math.round(0.8*K)),Math.round(2*K));
+    g.fillRect(cx+Math.round(3.4*K),cy-Math.round(2*K)+bob,Math.max(1,Math.round(0.8*K)),Math.round(2*K));
+  }
+}
 // THE GORGE, ALIVE — and the flash flood.
 // The land's weather set-piece is the flood, because a flash flood IS the canyon's signature danger:
 // rain that fell somewhere you cannot see arrives as a wall of water down a gorge that was dry rock a
@@ -19403,6 +19562,7 @@ function drawMountains(g,L,now,nd){
   if(curBiome.k==="forest"){ drawForestBackdrop(g,L,now,nd); return; }   // the forest is the range here
   if(curBiome.k==="core"){ drawCoreWorld(g,L,now,nd); return; }         // …and on the core world the CITY is
   if(curBiome.gorge){ drawGorge(g,L,now,nd); return; }                 // the gorge IS the range here — walls, not peaks
+  if(curBiome.dune){ drawDunes(g,L,now,nd); return; }                   // …and a dune sea is not a ridge line either
   if(!mts) return;
   var gy=HORIZON, day=L>0.5;
   var sunsetK=goldenK;   // sourced from the shared golden-hour global (identical law)
@@ -24977,6 +25137,7 @@ function draw(g,pass){
   drawCanopyLight(g,L,now);
   drawAlpineLife(g,L,now,nd,fx);   // eagles on the ridge lift, ibex on the rock, spindrift off the summits
   drawGorgeLife(g,L,now,nd,fx);    // condors on the thermals, swifts on the faces, and the flash flood
+  drawDuneLife(g,L,now,nd,fx);     // the haboob, and a camel caravan crossing the sand
   drawMesaLife(g,L,now,nd,fx);     // vultures on the thermals, heat shimmer, dust devils, the arch
   drawCliffLife(g,L,now,nd,fx);    // the seabird colony on the ledges, and the stacks off the headland
   drawCinderLife(g,L,now,nd,fx);   // the Fire Nation's caldera: rim glow, lava seams, ember fall
