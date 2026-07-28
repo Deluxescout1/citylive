@@ -1512,6 +1512,16 @@ function drawFlora(g,L,now,nd){
 }
 // the meadow's FAUNA: deer & rabbits (the classic herd), a dawn fox, butterflies, geese,
 // plus the long-lost river fish and harbour sea-life, all rewired
+// ⚠⚠ WILDLIFE HAS A DEPTH NOW, AND IT IS NOT OPTIONAL.
+// Nick, in caps, with a screenshot of zebras walking straight through a row of buildings: "ANIMALS
+// SHOULD NOT GO THROUGH BUILDINGS. IF THEY ARE IN THE BACKGROUND THEY SHOULD BE RUNNING IN THE
+// BACKGROUND." He was right and it was a plain ordering bug: drawFauna ran at the very end of the
+// frame, long after drawLayer painted the city, so every animal was pasted over the skyline and one
+// ended up apparently standing on a roof.
+// `WILD_LAYER` splits it: "back" runs BEFORE the city layers and is occluded by them like anything
+// else at that distance; "front" runs after and is only for the handful of strays Nick asked for on
+// the near ground by the road.
+var WILD_LAYER="back";
 function drawFauna(g,L,now,nd){
   var wild2=1-cityG, day=L>0.5, gy=HORIZON;
   var season=curSeason||seasonInfo(nowDate());
@@ -13455,9 +13465,23 @@ function carcassAt(seed,now,L){
 }
 function drawBiomeFauna(g,L,now,nd,wild,gy){
   var fa=curBiome.fauna; if(!fa||cityPhase==="apoc") return;
+  // ⚠ Depth. The big grazers and everything that belongs to the landscape live BEHIND the city; the
+  // front pass gets only the small strays on the near ground. Drawing the herd in front is what put
+  // a zebra on a rooftop.
+  var BACK=(WILD_LAYER!=="front");
+  // ⚠ A STRAY IS NOT WILDLIFE THAT RECEDES. `wild` is 1-cityG, so every animal fades out as the city
+  // matures — correct for a herd, which really does get pushed off built land, and wrong for the few
+  // Nick asked for in the near foreground: a grown city has MORE strays around the road, not none.
+  // Measured on a mature savanna, `wild` was 0.000 and the front pass drew literally nothing.
+  var wildF=BACK?wild:Math.max(0.42,wild);
+  // ⚠ AND A STRAY IS ALLOWED ON THE PAVEMENT. `wildOK` is `!onPavedRoad(wx) || cityG<0.35`, which
+  // keeps wild animals off built land — right for a herd, and it means that in a grown city there is
+  // nowhere left for the foreground strays to stand, so the front pass drew nothing at all. A fox by
+  // the kerb or a lizard on the verge is the entire idea.
+  var okAt=BACK?wildOK:function(){return true;};
   var day=L>0.5, K=Math.max(1,KSP), i, o, sp, X;
   // the big animals: a small herd of each, fewer as the land gets built over
-  for(i=0;i<fa.big.length;i++){
+  for(i=0;i<fa.big.length && BACK;i++){                                 // big animals are ALWAYS behind
     sp=FAUNA[fa.big[i]]; if(!sp) continue;
     var herd=(sp.plan==="quad"&&sp.w>=12)?4:3;                         // the big grazers move in numbers
     for(var n=0;n<herd;n++){
@@ -13493,9 +13517,11 @@ function drawBiomeFauna(g,L,now,nd,wild,gy){
   }
   for(i=0;i<fa.small.length;i++){                                      // and the specks
     sp=FAUNA[fa.small[i]]; if(!sp) continue;
-    for(var m=0;m<5;m++){
+    // ⚠ Nick chose "behind, plus a few in the near foreground". The specks are the few: most of them
+    // stay back with the landscape, and a couple come forward onto the near ground by the road.
+    for(var m=(BACK?0:3);m<(BACK?3:5);m++){
       var sd3=((i*40503+m*2654435761+17)>>>0), h3=(sd3%1000)/1000;
-      if(h3>wild) continue;
+      if(h3>wildF) continue;
       // SMALL THINGS MOVE IN BURSTS. A lizard or a roadrunner crossing the world at a constant
       // 0.0015 px/ms is a sprite on a conveyor; what they actually do is dart, stop dead, and dart
       // again. The distance is the same over a minute — only the delivery changes, and the stopping
@@ -13508,7 +13534,7 @@ function drawBiomeFauna(g,L,now,nd,wild,gy){
         if(!hasOcean||seaW<=0) continue;
         swx=wrapW((m&1)?WW*seaW+3+((sd3>>7)%14):WW*(1-seaW)-3-((sd3>>7)%14));
       }
-      if(!wildOK(swx)) continue;                            // AFTER the move, for the same reason
+      if(!okAt(swx)) continue;                              // AFTER the move, for the same reason
       var syy=gy+4+((sd3>>6)%7);
       for(o=-WW;o<=WW;o+=WW){ X=(swx-WOFF+o)|0; if(X<-6||X>SW+6) continue;
         drawSpot(g,X,syy,day,now,sd3,sp,K); }
@@ -16659,7 +16685,7 @@ function drawSavanna(g,L,now,nd){
 // the subject. Three depth ranks, the nearest at full size so an elephant actually reads as an
 // elephant next to a 7px person.
 function drawSavannaLife(g,L,now,nd,fx){
-  if(!curBiome.herd||cityPhase==="apoc") return;
+  if(!curBiome.herd||cityPhase==="apoc"||WILD_LAYER==="front") return;   // the herd is landscape: always behind
   var day=L>0.5, K=Math.max(1,KSP), B=curBiome;
   var mig=!!B.migration, dusty=!!B.dust;
   var SPECIES=mig?["wildebeest","zebra","wildebeest","zebra","elephant"]:["elephant","giraffe","zebra","wildebeest"];
@@ -25328,6 +25354,13 @@ function draw(g,pass){
   // further up, so this is the split-canvas half only — double-painting is what pass-split guards.
   if(pass==="fg"||pass==="city"||pass==="live") drawCascades(g,L,now,nd);
 
+  // THE WILDLIFE THAT LIVES BEHIND THE CITY — drawn here, before a single building, so the skyline
+  // occludes it exactly the way it occludes the terrain. See the note on WILD_LAYER.
+  WILD_LAYER="back"; drawFauna(g,L,now,nd);
+  drawAlpineLife(g,L,now,nd,fx); drawGorgeLife(g,L,now,nd,fx);
+  drawDuneLife(g,L,now,nd,fx);   drawSavannaLife(g,L,now,nd,fx);
+  WILD_LAYER="front";
+
   drawLayer(g,far,L,now,fx,hol,0.42);
   if(curRegime&&curRegime.active) drawLayerRegime(g,far,L,now,night);   // THE ORDER drapes the far skyline
   // dystopian smog band (only once there's a city to be smoggy) — one gradient, magenta→teal, feathered at both ends
@@ -25935,7 +25968,9 @@ function draw(g,pass){
   drawBlkCrew(g,L,now);
   if(!nukeStruck()) drawGulls(g,L,now);          // K/J/M batch: coast, meadow & street spectacles (gulls killed by the flash)
   drawFlora(g,L,now,nd);
-  drawFauna(g,L,now,nd);
+  // THE FRONT PASS: the few strays Nick asked for on the near ground in front of the city. Everything
+  // that belongs to the landscape already drew back there; this is deliberately a handful.
+  WILD_LAYER="front"; drawFauna(g,L,now,nd);
   drawCows(g,L,now,nd);
   drawWhale(g,L,now);
   drawUFO(g,L,now,nd);
@@ -26243,11 +26278,11 @@ function draw(g,pass){
   // Both sit UNDER the eclipse/ash veils and the HUD, so an eclipse still darkens the forest too.
   drawForestNear(g,L,now,nd);
   drawCanopyLight(g,L,now);
-  drawAlpineLife(g,L,now,nd,fx);   // eagles on the ridge lift, ibex on the rock, spindrift off the summits
-  drawGorgeLife(g,L,now,nd,fx);    // condors on the thermals, swifts on the faces, and the flash flood
-  drawDuneLife(g,L,now,nd,fx);     // the haboob, and a camel caravan crossing the sand
+  // (drawn in the BACK pass above, before the city — see WILD_LAYER)
+  // (drawn in the BACK pass above, before the city — see WILD_LAYER)
+  // (drawn in the BACK pass above, before the city — see WILD_LAYER)
   drawSaltMirror(g,L,now,nd);      // the world doubled in a centimetre of brine
-  drawSavannaLife(g,L,now,nd,fx);  // the herd, at a size that actually reads
+  // (drawn in the BACK pass above, before the city — see WILD_LAYER)
   drawMesaLife(g,L,now,nd,fx);     // vultures on the thermals, heat shimmer, dust devils, the arch
   drawCliffLife(g,L,now,nd,fx);    // the seabird colony on the ledges, and the stacks off the headland
   drawCinderLife(g,L,now,nd,fx);   // the Fire Nation's caldera: rim glow, lava seams, ember fall
