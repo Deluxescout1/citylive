@@ -3657,7 +3657,28 @@ var EGG_BIOMES=[
     walls:[[236,228,206],[212,202,176],[246,240,222],[196,184,158],[226,216,192],[206,196,170],[240,234,214],[188,176,152]],
     fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:0}, big:["cattle"], small:["frog"], air:["heron","dove"] },
     flora:{ kinds:["generic","willow","generic","reeds","grass"], bloom:["#f0a0c0","#ffe08a","#ffffff"] },
-    sky:{ top:[118,164,214], bot:[214,228,214], k:0.22, haze:[218,230,216] } }
+    sky:{ top:[118,164,214], bot:[214,228,214], k:0.22, haze:[218,230,216] } },
+  // ============ SPACE CITY — a city IN ORBIT ============
+  // Nick, asked directly and answered: a city in orbit. NOT a colony on another world, and NOT a
+  // space-age era of this city. A ring or spine station with the curve of Earth turning below it.
+  //
+  // WHAT FILLS THE FRAME: the planet. Earth's limb takes the bottom third of the sky, its terminator
+  // sweeps across, city lights come up on the night side and weather systems turn underneath. Nothing
+  // else in this project has a moving object that large, and it means the "empty sky" problem cannot
+  // occur here — the sky IS the subject.
+  //
+  // ⚠⚠ THE HEADLINE DEPARTURE, AND THE ONE THING NOT TO COMPROMISE: this place is lit by PLANET-LIGHT,
+  // not sunlight, and its day/night runs on the ORBITAL PERIOD — roughly 90 minutes, not 24 hours.
+  // Every other land in the game derives its light from LAT/LON and the real sun. `orbit:1` gives this
+  // one its own light path; see drawOrbit.
+  { k:"orbit",  name:"SPACE CITY", egg:1, amp:0.0, base:0.0, flat:0.0, steep:0.0, snow:false, water:null, orbit:1,
+    far:[64,74,96],     near:[44,52,70],    cap:[196,214,240], ground:[86,92,108],
+    // a station is built from panel, alloy and glass — no brick, no timber, nothing that grew
+    walls:[[196,202,212],[150,158,172],[224,228,236],[112,120,136],[176,184,198],[132,140,156],[208,214,224],[96,104,120]],
+    fauna:{ keep:{deer:0,rabbit:0,fox:0,goat:0}, big:[], small:[], air:[] },
+    flora:{ kinds:["generic","grass","generic"], bloom:["#a0ffd0","#ffffff","#c0e0ff"] },
+    // the void. k:0.96 — the highest in the game: no atmosphere means no atmospheric colour at all.
+    sky:{ top:[4,5,10], bot:[10,12,22], k:0.96, haze:[18,22,38] } }
 ];
 // ONE TRUTH ABOUT WHICH LAND THIS LIFE IS. Extracted from buildWorld because `setup` now has to know
 // the land BEFORE it can place HORIZON: the coastal lands put open water along the bottom of the
@@ -4164,7 +4185,7 @@ function buildWorld(li){
   // to preserve.
   var flatLife = (li!==0 && curBiome.k==="alpine" && mg()>=0.72);
   var relief = flatLife ? 0.34 : 1;                                // open country: present, but low
-  mts = (curBiome.k==="forest"||curBiome.k==="core"||curBiome.gorge||curBiome.dune||curBiome.tower||curBiome.steps||curBiome.roof||curBiome.herd) ? null : {far:[],near:[]};   // the core world has NO terrain at all; the gorge draws walls, not peaks
+  mts = (curBiome.k==="forest"||curBiome.k==="core"||curBiome.gorge||curBiome.dune||curBiome.tower||curBiome.steps||curBiome.roof||curBiome.herd||curBiome.orbit) ? null : {far:[],near:[]};   // the core world has NO terrain at all; the gorge draws walls, not peaks
   if(mts){
     var MSC=KSP*Math.max(0.45,Math.min(1,WW/1300))*curBiome.amp*relief;   // small worlds get proportionate peaks
     var nF=6+((mg()*4)|0), nN=4+((mg()*4)|0), mi;
@@ -7435,7 +7456,7 @@ function boxesHit(list,x,y,w,h){
 // contrail. Always-on callsign+altitude tag on a dark plate with a ▲/▼ climb-descent arrow. And once the
 // city has a working airport, low climbing/descending aircraft fly their departure/approach to its runway.
 function drawRealFlights(g,L,now){
-  if(curBiome.roof) return;      // ⚠ no airliners underground
+  if(curBiome.roof||curBiome.orbit) return;      // ⚠ no airliners underground
   if(!FLIGHTS_ON || !realFlights || !realFlights.length) return;
   if(cityPhase==="apoc") return;                          // the sky is meteors / fire / ash — no ADS-B overlay
   var d2r=Math.PI/180, R2D=180/Math.PI, nowMs=now;
@@ -8946,7 +8967,7 @@ function drawShootingStar(g,L,now){
 // displays (e.g. a 4K@165% monitor, where KWin downsamples the 2x buffer) those 1px beams sharpened into
 // the recurring "vertical lines over the mountains/sky" artifact. Broad soft shafts can't alias into lines.
 function drawGodRays(g,L,now,fx){
-  if(curBiome.roof) return;      // ⚠ the sun cannot rake a ceiling — the undercity has its own shafts
+  if(curBiome.roof||curBiome.orbit) return;      // ⚠ the sun cannot rake a ceiling — the undercity has its own shafts
   if(L<0.4||cityPhase==="apoc"||fx.rain||fx.drizzle||fx.snow||fx.thunder||fx.fog) return;
   var cl=weather.cloud||0; if(cl<26||cl>76) return;                              // needs SOME cloud to break the light (not clear, not overcast)
   // anchor the shafts to the REAL drawn sun disc (df*WW world-anchored, the disc's own arc) — the old
@@ -11617,7 +11638,7 @@ function drawFerris(g,L,now,night){
 
 // ---- HOT-AIR BALLOONS drift across calm clear skies (daytime) ----
 function drawBalloons(g,L,now,fx){
-  if(curBiome.roof) return;      // ⚠ nobody is ballooning in a cave
+  if(curBiome.roof||curBiome.orbit) return;      // ⚠ nobody is ballooning in a cave
   if(L<0.42||fx.cloudy||fx.rain||fx.snow||(weather.wind||5)>14) return;             // calm, clear, daylit
   if((curEvents&&curEvents.balloonfest) || (curFestival&&curFestival.active&&curFestival.stage>=3&&curFestival.stage<=4)){   // J3 balloon FESTIVAL morning — or the World's Fair (OPENING/FAIR): a sky full of them
     var fenv=[[255,90,90],[90,150,255],[255,200,70],[110,220,140],[240,120,220],[120,230,230],[255,150,90]];
@@ -16236,6 +16257,98 @@ function stratRuns(g,prof,y0,step,style){
   }
 }
 // ================================================================================================
+// SPACE CITY — the planet is the view
+// ------------------------------------------------------------------------------------------------
+// ⚠ THE ONE RULE THAT MAKES THIS LAND ITSELF: it is lit by PLANET-LIGHT and it runs on the ORBITAL
+// PERIOD. Every other land in this project takes its light from LAT/LON and the real sun, which is
+// right for sixteen of them and meaningless 400km up — in low orbit you cross the terminator every
+// ~45 minutes and see sixteen sunrises a day. So `orbitPhase` replaces `L` as this land's clock, and
+// it is derived from the shared wall-clock so all three monitors are on the same orbit.
+function orbitPhase(now){ return ((now%5400000)/5400000); }   // one 90-minute orbit
+function drawOrbit(g,L,now,nd){
+  var K=Math.max(1,KSP), ph=orbitPhase(now);
+  // where the sun is relative to us, 0..1 round the orbit. Day for a bit over half of it, because
+  // the planet's shadow is smaller than the sunlit side.
+  var sunUp=Math.max(0, Math.cos((ph-0.30)*Math.PI*2));
+  var lit=Math.min(1,sunUp*1.5);
+  // ---- THE VOID + STARS. No atmosphere, so stars are hard points and they do NOT twinkle.
+  g.fillStyle="#04050a"; g.fillRect(0,0,SW,HORIZON+GROUND);
+  for(var s2=0;s2<260;s2++){
+    var sd=((s2*2654435761)>>>0);
+    var sx=((sd%Math.max(1,WW))-WOFF+WW)%WW;
+    if(sx<0||sx>=SW) continue;
+    var sy=((sd>>>9)%Math.max(1,Math.round(HORIZON*0.72)));
+    var b=0.35+((sd>>>17)%100)/150;
+    g.fillStyle=rgba([255,255,255],Math.min(1,b));
+    g.fillRect(sx,sy,1,1);
+  }
+  // ---- THE PLANET. Its limb takes the bottom of the sky and the terminator sweeps across it.
+  var pTop=Math.round(HORIZON*0.44);
+  var curve=Math.round(HORIZON*0.10);
+  for(var x=0;x<SW;x++){
+    var u=(x-SW*0.5)/(SW*0.5);
+    var top=pTop+Math.round(curve*u*u);                    // the limb is a shallow arc, not a line
+    // day/night across the disc: the terminator moves with the orbit
+    var lon=((x+WOFF)/WW + ph)%1;
+    var dayside=Math.max(0,Math.cos((lon-0.5)*Math.PI*2));
+    var deep=[18,44,92], shal=[46,116,150], land=[62,92,64], night=[6,9,18];
+    // a little banding so it reads as ocean/continent rather than a flat ball
+    var bandN=Math.sin((x+WOFF)*0.011)+Math.sin((x+WOFF)*0.004+1.7);
+    var base=bandN>0.55?land:(bandN<-0.6?deep:shal);
+    for(var y=top;y<HORIZON;y++){
+      var f=(y-top)/Math.max(1,HORIZON-top);
+      var c=mixc(base,[255,255,255],0.10*(1-f));           // haze toward the limb
+      c=mixc(night,c,Math.min(1,dayside*1.4));
+      g.fillStyle=css(c); g.fillRect(x,y,1,1);
+    }
+    // CITY LIGHTS on the night side — the thing that makes it unmistakably Earth
+    if(dayside<0.16){
+      var lseed=(((x+WOFF)*7919)>>>0);
+      if((lseed%17)===0){
+        var ly=top+((lseed>>>7)%Math.max(1,HORIZON-top));
+        g.fillStyle=rgba([255,214,140],0.55+0.35*Math.sin(now*0.002+x));
+        g.fillRect(x,ly,1,1);
+      }
+    }
+    // the atmosphere itself, seen edge-on: a thin bright rim above the limb. This one line is what
+    // sells "in orbit" more than anything else in the function.
+    var rim=Math.round(2.2*K);
+    for(var r=0;r<rim;r++){
+      g.fillStyle=rgba([120,190,255],(0.55-0.45*(r/rim))*Math.max(0.15,dayside));
+      g.fillRect(x,top-r-1,1,1);
+    }
+  }
+  // ---- THE SUN, when we are on the day side of the orbit
+  if(lit>0.05){
+    var sx2=Math.round(SW*(0.16+0.68*ph)), sy2=Math.round(HORIZON*0.16);
+    g.globalCompositeOperation="lighter";
+    for(var q=0;q<Math.round(9*K);q++){
+      g.fillStyle=rgba([255,250,232],0.20*lit*(1-q/(9*K)));
+      g.fillRect(sx2-q,sy2-q,q*2,q*2);
+    }
+    g.globalCompositeOperation="source-over";
+    g.fillStyle="#fffdf4"; g.fillRect(sx2-Math.round(2*K),sy2-Math.round(2*K),Math.round(4*K),Math.round(4*K));
+  }
+  // ---- THE STATION SPINE the city is built along, with docking arms and tethers. Anchored in world
+  // space like everything else, so the three monitors see one continuous structure.
+  var spineY=Math.round(HORIZON*0.30);
+  g.fillStyle=css(mixc([150,158,172],[255,255,255],0.15*lit));
+  g.fillRect(0,spineY,SW,Math.max(2,Math.round(2.4*K)));
+  for(var a2=0;a2<14;a2++){
+    var awx=((a2*104729+((WORLD_SEED*3)|0))>>>0)%Math.max(1,WW);
+    for(var o=-1;o<=1;o++){
+      var ax=Math.round(awx-WOFF+o*WW);
+      if(ax<-30||ax>SW+30) continue;
+      var alen=Math.round((10+((a2*7919)>>>0)%22)*K*0.5);
+      g.fillStyle=css(mixc([132,140,156],[255,255,255],0.12*lit));
+      g.fillRect(ax,spineY,Math.max(1,Math.round(1.6*K)),alen);              // a tether down toward the city
+      g.fillRect(ax-Math.round(3*K),spineY-Math.round(3*K),Math.round(6*K),Math.round(3*K)); // a docking pad
+      // a nav strobe, because a real structure this big is covered in them
+      if(((now*0.002+a2)|0)%3===0){ g.fillStyle="rgba(255,80,80,0.9)"; g.fillRect(ax,spineY-Math.round(4*K),1,1); }
+    }
+  }
+}
+// ================================================================================================
 // THE SAVANNA — where the herd is the landform
 // ------------------------------------------------------------------------------------------------
 // ⚠ THE BRIEF FLAGGED THIS LAND AS THE ONE MOST LIKELY TO END UP ANOTHER THIN BAND, and the first
@@ -20264,6 +20377,7 @@ function drawMountains(g,L,now,nd){
   if(curBiome.steps){ drawTerraces(g,L,now,nd); return; }                // …nor a hillside people cut into steps
   if(curBiome.roof){ drawUndercity(g,L,now,nd); return; }                // …and underground there is a CEILING, not a range
   if(curBiome.herd){ drawSavanna(g,L,now,nd); return; }                  // …and on a plain the ACACIA and the kopje are the relief
+  if(curBiome.orbit){ drawOrbit(g,L,now,nd); return; }                  // …and in orbit the PLANET is the view
   if(!mts) return;
   var gy=HORIZON, day=L>0.5;
   var sunsetK=goldenK;   // sourced from the shared golden-hour global (identical law)
@@ -24607,7 +24721,7 @@ function draw(g,pass){
   // is right for sixteen lands and catastrophic for the one that is a thousand feet below all of them.
   // The undercity's own `sky` colours are the rock-and-glow tones overhead; `roof` says "use them, and
   // do not let the sun anywhere near this".
-  if(curBiome.roof){ cA=curBiome.sky.top; cB=curBiome.sky.bot; }
+  if(curBiome.roof||curBiome.orbit){ cA=curBiome.sky.top; cB=curBiome.sky.bot; }   // a cavern and a vacuum both refuse the daylight dome
   var BSky=curBiome.roof?null:curBiome.sky;
   // ⚠ THE PER-LAND SKY WAS WIRED CORRECTLY AND STILL DID NOT READ. Sampling the rendered top-centre
   // pixel of all 36 named looks against each land's declared `sky.top` found every ordinary land
@@ -24835,7 +24949,7 @@ function draw(g,pass){
   // ⚠ NOT UNDERGROUND. Cumulus drifting across a cavern ceiling was the giveaway that "no sky" has to
   // be enforced at every sky-owning renderer, not just at the gradient: the first undercity render had
   // clouds AND airliner labels a thousand feet below the surface.
-  if(pass!=="sky" && !curBiome.roof){
+  if(pass!=="sky" && !curBiome.roof && !curBiome.orbit){    // ⚠ and there is no weather in vacuum
   var windPush=0.6+(weather.wind||5)*0.06;
   var cloudA=fx.cloudy?0.85:(fx.rain||fx.snow)?0.9:0.5;
   for(i=0;i<clouds.length;i++){ c=clouds[i];
