@@ -17996,7 +17996,10 @@ function drawForestBackdrop(g,L,now,nd){
   // dark underside on each one, which is the single detail that says a clump has a lit top and a
   // shaded belly rather than being a hole cut in the sky.
   var canRanks=[
-    {n:150, rx:[12,26], ry:[8,18], y0:0.06, y1:0.60, sky:0.40, dk:0.00, pr:373},   // far, hazed toward the sky
+    // ⚠ the far rank stops at 0.50, not 0.60. Hazed that heavily and sitting that low, a wide clump
+    // stops reading as foliage and starts reading as a CLOUD BANK lying across the middle of the
+    // frame — the fog failure again, in a single mass instead of a field.
+    {n:150, rx:[12,26], ry:[8,18], y0:0.06, y1:0.50, sky:0.40, dk:0.00, pr:373},   // far, hazed toward the sky
     {n:84,  rx:[16,34], ry:[10,22],y0:0.02, y1:0.38, sky:0.20, dk:0.10, pr:541},   // mid
     {n:36,  rx:[22,46], ry:[14,30],y0:0.00, y1:0.24, sky:0.04, dk:0.26, pr:733}    // near, almost black
     // ⚠ the two dark ranks are held UP on purpose. Let them reach as far down as the hazed one and
@@ -18006,7 +18009,12 @@ function drawForestBackdrop(g,L,now,nd){
   for(var cr=0;cr<canRanks.length;cr++){
     var R=canRanks[cr], rBase=mixc(mixc(canC,skc,R.sky),[0,0,0],R.dk);
     for(var cq2=0;cq2<R.n;cq2++){
-      var csd=((cq2*R.pr+cr*9973+((WORLD_SEED*13)|0))>>>0), cwx2=(cq2*R.pr+cr*211)%Math.max(1,WW);
+      // ⚠ STRATIFIED, NOT MODULAR. `(i*prime) % WW` is evenly distributed over the whole world but it
+      // is not evenly distributed over any THIRD of it, and a monitor only ever sees a third — which
+      // is why one screen kept a patch of open sky in its left third while another was covered. Each
+      // clump gets its own slice of the world and jitters inside it, exactly as the tree stand does.
+      var csd=((cq2*R.pr+cr*9973+((WORLD_SEED*13)|0))>>>0);
+      var cwx2=((cq2+0.5+((((csd>>>11)%1000)/1000)-0.5)*0.9)/R.n)*WW;
       var cyy=SH*(R.y0+((csd>>>7)%1000)/1000*(R.y1-R.y0));
       var crx=(R.rx[0]+((csd>>>3)%(R.rx[1]-R.rx[0])))*K, cry=(R.ry[0]+((csd>>>17)%(R.ry[1]-R.ry[0])))*K;
       var cJit=(((csd>>>23)%100)/100-0.5)*0.30;                    // this clump's own tone
@@ -18115,8 +18123,13 @@ function drawForestBackdrop(g,L,now,nd){
   // the giants standing BEHIND the skyline
   // ⚠ the NEAR band is the one Nick is looking at — mixing only 0.16 toward the sky left the closest,
   // largest trunks as near-black slabs. More haze and a warmer base: still the darkest band, but wood.
-  var nT=css(mixc(day?[112,84,58]:[12,13,17], skc, day?0.16:0.20));
-  var nB=css(mixc(day?[86,64,42]:[8,9,12],  skc, day?0.16:0.20));
+  // ⚠ AND THE NEAR BAND NEEDED THE SAME MEDICINE, ONE STEP WEAKER. Once the fore giants gained a
+  // surface the near ones read as pale flat columns beside them — 26 units between wood and bark is
+  // more range than the fore band had, and still not enough on a trunk this size. The wood lifts and
+  // the fissures darken; the haze stays exactly where it is, because that is what places this band
+  // BEHIND the skyline and in front of the mid rank.
+  var nT=css(mixc(day?[126,95,65]:[12,13,17], skc, day?0.16:0.20));
+  var nB=css(mixc(day?[70,51,33]:[8,9,12],  skc, day?0.16:0.20));
   var nC=css(mixc(mixc(day?B.near:[7,12,11], skc, day?0.10:0.16),[150,92,124],sunsetK*0.26));
   for(i=0;i<bioTrees.near.length;i++){ t=bioTrees.near[i];
     for(w=-1;w<=1;w++){ sx=Math.round(t.x-WOFF+w*WW);
