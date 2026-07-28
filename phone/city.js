@@ -19606,16 +19606,35 @@ function drawBiomeLandmark(g,L,now,nd){
         g.fillStyle=lip;   g.fillRect(X-tw-Math.round(K),ty,tw*2+Math.round(2*K),Math.max(1,Math.round(1.6*K)));
         // WINDOW BANDS. Lit in horizontal runs rather than as a grid — at this size a grid turns to mush
         // and the banding is what makes it read as one enormous structure instead of many towers.
+        // ⚠⚠ THE ARCOLOGY WENT COMPLETELY GREY IN DAYLIGHT, on the one land whose brief says it must
+        // "read cyberpunk at NOON". Judged full-frame, this thing is ~60% of the width and rises to the
+        // top of the sky — and by day every window was one flat `rgba(150,166,190,0.5)` band and the
+        // neon setbacks were `if(!day)`, so the largest object on the map was a plain grey slab.
+        // Same failure as the hologram and the monorail in a third costume: the feature exists and is
+        // switched OFF in exactly the condition where it is needed.
+        // A real arcology's signage burns day and night, and its windows are never uniform — some
+        // floors are lit, some dark, some tinted glass.
         for(var wb=Math.round(3*K);wb<th-Math.round(2*K);wb+=Math.max(3,Math.round(4*K))){
-          var lit=((t*7+wb)>>>0)%5;
-          g.fillStyle=day?"rgba(150,166,190,0.5)":"rgba(255,214,150,"+(0.30+0.18*(lit&1))+")";
+          var lit=((t*7+wb*13)>>>0)%7;
+          if(day){
+            g.fillStyle= lit<2 ? "rgba(255,226,170,0.42)"          // a lit floor even at midday
+                       : lit<4 ? "rgba(120,190,220,0.34)"          // tinted glass catching the sky
+                               : "rgba(120,132,156,0.42)";         // and plain dark glazing
+          } else {
+            g.fillStyle="rgba(255,214,150,"+(0.30+0.18*(lit&1))+")";
+          }
           g.fillRect(X-tw+Math.round(2*K),ty+wb,tw*2-Math.round(4*K),Math.max(1,Math.round(1.4*K)));
         }
-        if(!day){ g.globalCompositeOperation="lighter";           // a neon band round each setback
-          g.fillStyle=pal2[t%pal2.length];
-          g.globalAlpha=0.55;
-          g.fillRect(X-tw,ty+Math.max(1,Math.round(1.6*K)),tw*2,Math.max(1,Math.round(1.2*K)));
-          g.globalAlpha=1; g.globalCompositeOperation="source-over"; }
+        // the neon band round each setback — now DAY AND NIGHT, just quieter under the sun
+        g.globalCompositeOperation="lighter";
+        g.fillStyle=pal2[t%pal2.length];
+        g.globalAlpha=day?0.30:0.55;
+        g.fillRect(X-tw,ty+Math.max(1,Math.round(1.6*K)),tw*2,Math.max(1,Math.round(1.2*K)));
+        g.globalAlpha=1; g.globalCompositeOperation="source-over";
+        // and a vertical service spine up each tier, so the mass has structure instead of being a slab
+        g.fillStyle=day?"rgba(30,34,44,0.45)":"rgba(6,8,12,0.5)";
+        g.fillRect(X-Math.round(tw*0.34),ty,Math.max(1,Math.round(1.6*K)),th);
+        g.fillRect(X+Math.round(tw*0.34),ty,Math.max(1,Math.round(1.6*K)),th);
       }
       // AIRCRAFT WARNING STROBES up the corners — what actually says "this thing is enormous".
       var topY=gy-ah;
