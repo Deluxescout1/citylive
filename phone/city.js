@@ -19562,6 +19562,15 @@ function drawPlateauBuilding(g,x,top,bw,bh,grow,seed,day,now,K,wallC,roofC,trimC
     return;
   }
   var u=Math.max(1,Math.round(K*0.9));
+  // ⚠ A PLINTH. Nick: "give them more detail." These sit on bare rock, and a wall meeting stone with
+  // no footing is the thing that made them read as boxes dropped on a ledge rather than houses built
+  // on one. One darker course at the bottom is most of the fix.
+  g.fillStyle=trimC; g.fillRect(x,top-Math.max(1,Math.round(u*0.8)),bw,Math.max(1,Math.round(u*0.8)));
+  // …and each house its own tone, so a row of them is a row of houses rather than one house repeated
+  var tint=(((seed>>>9)%100)/100-0.5)*0.18;
+  g.fillStyle=css(mixc(hex2rgb(wallC),tint>0?[255,255,255]:[0,0,0],Math.abs(tint)));
+  g.fillRect(x+Math.max(1,Math.round(u*0.4)),top-bh+Math.max(1,Math.round(u*0.4)),
+             Math.max(1,bw-Math.round(u*0.8)),Math.max(1,bh-Math.round(u*1.2)));
   // WINDOW GRID — each pane decides for itself, so the place lights up unevenly like a real street
   var cols=Math.max(1,Math.floor((bw-2*u)/(u*2.4))), rows=Math.max(1,Math.floor((bh-3*u)/(u*2.6)));
   for(var c=0;c<cols;c++) for(var r=0;r<rows;r++){
@@ -19574,6 +19583,12 @@ function drawPlateauBuilding(g,x,top,bw,bh,grow,seed,day,now,K,wallC,roofC,trimC
   }
   g.fillStyle=trimC;                                                    // the door, always on the ground
   g.fillRect(x+Math.round(bw*0.42),top-Math.round(u*2.4),Math.max(1,Math.round(u*1.2)),Math.round(u*2.4));
+  // a step up to it, and a porch lamp that comes on with the windows — the two details that say
+  // somebody actually lives here rather than that a box has a hole in it
+  g.fillStyle=roofC;
+  g.fillRect(x+Math.round(bw*0.42)-1,top-Math.max(1,Math.round(u*0.6)),Math.max(2,Math.round(u*1.8)),Math.max(1,Math.round(u*0.6)));
+  if(!day){ g.fillStyle="rgba(255,206,132,0.85)";
+    g.fillRect(x+Math.round(bw*0.42)+Math.round(u*1.5),top-Math.round(u*2.6),Math.max(1,Math.round(u*0.6)),Math.max(1,Math.round(u*0.6))); }
   // ROOF — pitched or flat, per building, plus a chimney that actually smokes on a cold day
   var pitched=(seed>>>4)&1;
   g.fillStyle=roofC;
@@ -19582,7 +19597,15 @@ function drawPlateauBuilding(g,x,top,bw,bh,grow,seed,day,now,K,wallC,roofC,trimC
     for(var k=0;k<steps;k++)
       g.fillRect(x+k*st,top-bh-Math.round((steps-k)*st*0.55),bw-k*st*2,Math.max(1,Math.round(st*0.6)));
   } else {
-    g.fillRect(x-u,top-bh-u,bw+u*2,u);
+    // ⚠ A FLAT ROOF IS NOT A SLAB LYING ON A BOX. This drew one rect overhanging both sides by `u`,
+    // and at this size that is exactly what it looked like — a dark plank balanced on a wall, which
+    // is most of why Nick called these "weird houses". A roof has a FASCIA you see the edge of, and
+    // it throws a shadow onto the wall directly under it. Three rects instead of one.
+    g.fillRect(x-u,top-bh-u,bw+u*2,u);                                       // the deck
+    g.fillStyle=css(mixc(hex2rgb(roofC),[0,0,0],0.35));
+    g.fillRect(x-u,top-bh,bw+u*2,Math.max(1,Math.round(u*0.5)));             // the fascia board
+    g.fillStyle="rgba(0,0,0,0.22)";
+    g.fillRect(x,top-bh+Math.max(1,Math.round(u*0.5)),bw,Math.max(1,Math.round(u*0.6)));   // its shadow on the wall
   }
   var chx=x+Math.round(bw*(((seed>>>6)&1)?0.72:0.18)), chh=Math.round(u*2.2);
   g.fillStyle=roofC; g.fillRect(chx,top-bh-chh,Math.max(1,Math.round(u*1.1)),chh);
@@ -19613,7 +19636,16 @@ function drawPlateauTowns(g,L,now,nd){
     // arrives ONE STRUCTURE AT A TIME, each rising from a stub to its full height over the following
     // stretch of the city's growth — the same way the skyline below fills in, instead of a finished
     // settlement appearing whole the moment a threshold is crossed.
-    var OSTART=0.26, OSTEP=0.085, HSTART=0.60, HSTEP=0.10, RAISE=0.07;
+    // ⚠⚠ EACH TABLE STARTS ON ITS OWN CLOCK. Nick, on the sea cliffs: "these weird houses just
+    // appeared… make them get built." The staggering was already here — one structure at a time,
+    // each rising from a stub — but only WITHIN a table, and every table in the world shared the same
+    // start threshold. That was invisible while a land had one or two plateaus; the cliffs now quantise
+    // into a whole staircase of ledges, so a dozen tables crossed `cityG>OSTART` on the same frame and
+    // an entire hillside of houses arrived at once. Correct code, wrong scale.
+    // A per-table offset off its own hash spreads the founding out over the city's growth, which is
+    // also the truer story: somebody settles one ledge, and the next one is settled years later.
+    var tOff=((hsh>>>21)%100)/100*0.22;
+    var OSTART=0.26+tOff, OSTEP=0.085, HSTART=0.60+tOff*0.6, HSTEP=0.10, RAISE=0.07;
     var hasO=outpost&&cityG>OSTART, hasH=heights&&cityG>HSTART&&curEcon>0.45;
     // thirds of the table: ruins at one end, the outpost in the middle, the big houses at the other.
     // Written out rather than as a helper declared inside the loop — a function declaration in a
