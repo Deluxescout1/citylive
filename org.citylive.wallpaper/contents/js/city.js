@@ -7543,13 +7543,69 @@ function drawTrainLine(g,L,now,fx,part){
         g.fillStyle=L>0.5?"rgba(255,255,255,0.14)":"rgba(160,175,205,0.10)"; g.fillRect(dsx|0,ty,4,1);
         g.fillStyle=L>0.5?"#2a2636":"#0d0b16"; g.fillRect(dsx|0,ty+3,4,1); }
     } else {
-      g.fillStyle=L>0.5?"#4a4356":"#171522"; g.fillRect(0,ty,bEnd|0,3);
-      g.fillStyle=L>0.5?"rgba(255,255,255,0.14)":"rgba(160,175,205,0.10)"; g.fillRect(0,ty,bEnd|0,1);   // deck edge light
+      // ⚠⚠ THIS WAS THREE RULES ACROSS THE ENTIRE WORLD — deck, edge light and underside, one
+      // full-screen fillRect each, and the contact wire below made a fourth. Not even loops with no
+      // break in them: single rects spanning the whole frame, at roofline height. That is the bayou's
+      // finding in its purest form (*a loop over x with no break in it is a rule* — a lone full-width
+      // rect is the limit case), and it is the mechanism behind Nick's third named fault, "the
+      // viaduct swallows them: its structure reads as texture ON them".
+      // A viaduct is not a bar. It is SPANS, and every span has an end. The deck stays continuous
+      // because a railway deck really is — but it now sits on ARCHES that spring from each pier, so
+      // the eye reads a structure standing in front of the city instead of a line drawn across it.
+      // The deck is drawn SPAN BY SPAN rather than as one rect. A railway deck really is continuous,
+      // so this does not put gaps in it — but a fascia is made of panels, each cast on a different
+      // day and weathering differently, and a joint sits over every pier. Measured: the deck body was
+      // covering 95% of the frame width in a single flat tone, which is the whole of what is left of
+      // the rule once the wire and the underside have been broken up.
+      var dkA=L>0.5?[74,67,86]:[23,21,34];
+      for(var dsp=p0; dsp<WOFF+SW+40; dsp+=40){
+        if(dsp>built) continue;
+        var dx=dsp-WOFF, dw=40;
+        if(dx<0){ dw+=dx; dx=0; }                                        // clip to the same [0,bEnd) the single rect covered
+        if(dx>=bEnd||dw<=0) continue;
+        if(dx+dw>bEnd) dw=bEnd-dx;
+        var dh2=((dsp*2654435761)>>>0), dv=1+(((dh2%5)-2)*0.045);        // ±9% panel to panel
+        g.fillStyle=css([Math.min(255,Math.round(dkA[0]*dv)),Math.min(255,Math.round(dkA[1]*dv)),Math.min(255,Math.round(dkA[2]*dv))]);
+        g.fillRect(dx|0, ty, dw|0, 3);
+        if(dx>0){ g.fillStyle=L>0.5?"#332e3e":"#0e0c16"; g.fillRect(dx|0, ty, 1, 3); }   // the joint over the pier
+      }
       g.fillStyle=L>0.5?"#2a2636":"#0d0b16"; g.fillRect(0,ty+3,bEnd|0,1);
+      // THE ARCHES. One shallow soffit per span, springing pier to pier. Run-length emitted (a rect
+      // per depth step, not per column) — the same discipline the gorge strata needed at 10.4x.
+      var arcC=L>0.5?"#413a4e":"#141220", arcD=L>0.5?"#332d3e":"#0f0d18";
+      for(var av=p0; av<WOFF+SW+40; av+=40){
+        if(av>built) continue;
+        var ax0=av-WOFF+2, ax1=ax0+36; if(ax1<-2||ax0>SW+2) continue;   // between this pier and the next
+        var aRise=4, aRun=0;
+        for(var ac=0; ac<=18; ac++){                                    // half-span; mirrored, so 18 steps cover 36px
+          var au=ac/18, ad=Math.round(aRise*(1-au*au));                 // soffit rises fastest at the springing
+          if(ac<18 && Math.round(aRise*(1-((ac+1)/18)*((ac+1)/18)))===ad){ aRun++; continue; }
+          var aw=aRun+1, axl=ax0+(ac-aRun), axr=ax1-(ac+1);
+          g.fillStyle=arcC; g.fillRect(axl|0, ty+4, aw, ad);            // left half…
+          g.fillRect(axr|0, ty+4, aw, ad);                              // …and its mirror
+          if(ad>1){ g.fillStyle=arcD; g.fillRect(axl|0, ty+3+ad, aw, 1); g.fillRect(axr|0, ty+3+ad, aw, 1); }  // the soffit line itself
+          aRun=0;
+        }
+      }
+      // The edge light stops being a uniform wash: a deck catches the sky in patches, and the patches
+      // are what tell you it is a surface at an angle rather than a printed line.
+      for(var el=p0; el<WOFF+SW+40; el+=40){
+        if(el>built) continue;
+        var ex=el-WOFF, eh=((el*2654435761)>>>0);
+        var elen=14+(eh%20), eoff=(eh>>>7)%12;
+        g.fillStyle=L>0.5?"rgba(255,255,255,"+(0.10+((eh>>>3)%9)/100).toFixed(2)+")":"rgba(160,175,205,0.10)";
+        g.fillRect((ex+eoff)|0, ty, elen, 1);
+      }
     }
   }
+  // Deck lights. A dot every 8 px with no break in it is a comb, which is the fifth rule in here —
+  // and a perfectly even one reads as dither, not as lamps. Real ones cluster at the piers and the
+  // stations and skip whole stretches where nothing needs lighting.
   if(night>0.5 && bEnd>0){ g.fillStyle=rgba([120,200,255],0.5*night);
-    for(var lx=(-WOFF%8+8)%8; lx<bEnd; lx+=8){ if(blasted&&nukeHit(lx+WOFF)) continue; g.fillRect(lx|0,ty-1,1,1); } }
+    for(var lx=(-WOFF%8+8)%8; lx<bEnd; lx+=8){ if(blasted&&nukeHit(lx+WOFF)) continue;
+      var lh=(((lx+WOFF)*2654435761)>>>0);
+      if((lh%5)===0) continue;                                           // a lamp out, or nothing worth lighting
+      g.fillRect((lx+((lh>>>9)%3)-1)|0,ty-1,1,1); } }
   // overhead catenary: a contact wire the train's pantograph rides, on registration arms
   var cwY=ty-12;
   if(bEnd>0){
@@ -7559,7 +7615,20 @@ function drawTrainLine(g,L,now,fx,part){
       g.fillRect(cmx-2,cwY-3,3,1); }
     g.fillStyle=L>0.5?"rgba(180,190,210,0.6)":"rgba(150,165,195,0.42)";
     if(blasted){ for(var wsx=((-WOFF%4)+4)%4; wsx<bEnd; wsx+=4){ if(nukeHit(wsx+WOFF)) continue; g.fillRect(wsx|0,cwY,4,1); } }
-    else g.fillRect(0,cwY,bEnd|0,1);                                     // the contact wire
+    else {
+      // THE WIRE SAGS. It was `fillRect(0,cwY,bEnd,1)` — one dead-straight line the full width of the
+      // frame, the fourth rule in this function. A contact wire hangs in a catenary between its
+      // registration arms; a single pixel of droop at mid-span is the whole difference between a
+      // railway and a ruled line, and it costs a handful of rects on the BACKDROP pass.
+      for(var cs=p0; cs<WOFF+SW+40; cs+=40){
+        if(cs>built) continue;
+        var cx0=cs-WOFF; if(cx0>SW+2||cx0+40<-2) continue;
+        for(var cq=0; cq<4; cq++){                                       // 4 pieces per span is enough to read as a curve
+          var cu=(cq+0.5)/4, csag=(cu<0.5?cu:1-cu)*2;                    // 0 at the arms, 1 at mid-span
+          g.fillRect((cx0+cq*10)|0, (cwY+Math.round(csag))|0, 10, 1);
+        }
+      }
+    }
   }
   // the railhead: a crane crew extends the line until it spans the whole world
   if(twf<1){ var hx=built-WOFF;
