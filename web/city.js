@@ -21742,7 +21742,17 @@ function drawMountains(g,L,now,nd){
     var lists=[mts.far,mts.near,dist];
     for(var pi0=0;pi0<3;pi0++){ var list0=lists[pi0];
       for(var i0=0;i0<list0.length;i0++) if(list0[i0].h>mtsCache.mx[pi0]) mtsCache.mx[pi0]=list0[i0].h;
-      var strata=Math.max(2,Math.round(5*KSP*(0.5+B.flat)));      // mesa bedding planes — the step a flat top snaps to
+      // ⚠⚠ BED THICKNESS BELONGS TO THE LANDFORM, NOT TO A FORMULA. THE SEA CLIFFS sits at `flat:0.55`
+      // — just over the table threshold — and inherited an 11px bed, which quantised its skyline into
+      // a row of rectangles. It came out as CASTLE BATTLEMENTS: the same "rock as masonry" fault Nick
+      // rejected on the Dolomites, one land along, and arriving by a different route.
+      // A mesa WANTS thick beds; they are the visible strata of a table and reading them is the point.
+      // A sea cliff wants a level top and a sheer face, and gets neither from a coarse ladder — its
+      // beds should be fine enough to level the top without carving the skyline into blocks.
+      // So: coarse beds only for a genuine table (`flat>=0.8`), fine ones for everything else above
+      // the threshold. RED MESA is `flat:1.0` and its render does not move.
+      var strata=(B.flat>=0.8)?Math.max(2,Math.round(5*KSP*(0.5+B.flat)))
+                              :Math.max(2,Math.round(2.0*KSP));
       // Flat biomes must not undulate: quantising a sine into strata turns the whole skyline into a
       // sawtooth. Damp the rolling base and the crags by `flat` so a mesa top comes out genuinely flat.
       // ⚠ AND THE CRAGS COME BACK WITH THEM. `wob` damps the rolling noise by `flat`, which is right
@@ -21914,11 +21924,11 @@ function drawMountains(g,L,now,nd){
     // mountain range as a paper cut-out. Shading each column by which way it FACES, against the side
     // the real sun is actually on, gives every one of these lands a lit flank and a shaded one — and
     // it costs one pass over a cached array, batched exactly like the base ridge above it.
-    var slb=mtsCache.sl[pi], sunL=curSunDf<0.5, lk=litK*(pi===0?0.72:1);
+    var slb=mtsCache.sl[pi], sunL=curSunDf<0.5, lk=litK*(pi===0?0.72:1), faceLand=(B.alpine||B.cliffLife);
     // ⚠ the gate has to open for alpine even at `lk` 0, or the rib floor above never gets to run —
     // the night face would keep its flat gradient no matter what the rib term says. Every other land
     // still short-circuits exactly as before.
-    if(lk>0.03||B.alpine){
+    if(lk>0.03||faceLand){
       // ⚠ PER COLUMN, NOT RUN-LENGTH BATCHED BY BUCKET. Batching required equal values, which required
       // bucketing, which is what created the aliasing edges — see the note where `slp` is computed.
       // One fill per column is ~776 rects per band on the primary screen; the gorge already spends
@@ -21933,7 +21943,16 @@ function drawMountains(g,L,now,nd){
       // that part is ambient occlusion, not lighting. So the sun term keeps `lk` and the rib term gets
       // a floor under it. Folding `lk` in here rather than in the alpha keeps every other land's value
       // arithmetically identical to before.
-      var rbb=B.alpine?mtsCache.rib[pi]:null, rbk=(sunL?-1:1)*1.35, rlk=Math.max(lk,0.34);
+      // ⚠ THE RIBS REACH THE SEA CLIFFS NOW. They were gated to alpine because the map-by-map review
+      // was on alpine; cliffs is the map under review today, and its face has exactly the fault the
+      // ribs were written for — a single flat grey slab filling a third of the frame with no surface
+      // on it at all. Costs nothing: this term rides the per-column pass that was already running.
+      var faceLand=(B.alpine||B.cliffLife);
+      // ⚠ AND A SHEER FACE NEEDS MORE OF THEM, NOT LESS. The slope term the lighting keys off is
+      // derived from how fast the SKYLINE turns, and on `steep:1.0` rock it is near zero everywhere —
+      // so a sea cliff gets almost no modelling from the pass that models every other land. The ribs
+      // are the only surface signal a vertical wall has, so they carry more of the load here.
+      var rbb=faceLand?mtsCache.rib[pi]:null, rbk=(sunL?-1:1)*(B.cliffLife?2.6:1.35), rlk=Math.max(lk,0.34);
       for(var mx2=0;mx2<SW;mx2++){
         var mh=hs[mx2]; if(mh<3) continue;
         var mtop=Math.max(2,(gy-mh)|0);
