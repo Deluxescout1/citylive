@@ -13,10 +13,10 @@ import "../org.citylive.wallpaper/contents/js/city.js" as City
 Item {
     id: root
     width: 1552; height: 874                  // 2327x1309 dpr=2 zoom=2 -> this canvas, woff 0, world 2269 wp
-    property string land: "volcano"
+    property string land: "arctic"
     property var variants: [0,1,2]
     property var hours: [13,23]
-    property var woffList: [0,776,1629]
+    property var woffList: [0,776]
     property int woi: 0
     property int vi: 0
     property int hi: 0

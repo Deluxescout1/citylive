@@ -3137,11 +3137,25 @@ var BIOMES=[
     walls:[[222,228,236],[196,204,216],[238,242,248],[172,182,196],[208,216,228],[184,194,208],[232,238,244],[160,172,188]],
     fauna:{ keep:{deer:0,rabbit:0,fox:1,goat:0}, big:["polarbear","walrus","seal"], small:["ptarmigan"], air:["skua"] },
     flora:{ kinds:["lichen","dwarfwillow","lichen","lichen","dwarfwillow"], bloom:["#e8c8d8","#d8e0e8","#ffffff"] },
-    // ⚠ A POLAR SKY IS NOT A TEMPERATE BLUE, and at k:0.30 this land could not say so — it rendered
-    // (113,168,228), the same daylight blue as the beach and the plains. The high arctic sits under a
-    // pale, cold, low-sun sky with ice-blink off the floes lighting the underside of it. This land's
-    // identity IS its sky (see SKY_GAIN: >=0.5 declares that), so it gets an authored weight.
-    sky:{ top:[118,152,196], bot:[236,242,248], k:0.56, haze:[236,242,250] } },
+    // ⚠⚠ RAISING `k` FIXED NOTHING, BECAUSE THE WEIGHT WAS NEVER THE PROBLEM — THE COLOUR WAS.
+    // The note that used to sit here is a good diagnosis with the wrong conclusion: it observed that at
+    // k:0.30 the arctic rendered "(113,168,228), the same daylight blue as the beach", and raised the
+    // weight to 0.56 to fix it. But `top` was [118,152,196] — SATURATION 78, itself an ordinary mid
+    // blue. Mixing a daylight blue 56% toward another blue gives a blue. It was the volume turned up on
+    // the wrong note.
+    // MEASURED from rendered frames at 13:00, sampling the sky strip on Nick's real geometry:
+    //     THE PACK ICE    (111,158,215)  saturation 104
+    //     THE GREEN ISLAND(108,168,225)  saturation 117
+    // Three RGB units apart at the top of the frame. An arctic sky and a tropical one were the same sky.
+    // ⚠ AND IT IS NOT THE "GATE, NOT ABSENCE" ANSWER the brief predicted (which had been right seven
+    // times running). `k>=0.5` means SKY_GAIN passes this land through untouched, so the authored colour
+    // WAS reaching the pixels at full strength. Present, applied, and simply wrong — a third category,
+    // and worth remembering before reaching for the gate heuristic an eighth time.
+    // WHAT A HIGH-ARCTIC SKY ACTUALLY IS: not darker, DESATURATED. The air is dry and the light bounces
+    // off the pack from below, so the colour drains out of it — a cold steel-grey blue overhead, going
+    // to a near-white horizon with a faint cyan cast where the ice-blink sits. Saturation ~34 overhead
+    // against a temperate 104, which is the whole difference between the two places.
+    sky:{ top:[136,152,166], bot:[236,242,244], k:0.74, haze:[238,244,246] } },
   // THE SPRAWL. A drowned industrial plain: standing water between concrete berms, pylons marching
   // through it, almost no relief. The flatness is deliberate — the megatowers, the haze and the neon do
   // all the work, and the water is what justifies the wet-look streets.
@@ -6804,11 +6818,31 @@ function drawCrown(g,crown,bx,top,bw,col,accent,L,now,night,roofMat){
 }
 
 // ---- greenspace / park (a low open plot in the near row) ----
+// ============ WHAT COLOUR IS MOWN GROUND ON THIS LAND? ============
+// Green everywhere it should be, packed snow on the one land where a lawn is impossible.
+// ⚠⚠ FOUR PLACES DREW TURF AND ALL FOUR HARD-CODED GREEN: the stadium pitch ([64,176,78] on a game
+// day, brighter and more saturated than anything that actually grows on the map), the baseball park's
+// outfield rect AND the field ellipse inside its bowl (both #2e6a34, in the same function, twelve lines
+// apart — I fixed the first, re-rendered, and the green was still there), and the civic park.
+// ⚠ THE FOURTH WAS FOUND BY SAMPLING THE PIXEL, not by reading: filtering the crop for greenish pixels
+// returned (46,106,52), and grepping that colour landed on the line directly. Two guesses had already
+// been wrong about which element it was. On THE PACK ICE that put three patches of vivid grass on
+// FLOATING SEA ICE, and once the sky stopped being a temperate blue they were the loudest contradictory
+// tells left in the frame — which is exactly what Nick's arctic ruling says to remove ("keep the real
+// weather, kill the tells").
+// ⚠ ONE HELPER, NOT THREE FIXES. This land is going to keep turning up things that assume vegetation,
+// and patching each site as it is noticed is how the "cracks or vines" flow ended up in three places
+// before anyone hoisted it. `lit` 0..1 is the daylight term each caller already had.
+function turfC(lit,vivid){
+  if(curBiome.polar) return mixc([170,186,202],[238,244,248],lit);      // wind-packed snow over the pitch
+  if(vivid) return [64,176,78];
+  return mixc([28,52,34],[84,152,88],lit);
+}
 function drawPark(g,p,bx,L,now,dayLit,night){
   var grassTop=HORIZON-5;
   // grass plot + darker front edge
   g.fillStyle=css(mixc([20,46,28],[74,152,78],dayLit)); g.fillRect(bx,grassTop,p.w,5);
-  g.fillStyle=css(mixc([15,36,21],[58,128,62],dayLit)); g.fillRect(bx,HORIZON-1,p.w,1);
+  g.fillStyle=css(turfC(dayLit,false)); g.fillRect(bx,HORIZON-1,p.w,1);
   // winding path
   if(p.path){ g.fillStyle=css(mixc([40,36,30],[172,150,120],dayLit));
     for(var wpx=0;wpx<p.w;wpx+=2) g.fillRect(bx+wpx, grassTop+2+((Math.sin(wpx*0.5)*1.4)|0), 2, 1); }
@@ -6876,7 +6910,7 @@ function drawPark(g,p,bx,L,now,dayLit,night){
       g.fillStyle=rgba([255,224,150],0.14*night);     g.fillRect(lx-2,grassTop-1,5,3);
       g.globalCompositeOperation="source-over"; } }
   // low front hedge
-  g.fillStyle=css(mixc([14,34,20],[48,110,54],dayLit));
+  g.fillStyle=css(turfC(dayLit*0.85,false));
   for(var hx=bx;hx<bx+p.w;hx+=2) g.fillRect(hx,grassTop,1,1);
 }
 
@@ -12773,7 +12807,8 @@ function drawStadium(g,L,now,night,nd){
       g.fillRect(X+cxs,cyr,1,1); }
     g.fillStyle=css(mixc([40,46,60],[150,160,180],L)); g.fillRect(X-rw+1,baseY-rh,(rw-1)*2,1);         // top rim
     // the pitch (lit green on game nights, with markings)
-    var pitch=game?[64,176,78]:mixc([28,52,34],[84,152,88],L);
+    // the play lines still read on snow: they are drawn white over the top of whatever this is
+    var pitch=turfC(L,game);
     g.fillStyle=css(pitch); g.fillRect(X-(rw-10),baseY-4,(rw-10)*2,4);
     if(game){ g.fillStyle="rgba(255,255,255,0.55)"; g.fillRect(X,baseY-4,1,4);                          // halfway line
       g.fillStyle="rgba(255,255,255,0.35)"; g.fillRect(X-(rw-10),baseY-4,(rw-10)*2,1);                  // sideline
@@ -17240,7 +17275,7 @@ function venueLively(g,x,y,w,now,L,team,gm,open){
 // stadium dwarfs the office blocks around it. All four rise well above the skyline + viaduct.
 function drawBaseballPark(g,x,L,now,team,sIdx){                  // OPEN diamond + outfield + curved grandstand
   var y=HORIZON, col=team.color, night=1-L, w=108;
-  g.fillStyle=L>0.5?"#2e6a34":"#16351f"; g.fillRect(x-w/2,y-40,w,40);                        // green outfield grass
+  g.fillStyle=css(turfC(L>0.5?0.62:0.10,false)); g.fillRect(x-w/2,y-40,w,40);                 // outfield — grass, or snow on the pack
   g.fillStyle=L>0.5?"#b98a4a":"#6a4c28"; g.beginPath(); g.moveTo(x-20,y-3); g.lineTo(x,y-27); g.lineTo(x+20,y-3); g.closePath(); g.fill();   // tan infield DIAMOND
   g.fillStyle=L>0.5?"#f0ead8":"#8a8478"; g.fillRect(x-2,y-18,3,3); g.fillRect(x-14,y-7,3,3); g.fillRect(x+12,y-7,3,3); g.fillRect(x-2,y-7,3,3);   // bases
   g.fillStyle=col; g.fillRect(x-w/2-4,y-50,7,50); g.fillRect(x+w/2-3,y-50,7,50);              // towering grandstand wings (team colour)
@@ -17279,7 +17314,7 @@ function drawFootballBowl(g,x,L,now,team,sIdx){                // the COLOSSAL o
   var y=HORIZON, col=team.color, night=1-L, w=136;
   g.fillStyle=L>0.5?"#5f6672":"#23272f"; fillEllipse(g,x,y-14,w/2,30);                          // the bowl mass
   for(var tr2=y-32;tr2<y-2;tr2+=5){ g.fillStyle=L>0.5?"rgba(255,255,255,0.05)":"rgba(0,0,0,0.13)"; var hw=Math.round((w/2)*Math.sqrt(Math.max(0,1-Math.pow((tr2-(y-14))/30,2)))); g.fillRect(x-hw,tr2,hw*2,1); }   // stacked tiers
-  g.fillStyle=L>0.5?"#2e6a34":"#16351f"; fillEllipse(g,x,y-8,w/2-18,18);                         // green field inside
+  g.fillStyle=css(turfC(L>0.5?0.62:0.10,false)); fillEllipse(g,x,y-8,w/2-18,18);                 // the field inside the bowl
   g.fillStyle="#eef4ff"; for(var yl=x-36;yl<=x+36;yl+=9) g.fillRect(yl,y-14,1,12);               // yard lines
   g.fillStyle=col; g.fillRect(x-w/2,y-38,w,6);                                                  // upper-deck team-colour ring
   g.fillStyle=L>0.5?"#c9cdd6":"#5a606c"; g.fillRect(x-36,y-33,1,8); g.fillRect(x-34,y-33,5,1); g.fillRect(x+35,y-33,1,8); g.fillRect(x+30,y-33,5,1);   // goalposts
