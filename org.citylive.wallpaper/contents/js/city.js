@@ -21893,39 +21893,99 @@ function drawVolcano(g,L,now,nd){
       g.fillRect(mx2,mtop,1,Math.max(1,gy-mtop));
     }
   }
-  // --- THE SURFACE: NOT YET BUILT ---
-  // ⚠⚠ THE EIGHT STRATA BANDS ARE GONE, and nothing has replaced them yet. They put a band at each
-  // ninth of the cone height, wobbled by a single sine and run across the whole mountain — eight ruled
-  // lines, the fault Nick confirmed and the sixth instance of that same fault found in this project.
-  // Offered the choice between breaking them into exposures and dropping them, he dropped them: a
-  // YOUNG cone has not been cut into yet, so there is nothing to expose.
-  // ⚠ I then wrote ash aprons to take their place and REMOVED THEM AGAIN after rendering: they came
-  // out as large grey lozenges laid over the cone rather than as material lying on it. Shipping a
-  // thing I could see was wrong is the specific mistake that cost three attempts on the coast today,
-  // so it is not going in. The cone is flatter than it was until this is built properly — that is a
-  // known, deliberate intermediate state, not an oversight.
-  // WHAT IT NEEDS: overlapping flow lobes with levees and toes, ash and cinder aprons with eroded
-  // gullies, fumaroles and sulphur staining — and per-variant materials (NEW ISLAND black glassy
-  // lava and raw ash, GREEN ISLAND deep gullies and jungle to a treeline, CALDERA layered wall and
-  // talus). All four are locked in `citylive-volcano-overhaul`.
-  // --- OLD LAVA CHANNELS: dark scars from previous eruptions, running from near the crater to the
-  // foot. These are what make a volcano read as something that has DONE this before.
-  var chans=3+((WORLD_SEED>>>5)%3);
-  for(var ch2=0;ch2<chans;ch2++){
-    var chh=((ch2*2654435761+((WORLD_SEED*13)|0))>>>0);
-    var cdir=(chh&1)?1:-1, cOff=Math.round(sh*(0.05+((chh>>>7)%40)/100));
-    g.fillStyle=css(mixc(vBase,[24,16,14],0.42));
-    for(var cy3=sy+Math.round(3*K); cy3<gy; cy3+=1){
-      var cprog=(cy3-sy)/Math.max(1,gy-sy);
-      var cxx=sx+cdir*Math.round(cOff+cprog*sh*0.55)+Math.round(Math.sin(cy3*0.13+ch2)*1.8*K);
-      if(cxx<0||cxx>=SW) continue;
-      if(gy-Math.round(hs[cxx]||0) > cy3) continue;             // stay on the rock
-      g.fillRect(cxx,cy3,Math.max(1,Math.round(1.6*K)),1);
-      if(((cy3+ch2)%7)===0){ g.fillStyle=css(mixc(vBase,[0,0,0],0.55));   // a shadowed levee edge
-        g.fillRect(cxx+Math.round(1.6*K),cy3,1,1);
-        g.fillStyle=css(mixc(vBase,[24,16,14],0.42)); }
+  // ============ THE SURFACE OF THE CONE ============
+  // ⚠⚠ EVERYTHING ON A CONE FALLS DOWNHILL. My first attempt drew ash as patches ACROSS the mountain
+  // and they read as grey lozenges pasted on it — because material on a volcano does not lie in
+  // horizontal blobs, it runs DOWN. Nick picked exactly that: fans widening as they descend from the
+  // crater. So every feature below is generated ALONG the slope, and that single change of axis is
+  // what makes it sit on the mountain instead of over it.
+  // ⚠ All of it is clipped to the rock — a column is only painted where the profile actually reaches.
+  // Same rule the crater had to learn: anything on a landform must be clipped to the landform.
+  var vDrop=Math.max(4,gy-sy);
+  // --- ASH AND CINDER FANS: narrow at the crater, spreading as they fall ---
+  var fans=6+((WORLD_SEED>>>7)%4);
+  for(var fn=0;fn<fans;fn++){
+    var fh2=((fn*2654435761+((WORLD_SEED*11)|0))>>>0);
+    var fSide=(((fh2%1000)/1000)-0.5)*1.9;                       // where round the cone it starts
+    var fLen=0.45+((fh2>>>9)%50)/100;                            // how far down it runs
+    var fPale=((fh2>>>3)&1);
+    // ⚠ SUBTLE, AND NOT A STRAIGHT RAY. The first version mixed up to 0.19 toward white and ran its
+    // centreline linearly from the summit, which at a screen that sees only the FLANK comes out as a
+    // set of parallel pale scratches. Ash is a tonal shift in the rock, not a stripe painted on it —
+    // so the mix is halved, and the centreline wanders.
+    g.fillStyle=css(mixc(vBase,fPale?[196,192,186]:[24,20,20],0.045+((fh2>>>13)%8)*0.005));
+    for(var fq=Math.round(vDrop*0.06); fq<vDrop*fLen; fq++){
+      var fp=fq/vDrop;                                           // 0 at the crater, 1 at the foot
+      var fwob=Math.sin(fq*0.055+fn*2.3)*2.2*K + Math.sin(fq*0.019+fn)*3.4*K;
+      var fcx=sx+Math.round(fSide*sh*fp*1.05+fwob);              // …spreading outward as it descends, wandering as it goes
+      var fwd=Math.max(1,Math.round((0.6+fp*3.2)*K));            // …and widening
+      var fy2=sy+fq;
+      for(var fx2=fcx-(fwd>>1); fx2<=fcx+(fwd>>1); fx2++){
+        if(fx2<0||fx2>=SW) continue;
+        var frh=hs[fx2]; if(frh==null) continue;
+        if(gy-Math.round(frh)>fy2) continue;                     // stay on the rock
+        g.fillRect(fx2,fy2,1,1);
+      }
     }
   }
+  // --- LAVA LOBES: broad raised tongues with levees and a blunt toe, of mixed age ---
+  var lobes=3+((WORLD_SEED>>>15)%3);
+  for(var lb=0;lb<lobes;lb++){
+    var lh2=((lb*40503+((WORLD_SEED*19)|0))>>>0);
+    var lSide=(((lh2%1000)/1000)-0.5)*1.7;
+    var lAge=((lh2>>>11)%100)/100;                               // 0 fresh and black … 1 weathered back
+    var lStop=0.35+((lh2>>>5)%55)/100;                           // where this one came to rest
+    var body=css(mixc(vBase,[14,11,12],0.62-lAge*0.42));
+    var levee=css(mixc(vBase,[0,0,0],0.30-lAge*0.18));
+    for(var lq=Math.round(vDrop*0.10); lq<vDrop*lStop; lq++){
+      var lp=lq/vDrop, ly=sy+lq;
+      var lcx=sx+Math.round(lSide*sh*lp*1.0)+Math.round(Math.sin(lq*0.06+lb)*1.4*K);
+      var lw=Math.max(2,Math.round((1.4+lp*4.4)*K));
+      var toe=(lq>vDrop*lStop-3*K)?1:0;                          // it thickens where it stopped
+      for(var lx2=lcx-(lw>>1); lx2<=lcx+(lw>>1)+toe*K; lx2++){
+        if(lx2<0||lx2>=SW) continue;
+        var lrh=hs[lx2]; if(lrh==null) continue;
+        if(gy-Math.round(lrh)>ly) continue;
+        var edge=(lx2<=lcx-(lw>>1)+Math.round(K*0.8)||lx2>=lcx+(lw>>1)-Math.round(K*0.8));
+        g.fillStyle=edge?levee:body;                             // levees stand proud along both sides
+        g.fillRect(lx2,ly,1,1);
+      }
+    }
+  }
+  // --- FUMAROLES: vents on the upper flanks. Steam by day, a glow by night, ALWAYS on ---
+  // ⚠ Deliberately NOT tied to `unrest`: that cycle sits at zero for 62% of its eighteen minutes,
+  // which is precisely why this mountain used to render dead on a quiet afternoon.
+  var vents=3+((WORLD_SEED>>>19)%3);
+  for(var vt=0;vt<vents;vt++){
+    var vh2=((vt*2246822519+((WORLD_SEED*23)|0))>>>0);
+    var vp2=0.14+((vh2%60)/100)*0.5;                             // how far down the flank it sits
+    var vx2=sx+Math.round((((vh2>>>7)%1000)/1000-0.5)*1.7*sh*vp2);
+    var vy2=sy+Math.round(vDrop*vp2);
+    if(vx2<0||vx2>=SW) continue;
+    var vrh=hs[vx2]; if(vrh==null||gy-Math.round(vrh)>vy2) continue;
+    g.fillStyle=day?"rgba(206,196,110,0.34)":"rgba(120,110,54,0.26)";   // sulphur staining round the vent
+    g.fillRect(vx2-Math.round(K),vy2,Math.max(1,Math.round(2.4*K)),Math.max(1,Math.round(1.6*K)));
+    if(day){                                                     // a thread of steam, leaning on the real wind
+      var wLean=Math.max(-1,Math.min(1,((weather&&weather.wind)||6)/24));
+      for(var sq=0;sq<Math.round(7*K);sq++){
+        var sf=sq/Math.max(1,Math.round(7*K));
+        g.fillStyle="rgba(226,232,236,"+(0.30*(1-sf)).toFixed(3)+")";
+        g.fillRect((vx2+Math.round(wLean*sq*0.8+Math.sin(now*0.0013+vt+sq*0.4)*1.2))|0,vy2-sq,1,1);
+      }
+    } else {
+      g.globalCompositeOperation="lighter";
+      g.fillStyle="rgba(255,132,48,"+(0.20+0.10*Math.sin(now*0.0016+vt)).toFixed(3)+")";
+      g.fillRect(vx2-Math.round(K*0.6),vy2-Math.round(K*0.6),Math.max(1,Math.round(2*K)),Math.max(1,Math.round(2*K)));
+      g.globalCompositeOperation="source-over";
+    }
+  }
+  // --- OLD LAVA CHANNELS: REMOVED, replaced by the lobes above ---
+  // ⚠ These were the dark serpentine lines Nick confirmed as a fault: "they read as cracks or vines."
+  // The cause was their construction — one 1.6px rect PER ROW down the whole cone, which makes a thin
+  // continuous squiggle rather than a flow. A lava flow is a broad tongue with levees along its edges
+  // and a blunt toe where it stopped, and that is what the lobe pass above now draws, across a range
+  // of ages so the mountain still shows its history. Keeping both would have been the same feature
+  // drawn twice, once badly — the mistake the coast made with its two shorelines.
   // --- SULPHUR round the vent: the yellow-green staining every active crater has
   g.fillStyle=day?"rgba(198,186,86,0.30)":"rgba(120,112,50,0.22)";
   for(var su=0;su<Math.round(10*K);su++){
