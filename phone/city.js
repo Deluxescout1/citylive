@@ -7881,6 +7881,19 @@ function drawAirport(g,L,now,night){
 }
 
 // HIGH-ALTITUDE cruising jets crossing the sky with long twin contrails — fills the big empty upper sky (fair weather)
+// Is the open sky visible at this screen column, above y? The skyline is the tallest of the three
+// mountain bands, so anything meant to be BEHIND the landform has to test against all of them.
+// ⚠ Returns true when there is no cache yet (first live frame before the backdrop has built one) —
+// failing open draws a plane over a mountain for one frame; failing closed would delete the sky.
+function skyClearAt(x,y){
+  if(!mtsCache||!mtsCache.h) return true;
+  if(x<0||x>=SW) return true;
+  var h0=mtsCache.h[0]?(mtsCache.h[0][x]||0):0;
+  var h1=mtsCache.h[1]?(mtsCache.h[1][x]||0):0;
+  var h2=mtsCache.h[2]?(mtsCache.h[2][x]||0):0;
+  var top=HORIZON-Math.round(Math.max(h0,Math.max(h1,h2)));
+  return y<top;
+}
 function drawHighFlights(g,L,now,fx){
   if(cityG<0.35||cityPhase==="apoc"||fx.rain||fx.snow||fx.thunder||fx.fog) return;
   var n=4+(cityG>0.6?1:0);
@@ -7889,11 +7902,20 @@ function drawHighFlights(g,L,now,fx){
     var dir=((idx+i)&1)?1:-1, wx=dir>0?(-45+prog):(WW+45-prog), y=Math.round(HORIZON*(0.11+i*0.062))+((idx*29+i*13)%16);
     for(var off=-WW;off<=WW;off+=WW){ var X=(wx-WOFF+off)|0; if(X<-80||X>SW+80) continue;
       g.globalCompositeOperation="lighter";
+      // ⚠⚠ A JET AT ALTITUDE IS BEHIND THE MOUNTAIN. Nick, with a screenshot of the volcano: "the blue
+      // lines are not fixed." They were never the lines I had been fixing — these are CONTRAILS: 44
+      // additive dashes at 1.4px spacing, one line per flight, each at its own altitude. On a land
+      // whose landform fills the sky band they were painted straight across the rock face, which is
+      // why they read as a row of blue ticks on the mountain rather than as an aircraft.
+      // The whole flight is clipped to open sky now — the trail, the jet and its strobe.
       for(var c=0;c<44;c++){ var cx=X-dir*(3+c*1.4); if(cx<-2||cx>SW+2) continue;                       // the trailing contrail (fades out)
+        if(!skyClearAt(cx|0,y|0)) continue;
         g.fillStyle="rgba(238,245,255,"+(0.16*(1-c/44)).toFixed(3)+")"; g.fillRect(cx|0,y|0,2,1); }
       g.globalCompositeOperation="source-over";
-      g.fillStyle=L>0.5?"#e2e8f2":"#9aa3b4"; g.fillRect(X-1,y,3,1); g.fillRect((X+(dir>0?-2:2))|0,y-1,1,1);   // the jet + tail fin (tiny at altitude)
-      if((Math.floor(now/450)+i)%2===0){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,255,255,0.85)"; g.fillRect(X|0,y|0,1,1); g.globalCompositeOperation="source-over"; }
+      if(skyClearAt(X|0,y|0)){
+        g.fillStyle=L>0.5?"#e2e8f2":"#9aa3b4"; g.fillRect(X-1,y,3,1); g.fillRect((X+(dir>0?-2:2))|0,y-1,1,1);   // the jet + tail fin (tiny at altitude)
+        if((Math.floor(now/450)+i)%2===0){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,255,255,0.85)"; g.fillRect(X|0,y|0,1,1); g.globalCompositeOperation="source-over"; }
+      }
     }
   }
 }
