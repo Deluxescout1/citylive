@@ -7568,7 +7568,10 @@ function drawTrainLine(g,L,now,fx,part){
       var wxc=tr.x + d*ci*unit;
       var cx=(wxc-WOFF)|0; if(cx+carLen<-6||cx>SW+6) continue;
       var isHead=(ci===ncar-1), isTail=(ci===0);              // lead car is the one furthest along the direction of travel
-      var frontX=d>0?cx+carLen-1:cx;                          // the leading edge of this car
+      // ⚠ NOT `frontX` — that is a global function (building frontage x), and a same-named `var`
+      // hoists over this whole function. Latent here because drawTrainLine never calls it, but the
+      // identical shadow cost real debugging time in drawBayouWater this pass. Renamed on sight.
+      var carFrontX=d>0?cx+carLen-1:cx;                        // the leading edge of this car
       // inter-car gangway to the next car (dark bellows) so the set reads as one train
       if(ci<ncar-1){ var gx=d>0?cx+carLen:cx-gap; g.fillStyle=L>0.5?"#2a2e3a":"#14161f"; g.fillRect(gx,cy+2,gap,5); }
       // body shell
@@ -8513,7 +8516,7 @@ function drawHarborBridge(g,L,now,night,wTop){
 // is stored, so all three monitors draw the identical bayou — the same rule as the hunts and the
 // blood. The spits PINCH OUT where `pres` goes negative; those gaps are the channel, and they are
 // the reason this does not come out as three stripes ruled across the frame.
-function drawBayouBanks(g,L,now,sa,sb,zi,wTop,shoreAt,sgn){
+function drawBayouBanks(g,L,now,sa,sb,zi,wTop,shoreAt,sgn,wetAt){
   var day=L>0.5, K=Math.max(1,KSP), wDep=Math.max(1,HORIZON-wTop);
   var step=Math.max(1,Math.round(K));
   // ⚠ THE SPITS HAVE TO OUT-CONTRAST THE WATER OR THEY ARE NOT THERE. First pass used a mud brown of
@@ -8576,7 +8579,7 @@ function drawBayouBanks(g,L,now,sa,sb,zi,wTop,shoreAt,sgn){
           t=Math.round(thick*Math.min(1,(pres-0.30)*2.6));
           by=Math.round(by0+wob*amp);
           if(t<1||by<=wTop+2||by>=HORIZON-1) ok=false;
-          else { var edge=shoreAt(by); if(sgn>0? x>edge-2 : x<edge+2) ok=false; }   // it has to be out in the WATER
+          else if(!wetAt(x,by)) ok=false;                                           // it has to be out in the WATER
         }
       }
       if(runX>=0 && (!ok || by!==runBy || t!==runT)){     // flush the run that just ended
@@ -8618,7 +8621,7 @@ function drawBayouBanks(g,L,now,sa,sb,zi,wTop,shoreAt,sgn){
 // WHAT STANDS IN THE BAYOU'S WATER. The cypress are the point: a swamp is not a lake with trees
 // beside it, it is trees standing IN it, and their reflections in almost-still black water are half
 // the picture. Drawn from drawHarbor with the water, for the same draw-order reason as the reef.
-function drawBayouWater(g,L,now,sa,sb,zi,wTop,shoreAt,sgn){
+function drawBayouWater(g,L,now,sa,sb,zi,wTop,shoreAt,sgn,wetAt){
   var day=L>0.5, K=Math.max(1,KSP), span=sb-sa, wDep=Math.max(1,HORIZON-wTop);
   // WHICH TREE STANDS IN THIS WATER. Off the table, so THE MANGROVE and THE PEAT MOSS are not the
   // bayou with a filter over it — they grow different things, which is the whole point of a variant.
@@ -8647,7 +8650,7 @@ function drawBayouWater(g,L,now,sa,sb,zi,wTop,shoreAt,sgn){
   var rimC=goldenK>0.15?"rgba(255,196,132,":"rgba(206,214,196,";
   var sunL7=curSunDf<0.5;
   // THE SPITS FIRST — the trees stand among them and in front of them, so the banks go down first.
-  drawBayouBanks(g,L,now,sa,sb,zi,wTop,shoreAt,sgn);
+  drawBayouBanks(g,L,now,sa,sb,zi,wTop,shoreAt,sgn,wetAt);
   // ---- THE SURFACE. A gradient is not a surface; it is a wall painted like one. ----
   // ⚠ Broken, not ruled. This project has now been burned three times by continuous lines drawn across
   // the whole world on water (the swell, the neon reflections, the tonal bands), so these are short
@@ -8664,7 +8667,7 @@ function drawBayouWater(g,L,now,sa,sb,zi,wTop,shoreAt,sgn){
       if(jx<sa||jx>=sb) continue;
       if(((rh8>>>3)%100)/100>dens) continue;
       var edge8=shoreAt(ry8);
-      if(sgn>0? jx>edge8-2 : jx<edge8+2) continue;
+      if(!wetAt(jx,ry8)) continue;
       var rw8=Math.max(1,Math.round((1.2+((rh8>>>11)%3))*K*(0.4+rf8)));
       var ra8=(day?0.10:0.055)*(0.35+0.65*rf8)*(0.55+0.45*Math.sin(now*0.0009+rx8*0.4+ry8));
       if(ra8<=0.012) continue;
@@ -8691,7 +8694,7 @@ function drawBayouWater(g,L,now,sa,sb,zi,wTop,shoreAt,sgn){
           var mxx=Math.round(MPX+(((mh8%1000)/1000)-0.5)*2*spread);
           if(mxx<sa||mxx>=sb) continue;
           var med=shoreAt(my8);
-          if(sgn>0? mxx>med-2 : mxx<med+2) continue;
+          if(!wetAt(mxx,my8)) continue;
           var ma8=0.30*mn*(0.25+0.75*mf8)*(0.4+0.6*Math.sin(now*0.0013+my8*0.8+mq));
           if(ma8<=0.02) continue;
           g.globalCompositeOperation="lighter";
@@ -8731,7 +8734,7 @@ function drawBayouWater(g,L,now,sa,sb,zi,wTop,shoreAt,sgn){
       var gyy=wTop+Math.round(gdep*wDep);
       var gxx=sa+Math.round((((gt+0.5)/nGt)+Math.sin(now*0.00007+gt)*0.05)*span);
       var ged=shoreAt(gyy);
-      if(sgn>0? gxx>ged-3 : gxx<ged+3) continue;
+      if(!wetAt(gxx,gyy)) continue;
       var gsp=Math.max(1,Math.round(K*1.6));
       g.fillStyle=css(day?[34,40,30]:[10,12,10]);               // the ridge of the snout, barely above it
       g.fillRect(gxx-gsp,gyy,gsp*3,Math.max(1,Math.round(K*0.7)));
@@ -8759,7 +8762,7 @@ function drawBayouWater(g,L,now,sa,sb,zi,wTop,shoreAt,sgn){
     var ty=wTop+Math.round(depth*wDep*0.94);
     if(ty>=HORIZON-1) continue;
     var edge=shoreAt(ty);
-    if(sgn>0? tx>edge-2 : tx<edge+2) continue;                   // it has to be standing in WATER
+    if(!wetAt(tx,ty)) continue;                                  // it has to be standing in WATER
     var th=Math.round((6+depth*30)*K), tw=Math.max(1,Math.round((1+depth*3)*K));
     var fade=0.30*(1-depth);                                     // distance haze over the water
     if(fade>0.02){ var hz=biomeSkc(day);                         // …mixed IN, not painted over the top
@@ -8857,7 +8860,7 @@ function drawBayouWater(g,L,now,sa,sb,zi,wTop,shoreAt,sgn){
         if(((dh9>>>5)%100)>Math.round(26+hard*54)) continue;
         var dxx=dx+((dh9>>>11)%Math.max(1,dstp));
         if(dxx<sa||dxx>=sb) continue;
-        var ded=shoreAt(dy); if(sgn>0? dxx>ded-2 : dxx<ded+2) continue;
+        if(!wetAt(dxx,dy)) continue;
         var dw9=Math.max(1,Math.round((0.8+df*1.6)*K));
         g.fillStyle=day?"rgba(238,246,250,0.30)":"rgba(150,176,206,0.18)";
         g.fillRect(dxx,dy,dw9*2,Math.max(1,Math.round(K*0.5)));                       // the ring
@@ -8901,7 +8904,7 @@ function drawBayouWater(g,L,now,sa,sb,zi,wTop,shoreAt,sgn){
     var bby=Math.round(wTop+bbf*wDep+bwob*(2.2+bbi*1.7)*K)
            -Math.round((2.0+bbi*2.2)*K*Math.min(1,(bpres-0.30)*2.6));   // …and stand ON its top, not in it
     if(bby<=wTop+2||bby>=HORIZON-2) continue;
-    var bed2=shoreAt(bby); if(sgn>0? bwx0>bed2-3 : bwx0<bed2+3) continue;
+    if(!wetAt(bwx0,bby)) continue;
     var egret=((dh>>>19)&1)===0;
     var bcol=egret?(day?"#eef0e8":"rgb("+(Math.round(96*mnl9)+40)+","+(Math.round(100*mnl9)+44)+","+(Math.round(92*mnl9)+42)+")")
                   :(day?"#6f7a72":"#1b201e");
@@ -8925,38 +8928,13 @@ function drawBayouWater(g,L,now,sa,sb,zi,wTop,shoreAt,sgn){
     if(((th9>>>5)%100)<45) continue;                           // not always out
     var tuy=wTop+Math.round((0.09+((th9>>>9)%100)/460)*wDep);
     var tux=sa+Math.round((((tu+0.5)/2)+((((th9>>>13)%100)/100)-0.5)*0.5)*span);
-    var ted=shoreAt(tuy); if(sgn>0? tux>ted-3 : tux<ted+3) continue;
+    if(!wetAt(tux,tuy)) continue;
     g.fillStyle=day?"#4a4234":"#0f100d";
     g.fillRect(tux-Math.round(2*K),tuy,Math.round(5*K),Math.max(1,Math.round(K)));            // the log
     g.fillStyle=day?"#5c6a44":"#141810";
     g.fillRect(tux,tuy-Math.round(K),Math.round(2*K),Math.max(1,Math.round(K)));              // shell
     g.fillStyle=day?"#7a8452":"#1a1e14";
     g.fillRect(tux+Math.round(2*K),tuy-Math.round(K),Math.max(1,Math.round(K*0.6)),Math.max(1,Math.round(K*0.6)));
-  }
-  // THE SKIFF. A flat-bottomed boat working the channel, poled by one person, with a wake behind it.
-  // ⚠ It runs the CHANNEL — its depth is picked to fall in a gap between the spits, not across them.
-  if(cityG>0.16){
-    var kh=((sa*2654435761+5171)>>>0);
-    var kdep=0.20+((kh>>>7)%100)/520;
-    var kyy=wTop+Math.round(kdep*wDep);
-    var kper=88000+((kh>>>3)%54000);
-    var kt=((now/kper)+((kh%1000)/1000))%1;
-    var kdir=((kh>>>17)&1)?1:-1;
-    var kxx=sa+Math.round((kdir>0?kt:1-kt)*span);
-    var ked=shoreAt(kyy);
-    if(!(sgn>0? kxx>ked-6*K : kxx<ked+6*K)){
-      var kw=Math.round(6*K), kbob=Math.round(Math.sin(now*0.0016+kh)*0.5*K);
-      g.fillStyle=day?"rgba(232,238,240,0.34)":"rgba(150,172,196,0.20)";      // the wake, trailing astern
-      for(var kq=1;kq<9;kq++) g.fillRect(kxx-kdir*Math.round(kq*1.6*K),kyy+kbob+Math.round(kq*0.16*K),Math.max(1,Math.round(K)),Math.max(1,Math.round(K*0.5)));
-      g.fillStyle=day?"#8a7048":"#241d13";
-      g.fillRect(kxx-Math.round(kw*0.5),kyy+kbob-Math.round(K*0.8),kw,Math.max(1,Math.round(K*1.4)));   // the hull
-      g.fillStyle=day?"#b2925e":"#31281a";
-      g.fillRect(kxx-Math.round(kw*0.5),kyy+kbob-Math.round(K*0.8),kw,Math.max(1,Math.round(K*0.5)));   // the gunwale catching light
-      drawPerson(g,kxx+Math.round(kdir*K),kyy+kbob-Math.round(K*0.8),day?"#4a5a48":"#1a201a",day?"#c89a72":"#3a2c22",kdir);
-      g.fillStyle=day?"rgba(58,48,34,0.9)":"rgba(24,20,14,0.9)";
-      for(var pq2=0;pq2<Math.round(7*K);pq2++)                                                          // the pole
-        g.fillRect(kxx+Math.round(kdir*(K+pq2*0.55)),kyy+kbob-Math.round(5*K)+Math.round(pq2*0.9),Math.max(1,Math.round(K*0.6)),1);
-    }
   }
   // ---- MIST LYING ON THE WATER ----
   // ⚠ THIS WAS THREE MORE RULED BANDS: one flat full-span rect per layer, edge to edge, at a fixed
@@ -9007,7 +8985,7 @@ function drawBayouWater(g,L,now,sa,sb,zi,wTop,shoreAt,sgn){
       var syy=wTop+Math.round(sdep*wDep);
       var sxx=sa+Math.round(((sh+0.5+(((shh>>>7)%100)/100-0.5)*0.5)/nS)*span);
       var sedge=shoreAt(syy);
-      if(sgn>0? sxx>sedge-6*K : sxx<sedge+6*K) continue;
+      if(!(wetAt(sxx-6*K,syy) && wetAt(sxx+6*K,syy))) continue;
       var sw3=Math.round((9+((shh>>>11)%5))*K), sh3=Math.round((5+((shh>>>15)%3))*K);
       var pil=Math.round(4*K);
       g.fillStyle=day?"#6b5a40":"#161208";                       // the pilings, standing in the water
@@ -9039,8 +9017,10 @@ function drawBayouWater(g,L,now,sa,sb,zi,wTop,shoreAt,sgn){
       // SOMEONE FISHING off the end, rod out over the water
       if(((shh>>>19)&1)&&L>0.24){
         var fpx=sxx-Math.round(2.4*K), fpy=syy-Math.round(1.6*K);
-        g.fillStyle=day?"#3a4a5c":"#12161c"; g.fillRect(fpx,fpy-Math.round(3*K),Math.max(1,Math.round(1.4*K)),Math.round(3*K));
-        g.fillStyle=day?"#c9a888":"#3a3226"; g.fillRect(fpx,fpy-Math.round(4.4*K),Math.max(1,Math.round(1.4*K)),Math.round(1.4*K));
+        // ⚠ SAME FAULT AS THE POLER — a hand-rolled figure, ~9px against the city's ~7px. Two of the
+        // three people out on this water were the wrong size, and they were the only two the engine
+        // did not draw with drawPerson. Nick spotted it from the desktop.
+        drawPerson(g,fpx,fpy,day?"#3a4a5c":"#12161c",day?"#c9a888":"#3a3226",-1);
         g.fillStyle=day?"rgba(60,52,40,0.8)":"rgba(24,22,18,0.8)";
         for(var rq2=0;rq2<Math.round(6*K);rq2++)                                                                     // the rod
           g.fillRect(fpx-Math.round(rq2*0.9),fpy-Math.round(4*K)+Math.round(rq2*0.5),Math.max(1,Math.round(K*0.7)),1);
@@ -9060,30 +9040,25 @@ function drawBayouWater(g,L,now,sa,sb,zi,wTop,shoreAt,sgn){
   var pcyc=76000, pp=((now)%pcyc)/pcyc, pf=pp<0.5?pp*2:2-pp*2;
   var py=wTop+Math.round(wDep*0.72), pedge=shoreAt(py);
   var px=sa+Math.round(span*(0.12+pf*0.62));
-  if(!(sgn>0? px>pedge-4 : px<pedge+4)){
+  if(wetAt(px-4,py) && wetAt(px+4,py)){
+    var pdir=pp<0.5?1:-1;
+    g.fillStyle=day?"rgba(232,238,240,0.30)":"rgba(150,172,196,0.18)";                           // the wake, astern
+    for(var pw=1;pw<8;pw++) g.fillRect(px-pdir*Math.round(pw*1.7*K),py+Math.round(pw*0.15*K),Math.max(1,Math.round(K)),Math.max(1,Math.round(K*0.5)));
     g.fillStyle=day?"#6b5a3c":"#171208";
     g.fillRect(px-Math.round(4*K),py,Math.round(8*K),Math.max(1,Math.round(1.4*K)));            // the hull
-    g.fillStyle=day?"#2e2a22":"#0b0a08";
-    g.fillRect(px,py-Math.round(4*K),Math.max(1,Math.round(1.2*K)),Math.round(4*K));            // the poler
-    g.fillStyle=day?"#c9a888":"#3a3226";
-    g.fillRect(px,py-Math.round(5.4*K),Math.max(1,Math.round(1.2*K)),Math.round(1.4*K));        // head
+    g.fillStyle=day?"#9a8156":"#241d13";
+    g.fillRect(px-Math.round(4*K),py,Math.round(8*K),Math.max(1,Math.round(K*0.5)));            // gunwale catching light
+    // ⚠⚠ THE POLER WAS A DIFFERENT SPECIES TO EVERYONE ELSE. Nick: "make sure the people on the boats
+    // are the same size as everyone else." He was right — this figure was hand-drawn as a 1.2K-wide
+    // bar 4K tall with a 1.4K head stacked on it, roughly 11px at his scale against the ~7px every
+    // other person in the city is drawn at by drawPerson. Nothing else in the engine draws its own
+    // people; this was the one place that did, so the bayou had giants standing in its boats.
+    // It goes through drawPerson now like the whole rest of the city, which also gets it the weight
+    // shift, the walk frames and the palette for free.
+    drawPerson(g,px,py,day?"#4a5a48":"#1a201a",day?"#c89a72":"#3a2c22",-1);
     g.fillStyle=day?"#8a7a58":"#221c12";
     for(var pq=0;pq<Math.round(7*K);pq++)                                                        // the pole
       g.fillRect(px+Math.round(1.4*K)+Math.round(pq*0.5),py-Math.round(5*K)+pq,Math.max(1,Math.round(K*0.8)),1);
-  }
-  // FIREFLIES over the water at dusk — the land's "hanging and falling" beat.
-  if(L<0.42&&L>0.06){
-    g.globalCompositeOperation="lighter";
-    for(var ff=0;ff<16;ff++){
-      var fh=((ff*40503+((sa*7)|0))>>>0);
-      var fx=sa+((fh%Math.max(1,span))+Math.round(Math.sin(now*0.0009+ff*1.7)*7*K))%Math.max(1,span);
-      var fy2=wTop+((fh>>>9)%Math.max(1,wDep));
-      var blink=Math.sin(now*0.004+ff*2.3);
-      if(blink<0.55) continue;
-      g.fillStyle="rgba(214,255,140,"+(0.55*(blink-0.55)/0.45).toFixed(2)+")";
-      g.fillRect(sa+((fx-sa)|0),fy2,Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
-    }
-    g.globalCompositeOperation="source-over";
   }
 }
 // THE PACK ICE. This is the one land where the snow system LEADS: everywhere else snow is weather laid
@@ -9271,6 +9246,31 @@ function drawReefLagoon(g,L,now,sa,sb,zi,wTop){
                +Math.sin(y*0.101+sa*0.07)*2.2*K;
     return inner+sgn*Math.round(sweep+meander*(0.45+f*0.7));
   }
+  // ⚠⚠ THE OTHER END OF THE BAY WAS A WALL. Nick: "we just need to fix this weird edge, on both sides
+  // too" — with a shot of the water stopping dead at a straight vertical line with the land beside it.
+  // The cause is the same one the comment above already names for the inner edge and only half-fixed:
+  // THE BAY IS AN X-RANGE. `shoreAt` gave the city-side edge a proper meandering shoreline, but the
+  // far side was left as the raw span limit `sa`/`sb`, so it came out as a dead vertical cut the full
+  // depth of the water. The 3px "wandering side shore" the dock stage paints there is the pale ragged
+  // line in his shot — far too thin to read as anything but a seam.
+  // A bay CLOSES. This is the mirror of shoreAt: it pulls in from the span limit, tapers as the water
+  // recedes so the far end narrows the way a real inlet does, and wanders on its own phases so the
+  // two ends never look like a matched pair.
+  var outerBase=zi?sb:sa;
+  function outerAt(y){
+    var f=(y-wTop)/wDep;
+    var taper=span*0.11*Math.pow(Math.max(0,1-f),1.5);
+    var mnd=Math.sin(y*0.037+sb*0.13)*4.5*K
+           +Math.sin(y*0.0115+2.7)*9*K
+           +Math.sin(y*0.089+sb*0.05)*2*K;
+    return outerBase+sgn*Math.max(0,Math.round(taper+mnd*(0.5+f*0.6)));
+  }
+  // one test both edges answer to, so nothing standing in this water can end up on the land at either
+  // end — the trees, the spits, the birds and the boat all ask this rather than each rolling their own
+  function wetAt(x,y){
+    var e=shoreAt(y), o=outerAt(y);
+    return sgn>0 ? (x<e-2 && x>o+1) : (x>e+2 && x<o-1);
+  }
   // ---- THE WATER, graded by DISTANCE (up the frame), and hazed into the horizon at the far edge ----
   // Palette per coast. The BAYOU's water is tannin-black and almost still: it MIRRORS what stands in
   // it rather than glittering, so its shallows go darker than its deeps instead of paler.
@@ -9312,8 +9312,8 @@ function drawReefLagoon(g,L,now,sa,sb,zi,wTop){
       // not want from variants. Real water tints what it hands back: a peat bog reflects a BROWN sky.
       band=mixc(band,mixc(biomeSkc(day),wp.deep,0.30),refl*(day?1:0.72));
     }
-    var edge=shoreAt(wy);
-    var x0=Math.min(edge,zi?sb:sa), x1=Math.max(edge,zi?sb:sa);
+    var edge=shoreAt(wy), oedge=outerAt(wy);
+    var x0=Math.min(edge,oedge), x1=Math.max(edge,oedge);
     if(x1<=x0) continue;
     // ⚠⚠ THE CORRUGATION. Nick, on the night bayou: "I like the idea of this — but it doesn't read
     // well, make it look realistic." It read as CORRUGATED METAL, and this line was half the reason.
@@ -9355,9 +9355,23 @@ function drawReefLagoon(g,L,now,sa,sb,zi,wTop){
     g.fillRect(sgn>0?e2+Math.round(2.4*K):e2-Math.round(2.4*K)-dw,sy2,dw,1);
     if(((sy2*11)%13)===0){ g.fillStyle=day?"rgba(210,192,152,0.7)":"rgba(52,48,38,0.7)";
       g.fillRect(sgn>0?e2+Math.round(3*K):e2-Math.round(4*K),sy2,Math.round(2*K),1); }   // shell/wrack line
+    // ---- AND THE SAME MARGIN AT THE FAR END, which is what actually kills the wall ----
+    // ⚠ Curving the water's outer boundary is only half of it: an unedged curve is still a cut, just a
+    // wavy one. The end of the bay needs the same wet lip, mud line and dry bank the city side has, or
+    // the water simply stops in a different shape.
+    var o2=outerAt(sy2), osg=-sgn;
+    g.fillStyle=bayou?(day?"rgba(96,102,74,0.55)":"rgba(20,24,18,0.5)")
+                     :"rgba(255,255,255,"+(0.20+0.30*Math.max(0,lap)).toFixed(2)+")";
+    g.fillRect(o2-(osg>0?fw2:0),sy2,fw2,1);
+    g.fillStyle=bayou?(day?"rgba(74,72,54,0.92)":"rgba(20,22,17,0.9)"):(day?"rgba(186,164,124,0.9)":"rgba(48,44,36,0.9)");
+    g.fillRect(osg>0?o2:o2-Math.round(2.4*K),sy2,Math.round(2.4*K),1);
+    var odw=Math.round((3+sf*3.5)*K);
+    g.fillStyle=bayou?(day?(((sy2*7)%5)<2?"rgba(96,104,72,0.95)":"rgba(84,92,64,0.95)"):"rgba(28,32,24,0.9)")
+                     :(day?(((sy2*7)%5)<2?"rgba(244,232,200,0.95)":"rgba(234,218,180,0.95)"):"rgba(74,68,54,0.9)");
+    g.fillRect(osg>0?o2+Math.round(2.4*K):o2-Math.round(2.4*K)-odw,sy2,odw,1);
   }
   if(sprawl){ drawFloodedFlats(g,L,now,sa,sb,zi,wTop,shoreAt,sgn); return; }
-  if(bayou){ drawBayouWater(g,L,now,sa,sb,zi,wTop,shoreAt,sgn); return; }
+  if(bayou){ drawBayouWater(g,L,now,sa,sb,zi,wTop,shoreAt,sgn,wetAt); return; }
   // THE REEF CREST — breakers standing in one place, because a reef does not move. The single
   // strongest "coral coast" cue in the frame.
   var rfMidY=wTop+Math.round(wDep*0.55);
@@ -15561,11 +15575,11 @@ function drawFlood(g,cd,L,now){
     for(var sp=0;sp<10;sp++){ var spx=cx-dir*(cd.w*0.9)+((sp*5+now*0.03)%20)-10, spy=gy-14-((sp*3+(now/90|0))%12); g.fillRect(spx|0,spy|0,1,1); }
     g.globalCompositeOperation="source-over"; }
   // ---- APPROACH: a dark wall of water rushes in from the coast side, then breaks over the block ----
-  if(f<0.18){ var ap=Math.max(0,(f-0.06)/0.12), frontX=cx-dir*(cd.w*1.7)*(1-ap), wh=waveH*(0.4+0.6*ap);
-    var bx0=dir>0?zL:frontX, bx1=dir>0?frontX:zR;                     // water already surging in behind the front
+  if(f<0.18){ var ap=Math.max(0,(f-0.06)/0.12), surgeX=cx-dir*(cd.w*1.7)*(1-ap), wh=waveH*(0.4+0.6*ap);
+    var bx0=dir>0?zL:surgeX, bx1=dir>0?surgeX:zR;                     // water already surging in behind the front
     if(bx1>bx0){ for(var wy=0;wy<wh*0.5;wy++){ g.fillStyle=L>0.5?"rgba(50,100,140,0.7)":"rgba(20,48,82,0.8)"; g.fillRect(bx0|0,gy-wy,(bx1-bx0)|0,1); } }
-    for(var wy2=0;wy2<wh;wy2++){ var lean=dir*Math.sin(wy2*0.16)*3; g.fillStyle=L>0.5?"rgba(45,92,132,0.85)":"rgba(18,44,78,0.9)"; g.fillRect((frontX+lean-1)|0,(gy-wy2)|0,3,1); }  // curling wave wall
-    g.fillStyle="rgba(220,240,255,0.9)"; for(var cf=0;cf<wh;cf+=2){ g.fillRect((frontX+dir*Math.sin(cf*0.4)*3)|0,(gy-cf)|0,2,1); }   // foaming crest
+    for(var wy2=0;wy2<wh;wy2++){ var lean=dir*Math.sin(wy2*0.16)*3; g.fillStyle=L>0.5?"rgba(45,92,132,0.85)":"rgba(18,44,78,0.9)"; g.fillRect((surgeX+lean-1)|0,(gy-wy2)|0,3,1); }  // curling wave wall
+    g.fillStyle="rgba(220,240,255,0.9)"; for(var cf=0;cf<wh;cf+=2){ g.fillRect((surgeX+dir*Math.sin(cf*0.4)*3)|0,(gy-cf)|0,2,1); }   // foaming crest
     return;
   }
   // ---- FLOOD → RECEDE: the block sits submerged, then the water drains back to the sea ----
