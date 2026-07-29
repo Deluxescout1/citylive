@@ -21709,9 +21709,15 @@ function drawMountains(g,L,now,nd){
   // clears — shape and hue untouched, exactly Nick's rule of realism for shape and readability for
   // colour. A land can never again dissolve into its own air at any hour.
   function lum(c){ return 0.299*c[0]+0.587*c[1]+0.114*c[2]; }
+  // ⚠ AND THE FLOOR MUST NOT BLACKEN A LAND. Nick, on a dusk frame: "I am not sure what I am looking
+  // at." At golden hour the reference sky is very bright, so the shortfall this has to make up is
+  // large, and at 0.72 it was allowed to take a land most of the way to black — a huge dark slab
+  // under a pink sky, which separates beautifully and tells you nothing about what it is made of.
+  // Separation is the goal; a silhouette is not. Capped at a third, so the rock always keeps its own
+  // colour and the guarantee degrades gracefully instead of overshooting into a void.
   function clearOf(c,ref,need){
     var d=lum(ref)-lum(c); if(d>=need) return c;
-    var k=Math.min(0.72,(need-d)/Math.max(24,lum(c)));
+    var k=Math.min(0.34,(need-d)/Math.max(24,lum(c)));
     return mixc(c,[0,0,0],k);
   }
   // ⚠ AND THE REFERENCE HAS TO BE THE SKY THAT IS ACTUALLY ON SCREEN. My first cut held the rock below
@@ -21952,7 +21958,11 @@ function drawMountains(g,L,now,nd){
       // derived from how fast the SKYLINE turns, and on `steep:1.0` rock it is near zero everywhere —
       // so a sea cliff gets almost no modelling from the pass that models every other land. The ribs
       // are the only surface signal a vertical wall has, so they carry more of the load here.
-      var rbb=faceLand?mtsCache.rib[pi]:null, rbk=(sunL?-1:1)*(B.cliffLife?2.6:1.35), rlk=Math.max(lk,0.34);
+      // ⚠ AND 2.6 WAS TOO MUCH. I raised the cliff gain because a sheer face gets no modelling from
+      // the slope term — true — and overshot into visible CORDUROY down the wall, which is the exact
+      // artifact this project has spent four fixes removing. A flat face is a smaller sin than a
+      // striped one. 1.7 still models the wall and stops well short of reading as ribbing.
+      var rbb=faceLand?mtsCache.rib[pi]:null, rbk=(sunL?-1:1)*(B.cliffLife?1.7:1.35), rlk=Math.max(lk,0.34);
       for(var mx2=0;mx2<SW;mx2++){
         var mh=hs[mx2]; if(mh<3) continue;
         var mtop=Math.max(2,(gy-mh)|0);
