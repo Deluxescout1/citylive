@@ -7328,8 +7328,34 @@ function drawLayer(g,layer,L,now,fx,hol,haze){
         g.fillStyle="rgba(0,0,0,0.10)";
         for(var fy6=top+4;fy6<top+bh-3;fy6+=5) g.fillRect(bx+1,fy6,b.w-2,1);
       }
+      // ⚠⚠ EVERY BUILDING MEETS THE PAVEMENT SOMEHOW. Nick's third named fault on the street was "no
+      // ground floor — the buildings just meet the pavement", and the reason is a gate, not an absence:
+      // this frontage already exists, with shop kinds, goods on the shelf, mullions and a night glow —
+      // and it only ran on buildings 11+ wide, in three of the five districts, on 60% of those. So
+      // most of the block had nothing at eye level, which is the one height a street is actually made
+      // of.
+      // Residential and industrial do not want SHOPS, so they get their own ground floor below rather
+      // than being forced into a shopfront they would not have.
       var dst6=b.district;
-      if(b.w>=11&&(dst6==="downtown"||dst6==="entertainment"||dst6==="oldtown")&&((b.seed>>>4)%5)<3){
+      if(b.w>=7&&(dst6==="residential"||dst6==="industrial")){
+        var gfY=HORIZON-4;
+        if(dst6==="residential"){
+          // a stoop, a door and a lit hallway — what a home actually shows the street
+          g.fillStyle="rgba(14,16,22,0.85)"; g.fillRect(bx+Math.max(1,(b.w>>1)-1),gfY,2,4);   // the doorway
+          if(L<0.55){ g.fillStyle="rgba(255,206,140,0.55)"; g.fillRect(bx+Math.max(1,(b.w>>1)-1),gfY+1,2,2); }
+          g.fillStyle="rgba(255,255,255,0.10)"; g.fillRect(bx+Math.max(1,(b.w>>1)-2),gfY+4,4,1);   // the step
+          for(var rw6=bx+1;rw6<bx+b.w-2;rw6+=4){                                   // ground-floor windows
+            if(Math.abs(rw6-(bx+(b.w>>1)))<3) continue;
+            g.fillStyle=L>0.5?"rgba(120,140,170,0.7)":"rgba(38,46,66,0.9)"; g.fillRect(rw6,gfY+1,2,2); }
+        } else {
+          // industrial: a roller shutter and a loading bay, which is the whole vocabulary of that street
+          g.fillStyle="rgba(10,12,16,0.8)"; g.fillRect(bx+1,gfY,b.w-2,4);
+          g.fillStyle="rgba(255,255,255,0.06)";
+          for(var sh6=gfY;sh6<gfY+4;sh6+=2) g.fillRect(bx+1,sh6,b.w-2,1);          // the corrugations
+          g.fillStyle="rgba(200,180,90,0.5)"; g.fillRect(bx+1,gfY+4,b.w-2,1);      // the bay lip
+        }
+      }
+      if(b.w>=9&&(dst6==="downtown"||dst6==="entertainment"||dst6==="oldtown")&&((b.seed>>>4)%5)<4){
         var sfY=HORIZON-5;                                          // D6: ground-floor storefront (now on more blocks)
         g.fillStyle="rgba(10,12,18,0.9)"; g.fillRect(bx+1,sfY-1,b.w-2,1);            // transom
         g.fillStyle=L>0.5?"#7d96b2":"#28324a"; g.fillRect(bx+1,sfY,b.w-2,3);         // display glass
