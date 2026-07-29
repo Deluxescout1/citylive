@@ -2454,6 +2454,7 @@ function drawPlanets(g,now,nd,lst,dayFade){
 // night so the Moon can hang pale in the morning. Night = bright + halo + colony; daytime = a soft
 // wash, only when the Moon is well up and fat enough to actually be seen. ----
 function drawCelestial(g,now,nd,L,fx){
+  curMoonWX=null; curMoonIll=0;
   if(fx.rain||fx.snow||fx.fog||fx.thunder) return;                         // hidden by heavy weather
   if(cityPhase==="apoc" && curDeath==="moonfall") return;                  // the giant plunging Moon is drawn by the finale instead
   var lst=lstHours(nd);
@@ -2465,6 +2466,7 @@ function drawCelestial(g,now,nd,L,fx){
     var colFall=(curWar && curWar.f>=0 && curWar.f<1.4 && mcol>0.12 && dayFade<0.4)?Math.min(1,curWar.f):0;   // war reaches the colony (can happen mid-life)
     var colonyArg = colFall>0 ? mcol*(1-colFall*0.75) : mcol;
     var R=isSupermoon(nd)?11:9, mwx=skyWX(maa.az), mwy=skyY(maa.alt)*0.96;   // BIGGER moon (Nick 2026-07-18); perigee full moon = SUPERMOON, bigger still
+    curMoonWX=mwx; curMoonIll=illum;                                         // …and the bayou lays its moon path under it
     for(var w=-1;w<=1;w++){ var mx=mwx-WOFF+w*WW; if(mx<-R-10||mx>SW+R+10) continue;
       drawMoon(g,mx,mwy,mp,colonyArg,R,dayFade,0,now);
       if(colFall>0) drawColonyFall(g,mx,mwy,R,colFall,now);
@@ -4028,6 +4030,11 @@ var curCurfew=0;     // v1.24 THE ORDER curfew strength 0..1 (Martial Law nights
 var curMaskK=0;      // v1.29 THE PLAGUE mask prevalence 0..1: citizens wear surgical masks. 0 on every non-plague life (drawPerson reads it).
 var curPlagueEmpty=0;// v1.29 THE PLAGUE emptiness 0..1 (peaks at the SURGE): dims the streets like the curfew. 0 on every non-plague life.
 var curSunDf=0.5;    // where the sun is in its arc (0 sunrise .. 1 sunset) — drives light direction
+// WHERE THE MOON ACTUALLY IS, published once by drawCelestial so the water can lay its path under it.
+// ⚠ Recomputing moonRaDec/altAz per water span would be the same astronomy three times a frame, and
+// the bayou's moon path has to fall under the moon you can SEE or the mirror is a lie. Null until the
+// moon is up and drawn — heavy weather hides it, and then there is correctly no path on the water.
+var curMoonWX=null, curMoonIll=0;
 // THE GOLDEN HOUR — one global light state, computed once per frame, consumed everywhere
 // (sky, buildings, terrain, water, mountains, clouds) so low-sun light reads as ONE event.
 var goldenK=0, goldC=[255,196,140];   // strength 0..1 near sunrise/sunset · rose-gold dawns, amber dusks
@@ -8476,6 +8483,111 @@ function drawHarborBridge(g,L,now,night,wTop){
 // the same reason drawShoreLife is: the water is drawn late, so anything belonging IN it has to be
 // drawn later still. The coral coast carries almost no relief by design, so unlike every other land
 // here none of its identity is in its skyline — it is all in the water and on the sand.
+// ============ THE CHANNEL — what turns a sheet of water into a bayou ============
+// ⚠⚠ Nick, on the night render: "I like the Idea of this — but it doesn't read well… make it look
+// realisitc." Asked what should be down there instead, he took BOTH options: a channel with real
+// banks AND a true mirror. The banks are the half that fixes the reading, because the sheet's real
+// problem is not its tone — it is that there is NOTHING IN IT to give the distance a scale. Kill the
+// corrugation and you are left with a clean dark rectangle, which is not an improvement, it is a
+// cleaner version of the same fault.
+// A bayou is not a lake. It is water threading between low mud spits, sandbars and tree-topped
+// hummocks, and those banks are what make the water read as water: they cross in front of each other,
+// they get smaller and paler with distance, and the water between them becomes a CHANNEL going
+// somewhere instead of a rectangle stopping at the edge of the frame.
+// ⚠ Every spit is a pure function of (world x, index, span seed). Nothing is simulated and nothing
+// is stored, so all three monitors draw the identical bayou — the same rule as the hunts and the
+// blood. The spits PINCH OUT where `pres` goes negative; those gaps are the channel, and they are
+// the reason this does not come out as three stripes ruled across the frame.
+function drawBayouBanks(g,L,now,sa,sb,zi,wTop,shoreAt,sgn){
+  var day=L>0.5, K=Math.max(1,KSP), wDep=Math.max(1,HORIZON-wTop);
+  var step=Math.max(1,Math.round(K));
+  // ⚠ THE SPITS HAVE TO OUT-CONTRAST THE WATER OR THEY ARE NOT THERE. First pass used a mud brown of
+  // [76,68,50] against THE PEAT MOSS's tannin of [86,66,44] — the same value — and the whole bay came
+  // back as one flat brown mass. Land in a swamp is GREEN on top: it grows marsh grass, and that
+  // green against dark water is the only cue at this size that says "this is a bank and that is not".
+  // ⚠⚠ AND AGAIN AT NIGHT. The day palette was fixed and the night one was left dark "because it is
+  // night" — so the crown went [24,28,20] against water that lands around [15,24,33], and the banks
+  // were once more invisible. Third time in one pass. Night does not mean everything converges on
+  // black: it means the RANGE narrows, and inside that narrow range the contrast still has to be
+  // spent on the thing you need to read. A reed bank under a full moon is one of the brightest things
+  // on a bayou at night, so it gets the light and the water keeps the dark.
+  var mnl=0.45+curMoonIll*0.55;             // a full moon genuinely lights a marsh; a new moon does not
+  var mud  =day?[64,54,38]:[Math.round(20*mnl)+8,Math.round(20*mnl)+8,Math.round(16*mnl)+7];
+  var crown=day?[122,132,78]:[Math.round(38*mnl)+16,Math.round(46*mnl)+20,Math.round(30*mnl)+16];
+  var wetL =day?[38,34,25]:[7,8,7];         // the wet toe going under stays black — that is the waterline
+  var reedC=day?[142,152,86]:[Math.round(48*mnl)+20,Math.round(58*mnl)+26,Math.round(36*mnl)+18];
+  var snagC=day?[178,170,150]:[Math.round(56*mnl)+26,Math.round(56*mnl)+27,Math.round(52*mnl)+24];   // bleached deadfall — a swamp is full of things that died standing
+  for(var bi=0;bi<3;bi++){
+    var bh=((bi*2654435761+((sa*131)|0)+7919)>>>0);
+    // ⚠⚠ WHERE THE SPITS GO IS THE WHOLE GAME, AND THE FIRST GUESS WAS WRONG. Measured at Nick's
+    // primary geometry: the bay runs city y 270→362, but the city block's roofline sits at ~300, so
+    // TWO THIRDS OF THE BAYOU IS BEHIND THE BUILDINGS. Spits at 0.17/0.44/0.71 put two of the three
+    // where they can never be seen, which is why the first render changed almost nothing. Everything
+    // that has to read lives in the far third — the same lesson as the landmarks that were placed
+    // one-per-world and then never appeared on a screen.
+    var bf=0.05+bi*0.13+(((bh>>>5)%100)/1600);           // how far out this spit lies (0 far, 1 near)
+    var by0=wTop+bf*wDep;
+    var amp=(2.2+bi*1.7)*K, thick=(2.0+bi*2.2)*K;
+    var haze=Math.max(0,0.42-bf*0.9);                    // the far spits melt back, but never out of sight
+    var mC=mud, cC=crown;
+    if(haze>0.02){ var sk=biomeSkc(day); mC=mixc(mud,sk,haze); cC=mixc(crown,sk,haze); }
+    var mCs=css(mC), cCs=css(cC), wetS=css(wetL), reflS=rgba(day?[30,32,22]:[6,7,6],0.34);
+    // ⚠⚠ RUN-LENGTH, NOT PER-COLUMN. The first cut emitted four rects for every single column of every
+    // spit and cost +9ms of a 30ms frame on the land that was ALREADY the most expensive in the set.
+    // But `by` and `t` come off slow sines, so long stretches of columns share the identical body —
+    // they are only redrawn because the loop redraws them. Accumulating the run and flushing when the
+    // shape actually changes cuts the body fills by roughly five to one and changes not one pixel.
+    // The per-column features (reeds, snags, logs) still run every column; they are what needs to vary.
+    var runX=-1, runBy=0, runT=0;
+    for(var x=sa;x<=sb;x+=step){
+      var wx=x+WOFF, ok=(x<sb), t=0, by=0;
+      if(ok){
+        var wob =Math.sin(wx*0.0113+bi*2.1)*0.6+Math.sin(wx*0.0037+bi)*0.4;
+        var pres=Math.sin(wx*0.0026+bi*1.7)*0.55+Math.sin(wx*0.0009+bi*3.3)*0.45;
+        if(pres<0.04) ok=false;                          // THE GAP THE CHANNEL RUNS THROUGH
+        else {
+          t=Math.round(thick*Math.min(1,pres*1.9));
+          by=Math.round(by0+wob*amp);
+          if(t<1||by<=wTop+2||by>=HORIZON-1) ok=false;
+          else { var edge=shoreAt(by); if(sgn>0? x>edge-2 : x<edge+2) ok=false; }   // it has to be out in the WATER
+        }
+      }
+      if(runX>=0 && (!ok || by!==runBy || t!==runT)){     // flush the run that just ended
+        var rw=x-runX, toe=Math.max(1,Math.round(runT*0.55));
+        g.fillStyle=wetS;  g.fillRect(runX,runBy,rw,toe);                                  // the toe under water
+        g.fillStyle=mCs;   g.fillRect(runX,runBy-runT,rw,runT);
+        g.fillStyle=cCs;   g.fillRect(runX,runBy-runT,rw,Math.max(1,Math.round(K*0.8)));
+        // ⚠ the spit's own reflection is what stops it looking like a sticker laid on the water
+        g.fillStyle=reflS; g.fillRect(runX,runBy+toe,rw,Math.max(1,Math.round(runT*0.7)));
+        runX=-1;
+      }
+      if(!ok) continue;
+      if(runX<0){ runX=x; runBy=by; runT=t; }
+      var f7=((wx*7+bi*13)>>>0);
+      // ⚠ REEDS GROW IN BEDS, NOT IN A FENCE. An even 40% chance per column produced a comb of
+      // identical ticks running the full width of the spit — a rule wearing a costume, which is the
+      // fifth time the same mistake has surfaced on this one piece of water. A reed bed is CLUMPED:
+      // dense patches with open mud between them, and the patch edges are where it looks real.
+      var bed=Math.sin(wx*0.019+bi*3.1)*0.6+Math.sin(wx*0.0061+bi*1.3)*0.4;
+      if(bed>0.10 && (f7%7)<Math.round(1+bed*4)){
+        var rh2=Math.max(1,Math.round((1.2+(f7%4))*K*(0.45+bf*0.8)*(0.55+bed*0.7)));
+        g.fillStyle=css(mixc(reedC,biomeSkc(day),haze));
+        g.fillRect(x,by-t-rh2,Math.max(1,Math.round(K*0.6)),rh2);
+        if((f7%17)===0){ g.fillStyle=css(mixc(day?[86,66,40]:[26,22,16],biomeSkc(day),haze));
+          g.fillRect(x,by-t-rh2-Math.round(K),Math.max(1,Math.round(K*0.7)),Math.round(K*1.2)); }   // the cattail head
+      }
+      if((f7%211)===0 && bf>0.3){                                                    // a bleached snag leaning out
+        var sgh=Math.round((4+(f7>>>3)%7)*K*bf), lean=((f7>>>9)&1)?1:-1;
+        g.fillStyle=css(mixc(snagC,biomeSkc(day),haze*0.7));
+        for(var sq=0;sq<sgh;sq++) g.fillRect(x+Math.round(lean*sq*0.32),by-t-sq,Math.max(1,Math.round(K*0.7)),1);
+      } else if((f7%97)===0){                                                        // a half-sunk log
+        var lw=Math.round((3+(f7>>>5)%5)*K);
+        g.fillStyle=css(mixc(day?[58,48,34]:[13,13,11],biomeSkc(day),haze));
+        g.fillRect(x,by-Math.round(K*0.8),lw,Math.max(1,Math.round(K*1.1)));
+      }
+    }
+  }
+}
 // WHAT STANDS IN THE BAYOU'S WATER. The cypress are the point: a swamp is not a lake with trees
 // beside it, it is trees standing IN it, and their reflections in almost-still black water are half
 // the picture. Drawn from drawHarbor with the water, for the same draw-order reason as the reef.
@@ -8494,6 +8606,102 @@ function drawBayouWater(g,L,now,sa,sb,zi,wTop,shoreAt,sgn){
   var lowSun=Math.max(0,1-Math.abs(L-0.42)*3.4);               // strongest right at dusk and dawn
   var rimC=goldenK>0.15?"rgba(255,196,132,":"rgba(206,214,196,";
   var sunL7=curSunDf<0.5;
+  // THE SPITS FIRST — the trees stand among them and in front of them, so the banks go down first.
+  drawBayouBanks(g,L,now,sa,sb,zi,wTop,shoreAt,sgn);
+  // ---- THE SURFACE. A gradient is not a surface; it is a wall painted like one. ----
+  // ⚠ Broken, not ruled. This project has now been burned three times by continuous lines drawn across
+  // the whole world on water (the swell, the neon reflections, the tonal bands), so these are short
+  // segments at hashed positions that never join up, and they thin out toward the far bank because a
+  // grazing angle compresses everything you can see on the surface into nothing.
+  var rippC=day?[255,255,255]:[150,178,214];
+  for(var ry8=wTop+Math.round(3*K);ry8<HORIZON-1;ry8+=Math.max(1,Math.round(2*K))){
+    var rf8=(ry8-wTop)/wDep;
+    var dens=0.10+0.55*rf8;                                    // near you can resolve individual ripples
+    var stp8=Math.max(3,Math.round((26-rf8*17)*K));
+    for(var rx8=sa;rx8<sb;rx8+=stp8){
+      var rh8=((rx8*2654435761+ry8*7919)>>>0);
+      var jx=rx8+((rh8>>>7)%Math.max(1,stp8));
+      if(jx<sa||jx>=sb) continue;
+      if(((rh8>>>3)%100)/100>dens) continue;
+      var edge8=shoreAt(ry8);
+      if(sgn>0? jx>edge8-2 : jx<edge8+2) continue;
+      var rw8=Math.max(1,Math.round((1.2+((rh8>>>11)%3))*K*(0.4+rf8)));
+      var ra8=(day?0.10:0.055)*(0.35+0.65*rf8)*(0.55+0.45*Math.sin(now*0.0009+rx8*0.4+ry8));
+      if(ra8<=0.012) continue;
+      g.fillStyle=rgba(rippC,ra8);
+      g.fillRect(jx,ry8,rw8,Math.max(1,Math.round(K*0.5)));
+    }
+  }
+  // ---- THE LIVING NIGHT. Nick took the full version: "the bayou at night should be the BEST it
+  // looks, not the worst." It was a black void — the land's whole identity vanished for half of
+  // every day, which is the same fault the maps pass keeps turning up in a different costume. ----
+  if(!day){
+    // THE MOON PATH — the one thing that proves the water is a mirror rather than a hole in the frame.
+    var mn=curMoonIll;
+    var mpX=(curMoonWX===null)?null:Math.round(curMoonWX-WOFF);
+    if(mpX!==null && mn>0.10)
+    for(var mo=-1;mo<=1;mo++){
+      var MPX=mpX+mo*WW;
+      if(MPX<sa-90*K||MPX>sb+90*K) continue;
+      for(var my8=wTop+Math.round(2*K);my8<HORIZON-1;my8+=Math.max(1,Math.round(K))){
+        var mf8=(my8-wTop)/wDep, spread=(3+22*mf8)*K;
+        var nfac=Math.round(2+5*mf8);
+        for(var mq=0;mq<nfac;mq++){
+          var mh8=((my8*40503+mq*7919+mo*13)>>>0);
+          var mxx=Math.round(MPX+(((mh8%1000)/1000)-0.5)*2*spread);
+          if(mxx<sa||mxx>=sb) continue;
+          var med=shoreAt(my8);
+          if(sgn>0? mxx>med-2 : mxx<med+2) continue;
+          var ma8=0.30*mn*(0.25+0.75*mf8)*(0.4+0.6*Math.sin(now*0.0013+my8*0.8+mq));
+          if(ma8<=0.02) continue;
+          g.globalCompositeOperation="lighter";
+          g.fillStyle="rgba(198,214,246,"+ma8.toFixed(3)+")";
+          g.fillRect(mxx,my8,Math.max(1,Math.round(K*(0.6+mf8))),Math.max(1,Math.round(K*0.5)));
+          g.globalCompositeOperation="source-over";
+        }
+      }
+    }
+    // FIREFLIES over the water. ⚠ Hashed orbit, not a particle system — three monitors have to agree
+    // on where every one of them is, and a simulated swarm diverges within a frame.
+    g.globalCompositeOperation="lighter";
+    var nFF=Math.round(span/(9*K));
+    for(var ff=0;ff<nFF;ff++){
+      var fh8=((ff*2654435761+((sa*17)|0))>>>0);
+      var fper=5200+((fh8>>>3)%6400), fph=((fh8>>>13)%1000)/1000;
+      var fcyc=((now/fper)+fph)%1;
+      var blink=Math.sin(fcyc*Math.PI*2);
+      if(blink<=0.15) continue;                                 // most of the time it is simply dark
+      var fdep=((fh8>>>7)%1000)/1000;
+      var fxx=sa+Math.round((((ff+0.5)/nFF)+Math.sin(now*0.00021+ff)*0.012)*span);
+      var fyy=wTop+Math.round(fdep*wDep*0.92)-Math.round((1+Math.sin(now*0.0006+ff*2.1)*2)*K);
+      if(fxx<sa||fxx>=sb||fyy<=wTop||fyy>=HORIZON) continue;
+      g.fillStyle="rgba(196,255,128,"+(0.85*blink).toFixed(3)+")";
+      g.fillRect(fxx,fyy,Math.max(1,Math.round(K*0.7)),Math.max(1,Math.round(K*0.7)));
+      g.fillStyle="rgba(150,230,90,"+(0.20*blink).toFixed(3)+")";       // its own glow on the water below
+      g.fillRect(fxx-Math.round(K),fyy+Math.round(2*K),Math.round(3*K),Math.max(1,Math.round(K)));
+    }
+    g.globalCompositeOperation="source-over";
+    // GATOR EYES. Two dots at the waterline and nothing else — which is exactly how you see one.
+    var nGt=1+(((sa*2654435761)>>>0)%2);
+    for(var gt=0;gt<nGt;gt++){
+      var gh8=((gt*7919+((sa*29)|0)+331)>>>0);
+      var gcyc=((now/(41000+((gh8>>>5)%23000)))+((gh8%1000)/1000))%1;
+      if(gcyc>0.42) continue;                                   // it is under most of the time
+      var gdep=0.30+((gh8>>>11)%1000)/1600;
+      var gyy=wTop+Math.round(gdep*wDep);
+      var gxx=sa+Math.round((((gt+0.5)/nGt)+Math.sin(now*0.00007+gt)*0.05)*span);
+      var ged=shoreAt(gyy);
+      if(sgn>0? gxx>ged-3 : gxx<ged+3) continue;
+      var gsp=Math.max(1,Math.round(K*1.6));
+      g.fillStyle=css(day?[34,40,30]:[10,12,10]);               // the ridge of the snout, barely above it
+      g.fillRect(gxx-gsp,gyy,gsp*3,Math.max(1,Math.round(K*0.7)));
+      g.globalCompositeOperation="lighter";
+      g.fillStyle="rgba(255,168,90,"+(0.72*Math.min(1,gcyc*7)).toFixed(3)+")";
+      g.fillRect(gxx,gyy,Math.max(1,Math.round(K*0.7)),Math.max(1,Math.round(K*0.7)));
+      g.fillRect(gxx+gsp,gyy,Math.max(1,Math.round(K*0.7)),Math.max(1,Math.round(K*0.7)));
+      g.globalCompositeOperation="source-over";
+    }
+  }
   // TREES IN THE WATER. Stratified across the span so they never clump, each with its own depth: the
   // further back it stands the smaller and the more it fades into the haze over the water.
   // ⚠ COUNT IS THE PERF LEVER HERE. drawHarbor runs in the LIVE pass, not only the cached backdrop,
@@ -8574,12 +8782,39 @@ function drawBayouWater(g,L,now,sa,sb,zi,wTop,shoreAt,sgn){
     if(fade>0.02){ g.fillStyle=rgba(biomeSkc(day),fade);         // haze the far ones back
       g.fillRect(tx-Math.round(crw),ty-th,Math.round(crw*2),th); }
   }
-  // FOG LYING ON THE WATER — bayou weather, layered above the trees' feet so they wade out of it.
-  var fogB=day?0.13:0.09;
-  for(var fb=0;fb<3;fb++){
-    var fy=wTop+Math.round(wDep*(0.28+fb*0.22))+Math.round(Math.sin(now*0.00013+fb)*2*K);
-    g.fillStyle="rgba("+(day?"206,210,192,":"96,104,96,")+(fogB*(1-fb*0.22)).toFixed(3)+")";
-    g.fillRect(sa,fy,span,Math.round((3+fb*2)*K));
+  // ---- MIST LYING ON THE WATER ----
+  // ⚠ THIS WAS THREE MORE RULED BANDS: one flat full-span rect per layer, edge to edge, at a fixed
+  // pitch. That is the fourth ruled thing found on this water in one pass — the tonal bands, the neon
+  // reflections, the golden shimmer and now the fog were ALL drawn as continuous lines across the
+  // whole world, which is why the bayou came out looking machined. It is worth naming the pattern:
+  // anything that spans the world gets drawn as a loop over x, and a loop over x with no break in it
+  // is a RULE. Every one of them needs a reason to stop.
+  // Mist is also the piece that carries the night here. Nick took "a living night — the full version",
+  // and on his primary screen the full moon sits at world x 1021 against a 776-wide viewport, so
+  // there is honestly no moon path to lay: the read has to come from mist catching what light there
+  // is, and from the things living in it.
+  var mistN=day?0.16:0.20+curMoonIll*0.13;
+  var mistC=day?[210,214,196]:[128,146,150];
+  for(var fb=0;fb<5;fb++){
+    var fdep=0.16+fb*0.17;
+    var fy0=wTop+wDep*fdep;
+    var fth=Math.round((2.4+fb*1.9)*K);
+    var fstep=Math.max(2,Math.round(K*1.5));
+    for(var fx8=sa;fx8<sb;fx8+=fstep){
+      var wfx=fx8+WOFF;
+      // three octaves of drift decide how thick the bank is HERE — and it thins to nothing often
+      var dns=Math.sin(wfx*0.0041+fb*1.9+now*0.00009)*0.5
+             +Math.sin(wfx*0.0017-fb*0.7+now*0.00004)*0.34
+             +Math.sin(wfx*0.0123+fb)*0.16;
+      if(dns<=0.02) continue;                                  // mist lies in banks, not in sheets
+      var fa=mistN*Math.min(1,dns*1.7)*(1-fb*0.10);
+      if(fa<=0.012) continue;
+      var fy=Math.round(fy0+Math.sin(wfx*0.0026+now*0.00013+fb)*2.2*K);
+      g.fillStyle=rgba(mistC,fa);
+      g.fillRect(fx8,fy,fstep,fth);
+      if((wfx&3)===0){ g.fillStyle=rgba(mistC,fa*0.5);         // a softer lip, only where the bank is thickest
+        g.fillRect(fx8,fy-Math.max(1,Math.round(K)),fstep,Math.max(1,Math.round(K))); }
+    }
   }
   // THE SHANTY ROW. Nick's call: a WORKING bayou — people live out on the water and you can see them.
   // A row of shacks on pilings with boardwalks running between them, crab traps stacked on the decks,
@@ -8870,8 +9105,25 @@ function drawReefLagoon(g,L,now,sa,sb,zi,wTop){
   for(var wy=wTop;wy<HORIZON;wy++){
     var wf=(wy-wTop)/wDep;
     var band=wf<0.55?mixc(deepC,midC,wf/0.55):mixc(midC,shalC,(wf-0.55)/0.45);
-    var haze=Math.max(0,1-wf*4.5);                             // the far water melts into the sky
+    // ⚠ `haze` is clamped at wf 0.222 and the reflection below is smooth, so on the bayou the two
+    // together left a hard horizontal EDGE right across the water at exactly that row — one more
+    // ruled line, this time made by two correct-looking gradients meeting. The reflection does this
+    // job properly and continuously, so the bayou takes that alone.
+    var haze=bayou?0:Math.max(0,1-wf*4.5);                     // the far water melts into the sky
     if(haze>0) band=mixc(band,biomeSkc(day),haze*0.55);
+    // ⚠⚠ THE MIRROR — the other half of what Nick asked for, and the thing that makes the bayou read
+    // as WATER at all. The daylight render was the proof: on THE PEAT MOSS the tannin palette runs
+    // 86/62/42 brown, the mud spits are 76/68/50, and the two are the SAME VALUE — so the whole bay
+    // came out as one flat brown mass with tree tops on it and nothing in it said "surface".
+    // Still water is a mirror at a grazing angle: the further out it is the more sky it hands back and
+    // the less of its own colour you see, which is why a pond is pale at the far bank and near-black
+    // at your feet. That single gradient does three jobs at once — it separates water from land, it
+    // makes distance readable on a map with no relief, and it is a reflection rather than a shading
+    // trick, so the sky's own colour drives it and dusk, storm and moonlight all come through for free.
+    if(bayou){
+      var refl=0.10+0.62*Math.pow(1-wf,2.3);
+      band=mixc(band,biomeSkc(day),refl*(day?1:0.72));
+    }
     var edge=shoreAt(wy);
     var x0=Math.min(edge,zi?sb:sa), x1=Math.max(edge,zi?sb:sa);
     if(x1<=x0) continue;
@@ -8995,7 +9247,13 @@ function drawHarbor(g,L,now,night,nd){
   // renderer and is NOT REACHED by any shipped shell — it hangs off a `pass==="water"` branch and
   // both real shells draw only "bg" and "live". Anything added there is invisible in production;
   // that is the shell-pass trap wearing a different hat.
-  var wTop=HORIZON-((curBiome.k==="cliffs"||curBiome.k==="beach"||curBiome.k==="swamp"||curBiome.k==="arctic"||curBiome.k==="sprawl")?Math.round(46*Math.max(1,KSP)):22), dayW=mixc([26,58,84],[92,152,188],L), wc=css(dayW);
+  // ⚠ THE BAYOU GETS A DEEPER BAY THAN THE OTHER WATER LANDS. Measured: with the standard 46, the
+  // city's roofline covers everything below city y≈300 and only the far third of the water is ever
+  // visible — on the one land whose entire identity IS the water. 60 lifts the far bank clear of the
+  // skyline so the expanse actually recedes, which is what the biome record asked for in the first
+  // place ("a swamp is a wide expanse of water RECEDING to the horizon").
+  var wDeepK=(curBiome.k==="swamp")?60:46;
+  var wTop=HORIZON-((curBiome.k==="cliffs"||curBiome.k==="beach"||curBiome.k==="swamp"||curBiome.k==="arctic"||curBiome.k==="sprawl")?Math.round(wDeepK*Math.max(1,KSP)):22), dayW=mixc([26,58,84],[92,152,188],L), wc=css(dayW);
   var darkWater=(curBiome.k==="swamp"||curBiome.k==="sprawl");   // tannin-black water takes far less light than a harbour
   eachWaterSpan(function(sa,sb,zi){ var ww=sb-sa; if(ww<=0) return;
     var shoreA=gstage(0.3,0.6);                                                   // the far shore builds up with the city
