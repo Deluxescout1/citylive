@@ -4503,9 +4503,26 @@ function buildWorld(li){
       var vW=vH*(1.45+mg()*0.35);                                  // a cone is wider than it is tall
       mts.near.length=0;
       mts.near.push({x:vCx, w:vW, h:vH, sn:false, ph:mg()*9});
-      // and one smaller sibling well off to the side, so the horizon reads as an archipelago rather
-      // than a lone rock. Deliberately short: it must never compete with the cone for the eye.
-      mts.near.push({x:(vCx+WW*(0.30+mg()*0.16))%WW, w:vW*0.52, h:vH*0.34, sn:false, ph:mg()*9});
+      // ⚠⚠ AND THE CHAIN, BECAUSE ONE CONE CANNOT BE ON THREE SCREENS AT ONCE. This is the
+      // `landmarkXs` rule, which the brief flagged as the one most likely to bite here: Nick's three
+      // monitors tile a 2269 wp world in 776 wp windows, so a single 760 wp cone owns one screen and
+      // leaves the other two with an empty horizon on the land whose whole identity is a volcano.
+      // ⚠ NOT A RANGE — he ruled that out explicitly, and a range is a CONTINUOUS massif. This is an
+      // archipelago: separate cones with sky between them and a dominant one that is unmistakably the
+      // volcano (the siblings are 0.42 and 0.30 of its height, so they cannot compete for the eye).
+      // He locked the reading himself in the offshore answers — "a smaller sibling cone hazier with
+      // distance; it is an archipelago, not a lone rock."
+      // Spaced by thirds of the WORLD rather than by a fixed offset, so wherever `vCx` lands the three
+      // cones fall roughly one per screen instead of clustering on one and leaving two bare.
+      // ⚠ MEASURED, THEN RAISED. At 0.42/0.30 the probe put the two outer screens under 101px and 72px
+      // cones against a 316px sky — present, but reading as low hills on the land whose subject is a
+      // volcano. At 0.60/0.46 the dominant cone is still 1.6x the taller sibling, so which one is THE
+      // volcano is never in doubt, and no screen is left without a cone in it.
+      var vSib=[0.60,0.46];
+      for(mi=0;mi<2;mi++){
+        var vOff=WW*((mi+1)/3+(mg()-0.5)*0.07);                     // a third and two thirds along, jittered
+        mts.near.push({x:(vCx+vOff)%WW, w:vW*(0.40+vSib[mi]*0.30), h:vH*vSib[mi], sn:false, ph:mg()*9});
+      }
     }
     // ⚠⚠ THE MESA'S OWN MISSING MASS, DERIVED NOT ROLLED. Nick's standing rule for an empty land is
     // that it gets the mass it is actually short of rather than a blanket relief bump, and what
@@ -4552,15 +4569,23 @@ function buildWorld(li){
                 { x:cGap+cW*0.92, w:cW, h:(120+mg()*40)*MSC, sn:false, ph:mg()*9 }];
       mts.far=mts.far.slice(0,3);
     }
-    if(curBiome.volcanic&&!curBiome.spires&&curBiome.k!=="fire"){
-      var vX=(0.30+mg()*0.40)*WW;                                  // the summit, kept off the world's seam
-      mts.near=[{ x:vX, w:(300+mg()*140)*MSC, h:(150+mg()*40)*MSC, sn:false, ph:mg()*9 }];
-      var nSat=1+((mg()*2)|0);
-      for(mi=0;mi<nSat;mi++)                                       // a parasitic cone or two on its flank
-        mts.near.push({ x:vX+(mg()<0.5?-1:1)*(0.16+mg()*0.12)*WW, w:(90+mg()*70)*MSC,
-                        h:(38+mg()*30)*MSC, sn:false, ph:mg()*9 });
-      mts.far=mts.far.slice(0,2);                                  // and only a hint of anything beyond
-    }
+    // ⚠⚠ THE OLD UNFRAMED VOLCANIC BLOCK USED TO SIT HERE, AND IT WAS OVERWRITING THE FRAMED CONE
+    // ABOVE — which is why "one cone, framed, a quarter sky above it" shipped and changed nothing.
+    // It assigned `mts.near` outright from `MSC` alone: `h:(150+mg()*40)*MSC`, so at Nick's KSP=3 the
+    // summit came out ~502px tall against a HORIZON of 316. The cone stood 186px ABOVE the top of the
+    // frame, and what a screen saw was one enormous smooth flank running off the corner — the exact
+    // fault the framed cone was written to remove, still being produced by the code three lines below
+    // it. Measured, not guessed: a numeric probe of `mts.near` and `mtsCache.h[1]` at all three woffs
+    // reported h=502 / w=886 where the framed roll can only produce h≤240.
+    // ⚠ THE LESSON IS THE ONE THIS MAP KEEPS TEACHING IN NEW COSTUMES: a duplicate that silently wins.
+    // `drawVolcanoDisaster` was dead for months behind a duplicate `drawVolcano` declaration, and
+    // `no-shadowed-functions.test.js` exists because of it. That guard covers FUNCTIONS; this was the
+    // same fault in a BLOCK, so it walked straight past. Before adding a landform rule, search for the
+    // one already there.
+    // ⚠ `curBiome.k==="fire"` (THE CINDER THRONE) is untouched by the removal: its ring walls are
+    // assigned above at `if(curBiome.k==="fire")`, which still wins, and the framed roll's `mg()`
+    // calls are still consumed in the same order — so that egg world does not re-roll.
+    if(curBiome.volcanic&&!curBiome.spires&&curBiome.k!=="fire") mts.far=mts.far.slice(0,2);   // only a hint of anything beyond the cone
   }
   // THE OLD FOREST: not a ridge but a stand of COLOSSAL trees, in three depth bands.
   //   far  — ordinary old-growth on the horizon. The only band whose CROWNS are drawn; it gives the
