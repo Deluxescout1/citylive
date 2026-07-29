@@ -14240,6 +14240,168 @@ function drawSeaFrontBand(g,L,now){
 // Nick: "a dense forest wall enclosing it so it reads as hidden IN a forest, not a town on a hill."
 // The land already carried a `flora` roster of ferns and willows and it was invisible — scattered
 // individual plants cannot make a wall. DENSITY is the whole effect, so this draws overlapping crowns
+// ============ THE HARBOUR AND ITS LIGHTHOUSE ============
+// Nick's chosen landmark for THE VOLCANO, out of four offered: "a harbour and lighthouse — down where
+// the city is, not up on the rock." He rejected the summit observatory, the flank shrine and the
+// ash-buried old town, and the observatory that used to be drawn on the summit is now gone.
+//
+// ⚠ DRAWN AFTER `drawSeaFrontBand`, NOT FROM `drawBiomeLandmark`. The landmark pass runs hundreds of
+// lines earlier, and a mole standing in the water would simply be painted over by the sea. Definition
+// order is not paint order — the mistake that hid the waterfalls for two sessions.
+//
+// ⚠ A SERIES, NOT ONE. The `landmarkXs` rule, which this map's brief singled out as the one most
+// likely to bite: Nick's three monitors tile the world in 776 wp windows, so a single harbour is
+// absent from two screens out of three. Small working harbours every ~500 wp along a volcanic island's
+// coast is also simply what such a coast looks like, and every one of them differs — which side its
+// mole reaches from, how long it is, how many boats are in, whether it has a crane and a shed.
+//
+// ⚠ NO RULED LINES. A mole is the most tempting horizontal bar in the whole project. Its armour
+// course is jittered per world-x block and its parapet runs in broken lengths with gaps, the same
+// treatment the quay wall needed when Nick said the coast "looks weird" — that fault has now been
+// found ten times on this land and a fresh full-width horizontal would have been eleven.
+function drawHarbourLighthouse(g,L,now,fx){
+  var B=curBiome;
+  if(!B.volcanic||B.k!=="volcano"||SEA_FRONT<=0||cityG<0.30||cityPhase==="apoc") return;
+  var day=L>0.5, K=Math.max(1,KSP), wy=SEA_Y, deep=Math.max(6,SH-SEA_Y);
+  // basalt, because the locked answer for this town is that it is BUILT FROM THE MOUNTAIN — black
+  // stone walls and dark rock, not the pale limestone quay the other coasts get.
+  var stone =day?"#4a443f":"#181614", stoneT=day?"#5e564f":"#201d1a",
+      armour=day?"#3a352f":"#121110";
+  // ⚠ ONE LIGHTHOUSE, SEVERAL HARBOUR LIGHTS. `landmarkXs` cannot space wider than 560 wp, so a series
+  // across a 2269 wp world is four or five — and four full lighthouses is not a landmark, it is
+  // wallpaper. Physically there is one lighthouse on a stretch of coast and the lesser harbours have a
+  // short pile beacon on the mole head. So the instance nearest the world's chosen point is THE
+  // lighthouse and the rest are beacons: every screen still gets a working harbour (the rule's whole
+  // purpose), and only one of them is the landmark.
+  var hs2=landmarkXs((WORLD_SEED*2654435761+7717)>>>0, 520);
+  var mainI=0, mainD=1e9, mainX=((WORLD_SEED*40503)>>>0)%Math.max(1,WW);
+  for(var mq2=0;mq2<hs2.length;mq2++){
+    var md=Math.abs(hs2[mq2].x-mainX); if(md>WW*0.5) md=WW-md;
+    if(md<mainD){ mainD=md; mainI=mq2; }
+  }
+  for(var hi=0;hi<hs2.length;hi++){
+    var H=hs2[hi], hh=H.seed>>>0, isMain=(hi===mainI);
+    var dir=(hh&1)?1:-1;                                     // which way this mole reaches
+    var mLen=Math.round((34+((hh>>>3)%26))*K*0.7);            // how far out it runs
+    var mThk=Math.max(2,Math.round(3.2*K*0.8));               // and how heavy it is
+    var lit=((hh>>>7)%100)<64;                                // most, not all, still have a working light
+    for(var w=-1;w<=1;w++){
+      var HX=Math.round(H.x-WOFF+w*WW);
+      if(HX<-mLen-40||HX>SW+mLen+40) continue;
+      // --- THE MOLE: a stone arm laid on the water, thinning as it goes out ---
+      var mTop=wy+Math.round(deep*0.16);                      // it sits just out from the shore
+      for(var mq=0;mq<mLen;mq++){
+        var mx5=HX+dir*mq;
+        if(mx5<0||mx5>=SW) continue;
+        var mwx=mx5+WOFF;
+        // the armour course is not a level edge: blocks are individually set, so the top of the mole
+        // steps by a pixel here and there instead of ruling across the water
+        var jb=Math.floor(mwx/Math.max(2,Math.round(2*K)));
+        var jit=((((jb*40503)^hh)>>>0)%3)-1;
+        var mT2=mTop+jit, mDrop=mThk+(1-mq/mLen>0.5?1:0);
+        g.fillStyle=stone;  g.fillRect(mx5,mT2,1,mDrop);
+        g.fillStyle=stoneT; g.fillRect(mx5,mT2,1,1);          // the wave-washed cap catches the light
+        // armour blocks tumbled along the seaward face, in broken runs — never a continuous skirt
+        if((((mwx*2654435761)^hh)>>>0)%4===0){
+          g.fillStyle=armour; g.fillRect(mx5,mT2+mDrop,1,Math.max(1,Math.round(K*0.5)));
+        }
+        // the parapet, in LENGTHS with gaps: steps down to the quay, a slipway, a stretch washed out
+        if(mq>Math.round(2*K) && ((((jb*7919)^hh)>>>0)%7)!==0){
+          g.fillStyle=stoneT; g.fillRect(mx5,mT2-Math.max(1,Math.round(K*0.6)),1,Math.max(1,Math.round(K*0.6)));
+        }
+      }
+      // --- MOORED BOATS on the sheltered side, where a harbour's boats actually are ---
+      var nB=1+((hh>>>11)%3);
+      for(var bq2=0;bq2<nB;bq2++){
+        var bxh=HX+dir*Math.round(mLen*(0.22+bq2*0.24)), byh=mTop+mThk+Math.round(deep*0.10);
+        if(bxh<-8||bxh>SW+8) continue;
+        var bob=Math.round(Math.sin(now*0.0011+bq2*2.1+hi)*Math.max(1,K*0.3));
+        var bw2=Math.round((5+((hh>>>(13+bq2))%4))*K*0.5), bh2=Math.max(1,Math.round(1.6*K*0.5));
+        var hull=[[138,58,48],[44,74,106],[58,90,68],[106,90,42]][((hh>>>(17+bq2*3))%4)];
+        g.fillStyle=css(day?hull:mixc(hull,[0,0,0],0.58));
+        g.fillRect(bxh-(bw2>>1),byh+bob,bw2,bh2);
+        g.fillStyle=day?"#e8e4da":"#4a4c52";                                    // wheelhouse
+        g.fillRect(bxh-(bw2>>2),byh+bob-Math.max(1,Math.round(K*0.5)),Math.max(1,Math.round(1.6*K*0.5)),Math.max(1,Math.round(K*0.5)));
+        g.fillStyle=day?"#3a3630":"#16151a";                                    // mast
+        g.fillRect(bxh+(bw2>>2),byh+bob-Math.round(3*K*0.5),1,Math.round(3*K*0.5));
+        if(!day&&((hh>>>(19+bq2))&1)){ g.globalCompositeOperation="lighter";     // a bow lantern
+          g.fillStyle="rgba(255,214,140,0.8)"; g.fillRect(bxh-(bw2>>1),byh+bob-1,1,1);
+          g.globalCompositeOperation="source-over"; }
+      }
+      // --- THE LIGHTHOUSE, on the head of the mole where it belongs ---
+      // ⚠ LANDMARK SCALE. At the K1-sprite size this first came out about 20 logical px tall and
+      // read as a bollard on the quay. A landmark has to be a fraction of the PICTURE: ~60px against a
+      // 316px sky is unmistakable and still only a quarter of the 240px cone, so it never competes.
+      var LX=HX+dir*(mLen-Math.round(2*K)),
+          lhH=isMain?Math.round((26+((hh>>>23)%9))*K*0.8)      // the landmark
+                    :Math.round((7+((hh>>>23)%4))*K*0.7);      // a harbour light on a pile
+      if(LX<-14||LX>SW+14) continue;
+      var lwB=isMain?Math.max(4,Math.round(4.6*K*0.9)):Math.max(2,Math.round(1.8*K*0.7));   // a taper, wider at the base
+      var lBase=mTop;                                         // the tower stands on the mole's MEAN level,
+      // not on whichever pixel the last jittered armour block happened to land on — a tower that shifts
+      // when its neighbour's block changes reads as wobbling.
+      for(var lq=0;lq<lhH;lq++){
+        var lf=lq/lhH;
+        var lw3=Math.max(2,Math.round(lwB*(1-lf*0.34)));
+        var ly3=lBase-lq;
+        // BASALT below, whitewashed above — the same two materials as the town, and the band is where
+        // the stonework stops rather than a decorative stripe
+        g.fillStyle=(lf<0.34)?stone:(day?"#e6e2d8":"#4e5058");
+        g.fillRect(LX-(lw3>>1),ly3,lw3,1);
+        g.fillStyle=(lf<0.34)?armour:(day?"#c4bfb4":"#3a3c42");                 // the shaded side
+        g.fillRect(LX-(lw3>>1)+(dir>0?lw3-1:0),ly3,1,1);
+      }
+      // ⚠ THE KEEPER'S HOUSE, AND IT IS WHAT MAKES THE TOWER READ. Without it a 60px taper standing in
+      // a 67px-deep water band is a white POLE planted through the road — which is exactly how the
+      // first render came out. A lighthouse is a tower ATTACHED TO A BUILDING, and the low block beside
+      // it is what gives the eye the scale and puts the whole thing on the ground.
+      if(isMain){
+        var khW=Math.round(lwB*2.6), khH=Math.round(lwB*1.5), khX=LX-dir*Math.round(lwB*1.9);
+        g.fillStyle=stone;  g.fillRect(khX-(khW>>1),lBase-khH,khW,khH);
+        g.fillStyle=stoneT; g.fillRect(khX-(khW>>1),lBase-khH,khW,Math.max(1,Math.round(K*0.5)));
+        g.fillStyle=day?"#2a2622":"#101014";                                    // low heavy roof, against ashfall
+        g.fillRect(khX-(khW>>1)-1,lBase-khH-Math.max(1,Math.round(K*0.6)),khW+2,Math.max(1,Math.round(K*0.6)));
+        g.fillStyle=day?"#c8c0b0":"#2a2c34";                                     // one window on the seaward side
+        g.fillRect(khX-(khW>>2),lBase-Math.round(khH*0.62),Math.max(1,Math.round(K*0.7)),Math.max(1,Math.round(K*0.7)));
+        if(!day){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,214,150,0.75)";
+          g.fillRect(khX-(khW>>2),lBase-Math.round(khH*0.62),Math.max(1,Math.round(K*0.7)),Math.max(1,Math.round(K*0.7)));
+          g.globalCompositeOperation="source-over"; }
+      }
+      var glY=lBase-lhH, glW=Math.max(4,Math.round(lwB*1.35));
+      g.fillStyle=day?"#2f3138":"#14151a";                                      // the gallery it stands on
+      g.fillRect(LX-(glW>>1),glY-1,glW,Math.max(1,Math.round(K*0.5)));
+      g.fillStyle=day?"#b03a30":"#4a1a16";                                       // the lamp room
+      var lrH=Math.max(2,Math.round(2.6*K*0.5)), lrW=Math.max(3,Math.round(lwB*0.9));
+      g.fillRect(LX-(lrW>>1),glY-1-lrH,lrW,lrH);
+      g.fillStyle=day?"#f2efe6":"#5a5c64";                                       // and the glazing in it
+      g.fillRect(LX-(lrW>>1)+1,glY-lrH,Math.max(1,lrW-2),Math.max(1,lrH-1));
+      g.fillStyle=day?"#2f3138":"#14151a";                                       // the cap
+      g.fillRect(LX-(glW>>1),glY-1-lrH-Math.max(1,Math.round(K*0.5)),glW,Math.max(1,Math.round(K*0.5)));
+      // THE LIGHT. Only at dusk and after, only on the ones that still work, and it SWEEPS — a
+      // lighthouse that glows steadily is a lamp post.
+      if(lit&&L<0.58){
+        var beamA=(now*0.0011+hi*1.7)%(Math.PI*2), lampY=glY-1-Math.round(lrH*0.5);
+        g.globalCompositeOperation="lighter";
+        for(var bs2=Math.round(2*K);bs2<Math.round(30*K);bs2+=Math.max(1,Math.round(1.5*K))){
+          var bfx=LX+Math.cos(beamA)*bs2, bfy=lampY+Math.sin(beamA)*bs2*0.20;
+          if(bfx<-4||bfx>SW+4) continue;
+          g.fillStyle="rgba(255,238,186,"+(0.26*(1-bs2/(30*K))).toFixed(3)+")";
+          g.fillRect(bfx|0,bfy|0,Math.max(1,Math.round(K*0.7)),Math.max(1,Math.round(K*0.4)));
+        }
+        g.fillStyle="rgba(255,244,206,0.9)";
+        g.fillRect(LX-1,lampY-1,Math.max(2,Math.round(K*0.8)),Math.max(2,Math.round(K*0.8)));
+        g.globalCompositeOperation="source-over";
+      }
+      if(fx&&fx.fog){                                                            // the horn, sounding
+        var fp11=(now%3200)/3200;
+        g.fillStyle="rgba(206,216,230,"+(0.34*(1-fp11)).toFixed(3)+")";
+        var rr11=Math.round((2+fp11*11)*K*0.5);
+        g.fillRect(LX-rr11,glY|0,1,Math.max(1,Math.round(2*K*0.5)));
+        g.fillRect(LX+rr11,glY|0,1,Math.max(1,Math.round(2*K*0.5)));
+      }
+    }
+  }
+}
 // on a tight pitch in THREE depth bands, each darker and larger than the one behind it. Anything
 // sparse enough to count individual trees in reads as landscaping, not as a forest you could hide in.
 //
@@ -21488,47 +21650,17 @@ function drawBiomeLandmark(g,L,now,nd){
         g.globalCompositeOperation="source-over"; }
     });
   } else if(B.k==="volcano"){
-    // THE OBSERVATORY. It exists BECAUSE the mountain is dangerous, which is what ties this landmark to
-    // this land — the cone itself is terrain, not a landmark. Bolted to the upper flank, so like the
-    // alpine monastery it is placed off the cached ridge profile rather than standing on the flat.
-    if(!mtsCache||!mtsCache.h||!mtsCache.h[1]) return;
-    var vhs=mtsCache.h[1], vbest=-1, vbh=0;
-    for(var vx=Math.round(SW*0.08);vx<Math.round(SW*0.92);vx+=Math.max(2,Math.round(3*K))){
-      var lvl=Math.min(vhs[vx],vhs[Math.min(SW-1,vx+Math.round(6*K))]);
-      if(lvl>18*K&&lvl<mtsCache.mx[1]*0.86&&lvl>vbh){ vbh=lvl; vbest=vx; }   // high, but not ON the summit
-    }
-    if(vbest<0) return;
-    // ⚠ SCALE. Landmark K is sized to stand over a mature skyline from the flat; bolted to a mountain
-    // flank at that size the dome came out 130px across, bigger than the crater. A building on a
-    // mountain is read against the MOUNTAIN, so it gets its own much smaller scale.
-    var VK=Math.max(1,K*0.34);
-    var OX=vbest, OY=gy-Math.round(vbh);
-    var obw=Math.round(9*VK), obh=Math.round(5*VK);
-    g.fillStyle=day?"#d8d4cc":"#33343a"; g.fillRect(OX,OY-obh,obw,obh);            // the block
-    g.fillStyle=day?"#b4b0a8":"#25262b"; g.fillRect(OX+obw-Math.round(1.4*VK),OY-obh,Math.round(1.4*VK),obh);
-    g.fillStyle=day?"#e8e6e0":"#3c3e44";                                            // and its dome
-    var dr=Math.round(obw*0.42);
-    for(var dq=0;dq<dr;dq++){
-      var dfw=Math.round(Math.sqrt(Math.max(0,dr*dr-dq*dq)));
-      g.fillRect(OX+Math.round(obw*0.5)-dfw,OY-obh-dq,dfw*2,Math.max(1,Math.round(VK)));
-    }
-    g.fillStyle=day?"#5a5c62":"#16181c";                                            // the shutter slit
-    g.fillRect(OX+Math.round(obw*0.44),OY-obh-dr,Math.max(1,Math.round(1.4*VK)),dr);
-    g.fillStyle=day?"#8a8c92":"#20222a";                                            // mast and aerials
-    g.fillRect(OX+obw+Math.round(VK),OY-obh-Math.round(9*VK),Math.max(1,Math.round(VK)),Math.round(9*VK));
-    for(var aq=0;aq<3;aq++)
-      g.fillRect(OX+obw-Math.round(VK),OY-obh-Math.round((8-aq*2.4)*VK),Math.round(4*VK),Math.max(1,Math.round(VK*0.7)));
-    if(!day){ g.globalCompositeOperation="lighter";
-      g.fillStyle="rgba(180,230,255,0.7)";                                          // it is lit all night
-      g.fillRect(OX+Math.round(2*VK),OY-Math.round(obh*0.6),Math.round(2*VK),Math.round(1.6*VK));
-      if((Math.floor(now/1100))&1){ g.fillStyle="rgba(255,70,60,0.9)";              // and the mast light
-        g.fillRect(OX+obw+Math.round(VK),OY-obh-Math.round(9.6*VK),Math.max(1,Math.round(1.4*VK)),Math.max(1,Math.round(1.4*VK))); }
-      g.globalCompositeOperation="source-over"; }
-    g.fillStyle=day?"#6e6a60":"#1c1c18";                                            // the service road, switchbacking
-    for(var rq3=0;rq3<Math.round(vbh*0.5);rq3+=Math.max(2,Math.round(3*VK))){
-      var rz=rq3/Math.max(1,Math.round(vbh*0.5));
-      g.fillRect(OX-Math.round(6*VK)+Math.round(Math.sin(rz*9)*4*VK),OY+rq3,Math.round(5*VK),Math.max(1,Math.round(VK*0.8)));
-    }
+    // ⚠⚠ THE SUMMIT OBSERVATORY USED TO BE DRAWN HERE, AND IT IS THE LANDMARK NICK PASSED OVER.
+    // Offered the summit observatory, a flank shrine, an ash-buried old town and a harbour with a
+    // lighthouse, he chose the harbour — "down where the city is, not up on the rock" — and then
+    // photographed the observatory's white dome and mast still sitting on his volcano's summit and
+    // asked what it was. It was a real authored feature answering a question he had already answered
+    // the other way, which is the most expensive kind of code to leave in.
+    // The replacement lives in `drawHarbourLighthouse`, and it cannot be drawn from here: this function
+    // runs long before `drawSeaFrontBand`, and a mole standing in the water would be painted over by
+    // the sea. (Assuming definition order is paint order is the mistake that hid the waterfalls for two
+    // sessions; it is written down, and it applies here.)
+    return;
   } else if(B.k==="swamp"){
     // THE RAISED CEMETERY — whitewashed above-ground tombs on the only dry rise, because you cannot
     // bury anyone in a swamp. Nick's test for every land was that the detail be authentic to the real
@@ -21946,7 +22078,17 @@ function drawVolcano(g,L,now,nd){
   var vMat=B.vmat||"young";
   var vTreeF=0.40+((WORLD_SEED>>>21)%18)/100;                    // the treeline, as a fraction of the drop
   // --- ASH AND CINDER FANS: narrow at the crater, spreading as they fall ---
-  var fans=6+((WORLD_SEED>>>7)%4);
+  // ⚠ AND ON A JUNGLE CONE THEY ARE A WHISPER. Rendered at night, six to nine fans on THE GREEN ISLAND
+  // read as prominent grey streaks radiating from the crater — a sunburst again, in a third costume,
+  // on the one variant whose surface is supposed to be unbroken rainforest. Ash on an old vegetated
+  // cone is faint discolouration on the bare rock above the treeline; the JUNGLE/ASH contrast Nick
+  // asked for is the treeline's job, not a set of rays. Halved in number and in strength there, full
+  // strength on the young island where flows and ash genuinely are the whole surface.
+  // ⚠ It also took two suppression tests to attribute these, because the sulphur rays were radiating
+  // from the same point: I suppressed the fans, saw rays remaining, and wrongly cleared the fans.
+  // When two features share an origin, suppress them one at a time and re-render BOTH times.
+  var fans=(vMat==="jungle")?(3+((WORLD_SEED>>>7)%2)):(6+((WORLD_SEED>>>7)%4));
+  var fMix=(vMat==="jungle")?0.45:1;
   for(var fn=0;fn<fans;fn++){
     var fh2=((fn*2654435761+((WORLD_SEED*11)|0))>>>0);
     var fSide=(((fh2%1000)/1000)-0.5)*1.9;                       // where round the cone it starts
@@ -21958,7 +22100,7 @@ function drawVolcano(g,L,now,nd){
     // centreline linearly from the summit, which at a screen that sees only the FLANK comes out as a
     // set of parallel pale scratches. Ash is a tonal shift in the rock, not a stripe painted on it —
     // so the mix is halved, and the centreline wanders.
-    g.fillStyle=css(mixc(vBase,fPale?[196,192,186]:[24,20,20],0.045+((fh2>>>13)%8)*0.005));
+    g.fillStyle=css(mixc(vBase,fPale?[196,192,186]:[24,20,20],(0.045+((fh2>>>13)%8)*0.005)*fMix));
     for(var fq=Math.round(vDrop*0.06); fq<vDrop*fLen; fq++){
       var fp=fq/vDrop;                                           // 0 at the crater, 1 at the foot
       var fwob=Math.sin(fq*0.055+fn*2.3)*2.2*K + Math.sin(fq*0.019+fn)*3.4*K;
@@ -29052,6 +29194,7 @@ function draw(g,pass){
   // ⚠ Drawing it here rather than earlier is what keeps it in front — the mistake that hid the
   // waterfalls for two sessions was assuming definition order was paint order.
   drawSeaFrontBand(g,L,now);
+  drawHarbourLighthouse(g,L,now,fx);               // …and the working harbour standing in it
   drawPuddles(g,L,now);
   drawWetSheen(g,L,now,Math.min(1,wetness*1.7));   // wet asphalt mirrors the street lighting                            // rain leaves standing water, on every land
   // coastal causeway: railing where the highway crosses the open water
