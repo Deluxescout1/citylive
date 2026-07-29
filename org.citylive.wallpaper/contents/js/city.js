@@ -13609,18 +13609,31 @@ function drawWildShore(g,L,now,top,K,day,k){
            : (k==="arctic") ? (day?[226,236,246]:[36,46,60])
            : (k==="volcano") ? (day?[58,52,52]:[16,14,15])
            : (day?[96,124,72]:[20,28,22]);
-  g.fillStyle=css(bank);
+  // ⚠⚠ THE SHORELINE WAS A 3-PIXEL SAWTOOTH. Nick, with a screenshot: "the coast is weird again."
+  // The edge was `sin(wx*0.055)*1.6*K + ((wx*7)%3)*K*0.4` — and `(wx*7)%3` is a per-column value
+  // cycling 0,1,2 with a period of THREE PIXELS. Rounded and drawn for every column across the world,
+  // twice, that is a regular comb of teeth along the entire shore. Worse than random noise, because
+  // periodic noise reads as a manufactured edge rather than as a rough one.
+  // This is the same lesson the volcano's torn rim cost three attempts: a natural edge is rough but
+  // CONTINUOUS. Value noise — hash at intervals, interpolate smoothly between — gives a shore that
+  // wanders without either ruling or serrating. Two octaves: the slow sine keeps the long bays, a
+  // coarse octave gives the metre-scale wander, a fine one the texture.
+  // ⚠ Computed ONCE per column and shared by both passes; they were duplicate expressions that had to
+  // agree, which is exactly how a bank and its own damp margin drift apart.
+  var lips=[];
   for(var x=0;x<SW;x++){
     var wx=x+WOFF;
-    var lip=Math.round(Math.sin(wx*0.055)*1.6*K+((wx*7)%3)*K*0.4);
-    g.fillRect(x,top-Math.round(3*K)+lip,1,Math.round(4*K));
+    var a1=Math.floor(wx/9), f1=wx/9-a1, t1=f1*f1*(3-2*f1);
+    var p1=(((a1*2654435761)>>>0)%1000)/1000, q1=((((a1+1)*2654435761)>>>0)%1000)/1000;
+    var a2=Math.floor(wx/4), f2=wx/4-a2, t2=f2*f2*(3-2*f2);
+    var p2=(((a2*40503)>>>0)%1000)/1000, q2=((((a2+1)*40503)>>>0)%1000)/1000;
+    var rough=((p1+(q1-p1)*t1)-0.5)*2.0 + ((p2+(q2-p2)*t2)-0.5)*0.8;
+    lips[x]=Math.round(Math.sin(wx*0.055)*1.6*K + rough*K*0.9);
   }
+  g.fillStyle=css(bank);
+  for(var x3=0;x3<SW;x3++) g.fillRect(x3,top-Math.round(3*K)+lips[x3],1,Math.round(4*K));
   g.fillStyle=css(mixc(bank,[0,0,0],0.28));                 // the damp margin the water works at
-  for(var x2=0;x2<SW;x2++){
-    var wx2=x2+WOFF;
-    var lip2=Math.round(Math.sin(wx2*0.055)*1.6*K+((wx2*7)%3)*K*0.4);
-    g.fillRect(x2,top+lip2,1,Math.max(1,Math.round(K)));
-  }
+  for(var x2=0;x2<SW;x2++) g.fillRect(x2,top+lips[x2],1,Math.max(1,Math.round(K)));
   if(k!=="beach"&&k!=="arctic"&&k!=="volcano"){             // reeds and tufts on a natural bank
     g.fillStyle=css(mixc(bank,[40,70,30],0.5));
     for(var r2=((-WOFF%5)+5)%5; r2<SW; r2+=5){
