@@ -21400,6 +21400,16 @@ function drawPlainsSky(g,L,now,nd,fx){
   var conv=Math.max(0,Math.min(1,heat*0.65+Math.min(1,cloud/70)*0.5-0.15));
   if(fx.thunder) conv=Math.max(conv,0.92);
   if(fx.snow||fx.fog) conv*=0.2;
+  // ⚠⚠ THE CLEAR WARM DAY WAS THE EMPTY ONE, AND IT IS THE COMMONEST. Measured, this frame is 88.6%
+  // sky — and on a clear 64F day `conv` lands at about 0.10, which buys ONE faint tower. So the sky
+  // machinery was at its weakest precisely when the map needed it most, because the formula treats
+  // cloud COVER as the moisture signal and a clear sky reports almost none.
+  // That is backwards for a prairie. A warm clear afternoon over a plain is not an empty sky: it is
+  // FAIR-WEATHER CUMULUS — dozens of small flat-based puffs sitting on one common condensation level,
+  // marching downwind in streets. They are what a big sky actually looks like on an ordinary day, and
+  // they are a different object from a storm tower, not a smaller one.
+  var fairW=Math.max(0,Math.min(1,heat*1.15-Math.min(1,cloud/55)*0.5))*(day?1:0.25);
+  if(fx.rain||fx.snow||fx.fog||fx.thunder) fairW=0;
 
   // ---- DISTANT RELIEF: a butte far out, and low bluffs -----------------------------------------
   // Static per life. Not to make the plain hilly — to give the eye somewhere to land on a flat line.
@@ -21413,6 +21423,65 @@ function drawPlainsSky(g,L,now,nd,fx){
       for(var q=0;q<bh;q++){                                       // a flat-topped shoulder, not a cone
         var qf=q/bh, wgt=Math.round(bw*(0.55+0.45*(1-qf*qf)));
         g.fillRect((sx+(bw-wgt)*0.5)|0,(gy-q)|0,wgt,1);
+      }
+    }
+  }
+
+  // ---- FAIR-WEATHER CUMULUS: the ordinary day's sky ---------------------------------------------
+  // One condensation level for the whole field, because that is the physics and it is also what makes
+  // them read as a FLEET rather than as scattered blobs — every base at the same altitude.
+  if(fairW>0.05){
+    // ⚠ AND THE CONDENSATION LEVEL IS HIGH. My first cut put it 30-56K above the horizon, which on
+    // this geometry is a band of small puffs sitting just over the rooftops — the sky above them was
+    // as empty as before. The whole point of a prairie sky is that the cloud is OVERHEAD and fills
+    // the middle of the frame; a cumulus base on a warm day is thousands of feet up, and from under
+    // it you are looking at the fleet, not at a distant strip of it.
+    // ⚠ AND THE FLEET REACHES THE ZENITH. Three passes of raising this were not enough because I kept
+    // thinking of the base as a LINE near the horizon; from underneath, a cumulus field spans from the
+    // far horizon right up over your head, and the near ones are high in the frame AND large. The
+    // spread below runs from just under the top of the picture down to the horizon haze.
+    var baseAlt=gy-Math.round((170+heat*60)*K), nF=Math.round(16+fairW*30);
+    for(var fq=0;fq<nF;fq++){
+      // ⚠⚠ THE HASH WAS TOO WEAK AND IT MADE `dep` A CONSTANT. `(fq*40503+9173)>>>17` on a loop index
+      // of 0..25 is a value under a million shifted right seventeen bits — every cloud got the same
+      // near-zero high bits, so every cloud got depth 0: all of them small, all of them in the bottom
+      // quarter of the sky. I raised the base altitude three times and the measured sky share did not
+      // move once, because the variable I was scaling had no variance in it.
+      // ⚠ THE TELL WAS IN THE NUMBERS THE WHOLE TIME — logged widths of 28-46 against a formula whose
+      // minimum was 51 said the multiplier was pinned at its floor. Instrument before the third
+      // attempt, not after the fourth.
+      var fs=mixLi((fq*2654435761+9173)>>>0,7717);
+      // ⚠⚠ STRATIFIED, AND THIS IS THE SIXTH TIME TODAY. Scattering `n` clouds at `hash%WW` puts about
+      // a third of them on any one screen, so seventeen in the world was six in the frame and the
+      // measured sky share did not move. World-anchored is correct; "somewhere in the world" is not
+      // the same as "in the picture". Each cloud takes a slice of the world and drifts within it, so
+      // every monitor carries its share of the fleet and they still cross the seam together.
+      var fdrift=(now*0.0000058*(0.7+((fs>>>3)%5)/5));
+      var fx2=((((fq+0.5+(((fs>>>5)%100)/100-0.5)*0.85)/nF)+fdrift)%1)*WW-WOFF;
+      // depth: the nearer ones sit LOWER in the frame and are bigger, the far ones ride up toward the
+      // vanishing line and shrink — one common base altitude seen in perspective is what turns a row
+      // of puffs into a sky you are standing under
+      var dep=((fs>>>17)%100)/100;
+      // ⚠ AND THEY HAVE TO BE BIG. At 7-20K these were specks and the measured sky share did not move
+      // at all — 88.6% before, 88.6% after. A cumulus is a THOUSAND FEET across; from under the fleet
+      // the near ones are substantial objects, not dots. Sizing them by what they are rather than by
+      // what felt safe on a first pass.
+      var fw2=Math.round((20+((fs>>>7)%26)+fairW*18)*K*(0.45+0.95*dep));
+      var fh2=Math.round(fw2*(0.36+((fs>>>13)%30)/100));
+      var fy2=baseAlt+Math.round((1-dep)*(150*K))-Math.round(((fs>>>23)%8)*K*0.8);
+      for(var fo3=-1;fo3<=1;fo3++){ var fsx=fx2+fo3*WW;
+        if(fsx+fw2<-4||fsx-fw2>SW+4) continue;
+        for(var fr=0;fr<fh2;fr++){
+          var ff=fr/fh2;
+          // cauliflower on top, flat underneath — the flat base is the whole tell
+          var fwid=fw2*Math.sqrt(Math.max(0,1-ff*ff*0.86))*(1+Math.sin(fr*0.7+fs%9)*0.07);
+          var flit=1-ff*0.30;
+          g.fillStyle=day?("rgba("+Math.round(246*flit+9)+","+Math.round(248*flit+9)+","+Math.round(252*flit+11)+",0.80)")
+                         :("rgba("+Math.round(86*flit+18)+","+Math.round(94*flit+22)+","+Math.round(116*flit+30)+",0.55)");
+          g.fillRect((fsx-fwid*0.5)|0,(fy2-fr)|0,Math.max(1,Math.round(fwid)),1);
+        }
+        g.fillStyle=day?"rgba(150,162,182,0.30)":"rgba(24,28,40,0.34)";   // the shaded flat base
+        g.fillRect((fsx-fw2*0.5)|0,fy2|0,Math.max(1,fw2),Math.max(1,Math.round(K*0.7)));
       }
     }
   }
