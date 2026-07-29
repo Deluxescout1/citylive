@@ -13994,15 +13994,21 @@ function drawSeaFrontBand(g,L,now){
       g.fillRect(dx-rr,dy,Math.max(1,Math.round(K*0.7)),1);            // a ring reads as its two edges
       g.fillRect(dx+rr,dy,Math.max(1,Math.round(K*0.7)),1);
     }
-    // spray hanging over the surface — only in the genuinely heavy stuff, and thickest close in
+    // Spray hanging over the surface — only in the genuinely heavy stuff.
+    // ⚠⚠ THIS WAS A HARD-EDGED SLAB, and Nick found it within the hour: "why does this line on the
+    // coast exist". It filled contiguous full-width rows from the waterline to halfway down the band
+    // at a CONSTANT alpha, so it ended in a dead-straight horizontal boundary across the whole frame —
+    // a ruled line, added by me, in the same commit whose comments warn against exactly that. Scatter
+    // discipline was applied to the raindrops and then forgotten one block later for the veil.
+    // A wash needs no edge: one gradient, fading to fully transparent, is a single rect and cannot
+    // produce a boundary at all. The fault was never the full width — it was the constant alpha.
     if(rainK>0.65){
-      g.globalAlpha=0.10*(rainK-0.65)/0.35;
-      g.fillStyle=day?"#dfe8f2":"#3a4658";
-      for(var mz=0;mz<Math.round(h*0.5);mz++){
-        var mf=mz/Math.max(1,h*0.5);
-        g.fillRect(0,top+Math.round(mf*h*0.5),SW,1);
-      }
-      g.globalAlpha=1;
+      var mA=(0.13*(rainK-0.65)/0.35).toFixed(3), mC=day?"223,232,242":"58,70,88";
+      var mH=Math.max(2,Math.round(h*0.66));
+      var mg2=g.createLinearGradient(0,top,0,top+mH);
+      mg2.addColorStop(0,"rgba("+mC+","+mA+")");
+      mg2.addColorStop(1,"rgba("+mC+",0)");
+      g.fillStyle=mg2; g.fillRect(0,top,SW,mH);
     }
   }
   // --- the mirror: on still water the sky and the land above it reflect, which is most of the read
