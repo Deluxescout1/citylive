@@ -8875,7 +8875,18 @@ function drawReefLagoon(g,L,now,sa,sb,zi,wTop){
     var edge=shoreAt(wy);
     var x0=Math.min(edge,zi?sb:sa), x1=Math.max(edge,zi?sb:sa);
     if(x1<=x0) continue;
-    if(bayou&&((wy*3+((wy/7)|0))%11)<2) band=mixc(band,mixc(wp.deep,[255,255,255],day?0.18:0.0),0.5);   // slow tonal bands
+    // ⚠⚠ THE CORRUGATION. Nick, on the night bayou: "I like the idea of this — but it doesn't read
+    // well, make it look realistic." It read as CORRUGATED METAL, and this line was half the reason.
+    // It laid a HARD stripe every 11 rows all the way across the world, and at night it mixed 50% of
+    // the UNDIMMED `wp.deep` into a band that `dim3` had already taken down to a fifth — so two rows
+    // in every eleven came out roughly five times brighter than the water around them. A hard bright
+    // rule at a fixed pitch is corrugation by definition; it cannot read as anything else.
+    // Tonal variation on still water is SLOW and SOFT. Two incommensurable octaves so it never
+    // repeats, and the tint is built from `band` itself so night can never invert the contrast.
+    if(bayou){
+      var tone=Math.sin(wy*0.19+sa*0.031)*0.55+Math.sin(wy*0.067+1.7)*0.45;
+      if(tone>0) band=mixc(band,mixc(band,[255,255,255],day?0.24:0.11),tone*0.6);
+    }
     g.fillStyle=css(band);
     g.fillRect(x0,wy,x1-x0,1);
     // a few glints riding the swell, denser in the shallows where the bottom is close
@@ -8985,6 +8996,7 @@ function drawHarbor(g,L,now,night,nd){
   // both real shells draw only "bg" and "live". Anything added there is invisible in production;
   // that is the shell-pass trap wearing a different hat.
   var wTop=HORIZON-((curBiome.k==="cliffs"||curBiome.k==="beach"||curBiome.k==="swamp"||curBiome.k==="arctic"||curBiome.k==="sprawl")?Math.round(46*Math.max(1,KSP)):22), dayW=mixc([26,58,84],[92,152,188],L), wc=css(dayW);
+  var darkWater=(curBiome.k==="swamp"||curBiome.k==="sprawl");   // tannin-black water takes far less light than a harbour
   eachWaterSpan(function(sa,sb,zi){ var ww=sb-sa; if(ww<=0) return;
     var shoreA=gstage(0.3,0.6);                                                   // the far shore builds up with the city
     if(shoreA>0){ g.globalAlpha=shoreA;
@@ -9092,14 +9104,51 @@ function drawHarbor(g,L,now,night,nd){
           g.fillStyle="rgba(255,214,140,0.10)"; g.fillRect(ix+1,iy+4,3,3);                     // its reflection
           g.globalCompositeOperation="source-over"; } } }
     // ---- golden-hour water shimmer (village-age onward; neon needs the full city) ----
+    // ---- REFLECTIONS OFF THE LIT CITY ----
+    // ⚠⚠ THE OTHER HALF OF THE CORRUGATION, AND THE "LINES ON THE WATER" NICK HAS NOW NAMED THREE
+    // TIMES. Both of these used to draw a SOLID 1px column the FULL depth of the bay every 6-7px,
+    // additively. On a narrow harbour that passes for glimmer. On the bayou — whose bay is 22% of the
+    // world, so it fills the frame — seventy of them at a fixed 7px pitch is a ruled GRID over
+    // everything, and crossed with the tonal stripe above it is literally graph paper. Worse, on
+    // tannin-black water an additive 0.11 bar is not a highlight ON the water, it IS the water.
+    // A reflection is BROKEN and it is ANCHORED: brightest at the near shore under the thing casting
+    // it, breaking up and dimming with distance, and never running edge to edge. So: pitch scales
+    // with how wide this bay actually is, each column is hash-jittered off the comb, each is two or
+    // three short pieces rather than one rule, and dark water takes a fraction of the alpha.
+    var mDep=Math.max(2,HORIZON-wTop-4);
     if(goldenK>0.3&&cityG>0.15){ g.globalCompositeOperation="lighter";
-      for(var gx9=sa+3;gx9<sb;gx9+=6){ g.fillStyle=rgba(goldC,0.10*goldenK);
-        g.fillRect((gx9+((Math.sin(now*0.0025+gx9))|0))|0,wTop+3,1,HORIZON-wTop-4); }
+      var stepG=Math.max(6,Math.round(ww/30));
+      for(var gx9=sa+3;gx9<sb;gx9+=stepG){
+        var gh9=((gx9*2654435761+7717)>>>0);
+        var gxx=(gx9+((gh9>>>7)%Math.max(1,stepG))+((Math.sin(now*0.0025+gx9))|0))|0;
+        if(gxx<sa||gxx>=sb) continue;
+        for(var sg8=0;sg8<2;sg8++){
+          var f8=0.04+sg8*0.36+(((gh9>>>(sg8*6+3))%30)/300);          // where this piece sits out from shore
+          var hh8=Math.max(1,Math.round(mDep*(0.24-sg8*0.08)));
+          var a8=0.11*goldenK*(1-f8)*(darkWater?0.55:1);
+          if(a8<=0.012) continue;
+          g.fillStyle=rgba(goldC,a8);
+          g.fillRect(gxx,HORIZON-3-Math.round(mDep*f8)-hh8,1,hh8);
+        }
+      }
       g.globalCompositeOperation="source-over"; }
     if(night>0.4&&cityG>0.5){ g.globalCompositeOperation="lighter";                 // neon reflections (need a lit city)
-      var rc=["rgba(255,60,160,0.11)","rgba(60,200,255,0.11)","rgba(120,255,190,0.09)"];
-      for(var rx=sa+2; rx<sb; rx+=7){ g.fillStyle=rc[((rx>>2)%3+3)%3];
-        g.fillRect((rx+((Math.sin(now*0.003+rx))|0))|0, wTop+2, 1, HORIZON-wTop-2); }
+      var rc=[[255,60,160],[60,200,255],[120,255,190]];
+      var stepR=Math.max(7,Math.round(ww/26)), refA=darkWater?0.06:0.12;
+      for(var rx=sa+2; rx<sb; rx+=stepR){
+        var rh9=((rx*2654435761+4649)>>>0);
+        var rxx=(rx+((rh9>>>9)%Math.max(1,stepR))+((Math.sin(now*0.003+rx))|0))|0;
+        if(rxx<sa||rxx>=sb) continue;
+        var rcol=rc[(rh9>>>3)%3];
+        for(var sg9=0;sg9<3;sg9++){
+          var f9=0.03+sg9*0.31+(((rh9>>>(sg9*5+2))%40)/400);
+          var hh9=Math.max(1,Math.round(mDep*(0.17-sg9*0.045)));
+          var a9=refA*(1-f9)*(0.6+0.4*Math.sin(now*0.002+rx*0.7+sg9));
+          if(a9<=0.012) continue;
+          g.fillStyle=rgba(rcol,a9);
+          g.fillRect(rxx,HORIZON-2-Math.round(mDep*f9)-hh9,1,hh9);
+        }
+      }
       g.globalCompositeOperation="source-over"; }
   });
   var brA=gstage(0.52,0.66);                                                      // the bridge takes shape over time
