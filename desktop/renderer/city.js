@@ -13644,30 +13644,87 @@ function drawSeaFrontEdgeBuilt(g,L,now,top,h,K,day,k,nm){
     rail=day?[196,198,202]:[44,46,52];  post=day?[150,152,158]:[32,34,40]; cap=day?[214,216,220]:[54,56,62];
   }
   // ---- THE QUAY WALL: a face standing in the water, with a shadow it casts on the surface ----
-  g.fillStyle=css(wall);  g.fillRect(0,top-Math.round(1*K),SW,wallH);
-  g.fillStyle=css(wall2); g.fillRect(0,top+wallH-Math.round(1.6*K),SW,Math.round(1.6*K));
+  // ⚠⚠ Nick, with a screenshot of the shore: "fix those lines on the bottom by the water, it makes
+  // the coast look weird." He is right, and the count is the argument: this edge was SEVEN full-width
+  // horizontal fillRects stacked inside about ten world px — wall, wall base, shadow, tide line, top
+  // rail, lower rail, lit cap, plus a night glow — with two perfectly even combs (joints, posts)
+  // crossing them. That is the bayou's graph paper (*a loop over x with no break in it is a rule*)
+  // and the viaduct's five rules, arriving a third time at the waterline. Every one of them needs a
+  // reason to stop, so from here down the edge is built in PANELS with their own tone, and the long
+  // horizontals are broken, jittered or interrupted.
+  // ⚠ Everything is keyed to WORLD x, so all three monitors break the wall in the same places.
+  var panW=Math.max(6,Math.round(17*K));
+  var pan0=Math.floor(WOFF/panW)*panW;
+  for(var pw=pan0; pw<WOFF+SW+panW; pw+=panW){
+    var pxx=pw-WOFF, pww=panW;
+    if(pxx<0){ pww+=pxx; pxx=0; }
+    if(pxx>=SW||pww<=0) continue;
+    if(pxx+pww>SW) pww=SW-pxx;
+    var ph6=((pw*2654435761)>>>0);
+    var pv=1+(((ph6%7)-3)*0.035);                                   // panel to panel: cast on different days
+    g.fillStyle=css([Math.min(255,Math.round(wall[0]*pv)),Math.min(255,Math.round(wall[1]*pv)),Math.min(255,Math.round(wall[2]*pv))]);
+    g.fillRect(pxx,top-Math.round(1*K),pww,wallH);
+    g.fillStyle=css(mixc(wall2,[0,0,0],((ph6>>>5)%5)*0.03));
+    g.fillRect(pxx,top+wallH-Math.round(1.6*K),pww,Math.round(1.6*K));
+  }
   // vertical joints — a blank wall of one colour reads as a bar, and a bar reads as a bug
   g.fillStyle=css(mixc(wall,[0,0,0],day?0.22:0.35));
-  for(var jx=((-WOFF%Math.max(4,Math.round(9*K)))+Math.max(4,Math.round(9*K)))%Math.max(4,Math.round(9*K));
-      jx<SW; jx+=Math.max(4,Math.round(9*K)))
+  var jp=Math.max(4,Math.round(9*K));
+  for(var jw=Math.floor(WOFF/jp)*jp; jw<WOFF+SW+jp; jw+=jp){
+    var jh=((jw*40503)>>>0);
+    if((jh%9)===0) continue;                                        // a joint that has weathered shut
+    var jx=jw-WOFF+((jh>>>4)%3)-1;                                  // and they are not on a perfect comb
+    if(jx<0||jx>=SW) continue;
     g.fillRect(jx,top-Math.round(1*K),Math.max(1,Math.round(K*0.7)),wallH);
+  }
   // the wall's own shadow lying on the water, which is what seats it IN the water rather than on it
-  g.globalAlpha=0.30; g.fillStyle="#000000";
-  g.fillRect(0,top+wallH,SW,Math.round(2.4*K)); g.globalAlpha=1;
-  // a wet tide line where the water has been
-  g.fillStyle=css(mixc(wall,[40,60,70],day?0.34:0.20));
-  g.fillRect(0,top+wallH-Math.round(2.6*K),SW,Math.max(1,Math.round(K*0.9)));
+  // ⚠ the shadow and the tide line were two more ruled edges. A shadow on moving water has a broken
+  // edge and a tide mark is a stain, not a pencil line — both now vary along their own length.
+  g.fillStyle="#000000";
+  for(var sh8=0; sh8<SW; sh8+=Math.max(2,Math.round(3*K))){
+    var sw8=Math.max(2,Math.round(3*K)), sh9=((sh8+WOFF)*2246822519)>>>0;
+    g.globalAlpha=0.20+((sh9%100)/100)*0.16;
+    g.fillRect(sh8,top+wallH+((sh9>>>7)%2),sw8,Math.round(2.4*K)-((sh9>>>3)%2));
+  }
+  g.globalAlpha=1;
+  var tideC=mixc(wall,[40,60,70],day?0.34:0.20);
+  for(var td=0; td<SW; td+=Math.max(2,Math.round(4*K))){
+    var tw=Math.max(2,Math.round(4*K)), th8=((td+WOFF)*2654435761)>>>0;
+    if((th8%11)===0) continue;                                      // the mark washes out in places
+    g.globalAlpha=0.55+((th8>>>9)%100)/220;
+    g.fillStyle=css(tideC);
+    g.fillRect(td,top+wallH-Math.round(2.6*K)+(((th8>>>5)%3)-1),tw,Math.max(1,Math.round(K*0.9)));
+  }
+  g.globalAlpha=1;
   // ---- THE GUARDRAIL along the road ----
   var ry=top-Math.round(1*K)-railH;
   var pitch=Math.max(5,Math.round(11*K));
-  g.fillStyle=css(post);                                     // posts
-  for(var px6=((-WOFF%pitch)+pitch)%pitch; px6<SW; px6+=pitch)
-    g.fillRect(px6,ry,Math.max(1,Math.round(K*0.9)),railH);
-  g.fillStyle=css(rail);                                     // the top rail, and a lower one
-  g.fillRect(0,ry,SW,Math.max(1,Math.round(1.5*K)));
-  g.fillRect(0,ry+Math.round(railH*0.55),SW,Math.max(1,Math.round(K)));
-  g.fillStyle=css(cap);                                      // a lit top edge so the rail catches light
-  g.fillRect(0,ry,SW,Math.max(1,Math.round(K*0.6)));
+  // ⚠ THE RAIL IS THE STRONGEST OF THE SEVEN RULES — three unbroken full-width bars and a perfectly
+  // even post comb, right at the top of the water. A real sea rail has openings: steps down to the
+  // water, slipways, a gap at a crossing, a run that has been taken out and not replaced. So it is
+  // drawn in RUNS with gaps between them, and the posts sit inside their own run rather than on a
+  // comb laid over the whole world. World-keyed, so a gap is in the same place on every monitor.
+  var runW=Math.max(pitch*3,Math.round(52*K));
+  for(var rw=Math.floor(WOFF/runW)*runW; rw<WOFF+SW+runW; rw+=runW){
+    var rh9=((rw*2654435761)>>>0);
+    if((rh9%7)===0) continue;                                       // a missing run: steps, a slipway, a gap
+    var gapW=Math.round((3+(rh9>>>3)%4)*K);                          // and every run stops short of the next
+    var rx0=rw-WOFF, rx1=rx0+runW-gapW;
+    if(rx1<0||rx0>SW) continue;
+    var cx0r=Math.max(0,rx0), cx1r=Math.min(SW,rx1);
+    if(cx1r<=cx0r) continue;
+    g.fillStyle=css(post);                                          // posts, inside this run only
+    for(var pw6=rx0+Math.round(2*K); pw6<rx1-Math.round(K); pw6+=pitch){
+      var pxr=Math.round(pw6+(((rh9>>>(pw6&7))%3)-1));
+      if(pxr<0||pxr>=SW) continue;
+      g.fillRect(pxr,ry,Math.max(1,Math.round(K*0.9)),railH);
+    }
+    g.fillStyle=css(rail);
+    g.fillRect(cx0r,ry,cx1r-cx0r,Math.max(1,Math.round(1.5*K)));
+    g.fillRect(cx0r,ry+Math.round(railH*0.55),cx1r-cx0r,Math.max(1,Math.round(K)));
+    g.fillStyle=css(cap);
+    g.fillRect(cx0r,ry,cx1r-cx0r,Math.max(1,Math.round(K*0.6)));
+  }
   if(k==="arctic"){                                          // rime built up on the windward side
     g.fillStyle="rgba(240,248,255,0.75)";
     for(var rz=((-WOFF%pitch)+pitch)%pitch; rz<SW; rz+=pitch)
@@ -13684,8 +13741,11 @@ function drawSeaFrontEdgeBuilt(g,L,now,top,h,K,day,k,nm){
   // at night the rail is picked out by the street lighting behind it
   if(L<0.55){
     g.globalCompositeOperation="lighter";
-    g.fillStyle="rgba(255,206,150,0.10)";
-    g.fillRect(0,ry-Math.round(1*K),SW,Math.round(2*K));
+    g.fillStyle="rgba(255,206,150,0.10)";                            // …in pools under the lamps, not as an eighth ruled bar
+    for(var ng=0; ng<SW; ng+=Math.max(3,Math.round(7*K))){
+      var ngh=((ng+WOFF)*40503)>>>0; if((ngh%3)===0) continue;
+      g.fillRect(ng,ry-Math.round(1*K),Math.max(2,Math.round(5*K)),Math.round(2*K));
+    }
     g.globalCompositeOperation="source-over";
   }
 }
