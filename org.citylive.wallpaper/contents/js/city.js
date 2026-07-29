@@ -4340,6 +4340,22 @@ function buildWorld(li){
   // geography itself, so the counts move honestly rather than being normalised.
   if(SEA_FRONT>0) seaW=0;
   WATER_W = (curBiome.k==="cliffs"||curBiome.k==="beach") ? 0.21 : ((curBiome.k==="swamp"||curBiome.k==="arctic"||curBiome.k==="sprawl") ? 0.22 : 0.11);   // the coasts get a bay you can see; the bayou is mostly water
+  // ⚠⚠ AND A LAND WITH A SEA FRONT MUST NOT ALSO HAVE A SEAM BAY. Nick, on the sea cliffs: "the whole
+  // thing isn't reading correctly" — and the reason, once the frame was sampled band by band, is that
+  // this map has water BEHIND the town and water IN FRONT of it, so the place reads as nowhere.
+  // The seam ocean already gets zeroed when `SEA_FRONT>0`, for exactly this reason, and `WATER_W` —
+  // which is the same water, drawn as an industrial bay 21% of the world wide at each edge — was left
+  // behind. On his primary screen at WOFF 0 that bay covers most of the frame, so the town appeared to
+  // stand on an island with a cliff across the water.
+  // His ruling: TOWN AT THE FOOT OF THE CLIFFS, open sea toward the viewer. So the bay goes with the
+  // seam ocean it belongs to, the land runs to the world's edges, and the only water is the sea front
+  // in front of the town — where the harbour, the surf and the swell already are.
+  // ⚠ SCOPED TO THE CLIFFS. Every sea-front land shares this code path, and the bayou's entire
+  // identity is standing water it puts cypress in — pulling its bay would be a different land's
+  // overhaul done by accident, at the end of someone else's. The map-by-map pass exists precisely so
+  // that a fix lands on the map it was reasoned about. Swamp, arctic, beach, volcano and fjord keep
+  // their bays until it is their turn.
+  if(SEA_FRONT>0 && curBiome.k==="cliffs") WATER_W=0;
   // Dry biomes get a RIVER through the city instead of a coast: the waterfront becomes a riverbank,
   // and the harbour's deep-water shipping becomes barge traffic (drawRiver / riverAt).
   hasRiver = !hasOcean && curBiome.water==="river";
