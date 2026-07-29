@@ -13604,6 +13604,17 @@ function drawSeaFrontEdge(g,L,now,top,h,K,day,k,nm){
   // built west to east, exactly like the paving front, so the two arcs read as one programme of works
   var builtTo=WW*seaWallF;
   var clipped=(seaWallF<1);
+  // ⚠⚠ THE CLIP WAS INVERTED, AND IT DREW THE COAST TWICE. Nick: "that bottom line looks really bad
+  // and it ruins the look of the coast." Sampling the row he pointed at gave (60,54,56) — the
+  // volcano's own QUAY WALL colour — sitting in the middle of open water, below a stretch of sea.
+  // The cause: the clip region is [0, builtTo], i.e. the stretch that HAS been armoured, and
+  // drawWildShore was called INSIDE it. So the natural bank was painted exactly where the concrete
+  // wall goes and nowhere else — the two shorelines stacked on top of each other at slightly
+  // different heights, with water showing between them. The comment on that line said "the unbuilt
+  // stretch still reads as natural", which is precisely what it was not doing.
+  // The wild shore is the BASE — the land meets the water everywhere — and the built wall is laid
+  // over the finished stretch on top of it, exactly like the paving front it follows.
+  drawWildShore(g,L,now,top,K,day,k);
   if(clipped){
     g.save(); g.beginPath();
     for(var wq2=-1;wq2<=1;wq2++){
@@ -13611,7 +13622,6 @@ function drawSeaFrontEdge(g,L,now,top,h,K,day,k,nm){
       if(cb2>ca) g.rect(ca|0,(top-Math.round(14*K))|0,(cb2-ca)|0,Math.round(40*K));
     }
     g.clip();
-    drawWildShore(g,L,now,top,K,day,k);        // the unbuilt stretch still reads as natural
   }
   drawSeaFrontEdgeBuilt(g,L,now,top,h,K,day,k,nm);
   if(clipped) g.restore();
