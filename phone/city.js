@@ -3135,6 +3135,11 @@ var BIOMES=[
   { k:"arctic",  name:"THE PACK ICE", amp:0.74, base:0.58, flat:0.42, steep:0.30, snow:true, water:"sea", polar:1, buttes:-0.58,
     far:[214,226,238], near:[184,202,220], cap:[248,252,255], ground:[222,232,242],
     walls:[[222,228,236],[196,204,216],[238,242,248],[172,182,196],[208,216,228],[184,194,208],[232,238,244],[160,172,188]],
+    // ⚠ A POLAR SEA IS NEARLY BLACK, and that is what makes broken pack read as broken: the LEADS are
+    // gaps where no floe is drawn, so whatever the water is, the gaps are. Against the default temperate
+    // blue a lead looked like a lighter stripe between plates; against this it reads as what it is —
+    // open water in the ice.
+    waterPal:{deep:[14,26,40],mid:[10,20,32],shal:[7,15,25]},
     fauna:{ keep:{deer:0,rabbit:0,fox:1,goat:0}, big:["polarbear","walrus","seal"], small:["ptarmigan"], air:["skua"] },
     flora:{ kinds:["lichen","dwarfwillow","lichen","lichen","dwarfwillow"], bloom:["#e8c8d8","#d8e0e8","#ffffff"] },
     // ⚠⚠ RAISING `k` FIXED NOTHING, BECAUSE THE WEIGHT WAS NEVER THE PROBLEM — THE COLOUR WAS.
@@ -9304,13 +9309,38 @@ function drawBayouWater(g,L,now,sa,sb,zi,wTop,shoreAt,sgn,wetAt){
 // ⚠ How much ice there is keys off the REAL Norwich temperature, so a July arctic life has open leads
 // and meltwater on the floes and a February one is frozen shore to horizon. Same contract as every
 // other accent in this project — the real measurement drives it, the biome only decides how it shows.
-function drawPackIce(g,L,now,nd,sa,sb,zi,wTop){
+// ⚠⚠ AND THE SECOND GATE: THIS ONLY EVER DREW INTO THE *SEAM* OCEAN.
+// `drawHarbor` calls it inside `eachWaterSpan`, i.e. the old world-edge ocean — which on a 2269 wp world
+// sits off both ends and is barely on any screen — and then `drawSeaFrontBand` paints the bottom-of-frame
+// water band OVER the top of it 200 lines later. So even in deep winter, when `frozen` finally allowed a
+// floe to exist, it was drawn somewhere nobody looks and then covered up.
+// 🔑 THIS IS THE TIDE-POOL FAULT AGAIN. The engine's record already says of the sea cliffs: "it is also
+// why the Phase 3 tide pools, kelp and seals have been invisible since they were built: they are drawn at
+// the seam, off-screen." Same cause, same land family, a whole feature dark for the same reason.
+// So the band gets its own call, after the water it stands in — `wBot` lets the same routine serve both
+// the seam spans (bottom = HORIZON) and the sea-front band (bottom = SH).
+function drawPackIce(g,L,now,nd,sa,sb,zi,wTop,wBot){
   if(!curBiome.polar) return;
   var span=sb-sa; if(span<12) return;
-  var day=L>0.5, K=Math.max(1,KSP), wDep=Math.max(1,HORIZON-wTop);
+  var day=L>0.5, K=Math.max(1,KSP), wDep=Math.max(1,(wBot==null?HORIZON:wBot)-wTop);
   var temp=(weather.temp==null?30:weather.temp);
-  var frozen=Math.max(0,Math.min(1,(38-temp)/34));            // 1 hard frozen · 0 open water
-  if(curBiome.name==="THE TUNDRA") frozen*=0.35;              // the summer variant keeps its sea open
+  // ⚠⚠⚠ THIS GATE IS WHY THE PACK ICE HAD NO PACK ICE.
+  // `frozen = clamp((38-temp)/34)` is ZERO at anything above 38°F — and EVERY floe, lead, pressure
+  // ridge, meltwater pool, iceberg and the icebreaker were gated on it. On a 70°F September afternoon,
+  // which is the real Norwich weather and the entire point of this project, the land called THE PACK ICE
+  // rendered as open water with no ice in it whatsoever. All of this machinery was already written and
+  // none of it could ever be seen except in deep winter.
+  // ⚠⚠ AND NICK REJECTED THIS EXPLICITLY. Offered "make warmth melt the pack" as one option for the
+  // arctic's temperature problem, he turned it down and chose: keep the real weather, kill the
+  // contradictory tells, "the palette stays cold on a warm day". The pack is this land's GEOGRAPHY, not
+  // its weather — it is there in July because the Arctic Ocean is there in July.
+  // So temperature decides how BROKEN the pack is, never whether it exists: a February life is frozen
+  // shore to horizon, a July life is loose plates with wide black leads between them and meltwater
+  // ponded on top. That is the same contract every other accent here follows — the real measurement
+  // drives the CHARACTER, the biome decides that there is something to characterise.
+  var melt=Math.max(0,Math.min(1,(temp-24)/46));              // 0 hard winter … 1 high summer
+  var pack=0.96-melt*0.40;                                    // always ice; in summer it is broken open
+  if(curBiome.name==="THE TUNDRA") pack-=0.24;                // the summer variant keeps more open water
   var iceT=day?[240,246,252]:[92,104,126], iceS=day?[198,214,232]:[62,74,96];
   var meltC=day?"rgba(120,178,214,0.55)":"rgba(30,52,78,0.5)";
   // THE FLOES. Irregular plates with a bright top edge and a shadowed lower one, packed tighter and
@@ -9318,7 +9348,7 @@ function drawPackIce(g,L,now,nd,sa,sb,zi,wTop){
   var rows=Math.max(3,Math.round(wDep/(7*K)));
   for(var r=0;r<rows;r++){
     var rf=r/rows, ry=wTop+Math.round(rf*wDep);
-    var packHere=frozen*(0.55+0.45*(1-rf));                    // the shore fast-ice is the last to go
+    var packHere=pack*(0.62+0.38*(1-rf));                      // the shore fast-ice is the last to go
     if(packHere<0.10) continue;
     var fw=Math.round((10+rf*26)*K), step=Math.round(fw*(1.25-packHere*0.34));
     for(var fx=sa-Math.round(fw);fx<sb+fw;fx+=step){
@@ -9326,12 +9356,31 @@ function drawPackIce(g,L,now,nd,sa,sb,zi,wTop){
       if((hh%100)>packHere*100+8) continue;                    // a gap in the pack is a lead
       var w2=Math.round(fw*(0.55+((hh%100)/100)*0.7)), h2=Math.max(1,Math.round((1.4+rf*2.2)*K));
       var jx=Math.round((((hh>>>9)%100)/100-0.5)*fw*0.5);
+      // ⚠ AND THE ROW ITSELF IS JITTERED. Plates laid on an exact row pitch came out as courses of white
+      // brickwork — the ruled-line family again, in the one place on this map where the subject is
+      // BROKEN ground. Each plate sits a little above or below its row.
+      var jy=Math.round((((hh>>>25)%100)/100-0.5)*(2.2+rf*2.6)*K);
       if(fx+jx+w2<sa||fx+jx>sb) continue;
       var x0=Math.max(sa,fx+jx), x1=Math.min(sb,fx+jx+w2);
       if(x1<=x0) continue;
-      g.fillStyle=css(iceS); g.fillRect(x0,ry,x1-x0,h2);                         // the plate
-      g.fillStyle=css(iceT); g.fillRect(x0,ry,x1-x0,Math.max(1,Math.round(K)));  // its sunlit upper edge
-      if(((hh>>>17)&3)===0&&frozen<0.86){                                        // meltwater ponded on top
+      // ⚠ a LOCAL row y, not `ry+=jy`. Mutating the row's own variable inside the per-plate loop makes
+      // every later plate in that row inherit the drift of the one before it, so a row that should
+      // wobble by a couple of pixels walks steadily off the band instead.
+      var pry=ry+jy;
+      // ⚠⚠ A FLOE IS NOT A RECTANGLE. One fillRect per plate gave a band of identical white bars, which
+      // is the single thing that stopped this reading as pack ice rather than as debris. A real plate is
+      // an irregular slab: its edges are broken and its thickness varies along its length. So it is drawn
+      // in a few world-keyed segments of differing depth, which costs the same handful of rects.
+      var segs=2+((hh>>>5)%3), segW=Math.max(1,Math.round((x1-x0)/segs));
+      for(var sg=0;sg<segs;sg++){
+        var sgx=x0+sg*segW, sgw=(sg===segs-1)?(x1-sgx):segW;
+        if(sgw<=0) continue;
+        var sgh=Math.max(1,h2+Math.round((((((hh>>>(3+sg*4))&15)/15)-0.5)*1.7)*K));
+        var sgy=pry+Math.round((((((hh>>>(11+sg*3))&7)/7)-0.5)*1.2)*K);
+        g.fillStyle=css(iceS); g.fillRect(sgx,sgy,sgw,sgh);                      // the plate
+        g.fillStyle=css(iceT); g.fillRect(sgx,sgy,sgw,Math.max(1,Math.round(K))); // its sunlit upper edge
+      }
+      if(((hh>>>17)&3)===0&&melt>0.16){                                          // meltwater ponded on top
         g.fillStyle=meltC;
         g.fillRect(x0+Math.round(w2*0.25),ry+Math.max(1,Math.round(K)),Math.round(w2*0.4),Math.max(1,Math.round(K)));
       }
@@ -9361,7 +9410,7 @@ function drawPackIce(g,L,now,nd,sa,sb,zi,wTop){
   // THE ICEBREAKER — this land's traversal layer. It works a LEAD through the pack, and the broken
   // channel behind it is the point: a ship on open water is just a ship, a ship with a wake of shattered
   // ice is an icebreaker.
-  if(cityG>0.26&&frozen>0.15){
+  if(cityG>0.26){                                              // the icebreaker works whatever the season
     var per=96000, ph=((now%per)/per), dir=ph<0.5?1:-1, f=ph<0.5?ph*2:2-ph*2;
     var sy=wTop+Math.round(wDep*0.58), sxp=sa+Math.round(span*(0.08+f*0.80));
     g.fillStyle=day?"rgba(226,234,242,0.95)":"rgba(78,90,108,0.9)";               // the shattered channel astern
@@ -9387,7 +9436,7 @@ function drawPackIce(g,L,now,nd,sa,sb,zi,wTop){
   }
   // SPINDRIFT — dry snow streaming off the floes when the real wind is up. On a calm day: nothing.
   var wind=(weather.wind==null?5:weather.wind);
-  if(wind>9&&frozen>0.3){
+  if(wind>9&&melt<0.72){                                       // dry spindrift needs cold, not a frozen sea
     var sk=Math.min(1,(wind-9)/16);
     g.fillStyle=day?"rgba(255,255,255,"+(0.16*sk).toFixed(3)+")":"rgba(196,216,240,"+(0.10*sk).toFixed(3)+")";
     for(var dq2=0;dq2<9;dq2++){
@@ -9514,11 +9563,18 @@ function drawReefLagoon(g,L,now,sa,sb,zi,wTop){
   // The bayou's three variants each carry their own water: tannin-black, mangrove teal, or peat brown.
   // Reading it off the table rather than hardcoding it is what stops the other two being the same
   // swamp with a filter over it, which is the thing Nick explicitly did not want from variants.
-  var wp=bayou?(curBiome.waterPal||{deep:[54,62,48],mid:[38,46,36],shal:[26,32,26]}):null;
+  // ⚠⚠ `waterPal` WAS ONLY READ ON A BAYOU LAND, so any other land that authored one had dead data in
+  // the table. THE PACK ICE is the case that exposed it: a polar sea is nearly black, and that is what
+  // makes broken pack read as broken — the LEADS are simply gaps where no floe is drawn, so whatever the
+  // water is, the gaps are. Against the shared temperate blue a lead looked like a pale stripe between
+  // plates rather than open water in the ice.
+  // Generalised to "any land that authored a palette", which by inspection changes exactly one land:
+  // the swamp variants and the sprawl are already bayou lands and already used theirs.
+  var wp=curBiome.waterPal||(bayou?{deep:[54,62,48],mid:[38,46,36],shal:[26,32,26]}:null);
   var dim3=function(c){ return [(c[0]*0.20)|0,(c[1]*0.22)|0,(c[2]*0.24)|0]; };
-  var deepC =bayou?(day?wp.deep:dim3(wp.deep)) :(day?[24,86,132] :[7,20,38]);
-  var midC  =bayou?(day?wp.mid :dim3(wp.mid))  :(day?[38,150,170]:[10,40,58]);
-  var shalC =bayou?(day?wp.shal:dim3(wp.shal)) :(day?[142,224,214]:[26,74,86]);
+  var deepC =wp?(day?wp.deep:dim3(wp.deep)) :(day?[24,86,132] :[7,20,38]);
+  var midC  =wp?(day?wp.mid :dim3(wp.mid))  :(day?[38,150,170]:[10,40,58]);
+  var shalC =wp?(day?wp.shal:dim3(wp.shal)) :(day?[142,224,214]:[26,74,86]);
   for(var wy=wTop;wy<HORIZON;wy++){
     var wf=(wy-wTop)/wDep;
     var band=wf<0.55?mixc(deepC,midC,wf/0.55):mixc(midC,shalC,(wf-0.55)/0.45);
@@ -29519,6 +29575,12 @@ function draw(g,pass){
   // ⚠ Drawing it here rather than earlier is what keeps it in front — the mistake that hid the
   // waterfalls for two sessions was assuming definition order was paint order.
   drawSeaFrontBand(g,L,now);
+  // THE PACK, in the water you can actually see. Same routine as the seam spans, given the front band's
+  // geometry — and drawn AFTER the band for the reason the harbour below is: definition order is not
+  // paint order, and this feature spent its whole life underneath the sea.
+  // ⚠ `SH` IS THE BOTTOM OF THE PICTURE, NOT OF THE WATER. Passing it put a row of floes down in the
+  // taskbar allowance below the sea. The band runs SEA_Y .. SEA_Y+SEA_FRONT, which is SH-TASKBAR_WP.
+  if(curBiome.polar&&SEA_FRONT>0) drawPackIce(g,L,now,nd,0,SW,0,SEA_Y,SH-TASKBAR_WP);
   drawHarbourLighthouse(g,L,now,fx);               // …and the working harbour standing in it
   drawPuddles(g,L,now);
   drawWetSheen(g,L,now,Math.min(1,wetness*1.7));   // wet asphalt mirrors the street lighting                            // rain leaves standing water, on every land
