@@ -14155,8 +14155,19 @@ function drawSeaFrontBand(g,L,now){
         g.fillStyle=day?"#c3d5e6":"#243244"; g.fillRect(FX2,fy7+Math.round(2.4*K),fw7,Math.max(1,Math.round(K))); }
     }
   } else if(k==="volcano"){
-    // black sand below the basalt wall, and a steam line where the flows still reach the water
-    g.fillStyle=day?"#3a3436":"#141215"; g.fillRect(0,wTop-Math.round(3*K),SW,Math.round(4*K));
+    // ⚠⚠ THE BAR IS GONE. Nick, three separate times: "please remove that bottom bar under the
+    // shoreline it looks bad, this is the third time I have asked." He was right every time and I
+    // looked in the wrong place twice — I suspected the quay wall, the wild bank and the wall's own
+    // shadow, and even suppressed drawSeaFrontEdge entirely to prove it was none of them. It was here,
+    // in the biome's own water decoration, labelled "black sand": one solid full-width fillRect,
+    // 4*K tall, sitting in open water below the shoreline. That is not a beach, it is a ruled bar.
+    // FOUND BY TRAPPING fillRect and printing the call stack for anything landing in that band — the
+    // technique I should have reached for at the first report instead of the third. Guessing cost two
+    // wrong fixes and a bisect that eliminated the right function for the wrong reason.
+    // ⚠ AND IT WAS REDUNDANT ANYWAY: this land's wild-shore bank is already [58,52,52] — black sand —
+    // and it follows the real, irregular shoreline. The bar was a second, straighter copy of a thing
+    // that was already being drawn correctly ten pixels above it.
+    // The steam line below stays: that one is per-column, hashed, and genuinely belongs to this coast.
     g.globalCompositeOperation="lighter";
     for(var stm=0;stm<SW;stm+=Math.max(6,Math.round(11*K))){
       var wst=stm+WOFF; if(((wst*7)%5)!==0) continue;
