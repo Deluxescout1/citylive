@@ -22957,7 +22957,15 @@ function drawMountains(g,L,now,nd){
         // ⚠ `volcBlow` is resolved ONCE per mtsCache build (see above the loop) and mtsCache is
         // invalidated when the eruption state flips, so this costs nothing per frame and every screen
         // rebuilds to the identical shape — the blast is world-anchored, not screen-anchored.
-        if(volcBlow){
+        // ⚠⚠ THE NEAR BAND ONLY — pi0===1. Nick, with a screenshot: "what is going on with these
+        // lines". This block sits inside the loop over all THREE depth bands, and I first let it run
+        // on every one of them: so the FAR ridge and the derived distant ridge were being cut flat at
+        // the CONE's failure altitude and given the cone's torn rim, which drew a serrated, sawn-off
+        // line straight across the whole world at a constant height. A flank collapse is one mountain
+        // falling down, not a horizon-wide event — and `volcBlow.cut` is derived from the NEAR peaks,
+        // so applying it to a band with different heights was meaningless as well as ugly.
+        // drawVolcano reads mtsCache.h[1]; that is the cone, and it is the only thing that collapses.
+        if(volcBlow && pi0===1){
           var vbD=((wx0-volcBlow.wx)%WW+WW*1.5)%WW-WW*0.5;                    // signed distance from the vent, wrapped
           if(rh0>volcBlow.cut){
             var vbSide=(vbD*volcBlow.dir>=0)?1:0;                             // 1 = the flank that failed
