@@ -21538,23 +21538,40 @@ function drawVolcano(g,L,now,nd){
   // THE STIR. A slow cycle: mostly quiet, occasionally restless. `unrest` 0..1.
   var per=1080000, ph=((now%per)/per);                // ~18 minutes end to end
   var unrest=ph<0.62?0:Math.sin(((ph-0.62)/0.38)*Math.PI);
-  // THE CRATER — a notch in the summit, darker inside, glowing when it is up to something.
-  // ⚠ Drawn as one dark RECT across the summit this read as a plank balanced on the peak. A crater is
-  // a notch cut DOWN INTO the cone with a rim standing either side of it, so: a tapering bowl sunk
-  // below the summit line, then two rim shoulders drawn back up in the rock's own colour.
-  var crW=Math.round(sh*0.10)+Math.round(2*K), crD=Math.round(4.5*K);
+  // THE CRATER — CUT INTO the rock, never pasted on top of it.
+  // ⚠⚠ Nick, 2026-07-29, with a screenshot of THE GREEN ISLAND on his own desktop: "lets fix the top
+  // of the Volcano it looks weird and not realistic… I think I want it to look like a normal Volcano
+  // and then it erupts and blows the top off the mountain."
+  // THE BUG: the bowl was `fillRect(sx-cw, sy+cq, cw*2, 1)` — a row of CONSTANT width struck from the
+  // summit's x, with `cw` scaled off the summit HEIGHT (sh*0.10, so ~44 wp across on a big cone). But
+  // `sy` is the altitude of the single TALLEST column and every neighbour is lower, so those upper
+  // rows were painted over OPEN SKY either side of the peak — and the "rim" was then drawn at `sy-rq`,
+  // i.e. ABOVE the mountain, adding yet more material to the overhang. The result was a dark
+  // flat-topped plank balanced on the summit, which is the exact fault the comment that used to sit
+  // here claimed to have already fixed. It was fixed in shape and not in CLIPPING.
+  // THE RULE: a crater is a hole in a mountain. Every row is clipped to where the rock actually is at
+  // that altitude, so it can only ever be cut out of something — it is structurally incapable of
+  // overhanging now, whatever the summit shape turns out to be.
+  // ⚠ And it is SMALL. An intact stratovolcano has a modest summit vent; the wide ragged breach is
+  // the POST-ERUPTION state, and keeping the two clearly different is the whole point of what he asked
+  // for — a normal mountain first, then the top blown off it.
+  var crW=Math.min(Math.round(sh*0.05)+Math.round(2*K), Math.round(11*K)), crD=Math.round(3.0*K);
   var rock=css(mixc(day?B.near:[16,14,16],biomeSkc(day),day?0.24:0.20));
   g.fillStyle=day?"rgba(26,22,22,0.82)":"rgba(8,6,6,0.85)";
-  for(var cq=0;cq<crD;cq++){                                  // the bowl, narrowing as it goes down
-    var cf=cq/crD, cw2=Math.round(crW*(1-cf*0.45));
-    g.fillRect(sx-cw2,sy+cq,cw2*2,1);
+  var crL=sx, crR=sx;
+  for(var cq=0;cq<crD;cq++){
+    var cy=sy+cq, xl=sx, xr=sx, ht;
+    while(xl>0 && sx-xl<crW){ ht=hs[xl-1]; if(ht==null||(gy-Math.round(ht))>cy) break; xl--; }
+    while(xr<SW-1 && xr-sx<crW){ ht=hs[xr+1]; if(ht==null||(gy-Math.round(ht))>cy) break; xr++; }
+    g.fillRect(xl,cy,xr-xl+1,1);
+    if(cq===crD-1){ crL=xl; crR=xr; }
   }
-  g.fillStyle=rock;                                           // and the rim standing up either side
-  for(var rq=0;rq<Math.round(2.4*K);rq++){
-    var rw2=Math.round(crW*0.34*(1-rq/Math.max(1,Math.round(2.4*K))));
-    g.fillRect(sx-crW-rw2,sy-rq,rw2+Math.round(K),1);
-    g.fillRect(sx+crW,sy-rq,rw2+Math.round(K),1);
-  }
+  // the lip: a thin bright edge on the rock immediately outside the vent, so the hole has an edge to
+  // it rather than fading into the flank. Clipped by construction — it only draws on columns the bowl
+  // already proved are rock.
+  g.fillStyle=css(mixc(day?B.cap:B.near,[255,255,255],day?0.20:0.06));
+  if(crL>0)     g.fillRect(crL-1,sy+crD-1,1,Math.max(1,Math.round(K)));
+  if(crR<SW-1)  g.fillRect(crR+1,sy+crD-1,1,Math.max(1,Math.round(K)));
   // ============ THE MOUNTAIN ITSELF ============
   // Nick: the volcanoes "are a little basic — they should get more detail".
   // The diagnosis is that everything interesting about this land was gated on `unrest`, an ~18-minute
@@ -21624,11 +21641,17 @@ function drawVolcano(g,L,now,nd){
     // the blown crater: wider than the old notch and asymmetric, because a blast takes one wall out
     var bcW=Math.round(crW*(1.9+0.5*(erupted.i||3)/5));
     var bias=((WORLD_SEED>>>11)&1)?1:-1;
+    // ⚠ CLIPPED, exactly like the intact crater above and for the same reason: this block struck rows
+    // of constant width from the summit column, so on a peak it painted over open sky and produced
+    // the dark overhanging wedge Nick photographed. The blast bowl is a hole too.
     g.fillStyle=day?"rgba(22,18,18,0.86)":"rgba(6,5,5,0.9)";
     for(var bq=0;bq<Math.round(7*K);bq++){
-      var bf2=bq/Math.round(7*K);
-      var bw3=Math.round(bcW*(1-bf2*0.35));
-      g.fillRect(sx-bw3+Math.round(bias*bf2*3*K),sy+bq,bw3*2,1);
+      var bf2=bq/Math.round(7*K), by=sy+bq;
+      var bw3=Math.round(bcW*(1-bf2*0.35)), bc=sx+Math.round(bias*bf2*3*K);
+      var bl=Math.max(0,Math.min(SW-1,bc)), br=bl, bt;
+      while(bl>0 && bc-bl<bw3){ bt=hs[bl-1]; if(bt==null||(gy-Math.round(bt))>by) break; bl--; }
+      while(br<SW-1 && br-bc<bw3){ bt=hs[br+1]; if(bt==null||(gy-Math.round(bt))>by) break; br++; }
+      if(br>=bl) g.fillRect(bl,by,br-bl+1,1);
     }
     g.fillStyle=css(mixc(vBase,[210,206,200],day?0.34:0.10));      // fresh ash greying the upper cone
     for(var ax2=Math.max(0,sx-Math.round(sh*0.8)); ax2<Math.min(SW,sx+Math.round(sh*0.8)); ax2++){
@@ -22853,8 +22876,28 @@ function drawMountains(g,L,now,nd){
   var snF=mixc(day?B.cap:mixc(B.cap,[0,0,0],0.62), [255,168,148], sunsetK*0.55);   // alpenglow on the snow
   var snN=mixc(day?mixc(B.cap,[255,255,255],0.35):mixc(B.cap,[0,0,0],0.55), [255,150,128], sunsetK*0.6);
   var litK=Math.max(0,Math.min(1,(L-0.34)*2.4));                  // how hard the sun models the rock
+  // ⚠ THE ONE PIECE OF STATE THE SILHOUETTE IS ALLOWED TO CARE ABOUT. mtsCache exists because the
+  // range never moves within a life — which stopped being true the moment an eruption started taking
+  // the top off the mountain. So the cache is keyed on the eruption too, and flipping that state is
+  // the ONLY thing besides a new life that rebuilds it: once per life at most, on every screen, to the
+  // same shape, because `volcanoErupted` is pure history and not a runtime roll.
+  var vErup=(curBiome&&curBiome.volcanic)?volcanoErupted(now):null;
+  var vKey=vErup?1:0;
+  if(mtsCache && mtsCache.vk!==vKey) mtsCache=null;
+  var volcBlow=null;
+  if(vErup){
+    var vbh=((WORLD_SEED*2654435761)>>>0);
+    var vbPk=0, vbX=0;                                            // the cone that failed: the world's tallest near peak
+    for(var vq=0;vq<mts.near.length;vq++) if(mts.near[vq].h>vbPk){ vbPk=mts.near[vq].h; vbX=mts.near[vq].x; }
+    volcBlow={ wx:vbX,
+               dir:(vbh&1)?1:-1,                                  // which flank went — world-seeded, so all screens agree
+               cut:vbPk*(0.60+((vbh>>>7)%12)/100),                // the failure altitude: ~60-72% of the cone
+               reach:Math.max(8,vbPk*0.9),                        // how far the collapse feathers on the far side
+               rag:Math.max(1.5,vbPk*0.05),                       // how torn the new rim is
+               ph:((vbh>>>13)%628)/100, seed:vbh };
+  }
   if(!mtsCache){                                                  // the silhouette is static per life —
-    mtsCache={h:[[],[],[]], sl:[[],[],[]], rib:[[],[],[]], wig:[], mx:[0,0,0]};   // compute it ONCE per screen, not per frame
+    mtsCache={h:[[],[],[]], sl:[[],[],[]], rib:[[],[],[]], wig:[], mx:[0,0,0], vk:vKey};   // compute it ONCE per screen, not per frame
     // A THIRD, FURTHEST band, DERIVED from the far peaks rather than rolled — half the height, wider,
     // shifted along the world so it is not an echo. Deriving it keeps every existing life's layout
     // byte-identical: one extra mg() roll in buildWorld would have re-rolled the peaks of all six
@@ -22902,6 +22945,46 @@ function drawMountains(g,L,now,nd){
           if(B.volcanic) crag*=0.18*(1-t0*0.7);
           var hh0=p0.h*t0+crag*KSP;
           if(hh0>rh0) rh0=hh0; }
+        // ⚠⚠ THE TOP ACTUALLY LEAVES. Nick: "it erupts and blows the top off the mountain" — and he
+        // chose MOUNT ST HELENS over a tidy truncation: a third of the cone gone, taken out on ONE
+        // side, leaving a horseshoe open toward the city and a flat stump.
+        // Which means the SILHOUETTE has to change, not just the shading over it. Every previous
+        // attempt at "blown open" in this file drew a wider dark notch ON the intact profile, so the
+        // mountain's outline never moved and the top never actually went anywhere.
+        // The profile is where it has to happen, so this is where it happens: above the failure
+        // altitude the cone is cut away, hard on the blast side and feathering back on the far one,
+        // with the torn rim roughened so it is a fracture and not a sawn edge.
+        // ⚠ `volcBlow` is resolved ONCE per mtsCache build (see above the loop) and mtsCache is
+        // invalidated when the eruption state flips, so this costs nothing per frame and every screen
+        // rebuilds to the identical shape — the blast is world-anchored, not screen-anchored.
+        if(volcBlow){
+          var vbD=((wx0-volcBlow.wx)%WW+WW*1.5)%WW-WW*0.5;                    // signed distance from the vent, wrapped
+          if(rh0>volcBlow.cut){
+            var vbSide=(vbD*volcBlow.dir>=0)?1:0;                             // 1 = the flank that failed
+            var vbFall=vbSide? 1 : Math.max(0,1-Math.abs(vbD)/Math.max(1,volcBlow.reach));
+
+            // ⚠ NOT SINES. Two sines gave the new rim an even row of rounded scallops — a rule again,
+            // and a landslide scar is the least periodic thing in nature. Hashed per world-x (so all
+            // three screens still agree) and damped hard on the collapsed flank, because the floor of
+            // a St Helens amphitheatre is rubble, not a scalloped ridge.
+            // ⚠ VALUE NOISE, NOT PER-COLUMN HASH. Sines gave an even row of scallops; hashing every
+            // column independently then gave WHITE NOISE — a comb of one-pixel spikes that reads as
+            // grass, not rock. A landslide scar is rough but CONTINUOUS, so the hash is taken at
+            // intervals and smoothly interpolated between them: two octaves, coarse for the shape of
+            // the tear and fine for its texture. World-x keyed, so all three screens tear identically.
+            var vbA=Math.floor(wx0/7), vbF=wx0/7-vbA, vbT=vbF*vbF*(3-2*vbF);
+            var vbP=((((vbA*2654435761)^volcBlow.seed)>>>0)%1000)/1000;
+            var vbQ=(((((vbA+1)*2654435761)^volcBlow.seed)>>>0)%1000)/1000;
+            var vbA2=Math.floor(wx0/3), vbF2=wx0/3-vbA2, vbT2=vbF2*vbF2*(3-2*vbF2);
+            var vbP2=((((vbA2*40503)^volcBlow.seed)>>>0)%1000)/1000;
+            var vbQ2=(((((vbA2+1)*40503)^volcBlow.seed)>>>0)%1000)/1000;
+            var vbTear=(((vbP+(vbQ-vbP)*vbT)-0.5)*1.6 + ((vbP2+(vbQ2-vbP2)*vbT2)-0.5)*0.55)*volcBlow.rag;
+            if(vbSide) vbTear*=0.42;                                          // the amphitheatre floor is rubble, not a ridge
+            var vbTop=volcBlow.cut+vbTear;                                    // a torn rim, never a ruled cut
+            rh0=rh0-(rh0-vbTop)*vbFall;
+            if(rh0<vbTop-volcBlow.rag) rh0=vbTop-volcBlow.rag;
+          }
+        }
         // ⚠ A WEDDING CAKE IS NOT A BUTTE. Quantising to a FIXED step gives every bench in the world
         // the identical thickness, and the stepped cones came out as tiered cakes — the most
         // artificial shape on this map. Real sedimentary beds are level (that part was right) and
