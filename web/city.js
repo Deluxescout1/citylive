@@ -22005,7 +22005,13 @@ function drawVolcano(g,L,now,nd){
       var ta=Math.floor(twx/23), tf=twx/23-ta, tt2=tf*tf*(3-2*tf);
       var tp1=(((ta*2654435761)>>>0)%1000)/1000, tq1=((((ta+1)*2654435761)>>>0)%1000)/1000;
       var tline=sy+Math.round(tlBase+((tp1+(tq1-tp1)*tt2)-0.5)*vDrop*0.16);   // the boundary wanders with the ground
-      if(tRock>=tline) continue;                                 // this column is below the line: it is forest
+      // ⚠⚠ THIS `continue` WAS THE BUG, and its own comment described the opposite of what it did.
+      // It skipped every column whose rock sits BELOW the treeline — which is every part of the
+      // mountain low enough to be forest. So only ground tall enough to poke ABOVE the line got trees,
+      // and everything under it stayed bare: a hard diagonal edge running down the slope, exactly
+      // where the mountain crosses that altitude. Nick: "not fix".
+      // No skip is needed at all. `tTop` already resolves both cases correctly — on a tall column the
+      // canopy starts at the treeline, and on a low one it starts at the ground itself.
       var tTop=Math.max(tRock,tline);
       // ⚠⚠ TWO GOES AT THIS, AND THE SECOND WAS THE REAL LESSON.
       // First I used `(twx*7)%3` — the EXACT expression that made the wild shoreline a three-pixel
