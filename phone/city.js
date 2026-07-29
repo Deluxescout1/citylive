@@ -13614,9 +13614,25 @@ function drawSeaFrontEdge(g,L,now,top,h,K,day,k,nm){
   // stretch still reads as natural", which is precisely what it was not doing.
   // The wild shore is the BASE — the land meets the water everywhere — and the built wall is laid
   // over the finished stretch on top of it, exactly like the paving front it follows.
-  drawWildShore(g,L,now,top,K,day,k);
+  // ⚠⚠ THE TWO SHORES ARE EXCLUSIVE. Nick, pointing at it a third time: "it is right there still — I
+  // see the seawall being built behind it." That is the whole diagnosis in one sentence: the natural
+  // bank was drawing IN FRONT OF the concrete, so you got an armoured quay with a muddy tidal bank
+  // sitting in the water below it.
+  // My previous attempt drew the wild shore as an unclipped BASE under everything, which is what
+  // produced that. It is wrong for a physical reason, not a layering one: ONCE YOU ARMOUR A SHORE THE
+  // BANK IS GONE — the wall replaces it. The two are alternatives along the coast, never stacked.
+  // So each is clipped to its own stretch: the wall to what has been built, the wild bank to what has
+  // not, and the boundary between them travels west to east with the paving front.
   if(clipped){
-    g.save(); g.beginPath();
+    g.save(); g.beginPath();                                   // the UNBUILT stretch keeps its natural bank
+    for(var wq3=-1;wq3<=1;wq3++){
+      var ua=Math.max(0,(builtTo-WOFF+wq3*WW)), ub=Math.min(SW,(WW-WOFF+wq3*WW));
+      if(ub>ua) g.rect(ua|0,(top-Math.round(14*K))|0,(ub-ua)|0,Math.round(40*K));
+    }
+    g.clip();
+    drawWildShore(g,L,now,top,K,day,k);
+    g.restore();
+    g.save(); g.beginPath();                                   // …and the built stretch gets the wall
     for(var wq2=-1;wq2<=1;wq2++){
       var ca=Math.max(0,(0-WOFF+wq2*WW)), cb2=Math.min(SW,(builtTo-WOFF+wq2*WW));
       if(cb2>ca) g.rect(ca|0,(top-Math.round(14*K))|0,(cb2-ca)|0,Math.round(40*K));
