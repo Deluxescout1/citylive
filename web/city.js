@@ -20639,6 +20639,53 @@ function drawPlateauBuilding(g,x,top,bw,bh,grow,seed,day,now,K,wallC,roofC,trimC
       g.fillRect(chx+Math.round(pu*0.07),top-bh-chh-Math.round(pu*0.28),Math.max(1,Math.round(u*(1+pf*0.4))),Math.max(1,u)); }
   }
 }
+// WHAT THE MOUNTAIN TOOK WITH IT. Nick, with a screenshot of a summit lodge and a mast standing on a
+// volcano about to lose its top: "if it explodes make sure the infrastructure goes with it."
+// ⚠ THIS IS THE PLATEAU-TOWN LESSON INVERTED. That one was a landform change silently CREATING a
+// town — a flat blown top registering as a mesa, so drawPlateauTowns founded a settlement on the
+// scar. This is the same coupling in the opposite direction: the collapse must silently DESTROY one.
+// Suppressing the town (already done via `mtsCache.blown`) makes it vanish cleanly, and he explicitly
+// chose visible WRECKAGE over a clean disappearance — the mountain should be seen to have taken
+// something with it.
+// ⚠ The tidy version — rebuild the pre-blast profile, find where the plateaus WERE, ruin them in
+// place — needs the height field built twice, once unblown, for one frame's worth of ruins. Debris
+// from a flank collapse is scattered down the slope by the collapse itself, so scattering it is both
+// far cheaper and the more honest picture.
+function drawBlastWreckage(g,L,now){
+  if(!mtsCache||!mtsCache.blown||!mtsCache.h||!mtsCache.h[1]) return;
+  if(cityPhase==="apoc") return;
+  var hs=mtsCache.h[1], gy=HORIZON, K=Math.max(1,KSP), day=L>0.5;
+  var steel=css(day?[92,88,96]:[22,21,26]), pale=css(day?[168,164,158]:[34,33,36]);
+  var burn=css(day?[58,50,46]:[14,12,12]);
+  var n=Math.round(26+18*K);
+  for(var i=0;i<n;i++){
+    var h=((i*2654435761+0x5731)>>>0);
+    var wx=h%WW, sx=wx-WOFF;
+    if(sx>SW+8&&sx-WW>-8) sx-=WW; if(sx<-8&&sx+WW<SW+8) sx+=WW;
+    if(sx<-6||sx>SW+6) continue;
+    var col=Math.max(0,Math.min(SW-1,sx|0));
+    var rh=hs[col]; if(rh==null||rh<=0) continue;
+    var ty=gy-Math.round(rh);
+    // only on the scar itself: the wreckage lies on rock the collapse actually touched
+    if(rh<mtsCache.mx[1]*0.24) continue;
+    var kind=(h>>>7)%4;
+    if(kind===0){                                                   // a snapped mast, leaning
+      var mh=Math.round((3+((h>>>11)%4))*K);
+      g.fillStyle=steel;
+      for(var q=0;q<mh;q++) g.fillRect((sx+Math.round(q*0.45))|0,ty-mh+q,Math.max(1,Math.round(K*0.7)),1);
+    } else if(kind===1){                                            // a stub of wall still standing
+      g.fillStyle=pale;
+      g.fillRect(sx|0,ty-Math.round(2.4*K),Math.max(1,Math.round(2.6*K)),Math.round(2.4*K));
+      g.fillStyle=burn; g.fillRect(sx|0,ty-Math.round(2.4*K),Math.max(1,Math.round(2.6*K)),Math.max(1,Math.round(K*0.7)));
+    } else if(kind===2){                                            // a slab tipped over on the slope
+      g.fillStyle=pale;
+      g.fillRect(sx|0,ty-Math.round(K),Math.round((3+((h>>>13)%4))*K),Math.max(1,Math.round(K*0.9)));
+    } else {                                                        // scorched rubble
+      g.fillStyle=burn;
+      g.fillRect(sx|0,ty-Math.round(K*0.8),Math.max(1,Math.round(1.8*K)),Math.max(1,Math.round(K*0.8)));
+    }
+  }
+}
 function drawPlateauTowns(g,L,now,nd){
   if(!mtsCache||cityPhase==="apoc") return;
   var pls=plateaus(); if(!pls.length) return;
@@ -28290,7 +28337,8 @@ function draw(g,pass){
   // ridge it is strung across and BEHIND every building — exactly where it sat before.
   drawPlainsSky(g,L,now,nd,fx);   // on a plain the SKY is the scenery — towers, curtains, a far butte
   drawVolcano(g,L,now,nd);        // …and if it is a volcano, what the mountain is doing today
-  drawPlateauTowns(g,L,now,nd);   // and whatever stands on top of a flat-topped mountain
+  drawPlateauTowns(g,L,now,nd);
+  drawBlastWreckage(g,L,now);   // …and what the mountain took with it when it went   // and whatever stands on top of a flat-topped mountain
   drawGondola(g,L,now);           // a cable-car + summit lodge on the tallest peak (mature cities)
   drawClimbers(g,L,now,nd,fx);    // tiny mountaineers roping up the tallest peaks (fair-weather days)
   // The animated sky sits behind the cached city. It keeps every aerial/weather feature, but no
