@@ -24242,6 +24242,40 @@ function drawBiomeGround(g,gy,day,now,wild){
 // red mesa mirrors a dusty one. They ripple while it is still falling and dry from the edges in.
 // Everything here is keyed to the REAL measurement: `wetness` only rises when it is actually raining
 // in Norwich, and on a dry day this correctly draws nothing at all.
+// WET ASPHALT CARRIES THE LIGHTS. Nick: "we should see the rains impact."
+// ⚠ Rings in the puddles and streetlight glints inside them ALREADY existed — the seventh time today
+// the answer was a gate or a duty cycle rather than an absence. What genuinely did not exist is the
+// thing that actually says "wet road" at night: every light source SMEARING down the carriageway
+// toward the viewer. A dry road at night is black; a wet one is a mirror with the whole street
+// running down it, and that single difference is most of the read.
+// Drawn from the lamps that are really there (`sprops`), so the smears line up with their own source
+// rather than being scattered independently — the mistake the street's crossings made for years.
+// ⚠ Additive, short, and scaled by `wetness`, so it fades in as the rain soaks in and out as it dries
+// rather than switching on. And it is a LOOP OVER LAMPS, not over x: no full-width rects here.
+function drawWetSheen(g,L,now,wet){
+  if(L>=0.55||wet<=0.08||!sprops||!sprops.length) return;
+  var K=Math.max(1,KSP), gy=HORIZON;
+  var band=Math.max(6,(SH-gy-4)|0);
+  g.globalCompositeOperation="lighter";
+  for(var i=0;i<sprops.length;i++){
+    var sp=sprops[i]; if(sp.k!=="lamp") continue;
+    if(cityG < 0.28+((sp.s%997)/997)*0.34) continue;                 // the same arrival gate the lamp itself uses
+    for(var wp=-1;wp<=1;wp++){
+      var X=(sp.x-WOFF+wp*WW)|0; if(X<-6||X>SW+6) continue;
+      var len=Math.round(band*(0.34+0.46*wet));
+      for(var q=0;q<len;q++){
+        var f=q/Math.max(1,len);
+        var a=0.16*wet*(1-f)*(1-f);
+        if(a<=0.012) continue;
+        var jw=Math.max(1,Math.round(K*(0.8+f*1.6)));                // the smear widens as it runs toward you
+        var jx=X+((((i*7+q)*2654435761)>>>0)%3)-1;                   // and wavers, because the surface is not a mirror
+        g.fillStyle="rgba(255,206,150,"+a.toFixed(3)+")";
+        g.fillRect(jx-(jw>>1),gy+2+q,jw,1);
+      }
+    }
+  }
+  g.globalCompositeOperation="source-over";
+}
 function drawPuddles(g,L,now){
   if(wetness<=0.05||cityPhase==="apoc") return;
   var fx=wfx(); if(fx.snow&&!fx.rain&&!fx.drizzle) return;   // it lies as snow, it does not pool
@@ -28584,7 +28618,8 @@ function draw(g,pass){
   // ⚠ Drawing it here rather than earlier is what keeps it in front — the mistake that hid the
   // waterfalls for two sessions was assuming definition order was paint order.
   drawSeaFrontBand(g,L,now);
-  drawPuddles(g,L,now);                            // rain leaves standing water, on every land
+  drawPuddles(g,L,now);
+  drawWetSheen(g,L,now,Math.min(1,wetness*1.7));   // wet asphalt mirrors the street lighting                            // rain leaves standing water, on every land
   // coastal causeway: railing where the highway crosses the open water
   if(hasOcean&&seaW>0&&roadF>0.8){ var rlz=[[0,WW*seaW],[WW*(1-seaW),WW]];
     for(var ri2=0;ri2<rlz.length;ri2++){ for(var w3=-1;w3<=1;w3++){
