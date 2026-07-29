@@ -25805,11 +25805,51 @@ function drawBuildSite(g,cx,cb,L,now,night){
   var sh=Math.round((16+(seed%8))*prog);                                                       // current build height
   // hoarding fence with caution stripes
   for(var sx2=x0;sx2<x0+w;sx2+=4){ g.fillStyle=(((sx2-x0)>>2)&1)?"#e0b040":"#20242c"; g.fillRect(sx2,gy-6,3,6); }
-  // partly-built concrete shell behind the scaffold
-  if(sh>2){ g.fillStyle=L>0.5?"#6b7280":"#1c222c"; g.fillRect(x0+6,gy-6-Math.round(sh*0.85),w-12,Math.round(sh*0.85)); }
-  // scaffolding: decks + uprights
-  for(var lv=0; lv<sh; lv+=4){ g.fillStyle=L>0.5?"#9098a4":"#2c333e"; g.fillRect(x0+3,gy-6-lv,w-6,1); }
-  for(var vp=x0+4; vp<x0+w-3; vp+=8){ g.fillStyle=L>0.5?"#828a96":"#262c36"; g.fillRect(vp,gy-6-sh,1,sh); }
+  // ---- THE SHELL: A FRAME, NOT A SLAB ----
+  // ⚠⚠ Nick, pointing at it in the rain: "what is with the green box here, can we make this look
+  // better and less blocky." It was literally a box — ONE fillRect for the whole shell, with scaffold
+  // decks every 4 px and uprights every 8 px laid over it: a flat slab plus two perfectly even combs,
+  // which is the sixth and seventh instance of the rule-and-comb fault in this project.
+  // A building under construction is mostly HOLES. You see through the unfinished floors to the sky
+  // and the towers behind, and that transparency is the whole difference between a structure and a
+  // block — so the frame is drawn as columns and floor plates with the gaps left OPEN.
+  var flr=Math.max(3,Math.round(4*Math.max(1,KSP)*0.6));            // floor-to-floor
+  var bay=Math.max(4,Math.round(7*Math.max(1,KSP)*0.6));            // column spacing
+  var clad=Math.round(sh*(0.30+((seed>>>5)%30)/100));               // cladding has reached this height
+  var colC=L>0.5?"#8b93a0":"#252b35", pltC=L>0.5?"#9aa2ae":"#2b323d";
+  var cldC=L>0.5?"#7f8b93":"#1e2630", glzC=L>0.5?"rgba(150,196,206,0.55)":"rgba(60,96,120,0.5)";
+  if(sh>2){
+    for(var fy=0; fy<sh; fy+=flr){                                   // floor plates — each one its own slab
+      var fw=w-12, fx0=x0+6;
+      g.fillStyle=pltC; g.fillRect(fx0,gy-6-fy,fw,1);
+      if(fy<clad){                                                   // …skinned and glazed on the finished floors
+        g.fillStyle=cldC; g.fillRect(fx0,gy-6-fy-flr+1,fw,flr-1);
+        g.fillStyle=glzC;
+        for(var gxx=fx0+1; gxx<fx0+fw-1; gxx+=3) g.fillRect(gxx,gy-6-fy-flr+2,2,Math.max(1,flr-3));
+      }
+    }
+    for(var cx8=x0+6; cx8<=x0+w-6; cx8+=bay){                        // columns, standing the full height
+      g.fillStyle=colC; g.fillRect(cx8,gy-6-sh,1,sh);
+    }
+  }
+  // ---- SCAFFOLD: regular bays, but it STOPS ----
+  // He chose "break it up": scaffold only where work is happening, ragged at the top, bays missing.
+  // The bay RHYTHM stays even, because that is genuinely how scaffold is built — what changes is that
+  // it no longer covers the whole elevation as an unbroken grid.
+  var scA=Math.round(w*(((seed>>>11)%40)/100)), scB=scA+Math.round(w*(0.35+((seed>>>17)%35)/100));
+  for(var sxs=x0+3+scA; sxs<Math.min(x0+w-3,x0+3+scB); sxs+=bay){
+    var shh=((sxs*2654435761)>>>0), tall=sh-Math.round((shh%3)*flr*0.7);   // ragged at the top
+    if((shh%9)===0) continue;                                             // a bay not yet erected
+    if(tall<2) continue;
+    g.fillStyle=L>0.5?"#828a96":"#262c36"; g.fillRect(sxs,gy-6-tall,1,tall);
+    g.fillStyle=L>0.5?"#9098a4":"#2c333e";
+    for(var dl=0; dl<tall; dl+=flr) g.fillRect(sxs,gy-6-dl,Math.min(bay,x0+w-3-sxs),1);   // decks span one bay only
+  }
+  // ---- SAFETY NETTING over the scaffolded stretch: semi-transparent, so the frame reads through it
+  if(sh>4 && scB>scA){
+    g.fillStyle=L>0.5?"rgba(96,150,104,0.34)":"rgba(30,58,40,0.40)";
+    g.fillRect(x0+3+scA,gy-6-sh,Math.min(scB-scA,w-6-scA),sh);
+  }
   // tower crane on the right edge: mast + jib + swaying hook load
   var mx=x0+w-5, mastTop=gy-6-sh-12;
   g.fillStyle=L>0.5?"#d0a840":"#7a6320"; g.fillRect(mx,mastTop,2,gy-6-mastTop);
