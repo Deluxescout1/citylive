@@ -13738,13 +13738,19 @@ function drawSeaFrontEdgeBuilt(g,L,now,top,h,K,day,k,nm){
   // the wall's own shadow lying on the water, which is what seats it IN the water rather than on it
   // ⚠ the shadow and the tide line were two more ruled edges. A shadow on moving water has a broken
   // edge and a tide mark is a stain, not a pencil line — both now vary along their own length.
-  g.fillStyle="#000000";
-  for(var sh8=0; sh8<SW; sh8+=Math.max(2,Math.round(3*K))){
-    var sw8=Math.max(2,Math.round(3*K)), sh9=((sh8+WOFF)*2246822519)>>>0;
-    g.globalAlpha=0.20+((sh9%100)/100)*0.16;
-    g.fillRect(sh8,top+wallH+((sh9>>>7)%2),sw8,Math.round(2.4*K)-((sh9>>>3)%2));
-  }
-  g.globalAlpha=1;
+  // ⚠⚠ THIS IS THE LINE NICK KEPT SEEING. "that bottom line looks really bad… okay it isn't fixed I
+  // still see it." Profiling the frame put it at rows carrying (58,52,54) — the wall colour darkened
+  // — with open water both above and below. It is the wall's SHADOW: a band of fixed depth painted
+  // across the full width at a constant alpha, so however much the alpha was jittered per segment it
+  // still began and ended at two hard horizontal edges.
+  // I varied the alpha ALONG the band and thought that was the fix. It was not: the fault is the same
+  // one as the rain veil an hour earlier — a wash that STOPS instead of fading. A shadow on water has
+  // no lower edge at all, it just runs out. One gradient to fully transparent, and there is nothing
+  // left to see a line in.
+  var shg=g.createLinearGradient(0,top+wallH,0,top+wallH+Math.round(4.5*K));
+  shg.addColorStop(0,"rgba(0,0,0,0.34)");
+  shg.addColorStop(1,"rgba(0,0,0,0)");
+  g.fillStyle=shg; g.fillRect(0,top+wallH,SW,Math.round(4.5*K));
   var tideC=mixc(wall,[40,60,70],day?0.34:0.20);
   for(var td=0; td<SW; td+=Math.max(2,Math.round(4*K))){
     var tw=Math.max(2,Math.round(4*K)), th8=((td+WOFF)*2654435761)>>>0;
