@@ -21693,8 +21693,40 @@ function drawMountains(g,L,now,nd){
   // Aerial perspective is real and worth keeping, so the shape and the falloff are untouched; only
   // the AMOUNT comes down. That is Nick's rule for exactly this case: realism for shape, readability
   // for colour. 0.50 -> 0.34 far, 0.24 -> 0.15 near — still clearly receding, no longer dissolving.
-  var farC =mixc(mixc(day?B.far:dim(B.far),  skc, day?0.34:0.30), [200,124,152], sunsetK*0.34);
-  var nearC=mixc(mixc(day?B.near:dim(B.near),skc, day?0.15:0.16), [150,92,124], sunsetK*0.3);
+  var farC =mixc(mixc(day?B.far:dim(B.far),  skc, day?0.34:0.30), [200,124,152], sunsetK*0.17);
+  var nearC=mixc(mixc(day?B.near:dim(B.near),skc, day?0.15:0.16), [150,92,124], sunsetK*0.15);
+  // ⚠⚠⚠ A CONTRAST FLOOR, BECAUSE TUNING KEEPS LOSING TO THE SUNSET. Nick, in caps, looking at THE
+  // DOLOMITES at 7:57 PM: the rock and the sky were within a few units of each other and the whole
+  // frame was pink mush with a range you could barely find in it.
+  // Every ingredient is individually defensible — pale limestone, aerial haze toward the sky, and an
+  // alpenglow push toward [150,92,124] — and stacked at golden hour on the palest land in the set they
+  // add up to rock the same value as the air behind it. This is the "BLENDS INTO ITS OWN SKY" fault
+  // from the readability pass, which was fixed for karst and the Empyrean at NOON and never checked at
+  // sunset on anything.
+  // ⚠ So this is not another tuning. It is a GUARANTEE: whatever the hour, the weather and the
+  // variant, the near band is held at least a fixed distance below the sky in luminance, and the far
+  // band a little less. If the arithmetic above lands closer than that, the rock is darkened until it
+  // clears — shape and hue untouched, exactly Nick's rule of realism for shape and readability for
+  // colour. A land can never again dissolve into its own air at any hour.
+  function lum(c){ return 0.299*c[0]+0.587*c[1]+0.114*c[2]; }
+  function clearOf(c,ref,need){
+    var d=lum(ref)-lum(c); if(d>=need) return c;
+    var k=Math.min(0.72,(need-d)/Math.max(24,lum(c)));
+    return mixc(c,[0,0,0],k);
+  }
+  // ⚠ AND THE REFERENCE HAS TO BE THE SKY THAT IS ACTUALLY ON SCREEN. My first cut held the rock below
+  // `skc` and changed almost nothing, because at golden hour `skc` is not what you are looking at —
+  // the sky behind the range is the warm phase colour, far brighter than the biome's haze reference.
+  // Holding rock below the wrong sky is the same as not holding it at all.
+  var skyRef=mixc(skc,[255,206,186],(goldenK||0)*0.75);
+  // ⚠ AND THE ALPENGLOW PUSH IS THE THING DOING THE DAMAGE. Sending pale limestone 30% toward
+  // [150,92,124] under a pink sky is what closes the gap in the first place; a floor that then drags
+  // it back down is fighting the previous line. Halved, with a matching darkening, so the rock still
+  // catches the sunset without joining it.
+  farC =mixc(farC, [0,0,0], (goldenK||0)*0.16);
+  nearC=mixc(nearC,[0,0,0], (goldenK||0)*0.22);
+  farC =clearOf(farC, skyRef, 30);
+  nearC=clearOf(nearC,skyRef, 52);
   var snF=mixc(day?B.cap:mixc(B.cap,[0,0,0],0.62), [255,168,148], sunsetK*0.55);   // alpenglow on the snow
   var snN=mixc(day?mixc(B.cap,[255,255,255],0.35):mixc(B.cap,[0,0,0],0.55), [255,150,128], sunsetK*0.6);
   var litK=Math.max(0,Math.min(1,(L-0.34)*2.4));                  // how hard the sun models the rock
@@ -21739,9 +21771,15 @@ function drawMountains(g,L,now,nd){
         // they are NOT all the same thickness. Snapping to a ladder whose rungs are individually
         // jittered keeps the tops dead flat and the beds world-consistent — bed 7 is bed 7 at every
         // x, on every monitor — while making no two benches the same depth.
+        // ⚠ SCOPED TO THE BUTTE LANDS. This jitter was written for RED MESA's wedding-cake cones and
+        // has no business on THE DOLOMITES, whose stepping is its own deliberate look. Verified by
+        // reverting it and re-rendering: the dolomites' stair-steps are there either way, so it was
+        // not the cause of the damage — but a land he is unhappy with is the wrong place to carry a
+        // change that was never meant for it.
         if(B.flat>0 && rh0>2){
-          var qb=Math.floor(rh0/strata);
-          rh0=(qb+((mixLi((qb*7919)>>>0,4649)%100)/100-0.5)*0.62)*strata;
+          if(B.buttes){ var qb=Math.floor(rh0/strata);
+            rh0=(qb+((mixLi((qb*7919)>>>0,4649)%100)/100-0.5)*0.62)*strata; }
+          else rh0=Math.round(rh0/strata)*strata;
         }
         // ---- BUTTES, NOT A WALL -------------------------------------------------------------
         // ⚠ The mesa read as ONE unbroken flat line across the entire world, which is the single
@@ -21853,7 +21891,7 @@ function drawMountains(g,L,now,nd){
   ridgeFill(g,css(dstC),mtsCache.h[2],gy);
   var passes=[[css(farC),css(snF)],[css(nearC),css(snN)]];
   for(var pi=0;pi<2;pi++){
-    var mc=passes[pi][0], sc=passes[pi][1], hs=mtsCache.h[pi];
+    var mc=passes[pi][0], sc=passes[pi][1], hs=mtsCache.h[pi], bandRGB=null;
     var snl=mtsCache.mx[pi]*(0.72-snowLo);                        // one ABSOLUTE snowline per ridge —
     ridgeFill(g,mc,hs,gy);
     // SLOPE LIGHT — the change that turned six flat silhouettes into landforms. Every ridge was a
@@ -21998,6 +22036,7 @@ function drawMountains(g,L,now,nd){
     // lands up for re-verification in the same commit.
     if(B.alpine && pi<=1){
       var fmx=mtsCache.mx[pi]||1, hazeF=(pi===0?0.34:0.15);
+      bandRGB=(pi===0?farC:nearC);                // everything drawn ON the rock is made OF the rock
       // CLIFF LEDGES — bands of exposed rock, dark under the overhang and bright on the lip.
       // ⚠ FIRST VERSION RAN THEM CONTINUOUSLY ACROSS THE FACE at a fraction of each column's own
       // height, and it came out as CONTOUR LINES: three long wavy stripes swinging up over every peak
@@ -22033,10 +22072,15 @@ function drawMountains(g,L,now,nd){
           }
           if(lyy!==ly2){
             if(ls2>=0&&ly2>-999){
-              g.fillStyle="rgba(14,12,22,0.22)"; g.fillRect(ls2,ly2,lx2-ls2,ledTh);
-              // ⚠ the lip is SUNLIT rock. Left at a hardcoded warm white it became two dozen bright
-              // dashes across a face that had gone almost black — the one new element with no night branch.
-              g.fillStyle=day?"rgba(255,250,236,0.22)":"rgba(150,164,198,0.16)"; g.fillRect(ls2,ly2-lipT,lx2-ls2,lipT);
+              // ⚠⚠ AND THEY MUST BE MADE OF THE ROCK. Nick, in caps, about THE DOLOMITES at sunset.
+              // These were a hardcoded near-black and a hardcoded warm white — fine on grey alpine
+              // rock at noon, and FOREIGN GREY DASHES lying across a face the sunset has turned pink.
+              // A shadow is the same material with less light on it and a lit lip is the same material
+              // with more; neither is ever its own colour. Both derive from this band's own fill now,
+              // so they tint with the rock through every hour and every variant — which also retires
+              // the day/night special case I added for the same symptom two commits ago.
+              g.fillStyle=rgba(mixc(bandRGB,[0,0,0],0.55),0.30);   g.fillRect(ls2,ly2,lx2-ls2,ledTh);
+              g.fillStyle=rgba(mixc(bandRGB,[255,255,255],day?0.42:0.20),0.30); g.fillRect(ls2,ly2-lipT,lx2-ls2,lipT);
             }
             ls2=(lyy>-999)?lx2:-1; ly2=lyy;
           }
@@ -22271,7 +22315,7 @@ function drawMountains(g,L,now,nd){
           if(cy2<ctop||cy2>=gy) continue;
           // the ROCK WALL the snow sits between — drawn first, on the shaded side, so the snow reads
           // as lying IN something. This one rect is the difference between a cleft and a scratch.
-          g.fillStyle=rgba(day?[52,58,74]:[14,16,24],(0.34-0.24*cf));
+          g.fillStyle=rgba(mixc(bandRGB||[60,66,80],[0,0,0],0.52),(0.34-0.24*cf));   // rock, not slate
           g.fillRect(cxs+lean-Math.max(1,Math.round(KSP*0.7)),cy2,Math.max(1,Math.round(KSP*0.7)),1);
           // ⚠ at night the rock is down around [16,20,45] and a snow value of [126,140,166] at 0.85 is
           // the brightest thing on the face — the couloirs stopped being snow and became scratches
@@ -22279,8 +22323,10 @@ function drawMountains(g,L,now,nd){
           // ⚠ the tail fades to nothing over the last third. A gully that stops at full strength ends
           // in a horizontal edge, and a hard end to a vertical feature is just another line.
           var cFade=cf>0.66?(1-(cf-0.66)/0.34):1;
-          g.fillStyle=(B.alpine&&!day)?rgba([92,104,134],(0.50-0.34*cf)*cFade)
-                                      :rgba(day?[240,246,252]:[126,140,166],(0.85-0.55*cf)*cFade);
+          // snow lit by whatever light is actually falling on this range — at sunset that is pink, and
+          // a fixed blue-white streak on a pink face is the same clash the grey ledges were
+          g.fillStyle=(B.alpine&&!day)?rgba(mixc(bandRGB||[92,104,134],[150,166,200],0.55),(0.50-0.34*cf)*cFade)
+                                      :rgba(day?(bandRGB?mixc(bandRGB,[255,255,255],0.86):[240,246,252]):[126,140,166],(0.85-0.55*cf)*cFade);
           g.fillRect(cxs+lean,cy2,wq2,1);
         }
       }
