@@ -21823,6 +21823,43 @@ function drawVolcano(g,L,now,nd){
   // Everything below is permanent and static per world-x, so it costs a few hundred rects once and
   // reads at any hour, in any mood.
   var vBase=mixc(day?B.near:[16,14,16],biomeSkc(day),day?0.24:0.20);
+  // ============ SUN AND SHADOW ON THE CONE ============
+  // Nick's first pick of the whole graphical overhaul, and the reason is that a cone is the easiest
+  // shape in nature to model with light: one flank faces the sun and the other does not, and the
+  // terminator between them runs down the mountain. Without it a volcano is a flat silhouette in one
+  // tone — which is exactly the "flat grey tone across 45% of the frame" he confirmed as a fault.
+  // ⚠ IT FOLLOWS THE REAL SUN. `curSunDf` is where the sun is in its arc (0 sunrise .. 1 sunset), so
+  // the lit side swings from east to west through the day and the shading is level at noon. Keyed off
+  // the same term the water's glitter path uses, so the two agree about where the light is coming
+  // from — a mountain lit from the left with a sun path on the right is the kind of contradiction
+  // nobody names but everybody feels.
+  // ⚠ ZERO EXTRA RECTS: this rides the per-column pass the strata already walk, exactly as the alpine
+  // ribs do. It is a colour decision per column, not a new layer.
+  // ⚠ AND IT MUST NOT VANISH AT NIGHT. The alpine face shipped broken because its ribs scaled by
+  // `litK`, which is 0 after dark, so the whole treatment silently reverted. Here the modelling falls
+  // to a floor rather than to nothing: after sunset the cone is still shaped by skylight and by the
+  // moon, just far more gently.
+  var sunDir=((typeof curSunDf!=="undefined"?curSunDf:0.5)-0.5)*2;     // -1 sun in the east .. +1 in the west
+  // ⚠ `litK` lives in drawMountains, not here — the fauna-contract test caught the reference on the
+  // first run, which is precisely what it was written for. Same formula, computed locally.
+  var vLit=Math.max(0,Math.min(1,(L-0.34)*2.4));
+  var modelK=0.34*vLit+0.10;                                           // never zero — night keeps a gentle shape
+  for(var mx2=Math.max(0,sx-Math.round(sh*1.6)); mx2<Math.min(SW,sx+Math.round(sh*1.6)); mx2++){
+    var mh3=hs[mx2]; if(mh3==null||mh3<=0) continue;
+    var mtop=gy-Math.round(mh3);
+    // how far round the cone this column sits: -1 on the left flank, +1 on the right
+    var mu=Math.max(-1,Math.min(1,(mx2-sx)/Math.max(1,sh*1.1)));
+    // …and how directly that flank faces the sun. Squared so the terminator is a soft roll, not an edge.
+    var face=-mu*sunDir;                                               // +1 facing the sun, -1 turned away
+    var shade=face*modelK;
+    if(shade>0.001){                                                   // the lit flank
+      g.fillStyle="rgba(255,246,222,"+(shade*0.5).toFixed(3)+")";
+      g.fillRect(mx2,mtop,1,Math.max(1,gy-mtop));
+    } else if(shade<-0.001){                                           // and the one in its own shadow
+      g.fillStyle="rgba(14,12,22,"+((-shade)*0.62).toFixed(3)+")";
+      g.fillRect(mx2,mtop,1,Math.max(1,gy-mtop));
+    }
+  }
   // --- STRATA: the layered ash-and-lava bedding a stratovolcano is literally named for. Bands follow
   // the ridge so they wrap the cone instead of lying flat across it.
   for(var st=1;st<9;st++){
