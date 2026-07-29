@@ -19449,15 +19449,30 @@ function drawBiomeDetail(g,L,now,nd){
     var wnd0=(weather.wind==null?5:weather.wind), hzC=biomeSkc(day);
     for(var wt=0;wt<8;wt++){
       var wtx=Math.round(sd()*WW), wth=Math.round(gy*(0.19+(((wt*37)%13)/13)*0.13));
-      var deep=0.28+((wt*7)%5)*0.06;                    // how far into the haze this one stands
-      var twC=css(mixc(day?[176,180,186]:[38,44,56], hzC, deep));
+      // ⚠⚠ THE BLADES WERE A DOTTED LINE OF SQUARES. Nick: "make all the windmill run smooth." Each
+      // blade was drawn by marching out from the hub in steps of 0.8K and stamping a 2K square at
+      // every stop — so the blade was a row of beads with gaps between them, and every bead rounded
+      // its own position to whole pixels INDEPENDENTLY. As the angle turns, each bead snaps to its
+      // own grid at its own moment, and the blade appears to crawl and flicker rather than sweep.
+      // That is the stutter, and it is not a frame-rate problem: it is quantisation noise multiplied
+      // by however many beads a blade has.
+      // Marched in ONE-pixel steps so the blade is continuous, and TAPERED — wide at the root, one
+      // pixel at the tip, which is both what a turbine blade is and what stops the tip beading.
+      // ⚠ AND THEY ARE DRAWN SOLIDLY NOW. He asked for prominent: these were hazed up to 0.52 toward
+      // the sky, which on a pale sky is a ghost. The far ones still recede, they just exist.
+      var deep=0.12+((wt*7)%5)*0.045;                   // how far into the haze this one stands
+      var twC=css(mixc(day?[168,174,184]:[44,52,66], hzC, deep));
       var tw2=Math.max(1,Math.round(2*K)), R2=Math.round(wth*0.34);
       for(var w9=-1;w9<=1;w9++){ var wsx2=wtx-WOFF+w9*WW; if(wsx2<-R2-8||wsx2>SW+R2+8) continue;
-        g.fillStyle=twC; g.fillRect(wsx2|0,(gy-wth)|0,tw2,wth);                       // the tower
-        var hub2=gy-wth, spin=now*0.00026*(0.20+Math.min(1,wnd0/22));
-        for(var bl5=0;bl5<3;bl5++){ var a5=spin+bl5*2.0944;
-          for(var r5=Math.round(2*K);r5<R2;r5+=Math.max(1,Math.round(K*0.8)))
-            g.fillRect((wsx2+Math.cos(a5)*r5)|0,(hub2+Math.sin(a5)*r5*0.96)|0,tw2,tw2); }
+        g.fillStyle=twC;
+        for(var ty2=0;ty2<wth;ty2++)                                                  // a tapered tower
+          g.fillRect((wsx2-((ty2/wth)*tw2*0.5))|0,(gy-ty2)|0,Math.max(1,Math.round(tw2*(0.6+0.4*(1-ty2/wth)))),1);
+        var hub2=gy-wth, spin=now*0.00042*(0.18+Math.min(1,wnd0/20));
+        for(var bl5=0;bl5<3;bl5++){ var a5=spin+bl5*2.0944, ca5=Math.cos(a5), sa5=Math.sin(a5)*0.96;
+          for(var r5=Math.round(1.5*K);r5<R2;r5++){
+            var tp=1-(r5/R2), bwid=Math.max(1,Math.round(tw2*(0.35+0.65*tp)));
+            g.fillRect((wsx2+ca5*r5)|0,(hub2+sa5*r5)|0,bwid,Math.max(1,Math.round(K*0.6)));
+          } }
         g.fillRect((wsx2-tw2)|0,(hub2-tw2)|0,tw2*3,tw2*2);                            // the nacelle
         if(!day&&((wt+Math.floor(now/1500))&1)){                                      // aviation light
           g.fillStyle="rgba(255,72,64,0.85)"; g.fillRect(wsx2|0,(hub2-Math.round(2.4*K))|0,tw2,Math.max(1,Math.round(1.4*K))); }
@@ -19495,14 +19510,60 @@ function drawBiomeDetail(g,L,now,nd){
         g.fillStyle=day?"#8d6a4a":"#2a2018";                                     // the barn beside them
         g.fillRect((ssx2-Math.round(9*K))|0,(gy-Math.round(7*K))|0,Math.round(8*K),Math.round(7*K)); }
     }
-    var mwx=Math.round(sd()*WW), mwh=Math.round(20*K);
-    for(var w8=-1;w8<=1;w8++){ var msx=mwx-WOFF+w8*WW; if(msx<-16||msx>SW+16) continue;
-      g.fillStyle=day?"#b9bcb4":"#2e3236";
-      g.fillRect(msx|0,(gy-mwh)|0,Math.max(1,Math.round(2*K)),mwh);              // tower
-      var ang=now*0.0009, hub=gy-mwh;                                            // three turning blades
-      for(var bl3=0;bl3<3;bl3++){ var a3=ang+bl3*2.094;
-        for(var r3=1;r3<Math.round(9*K);r3++)
-          g.fillRect((msx+Math.cos(a3)*r3)|0,(hub+Math.sin(a3)*r3)|0,1,1); } }
+    // ⚠⚠ THE FARM WINDPUMP — the second kind Nick asked for, and the prairie's actual icon. What
+    // stood here was a MINIATURE TURBINE: a pole with three blades, spinning at a fixed `now*0.0009`
+    // regardless of the weather. That is the same machine as the wind farm behind it drawn smaller,
+    // which is why the plains only ever read as having one idea.
+    // A windpump is a different object entirely: a LATTICE tower, a rosette of a dozen-plus short
+    // blades, and a tail vane that keeps it pointed into the wind. The many-bladed disc is the whole
+    // silhouette — at this size it reads as a wheel, and nothing else on any map looks like it.
+    // ⚠ And it turns on the REAL wind like everything else here: fast in a blow, ambling in a breeze,
+    // and dead still when the air is calm, which is the detail that makes the whole map feel weathered
+    // rather than animated.
+    // ⚠⚠ AND SPACED ACROSS THE WORLD, NOT SCATTERED IN IT. Three at `sd()*WW` means a 776 px screen
+    // sees one on a good day and none on a bad one — the `landmarkXs` rule for the fifth time today:
+    // world-anchored placement is correct, and "a few somewhere in the world" is not the same as
+    // "one you can see". Stratified across the world with jitter inside each slice, so every monitor
+    // gets a windpump and no two screens get the same one.
+    var pumps=7;
+    for(var pw=0;pw<pumps;pw++){
+      // ⚠ TALL ENOUGH TO CLEAR THE CITY. The comment above the wind farm already recorded this trap
+      // once — everything the plains drew stood 7 to 22 px tall AT the horizon, so a mature skyline
+      // hid the lot and the biome rendered as empty sky over an ordinary town. I put the windpumps in
+      // at 16K and walked straight back into it: they were there and behind the elevated road. A real
+      // windpump tower is a landmark on a flat horizon precisely because it is tall.
+      var mwx=Math.round(((pw+0.5+(sd()-0.5)*0.7)/pumps)*WW), mwh=Math.round((30+((pw*13)%9))*K);
+      for(var w8=-1;w8<=1;w8++){ var msx=mwx-WOFF+w8*WW; if(msx<-16||msx>SW+16) continue;
+        var legW=Math.max(1,Math.round(K*0.7)), spread=Math.round(3.2*K);
+        g.fillStyle=day?"#8e9288":"#24282c";
+        for(var ty3=0;ty3<mwh;ty3++){                                            // the lattice tower, battered
+          var fr=ty3/mwh, off3=Math.round(spread*(1-fr));
+          g.fillRect((msx-off3)|0,(gy-ty3)|0,legW,1);
+          g.fillRect((msx+off3)|0,(gy-ty3)|0,legW,1);
+          if((ty3%Math.max(2,Math.round(3*K)))===0)                              // cross-bracing
+            g.fillRect((msx-off3)|0,(gy-ty3)|0,Math.max(1,off3*2),1);
+        }
+        var hub=gy-mwh, R3=Math.round(4.6*K);
+        var wnd3=(weather.wind==null?5:weather.wind);
+        var spin3=(wnd3<=1.5)?0:now*0.0016*(0.15+Math.min(1,wnd3/16));           // still when calm
+        g.fillStyle=day?"#c8ccc2":"#33383e";
+        for(var bl3=0;bl3<14;bl3++){                                             // the many-bladed rosette
+          var a3=spin3+bl3*0.4488;
+          for(var r3=Math.round(1.4*K);r3<R3;r3++)
+            g.fillRect((msx+Math.cos(a3)*r3)|0,(hub+Math.sin(a3)*r3*0.96)|0,1,1);
+        }
+        g.fillStyle=day?"#9aa096":"#2a2f34";                                     // the rim it is all pinned to
+        for(var rimA=0;rimA<26;rimA++){ var ra=rimA*0.2417;
+          g.fillRect((msx+Math.cos(ra)*R3)|0,(hub+Math.sin(ra)*R3*0.96)|0,1,1); }
+        g.fillStyle=day?"#7d8278":"#1e2226";
+        g.fillRect((msx-Math.round(K*0.6))|0,(hub-Math.round(K*0.6))|0,Math.max(1,Math.round(K*1.2)),Math.max(1,Math.round(K*1.2)));
+        var vane=Math.round(5*K);                                                // the tail vane, downwind
+        var vd=(wnd3<0)?-1:1;
+        g.fillRect((msx-vd*vane)|0,(hub-Math.round(K*0.3))|0,vane,Math.max(1,Math.round(K*0.6)));
+        g.fillStyle=day?"#b7bcb2":"#2c3136";
+        g.fillRect((msx-vd*(vane+Math.round(2.4*K)))|0,(hub-Math.round(1.8*K))|0,Math.round(2.6*K),Math.round(3.6*K));
+      }
+    }
   } else if(B.k==="beach"){
     // ⚠ The reef, the lagoon and the huts over the water are NOT here, even though this is where a
     // biome's detail belongs. drawBiomeDetail runs early in the backdrop and `drawHarbor` paints the
