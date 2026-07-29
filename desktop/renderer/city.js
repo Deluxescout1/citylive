@@ -21992,7 +21992,13 @@ function drawVolcano(g,L,now,nd){
     var tlBase=vDrop*(0.40+((WORLD_SEED>>>21)%18)/100);
     var canopy=css(mixc(day?[48,86,54]:[12,24,16],biomeSkc(day),day?0.14:0.10));
     var canLit=css(mixc(day?[70,116,66]:[16,32,20],biomeSkc(day),day?0.12:0.08));
-    for(var tx=Math.max(0,sx-Math.round(sh*1.6)); tx<Math.min(SW,sx+Math.round(sh*1.6)); tx++){
+    // ⚠ THE WHOLE MOUNTAIN, NOT A WINDOW ROUND THE SUMMIT. Nick: "make sure the trees are on the
+    // whole mountain, it just stops and looks weird." It did: the loop ran ±1.6× the summit height
+    // either side of the peak, so the forest ended at an invisible vertical boundary and bare rock
+    // carried on past it. Vegetation is not a property of being near the summit — it is a property of
+    // being BELOW THE TREELINE, so the test is the altitude and the loop is the whole screen. The
+    // sibling cone and the lower ground now get their forest for the same reason.
+    for(var tx=0; tx<SW; tx++){
       var trh=hs[tx]; if(trh==null||trh<=0) continue;
       var tRock=gy-Math.round(trh);
       var twx=tx+WOFF;
