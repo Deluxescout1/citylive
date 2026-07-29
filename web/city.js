@@ -15495,50 +15495,55 @@ function casualtyAt(cd,n){
            kind: (h>>>7)%3 };                        // which way they fell
 }
 // blood + a body, from the moment they fall until the city has cleared the street
-function drawCasualties(g,cd,L,now){
-  var GK=goreK(); if(GK<=0) return;                  // "off" still counts the dead, it just does not draw them
+// ⚠⚠ THE GROUND HALF, AND WHY IT IS A SEPARATE FUNCTION. Nick: "when there is blood make sure the
+// alive people run over it and the cars drive over it." He is right and it was backwards: this whole
+// function was called LAST, under a note reading "drawn last so nothing paints over the dead" — which
+// is the correct instinct for a BODY and exactly wrong for a STAIN. A pool on the road is part of the
+// road surface; the traffic and the crowd pass over the top of it. Painting it last put blood on top
+// of moving cars, which reads as a decal on the windscreen rather than a street with blood on it.
+// So the stain, the runnels, the gutter, the drag trails and the tyre tracks draw with the ROAD,
+// before a single car or pedestrian; the bodies stay late, where a solid object belongs.
+function roadPavedNow(){ return !curVillage && cityG>=0.30; }   // tyres only track blood once there is asphalt
+function drawCasualtyGround(g,cd,L,now){
+  var GK=goreK(); if(GK<=0) return;
   var N=casualtyCount(cd); if(!N) return;
   var f=cd.f; if(f<0.12) return;
   var day=L>0.5;
-  // ⚠⚠ PHASE 8 OVERRIDES THE RESTRAINT THIS FUNCTION WAS BUILT WITH. The original note here read
-  // "Restraint is deliberate: a pool that reads as a red puddle at 2 px is more disturbing and less
-  // silly than a spray", and it was a defensible call — but Nick has now asked for the opposite in as
-  // many words: "every disaster is a bloodbath if it applies". So the vocabulary stays (a hashed
-  // victim, a pool, a body, a stain that outlasts it) and the SCALE changes, under `CFG_GORE` so the
-  // old behaviour is still one config key away rather than deleted.
-  // ⚠ EVERYTHING BELOW IS STILL A PURE FUNCTION OF (seed, index, age). Pools that "spread and merge"
-  // are drawn as overlapping hashed discs, NOT accumulated — a fluid sim would diverge across Nick's
-  // three monitors within seconds and the same street would run red on one screen and be clean on the
-  // next. Same rule as the hunts: scripted from a hash, never simulated.
   var K=Math.max(1,KSP);
   for(var n=0;n<N;n++){
     var V=casualtyAt(cd,n);
-    if(f<V.dieF) continue;                           // not yet
-    var age=f-V.dieF;
-    // the body is carried away during the long aftermath, and the stain outlasts it
-    var bodyGone=age>0.30, stainA=Math.max(0, 1-age/0.62);
+    if(f<V.dieF) continue;
+    var age=f-V.dieF, stainA=Math.max(0, 1-age/0.62);
     if(stainA<=0.02) continue;
     var X=disX(V.x); if(X<-10||X>SW+10) continue;
     var Y=HORIZON-1;
-    // ---- THE BLOOD. It spreads for the first moments, then dries darker.
     var spread=Math.min(1, age/0.05);
     var bw=Math.max(2, Math.round((2+V.kind)*spread*K*0.7*(1+2.2*GK)));
     var dry=Math.min(1, age/0.34);
     var br=Math.round(150-70*dry), bg2=Math.round(18+10*dry), bb=Math.round(22+10*dry);
+    // ⚠ TYRE TRACKS. "The cars drive over it" is not only a draw-order question — traffic running
+    // through a pool CARRIES it, and the tracks are how you know the street is still being used.
+    // Two lanes' worth, fading as the wheel picks the road clean, and hashed off the victim so all
+    // three monitors lay the same tracks.
+    if(GK>0.5 && age>0.06 && roadPavedNow()){
+      for(var tk=0;tk<2;tk++){
+        var lane=LANE[(V.kind+tk*2)%LANE.length], tdir=lane.d;
+        var tlen=Math.round(Math.min(1,(age-0.06)/0.20)*(26+14*V.kind)*K);
+        var ty2=HORIZON+lane.o;
+        for(var tq=0;tq<tlen;tq++){
+          var tf=tq/Math.max(1,tlen);
+          if(((n*31+tq*7+tk*13)%5)<2) continue;                 // the print breaks up as it dries off
+          g.fillStyle="rgba("+Math.round(br*(0.62-0.32*tf))+","+bg2+","+bb+","+(stainA*(1-tf)*0.7).toFixed(3)+")";
+          g.fillRect((X+tdir*tq)|0, ty2, Math.max(1,Math.round(K*0.7)), Math.max(1,Math.round(K*0.5)));
+        }
+      }
+    }
     g.globalAlpha=stainA*(day?0.85:0.6);
     g.fillStyle="rgb("+br+","+bg2+","+bb+")";
     g.fillRect((X-(bw>>1))|0, Y, bw, Math.max(1,Math.round(K*0.5*(1+GK))));
     if(bw>3){ g.fillStyle="rgb("+Math.round(br*0.7)+","+bg2+","+bb+")";
-      g.fillRect((X-(bw>>1)+1)|0, Y-1, Math.max(1,bw-2), 1); }        // a little pooling at the edge
-    // ---- THE POOL, at full gore: lobes hashed off the victim's own seed so the edge is ragged and
-    // neighbouring pools OVERLAP into sheets without anything ever being accumulated. Three lobes is
-    // enough — the merging comes from pools of adjacent victims touching, not from lobe count.
+      g.fillRect((X-(bw>>1)+1)|0, Y-1, Math.max(1,bw-2), 1); }
     if(GK>0.5){
-      // ⚠ A POOL IS A SHAPE ON THE GROUND, NOT A LINE. The first pass at this widened the existing
-      // one-row mark to 18 world px and it still read as a dark dash: at three times the width and
-      // one pixel of height, a puddle is a pinstripe. Blood lying on a street has a FOOTPRINT — it
-      // runs out from under the body and pools where the camber takes it. Rows that narrow away from
-      // the body give it that footprint for the cost of four more rects.
       var pl, ph2, plx, ply, plw, pRows=Math.max(2,Math.round((2.2+1.6*V.kind)*K*spread));
       for(pl=0;pl<pRows;pl++){
         ph2=(((V.kind*7919+n*2654435761+pl*104729)>>>0));
@@ -15549,32 +15554,22 @@ function drawCasualties(g,cd,L,now){
         g.fillStyle="rgb("+Math.round(br*(0.86-0.12*pf3))+","+bg2+","+bb+")";
         g.fillRect((plx-(plw>>1))|0, ply, plw, 1);
       }
-      // …and a DRAG TRAIL where a body was pulled clear, which is the detail that says someone has
-      // been working this street rather than that the paint got wider.
       if(age>0.18){
-        var trl=Math.round(Math.min(1,(age-0.18)/0.18)*bw*1.6), tdir=(V.kind&1)?1:-1;
+        var trl=Math.round(Math.min(1,(age-0.18)/0.18)*bw*1.6), tdir2=(V.kind&1)?1:-1;
         g.fillStyle="rgb("+Math.round(br*0.62)+","+bg2+","+bb+")";
-        g.fillRect((X+(tdir>0?bw>>1:-(bw>>1)-trl))|0, Y, Math.max(1,trl), Math.max(1,Math.round(K*0.4)));
+        g.fillRect((X+(tdir2>0?bw>>1:-(bw>>1)-trl))|0, Y, Math.max(1,trl), Math.max(1,Math.round(K*0.4)));
       }
-      // ⚠⚠ AND IT RUNS OFF THE KERB. Nick, watching the first version: "make sure the blood flows into
-      // the streets." He is right, and it is the detail that sells the whole thing — a pool that stops
-      // dead at the kerb line is PAINT. Blood on a pavement runs downhill, finds the gutter, and
-      // crosses the roadway; that movement is what says liquid rather than decal.
-      // ⚠ Hashed like everything else here: the runnel's wander comes from the victim's own seed, so
-      // it takes the identical path on all three monitors. Nothing accumulates.
       var runL=Math.round(Math.min(1,age/0.14)*(4+2.6*V.kind)*K);
       if(runL>0){
         var rx2=X, rdx=0, rq;
         for(rq=0;rq<runL;rq++){
           var rh3=(((n*40503+rq*2654435761+(cd.seed|0))>>>0));
-          rdx+=(((rh3%3)|0)-1)*0.34;                                  // it wanders as it runs
+          rdx+=(((rh3%3)|0)-1)*0.34;
           rx2=X+Math.round(rdx);
           var rw2=Math.max(1,Math.round((1.6-1.0*(rq/runL))*K));
           g.fillStyle="rgb("+Math.round(br*(0.78-0.18*(rq/runL)))+","+bg2+","+bb+")";
           g.fillRect((rx2-(rw2>>1))|0, (Y+1+rq)|0, rw2, 1);
         }
-        // the GUTTER — where it collects along the kerb once enough has reached the road, and where
-        // neighbouring runnels join into one sheet without anything being accumulated
         var gutA=Math.min(1,age/0.22);
         if(gutA>0.15){
           var gw2=Math.round(bw*1.35*gutA);
@@ -15583,19 +15578,37 @@ function drawCasualties(g,cd,L,now){
         }
       }
     }
+    g.globalAlpha=1;
+  }
+}
+function drawCasualties(g,cd,L,now){
+  // ⚠ BODIES ONLY. The stain, the runnels, the gutter, the trails and the tyre tracks now draw with
+  // the road in `drawCasualtyGround` so the traffic and the crowd pass OVER them. What is left here
+  // is the one thing that genuinely belongs on top: a body is a solid object lying in the street, and
+  // a pedestrian walking past it should not erase it.
+  var GK=goreK(); if(GK<=0) return;
+  var N=casualtyCount(cd); if(!N) return;
+  var f=cd.f; if(f<0.12) return;
+  var day=L>0.5;
+  for(var n=0;n<N;n++){
+    var V=casualtyAt(cd,n);
+    if(f<V.dieF) continue;                           // not yet
+    var age=f-V.dieF;
+    var bodyGone=age>0.30, stainA=Math.max(0, 1-age/0.62);
+    if(bodyGone||stainA<=0.02) continue;             // carried away during the long aftermath
+    var X=disX(V.x); if(X<-10||X>SW+10) continue;
+    var Y=HORIZON-1;
     // ---- THE BODY, lying where they fell. Two rects and a head — the same vocabulary as drawPerson,
     // rotated flat, so it reads as one of the crowd rather than as a prop.
-    if(!bodyGone){
-      var cloth=PEDC[(n*7+(cd.seed|0))%PEDC.length], skin=SKINC[(n*5)%SKINC.length];
-      var dir=(V.kind&1)?1:-1;
-      g.globalAlpha=stainA;
-      g.fillStyle=css(mixc(hex2rgb(cloth),[0,0,0],day?0.25:0.55));
-      g.fillRect((X-2)|0, Y-1, 4, 1);                                  // torso, flat on the ground
-      g.fillStyle=css(mixc(hex2rgb(skin),[0,0,0],day?0.20:0.55));
-      g.fillRect((X+dir*3)|0, Y-1, 1, 1);                              // the head, fallen to one side
-      g.fillStyle=css(mixc(hex2rgb(cloth),[0,0,0],day?0.40:0.62));
-      g.fillRect((X-dir*2)|0, Y, 2, 1);                                // legs
-    }
+    var cloth=PEDC[(n*7+(cd.seed|0))%PEDC.length], skin=SKINC[(n*5)%SKINC.length];
+    var dir=(V.kind&1)?1:-1;
+    g.globalAlpha=stainA;
+    g.fillStyle=css(mixc(hex2rgb(cloth),[0,0,0],day?0.25:0.55));
+    g.fillRect((X-2)|0, Y-1, 4, 1);                                  // torso, flat on the ground
+    g.fillStyle=css(mixc(hex2rgb(skin),[0,0,0],day?0.20:0.55));
+    g.fillRect((X+dir*3)|0, Y-1, 1, 1);                              // the head, fallen to one side
+    g.fillStyle=css(mixc(hex2rgb(cloth),[0,0,0],day?0.40:0.62));
+    g.fillRect((X-dir*2)|0, Y, 2, 1);                                // legs
     g.globalAlpha=1;
   }
 }
@@ -27231,6 +27244,12 @@ function draw(g,pass){
   g.globalAlpha=1;
   g.restore();
   }
+  // ⚠ THE BLOOD GOES DOWN WITH THE ROAD. Nick: "when there is blood make sure the alive people run
+  // over it and the cars drive over it." Drawn here — after the asphalt and the lane paint, before a
+  // single car or pedestrian — so the traffic and the crowd pass over the top of it, and the tyres
+  // track it along the lanes. The bodies still draw late, in `drawCasualties`.
+  if(curDis) drawCasualtyGround(g,curDis,L,now);
+
   // THE OPEN WATER along the bottom of the frame, on the six coastal lands. Drawn AFTER the road
   // surface deliberately: the road code fills to SH and would otherwise lay asphalt over the sea.
   // ⚠ Drawing it here rather than earlier is what keeps it in front — the mistake that hid the
