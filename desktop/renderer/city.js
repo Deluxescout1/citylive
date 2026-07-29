@@ -4045,6 +4045,26 @@ var curMoonWX=null, curMoonIll=0;
 // (sky, buildings, terrain, water, mountains, clouds) so low-sun light reads as ONE event.
 var goldenK=0, goldC=[255,196,140];   // strength 0..1 near sunrise/sunset · rose-gold dawns, amber dusks
 function cwInst(cw){ return cityG >= 0.38+((cw.seed%997)/997)*0.2; }      // crosswalks get painted one at a time
+// The people who will use THIS crossing on THIS light cycle. ONE definition on purpose: the kerb
+// queue and the crossing itself have to be the same people, and the only thing making them the same
+// people is a shared rng consumption order. Generating the group twice from the same seed in two
+// places would work exactly until somebody edited one of them.
+// ⚠ `hour` is passed in because `rhythm` is a LOCAL of draw(), not a global — and the size has to be
+// derived in ONE place, since both call sites must agree on the group down to the last person.
+function cwGroup(cw,cyc,hour){
+  var rr=rng((cw.seed+cyc*7919)>>>0);
+  // 1–3 per cycle was the original, and it is what a crossing looks like at 3 a.m., not at 1 p.m.:
+  // measured, it put 1.35 people per screen on a crossing at any instant and a queue of one. Scaled
+  // by the SAME busyness terms the strollers use, so a downtown lunchtime crossing is a knot of
+  // people and the small hours stay honestly empty — Nick asked for dense-at-rush-hour, thin-at-3am.
+  var busy=districtBusy(districtAt(cw.x).name,hour)*growPop*(wmood.pedFactor||1);
+  var n=(rr()<0.9)?(1+((rr()*3)|0)):0;
+  n=Math.max(0,Math.min(7,Math.round(n*(0.55+1.9*busy))));
+  var out=[];
+  for(var p=0;p<n;p++) out.push({ off:150+rr()*500, up:rr()<0.5?1:-1, lo:((rr()*7)|0)-3,
+    pc:PEDC[(cw.seed+p*5)%PEDC.length], sk:SKINC[(cw.seed+p)%SKINC.length] });
+  return out;
+}
 
 // ---- world generation ----
 function pickType(r){ var v=r(); return v<0.46?"flat":v<0.62?"step":v<0.75?"peak":v<0.86?"water":v<0.94?"dome":"twin"; }
@@ -4845,6 +4865,26 @@ function pantsOf(c){ var v=PANTC[c]; if(v) return v;
 // a PROPER pixel person: hair, face with an eye, shoulders, swinging arms, two-tone
 // clothes, striding legs and shoes (4x7 — feet still land at y+2, so every call site
 // keeps working; heads just reach higher)
+// ---- THE WALKER'S BLOCK: how an anonymous stroller spends the next few seconds ----
+// Scripted from a hash, never simulated — the same contract the wildlife runs on, and for the same
+// reason: three monitors must agree on who is standing still without talking to each other.
+var PED_BLOCK=7200;                        // ms in one "what am I doing" block
+var PERSON_LIFT=0;                         // the 0/1 stride lift drawPerson last used (see the note in there)
+// ⚠ THE CEILING IS NOT A TUNING KNOB. `strollX` above carries the finding in its own comment: past
+// ~3.5 s in one spot a person stops reading as "waiting" and starts reading as BROKEN, and that is
+// the exact complaint that produced the doorstep shuffle ("there are still people still standing
+// there it looks bad af"). Holds are therefore expressed in ABSOLUTE ms and capped well under it —
+// not as a fraction of the block, which would quietly breach the rule if PED_BLOCK were ever raised.
+function gaitEase(u,h){
+  var k=h%5;
+  if(k<2) return u;                                        // 40% steady on — most of a crowd is going somewhere
+  if(k===2) return u*u*(3-2*u);                            // 20% ease off and pick up again: a stroll, not a march
+  var hf=(1200+((h>>>3)%1601))/PED_BLOCK;                  // 40% stop dead for 1.2-2.8 s — a window, a phone, someone they know
+  var st=(((h>>>11)%1000)/1000)*(1-hf);                    // …anywhere in the block, so a crowd never halts in unison
+  if(u<st) return u;
+  if(u<st+hf) return st;
+  return st+(u-st-hf)*(1-st)/(1-st-hf);                    // then make the time up — e(1)=1 exactly, so blocks join seamlessly
+}
 function drawPerson(g,x,y,cloth,skin,bob,kind){
   // bob is a WALK FRAME 0..3: 0 contact / 1 stride (lifted) / 2 contact / 3 counter-stride
   // (lifted, other leg leads). Legacy callers pass 0/1 and render exactly as before.
@@ -4866,6 +4906,12 @@ function drawPerson(g,x,y,cloth,skin,bob,kind){
              f=(Math.floor((FRAME_NOW+iph)/760))&1; }
   else f=(bob|0)&3;
   var lift=(f===1||f===3)?1:0, yy=(y-lift)|0;
+  // Published so a caller can hang a hat, a bag or an umbrella on this person and have it ride the
+  // SAME pixel. For a walking person the caller can derive the lift from the frame it passed in; for
+  // a STANDING one (bob<0) the phase is chosen in here from their own position and palette, so the
+  // caller cannot know it — and a hat that floats a pixel off the head every 760 ms is exactly the
+  // kind of thing that reads as broken at seven pixels a person.
+  PERSON_LIFT=lift;
   if(curBillsDress){                                                       // gameday, OR the Mafia's uniform mandate: citizens don Bills gear. Keyed off the ORIGINAL cloth/skin (a world seed) so a person crossing a bezel decides the same on both screens.
     var fanH=((cloth.charCodeAt(1)*7+cloth.charCodeAt(3)*13+skin.charCodeAt(2)*17)>>>0);
     var strict=(curRegime&&curRegime.theme==="bills");                     // the Mafia enforces harder than a gameday crowd
@@ -11967,6 +12013,24 @@ function milledX(seed, salt, anchor, spread, now){
 // interpolate world-x along the SHORTEST wrapped path (SOL): a commuter never walks the long way round
 function lerpWX(a, b, t){ var d=b-a; if(d>WW/2)d-=WW; if(d<-WW/2)d+=WW; return wrapW(a + d*t); }
 var drawnPopRef=null;   // the roster the current drawnNamed[] was drawn from (for relationship-aware speech)
+// What share of the named cast is still out on the street at hour hh.
+// ⚠⚠ THIS REPLACES A CLIFF. It used to be `night && (seed>>>20)%5 !== 0`, with `night = hh<6||hh>=22`
+// — so at 21:59 the whole cast was out and at 22:00 four fifths of it vanished between one frame and
+// the next. Nick's complaint about the crowd came from a NIGHT screenshot, and this was most of it:
+// measured on the sprawl, the street carried 6× fewer people at 23:00 than at 08:00 while the plains
+// only dropped 1.6×. Same fault family as `goldenK`, which was non-zero for about an hour a day
+// because it came off a term that is nearly a step at sunset — no reshaping of the boolean fixes a
+// boolean; it has to be keyed to the clock and given a shape.
+// ⚠ Both ENDS are deliberately unchanged: 1.0 by day and 0.2 in the small hours are exactly what the
+// old gate produced. Only the shoulders moved, so a normal evening keeps its people and 3 a.m. is as
+// dead as it ever was — this is not a licence to fill the night with a daytime crowd.
+function peopleOutK(hh){
+  var hhN=(hh<7)?hh+24:hh;                       // one continuous evening→morning axis: 7:00 … 31:00
+  return hhN<21 ? 1
+       : hhN<25 ? 1-0.8*((hhN-21)/4)             // 21:00 → 01:00 the street empties, gradually
+       : hhN<29 ? 0.2                            // 01:00 → 05:00 genuinely dead
+       : 0.2+0.8*((hhN-29)/2);                   // 05:00 → 07:00 the city wakes up again
+}
 function drawNamedCitizens(g, now){
   drawnNamed.length=0; drawnPopRef=null;
   if(!near || !near.blds) return;
@@ -11979,7 +12043,7 @@ function drawNamedCitizens(g, now){
   var cap=(QUAL>=2?PEOPLE_N:(QUAL>=1?120:70)), drawn=0;
   for(var i=0;i<pop.length && drawn<cap;i++){ var p=pop[i];
     if(!p.arrived || !p.alive) continue;
-    if(night && ((p.seed>>>20)%5)!==0) continue;                  // most are asleep inside at night
+    if((P_hash(p.seed^0x4E494748)%1000)/1000 >= peopleOutK(hh)) continue;   // most are asleep inside at night — but the street empties GRADUALLY, see peopleOutK
     if(curf>0 && ((p.seed>>>10)%10) < curf*9) continue;           // curfew: ~90% obey and stay inside at full strength
     var J=P_job(p), hw=peopleHomeWork(near, p.seed, J.building, J.commutes, cityG);   // P_job: fallback-safe
     if(hw.homeB<0) continue;
@@ -28409,7 +28473,22 @@ function draw(g,pass){
   // ---- pedestrians strolling the sidewalk (crowd size varies by district, hour & weather) ----
   for(i=0;i<peds.length;i++){ var pd=peds[i];
     var jog=((i%9)===4);                                       // ~1 in 9 is a jogger — a CONSTANT per-ped speed (weather no longer toggles it → no position jump)
-    var pwx=wrapW(pd.x0+pd.dir*pd.sp*(jog?2.1:1)*KSP*now), pdist=districtAt(pwx).name;   // constant speed → smooth stroll (was *wmood.speedK*now → jumped when weather changed)
+    // ⚠⚠ THE CONVEYOR BELT. Nick asked for a crowd that DOES things; the first thing it had to stop
+    // doing is slide. Every stroller was `x0 + dir*sp*now` — a constant velocity, forever, with no
+    // stop in it. Nobody paused at a window, nobody waited, nobody stood. It is the same fault he
+    // named on the savanna ("not just running from one side of the screen to the other") and it wants
+    // the same answer as the wildlife: BEHAVIOUR SCRIPTED FROM A HASH, never simulated, or the three
+    // monitors diverge. Time is cut into blocks; a hash picks how this walker spends this block.
+    // ⚠ The ANCHORS stay on the original constant-velocity track (A0/A1 below), and every easing curve
+    // satisfies e(0)=0 and e(1)=1 — so position is continuous across block boundaries and the
+    // long-run distribution, the wrap, and the district/keep logic are all untouched. That continuity
+    // is not optional: the previous author left a note here that making speed weather-dependent made
+    // walkers JUMP, and this is the same trap one level up.
+    var pspd=pd.dir*pd.sp*(jog?2.1:1)*KSP;
+    var pgB=Math.floor(now/PED_BLOCK), pgU=(now-pgB*PED_BLOCK)/PED_BLOCK;
+    var pgA0=pd.x0+pspd*(pgB*PED_BLOCK);
+    var pwx=wrapW(pgA0+pspd*PED_BLOCK*(jog?pgU:gaitEase(pgU,((i*2654435761)^(pgB*40503))>>>0)));
+    var pdist=districtAt(pwx).name;
     if(inSea(pwx)&&roadFNow()<0.85) continue;                  // nobody strolls over open water before the causeway
     if(!curDis && cityPhase!=="apoc" && !onPavedRoad(pwx)) continue;   // strollers only where the sidewalk is PAVED (no one on the dirt ahead of the paver); fleeing crowds exempt
     var fleeing=false;
@@ -28499,7 +28578,12 @@ function draw(g,pass){
     // kids (a head shorter, skipping along) or elders (silver hair, a cane, half pace)
     var pr9=((i*40503+7)>>>0)%12, kind=(!jog&&pr9===5)?1:((!jog&&pr9===8)?2:0);
     var cad=kind===2?0.45:(kind===1?1.5:[0.75,1,1,1.3][((i*2654435761)>>>0)%4]);
-    var bob=fleeing?((Math.floor(now/90)+i)&1):(Math.floor(now*0.004*cad+i*2.7)&3);
+    // ⚠ A STOPPED WALKER MUST STOP WALKING. The stride comes off the clock, so a person held by their
+    // gait block would otherwise march on the spot — worse than the slide it replaced. drawPerson
+    // already has the right pose for this: bob<0 is "standing about", which shifts their weight
+    // instead of freezing them at one pixel.
+    var pgMv=jog||fleeing||((gaitEase(Math.min(1,pgU+0.025),((i*2654435761)^(pgB*40503))>>>0)-gaitEase(pgU,((i*2654435761)^(pgB*40503))>>>0))>0.002);
+    var bob=fleeing?((Math.floor(now/90)+i)&1):(pgMv?(Math.floor(now*0.004*cad+i*2.7)&3):-1);
     var prow=HORIZON-1+pd.row, cloth=pd.c;
     if(kind===1&&!fleeing&&((Math.floor(now/260)+i)%6)===0) prow--;      // a little skip in the step
     var hh6=nowDate().getHours();
@@ -28509,8 +28593,9 @@ function draw(g,pass){
       continue; }
     if(wmood.cold) cloth=["#3a4a5a","#5a3a3a","#3a3a44","#4a4a3a","#4a3a2a"][i%5];   // winter coats
     if(jog){ cloth=["#ff5a5a","#4affc0","#ffd23a","#5aa8ff"][i%4]; bob=Math.floor(now/110+i)&3; }   // bright athletic wear, fast 4-beat stride
-    var blift=(bob===1||bob===3)?1:0, hdy=(kind===1)?1:0;                 // accessory lift follows the stride; kid heads sit 1px lower
+    var hdy=(kind===1)?1:0;                                               // kid heads sit 1px lower
     drawPerson(g, px, prow, cloth, pd.sk, bob, kind);
+    var blift=(bob<0)?PERSON_LIFT:((bob===1||bob===3)?1:0);               // accessory lift follows the stride — or, standing, the weight-shift drawPerson actually chose
     if(jog){ g.fillStyle=["#ff2a6a","#2affc0","#ffe23a","#2a8aff"][i%4]; g.fillRect((px+(pd.dir>0?0:1))|0,(prow-blift-4)|0,1,1);   // sweatband
       g.fillStyle=pd.sk; g.fillRect((px+(pd.dir>0?3:-2))|0,(prow-blift-1)|0,1,1); }                                              // arm pumping forward
     if(curOutbreak&&(i&1)){ g.fillStyle="#eef2f6"; g.fillRect(px|0,(prow-blift-3+hdy)|0,2,1); }   // N5: masked up
@@ -28635,6 +28720,30 @@ function draw(g,pass){
     var tt=(now+cw2.ph)%12000;
     if(tt<9000){                                              // green for cars — but a brave few jaywalk when it's clear
       var jcyc=Math.floor((now+cw2.ph)/12000);
+      // ⚠⚠ THE KERB WAS EMPTY FOR NINE SECONDS OUT OF EVERY TWELVE. The crossing worked, but the
+      // people using it appeared out of nothing the instant the light changed and were gone 1.8 s
+      // later — 1.35 of them per screen at any moment, and nobody EVER waiting. Nick asked for a
+      // crowd that waits at crossings; the machinery was all here, it just had no "before".
+      // So the group that is about to cross gathers here first, arriving one at a time.
+      // They stand, they do not march: bob<0 is drawPerson's weight-shift pose.
+      var wgrp=cwGroup(cw2,jcyc,rhythm.hour);
+      for(var wq=0;wq<wgrp.length;wq++){ var wgp=wgrp[wq];
+        // ⚠ 4400 ms, not 5400: the longest wait is now ~4.6 s, which is past the ~3.5 s ceiling
+        // `strollX` sets for standing about. That ceiling is about people stood in the middle of a
+        // pavement for NO VISIBLE REASON — the thing Nick called out. A person at a kerb under a red
+        // signal has the reason drawn next to them, and at 5400 the kerb was empty for 5/6 of the
+        // cycle, which is the fault being fixed. Deliberate, and bounded: nobody waits past one light.
+        if(tt < 4400+wq*520+(cw2.seed%500)) continue;                        // …not here yet
+        // ⚠ AT THE KERB, NOT ON THE PAVEMENT. The first version stood them at HORIZON-1 — the same row
+        // the strollers and the named citizens already occupy — and a rendered light cycle showed
+        // nothing: three more people in the back of a crowd is not a queue. What makes a queue read is
+        // that it stands FORWARD of everyone else, right on the lip of the road. HORIZON+2 is the kerb
+        // strip: past the furniture line, above the first lane (LANE[0].o is 5), and drawn after the
+        // crowd so it sits in front of it.
+        var wy=wgp.up>0?HORIZON+2:HORIZON+21;                                // waiting on whichever kerb they set off from
+        for(var ww2=-1;ww2<=1;ww2++){ var WX=cw2.x-WOFF+wgp.lo+ww2*WW; if(WX<-3||WX>SW+3) continue;
+          drawPerson(g,WX,wy,wgp.pc,wgp.sk,-1); }
+      }
       if(((((cw2.seed^jcyc)*2654435761)>>>0)%100)<18 && tt>3200 && tt<4700){
         var clear=true;
         for(var jc=0;jc<cars.length;jc++){ var dxj=cwxAll[jc]-cw2.x; if(dxj<0)dxj=-dxj; if(dxj>WW/2)dxj=WW-dxj;
@@ -28645,13 +28754,13 @@ function draw(g,pass){
             drawPerson(g,JX,jy,PEDC[cw2.seed%PEDC.length],SKINC[cw2.seed%SKINC.length],(Math.floor(tt/120))&1); } }   // running
       }
       continue; }
-    var cyc=Math.floor((now+cw2.ph)/12000), rr=rng((cw2.seed+cyc*7919)>>>0);
-    var nP=(rr()<0.9)?(1+((rr()*3)|0)):0;                                  // 0–3 people cross this cycle
-    for(var pp=0;pp<nP;pp++){
-      var off=150+rr()*500, upDir=rr()<0.5?1:-1, lo=((rr()*7)|0)-3,
-          pc=PEDC[(cw2.seed+pp*5)%PEDC.length], sk=SKINC[(cw2.seed+pp)%SKINC.length];
+    var cyc=Math.floor((now+cw2.ph)/12000), grp=cwGroup(cw2,cyc,rhythm.hour);          // 0–3 people cross this cycle — the same ones who just waited at the kerb
+    for(var pp=0;pp<grp.length;pp++){
+      var gp=grp[pp], off=gp.off, upDir=gp.up, lo=gp.lo, pc=gp.pc, sk=gp.sk;
       var wt=tt-9000-off; if(wt<0||wt>1800) continue;
-      var prog=wt/1800, py=upDir>0?lerp(HORIZON-1,HORIZON+23,prog):lerp(HORIZON+23,HORIZON-1,prog);
+      // ⚠ The two ends must be the SAME pixels the queue waited on, or a walker jumps backwards off
+      // the kerb the instant the light changes.
+      var prog=wt/1800, py=upDir>0?lerp(HORIZON+2,HORIZON+21,prog):lerp(HORIZON+21,HORIZON+2,prog);
       var bob=(((prog*8)|0)&1), c2x=cw2.x-WOFF+lo;
       for(var wp3=-1;wp3<=1;wp3++){ var CX2=c2x+wp3*WW; if(CX2<-3||CX2>SW+3) continue;
         drawPerson(g, CX2, py, pc, sk, bob); }
