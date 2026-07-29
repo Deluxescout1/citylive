@@ -13,10 +13,10 @@ Item {
     width: 1552; height: 874                  // 2327x1309 dpr=2 zoom=2 -> this canvas, woff 0, world 2269 wp
     property string land: "volcano"
     property int variant: 1                   // 1 = THE GREEN ISLAND (the one Nick screenshotted)
-    property int hour: 23
-    property var woffList: [0,776,1629]
+    property int hour: 13
+    property var woffList: [776]
     property int woi: 0
-    property var fs: [0.0]
+    property var fs: [0.04, 0.14, 0.22, 0.30, 0.40, 0.50, 0.62, 0.80, 1.0]
     property int fi: 0
     property int warm: 0
     property double t0: 0

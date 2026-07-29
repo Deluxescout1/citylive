@@ -15400,6 +15400,19 @@ function disasterInfo(idx){
     if(open){ if(hasOcean && r()<0.5) cx=Math.round(WW*seaW*0.5); else cx=Math.round(WW*(0.08+r()*0.10)); }   // splash down in the bay, or a scar in the open ground at the edge
   }
   var ruin = disDestroys(type) && intensity>=5 && !win && (r()<RUIN_CHANCE);   // a RARE lost CAT-5 that scars the district PERMANENTLY (rest of this life)
+  // ⚠⚠ ON A VOLCANIC LAND, AN ERUPTION COMES OUT OF THE VOLCANO. `cx` above is a free roll across the
+  // middle of the world, so the mountain could tear its own top off while the destruction, the
+  // casualties and the permanent ruin all landed half a world away from it. Re-anchoring it here is
+  // also what makes the town's destruction come out right for free: the existing per-block machinery
+  // already ruins what falls inside the footprint, and the footprint now sits under the mountain.
+  // ⚠⚠ AND IT MUST HAPPEN AFTER EVERY `r()` DRAW — here, immediately before the return, and it calls
+  // `r()` zero times. Overwriting `cx` up at its own line would shift `win`, `w`, `seed` and `ruin` for
+  // EVERY disaster on EVERY land, because they all come off the same stream in order. A placement that
+  // looks more natural would silently re-roll twenty maps' disaster history.
+  if(type==="volcano" && curBiome && curBiome.volcanic){
+    var vConeX=volcanoConeWX();
+    if(vConeX!=null) cx=Math.round(vConeX);
+  }
   return { idx:idx, type:type, intensity:intensity, t0:t0, x:cx, w:w, seed:seed, win:win, ruin:ruin, open:open };
 }
 // the disaster active RIGHT NOW (with phase fields), or null
@@ -15461,8 +15474,61 @@ function inZone(wx,ww,z){ var a=z.x-(z.w>>1)-2, b=z.x+(z.w>>1)+2; return wx< b &
 // three monitors agree on whether the mountain has blown without sharing any state.
 // ⚠ Cached per slot: this walks up to RUIN_MAXSCAN slots and is called every frame by the biome.
 var _vErupt={key:-1,v:null};
+// ⚠⚠ THE `FORCEDIS` SHORTCUT USED TO BE A HARD STEP: `FORCEDIS.f>0.5 ? {f:1} : null`, i.e. intact until
+// halfway through the eruption and then instantly, fully blown. That made the staged collapse
+// IMPOSSIBLE TO SEE in a harness — every render would have shown a pop no matter what was built, and I
+// would have been debugging the staging against a test hook that could not express it. Graded now, from
+// the same curve the real path uses.
+var VOLC_STEPS=7;                      // how many silhouette steps the collapse takes (coarse on purpose)
+// Eruption progress -> collapse progress. The top starts going once the column is up (f 0.16) and the
+// mountain has reached its FINAL shape by 0.62, comfortably before `drawVolcanoDisaster` stops drawing
+// at 0.86 — otherwise there is a window where the eruption has finished and the mountain still looks
+// intact, and then it snaps. The handover has to be invisible.
+function volcanoCollapseF(f){ return Math.max(0,Math.min(1,((f||0)-0.16)/0.46)); }
+// HOW FAR THROUGH LOSING ITS TOP IS THIS MOUNTAIN? 0 = intact, 1 = the collapse is complete (and stays
+// complete for the rest of the life). Quantised to `VOLC_STEPS`, because this value keys `mtsCache`:
+// a continuous term would rebuild the height field every frame, which is the citizen-sim freeze
+// mistake in a new costume. Seven steps is plenty — the SILHOUETTE steps down coarsely and the live
+// pass draws the smooth drama (column, bombs, debris) on top of it.
+// ⚠ Pure f(clock) like `volcanoErupted`, so all three monitors agree on the shape without sharing state.
+// ⚠ Deliberately does NOT reuse `_vErupt`'s cache: that is keyed on `floor(now/DIS_SLOT)`, which would
+// pin the value for a whole slot and freeze the collapse partway. The active-eruption branch is one
+// `disasterInfo` call and is not worth caching; the historical branch still uses the cached scan.
+function volcanoCollapse(now){
+  if(FORCEDIS){
+    if(FORCEDIS.type!=="volcano") return null;
+    var fcp=volcanoCollapseF(FORCEDIS.f);
+    if(fcp<=0) return null;
+    return { cp:Math.round(fcp*VOLC_STEPS)/VOLC_STEPS, i:FORCEDIS.intensity||3,
+             x:Math.round((FORCEDIS.xf||0.4)*WW), since:0, active:((FORCEDIS.f||0)<0.86) };
+  }
+  var cIdx=Math.floor(now/DIS_SLOT), cDi=disasterInfo(cIdx);      // is one happening RIGHT NOW?
+  if(cDi&&cDi.type==="volcano"){
+    var cTp=now-cIdx*DIS_SLOT-cDi.t0;
+    if(cTp>=0&&cTp<=DIS_DUR){
+      var acp=volcanoCollapseF(cTp/DIS_DUR);
+      if(acp<=0) return null;                                    // the column is up but the top is still on
+      return { cp:Math.round(acp*VOLC_STEPS)/VOLC_STEPS, i:cDi.intensity, x:cDi.x, since:0, active:true };
+    }
+  }
+  var vPast=volcanoErupted(now);                                 // …or did one already finish this life?
+  return vPast?{cp:1,i:vPast.i,x:vPast.x,since:vPast.since,active:false}:null;
+}
+// THE DOMINANT CONE'S WORLD X — the one volcano, in world space, not "the tallest column on this screen".
+// ⚠⚠ THIS DISTINCTION IS THE WHOLE REASON THE LAND CAN AGREE WITH ITSELF ACROSS THREE MONITORS.
+// `buildWorld` puts one dominant cone and two lesser siblings in `mts.near`, and the collapse is
+// world-anchored (it scans `mts.near`). The renderers, though, used to locate "the summit" by scanning
+// the on-screen profile for its tallest column — which at woff 0 and woff 1629 is a SIBLING. Left alone,
+// each monitor would have erupted whichever peak it could see while only one silhouette actually
+// changed: three craters, three plumes, one collapse.
+function volcanoConeWX(){
+  if(!mts||!mts.near||!mts.near.length) return null;
+  var pk=0,wx=null;
+  for(var vq2=0;vq2<mts.near.length;vq2++) if(mts.near[vq2].h>pk){ pk=mts.near[vq2].h; wx=mts.near[vq2].x; }
+  return wx;
+}
 function volcanoErupted(now){
-  if(FORCEDIS) return (FORCEDIS.type==="volcano"&&FORCEDIS.f>0.5)?{f:1}:null;
+  if(FORCEDIS) return (FORCEDIS.type==="volcano"&&volcanoCollapseF(FORCEDIS.f)>=1)?{f:1,i:FORCEDIS.intensity||3,x:Math.round((FORCEDIS.xf||0.4)*WW),since:0}:null;
   var base=Math.floor(now/DIS_SLOT);
   if(_vErupt.key===base) return _vErupt.v;
   var lifeStart=GROW_EPOCH - GROW_OFFSET_DAYS*86400000 - WORLD_SHIFT + lifeIndexOf(now)*GROW_CYCLE;
@@ -20933,7 +20999,13 @@ function drawBlastWreckage(g,L,now){
   var hs=mtsCache.h[1], gy=HORIZON, K=Math.max(1,KSP), day=L>0.5;
   var steel=css(day?[92,88,96]:[22,21,26]), pale=css(day?[168,164,158]:[34,33,36]);
   var burn=css(day?[58,50,46]:[14,12,12]);
-  var n=Math.round(26+18*K);
+  // ⚠ THE WRECKAGE ARRIVES WITH THE LANDSLIDE, NOT BEFORE IT. The collapse is staged now, so this used
+  // to appear whole and complete on the very FIRST silhouette step — debris on the scar before the scar
+  // existed. Scaled by the collapse progress the cache carries, so the field of ruins fills in as the
+  // flank actually goes.
+  var wkCp=(mtsCache.blowCp==null)?1:Math.max(0,Math.min(1,mtsCache.blowCp));
+  if(wkCp<=0.12) return;
+  var n=Math.round((26+18*K)*wkCp);
   for(var i=0;i<n;i++){
     var h=((i*2654435761+0x5731)>>>0);
     var wx=h%WW, sx=wx-WOFF;
@@ -21995,11 +22067,33 @@ function drawVolcanoSurface(g,L,now,nd){
   var B=curBiome; if(!B.volcanic||!mtsCache||!mtsCache.h||!mtsCache.h[1]) return;
   if(cityPhase==="apoc") return;                      // an ending has its own sky; don't compete with it
   var hs=mtsCache.h[1], gy=HORIZON, day=L>0.5, K=Math.max(1,KSP);
-  // THE SUMMIT is the tallest column of the near ridge on this screen — found, not stored, because the
-  // ridge is per-screen and the same world peak lands at a different x on each monitor.
-  var sx=-1, sh=0;
-  for(var x=Math.round(4*K);x<SW-Math.round(4*K);x+=Math.max(1,Math.round(2*K)))
-    if(hs[x]>sh){ sh=hs[x]; sx=x; }
+  // THE SUMMIT — and WHICH summit matters more than where it is.
+  // ⚠⚠ THIS USED TO BE "the tallest column on this screen", AND THAT IS WRONG ON TWO SCREENS OUT OF
+  // THREE. `buildWorld` puts one dominant cone plus two lesser siblings in `mts.near`, and the collapse
+  // is WORLD-anchored — `volcBlow` scans `mts.near` in world space. But this scan is SCREEN-anchored, so
+  // at woff 0 and woff 1629 it locks onto a sibling. Each monitor would then have put a crater and a
+  // full plume on whichever peak it happened to see, while only one of them ever lost its top: three
+  // craters, three plumes, one collapse, and no two screens telling the same story.
+  // So: find the DOMINANT cone in world space and, if it is on this screen, use it. Only that one is
+  // "the volcano" — `isDom` gates the crater glow and the plume, and a sibling gets a steam wisp and
+  // nothing else, which is exactly what a lesser cone in an archipelago should look like.
+  var domWX=volcanoConeWX(), sx=-1, sh=0, isDom=false;
+  if(domWX!=null){
+    var dsx=domWX-WOFF;                               // wrap it onto this screen's coordinates
+    while(dsx<-WW*0.5) dsx+=WW;
+    while(dsx>=WW*0.5) dsx-=WW;
+    if(dsx>-40*K&&dsx<SW+40*K){
+      // search a small window for the actual crest: crag noise moves it a pixel or two off the roll
+      var dLo=Math.max(0,Math.round(dsx-10*K)), dHi=Math.min(SW-1,Math.round(dsx+10*K));
+      for(var dx2=dLo;dx2<=dHi;dx2++) if(hs[dx2]!=null&&hs[dx2]>sh){ sh=hs[dx2]; sx=dx2; }
+      if(sx>=0&&sh>=26*K) isDom=true;
+    }
+  }
+  if(!isDom){                                         // no dominant cone here — dress the local peak instead
+    sx=-1; sh=0;
+    for(var x=Math.round(4*K);x<SW-Math.round(4*K);x+=Math.max(1,Math.round(2*K)))
+      if(hs[x]>sh){ sh=hs[x]; sx=x; }
+  }
   if(sx<0||sh<26*K) return;                           // no real cone on this screen
   var sy=gy-Math.round(sh);
   // THE STIR. A slow cycle: mostly quiet, occasionally restless. `unrest` 0..1.
@@ -22311,11 +22405,18 @@ function drawVolcanoSurface(g,L,now,nd){
   // mountain is permanently changed for the rest of the week: the crater is blown wider and ragged,
   // fresh black flows lie over the old channels, and the summit is grey with new ash.
   // It is the difference between a mountain that MIGHT go and one that HAS.
-  var erupted=volcanoErupted(now);
+  // ⚠⚠ THIS READS THE GRADED COLLAPSE, NOT "HAS IT FINISHED". It used to ask `volcanoErupted`, which
+  // only answers yes once the disaster has ENDED — so the whole post-eruption dressing (the blast bowl,
+  // the fresh ash, the new flows) appeared in a single frame after the eruption had already stopped
+  // drawing. There was a visible window where the column was gone and the mountain still looked
+  // untouched, and then everything arrived at once. Ramped on `cp` now, so the breach opens, the ash
+  // greys the summit and the flows come down WHILE the silhouette is stepping away.
+  var erupted=volcanoCollapse(now);
   if(erupted){
+    var eCp=erupted.cp;
     var fresh=Math.max(0,1-erupted.since/(GROW_CYCLE*0.28));       // still steaming for a while after
     // the blown crater: wider than the old notch and asymmetric, because a blast takes one wall out
-    var bcW=Math.round(crW*(1.9+0.5*(erupted.i||3)/5));
+    var bcW=Math.round(crW*(1.9+0.5*(erupted.i||3)/5)*(0.45+0.55*eCp));
     var bias=((WORLD_SEED>>>11)&1)?1:-1;
     // ⚠ CLIPPED, exactly like the intact crater above and for the same reason: this block struck rows
     // of constant width from the summit column, so on a peak it painted over open sky and produced
@@ -22329,7 +22430,7 @@ function drawVolcanoSurface(g,L,now,nd){
       while(br<SW-1 && br-bc<bw3){ bt=hs[br+1]; if(bt==null||(gy-Math.round(bt))>by) break; br++; }
       if(br>=bl) g.fillRect(bl,by,br-bl+1,1);
     }
-    g.fillStyle=css(mixc(vBase,[210,206,200],day?0.34:0.10));      // fresh ash greying the upper cone
+    g.fillStyle=css(mixc(vBase,[210,206,200],(day?0.34:0.10)*eCp)); // fresh ash greying the upper cone
     for(var ax2=Math.max(0,sx-Math.round(sh*0.8)); ax2<Math.min(SW,sx+Math.round(sh*0.8)); ax2++){
       var ah2=hs[ax2]; if(ah2==null) continue;
       var atop=gy-Math.round(ah2);
@@ -22349,7 +22450,8 @@ function drawVolcanoSurface(g,L,now,nd){
     var nfl=2+((WORLD_SEED>>>13)%2);
     for(var nf=0;nf<nfl;nf++){
       var nh2=((nf*2246822519+((WORLD_SEED*17)|0))>>>0);
-      vTongue(nh2,nf+7,0.04,0.55+((nh2>>>5)%25)/100,fresh);
+      // the flows only reach as far as the eruption has got — they GROW down the flank
+      vTongue(nh2,nf+7,0.04,(0.55+((nh2>>>5)%25)/100)*Math.max(0.18,eCp),fresh);
     }
   }
 }
@@ -22361,11 +22463,33 @@ function drawVolcanoLive(g,L,now,nd){
   var B=curBiome; if(!B.volcanic||!mtsCache||!mtsCache.h||!mtsCache.h[1]) return;
   if(cityPhase==="apoc") return;                      // an ending has its own sky; don't compete with it
   var hs=mtsCache.h[1], gy=HORIZON, day=L>0.5, K=Math.max(1,KSP);
-  // THE SUMMIT is the tallest column of the near ridge on this screen — found, not stored, because the
-  // ridge is per-screen and the same world peak lands at a different x on each monitor.
-  var sx=-1, sh=0;
-  for(var x=Math.round(4*K);x<SW-Math.round(4*K);x+=Math.max(1,Math.round(2*K)))
-    if(hs[x]>sh){ sh=hs[x]; sx=x; }
+  // THE SUMMIT — and WHICH summit matters more than where it is.
+  // ⚠⚠ THIS USED TO BE "the tallest column on this screen", AND THAT IS WRONG ON TWO SCREENS OUT OF
+  // THREE. `buildWorld` puts one dominant cone plus two lesser siblings in `mts.near`, and the collapse
+  // is WORLD-anchored — `volcBlow` scans `mts.near` in world space. But this scan is SCREEN-anchored, so
+  // at woff 0 and woff 1629 it locks onto a sibling. Each monitor would then have put a crater and a
+  // full plume on whichever peak it happened to see, while only one of them ever lost its top: three
+  // craters, three plumes, one collapse, and no two screens telling the same story.
+  // So: find the DOMINANT cone in world space and, if it is on this screen, use it. Only that one is
+  // "the volcano" — `isDom` gates the crater glow and the plume, and a sibling gets a steam wisp and
+  // nothing else, which is exactly what a lesser cone in an archipelago should look like.
+  var domWX=volcanoConeWX(), sx=-1, sh=0, isDom=false;
+  if(domWX!=null){
+    var dsx=domWX-WOFF;                               // wrap it onto this screen's coordinates
+    while(dsx<-WW*0.5) dsx+=WW;
+    while(dsx>=WW*0.5) dsx-=WW;
+    if(dsx>-40*K&&dsx<SW+40*K){
+      // search a small window for the actual crest: crag noise moves it a pixel or two off the roll
+      var dLo=Math.max(0,Math.round(dsx-10*K)), dHi=Math.min(SW-1,Math.round(dsx+10*K));
+      for(var dx2=dLo;dx2<=dHi;dx2++) if(hs[dx2]!=null&&hs[dx2]>sh){ sh=hs[dx2]; sx=dx2; }
+      if(sx>=0&&sh>=26*K) isDom=true;
+    }
+  }
+  if(!isDom){                                         // no dominant cone here — dress the local peak instead
+    sx=-1; sh=0;
+    for(var x=Math.round(4*K);x<SW-Math.round(4*K);x+=Math.max(1,Math.round(2*K)))
+      if(hs[x]>sh){ sh=hs[x]; sx=x; }
+  }
   if(sx<0||sh<26*K) return;                           // no real cone on this screen
   var sy=gy-Math.round(sh);
   // THE STIR. A slow cycle: mostly quiet, occasionally restless. `unrest` 0..1.
@@ -22442,7 +22566,11 @@ function drawVolcanoLive(g,L,now,nd){
     }
     g.globalAlpha=1;
   }
-  var glow=(1-L)*0.55+unrest*0.55;                     // reads at night, and by day only when stirring
+  // ⚠ THE GLOW AND THE PLUME BELONG TO THE DOMINANT CONE ONLY. A lesser cone in the archipelago gets
+  // the steam wisp above and nothing more: `unrest` is a world-wide clock, so without this gate all
+  // three peaks would flare and smoke in unison and the land would read as three volcanoes rather than
+  // one volcano and two islands.
+  var glow=isDom?((1-L)*0.55+unrest*0.55):0;           // reads at night, and by day only when stirring
   if(glow>0.06){
     g.globalCompositeOperation="lighter";
     g.fillStyle="rgba(255,"+((92+90*unrest)|0)+",40,"+(0.34*glow).toFixed(3)+")";
@@ -22460,6 +22588,7 @@ function drawVolcanoLive(g,L,now,nd){
     }
     g.globalCompositeOperation="source-over";
   }
+  if(!isDom) return;                                   // a sibling has no crater plume — see the gate above
   // THE PLUME. Always there; it darkens and thickens with unrest, and it LEANS on the real wind, so on
   // a still day it stands straight up and in a gale it lies over — same rule as every other accent.
   var wind=(weather.wind==null?5:weather.wind), lean=Math.min(2.2,wind/9);
@@ -23621,26 +23750,42 @@ function drawMountains(g,L,now,nd){
   var litK=Math.max(0,Math.min(1,(L-0.34)*2.4));                  // how hard the sun models the rock
   // ⚠ THE ONE PIECE OF STATE THE SILHOUETTE IS ALLOWED TO CARE ABOUT. mtsCache exists because the
   // range never moves within a life — which stopped being true the moment an eruption started taking
-  // the top off the mountain. So the cache is keyed on the eruption too, and flipping that state is
-  // the ONLY thing besides a new life that rebuilds it: once per life at most, on every screen, to the
-  // same shape, because `volcanoErupted` is pure history and not a runtime roll.
-  var vErup=(curBiome&&curBiome.volcanic)?volcanoErupted(now):null;
-  var vKey=vErup?1:0;
+  // the top off the mountain. So the cache is keyed on the eruption too.
+  // ⚠⚠ AND THAT KEY IS NOW A STEP, NOT A FLAG. Nick locked the eruption as "a real event you can watch…
+  // the summit visibly tearing away as it happens", and a boolean cannot express that: the mountain was
+  // intact, intact, intact, then wholly blown, in one frame, AFTER the eruption had already finished
+  // drawing. `volcanoCollapse` returns quantised progress instead, so the cache rebuilds a handful of
+  // times across the eruption and the OUTLINE steps down while you watch.
+  // ⚠ Quantised on purpose. A continuous term would rebuild the height field every frame, which is the
+  // citizen-sim freeze mistake wearing a new hat. Seven coarse steps for the silhouette; the smooth
+  // drama — column, bombs, moving debris — is the live pass's job, drawn on top.
+  // ⚠ Every previous attempt in this file drew a dark breach OVER the intact profile, so the outline
+  // never moved and the top never actually went anywhere. The profile is where it has to happen.
+  var vCol=(curBiome&&curBiome.volcanic)?volcanoCollapse(now):null;
+  var vKey=vCol?Math.round(vCol.cp*VOLC_STEPS):0;
   if(mtsCache && mtsCache.vk!==vKey) mtsCache=null;
   var volcBlow=null;
-  if(vErup){
+  if(vCol){
     var vbh=((WORLD_SEED*2654435761)>>>0);
     var vbPk=0, vbX=0;                                            // the cone that failed: the world's tallest near peak
     for(var vq=0;vq<mts.near.length;vq++) if(mts.near[vq].h>vbPk){ vbPk=mts.near[vq].h; vbX=mts.near[vq].x; }
+    // THE FAILURE ALTITUDE DESCENDS as the collapse proceeds: at cp=0 nothing has gone, at cp=1 the cut
+    // sits at its final 60-72% of the cone. So the first step nibbles the summit and the last one has
+    // taken a third of the mountain — which is the shape of the event rather than a reveal of its end.
+    var vbFinal=vbPk*(0.60+((vbh>>>7)%12)/100);
     volcBlow={ wx:vbX,
                dir:(vbh&1)?1:-1,                                  // which flank went — world-seeded, so all screens agree
-               cut:vbPk*(0.60+((vbh>>>7)%12)/100),                // the failure altitude: ~60-72% of the cone
-               reach:Math.max(8,vbPk*0.9),                        // how far the collapse feathers on the far side
+               cut:vbPk-(vbPk-vbFinal)*vCol.cp,
+               reach:Math.max(8,vbPk*0.9)*(0.35+0.65*vCol.cp),    // the breach widens as it goes
                rag:Math.max(1.5,vbPk*0.05),                       // how torn the new rim is
+               cp:vCol.cp,
                ph:((vbh>>>13)%628)/100, seed:vbh };
   }
   if(!mtsCache){                                                  // the silhouette is static per life —
-    mtsCache={h:[[],[],[]], sl:[[],[],[]], rib:[[],[],[]], wig:[], mx:[0,0,0], vk:vKey, blown:!!volcBlow};   // compute it ONCE per screen, not per frame
+    // ⚠ `blowCp` rides along so anything dressing the collapse can RAMP with it rather than pop. The
+    // blast wreckage appearing whole at step one would read as debris that arrived before the landslide.
+    mtsCache={h:[[],[],[]], sl:[[],[],[]], rib:[[],[],[]], wig:[], mx:[0,0,0], vk:vKey,
+              blown:!!volcBlow, blowCp:volcBlow?volcBlow.cp:0};   // compute it ONCE per screen, not per frame
     // A THIRD, FURTHEST band, DERIVED from the far peaks rather than rolled — half the height, wider,
     // shifted along the world so it is not an echo. Deriving it keeps every existing life's layout
     // byte-identical: one extra mg() roll in buildWorld would have re-rolled the peaks of all six

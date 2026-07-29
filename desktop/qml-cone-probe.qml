@@ -9,10 +9,12 @@ import "../org.citylive.wallpaper/contents/js/city.js" as City
 Item {
     id: root
     width: 1552; height: 874
-    property var woffs: [0, 776, 1629]
+    property var woffs: [776]
     property int wi: 0
     property int variant: 1
     property bool blown: false
+    property var arcFs: [0.0,0.16,0.25,0.35,0.45,0.55,0.62,0.80,1.0]
+    property int ai: 0
     property bool pinState: false
     Canvas {
         id: bg; anchors.fill: parent
@@ -26,8 +28,7 @@ Item {
         // ⚠ PIN THE ERUPTION STATE. `volcanoErupted` scans this life's real disaster history, so an
         // unforced probe can silently measure a COLLAPSED cone and read as "the framed height never
         // arrives" — it cost a wrong diagnosis once already. f=0 forces intact, f=1 forces blown.
-        if (root.pinState) City.FORCEDIS = { type:"volcano", intensity:4, xf:0.42, w:58, seed:451, f:(root.blown?1.0:0.0) };
-        else City.FORCEDIS = null;
+        City.FORCEDIS = { type:"volcano", intensity:4, xf:0.42, w:58, seed:451, f:root.arcFs[root.ai] };
         var d = new Date(EPOCH + 62*CYC + Math.round(0.38*CYC));
         d.setHours(13, 10, 0, 0);
         City.NOWOVR = City.CLOCK = d.getTime();
@@ -40,7 +41,7 @@ Item {
     }
     function dump() {
         var w = root.woffs[root.wi];
-        console.log("=== " + (root.blown?"BLOWN":"INTACT") + " woff " + w + " | SW=" + City.SW + " SH=" + City.SH + " WW=" + City.WW
+        console.log("=== f=" + root.arcFs[root.ai] + " woff " + w + " | SW=" + City.SW + " SH=" + City.SH + " WW=" + City.WW
                     + " KSP=" + City.KSP + " HORIZON=" + City.HORIZON + " SEA_Y=" + City.SEA_Y);
         var vE = City.volcanoErupted(City.NOWOVR);
         console.log("   volcanoErupted -> " + (vE ? ("HIT x="+Math.round(vE.x)+" i="+vE.i+" since="+Math.round(vE.since/1000)+"s") : "null (intact)") + "   mtsCache.blown=" + (City.mtsCache?City.mtsCache.blown:"?"));
@@ -81,13 +82,10 @@ Item {
     }
     Timer {
         id: dumpTimer; interval: 500
-        onTriggered: { root.dump(); root.wi++; stepTimer.restart(); }
+        onTriggered: { root.dump(); root.ai++; if (root.ai >= root.arcFs.length) { Qt.quit(); return; } stepTimer.restart(); }
     }
     Timer {
         id: stepTimer; interval: 200
-        onTriggered: {
-            if (root.wi >= root.woffs.length) { Qt.quit(); return; }
-            root.report(); dumpTimer.restart();
-        }
+        onTriggered: { root.report(); dumpTimer.restart(); }
     }
 }
