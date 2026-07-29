@@ -4431,7 +4431,15 @@ function buildWorld(li){
   // geography in the set — the town at your back, the sand and the surf toward you — and it was
   // rendering as a strip of city floating between two seas. Swamp, arctic, volcano and fjord keep
   // their bays until it is their turn.
-  if(SEA_FRONT>0 && (curBiome.k==="cliffs"||curBiome.k==="beach")) WATER_W=0;
+  // ⚠⚠ FINISHING A FIX THAT WAS ONLY HALF APPLIED. The rule is stated in full a few lines above — a
+  // land whose water runs along the BOTTOM of the frame must not ALSO have a seam bay, because two
+  // unrelated coastlines is how the sea cliffs came to read as nowhere ("water behind the city AND in
+  // front of it"). The seam ocean was zeroed for every such land; WATER_W, the BAY, was zeroed only
+  // for cliffs and beach. So the volcano, swamp, arctic, fjord, salt and canyon all kept a bay behind
+  // the town while carrying a sea in front of it, and Nick found it on the volcano: a body of water
+  // ending in a hard vertical edge halfway across the frame.
+  // Nick, asked directly, applied his own cliffs ruling to all of them.
+  if(SEA_FRONT>0) WATER_W=0;
   // Dry biomes get a RIVER through the city instead of a coast: the waterfront becomes a riverbank,
   // and the harbour's deep-water shipping becomes barge traffic (drawRiver / riverAt).
   hasRiver = !hasOcean && curBiome.water==="river";
@@ -4697,7 +4705,12 @@ function buildWorld(li){
   sites.push({x:Math.round(0.33*WW), w:15, floors:11, fh:4, seed:(r()*1e6)|0, offset:r()*24, dpf:1.7});
   // waterfront: boats patrolling the two industrial harbours (world edges = the coast)
   r=rng(seed+53); boats=[];
-  if(hasOcean){ var iw=Math.round(WATER_W*WW);   // industrial water span each edge
+  // ⚠ REMOVING A THING MEANS AUDITING WHAT STOOD ON IT — the lesson the harbour bridge already cost
+  // this project, recorded a few hundred lines below where that bridge is gated. These boats patrol
+  // the SEAM BAY, and with WATER_W now zero on every sea-front land the span `[4, iw-3]` inverts to
+  // `[4,-3]`: not an empty range but a backwards one, which would have scattered vessels across dry
+  // land rather than drawing none. A bay that no longer exists cannot have a fleet in it.
+  if(hasOcean && WATER_W>0){ var iw=Math.round(WATER_W*WW);   // industrial water span each edge
     var zones=[[4, iw-3],[WW-iw+3, WW-4]];
     for(i=0;i<8;i++){ var zn=zones[i%2];
       boats.push({za:zn[0], zb:zn[1], sp:1.4+r()*2.2, ph:r()*2, y:2+((r()*10)|0),
