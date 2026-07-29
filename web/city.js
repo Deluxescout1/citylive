@@ -17585,8 +17585,20 @@ function drawBiomePlant(g,X,gy,day,now,seed,sc,kind,swayOn){
     // star of fronds on top is a dandelion, and it is the single thing that would stop a beach
     // reading as a beach. The stem leans, and each frond arcs out and then falls — so the silhouette
     // is asymmetric even before the wind touches it.
-    var ph2=Math.round((15+(seed%9))*K), lean=(((seed>>2)%100)/100-0.5)*0.55+sway*0.05;
-    var stw=Math.max(1,Math.round(1.6*K));
+    // ⚠⚠ BIGGER AND EASIER TO SEE. Nick, looking at THE GREEN ISLAND: "make the Coconut/palm trees
+    // easier to see, and make them bigger." Both were real and they had different causes.
+    // TOO SMALL: `sc` here is the TREE scale, not KSP, and `treeSC` puts 58% of all trees at 1.0 — so
+    // the majority of palms were 15-23 px tall with 5 px fronds, i.e. shorter than the scrub around
+    // them. A coconut palm is one of the tallest things on a tropical shore and has to out-scale
+    // everything at its feet or it reads as a weed. Raised about 55%, and CAPPED against the frame so
+    // the rare 3.4x roll cannot turn into a beanstalk.
+    // HARD TO SEE: the fronds were [52,104,58] and [68,124,66] — two mid-dark greens, drawn over a
+    // jungle canopy of [48,86,54]. Near-zero contrast against the exact background this variant is
+    // covered in. Now a genuinely LIT frond against a genuinely shaded one, so the crown separates from
+    // whatever is behind it, with a dark underside so it also reads against open sky.
+    var ph2=Math.min(Math.round(HORIZON*0.34), Math.round((22+(seed%10))*K));
+    var lean=(((seed>>2)%100)/100-0.5)*0.55+sway*0.05;
+    var stw=Math.max(1,Math.round(1.8*K));
     g.fillStyle=C([132,104,70]);
     for(var py2=0;py2<ph2;py2++){                                          // the leaning, ringed stem
       var pf3=py2/ph2;
@@ -17598,17 +17610,33 @@ function drawBiomePlant(g,X,gy,day,now,seed,sc,kind,swayOn){
     var nF=6+((seed>>7)%3);
     for(var fr2=0;fr2<nF;fr2++){
       var fa2=(fr2/nF)*Math.PI*2+((seed>>4)%10)/10;
-      var reach2=(4.5+((seed>>(fr2%5))&3))*K, droop=0.5+((fr2*7)%5)*0.12;
-      g.fillStyle=C(fr2&1?[52,104,58]:[68,124,66]);
+      var reach2=(7.5+((seed>>(fr2%5))&3)*1.4)*K, droop=0.5+((fr2*7)%5)*0.12;
+      // a frond arcing toward the light is pale; one falling away behind the crown is dark. The pair is
+      // what makes the crown legible — one flat mid-green never will be.
+      var lit2=(Math.cos(fa2)>0)!==(curSunDf<0.5);
       for(var fq2=1;fq2<reach2;fq2++){
         var ff3=fq2/reach2;
         var fx4=cx4+Math.cos(fa2)*fq2+sway*ff3*1.4;
         var fy4=cy4+Math.sin(fa2)*fq2*0.45+ff3*ff3*reach2*droop*0.55;      // out, then falling away
-        R(fx4,fy4,Math.max(1,Math.round(K*(1-ff3*0.4))),Math.max(1,Math.round(K)));
+        var fw3=Math.max(1,Math.round(K*(1.25-ff3*0.45)));                 // thicker at the shaft, tapering
+        g.fillStyle=C([28,54,34]);                                         // the shaded underside, laid first
+        R(fx4,fy4+Math.max(1,Math.round(K*0.5)),fw3,Math.max(1,Math.round(K*0.8)));
+        g.fillStyle=C(lit2?[104,178,88]:[58,116,62]);
+        R(fx4,fy4,fw3,Math.max(1,Math.round(K*1.1)));
       }
     }
-    g.fillStyle=C([86,64,40]);                                             // the nuts, under the crown
-    for(var nq=0;nq<3;nq++) if(((seed>>(nq+3))&3)) R(cx4-K+nq*K*1.1,cy4+K*0.8,Math.max(1,Math.round(1.4*K)),Math.max(1,Math.round(1.4*K)));
+    // THE COCONUTS. They were [86,64,40] — dark brown, tucked under a dark crown, against dark jungle:
+    // three invisible pixels. A ripening coconut is a pale ochre-green, which is the lightest thing on
+    // the whole plant, so the cluster is what tells you at a glance this is a coconut palm.
+    var nutN=2+((seed>>9)%3);
+    for(var nq=0;nq<nutN;nq++){
+      if(!((seed>>(nq+3))&3)) continue;
+      var nsz=Math.max(2,Math.round(1.9*K));
+      var nx3=cx4-K*1.2+nq*K*1.5, ny3=cy4+K*0.7;
+      g.fillStyle=C([64,48,28]); R(nx3,ny3+Math.max(1,Math.round(K*0.5)),nsz,nsz);   // its own shadow
+      g.fillStyle=C([196,168,96]); R(nx3,ny3,nsz,nsz);
+      g.fillStyle=C([232,214,150]); R(nx3,ny3,Math.max(1,Math.round(K*0.8)),Math.max(1,Math.round(K*0.8)));  // a highlight
+    }
   } else if(kind==="weedtree"){
     var wth=Math.round((7+(seed%5))*K);                                 // a buddleia off a wall: scrappy, thin
     g.fillStyle=C([96,88,72]);
