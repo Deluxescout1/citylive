@@ -8403,6 +8403,16 @@ function drawBoat(g,sx,wl,kind,dir,L,now){
   g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,240,190,"+(0.10+0.12*night)+")"; g.fillRect(sx,wl+1,kind==="cargo"?15:(kind==="ferry"?11:5),1); g.globalCompositeOperation="source-over";
 }
 function drawHarborBridge(g,L,now,night,wTop){
+  // ⚠⚠ NO BAY, NO BRIDGE. Nick: "this bridge is in the middle of nothing, remove it." He is right and
+  // it is a direct consequence of the sea-cliffs geography fix earlier today: this span crosses the
+  // seam BAY, and when I zeroed `WATER_W` on the cliffs so the town could sit at the foot of the rock,
+  // the bay went and the bridge stayed — a suspension bridge with its towers planted in a cliff face
+  // and nothing under it.
+  // ⚠ THE LESSON IS THE ONE THIS PROJECT KEEPS PAYING FOR: removing a thing means auditing what was
+  // STANDING ON it. The bay was not just water, it was a place other systems built on. Gated on the
+  // water actually existing now, so this can never again outlive the thing it spans — including on
+  // any land that loses its bay in a later map pass.
+  if(!(hasOcean && WATER_W>0)) return;
   var iw=0.11*WW, cx=iw*0.5, half=iw*0.34, deckY=wTop+6, towerH=12;
   for(var off=-WW;off<=WW;off+=WW){ var c=cx-WOFF+off, xa=c-half, xb=c+half;
     if(xb<-4||xa>SW+4) continue;
