@@ -24255,7 +24255,11 @@ function drawBiomeGround(g,gy,day,now,wild){
 function drawWetSheen(g,L,now,wet){
   if(L>=0.55||wet<=0.08||!sprops||!sprops.length) return;
   var K=Math.max(1,KSP), gy=HORIZON;
-  var band=Math.max(6,(SH-gy-4)|0);
+  // ⚠ Same waterline clamp as the puddles, and for the same reason — a reflection on wet ASPHALT has
+  // no business running out across the sea. I introduced this one in the commit immediately before
+  // Nick reported the puddles, from the same wrong assumption that the road reaches the frame's edge.
+  var floorY2=(SEA_FRONT>0)?Math.min(SH,SEA_Y):SH;
+  var band=Math.max(6,(floorY2-gy-4)|0);
   g.globalCompositeOperation="lighter";
   for(var i=0;i<sprops.length;i++){
     var sp=sprops[i]; if(sp.k!=="lamp") continue;
@@ -24285,7 +24289,13 @@ function drawPuddles(g,L,now){
   // world px (it is sized for taskbar clearance), so puddles confined to it were half-hidden behind
   // the pedestrians standing on it — and the widest, most visible surface in the whole picture, the
   // road itself, had none at all. This is the same mistake the wind waves made on the plains.
-  var band=Math.max(6,(SH-gy-6)|0);
+  // ⚠ A PUDDLE CANNOT FORM IN THE SEA. Nick: "puddles shouldn't form in the water." The band ran from
+  // the horizon to the bottom of the FRAME, and on a land with a sea front the bottom of the frame is
+  // open water — so standing puddles were being scattered across the ocean. There was already a check
+  // for the river (`inRiver`) and none at all for the sea, which is the same omission one water body
+  // along. Puddles now stop at the waterline; on an inland land nothing changes.
+  var floorY=(SEA_FRONT>0)?Math.min(SH,SEA_Y):SH;
+  var band=Math.max(6,(floorY-gy-6)|0);
   var refl=curBiome.k==="hell"?[255,150,66]:biomeSkc(day);   // molten rock lights its own puddles
   var rim=fx.freezing?[186,214,240]:mixc(refl,day?[255,255,255]:[120,150,200],0.34);
   var n=Math.round(26+18*wet);
