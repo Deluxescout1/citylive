@@ -21979,6 +21979,58 @@ function drawVolcano(g,L,now,nd){
       g.globalCompositeOperation="source-over";
     }
   }
+  // --- THE TREELINE: hard in CONTRAST, never in geometry ---
+  // ⚠⚠ Nick first picked a LEVEL treeline and I pushed back: this map has produced a ruled line seven
+  // separate times, and a boundary drawn at one altitude would have been the eighth. He moved to
+  // "hard in contrast, not in geometry" — an unmistakable tonal step that RIDES the mountain, higher
+  // in the sheltered gullies and lower on the exposed ridges. So the altitude is value noise in world
+  // space, not a constant, and the contrast across it does the work a straight line would have done.
+  // ⚠ Only on a cone old enough to have been colonised. THE NEW ISLAND is locked as bare — "too young
+  // for anything to grow on it" — so this keys off the variant's own near colour being green rather
+  // than off a name, which keeps it working if the palettes are ever re-authored.
+  if(B.near && B.near[1] > B.near[0] + 6){
+    var tlBase=vDrop*(0.40+((WORLD_SEED>>>21)%18)/100);
+    var canopy=css(mixc(day?[48,86,54]:[12,24,16],biomeSkc(day),day?0.14:0.10));
+    var canLit=css(mixc(day?[70,116,66]:[16,32,20],biomeSkc(day),day?0.12:0.08));
+    for(var tx=Math.max(0,sx-Math.round(sh*1.6)); tx<Math.min(SW,sx+Math.round(sh*1.6)); tx++){
+      var trh=hs[tx]; if(trh==null||trh<=0) continue;
+      var tRock=gy-Math.round(trh);
+      var twx=tx+WOFF;
+      var ta=Math.floor(twx/23), tf=twx/23-ta, tt2=tf*tf*(3-2*tf);
+      var tp1=(((ta*2654435761)>>>0)%1000)/1000, tq1=((((ta+1)*2654435761)>>>0)%1000)/1000;
+      var tline=sy+Math.round(tlBase+((tp1+(tq1-tp1)*tt2)-0.5)*vDrop*0.16);   // the boundary wanders with the ground
+      if(tRock>=tline) continue;                                 // this column is below the line: it is forest
+      var tTop=Math.max(tRock,tline);
+      // ⚠⚠ TWO GOES AT THIS, AND THE SECOND WAS THE REAL LESSON.
+      // First I used `(twx*7)%3` — the EXACT expression that made the wild shoreline a three-pixel
+      // sawtooth earlier today — and it striped the canopy vertically at a 3 px pitch. I replaced the
+      // modulo with a hash and it was STILL striped, because the fault was never the choosing: it is
+      // that a whole column is filled with ONE tone, so any per-column variation whatsoever becomes a
+      // full-height bar. Per-column noise on a full-height fill is a stripe generator no matter how
+      // good the noise is.
+      // The variation has to live WITHIN the column. One base tone for the canopy, and lighter pixels
+      // scattered by a hash of BOTH x and y on top of it — texture in two dimensions, not one.
+      g.fillStyle=canopy;
+      g.fillRect(tx,tTop,1,Math.max(1,gy-tTop));
+      for(var ty2=tTop; ty2<gy; ty2++){
+        if((((twx*2654435761)^(ty2*40503))>>>0)%7 !== 0) continue;
+        g.fillStyle=canLit; g.fillRect(tx,ty2,1,1);
+      }
+    }
+  }
+  // --- THE STEAM WISP: an intact cone is not a dead one ---
+  // Nick, on what a volcano should look like BEFORE it goes: "a steam wisp at the vent." Not a plume
+  // and not nothing — a thread off the summit so you know the mountain is alive. Always on, leaning
+  // on the real wind, and it costs a dozen rects.
+  var wpLean=Math.max(-1,Math.min(1,((weather&&weather.wind)||6)/22));
+  for(var wq4=0;wq4<Math.round(13*K);wq4++){
+    var wf4=wq4/Math.max(1,Math.round(13*K));
+    var wa4=(0.34*(1-wf4))*(day?1:0.62);
+    if(wa4<=0.03) continue;
+    var wx4=sx+Math.round(wpLean*wq4*0.9+Math.sin(now*0.0009+wq4*0.32)*(1.4+wf4*3)*K*0.5);
+    g.fillStyle=day?"rgba(232,238,242,"+wa4.toFixed(3)+")":"rgba(150,160,178,"+wa4.toFixed(3)+")";
+    g.fillRect(wx4|0,(sy-Math.round(wq4*1.15))|0,Math.max(1,Math.round(K*(0.7+wf4))),1);
+  }
   // --- OLD LAVA CHANNELS: REMOVED, replaced by the lobes above ---
   // ⚠ These were the dark serpentine lines Nick confirmed as a fault: "they read as cracks or vines."
   // The cause was their construction — one 1.6px rect PER ROW down the whole cone, which makes a thin
