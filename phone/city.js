@@ -15521,11 +15521,40 @@ function volcanoCollapse(now){
 // the on-screen profile for its tallest column — which at woff 0 and woff 1629 is a SIBLING. Left alone,
 // each monitor would have erupted whichever peak it could see while only one silhouette actually
 // changed: three craters, three plumes, one collapse.
-function volcanoConeWX(){
+function volcanoCone(){
   if(!mts||!mts.near||!mts.near.length) return null;
-  var pk=0,wx=null;
-  for(var vq2=0;vq2<mts.near.length;vq2++) if(mts.near[vq2].h>pk){ pk=mts.near[vq2].h; wx=mts.near[vq2].x; }
-  return wx;
+  var pk=0,best=null;
+  for(var vq2=0;vq2<mts.near.length;vq2++) if(mts.near[vq2].h>pk){ pk=mts.near[vq2].h; best=mts.near[vq2]; }
+  return best;
+}
+function volcanoConeWX(){ var vc0=volcanoCone(); return vc0?vc0.x:null; }
+// WHERE IS THE SUMMIT ON THIS SCREEN, AND IS IT THE REAL ONE? Returns {sx,sh,sy,isDom,hs} or null.
+// Extracted because THREE renderers need the same answer and any drift between them shows up as three
+// monitors disagreeing about which mountain is the volcano: the static surface, the live overlay, and —
+// as of now — the eruption itself. `isDom` false means this screen can only see a sibling island, which
+// gets a crater and a steam wisp but no glow, no plume, and no eruption.
+function volcanoSummit(){
+  if(!mtsCache||!mtsCache.h||!mtsCache.h[1]) return null;
+  var hs=mtsCache.h[1], K=Math.max(1,KSP), gy=HORIZON;
+  var domWX=volcanoConeWX(), sx=-1, sh=0, isDom=false;
+  if(domWX!=null){
+    var dsx=domWX-WOFF;                               // wrap it onto this screen's coordinates
+    while(dsx<-WW*0.5) dsx+=WW;
+    while(dsx>=WW*0.5) dsx-=WW;
+    if(dsx>-40*K&&dsx<SW+40*K){
+      // search a small window for the actual crest: crag noise moves it a pixel or two off the roll
+      var dLo=Math.max(0,Math.round(dsx-10*K)), dHi=Math.min(SW-1,Math.round(dsx+10*K));
+      for(var dx2=dLo;dx2<=dHi;dx2++) if(hs[dx2]!=null&&hs[dx2]>sh){ sh=hs[dx2]; sx=dx2; }
+      if(sx>=0&&sh>=26*K) isDom=true;
+    }
+  }
+  if(!isDom){                                         // no dominant cone here — dress the local peak instead
+    sx=-1; sh=0;
+    for(var x9=Math.round(4*K);x9<SW-Math.round(4*K);x9+=Math.max(1,Math.round(2*K)))
+      if(hs[x9]>sh){ sh=hs[x9]; sx=x9; }
+  }
+  if(sx<0||sh<26*K) return null;
+  return {sx:sx, sh:sh, sy:gy-Math.round(sh), isDom:isDom, hs:hs};
 }
 function volcanoErupted(now){
   if(FORCEDIS) return (FORCEDIS.type==="volcano"&&volcanoCollapseF(FORCEDIS.f)>=1)?{f:1,i:FORCEDIS.intensity||3,x:Math.round((FORCEDIS.xf||0.4)*WW),since:0}:null;
@@ -15797,30 +15826,67 @@ function drawVolcanoDisaster(g,cd,L,now){
   // a 1-week life: the ground swells and vents -> the cone builds -> the column goes up and leans on
   // the REAL wind -> bombs arc out -> a pyroclastic surge rolls along the street -> lava creeps down
   // the flanks and SETS FIRE TO WHAT IT TOUCHES (Nick's explicit ask) -> ash falls downwind.
-  var cx=disX(cd.x), f=cd.f, i=cd.intensity, big=(i-1)/4, gy=HORIZON;
+  var f=cd.f, i=cd.intensity, big=(i-1)/4, gy=HORIZON;
   if(f>=0.86) return;
   var K=Math.max(1,KSP), day=L>0.5;
   var wind=((weather&&weather.wind)||8), lean=Math.max(-1,Math.min(1,wind/26))*(cd.seed&1?1:-1);
-  // the cone OUT-SCALES the skyline — that is the whole point of a mountain appearing in your city
-  var grow=Math.min(1,f/0.16);
-  var coneH=Math.round((70+i*26)*grow*K*0.5), coneW=Math.round((46+i*18)*K*0.5);
-  var craterY=gy-coneH;
+  // ⚠⚠⚠ ON A VOLCANIC LAND, THE ERUPTION IS THE LAND'S OWN MOUNTAIN GOING OFF.
+  // Nick's locked answer 11: "a real event you can watch — column, bombs, flows, ash on the city, and
+  // the summit visibly tearing away as it happens. Wire the existing drawVolcanoDisaster to the land's
+  // own mountain." It was not wired. This function GREW ITS OWN CONE — a smooth brown stratovolcano
+  // 70+26i px tall raised at the disaster's x — and rendered across the arc that substitute rose up and
+  // BURIED the real green volcano standing right behind it. Two volcanoes, one of them cardboard.
+  // The cone-building is right and necessary on the OTHER nineteen lands, where a volcano erupting in
+  // your city means a mountain that was not there before. It is exactly wrong on the one land that
+  // already has one.
+  // So the geometry comes from the real summit when there is one, and the cone pass below is skipped:
+  // the mountain is already drawn, in the backdrop, with its crater and its staged collapse.
+  var vSum=(curBiome&&curBiome.volcanic)?volcanoSummit():null;
+  var ownMtn=!!(vSum&&vSum.isDom);
+  var cx, coneH, coneW, craterY, grow;
+  if(ownMtn){
+    var vCn=volcanoCone();
+    cx=vSum.sx; coneH=vSum.sh; craterY=vSum.sy;
+    coneW=Math.max(Math.round(14*K), Math.round((vCn?vCn.w:coneH*1.6)*0.5));
+    grow=1;                                             // nothing has to grow: it has been there all week
+  } else {
+    cx=disX(cd.x);
+    // the cone OUT-SCALES the skyline — that is the whole point of a mountain appearing in your city
+    grow=Math.min(1,f/0.16);
+    coneH=Math.round((70+i*26)*grow*K*0.5); coneW=Math.round((46+i*18)*K*0.5);
+    craterY=gy-coneH;
+  }
   var blast=Math.min(1,Math.max(0,(f-0.14)/0.14));      // the main eruption ramps in
   var wane=Math.max(0,Math.min(1,(f-0.62)/0.24));       // and subsides
 
   // ---- SKY: a hot dome over the mountain, strongest at the peak of the blast ----
+  // ⚠⚠ THIS WAS A HARD-EDGED BOX, AND AT NIGHT YOU COULD SEE ALL FOUR SIDES OF IT. Every step drew a
+  // rect of CONSTANT width — `coneW*3.2` — so a "dome" was really a stack of identical slabs: a
+  // rectangle of orange haze sitting in the sky with a ruled top edge and two ruled verticals. It is the
+  // same fault as the rain spray slab, and the same family as every other ruled line on this map.
+  // A glow over an erupting vent is widest at the vent and narrows as it rises, and it has no edge at
+  // all — so the width tapers, the alpha falls off as a square, and both ends of every row are feathered
+  // by a world-keyed hash so no column of the sky has a straight boundary in it.
   g.globalCompositeOperation="lighter";
   var domeA=(0.05+0.14*blast)*(1-wane*0.7)*(day?0.55:1);
-  for(var dq=0;dq<Math.round(40*K);dq+=Math.max(1,Math.round(2*K))){
-    var df=dq/(40*K);
-    g.fillStyle="rgba(255,88,26,"+(domeA*(1-df)).toFixed(3)+")";
-    g.fillRect((cx-coneW*1.6)|0,(craterY-dq)|0,(coneW*3.2)|0,Math.max(1,Math.round(2*K)));
+  var domeH=Math.round(40*K);
+  for(var dq=0;dq<domeH;dq+=Math.max(1,Math.round(2*K))){
+    var df=dq/domeH;
+    var dw=coneW*(1.55-df*0.95);                          // widest at the vent, narrowing as it lifts
+    var da=domeA*(1-df)*(1-df);
+    if(da<=0.004) continue;
+    var djx=((((dq*2654435761)^cd.seed)>>>0)%1000)/1000-0.5;
+    var dL=Math.round(cx-dw+djx*coneW*0.22), dR=Math.round(cx+dw+djx*coneW*0.18);
+    g.fillStyle="rgba(255,88,26,"+da.toFixed(3)+")";
+    g.fillRect(dL,(craterY-dq)|0,Math.max(1,dR-dL),Math.max(1,Math.round(2*K)));
   }
   g.globalCompositeOperation="source-over";
 
   // ---- THE CONE: a stratovolcano, concave-sided, with strata and old flow channels ----
+  // ⚠ SKIPPED ENTIRELY on the land's own mountain — that cone is real, it is drawn in the backdrop, and
+  // painting a second one over it is what produced the brown substitute burying the green volcano.
   var rock=day?[74,60,54]:[26,20,20], rock2=day?[52,41,38]:[17,13,14];
-  for(var y=0;y<coneH;y++){
+  for(var y=0;ownMtn?false:(y<coneH);y++){
     var yn=y/coneH;
     // concave profile — a stratovolcano flares at the base rather than running straight
     var ww=coneW*Math.pow(1-yn,0.62);
@@ -15836,33 +15902,45 @@ function drawVolcanoDisaster(g,cd,L,now){
       g.fillRect((cx-ww)|0,(gy-y)|0,Math.max(1,Math.round(ww*0.22)),1);
     }
   }
-  // the crater notch
+  // the crater notch — again, only on a cone this function built. The real one already has one, cut
+  // into the rock and clipped to it, which a pasted-on bar would simply cover back up.
   var crW=Math.round(coneW*0.30);
-  g.fillStyle=css(mixc(rock2,[0,0,0],0.45));
-  g.fillRect((cx-crW)|0,(craterY)|0,(crW*2)|0,Math.max(1,Math.round(3*K)));
+  if(!ownMtn){
+    g.fillStyle=css(mixc(rock2,[0,0,0],0.45));
+    g.fillRect((cx-crW)|0,(craterY)|0,(crW*2)|0,Math.max(1,Math.round(3*K)));
+  }
 
   // ---- LAVA DOWN THE FLANKS, and it SETS FIRE TO WHAT IT TOUCHES ----
   // Nick, explicitly: "the lava needs to flow and catch things on fire as it touches it."
   // Each flow advances with `f`, so its snout has a real position; anything standing at that
   // position is alight. The fires are keyed to the SNOUT, not sprinkled at random, so the causation
   // reads: the lava arrives, then that spot burns.
+  // ⚠⚠ AND THIS WAS THE THIRD COPY OF THE LOOK NICK REJECTED. The lava was one 2px rect per row with
+  // `sin(ly*0.22)` as its centreline — a fast zigzag at one row per pixel, which is precisely the "thin
+  // continuous squiggle" construction he turned down as "cracks or vines", drawn a third time in a third
+  // place. Rendered across the arc it came out as bright orange lightning bolts down the cone.
+  // It goes through `volcTongue` now, molten, like every other flow on this land: a broad tongue with
+  // levees and a blunt toe, clipped per row to the rock it is actually running over.
   var flows=2+((cd.seed>>>3)%3);
+  var lavaVc={sx:cx, sy:craterY, sh:coneH, vDrop:Math.max(4,gy-craterY),
+              hs:(ownMtn?vSum.hs:null), gy:gy, K:K, vBase:[70,54,48]};
+  // ⚠ On a cone this function built there is no height field to clip against, so the tongue gets a
+  // synthetic one: the very profile the cone pass draws. Same routine, same look, either way.
+  if(!lavaVc.hs){
+    var synth=[];
+    for(var syx=0;syx<SW;syx++){
+      var sd=Math.abs(syx-cx)/Math.max(1,coneW);
+      synth[syx]=sd>=1?0:coneH*Math.pow(1-sd,1/0.62);
+    }
+    lavaVc.hs=synth;
+  }
   for(var fl=0;fl<flows;fl++){
     var fh=((fl*2654435761+cd.seed)>>>0);
     var fside=(fh&1)?1:-1, fx0=cx+fside*Math.round(coneW*(0.15+((fh>>>5)%40)/100));
     var reach=Math.min(1,Math.max(0,(f-0.20-fl*0.06)/0.36));       // how far down it has crept
     if(reach<=0) continue;
     var snoutY=gy-Math.round(coneH*(1-reach)*0.92);
-    for(var ly=craterY+Math.round(2*K); ly<snoutY; ly+=1){
-      var lp=(gy-ly)/Math.max(1,coneH);
-      var lx=fx0+fside*Math.round((1-lp)*coneW*0.42)+Math.round(Math.sin(ly*0.22+fl)*1.6*K);
-      var hot=Math.max(0,1-(snoutY-ly)/Math.max(1,coneH*0.34));     // the leading edge is brightest
-      g.fillStyle="rgb("+Math.round(120+135*hot)+","+Math.round(24+110*hot)+","+Math.round(12+20*hot)+")";
-      g.fillRect(lx|0,ly|0,Math.max(1,Math.round(2*K)),1);
-      if(hot>0.55){ g.globalCompositeOperation="lighter";
-        g.fillStyle="rgba(255,190,90,0.30)"; g.fillRect((lx-1)|0,ly|0,Math.max(2,Math.round(3*K)),1);
-        g.globalCompositeOperation="source-over"; }
-    }
+    volcTongue(g,lavaVc,fh,fl,0,Math.max(0.06,reach*0.94),1,true);
     // WHAT THE SNOUT IS BURNING, right where it stands
     if(snoutY>gy-Math.round(coneH*0.5)){
       var bx2=fx0+fside*Math.round(coneW*0.42);
@@ -22073,6 +22151,54 @@ function drawBiomeLandmark(g,L,now,nd){
 // everywhere, a volcano is cold rock with one hot place in it.
 // The cycle is a pure function of the clock, like everything else here, so it is freeze-safe and the
 // same moment always renders the same mountain.
+// ============ ONE LAVA FLOW, USED EVERYWHERE A VOLCANO HAS ONE ============
+// A broad raised tongue with levees along its edges and a blunt toe where it stopped — the construction
+// Nick's rejected "cracks or vines" channels were replaced BY, and the one every flow on this land now
+// goes through: the mountain's ancient lobes, its post-eruption fresh flows, and the molten flows of a
+// live eruption. Age and heat are parameters; nobody gets to write a fourth version.
+// ⚠⚠ THIS IS THE THIRD TIME THAT LOOK HAD TO BE REMOVED. Once as the old channels, once in the
+// post-eruption path, and once in `drawVolcanoDisaster`, which drew its lava as a thin bright zigzag
+// (`sin(ly*0.22)` at one row per pixel) straight down a synthetic cone. Hoisting the routine out of
+// `drawVolcanoSurface` is what makes a fourth copy unnecessary rather than merely discouraged.
+// ⚠ RUN-LENGTH FILLED, and clipped per row to where the rock actually reaches: a flow cannot run
+// through open sky, and on a cone the passing span is contiguous, so a row is three fills and not
+// fourteen. `vc` carries the cone's geometry: {sx,sy,sh,vDrop,hs,gy,K,vBase}.
+function volcTongue(g,vc,hSeed,lb,lAge,lStop,glowK,molten){
+  var sx=vc.sx, sy=vc.sy, sh=vc.sh, vDrop=vc.vDrop, hs=vc.hs, gy=vc.gy, K=vc.K, vBase=vc.vBase;
+    var lSide=(((hSeed%1000)/1000)-0.5)*1.7;
+    // MOLTEN or COOLED. A live flow is the brightest thing on the mountain and its levees are the
+    // chilled crust either side of it; a cooled one is dark rock with a glow only where it has cracked.
+    var body=molten?"rgb(214,72,20)":css(mixc(vBase,[14,11,12],0.62-lAge*0.42));
+    var levee=molten?"rgb(96,34,20)":css(mixc(vBase,[0,0,0],0.30-lAge*0.18));
+    var lEdge=Math.max(1,Math.round(K*0.8));
+    for(var lq=Math.round(vDrop*0.10); lq<vDrop*lStop; lq++){
+      var lp=lq/vDrop, ly=sy+lq;
+      var lcx=sx+Math.round(lSide*sh*lp*1.0)+Math.round(Math.sin(lq*0.06+lb)*1.4*K);
+      var lw=Math.max(2,Math.round((1.4+lp*4.4)*K));
+      var toe=(lq>vDrop*lStop-3*K)?Math.round(K):0;               // it thickens where it stopped
+      var lFrom=lcx-(lw>>1), lTo=lcx+(lw>>1)+toe;
+      if(lFrom<0) lFrom=0;
+      if(lTo>SW-1) lTo=SW-1;
+      // walk in from both ends to where the rock actually reaches this altitude — a flow cannot run
+      // through open sky, and the span between is contiguous on a cone
+      while(lFrom<=lTo){ var lra=hs[lFrom]; if(lra!=null&&gy-Math.round(lra)<=ly) break; lFrom++; }
+      while(lTo>=lFrom){ var lrb=hs[lTo]; if(lrb!=null&&gy-Math.round(lrb)<=ly) break; lTo--; }
+      if(lTo<lFrom) continue;
+      g.fillStyle=body; g.fillRect(lFrom,ly,lTo-lFrom+1,1);
+      g.fillStyle=levee;                                          // levees stand proud along both sides
+      g.fillRect(lFrom,ly,Math.min(lEdge,lTo-lFrom+1),1);
+      if(lTo-lEdge+1>lFrom) g.fillRect(lTo-lEdge+1,ly,lEdge,1);
+      // ⚠ still glowing in the cracks, but only on a flow young enough to be hot, and only in broken
+      // patches — a cooling flow glows where the crust has cracked, not in a dotted line down the middle
+      if(glowK>0.02 && ((((lq*2654435761)^(lb*40503))>>>0)%9)===0){
+        var gw=Math.max(1,Math.round((lTo-lFrom+1)*0.45));
+        g.globalCompositeOperation="lighter";
+        g.fillStyle="rgba(255,110,40,"+(0.40*glowK).toFixed(3)+")";
+        g.fillRect(lFrom+((lTo-lFrom-gw)>>1),ly,gw,1);
+        g.globalCompositeOperation="source-over";
+      }
+    }
+}
 // ============ THE VOLCANO'S SURFACE — THE STATIC HALF, DRAWN IN THE BACKDROP PASS ============
 // ⚠⚠ THIS USED TO BE ONE FUNCTION IN THE LIVE PASS, AND IT WAS 22.4% OF EVERY FRAME.
 // Measured, not assumed (`desktop/qml-perf-volcano.qml`, median of 5 x 60 frames at Nick's real
@@ -22095,35 +22221,9 @@ function drawVolcanoSurface(g,L,now,nd){
   var B=curBiome; if(!B.volcanic||!mtsCache||!mtsCache.h||!mtsCache.h[1]) return;
   if(cityPhase==="apoc") return;                      // an ending has its own sky; don't compete with it
   var hs=mtsCache.h[1], gy=HORIZON, day=L>0.5, K=Math.max(1,KSP);
-  // THE SUMMIT — and WHICH summit matters more than where it is.
-  // ⚠⚠ THIS USED TO BE "the tallest column on this screen", AND THAT IS WRONG ON TWO SCREENS OUT OF
-  // THREE. `buildWorld` puts one dominant cone plus two lesser siblings in `mts.near`, and the collapse
-  // is WORLD-anchored — `volcBlow` scans `mts.near` in world space. But this scan is SCREEN-anchored, so
-  // at woff 0 and woff 1629 it locks onto a sibling. Each monitor would then have put a crater and a
-  // full plume on whichever peak it happened to see, while only one of them ever lost its top: three
-  // craters, three plumes, one collapse, and no two screens telling the same story.
-  // So: find the DOMINANT cone in world space and, if it is on this screen, use it. Only that one is
-  // "the volcano" — `isDom` gates the crater glow and the plume, and a sibling gets a steam wisp and
-  // nothing else, which is exactly what a lesser cone in an archipelago should look like.
-  var domWX=volcanoConeWX(), sx=-1, sh=0, isDom=false;
-  if(domWX!=null){
-    var dsx=domWX-WOFF;                               // wrap it onto this screen's coordinates
-    while(dsx<-WW*0.5) dsx+=WW;
-    while(dsx>=WW*0.5) dsx-=WW;
-    if(dsx>-40*K&&dsx<SW+40*K){
-      // search a small window for the actual crest: crag noise moves it a pixel or two off the roll
-      var dLo=Math.max(0,Math.round(dsx-10*K)), dHi=Math.min(SW-1,Math.round(dsx+10*K));
-      for(var dx2=dLo;dx2<=dHi;dx2++) if(hs[dx2]!=null&&hs[dx2]>sh){ sh=hs[dx2]; sx=dx2; }
-      if(sx>=0&&sh>=26*K) isDom=true;
-    }
-  }
-  if(!isDom){                                         // no dominant cone here — dress the local peak instead
-    sx=-1; sh=0;
-    for(var x=Math.round(4*K);x<SW-Math.round(4*K);x+=Math.max(1,Math.round(2*K)))
-      if(hs[x]>sh){ sh=hs[x]; sx=x; }
-  }
-  if(sx<0||sh<26*K) return;                           // no real cone on this screen
-  var sy=gy-Math.round(sh);
+  // THE SUMMIT — and WHICH summit, which matters more than where it is. See `volcanoSummit`.
+  var vSum=volcanoSummit(); if(!vSum) return;         // no real cone on this screen
+  var sx=vSum.sx, sh=vSum.sh, sy=vSum.sy, isDom=vSum.isDom;
   // THE STIR. A slow cycle: mostly quiet, occasionally restless. `unrest` 0..1.
   var per=1080000, ph=((now%per)/per);                // ~18 minutes end to end
   var unrest=ph<0.62?0:Math.sin(((ph-0.62)/0.38)*Math.PI);
@@ -22227,6 +22327,7 @@ function drawVolcanoSurface(g,L,now,nd){
   //   young   THE NEW ISLAND — bare, glassy, raw: flows and ash are the whole surface.
   //   jungle  THE GREEN ISLAND — no bare flows at all; ash stays above the treeline, where nothing grows.
   //   caldera THE CALDERA — a layered ring wall: only the most weathered flows still show.
+  var vc={sx:sx,sy:sy,sh:sh,vDrop:vDrop,hs:hs,gy:gy,K:K,vBase:vBase};   // the cone geometry volcTongue needs
   var vMat=B.vmat||"young";
   var vTreeF=0.40+((WORLD_SEED>>>21)%18)/100;                    // the treeline, as a fraction of the drop
   // --- ASH AND CINDER FANS: narrow at the crater, spreading as they fall ---
@@ -22282,39 +22383,7 @@ function drawVolcanoSurface(g,L,now,nd){
   // lobe per frame, times three to five lobes, in the LIVE pass on three screens. The standing rule in
   // this engine is never to emit a rect per pixel, and the rock clip on a cone gives a CONTIGUOUS span
   // per row, so each row is three fills (body plus two levees) instead of fourteen.
-  function vTongue(hSeed,lb,lAge,lStop,glowK){
-    var lSide=(((hSeed%1000)/1000)-0.5)*1.7;
-    var body=css(mixc(vBase,[14,11,12],0.62-lAge*0.42));
-    var levee=css(mixc(vBase,[0,0,0],0.30-lAge*0.18));
-    var lEdge=Math.max(1,Math.round(K*0.8));
-    for(var lq=Math.round(vDrop*0.10); lq<vDrop*lStop; lq++){
-      var lp=lq/vDrop, ly=sy+lq;
-      var lcx=sx+Math.round(lSide*sh*lp*1.0)+Math.round(Math.sin(lq*0.06+lb)*1.4*K);
-      var lw=Math.max(2,Math.round((1.4+lp*4.4)*K));
-      var toe=(lq>vDrop*lStop-3*K)?Math.round(K):0;               // it thickens where it stopped
-      var lFrom=lcx-(lw>>1), lTo=lcx+(lw>>1)+toe;
-      if(lFrom<0) lFrom=0;
-      if(lTo>SW-1) lTo=SW-1;
-      // walk in from both ends to where the rock actually reaches this altitude — a flow cannot run
-      // through open sky, and the span between is contiguous on a cone
-      while(lFrom<=lTo){ var lra=hs[lFrom]; if(lra!=null&&gy-Math.round(lra)<=ly) break; lFrom++; }
-      while(lTo>=lFrom){ var lrb=hs[lTo]; if(lrb!=null&&gy-Math.round(lrb)<=ly) break; lTo--; }
-      if(lTo<lFrom) continue;
-      g.fillStyle=body; g.fillRect(lFrom,ly,lTo-lFrom+1,1);
-      g.fillStyle=levee;                                          // levees stand proud along both sides
-      g.fillRect(lFrom,ly,Math.min(lEdge,lTo-lFrom+1),1);
-      if(lTo-lEdge+1>lFrom) g.fillRect(lTo-lEdge+1,ly,lEdge,1);
-      // ⚠ still glowing in the cracks, but only on a flow young enough to be hot, and only in broken
-      // patches — a cooling flow glows where the crust has cracked, not in a dotted line down the middle
-      if(glowK>0.02 && ((((lq*2654435761)^(lb*40503))>>>0)%9)===0){
-        var gw=Math.max(1,Math.round((lTo-lFrom+1)*0.45));
-        g.globalCompositeOperation="lighter";
-        g.fillStyle="rgba(255,110,40,"+(0.40*glowK).toFixed(3)+")";
-        g.fillRect(lFrom+((lTo-lFrom-gw)>>1),ly,gw,1);
-        g.globalCompositeOperation="source-over";
-      }
-    }
-  }
+
   // THE ANCIENT FLOWS — the mountain's own history, and only where it is still bare rock.
   // ⚠ NONE ON THE JUNGLE ISLAND. Its old flows are the thing the forest grew ON; drawing them is
   // drawing through the canopy. The caldera keeps only its most weathered ones, in scrub.
@@ -22325,7 +22394,7 @@ function drawVolcanoSurface(g,L,now,nd){
     // a floor keeps the mountain's history dark without making it look like it erupted today, and the
     // caldera's floor is higher again because its walls are the oldest rock on the map.
     var lAge=(vMat==="caldera")?(0.72+((lh2>>>11)%28)/100):(0.28+((lh2>>>11)%72)/100);
-    vTongue(lh2,lb,lAge,0.35+((lh2>>>5)%55)/100,0);
+    volcTongue(g,vc,lh2,lb,lAge,0.35+((lh2>>>5)%55)/100,0,false);
   }
   // --- THE TREELINE: hard in CONTRAST, never in geometry ---
   // ⚠⚠ Nick first picked a LEVEL treeline and I pushed back: this map has produced a ruled line seven
@@ -22479,7 +22548,7 @@ function drawVolcanoSurface(g,L,now,nd){
     for(var nf=0;nf<nfl;nf++){
       var nh2=((nf*2246822519+((WORLD_SEED*17)|0))>>>0);
       // the flows only reach as far as the eruption has got — they GROW down the flank
-      vTongue(nh2,nf+7,0.04,(0.55+((nh2>>>5)%25)/100)*Math.max(0.18,eCp),fresh);
+      volcTongue(g,vc,nh2,nf+7,0.04,(0.55+((nh2>>>5)%25)/100)*Math.max(0.18,eCp),fresh,false);
     }
   }
 }
@@ -22491,35 +22560,9 @@ function drawVolcanoLive(g,L,now,nd){
   var B=curBiome; if(!B.volcanic||!mtsCache||!mtsCache.h||!mtsCache.h[1]) return;
   if(cityPhase==="apoc") return;                      // an ending has its own sky; don't compete with it
   var hs=mtsCache.h[1], gy=HORIZON, day=L>0.5, K=Math.max(1,KSP);
-  // THE SUMMIT — and WHICH summit matters more than where it is.
-  // ⚠⚠ THIS USED TO BE "the tallest column on this screen", AND THAT IS WRONG ON TWO SCREENS OUT OF
-  // THREE. `buildWorld` puts one dominant cone plus two lesser siblings in `mts.near`, and the collapse
-  // is WORLD-anchored — `volcBlow` scans `mts.near` in world space. But this scan is SCREEN-anchored, so
-  // at woff 0 and woff 1629 it locks onto a sibling. Each monitor would then have put a crater and a
-  // full plume on whichever peak it happened to see, while only one of them ever lost its top: three
-  // craters, three plumes, one collapse, and no two screens telling the same story.
-  // So: find the DOMINANT cone in world space and, if it is on this screen, use it. Only that one is
-  // "the volcano" — `isDom` gates the crater glow and the plume, and a sibling gets a steam wisp and
-  // nothing else, which is exactly what a lesser cone in an archipelago should look like.
-  var domWX=volcanoConeWX(), sx=-1, sh=0, isDom=false;
-  if(domWX!=null){
-    var dsx=domWX-WOFF;                               // wrap it onto this screen's coordinates
-    while(dsx<-WW*0.5) dsx+=WW;
-    while(dsx>=WW*0.5) dsx-=WW;
-    if(dsx>-40*K&&dsx<SW+40*K){
-      // search a small window for the actual crest: crag noise moves it a pixel or two off the roll
-      var dLo=Math.max(0,Math.round(dsx-10*K)), dHi=Math.min(SW-1,Math.round(dsx+10*K));
-      for(var dx2=dLo;dx2<=dHi;dx2++) if(hs[dx2]!=null&&hs[dx2]>sh){ sh=hs[dx2]; sx=dx2; }
-      if(sx>=0&&sh>=26*K) isDom=true;
-    }
-  }
-  if(!isDom){                                         // no dominant cone here — dress the local peak instead
-    sx=-1; sh=0;
-    for(var x=Math.round(4*K);x<SW-Math.round(4*K);x+=Math.max(1,Math.round(2*K)))
-      if(hs[x]>sh){ sh=hs[x]; sx=x; }
-  }
-  if(sx<0||sh<26*K) return;                           // no real cone on this screen
-  var sy=gy-Math.round(sh);
+  // THE SUMMIT — and WHICH summit, which matters more than where it is. See `volcanoSummit`.
+  var vSum=volcanoSummit(); if(!vSum) return;         // no real cone on this screen
+  var sx=vSum.sx, sh=vSum.sh, sy=vSum.sy, isDom=vSum.isDom;
   // THE STIR. A slow cycle: mostly quiet, occasionally restless. `unrest` 0..1.
   var per=1080000, ph=((now%per)/per);                // ~18 minutes end to end
   var unrest=ph<0.62?0:Math.sin(((ph-0.62)/0.38)*Math.PI);
