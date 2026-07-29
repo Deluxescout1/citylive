@@ -4485,6 +4485,28 @@ function buildWorld(li){
       mts.far.push({x:mg()*WW, w:(100+mg()*150)*MSC/relief, h:fh, sn:curBiome.snow&&((fh>66*MSC)||mg()<0.25), ph:mg()*9}); }
     for(mi=0;mi<nN;mi++){ var nh=(58+mg()*86)*MSC;                 // the bolder front ridge — the peaks
       mts.near.push({x:mg()*WW, w:(80+mg()*130)*MSC/relief, h:nh, sn:curBiome.snow&&((nh>92*MSC)||mg()<0.35), ph:mg()*9}); }   // clear the skyline
+    // ⚠⚠ A VOLCANIC ISLAND IS ONE VOLCANO, NOT A RANGE. Nick, choosing between a range and a single
+    // cone: "one dominant cone." The near ridge was four-to-seven peaks rolled at random widths and
+    // positions, which blend into a continuous massif — and that is precisely why this land had "no
+    // summit, no crater, no cone silhouette anywhere in frame". You cannot blow the top off a mountain
+    // whose top is a ridgeline.
+    // So the volcanic lands get their near ridge REPLACED by a single authored cone. Rolled from the
+    // same `mg()` stream, so the world seed still decides where it stands and how big it is.
+    // ⚠ HEIGHT IS FRAMED, NOT ROLLED FREE. He asked for the cone to own the frame with about a quarter
+    // sky above it, so the summit is sized against the sky the frame actually has (`HORIZON`, the
+    // street baseline) rather than against MSC alone — which is how the old peaks ended up running off
+    // the top corner. Clamped so a small world or a short frame still gets a mountain.
+    if(curBiome.volcanic){
+      var vCx=(0.30+mg()*0.40)*WW;                                 // stands somewhere across the middle of the world
+      var vSky=Math.max(60,HORIZON);                               // the sky this frame actually has
+      var vH=Math.max(46*KSP, Math.min(vSky*0.76, vSky*(0.70+mg()*0.08)));
+      var vW=vH*(1.45+mg()*0.35);                                  // a cone is wider than it is tall
+      mts.near.length=0;
+      mts.near.push({x:vCx, w:vW, h:vH, sn:false, ph:mg()*9});
+      // and one smaller sibling well off to the side, so the horizon reads as an archipelago rather
+      // than a lone rock. Deliberately short: it must never compete with the cone for the eye.
+      mts.near.push({x:(vCx+WW*(0.30+mg()*0.16))%WW, w:vW*0.52, h:vH*0.34, sn:false, ph:mg()*9});
+    }
     // ⚠⚠ THE MESA'S OWN MISSING MASS, DERIVED NOT ROLLED. Nick's standing rule for an empty land is
     // that it gets the mass it is actually short of rather than a blanket relief bump, and what
     // badlands are short of here is COUNT: `nF`/`nN` give six-to-ten peaks across a 2269 px world, so
@@ -21860,20 +21882,21 @@ function drawVolcano(g,L,now,nd){
       g.fillRect(mx2,mtop,1,Math.max(1,gy-mtop));
     }
   }
-  // --- STRATA: the layered ash-and-lava bedding a stratovolcano is literally named for. Bands follow
-  // the ridge so they wrap the cone instead of lying flat across it.
-  for(var st=1;st<9;st++){
-    var stY=sy+Math.round((gy-sy)*(st/9));
-    var band=css(mixc(vBase,[0,0,0],0.16+0.05*(st%2)));
-    g.fillStyle=band;
-    for(var bxx=Math.max(0,sx-Math.round(sh*1.5)); bxx<Math.min(SW,sx+Math.round(sh*1.5)); bxx++){
-      var bh2=hs[bxx]; if(bh2==null) continue;
-      var top2=gy-Math.round(bh2);
-      if(stY<=top2+1) continue;                                 // above this column's rock
-      var wob=Math.round(Math.sin(bxx*0.09+st)*1.2*K);
-      g.fillRect(bxx,stY+wob,1,Math.max(1,Math.round(K*0.7)));
-    }
-  }
+  // --- THE SURFACE: NOT YET BUILT ---
+  // ⚠⚠ THE EIGHT STRATA BANDS ARE GONE, and nothing has replaced them yet. They put a band at each
+  // ninth of the cone height, wobbled by a single sine and run across the whole mountain — eight ruled
+  // lines, the fault Nick confirmed and the sixth instance of that same fault found in this project.
+  // Offered the choice between breaking them into exposures and dropping them, he dropped them: a
+  // YOUNG cone has not been cut into yet, so there is nothing to expose.
+  // ⚠ I then wrote ash aprons to take their place and REMOVED THEM AGAIN after rendering: they came
+  // out as large grey lozenges laid over the cone rather than as material lying on it. Shipping a
+  // thing I could see was wrong is the specific mistake that cost three attempts on the coast today,
+  // so it is not going in. The cone is flatter than it was until this is built properly — that is a
+  // known, deliberate intermediate state, not an oversight.
+  // WHAT IT NEEDS: overlapping flow lobes with levees and toes, ash and cinder aprons with eroded
+  // gullies, fumaroles and sulphur staining — and per-variant materials (NEW ISLAND black glassy
+  // lava and raw ash, GREEN ISLAND deep gullies and jungle to a treeline, CALDERA layered wall and
+  // talus). All four are locked in `citylive-volcano-overhaul`.
   // --- OLD LAVA CHANNELS: dark scars from previous eruptions, running from near the crater to the
   // foot. These are what make a volcano read as something that has DONE this before.
   var chans=3+((WORLD_SEED>>>5)%3);
