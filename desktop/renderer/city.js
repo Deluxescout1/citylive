@@ -3112,7 +3112,13 @@ var BIOMES=[
   // everywhere, whereas a volcano is COLD rock with one hot place in it. What that flag turns on is a
   // summit plume, a crater glow at night, and a slow restless cycle that occasionally sends a lava
   // tongue down one flank — never at the city, which lives with the mountain rather than under it.
-  { k:"volcano", name:"THE NEW ISLAND", amp:1.04, base:0.42, flat:0.0, steep:0.0,  snow:false, water:"sea", volcanic:1,
+  // ⚠ `vmat` DECLARES THE VARIANT'S MATERIAL instead of leaving the renderer to infer it. Nick locked
+  // "genuinely different materials per variant" as the thing that stops these three being one shape in
+  // three colours, and the renderer was previously guessing from the palette (`near[1] > near[0]+6`) —
+  // which works until a palette is re-authored and then silently puts jungle on a cinder cone. The
+  // three are: `young` a bare fresh cone, `jungle` an old one gone over to forest, `caldera` a layered
+  // ring wall. The base biome IS the young one, so variants override it.
+  { k:"volcano", name:"THE NEW ISLAND", amp:1.04, base:0.42, flat:0.0, steep:0.0,  snow:false, water:"sea", volcanic:1, vmat:"young",
     far:[92,86,88],    near:[56,52,56],   cap:[136,120,116], ground:[62,58,58],
     walls:[[196,192,186],[168,162,156],[212,208,200],[142,138,134],[182,176,168],[156,150,144],[204,198,190],[130,126,122]],
     fauna:{ keep:{deer:0,rabbit:0,fox:0,goat:1}, big:["goat"], small:["lizard","crab"], air:["frigate","tern"] },
@@ -3585,13 +3591,13 @@ var BIOME_VARIANTS={
 
   volcano:[ {},
     { name:"THE GREEN ISLAND",   // old flows gone to jungle: waterfalls off the cliffs, bright reef below
-      far:[74,110,80],   near:[44,78,56],   cap:[118,150,104], ground:[68,96,64], amp:0.94,
+      far:[74,110,80],   near:[44,78,56],   cap:[118,150,104], ground:[68,96,64], amp:0.94, vmat:"jungle",
       walls:[[248,242,230],[220,208,192],[196,224,220],[236,220,190],[210,232,226],[188,178,164],[244,234,208],[172,198,196]],
       flora:{ kinds:["palm","fern","palm","seagrape","fern"], bloom:["#f26a8d","#ffd166","#ffffff","#f4977a"] },
       fauna:{ keep:{deer:0,rabbit:0,fox:0,goat:1}, big:["goat","turtle"], small:["crab","lizard"], air:["frigate","tern"] },
       sky:{ top:[104,168,216], bot:[204,230,226], k:0.28, haze:[208,232,226] } },
     { name:"THE CALDERA",        // the cone blown open and flooded: a lagoon inside a ring wall
-      far:[118,104,96],  near:[78,68,64],   cap:[164,142,128], ground:[96,86,78], amp:0.72, steep:0.55, flat:0.30,
+      far:[118,104,96],  near:[78,68,64],   cap:[164,142,128], ground:[96,86,78], amp:0.72, steep:0.55, flat:0.30, vmat:"caldera",
       walls:[[214,204,192],[186,174,162],[228,220,206],[160,150,140],[200,188,176],[172,162,152],[220,212,198],[148,140,132]],
       flora:{ kinds:["scrub","grass","windbent","scrub","grass"], bloom:["#e8c060","#d88a5a","#ffffff"] },
       fauna:{ keep:{deer:0,rabbit:1,fox:0,goat:1}, big:["goat"], small:["lizard","crab"], air:["frigate","tern","vulture"] },
@@ -21927,12 +21933,26 @@ function drawVolcano(g,L,now,nd){
   // ⚠ All of it is clipped to the rock — a column is only painted where the profile actually reaches.
   // Same rule the crater had to learn: anything on a landform must be clipped to the landform.
   var vDrop=Math.max(4,gy-sy);
+  // ⚠⚠ THE MATERIAL IS THE VARIANT'S, NOT THE LAND'S. Nick locked item 4 as "genuinely different
+  // materials per variant — this is where they stop being one shape in three colours", and until now
+  // every cone got every surface feature: THE GREEN ISLAND, which he defined as "an OLD ERODED volcano
+  // gone to jungle", was wearing fresh black lava tongues and pale ash rays over its rainforest.
+  // A cone that has not erupted in ten thousand years has no bare flows on it — they are under the
+  // canopy — and that single gate does more for these three reading as different places than any
+  // amount of tuning.
+  //   young   THE NEW ISLAND — bare, glassy, raw: flows and ash are the whole surface.
+  //   jungle  THE GREEN ISLAND — no bare flows at all; ash stays above the treeline, where nothing grows.
+  //   caldera THE CALDERA — a layered ring wall: only the most weathered flows still show.
+  var vMat=B.vmat||"young";
+  var vTreeF=0.40+((WORLD_SEED>>>21)%18)/100;                    // the treeline, as a fraction of the drop
   // --- ASH AND CINDER FANS: narrow at the crater, spreading as they fall ---
   var fans=6+((WORLD_SEED>>>7)%4);
   for(var fn=0;fn<fans;fn++){
     var fh2=((fn*2654435761+((WORLD_SEED*11)|0))>>>0);
     var fSide=(((fh2%1000)/1000)-0.5)*1.9;                       // where round the cone it starts
     var fLen=0.45+((fh2>>>9)%50)/100;                            // how far down it runs
+    // on a vegetated cone the ash only shows where the forest is not: above the treeline
+    if(vMat==="jungle") fLen=Math.min(fLen,vTreeF*0.92);
     var fPale=((fh2>>>3)&1);
     // ⚠ SUBTLE, AND NOT A STRAIGHT RAY. The first version mixed up to 0.19 toward white and ran its
     // centreline linearly from the summit, which at a screen that sees only the FLANK comes out as a
@@ -21953,29 +21973,65 @@ function drawVolcano(g,L,now,nd){
       }
     }
   }
-  // --- LAVA LOBES: broad raised tongues with levees and a blunt toe, of mixed age ---
-  var lobes=3+((WORLD_SEED>>>15)%3);
-  for(var lb=0;lb<lobes;lb++){
-    var lh2=((lb*40503+((WORLD_SEED*19)|0))>>>0);
-    var lSide=(((lh2%1000)/1000)-0.5)*1.7;
-    var lAge=((lh2>>>11)%100)/100;                               // 0 fresh and black … 1 weathered back
-    var lStop=0.35+((lh2>>>5)%55)/100;                           // where this one came to rest
+  // --- LAVA FLOWS: broad raised tongues with levees and a blunt toe ---
+  // ⚠⚠ ONE CONSTRUCTION, USED TWICE. The old channels were rejected by Nick as "cracks or vines"
+  // because of how they were BUILT — one thin rect per row down the whole cone, which is a squiggle
+  // and not a flow — and this lobe pass was written as their replacement. Then the POST-ERUPTION block
+  // further down went and drew its fresh flows the old way again: `fillRect(nx,ny,2.4*K,1)` per row
+  // from just under the summit all the way to the foot, mixed 0.72 toward [10,8,9], i.e. near-black
+  // ink. So the fault Nick had already rejected was still on screen, in a second copy, on exactly the
+  // lives where the mountain is most worth looking at. Its own comment warned about this — "keeping
+  // both would have been the same feature drawn twice, once badly" — one block above the place it
+  // happened.
+  // A flow is a flow whatever its age, so there is one routine now and age is a parameter.
+  // ⚠ RUN-LENGTH FILLED. The old lobe loop emitted one 1x1 fillRect PER PIXEL — about 3.4k rects per
+  // lobe per frame, times three to five lobes, in the LIVE pass on three screens. The standing rule in
+  // this engine is never to emit a rect per pixel, and the rock clip on a cone gives a CONTIGUOUS span
+  // per row, so each row is three fills (body plus two levees) instead of fourteen.
+  function vTongue(hSeed,lb,lAge,lStop,glowK){
+    var lSide=(((hSeed%1000)/1000)-0.5)*1.7;
     var body=css(mixc(vBase,[14,11,12],0.62-lAge*0.42));
     var levee=css(mixc(vBase,[0,0,0],0.30-lAge*0.18));
+    var lEdge=Math.max(1,Math.round(K*0.8));
     for(var lq=Math.round(vDrop*0.10); lq<vDrop*lStop; lq++){
       var lp=lq/vDrop, ly=sy+lq;
       var lcx=sx+Math.round(lSide*sh*lp*1.0)+Math.round(Math.sin(lq*0.06+lb)*1.4*K);
       var lw=Math.max(2,Math.round((1.4+lp*4.4)*K));
-      var toe=(lq>vDrop*lStop-3*K)?1:0;                          // it thickens where it stopped
-      for(var lx2=lcx-(lw>>1); lx2<=lcx+(lw>>1)+toe*K; lx2++){
-        if(lx2<0||lx2>=SW) continue;
-        var lrh=hs[lx2]; if(lrh==null) continue;
-        if(gy-Math.round(lrh)>ly) continue;
-        var edge=(lx2<=lcx-(lw>>1)+Math.round(K*0.8)||lx2>=lcx+(lw>>1)-Math.round(K*0.8));
-        g.fillStyle=edge?levee:body;                             // levees stand proud along both sides
-        g.fillRect(lx2,ly,1,1);
+      var toe=(lq>vDrop*lStop-3*K)?Math.round(K):0;               // it thickens where it stopped
+      var lFrom=lcx-(lw>>1), lTo=lcx+(lw>>1)+toe;
+      if(lFrom<0) lFrom=0;
+      if(lTo>SW-1) lTo=SW-1;
+      // walk in from both ends to where the rock actually reaches this altitude — a flow cannot run
+      // through open sky, and the span between is contiguous on a cone
+      while(lFrom<=lTo){ var lra=hs[lFrom]; if(lra!=null&&gy-Math.round(lra)<=ly) break; lFrom++; }
+      while(lTo>=lFrom){ var lrb=hs[lTo]; if(lrb!=null&&gy-Math.round(lrb)<=ly) break; lTo--; }
+      if(lTo<lFrom) continue;
+      g.fillStyle=body; g.fillRect(lFrom,ly,lTo-lFrom+1,1);
+      g.fillStyle=levee;                                          // levees stand proud along both sides
+      g.fillRect(lFrom,ly,Math.min(lEdge,lTo-lFrom+1),1);
+      if(lTo-lEdge+1>lFrom) g.fillRect(lTo-lEdge+1,ly,lEdge,1);
+      // ⚠ still glowing in the cracks, but only on a flow young enough to be hot, and only in broken
+      // patches — a cooling flow glows where the crust has cracked, not in a dotted line down the middle
+      if(glowK>0.02 && ((((lq*2654435761)^(lb*40503))>>>0)%9)===0){
+        var gw=Math.max(1,Math.round((lTo-lFrom+1)*0.45));
+        g.globalCompositeOperation="lighter";
+        g.fillStyle="rgba(255,110,40,"+(0.40*glowK).toFixed(3)+")";
+        g.fillRect(lFrom+((lTo-lFrom-gw)>>1),ly,gw,1);
+        g.globalCompositeOperation="source-over";
       }
     }
+  }
+  // THE ANCIENT FLOWS — the mountain's own history, and only where it is still bare rock.
+  // ⚠ NONE ON THE JUNGLE ISLAND. Its old flows are the thing the forest grew ON; drawing them is
+  // drawing through the canopy. The caldera keeps only its most weathered ones, in scrub.
+  var lobes=(vMat==="jungle")?0:((vMat==="caldera")?2:3+((WORLD_SEED>>>15)%3));
+  for(var lb=0;lb<lobes;lb++){
+    var lh2=((lb*40503+((WORLD_SEED*19)|0))>>>0);
+    // 0 fresh and black … 1 weathered back. These are the OLD flows, so none of them is truly fresh —
+    // a floor keeps the mountain's history dark without making it look like it erupted today, and the
+    // caldera's floor is higher again because its walls are the oldest rock on the map.
+    var lAge=(vMat==="caldera")?(0.72+((lh2>>>11)%28)/100):(0.28+((lh2>>>11)%72)/100);
+    vTongue(lh2,lb,lAge,0.35+((lh2>>>5)%55)/100,0);
   }
   // --- FUMAROLES: vents on the upper flanks. Steam by day, a glow by night, ALWAYS on ---
   // ⚠ Deliberately NOT tied to `unrest`: that cycle sits at zero for 62% of its eighteen minutes,
@@ -22013,8 +22069,11 @@ function drawVolcano(g,L,now,nd){
   // ⚠ Only on a cone old enough to have been colonised. THE NEW ISLAND is locked as bare — "too young
   // for anything to grow on it" — so this keys off the variant's own near colour being green rather
   // than off a name, which keeps it working if the palettes are ever re-authored.
-  if(B.near && B.near[1] > B.near[0] + 6){
-    var tlBase=vDrop*(0.40+((WORLD_SEED>>>21)%18)/100);
+  // ⚠ WAS A PALETTE GUESS (`near[1] > near[0]+6`), NOW THE DECLARED MATERIAL. Inferring "this variant
+  // is vegetated" from its rock colour being greenish works right up until a palette is re-authored,
+  // and then it silently grows a rainforest on a cinder cone. `vmat` says it outright.
+  if(vMat==="jungle"){
+    var tlBase=vDrop*vTreeF;
     var canopy=css(mixc(day?[48,86,54]:[12,24,16],biomeSkc(day),day?0.14:0.10));
     var canLit=css(mixc(day?[70,116,66]:[16,32,20],biomeSkc(day),day?0.12:0.08));
     // ⚠ THE WHOLE MOUNTAIN, NOT A WINDOW ROUND THE SUMMIT. Nick: "make sure the trees are on the
@@ -22076,11 +22135,35 @@ function drawVolcano(g,L,now,nd){
   // of ages so the mountain still shows its history. Keeping both would have been the same feature
   // drawn twice, once badly — the mistake the coast made with its two shorelines.
   // --- SULPHUR round the vent: the yellow-green staining every active crater has
-  g.fillStyle=day?"rgba(198,186,86,0.30)":"rgba(120,112,50,0.22)";
-  for(var su=0;su<Math.round(10*K);su++){
-    var sud=Math.round(crW*(1.0+su/(6*K)));
-    g.fillRect(sx-sud,sy+Math.round(su*0.5),Math.max(1,Math.round(2*K)),1);
-    g.fillRect(sx+sud-Math.round(2*K),sy+Math.round(su*0.5),Math.max(1,Math.round(2*K)),1);
+  // ⚠⚠ THIS WAS TWO RULED LINES, AND THEY WERE NOT EVEN ON THE MOUNTAIN.
+  // The old six lines stepped a pair of rects outward from the summit column at a fixed slope — `sud`
+  // growing linearly while y grew at half the rate — so they drew two straight bright-yellow rays
+  // leaving the peak at a constant angle. On a real frame that reads as a sunburst struck out of the
+  // summit, and it is the thing I twice mistook for something else: suppressing the ash fans did not
+  // remove it, and neither would suppressing the flows. Two suppression tests to find six lines.
+  // TWO FAULTS, BOTH ALREADY FIXED ONCE ON THIS LAND:
+  //   · A RULED LINE where nature has none. That is the ninth instance on this map.
+  //   · NOT CLIPPED TO THE LANDFORM. `sy` is the altitude of the single TALLEST column, so anything
+  //     struck from it at a constant offset hangs over OPEN SKY either side of the peak. This is the
+  //     crater-plank bug exactly, in the same function, three features along — which is the clearest
+  //     evidence yet that "clip it to the landform" needed to be a rule and not a one-site fix.
+  // Sulphur is a STAIN: patchy discolouration on the rock around the vent, thinning outward, sitting
+  // on whatever surface is actually there. Hashed in WORLD space so all three screens stain
+  // identically, and clipped per column to the profile so it cannot leave the rock.
+  var suR=Math.max(2,Math.round(crW*2.6));
+  for(var sux=Math.max(0,sx-suR); sux<Math.min(SW,sx+suR); sux++){
+    var suh=hs[sux]; if(suh==null||suh<=0) continue;
+    var suTop=gy-Math.round(suh);
+    var suD=Math.abs(sux-sx)/suR;                                  // 0 at the vent … 1 at the stain's edge
+    var suN=Math.round((1-suD)*(1-suD)*7*K);                       // how far down the rock it creeps
+    if(suN<1) continue;
+    var suA=(day?0.34:0.24)*(1-suD);
+    g.fillStyle=day?"rgba(198,186,86,"+suA.toFixed(3)+")":"rgba(120,112,50,"+suA.toFixed(3)+")";
+    var suwx=sux+WOFF;
+    for(var suy=0;suy<suN;suy++){
+      if((((suwx*2654435761)^((suTop+suy)*40503))>>>0)%5 > 1) continue;   // patchy, never a solid band
+      g.fillRect(sux,suTop+suy,1,1);
+    }
   }
   // --- TALUS: loose scree fanning out at the foot, where a real cone meets the ground
   g.fillStyle=css(mixc(vBase,[0,0,0],0.10));
@@ -22121,25 +22204,20 @@ function drawVolcano(g,L,now,nd){
       if(atop>sy+Math.round(sh*0.55)) continue;                    // only the upper mountain
       g.fillRect(ax2,atop,1,Math.round((2+((ax2*5)%3))*K));
     }
-    // FRESH FLOWS: black, still warm at the edges while `fresh` lasts, lying over the old channels
+    // FRESH FLOWS — the same tongues as the ancient ones, at age zero and still hot in the cracks.
+    // ⚠⚠ THIS IS WHERE THE REJECTED LOOK WAS LIVING. It used to draw its own thin per-row squiggle
+    // from just under the summit all the way down to `gy`, in near-black — the "cracks or vines"
+    // construction Nick had already turned down once, reproduced in the post-eruption path where it
+    // went unnoticed because it only appears on a life that has already erupted. Routed through
+    // `vTongue` now, so a fresh flow is a broad tongue with levees and a blunt toe like every other
+    // flow on the mountain, and there is exactly one place left in this file that knows how to draw one.
+    // ⚠ AND IT STOPS. A flow that runs from the vent to the shore is a curtain, not a flow: these reach
+    // 55-80% of the way down, which is far enough to be the dominant feature of the cone and short
+    // enough that the foot of the mountain is still the foot of the mountain.
     var nfl=2+((WORLD_SEED>>>13)%2);
     for(var nf=0;nf<nfl;nf++){
       var nh2=((nf*2246822519+((WORLD_SEED*17)|0))>>>0);
-      var ndir=(nh2&1)?1:-1;
-      for(var ny=sy+Math.round(4*K); ny<gy; ny+=1){
-        var np=(ny-sy)/Math.max(1,gy-sy);
-        var nx=sx+ndir*Math.round(np*sh*0.5)+Math.round(Math.sin(ny*0.1+nf*2)*2.2*K);
-        if(nx<0||nx>=SW) continue;
-        if(gy-Math.round(hs[nx]||0)>ny) continue;
-        g.fillStyle=css(mixc(vBase,[10,8,9],0.72));                // cooled black crust
-        g.fillRect(nx,ny,Math.max(1,Math.round(2.4*K)),1);
-        if(fresh>0.15&&((ny+nf)%11)===0){                          // still glowing in the cracks
-          g.globalCompositeOperation="lighter";
-          g.fillStyle="rgba(255,110,40,"+(0.34*fresh).toFixed(2)+")";
-          g.fillRect(nx,ny,Math.max(1,Math.round(1.4*K)),1);
-          g.globalCompositeOperation="source-over";
-        }
-      }
+      vTongue(nh2,nf+7,0.04,0.55+((nh2>>>5)%25)/100,fresh);
     }
   }
   // --- FUMAROLES: small steam vents on the flanks, ALWAYS going. A quiet volcano still steams, and
@@ -29617,7 +29695,20 @@ function draw(g,pass){
   } else { if(flakes.length) flakes.length=0; snowpack=Math.max(0,snowpack-dt*0.0000015); }
 
   // ---- AMBIENT SEASONAL DRIFTERS: autumn leaves / spring petals on the breeze (WIND-REACTIVE) ----
-  var drift=(curSeason&&cityPhase!=="apoc"&&!fx.rain&&!fx.snow&&!fx.thunder&&!fx.fog&&L>0.16);
+  // ⚠⚠ ONLY ON A LAND THAT HAS SOMETHING TO SHED. This ran on all twenty lands, so the REAL Norwich
+  // season put tumbling orange autumn leaves across a tropical volcanic island and across arctic pack
+  // ice — and on the arctic Nick called it out by name: "no autumn leaves or blossom on ice." It is the
+  // same fault on both maps and it belongs here, once, not in two per-land patches.
+  // Derived from the land's own flora rather than a name list, so it stays true if a biome is
+  // re-authored: leaf fall needs a BROADLEAF or a deciduous conifer. Palms, ferns, seagrape, scrub,
+  // grass, cactus, acacia, spruce, snags and lichen do not carpet a landscape in leaves.
+  // ⚠ `dwarfwillow` is deliberately NOT in the list even though a real dwarf willow does drop its
+  // leaves: it is a prostrate arctic shrub a few inches high, and it is the only shed-capable plant on
+  // the ice. Including it would have kept exactly the fault Nick rejected.
+  var SHED_KINDS={generic:1,willow:1,cottonwood:1,goldtree:1,larch:1,weedtree:1};
+  var canShed=false, shk=(curBiome.flora&&curBiome.flora.kinds)||null;
+  if(shk) for(var shq=0;shq<shk.length;shq++) if(SHED_KINDS[shk[shq]]){ canShed=true; break; }
+  var drift=(canShed&&curSeason&&cityPhase!=="apoc"&&!fx.rain&&!fx.snow&&!fx.thunder&&!fx.fog&&L>0.16);
   var isAut=drift&&curSeason.name==="autumn", isSpr=drift&&curSeason.name==="spring"&&curSeason.blossom;
   // THE OLD FOREST SHEDS ALL YEAR. Everywhere else leaf-fall is a season — autumn, once — but a wet
   // old-growth canopy is always dropping something, and Nick asked for leaves coming down from the

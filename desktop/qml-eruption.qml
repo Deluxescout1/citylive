@@ -14,9 +14,9 @@ Item {
     property string land: "volcano"
     property int variant: 1                   // 1 = THE GREEN ISLAND (the one Nick screenshotted)
     property int hour: 13
-    property var woffList: [0,776,1629]
+    property var woffList: [776]
     property int woi: 0
-    property var fs: [0.0]
+    property var fs: [0.0, 1.0]
     property int fi: 0
     property int warm: 0
     property double t0: 0
