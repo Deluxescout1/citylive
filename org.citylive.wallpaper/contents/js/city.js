@@ -4380,12 +4380,16 @@ function buildWorld(li){
   // His ruling: TOWN AT THE FOOT OF THE CLIFFS, open sea toward the viewer. So the bay goes with the
   // seam ocean it belongs to, the land runs to the world's edges, and the only water is the sea front
   // in front of the town — where the harbour, the surf and the swell already are.
-  // ⚠ SCOPED TO THE CLIFFS. Every sea-front land shares this code path, and the bayou's entire
-  // identity is standing water it puts cypress in — pulling its bay would be a different land's
-  // overhaul done by accident, at the end of someone else's. The map-by-map pass exists precisely so
-  // that a fix lands on the map it was reasoned about. Swamp, arctic, beach, volcano and fjord keep
+  // ⚠ SCOPED TO THE COASTS UNDER REVIEW. Every sea-front land shares this code path, and the bayou's
+  // entire identity is standing water it puts cypress in — pulling its bay would be a different
+  // land's overhaul done by accident. The map-by-map pass exists precisely so a fix lands on the map
+  // it was reasoned about.
+  // ⚠ THE BEACH JOINS THE CLIFFS because it has the identical fault and Nick has already ruled on it:
+  // water behind the city AND in front of it, so the place reads as nowhere. A beach is the simplest
+  // geography in the set — the town at your back, the sand and the surf toward you — and it was
+  // rendering as a strip of city floating between two seas. Swamp, arctic, volcano and fjord keep
   // their bays until it is their turn.
-  if(SEA_FRONT>0 && curBiome.k==="cliffs") WATER_W=0;
+  if(SEA_FRONT>0 && (curBiome.k==="cliffs"||curBiome.k==="beach")) WATER_W=0;
   // Dry biomes get a RIVER through the city instead of a coast: the waterfront becomes a riverbank,
   // and the harbour's deep-water shipping becomes barge traffic (drawRiver / riverAt).
   hasRiver = !hasOcean && curBiome.water==="river";
@@ -13094,6 +13098,10 @@ function drawSeaFrontBand(g,L,now){
   if(k==="swamp"){ shallow=day?[54,62,48]:[14,18,16];  deep=day?[26,32,26]:[7,9,9]; }        // a black mirror
   else if(k==="arctic"){ shallow=day?[104,146,168]:[22,34,48]; deep=day?[48,86,116]:[10,18,30]; }
   else if(nm==="CORAL COAST"){ shallow=day?[86,206,196]:[16,54,62]; deep=day?[26,116,150]:[8,28,48]; }
+  // ⚠ …and the other two beaches were falling through to the generic blue, which is why all three
+  // read the same. Black sand sits under hard deep water; a coral shore has a pale jade lagoon.
+  else if(nm==="THE BLACK SAND"){ shallow=day?[36,92,132]:[8,20,34]; deep=day?[14,52,86]:[4,12,22]; }
+  else if(nm==="THE PINK SHORE"){ shallow=day?[130,220,208]:[18,58,64]; deep=day?[60,164,176]:[10,36,50]; }
   else if(k==="volcano"){ shallow=day?[52,92,116]:[10,20,30]; deep=day?[22,48,70]:[5,11,18]; }
   else { shallow=day?[64,124,164]:[12,26,44]; deep=day?[26,66,104]:[6,14,26]; }
   var wg=g.createLinearGradient(0,top,0,SH);
@@ -13208,7 +13216,17 @@ function drawSeaFrontBand(g,L,now){
     }
   } else if(k==="beach"){
     // sand between the promenade and the water, with a run-up of foam that advances and retreats
-    var sand=day?[214,196,158]:[42,38,32], wet=day?[176,158,124]:[30,28,24];
+    // ⚠⚠ THE SAND WAS HARDCODED AND THE VARIANTS WERE INVISIBLE. THE BLACK SAND defines a volcanic
+    // ground of [68,66,64] and THE PINK SHORE a coral one of [246,218,206] — and this line painted
+    // the same beige on all three, so the only thing that actually reads as "which beach am I on"
+    // was thrown away at the last step. The biome table was right the whole time; the renderer never
+    // asked it.
+    // ⚠ Same class as the sea-cliff variants rendering as one grey wall: a land's identity has to
+    // reach the PIXELS, not just the table. Taken from the biome's own ground now, so a new variant
+    // is a palette entry and nothing else.
+    var gcol=(curBiome.ground||[214,196,158]);
+    var sand=day?gcol.slice(0):mixc(gcol,[10,10,16],0.80);
+    var wet =day?mixc(gcol,[0,0,0],0.22):mixc(gcol,[8,8,14],0.86);
     g.fillStyle=css(sand); g.fillRect(0,wTop-Math.round(3*K),SW,Math.round(4*K));
     g.fillStyle=css(wet);  g.fillRect(0,wTop,SW,Math.round(2.4*K));
     var run=(Math.sin(now*0.00045)*0.5+0.5);
