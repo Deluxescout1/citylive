@@ -2187,6 +2187,17 @@ function drawSky(g,now,nd,L,fx){
   // ---- THE MILKY WAY — the galaxy's own band arcs overhead; the city's glow washes it out as it
   // grows, and it returns over the darkened city (deep 3-4am, pollution lights-out, storm blackout).
   buildMilkyWay();
+  // ⚠⚠ AND IT MUST NOT PAINT ON THE GROUND. Nick, on a night frame of the sea: "fix the water because
+  // what is this — maybe remove the lines?" Recording every fill in the water band found almost
+  // nothing, because these are STROKES, not fills, and my recorder only wrapped `fillRect` — the
+  // fourth time in this project a capture filter has hidden the thing it was pointed at.
+  // What they are is THE MILKY WAY. Its ribbons are up to 25px wide and offset up to 16px, drawn in
+  // `lighter` mode, and the arch descends to the horizon — so at the bottom of its arc the band spills
+  // below the skyline and lays faint vertical streaks across the sea and the land. It has presumably
+  // been doing this on every water map on every clear night since the sky pass.
+  // Clipping it to the sky is the whole fix: the galaxy is a thing you see IN THE SKY, and there was
+  // never a reason for a single one of its pixels to land under the horizon.
+  g.save(); g.beginPath(); g.rect(0,0,SW,Math.max(1,Math.min(SEA_Y>0?SEA_Y:HORIZON,HORIZON))); g.clip();
   g.globalCompositeOperation="lighter"; g.lineCap="butt";   // butt caps: round caps double-stack additively at joints → a beaded pearl-chain artifact
   var SPN=[]; for(var si=0;si<MWSPINE.length;si++){ var sp=MWSPINE[si], sa=altAz(sp.ra,sp.dec,lst);   // project the ridge once
     SPN.push(sa.alt<2?null:{x:skyWX(sa.az),y:skyY(sa.alt),alt:sa.alt,w:sp.w}); }
@@ -2221,6 +2232,7 @@ function drawSky(g,now,nd,L,fx){
         g.fillStyle="rgba(208,212,238,"+(aal*0.55).toFixed(3)+")"; g.fillRect((asx-2)|0,awy|0,5,2);
         g.fillStyle="rgba(236,240,255,"+aal.toFixed(3)+")"; g.fillRect(asx|0,awy|0,1,1); } } }
   g.globalCompositeOperation="source-over";
+  g.restore();                                   // …end of the sky clip: nothing above paints on the ground
   // faint filler field first (fills the sky; rotates correctly with the real stars)
   for(var i=0;i<skyfill.length;i++){ var fa=altAz(skyfill[i][0],skyfill[i][1],lst); if(fa.alt<1.5) continue;
     // LIGHT POLLUTION: the city's glow washes the faint stars low over the skyline; the zenith stays dark & rich
@@ -13032,16 +13044,43 @@ function drawSeaFrontBand(g,L,now){
   wg.addColorStop(0,css(shallow)); wg.addColorStop(1,css(deep));
   g.fillStyle=wg; g.fillRect(0,top,SW,h);
   // --- swell: long low bands travelling across the world, slower and wider with distance ---
+  // ⚠⚠ THE SWELL WAS FIVE RULED LINES. Nick: "fix the water because what is this — it needs to look
+  // better and maybe remove the lines? or at the very least make them look nicer."
+  // Recorded every fill landing in the water band to find out what was actually there, and the answer
+  // was almost nothing: five continuous 1px sine curves drawn all the way across the world, one pixel
+  // tall, each at a single flat alpha. That is not swell — it is a contour plot of a sine wave, and at
+  // his display scale it reads as ruling on the water.
+  // ⚠ What makes water read as water at this size is not more waves, it is BROKEN crests. A real
+  // swell line is continuous in the trough and glints in flashes along the crest, so an unbroken line
+  // is the one thing it never looks like. Each band now carries a second octave so the crest wanders
+  // instead of repeating, an alpha that varies ALONG the line so it fades in and out rather than
+  // ruling edge to edge, and a crest highlight that only appears where the wave is actually peaking.
+  // Bands also thin and slow with distance, which is what sells the depth.
   var wind=Math.max(2,(weather&&weather.wind)||6), sp=0.00004*(0.6+wind/22);
-  for(var b2=0;b2<5;b2++){
-    var by=top+Math.round((b2+0.6)*(h/5.4));
-    var amp=(1+b2*0.55)*K*0.5, wl=(52-b2*7)*K;
-    g.fillStyle=day?"rgba(255,255,255,"+(0.05+b2*0.022).toFixed(3)+")"
-                   :"rgba(150,180,220,"+(0.03+b2*0.016).toFixed(3)+")";
+  var chop=Math.min(1.6,0.5+wind/16);                        // how hard it is blowing decides how broken it is
+  for(var b2=0;b2<7;b2++){
+    var by=top+Math.round((b2+0.6)*(h/7.4));
+    var amp=(1+b2*0.5)*K*0.5*chop, wl=(58-b2*6)*K, wl2=wl*0.41;
+    var near=b2/6;                                           // 0 far, 1 near the viewer
+    var baseA=(day?0.045:0.028)+near*(day?0.05:0.030);
     for(var sx5=0;sx5<SW;sx5++){
       var wxw=sx5+WOFF;
-      var yy=by+Math.round(Math.sin(wxw/wl+now*sp*(1+b2*0.5))*amp);
-      g.fillRect(sx5,yy,1,Math.max(1,Math.round(K*0.6)));
+      var ph1=wxw/wl+now*sp*(1+b2*0.5), ph2=wxw/wl2-now*sp*(0.7+b2*0.3);
+      var crest=Math.sin(ph1)*0.72+Math.sin(ph2)*0.28;       // two octaves: the crest wanders
+      var yy=by+Math.round(crest*amp);
+      // the line fades in and out along its own length instead of ruling edge to edge
+      var envel=0.35+0.65*(0.5+0.5*Math.sin(wxw/(63*K)+ph2*0.5+b2));
+      var a5=baseA*envel;
+      if(a5>0.008){
+        g.fillStyle=day?"rgba(255,255,255,"+a5.toFixed(3)+")":"rgba(150,180,220,"+a5.toFixed(3)+")";
+        g.fillRect(sx5,yy,1,Math.max(1,Math.round(K*0.6)));
+      }
+      // and a hard little glint only where this wave is genuinely at its peak — the flash that says
+      // "surface" rather than "shading"
+      if(crest>0.93 && ((wxw*7+b2*31)%11)<2){
+        g.fillStyle=day?"rgba(255,255,255,"+(0.30*envel).toFixed(3)+")":"rgba(190,214,244,"+(0.20*envel).toFixed(3)+")";
+        g.fillRect(sx5,yy-Math.max(1,Math.round(K*0.4)),Math.max(1,Math.round(K*0.8)),Math.max(1,Math.round(K*0.5)));
+      }
     }
   }
   // --- THE GLITTER PATH. Nick: "make the water at the bottom of the screen more dynamic for the maps
@@ -22055,6 +22094,15 @@ function drawMountains(g,L,now,nd){
         if(ct2!==ctop){ if(cs2>=0&&ctop>-999) g.fillRect(cs2,ctop+lh2,cx2-cs2,csh);
           cs2=(ct2>-999)?cx2:-1; ctop=ct2; }
       }
+      // ⚠⚠ THE EROSION GULLIES ARE A MESA DETAIL AND THEY STRIPE A SEA CLIFF. Nick, on a night crop of
+      // the cliffs: "maybe remove the lines?" These are hard 4px-wide dark bars ruled straight down
+      // the face every 52px — on a badlands wall that reads as runnelled sandstone, which is what they
+      // were written for; on a sheer marine cliff it is a picket fence, and it is the single most
+      // regular thing in the frame.
+      // ⚠ Regular spacing is the tell, and it is the same tell as every striping bug in this project.
+      // The difference is that these are DELIBERATE, so no amount of resample-hunting would ever have
+      // found them. Kept for the butte lands they belong to.
+      if(B.buttes){
       g.fillStyle="rgba(0,0,0,0.16)";
       var gsp=Math.max(14,Math.round(26*KSP));
       for(var gx=0;gx<SW;gx++){
@@ -22064,6 +22112,7 @@ function drawMountains(g,L,now,nd){
         var glen=Math.round((gh-csh)*(0.35+(((gwx*2654435761)>>>0)%100)/100*0.5));
         if(glen<3) continue;
         g.fillRect(gx,gtop,Math.max(1,Math.round(1.8*KSP)),Math.min(glen,gy-gtop));
+      }
       }
     }
     // ---- THE FACE — cliff bands, scree, and a treeline ------------------------------------------
