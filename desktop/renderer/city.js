@@ -21875,6 +21875,19 @@ function drawMountains(g,L,now,nd){
         // So the gate is a threshold now, not a non-zero test. Above 0.5 the land is a table and gets
         // its beds; below it the profile stays CONTINUOUS and keeps the crags the noise already gave
         // it, which on the Dolomites is the whole point of the variant.
+        // ⚠⚠ HEADLANDS AND BAYS — the thing that stops a cliff being a wall. Nick's brief for this map
+        // put it first, and it is the one change that alters the SILHOUETTE rather than the surface:
+        // a coast advances and retreats. Every real cliff line is a rhythm of promontories standing
+        // proud and coves cut back between them, and without it you are drawing a rampart.
+        // ⚠ Two slow octaves in WORLD space, so the same headland is the same headland on all three
+        // monitors and across the seam. The long wave sets where the coast bulges; the shorter one
+        // stops the promontories being evenly spaced, which is what a single sine would give.
+        // The crest drops hard in a cove and lifts on a headland — height IS distance here, because a
+        // stretch of cliff that has been cut back sits further away and reads lower.
+        if(B.cliffLife && rh0>2){
+          var coast=Math.sin(wx0*0.0043)*0.62+Math.sin(wx0*0.0017+2.3)*0.38;
+          rh0*=(0.55+0.55*(coast*0.5+0.5));                    // cove ~0.55x … headland ~1.10x
+        }
         if(B.flat>0.5 && rh0>2){
           if(B.buttes){ var qb=Math.floor(rh0/strata);
             rh0=(qb+((mixLi((qb*7919)>>>0,4649)%100)/100-0.5)*0.62)*strata; }
