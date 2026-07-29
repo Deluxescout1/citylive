@@ -21973,7 +21973,25 @@ function drawBiomeLandmark(g,L,now,nd){
 // everywhere, a volcano is cold rock with one hot place in it.
 // The cycle is a pure function of the clock, like everything else here, so it is freeze-safe and the
 // same moment always renders the same mountain.
-function drawVolcano(g,L,now,nd){
+// ============ THE VOLCANO'S SURFACE — THE STATIC HALF, DRAWN IN THE BACKDROP PASS ============
+// ⚠⚠ THIS USED TO BE ONE FUNCTION IN THE LIVE PASS, AND IT WAS 22.4% OF EVERY FRAME.
+// Measured, not assumed (`desktop/qml-perf-volcano.qml`, median of 5 x 60 frames at Nick's real
+// primary geometry, on the variant with the heaviest surface): `drawVolcano` cost 4.97 ms of a
+// 22.18 ms live frame. On his `balanced` setting the live canvas repaints every 125 ms and the bg
+// canvas every 2000 ms, so everything static in here was being redrawn SIXTEEN TIMES more often than
+// it needed to be, on each of three screens.
+// Nothing below reads the clock. The crater, the sun-and-shadow modelling, the ash fans, the flow
+// tongues, the treeline canopy, the sulphur stain, the talus and the whole post-eruption state are
+// functions of the world seed, the cached ridge profile and the hour — none of which move between one
+// 125 ms frame and the next. The things that DO move — the fumaroles' steam, the summit wisp, the
+// crater glow and the plume — are in `drawVolcanoLive`.
+// ⚠ The sun-and-shadow pass depends on `L` and `curSunDf`, which do change through the day. That is
+// fine at bg cadence: the sun moves imperceptibly in two seconds, and the backdrop is already
+// responsible for every other piece of daylight shading in the frame.
+// ⚠ BOTH HALVES REPEAT THE SHORT PREAMBLE (the summit scan is ~130 strided reads and two mixc calls)
+// rather than sharing cached state. Caching it would mean another thing keyed on the eruption state
+// and the screen, and this map has already lost a day to a duplicate that silently won.
+function drawVolcanoSurface(g,L,now,nd){
   var B=curBiome; if(!B.volcanic||!mtsCache||!mtsCache.h||!mtsCache.h[1]) return;
   if(cityPhase==="apoc") return;                      // an ending has its own sky; don't compete with it
   var hs=mtsCache.h[1], gy=HORIZON, day=L>0.5, K=Math.max(1,KSP);
@@ -22187,33 +22205,6 @@ function drawVolcano(g,L,now,nd){
     var lAge=(vMat==="caldera")?(0.72+((lh2>>>11)%28)/100):(0.28+((lh2>>>11)%72)/100);
     vTongue(lh2,lb,lAge,0.35+((lh2>>>5)%55)/100,0);
   }
-  // --- FUMAROLES: vents on the upper flanks. Steam by day, a glow by night, ALWAYS on ---
-  // ⚠ Deliberately NOT tied to `unrest`: that cycle sits at zero for 62% of its eighteen minutes,
-  // which is precisely why this mountain used to render dead on a quiet afternoon.
-  var vents=3+((WORLD_SEED>>>19)%3);
-  for(var vt=0;vt<vents;vt++){
-    var vh2=((vt*2246822519+((WORLD_SEED*23)|0))>>>0);
-    var vp2=0.14+((vh2%60)/100)*0.5;                             // how far down the flank it sits
-    var vx2=sx+Math.round((((vh2>>>7)%1000)/1000-0.5)*1.7*sh*vp2);
-    var vy2=sy+Math.round(vDrop*vp2);
-    if(vx2<0||vx2>=SW) continue;
-    var vrh=hs[vx2]; if(vrh==null||gy-Math.round(vrh)>vy2) continue;
-    g.fillStyle=day?"rgba(206,196,110,0.34)":"rgba(120,110,54,0.26)";   // sulphur staining round the vent
-    g.fillRect(vx2-Math.round(K),vy2,Math.max(1,Math.round(2.4*K)),Math.max(1,Math.round(1.6*K)));
-    if(day){                                                     // a thread of steam, leaning on the real wind
-      var wLean=Math.max(-1,Math.min(1,((weather&&weather.wind)||6)/24));
-      for(var sq=0;sq<Math.round(7*K);sq++){
-        var sf=sq/Math.max(1,Math.round(7*K));
-        g.fillStyle="rgba(226,232,236,"+(0.30*(1-sf)).toFixed(3)+")";
-        g.fillRect((vx2+Math.round(wLean*sq*0.8+Math.sin(now*0.0013+vt+sq*0.4)*1.2))|0,vy2-sq,1,1);
-      }
-    } else {
-      g.globalCompositeOperation="lighter";
-      g.fillStyle="rgba(255,132,48,"+(0.20+0.10*Math.sin(now*0.0016+vt)).toFixed(3)+")";
-      g.fillRect(vx2-Math.round(K*0.6),vy2-Math.round(K*0.6),Math.max(1,Math.round(2*K)),Math.max(1,Math.round(2*K)));
-      g.globalCompositeOperation="source-over";
-    }
-  }
   // --- THE TREELINE: hard in CONTRAST, never in geometry ---
   // ⚠⚠ Nick first picked a LEVEL treeline and I pushed back: this map has produced a ruled line seven
   // separate times, and a boundary drawn at one altitude would have been the eighth. He moved to
@@ -22267,19 +22258,6 @@ function drawVolcano(g,L,now,nd){
         g.fillStyle=canLit; g.fillRect(tx,ty2,1,1);
       }
     }
-  }
-  // --- THE STEAM WISP: an intact cone is not a dead one ---
-  // Nick, on what a volcano should look like BEFORE it goes: "a steam wisp at the vent." Not a plume
-  // and not nothing — a thread off the summit so you know the mountain is alive. Always on, leaning
-  // on the real wind, and it costs a dozen rects.
-  var wpLean=Math.max(-1,Math.min(1,((weather&&weather.wind)||6)/22));
-  for(var wq4=0;wq4<Math.round(13*K);wq4++){
-    var wf4=wq4/Math.max(1,Math.round(13*K));
-    var wa4=(0.34*(1-wf4))*(day?1:0.62);
-    if(wa4<=0.03) continue;
-    var wx4=sx+Math.round(wpLean*wq4*0.9+Math.sin(now*0.0009+wq4*0.32)*(1.4+wf4*3)*K*0.5);
-    g.fillStyle=day?"rgba(232,238,242,"+wa4.toFixed(3)+")":"rgba(150,160,178,"+wa4.toFixed(3)+")";
-    g.fillRect(wx4|0,(sy-Math.round(wq4*1.15))|0,Math.max(1,Math.round(K*(0.7+wf4))),1);
   }
   // --- OLD LAVA CHANNELS: REMOVED, replaced by the lobes above ---
   // ⚠ These were the dark serpentine lines Nick confirmed as a fault: "they read as cracks or vines."
@@ -22373,6 +22351,78 @@ function drawVolcano(g,L,now,nd){
       var nh2=((nf*2246822519+((WORLD_SEED*17)|0))>>>0);
       vTongue(nh2,nf+7,0.04,0.55+((nh2>>>5)%25)/100,fresh);
     }
+  }
+}
+// ============ THE VOLCANO, LIVE — only the things that actually move ============
+// The other 4/5 of what this land draws is in `drawVolcanoSurface`, which runs in the backdrop pass.
+// Keep it that way: anything added here is paid for eight times a second on three screens. If a new
+// feature is static per life, it belongs in the surface half.
+function drawVolcanoLive(g,L,now,nd){
+  var B=curBiome; if(!B.volcanic||!mtsCache||!mtsCache.h||!mtsCache.h[1]) return;
+  if(cityPhase==="apoc") return;                      // an ending has its own sky; don't compete with it
+  var hs=mtsCache.h[1], gy=HORIZON, day=L>0.5, K=Math.max(1,KSP);
+  // THE SUMMIT is the tallest column of the near ridge on this screen — found, not stored, because the
+  // ridge is per-screen and the same world peak lands at a different x on each monitor.
+  var sx=-1, sh=0;
+  for(var x=Math.round(4*K);x<SW-Math.round(4*K);x+=Math.max(1,Math.round(2*K)))
+    if(hs[x]>sh){ sh=hs[x]; sx=x; }
+  if(sx<0||sh<26*K) return;                           // no real cone on this screen
+  var sy=gy-Math.round(sh);
+  // THE STIR. A slow cycle: mostly quiet, occasionally restless. `unrest` 0..1.
+  var per=1080000, ph=((now%per)/per);                // ~18 minutes end to end
+  var unrest=ph<0.62?0:Math.sin(((ph-0.62)/0.38)*Math.PI);
+  // ⚠⚠ THE CRATER'S OWN DIMENSIONS ARE NEEDED HERE TOO, AND FORGETTING ONE BROKE THE WHOLE NIGHT.
+  // `crD` is used by the crater glow. When the split was first made it was left behind in the surface
+  // half, and the result was a ReferenceError thrown from `drawVolcanoLive` — which aborted the REST OF
+  // THE LIVE PASS, so at 23:00 the frame came out as the backdrop alone: mountain and palms, no city,
+  // no road, no sea, no panel. A missing variable in one overlay silently deleted the entire city.
+  // ⚠ AND 13:00 PASSED CLEANLY, WHICH IS WHY IT NEARLY SHIPPED. The glow is gated on `glow>0.06`, and
+  // by day with no unrest that evaluates to 0.0275 — so the broken line never executed in a daytime
+  // render. Judge at 13:00 AND 23:00 is a standing rule on this project for exactly this reason, and
+  // this is the first time it has caught a hard crash rather than a look.
+  // Kept as a static check as well: a script now verifies that every identifier the live half reads is
+  // declared in it, because "it renders at noon" is not evidence that it renders.
+  var crW=Math.min(Math.round(sh*0.05)+Math.round(2*K), Math.round(11*K)), crD=Math.round(3.0*K);
+  var vDrop=Math.max(4,gy-sy);
+  // --- FUMAROLES: vents on the upper flanks. Steam by day, a glow by night, ALWAYS on ---
+  // ⚠ Deliberately NOT tied to `unrest`: that cycle sits at zero for 62% of its eighteen minutes,
+  // which is precisely why this mountain used to render dead on a quiet afternoon.
+  var vents=3+((WORLD_SEED>>>19)%3);
+  for(var vt=0;vt<vents;vt++){
+    var vh2=((vt*2246822519+((WORLD_SEED*23)|0))>>>0);
+    var vp2=0.14+((vh2%60)/100)*0.5;                             // how far down the flank it sits
+    var vx2=sx+Math.round((((vh2>>>7)%1000)/1000-0.5)*1.7*sh*vp2);
+    var vy2=sy+Math.round(vDrop*vp2);
+    if(vx2<0||vx2>=SW) continue;
+    var vrh=hs[vx2]; if(vrh==null||gy-Math.round(vrh)>vy2) continue;
+    g.fillStyle=day?"rgba(206,196,110,0.34)":"rgba(120,110,54,0.26)";   // sulphur staining round the vent
+    g.fillRect(vx2-Math.round(K),vy2,Math.max(1,Math.round(2.4*K)),Math.max(1,Math.round(1.6*K)));
+    if(day){                                                     // a thread of steam, leaning on the real wind
+      var wLean=Math.max(-1,Math.min(1,((weather&&weather.wind)||6)/24));
+      for(var sq=0;sq<Math.round(7*K);sq++){
+        var sf=sq/Math.max(1,Math.round(7*K));
+        g.fillStyle="rgba(226,232,236,"+(0.30*(1-sf)).toFixed(3)+")";
+        g.fillRect((vx2+Math.round(wLean*sq*0.8+Math.sin(now*0.0013+vt+sq*0.4)*1.2))|0,vy2-sq,1,1);
+      }
+    } else {
+      g.globalCompositeOperation="lighter";
+      g.fillStyle="rgba(255,132,48,"+(0.20+0.10*Math.sin(now*0.0016+vt)).toFixed(3)+")";
+      g.fillRect(vx2-Math.round(K*0.6),vy2-Math.round(K*0.6),Math.max(1,Math.round(2*K)),Math.max(1,Math.round(2*K)));
+      g.globalCompositeOperation="source-over";
+    }
+  }
+  // --- THE STEAM WISP: an intact cone is not a dead one ---
+  // Nick, on what a volcano should look like BEFORE it goes: "a steam wisp at the vent." Not a plume
+  // and not nothing — a thread off the summit so you know the mountain is alive. Always on, leaning
+  // on the real wind, and it costs a dozen rects.
+  var wpLean=Math.max(-1,Math.min(1,((weather&&weather.wind)||6)/22));
+  for(var wq4=0;wq4<Math.round(13*K);wq4++){
+    var wf4=wq4/Math.max(1,Math.round(13*K));
+    var wa4=(0.34*(1-wf4))*(day?1:0.62);
+    if(wa4<=0.03) continue;
+    var wx4=sx+Math.round(wpLean*wq4*0.9+Math.sin(now*0.0009+wq4*0.32)*(1.4+wf4*3)*K*0.5);
+    g.fillStyle=day?"rgba(232,238,242,"+wa4.toFixed(3)+")":"rgba(150,160,178,"+wa4.toFixed(3)+")";
+    g.fillRect(wx4|0,(sy-Math.round(wq4*1.15))|0,Math.max(1,Math.round(K*(0.7+wf4))),1);
   }
   // --- FUMAROLES: small steam vents on the flanks, ALWAYS going. A quiet volcano still steams, and
   // this is the cheapest thing that says "this mountain is alive" on a calm afternoon.
@@ -28814,11 +28864,22 @@ function draw(g,pass){
   // (the Moon is drawn in drawSky() at its real Norwich position/phase)
 
   drawMountains(g,L,now,nd);      // the distant range — behind the clouds, the city, everything
-  // ⚠ THE VOLCANO AND THE PLAINS SKY ALSO MOVED PAST THE "bg" RETURN. Both are OVERLAYS on the
-  // landform rather than the landform itself — the volcano adds a crater, a breathing glow, a plume
-  // that leans on the real wind and a lava tongue; the plains add cumulus that build and drift and
-  // rain curtains that hang under them. Almost every rect either function emits is animated, so
-  // there was nothing worth leaving behind on a 0.5 fps canvas.
+  drawVolcanoSurface(g,L,now,nd); // …and if it is a volcano, the mountain's own surface, which never moves
+  // ⚠⚠ THE COMMENT THAT USED TO SIT HERE WAS WRONG, AND IT COST 22.4% OF EVERY LIVE FRAME.
+  // It claimed of the volcano that "almost every rect either function emits is animated, so there was
+  // nothing worth leaving behind on a 0.5 fps canvas", and used that to justify moving the WHOLE of
+  // `drawVolcano` past the bg return. Measured at Nick's real primary geometry
+  // (`desktop/qml-perf-volcano.qml`, median of 5 x 60 frames): it cost 4.97 ms of a 22.18 ms live
+  // frame. The claim was the opposite of true — roughly four fifths of those rects are the crater, the
+  // sun-and-shadow modelling, the ash fans, the flow tongues, the treeline canopy, the sulphur stain,
+  // the talus and the post-eruption state, none of which read the clock at all.
+  // So the function is two now: the static surface here at 0.5 fps, and `drawVolcanoLive` past the
+  // return for the steam, the glow and the plume, which genuinely do move.
+  // 🔑 An assertion about cost in a comment is not a measurement. This one was believed for long enough
+  // to be quoted back as a reason not to look.
+  // ⚠ THE PLAINS SKY IS STILL ENTIRELY PAST THE RETURN, and for the stated reason: its cumulus build
+  // and drift and its rain curtains hang and move. That half of the old comment was sound — it has
+  // just never been measured either, so do not quote it as one.
   drawSpireWorld(g,L,now,nd);     // the high temples, standing on cloud
   drawBiomeDetail(g,L,now,nd);    // and whatever else lives on this particular land
   drawBiomeLandmark(g,L,now,nd);  // and the one structure that says where you are
@@ -28866,7 +28927,8 @@ function draw(g,pass){
   // (mountains, terrain) but above nothing else yet, so a cable car still passes IN FRONT of the
   // ridge it is strung across and BEHIND every building — exactly where it sat before.
   drawPlainsSky(g,L,now,nd,fx);   // on a plain the SKY is the scenery — towers, curtains, a far butte
-  drawVolcano(g,L,now,nd);        // …and if it is a volcano, what the mountain is doing today
+  drawVolcanoLive(g,L,now,nd);    // …and if it is a volcano, the steam, glow and plume — the moving part
+                                  // (its static surface is drawn in the backdrop pass, see drawVolcanoSurface)
   drawPlateauTowns(g,L,now,nd);
   drawBlastWreckage(g,L,now);   // …and what the mountain took with it when it went   // and whatever stands on top of a flat-topped mountain
   drawGondola(g,L,now);           // a cable-car + summit lodge on the tallest peak (mature cities)

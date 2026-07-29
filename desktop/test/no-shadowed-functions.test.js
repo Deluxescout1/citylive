@@ -43,7 +43,7 @@ test('no top-level function name is declared twice', () => {
     'the first signature now feeds its arguments into the second function:\n  ' + dupes.join('\n  '));
 });
 
-test('the engine really does expose one drawVolcano and one drawTank, with the expected shapes', () => {
+test('the engine really does expose the volcano renderers and one drawTank, with the expected shapes', () => {
   // the source check above is textual; this one asks the LOADED engine, which is how the original
   // drawVolcano bug was actually confirmed (the surviving body had arity 4, the biome signature).
   const vm = require('vm');
@@ -51,11 +51,23 @@ test('the engine really does expose one drawVolcano and one drawTank, with the e
     XMLHttpRequest: function () { this.open = () => {}; this.send = () => {}; } };
   vm.createContext(ctx);
   vm.runInContext(fs.readFileSync(ENGINE, 'utf8'), ctx);
-  for (const name of ['drawVolcano', 'drawVolcanoDisaster', 'drawTank', 'drawParadeTank']) {
+  // ⚠ `drawVolcano` NO LONGER EXISTS, AND THAT IS THE POINT. It was split into a static half drawn in
+  // the backdrop pass and an animated half drawn in the live pass, because it was measured at 22.4% of
+  // every live frame while four fifths of it never moved. The name was retired rather than kept on one
+  // of the halves: leaving a `drawVolcano` behind would have meant two functions that both look like
+  // "the volcano renderer", which is the ambiguity this whole test file exists to prevent.
+  // The guard's real intent is unchanged — the BIOME renderers and the DISASTER renderer must remain
+  // distinct functions, since the disaster one was dead code for months behind a name collision.
+  for (const name of ['drawVolcanoSurface', 'drawVolcanoLive', 'drawVolcanoDisaster',
+                      'drawTank', 'drawParadeTank']) {
     assert.strictEqual(typeof ctx[name], 'function', name + ' is missing from the engine');
   }
-  // the biome volcano takes (g,L,now,nd); the disaster takes (g,cd,L,now)
-  assert.strictEqual(ctx.drawVolcano.length, 4);
+  assert.strictEqual(typeof ctx.drawVolcano, 'undefined',
+    'drawVolcano came back — it was split into drawVolcanoSurface (backdrop) and drawVolcanoLive ' +
+    '(live pass). A third function by the old name is how the disaster renderer got shadowed before.');
+  // both biome halves take (g,L,now,nd); the disaster takes (g,cd,L,now)
+  assert.strictEqual(ctx.drawVolcanoSurface.length, 4);
+  assert.strictEqual(ctx.drawVolcanoLive.length, 4);
   assert.strictEqual(ctx.drawVolcanoDisaster.length, 4);
   // the war tank takes (g,cx,dir,L,now,firing); the parade tank takes (g,x,y,dir,L)
   assert.strictEqual(ctx.drawTank.length, 6);

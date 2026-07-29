@@ -1,0 +1,13 @@
+  // --- THE STEAM WISP: an intact cone is not a dead one ---
+  // Nick, on what a volcano should look like BEFORE it goes: "a steam wisp at the vent." Not a plume
+  // and not nothing — a thread off the summit so you know the mountain is alive. Always on, leaning
+  // on the real wind, and it costs a dozen rects.
+  var wpLean=Math.max(-1,Math.min(1,((weather&&weather.wind)||6)/22));
+  for(var wq4=0;wq4<Math.round(13*K);wq4++){
+    var wf4=wq4/Math.max(1,Math.round(13*K));
+    var wa4=(0.34*(1-wf4))*(day?1:0.62);
+    if(wa4<=0.03) continue;
+    var wx4=sx+Math.round(wpLean*wq4*0.9+Math.sin(now*0.0009+wq4*0.32)*(1.4+wf4*3)*K*0.5);
+    g.fillStyle=day?"rgba(232,238,242,"+wa4.toFixed(3)+")":"rgba(150,160,178,"+wa4.toFixed(3)+")";
+    g.fillRect(wx4|0,(sy-Math.round(wq4*1.15))|0,Math.max(1,Math.round(K*(0.7+wf4))),1);
+  }
