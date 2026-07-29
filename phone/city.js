@@ -4972,7 +4972,18 @@ function drawCar(g,x,y,col,dir,L,kind){
   // shared running gear for the passenger bodies: wheels (or hover underglow) + head/tail lamps at the body ends
   function gear(len){
     if(hover){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(122,245,255,0.5)"; g.fillRect(x+1,y+2,len-2,1); g.globalCompositeOperation="source-over"; }
-    else{ g.fillStyle="#0b0b10"; g.fillRect(x+2,y+2,2,1); g.fillRect(x+len-4,y+2,2,1); g.fillStyle="rgba(0,0,0,0.25)"; g.fillRect(x+4,y+2,len-8,1); }
+    else{
+      // ⚠⚠ A CAST SHADOW IS WHAT MAKES A CAR SIT ON THE ROAD. Nick's first-named fault was that the
+      // traffic reads as flat coloured lozenges, and at eleven pixels long the problem is not missing
+      // parts — the sedan already has a beltline, a glasshouse, a B-pillar and wheels. It is that
+      // nothing anchors it to the surface, so a correctly-drawn car and a coloured dash look the same.
+      // One soft shadow under the body, inset at both ends, and the vehicle becomes an object.
+      g.fillStyle="rgba(0,0,0,0.30)"; g.fillRect(x+1,y+3,len-2,1);
+      // ⚠ and the wheels have to WIN against the asphalt. They were `#0b0b10` two pixels wide with a
+      // 0.25 wash between them, which on a dark road is invisible — the exact "dark thing on a dark
+      // thing" failure the basalt coast taught, at 1/100th the scale.
+      g.fillStyle="#08080c"; g.fillRect(x+2,y+2,2,1); g.fillRect(x+len-4,y+2,2,1);
+      g.fillStyle="rgba(0,0,0,0.38)"; g.fillRect(x+4,y+2,len-8,1); }
     if(night){ g.fillStyle="rgba(255,240,170,0.95)"; g.fillRect(x+(dir>0?len:-1),y,1,1); g.fillStyle="rgba(255,60,60,0.9)"; g.fillRect(x+(dir>0?-1:len),y,1,1); }
     if(snowpack>0.15&&!hover){ g.fillStyle="rgba(242,247,255,"+Math.min(0.9,snowpack+0.2).toFixed(2)+")"; g.fillRect(x+2,y-3,Math.max(1,len-4),1); }   // snow settles on the roof
   }
