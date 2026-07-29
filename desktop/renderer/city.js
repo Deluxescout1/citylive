@@ -21866,6 +21866,18 @@ function drawMountains(g,L,now,nd){
           if(B.buttes){ var qb=Math.floor(rh0/strata);
             rh0=(qb+((mixLi((qb*7919)>>>0,4649)%100)/100-0.5)*0.62)*strata; }
           else rh0=Math.round(rh0/strata)*strata;
+          // ⚠⚠ AND THEN THE EDGE IS WEATHERED. Nick: "less blocky." Quantising gives a table its level
+          // top — correct — and it also gives the SKYLINE perfectly clean rectangular steps, which is
+          // the shape of masonry rather than rock. No real cliff edge is machined: the top few metres
+          // are the most weathered part of the whole formation, notched and broken where blocks have
+          // fallen away.
+          // ⚠ Applied AFTER the snap and quantised to ~5 world px blocks, so it breaks the steps up
+          // without becoming per-column noise — the same rule the snowline learned when independent
+          // per-column jitter grew it a row of comb teeth.
+          if(!B.buttes){
+            var nBlk=((wx0/5)|0);
+            rh0-=((mixLi((nBlk*40503)>>>0,7717)%100)/100)*strata*0.85;
+          }
         }
         // ---- BUTTES, NOT A WALL -------------------------------------------------------------
         // ⚠ The mesa read as ONE unbroken flat line across the entire world, which is the single
@@ -22347,7 +22359,23 @@ function drawMountains(g,L,now,nd){
       // aspect: a shaded face holds snow further down than a sun-baked one. `sl` is the slope-facing
       // term the lighting already uses, so this costs nothing and moves snow the way the sun does.
       var asp=B.snow?(mtsCache.sl[pi][sx2]||0)*(curSunDf<0.5?-1:1)*1.6*KSP:0;
-      var cap=Math.round(rh2-(snl+(B.snow?mtsCache.wig[sx2]:0)+asp));
+      // ⚠⚠ CAPROCK IS A BED, NOT THE TOP HALF OF THE CLIFF. Nick: "can we make the background look
+      // more realistic and less blocky." On the sea cliffs this band was covering roughly the top
+      // 28% of the wall in one flat colour, with a DEAD LEVEL boundary ruled straight across the
+      // world where it stopped — which is most of why the cliff read as two stacked slabs rather than
+      // as rock. Snow genuinely does sit at an altitude, so the snow lands keep the absolute line;
+      // caprock is a STRATUM a few metres thick sitting on the beds below it, and its underside is
+      // ragged because that is where the softer rock beneath has weathered out.
+      // Thin band, and an irregular lower edge built from the same block-quantised hash the snowline
+      // uses — spatially coherent, so it breaks up without growing comb teeth.
+      var capW=0;
+      if(!B.snow){
+        var cBlk=((sx2+WOFF)/6)|0;
+        capW=((mixLi((cBlk*7919)>>>0,2851)%100)/100-0.5)*3.2*KSP
+            +Math.sin((sx2+WOFF)*0.055/KSP)*1.6*KSP;
+      }
+      var capBase=B.snow?snl:(mtsCache.mx[pi]*0.90);              // caprock hugs the top; snow keeps its altitude
+      var cap=Math.round(rh2-(capBase+(B.snow?mtsCache.wig[sx2]:0)+asp+capW));
       // ⚠ the old per-column ±1 dither existed to break up a perfectly flat snowline. The edge now has
       // real structure of its own, and stacking white noise on top of it is what made the teeth worse.
       if(cap>0) g.fillRect(sx2,top2,1,Math.min(cap,gy-top2));
