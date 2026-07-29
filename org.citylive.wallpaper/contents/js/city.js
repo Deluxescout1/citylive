@@ -8512,9 +8512,17 @@ function drawBayouBanks(g,L,now,sa,sb,zi,wTop,shoreAt,sgn){
   // spent on the thing you need to read. A reed bank under a full moon is one of the brightest things
   // on a bayou at night, so it gets the light and the water keeps the dark.
   var mnl=0.45+curMoonIll*0.55;             // a full moon genuinely lights a marsh; a new moon does not
-  var mud  =day?[64,54,38]:[Math.round(20*mnl)+8,Math.round(20*mnl)+8,Math.round(16*mnl)+7];
-  var crown=day?[122,132,78]:[Math.round(38*mnl)+16,Math.round(46*mnl)+20,Math.round(30*mnl)+16];
-  var wetL =day?[38,34,25]:[7,8,7];         // the wet toe going under stays black — that is the waterline
+  // ⚠ AND THE DAY PALETTE WAS WRONG THE OTHER WAY. [64,54,38] against teal mangrove water at roughly
+  // [130,175,175] is not a sandbar, it is a SHADOW — the spits read as dark bars laid over the bay
+  // rather than as land sitting in it. A bar in a bayou at midday is a pale tan-olive line: it is
+  // one of the LIGHTEST things in the frame, not one of the darkest. Only the wet toe is dark, and
+  // that is exactly what makes the waterline read.
+  var mud  =day?[124,112,80]:[Math.round(20*mnl)+8,Math.round(20*mnl)+8,Math.round(16*mnl)+7];
+  var crown=day?[152,164,98]:[Math.round(38*mnl)+16,Math.round(46*mnl)+20,Math.round(30*mnl)+16];
+  // ⚠ the wet toe is the waterline, but at [38,34,25] against pale teal it came out as a heavy BLACK
+  // RULE running the length of the bar — the very thing this whole pass has been removing. Wet mud is
+  // a darker version of dry mud, not a shadow.
+  var wetL =day?[78,70,52]:[7,8,7];
   var reedC=day?[142,152,86]:[Math.round(48*mnl)+20,Math.round(58*mnl)+26,Math.round(36*mnl)+18];
   var snagC=day?[178,170,150]:[Math.round(56*mnl)+26,Math.round(56*mnl)+27,Math.round(52*mnl)+24];   // bleached deadfall — a swamp is full of things that died standing
   for(var bi=0;bi<3;bi++){
@@ -8544,16 +8552,20 @@ function drawBayouBanks(g,L,now,sa,sb,zi,wTop,shoreAt,sgn){
       if(ok){
         var wob =Math.sin(wx*0.0113+bi*2.1)*0.6+Math.sin(wx*0.0037+bi)*0.4;
         var pres=Math.sin(wx*0.0026+bi*1.7)*0.55+Math.sin(wx*0.0009+bi*3.3)*0.45;
-        if(pres<0.04) ok=false;                          // THE GAP THE CHANNEL RUNS THROUGH
+        // ⚠ THE THRESHOLD WAS TOO LOW TO BREAK ANYTHING. `pres` runs -1..1 and 0.04 left the spit
+        // present for very nearly half the world in one unbroken piece, so it came out as a bar
+        // ruled across the frame — the gaps are not decoration, they ARE the channel, and they have
+        // to be frequent enough that no spit ever crosses the whole viewport.
+        if(pres<0.30) ok=false;                          // THE GAP THE CHANNEL RUNS THROUGH
         else {
-          t=Math.round(thick*Math.min(1,pres*1.9));
+          t=Math.round(thick*Math.min(1,(pres-0.30)*2.6));
           by=Math.round(by0+wob*amp);
           if(t<1||by<=wTop+2||by>=HORIZON-1) ok=false;
           else { var edge=shoreAt(by); if(sgn>0? x>edge-2 : x<edge+2) ok=false; }   // it has to be out in the WATER
         }
       }
       if(runX>=0 && (!ok || by!==runBy || t!==runT)){     // flush the run that just ended
-        var rw=x-runX, toe=Math.max(1,Math.round(runT*0.55));
+        var rw=x-runX, toe=Math.max(1,Math.round(runT*0.38));
         g.fillStyle=wetS;  g.fillRect(runX,runBy,rw,toe);                                  // the toe under water
         g.fillStyle=mCs;   g.fillRect(runX,runBy-runT,rw,runT);
         g.fillStyle=cCs;   g.fillRect(runX,runBy-runT,rw,Math.max(1,Math.round(K*0.8)));
@@ -8569,7 +8581,7 @@ function drawBayouBanks(g,L,now,sa,sb,zi,wTop,shoreAt,sgn){
       // fifth time the same mistake has surfaced on this one piece of water. A reed bed is CLUMPED:
       // dense patches with open mud between them, and the patch edges are where it looks real.
       var bed=Math.sin(wx*0.019+bi*3.1)*0.6+Math.sin(wx*0.0061+bi*1.3)*0.4;
-      if(bed>0.10 && (f7%7)<Math.round(1+bed*4)){
+      if(bed>-0.06 && (f7%7)<Math.round(1+Math.max(0,bed)*4.6)){
         var rh2=Math.max(1,Math.round((1.2+(f7%4))*K*(0.45+bf*0.8)*(0.55+bed*0.7)));
         g.fillStyle=css(mixc(reedC,biomeSkc(day),haze));
         g.fillRect(x,by-t-rh2,Math.max(1,Math.round(K*0.6)),rh2);
@@ -8599,7 +8611,10 @@ function drawBayouWater(g,L,now,sa,sb,zi,wTop,shoreAt,sgn){
   var trunk =mang?(day?"#8a4a38":"#1c100c"):birch?(day?"#e0dcd0":"#2a2a26"):(day?"#7c7462":"#191c18");
   var trunk2=mang?(day?"#6a3628":"#120a08"):birch?(day?"#b0aca0":"#1c1c1a"):(day?"#5e5849":"#0f110e");
   var canopy=mang?(day?"#3e8a4e":"#0b1a10"):birch?(day?"#8a9a5c":"#151a12"):(day?"#5a7050":"#111811");
-  var mossC=day?"rgba(158,158,132,0.62)":"rgba(30,34,28,0.6)";
+  // ⚠ moss has to be PALER than the crown it hangs off or it is just more canopy — and at night the
+  // old value went to near-black, so half the day the tree's most distinctive feature was gone.
+  var mossC=day?"rgba(176,178,148,0.66)":"rgba("+(Math.round(44*(0.45+curMoonIll*0.55))+22)+","
+              +(Math.round(50*(0.45+curMoonIll*0.55))+26)+","+(Math.round(42*(0.45+curMoonIll*0.55))+24)+",0.66)";
   // THE LAST LIGHT ON THE TREES. Nick, on the dusk render: the water goes near-black and the cypress
   // disappear into it. His call was to KEEP the water dark — that is what makes a bayou a bayou — and
   // light the trees instead, so they read as silhouettes against it rather than dissolving.
@@ -8760,8 +8775,21 @@ function drawBayouWater(g,L,now,sa,sb,zi,wTop,shoreAt,sgn){
       g.fillStyle=tier===1?canopy:(day?"#4c6044":"#0d130d");
       folMass(g,tx+((tier-1)*crw*0.22),ty-th+Math.round(crw*(0.2+tf*0.62)),tw2,Math.max(1,Math.round((1.4+depth*1.6)*K)),(h*(tier+7))>>>0,K);
     }
-    if(depth>0.28){
-      mossFringe(g,tx,ty-th+Math.round(crw*0.55),crw*0.85,h,K,mossC);
+    // ---- SPANISH MOSS ----
+    // ⚠ Nick picked this out by name. It is the single most recognisable thing about a bayou and the
+    // tree had ONE short fringe at ONE height, gated to the nearest quarter of the stand — so on most
+    // frames there was no moss on any tree you could see. Moss hangs in CURTAINS off several limbs at
+    // once, it is much longer than it was, it is PALER than the canopy it hangs from (that contrast
+    // is the whole look), and it swings on the same live wind reading the rest of the world uses.
+    if(depth>0.12 && !mang){                                   // a mangrove carries none — wrong tree, wrong place
+      var wind9=Math.max(0,((weather&&weather.wind)||6)-2);
+      var sway=Math.round(Math.sin(now*0.00042+tx*0.02)*Math.min(3.2,wind9*0.22)*K);
+      var tiers=depth>0.45?3:2;
+      for(var mt=0;mt<tiers;mt++){
+        var mfy=ty-th+Math.round(crw*(0.32+mt*0.34));
+        var mfr=crw*(0.92-mt*0.16);
+        mossFringe(g,tx+Math.round(sway*(0.4+mt*0.35)),mfy,mfr,(h*(mt+3))>>>0,K,mossC);
+      }
     }
     // THE KNEES around its base, breaking the surface
     g.fillStyle=trunk2;
@@ -8782,6 +8810,122 @@ function drawBayouWater(g,L,now,sa,sb,zi,wTop,shoreAt,sgn){
     if(fade>0.02){ g.fillStyle=rgba(biomeSkc(day),fade);         // haze the far ones back
       g.fillRect(tx-Math.round(crw),ty-th,Math.round(crw*2),th); }
   }
+  // ---- WEATHER ON THE WATER ----
+  // ⚠ Nick took this too, and it is the cheapest of the four to earn back: still water is the surface
+  // in the frame that shows weather MOST, because every drop that lands on it makes a mark. Driven by
+  // the real forecast, like everything else here, so it only happens when it genuinely would.
+  var bfx=wfx();
+  if(bfx.rain||bfx.drizzle||bfx.thunder){
+    var hard=bfx.thunder?1:(bfx.rain?0.7:0.35);
+    for(var dy=wTop+Math.round(2*K);dy<HORIZON-1;dy+=Math.max(1,Math.round(2.4*K))){
+      var df=(dy-wTop)/wDep;
+      var dstp=Math.max(3,Math.round((16-df*10)*K));
+      for(var dx=sa;dx<sb;dx+=dstp){
+        var dh9=((dx*2654435761+dy*7919+((now/220)|0)*40503)>>>0);
+        if(((dh9>>>5)%100)>Math.round(26+hard*54)) continue;
+        var dxx=dx+((dh9>>>11)%Math.max(1,dstp));
+        if(dxx<sa||dxx>=sb) continue;
+        var ded=shoreAt(dy); if(sgn>0? dxx>ded-2 : dxx<ded+2) continue;
+        var dw9=Math.max(1,Math.round((0.8+df*1.6)*K));
+        g.fillStyle=day?"rgba(238,246,250,0.30)":"rgba(150,176,206,0.18)";
+        g.fillRect(dxx,dy,dw9*2,Math.max(1,Math.round(K*0.5)));                       // the ring
+        g.fillStyle=day?"rgba(255,255,255,0.22)":"rgba(180,200,226,0.12)";
+        g.fillRect(dxx+dw9,dy-Math.max(1,Math.round(K*0.5)),Math.max(1,Math.round(K*0.6)),Math.max(1,Math.round(K*0.5)));
+      }
+    }
+  } else if(day && (weather&&weather.temp!=null&&weather.temp>=84)){
+    // STEAM off a hot bayou — the other half of the same idea, and the one that says "the south"
+    g.globalCompositeOperation="lighter";
+    for(var sv=sa;sv<sb;sv+=Math.max(5,Math.round(13*K))){
+      var vh=((sv*40503+7717)>>>0);
+      var vy=wTop+Math.round((0.05+((vh>>>7)%100)/340)*wDep);
+      var va=0.05+0.04*Math.sin(now*0.0009+sv*0.3);
+      g.fillStyle="rgba(226,234,226,"+va.toFixed(3)+")";
+      g.fillRect(sv,vy-Math.round(5*K),Math.round(3*K),Math.round(6*K));
+    }
+    g.globalCompositeOperation="source-over";
+  }
+  // ---- WHAT LIVES OUT HERE ----
+  // Nick took all four kinds of life. The shanty row below already gives the bayou people; this is
+  // the wildlife and the one boat working the channel. ⚠ Kept to a handful of instances on purpose —
+  // his standing rule for the street was "detail yes, more MOVING clutter no", and it applies just as
+  // well to a piece of water that is already carrying trees, mist, ripples and fireflies.
+  // ⚠ The birds stand ON the spits, so their y is derived from the same bank field the banks use —
+  // an egret hovering in open water would be worse than no egret at all.
+  var mnl9=0.45+curMoonIll*0.55;                               // a white egret still shows under a full moon
+  var nBird=1+(((sa*40503)>>>0)%3);
+  for(var bd=0;bd<nBird;bd++){
+    var dh=((bd*7919+((sa*67)|0)+1237)>>>0);
+    var bbi=(dh>>>3)%3;                                        // which spit it is standing on
+    var bbf=0.05+bbi*0.13+((((bbi*2654435761+((sa*131)|0)+7919)>>>0)>>>5)%100)/1600;
+    var bwx0=sa+Math.round((((bd+0.5)/nBird)+((((dh>>>11)%100)/100)-0.5)*0.28)*span);
+    // ⚠ THE BIRD HAS TO STAND ON SOMETHING. Deriving its y from the bank field is not enough, because
+    // the spits PINCH OUT — and the first render put an egret hovering in open water, which is worse
+    // than no egret. It has to pass the same presence gate the bank itself passes.
+    var bwx=bwx0+WOFF;
+    var bpres=Math.sin(bwx*0.0026+bbi*1.7)*0.55+Math.sin(bwx*0.0009+bbi*3.3)*0.45;
+    if(bpres<0.34) continue;
+    var bwob=Math.sin(bwx*0.0113+bbi*2.1)*0.6+Math.sin(bwx*0.0037+bbi)*0.4;
+    var bby=Math.round(wTop+bbf*wDep+bwob*(2.2+bbi*1.7)*K)
+           -Math.round((2.0+bbi*2.2)*K*Math.min(1,(bpres-0.30)*2.6));   // …and stand ON its top, not in it
+    if(bby<=wTop+2||bby>=HORIZON-2) continue;
+    var bed2=shoreAt(bby); if(sgn>0? bwx0>bed2-3 : bwx0<bed2+3) continue;
+    var egret=((dh>>>19)&1)===0;
+    var bcol=egret?(day?"#eef0e8":"rgb("+(Math.round(96*mnl9)+40)+","+(Math.round(100*mnl9)+44)+","+(Math.round(92*mnl9)+42)+")")
+                  :(day?"#6f7a72":"#1b201e");
+    var bh2=Math.max(3,Math.round((3.4+bbf*2.6)*K));
+    // it stalks: a slow step, then a long freeze, then the neck goes down
+    var bstep=((now/5200+((dh%1000)/1000))%1);
+    var bpx=bwx0+Math.round(Math.min(1,bstep*3)*4*K*(((dh>>>7)&1)?1:-1));
+    var stoop=bstep>0.72?1:0;
+    g.fillStyle=day?"#3a3a30":"#0d0f0d";                                       // legs in the shallows
+    g.fillRect(bpx,bby-Math.round(bh2*0.45),Math.max(1,Math.round(K*0.5)),Math.round(bh2*0.45));
+    g.fillStyle=bcol;
+    g.fillRect(bpx-Math.round(K*0.6),bby-bh2,Math.max(1,Math.round(2*K)),Math.round(bh2*0.55));   // body
+    if(stoop) g.fillRect(bpx+Math.round(K),bby-Math.round(bh2*0.5),Math.max(1,Math.round(K*0.6)),Math.round(bh2*0.4));
+    else      g.fillRect(bpx+Math.round(K*0.5),bby-bh2-Math.round(bh2*0.4),Math.max(1,Math.round(K*0.6)),Math.round(bh2*0.5));  // the S-neck up
+    g.fillStyle=day?"#c8a44a":"#3a3020";
+    g.fillRect(bpx+Math.round(K*1.1),bby-(stoop?Math.round(bh2*0.28):bh2+Math.round(bh2*0.3)),Math.round(1.6*K),Math.max(1,Math.round(K*0.5)));  // bill
+  }
+  // A TURTLE OR TWO hauled out on a log, which is the cheapest possible "this water is warm and alive"
+  for(var tu=0;tu<2;tu++){
+    var th9=((tu*40503+((sa*23)|0)+911)>>>0);
+    if(((th9>>>5)%100)<45) continue;                           // not always out
+    var tuy=wTop+Math.round((0.09+((th9>>>9)%100)/460)*wDep);
+    var tux=sa+Math.round((((tu+0.5)/2)+((((th9>>>13)%100)/100)-0.5)*0.5)*span);
+    var ted=shoreAt(tuy); if(sgn>0? tux>ted-3 : tux<ted+3) continue;
+    g.fillStyle=day?"#4a4234":"#0f100d";
+    g.fillRect(tux-Math.round(2*K),tuy,Math.round(5*K),Math.max(1,Math.round(K)));            // the log
+    g.fillStyle=day?"#5c6a44":"#141810";
+    g.fillRect(tux,tuy-Math.round(K),Math.round(2*K),Math.max(1,Math.round(K)));              // shell
+    g.fillStyle=day?"#7a8452":"#1a1e14";
+    g.fillRect(tux+Math.round(2*K),tuy-Math.round(K),Math.max(1,Math.round(K*0.6)),Math.max(1,Math.round(K*0.6)));
+  }
+  // THE SKIFF. A flat-bottomed boat working the channel, poled by one person, with a wake behind it.
+  // ⚠ It runs the CHANNEL — its depth is picked to fall in a gap between the spits, not across them.
+  if(cityG>0.16){
+    var kh=((sa*2654435761+5171)>>>0);
+    var kdep=0.20+((kh>>>7)%100)/520;
+    var kyy=wTop+Math.round(kdep*wDep);
+    var kper=88000+((kh>>>3)%54000);
+    var kt=((now/kper)+((kh%1000)/1000))%1;
+    var kdir=((kh>>>17)&1)?1:-1;
+    var kxx=sa+Math.round((kdir>0?kt:1-kt)*span);
+    var ked=shoreAt(kyy);
+    if(!(sgn>0? kxx>ked-6*K : kxx<ked+6*K)){
+      var kw=Math.round(6*K), kbob=Math.round(Math.sin(now*0.0016+kh)*0.5*K);
+      g.fillStyle=day?"rgba(232,238,240,0.34)":"rgba(150,172,196,0.20)";      // the wake, trailing astern
+      for(var kq=1;kq<9;kq++) g.fillRect(kxx-kdir*Math.round(kq*1.6*K),kyy+kbob+Math.round(kq*0.16*K),Math.max(1,Math.round(K)),Math.max(1,Math.round(K*0.5)));
+      g.fillStyle=day?"#8a7048":"#241d13";
+      g.fillRect(kxx-Math.round(kw*0.5),kyy+kbob-Math.round(K*0.8),kw,Math.max(1,Math.round(K*1.4)));   // the hull
+      g.fillStyle=day?"#b2925e":"#31281a";
+      g.fillRect(kxx-Math.round(kw*0.5),kyy+kbob-Math.round(K*0.8),kw,Math.max(1,Math.round(K*0.5)));   // the gunwale catching light
+      drawPerson(g,kxx+Math.round(kdir*K),kyy+kbob-Math.round(K*0.8),day?"#4a5a48":"#1a201a",day?"#c89a72":"#3a2c22",kdir);
+      g.fillStyle=day?"rgba(58,48,34,0.9)":"rgba(24,20,14,0.9)";
+      for(var pq2=0;pq2<Math.round(7*K);pq2++)                                                          // the pole
+        g.fillRect(kxx+Math.round(kdir*(K+pq2*0.55)),kyy+kbob-Math.round(5*K)+Math.round(pq2*0.9),Math.max(1,Math.round(K*0.6)),1);
+    }
+  }
   // ---- MIST LYING ON THE WATER ----
   // ⚠ THIS WAS THREE MORE RULED BANDS: one flat full-span rect per layer, edge to edge, at a fixed
   // pitch. That is the fourth ruled thing found on this water in one pass — the tonal bands, the neon
@@ -8801,18 +8945,21 @@ function drawBayouWater(g,L,now,sa,sb,zi,wTop,shoreAt,sgn){
     var fth=Math.round((2.4+fb*1.9)*K);
     var fstep=Math.max(2,Math.round(K*1.5));
     for(var fx8=sa;fx8<sb;fx8+=fstep){
-      var wfx=fx8+WOFF;
+      // ⚠ NOT `wfx` — that is the name of the global weather accessor, and a `var` of the same name
+      // hoists over the WHOLE enclosing function, so the wfx() call a hundred lines ABOVE this loop
+      // died with "undefined is not a function". Nothing about the failure points at this line.
+      var wfxp=fx8+WOFF;
       // three octaves of drift decide how thick the bank is HERE — and it thins to nothing often
-      var dns=Math.sin(wfx*0.0041+fb*1.9+now*0.00009)*0.5
-             +Math.sin(wfx*0.0017-fb*0.7+now*0.00004)*0.34
-             +Math.sin(wfx*0.0123+fb)*0.16;
+      var dns=Math.sin(wfxp*0.0041+fb*1.9+now*0.00009)*0.5
+             +Math.sin(wfxp*0.0017-fb*0.7+now*0.00004)*0.34
+             +Math.sin(wfxp*0.0123+fb)*0.16;
       if(dns<=0.02) continue;                                  // mist lies in banks, not in sheets
       var fa=mistN*Math.min(1,dns*1.7)*(1-fb*0.10);
       if(fa<=0.012) continue;
-      var fy=Math.round(fy0+Math.sin(wfx*0.0026+now*0.00013+fb)*2.2*K);
+      var fy=Math.round(fy0+Math.sin(wfxp*0.0026+now*0.00013+fb)*2.2*K);
       g.fillStyle=rgba(mistC,fa);
       g.fillRect(fx8,fy,fstep,fth);
-      if((wfx&3)===0){ g.fillStyle=rgba(mistC,fa*0.5);         // a softer lip, only where the bank is thickest
+      if((wfxp&3)===0){ g.fillStyle=rgba(mistC,fa*0.5);         // a softer lip, only where the bank is thickest
         g.fillRect(fx8,fy-Math.max(1,Math.round(K)),fstep,Math.max(1,Math.round(K))); }
     }
   }
@@ -9121,8 +9268,12 @@ function drawReefLagoon(g,L,now,sa,sb,zi,wTop){
     // makes distance readable on a map with no relief, and it is a reflection rather than a shading
     // trick, so the sky's own colour drives it and dusk, storm and moonlight all come through for free.
     if(bayou){
-      var refl=0.10+0.62*Math.pow(1-wf,2.3);
-      band=mixc(band,biomeSkc(day),refl*(day?1:0.72));
+      var refl=0.10+0.55*Math.pow(1-wf,2.3);
+      // ⚠ THE REFLECTION HAS TO KEEP THE WATER'S COLOUR OR IT ERASES THE VARIANT. Mixing straight to
+      // sky washed THE PEAT MOSS's tannin brown out to flat grey and THE MANGROVE's teal toward the
+      // same grey — three places collapsing back into one, which is precisely what Nick said he did
+      // not want from variants. Real water tints what it hands back: a peat bog reflects a BROWN sky.
+      band=mixc(band,mixc(biomeSkc(day),wp.deep,0.30),refl*(day?1:0.72));
     }
     var edge=shoreAt(wy);
     var x0=Math.min(edge,zi?sb:sa), x1=Math.max(edge,zi?sb:sa);
@@ -17122,11 +17273,18 @@ function mossFringe(g,cx,cy,rx,seed,K,col){
     var h=(((seed+s*7919)*2654435761)>>>0);
     if((h&7)<3) continue;                                   // not every gap carries one
     var sx=cx-rx+Math.round((s+0.5)*(rx*2/strands));
-    var len=Math.round((2+((h>>>9)%7))*K*1.1);
+    var len=Math.round((3+((h>>>9)%11))*K*1.35);               // curtains, not a fringe
     var wd=Math.max(1,Math.round(((h>>>17)&1?1.6:1)*K));
-    for(var y=0;y<len;y+=st){
-      var wob=Math.round((((h>>>(y&11))&1)?1:0)*K);          // the strand wanders a pixel as it falls
-      g.fillRect(sx+wob,cy+y,wd,st);
+    // ⚠⚠ THIS WAS ONE RECT PER ROW so the strand could wander a pixel as it fell — about 17 fills a
+    // strand. Fine when the tree wore ONE short fringe; once the moss hangs in curtains off three
+    // limbs it is ~4000 fills a frame, and the profile put it at 10ms of a 42ms frame ON ITS OWN,
+    // on the land that was already the most expensive in the set. Three SEGMENTS give the same
+    // wander: at one or two pixels wide there is no visible difference between a strand that steps
+    // three times and one that steps seventeen, and it costs a sixth as much.
+    var segs=3, sl=Math.max(st,Math.round(len/segs));
+    for(var q=0;q<segs;q++){
+      var yy=q*sl; if(yy>=len) break;
+      g.fillRect(sx+(((h>>>(q*3+1))&1)?st:0),cy+yy,wd,Math.min(sl,len-yy));
     }
   }
 }
