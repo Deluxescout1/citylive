@@ -19551,6 +19551,95 @@ function plateaus(){
 // chimney that smokes, and a scaffold while it is still going up. The structures were deliberately
 // scaled up to afford this — at ten pixels tall there is no room for a window grid, and a person
 // standing next to one would have been half the height of the building.
+// ⚠⚠ THE CLIFF VILLAGE. Nick, after two rounds on the stepped dwellings: "they need to have more
+// detail", and then the locked answers — FEWER AND MUCH BIGGER houses, a COLOURFUL TERRACED village
+// (Cinque Terre rather than a grey hamlet), stairs and railed terraces and retaining walls linking the
+// ledges, and people living on them visibly.
+// ⚠ The size answer is the one that unlocks the rest. At 14x20 world px there is no room for a
+// shutter, let alone a balcony — every previous attempt at "more detail" was spending pixels that did
+// not exist. Half as many dwellings at roughly double the size buys the room, and a cliff village is
+// SUPPOSED to be a few large houses clinging on rather than a uniform row.
+// ⚠ And the colour is not decoration. On a dark wet-grey rock face, warm ochre and rose and terracotta
+// are what make a house read as a house at twenty pixels — the same lesson as the basalt coast, where
+// buildings at the rock's own value disappeared into it entirely.
+var VILLAGE_WALLS=[[214,158,96],[206,116,104],[226,206,172],[190,132,84],[222,178,120],[176,148,116]];
+var VILLAGE_ROOFS=[[168,86,58],[150,74,52],[182,102,66]];
+function drawCliffHouse(g,x,top,bw,bh,grow,seed,day,now,K,trimC){
+  var u=Math.max(1,Math.round(K*0.9));
+  var wc=VILLAGE_WALLS[seed%VILLAGE_WALLS.length], rc=VILLAGE_ROOFS[(seed>>>3)%VILLAGE_ROOFS.length];
+  if(!day){ wc=mixc(wc,[16,18,30],0.62); rc=mixc(rc,[14,14,24],0.66); }
+  // RETAINING WALL — a terrace on a cliff exists because somebody built a wall to hold it up, and
+  // that wall is the thing that says "terrace" rather than "ledge"
+  g.fillStyle=css(mixc(day?[128,120,104]:[22,22,28],[0,0,0],0.15));
+  g.fillRect(x-u,top,bw+u*2,Math.max(1,Math.round(u*1.4)));
+  for(var rw=0;rw<3;rw++) { g.fillStyle=css(mixc(day?[150,142,124]:[30,30,36],[0,0,0],0.1));
+    g.fillRect(x-u+Math.round(rw*(bw+u*2)/3),top,Math.max(1,Math.round(u*0.5)),Math.max(1,Math.round(u*1.4))); }
+  if(!grow||grow<1){                                            // scaffold while it rises
+    g.fillStyle=trimC;
+    for(var sc=0;sc<=2;sc++) g.fillRect(x+Math.round(sc*(bw/2))-1,top-bh-Math.round(2*K),Math.max(1,Math.round(K*0.7)),bh+Math.round(2*K));
+    g.fillRect(x-Math.round(K),top-bh-Math.round(2*K),bw+Math.round(2*K),Math.max(1,Math.round(K*0.7)));
+    g.fillStyle=css(wc); g.fillRect(x,top-bh,bw,bh);
+    return;
+  }
+  g.fillStyle=css(wc); g.fillRect(x,top-bh,bw,bh);
+  g.fillStyle=css(mixc(wc,[0,0,0],0.16));                       // the shaded flank — it is a solid, not a card
+  g.fillRect(x+bw-Math.max(1,Math.round(u*0.8)),top-bh,Math.max(1,Math.round(u*0.8)),bh);
+  // SHUTTERED WINDOWS in real storeys. Lights wake room by room in the evening and go out at
+  // different hours, so the village is a set of households rather than one switch.
+  var cols=Math.max(1,Math.floor((bw-u*2)/(u*3.2))), rows=Math.max(1,Math.floor((bh-u*3)/(u*3.4)));
+  for(var c=0;c<cols;c++) for(var r=0;r<rows;r++){
+    var wx=x+u+Math.round(c*u*3.2), wy=top-bh+Math.round(u*1.4)+Math.round(r*u*3.4);
+    if(wy+u*1.6>top-u) continue;
+    var hh=((seed*2654435761+c*7919+r*104729)>>>0)%1000/1000;
+    g.fillStyle=day?"rgba(60,52,46,0.85)":((hh<curLit)?((hh<curLit*0.4)?"#ffe8b4":"#ffc978"):"rgba(30,28,40,0.9)");
+    g.fillRect(wx,wy,Math.max(1,Math.round(u*1.4)),Math.max(1,Math.round(u*1.7)));
+    g.fillStyle=css(mixc(wc,[255,255,255],day?0.34:0.12));      // the shutters either side
+    g.fillRect(wx-Math.max(1,Math.round(u*0.5)),wy,Math.max(1,Math.round(u*0.5)),Math.max(1,Math.round(u*1.7)));
+    g.fillRect(wx+Math.max(1,Math.round(u*1.4)),wy,Math.max(1,Math.round(u*0.5)),Math.max(1,Math.round(u*1.7)));
+  }
+  // the door, with a step
+  g.fillStyle=css(mixc(rc,[0,0,0],0.35));
+  g.fillRect(x+Math.round(bw*0.44),top-Math.round(u*2.6),Math.max(1,Math.round(u*1.3)),Math.round(u*2.6));
+  // PANTILE ROOF — a shallow pitch with a ridge, laid in courses. A flat slab was the single thing
+  // that made these read as boxes, and a tiled roof is the most recognisable part of this kind of
+  // house at any size.
+  var rh2=Math.max(2,Math.round(u*2.2)), st2=Math.max(1,Math.round(u*0.7));
+  for(var k=0;k<rh2;k+=st2){
+    var inset=Math.round((k/rh2)*bw*0.16);
+    g.fillStyle=css(mixc(rc,[0,0,0],0.10+0.16*(k/rh2)));
+    g.fillRect(x-u+inset,top-bh-rh2+k,bw+u*2-inset*2,st2);
+  }
+  g.fillStyle=css(mixc(rc,[255,255,255],day?0.26:0.10));        // the lit ridge line
+  g.fillRect(x-u+Math.round(bw*0.16*0.9),top-bh-rh2,Math.max(2,bw+u*2-Math.round(bw*0.16*1.8)),Math.max(1,Math.round(u*0.5)));
+  g.fillStyle=css(mixc(rc,[0,0,0],0.45));                       // eaves shadow on the wall
+  g.fillRect(x,top-bh,bw,Math.max(1,Math.round(u*0.6)));
+  // a chimney, smoking when it is cold
+  var chx=x+Math.round(bw*(((seed>>>6)&1)?0.74:0.16)), chh=Math.round(u*2.4);
+  g.fillStyle=css(mixc(wc,[0,0,0],0.30)); g.fillRect(chx,top-bh-rh2-chh,Math.max(1,Math.round(u*1.2)),chh);
+  if(wmood&&wmood.cold&&((seed>>>8)&1)){
+    g.fillStyle=day?"rgba(214,214,210,0.42)":"rgba(150,155,165,0.30)";
+    for(var pf=0;pf<3;pf++){ var pu=((now*0.014)+pf*26)%54;
+      g.fillRect(chx+Math.round(pu*0.07),top-bh-rh2-chh-Math.round(pu*0.28),Math.max(1,Math.round(u*(1+pf*0.4))),Math.max(1,u)); }
+  }
+  // THE RAILED TERRACE in front — where the household actually is, and the reason the retaining wall
+  // below it exists
+  var tY=top-Math.max(1,Math.round(u*0.4));
+  g.fillStyle=css(mixc(day?[168,158,138]:[26,26,32],[0,0,0],0.1));
+  g.fillRect(x-u,tY,bw+u*2,Math.max(1,Math.round(u*0.5)));
+  g.fillStyle=css(mixc(day?[90,84,72]:[14,14,20],[0,0,0],0.1));
+  for(var pq=0;pq<=4;pq++) g.fillRect(x-u+Math.round(pq*(bw+u*2)/4),tY-Math.round(u*1.1),Math.max(1,Math.round(u*0.4)),Math.round(u*1.1));
+  g.fillRect(x-u,tY-Math.round(u*1.1),bw+u*2,Math.max(1,Math.round(u*0.4)));
+  // planting on the terrace — vines and pots are what make a cliff terrace liveable
+  g.fillStyle=day?"#4e7a44":"#16241a";
+  for(var vq=0;vq<2;vq++){ var vx=x+Math.round(bw*(0.2+vq*0.55));
+    g.fillRect(vx,tY-Math.round(u*1.6),Math.max(1,Math.round(u*0.9)),Math.max(1,Math.round(u*0.9))); }
+  // …and somebody out on it
+  if(((seed>>>11)%100)<62){
+    var px2=x+Math.round(bw*(0.28+((seed>>>13)%40)/100));
+    drawPerson(g,px2,tY-Math.round(u*1.2),PEDC[(seed>>>15)%PEDC.length],SKINC[(seed>>>17)%SKINC.length],
+               Math.floor(now/700+seed)&1);
+  }
+}
 function drawPlateauBuilding(g,x,top,bw,bh,grow,seed,day,now,K,wallC,roofC,trimC){
   var built=grow>=1;
   g.fillStyle=wallC; g.fillRect(x,top-bh,bw,bh);
@@ -19656,7 +19745,12 @@ function drawPlateauTowns(g,L,now,nd){
     // hands us 78 — at that width the thirds are ~26px and un-clamped groups walk over each other and
     // straight off the edge of the rock. A small table simply holds less, and can hold nothing.
     // Spacing follows the LARGER structures — see drawPlateauBuilding on why they had to grow.
-    var OW=Math.round(7*K), OSP=Math.round(9.5*K), HW=Math.round(11*K), HSP=Math.round(14*K);
+    // ⚠ FEWER AND MUCH BIGGER on the cliffs. His answer, and the one that makes every other detail
+    // possible: at 14 world px a house cannot hold a shutter. Roughly double the size and double the
+    // spacing, so a ledge carries two or three real dwellings instead of six marks.
+    var vill=!!B.cliffLife;
+    var OW=Math.round((vill?13:7)*K), OSP=Math.round((vill?19:9.5)*K),
+        HW=Math.round((vill?17:11)*K), HSP=Math.round((vill?24:14)*K);
     var fitR=Math.floor((seg-2*K)/(7*K)), fitO=Math.floor((seg-2*K)/OSP), fitH=Math.floor((seg-2*K)/HSP);
     // RUINS — roofless walls and a doorway gap, in the same stone as the mesa. Never lit, never grow.
     if(ruins&&fitR>=1){
@@ -19679,8 +19773,9 @@ function drawPlateauTowns(g,L,now,nd){
         if(grow<=0) break;                                                        // not built yet
         grow=Math.min(1,grow);
         var bx2=ox+o*OSP, bw2=OW;
-        var full2=Math.round((9+((hsh>>>(o+5))%5))*K), bh2=Math.max(2,Math.round(full2*(0.22+0.78*grow)));
-        drawPlateauBuilding(g,bx2,top,bw2,bh2,grow,(hsh^(o*7919))>>>0,day,now,K,wallC,roofC,trimC);
+        var full2=Math.round((vill?(15+((hsh>>>(o+5))%7)):(9+((hsh>>>(o+5))%5)))*K), bh2=Math.max(2,Math.round(full2*(0.22+0.78*grow)));
+        if(vill) drawCliffHouse(g,bx2,top,bw2,bh2,grow,(hsh^(o*7919))>>>0,day,now,K,trimC);
+        else drawPlateauBuilding(g,bx2,top,bw2,bh2,grow,(hsh^(o*7919))>>>0,day,now,K,wallC,roofC,trimC);
         if(builtFrom<0) builtFrom=bx2;
         builtTo=bx2+bw2;
       }
@@ -19693,8 +19788,9 @@ function drawPlateauTowns(g,L,now,nd){
         if(growH<=0) break;
         growH=Math.min(1,growH);
         var bx3=mx2+m*HSP, bw3=HW;
-        var bh3=Math.max(2,Math.round(12*K*(0.22+0.78*growH)));
-        drawPlateauBuilding(g,bx3,top,bw3,bh3,growH,(hsh^(m*40503)^0x5a5a)>>>0,day,now,K,
+        var bh3=Math.max(2,Math.round((vill?19:12)*K*(0.22+0.78*growH)));
+        if(vill) drawCliffHouse(g,bx3,top,bw3,bh3,growH,(hsh^(m*40503)^0x5a5a)>>>0,day,now,K,trimC);
+        else drawPlateauBuilding(g,bx3,top,bw3,bh3,growH,(hsh^(m*40503)^0x5a5a)>>>0,day,now,K,
                             css(mixc(rock,day?[228,222,208]:[30,28,34],0.55)),roofC,trimC);
         if(builtFrom<0) builtFrom=bx3;
         builtTo=bx3+bw3;
@@ -19936,19 +20032,62 @@ function drawBiomeLandmark(g,L,now,nd){
       g.fillRect(tx-Math.round(K),gy-th-Math.round(6*K),Math.round(9*K),Math.round(K));
     });
   } else if(B.k==="cliffs"){
-    // A STAIR VILLAGE pinned to the rock — cottages stepping down a zig-zag of steps to the water
+    // ⚠⚠ THE STAIR VILLAGE, REBUILT. Nick, twice: "these weird houses just appeared, give them more
+    // detail and make them get built" and then "they need to have more detail." He is right both
+    // times — this was SEVEN identical 7x4 boxes with a bar of roof and one lit window, appearing
+    // whole the moment `cityG` crossed 0.24.
+    // ⚠ AND I SPENT A WHOLE PASS FIXING THE WRONG FUNCTION. I assumed these were `drawPlateauTowns`,
+    // because my bedding work had just turned this cliff into a staircase of ledges and a settlement
+    // on ledges is exactly what that draws. I rebuilt its houses, rendered, saw no change, and only
+    // then ran the decisive test — disabling `drawPlateauTowns` entirely. The village was still
+    // there. It lives here, in the biome LANDMARK. Two renders would have told me that at the start;
+    // an assumption that fits the evidence is not the same as the evidence.
+    // His four locked answers, applied: FEWER AND MUCH BIGGER (seven boxes -> four real houses at
+    // double size, which is the answer that makes every other detail affordable) · a COLOURFUL
+    // terraced village rather than grey cottages · cut stairs, railed terraces, retaining walls and
+    // planting linking them · and people living on them visibly.
     at(function(X){
-      var steps=7, sw=Math.round(7*K), shh=Math.round(4*K);
+      var steps=4, sw=Math.round(15*K), gapX=Math.round(17*K), stepDrop=Math.round(7.5*K);
+      // a HOIST running up the whole village — the thing that carries goods up from the harbour, and
+      // the only moving part in the settlement
+      var hoistX=X-Math.round(4*K), hTop=gy-Math.round((30+ (steps-1)*0)*K);
+      g.strokeStyle=day?"rgba(46,42,38,0.8)":"rgba(120,124,140,0.5)"; g.lineWidth=1;
+      g.beginPath(); g.moveTo(hoistX,gy); g.lineTo(hoistX+Math.round(steps*gapX*0.9),hTop); g.stroke();
+      var hp=((now%23000)/23000), hpp=hp<0.5?hp*2:2-hp*2;
+      g.fillStyle=day?"#7a5a3a":"#2a2018";
+      g.fillRect(Math.round(hoistX+hpp*steps*gapX*0.9)|0,Math.round(gy+(hTop-gy)*hpp)|0,Math.round(2.4*K),Math.round(2*K));
       for(var i=0;i<steps;i++){
-        var hx2=X+i*Math.round(5*K), hy2=gy-Math.round((26-i*3.4)*K);
-        g.fillStyle=(i&1)?(day?"#d8d2c4":"#2e2c2a"):(day?"#c8bfae":"#26241f");
-        g.fillRect(hx2,hy2,sw,shh);                                                 // the cottage
-        g.fillStyle=day?"#8e5a4a":"#221614";
-        g.fillRect(hx2-Math.round(K),hy2-Math.round(1.6*K),sw+Math.round(2*K),Math.round(1.8*K));  // pantile roof
-        if(!day){ g.fillStyle="#ffd489";                                            // a window lit at night
-          g.fillRect(hx2+Math.round(2*K),hy2+Math.round(K),Math.max(1,Math.round(1.4*K)),Math.max(1,Math.round(1.4*K))); }
-        g.fillStyle=day?"#9a958a":"#1e1c1a";                                        // the steps between them
-        g.fillRect(hx2+sw,hy2+shh,Math.round(5*K),Math.max(1,Math.round(K)));
+        var hx2=X+i*gapX, hTopY=gy-Math.round(9*K)-i*stepDrop;
+        // each house is founded in its own decade, and rises from a stub — never all at once
+        var born=0.26+i*0.11, grow=Math.min(1,Math.max(0,(cityG-born)/0.08));
+        if(grow<=0) continue;
+        var hh3=Math.round((13+((i*7919)%5))*K*(0.24+0.76*grow));
+        drawCliffHouse(g,hx2,hTopY,sw,hh3,grow,((i*40503+(WORLD_SEED|0))>>>0),day,now,K,
+                         day?"rgba(58,50,42,0.9)":"rgba(20,18,24,0.9)");
+        // CUT STAIRS from this terrace down to the one below — the settlement is one place, not four
+        if(i>0 && grow>0.5){
+          var sX=hx2-Math.round(2*K), sY=hTopY;
+          g.fillStyle=day?"#9a9184":"#1e1c1a";
+          for(var st=0;st<Math.round(stepDrop/Math.max(1,Math.round(K*0.9)));st++){
+            var stx=sX-Math.round(st*(gapX*0.55)/Math.max(1,stepDrop/(K*0.9)));
+            g.fillRect(stx|0,(sY+st*Math.max(1,Math.round(K*0.9)))|0,Math.round(2.6*K),Math.max(1,Math.round(K*0.7)));
+          }
+        }
+        // LAUNDRY strung to the next house along, sagging and moving on the real wind
+        if(grow>=1 && i<steps-1){
+          var lA=hx2+sw, lB=hx2+gapX, lY=hTopY-Math.round(7*K);
+          var wob=Math.sin(now*0.0013+i)*Math.min(2.2,(weather&&weather.wind?weather.wind:5)/6)*K*0.3;
+          g.fillStyle=day?"rgba(60,54,46,0.7)":"rgba(120,120,130,0.35)";
+          for(var lq=0;lq<=(lB-lA);lq++)
+            g.fillRect((lA+lq)|0,(lY+Math.round(Math.sin(Math.PI*(lq/Math.max(1,lB-lA)))*2.2*K+wob))|0,1,1);
+          var LC=["#e8e2d4","#d86a72","#6aa8d8","#e8c86a"];
+          for(var lp=0;lp<3;lp++){
+            var lf=(lp+1)/4, lxp=lA+Math.round(lf*(lB-lA));
+            var lyp=lY+Math.round(Math.sin(Math.PI*lf)*2.2*K+wob);
+            g.fillStyle=day?LC[(i+lp)%4]:css(mixc(hex2rgb(LC[(i+lp)%4]),[14,14,22],0.6));
+            g.fillRect(lxp|0,(lyp+1)|0,Math.max(1,Math.round(K*0.9)),Math.max(2,Math.round(2.2*K)));
+          }
+        }
       }
     });
   } else if(B.k==="plains"){
