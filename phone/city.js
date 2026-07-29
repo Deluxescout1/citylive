@@ -13912,7 +13912,17 @@ function drawSeaFrontBand(g,L,now){
   // ruling edge to edge, and a crest highlight that only appears where the wave is actually peaking.
   // Bands also thin and slow with distance, which is what sells the depth.
   var wind=Math.max(2,(weather&&weather.wind)||6), sp=0.00004*(0.6+wind/22);
-  var chop=Math.min(1.6,0.5+wind/16);                        // how hard it is blowing decides how broken it is
+  // ⚠⚠ RAIN DID NOTHING TO THIS WATER. Nick: "make sure on every map where there is water in the
+  // front that it is affected by the rain… we should see the rains impact." He was right that it did
+  // not — the band rendered identically in a downpour and under a clear sky, and a grep for "dimple"
+  // returned nothing anywhere in the engine.
+  // One intensity term, derived from the REAL weather, drives everything below: a drizzle barely
+  // pocks the surface and a thunderstorm hammers it, so you can tell them apart without reading the
+  // panel. Everything is in drawSeaFrontBand, so all twenty lands with a sea front get it at once.
+  var rfx=wfx();
+  var rainK=rfx.thunder?1:(rfx.violent?0.92:(rfx.rain?0.7:(rfx.drizzle?0.3:0)));
+  if(rfx.hail) rainK=1;
+  var chop=Math.min(1.9,0.5+wind/16+rainK*0.45);             // how hard it is blowing — and raining — decides how broken it is
   for(var b2=0;b2<7;b2++){
     var by=top+Math.round((b2+0.6)*(h/7.4));
     var amp=(1+b2*0.5)*K*0.5*chop, wl=(58-b2*6)*K, wl2=wl*0.41;
@@ -13945,7 +13955,9 @@ function drawSeaFrontBand(g,L,now){
   // the moon at night — and it widens as the wind gets up, because chop scatters the reflection.
   var gsun=curSunDf, glX=Math.round(((gsun*WW)-WOFF));
   if(glX<-SW) glX+=WW; if(glX>SW*2) glX-=WW;
-  var glW=Math.round((26+wind*2.2)*K), glA=day?0.42:0.20;
+  // A rained-on surface stops reflecting cleanly — half of why water reads as wet. The path dulls and
+  // widens into scatter rather than staying a clean specular road.
+  var glW=Math.round((26+wind*2.2+rainK*30)*K), glA=(day?0.42:0.20)*(1-rainK*0.72);
   var glC=day?(goldenK>0.15?[255,206,150]:[255,255,255]):[176,198,236];
   for(var gy2=top;gy2<SH-TASKBAR_WP;gy2++){
     var gf=(gy2-top)/Math.max(1,h);
@@ -13959,6 +13971,38 @@ function drawSeaFrontBand(g,L,now){
       if(ga<=0.02) continue;
       g.fillStyle=rgba(glC,Math.min(0.9,ga));
       g.fillRect(gx2,gy2,Math.max(1,Math.round(K*(0.6+gf))),1);
+    }
+  }
+  // --- RAIN ON THE WATER: impact rings, and a low veil of spray in the heavy stuff ---
+  // ⚠ SCATTERED BY HASH, NEVER ON A PITCH. Dimples across a full-width band is a loop over x, and
+  // this project has found that same fault five times over (the bayou's bay, the viaduct, the coast,
+  // the wild shore's sawtooth, the volcano's strata). An even comb of raindrops would be the sixth.
+  // Each ring is placed from a hash of its own index and a slow time slot, so they land irregularly
+  // and refresh in place instead of marching.
+  if(rainK>0){
+    var nDrop=Math.round(h*SW*0.00055*rainK*(0.6+K*0.25));
+    var slot=Math.floor(now/230), day2=day;
+    for(var dp=0;dp<nDrop;dp++){
+      var dh=((dp*2654435761)^(slot*40503))>>>0;
+      var dx=dh%SW, dy=top+2+((dh>>>9)%Math.max(1,h-4));
+      var age=(((dh>>>19)%100)/100+(now%230)/230)%1;                  // each ring has its own phase
+      var rr=Math.round(age*2.6*K);                                    // …and expands as it ages
+      var da=(1-age)*0.42*(day2?1:0.72);
+      if(da<=0.03) continue;
+      g.fillStyle=day2?"rgba(255,255,255,"+da.toFixed(3)+")":"rgba(178,200,232,"+da.toFixed(3)+")";
+      if(rr<=0){ g.fillRect(dx,dy,Math.max(1,Math.round(K*0.7)),1); continue; }
+      g.fillRect(dx-rr,dy,Math.max(1,Math.round(K*0.7)),1);            // a ring reads as its two edges
+      g.fillRect(dx+rr,dy,Math.max(1,Math.round(K*0.7)),1);
+    }
+    // spray hanging over the surface — only in the genuinely heavy stuff, and thickest close in
+    if(rainK>0.65){
+      g.globalAlpha=0.10*(rainK-0.65)/0.35;
+      g.fillStyle=day?"#dfe8f2":"#3a4658";
+      for(var mz=0;mz<Math.round(h*0.5);mz++){
+        var mf=mz/Math.max(1,h*0.5);
+        g.fillRect(0,top+Math.round(mf*h*0.5),SW,1);
+      }
+      g.globalAlpha=1;
     }
   }
   // --- the mirror: on still water the sky and the land above it reflect, which is most of the read
