@@ -20724,6 +20724,18 @@ function plateaus(){
   // the debris slope: even if some future collapse profile happens to read as level again, no town
   // gets founded on the scar. The slope is the fix; this is the guarantee.
   if(mtsCache.blown){ mtsCache.plats=[]; return mtsCache.plats; }
+  // ⚠⚠ AND NOBODY BUILDS A TOWN ON A LIVE VOLCANO EITHER. The guard above only covered the mountain
+  // AFTER it blew, which quietly left the far more common case open: an INTACT cone. THE CALDERA
+  // carries `steep:0.55`, which makes every peak's profile plateau, so the moment the framed cone put
+  // its summit inside the frame the land came out as a flat-topped brown table with a row of black
+  // towers standing on top of it — and Nick has already photographed and rejected exactly this on this
+  // map ("if it explodes make sure the infrastructure goes with it", about a dome and a mast on the
+  // summit). The correct answer is not to destroy the town later, it is never to found it.
+  // 🔑 THE LESSON, AGAIN, IN THE OPPOSITE DIRECTION: a landform change is never only a landform change.
+  // Fixing the framing made the summit visible, and something that READS THE HEIGHT FIELD BACK put a
+  // settlement on it. Search for what reads a profile before editing it — plateau towns, gondolas,
+  // climbers, monasteries, treelines and cable cars all do.
+  if(curBiome&&curBiome.volcanic){ mtsCache.plats=[]; return mtsCache.plats; }
   var hs=mtsCache.h[1], out=[], K=Math.max(1,KSP);
   var minH=Math.round(15*K), minW=Math.round(30*K), tol=Math.max(1,Math.round(1.6*K));
   var i=0;
