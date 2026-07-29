@@ -2199,8 +2199,29 @@ function drawSky(g,now,nd,L,fx){
   // never a reason for a single one of its pixels to land under the horizon.
   g.save(); g.beginPath(); g.rect(0,0,SW,Math.max(1,Math.min(SEA_Y>0?SEA_Y:HORIZON,HORIZON))); g.clip();
   g.globalCompositeOperation="lighter"; g.lineCap="butt";   // butt caps: round caps double-stack additively at joints → a beaded pearl-chain artifact
+  // ⚠⚠ THE BAND HAS A COLOUR TEMPERATURE ALONG ITS LENGTH. Nick: "make the Milky Way more colourful
+  // and more noticeable." The dab field already knew this — it carries warm-gold core clouds, rose
+  // H-alpha nebulae and blue-white starlight — but the luminous BED under all of it, which is most of
+  // the light, was one flat `rgba(196,208,238)` from horizon to horizon. A galaxy is not one colour:
+  // you are looking THROUGH the disc toward the core in Sagittarius, where the light is dust-reddened
+  // and gold, and out through the thin outer arms everywhere else, where it is blue-white.
+  // So each spine point now carries how close it is to the galactic centre, and the bed is mixed
+  // between those two ends. Costs one angular distance per point, once per frame.
+  var GC_RA=17.76, GC_DEC=-28.94;                      // Sagittarius A* — the centre of the galaxy
   var SPN=[]; for(var si=0;si<MWSPINE.length;si++){ var sp=MWSPINE[si], sa=altAz(sp.ra,sp.dec,lst);   // project the ridge once
-    SPN.push(sa.alt<2?null:{x:skyWX(sa.az),y:skyY(sa.alt),alt:sa.alt,w:sp.w}); }
+    var dRa=(sp.ra-GC_RA)*15, dDe=sp.dec-GC_DEC;       // ra is in hours; 15 deg per hour
+    while(dRa>180)dRa-=360; while(dRa<-180)dRa+=360;
+    var gd=Math.sqrt(dRa*dRa*0.35+dDe*dDe);            // flattened: the disc is long and thin
+    // ⚠ AND THE FALLOFF HAS TO BE WIDE, FOR A REASON THAT IS ASTRONOMY RATHER THAN ART. The galactic
+    // centre sits at dec -29, so from Norwich at latitude 41.5 it never climbs above about 20 degrees
+    // — it is always low in the south, usually behind the landform. A tight falloff is physically
+    // right and puts every warm pixel in the one part of the sky this city cannot see, which is a
+    // colour gradient nobody will ever look at. Widened until the reddening reaches the part of the
+    // band that is actually overhead, which is also true to the picture: you are looking through the
+    // whole thickness of the disc for a long way either side of the core, and it is dust-reddened all
+    // along that stretch.
+    var core=Math.max(0,Math.min(1,1-gd/105));
+    SPN.push(sa.alt<2?null:{x:skyWX(sa.az),y:skyY(sa.alt),alt:sa.alt,w:sp.w,core:core}); }
   // pass 1: the luminous bed as SEVEN PARALLEL RIBBONS with gaussian falloff — guaranteed SCREEN-SPACE
   // width, so the river is a broad slab of glow everywhere along the arch (the projection compresses real
   // latitude to almost nothing; offsetting in screen px is what finally makes the band BIG, not a line).
@@ -2208,8 +2229,14 @@ function drawSky(g,now,nd,L,fx){
   for(var ob=0;ob<MWOFF.length;ob++){ if(QUAL===0&&ob>=5) continue;   // KDE budget: 5 ribbons
     var oy=MWOFF[ob][0], ow=MWOFF[ob][1];
     for(var si2=0;si2<SPN.length-1;si2++){ var A=SPN[si2], B=SPN[si2+1]; if(!A||!B) continue;
-      var vf=Math.min(1,(1-lpK)*((A.alt>50||B.alt>50)?1.5:1)), wv=(A.w+B.w)*0.5, a=wv*fade*vf*0.62*ow; if(a<0.012) continue;
-      g.lineWidth=7+wv*18; g.strokeStyle="rgba(196,208,238,"+a.toFixed(3)+")";
+      // ⚠ AND IT IS BRIGHTER. 0.62 was a whisper — on a dark sky over a small town this is the most
+      // spectacular thing in the frame and it was barely there. Raised until it reads across the room,
+      // which is what he asked for; the light-pollution response is untouched, so a grown city still
+      // washes it out and the reward for a small dark city is still real.
+      var vf=Math.min(1,(1-lpK)*((A.alt>50||B.alt>50)?1.5:1)), wv=(A.w+B.w)*0.5, a=wv*fade*vf*1.15*ow; if(a<0.010) continue;
+      var cw2=(A.core+B.core)*0.5;                                    // gold toward the core, blue-white outward
+      var mr=Math.round(196+58*cw2), mg=Math.round(208-4*cw2), mb=Math.round(246-92*cw2);
+      g.lineWidth=7+wv*18; g.strokeStyle="rgba("+mr+","+mg+","+mb+","+a.toFixed(3)+")";
       for(var w=-1;w<=1;w++){ var ax=A.x-WOFF+w*WW, bx=B.x-WOFF+w*WW; if(Math.abs(ax-bx)>WW*0.5) continue;   // skip seam-wrap segments
         if((ax<-24&&bx<-24)||(ax>SW+24&&bx>SW+24)) continue;
         g.beginPath(); g.moveTo(ax,A.y+oy); g.lineTo(bx,B.y+oy); g.stroke(); } } }
@@ -2220,9 +2247,12 @@ function drawSky(g,now,nd,L,fx){
   for(var di=0;di<MWDABS.length;di+=mwStride){ var dd=MWDABS[di], da=altAz(dd.ra,dd.dec,lst); if(da.alt<2) continue;
     var vfd=Math.min(1,(1-lpK)*(da.alt>50?1.5:1)), dma=dd.w*fade*vfd; if(dma<0.02) continue;
     var dwx=skyWX(da.az), dwy=skyY(da.alt);
-    g.fillStyle=dd.c===2?("rgba(248,186,200,"+dma.toFixed(3)+")")                       // rose H-alpha nebulae
-               :dd.c===1?("rgba(240,228,200,"+dma.toFixed(3)+")")                       // warm-gold core clouds
-               :("rgba(212,220,246,"+dma.toFixed(3)+")");                               // blue-white starlight
+    // the dab field's own colours pushed further apart and up — they were already right in KIND and
+    // too polite in degree to survive against a night sky
+    dma=Math.min(1,dma*1.45);
+    g.fillStyle=dd.c===2?("rgba(255,164,186,"+dma.toFixed(3)+")")                       // rose H-alpha nebulae
+               :dd.c===1?("rgba(255,226,172,"+dma.toFixed(3)+")")                       // warm-gold core clouds
+               :("rgba(206,220,255,"+dma.toFixed(3)+")");                               // blue-white starlight
     for(var dw=-1;dw<=1;dw++){ var dsx=dwx-WOFF+dw*WW; if(dsx<-2||dsx>SW+2) continue; g.fillRect(dsx|0,dwy|0,dd.sz,dd.sz); } }
   // ANDROMEDA — the faint elongated smudge of M31, the farthest thing a naked eye can reach
   var anda=altAz(0.712,41.27,lst);
