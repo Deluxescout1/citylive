@@ -3096,7 +3096,13 @@ var BIOMES=[
   // clearance) — so the first version of this land had a channel three times normal width that was
   // still almost entirely off the bottom of the frame. A swamp is a wide expanse of water RECEDING to
   // the horizon, which is exactly what the coast machinery already draws.
-  { k:"swamp",  name:"THE BAYOU",   amp:0.13, base:0.66, flat:0.0,  steep:0.0, snow:false, water:"sea", waterTree:"cypress", waterPal:{deep:[54,62,48],mid:[38,46,36],shal:[26,32,26]},
+  // ⚠ THE BASE VARIANT'S WATER WAS TOO DESATURATED TO SURVIVE ITS OWN REFLECTION. Rendered against
+  // this land's pale grey-olive sky, [54,62,48] mixed toward that sky came back as the same olive as
+  // the crowns and the far bank — the whole frame in one narrow band, which is what "doesn't read"
+  // looks like when nothing is actually broken. THE MANGROVE and THE PEAT MOSS read because their
+  // water is strongly coloured (teal, brown); the canonical bayou needs the same conviction. Real
+  // tannin water is a deep bottle-green, not a grey.
+  { k:"swamp",  name:"THE BAYOU",   amp:0.13, base:0.66, flat:0.0,  steep:0.0, snow:false, water:"sea", waterTree:"cypress", waterPal:{deep:[40,66,38],mid:[28,48,28],shal:[19,33,20]},
     far:[92,104,84],   near:[64,78,60],   cap:[126,138,104], ground:[74,84,62],
     walls:[[178,170,150],[142,132,112],[196,190,172],[120,112,96],[166,152,128],[134,140,120],[188,178,152],[110,104,88]],
     fauna:{ keep:{deer:1,rabbit:0,fox:0,goat:0}, big:["gator"], small:["frog","turtle2"], air:["heron","egret"] },
@@ -4303,7 +4309,16 @@ function setup(scene,opts){
   // it got, which is exactly the pattern he reported.
   // On a water land the panel allowance belongs to SEA_Y alone; GROUND goes back to the authored
   // depth (road + verge) it was designed as.
-  if(SEA_FRONT>0) GROUND=Math.max(26, Math.round(26*Math.max(1,KSP)*0.5));
+  // ⚠⚠ …AND THEN THE BARRIER HAD NOWHERE TO STAND. Nick, on the swamp: "Remove the inner railing
+  // where the cars are driving." He was looking at a timber rail running straight through the middle
+  // of the carriageway with a lane of traffic on either side of it.
+  // Cause: LANE offsets run to +21 from HORIZON and a car is ~4px tall, so the lanes alone need 25 of
+  // GROUND's 26 — while drawSeaFrontEdgeBuilt draws its rail in the LAST 5*KSP px above the waterline.
+  // On an inland land GROUND is bigger and there is room; the coastal reduction above left the
+  // barrier and the two nearest lanes fighting over the same ten pixels, and the barrier won.
+  // The road band has to be deep enough for its own barrier, so the rail's height is added back —
+  // and unlike the dead grey foreground that reduction was removing, this band is OCCUPIED.
+  if(SEA_FRONT>0) GROUND=Math.max(26, Math.round(26*Math.max(1,KSP)*0.5))+Math.round(5*Math.max(1,KSP));
   // ⚠⚠ THE SEA MUST SIT ABOVE THE TASKBAR. Nick: "the road on the middle screen looks bad."
   // SEA_Y was SH-SEA_FRONT — the bottom-most band of the frame — but that band is exactly where a
   // bottom panel sits. His middle monitor reports taskbarWp=28, so the entire ocean was rendering
@@ -8608,9 +8623,19 @@ function drawBayouWater(g,L,now,sa,sb,zi,wTop,shoreAt,sgn){
   // WHICH TREE STANDS IN THIS WATER. Off the table, so THE MANGROVE and THE PEAT MOSS are not the
   // bayou with a filter over it — they grow different things, which is the whole point of a variant.
   var wt=curBiome.waterTree||"cypress", mang=wt==="mangrove", birch=wt==="birch";
-  var trunk =mang?(day?"#8a4a38":"#1c100c"):birch?(day?"#e0dcd0":"#2a2a26"):(day?"#7c7462":"#191c18");
-  var trunk2=mang?(day?"#6a3628":"#120a08"):birch?(day?"#b0aca0":"#1c1c1a"):(day?"#5e5849":"#0f110e");
-  var canopy=mang?(day?"#3e8a4e":"#0b1a10"):birch?(day?"#8a9a5c":"#151a12"):(day?"#5a7050":"#111811");
+  // ⚠ kept as RGB triples rather than hex strings so distance haze can be mixed into them per tree —
+  // see the note where the old haze RECTANGLE used to be.
+  // ⚠⚠ AND ONCE MORE, THIS TIME BETWEEN THE TREE AND THE WATER IT STANDS IN. With the base bayou's
+  // water reflecting sky at the far bank it lands around [110,120,105], and the cypress canopy was
+  // [90,112,80] — the tree and the pond in the same handful of values, so the stand dissolved into
+  // the bay. That is the FOURTH time this exact fault has surfaced in one map pass, in four different
+  // places. The classic bayou image is DARK trees against BRIGHT water, so the cypress goes darker
+  // and more saturated rather than the water going down: the water is the thing that has to stay
+  // bright, because the reflection is what makes the distance read.
+  var trunkA =mang?(day?[138,74,56]:[28,16,12]):birch?(day?[224,220,208]:[42,42,38]):(day?[96,86,68]:[22,25,21]);
+  var trunk2A=mang?(day?[106,54,40]:[18,10,8]) :birch?(day?[176,172,160]:[28,28,26]):(day?[68,60,46]:[13,15,12]);
+  var canopyA=mang?(day?[62,138,78]:[11,26,16]):birch?(day?[138,154,92]:[21,26,18]) :(day?[56,80,46]:[14,21,14]);
+  var trunk=css(trunkA), trunk2=css(trunk2A), canopy=css(canopyA);
   // ⚠ moss has to be PALER than the crown it hangs off or it is just more canopy — and at night the
   // old value went to near-black, so half the day the tree's most distinctive feature was gone.
   var mossC=day?"rgba(176,178,148,0.66)":"rgba("+(Math.round(44*(0.45+curMoonIll*0.55))+22)+","
@@ -8737,6 +8762,9 @@ function drawBayouWater(g,L,now,sa,sb,zi,wTop,shoreAt,sgn){
     if(sgn>0? tx>edge-2 : tx<edge+2) continue;                   // it has to be standing in WATER
     var th=Math.round((6+depth*30)*K), tw=Math.max(1,Math.round((1+depth*3)*K));
     var fade=0.30*(1-depth);                                     // distance haze over the water
+    if(fade>0.02){ var hz=biomeSkc(day);                         // …mixed IN, not painted over the top
+      trunk=css(mixc(trunkA,hz,fade)); trunk2=css(mixc(trunk2A,hz,fade)); canopy=css(mixc(canopyA,hz,fade)); }
+    else { trunk=css(trunkA); trunk2=css(trunk2A); canopy=css(canopyA); }
     g.fillStyle=trunk;
     for(var q=0;q<th;q++){
       var flare=q<th*0.18?Math.round((1-q/(th*0.18))*tw*1.5):0;  // the buttress at the waterline
@@ -8772,7 +8800,7 @@ function drawBayouWater(g,L,now,sa,sb,zi,wTop,shoreAt,sgn){
     }
     for(var tier=0;tier<2;tier++){
       var tf=tier/2, tw2=crw*(1-tf*0.42)*(0.8+(((h>>>(tier+11))%100)/100)*0.45);
-      g.fillStyle=tier===1?canopy:(day?"#4c6044":"#0d130d");
+      g.fillStyle=tier===1?canopy:css(mixc(canopyA,[0,0,0],0.30));   // the shaded under-tier, off the same colour
       folMass(g,tx+((tier-1)*crw*0.22),ty-th+Math.round(crw*(0.2+tf*0.62)),tw2,Math.max(1,Math.round((1.4+depth*1.6)*K)),(h*(tier+7))>>>0,K);
     }
     // ---- SPANISH MOSS ----
@@ -8807,8 +8835,12 @@ function drawBayouWater(g,L,now,sa,sb,zi,wTop,shoreAt,sgn){
       g.fillStyle="rgba("+(day?"92,96,74,":"20,24,18,")+((0.30-0.24*rf)).toFixed(3)+")";
       g.fillRect(tx+jig,ty+r,tw,rStep);
     }
-    if(fade>0.02){ g.fillStyle=rgba(biomeSkc(day),fade);         // haze the far ones back
-      g.fillRect(tx-Math.round(crw),ty-th,Math.round(crw*2),th); }
+    // ⚠⚠ THE HAZE WAS A BOX. Distance haze was applied by painting one translucent RECTANGLE over the
+    // whole tree afterwards — so on the base BAYOU variant, where the water and the crowns sit close
+    // in value already, every tree stood inside a visible pale panel, like glass laid over it. It is
+    // the same class of fault as the ruled lines: a rectangle is the shape of the LOOP, not the shape
+    // of the thing. Haze belongs in the colours before they are drawn, so it is mixed into the trunk
+    // and crown per tree now and there is nothing rectangular left to see.
   }
   // ---- WEATHER ON THE WATER ----
   // ⚠ Nick took this too, and it is the cheapest of the four to earn back: still water is the surface
@@ -9214,6 +9246,7 @@ function drawFloodedFlats(g,L,now,sa,sb,zi,wTop,shoreAt,sgn){
 function drawReefLagoon(g,L,now,sa,sb,zi,wTop){
   if(curBiome.k!=="beach"&&curBiome.k!=="swamp"&&curBiome.k!=="sprawl") return;
   var bayou=curBiome.k==="swamp"||curBiome.k==="sprawl";   // both are dark still water with things standing in it
+  var swampW=curBiome.k==="swamp";                         // …but only one of them is a BAYOU
   var sprawl=curBiome.k==="sprawl";
   var span=sb-sa; if(span<12) return;
   var day=L>0.5, K=Math.max(1,KSP);
@@ -9256,7 +9289,7 @@ function drawReefLagoon(g,L,now,sa,sb,zi,wTop){
     // together left a hard horizontal EDGE right across the water at exactly that row — one more
     // ruled line, this time made by two correct-looking gradients meeting. The reflection does this
     // job properly and continuously, so the bayou takes that alone.
-    var haze=bayou?0:Math.max(0,1-wf*4.5);                     // the far water melts into the sky
+    var haze=swampW?0:Math.max(0,1-wf*4.5);                    // the far water melts into the sky
     if(haze>0) band=mixc(band,biomeSkc(day),haze*0.55);
     // ⚠⚠ THE MIRROR — the other half of what Nick asked for, and the thing that makes the bayou read
     // as WATER at all. The daylight render was the proof: on THE PEAT MOSS the tannin palette runs
@@ -9267,7 +9300,11 @@ function drawReefLagoon(g,L,now,sa,sb,zi,wTop){
     // at your feet. That single gradient does three jobs at once — it separates water from land, it
     // makes distance readable on a map with no relief, and it is a reflection rather than a shading
     // trick, so the sky's own colour drives it and dusk, storm and moonlight all come through for free.
-    if(bayou){
+    // ⚠ GATED TO THE SWAMP, not to `bayou` — see the note on `darkWater`. THE SPRAWL shares this
+    // branch and keeps the old `haze`; its flooded flats are a different place with a different
+    // renderer downstream, and changing its water while fixing the bayou would be a change nobody
+    // asked for on a land nobody was checking.
+    if(swampW){
       var refl=0.10+0.55*Math.pow(1-wf,2.3);
       // ⚠ THE REFLECTION HAS TO KEEP THE WATER'S COLOUR OR IT ERASES THE VARIANT. Mixing straight to
       // sky washed THE PEAT MOSS's tannin brown out to flat grey and THE MANGROVE's teal toward the
@@ -9405,7 +9442,11 @@ function drawHarbor(g,L,now,night,nd){
   // place ("a swamp is a wide expanse of water RECEDING to the horizon").
   var wDeepK=(curBiome.k==="swamp")?60:46;
   var wTop=HORIZON-((curBiome.k==="cliffs"||curBiome.k==="beach"||curBiome.k==="swamp"||curBiome.k==="arctic"||curBiome.k==="sprawl")?Math.round(wDeepK*Math.max(1,KSP)):22), dayW=mixc([26,58,84],[92,152,188],L), wc=css(dayW);
-  var darkWater=(curBiome.k==="swamp"||curBiome.k==="sprawl");   // tannin-black water takes far less light than a harbour
+  // ⚠ SWAMP ONLY, NOT `bayou`. `drawReefLagoon`'s `bayou` flag is swamp OR sprawl, and it would be
+  // easy to reuse it here — but THE SPRAWL is the neon megacity, where reflected neon on the water is
+  // the entire point of the land. Halving it there to fix the bayou would be a silent regression on a
+  // land nobody was looking at, which is exactly how the shared-branch faults in this codebase happen.
+  var darkWater=(curBiome.k==="swamp");   // tannin-black water takes far less light than a harbour
   eachWaterSpan(function(sa,sb,zi){ var ww=sb-sa; if(ww<=0) return;
     var shoreA=gstage(0.3,0.6);                                                   // the far shore builds up with the city
     if(shoreA>0){ g.globalAlpha=shoreA;
