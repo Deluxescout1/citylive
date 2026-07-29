@@ -20364,6 +20364,10 @@ function drawBiomeDetail(g,L,now,nd){
 function plateaus(){
   if(!mtsCache) return [];
   if(mtsCache.plats) return mtsCache.plats;
+  // ⚠ A MOUNTAIN THAT HAS JUST BLOWN ITS SIDE OUT IS NOT A BUILDING SITE. Belt and braces alongside
+  // the debris slope: even if some future collapse profile happens to read as level again, no town
+  // gets founded on the scar. The slope is the fix; this is the guarantee.
+  if(mtsCache.blown){ mtsCache.plats=[]; return mtsCache.plats; }
   var hs=mtsCache.h[1], out=[], K=Math.max(1,KSP);
   var minH=Math.round(15*K), minW=Math.round(30*K), tol=Math.max(1,Math.round(1.6*K));
   var i=0;
@@ -22957,7 +22961,7 @@ function drawMountains(g,L,now,nd){
                ph:((vbh>>>13)%628)/100, seed:vbh };
   }
   if(!mtsCache){                                                  // the silhouette is static per life —
-    mtsCache={h:[[],[],[]], sl:[[],[],[]], rib:[[],[],[]], wig:[], mx:[0,0,0], vk:vKey};   // compute it ONCE per screen, not per frame
+    mtsCache={h:[[],[],[]], sl:[[],[],[]], rib:[[],[],[]], wig:[], mx:[0,0,0], vk:vKey, blown:!!volcBlow};   // compute it ONCE per screen, not per frame
     // A THIRD, FURTHEST band, DERIVED from the far peaks rather than rolled — half the height, wider,
     // shifted along the world so it is not an echo. Deriving it keeps every existing life's layout
     // byte-identical: one extra mg() roll in buildWorld would have re-rolled the peaks of all six
@@ -23048,7 +23052,27 @@ function drawMountains(g,L,now,nd){
             var vbQ2=(((((vbA2+1)*40503)^volcBlow.seed)>>>0)%1000)/1000;
             var vbTear=(((vbP+(vbQ-vbP)*vbT)-0.5)*1.6 + ((vbP2+(vbQ2-vbP2)*vbT2)-0.5)*0.55)*volcBlow.rag;
             if(vbSide) vbTear*=0.42;                                          // the amphitheatre floor is rubble, not a ridge
+            // ⚠⚠ THE DEBRIS SURFACE MUST NOT BE LEVEL. Nick, with a screenshot of windows floating on
+            // the mountain: "whatever you just did added back the windows." He was right and the cause
+            // was mine: clamping the failed flank to one altitude produced a long DEAD-FLAT top, and
+            // `plateaus()` scans exactly for that — a run of 30+ columns varying by under 1.6px — so
+            // the blown volcano registered as a mesa and drawPlateauTowns built a town on it, whose
+            // walls sank into the rock and left a row of lit windows hanging in mid-air.
+            // A St Helens amphitheatre is not a table: it FALLS AWAY from the rim toward the breach,
+            // over a rubble surface. So the collapsed side gets a real gradient plus its roughness,
+            // which is both truer and, not by accident, the thing that stops it reading as flat.
             var vbTop=volcBlow.cut+vbTear;                                    // a torn rim, never a ruled cut
+            if(vbSide){                                                       // the debris slope, falling away from the vent
+              // ⚠ AND IT IS CONCAVE, not a wedge. A straight `-= |d|*k` ramp fixed the flat table and
+              // replaced it with an equally artificial dead-straight diagonal edge. A debris-avalanche
+              // deposit steepens near the breach and flattens as it runs out, so the drop follows a
+              // power curve — and the tear stays coarse over it so the surface reads as rubble rather
+              // than as any kind of ruled line, which is the fault this map keeps producing anew.
+              var vbU=Math.min(1,Math.abs(vbD)/Math.max(1,volcBlow.reach));
+              vbTop-=Math.pow(vbU,0.62)*volcBlow.cut*0.52;
+              vbTear*=1.7;                                                    // rubble, not a smooth apron
+              vbTop+=vbTear*0.5;
+            }
             rh0=rh0-(rh0-vbTop)*vbFall;
             if(rh0<vbTop-volcBlow.rag) rh0=vbTop-volcBlow.rag;
           }
