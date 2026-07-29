@@ -21745,7 +21745,11 @@ function drawMountains(g,L,now,nd){
       var strata=Math.max(2,Math.round(5*KSP*(0.5+B.flat)));      // mesa bedding planes — the step a flat top snaps to
       // Flat biomes must not undulate: quantising a sine into strata turns the whole skyline into a
       // sawtooth. Damp the rolling base and the crags by `flat` so a mesa top comes out genuinely flat.
-      var wob=1-B.flat;
+      // ⚠ AND THE CRAGS COME BACK WITH THEM. `wob` damps the rolling noise by `flat`, which is right
+      // for a table top and wrong for a land that merely leans that way: the Dolomites lost 18% of its
+      // roughness AND got quantised, so it was smoothed and then stepped — the two things that
+      // together make rock read as masonry. Below the table threshold the damping goes away too.
+      var wob=(B.flat>0.5)?(1-B.flat):1;
       for(var cx0=0;cx0<SW;cx0++){ var wx0=cx0+WOFF;
         var rh0=((pi0===0)? (9+(Math.sin(wx0*0.011+3)*5+Math.sin(wx0*0.033)*2.5)*wob)*KSP  // rolling base ridge
                 : (pi0===1)? Math.max(0,(Math.sin(wx0*0.014+7)*9-3.5)*wob)*KSP             // sparse foothills
@@ -21776,7 +21780,18 @@ function drawMountains(g,L,now,nd){
         // reverting it and re-rendering: the dolomites' stair-steps are there either way, so it was
         // not the cause of the damage — but a land he is unhappy with is the wrong place to carry a
         // change that was never meant for it.
-        if(B.flat>0 && rh0>2){
+        // ⚠⚠⚠ QUANTISE ONLY WHAT IS ACTUALLY A TABLE. Nick: "the mountains need to look realistic not
+        // like blocks", and he is right — I defended these steps one message ago as the land's own
+        // design, and the design was wrong.
+        // Snapping the height field to bedding planes is what makes a MESA read as a mesa: a mesa is
+        // a table and its top must be dead level. THE DOLOMITES carries `flat:0.18` — a hint of
+        // bedding on a land whose subject is sheer limestone towers — and that hint was enough to run
+        // the same snap, turning a jagged massif into a flight of stairs. A little bit of "flat" is
+        // not a little bit of table; it is a completely different landform quantised anyway.
+        // So the gate is a threshold now, not a non-zero test. Above 0.5 the land is a table and gets
+        // its beds; below it the profile stays CONTINUOUS and keeps the crags the noise already gave
+        // it, which on the Dolomites is the whole point of the variant.
+        if(B.flat>0.5 && rh0>2){
           if(B.buttes){ var qb=Math.floor(rh0/strata);
             rh0=(qb+((mixLi((qb*7919)>>>0,4649)%100)/100-0.5)*0.62)*strata; }
           else rh0=Math.round(rh0/strata)*strata;
