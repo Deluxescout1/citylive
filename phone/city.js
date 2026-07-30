@@ -2860,6 +2860,23 @@ function holidays(now){
 function bump(h,c,w){ var d=(h-c)/w; return Math.exp(-d*d); }
 function dayRhythm(nd){
   var h=nd.getHours()+nd.getMinutes()/60, a;
+  // ⚠⚠ THE SPRAWL'S PULSE IS INVERTED, and it is the same call Nick made for `peopleOutK`: the busy hour
+  // on a neon megacity is the EVENING. This is the traffic half of it — the shared curve peaks at the
+  // morning and evening commuter rushes and falls away to 0.14 by midnight, which describes a city of
+  // offices, not one whose identity is what happens after dark.
+  // ⚠ It keeps a real shape and a real floor. 4 a.m. is quiet here too; what moves is where the peak sits
+  // and how long the evening lasts. A land that is uniformly busy has no life in it either.
+  if(curBiome && curBiome.k==="sprawl"){
+    if(h<5) a=0.34;                       // never truly dead — something is always running
+    else if(h<8) a=0.34-0.10*((h-5)/3);   // the quietest stretch is the small hours BEFORE dawn
+    else if(h<11) a=0.24+0.26*((h-8)/3);  // a slow morning
+    else if(h<17) a=0.55;                 // the daytime plateau, and it is the low one
+    else if(h<20) a=0.55+0.45*((h-17)/3); // it climbs through the evening
+    else if(h<24) a=1.0;                  // and holds at full through the night
+    else a=0.34;
+    var rushS=bump(h,19.4,1.6);           // the "rush" here is people going OUT, not home
+    return { hour:h, act:a, carPresence:0.5+0.5*a, carSpeed:1-0.5*rushS, rush:rushS>0.5, deep:(h>=4&&h<7) };
+  }
   if(h<5) a=0.12;
   else if(h<7) a=0.12+(h-5)/2*0.55;
   else if(h<9.5) a=1.0;                 // morning rush
@@ -2873,6 +2890,22 @@ function dayRhythm(nd){
 }
 // how busy a given district is at hour h (nightlife vs office hours vs workday)
 function districtBusy(name,h){
+  // ⚠⚠ ON THE SPRAWL THE WHOLE CITY KEEPS NIGHTLIFE HOURS. This is the third and last place the inverted
+  // pulse had to be applied, and the one that actually fills the pavement: `dayRhythm` drives the traffic
+  // and `peopleOutK` the named cast, but the anonymous crowd is gated here, per district.
+  // The shared curves describe offices and docks — `downtown` empties at 19:00, `residential` at 21:30 —
+  // so on the one land whose identity is what happens after dark, every district but `neon` was clearing
+  // out exactly when the neon came on. That is why the 23:00 pavement was still thin after the traffic and
+  // the named cast had both been inverted.
+  // ⚠ The DOCKS still keep a workday. A drowned industrial port does its cargo work in daylight whatever
+  // the district around it is doing, and leaving one district on its own clock is what stops the whole
+  // city reading as a single uniform crowd.
+  if(curBiome && curBiome.k==="sprawl"){
+    if(name==="industrial") return (h>=6&&h<18)?0.7:0.22;               // the docks work days, but never empty
+    if(name==="neon")       return (h>=18||h<2.5)?1.0:(h>=12?0.55:0.34);
+    if(name==="downtown")   return (h>=17||h<1)?0.95:(h>=9?0.55:0.30);  // the towers empty and the street fills
+    return (h>=16||h<2)?0.9:(h>=8?0.5:0.30);                            // residential/oldtown: out in the evening
+  }
   if(name==="neon")       return (h>=19||h<1.5)?1.0:(h>=12?0.5:0.28);   // entertainment: nightlife
   if(name==="industrial") return (h>=6&&h<18)?0.7:0.12;                 // docks: workday only
   if(name==="downtown")   return (h>=8&&h<19)?0.9:0.28;                 // offices: business hours
@@ -12369,6 +12402,23 @@ var drawnPopRef=null;   // the roster the current drawnNamed[] was drawn from (f
 // dead as it ever was — this is not a licence to fill the night with a daytime crowd.
 function peopleOutK(hh){
   var hhN=(hh<7)?hh+24:hh;                       // one continuous evening→morning axis: 7:00 … 31:00
+  // ⚠⚠ THE SPRAWL RUNS THIS CURVE BACKWARDS, and Nick chose that when shown the measurement above: this
+  // land carried SIX TIMES fewer people at 23:00 than at 08:00, on the one map whose entire identity is
+  // neon after dark. A megacity's busy hour is the evening — the shops open, the bars fill, the street is
+  // fuller at eleven at night than at eight in the morning — and the shared curve was quietly asserting
+  // the opposite on the land least able to afford it.
+  // ⚠ It still has a SHAPE, and it still dies in the small hours: 3 a.m. is nearly as dead here as
+  // anywhere, because a city that is uniformly busy has no life either. What moves is where the peak is.
+  // ⚠ Scoped to `curBiome.k==="sprawl"`, NOT to `curNeon` — the neon STYLE rolls on about one life in
+  // twelve of every other land, and inverting an alpine village's day would be nonsense.
+  if(curBiome && curBiome.k==="sprawl"){
+    return hhN<10 ? 0.42+0.18*((hhN-7)/3)        // 07:00 → 10:00 a thin morning; this is not a commuter town
+         : hhN<18 ? 0.60                         // 10:00 → 18:00 daytime plateau, and it is the QUIET one
+         : hhN<23 ? 0.60+0.55*((hhN-18)/5)       // 18:00 → 23:00 it fills up — the peak is here, above 1
+         : hhN<26 ? 1.15-0.75*((hhN-23)/3)       // 23:00 → 02:00 the long tail of a night city
+         : hhN<29 ? 0.40-0.18*((hhN-26)/3)       // 02:00 → 05:00 down to its floor, but never as empty as a village
+         : 0.22+0.20*((hhN-29)/2);               // 05:00 → 07:00 the last of it goes home
+  }
   return hhN<21 ? 1
        : hhN<25 ? 1-0.8*((hhN-21)/4)             // 21:00 → 01:00 the street empties, gradually
        : hhN<29 ? 0.2                            // 01:00 → 05:00 genuinely dead
