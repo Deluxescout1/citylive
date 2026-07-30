@@ -129,10 +129,12 @@ function applyConfig(cfg){ if(!cfg) return;
   if(cfg.lat!=null) LAT=+cfg.lat;  if(cfg.lon!=null) LON=+cfg.lon;
   if(cfg.lat!=null||cfg.lon!=null) REGION=regionOf(LAT,LON);   // re-derive the architectural region for the new place
   if(cfg.cycle!=null) GROW_CYCLE=cycleMs(cfg.cycle);
-  if(cfg.apocHour!=null) GROW_ALIGN=alignMsFor(cfg.apocHour, GROW_CYCLE);
   if(cfg.disasters!=null) DIS_PROB=DIS_PROB_BASE*disMul(cfg.disasters);
   if(cfg.finale!==undefined) CFG_FINALE=(cfg.finale&&cfg.finale!=="auto"&&DEATHS.indexOf(cfg.finale)>=0)?cfg.finale:null;
   if(cfg.worldRestartAt!==undefined) WORLD_SHIFT=worldShiftFrom(+cfg.worldRestartAt||0, cfg.worldRestartMode);
+  // AFTER cycle and WORLD_SHIFT: the alignment is a phase against the finished grid,
+  // so anything lifeIndexOf() adds must already be settled or the hour lands wrong.
+  if(cfg.apocHour!=null) GROW_ALIGN=alignMsFor(cfg.apocHour, GROW_CYCLE);
   if(cfg.finaleDemo!==undefined) FINALE_DEMO=(+cfg.finaleDemo>0)?+cfg.finaleDemo:null;   // seconds for a full apocalypse loop
   if(cfg.era!==undefined){ FORCEERA=null;
     if(cfg.era && cfg.era!=="auto"){ for(var ei=0;ei<ERAS.length;ei++){ if(ERAS[ei].name===cfg.era){ FORCEERA=ei; break; } } } }
@@ -4529,11 +4531,17 @@ function setup(scene,opts){
 // wherever the epoch put it, and `GROW_ALIGN` is simply 0.
 var GROW_ALIGN=0;
 function alignMsFor(hour, cyc){
-  if(hour==null||hour<0||cyc>86400000||86400000%cyc!==0) return 0;
-  // where the local day currently sits relative to the cycle grid, so a boundary falls at `hour`:00 local
+  if(hour==null||hour<0) return 0;
+  // A clock hour is only honourable if the cycle either tiles the day (1h, 12h) or is a
+  // whole number of days (1d, 3d, 1w, 2w, 3w, 1mo) — every cycle we offer is one or the
+  // other. The old test was `cyc>86400000`, which silently dropped the five long cycles
+  // while the settings UI still offered the hour picker beside them.
+  if(!(cyc%86400000===0 || 86400000%cyc===0)) return 0;
+  // Where the chosen hour SITS in the cycle. lifeIndexOf() subtracts GROW_ALIGN, so this is
+  // the offset itself, not its complement — returning (cyc-m) put the boundary at the mirror
+  // hour (apocHour=20 landed the daily rollover at 11:49).
   var probe=new Date(); probe.setHours(hour,0,0,0);
-  var m=((probe.getTime()-GROW_EPOCH)%cyc+cyc)%cyc;
-  return (cyc-m)%cyc;
+  return ((probe.getTime()-GROW_EPOCH+GROW_OFFSET_DAYS*86400000+WORLD_SHIFT)%cyc+cyc)%cyc;
 }
 function lifeIndexOf(now){ return Math.floor((now-GROW_EPOCH+GROW_OFFSET_DAYS*86400000+WORLD_SHIFT-GROW_ALIGN)/GROW_CYCLE); }
 var curLife=null;
