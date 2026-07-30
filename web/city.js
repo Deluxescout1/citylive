@@ -3664,12 +3664,17 @@ var BIOME_VARIANTS={
     { name:"THE CINDER WASTE", // burnt out and grey: the fire has mostly gone out of this one
       far:[92,84,80],   near:[56,50,48],   cap:[152,110,72], ground:[62,58,54],
       walls:[[78,72,68],[54,50,48],[98,88,82],[46,42,40],[112,98,88],[64,58,54],[86,78,72],[50,46,44]],
-      flora:{ kinds:["snag","snag","scrub","snag"], bloom:["#b8823a","#8a6228","#c89a4a"] },
+      // ⚠ `scrub` DRAWS GREEN, and both hell variants still carried it after the base row had been fixed.
+      // Nick's ruling is "nothing green survives here"; a variant override is a separate list, so fixing the
+      // base biome silently left a living shrub in one plant slot on two of the three Ashlands.
+      // 🔑 The same class of miss as the park's 5px plot on the arctic pass: when a value is overridden per
+      // variant, fixing the parent fixes nothing.
+      flora:{ kinds:["snag","snag","log","snag"], bloom:["#b8823a","#8a6228","#c89a4a"] },
       sky:{ top:[52,44,42], bot:[168,126,88], k:0.62, haze:[178,138,96] } },
     { name:"THE OBSIDIAN",     // black glass under violet fire — the coldest-looking hell there is
       far:[52,40,64],   near:[28,20,38],   cap:[142,92,196], ground:[34,26,42],
       walls:[[48,38,56],[30,24,38],[66,52,78],[26,20,32],[80,62,96],[38,30,46],[58,46,68],[28,22,34]],
-      flora:{ kinds:["snag","snag","scrub","snag"], bloom:["#a24ad8","#7a2ea8","#c86ae8"] },
+      flora:{ kinds:["snag","snag","log","snag"], bloom:["#a24ad8","#7a2ea8","#c86ae8"] },   // ⚠ see the note above: no scrub
       sky:{ top:[18,8,28], bot:[126,38,168], k:0.80, haze:[148,56,196] } } ],
 
   heaven:[ {},
@@ -4911,6 +4916,7 @@ var ashQuench=0;     // 0..1 how far the Ashlands' fire has been chilled by rain
 var ashK=0;          // 0..1 how thick the ash in the air is RIGHT NOW (0 on every land but hell)
 var ashHeavy=0;      // 0..1 how far into a genuinely heavy FALL — the thing that empties the street
 var ashDust=0;       // 0..1 how much ash is LYING on the roofs and the ground (the last few hours' worth)
+var ashViolet=false; // THE OBSIDIAN burns violet, not orange — read by ashFire()/ashFireCore()/ashFireHalo()
 
 // ---- deterministic scheduled crossers (identical on every screen) ----
 // A vehicle enters at one end of the world and crosses; visible only during its
@@ -22478,7 +22484,15 @@ function drawBiomeWeather(g,L,now,nd,fx){
     // ⚠ Keyed to `ashQuench`, not to `wet`, so the steam OUTLASTS the storm exactly as the chilling does:
     // rock that has just been rained on goes on steaming after the sky clears, which is the whole point of
     // the answer he picked.
-    var stQ=Math.max(wet?0.35:0, ashQuench);
+    // ⚠⚠ AND THE CINDER WASTE SMOKES ALL THE TIME, which resolves a real conflict between two of Nick's own
+    // answers. Its fire is at 0.16, so rendered at night the whole land came out very nearly BLACK — and his
+    // locked limit is "don't make it too dark to read; it is a desktop, and a mostly-black midnight is a
+    // wasted wallpaper, so the FIRE does the lighting work." On this variant there is barely any fire to do
+    // that work with.
+    // 🔑 HIS OWN DESCRIPTION OF THE VARIANT IS THE WAY OUT: "grey and SMOKING". Smoke catches what ambient
+    // light there is, so the thing that makes the burnt-out land legible is the same thing that makes it read
+    // as burnt out. No new feature, and no compromise on either answer.
+    var stQ=Math.max(wet?0.35:0, ashQuench, (ashVar()===1)?0.42:0);
     if(stQ>0.04){
       // 1. THE VEIL. A warm, thick band low in the frame — thickest at the ground and gone by mid-height.
       var vTop=Math.round(gy*0.34), vBot=Math.min(SH,gy+Math.round(20*K));
@@ -25112,6 +25126,27 @@ function ashNoise(wx,cell,salt){
 // -0.8 … +1.9 roughness with no period in it. The spike term is deliberately ONE-SIDED: a broken ridge
 // throws spires UP, it does not cut matching notches down, and that asymmetry is most of what separates
 // brimstone from a sawtooth.
+// ============ WHICH OF THE THREE ASHLANDS IS THIS? ============
+// Nick chose genuinely different LANDFORMS per variant, not just different palettes — the sprawl's districts
+// over the volcano's cheaper shared-silhouette compromise. 0 THE ASHLANDS · 1 THE CINDER WASTE · 2 THE OBSIDIAN.
+// ⚠ Keyed on the variant NAME, which is how the sprawl's districts do it. The variant table overrides `name`,
+// so this is the only thing that distinguishes them at draw time.
+function ashVar(){
+  if(!curBiome||!curBiome.molten) return -1;
+  return (curBiome.name==="THE CINDER WASTE")?1:((curBiome.name==="THE OBSIDIAN")?2:0);
+}
+// HOW MUCH FIRE THIS VARIANT HAS LEFT. Nick: the Cinder Waste is "almost out — embers in the deep cracks
+// only", and that contrast IS the point of the variant, the way THE COLD STACK's emptiness was.
+function ashFireK(){ var v=ashVar(); return (v===1)?0.16:1; }
+// …and what colour it comes out. "Black glass under VIOLET fire" is the whole idea of The Obsidian: same heat
+// model, different light. One helper so the flows, the fissures and the crest bloom cannot disagree about it —
+// the alternative is the hue written out at six call sites, which is how the green survived in five places.
+function ashFire(heat,a){
+  if(ashViolet) return "rgba("+((146+74*heat)|0)+","+((28+46*heat)|0)+","+((198+57*heat)|0)+","+a.toFixed(3)+")";
+  return "rgba(255,"+((72+120*heat)|0)+","+((14+46*heat)|0)+","+a.toFixed(3)+")";
+}
+function ashFireCore(a){ return ashViolet?("rgba(244,214,255,"+a.toFixed(3)+")"):("rgba(255,238,182,"+a.toFixed(3)+")"); }
+function ashFireHalo(a){ return ashViolet?("rgba(120,36,176,"+a.toFixed(3)+")"):("rgba(176,44,8,"+a.toFixed(3)+")"); }
 function ashCrag(wx){
   // ⚠ DOMAIN WARP FIRST, or the cell grid is a rule of its own. Hashing per cell fixed the HEIGHTS — no
   // two peaks the same — but the cells are still 73 wp apart, and the render came back with evenly-spaced
@@ -25119,12 +25154,23 @@ function ashCrag(wx){
   // sample position by a slower noise stretches and squeezes the grid, so no two features sit the same
   // distance apart and there is no spacing left to read as periodic.
   var w=wx+(ashNoise(wx,211,0x1D3F)-0.5)*118;
+  var av=ashVar();
   var v=(ashNoise(w,73,0x51A7)-0.5)*2
        +(ashNoise(w,29,0x9E37)-0.5)*2*0.42
        +(ashNoise(w,11,0xB5C1)-0.5)*2*0.16;
-  var tc=Math.floor(w/73), tf=w/73-tc;
-  if(((P_hash(((tc*40503)^0x2C1B)>>>0)%100)/100)<0.22){  // about one cell in five is a genuine tower
-    var tp=Math.max(0,1-Math.abs(tf-0.5)*2.6); v+=1.55*tp*tp;
+  // ============ AND EACH OF THE THREE IS A DIFFERENT SHAPE OF ROCK ============
+  // THE CINDER WASTE has "collapsed and filled in, low ash mounds, the rift healed over": ash is a SPOIL
+  // material, it slumps to its angle of repose, so this one loses the spires entirely and keeps only the
+  // broad slow octave. It should read as the aftermath of the other two.
+  if(av===1) return v*0.34+(ashNoise(w,157,0x77A3)-0.5)*0.55;
+  // THE OBSIDIAN is "sharp glassy blades". Glass fractures — it does not erode into hills — so the towers
+  // are commoner and much narrower, and the ground between them is flatter than on either sibling. The
+  // narrow spike is the whole silhouette here, not an accent on it.
+  var tCell=(av===2)?47:73, tRoll=(av===2)?0.40:0.22, tSharp=(av===2)?4.6:2.6, tGain=(av===2)?2.10:1.55;
+  if(av===2) v*=0.55;
+  var tc=Math.floor(w/tCell), tf=w/tCell-tc;
+  if(((P_hash(((tc*40503)^0x2C1B)>>>0)%100)/100)<tRoll){
+    var tp=Math.max(0,1-Math.abs(tf-0.5)*tSharp); v+=tGain*tp*tp;
   }
   return v;
 }
@@ -25134,12 +25180,21 @@ function ashCrag(wx){
 // Returned as a plain object and resolved once per mtsCache build, exactly like `volcBlow`.
 function ashRiftState(){
   if(!curBiome||!curBiome.molten||!mts||!mts.near||!mts.near.length) return null;
-  var rh=((WORLD_SEED*2246822519)>>>0);
+  var rh=((WORLD_SEED*2246822519)>>>0), av=ashVar();
   var rPk=0; for(var i=0;i<mts.near.length;i++) if(mts.near[i].h>rPk) rPk=mts.near[i].h;
+  // AND THE TEAR ITSELF DIFFERS PER VARIANT — this is the other half of "genuinely different landforms".
+  //   CINDER WASTE: HEALED OVER. Broad and shallow, with almost no shoulder left — you can see where the
+  //     ground opened once and then filled back in. Not absent: a rift that simply is not there would make
+  //     this variant a different land rather than the same land later on.
+  //   OBSIDIAN: "a narrow deep fissure." A third the width and cut almost to the ground, with a big shoulder,
+  //     because glass splits rather than sagging open.
+  var rW=(av===1)?1.85:((av===2)?0.42:1);
+  var rKeep=(av===1)?(0.62+((rh>>>17)%14)/100):((av===2)?(0.04+((rh>>>17)%8)/100):(0.16+((rh>>>17)%18)/100));
+  var rLip=(av===1)?0.03:((av===2)?0.19:0.10);
   return { wx:(0.18+((rh>>>5)%64)/100)*WW,               // somewhere across the world, never hard at the seam
-           w:Math.max(60,WW*(0.085+((rh>>>11)%40)/1000)),
-           keep:0.16+((rh>>>17)%18)/100,                 // how much of the ridge height survives at the centre
-           lip:rPk*(0.10+((rh>>>23)%10)/100),            // the rock shouldered up along each side of the tear
+           w:Math.max(60,WW*(0.085+((rh>>>11)%40)/1000)*rW),
+           keep:rKeep,                                   // how much of the ridge height survives at the centre
+           lip:rPk*(rLip+((rh>>>23)%10)/100*(av===1?0.2:1)),   // the rock shouldered up along each side
            seed:rh };
 }
 // THE RIFT'S OTHER HALF: THE GROUND TORN OPEN. Nick locked "both — a notch in the ridge AND fissures on
@@ -25158,6 +25213,11 @@ function ashRiftState(){
 // them across a face read as twenty pencil strokes — the bayou's graph paper, on rock.
 function drawAshFissures(g,hs,gy,day,mNight,now,rift){
   var K=Math.max(1,Math.round(KSP)), SWl=hs.length;
+  // ⚠ NOT damped by `ashFireK()` like the flows and the bloom are. On THE CINDER WASTE the flows go to 0.16
+  // and the sky goes with them, and Nick's answer for that variant is "embers in the DEEP CRACKS only" — so
+  // the fissures are the one thing still burning there, and they are what the whole variant hangs on. Dimmed
+  // to embers rather than extinguished.
+  var fFire=(ashVar()===1)?0.55:1;
   // ⚠ AND 28 OF THEM AT 45..165px WAS TOO MANY TO STAY SEPARATE. On a 2269px world that is one every 81px,
   // so they overlapped end-to-end and CHAINED into three or four long parallel wavy bands — the render read
   // as contour lines, or strata, rather than as tears. Fewer, shorter, scattered further apart in height,
@@ -25211,14 +25271,14 @@ function drawAshFissures(g,hs,gy,day,mNight,now,rift){
         // …and a tear full of rainwater has gone out too, for as long as the quench lasts. A fissure holds
         // its heat better than a thin surface flow does — it is a hole, and the weather only reaches the top
         // of it — so it is damped less than the veins on the faces are.
-        var heat=fDeep*fCyc*taper*(nearRift?1:0.72)*(ashQuench>0.01?Math.max(0.18,1-ashQuench*0.70):1);
+        var heat=fDeep*fCyc*taper*fFire*(nearRift?1:0.72)*(ashQuench>0.01?Math.max(0.18,1-ashQuench*0.70):1);
         if(heat>0.10){
           g.globalCompositeOperation="lighter";
           var hA=heat*(0.34+0.52*mNight);
           // …and the fire in patches too: you see down into a tear where it happens to be open, not evenly
           // along its whole length.
           if(lipK<0.30+0.55*heat){
-            g.fillStyle="rgba(255,"+((86+90*heat)|0)+","+((22+40*heat)|0)+","+hA.toFixed(3)+")";
+            g.fillStyle=ashFire(heat,hA);
             g.fillRect(sx,fy+Math.max(0,th-Math.max(1,Math.round(K*0.8))),1,Math.max(1,Math.round(K*0.8)));
           }
           // …and the light it throws UP out of the gap. ⚠ every other column only: this is the one term in
@@ -25229,7 +25289,7 @@ function drawAshFissures(g,hs,gy,day,mNight,now,rift){
             for(var rq=0;rq<rise;rq++){
               var rf=rq/rise, ra=hA*0.46*(1-rf)*(1-rf);
               if(ra<=0.004) break;
-              g.fillStyle="rgba(255,"+((120+40*rf)|0)+","+((46+26*rf)|0)+","+ra.toFixed(3)+")";
+              g.fillStyle=ashFire(0.40+0.45*rf,ra);
               g.fillRect(sx,fy-rq,2,1);
             }
           }
@@ -25790,6 +25850,7 @@ function drawMountains(g,L,now,nd){
           // A storm that chills the flows and the fissures but leaves the sky over the ridge burning
           // exactly as bright is the wrong half of the effect.
           if(ashQuench>0.01) qA*=Math.max(0.30,1-ashQuench*0.62);
+          qA*=ashFireK();                                    // …and the Cinder Waste's sky is barely lit at all
           if(qA<=0.006) continue;
           var qR2=(qRift>1)?Math.round(qRise*(1+0.75*(qRift-1))):qRise;   // fire in a gap throws light HIGHER
           // ⚠ TWO ROWS AT A TIME. This loop was the single most expensive thing on the land: one 1×1 fill
@@ -25802,7 +25863,7 @@ function drawMountains(g,L,now,nd){
             var qf=qq/qR2;
             var qaa=qA*(1-qf)*(1-qf);                          // squared falloff: a bloom, not a band
             if(qaa<=0.004) break;
-            g.fillStyle="rgba(255,"+((132+40*qf)|0)+","+((52+30*qf)|0)+","+qaa.toFixed(3)+")";
+            g.fillStyle=ashFire(0.52+0.38*qf,qaa);
             g.fillRect(qx,qt-qq-1,1,2);
           }
         }
@@ -25856,7 +25917,10 @@ function drawMountains(g,L,now,nd){
         var vy=Math.max(2,(gy-hs[vx])|0)+Math.round(hs[vx]*0.04), vdx=0;   // …at the crest, where the glow is
         var vw=Math.max(2,Math.round(2.4*KSP)), vsp=Math.max(1,Math.round(KSP));
         // THIS FLOW'S OWN SCALE, fixed for the life of the world. 0.22 a spent trickle … 1 a major flow.
-        var vBase=0.22+((vh4>>>19)%100)/100*0.78;
+        // ⚠ …times what this VARIANT has left. On THE CINDER WASTE the flows are all but out (0.16), which is
+        // what makes the fissures — damped far less, because they are the "deep cracks" his answer keeps the
+        // embers in — the only fire on that map.
+        var vBase=(0.22+((vh4>>>19)%100)/100*0.78)*ashFireK();
         // …and how far down the face it GOT before it stopped. This is what kills the poles.
         // ⚠⚠ LENGTH COMES FROM `vBase`, NOT FROM THE LIVE TEMPERATURE, and that distinction is the whole
         // reason the cooling cycle below is safe. The channel is a physical thing cut into the rock: it does
@@ -25911,7 +25975,7 @@ function drawMountains(g,L,now,nd){
           var hA=heat*lift*shim;
           if(hA<=0.012) continue;
           g.globalCompositeOperation="lighter";
-          g.fillStyle="rgba(176,44,8,"+(hA*0.34).toFixed(3)+")";                       // the light it throws on the rock
+          g.fillStyle=ashFireHalo(hA*0.34);                                            // the light it throws on the rock
           g.fillRect(vxx-vwq,vq,vwq*3,vsp);
           // THE CRACKS. The skin is broken, not open — so the body only shows through in breaks, and the
           // breaks close up as it cools, which is what makes the toe read as solid rather than merely dim.
@@ -25922,10 +25986,10 @@ function drawMountains(g,L,now,nd){
             // in a crust is a patch, so it gets its own width and its own offset across the channel.
             var cwd=Math.max(1,Math.round(vwq*(0.34+0.50*heat)));
             var cof=((((vxx*2246822519)^(vq*3266489917))>>>0)%Math.max(1,vwq-cwd+1));
-            g.fillStyle="rgba(255,"+((72+120*heat)|0)+","+((14+46*heat)|0)+","+(hA*0.92).toFixed(3)+")";
+            g.fillStyle=ashFire(heat,hA*0.92);
             g.fillRect(vxx+cof,vq,cwd,vsp);
             if(heat>0.55 && crk<0.22*heat){                                            // and white-hot only deep in a fresh flow
-              g.fillStyle="rgba(255,238,182,"+(hA*0.85).toFixed(3)+")";
+              g.fillStyle=ashFireCore(hA*0.85);
               g.fillRect(vxx+cof,vq,Math.max(1,Math.round(KSP)),vsp);   // …inside the crack, not beside it
             }
           }
@@ -30664,6 +30728,7 @@ function draw(g,pass){
   ashK=ashfallK(now);
   ashHeavy=Math.max(0,Math.min(1,(ashK-0.42)/0.50));   // the baseline haze empties nothing; a real fall does
   ashDust=ashDustK(now);                               // …and what the last few hours of it left on the roofs
+  ashViolet=(ashVar()===2);                            // THE OBSIDIAN's fire is violet
   if(ashHeavy>0.02) rhythm.carSpeed*=1-0.55*ashHeavy;  // you cannot see, so you crawl
   // ash-out veil: only masks the death→rebirth WRAP itself (~last hour rising, ~first hour fading).
   // (was APOC_AT/0.04 of the cycle = a 70% black overlay for ~29 REAL HOURS after every rebirth — far too long)
