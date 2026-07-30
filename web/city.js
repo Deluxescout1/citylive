@@ -20101,8 +20101,30 @@ function drawDunes(g,L,now,nd){
       // The geometry now: slip face occupies 0.30 of the cell, so for a repose angle of ~34deg
       // (dy/dx 0.674) the height must be 0.30*wl*0.674 ≈ 0.20*wl. Both terms below are derived from that
       // identity rather than chosen, so the angle stays right on every band and at any KSP.
-      var wl=Math.max(24,Math.round((150-26*bi)*Math.max(1,KSP)));   // mean dune spacing, nearer = tighter
-      var duneH=HORIZON*(0.22-0.035*bi);                             // ≈0.20*wl → lee face at ~33deg
+      // ============ THREE GENUINELY DIFFERENT DESERTS (locked answer #6) ============
+      // Nick's ruling, the same one he gave the sprawl's districts, the Ashlands' landforms and the
+      // Empyrean's cloud seas: the variants must be three PLACES, not one place in three tints. Deserts
+      // make this easy because the real world already sorts dune fields by the wind that built them.
+      //   THE DUNE SEA  — BARCHANS. Isolated crescents marching across a flat gravel pan, with bare floor
+      //                   showing between them. One wind, plenty of open ground, so: wide spacing, a
+      //                   compact steep dune, and a real FLOOR fraction where the profile lies flat.
+      //   THE ERG       — SEIF. The deep sand sea: long parallel ridges, dune upon dune to the horizon and
+      //                   no floor visible anywhere. Tighter spacing, and the troughs never come down —
+      //                   every dune stands on the back of the last one.
+      //   THE RED SANDS — STAR DUNES. A huge iron-red massif with arms running three ways. Star dunes form
+      //                   where the wind comes from several directions, so they are the TALLEST form and
+      //                   much more symmetrical: no single slip face, a pyramidal peak with subsidiary
+      //                   arms falling away either side.
+      // ⚠ The asymmetry parameter is what carries most of this. A barchan is violently one-sided; a star
+      // dune is nearly symmetrical BECAUSE it has no single prevailing wind. Getting that backwards would
+      // draw three of the same dune at three sizes.
+      var dv=(B.name==="THE ERG")?1:((B.name==="THE RED SANDS")?2:0);
+      var wlK   =(dv===1)?0.72:((dv===2)?1.45:1.10);   // seif tight, star very wide
+      var htK   =(dv===1)?0.92:((dv===2)?1.42:1.00);   // star tallest
+      var floorK=(dv===1)?0.00:((dv===2)?0.14:0.30);   // barchan shows bare pan; the erg never does
+      var liftK =(dv===1)?0.34:((dv===2)?0.16:0.06);   // how much the trough is held up by the field
+      var wl=Math.max(24,Math.round((150-26*bi)*Math.max(1,KSP)*wlK));
+      var duneH=HORIZON*(0.22-0.035*bi)*htK;                         // ≈0.20*wl → lee face at ~33deg
       for(var x=0;x<SW;x++){
         var wx=x+WOFF;
         // which dune are we on, and where along it — cells jittered so no two are the same width
@@ -20118,7 +20140,9 @@ function drawDunes(g,L,now,nd){
         // dune squeezed into a narrow cell gets both a bigger drop and a shorter run. Sand cannot stand at
         // 50deg — it avalanches until it does not. Widening the slip fraction absorbs the jitter so the
         // WORST case lands near repose rather than the average.
-        var BR=0.62+((ch>>>9)%100)/100*0.09;
+        // barchan 0.62 (violently one-sided) · seif 0.58 · star ~0.50 (near-symmetrical, no one wind)
+        var BRbase=(dv===2)?0.48:((dv===1)?0.58:0.62);
+        var BR=BRbase+((ch>>>9)%100)/100*0.09;
         var hgt=0.62+((ch>>>17)%100)/100*0.38;                  // each dune its own height
         var hN =0.62+((chN>>>17)%100)/100*0.38;
         var s;
@@ -20150,7 +20174,14 @@ function drawDunes(g,L,now,nd){
         var sub=s2*(0.5+((ch2b>>>17)%100)/100*0.5);
         // blend each dune's own height in, and let the neighbour's toe lift the trough a little, so the
         // field is dunes standing on dunes rather than a row of identical teeth on a flat line
-        var h2=s*hgt+(1-s)*0.10*hN + sub*0.17;
+        var h2=s*hgt+(1-s)*(0.10+liftK)*hN + sub*0.17;
+        // THE BARE PAN. A barchan field is isolated dunes on open gravel, so after the slip face has run
+        // out the ground stays FLAT until the next dune begins — that visible floor is most of what tells
+        // a barchan field from an erg. The erg has none of it by construction (floorK 0).
+        if(floorK>0){
+          var fz=1-floorK;
+          if(t>fz){ var fk2=Math.min(1,(t-fz)/Math.max(0.02,floorK*0.55)); h2*=Math.max(0,1-fk2); }
+        }
         // one slow, very long world octave so the whole field swells and thins across the desert
         var swell=Math.sin(wx*0.00042+bi*1.7)*0.16+Math.sin(wx*0.00017+2.9)*0.10;
         // ⚠ KEEP THIS UNROUNDED. The face of a dune is chosen from the crest's SLOPE, and rounding
