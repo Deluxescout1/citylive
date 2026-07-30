@@ -20113,21 +20113,115 @@ function drawDunes(g,L,now,nd){
   }
   for(var b2=BANDS-1;b2>=0;b2--){                              // far to near, so near sand overlaps far
     var pr=duneCache[b2], depth=b2/(BANDS-1);                  // 1 = furthest
-    var body=mixc(day?B.near:[(B.near[0]*0.18)|0,(B.near[1]*0.19)|0,(B.near[2]*0.30)|0], skc, 0.16+0.46*depth);
-    var sunC=mixc(body, day?B.cap:[80,86,110], 0.34*litK+0.10);
+    // ---- THE LIGHT ON SAND (Nick's locked answer #2, all four parts) --------------------------------
+    // ⚠⚠ SAND IS THE MOST LIGHT-DEPENDENT SURFACE IN THE SET AND IT WAS THE LEAST LIT. Judged across the
+    // day it was a flat mid-tone at noon, SLATE BLUE-GREY at dusk — when golden hour on a dune field is
+    // the best light in nature — and a featureless black void at midnight, when a moonlit erg is bright
+    // enough to walk by. Three different times of day, one colour.
+    // 🔑 GOLDEN HOUR IS THIS LAND'S SHOWPIECE, and it is nearly free: the engine already computes
+    // `goldenK` globally so every land reddens as one event. What was missing is that sand SPLITS under a
+    // low sun — the windward backs go molten orange while the slip faces, which face away, drop into deep
+    // violet shadow. The two faces already exist; they just had one colour law between them.
+    var gK=goldenK||0;
+    var nightBase=[(B.near[0]*0.18)|0,(B.near[1]*0.19)|0,(B.near[2]*0.30)|0];
+    // ⚠ THE MOONLIT DESERT. `night` is not "the day colours, darker": dry air and a bright surface make a
+    // dune field silver-blue and clearly modelled after dark. Tied to the real moon the engine tracks, so
+    // a new moon genuinely is darker than a full one — the land has a lunar month.
+    // ⚠ `moonPhase` IS A FUNCTION OF A DATE, NOT A NUMBER, and my first version guarded on
+    // `typeof moonPhase==="number"` — which is always false, so it would have silently pinned the moon at
+    // half illumination forever and the "lunar month" would have been a comment describing nothing.
+    // The engine's own illuminated-fraction formula is `(1-cos(2*PI*mp))/2` (see `isSupermoon`); reusing
+    // it means a new moon here is genuinely dark and a full moon genuinely bright.
+    var _mp=moonPhase(nd), moonK=Math.max(0,Math.min(1,(1-Math.cos(2*Math.PI*_mp))/2));
+    var body=mixc(day?B.near:mixc(nightBase,[96,116,164],0.30+0.34*moonK), skc, 0.16+0.46*depth);
+    body=mixc(body,[214,116,58],gK*0.30);                       // the whole field warms at golden hour
+    // the windward back: lit, and at golden hour molten
+    var sunC=mixc(body, day?B.cap:[150,172,220], 0.34*litK+0.10);
+    sunC=mixc(sunC,[255,150,52],gK*0.62);
+    // the slip face: away from the sun. At golden hour it goes VIOLET, not just darker — that colour
+    // split is what makes a low sun read as a low sun rather than as a dimmer.
     var shadC=mixc(body,[64,48,40], day?0.30:0.16);
+    shadC=mixc(shadC,[74,44,96],gK*0.55);
+    // ⚠⚠ RESTRUCTURED FROM PER-COLUMN fillStyle TO FOUR BATCHED PASSES. The old loop set `fillStyle` and
+    // built a colour STRING for every column of every band — 776 x 4 = 3104 string allocations a frame —
+    // and, because each column was ONE flat fill from its crest to HORIZON, the band body had no vertical
+    // variation whatsoever. That is the "cardboard flats" half of the locked answer: four slabs of one
+    // tone stacked up. The heaven pass established the shape of the fix and it applies unchanged here:
+    // outer loop on the thing that changes the colour, inner loop run-length along the field.
+    var seg=[], sy=[];
     for(var x2=0;x2<SW;x2++){
-      var y=Math.round(pr[x2]);
       // THE TWO FACES. `slope` is the crest derivative, taken over a wide span of the FLOAT profile:
       // negative = the sand is climbing to the right (windward, lit), strongly positive = it is
       // falling away (the slip face, in shadow). A narrow span on a rounded profile is what striped it.
       var slope=(pr[Math.min(SW-1,x2+5)]-pr[Math.max(0,x2-5)])*0.4;
-      var face=(slope>1.4)?shadC:((slope<-0.6)?sunC:body);
-      g.fillStyle=css(face);
-      g.fillRect(x2,y,1,HORIZON-y+1);
-      // the crest line itself catches the most light — it is the brightest thing in a desert
-      if(Math.abs(slope)<1.0){ g.fillStyle=rgba(mixc(sunC,[255,250,236],0.45*litK),0.55);
-        g.fillRect(x2,y,1,Math.max(1,Math.round(K*0.7))); }
+      seg[x2]=(slope>1.4)?2:((slope<-0.6)?1:0);
+      sy[x2]=Math.round(pr[x2]);
+    }
+    for(var fk=0;fk<3;fk++){                                    // body, then windward, then slip face
+      g.fillStyle=css(fk===0?body:(fk===1?sunC:shadC));
+      var rs=-1, rx2;
+      for(rx2=0;rx2<=SW;rx2++){
+        if(rx2<SW && seg[rx2]===fk){ if(rs<0) rs=rx2; }
+        else if(rs>=0){
+          // one fill per RUN of equal face; the run's top follows the profile, so it is cut at each
+          // change of height as well as at each change of face
+          for(var qq=rs;qq<rx2;qq++) g.fillRect(qq,sy[qq],1,HORIZON-sy[qq]+1);
+          rs=-1;
+        }
+      }
+    }
+    // ---- DEPTH DOWN THE FACE: the foot of a dune is in its own shadow and hazed by the air in front of
+    // it. This is what stops each band being a slab. Stepped rows, run-length along — never per column.
+    var footH=Math.round((26-5*b2)*K);
+    if(footH>2){
+      var footC=mixc(body,day?[120,86,54]:[10,14,28],day?0.22:0.34);
+      var fSteps=6, fT=Math.max(1,Math.round(footH/fSteps));
+      g.fillStyle=css(footC);
+      for(var fq=0;fq<fSteps;fq++){
+        g.globalAlpha=(fq/fSteps)*(fq/fSteps)*0.55;
+        g.fillRect(0,HORIZON-footH+fq*fT,SW,fT);
+      }
+      g.globalAlpha=1;
+    }
+    // the crest line itself catches the most light — it is the brightest thing in a desert
+    g.fillStyle=rgba(mixc(sunC,[255,250,236],0.45*litK+0.30*gK),0.55);
+    for(var x3=0;x3<SW;x3++){
+      if(seg[x3]!==0) continue;
+      g.fillRect(x3,sy[x3],1,Math.max(1,Math.round(K*0.7)));
+    }
+    // ---- HEAT HAZE AND A BLEACHED HORIZON (locked answer #2) ---------------------------------------
+    // ⚠⚠ THE BIOME ALREADY ASKED FOR THIS AND THE LAND NEVER READ IT. `sky.k:0.62` carries a comment
+    // saying it is "DELIBERATE and above the 0.5 line: over a sand sea the air itself is the landscape —
+    // bleached white-gold at the horizon from suspended dust, and it must dominate." The sky honoured it;
+    // the SAND did not, so the dunes stayed the same saturated tan all the way to the back of the desert
+    // and the field had no distance in it at all.
+    // 🔑 A DECLARED INTENT IN THE DATA IS NOT A FEATURE. This is the same class as the Ashlands' comment
+    // claiming the molten features had been lifted clear of the horizon when they had not — the biome
+    // table said what this land was for and nothing downstream was listening.
+    // Suspended dust scatters most where you look through the most air, so the wash is strongest on the
+    // far bands and along the bottom of each one, and it fades out entirely in the near sand.
+    if(day){
+      var hzC=(B.sky&&B.sky.haze)?B.sky.haze:[248,222,168];
+      var hzA=(0.10+0.42*depth)*(0.55+0.45*litK);
+      if(hzA>0.01){
+        var hTop=1e9; for(var hx=0;hx<SW;hx++) if(sy[hx]<hTop) hTop=sy[hx];
+        var hSteps=7, hSpan=Math.max(4,HORIZON-hTop), hT=Math.max(1,Math.round(hSpan/hSteps));
+        g.fillStyle=css(hzC);
+        for(var hq=0;hq<hSteps;hq++){
+          // ⚠ strongest at the FOOT, not the crest: that is where the sight-line runs longest through the
+          // dust, and it is also what visually detaches each band from the one behind it.
+          var hf=hq/(hSteps-1);
+          g.globalAlpha=hzA*(0.25+0.75*hf*hf);
+          var hy=hTop+hq*hT;
+          var hs2=-1, hx2;
+          for(hx2=0;hx2<=SW;hx2++){
+            if(hx2<SW && sy[hx2]<=hy){ if(hs2<0) hs2=hx2; }
+            else if(hs2>=0){ g.fillRect(hs2,hy,hx2-hs2,hT); hs2=-1; }
+          }
+          if(hs2>=0) g.fillRect(hs2,hy,SW-hs2,hT);
+        }
+        g.globalAlpha=1;
+      }
     }
     // WIND RIPPLES on the nearest band only — the fine corrugation that says "this is loose sand and
     // it is moving". They MIGRATE downwind with `now`, slowly, because a dune field is never still.
