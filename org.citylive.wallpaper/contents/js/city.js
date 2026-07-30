@@ -25525,6 +25525,98 @@ function drawWetSheen(g,L,now,wet){
   }
   g.globalCompositeOperation="source-over";
 }
+// ============ THE SPRAWL'S ASPHALT IS ALWAYS WET ============
+// Locked answer 3, the noon half: "permanently wet reflecting streets". `drawWetSheen` cannot deliver it —
+// it returns immediately above L>=0.55 and needs real `wetness`, so on a clear July afternoon the sprawl's
+// road was plain dry asphalt. That is the same fault this land has now produced four times: a feature that
+// exists and is switched OFF in exactly the condition where the brief needs it (the daytime hologram, the
+// monorail, the arcology's daylight windows, and now this).
+//
+// ⚠ AND IT CANNOT JUST BE `drawWetSheen` WITH THE GATE REMOVED. That function smears LAMP light down the
+// road, and by day the lamps are off — reflecting them would be inventing light that is not there. What a
+// wet street reflects at noon is the SKY and the signs above it. Different source, different pass.
+//
+// ⚠ NO FULL-WIDTH RECTS. The road band is the easiest place on the map to lay a rule, and this map has
+// found that fault twelve times. The sheen is broken into world-keyed patches — wet asphalt is not
+// uniformly wet, it pools where the camber and the ruts put it.
+function drawSprawlWetDay(g,L,now,nd){
+  if(curBiome.k!=="sprawl"||cityPhase==="apoc") return;
+  if(L<0.42) return;                                       // after dusk drawWetSheen has it
+  var K=Math.max(1,KSP), gy=HORIZON;
+  var floorY=(SEA_FRONT>0)?Math.min(SH,SEA_Y):SH;
+  var band=Math.max(6,(floorY-gy-4)|0);
+  var dayK=Math.max(0,Math.min(1,(L-0.42)/0.4));           // fades in as the lamps fade out
+  var wSeed=((WORLD_SEED*104729+331)>>>0);
+  // ---- 1. THE SHEEN: the sky lying on the road, in patches ----
+  var skyC=curBiome.sky?curBiome.sky.bot:[150,150,170];
+  g.globalCompositeOperation="lighter";
+  var patW=Math.max(3,Math.round(9*K));
+  for(var px=0;px<SW;px+=patW){
+    var pwx=px+WOFF;
+    var ph=((((pwx*2654435761)^wSeed)>>>0));
+    if((ph%10)<3) continue;                                // a dry patch
+    var pw=Math.min(patW-Math.max(1,Math.round(K*0.7)),SW-px);
+    var pDep=Math.round(band*(0.20+((ph>>>7)%100)/100*0.38));
+    for(var q=0;q<pDep;q++){
+      var f=q/Math.max(1,pDep);
+      // ⚠ RAISED FROM 0.085. This land's asphalt is deliberately the darkest on the map, and an
+      // additive sheen at 0.085 over near-black is invisible — rendered and measured, the road looked dry.
+      // The alpha has to be judged against THIS road, not against a generic one.
+      var a=0.26*dayK*(1-f*0.7)*(1-f*0.7);
+      if(a<=0.008) continue;
+      g.fillStyle=rgba(skyC,a);
+      g.fillRect(px,gy+2+q,pw,1);
+    }
+  }
+  // ---- 2. AND THE SIGNS IN IT. This is the pay-off: the vertical brand stacks and the neon above the
+  // street throw colour down onto the wet road, which is the thing that says "wet" far more strongly than
+  // any amount of grey sheen. It also ties two features together instead of adding a third.
+  var pal=["#4be0d0","#f04a8a","#ffe14a","#7c6cff"];
+  if(curBiome.name==="THE RED DISTRICT") pal=["#ff3a5c","#ffa63a","#ff6ad5"];
+  if(curBiome.name==="THE COLD STACK")   pal=["#7ce8ff","#c0d8ff","#ffffff"];
+  var step=Math.round(34*K);
+  var sx0=Math.floor(WOFF/step)*step;
+  for(var swx=sx0-step; swx<WOFF+SW+step; swx+=step){
+    var sh2=((((swx*2654435761)^((WORLD_SEED*40503+7717)>>>0))>>>0));
+    if((sh2%100)>=72) continue;                            // matches the signage stacks' own roll
+    var SX=swx-WOFF; if(SX<-20||SX>SW+20) continue;
+    var col=pal[(sh2>>>19)%pal.length];
+    var rLen=Math.round(band*(0.42+((sh2>>>11)%100)/100*0.40));
+    for(var rq=0;rq<rLen;rq++){
+      var rf=rq/Math.max(1,rLen);
+      var ra=0.34*dayK*(1-rf*0.75)*(1-rf*0.35);
+      if(ra<=0.008) continue;
+      // it widens and wavers as it runs toward the viewer, and breaks up in the ruts
+      if(rf>0.3 && ((((SX*7919)^((rq*97)|0))>>>0)%9)<3) continue;
+      var rw=Math.max(1,Math.round(K*(1.1+rf*2.4)));
+      var rjx=SX+Math.round(Math.sin(rq*0.22+swx)*1.4*K*rf);
+      g.globalAlpha=ra; g.fillStyle=col;
+      g.fillRect(rjx-(rw>>1),gy+2+rq,rw,1);
+      g.globalAlpha=1;
+    }
+  }
+  g.globalCompositeOperation="source-over";
+  // ---- 3. STEAM OFF THE VENTS. Locked answer 3 names it, and on a permanently wet street over a hot
+  // undercity it is what makes the air read as thick rather than merely hazy. Street level, so it must not
+  // block the city: short, faint, and it never rises past the first storey.
+  var nV=5;
+  for(var v=0;v<nV;v++){
+    var vh=((v*2246822519+wSeed)>>>0);
+    var vwx=(vh%Math.max(1,WW)), VX=vwx-WOFF;
+    if(VX<-10||VX>SW+10) continue;
+    var vph=((now*0.00055+v*0.37)%1);                      // each plume drifts up and dissipates
+    var vH=Math.round((5+((vh>>>9)%7))*K*(0.4+vph*0.9));
+    var lean=Math.max(-1,Math.min(1,((weather&&weather.wind)||6)/22));
+    for(var vq=0;vq<vH;vq++){
+      var vf=vq/Math.max(1,vH);
+      var va=0.20*(1-vf)*(1-vph*0.55)*dayK;
+      if(va<=0.01) continue;
+      g.fillStyle="rgba(214,220,232,"+va.toFixed(3)+")";
+      g.fillRect(Math.round(VX+lean*vq*0.7+Math.sin(now*0.0013+vq*0.3+v)*1.3*K),
+                 gy+1-vq,Math.max(1,Math.round(K*(0.8+vf*1.5))),1);
+    }
+  }
+}
 function drawPuddles(g,L,now){
   if(wetness<=0.05||cityPhase==="apoc") return;
   var fx=wfx(); if(fx.snow&&!fx.rain&&!fx.drizzle) return;   // it lies as snow, it does not pool
@@ -29935,7 +30027,8 @@ function draw(g,pass){
   if(curBiome.polar&&SEA_FRONT>0) drawPackIce(g,L,now,nd,0,SW,0,SEA_Y,SH-TASKBAR_WP);
   drawHarbourLighthouse(g,L,now,fx);               // …and the working harbour standing in it
   drawPuddles(g,L,now);
-  drawWetSheen(g,L,now,Math.min(1,wetness*1.7));   // wet asphalt mirrors the street lighting                            // rain leaves standing water, on every land
+  drawWetSheen(g,L,now,Math.min(1,wetness*1.7));   // wet asphalt mirrors the street lighting
+  drawSprawlWetDay(g,L,now,nd);                    // …and the sprawl's road is wet at noon too, reflecting sky and signs                            // rain leaves standing water, on every land
   // coastal causeway: railing where the highway crosses the open water
   if(hasOcean&&seaW>0&&roadF>0.8){ var rlz=[[0,WW*seaW],[WW*(1-seaW),WW]];
     for(var ri2=0;ri2<rlz.length;ri2++){ for(var w3=-1;w3<=1;w3++){
