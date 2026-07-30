@@ -20030,18 +20030,83 @@ function drawDunes(g,L,now,nd){
     duneCache=[];
     for(var bi=0;bi<BANDS;bi++){
       var prof=new Array(SW), f=(bi+1)/BANDS;                  // 0..1, 1 = nearest
-      // low-frequency for the dune bodies, higher octaves for the crest detail. World-anchored, so
-      // the field does not slide when the world scrolls and all three monitors see the same desert.
-      var freq=0.0026+0.0018*bi, amp2=(0.30+0.22*bi)*curBiome.amp;
+      // ⚠⚠⚠ A DUNE IS ASYMMETRIC. THAT IS THE WHOLE THING, AND THIS PROFILE WAS THREE SINES.
+      // The old field was `sin(wx*f)*0.60 + sin(wx*f*2.7)*0.26 + sin(wx*f*6.1)*0.11` — fixed
+      // frequencies, so evenly spaced, and every one of them SYMMETRIC. Rendered, the only land in the
+      // game made of sand read as beige rolling hills.
+      // 🔑 THIS IS THE ASHLANDS' COMB FAULT IN A SECOND LAND: "the comb was FREQUENCY, not amplitude —
+      // three sines at FIXED frequencies, so turning the gain down only gives shorter identical teeth."
+      // Same construction, same failure, and nobody looked here after fixing it there.
+      // 🔑🔑 AND IT EXPLAINS A SECOND BUG FOR FREE. The lit/shadow face selection below has always been
+      // written and has almost never fired, because it keys off the crest SLOPE and a smooth sine never
+      // gets steep enough to clear the threshold — so nearly every column fell into the neutral middle
+      // tone. THE SHADING WAS NEVER THE PROBLEM; THE GEOMETRY COULD NOT TRIGGER IT. Give the profile a
+      // real slip face and the existing code starts working on its own.
+      //
+      // A real dune: a long shallow WINDWARD back (5-15°), a sharp BRINK, then a LEE SLIP FACE at the
+      // angle of repose for dry sand — about 34°, which is where an avalanching slope settles and why
+      // every dune on earth has roughly the same steep side. The whole field faces one way, downwind.
+      // Built as a sawtooth in world space: aperiodic spacing and height from a hash, then shaped so the
+      // rise is slow and the fall is fast. No sine anywhere.
+      // ⚠⚠⚠ THE RELIEF IS SET FROM THE SPACING SO THE LEE FACE LANDS ON THE ANGLE OF REPOSE — measured,
+      // not tuned. `qml-dune-probe.qml` on the first asymmetric build: band0 relief 13.8px, steepest lee
+      // slope 12deg, and FACES: sun 0.0% / shadow 0.0% / NEUTRAL 100.0%. The nearest band — the largest
+      // area of sand in the frame — still had not one shaded column.
+      // 🔑 THE BAND BASES WERE THE DUNES. Bases sat 60-70px apart (266/200/145/86) while the profile
+      // moved only 14-45px, so the big shapes in every frame were the four flat band STEPS and the dune
+      // was a ripple drawn on a slab. That is the cardboard-flats fault and the no-shading fault turning
+      // out to be one fault: nothing could read because nothing had any relief.
+      // The geometry now: slip face occupies 0.30 of the cell, so for a repose angle of ~34deg
+      // (dy/dx 0.674) the height must be 0.30*wl*0.674 ≈ 0.20*wl. Both terms below are derived from that
+      // identity rather than chosen, so the angle stays right on every band and at any KSP.
+      var wl=Math.max(24,Math.round((150-26*bi)*Math.max(1,KSP)));   // mean dune spacing, nearer = tighter
+      var duneH=HORIZON*(0.22-0.035*bi);                             // ≈0.20*wl → lee face at ~33deg
       for(var x=0;x<SW;x++){
         var wx=x+WOFF;
-        var n=Math.sin(wx*freq+bi*2.1)*0.60 + Math.sin(wx*freq*2.7+bi)*0.26 + Math.sin(wx*freq*6.1)*0.11;
+        // which dune are we on, and where along it — cells jittered so no two are the same width
+        var ci=Math.floor(wx/wl), cf=(wx/wl)-ci;
+        var ch=mixLi(ci>>>0,58043)>>>0, chN=mixLi((ci+1)>>>0,58043)>>>0;
+        var wob=((ch%1000)/1000-0.5)*0.42;                      // this dune is wider or narrower
+        var t=Math.max(0,Math.min(1,(cf-wob*0.5)/Math.max(0.15,1-wob)));
+        // ⚠ THE BRINK SITS AT ~0.74 OF THE CELL, NOT AT THE MIDDLE. Windward is the long side; the slip
+        // face occupies the last quarter and drops nearly straight down. Moving that split is the single
+        // number that turns a hill into a dune.
+        // ⚠ 0.70 -> 0.62. Measured back at 0.70 the steepest lee face came out at 50deg, not the ~33 the
+        // arithmetic predicted, because the per-dune width jitter and the height jitter compound: a tall
+        // dune squeezed into a narrow cell gets both a bigger drop and a shorter run. Sand cannot stand at
+        // 50deg — it avalanches until it does not. Widening the slip fraction absorbs the jitter so the
+        // WORST case lands near repose rather than the average.
+        var BR=0.62+((ch>>>9)%100)/100*0.09;
+        var hgt=0.62+((ch>>>17)%100)/100*0.38;                  // each dune its own height
+        var hN =0.62+((chN>>>17)%100)/100*0.38;
+        var s;
+        if(t<BR){
+          // the windward back: a slow accelerating rise, concave like a real one, never a straight ramp
+          var u=t/BR; s=u*u*(0.42+0.58*u);
+        } else {
+          // ⚠ THE SLIP FACE IS LINEAR, BECAUSE AN ANGLE OF REPOSE IS A CONSTANT ANGLE. The first version
+          // used a smoothstep, which is flat at both ends and near-vertical in the middle — so it drew a
+          // little cliff with a shelf above and below it rather than the one clean plane that sand
+          // actually avalanches into. Linear all the way down, with only the top eighth rounded off,
+          // because a real brink is a sharp edge with a few grains of softness on it and nothing more.
+          var v2=(t-BR)/(1-BR);
+          var lin=1-v2;
+          s=(v2<0.14 ? (lin*0.40+(1-v2*v2)*0.60) : lin)*0.94;
+        }
+        // blend each dune's own height in, and let the neighbour's toe lift the trough a little, so the
+        // field is dunes standing on dunes rather than a row of identical teeth on a flat line
+        var h2=s*hgt+(1-s)*0.10*hN;
+        // one slow, very long world octave so the whole field swells and thins across the desert
+        var swell=Math.sin(wx*0.00042+bi*1.7)*0.16+Math.sin(wx*0.00017+2.9)*0.10;
         // ⚠ KEEP THIS UNROUNDED. The face of a dune is chosen from the crest's SLOPE, and rounding
         // the profile to whole pixels first quantises the slope into integer jumps — so the face
         // flips lit/shadow/lit column by column and the sand comes out striped. Same family as the
         // corduroy on the gorge walls, different cause: there it was crest jitter, here it is
         // rounding. Store the float; round only at the moment of drawing.
-        prof[x]=HORIZON*(0.72-0.13*bi) - n*HORIZON*amp2*0.30;
+        // ⚠ AND THE BAND BASES ARE PULLED TOGETHER (0.72-0.13*bi -> 0.60-0.055*bi). They were spread
+        // wider than the dunes were tall, which is what made them the dominant shape. The bands are a
+        // DEPTH cue; the dunes are the subject. Now the relief is larger than the spacing, not smaller.
+        prof[x]=HORIZON*(0.60-0.055*bi) - (h2+swell*0.5)*duneH;
       }
       duneCache.push(prof);
     }
