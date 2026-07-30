@@ -20410,10 +20410,93 @@ function drawDunes(g,L,now,nd){
 // brief said weather IS the landscape on the empty maps; on this one it is literally true.
 // ⚠ Driven by the REAL wind, not by a roll — so it is the same event on all three monitors, and it
 // only happens when it should. The wallpaper never invents weather the world does not have.
+// ============ THE CARAVAN, AND SAND THAT IS NEVER STILL ============
+// Two of Nick's four locked signatures for this land.
+//
+// THE CARAVAN is the answer to "why is there a town here at all" made visible: a camel train crossing the
+// dune field on the skyline, arriving, resting at the caravanserai, and leaving again. It is the same
+// object the landmark is — a waystation with nothing passing through it is just a wall.
+// ⚠⚠ SCRIPTED FROM THE CLOCK, NEVER SIMULATED. This is the hard constraint from the Phase 7 brief and it
+// is not stylistic: three monitors draw this world independently and never talk, so anything with state
+// would drift apart between screens within minutes. Position is a pure function of `now`, so all three
+// agree exactly and a frozen frame re-renders identically.
+// ⚠ It walks the crest of the NEAREST band, because that is where it is big enough to read. Against the
+// sky it is a silhouette — at this size the shape of a laden camel is the whole recognition, and any
+// interior detail is noise.
+function duneCaravan(g,L,now,K){
+  if(!duneCache||!duneCache[0]) return;
+  var CY=5.4*3600000;                                    // one caravan every ~5.4 hours of real time
+  var ph=(now%CY)/CY;
+  if(ph>0.62) return;                                    // most of the cycle there is nobody out there
+  var t=ph/0.62;
+  // ⚠ EASED AT BOTH ENDS, so it walks in from beyond the edge of the world and out the far side rather
+  // than appearing and vanishing at the frame boundary.
+  var wx=(-0.12+1.24*t)*WW;
+  var pr=duneCache[0];
+  var n=7+((mixLi(Math.floor(now/CY)>>>0,61553)>>>0)%5);  // a different train each time
+  var dark=L>0.5?"rgba(74,54,34,0.92)":"rgba(16,12,10,0.94)";
+  var pack=L>0.5?"rgba(148,72,48,0.9)":"rgba(40,20,14,0.9)";
+  g.fillStyle=dark;
+  for(var i=0;i<n;i++){
+    var hh=mixLi(i>>>0,28649)>>>0;
+    // irregular spacing — a real train straggles, and evenly spaced animals read as a fence
+    var gap=(11+((hh>>>3)%9))*K;
+    var cwx=wx-i*gap;
+    for(var w=-1;w<=1;w++){
+      var cx=Math.round(cwx-WOFF+w*WW);
+      if(cx<-20||cx>SW+20) continue;
+      var cy=Math.round(pr[Math.max(0,Math.min(pr.length-1,cx))]);
+      var ch=Math.max(3,Math.round(2.6*K)), cwd=Math.max(4,Math.round(4.2*K));
+      var bob=((Math.floor(now/260)+i)&1)?1:0;           // a slow plod, offset per animal
+      g.fillStyle=dark;
+      g.fillRect(cx,cy-ch-bob,cwd,Math.max(1,Math.round(1.5*K)));                 // body
+      g.fillRect(cx+cwd-Math.max(1,Math.round(K*0.7)),cy-ch-Math.round(1.5*K)-bob,
+                 Math.max(1,Math.round(K*0.7)),Math.round(1.6*K));                 // neck
+      g.fillRect(cx+cwd-Math.max(1,Math.round(K*0.4)),cy-ch-Math.round(2.4*K)-bob,
+                 Math.max(1,Math.round(1.2*K)),Math.max(1,Math.round(K*0.7)));     // head
+      var lw=Math.max(1,Math.round(K*0.5));
+      g.fillRect(cx+lw,cy-bob,lw,ch-bob);                                          // legs
+      g.fillRect(cx+cwd-lw*2,cy-bob,lw,ch-bob);
+      if((hh&3)!==0){ g.fillStyle=pack;                                            // most carry a load
+        g.fillRect(cx+Math.round(K*0.6),cy-ch-Math.round(1.3*K)-bob,cwd-Math.round(1.2*K),Math.max(1,Math.round(K*0.9))); }
+    }
+  }
+}
+// SAND THAT IS NEVER STILL. Streamers of sand lifting off every brink and blowing downwind — the thing
+// that tells you a dune is a moving pile of loose grains and not a hill. Driven by the REAL wind, so on a
+// still day the desert is genuinely still and on a blowy one the whole field smokes.
+// ⚠ It comes off the CREST ONLY, which is where saltating sand actually leaves a dune, and it trails
+// DOWNWIND and falls — a streamer that came off the middle of a face would read as smoke from a fire.
+function duneStreamers(g,L,now,K,wind){
+  if(!duneCache) return;
+  var st=Math.max(0,Math.min(1,(wind-5)/14));            // nothing much under 5mph, streaming by ~19
+  if(st<=0.03) return;
+  var day=L>0.5;
+  g.fillStyle=day?"rgba(246,232,198,"+(0.30*st).toFixed(3)+")":"rgba(150,150,170,"+(0.16*st).toFixed(3)+")";
+  for(var b=0;b<duneCache.length;b++){
+    var pr=duneCache[b], cnt=Math.round((26-5*b)*st);
+    for(var q=0;q<cnt;q++){
+      var hh=mixLi((q+b*577)>>>0,37199)>>>0;
+      // sit them ON brinks: sample where the profile falls away fastest to the right
+      var sx=(hh%Math.max(1,SW-8))+4;
+      var slope=pr[Math.min(pr.length-1,sx+4)]-pr[Math.max(0,sx-4)];
+      if(slope<1.2) continue;                            // not a brink — no sand leaves here
+      var sy2=Math.round(pr[sx]);
+      var len=Math.round((4+((hh>>>9)%14))*K*st);
+      var drift=Math.round(((now*0.02+q*37)%80)*0.1*K);
+      for(var e=0;e<len;e++){
+        var ef=e/Math.max(1,len);
+        g.fillRect(sx+e+drift,sy2-Math.round((1-ef)*2.2*K)+Math.round(ef*ef*1.6*K),1,1);
+      }
+    }
+  }
+}
 function drawDuneLife(g,L,now,nd,fx){
   if(!curBiome.dune||cityPhase==="apoc") return;
   var day=L>0.5, K=Math.max(1,KSP), B=curBiome;
   var wind=(weather&&weather.wind)||0;
+  duneStreamers(g,L,now,K,wind);
+  duneCaravan(g,L,now,K);
   // ⚠⚠ 16/32mph -> 9/20mph. THE LAND'S HEADLINE WEATHER WAS SET ABOVE WHAT THE WORLD DELIVERS. The biome
   // comment calls the haboob the thing that "fills the entire sky", and it needed >16mph to start and
   // 32mph to reach full wall — sustained winds Norwich CT very rarely sees, so Nick would essentially
