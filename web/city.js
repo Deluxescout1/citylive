@@ -3889,7 +3889,14 @@ var EGG_BIOMES=[
     fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:0}, big:["boar"], small:["squirrel","frog"], air:["hawk","crow"] },
     flora:{ kinds:["generic","fern","generic","willow","fern"], bloom:["#f0a0c0","#ffffff","#f8d8e8"] },
     sky:{ top:[128,168,208], bot:[210,226,214], k:0.22, haze:[214,228,216] } },
-  { k:"core",   name:"THE CORE WORLD", egg:1, amp:0.0, base:0.0, flat:0.0, steep:0.0, snow:false, water:null,
+  // ⚠⚠ `water:"none"` ON ALL THREE EGG BIOMES BELOW — Nick's call after `water:null` bit two lands in one
+  // day (a working harbour in THE EMPYREAN, a marina and a lighthouse in a SAND SEA). `null` reads as "no
+  // water" and means "roll for it" (`geo()<0.6`), so an orbital habitat, a set of temples standing on a
+  // cloud floor, and a world that is city all the way down were each getting a seaport in 60% of lives.
+  // 🔑 A DEFAULT THAT LOOKS LIKE A DECISION IS WORSE THAN NO DEFAULT.
+  // ⚠ alpine and forest keep `null` deliberately: a coastal alpine valley and a forest by the sea are
+  // both defensible, and forest's roll is explicitly intentional (there is a comment on it).
+  { k:"core",   name:"THE CORE WORLD", egg:1, amp:0.0, base:0.0, flat:0.0, steep:0.0, snow:false, water:"none",
     far:[92,102,124],  near:[58,66,86],   cap:[128,140,168], ground:[52,58,74],
     walls:[[74,82,104],[52,58,76],[96,104,128],[40,46,62],[110,118,142],[62,70,90],[84,92,114],[46,52,68]],
     fauna:null,
@@ -3920,7 +3927,7 @@ var EGG_BIOMES=[
   // 0.78 leaves ~120 wp of headroom above the tallest spire, which is room for a temple and sky.
   // ⚠ The lesson generalises: anything drawn UPWARD from a landform's summit needs the summit capped
   // to the frame MINUS its own height, not to the frame.
-  { k:"air",    name:"THE HIGH TEMPLES", egg:1, amp:0.78, base:0.10, flat:0.0, steep:0.94, snow:false, water:null, spires:1,
+  { k:"air",    name:"THE HIGH TEMPLES", egg:1, amp:0.78, base:0.10, flat:0.0, steep:0.94, snow:false, water:"none", spires:1,
     far:[188,180,186],  near:[148,138,148], cap:[228,222,228], ground:[168,160,166],
     walls:[[236,228,214],[212,200,182],[248,242,230],[196,182,164],[228,216,198],[206,194,176],[242,236,222],[188,176,158]],
     fauna:{ keep:{deer:0,rabbit:0,fox:0,goat:1}, big:["goat"], small:[], air:["eagle","dove"] },
@@ -3952,7 +3959,7 @@ var EGG_BIOMES=[
   // not sunlight, and its day/night runs on the ORBITAL PERIOD — roughly 90 minutes, not 24 hours.
   // Every other land in the game derives its light from LAT/LON and the real sun. `orbit:1` gives this
   // one its own light path; see drawOrbit.
-  { k:"orbit",  name:"SPACE CITY", egg:1, amp:0.0, base:0.0, flat:0.0, steep:0.0, snow:false, water:null, orbit:1,
+  { k:"orbit",  name:"SPACE CITY", egg:1, amp:0.0, base:0.0, flat:0.0, steep:0.0, snow:false, water:"none", orbit:1,
     far:[64,74,96],     near:[44,52,70],    cap:[196,214,240], ground:[86,92,108],
     // a station is built from panel, alloy and glass — no brick, no timber, nothing that grew
     walls:[[196,202,212],[150,158,172],[224,228,236],[112,120,136],[176,184,198],[132,140,156],[208,214,224],[96,104,120]],
