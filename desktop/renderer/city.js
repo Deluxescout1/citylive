@@ -20252,6 +20252,110 @@ function drawRoofRunners(g,L,now,nd){
 // noir has to come from what is BUILT — holograms, light pollution, wet-look streets, drones, steam —
 // so it reads cyberpunk at noon in July. Nothing here darkens the sky or forces rain; a bright June
 // afternoon in the Sprawl is a bright June afternoon with a neon city standing in it.
+// ============ THE COLOSSAL FIGURES ============
+// Locked answer 12 and 18: the signature image of this land — a vast human figure turning slowly above the
+// streets. Chosen over a megacorp advert and over abstract geometry because it reads instantly at any size
+// and does not depend on legible text.
+//
+// ⚠⚠ A FEW ACROSS THE WORLD, NOT ONE. Nick chose this explicitly when told that his three monitors tile the
+// world in 776 wp windows, so a single object is absent from two screens out of three. That is the
+// `landmarkXs` rule, which has now bitten this project five times — the mesa's buttes, the karst's spires,
+// the volcano's cone, the harbour lighthouse, and the plateau series.
+//
+// ⚠ IT IS PROJECTED, AND THE PROJECTOR IS VISIBLE. The holograms on this land cost four bug reports for
+// looking detached, and Nick's words were "these things need to be attached to the ground". So each figure
+// has a rooftop rig beneath it with a beam fanning up into the image — the figure is the output of a machine
+// you can see, not an apparition.
+//
+// ⚠ IT MUST NOT BLOCK THE CITY. Low alpha, high in the frame, and drawn as scanlines with gaps rather than
+// as a filled body — you see the towers straight through it, which is also what makes it read as a hologram
+// rather than as a painted mural.
+function drawSprawlColossus(g,L,now,nd){
+  if(curBiome.k!=="sprawl"||cityPhase==="apoc") return;
+  if(cityG<0.40) return;                                    // the city has to be big enough to project one
+  var day=L>0.5, K=Math.max(1,KSP), gy=HORIZON;
+  var pal=["#4be0d0","#f04a8a","#7c6cff","#ffe14a"];
+  if(curBiome.name==="THE RED DISTRICT") pal=["#ff3a5c","#ff6ad5","#ffa63a"];
+  if(curBiome.name==="THE COLD STACK")   pal=["#7ce8ff","#c0d8ff","#8ab4ff"];
+  var figs=landmarkXs((WORLD_SEED*2654435761+4231)>>>0, 520);
+  for(var fi=0;fi<figs.length;fi++){
+    var F=figs[fi], fh=F.seed>>>0;
+    var kind=fh%3;                                          // 0 a face · 1 a dancer · 2 a beckoning figure
+    var col=pal[(fh>>>7)%pal.length];
+    var fH=Math.round(gy*(0.34+((fh>>>11)%16)/100));         // a third to a half of the sky
+    var fW=Math.round(fH*(kind===0?0.62:0.40));
+    for(var o=-1;o<=1;o++){
+      var CX=Math.round(F.x-WOFF+o*WW);
+      if(CX+fW<0||CX-fW>SW) continue;
+      // the rig it comes out of: a rooftop projector, and the beam that opens into the image
+      var rigY=gy-Math.round(gy*(0.20+((fh>>>17)%10)/100));
+      g.fillStyle=day?"rgba(48,52,64,0.75)":"rgba(12,14,20,0.85)";
+      g.fillRect(CX-Math.round(3*K),rigY,Math.round(6*K),Math.max(2,Math.round(2.4*K)));
+      g.fillRect(CX-Math.round(K),rigY+Math.round(2.4*K),Math.max(1,Math.round(2*K)),Math.round(5*K));
+      var figBase=rigY-Math.round(4*K), figTop=figBase-fH;
+      g.globalCompositeOperation="lighter";
+      // the beam: narrow at the lens, opening to the figure's width
+      for(var bq=0;bq<Math.round(4*K);bq++){
+        var bf=bq/Math.round(4*K);
+        g.globalAlpha=(day?0.06:0.12)*(1-bf);
+        g.fillStyle=col;
+        g.fillRect(CX-Math.round(bf*fW*0.5),figBase+Math.round(4*K)-bq,Math.max(1,Math.round(bf*fW)),1);
+      }
+      // ---- THE FIGURE, in scanlines. `t` runs 0 at the crown to 1 at the feet. ----
+      // The slow turn is a WIDTH oscillation: a flat image narrowing and widening reads as a body rotating,
+      // which is far more legible at this scale than trying to redraw a profile.
+      var turn=0.55+0.45*Math.abs(Math.sin(now*0.00013+fi*1.7));
+      var sway=Math.sin(now*0.00021+fi)*0.05;
+      var step=Math.max(1,Math.round(1.8*K));
+      for(var q=0;q<fH;q+=step){
+        var t=q/fH;
+        var wHere;
+        if(kind===0){                                        // A FACE: crown, cheeks, jaw
+          wHere=fW*0.5*(t<0.16? (0.55+t*2.4)
+                       : t<0.62? 1.0
+                       : Math.max(0.18,1.0-(t-0.62)*2.1));
+        } else if(kind===1){                                 // A DANCER: head, NECK, shoulders, waist, skirt
+          // ⚠ THE NECK IS WHAT MAKES IT A BODY. Rendered without it, the width profile came out as a
+          // tapering banded column — legible as "a hologram", not as a figure, which is the whole reason
+          // this option was chosen over abstract geometry. A narrow gap between a small head and wide
+          // shoulders is the single cue that makes a human silhouette parse at pixel scale.
+          wHere=fW*0.5*(t<0.115? 0.32
+                       : t<0.155? 0.13                       // the neck
+                       : t<0.215? 0.13+(t-0.155)*13.5
+                       : t<0.34? 0.95
+                       : t<0.62? 0.95-(t-0.34)*1.5
+                       : 0.55+(t-0.62)*1.5);
+        } else {                                             // A FIGURE with an arm raised
+          wHere=fW*0.5*(t<0.12? 0.28
+                       : t<0.16? 0.12                        // the neck
+                       : t<0.24? 0.12+(t-0.16)*9.2
+                       : t<0.70? 0.86
+                       : 0.86-(t-0.70)*1.1);
+        }
+        wHere*=turn;
+        var xC=CX+Math.round(sway*fW*t*4);
+        // ⚠ SCANLINES WITH GAPS, and the gaps are hashed rather than every-other-row: a strict alternation
+        // at this pitch beats against the window bands behind it and produces a moire, which is the same
+        // family of artifact as the mountain-lines bug on the 4K panel.
+        if(((((q*40503)^(fh))>>>0)%9)<2) continue;
+        var a=(day?0.19:0.34)*(0.74+0.26*Math.sin(now*0.0011+t*7));
+        g.globalAlpha=a;
+        g.fillStyle=col;
+        g.fillRect(Math.round(xC-wHere),figTop+q,Math.max(1,Math.round(wHere*2)),Math.max(1,Math.round(step*0.62)));
+      }
+      // one raised arm on the beckoning kind, so the silhouette is not just a tapering column
+      if(kind===2){
+        var armY=figTop+Math.round(fH*0.24), armL=Math.round(fW*0.85);
+        g.globalAlpha=(day?0.14:0.24);
+        g.fillStyle=col;
+        for(var aq=0;aq<armL;aq+=step)
+          g.fillRect(CX+Math.round(fW*0.4)+aq,armY-Math.round(aq*0.55),Math.max(1,step),Math.max(1,Math.round(step*0.6)));
+      }
+      g.globalAlpha=1;
+      g.globalCompositeOperation="source-over";
+    }
+  }
+}
 // ============ THE SPRAWL'S AIR TRAFFIC ============
 // Locked answer 4's air layer, and signature answer 9: "aircraft traffic you can follow" — on real routes,
 // not blinking in and out. Everything here moves, so unlike the guideway it belongs in the live pass.
@@ -30945,6 +31049,7 @@ function draw(g,pass){
   drawNeonCity(g,L,now,nd);        // the neon style, over the city, whatever land it landed on
   drawSignageStacks(g,L,now,nd);   // …and the sprawl's own vertical brand signage, bolted to the frontages
   drawSprawlAirTraffic(g,L,now,nd);// …the maglev on its guideway, the aircar lanes and the cargo lifter
+  drawSprawlColossus(g,L,now,nd);  // …and the colossal figures turning over the streets
 
   // solar-eclipse twilight: an unnatural cool dusk falls over the whole city at totality, then lifts
   if(solarEclDim>0.01){ var ev=Math.pow(solarEclDim,1.7)*0.74; g.fillStyle="rgba(18,20,40,"+ev+")"; g.fillRect(0,0,SW,SH);
