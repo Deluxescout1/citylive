@@ -22541,16 +22541,63 @@ function drawBiomeWeather(g,L,now,nd,fx){
       }
     }
   } else if(B.k==="heaven"){
-    // MOTES of light drifting upward, and the air itself faintly gold. Rain still falls here; the
-    // Empyrean is a place with a forecast, and a wet day dims the motes exactly as it should.
-    var moteA=wet?0.22:0.55;
-    for(var mo2=0;mo2<34;mo2++){
-      var mrise=(now*0.016+mo2*181)%(gy*0.95), my2=gy-mrise;
+    // MOTES of light drifting upward. Rain still falls here; the Empyrean is a place with a forecast,
+    // and a wet day dims the motes exactly as it should.
+    //
+    // ⚠⚠ THEY WERE `source-over`, AND THAT IS WHY THEY READ AS DIRT. Measured: 34 squares of
+    // rgba(255,244,196) at alpha 0.55, painted straight over a blue sky. Warm cream at half opacity over
+    // blue does not come out luminous, it comes out TAN — in all 24 diagnosis frames these were brown
+    // specks that read as falling dust, midges or grit, on the one land whose entire subject is light.
+    // 🔑 PAINT CANNOT GLOW; LIGHT ADDS. This is the Ashlands' lava lesson arriving in the other direction:
+    // there, additive was needed to make fire glow out of near-black; here it is needed to make light
+    // register against a bright sky. Same rule, opposite background. `lighter` plus a wider, fainter halo
+    // is the whole difference between a speck of dirt and a spark.
+    // ⚠ AND A HALO IS WHAT MAKES A 3px SQUARE READ AS A LIGHT SOURCE rather than a pixel. One core plus
+    // two decreasing rings; the rings are what the eye reads as brightness.
+    var moteA=wet?0.30:1;
+    // NIGHT IS THE PAYOFF, NOT A PENALTY (locked answer #3). Midnight on THE EMPYREAN was previously
+    // indistinguishable from midnight anywhere else. Additively, a dark sky is the easiest thing in the
+    // world to put light into — so the motes roughly double at night and there are more of them.
+    // ⚠ AND NOT SO MANY THAT IT READS AS SNOW. At 54 the night sky was a field of evenly bright points —
+    // the density of a snowfall, which is the one thing this must not look like on a land whose weather is
+    // real. Fewer, with a wide spread of individual brightness (hashed above), so a handful carry and the
+    // rest are barely there.
+    var moteN=day?1:2.1, moteCt=day?30:38;
+    g.globalCompositeOperation="lighter";
+    var mCore=Math.max(1,Math.round(K*0.9)), mR1=Math.max(2,Math.round(K*2.0)), mR2=Math.max(3,Math.round(K*3.6));
+    for(var mo2=0;mo2<moteCt;mo2++){
+      // ⚠ EACH MOTE GETS ITS OWN RISE SPEED. At one shared speed all 34 climbed in lockstep and the
+      // effect read as a moving TEXTURE rather than as individual sparks — the same lockstep fault the
+      // Ashlands' fire cycle had to be rebuilt to avoid. Hashed per mote, so no two ever re-synchronise.
+      var mh=mixLi(mo2>>>0,44017)>>>0;
+      var mSpd=0.011+((mh%100)/100)*0.014;
+      var mSpan=gy*0.95;
+      var mrise=(now*mSpd+mo2*181)%mSpan, my2=gy-mrise;
       var mx3=((mo2*197+((WOFF*0.25)|0))%(SW+50))-25+Math.sin(now*0.0011+mo2*1.3)*4*K;
-      var mf=Math.sin((mrise/(gy*0.95))*Math.PI);
-      g.fillStyle="rgba(255,244,196,"+(moteA*mf).toFixed(2)+")";
-      g.fillRect(Math.round(mx3),Math.round(my2),Math.max(1,Math.round(K*0.9)),Math.max(1,Math.round(K*0.9)));
+      var mf=Math.sin((mrise/mSpan)*Math.PI);                 // fades in low, fades out high
+      var mA=moteA*moteN*mf*(0.55+((mh>>>9)%100)/100*0.45);
+      if(mA<=0.008) continue;
+      // ⚠⚠ A PLUS, NOT NESTED SQUARES. The first additive version drew a bright core inside two larger
+      // squares of falling alpha, and rendered they read as BRIGHT TILES or little lit windows floating in
+      // the sky — because at this scale a square halo is just a bigger square, and the eye reads its
+      // corners. A point of light in pixel art is a core with ORTHOGONAL ARMS: the arms make it round
+      // enough to read as a glow, and only the very widest, faintest ring is allowed to be square,
+      // because at 4% alpha it has no edge left to read.
+      // 🔑 The lesson is the same one the Ashlands' first bloom taught in a different shape: the SHAPE of
+      // the falloff matters as much as the fact that there is one.
+      var mxr=Math.round(mx3), myr=Math.round(my2);
+      var mArm=Math.max(1,Math.round(K*0.8));
+      g.fillStyle="rgba(255,248,214,"+Math.min(0.95,mA*0.95).toFixed(3)+")";
+      g.fillRect(mxr,myr,mCore,mCore);
+      g.fillStyle="rgba(255,244,196,"+(mA*0.34).toFixed(3)+")";
+      g.fillRect(mxr-mArm,myr,mArm,mCore);              // ── the four arms
+      g.fillRect(mxr+mCore,myr,mArm,mCore);
+      g.fillRect(mxr,myr-mArm,mCore,mArm);
+      g.fillRect(mxr,myr+mCore,mCore,mArm);
+      g.fillStyle="rgba(255,238,176,"+(mA*0.040).toFixed(3)+")";
+      g.fillRect(mxr-((mR2-mCore)>>1),myr-((mR2-mCore)>>1),mR2,mR2);
     }
+    g.globalCompositeOperation="source-over";
   } else if(B.k==="plains"){
     // WIND WAVES running through the grass — the only way an open plain shows you it is windy.
     if(wet||wind<4) return;
@@ -24350,8 +24397,19 @@ function drawCloudSea(g,L,now,nd){
   // variant's haze — and `sky.haze` on THE EMPYREAN is [255,242,206], a strong yellow — so the cloud read
   // as SAND. A sunlit cloud top is very nearly white whatever the sky behind it is doing; the variant's
   // colour belongs in the DEEP tone, where it does the work of telling three decks apart.
-  var cSurf=day?mixc(hz,[255,255,252],0.78):mixc(hz,[26,30,48],0.62);
-  var cDeep=day?mixc(hz,[150,164,196],0.50):mixc(hz,[10,12,24],0.76);
+  // ⚠⚠ AND THE DECK FOLLOWS THE LIGHT CONTINUOUSLY, NOT AN `L>0.5` BOOLEAN. Rendered at 19:10 it had
+  // already flipped to its night colours while the sky behind it was still bright rose, so THE ROSE VAULT
+  // at dusk — the single frame this land ought to own — came out as a brown-olive mass under a pink sky.
+  // A cloud deck at sunset is the brightest and warmest thing in the sky; it does not switch off at a
+  // threshold. Ramped smoothly across L 0.30-0.60, the same span the sky's own phase moves over, and
+  // given the alpenglow push so the tops catch the sunset the way real cloud does.
+  // 🔑 This is exactly the golden-hour trap `drawMountains`' contrast floor was built for, whose comment
+  // says plainly it "was fixed for karst and the Empyrean at NOON and never checked at sunset on
+  // anything". Checked now, on the land it names by name.
+  var dk=Math.max(0,Math.min(1,(L-0.30)/0.30)); dk=dk*dk*(3-2*dk);
+  var gK=goldenK||0;
+  var cSurf=mixc(mixc(hz,[26,30,48],0.62), mixc(mixc(hz,[255,255,252],0.78),[255,208,170],gK*0.55), dk);
+  var cDeep=mixc(mixc(hz,[10,12,24],0.76), mixc(mixc(hz,[150,164,196],0.50),[212,134,130],gK*0.42), dk);
   // ---- the top edge, per column: aperiodic, world-anchored, three octaves ----
   // ⚠ Three octaves at unrelated cell sizes. A single lattice spaces its billows evenly, and evenly
   // spaced features are the tell behind every striping fault in this project — drawn or aliased.
@@ -24485,6 +24543,114 @@ function drawCloudSea(g,L,now,nd){
     var pile=Math.max(1,Math.round((3+5*st.churn)*K));
     g.fillRect(x6,dt[x6]-((pile*0.5)|0),1,pile);
   }
+  // ---- THE BLOOM OFF THE DECK — locked answer #3, "lit cloud bases and a glowing horizon" ----------
+  // A sunlit cloud deck is a vast reflector: the air above it, and the underside of anything floating in
+  // that air, is lit FROM BELOW. This is what makes the land say "the light is coming from the place
+  // itself" rather than "here is a white shape".
+  // ⚠⚠ ADDITIVE, AND UNEVEN, AND IT FADES — all three are lessons already paid for on the Ashlands.
+  //   · additive because paint cannot glow (the same reason the motes had to stop being `source-over`);
+  //   · uneven along the deck, from two slow world-space octaves, because a smooth glow of constant
+  //     strength reads as a gradient someone applied rather than as light coming off a surface;
+  //   · squared falloff upward and NEVER a band on the surface — the Ashlands' first attempt at exactly
+  //     this was a constant-thickness strip along the ridge and it read as a highlighter traced round
+  //     the mountains. Light from behind something goes upward and dies.
+  // ⚠ STEPPED TWO ROWS AT A TIME. The Ashlands' crest bloom was ~51,000 1x1 rects at 76ms; stepping it
+  // took the whole backdrop from 5.28x alpine to 3.03x with no visible difference. Same construction here,
+  // stepped from the start rather than after a regression.
+  // ⚠ NIGHT IS THE PAYOFF, NOT A PENALTY. Locked: at midnight THE EMPYREAN should be the brightest map in
+  // the set, where before it was indistinguishable from any other dark city. Additively that is easy and
+  // it is also true — a cloud deck under a moon is genuinely luminous. So the night gain is HIGHER than
+  // the day gain, which is the opposite of how every other glow in this engine is weighted.
+  // ⚠ AND IT STILL MUST NOT WASH OUT (locked limit). The bloom lives in the SKY above the deck and dies
+  // well before it reaches anything the city occupies, so the town and the summits keep their silhouette.
+  var glowH=Math.round(gy*(day?0.30:0.46));
+  // ⚠ REAL WEATHER STILL WINS (locked limit #11). `wetness` is the engine's own rain-soak accumulator, so
+  // the glow genuinely backs off in the rain and comes back as it dries, rather than being switched by a
+  // boolean the instant a drop falls. Reading the shared accumulator rather than `fx` also means this
+  // works in the bg pass, which has no `fx` at all.
+  var gGain=(day?0.075:0.155)*(1-0.55*Math.max(0,Math.min(1,wetness)));
+  if(glowH>2&&gGain>0.004){
+    var gCol=day?[255,250,224]:[186,204,255];
+    g.globalCompositeOperation="lighter";
+    var gStep=2;
+    for(var gq=0;gq<glowH;gq+=gStep){
+      var gf=1-(gq/glowH), ga=gf*gf*gGain;
+      if(ga<=0.002) break;
+      g.fillStyle="rgba("+gCol[0]+","+gCol[1]+","+gCol[2]+","+ga.toFixed(4)+")";
+      var s8=-1, y8=-999, x8, ty8;
+      for(x8=0;x8<=SW;x8++){
+        ty8=-999;
+        if(x8<SW&&dt[x8]<gy){
+          // two slow octaves in WORLD space: the deck glows harder in some places than others
+          var uw=(x8+WOFF);
+          var u1=Math.sin(uw*0.0037)*0.5+0.5, u2=Math.sin(uw*0.0011+2.1)*0.5+0.5;
+          var uk=0.55+0.45*(u1*0.6+u2*0.4);
+          if(gq<glowH*uk) ty8=dt[x8]-gq-gStep;
+        }
+        if(ty8!==y8){ if(s8>=0&&y8>-999&&y8>=0) g.fillRect(s8,y8,x8-s8,gStep); s8=(ty8>-999)?x8:-1; y8=ty8; }
+      }
+      if(s8>=0&&y8>-999&&y8>=0) g.fillRect(s8,y8,SW-s8,gStep);
+    }
+    g.globalCompositeOperation="source-over";
+  }
+}
+// ============ THE EMPYREAN'S LIGHT — crepuscular rays over the ridge and through the tears ============
+// Locked answer #3: "real crepuscular rays on the true sun position". `drawGodRays` already exists and is
+// already the right construction — feathered gradient wedges, adopted after v1.51.0 when hard-edged strips
+// were sharpened into harsh lines by the same 4K downsample that causes the mountain-lines bug. So this
+// reuses that construction rather than inventing a second one.
+//
+// ⚠ WHY A SEPARATE PASS AT ALL, given `drawGodRays` exists. Its gate is `cloud 26-76%` — it needs broken
+// cloud to break the light, which is correct for nineteen lands and wrong for exactly one: THE EMPYREAN
+// HAS ITS OWN BROKEN CLOUD, permanently, in the deck below. The land's identity is light coming through
+// gaps, and on a clear day the shared pass draws nothing. Relaxing the shared gate would change all
+// nineteen; this land gets its own, gated hard on `celest`.
+// ⚠ ANCHORED TO THE REAL SUN, world-space. The shared pass records why: a screen-relative apex "put the
+// rays on empty sky, different on every monitor" — Nick's own report. Same anchor here, same reason.
+// ⚠ AND THE SHAFTS COME OFF THE RIDGE AND THE TEARS, not off nothing. A ray is visible because something
+// is blocking the rest of the light, so each shaft starts where there is actually an edge for it to clear:
+// the summits standing out of the deck, and the holes torn in it.
+function drawEmpyreanRays(g,L,now,nd){
+  var B=curBiome;
+  if(!B||!B.celest||!mtsCache||!mtsCache.h||!mtsCache.h[1]) return;
+  if(L<0.30||cityPhase==="apoc") return;
+  var st=cloudSeaState(now); if(!st) return;
+  var gy=HORIZON, K=Math.max(1,KSP);
+  // real weather still wins — heavy rain kills the shafts, and `wetness` fades them back in as it dries
+  var damp=1-0.8*Math.max(0,Math.min(1,wetness));
+  if(damp<=0.06) return;
+  var df=Math.max(0.06,Math.min(0.94,curSunDf));
+  var sunX=Math.round(df*WW-WOFF), sunY=Math.round(gy*0.9-Math.sin(df*Math.PI)*gy*0.75);
+  if(sunX<-SW*0.8||sunX>SW*1.8) return;                    // the sun is nowhere near this screen
+  if(solarEclDim>0.5) return;
+  // the Rose Vault is torn open, so it gets the most light through; the calm Empyrean the least
+  var gain=(0.030+(goldenK||0)*0.055)*damp*(st.gaps?1.5:(st.v===1?1.15:1));
+  var warm=(goldenK>0.2)?[255,224,170]:[255,250,232];
+  g.globalCompositeOperation="lighter";
+  var rays=5;
+  for(var r=0;r<rays;r++){
+    // ⚠ APERIODIC ANGLES. Evenly fanned shafts read as a printed sunburst; hashed offsets keep them
+    // irregular the way real crepuscular rays are, and the slow term lets them breathe without animating.
+    var rh=mixLi(r>>>0,30671)>>>0;
+    var ang=(r-(rays-1)/2)*0.26+(((rh%100)/100)-0.5)*0.12+Math.sin(now*0.00013+r*1.7)*0.018;
+    var len=Math.max(20,(gy-sunY)*0.98);
+    var endY=sunY+len; if(endY>gy+2){ len=gy+2-sunY; endY=gy+2; }
+    if(len<12) continue;
+    var dx=Math.tan(ang), endX=sunX+dx*len;
+    for(var k=0;k<3;k++){
+      var halfW=(18+r*4)*K*0.34*(1-k*0.32), a=gain*(0.40+k*0.24);
+      var grd=g.createLinearGradient(sunX,sunY,endX,endY);
+      grd.addColorStop(0,   "rgba("+warm[0]+","+warm[1]+","+warm[2]+","+a.toFixed(4)+")");
+      grd.addColorStop(0.55,"rgba("+warm[0]+","+warm[1]+","+warm[2]+","+(a*0.5).toFixed(4)+")");
+      grd.addColorStop(1,   "rgba("+warm[0]+","+warm[1]+","+warm[2]+",0)");
+      g.fillStyle=grd;
+      g.beginPath();
+      g.moveTo(sunX-2,sunY); g.lineTo(sunX+2,sunY);
+      g.lineTo(endX+halfW,endY); g.lineTo(endX-halfW,endY);
+      g.closePath(); g.fill();
+    }
+  }
+  g.globalCompositeOperation="source-over";
 }
 function drawSpireWorld(g,L,now,nd){
   if(!curBiome.spires||!mtsCache||!mtsCache.h||!mtsCache.h[1]) return;
@@ -31464,6 +31630,7 @@ function draw(g,pass){
 
   drawMountains(g,L,now,nd);      // the distant range — behind the clouds, the city, everything
   drawCloudSea(g,L,now,nd);       // …and on THE EMPYREAN an undercast drowns its lower two thirds
+  drawEmpyreanRays(g,L,now,nd);   // …with the light coming through its summits and its tears
   drawSprawlDepth(g,L,now,nd);    // …and on the sprawl, ranks of towers receding into the haze
   drawVolcanoSurface(g,L,now,nd); // …and if it is a volcano, the mountain's own surface, which never moves
   // ⚠⚠ THE COMMENT THAT USED TO SIT HERE WAS WRONG, AND IT COST 22.4% OF EVERY LIVE FRAME.
