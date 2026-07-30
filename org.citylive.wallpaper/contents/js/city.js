@@ -24015,6 +24015,100 @@ function ridgeFill(g,style,hs,gy){
     if(top!==rtop){ if(rs>=0&&rtop>-999) g.fillRect(rs,rtop,sx-rs,gy-rtop+2); rs=(top>-999)?sx:-1; rtop=top; }
   }
 }
+// ============ THE SPRAWL'S DEPTH: TOWERS BEHIND TOWERS, INTO HAZE ============
+// Locked answer 4, and Nick was told when he picked it that this is probably the single biggest "more
+// interesting" win available on this map. The frame was: flat sky, one colossal arcology, a dark band,
+// a thin bright strip of city, road. Nothing between. A megacity is not one row of buildings — it is
+// ranks of them receding until the air swallows them.
+//
+// ⚠⚠ BACKDROP PASS, and that is what makes it affordable. Every rect here is static per life — world
+// -keyed silhouettes and window bays with no time term — so it runs at the bg canvas's 0.5 fps rather
+// than the live pass's 8, the same split the volcano's surface needed. Nothing in this function reads
+// the clock.
+//
+// ⚠ GATED ON THE LAND, NOT ON `curNeon`. `curNeon` rolls on about one life in twelve of EVERY other
+// land, so gating this on the style would stand ranks of megatowers behind a swamp or an alpine valley.
+// This is about THE SPRAWL being a megacity, which is a property of the land.
+//
+// ⚠ THE NEAREST RANK RUNS OFF THE TOP OF THE FRAME — locked answer 6, "a megacity you are standing
+// inside", the way the forest giants work. It sits in the BACKDROP deliberately: that satisfies the
+// framing he asked for and cannot violate the limit he set in the same breath ("don't block the city
+// behind it"), because everything the city draws still lands in front of it.
+function drawSprawlDepth(g,L,now,nd){
+  if(curBiome.k!=="sprawl"||cityPhase==="apoc") return;
+  var day=L>0.5, K=Math.max(1,KSP), gy=HORIZON;
+  var dSeed=((WORLD_SEED*2654435761+5171)>>>0);
+  // the air the ranks dissolve into: the land's own haze by day, its light pollution by night
+  var hazeC=day?(curBiome.sky&&curBiome.sky.haze?curBiome.sky.haze:[150,150,170]):[46,36,62];
+  var baseC=day?(curBiome.near||[70,74,86]):[16,17,26];
+  var pal=["#4be0d0","#f04a8a","#ffe14a","#7c6cff"];
+  if(curBiome.name==="THE RED DISTRICT") pal=["#ff3a5c","#ffa63a","#ff6ad5"];
+  if(curBiome.name==="THE COLD STACK")   pal=["#7ce8ff","#c0d8ff","#ffffff"];
+  // RANK 0 is furthest and almost gone; RANK 3 is the near giants leaving the top of the frame.
+  var RANKS=[{h:0.34,haze:0.80,w:1.7,gap:1.5},
+             {h:0.52,haze:0.58,w:2.2,gap:1.7},
+             {h:0.76,haze:0.34,w:2.9,gap:2.3},
+             {h:1.45,haze:0.14,w:4.4,gap:5.2}];
+  for(var rk=0;rk<RANKS.length;rk++){
+    var R=RANKS[rk];
+    var rankC=css(mixc(baseC,hazeC,R.haze));
+    var faceC=css(mixc(mixc(baseC,[0,0,0],0.34),hazeC,R.haze));
+    var step=Math.max(4,Math.round(R.w*R.gap*7*K));
+    // world-anchored so the ranks do not slide between monitors or across the seam
+    var wx0=Math.floor(WOFF/step)*step;
+    for(var wx=wx0-step; wx<WOFF+SW+step; wx+=step){
+      var th=((((wx*2654435761)^(dSeed+rk*7919))>>>0));
+      var X=wx-WOFF;
+      var tw=Math.max(2,Math.round((3.2+((th>>>3)%9)*0.55)*R.w*K));
+      // ⚠ the near rank genuinely leaves the frame: its height is a fraction of the SKY, not of a
+      // constant, so it exceeds the top on any monitor rather than only on a tall one.
+      var tHt=Math.round(gy*R.h*(0.62+((th>>>9)%100)/100*0.62));
+      if(tHt<Math.round(6*K)) continue;
+      var ty=gy-tHt;
+      if(X+tw<0||X>SW) continue;
+      g.fillStyle=rankC; g.fillRect(X,ty,tw,tHt);
+      g.fillStyle=faceC; g.fillRect(X+tw-Math.max(1,Math.round(tw*0.26)),ty,Math.max(1,Math.round(tw*0.26)),tHt);
+      // a crown: a setback, a mast or a slab top, so the skyline is not a row of equal-ended boxes
+      var crown=(th>>>17)%3;
+      if(crown===0){ g.fillStyle=rankC; g.fillRect(X+Math.round(tw*0.22),ty-Math.round(3*K*R.w),Math.max(1,Math.round(tw*0.56)),Math.round(3*K*R.w)); }
+      else if(crown===1){ g.fillStyle=faceC; g.fillRect(X+Math.round(tw*0.44),ty-Math.round(6*K),Math.max(1,Math.round(K)),Math.round(6*K)); }
+      // WINDOWS IN BAYS — the arcology's lesson, applied at every depth: a floor lit in sections with
+      // dark stretches reads as inhabited, a floor lit right across reads as a ruled line.
+      if(R.haze<0.72){
+        var flH=Math.max(2,Math.round(2.2*R.w*K)), bayW=Math.max(1,Math.round(1.5*R.w*K));
+        var litA=(day?0.20:0.62)*(1-R.haze);
+        for(var fy=ty+Math.round(2*K); fy<gy-Math.round(2*K); fy+=flH){
+          for(var bx=X+1; bx<X+tw-1; bx+=bayW){
+            var bh2=((((bx*40503)^((fy*97)|0)^(dSeed+rk))>>>0)%10);
+            if(bh2<5) continue;                                  // most bays are dark, which is what makes the lit ones read
+            g.fillStyle= (!day&&bh2===9) ? "rgba(255,214,150,"+litA.toFixed(2)+")"
+                                         : "rgba(176,206,236,"+(litA*0.75).toFixed(2)+")";
+            g.fillRect(bx,fy,Math.max(1,bayW-1),Math.max(1,Math.round(R.w*0.8*K)));
+          }
+        }
+        // one neon sign per few towers, because a megacity's signage is on the buildings, not only downtown
+        if(((th>>>21)%4)===0){
+          var sgY=ty+Math.round(tHt*(0.16+((th>>>25)%40)/100));
+          g.globalCompositeOperation="lighter";
+          g.globalAlpha=(day?0.30:0.68)*(1-R.haze);
+          g.fillStyle=pal[(th>>>27)%pal.length];
+          g.fillRect(X+Math.round(tw*0.18),sgY,Math.max(1,Math.round(tw*0.64)),Math.max(1,Math.round(1.4*R.w*K)));
+          g.globalAlpha=1; g.globalCompositeOperation="source-over";
+        }
+      }
+    }
+    // ---- AND THE AIR BETWEEN THE RANKS. This is the half that actually creates the depth: without a
+    // veil laid between them, four ranks of towers are just four rows of boxes at different greys.
+    // A single gradient per rank, hugging the ground where the murk is thickest.
+    var vA=(day?0.30:0.22)*R.haze;
+    if(vA>0.015){
+      var vg=g.createLinearGradient(0,gy-Math.round(gy*R.h*0.9),0,gy);
+      vg.addColorStop(0,rgba(hazeC,0));
+      vg.addColorStop(1,rgba(hazeC,vA));
+      g.fillStyle=vg; g.fillRect(0,gy-Math.round(gy*R.h*0.9),SW,Math.round(gy*R.h*0.9));
+    }
+  }
+}
 function drawMountains(g,L,now,nd){
   if(curBiome.k==="forest"){ drawForestBackdrop(g,L,now,nd); return; }   // the forest is the range here
   if(curBiome.k==="core"){ drawCoreWorld(g,L,now,nd); return; }         // …and on the core world the CITY is
@@ -29348,6 +29442,7 @@ function draw(g,pass){
   // (the Moon is drawn in drawSky() at its real Norwich position/phase)
 
   drawMountains(g,L,now,nd);      // the distant range — behind the clouds, the city, everything
+  drawSprawlDepth(g,L,now,nd);    // …and on the sprawl, ranks of towers receding into the haze
   drawVolcanoSurface(g,L,now,nd); // …and if it is a volcano, the mountain's own surface, which never moves
   // ⚠⚠ THE COMMENT THAT USED TO SIT HERE WAS WRONG, AND IT COST 22.4% OF EVERY LIVE FRAME.
   // It claimed of the volcano that "almost every rect either function emits is animated, so there was
