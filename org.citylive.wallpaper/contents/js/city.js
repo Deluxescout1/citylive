@@ -3247,20 +3247,7 @@ var BIOMES=[
   // pale sky, so the whole land read flat and the near shelves did not sit in front of anything.
   // Unlike the karst this land's identity IS luminous, so it gets a much lighter touch — the near band
   // goes to a cool lavender-grey rather than anything dark. Enough to sit forward; still the Empyrean.
-  // ⚠⚠ `nobed:1` — THE EMPYREAN IS NOT SEDIMENTARY ROCK, AND IT HAS BEEN DRAWN AS SOME SINCE THE BIOME
-  // PASS. This land carries `flat:0.62`, and the bedding-plane block is gated on `B.flat>0.25`, so heaven
-  // has been entering the MESA / SEA-CLIFF path: ~19 dead-level lines at 17px spacing ruled edge to edge
-  // across the whole formation, plus its ridge quantised into steps. Rendered with the city forced young
-  // it is unmistakable — venetian blinds, or a contour map, over every peak AND every valley.
-  // 🔑 THIS IS THE SECOND INSTANCE OF A BUG THIS PROJECT ALREADY FIXED ONCE. The sea cliffs hit it at
-  // `flat:0.55` and came out as CASTLE BATTLEMENTS; that fix made bed THICKNESS belong to the landform
-  // and left the `>0.25` GATE alone — so the coarse `5*KSP*(0.5+flat)` bed spacing still reaches any land
-  // that merely leans flat. A land should have to OPT IN to being made of layers.
-  // ⚠ `celest:1` routes its own surface and its cloud sea. Deliberately NOT `flat`-driven: `flat` feeds
-  // three consumers here (bed spacing, the skyline quantiser, the caprock shadow) and dropping it would
-  // buy crags — an alpine clone — which is a different wrong answer.
   { k:"heaven", name:"THE EMPYREAN", amp:0.76, base:0.52, flat:0.62, steep:0.34, snow:false, water:null,
-    nobed:1, celest:1,
     far:[228,224,242],  near:[168,164,200], cap:[255,250,228], ground:[228,222,204],
     walls:[[246,244,236],[228,224,212],[255,252,244],[238,228,198],[250,246,232],[232,226,206],[255,248,220],[240,236,222]],
     fauna:{ keep:{deer:0,rabbit:0,fox:0,goat:0}, big:[], small:[], air:["dove"] },
@@ -15013,79 +15000,6 @@ function drawVillageForest(g,gy,day,now){
 // THE VILLAGE LANE — packed earth with a worn stone edge, in place of the asphalt street.
 // World-anchored speckle (ruts, stones, tufts) so it stays continuous across the bezels exactly like
 // the asphalt patina it replaces. No lane paint, no crosswalks, no kerb: those all say "city".
-// ============ THE CLOUD ROAD — Nick's own addition to the radiance answer ============
-// "Maybe make the road a cloud road? really lean into the Heaven theme."
-//
-// ⚠⚠ SURFACE AND EDGES ONLY. THE GEOMETRY IS NOT TOUCHED, and that boundary is the locked answer, not a
-// convenience: the road band carries the lane table, the crossings, the traffic and every traversal rule
-// in the engine — and this project has already learned once, expensively, what happens when a road's
-// geometry and its paint disagree. The Ashlands' bridge deck was sized at `3*K`≈9px while the LANE
-// offsets run to +21, so the two near lanes were painted lava with cars driving over them. So: this
-// repaints what the asphalt looks like and nothing else. Cars, pedestrians, lanes, crossings, the paving
-// front and the line-painting truck all behave exactly as they do on all nineteen other lands.
-// ⚠ Drawn INSIDE the paved-band clip, on purpose, so the graded-earth roadbed ahead of the paver still
-// reads as raw earth. The city builds its road the same way here; it just finishes in a different stuff.
-// ⚠ The sprawl's WET-LOOK STREET is the precedent for a per-biome surface treatment, and this follows its
-// shape deliberately rather than inventing a second mechanism.
-function drawCloudRoad(g,L,now,roadY){
-  var K=Math.max(1,KSP), depth=SH-roadY; if(depth<2) return;
-  // the same continuous day ramp the deck uses — a cloud road cannot flip to night on a threshold when
-  // the cloud sea it is made of does not
-  var dk=Math.max(0,Math.min(1,(L-0.30)/0.30)); dk=dk*dk*(3-2*dk);
-  var B=curBiome, hz=(B.sky&&B.sky.haze)?B.sky.haze:[248,246,240];
-  // ⚠ DELIBERATELY DEEPER THAN THE CLOUD SEA BEHIND IT. At the deck's own values the road came out
-  // near-white and the traffic — which is 7px-scale and mostly pale — started to lose contrast against
-  // its own street, which fails the locked limit ("don't wash it out; the city must hold its silhouette")
-  // in the one place the city is most legible. It also reads better: the floor you stand on should be
-  // denser than the sea in the distance, or the city looks like it is standing on the horizon.
-  var rTop=mixc(mixc(hz,[22,26,42],0.60), mixc(hz,[236,238,246],0.52), dk);
-  var rBot=mixc(mixc(hz,[8,10,20],0.74),  mixc(hz,[150,160,192],0.34), dk);
-  // ⚠ THE SURFACE IS BRIGHTEST AT THE KERB AND DEEPENS TOWARD THE VIEWER — the opposite of the asphalt it
-  // replaces, and the reason it reads as a floor of cloud rather than a pale road: you are looking DOWN
-  // into it at the near edge, and down into cloud is where cloud gets its depth.
-  var rStep=Math.max(1,Math.round(K*0.7));
-  for(var y=roadY;y<SH;y+=rStep){
-    var f=(y-roadY)/depth;
-    g.fillStyle=css(mixc(rTop,rBot,f*f*(3-2*f)));
-    g.fillRect(0,y,SW,rStep);
-  }
-  // SOFT APERIODIC MOTTLING — the same two-octave world-space idea as the deck, so the road is visibly
-  // made of the same stuff as the sea it sits above. World-anchored, so it stays put across the bezels.
-  g.globalCompositeOperation="lighter";
-  var mo=mixc(rTop,[255,255,252],0.5);
-  for(var mq=0;mq<46;mq++){
-    var mh=mixLi(mq>>>0,52967)>>>0;
-    var mwx=(mh%Math.max(1,WW)), mx=Math.round(mwx-WOFF);
-    for(var mw=-1;mw<=1;mw++){
-      var mxx=mx+mw*WW; if(mxx<-60||mxx>SW+60) continue;
-      var mww=Math.round((10+((mh>>>9)%26))*K), mhh=Math.max(1,Math.round((1+((mh>>>17)%3))*K));
-      g.fillStyle=rgba(mo,(0.030+((mh>>>21)%40)/1000)*(0.5+0.5*dk));
-      g.fillRect(mxx,roadY+((mh>>>13)%Math.max(1,depth-mhh)),mww,mhh);
-    }
-  }
-  g.globalCompositeOperation="source-over";
-  // ---- THE EDGES DISSOLVE. A kerb is a hard machined line and it is the one thing that would still say
-  // "asphalt" — so the near edge of the sidewalk frays into mist that curls off it. Aperiodic, world
-  // anchored, and sitting ON the kerb line rather than under it, because what is being softened IS that
-  // line. ⚠ Never a continuous strip: an unbroken band along the kerb would be a full-width ruled line,
-  // which is the fault this whole pass has been removing.
-  g.globalCompositeOperation="lighter";
-  var mist=mixc(rTop,[255,255,252],0.62);
-  for(var pq=0;pq<34;pq++){
-    var ph=mixLi(pq>>>0,61441)>>>0;
-    var pwx=(ph%Math.max(1,WW)), px=Math.round(pwx-WOFF);
-    for(var pw=-1;pw<=1;pw++){
-      var pxx=px+pw*WW; if(pxx<-40||pxx>SW+40) continue;
-      // it breathes, slowly, and each puff on its own clock so they never pulse together
-      var pb=0.6+0.4*Math.sin(now*(0.00016+((ph>>>5)%40)/400000)+pq*1.3);
-      var pww=Math.round((4+((ph>>>9)%12))*K*pb), phh=Math.max(1,Math.round((1.4+((ph>>>15)%3))*K));
-      var pyy=HORIZON+2-Math.round(((ph>>>19)%3)*K*0.5);
-      g.fillStyle=rgba(mist,(0.10+((ph>>>23)%50)/1000)*pb*(0.45+0.55*dk));
-      g.fillRect(pxx,pyy,pww,phh);
-    }
-  }
-  g.globalCompositeOperation="source-over";
-}
 function drawVillageLane(g,L,now,roadY){
   var day=L>0.5, K=Math.max(1,KSP);
   var earth=day?[150,126,94]:[38,32,25], earth2=day?[132,108,80]:[30,25,20];
@@ -21867,21 +21781,50 @@ function drawBiomeDetail(g,L,now,nd){
       }
     }
   } else if(B.k==="heaven"){
-    // ⚠⚠ THE FIVE FLOATING ISLANDS ARE GONE — Nick's locked answer #7, and the evidence for it is in the
-    // frames. Rendered at his real geometry they read as FLYING SAUCERS: at 23:00 in THE SILVER REACHES,
-    // a grey disc with a domed top, a little box on it and a tapered underside, hanging in the sky. Their
-    // own comment records that the look had already been chased through two passes ("a point over a narrow
-    // column of light is a martini glass — which is what these have read as through two passes"); it moved
-    // from cocktail glass to UFO and never became rock. Measured, they were up to 204px wide — 26% of the
-    // screen and nearly twice the monumental Great Gate.
-    // 🔑 THE REAL REASON TO CUT THEM RATHER THAN CHASE THEM A THIRD TIME: the job they were invented for is
-    // now done properly by geography. `drawCloudSea` puts an undercast behind the city, and the summits
-    // that stand out of it ARE islands — drawn from the real height field, correctly occluded, at the right
-    // scale, and lit by the same light as everything else. Their own comment even describes the thing that
-    // was missing: "with the whole sky-sea of cloud lying below them", written and never built. Building it
-    // is what makes the hand-placed slabs unnecessary.
-    // ⚠ Their "fall of light" never rendered either — measured, it starts at alpha 0.085 and breaks out
-    // below 0.006, so nine slices of nothing. That is not a thing to tune; it is a thing to delete.
+    // FLOATING ISLANDS hanging in the air over the city, each trailing a fall of light, with the
+    // whole sky-sea of cloud lying below them. Static per life, so they read as geography.
+    for(var fi=0;fi<5;fi++){
+      var fiw=Math.round(sd()*WW), fiy=Math.round(gy*(0.20+sd()*0.42)), fiW=Math.round((14+sd()*20)*K);
+      for(var w9=-1;w9<=1;w9++){ var isx=fiw-WOFF+w9*WW; if(isx<-fiW-10||isx>SW+fiW+10) continue;
+        var bobY=fiy+Math.round(Math.sin(now*0.00035+fi*1.9)*1.6*K);            // they drift very slowly
+        g.fillStyle=css(day?[236,232,244]:[92,90,104]);
+        g.fillRect(isx-fiW,bobY,fiW*2,Math.round(2.4*K));                        // the green/pale top
+        // ⚠ THE KEEL, not a cone. Six tiers each 17% narrower comes to a POINT, and a point over a
+        // narrow column of light is a martini glass — which is what these have read as through two
+        // passes. A floating island's underside is a ragged keel: it narrows unevenly, hangs deepest
+        // off-centre, and ends in broken rock rather than a tip.
+        g.fillStyle=css(day?[206,198,226]:[62,60,74]);
+        var keel=8, lean=((fi&1)?1:-1)*0.18;
+        for(var un=0;un<keel;un++){
+          var uf=un/keel;
+          var kh=((fi*7919+un*104729)>>>0);
+          var uw=Math.round(fiW*(1-uf*0.62)*(0.78+((kh%1000)/1000)*0.42));
+          if(uw<1) break;
+          var uo=Math.round(fiW*lean*uf);
+          g.fillRect(isx+uo-uw,bobY+Math.round((2.4+un*1.7)*K),uw*2,Math.round(2.0*K));
+        }
+        g.fillStyle=css(day?[188,180,210]:[50,48,60]);                           // broken rock at the base
+        for(var br=0;br<4;br++){
+          var bh4=((fi*331+br*613)>>>0);
+          g.fillRect(isx+Math.round(fiW*lean)+Math.round((((bh4%100)/100)-0.5)*fiW*0.5),
+                     bobY+Math.round((2.4+keel*1.7+((bh4>>>7)%3))*K),
+                     Math.max(1,Math.round(1.6*K)),Math.max(1,Math.round(2.4*K)));
+        }
+        // THE FALL OF LIGHT — as wide as the island it comes off, WIDENING as it falls and fading out
+        // long before the ground. Any column narrower than the island reads as the thing holding it up.
+        var fallH=Math.round(gy*0.34), fw0=Math.round(fiW*1.05), FN=12;
+        for(var fq=0;fq<FN;fq++){
+          var ff=fq/FN, fy3=bobY+Math.round(11*K)+Math.round(ff*fallH);
+          if(fy3>gy) break;
+          var fwq=Math.round(fw0*(1+ff*0.5)), fa=(day?0.085:0.05)*(1-ff)*(1-ff);
+          if(fa<=0.006) break;
+          g.fillStyle=(day?"rgba(255,246,208,":"rgba(206,198,226,")+fa.toFixed(3)+")";
+          g.fillRect(isx-fwq,fy3,fwq*2,Math.round(fallH/FN)+1);
+        }
+        if(sd()<0.6){ g.fillStyle=css(day?[250,240,196]:[120,112,96]);           // a small building on it
+          g.fillRect(isx-Math.round(2*K),bobY-Math.round(4*K),Math.round(4*K),Math.round(4*K)); }
+      }
+    }
   } else if(B.k==="plains"){
     // THE WIND FARM ON THE HORIZON.
     // Everything the plains drew — silos, barn, windbreak rows, the little windmill — stands 7 to 22
@@ -22614,63 +22557,16 @@ function drawBiomeWeather(g,L,now,nd,fx){
       }
     }
   } else if(B.k==="heaven"){
-    // MOTES of light drifting upward. Rain still falls here; the Empyrean is a place with a forecast,
-    // and a wet day dims the motes exactly as it should.
-    //
-    // ⚠⚠ THEY WERE `source-over`, AND THAT IS WHY THEY READ AS DIRT. Measured: 34 squares of
-    // rgba(255,244,196) at alpha 0.55, painted straight over a blue sky. Warm cream at half opacity over
-    // blue does not come out luminous, it comes out TAN — in all 24 diagnosis frames these were brown
-    // specks that read as falling dust, midges or grit, on the one land whose entire subject is light.
-    // 🔑 PAINT CANNOT GLOW; LIGHT ADDS. This is the Ashlands' lava lesson arriving in the other direction:
-    // there, additive was needed to make fire glow out of near-black; here it is needed to make light
-    // register against a bright sky. Same rule, opposite background. `lighter` plus a wider, fainter halo
-    // is the whole difference between a speck of dirt and a spark.
-    // ⚠ AND A HALO IS WHAT MAKES A 3px SQUARE READ AS A LIGHT SOURCE rather than a pixel. One core plus
-    // two decreasing rings; the rings are what the eye reads as brightness.
-    var moteA=wet?0.30:1;
-    // NIGHT IS THE PAYOFF, NOT A PENALTY (locked answer #3). Midnight on THE EMPYREAN was previously
-    // indistinguishable from midnight anywhere else. Additively, a dark sky is the easiest thing in the
-    // world to put light into — so the motes roughly double at night and there are more of them.
-    // ⚠ AND NOT SO MANY THAT IT READS AS SNOW. At 54 the night sky was a field of evenly bright points —
-    // the density of a snowfall, which is the one thing this must not look like on a land whose weather is
-    // real. Fewer, with a wide spread of individual brightness (hashed above), so a handful carry and the
-    // rest are barely there.
-    var moteN=day?1:2.1, moteCt=day?30:38;
-    g.globalCompositeOperation="lighter";
-    var mCore=Math.max(1,Math.round(K*0.9)), mR1=Math.max(2,Math.round(K*2.0)), mR2=Math.max(3,Math.round(K*3.6));
-    for(var mo2=0;mo2<moteCt;mo2++){
-      // ⚠ EACH MOTE GETS ITS OWN RISE SPEED. At one shared speed all 34 climbed in lockstep and the
-      // effect read as a moving TEXTURE rather than as individual sparks — the same lockstep fault the
-      // Ashlands' fire cycle had to be rebuilt to avoid. Hashed per mote, so no two ever re-synchronise.
-      var mh=mixLi(mo2>>>0,44017)>>>0;
-      var mSpd=0.011+((mh%100)/100)*0.014;
-      var mSpan=gy*0.95;
-      var mrise=(now*mSpd+mo2*181)%mSpan, my2=gy-mrise;
+    // MOTES of light drifting upward, and the air itself faintly gold. Rain still falls here; the
+    // Empyrean is a place with a forecast, and a wet day dims the motes exactly as it should.
+    var moteA=wet?0.22:0.55;
+    for(var mo2=0;mo2<34;mo2++){
+      var mrise=(now*0.016+mo2*181)%(gy*0.95), my2=gy-mrise;
       var mx3=((mo2*197+((WOFF*0.25)|0))%(SW+50))-25+Math.sin(now*0.0011+mo2*1.3)*4*K;
-      var mf=Math.sin((mrise/mSpan)*Math.PI);                 // fades in low, fades out high
-      var mA=moteA*moteN*mf*(0.55+((mh>>>9)%100)/100*0.45);
-      if(mA<=0.008) continue;
-      // ⚠⚠ A PLUS, NOT NESTED SQUARES. The first additive version drew a bright core inside two larger
-      // squares of falling alpha, and rendered they read as BRIGHT TILES or little lit windows floating in
-      // the sky — because at this scale a square halo is just a bigger square, and the eye reads its
-      // corners. A point of light in pixel art is a core with ORTHOGONAL ARMS: the arms make it round
-      // enough to read as a glow, and only the very widest, faintest ring is allowed to be square,
-      // because at 4% alpha it has no edge left to read.
-      // 🔑 The lesson is the same one the Ashlands' first bloom taught in a different shape: the SHAPE of
-      // the falloff matters as much as the fact that there is one.
-      var mxr=Math.round(mx3), myr=Math.round(my2);
-      var mArm=Math.max(1,Math.round(K*0.8));
-      g.fillStyle="rgba(255,248,214,"+Math.min(0.95,mA*0.95).toFixed(3)+")";
-      g.fillRect(mxr,myr,mCore,mCore);
-      g.fillStyle="rgba(255,244,196,"+(mA*0.34).toFixed(3)+")";
-      g.fillRect(mxr-mArm,myr,mArm,mCore);              // ── the four arms
-      g.fillRect(mxr+mCore,myr,mArm,mCore);
-      g.fillRect(mxr,myr-mArm,mCore,mArm);
-      g.fillRect(mxr,myr+mCore,mCore,mArm);
-      g.fillStyle="rgba(255,238,176,"+(mA*0.040).toFixed(3)+")";
-      g.fillRect(mxr-((mR2-mCore)>>1),myr-((mR2-mCore)>>1),mR2,mR2);
+      var mf=Math.sin((mrise/(gy*0.95))*Math.PI);
+      g.fillStyle="rgba(255,244,196,"+(moteA*mf).toFixed(2)+")";
+      g.fillRect(Math.round(mx3),Math.round(my2),Math.max(1,Math.round(K*0.9)),Math.max(1,Math.round(K*0.9)));
     }
-    g.globalCompositeOperation="source-over";
   } else if(B.k==="plains"){
     // WIND WAVES running through the grass — the only way an open plain shows you it is windy.
     if(wet||wind<4) return;
@@ -22780,12 +22676,7 @@ function drawBiomeLandmark(g,L,now,nd){
   // you are. That gate existed to protect the life-0 byte-unchanged invariant, which Nick has since
   // deliberately retired. Alpine gets a landmark like everything else now.
   var B=curBiome; if(cityPhase==="apoc") return;
-  // ⚠ NOBODY HAS BUILT IT YET — except on THE EMPYREAN, where nobody built it at all. Every other
-  // landmark here is something the city makes (a headframe, a foundry, a cable car), so gating it on the
-  // city's growth is exactly right. THE GREAT GATE is the one that "goes nowhere and predates everything"
-  // by its own description, and it was the LAST thing to appear — absent until the town was a quarter
-  // grown, which is the opposite of what it is for. `celest`-only, so the other nineteen are untouched.
-  if(cityG<0.24 && !B.celest) return;
+  if(cityG<0.24) return;                                        // nobody has built it yet
   // ⚠ SCALED TO THE FRAME, NOT TO KSP. The previous fix here was "half again the usual scale",
   // because at plain KSP the mine headframe stood shorter than the office blocks beside it. That was
   // the right diagnosis and an insufficient dose: 1.7x KSP is still a fraction of a MATURE skyline,
@@ -23536,136 +23427,30 @@ function drawBiomeLandmark(g,L,now,nd){
         g.globalCompositeOperation="source-over"; }
     });
   } else if(B.k==="heaven"){
-    // THE GREAT GATE — a free-standing arch that goes nowhere and predates everything.
-    //
-    // ⚠⚠ IT READ AS A HIGHWAY OVERPASS, AND THE MEASUREMENTS SAY WHY. At its own K (5.10 — the landmark
-    // scale is `max(KSP*1.7, gy/80)`, NOT KSP, and measuring it at KSP undercounted it by ~70% and nearly
-    // hid this) the old gate was 112px wide by 168px to the top of its lintel: 43% of the sky, 14% of the
-    // screen, 24 times a person, and the dominant object in every mature frame. Two pale grey rectangular
-    // piers, a flat slab across the top, proportions of 1:1.2, and its feet swallowed by the city line
-    // because `drawBiomeLandmark` paints ~200 lines before the buildings. That is not "a bit like" an
-    // overpass — it is the construction of one.
-    // 🔑 Nick's ruling: keep the gate, it is the right landmark for this land, but MAKE THE OPENING THE
-    // SUBJECT and rebuild it as light rather than masonry. Three things do that:
-    //   1. PROPORTION. 1:2.7 instead of 1:1.2 — a monumental arch is tall and narrow, an overpass is wide
-    //      and low, and no amount of detailing changes which one a silhouette reads as.
-    //   2. A REAL ARCH WITH REAL DEPTH, not a lintel laid on two posts. A stepped intrados, a visible
-    //      inner reveal (the thickness of the wall you can see through the opening), and imposts where the
-    //      arch springs — the details that say "this was built by someone" at 7px-person scale.
-    //   3. THE LIGHT IS THE POINT. Additive, brightest at the centre of the opening and falling off, plus
-    //      a soft shaft leaning out of it. Painting it at flat alpha over the whole gap is what made the
-    //      old one read as a grey panel — the same "paint cannot glow" fault as the motes.
-    // ⚠ AND IT EXISTS ON A YOUNG CITY NOW. Its own comment said it "predates everything" while the code
-    // said `if(cityG<0.24) return`, so the one thing on this land older than the town was the last thing
-    // to appear. The gate is not civic infrastructure; nobody builds it. See the gate-stage exemption
-    // above, which is `celest`-only so the other nineteen landmarks are untouched.
+    // THE GREAT GATE — a free-standing arch on the terrace that goes nowhere and predates everything.
+    // The one thing it does that no other landmark here does: the light through the opening is
+    // brighter than the light around it, so the gap reads as the subject rather than the stone.
     at(function(X){
-      var gw=Math.round(15*K), gh=Math.round(40*K), pw=Math.round(3.4*K);
-      var kk=Math.max(1,Math.round(K*0.5));
-      var oX=X+pw, oW=gw-pw*2, oTop=gy-gh+Math.round(9*K);
-      // ---- THE LIGHT IN THE OPENING, graded from the middle out ----
-      g.globalCompositeOperation="lighter";
-      // ⚠⚠ MUCH FAINTER THAN THE FIRST VERSION, WHICH BLEW OUT INTO A SOLID WHITE COLUMN. Five additive
-      // layers at 0.16 stack to near-opaque, and the result was a bar of flat white running the full
-      // height of the gate and out past its feet — it read as a lit lift shaft, not as light in a doorway.
-      // Additive layers MULTIPLY UP; each one has to be budgeted against the total, not chosen alone.
-      // The gap is brighter than its surroundings and no more — that was always the whole idea.
-      // ⚠⚠ AND THE DAYTIME GLOW HAD TO GO ALMOST ENTIRELY, FOR A REASON WORTH KEEPING: THERE IS NO
-      // HEADROOM. Additive light can only read as "brighter" if the background is darker than white, and
-      // by day this gate stands against a sunlit cloud deck that is already near-white — so every layer
-      // simply clipped, and the opening came out as a flat white bar however low the alpha went. The fix
-      // is not another alpha; it is admitting that a stone arch in daylight has a SHADED opening and only
-      // glows once the sun is off it. So the light rides the same continuous day ramp the deck uses, and
-      // by day the reveal is shaded instead — which is both what reads and what is true.
-      // 🔑 GENERAL: on a bright land, additive is for NIGHT. The Ashlands could add light at any hour
-      // because it is dark; THE EMPYREAN cannot, and assuming the technique transfers is what cost three
-      // renders here.
-      var gLit=1-Math.max(0,Math.min(1,(L-0.30)/0.30));
-      var lit=(0.020+0.145*gLit*gLit)*(1-0.55*Math.max(0,Math.min(1,wetness)));
-      var lN=4;
-      for(var lq=0;lq<lN;lq++){
-        var lw=Math.max(1,Math.round(oW*(0.30+0.70*(lq/(lN-1||1)))));
-        g.fillStyle="rgba(255,248,222,"+(lit*(1-lq/lN)).toFixed(4)+")";
-        g.fillRect(oX+((oW-lw)>>1),oTop-Math.round(oW*0.36),lw,gy-oTop+Math.round(oW*0.36));
-      }
-      // …and the shaft leaning out of it, widening and dying well before the road
-      var shH=Math.round(gh*0.34);
-      for(var sq=0;sq<7;sq++){
-        var sf=sq/7, sy=gy-shH+Math.round(sf*shH);
-        var sw2=Math.round(oW*(1+sf*0.7)), sa=lit*0.42*(1-sf)*(1-sf);
-        if(sa<=0.003) break;
-        g.fillStyle="rgba(255,246,212,"+sa.toFixed(4)+")";
-        g.fillRect(oX+((oW-sw2)>>1)+Math.round(sf*3*K),sy,sw2,Math.max(1,Math.round(shH/7)));
-      }
+      var gw=Math.round(22*K), gh=Math.round(26*K), pw=Math.round(4.5*K);
+      g.globalCompositeOperation="lighter";                                          // what comes through it
+      g.fillStyle="rgba(255,246,214,"+(L>0.5?0.14:0.10).toFixed(2)+")";
+      g.fillRect(X+pw,gy-gh+Math.round(4*K),gw-pw*2,gh-Math.round(4*K));
       g.globalCompositeOperation="source-over";
-      // ---- THE STONE. Pale, but never the same value as the cloud behind it, or the silhouette dies.
-      // ⚠⚠ AND IT HAD TO COME DOWN IN VALUE, BECAUSE IT NOW STANDS AGAINST CLOUD. The old gate was pale
-      // grey against a pale sky and that was survivable; the new one stands in front of a sunlit deck that
-      // is very nearly white, and at #f2ecda it all but vanished into it. The basalt coast wrote this rule
-      // once already — "rock and walls at the SAME VALUE, so whole buildings vanished into the cliff and
-      // only their windows survived. Contrast between a thing and what it stands on is the rule."
-      // 🔑 Building the background BRIGHTER re-opens every contrast question on the land, not just this
-      // one. A warm sandstone-ivory keeps the gate unmistakably pale — it is still the Empyrean — while
-      // holding a clear edge against white cloud, and it warms nicely at golden hour.
-      var stone=day?"#e3d7ba":"#514f58", shade=day?"#bdb094":"#33323a", deep=day?"#8d8168":"#232228";
-      g.fillStyle=stone; g.fillRect(X,gy-gh,pw,gh);                                   // the two piers
+      var stone=day?"#efe9d6":"#4a4a52", shade=day?"#d6cfba":"#35353c";
+      g.fillStyle=stone; g.fillRect(X,gy-gh,pw,gh);                                  // the two piers
       g.fillRect(X+gw-pw,gy-gh,pw,gh);
-      g.fillStyle=shade;                                                              // their shaded inner faces
-      g.fillRect(X+pw-kk,gy-gh,kk,gh); g.fillRect(X+gw-pw,gy-gh,kk,gh);
-      // THE REVEAL — the thickness of the wall you can see through the opening. By day this is the whole
-      // reason the gap reads: a shaded recess behind a lit face is what tells you the stone has depth.
-      g.fillStyle=deep;
-      g.fillRect(oX,oTop,oW,Math.max(1,Math.round(1.2*K)));
-      if(day){
-        g.fillStyle=day?"rgba(120,116,104,0.20)":"rgba(0,0,0,0)";
-        g.fillRect(oX,oTop,Math.max(1,kk),gy-oTop);                                   // shadow down the near jamb
-        g.fillRect(oX+oW-Math.max(1,kk),oTop,Math.max(1,kk),gy-oTop);
+      g.fillStyle=shade; g.fillRect(X+pw-Math.round(K),gy-gh,Math.round(K),gh);       // and their shaded inner face
+      g.fillRect(X+gw-pw,gy-gh,Math.round(K),gh);
+      g.fillStyle=stone;                                                             // the arch itself, stepped
+      for(var aq=0;aq<5;aq++){
+        var inset=Math.round(aq*1.1*K), rise=Math.round((4-aq)*1.2*K);
+        g.fillRect(X+inset,gy-gh-rise,gw-inset*2,Math.max(1,Math.round(1.4*K)));
       }
-      // IMPOSTS — the moulding where the arch springs from the piers. Small, and the single detail that
-      // most says "architecture" rather than "two posts": a real arch visibly starts somewhere.
-      g.fillStyle=day?"#fbf6e8":"#5e5c67";
-      g.fillRect(X-kk,oTop-Math.round(1.6*K),pw+kk*2,Math.max(1,Math.round(1.6*K)));
-      g.fillRect(X+gw-pw-kk,oTop-Math.round(1.6*K),pw+kk*2,Math.max(1,Math.round(1.6*K)));
-      // THE ARCH HEAD — the SPANDRELS either side of a semicircular void.
-      // ⚠⚠ THE FIRST VERSION FILLED THE OPENING INSTEAD OF LEAVING IT. Each course was drawn as one rect
-      // spanning the whole gap, inset a little more as it rose, so the "arch" came out as a solid stepped
-      // DOME sitting between the piers — a bell, or a mushroom cap, and the one thing an arch must have is
-      // the hole. An arch is not stone that narrows; it is stone AROUND A VOID.
-      // 🔑 So it is drawn per row from the outside in: at each row the semicircular opening has a
-      // half-width, and stone fills from each pier to that edge. The void is what is left, which is the
-      // only way it can be the subject.
-      var aH=Math.round(oW*0.5), aTop=oTop-aH;
-      for(var ay=0;ay<aH;ay++){
-        // ⚠ AND THE CURVE RAN THE WRONG WAY THE FIRST TIME. `sqrt(1-(1-t)^2)` gives the opening its FULL
-        // width at the crown and zero at the springing, i.e. an inverted bowl — the gate came out with an
-        // hourglass throat. An arch is widest where it springs and closes to nothing at the top.
-        var afy=(aH-ay)/aH;                                       // 1 at the crown, 0 at the springing
-        var hw=Math.round((oW*0.5)*Math.sqrt(Math.max(0,1-afy*afy)));
-        var yy=aTop+ay;
-        var lw2=Math.max(0,(oW>>1)-hw);
-        if(lw2>0){
-          g.fillStyle=stone;
-          g.fillRect(oX,yy,lw2,1);
-          g.fillRect(oX+oW-lw2,yy,lw2,1);
-          g.fillStyle=shade;                                      // the intrados is in shadow — it faces down
-          g.fillRect(oX+lw2-Math.max(1,kk>>1),yy,Math.max(1,kk>>1),1);
-          g.fillRect(oX+oW-lw2,yy,Math.max(1,kk>>1),1);
-        }
-      }
-      // the crown course, sitting a little proud, and a keystone in the middle of it
-      g.fillStyle=day?"#fbf6e8":"#5e5c67";
-      g.fillRect(X-Math.round(1.4*K),gy-gh,gw+Math.round(2.8*K),Math.round(2.2*K));
-      g.fillStyle=day?"#efe7d0":"#4a4952";
-      g.fillRect(X+((gw-Math.round(2.6*K))>>1),gy-gh-Math.round(1.6*K),Math.round(2.6*K),Math.round(3.4*K));
-      // ---- AND IT HOLDS THE LIGHT AT NIGHT. Locked: night is the payoff. The stone itself carries a
-      // faint glow along its inner edges, so the gate is legible in the dark by its own light.
-      if(!day){
-        g.globalCompositeOperation="lighter";
-        g.fillStyle="rgba(255,240,200,0.22)";
-        g.fillRect(X+pw-kk,oTop,kk,gy-oTop); g.fillRect(X+gw-pw,oTop,kk,gy-oTop);
-        g.fillRect(oX,oTop,oW,Math.max(1,Math.round(1.2*K)));
-        g.globalCompositeOperation="source-over";
-      }
+      g.fillStyle=day?"#f7f2e2":"#5a5a64";                                            // the lintel above
+      g.fillRect(X-Math.round(2*K),gy-gh-Math.round(7*K),gw+Math.round(4*K),Math.round(2.4*K));
+      if(!day){ g.globalCompositeOperation="lighter";                                 // it holds the light at night
+        g.fillStyle="rgba(255,238,196,0.20)"; g.fillRect(X+pw,gy-gh+Math.round(4*K),gw-pw*2,gh-Math.round(4*K));
+        g.globalCompositeOperation="source-over"; }
     });
   }
 }
@@ -24490,352 +24275,6 @@ function coreDomeX(){ var r=rng((WORLD_SEED+9311)>>>0); return Math.round((0.30+
 // THE HIGH TEMPLES. Needle spires out of a sea of cloud with temples on top and rope bridges between
 // them. The trick that makes the land work is the CLOUD FLOOR: it is drawn over the base of every spire,
 // so nothing has a bottom and the columns read as impossibly tall rather than as narrow hills.
-// ============ THE CLOUD SEA — THE UNDERCAST THE EMPYREAN STANDS ABOVE ============
-// Nick's locked identity for map 12: "above the cloud sea" — the city on a summit, a real sea of cloud,
-// distant peaks standing out of it as islands, every element a phenomenon you could photograph.
-// It is also the fix for the measurement behind every other fault on this land: heaven's near ridge peaks
-// at 75-86% of a 391px sky (mean 53-66%), so two thirds of the air was opaque rock on the ONE land whose
-// subject is light and air. An undercast replaces the lower two thirds of that rock with something bright,
-// and what is left standing above it is summits. The landform stops being a wall and becomes islands.
-//
-// ⚠⚠ IT MUST READ AS ONE LAYER AT ONE ALTITUDE, and that is not a style note — it is the difference
-// between this land and a failure already written down. The SEA CLIFFS' core fault is water BEHIND the
-// city and water IN FRONT of it: "you cannot tell whether you are on a spit, a shore or an island."
-// Nick chose cloud behind AND in front here, so the thing that must be true is that both are visibly the
-// SAME deck seen at two distances — one altitude, one colour law, one surface, one set of billows. Two
-// different cloud treatments would rebuild the cliffs' ambiguity in white. The front half rides on
-// SEA_FRONT and reads LOWER in the frame purely because it is nearer, which is what an undercast does
-// when you stand above it: the deck recedes to a horizon behind you and drops away below you in front.
-//
-// ⚠ AND NOT AS BANDS. `drawSpireWorld`'s cloud floor — the only other cloud deck in this engine — is five
-// FULL-WIDTH horizontal bars at even spacing with even alpha steps, plus a solid fill under them. On this
-// land that is exactly the fault the bedding planes were removed for one commit ago. The deck here is a
-// continuous vertical gradient beneath an aperiodic billowed top edge. (THE HIGH TEMPLES is an egg biome
-// nobody has reviewed; its five bars are worth a look on its own pass.)
-function cloudVar(){
-  if(!curBiome||!curBiome.celest) return -1;
-  return (curBiome.name==="THE SILVER REACHES")?1:((curBiome.name==="THE ROSE VAULT")?2:0);
-}
-// WHERE THE DECK SITS AND WHAT IT IS DOING — locked answer #9, the three variants differ by cloud LEVEL
-// and cloud STATE rather than by palette, and locked answer #10 gives the level real weather.
-//
-// ⚠ ONE OF MY OWN OPTION DESCRIPTIONS WAS INTERNALLY INCONSISTENT AND I RESOLVED IT HERE RATHER THAN
-// SHIPPING NONSENSE. I offered THE SILVER REACHES as "the cloud layer RISEN so it laps at the city AND
-// only the highest summits show". In screen terms those pull opposite ways: a deck whose top edge is near
-// HORIZON laps at the rooftops and leaves the whole range visible, while a deck high in the frame hides
-// the range and shows only summits. Nick's evident intent across the three is THREE CLEARLY DIFFERENT
-// LEVELS AND STATES, so that is what is built — and "laps at the city" is honoured by the FRONT half of
-// the deck coming up around the town, which is what actually makes the city feel surrounded:
-//   THE EMPYREAN       — deck LOW and flat calm, well below the summits: a serene floor in the middle
-//                        distance with the range standing clear above it. The reference.
-//   THE SILVER REACHES — deck RISEN HIGH: it has come up and swallowed the range, and only the highest
-//                        summits stand out of it as separate islands.
-//   THE ROSE VAULT     — deck MID, broken and churning, with real GAPS in it for the rays to fall through.
-//
-// ⚠ THE DRIFT IS TWO SLOW TERMS OF DIFFERENT PERIOD, never one. The Ashlands' fire cycle pass established
-// that a single global sine is just the old pulse wearing a longer skirt: two cycles of unequal length
-// never re-synchronise, so the level wanders instead of breathing. Periods are in real hours because Nick
-// locked this as a mood on an hours-long clock, not an animation.
-function cloudSeaState(now){
-  if(!curBiome||!curBiome.celest||!mtsCache||!mtsCache.h||!mtsCache.h[1]) return null;
-  var cv=cloudVar();
-  // ⚠ THE SILVER REACHES CAME DOWN 0.62 -> 0.52. At 0.62, plus up to +0.13 of drift, the deck cleared the
-  // tallest peak in the world (measured: near band 294-336px of a 391px sky) and the range vanished
-  // completely — so the variant lost the one thing that makes this land legible, its islands. Locked
-  // answer #9 asks for "only the highest summits", which is a statement about what still SHOWS. At 0.52
-  // the tallest peaks clear the deck by 91-133px, and even at the top of the drift they clear it by ~40.
-  var lvl=(cv===1)?0.52:((cv===2)?0.44:0.26);            // deck top, as a fraction of the sky, per variant
-  var churn=(cv===2)?1:((cv===1)?0.55:0.30);             // how broken and how tall its billows are
-  var gaps=(cv===2)?1:0;                                 // only the Rose Vault is torn open
-  var H=3600000;
-  var d1=Math.sin(now/(5.1*H)*Math.PI*2)*0.075;          // ~5.1h  ┐ coprime-ish periods, so the two
-  var d2=Math.sin(now/(8.3*H)*Math.PI*2+1.7)*0.055;      // ~8.3h  ┘ never line up into a pulse
-  lvl=Math.max(0.12,Math.min(0.78,lvl+d1+d2));
-  var y=Math.round(HORIZON-HORIZON*lvl);
-  // ⚠⚠ THE DECK MAY NEVER DROWN THE WORLD'S TALLEST SUMMIT — a CLAMP, not a tuned level. THE SILVER
-  // REACHES lost its islands completely at a base of 0.62 and still lost them at 0.52, because the drift
-  // adds up to +0.13 on top of the base and nothing stopped the sum. Picking a smaller number would only
-  // move the hour at which it happens; what is actually required is a guarantee, because "peaks standing
-  // out of it as islands" IS this land's identity and a frame with no rock in it is a different map.
-  // 🔑 Measured against the real height field rather than a constant: `mtsCache.mx[1]` is the world's
-  // tallest near peak, so the highest billow is held a clear margin below its top. It also self-corrects
-  // if the ridge roll ever changes. (Some screens will still show open cloud and no summit — that is a
-  // sea, and an island is not on every screen.)
-  var mxNear=(mtsCache.mx&&mtsCache.mx[1])?mtsCache.mx[1]:HORIZON*0.5;
-  var K=Math.max(1,KSP);
-  var reach=(4+11*churn)*K*0.5+(9+16*churn)*K+2.2*K;     // billow amp + puff height + drift, as drawn
-  var ceil=Math.round(HORIZON-mxNear)+reach+Math.round(16*K);
-  if(y<ceil) y=ceil;
-  return { lvl:lvl, y:y, churn:churn, gaps:gaps, v:cv };
-}
-function drawCloudSea(g,L,now,nd){
-  var st=cloudSeaState(now); if(!st) return;
-  var day=L>0.5, K=Math.max(1,KSP), gy=HORIZON, hs=mtsCache.h, skc=biomeSkc(day);
-  var B=curBiome;
-  // THE DECK'S COLOUR. Cloud is lit from ABOVE, so it is brightest at its own surface and deepens
-  // downward — aerial perspective INTO the cloud rather than through it. Sourced from the variant's own
-  // `sky.haze` so THE SILVER REACHES' deck is silver and THE ROSE VAULT's is rose, which is what makes
-  // three levels read as three places instead of one grey lid at three heights.
-  var hz=(B.sky&&B.sky.haze)?B.sky.haze:[248,246,240];
-  // ⚠ THE SURFACE GOES MOST OF THE WAY TO WHITE. At 0.55 toward white the deck kept too much of the
-  // variant's haze — and `sky.haze` on THE EMPYREAN is [255,242,206], a strong yellow — so the cloud read
-  // as SAND. A sunlit cloud top is very nearly white whatever the sky behind it is doing; the variant's
-  // colour belongs in the DEEP tone, where it does the work of telling three decks apart.
-  // ⚠⚠ AND THE DECK FOLLOWS THE LIGHT CONTINUOUSLY, NOT AN `L>0.5` BOOLEAN. Rendered at 19:10 it had
-  // already flipped to its night colours while the sky behind it was still bright rose, so THE ROSE VAULT
-  // at dusk — the single frame this land ought to own — came out as a brown-olive mass under a pink sky.
-  // A cloud deck at sunset is the brightest and warmest thing in the sky; it does not switch off at a
-  // threshold. Ramped smoothly across L 0.30-0.60, the same span the sky's own phase moves over, and
-  // given the alpenglow push so the tops catch the sunset the way real cloud does.
-  // 🔑 This is exactly the golden-hour trap `drawMountains`' contrast floor was built for, whose comment
-  // says plainly it "was fixed for karst and the Empyrean at NOON and never checked at sunset on
-  // anything". Checked now, on the land it names by name.
-  var dk=Math.max(0,Math.min(1,(L-0.30)/0.30)); dk=dk*dk*(3-2*dk);
-  var gK=goldenK||0;
-  var cSurf=mixc(mixc(hz,[26,30,48],0.62), mixc(mixc(hz,[255,255,252],0.78),[255,208,170],gK*0.55), dk);
-  var cDeep=mixc(mixc(hz,[10,12,24],0.76), mixc(mixc(hz,[150,164,196],0.50),[212,134,130],gK*0.42), dk);
-  // ---- the top edge, per column: aperiodic, world-anchored, three octaves ----
-  // ⚠ Three octaves at unrelated cell sizes. A single lattice spaces its billows evenly, and evenly
-  // spaced features are the tell behind every striping fault in this project — drawn or aliased.
-  // ⚠⚠ ROUNDED BILLOWS, NOT A NOISE CURVE — this is what makes it cloud instead of a snowfield, and the
-  // first version got it wrong in a way worth recording. Smooth interpolated noise gives a rolling
-  // dune-like edge; rendered, the deck read as SAND or SNOW, because the one thing that says "cloud" at
-  // pixel scale is a top made of overlapping ROUND lumps. So the edge is built from actual puffs: hashed
-  // centres jittered inside aperiodic cells, each a circular profile, taking the max where they overlap —
-  // which is how real cumulus tops stack. The smooth octaves stay underneath as the swell they sit on.
-  var e1=Math.max(7,Math.round(74*K)), e2=Math.max(4,Math.round(23*K)), e3=Math.max(2,Math.round(9*K));
-  var amp=(4+11*st.churn)*K, pAmp=(9+16*st.churn)*K;
-  var pc=Math.max(6,Math.round(34*K));
-  var dt=new Array(SW), minTop=gy;
-  for(var x=0;x<SW;x++){
-    var wx=x+WOFF, v=0;
-    var i1=Math.floor(wx/e1), f1=(wx/e1)-i1, s1=f1*f1*(3-2*f1);
-    v+=((mixLi(i1>>>0,24107)%1024)/1024*(1-s1)+(mixLi((i1+1)>>>0,24107)%1024)/1024*s1)*0.56;
-    var i2=Math.floor(wx/e2), f2=(wx/e2)-i2, s2=f2*f2*(3-2*f2);
-    v+=((mixLi(i2>>>0,51413)%1024)/1024*(1-s2)+(mixLi((i2+1)>>>0,51413)%1024)/1024*s2)*0.30;
-    var i3=Math.floor(wx/e3), f3=(wx/e3)-i3, s3=f3*f3*(3-2*f3);
-    v+=((mixLi(i3>>>0,9781)%1024)/1024*(1-s3)+(mixLi((i3+1)>>>0,9781)%1024)/1024*s3)*0.14;
-    // THE PUFFS. Three neighbouring cells is enough — a lump never reaches further than its own cell's
-    // width, so anything beyond ±1 cannot contribute and checking it would be waste.
-    var ip=Math.floor(wx/pc), lump=0;
-    for(var pj=-1;pj<=1;pj++){
-      var ic=ip+pj, ph=mixLi(ic>>>0,77003)>>>0;
-      var pcx=(ic+((ph%1000)/1000))*pc;                       // centre, jittered inside its own cell
-      var prad=pc*(0.42+((ph>>>10)%100)/100*0.50);
-      var pk=0.45+((ph>>>17)%100)/100*0.55;                   // and each puff its own height
-      var pd=Math.abs(wx-pcx);
-      if(pd<prad){ var q=1-(pd/prad)*(pd/prad); q*=pk; if(q>lump) lump=q; }
-    }
-    // the deck DRIFTS along the world, slowly, so it is a sea and not a painted backdrop
-    var drift=Math.sin(now*0.000021+wx*0.0006)*2.2*K;
-    var ty=st.y+Math.round((v-0.5)*amp-lump*pAmp+drift);
-    // THE ROSE VAULT IS TORN OPEN — broad holes where the deck simply is not, so there is somewhere for
-    // the rays to land. A hole is a long smooth absence, not a gap between billows: hashed at a coarse
-    // cell and smoothstepped in, so its edges are soft and it never repeats.
-    // ⚠ AND A HOLE HAS SLOPED SIDES. The first version was a binary `if(hv>0.62) no deck`, which cut the
-    // deck off at a DEAD VERTICAL EDGE — visible in the render as a straight wall of cloud, and a hard
-    // vertical edge is the specific thing KWin's fractional downsample beats against on Nick's 4K. It is
-    // also just wrong: cloud thins and sags into a hole, it does not end at a cliff. So the hole factor
-    // drives the deck DOWNWARD smoothly and only reaches "absent" at the middle of the tear.
-    if(st.gaps){
-      var hc=Math.max(9,Math.round(120*K)), ih=Math.floor(wx/hc), fh=(wx/hc)-ih, sh2=fh*fh*(3-2*fh);
-      var hv=(mixLi(ih>>>0,38891)%1024)/1024*(1-sh2)+(mixLi((ih+1)>>>0,38891)%1024)/1024*sh2;
-      if(hv>0.46){
-        var hk=Math.min(1,(hv-0.46)/0.34), hs2=hk*hk*(3-2*hk);
-        ty+=Math.round(hs2*(gy+Math.round(30*K)-ty));
-      }
-    }
-    dt[x]=ty; if(ty<minTop) minTop=ty;
-  }
-  // ---- fill from the highest billow down to the horizon ----
-  // Outer loop on the row so `fillStyle` is set once per step; inner loop run-length along the deck.
-  // Same shape as the massif's passes, and for the same measured reason.
-  // ⚠⚠ DEPTH IS MEASURED FROM EACH COLUMN'S OWN SURFACE, NOT FROM A GLOBAL ROW. The first version graded
-  // the whole deck between `minTop` and the horizon, which meant the visible part — the part just under
-  // the billow tops — was all at the same point on the gradient, and the deck came out as one flat cream
-  // mass. Shading a body of cloud by absolute screen row is the same category of mistake as measuring a
-  // ledge from the frame instead of from the rock it sits on: the light falls relative to the SURFACE.
-  // So: one cheap deep fill for the body, then a bright crown that follows each billow down from its own
-  // top. Structured the way the massif's shoulder is — outer loop on the depth step so `fillStyle` and
-  // `globalAlpha` are set a handful of times, inner loop run-length on equal Y.
-  // ⚠⚠ AND THE BODY RECEDES INTO HAZE TOWARD THE HORIZON, WHICH IS THE OTHER HALF OF THE DEPTH. Filling
-  // the whole body with one deep tone made THE SILVER REACHES fail outright: its `cDeep` lands within a
-  // few units of its own sky, so the deck below the billows became a FLAT GREY SLAB occupying the largest
-  // area of the frame and saying nothing — the "blends into its own sky" fault the contrast floor in
-  // `drawMountains` exists for, arriving on a cloud instead of on rock.
-  // 🔑 The two terms are different physics and both are needed: DEPTH BELOW THE SURFACE is shadow inside
-  // the cloud (the crown, above), and HEIGHT TOWARD THE HORIZON is aerial perspective across distance —
-  // in this projection the rows nearest HORIZON are the FURTHEST AWAY, so they wash out, exactly like the
-  // far ridge does. That is what turns a wall of cloud into a surface going away from you.
-  var step=Math.max(2,Math.round(K));
-  var cHaze=day?mixc(skc,[255,255,250],0.30):mixc(skc,[40,48,74],0.30);
-  for(var y=Math.max(0,minTop);y<gy;y+=step){
-    var hf=Math.max(0,Math.min(1,(y-minTop)/Math.max(1,gy-minTop)));
-    g.fillStyle=css(mixc(cDeep,cHaze,hf*hf*(3-2*hf)*0.86));
-    var s4=-1, x4, on4;
-    for(x4=0;x4<=SW;x4++){
-      on4=(x4<SW)&&(dt[x4]<=y);
-      if(on4){ if(s4<0) s4=x4; }
-      else if(s4>=0){ g.fillRect(s4,y,x4-s4,step); s4=-1; }
-    }
-    if(s4>=0) g.fillRect(s4,y,SW-s4,step);
-  }
-  // THE CROWN — the lit upper flank of every billow, fading downward into the body.
-  // ⚠ FOURTEEN SHALLOW STEPS ON A LINEAR RAMP, NOT SEVEN ON A SQUARED ONE. At seven with a `crf*crf`
-  // falloff every billow came out ringed with four or five nested arcs — a topographic onion, which is
-  // the banding fault of this whole pass arriving for the third time in a third place. The steps show
-  // when NEIGHBOURING ALPHAS DIFFER a lot, and a squared curve puts its biggest jumps exactly where the
-  // cloud is brightest and most visible. Fourteen linear steps put every jump under ~7% and it reads
-  // as one smooth flank. (Cheap: the cost here is the run-length scan, not the step count.)
-  var crN=14, crT=Math.max(1,Math.round((16+10*st.churn)*K/crN));
-  g.fillStyle=css(cSurf);
-  for(var cr=0;cr<crN;cr++){
-    var crf=1-(cr/crN);
-    g.globalAlpha=crf*0.92;
-    var s7=-1, y7=-999, x7, ty7;
-    for(x7=0;x7<=SW;x7++){
-      ty7=-999;
-      if(x7<SW&&dt[x7]<gy) ty7=Math.max(0,dt[x7])+cr*crT;
-      if(ty7!==y7){ if(s7>=0&&y7>-999&&y7<gy) g.fillRect(s7,y7,x7-s7,Math.min(crT,gy-y7)); s7=(ty7>-999)?x7:-1; y7=ty7; }
-    }
-    if(s7>=0&&y7>-999&&y7<gy) g.fillRect(s7,y7,SW-s7,Math.min(crT,gy-y7));
-  }
-  g.globalAlpha=1;
-  // ---- THE LIT SURFACE. The top of an undercast is the brightest thing in the picture when the sun is
-  // on it — that is why it reads as a SEA rather than as fog filling the valley. Two rows, additive.
-  // ⚠ ADDITIVE, because this is light and not paint. `source-over` white at low alpha over a pale deck
-  // is what made the Ashlands' lava mix to mud, and it fails the same way in the other direction here.
-  g.globalCompositeOperation="lighter";
-  g.fillStyle=day?"rgba(255,250,228,0.30)":"rgba(150,168,214,0.16)";
-  var lipT=Math.max(1,Math.round(K*0.9));
-  var s5=-1, y5=-999, x5, ty5;
-  for(x5=0;x5<=SW;x5++){
-    ty5=(x5<SW&&dt[x5]<gy)?dt[x5]:-999;
-    if(ty5!==y5){ if(s5>=0&&y5>-999) g.fillRect(s5,y5,x5-s5,lipT); s5=(ty5>-999)?x5:-1; y5=ty5; }
-  }
-  if(s5>=0&&y5>-999) g.fillRect(s5,y5,SW-s5,lipT);
-  g.globalCompositeOperation="source-over";
-  // ---- WHERE THE DECK MEETS ROCK IT PILES UP. An island in a cloud sea has surf: the deck banks against
-  // the windward side and frays into it. Without this the peaks look pasted onto a flat lid — the same
-  // "a sprite with nothing under it floats" rule the alpine trees learned, applied to a whole summit.
-  g.fillStyle=day?"rgba(255,255,252,0.42)":"rgba(120,136,180,0.22)";
-  for(var x6=0;x6<SW;x6++){
-    if(dt[x6]>=gy) continue;
-    var rockTop=gy;                                       // the topmost rock in ANY band at this column
-    for(var b6=0;b6<3;b6++){ var hh=hs[b6]&&hs[b6][x6]?hs[b6][x6]:0; if(hh>2){ var rt=gy-hh; if(rt<rockTop) rockTop=rt; } }
-    if(rockTop>=dt[x6]) continue;                         // no peak through the deck here — no surf
-    var pile=Math.max(1,Math.round((3+5*st.churn)*K));
-    g.fillRect(x6,dt[x6]-((pile*0.5)|0),1,pile);
-  }
-  // ---- THE BLOOM OFF THE DECK — locked answer #3, "lit cloud bases and a glowing horizon" ----------
-  // A sunlit cloud deck is a vast reflector: the air above it, and the underside of anything floating in
-  // that air, is lit FROM BELOW. This is what makes the land say "the light is coming from the place
-  // itself" rather than "here is a white shape".
-  // ⚠⚠ ADDITIVE, AND UNEVEN, AND IT FADES — all three are lessons already paid for on the Ashlands.
-  //   · additive because paint cannot glow (the same reason the motes had to stop being `source-over`);
-  //   · uneven along the deck, from two slow world-space octaves, because a smooth glow of constant
-  //     strength reads as a gradient someone applied rather than as light coming off a surface;
-  //   · squared falloff upward and NEVER a band on the surface — the Ashlands' first attempt at exactly
-  //     this was a constant-thickness strip along the ridge and it read as a highlighter traced round
-  //     the mountains. Light from behind something goes upward and dies.
-  // ⚠ STEPPED TWO ROWS AT A TIME. The Ashlands' crest bloom was ~51,000 1x1 rects at 76ms; stepping it
-  // took the whole backdrop from 5.28x alpine to 3.03x with no visible difference. Same construction here,
-  // stepped from the start rather than after a regression.
-  // ⚠ NIGHT IS THE PAYOFF, NOT A PENALTY. Locked: at midnight THE EMPYREAN should be the brightest map in
-  // the set, where before it was indistinguishable from any other dark city. Additively that is easy and
-  // it is also true — a cloud deck under a moon is genuinely luminous. So the night gain is HIGHER than
-  // the day gain, which is the opposite of how every other glow in this engine is weighted.
-  // ⚠ AND IT STILL MUST NOT WASH OUT (locked limit). The bloom lives in the SKY above the deck and dies
-  // well before it reaches anything the city occupies, so the town and the summits keep their silhouette.
-  var glowH=Math.round(gy*(day?0.30:0.46));
-  // ⚠ REAL WEATHER STILL WINS (locked limit #11). `wetness` is the engine's own rain-soak accumulator, so
-  // the glow genuinely backs off in the rain and comes back as it dries, rather than being switched by a
-  // boolean the instant a drop falls. Reading the shared accumulator rather than `fx` also means this
-  // works in the bg pass, which has no `fx` at all.
-  var gGain=(day?0.075:0.155)*(1-0.55*Math.max(0,Math.min(1,wetness)));
-  if(glowH>2&&gGain>0.004){
-    var gCol=day?[255,250,224]:[186,204,255];
-    g.globalCompositeOperation="lighter";
-    var gStep=2;
-    for(var gq=0;gq<glowH;gq+=gStep){
-      var gf=1-(gq/glowH), ga=gf*gf*gGain;
-      if(ga<=0.002) break;
-      g.fillStyle="rgba("+gCol[0]+","+gCol[1]+","+gCol[2]+","+ga.toFixed(4)+")";
-      var s8=-1, y8=-999, x8, ty8;
-      for(x8=0;x8<=SW;x8++){
-        ty8=-999;
-        if(x8<SW&&dt[x8]<gy){
-          // two slow octaves in WORLD space: the deck glows harder in some places than others
-          var uw=(x8+WOFF);
-          var u1=Math.sin(uw*0.0037)*0.5+0.5, u2=Math.sin(uw*0.0011+2.1)*0.5+0.5;
-          var uk=0.55+0.45*(u1*0.6+u2*0.4);
-          if(gq<glowH*uk) ty8=dt[x8]-gq-gStep;
-        }
-        if(ty8!==y8){ if(s8>=0&&y8>-999&&y8>=0) g.fillRect(s8,y8,x8-s8,gStep); s8=(ty8>-999)?x8:-1; y8=ty8; }
-      }
-      if(s8>=0&&y8>-999&&y8>=0) g.fillRect(s8,y8,SW-s8,gStep);
-    }
-    g.globalCompositeOperation="source-over";
-  }
-}
-// ============ THE EMPYREAN'S LIGHT — crepuscular rays over the ridge and through the tears ============
-// Locked answer #3: "real crepuscular rays on the true sun position". `drawGodRays` already exists and is
-// already the right construction — feathered gradient wedges, adopted after v1.51.0 when hard-edged strips
-// were sharpened into harsh lines by the same 4K downsample that causes the mountain-lines bug. So this
-// reuses that construction rather than inventing a second one.
-//
-// ⚠ WHY A SEPARATE PASS AT ALL, given `drawGodRays` exists. Its gate is `cloud 26-76%` — it needs broken
-// cloud to break the light, which is correct for nineteen lands and wrong for exactly one: THE EMPYREAN
-// HAS ITS OWN BROKEN CLOUD, permanently, in the deck below. The land's identity is light coming through
-// gaps, and on a clear day the shared pass draws nothing. Relaxing the shared gate would change all
-// nineteen; this land gets its own, gated hard on `celest`.
-// ⚠ ANCHORED TO THE REAL SUN, world-space. The shared pass records why: a screen-relative apex "put the
-// rays on empty sky, different on every monitor" — Nick's own report. Same anchor here, same reason.
-// ⚠ AND THE SHAFTS COME OFF THE RIDGE AND THE TEARS, not off nothing. A ray is visible because something
-// is blocking the rest of the light, so each shaft starts where there is actually an edge for it to clear:
-// the summits standing out of the deck, and the holes torn in it.
-function drawEmpyreanRays(g,L,now,nd){
-  var B=curBiome;
-  if(!B||!B.celest||!mtsCache||!mtsCache.h||!mtsCache.h[1]) return;
-  if(L<0.30||cityPhase==="apoc") return;
-  var st=cloudSeaState(now); if(!st) return;
-  var gy=HORIZON, K=Math.max(1,KSP);
-  // real weather still wins — heavy rain kills the shafts, and `wetness` fades them back in as it dries
-  var damp=1-0.8*Math.max(0,Math.min(1,wetness));
-  if(damp<=0.06) return;
-  var df=Math.max(0.06,Math.min(0.94,curSunDf));
-  var sunX=Math.round(df*WW-WOFF), sunY=Math.round(gy*0.9-Math.sin(df*Math.PI)*gy*0.75);
-  if(sunX<-SW*0.8||sunX>SW*1.8) return;                    // the sun is nowhere near this screen
-  if(solarEclDim>0.5) return;
-  // the Rose Vault is torn open, so it gets the most light through; the calm Empyrean the least
-  var gain=(0.030+(goldenK||0)*0.055)*damp*(st.gaps?1.5:(st.v===1?1.15:1));
-  var warm=(goldenK>0.2)?[255,224,170]:[255,250,232];
-  g.globalCompositeOperation="lighter";
-  var rays=5;
-  for(var r=0;r<rays;r++){
-    // ⚠ APERIODIC ANGLES. Evenly fanned shafts read as a printed sunburst; hashed offsets keep them
-    // irregular the way real crepuscular rays are, and the slow term lets them breathe without animating.
-    var rh=mixLi(r>>>0,30671)>>>0;
-    var ang=(r-(rays-1)/2)*0.26+(((rh%100)/100)-0.5)*0.12+Math.sin(now*0.00013+r*1.7)*0.018;
-    var len=Math.max(20,(gy-sunY)*0.98);
-    var endY=sunY+len; if(endY>gy+2){ len=gy+2-sunY; endY=gy+2; }
-    if(len<12) continue;
-    var dx=Math.tan(ang), endX=sunX+dx*len;
-    for(var k=0;k<3;k++){
-      var halfW=(18+r*4)*K*0.34*(1-k*0.32), a=gain*(0.40+k*0.24);
-      var grd=g.createLinearGradient(sunX,sunY,endX,endY);
-      grd.addColorStop(0,   "rgba("+warm[0]+","+warm[1]+","+warm[2]+","+a.toFixed(4)+")");
-      grd.addColorStop(0.55,"rgba("+warm[0]+","+warm[1]+","+warm[2]+","+(a*0.5).toFixed(4)+")");
-      grd.addColorStop(1,   "rgba("+warm[0]+","+warm[1]+","+warm[2]+",0)");
-      g.fillStyle=grd;
-      g.beginPath();
-      g.moveTo(sunX-2,sunY); g.lineTo(sunX+2,sunY);
-      g.lineTo(endX+halfW,endY); g.lineTo(endX-halfW,endY);
-      g.closePath(); g.fill();
-    }
-  }
-  g.globalCompositeOperation="source-over";
-}
 function drawSpireWorld(g,L,now,nd){
   if(!curBiome.spires||!mtsCache||!mtsCache.h||!mtsCache.h[1]) return;
   var day=L>0.5, K=Math.max(1,KSP), gy=HORIZON, hs=mtsCache.h[1];
@@ -26265,11 +25704,7 @@ function drawMountains(g,L,now,nd){
           var coast=Math.sin(wx0*0.0043)*0.62+Math.sin(wx0*0.0017+2.3)*0.38;
           rh0*=(0.55+0.55*(coast*0.5+0.5));                    // cove ~0.55x … headland ~1.10x
         }
-        // ⚠ `nobed` opts out of the SKYLINE QUANTISER too, not just the bed lines. A stepped ridge is the
-        // other half of "rock as masonry", and locked answer #2 for THE EMPYREAN is soft shoulders — a
-        // massif weathers into rounded shoulders, it does not come in courses. Keeping `flat:0.62` still
-        // buys the level tops this land wants; only the ladder goes.
-        if(B.flat>0.5 && rh0>2 && !B.nobed){
+        if(B.flat>0.5 && rh0>2){
           if(B.buttes){ var qb=Math.floor(rh0/strata);
             rh0=(qb+((mixLi((qb*7919)>>>0,4649)%100)/100-0.5)*0.62)*strata; }
           else rh0=Math.round(rh0/strata)*strata;
@@ -26719,12 +26154,7 @@ function drawMountains(g,L,now,nd){
     // from the GROUND rather than from each column's own top, so the lines run dead level and continue
     // across the whole formation, which is what says "one rock, laid down in beds" instead of "a shape
     // with lines on it". Only the flat biomes: crags have no visible bedding at this scale.
-    // ⚠ …AND A LAND HAS TO OPT IN TO BEING MADE OF LAYERS (`nobed`). `flat` is not a statement about
-    // material — it says "this land's tops are level", which is true of a mesa, a sea cliff AND a
-    // luminous massif. THE EMPYREAN at `flat:0.62` was taking 19 ruled level lines across the whole
-    // formation from this block, which is the sea cliffs' battlement fault arriving a second time by the
-    // route that fix left open: it corrected the bed THICKNESS and never touched this GATE.
-    if(B.flat>0.25 && !B.nobed){
+    if(B.flat>0.25){
       var stt=Math.max(2,Math.round(5*KSP*(0.5+B.flat))), lh2=Math.max(1,Math.round(KSP));
       g.fillStyle="rgba(0,0,0,"+(0.07+0.07*B.flat).toFixed(3)+")";
       for(var by=gy-stt;by>gy-mtsCache.mx[pi]-stt;by-=stt){
@@ -26971,130 +26401,11 @@ function drawMountains(g,L,now,nd){
         }
       }
     }
-    // ---- THE EMPYREAN'S OWN FACE — ONE LUMINOUS MASSIF, NOT A STACK OF BEDS --------------------------
-    // What replaced the 19 ruled bedding planes. Removing them leaves a flat fill with a single slope
-    // value on it, which is the same nothing alpine's face was rescued from — so this land needs a
-    // surface of its own, and it needs to be the surface of *this* land: pale stone that is mostly
-    // reflecting a very bright sky, brightest where it faces upward, softening downward into its own
-    // shadow. No layers, because it is not made of layers.
-    //
-    // ⚠⚠ NOT FLUTING, AND THIS CONSTRAINT DECIDED THE WHOLE LOOK. The brief said "vertical fluting" —
-    // that was MY suggestion and it is the one direction this engine must not go. On Nick's 4K at 165%
-    // KWin does the fractional downsample itself, and three separate recurrences of the "lines over the
-    // mountains" bug settled the rule: ANY hard-edged flat band aliases, and the resampler beats
-    // specifically against HARD VERTICAL EDGES in the source. Ruled flutes down a face this size would
-    // rebuild that bug by hand, deliberately.
-    // ⚠ The same investigation also recorded what IS safe, and this is built on it: a CONTINUOUS
-    // per-column value, never quantised into buckets, so neighbouring columns differ by a fraction of a
-    // shade. Bucketing the slope light into 13 steps is what made the lines "come back"; going
-    // continuous took 194 deviating columns down to 37. So every value here is smoothstepped between
-    // hashed lattice points, and nothing is snapped.
-    // ⚠ Anchored in WORLD space (wx, not screen x) like every other sprite, so the three monitors agree
-    // about where the modelling is without talking to each other.
-    if(B.celest && pi<=1){
-      var cmx=Math.max(1,mtsCache.mx[pi]||1);
-      var cRock=(pi===0?farC:nearC);
-      // ⚠ THE LIGHT COMES FROM THE SKY, NOT FROM THE SUN, and on this land that is the whole point.
-      // A pale massif under a huge bright sky is lit overwhelmingly by scattered skylight from above, so
-      // the vertical gradient does almost all the modelling and `litK` only leans it. Sourcing this from
-      // the sun instead would flatten the face every time the sun was low — which is exactly when this
-      // land is supposed to look its best.
-      var cTop =mixc(cRock,[255,252,240],day?(0.30+0.10*litK):0.16);   // facing the sky
-      var cBot =mixc(cRock,[0,0,0],       day? 0.16          :0.10);   // into its own shadow
-      // ⚠⚠ EVERY LOOP BELOW IS SHAPED BY COST, AND THE FIRST VERSION WAS A 9.2x REGRESSION. Measured
-      // interleaved against alpine: heaven's backdrop went 8.86ms -> 81.53ms (ratio 0.68 -> 5.77), i.e.
-      // WORSE than the Ashlands' 76ms crest bloom that this project already had to fix once. The cause was
-      // identical, which is the point: PASS C was written as a per-column, per-ROW loop = ~32,000 1x1
-      // fillRects per frame, each one preceded by building an "rgba(...)" STRING.
-      // 🔑 THE THREE RULES THAT CAME OUT OF IT, and they are why this reads the way it does:
-      //   1. STEP ALONG THE FALLOFF IN THE OUTER LOOP, BATCH ALONG THE RIDGE IN THE INNER ONE. That sets
-      //      fillStyle a handful of times instead of tens of thousands.
-      //   2. RUN-LENGTH ON EQUAL Y. A ridge is smooth, so many neighbouring columns share a skyline row;
-      //      the bedding planes already used this trick and it is worth more here.
-      //   3. WHERE ONLY THE ALPHA VARIES PER COLUMN, USE `globalAlpha`, NOT A NEW COLOUR STRING.
-      //      Assigning a number allocates nothing; building "rgba(...)" 1552 times a frame allocates.
-      var cStep=Math.max(2,Math.round(KSP));
-      // PASS A — the vertical gradient, run-length filled ALONG the face. Horizontal edges are the one
-      // kind this engine has never aliased into stripes, so the large-area shading is done in this
-      // direction on purpose, and stepped rather than per-row (the Ashlands' crest bloom went from
-      // 51,000 rects to a third of that with exactly this change, visually identical).
-      for(var cy=gy-cmx-cStep; cy<gy; cy+=cStep){
-        var cf=Math.max(0,Math.min(1,(gy-cy)/cmx));               // 1 at the crest, 0 at the foot
-        g.fillStyle=css(mixc(cBot,cTop,cf*cf*(3-2*cf)));          // smoothstepped: no banding to catch
-        var cs3=-1, cx3, con;
-        for(cx3=0;cx3<=SW;cx3++){
-          con=(cx3<SW)&&hs[cx3]>=2&&((gy-hs[cx3])<=cy);
-          if(con){ if(cs3<0) cs3=cx3; }
-          else if(cs3>=0){ g.fillRect(cs3,cy,cx3-cs3,cStep); cs3=-1; }
-        }
-      }
-      // PASS B — the soft modelling, one continuous value per column. Two aperiodic octaves smoothly
-      // interpolated: broad shoulders at ~19*KSP and a gentler swell at ~7*KSP. This is what stops the
-      // face being a flat gradient without ever putting an edge on it.
-      // ⚠ TWO octaves at coprime cell sizes, not one — a single lattice spaces its features evenly and
-      // that regularity is the tell behind every striping bug in this project, aliased or drawn.
-      var cA=Math.max(5,Math.round(19*KSP)), cB=Math.max(3,Math.round(7*KSP));
-      var cWarm=mixc(cRock,[255,246,214],0.34), cCool=mixc(cRock,[92,104,140],0.20);
-      var cGain=(day?0.20:0.12)*(pi===0?0.55:1);
-      // TWO sub-passes — the warm columns then the cool ones — so `fillStyle` is set exactly twice per
-      // band and the per-column variation rides on `globalAlpha`. Splitting by sign is what lets a
-      // continuous signed value be drawn without a colour string per column (rule 3 above).
-      for(var cSide=0;cSide<2;cSide++){
-        g.fillStyle=css(cSide?cCool:cWarm);
-        for(var cx4=0;cx4<SW;cx4++){
-          var ch4=hs[cx4]; if(ch4<3) continue;
-          var cwx=cx4+WOFF;
-          var iA=Math.floor(cwx/cA), fA=(cwx/cA)-iA, sA=fA*fA*(3-2*fA);
-          var vA0=(mixLi(iA>>>0,60611)%1024)/1024, vA1=(mixLi((iA+1)>>>0,60611)%1024)/1024;
-          var iB=Math.floor(cwx/cB), fB=(cwx/cB)-iB, sB=fB*fB*(3-2*fB);
-          var vB0=(mixLi(iB>>>0,17389)%1024)/1024, vB1=(mixLi((iB+1)>>>0,17389)%1024)/1024;
-          var cv=(vA0+(vA1-vA0)*sA)*0.68+(vB0+(vB1-vB0)*sB)*0.32;    // 0..1, continuous, no repeat
-          // signed about the middle, so the face gains highlight AND shade rather than only darkening
-          var cd=(cv-0.5)*2;
-          if((cd>0?0:1)!==cSide) continue;
-          var cTopY=Math.max(1,(gy-ch4)|0), cLen=Math.max(1,Math.round(ch4*0.94));
-          g.globalAlpha=Math.abs(cd)*cGain;
-          g.fillRect(cx4,cTopY,1,Math.min(cLen,gy-cTopY));
-        }
-      }
-      g.globalAlpha=1;
-      // PASS C — THE SKY-LIT SHOULDER. The top few metres of a pale massif under a bright sky are the
-      // brightest thing on it, and that edge is what gives the silhouette its shape once the ruled beds
-      // are gone. Follows the real skyline per column and fades DOWNWARD with a squared falloff.
-      // ⚠ NEVER A BAND ALONG THE CREST. The Ashlands proved that twice: a constant-thickness band
-      // tracing the ridgeline reads as a highlighter traced round the mountains. Light falls off.
-      // ⚠ FIVE THICK STEPS, NOT TWENTY-ONE THIN ONES — the falloff is smooth enough at five and this is
-      // the loop that caused the 9.2x regression. Outer loop on the step so `fillStyle`/`globalAlpha` are
-      // set five times per band; inner loop run-length along the ridge wherever neighbouring columns
-      // share a skyline row, which on a smooth profile is most of them.
-      var cShN=5, cShT=Math.max(1,Math.round(7*KSP/cShN)), cShC=mixc(cRock,[255,255,246],day?0.62:0.30);
-      g.fillStyle=css(cShC);
-      for(var cq=0;cq<cShN;cq++){
-        var cff=1-(cq/cShN);
-        g.globalAlpha=cff*cff*(day?0.34:0.18);
-        var cs5=-1, cy5=-999, cx5, ch5, cyy;
-        for(cx5=0;cx5<=SW;cx5++){
-          cyy=-999;
-          if(cx5<SW){ ch5=hs[cx5];
-            if(ch5>=4) cyy=Math.max(0,(gy-ch5)|0)+cq*cShT; }
-          if(cyy!==cy5){                                   // a new skyline row — flush the run so far
-            if(cs5>=0&&cy5>-999) g.fillRect(cs5,cy5,cx5-cs5,cShT);
-            cs5=(cyy>-999)?cx5:-1; cy5=cyy;
-          }
-        }
-        if(cs5>=0&&cy5>-999) g.fillRect(cs5,cy5,SW-cs5,cShT);
-      }
-      g.globalAlpha=1;
-    }
     // SNOW CAPS — per column (dithered melt edge); one fillStyle set for the whole ridge.
     // On rock biomes this same band becomes CAPROCK: the paler hard stratum on top of a mesa or a
     // sea cliff. Snow wanders and melts unevenly; a bed of rock does neither, so the snowline wobble
     // and the dither are snow-only — left on, they saw-tooth every flat top.
-    // ⚠ `nobed` also declines the CAPROCK. It is "the paler hard stratum on top" — a sedimentary idea,
-    // and on THE EMPYREAN it drew a hard cream lid across every level top, which is the bedding fault
-    // again wearing one thick line instead of nineteen thin ones. The sky-lit shoulder in PASS C above
-    // is this land's version of a bright crest, and it falls off instead of ending.
-    var capOn = (B.snow || B.flat>0.4) && !B.nobed;
+    var capOn = B.snow || B.flat>0.4;
     if(capOn){
     g.fillStyle=sc;
     for(var sx2=0;sx2<SW;sx2++){ var rh2=hs[sx2]; if(rh2<2) continue;
@@ -31813,8 +31124,6 @@ function draw(g,pass){
   // (the Moon is drawn in drawSky() at its real Norwich position/phase)
 
   drawMountains(g,L,now,nd);      // the distant range — behind the clouds, the city, everything
-  drawCloudSea(g,L,now,nd);       // …and on THE EMPYREAN an undercast drowns its lower two thirds
-  drawEmpyreanRays(g,L,now,nd);   // …with the light coming through its summits and its tears
   drawSprawlDepth(g,L,now,nd);    // …and on the sprawl, ranks of towers receding into the haze
   drawVolcanoSurface(g,L,now,nd); // …and if it is a volcano, the mountain's own surface, which never moves
   // ⚠⚠ THE COMMENT THAT USED TO SIT HERE WAS WRONG, AND IT COST 22.4% OF EVERY LIVE FRAME.
@@ -32158,7 +31467,6 @@ function draw(g,pass){
     for(var ap2=((-WOFF%9)+9)%9; ap2<SW; ap2+=9) g.fillRect(ap2,roadY+2+((ap2*7+WOFF)%18),2,1);
     g.fillStyle="rgba(255,255,255,0.06)";
     for(var ap3=((-WOFF%13)+13)%13; ap3<SW; ap3+=13) g.fillRect(ap3,roadY+4+((ap3*5+WOFF)%16),1,1);
-    if(curBiome.celest) drawCloudRoad(g,L,now,roadY);                          // THE EMPYREAN paves in cloud
     g.fillStyle=L>0.5?"rgba(255,255,255,0.10)":"rgba(160,175,205,0.08)";       // sidewalk expansion seams
     for(var sw2=((-WOFF%8)+8)%8; sw2<SW; sw2+=8) g.fillRect(sw2,HORIZON,1,3);
     g.fillStyle=L>0.5?"rgba(255,255,255,0.16)":"rgba(150,165,195,0.12)"; g.fillRect(0,HORIZON+3,SW,1);   // curb highlight
