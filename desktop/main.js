@@ -46,6 +46,21 @@ app.commandLine.appendSwitch('enable-gpu-rasterization');
 app.disableHardwareAcceleration && false; // (keep HW accel on for smooth canvas)
 
 let win = null;
+// ⚠⚠ SIBLING WALLPAPER WINDOWS — ONE PER EXTRA DISPLAY. Reported by Micah on 1920x1080 + 3840x2160:
+// the city drew over his taskbar on one screen and had NO GROUND AT ALL on the other.
+// One union window has ONE bottom edge and ONE scale; a mixed-DPI multi-monitor desktop has neither, so
+// `HORIZON = SH - GROUND` landed at the bottom of the UNION — i.e. the bottom of the 4K panel — which is
+// a whole monitor below the 1080p panel's visible area. Same assumption broke the taskbar reserve, which
+// took the MAX bottom gap across displays and applied it globally.
+// 🔑 The fix is the model the KDE plugin has always used: ONE ENGINE INSTANCE PER SCREEN, each with its
+// own height, its own taskbar reserve and its own `woff` — continuity across monitors comes from `woff`,
+// never from one window being physically wide enough.
+// ⚠ `win` stays the PRIMARY window so the tray, menus, dialogs, reload and every IPC target keep working
+// unchanged; only wallpaper mode grows siblings.
+// ⚠ The VM-verified constraint in this file is that a FULLSCREEN window goes blank when reparented into
+// Progman — it says nothing about window COUNT, and wallpaper.js's attach/detach/isStillAttached are all
+// per-window. Multiple reparented children are fine.
+let extraWins = [];
 let tray = null;
 let wallpaperMode = false;       // legacy ambient full-screen (non-Windows fallback)
 let desktopWallpaper = false;    // real behind-the-icons wallpaper (Windows)
@@ -67,9 +82,16 @@ function createWindow(opts) {
   // bounds = the union of every display (like the KDE tri-monitor setup). wallpaper.js's
   // MoveWindow then covers the same virtual screen natively after the reparent (child coords
   // are Progman-client-relative, origin = virtual-screen top-left) — the two agree by design.
-  let wpBounds = null;
+  // ⚠ SIZED TO THE PRIMARY DISPLAY, NOT THE UNION. The union is still computed, but only so each window
+  // knows how wide the shared world is (`uw`) and where it sits in it (`dx`).
+  let wpBounds = null, wpUnion = null, wpDisp = null;
   if (wp) {
-    try { wpBounds = displayUnion(); } catch (e) { wpBounds = null; }
+    try {
+      const scr = require('electron').screen;
+      wpUnion = displayUnion();
+      wpDisp = scr.getPrimaryDisplay();
+      wpBounds = wpDisp.bounds;
+    } catch (e) { wpBounds = null; wpUnion = null; wpDisp = null; }
   }
   win = new BrowserWindow({
     width: wpBounds ? wpBounds.width : 1280,
@@ -93,7 +115,8 @@ function createWindow(opts) {
     }
   });
 
-  win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
+  win.loadFile(path.join(__dirname, 'renderer', 'index.html'),
+    (wp && wpDisp && wpUnion) ? { search: dispSearch(wpDisp, wpUnion) } : undefined);
 
   // NOTIFICATIONS (Nick): poll the engine ~1/min for something of SUBSTANCE on screen (elections,
   // CAT-3+ disasters, the takeover, the finale approach, eclipse days). The engine's notifySnapshot
@@ -131,6 +154,7 @@ function createWindow(opts) {
     win.webContents.once('did-finish-load', () => {
       if (recovering) attachWithRetry(win, 5);
       else attachOrFallback(win);
+      try { spawnSiblingWallpapers(wpUnion, wpDisp); } catch (e) {}
     });
   }
 
@@ -142,9 +166,23 @@ function createWindow(opts) {
   const self = win;
   win.on('closed', () => {
     if (win !== self) return;
+    destroySiblingWallpapers();
     win = null;
     if (wp && !quitting && desktopWallpaper) handleWallpaperWindowLost();
   });
+}
+
+// Everything one wallpaper window needs to place its own city: where this display sits inside the world,
+// how tall it is, its own bottom-taskbar gap, and how wide the whole desktop is so all screens share one
+// continuous world. Per DISPLAY — never a global maximum.
+function dispSearch(d, uni) {
+  const bottomGap = (d.bounds.y + d.bounds.height) - (d.workArea.y + d.workArea.height);
+  return 'dx=' + (d.bounds.x - uni.x) +
+         '&dw=' + d.bounds.width +
+         '&dh=' + d.bounds.height +
+         '&uw=' + uni.width +
+         '&tb=' + Math.max(0, bottomGap) +
+         '&sf=' + (d.scaleFactor || 1);
 }
 
 // The union rectangle of every connected display — the whole desktop, all monitors.
@@ -187,6 +225,40 @@ function syncLoginItem(on) {
 // Attach behind the icons and verify it actually took. A failed reparent — or one that
 // silently drops a moment later on a quirky Explorer build — must never leave a chromeless
 // fullscreen window covering the desktop; fall back to a normal window + explain.
+// One frameless, non-focusable wallpaper window per NON-primary display, each reparented into Progman on
+// its own. Each carries its own `dx/dh/tb`, so each puts its ground on ITS OWN bottom edge and reserves
+// ITS OWN taskbar — which is the whole bug Micah reported.
+// ⚠ These deliberately do NOT touch `win`: no tray, no menu, no dialogs, no IPC. They are pure canvases.
+function spawnSiblingWallpapers(uni, primary) {
+  destroySiblingWallpapers();
+  if (!uni || !primary || !desktopWallpaper) return;
+  const scr = require('electron').screen;
+  for (const d of scr.getAllDisplays()) {
+    if (d.id === primary.id) continue;
+    const w = new BrowserWindow({
+      x: d.bounds.x, y: d.bounds.y, width: d.bounds.width, height: d.bounds.height,
+      frame: false, skipTaskbar: true, focusable: false, resizable: false,
+      backgroundColor: '#05070c', title: 'CityLive',
+      webPreferences: {
+        preload: path.join(__dirname, 'preload.js'),
+        contextIsolation: true, nodeIntegration: false, backgroundThrottling: false
+      }
+    });
+    w.setMenuBarVisibility(false);
+    w.loadFile(path.join(__dirname, 'renderer', 'index.html'), { search: dispSearch(d, uni) });
+    w.webContents.once('did-finish-load', () => {
+      if (!w.isDestroyed()) { try { wallpaper.attach(w); } catch (e) {} }
+    });
+    extraWins.push(w);
+  }
+}
+function destroySiblingWallpapers() {
+  for (const w of extraWins) {
+    try { if (w && !w.isDestroyed()) { try { wallpaper.detach(w); } catch (e) {} w.destroy(); } } catch (e) {}
+  }
+  extraWins = [];
+}
+
 function attachOrFallback(w) {
   if (!wallpaper.attach(w)) { onWallpaperFailed('attach'); return; }
   wpFailStreak = 0;
@@ -293,7 +365,10 @@ function setDesktopWallpaper(on) {
 
 // Reload the city so a settings change applies through the exact same startup path
 // (one config code path — no separate "apply live" logic to drift out of sync).
-function reloadCity() { if (win && !win.isDestroyed()) win.reload(); }
+function reloadCity() {
+  if (win && !win.isDestroyed()) win.reload();
+  for (const w of extraWins) { try { if (w && !w.isDestroyed()) w.reload(); } catch (e) {} }
+}
 
 // THE CONTROL CENTER: a separate window (renderer/settings.html) that controls the
 // wallpaper without ever tearing it down — the city keeps running behind the icons while

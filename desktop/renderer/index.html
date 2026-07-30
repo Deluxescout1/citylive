@@ -140,12 +140,32 @@
     PXK=Math.max(2,Math.min(10,Math.round(refW*dpr/430)||PXK));
     var cw=Math.max(160,Math.round(window.innerWidth*dpr/PXK)), ch=Math.max(120,Math.round(window.innerHeight*dpr/PXK));
     cv.width=bgcv.width=cw; cv.height=bgcv.height=ch;
+    // ⚠⚠ THIS WINDOW IS ONE DISPLAY, NOT THE WHOLE DESKTOP. Micah, on 1920x1080 + 3840x2160: the city
+    // drew over his taskbar on one screen and had NO GROUND AT ALL on the other. A single union window
+    // has ONE bottom edge and ONE scale, and a mixed-DPI desktop has neither — `HORIZON = SH - GROUND`
+    // landed at the bottom of the UNION, a whole monitor below the 1080p panel's visible area.
+    // Each wallpaper window is now sized to its own display and told where it sits in the shared world:
+    //   dx = this display's x offset inside the union   uw = the union width (the whole world)
+    //   tb = THIS display's own bottom-taskbar gap      dh = this display's height
+    // so the ground lands on every monitor's real bottom edge and every taskbar gets its own reserve,
+    // while `woff` keeps the city continuous across the bezels — which is exactly how KDE has always
+    // done it. Falls back to the old single-world behaviour when the params are absent.
+    var Q={}; try{ location.search.replace(/^\?/,'').split('&').forEach(function(kv){
+      if(!kv) return; var p2=kv.split('='); Q[p2[0]]=parseFloat(p2[1]);
+    }); }catch(e){}
+    var haveDisp=(Q.uw>0&&Q.dw>0);
+    var wwPx=haveDisp?Math.max(cw,Math.round(Q.uw*dpr/PXK)):cw;
+    var woffPx=haveDisp?Math.round(Q.dx*dpr/PXK):0;
     // Wallpaper mode sits UNDER the Windows taskbar — raise the street so the traffic and
     // sidewalks stay visible above it (same trick as the KDE panel handling).
     var tbWp=0;
     // taskbarPx is in DIP (≈CSS px); dpr converts to physical, /PXK to canvas-logical px.
-    if(ENV.wallpaper&&ENV.taskbarPx>0) tbWp=Math.ceil(ENV.taskbarPx*dpr/PXK);
-    setup('neon',{cw:cw,ch:ch,woff:0,ww:cw,pxk:PXK,kspAuto:true,kspw:Math.round(refW*dpr/PXK),taskbarWp:tbWp,zoom:1,quality:st.quality,frameMs:fgStepFor(st.quality)});
+    // ⚠ PREFER THIS DISPLAY'S OWN GAP (`tb`). `ENV.taskbarPx` is the MAX across every display, which is
+    // wrong for any screen that is not the one the maximum came from — that is why Micah's 1080p panel
+    // got the wrong reserve and the city drew into his taskbar.
+    var tbSrc=haveDisp?Q.tb:(ENV.taskbarPx||0);
+    if(ENV.wallpaper&&tbSrc>0) tbWp=Math.ceil(tbSrc*dpr/PXK);
+    setup('neon',{cw:cw,ch:ch,woff:woffPx,ww:wwPx,pxk:PXK,kspAuto:true,kspw:Math.round(refW*dpr/PXK),taskbarWp:tbWp,zoom:1,quality:st.quality,frameMs:fgStepFor(st.quality)});
     bgDirty=true;
   }
 
