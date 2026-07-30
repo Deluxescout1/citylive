@@ -20252,6 +20252,101 @@ function drawRoofRunners(g,L,now,nd){
 // noir has to come from what is BUILT — holograms, light pollution, wet-look streets, drones, steam —
 // so it reads cyberpunk at noon in July. Nothing here darkens the sky or forces rain; a bright June
 // afternoon in the Sprawl is a bright June afternoon with a neon city standing in it.
+// ============ THE SPRAWL'S AIR TRAFFIC ============
+// Locked answer 4's air layer, and signature answer 9: "aircraft traffic you can follow" — on real routes,
+// not blinking in and out. Everything here moves, so unlike the guideway it belongs in the live pass.
+//
+// ⚠ FOLLOWABLE MEANS MONOTONIC. The zombie horde and the rift creatures were both fixed for exactly this:
+// a position driven by a wrapping CLOCK snaps backwards when the clock wraps, and the eye reads that as
+// teleporting rather than travelling. Every vehicle here advances steadily along its lane and leaves the
+// frame at the edge.
+//
+// ⚠ IT MUST NOT BLOCK THE CITY. Thin craft, high lanes, and nothing wider than a car.
+function drawSprawlAirTraffic(g,L,now,nd){
+  if(curBiome.k!=="sprawl"||cityPhase==="apoc") return;
+  var day=L>0.5, K=Math.max(1,KSP), gy=HORIZON;
+  var aSeed=((WORLD_SEED*2246822519+613)>>>0);
+  // ---- 1. THE MAGLEV on the guideway the backdrop drew ----
+  var railY=sprawlRailY();
+  var tPer=42000, tPh=((now%tPer)/tPer);
+  var tDir=((aSeed>>>3)&1)?1:-1;
+  var tLen=Math.round(26*K), tH=Math.max(2,Math.round(3.2*K));
+  var tX=Math.round(tDir>0 ? (-tLen+tPh*(SW+tLen*2)) : (SW+tLen-tPh*(SW+tLen*2)));
+  if(tX>-tLen&&tX<SW+tLen){
+    var tY=railY-tH;
+    g.fillStyle=day?"#b8c0cc":"#3a4150";
+    g.fillRect(tX,tY,tLen,tH);
+    g.fillStyle=day?"#8e96a4":"#22262f";                        // the skirt that wraps the rail
+    g.fillRect(tX,tY+tH-Math.max(1,Math.round(K*0.7)),tLen,Math.max(1,Math.round(K*0.7)));
+    // windows in bays, the same rule the towers follow
+    for(var wq=Math.round(2*K);wq<tLen-Math.round(2*K);wq+=Math.max(2,Math.round(3*K))){
+      g.fillStyle=day?"rgba(150,190,220,0.55)":"rgba(255,222,168,0.75)";
+      g.fillRect(tX+wq,tY+Math.max(1,Math.round(K*0.6)),Math.max(1,Math.round(1.6*K)),Math.max(1,Math.round(K*0.9)));
+    }
+    g.globalCompositeOperation="lighter";                        // headlamp, and the glow it throws on the deck
+    g.fillStyle="rgba(255,240,200,0.9)";
+    g.fillRect(tDir>0?(tX+tLen-Math.round(K)):tX,tY+Math.round(K*0.5),Math.max(1,Math.round(1.4*K)),Math.max(1,Math.round(1.2*K)));
+    g.fillStyle="rgba(180,220,255,0.20)";
+    g.fillRect(tX,railY,tLen,Math.max(1,Math.round(K*0.8)));
+    g.globalCompositeOperation="source-over";
+  }
+  // ---- 2. AIRCAR LANES between the towers ----
+  var LANES=[{y:0.52,per:26000,n:4,dir:1},{y:0.66,per:34000,n:3,dir:-1},{y:0.40,per:30000,n:3,dir:1}];
+  for(var ln=0;ln<LANES.length;ln++){
+    var LN=LANES[ln], ly=gy-Math.round(gy*LN.y);
+    for(var ci=0;ci<LN.n;ci++){
+      var cph=((now/LN.per + ci/LN.n + ((aSeed>>>(ln*4))%100)/100)%1);
+      var cx2=Math.round(LN.dir>0 ? (cph*(SW+60)-30) : (SW+30-cph*(SW+60)));
+      if(cx2<-14||cx2>SW+14) continue;
+      var cl=Math.max(3,Math.round(4.4*K)), cH=Math.max(1,Math.round(1.5*K));
+      var cy=ly+Math.round(Math.sin(now*0.0009+ci*2.1+ln)*1.2*K);
+      g.fillStyle=day?"#5e6472":"#181c24";
+      g.fillRect(cx2,cy,cl,cH);
+      g.fillStyle=day?"rgba(160,200,230,0.6)":"rgba(120,170,220,0.5)";     // canopy
+      g.fillRect(cx2+Math.round(cl*0.28),cy,Math.max(1,Math.round(cl*0.4)),Math.max(1,Math.round(K*0.6)));
+      g.globalCompositeOperation="lighter";                                 // nav lights, red aft / white fore
+      g.fillStyle="rgba(255,240,210,0.9)";
+      g.fillRect(LN.dir>0?(cx2+cl-1):cx2,cy,Math.max(1,Math.round(K*0.8)),Math.max(1,Math.round(K*0.8)));
+      if(((Math.floor(now/620)+ci)&1)){
+        g.fillStyle="rgba(255,80,70,0.85)";
+        g.fillRect(LN.dir>0?cx2:(cx2+cl-1),cy,Math.max(1,Math.round(K*0.7)),Math.max(1,Math.round(K*0.7)));
+      }
+      g.globalCompositeOperation="source-over";
+    }
+  }
+  // ---- 3. A CARGO LIFTER coming down onto a rooftop pad ----
+  // The pad is world-anchored and the lifter descends onto it, holds, and climbs away — a cycle you can
+  // watch to its end rather than a sprite crossing the frame.
+  var padWX=((aSeed>>>11)%Math.max(1,WW)), PDX=padWX-WOFF;
+  if(PDX>-30&&PDX<SW+30){
+    var padY=gy-Math.round(gy*(0.30+((aSeed>>>17)%12)/100));
+    var pw3=Math.round(9*K);
+    g.fillStyle=day?"#4e545f":"#14171d";                           // the pad, with its own supports
+    g.fillRect(PDX-(pw3>>1),padY,pw3,Math.max(1,Math.round(K*0.9)));
+    g.fillStyle=day?"#3c414b":"#0e1015";
+    g.fillRect(PDX-Math.round(2.4*K),padY+Math.round(K*0.9),Math.max(1,Math.round(K*0.8)),Math.round(4*K));
+    g.fillRect(PDX+Math.round(1.8*K),padY+Math.round(K*0.9),Math.max(1,Math.round(K*0.8)),Math.round(4*K));
+    g.globalCompositeOperation="lighter";                           // pad edge lights
+    for(var pe=-1;pe<=1;pe+=2){
+      g.fillStyle=((Math.floor(now/700))&1)?"rgba(120,255,190,0.85)":"rgba(120,255,190,0.35)";
+      g.fillRect(PDX+pe*(pw3>>1),padY-1,Math.max(1,Math.round(K*0.7)),Math.max(1,Math.round(K*0.7)));
+    }
+    g.globalCompositeOperation="source-over";
+    var lPer=54000, lPh=((now%lPer)/lPer);
+    var hover=(lPh>0.42&&lPh<0.58);
+    var lift=hover?0:(lPh<=0.42?(1-lPh/0.42):((lPh-0.58)/0.42));
+    var lY=padY-Math.round(lift*gy*0.26)-Math.round(3*K);
+    var lw=Math.round(7*K);
+    g.fillStyle=day?"#6e7480":"#1c2028";
+    g.fillRect(PDX-(lw>>1),lY,lw,Math.max(2,Math.round(2.4*K)));
+    g.fillStyle=day?"#8e96a2":"#2a2f39";                            // slung cargo pod
+    g.fillRect(PDX-Math.round(2*K),lY+Math.round(2.4*K),Math.round(4*K),Math.max(1,Math.round(1.6*K)));
+    g.globalCompositeOperation="lighter";
+    g.fillStyle="rgba(160,230,255,"+(hover?0.5:0.32).toFixed(2)+")";   // lift wash under it
+    g.fillRect(PDX-Math.round(2.6*K),lY+Math.round(4*K),Math.round(5.2*K),Math.max(1,Math.round(K*0.8)));
+    g.globalCompositeOperation="source-over";
+  }
+}
 // ============ VERTICAL SIGNAGE STACKS ============
 // Locked answer 13: "your in-world brands, vertically stacked." The city advertises the companies that
 // actually exist in the sim — the same roster the ticker and the corporate HQ marquee use — so the
@@ -24095,6 +24190,11 @@ function ridgeFill(g,style,hs,gy){
     if(top!==rtop){ if(rs>=0&&rtop>-999) g.fillRect(rs,rtop,sx-rs,gy-rtop+2); rs=(top>-999)?sx:-1; rtop=top; }
   }
 }
+// The elevated guideway's altitude, shared by the STATIC structure (backdrop pass) and the TRAIN that runs
+// on it (live pass). A pure function of the seed and the frame, so the two passes cannot disagree — if they
+// did, the train would slide along a rail that is not there, which is the detachment fault this land has
+// already produced four times.
+function sprawlRailY(){ return HORIZON-Math.round(HORIZON*(0.30+((( (WORLD_SEED*2654435761)>>>9)%18)/100))); }
 // ============ THE SPRAWL'S DEPTH: TOWERS BEHIND TOWERS, INTO HAZE ============
 // Locked answer 4, and Nick was told when he picked it that this is probably the single biggest "more
 // interesting" win available on this map. The frame was: flat sky, one colossal arcology, a dark band,
@@ -24187,6 +24287,39 @@ function drawSprawlDepth(g,L,now,nd){
       vg.addColorStop(1,rgba(hazeC,vA));
       g.fillStyle=vg; g.fillRect(0,gy-Math.round(gy*R.h*0.9),SW,Math.round(gy*R.h*0.9));
     }
+  }
+  // ---- THE ELEVATED GUIDEWAY: locked answer 4's infrastructure, and it is STATIC, so it lives here ----
+  // ⚠⚠ ON PIERS THAT REACH THE GROUND. Non-negotiable on this land: the holograms cost four bug reports for
+  // looking detached and Nick's own words were "these things need to be attached to the ground they can't
+  // just fly in the sky". Every pier is measured to `gy` for exactly the reason the hologram mast was wrong
+  // — a support is defined by what it reaches.
+  // ⚠ AND IT MUST NOT BLOCK THE CITY. A single slim deck, high above the street, with its piers spaced wide
+  // enough to see between. That is the limit he set alongside the framing answer.
+  var railY=sprawlRailY();
+  var deckH=Math.max(2,Math.round(1.8*K));
+  var deckC=css(mixc(day?[92,98,112]:[26,29,38],hazeC,day?0.22:0.10));
+  var pierC=css(mixc(day?[74,80,94]:[18,20,28],hazeC,day?0.26:0.12));
+  // the deck in segments with expansion joints — a 776px unbroken bar would be the thirteenth ruled line
+  var segW=Math.max(6,Math.round(11*K));
+  for(var rx=0;rx<SW;rx+=segW){
+    var rwx=rx+WOFF;
+    var rw2=Math.min(segW-Math.max(1,Math.round(K*0.6)),SW-rx);
+    if(rw2<=0) continue;
+    var rjit=((((rwx*40503)^dSeed)>>>0)%3)-1;                     // the deck is not laser-straight
+    g.fillStyle=deckC; g.fillRect(rx,railY+rjit,rw2,deckH);
+    g.fillStyle=pierC; g.fillRect(rx,railY+rjit+deckH,rw2,Math.max(1,Math.round(K*0.6)));   // its shadowed soffit
+  }
+  // the piers, spaced wide, each running all the way down
+  var pierStep=Math.max(Math.round(30*K),1);
+  var pwx0=Math.floor(WOFF/pierStep)*pierStep;
+  for(var pwx=pwx0-pierStep; pwx<WOFF+SW+pierStep; pwx+=pierStep){
+    var PX=pwx-WOFF;
+    if(PX<-8||PX>SW+8) continue;
+    var pw2=Math.max(2,Math.round(2.2*K));
+    g.fillStyle=pierC;
+    g.fillRect(PX-(pw2>>1),railY+deckH,pw2,Math.max(1,gy-railY-deckH));
+    // a splayed capital where it meets the deck, so the load looks carried
+    g.fillRect(PX-Math.round(2.4*K),railY+deckH,Math.round(4.8*K),Math.max(1,Math.round(K*0.8)));
   }
 }
 function drawMountains(g,L,now,nd){
@@ -30811,6 +30944,7 @@ function draw(g,pass){
   drawVillageLife(g,L,now,nd);     // …and living in it the rest of the time
   drawNeonCity(g,L,now,nd);        // the neon style, over the city, whatever land it landed on
   drawSignageStacks(g,L,now,nd);   // …and the sprawl's own vertical brand signage, bolted to the frontages
+  drawSprawlAirTraffic(g,L,now,nd);// …the maglev on its guideway, the aircar lanes and the cargo lifter
 
   // solar-eclipse twilight: an unnatural cool dusk falls over the whole city at totality, then lifts
   if(solarEclDim>0.01){ var ev=Math.pow(solarEclDim,1.7)*0.74; g.fillStyle="rgba(18,20,40,"+ev+")"; g.fillRect(0,0,SW,SH);
