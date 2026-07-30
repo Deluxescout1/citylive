@@ -14568,6 +14568,13 @@ function drawCloudFront(g,L,now){
   // would, and gave the city nothing to stand on.
   var cSurf=mixc(mixc(hz,[26,30,48],0.62), mixc(mixc(hz,[255,255,252],0.78),[255,208,170],gK*0.55), dk);
   var cDeep=mixc(mixc(hz,[6,8,16],0.82),   mixc(mixc(hz,[104,116,152],0.66),[178,104,104],gK*0.42), dk);
+  // ⚠ THE SAME STORM DARKENING AS THE FAR DECK, AT THE SAME STRENGTH. One layer at one altitude means one
+  // weather — a near deck that stayed sunlit while the far one boiled would split the sea back into the
+  // two bodies this whole land is built to avoid.
+  if(st.storm>0.02){
+    cSurf=mixc(cSurf,[64,70,92],st.storm*0.72);
+    cDeep=mixc(cDeep,[30,34,50],st.storm*0.60);
+  }
   // ---- the near surface: bigger puffs, same construction, same cell hash family ----
   // ⚠⚠ THE NEAR DECK CARRIES ITS OWN MODELLING, AND THAT IS WHAT STOPPED IT WASHING OUT. Rendered at
   // canonical geometry it was a near-featureless pale mass over the bottom ~28% of the frame — Nick's
@@ -14684,6 +14691,7 @@ function drawCloudFront(g,L,now){
   }
   if(s5>=0&&y5>-999) g.fillRect(s5,y5,SW-s5,lipT);
   g.globalCompositeOperation="source-over";
+  cloudFlash(g,dtF,minF,botY,st,now,K);           // the same storm, on the near side of the summit
 }
 // ============ THE OPEN WATER ALONG THE BOTTOM OF THE FRAME ============
 // Drawn in the LIVE pass, because swell and foam move. It paints the band [SEA_Y, SH] full width,
@@ -24736,12 +24744,86 @@ function cloudSeaState(now){
   // tallest near peak, so the highest billow is held a clear margin below its top. It also self-corrects
   // if the ridge roll ever changes. (Some screens will still show open cloud and no summit — that is a
   // sea, and an island is not on every screen.)
+  // ---- A STORM SEEN FROM ABOVE (locked signature) --------------------------------------------------
+  // ⚠⚠ TWO OF NICK'S OWN ANSWERS PULL AGAINST EACH OTHER HERE, AND THE RESOLUTION IS PHYSICS, NOT A
+  // COMPROMISE. He locked "real weather still wins — it rains in the Empyrean when it rains in Norwich"
+  // as a LIMIT, and "a storm seen from above… the city stays in sunlight above" as a SIGNATURE. When it
+  // is genuinely raining in Norwich those cannot both be literally true of the same minute.
+  // 🔑 The way out is that THE DECK IS AT A DIFFERENT ALTITUDE FROM THE CITY, so it has its own weather —
+  // which is not a dodge, it is the actual reason you can stand on a summit in sunshine and watch a
+  // thunderstorm below you. So the storm term is the MAX of two things: the real forecast (rain on the
+  // city, deck boiling underneath, everything wet — the limit is honoured literally), and the deck's own
+  // slow cycle, which occasionally storms while Norwich is clear and gives the signature its clean image.
+  // ⚠ A limit outranks a signature where they truly collide: the real weather is never suppressed.
+  // ⚠ Pure function of the clock, like everything here, so three monitors agree without talking.
+  var H2=3600000;
+  var wxCode=(weather&&weather.code)?weather.code:0;
+  var realStorm=(wxCode?1:0)*0.85+Math.max(0,Math.min(1,wetness))*0.15;
+  // its own cycle: two unequal periods again, so it never settles into a rhythm, and shaped so the deck
+  // is calm most of the time and the storm is an event you catch rather than a state it lives in
+  var oc=Math.sin(now/(9.7*H2)*Math.PI*2)*0.5+Math.sin(now/(14.3*H2)*Math.PI*2+2.4)*0.5;
+  var ownStorm=Math.max(0,(oc-0.52)/0.48);
+  var storm=Math.max(0,Math.min(1,Math.max(realStorm,ownStorm*ownStorm)));
+  churn=Math.min(1,churn+storm*0.75);                    // a storming deck boils
   var mxNear=(mtsCache.mx&&mtsCache.mx[1])?mtsCache.mx[1]:HORIZON*0.5;
   var K=Math.max(1,KSP);
   var reach=(4+11*churn)*K*0.5+(9+16*churn)*K+2.2*K;     // billow amp + puff height + drift, as drawn
   var ceil=Math.round(HORIZON-mxNear)+reach+Math.round(16*K);
   if(y<ceil) y=ceil;
-  return { lvl:lvl, y:y, churn:churn, gaps:gaps, v:cv };
+  return { lvl:lvl, y:y, churn:churn, gaps:gaps, v:cv, storm:storm };
+}
+// LIGHTNING INSIDE THE DECK — the half of "a storm seen from above" you cannot get from colour.
+// From above, a thunderhead does not show you a bolt; it shows you the whole cell lighting up from
+// within, a soft dome of light under the surface that is gone before you are sure you saw it. That is
+// what this draws: no bolt, no fork, no strike — an interior glow bounded by the deck's own top edge.
+//
+// ⚠⚠ THE SHAPE OF A FLASH IS ALL IN ITS TIMING. A pulse that fades smoothly reads as a lamp on a dimmer.
+// Real sheet lightning is: instant on, a fast decay, and very often a SECOND and third stroke inside a
+// few hundred ms — the flicker is the recognisable part, and this project already learned the general
+// form of this lesson on the Ashlands ("the comb was FREQUENCY, not amplitude").
+// ⚠ A PURE FUNCTION OF THE CLOCK. Flash times come from hashing the slot index, never from a counter or
+// a random draw, so the three monitors flash together and a frozen frame re-renders identically.
+// ⚠ Clipped to where the deck actually IS. A flash in a hole, or above the surface, would be a light in
+// mid-air — the same "anything on a landform must be clipped to the landform" rule this project has now
+// broken five times, applied to cloud.
+function cloudFlash(g,dt,topY,botY,st,now,K){
+  if(!st||st.storm<=0.05) return;
+  var SLOT=2600;                                        // one candidate flash every ~2.6s of world time
+  var lit=0, cx=0, cw=0;
+  for(var s=-1;s<=0;s++){
+    var slot=Math.floor(now/SLOT)+s, hh=mixLi(slot>>>0,26417)>>>0;
+    // how many of these slots actually fire scales with the storm — a light shower flickers rarely
+    if(((hh>>>3)%1000)/1000 > (0.10+0.55*st.storm)) continue;
+    var t0=slot*SLOT+((hh>>>13)%1400);
+    var age=now-t0; if(age<0||age>460) continue;
+    // instant on, fast decay, plus a second stroke at ~90ms and a third at ~230ms on some flashes
+    var a=Math.exp(-age/95);
+    if(age>90)  a=Math.max(a,Math.exp(-(age-90)/70)*0.72);
+    if(age>230&&((hh>>>21)&1)) a=Math.max(a,Math.exp(-(age-230)/60)*0.5);
+    if(a<=0.02) continue;
+    if(a>lit){ lit=a; cx=Math.round((hh%Math.max(1,WW))-WOFF); cw=Math.round((26+((hh>>>7)%40))*K); }
+  }
+  if(lit<=0.02) return;
+  g.globalCompositeOperation="lighter";
+  // three nested widths, widest and faintest first: a dome of light with no edge anywhere
+  for(var q=0;q<3;q++){
+    var w=Math.round(cw*(1.9-q*0.55)), a2=lit*(0.10+q*0.11)*Math.min(1,0.35+st.storm);
+    g.fillStyle="rgba(214,230,255,"+a2.toFixed(4)+")";
+    for(var rp=-1;rp<=1;rp++){
+      var x0=cx+rp*WW-w, x1=cx+rp*WW+w;
+      if(x1<0||x0>SW) continue;
+      var xa=Math.max(0,x0), xb=Math.min(SW,x1);
+      // ⚠ per-column, because the top of the deck is not a straight line and the glow must sit UNDER it
+      var xx;
+      for(xx=xa;xx<xb;xx++){
+        if(xx>=SW) break;
+        var dy=dt[xx]; if(dy>=botY) continue;           // no deck here (a hole) — nothing to light up
+        var gh2=Math.min(Math.round(20*K),botY-dy);
+        if(gh2>0) g.fillRect(xx,dy,1,gh2);
+      }
+    }
+  }
+  g.globalCompositeOperation="source-over";
 }
 function drawCloudSea(g,L,now,nd){
   var st=cloudSeaState(now); if(!st) return;
@@ -24769,6 +24851,14 @@ function drawCloudSea(g,L,now,nd){
   var gK=goldenK||0;
   var cSurf=mixc(mixc(hz,[26,30,48],0.62), mixc(mixc(hz,[255,255,252],0.78),[255,208,170],gK*0.55), dk);
   var cDeep=mixc(mixc(hz,[10,12,24],0.76), mixc(mixc(hz,[150,164,196],0.50),[212,134,130],gK*0.42), dk);
+  // A STORMING DECK GOES DARK AND COLD. This is the colour half of "a storm seen from above": the sunlit
+  // white top turns to bruised slate while the sky above it and the city on the rim are untouched, which
+  // is the whole image — you are looking DOWN at weather. The surface loses more than the body does,
+  // because what a storm takes away is the specular white of a lit cloud top.
+  if(st.storm>0.02){
+    cSurf=mixc(cSurf,[64,70,92],st.storm*0.72);
+    cDeep=mixc(cDeep,[30,34,50],st.storm*0.60);
+  }
   // ---- the top edge, per column: aperiodic, world-anchored, three octaves ----
   // ⚠ Three octaves at unrelated cell sizes. A single lattice spaces its billows evenly, and evenly
   // spaced features are the tell behind every striping fault in this project — drawn or aliased.
@@ -24952,6 +25042,7 @@ function drawCloudSea(g,L,now,nd){
     }
     g.globalCompositeOperation="source-over";
   }
+  cloudFlash(g,dt,minTop,gy,st,now,K);            // …and the storm lighting itself up from inside
 }
 // ============ THE EMPYREAN'S LIGHT — crepuscular rays over the ridge and through the tears ============
 // Locked answer #3: "real crepuscular rays on the true sun position". `drawGodRays` already exists and is
