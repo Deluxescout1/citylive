@@ -24814,6 +24814,63 @@ function drawBiomeLandmark(g,L,now,nd){
         g.fillStyle="rgba(255,140,50,0.16)"; g.fillRect(X-Math.round(14*K),gy-fh-Math.round(6*K),fw+Math.round(28*K),fh+Math.round(8*K));
         g.globalCompositeOperation="source-over"; }
     });
+  } else if(B.k==="fjord"){
+    // ============ THE STAVE CHURCH ON THE SHORE ============
+    // THE FJORD had no landmark at all — the third land in a row with nothing that says where you are.
+    // Nick's ruling: a stave church, dark tarred timber with steep stacked roofs and dragon finials.
+    // ⚠ THE SHAPE IS ALL ROOF, and that is exactly why it reads at this scale: three or four steeply
+    // pitched tiers piled on one another with a slim tower on top. Nothing else in the set has that
+    // silhouette, so it identifies the land in one glance even at 7px-person scale — which is the whole
+    // job of a landmark and the reason it beat the fish station and the ferry terminal.
+    at(function(X){
+      var tar=day?"#3a3028":"#141010", tar2=day?"#241d18":"#0a0808";
+      var trim=day?"#8c6a44":"#2c2118", sill=day?"#5a4a38":"#1a1512";
+      var bw=Math.round(13*K), bh2=Math.round(6.4*K);
+      // the body, on a low stone sill so it is standing on the shore rather than floating
+      g.fillStyle=sill; g.fillRect(X-Math.round(K),gy-Math.round(K*0.8),bw+Math.round(2*K),Math.round(K*0.8));
+      g.fillStyle=tar;  g.fillRect(X,gy-bh2,bw,bh2);
+      g.fillStyle=tar2; g.fillRect(X+bw-Math.round(K*0.8),gy-bh2,Math.round(K*0.8),bh2);
+      // ---- THE STACKED ROOFS: each tier narrower and steeper than the one below ----
+      var tiers=4;
+      for(var t3=0;t3<tiers;t3++){
+        var tf3=t3/tiers;
+        var rw=Math.round(bw*(1.16-tf3*0.62));
+        var rx=X+Math.round((bw-rw)*0.5);
+        var ry=gy-bh2-Math.round(t3*3.1*K);
+        var rh4=Math.round(3.0*K);
+        // drawn as a stepped gable — the steep pitch is the recognisable part, so each course insets
+        for(var q6=0;q6<rh4;q6++){
+          var inq=Math.round((q6/rh4)*rw*0.42);
+          g.fillStyle=(q6===0)?trim:tar;
+          g.fillRect(rx+inq,ry-q6,Math.max(1,rw-inq*2),1);
+        }
+      }
+      // the slim tower and its spire
+      var twx3=X+Math.round(bw*0.5)-Math.round(K*0.9);
+      var twTop=gy-bh2-Math.round(tiers*3.1*K)-Math.round(4.4*K);
+      g.fillStyle=tar; g.fillRect(twx3,twTop,Math.round(1.8*K),Math.round(4.4*K));
+      for(var sp=0;sp<Math.round(3.2*K);sp++){
+        var sw3=Math.max(1,Math.round(1.8*K*(1-sp/Math.round(3.2*K))));
+        g.fillStyle=tar2; g.fillRect(twx3+((Math.round(1.8*K)-sw3)>>1),twTop-sp,sw3,1);
+      }
+      // DRAGON FINIALS on the gable ends — two pixels each, and unmistakable in outline
+      g.fillStyle=trim;
+      for(var dg=0;dg<2;dg++){
+        var dx2=dg?X+bw:X-Math.round(K*0.6);
+        var dy2=gy-bh2-Math.round(2.2*K);
+        g.fillRect(dx2,dy2,Math.max(1,Math.round(K*0.6)),Math.max(1,Math.round(K*0.6)));
+        g.fillRect(dx2+(dg?-Math.round(K*0.6):Math.round(K*0.6)),dy2-Math.round(K*0.6),
+                   Math.max(1,Math.round(K*0.6)),Math.max(1,Math.round(K*0.6)));
+      }
+      if(!day){                                                  // one window lit, and light on the sill
+        g.globalCompositeOperation="lighter";
+        g.fillStyle="rgba(255,196,110,0.55)";
+        g.fillRect(X+Math.round(bw*0.36),gy-Math.round(3.6*K),Math.round(2.0*K),Math.round(2.0*K));
+        g.fillStyle="rgba(255,180,90,0.16)";
+        g.fillRect(X-Math.round(2*K),gy-Math.round(5*K),bw+Math.round(4*K),Math.round(5*K));
+        g.globalCompositeOperation="source-over";
+      }
+    });
   } else if(B.k==="karst"){
     // ============ THE TEMPLE IN THE ROCK, AND THE STAIR THAT REACHES IT ============
     // THE KARST had no landmark at all — zero code in any of the four biome hooks. Nick's ruling: a shrine
@@ -26381,6 +26438,85 @@ function drawEmpyreanRays(g,L,now,nd){
     }
   }
   g.globalCompositeOperation="source-over";
+}
+// ============ THE FJORD, ALIVE ============
+// Two of the remaining locked signatures. (The ferry is already running in `fjordBoats`, and the northern
+// lights are `drawAurora`, which this land already reaches on a genuinely cold clear night.)
+function drawFjordLife(g,L,now,nd,fx){
+  var B=curBiome;
+  if(!B||!B.cascades||cityPhase==="apoc"||!mtsCache||!mtsCache.h||!mtsCache.h[1]) return;
+  var K=Math.max(1,KSP), day=L>0.5, gy=HORIZON, hs=mtsCache.h[1];
+  // ---- LOW CLOUD SNAGGING ON THE WALLS ----------------------------------------------------------
+  // The most atmospheric thing this landform does: cloud tearing across the clifftops and pouring down
+  // the rock in slow falls. ⚠ Driven by REAL humidity — thickest after real rain and burning off in sun,
+  // so it is the forecast made visible rather than an effect on a timer.
+  var wetK=Math.max(0,Math.min(1,wetness));
+  var lowK=Math.max(0,Math.min(1,0.30+0.70*wetK-0.45*Math.max(0,(L-0.45)/0.35)));
+  if(lowK>0.06){
+    var cc=day?[226,232,238]:[54,62,76];
+    g.globalCompositeOperation=day?"source-over":"lighter";
+    for(var c5=0;c5<14;c5++){
+      var ch5=mixLi(c5>>>0,39209)>>>0;
+      // each bank drifts along the wall on its own slow clock — world-anchored, so all three screens
+      // see the same cloud in the same place
+      var drift=(now*(0.0000075+((ch5>>>3)%30)/3000000))%1;
+      var cwx=((ch5%Math.max(1,WW))+drift*WW)%WW;
+      for(var o5=-1;o5<=1;o5++){
+        var cx5=Math.round(cwx-WOFF+o5*WW);
+        if(cx5<-160||cx5>SW+160) continue;
+        var cw5=Math.round((40+((ch5>>>9)%90))*K*0.6);
+        var col=Math.max(0,Math.min(SW-1,cx5));
+        if(hs[col]<10) continue;
+        // it SNAGS on the rock: the bank sits at a height on the wall and spills downward from there
+        var cy5=gy-Math.round(hs[col]*(0.42+((ch5>>>17)%100)/100*0.34));
+        var chh=Math.round((6+((ch5>>>21)%10))*K);
+        for(var q7=0;q7<chh;q7++){
+          var qf=q7/chh;
+          var a5=lowK*(0.30-0.22*qf)*(0.75+0.25*Math.sin(now*0.00013+c5));
+          if(a5<=0.006) continue;
+          g.fillStyle=rgba(cc,a5);
+          g.fillRect(cx5-(cw5>>1),cy5+q7,cw5+Math.round(qf*8*K),1);
+        }
+      }
+    }
+    g.globalCompositeOperation="source-over";
+  }
+  // ---- SEABIRDS, AND SEALS ON THE ROCKS ----------------------------------------------------------
+  // puffin, skua and seal are all in this land's fauna list and none of them have ever been drawn.
+  var bc=day?"rgba(40,44,52,0.85)":"rgba(18,20,26,0.8)";
+  g.fillStyle=bc;
+  for(var b6=0;b6<18;b6++){
+    var bh6=mixLi(b6>>>0,50153)>>>0;
+    var per6=90000+((bh6%100)*1800);
+    var ph6=((now+((bh6>>>5)%per6))%per6)/per6;
+    var bwx=((bh6>>>9)%Math.max(1,WW))+Math.sin(ph6*Math.PI*2)*(90+((bh6>>>15)%200))*K;
+    for(var o6=-1;o6<=1;o6++){
+      var bx6=Math.round(bwx-WOFF+o6*WW);
+      if(bx6<-8||bx6>SW+8) continue;
+      var col6=Math.max(0,Math.min(SW-1,bx6));
+      var by6=gy-Math.round(hs[col6]*(0.10+((bh6>>>19)%100)/100*0.42))
+              -Math.round(Math.sin(now*0.0011+b6*1.7)*3*K);
+      if(by6<2||by6>=gy) continue;
+      // a gull at this size is two pixels and a gap — the M of the wings is the whole recognition
+      var flap=((Math.floor(now/220)+b6)&1);
+      g.fillRect(bx6,by6,Math.max(1,Math.round(K*0.5)),1);
+      g.fillRect(bx6+Math.round(K*1.1),by6-(flap?0:Math.max(1,Math.round(K*0.4))),Math.max(1,Math.round(K*0.5)),1);
+    }
+  }
+  // seals hauled out on the shoreline rocks, only where there is water in front to haul out of
+  if(SEA_FRONT>0&&day){
+    g.fillStyle="rgba(78,74,70,0.92)";
+    for(var s6=0;s6<5;s6++){
+      var sh6=mixLi(s6>>>0,44351)>>>0;
+      var sx6=Math.round(((sh6%Math.max(1,WW))-WOFF));
+      sx6=((sx6%WW)+WW)%WW; if(sx6>SW+20) sx6-=WW;
+      if(sx6<-20||sx6>SW) continue;
+      var sy6=SEA_Y-Math.max(1,Math.round(K*0.8));
+      var slen=Math.round((3+((sh6>>>7)%3))*K);
+      g.fillRect(sx6,sy6,slen,Math.max(1,Math.round(K*0.8)));
+      g.fillRect(sx6+slen,sy6-Math.max(1,Math.round(K*0.4)),Math.max(1,Math.round(K*0.6)),Math.max(1,Math.round(K*0.5)));
+    }
+  }
 }
 // ============ THE LIGHT SHOW, AND THE GATE OPENING ============
 // The last two locked signatures for THE EMPYREAN. Everything here is a real above-cloud optical
@@ -28773,8 +28909,20 @@ function drawMountains(g,L,now,nd){
       // A syntax check does not check scope; only executing the path does.
       var K=Math.max(1,KSP);
       var fmx2=Math.max(1,mtsCache.mx[pi]||1);
-      var iceY=Math.round(gy-fmx2*0.55);
-      g.fillStyle=css(mixc((pi===0?farC:nearC),[150,178,196],day?0.16:0.08));
+      // ============ THREE FJORDS (locked answer #5) ============
+      // Nick's ruling for a sixth land: three PLACES, not three tints. Fjords differ by how deep the
+      // glacier cut and how much has grown back since, so the three are stages of one story again.
+      //   THE FJORD       — the classic trough. The reference.
+      //   THE BLACK WATER — cut deeper: the ice limit sits HIGHER (more of the wall was under ice, so
+      //                     more of it is scoured smooth), the rock is darker and colder, and almost
+      //                     nothing has taken hold on it.
+      //   THE GREEN INLET — shallower and older: a LOW ice limit, warmer rock, and forest that has
+      //                     climbed most of the way back up the slope.
+      var fv2=(B.name==="THE BLACK WATER")?1:((B.name==="THE GREEN INLET")?2:0);
+      var iceK=(fv2===1)?0.74:((fv2===2)?0.38:0.55);
+      var iceY=Math.round(gy-fmx2*iceK);
+      var polC=(fv2===1)?[96,120,140]:((fv2===2)?[132,150,140]:[150,178,196]);
+      g.fillStyle=css(mixc((pi===0?farC:nearC),polC,day?(fv2===1?0.10:0.16):0.08));
       var ps=-1, px2;
       for(px2=0;px2<=SW;px2++){
         var onp=(px2<SW)&&hs[px2]>=3&&((gy-hs[px2])<iceY);
@@ -28808,6 +28956,24 @@ function drawMountains(g,L,now,nd){
         var by2=bTop+((bh3>>>9)%room);
         if(by2>=iceY) continue;
         g.fillRect(bx2,by2,Math.max(1,Math.round(K*0.5)),Math.max(1,Math.round((1+((bh3>>>17)%3))*K*0.5)));
+      }
+      // 3b. THE GREEN INLET HAS FOREST ON THE SLOPE. The single clearest separator of the three: a
+      //     shallower older inlet has had time to grow back, so spruce climbs most of the way up the wall
+      //     and the rock only shows above it. Hashed clumps, thinning with height, never a level line.
+      if(fv2===2){
+        var trTop=iceY-Math.round(fmx2*0.10);
+        for(var tfx=0;tfx<SW;tfx++){
+          if(hs[tfx]<5) continue;
+          var twx2=tfx+WOFF;
+          var t1=Math.floor(twx2/9), tq1=(twx2/9)-t1, tsm=tq1*tq1*(3-2*tq1);
+          var tva=(mixLi(t1>>>0,61403)%1000)/1000*(1-tsm)+(mixLi((t1+1)>>>0,61403)%1000)/1000*tsm;
+          var topT=trTop+Math.round((tva-0.5)*10*K);
+          var rockT=gy-hs[tfx];
+          if(topT<rockT) topT=rockT;
+          if(topT>=gy-1) continue;
+          g.fillStyle=rgba(mixc(day?[46,74,52]:[10,20,16],skc,0.10+0.40*(pi===0?1:0.3)),day?0.72:0.6);
+          g.fillRect(tfx,topT,1,gy-topT);
+        }
       }
       // 4. HANGING VALLEYS AND THEIR FALLS.
       //    🔑 "A SUPPORT IS DEFINED BY WHAT IT REACHES" — the Ashlands' rule. A waterfall that starts on a
@@ -33794,6 +33960,7 @@ function draw(g,pass){
   // occludes it exactly the way it occludes the terrain. See the note on WILD_LAYER.
   WILD_LAYER="back"; drawFauna(g,L,now,nd);
   drawAlpineLife(g,L,now,nd,fx); drawGorgeLife(g,L,now,nd,fx);
+  drawFjordLife(g,L,now,nd,fx);
   drawEmpyreanShow(g,L,now,nd,fx);
   drawKarstLife(g,L,now,nd,fx);
   drawDuneLife(g,L,now,nd,fx);   drawSavannaLife(g,L,now,nd,fx);
