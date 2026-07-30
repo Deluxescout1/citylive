@@ -4050,6 +4050,7 @@ var curVillage=false;
 // its road as well, because it has replacements for all of them; air and fire do not, so they opt out
 // of the branding only. Conflating the two would strip the civic life out of lands that still want it.
 var curNoBrands=false;
+var flatsShelter=0;   // 0..1 — how hard the boats in the flooded flats are running for shelter (the storm surge drives it)
 // The screen-x span [lo,hi] the carved cliff occupies THIS frame, published by drawBiomeLandmark so
 // the forest can leave it bare. ⚠ drawTerrain — which hosts the forest — is called AFTER
 // drawBiomeLandmark, so without this the trees paint straight over the monument. That is the same
@@ -9502,7 +9503,7 @@ function drawFloodedFlats(g,L,now,sa,sb,zi,wTop,shoreAt,sgn){
   var day=L>0.5, K=Math.max(1,KSP), span=sb-sa, wDep=Math.max(1,HORIZON-wTop);
   var conc=day?"#8a8e98":"#20242c", conc2=day?"#6a6e78":"#161a20";
   var neonC=["#4be0d0","#f04a8a","#ffe14a","#7c6cff"];
-  var fSeed=((WORLD_SEED*40503+911)>>>0);
+  var fSeed=((WORLD_SEED*40503+911)>>>0), fSeedEdge=((WORLD_SEED*2246822519+77)>>>0);
   // ⚠⚠⚠ THE BERMS WERE FOUR FULL-WIDTH HORIZONTAL BARS AT EVEN SPACING.
   // `fillRect(sa, wTop+((b+0.6)/4.6)*wDep, span, h)` — four rules straight across the water at a fixed
   // pitch. That is the ruled-line family for the TWELFTH time on this project, and together with the
@@ -9539,10 +9540,68 @@ function drawFloodedFlats(g,L,now,sa,sb,zi,wTop,shoreAt,sgn){
       g.fillStyle=conc2; g.fillRect(gx-Math.round(3*K),by0-Math.round(5*K),Math.round(6*K),Math.max(1,Math.round(K)));
     }
   }
+  // ---- EACH DISTRICT'S WATER IS ITS OWN (locked answer 26) ----
+  // The flats are about a third of the frame, so leaving them shared would have meant a third of the map
+  // arguing that the three districts are the same place — which is the exact thing the skyline and street
+  // passes were built to stop.
+  //   THE SPRAWL       oily and cluttered: the most junk, and a slick on the surface.
+  //   THE RED DISTRICT a working waterfront: fewer wrecks, more boats, cargo on the quay.
+  //   THE COLD STACK   engineered: clean channels, concrete edges, almost nothing in the water at all.
+  var fCold=(curBiome.name==="THE COLD STACK"), fRed=(curBiome.name==="THE RED DISTRICT");
+  var nDebris=fCold?2:(fRed?5:9);
+  if(fCold){
+    // A CLEAN CHANNEL EDGE. Not a rule: it is a kerb laid in bays with expansion gaps, and it only runs
+    // where a berm already is, so it reads as engineering rather than as a line across the water.
+    g.fillStyle=day?"#9aa2ac":"#2a3038";
+    var kbW=Math.max(3,Math.round(8*K));
+    for(var kx=sa;kx<sb;kx+=kbW){
+      if(((((kx*40503)^fSeedEdge)>>>0)%8)===0) continue;
+      var kw=Math.min(kbW-Math.max(1,Math.round(K*0.8)),sb-kx);
+      if(kw>0) g.fillRect(kx,wTop+Math.round(wDep*0.10),kw,Math.max(1,Math.round(K*0.7)));
+    }
+  } else {
+    // AN OIL SLICK on the working districts' water — broad, faint, iridescent patches that drift.
+    g.globalCompositeOperation="lighter";
+    for(var os=0;os<5;os++){
+      var oh=((os*2654435761+fSeedEdge)>>>0);
+      var ox=sa+((oh%Math.max(1,span))), oy=wTop+Math.round((0.30+((oh>>>9)%100)/100*0.55)*wDep);
+      var ow=Math.round((14+((oh>>>13)%22))*K), odrift=Math.round(Math.sin(now*0.00018+os)*3*K);
+      var oc=["rgba(120,90,150,0.10)","rgba(90,140,130,0.10)","rgba(150,120,80,0.09)"][(oh>>>17)%3];
+      g.fillStyle=oc;
+      g.fillRect(ox+odrift,oy,ow,Math.max(1,Math.round(1.6*K)));
+      g.fillRect(ox+odrift+Math.round(ow*0.2),oy+Math.round(2*K),Math.round(ow*0.6),Math.max(1,Math.round(K)));
+    }
+    g.globalCompositeOperation="source-over";
+  }
+  // ---- WORKING BOATS. THE RED DISTRICT has a waterfront, so it has most of them; they also give the
+  // flood something to do, since "boats and barges run for shelter" is one of the four things he locked
+  // for the surge. `flatsShelter` is 0 normally and rises when the water does.
+  var nBoat=fCold?0:(fRed?4:2);
+  var shelterK=(typeof flatsShelter!=="undefined")?flatsShelter:0;
+  for(var bt=0;bt<nBoat;bt++){
+    var bh3=((bt*104729+fSeedEdge*7)>>>0);
+    var bBase=sa+((bh3%Math.max(1,span)));
+    // as the surge builds they run for the shore: the whole fleet slides toward the near edge and bunches
+    var bx3=Math.round(bBase+(sgn>0?-1:1)*shelterK*span*0.18);
+    var by3=wTop+Math.round((0.34+((bh3>>>9)%100)/100*0.40)*wDep)-Math.round(shelterK*wDep*0.10);
+    var bEdge=shoreAt(by3);
+    if(sgn>0? bx3>bEdge : bx3<bEdge) continue;
+    var bl3=Math.round((7+((bh3>>>13)%6))*K*0.6);
+    var bob=Math.round(Math.sin(now*0.0013+bt*2.2)*Math.max(1,K*0.4)*(1+shelterK*2));
+    var hull=[[142,66,58],[54,86,112],[92,96,72],[120,104,54]][(bh3>>>17)%4];
+    g.fillStyle=css(day?hull:mixc(hull,[0,0,0],0.55));
+    g.fillRect(bx3,by3+bob,bl3,Math.max(1,Math.round(1.5*K)));
+    g.fillStyle=day?"#d8d4c8":"#3e4148";                            // wheelhouse
+    g.fillRect(bx3+Math.round(bl3*0.55),by3+bob-Math.max(1,Math.round(K*0.9)),Math.max(1,Math.round(1.6*K)),Math.max(1,Math.round(K*0.9)));
+    if(!day){ g.globalCompositeOperation="lighter";                 // a working light
+      g.fillStyle=(bt&1)?"rgba(255,214,140,0.85)":"rgba(140,255,190,0.7)";
+      g.fillRect(bx3+Math.round(bl3*0.55),by3+bob-Math.round(1.6*K),Math.max(1,Math.round(K*0.7)),Math.max(1,Math.round(K*0.7)));
+      g.globalCompositeOperation="source-over"; }
+  }
   // ---- WHAT IS STANDING IN IT: half-sunk industrial debris ----
   // Locked answer 2 asks for this by name, and it is what tells you the water is SHALLOW and that this
   // was land. Nothing here is animated; it is all world-keyed and static per life.
-  for(var dq=0;dq<9;dq++){
+  for(var dq=0;dq<nDebris;dq++){
     var dh=((dq*2246822519+fSeed)>>>0);
     var dx=sa+(dh%Math.max(1,span)), dy=wTop+Math.round((0.22+(((dh>>>9)%100)/100)*0.72)*wDep);
     var dEdge=shoreAt(dy);
@@ -20692,11 +20751,17 @@ function drawSignageStacks(g,L,now,nd){
   var pal=["#4be0d0","#f04a8a","#ffe14a","#7c6cff"];
   if(curBiome.name==="THE RED DISTRICT") pal=["#ff3a5c","#ffa63a","#ff6ad5"];
   if(curBiome.name==="THE COLD STACK")   pal=["#7ce8ff","#c0d8ff","#ffffff"];
+  // ⚠⚠ THE COLD STACK IS ALMOST UNSIGNED, and this was a real miss caught by re-reading the brief against
+  // the render. Locked answer 17 is explicit — "few or no vertical brand stacks… corporate logos on tower
+  // crowns replace street signage" — and this function had no district gate at all, so the sterile
+  // corporate quarter was carrying exactly as much neon as the other two. Every other pass had already
+  // been given its Cold Stack branch; this one was missed because it was written before that answer landed.
   var step=Math.round(34*K);
   var wx0=Math.floor(WOFF/step)*step;
+  var signRoll=(curBiome.name==="THE COLD STACK")?12:72;   // 12% of frontages instead of 72%
   for(var wx=wx0-step; wx<WOFF+SW+step; wx+=step){
     var h=((((wx*2654435761)^sSeed)>>>0));
-    if((h%100)>=72) continue;                             // not every frontage carries one
+    if((h%100)>=signRoll) continue;                       // not every frontage carries one
     var X=wx-WOFF;
     // the text: a real brand name if the roster is there, and its 2-char ticker otherwise
     var word=null, colR=null;
@@ -26026,9 +26091,10 @@ function drawSprawlWetDay(g,L,now,nd){
   if(curBiome.name==="THE COLD STACK")   pal=["#7ce8ff","#c0d8ff","#ffffff"];
   var step=Math.round(34*K);
   var sx0=Math.floor(WOFF/step)*step;
+  var wetSignRoll=(curBiome.name==="THE COLD STACK")?12:72;   // …and the sterile district has almost none to reflect
   for(var swx=sx0-step; swx<WOFF+SW+step; swx+=step){
     var sh2=((((swx*2654435761)^((WORLD_SEED*40503+7717)>>>0))>>>0));
-    if((sh2%100)>=72) continue;                            // matches the signage stacks' own roll
+    if((sh2%100)>=wetSignRoll) continue;                   // matches the signage stacks' own roll
     var SX=swx-WOFF; if(SX<-20||SX>SW+20) continue;
     var col=pal[(sh2>>>19)%pal.length];
     var rLen=Math.round(band*(0.42+((sh2>>>11)%100)/100*0.40));

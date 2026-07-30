@@ -16,7 +16,7 @@ Item {
     property string land: "sprawl"
     property var variants: [0,1,2]
     property var hours: [23]
-    property var woffList: [776]
+    property var woffList: [0]
     property int woi: 0
     property int vi: 0
     property int hi: 0
