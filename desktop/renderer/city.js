@@ -20018,8 +20018,18 @@ function drawKarst(g,L,now,nd){
   }
   for(var r2=RANKS-1;r2>=0;r2--){
     var rank=karstCache[r2], dep=r2/(RANKS-1);
-    var body=mixc(day?B.near:[(B.near[0]*0.18)|0,(B.near[1]*0.20)|0,(B.near[2]*0.32)|0], skc, 0.06+0.62*dep);   // near rank barely hazed; far ranks fully
-    var litC=mixc(body, day?B.cap:[92,100,120], 0.30*litK);
+    // ⚠⚠ THE NIGHT WAS A BLACK BLOB FOR A ONE-TERM REASON: `litC` mixed toward the lit colour by
+    // `0.30*litK`, and `litK` is `max(0,min(1,(L-0.34)*2.4))` — which is exactly ZERO after dark. So at
+    // night the lit face and the body were the *same colour* and every tower collapsed to one flat
+    // silhouette. The modelling was not too weak; it was switched off.
+    // 🔑 A TERM THAT GOES TO ZERO AT NIGHT NEEDS A NIGHT TERM BESIDE IT, not a bigger coefficient. The
+    // dunes needed the identical fix hours ago. Sourced from the real moon the engine already tracks, so
+    // a new moon genuinely is darker than a full one and the land has a lunar month.
+    var _mpK=moonPhase(nd), moonK=Math.max(0,Math.min(1,(1-Math.cos(2*Math.PI*_mpK))/2));
+    var nightBase=mixc([(B.near[0]*0.18)|0,(B.near[1]*0.20)|0,(B.near[2]*0.32)|0],[70,88,124],0.22+0.30*moonK);
+    var body=mixc(day?B.near:nightBase, skc, 0.06+0.62*dep);   // near rank barely hazed; far ranks fully
+    var modelK=day?(0.30*litK):(0.16+0.26*moonK);
+    var litC=mixc(body, day?B.cap:[150,172,214], modelK);
     var capC=mixc(day?B.cap:mixc(B.cap,[0,0,0],0.6), skc, 0.30*dep);
     var greenC=mixc(day?[96,140,86]:[22,40,26], skc, 0.30+0.40*dep);
     for(var t=0;t<rank.length;t++){
@@ -20090,15 +20100,78 @@ function drawKarst(g,L,now,nd){
               g.fillRect(x,y+Math.max(1,Math.round(K*0.7)),1,Math.round(vH*K)); }
           }
         }
-        // CAVE MOUTHS at the foot of the nearest rank — karst is hollow, and that is its signature
-        if(r2===0 && (tw.seed%100)<46){
-          var cw=Math.round(tw.w*0.34), ch=Math.round(cw*1.25);
-          g.fillStyle=rgba(day?[26,30,32]:[8,10,12],0.88);
-          for(var q=0;q<cw;q++){
-            var qq=q/cw, arch=Math.round(ch*Math.sqrt(Math.max(0,1-qq*qq)));
-            var ax=cx-Math.round(cw*0.5)+q;
-            if(ax<0||ax>=SW) continue;
-            g.fillRect(ax,HORIZON-arch,1,arch);
+        // ---- SOLUTION FISSURES: the surface limestone actually has ------------------------------------
+        // Karst is rock dissolved by rainwater, and what that leaves is deep vertical runnels down the
+        // faces. It is the signature texture of the material and there was none of it — the towers were
+        // flat fills, which is why they read as shapes rather than as rock.
+        // ⚠⚠ SHORT BROKEN STROKES, NEVER PARALLEL LINES. Continuous vertical lines down a face this size
+        // are the exact pattern KWin's fractional downsample beats into the recurring "lines over the
+        // mountains" bug on Nick's 4K — and evenly spaced ones would be the comb fault a fourth time.
+        // So each fissure gets a hashed x, a hashed start height, a hashed length, and BREAKS in it.
+        if(tw.h>18){
+          var nf=Math.max(2,Math.round(tw.w*0.22));
+          for(var f2=0;f2<nf;f2++){
+            var fh2=mixLi((tw.seed+f2*7919)>>>0,31013)>>>0;
+            var fu=(((fh2%1000)/1000)-0.5)*1.72;                  // across the tower, avoiding the rim
+            var fx=Math.round(cx+fu*tw.w);
+            if(fx<0||fx>=SW) continue;
+            var fTop=Math.round(HORIZON-tw.h*(0.28+((fh2>>>9)%100)/100*0.52));
+            var fLen=Math.round(tw.h*(0.10+((fh2>>>17)%100)/100*0.26));
+            var fw2=Math.max(1,Math.round(K*((fh2>>>25)&1?0.6:0.35)));
+            // darker on the shaded flank, so the fluting agrees with the light on the tower
+            var fA=(fu>0.05?0.20:0.11)*(day?1:0.7);
+            g.fillStyle=rgba(mixc(body,[18,24,20],0.7),fA);
+            for(var fy=0;fy<fLen;fy++){
+              // the break pattern is hashed per fissure, so no two runnels dash alike
+              if((((fy+((fh2>>>3)&31))*7)%11)<3) continue;
+              var yy2=fTop+fy;
+              if(yy2>=HORIZON-1) break;
+              g.fillRect(fx,yy2,fw2,1);
+            }
+          }
+        }
+        // ---- CAVE MOUTHS — "karst is hollow, and that is its signature" (the code's own words) --------
+        // ⚠⚠ THEY WERE WRITTEN AND INVISIBLE. Rendered with the ENTIRE CITY REMOVED they still could not
+        // be found: only the nearest rank had them, only at the very foot, and at `w*0.34` wide they were
+        // swallowed by the grass and the ground furniture. Nick's ruling: bigger, darker, real overhangs,
+        // and SOME AT HEIGHT rather than all at the base where the city buries them.
+        if(r2<=1 && (tw.seed%100)<58){
+          var nc=1+((tw.seed>>>7)&1);
+          for(var c3=0;c3<nc;c3++){
+            var chh=mixLi((tw.seed+c3*104729)>>>0,42043)>>>0;
+            var cw=Math.round(tw.w*(0.30+((chh%100)/100)*0.26));
+            var ch2=Math.round(cw*(1.05+((chh>>>9)%100)/100*0.55));
+            // c3===0 sits at the foot; any second one is partway UP the face, which is where a real
+            // cave system daylights and where nothing in the city can hide it
+            var cUp=(c3===0)?0:Math.round(tw.h*(0.26+((chh>>>17)%100)/100*0.34));
+            var cOffX=Math.round(((((chh>>>21)%100)/100)-0.5)*tw.w*0.9);
+            var cBase=HORIZON-cUp;
+            // ⚠ A CAVE TWO KILOMETRES AWAY IS NOT BLACK. The mouth has to take the same aerial perspective
+            // as the rock it is cut into, or a far-rank tower ends up with a hole punched in it at full
+            // contrast — which is the one thing guaranteed to drag the eye to the BACK of the frame. Hazed
+            // by rank depth like every other tone here.
+            g.fillStyle=rgba(mixc(day?[24,28,30]:[6,8,10], skc, 0.10+0.66*dep), 0.90-0.22*dep);
+            for(var q=-cw;q<=cw;q++){
+              var qq=q/cw, arch=Math.round(ch2*Math.sqrt(Math.max(0,1-qq*qq)));
+              if(arch<1) continue;
+              var ax=cx+cOffX+q;
+              if(ax<0||ax>=SW) continue;
+              var aTop=cBase-arch;
+              if(aTop<HORIZON-tw.h) continue;                    // never outside the rock it is cut into
+              g.fillRect(ax,aTop,1,Math.min(arch,HORIZON-aTop));
+            }
+            // THE OVERHANG. A cave mouth without a lip is a painted hole; the bright lintel above it and
+            // the shadow it casts are what give the opening depth.
+            g.fillStyle=rgba(mixc(litC,[255,255,255],0.35),day?0.5:0.28);
+            for(var q2=-cw;q2<=cw;q2++){
+              var qq2=q2/cw, arch2=Math.round(ch2*Math.sqrt(Math.max(0,1-qq2*qq2)));
+              if(arch2<2) continue;
+              var ax2=cx+cOffX+q2;
+              if(ax2<0||ax2>=SW) continue;
+              var lipY=cBase-arch2-Math.max(1,Math.round(K*0.5));
+              if(lipY<HORIZON-tw.h) continue;
+              g.fillRect(ax2,lipY,1,Math.max(1,Math.round(K*0.5)));
+            }
           }
         }
       }
