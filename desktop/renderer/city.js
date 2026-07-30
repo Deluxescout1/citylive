@@ -21389,7 +21389,22 @@ function drawRiver(g,L,now){
   var tannin=curBiome.k==="swamp";
   if(tannin){ deep=day?[26,32,26]:[8,11,10]; shallow=day?[62,72,54]:[16,20,16]; }
   var halfPx=Math.max(8*K,Math.round(riverW*WW));
-  var deckY=roadY+1, deckH=Math.max(3,Math.round(3*K));         // the bridge deck sits at street level
+  // ⚠⚠⚠ THE DECK WAS NARROWER THAN THE ROAD IT CARRIES, AND ON THE ASHLANDS THAT MEANS TRAFFIC DRIVING
+  // ON LAVA. Nick: "make sure nobody drives over the lave pit until there is a bridge."
+  // THE BUG: the channel is filled from `gy+4` to the BOTTOM OF THE FRAME, and the road's lanes sit inside
+  // that same band — LANE offsets run to +21 from HORIZON. The deck was `3*K` tall (about 9px) starting at
+  // `roadY+1`, so it covered the two FAR lanes and the two NEAR ones were painted lava with cars and
+  // pedestrians drawn straight over the top of them. A bridge that carries half a road is not a bridge.
+  // 🔑 THE GATE WAS NEVER THE PROBLEM — I checked that first and it is sound: the bridge appears at
+  // `onPavedRoad(riverX*WW)` (cityG 0.275-0.375 depending where the channel falls) and cars need
+  // cityG>=0.42 for their first lane to open, so the crossing is ALWAYS built before anything uses it.
+  // "Nobody drives over it until there is a bridge" was already true. What was false is that the bridge
+  // reached all the way across.
+  // Sized from the LANE table rather than a constant, so it cannot fall out of step if the road is ever
+  // re-laid — the same lesson the hologram mast taught: a span is defined by what it has to reach.
+  var laneMaxO=0; for(var lq=0;lq<LANE.length;lq++) if(LANE[lq].o>laneMaxO) laneMaxO=LANE[lq].o;
+  var deckY=roadY+1;
+  var deckH=Math.max(3,Math.round(3*K), (HORIZON+laneMaxO+Math.round(3*K))-deckY);
   for(var w=-1;w<=1;w++){
     var cx=Math.round(riverX*WW-WOFF+w*WW);
     if(cx+halfPx<-4||cx-halfPx>SW+4) continue;
