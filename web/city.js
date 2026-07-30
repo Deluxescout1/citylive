@@ -94,7 +94,14 @@ function cycleMs(v){
     case "2w":                 return 1209600000;   // 2 weeks
     case "3w":                 return 1814400000;   // 3 weeks
     case "1mo": case "monthly":return 2592000000;   // 1 month (30 days)
-    case "test":               return 3600000;      // 1 hour (fast preview)
+    // ⚠ THE MISSING MIDDLE. Nick, after Micah kept sleeping through apocalypses: "why don't we just give
+    // them more times to work with. like give them 1 Hour Cycles and 1 Day Cycles." The jump from a
+    // 1-hour PREVIEW straight to a 1-week life left nothing usable in between — if you want to actually
+    // SEE a finale on a weekday you need a life that ends within a day, not within a week.
+    case "12h":                return 43200000;     // half a day
+    case "1d": case "daily":   return 86400000;     // 1 day
+    case "3d":                 return 259200000;    // 3 days
+    case "test": case "1h":    return 3600000;      // 1 hour (fast preview)
     // ⚠⚠ FIXED 2026-07-28. An unset cycle used to fall back to the 1-hour PREVIEW, so anyone who
     // never set one — which is EVERY default install, because localcfg.js ships an empty CONFIG —
     // had their city flattened by an apocalypse and reborn every single hour.
@@ -122,6 +129,7 @@ function applyConfig(cfg){ if(!cfg) return;
   if(cfg.lat!=null) LAT=+cfg.lat;  if(cfg.lon!=null) LON=+cfg.lon;
   if(cfg.lat!=null||cfg.lon!=null) REGION=regionOf(LAT,LON);   // re-derive the architectural region for the new place
   if(cfg.cycle!=null) GROW_CYCLE=cycleMs(cfg.cycle);
+  if(cfg.apocHour!=null) GROW_ALIGN=alignMsFor(cfg.apocHour, GROW_CYCLE);
   if(cfg.disasters!=null) DIS_PROB=DIS_PROB_BASE*disMul(cfg.disasters);
   if(cfg.finale!==undefined) CFG_FINALE=(cfg.finale&&cfg.finale!=="auto"&&DEATHS.indexOf(cfg.finale)>=0)?cfg.finale:null;
   if(cfg.worldRestartAt!==undefined) WORLD_SHIFT=worldShiftFrom(+cfg.worldRestartAt||0, cfg.worldRestartMode);
@@ -4511,7 +4519,23 @@ function setup(scene,opts){
 // grows a one-of-a-kind city — new skyline, windows, crowns, parks, street furniture,
 // birth order, everything — on top of its per-life architectural ERA. Life 0 keeps the
 // original seed (1337), so the current city is unchanged.
-function lifeIndexOf(now){ return Math.floor((now-GROW_EPOCH+GROW_OFFSET_DAYS*86400000+WORLD_SHIFT)/GROW_CYCLE); }
+// ⚠⚠ CHOOSE WHEN THE FINALE LANDS. Nick: "then also give them the ability to CHOOSE when it happens in
+// the settings." A life ends when `lifeIndexOf` ticks over, so aligning that boundary to a chosen hour is
+// the whole feature — no new event system, no scheduler, no state.
+// 🔑 IT HAS TO STAY A PURE FUNCTION OF THE CLOCK. `apocHour` is config, so every surface (three monitors,
+// phone, web) computes the identical boundary without talking to each other — which a "trigger it now"
+// button could never do. That is why this is an ALIGNMENT and not a trigger.
+// Only meaningful when the cycle divides a day (1h/12h/1d); on a 1-week life the boundary already lands
+// wherever the epoch put it, and `GROW_ALIGN` is simply 0.
+var GROW_ALIGN=0;
+function alignMsFor(hour, cyc){
+  if(hour==null||hour<0||cyc>86400000||86400000%cyc!==0) return 0;
+  // where the local day currently sits relative to the cycle grid, so a boundary falls at `hour`:00 local
+  var probe=new Date(); probe.setHours(hour,0,0,0);
+  var m=((probe.getTime()-GROW_EPOCH)%cyc+cyc)%cyc;
+  return (cyc-m)%cyc;
+}
+function lifeIndexOf(now){ return Math.floor((now-GROW_EPOCH+GROW_OFFSET_DAYS*86400000+WORLD_SHIFT-GROW_ALIGN)/GROW_CYCLE); }
 var curLife=null;
 function buildWorld(li){
   curLife=li;

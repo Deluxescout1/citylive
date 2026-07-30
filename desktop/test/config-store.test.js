@@ -32,7 +32,7 @@ test('unknown keys are still dropped, valid new keys survive alongside junk', ()
   });
   assert.deepStrictEqual(
     Object.keys(out).sort(),
-    ['birthdays', 'cycle', 'disasters', 'era', 'quality', 'wallpaper']
+    ['apocHour', 'birthdays', 'cycle', 'disasters', 'era', 'quality', 'wallpaper']
   );
 });
 
@@ -277,4 +277,26 @@ test('write → read round-trip persists finale / worldRestartAt / worldRestartM
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+// The finale-time control (Nick, after Micah kept sleeping through apocalypses): pick the hour the city's
+// last hours land on, so you are actually there to watch it.
+test('apocHour: -1 means "whenever it falls", and out-of-range is treated as unset rather than clamped', () => {
+  assert.strictEqual(store.sanitizeConfig({}).apocHour, -1, 'default is unset');
+  assert.strictEqual(store.sanitizeConfig({ apocHour: 20 }).apocHour, 20, 'a real hour survives');
+  assert.strictEqual(store.sanitizeConfig({ apocHour: 0 }).apocHour, 0, 'midnight is a valid hour');
+  assert.strictEqual(store.sanitizeConfig({ apocHour: 23 }).apocHour, 23);
+  // ⚠ deliberately NOT clamped: silently moving someone's finale to a different hour than they asked
+  // for is worse than ignoring the value.
+  assert.strictEqual(store.sanitizeConfig({ apocHour: 24 }).apocHour, -1);
+  assert.strictEqual(store.sanitizeConfig({ apocHour: -5 }).apocHour, -1);
+  assert.strictEqual(store.sanitizeConfig({ apocHour: 'evening' }).apocHour, -1);
+  assert.strictEqual(store.sanitizeConfig({ apocHour: 12.5 }).apocHour, -1, 'non-integer is unset');
+});
+
+test('the short cycles Nick asked for are accepted, and junk still falls back to 1w', () => {
+  for (const c of ['1h', '12h', '1d', '3d', '1w', '2w', '3w', '1mo']) {
+    assert.strictEqual(store.sanitizeConfig({ cycle: c }).cycle, c, c + ' must survive');
+  }
+  assert.strictEqual(store.sanitizeConfig({ cycle: 'fortnight' }).cycle, '1w');
 });

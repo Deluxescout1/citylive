@@ -11,11 +11,13 @@ const fs = require('fs');
 
 // A brand-new install: no birthdays, one lifetime per week. (No lat/lon → the engine
 // keeps its built-in default location.)
-const DEFAULT_CONFIG = { birthdays: [], cycle: '1w' };
+const DEFAULT_CONFIG = { birthdays: [], cycle: '1w', apocHour: -1 };
 
 // Timeline choices the app offers. "weekly"/"monthly" are accepted as aliases (older
 // configs) and normalized; anything unrecognized falls back to one week.
-const CYCLES = ['1w', '2w', '3w', '1mo'];
+// ⚠ 1h/12h/1d/3d added so there is something usable between the 1-hour preview and a 1-week life —
+// if you want to actually SEE a finale you need one that ends within a day.
+const CYCLES = ['1h', '12h', '1d', '3d', '1w', '2w', '3w', '1mo'];
 function normalizeCycle(v) {
   if (v === 'weekly') return '1w';
   if (v === 'monthly') return '1mo';
@@ -38,7 +40,12 @@ function sanitizeLabel(s) {
 // Never throws: anything unusable is dropped, not fatal.
 function sanitizeConfig(raw) {
   const cfg = (raw && typeof raw === 'object') ? raw : {};
-  const out = { birthdays: [], cycle: normalizeCycle(cfg.cycle) };
+  // ⚠ -1 means "whenever it falls" — the historical behaviour, and the default. Anything outside 0-23 is
+  // treated as unset rather than clamped, because a silently clamped hour would move someone's finale
+  // without telling them.
+  const ah = Number(cfg.apocHour);
+  const out = { birthdays: [], cycle: normalizeCycle(cfg.cycle),
+                apocHour: (Number.isInteger(ah) && ah >= 0 && ah <= 23) ? ah : -1 };
 
   const list = Array.isArray(cfg.birthdays) ? cfg.birthdays : [];
   for (let i = 0; i < list.length && out.birthdays.length < 50; i++) {
