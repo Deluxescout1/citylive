@@ -20211,8 +20211,31 @@ function drawNeonCity(g,L,now,nd){
       // solid thing in the sky while the hologram itself was invisible — an armature with nothing in
       // it, which is precisely why it read as a goalpost. Dark enough to say "installed hardware",
       // faint enough that it is never the thing you notice.
+      // ⚠⚠⚠ AND THIS IS THE FOURTH REPORT ABOUT THIS ONE FEATURE. Nick, with a screenshot of a huge
+      // translucent panel hanging over the rooftops: "these things need to be attached to the ground
+      // they can't just fly in the sky."
+      // THE BUG WAS ARITHMETIC, and the comment above was already trying to fix it. The mast was a
+      // CONSTANT `22*K` long, hung from the bottom of a panel whose height above the street is rolled
+      // per hologram: `hy+hgt2 = gy - (26..66)*K`. So the mast could only ever reach the ground for the
+      // lowest rolls — on any of the higher ones it stopped 12 to 132 world px short and the whole
+      // assembly hung in mid-air on a stub. "A mast down to the rooftops" was the right idea written as
+      // a fixed number instead of as a distance.
+      // 🔑 A SUPPORT IS DEFINED BY WHAT IT REACHES, NOT BY HOW LONG IT IS. Measured to the ground now, so
+      // it cannot come up short whatever the roll does — and given a lattice, feet and a plinth, because
+      // a 200px mast that is two pixels wide still reads as a wire holding up a billboard.
       g.fillStyle=day?"rgba(44,48,60,0.30)":"rgba(10,11,16,0.62)";
-      g.fillRect(HX-Math.max(1,Math.round(K)),hy+hgt2,Math.max(2,Math.round(2*K)),Math.round(22*K));
+      var mastTop=hy+hgt2, mastLen=Math.max(Math.round(6*K), gy-mastTop);
+      var mastW=Math.max(2,Math.round(2.4*K));
+      g.fillRect(HX-(mastW>>1),mastTop,mastW,mastLen);
+      // lattice bracing, so it is a structure and not a cable — rungs, not a fill
+      g.fillStyle=day?"rgba(44,48,60,0.22)":"rgba(10,11,16,0.44)";
+      for(var mq=Math.round(3*K); mq<mastLen-Math.round(2*K); mq+=Math.max(2,Math.round(3.4*K)))
+        g.fillRect(HX-Math.round(2.2*K),mastTop+mq,Math.round(4.4*K),Math.max(1,Math.round(K*0.7)));
+      // splayed feet and a plinth where it meets the ground — the cue that says "this is bolted down"
+      g.fillStyle=day?"rgba(38,42,54,0.42)":"rgba(8,9,14,0.66)";
+      g.fillRect(HX-Math.round(3.4*K),gy-Math.max(1,Math.round(1.6*K)),Math.round(6.8*K),Math.max(1,Math.round(1.6*K)));
+      for(var ft=-1;ft<=1;ft+=2)
+        g.fillRect(HX+ft*Math.round(2.6*K),gy-Math.round(5*K),Math.max(1,Math.round(K)),Math.round(5*K));
       g.fillRect(HX-hw2,hy+hgt2,hw2*2,Math.max(1,Math.round(1.4*K)));
       g.fillRect(HX-hw2,hy,Math.max(1,Math.round(K)),hgt2);
       g.fillRect(HX+hw2-Math.max(1,Math.round(K)),hy,Math.max(1,Math.round(K)),hgt2);
