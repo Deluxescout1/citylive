@@ -20207,8 +20207,24 @@ function drawSaltMirror(g,L,now,nd){
   var day=L>0.5, K=Math.max(1,KSP);
   var top=SEA_Y, botY=SH-TASKBAR_WP;
   var depth=Math.max(1,botY-top);
-  var dry=!!curBiome.mirrorDry;                                  // THE DRY LAKE reflects only after rain
-  var wet=dry ? Math.max(0,Math.min(1,((weather&&weather.code)?0.9:0)+ (fog&&fog.t?fog.t*0.3:0))) : 1;
+  // ============ THREE PANS, AND THE FLOOD THAT COMES AND GOES (locked answers) ============
+  //   THE SALT MIRROR — flooded, a real mirror most of the time.
+  //   THE PINK PAN    — algal brine: rose and rust, ponds everywhere, a shallower film.
+  //   THE DRY LAKE    — the water left long ago; cracked crust, and it only mirrors after real rain.
+  // ⚠⚠ THE FLOOD AND THE DRY-OUT ARE ON THE REAL WEATHER, and this is the honest limit of it: the engine
+  // has no rainfall HISTORY to integrate, and holding my own accumulator would break the freeze-safe rule
+  // that every sprite is a pure function of (world x, clock). So the flood is `max(the current soak, a
+  // slow multi-day term)` — the immediate half is genuinely the forecast, and the slow half gives the
+  // pan a wet season and a dry one without inventing state. Worth replacing with real rainfall history
+  // if the engine ever keeps any.
+  var sv=(curBiome.name==="THE PINK PAN")?1:((curBiome.name==="THE DRY LAKE")?2:0);
+  var dry=!!curBiome.mirrorDry||sv===2;
+  var soak=Math.max(0,Math.min(1,((weather&&weather.code)?0.9:0)+(fog&&fog.t?fog.t*0.3:0)+wetness*0.8));
+  var H3=3600000;
+  var slow=Math.sin(now/(61*H3)*Math.PI*2)*0.5+Math.sin(now/(97*H3)*Math.PI*2+1.9)*0.5;
+  var season=Math.max(0,(slow-0.10)/0.90);
+  var wet=dry ? Math.max(soak,season*0.55) : Math.max(0.30+0.45*season, soak);
+  if(sv===1) wet=Math.min(wet,0.72);                              // the pink pan is always a shallow film
   if(wet<=0.04){
     // no standing water: cracked polygons instead of a mirror. Still a salt pan, just not a mirror.
     g.fillStyle=css(mixc(curBiome.ground, day?[0,0,0]:[10,12,20], day?0.06:0.62));
@@ -20278,11 +20294,94 @@ function drawSaltMirror(g,L,now,nd){
     var off=Math.round(Math.sin(now*0.0009+ry2*0.22)*2*K);
     g.fillRect(off,top+ry2,SW,Math.max(1,Math.round(K*0.6)));
   }
-  // the salt crust itself showing through at the very front, so it is a PAN and not a lake
-  g.fillStyle=rgba(day?[250,250,252]:[92,100,116],0.30);
-  for(var sx3=0;sx3<SW;sx3+=Math.max(4,Math.round(6*K))){
-    var sw3=Math.round(3*K+(((sx3+WOFF)*7919>>>0)%5));
-    g.fillRect(sx3,botY-Math.round(depth*0.14),sw3,Math.max(1,Math.round(K*0.8)));
+  // ---- 4. THE POLYGON CRUST. The signature of a salt pan and it was entirely absent — the surface was a
+  // blank field. Salt dries into hexagonal desiccation tiles with raised white ridges, and those ridges
+  // are what say "crust" rather than "water". They show THROUGH the film wherever it is shallow, so the
+  // drier the pan the more of it you see — which also makes the three variants read apart on their own.
+  // ⚠ Aperiodic: the cell centres are hashed and jittered in world space, never a lattice. A regular
+  // honeycomb would be the seventh fixed-frequency fault in this codebase.
+  var crustK=Math.max(0,Math.min(1,1.15-wet));
+  if(crustK>0.05){
+    var cell=Math.max(5,Math.round(11*K));
+    // ⚠ SHORT SEGMENTS WITH REAL GAPS, AND MUCH FAINTER. The first version ran its horizontal members at
+    // ~0.55-1.05 of the cell spacing, i.e. essentially edge to edge, and at 0.16+0.60*crustK they came out
+    // as strong continuous white lines the full width of the pan — GRAPH PAPER, not a salt crust. A real
+    // desiccation polygon is a closed cell a couple of metres across; what reads at this scale is a
+    // scatter of short broken ridges, not a ruled lattice. Seventh regular-pattern fault avoided rather
+    // than shipped.
+    g.fillStyle=rgba(day?[252,252,250]:[120,130,150],(0.10+0.30*crustK));
+    for(var cy2=top;cy2<botY;cy2+=Math.max(2,Math.round(cell*0.55))){
+      // rows compress toward the horizon, so the crust recedes instead of tiling flat
+      var rowf=(cy2-top)/depth;
+      var stepx=Math.max(3,Math.round(cell*(0.45+0.85*rowf)));
+      var jit=((mixLi(((cy2*7919)>>>0),9109)%100)/100-0.5)*stepx;
+      for(var cx2=-stepx;cx2<SW+stepx;cx2+=stepx){
+        var wxr=cx2+WOFF+jit;
+        if(((mixLi(((wxr/stepx)|0)>>>0,3313))%10)<4) continue;      // most cells show no top edge at all
+        var seg=Math.round(stepx*(0.22+((mixLi(((wxr/stepx)|0)>>>0,8221)%100)/100)*0.34));
+        g.fillRect(Math.round(cx2+jit),cy2,Math.max(1,seg),Math.max(1,Math.round(K*0.4)));
+      }
+      // the vertical members of the polygon, short and only sometimes
+      for(var vx3=-stepx;vx3<SW+stepx;vx3+=stepx){
+        if(((mixLi(((vx3+WOFF)>>>0),5237)%10))<7) continue;         // and fewer verticals still
+        g.fillRect(Math.round(vx3+jit),cy2,Math.max(1,Math.round(K*0.4)),Math.max(2,Math.round(cell*0.26)));
+      }
+    }
+  }
+  // ---- 5. BRINE AND HARVEST PONDS. Evaporation ponds hold different concentrations and each one goes a
+  // different colour — the rose, rust and jade you see from the air. THE PINK PAN gets the most.
+  var pondN=(sv===1)?9:((sv===2)?3:6);
+  for(var pq2=0;pq2<pondN;pq2++){
+    var ph3=mixLi(pq2>>>0,26417)>>>0;
+    var pwx=(ph3%Math.max(1,WW));
+    for(var o7=-1;o7<=1;o7++){
+      var pxx=Math.round(pwx-WOFF+o7*WW);
+      if(pxx<-200||pxx>SW+200) continue;
+      var pwd=Math.round((40+((ph3>>>7)%110))*K*0.6);
+      var pyy=top+Math.round(((ph3>>>15)%100)/100*depth*0.78);
+      var pht=Math.max(2,Math.round(depth*(0.08+((ph3>>>21)%100)/100*0.14)));
+      var tint=(sv===1)?[[196,96,110],[214,140,120],[178,84,96]][pq2%3]
+                       :[[120,150,140],[168,140,116],[110,138,158]][pq2%3];
+      g.fillStyle=rgba(mixc(tint,day?[255,255,255]:[10,14,22],day?0.30:0.62),day?0.50:0.40);
+      g.fillRect(pxx,pyy,pwd,pht);
+      g.fillStyle=rgba(day?[255,255,252]:[130,140,160],0.55);      // the salt bund around it
+      g.fillRect(pxx,pyy,pwd,Math.max(1,Math.round(K*0.5)));
+      g.fillRect(pxx,pyy+pht-Math.max(1,Math.round(K*0.5)),pwd,Math.max(1,Math.round(K*0.5)));
+    }
+  }
+  // ---- 6. WIND RIPPLES AND DUST DEVILS. Fine salt drifting across the crust, and on a hot dry afternoon
+  // a devil wandering the pan. Both driven by the real wind; the devil only turns up when it is dry.
+  var wind2=(weather&&weather.wind)||0;
+  if(wind2>4){
+    g.fillStyle=rgba(day?[255,255,255]:[120,130,150],0.10*Math.min(1,(wind2-4)/12));
+    for(var wr=0;wr<30;wr++){
+      var wh=mixLi(wr>>>0,44711)>>>0;
+      var wx4=Math.round(((wh%Math.max(1,WW))-WOFF+now*0.004*(1+((wh>>>5)%3))))%WW;
+      wx4=((wx4%WW)+WW)%WW; if(wx4>SW+40) wx4-=WW;
+      if(wx4<-40||wx4>SW) continue;
+      g.fillRect(wx4,top+((wh>>>9)%Math.max(1,depth-1)),Math.round((6+((wh>>>17)%20))*K*0.5),1);
+    }
+  }
+  if(crustK>0.5&&wind2>7&&day){
+    var dvN=1+((WORLD_SEED>>>9)%2);
+    for(var dv=0;dv<dvN;dv++){
+      var dh=mixLi(dv>>>0,60083)>>>0;
+      var per8=210000+((dh%100)*3000);
+      var dp=((now+((dh>>>7)%per8))%per8)/per8;
+      var dwx=dp*WW;
+      for(var o8=-1;o8<=1;o8++){
+        var dxx=Math.round(dwx-WOFF+o8*WW);
+        if(dxx<-30||dxx>SW+30) continue;
+        var dhh=Math.round((26+((dh>>>13)%22))*K);
+        for(var dq=0;dq<dhh;dq++){
+          var dfq=dq/dhh;
+          var dwid=Math.max(1,Math.round((1.2+3.4*dfq)*K*0.5));
+          var dxo=Math.round(Math.sin(dfq*4.2+now*0.0012)*2.4*K*dfq);
+          g.fillStyle=rgba(day?[236,230,214]:[70,72,80],0.30*(1-dfq*0.7));
+          g.fillRect(dxx+dxo,top-dq+Math.round(depth*0.10),dwid,1);
+        }
+      }
+    }
   }
 }
 // ================================================================================================
@@ -24835,6 +24934,53 @@ function drawBiomeLandmark(g,L,now,nd){
         g.fillStyle="rgba(255,140,50,0.16)"; g.fillRect(X-Math.round(14*K),gy-fh-Math.round(6*K),fw+Math.round(28*K),fh+Math.round(8*K));
         g.globalCompositeOperation="source-over"; }
     });
+  } else if(B.k==="salt"){
+    // ============ THE SALT HOTEL ============
+    // THE SALT MIRROR had no landmark — the fourth land in a row with nothing saying where you are.
+    // The real thing on the Uyuni pan is a hotel built entirely from cut salt blocks: a low white slab of
+    // a building standing on the crust with a flag mast, blinding in the sun. It reads because it is the
+    // only hard-edged white rectangle in a frame made of soft reflections, and it explains why anyone is
+    // out here at all.
+    // ⚠ THE BLOCK COURSES ARE THE WHOLE TELL. Without them it is a white box; with them you can see it is
+    // built from sawn salt, and the courses are what give it scale against the 7px people.
+    at(function(X){
+      var blk=day?"#f4f2ec":"#5a5c62", blk2=day?"#dcd8ce":"#43454a", shad=day?"#c2beb2":"#33353a";
+      var hw2=Math.round(21*K), hh2=Math.round(7.2*K);
+      g.fillStyle=blk;  g.fillRect(X,gy-hh2,hw2,hh2);
+      g.fillStyle=shad; g.fillRect(X+hw2-Math.round(K),gy-hh2,Math.round(K),hh2);
+      // the sawn courses — irregular block lengths, world-anchored, never an even grid
+      g.fillStyle=blk2;
+      for(var cy3=0;cy3<hh2;cy3+=Math.max(2,Math.round(1.5*K))){
+        g.fillRect(X,gy-hh2+cy3,hw2,Math.max(1,Math.round(K*0.3)));
+        var run=X;
+        while(run<X+hw2){
+          var seg2=Math.round((3+((mixLi(((run*7+cy3)|0)>>>0,7213))%4))*K);
+          g.fillRect(run,gy-hh2+cy3,Math.max(1,Math.round(K*0.3)),Math.max(2,Math.round(1.5*K)));
+          run+=seg2;
+        }
+      }
+      g.fillStyle=blk;                                        // a slab roof, very slightly proud
+      g.fillRect(X-Math.round(K),gy-hh2-Math.round(K*0.9),hw2+Math.round(2*K),Math.round(K*0.9));
+      g.fillStyle=day?"#2c3a44":"#0c1014";                    // two deep-set windows and a doorway
+      g.fillRect(X+Math.round(4*K),gy-Math.round(4.4*K),Math.round(2.2*K),Math.round(2.0*K));
+      g.fillRect(X+Math.round(13*K),gy-Math.round(4.4*K),Math.round(2.2*K),Math.round(2.0*K));
+      g.fillRect(X+Math.round(9*K),gy-Math.round(3.4*K),Math.round(2.4*K),Math.round(3.4*K));
+      // the flag mast — the one vertical on a landform that has none
+      g.fillStyle=day?"#8a8a86":"#3a3c40";
+      g.fillRect(X+Math.round(hw2*0.5),gy-hh2-Math.round(8*K),Math.max(1,Math.round(K*0.4)),Math.round(8*K));
+      var fl=((Math.floor(now/420))&1)?1:0;
+      g.fillStyle=day?"#c8503c":"#4a2018";
+      g.fillRect(X+Math.round(hw2*0.5)+Math.round(K*0.4),gy-hh2-Math.round(8*K),Math.round((3+fl)*K),Math.round(1.6*K));
+      if(!day){
+        g.globalCompositeOperation="lighter";
+        g.fillStyle="rgba(255,206,140,0.5)";
+        g.fillRect(X+Math.round(4*K),gy-Math.round(4.4*K),Math.round(2.2*K),Math.round(2.0*K));
+        g.fillRect(X+Math.round(13*K),gy-Math.round(4.4*K),Math.round(2.2*K),Math.round(2.0*K));
+        g.fillStyle="rgba(255,190,110,0.14)";
+        g.fillRect(X-Math.round(4*K),gy-Math.round(8*K),hw2+Math.round(8*K),Math.round(8*K));
+        g.globalCompositeOperation="source-over";
+      }
+    });
   } else if(B.k==="fjord"){
     // ============ THE STAVE CHURCH ON THE SHORE ============
     // THE FJORD had no landmark at all — the third land in a row with nothing that says where you are.
@@ -26459,6 +26605,94 @@ function drawEmpyreanRays(g,L,now,nd){
     }
   }
   g.globalCompositeOperation="source-over";
+}
+// ============ THE SALT PAN, ALIVE ============
+// Flamingos and the salt harvest — the last two locked answers for map 16.
+function drawSaltLife(g,L,now,nd,fx){
+  var B=curBiome;
+  if(!B||!B.mirror||cityPhase==="apoc"||SEA_FRONT<=0) return;
+  var K=Math.max(1,KSP), day=L>0.5;
+  var top=SEA_Y, botY=SH-TASKBAR_WP, depth=Math.max(1,botY-top);
+  // ---- FLAMINGOS. `flamingo` has been in this land's fauna list since the biome was written and has
+  // never been drawn — the same "declared, and absent" fault as the karst's caves, the dune sea's
+  // nocturnal animals and the fjord's seabirds. A flamingo wading brine is the single most recognisable
+  // image of a salt lake, and at this scale the recognition is entirely in the SHAPE: a pink blob on two
+  // hair-thin legs with a hooked neck. Get the neck wrong and it is a swan.
+  var flN=(B.name==="THE DRY LAKE")?4:12;
+  for(var f=0;f<flN;f++){
+    var fh=mixLi(f>>>0,53951)>>>0;
+    var per=180000+((fh%100)*3400);
+    var ph=((now+((fh>>>5)%per))%per)/per;
+    var fwx=((fh>>>9)%Math.max(1,WW))+Math.sin(ph*Math.PI*2)*(30+((fh>>>15)%90))*K;
+    for(var o=-1;o<=1;o++){
+      var fx2=Math.round(fwx-WOFF+o*WW);
+      if(fx2<-8||fx2>SW+8) continue;
+      var fy=top+Math.round((0.14+((fh>>>19)%100)/100*0.62)*depth);
+      var pink=day?"rgba(232,138,158,0.95)":"rgba(96,58,70,0.9)";
+      var legs=day?"rgba(214,150,160,0.8)":"rgba(70,44,52,0.8)";
+      var stoop=((Math.floor(now/2600)+f)%4)===0;             // every so often the head goes down to feed
+      g.fillStyle=legs;
+      g.fillRect(fx2,fy,Math.max(1,Math.round(K*0.3)),Math.round(2.2*K));
+      g.fillRect(fx2+Math.round(K*0.8),fy,Math.max(1,Math.round(K*0.3)),Math.round(2.2*K));
+      g.fillStyle=pink;
+      g.fillRect(fx2-Math.round(K*0.3),fy-Math.round(1.4*K),Math.round(2.4*K),Math.round(1.4*K));
+      if(stoop){                                              // neck down, head in the water
+        g.fillRect(fx2+Math.round(1.8*K),fy-Math.round(1.2*K),Math.max(1,Math.round(K*0.35)),Math.round(1.2*K));
+      } else {                                                // the S-curve neck, which is the whole tell
+        g.fillRect(fx2+Math.round(1.6*K),fy-Math.round(3.4*K),Math.max(1,Math.round(K*0.35)),Math.round(2.2*K));
+        g.fillRect(fx2+Math.round(2.0*K),fy-Math.round(3.8*K),Math.round(1.1*K),Math.max(1,Math.round(K*0.45)));
+      }
+      // and the bird doubled in the film beneath it, because this land reflects everything
+      g.fillStyle=day?"rgba(232,138,158,0.26)":"rgba(96,58,70,0.20)";
+      g.fillRect(fx2-Math.round(K*0.3),fy+Math.round(2.4*K),Math.round(2.4*K),Math.round(K*0.8));
+    }
+  }
+  // ---- THE SALT HARVEST. Conical piles drying on the crust, workers raking, and a narrow-gauge tramway
+  // carrying it off — the reason there is a town here. Scripted from the clock; the works run by day and
+  // the piles stand overnight.
+  var harv=day?1:0.25;
+  for(var h2=0;h2<7;h2++){
+    var hh3=mixLi(h2>>>0,31159)>>>0;
+    var hwx=(hh3%Math.max(1,WW));
+    for(var o2=-1;o2<=1;o2++){
+      var hx=Math.round(hwx-WOFF+o2*WW);
+      if(hx<-30||hx>SW+30) continue;
+      var hy=top+Math.round((0.10+((hh3>>>11)%100)/100*0.34)*depth);
+      var pw3=Math.round((5+((hh3>>>17)%7))*K), phh=Math.round(pw3*0.62);
+      // a CONE, drawn as narrowing rows — a rectangle here would read as a shed
+      for(var q=0;q<phh;q++){
+        var qf=q/phh, wq=Math.max(1,Math.round(pw3*(1-qf)));
+        g.fillStyle=rgba(day?[252,250,244]:[96,102,116],0.92);
+        g.fillRect(hx-(wq>>1),hy-q,wq,1);
+      }
+      g.fillStyle=rgba(day?[206,200,186]:[54,58,68],0.7);      // its shadow on the crust
+      g.fillRect(hx-(pw3>>1),hy+1,pw3,Math.max(1,Math.round(K*0.4)));
+      if(day && (hh3&1)){                                     // a worker raking beside it
+        var wob=((Math.floor(now/520)+h2)&1)?0:1;
+        g.fillStyle="rgba(46,52,60,0.9)";
+        g.fillRect(hx+pw3,hy-Math.round(2.2*K)-wob,Math.max(1,Math.round(K*0.5)),Math.round(2.2*K));
+        g.fillStyle="rgba(150,120,80,0.9)";
+        g.fillRect(hx+pw3+Math.round(K*0.5),hy-Math.round(2.6*K)-wob,Math.round(1.6*K),Math.max(1,Math.round(K*0.3)));
+      }
+    }
+  }
+  // the tramway: a thin rail line along the pan with a train of tubs creeping along it
+  var railY=top+Math.round(depth*0.30);
+  g.fillStyle=rgba(day?[120,116,108]:[44,46,52],0.55);
+  for(var rx2=((-WOFF%9)+9)%9; rx2<SW; rx2+=9) g.fillRect(rx2,railY,Math.round(5*K*0.5),Math.max(1,Math.round(K*0.3)));
+  var TCY=96000, tp=(now%TCY)/TCY;
+  var twx=tp*WW;
+  for(var o3=-1;o3<=1;o3++){
+    var tx2=Math.round(twx-WOFF+o3*WW);
+    if(tx2<-40||tx2>SW+40) continue;
+    for(var c=0;c<4;c++){
+      var cxx=tx2-c*Math.round(4.2*K);
+      g.fillStyle=rgba(day?[70,66,62]:[26,28,32],0.92);
+      g.fillRect(cxx,railY-Math.round(1.8*K),Math.round(3.2*K),Math.round(1.8*K));
+      if(c>0){ g.fillStyle=rgba(day?[248,246,238]:[92,98,112],0.9);   // the tubs are full of salt
+        g.fillRect(cxx,railY-Math.round(2.2*K),Math.round(3.2*K),Math.round(K*0.5)); }
+    }
+  }
 }
 // ============ THE FJORD, ALIVE ============
 // Two of the remaining locked signatures. (The ferry is already running in `fjordBoats`, and the northern
@@ -33981,6 +34215,7 @@ function draw(g,pass){
   // occludes it exactly the way it occludes the terrain. See the note on WILD_LAYER.
   WILD_LAYER="back"; drawFauna(g,L,now,nd);
   drawAlpineLife(g,L,now,nd,fx); drawGorgeLife(g,L,now,nd,fx);
+  drawSaltLife(g,L,now,nd,fx);
   drawFjordLife(g,L,now,nd,fx);
   drawEmpyreanShow(g,L,now,nd,fx);
   drawKarstLife(g,L,now,nd,fx);
