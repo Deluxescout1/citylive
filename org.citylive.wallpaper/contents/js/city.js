@@ -22707,7 +22707,12 @@ function drawBiomeLandmark(g,L,now,nd){
   // you are. That gate existed to protect the life-0 byte-unchanged invariant, which Nick has since
   // deliberately retired. Alpine gets a landmark like everything else now.
   var B=curBiome; if(cityPhase==="apoc") return;
-  if(cityG<0.24) return;                                        // nobody has built it yet
+  // ⚠ NOBODY HAS BUILT IT YET — except on THE EMPYREAN, where nobody built it at all. Every other
+  // landmark here is something the city makes (a headframe, a foundry, a cable car), so gating it on the
+  // city's growth is exactly right. THE GREAT GATE is the one that "goes nowhere and predates everything"
+  // by its own description, and it was the LAST thing to appear — absent until the town was a quarter
+  // grown, which is the opposite of what it is for. `celest`-only, so the other nineteen are untouched.
+  if(cityG<0.24 && !B.celest) return;
   // ⚠ SCALED TO THE FRAME, NOT TO KSP. The previous fix here was "half again the usual scale",
   // because at plain KSP the mine headframe stood shorter than the office blocks beside it. That was
   // the right diagnosis and an insufficient dose: 1.7x KSP is still a fraction of a MATURE skyline,
@@ -23458,30 +23463,136 @@ function drawBiomeLandmark(g,L,now,nd){
         g.globalCompositeOperation="source-over"; }
     });
   } else if(B.k==="heaven"){
-    // THE GREAT GATE — a free-standing arch on the terrace that goes nowhere and predates everything.
-    // The one thing it does that no other landmark here does: the light through the opening is
-    // brighter than the light around it, so the gap reads as the subject rather than the stone.
+    // THE GREAT GATE — a free-standing arch that goes nowhere and predates everything.
+    //
+    // ⚠⚠ IT READ AS A HIGHWAY OVERPASS, AND THE MEASUREMENTS SAY WHY. At its own K (5.10 — the landmark
+    // scale is `max(KSP*1.7, gy/80)`, NOT KSP, and measuring it at KSP undercounted it by ~70% and nearly
+    // hid this) the old gate was 112px wide by 168px to the top of its lintel: 43% of the sky, 14% of the
+    // screen, 24 times a person, and the dominant object in every mature frame. Two pale grey rectangular
+    // piers, a flat slab across the top, proportions of 1:1.2, and its feet swallowed by the city line
+    // because `drawBiomeLandmark` paints ~200 lines before the buildings. That is not "a bit like" an
+    // overpass — it is the construction of one.
+    // 🔑 Nick's ruling: keep the gate, it is the right landmark for this land, but MAKE THE OPENING THE
+    // SUBJECT and rebuild it as light rather than masonry. Three things do that:
+    //   1. PROPORTION. 1:2.7 instead of 1:1.2 — a monumental arch is tall and narrow, an overpass is wide
+    //      and low, and no amount of detailing changes which one a silhouette reads as.
+    //   2. A REAL ARCH WITH REAL DEPTH, not a lintel laid on two posts. A stepped intrados, a visible
+    //      inner reveal (the thickness of the wall you can see through the opening), and imposts where the
+    //      arch springs — the details that say "this was built by someone" at 7px-person scale.
+    //   3. THE LIGHT IS THE POINT. Additive, brightest at the centre of the opening and falling off, plus
+    //      a soft shaft leaning out of it. Painting it at flat alpha over the whole gap is what made the
+    //      old one read as a grey panel — the same "paint cannot glow" fault as the motes.
+    // ⚠ AND IT EXISTS ON A YOUNG CITY NOW. Its own comment said it "predates everything" while the code
+    // said `if(cityG<0.24) return`, so the one thing on this land older than the town was the last thing
+    // to appear. The gate is not civic infrastructure; nobody builds it. See the gate-stage exemption
+    // above, which is `celest`-only so the other nineteen landmarks are untouched.
     at(function(X){
-      var gw=Math.round(22*K), gh=Math.round(26*K), pw=Math.round(4.5*K);
-      g.globalCompositeOperation="lighter";                                          // what comes through it
-      g.fillStyle="rgba(255,246,214,"+(L>0.5?0.14:0.10).toFixed(2)+")";
-      g.fillRect(X+pw,gy-gh+Math.round(4*K),gw-pw*2,gh-Math.round(4*K));
-      g.globalCompositeOperation="source-over";
-      var stone=day?"#efe9d6":"#4a4a52", shade=day?"#d6cfba":"#35353c";
-      g.fillStyle=stone; g.fillRect(X,gy-gh,pw,gh);                                  // the two piers
-      g.fillRect(X+gw-pw,gy-gh,pw,gh);
-      g.fillStyle=shade; g.fillRect(X+pw-Math.round(K),gy-gh,Math.round(K),gh);       // and their shaded inner face
-      g.fillRect(X+gw-pw,gy-gh,Math.round(K),gh);
-      g.fillStyle=stone;                                                             // the arch itself, stepped
-      for(var aq=0;aq<5;aq++){
-        var inset=Math.round(aq*1.1*K), rise=Math.round((4-aq)*1.2*K);
-        g.fillRect(X+inset,gy-gh-rise,gw-inset*2,Math.max(1,Math.round(1.4*K)));
+      var gw=Math.round(15*K), gh=Math.round(40*K), pw=Math.round(3.4*K);
+      var kk=Math.max(1,Math.round(K*0.5));
+      var oX=X+pw, oW=gw-pw*2, oTop=gy-gh+Math.round(9*K);
+      // ---- THE LIGHT IN THE OPENING, graded from the middle out ----
+      g.globalCompositeOperation="lighter";
+      // ⚠⚠ MUCH FAINTER THAN THE FIRST VERSION, WHICH BLEW OUT INTO A SOLID WHITE COLUMN. Five additive
+      // layers at 0.16 stack to near-opaque, and the result was a bar of flat white running the full
+      // height of the gate and out past its feet — it read as a lit lift shaft, not as light in a doorway.
+      // Additive layers MULTIPLY UP; each one has to be budgeted against the total, not chosen alone.
+      // The gap is brighter than its surroundings and no more — that was always the whole idea.
+      // ⚠⚠ AND THE DAYTIME GLOW HAD TO GO ALMOST ENTIRELY, FOR A REASON WORTH KEEPING: THERE IS NO
+      // HEADROOM. Additive light can only read as "brighter" if the background is darker than white, and
+      // by day this gate stands against a sunlit cloud deck that is already near-white — so every layer
+      // simply clipped, and the opening came out as a flat white bar however low the alpha went. The fix
+      // is not another alpha; it is admitting that a stone arch in daylight has a SHADED opening and only
+      // glows once the sun is off it. So the light rides the same continuous day ramp the deck uses, and
+      // by day the reveal is shaded instead — which is both what reads and what is true.
+      // 🔑 GENERAL: on a bright land, additive is for NIGHT. The Ashlands could add light at any hour
+      // because it is dark; THE EMPYREAN cannot, and assuming the technique transfers is what cost three
+      // renders here.
+      var gLit=1-Math.max(0,Math.min(1,(L-0.30)/0.30));
+      var lit=(0.020+0.145*gLit*gLit)*(1-0.55*Math.max(0,Math.min(1,wetness)));
+      var lN=4;
+      for(var lq=0;lq<lN;lq++){
+        var lw=Math.max(1,Math.round(oW*(0.30+0.70*(lq/(lN-1||1)))));
+        g.fillStyle="rgba(255,248,222,"+(lit*(1-lq/lN)).toFixed(4)+")";
+        g.fillRect(oX+((oW-lw)>>1),oTop-Math.round(oW*0.36),lw,gy-oTop+Math.round(oW*0.36));
       }
-      g.fillStyle=day?"#f7f2e2":"#5a5a64";                                            // the lintel above
-      g.fillRect(X-Math.round(2*K),gy-gh-Math.round(7*K),gw+Math.round(4*K),Math.round(2.4*K));
-      if(!day){ g.globalCompositeOperation="lighter";                                 // it holds the light at night
-        g.fillStyle="rgba(255,238,196,0.20)"; g.fillRect(X+pw,gy-gh+Math.round(4*K),gw-pw*2,gh-Math.round(4*K));
-        g.globalCompositeOperation="source-over"; }
+      // …and the shaft leaning out of it, widening and dying well before the road
+      var shH=Math.round(gh*0.34);
+      for(var sq=0;sq<7;sq++){
+        var sf=sq/7, sy=gy-shH+Math.round(sf*shH);
+        var sw2=Math.round(oW*(1+sf*0.7)), sa=lit*0.42*(1-sf)*(1-sf);
+        if(sa<=0.003) break;
+        g.fillStyle="rgba(255,246,212,"+sa.toFixed(4)+")";
+        g.fillRect(oX+((oW-sw2)>>1)+Math.round(sf*3*K),sy,sw2,Math.max(1,Math.round(shH/7)));
+      }
+      g.globalCompositeOperation="source-over";
+      // ---- THE STONE. Pale, but never the same value as the cloud behind it, or the silhouette dies.
+      // ⚠⚠ AND IT HAD TO COME DOWN IN VALUE, BECAUSE IT NOW STANDS AGAINST CLOUD. The old gate was pale
+      // grey against a pale sky and that was survivable; the new one stands in front of a sunlit deck that
+      // is very nearly white, and at #f2ecda it all but vanished into it. The basalt coast wrote this rule
+      // once already — "rock and walls at the SAME VALUE, so whole buildings vanished into the cliff and
+      // only their windows survived. Contrast between a thing and what it stands on is the rule."
+      // 🔑 Building the background BRIGHTER re-opens every contrast question on the land, not just this
+      // one. A warm sandstone-ivory keeps the gate unmistakably pale — it is still the Empyrean — while
+      // holding a clear edge against white cloud, and it warms nicely at golden hour.
+      var stone=day?"#e3d7ba":"#514f58", shade=day?"#bdb094":"#33323a", deep=day?"#8d8168":"#232228";
+      g.fillStyle=stone; g.fillRect(X,gy-gh,pw,gh);                                   // the two piers
+      g.fillRect(X+gw-pw,gy-gh,pw,gh);
+      g.fillStyle=shade;                                                              // their shaded inner faces
+      g.fillRect(X+pw-kk,gy-gh,kk,gh); g.fillRect(X+gw-pw,gy-gh,kk,gh);
+      // THE REVEAL — the thickness of the wall you can see through the opening. By day this is the whole
+      // reason the gap reads: a shaded recess behind a lit face is what tells you the stone has depth.
+      g.fillStyle=deep;
+      g.fillRect(oX,oTop,oW,Math.max(1,Math.round(1.2*K)));
+      if(day){
+        g.fillStyle=day?"rgba(120,116,104,0.20)":"rgba(0,0,0,0)";
+        g.fillRect(oX,oTop,Math.max(1,kk),gy-oTop);                                   // shadow down the near jamb
+        g.fillRect(oX+oW-Math.max(1,kk),oTop,Math.max(1,kk),gy-oTop);
+      }
+      // IMPOSTS — the moulding where the arch springs from the piers. Small, and the single detail that
+      // most says "architecture" rather than "two posts": a real arch visibly starts somewhere.
+      g.fillStyle=day?"#fbf6e8":"#5e5c67";
+      g.fillRect(X-kk,oTop-Math.round(1.6*K),pw+kk*2,Math.max(1,Math.round(1.6*K)));
+      g.fillRect(X+gw-pw-kk,oTop-Math.round(1.6*K),pw+kk*2,Math.max(1,Math.round(1.6*K)));
+      // THE ARCH HEAD — the SPANDRELS either side of a semicircular void.
+      // ⚠⚠ THE FIRST VERSION FILLED THE OPENING INSTEAD OF LEAVING IT. Each course was drawn as one rect
+      // spanning the whole gap, inset a little more as it rose, so the "arch" came out as a solid stepped
+      // DOME sitting between the piers — a bell, or a mushroom cap, and the one thing an arch must have is
+      // the hole. An arch is not stone that narrows; it is stone AROUND A VOID.
+      // 🔑 So it is drawn per row from the outside in: at each row the semicircular opening has a
+      // half-width, and stone fills from each pier to that edge. The void is what is left, which is the
+      // only way it can be the subject.
+      var aH=Math.round(oW*0.5), aTop=oTop-aH;
+      for(var ay=0;ay<aH;ay++){
+        // ⚠ AND THE CURVE RAN THE WRONG WAY THE FIRST TIME. `sqrt(1-(1-t)^2)` gives the opening its FULL
+        // width at the crown and zero at the springing, i.e. an inverted bowl — the gate came out with an
+        // hourglass throat. An arch is widest where it springs and closes to nothing at the top.
+        var afy=(aH-ay)/aH;                                       // 1 at the crown, 0 at the springing
+        var hw=Math.round((oW*0.5)*Math.sqrt(Math.max(0,1-afy*afy)));
+        var yy=aTop+ay;
+        var lw2=Math.max(0,(oW>>1)-hw);
+        if(lw2>0){
+          g.fillStyle=stone;
+          g.fillRect(oX,yy,lw2,1);
+          g.fillRect(oX+oW-lw2,yy,lw2,1);
+          g.fillStyle=shade;                                      // the intrados is in shadow — it faces down
+          g.fillRect(oX+lw2-Math.max(1,kk>>1),yy,Math.max(1,kk>>1),1);
+          g.fillRect(oX+oW-lw2,yy,Math.max(1,kk>>1),1);
+        }
+      }
+      // the crown course, sitting a little proud, and a keystone in the middle of it
+      g.fillStyle=day?"#fbf6e8":"#5e5c67";
+      g.fillRect(X-Math.round(1.4*K),gy-gh,gw+Math.round(2.8*K),Math.round(2.2*K));
+      g.fillStyle=day?"#efe7d0":"#4a4952";
+      g.fillRect(X+((gw-Math.round(2.6*K))>>1),gy-gh-Math.round(1.6*K),Math.round(2.6*K),Math.round(3.4*K));
+      // ---- AND IT HOLDS THE LIGHT AT NIGHT. Locked: night is the payoff. The stone itself carries a
+      // faint glow along its inner edges, so the gate is legible in the dark by its own light.
+      if(!day){
+        g.globalCompositeOperation="lighter";
+        g.fillStyle="rgba(255,240,200,0.22)";
+        g.fillRect(X+pw-kk,oTop,kk,gy-oTop); g.fillRect(X+gw-pw,oTop,kk,gy-oTop);
+        g.fillRect(oX,oTop,oW,Math.max(1,Math.round(1.2*K)));
+        g.globalCompositeOperation="source-over";
+      }
     });
   }
 }
