@@ -3226,7 +3226,15 @@ var BIOMES=[
   //               itself never read as hot. This puts the fire up on the mass, where it is visible.
   { k:"hell",   name:"THE ASHLANDS", amp:0.98, base:0.72, flat:0.15, steep:0.78, snow:false, water:"river", molten:1,
     far:[104,44,46],   near:[64,24,30],   cap:[214,92,50],  ground:[48,28,30],
-    walls:[[62,44,46],[44,30,34],[86,54,50],[38,26,30],[104,62,52],[52,36,40],[74,46,44],[40,28,32]],
+    // ⚠ BASALT AND IRON, NOT BROWN STONE. Nick's ruling: "the city is built from the land — basalt and
+    // obsidian walls, iron, heavy shuttered roofs against ashfall", and he chose to take it all the way into
+    // the architecture rather than stopping at a recolour. These were warm mid-browns, which is what a normal
+    // town is built of; a town on a lava field builds out of the only rock it has.
+    // 🔑 DARKER IS NOT AUTOMATICALLY BETTER HERE, AND THAT NEARLY MADE THIS WORSE. A near-black city in front
+    // of a near-black ridge loses its silhouette entirely, so the walls only went dark AFTER the low-air haze
+    // went in behind them (see drawMountains) — and two of the eight are deliberately IRON greys, a good deal
+    // lighter and cooler than the rest, so every block has something in it that reads against the rock.
+    walls:[[44,38,40],[30,26,29],[62,54,56],[24,21,24],[86,84,88],[38,33,36],[106,102,104],[28,25,28]],
     fauna:{ keep:{deer:0,rabbit:0,fox:0,goat:0}, big:[], small:[], air:["vulture"] },
     // ⚠ ALL SNAGS, NO SCRUB. `scrub` was one kind in four and `drawBiomePlant` draws it GREEN, so a quarter
     // of the plants on burning rock were living shrubs — the last source of vegetation left after the
@@ -3663,7 +3671,8 @@ var BIOME_VARIANTS={
   hell:[ {},
     { name:"THE CINDER WASTE", // burnt out and grey: the fire has mostly gone out of this one
       far:[92,84,80],   near:[56,50,48],   cap:[152,110,72], ground:[62,58,54],
-      walls:[[78,72,68],[54,50,48],[98,88,82],[46,42,40],[112,98,88],[64,58,54],[86,78,72],[50,46,44]],
+      // …the same basalt-and-iron rule, in the Cinder Waste's own grey: ash-caked stone with iron in it
+      walls:[[74,70,66],[50,48,46],[92,88,84],[42,40,38],[118,116,114],[58,56,54],[100,98,96],[46,44,42]],
       // ⚠ `scrub` DRAWS GREEN, and both hell variants still carried it after the base row had been fixed.
       // Nick's ruling is "nothing green survives here"; a variant override is a separate list, so fixing the
       // base biome silently left a living shrub in one plant slot on two of the three Ashlands.
@@ -3673,7 +3682,8 @@ var BIOME_VARIANTS={
       sky:{ top:[52,44,42], bot:[168,126,88], k:0.62, haze:[178,138,96] } },
     { name:"THE OBSIDIAN",     // black glass under violet fire — the coldest-looking hell there is
       far:[52,40,64],   near:[28,20,38],   cap:[142,92,196], ground:[34,26,42],
-      walls:[[48,38,56],[30,24,38],[66,52,78],[26,20,32],[80,62,96],[38,30,46],[58,46,68],[28,22,34]],
+      // …and on The Obsidian it really is black glass, with iron the only warm-neutral in the palette
+      walls:[[36,30,44],[22,18,28],[52,44,64],[18,15,23],[92,88,96],[30,25,37],[110,104,112],[20,17,26]],
       flora:{ kinds:["snag","snag","log","snag"], bloom:["#a24ad8","#7a2ea8","#c86ae8"] },   // ⚠ see the note above: no scrub
       sky:{ top:[18,8,28], bot:[126,38,168], k:0.80, haze:[148,56,196] } } ],
 
@@ -22564,6 +22574,86 @@ function drawBiomeWeather(g,L,now,nd,fx){
 // ONE STRUCTURE that says where you are — the other four biomes' answer to alpine's cable car and
 // summit lodge. Industry, so it arrives only once there is a town to build it, and it wears the
 // biome's own wall palette so it belongs to this city rather than being pasted on.
+// ============ THE FOUNDRY QUARTER ============
+// Nick took the city all the way into the architecture: "materials, roofs AND foundry buildings — furnace
+// glow, smoking stacks, slag heaps". THE GREAT FOUNDRY already exists as this land's single LANDMARK; what
+// was missing is the ordinary industry around it — the reason anybody lives on burning rock at all.
+//
+// ⚠ SELF-CONTAINED OBJECTS ON THE GROUND LINE, not dressing hung on the skyline. Adding a thirteenth
+// functional building type would mean editing the generator every land shares, and hanging chimneys off
+// existing roofs means knowing each roof's real height — which is precisely what put pale grey bars floating
+// in mid-air when the settled ash tried it (`b.h` is the full height; growth, abandonment, fire and collapse
+// all shrink what is drawn). These stand on HORIZON, which is never in doubt.
+// ⚠ THE PERSON IS THE RULER: a works is 16–24px wide and its stack tops out around 30px — tall enough to
+// read as industry, short enough to honour "don't block the city behind it".
+// ⚠ AND IT GROWS. A works is not in the wilderness and not in the first village: `gstage(0.34,0.62)`, so it
+// arrives with the town's industry. The sprawl shipped ungated ranks and Nick caught it.
+function drawAshIndustry(g,L,now){
+  if(!curBiome||!curBiome.molten||cityPhase==="apoc") return;
+  var arr=gstage(0.34,0.62); if(arr<=0) return;
+  var K=Math.max(1,Math.round(KSP)), gy=HORIZON, day=L>0.5;
+  // ⚠ THE IRON HAS TO WIN AGAINST THE ROCK. At #232228 the night parapet was invisible and the works read as
+  // nothing but a floating furnace glow — the same "dark thing on a dark thing" fault the car wheels had.
+  // Iron is the lightest thing in this land's palette on purpose; it is what gives the works an edge.
+  var stone=day?"#2a2528":"#141115", iron=day?"#5a5762":"#413f4c";
+  for(var i=0;i<6;i++){
+    var fh0=P_hash(((i*2654435761)^0x0F0D)>>>0);
+    var fwx=(fh0%Math.max(1,WW));
+    if(hasRiver&&typeof inRiver==="function"&&inRiver(fwx)) continue;      // not standing in the lava channel
+    var X=Math.round(fwx-WOFF);
+    if(X>SW+40&&X-WW>-40) X-=WW; if(X<-40&&X+WW<SW+40) X+=WW;
+    if(X<-40||X>SW+40) continue;
+    var bw=Math.round((16+((fh0>>>4)%9))*K/3), bh=Math.round((11+((fh0>>>9)%6))*K/3*arr);
+    if(bh<3) continue;
+    g.fillStyle=stone; g.fillRect(X,gy-bh,bw,bh);                          // the works
+    g.fillStyle=iron;  g.fillRect(X-Math.max(1,Math.round(K*0.4)),gy-bh-Math.max(1,Math.round(K*0.5)),
+                                  bw+Math.max(2,Math.round(K*0.8)),Math.max(1,Math.round(K*0.6)));   // iron parapet
+    g.fillRect(X,gy-Math.round(bh*0.62),bw,Math.max(1,Math.round(K*0.35)));                          // …and a gantry band across the face
+    // a couple of lit shop windows, so the works reads as WORKING rather than as a shed
+    for(var wq=0;wq<2;wq++){
+      if(((fh0>>>(3+wq*5))&3)===0) continue;
+      g.fillStyle=day?"rgba(206,196,170,0.42)":"rgba(255,206,120,0.80)";
+      g.fillRect(X+Math.round(bw*(0.60+wq*0.20)),gy-Math.round(bh*(0.44+wq*0.22)),Math.max(1,Math.round(K*0.7)),Math.max(1,Math.round(K*0.7)));
+    }
+    // THE FURNACE MOUTH — the one genuinely bright thing, and the reason a black city still reads. It breathes
+    // on its own slow clock (per works, so the quarter never flares in unison — the flows' lesson again).
+    var fbr=0.45+0.55*(0.5+0.5*Math.sin(now/(4200+((fh0>>>17)%3600))+((fh0>>>21)%628)/100));
+    var mw=Math.max(2,Math.round(bw*0.34)), mh=Math.max(2,Math.round(bh*0.30));
+    g.globalCompositeOperation="lighter";
+    g.fillStyle=ashFire(0.85,0.60*fbr);
+    g.fillRect(X+Math.round(bw*0.22),gy-mh,mw,mh);
+    g.fillStyle=ashFireHalo(0.20*fbr);                                     // …and the light it throws out the door
+    g.fillRect(X+Math.round(bw*0.22)-mw,gy-mh-Math.round(mh*0.4),mw*3,Math.round(mh*1.5));
+    g.globalCompositeOperation="source-over";
+    // THE STACK, and the smoke off it. Leans on the real wind, like everything else on this land.
+    var skx=X+Math.round(bw*(0.70+((fh0>>>13)%20)/100)), skh=Math.round((14+((fh0>>>25)%16))*K/3*arr);
+    var skw=Math.max(1,Math.round(K*0.8));
+    g.fillStyle=stone; g.fillRect(skx,gy-bh-skh,skw,skh);
+    g.fillStyle=iron;  g.fillRect(skx,gy-bh-skh,skw,Math.max(1,Math.round(K*0.5)));      // banded top
+    var lean=Math.max(-1.5,Math.min(1.5,((weather&&weather.wind)||6)/15));
+    var smPer=5200+((fh0>>>7)%4200), smF=((now/smPer)+((fh0>>>19)%1000)/1000)%1;
+    var smH=Math.round((10+((fh0>>>11)%14))*K/3*(0.4+smF*1.1));
+    for(var sq=0;sq<smH;sq++){
+      var sf=sq/Math.max(1,smH), sa=(day?0.24:0.17)*(1-sf)*(1-smF*0.6);
+      if(sa<=0.008) continue;
+      g.fillStyle="rgba(96,90,88,"+sa.toFixed(3)+")";
+      g.fillRect(Math.round(skx+lean*sq*0.6+Math.sin(now*0.0009+sq*0.3+i*2.1)*1.2*K),
+                 gy-bh-skh-sq,Math.max(1,Math.round(K*(0.7+sf*1.6))),1);
+    }
+    // THE SLAG HEAP beside it — cooling waste, still faintly hot at the top of the pile
+    var shw=Math.max(3,Math.round(bw*0.55)), shh=Math.max(2,Math.round(bh*0.36));
+    var shx=X-shw-Math.max(1,Math.round(K*0.6));
+    for(var sy=0;sy<shh;sy++){
+      var sw2=Math.round(shw*(1-sy/shh*0.86));                             // an angle-of-repose cone
+      if(sw2<1) continue;
+      g.fillStyle=day?"#332c2c":"#191515";
+      g.fillRect(shx+((shw-sw2)>>1),gy-1-sy,sw2,1);
+    }
+    if(shh>2){ g.globalCompositeOperation="lighter";
+      g.fillStyle=ashFire(0.5,0.26*fbr); g.fillRect(shx+((shw-2)>>1),gy-shh,Math.max(1,Math.round(K*0.7)),Math.max(1,Math.round(K*0.7)));
+      g.globalCompositeOperation="source-over"; }
+  }
+}
 function drawBiomeLandmark(g,L,now,nd){
   // ⚠ This used to early-return on `!B.fauna`, which is the alpine sentinel — so the one land the
   // city grew up under, and the most-seen of the seven, was the only one with NOTHING that says where
@@ -25998,7 +26088,29 @@ function drawMountains(g,L,now,nd){
       }
       // …and the ground behind the city, torn open. Near band only: the apron in front of the far ridge is
       // occluded by the near one, so a tear drawn there is a tear nobody sees.
-      if(pi===1) drawAshFissures(g,hs,gy,day,mNight,now,ashRift);
+      if(pi===1){
+        drawAshFissures(g,hs,gy,day,mNight,now,ashRift);
+        // ============ HAZE IN THE LOW AIR — and it has to come BEFORE the black-stone city ============
+        // The next thing this land wants is a city built of basalt and iron. A near-black city drawn in front
+        // of a near-black ridge reads WORSE than the one that is there now, however well the buildings
+        // themselves are made — the silhouette simply disappears into the rock behind it. Contrast has to
+        // come from somewhere before the city gets darker, and there are only two honest sources: light the
+        // city emits, and atmosphere between it and the ridge.
+        // 🔑 THIS IS AERIAL PERSPECTIVE, NOT A GRADIENT FOR ITS OWN SAKE. A land throwing this much ash and
+        // steam into the air has a genuinely thick low atmosphere, so the rock nearest the horizon — exactly
+        // the band the city stands against — is the most veiled. Drawn in the BACKDROP pass, so the city
+        // lands on top of it and gains its edge back for free.
+        // ⚠ Uses the biome's own `sky.haze`, so all three variants tint their own way (orange, grey, violet)
+        // rather than a fourth colour being invented here.
+        var hz=(B.sky&&B.sky.haze)?B.sky.haze:[180,120,90];
+        var hzTop=Math.max(2,Math.round(gy-mtsCache.mx[1]*0.62)), hzA=day?0.32:0.17, hzS=Math.max(1,Math.round(KSP*0.7));
+        for(var hy=hzTop;hy<gy;hy+=hzS){
+          var hf=(hy-hzTop)/Math.max(1,gy-hzTop), ha=hzA*hf*hf;
+          if(ha<=0.005) continue;
+          g.fillStyle="rgba("+hz[0]+","+hz[1]+","+hz[2]+","+ha.toFixed(3)+")";
+          g.fillRect(0,hy,SW,hzS);
+        }
+      }
     }
     // SNOW LIES WHERE THE LAND IS LEVEL. A February render of every biome came back in its summer
     // colours: only alpine showed any snow, because only alpine carries `snow:true`, and that band is
@@ -31016,6 +31128,8 @@ function draw(g,pass){
   drawSpireWorld(g,L,now,nd);     // the high temples, standing on cloud
   drawBiomeDetail(g,L,now,nd);    // and whatever else lives on this particular land
   drawBiomeLandmark(g,L,now,nd);  // and the one structure that says where you are
+  // ⚠⚠ THE ASHLANDS' WORKS ARE **NOT** CALLED HERE — see the call after drawLayer(near) below, and the note
+  // there. This is the paint-order finding that explains the whole "built, then invisible" audit on this land.
   // ⚠ THE PLATEAU TOWNS MOVED TO THE LIVE RATE TOO — see past the "bg" return.
   // Nick: "the people up there are moving REALLY slow like they are just jumping around, everyone
   // else is fine." Same bug as the gondola and the climbers, and I missed it when I swept for movers
@@ -31213,6 +31327,20 @@ function draw(g,pass){
   if(!nukeFull()) drawIce(g,L,now);                            // deep winter: the bay is a skating rink (skaters gone with the blast)
   if(hasOcean && !nukeFull()) drawRival(g,L,now);              // the rival city, growing across the bay (also gone in the exchange)
   drawLayer(g,near,L,now,fx,hol,0);
+  // ============ 🔑 THE PAINT-ORDER FINDING ============
+  // The Ashlands' works go HERE, after the near buildings — and finding out why is the answer to the audit
+  // that started this whole pass.
+  // `drawBiomeDetail` (the brimstone spires and the fire vents) and `drawBiomeLandmark` (THE GREAT FOUNDRY,
+  // which pours molten slag on a 40-second cycle) are called at line ~31119. The three building layers draw
+  // at ~31297 / ~31310 / ~31318 — nearly two hundred lines LATER. So every ground-level fire feature this
+  // land has is painted BEHIND the entire city and then covered by it.
+  // 🔑 IT WAS NEVER ONLY THAT THEY DRAW BELOW HORIZON. They draw below the horizon AND before the buildings,
+  // which is why raising them would not have been enough on its own — two independent causes of the same
+  // symptom, and I had only found the first.
+  // ⚠ I have NOT reordered `drawBiomeDetail`: it is shared by all twenty lands and moving it would restyle
+  // every one of them. That is a separate change and Nick's call, not a side effect of adding a foundry.
+  // Recorded here rather than fixed silently.
+  if(curBiome.molten) drawAshIndustry(g,L,now);
   if(curRegime&&curRegime.active) drawLayerRegime(g,near,L,now,night);  // …and the near towers (giant slogan banners here)
 
   // construction sites — towers rising floor-by-floor over real days, with tower cranes
