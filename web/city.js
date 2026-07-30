@@ -4906,6 +4906,7 @@ var curSlump=0;      // v1.40: how deep the DEPRESSION is right now (0 = fine �
 var NOECONFX=false;  // containment A/B: suppress the post-v1.39 hard-times street decay (drawHardTimes) the ref engine lacks — keeps the guard render byte-identical
 var FORCESLUMP=null; // test hook: pin the slump level (?slump=)
 var wetness=0;       // how rain-soaked the streets are (drives puddles, dries out after)
+var ashQuench=0;     // 0..1 how far the Ashlands' fire has been chilled by rain — decays over ~35 min, NOT with wetness
 
 // ---- deterministic scheduled crossers (identical on every screen) ----
 // A vehicle enters at one end of the world and crosses; visible only during its
@@ -22365,6 +22366,56 @@ function drawBiomeWeather(g,L,now,nd,fx){
         g.fillRect(Math.round(ex),Math.round(ey),Math.max(1,Math.round(K*0.9)),Math.max(1,Math.round(K*0.9)));
       }
     }
+    // ============ RAIN ON HOT ROCK ============
+    // Nick locked all four: steam plumes, the rock crusting and dimming, the rain barely reaching the
+    // ground, and puddles boiling away. The crusting is in drawMountains via `ashQuench`; this is the air.
+    //
+    // 🔑 "THE RAIN BARELY REACHES THE GROUND" IS NOT DRAWN BY SHORTENING THE RAIN. Truncating the streaks
+    // would mean editing the shared precipitation renderer that all twenty lands run, to make one land's
+    // rain wrong. What actually happens on a lava field is that the drops are LOST in the steam coming off
+    // it — so the veil below is what hides them, and the effect is subtractive on the viewer's side rather
+    // than a special case in everybody else's weather.
+    // ⚠ Keyed to `ashQuench`, not to `wet`, so the steam OUTLASTS the storm exactly as the chilling does:
+    // rock that has just been rained on goes on steaming after the sky clears, which is the whole point of
+    // the answer he picked.
+    var stQ=Math.max(wet?0.35:0, ashQuench);
+    if(stQ>0.04){
+      // 1. THE VEIL. A warm, thick band low in the frame — thickest at the ground and gone by mid-height.
+      var vTop=Math.round(gy*0.34), vBot=Math.min(SH,gy+Math.round(20*K));
+      for(var sv=vTop;sv<vBot;sv++){
+        var svf=(sv-vTop)/Math.max(1,vBot-vTop);
+        var sva=0.26*stQ*svf*svf;
+        if(sva<=0.006) continue;
+        g.fillStyle="rgba(206,190,186,"+sva.toFixed(3)+")";
+        g.fillRect(0,sv,SW,1);
+      }
+      // 2. THE PLUMES, off the hot rock itself. World-anchored so all three screens put them in the same
+      // places, and each one rises and dissipates on its own cycle rather than the whole row pumping
+      // together — the lockstep lesson from the flows applies to steam as well.
+      var stLean=Math.max(-1.4,Math.min(1.4,wind/16));
+      for(var sp2=0;sp2<20;sp2++){
+        var sph=P_hash(((sp2*2654435761)^0x51EA)>>>0);
+        var spx=(sph%Math.max(1,WW))-WOFF;
+        if(spx>SW+30&&spx-WW>-30) spx-=WW; if(spx<-30&&spx+WW<SW+30) spx+=WW;
+        if(spx<-30||spx>SW+30) continue;
+        var spPer=2600+((sph>>>7)%5200), spPh=((sph>>>15)%1000)/1000;
+        var spF=((now/spPer)+spPh)%1;                                  // 0 just risen … 1 dissipated
+        var spH=Math.round((10+((sph>>>4)%22))*K*(0.35+spF*1.10)*stQ);
+        // ⚠ UP THE APRON, NOT AT THE KERB. First pass put every plume within 42px of HORIZON, which on a
+        // mature city is level with the rooftops — so the steam rose through the busiest, brightest part of
+        // the frame and was invisible. Spread up the dark rock behind the city instead, which is both where
+        // the hot rock actually is and the one place a pale plume has anything to contrast against.
+        var spY=gy-Math.round(((sph>>>21)%100)*K*0.78);
+        for(var sq=0;sq<spH;sq++){
+          var sqf=sq/Math.max(1,spH);
+          var sqa=0.34*stQ*(1-sqf)*(1-spF*0.72);
+          if(sqa<=0.008) continue;
+          g.fillStyle="rgba(222,212,208,"+sqa.toFixed(3)+")";
+          g.fillRect(Math.round(spx+stLean*sq*0.55+Math.sin(now*0.0011+sq*0.24+sp2*1.7)*1.6*K),
+                     spY-sq,Math.max(1,Math.round(K*(0.9+sqf*2.2))),1);
+        }
+      }
+    }
   } else if(B.k==="heaven"){
     // MOTES of light drifting upward, and the air itself faintly gold. Rain still falls here; the
     // Empyrean is a place with a forecast, and a wet day dims the motes exactly as it should.
@@ -25057,7 +25108,10 @@ function drawAshFissures(g,hs,gy,day,mNight,now,rift){
           g.fillStyle=day?"rgba(126,96,86,0.30)":"rgba(70,48,44,0.34)";
           g.fillRect(sx,fy+th,1,Math.max(1,Math.round(K*0.6)));
         }
-        var heat=fDeep*fCyc*taper*(nearRift?1:0.72);
+        // …and a tear full of rainwater has gone out too, for as long as the quench lasts. A fissure holds
+        // its heat better than a thin surface flow does — it is a hole, and the weather only reaches the top
+        // of it — so it is damped less than the veins on the faces are.
+        var heat=fDeep*fCyc*taper*(nearRift?1:0.72)*(ashQuench>0.01?Math.max(0.18,1-ashQuench*0.70):1);
         if(heat>0.10){
           g.globalCompositeOperation="lighter";
           var hA=heat*(0.34+0.52*mNight);
@@ -25630,6 +25684,12 @@ function drawMountains(g,L,now,nd){
             if(qrF>0) qRift=1+2.0*qrF*qrF;
           }
           var qA=(0.16+0.30*mNight)*qg*qF*qRift;
+          // …and the rain reaches THIS fire too. Measuring the quench found the hot-pixel count barely
+          // moving, and the reason was that the bloom — a broad orange field along the whole crest — was
+          // most of what the measurement was counting, and it was the one fire feature I had not damped.
+          // A storm that chills the flows and the fissures but leaves the sky over the ridge burning
+          // exactly as bright is the wrong half of the effect.
+          if(ashQuench>0.01) qA*=Math.max(0.30,1-ashQuench*0.62);
           if(qA<=0.006) continue;
           var qR2=(qRift>1)?Math.round(qRise*(1+0.75*(qRift-1))):qRise;   // fire in a gap throws light HIGHER
           // ⚠ TWO ROWS AT A TIME. This loop was the single most expensive thing on the land: one 1×1 fill
@@ -25714,6 +25774,12 @@ function drawMountains(g,L,now,nd){
         // never re-synchronise, so the field can never breathe as one no matter how long you watch it.
         var vPer=(2.6+((vh4>>>9)%40)/10)*3600000, vPh=((vh4>>>3)%1000)/1000*6.28319;
         var vHeat=Math.max(0.04, vBase*(0.30+0.70*(0.5+0.5*Math.sin(now/vPer*6.28319+vPh))));
+        // …and rain CHILLS it. `ashQuench` outlasts the storm by half an hour, so a flow that has been
+        // rained on stays crusted and dark and then works its way back up to its own temperature — which is
+        // what Nick chose over a quench that vanishes the moment the sky clears.
+        // ⚠ Not uniform across the land: a heavier flow holds its heat better than a spent trickle, so the
+        // big ones survive a shower that puts the small ones out entirely.
+        if(ashQuench>0.01) vHeat*=Math.max(0.06,1-ashQuench*(0.92-0.42*vBase));
         // how much of the channel still has liquid in it — a dying flow glows only near its vent
         var vCool=vHeat/Math.max(0.06,vBase), vLiveF=0.22+0.66*vCool;
         var vCap=4.5*KSP;                                     // how far off its fall line a flow may wander
@@ -26755,6 +26821,11 @@ function drawPuddles(g,L,now){
     // dries from the EDGES IN, so a drying street loses its small puddles first and the big ones
     // shrink — which is what actually happened outside, and it gives the whole effect an arc.
     var full=(4+((puh>>>5)%9))*K, rx=full*(0.35+0.65*wet);
+    // …AND ON BURNING ROCK THEY BOIL AWAY. Nick's fourth locked rain-on-lava answer. Water on the Ashlands
+    // never gets to the size it reaches on a cold street, and the moment the rain stops the pools go off as
+    // steam rather than lying about drying — so they are small while it is coming down and gone very shortly
+    // after, which is a much shorter arc than the "dries from the edges in" model above.
+    if(curBiome.molten) rx*=raining?0.60:0.26;
     if(rx<1.2*K) continue;
     var ry=Math.max(1,Math.round(rx*0.24));
     var a=(0.22+0.32*wet)*(day?1:0.82);
@@ -26772,6 +26843,16 @@ function drawPuddles(g,L,now){
         g.fillStyle="rgba("+rim[0]+","+rim[1]+","+rim[2]+","+(a*(1-rp)*0.8).toFixed(3)+")";
         g.fillRect(Math.round(psx-rr),py,Math.max(1,Math.round(K*0.8)),Math.max(1,Math.round(K*0.8)));
         g.fillRect(Math.round(psx+rr),py,Math.max(1,Math.round(K*0.8)),Math.max(1,Math.round(K*0.8)));
+      }
+    }
+    if(curBiome.molten){                                      // …each one giving itself up as steam
+      var puH=Math.max(2,Math.round(rx*0.9)), puPh=((puh>>>17)%1000)/1000;
+      var puF=((now/2400)+puPh)%1;
+      for(var pq=0;pq<puH;pq++){
+        var pqa=0.24*(1-pq/puH)*(1-puF*0.6)*(raining?0.7:1);  // strongest just after the rain stops
+        if(pqa<=0.01) continue;
+        g.fillStyle="rgba(226,214,208,"+pqa.toFixed(3)+")";
+        g.fillRect(Math.round(psx+Math.sin(now*0.0015+pq*0.4+pu)*1.2*K),py-ry-pq,Math.max(1,Math.round(K)),1);
       }
     }
     if(!day){                                                 // and at night they carry the streetlights
@@ -31766,7 +31847,18 @@ function draw(g,pass){
       if(s.t<0.35){ g.fillStyle="rgba(220,235,255,"+(0.7*(1-s.t/0.35))+")"; g.fillRect(s.x|0,(s.y-1)|0,1,1); }
     }
     wetness=Math.min(1,wetness+dt*0.00004);
-  } else { if(splashes.length) splashes.length=0; wetness=Math.max(0,wetness-dt*0.000008); }
+    // THE QUENCH, and it has to OUTLAST the rain. Nick chose "it lasts — a rained-on flow stays crusted,
+    // then slowly reheats" over "only while it's raining". `wetness` cannot carry that on its own: it dries
+    // at 8e-6/ms, i.e. fully gone about two minutes after the last drop, which is a wet-road model and not
+    // a thermal one. Rock that has had a storm on it is cold for a lot longer than the road is shiny.
+    // Rises quickly (a downpour chills a crust fast) and decays at 4e-7/ms — a little over half an hour to
+    // come back up to temperature, which is the same order as the sprawl's storm-surge mark.
+    // ⚠ Per-instance state, exactly like `wetness` above it: each of Nick's three screens integrates its
+    // own copy. They agree because they are reading the same forecast, not because they talk — the same
+    // approximation this engine already accepts for wet roads and puddles.
+    ashQuench=Math.min(1,ashQuench+dt*0.000025);
+  } else { if(splashes.length) splashes.length=0; wetness=Math.max(0,wetness-dt*0.000008);
+    ashQuench=Math.max(0,ashQuench-dt*0.0000004); }
 
   if(fx.snow){
     var flkN=fx.grains?140:230, flkV=fx.grains?0.55:1;                   // code 77 snow grains: fine, slow, sparse — never a blizzard
