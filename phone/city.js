@@ -25092,6 +25092,16 @@ function drawMountains(g,L,now,nd){
           // that read as an eroded massif, not a cone with a crater in it — and drawVolcano then drew
           // the plume off whichever tooth happened to be highest. Damped hard, and hardest at the top.
           if(B.volcanic) crag*=0.18*(1-t0*0.7);
+          // ⚠⚠ AND THE ASHLANDS NEEDS THE OPPOSITE OF THAT. Framing the molten band (scaling its peaks down
+          // to two thirds of the sky) also scaled the CRAGS down with them, because crag amplitude is
+          // `p0.h/(46*KSP)` — proportional to peak height. Rendered, the new ridgeline came out as smooth
+          // sine humps: rolling hills, on a hellscape. Fixing the framing had quietly traded one wrong
+          // silhouette for another.
+          // 🔑 A SCALE CHANGE IS NEVER ONLY A SCALE CHANGE — the same lesson the volcano's flank collapse
+          // taught when clamping a height silently founded a plateau town. Anything derived from the value
+          // you just scaled has moved too.
+          // Brimstone is the most broken rock on the map, so the crags are boosted well past unity here.
+          if(B.molten) crag*=2.6;
           var hh0=p0.h*t0+crag*KSP;
           if(hh0>rh0) rh0=hh0; }
         // ⚠⚠ THE TOP ACTUALLY LEAVES. Nick: "it erupts and blows the top off the mountain" — and he
@@ -25396,13 +25406,36 @@ function drawMountains(g,L,now,nd){
       var mNight=1-Math.max(0,Math.min(1,(L-0.18)/0.5));       // 0 in full day … 1 after dark
       var mk=(0.62+0.38*Math.sin(now*0.0009+pi*2.1))*(0.72+0.58*mNight);
       var kk=Math.max(1,Math.round(KSP));
-      if(pi===0){                                             // the fire BEHIND the far ridge
-        g.globalCompositeOperation="lighter";                  // …and it is light, not paint
-        g.fillStyle="rgba(255,150,60,"+(0.34+0.42*mNight).toFixed(3)+")";
-        var qs=-1, qtop=-999, qx, qh, qt;
-        for(qx=0;qx<=SW;qx++){
-          qh=(qx<SW)?hs[qx]:-1; qt=(qh>=4)?Math.max(2,(gy-qh)|0):-999;
-          if(qt!==qtop){ if(qs>=0&&qtop>-999) g.fillRect(qs,qtop,qx-qs,kk*2); qs=(qt>-999)?qx:-1; qtop=qt; }
+      // ⚠⚠ THE GLOW WAS ON THE WRONG RIDGE. It only ran for `pi===0`, the FAR band — which sits behind the
+      // near one, so once the land was framed the near ridge out-topped it and the fire behind the crest was
+      // occluded by the crest in front of it. Nick's locked composition is "ridges rising behind the skyline,
+      // GLOWING ALONG THE CREST", and the crest you can see is the near one.
+      // Both bands glow now, and the near one harder, because it is the edge the eye actually reads.
+      // ⚠⚠ AND MY FIRST GO AT THIS WAS WORSE THAN THE BUG. Widening the band to `kk*5` and running it along
+      // the whole crest produced a thick continuous orange line tracing the ridgeline — a highlighter drawn
+      // round the mountains, not fire behind them. Rim-lighting a silhouette evenly is exactly what light
+      // spilling over a ridge does NOT look like.
+      // 🔑 LIGHT FROM BEHIND SOMETHING GOES UPWARD AND FADES. It is a gradient into the SKY above the crest,
+      // brightest in the last pixel of rock and gone within a dozen, and it is NOT even along the ridge —
+      // the fire is in particular places, so the glow blooms over some cols and barely shows over others.
+      if(pi===0||pi===1){                                      // the fire behind the ridge you can SEE
+        g.globalCompositeOperation="lighter";
+        var qg=(pi===1)?1:0.5, qRise=Math.max(3,Math.round(11*kk));
+        for(var qx=0;qx<SW;qx++){
+          var qh=hs[qx]; if(qh==null||qh<4) continue;
+          var qt=Math.max(2,(gy-qh)|0);
+          // where the fire is, in world space — two slow octaves so bright stretches are broad, not stripey
+          var qwx=qx+WOFF;
+          var qF=0.35+0.65*Math.max(0,Math.sin(qwx*0.006+1.3)*0.6+Math.sin(qwx*0.017)*0.4);
+          var qA=(0.16+0.30*mNight)*qg*qF;
+          if(qA<=0.006) continue;
+          for(var qq=0;qq<qRise;qq++){
+            var qf=qq/qRise;
+            var qaa=qA*(1-qf)*(1-qf);                          // squared falloff: a bloom, not a band
+            if(qaa<=0.004) break;
+            g.fillStyle="rgba(255,"+((132+40*qf)|0)+","+((52+30*qf)|0)+","+qaa.toFixed(3)+")";
+            g.fillRect(qx,qt-qq,1,1);
+          }
         }
         g.globalCompositeOperation="source-over";
       }
