@@ -20252,6 +20252,86 @@ function drawRoofRunners(g,L,now,nd){
 // noir has to come from what is BUILT — holograms, light pollution, wet-look streets, drones, steam —
 // so it reads cyberpunk at noon in July. Nothing here darkens the sky or forces rain; a bright June
 // afternoon in the Sprawl is a bright June afternoon with a neon city standing in it.
+// ============ VERTICAL SIGNAGE STACKS ============
+// Locked answer 13: "your in-world brands, vertically stacked." The city advertises the companies that
+// actually exist in the sim — the same roster the ticker and the corporate HQ marquee use — so the
+// signage is not decoration, it is the economy on the side of a building. Chosen over foreign-script
+// glyph blocks, which he passed over.
+//
+// ⚠ WHY VERTICAL. It is the single most characteristic thing about a cyberpunk street and it is also the
+// only orientation that WORKS here: a horizontal sign wide enough to hold a name competes with the
+// window bands and re-creates the horizontal ruling this whole map has been fighting. Stacked letters
+// run ACROSS the grain of everything else in the frame.
+//
+// ⚠ AND IT SAYS WHAT HOLDS IT UP. The holograms cost four bug reports for looking detached, three of them
+// about exactly this. Every stack here is bolted to a building edge with visible brackets, and the box is
+// drawn against the facade rather than floating beside it.
+//
+// ⚠ THE LAND, NOT THE STYLE. Gated `curBiome.k==="sprawl"` — `curNeon` rolls on ~1 life in 12 of every
+// other land, and vertical brand towers up the side of an alpine chalet is not the goal.
+function drawSignageStacks(g,L,now,nd){
+  if(curBiome.k!=="sprawl"||cityPhase==="apoc") return;
+  if(curNoBrands) return;                                 // the hidden-village ban applies here too
+  if(cityG<0.34) return;                                  // nobody has built them yet
+  var day=L>0.5, K=Math.max(1,KSP), gy=HORIZON;
+  // the same roster the ticker, the corporate HQ marquee and the economy sim all read
+  var roster=(typeof COMPANIES!=="undefined"&&COMPANIES&&COMPANIES.length)?COMPANIES:null;
+  var sSeed=((WORLD_SEED*40503+7717)>>>0);
+  var pal=["#4be0d0","#f04a8a","#ffe14a","#7c6cff"];
+  if(curBiome.name==="THE RED DISTRICT") pal=["#ff3a5c","#ffa63a","#ff6ad5"];
+  if(curBiome.name==="THE COLD STACK")   pal=["#7ce8ff","#c0d8ff","#ffffff"];
+  var step=Math.round(34*K);
+  var wx0=Math.floor(WOFF/step)*step;
+  for(var wx=wx0-step; wx<WOFF+SW+step; wx+=step){
+    var h=((((wx*2654435761)^sSeed)>>>0));
+    if((h%100)>=72) continue;                             // not every frontage carries one
+    var X=wx-WOFF;
+    // the text: a real brand name if the roster is there, and its 2-char ticker otherwise
+    var word=null, colR=null;
+    if(roster){ var co=roster[(h>>>7)%roster.length]; word=(co.n||"").split(" ")[0]; colR=co.c; }
+    if(!word||word.length<2) word="NEON";
+    if(word.length>6) word=word.substr(0,6);
+    // ⚠ SCALE IT SO IT SAYS SOMETHING. At K*0.5 the glyphs came out 3px wide — legible as "a sign"
+    // but not as a NAME, which defeats the point of wiring it to the company roster at all.
+    var scl=Math.max(2,Math.round(K*0.75));
+    var cw=3*scl, chh=5*scl, gap=Math.max(1,Math.round(scl));
+    var boxW=cw+Math.round(2.4*scl)*2, boxH=word.length*(chh+gap)+Math.round(3*scl);
+    // it hangs from partway up a frontage, high enough to clear the street furniture
+    var topY=gy-Math.round((16+((h>>>13)%40))*K)-boxH;
+    if(topY<Math.round(2*K)) topY=Math.round(2*K);
+    if(X+boxW<0||X>SW) continue;
+    var sCol=colR?css(colR):pal[(h>>>19)%pal.length];
+    // ---- the box: a dark case so the letters have something to sit on at any hour ----
+    g.fillStyle=day?"rgba(22,24,32,0.72)":"rgba(8,9,14,0.86)";
+    g.fillRect(X,topY,boxW,boxH);
+    g.fillStyle=day?"rgba(70,76,90,0.8)":"rgba(40,44,56,0.9)";       // its frame
+    g.fillRect(X,topY,boxW,Math.max(1,scl));
+    g.fillRect(X,topY+boxH-Math.max(1,scl),boxW,Math.max(1,scl));
+    // ---- brackets back to the building, so it is bolted on and not hovering ----
+    g.fillStyle=day?"rgba(52,56,68,0.85)":"rgba(20,22,30,0.9)";
+    for(var br=0;br<2;br++){
+      var brY=topY+Math.round(boxH*(0.2+br*0.55));
+      g.fillRect(X-Math.round(2*scl),brY,Math.round(2*scl),Math.max(1,scl));
+    }
+    // ---- THE LETTERS, one above the other ----
+    // ⚠ Lit day AND night. The sprawl's brief is that it reads cyberpunk at NOON, and a sign that only
+    // switches on after dark is the same "feature off in exactly the condition it is needed" fault the
+    // holograms and the monorail were both found guilty of on this land.
+    var flick=((h>>>23)%5===0)&&(((Math.floor(now/430)+((h>>>3)&3))%9)===0);   // one sign in five has a bad tube
+    for(var li=0;li<word.length;li++){
+      var ch=word[li];
+      var ly=topY+Math.round(1.6*scl)+li*(chh+gap);
+      if(flick&&li===((h>>>11)%word.length)) continue;
+      drawUiText(g,ch,X+Math.round(2.4*scl),ly,sCol,scl);
+    }
+    // ---- the glow it throws, which is what makes it read as LIT rather than painted ----
+    g.globalCompositeOperation="lighter";
+    g.globalAlpha=day?0.16:0.34;
+    g.fillStyle=sCol;
+    g.fillRect(X-Math.round(scl),topY-Math.round(scl),boxW+Math.round(2*scl),boxH+Math.round(2*scl));
+    g.globalAlpha=1; g.globalCompositeOperation="source-over";
+  }
+}
 function drawNeonCity(g,L,now,nd){
   if(!curNeon||cityPhase==="apoc") return;
   var day=L>0.5, K=Math.max(1,KSP), gy=HORIZON, night=1-L;
@@ -30637,6 +30717,7 @@ function draw(g,pass){
   drawRoofRunners(g,L,now,nd);     // the Hidden Village crossing itself by rooftop
   drawVillageLife(g,L,now,nd);     // …and living in it the rest of the time
   drawNeonCity(g,L,now,nd);        // the neon style, over the city, whatever land it landed on
+  drawSignageStacks(g,L,now,nd);   // …and the sprawl's own vertical brand signage, bolted to the frontages
 
   // solar-eclipse twilight: an unnatural cool dusk falls over the whole city at totality, then lifts
   if(solarEclDim>0.01){ var ev=Math.pow(solarEclDim,1.7)*0.74; g.fillStyle="rgba(18,20,40,"+ev+")"; g.fillRect(0,0,SW,SH);
