@@ -20302,6 +20302,153 @@ function drawRoofRunners(g,L,now,nd){
 // noir has to come from what is BUILT — holograms, light pollution, wet-look streets, drones, steam —
 // so it reads cyberpunk at noon in July. Nothing here darkens the sky or forces rain; a bright June
 // afternoon in the Sprawl is a bright June afternoon with a neon city standing in it.
+// ============ THE SPRAWL AT STREET LEVEL ============
+// Locked answers 21, 22 and 23 together: its own ground floors, graffiti on infrastructure and shutters
+// only, and THE RED DISTRICT's nightlife implied rather than spelled out.
+//
+// ⚠⚠ DRAWN OVER THE GENERIC FRONTS, NOT INSTEAD OF THEM. Nick asked for sprawl-specific ground floors
+// "replacing the generic shops on this land only" — and the way to honour that without risk is to lay this
+// band over the top rather than to edit the storefront code every one of the twenty lands shares. He made
+// the same call himself on graffiti: offered building lower floors, he chose infrastructure and shutters
+// precisely to keep the shared building renderer out of it.
+//
+// ⚠ THE COLD STACK IS DELIBERATELY ALMOST EMPTY HERE. Locked answer 17: "sterile means emptier" — no
+// stalls, no grime, no graffiti, clean frontage and plazas instead. The contrast IS its content, and an
+// empty street on one variant is the point rather than an oversight.
+//
+// ⚠ PEOPLE STAY 7px. His standing constraint from THE STREET: nothing here changes the size of a person.
+function drawSprawlStreetLevel(g,L,now,nd){
+  if(curBiome.k!=="sprawl"||cityPhase==="apoc") return;
+  if(cityG<0.30) return;
+  var day=L>0.5, K=Math.max(1,KSP), gy=HORIZON;
+  var cold=(curBiome.name==="THE COLD STACK"), red=(curBiome.name==="THE RED DISTRICT");
+  var sSeed=((WORLD_SEED*2654435761+8821)>>>0);
+  var night=1-L;
+  // ⚠⚠ A GROUND FLOOR, NOT A BUILDING. First pass used 13*K wide by 11*K tall units and rendered as a row
+  // of big flat coloured boxes — about five people wide and five people tall each, which is a warehouse,
+  // not a shopfront. The person scale is the ruler on this project (his standing constraint: a person stays
+  // 7px) and every new thing has to be measured against it rather than against the frame.
+  var unitW=Math.max(5,Math.round(9*K));
+  var bandH=Math.round(6.5*K);
+  var wx0=Math.floor(WOFF/unitW)*unitW;
+  for(var wx=wx0-unitW; wx<WOFF+SW+unitW; wx+=unitW){
+    var X=wx-WOFF;
+    if(X+unitW<0||X>SW) continue;
+    if(inSea(wrapW(wx))) continue;                       // no shopfronts standing in the water
+    var h=((((wx*2654435761)^sSeed)>>>0));
+    var top=gy-bandH;
+    // THE COLD STACK: a clean faced plinth and nothing else. Occasionally a lit lobby.
+    if(cold){
+      g.fillStyle=day?"rgba(150,160,176,0.34)":"rgba(30,36,48,0.5)";
+      g.fillRect(X,top+Math.round(bandH*0.5),unitW-1,Math.round(bandH*0.5));
+      if((h%5)===0){                                     // a lobby, lit from within, glass to the pavement
+        g.fillStyle=day?"rgba(196,214,232,0.5)":"rgba(180,214,255,0.30)";
+        g.fillRect(X+Math.round(2*K),top+Math.round(bandH*0.55),unitW-Math.round(4*K),Math.round(bandH*0.45));
+        if(!day){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(190,220,255,0.22)";
+          g.fillRect(X+Math.round(2*K),gy-1,unitW-Math.round(4*K),Math.max(1,Math.round(K)));
+          g.globalCompositeOperation="source-over"; }
+      }
+      continue;
+    }
+    var kind=h%5;                                        // 0 noodle · 1 arcade · 2 pachinko · 3 shutter · 4 vending
+    if(red&&(h%7)<3) kind=5;                             // …and in THE RED DISTRICT, a bar front
+    var uw=unitW-Math.max(1,Math.round(K*0.8));
+    // the unit's own box, so each frontage is visibly a separate business
+    var boxC=day?[54,50,58]:[18,16,22];
+    if(kind===5) boxC=day?[64,40,44]:[24,14,17];
+    g.fillStyle=css(boxC); g.fillRect(X,top+Math.round(bandH*0.34),uw,Math.round(bandH*0.66));
+    g.fillStyle=day?"rgba(0,0,0,0.22)":"rgba(0,0,0,0.34)";           // a shadowed reveal at the top
+    g.fillRect(X,top+Math.round(bandH*0.34),uw,Math.max(1,Math.round(K*0.7)));
+    var sgnC=["#ffd23a","#4be0d0","#f04a8a","#8a9099","#7c6cff","#ff3a5c"][kind];
+    if(kind===3){
+      // ---- A SHUTTERED UNIT, and this is where the graffiti goes (locked answer 22) ----
+      g.fillStyle=day?"#5a5e66":"#1a1d23";
+      g.fillRect(X,top+Math.round(bandH*0.42),uw,Math.round(bandH*0.58));
+      g.fillStyle=day?"rgba(0,0,0,0.16)":"rgba(0,0,0,0.28)";         // corrugation, in RUNS not a comb
+      for(var cq=0;cq<uw;cq+=Math.max(2,Math.round(1.8*K)))
+        if(((((wx+cq)*7919)>>>0)%7)!==0) g.fillRect(X+cq,top+Math.round(bandH*0.42),Math.max(1,Math.round(K*0.6)),Math.round(bandH*0.58));
+      // the tag: two or three strokes of one colour, not a legible word — a tag at 4px tall never is
+      var tagC=["#f04a8a","#4be0d0","#ffe14a","#7c6cff"][(h>>>13)%4];
+      g.fillStyle=tagC; g.globalAlpha=day?0.62:0.42;
+      for(var tq=0;tq<3;tq++){
+        var tw2=Math.round(uw*(0.24+((h>>>(3+tq*3))&3)/9));
+        g.fillRect(X+Math.round(uw*0.14)+Math.round(((h>>>(7+tq))&3)*K),
+                   top+Math.round(bandH*(0.52+tq*0.13)),tw2,Math.max(1,Math.round(K*0.7)));
+      }
+      g.globalAlpha=1;
+    } else {
+      // ---- AN OPEN FRONT: the interior glow is what makes a shop read as trading ----
+      var inC=day?"rgba(255,232,180,0.30)":"rgba(255,214,150,0.44)";
+      if(kind===1) inC=day?"rgba(140,220,255,0.30)":"rgba(120,200,255,0.50)";     // arcade: cold screens
+      if(kind===5) inC=day?"rgba(255,150,150,0.32)":"rgba(255,110,120,0.52)";     // bar: hot
+      // ⚠ GLAZING, NOT A FLAT FILL. One rectangle of interior glow per unit reads as a blank lit box; a
+      // shopfront is mullions and panes, and the divisions are what make it a window at all.
+      g.fillStyle=inC;
+      g.fillRect(X+Math.round(1.4*K),top+Math.round(bandH*0.46),uw-Math.round(2.8*K),Math.round(bandH*0.54));
+      g.fillStyle=day?"rgba(24,22,28,0.55)":"rgba(8,7,11,0.6)";
+      for(var mu=Math.round(2.6*K); mu<uw-Math.round(2*K); mu+=Math.max(2,Math.round(2.6*K)))
+        g.fillRect(X+mu,top+Math.round(bandH*0.46),Math.max(1,Math.round(K*0.5)),Math.round(bandH*0.54));
+      // its sign, over the door — SHORT and horizontal is fine here because it is only one unit wide
+      // ⚠ THE SIGN IS INSET, not a bar the full width of the unit. A row of units each with a full-width
+      // coloured bar across it is a row of stripes, which is the fault this map has now been fixed for
+      // thirteen times.
+      g.globalCompositeOperation="lighter";
+      g.globalAlpha=day?0.44:0.80;
+      g.fillStyle=sgnC;
+      var sgW=Math.max(2,Math.round(uw*(0.42+((h>>>23)%3)*0.16)));
+      g.fillRect(X+Math.round(1.4*K)+Math.round(((h>>>9)%3)*K),top+Math.round(bandH*0.30),sgW,Math.max(1,Math.round(K*0.9)));
+      g.globalAlpha=1; g.globalCompositeOperation="source-over";
+      if(kind===0){
+        // NOODLE BAR: stools at a counter, and steam off the pass
+        g.fillStyle=day?"#3a2e26":"#140f0c";
+        g.fillRect(X+Math.round(1.4*K),gy-Math.round(2.4*K),uw-Math.round(2.8*K),Math.max(1,Math.round(K*0.8)));
+        for(var st=0;st<3;st++)
+          g.fillRect(X+Math.round((3+st*3.4)*K),gy-Math.round(1.6*K),Math.max(1,Math.round(K*0.7)),Math.round(1.6*K));
+        var vph=((now*0.0007+((h>>>17)%100)/100)%1);
+        for(var vq=0;vq<Math.round(6*K);vq++){
+          var va=0.20*(1-vq/(6*K))*(1-vph*0.5);
+          if(va<=0.012) continue;
+          g.fillStyle="rgba(226,230,238,"+va.toFixed(3)+")";
+          g.fillRect(X+Math.round(uw*0.5)+Math.round(Math.sin(now*0.0014+vq*0.4)*1.2*K),top+Math.round(bandH*0.3)-vq,Math.max(1,Math.round(K*0.9)),1);
+        }
+      } else if(kind===4){
+        // A STACK OF VENDING MACHINES, which is the cheapest thing that says "this street is used"
+        for(var vm=0;vm<3;vm++){
+          var vc=["#e04a6a","#3a9ae0","#e0c040"][(((h>>>(5+vm))&3))%3];
+          g.fillStyle=vc;
+          g.fillRect(X+Math.round((1.4+vm*2.2)*K),gy-Math.round(2.9*K),Math.round(1.7*K),Math.round(2.9*K));
+          if(!day){ g.globalCompositeOperation="lighter"; g.globalAlpha=0.5; g.fillStyle=vc;
+            g.fillRect(X+Math.round((1.4+vm*2.2)*K),gy-Math.round(2.9*K),Math.round(1.7*K),Math.round(K*0.9));
+            g.globalAlpha=1; g.globalCompositeOperation="source-over"; }
+        }
+      } else if(kind===5){
+        // ---- THE RED DISTRICT'S BAR FRONT: locked answer 23, implied and not explicit ----
+        // A doorman beside the door, a short queue, smoke, and the upstairs window lit behind a blind.
+        g.fillStyle=day?"#2a1c1e":"#0e0708";
+        g.fillRect(X+Math.round(uw*0.42),gy-Math.round(5*K),Math.round(2.6*K),Math.round(5*K));   // the doorway
+        g.fillStyle=day?"#20242c":"#0a0c10";                                                      // the doorman
+        g.fillRect(X+Math.round(uw*0.42)-Math.round(2.2*K),gy-Math.round(4.4*K),Math.max(2,Math.round(1.8*K)),Math.round(4.4*K));
+        if(night>0.35){
+          var qn=1+((h>>>19)%3);                                                                  // a short queue
+          for(var qq=0;qq<qn;qq++){
+            g.fillStyle=PEDC[((h>>>(2+qq))%PEDC.length+PEDC.length)%PEDC.length];
+            g.fillRect(X+Math.round(uw*0.42)+Math.round((3.4+qq*2.6)*K),gy-Math.round(4*K),Math.max(2,Math.round(1.6*K)),Math.round(4*K));
+          }
+        }
+        g.globalCompositeOperation="lighter";                                                     // smoke in the doorway light
+        g.globalAlpha=0.14;
+        g.fillStyle="#ff8a7a";
+        g.fillRect(X+Math.round(uw*0.34),gy-Math.round(7*K),Math.round(4*K),Math.round(7*K));
+        g.globalAlpha=1; g.globalCompositeOperation="source-over";
+        g.fillStyle=day?"rgba(255,190,150,0.28)":"rgba(255,150,120,0.42)";                         // upstairs, behind a blind
+        g.fillRect(X+Math.round(2*K),top+Math.round(bandH*0.06),uw-Math.round(4*K),Math.round(bandH*0.2));
+        g.fillStyle=day?"rgba(0,0,0,0.30)":"rgba(0,0,0,0.42)";
+        for(var bl=0;bl<3;bl++)
+          g.fillRect(X+Math.round(2*K),top+Math.round(bandH*0.06)+bl*Math.max(1,Math.round(1.4*K)),uw-Math.round(4*K),Math.max(1,Math.round(K*0.5)));
+      }
+    }
+  }
+}
 // ============ THE COLOSSAL FIGURES ============
 // Locked answer 12 and 18: the signature image of this land — a vast human figure turning slowly above the
 // streets. Chosen over a megacorp advert and over abstract geometry because it reads instantly at any size
@@ -31099,6 +31246,7 @@ function draw(g,pass){
   drawNeonCity(g,L,now,nd);        // the neon style, over the city, whatever land it landed on
   drawSignageStacks(g,L,now,nd);   // …and the sprawl's own vertical brand signage, bolted to the frontages
   drawSprawlAirTraffic(g,L,now,nd);// …the maglev on its guideway, the aircar lanes and the cargo lifter
+  drawSprawlStreetLevel(g,L,now,nd);// the sprawl's own ground floors: noodle bars, arcades, shutters, bars
   drawSprawlColossus(g,L,now,nd);  // …and the colossal figures turning over the streets
 
   // solar-eclipse twilight: an unnatural cool dusk falls over the whole city at totality, then lifts
