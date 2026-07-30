@@ -4098,6 +4098,7 @@ function landRoute(x){ if(!hasOcean||seaW<=0) return x;
 var curLit=1;        // fraction of night windows actually on (ramps up through the evening, dims after midnight)
 var curCurfew=0;     // v1.24 THE ORDER curfew strength 0..1 (Martial Law nights): dark windows + empty streets. 0 on every non-regime life.
 var curMaskK=0;      // v1.29 THE PLAGUE mask prevalence 0..1: citizens wear surgical masks. 0 on every non-plague life (drawPerson reads it).
+var ashMask=0;       // …and the Ashlands' share of that, which draws as a grey respirator instead of a blue surgical mask
 var curPlagueEmpty=0;// v1.29 THE PLAGUE emptiness 0..1 (peaks at the SURGE): dims the streets like the curfew. 0 on every non-plague life.
 var curSunDf=0.5;    // where the sun is in its arc (0 sunrise .. 1 sunset) — drives light direction
 // WHERE THE MOON ACTUALLY IS, published once by drawCelestial so the water can lay its path under it.
@@ -4907,6 +4908,9 @@ var NOECONFX=false;  // containment A/B: suppress the post-v1.39 hard-times stre
 var FORCESLUMP=null; // test hook: pin the slump level (?slump=)
 var wetness=0;       // how rain-soaked the streets are (drives puddles, dries out after)
 var ashQuench=0;     // 0..1 how far the Ashlands' fire has been chilled by rain — decays over ~35 min, NOT with wetness
+var ashK=0;          // 0..1 how thick the ash in the air is RIGHT NOW (0 on every land but hell)
+var ashHeavy=0;      // 0..1 how far into a genuinely heavy FALL — the thing that empties the street
+var ashDust=0;       // 0..1 how much ash is LYING on the roofs and the ground (the last few hours' worth)
 
 // ---- deterministic scheduled crossers (identical on every screen) ----
 // A vehicle enters at one end of the world and crosses; visible only during its
@@ -5093,7 +5097,7 @@ function drawPerson(g,x,y,cloth,skin,bob,kind){
     g.fillRect(X,yy-4,2,1); g.fillRect(X+((hseed&1)?1:-0),yy-3,1,1);      // hair + a little sweep
     g.fillStyle=skin; g.fillRect(X,yy-3,2,1);                             // face…
     g.fillStyle="rgba(20,16,14,0.85)"; g.fillRect(X+((hseed>>2)&1),yy-3,1,1);   // …with an eye
-    if(curMaskK>0 && ((hseed*7+X*3)>>>0)%100 < curMaskK*100){ g.fillStyle="#bcd6ec"; g.fillRect(X,yy-3,2,1);   // v1.29 a surgical mask (pale blue over the face)…
+    if(curMaskK>0 && ((hseed*7+X*3)>>>0)%100 < curMaskK*100){ g.fillStyle=(ashMask>=curMaskK-0.001)?"#8e8c88":"#bcd6ec"; g.fillRect(X,yy-3,2,1);   // v1.29 a surgical mask (pale blue) — or a grey ash respirator…
       g.fillStyle="rgba(30,24,20,0.7)"; g.fillRect(X+((hseed>>2)&1),yy-4,1,1); }                              // …the eye peeks above the mask
     g.fillStyle=cloth; g.fillRect(X-1,yy-2,4,1);                          // shoulders
     g.fillRect(X,yy-1,2,2);                                               // jacket
@@ -5200,7 +5204,11 @@ function drawCar(g,x,y,col,dir,L,kind){
   var hover=curSpace>0.55;                                         // G1: the fleet converts to hovercraft
   if(hover) y-=1;
   var shd=pantsOf(col);                                            // darker lower-body shade
-  var night=L<0.55, glass="#bfe3ff";
+  // ⚠ AND A HEAVY ASHFALL COUNTS AS NIGHT AS FAR AS THE LAMPS ARE CONCERNED. Nick locked "traffic slows with
+  // headlights"; the slowing is on `rhythm.carSpeed`, and this is the lamps. `night` here means "the driver
+  // has the lights on", which is a visibility question, not a clock question — and midday in a real ashfall is
+  // darker than dusk.
+  var night=L<0.55||ashHeavy>0.45, glass="#bfe3ff";
   // shared running gear for the passenger bodies: wheels (or hover underglow) + head/tail lamps at the body ends
   function gear(len){
     if(hover){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(122,245,255,0.5)"; g.fillRect(x+1,y+2,len-2,1); g.globalCompositeOperation="source-over"; }
@@ -7457,6 +7465,18 @@ function drawLayer(g,layer,L,now,fx,hol,haze){
       }
       if(snowpack>0.15&&(layer===near||layer===mid)){        // fresh snow settles on every tier
         g.fillStyle="rgba(240,246,255,"+Math.min(0.85,snowpack*0.9).toFixed(2)+")"; g.fillRect(sX,sTop,sg.w,1); }
+      // ⚠⚠ AND ASH SETTLES HERE, NOT FROM A SEPARATE PASS. My first version of the settled ash iterated
+      // `near.blds`/`mid.blds` from outside and drew a line at `HORIZON - b.h`. Rendered, that produced pale
+      // grey BARS FLOATING IN MID-AIR over the rock — because `b.h` is the building's full height and at
+      // least four separate paths shrink what actually gets drawn: staged growth, abandonment, fire, and
+      // disaster collapse. Recomputing the roof line outside the renderer means duplicating all four, and
+      // it is the exact "things flying in the sky" fault Nick already rejected once on the sprawl.
+      // 🔑 THE SNOW LINE ABOVE ALREADY SOLVES THIS. `sTop` is the tier's REAL top, per tier, after every
+      // one of those modifiers. Ash is the same problem as snow, so it uses the same answer rather than a
+      // parallel one — one site, and it can never disagree with where the building is.
+      if(ashDust>0.06&&(layer===near||layer===mid)){
+        g.fillStyle="rgba(178,170,160,"+Math.min(0.62,0.20+ashDust*0.40).toFixed(3)+")";
+        g.fillRect(sX,sTop,sg.w,Math.max(1,Math.round(KSP*(0.4+0.5*ashDust)))); }
       if((layer===near||layer===mid)&&sg.w>=7){              // D6: cornice line caps every setback tier
         g.fillStyle="rgba(255,255,255,0.10)"; g.fillRect(sX,sTop+1,sg.w,1);
         g.fillStyle="rgba(0,0,0,0.15)";       g.fillRect(sX,sTop+2,sg.w,1);
@@ -12612,6 +12632,58 @@ var drawnPopRef=null;   // the roster the current drawnNamed[] was drawn from (f
 // ⚠ Both ENDS are deliberately unchanged: 1.0 by day and 0.2 in the small hours are exactly what the
 // old gate produced. Only the shoulders moved, so a normal evening keeps its people and 3 a.m. is as
 // dead as it ever was — this is not a licence to fill the night with a daytime crowd.
+// ============ HOW MUCH ASH IS IN THE AIR ============
+// Nick chose "a constant light haze, with occasional heavy falls" over a clear-air-then-event model and over
+// tying it to the real forecast: the baseline sells the place, the falls are the event.
+//
+// ⚠ SCRIPTED FROM THE CLOCK, NEVER SIMULATED. This is the hard constraint the whole engine is built on — a
+// value that accumulated frame to frame would drift apart on Nick's three monitors within minutes and the
+// same fall would be arriving on one screen and over on another. A pure function of `now` cannot diverge.
+// ⚠ AND IT LOOKS BACKWARD, NOT FORWARD. A fall that starts in slot s runs for 2–4 slots, so to know whether
+// ash is falling NOW you have to ask whether any of the last few slots opened one — checking only the
+// current slot would make every fall exactly one slot long and cut them off mid-arc.
+function ashfallK(now){
+  if(!curBiome||!curBiome.molten) return 0;
+  var SLOT=1800000, idx=Math.floor(now/SLOT), frac=(now%SLOT)/SLOT;
+  var base=0.14+0.10*(0.5+0.5*Math.sin(now/5400000*6.28319));   // the haze that is always there, drifting
+  var heavy=0;
+  for(var b=0;b<5;b++){
+    var h=P_hash((((idx-b)*2654435761)^0xA51F)>>>0);
+    // ⚠⚠ 11% WAS FAR TOO OFTEN, and only a scan showed it. 48 half-hour slots a day at an 11% open rate is
+    // 5.3 falls a day, each lasting 1–2 h, which measured out at 39% of ALL TIME above the heavy threshold
+    // and 25% of it pinned near maximum. That is not "occasional heavy falls" — that is an ashfall with
+    // occasional gaps, and it would have emptied the street for a third of the city's life.
+    // At 4%: about 1.9 falls a day, ~12% of the time. Rare enough to be an event, frequent enough to see.
+    if((h%100)>=4) continue;
+    var dur=2+((h>>>7)%3);                                      // …lasting 1 to 2 hours
+    if(b>=dur) continue;
+    var f=(b+frac)/dur;
+    var env=Math.sin(Math.PI*Math.max(0,Math.min(1,f)));        // it arrives, peaks, and passes
+    if(env>heavy) heavy=env;
+  }
+  // …and real rain beats ash out of the air, because this is a place with a forecast
+  var afx=wfx(), rd=(afx.thunder||afx.rain)?0.35:(afx.drizzle?0.70:1);
+  return Math.max(0,Math.min(1,(base+heavy*0.76)*rd));          // …and it peaks just under 1 rather than clipping flat
+}
+// ASH THAT HAS ALREADY LANDED. Nick selected "settles on surfaces" as well as the street emptying, so both
+// are built. What is lying on the roofs is what has fallen over the last few HOURS, not what is falling this
+// second — so it is the average of `ashfallK` across a four-hour window rather than the instantaneous value,
+// which also means a fall leaves the city visibly dirtier for a while after it passes.
+// ⚠ A pure function of the clock, like everything else here: six extra hash lookups per frame and no
+// accumulator that could drift apart between Nick's three screens.
+function ashDustK(now){
+  if(!curBiome||!curBiome.molten) return 0;
+  var s=0; for(var i=0;i<6;i++) s+=ashfallK(now-i*2400000);
+  return Math.min(1,(s/6)*1.5)*Math.max(0,1-wetness*1.2);   // …and a real rain washes it off the roofs
+}
+// The ash lying on the GROUND. The roofs are dusted inside the building renderer instead — see the note at
+// the snow line there for why a second pass could not be trusted to know where a roof is.
+function drawAshDust(g,L,now){
+  var d=ashDust; if(d<=0.06) return;
+  var K=Math.max(1,Math.round(KSP)), gy=HORIZON, day=L>0.5;
+  g.fillStyle="rgba(170,162,152,"+((0.14+0.26*d)*(day?1:0.62)).toFixed(3)+")";
+  g.fillRect(0,gy,SW,Math.max(1,Math.round(K*(0.8+1.4*d))));
+}
 function peopleOutK(hh){
   var hhN=(hh<7)?hh+24:hh;                       // one continuous evening→morning axis: 7:00 … 31:00
   // ⚠⚠ THE SPRAWL RUNS THIS CURVE BACKWARDS, and Nick chose that when shown the measurement above: this
@@ -12631,10 +12703,16 @@ function peopleOutK(hh){
          : hhN<29 ? 0.40-0.18*((hhN-26)/3)       // 02:00 → 05:00 down to its floor, but never as empty as a village
          : 0.22+0.20*((hhN-29)/2);               // 05:00 → 07:00 the last of it goes home
   }
-  return hhN<21 ? 1
-       : hhN<25 ? 1-0.8*((hhN-21)/4)             // 21:00 → 01:00 the street empties, gradually
-       : hhN<29 ? 0.2                            // 01:00 → 05:00 genuinely dead
-       : 0.2+0.8*((hhN-29)/2);                   // 05:00 → 07:00 the city wakes up again
+  var out=hhN<21 ? 1
+        : hhN<25 ? 1-0.8*((hhN-21)/4)            // 21:00 → 01:00 the street empties, gradually
+        : hhN<29 ? 0.2                           // 01:00 → 05:00 genuinely dead
+        : 0.2+0.8*((hhN-29)/2);                  // 05:00 → 07:00 the city wakes up again
+  // …AND ON THE ASHLANDS A HEAVY FALL CLEARS THE STREET. Nick selected this AND the mutually-exclusive
+  // "settles on surfaces only" option, which reads as "do all of it" — so both are built. If he ever says
+  // the street should NOT empty, that option is the one to honour and this is the line to delete.
+  // ⚠ Never all the way to zero: somebody always has to be out in it, and an empty street reads as a bug.
+  if(ashHeavy>0.02) out*=Math.max(0.16,1-0.80*ashHeavy);
+  return out;
 }
 function drawNamedCitizens(g, now){
   drawnNamed.length=0; drawnPopRef=null;
@@ -22350,12 +22428,34 @@ function drawBiomeWeather(g,L,now,nd,fx){
     // ASH falling and EMBERS rising. Ash is the Ashlands' native weather and falls whatever the sky
     // is doing — but real rain still beats it down, and the real wind still decides how far it slants,
     // because this is a place on the same planet with the same forecast.
-    var slant=(wind/14)*1.6, ashA=wet?0.16:0.34;
-    g.fillStyle="rgba(196,188,182,"+ashA.toFixed(2)+")";
-    for(var a2=0;a2<46;a2++){
-      var afall=(now*0.030+a2*137)%(SH+40), ay=afall-20;
+    // ⚠⚠ AND IT WAS A CONSTANT. 46 flakes at a fixed alpha, every hour of every day: the ash was scenery
+    // rather than weather, so there was nothing for the street to react TO. `ashK` (see ashfallK) is a light
+    // permanent haze with heavy falls a few times a day, and the count and the alpha both ride it — so a
+    // fall is something you can watch arrive, and it is the same number the crowd, the masks, the traffic
+    // and the headlights are reading, which is what keeps them in step.
+    var slant=(wind/14)*1.6;
+    var ashN=Math.round(18+120*ashK), ashA=(0.14+0.34*ashK)*(wet?0.5:1);
+    g.fillStyle="rgba(196,188,182,"+ashA.toFixed(3)+")";
+    for(var a2=0;a2<ashN;a2++){
+      var afall=(now*(0.030+0.022*ashK)+a2*137)%(SH+40), ay=afall-20;
       var ax=((a2*163+((WOFF*0.4)|0))%(SW+60))-30+afall*slant*0.14;
       g.fillRect(Math.round(ax),Math.round(ay),Math.max(1,Math.round(K*0.8)),Math.max(1,Math.round(K*0.8)));
+    }
+    // …and in the worst of it the air itself goes grey-brown. This is what makes a heavy fall read as
+    // DARKNESS rather than as more specks, and it is why the drivers put their lights on.
+    // ⚠ GRADED, NOT A FLAT WASH. A uniform 0.30 grey over the whole frame lifted the sky and the rock
+    // together and read as FOG — the land went pale pink and lost its landform entirely, which is the
+    // opposite of what an ashfall does. Ash is thickest in the air you are looking THROUGH, so it builds
+    // toward the bottom of the frame and barely touches the sky.
+    if(ashHeavy>0.02){
+      var avT=Math.round(SH*0.16), avStep=Math.max(1,Math.round(KSP));
+      for(var av=avT;av<SH;av+=avStep){
+        var avf=(av-avT)/Math.max(1,SH-avT);
+        var ava=0.26*ashHeavy*(0.10+0.90*avf*avf);
+        if(ava<=0.005) continue;
+        g.fillStyle="rgba(150,138,128,"+ava.toFixed(3)+")";
+        g.fillRect(0,av,SW,avStep);
+      }
     }
     if(!wet){                                                            // embers only when it is dry
       for(var em=0;em<16;em++){
@@ -30557,6 +30657,14 @@ function draw(g,pass){
   curCruise=cruiseNow(now);           // cruise-ship call (N6)
   computeIce(nd);                     // does the bay freeze today?
   if(rhythm.rush) rhythm.carSpeed*=1-0.16*POPK;   // N9: big cities gridlock harder at rush hour
+  // ============ THE ASHFALL, AND WHAT IT DOES TO THE PEOPLE ============
+  // Resolved HERE, before anything that reads it. `peopleOutK` and `drawCar` are called from all over the
+  // frame, so an ash level computed inside the weather block would be one frame stale for half of them and
+  // would put the crowd, the traffic and the falling ash out of step with each other on the same screen.
+  ashK=ashfallK(now);
+  ashHeavy=Math.max(0,Math.min(1,(ashK-0.42)/0.50));   // the baseline haze empties nothing; a real fall does
+  ashDust=ashDustK(now);                               // …and what the last few hours of it left on the roofs
+  if(ashHeavy>0.02) rhythm.carSpeed*=1-0.55*ashHeavy;  // you cannot see, so you crawl
   // ash-out veil: only masks the death→rebirth WRAP itself (~last hour rising, ~first hour fading).
   // (was APOC_AT/0.04 of the cycle = a 70% black overlay for ~29 REAL HOURS after every rebirth — far too long)
   apocVeil = cg.cy>=0.9985 ? Math.min(1,(cg.cy-0.9985)/0.0012) : (cg.cy<0.0015 ? 1-cg.cy/0.0015 : 0);
@@ -30613,8 +30721,26 @@ function draw(g,pass){
     if(curPlagueEmpty>0){
       curLit=Math.max(zomb?0.12:0.18,curLit*(1-(zomb?0.55:0.30)*curPlagueEmpty));   // the overrun city goes dark
       wmood.pedFactor*=(1-0.78*curPlagueEmpty);                                     // sidewalks clear (people stay home / are gone)
+      // (ash masks are set below, AFTER this block, so a plague life on the Ashlands keeps the higher of the two)
       rhythm.carPresence*=(1-(zomb?0.90:0.70)*curPlagueEmpty);                      // the roads empty (abandoned in the panic)
     }
+  }
+  // MASKS IN THE ASHFALL. Nick locked "masks on the people who stay out" — and the mask pixel already exists,
+  // built for THE PLAGUE, so this drives that rather than adding a second one. The colour differs (`ashMask`):
+  // a grey respirator, not a pale blue surgical mask, because they are not the same object.
+  // ⚠ `Math.max`, and deliberately AFTER the plague block: on the rare life that is both, the people wear the
+  // higher of the two rather than the ash quietly cancelling a quarantine.
+  ashMask=0;
+  if(ashHeavy>0.05){
+    ashMask=Math.min(0.92,0.25+0.70*ashHeavy); curMaskK=Math.max(curMaskK,ashMask);
+    // ⚠⚠ AND `peopleOutK` WAS THE WRONG LEVER FOR "THE STREET EMPTIES". I damped it first and the render
+    // came back with a full sidewalk: grepping its call sites returns exactly ONE, inside
+    // drawNamedCitizens, so it governs the handful of NAMED citizens and nothing else. The crowd density
+    // the eye actually reads is `wmood.pedFactor` — which is the lever THE PLAGUE uses to clear the
+    // sidewalks, ten lines above this one.
+    // 🔑 A field with one call site is not the field that draws the crowd. Both are damped now: the named
+    // ones stay in, and the sidewalk thins.
+    wmood.pedFactor*=(1-0.72*ashHeavy);
   }
   curWar=(cityG>0.5)?warState(now):null;                     // is this the life the enemy comes?
   curDis=disasterNow(now);            // is a disaster striking right now?
@@ -31219,6 +31345,7 @@ function draw(g,pass){
   drawHarbourLighthouse(g,L,now,fx);               // …and the working harbour standing in it
   drawPuddles(g,L,now);
   drawWetSheen(g,L,now,Math.min(1,wetness*1.7));   // wet asphalt mirrors the street lighting
+  if(curBiome.molten) drawAshDust(g,L,now);        // …and on the Ashlands, what the last few hours of ash left behind
   drawSprawlWetDay(g,L,now,nd);                    // …and the sprawl's road is wet at noon too, reflecting sky and signs                            // rain leaves standing water, on every land
   // coastal causeway: railing where the highway crosses the open water
   if(hasOcean&&seaW>0&&roadF>0.8){ var rlz=[[0,WW*seaW],[WW*(1-seaW),WW]];
