@@ -15013,6 +15013,79 @@ function drawVillageForest(g,gy,day,now){
 // THE VILLAGE LANE — packed earth with a worn stone edge, in place of the asphalt street.
 // World-anchored speckle (ruts, stones, tufts) so it stays continuous across the bezels exactly like
 // the asphalt patina it replaces. No lane paint, no crosswalks, no kerb: those all say "city".
+// ============ THE CLOUD ROAD — Nick's own addition to the radiance answer ============
+// "Maybe make the road a cloud road? really lean into the Heaven theme."
+//
+// ⚠⚠ SURFACE AND EDGES ONLY. THE GEOMETRY IS NOT TOUCHED, and that boundary is the locked answer, not a
+// convenience: the road band carries the lane table, the crossings, the traffic and every traversal rule
+// in the engine — and this project has already learned once, expensively, what happens when a road's
+// geometry and its paint disagree. The Ashlands' bridge deck was sized at `3*K`≈9px while the LANE
+// offsets run to +21, so the two near lanes were painted lava with cars driving over them. So: this
+// repaints what the asphalt looks like and nothing else. Cars, pedestrians, lanes, crossings, the paving
+// front and the line-painting truck all behave exactly as they do on all nineteen other lands.
+// ⚠ Drawn INSIDE the paved-band clip, on purpose, so the graded-earth roadbed ahead of the paver still
+// reads as raw earth. The city builds its road the same way here; it just finishes in a different stuff.
+// ⚠ The sprawl's WET-LOOK STREET is the precedent for a per-biome surface treatment, and this follows its
+// shape deliberately rather than inventing a second mechanism.
+function drawCloudRoad(g,L,now,roadY){
+  var K=Math.max(1,KSP), depth=SH-roadY; if(depth<2) return;
+  // the same continuous day ramp the deck uses — a cloud road cannot flip to night on a threshold when
+  // the cloud sea it is made of does not
+  var dk=Math.max(0,Math.min(1,(L-0.30)/0.30)); dk=dk*dk*(3-2*dk);
+  var B=curBiome, hz=(B.sky&&B.sky.haze)?B.sky.haze:[248,246,240];
+  // ⚠ DELIBERATELY DEEPER THAN THE CLOUD SEA BEHIND IT. At the deck's own values the road came out
+  // near-white and the traffic — which is 7px-scale and mostly pale — started to lose contrast against
+  // its own street, which fails the locked limit ("don't wash it out; the city must hold its silhouette")
+  // in the one place the city is most legible. It also reads better: the floor you stand on should be
+  // denser than the sea in the distance, or the city looks like it is standing on the horizon.
+  var rTop=mixc(mixc(hz,[22,26,42],0.60), mixc(hz,[236,238,246],0.52), dk);
+  var rBot=mixc(mixc(hz,[8,10,20],0.74),  mixc(hz,[150,160,192],0.34), dk);
+  // ⚠ THE SURFACE IS BRIGHTEST AT THE KERB AND DEEPENS TOWARD THE VIEWER — the opposite of the asphalt it
+  // replaces, and the reason it reads as a floor of cloud rather than a pale road: you are looking DOWN
+  // into it at the near edge, and down into cloud is where cloud gets its depth.
+  var rStep=Math.max(1,Math.round(K*0.7));
+  for(var y=roadY;y<SH;y+=rStep){
+    var f=(y-roadY)/depth;
+    g.fillStyle=css(mixc(rTop,rBot,f*f*(3-2*f)));
+    g.fillRect(0,y,SW,rStep);
+  }
+  // SOFT APERIODIC MOTTLING — the same two-octave world-space idea as the deck, so the road is visibly
+  // made of the same stuff as the sea it sits above. World-anchored, so it stays put across the bezels.
+  g.globalCompositeOperation="lighter";
+  var mo=mixc(rTop,[255,255,252],0.5);
+  for(var mq=0;mq<46;mq++){
+    var mh=mixLi(mq>>>0,52967)>>>0;
+    var mwx=(mh%Math.max(1,WW)), mx=Math.round(mwx-WOFF);
+    for(var mw=-1;mw<=1;mw++){
+      var mxx=mx+mw*WW; if(mxx<-60||mxx>SW+60) continue;
+      var mww=Math.round((10+((mh>>>9)%26))*K), mhh=Math.max(1,Math.round((1+((mh>>>17)%3))*K));
+      g.fillStyle=rgba(mo,(0.030+((mh>>>21)%40)/1000)*(0.5+0.5*dk));
+      g.fillRect(mxx,roadY+((mh>>>13)%Math.max(1,depth-mhh)),mww,mhh);
+    }
+  }
+  g.globalCompositeOperation="source-over";
+  // ---- THE EDGES DISSOLVE. A kerb is a hard machined line and it is the one thing that would still say
+  // "asphalt" — so the near edge of the sidewalk frays into mist that curls off it. Aperiodic, world
+  // anchored, and sitting ON the kerb line rather than under it, because what is being softened IS that
+  // line. ⚠ Never a continuous strip: an unbroken band along the kerb would be a full-width ruled line,
+  // which is the fault this whole pass has been removing.
+  g.globalCompositeOperation="lighter";
+  var mist=mixc(rTop,[255,255,252],0.62);
+  for(var pq=0;pq<34;pq++){
+    var ph=mixLi(pq>>>0,61441)>>>0;
+    var pwx=(ph%Math.max(1,WW)), px=Math.round(pwx-WOFF);
+    for(var pw=-1;pw<=1;pw++){
+      var pxx=px+pw*WW; if(pxx<-40||pxx>SW+40) continue;
+      // it breathes, slowly, and each puff on its own clock so they never pulse together
+      var pb=0.6+0.4*Math.sin(now*(0.00016+((ph>>>5)%40)/400000)+pq*1.3);
+      var pww=Math.round((4+((ph>>>9)%12))*K*pb), phh=Math.max(1,Math.round((1.4+((ph>>>15)%3))*K));
+      var pyy=HORIZON+2-Math.round(((ph>>>19)%3)*K*0.5);
+      g.fillStyle=rgba(mist,(0.10+((ph>>>23)%50)/1000)*pb*(0.45+0.55*dk));
+      g.fillRect(pxx,pyy,pww,phh);
+    }
+  }
+  g.globalCompositeOperation="source-over";
+}
 function drawVillageLane(g,L,now,roadY){
   var day=L>0.5, K=Math.max(1,KSP);
   var earth=day?[150,126,94]:[38,32,25], earth2=day?[132,108,80]:[30,25,20];
@@ -32085,6 +32158,7 @@ function draw(g,pass){
     for(var ap2=((-WOFF%9)+9)%9; ap2<SW; ap2+=9) g.fillRect(ap2,roadY+2+((ap2*7+WOFF)%18),2,1);
     g.fillStyle="rgba(255,255,255,0.06)";
     for(var ap3=((-WOFF%13)+13)%13; ap3<SW; ap3+=13) g.fillRect(ap3,roadY+4+((ap3*5+WOFF)%16),1,1);
+    if(curBiome.celest) drawCloudRoad(g,L,now,roadY);                          // THE EMPYREAN paves in cloud
     g.fillStyle=L>0.5?"rgba(255,255,255,0.10)":"rgba(160,175,205,0.08)";       // sidewalk expansion seams
     for(var sw2=((-WOFF%8)+8)%8; sw2<SW; sw2+=8) g.fillRect(sw2,HORIZON,1,3);
     g.fillStyle=L>0.5?"rgba(255,255,255,0.16)":"rgba(150,165,195,0.12)"; g.fillRect(0,HORIZON+3,SW,1);   // curb highlight
