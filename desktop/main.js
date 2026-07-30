@@ -335,7 +335,15 @@ function showWallpaperFallbackDialog() {
 function startWallpaperWatch() {
   if (wpWatch) { clearInterval(wpWatch); wpWatch = null; }
   wpWatch = setInterval(() => {
-    if (!desktopWallpaper || !win || win.isDestroyed()) return;
+    if (!desktopWallpaper) return;
+    // THE SIBLINGS NEED THE WATCHDOG TOO. Explorer restarting kills every WorkerW, not just the
+    // primary's — watching only `win` left the second monitor with a dead wallpaper until the app
+    // was restarted. Re-attach them QUIETLY: a sibling that can't come back must not trip the
+    // global give-up and take the working screens down with it.
+    for (const w of extraWins) {
+      try { if (w && !w.isDestroyed() && !wallpaper.isStillAttached(w)) wallpaper.attach(w); } catch (e) {}
+    }
+    if (!win || win.isDestroyed()) return;
     if (wallpaper.isStillAttached(win)) { wpFailStreak = 0; return; }
     if (wallpaper.attach(win)) { wpFailStreak = 0; }
     else if (++wpFailStreak >= 3) { onWallpaperFailed('watchdog'); }

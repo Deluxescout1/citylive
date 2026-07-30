@@ -92,6 +92,39 @@ test('the alignment is a real shift, not a whole-cycle no-op', () => {
   assert.strictEqual(diff, 13 * 3600000, `4:00 and 17:00 are 13h apart; grid differs by ${diff / 3600000}h`);
 });
 
+test('a later partial applyConfig does not leave the alignment stale', () => {
+  // applyConfig is called MANY times with partial configs — main.qml sends worldRestartAt in a call
+  // of its own — and every earlier test here calls it exactly once, which is why this route was
+  // invisible. A later call that moves WORLD_SHIFT or GROW_CYCLE must re-derive the phase.
+  const c = loadEngine();
+  c.applyConfig({ cycle: '1d', apocHour: 20 });
+  const before = boundaries(c, Date.now(), c.GROW_CYCLE + 60000, 1)[0];
+  assert.strictEqual(before.getHours(), 20, 'setup: should roll over at 20:00');
+
+  c.applyConfig({ worldRestartAt: Date.now() - 5 * 3600000, worldRestartMode: 'at' });
+  const after = boundaries(c, Date.now(), c.GROW_CYCLE + 60000, 1)[0];
+  assert.strictEqual(after.getHours(), 20, `worldRestartAt drifted the rollover to ${after.getHours()}:00`);
+  assert.strictEqual(after.getMinutes(), 0);
+
+  // and a later cycle change must carry the chosen hour with it
+  c.applyConfig({ cycle: '3d' });
+  const third = boundaries(c, Date.now(), c.GROW_CYCLE + 60000, 1)[0];
+  assert.strictEqual(third.getHours(), 20, `changing the cycle dropped the chosen hour (${third.getHours()}:00)`);
+});
+
+test('the alignment is a pure function of the config, not of when it was computed', () => {
+  // THE CORE INVARIANT: every sprite is a pure function of (world x, clock) so three monitors, the
+  // phone and the web agree without communicating. An alignment probed from `new Date()` would make
+  // two machines configured on different days disagree about when the city dies.
+  const a = loadEngine(); a.applyConfig({ cycle: '3d', apocHour: 20 });
+  const b = loadEngine(); b.applyConfig({ cycle: '3d', apocHour: 20 });
+  assert.strictEqual(a.GROW_ALIGN, b.GROW_ALIGN);
+  // same config re-applied must not move the grid
+  const first = a.GROW_ALIGN;
+  a.applyConfig({ cycle: '3d', apocHour: 20 });
+  assert.strictEqual(a.GROW_ALIGN, first, 're-applying the same config moved the cycle grid');
+});
+
 test('the settings dropdown and the engine agree on the cycle list', () => {
   // The hour picker is offered beside EVERY cycle, so a cycle the engine cannot align is a
   // silently dead control — exactly how the 3d/1w/2w/3w/1mo case shipped.

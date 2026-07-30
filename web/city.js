@@ -132,9 +132,14 @@ function applyConfig(cfg){ if(!cfg) return;
   if(cfg.disasters!=null) DIS_PROB=DIS_PROB_BASE*disMul(cfg.disasters);
   if(cfg.finale!==undefined) CFG_FINALE=(cfg.finale&&cfg.finale!=="auto"&&DEATHS.indexOf(cfg.finale)>=0)?cfg.finale:null;
   if(cfg.worldRestartAt!==undefined) WORLD_SHIFT=worldShiftFrom(+cfg.worldRestartAt||0, cfg.worldRestartMode);
-  // AFTER cycle and WORLD_SHIFT: the alignment is a phase against the finished grid,
-  // so anything lifeIndexOf() adds must already be settled or the hour lands wrong.
-  if(cfg.apocHour!=null) GROW_ALIGN=alignMsFor(cfg.apocHour, GROW_CYCLE);
+  // AFTER cycle and WORLD_SHIFT: the alignment is a phase against the finished grid, so anything
+  // lifeIndexOf() adds must already be settled or the hour lands wrong.
+  // ⚠ REMEMBER the hour and RECOMPUTE UNCONDITIONALLY. applyConfig is called many times with
+  // partial configs — main.qml alone sends worldRestartAt in a call of its own — and a later call
+  // that moves WORLD_SHIFT or GROW_CYCLE leaves an alignment computed against the old grid. That
+  // route drifted the 20:00 rollover to 17:12 on KDE.
+  if(cfg.apocHour!=null) APOC_HOUR=cfg.apocHour;
+  GROW_ALIGN=alignMsFor(APOC_HOUR, GROW_CYCLE);
   if(cfg.finaleDemo!==undefined) FINALE_DEMO=(+cfg.finaleDemo>0)?+cfg.finaleDemo:null;   // seconds for a full apocalypse loop
   if(cfg.era!==undefined){ FORCEERA=null;
     if(cfg.era && cfg.era!=="auto"){ for(var ei=0;ei<ERAS.length;ei++){ if(ERAS[ei].name===cfg.era){ FORCEERA=ei; break; } } } }
@@ -4529,7 +4534,7 @@ function setup(scene,opts){
 // button could never do. That is why this is an ALIGNMENT and not a trigger.
 // Only meaningful when the cycle divides a day (1h/12h/1d); on a 1-week life the boundary already lands
 // wherever the epoch put it, and `GROW_ALIGN` is simply 0.
-var GROW_ALIGN=0;
+var GROW_ALIGN=0, APOC_HOUR=-1;   // APOC_HOUR is remembered so a later partial applyConfig can re-derive the phase
 function alignMsFor(hour, cyc){
   if(hour==null||hour<0) return 0;
   // A clock hour is only honourable if the cycle either tiles the day (1h, 12h) or is a
@@ -4540,7 +4545,11 @@ function alignMsFor(hour, cyc){
   // Where the chosen hour SITS in the cycle. lifeIndexOf() subtracts GROW_ALIGN, so this is
   // the offset itself, not its complement — returning (cyc-m) put the boundary at the mirror
   // hour (apocHour=20 landed the daily rollover at 11:49).
-  var probe=new Date(); probe.setHours(hour,0,0,0);
+  // ⚠ ANCHOR THE PROBE TO THE EPOCH, NEVER TO `new Date()`. A "today at hour:00" probe makes the
+  // result depend on WHEN it was computed: on a 3d/1w/1mo cycle it slides the grid by a day every
+  // time applyConfig runs, and — far worse — two machines configured on different days would
+  // disagree, breaking the whole reason every sprite is a pure function of (world x, clock).
+  var probe=new Date(GROW_EPOCH); probe.setHours(hour,0,0,0);
   return ((probe.getTime()-GROW_EPOCH+GROW_OFFSET_DAYS*86400000+WORLD_SHIFT)%cyc+cyc)%cyc;
 }
 function lifeIndexOf(now){ return Math.floor((now-GROW_EPOCH+GROW_OFFSET_DAYS*86400000+WORLD_SHIFT-GROW_ALIGN)/GROW_CYCLE); }
