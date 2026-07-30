@@ -20135,9 +20135,22 @@ function drawDunes(g,L,now,nd){
           var lin=1-v2;
           s=(v2<0.14 ? (lin*0.40+(1-v2*v2)*0.60) : lin)*0.94;
         }
+        // ⚠⚠ SUPERIMPOSED DUNES — Nick: the background "looks kinda meh". One dune size is the giveaway.
+        // A real erg is dunes ON dunes: big draa carrying smaller crescents on their backs, each with its
+        // own little brink and its own slip face. Built from the SAME asymmetric construction at a quarter
+        // the wavelength and a fifth the height, so the silhouette gains real incident instead of being one
+        // clean wave repeated. Without this the crest line is a single smooth sweep and the eye reads paper.
+        var wl2=Math.max(8,Math.round(wl*0.26));
+        var ci2=Math.floor(wx/wl2), cf2=(wx/wl2)-ci2;
+        var ch2b=mixLi(ci2>>>0,20719)>>>0;
+        var BR2=0.58+((ch2b>>>9)%100)/100*0.12;
+        var s2;
+        if(cf2<BR2){ var u2=cf2/BR2; s2=u2*u2*(0.42+0.58*u2); }
+        else { var v3=(cf2-BR2)/(1-BR2); s2=(1-v3)*0.94; }
+        var sub=s2*(0.5+((ch2b>>>17)%100)/100*0.5);
         // blend each dune's own height in, and let the neighbour's toe lift the trough a little, so the
         // field is dunes standing on dunes rather than a row of identical teeth on a flat line
-        var h2=s*hgt+(1-s)*0.10*hN;
+        var h2=s*hgt+(1-s)*0.10*hN + sub*0.17;
         // one slow, very long world octave so the whole field swells and thins across the desert
         var swell=Math.sin(wx*0.00042+bi*1.7)*0.16+Math.sin(wx*0.00017+2.9)*0.10;
         // ⚠ KEEP THIS UNROUNDED. The face of a dune is chosen from the crest's SLOPE, and rounding
@@ -20199,32 +20212,111 @@ function drawDunes(g,L,now,nd){
       seg[x2]=(slope>1.4)?2:((slope<-0.6)?1:0);
       sy[x2]=Math.round(pr[x2]);
     }
-    for(var fk=0;fk<3;fk++){                                    // body, then windward, then slip face
+    // ⚠⚠⚠ THE FACE COLOUR BELONGS TO THE DUNE'S SURFACE, NOT TO THE WHOLE COLUMN. Filling from each crest
+    // all the way to HORIZON in the face colour turned every slip face into a VERTICAL PANEL — a dark
+    // rectangle standing the full height of the band — and it is the same mistake as the flat curtain,
+    // rotated ninety degrees. What lies below a dune's own face is not more of that face: it is the
+    // trough, and then the windward back of the next dune along.
+    // So: one cheap trough fill for the whole column, then the face painted only in the band just under
+    // the brink, which is the part of the dune you are actually looking at.
+    var troughC=mixc(body, day?[122,88,52]:[9,13,27], day?0.30:0.40);
+    g.fillStyle=css(troughC);
+    var ts=-1, tx;
+    for(tx=0;tx<=SW;tx++){
+      if(tx<SW){ if(ts<0) ts=tx; }
+      else if(ts>=0){ for(var tq=ts;tq<tx;tq++) g.fillRect(tq,sy[tq],1,HORIZON-sy[tq]+1); ts=-1; }
+    }
+    // the face band: deepest right under the brink, gone by the time it reaches the trough
+    var faceN=6;
+    for(var fk=0;fk<3;fk++){
       g.fillStyle=css(fk===0?body:(fk===1?sunC:shadC));
-      var rs=-1, rx2;
-      for(rx2=0;rx2<=SW;rx2++){
-        if(rx2<SW && seg[rx2]===fk){ if(rs<0) rs=rx2; }
-        else if(rs>=0){
-          // one fill per RUN of equal face; the run's top follows the profile, so it is cut at each
-          // change of height as well as at each change of face
-          for(var qq=rs;qq<rx2;qq++) g.fillRect(qq,sy[qq],1,HORIZON-sy[qq]+1);
-          rs=-1;
+      for(var fq2=0;fq2<faceN;fq2++){
+        var ff3=fq2/faceN;
+        g.globalAlpha=(1-ff3)*(1-ff3);
+        for(var rx2=0;rx2<SW;rx2++){
+          if(seg[rx2]!==fk) continue;
+          var cT3=sy[rx2], sp3=HORIZON-cT3; if(sp3<3) continue;
+          // the face occupies the upper part of what this column shows — a fraction, so it stays in
+          // proportion whether the dune is near and tall or far and small
+          var fH=Math.max(2,Math.round(sp3*0.46)), fT2=Math.max(1,Math.round(fH/faceN));
+          g.fillRect(rx2,cT3+fq2*fT2,1,fT2);
         }
       }
     }
-    // ---- DEPTH DOWN THE FACE: the foot of a dune is in its own shadow and hazed by the air in front of
-    // it. This is what stops each band being a slab. Stepped rows, run-length along — never per column.
-    var footH=Math.round((26-5*b2)*K);
-    if(footH>2){
-      var footC=mixc(body,day?[120,86,54]:[10,14,28],day?0.22:0.34);
-      var fSteps=6, fT=Math.max(1,Math.round(footH/fSteps));
-      g.fillStyle=css(footC);
-      for(var fq=0;fq<fSteps;fq++){
-        g.globalAlpha=(fq/fSteps)*(fq/fSteps)*0.55;
-        g.fillRect(0,HORIZON-footH+fq*fT,SW,fT);
+    g.globalAlpha=1;
+    // ---- THE RECEDING SURFACE — the fix for "the background looks kinda meh" ------------------------
+    // ⚠⚠⚠ EVERY COLUMN WAS ONE FLAT COLOUR FROM ITS CREST TO THE HORIZON. That is the whole problem, and
+    // it is why the field read as CUT PAPER: the dunes existed only as a top EDGE, with a featureless
+    // curtain of tone hanging underneath. Two thirds of the frame had no information in it at all.
+    // 🔑 A DUNE IS A SURFACE, NOT A SILHOUETTE. What you actually see below a crest is the windward back
+    // of the NEXT dune running away from you — bright just under the brink where it faces the sky, then
+    // deepening as it recedes into the trough. So the shading has to be measured DOWN FROM EACH COLUMN'S
+    // OWN CREST, not from the frame. Measuring it from a fixed row is what the old foot-shadow did, and it
+    // could only ever darken a stripe along the bottom of the whole band.
+    // ⚠ Same structure as the Empyrean's cloud crown, for the same reason: outer loop on the depth step so
+    // `fillStyle`/`globalAlpha` are set a handful of times, inner loop run-length on equal Y.
+    var dSteps=9;
+    var deepC=mixc(body, day?[112,78,44]:[8,12,26], day?0.34:0.42);
+    g.fillStyle=css(deepC);
+    for(var dq=0;dq<dSteps;dq++){
+      var df=(dq+0.5)/dSteps;
+      // squared, so the brink stays crisp and the darkening gathers in the trough where sand really does
+      // sit in its own shadow — a linear ramp greys the whole face evenly and kills the crest.
+      // ⚠ AND IT EASES OFF AGAIN AT THE VERY BOTTOM. A monotonic darkening made the foreground the
+      // muddiest part of the frame, which is backwards: the sand nearest the viewer is the sand catching
+      // the most light and showing the most grain. The shadow belongs to the TROUGH, which sits partway
+      // down — below it you are looking at the near sand again, so the curve peaks around 0.75 and lifts.
+      var dCurve=df*df*(1-0.50*Math.max(0,(df-0.70)/0.30));
+      g.globalAlpha=dCurve*(day?0.50:0.62);
+      var ds=-1, dy0=-999, dx2, dyy;
+      for(dx2=0;dx2<=SW;dx2++){
+        dyy=-999;
+        if(dx2<SW){
+          var cTop=sy[dx2], span=HORIZON-cTop;
+          if(span>2) dyy=cTop+Math.round(span*df);
+        }
+        if(dyy!==dy0){
+          if(ds>=0&&dy0>-999) g.fillRect(ds,dy0,dx2-ds,Math.max(1,Math.round((HORIZON-dy0)/dSteps)+1));
+          ds=(dyy>-999)?dx2:-1; dy0=dyy;
+        }
       }
-      g.globalAlpha=1;
+      if(ds>=0&&dy0>-999) g.fillRect(ds,dy0,SW-ds,Math.max(1,Math.round((HORIZON-dy0)/dSteps)+1));
     }
+    g.globalAlpha=1;
+    // ---- WIND RIPPLES ACROSS THE WHOLE SURFACE, not a strip at the bottom ---------------------------
+    // ⚠ The ripple field was drawn on the NEAREST band only and only in the last 6% of the frame height,
+    // so 94% of the sand had no texture on it whatsoever. Ripples are what tell you a surface is made of
+    // loose grains rather than of paint, and they are the cheapest realism in the whole land.
+    // ⚠ They follow the SURFACE (a fraction of the way down from each column's own crest), so they bend
+    // over the dunes instead of running dead level — level lines would be the ruled-line fault again.
+    // Finer and fainter with distance, and they migrate downwind with the clock.
+    // ⚠⚠ SHORT SEGMENTS AT HASHED DEPTHS — NOT LINES AT A FIXED FRACTION OF THE SPAN. The first version
+    // put each ripple at `crest + span*rf`, i.e. at a constant fraction of every column's own height, so
+    // all nine of them stretched and squeezed together and came out as NINE PARALLEL CONTOUR LINES running
+    // the width of the desert. It read as wood grain, or a topographic map.
+    // 🔑 The alpine face already wrote this rule down after making the identical mistake: "a band that
+    // tracks h*fraction is a graph of the profile rather than a feature ON it, and an unbroken line at
+    // this length reads as a line whatever shape it takes. Real ledges are SHORT, level, and stop."
+    // Ripples are the same: scattered short strokes at their own depths, world-anchored so the three
+    // monitors agree, drifting downwind with the clock.
+    var rCount=(b2===0)?150:(b2===1?110:(b2===2?70:40));
+    var rDrift=Math.round(now*0.0016)%9973;
+    g.fillStyle=css(mixc(shadC,[0,0,0],0.18));
+    g.globalAlpha=(day?0.20:0.12)*(1-0.18*b2);
+    for(var rq=0;rq<rCount;rq++){
+      var rh2=mixLi((rq+b2*911)>>>0,45077)>>>0;
+      var rwx=(rh2%Math.max(1,WW));
+      var rx3=Math.round(rwx-WOFF+((rDrift%WW)));
+      rx3=((rx3%WW)+WW)%WW; if(rx3>SW+40) rx3-=WW;
+      if(rx3<-40||rx3>SW) continue;
+      var cT2=sy[Math.max(0,Math.min(SW-1,rx3))], sp2=HORIZON-cT2; if(sp2<6) continue;
+      // its own depth down the face, biased toward the lower two thirds where the back is broadest
+      var rd=0.22+((rh2>>>9)%100)/100*0.70;
+      var ryy=cT2+Math.round(sp2*rd); if(ryy>=HORIZON-1) continue;
+      var rlen=Math.round((6+((rh2>>>17)%22))*K*0.5);
+      g.fillRect(rx3,ryy,rlen,Math.max(1,Math.round(K*0.5)));
+    }
+    g.globalAlpha=1;
     // the crest line itself catches the most light — it is the brightest thing in a desert
     g.fillStyle=rgba(mixc(sunC,[255,250,236],0.45*litK+0.30*gK),0.55);
     for(var x3=0;x3<SW;x3++){
