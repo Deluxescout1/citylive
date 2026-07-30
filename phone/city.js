@@ -19973,7 +19973,11 @@ var karstCache=null;
 function drawKarst(g,L,now,nd){
   var day=L>0.5, B=curBiome, K=Math.max(1,KSP), skc=biomeSkc(day);
   var litK=Math.max(0,Math.min(1,(L-0.34)*2.4));
-  var RANKS=3;
+  // ⚠⚠ THREE RANKS -> SIX. Nick's locked answer, and this land's entire thesis is depth by layering: the
+  // biome's own comment says the mist "is the only thing that stops a hundred towers reading as one grey
+  // mass, and it is what makes the frame feel deep rather than merely busy." With three ranks there was
+  // barely anything to layer — the valley ended two steps back and the towers read as a single row.
+  var RANKS=6;
   if(!karstCache){
     karstCache=[];
     for(var r=0;r<RANKS;r++){
@@ -20176,17 +20180,27 @@ function drawKarst(g,L,now,nd){
         }
       }
     }
-    // THE MIST between ranks. Sits ON TOP of the rank just drawn, so each successive rank is veiled
-    // by everything in front of it — which is the entire reason this land reads as deep.
+    // THE MIST between ranks. Sits ON TOP of the rank just drawn, so each successive rank is veiled by
+    // everything in front of it — which is the entire reason this land reads as deep.
+    // ⚠⚠ IT WAS IN THE WRONG PLACE, WHICH IS WHY IT NEVER SEPARATED ANYTHING. The band ran from about a
+    // quarter of the way up the frame and faded UPWARD, so the strongest part of the veil sat in open sky
+    // and the FEET of the towers — where one rank actually has to be told from the next — got almost
+    // nothing. Valley mist does the opposite: it lies low, thickest on the ground, thinning as it rises.
+    // 🔑 A veil that separates two things has to be BETWEEN them, and here that means at the bottom.
+    // ⚠ Per-rank strength comes down because there are now five veils instead of two and they ACCUMULATE;
+    // the total is what matters, not the coefficient of any one (the Empyrean's additive-layer lesson).
     if(r2>0){
-      var mh=Math.round(HORIZON*0.30), my=Math.round(HORIZON-mh*0.9);
+      var mh=Math.round(HORIZON*0.62), my=HORIZON;
       var mistC=day?[228,234,230]:[52,60,66];
-      for(var mq=0;mq<mh;mq++){
+      // it breathes very slowly, and each rank on its own phase so the layers never pulse together
+      var mBreath=0.88+0.12*Math.sin(now*0.00007+r2*1.9);
+      var mStep=Math.max(1,Math.round(K*0.5));
+      for(var mq=0;mq<mh;mq+=mStep){
         var mf=mq/mh;
-        var aM=(0.05+0.20*dep)*(1-mf)*(0.85+0.15*Math.sin(now*0.0004+r2+mf*3));
+        var aM=(0.08+0.13*dep)*(1-mf)*(1-mf)*mBreath;
         if(aM<=0.004) continue;
         g.fillStyle=rgba(mistC,aM);
-        g.fillRect(0,my-mq,SW,1);
+        g.fillRect(0,my-mq-mStep,SW,mStep);
       }
     }
   }
