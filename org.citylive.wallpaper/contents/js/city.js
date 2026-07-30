@@ -14589,8 +14589,28 @@ function drawCloudFront(g,L,now){
   //     alone cannot tell a billow top from the gap beside it.
   //   · HOLES YOU CAN SEE DOWN THROUGH, drifting slowly. A cloud sea seen from directly above is not a
   //     lid; the gaps are where it reads as having a bottom.
+  // ⚠⚠⚠ THE BILLOWS ARE SIZED TO THE BAND, NOT IN K — AND NICK CAUGHT THE FAULT ON HIS DESKTOP:
+  // "just make sure we can still see the road." The amplitudes here were authored as multiples of K,
+  // copied from the FAR deck where the sky is 300+px tall, and then applied to a band that is only
+  // SEA_FRONT deep — 51px at his geometry. With the storm term pushing `churn` to 1.0 a crest could rise
+  // ~120px above SEA_Y, and GROUND is 54px, so the near cloud climbed straight over the carriageway and
+  // sat on top of the traffic.
+  // 🔑 A SPRITE SIZED IN K DOES NOT KNOW HOW MUCH ROOM IT HAS. This project keeps relearning the same
+  // shape of mistake from both ends: the Ashlands' landform was sized against KSP and came out 35px
+  // ABOVE the frame; its steam plumes were within 42px of HORIZON and were invisible. Same rule, and it
+  // is the rule the landmark scale already follows (`max(KSP*1.7, gy/80)`): size it against the space.
+  // ⚠ AND A HARD CEILING ON TOP OF THAT, because the storm can raise `churn` at any moment: the mean is
+  // set exactly one maximum-rise below SEA_Y so a crest just touches it, and the clamp is a backstop that
+  // should almost never bite — if it bit often it would flatten the crests into a full-width ruled line,
+  // which is the fault this whole pass has been removing.
   var pcF=Math.max(8,Math.round(52*K)), pcF2=Math.max(4,Math.round(19*K));
-  var ampF=(5+13*st.churn)*K, pAmpF=(7+13*st.churn)*K;
+  // ⚠ THE COEFFICIENTS ARE CHOSEN SO THE CLAMP CANNOT BITE, not left to chance. Worst case a column can
+  // rise by (ampF/2 + pAmpF + subF + drift) = (0.13 + 0.58 + 0.18)*riseF + 0.045*depth = 0.419*depth,
+  // against a mean sitting 0.42*depth below SEA_Y. A clamp that fires routinely is not a safety net — it
+  // is a straight line drawn across every crest, and this land has spent six commits removing those.
+  var riseF=Math.max(3,depth*0.42);                     // the most a billow may stand above the mean
+  var meanF=top+riseF;                                  // …so its crest reaches SEA_Y and no further
+  var ampF=riseF*0.26, pAmpF=riseF*0.58, subF=riseF*0.18;
   var dtF=new Array(SW), lmF=new Array(SW), minF=botY;
   for(var x=0;x<SW;x++){
     var wx=x+WOFF;
@@ -14613,8 +14633,8 @@ function drawCloudFront(g,L,now){
       var pd2=Math.abs(wx-pcx2);
       if(pd2<prad2){ var q2=(1-(pd2/prad2)*(pd2/prad2))*(0.30+((ph2>>>17)%100)/100*0.40); if(q2>lump2) lump2=q2; }
     }
-    var drift=Math.sin(now*0.000021+wx*0.0006)*2.6*K;   // same slow drift term as the far deck
-    var ty=top+Math.round((v-0.5)*ampF-lump*pAmpF-lump2*pAmpF*0.42+drift);
+    var drift=Math.sin(now*0.000021+wx*0.0006)*depth*0.045;   // same slow drift, scaled to the band
+    var ty=meanF+Math.round((v-0.5)*ampF-lump*pAmpF-lump2*subF+drift);
     // HOLES, drifting. The hole field moves along the world on its own slow clock, so gaps open and close
     // over hours the way the deck's level does — not a fixed pattern of punched-out spots.
     var hcF=Math.max(11,Math.round(150*K));
@@ -14624,7 +14644,7 @@ function drawCloudFront(g,L,now){
     var holeK=0;
     if(hvF>0.58){ holeK=Math.min(1,(hvF-0.58)/0.30); holeK=holeK*holeK*(3-2*holeK);
       ty+=Math.round(holeK*depth*0.62); }
-    if(ty<0) ty=0;
+    if(ty<top) ty=top;                                 // THE ROAD IS NEVER COVERED — the backstop
     dtF[x]=ty;
     // ⚠ THE MODELLING VALUE IS STORED, NOT RECOMPUTED. `lump` already describes exactly where a billow's
     // crown is and where two of them meet, so it IS the shadow map — recomputing it in the crown loop
