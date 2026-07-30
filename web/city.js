@@ -17482,8 +17482,34 @@ function drawBlackout(g,cd,L,now){
   var cascade=Math.min(1,f/0.18);                                  // the outage CASCADES district by district
   var w=(cd.w*2.2+60+i*50)*(0.45+0.55*cascade), x0=Math.max(0,(cx-w/2)|0), x1=Math.min(SW,(cx+w/2)|0); if(x1<=x0) return;
   var surge=((Math.floor(now/1100)%8)===0);                    // brief grid surges try to restore power
+  // ⚠⚠⚠ A BLACKOUT IS A LOSS OF ARTIFICIAL LIGHT. IT CANNOT DARKEN THE SKY. This veil was
+  // `fillRect(sx, 0, 1, HORIZON+6)` — a near-black column over the FULL HEIGHT of the frame — so a power
+  // cut dimmed the sky, the clouds, the sun and a sand dune three kilometres away. Nick spotted it on THE
+  // DUNE SEA as "a dark blue-grey column"; I verified it renders identically on the unmodified engine, so
+  // it is long-standing and it reaches EVERY land. On a pale map it reads as a dirty smear.
+  // 🔑 THE SIBLING WAS FIXED AND THE PARENT WAS NOT. The comment further down records that the SURGE flash
+  // was once "a single hard-edged rect… a blue RECTANGLE with two razor-straight vertical edges across the
+  // full height of the sky", and it was given a cosine bell. Somebody stood right here, fixed the edges of
+  // the smaller veil, and never asked why either of them was over the sky at all.
+  // TWO BOUNDS, both physical:
+  //   · VERTICALLY it is confined to the city band. Nothing above the skyline loses power.
+  //   · BY DAYLIGHT it nearly vanishes. From outside, a daytime blackout is signs and screens going off,
+  //     not a shadow over the district — the windows and signage are darkened by their own code, which is
+  //     where that belongs. A trace is kept so the event still reads at noon.
+  var boTop=Math.max(0,HORIZON-Math.round(HORIZON*0.62));      // the tallest the city ever gets
+  var boDark=1-0.82*Math.max(0,Math.min(1,(L-0.34)/0.34));     // ~1 at night, ~0.18 in full day
   for(var sx=x0;sx<x1;sx++){ var d=Math.abs(sx-cx)/(w/2), fall=d>=1?0:(0.5+0.5*Math.cos(d*Math.PI));
-    g.fillStyle="rgba(4,5,11,"+(0.66*inten*fall*(surge?0.45:1)).toFixed(3)+")"; g.fillRect(sx,0,1,HORIZON+6); }
+    // ⚠ and it fades UPWARD inside that band too, so there is no hard top edge where the veil stops —
+    // the same rule the Ashlands' crest bloom and the Empyrean's deck glow both had to learn.
+    var bSteps=7, bH=Math.max(1,Math.round((HORIZON+6-boTop)/bSteps));
+    for(var bq=0;bq<bSteps;bq++){
+      var bf=(bq+1)/bSteps;                                    // 0 at the top of the band, 1 at the ground
+      var ba=0.66*inten*fall*(surge?0.45:1)*boDark*bf*bf;
+      if(ba<=0.004) continue;
+      g.fillStyle="rgba(4,5,11,"+(ba<1?ba:1).toFixed(3)+")";
+      g.fillRect(sx,boTop+bq*bH,1,bH);
+    }
+  }
   g.globalCompositeOperation="lighter";
   for(var c2=0;c2<20;c2++){ var hh=((c2*2654435761+cd.seed)>>>0), lx=x0+(hh%Math.max(1,(x1-x0)|0));
     if(lx<0||lx>SW) continue; var ly=HORIZON-4-((hh>>8)%42);
@@ -17497,9 +17523,11 @@ function drawBlackout(g,cd,L,now){
   // rect while every one of its siblings (the glow above, the outage below it, the smog) uses a
   // cosine bell — so a surge put a blue RECTANGLE with two razor-straight vertical edges across the
   // full height of the sky. Same bell as the rest now.
+  // …and the surge flash is bounded to the same city band, for the same reason: the grid trying to come
+  // back on lights the STREET, not the stratosphere.
   if(surge){ for(var sg=x0;sg<x1;sg++){ var sd=Math.abs(sg-cx)/(w/2), sf=sd>=1?0:(0.5+0.5*Math.cos(sd*Math.PI));
     if(sf<=0.02) continue;
-    g.fillStyle="rgba(120,150,255,"+(0.10*inten*sf).toFixed(3)+")"; g.fillRect(sg,0,1,HORIZON); } }
+    g.fillStyle="rgba(120,150,255,"+(0.10*inten*sf*boDark).toFixed(3)+")"; g.fillRect(sg,boTop,1,HORIZON-boTop); } }
   g.globalCompositeOperation="source-over";
 }
 // SMOG: a choking brown inversion settles over the district (worse in economic busts) — a muddy veil
