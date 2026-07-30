@@ -20770,6 +20770,12 @@ function drawSprawlAirTraffic(g,L,now,nd){
   if(curBiome.k!=="sprawl"||cityPhase==="apoc") return;
   var day=L>0.5, K=Math.max(1,KSP), gy=HORIZON;
   var aSeed=((WORLD_SEED*2246822519+613)>>>0);
+  // ⚠ AND THE TRAFFIC ARRIVES AFTER WHAT CARRIES IT. Same fault as the ranks: this had no `cityG` at all, so
+  // a maglev ran over a town of cabins. Nothing flies until there is a city to fly between, and nothing runs
+  // on the guideway until the guideway is finished.
+  var railStage=gstage(0.44,0.62);
+  var airStage=gstage(0.52,0.78);
+  var liftStage=gstage(0.60,0.82);
   // ---- 1. THE MAGLEV on the guideway the backdrop drew ----
   var railY=sprawlRailY();
   var tPwr=sprawlPower(WOFF+SW*0.5);                        // the rail's own supply, sampled mid-frame
@@ -20778,7 +20784,7 @@ function drawSprawlAirTraffic(g,L,now,nd){
   var tDir=((aSeed>>>3)&1)?1:-1;
   var tLen=Math.round(26*K), tH=Math.max(2,Math.round(3.2*K));
   var tX=Math.round(tDir>0 ? (-tLen+tPh*(SW+tLen*2)) : (SW+tLen-tPh*(SW+tLen*2)));
-  if(tX>-tLen&&tX<SW+tLen){
+  if(railStage>=0.98 && tX>-tLen&&tX<SW+tLen){
     var tY=railY-tH;
     g.fillStyle=day?"#b8c0cc":"#3a4150";
     g.fillRect(tX,tY,tLen,tH);
@@ -20802,7 +20808,8 @@ function drawSprawlAirTraffic(g,L,now,nd){
   var LANES=[{y:0.52,per:26000,n:4,dir:1},{y:0.66,per:34000,n:3,dir:-1},{y:0.40,per:30000,n:3,dir:1}];
   for(var ln=0;ln<LANES.length;ln++){
     var LN=LANES[ln], ly=gy-Math.round(gy*LN.y);
-    for(var ci=0;ci<LN.n;ci++){
+    var lnN=Math.round(LN.n*airStage);
+    for(var ci=0;ci<lnN;ci++){
       var lnPwr=sprawlPower(WOFF+SW*0.5);
       var lnClock=sprawlMoveClock(now,lnPwr);
       var cph=((lnClock/LN.per + ci/LN.n + ((aSeed>>>(ln*4))%100)/100)%1);
@@ -20830,7 +20837,7 @@ function drawSprawlAirTraffic(g,L,now,nd){
   // The pad is world-anchored and the lifter descends onto it, holds, and climbs away — a cycle you can
   // watch to its end rather than a sprite crossing the frame.
   var padWX=((aSeed>>>11)%Math.max(1,WW)), PDX=padWX-WOFF;
-  if(PDX>-30&&PDX<SW+30){
+  if(liftStage>0.02 && PDX>-30&&PDX<SW+30){
     var padY=gy-Math.round(gy*(0.30+((aSeed>>>17)%12)/100));
     var pw3=Math.round(9*K);
     g.fillStyle=day?"#4e545f":"#14171d";                           // the pad, with its own supports
@@ -24739,6 +24746,16 @@ function drawSprawlDepth(g,L,now,nd){
   if(curBiome.k!=="sprawl"||cityPhase==="apoc") return;
   var day=L>0.5, K=Math.max(1,KSP), gy=HORIZON;
   var dSeed=((WORLD_SEED*2654435761+5171)>>>0);
+  // ⚠⚠⚠ THE MEGACITY GROWS WITH THE CITY. Nick asked the question and he was right to: this function and
+  // the air traffic had ZERO `cityG` references, so on day one of a life — when the real city is a handful
+  // of founder cabins and a campfire — a finished megacity skyline stood behind them with an elevated
+  // railway running through it. Every other landmark in this engine is staged (`gstage`), the towers
+  // included; these two were the exception because they were written as scenery rather than as buildings.
+  // 🔑 SCENERY IS STILL BUILT BY SOMEBODY. Anything that reads as part of the city has to arrive with it.
+  // The shape mirrors the engine's own `densRamp` — "low-rise sprawl → dense high-rise, 1.0 by cityG 0.72"
+  // — so the ranks rise on the same curve the real skyline does, and the NEAREST rank arrives last because
+  // the newest towers are the tallest.
+  var dGrow=Math.pow(Math.min(1,Math.max(0,cityG)/0.72),1.15);
   // the air the ranks dissolve into: the land's own haze by day, its light pollution by night
   var hazeC=day?(curBiome.sky&&curBiome.sky.haze?curBiome.sky.haze:[150,150,170]):[46,36,62];
   var baseC=day?(curBiome.near||[70,74,86]):[16,17,26];
@@ -24763,7 +24780,10 @@ function drawSprawlDepth(g,L,now,nd){
       var tw=Math.max(2,Math.round((3.2+((th>>>3)%9)*0.55)*R.w*K));
       // ⚠ the near rank genuinely leaves the frame: its height is a fraction of the SKY, not of a
       // constant, so it exceeds the top on any monitor rather than only on a tall one.
-      var tHt=Math.round(gy*R.h*(0.62+((th>>>9)%100)/100*0.62));
+      // the rank's own arrival: the far ranks are the old city and stand early, the near giants come last
+      var rkStage=Math.max(0,Math.min(1,(dGrow-rk*0.16)/0.52));
+      if(rkStage<=0.02) continue;
+      var tHt=Math.round(gy*R.h*(0.62+((th>>>9)%100)/100*0.62)*(0.26+0.74*rkStage));
       if(tHt<Math.round(6*K)) continue;
       var ty=gy-tHt;
       if(X+tw<0||X>SW) continue;
@@ -24801,7 +24821,7 @@ function drawSprawlDepth(g,L,now,nd){
     // ---- AND THE AIR BETWEEN THE RANKS. This is the half that actually creates the depth: without a
     // veil laid between them, four ranks of towers are just four rows of boxes at different greys.
     // A single gradient per rank, hugging the ground where the murk is thickest.
-    var vA=(day?0.30:0.22)*R.haze;
+    var vA=(day?0.30:0.22)*R.haze*(0.35+0.65*Math.max(0,Math.min(1,(dGrow-rk*0.16)/0.52)));
     if(vA>0.015){
       var vg=g.createLinearGradient(0,gy-Math.round(gy*R.h*0.9),0,gy);
       vg.addColorStop(0,rgba(hazeC,0));
@@ -24816,6 +24836,10 @@ function drawSprawlDepth(g,L,now,nd){
   // — a support is defined by what it reaches.
   // ⚠ AND IT MUST NOT BLOCK THE CITY. A single slim deck, high above the street, with its piers spaced wide
   // enough to see between. That is the limit he set alongside the framing answer.
+  // THE GUIDEWAY IS INFRASTRUCTURE, so it arrives like infrastructure: nothing before the city can pay for
+  // it, then piers first and the deck running out between them.
+  var railStage=gstage(0.44,0.62);
+  if(railStage<=0.02) return;
   var railY=sprawlRailY();
   var deckH=Math.max(2,Math.round(1.8*K));
   var deckC=css(mixc(day?[92,98,112]:[26,29,38],hazeC,day?0.22:0.10));
@@ -24826,6 +24850,8 @@ function drawSprawlDepth(g,L,now,nd){
     var rwx=rx+WOFF;
     var rw2=Math.min(segW-Math.max(1,Math.round(K*0.6)),SW-rx);
     if(rw2<=0) continue;
+    // built out in the order the pours went in, so a half-finished line has gaps rather than a short deck
+    if(((((rwx*7919)^dSeed)>>>0)%1000)/1000 > railStage) continue;
     var rjit=((((rwx*40503)^dSeed)>>>0)%3)-1;                     // the deck is not laser-straight
     g.fillStyle=deckC; g.fillRect(rx,railY+rjit,rw2,deckH);
     g.fillStyle=pierC; g.fillRect(rx,railY+rjit+deckH,rw2,Math.max(1,Math.round(K*0.6)));   // its shadowed soffit
