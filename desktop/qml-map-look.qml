@@ -15,13 +15,13 @@ Item {
     width: 1552; height: 874                  // 2327x1309 dpr=2 zoom=2 -> this canvas, woff 0, world 2269 wp
     property string land: "hell"
     property var variants: [0]
-    property var hours: [13]
-    property var woffList: [0,776]
+    property var hours: [13,23]
+    property var woffList: [0]
     property int woi: 0
     property int vi: 0
     property int hi: 0
     property int warm: 0
-    property var ages: [0.24, 0.32, 0.44, 0.80]   // FORCEAGE sweep: does the city GROW into what it becomes?
+    property var ages: [0.80]   // FORCEAGE sweep: does the city GROW into what it becomes?
     property int ai: 0
     property double t0: 0
     property string outDir: "/tmp/claude-1000/-home-deluxescout/4918a477-0edb-4bc7-806e-a62894ab0912/scratchpad"
@@ -57,7 +57,7 @@ Item {
             bg.requestPaint(); live.requestPaint();
             if (root.warm < 1) { root.warm++; return; }
             root.grabToImage(function(res){
-                res.saveToFile(root.outDir + "/riv-" + root.land + "-v" + root.variants[root.vi]
+                res.saveToFile(root.outDir + "/hf-" + root.land + "-v" + root.variants[root.vi]
                                + "-h" + root.hours[root.hi] + "-a" + Math.round(root.ages[root.ai]*100) + ".png");
                 root.warm = 0;
                 root.ai++; if (root.ai >= root.ages.length) { root.ai = 0; root.hi++; }

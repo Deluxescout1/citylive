@@ -4560,6 +4560,29 @@ function buildWorld(li){
       mts.far.push({x:mg()*WW, w:(100+mg()*150)*MSC/relief, h:fh, sn:curBiome.snow&&((fh>66*MSC)||mg()<0.25), ph:mg()*9}); }
     for(mi=0;mi<nN;mi++){ var nh=(58+mg()*86)*MSC;                 // the bolder front ridge — the peaks
       mts.near.push({x:mg()*WW, w:(80+mg()*130)*MSC/relief, h:nh, sn:curBiome.snow&&((nh>92*MSC)||mg()<0.35), ph:mg()*9}); }   // clear the skyline
+    // ⚠⚠⚠ THE ASHLANDS' LANDFORM WAS TOO BIG TO SEE, and that one fact explains almost everything Nick
+    // could not read about the map. MEASURED, at his real geometry: the near ridge runs 317..426 against a
+    // HORIZON of 391, so its CREST SITS 35px ABOVE THE TOP OF THE FRAME and the profile never drops below
+    // 317. Sampling the rendered pixels down four columns returns ONE FLAT TONE — (59,21,22) — from y≈90 to
+    // y≈630. Three quarters of the frame is the featureless MIDDLE of a landform whose shape is entirely
+    // off-screen.
+    // Everything else followed from that: no silhouette to read, no sky for the fire to glow into, the
+    // brimstone spires "buried in the ridge behind them" exactly as their own comment feared, and the lava
+    // veins reading as ropes because they run down a blank wall instead of a visible face.
+    // 🔑 SAME FAULT THE VOLCANO HAD, and the same fix: SIZE THE LAND AGAINST THE FRAME IT HAS TO FIT IN.
+    // The volcano's cone is framed against HORIZON; this scales the whole molten band so its tallest peak
+    // lands at about two thirds of the sky, leaving a third for the crest, the glow behind it and the ash.
+    // ⚠ Scoped to `molten` — i.e. hell — so no other land's skyline moves. `k:"fire"` (THE CINDER THRONE)
+    // replaces `mts.near` outright further down and is unaffected either way.
+    if(curBiome.molten){
+      var mPk=0; for(mi=0;mi<mts.near.length;mi++) if(mts.near[mi].h>mPk) mPk=mts.near[mi].h;
+      var mWant=Math.max(40,HORIZON)*0.66;
+      if(mPk>mWant){
+        var mSc=mWant/mPk;
+        for(mi=0;mi<mts.near.length;mi++) mts.near[mi].h*=mSc;
+        for(mi=0;mi<mts.far.length;mi++)  mts.far[mi].h*=mSc;   // the far band comes down with it or it out-tops the near
+      }
+    }
     // ⚠⚠ A VOLCANIC ISLAND IS ONE VOLCANO, NOT A RANGE. Nick, choosing between a range and a single
     // cone: "one dominant cone." The near ridge was four-to-seven peaks rolled at random widths and
     // positions, which blend into a continuous massif — and that is precisely why this land had "no
