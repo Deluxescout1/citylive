@@ -4963,6 +4963,7 @@ var hasOcean=true;   // set per life in buildWorld — landlocked cities have no
 var subways=[];      // street-level subway entrances (generated per life)
 var skybridges=[];   // G1: lit tube bridges between adjacent transformed towers
 var seaW=0;          // open-sea width (world fraction per side of the seam) — 0 on landlocked lives
+var celGateX=-99999, celGateW=0, celGateH=0;   // where THE EMPYREAN's Great Gate stands this frame
 var SEA_FRONT=0;     // world px of open water along the BOTTOM of the frame (coastal lands only, 0 elsewhere)
 var SEA_Y=0;         // the waterline in world px — everything below it is open water
 var TASKBAR_WP=0;    // this screen's bottom-panel height in world px; the sea stops above it, not under it
@@ -14557,6 +14558,148 @@ function drawCinderLife(g,L,now,nd,fx){
     }
   }
 }
+// ============ THE FJORD'S WATER ============
+// Nick: "make the water on this map look better on all screens." The last three words are the important
+// ones — this engine is world-space and every sprite is a pure function of (world x, clock) so his three
+// monitors agree without talking to each other. Anything keyed to SCREEN x looks fine on one panel and
+// wrong on the other two, and this project has already shipped that fault twice: the sea cliffs' ocean
+// sat at the world SEAMS so the middle monitor never saw it, and the pack ice drew only into that same
+// off-screen seam water. So everything below is anchored to world x or derived from `mtsCache`, which is
+// itself world-anchored — there is no screen-relative term anywhere in this function.
+//
+// WHAT WAS WRONG: a flat blue band with a hard ruled waterline across the full width, a chevron of foam
+// that read as a wake with no boat, and NO REFLECTION on the one land whose defining image is a sheer
+// wall mirrored in still black water.
+function drawFjordWater(g,L,now){
+  var K=Math.max(1,KSP), day=L>0.5, B=curBiome;
+  var top=SEA_Y, botY=SH-TASKBAR_WP, depth=Math.max(2,botY-top);
+  var skc=biomeSkc(day);
+  var _mpF=moonPhase(new Date(now)), moonF=Math.max(0,Math.min(1,(1-Math.cos(2*Math.PI*_mpF))/2));
+  // ⚠ A FJORD IS DEEP AND DARK, and that is not a style choice — it is a drowned glacial trough, often
+  // several hundred metres of cold water, and the colour is what tells you so. The variants differ here:
+  // THE BLACK WATER is nearly ink, THE GREEN INLET is glacial jade from rock flour in the meltwater.
+  var fv=(B.name==="THE BLACK WATER")?1:((B.name==="THE GREEN INLET")?2:0);
+  var wTop=day?(fv===1?[26,34,44]:(fv===2?[60,116,116]:[42,72,96]))
+             :(fv===1?[5,7,11]:(fv===2?[10,24,28]:[8,16,26]));
+  var wBot=day?(fv===1?[10,14,20]:(fv===2?[24,58,62]:[16,32,48]))
+             :(fv===1?[2,3,5]:(fv===2?[4,10,13]:[3,7,12]));
+  if(!day){ wTop=mixc(wTop,[30,40,70],0.10+0.26*moonF); }
+  var step=Math.max(1,Math.round(K*0.6));
+  for(var y=top;y<botY;y+=step){
+    var f=(y-top)/depth;
+    g.fillStyle=css(mixc(wTop,wBot,f*f*(3-2*f)));
+    g.fillRect(0,y,SW,step);
+  }
+  // ---- THE WALL, MIRRORED ----------------------------------------------------------------------
+  // ⚠ Sampled from `mtsCache` — the same height field the wall itself is drawn from — so the reflection
+  // can never disagree with the silhouette above it, and because that field is world-anchored the mirror
+  // is continuous across the bezels. This is the technique that worked on THE KARST.
+  // ⚠ A REFLECTION MUST BE DARKER THAN THE WATER, not a tint of it (the basalt-coast value rule, and I
+  // have now got this wrong twice by mixing toward the sky instead).
+  if(mtsCache&&mtsCache.h&&mtsCache.h[1]){
+    var hs=mtsCache.h[1], hs0=mtsCache.h[0];
+    var refC=day?(fv===2?[14,40,42]:[9,16,26]):[2,4,7];
+    var COMP=0.50;
+    for(var x=0;x<SW;x++){
+      var rock=Math.max(hs[x]||0,(hs0&&hs0[x])||0);
+      if(rock<3) continue;
+      var hgt=Math.round(rock*COMP);
+      if(hgt<2) continue;
+      for(var d2=0;d2<hgt;d2+=step){
+        var yr=top+d2; if(yr>=botY) break;
+        var df=d2/hgt;
+        // ripple grows with distance from the shore, and is keyed to WORLD x so it does not slide
+        var wob=Math.sin((x+WOFF)*0.045+now*0.00075+df*2.2)*(0.5+2.6*df)*K*0.42;
+        var xr=Math.round(x+wob);
+        if(xr<0||xr>=SW) continue;
+        var a=(0.52-0.40*df)*(day?1:0.72);
+        if(a<=0.02) continue;
+        g.fillStyle=rgba(refC,a);
+        g.fillRect(xr,yr,1,step);
+      }
+    }
+  }
+  // ---- THE SHORELINE IS NOT A RULED LINE -------------------------------------------------------
+  // ⚠ The waterline was a dead straight edge across the whole frame — the full-width ruled line this
+  // project has now found sixteen times. A real fjord shore is rock: broken, notched, and different at
+  // every point along it. World-anchored so the same boulder is in the same place on all three screens.
+  var shoreC=day?mixc(B.ground||[86,102,108],[0,0,0],0.30):[10,14,18];
+  for(var sx=0;sx<SW;sx++){
+    var swx=sx+WOFF;
+    var i1=Math.floor(swx/13), f1=(swx/13)-i1, s1=f1*f1*(3-2*f1);
+    var v=(mixLi(i1>>>0,36217)%1000)/1000*(1-s1)+(mixLi((i1+1)>>>0,36217)%1000)/1000*s1;
+    var i2=Math.floor(swx/4), f2=(swx/4)-i2, s2=f2*f2*(3-2*f2);
+    var v2=(mixLi(i2>>>0,9403)%1000)/1000*(1-s2)+(mixLi((i2+1)>>>0,9403)%1000)/1000*s2;
+    var h3=Math.round((v*0.7+v2*0.3)*2.6*K);
+    if(h3<1) continue;
+    g.fillStyle=css(shoreC);
+    g.fillRect(sx,top-h3,1,h3+1);
+  }
+  // ---- SLOW SWELL, and the light on it ---------------------------------------------------------
+  // Long low glints rather than a chevron of foam. Sparse, world-anchored, and most of them not catching
+  // the light at any given moment — a surface where every glint is lit reads as corrugated metal.
+  g.globalCompositeOperation="lighter";
+  g.fillStyle=day?"rgba(206,228,240,0.16)":"rgba(130,156,210,0.10)";
+  for(var q=0;q<52;q++){
+    var gh2=mixLi(q>>>0,48619)>>>0;
+    var gx=Math.round((gh2%Math.max(1,WW))-WOFF);
+    gx=((gx%WW)+WW)%WW; if(gx>SW+40) gx-=WW;
+    if(gx<-40||gx>SW) continue;
+    var gy2=top+2+((gh2>>>9)%Math.max(1,depth-3));
+    if(Math.sin(now*0.00052+q*1.9)<0.34) continue;
+    g.fillRect(gx,gy2,Math.round((5+((gh2>>>17)%18))*K*0.5),Math.max(1,Math.round(K*0.4)));
+  }
+  g.globalCompositeOperation="source-over";
+  fjordBoats(g,L,now,K,top,botY,day);
+}
+// THE WORKING WATERFRONT — fishing boats, and the ferry that actually connects a fjord town to anywhere.
+// ⚠ WORLD-ANCHORED AND SCRIPTED FROM THE CLOCK, for the same reason as everything else here: a boat whose
+// position came from a counter would be in a different place on each of the three monitors.
+function fjordBoats(g,L,now,K,top,botY,day){
+  var hull=day?"rgba(38,44,54,0.95)":"rgba(10,12,16,0.95)";
+  var wake=day?"rgba(226,240,248,0.34)":"rgba(140,164,210,0.20)";
+  // the FERRY: a long low hull with a house aft, on a real schedule, lights burning after dark
+  var FCY=42*60000;                                            // a crossing every 42 minutes
+  var fp=(now%FCY)/FCY;
+  if(fp<0.72){
+    var t=fp/0.72, dir=(Math.floor(now/FCY)&1)?-1:1;
+    var fwx=(dir>0?(-0.08+1.16*t):(1.08-1.16*t))*WW;
+    var fy=top+Math.round(depthFrac(0.30,top,botY));
+    for(var o=-1;o<=1;o++){
+      var fx=Math.round(fwx-WOFF+o*WW);
+      if(fx<-40||fx>SW+40) continue;
+      var fl=Math.round(13*K), fh=Math.max(2,Math.round(1.6*K));
+      g.fillStyle=hull; g.fillRect(fx,fy,fl,fh);
+      g.fillStyle=day?"rgba(228,228,222,0.95)":"rgba(60,64,74,0.95)";
+      g.fillRect(fx+Math.round(fl*0.52),fy-Math.round(2.2*K),Math.round(fl*0.34),Math.round(2.2*K));
+      g.fillStyle=wake; g.fillRect(fx-dir*Math.round(9*K),fy+fh,Math.round(9*K),Math.max(1,Math.round(K*0.4)));
+      if(!day){ g.globalCompositeOperation="lighter";
+        g.fillStyle="rgba(255,214,140,0.6)";
+        g.fillRect(fx+Math.round(fl*0.55),fy-Math.round(1.6*K),Math.round(fl*0.26),Math.max(1,Math.round(K*0.6)));
+        g.globalCompositeOperation="source-over"; }
+    }
+  }
+  // and the fishing boats, working their own patches
+  for(var b=0;b<6;b++){
+    var bh=mixLi(b>>>0,52561)>>>0;
+    var per=260000+((bh%100)*4200);
+    var ph=((now+((bh>>>7)%per))%per)/per;
+    var bdir=((bh>>>3)&1)?1:-1;
+    var bwx=((bh>>>11)%Math.max(1,WW))+Math.sin(ph*Math.PI*2)*(120+((bh>>>17)%260))*K;
+    var by=top+Math.round(depthFrac(0.16+((bh>>>21)%100)/100*0.62,top,botY));
+    for(var o2=-1;o2<=1;o2++){
+      var bx=Math.round(bwx-WOFF+o2*WW);
+      if(bx<-20||bx>SW+20) continue;
+      var bl=Math.max(3,Math.round((4+((bh>>>13)%4))*K));
+      g.fillStyle=hull; g.fillRect(bx,by,bl,Math.max(1,Math.round(K*0.8)));
+      g.fillStyle=day?"rgba(190,80,66,0.92)":"rgba(48,22,18,0.92)";   // the painted wheelhouse
+      g.fillRect(bx+Math.round(bl*0.55),by-Math.round(1.3*K),Math.max(1,Math.round(K*0.9)),Math.round(1.3*K));
+      g.fillStyle=wake;
+      g.fillRect(bx-bdir*Math.round(4*K),by+Math.round(K*0.8),Math.round(4*K),Math.max(1,Math.round(K*0.3)));
+    }
+  }
+}
+function depthFrac(f,top,botY){ return Math.round(f*(botY-top)); }
 // ============ THE RIVER THE TOWERS STAND IN ============
 // Nick's locked answer #3. The defining photograph of this landform is limestone towers rising straight
 // out of still green water with their own reflections under them; this land had a thin pale strip behind
@@ -14863,6 +15006,7 @@ function drawSeaFrontBand(g,L,now){
   // anything here runs, so none of the swell, foam, wet-sand or shoreline machinery touches it.
   if(curBiome.celest){ drawCloudFront(g,L,now); return; }
   if(curBiome.tower){ drawKarstWater(g,L,now); return; }
+  if(curBiome.cascades){ drawFjordWater(g,L,now); return; }
   var K=Math.max(1,KSP), day=L>0.5, k=curBiome.k, nm=curBiome.name;
   // ⚠ the band ends at the top of the taskbar, not at the bottom of the frame — otherwise the deepest
   // (and most visible) water is drawn underneath a panel and the land just looks like a wide road.
@@ -20878,12 +21022,107 @@ function duneStreamers(g,L,now,K,wind){
     }
   }
 }
+// THE DESERT NIGHT COMES ALIVE. Locked signature: nothing moves at noon and everything moves after dark.
+// ⚠ The fauna list for this land has carried `fennec`, `scarab`, `oryx` and `lizard` since the biome was
+// written and NOT ONE of them has ever been drawn — they are in the data, so the land looked like it had
+// wildlife while the frame had none. The desert is nocturnal because the daytime surface is lethal, so
+// making them night-only is not a shortcut, it is the actual behaviour.
+function duneNight(g,L,now,K,nd){
+  var nk=Math.max(0,Math.min(1,(0.42-L)/0.22));            // out after dusk, gone by full light
+  if(nk<=0.05||!duneCache||!duneCache[0]) return;
+  var pr=duneCache[0];
+  var _mp=moonPhase(nd), mk=Math.max(0,Math.min(1,(1-Math.cos(2*Math.PI*_mp))/2));
+  var body="rgba("+Math.round(150+60*mk)+","+Math.round(140+56*mk)+","+Math.round(120+50*mk)+","+(0.85*nk).toFixed(2)+")";
+  for(var i=0;i<16;i++){
+    var hh=mixLi(i>>>0,47059)>>>0;
+    var kind=hh%3;                                          // 0 fennec, 1 oryx, 2 scarab/lizard
+    // each animal wanders its own patch of world on its own slow clock — scripted, never simulated
+    var span=(140+((hh>>>5)%420))*K;
+    var ph=((now*(0.000018+((hh>>>9)%40)/2400000)+((hh%1000)/1000))%1);
+    var wx=((hh>>>13)%Math.max(1,WW))+Math.sin(ph*Math.PI*2)*span;
+    for(var o=-1;o<=1;o++){
+      var x=Math.round(wx-WOFF+o*WW);
+      if(x<-10||x>SW+10) continue;
+      var gyd=Math.round(pr[Math.max(0,Math.min(pr.length-1,x))]);
+      var step=((Math.floor(now/300)+i)&1);
+      g.fillStyle=body;
+      if(kind===1){                                         // ORYX — tall, with straight horns
+        g.fillRect(x,gyd-Math.round(3.0*K),Math.round(2.6*K),Math.max(1,Math.round(1.1*K)));
+        g.fillRect(x+Math.round(2.2*K),gyd-Math.round(4.2*K),Math.max(1,Math.round(K*0.5)),Math.round(1.4*K));
+        g.fillRect(x+Math.round(2.4*K),gyd-Math.round(6.0*K),Math.max(1,Math.round(K*0.35)),Math.round(1.9*K));
+        g.fillRect(x+Math.round(0.4*K),gyd-Math.round(1.9*K)+step,Math.max(1,Math.round(K*0.4)),Math.round(1.9*K));
+        g.fillRect(x+Math.round(1.9*K),gyd-Math.round(1.9*K)-step,Math.max(1,Math.round(K*0.4)),Math.round(1.9*K));
+      } else if(kind===0){                                  // FENNEC — small, and it is all ears
+        g.fillRect(x,gyd-Math.round(1.3*K),Math.round(1.6*K),Math.max(1,Math.round(K*0.8)));
+        g.fillRect(x+Math.round(1.3*K),gyd-Math.round(2.2*K),Math.max(1,Math.round(K*0.5)),Math.round(1.0*K));
+        g.fillRect(x+Math.round(1.5*K),gyd-Math.round(3.0*K),Math.max(1,Math.round(K*0.45)),Math.round(0.9*K));
+      } else {                                              // low things that leave a track
+        g.fillRect(x,gyd-Math.max(1,Math.round(K*0.6)),Math.round(1.1*K),Math.max(1,Math.round(K*0.6)));
+        g.fillStyle="rgba(120,108,88,"+(0.30*nk).toFixed(2)+")";
+        g.fillRect(x-Math.round(3*K),gyd,Math.round(3*K),1);
+      }
+    }
+  }
+}
+// A BURIED CITY SURFACING. Locked signature: the dunes occasionally uncover something that was there
+// before — a wall, a column, a doorway — which the sand then takes back.
+// ⚠ ON A SLOW CLOCK ON PURPOSE. This is the one thing on the land that is meant to feel like history
+// rather than weather, so a piece takes days to emerge and days to go under; catching it half-buried is
+// the point. Scripted from the clock like everything else here.
+function duneBuried(g,L,now,K){
+  if(!duneCache||!duneCache[0]) return;
+  var pr=duneCache[0], day=L>0.5;
+  var CY3=68*3600000;                                       // one site emerges and re-buries over ~3 days
+  for(var s2=0;s2<3;s2++){
+    var hh=mixLi(s2>>>0,58067)>>>0;
+    var ph=((now+((hh>>>3)%CY3))%CY3)/CY3;
+    // up for a third of the cycle, and even then only partly clear of the sand
+    var up=(ph<0.34)?Math.sin(ph/0.34*Math.PI):0;
+    if(up<=0.04) continue;
+    var wx=(hh%Math.max(1,WW));
+    for(var o=-1;o<=1;o++){
+      var x=Math.round(wx-WOFF+o*WW);
+      if(x<-60||x>SW+60) continue;
+      var gyd=Math.round(pr[Math.max(0,Math.min(pr.length-1,x))]);
+      var kind=(hh>>>17)%3;
+      var stone=day?"rgba(196,176,138,0.95)":"rgba(66,60,48,0.95)";
+      var shad=day?"rgba(140,120,88,0.9)":"rgba(38,34,28,0.9)";
+      var H=Math.round((6+((hh>>>21)%9))*K*up);
+      if(H<2) continue;
+      if(kind===0){                                         // a COLUMN, broken off at the top
+        g.fillStyle=stone; g.fillRect(x,gyd-H,Math.round(1.8*K),H);
+        g.fillStyle=shad;  g.fillRect(x+Math.round(1.3*K),gyd-H,Math.max(1,Math.round(K*0.5)),H);
+        g.fillStyle=stone; g.fillRect(x-Math.round(0.6*K),gyd-H,Math.round(3.0*K),Math.max(1,Math.round(K*0.7)));
+      } else if(kind===1){                                  // a WALL with a doorway cut in it
+        var wW=Math.round((11+((hh>>>25)%10))*K);
+        g.fillStyle=stone; g.fillRect(x,gyd-H,wW,H);
+        g.fillStyle=shad;  g.fillRect(x,gyd-Math.max(1,Math.round(K*0.7)),wW,Math.max(1,Math.round(K*0.7)));
+        var dW=Math.round(3.0*K);
+        if(H>Math.round(4*K)){
+          g.fillStyle=day?"rgba(52,44,34,0.95)":"rgba(10,9,7,0.95)";
+          g.fillRect(x+Math.round(wW*0.4),gyd-Math.round(H*0.72),dW,Math.round(H*0.72));
+        }
+      } else {                                              // a STATUE head, half out of the sand
+        g.fillStyle=stone; g.fillRect(x,gyd-H,Math.round(4.4*K),H);
+        g.fillStyle=shad;
+        g.fillRect(x+Math.round(0.8*K),gyd-Math.round(H*0.62),Math.max(1,Math.round(K*0.6)),Math.max(1,Math.round(K*0.6)));
+        g.fillRect(x+Math.round(2.8*K),gyd-Math.round(H*0.62),Math.max(1,Math.round(K*0.6)),Math.max(1,Math.round(K*0.6)));
+        g.fillRect(x+Math.round(1.4*K),gyd-Math.round(H*0.30),Math.round(1.8*K),Math.max(1,Math.round(K*0.4)));
+      }
+      // the sand banked against whatever it is — it is EMERGING, not standing on a plinth
+      g.fillStyle=day?"rgba(214,186,140,0.85)":"rgba(46,42,34,0.85)";
+      g.fillRect(x-Math.round(3*K),gyd-Math.round(1.2*K),Math.round(20*K),Math.round(1.6*K));
+    }
+  }
+}
 function drawDuneLife(g,L,now,nd,fx){
   if(!curBiome.dune||cityPhase==="apoc") return;
   var day=L>0.5, K=Math.max(1,KSP), B=curBiome;
   var wind=(weather&&weather.wind)||0;
   duneStreamers(g,L,now,K,wind);
   duneCaravan(g,L,now,K);
+  duneNight(g,L,now,K,nd);
+  duneBuried(g,L,now,K);
   // ⚠⚠ 16/32mph -> 9/20mph. THE LAND'S HEADLINE WEATHER WAS SET ABOVE WHAT THE WORLD DELIVERS. The biome
   // comment calls the haboob the thing that "fills the entire sky", and it needed >16mph to start and
   // 32mph to reach full wall — sustained winds Norwich CT very rarely sees, so Nick would essentially
@@ -24746,6 +24985,9 @@ function drawBiomeLandmark(g,L,now,nd){
     // above, which is `celest`-only so the other nineteen landmarks are untouched.
     at(function(X){
       var gw=Math.round(15*K), gh=Math.round(40*K), pw=Math.round(3.4*K);
+      // ⚠ the live pass needs to know where this stands in order to light it, and recomputing the
+      // landmark's seeded x in a second place is how two copies of a position drift apart
+      celGateX=X; celGateW=gw; celGateH=gh;
       var kk=Math.max(1,Math.round(K*0.5));
       var oX=X+pw, oW=gw-pw*2, oTop=gy-gh+Math.round(9*K);
       // ---- THE LIGHT IN THE OPENING, graded from the middle out ----
@@ -26103,6 +26345,111 @@ function drawEmpyreanRays(g,L,now,nd){
     }
   }
   g.globalCompositeOperation="source-over";
+}
+// ============ THE LIGHT SHOW, AND THE GATE OPENING ============
+// The last two locked signatures for THE EMPYREAN. Everything here is a real above-cloud optical
+// phenomenon — Nick's "based in reality" rule — and every one of them is a pure function of the clock and
+// the true sun position, so three monitors agree without talking.
+function drawEmpyreanShow(g,L,now,nd,fx){
+  var B=curBiome;
+  if(!B||!B.celest||cityPhase==="apoc") return;
+  var K=Math.max(1,KSP), gy=HORIZON, day=L>0.5;
+  var damp=1-0.8*Math.max(0,Math.min(1,wetness));
+  var st=cloudSeaState(now);
+  var df=Math.max(0.06,Math.min(0.94,curSunDf));
+  var sunX=Math.round(df*WW-WOFF), sunY=Math.round(gy*0.9-Math.sin(df*Math.PI)*gy*0.75);
+  // ---- 1. ANTICREPUSCULAR RAYS ----------------------------------------------------------------------
+  // The half nobody draws: the same shafts CONVERGING on the antisolar point, opposite the sun, which is
+  // why they only appear near sunrise and sunset and always behind you. Getting the convergence right is
+  // the whole trick — they are parallel in space and only look like they meet.
+  var gK=goldenK||0;
+  if(gK>0.12&&L>0.24&&damp>0.1){
+    var antiX=Math.round((sunX<SW*0.5)?(SW*1.02):(-SW*0.02));
+    var antiY=Math.round(gy-(sunY-gy)*0.55);
+    g.globalCompositeOperation="lighter";
+    for(var a=0;a<4;a++){
+      var ah=mixLi(a>>>0,18041)>>>0;
+      var ang=(a-1.5)*0.20+(((ah%100)/100)-0.5)*0.10;
+      var len=gy*1.1, ex=antiX-Math.cos(ang)*len*(antiX>SW*0.5?1:-1), ey=antiY-Math.sin(ang)*len*0.45;
+      var wdt=(16+a*5)*K*0.30;
+      var grd=g.createLinearGradient(antiX,antiY,ex,ey);
+      var aA=gK*0.030*damp;
+      grd.addColorStop(0,"rgba(255,206,196,"+aA.toFixed(4)+")");
+      grd.addColorStop(1,"rgba(255,206,196,0)");
+      g.fillStyle=grd;
+      g.beginPath(); g.moveTo(antiX-2,antiY); g.lineTo(antiX+2,antiY);
+      g.lineTo(ex+wdt,ey); g.lineTo(ex-wdt,ey); g.closePath(); g.fill();
+    }
+    g.globalCompositeOperation="source-over";
+  }
+  // ---- 2. A GLORY, on the cloud deck opposite the sun ------------------------------------------------
+  // Concentric coloured rings around the shadow of the observer, seen only on cloud below you. It is the
+  // single most "you are standing above a cloud sea" thing in the whole catalogue of sky optics.
+  if(st&&day&&damp>0.2){
+    var glX=Math.round(WW*0.5-WOFF+((sunX<SW*0.5)?SW*0.34:-SW*0.34));
+    var glY=Math.round(st.y+(gy-st.y)*0.42);
+    if(glX>-80&&glX<SW+80){
+      g.globalCompositeOperation="lighter";
+      var rings=[[255,180,150,0.055],[255,232,170,0.045],[170,235,200,0.038],[170,200,255,0.030]];
+      for(var r3=0;r3<rings.length;r3++){
+        var rr=Math.round((5+r3*3.4)*K), c4=rings[r3];
+        g.fillStyle="rgba("+c4[0]+","+c4[1]+","+c4[2]+","+(c4[3]*damp).toFixed(4)+")";
+        for(var th=0;th<44;th++){
+          var t4=th/44*Math.PI*2;
+          g.fillRect(Math.round(glX+Math.cos(t4)*rr),Math.round(glY+Math.sin(t4)*rr*0.7),
+                     Math.max(1,Math.round(K*0.7)),Math.max(1,Math.round(K*0.7)));
+        }
+      }
+      g.globalCompositeOperation="source-over";
+    }
+  }
+  // ---- 3. A SUN PILLAR at dawn and dusk ---------------------------------------------------------------
+  // A vertical shaft of light above the sun, thrown by flat ice crystals lying level in cold air. It is
+  // the one sky effect that is a straight vertical line ON PURPOSE — and it is FEATHERED, because an
+  // unfeathered vertical is what the 4K downsample turns into the mountain-lines bug.
+  if(gK>0.25&&damp>0.2&&sunX>-40&&sunX<SW+40){
+    g.globalCompositeOperation="lighter";
+    var pH=Math.round(gy*0.34);
+    for(var pq=0;pq<pH;pq+=2){
+      var pf=pq/pH, pa=gK*0.10*(1-pf)*(1-pf)*damp;
+      if(pa<=0.003) break;
+      var pw3=Math.max(1,Math.round((3.4-2.2*pf)*K));
+      g.fillStyle="rgba(255,224,178,"+pa.toFixed(4)+")";
+      g.fillRect(sunX-(pw3>>1),sunY-pq,pw3,2);
+    }
+    g.globalCompositeOperation="source-over";
+  }
+  // ---- 4. THE GATE OPENS ------------------------------------------------------------------------------
+  // Locked as "rare and slow": light builds behind the opening over about an hour until it blazes and
+  // floods the map, then fades. No destruction, no deaths — the thing you would stop and look at.
+  // ⚠ Position comes from `celGateX`, recorded when the landmark actually drew, rather than recomputing
+  // the seeded outskirts x a second time. Two copies of a position are two things that can disagree.
+  if(celGateX>-9000){
+    var CY2=19.3*3600000;                                   // once in ~19 hours, so it is genuinely rare
+    var php=(now%CY2)/CY2;
+    if(php<0.055){
+      var t5=php/0.055;
+      // slow build, brief blaze, slower fade — a symmetrical curve would read as a lamp on a dimmer
+      var open=(t5<0.62)?Math.pow(t5/0.62,2.2):Math.pow(1-(t5-0.62)/0.38,1.4);
+      open=Math.max(0,Math.min(1,open))*damp;
+      if(open>0.01){
+        var oX=celGateX+Math.round(3.4*K), oW=celGateW-Math.round(6.8*K);
+        var oTop=gy-celGateH+Math.round(9*K);
+        g.globalCompositeOperation="lighter";
+        for(var q5=0;q5<6;q5++){                            // the opening itself, blazing
+          var w5=Math.round(oW*(0.3+0.7*(q5/5)));
+          g.fillStyle="rgba(255,250,226,"+(open*0.22*(1-q5/7)).toFixed(4)+")";
+          g.fillRect(oX+((oW-w5)>>1),oTop-Math.round(oW*0.4),w5,gy-oTop+Math.round(oW*0.4));
+        }
+        for(var b5=0;b5<5;b5++){                            // and the light flooding out across the land
+          var bw=Math.round(oW*(1.4+b5*2.6)), ba=open*0.055*(1-b5/5);
+          g.fillStyle="rgba(255,246,214,"+ba.toFixed(4)+")";
+          g.fillRect(oX+((oW-bw)>>1),oTop-Math.round(oW*0.6),bw,gy-oTop+Math.round(oW*0.6));
+        }
+        g.globalCompositeOperation="source-over";
+      }
+    }
+  }
 }
 function drawSpireWorld(g,L,now,nd){
   if(!curBiome.spires||!mtsCache||!mtsCache.h||!mtsCache.h[1]) return;
@@ -33276,6 +33623,7 @@ function draw(g,pass){
   // occludes it exactly the way it occludes the terrain. See the note on WILD_LAYER.
   WILD_LAYER="back"; drawFauna(g,L,now,nd);
   drawAlpineLife(g,L,now,nd,fx); drawGorgeLife(g,L,now,nd,fx);
+  drawEmpyreanShow(g,L,now,nd,fx);
   drawKarstLife(g,L,now,nd,fx);
   drawDuneLife(g,L,now,nd,fx);   drawSavannaLife(g,L,now,nd,fx);
   drawLandPredators(g,L,now,nd,fx);   // every other land's hunter, same hashed clock

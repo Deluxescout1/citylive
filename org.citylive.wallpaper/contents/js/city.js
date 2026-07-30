@@ -14558,6 +14558,148 @@ function drawCinderLife(g,L,now,nd,fx){
     }
   }
 }
+// ============ THE FJORD'S WATER ============
+// Nick: "make the water on this map look better on all screens." The last three words are the important
+// ones — this engine is world-space and every sprite is a pure function of (world x, clock) so his three
+// monitors agree without talking to each other. Anything keyed to SCREEN x looks fine on one panel and
+// wrong on the other two, and this project has already shipped that fault twice: the sea cliffs' ocean
+// sat at the world SEAMS so the middle monitor never saw it, and the pack ice drew only into that same
+// off-screen seam water. So everything below is anchored to world x or derived from `mtsCache`, which is
+// itself world-anchored — there is no screen-relative term anywhere in this function.
+//
+// WHAT WAS WRONG: a flat blue band with a hard ruled waterline across the full width, a chevron of foam
+// that read as a wake with no boat, and NO REFLECTION on the one land whose defining image is a sheer
+// wall mirrored in still black water.
+function drawFjordWater(g,L,now){
+  var K=Math.max(1,KSP), day=L>0.5, B=curBiome;
+  var top=SEA_Y, botY=SH-TASKBAR_WP, depth=Math.max(2,botY-top);
+  var skc=biomeSkc(day);
+  var _mpF=moonPhase(new Date(now)), moonF=Math.max(0,Math.min(1,(1-Math.cos(2*Math.PI*_mpF))/2));
+  // ⚠ A FJORD IS DEEP AND DARK, and that is not a style choice — it is a drowned glacial trough, often
+  // several hundred metres of cold water, and the colour is what tells you so. The variants differ here:
+  // THE BLACK WATER is nearly ink, THE GREEN INLET is glacial jade from rock flour in the meltwater.
+  var fv=(B.name==="THE BLACK WATER")?1:((B.name==="THE GREEN INLET")?2:0);
+  var wTop=day?(fv===1?[26,34,44]:(fv===2?[60,116,116]:[42,72,96]))
+             :(fv===1?[5,7,11]:(fv===2?[10,24,28]:[8,16,26]));
+  var wBot=day?(fv===1?[10,14,20]:(fv===2?[24,58,62]:[16,32,48]))
+             :(fv===1?[2,3,5]:(fv===2?[4,10,13]:[3,7,12]));
+  if(!day){ wTop=mixc(wTop,[30,40,70],0.10+0.26*moonF); }
+  var step=Math.max(1,Math.round(K*0.6));
+  for(var y=top;y<botY;y+=step){
+    var f=(y-top)/depth;
+    g.fillStyle=css(mixc(wTop,wBot,f*f*(3-2*f)));
+    g.fillRect(0,y,SW,step);
+  }
+  // ---- THE WALL, MIRRORED ----------------------------------------------------------------------
+  // ⚠ Sampled from `mtsCache` — the same height field the wall itself is drawn from — so the reflection
+  // can never disagree with the silhouette above it, and because that field is world-anchored the mirror
+  // is continuous across the bezels. This is the technique that worked on THE KARST.
+  // ⚠ A REFLECTION MUST BE DARKER THAN THE WATER, not a tint of it (the basalt-coast value rule, and I
+  // have now got this wrong twice by mixing toward the sky instead).
+  if(mtsCache&&mtsCache.h&&mtsCache.h[1]){
+    var hs=mtsCache.h[1], hs0=mtsCache.h[0];
+    var refC=day?(fv===2?[14,40,42]:[9,16,26]):[2,4,7];
+    var COMP=0.50;
+    for(var x=0;x<SW;x++){
+      var rock=Math.max(hs[x]||0,(hs0&&hs0[x])||0);
+      if(rock<3) continue;
+      var hgt=Math.round(rock*COMP);
+      if(hgt<2) continue;
+      for(var d2=0;d2<hgt;d2+=step){
+        var yr=top+d2; if(yr>=botY) break;
+        var df=d2/hgt;
+        // ripple grows with distance from the shore, and is keyed to WORLD x so it does not slide
+        var wob=Math.sin((x+WOFF)*0.045+now*0.00075+df*2.2)*(0.5+2.6*df)*K*0.42;
+        var xr=Math.round(x+wob);
+        if(xr<0||xr>=SW) continue;
+        var a=(0.52-0.40*df)*(day?1:0.72);
+        if(a<=0.02) continue;
+        g.fillStyle=rgba(refC,a);
+        g.fillRect(xr,yr,1,step);
+      }
+    }
+  }
+  // ---- THE SHORELINE IS NOT A RULED LINE -------------------------------------------------------
+  // ⚠ The waterline was a dead straight edge across the whole frame — the full-width ruled line this
+  // project has now found sixteen times. A real fjord shore is rock: broken, notched, and different at
+  // every point along it. World-anchored so the same boulder is in the same place on all three screens.
+  var shoreC=day?mixc(B.ground||[86,102,108],[0,0,0],0.30):[10,14,18];
+  for(var sx=0;sx<SW;sx++){
+    var swx=sx+WOFF;
+    var i1=Math.floor(swx/13), f1=(swx/13)-i1, s1=f1*f1*(3-2*f1);
+    var v=(mixLi(i1>>>0,36217)%1000)/1000*(1-s1)+(mixLi((i1+1)>>>0,36217)%1000)/1000*s1;
+    var i2=Math.floor(swx/4), f2=(swx/4)-i2, s2=f2*f2*(3-2*f2);
+    var v2=(mixLi(i2>>>0,9403)%1000)/1000*(1-s2)+(mixLi((i2+1)>>>0,9403)%1000)/1000*s2;
+    var h3=Math.round((v*0.7+v2*0.3)*2.6*K);
+    if(h3<1) continue;
+    g.fillStyle=css(shoreC);
+    g.fillRect(sx,top-h3,1,h3+1);
+  }
+  // ---- SLOW SWELL, and the light on it ---------------------------------------------------------
+  // Long low glints rather than a chevron of foam. Sparse, world-anchored, and most of them not catching
+  // the light at any given moment — a surface where every glint is lit reads as corrugated metal.
+  g.globalCompositeOperation="lighter";
+  g.fillStyle=day?"rgba(206,228,240,0.16)":"rgba(130,156,210,0.10)";
+  for(var q=0;q<52;q++){
+    var gh2=mixLi(q>>>0,48619)>>>0;
+    var gx=Math.round((gh2%Math.max(1,WW))-WOFF);
+    gx=((gx%WW)+WW)%WW; if(gx>SW+40) gx-=WW;
+    if(gx<-40||gx>SW) continue;
+    var gy2=top+2+((gh2>>>9)%Math.max(1,depth-3));
+    if(Math.sin(now*0.00052+q*1.9)<0.34) continue;
+    g.fillRect(gx,gy2,Math.round((5+((gh2>>>17)%18))*K*0.5),Math.max(1,Math.round(K*0.4)));
+  }
+  g.globalCompositeOperation="source-over";
+  fjordBoats(g,L,now,K,top,botY,day);
+}
+// THE WORKING WATERFRONT — fishing boats, and the ferry that actually connects a fjord town to anywhere.
+// ⚠ WORLD-ANCHORED AND SCRIPTED FROM THE CLOCK, for the same reason as everything else here: a boat whose
+// position came from a counter would be in a different place on each of the three monitors.
+function fjordBoats(g,L,now,K,top,botY,day){
+  var hull=day?"rgba(38,44,54,0.95)":"rgba(10,12,16,0.95)";
+  var wake=day?"rgba(226,240,248,0.34)":"rgba(140,164,210,0.20)";
+  // the FERRY: a long low hull with a house aft, on a real schedule, lights burning after dark
+  var FCY=42*60000;                                            // a crossing every 42 minutes
+  var fp=(now%FCY)/FCY;
+  if(fp<0.72){
+    var t=fp/0.72, dir=(Math.floor(now/FCY)&1)?-1:1;
+    var fwx=(dir>0?(-0.08+1.16*t):(1.08-1.16*t))*WW;
+    var fy=top+Math.round(depthFrac(0.30,top,botY));
+    for(var o=-1;o<=1;o++){
+      var fx=Math.round(fwx-WOFF+o*WW);
+      if(fx<-40||fx>SW+40) continue;
+      var fl=Math.round(13*K), fh=Math.max(2,Math.round(1.6*K));
+      g.fillStyle=hull; g.fillRect(fx,fy,fl,fh);
+      g.fillStyle=day?"rgba(228,228,222,0.95)":"rgba(60,64,74,0.95)";
+      g.fillRect(fx+Math.round(fl*0.52),fy-Math.round(2.2*K),Math.round(fl*0.34),Math.round(2.2*K));
+      g.fillStyle=wake; g.fillRect(fx-dir*Math.round(9*K),fy+fh,Math.round(9*K),Math.max(1,Math.round(K*0.4)));
+      if(!day){ g.globalCompositeOperation="lighter";
+        g.fillStyle="rgba(255,214,140,0.6)";
+        g.fillRect(fx+Math.round(fl*0.55),fy-Math.round(1.6*K),Math.round(fl*0.26),Math.max(1,Math.round(K*0.6)));
+        g.globalCompositeOperation="source-over"; }
+    }
+  }
+  // and the fishing boats, working their own patches
+  for(var b=0;b<6;b++){
+    var bh=mixLi(b>>>0,52561)>>>0;
+    var per=260000+((bh%100)*4200);
+    var ph=((now+((bh>>>7)%per))%per)/per;
+    var bdir=((bh>>>3)&1)?1:-1;
+    var bwx=((bh>>>11)%Math.max(1,WW))+Math.sin(ph*Math.PI*2)*(120+((bh>>>17)%260))*K;
+    var by=top+Math.round(depthFrac(0.16+((bh>>>21)%100)/100*0.62,top,botY));
+    for(var o2=-1;o2<=1;o2++){
+      var bx=Math.round(bwx-WOFF+o2*WW);
+      if(bx<-20||bx>SW+20) continue;
+      var bl=Math.max(3,Math.round((4+((bh>>>13)%4))*K));
+      g.fillStyle=hull; g.fillRect(bx,by,bl,Math.max(1,Math.round(K*0.8)));
+      g.fillStyle=day?"rgba(190,80,66,0.92)":"rgba(48,22,18,0.92)";   // the painted wheelhouse
+      g.fillRect(bx+Math.round(bl*0.55),by-Math.round(1.3*K),Math.max(1,Math.round(K*0.9)),Math.round(1.3*K));
+      g.fillStyle=wake;
+      g.fillRect(bx-bdir*Math.round(4*K),by+Math.round(K*0.8),Math.round(4*K),Math.max(1,Math.round(K*0.3)));
+    }
+  }
+}
+function depthFrac(f,top,botY){ return Math.round(f*(botY-top)); }
 // ============ THE RIVER THE TOWERS STAND IN ============
 // Nick's locked answer #3. The defining photograph of this landform is limestone towers rising straight
 // out of still green water with their own reflections under them; this land had a thin pale strip behind
@@ -14864,6 +15006,7 @@ function drawSeaFrontBand(g,L,now){
   // anything here runs, so none of the swell, foam, wet-sand or shoreline machinery touches it.
   if(curBiome.celest){ drawCloudFront(g,L,now); return; }
   if(curBiome.tower){ drawKarstWater(g,L,now); return; }
+  if(curBiome.cascades){ drawFjordWater(g,L,now); return; }
   var K=Math.max(1,KSP), day=L>0.5, k=curBiome.k, nm=curBiome.name;
   // ⚠ the band ends at the top of the taskbar, not at the bottom of the frame — otherwise the deepest
   // (and most visible) water is drawn underneath a panel and the land just looks like a wide road.
