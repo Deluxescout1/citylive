@@ -14,8 +14,8 @@ import "../org.citylive.wallpaper/contents/js/city.js" as City
 Item {
     id: root
     width: 1552; height: 874
-    property string land: "sprawl"
-    property int variant: 2
+    property string land: "alpine"
+    property int variant: 1
     Canvas {
         anchors.fill: parent
         renderTarget: Canvas.Image; renderStrategy: Canvas.Immediate; antialiasing: false

@@ -24937,6 +24937,60 @@ function drawSprawlDepth(g,L,now,nd){
     g.fillRect(PX-Math.round(2.4*K),railY+deckH,Math.round(4.8*K),Math.max(1,Math.round(K*0.8)));
   }
 }
+// ============ THE ASHLANDS' RIDGE: HASHED, NOT SINUSOIDAL ============
+// 🚨 THE RIDGELINE WAS A ROW OF IDENTICAL SHARK TEETH — a dozen of them, evenly spaced at even height,
+// spanning the whole frame. Rendered at night against a pale sky it read as a CROWN, not a landscape,
+// and it is a very large part of what Nick meant by "it is not clear at all what is going on".
+// 🔑 THE FAULT WAS FREQUENCY, NOT AMPLITUDE. The roughness was three sines at FIXED frequencies
+// (0.19 / 0.047 / 0.093 rad per world px) multiplied by 2.6 — so turning the gain down would only have
+// produced shorter identical teeth. A loop over x with no break in it is a rule; so is a sine. What
+// makes rock read as rock is DOMINANT and SUBORDINATE peaks at uneven spacing, which no sum of sines
+// at fixed frequencies can produce.
+// Same lesson as the bayou's six ruled lines and the volcano's torn rim ("not sines — two sines gave the
+// new rim an even row of rounded scallops").
+//
+// ⚠ PURE FUNCTION OF WORLD X. Every sprite in this engine has to be, or Nick's three monitors disagree
+// about where the mountains are. Hash-and-interpolate is deterministic; nothing here reads the clock.
+function ashNoise(wx,cell,salt){
+  var c=Math.floor(wx/cell), f=wx/cell-c;
+  var a=(P_hash(((c*2654435761)^salt)>>>0)%1000)/1000;
+  var b=(P_hash((((c+1)*2654435761)^salt)>>>0)%1000)/1000;
+  var s=f*f*(3-2*f);                                    // smoothstep, so the field is continuous across cells
+  return a+(b-a)*s;
+}
+// -0.8 … +1.9 roughness with no period in it. The spike term is deliberately ONE-SIDED: a broken ridge
+// throws spires UP, it does not cut matching notches down, and that asymmetry is most of what separates
+// brimstone from a sawtooth.
+function ashCrag(wx){
+  // ⚠ DOMAIN WARP FIRST, or the cell grid is a rule of its own. Hashing per cell fixed the HEIGHTS — no
+  // two peaks the same — but the cells are still 73 wp apart, and the render came back with evenly-spaced
+  // scalloped humps along the low stretches: the sawtooth's ghost, at a different amplitude. Warping the
+  // sample position by a slower noise stretches and squeezes the grid, so no two features sit the same
+  // distance apart and there is no spacing left to read as periodic.
+  var w=wx+(ashNoise(wx,211,0x1D3F)-0.5)*118;
+  var v=(ashNoise(w,73,0x51A7)-0.5)*2
+       +(ashNoise(w,29,0x9E37)-0.5)*2*0.42
+       +(ashNoise(w,11,0xB5C1)-0.5)*2*0.16;
+  var tc=Math.floor(w/73), tf=w/73-tc;
+  if(((P_hash(((tc*40503)^0x2C1B)>>>0)%100)/100)<0.22){  // about one cell in five is a genuine tower
+    var tp=Math.max(0,1-Math.abs(tf-0.5)*2.6); v+=1.55*tp*tp;
+  }
+  return v;
+}
+// THE RIFT — the ground torn open behind the city. Nick locked "BOTH: a notch in the ridge and fissures
+// on the floor", so this is the skyline half: one great gap cut through the near ridge with the rock
+// shouldered up along each lip. World-seeded, so it is in the same place on every screen and every frame.
+// Returned as a plain object and resolved once per mtsCache build, exactly like `volcBlow`.
+function ashRiftState(){
+  if(!curBiome||!curBiome.molten||!mts||!mts.near||!mts.near.length) return null;
+  var rh=((WORLD_SEED*2246822519)>>>0);
+  var rPk=0; for(var i=0;i<mts.near.length;i++) if(mts.near[i].h>rPk) rPk=mts.near[i].h;
+  return { wx:(0.18+((rh>>>5)%64)/100)*WW,               // somewhere across the world, never hard at the seam
+           w:Math.max(60,WW*(0.085+((rh>>>11)%40)/1000)),
+           keep:0.16+((rh>>>17)%18)/100,                 // how much of the ridge height survives at the centre
+           lip:rPk*(0.10+((rh>>>23)%10)/100),            // the rock shouldered up along each side of the tear
+           seed:rh };
+}
 function drawMountains(g,L,now,nd){
   if(curBiome.k==="forest"){ drawForestBackdrop(g,L,now,nd); return; }   // the forest is the range here
   if(curBiome.k==="core"){ drawCoreWorld(g,L,now,nd); return; }         // …and on the core world the CITY is
@@ -25042,6 +25096,7 @@ function drawMountains(g,L,now,nd){
                cp:vCol.cp,
                ph:((vbh>>>13)%628)/100, seed:vbh };
   }
+  var ashRift=ashRiftState();                                     // the tear in the Ashlands' ridge (null everywhere else)
   if(!mtsCache){                                                  // the silhouette is static per life —
     // ⚠ `blowCp` rides along so anything dressing the collapse can RAMP with it rather than pop. The
     // blast wreckage appearing whole at step one would read as debris that arrived before the landslide.
@@ -25101,9 +25156,37 @@ function drawMountains(g,L,now,nd){
           // taught when clamping a height silently founded a plateau town. Anything derived from the value
           // you just scaled has moved too.
           // Brimstone is the most broken rock on the map, so the crags are boosted well past unity here.
-          if(B.molten) crag*=2.6;
+          // ⚠⚠ AND `*=2.6` MADE A ROW OF IDENTICAL SHARK TEETH. See `ashCrag` above: the three sines are
+          // fixed-frequency, so scaling them only ever produced evenly-spaced teeth of even height, and a
+          // dozen of those across the frame read as a crown rather than a ridge. The molten band gets a
+          // hashed, aperiodic roughness with dominant spires instead — the sine sum is REPLACED here, not
+          // multiplied, so no other land's skyline moves by a pixel.
+          if(B.molten) crag=ashCrag(wx0+p0.ph*131)*6.5*t0*(p0.h/(46*KSP))*wob;
           var hh0=p0.h*t0+crag*KSP;
           if(hh0>rh0) rh0=hh0; }
+        // ============ THE RIFT, CUT THROUGH THE SKYLINE ============
+        // Nick's locked answer: BOTH a notch in the ridge and fissures on the floor. This is the notch —
+        // and it does two jobs at once, which is why it belongs in the same edit as the crag rewrite: it
+        // gives the land a silhouette you can name, AND one great irregular gap is the strongest possible
+        // break in the regularity the old sawtooth had.
+        // ⚠ NEAR BAND ONLY. The flank-collapse block below this one learned that the hard way — applied to
+        // all three depth bands it drew a serrated line straight across the whole world at constant height.
+        // A rift is one place in the ground, not a horizon-wide event.
+        if(ashRift && pi0===1){
+          var arD=((wx0-ashRift.wx)%WW+WW*1.5)%WW-WW*0.5, arA=(arD<0?-arD:arD);
+          if(arA<ashRift.w){
+            var arF=1-arA/ashRift.w;
+            // …torn, not milled: the hashed edge keeps the lips of the gap from reading as a cut curve
+            arF=Math.pow(arF,0.55)*(0.88+0.24*ashNoise(wx0,17,ashRift.seed^0x77));
+            if(arF>1) arF=1;
+            rh0=rh0*(1-arF)+rh0*ashRift.keep*arF;
+            // THE ROCK SHOULDERED UP ALONG EACH LIP. Ground does not simply go missing when it tears —
+            // it is pushed up on both sides, and those raised shoulders are what says "torn open" rather
+            // than "a valley". Peaks at three quarters out and falls away to nothing at the rim.
+            var arS=1-Math.abs(arA-ashRift.w*0.76)/(ashRift.w*0.30);
+            if(arS>0) rh0+=ashRift.lip*arS*arS;
+          }
+        }
         // ⚠⚠ THE TOP ACTUALLY LEAVES. Nick: "it erupts and blows the top off the mountain" — and he
         // chose MOUNT ST HELENS over a tidy truncation: a third of the cone gone, taken out on ONE
         // side, leaving a horseshoe open toward the city and a flat stump.
@@ -25255,8 +25338,15 @@ function drawMountains(g,L,now,nd){
         // columns differ by a fraction of a shade, which is nothing for a resample to find. It also
         // costs no extra rects: it rides the slope-light pass that already runs one fill per column.
         // Damped where the ridge is low, because a foothill has no spurs to speak of.
-        mtsCache.rib[pi0][cx0]=(Math.sin(wx0*0.115/KSP+pi0*2.7)*0.62
-                               +Math.sin(wx0*0.047/KSP+pi0*4.6+2.2)*0.38)
+        // ⚠ …EXCEPT ON THE ASHLANDS, where two sines are exactly the wrong answer. Its silhouette had to
+        // stop being periodic (see `ashCrag`), and giving the SURFACE of that ridge an evenly repeating
+        // rib would put the regularity straight back on the face after taking it off the skyline. Hashed
+        // here too — and because the rib field is CACHED per life, the noise costs nothing per frame.
+        mtsCache.rib[pi0][cx0]=(B.molten
+                               ? ((ashNoise(wx0,13,0x3E11+pi0*7)-0.5)*1.30
+                                 +(ashNoise(wx0,37,0x8C23+pi0*7)-0.5)*0.70)
+                               : (Math.sin(wx0*0.115/KSP+pi0*2.7)*0.62
+                                 +Math.sin(wx0*0.047/KSP+pi0*4.6+2.2)*0.38))
                                *Math.max(0,Math.min(1,rh0/(30*KSP)));
         // ⚠⚠ THE SNOWLINE WANDER WAS ONE SINE, AND THAT IS WHY THE FJORD HAD A WHITE BAND.
         // A level snowline is physically honest — snow really does sit at an altitude — but with a
@@ -25342,7 +25432,11 @@ function drawMountains(g,L,now,nd){
     // mountain range as a paper cut-out. Shading each column by which way it FACES, against the side
     // the real sun is actually on, gives every one of these lands a lit flank and a shaded one — and
     // it costs one pass over a cached array, batched exactly like the base ridge above it.
-    var slb=mtsCache.sl[pi], sunL=curSunDf<0.5, lk=litK*(pi===0?0.72:1), faceLand=(B.alpine||B.cliffLife);
+    // ⚠⚠ AND THE ASHLANDS JOINS THEM. Its faces rendered as ONE FLAT MAROON FILL with no surface on them
+    // at all — the paper-cutout fault this whole pass exists to remove, still present on the one land whose
+    // identity is rock. `faceLand` is declared TWICE in this block (here and again inside the `if`), and
+    // opening only one of the two gates leaves `rbb` null while the gate is open, so both move together.
+    var slb=mtsCache.sl[pi], sunL=curSunDf<0.5, lk=litK*(pi===0?0.72:1), faceLand=(B.alpine||B.cliffLife||B.molten);
     // ⚠ the gate has to open for alpine even at `lk` 0, or the rib floor above never gets to run —
     // the night face would keep its flat gradient no matter what the rib term says. Every other land
     // still short-circuits exactly as before.
@@ -25365,7 +25459,7 @@ function drawMountains(g,L,now,nd){
       // was on alpine; cliffs is the map under review today, and its face has exactly the fault the
       // ribs were written for — a single flat grey slab filling a third of the frame with no surface
       // on it at all. Costs nothing: this term rides the per-column pass that was already running.
-      var faceLand=(B.alpine||B.cliffLife);
+      var faceLand=(B.alpine||B.cliffLife||B.molten);   // ⚠ the SECOND of the two declarations — see above
       // ⚠ AND A SHEER FACE NEEDS MORE OF THEM, NOT LESS. The slope term the lighting keys off is
       // derived from how fast the SKYLINE turns, and on `steep:1.0` rock it is near zero everywhere —
       // so a sea cliff gets almost no modelling from the pass that models every other land. The ribs
@@ -25374,7 +25468,10 @@ function drawMountains(g,L,now,nd){
       // the slope term — true — and overshot into visible CORDUROY down the wall, which is the exact
       // artifact this project has spent four fixes removing. A flat face is a smaller sin than a
       // striped one. 1.7 still models the wall and stops well short of reading as ribbing.
-      var rbb=faceLand?mtsCache.rib[pi]:null, rbk=(sunL?-1:1)*(B.cliffLife?1.7:1.35), rlk=Math.max(lk,0.34);
+      // ⚠ MOLTEN GETS THE LOWEST GAIN OF THE THREE. The cliff face went to 2.6 once and came back as
+      // visible corduroy down the wall; hell's band is larger still and its whole fault is regularity, so
+      // it starts below alpine rather than above it and is judged on the render, not on the reasoning.
+      var rbb=faceLand?mtsCache.rib[pi]:null, rbk=(sunL?-1:1)*(B.cliffLife?1.7:(B.molten?1.15:1.35)), rlk=Math.max(lk,0.34);
       for(var mx2=0;mx2<SW;mx2++){
         var mh=hs[mx2]; if(mh<3) continue;
         var mtop=Math.max(2,(gy-mh)|0);
@@ -25429,10 +25526,20 @@ function drawMountains(g,L,now,nd){
           // where the fire is, in world space — two slow octaves so bright stretches are broad, not stripey
           var qwx=qx+WOFF;
           var qF=0.35+0.65*Math.max(0,Math.sin(qwx*0.006+1.3)*0.6+Math.sin(qwx*0.017)*0.4);
-          var qA=(0.16+0.30*mNight)*qg*qF;
+          // …and the RIFT is where the fire actually is. The tear in the ridge was reading as a plain dark
+          // gap: cutting the profile shows you the absence of rock, which is not the same as showing you
+          // what is down there. The bloom triples over the gap, so the notch is lit from inside it.
+          var qRift=1;
+          if(ashRift && pi===1){
+            var qrD=((qwx-ashRift.wx)%WW+WW*1.5)%WW-WW*0.5;
+            var qrF=1-(qrD<0?-qrD:qrD)/ashRift.w;
+            if(qrF>0) qRift=1+2.0*qrF*qrF;
+          }
+          var qA=(0.16+0.30*mNight)*qg*qF*qRift;
           if(qA<=0.006) continue;
-          for(var qq=0;qq<qRise;qq++){
-            var qf=qq/qRise;
+          var qR2=(qRift>1)?Math.round(qRise*(1+0.75*(qRift-1))):qRise;   // fire in a gap throws light HIGHER
+          for(var qq=0;qq<qR2;qq++){
+            var qf=qq/qR2;
             var qaa=qA*(1-qf)*(1-qf);                          // squared falloff: a bloom, not a band
             if(qaa<=0.004) break;
             g.fillStyle="rgba(255,"+((132+40*qf)|0)+","+((52+30*qf)|0)+","+qaa.toFixed(3)+")";
@@ -25461,28 +25568,60 @@ function drawMountains(g,L,now,nd){
       //
       // What remains of the time term is a shimmer of a few percent at the source only, so it is alive
       // without being animated.
+      // ⚠⚠ AND THE FIX ABOVE PRODUCED A WORSE ARTIFACT THAN THE BUG IT REMOVED. Rendered at Nick's real
+      // geometry the flows read as a dozen BLACK TOTEM POLES standing in front of a flat maroon cutout —
+      // not as lava on a mountain. Four separate causes, all of them mine:
+      //
+      //   1. 🚨 A COLD FLOW WAS A LONG BLACK ONE. The loop ran `vq<gy` unconditionally and painted `vCrust`
+      //      at every step BEFORE the `f4>vLive` guard, so `vHeat` 0.22 → `vLive` 0.42 → 58% of a
+      //      full-height vein was near-black crust with no light in it at all. That is the pole. A flow
+      //      that is nearly out did not travel as far; it is SHORT, and it stops.
+      //   2. 🚨 IT RAN DEAD PLUMB. The wander term was `(vh4>>>(vq&15))&3` — period 16 in vq, mean zero, so
+      //      it jittered around a vertical line. Lava runs DOWNHILL, and downhill on a ridge flank is
+      //      sideways as well as down. The drift now reads the height field either side of the vein and
+      //      leans the way the rock actually falls, so a flow fans away from the crest it came over.
+      //   3. 🚨 IT STARTED IN MID-AIR. `+hs[vx]*0.16` began the vein a sixth of the way down a blank face,
+      //      so it had no source: a ribbon that fades in partway down reads as an object in front of the
+      //      rock. It starts at the crest now, where the glow already blooms — the same fire, seen over
+      //      the ridge and running down it.
+      //   4. 🚨 CONSTANT WIDTH, AND BLACKER THAN THE MOUNTAIN. A flow spreads as it slows, and its crust is
+      //      cooled rock — it belongs to the same colour family as the rest of the rock, a few stops down,
+      //      not to pure black. `[8,5,5]` on maroon is a hole cut in the landform.
+      var vBase=(pi===0)?B.far:B.near;
+      var vCrust=css(mixc(vBase,[12,7,9],day?0.58:0.72));      // cooled rock, of the same rock — NOT black
       for(var v=0;v<15;v++){
         var vh4=((v*2654435761+pi*7919+(((WOFF/97)|0)*40503))>>>0);
         var vx=vh4%Math.max(1,SW);
         if(hs[vx]<18*KSP) continue;
-        var vy=Math.max(2,(gy-hs[vx])|0)+Math.round(hs[vx]*0.16), vdx=0;
+        var vy=Math.max(2,(gy-hs[vx])|0)+Math.round(hs[vx]*0.04), vdx=0;   // …at the crest, where the glow is
         var vw=Math.max(2,Math.round(2.4*KSP)), vsp=Math.max(1,Math.round(KSP));
         // THIS FLOW'S OWN TEMPERATURE, fixed for the life of the world. 0.22 nearly cold … 1 fresh.
         var vHeat=0.22+((vh4>>>19)%100)/100*0.78;
-        // …and a cooler flow has liquid for less of its length before it crusts solid
-        var vLive=0.30+vHeat*0.55;
-        var vCrust=css(mixc(day?[46,30,28]:[22,13,13],[8,5,5],0.35));
-        for(var vq=vy;vq<gy;vq+=vsp){
-          vdx+=(((vh4>>>(vq&15))&3)-1.5)*0.5;                 // the vein wanders as it runs
+        // …and how far down the face it GOT before it stopped. This is what kills the poles.
+        var vRun=0.26+0.74*vHeat, vEnd=vy+Math.max(4,Math.round((gy-vy)*vRun));
+        var vCap=4.5*KSP;                                     // how far off its fall line a flow may wander
+        for(var vq=vy;vq<vEnd;vq+=vsp){
+          // DOWNHILL, not down. Which way does the rock fall here? If the left is higher, the flow goes right.
+          // ⚠ AND THE DRIFT HAS TO BE CAPPED. At 0.55/step an unbounded lean slid the vein sideways ~110px
+          // over its run, so it reached the silhouette and — because leaving the rock only `continue`d —
+          // PINNED there and ran down the profile edge. Every flow became an outline of the tooth it was on:
+          // the ridgeline-highlighter artifact again, moved from the crest to the flanks. A flow leans a
+          // little and then follows the fall line; it does not migrate across the whole face. And one that
+          // really does run off an edge has ENDED, so that case breaks now instead of sliding.
+          var vgL=hs[Math.max(0,Math.round(vx+vdx)-3)], vgR=hs[Math.min(SW-1,Math.round(vx+vdx)+3)];
+          vdx+=(vgL>vgR?0.20:(vgR>vgL?-0.20:0))+(((vh4>>>(vq&15))&3)-1.5)*0.22;
+          if(vdx>vCap) vdx=vCap; else if(vdx<-vCap) vdx=-vCap;
           var vxx=Math.round(vx+vdx); if(vxx<0||vxx>=SW) break;
-          if((gy-hs[vxx])>vq) continue;                       // …but never leaves the rock
-          var f4=(vq-vy)/Math.max(1,gy-vy);
-          // ---- the cooled skin, along the WHOLE length: this is what the flow actually is ----
+          if((gy-hs[vxx])>vq) break;                          // ran off the rock — this flow is over
+          var f4=(vq-vy)/Math.max(1,vEnd-vy);                 // 0 at the source … 1 at THIS flow's toe
+          // ---- the cooled skin, along the whole length: this is what the flow actually is ----
+          // …spreading as it slows, the way a flow does when it loses its head of pressure
+          var vwq=Math.max(2,Math.round(vw*(0.55+0.75*f4)));
           g.fillStyle=vCrust;
-          g.fillRect(vxx,vq,vw,vsp);
-          if(f4>vLive) continue;                              // past here it has set solid — no light at all
+          g.fillRect(vxx,vq,vwq,vsp);
+          if(f4>0.88) continue;                               // the toe has set solid — no light at all
           // ---- and the heat inside it, hottest at the source and dying downslope ----
-          var heat=vHeat*(1-f4/vLive);
+          var heat=vHeat*(1-f4/0.88);
           heat*=heat;                                         // falls off fast, the way a cooling flow does
           var lift=0.62+0.38*mNight;                          // it reads harder after dark; it is the only light
           var shim=1-0.05*Math.max(0,1-f4*3)*(0.5+0.5*Math.sin(now*0.0011+v*2.3));   // a few percent, at the vent only
@@ -25490,16 +25629,21 @@ function drawMountains(g,L,now,nd){
           if(hA<=0.012) continue;
           g.globalCompositeOperation="lighter";
           g.fillStyle="rgba(176,44,8,"+(hA*0.34).toFixed(3)+")";                       // the light it throws on the rock
-          g.fillRect(vxx-vw,vq,vw*3,vsp);
+          g.fillRect(vxx-vwq,vq,vwq*3,vsp);
           // THE CRACKS. The skin is broken, not open — so the body only shows through in breaks, and the
           // breaks close up as it cools, which is what makes the toe read as solid rather than merely dim.
           var crk=((((vxx*2654435761)^((vq*40503)^vh4))>>>0)%100)/100;
           if(crk < 0.30+0.62*heat){
+            // ⚠ NOT THE FULL WIDTH OF THE FLOW. A break that spans the whole channel, on a hash that flips
+            // row to row, draws horizontal bars the width of the vein — the flows read as LADDERS. A crack
+            // in a crust is a patch, so it gets its own width and its own offset across the channel.
+            var cwd=Math.max(1,Math.round(vwq*(0.34+0.50*heat)));
+            var cof=((((vxx*2246822519)^(vq*3266489917))>>>0)%Math.max(1,vwq-cwd+1));
             g.fillStyle="rgba(255,"+((72+120*heat)|0)+","+((14+46*heat)|0)+","+(hA*0.92).toFixed(3)+")";
-            g.fillRect(vxx,vq,vw,vsp);
+            g.fillRect(vxx+cof,vq,cwd,vsp);
             if(heat>0.55 && crk<0.22*heat){                                            // and white-hot only deep in a fresh flow
               g.fillStyle="rgba(255,238,182,"+(hA*0.85).toFixed(3)+")";
-              g.fillRect(vxx+((vw/3)|0),vq,Math.max(1,Math.round(KSP)),vsp);
+              g.fillRect(vxx+cof,vq,Math.max(1,Math.round(KSP)),vsp);   // …inside the crack, not beside it
             }
           }
           g.globalCompositeOperation="source-over";

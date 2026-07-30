@@ -15,8 +15,8 @@ Item {
     width: 1552; height: 874                  // 2327x1309 dpr=2 zoom=2 -> this canvas, woff 0, world 2269 wp
     property string land: "hell"
     property var variants: [0]
-    property var hours: [13,23]
-    property var woffList: [0]
+    property var hours: [23]
+    property var woffList: [0,776,1629]
     property int woi: 0
     property int vi: 0
     property int hi: 0
@@ -58,7 +58,7 @@ Item {
             if (root.warm < 1) { root.warm++; return; }
             root.grabToImage(function(res){
                 res.saveToFile(root.outDir + "/hf-" + root.land + "-v" + root.variants[root.vi]
-                               + "-h" + root.hours[root.hi] + "-a" + Math.round(root.ages[root.ai]*100) + ".png");
+                               + "-w" + root.woffList[root.woi] + "-h" + root.hours[root.hi] + "-a" + Math.round(root.ages[root.ai]*100) + ".png");
                 root.warm = 0;
                 root.ai++; if (root.ai >= root.ages.length) { root.ai = 0; root.hi++; }
                 if (root.hi >= root.hours.length) { root.hi = 0; root.woi++;
