@@ -24991,6 +24991,97 @@ function ashRiftState(){
            lip:rPk*(0.10+((rh>>>23)%10)/100),            // the rock shouldered up along each side of the tear
            seed:rh };
 }
+// THE RIFT'S OTHER HALF: THE GROUND TORN OPEN. Nick locked "both — a notch in the ridge AND fissures on
+// the floor, behind the city".
+//
+// ⚠⚠ AND "BEHIND THE CITY" IS NOT WHERE THE OLD ONES DREW. The Ashlands already had glowing ground cracks
+// (in drawGroundDetail) and they draw from `gy+3` DOWNWARD — below HORIZON, which is behind the buildings,
+// behind the road, and on Nick's desktop underneath the taskbar. This land's own comment predicted it and
+// the audit confirmed it: not one of them is visible at his real geometry.
+// 🔑 IN THIS PROJECTION THE GROUND BEHIND THE CITY IS THE LOWER SLOPE OF THE RIDGE. There is no flat floor
+// band to draw on — the city sits ON the horizon line. The apron between the buildings' roofs and the crest
+// is the visible ground, and it was MEASURED before any of this was written: 126px at median, p10 80px, at
+// all three of Nick's woffs. That is where a tear has to be to be seen.
+//
+// ⚠ Not a ruled line. A fissure tapers to nothing at both ends and its centreline wanders, or twenty of
+// them across a face read as twenty pencil strokes — the bayou's graph paper, on rock.
+function drawAshFissures(g,hs,gy,day,mNight,rift){
+  var K=Math.max(1,Math.round(KSP)), SWl=hs.length;
+  // ⚠ AND 28 OF THEM AT 45..165px WAS TOO MANY TO STAY SEPARATE. On a 2269px world that is one every 81px,
+  // so they overlapped end-to-end and CHAINED into three or four long parallel wavy bands — the render read
+  // as contour lines, or strata, rather than as tears. Fewer, shorter, scattered further apart in height,
+  // and each given its own tilt so no two of them run level with one another.
+  for(var i=0;i<18;i++){
+    var fh=P_hash(((i*2654435761)^0x5EED)>>>0);
+    var fwx=(fh%1000)/1000*WW, nearRift=false;
+    if(rift && ((fh>>>10)&1)){                            // half of them cluster along the tear itself
+      fwx=(rift.wx+((((fh>>>12)%200)/100)-1)*rift.w*1.5+WW)%WW; nearRift=true;
+    }
+    var fLen=Math.round((24+((fh>>>4)%56))*KSP*0.5);
+    var fTilt=((((fh>>>28)%2)?1:-1))*(6+((fh>>>6)%17));   // a tear does not run level with the horizon
+    var fDeep=((fh>>>18)%100)/100;                        // 0 a hairline … 1 a gulf with fire in it
+    var fThk=Math.max(1,Math.round((2.2+fDeep*5.0)*K*0.7));   // …and thick enough to be a gap, not a stroke
+    // HOW FAR DOWN THE APRON — and this is the whole readability question, so it is set from the
+    // measurement rather than from taste. 0.46..0.88 put most of them below the building tops, which is
+    // the same occlusion the old ground cracks died of. The visible band measured 126px at median between
+    // the near skyline and the roofs, so they sit in the UPPER part of the apron: clear of the crest (where
+    // the flows come over) and clear of the city (which would swallow them).
+    var fDrop=0.22+((fh>>>24)%50)/100*0.55;
+    for(var wr=-1;wr<=1;wr++){
+      var sx0=Math.round(fwx-WOFF+wr*WW);
+      if(sx0+fLen<-4||sx0>SWl+4) continue;
+      for(var q=0;q<fLen;q++){
+        var sx=sx0+q; if(sx<0||sx>=SWl) continue;
+        var hh=hs[sx]; if(hh==null||hh<8) continue;
+        var top=gy-hh, t=q/fLen;
+        var taper=Math.min(1,Math.sin(Math.PI*t)*1.35);   // opens, runs, closes
+        if(taper<=0.08) continue;
+        var fy=Math.round(top+hh*fDrop+(t-0.5)*fTilt+(ashNoise(fwx+q,19,fh^0x3B)-0.5)*2.5*K);
+        if(fy<=top+2||fy>=gy-1) continue;
+        var th=Math.max(1,Math.round(fThk*taper));
+        // ⚠⚠ A GAP HAS TWO WALLS AND A DARK INSIDE. First pass drew a 1px dark path with a 2px amber line
+        // under it, and at Nick's geometry that came out as a thin glowing CURVE lying on the rock — the
+        // "cracks or vines" construction he has already rejected twice in this engine, arriving a third time
+        // by a third route. A continuous line along a wandering path is a wire, whatever colour it is.
+        // So: a shaded far wall above, a genuinely dark interior, and a lit near lip that is BROKEN rather
+        // than traced — the same fix the lava crust's ladder rungs needed, one scale up.
+        g.fillStyle=day?"rgba(52,34,32,0.55)":"rgba(26,15,17,0.60)";  // the far wall, turned away from everything
+        g.fillRect(sx,fy-Math.max(1,Math.round(K*0.7)),1,Math.max(1,Math.round(K*0.7)));
+        g.fillStyle=day?"rgba(10,5,7,0.88)":"rgba(4,2,3,0.92)";       // the gap: the darkest thing on the land
+        g.fillRect(sx,fy,1,th);
+        var lipK=((((sx*2654435761)^(fh*40503))>>>0)%100)/100;
+        if(lipK<0.62){                                                // the near lip, in pieces, never a line
+          g.fillStyle=day?"rgba(126,96,86,0.30)":"rgba(70,48,44,0.34)";
+          g.fillRect(sx,fy+th,1,Math.max(1,Math.round(K*0.6)));
+        }
+        var heat=fDeep*taper*(nearRift?1:0.72);
+        if(heat>0.10){
+          g.globalCompositeOperation="lighter";
+          var hA=heat*(0.34+0.52*mNight);
+          // …and the fire in patches too: you see down into a tear where it happens to be open, not evenly
+          // along its whole length.
+          if(lipK<0.30+0.55*heat){
+            g.fillStyle="rgba(255,"+((86+90*heat)|0)+","+((22+40*heat)|0)+","+hA.toFixed(3)+")";
+            g.fillRect(sx,fy+Math.max(0,th-Math.max(1,Math.round(K*0.8))),1,Math.max(1,Math.round(K*0.8)));
+          }
+          // …and the light it throws UP out of the gap. ⚠ every other column only: this is the one term in
+          // here that is a loop inside a loop inside a loop, and at full density it costs more than the
+          // whole rest of the land put together for a bloom nobody can see the gaps in.
+          if((sx&1)===0){
+            var rise=Math.max(2,Math.round(6*K*heat));
+            for(var rq=0;rq<rise;rq++){
+              var rf=rq/rise, ra=hA*0.46*(1-rf)*(1-rf);
+              if(ra<=0.004) break;
+              g.fillStyle="rgba(255,"+((120+40*rf)|0)+","+((46+26*rf)|0)+","+ra.toFixed(3)+")";
+              g.fillRect(sx,fy-rq,2,1);
+            }
+          }
+          g.globalCompositeOperation="source-over";
+        }
+      }
+    }
+  }
+}
 function drawMountains(g,L,now,nd){
   if(curBiome.k==="forest"){ drawForestBackdrop(g,L,now,nd); return; }   // the forest is the range here
   if(curBiome.k==="core"){ drawCoreWorld(g,L,now,nd); return; }         // …and on the core world the CITY is
@@ -25538,12 +25629,18 @@ function drawMountains(g,L,now,nd){
           var qA=(0.16+0.30*mNight)*qg*qF*qRift;
           if(qA<=0.006) continue;
           var qR2=(qRift>1)?Math.round(qRise*(1+0.75*(qRift-1))):qRise;   // fire in a gap throws light HIGHER
-          for(var qq=0;qq<qR2;qq++){
+          // ⚠ TWO ROWS AT A TIME. This loop was the single most expensive thing on the land: one 1×1 fill
+          // per row per column per band is up to 33 × 776 × 2 ≈ 51,000 rects in the BACKDROP pass, and the
+          // backdrop repaints on a 500–2000ms timer across three screens. Stepping by two and filling 1×2
+          // halves the call count for a falloff so smooth that no row of it is individually visible —
+          // measured, not assumed: the render is unchanged to the eye and hell's bg went 76.2ms → 43.5ms,
+          // i.e. 5.28× alpine's backdrop down to 3.03× (qml-perf-bg-hell.qml, interleaved, ratio-reported).
+          for(var qq=0;qq<qR2;qq+=2){
             var qf=qq/qR2;
             var qaa=qA*(1-qf)*(1-qf);                          // squared falloff: a bloom, not a band
             if(qaa<=0.004) break;
             g.fillStyle="rgba(255,"+((132+40*qf)|0)+","+((52+30*qf)|0)+","+qaa.toFixed(3)+")";
-            g.fillRect(qx,qt-qq,1,1);
+            g.fillRect(qx,qt-qq-1,1,2);
           }
         }
         g.globalCompositeOperation="source-over";
@@ -25649,6 +25746,9 @@ function drawMountains(g,L,now,nd){
           g.globalCompositeOperation="source-over";
         }
       }
+      // …and the ground behind the city, torn open. Near band only: the apron in front of the far ridge is
+      // occluded by the near one, so a tear drawn there is a tear nobody sees.
+      if(pi===1) drawAshFissures(g,hs,gy,day,mNight,ashRift);
     }
     // SNOW LIES WHERE THE LAND IS LEVEL. A February render of every biome came back in its summer
     // colours: only alpine showed any snow, because only alpine carries `snow:true`, and that band is
