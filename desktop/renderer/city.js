@@ -20230,10 +20230,31 @@ function drawSaltMirror(g,L,now,nd){
   g.fillStyle=grd; g.fillRect(0,top,SW,depth);
 
   // ---- 2. THE SKYLINE, FLIPPED. Flat dimmed silhouettes off the layers that already exist.
+  // ⚠⚠ TWO FAULTS HERE, AND BETWEEN THEM THEY ERASED THE THING THIS LAND IS NAMED FOR. Instrumented and
+  // confirmed: the function IS reached every frame, `wet=1` so it takes this branch, 95 buildings are in
+  // the layers, and nothing paints over it (`drawSaltMirror` runs at ~34991, the sea band at ~34195). It
+  // was drawing the whole time and could not be seen.
+  //   1. A REFLECTION MUST BE DARKER THAN WHAT IT SITS ON. At alpha 0.30 over a pale sky-gradient, mixed
+  //      only 30% toward black, every silhouette landed within a few units of the pan under it. This is
+  //      the third land this exact mistake has caught me on — the karst reflection and the fjord
+  //      reflection were both invisible for the same reason. It is the basalt-coast value rule and it
+  //      applies to reflections more sharply than to anything else, because a reflection has no outline.
+  //   2. THE FORESHORTENING CONSTANT DESTROYED THE SKYLINE. `min(depth, h*0.44)` with depth 87: almost
+  //      every building's h*0.44 exceeds 87, so they ALL clipped to the full band and the mirror became
+  //      one flat grey bar with no shape in it. A reflection has to keep the RELATIVE heights or it is
+  //      not a reflection of anything — the same class as the dunes, where the band bases were so much
+  //      bigger than the profile that the dunes stopped being the shape you saw.
+  // Scaled off the tallest building actually present, so the skyline survives whatever the city is doing.
   var layers=[far,mid,near];
+  var hiB=1;
+  for(var lh=0;lh<layers.length;lh++){
+    var LH=layers[lh]; if(!LH||!LH.blds) continue;
+    for(var bh5=0;bh5<LH.blds.length;bh5++) if(LH.blds[bh5].h>hiB) hiB=LH.blds[bh5].h;
+  }
+  var refScale=(depth*0.86)/hiB;
   for(var li3=0;li3<layers.length;li3++){
     var LY=layers[li3]; if(!LY||!LY.blds) continue;
-    var fade=0.30-0.07*li3;
+    var fade=0.62-0.13*li3;
     for(var bi3=0;bi3<LY.blds.length;bi3++){
       var b3=LY.blds[bi3];
       if(b3.type==="park") continue;
@@ -20243,9 +20264,9 @@ function drawSaltMirror(g,L,now,nd){
         var bx3=Math.round(b3.x-WOFF+o3*WW);
         if(bx3+b3.w<0||bx3>SW) continue;
         // mirrored height, squashed: a reflection on a shallow sheet is foreshortened, never 1:1
-        var rh=Math.min(depth, Math.round(b3.h*0.44));
+        var rh=Math.min(depth, Math.max(1,Math.round(b3.h*refScale)));
         if(rh<1) continue;
-        g.fillStyle=rgba(mixc(b3.c||[120,120,130],[0,0,0],day?0.30:0.66), fade);
+        g.fillStyle=rgba(mixc(b3.c||[120,120,130],[0,0,0],day?0.62:0.80), fade);
         g.fillRect(Math.max(0,bx3),top,Math.min(SW,bx3+b3.w)-Math.max(0,bx3),rh);
       }
     }
