@@ -34,6 +34,14 @@ if (autoUpdater) {
 }
 
 // A single shared render process is plenty; allow GPU canvas acceleration.
+// ⚠⚠ WINDOWS DROPS EVERY NOTIFICATION WITHOUT THIS, SILENTLY. Reported by Micah: he got no
+// notifications at all while Nick got them on KDE, and he asked what he needed to change on his end —
+// nothing. On Windows a toast is only delivered if the process has an AppUserModelID that matches a
+// Start Menu shortcut; with no AUMID set, `new Notification().show()` succeeds and nothing appears.
+// Linux has no such requirement, which is exactly why this was invisible to us: the platform that
+// works is the platform we develop on.
+// Must match `build.appId` in package.json and the NSIS shortcut it installs.
+if (process.platform === 'win32') app.setAppUserModelId('org.citylive.app');
 app.commandLine.appendSwitch('enable-gpu-rasterization');
 app.disableHardwareAcceleration && false; // (keep HW accel on for smooth canvas)
 
