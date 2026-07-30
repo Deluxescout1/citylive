@@ -14598,25 +14598,48 @@ function drawFjordWater(g,L,now){
   // have now got this wrong twice by mixing toward the sky instead).
   if(mtsCache&&mtsCache.h&&mtsCache.h[1]){
     var hs=mtsCache.h[1], hs0=mtsCache.h[0];
+  // ⚠⚠⚠ BATCHED INTO DEPTH BANDS, BECAUSE THE PER-COLUMN VERSION COST 9x ALPINE IN THE *LIVE* PASS.
+  // Nick: "we need to fix the performance again, it is slow." Measured with a new LIVE-pass harness
+  // (desktop/qml-perf-live-now.qml): fjord 62.63ms/frame against alpine's 6.94 — and `live` repaints every
+  // frame while `bg` sits at ~0.5fps, so this is the whole slowdown.
+  // 🔑🔑 I HAVE BEEN TIMING THE WRONG PASS FOR FIVE MAPS. Every perf check in this map-by-map run measured
+  // `bg`, because that is where the landform work went — and the Ashlands wrote down the exact inverse of
+  // this trap ("the LIVE-pass harness would have given this a clean bill: everything new here is in bg").
+  // The water, the reflections and the boats all went into LIVE, and nothing I ran would have seen it.
+  // 🔑 The cause is the one heaven already taught: a per-column, per-row loop is tens of thousands of
+  // fillRects. ~776 columns x ~50 depth steps = ~38,000 rects a frame, each with its own fillStyle.
+  // The fix is the same shape too: OUTER LOOP ON THE DEPTH BAND so fillStyle is set a handful of times,
+  // INNER LOOP RUN-LENGTH along x. The ripple has to come out of the geometry to allow that — it is now a
+  // separate cheap overlay, which is also more honest: ripple is a surface effect, not a shape.
     var refC=day?(fv===2?[14,40,42]:[9,16,26]):[2,4,7];
-    var COMP=0.50;
-    for(var x=0;x<SW;x++){
-      var rock=Math.max(hs[x]||0,(hs0&&hs0[x])||0);
-      if(rock<3) continue;
-      var hgt=Math.round(rock*COMP);
-      if(hgt<2) continue;
-      for(var d2=0;d2<hgt;d2+=step){
-        var yr=top+d2; if(yr>=botY) break;
-        var df=d2/hgt;
-        // ripple grows with distance from the shore, and is keyed to WORLD x so it does not slide
-        var wob=Math.sin((x+WOFF)*0.045+now*0.00075+df*2.2)*(0.5+2.6*df)*K*0.42;
-        var xr=Math.round(x+wob);
-        if(xr<0||xr>=SW) continue;
-        var a=(0.52-0.40*df)*(day?1:0.72);
-        if(a<=0.02) continue;
-        g.fillStyle=rgba(refC,a);
-        g.fillRect(xr,yr,1,step);
+    var COMP=0.50, NB=6, bandH=Math.max(1,Math.round(depth/NB));
+    g.fillStyle=css(refC);
+    for(var bq=0;bq<NB;bq++){
+      var bf=bq/NB;
+      g.globalAlpha=(0.52-0.40*bf)*(day?1:0.72);
+      if(g.globalAlpha<=0.02) break;
+      var need=bq*bandH;                                  // this band only exists where the wall is tall
+      var rs=-1, xx;
+      for(xx=0;xx<=SW;xx++){
+        var on=false;
+        if(xx<SW){ var rk=Math.max(hs[xx]||0,(hs0&&hs0[xx])||0); on=(rk*COMP)>need; }
+        if(on){ if(rs<0) rs=xx; }
+        else if(rs>=0){ g.fillRect(rs,top+need,xx-rs,bandH); rs=-1; }
       }
+      if(rs>=0) g.fillRect(rs,top+need,SW-rs,bandH);
+    }
+    g.globalAlpha=1;
+    // the ripple, as a cheap overlay of displaced streaks rather than a per-column offset
+    g.fillStyle=css(mixc(refC,wTop,0.55));
+    for(var rq=0;rq<26;rq++){
+      var rh3=mixLi(rq>>>0,21089)>>>0;
+      var rx=Math.round(((rh3%Math.max(1,WW))-WOFF));
+      rx=((rx%WW)+WW)%WW; if(rx>SW+60) rx-=WW;
+      if(rx<-60||rx>SW) continue;
+      var ry=top+((rh3>>>9)%Math.max(1,depth-2));
+      var rl=Math.round((10+((rh3>>>17)%40))*K*0.5);
+      var rd=Math.round(Math.sin(now*0.0007+rq*1.3)*1.6*K);
+      g.fillRect(rx+rd,ry,rl,Math.max(1,Math.round(K*0.5)));
     }
   }
   // ---- THE SHORELINE IS NOT A RULED LINE -------------------------------------------------------
@@ -14624,6 +14647,7 @@ function drawFjordWater(g,L,now){
   // project has now found sixteen times. A real fjord shore is rock: broken, notched, and different at
   // every point along it. World-anchored so the same boulder is in the same place on all three screens.
   var shoreC=day?mixc(B.ground||[86,102,108],[0,0,0],0.30):[10,14,18];
+  g.fillStyle=css(shoreC);                                // ⚠ hoisted: 776 colour-string builds a frame
   for(var sx=0;sx<SW;sx++){
     var swx=sx+WOFF;
     var i1=Math.floor(swx/13), f1=(swx/13)-i1, s1=f1*f1*(3-2*f1);
@@ -14632,7 +14656,6 @@ function drawFjordWater(g,L,now){
     var v2=(mixLi(i2>>>0,9403)%1000)/1000*(1-s2)+(mixLi((i2+1)>>>0,9403)%1000)/1000*s2;
     var h3=Math.round((v*0.7+v2*0.3)*2.6*K);
     if(h3<1) continue;
-    g.fillStyle=css(shoreC);
     g.fillRect(sx,top-h3,1,h3+1);
   }
   // ---- SLOW SWELL, and the light on it ---------------------------------------------------------
@@ -14756,25 +14779,38 @@ function drawKarstWater(g,L,now){
   // 🔑 Same family as the basalt coast ("rock and walls at the SAME VALUE, so whole buildings vanished
   // into the cliff") — and I have now made this mistake on the Empyrean's gate and here.
   var refC=day?[30,58,54]:[5,10,14];
+  // ⚠ BATCHED INTO DEPTH BANDS — see the note in `drawFjordWater`. This had the identical per-column
+  // per-row shape and cost 4.8x alpine in the LIVE pass; both were written the same week and both were
+  // measured against `bg`, where neither of them runs.
   var COMP=0.42;                                    // foreshortening: a reflection is shorter than its tower
-  for(var x3=0;x3<SW;x3++){
-    if(sil[x3]>1e8) continue;
-    var hgt=Math.round((HORIZON-sil[x3])*COMP);
-    if(hgt<2) continue;
-    // ripple: a slow horizontal displacement that grows with distance from the surface
-    for(var d2=0;d2<hgt;d2+=step){
-      var yr=top+d2;
-      if(yr>=botY) break;
-      var df=d2/hgt;
-      var wob=Math.sin((x3+WOFF)*0.05+now*0.0009+df*2.4)*(0.6+2.4*df)*K*0.4;
-      var xr=Math.round(x3+wob);
-      if(xr<0||xr>=SW) continue;
-      var a=(0.60-0.42*df)*(day?1:0.75);
-      if(a<=0.02) continue;
-      g.fillStyle=rgba(refC,a);
-      g.fillRect(xr,yr,1,step);
+  var NBk=6, bandK=Math.max(1,Math.round(depth/NBk));
+  g.fillStyle=css(refC);
+  for(var bk=0;bk<NBk;bk++){
+    var bfk=bk/NBk;
+    g.globalAlpha=(0.60-0.42*bfk)*(day?1:0.75);
+    if(g.globalAlpha<=0.02) break;
+    var needK=bk*bandK, rsk=-1, xk;
+    for(xk=0;xk<=SW;xk++){
+      var onk=false;
+      if(xk<SW && sil[xk]<1e8) onk=((HORIZON-sil[xk])*COMP)>needK;
+      if(onk){ if(rsk<0) rsk=xk; }
+      else if(rsk>=0){ g.fillRect(rsk,top+needK,xk-rsk,bandK); rsk=-1; }
     }
+    if(rsk>=0) g.fillRect(rsk,top+needK,SW-rsk,bandK);
   }
+  g.globalAlpha=1;
+  g.fillStyle=css(refC);
+  for(var rqk=0;rqk<22;rqk++){
+    var rhk=mixLi(rqk>>>0,30011)>>>0;
+    var rxk=Math.round(((rhk%Math.max(1,WW))-WOFF));
+    rxk=((rxk%WW)+WW)%WW; if(rxk>SW+60) rxk-=WW;
+    if(rxk<-60||rxk>SW) continue;
+    var ryk=top+((rhk>>>9)%Math.max(1,depth-2));
+    g.globalAlpha=0.18;
+    g.fillRect(rxk+Math.round(Math.sin(now*0.0008+rqk*1.4)*1.5*K),ryk,
+               Math.round((8+((rhk>>>17)%34))*K*0.5),Math.max(1,Math.round(K*0.5)));
+  }
+  g.globalAlpha=1;
   // ---- the surface itself: a few long slow glints, never a ruled line ----
   g.globalCompositeOperation="lighter";
   g.fillStyle=day?"rgba(226,244,236,0.18)":"rgba(150,170,210,0.10)";
