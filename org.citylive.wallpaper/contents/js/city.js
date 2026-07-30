@@ -3247,7 +3247,20 @@ var BIOMES=[
   // pale sky, so the whole land read flat and the near shelves did not sit in front of anything.
   // Unlike the karst this land's identity IS luminous, so it gets a much lighter touch — the near band
   // goes to a cool lavender-grey rather than anything dark. Enough to sit forward; still the Empyrean.
+  // ⚠⚠ `nobed:1` — THE EMPYREAN IS NOT SEDIMENTARY ROCK, AND IT HAS BEEN DRAWN AS SOME SINCE THE BIOME
+  // PASS. This land carries `flat:0.62`, and the bedding-plane block is gated on `B.flat>0.25`, so heaven
+  // has been entering the MESA / SEA-CLIFF path: ~19 dead-level lines at 17px spacing ruled edge to edge
+  // across the whole formation, plus its ridge quantised into steps. Rendered with the city forced young
+  // it is unmistakable — venetian blinds, or a contour map, over every peak AND every valley.
+  // 🔑 THIS IS THE SECOND INSTANCE OF A BUG THIS PROJECT ALREADY FIXED ONCE. The sea cliffs hit it at
+  // `flat:0.55` and came out as CASTLE BATTLEMENTS; that fix made bed THICKNESS belong to the landform
+  // and left the `>0.25` GATE alone — so the coarse `5*KSP*(0.5+flat)` bed spacing still reaches any land
+  // that merely leans flat. A land should have to OPT IN to being made of layers.
+  // ⚠ `celest:1` routes its own surface and its cloud sea. Deliberately NOT `flat`-driven: `flat` feeds
+  // three consumers here (bed spacing, the skyline quantiser, the caprock shadow) and dropping it would
+  // buy crags — an alpine clone — which is a different wrong answer.
   { k:"heaven", name:"THE EMPYREAN", amp:0.76, base:0.52, flat:0.62, steep:0.34, snow:false, water:null,
+    nobed:1, celest:1,
     far:[228,224,242],  near:[168,164,200], cap:[255,250,228], ground:[228,222,204],
     walls:[[246,244,236],[228,224,212],[255,252,244],[238,228,198],[250,246,232],[232,226,206],[255,248,220],[240,236,222]],
     fauna:{ keep:{deer:0,rabbit:0,fox:0,goat:0}, big:[], small:[], air:["dove"] },
@@ -25704,7 +25717,11 @@ function drawMountains(g,L,now,nd){
           var coast=Math.sin(wx0*0.0043)*0.62+Math.sin(wx0*0.0017+2.3)*0.38;
           rh0*=(0.55+0.55*(coast*0.5+0.5));                    // cove ~0.55x … headland ~1.10x
         }
-        if(B.flat>0.5 && rh0>2){
+        // ⚠ `nobed` opts out of the SKYLINE QUANTISER too, not just the bed lines. A stepped ridge is the
+        // other half of "rock as masonry", and locked answer #2 for THE EMPYREAN is soft shoulders — a
+        // massif weathers into rounded shoulders, it does not come in courses. Keeping `flat:0.62` still
+        // buys the level tops this land wants; only the ladder goes.
+        if(B.flat>0.5 && rh0>2 && !B.nobed){
           if(B.buttes){ var qb=Math.floor(rh0/strata);
             rh0=(qb+((mixLi((qb*7919)>>>0,4649)%100)/100-0.5)*0.62)*strata; }
           else rh0=Math.round(rh0/strata)*strata;
@@ -26154,7 +26171,12 @@ function drawMountains(g,L,now,nd){
     // from the GROUND rather than from each column's own top, so the lines run dead level and continue
     // across the whole formation, which is what says "one rock, laid down in beds" instead of "a shape
     // with lines on it". Only the flat biomes: crags have no visible bedding at this scale.
-    if(B.flat>0.25){
+    // ⚠ …AND A LAND HAS TO OPT IN TO BEING MADE OF LAYERS (`nobed`). `flat` is not a statement about
+    // material — it says "this land's tops are level", which is true of a mesa, a sea cliff AND a
+    // luminous massif. THE EMPYREAN at `flat:0.62` was taking 19 ruled level lines across the whole
+    // formation from this block, which is the sea cliffs' battlement fault arriving a second time by the
+    // route that fix left open: it corrected the bed THICKNESS and never touched this GATE.
+    if(B.flat>0.25 && !B.nobed){
       var stt=Math.max(2,Math.round(5*KSP*(0.5+B.flat))), lh2=Math.max(1,Math.round(KSP));
       g.fillStyle="rgba(0,0,0,"+(0.07+0.07*B.flat).toFixed(3)+")";
       for(var by=gy-stt;by>gy-mtsCache.mx[pi]-stt;by-=stt){
@@ -26401,11 +26423,130 @@ function drawMountains(g,L,now,nd){
         }
       }
     }
+    // ---- THE EMPYREAN'S OWN FACE — ONE LUMINOUS MASSIF, NOT A STACK OF BEDS --------------------------
+    // What replaced the 19 ruled bedding planes. Removing them leaves a flat fill with a single slope
+    // value on it, which is the same nothing alpine's face was rescued from — so this land needs a
+    // surface of its own, and it needs to be the surface of *this* land: pale stone that is mostly
+    // reflecting a very bright sky, brightest where it faces upward, softening downward into its own
+    // shadow. No layers, because it is not made of layers.
+    //
+    // ⚠⚠ NOT FLUTING, AND THIS CONSTRAINT DECIDED THE WHOLE LOOK. The brief said "vertical fluting" —
+    // that was MY suggestion and it is the one direction this engine must not go. On Nick's 4K at 165%
+    // KWin does the fractional downsample itself, and three separate recurrences of the "lines over the
+    // mountains" bug settled the rule: ANY hard-edged flat band aliases, and the resampler beats
+    // specifically against HARD VERTICAL EDGES in the source. Ruled flutes down a face this size would
+    // rebuild that bug by hand, deliberately.
+    // ⚠ The same investigation also recorded what IS safe, and this is built on it: a CONTINUOUS
+    // per-column value, never quantised into buckets, so neighbouring columns differ by a fraction of a
+    // shade. Bucketing the slope light into 13 steps is what made the lines "come back"; going
+    // continuous took 194 deviating columns down to 37. So every value here is smoothstepped between
+    // hashed lattice points, and nothing is snapped.
+    // ⚠ Anchored in WORLD space (wx, not screen x) like every other sprite, so the three monitors agree
+    // about where the modelling is without talking to each other.
+    if(B.celest && pi<=1){
+      var cmx=Math.max(1,mtsCache.mx[pi]||1);
+      var cRock=(pi===0?farC:nearC);
+      // ⚠ THE LIGHT COMES FROM THE SKY, NOT FROM THE SUN, and on this land that is the whole point.
+      // A pale massif under a huge bright sky is lit overwhelmingly by scattered skylight from above, so
+      // the vertical gradient does almost all the modelling and `litK` only leans it. Sourcing this from
+      // the sun instead would flatten the face every time the sun was low — which is exactly when this
+      // land is supposed to look its best.
+      var cTop =mixc(cRock,[255,252,240],day?(0.30+0.10*litK):0.16);   // facing the sky
+      var cBot =mixc(cRock,[0,0,0],       day? 0.16          :0.10);   // into its own shadow
+      // ⚠⚠ EVERY LOOP BELOW IS SHAPED BY COST, AND THE FIRST VERSION WAS A 9.2x REGRESSION. Measured
+      // interleaved against alpine: heaven's backdrop went 8.86ms -> 81.53ms (ratio 0.68 -> 5.77), i.e.
+      // WORSE than the Ashlands' 76ms crest bloom that this project already had to fix once. The cause was
+      // identical, which is the point: PASS C was written as a per-column, per-ROW loop = ~32,000 1x1
+      // fillRects per frame, each one preceded by building an "rgba(...)" STRING.
+      // 🔑 THE THREE RULES THAT CAME OUT OF IT, and they are why this reads the way it does:
+      //   1. STEP ALONG THE FALLOFF IN THE OUTER LOOP, BATCH ALONG THE RIDGE IN THE INNER ONE. That sets
+      //      fillStyle a handful of times instead of tens of thousands.
+      //   2. RUN-LENGTH ON EQUAL Y. A ridge is smooth, so many neighbouring columns share a skyline row;
+      //      the bedding planes already used this trick and it is worth more here.
+      //   3. WHERE ONLY THE ALPHA VARIES PER COLUMN, USE `globalAlpha`, NOT A NEW COLOUR STRING.
+      //      Assigning a number allocates nothing; building "rgba(...)" 1552 times a frame allocates.
+      var cStep=Math.max(2,Math.round(KSP));
+      // PASS A — the vertical gradient, run-length filled ALONG the face. Horizontal edges are the one
+      // kind this engine has never aliased into stripes, so the large-area shading is done in this
+      // direction on purpose, and stepped rather than per-row (the Ashlands' crest bloom went from
+      // 51,000 rects to a third of that with exactly this change, visually identical).
+      for(var cy=gy-cmx-cStep; cy<gy; cy+=cStep){
+        var cf=Math.max(0,Math.min(1,(gy-cy)/cmx));               // 1 at the crest, 0 at the foot
+        g.fillStyle=css(mixc(cBot,cTop,cf*cf*(3-2*cf)));          // smoothstepped: no banding to catch
+        var cs3=-1, cx3, con;
+        for(cx3=0;cx3<=SW;cx3++){
+          con=(cx3<SW)&&hs[cx3]>=2&&((gy-hs[cx3])<=cy);
+          if(con){ if(cs3<0) cs3=cx3; }
+          else if(cs3>=0){ g.fillRect(cs3,cy,cx3-cs3,cStep); cs3=-1; }
+        }
+      }
+      // PASS B — the soft modelling, one continuous value per column. Two aperiodic octaves smoothly
+      // interpolated: broad shoulders at ~19*KSP and a gentler swell at ~7*KSP. This is what stops the
+      // face being a flat gradient without ever putting an edge on it.
+      // ⚠ TWO octaves at coprime cell sizes, not one — a single lattice spaces its features evenly and
+      // that regularity is the tell behind every striping bug in this project, aliased or drawn.
+      var cA=Math.max(5,Math.round(19*KSP)), cB=Math.max(3,Math.round(7*KSP));
+      var cWarm=mixc(cRock,[255,246,214],0.34), cCool=mixc(cRock,[92,104,140],0.20);
+      var cGain=(day?0.20:0.12)*(pi===0?0.55:1);
+      // TWO sub-passes — the warm columns then the cool ones — so `fillStyle` is set exactly twice per
+      // band and the per-column variation rides on `globalAlpha`. Splitting by sign is what lets a
+      // continuous signed value be drawn without a colour string per column (rule 3 above).
+      for(var cSide=0;cSide<2;cSide++){
+        g.fillStyle=css(cSide?cCool:cWarm);
+        for(var cx4=0;cx4<SW;cx4++){
+          var ch4=hs[cx4]; if(ch4<3) continue;
+          var cwx=cx4+WOFF;
+          var iA=Math.floor(cwx/cA), fA=(cwx/cA)-iA, sA=fA*fA*(3-2*fA);
+          var vA0=(mixLi(iA>>>0,60611)%1024)/1024, vA1=(mixLi((iA+1)>>>0,60611)%1024)/1024;
+          var iB=Math.floor(cwx/cB), fB=(cwx/cB)-iB, sB=fB*fB*(3-2*fB);
+          var vB0=(mixLi(iB>>>0,17389)%1024)/1024, vB1=(mixLi((iB+1)>>>0,17389)%1024)/1024;
+          var cv=(vA0+(vA1-vA0)*sA)*0.68+(vB0+(vB1-vB0)*sB)*0.32;    // 0..1, continuous, no repeat
+          // signed about the middle, so the face gains highlight AND shade rather than only darkening
+          var cd=(cv-0.5)*2;
+          if((cd>0?0:1)!==cSide) continue;
+          var cTopY=Math.max(1,(gy-ch4)|0), cLen=Math.max(1,Math.round(ch4*0.94));
+          g.globalAlpha=Math.abs(cd)*cGain;
+          g.fillRect(cx4,cTopY,1,Math.min(cLen,gy-cTopY));
+        }
+      }
+      g.globalAlpha=1;
+      // PASS C — THE SKY-LIT SHOULDER. The top few metres of a pale massif under a bright sky are the
+      // brightest thing on it, and that edge is what gives the silhouette its shape once the ruled beds
+      // are gone. Follows the real skyline per column and fades DOWNWARD with a squared falloff.
+      // ⚠ NEVER A BAND ALONG THE CREST. The Ashlands proved that twice: a constant-thickness band
+      // tracing the ridgeline reads as a highlighter traced round the mountains. Light falls off.
+      // ⚠ FIVE THICK STEPS, NOT TWENTY-ONE THIN ONES — the falloff is smooth enough at five and this is
+      // the loop that caused the 9.2x regression. Outer loop on the step so `fillStyle`/`globalAlpha` are
+      // set five times per band; inner loop run-length along the ridge wherever neighbouring columns
+      // share a skyline row, which on a smooth profile is most of them.
+      var cShN=5, cShT=Math.max(1,Math.round(7*KSP/cShN)), cShC=mixc(cRock,[255,255,246],day?0.62:0.30);
+      g.fillStyle=css(cShC);
+      for(var cq=0;cq<cShN;cq++){
+        var cff=1-(cq/cShN);
+        g.globalAlpha=cff*cff*(day?0.34:0.18);
+        var cs5=-1, cy5=-999, cx5, ch5, cyy;
+        for(cx5=0;cx5<=SW;cx5++){
+          cyy=-999;
+          if(cx5<SW){ ch5=hs[cx5];
+            if(ch5>=4) cyy=Math.max(0,(gy-ch5)|0)+cq*cShT; }
+          if(cyy!==cy5){                                   // a new skyline row — flush the run so far
+            if(cs5>=0&&cy5>-999) g.fillRect(cs5,cy5,cx5-cs5,cShT);
+            cs5=(cyy>-999)?cx5:-1; cy5=cyy;
+          }
+        }
+        if(cs5>=0&&cy5>-999) g.fillRect(cs5,cy5,SW-cs5,cShT);
+      }
+      g.globalAlpha=1;
+    }
     // SNOW CAPS — per column (dithered melt edge); one fillStyle set for the whole ridge.
     // On rock biomes this same band becomes CAPROCK: the paler hard stratum on top of a mesa or a
     // sea cliff. Snow wanders and melts unevenly; a bed of rock does neither, so the snowline wobble
     // and the dither are snow-only — left on, they saw-tooth every flat top.
-    var capOn = B.snow || B.flat>0.4;
+    // ⚠ `nobed` also declines the CAPROCK. It is "the paler hard stratum on top" — a sedimentary idea,
+    // and on THE EMPYREAN it drew a hard cream lid across every level top, which is the bedding fault
+    // again wearing one thick line instead of nineteen thin ones. The sky-lit shoulder in PASS C above
+    // is this land's version of a bright crest, and it falls off instead of ending.
+    var capOn = (B.snow || B.flat>0.4) && !B.nobed;
     if(capOn){
     g.fillStyle=sc;
     for(var sx2=0;sx2<SW;sx2++){ var rh2=hs[sx2]; if(rh2<2) continue;
