@@ -3292,7 +3292,14 @@ var BIOMES=[
   // climb into the lower frame and occlude, and the haboob fills the entire sky when the wind gets up.
   // `dune:1` routes drawMountains to drawDunes: a dune field is not a ridge line and must not be
   // built by the peak roll, the same way the forest and the gorge are not.
-  { k:"dunes",  name:"THE DUNE SEA", amp:0.42, base:0.52, flat:0.86, steep:0.10, snow:false, water:null, dune:1,
+  // ⚠⚠ `water:"none"` — THE SECOND LAND CAUGHT BY THE SAME TRAP, ON THE SAME DAY. `water:null` reads as
+  // "this land has no water" and actually means "roll for it", falling through to `geo()<0.6` — so a SAND
+  // SEA was getting a working ocean in 60% of its lives, with a marina, a jetty, container cranes and a
+  // lighthouse, and the city was called PORT JADE GATE. THE EMPYREAN had the identical fault and the
+  // explicit answer was added there hours earlier; this is the first reuse of it.
+  // 🔑 A DEFAULT THAT LOOKS LIKE A DECISION IS WORSE THAN NO DEFAULT. Nobody wrote "put a harbour in the
+  // desert" — they wrote `null`, and the table looked settled. Worth grepping the remaining lands.
+  { k:"dunes",  name:"THE DUNE SEA", amp:0.42, base:0.52, flat:0.86, steep:0.10, snow:false, water:"none", dune:1,
     far:[226,196,148],  near:[206,166,110], cap:[246,228,190], ground:[224,192,140],
     // mud-brick, whitewash and sun-bleached timber: what you build from where there is no stone
     walls:[[228,198,158],[206,170,122],[242,232,214],[186,148,104],[236,220,192],[214,182,138],[172,138,98],[246,238,222]],
@@ -20249,7 +20256,14 @@ function drawDuneLife(g,L,now,nd,fx){
   if(!curBiome.dune||cityPhase==="apoc") return;
   var day=L>0.5, K=Math.max(1,KSP), B=curBiome;
   var wind=(weather&&weather.wind)||0;
-  var hb=Math.max(0,Math.min(1,(wind-16)/16));                 // nothing below ~16mph, full wall by ~32
+  // ⚠⚠ 16/32mph -> 9/20mph. THE LAND'S HEADLINE WEATHER WAS SET ABOVE WHAT THE WORLD DELIVERS. The biome
+  // comment calls the haboob the thing that "fills the entire sky", and it needed >16mph to start and
+  // 32mph to reach full wall — sustained winds Norwich CT very rarely sees, so Nick would essentially
+  // never have seen it. A feature gated on real weather can be exactly as invisible as one gated on a
+  // bug, and nothing anywhere flags it: the code is correct, the render is empty, and no probe fires.
+  // 🔑 The standing rule is that the wallpaper never INVENTS weather the world does not have. Lowering a
+  // threshold does not break that rule — it stops setting the bar above what the world actually does.
+  var hb=Math.max(0,Math.min(1,(wind-9)/11));                  // starts ~9mph, full wall by ~20
   if(hb>0.02){
     var HD=900000, hp=((now%HD)/HD);                           // one pass every 15 minutes of real time
     if(hp<0.34){
@@ -23896,6 +23910,96 @@ function drawBiomeLandmark(g,L,now,nd){
       if(pouring){ g.globalCompositeOperation="lighter";                            // the light it throws
         g.fillStyle="rgba(255,140,50,0.16)"; g.fillRect(X-Math.round(14*K),gy-fh-Math.round(6*K),fw+Math.round(28*K),fh+Math.round(8*K));
         g.globalCompositeOperation="source-over"; }
+    });
+  } else if(B.k==="dunes"){
+    // ============ THE CARAVANSERAI, STANDING AT ITS OASIS ============
+    // Nick locked two answers that turn out to be one object: THE DUNE SEA had NO landmark at all — the
+    // only reviewed land with nothing that says where you are — and it needed an oasis, "the thing a
+    // desert city is actually FOR". A caravanserai is BUILT AT an oasis; that is the whole reason it
+    // stands where it stands, so drawing them apart would have been drawing the same idea twice.
+    // ⚠ It also fixes something the frames made silly: this land's palms currently stand about in open
+    // sand for no reason. Water is why palms are anywhere.
+    // ⚠ IN THE OUTSKIRTS, like every landmark here — `at()` already places it there, because
+    // `drawBiomeLandmark` paints ~200 lines BEFORE the buildings and anything dropped in the middle sits
+    // behind downtown. That deferred cross-cutting fault decides the composition again.
+    at(function(X){
+      var mud=day?"#c8a370":"#3a2f24", mud2=day?"#a8845a":"#2c2319", mudLt=day?"#e2c79c":"#4a3d2e";
+      var wallH=Math.round(9*K), wallW=Math.round(34*K), kk=Math.max(1,Math.round(K*0.5));
+      // ---- THE POOL first: everything else is arranged around it ----
+      // ⚠ Sized against the 7px person, not the frame: the parapet is ~6 people tall and the pool a few
+      // strides across. It is a walled yard with a well in it, not a lake.
+      var pw2=Math.round(13*K), px3=X+wallW+Math.round(5*K);
+      var watC=day?"#2f7f86":"#10333c", watLt=day?"#5fb3b0":"#1b4a52";
+      g.fillStyle=watC; g.fillRect(px3,gy-Math.round(2.0*K),pw2,Math.round(2.0*K));
+      g.fillStyle=watLt; g.fillRect(px3,gy-Math.round(2.0*K),pw2,kk);
+      g.fillStyle=day?"#8f7b56":"#241d15";
+      g.fillRect(px3-kk,gy-Math.round(2.0*K),kk,Math.round(2.0*K));
+      g.fillRect(px3+pw2,gy-Math.round(2.0*K),kk,Math.round(2.0*K));
+      g.fillStyle=day?"rgba(96,128,58,0.55)":"rgba(20,32,18,0.6)";       // irrigated ground
+      g.fillRect(px3-Math.round(5*K),gy-kk,pw2+Math.round(10*K),kk*2);
+      // ---- THE PALMS, clustered at the water ----
+      for(var pq=0;pq<7;pq++){
+        var ph3=mixLi(pq>>>0,33427)>>>0;
+        var pox=px3+Math.round((((ph3%100)/100)-0.5)*pw2*2.6);
+        var pth=Math.round((7+((ph3>>>9)%6))*K);
+        var lean=((ph3>>>15)&1)?1:-1;
+        g.fillStyle=day?"#7a5c38":"#221a12";
+        for(var ty2=0;ty2<pth;ty2++){                                    // a palm trunk CURVES
+          var tf=ty2/pth;
+          g.fillRect(pox+Math.round(lean*tf*tf*2.2*K),gy-ty2-1,Math.max(1,Math.round(K*0.6)),1);
+        }
+        var cx3=pox+Math.round(lean*2.2*K), cy3=gy-pth;
+        g.fillStyle=day?"#4e7a35":"#16240f";
+        for(var fr=0;fr<5;fr++){
+          var fa=(fr/4-0.5)*2.4, fl=Math.round((3.4+((ph3>>>(fr+3))%3))*K);
+          for(var fq2=0;fq2<fl;fq2++){
+            var ff2=fq2/fl;
+            g.fillRect(cx3+Math.round(Math.sin(fa)*fq2), cy3+Math.round(Math.cos(fa)*fq2*0.35+ff2*ff2*2.2*K),
+                       Math.max(1,Math.round(K*0.5)),Math.max(1,Math.round(K*0.5)));
+          }
+        }
+      }
+      // ---- THE CARAVANSERAI: a blank outer wall, corner towers, and ONE tall gate ----
+      // ⚠ THE BLANK WALL IS THE POINT. A caravanserai is a fortified box in open desert: no windows at
+      // ground level, one way in. Putting openings along it would draw a terrace of houses.
+      g.fillStyle=mud; g.fillRect(X,gy-wallH,wallW,wallH);
+      g.fillStyle=mud2; g.fillRect(X,gy-Math.round(1.2*K),wallW,Math.round(1.2*K));
+      g.fillStyle=mudLt; g.fillRect(X,gy-wallH,wallW,kk);
+      g.fillStyle=mud;                                                   // crenellations, blunt and gappy
+      for(var cq2=0;cq2<Math.floor(wallW/Math.round(2.6*K));cq2++){
+        var cxx=X+cq2*Math.round(2.6*K);
+        if(((mixLi(cq2>>>0,7717)>>>0)%10)<3) continue;
+        g.fillRect(cxx,gy-wallH-Math.round(1.4*K),Math.round(1.6*K),Math.round(1.4*K));
+      }
+      for(var tw=0;tw<2;tw++){                                           // corner towers
+        var twx=tw?X+wallW-Math.round(4*K):X;
+        g.fillStyle=mud; g.fillRect(twx,gy-wallH-Math.round(3*K),Math.round(4*K),wallH+Math.round(3*K));
+        g.fillStyle=mudLt; g.fillRect(twx,gy-wallH-Math.round(3*K),Math.round(4*K),kk);
+        g.fillStyle=mud2; g.fillRect(twx+Math.round(4*K)-kk,gy-wallH-Math.round(3*K),kk,wallH+Math.round(3*K));
+      }
+      // THE GATE — a tall portal standing well proud of the wall. On a real caravanserai the pishtaq is
+      // the only tall thing, and it is how you find the place from a distance across flat sand.
+      var gW=Math.round(9*K), gH=Math.round(16*K), gX=X+Math.round(wallW*0.42);
+      g.fillStyle=mud; g.fillRect(gX,gy-gH,gW,gH);
+      g.fillStyle=mudLt; g.fillRect(gX,gy-gH,gW,kk);
+      g.fillStyle=mud2; g.fillRect(gX+gW-kk,gy-gH,kk,gH);
+      // the arched opening, drawn as stone AROUND A VOID — the lesson the Empyrean's gate cost two goes
+      var aW=Math.round(5.2*K), aX=gX+((gW-aW)>>1), aH=Math.round(aW*0.5), aTop=gy-Math.round(9*K);
+      g.fillStyle=day?"#4a3524":"#0e0a07";
+      g.fillRect(aX,aTop,aW,gy-aTop);
+      g.fillStyle=mud;
+      for(var ay2=0;ay2<aH;ay2++){
+        var afy=(aH-ay2)/aH;
+        var hw2=Math.round((aW*0.5)*Math.sqrt(Math.max(0,1-afy*afy)));
+        var lw3=Math.max(0,(aW>>1)-hw2);
+        if(lw3>0){ g.fillRect(aX,aTop-aH+ay2,lw3,1); g.fillRect(aX+aW-lw3,aTop-aH+ay2,lw3,1); }
+      }
+      if(!day){                                                          // one lamp burning in the passage
+        g.globalCompositeOperation="lighter";
+        g.fillStyle="rgba(255,196,96,0.5)";
+        g.fillRect(aX,gy-Math.round(4*K),aW,Math.round(4*K));
+        g.globalCompositeOperation="source-over";
+      }
     });
   } else if(B.k==="heaven"){
     // THE GREAT GATE — a free-standing arch that goes nowhere and predates everything.
