@@ -28751,6 +28751,127 @@ function drawMountains(g,L,now,nd){
       }
       g.globalAlpha=1;
     }
+    // ---- THE FJORD WALL: A DROWNED GLACIAL TROUGH (locked answers #1 and #2) ----------------------
+    // Built together because they are one idea: the wall's structure is what the cascades come OUT of.
+    // Below the snow this land was a single flat grey from skyline to city — the same featureless-curtain
+    // fault the dunes had, and for the same reason: fjord is not `B.alpine`, so the face treatment written
+    // for alpine (deliberately kept to one land) never reached it.
+    // A fjord wall is not a mountain face. It is a valley a glacier ground out and the sea then flooded,
+    // and it has one feature nothing else in the set has: THE ICE LIMIT. Below the line the old glacier
+    // reached, the rock is scoured smooth; above it, out of the ice, it is frost-shattered. That boundary
+    // is what makes a fjord read as glacial rather than merely steep — and it is where the HANGING VALLEYS
+    // sit, side-valleys whose floors the main glacier cut away, left in mid-air with their streams
+    // falling out of them.
+    if(B.cascades && pi<=1){
+      // ⚠⚠ `K` DOES NOT EXIST IN THIS FUNCTION. `drawMountains` uses `KSP` directly — every other draw
+      // function in the file opens with `var K=Math.max(1,KSP)` and this one does not, so writing `K` here
+      // is a ReferenceError. That is what killed my first attempt at this face: the throw aborted the rest
+      // of the `pi` iteration, so THE SNOW CAP NEVER DREW and the whole wall came out flat and pale. The
+      // symptom looked like a drawing mistake and was a scope error.
+      // 🔑 THIRD SCOPE ERROR THIS SESSION (`cSurf` in the karst water, `nk` in the dune night, `K` here)
+      // and all three had the same signature: a whole feature silently absent, `node --check` clean.
+      // A syntax check does not check scope; only executing the path does.
+      var K=Math.max(1,KSP);
+      var fmx2=Math.max(1,mtsCache.mx[pi]||1);
+      var iceY=Math.round(gy-fmx2*0.55);
+      g.fillStyle=css(mixc((pi===0?farC:nearC),[150,178,196],day?0.16:0.08));
+      var ps=-1, px2;
+      for(px2=0;px2<=SW;px2++){
+        var onp=(px2<SW)&&hs[px2]>=3&&((gy-hs[px2])<iceY);
+        if(onp){ if(ps<0) ps=px2; }
+        else if(ps>=0){ g.fillRect(ps,iceY,px2-ps,gy-iceY); ps=-1; }
+      }
+      if(ps>=0) g.fillRect(ps,iceY,SW-ps,gy-iceY);
+      // 2. THE TRIMLINE — the old ice surface, brighter just above it where the rock is rougher.
+      //    ⚠ Never a ruled line: it wanders with the terrain, world-anchored, and breaks up.
+      g.fillStyle=rgba(mixc((pi===0?farC:nearC),[226,238,246],day?0.34:0.14),0.5);
+      for(var tlx=0;tlx<SW;tlx++){
+        if(hs[tlx]<3) continue;
+        var tlw=tlx+WOFF;
+        var tli=Math.floor(tlw/23), tlf=(tlw/23)-tli, tlss=tlf*tlf*(3-2*tlf);
+        var tlv=(mixLi(tli>>>0,42227)%1000)/1000*(1-tlss)+(mixLi((tli+1)>>>0,42227)%1000)/1000*tlss;
+        var tly=iceY+Math.round((tlv-0.5)*7*K);
+        if(tly<=gy-hs[tlx]||tly>=gy) continue;
+        g.fillRect(tlx,tly,1,Math.max(1,Math.round(K*0.8)));
+      }
+      // 3. FROST-SHATTERED ROCK ABOVE THE LIMIT — short broken marks, hashed, never parallel.
+      //    Below the trimline the ice scoured the rock smooth; above it, frost has been breaking it up
+      //    for ten thousand years. That contrast IS the glacial reading.
+      g.fillStyle=rgba(mixc((pi===0?farC:nearC),[26,32,40],0.55),day?0.30:0.20);
+      var nBr=Math.round(SW*0.30);
+      for(var br2=0;br2<nBr;br2++){
+        var bh3=mixLi(br2>>>0,15913)>>>0;
+        var bx2=(bh3%SW);
+        if(hs[bx2]<6) continue;
+        var bTop=gy-hs[bx2];
+        var room=Math.max(1,Math.round((iceY-bTop)*0.9));
+        var by2=bTop+((bh3>>>9)%room);
+        if(by2>=iceY) continue;
+        g.fillRect(bx2,by2,Math.max(1,Math.round(K*0.5)),Math.max(1,Math.round((1+((bh3>>>17)%3))*K*0.5)));
+      }
+      // 4. HANGING VALLEYS AND THEIR FALLS.
+      //    🔑 "A SUPPORT IS DEFINED BY WHAT IT REACHES" — the Ashlands' rule. A waterfall that starts on a
+      //    blank face reads as a scratch, which is exactly what this land had: `cascades:1` was declared
+      //    and what drew was a few thin grey squiggles. Every fall here comes out of a visible notch.
+      var wetK=Math.max(0,Math.min(1,wetness));
+      var tmpF=(weather&&weather.temp!=null)?weather.temp:50;
+      var coldK=Math.max(0,Math.min(1,(34-tmpF)/16));          // part-frozen in a real cold snap
+      var flowK=0.42+0.58*wetK;                                 // thin when dry, thundering after real rain
+      var wdrift=((weather&&weather.wind)||0)*0.05;
+      var nHV=3+((WORLD_SEED>>>11)%3);
+      for(var hv2=0;hv2<nHV;hv2++){
+        var vh2=mixLi((hv2*7919+((WORLD_SEED*13)|0))>>>0,27253)>>>0;
+        var vwx=(vh2%Math.max(1,WW));
+        for(var o4=-1;o4<=1;o4++){
+          var vx=Math.round(vwx-WOFF+o4*WW);
+          if(vx<-40||vx>SW+40) continue;
+          var vc=Math.max(0,Math.min(SW-1,vx));
+          if(hs[vc]<16*K) continue;
+          var vTop=gy-hs[vc];
+          var vW=Math.round((5+((vh2>>>7)%7))*K);
+          var vFloor=vTop+Math.round(hs[vc]*(0.14+((vh2>>>13)%100)/100*0.18));
+          // the notch cut into the skyline, with a level floor — sky where the rock has been removed
+          g.fillStyle=css(skc);
+          for(var nxq=-vW;nxq<=vW;nxq++){
+            var axn=vx+nxq; if(axn<0||axn>=SW) continue;
+            var pf2=1-(nxq/vW)*(nxq/vW);
+            var cutTo=vTop+Math.round(pf2*(vFloor-vTop));
+            var rockTop=gy-hs[axn];
+            if(cutTo<=rockTop) continue;
+            g.fillRect(axn,rockTop,1,Math.max(0,cutTo-rockTop));
+          }
+          g.fillStyle=css(mixc((pi===0?farC:nearC),[214,230,240],day?0.40:0.16));
+          g.fillRect(vx-Math.round(vW*0.5),vFloor,Math.round(vW),Math.max(1,Math.round(K*0.7)));
+          // ---- THE FALL: white, BREAKING as it goes, drifting on the real wind ----
+          var fTop=vFloor+Math.round(K*0.7);
+          var fBot=Math.min(gy-1,fTop+Math.round((gy-fTop)*0.94));
+          var fw2=Math.max(1,Math.round((1.4+1.6*flowK)*K*0.6));
+          for(var fy2=fTop;fy2<fBot;fy2+=Math.max(1,Math.round(K*0.5))){
+            var ff4=(fy2-fTop)/Math.max(1,fBot-fTop);
+            // ⚠ a solid line is a PIPE, not a waterfall — it has to break into white as it falls
+            if((((fy2*7+hv2*13)|0)%9)<2 && ff4>0.22) continue;
+            var fxo=Math.round(Math.sin(ff4*3.1+hv2)*1.1*K+ff4*ff4*wdrift*K);
+            var fa2=(0.32+0.55*flowK)*(1-0.28*ff4)*(1-0.55*coldK);
+            if(fa2<=0.03) continue;
+            g.fillStyle=rgba([242,250,255],Math.min(0.95,fa2));
+            g.fillRect(vx+fxo-(fw2>>1),fy2,fw2+Math.round(ff4*1.4*K),Math.max(1,Math.round(K*0.5)));
+          }
+          // THE PLUME where it lands, and a rainbow in the spray under a low sun
+          var pl=Math.round((4+6*flowK)*K);
+          g.fillStyle=rgba([238,248,255],0.22*(1-0.6*coldK));
+          g.fillRect(vx-Math.round(pl*0.5),fBot-Math.round(pl*0.4),pl,Math.round(pl*0.5));
+          if((goldenK||0)>0.25 && flowK>0.5){
+            g.globalCompositeOperation="lighter";
+            var bows=[[255,150,120],[255,222,150],[150,230,190]];
+            for(var bw2=0;bw2<3;bw2++){
+              g.fillStyle="rgba("+bows[bw2][0]+","+bows[bw2][1]+","+bows[bw2][2]+","+(0.10*(goldenK||0)).toFixed(3)+")";
+              g.fillRect(vx-Math.round(pl*0.5),fBot-Math.round(pl*0.4)+bw2*Math.max(1,Math.round(K*0.5)),pl,Math.max(1,Math.round(K*0.5)));
+            }
+            g.globalCompositeOperation="source-over";
+          }
+        }
+      }
+    }
     // SNOW CAPS — per column (dithered melt edge); one fillStyle set for the whole ridge.
     // On rock biomes this same band becomes CAPROCK: the paler hard stratum on top of a mesa or a
     // sea cliff. Snow wanders and melts unevenly; a bed of rock does neither, so the snowline wobble
