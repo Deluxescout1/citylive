@@ -4146,9 +4146,25 @@ function makeLayer(seed,y0,baseHMin,baseHMax,layerK){
       for(var li=0,nl=1+((r()*2)|0);li<nl;li++) pk.lamps.push({x:3+((r()*(pw-6))|0)});
       blds.push(pk); x+=pw+Math.round((2+((r()*3)|0))*KSP); continue;
     }
-    var bw=Math.round((d.wRange[0]+((r()*(d.wRange[1]-d.wRange[0]))|0))*KSP);
+    // ⚠⚠ THE SPRAWL'S THREE DISTRICTS GET GENUINELY DIFFERENT SKYLINES — locked answer 16, and Nick chose
+    // it over the cheaper "same shapes, different surfaces" that the volcano's variants settled for. This
+    // is the one change in the whole overhaul that reaches into code all twenty lands run through, so:
+    //   · it is gated on `curBiome.k==="sprawl"` and can return nothing else,
+    //   · it only ever SCALES the district's own authored width, height and gap — it does not replace them,
+    //     so each district keeps its character and only its proportions move,
+    //   · and it was proved inert on another land by rendering ALPINE before and after and comparing the
+    //     PNGs byte for byte (identical). A gate you have not tested is a gate you are hoping for.
+    // THE COLD STACK: fewer, taller, wider-spaced — corporate towers with plazas between them.
+    // THE RED DISTRICT: many more, shorter, packed tight — alleys and low frontage.
+    // THE SPRAWL: unchanged; it is already the dense chaotic middle these two are defined against.
+    var skyW=1, skyH=1, skyGap=1;
+    if(curBiome.k==="sprawl"){
+      if(curBiome.name==="THE COLD STACK"){ skyW=1.18; skyH=1.46; skyGap=2.10; }
+      else if(curBiome.name==="THE RED DISTRICT"){ skyW=0.72; skyH=0.62; skyGap=0.46; }
+    }
+    var bw=Math.round((d.wRange[0]+((r()*(d.wRange[1]-d.wRange[0]))|0))*KSP*skyW);
     // buildings stand ≥ a few storeys tall so a person (7px) reads as ~one floor, not half a house
-    var bh=Math.max(Math.round(15*KSP), Math.round((baseHMin+((r()*(baseHMax-baseHMin))|0))*d.hMul*layerK*KSP));
+    var bh=Math.max(Math.round(15*KSP), Math.round((baseHMin+((r()*(baseHMax-baseHMin))|0))*d.hMul*layerK*KSP*skyH));
     // THE HIDDEN VILLAGE IS LOW-RISE, AND `b.h` HAS TO SAY SO — not just the draw call.
     // It is tempting to leave the height alone and simply paint something short, because the village
     // bypasses the designed-building path anyway. That is a trap: `b.h` is read by drawDisasterBuilding,
@@ -4318,7 +4334,7 @@ function makeLayer(seed,y0,baseHMin,baseHMax,layerK){
     // C1: the size of the construction crew decides how fast this one goes up
     b.crew=1+(((bseed*40503+11)>>>0)%3);                       // 1-3 builders on site
     b.band=GROWBAND*(1.55-0.35*b.crew);                        // 3 builders finish in ~40% the time of 1
-    blds.push(b); x+=bw+Math.max(curVillage?1:2,Math.round((d.gap[0]+((r()*d.gap[1])|0))*KSP*vGapK));
+    blds.push(b); x+=bw+Math.max(curVillage?1:2,Math.round((d.gap[0]+((r()*d.gap[1])|0))*KSP*vGapK*skyGap));
   }
   return {y0:y0, blds:blds};
 }
