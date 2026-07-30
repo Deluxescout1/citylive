@@ -3228,7 +3228,12 @@ var BIOMES=[
     far:[104,44,46],   near:[64,24,30],   cap:[214,92,50],  ground:[48,28,30],
     walls:[[62,44,46],[44,30,34],[86,54,50],[38,26,30],[104,62,52],[52,36,40],[74,46,44],[40,28,32]],
     fauna:{ keep:{deer:0,rabbit:0,fox:0,goat:0}, big:[], small:[], air:["vulture"] },
-    flora:{ kinds:["snag","snag","scrub","snag"], bloom:["#d8562e","#a8321e","#e08a3a"] },
+    // ⚠ ALL SNAGS, NO SCRUB. `scrub` was one kind in four and `drawBiomePlant` draws it GREEN, so a quarter
+    // of the plants on burning rock were living shrubs — the last source of vegetation left after the
+    // pitches, parks, roofs, ivy and weeds had all been dealt with, and the only one that was in the biome's
+    // own DATA rather than in a renderer. Nick's ruling is "dead snags, ash, cinder, scorched ground", and
+    // `log` gives the ash something felled lying in it.
+    flora:{ kinds:["snag","snag","log","snag","snag"], bloom:["#d8562e","#a8321e","#e08a3a"] },
     sky:{ top:[28,8,14], bot:[178,46,24], k:0.82, haze:[210,72,30] } },
   // ⚠ NEAR TERRACES DARKENED, GENTLY. Judged in the sweep as pale-on-pale: cream terraces against a
   // pale sky, so the whole land read flat and the near shelves did not sit in front of anything.
@@ -6913,13 +6918,25 @@ function drawCrown(g,crown,bx,top,bw,col,accent,L,now,night,roofMat){
 // before anyone hoisted it. `lit` 0..1 is the daylight term each caller already had.
 function turfC(lit,vivid){
   if(curBiome.polar) return mixc([170,186,202],[238,244,248],lit);      // wind-packed snow over the pitch
+  // ⚠ AND NOTHING GREEN SURVIVES ON BURNING ROCK. Nick's ruling for THE ASHLANDS: "nothing green survives
+  // here — dead snags, ash, cinder, scorched ground." A watered ballpark on a land whose ground cracks glow
+  // was the same contradictory tell as the arctic's lawns on sea ice, and it is the same one-line fix
+  // because that land already forced this helper to exist.
+  // 🔑 Written once for the arctic, reused for hell without touching either caller. That is what the helper
+  // was for — the note on it predicted this land would keep turning up things that assume vegetation.
+  if(curBiome.molten) return mixc([54,40,36],[96,74,62],lit);           // scorched cinder where turf would be
   if(vivid) return [64,176,78];
   return mixc([28,52,34],[84,152,88],lit);
 }
 function drawPark(g,p,bx,L,now,dayLit,night){
   var grassTop=HORIZON-5;
   // grass plot + darker front edge
-  g.fillStyle=css(mixc([20,46,28],[74,152,78],dayLit)); g.fillRect(bx,grassTop,p.w,5);
+  // ⚠ THE PARK'S MAIN PLOT, which I missed the first time round: on the arctic pass I converted this
+  // function's 1px front edge and its hedge to `turfC` and left the 5px body of grass hard-coded green.
+  // A one-pixel snow line in front of four pixels of lawn is worse than not having bothered. Same class of
+  // miss as the baseball park's field ellipse twelve lines below the rect I had just fixed — when a helper
+  // replaces a colour, grep the whole function for the OTHER places that colour is used.
+  g.fillStyle=css(turfC(dayLit,false)); g.fillRect(bx,grassTop,p.w,5);
   g.fillStyle=css(turfC(dayLit,false)); g.fillRect(bx,HORIZON-1,p.w,1);
   // winding path
   if(p.path){ g.fillStyle=css(mixc([40,36,30],[172,150,120],dayLit));
@@ -7491,7 +7508,9 @@ function drawLayer(g,layer,L,now,fx,hol,haze){
       if(rs.blink && L<0.6 && (Math.floor(now/700))%2===0){ g.fillStyle="#ff5050"; g.fillRect(rX+(rs.w>>1),rY-1,1,1); }
     }
     // rooftop garden (on the top segment)
-    if(b.greenRoof){ g.fillStyle=css(mixc([26,54,32],[64,138,68],dayLit)); g.fillRect(tX+1,top,tW-2,1);
+    // ⚠ A ROOFTOP GARDEN NEEDS SOMETHING TO GARDEN. On the pack ice and on burning rock alike, the planting
+    // goes the way the lawns did — `turfC` already knows what this land grows, which is nothing.
+    if(b.greenRoof){ g.fillStyle=css(turfC(dayLit,false)); g.fillRect(tX+1,top,tW-2,1);
       for(var gx=tX+1;gx<tX+tW-1;gx+=3) g.fillRect(gx,top-1,1,1); }
     // rooftop bar/pool life
     drawRooftop(g,b,tX,top,tW,L,now,night);
@@ -8394,6 +8413,17 @@ function drawSunShade(g,x,y){ x=x|0; y=y|0;
 // climbing old brick, and weeds sprouting at the curb — nature softening the grid in every era.
 function drawGreenery(g,L,now){
   if(cityG<0.34||!near||!near.blds) return; var day=L>0.5;
+  // ⚠⚠ NOTHING CLIMBS BURNING ROCK. Nick's ruling for THE ASHLANDS is "nothing green survives here", and
+  // this function was the last place still arguing otherwise: ivy up the brick, weed tufts at every kerb and
+  // abandonment vines, all hard-coded `#3a6a3a`-ish. The pitches and parks went through `turfC`; these never
+  // did because they are not turf.
+  // 🔑 The greenery that IS legitimate here already works: street trees come through `drawTree`, which reads
+  // `flora.kinds` — and hell's are `snag`, i.e. dead. So the fix is to stop drawing the things that assume a
+  // climate, not to recolour them: ivy and weeds are SUPPRESSED, and the abandonment vines that remain are
+  // charred rather than leafy, because a derelict building on burning rock still has dead growth on it.
+  var burnt=!!curBiome.molten, frozen=!!curBiome.polar;
+  var noClimb=burnt||frozen;                                   // neither lava nor pack ice grows ivy
+  var deadVine=day?"#4a3a2c":"#1c1612";
   var treeCount=QUAL===0?16:36;
   for(var t=0;t<treeCount;t++){ var h=((t*2654435761+321)>>>0), twx=h%WW, dn=districtAt(twx).name;
     var dens=dn==="residential"?0.9:dn==="oldtown"?0.62:dn==="downtown"?0.3:dn==="neon"?0.34:0.22;
@@ -8417,13 +8447,13 @@ function drawGreenery(g,L,now){
   var bStride=QUAL===0?2:1;
   for(var i=0;i<near.blds.length;i+=bStride){ var b=near.blds[i]; if(b.type==="park") continue;
     var bx=(b.x-WOFF); if(bx>SW+4||bx+b.w<-4) continue; var h2=((b.seed*40503)>>>0);
-    if(b.brick && (h2%3)===0){ var top=near.y0-b.h, side=(h2&1)?0:b.w-1;                           // ivy up a brick edge
+    if(b.brick && (h2%3)===0 && !noClimb){ var top=near.y0-b.h, side=(h2&1)?0:b.w-1;                // ivy up a brick edge
       g.fillStyle=day?"#3a6a3a":"#1c3320";
       for(var vy=HORIZON-1; vy>top+2; vy--){ if(((vy*7+h2)%3)!==0) continue; g.fillRect((bx+side+((vy&1)?0:(h2&1?1:-1)))|0,vy,1,1); } }
-    if((h2%2)===0){ g.fillStyle=day?"#3f7f3a":"#1e3a1e"; g.fillRect((bx-1)|0,HORIZON-1,1,1); g.fillRect((bx+b.w)|0,HORIZON-1,1,1); }   // weed tufts at the base
+    if((h2%2)===0 && !noClimb){ g.fillStyle=day?"#3f7f3a":"#1e3a1e"; g.fillRect((bx-1)|0,HORIZON-1,1,1); g.fillRect((bx+b.w)|0,HORIZON-1,1,1); }   // weed tufts at the base
     var abandon=(curSlump>0.38&&(i%4)===0)?Math.min(1,(curSlump-0.38)/0.55):0;
     if(abandon>0){ var ah=Math.max(2,Math.round(b.h*abandon*0.72)), vineX=bx+((h2&1)?1:b.w-2);
-      g.fillStyle=day?"#39743a":"#17361d";
+      g.fillStyle=noClimb?deadVine:(day?"#39743a":"#17361d");
       for(var av=0;av<ah;av+=2){ g.fillRect((vineX+(((av>>1)&1)?1:0))|0,HORIZON-2-av,1,3);
         if(av%6===0) g.fillRect((vineX+(((av>>1)&1)?-1:1))|0,HORIZON-2-av,2,1); }
       if(abandon>0.62&&b.w>8) drawTree(g,(bx+(b.w>>1))|0,HORIZON-b.h+1,day,now,b.seed,0.28+0.28*abandon,true);
@@ -25352,14 +25382,29 @@ function drawMountains(g,L,now,nd){
     // run down the faces where nothing occludes them, and the far crests are rimmed by whatever is
     // burning behind them.
     if(B.molten){
-      var mk=0.62+0.38*Math.sin(now*0.0009+pi*2.1), kk=Math.max(1,Math.round(KSP));
+      // ⚠⚠ THE LAVA WAS DULL BROWN AT MIDNIGHT, on the one land whose entire identity is molten rock.
+      // The colours were never the problem — they are already (255, 88..212, 18..70) with a white-hot core.
+      // THE BLENDING WAS. Everything here drew `source-over` at alpha 0.3..0.9, so an orange at half alpha
+      // over near-black rock MIXES to a muddy mid-brown. Paint cannot glow; light adds. Molten rock is an
+      // EMITTER and has to be composited as one.
+      // 🔑 Same class as the arctic's sky: the value was right and the way it was applied was wrong. Turning
+      // the alpha up would only have made a paler brown.
+      // ⚠ AND IT NEEDS A NIGHT TERM. `mk` is a slow pulse, not a light level, so the veins were exactly as
+      // bright at 1pm as at 1am. Lava does not change temperature at sunset — but what it does to a FRAME
+      // does, because at night it is the only light source there is. Locked answer 3: "genuinely luminous
+      // at night."
+      var mNight=1-Math.max(0,Math.min(1,(L-0.18)/0.5));       // 0 in full day … 1 after dark
+      var mk=(0.62+0.38*Math.sin(now*0.0009+pi*2.1))*(0.72+0.58*mNight);
+      var kk=Math.max(1,Math.round(KSP));
       if(pi===0){                                             // the fire BEHIND the far ridge
-        g.fillStyle="rgba(255,150,60,0.55)";
+        g.globalCompositeOperation="lighter";                  // …and it is light, not paint
+        g.fillStyle="rgba(255,150,60,"+(0.34+0.42*mNight).toFixed(3)+")";
         var qs=-1, qtop=-999, qx, qh, qt;
         for(qx=0;qx<=SW;qx++){
           qh=(qx<SW)?hs[qx]:-1; qt=(qh>=4)?Math.max(2,(gy-qh)|0):-999;
           if(qt!==qtop){ if(qs>=0&&qtop>-999) g.fillRect(qs,qtop,qx-qs,kk*2); qs=(qt>-999)?qx:-1; qtop=qt; }
         }
+        g.globalCompositeOperation="source-over";
       }
       for(var v=0;v<15;v++){
         var vh4=((v*2654435761+pi*7919+(((WOFF/97)|0)*40503))>>>0);
@@ -25367,16 +25412,22 @@ function drawMountains(g,L,now,nd){
         if(hs[vx]<18*KSP) continue;
         var vy=Math.max(2,(gy-hs[vx])|0)+Math.round(hs[vx]*0.16), vdx=0;
         var vw=Math.max(2,Math.round(2.4*KSP)), vsp=Math.max(1,Math.round(KSP));
+        g.globalCompositeOperation="lighter";                 // it EMITS
         for(var vq=vy;vq<gy;vq+=vsp){
           vdx+=(((vh4>>>(vq&15))&3)-1.5)*0.5;                 // the vein wanders as it runs
           var vxx=Math.round(vx+vdx); if(vxx<0||vxx>=SW) break;
           if((gy-hs[vxx])>vq) continue;                       // …but never leaves the rock
           var f4=(vq-vy)/Math.max(1,gy-vy);                   // and runs hotter the further it falls
+          // the halo first, wider and faint — this is what makes it light the rock around it rather than
+          // sit on top of it like a drawn line
+          g.fillStyle="rgba(190,52,10,"+((0.10+0.16*f4)*mk).toFixed(3)+")";
+          g.fillRect(vxx-vw,vq,vw*3,vsp);
           g.fillStyle="rgba(255,"+((88+124*f4)|0)+","+((18+52*f4)|0)+","+((0.44+0.50*f4)*mk).toFixed(3)+")";
           g.fillRect(vxx,vq,vw,vsp);
           g.fillStyle="rgba(255,236,176,"+((0.30+0.42*f4)*mk).toFixed(3)+")";      // the white-hot core
           g.fillRect(vxx+((vw/3)|0),vq,Math.max(1,Math.round(KSP)),vsp);
         }
+        g.globalCompositeOperation="source-over";
       }
     }
     // SNOW LIES WHERE THE LAND IS LEVEL. A February render of every biome came back in its summer
