@@ -19984,11 +19984,31 @@ function drawKarst(g,L,now,nd){
       while(wx<WW+200){
         var h1=mixLi((wx*7919+r*104729)>>>0, 5171)%1000/1000;
         var h2=mixLi((wx*40503+r*7717)>>>0, 9973)%1000/1000;
+        // ⚠⚠⚠ EVERY TOWER WAS THE SAME SHAPE. The old entry carried only w, h and lean, and the drawing
+        // used ONE crown curve for all of them — so twenty stacks came out as one silhouette at twenty
+        // sizes, and the frame read as a row of BOWLING PINS. This is the third land running whose
+        // headline fault is one shape repeated (the Ashlands' comb, the dunes' sines, now this), and the
+        // answer is the same each time: give the thing a KIND, hashed and aperiodic.
+        // The four kinds are real karst forms, not decoration:
+        //   0 BLOCK  — sheer flat-topped, near-vertical sides. The classic Guilin monolith.
+        //   1 CONE   — tapering to a point, often leaning; a tower well into its erosion.
+        //   2 TWIN   — a notched saddle between two summits, where a joint has been dissolved out.
+        //   3 DOME   — the rounded crown the old code drew, kept because it is one real form of several.
+        var kh=mixLi((wx*2246822519+r*3266489917)>>>0, 24593)>>>0;
         towers.push({
           wx: wx,
           w:  Math.round((16+h1*20)*(1-0.34*depth)),
           h:  HORIZON*(0.30+0.42*h2)*(1-0.30*depth)*B.amp,
           lean:(h1-0.5)*0.22,
+          kind:(kh%4),
+          // where the summit sits across the tower — a hill is symmetrical, a dissolved tower is not
+          off:(((kh>>>5)%100)/100-0.5)*0.44,
+          // ⚠ THE UNDERCUT FOOT is the single detail that most says "karst". These towers stand in water
+          // (or once did), and water dissolves limestone fastest at the waterline — so a real stack is
+          // NARROWER at its base than at its middle and visibly overhangs. Nothing else in the engine
+          // leans out over its own footing, which is exactly why it reads.
+          foot:2.2+((kh>>>11)%100)/100*5.0,
+          notch:0.18+((kh>>>17)%100)/100*0.26,
           seed:((wx*2654435761)>>>0)^r
         });
         wx += gap + Math.round(h2*gap*0.7); i++;
@@ -20012,17 +20032,63 @@ function drawKarst(g,L,now,nd){
           var u=(x-cx)/tw.w;                                  // -1..1 across the tower
           // THE PROFILE: near-vertical flanks that OVERHANG slightly at mid-height (karst is
           // undercut by water), and a rounded crown. Not a triangle — a triangle is a mountain.
-          var au=Math.abs(u);
-          if(au>0.98) continue;
-          var crown=Math.pow(Math.max(0,1-au*au),0.30);
-          var y=Math.round(top + tw.h*(1-crown)*0.34 + Math.abs(u)*tw.lean*tw.h);
+          // the summit is offset, so the two flanks are different lengths — asymmetry per tower
+          var us=Math.max(-1,Math.min(1,(u-tw.off)/(1-Math.abs(tw.off)*0.5)));
+          var au=Math.abs(us);
+          if(Math.abs(u)>0.98) continue;
+          var crown;
+          if(tw.kind===0){                                    // BLOCK: flat top, shoulders fall off hard
+            // ⚠ the shoulder eases rather than snapping: a squared falloff over the outer fifth reads as a
+            // sharp edge at this scale without producing single-pixel steps along the top
+            crown=(au<0.80)?1:Math.max(0,1-Math.pow((au-0.80)/0.20,2.0));
+          } else if(tw.kind===1){                             // CONE: a straight taper to a point
+            crown=Math.max(0,1-au*au*0.55-au*0.42);
+          } else if(tw.kind===2){                             // TWIN: a dissolved saddle between summits
+            crown=Math.pow(Math.max(0,1-au*au),0.34);
+            // ⚠ A SADDLE, NOT A SLOT. At notch 0.18-0.44 and depth 0.46 this cut a narrow deep V and the
+            // towers came out as TUNING FORKS — two thin spikes with a gap between them. A real twin
+            // summit is a broad shallow col between two rounded tops, which is what a dissolved joint
+            // actually leaves behind.
+            var nz=Math.max(0,1-Math.abs(us/(tw.notch+0.34)));
+            crown-=nz*nz*0.20;
+          } else {                                            // DOME
+            crown=Math.pow(Math.max(0,1-au*au),0.30);
+          }
+          crown=Math.max(0,Math.min(1,crown));
+          var y=Math.round(top + tw.h*(1-crown)*0.40 + Math.abs(u)*tw.lean*tw.h);
           if(y>=HORIZON) continue;
-          g.fillStyle=css(u<-0.15?litC:body);                 // the sun side of every stack
-          g.fillRect(x,y,1,HORIZON-y+1);
+          // ⚠ THE UNDERCUT FOOT — the rock is eaten away at the waterline, so the outer columns stop
+          // SHORT of the ground and the tower overhangs its own base.
+          var fc=Math.max(0,(Math.abs(u)-0.52)/0.48);
+          var yBot=HORIZON-Math.round(fc*fc*tw.foot*K);
+          if(yBot<=y) continue;
+          // ⚠⚠ CONTINUOUS SHADING, NOT A HARD SPLIT. The old line was `u<-0.15 ? litC : body`, which put a
+          // dead vertical edge down the middle of every tower — the shading cue of a CYLINDER, so the
+          // stacks read as moulded plastic. It is also precisely the kind of hard vertical edge KWin's
+          // fractional downsample beats against on Nick's 4K, which is the recurring "lines over the
+          // mountains" bug. The fix that worked on THE EMPYREAN applies unchanged: a continuous
+          // per-column value, never bucketed, so neighbours differ by a fraction of a shade.
+          var lt=Math.max(0,Math.min(1,(0.42-u)*0.78));
+          g.fillStyle=css(mixc(body,litC,lt*lt*(3-2*lt)));
+          g.fillRect(x,y,1,yBot-y+1);
           g.fillStyle=rgba(capC,0.7); g.fillRect(x,y,1,Math.max(1,Math.round(K*0.7)));
-          // vegetation clings to the crown and to any ledge — a karst tower is never bare rock at the top
-          if(au<0.72){ g.fillStyle=rgba(greenC,0.55);
-            g.fillRect(x,y+Math.max(1,Math.round(K*0.7)),1,Math.round((1.6+1.8*Math.abs(Math.sin((x+WOFF)*0.4)))*K)); }
+          // Vegetation clings to the crown and to any ledge — a karst tower is never bare rock at the top.
+          // ⚠⚠ THIS WAS A SINE AT 0.4 rad/px AND IT WAS DRAWING COMB TEETH. `|sin((x+WOFF)*0.4)|` completes
+          // a cycle every ~16px, so the green band sawtoothed along every crown and the flat-topped towers
+          // came out looking like broken dentures. Fourth instance of the same fault in this project — the
+          // Ashlands' ridge comb, the dunes' sine profile, and now this: a fixed frequency pretending to be
+          // nature. Two slow hashed octaves instead: clumps of scrub of different sizes, in different
+          // places, that never repeat.
+          if(au<0.72){
+            var vx=x+WOFF;
+            var v1=Math.floor(vx/17), vf1=(vx/17)-v1, vs1=vf1*vf1*(3-2*vf1);
+            var vA=(mixLi(v1>>>0,50021)%1000)/1000*(1-vs1)+(mixLi((v1+1)>>>0,50021)%1000)/1000*vs1;
+            var v2=Math.floor(vx/6), vf2=(vx/6)-v2, vs2=vf2*vf2*(3-2*vf2);
+            var vB=(mixLi(v2>>>0,13001)%1000)/1000*(1-vs2)+(mixLi((v2+1)>>>0,13001)%1000)/1000*vs2;
+            var vH=(0.5+2.9*(vA*0.68+vB*0.32))*(1-au*au*0.5);
+            if(vH>0.35){ g.fillStyle=rgba(greenC,0.55);
+              g.fillRect(x,y+Math.max(1,Math.round(K*0.7)),1,Math.round(vH*K)); }
+          }
         }
         // CAVE MOUTHS at the foot of the nearest rank — karst is hollow, and that is its signature
         if(r2===0 && (tw.seed%100)<46){
