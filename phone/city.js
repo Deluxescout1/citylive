@@ -20559,6 +20559,13 @@ function drawSprawlColossus(g,L,now,nd){
     for(var o=-1;o<=1;o++){
       var CX=Math.round(F.x-WOFF+o*WW);
       if(CX+fW<0||CX-fW>SW) continue;
+      var cpw=sprawlPower(F.x);                            // a projector with no power projects nothing
+      if(cpw<0.06){                                        // …but the rig it stands on is still there
+        g.fillStyle=day?"rgba(48,52,64,0.75)":"rgba(12,14,20,0.85)";
+        var dRigY=gy-Math.round(gy*(0.20+((fh>>>17)%10)/100));
+        g.fillRect(CX-Math.round(3*K),dRigY,Math.round(6*K),Math.max(2,Math.round(2.4*K)));
+        continue;
+      }
       // the rig it comes out of: a rooftop projector, and the beam that opens into the image
       var rigY=gy-Math.round(gy*(0.20+((fh>>>17)%10)/100));
       g.fillStyle=day?"rgba(48,52,64,0.75)":"rgba(12,14,20,0.85)";
@@ -20610,7 +20617,7 @@ function drawSprawlColossus(g,L,now,nd){
         // at this pitch beats against the window bands behind it and produces a moire, which is the same
         // family of artifact as the mountain-lines bug on the 4K panel.
         if(((((q*40503)^(fh))>>>0)%9)<2) continue;
-        var a=(day?0.19:0.34)*(0.74+0.26*Math.sin(now*0.0011+t*7));
+        var a=(day?0.19:0.34)*(0.74+0.26*Math.sin(now*0.0011+t*7))*cpw;
         g.globalAlpha=a;
         g.fillStyle=col;
         g.fillRect(Math.round(xC-wHere),figTop+q,Math.max(1,Math.round(wHere*2)),Math.max(1,Math.round(step*0.62)));
@@ -20628,6 +20635,44 @@ function drawSprawlColossus(g,L,now,nd){
     }
   }
 }
+// ============ IS THE GRID UP AT THIS POINT ON THE MAP? ============
+// Locked answers 19 and 24: when a blackout rolls through the sprawl it takes EVERYTHING electric with it,
+// district by district, and the city stops moving as well as going dark. He chose that over "lights only",
+// and over a more frequent ambient brownout — so no new event and no new frequency: this dresses the
+// blackout disaster that already exists, plus the storm outage `blackoutNow` already produces.
+//
+// Returns 1 where the grid is up and 0 where it is out, with a soft edge so the wave has a front rather
+// than a hard line. Every neon thing this land draws multiplies its alpha by this, which is what makes the
+// outage read as ONE event instead of several features happening to switch off.
+//
+// ⚠ WORLD X, NOT SCREEN X. The wave has to be at the same place on all three monitors, and a screen-space
+// version would put a different piece of the outage on each one.
+// ⚠ AND IT RECOVERS FROM THE EDGES IN, because that is how a grid comes back: the substations at the rim
+// re-energise first and the middle is dark longest.
+function sprawlPower(wx){
+  var p=1;
+  if(curDis&&curDis.type==="blackout"&&curDis.f<0.62){
+    var f=curDis.f;
+    var casc=Math.min(1,f/0.18);                            // the outage spreads outward for its first fifth
+    var half=((curDis.w*2.2+60+curDis.intensity*50)*(0.45+0.55*casc))*0.5;
+    var back=(f>0.46)?Math.min(1,(f-0.46)/0.16):0;          // …then the lights come back from the outside in
+    half*=(1-back);
+    var d=Math.abs((((wrapW(wx)-curDis.x)%WW)+WW*1.5)%WW-WW*0.5);
+    if(half>1){
+      if(d<half*0.82) p=0;
+      else if(d<half) p=(d-half*0.82)/(half*0.18);          // a soft front, not a wall
+    }
+  }
+  if(inBlk(wx)) p=Math.min(p, (curBlk&&curBlk.fix)?0.30:0); // the storm outage, and the crews restoring it
+  return p;
+}
+// The clock a powered thing moves on. When the grid is down the sprawl's electric traffic stops where it
+// stood rather than teleporting or vanishing: substituting the moment the outage began freezes it in place,
+// which is what "coasts to a halt" looks like at eight frames a second.
+function sprawlMoveClock(now,pw){
+  if(pw>0.5||!curDis||curDis.type!=="blackout") return now;
+  return now-(curDis.tp||0);
+}
 // ============ THE SPRAWL'S AIR TRAFFIC ============
 // Locked answer 4's air layer, and signature answer 9: "aircraft traffic you can follow" — on real routes,
 // not blinking in and out. Everything here moves, so unlike the guideway it belongs in the live pass.
@@ -20644,7 +20689,9 @@ function drawSprawlAirTraffic(g,L,now,nd){
   var aSeed=((WORLD_SEED*2246822519+613)>>>0);
   // ---- 1. THE MAGLEV on the guideway the backdrop drew ----
   var railY=sprawlRailY();
-  var tPer=42000, tPh=((now%tPer)/tPer);
+  var tPwr=sprawlPower(WOFF+SW*0.5);                        // the rail's own supply, sampled mid-frame
+  var tClock=sprawlMoveClock(now,tPwr);
+  var tPer=42000, tPh=((tClock%tPer)/tPer);
   var tDir=((aSeed>>>3)&1)?1:-1;
   var tLen=Math.round(26*K), tH=Math.max(2,Math.round(3.2*K));
   var tX=Math.round(tDir>0 ? (-tLen+tPh*(SW+tLen*2)) : (SW+tLen-tPh*(SW+tLen*2)));
@@ -20660,10 +20707,12 @@ function drawSprawlAirTraffic(g,L,now,nd){
       g.fillRect(tX+wq,tY+Math.max(1,Math.round(K*0.6)),Math.max(1,Math.round(1.6*K)),Math.max(1,Math.round(K*0.9)));
     }
     g.globalCompositeOperation="lighter";                        // headlamp, and the glow it throws on the deck
+    g.globalAlpha=tPwr;
     g.fillStyle="rgba(255,240,200,0.9)";
     g.fillRect(tDir>0?(tX+tLen-Math.round(K)):tX,tY+Math.round(K*0.5),Math.max(1,Math.round(1.4*K)),Math.max(1,Math.round(1.2*K)));
     g.fillStyle="rgba(180,220,255,0.20)";
     g.fillRect(tX,railY,tLen,Math.max(1,Math.round(K*0.8)));
+    g.globalAlpha=1;
     g.globalCompositeOperation="source-over";
   }
   // ---- 2. AIRCAR LANES between the towers ----
@@ -20671,7 +20720,9 @@ function drawSprawlAirTraffic(g,L,now,nd){
   for(var ln=0;ln<LANES.length;ln++){
     var LN=LANES[ln], ly=gy-Math.round(gy*LN.y);
     for(var ci=0;ci<LN.n;ci++){
-      var cph=((now/LN.per + ci/LN.n + ((aSeed>>>(ln*4))%100)/100)%1);
+      var lnPwr=sprawlPower(WOFF+SW*0.5);
+      var lnClock=sprawlMoveClock(now,lnPwr);
+      var cph=((lnClock/LN.per + ci/LN.n + ((aSeed>>>(ln*4))%100)/100)%1);
       var cx2=Math.round(LN.dir>0 ? (cph*(SW+60)-30) : (SW+30-cph*(SW+60)));
       if(cx2<-14||cx2>SW+14) continue;
       var cl=Math.max(3,Math.round(4.4*K)), cH=Math.max(1,Math.round(1.5*K));
@@ -20681,12 +20732,14 @@ function drawSprawlAirTraffic(g,L,now,nd){
       g.fillStyle=day?"rgba(160,200,230,0.6)":"rgba(120,170,220,0.5)";     // canopy
       g.fillRect(cx2+Math.round(cl*0.28),cy,Math.max(1,Math.round(cl*0.4)),Math.max(1,Math.round(K*0.6)));
       g.globalCompositeOperation="lighter";                                 // nav lights, red aft / white fore
+      g.globalAlpha=lnPwr;
       g.fillStyle="rgba(255,240,210,0.9)";
       g.fillRect(LN.dir>0?(cx2+cl-1):cx2,cy,Math.max(1,Math.round(K*0.8)),Math.max(1,Math.round(K*0.8)));
       if(((Math.floor(now/620)+ci)&1)){
         g.fillStyle="rgba(255,80,70,0.85)";
         g.fillRect(LN.dir>0?cx2:(cx2+cl-1),cy,Math.max(1,Math.round(K*0.7)),Math.max(1,Math.round(K*0.7)));
       }
+      g.globalAlpha=1;
       g.globalCompositeOperation="source-over";
     }
   }
@@ -20778,6 +20831,7 @@ function drawSignageStacks(g,L,now,nd){
     if(topY<Math.round(2*K)) topY=Math.round(2*K);
     if(X+boxW<0||X>SW) continue;
     var sCol=colR?css(colR):pal[(h>>>19)%pal.length];
+    var pw=sprawlPower(wx);                               // …unless the grid is out here
     // ---- the box: a dark case so the letters have something to sit on at any hour ----
     g.fillStyle=day?"rgba(22,24,32,0.72)":"rgba(8,9,14,0.86)";
     g.fillRect(X,topY,boxW,boxH);
@@ -20795,15 +20849,17 @@ function drawSignageStacks(g,L,now,nd){
     // switches on after dark is the same "feature off in exactly the condition it is needed" fault the
     // holograms and the monorail were both found guilty of on this land.
     var flick=((h>>>23)%5===0)&&(((Math.floor(now/430)+((h>>>3)&3))%9)===0);   // one sign in five has a bad tube
+    if(pw<0.06) { g.fillStyle=day?"rgba(40,42,50,0.5)":"rgba(14,15,20,0.6)";   // dead: the case, unlit
+                  g.fillRect(X,topY,boxW,boxH); continue; }
     for(var li=0;li<word.length;li++){
       var ch=word[li];
       var ly=topY+Math.round(1.6*scl)+li*(chh+gap);
       if(flick&&li===((h>>>11)%word.length)) continue;
-      drawUiText(g,ch,X+Math.round(2.4*scl),ly,sCol,scl);
+      g.globalAlpha=pw; drawUiText(g,ch,X+Math.round(2.4*scl),ly,sCol,scl); g.globalAlpha=1;
     }
     // ---- the glow it throws, which is what makes it read as LIT rather than painted ----
     g.globalCompositeOperation="lighter";
-    g.globalAlpha=day?0.16:0.34;
+    g.globalAlpha=(day?0.16:0.34)*pw;
     g.fillStyle=sCol;
     g.fillRect(X-Math.round(scl),topY-Math.round(scl),boxW+Math.round(2*scl),boxH+Math.round(2*scl));
     g.globalAlpha=1; g.globalCompositeOperation="source-over";
