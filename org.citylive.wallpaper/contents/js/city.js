@@ -14569,9 +14569,22 @@ function drawCloudFront(g,L,now){
   var cSurf=mixc(mixc(hz,[26,30,48],0.62), mixc(mixc(hz,[255,255,252],0.78),[255,208,170],gK*0.55), dk);
   var cDeep=mixc(mixc(hz,[6,8,16],0.82),   mixc(mixc(hz,[104,116,152],0.66),[178,104,104],gK*0.42), dk);
   // ---- the near surface: bigger puffs, same construction, same cell hash family ----
-  var pcF=Math.max(8,Math.round(52*K));                 // larger than the far deck's 34*K: it is closer
+  // ⚠⚠ THE NEAR DECK CARRIES ITS OWN MODELLING, AND THAT IS WHAT STOPPED IT WASHING OUT. Rendered at
+  // canonical geometry it was a near-featureless pale mass over the bottom ~28% of the frame — Nick's
+  // ruling was "give it real content, keep the size", and he is right that the VOID was the fault rather
+  // than the depth. Three things give it content, and all three fall out of values already computed:
+  //   · A SECOND, SMALLER PUFF OCTAVE, so each big billow has sub-lumps instead of one smooth dome. One
+  //     lump size at one cell spacing is the same evenness that has been the tell behind every striping
+  //     fault on this land.
+  //   · TROUGH SHADOW FROM `lump` ITSELF. `lump` is already 1 at a puff's crown and 0 where two puffs
+  //     meet — which is exactly the shape of the shadow between them, for free. Shading by it is what
+  //     turns a pale field into rounded volumes; without it the crown fades by DEPTH alone, and depth
+  //     alone cannot tell a billow top from the gap beside it.
+  //   · HOLES YOU CAN SEE DOWN THROUGH, drifting slowly. A cloud sea seen from directly above is not a
+  //     lid; the gaps are where it reads as having a bottom.
+  var pcF=Math.max(8,Math.round(52*K)), pcF2=Math.max(4,Math.round(19*K));
   var ampF=(5+13*st.churn)*K, pAmpF=(7+13*st.churn)*K;
-  var dtF=new Array(SW), minF=botY;
+  var dtF=new Array(SW), lmF=new Array(SW), minF=botY;
   for(var x=0;x<SW;x++){
     var wx=x+WOFF;
     var e1=Math.max(9,Math.round(96*K)), i1=Math.floor(wx/e1), f1=(wx/e1)-i1, s1=f1*f1*(3-2*f1);
@@ -14585,10 +14598,32 @@ function drawCloudFront(g,L,now){
       var pd=Math.abs(wx-pcx);
       if(pd<prad){ var q=(1-(pd/prad)*(pd/prad))*pk; if(q>lump) lump=q; }
     }
+    var ip2=Math.floor(wx/pcF2), lump2=0;                // the sub-lumps riding on the big billows
+    for(var pj2=-1;pj2<=1;pj2++){
+      var ic2=ip2+pj2, ph2=mixLi(ic2>>>0,15277)>>>0;
+      var pcx2=(ic2+((ph2%1000)/1000))*pcF2;
+      var prad2=pcF2*(0.40+((ph2>>>10)%100)/100*0.46);
+      var pd2=Math.abs(wx-pcx2);
+      if(pd2<prad2){ var q2=(1-(pd2/prad2)*(pd2/prad2))*(0.30+((ph2>>>17)%100)/100*0.40); if(q2>lump2) lump2=q2; }
+    }
     var drift=Math.sin(now*0.000021+wx*0.0006)*2.6*K;   // same slow drift term as the far deck
-    var ty=top+Math.round((v-0.5)*ampF-lump*pAmpF+drift);
+    var ty=top+Math.round((v-0.5)*ampF-lump*pAmpF-lump2*pAmpF*0.42+drift);
+    // HOLES, drifting. The hole field moves along the world on its own slow clock, so gaps open and close
+    // over hours the way the deck's level does — not a fixed pattern of punched-out spots.
+    var hcF=Math.max(11,Math.round(150*K));
+    var hwx=wx+now*0.0009;
+    var ihF=Math.floor(hwx/hcF), fhF=(hwx/hcF)-ihF, shF=fhF*fhF*(3-2*fhF);
+    var hvF=(mixLi(ihF>>>0,41983)%1024)/1024*(1-shF)+(mixLi((ihF+1)>>>0,41983)%1024)/1024*shF;
+    var holeK=0;
+    if(hvF>0.58){ holeK=Math.min(1,(hvF-0.58)/0.30); holeK=holeK*holeK*(3-2*holeK);
+      ty+=Math.round(holeK*depth*0.62); }
     if(ty<0) ty=0;
-    dtF[x]=ty; if(ty<minF) minF=ty;
+    dtF[x]=ty;
+    // ⚠ THE MODELLING VALUE IS STORED, NOT RECOMPUTED. `lump` already describes exactly where a billow's
+    // crown is and where two of them meet, so it IS the shadow map — recomputing it in the crown loop
+    // would be the same arithmetic three more times for the same answer.
+    lmF[x]=Math.max(0,Math.min(1,(lump*0.72+lump2*0.28)*(1-holeK)));
+    if(ty<minF) minF=ty;
   }
   // body, deepening toward the viewer — the near edge of a cloud sea is where you see INTO it
   var step=Math.max(2,Math.round(K));
@@ -14604,18 +14639,39 @@ function drawCloudFront(g,L,now){
     if(s4>=0) g.fillRect(s4,y,SW-s4,step);
   }
   // the lit crown on each near billow — fourteen shallow linear steps, for the reason the far deck's are
+  // ⚠⚠ THE CROWN IS MODULATED BY `lump`, NOT BY DEPTH ALONE — this is the single change that took the near
+  // deck from a pale field to rounded volumes. Depth-only shading brightens every column equally just
+  // below its own top edge, so a billow's crown and the gap beside it come out the same value and the
+  // whole band flattens. `lump` is high on a crown and falls to nothing where two billows meet, which is
+  // precisely where the shadow between them belongs.
+  // ⚠ Banded into 4 brightness buckets ONLY for batching (one fillStyle per bucket per step). The bucket
+  // edges are horizontal-ish and soft because the underlying value is continuous; this is the one place
+  // on this land where quantising is safe, and it is worth ~4x the fills otherwise needed.
   var crN=14, crT=Math.max(1,Math.round((18+12*st.churn)*K/crN));
-  g.fillStyle=css(cSurf);
+  // ⚠ SIX BUCKETS, NOT FOUR. At four the quantisation showed as a stepped edge wherever `lmF` changed
+  // quickly — most visibly around the rim of a hole, where it read as a staircase cut in the cloud. Six
+  // puts each step under ~9% and the edges disappear, at one extra fillStyle per crown step.
+  var BK=6;
   for(var cr=0;cr<crN;cr++){
-    g.globalAlpha=(1-(cr/crN))*0.92;
-    var s7=-1, y7=-999, x7, ty7;
-    for(x7=0;x7<=SW;x7++){
-      ty7=(x7<SW)?(dtF[x7]+cr*crT):-999;
-      if(ty7>=botY) ty7=-999;
-      if(ty7!==y7){ if(s7>=0&&y7>-999) g.fillRect(s7,y7,x7-s7,Math.min(crT,botY-y7)); s7=(ty7>-999)?x7:-1; y7=ty7; }
+    var crBase=(1-(cr/crN))*0.92;
+    for(var bk=0;bk<BK;bk++){
+      var bLo=bk/BK, bHi=(bk+1)/BK, bMid=(bLo+bHi)*0.5;
+      // ⚠ A TROUGH GOES MOST OF THE WAY TO THE DEEP TONE. At 0.34 the shadow between billows was only a
+      // slightly duller cream and the band still read as SAND rather than cloud — the same failure the far
+      // deck's edge had, arriving through brightness instead of through shape. Cloud shadow is deep;
+      // that contrast is what makes the volumes round.
+      g.fillStyle=css(mixc(mixc(cDeep,cSurf,0.16),cSurf,bMid));
+      g.globalAlpha=crBase*(0.42+0.58*bMid);
+      var s7=-1, y7=-999, x7, ty7;
+      for(x7=0;x7<=SW;x7++){
+        ty7=-999;
+        if(x7<SW && lmF[x7]>=bLo && lmF[x7]<bHi){ ty7=dtF[x7]+cr*crT; if(ty7>=botY) ty7=-999; }
+        if(ty7!==y7){ if(s7>=0&&y7>-999) g.fillRect(s7,y7,x7-s7,Math.min(crT,botY-y7)); s7=(ty7>-999)?x7:-1; y7=ty7; }
+      }
+      if(s7>=0&&y7>-999) g.fillRect(s7,y7,SW-s7,Math.min(crT,botY-y7));
     }
-    if(s7>=0&&y7>-999) g.fillRect(s7,y7,SW-s7,Math.min(crT,botY-y7));
   }
+  g.globalAlpha=1;
   g.globalAlpha=1;
   // and the lit surface line, additive, exactly as the far deck has one
   g.globalCompositeOperation="lighter";
