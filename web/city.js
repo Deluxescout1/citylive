@@ -25403,8 +25403,10 @@ function drawMountains(g,L,now,nd){
       // bright at 1pm as at 1am. Lava does not change temperature at sunset — but what it does to a FRAME
       // does, because at night it is the only light source there is. Locked answer 3: "genuinely luminous
       // at night."
+      // ⚠ THE GLOBAL PULSE IS GONE.  was one sine driving every molten feature on the land, so the whole
+      // field brightened and dimmed together — Nick called it flashy and inconsistent and he was right. The
+      // flows carry their own fixed temperatures now and the shimmer that remains is per-flow and tiny.
       var mNight=1-Math.max(0,Math.min(1,(L-0.18)/0.5));       // 0 in full day … 1 after dark
-      var mk=(0.62+0.38*Math.sin(now*0.0009+pi*2.1))*(0.72+0.58*mNight);
       var kk=Math.max(1,Math.round(KSP));
       // ⚠⚠ THE GLOW WAS ON THE WRONG RIDGE. It only ran for `pi===0`, the FAR band — which sits behind the
       // near one, so once the land was framed the near ridge out-topped it and the fire behind the crest was
@@ -25439,28 +25441,69 @@ function drawMountains(g,L,now,nd){
         }
         g.globalCompositeOperation="source-over";
       }
+      // ============ THE FLOWS, REBUILT FOR REALISM ============
+      // Nick: "can we make the lava look more realistic? and not flashy? but consistant?" All three of those
+      // were separate faults and one of them was a physics error in my own comment.
+      //
+      // 1. 🚨 IT RAN HOTTER THE FURTHER IT FELL. The old code scaled every channel — halo, body and white-hot
+      //    core — UP with distance from the source, and the comment said so out loud: "runs hotter the
+      //    further it falls". Lava is hottest AT THE VENT and cools all the way down; a flow gets darker as
+      //    it travels and crusts over at the toe. The gradient was inverted, which is most of why it did not
+      //    look like lava.
+      // 2. 🚨 EVERY VEIN ON THE MAP PULSED IN LOCKSTEP. `mk` was one global sine, so the whole land breathed
+      //    together — the "flashy" and the "inconsistent" in one term. Real molten rock sitting in a channel
+      //    is remarkably STEADY; what varies is one flow against another, not the whole field against time.
+      //    So the variation moved from TIME to PER-FLOW: each vein draws its own temperature out of its hash
+      //    and keeps it. Some are fresh and bright, some are nearly extinct. Nothing throbs.
+      // 3. 🚨 THERE WAS NO CRUST. A continuous bright ribbon is a neon strip. Real lava is a dark basalt skin
+      //    with the glow showing through where it has CRACKED, and the cracks close up as it cools — so the
+      //    dark rock is drawn first along the whole length and the light comes through it in breaks.
+      //
+      // What remains of the time term is a shimmer of a few percent at the source only, so it is alive
+      // without being animated.
       for(var v=0;v<15;v++){
         var vh4=((v*2654435761+pi*7919+(((WOFF/97)|0)*40503))>>>0);
         var vx=vh4%Math.max(1,SW);
         if(hs[vx]<18*KSP) continue;
         var vy=Math.max(2,(gy-hs[vx])|0)+Math.round(hs[vx]*0.16), vdx=0;
         var vw=Math.max(2,Math.round(2.4*KSP)), vsp=Math.max(1,Math.round(KSP));
-        g.globalCompositeOperation="lighter";                 // it EMITS
+        // THIS FLOW'S OWN TEMPERATURE, fixed for the life of the world. 0.22 nearly cold … 1 fresh.
+        var vHeat=0.22+((vh4>>>19)%100)/100*0.78;
+        // …and a cooler flow has liquid for less of its length before it crusts solid
+        var vLive=0.30+vHeat*0.55;
+        var vCrust=css(mixc(day?[46,30,28]:[22,13,13],[8,5,5],0.35));
         for(var vq=vy;vq<gy;vq+=vsp){
           vdx+=(((vh4>>>(vq&15))&3)-1.5)*0.5;                 // the vein wanders as it runs
           var vxx=Math.round(vx+vdx); if(vxx<0||vxx>=SW) break;
           if((gy-hs[vxx])>vq) continue;                       // …but never leaves the rock
-          var f4=(vq-vy)/Math.max(1,gy-vy);                   // and runs hotter the further it falls
-          // the halo first, wider and faint — this is what makes it light the rock around it rather than
-          // sit on top of it like a drawn line
-          g.fillStyle="rgba(190,52,10,"+((0.10+0.16*f4)*mk).toFixed(3)+")";
-          g.fillRect(vxx-vw,vq,vw*3,vsp);
-          g.fillStyle="rgba(255,"+((88+124*f4)|0)+","+((18+52*f4)|0)+","+((0.44+0.50*f4)*mk).toFixed(3)+")";
+          var f4=(vq-vy)/Math.max(1,gy-vy);
+          // ---- the cooled skin, along the WHOLE length: this is what the flow actually is ----
+          g.fillStyle=vCrust;
           g.fillRect(vxx,vq,vw,vsp);
-          g.fillStyle="rgba(255,236,176,"+((0.30+0.42*f4)*mk).toFixed(3)+")";      // the white-hot core
-          g.fillRect(vxx+((vw/3)|0),vq,Math.max(1,Math.round(KSP)),vsp);
+          if(f4>vLive) continue;                              // past here it has set solid — no light at all
+          // ---- and the heat inside it, hottest at the source and dying downslope ----
+          var heat=vHeat*(1-f4/vLive);
+          heat*=heat;                                         // falls off fast, the way a cooling flow does
+          var lift=0.62+0.38*mNight;                          // it reads harder after dark; it is the only light
+          var shim=1-0.05*Math.max(0,1-f4*3)*(0.5+0.5*Math.sin(now*0.0011+v*2.3));   // a few percent, at the vent only
+          var hA=heat*lift*shim;
+          if(hA<=0.012) continue;
+          g.globalCompositeOperation="lighter";
+          g.fillStyle="rgba(176,44,8,"+(hA*0.34).toFixed(3)+")";                       // the light it throws on the rock
+          g.fillRect(vxx-vw,vq,vw*3,vsp);
+          // THE CRACKS. The skin is broken, not open — so the body only shows through in breaks, and the
+          // breaks close up as it cools, which is what makes the toe read as solid rather than merely dim.
+          var crk=((((vxx*2654435761)^((vq*40503)^vh4))>>>0)%100)/100;
+          if(crk < 0.30+0.62*heat){
+            g.fillStyle="rgba(255,"+((72+120*heat)|0)+","+((14+46*heat)|0)+","+(hA*0.92).toFixed(3)+")";
+            g.fillRect(vxx,vq,vw,vsp);
+            if(heat>0.55 && crk<0.22*heat){                                            // and white-hot only deep in a fresh flow
+              g.fillStyle="rgba(255,238,182,"+(hA*0.85).toFixed(3)+")";
+              g.fillRect(vxx+((vw/3)|0),vq,Math.max(1,Math.round(KSP)),vsp);
+            }
+          }
+          g.globalCompositeOperation="source-over";
         }
-        g.globalCompositeOperation="source-over";
       }
     }
     // SNOW LIES WHERE THE LAND IS LEVEL. A February render of every biome came back in its summer
