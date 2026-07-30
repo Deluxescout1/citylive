@@ -21869,49 +21869,107 @@ function drawBiomeLandmark(g,L,now,nd){
     // district stacked vertically, so unlike every other landmark here it is drawn TALLER than the
     // skyline rather than merely clear of it: the point is that nothing else comes close.
     at(function(X){
+      // ⚠⚠⚠ NICK: THE WHOLE MAP IS "VERY CONFUSING" — AND THIS IS THE OBJECT DOING IT.
+      // At landmark K this is ~306 x 326 px, the biggest thing on the map, and you could not tell it was
+      // a building. Every feature it needed already existed: window bands, day-lit floors, neon setbacks,
+      // service spines, warning strobes. They all failed the same way — EVERY ONE OF THEM WAS A
+      // FULL-WIDTH HORIZONTAL BAR. A 306px-wide, 4px-tall lit band repeated up each tier, with a coloured
+      // lip across the top of each: six striped slabs, i.e. a wedding cake. The ruled-line family again,
+      // for the eleventh time on this project, and this time it was the LANDMARK.
+      // 🔑 The comment that used to sit here defended the banding: "lit in horizontal runs rather than as
+      // a grid — at this size a grid turns to mush". The premise is right and the conclusion was wrong. A
+      // grid does turn to mush; what a building needs is not a grid but VERTICAL BREAKS — a floor is lit
+      // in sections, with dark stretches between them, because the bays behind it are separate rooms.
+      // Runs with gaps read as inhabited. Unbroken runs read as ruling.
+      // Locked answer 1: same scale, make it READ as inhabited. The scale is the point; the blankness was
+      // the fault.
       var aw=Math.round(30*K), ah=Math.round(64*K), tiers=6;
       var body=day?"#4a4e5c":"#141720", body2=day?"#33374480":"#0c0e14", lip=day?"#5e6474":"#1c202a";
       var pal2=["#4be0d0","#f04a8a","#ffe14a","#7c6cff"];
       if(B.name==="THE RED DISTRICT") pal2=["#ff3a5c","#ffa63a","#ff6ad5"];
       if(B.name==="THE COLD STACK")   pal2=["#7ce8ff","#c0d8ff","#ffffff"];
+      var aSeed=((WORLD_SEED*2654435761)>>>0);
+      // ⚠ AND THE ZIGGURAT WAS PERFECTLY REGULAR: `tw*(1-tf*0.52)` with `th=ah/tiers`, so six identical
+      // steps. Nothing built over decades steps evenly. Tier heights and insets are world-seeded now, so
+      // the SILHOUETTE has structure before any surface detail is drawn on it — which is what stops it
+      // reading as one extruded shape.
+      var tHs=[], tWs=[], tAcc=0;
+      for(var tq=0;tq<tiers;tq++){
+        var thj=0.72+((((aSeed>>>(tq*3))&7)/7)*0.62);            // 0.72 .. 1.34 of an even tier
+        tHs.push(thj); tAcc+=thj;
+      }
+      var tyRun=gy;
       for(var t=0;t<tiers;t++){
-        var tf=t/tiers;
-        var tw=Math.round(aw*(1-tf*0.52)), th=Math.round(ah/tiers);
-        var ty=gy-Math.round(ah*(tf+1/tiers));
+        var th=Math.max(Math.round(4*K), Math.round(ah*tHs[t]/tAcc));
+        var tf=(gy-tyRun+th)/ah;                                  // how far up the stack this tier sits
+        var insetJ=((((aSeed>>>(9+t*3))&7)/7)-0.5)*0.14;
+        var tw=Math.max(Math.round(5*K), Math.round(aw*(1-tf*0.50+insetJ)));
+        var ty=tyRun-th;
+        tyRun=ty;
+        tWs.push({w:tw,y:ty,h:th});
         g.fillStyle=body;  g.fillRect(X-tw,ty,tw*2,th);
         g.fillStyle=body2; g.fillRect(X+tw-Math.round(tw*0.28),ty,Math.round(tw*0.28),th);   // shaded face
-        g.fillStyle=lip;   g.fillRect(X-tw-Math.round(K),ty,tw*2+Math.round(2*K),Math.max(1,Math.round(1.6*K)));
-        // WINDOW BANDS. Lit in horizontal runs rather than as a grid — at this size a grid turns to mush
-        // and the banding is what makes it read as one enormous structure instead of many towers.
-        // ⚠⚠ THE ARCOLOGY WENT COMPLETELY GREY IN DAYLIGHT, on the one land whose brief says it must
-        // "read cyberpunk at NOON". Judged full-frame, this thing is ~60% of the width and rises to the
-        // top of the sky — and by day every window was one flat `rgba(150,166,190,0.5)` band and the
-        // neon setbacks were `if(!day)`, so the largest object on the map was a plain grey slab.
-        // Same failure as the hologram and the monorail in a third costume: the feature exists and is
-        // switched OFF in exactly the condition where it is needed.
-        // A real arcology's signage burns day and night, and its windows are never uniform — some
-        // floors are lit, some dark, some tinted glass.
-        for(var wb=Math.round(3*K);wb<th-Math.round(2*K);wb+=Math.max(3,Math.round(4*K))){
-          var lit=((t*7+wb*13)>>>0)%7;
-          if(day){
-            g.fillStyle= lit<2 ? "rgba(255,226,170,0.42)"          // a lit floor even at midday
-                       : lit<4 ? "rgba(120,190,220,0.34)"          // tinted glass catching the sky
-                               : "rgba(120,132,156,0.42)";         // and plain dark glazing
-          } else {
-            g.fillStyle="rgba(255,214,150,"+(0.30+0.18*(lit&1))+")";
-          }
-          g.fillRect(X-tw+Math.round(2*K),ty+wb,tw*2-Math.round(4*K),Math.max(1,Math.round(1.4*K)));
+        // ⚠ THE LIP IS IN SECTIONS, NOT A RULE. It was one rect the full width of the tier plus an
+        // overhang — the single most visible horizontal on the map. A terrace edge this long is broken by
+        // stair cores, plant rooms and gaps you can see the sky through.
+        var lipH=Math.max(1,Math.round(1.6*K)), lipS=Math.max(Math.round(6*K),Math.round(tw*0.30));
+        for(var lx=X-tw-Math.round(K); lx<X+tw+Math.round(K); lx+=lipS){
+          if(((((lx*40503)^aSeed)>>>0)%9)===0) continue;          // a gap in the parapet
+          var lw=Math.min(lipS-Math.round(K*0.8), X+tw+Math.round(K)-lx);
+          if(lw<=0) continue;
+          g.fillStyle=lip; g.fillRect(lx,ty,lw,lipH);
         }
-        // the neon band round each setback — now DAY AND NIGHT, just quieter under the sun
+        // ---- THE FLOORS: runs with BREAKS, which is the whole fix ----
+        // Each floor is walked across in bays. A bay is lit, tinted, dark or missing, chosen by a hash of
+        // its own x and floor — so the facade has vertical structure at every height and no two floors
+        // break in the same places. Costs a handful of rects per floor, not one per pixel.
+        var flH=Math.max(3,Math.round(4*K)), bayW=Math.max(2,Math.round(2.6*K));
+        for(var wb=Math.round(3*K);wb<th-Math.round(2*K);wb+=flH){
+          var fy=ty+wb, fRow=(wb/flH)|0;
+          for(var bx=X-tw+Math.round(2*K); bx<X+tw-Math.round(2*K); bx+=bayW){
+            var bh2=((((bx*2654435761)^((fRow*97+t*31)*40503))^aSeed)>>>0);
+            var kind=bh2%10;
+            if(kind<2) continue;                                  // an unlit bay: the gap that makes a bay
+            if(day){
+              g.fillStyle= kind<4 ? "rgba(255,226,170,0.42)"      // a lit floor even at midday
+                         : kind<7 ? "rgba(120,190,220,0.34)"      // tinted glass catching the sky
+                                  : "rgba(120,132,156,0.42)";     // plain dark glazing
+            } else {
+              g.fillStyle= kind<6 ? "rgba(255,214,150,"+(0.30+0.20*(kind&1)).toFixed(2)+")"
+                                  : "rgba(90,120,170,0.30)";      // and a lot of dark windows at 11pm
+            }
+            g.fillRect(bx,fy,Math.max(1,bayW-Math.max(1,Math.round(K*0.6))),Math.max(1,Math.round(1.4*K)));
+          }
+        }
+        // the neon band round each setback — day AND night, just quieter under the sun. Also in sections.
         g.globalCompositeOperation="lighter";
-        g.fillStyle=pal2[t%pal2.length];
         g.globalAlpha=day?0.30:0.55;
-        g.fillRect(X-tw,ty+Math.max(1,Math.round(1.6*K)),tw*2,Math.max(1,Math.round(1.2*K)));
+        g.fillStyle=pal2[t%pal2.length];
+        for(var nx=X-tw; nx<X+tw; nx+=lipS){
+          if(((((nx*7919)^aSeed)>>>0)%7)===0) continue;
+          var nw=Math.min(lipS-Math.round(K*1.2), X+tw-nx);
+          if(nw>0) g.fillRect(nx,ty+lipH,nw,Math.max(1,Math.round(1.2*K)));
+        }
         g.globalAlpha=1; g.globalCompositeOperation="source-over";
-        // and a vertical service spine up each tier, so the mass has structure instead of being a slab
+        // vertical service spines, so the mass has structure behind the glazing
         g.fillStyle=day?"rgba(30,34,44,0.45)":"rgba(6,8,12,0.5)";
         g.fillRect(X-Math.round(tw*0.34),ty,Math.max(1,Math.round(1.6*K)),th);
         g.fillRect(X+Math.round(tw*0.34),ty,Math.max(1,Math.round(1.6*K)),th);
+      }
+      // ---- SKY-BRIDGES between the setbacks, and gantries off the flanks ----
+      // Locked answer 1 asks for these by name, and they do something the facade cannot: they give the
+      // thing DEPTH, because a bridge crosses in front of the mass behind it.
+      for(var sbq=1;sbq<tWs.length;sbq++){
+        if(((((aSeed>>>(sbq*5))&7))%3)!==0) continue;             // not every setback has one
+        var tA=tWs[sbq], side=((aSeed>>>(sbq*2))&1)?1:-1;
+        var brY=tA.y+Math.round(tA.h*0.34), brL=Math.round((7+((aSeed>>>(sbq*4))&7))*K);
+        var brX=X+side*tA.w;
+        g.fillStyle=day?"#3e434f":"#10131a";
+        g.fillRect(side>0?brX:brX-brL,brY,brL,Math.max(2,Math.round(1.8*K)));
+        g.fillStyle=day?"rgba(150,190,215,0.5)":"rgba(255,214,150,0.55)";   // lit walkway inside
+        g.fillRect(side>0?brX:brX-brL,brY,brL,Math.max(1,Math.round(K*0.7)));
+        g.fillStyle=day?"#2a2e38":"#0a0c12";                                // the pylon under its far end
+        g.fillRect(side>0?(brX+brL-Math.round(1.4*K)):(brX-brL),brY,Math.max(1,Math.round(1.4*K)),Math.round(6*K));
       }
       // AIRCRAFT WARNING STROBES up the corners — what actually says "this thing is enormous".
       var topY=gy-ah;
