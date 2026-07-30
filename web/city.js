@@ -27996,9 +27996,23 @@ function drawMountains(g,L,now,nd){
         // the hash is quantised to ~5 world px and held across each block. Same roughness, no
         // per-pixel flicker, and the octaves still do the long-wavelength wander.
         if(pi0===0){ var blk=(wx0/5)|0;
-          mtsCache.wig[cx0]=(Math.sin(wx0*0.23)*1.6 + Math.sin(wx0*0.071+1.3)*3.0
+          // ⚠⚠ THE HIGH-FREQUENCY SINE WAS DRAWING A SAWTOOTH SNOWLINE. `sin(wx*0.23)` completes a
+          // cycle every ~27 world px, so the top of every snow field came out as a regular zigzag of
+          // even white teeth — most obvious on THE FJORD, where the wall is sheer and the snowline is
+          // the only edge in the upper half of the frame.
+          // 🔑 SIXTH INSTANCE OF A FIXED FREQUENCY PRETENDING TO BE NATURE in this project (the
+          // Ashlands' ridge comb · the dunes' sine profile · the karst crown sine · the karst tower
+          // shape · the fjord snowline). The two SLOW octaves stay — at ~88px and ~370px they are long
+          // wander rather than texture, and that is what they were for. Only the fast one goes, replaced
+          // by a second hashed block term at a finer cell so the edge keeps its bite without a period.
+          // ⚠ Shared by every snow land (alpine, arctic, fjord). A comb is a defect on all of them, so
+          // this is a strict improvement rather than a fjord-specific override — but it does mean alpine
+          // and arctic move, and both were signed off before.
+          var blkF=(wx0/2)|0;
+          mtsCache.wig[cx0]=(Math.sin(wx0*0.071+1.3)*3.0
                              + Math.sin(wx0*0.017+0.6)*4.2
-                             + ((mixLi((blk*7919)>>>0,3571)%100)/100-0.5)*3.2)*KSP; }
+                             + ((mixLi((blk*7919)>>>0,3571)%100)/100-0.5)*3.2
+                             + ((mixLi((blkF*40961)>>>0,6421)%100)/100-0.5)*2.2)*KSP; }
       }
       // SLOPE BUCKETS, cached with the silhouette they are derived from. Which way a column FACES is
       // a pure function of h[] and h[] never changes within a life, so re-deriving it per frame would
