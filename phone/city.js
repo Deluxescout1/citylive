@@ -25005,7 +25005,7 @@ function ashRiftState(){
 //
 // ⚠ Not a ruled line. A fissure tapers to nothing at both ends and its centreline wanders, or twenty of
 // them across a face read as twenty pencil strokes — the bayou's graph paper, on rock.
-function drawAshFissures(g,hs,gy,day,mNight,rift){
+function drawAshFissures(g,hs,gy,day,mNight,now,rift){
   var K=Math.max(1,Math.round(KSP)), SWl=hs.length;
   // ⚠ AND 28 OF THEM AT 45..165px WAS TOO MANY TO STAY SEPARATE. On a 2269px world that is one every 81px,
   // so they overlapped end-to-end and CHAINED into three or four long parallel wavy bands — the render read
@@ -25019,6 +25019,9 @@ function drawAshFissures(g,hs,gy,day,mNight,rift){
     }
     var fLen=Math.round((24+((fh>>>4)%56))*KSP*0.5);
     var fTilt=((((fh>>>28)%2)?1:-1))*(6+((fh>>>6)%17));   // a tear does not run level with the horizon
+    // …and the fire down in this one dies back and returns on its OWN clock, 3.1–8.0 hours, like the flows.
+    // The GAP never changes — a tear in the ground does not close up — only how much heat shows in it.
+    var fCyc=0.42+0.58*(0.5+0.5*Math.sin(now/((3.1+((fh>>>14)%50)/10)*3600000)*6.28319+((fh>>>7)%1000)/1000*6.28319));
     var fDeep=((fh>>>18)%100)/100;                        // 0 a hairline … 1 a gulf with fire in it
     var fThk=Math.max(1,Math.round((2.2+fDeep*5.0)*K*0.7));   // …and thick enough to be a gap, not a stroke
     // HOW FAR DOWN THE APRON — and this is the whole readability question, so it is set from the
@@ -25054,7 +25057,7 @@ function drawAshFissures(g,hs,gy,day,mNight,rift){
           g.fillStyle=day?"rgba(126,96,86,0.30)":"rgba(70,48,44,0.34)";
           g.fillRect(sx,fy+th,1,Math.max(1,Math.round(K*0.6)));
         }
-        var heat=fDeep*taper*(nearRift?1:0.72);
+        var heat=fDeep*fCyc*taper*(nearRift?1:0.72);
         if(heat>0.10){
           g.globalCompositeOperation="lighter";
           var hA=heat*(0.34+0.52*mNight);
@@ -25692,10 +25695,27 @@ function drawMountains(g,L,now,nd){
         if(hs[vx]<18*KSP) continue;
         var vy=Math.max(2,(gy-hs[vx])|0)+Math.round(hs[vx]*0.04), vdx=0;   // …at the crest, where the glow is
         var vw=Math.max(2,Math.round(2.4*KSP)), vsp=Math.max(1,Math.round(KSP));
-        // THIS FLOW'S OWN TEMPERATURE, fixed for the life of the world. 0.22 nearly cold … 1 fresh.
-        var vHeat=0.22+((vh4>>>19)%100)/100*0.78;
+        // THIS FLOW'S OWN SCALE, fixed for the life of the world. 0.22 a spent trickle … 1 a major flow.
+        var vBase=0.22+((vh4>>>19)%100)/100*0.78;
         // …and how far down the face it GOT before it stopped. This is what kills the poles.
-        var vRun=0.26+0.74*vHeat, vEnd=vy+Math.max(4,Math.round((gy-vy)*vRun));
+        // ⚠⚠ LENGTH COMES FROM `vBase`, NOT FROM THE LIVE TEMPERATURE, and that distinction is the whole
+        // reason the cooling cycle below is safe. The channel is a physical thing cut into the rock: it does
+        // not shorten when the lava in it cools and grow back when it reheats. Driving `vEnd` off the
+        // time-varying heat would have the crust at the toe blinking in and out of existence.
+        var vRun=0.26+0.74*vBase, vEnd=vy+Math.max(4,Math.round((gy-vy)*vRun));
+        // ============ THE FIRE DYING AND REVIVING, OVER HOURS ============
+        // Nick asked for fire that dies back and returns on a scale of hours. He had ALSO just told me the
+        // lava must not be flashy or inconsistent, which is why the previous commit moved all variation from
+        // time to a fixed per-flow temperature — so I put the conflict to him rather than picking, and he
+        // chose "per-flow, staggered — no lockstep".
+        // 🔑 A GLOBAL CYCLE IS THE `mk` SINE WEARING A LONGER PERIOD. What made the old pulse read as flashy
+        // was not its SPEED, it was that every vein on the map did the same thing at the same moment. So each
+        // flow gets its own PERIOD (2.6–6.6 hours) as well as its own phase: two cycles of different length
+        // never re-synchronise, so the field can never breathe as one no matter how long you watch it.
+        var vPer=(2.6+((vh4>>>9)%40)/10)*3600000, vPh=((vh4>>>3)%1000)/1000*6.28319;
+        var vHeat=Math.max(0.04, vBase*(0.30+0.70*(0.5+0.5*Math.sin(now/vPer*6.28319+vPh))));
+        // how much of the channel still has liquid in it — a dying flow glows only near its vent
+        var vCool=vHeat/Math.max(0.06,vBase), vLiveF=0.22+0.66*vCool;
         var vCap=4.5*KSP;                                     // how far off its fall line a flow may wander
         for(var vq=vy;vq<vEnd;vq+=vsp){
           // DOWNHILL, not down. Which way does the rock fall here? If the left is higher, the flow goes right.
@@ -25716,9 +25736,9 @@ function drawMountains(g,L,now,nd){
           var vwq=Math.max(2,Math.round(vw*(0.55+0.75*f4)));
           g.fillStyle=vCrust;
           g.fillRect(vxx,vq,vwq,vsp);
-          if(f4>0.88) continue;                               // the toe has set solid — no light at all
+          if(f4>vLiveF) continue;                             // past here it has set solid — no light at all
           // ---- and the heat inside it, hottest at the source and dying downslope ----
-          var heat=vHeat*(1-f4/0.88);
+          var heat=vHeat*(1-f4/vLiveF);
           heat*=heat;                                         // falls off fast, the way a cooling flow does
           var lift=0.62+0.38*mNight;                          // it reads harder after dark; it is the only light
           var shim=1-0.05*Math.max(0,1-f4*3)*(0.5+0.5*Math.sin(now*0.0011+v*2.3));   // a few percent, at the vent only
@@ -25748,7 +25768,7 @@ function drawMountains(g,L,now,nd){
       }
       // …and the ground behind the city, torn open. Near band only: the apron in front of the far ridge is
       // occluded by the near one, so a tear drawn there is a tear nobody sees.
-      if(pi===1) drawAshFissures(g,hs,gy,day,mNight,ashRift);
+      if(pi===1) drawAshFissures(g,hs,gy,day,mNight,now,ashRift);
     }
     // SNOW LIES WHERE THE LAND IS LEVEL. A February render of every biome came back in its summer
     // colours: only alpine showed any snow, because only alpine carries `snow:true`, and that band is
