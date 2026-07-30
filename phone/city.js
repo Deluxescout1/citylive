@@ -4067,6 +4067,11 @@ function seaFrontOf(b){
     // buy. At 34 the horizon sits at ~310 and the loss is ~21%, with the near deck still a real presence.
     // 🔑 A SETTING THAT MOVES THE HORIZON MOVES TWO THINGS. Reading `SEA_FRONT` and reasoning about it
     // alone is how the estimate went wrong; `GROUND` is reassigned three lines away and I did not look.
+    // ⚠ THE KARST STANDS IN WATER — that is the defining image of this landform (Li River / Halong Bay),
+    // and the river was a thin pale band BEHIND the towers. `SEA_FRONT` is the only machinery that puts a
+    // body of water in FRONT of the town. Kept modest at 28: on THE EMPYREAN 34 cost 21% of the sky
+    // because `SEA_FRONT>0` ALSO grows `GROUND` 26->54, which I under-estimated once already.
+    case "karst":   return 28;    // the river the towers rise out of
     case "heaven":  return 34;    // the undercast, on the near side of the summit
     case "cliffs":  return 34;    // a real drop from the clifftop into deep water
     // ⚠ THE CORAL COAST IS A *VARIANT* OF `beach`, not a biome of its own (BIOME_VARIANTS keys on
@@ -14552,6 +14557,125 @@ function drawCinderLife(g,L,now,nd,fx){
     }
   }
 }
+// ============ THE RIVER THE TOWERS STAND IN ============
+// Nick's locked answer #3. The defining photograph of this landform is limestone towers rising straight
+// out of still green water with their own reflections under them; this land had a thin pale strip behind
+// the stacks instead. Routed off `drawSeaFrontBand` before any of the surf, wet-sand or shoreline
+// machinery runs, because none of it applies to a slow inland river.
+//
+// ⚠⚠ THE REFLECTION IS THE WHOLE POINT, AND IT HAS TO COME OFF THE REAL TOWERS. Anything hand-drawn
+// under the water would drift out of agreement with the silhouette above it the moment the tower roll
+// changed, and on three monitors that disagreement is visible. So the reflection is sampled from
+// `karstCache` — the same array the towers themselves are drawn from — and can never disagree with them.
+// ⚠ COMPRESSED AND WOBBLED, not mirrored one-for-one. A perfect mirror reads as a fold in the paper; a
+// real reflection in moving water is foreshortened and broken up by ripple.
+function drawKarstWater(g,L,now){
+  var K=Math.max(1,KSP), day=L>0.5, B=curBiome;
+  var top=SEA_Y, botY=SH-TASKBAR_WP, depth=Math.max(2,botY-top);
+  if(!karstCache||!karstCache.length) return;
+  var skc=biomeSkc(day);
+  var _mpW=moonPhase(new Date(now)), moonW=Math.max(0,Math.min(1,(1-Math.cos(2*Math.PI*_mpW))/2));
+  // jade-green, still, and darker toward the viewer — the colour of limestone water everywhere
+  var wTop=day?mixc([104,150,132],skc,0.30):mixc([16,30,34],[46,60,92],0.20+0.28*moonW);
+  var wBot=day?[38,74,72]:[8,14,18];
+  var step=Math.max(1,Math.round(K*0.6));
+  for(var y=top;y<botY;y+=step){
+    var f=(y-top)/depth;
+    g.fillStyle=css(mixc(wTop,wBot,f*f*(3-2*f)));
+    g.fillRect(0,y,SW,step);
+  }
+  // ---- the towers, upside down and broken by the surface ----
+  // build the near silhouette once: the topmost rock at each column across the two nearest ranks
+  var sil=new Array(SW);
+  for(var x=0;x<SW;x++) sil[x]=1e9;
+  for(var r=0;r<Math.min(2,karstCache.length);r++){
+    var rank=karstCache[r];
+    for(var t=0;t<rank.length;t++){
+      var tw=rank[t];
+      for(var o=-1;o<=1;o++){
+        var cx=Math.round(tw.wx-WOFF+o*WW);
+        if(cx+tw.w<0||cx-tw.w>SW) continue;
+        var tp=Math.round(HORIZON-tw.h);
+        for(var x2=Math.max(0,cx-tw.w);x2<Math.min(SW,cx+tw.w);x2++){
+          var u=(x2-cx)/tw.w, au=Math.abs(u);
+          if(au>0.98) continue;
+          var cr=Math.pow(Math.max(0,1-au*au),0.30);
+          var yy=tp+tw.h*(1-cr)*0.40;
+          if(yy<sil[x2]) sil[x2]=yy;
+        }
+      }
+    }
+  }
+  // ⚠ THE REFLECTION MUST BE DARKER THAN THE WATER, not a tint of it. My first pass mixed the reflection
+  // colour toward the pale sky haze, which landed it within a few units of the water it was drawn on — so
+  // the towers' reflections were technically present and completely invisible. A reflection reads because
+  // it is a DARK shape on a light surface; that contrast is the entire effect.
+  // 🔑 Same family as the basalt coast ("rock and walls at the SAME VALUE, so whole buildings vanished
+  // into the cliff") — and I have now made this mistake on the Empyrean's gate and here.
+  var refC=day?[30,58,54]:[5,10,14];
+  var COMP=0.42;                                    // foreshortening: a reflection is shorter than its tower
+  for(var x3=0;x3<SW;x3++){
+    if(sil[x3]>1e8) continue;
+    var hgt=Math.round((HORIZON-sil[x3])*COMP);
+    if(hgt<2) continue;
+    // ripple: a slow horizontal displacement that grows with distance from the surface
+    for(var d2=0;d2<hgt;d2+=step){
+      var yr=top+d2;
+      if(yr>=botY) break;
+      var df=d2/hgt;
+      var wob=Math.sin((x3+WOFF)*0.05+now*0.0009+df*2.4)*(0.6+2.4*df)*K*0.4;
+      var xr=Math.round(x3+wob);
+      if(xr<0||xr>=SW) continue;
+      var a=(0.60-0.42*df)*(day?1:0.75);
+      if(a<=0.02) continue;
+      g.fillStyle=rgba(refC,a);
+      g.fillRect(xr,yr,1,step);
+    }
+  }
+  // ---- the surface itself: a few long slow glints, never a ruled line ----
+  g.globalCompositeOperation="lighter";
+  g.fillStyle=day?"rgba(226,244,236,0.18)":"rgba(150,170,210,0.10)";
+  for(var q=0;q<40;q++){
+    var gh2=mixLi(q>>>0,55949)>>>0;
+    var gx=Math.round(((gh2%Math.max(1,WW))-WOFF));
+    gx=((gx%WW)+WW)%WW; if(gx>SW+30) gx-=WW;
+    if(gx<-30||gx>SW) continue;
+    var gy2=top+((gh2>>>9)%Math.max(1,depth-2));
+    var gl=Math.round((4+((gh2>>>17)%16))*K*0.5);
+    var gsw=Math.sin(now*0.0006+q*1.7);
+    if(gsw<0.2) continue;                            // most of them are not catching the light right now
+    g.fillRect(gx,gy2,gl,Math.max(1,Math.round(K*0.4)));
+  }
+  g.globalCompositeOperation="source-over";
+  // ---- THE RIVER WORKS (locked signature): sampans poling between the towers: sampans poling between the towers ------------------------------------
+  // The water stops being scenery and becomes a road. Long thin boats with a standing poler — at this
+  // scale the SHAPE (a shallow crescent with one upright figure) is the whole recognition.
+  {
+    var wTopY=top, wBot=botY;
+    for(var b=0;b<7;b++){
+      var bh=mixLi(b>>>0,64157)>>>0;
+      var per=(150000+((bh%100)*2600));                       // each boat its own crossing time
+      var ph=((now+((bh>>>7)%per))%per)/per;
+      var dir=((bh>>>3)&1)?1:-1;
+      var bwx=(dir>0?ph:1-ph)*WW;
+      var by=wTopY+Math.round((0.18+((bh>>>11)%100)/100*0.55)*(wBot-wTopY));
+      for(var o=-1;o<=1;o++){
+        var bx=Math.round(bwx-WOFF+o*WW);
+        if(bx<-20||bx>SW+20) continue;
+        var bl=Math.max(3,Math.round((5+((bh>>>17)%4))*K*0.6));
+        var bob=((Math.floor(now/700)+b)&1)?0:1;
+        g.fillStyle=day?"rgba(58,46,34,0.92)":"rgba(12,10,8,0.94)";
+        g.fillRect(bx,by+bob,bl,Math.max(1,Math.round(K*0.5)));                 // the hull
+        g.fillRect(bx+Math.round(bl*0.5),by-Math.round(1.8*K)+bob,Math.max(1,Math.round(K*0.4)),Math.round(1.8*K)); // the poler
+        g.fillStyle=day?"rgba(180,170,150,0.7)":"rgba(90,96,120,0.6)";
+        g.fillRect(bx+Math.round(bl*0.5)+Math.round(K*0.4),by-Math.round(2.6*K)+bob,Math.max(1,Math.round(K*0.3)),Math.round(2.6*K)); // the pole
+        // the wake, because a boat that leaves no mark is a sticker
+        g.fillStyle=day?"rgba(226,244,236,0.30)":"rgba(150,170,210,0.18)";
+        g.fillRect(bx-dir*Math.round(3*K),by+Math.round(K*0.5)+bob,Math.round(3*K),Math.max(1,Math.round(K*0.3)));
+      }
+    }
+  }
+}
 // ============ THE NEAR SIDE OF THE CLOUD SEA ============
 // The other half of Nick's locked answer #5: cloud behind AND in front, the city on an island in it.
 //
@@ -14738,6 +14862,7 @@ function drawSeaFrontBand(g,L,now){
   // ⚠ ON THE EMPYREAN THE BAND IN FRONT IS NOT WATER — it is the same cloud deck, nearer. Routed before
   // anything here runs, so none of the swell, foam, wet-sand or shoreline machinery touches it.
   if(curBiome.celest){ drawCloudFront(g,L,now); return; }
+  if(curBiome.tower){ drawKarstWater(g,L,now); return; }
   var K=Math.max(1,KSP), day=L>0.5, k=curBiome.k, nm=curBiome.name;
   // ⚠ the band ends at the top of the taskbar, not at the bottom of the frame — otherwise the deepest
   // (and most visible) water is drawn underneath a panel and the land just looks like a wide road.
@@ -19984,7 +20109,21 @@ function drawKarst(g,L,now,nd){
       var towers=[], depth=r/(RANKS-1);
       // spacing tightens with distance, which is what actually sells recession — near towers are
       // sparse and large, far ones crowd together. World-anchored so all three monitors agree.
-      var gap=Math.round(96-34*depth), wx=0, i=0;
+      // ============ THREE KARST FORMS (locked answer #6) ============
+      // The same ruling Nick has now given five lands: the variants must be three PLACES. Karst sorts
+      // itself in the real world by how far the dissolution has gone, so the three are stages of one story.
+      //   THE KARST        — FENGLIN ("peak forest"): the mature form. Isolated towers standing well apart
+      //                      on a flat alluvial plain, because everything between them has already gone.
+      //   THE GREEN TOWERS — FENGCONG ("peak cluster"): the younger form. Cones still JOINED at the base
+      //                      by the massif they were cut from, saddles between them, jungle to the summits
+      //                      and no plain visible at all.
+      //   THE GREY STACKS  — a drowned archipelago. The same towers with the valley flooded: bare pale
+      //                      limestone islands, sheer sides, and the deepest undercuts of the three
+      //                      because the water is still working on them.
+      var kv=(B.name==="THE GREEN TOWERS")?1:((B.name==="THE GREY STACKS")?2:0);
+      var gapK=(kv===1)?0.52:((kv===2)?1.26:1.00);   // fengcong crowds, the archipelago spreads out
+      var htK =(kv===1)?0.82:((kv===2)?0.88:1.06);   // fenglin is the tallest form
+      var gap=Math.round((96-34*depth)*gapK), wx=0, i=0;
       while(wx<WW+200){
         var h1=mixLi((wx*7919+r*104729)>>>0, 5171)%1000/1000;
         var h2=mixLi((wx*40503+r*7717)>>>0, 9973)%1000/1000;
@@ -19999,19 +20138,30 @@ function drawKarst(g,L,now,nd){
         //   2 TWIN   — a notched saddle between two summits, where a joint has been dissolved out.
         //   3 DOME   — the rounded crown the old code drew, kept because it is one real form of several.
         var kh=mixLi((wx*2246822519+r*3266489917)>>>0, 24593)>>>0;
+        // ⚠ THE KIND MIX IS PART OF THE FORM, NOT DECORATION. Fenglin towers are old and rounded off, so
+        // they run to domes and blocks; fengcong is younger and still conical with dissolved saddles, so it
+        // runs to cones and twins; a drowned archipelago shows blocks and domes because the cones have
+        // their feet under water. Drawing the same four kinds in the same proportions on all three would
+        // have made them one place at three spacings.
+        var kMix=(kv===1)?[1,1,2,2]:((kv===2)?[0,0,3,3]:[0,3,3,1]);
         towers.push({
           wx: wx,
           w:  Math.round((16+h1*20)*(1-0.34*depth)),
-          h:  HORIZON*(0.30+0.42*h2)*(1-0.30*depth)*B.amp,
+          h:  HORIZON*(0.30+0.42*h2)*(1-0.30*depth)*B.amp*htK,
           lean:(h1-0.5)*0.22,
-          kind:(kh%4),
+          kind:kMix[kh%4],
+          kv:kv,
+          // fengcong stands on the massif it was cut from — the feet MERGE into a shared base rather than
+          // each tower meeting the ground on its own. That single term is most of what separates a peak
+          // CLUSTER from a peak FOREST.
+          base:(kv===1)?(0.14+((kh>>>3)%100)/100*0.12):0,
           // where the summit sits across the tower — a hill is symmetrical, a dissolved tower is not
           off:(((kh>>>5)%100)/100-0.5)*0.44,
           // ⚠ THE UNDERCUT FOOT is the single detail that most says "karst". These towers stand in water
           // (or once did), and water dissolves limestone fastest at the waterline — so a real stack is
           // NARROWER at its base than at its middle and visibly overhangs. Nothing else in the engine
           // leans out over its own footing, which is exactly why it reads.
-          foot:2.2+((kh>>>11)%100)/100*5.0,
+          foot:(2.2+((kh>>>11)%100)/100*5.0)*((kv===2)?1.7:(kv===1?0.45:1)),
           notch:0.18+((kh>>>17)%100)/100*0.26,
           seed:((wx*2654435761)>>>0)^r
         });
@@ -20075,6 +20225,8 @@ function drawKarst(g,L,now,nd){
           // SHORT of the ground and the tower overhangs its own base.
           var fc=Math.max(0,(Math.abs(u)-0.52)/0.48);
           var yBot=HORIZON-Math.round(fc*fc*tw.foot*K);
+          // fengcong: the towers sit on a shared massif, so the undercut is filled back in near the base
+          if(tw.base>0) yBot=Math.max(yBot,HORIZON-Math.round(tw.h*0.02));
           if(yBot<=y) continue;
           // ⚠⚠ CONTINUOUS SHADING, NOT A HARD SPLIT. The old line was `u<-0.15 ? litC : body`, which put a
           // dead vertical edge down the middle of every tower — the shading cue of a CYLINDER, so the
@@ -20099,7 +20251,9 @@ function drawKarst(g,L,now,nd){
             var vA=(mixLi(v1>>>0,50021)%1000)/1000*(1-vs1)+(mixLi((v1+1)>>>0,50021)%1000)/1000*vs1;
             var v2=Math.floor(vx/6), vf2=(vx/6)-v2, vs2=vf2*vf2*(3-2*vf2);
             var vB=(mixLi(v2>>>0,13001)%1000)/1000*(1-vs2)+(mixLi((v2+1)>>>0,13001)%1000)/1000*vs2;
-            var vH=(0.5+2.9*(vA*0.68+vB*0.32))*(1-au*au*0.5);
+            // jungle to the summits on fengcong; almost nothing on the bare drowned stacks
+            var vK=(tw.kv===1)?2.1:((tw.kv===2)?0.28:1);
+            var vH=(0.5+2.9*(vA*0.68+vB*0.32))*(1-au*au*0.5)*vK;
             if(vH>0.35){ g.fillStyle=rgba(greenC,0.55);
               g.fillRect(x,y+Math.max(1,Math.round(K*0.7)),1,Math.round(vH*K)); }
           }
@@ -20190,14 +20344,27 @@ function drawKarst(g,L,now,nd){
     // ⚠ Per-rank strength comes down because there are now five veils instead of two and they ACCUMULATE;
     // the total is what matters, not the coefficient of any one (the Empyrean's additive-layer lesson).
     if(r2>0){
+      // when the valley fills, the veil reaches further UP the towers — that is what "brim-full" means
       var mh=Math.round(HORIZON*0.62), my=HORIZON;
       var mistC=day?[228,234,230]:[52,60,66];
       // it breathes very slowly, and each rank on its own phase so the layers never pulse together
-      var mBreath=0.88+0.12*Math.sin(now*0.00007+r2*1.9);
+      // ---- MIST THAT FILLS AND DRAINS THE VALLEY (locked signature #4) ---------------------------
+      // The classic Guilin morning: the valley brim-full at dawn with only the summits showing, burning
+      // off through the morning, thin by afternoon, gathering again overnight — and thick after rain.
+      // ⚠ DRIVEN BY THE REAL LIGHT AND THE REAL RAIN, not by a clock hour. `L` is the actual sun on the
+      // day being drawn, so the fill and the burn-off move through the year on their own; `wetness` is the
+      // engine's own rain-soak accumulator, so a wet valley genuinely stays misty and dries out slowly.
+      // 🔑 THE BURN-OFF IS NOT SYMMETRICAL. Mist forms slowly overnight and lifts FAST once the sun is on
+      // it — a symmetrical curve reads as a fade, which is the one thing this must not look like.
+      var mDawn=Math.max(0,Math.min(1,1-Math.abs(L-0.30)/0.30));   // peaks in the low light of dawn/dusk
+      var mBurn=Math.max(0,Math.min(1,(L-0.42)/0.34));             // gone by the time the sun is properly up
+      var mWet=Math.max(0,Math.min(1,wetness));
+      var mFill=Math.max(0.34+0.30*mWet, (0.42+0.92*mDawn)*(1-0.72*mBurn)+0.55*mWet);
+      var mBreath=(0.88+0.12*Math.sin(now*0.00007+r2*1.9))*mFill;
       var mStep=Math.max(1,Math.round(K*0.5));
       for(var mq=0;mq<mh;mq+=mStep){
         var mf=mq/mh;
-        var aM=(0.08+0.13*dep)*(1-mf)*(1-mf)*mBreath;
+        var aM=(0.08+0.13*dep)*(1-mf*Math.max(0.25,1.30-0.85*mFill))*(1-mf)*mBreath;
         if(aM<=0.004) continue;
         g.fillStyle=rgba(mistC,aM);
         g.fillRect(0,my-mq-mStep,SW,mStep);
@@ -20563,6 +20730,73 @@ function drawDunes(g,L,now,nd){
 // brief said weather IS the landscape on the empty maps; on this one it is literally true.
 // ⚠ Driven by the REAL wind, not by a roll — so it is the same event on all three monitors, and it
 // only happens when it should. The wallpaper never invents weather the world does not have.
+// ============ THE KARST, ALIVE ============
+// Nick's locked signature answers for map 14, all four. Everything here is a pure function of the clock —
+// three monitors draw this world independently and never talk, so anything with state would drift apart
+// between screens within minutes (the Phase 7 constraint).
+function drawKarstLife(g,L,now,nd,fx){
+  if(!curBiome.tower||cityPhase==="apoc"||!karstCache) return;
+  var K=Math.max(1,KSP), day=L>0.5;
+  // ⚠ THE SAMPANS ARE DRAWN INSIDE `drawKarstWater`, NOT HERE, AND THAT IS A PAINT-ORDER FIX rather than
+  // a tidy-up. `drawKarstLife` runs at ~33274 and `drawSeaFrontBand` at ~33503, so boats drawn in this
+  // function were painted and then covered by the river a moment later — present in the code, invisible
+  // in the frame. Seventh time on this project that the answer was "written, then buried by paint order".
+  // A thing that floats on the water belongs to the water.
+  // ---- 2. SWIFTS POUR OUT OF THE CAVES AT DUSK ---------------------------------------------------
+  // The real spectacle of a karst cave: a stream of birds boiling out of the mouth as the light goes,
+  // every evening, then gone. ⚠ Tied to the ACTUAL falling light, not to a clock hour, so it happens when
+  // dusk happens — which moves through the year exactly as it should.
+  var duskK=Math.max(0,Math.min(1,1-Math.abs(L-0.34)/0.16));
+  if(duskK>0.04){
+    var rank0=karstCache[0]||[];
+    for(var t=0;t<rank0.length;t++){
+      var tw=rank0[t];
+      if((tw.seed%100)>=58) continue;                          // only the towers that actually have a cave
+      for(var o2=-1;o2<=1;o2++){
+        var cx2=Math.round(tw.wx-WOFF+o2*WW);
+        if(cx2<-60||cx2>SW+60) continue;
+        var n=Math.round(26*duskK);
+        g.fillStyle=day?"rgba(40,40,46,0.75)":"rgba(20,20,26,0.8)";
+        for(var q=0;q<n;q++){
+          var sh=mixLi((tw.seed+q*7919)>>>0,11467)>>>0;
+          // each bird on its own outward journey, looping up and away from the mouth
+          var sp=((now*0.00022+((sh%1000)/1000))%1);
+          var ang=((sh>>>9)%628)/100;
+          var rad=sp*(10+((sh>>>15)%26))*K*0.5;
+          var sx3=Math.round(cx2+Math.cos(ang)*rad);
+          var sy4=Math.round(HORIZON-Math.round(2*K)-Math.abs(Math.sin(ang))*rad*0.8-sp*8*K);
+          if(sx3<0||sx3>=SW||sy4<0) continue;
+          g.fillRect(sx3,sy4,Math.max(1,Math.round(K*0.4)),Math.max(1,Math.round(K*0.4)));
+        }
+      }
+    }
+  }
+  // ---- 3. MACAQUES ON THE STACKS ------------------------------------------------------------------
+  // In the fauna list since the biome was written and never once drawn. They work the ledges in troops.
+  if(day){
+    var rk=karstCache[0]||[];
+    for(var t2=0;t2<rk.length;t2++){
+      var tw2=rk[t2];
+      if((tw2.seed>>>9)%100>=34) continue;                     // only some towers have a troop on them
+      for(var o3=-1;o3<=1;o3++){
+        var cx3=Math.round(tw2.wx-WOFF+o3*WW);
+        if(cx3<-40||cx3>SW+40) continue;
+        var mN=2+((tw2.seed>>>13)%3);
+        g.fillStyle="rgba(92,76,58,0.95)";
+        for(var m=0;m<mN;m++){
+          var mh2=mixLi((tw2.seed+m*104729)>>>0,29873)>>>0;
+          var mx4=cx3+Math.round(((((mh2%100)/100)-0.5))*tw2.w*1.4);
+          // they shuffle along a ledge — a slow scripted walk, each on its own phase
+          mx4+=Math.round(Math.sin(now*0.00045+m*1.7+t2)*2.4*K);
+          var my4=Math.round(HORIZON-tw2.h*(0.10+((mh2>>>9)%100)/100*0.44));
+          if(mx4<0||mx4>=SW) continue;
+          g.fillRect(mx4,my4,Math.max(1,Math.round(K*0.5)),Math.max(1,Math.round(K*0.7)));
+          g.fillRect(mx4+Math.max(1,Math.round(K*0.5)),my4+Math.round(K*0.2),Math.max(1,Math.round(K*0.4)),Math.max(1,Math.round(K*0.3)));
+        }
+      }
+    }
+  }
+}
 // ============ THE CARAVAN, AND SAND THAT IS NEVER STILL ============
 // Two of Nick's four locked signatures for this land.
 //
@@ -24304,6 +24538,97 @@ function drawBiomeLandmark(g,L,now,nd){
       if(pouring){ g.globalCompositeOperation="lighter";                            // the light it throws
         g.fillStyle="rgba(255,140,50,0.16)"; g.fillRect(X-Math.round(14*K),gy-fh-Math.round(6*K),fw+Math.round(28*K),fh+Math.round(8*K));
         g.globalCompositeOperation="source-over"; }
+    });
+  } else if(B.k==="karst"){
+    // ============ THE TEMPLE IN THE ROCK, AND THE STAIR THAT REACHES IT ============
+    // THE KARST had no landmark at all — zero code in any of the four biome hooks. Nick's ruling: a shrine
+    // cut into a cave mouth partway up a stack, with a long exposed stair zigzagging up the rock to it.
+    // ⚠ IT USES THE CAVES RATHER THAN STANDING BESIDE THEM. This land's own code calls the caves "the
+    // signature", and a landmark that ignored them would be a second idea competing with the first. The
+    // stair is not decoration either: it is the only thing in the frame that gives a tower a SCALE you can
+    // read, because you can count it against the 7px people at its foot.
+    // ⚠ ATTACHED TO A REAL TOWER, sampled from `karstCache` — the same array the towers are drawn from —
+    // so the temple can never end up hanging in the air beside one.
+    at(function(X){
+      if(!karstCache||!karstCache[0]||!karstCache[0].length) return;
+      var best=null, bd=1e9;
+      for(var i=0;i<karstCache[0].length;i++){
+        var tw0=karstCache[0][i];
+        for(var o=-1;o<=1;o++){
+          var tcx=Math.round(tw0.wx-WOFF+o*WW);
+          var dd=Math.abs(tcx-X);
+          if(dd<bd){ bd=dd; best={cx:tcx,tw:tw0}; }
+        }
+      }
+      if(!best) return;
+      var cx=best.cx, tw=best.tw;
+      if(cx<-120||cx>SW+120) return;
+      var stone=day?"#e6e2d4":"#4a4a52", tile=day?"#a8412e":"#3a1a14", tile2=day?"#8a3324":"#2a120e";
+      var wood=day?"#8a7250":"#2a2318";
+      var upH=Math.round(tw.h*(0.34+((tw.seed>>>5)%100)/100*0.18));
+      var ly=HORIZON-upH;
+      var tW=Math.round(9*K), tH=Math.round(5.4*K);
+      var tX=cx-Math.round(tW*0.5)+Math.round((((tw.seed>>>11)%100)/100-0.5)*tw.w*0.5);
+      // ⚠ A ROCK SPUR OF ITS OWN, so the temple always reads as CUT INTO rock. Relying on whichever tower
+      // happens to be behind it is the mistake the Ashlands wrote down as "self-contained objects on the
+      // ground line, not dressing hung on the skyline": the landmark X is chosen for the outskirts, not
+      // for the tower field, so on some lives the shrine ended up apparently perched on a city block.
+      // The spur is drawn in the near rank's own body colour, so it belongs to the landscape.
+      var spurW=Math.round(tw.w*0.62);
+      var spurC=mixc(day?B.near:[(B.near[0]*0.18)|0,(B.near[1]*0.20)|0,(B.near[2]*0.32)|0], biomeSkc(day), 0.06);
+      g.fillStyle=css(spurC);
+      g.fillRect(cx-spurW,ly,spurW*2,HORIZON-ly+1);
+      g.fillStyle=css(mixc(spurC,[255,255,255],day?0.16:0.06));      // its lit flank, continuous not split
+      g.fillRect(cx-spurW,ly,Math.max(1,Math.round(spurW*0.34)),HORIZON-ly+1);
+      g.fillStyle=stone; g.fillRect(tX-Math.round(2*K),ly,tW+Math.round(4*K),Math.max(1,Math.round(1.2*K)));
+      g.fillStyle=day?"rgba(0,0,0,0.22)":"rgba(0,0,0,0.34)";
+      g.fillRect(tX-Math.round(2*K),ly+Math.max(1,Math.round(1.2*K)),tW+Math.round(4*K),Math.max(1,Math.round(K*0.6)));
+      g.fillStyle=day?"#2a2420":"#0c0a08";
+      g.fillRect(tX+Math.round(2.6*K),ly-tH+Math.round(1.4*K),Math.round(3.6*K),tH-Math.round(1.4*K));
+      g.fillStyle=stone;
+      g.fillRect(tX+Math.round(1.4*K),ly-tH+Math.round(1.4*K),Math.max(1,Math.round(K*0.8)),tH-Math.round(1.4*K));
+      g.fillRect(tX+Math.round(6.4*K),ly-tH+Math.round(1.4*K),Math.max(1,Math.round(K*0.8)),tH-Math.round(1.4*K));
+      // THE ROOF — the one shape that says "temple" at this size: a wide overhanging eave with upturned
+      // ends, drawn in two courses so the sweep reads without needing a curve.
+      g.fillStyle=tile;
+      g.fillRect(tX,ly-tH,tW,Math.max(1,Math.round(1.5*K)));
+      g.fillRect(tX+Math.round(1.2*K),ly-tH-Math.round(1.2*K),tW-Math.round(2.4*K),Math.max(1,Math.round(1.2*K)));
+      g.fillStyle=tile2;
+      g.fillRect(tX-Math.round(1.2*K),ly-tH-Math.round(K*0.6),Math.round(1.6*K),Math.max(1,Math.round(K*0.8)));
+      g.fillRect(tX+tW-Math.round(0.4*K),ly-tH-Math.round(K*0.6),Math.round(1.6*K),Math.max(1,Math.round(K*0.8)));
+      // ---- THE STAIR: zigzag flights up the face ----
+      // ⚠ Zigzag, not a ramp. A straight line from the ground to a ledge reads as a WIRE; real cliff
+      // stairs switch back, and it is the switchbacks that make the height legible.
+      var flights=5+((tw.seed>>>17)%3);
+      var fH=upH/flights;
+      var px=cx-Math.round(tw.w*0.55), py=HORIZON;
+      for(var fl=0;fl<flights;fl++){
+        var dir=(fl&1)?1:-1;
+        var nx=cx+dir*Math.round(tw.w*0.55*(1-fl/flights*0.7));
+        var ny=HORIZON-Math.round(fH*(fl+1));
+        var stepsN=Math.max(3,Math.round(Math.abs(nx-px)/Math.max(1,Math.round(K*0.9))));
+        for(var st2=0;st2<stepsN;st2++){
+          var sf=st2/stepsN;
+          var sx2=Math.round(px+(nx-px)*sf), sy3=Math.round(py+(ny-py)*sf);
+          if(sx2<0||sx2>=SW) continue;
+          // ⚠ the tread needs a dark riser under it or the flight reads as a pale smear on pale rock —
+          // contrast between a thing and what it stands on, the basalt-coast rule, at 1px scale
+          g.fillStyle=day?"rgba(40,44,40,0.55)":"rgba(0,0,0,0.5)";
+          g.fillRect(sx2,sy3+Math.max(1,Math.round(K*0.5)),Math.max(1,Math.round(K*1.0)),Math.max(1,Math.round(K*0.4)));
+          g.fillStyle=stone; g.fillRect(sx2,sy3,Math.max(1,Math.round(K*1.0)),Math.max(1,Math.round(K*0.6)));
+          if((st2&1)===0){ g.fillStyle=wood;
+            g.fillRect(sx2,sy3-Math.round(1.6*K),Math.max(1,Math.round(K*0.5)),Math.round(1.6*K)); }
+        }
+        px=nx; py=ny;
+      }
+      if(!day){
+        g.globalCompositeOperation="lighter";
+        g.fillStyle="rgba(255,186,96,0.55)";
+        g.fillRect(tX+Math.round(2.6*K),ly-Math.round(2.4*K),Math.round(3.6*K),Math.round(2.4*K));
+        g.fillStyle="rgba(255,170,70,0.28)";
+        g.fillRect(tX-Math.round(2*K),ly-Math.round(4*K),tW+Math.round(4*K),Math.round(5*K));
+        g.globalCompositeOperation="source-over";
+      }
     });
   } else if(B.k==="dunes"){
     // ============ THE CARAVANSERAI, STANDING AT ITS OASIS ============
@@ -32951,6 +33276,7 @@ function draw(g,pass){
   // occludes it exactly the way it occludes the terrain. See the note on WILD_LAYER.
   WILD_LAYER="back"; drawFauna(g,L,now,nd);
   drawAlpineLife(g,L,now,nd,fx); drawGorgeLife(g,L,now,nd,fx);
+  drawKarstLife(g,L,now,nd,fx);
   drawDuneLife(g,L,now,nd,fx);   drawSavannaLife(g,L,now,nd,fx);
   drawLandPredators(g,L,now,nd,fx);   // every other land's hunter, same hashed clock
   WILD_LAYER="front";
