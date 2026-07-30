@@ -9453,17 +9453,71 @@ function drawFloodedFlats(g,L,now,sa,sb,zi,wTop,shoreAt,sgn){
   var day=L>0.5, K=Math.max(1,KSP), span=sb-sa, wDep=Math.max(1,HORIZON-wTop);
   var conc=day?"#8a8e98":"#20242c", conc2=day?"#6a6e78":"#161a20";
   var neonC=["#4be0d0","#f04a8a","#ffe14a","#7c6cff"];
-  // CONCRETE BERMS — long low walls cutting the water into cells, which is what makes it read as
-  // drained industrial land rather than a lake.
-  for(var b=0;b<4;b++){
-    var by=wTop+Math.round(((b+0.6)/4.6)*wDep);
+  var fSeed=((WORLD_SEED*40503+911)>>>0);
+  // ⚠⚠⚠ THE BERMS WERE FOUR FULL-WIDTH HORIZONTAL BARS AT EVEN SPACING.
+  // `fillRect(sa, wTop+((b+0.6)/4.6)*wDep, span, h)` — four rules straight across the water at a fixed
+  // pitch. That is the ruled-line family for the TWELFTH time on this project, and together with the
+  // near-invisible daytime reflections below it is the whole reason Nick called this map "very
+  // confusing": the flats read as a dark slab with lines drawn on it rather than as water.
+  // A real berm is a wall built in pours: it steps, it kinks, it has sluice gates and collapsed
+  // stretches, and its top is broken by whatever has been dumped on it. And they are not spaced evenly,
+  // because the cells they divide are different sizes.
+  var nBerm=3+((fSeed>>>3)%2);
+  for(var b=0;b<nBerm;b++){
+    var bF=(b+0.55+((((fSeed>>>(b*4))&7)/7)-0.5)*0.5)/(nBerm+0.7);   // uneven cells
+    var by0=wTop+Math.round(bF*wDep);
     var bh2=Math.max(1,Math.round((1.4+b*0.5)*K));
-    g.fillStyle=conc2; g.fillRect(sa,by,span,bh2);
-    g.fillStyle=conc;  g.fillRect(sa,by,span,Math.max(1,Math.round(K*0.7)));
+    var segW=Math.max(Math.round(9*K),Math.round(span/(7+b)));
+    for(var bx=sa; bx<sb; bx+=segW){
+      var segH=((((bx*2654435761)^fSeed)>>>0)%1000)/1000;
+      if(segH<0.09) continue;                                        // a stretch that has gone
+      var bw=Math.min(segW-Math.max(1,Math.round(K*0.8)), sb-bx);
+      if(bw<=0) continue;
+      // each pour sits a pixel or two off its neighbour — the wall steps along instead of ruling
+      var by=by0+Math.round(((((bx*7919)^fSeed)>>>0)%3)-1);
+      g.fillStyle=conc2; g.fillRect(bx,by,bw,bh2);
+      g.fillStyle=conc;  g.fillRect(bx,by,bw,Math.max(1,Math.round(K*0.7)));
+      // spoil and junk piled on the crest, so the top edge is not a line either
+      if(segH>0.62){
+        var jw=Math.max(1,Math.round(2.4*K));
+        g.fillStyle=conc2;
+        g.fillRect(bx+Math.round(bw*0.3),by-Math.max(1,Math.round(K*0.9)),jw,Math.max(1,Math.round(K*0.9)));
+      }
+    }
     if((b&1)===0){                                                   // a sluice gate in this one
       var gx=sa+Math.round(span*(0.22+b*0.19));
-      g.fillStyle=conc; g.fillRect(gx-Math.round(2*K),by-Math.round(4*K),Math.round(4*K),Math.round(4*K));
-      g.fillStyle=conc2; g.fillRect(gx-Math.round(3*K),by-Math.round(5*K),Math.round(6*K),Math.max(1,Math.round(K)));
+      g.fillStyle=conc; g.fillRect(gx-Math.round(2*K),by0-Math.round(4*K),Math.round(4*K),Math.round(4*K));
+      g.fillStyle=conc2; g.fillRect(gx-Math.round(3*K),by0-Math.round(5*K),Math.round(6*K),Math.max(1,Math.round(K)));
+    }
+  }
+  // ---- WHAT IS STANDING IN IT: half-sunk industrial debris ----
+  // Locked answer 2 asks for this by name, and it is what tells you the water is SHALLOW and that this
+  // was land. Nothing here is animated; it is all world-keyed and static per life.
+  for(var dq=0;dq<9;dq++){
+    var dh=((dq*2246822519+fSeed)>>>0);
+    var dx=sa+(dh%Math.max(1,span)), dy=wTop+Math.round((0.22+(((dh>>>9)%100)/100)*0.72)*wDep);
+    var dEdge=shoreAt(dy);
+    if(sgn>0? dx>dEdge : dx<dEdge) continue;
+    var dScale=0.55+((dh>>>17)%100)/100*0.75, kind=(dh>>>13)%3;
+    if(kind===0){                                                    // a shipping container, canted, half under
+      var cw2=Math.round(9*K*dScale), ch2=Math.max(2,Math.round(3.4*K*dScale));
+      var ccol=[[142,74,58],[58,92,120],[104,110,84]][(dh>>>21)%3];
+      g.fillStyle=css(day?ccol:mixc(ccol,[0,0,0],0.62));
+      g.fillRect(dx,dy-ch2,cw2,ch2);
+      g.fillStyle=day?"rgba(20,24,30,0.45)":"rgba(0,0,0,0.5)";       // the waterline shadow across it
+      g.fillRect(dx,dy-Math.max(1,Math.round(K*0.8)),cw2,Math.max(1,Math.round(K*0.8)));
+    } else if(kind===1){                                             // a barge hull, mostly gone
+      var bw2=Math.round(14*K*dScale);
+      g.fillStyle=day?"#4a4038":"#12100e";
+      g.fillRect(dx,dy-Math.max(2,Math.round(2*K*dScale)),bw2,Math.max(2,Math.round(2*K*dScale)));
+      g.fillStyle=day?"#5e5248":"#181512";
+      g.fillRect(dx+Math.round(bw2*0.6),dy-Math.round(5*K*dScale),Math.max(1,Math.round(2*K*dScale)),Math.round(3*K*dScale));
+    } else {                                                         // broken piles, a rotted jetty
+      var np2=2+((dh>>>23)%3);
+      g.fillStyle=day?"#3e3630":"#0e0c0a";
+      for(var pq=0;pq<np2;pq++)
+        g.fillRect(dx+pq*Math.round(2.6*K),dy-Math.round((2+((dh>>>(pq+5))&3))*K*dScale),
+                   Math.max(1,Math.round(K)),Math.round((2+((dh>>>(pq+5))&3))*K*dScale));
     }
   }
   // PYLONS standing in the water, with the line strung between them. Cheap, and instantly industrial.
@@ -9489,20 +9543,62 @@ function drawFloodedFlats(g,L,now,sa,sb,zi,wTop,shoreAt,sgn){
   }
   // AND WHAT THE WATER IS FOR — the city's neon, broken up on the surface. This is the whole reason to
   // flood the land: the reflection doubles every sign without drawing a single extra building.
+  // ⚠⚠ THE REFLECTIONS WERE THE POINT OF FLOODING THE LAND, AND THEY WERE ALL BUT INVISIBLE.
+  // The comment above is right — "the reflection doubles every sign without drawing a single extra
+  // building" — but what it drew was 26 little horizontal ticks at alpha 0.10 by day. Locked answer 2 is
+  // "black water with real reflections of the neon and the towers", and a reflection is not a scatter of
+  // dashes: it is a COLUMN of light hanging straight down from the thing making it, broken across the
+  // surface into horizontal shards.
+  // 🔑 Vertical, not horizontal. That single change is what makes water read as water at this size — the
+  // bayou's record says the same thing ("the mirror gradient that finally made it read as water"), and
+  // dashes scattered at random read as litter on the surface instead.
   g.globalCompositeOperation="lighter";
-  for(var r=0;r<26;r++){
-    var h=((r*40503+((sa*13)|0))>>>0);
-    var rx=sa+(h%Math.max(1,span)), ry=wTop+Math.round((((h>>>9)%100)/100)*wDep);
-    var edge=shoreAt(ry);
-    if(sgn>0? rx>edge : rx<edge) continue;
-    var wob=Math.round(Math.sin(now*0.0012+r*1.3)*1.6*K);
+  var nRef=14;
+  for(var r=0;r<nRef;r++){
+    var h=((r*40503+((WORLD_SEED*13)|0))>>>0);
+    var rx=sa+(h%Math.max(1,span));
     var col=neonC[(h>>>17)%neonC.length];
-    g.fillStyle=col;
-    g.globalAlpha=(day?0.10:0.30)*(0.5+0.5*Math.abs(Math.sin(now*0.0009+r)));
-    g.fillRect(rx+wob,ry,Math.round((3+((h>>>21)%7))*K),Math.max(1,Math.round(K)));
+    // how far down the water this reflection reaches — a bright sign throws a long one
+    var rLen=Math.round((0.18+(((h>>>5)%100)/100)*0.52)*wDep);
+    var rW=Math.max(1,Math.round((1.2+((h>>>25)%3))*K));
+    for(var rq=0;rq<rLen;rq+=Math.max(1,Math.round(1.6*K))){
+      var ry=wTop+rq;
+      var edge=shoreAt(ry);
+      if(sgn>0? rx>edge : rx<edge) continue;
+      var rf=rq/Math.max(1,rLen);
+      // it breaks up and wanders further from its source, the way a real reflection does on moving water
+      var wob=Math.round(Math.sin(now*0.0012+r*1.3+rq*0.09)*(0.5+rf*2.6)*K);
+      // ⚠ IT IS BROKEN, BUT NOT AT THE SOURCE. Breaking the whole length evenly made every reflection a
+      // scatter of coloured specks — litter on the surface, not a mirror. A real one is almost solid
+      // where it leaves the object and disintegrates as it travels, so the top quarter is unbroken and
+      // the shards take over further down. That head is what identifies it as a reflection at all.
+      if(rf>0.22 && ((((rx*2654435761)^((ry*97)|0))>>>0)%10) < Math.round(2+rf*6)) continue;
+      g.fillStyle=col;
+      g.globalAlpha=(day?0.26:0.50)*(1-rf*0.70)*(0.72+0.28*Math.abs(Math.sin(now*0.0009+r)));
+      g.fillRect(rx+wob,ry,rW+Math.round(rf*2*K),Math.max(1,Math.round(K)));
+    }
     g.globalAlpha=1;
   }
   g.globalCompositeOperation="source-over";
+  // ---- CATWALKS: the way anyone crosses this. Locked answer 2, "walkways above the waterline." ----
+  // ⚠ On piles, and the piles are what stop it reading as another horizontal rule laid on the water —
+  // the same lesson the holograms just cost four bug reports: anything above ground says what holds it up.
+  for(var cwq=0;cwq<2;cwq++){
+    var ch=((cwq*104729+fSeed)>>>0);
+    var cy=wTop+Math.round((0.34+((ch%100)/100)*0.42)*wDep);
+    var cx0=sa+Math.round(((ch>>>7)%100)/100*span*0.4), cx1=Math.min(sb,cx0+Math.round(span*(0.3+((ch>>>11)%40)/100)));
+    var deckH=Math.max(1,Math.round(K*0.9));
+    for(var wx2=cx0; wx2<cx1; wx2+=Math.max(2,Math.round(7*K))){
+      var segEnd=Math.min(wx2+Math.round(6*K),cx1);
+      if(((((wx2*7919)^ch)>>>0)%11)===0) continue;                  // a missing plank section
+      g.fillStyle=day?"#5a5e68":"#14171d";
+      g.fillRect(wx2,cy,segEnd-wx2,deckH);
+      g.fillStyle=day?"rgba(210,220,232,0.30)":"rgba(255,214,150,0.35)";   // a lit handrail
+      g.fillRect(wx2,cy-Math.max(1,Math.round(K*0.7)),segEnd-wx2,Math.max(1,Math.round(K*0.5)));
+      g.fillStyle=day?"#3e424c":"#0c0e13";                          // and the piles under it
+      g.fillRect(wx2+Math.round(2*K),cy+deckH,Math.max(1,Math.round(K)),Math.round(4*K));
+    }
+  }
 }
 function drawReefLagoon(g,L,now,sa,sb,zi,wTop){
   if(curBiome.k!=="beach"&&curBiome.k!=="swamp"&&curBiome.k!=="sprawl") return;
