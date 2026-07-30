@@ -14,7 +14,7 @@ Item {
     id: root
     width: 1552; height: 874                  // 2327x1309 dpr=2 zoom=2 -> this canvas, woff 0, world 2269 wp
     property string land: "sprawl"
-    property var variants: [0,1,2]
+    property var variants: [0]
     property var hours: [23]
     property var woffList: [0]
     property int woi: 0
@@ -34,8 +34,8 @@ Item {
         City.NOWOVR = City.CLOCK = root.t0;
         City.setup('city', { cw:1552, ch:874, woff:root.woffList[root.woi], ww:2269, pxk:2, zoom:2,
                              taskbarWp:28, quality:'balanced', frameMs:125 });
-        City.FORCEAGE = 0.80;
-        City.weather.code = 0; City.weather.wind = 10; City.weather.temp = 70; City.weather.cloud = 20;
+        City.FORCEAGE = 0.80; City.wetness = 0.0;
+        City.weather.code = 0; City.weather.wind = 6; City.weather.temp = 70; City.weather.cloud = 20;
     }
     Canvas {
         id: bg; anchors.fill: parent
@@ -55,7 +55,7 @@ Item {
             bg.requestPaint(); live.requestPaint();
             if (root.warm < 1) { root.warm++; return; }
             root.grabToImage(function(res){
-                res.saveToFile(root.outDir + "/map-" + root.land + "-v" + root.variants[root.vi]
+                res.saveToFile(root.outDir + "/forced-" + root.land + "-v" + root.variants[root.vi]
                                + "-h" + root.hours[root.hi] + "-w" + root.woffList[root.woi] + ".png");
                 root.warm = 0;
                 root.hi++; if (root.hi >= root.hours.length) { root.hi = 0; root.woi++;

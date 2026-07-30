@@ -9499,6 +9499,46 @@ function drawPackIce(g,L,now,nd,sa,sb,zi,wTop,wBot){
 // THE FLOODED FLATS. The Sprawl's water: standing, oily, and mostly interesting for what it REFLECTS.
 // Concrete berms cut across it, pylons march through it, and sluice gates hold it back. Drawn from
 // drawHarbor with the water, like every other coast detail, for the same draw-order reason.
+// ============ THE STORM SURGE ON THE FLOODED FLATS ============
+// Locked answers 14 and 25. Driven by the REAL Norwich weather, like everything else on this project, and
+// it stops at the kerb: he chose "up to the street, but the city holds" over "into the city with
+// consequences", so nothing here touches the street or building systems. It is dramatic and reversible.
+//
+// ⚠ THIS IS ALSO THE STORM-SURGE ITEM ALREADY LOCKED IN `citylive-rain-impact`, which has been sitting
+// unbuilt. Doing it here does that one too.
+//
+// Returns 0..1. `mark` is the high-water line, which lags behind and DRIES OUT afterwards — the same
+// build/dry model the puddles already use, so a tide stain outlives the water that made it.
+var _surgeMark=0, _surgeT=0;
+function sprawlSurgeState(now){
+  // ⚠⚠ THE GATE WAS ON THE WRONG THING, AND IT SILENTLY RETURNED ZERO. I wrote `SEA_FRONT<=0`, reasoning
+  // from the arctic, whose pack ice needed a sea-front call. But THE SPRAWL IS NOT A SEA-FRONT LAND —
+  // `seaFrontOf` has no `sprawl` case, so SEA_FRONT is 0 here and its water comes entirely from the SEAM
+  // ocean via `drawHarbor`'s `eachWaterSpan`, which is exactly where `drawFloodedFlats` is called from.
+  // So the surge was computing 0 with thunder overhead, wind at 30 and the ground soaked.
+  // 🔑 Caught by probing the number, not by looking at a frame: the flats sit behind the city at woff 0, so
+  // "I cannot see it" was indistinguishable from "it is not there". Third time today that reading a value
+  // beat reading a picture.
+  if(curBiome.k!=="sprawl"||!hasOcean||seaW<=0) return {s:0,mark:0};
+  var fx=wfx();
+  // it takes a real storm: heavy rain and wind, not a shower. `wetness` gives it hysteresis for free —
+  // the surge builds while it pours and takes a while to let go.
+  var drive=(fx.thunder?1:(fx.violent?0.85:(fx.rain?0.55:(fx.drizzle?0.12:0))));
+  var windK=Math.max(0,Math.min(1,(((weather&&weather.wind)||0)-12)/22));
+  var s=Math.max(0,Math.min(1, drive*(0.45+0.55*windK)*Math.min(1,wetness*1.6)));
+  // a slow swell rather than a step: the tide comes in over minutes, and a surge you can watch arrive is
+  // the whole point of him choosing it as one of the four signature events.
+  var swell=0.72+0.28*Math.sin(now*0.00007);
+  s*=swell;
+  if(s>_surgeMark) _surgeMark=s;                              // the mark records the highest it reached…
+  // ⚠ THE DRY-OUT RATE HAD TO BE DERIVED, NOT GUESSED. My first number was 4e-5 per ms, which is 3.6 units
+  // per ninety seconds — the mark collapsed onto the live level within a frame or two and the "stain that
+  // outlives the water" did not exist. A tide line should be visible for the rest of the evening: 4e-7 per
+  // ms is about 0.024 a minute, so a full-height mark takes roughly forty minutes to dry off.
+  else _surgeMark=Math.max(s,_surgeMark-4e-7*Math.max(1,now-_surgeT));
+  _surgeT=now;
+  return {s:s, mark:_surgeMark};
+}
 function drawFloodedFlats(g,L,now,sa,sb,zi,wTop,shoreAt,sgn){
   var day=L>0.5, K=Math.max(1,KSP), span=sb-sa, wDep=Math.max(1,HORIZON-wTop);
   var conc=day?"#8a8e98":"#20242c", conc2=day?"#6a6e78":"#161a20";
@@ -9577,7 +9617,7 @@ function drawFloodedFlats(g,L,now,sa,sb,zi,wTop,shoreAt,sgn){
   // flood something to do, since "boats and barges run for shelter" is one of the four things he locked
   // for the surge. `flatsShelter` is 0 normally and rises when the water does.
   var nBoat=fCold?0:(fRed?4:2);
-  var shelterK=(typeof flatsShelter!=="undefined")?flatsShelter:0;
+  var shelterK=sprawlSurgeState(now).s;                 // they run for shelter as it rises
   for(var bt=0;bt<nBoat;bt++){
     var bh3=((bt*104729+fSeedEdge*7)>>>0);
     var bBase=sa+((bh3%Math.max(1,span)));
@@ -9603,7 +9643,10 @@ function drawFloodedFlats(g,L,now,sa,sb,zi,wTop,shoreAt,sgn){
   // was land. Nothing here is animated; it is all world-keyed and static per life.
   for(var dq=0;dq<nDebris;dq++){
     var dh=((dq*2246822519+fSeed)>>>0);
-    var dx=sa+(dh%Math.max(1,span)), dy=wTop+Math.round((0.22+(((dh>>>9)%100)/100)*0.72)*wDep);
+    // ⚠ THE DEBRIS SHIFTS. He locked it: the flats are not identical after a surge has been through.
+    // Keyed to the MARK rather than the live level, so the rearrangement persists once the water drops.
+    var dShift=Math.round(sprawlSurgeState(now).mark*6*K*((((dh>>>25)%100)/100)-0.5));
+    var dx=sa+(dh%Math.max(1,span))+dShift, dy=wTop+Math.round((0.22+(((dh>>>9)%100)/100)*0.72)*wDep);
     var dEdge=shoreAt(dy);
     if(sgn>0? dx>dEdge : dx<dEdge) continue;
     var dScale=0.55+((dh>>>17)%100)/100*0.75, kind=(dh>>>13)%3;
@@ -9688,6 +9731,38 @@ function drawFloodedFlats(g,L,now,sa,sb,zi,wTop,shoreAt,sgn){
     g.globalAlpha=1;
   }
   g.globalCompositeOperation="source-over";
+  // ---- THE SURGE ITSELF, over everything the flats have drawn ----
+  var SG=sprawlSurgeState(now);
+  if(SG.s>0.03||SG.mark>0.03){
+    var encr=Math.round(SG.s*4.2*K);                          // how far past the kerb it laps — and no further
+    // 1. THE SHEET. Rising water drowns what is standing in it, so this goes over the berms, the debris and
+    // the catwalks rather than under them: they show through, which is what "submerged" looks like.
+    if(SG.s>0.03){
+      var shA=0.30+0.42*SG.s;
+      var sgTop=wTop+Math.round((1-SG.s)*wDep*0.30);
+      g.fillStyle=day?"rgba(26,40,58,"+shA.toFixed(3)+")":"rgba(6,12,22,"+(shA*1.1).toFixed(3)+")";
+      g.fillRect(sa,sgTop,span,Math.max(1,(HORIZON+encr)-sgTop));
+      // 2. THE LEADING EDGE, foaming where it meets the road. In RUNS, not a line across the frame.
+      var fmY=HORIZON+encr;
+      for(var fmx=sa;fmx<sb;fmx+=Math.max(2,Math.round(2.4*K))){
+        if(((((fmx*7919)^((Math.floor(now/220))|0))>>>0)%5)===0) continue;
+        var fmj=Math.round(Math.sin(fmx*0.09+now*0.004)*1.3*K);
+        g.fillStyle=day?"rgba(226,236,244,0.55)":"rgba(178,198,222,0.45)";
+        g.fillRect(fmx,fmY+fmj,Math.max(1,Math.round(2*K)),Math.max(1,Math.round(K*0.8)));
+      }
+    }
+    // 3. THE TIDE LINE, at the highest the water reached, and it outlives the water. A dark stain on the
+    // berms and the kerb that dries out over the following hours — the puddles' own build/dry model.
+    var mkY=HORIZON+Math.round(SG.mark*4.2*K);
+    var stainA=0.34*Math.max(0,SG.mark-SG.s*0.55);
+    if(stainA>0.02){
+      for(var mx2=sa;mx2<sb;mx2+=Math.max(2,Math.round(3*K))){
+        if(((((mx2*40503)^fSeedEdge)>>>0)%7)===0) continue;    // the stain is patchy, as a real one is
+        g.fillStyle="rgba(22,26,34,"+stainA.toFixed(3)+")";
+        g.fillRect(mx2,mkY-Math.max(1,Math.round(K*0.8)),Math.max(1,Math.round(2.6*K)),Math.max(1,Math.round(K*0.9)));
+      }
+    }
+  }
   // ---- CATWALKS: the way anyone crosses this. Locked answer 2, "walkways above the waterline." ----
   // ⚠ On piles, and the piles are what stop it reading as another horizontal rule laid on the water —
   // the same lesson the holograms just cost four bug reports: anything above ground says what holds it up.
@@ -10701,6 +10776,14 @@ function tickerMsg(now){
   var fx=wfx();
   if(fireBurning) return "WILDFIRE ON THE RIDGE - STAY CLEAR OF THE TREELINE";
   if(iceNow) return "THE BAY IS FROZEN - SKATE AT YOUR OWN JOY";
+  // ⚠ THE SURGE ANNOUNCES ITSELF BEFORE IT ARRIVES — locked answer 25, "sirens and the ticker warn first",
+  // wired to the same machinery the eruption's warning uses rather than a second notification system.
+  if(curBiome.k==="sprawl"&&hasOcean&&seaW>0){
+    var sgT=sprawlSurgeState(now);
+    if(sgT.s>0.30) return "STORM SURGE - THE FLATS ARE UNDER WATER, AVOID THE WATERFRONT";
+    if(sgT.s>0.10) return "SURGE WARNING - HIGH WATER EXPECTED ON THE FLATS";
+    if(sgT.mark>0.25&&sgT.s<0.08) return "SURGE RECEDING - CREWS CLEARING THE WATERFRONT";
+  }
   if(curBlk) return curBlk.fix?"CREWS RESTORING POWER - GRID BACK SHORTLY":"STORM BLACKOUT DOWNTOWN - CREWS EN ROUTE";
   if(curOutbreak) return curOutbreak.f<0.7?"HEALTH ADVISORY - MASKS RECOMMENDED CITYWIDE":"OUTBREAK WANES - HOSPITALS REPORT RECOVERY";
   if(fx.thunder) return "SEVERE THUNDERSTORM WARNING FOR "+cityName;

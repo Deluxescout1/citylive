@@ -31,8 +31,15 @@ Item {
             City.setup('city', { cw:1552, ch:874, woff:0, ww:2269, pxk:2, zoom:2,
                                  taskbarWp:28, quality:'balanced', frameMs:125 });
             City.FORCEAGE = 0.80;
-            City.weather.code = 0; City.weather.wind = 10; City.weather.temp = 70; City.weather.cloud = 20;
+            City.weather.code = 95; City.weather.wind = 30; City.weather.temp = 62; City.weather.cloud = 100; City.wetness = 1.0;
             City.draw(getContext("2d"), "bg");
+            var fx=City.wfx();
+            console.log("WX thunder="+fx.thunder+" rain="+fx.rain+" wind="+City.weather.wind+" wetness="+City.wetness);
+            for (var k=0;k<5;k++){
+                var t=City.NOWOVR + k*90000; if(k>=2){ City.weather.code=0; City.weather.wind=6; City.wetness=0.1; }
+                var st=City.sprawlSurgeState(t);
+                console.log("SURGE t+"+(k*1.5)+"min"+" "+(k>=2?"(storm over)":"(storm)")+" "+"s  s="+st.s.toFixed(3)+"  mark="+st.mark.toFixed(3));
+            }
             var layers = [City.far, City.mid, City.near];
             var names = ["far", "mid", "near"];
             for (var li = 0; li < layers.length; li++) {
