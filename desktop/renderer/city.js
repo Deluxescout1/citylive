@@ -15956,6 +15956,22 @@ function disasterInfo(idx){
     var vConeX=volcanoConeWX();
     if(vConeX!=null) cx=Math.round(vConeX);
   }
+  // …AND ON THE ASHLANDS IT COMES OUT OF THE RIFT. Nick's locked answer was "reuse it, fired from the rift"
+  // rather than a bespoke event — and it turned out barely anything needed building: "volcano" is in
+  // DIS_TYPES for every land, and `drawVolcanoDisaster` is already generic (it raises its own cone on the
+  // nineteen lands that have no mountain of their own). The eruption was ALREADY happening here; it was just
+  // landing at a random world x with no relationship to the one place the ground is torn open.
+  // Anchoring it to the tear is the whole change, and it makes the rest come out right for free: the column,
+  // the bombs, the pyroclastic surge, the flows that SET FIRE TO WHAT THEY TOUCH (which is the locked
+  // firestorm answer, already wired to the existing fire system) and the downwind ashfall all now originate
+  // from the rift, and the per-block ruin footprint sits under it.
+  // ⚠⚠ ZERO `r()` CALLS, and it has to stay that way — see the note above. `ashRiftState()` reads only
+  // WORLD_SEED and P_hash. Consuming a single roll here would shift `win`, `w`, `seed` and `ruin` for EVERY
+  // disaster on EVERY land, because they all come off the same stream in order.
+  else if(type==="volcano" && curBiome && curBiome.molten){
+    var arSt=ashRiftState();
+    if(arSt) cx=Math.round(arSt.wx);
+  }
   return { idx:idx, type:type, intensity:intensity, t0:t0, x:cx, w:w, seed:seed, win:win, ruin:ruin, open:open };
 }
 // the disaster active RIGHT NOW (with phase fields), or null
