@@ -20902,6 +20902,12 @@ function drawTerraces(g,L,now,nd){
   var SLOPE =day?[112,132,92]:[20,28,24];                                       // plain mountain outside the bowl
   var RIM   =day?[34,40,32]:[7,9,9];                                            // the silhouette
   var bS=css(BRIGHT), mS=css(MID), dS=css(DARK), slS=css(SLOPE), rS=css(RIM);
+  // the slope's own ramp: hazier at the crown (it is further away), deeper toward the valley
+  var SLB=[];
+  for(var sq=0;sq<6;sq++)
+    SLB.push(css(mixc(mixc(SLOPE, skc, 0.30*(1-sq/5)*(1-sq/5)), day?[0,0,0]:[0,0,0], 0.16*(sq/5))));
+  var scrubS=css(mixc(SLOPE, day?[54,74,44]:[8,14,12], 0.52));
+  var rockS =css(mixc(SLOPE, day?[126,118,100]:[26,26,28], 0.46));
   // ---- DIRECTIONAL LIGHT, and this is the thing that was missing most. Every retaining wall was the
   // same flat dark, which is why the bowl read as a diagram: a real terraced slope is legible
   // because THE SUN IS ON ONE SIDE. The bowl's two flanks face opposite ways, so one is lit and the
@@ -20940,7 +20946,24 @@ function drawTerraces(g,L,now,nd){
     var wx=x+WOFF, bw=terrBowl(wx);
     // the mountain's own top edge — a gentle profile so the silhouette is not a ruler
     var hy=rimY+Math.round(Math.sin(wx*0.0042)*mountH*0.10+Math.sin(wx*0.0111+1.7)*mountH*0.05);
-    g.fillStyle=slS; g.fillRect(x,hy,1,HORIZON-hy+1);            // the plain slope, everywhere
+    // ---- THE PLAIN SLOPE. It was ONE flat green over a huge area — the biggest dead surface in the
+    // frame and the thing that made the background look empty. It gets FORM, not texture: a vertical
+    // ramp (the top of a mountain is further away, so it hazes toward the sky) plus a handful of big
+    // soft masses. Six precomputed bands, not a per-pixel gradient.
+    var sTot=HORIZON-hy+1;
+    for(var sb2=0;sb2<6;sb2++){
+      var y0=hy+Math.round(sTot*(sb2/6)), y1=hy+Math.round(sTot*((sb2+1)/6));
+      g.fillStyle=SLB[sb2]; g.fillRect(x,y0,1,Math.max(1,y1-y0));
+    }
+    // a few broad scrub masses and bare-rock patches, world-keyed, LARGE and soft-edged: big shapes
+    // read at this scale, fine speckle does not (which is the whole lesson of attempt 1)
+    var mh3=((Math.floor((wx)/Math.max(14,Math.round(26*K)))*2654435761)>>>0);
+    if((mh3%5)<2){
+      var mTop=hy+Math.round(sTot*(0.18+((mh3>>>9)%50)/100*0.55));
+      var mDep=Math.round(sTot*(0.10+((mh3>>>15)%40)/100*0.16));
+      g.fillStyle=((mh3>>>21)&1)?scrubS:rockS;
+      g.fillRect(x,mTop,1,Math.max(1,mDep));
+    }
     g.fillStyle=rS;  g.fillRect(x,hy,1,Math.max(1,Math.round(K*1.6)));   // THE RIM: one crisp dark line
     if(!bw.inb) continue;                                         // outside a bowl the slope is bare
     var uu=bw.u*bw.u;
