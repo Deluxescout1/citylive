@@ -20839,70 +20839,89 @@ function drawUndercity(g,L,now,nd){
 // naive implementation gets wrong: they are not straight shelves stacked like a staircase, they curve
 // with the hill, so each riser wanders left and right as it crosses the frame.
 var terrCache=null;
+// ================================================================================================
+// THE TERRACES — REBUILT FROM A BLANK SHEET (attempt 2)
+// ------------------------------------------------------------------------------------------------
+// ⚠⚠⚠ ATTEMPT 1 WAS FIVE COMMITS AND ALL OF IT WAS REVERTED. Nick: "this is the WORST looking map we
+// have tried to Overhaul… I don't even know wtf I am looking at."
+//
+// WHY IT FAILED, so it is not repeated: the old hillside was a per-column height field with
+// horizontal bands stacked on it — STRUCTURALLY A STRIPE MACHINE. Fields, tapered pans, per-pan
+// jitter, surface texture, moss and wooded gullies were all more paint on a stripe machine, and at
+// this pixel scale MORE DETAIL READS AS NOISE. I treated a structural fault as a decoration problem
+// four rounds running.
+//
+// The question that unlocked it, which should be asked FIRST on any land going badly: "which maps
+// look GOOD to you?" — every other land in the game reads fine. So the style was never the problem.
+//
+// THE THREE THINGS THAT MAKE THE OTHER LANDS WORK, applied here:
+//   1. A BIG SHAPE. This is a BOWL — an amphitheatre — so the steps are CONCENTRIC ARCS. Arcs cannot
+//      read as stripes; this attacks the primitive instead of decorating it.
+//   2. VALUE SEPARATION. Exactly THREE values, far apart, nothing between: BRIGHT flooded pans, MID
+//      crop, DARK walls. The dark wall is the OUTLINE that turns each step into an object — the same
+//      trick that makes the fjord and the salt mirror read.
+//   3. A CRISP SILHOUETTE against the sky. One dark rim line and nothing above it.
+//
+// AND IT IS SMALL AND BARE ON PURPOSE. ~35% of frame (was 70% — "that is what let the mess fill the
+// screen"), 7 arcs (was 25-50), and NOTHING else in it yet: no village, no water effects, no weather,
+// no life. If the bare version does not read, nothing added on top will save it — which is exactly
+// the mistake that produced attempt 1.
+var TERR_ARCS=7;
+function terrBowl(wx){
+  // Which bowl is this column in, and where across it? World-anchored so the arcs line up across all
+  // three bezels — one bowl is wider than a screen, so each monitor sees a different part of the same
+  // horseshoe and they MUST agree.
+  // one bowl ~= one screen wide: SW is 776 world px on his 4K, so half ~= 400.
+  var half=Math.max(150,Math.round(200*Math.max(1,KSP)));
+  var pitch=Math.round(half*2.15);
+  var idx=Math.floor(wx/pitch);
+  var c=idx*pitch+Math.round(pitch*0.5);
+  var u=(wx-c)/half;
+  return { u:u, inb:(u>-1&&u<1), idx:idx };
+}
 function drawTerraces(g,L,now,nd){
   var day=L>0.5, B=curBiome, K=Math.max(1,KSP), skc=biomeSkc(day);
-  var litK=Math.max(0,Math.min(1,(L-0.34)*2.4));
-  var STEPS=Math.max(8, Math.round(HORIZON/Math.max(4,Math.round(7*K))));
-  if(!terrCache){
-    // the underlying hill: kept as FLOAT (rounding a profile before using it is what striped the dunes)
-    terrCache=new Array(SW);
-    for(var x=0;x<SW;x++){
-      var wx=x+WOFF;
-      var n=Math.sin(wx*0.0031)*0.58 + Math.sin(wx*0.0092+1.3)*0.27 + Math.sin(wx*0.0231)*0.12;
-      terrCache[x]=HORIZON*(0.66 - n*0.30*B.amp);
-    }
-  }
-  var harvest=!!B.harvest, flooded=!!B.flooded;
-  var soil=mixc(day?B.near:[(B.near[0]*0.18)|0,(B.near[1]*0.20)|0,(B.near[2]*0.30)|0], skc, 0.18);
-  var lip =mixc(day?B.cap:mixc(B.cap,[0,0,0],0.55), [0,0,0], 0.30);
-  // ⚠ A PADDY MIRRORS THE SKY'S BLUE, NOT ITS HORIZON HAZE. Taking sky.bot (a near-white haze colour)
-  // and lightening it further made every wet step almost white, so the whole hillside rendered as one
-  // pale mass with no steps visible in it at all. The zenith colour is what standing water actually
-  // reflects, and it is what separates a flooded terrace from a planted one.
+  var mountH=Math.max(24,Math.round(SH*0.35));
+  var rimY=Math.max(4,HORIZON-mountH);
+  // ⚠ FIRST TRY LOOKED LIKE BENT STRIPES, NOT A BOWL. The lift was a fixed amount for every arc,
+  // so at the bowl's edges the arcs FANNED OUT along the rim instead of converging. In a real
+  // amphitheatre every step meets the rim at the same place — the U's are NESTED, sharing their ends.
+  // So the lift has to scale with the arc's own depth: y = hy + depth_k*(1-u²).
+  var amp=Math.max(2,Math.round(mountH*0.10));
+  var step=(mountH-amp)/(TERR_ARCS-1);
+  // ---- THE THREE VALUES. Chosen for LIGHTNESS separation first and hue second: that is the whole
+  // point, and mixing them any closer together is how the old hillside went muddy.
   var skyT=B.sky?B.sky.top:[120,160,210];
-  var waterC=mixc(skyT, day?[255,255,255]:[6,10,20], day?0.20:0.62);
-  var cropC=mixc(day?(harvest?[224,196,96]:[104,158,84]):[18,34,24], skc, 0.16);
-
-  for(var x2=0;x2<SW;x2++){
-    var hy=terrCache[x2];
-    var hyR=Math.round(hy);
-    g.fillStyle=css(soil); g.fillRect(x2,hyR,1,HORIZON-hyR+1);
-    // ⚠ THE RISER HEIGHT MUST COME FROM THE LOCAL SPACING, not a fixed number. With a fixed 3.2*K band
-    // and ~8px of spacing the steps touched and filled the hill solid — the terraces vanished into the
-    // very shape they were supposed to carve. Derived from the gap so a lip is always visible.
-    var span=Math.max(1,HORIZON-hy), gap=span/STEPS;
-    var band=Math.max(1,Math.round(gap*0.62));
-    for(var k=1;k<=STEPS;k++){
-      var y=Math.round(hy+gap*k);
-      if(y<=hyR+1||y>=HORIZON) continue;
-      // which stage is this paddy at? flooded = all water, harvest = mostly crop with water at the
-      // bottom where it drains to, base = alternating, which is what a real hillside looks like
-      var wetStep = flooded ? true : (harvest ? (k>STEPS*0.76) : (((k+((x2+WOFF)/240|0))%3)!==0));
-      g.fillStyle=css(wetStep?waterC:cropC);
-      g.fillRect(x2,y-band,1,band);
-      if(wetStep&&litK>0.1){                                   // the sun glints off standing water
-        g.fillStyle=rgba(mixc(waterC,[255,255,255],0.6),0.30*litK);
-        g.fillRect(x2,y-band,1,Math.max(1,Math.round(band*0.35)));
-      }
-      g.fillStyle=rgba(lip,0.8);                               // the stone lip that holds the water in
-      g.fillRect(x2,y,1,1);
-    }
-  }
-  // a few palms and huts on the ridge line, so the hill has a scale reference
-  for(var t2=0;t2<9;t2++){
-    var twx=((t2*2654435761+((WORLD_SEED*13)|0))>>>0)%Math.max(1,WW);
-    for(var o2=-1;o2<=1;o2++){
-      var tx=Math.round(twx-WOFF+o2*WW);
-      if(tx<0||tx>=SW) continue;
-      var ty=Math.round(terrCache[tx]);
-      g.fillStyle=rgba(mixc(lip,[0,0,0],0.25),0.9);
-      g.fillRect(tx,ty-Math.round(3*K),Math.round(3*K),Math.round(3*K));      // a hut on the crest
-      g.fillStyle=rgba(cropC,0.9);
-      g.fillRect(tx+Math.round(4*K),ty-Math.round(5*K),Math.max(1,Math.round(K)),Math.round(5*K));
-      g.fillRect(tx+Math.round(2.5*K),ty-Math.round(6*K),Math.round(4*K),Math.max(1,Math.round(K)));
+  var BRIGHT=day?mixc(skyT,[255,255,255],0.52):mixc(skyT,[196,214,255],0.30);  // flooded pan
+  var MID   =day?[96,146,74]:[22,44,32];                                        // crop
+  var DARK  =day?[46,44,38]:[10,11,12];                                         // wall + shadow
+  var SLOPE =day?[112,132,92]:[20,28,24];                                       // plain mountain outside the bowl
+  var RIM   =day?[34,40,32]:[7,9,9];                                            // the silhouette
+  var bS=css(BRIGHT), mS=css(MID), dS=css(DARK), slS=css(SLOPE), rS=css(RIM);
+  var panH=Math.max(2,Math.round(step*0.62));
+  for(var x=0;x<SW;x++){
+    var wx=x+WOFF, bw=terrBowl(wx);
+    // the mountain's own top edge — a gentle profile so the silhouette is not a ruler
+    var hy=rimY+Math.round(Math.sin(wx*0.0042)*mountH*0.10+Math.sin(wx*0.0111+1.7)*mountH*0.05);
+    g.fillStyle=slS; g.fillRect(x,hy,1,HORIZON-hy+1);            // the plain slope, everywhere
+    g.fillStyle=rS;  g.fillRect(x,hy,1,Math.max(1,Math.round(K*1.6)));   // THE RIM: one crisp dark line
+    if(!bw.inb) continue;                                         // outside a bowl the slope is bare
+    var uu=bw.u*bw.u;
+    for(var k=0;k<TERR_ARCS;k++){
+      // ARC k: a U — lowest at the bowl's centre, lifting to the rim at its edges.
+      var dk=amp+k*step;
+      var yk=Math.round(hy+dk*(1-uu));
+      if(yk<hy+1||yk>=HORIZON) continue;
+      var nxt=Math.round(hy+(amp+(k+1)*step)*(1-uu));
+      var wallTo=Math.min(HORIZON,(k===TERR_ARCS-1)?HORIZON:nxt);
+      // BRIGHT dominates — most pans hold water; a couple carry crop so it is a farm, not a fountain
+      var isW=((((bw.idx*31+k)*2654435761)>>>0)%4)!==0;
+      g.fillStyle=isW?bS:mS; g.fillRect(x,yk,1,Math.min(panH,Math.max(1,wallTo-yk)));
+      if(wallTo>yk+panH){ g.fillStyle=dS; g.fillRect(x,yk+panH,1,wallTo-(yk+panH)); }
     }
   }
 }
+
 // ================================================================================================
 // THE SALT MIRROR — the reflection
 // ------------------------------------------------------------------------------------------------
