@@ -3079,6 +3079,11 @@ function propRowY(s,k){
   // as likely to be out on the promenade rail
   if((k==="bench"||k==="planter"||k==="trash") && WALK_N>=5 && (h&7)<3)
     return ROAD_BOT+2+((h>>>3)%Math.max(1,WALK_N-2));
+  // trade happens against the SHOPFRONT it belongs to; an A-board is put out at the kerb where the
+  // traffic can read it. Getting these two backwards is what makes a pavement look randomly littered.
+  if(k==="awning") return HORIZON+1;
+  if(k==="cafe"||k==="stall") return HORIZON+1+((h>>>5)%Math.max(1,Math.round(WALK_F*0.45)));
+  if(k==="aboard") return HORIZON+Math.max(2,WALK_F-2);
   return HORIZON+1+((h>>>5)%Math.max(1,WALK_F-2));
 }
 var mts=null;          // this life's mountain range ({far:[peaks],near:[peaks]}), null on flatland lives
@@ -5043,7 +5048,13 @@ function buildWorld(li){
   // ---- street-level life: lamps + furniture that make the city feel lived-in ----
   r=rng(seed+31); sprops=[]; busstops=[];
   for(var lx=10; lx<WW; lx+=17+((r()*7)|0)){ if(inSea(lx)) continue; sprops.push({x:lx, k:"lamp", s:(r()*1e6)|0}); }   // street lamps (none in the sea)
-  var furn=["hydrant","trash","bench","mailbox","newsstand","busstop","planter","foodcart","hydrant","trash","bench","planter"];
+  // COMMERCE SPILLING OUT — Nick took this alongside trees, civic furniture and a denser crowd. A 10wp
+  // pavement with nothing on it but lamp posts reads as somewhere people PASS THROUGH; tables, stalls
+  // and awnings are what make it somewhere they GO. Seeded into the same list so they arrive piece by
+  // piece with everything else, and district-gated at draw time (nobody sets out café tables on a
+  // dockside frontage).
+  var furn=["hydrant","trash","bench","mailbox","newsstand","busstop","planter","foodcart","hydrant","trash","bench","planter",
+            "cafe","stall","aboard","awning","cafe","awning"];
   for(var fpx=6; fpx<WW; fpx+=9+((r()*15)|0)){
     if(inSea(fpx)) continue;
     var kd=furn[(r()*furn.length)|0]; sprops.push({x:fpx, k:kd, s:(r()*1e6)|0});
@@ -8770,7 +8781,66 @@ function drawStreetProps(g,L,now,night){
         if(pse.bare){ g.fillStyle=css(mixc([40,32,24],[92,80,64],L)); g.fillRect(X,gy-2,2,1); }
         else { g.fillStyle=css(mixc([20,30,24],pse.canopy[0],L)); g.fillRect(X,gy-3,2,2);
           if(pse.blossom){ g.fillStyle="rgba(255,190,220,0.85)"; g.fillRect(X,gy-3,1,1); } }
+      } else if(k==="cafe"||k==="stall"||k==="aboard"||k==="awning"){
+        // ---- COMMERCE. Gated on the district and on the economy: a struggling city does not put
+        // tables out, and a working dockside frontage never did. Everything is keyed off the prop's
+        // own seed, so the same table stands in the same place on all three screens.
+        var dnm=districtAt(sp.x).name;
+        var tradeOK=(dnm==="downtown"||dnm==="oldtown"||dnm==="entertainment"||dnm==="residential"||dnm==="neon");
+        if(!tradeOK) continue;
+        if(k!=="awning" && curEcon<0.30) continue;                     // hard times: the tables come in
+        var Kp=Math.max(1,KSP), warm=(L>0.5), h9=(sp.s*2654435761)>>>0;
+        var awn=["#c0392b","#2e7d5b","#2f5aa0","#c98a2a","#7a4a9a"][h9%5];
+        if(k==="awning"){
+          // a striped awning over the shopfront — the one piece of commerce that belongs to the
+          // BUILDING rather than the pavement, so it hangs above the frontage line
+          var aw=Math.max(5,Math.round(9*Kp)), ah=Math.max(2,Math.round(2*Kp));
+          g.fillStyle=awn; g.fillRect(X-(aw>>1),gy-ah-1,aw,ah);
+          g.fillStyle="rgba(255,255,255,0.55)";                        // the stripes
+          for(var aq=0;aq<aw;aq+=Math.max(2,Math.round(Kp*1.6))) g.fillRect(X-(aw>>1)+aq,gy-ah-1,Math.max(1,Math.round(Kp*0.8)),ah);
+          g.fillStyle=warm?"rgba(0,0,0,0.20)":"rgba(0,0,0,0.30)";      // the shade it throws on the paving
+          g.fillRect(X-(aw>>1),gy-1,aw,Math.max(1,Math.round(Kp*0.8)));
+        } else if(k==="cafe"){
+          // two or three little tables with people actually sitting at them
+          var nT=2+(h9%2);
+          for(var ti=0;ti<nT;ti++){
+            var tx=X+ti*Math.max(3,Math.round(4*Kp)), th2=Math.max(2,Math.round(2*Kp));
+            g.fillStyle=warm?"#8a8f9a":"#2a2e38"; g.fillRect(tx,gy-th2,Math.max(2,Math.round(2.2*Kp)),Math.max(1,Math.round(Kp*0.6)));   // table top
+            g.fillStyle=warm?"#5a5f6a":"#1c2028"; g.fillRect(tx+1,gy-th2+1,Math.max(1,Math.round(Kp*0.5)),th2-1);                        // pedestal
+            if(((h9>>>(ti*3))&3)!==0)                                   // …and somebody at it, most of the time
+              drawPerson(g,(tx-2)|0,gy,PEDC[(h9>>>(ti*5))%PEDC.length],SKINC[(h9>>>(ti*7))%SKINC.length],-1);
+          }
+          if((h9>>>11&1)){                                              // a parasol over one of them
+            var pw=Math.max(4,Math.round(6*Kp));
+            g.fillStyle=awn; g.fillRect(X-1,gy-Math.round(6*Kp),pw,Math.max(1,Math.round(Kp*0.8)));
+            g.fillStyle=warm?"#6a6f7a":"#22262e"; g.fillRect(X+(pw>>1)-1,gy-Math.round(6*Kp),Math.max(1,Math.round(Kp*0.5)),Math.round(6*Kp));
+          }
+        } else if(k==="stall"){
+          // a market stall: striped canopy, a trestle of goods, and somebody working it
+          var sw2=Math.max(6,Math.round(10*Kp)), sh2=Math.max(3,Math.round(4*Kp));
+          g.fillStyle=warm?"#7a6a56":"#241f19"; g.fillRect(X,gy-sh2,sw2,sh2);                       // the trestle
+          g.fillStyle=["#c0392b","#c98a2a","#2e7d5b","#8a3b6a"][(h9>>>3)%4];                        // goods on it
+          for(var gq=0;gq<sw2-1;gq+=Math.max(2,Math.round(Kp*1.4))) g.fillRect(X+gq,gy-sh2,Math.max(1,Math.round(Kp)),Math.max(1,Math.round(Kp*0.9)));
+          g.fillStyle=awn; g.fillRect(X-1,gy-sh2-Math.round(4*Kp),sw2+2,Math.max(1,Math.round(Kp*1.1)));   // canopy
+          g.fillStyle="rgba(255,255,255,0.5)";
+          for(var cq=0;cq<sw2;cq+=Math.max(2,Math.round(Kp*1.8))) g.fillRect(X-1+cq,gy-sh2-Math.round(4*Kp),Math.max(1,Math.round(Kp*0.8)),Math.max(1,Math.round(Kp*1.1)));
+          g.fillStyle=warm?"#4a4f5a":"#181c22";                                                      // corner poles
+          g.fillRect(X-1,gy-sh2-Math.round(4*Kp),Math.max(1,Math.round(Kp*0.5)),Math.round(4*Kp));
+          g.fillRect(X+sw2,gy-sh2-Math.round(4*Kp),Math.max(1,Math.round(Kp*0.5)),Math.round(4*Kp));
+          drawPerson(g,(X+(sw2>>1))|0,gy,PEDC[(h9>>>13)%PEDC.length],SKINC[(h9>>>17)%SKINC.length],-1);   // the trader behind it
+        } else {
+          // an A-board out at the kerb, angled at the traffic
+          var bw=Math.max(2,Math.round(2.4*Kp)), bh=Math.max(3,Math.round(3.4*Kp));
+          g.fillStyle=warm?"#3a2f22":"#15110c"; g.fillRect(X,gy-bh,bw,bh);
+          g.fillStyle=warm?"#e8e2d2":"#4a463c";                                                      // the chalked face
+          g.fillRect(X,gy-bh+1,bw,bh-2);
+          g.fillStyle=warm?"#5a5244":"#2a271f";
+          for(var lq=1;lq<bh-2;lq+=2) g.fillRect(X,gy-bh+1+lq,Math.max(1,bw-1),Math.max(1,Math.round(Kp*0.4)));   // lines of writing
+        }
       } else if(k==="bench"){ g.fillStyle=L>0.5?"#6a5238":"#1a1510"; g.fillRect(X-1,gy-2,4,1); g.fillRect(X-1,gy-1,1,1); g.fillRect(X+2,gy-1,1,1);
+        // …and on the promenade a bench is somewhere people SIT, not street furniture to walk past
+        if(gy>ROAD_BOT && ((sp.s*40503)>>>0)%3!==0)
+          drawPerson(g,(X)|0,gy,PEDC[((sp.s>>>5))%PEDC.length],SKINC[((sp.s>>>9))%SKINC.length],-1);
         var nS=(pr()*3)|0; for(var q=0;q<nS;q++) drawSeated(g,X-1+q*2,gy-4,PEDC[(pr()*PEDC.length)|0],SKINC[(pr()*SKINC.length)|0]);
       } else if(k==="newsstand"){ g.fillStyle=L>0.5?"#4a4030":"#15120c"; g.fillRect(X-2,gy-5,6,5);
         g.fillStyle=NEON[(sp.s)%NEON.length]; g.fillRect(X-2,gy-5,6,1);                 // awning
