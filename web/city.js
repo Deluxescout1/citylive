@@ -20902,6 +20902,26 @@ function drawTerraces(g,L,now,nd){
   var SLOPE =day?[112,132,92]:[20,28,24];                                       // plain mountain outside the bowl
   var RIM   =day?[34,40,32]:[7,9,9];                                            // the silhouette
   var bS=css(BRIGHT), mS=css(MID), dS=css(DARK), slS=css(SLOPE), rS=css(RIM);
+  // ---- DIRECTIONAL LIGHT, and this is the thing that was missing most. Every retaining wall was the
+  // same flat dark, which is why the bowl read as a diagram: a real terraced slope is legible
+  // because THE SUN IS ON ONE SIDE. The bowl's two flanks face opposite ways, so one is lit and the
+  // other is in shadow, and that single difference is what turns a set of arcs into a carved hollow.
+  // The sun swings east→west through the day, so the lit flank swaps over — the map is different in
+  // the morning and the afternoon without a line of extra content.
+  var hrs=nd?(nd.getHours()+nd.getMinutes()/60):13;
+  var sunDir=Math.max(-1,Math.min(1,(hrs-12.5)/5.5));            // -1 sun in the east, +1 in the west
+  // ⚠ QUANTISED TO 5 BANDS AND PRECOMPUTED. Shade varies per COLUMN, and building a colour string
+  // per column is 776 allocations a frame — the same shape of mistake that cost the old terrace a
+  // 50% night pass, one order of magnitude down. Five strings, chosen once.
+  var WSH=[], PSH=[];
+  for(var q=0;q<5;q++){
+    var t=q/4;                                                    // 0 = deepest shadow, 1 = full sun
+    // ⚠ FIRST TRY LIGHTENED THE LIT WALLS TO 0.62 AND KILLED THE OUTLINE. The dark wall is the thing
+    // that makes each step an OBJECT — locked answer 5 — and washing it out undid the one part that
+    // was already working. The sun shifts the wall's TONE; it must never stop being dark.
+    WSH.push(css(mixc(DARK, day?[120,112,92]:[46,50,62], 0.04+0.24*t)));
+    PSH.push(css(mixc(BRIGHT, day?[0,0,0]:[0,0,0], 0.26*(1-t))));
+  }
   var panH=Math.max(2,Math.round(step*0.62));
   for(var x=0;x<SW;x++){
     var wx=x+WOFF, bw=terrBowl(wx);
@@ -20911,6 +20931,10 @@ function drawTerraces(g,L,now,nd){
     g.fillStyle=rS;  g.fillRect(x,hy,1,Math.max(1,Math.round(K*1.6)));   // THE RIM: one crisp dark line
     if(!bw.inb) continue;                                         // outside a bowl the slope is bare
     var uu=bw.u*bw.u;
+    // which way this bit of the bowl faces, and therefore how much sun it gets
+    var face=-bw.u;                                               // left flank faces right, and vice versa
+    var litq=Math.max(0,Math.min(4,Math.round((0.5+0.5*face*sunDir)*4)));
+    var wS=WSH[litq], pS=PSH[litq];
     for(var k=0;k<TERR_ARCS;k++){
       // ARC k: a U — lowest at the bowl's centre, lifting to the rim at its edges.
       var dk=amp+TERR_FRAC[k]*(mountH-amp);
@@ -20920,8 +20944,8 @@ function drawTerraces(g,L,now,nd){
       var wallTo=Math.min(HORIZON,(k===TERR_ARCS-1)?HORIZON:nxt);
       // BRIGHT dominates — most pans hold water; a couple carry crop so it is a farm, not a fountain
       var isW=((((bw.idx*31+k)*2654435761)>>>0)%4)!==0;
-      g.fillStyle=isW?bS:mS; g.fillRect(x,yk,1,Math.min(panH,Math.max(1,wallTo-yk)));
-      if(wallTo>yk+panH){ g.fillStyle=dS; g.fillRect(x,yk+panH,1,wallTo-(yk+panH)); }
+      g.fillStyle=isW?pS:mS; g.fillRect(x,yk,1,Math.min(panH,Math.max(1,wallTo-yk)));
+      if(wallTo>yk+panH){ g.fillStyle=wS; g.fillRect(x,yk+panH,1,wallTo-(yk+panH)); }
     }
   }
   // ---- THE VILLAGE ON THE STEPS, and a few trees on the rim ----
