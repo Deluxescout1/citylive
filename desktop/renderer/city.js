@@ -20957,7 +20957,7 @@ function drawTerraces(g,L,now,nd){
     for(var q2=0;q2<5;q2++) row.push(css(mixc(mir, [0,0,0], 0.13*(1-q2/4))));
     PSH.push(row);
   }
-  var panH=Math.max(2,Math.round(step*0.62));
+  var panH=Math.max(2,Math.round(step*0.74));   // BRIGHT dominates (locked answer 10): the pan owns most of each step
   // ================================================================================================
   // ⚠⚠ THE HILL HAD NO DEPTH. Nick: "THE SLOPE AND HILL ARE AWEFUL LOOKING."
   // It was ONE silhouette — a single flat green mass with a line on top. The lands that read (alpine,
@@ -20967,14 +20967,20 @@ function drawTerraces(g,L,now,nd){
   // I made over the surface failed to help.
   // Three layers, drawn back to front, each a cheap sine ridge at its own scale and value.
   var RID=[
-    { amp:0.42, off:0.62, f1:0.0021, f2:0.0057, ph:0.0,  haze:0.70 },   // far range
-    { amp:0.60, off:0.34, f1:0.0033, f2:0.0089, ph:2.1,  haze:0.40 },   // middle
-    { amp:0.78, off:0.12, f1:0.0047, f2:0.0121, ph:4.3,  haze:0.16 }    // near shoulder
+    { amp:0.42, off:0.62, f1:0.0021, f2:0.0057, ph:0.0,  haze:0.76 },   // far range
+    { amp:0.60, off:0.34, f1:0.0033, f2:0.0089, ph:2.1,  haze:0.44 },   // middle
+    { amp:0.78, off:0.12, f1:0.0047, f2:0.0121, ph:4.3,  haze:0.10 }    // near shoulder
   ];
   for(var r=0;r<RID.length;r++){
     var R=RID[r];
-    var rc =css(mixc(mixc(SLOPE, skc, R.haze), day?[0,0,0]:[0,0,0], 0.06*r));
-    var rcT=css(mixc(mixc(SLOPE, skc, Math.min(0.88,R.haze+0.16)), day?[255,255,255]:[0,0,0], day?0.10:0));
+    // ⚠ THE THREE RIDGES BLENDED INTO ONE PALE MASS. Layering only works if each layer is clearly a
+    // different VALUE from the one behind it — the same fault as the pans, one scale up. So the haze
+    // steps are pushed apart, each ridge is darkened toward the viewer, and every one gets a LIT
+    // CREST: a bright line along its top edge, which is what actually separates one ridge from the
+    // next in a real range. Without that edge, overlapping shapes of similar tone read as one blob.
+    var rBase=mixc(SLOPE, day?[18,26,18]:[2,3,4], 0.26*(2-r)/2);      // nearer ridges are DARKER
+    var rc =css(mixc(rBase, skc, R.haze));
+    var rcT=css(mixc(mixc(rBase, skc, R.haze), day?[255,252,232]:[120,140,190], day?0.42:0.20));
     for(var rx=0;rx<SW;rx++){
       var rwx=rx+WOFF;
       var ry=rimY - Math.round(mountH*R.off)
@@ -20983,7 +20989,7 @@ function drawTerraces(g,L,now,nd){
       if(ry>=HORIZON) continue;
       if(ry<2) ry=2;
       g.fillStyle=rc;  g.fillRect(rx,ry,1,HORIZON-ry+1);
-      g.fillStyle=rcT; g.fillRect(rx,ry,1,Math.max(1,Math.round(K*1.3)));   // a lit crest on each ridge
+      g.fillStyle=rcT; g.fillRect(rx,ry,1,Math.max(1,Math.round(K*1.8)));   // the lit crest that separates it from the ridge behind
     }
   }
   for(var x=0;x<SW;x++){
@@ -21036,7 +21042,7 @@ function drawTerraces(g,L,now,nd){
         ? Math.min(HORIZON, yk+panH+Math.max(2,Math.round(step*0.5)))
         : Math.min(HORIZON,nxt);
       // BRIGHT dominates — most pans hold water; a couple carry crop so it is a farm, not a fountain
-      var isW=((((bw.idx*31+k)*2654435761)>>>0)%4)!==0;
+      var isW=((((bw.idx*31+k)*2654435761)>>>0)%7)!==0;   // ~6 pans in 7 hold water
       g.fillStyle=isW?PSH[k][litq]:mS; g.fillRect(x,yk,1,Math.min(panH,Math.max(1,wallTo-yk)));
       if(wallTo>yk+panH){ g.fillStyle=wS; g.fillRect(x,yk+panH,1,wallTo-(yk+panH)); }
     }
