@@ -48,6 +48,18 @@ Item {
         var vArg = arg("variant", ""), lArg = arg("land", "dam");     // `land=hell` etc: the river deck lands on ALL 11 river lands
         if (vArg === "") City.applyConfig({ land: lArg });
         else City.applyConfig({ land: lArg, landVariant: parseInt(vArg, 10) });
+        // ⚠ `egg=orbit` — the EGG lands (SPACE CITY, THE CORE, LEAF) are NOT reachable through `land`,
+        // because eggOf() picks them on its own roll and `land` only pins the ordinary twenty. Asking for
+        // land=orbit silently renders whatever the ordinary roll gave you (it gave me THE CINDER WASTE
+        // and I nearly read that frame as evidence about orbit).
+        // ⚠ the egg has to CLEAR `land` as well: a pinned land wins, so `egg=orbit` on top of the
+        // default `land=dam` renders the dam and looks like a working answer about orbit.
+        if (arg("egg", "") !== "") City.applyConfig({ land: "", egg: arg("egg", "") });
+        // ⚠ `airshow=fly|disp` — a display is a rare scheduled event, so waiting for one to occur
+        // naturally is not a test. This pins it, which is the only way to see the roofed land's drones.
+        if (arg("airshow", "") !== "")
+            City.FORCEAIRSHOW = { p: parseFloat(arg("airshowp", "0.45")),
+                                  disp: arg("airshow", "") === "disp", seed: 12345 };
         var d = new Date(EPOCH + 76*CYC + Math.round(0.45*CYC));
         d.setHours(root.hour, 0, 0, 0);
         root.t0 = d.getTime();

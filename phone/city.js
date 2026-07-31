@@ -15722,6 +15722,60 @@ function drawCavernWater(g,L,now){
     }
     g.globalCompositeOperation="source-over";
   }
+  // ---- THE ORE QUAY. Nick's answer to "what is a marina and a striped lighthouse doing a thousand
+  // feet underground": re-dress the waterfront as what this place would actually have. Moving the lake
+  // to the front deleted the marina outright (SEA_FRONT zeroes seaW), so this is what replaces it.
+  // ⚠ ANCHORED TO THE MINE, at `caveCache.mine.wx`. The workings dig the ore and the quay puts it in
+  // the water, and standing them at the same world x is what makes them one industry instead of two
+  // decorations — the same reasoning that put the rubble under the holes.
+  if(caveCache&&caveCache.mine){
+    var Q=caveCache.mine, qk=Math.max(1,K);
+    var qtim=day?[104,82,54]:[30,23,15], qtim2=day?[74,58,38]:[20,15,10];
+    var qore=day?[122,104,78]:[42,34,24];
+    for(var qo=-1;qo<=1;qo++){
+      var QX=Math.round(Q.wx-WOFF+qo*WW);
+      if(QX<-170||QX>SW+170) continue;
+      var qW=Math.round(34*qk), qD=Math.max(2,Math.round(2.4*qk));
+      // the deck, out over the water on piles
+      g.fillStyle=css(qtim); g.fillRect(QX-qW,top-qD,qW*2,qD);
+      g.fillStyle=css(qtim2);
+      for(var qp=-qW;qp<=qW;qp+=Math.max(3,Math.round(9*qk)))
+        g.fillRect(QX+qp,top,Math.max(1,Math.round(qk*0.9)),Math.round(7*qk));
+      // the bunker the tip empties into, and the chute out of it over the water
+      var buW=Math.round(15*qk), buH=Math.round(9*qk);
+      g.fillStyle=css(mixc(qtim2,[0,0,0],0.30));
+      for(var bq2=0;bq2<buH;bq2++){
+        var bw4=Math.round(buW*(1-0.42*(bq2/buH)));
+        g.fillRect(QX-Math.round(qW*0.55)-((bw4/2)|0),top-qD-buH+bq2,Math.max(1,bw4),1);
+      }
+      g.fillStyle=css(qore);                                        // heaped, because it is working
+      g.fillRect(QX-Math.round(qW*0.55)-((buW/2)|0)+1,top-qD-buH-Math.max(1,Math.round(qk*0.8)),buW-2,Math.max(1,Math.round(qk*0.8)));
+      g.fillStyle=css(qtim2);                                       // the chute, raking down to the water
+      for(var cq2=0;cq2<Math.round(9*qk);cq2++)
+        g.fillRect(QX-Math.round(qW*0.55)+Math.round(cq2*1.5),top-qD+cq2,Math.max(1,Math.round(qk*1.6)),1);
+      // two ore barges lying alongside, one loaded and one waiting, bobbing on their moorings
+      for(var bg2=0;bg2<2;bg2++){
+        var bgW=Math.round((24+bg2*7)*qk), bgH=Math.max(2,Math.round(3.4*qk));
+        var bgY=top+Math.round((7+bg2*13)*qk)+Math.round(Math.sin(now*0.0009+bg2*2.1)*qk*0.7);
+        var bgX=QX+Math.round((bg2?-1:1)*qW*0.55);
+        g.fillStyle=css(mixc(qtim2,[0,0,0],0.35));
+        g.fillRect(bgX-((bgW/2)|0),bgY,bgW,bgH);
+        if(bg2===0){ g.fillStyle=css(qore);                          // …the loaded one heaped with ore
+          g.fillRect(bgX-((bgW/2)|0)+Math.round(qk*2),bgY-Math.max(1,Math.round(qk*1.4)),bgW-Math.round(qk*4),Math.max(1,Math.round(qk*1.4))); }
+        g.globalCompositeOperation="lighter";                        // a mooring lamp, and its own smear on the water
+        g.fillStyle=rgba([255,204,132],0.9);
+        g.fillRect(bgX+((bgW/2)|0)-Math.round(qk),bgY-Math.round(qk*2),Math.max(1,Math.round(qk*0.9)),Math.max(1,Math.round(qk*0.9)));
+        g.fillStyle=rgba([255,196,120],0.22);
+        g.fillRect(bgX+((bgW/2)|0)-Math.round(qk*1.5),bgY+bgH,Math.max(1,Math.round(qk*2)),Math.round(6*qk));
+        g.globalCompositeOperation="source-over";
+      }
+      g.globalCompositeOperation="lighter";                          // the quay's own lamps
+      g.fillStyle=rgba([255,206,140],0.9);
+      g.fillRect(QX-qW+Math.round(qk),top-qD-Math.round(qk*2),Math.max(1,Math.round(qk*0.9)),Math.max(1,Math.round(qk*0.9)));
+      g.fillRect(QX+qW-Math.round(qk*2),top-qD-Math.round(qk*2),Math.max(1,Math.round(qk*0.9)),Math.max(1,Math.round(qk*0.9)));
+      g.globalCompositeOperation="source-over";
+    }
+  }
   // ---- THE FUNGUS on the walls reflects too, in broken dabs — the only other light in the room
   for(var d2=0;d2<26;d2++){
     var dwx=((d2*40503+(((WORLD_SEED||0)*11)>>>0))>>>0)%Math.max(1,WW);
@@ -21132,7 +21186,7 @@ function drawUndercity(g,L,now,nd){
   // silhouette the whole biome-look pass was fought over.
   var litK=Math.max(0.22,Math.min(1,lit.day*1.15+lit.night*0.60));
   var cityWarm=mixc([255,196,124],glowC,0.30), cityK=Math.max(0,Math.min(1,cityG*1.2));
-  var NB=9, colDone=[];
+  var NB=9;
   for(var ci=0;ci<caveCache.cols.length;ci++){
     var C=caveCache.cols[ci], far=(C.kind===3);
     var cTop=caveCeilAt(C.wx), cDepth=Math.max(10,HORIZON-cTop);
@@ -21166,7 +21220,6 @@ function drawUndercity(g,L,now,nd){
     for(var ow=-1;ow<=1;ow++){
       var cx=Math.round(C.wx-WOFF+ow*WW);
       if(cx+C.hw*1.8<-4||cx-C.hw*1.8>SW+4) continue;
-      colDone.push({C:C,cx:cx,top:cTop,depth:cDepth});
       for(var cy2=Math.round(cTop);cy2<HORIZON;cy2+=step){
         var t=(cy2-cTop)/cDepth;
         if(t>brkA&&t<brkB) continue;                                   // the missing middle of a fallen column
@@ -21232,11 +21285,20 @@ function drawUndercity(g,L,now,nd){
       // rock, and a chain of tiny lamps on it. Nick's diagnosis named the missing scale reference
       // explicitly; a light the size of a window on something 300 px tall says how big it is instantly,
       // and nothing else on this land does that job.
-      if(C.kind===0&&cityG>0.28){
-        var lamps=Math.round(9+cDepth/(26*K));
+      // ⚠⚠ ON ALL THREE HEROES, NOT ONE. Gated on `kind===0` this appeared on exactly one column per
+      // life — so two of Nick's three monitors got no lamps at all, which is the same mistake the shaft
+      // placement was designed to avoid and which he settled by choosing "one per monitor-third". The
+      // scale reference the diagnosis named as MISSING cannot itself be missing from two screens.
+      // Each kind wears the route differently: a switchback stair up the intact one, a shallower ledge
+      // path round the hourglass, and on the collapsed one the lamps STOP AT THE BREAK — which is the
+      // route explaining the ruin rather than ignoring it.
+      if(!far&&cityG>0.28){
+        var lTop=(C.kind===2)?Math.max(0.22,brkA-0.02):0.90;
+        var lamps=Math.max(4,Math.round((9+cDepth/(26*K))*(lTop-0.16)/0.74));
         for(var lp=0;lp<lamps;lp++){
-          var lt=0.16+0.74*(lp/Math.max(1,lamps-1)), lhw=caveColHW(C,lt);
-          var lu=Math.sin(lp*0.9+C.seed%7)*0.72;                 // the stair switchbacks rather than spiralling evenly
+          var lt=0.16+(lTop-0.16)*(lp/Math.max(1,lamps-1)), lhw=caveColHW(C,lt);
+          var lsw=(C.kind===1)?0.52:0.9;                          // a ledge path swings less than a stair
+          var lu=Math.sin(lp*lsw+C.seed%7)*(C.kind===1?0.86:0.72);// switchbacks rather than an even spiral
           var lx=Math.round(cx+lu*lhw), ly=Math.round(cTop+lt*cDepth);
           g.fillStyle=css(mixc(faceDrk,[0,0,0],0.45));            // the cut ledge it stands on
           g.fillRect(lx-Math.round(2*K),ly,Math.max(2,Math.round(4*K)),Math.max(1,Math.round(K*0.7)));

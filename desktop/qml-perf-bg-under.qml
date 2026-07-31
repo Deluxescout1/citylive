@@ -1,14 +1,16 @@
 import QtQuick
 import "../org.citylive.wallpaper/contents/js/city.js" as City
 
-// COST OF THE BACKDROP PASS, under against alpine. Everything the Ashlands gained — hashed crags, the rift
-// notch, the rib field, the flows, the floor fissures — is in `draw(g,"bg")`, which the live-pass harness
-// never touches, so timing the live pass would have reported a clean bill for work it did not run.
+// COST OF THE BACKDROP PASS, THE UNDERCITY against alpine. Everything this land gained in the overhaul —
+// the colossal columns and their flutes, the collapse holes, the beams, the rubble mounds and the deep
+// workings — is in `draw(g,"bg")`, which the live-pass harness never touches, so timing the live pass
+// would have reported a clean bill for work it did not run. (Its live half — the fungus pulse, the ore
+// cars, the near beam and the lake — is timed by `qml-perf-live-now.qml` instead. Both were run.)
 //
 // ⚠⚠ INTERLEAVED, AND REPORTED AS A RATIO. A perf A/B across two separate processes measured a real 18%
 // win as a REGRESSION once already in this project, because the two runs had different harness shapes.
-// Alternating the two lands inside ONE process removes per-run drift, and comparing under/alpine rather than
-// under alone removes machine drift between the before and after runs as well.
+// Alternating the two lands inside ONE process removes per-run drift, and comparing under/alpine rather
+// than under alone removes machine drift between the before and after runs as well.
 // Run: QT_ASSUME_STDERR_HAS_CONSOLE=1 QT_QPA_PLATFORM=offscreen qml6 desktop/qml-perf-bg-under.qml
 Item {
     width: 1552; height: 874
