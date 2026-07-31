@@ -21013,6 +21013,14 @@ function caveBuild(){
       waist:0.42+caveHash(f2,79)*0.20, pinch:0.60+caveHash(f2,83)*0.18,
       kind:3, seed:((f2*104729+(((WORLD_SEED||0)*7)>>>0))>>>0) });
   }
+  // THE DEEP WORKINGS stand at one of three slots, chosen by the world seed — one per monitor, so the
+  // mine is on a different screen from life to life instead of always being Nick's left-hand one. Each
+  // slot is well clear of that third's hero column, and of the screen seams either side of it.
+  // ⚠ It lives on the cache because TWO functions need it and they run in different passes: the workings
+  // are painted in the backdrop (drawBiomeLandmark) and the ore cars at the live rate. Two functions
+  // computing the same position separately is exactly how the dam's waterline drifted.
+  var MS=[0.29,0.62,0.93];
+  caveCache.mine={ wx:Math.round(MS[((WORLD_SEED||0)>>>3)%3]*WW) };
   // ONE COLLAPSE HOLE PER MONITOR-THIRD, set just off its column's shoulder so the beam RAKES the
   // column instead of hiding behind it — the lit face of a colossal rock is most of why the shaft is
   // worth having, beyond the beam itself.
@@ -21141,8 +21149,11 @@ function drawUndercity(g,L,now,nd){
     // The break is a GAP: a remnant still hanging from the ceiling, clear air, and a standing stump
     // rising from the floor with a ragged top — and the missing middle lying where it fell. Only then
     // does the column read as having failed, and only then does the rubble at its foot have a cause.
-    var brkA=(C.kind===2)?(0.26+caveHash(C.seed,3)*0.12):2;       // the hanging remnant ends here
-    var brkB=(C.kind===2)?(brkA+0.17+caveHash(C.seed,5)*0.15):2;  // …and the standing stump starts here
+    // ⚠ THE GAP SITS HIGH, and that is a composition constraint rather than a geological one: the
+    // standing stump has to clear the rooftops or the only half anyone ever sees is the piece hanging
+    // from the ceiling — which is the stalactite the break was supposed to stop it looking like.
+    var brkA=(C.kind===2)?(0.20+caveHash(C.seed,3)*0.08):2;       // the hanging remnant ends here
+    var brkB=(C.kind===2)?(brkA+0.14+caveHash(C.seed,5)*0.10):2;  // …and the standing stump starts here
     // the two ends of the value range for this rock. A far column is barely above the ceiling it hangs
     // in front of — depth is a VALUE difference, not a size difference.
     // ⚠⚠ EXTREME VALUE CONTRAST IS THE RULE, AND 0.34 TOWARD WHITE IS NOT EXTREME. The first build put
@@ -21162,8 +21173,11 @@ function drawUndercity(g,L,now,nd){
         var hw=caveColHW(C,t);
         // the two torn ends. Jittering the half-width ROW BY ROW is what makes a break ragged; a clean
         // horizontal cut reads as a shape that was drawn short, not as rock that gave way.
-        if(t>brkA-0.07&&t<=brkA) hw*=0.40+0.60*caveHash(C.seed,Math.round(t*430));
-        if(t>=brkB&&t<brkB+0.07) hw*=0.40+0.60*caveHash(C.seed,Math.round(t*370)+91);
+        // ⚠ BUCKETED COARSELY, NOT PER ROW. Hashing every single row gave each one an independent width
+        // and the torn end rendered as a fine horizontal comb — noise, not rock. Several rows sharing a
+        // width breaks it into chunky steps, which is what a fracture in stone actually looks like.
+        if(t>brkA-0.07&&t<=brkA) hw*=0.45+0.55*caveHash(C.seed,Math.round(t*45));
+        if(t>=brkB&&t<brkB+0.07) hw*=0.45+0.55*caveHash(C.seed,Math.round(t*38)+91);
         // ⚠ the shaft lights the TOP of a column and the city lights its FOOT. Mixing between the two
         // down the height is what stops the lit face being one flat colour for 300 px.
         var upC=mixc(faceLit,cityWarm,Math.min(1,t*t*1.35)*cityK*(far?0.35:0.75));
@@ -21326,6 +21340,39 @@ function drawUndercityLive(g,L,now,nd){
     g.fillStyle=rgba(glowC,0.10*pulse);                   // …with a little bloom off the rock around it
     g.fillRect(bx-Math.round(K),by-Math.round(K),Math.max(2,Math.round(3.4*K)),Math.max(2,Math.round(3.4*K)));
     g.globalCompositeOperation="source-over";
+  }
+  // ---- THE ORE CARS, running out of the portal to the tip and back. Scripted from the world clock,
+  // never simulated, so all three monitors show the same car in the same place at the same instant —
+  // the standing rule for everything that moves on this project.
+  if(caveCache.mine&&cityG>0.18){
+    var M2=caveCache.mine, mk2=Math.max(Math.max(1,KSP)*1.7, HORIZON/80);
+    var spW2=Math.round(HORIZON*0.30*0.62), poW2=Math.round(9*mk2);
+    var tpD2=(M2.wx&1)?1:-1;
+    var rA=Math.round(poW2*0.6), rB=Math.round(spW2*1.1+spW2*1.5*0.3);
+    var rY=HORIZON-Math.max(1,Math.round(mk2*0.8));
+    for(var oc2=0;oc2<3;oc2++){
+      var per=17000+oc2*4300, ph2=((now+oc2*6100)%per)/per;
+      // out loaded, back empty: a triangle wave, with a pause at each end where it is being tipped
+      var tri=ph2<0.42?(ph2/0.42):(ph2<0.5?1:(ph2<0.92?(1-(ph2-0.5)/0.42):0));
+      var loaded=ph2<0.46;
+      var cwx2=rA+(rB-rA)*tri;
+      for(var oo=-1;oo<=1;oo++){
+        var CXo=Math.round(M2.wx-WOFF+oo*WW+tpD2*cwx2);
+        if(CXo<-20||CXo>SW+20) continue;
+        var cwd=Math.max(2,Math.round(mk2*2.4)), chg=Math.max(2,Math.round(mk2*1.8));
+        g.fillStyle=L>0.5?"#4a4e56":"#20232a";                                   // the tub
+        g.fillRect(CXo-((cwd/2)|0),rY-chg,cwd,chg);
+        if(loaded){ g.fillStyle=L>0.5?"#7a6a52":"#33291d";                       // …heaped with ore
+          g.fillRect(CXo-((cwd/2)|0)+1,rY-chg-Math.max(1,Math.round(mk2*0.6)),cwd-2,Math.max(1,Math.round(mk2*0.6))); }
+        g.fillStyle="#15171c";                                                   // wheels
+        g.fillRect(CXo-((cwd/2)|0),rY-Math.max(1,Math.round(mk2*0.5)),Math.max(1,Math.round(mk2*0.6)),Math.max(1,Math.round(mk2*0.5)));
+        g.fillRect(CXo+((cwd/2)|0)-Math.max(1,Math.round(mk2*0.6)),rY-Math.max(1,Math.round(mk2*0.5)),Math.max(1,Math.round(mk2*0.6)),Math.max(1,Math.round(mk2*0.5)));
+        g.globalCompositeOperation="lighter";                                    // a lamp on the leading tub
+        g.fillStyle="rgba(255,214,150,0.85)";
+        g.fillRect(CXo+tpD2*((cwd/2)|0),rY-chg,Math.max(1,Math.round(mk2*0.6)),Math.max(1,Math.round(mk2*0.6)));
+        g.globalCompositeOperation="source-over";
+      }
+    }
   }
 }
 // ⚠⚠ AND THIS HALF OF THE SHAFT GOES IN FRONT OF THE CITY. The beam body in `drawUndercity` is painted
@@ -25552,6 +25599,108 @@ function drawBiomeDetail(g,L,now,nd){
           g.fillRect(CX5,Math.round(cyc2),Math.max(1,Math.round(1.6*K)),Math.max(1,Math.round(1.6*K))); }
       }
     }
+  } else if(B.k==="under"){
+    // ============ THE RUBBLE FIELD, WHERE THE ROOF CAME DOWN ============
+    // Nick's locked answer 3, first of three: "the rubble field where the roof fell in — scree, some
+    // blocks building-sized, the city built around and on them."
+    // 🔑 ANCHORED TO THE HOLES, NOT SCATTERED AT RANDOM. This is the dam break's finding applied a
+    // second time: re-anchoring an effect to the thing that CAUSED it makes the picture explain itself
+    // for free. Debris under the collapse holes says the roof came down there — the same rubble spread
+    // evenly along the floor would just be texture, and the holes would have no consequence.
+    // ⚠ Painted ~200 lines BEFORE the buildings like everything in this function, so the biggest blocks
+    // are sized to STAND ABOVE the outskirts rather than to be discovered behind them. That deferred
+    // paint-order item decides the composition on its fifth land now.
+    if(caveCache&&caveCache.holes){
+      // ⚠ MODELLED BY THE SAME LIGHT AS THE COLUMNS, or it is a dark hump. The first version filled each
+      // row with one colour and rendered as a shapeless dark mass behind the rooftops — which is the
+      // land's original fault reproduced in miniature by the feature meant to fix it.
+      var uLit=caveShaftLit(L,now,nd), uSlope=caveShaftSlope(), uBeam=caveShaftCol(uLit);
+      var uDir=(uSlope>=0)?-1:1;                     // the flank the light is falling on
+      var uLK=Math.max(0.28,Math.min(1,uLit.day*1.1+uLit.night*0.6));
+      var rkD=mixc(B.near,[0,0,0],0.62);
+      var rkL=mixc(mixc(B.near,day?[214,218,230]:[86,102,132],0.44),uBeam,0.22);
+      var rkM=mixc(rkD,rkL,0.42), uk=Math.max(1,K);
+      // ⚠⚠ THE MOUND HAS TO BE A LANDFORM, NOT FLOOR LITTER. My first version piled the debris at
+      // ankle height along HORIZON and it was invisible — every block sat behind the near buildings,
+      // which stand ON that same line. Rubble from a roof collapse of this size IS a hill: it rises
+      // well above the skyline, the city is built against its foot, and it fills the exact dead band
+      // between the rooftops and the ceiling that Nick's diagnosis was about.
+      // ⚠ The BIGGEST one goes under the hole beside the COLLAPSED column, so the hole, the broken
+      // pillar and the mountain of rock are visibly one event rather than three unrelated features.
+      var bigIdx=0;
+      for(var fc=0;fc<caveCache.cols.length;fc++) if(caveCache.cols[fc].kind===2){ bigIdx=fc%caveCache.holes.length; break; }
+      for(var uh=0;uh<caveCache.holes.length;uh++){
+        var UH=caveCache.holes[uh], big=(uh===bigIdx);
+        for(var uo=-1;uo<=1;uo++){
+          var ux=Math.round(UH.wx-WOFF+uo*WW);
+          if(ux<-260||ux>SW+260) continue;
+          // ---- the debris cone directly beneath the hole: it fell straight down, so it piles up here
+          var conH=Math.round(HORIZON*(big?0.30:0.15)), conW=Math.round(conH*(1.7+caveHash(UH.seed,3)*0.5));
+          for(var cq=0;cq<conH;cq++){
+            var cf2=cq/Math.max(1,conH);
+            // an angle-of-repose slope, not a triangle: steep at the crown, flattening into the floor,
+            // with the profile broken so the two flanks are never mirror images
+            var cw2=Math.round(conW*Math.pow(cf2,0.72)*(1+0.10*Math.sin(cq*0.21+UH.seed%9)));
+            // …and the crown, right under the hole, takes the most light of anything on the floor
+            var crown=Math.max(0,1-cf2/0.30);
+            for(var cbn=0;cbn<5;cbn++){
+              var cu0=-1+2*cbn/5, cu1=-1+2*(cbn+1)/5, cum=(cu0+cu1)*0.5;
+              var cs=Math.max(0,Math.min(1,0.5+0.5*cum*uDir)); cs=cs*cs*(3-2*cs);
+              g.fillStyle=css(mixc(rkD,mixc(rkM,rkL,crown*0.55),cs*uLK*(1-cf2*0.35)));
+              g.fillRect(ux+Math.round(cu0*cw2),gy-conH+cq,Math.max(1,Math.round((cu1-cu0)*cw2)+1),1);
+            }
+          }
+          // ---- and the blocks that came down with it. Sizes run from a car to a small building, and
+          // the biggest carry a shack on top: a lit window on a boulder is the cheapest scale reference
+          // there is, and it is literally the "city built ON them" half of the answer.
+          for(var bl=0;bl<(big?16:8);bl++){
+            var bhs=caveHash(UH.seed,bl*13+5);
+            var bw3=Math.round((3+bhs*bhs*22)*uk), bh3=Math.round(bw3*(0.42+caveHash(UH.seed,bl*17+2)*0.55));
+            var bd=(caveHash(UH.seed,bl*7+1)-0.5)*2.4;             // where on the slope, -1.2..1.2 of the cone's radius
+            var bx3=ux+Math.round(bd*conW);
+            if(bx3<-70||bx3>SW+70) continue;
+            // sit it ON the slope it fell down. A block floating at the floor line when the mound behind
+            // it is 110 px tall is the giveaway that the two were drawn by different rules.
+            var bdd=Math.min(1,Math.abs(bd));
+            var bBase=gy-Math.round(conH*Math.max(0,1-Math.pow(bdd,1.389)));
+            var lean=(caveHash(UH.seed,bl*11+3)-0.5)*0.5;          // nothing landed flat
+            for(var by3=0;by3<bh3;by3++){
+              var bu=by3/bh3, bwr=Math.round(bw3*(1-bu*0.22));
+              // the shaded FACE of the block: dark on the far side, and never the same as the slope it
+              // sits on, or a building-sized boulder disappears into the hill (the basalt-coast fault)
+              g.fillStyle=css(mixc(rkD,rkM,(0.08+0.30*bu)*uLK));
+              g.fillRect(bx3-((bwr/2)|0)+Math.round(lean*by3),bBase-bh3+by3,Math.max(1,bwr),1);
+              g.fillStyle=css(mixc(rkD,rkL,(0.30+0.34*bu)*uLK));    // …and its lit flank
+              g.fillRect(bx3-((bwr/2)|0)+Math.round(lean*by3)+(uDir>0?Math.round(bwr*0.55):0),bBase-bh3+by3,Math.max(1,Math.round(bwr*0.45)),1);
+            }
+            g.fillStyle=css(rkL);                                  // the broken top face, catching the roof light
+            g.fillRect(bx3-((bw3/2)|0),bBase-bh3,Math.max(1,bw3),Math.max(1,Math.round(uk*1.6)));
+            if(bw3>15*uk&&cityG>0.3){                              // …and somebody has built on the big ones
+              var shW=Math.round(bw3*0.5), shH=Math.round(bh3*0.6);
+              g.fillStyle=css(mixc(B.walls[bl%B.walls.length],[0,0,0],day?0.20:0.55));
+              g.fillRect(bx3-((shW/2)|0),bBase-bh3-shH,shW,shH);
+              g.fillStyle=css(mixc(rkD,[0,0,0],0.4));
+              g.fillRect(bx3-((shW/2)|0)-Math.round(uk*0.5),bBase-bh3-shH-Math.round(uk*0.7),shW+Math.round(uk),Math.max(1,Math.round(uk*0.7)));
+              g.globalCompositeOperation="lighter";
+              g.fillStyle=rgba([255,206,140],0.9);
+              g.fillRect(bx3,bBase-bh3-Math.round(shH*0.55),Math.max(1,Math.round(uk*0.9)),Math.max(1,Math.round(uk*0.9)));
+              g.globalCompositeOperation="source-over";
+            }
+          }
+        }
+      }
+      // ---- and a low broken scree line along the whole floor, so the cavern does not meet the city on
+      // a ruled edge. ⚠ Broken into short runs of varying length: a continuous band at one height is the
+      // graph-paper fault, which this project has now found on the salt, the dunes and the sidewalks.
+      for(var sc=0;sc<64;sc++){
+        var swx2=((sc*2654435761+(((WORLD_SEED||0)*23)>>>0))>>>0)%Math.max(1,WW);
+        var sx3=Math.round(swx2-WOFF); if(sx3<-30) sx3+=WW; if(sx3>SW+30) sx3-=WW;
+        if(sx3<-30||sx3>SW+30) continue;
+        var sw3=Math.round((2+((sc*7919)%9))*K), sh3=Math.max(1,Math.round((1+((sc*104729)%3))*K*0.7));
+        g.fillStyle=css(mixc(rkD,rkM,((sc*40503)%100)/220));
+        g.fillRect(sx3,gy-sh3,sw3,sh3);
+      }
+    }
   }
 }
 // WHAT STANDS ON TOP OF A FLAT-TOPPED MOUNTAIN.
@@ -27477,6 +27626,88 @@ function drawBiomeLandmark(g,L,now,nd){
         g.globalCompositeOperation="source-over";
       }
     });
+  } else if(B.k==="under"){
+    // ============ THE DEEP WORKINGS — a portal into the rock, and the ore coming out of it ============
+    // Nick's locked answer 3, third of three: "mine workings and ore trains running out of side tunnels."
+    // ⚠ THERE ARE NO SIDE WALLS ON THIS LAND to cut a tunnel into — the ceiling comes down to about 0.45
+    // of the horizon and stops, and the sides of the frame are open cavern. So the tunnel goes into a
+    // ROCK SPUR standing on the floor, which is both buildable here and the thing a real underground
+    // working looks like: a portal at the foot, a headframe over it, and a spoil heap beside it.
+    // ⚠ COMPACT ON PURPOSE. A rail line running clear across the frame would be a second viaduct at a
+    // different height, and this land already has one lattice crossing the whole picture. Everything
+    // here happens within a couple of spur-widths, so it reads as one machine.
+    // ⚠ The CARS are not drawn here — a landmark is painted in the 0.5 fps backdrop and an ore car at
+    // 0.5 fps teleports between poses (the plateau-towns finding). They are in `drawUndercityLive`, and
+    // both read the spur's position out of `caveCache.mine` so the two can never disagree.
+    if(caveCache&&caveCache.mine){
+      var M=caveCache.mine, mk=K, day2=day;
+      var mrock=mixc(B.near,[0,0,0],0.35), mrockL=mixc(B.near,day2?[196,202,214]:[74,88,116],0.40);
+      var tim=day2?"#6a5136":"#241b12", tim2=day2?"#4c3a26":"#18120c";
+      var stl=day2?"#8e949e":"#2e3138";
+      for(var mo=-1;mo<=1;mo++){
+        var MX=Math.round(M.wx-WOFF+mo*WW);
+        if(MX<-140||MX>SW+140) continue;
+        var spH=Math.round(HORIZON*0.30), spW=Math.round(spH*0.62);
+        // ---- THE SPUR. A leaning wedge of rock, lit on the side its own lamps are on.
+        for(var sy2=0;sy2<spH;sy2++){
+          var su=sy2/spH, sw4=Math.round(spW*(0.22+0.78*su*su*(3-2*su)));
+          g.fillStyle=css(mixc(mrock,[0,0,0],0.45));
+          g.fillRect(MX-sw4,gy-spH+sy2,Math.max(1,sw4*2),1);
+          g.fillStyle=css(mixc(mrock,mrockL,0.28+0.30*su));           // the worked face, cut back square
+          g.fillRect(MX-Math.round(sw4*0.15),gy-spH+sy2,Math.max(1,Math.round(sw4*1.0)),1);
+        }
+        // ---- THE PORTAL: a timbered square mouth with the warm light of the workings behind it
+        var poW=Math.round(9*mk), poH=Math.round(11*mk), poY=gy-poH;
+        g.fillStyle="#08070a"; g.fillRect(MX-((poW/2)|0),poY,poW,poH);
+        g.globalCompositeOperation="lighter";
+        g.fillStyle="rgba(255,168,74,0.55)";                           // …the furnace glow down the adit
+        g.fillRect(MX-((poW/2)|0)+Math.round(mk),poY+Math.round(mk*1.5),poW-Math.round(mk*2),poH-Math.round(mk*1.5));
+        g.globalCompositeOperation="source-over";
+        g.fillStyle=tim;                                               // the sets: two legs and a cap
+        g.fillRect(MX-((poW/2)|0)-Math.round(mk*0.8),poY-Math.round(mk*0.8),poW+Math.round(mk*1.6),Math.max(1,Math.round(mk*1.2)));
+        g.fillRect(MX-((poW/2)|0)-Math.round(mk*0.8),poY,Math.max(1,Math.round(mk*0.9)),poH);
+        g.fillRect(MX+((poW/2)|0),poY,Math.max(1,Math.round(mk*0.9)),poH);
+        // ---- THE HEADFRAME over it: two legs, a back stay, and the sheave wheel that lifts the skip
+        var hfH=Math.round(spH*0.62), hfW=Math.round(7*mk), hfY=gy-spH-Math.round(hfH*0.35);
+        g.fillStyle=stl;
+        for(var hq=0;hq<hfH;hq++){
+          var hu2=hq/hfH, hin=Math.round(hfW*(1-hu2)*0.5);
+          g.fillRect(MX-hfW+hin,hfY+hq,Math.max(1,Math.round(mk*0.8)),1);
+          g.fillRect(MX+hfW-hin,hfY+hq,Math.max(1,Math.round(mk*0.8)),1);
+          if((hq%Math.max(2,Math.round(mk*2.4)))===0)                   // the lattice bracing between them
+            g.fillRect(MX-hfW+hin,hfY+hq,Math.max(2,(hfW-hin)*2),Math.max(1,Math.round(mk*0.5)));
+        }
+        g.fillStyle=stl;                                                // the back stay, raking away
+        for(var bq=0;bq<hfH;bq++) g.fillRect(MX+hfW+Math.round(bq*0.7),hfY+bq,Math.max(1,Math.round(mk*0.7)),1);
+        g.fillStyle=day2?"#b6bcc6":"#3c4049";                           // the sheave wheel on top
+        var shR=Math.round(mk*2.6);
+        fillEllipse(g,MX,hfY,shR,shR);
+        g.fillStyle=css(mixc([12,12,16],[0,0,0],0.2));
+        fillEllipse(g,MX,hfY,Math.max(1,Math.round(shR*0.45)),Math.max(1,Math.round(shR*0.45)));
+        // ---- THE SPOIL HEAP the working has been throwing out for years, and the tip it runs on
+        var tpD=(M.wx&1)?1:-1, tpW=Math.round(spW*1.5), tpH=Math.round(spH*0.30);
+        for(var tq=0;tq<tpH;tq++){
+          var tu=tq/tpH, tw2=Math.round(tpW*Math.pow(tu,0.7));
+          g.fillStyle=css(mixc(mrock,[0,0,0],0.52-0.16*tu));
+          g.fillRect(MX+tpD*Math.round(spW*1.1)-((tw2/2)|0),gy-tpH+tq,Math.max(1,tw2),1);
+        }
+        // ---- THE RAILS out of the portal to the tip head, on low sleepers. The cars run on this line.
+        var rlY=gy-Math.max(1,Math.round(mk*0.8)), rlA=MX+tpD*Math.round(poW*0.6), rlB=MX+tpD*Math.round(spW*1.1+tpW*0.3);
+        g.fillStyle=tim2;
+        for(var rs=Math.min(rlA,rlB);rs<Math.max(rlA,rlB);rs+=Math.max(2,Math.round(mk*1.6)))
+          g.fillRect(rs,rlY,Math.max(1,Math.round(mk*0.7)),Math.max(1,Math.round(mk*0.8)));
+        g.fillStyle=stl;
+        g.fillRect(Math.min(rlA,rlB),rlY-Math.max(1,Math.round(mk*0.4)),Math.abs(rlB-rlA),Math.max(1,Math.round(mk*0.4)));
+        // ---- and the lamps that make a working read as WORKING. Never off: a mine underground has no day.
+        g.globalCompositeOperation="lighter";
+        g.fillStyle="rgba(255,206,132,0.95)";
+        g.fillRect(MX-hfW,hfY+Math.round(hfH*0.5),Math.max(1,Math.round(mk*0.8)),Math.max(1,Math.round(mk*0.8)));
+        g.fillRect(MX+((poW/2)|0)+Math.round(mk),poY-Math.round(mk*2),Math.max(1,Math.round(mk*0.8)),Math.max(1,Math.round(mk*0.8)));
+        g.fillStyle="rgba(255,180,90,0.14)";
+        g.fillRect(MX-Math.round(poW*1.4),poY-Math.round(mk*3),Math.round(poW*2.8),poH+Math.round(mk*3));
+        g.globalCompositeOperation="source-over";
+      }
+    }
   }
 }
 // THE RESTLESS MOUNTAIN. Nick's call: always smoking, and every so often it stirs — never destroying

@@ -19,7 +19,7 @@ Item {
             var g = getContext("2d");
             var CYC = 604800000, EPOCH = 1783972450746;
             City.GROW_CYCLE = CYC; City.NOFETCH = true; City.FORCEEGG = null; City.FORCEDIS = null;
-            var lands = ["alpine","fjord","karst","dunes","heaven","hell"];
+            var lands = ["alpine","under","dam","karst"];
             var tot = {}, cnt = {};
             for (var i = 0; i < lands.length; i++) { tot[lands[i]] = 0; cnt[lands[i]] = 0; }
             function one(land, hour) {
