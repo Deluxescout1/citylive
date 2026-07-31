@@ -20855,7 +20855,18 @@ function drawUndercity(g,L,now,nd){
 // The steps follow the CONTOUR, which is the thing that makes real terraces beautiful and the thing a
 // naive implementation gets wrong: they are not straight shelves stacked like a staircase, they curve
 // with the hill, so each riser wanders left and right as it crosses the frame.
-var terrCache=null, terrStep=null;
+var terrCache=null, terrStep=null, terrGully=null;
+// ⚠⚠⚠ NICK, ON THE THIRD ATTEMPT: "you fixed nothing." He was right and I had been tinkering.
+// Fields broke the corduroy. Tapering and texture softened the pans. NONE of it touched the thing
+// that actually makes this land read as stripes: the dominant visual frequency of the whole
+// hillside is HORIZONTAL REPETITION, and nothing I had added was vertical.
+// A real terraced mountain is not a slope with steps drawn on it — it is a set of SPURS separated by
+// GULLIES. The gullies are too steep and too wet to terrace, so they stay wooded, and they run from
+// the ridge to the valley floor. Those wooded gullies cut the horizontal bands into separate blocks,
+// and that is what stops fifty rows reading as one venetian blind.
+// The lesson, and it is the expensive one: SOFTENING A PATTERN DOES NOT REMOVE IT. To kill a
+// horizontal read you need a vertical element, not gentler horizontals.
+function terrGullyAt(x){ return terrGully ? terrGully[Math.max(0,Math.min(SW-1,x|0))] : 0; }
 // The moon's screen position and how much light it is throwing, for the night mirror. Defensive:
 // this reaches into the sky machinery from the other end of the file, and a ReferenceError here
 // would silently kill the whole hillside (the fjord lost a feature exactly that way).
@@ -20884,7 +20895,7 @@ function moonUpTint(){ return [150,168,206]; }
 function terrStepTable(seed){
   // Irregular step spacing, computed ONCE per life and shared by every column, so the steps still
   // follow the contour (which is what makes real terraces beautiful) while no two risers match.
-  var n=Math.max(9, Math.round(HORIZON/Math.max(5,Math.round(7.5*Math.max(1,KSP)))));
+  var n=Math.max(7, Math.round(HORIZON/Math.max(9,Math.round(14*Math.max(1,KSP)))));
   var inc=[], tot=0;
   for(var i=0;i<n;i++){
     var h=((i*2654435761+seed)>>>0); h^=h>>>13;
@@ -20914,6 +20925,25 @@ function drawTerraces(g,L,now,nd){
       terrCache[x]=Math.max(HORIZON*0.05, HORIZON*(topF - nn*ampF*B.amp));
     }
     terrStep=null;
+    // THE GULLIES — world-keyed, so they sit in the same places on all three monitors, and spaced
+    // widely enough that each spur between them carries a real block of terracing.
+    terrGully=new Array(SW);
+    var gSeed=((WORLD_SEED*2246822519)>>>0);
+    var nG=Math.max(4,Math.round(WW/300));
+    var gc=[], gw=[];
+    for(var gi=0;gi<nG;gi++){
+      var gh0=((gi*2654435761+gSeed)>>>0); gh0^=gh0>>>13;
+      gc.push((gh0%Math.max(1,WW)));
+      gw.push(Math.round((34+((gh0>>>9)%34))*Math.max(1,KSP)));
+    }
+    for(var gx=0;gx<SW;gx++){
+      var gwx=gx+WOFF, best=0;
+      for(var gj=0;gj<nG;gj++){
+        var d=Math.abs(((gwx-gc[gj])%WW+WW*1.5)%WW-WW*0.5);
+        if(d<gw[gj]){ var t=1-d/gw[gj]; if(t>best) best=t; }
+      }
+      terrGully[gx]=best;
+    }
   }
   if(!terrStep) terrStep=terrStepTable((WORLD_SEED*2654435761)>>>0);
   var STEPS=terrStep.length;
@@ -20963,6 +20993,9 @@ function drawTerraces(g,L,now,nd){
   if(!day){ try{ var mp=moonScreen(now,nd); if(mp){ moonSX=mp.x; moonPhK=Math.max(0.25,mp.k); } }catch(e){} }
 
   // the mountain body first — everything below is carved into it
+  var gulTree=mixc(mixc(day?[62,92,58]:[12,22,17], soil, 0.30), skc, day?0.16:0.05);
+  var gulDark=mixc(gulTree,[0,0,0],0.26);
+  var gulWet =mixc(skyT, day?[255,255,255]:[6,10,20], day?0.24:0.55);
   for(var x2=0;x2<SW;x2++){
     var hyR=Math.round(terrCache[x2]);
     g.fillStyle=css(soil); g.fillRect(x2,hyR,1,HORIZON-hyR+1);
@@ -21116,6 +21149,30 @@ function drawTerraces(g,L,now,nd){
       x3=runEnd;
       if(runEnd<=x3-1) break;                                    // paranoia: never spin
     }
+  }
+  // ---- THE WOODED GULLIES, painted OVER the terraces. This is the vertical the whole land was
+  // missing: they cut the terraced faces into separate blocks so the rows can never line up across
+  // the frame again.
+  // ⚠ A GULLY IS A V, NOT A STRIPE. Drawn as a constant-width band it is just a green rectangle —
+  // another block. A real gully is a notch that starts narrow at the ridge and opens out downhill,
+  // so the wood begins LOW at its edges and HIGH at its centre, and the terraces wrap into it.
+  // ⚠ Drawn after the steps, not before, which is what lets the V cut into them for free.
+  var gtS=css(gulTree), gdS=css(gulDark), gwS=rgba(gulWet,0.75);
+  for(var gx2=0;gx2<SW;gx2++){
+    var gv=terrGully[gx2]; if(gv<0.05) continue;
+    var ghy=terrCache[gx2], gdep=HORIZON-ghy; if(gdep<4) continue;
+    var gh2=(((gx2+WOFF)*2654435761)>>>0);
+    var ease=Math.sqrt(gv*gv*(3-2*gv));                        // concave sides, and no hard vertical seam
+    var gTop=Math.round(ghy+gdep*(0.30+(1-ease)*0.62));        // the head starts BELOW the ridge
+    var gLen=Math.round(HORIZON-gTop); if(gLen<2) continue;
+    g.fillStyle=gtS; g.fillRect(gx2,gTop,1,gLen+1);
+    g.fillStyle=gdS;                                            // clumpy canopy, not a flat fill
+    var step2=Math.max(3,Math.round(5*K));
+    for(var gq2=0;gq2*step2<gLen;gq2++){
+      if(((gh2>>>(gq2%12))&3)===0) continue;
+      g.fillRect(gx2,gTop+gq2*step2+((gh2>>>5)%3),1,Math.max(1,Math.round(K*1.7)));
+    }
+    if(gv>0.90){ g.fillStyle=gwS; g.fillRect(gx2,gTop,1,gLen+1); }   // the stream that cut it
   }
   // ---- THE FOREST CROWN. Nick's call, and it is not decoration: the forest on the ridge IS the
   // watershed. It is where the water in every pan below comes from, which is why the Ifugao protect
