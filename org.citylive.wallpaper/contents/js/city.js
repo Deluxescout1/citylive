@@ -24380,15 +24380,30 @@ function drawRiver(g,L,now){
         g.fillStyle=css(BM.kerb); g.fillRect(dx0,deckY+fwH+cwH,dW,1); }
       if(deckY+deckH<SH-1){ g.fillStyle=day?"rgba(20,24,32,0.5)":"rgba(0,0,0,0.5)";
         g.fillRect(dx0,deckY+deckH,dW,1); }                                                       // deck underside shadow (coastal lands only)
-      // ---- THE PARAPET. The near edge of the deck sits behind the panel on all three of his
-      // screens, so the FAR edge is the only one that can read — and it is the thing that says at a
-      // glance that the street is on a bridge here. Contrast is BY RULE against the material it
-      // stands on (locked answer 14), never an authored colour that happens to work on one land.
-      var parC=railContrast(day?[232,238,248]:[150,165,195], BM.top, 58);
+      // ---- THE PARAPET. Contrast is BY RULE against the material it stands on (locked answer 14),
+      // never an authored colour that happens to work on one land.
+      // ⚠ AND IT IS BUILT FROM THE PAVEMENT'S OWN KERB LIGHT, NOT FROM WHITE. Authored as near-white
+      // it passed `railContrast` untouched on THE CINDER WASTE — walkMat there is [62,56,54], so the
+      // rule saw a difference of 179, kept the white, and put a 264px bar at 0.9 alpha above the
+      // horizon on the DARKEST land in the game. A contrast rule guarantees separation; it does not
+      // guarantee the colour belongs. `BM.lip` is the catch light already authored on each land's
+      // kerb, so the parapet is in-palette everywhere and `railContrast` only has to top it up.
+      var parC=railContrast(BM.lip, BM.top, 58);
       var parH=Math.max(2,Math.round(4*K)), railY=deckY-parH;
       g.fillStyle=rgba(parC,day?0.9:0.6);
       g.fillRect(dx0,railY,dW,Math.max(1,Math.round(K)));                                         // the handrail
       for(var rl=dx0;rl<dx0+dW;rl+=Math.round(5*K)) g.fillRect(rl,railY,1,parH);                  // and its standards
+      // ⚠⚠ AND A NEAR PARAPET WHERE THE PROMENADE'S EDGE IS ACTUALLY VISIBLE. On the karst and the
+      // canyon `WALK_N_BOT` is the waterline rather than the frame, so the sea front carries a
+      // guardrail along the promenade — and the deck painted straight over it, leaving a 264px HOLE
+      // in the barrier exactly where the drop is. A bridge has a parapet on both sides; this one only
+      // had the far one because on an inland land the near edge is behind the panel.
+      if(deckY+deckH<SH-Math.round(2*K)){
+        var nY=deckY+deckH-Math.max(1,Math.round(K));
+        g.fillStyle=rgba(parC,day?0.9:0.6);
+        g.fillRect(dx0,nY-parH,dW,Math.max(1,Math.round(K)));
+        for(var rl2=dx0;rl2<dx0+dW;rl2+=Math.round(5*K)) g.fillRect(rl2,nY-parH,1,parH);
+      }
     }
   }
 }

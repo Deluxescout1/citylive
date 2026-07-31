@@ -45,9 +45,9 @@ Item {
         var CYC = 604800000, EPOCH = 1783972450746;
         City.GROW_CYCLE = CYC;
         City.NOFETCH = true;
-        var vArg = arg("variant", "");
-        if (vArg === "") City.applyConfig({ land: "dam" });                 // the map under review, pinned
-        else City.applyConfig({ land: "dam", landVariant: parseInt(vArg, 10) });
+        var vArg = arg("variant", ""), lArg = arg("land", "dam");     // `land=hell` etc: the river deck lands on ALL 11 river lands
+        if (vArg === "") City.applyConfig({ land: lArg });
+        else City.applyConfig({ land: lArg, landVariant: parseInt(vArg, 10) });
         var d = new Date(EPOCH + 76*CYC + Math.round(0.45*CYC));
         d.setHours(root.hour, 0, 0, 0);
         root.t0 = d.getTime();
