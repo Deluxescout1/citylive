@@ -21073,6 +21073,17 @@ function drawTerraces(g,L,now,nd){
           }
           g.fillStyle=lipS; g.fillRect(xx,yAr-1,1,Math.max(1,Math.round(K*0.5))); // the lit bund holding the water in
         }
+        if(drowned && ((ph>>>15)%3)===0){
+          // THE DROWNED STAIR: nobody has repaired a wall here in a lifetime. A breached riser spills
+          // its pan into the one below, which is exactly how a terrace system dies — one wall at a
+          // time, and then the water does the rest.
+          var hyB=terrCache[Math.min(SW-1,(x3+runEnd)>>1)], spanB=Math.max(2,HORIZON-hyB);
+          var byB=Math.round(hyB+spanB*f1), bwB=Math.max(2,Math.round((runEnd-x3)*0.4));
+          g.fillStyle=rgba(mixc(wallC,[0,0,0],0.35),0.9);
+          g.fillRect(x3+(((ph>>>9)%Math.max(1,(runEnd-x3)>>1))),byB-1,bwB,Math.max(1,Math.round(K*1.4)));
+          g.fillStyle=rgba(mixc(waterC,[0,0,0],0.25),0.55);       // and the water running out of it
+          g.fillRect(x3+(((ph>>>9)%Math.max(1,(runEnd-x3)>>1))),byB,Math.max(1,Math.round(K*1.2)),Math.max(2,Math.round(spanB*(f1-f0)*0.8)));
+        }
         if(st===4){
           // the terrace WALL is now a foundation, and the pan is a roof. One small structure per
           // plot, keyed to the pan so it never flickers.
@@ -24113,8 +24124,10 @@ function drawTerraceWorks(g,L,now,nd){
   for(var x=rx0;x<rx1;x++){
     var hy=terrHillY(x), span=Math.max(2,HORIZON-hy);
     var ry=Math.round(hy+span*raceF);
-    g.fillStyle=css(timber);  g.fillRect(x,ry,1,Math.max(1,Math.round(K*1.4)));      // the channel wall
-    g.fillStyle=rgba(wet,0.9); g.fillRect(x,ry,1,Math.max(1,Math.round(K*0.7)));      // water in it
+    // ⚠ subtle at K=2 on his screen — the channel that explains the whole landscape has to be
+    // legible, so it is deeper, its far bank casts a line, and the water in it is brighter.
+    g.fillStyle=css(timber);  g.fillRect(x,ry-Math.max(1,Math.round(K*0.6)),1,Math.max(2,Math.round(K*2.6)));  // the cut channel
+    g.fillStyle=rgba(wet,0.95); g.fillRect(x,ry,1,Math.max(1,Math.round(K*1.3)));     // water in it
     if((((x+WOFF)*2654435761)>>>0)%7===0){                                            // the water MOVES
       g.fillStyle=rgba(mixc(wet,[255,255,255],0.5),0.55);
       g.fillRect(x,ry,1,Math.max(1,Math.round(K*0.4)));
@@ -30878,6 +30891,40 @@ function drawBiomeGround(g,gy,day,now,wild){
   var dk=day?mixc(B.ground,[0,0,0],0.30):mixc(B.ground,[0,0,0],0.66);
   var lt=day?mixc(B.ground,[255,255,255],0.26):mixc(B.ground,[120,140,190],0.18);
   g.globalAlpha=A;
+  // ---- THE TERRACES: WET GROUND AT THE FOOT OF THE MOUNTAIN ----
+  // The last of the four empty hooks on this land. What belongs here is not decoration: the water
+  // that has come down every flume and drop-gate on the hillside has to GO somewhere, and where it
+  // goes is a tail-race along the back of the town. It is also the third thing tying the mountain to
+  // the street (after the head-race and the climbing city), which was the disconnection Nick named.
+  if(B.steps){
+    var wetG=mixc(B.sky?B.sky.top:[120,160,210], day?[255,255,255]:[6,10,20], day?0.16:0.60);
+    var mudG=mixc(B.ground,[86,68,44],0.34);
+    // puddled, churned ground — this is worked land, not lawn
+    g.fillStyle=css(mixc(mudG,dk,0.4));
+    for(var mq=((-WOFF%7)+7)%7; mq<SW; mq+=7){
+      var mh=(((mq+WOFF)*2654435761)>>>0);
+      g.fillRect(mq,gy+1+(mh%Math.max(1,gh-2)),Math.max(1,Math.round(K*1.6)),Math.max(1,Math.round(K*0.7)));
+    }
+    // the TAIL-RACE: a ditch running along the foot, carrying the hill's water away past the town
+    var trY=gy+Math.max(1,Math.round(gh*0.34));
+    g.fillStyle=css(mixc(mudG,[0,0,0],0.35)); g.fillRect(0,trY-Math.max(1,Math.round(K*0.6)),SW,Math.max(1,Math.round(K*2.2)));
+    g.fillStyle=css(wetG); g.fillRect(0,trY,SW,Math.max(1,Math.round(K*1.1)));
+    g.fillStyle=rgba(mixc(wetG,[255,255,255],0.55),0.45);       // it is MOVING — broken glints only
+    for(var tq=((-WOFF%5)+5)%5; tq<SW; tq+=5){
+      if((((tq+WOFF)*40503)>>>0)%3===0) continue;
+      g.fillRect(tq+(((now*0.006)|0)%5),trY,Math.max(1,Math.round(K*0.9)),Math.max(1,Math.round(K*0.5)));
+    }
+    // rice drying on mats and stooked straw at the field edge, in the seasons that have a crop
+    var seaG=(curSeason||seasonInfo(nowDate(now))).name;
+    if(seaG==="autumn"||seaG==="summer"){
+      g.fillStyle=css(day?[206,184,116]:[44,38,22]);
+      for(var dq=((-WOFF%Math.max(18,Math.round(38*K)))+Math.max(18,Math.round(38*K)))%Math.max(18,Math.round(38*K));
+          dq<SW; dq+=Math.max(18,Math.round(38*K))){
+        var dh=(((dq+WOFF)*2246822519)>>>0);
+        g.fillRect(dq,gy+2+((dh>>>5)%Math.max(1,Math.round(gh*0.25))),Math.round(7*K),Math.max(1,Math.round(K*1.2)));
+      }
+    }
+  }
   if(B.k==="mesa"){
     // CRACKED HARDPAN — a polygonal craze in the baked mud, plus wind-drifted sand ripples
     g.fillStyle=css(dk);
