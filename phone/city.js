@@ -20942,6 +20942,34 @@ function drawTerraces(g,L,now,nd){
     PSH.push(row);
   }
   var panH=Math.max(2,Math.round(step*0.62));
+  // ================================================================================================
+  // ⚠⚠ THE HILL HAD NO DEPTH. Nick: "THE SLOPE AND HILL ARE AWEFUL LOOKING."
+  // It was ONE silhouette — a single flat green mass with a line on top. The lands that read (alpine,
+  // fjord, and he named both) do it with LAYERED RIDGES: a far range pale and hazed, a middle one
+  // darker, the near one darkest, each overlapping the last. That stack is what gives a landform
+  // MASS. A mountain drawn as one shape is a wall, however you texture it — which is why every pass
+  // I made over the surface failed to help.
+  // Three layers, drawn back to front, each a cheap sine ridge at its own scale and value.
+  var RID=[
+    { amp:0.42, off:0.62, f1:0.0021, f2:0.0057, ph:0.0,  haze:0.70 },   // far range
+    { amp:0.60, off:0.34, f1:0.0033, f2:0.0089, ph:2.1,  haze:0.40 },   // middle
+    { amp:0.78, off:0.12, f1:0.0047, f2:0.0121, ph:4.3,  haze:0.16 }    // near shoulder
+  ];
+  for(var r=0;r<RID.length;r++){
+    var R=RID[r];
+    var rc =css(mixc(mixc(SLOPE, skc, R.haze), day?[0,0,0]:[0,0,0], 0.06*r));
+    var rcT=css(mixc(mixc(SLOPE, skc, Math.min(0.88,R.haze+0.16)), day?[255,255,255]:[0,0,0], day?0.10:0));
+    for(var rx=0;rx<SW;rx++){
+      var rwx=rx+WOFF;
+      var ry=rimY - Math.round(mountH*R.off)
+             + Math.round(Math.sin(rwx*R.f1+R.ph)*mountH*R.amp*0.42
+                        + Math.sin(rwx*R.f2+R.ph*1.7)*mountH*R.amp*0.17);
+      if(ry>=HORIZON) continue;
+      if(ry<2) ry=2;
+      g.fillStyle=rc;  g.fillRect(rx,ry,1,HORIZON-ry+1);
+      g.fillStyle=rcT; g.fillRect(rx,ry,1,Math.max(1,Math.round(K*1.3)));   // a lit crest on each ridge
+    }
+  }
   for(var x=0;x<SW;x++){
     var wx=x+WOFF, bw=terrBowl(wx);
     // the mountain's own top edge — a gentle profile so the silhouette is not a ruler
