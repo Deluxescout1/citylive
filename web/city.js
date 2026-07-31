@@ -2960,7 +2960,13 @@ function cityEvents(nd){
     concert: ((dow===5||dow===6) && m>=6 && m<=9 && (h>=19||h<1)),     // summer weekend concert nights at the amusement park
     foodfest:((m===8) && d>=foodD && d<=foodD+1 && h>=11 && h<21),     // food-festival weekend on market row (2nd Sat-Sun of Aug)
     champ:   ((m===6) && d===champD && h>=10 && h<20),                 // the team wins it all — championship parade day
-    icerink: ((m===12||m===1||m===2) && h>=9 && h<22)                 // winter ice rink open in the plaza (Dec-Feb)
+    icerink: ((m===12||m===1||m===2) && h>=9 && h<22),                // winter ice rink open in the plaza (Dec-Feb)
+    // THE FLYPAST — the days a city really does get one. Nick locked "rare + civic": mostly random,
+    // but guaranteed on the days it would be deliberate. Memorial Day is the last Monday of May,
+    // Veterans Day is fixed; Independence Day already carries the parade, and the flypast tops it.
+    airshow: (((m===7 && d===4) ||
+               (m===11 && d===11) ||
+               (m===5 && d>=25 && d<=31 && new Date(y,4,d).getDay()===1)) && h>=12 && h<14)
   };
   if(FORCEEVENT) ev[FORCEEVENT]=true;
   return ev;
@@ -3004,6 +3010,77 @@ var MOTION_RATE=50/83;
 // drive it correctly instead of reading a real wall clock.
 var FRAME_NOW=0;
 var ZOOM=1;            // canvas px per world px (per-screen; >1 when a fractionally-scaled screen needs a denser canvas)
+// ============ THE STREET BAND ============
+// The road is not one strip of asphalt: it is PAVEMENT, carriageway, PAVEMENT. Top to bottom the
+// band runs HORIZON (the buildings stand here) → WALK_F of far pavement → ROAD_Y → ROAD_H of
+// asphalt → ROAD_BOT → WALK_N of near promenade → the water, or the taskbar.
+// ⚠ These are WORLD px and they scale by K. The three raw-pixel constants they replace
+// (`fillRect(0,HORIZON,SW,3)` and friends) were half-width on any screen with KSP>1, which is every
+// screen Nick owns — the raw-pixel trap this project has now recorded four times.
+var WALK_F=3;          // far pavement depth: buildings ↔ traffic. The side the crowd already lives on.
+var WALK_N=0;          // near promenade depth: traffic ↔ viewer. New in the sidewalk pass.
+var ROAD_Y=0;          // top of the asphalt = HORIZON + WALK_F (was the bare literal HORIZON+3)
+var ROAD_BOT=0;        // bottom of the asphalt = ROAD_Y + ROAD_H
+var WALK_N_BOT=0;      // bottom of the near promenade: the waterline on a coastal land, else the frame
+// ⚠⚠ THE BAND WAS A BARCODE. Nick, with a screenshot: "this looks so confusing to look at… you can
+// make the roads bigger if you need too." At 23wp the carriageway carried SEVEN horizontal lines —
+// two dashed dividers, a double-yellow, and four rails — every one of them 1px, 2-3px apart, with
+// cars wedged between them. The rails were not underdefined; they were INDISTINGUISHABLE, because a
+// 1px line beside a 1px line is a stripe pattern whatever you colour it.
+// His call: the two tracks come OUT of the traffic lanes and sit together in the middle as one
+// reserved tramway, with two car lanes each side. That is the fix that no amount of restyling could
+// reach — the rails now never touch lane paint, and the tramway reads as ONE object instead of four
+// more lines. The double-yellow goes, because the reservation itself now separates the directions.
+var ROAD_H=43;         // asphalt depth: 2 car lanes · the tramway reservation · 2 car lanes
+// Lane offsets measured from the KERB rather than from HORIZON, because the pavement above them is
+// now K-scaled and therefore not a constant. setup() rebuilds LANE[i].o = WALK_F + LANE_BASE[i],
+// which keeps every one of the ~20 sites that read `HORIZON+LANE[i].o` correct without touching them
+// (the parades, the police chases, the ambulances, the casualty tyre tracks, LANE[(p*2)%LANE.length]).
+var LANE_BASE=[2,7,34,39];
+// The reserved tramway, between the two pairs of traffic lanes. TRAM_BASE is each track's vehicle
+// baseline (drawTram puts its bogies at ey+2, so the rails hang off these); RESV_* bound the
+// reservation the two of them sit in.
+var TRAM_BASE=[17,26], RESV_TOP=12, RESV_BOT=32, TRAM_GAUGE=2;
+// ⚠⚠ THE PAVEMENTS MUST NOT EAT A SHORT SCREEN. The band is authored in world px and scaled by K,
+// and K comes from the resolution, NOT from the height — so the same 41wp band that is a comfortable
+// 13% of Nick's 4K (SH 437) is 16% of his 1920 (SH 360) and could be most of the frame on a phone or
+// on the KDE config page's little preview. Nick approved "about 14% of the frame" looking at his 4K;
+// he did not approve half the picture on a host neither of us can see.
+// So the band is FITTED rather than assumed: the pavements give way, the LANES never do — reclaiming
+// the fourth lane from the taskbar is the whole point of the pass and it is not paid back here.
+// `extra` = anything else standing in the band (the coastal guardrail), counted against the same cap.
+function fitStreetBand(extra){
+  var k=Math.max(1,KSP);
+  WALK_F=Math.round(5*k); WALK_N=Math.round(4*k);
+  var cap=Math.round(SH*0.22);                      // the drawn street: pavements + carriageway + rail
+  var guard=0;                                      // bounded: a while over two shrinking ints, belt and braces
+  while(WALK_F+ROAD_H+WALK_N+extra>cap && (WALK_F>2||WALK_N>1) && guard++<200){
+    if(WALK_F-2>=WALK_N-1 && WALK_F>2) WALK_F--; else if(WALK_N>1) WALK_N--; else WALK_F--;
+  }
+}
+// WHERE A PERSON'S FEET GO. The road band is a shallow plan projection — that is what stacked lanes
+// mean — so a 10wp pavement is DEPTH, and a crowd standing on one line at the back of it leaves the
+// pavement looking as empty as the asphalt did. Each walker keeps a normalised `q` from the world
+// seed and resolves to a row here, so the scatter survives a re-setup at a different K exactly like
+// LANE[i].o does, and all three monitors agree because `q` is seeded, never rolled at draw time.
+// `side` 1 = the near promenade: feet sit LOW in it so the body occludes the carriageway edge, which
+// is what makes them read as standing in front of the traffic rather than in it.
+function pedFeetY(pd){
+  if(pd.side && WALK_N>=5) return ROAD_BOT+3+Math.round(pd.q*(WALK_N-3));
+  return HORIZON-1+Math.round(pd.q*Math.max(0,WALK_F-2));
+}
+// …and the same for the furniture, which all stood on ONE line at HORIZON+1. A scattered crowd in
+// front of a dead-straight row of hydrants and bins would read worse than both did before, so the
+// props scatter too — off their existing seed, so no world state changes and nothing re-rolls.
+function propRowY(s,k){
+  var h=((s*2654435761)>>>0);
+  if(k==="lamp") return HORIZON+Math.max(1,WALK_F-1);        // a street lamp stands AT THE KERB, as it does outside
+  // a shelter, a newsstand and a food cart trade off the shopfronts; a bench, a bin or a planter is
+  // as likely to be out on the promenade rail
+  if((k==="bench"||k==="planter"||k==="trash") && WALK_N>=5 && (h&7)<3)
+    return ROAD_BOT+2+((h>>>3)%Math.max(1,WALK_N-2));
+  return HORIZON+1+((h>>>5)%Math.max(1,WALK_F-2));
+}
 var mts=null;          // this life's mountain range ({far:[peaks],near:[peaks]}), null on flatland lives
 var mtsCache=null;     // per-screen silhouette cache (the range never moves within a life)
 
@@ -4460,12 +4537,25 @@ function setup(scene,opts){
   // live-pass interval (see FRAME_MS). Clamped to something sane so a bad host value can't
   // either freeze the weather or let one frame jump it a whole second.
   FRAME_MS=Math.max(16,Math.min(600, opts.frameMs||(QUAL===0?125:QUAL===1?100:83)));
-  // Foreground depth (world-px from the bottom). Default 26wp (≈156px) — room for a
-  // sidewalk + 4 lanes and clears a standard ~44px taskbar. But if THIS screen reports
-  // a taller bottom panel (taskbarWp), grow it so the lowest lane still sits above the
-  // taskbar — the road auto-adjusts to any monitor/panel. Stays constant (=aligned across
-  // bezels) whenever panels are the normal size, since 26 already covers them.
-  GROUND=Math.max(26, (opts.taskbarWp||0)+18);
+  // THE TWO PAVEMENTS. Nick, 2026-07-31: "we need to add a side walk to the side of the road so it
+  // doesn't look like there is a huge streach of road with nothing there… Everyroad should have a
+  // side walk on either side of it." Scaled by K like every other vertical measurement here — the
+  // 3px literal these replace was authored raw, so on his primary (KSP 2) the pavement was drawn at
+  // half the width of the world around it.
+  fitStreetBand(0);                        // sets WALK_F / WALK_N, and shrinks them if the screen is short
+  // Foreground depth (world-px from the bottom): far pavement + carriageway + near promenade, and
+  // then whatever the bottom panel eats.
+  // ⚠⚠ THIS WAS OFF BY SEVEN, AND THE OUTERMOST LANE OF TRAFFIC WAS BEHIND THE TASKBAR — on all
+  // three of Nick's monitors, for the whole life of the project. It read `(taskbarWp||0)+18` under a
+  // comment that said "grow it so the lowest lane still sits above the taskbar". But the lanes run
+  // to +21 and a car is 4wp tall, so they need 25 — a number the comment seven lines below at the
+  // coastal branch ALREADY stated ("the lanes alone need 25 of GROUND's 26"). The right value was
+  // written down in the same function and the arithmetic still did not use it.
+  // Measured on his real logged geometry: panel top landed at +18 on every screen, so lane 4 (+21)
+  // was entirely hidden and lane 3 (+16) was half hidden. What he has been judging for twenty maps
+  // is a 3px pavement and two and a half lanes — a large part of why the road reads as empty.
+  // A comment that states an intent is not a test that the intent was met.
+  GROUND=Math.max(26, WALK_F+ROAD_H+WALK_N+(opts.taskbarWp||0));
   SMALLW=WW<1000;                             // H1: one laptop screen carries the whole city
   // THE COASTAL LANDS PUT OPEN WATER ALONG THE BOTTOM OF THE FRAME, so their street baseline sits
   // higher and the city stands on land above the waterline. Resolved HERE, before HORIZON, because
@@ -4496,7 +4586,11 @@ function setup(scene,opts){
   // barrier and the two nearest lanes fighting over the same ten pixels, and the barrier won.
   // The road band has to be deep enough for its own barrier, so the rail's height is added back —
   // and unlike the dead grey foreground that reduction was removing, this band is OCCUPIED.
-  if(SEA_FRONT>0) GROUND=Math.max(26, Math.round(26*Math.max(1,KSP)*0.5))+Math.round(5*Math.max(1,KSP));
+  // The band is now itemised rather than guessed at: pavement + carriageway + promenade + the rail
+  // that stands on the promenade's outer edge. No taskbar allowance here — SEA_Y has already paid it.
+  if(SEA_FRONT>0){ var _rail=Math.round(5*Math.max(1,KSP));
+    fitStreetBand(_rail);                    // refit: the rail stands in the band and counts against the cap
+    GROUND=WALK_F+ROAD_H+WALK_N+_rail; }
   // ⚠⚠ THE SEA MUST SIT ABOVE THE TASKBAR. Nick: "the road on the middle screen looks bad."
   // SEA_Y was SH-SEA_FRONT — the bottom-most band of the frame — but that band is exactly where a
   // bottom panel sits. His middle monitor reports taskbarWp=28, so the entire ocean was rendering
@@ -4509,7 +4603,21 @@ function setup(scene,opts){
   // CARS DRIVING ON THE SAND. So on a coastal land the street baseline is measured UP FROM THE
   // WATERLINE rather than down from the frame, which keeps the whole road band above the sea at any
   // panel height. Inland lands keep the original expression exactly, so nothing else moves.
-  HORIZON=(SEA_FRONT>0) ? (SEA_Y-GROUND) : (SH-GROUND);   // street baseline (back edge of sidewalk)
+  // …and a last floor under the whole thing. `taskbarWp` is host-supplied and unbounded: a host that
+  // reports an absurd panel could previously only push the road down, but now it also adds to GROUND,
+  // and GROUND is subtracted from SH. Nothing else in buildWorld survives a HORIZON at or below zero.
+  GROUND=Math.min(GROUND, Math.round(SH*0.55));
+  HORIZON=(SEA_FRONT>0) ? (SEA_Y-GROUND) : (SH-GROUND);   // street baseline (back edge of the far pavement)
+  // The band, resolved once. Everything downstream measures from these rather than from HORIZON+3.
+  ROAD_Y=HORIZON+WALK_F;                     // the kerb: top of the asphalt
+  ROAD_BOT=ROAD_Y+ROAD_H;                    // the far kerb: bottom of the asphalt
+  // The promenade runs to the waterline on a coastal land (the rail then stands on its outer edge)
+  // and to the bottom of the frame inland, where the last WALK_N is all the panel leaves visible.
+  WALK_N_BOT=(SEA_FRONT>0) ? SEA_Y : SH;
+  // Lanes re-hung off the kerb. LANE[i].o stays an offset from HORIZON so the ~20 readers of
+  // `HORIZON+LANE[i].o` need no edit; it is simply no longer a constant, because the pavement above
+  // it scales with the screen.
+  for(var _ln=0;_ln<LANE.length;_ln++) LANE[_ln].o=WALK_F+LANE_BASE[_ln];
   buildWorld(_li0);
   if(!NOFETCH){                  // NOFETCH: headless/almanac callers (Control Center, KDE config page) set this
     maybeFetchWeather();          // seed the shared 10-min window on boot (draw() keeps it fresh thereafter)
@@ -4895,8 +5003,12 @@ function buildWorld(li){
   }
   // sidewalk pedestrians strolling along (deterministic → cross bezels in sync)
   r=rng(seed+23); peds=[]; var np=Math.round(WW/16);
+  // `q` scatters them ACROSS the pavement's depth and `side` puts about a third on the near
+  // promenade; both are seeded here rather than derived at draw time so the three screens agree.
+  // `row` is kept because a few places still read it, but pedFeetY() is now what decides the row.
   for(i=0;i<np;i++) peds.push({x0:r()*WW, dir:r()<0.5?1:-1, sp:0.0016+r()*0.0016,
-    c:PEDC[(r()*PEDC.length)|0], sk:SKINC[(r()*SKINC.length)|0], row:(r()*2)|0});
+    c:PEDC[(r()*PEDC.length)|0], sk:SKINC[(r()*SKINC.length)|0], row:(r()*2)|0,
+    q:r(), side:(r()<0.34)?1:0});
   // crosswalks + pedestrian signals, spaced along the city
   r=rng(seed+29); crosswalks=[];
   // ⚠ SPACING WAS 54-78 world px, which is roughly every block and a half. Nick: "the road looks
@@ -8561,6 +8673,9 @@ function drawGreenery(g,L,now){
   var noClimb=burnt||frozen;                                   // neither lava nor pack ice grows ivy
   var deadVine=day?"#4a3a2c":"#1c1612";
   var treeCount=QUAL===0?16:36;
+  // hoisted: walkMat() builds an object, and building one per tree per frame is exactly the kind of
+  // per-item allocation that cost this project 9x a frame once already (the Empyrean's first face)
+  var walkPlants=walkMat(L).plant;
   for(var t=0;t<treeCount;t++){ var h=((t*2654435761+321)>>>0), twx=h%WW, dn=districtAt(twx).name;
     var dens=dn==="residential"?0.9:dn==="oldtown"?0.62:dn==="downtown"?0.3:dn==="neon"?0.34:0.22;
     // SPREAD: planting continues most of the way through the life instead of finishing at cityG 0.5,
@@ -8578,7 +8693,13 @@ function drawGreenery(g,L,now){
     if(((h>>16)%100)/100 > dens*planted*clear) continue;
     var tx=twx-WOFF; if(tx>SW+6&&tx-WW>-6)tx-=WW; if(tx<-6&&tx+WW<SW+6)tx+=WW; if(tx<-5||tx>SW+5||inSea(twx)) continue;
     if(overLandmark(twx-4,8)) continue;                                                            // keep landmark plazas (stadium, amusement park…) clear of trees
-    drawTree(g,tx|0,HORIZON+1,day,now,t,0.68+((h>>8)%42)/100,true);                               // organic size + smooth sway
+    // A STREET TREE GROWS IN A KERBSIDE PIT, not against the shopfront — so it stands in the outer
+    // half of the pavement, and its canopy is the vertical that finally breaks up 776px of horizontal.
+    // ⚠ NOT PLANTED ON EVERY LAND: `plant` is 0 on the Ashlands, the salt, the pack ice and the dune
+    // sea, where a lime tree in a pit would say "municipal park" on ground that kills things.
+    if(!walkPlants) continue;
+    var treeY=HORIZON+1+Math.round(Math.max(0,WALK_F-3)*(0.45+((h>>>21)%40)/100));
+    drawTree(g,tx|0,treeY,day,now,t,0.68+((h>>8)%42)/100,true);                               // organic size + smooth sway
   }
   var bStride=QUAL===0?2:1;
   for(var i=0;i<near.blds.length;i+=bStride){ var b=near.blds[i]; if(b.type==="park") continue;
@@ -8627,9 +8748,10 @@ function drawStreetSigns(g,L,now){
   }
 }
 function drawStreetProps(g,L,now,night){
-  var gy=HORIZON+1;                                    // furniture stands on the sidewalk
+  var gy=HORIZON+1;                                    // per-prop below: the pavement has depth now
   for(var i=0;i<sprops.length;i++){ var sp=sprops[i];
     if(cityG < 0.28+((sp.s%997)/997)*0.34) continue;                 // furniture arrives piece by piece as the town grows
+    gy=propRowY(sp.s,sp.k);                                          // this piece's own row across the pavement
     for(var wp=-1;wp<=1;wp++){ var X=(sp.x-WOFF+wp*WW)|0; if(X<-8||X>SW+9) continue;
       var pr=rng(sp.s), k=sp.k;
       if(k==="lamp"){
@@ -8738,10 +8860,14 @@ function drawTram(g,worldX,dir,L,now){
   if(curVillage) return;   // VILLAGE BAN: a tram
 
   var col="#c0392b", colD="#8a2820", trim="#f0e6d0";                              // classic red-and-cream livery
-  var len=26, lane=dir>0?1:2, ey=HORIZON+LANE[lane].o, night=1-L;
+  // ⚠ THE TRAM LEFT THE TRAFFIC LANES. It used to borrow LANE[1]/LANE[2]; it now runs on its own
+  // reserved track, which is the whole point of the reservation — and it is why the rails could
+  // finally be drawn with a real gauge and visible sleepers instead of squeezed against lane paint.
+  var len=26, ey=tramLaneY(dir>0?0:1), night=1-L;
   var vis=[worldX-WOFF]; if(worldX-WOFF-WW>-len-4) vis.push(worldX-WOFF-WW); if(worldX-WOFF+WW<SW+len+4) vis.push(worldX-WOFF+WW);
   for(var vi=0;vi<vis.length;vi++){ var X=vis[vi]|0; if(X+len<-4||X>SW+4) continue;
-    g.fillStyle=night>0.4?"rgba(130,140,158,0.5)":"rgba(70,76,92,0.45)"; g.fillRect(X-3,ey-9,len+6,1);   // overhead trolley wire
+    // (the contact wire is permanent infrastructure now — drawTramway carries it, with the poles.
+    //  A stub of wire that travelled WITH the vehicle could never read as a system.)
     g.fillStyle="#5a5f6a"; g.fillRect(X+(len>>1),ey-9,1,5); g.fillStyle="#6a707c"; g.fillRect(X+(len>>1)-2,ey-9,5,1);  // pantograph arm + shoe
     g.fillStyle=col; g.fillRect(X,ey-4,len,6);                                    // body
     g.fillStyle=trim; g.fillRect(X,ey-4,len,1); g.fillRect(X,ey+1,len,1);          // cream roof + skirt bands
@@ -10980,6 +11106,7 @@ function tickerMsg(now){
   if(fx.rain||fx.drizzle) return "RAIN CONTINUES - "+Math.round(weather.temp==null?60:weather.temp)+"F DOWNTOWN";
   if(fx.fog) return "DENSE FOG ADVISORY - LOW VISIBILITY DOWNTOWN";
   if(fx.cloudy) return ((weather.cloud||0)>=88?"OVERCAST":"CLOUDY")+" SKIES OVER "+cityName+" - "+Math.round(weather.temp==null?60:weather.temp)+"F";
+  if(airshowState(now)) return "AIRSHOW OVER "+cityName+" - LOOK UP";
   if(curEvents&&curEvents.parade) return "PARADE TODAY ON MAIN STREET";
   if(curEvents&&curEvents.champ) return cityName+" "+teamName+" WIN THE TITLE - PARADE DOWNTOWN";
   if(curEvents&&curEvents.market) return "FARMERS MARKET OPEN UNTIL 4 PM";
@@ -13507,6 +13634,332 @@ function drawFerris(g,L,now,night){
   }
 }
 
+
+// ============================================================================
+// THE TRAMWAY — Nick, 2026-07-31: "if we are going to include trollies on the road we should also
+// include a rail system otherwise it looks weird AF … that Trolly can only run when the Tracks are
+// there, and we have to watch them get built first."
+// ============================================================================
+// He is exactly right and the evidence was already in the sprite: drawTram has an overhead wire, a
+// pantograph and BOGIES — the one part of a tram that only makes sense on rails — and there were no
+// rails under it. A vehicle whose whole silhouette says "guided" running on bare asphalt.
+//
+// A STREETCAR, his call: the rails are embedded in the carriageway in the two inner lanes, exactly
+// where the tram already ran, so nothing had to move and cars cross them the way they do outside.
+//
+// THE THIRD CONSTRUCTION ARC. The paver sweeps W→E 0.20-0.45 and the line-painter follows 0.27-0.52;
+// the track gang is a third crew behind both, 0.50-0.62, so the street is visibly a sequence of
+// public works rather than one event. Under a CAR-FREE administration it comes forward, because that
+// policy is the city choosing transit over traffic and the rails are how it does it.
+function railFrac(){
+  if(curVillage) return 0;
+  var a=curPolicies&&curPolicies.carfree?0.30:0.50, b=curPolicies&&curPolicies.carfree?0.42:0.62;
+  return Math.max(0,Math.min(1,(cityG-a)/(b-a)));
+}
+function onRailed(wx){ var rf=railFrac(); return rf>0.001 && wrapW(wx)<WW*rf; }
+function tramLaneY(t){ return ROAD_Y+TRAM_BASE[t?1:0]; }  // the reservation's two tracks, not traffic lanes
+// The permanent way: sleepers, two rails, and the catenary its poles carry. World-anchored, so the
+// sleeper pitch and the pole spacing line up across all three bezels.
+function drawTramway(g,L,now){
+  var rf=railFrac(); if(rf<=0.001) return;
+  var day=L>0.5, K=Math.max(1,KSP);
+  g.save(); g.beginPath();                                   // …only where the gang has actually reached
+  if(rf>=1) g.rect(0,ROAD_Y,SW,ROAD_H);
+  else for(var w=-1;w<=1;w++){ var a=Math.max(0,-WOFF+w*WW), b=Math.min(SW,WW*rf-WOFF+w*WW); if(b>a) g.rect(a|0,ROAD_Y,(b-a)|0,ROAD_H); }
+  g.clip();
+  // ⚠ THE FIRST VERSION READ AS MORE LANE DASHES. I broke the rail's polished crown into segments
+  // out of respect for the bayou's rule (*a loop over x with no break in it is a rule*) — and in a
+  // band that already carries four dashed lane dividers, a broken 2px line at a 3px pitch is
+  // indistinguishable from paint. The rule was misapplied: it guards against a TEXTURE pretending to
+  // be a feature, and here CONTINUITY is the feature. A rail is continuous and paint is not, and on
+  // this road that contrast is the only thing that separates them. So the rails run unbroken, and
+  // what makes them unmistakable is the thing paint can never have — SLEEPERS crossing beneath.
+  // THE RESERVATION — one distinct surface between two kerbs, and this is what makes the tramway read
+  // as a single object rather than as more lines on the road. Granite setts, the way a real tram
+  // reservation is paved, so it is visibly NOT asphalt.
+  var day2=day;
+  g.fillStyle=day2?"rgba(96,96,104,0.55)":"rgba(30,32,40,0.55)";
+  g.fillRect(0,ROAD_Y+RESV_TOP,SW,RESV_BOT-RESV_TOP);
+  g.fillStyle=day2?"rgba(0,0,0,0.16)":"rgba(0,0,0,0.22)";                       // sett joints, world-keyed, broken
+  var sett=Math.max(2,Math.round(2.4*K));
+  for(var qx=((-WOFF%sett)+sett)%sett; qx<SW; qx+=sett){
+    if((((qx+WOFF)*40503)>>>0)%6===0) continue;
+    g.fillRect(qx,ROAD_Y+RESV_TOP,1,RESV_BOT-RESV_TOP);
+  }
+  g.fillStyle=day2?"rgba(228,232,240,0.7)":"rgba(120,132,155,0.45)";            // the reservation kerbs
+  g.fillRect(0,ROAD_Y+RESV_TOP,SW,Math.max(1,Math.round(K*0.5)));
+  g.fillRect(0,ROAD_Y+RESV_BOT-Math.max(1,Math.round(K*0.5)),SW,Math.max(1,Math.round(K*0.5)));
+  var gauge=Math.max(2,Math.round(TRAM_GAUGE*K)), rw=Math.max(1,Math.round(K*0.5));
+  var slp=Math.max(5,Math.round(5*K));
+  for(var t=0;t<2;t++){
+    var ey=tramLaneY(t), r1=ey+Math.max(1,Math.round(K*0.5)), r2=r1+gauge;
+    // SLEEPERS PROUD OF THE GAUGE. In the reservation there is finally room for them to extend past
+    // the rails on both sides, which is the shape the eye actually recognises as a railway sleeper —
+    // squeezed exactly between two rails they read as hatching.
+    var slOv=Math.max(1,Math.round(K*0.8));
+    g.fillStyle=day?"rgba(122,118,110,0.55)":"rgba(38,40,48,0.55)";               // pale ballast, so the ties have something to be spaced ON
+    g.fillRect(0,r1-slOv,SW,(r2-r1)+rw+slOv*2);
+    g.fillStyle=day?"rgba(58,44,32,0.95)":"rgba(26,20,16,0.95)";                  // and the ties themselves, discrete
+    for(var sx=((-WOFF%slp)+slp)%slp; sx<SW; sx+=slp)
+      g.fillRect(sx,r1-slOv,Math.max(2,Math.round(K*1.4)),(r2-r1)+rw+slOv*2);
+    g.fillStyle=day?"rgba(18,16,15,0.9)":"rgba(6,6,8,0.9)";                        // the groove each rail sits in
+    g.fillRect(0,r1-1,SW,rw); g.fillRect(0,r2-1,SW,rw);
+    g.fillStyle=day?"rgba(232,238,248,0.92)":"rgba(158,172,196,0.62)";             // polished steel, CONTINUOUS
+    g.fillRect(0,r1,SW,rw); g.fillRect(0,r2,SW,rw);
+  }
+  g.restore();
+  // THE OVERHEAD. Poles on the far kerb carrying a span wire out over each track — this replaces the
+  // stub of wire drawTram used to carry around with it, which moved with the vehicle and so could
+  // never read as infrastructure.
+  var poleGap=Math.max(18,Math.round(26*K));
+  g.save(); g.beginPath();
+  if(rf>=1) g.rect(0,HORIZON-Math.round(16*K),SW,GROUND+4);
+  else for(var w2=-1;w2<=1;w2++){ var a2=Math.max(0,-WOFF+w2*WW), b2=Math.min(SW,WW*rf-WOFF+w2*WW); if(b2>a2) g.rect(a2|0,HORIZON-Math.round(16*K),(b2-a2)|0,GROUND+4); }
+  g.clip();
+  var wireY=tramLaneY(0)-Math.round(4.5*K), wireY2=tramLaneY(1)-Math.round(4.5*K);
+  g.fillStyle=day?"rgba(74,80,94,0.55)":"rgba(120,130,150,0.35)";
+  g.fillRect(0,wireY,SW,1); g.fillRect(0,wireY2,SW,1);                            // the two contact wires
+  g.fillStyle=day?"#3c4149":"#14161c";
+  for(var px=((-WOFF%poleGap)+poleGap)%poleGap; px<SW; px+=poleGap){
+    var pTop=HORIZON+Math.max(1,WALK_F-2)-Math.round(13*K);
+    g.fillRect(px,pTop,Math.max(1,Math.round(K*0.7)),Math.round(13*K));            // the pole, standing on the kerb
+    g.fillRect(px,pTop,Math.round(9*K),Math.max(1,Math.round(K*0.5)));             // the span bracket reaching out
+  }
+  g.restore();
+}
+// THE TRACK GANG — the third crew, and the one you watch. Sleepers stacked ahead of the front, a
+// rail section swinging in, a works train behind, and the pole crew following it up.
+function drawTrackGang(g,L,now){
+  var rf=railFrac(); if(rf<=0.001||rf>=1) return;
+  var day=L>0.5, K=Math.max(1,KSP), fx2=disX(WW*rf);
+  if(fx2<-30*K||fx2>SW+20*K) return;
+  var ey=tramLaneY(0), y=ey+Math.round(K*0.6);
+  g.fillStyle=day?"rgba(58,48,38,0.75)":"rgba(22,18,14,0.8)";                      // sleepers dropped ready, AHEAD of the rail
+  for(var sq=0;sq<5;sq++) g.fillRect((fx2+3*K+sq*3*K)|0,(y+Math.round(K*0.8))|0,Math.max(1,Math.round(K*1.6)),Math.max(1,Math.round(K*0.8)));
+  var wx=(fx2-14*K)|0;                                                             // the works train, sitting ON what it has laid
+  g.fillStyle=day?"#6a6f36":"#23260f"; g.fillRect(wx,(y-5*K)|0,Math.round(13*K),Math.round(5*K));
+  g.fillStyle=day?"#8d9349":"#31351a"; g.fillRect(wx,(y-5*K)|0,Math.round(13*K),Math.max(1,Math.round(K*0.8)));
+  g.fillStyle="#242830"; g.fillRect((wx+2*K)|0,y|0,Math.round(2*K),Math.max(1,Math.round(K*0.8)));
+  g.fillRect((wx+9*K)|0,y|0,Math.round(2*K),Math.max(1,Math.round(K*0.8)));        // its own bogies, on its own rail
+  g.fillStyle="#c99a30";                                                           // the jib, swinging the next rail section in
+  g.fillRect((wx+11*K)|0,(y-9*K)|0,Math.max(1,Math.round(K*0.7)),Math.round(4*K));
+  g.fillStyle=day?"rgba(150,158,172,0.95)":"rgba(80,88,104,0.9)";
+  g.fillRect((wx+11*K)|0,(y-5*K+Math.round(2*K*Math.abs(Math.sin(now*0.0009))))|0,Math.round(7*K),Math.max(1,Math.round(K*0.6)));
+  if(((Math.floor(now/420))&1)){ g.globalCompositeOperation="lighter"; g.fillStyle="#ffe680";   // amber beacon, like the paver's
+    g.fillRect((wx+6*K)|0,(y-6*K)|0,Math.max(1,Math.round(K*0.8)),Math.max(1,Math.round(K*0.8))); g.globalCompositeOperation="source-over"; }
+  for(var gw=0;gw<2;gw++){                                                          // and the gang itself, working the rail
+    var gx=(fx2-2*K+gw*4*K)|0;
+    drawPerson(g,gx,(y+Math.round(K*0.6))|0,"#f2a52a",SKINC[(gw+2)%SKINC.length],(Math.floor(now/300)+gw)&1);
+    g.fillStyle="#ffd23a"; g.fillRect(gx,(y+Math.round(K*0.6)-5)|0,2,1);            // hi-vis hard hat
+  }
+}
+// ============================================================================
+// THE MILITARY AIRSHOW — Nick, 2026-07-31: "I also want to add random Military airshows to all maps."
+// ============================================================================
+// SCRIPTED FROM A HASH, NEVER SIMULATED. The hard constraint from PHASE 7: three monitors render the
+// same world independently and never talk to each other, so anything with state would drift apart at
+// the bezels within seconds. Every aircraft's position here is a pure function of (life index, cy),
+// so all three screens fly the same formation through the same pixel at the same instant.
+//
+// Locked answers: a common ~15s FLYOVER and a rare ~90s full DISPLAY · 1-2 per life at random, plus a
+// guaranteed one on civic days · aircraft follow the era · the three no-sky lands each get their own
+// version · the crowd looks up and the ticker announces it.
+var AIRSHOW_FLY_MS=15000, AIRSHOW_DISP_MS=90000;
+// Harness override, same shape as FORCEBIOME/FORCEAGE/FORCEDIS: a show happens at a chosen progress
+// so it can be rendered and judged, instead of waiting for its slot to come round in a real life.
+// ⚠ A SYNTAX CHECK DOES NOT CHECK SCOPE. The fjord pass lost a whole feature to a ReferenceError in
+// a silent new function and I read the symptom as a drawing mistake, so this one announces itself.
+var FORCEAIRSHOW=null;
+var AIRSHOW_ERR=0;
+// memoised per instant: airshowState() runs dayPhase/cityGrowth/wfx, and it is now read by the
+// pedestrian loop AND by tickerMsg (which repaints on its own schedule). One evaluation per `now`.
+var AIRSHOW_MEMO={t:-1,v:null};
+// Where each aircraft sits in the formation, in "leader widths" — a delta that opens out behind.
+var AIRSHOW_FORM=[[0,0],[-4,2.4],[4,2.4],[-8,4.8],[8,4.8],[0,5.0],[-12,7.2],[12,7.2]];
+// WHEN. Two candidate slots per life placed by the life's own hash, in the window where there is a
+// city to fly over and before the finale starts. Same shape as the other life-relative events
+// (see the `cg2.cy<c0` pattern used by the regime and the plague).
+function airshowState(now){
+  if(FORCEAIRSHOW) return FORCEAIRSHOW;
+  if(AIRSHOW_MEMO.t===now) return AIRSHOW_MEMO.v;
+  var v=airshowStateRaw(now); AIRSHOW_MEMO.t=now; AIRSHOW_MEMO.v=v; return v;
+}
+function airshowStateRaw(now){
+  // ⚠⚠ THE DAYLIGHT GATE HAS TO LIVE HERE, NOT IN THE DRAWING FUNCTION. It was in drawAirshow, and
+  // that is a whole category of bug this project has hit before ("present, applied, and wrong" —
+  // see citylive-arctic-overhaul): a show scheduled at 03:00 would have passed every gate here, taken
+  // over the ticker with "AIRSHOW OVER JADE GATE - LOOK UP", stopped four fifths of the crowd dead
+  // with their arms pointing at the sky — and drawn no aircraft at all, because the drawing function
+  // bailed on L<0.34 further downstream. The ticker and the crowd read from THIS function, so
+  // whatever decides there is a show has to be the same thing that decides it is visible.
+  // The roofed and orbital lands are exempt: they never get a daylight dome and would never fly.
+  if(!curBiome||(!curBiome.roof&&!curBiome.orbit)){
+    var dp=dayPhase(nowDate(now));
+    if(!dp||dp.light<0.40) return null;
+  }
+  // ⚠ THE GATES ARE THE FEATURE AS MUCH AS THE FLYING IS. Nick locked "never at night, in a storm,
+  // during a disaster or the finale" — a display team does not fly into a thunderstorm, and jets
+  // over a city that is being evacuated read as the invasion, not as a show.
+  if(cityPhase==="apoc"||curDis||(curWar&&curWar.f>=0)) return null;
+  if(cityG<0.06) return null;                        // nothing to fly over yet
+  var fx=wfx(); if(fx.thunder||fx.snow||fx.rain||fx.drizzle||fx.fog) return null;
+  if(weather&&(weather.wind||0)>34) return null;      // grounded: too much wind for close formation
+  var cg2=cityGrowth(now), cy=cg2.cy;
+  var li=lifeIndexOf(now), h=mixLi(li,0x5A17)>>>0;
+  var slots=1+(h&1);                                 // one or two shows in a life
+  for(var s=0;s<slots;s++){
+    var sh=(h>>>(3+s*9))>>>0;
+    var c0=0.28+((sh%1000)/1000)*0.52;               // between a town and the brink
+    var disp=(((sh>>>11)%5)===0);                    // ~1 in 5 is the full display
+    var w=(disp?AIRSHOW_DISP_MS:AIRSHOW_FLY_MS)/GROW_CYCLE;
+    if(cy>=c0 && cy<c0+w) return { p:(cy-c0)/w, disp:disp, seed:sh };
+  }
+  // …and the civic guarantee: the calendar days that would really get a flypast.
+  if(curEvents&&curEvents.airshow) return { p:((now%AIRSHOW_DISP_MS)/AIRSHOW_DISP_MS), disp:true, seed:h };
+  return null;
+}
+// WHAT IS FLYING. Nick's call: the aircraft follow the era, so a frontier town never gets jets.
+// The "eras" that actually exist in this engine are city maturity plus the space transformation and
+// the neon roll — there is no chronological era table to read, so this maps onto those.
+function airshowKit(){
+  var K=Math.max(1,KSP);
+  if(curBiome.orbit)  return {n:5, k:"shuttle", smoke:0, cols:[[180,220,255]], K:K};   // vacuum: no smoke to leave
+  if(curBiome.roof)   return {n:7, k:"drone",   smoke:0, cols:[[120,230,210]], K:K};   // a sealed cavern: lit drones, nothing to trail
+  if(curSpace>0.5)    return {n:5, k:"shuttle", smoke:1, cols:[[122,245,255],[255,255,255],[160,190,255]], K:K};
+  if(cityG<0.22)      return {n:2, k:"biplane", smoke:1, cols:[[248,248,244]], K:K};   // barnstormers over the frontier town
+  if(cityG<0.45)      return {n:4, k:"prop",    smoke:1, cols:[[248,248,244]], K:K};
+  if(curNeon)         return {n:6, k:"jet",     smoke:1, cols:[[255,60,190],[120,245,255],[190,120,255]], K:K};
+  return {n:6, k:"jet", smoke:1, cols:[[228,58,58],[246,246,250],[52,104,228]], K:K};
+}
+// WHERE AIRCRAFT `i` IS AT PARAMETER `u`. One analytic path per figure, which is what lets the smoke
+// trail be drawn by simply sampling this function backwards — no stored particles, nothing to drift.
+function airshowPos(kit,disp,i,u,base){
+  var K=kit.K, sp=6*K, off=AIRSHOW_FORM[i%AIRSHOW_FORM.length];
+  var W=SW+40*K;
+  if(!disp){                                                   // THE FLYOVER: one pass, and gone
+    return { x:-20*K+W*u+off[0]*K, y:base+off[1]*K, d:1 };
+  }
+  // THE FULL DISPLAY, in four figures
+  if(u<0.26){                                                  // 1 — the diamond, low and level
+    var a=u/0.26; return { x:-20*K+W*a+off[0]*K, y:base+off[1]*K, d:1 };
+  }
+  if(u<0.52){                                                  // 2 — THE LOOP, entered from the right
+    // ⚠⚠ THE LOOP FLEW THROUGH THE GROUND. `r` was `min(SW*0.16, base*0.62)`, and the figure spans
+    // base .. base+2r vertically — so on the Empyrean (base = 0.52*HORIZON) the bottom of the loop
+    // came out at 1.16*HORIZON, i.e. BELOW the horizon, and the formation dived into the cloud sea
+    // and out the other side. The radius has to be derived from the room actually available beneath
+    // the entry altitude, not from the altitude itself.
+    var b=(u-0.26)/0.26, cx=SW*0.5;
+    var r=Math.max(6*K, Math.min(SW*0.16, (HORIZON*0.90-base)/2));
+    var th=-Math.PI/2+b*Math.PI*2;
+    return { x:cx+Math.sin(th+Math.PI/2)*r*1.4+off[0]*K*0.6,
+             y:base+r-Math.cos(th+Math.PI/2)*r+off[1]*K*0.6, d:(b<0.5?1:-1) };
+  }
+  if(u<0.78){                                                  // 3 — OPPOSING SOLOS, crossing at centre
+    var c=(u-0.52)/0.26, dir=(i&1)?-1:1;
+    var x0=(dir>0?-20*K:SW+20*K), x1=(dir>0?SW+20*K:-20*K);
+    return { x:x0+(x1-x0)*c, y:base+((i&1)?3*K:0)+off[1]*K*0.3, d:dir };
+  }
+  // 4 — THE BOMB BURST: everyone leaves the same point on their own radial
+  var e=(u-0.78)/0.22, ang=(-Math.PI*0.86)+(i/Math.max(1,kit.n-1))*Math.PI*0.72;
+  var reach=SW*0.55*e*e;
+  return { x:SW*0.5+Math.cos(ang)*reach, y:base+Math.sin(ang)*reach*0.55, d:(Math.cos(ang)>=0?1:-1) };
+}
+function drawAirshow(g,L,now){
+  try{ drawAirshowInner(g,L,now); }
+  catch(e){ if(AIRSHOW_ERR<3){ AIRSHOW_ERR++; console.log("AIRSHOW FAILED: "+e); } }
+}
+function drawAirshowInner(g,L,now){
+  var st=airshowState(now); if(!st) return;
+  var kit=airshowKit(), K=kit.K, day=L>0.5;
+  // (the daylight gate lives in airshowStateRaw, with the ticker and the crowd that read it)
+  // altitude: a display pass is LOW. On the Empyrean it drops so the jets skim the cloud sea rather
+  // than vanishing into white above it; in a cavern it sits under the roof with room to read.
+  var base=Math.round(HORIZON*(curBiome.celest?0.52:(curBiome.roof?0.38:0.30)));
+  var u=st.p;
+  // ---- THE SMOKE, first, so the aircraft sit on top of their own trails ----
+  // ⚠⚠ NO ADDITIVE. THE EMPYREAN ALREADY TAUGHT THIS ONCE: against near-white cloud every additive
+  // layer multiplies up and clips, so on a bright land the trail must be DARKER than what it crosses,
+  // not brighter. White smoke on a white cloud sea is a trail nobody can see — which is how a whole
+  // written feature ends up dark (see citylive-heaven-overhaul).
+  if(kit.smoke){
+    // ⚠ THE FIRST VERSION DREW A DOTTED LINE, NOT A TRAIL. Sampling the path at N points and stamping
+    // a 2px rect at each leaves gaps as wide as the aircraft travels between samples — over a 776px
+    // pass that is a row of dashes. What closes it without unbounded cost is to fill the BOUNDING BOX
+    // of each consecutive PAIR of samples: one rect per step, continuous whatever the path does,
+    // and the step count (not the path length) caps the work. A near-horizontal run becomes a bar,
+    // a steep one a column, a diagonal a small square — all of which read as smoke at this scale.
+    var trail=Math.min(u, st.disp?0.13:0.70);                  // how far back the smoke still hangs
+    var steps=st.disp?40:34;
+    var thick=Math.max(1,Math.round(K*0.9));
+    for(var i=0;i<kit.n;i++){
+      var col=kit.cols[i%kit.cols.length];
+      if(curBiome.celest) col=[Math.round(col[0]*0.38),Math.round(col[1]*0.38),Math.round(col[2]*0.44)];
+      else if(day&&col[0]>230&&col[1]>230&&col[2]>230) col=[226,232,244];   // pure white needs a little body against a blue sky
+      var prev=airshowPos(kit,st.disp,i,u,base);
+      for(var s2=1;s2<=steps;s2++){
+        var back=u-trail*(s2/steps); if(back<0) break;
+        var q=airshowPos(kit,st.disp,i,back,base);
+        var a=(1-s2/steps)*(day?0.72:0.55);                    // fresh at the tailpipe, gone at the far end
+        g.fillStyle="rgba("+col[0]+","+col[1]+","+col[2]+","+a.toFixed(3)+")";
+        var rx=Math.min(prev.x,q.x)|0, ry=Math.min(prev.y,q.y)|0;
+        var rw=Math.max(thick,(Math.abs(prev.x-q.x)|0)+1), rh=Math.max(thick,(Math.abs(prev.y-q.y)|0)+1);
+        g.fillRect(rx,ry,rw,rh);
+        prev=q;
+      }
+    }
+  }
+  // ---- THE AIRCRAFT ----
+  for(var j=0;j<kit.n;j++){
+    var p=airshowPos(kit,st.disp,j,u,base);
+    if(p.x<-14*K||p.x>SW+14*K) continue;
+    drawAirframe(g,p.x|0,p.y|0,p.d,kit.k,K,day,now,j);
+  }
+}
+// One small airframe per era. Everything is a few rects: at this scale a silhouette with the right
+// PROPORTION reads as the aircraft, and detail past that just muddies it.
+function drawAirframe(g,x,y,d,k,K,day,now,i){
+  // ⚠ dark-on-blue at 4*K read as one of the BIRDS this sky already has. A display aircraft is the
+  // thing you are meant to be looking at, so it is bigger, and its upper surface catches the light.
+  var body=day?"#22262e":"#0e1016", lite=day?"#aeb6c4":"#4a5262";
+  var w=Math.max(4,Math.round(6*K)), t=Math.max(1,Math.round(K*1.1));
+  if(k==="drone"){                                              // THE UNDERCITY: a lit craft, no smoke
+    // ⚠ AT K*1.4 THESE WERE INVISIBLE against a black cavern — a lit dot the size of the cave's own
+    // mineral sparkle. A drone with no smoke trail has ONLY its light to be read by, so it carries
+    // more of it: a bigger core and a real halo.
+    var db=(Math.floor(now/220)+i)&1, dw=Math.max(3,Math.round(K*2.2)), dh=Math.max(2,Math.round(K*1.2));
+    g.globalCompositeOperation="lighter";                       // a cavern IS dark: additive is right HERE
+    g.fillStyle="rgba(110,215,205,0.16)"; g.fillRect(x-dw,y-dh*2,dw*3,dh*5);        // the wash it throws
+    g.fillStyle=db?"rgba(150,255,235,0.98)":"rgba(110,215,255,0.92)";
+    g.fillRect(x,y,dw,dh);
+    g.fillStyle="rgba(255,255,255,0.85)"; g.fillRect(x+(dw>>2),y,Math.max(1,dw>>1),Math.max(1,dh>>1));  // hot core
+    g.globalCompositeOperation="source-over"; return;
+  }
+  g.fillStyle=body;
+  g.fillRect(x-(d>0?0:w),y,w,t);                                                  // fuselage
+  g.fillStyle=day?"#dfe5ef":"#6a7488";
+  g.fillRect(x-(d>0?0:w),y,w,Math.max(1,Math.round(K*0.4)));                      // sunlit upper surface
+  g.fillStyle=body;
+  g.fillRect(x+(d>0?w:-w-Math.round(K*0.6)),y,Math.max(1,Math.round(K*0.6)),t);    // nose
+  if(k==="jet"){
+    g.fillRect(x-(d>0?Math.round(w*0.45):Math.round(w*0.55)),y-t,Math.max(1,Math.round(K*0.9)),t);   // fin
+    g.fillStyle=lite;
+    g.fillRect(x-(d>0?Math.round(w*0.25):Math.round(w*0.75)),y+t,Math.max(2,Math.round(K*1.8)),Math.max(1,Math.round(K*0.5)));  // swept wing
+  } else if(k==="prop"||k==="biplane"){
+    g.fillStyle=lite;
+    g.fillRect(x-(d>0?Math.round(w*0.2):Math.round(w*0.8)),y+t,Math.max(2,Math.round(K*2)),Math.max(1,Math.round(K*0.5)));      // lower wing
+    if(k==="biplane") g.fillRect(x-(d>0?Math.round(w*0.2):Math.round(w*0.8)),y-Math.round(K*0.9),Math.max(2,Math.round(K*2)),Math.max(1,Math.round(K*0.5)));  // upper wing
+    g.fillStyle=day?"#20242c":"#0a0c10";
+    g.fillRect(x+(d>0?w+Math.round(K*0.6):-w-Math.round(K*1.2)),y-Math.round(K*0.6),Math.max(1,Math.round(K*0.5)),Math.round(K*2.2));   // spinning disc
+  } else if(k==="shuttle"){
+    g.fillStyle=lite; g.fillRect(x-(d>0?Math.round(w*0.3):Math.round(w*0.7)),y+t,Math.max(2,Math.round(K*2.2)),Math.max(1,Math.round(K*0.6)));
+    g.globalCompositeOperation="lighter";                       // the thruster plume, which IS light
+    g.fillStyle="rgba(150,210,255,0.8)";
+    g.fillRect(x-(d>0?Math.round(K*1.6):-w-Math.round(K*1.6)),y,Math.round(K*1.6),t);
+    g.globalCompositeOperation="source-over";
+  }
+}
+
 // ---- HOT-AIR BALLOONS drift across calm clear skies (daytime) ----
 function drawBalloons(g,L,now,fx){
   if(curBiome.roof||curBiome.orbit) return;      // ⚠ nobody is ballooning in a cave
@@ -14383,7 +14836,9 @@ function drawSeaFrontEdgeBuilt(g,L,now,top,h,K,day,k,nm){
   // something you walk down onto, so a rail across it reads as municipal fencing on sand.
   // The sidewalk stays (it is the promenade), and a low kerb marks where the paving ends.
   if(k==="beach"){
-    var kerb=day?[196,190,176]:[34,32,30];
+    // ⚠ THE KERB IS THE BEACH'S ONLY EDGE — it takes the contrast rule too, and it is the single
+    // worst case on the map: a pale kerb standing on pale sand above pale sand.
+    var kerb=railContrast(day?[196,190,176]:[34,32,30], walkMat(L).top, 58);
     g.fillStyle=css(kerb);  g.fillRect(0,top-Math.round(2*K),SW,Math.round(2*K));      // the kerb lip
     g.fillStyle=css(mixc(kerb,[0,0,0],0.30)); g.fillRect(0,top,SW,Math.max(1,Math.round(K*0.8)));
     // a few worn gaps where people step down onto the sand — a promenade has openings, not a wall
@@ -14412,6 +14867,10 @@ function drawSeaFrontEdgeBuilt(g,L,now,top,h,K,day,k,nm){
     wall=day?[144,140,132]:[26,26,28];  wall2=day?[116,112,106]:[19,19,21];
     rail=day?[196,198,202]:[44,46,52];  post=day?[150,152,158]:[32,34,40]; cap=day?[214,216,220]:[54,56,62];
   }
+  // …and then every land's barrier is checked against what it actually stands on — the promenade it
+  // is bolted to — and pushed apart from it until it reads. Authored hue kept wherever it already did.
+  var railBg=walkMat(L).top;
+  rail=railContrast(rail,railBg,58); post=railContrast(post,railBg,72); cap=railContrast(cap,railBg,58);
   // ---- THE QUAY WALL: a face standing in the water, with a shadow it casts on the surface ----
   // ⚠⚠ Nick, with a screenshot of the shore: "fix those lines on the bottom by the water, it makes
   // the coast look weird." He is right, and the count is the argument: this edge was SEVEN full-width
@@ -15573,6 +16032,150 @@ function drawVillageForest(g,gy,day,now){
     }
   }
 }
+// ============ THE TWO PAVEMENTS ============
+// Nick, 2026-07-31: "we need to add a side walk to the side of the road so it doesn't look like there
+// is a huge streach of road with nothing there… Everyroad should have a side walk on either side of
+// it." What the road was: a 3px grey line at HORIZON and then asphalt to the bottom of the frame.
+// What it is now: pavement, carriageway, pavement.
+//
+// ONE ROUTINE, A TABLE OF MATERIALS — his call, over a single grey concrete on all twenty lands.
+// The alternative (twenty bespoke pavements) is exactly how this project ends up with a feature
+// written many times and dark on most of them; see the karst's caves and the arctic's ice.
+function walkMat(L,earthen){
+  var day=L>0.5, k=(curBiome&&curBiome.k)||"alpine";
+  // top = the slab · low = its shaded edge · kerb = the lip at the carriageway · lip = the catch
+  // light on the kerb's nose · seam = the expansion joints · bay = joint spacing in world px
+  var M={ top:day?[104,109,122]:[56,62,78], low:day?[88,93,106]:[45,50,65],
+          kerb:day?[70,75,86]:[36,41,55], lip:day?[198,203,214]:[104,116,146],
+          seam:day?[255,255,255]:[150,165,195], seamA:day?0.13:0.10, bay:8,
+          grit:[0,0,0], gritA:day?0.07:0.11, kerbOn:1, plant:1 };
+  switch(k){
+    // pale flagstone, and the salt gets into every joint — the joints are BRIGHTER than the slab here,
+    // which is the one place on the map that is true
+    case "salt":    M.top=day?[204,202,194]:[70,74,86]; M.low=day?[186,184,176]:[58,62,74];
+                    M.kerb=day?[166,164,156]:[50,54,66]; M.seam=day?[252,252,250]:[176,188,210];
+                    M.seamA=day?0.24:0.14; M.bay=6; M.plant=0; break;
+    // basalt setts, ash drifting into the joints, and nothing grows on the Ashlands
+    case "hell":    M.top=day?[62,56,54]:[34,29,28]; M.low=day?[48,43,42]:[26,22,21];
+                    M.kerb=day?[40,35,34]:[20,17,16]; M.lip=day?[128,116,110]:[92,64,50];
+                    M.seam=day?[126,116,110]:[150,72,38]; M.seamA=day?0.16:0.20; M.bay=4; M.plant=0; break;
+    // timber boardwalk on piles: the "joints" are the gaps between the planks, so they run close and dark
+    case "swamp":   M.top=day?[124,104,78]:[48,41,32]; M.low=day?[100,83,62]:[38,32,25];
+                    M.kerb=day?[84,68,50]:[30,25,19]; M.lip=day?[168,146,112]:[80,68,50];
+                    M.seam=[0,0,0]; M.seamA=day?0.22:0.26; M.bay=4; break;
+    // cut stone with moss in the cracks — the joints are GREEN, not white
+    case "terrace": M.top=day?[152,148,136]:[54,58,66]; M.low=day?[132,128,117]:[44,48,56];
+                    M.kerb=day?[110,107,97]:[36,40,47]; M.seam=day?[96,128,72]:[38,62,44];
+                    M.seamA=day?0.17:0.13; M.bay=7; break;
+    // gritted concrete with the snow banked up against the buildings (the low edge does that work)
+    case "arctic":  M.top=day?[176,184,196]:[52,60,78]; M.low=day?[224,232,244]:[86,98,124];
+                    M.kerb=day?[132,140,154]:[38,45,60]; M.seam=day?[255,255,255]:[150,170,205];
+                    M.seamA=day?0.20:0.14; M.gritA=day?0.14:0.16; M.plant=0; break;
+    // sand-scoured slabs; the drift lies in the lee, which is again the low edge
+    case "dunes":   M.top=day?[196,176,138]:[62,58,52]; M.low=day?[222,204,166]:[76,70,60];
+                    M.kerb=day?[164,145,110]:[46,42,37]; M.seam=day?[236,222,190]:[120,110,92];
+                    M.seamA=day?0.15:0.10; M.bay=7; M.plant=0; break;
+    // the Sprawl's concrete is always wet and always reflecting something — see drawSprawlWetDay
+    case "sprawl":  M.top=day?[86,88,100]:[40,44,58]; M.low=day?[72,74,86]:[32,36,48];
+                    M.kerb=day?[58,60,70]:[26,29,40]; M.lip=day?[176,182,196]:[150,120,200];
+                    M.seam=day?[210,220,235]:[190,110,220]; M.seamA=day?0.12:0.18; break;
+    // ⚠ NO KERB ON THE EMPYREAN. A machined stone lip is the one thing that would say "quarried" on a
+    // land made of cloud — the same reasoning that took the kerb out of the village lane.
+    case "heaven":  M.top=day?[238,242,250]:[92,102,130]; M.low=day?[222,228,240]:[80,90,116];
+                    M.seam=day?[200,210,228]:[70,80,105]; M.seamA=day?0.18:0.15; M.bay=11;
+                    M.kerbOn=0; M.gritA=day?0.03:0.05; break;
+    // red rock dust worked into the paving on the two desert-rock lands
+    case "mesa":
+    case "canyon":  M.top=day?[150,116,96]:[52,40,36]; M.low=day?[130,99,81]:[43,33,30];
+                    M.kerb=day?[112,84,68]:[34,26,23]; M.seam=day?[196,164,140]:[92,68,58];
+                    M.seamA=day?0.16:0.12; break;
+    // a cavern has no weather to bleach it: damp stone, and the joints catch the fungal light
+    case "under":   M.top=day?[74,80,88]:[42,48,56]; M.low=day?[62,68,75]:[34,39,47];
+                    M.kerb=day?[52,57,64]:[27,31,38]; M.seam=[96,190,170]; M.seamA=0.18; M.bay=6; break;
+    // sun-bleached concrete, red dust in the joints
+    case "savanna": M.top=day?[168,158,132]:[52,52,50]; M.low=day?[148,138,114]:[44,44,42];
+                    M.kerb=day?[124,115,94]:[34,34,33]; M.seam=day?[186,150,110]:[80,66,52];
+                    M.seamA=day?0.18:0.12; break;
+  }
+  // ⚠ THE VILLAGE OVERRIDES THE LAND, and it overrides it LAST. drawVillageLane exists because the
+  // paved multi-lane road "was the last thing at ground level still insisting this is a city", and a
+  // machined concrete kerb would put that back. Nick's material for it is "packed earth, worn stone
+  // edge" — so the verge is earth, the joints are the worn stones in it, and the lip is a soft
+  // stone nose rather than a cast one. No bays: nobody lays a village verge in bays.
+  if(curVillage||earthen){
+    M.top=day?[136,116,86]:[46,39,30]; M.low=day?[116,98,72]:[38,32,25];
+    M.kerb=day?[150,142,126]:[44,42,38]; M.lip=day?[186,178,160]:[74,70,62];
+    M.seam=day?[168,158,138]:[60,56,48]; M.seamA=day?0.22:0.16; M.bay=5;
+    M.grit=[0,0,0]; M.gritA=day?0.13:0.16;
+  }
+  return M;
+}
+// ⚠⚠ CONTRAST IS A RULE NOW, ON ALL TWENTY LANDS. Nick, with a screenshot of a pale steel barrier
+// standing on pale sand: "make sure there is a contrast between the guardrail and whatever the
+// material is infront of it so it doesn't blend in (make this consistant for all the maps)".
+// The barrier was authored per-land for CHARACTER — whitewash on the Coral Coast, rimed galvanised
+// on the pack ice, creosote timber on the bayou — and every one of those was chosen against the
+// LAND, never against the thing it actually stands on. On the sand lands the two agreed and the rail
+// disappeared.
+// This is the reflection rule wearing different clothes: *a reflection must be DARKER than the
+// water* has caught this project three times (karst, fjord, salt), and it is the same failure —
+// a foreground element authored without reference to its own background.
+// ⚠ The rule is CONTRAST, not "always dark". On the Ashlands' basalt the rail has to go LIGHTER, and
+// a rule that only ever darkened would hide it there instead. Each land keeps its own hue; only its
+// separation from the background is enforced.
+function lum255(c){ return c[0]*0.30+c[1]*0.59+c[2]*0.11; }
+function railContrast(c,bg,minD){
+  var lb=lum255(bg);
+  if(Math.abs(lum255(c)-lb)>=minD) return c;                 // already reads: leave the authored colour alone
+  var toward=(lb>=128)?[14,14,18]:[242,246,252];             // push AWAY from the background, whichever way that is
+  for(var t=0.15;t<=0.9;t+=0.15){ var m=mixc(c,toward,t); if(Math.abs(lum255(m)-lb)>=minD) return m; }
+  return mixc(c,toward,0.9);
+}
+// ONE ROUTINE, BOTH SIDES. `near` flips which edge carries the kerb: the far pavement's lip faces
+// DOWN into the carriageway, the promenade's faces UP into it. Everything is world-anchored (WOFF)
+// so the bays line up across the three bezels — a pavement that stepped at a monitor edge would be
+// more obvious than the one it replaced.
+function drawSidewalk(g,y,depth,L,now,near,M){
+  if(depth<1) return;
+  var day=L>0.5;
+  g.fillStyle=css(M.top); g.fillRect(0,y,SW,depth);
+  // the shaded/banked edge — snow against the buildings on the arctic, sand in the lee on the dunes,
+  // simple shadow everywhere else. It also stops the slab reading as one flat colour.
+  if(depth>=3){ var sh=Math.max(1,depth>>2);
+    g.fillStyle=css(M.low); g.fillRect(0, near?(y+depth-sh):y, SW, sh); }
+  // ⚠⚠ THE JOINTS ARE THE WHOLE RISK, AND I WALKED INTO IT ON THE FIRST TRY. A 1px line at full
+  // depth every N px across 776px of pavement is a PICKET FENCE, not paving — which is the salt
+  // crust's graph-paper fault verbatim, in the pass that was supposed to have learned it.
+  // What fixes it is not lower contrast alone, it is BREAKING THE REGULARITY three ways:
+  //   · lay the pavement in two staggered COURSES, so no joint runs the full depth
+  //   · offset the second course by half a bay, the way paving is actually laid
+  //   · drop roughly one joint in four from a world hash, so the rhythm is not metronomic
+  // Everything stays keyed to world x, so the courses still line up across the three bezels.
+  var jc="rgba("+M.seam[0]+","+M.seam[1]+","+M.seam[2]+","+M.seamA+")";
+  g.fillStyle=jc;
+  var course=(depth>=6)?(depth>>1):depth;                       // two courses if there is room, else one
+  for(var cy=y, ci=0; cy<y+depth; cy+=course, ci++){
+    var ch=Math.min(course,y+depth-cy);
+    var off=(ci&1)?(M.bay>>1):0;                                // stagger: the classic half-bond
+    for(var sj=((-(WOFF+off)%M.bay)+M.bay)%M.bay; sj<SW; sj+=M.bay){
+      if((((sj+WOFF+ci*97)*2654435761)>>>0)%4===0) continue;    // one bay in four has no visible joint
+      g.fillRect(sj,cy,1,ch);
+    }
+    if(ci>0){ g.fillStyle="rgba("+M.seam[0]+","+M.seam[1]+","+M.seam[2]+","+(M.seamA*0.55).toFixed(3)+")";
+      g.fillRect(0,cy,SW,1); g.fillStyle=jc; }                  // the course line between them
+  }
+  if(depth>=3){                                              // wear speckle, world-keyed like the asphalt's
+    g.fillStyle="rgba("+M.grit[0]+","+M.grit[1]+","+M.grit[2]+","+M.gritA+")";
+    for(var gq=((-WOFF%11)+11)%11; gq<SW; gq+=11) g.fillRect(gq,y+1+((gq*7+WOFF)%Math.max(1,depth-2)),2,1); }
+  // THE KERB. A pavement without one is a painted stripe: the lip is what makes it a step up out of
+  // the road, and it is the single line that sells the whole thing.
+  if(M.kerbOn){
+    var ky=near?y:(y+depth-1);
+    g.fillStyle=css(M.kerb); g.fillRect(0,ky,SW,1);
+    g.fillStyle="rgba("+M.lip[0]+","+M.lip[1]+","+M.lip[2]+","+(day?0.5:0.28)+")";
+    g.fillRect(0, near?(ky+1):(ky-1), SW, 1);
+  }
+}
 // THE VILLAGE LANE — packed earth with a worn stone edge, in place of the asphalt street.
 // World-anchored speckle (ruts, stones, tufts) so it stays continuous across the bezels exactly like
 // the asphalt patina it replaces. No lane paint, no crosswalks, no kerb: those all say "city".
@@ -15590,8 +16193,11 @@ function drawVillageForest(g,gy,day,now){
 // reads as raw earth. The city builds its road the same way here; it just finishes in a different stuff.
 // ⚠ The sprawl's WET-LOOK STREET is the precedent for a per-biome surface treatment, and this follows its
 // shape deliberately rather than inventing a second mechanism.
-function drawCloudRoad(g,L,now,roadY){
-  var K=Math.max(1,KSP), depth=SH-roadY; if(depth<2) return;
+// ⚠ `bot` was SH until the sidewalk pass: the cloud carriageway used to run to the bottom of the
+// frame because the asphalt it replaces did. It now stops at the far kerb like every other surface,
+// or the promenade laid over it would be repainted as road.
+function drawCloudRoad(g,L,now,roadY,bot){
+  var K=Math.max(1,KSP), botY=(bot==null?SH:bot), depth=botY-roadY; if(depth<2) return;
   // the same continuous day ramp the deck uses — a cloud road cannot flip to night on a threshold when
   // the cloud sea it is made of does not
   var dk=Math.max(0,Math.min(1,(L-0.30)/0.30)); dk=dk*dk*(3-2*dk);
@@ -15607,7 +16213,7 @@ function drawCloudRoad(g,L,now,roadY){
   // replaces, and the reason it reads as a floor of cloud rather than a pale road: you are looking DOWN
   // into it at the near edge, and down into cloud is where cloud gets its depth.
   var rStep=Math.max(1,Math.round(K*0.7));
-  for(var y=roadY;y<SH;y+=rStep){
+  for(var y=roadY;y<botY;y+=rStep){
     var f=(y-roadY)/depth;
     g.fillStyle=css(mixc(rTop,rBot,f*f*(3-2*f)));
     g.fillRect(0,y,SW,rStep);
@@ -15649,19 +16255,21 @@ function drawCloudRoad(g,L,now,roadY){
   }
   g.globalCompositeOperation="source-over";
 }
-function drawVillageLane(g,L,now,roadY){
-  var day=L>0.5, K=Math.max(1,KSP);
+// ⚠ `bot` is new with the sidewalk pass. The lane used to run to the bottom of the frame; it now
+// stops at the far kerb, because a verge is laid on the other side of it.
+function drawVillageLane(g,L,now,roadY,bot){
+  var day=L>0.5, K=Math.max(1,KSP), botY=(bot==null?SH:bot), lnH=botY-roadY;
   var earth=day?[150,126,94]:[38,32,25], earth2=day?[132,108,80]:[30,25,20];
   var verge=day?[104,122,74]:[22,30,22];
-  // the grass verge in front of the houses, where a pavement would be
-  g.fillStyle=css(verge); g.fillRect(0,HORIZON,SW,3);
-  g.fillStyle=css(mixc(verge,[255,244,200],day?0.18:0.05)); g.fillRect(0,HORIZON,SW,1);
+  // ⚠ THE 3px GRASS VERGE THAT USED TO BE HERE IS GONE — drawSidewalk lays both verges now, at
+  // K-scale, on both sides. What survives is the WEEDS at the lane edge below, which is the part
+  // that was doing the work.
   // the lane itself
-  g.fillStyle=css(earth); g.fillRect(0,roadY,SW,SH-roadY);
+  g.fillStyle=css(earth); g.fillRect(0,roadY,SW,lnH);
   // TWO CART RUTS instead of lane markings — the honest version of a centre line: a village road is
   // worn where the wheels go, not painted where the law says.
   g.fillStyle=css(mixc(earth,earth2,0.85));
-  var rut1=roadY+Math.round((SH-roadY)*0.34), rut2=roadY+Math.round((SH-roadY)*0.62);
+  var rut1=roadY+Math.round(lnH*0.34), rut2=roadY+Math.round(lnH*0.62);
   for(var rx=((-WOFF%5)+5)%5; rx<SW; rx+=5){
     var wob=((rx+WOFF)*7%3)-1;                                   // ruts wander a pixel; a ruler-straight rut reads as paint
     g.fillRect(rx,rut1+wob,4,Math.max(1,Math.round(K*0.6)));
@@ -15669,9 +16277,9 @@ function drawVillageLane(g,L,now,roadY){
   }
   // scatter: stones, dry tufts, packed patches — all keyed to WORLD x so they never swim at a bezel
   g.fillStyle=css(mixc(earth,[92,76,58],0.5));
-  for(var s1=((-WOFF%9)+9)%9; s1<SW; s1+=9) g.fillRect(s1,roadY+1+((s1*7+WOFF)%Math.max(1,(SH-roadY-2))),2,1);
+  for(var s1=((-WOFF%9)+9)%9; s1<SW; s1+=9) g.fillRect(s1,roadY+1+((s1*7+WOFF)%Math.max(1,lnH-2)),2,1);
   g.fillStyle=css(mixc(earth,[210,190,150],day?0.35:0.10));
-  for(var s2=((-WOFF%13)+13)%13; s2<SW; s2+=13) g.fillRect(s2,roadY+2+((s2*5+WOFF)%Math.max(1,(SH-roadY-3))),1,1);
+  for(var s2=((-WOFF%13)+13)%13; s2<SW; s2+=13) g.fillRect(s2,roadY+2+((s2*5+WOFF)%Math.max(1,lnH-3)),1,1);
   g.fillStyle=css(mixc(verge,[60,80,50],0.4));                   // weeds pushing through at the lane edge
   for(var s3=((-WOFF%17)+17)%17; s3<SW; s3+=17) g.fillRect(s3,roadY,1,2);
   if(snowpack>0){ g.fillStyle="rgba(240,244,255,"+Math.min(0.92,snowpack)+")"; g.fillRect(0,HORIZON,SW,1+Math.round(snowpack*3)); }
@@ -23066,7 +23674,7 @@ function drawCanopyLight(g,L,now){
 // the inland echo of the harbour these biomes gave up. Pure geography; only the barges move.
 function drawRiver(g,L,now){
   if(!hasRiver||riverW<=0||cityG<0.06) return;
-  var day=L>0.5, gy=HORIZON, roadY=HORIZON+3;
+  var day=L>0.5, gy=HORIZON, roadY=ROAD_Y;                      // the kerb, not a 3px literal: the pavement above it scales
   var K=Math.max(1,KSP);                                        // bank furniture scales like the rest of the city
   var deep=day?[38,84,126]:[8,17,34], shallow=day?[104,158,190]:[20,38,62];
   // In the Ashlands the channel carries LAVA, not water. Same geography, same bridge, same barges
@@ -30968,6 +31576,7 @@ function drawElections(g,L,now,night){
     drawPixText(g,pl1,polX-(textW(pl1)>>1),HORIZON-24,M.party.c,1);
     drawPixText(g,pl2,polX-(textW(pl2)>>1),HORIZON-18,M.party2.c,1);
     var moT=crosser(now,16000,0.05,30,0.7);                             // a MOTORCADE rolls through flying the candidate's colors
+    if(moT&&!onPavedRoad(moT.x)) moT=null;                              // …and it does not campaign across a dirt track
     if(moT) for(var mc=0;mc<4;mc++){ var mlane=(moT.dir>0?1:2), mcx=disX(moT.x)-moT.dir*mc*11; if(mcx<-12||mcx>SW+12) continue;
       drawCar(g,mcx|0,HORIZON+LANE[mlane].o,(mc&1)?M.party.c:M.party2.c,moT.dir,L);
       g.fillStyle=(mc&1)?M.party.c:M.party2.c; g.fillRect(mcx|0,HORIZON+LANE[mlane].o-4,1,3); g.fillStyle="#eef1f6"; g.fillRect(mcx|0,HORIZON+LANE[mlane].o-4,2,1); }  // roof flag
@@ -34230,6 +34839,7 @@ function draw(g,pass){
   // sky attractions: hot-air balloons on calm days, an ad-blimp on a schedule
   if(cityG>0.35 && !nukeStruck()) drawBalloons(g,L,now,fx);   // the flash pops the hot-air balloons
   if(cityG>0.5 && !nukeFull()) drawBlimp(g,L,now,night,nd);
+  drawAirshow(g,L,now);                                       // …and the flypast, when one is on
   if(!nukeFull()){ drawHighFlights(g,L,now,fx); drawHelis(g,L,now); drawRealFlights(g,L,now); }   // busier skies: high cruisers + contrails + downtown choppers + the REAL aircraft overhead
   if(cityPhase==="apoc"&&curDeath==="nuke") drawNukePlanes(g,L,now);   // …and in the exchange, the blast wave swats aircraft out of the sky (they don't just disappear)
   }
@@ -34239,7 +34849,7 @@ function draw(g,pass){
   if(pass==="water"){ drawOpenSea(g,L,now,night); return; }
 
   // Values used by both the cached city and live street overlay must be computed in every pass.
-  var roadY=HORIZON+3, roadF=Math.max(0,Math.min(1,(cityG-0.1)/0.4));
+  var roadY=ROAD_Y, roadF=Math.max(0,Math.min(1,(cityG-0.1)/0.4));
   var paveFrac=Math.max(0,Math.min(1,(cityG-0.20)/0.25)), frontW=WW*paveFrac, roadPaved=paveFrac>=1;
   var paintFrac=Math.max(0,Math.min(paveFrac,(cityG-0.27)/0.25)), paintFrontW=WW*paintFrac; // striping crew follows the roller
 
@@ -34391,7 +35001,12 @@ function draw(g,pass){
     // Deliberately NOT world-clipped to a paving front: nobody paves a village lane, so there is no
     // paving arc to animate — it is simply there from the first day, which is also why the roller,
     // the cone line and the paint truck are all skipped below.
-    drawVillageLane(g,L,now,roadY);
+    // …and it gets its verges too. Nick: "Everyroad should have a side walk on either side of it" —
+    // a village lane included, as packed earth with a worn stone edge rather than a cast kerb.
+    var vwm=walkMat(L);
+    drawSidewalk(g,HORIZON,WALK_F,L,now,0,vwm);
+    drawVillageLane(g,L,now,roadY,ROAD_BOT);
+    drawSidewalk(g,ROAD_BOT,WALK_N_BOT-ROAD_BOT,L,now,1,vwm);
     drawRiver(g,L,now);                                                      // the channel still cuts the lane; the bridge carries it over
   } else if(paveFrac>0.001){
     if(!roadPaved){                                                          // graded earth roadbed ahead of the paver
@@ -34403,17 +35018,17 @@ function draw(g,pass){
     if(roadPaved){ g.rect(0,HORIZON,SW,SH-HORIZON); }
     else for(var pvWr=-1;pvWr<=1;pvWr++){ var pvA=Math.max(0,(0-WOFF+pvWr*WW)), pvB=Math.min(SW,(frontW-WOFF+pvWr*WW)); if(pvB>pvA) g.rect(pvA|0,HORIZON,(pvB-pvA)|0,SH-HORIZON); }
     g.clip();
-    g.fillStyle=L>0.5?"#666b78":"#3c4254"; g.fillRect(0,HORIZON,SW,3);        // sidewalk
-    g.fillStyle=L>0.5?"#474c56":"#2a2f3e"; g.fillRect(0,HORIZON+2,SW,1);      // curb
-    g.fillStyle=L>0.5?"#3a3f4c":"#272c39"; g.fillRect(0,roadY,SW,SH-roadY);   // asphalt
+    // PAVEMENT · CARRIAGEWAY · PAVEMENT. The far pavement is the one that already carried the crowd,
+    // the bus stops, the subway kiosks and the pigeons on three pixels; the promenade is new.
+    var wm=walkMat(L);
+    drawSidewalk(g,HORIZON,WALK_F,L,now,0,wm);                                 // far pavement — buildings side
+    g.fillStyle=L>0.5?"#3a3f4c":"#272c39"; g.fillRect(0,roadY,SW,ROAD_BOT-roadY);   // asphalt (now ENDS at the far kerb)
     g.fillStyle=L>0.5?"rgba(0,0,0,0.10)":"rgba(0,0,0,0.16)";                   // asphalt patina
     for(var ap2=((-WOFF%9)+9)%9; ap2<SW; ap2+=9) g.fillRect(ap2,roadY+2+((ap2*7+WOFF)%18),2,1);
     g.fillStyle="rgba(255,255,255,0.06)";
     for(var ap3=((-WOFF%13)+13)%13; ap3<SW; ap3+=13) g.fillRect(ap3,roadY+4+((ap3*5+WOFF)%16),1,1);
-    if(curBiome.celest) drawCloudRoad(g,L,now,roadY);                          // THE EMPYREAN paves in cloud
-    g.fillStyle=L>0.5?"rgba(255,255,255,0.10)":"rgba(160,175,205,0.08)";       // sidewalk expansion seams
-    for(var sw2=((-WOFF%8)+8)%8; sw2<SW; sw2+=8) g.fillRect(sw2,HORIZON,1,3);
-    g.fillStyle=L>0.5?"rgba(255,255,255,0.16)":"rgba(150,165,195,0.12)"; g.fillRect(0,HORIZON+3,SW,1);   // curb highlight
+    if(curBiome.celest) drawCloudRoad(g,L,now,roadY,ROAD_BOT);                  // THE EMPYREAN paves in cloud
+    drawSidewalk(g,ROAD_BOT,WALK_N_BOT-ROAD_BOT,L,now,1,wm);                   // near promenade — viewer side
     if(L<0.5){                                                                // night: the city's own glow keeps the street readable
       var ng=g.createLinearGradient(0,HORIZON,0,SH);
       ng.addColorStop(0,"rgba(150,160,205,"+(0.13*(1-L)*roadF)+")");
@@ -34425,7 +35040,7 @@ function draw(g,pass){
     if(!roadPaved){                                                          // the paving FRONT: fresh-tar strip + road roller + cones
       var pfx=disX(frontW);
       if(pfx>-20&&pfx<SW+10){ var pj=L>0.5;
-        g.fillStyle=pj?"#33373f":"#191d25"; g.fillRect((pfx-15)|0,roadY,15,SH-roadY);            // freshly-laid (darker) tar behind the drum
+        g.fillStyle=pj?"#33373f":"#191d25"; g.fillRect((pfx-15)|0,roadY,15,ROAD_BOT-roadY);            // freshly-laid (darker) tar behind the drum
         g.fillStyle="#e0b040"; g.fillRect((pfx-2)|0,roadY+1,7,6);                                // roller body, hi-vis
         g.fillStyle=pj?"#2a2e38":"#14181f"; g.fillRect((pfx-4)|0,roadY+5,5,3);                    // the heavy compaction drum
         g.fillStyle=pj?"#e8edf3":"#8fb0d0"; g.fillRect((pfx+1)|0,roadY+2,2,2);                    // cab glass
@@ -34436,24 +35051,51 @@ function draw(g,pass){
     if(paintFrac>0&&paintFrac<1){                                            // separate LINE-PAINTING MACHINE behind the roller
       var lpx=disX(paintFrontW);
       if(lpx>-18&&lpx<SW+12){
-        g.fillStyle=L>0.5?"#f2b33f":"#8d6522"; g.fillRect((lpx-3)|0,HORIZON+10,8,5);     // compact striping truck
-        g.fillStyle=L>0.5?"#dce8f2":"#7590a5"; g.fillRect((lpx+2)|0,HORIZON+9,3,3);     // cab
-        g.fillStyle="#f4f4f0"; g.fillRect((lpx-2)|0,HORIZON+11,2,2);                    // white paint tank
-        g.fillStyle="#f1c232"; g.fillRect(lpx|0,HORIZON+13,2,1);                        // yellow paint tank
-        g.fillStyle="#12151b"; g.fillRect((lpx-2)|0,HORIZON+15,2,1); g.fillRect((lpx+3)|0,HORIZON+15,2,1);
-        g.fillStyle="rgba(235,240,245,0.9)"; g.fillRect((lpx-6)|0,HORIZON+8,5,1); g.fillRect((lpx-6)|0,HORIZON+19,5,1); // fresh white spray
-        g.fillStyle="rgba(255,205,60,0.9)"; g.fillRect((lpx-6)|0,HORIZON+13,5,2);          // fresh centre stripe
+        // ⚠ the truck moved to ROAD_Y with the paint it lays — at HORIZON offsets it would now be
+        // parked on the pavement, spraying the centre line onto a kerb
+        g.fillStyle=L>0.5?"#f2b33f":"#8d6522"; g.fillRect((lpx-3)|0,ROAD_Y+7,8,5);      // compact striping truck
+        g.fillStyle=L>0.5?"#dce8f2":"#7590a5"; g.fillRect((lpx+2)|0,ROAD_Y+6,3,3);      // cab
+        g.fillStyle="#f4f4f0"; g.fillRect((lpx-2)|0,ROAD_Y+8,2,2);                      // white paint tank
+        g.fillStyle="#f1c232"; g.fillRect(lpx|0,ROAD_Y+10,2,1);                         // yellow paint tank
+        g.fillStyle="#12151b"; g.fillRect((lpx-2)|0,ROAD_Y+12,2,1); g.fillRect((lpx+3)|0,ROAD_Y+12,2,1);
+        g.fillStyle="rgba(235,240,245,0.9)"; g.fillRect((lpx-6)|0,ROAD_Y+5,5,1); g.fillRect((lpx-6)|0,ROAD_Y+16,5,1); // fresh white spray
+        g.fillStyle="rgba(255,205,60,0.9)"; g.fillRect((lpx-6)|0,ROAD_Y+10,5,2);           // fresh centre stripe
       }
     }
+  } else if(cityG>0.05 && !curBiome.celest && !curBiome.orbit){
+    // ⚠ THE TOWN EXISTS BEFORE THE ROAD DOES. Nick's call, once the band got taller: "give it a dirt
+    // track". Paving only starts at cityG 0.20, so for the first fifth of every life this band was
+    // BARE GROUND — the same "huge streach with nothing there" he reported, one stage earlier, and
+    // widening the band made it worse rather than better.
+    // Reused rather than rewritten: a village lane IS a dirt track (packed earth, cart ruts, stones,
+    // weeds at the edge), and walkMat's `earthen` flag gives it the matching trodden verges. The
+    // paving front then sweeps over the top of it exactly as before.
+    // Skipped on the cloud and vacuum lands, where there is no earth to wear a track into.
+    var ewm=walkMat(L,1);
+    drawSidewalk(g,HORIZON,WALK_F,L,now,0,ewm);
+    drawVillageLane(g,L,now,roadY,ROAD_BOT);
+    drawSidewalk(g,ROAD_BOT,WALK_N_BOT-ROAD_BOT,L,now,1,ewm);
+    drawRiver(g,L,now);                                                      // the ford/bridge still crosses it
   }
   // wet-street neon reflections (district-coloured) — only from buildings that actually exist yet, on a paved road
   if(L<0.5 && roadF>0.5){ for(i=0;i<near.blds.length;i++){ var rb=near.blds[i];
       if(rb.bAge!==undefined && cityG-rb.bAge<=bandOf(rb)) continue;    // building not built (or still rising) → no reflection
       if(rb.sign&&rb.h>22&&rb.w>=14){ var rx=(rb.x+rb.w-5)-WOFF; if(rx<-4||rx>SW+4) continue;
         g.fillStyle=NEON[rb.signC]; g.globalAlpha=(0.06+0.03*Math.sin(now*0.001+i))*roadF;
-        g.fillRect(rx|0,roadY,4,SH-roadY); } }
+        g.fillRect(rx|0,roadY,4,ROAD_BOT-roadY); } }        // the carriageway only: a sign does not reflect off a kerb
     g.globalAlpha=1; }
-  if(snowpack>0){ g.fillStyle="rgba(240,244,255,"+Math.min(0.92,snowpack)+")"; g.fillRect(0,HORIZON,SW,1+Math.round(snowpack*3)); }
+  // SNOW LIES ON BOTH PAVEMENTS, not just the one. It settles on a kerb before it settles on a road
+  // that traffic is still working, which is why the pavements take it and the asphalt does not.
+  if(snowpack>0){ g.fillStyle="rgba(240,244,255,"+Math.min(0.92,snowpack)+")";
+    var snD=1+Math.round(snowpack*3*Math.max(1,KSP));
+    g.fillRect(0,HORIZON,SW,Math.min(WALK_F,snD));
+    if(WALK_N>0) g.fillRect(0,ROAD_BOT,SW,Math.min(WALK_N,snD)); }
+  // ⚠ THE PERMANENT WAY GOES DOWN BEFORE THE PAINT. Laid after it, the rail sitting at ROAD_Y+11
+  // covered the double-yellow centre line at ROAD_Y+10/+11 and the road lost its centre. Rails are
+  // set INTO the carriageway and the markings are painted over the top of them — which is both the
+  // real order of works and the one that keeps every line that was already there.
+  drawTramway(g,L,now);
+  drawTrackGang(g,L,now);
   // lane markings + crosswalks — only once the city has proper paved multi-lane roads
   if(!curVillage && paintFrac>0){
   g.save(); g.beginPath();                                            // markings exist only where the paint truck has reached
@@ -34462,19 +35104,31 @@ function draw(g,pass){
   g.clip();
   g.globalAlpha=Math.min(1,paintFrac*4);
   g.fillStyle="rgba(230,235,245,"+(0.4*(1-curSpace*0.8)).toFixed(2)+")";
+  // ⚠ EVERY MARKING BELOW USED TO BE MEASURED FROM HORIZON, and HORIZON is now the back of the far
+  // PAVEMENT rather than the kerb. Paint is laid on the carriageway, so it measures from ROAD_Y —
+  // and these offsets do NOT follow LANE[] the way the traffic does, which is precisely why they
+  // have to be re-derived by hand. (Old values 8/13-14/19 and the zebra's 4..24 were relative to a
+  // fixed 3px pavement; relative to the kerb that is 5/10-11/16 and 1..21, unchanged.)
+  // one dashed divider between each PAIR of same-direction lanes; the reservation does the rest
   for(var dw=Math.floor(WOFF/10)*10; dw<WOFF+SW+10; dw+=10){ var dsx=dw-WOFF;
-    g.fillRect(dsx|0,HORIZON+8,5,1); g.fillRect(dsx|0,HORIZON+19,5,1); }   // lane dividers
+    g.fillRect(dsx|0,ROAD_Y+5,5,1); g.fillRect(dsx|0,ROAD_Y+37,5,1); }   // lane dividers
   if(curSpace>0.35){ g.globalCompositeOperation="lighter";                  // G1: the road becomes a lit guideway
     g.fillStyle="rgba(122,245,255,"+(0.30*curSpace).toFixed(2)+")";
-    g.fillRect(0,HORIZON+8,SW,1); g.fillRect(0,HORIZON+19,SW,1);
+    g.fillRect(0,ROAD_Y+5,SW,1); g.fillRect(0,ROAD_Y+37,SW,1);
     g.globalCompositeOperation="source-over"; }
-  g.fillStyle="rgba(255,205,60,0.5)"; g.fillRect(0,HORIZON+13,SW,1); g.fillRect(0,HORIZON+14,SW,1);  // double-yellow centre
+  // ⚠ THE DOUBLE-YELLOW CENTRE IS GONE ON PURPOSE. It ran at ROAD_Y+10/+11, which is now inside the
+  // tramway reservation — and a centre line painted down the middle of a tram track is exactly the
+  // kind of marking-on-top-of-infrastructure that made the old band unreadable. The reservation
+  // physically separates the two directions, so the line has nothing left to do.
+  // What survives is an edge line against each kerb, which is what a real reservation carries.
+  g.fillStyle="rgba(255,205,60,0.45)";
+  g.fillRect(0,ROAD_Y+RESV_TOP-2,SW,1); g.fillRect(0,ROAD_Y+RESV_BOT+1,SW,1);
   for(i=0;i<crosswalks.length;i++){ var xw=crosswalks[i], xwx=xw.x-WOFF;
     if(!cwInst(xw)) continue;
     if(nukeHit(xw.x)) continue;                          // the road markings are gone in the blast zone
     for(var wrp=-1;wrp<=1;wrp++){ var CX=xwx+wrp*WW; if(CX<-8||CX>SW+8) continue;
       g.fillStyle=L>0.5?"rgba(238,241,248,0.9)":"rgba(206,212,228,0.72)";
-      for(var zb=HORIZON+4; zb<HORIZON+24; zb+=2) g.fillRect((CX-4)|0, zb, 9, 1); } }
+      for(var zb=ROAD_Y+1; zb<ROAD_BOT; zb+=2) g.fillRect((CX-4)|0, zb, 9, 1); } }
   g.globalAlpha=1;
   g.restore();
   }
@@ -34556,11 +35210,15 @@ function draw(g,pass){
     var hFade=cityG>0.38?1-(cityG-0.38)/0.08:1;                    // horses retire as pavement arrives
     for(var hfi=0;hfi<nHrs;hfi++){ if(hFade<((hfi+0.5)/nHrs)) continue;
       var hv=crosser(now+hfi*9241, 42000+hfi*8000, 0.006+hfi*0.0016, 8, 0.72);
-      if(hv && !nukeHit(hv.x)) drawHorse(g, landRoute(hv.x), HORIZON+5+((hfi*5)%12), hv.dir, L, now, hfi%3, hfi); } }
+      // ⚠ WAS `HORIZON+5`, WHICH IS NOW THE PAVEMENT. Nick, with a screenshot: a horse standing in
+      // the middle of the footway. The offset was authored when the pavement was three pixels, so
+      // HORIZON+5 landed on the asphalt; at a 10wp pavement it lands on the paving slabs. Anything
+      // that travels the ROADWAY measures from ROAD_Y, exactly like the lane paint had to.
+      if(hv && !nukeHit(hv.x)) drawHorse(g, landRoute(hv.x), ROAD_Y+2+((hfi*5)%10), hv.dir, L, now, hfi%3, hfi); } }
   // once real building starts, motor rigs join the horses on the open ground
   if(cityG>0.26 && cityG<0.55){ var nOff=1+Math.round(2*gstage(0.26,0.42));
     for(var ofi=0;ofi<nOff;ofi++){ var ov=crosser(now+ofi*8123, 34000+ofi*7000, 0.011+ofi*0.0025, 10, 0.7);
-      if(ov && !nukeHit(ov.x)) drawOffroad(g, landRoute(ov.x), HORIZON+5+((ofi*4)%12), ov.dir, L, now, ofi%3); } }
+      if(ov && !nukeHit(ov.x)) drawOffroad(g, landRoute(ov.x), ROAD_Y+2+((ofi*4)%10), ov.dir, L, now, ofi%3); } }
 
   // cross-screen cars — 4 lanes, small, and they STOP & queue at red signals (deterministic)
   var STOPZ=24, CARM=100, CARLEN=11;   // CARM: off-screen cull margin; CARLEN: car body length (drawCar draws left-anchored)
@@ -34658,7 +35316,11 @@ function draw(g,pass){
   // LIGHT-RAIL TRAM — a mature city runs one on the boulevard; a car-free city runs it early
   if((cityG>0.6 || (curPolicies.carfree && cityG>0.35)) && (apocPositional()||apocKill<0.4) && !fx.thunder){
     var tram=crosser(now, curPolicies.carfree?30000:34000, 0.028, 26, 0.82);
-    if(tram && !nukeHit(tram.x)) drawTram(g, tram.x, tram.dir, L, now);
+    // ⚠ THE TRAM NEVER CHECKED THE PAVING, AND NOW IT CHECKS THE RAILS TOO. Nick: "that Trolly can
+    // only run when the Tracks are there". A tram is the one vehicle that physically CANNOT go
+    // anywhere the track does not, so this is not a gate bolted on — it is the vehicle's actual
+    // constraint, and it is why the track had to be built before the tram could be believed.
+    if(tram && !nukeHit(tram.x) && onPavedRoad(tram.x) && onRailed(tram.x)) drawTram(g, tram.x, tram.dir, L, now);
   }
   if(curPolicies.carfree && cityG>0.35 && (apocPositional()||apocKill<0.4)){   // CAR-FREE: people reclaim the asphalt
     for(var pf=0;pf<9;pf++){ var phh=((pf*2654435761+97)>>>0), plane=(phh&1)?1:2;
@@ -34669,7 +35331,7 @@ function draw(g,pass){
 
   // ambient emergency vehicle on a loose schedule (races the road, siren strobing)
   var em=(cityG>0.5)?crosser(now, curOutbreak?42000:95000, 0.019, 11, 0.55):null;   // sirens double during the outbreak
-  if(em && !nukeHit(em.x)) drawEmv(g, em.x, EMV_TYPES[em.idx%EMV_TYPES.length], em.dir, em.dir>0?1:2, L, now);
+  if(em && !nukeHit(em.x) && onPavedRoad(em.x)) drawEmv(g, em.x, EMV_TYPES[em.idx%EMV_TYPES.length], em.dir, em.dir>0?1:2, L, now);
 
   // ---- traffic incident: wreck + growing jam + smoke, then EMS responds & clears ----
   if(crash && !nukeHit(crash.x)){
@@ -34722,6 +35384,10 @@ function draw(g,pass){
   }
 
   // ---- pedestrians strolling the sidewalk (crowd size varies by district, hour & weather) ----
+  // THE CROWD LOOKS UP. Nick's locked answer for the airshow was "crowd + banner": the street stops
+  // and tilts its head, and the ticker says why. Resolved ONCE here, not per walker — airshowState()
+  // runs cityGrowth() and wfx() and calling it 140 times a frame is the Empyrean face all over again.
+  var ashow=airshowState(now);
   for(i=0;i<peds.length;i++){ var pd=peds[i];
     var jog=((i%9)===4);                                       // ~1 in 9 is a jogger — a CONSTANT per-ped speed (weather no longer toggles it → no position jump)
     // ⚠⚠ THE CONVEYOR BELT. Nick asked for a crowd that DOES things; the first thing it had to stop
@@ -34811,8 +35477,9 @@ function draw(g,pass){
         if((((i*40503+13)>>>0)%1000)/1000 < apocKill) continue;  // this one has succumbed / stayed inside
         var psx=pwx-WOFF; if(psx>SW+4&&psx-WW>-4)psx-=WW; if(psx<-4&&psx+WW<SW+4)psx+=WW;
         if(psx>-3&&psx<SW+3){ var pbb=(psx+((now*0.0016)|0))&1;                     // slow, heavy steps
-          drawPerson(g, psx, HORIZON-1+pd.row, "#5a564e", pd.sk, pbb);              // drab, dust-caked clothes
-          g.fillStyle="#e8e4da"; g.fillRect(psx|0,(HORIZON-1+pd.row-pbb-3)|0,2,1); }  // breathing mask
+          var pdy0=pedFeetY(pd);
+          drawPerson(g, psx, pdy0, "#5a564e", pd.sk, pbb);              // drab, dust-caked clothes
+          g.fillStyle="#e8e4da"; g.fillRect(psx|0,(pdy0-pbb-3)|0,2,1); }  // breathing mask
         continue; }
       else if(cityApoc>0.08){ fleeing=true;                      // any other (future) endtimes: EVERYONE runs
         pwx=wrapW(pwx + pd.dir*(now%4000)*0.03); } }
@@ -34835,7 +35502,13 @@ function draw(g,pass){
     // instead of freezing them at one pixel.
     var pgMv=jog||fleeing||((gaitEase(Math.min(1,pgU+0.025),((i*2654435761)^(pgB*40503))>>>0)-gaitEase(pgU,((i*2654435761)^(pgB*40503))>>>0))>0.002);
     var bob=fleeing?((Math.floor(now/90)+i)&1):(pgMv?(Math.floor(now*0.004*cad+i*2.7)&3):-1);
-    var prow=HORIZON-1+pd.row, cloth=pd.c;
+    // …and while it is overhead most of them stop where they are and watch. `bob=-1` is drawPerson's
+    // "standing about" pose, which shifts their weight rather than freezing them mid-stride — the
+    // same distinction that made the gait blocks work. About one in five keeps walking, because a
+    // street where every single person stops reads as a bug rather than as a crowd.
+    var watching=(!!ashow && !fleeing && (i%5)!==0);
+    if(watching) bob=-1;
+    var prow=pedFeetY(pd), cloth=pd.c;
     if(kind===1&&!fleeing&&((Math.floor(now/260)+i)%6)===0) prow--;      // a little skip in the step
     var hh6=nowDate().getHours();
     if(gameNight(nowDate())&&hh6>=17&&hh6<23&&(i%4)===0) cloth=teamCols[i%2];   // fans heading to the game
@@ -34846,7 +35519,12 @@ function draw(g,pass){
     if(jog){ cloth=["#ff5a5a","#4affc0","#ffd23a","#5aa8ff"][i%4]; bob=Math.floor(now/110+i)&3; }   // bright athletic wear, fast 4-beat stride
     var hdy=(kind===1)?1:0;                                               // kid heads sit 1px lower
     drawPerson(g, px, prow, cloth, pd.sk, bob, kind);
-    var blift=(bob<0)?PERSON_LIFT:((bob===1||bob===3)?1:0);               // accessory lift follows the stride — or, standing, the weight-shift drawPerson actually chose
+    var blift=(bob<0)?PERSON_LIFT:((bob===1||bob===3)?1:0);
+    if(watching){                                                       // one arm up, pointing at it
+      g.fillStyle=pd.sk;
+      if((i%3)===0) g.fillRect((px+(pd.dir>0?3:-2))|0,(prow-blift-4)|0,1,1);        // pointing
+      if((i%7)===2){ g.fillStyle="#2a2c34"; g.fillRect((px-1)|0,(prow-blift-5)|0,3,1); }  // a phone held up
+    }               // accessory lift follows the stride — or, standing, the weight-shift drawPerson actually chose
     if(jog){ g.fillStyle=["#ff2a6a","#2affc0","#ffe23a","#2a8aff"][i%4]; g.fillRect((px+(pd.dir>0?0:1))|0,(prow-blift-4)|0,1,1);   // sweatband
       g.fillStyle=pd.sk; g.fillRect((px+(pd.dir>0?3:-2))|0,(prow-blift-1)|0,1,1); }                                              // arm pumping forward
     if(curOutbreak&&(i&1)){ g.fillStyle="#eef2f6"; g.fillRect(px|0,(prow-blift-3+hdy)|0,2,1); }   // N5: masked up
@@ -34858,14 +35536,14 @@ function draw(g,pass){
     if(wmood.wet||wmood.snow) drawUmbrella(g, px, prow-blift-4+hdy, UMB[i%UMB.length]);       // umbrella up
     else if(wmood.hot && (i%5)<2) drawSunShade(g, px, prow-blift-4+hdy);                      // ~40% shield from the sun
     if(pdist==="residential" && (i%6)===2 && kind!==1){                              // a parent pushing a stroller
-      var stx=(px+pd.dir*3)|0, sty=HORIZON+pd.row;
+      var stx=(px+pd.dir*3)|0, sty=prow+1;
       g.fillStyle="#d2d2dc"; g.fillRect(stx,sty-2,3,2);
       g.fillStyle=["#e88a8a","#8ab8e8","#e8c88a"][i%3]; g.fillRect(stx,sty-3,3,1);    // canopy
       g.fillStyle="#222"; g.fillRect(stx,sty,1,1); g.fillRect(stx+2,sty,1,1);         // wheels
     }
     if((i%7)===0){                                       // ~1 in 7 is walking a little dog on a leash
-      var dxp=(px+pd.dir*3)|0, dyp=HORIZON+1+pd.row, wag=((now*0.006+i)|0)&1;
-      g.fillStyle="rgba(150,150,160,0.5)"; g.fillRect((px+pd.dir)|0,HORIZON+pd.row,1,1); g.fillRect((px+pd.dir*2)|0,HORIZON+pd.row,1,1);  // leash
+      var dxp=(px+pd.dir*3)|0, dyp=prow+2, wag=((now*0.006+i)|0)&1;
+      g.fillStyle="rgba(150,150,160,0.5)"; g.fillRect((px+pd.dir)|0,prow+1,1,1); g.fillRect((px+pd.dir*2)|0,prow+1,1,1);  // leash
       g.fillStyle=["#8a6a4a","#c9c9d2","#3a3a44","#b5824a"][i%4];
       g.fillRect(dxp,dyp,2,1); g.fillRect(dxp+(pd.dir>0?2:-1),dyp-1,1,1);          // body + head
       g.fillRect(dxp+(pd.dir>0?-1:2),dyp-wag,1,1);                                  // wagging tail
