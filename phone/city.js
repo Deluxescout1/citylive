@@ -21051,7 +21051,7 @@ function drawTerraces(g,L,now,nd){
       // narrow EVERYWHERE — the step spacing changes across the bowl, so the pan has to be a share
       // of THIS step's own local height, and capped so it can never become a field of open water.
       var localH=Math.max(1,wallTo-yk);
-      var pd2=Math.max(1,Math.min(localH-1<1?1:localH-1, Math.min(Math.round(localH*0.60), Math.round(7*K))));
+      var pd2=Math.max(1,Math.min(localH-1<1?1:localH-1, Math.min(Math.round(localH*0.66), Math.round(10*K))));
       g.fillStyle=isW?PSH[k][litq]:mS; g.fillRect(x,yk,1,pd2);
       if(wallTo>yk+pd2){ g.fillStyle=wS; g.fillRect(x,yk+pd2,1,wallTo-(yk+pd2)); }
     }
