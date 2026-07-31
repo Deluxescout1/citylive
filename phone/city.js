@@ -20909,7 +20909,15 @@ function drawTerraces(g,L,now,nd){
   //            near the opposite ends of the range.
   //   BLACK  = the wall, which is the outline that turns each step into an object.
   var BRIGHT=day?[188,220,244]:[74,96,138];                                     // flooded pan — bright, BLUE
-  var MID   =day?[44,84,44]:[10,24,18];                                         // crop — DEEP green, not mid
+  // ⚠⚠ I DROPPED THE VARIANT FLAGS IN THE REBUILD AND BOTH VARIANTS WENT IDENTICAL. The old
+  // drawTerraces read `B.harvest` and `B.flooded`; the new one did not, so THE GOLD HARVEST and THE
+  // FLOODED STEPS rendered exactly like the default and this land silently lost two thirds of its
+  // variety. (I had also claimed in my own notes that this land had only ONE variant — that was
+  // WRONG, I misread the table. It has three and always has.)
+  var harvest=!!B.harvest, flooded=!!B.flooded;
+  // THE GOLD HARVEST: ripe rice, the hillside gone amber, water only in the low steps. Gold has to be
+  // the MID value here — bright is still the water, or the land loses its one high-contrast element.
+  var MID   =harvest ? (day?[196,164,72]:[44,36,16]) : (day?[44,84,44]:[10,24,18]);
   var DARK  =day?[30,34,28]:[6,8,8];                                            // wall — as near black as the land allows
   var SLOPE =day?[92,116,78]:[16,24,20];                                        // plain mountain outside the bowl
   var RIM   =day?[20,26,20]:[4,6,6];                                            // the silhouette
@@ -21045,7 +21053,11 @@ function drawTerraces(g,L,now,nd){
         ? Math.min(HORIZON, yk+panH+Math.max(2,Math.round(step*0.5)))
         : Math.min(HORIZON,nxt);
       // BRIGHT dominates — most pans hold water; a couple carry crop so it is a farm, not a fountain
-      var isW=((((bw.idx*31+k)*2654435761)>>>0)%6)!==0;   // ~5 pans in 6 hold water
+      // FLOODED STEPS = brim-full, nearly all mirror. GOLD HARVEST = ripe, and the water has been
+      // drained off everything except the low steps it collects in.
+      var isW = flooded ? true
+              : harvest ? (TERR_FRAC[k]>0.62 && ((((bw.idx*31+k)*2654435761)>>>0)%3)!==0)
+              : ((((bw.idx*31+k)*2654435761)>>>0)%6)!==0;
       // ⚠ THE PAN DEPTH WAS A GLOBAL NUMBER, so where the arcs fan apart at the bowl's flanks the
       // pans became huge blue slabs and it read as a reservoir rather than as terraces. A paddy is
       // narrow EVERYWHERE — the step spacing changes across the bowl, so the pan has to be a share
