@@ -20867,6 +20867,10 @@ var terrCache=null;
 // no life. If the bare version does not read, nothing added on top will save it — which is exactly
 // the mistake that produced attempt 1.
 var TERR_ARCS=7;
+// ⚠ EVENLY-SPACED STEPS READ AS A STADIUM, NOT A MOUNTAIN. Terraces are cut to whatever the rock
+// allows, so the risers are never the same height twice. One fixed table (not a per-frame roll) so
+// the three monitors agree and nothing shimmers.
+var TERR_FRAC=[0,0.11,0.26,0.40,0.57,0.71,0.86,1.0];
 function terrBowl(wx){
   // Which bowl is this column in, and where across it? World-anchored so the arcs line up across all
   // three bezels — one bowl is wider than a screen, so each monitor sees a different part of the same
@@ -20909,16 +20913,51 @@ function drawTerraces(g,L,now,nd){
     var uu=bw.u*bw.u;
     for(var k=0;k<TERR_ARCS;k++){
       // ARC k: a U — lowest at the bowl's centre, lifting to the rim at its edges.
-      var dk=amp+k*step;
+      var dk=amp+TERR_FRAC[k]*(mountH-amp);
       var yk=Math.round(hy+dk*(1-uu));
       if(yk<hy+1||yk>=HORIZON) continue;
-      var nxt=Math.round(hy+(amp+(k+1)*step)*(1-uu));
+      var nxt=Math.round(hy+(amp+TERR_FRAC[k+1]*(mountH-amp))*(1-uu));
       var wallTo=Math.min(HORIZON,(k===TERR_ARCS-1)?HORIZON:nxt);
       // BRIGHT dominates — most pans hold water; a couple carry crop so it is a farm, not a fountain
       var isW=((((bw.idx*31+k)*2654435761)>>>0)%4)!==0;
       g.fillStyle=isW?bS:mS; g.fillRect(x,yk,1,Math.min(panH,Math.max(1,wallTo-yk)));
       if(wallTo>yk+panH){ g.fillStyle=dS; g.fillRect(x,yk+panH,1,wallTo-(yk+panH)); }
     }
+  }
+  // ---- THE VILLAGE ON THE STEPS, and a few trees on the rim ----
+  // Nick, twice: "I don't even know wtf I am looking at." That is a SCALE problem, not a detail
+  // problem — a bowl with nothing human in it reads as a stadium, because nothing tells the eye how
+  // big it is or what it is made of. Three or four tiny roofs standing ON a terrace do more for
+  // legibility than any amount of texture on the terrace itself, which is the lesson of attempt 1
+  // stated the other way round.
+  var roofC=day?"#6a4632":"#1b1310", wallC2=day?"#d8cfbc":"#2a2620";
+  var treeC=day?"#2e4a2c":"#0b1410";
+  for(var v=0;v<9;v++){
+    var vh=((v*2654435761+((WORLD_SEED*17)|0))>>>0); vh^=vh>>>13;
+    var vwx=vh%Math.max(1,WW), vx=vwx-WOFF;
+    if(vx<-20) vx+=WW; if(vx>SW+20) vx-=WW;
+    if(vx<2||vx>=SW-2) continue;
+    var vb=terrBowl(vwx); if(!vb.inb||Math.abs(vb.u)>0.72) continue;
+    var vhy=rimY+Math.round(Math.sin(vwx*0.0042)*mountH*0.10+Math.sin(vwx*0.0111+1.7)*mountH*0.05);
+    var vk=1+((vh>>>7)%(TERR_ARCS-2));
+    var vy=Math.round(vhy+(amp+TERR_FRAC[vk]*(mountH-amp))*(1-vb.u*vb.u));
+    if(vy<=vhy+2||vy>=HORIZON-1) continue;
+    // a hut: a pale wall and a steep dark roof. Two rects, and it is unmistakably a building.
+    var hw=Math.max(2,Math.round(2.4*K)), hh=Math.max(2,Math.round(2.2*K));
+    g.fillStyle=wallC2; g.fillRect(vx|0,vy-hh,hw,hh);
+    g.fillStyle=roofC;  g.fillRect((vx-1)|0,vy-hh-Math.max(1,Math.round(K*1.3)),hw+2,Math.max(1,Math.round(K*1.3)));
+    if(((vh>>>19)&1)){                                        // often a second one beside it
+      g.fillStyle=wallC2; g.fillRect((vx+hw+1)|0,vy-hh+1,hw,hh-1);
+      g.fillStyle=roofC;  g.fillRect((vx+hw)|0,vy-hh-Math.max(1,Math.round(K*0.6)),hw+2,Math.max(1,Math.round(K*1.1)));
+    }
+  }
+  // trees breaking the rim line, so the silhouette has a scale too
+  for(var t=0;t<SW;t+=Math.max(5,Math.round(7*K))){
+    var th=(((t+WOFF)*40503)>>>0);
+    if((th%3)===0) continue;
+    var thy=rimY+Math.round(Math.sin((t+WOFF)*0.0042)*mountH*0.10+Math.sin((t+WOFF)*0.0111+1.7)*mountH*0.05);
+    var td=Math.max(2,Math.round((2+(th>>>7)%3)*K));
+    g.fillStyle=treeC; g.fillRect(t,thy-td,Math.max(1,Math.round(K*1.1)),td);
   }
 }
 
