@@ -20896,17 +20896,30 @@ function drawTerraces(g,L,now,nd){
   // ---- THE THREE VALUES. Chosen for LIGHTNESS separation first and hue second: that is the whole
   // point, and mixing them any closer together is how the old hillside went muddy.
   var skyT=B.sky?B.sky.top:[120,160,210];
-  var BRIGHT=day?mixc(skyT,[255,255,255],0.52):mixc(skyT,[196,214,255],0.30);  // flooded pan
-  var MID   =day?[96,146,74]:[22,44,32];                                        // crop
-  var DARK  =day?[46,44,38]:[10,11,12];                                         // wall + shadow
-  var SLOPE =day?[112,132,92]:[20,28,24];                                       // plain mountain outside the bowl
-  var RIM   =day?[34,40,32]:[7,9,9];                                            // the silhouette
+  // ⚠⚠⚠ THIS IS THE MUDDINESS, AND IT IS THE WHOLE PROBLEM. Zoomed in, the water pans and the crop
+  // pans were the SAME LIGHTNESS — a grey-blue and a mid-green of identical value sitting next to
+  // each other. Nothing separates from anything, so the eye cannot resolve the picture into objects
+  // and it reads as noise. Every land that works does the opposite: alpine is dark rock against
+  // white snow, fjord is black wall against bright water, salt is a white pan against dark
+  // reflections. ONE THING MUCH LIGHTER THAN ANOTHER. That is the entire trick and this land had
+  // none of it.
+  // So the three values are now pushed as far apart as the palette allows:
+  //   BRIGHT = water, genuinely light AND genuinely blue (it was desaturating to concrete grey)
+  //   DARK   = crop, a deep green — NOT a mid-tone. Only two values on the pans, and they are
+  //            near the opposite ends of the range.
+  //   BLACK  = the wall, which is the outline that turns each step into an object.
+  var BRIGHT=day?[188,220,244]:[74,96,138];                                     // flooded pan — bright, BLUE
+  var MID   =day?[44,84,44]:[10,24,18];                                         // crop — DEEP green, not mid
+  var DARK  =day?[30,34,28]:[6,8,8];                                            // wall — as near black as the land allows
+  var SLOPE =day?[92,116,78]:[16,24,20];                                        // plain mountain outside the bowl
+  var RIM   =day?[20,26,20]:[4,6,6];                                            // the silhouette
   var bS=css(BRIGHT), mS=css(MID), dS=css(DARK), slS=css(SLOPE), rS=css(RIM);
   // the slope's own ramp: hazier at the crown (it is further away), deeper toward the valley
   var SLB=[];
   for(var sq=0;sq<6;sq++)
     SLB.push(css(mixc(mixc(SLOPE, skc, 0.30*(1-sq/5)*(1-sq/5)), day?[0,0,0]:[0,0,0], 0.16*(sq/5))));
   var scrubS=css(mixc(SLOPE, day?[54,74,44]:[8,14,12], 0.52));
+  var floorS=css(day?[74,102,66]:[12,20,17]);   // the valley floor beneath the lowest terrace
   var rockS =css(mixc(SLOPE, day?[126,118,100]:[26,26,28], 0.46));
   // ---- DIRECTIONAL LIGHT, and this is the thing that was missing most. Every retaining wall was the
   // same flat dark, which is why the bowl read as a diagram: a real terraced slope is legible
@@ -20925,7 +20938,7 @@ function drawTerraces(g,L,now,nd){
     // ⚠ FIRST TRY LIGHTENED THE LIT WALLS TO 0.62 AND KILLED THE OUTLINE. The dark wall is the thing
     // that makes each step an OBJECT — locked answer 5 — and washing it out undid the one part that
     // was already working. The sun shifts the wall's TONE; it must never stop being dark.
-    WSH.push(css(mixc(DARK, day?[120,112,92]:[46,50,62], 0.04+0.24*t)));
+    WSH.push(css(mixc(DARK, day?[96,92,74]:[34,38,48], 0.03+0.20*t)));
   }
   // ---- THE PANS MIRROR THE SKY, instead of being one flat pale blue. A flooded terrace is a
   // horizontal mirror, so what it holds depends on WHERE IT IS: a pan high on the bowl reflects the
@@ -20936,9 +20949,12 @@ function drawTerraces(g,L,now,nd){
   var skyB=B.sky?B.sky.bot:[210,225,240];
   for(var k2=0;k2<TERR_ARCS;k2++){
     var row=[], f=TERR_FRAC[k2];                                  // 0 at the rim, 1 at the valley floor
-    var mir=mixc(skyT, skyB, f);                                  // zenith high up, haze low down
-    mir=mixc(mir, day?[26,34,44]:[4,7,12], day?0.10:0.48);        // knocked DOWN: darker than the sky
-    for(var q2=0;q2<5;q2++) row.push(css(mixc(mir, [0,0,0], 0.17*(1-q2/4))));
+    // ⚠ mixing toward the sky's HAZE colour desaturated the pans into concrete grey — the pan stopped
+    // looking like water at all. The gradient now runs between two BLUE water tones, so it still
+    // reads as a mirror without losing its hue.
+    var mir=mixc(BRIGHT, day?[126,176,214]:[40,58,92], f*0.85);   // brighter high on the bowl, deeper low down
+    mir=mixc(mir, day?[16,26,38]:[2,4,8], day?0.06:0.34);         // knocked DOWN: darker than the sky it reflects
+    for(var q2=0;q2<5;q2++) row.push(css(mixc(mir, [0,0,0], 0.13*(1-q2/4))));
     PSH.push(row);
   }
   var panH=Math.max(2,Math.round(step*0.62));
@@ -20994,7 +21010,14 @@ function drawTerraces(g,L,now,nd){
     }
     g.fillStyle=rS;  g.fillRect(x,hy,1,Math.max(1,Math.round(K*1.6)));   // THE RIM: one crisp dark line
     if(!bw.inb) continue;                                         // outside a bowl the slope is bare
-    var uu=bw.u*bw.u;
+    // the valley floor: flat wet ground below the lowest terrace, where the town sits
+    var floorTop=Math.round(hy+amp+(mountH-amp)*1.0)+Math.max(2,Math.round(step*0.5));
+    if(floorTop<HORIZON){ g.fillStyle=floorS; g.fillRect(x,floorTop,1,HORIZON-floorTop+1); }
+    // ⚠ A PARABOLA HAS A FLAT BOTTOM, so the centre of every bowl was horizontal stripes again —
+    // exactly the thing this whole rebuild exists to escape. A real amphitheatre is closer to a V:
+    // the arcs keep bending all the way through the middle. `|u|^1.25` keeps the smooth shoulders
+    // and takes the flat out of the floor.
+    var uu=Math.pow(Math.abs(bw.u),1.25);
     // which way this bit of the bowl faces, and therefore how much sun it gets
     var face=-bw.u;                                               // left flank faces right, and vice versa
     var litq=Math.max(0,Math.min(4,Math.round((0.5+0.5*face*sunDir)*4)));
@@ -21005,7 +21028,13 @@ function drawTerraces(g,L,now,nd){
       var yk=Math.round(hy+dk*(1-uu));
       if(yk<hy+1||yk>=HORIZON) continue;
       var nxt=Math.round(hy+(amp+TERR_FRAC[k+1]*(mountH-amp))*(1-uu));
-      var wallTo=Math.min(HORIZON,(k===TERR_ARCS-1)?HORIZON:nxt);
+      // ⚠ THE LOWEST WALL RAN ALL THE WAY TO THE GROUND, which put a huge black mass across the
+      // bottom of the bowl — the darkest thing in the frame, and it swallowed the valley floor. A
+      // retaining wall is only ever as tall as the step it holds up; below the last one is the
+      // VALLEY FLOOR the town stands on, not more wall.
+      var wallTo=(k===TERR_ARCS-1)
+        ? Math.min(HORIZON, yk+panH+Math.max(2,Math.round(step*0.5)))
+        : Math.min(HORIZON,nxt);
       // BRIGHT dominates — most pans hold water; a couple carry crop so it is a farm, not a fountain
       var isW=((((bw.idx*31+k)*2654435761)>>>0)%4)!==0;
       g.fillStyle=isW?PSH[k][litq]:mS; g.fillRect(x,yk,1,Math.min(panH,Math.max(1,wallTo-yk)));
@@ -21025,7 +21054,7 @@ function drawTerraces(g,L,now,nd){
     var shy=rimY+Math.round(Math.sin(swx*0.0042)*mountH*0.10+Math.sin(swx*0.0111+1.7)*mountH*0.05);
     var lean=((sh2>>>7)&1)?1:-1;                                   // stairs zig-zag rather than run straight
     for(var sk=0;sk<TERR_ARCS;sk++){
-      var sy=Math.round(shy+(amp+TERR_FRAC[sk]*(mountH-amp))*(1-sb.u*sb.u));
+      var sy=Math.round(shy+(amp+TERR_FRAC[sk]*(mountH-amp))*(1-Math.pow(Math.abs(sb.u),1.25)));
       var sxx=(sx+lean*sk*Math.max(1,Math.round(K*0.9)))|0;
       if(sxx<0||sxx>=SW||sy<=shy+1||sy>=HORIZON) continue;
       var rise=Math.max(2,Math.round((TERR_FRAC[Math.min(TERR_ARCS-1,sk+1)]-TERR_FRAC[sk])*(mountH-amp)));
@@ -21049,7 +21078,7 @@ function drawTerraces(g,L,now,nd){
     var vb=terrBowl(vwx); if(!vb.inb||Math.abs(vb.u)>0.72) continue;
     var vhy=rimY+Math.round(Math.sin(vwx*0.0042)*mountH*0.10+Math.sin(vwx*0.0111+1.7)*mountH*0.05);
     var vk=1+((vh>>>7)%(TERR_ARCS-2));
-    var vy=Math.round(vhy+(amp+TERR_FRAC[vk]*(mountH-amp))*(1-vb.u*vb.u));
+    var vy=Math.round(vhy+(amp+TERR_FRAC[vk]*(mountH-amp))*(1-Math.pow(Math.abs(vb.u),1.25)));
     if(vy<=vhy+2||vy>=HORIZON-1) continue;
     // a hut: a pale wall and a steep dark roof. Two rects, and it is unmistakably a building.
     var hw=Math.max(2,Math.round(2.4*K)), hh=Math.max(2,Math.round(2.2*K));
@@ -21073,7 +21102,7 @@ function drawTerraces(g,L,now,nd){
     var wb=terrBowl(wwx); if(!wb.inb||Math.abs(wb.u)>0.86) continue;
     var whyy=rimY+Math.round(Math.sin(wwx*0.0042)*mountH*0.10+Math.sin(wwx*0.0111+1.7)*mountH*0.05);
     var wk2=1+((wh2>>>5)%(TERR_ARCS-1));
-    var wy2=Math.round(whyy+(amp+TERR_FRAC[wk2]*(mountH-amp))*(1-wb.u*wb.u));
+    var wy2=Math.round(whyy+(amp+TERR_FRAC[wk2]*(mountH-amp))*(1-Math.pow(Math.abs(wb.u),1.25)));
     if(wy2<=whyy+2||wy2>=HORIZON-1) continue;
     if(((wh2>>>17)%4)===0){
       var bw2=Math.max(2,Math.round(2.6*K));                       // a water buffalo standing in the pan
