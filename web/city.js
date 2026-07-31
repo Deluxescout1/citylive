@@ -15664,6 +15664,15 @@ function drawCloudFront(g,L,now){
 // ================================================================================================
 function drawCavernWater(g,L,now){
   var B=curBiome, K=Math.max(1,KSP), day=L>0.5;
+  // ⚠⚠ BUILD THE CACHE IF THE BACKDROP HAS NOT YET. Only `drawUndercity` built it, and that runs in the
+  // BACKDROP stack at 0.5-2 fps while this runs at 8-12 — so for up to two seconds after every life
+  // reboot the live half of this land had no columns to reflect, no shaft to track and no quay, then
+  // popped into existence. `skyClearAt`'s own comment names this ordering ("the first live frame before
+  // the backdrop has built one"); on his machine, with cycle:"test", it would have happened every hour.
+  // caveBuild() is a pure function of WORLD_SEED/SW/WOFF/HORIZON and is still nulled per life at the
+  // one shared site, so calling it from either pass is idempotent.
+  if(!caveCache) caveBuild();
+
   var top=SEA_Y, botY=SH-TASKBAR_WP, depth=Math.max(2,botY-top);
   var glowC = B.name==="THE DEEP WORKS" ? [255,150,60] : (B.name==="THE GLOWSPORE" ? [110,240,208] : [120,200,255]);
   var lit=caveShaftLit(L,now,null), beamC=caveShaftCol(lit);
@@ -15775,6 +15784,34 @@ function drawCavernWater(g,L,now){
       g.fillRect(QX+qW-Math.round(qk*2),top-qD-Math.round(qk*2),Math.max(1,Math.round(qk*0.9)),Math.max(1,Math.round(qk*0.9)));
       g.globalCompositeOperation="source-over";
     }
+  }
+  // ---- THE FLYPAST, REFLECTED. The other half of the airshow answer locked in
+  // citylive-street-sidewalks-airshow: on a roofed land the display is lit drones under the cavern
+  // ceiling, "with reflections in the water below". It could not be built when it was locked, because
+  // the water was at the world SEAM and two of three monitors had none — moving the lake to the front
+  // is what unblocked it, so it goes in now rather than staying an open item.
+  // ⚠ Reads its positions straight out of `airshowPos`, so the reflection cannot drift from the show:
+  // one path function, sampled twice. And it is ADDITIVE — this is the deliberate exception to
+  // "a reflection is darker than the water", because a light reflects as light.
+  var ash=(typeof airshowState==='function')?airshowState(now):null;
+  if(ash){
+    var akit=airshowKit(), abase=Math.round(HORIZON*0.38);
+    g.globalCompositeOperation="lighter";
+    for(var ai=0;ai<akit.n;ai++){
+      var AP=airshowPos(akit,ash.disp,ai,ash.p,abase);
+      // map the drone's HEIGHT onto the depth of the lake: the higher it flies, the further out from
+      // the shore its reflection sits. A literal mirror about the waterline lands 50 px past the frame.
+      var af=Math.max(0,Math.min(1,1-AP.y/(HORIZON*0.75)));
+      var ary=top+Math.round(depth*(0.22+0.62*af));
+      if(ary<top||ary>=botY) continue;
+      var acol=akit.cols[ai%akit.cols.length];
+      var ajit=Math.round(Math.sin(now*0.0021+ai*1.7)*K*0.8);      // it is water: nothing holds still
+      g.fillStyle=rgba(acol,0.34);
+      g.fillRect(Math.round(AP.x)+ajit,ary,Math.max(2,Math.round(2.6*K)),Math.max(1,Math.round(K*0.8)));
+      g.fillStyle=rgba(acol,0.10);                                  // …and the smear it lays on the surface
+      g.fillRect(Math.round(AP.x)+ajit-Math.round(K),ary+Math.round(K),Math.max(3,Math.round(4.4*K)),Math.max(1,Math.round(K*1.6)));
+    }
+    g.globalCompositeOperation="source-over";
   }
   // ---- THE FUNGUS on the walls reflects too, in broken dabs — the only other light in the room
   for(var d2=0;d2<26;d2++){
@@ -21135,7 +21172,12 @@ function caveShaftLit(L,now,nd){
 // in the ground, so it wears whatever the sky is wearing), and cold moonlight after dark.
 function caveShaftCol(lit){
   var warm=mixc([255,248,226],[255,186,110],Math.min(1,goldenK));
-  return lit.day>=lit.night ? warm : [156,182,228];
+  // ⚠ THE MOONLIT BEAM STILL BELONGS TO THE ROOM IT FALLS INTO. Cold blue-white is right — the cave's
+  // own light does not travel back up the shaft — but a pure [156,182,228] beam in THE DEEP WORKS'
+  // furnace-brown cavern read as borrowed from another land. A light mix toward the land's own haze
+  // keeps it cold and makes it belong: a contrast rule guarantees separation, not belonging.
+  return lit.day>=lit.night ? warm
+       : mixc([156,182,228], (curBiome&&curBiome.sky&&curBiome.sky.haze)||[80,100,130], 0.20);
 }
 function drawUndercity(g,L,now,nd){
   var B=curBiome, K=Math.max(1,KSP);
@@ -21293,10 +21335,17 @@ function drawUndercity(g,L,now,nd){
       // path round the hourglass, and on the collapsed one the lamps STOP AT THE BREAK — which is the
       // route explaining the ruin rather than ignoring it.
       if(!far&&cityG>0.28){
-        var lTop=(C.kind===2)?Math.max(0.22,brkA-0.02):0.90;
-        var lamps=Math.max(4,Math.round((9+cDepth/(26*K))*(lTop-0.16)/0.74));
+        // ⚠⚠ ON A COLLAPSED COLUMN THE ROUTE CLIMBS FROM THE FLOOR TO THE BREAK, NOT FROM THE ROOF.
+        // `t` runs 0 at the ceiling to 1 at the floor, so my first attempt — 0.16 up to `brkA` — put
+        // every lamp in the top quarter, i.e. on the REMNANT that fell away from the ground: a stair
+        // with no connection to anything, on the piece that is no longer attached. The symptom was one
+        // warm dot where a route should have been, and I read it as "too small" rather than "wrong end".
+        // People climb it from the bottom and it stops where the rock stops. That is what makes the
+        // route explain the ruin instead of ignoring it.
+        var lLo=(C.kind===2)?(brkB+0.02):0.16, lHi=0.90;
+        var lamps=Math.max(4,Math.round((9+cDepth/(26*K))*(lHi-lLo)/0.74));
         for(var lp=0;lp<lamps;lp++){
-          var lt=0.16+(lTop-0.16)*(lp/Math.max(1,lamps-1)), lhw=caveColHW(C,lt);
+          var lt=lLo+(lHi-lLo)*(lp/Math.max(1,lamps-1)), lhw=caveColHW(C,lt);
           var lsw=(C.kind===1)?0.52:0.9;                          // a ledge path swings less than a stair
           var lu=Math.sin(lp*lsw+C.seed%7)*(C.kind===1?0.86:0.72);// switchbacks rather than an even spiral
           var lx=Math.round(cx+lu*lhw), ly=Math.round(cTop+lt*cDepth);
@@ -21386,7 +21435,16 @@ function drawUndercity(g,L,now,nd){
 // This runs BEHIND every building (see its call site, above the cached city), which is right: the fungus
 // is on the cavern walls, a long way back.
 function drawUndercityLive(g,L,now,nd){
-  if(!curBiome.roof||!caveCache) return;
+  if(!curBiome.roof) return;
+  // ⚠⚠ BUILD THE CACHE IF THE BACKDROP HAS NOT YET. Only `drawUndercity` built it, and that runs in the
+  // BACKDROP stack at 0.5-2 fps while this runs at 8-12 — so for up to two seconds after every life
+  // reboot the live half of this land had no columns to reflect, no shaft to track and no quay, then
+  // popped into existence. `skyClearAt`'s own comment names this ordering ("the first live frame before
+  // the backdrop has built one"); on his machine, with cycle:"test", it would have happened every hour.
+  // caveBuild() is a pure function of WORLD_SEED/SW/WOFF/HORIZON and is still nulled per life at the
+  // one shared site, so calling it from either pass is idempotent.
+  if(!caveCache) caveBuild();
+
   var B=curBiome, K=Math.max(1,KSP);
   var glowC = B.name==="THE DEEP WORKS" ? [255,150,60] : (B.name==="THE GLOWSPORE" ? [110,240,208] : [120,200,255]);
   for(var b2=0;b2<70;b2++){
@@ -21445,7 +21503,16 @@ function drawUndercityLive(g,L,now,nd){
 // So the near half of the light is drawn here, after the near buildings: the column of air in front of
 // the town, the pool where it lands, and the dust turning in it.
 function drawUndercityGlow(g,L,now,nd){
-  if(!curBiome.roof||!caveCache) return;
+  if(!curBiome.roof) return;
+  // ⚠⚠ BUILD THE CACHE IF THE BACKDROP HAS NOT YET. Only `drawUndercity` built it, and that runs in the
+  // BACKDROP stack at 0.5-2 fps while this runs at 8-12 — so for up to two seconds after every life
+  // reboot the live half of this land had no columns to reflect, no shaft to track and no quay, then
+  // popped into existence. `skyClearAt`'s own comment names this ordering ("the first live frame before
+  // the backdrop has built one"); on his machine, with cycle:"test", it would have happened every hour.
+  // caveBuild() is a pure function of WORLD_SEED/SW/WOFF/HORIZON and is still nulled per life at the
+  // one shared site, so calling it from either pass is idempotent.
+  if(!caveCache) caveBuild();
+
   var K=Math.max(1,KSP);
   var lit=caveShaftLit(L,now,nd); if(lit.tot<=0.02) return;
   var slope=caveShaftSlope(), beamC=caveShaftCol(lit);
