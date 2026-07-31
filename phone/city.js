@@ -3037,7 +3037,8 @@ var ROAD_H=43;         // asphalt depth: 2 car lanes · the tramway reservation 
 // which keeps every one of the ~20 sites that read `HORIZON+LANE[i].o` correct without touching them
 // (the parades, the police chases, the ambulances, the casualty tyre tracks, LANE[(p*2)%LANE.length]).
 var LANE_BASE=[2,7,34,39];
-var DAM_KERB_F=0, DAM_KERB_N=0;   // the far and near kerb lips: where a crossing starts and ends
+var DAM_KERB_F=0, DAM_KERB_N=0;
+var CROSSKILLS=0;   // the far and near kerb lips: where a crossing starts and ends
 // The reserved tramway, between the two pairs of traffic lanes. TRAM_BASE is each track's vehicle
 // baseline (drawTram puts its bogies at ey+2, so the rails hang off these); RESV_* bound the
 // reservation the two of them sit in.
@@ -4282,6 +4283,7 @@ function cwInst(cw){ return cityG >= 0.38+((cw.seed%997)/997)*0.2; }      // cro
 // places would work exactly until somebody edited one of them.
 // ⚠ `hour` is passed in because `rhythm` is a LOCAL of draw(), not a global — and the size has to be
 // derived in ONE place, since both call sites must agree on the group down to the last person.
+function K0_1(){ return Math.max(1,Math.round(Math.max(1,KSP))); }
 function cwGroup(cw,cyc,hour){
   var rr=rng((cw.seed+cyc*7919)>>>0);
   // 1–3 per cycle was the original, and it is what a crossing looks like at 3 a.m., not at 1 p.m.:
@@ -4292,7 +4294,13 @@ function cwGroup(cw,cyc,hour){
   var n=(rr()<0.9)?(1+((rr()*3)|0)):0;
   n=Math.max(0,Math.min(7,Math.round(n*(0.55+1.9*busy))));
   var out=[];
+  // ⚠ GATING THE KILL ON MOVING TRAFFIC TOOK IT TO ZERO, and that is correct: a person crossing on
+  // their own green signal is not going to be run over, because the traffic is stopped for them.
+  // The deaths have to come from people who are NOT using the crossing properly. About one in six
+  // JAYWALKS — steps out mid-cycle while the traffic is still running. Most of them make it; the
+  // ones who do not are the ones Nick wants to see.
   for(var p=0;p<n;p++) out.push({ off:150+rr()*500, up:rr()<0.5?1:-1, lo:((rr()*7)|0)-3,
+    jay: rr()<0.17,
     pc:PEDC[(cw.seed+p*5)%PEDC.length], sk:SKINC[(cw.seed+p)%SKINC.length] });
   return out;
 }
@@ -35532,6 +35540,36 @@ function draw(g,pass){
   function noseWX(leftWX,dir){ return leftWX+(dir>0?CARLEN:0); }
   // precompute every car's world-x ONCE (was recomputed O(n²) inside the queue-rank loop)
   var cwxAll=[]; for(i=0;i<cars.length;i++) cwxAll[i]=carWX(cars[i]);
+  // cars indexed by lane, so the crossing-collision test does not scan the whole fleet per sample
+  var carsByLane=[[],[],[],[]];
+  for(i=0;i<cars.length;i++) carsByLane[cars[i].lane].push(i);
+  // ⚠ SCRIPTED FROM THE CLOCK, NEVER SIMULATED. Nick wants a pedestrian who steps in front of a
+  // vehicle obliterated — and "whenever the geometry actually collides", his call. Both the walker
+  // and the traffic are pure functions of time, so whether a given crossing ends in a death is too;
+  // it just has to be asked about the WHOLE walk so far rather than only about this instant, or the
+  // victim would revive the moment the car drove off them.
+  // Eight samples from the moment they stepped off the kerb to now, restricted to the lane they were
+  // in at each sample. All three monitors run the identical arithmetic and agree to the pixel.
+  function crossKill(px,t0c,tNow,dirUp){
+    var span=1800, steps=8;
+    for(var q=1;q<=steps;q++){
+      var tq=t0c+(tNow-t0c)*(q/steps); if(tq<t0c) continue;
+      var pg=(tq-t0c)/span; if(pg<0||pg>1) continue;
+      var yq=dirUp>0?lerp(DAM_KERB_F,DAM_KERB_N,pg):lerp(DAM_KERB_N,DAM_KERB_F,pg);
+      for(var ln2=0;ln2<4;ln2++){
+        var ly=HORIZON+LANE[ln2].o;
+        if(Math.abs(yq-ly)>2.5) continue;                       // not in this lane at this instant
+        var lst=carsByLane[ln2];
+        for(var z=0;z<lst.length;z++){
+          var cc2=cars[lst[z]];
+          var cxq=wrapW(cc2.x0+LANE[cc2.lane].d*cc2.sp*KSP*tq);
+          var dd=((px-cxq+WW*1.5)%WW)-WW*0.5;
+          if(dd>-2&&dd<CARLEN) return { t:tq, y:yq, x:px };     // hit
+        }
+      }
+    }
+    return null;
+  }
   // precompute which crosswalks are red THIS frame (was re-tested per car × crosswalk)
   var redCW=[]; for(var rci=0;rci<crosswalks.length;rci++) if(cwInst(crosswalks[rci])&&sig(now,crosswalks[rci].ph)===2) redCW.push(crosswalks[rci]);
   for(i=0;i<cars.length;i++){ c=cars[i];
@@ -35994,13 +36032,55 @@ function draw(g,pass){
     var cyc=Math.floor((now+cw2.ph)/12000), grp=cwGroup(cw2,cyc,rhythm.hour);          // 0–3 people cross this cycle — the same ones who just waited at the kerb
     for(var pp=0;pp<grp.length;pp++){
       var gp=grp[pp], off=gp.off, upDir=gp.up, lo=gp.lo, pc=gp.pc, sk=gp.sk;
-      var wt=tt-9000-off; if(wt<0||wt>1800) continue;
+      // ⚠ THE STAIN HAS TO OUTLIVE THE WALK. This loop dropped anyone past their 1800 ms crossing
+      // window, so a death vanished 1.8 s later and "all that remains is a blood stain" was true for
+      // under two seconds. Past the window the person is gone either way; what may still be there is
+      // the mark on the road, so the window stays open long enough for it to dry.
+      // a jaywalker sets off early, while the lights are still green for the traffic
+      var wt=tt-(gp.jay?2200:9000)-off; if(wt<0||wt>90000) continue;
+      var pastWalk=(wt>1800);
       // ⚠ The two ends must be the SAME pixels the queue waited on, or a walker jumps backwards off
       // the kerb the instant the light changes.
       // …and the walk itself spans kerb to kerb, so they arrive on the far pavement instead of
       // stopping in lane two.
       var prog=wt/1800, py=upDir>0?lerp(DAM_KERB_F,DAM_KERB_N,prog):lerp(DAM_KERB_N,DAM_KERB_F,prog);
       var bob=(((prog*8)|0)&1), c2x=cw2.x-WOFF+lo;
+      // ---- DID A CAR GET THEM? ----
+      // they stepped off the kerb `wt` ms ago; that is where the walk starts
+      // ⚠⚠ EVERY SINGLE CROSSER WAS DYING — measured at roughly one a second, which would leave the
+      // road solid red. The cause: the test asked only whether a car occupied the same pixels, and a
+      // car QUEUED at a red light occupies them for the entire crossing. You do not get run over by
+      // stationary traffic. So the kill only counts where the signal is NOT holding the traffic —
+      // i.e. the walker is out in a live lane, which is exactly what Nick described.
+      // ⚠ I gated this on `sig(now,cw2.ph)!==2` and it was never once true: sig returns 2 (traffic
+      // held) for the ENTIRE pedestrian phase, which is the whole point of a pedestrian phase. The
+      // condition was also more complicated than the truth. A JAYWALKER IS BY DEFINITION THE ONE
+      // CROSSING AGAINST THE LIGHT — that flag already says everything the gate was trying to say.
+      var carsMoving=!!gp.jay;
+      var kill=(cityG>0.42&&carsMoving)?crossKill(wrapW(cw2.x+lo), now-wt, now, upDir):null;
+      if(kill){ CROSSKILLS++;
+        // ONE FRAME OF RED, then nothing but a stain. The impact is loud and brief; what stays is the
+        // mark on the road, which the traffic then drives over.
+        var since=now-kill.t;
+        for(var wp4=-1;wp4<=1;wp4++){ var KX=c2x+wp4*WW; if(KX<-6||KX>SW+6) continue;
+          if(since<160&&!pastWalk){                                  // the burst
+            g.fillStyle="rgba(196,26,32,0.95)";
+            g.fillRect((KX-2)|0,(kill.y-3)|0,Math.max(3,Math.round(5*Math.max(1,KSP))),Math.max(3,Math.round(4*Math.max(1,KSP))));
+            g.fillStyle="rgba(255,90,80,0.85)";
+            g.fillRect((KX-1)|0,(kill.y-4)|0,Math.max(2,Math.round(3*Math.max(1,KSP))),Math.max(1,Math.round(2*Math.max(1,KSP))));
+          }
+          // the stain, and it dries over the next few minutes rather than vanishing
+          var fade=Math.max(0,1-since/240000);
+          if(fade>0.02){
+            g.fillStyle="rgba(96,14,18,"+(0.80*fade).toFixed(3)+")";
+            g.fillRect((KX-2)|0,(kill.y-1)|0,Math.max(4,Math.round(6*Math.max(1,KSP))),Math.max(1,Math.round(1.4*Math.max(1,KSP))));
+            g.fillStyle="rgba(60,8,12,"+(0.55*fade).toFixed(3)+")";
+            g.fillRect((KX+2)|0,(kill.y)|0,Math.max(2,Math.round(3*Math.max(1,KSP))),Math.max(1,Math.round(K0_1())));
+          }
+        }
+        continue;                                                    // they are not drawn again
+      }
+      if(pastWalk) continue;                                           // they made it across; nothing to draw
       for(var wp3=-1;wp3<=1;wp3++){ var CX2=c2x+wp3*WW; if(CX2<-3||CX2>SW+3) continue;
         drawPerson(g, CX2, py, pc, sk, bob); }
     }
