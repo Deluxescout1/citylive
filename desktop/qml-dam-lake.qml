@@ -54,7 +54,12 @@ Item {
         City.NOWOVR = City.CLOCK = root.t0;
         City.setup('neon', { cw:4656, ch:2622, woff:root.woff, ww:2269, pxk:3, zoom:6,
                              taskbarWp:17, quality:'balanced', frameMs:125 });
-        City.FORCEAGE = root.age;
+        // the FINALE path: `death=flood apoc=0.55` pins curDeath and drives cityApoc, which is the
+        // other half of locked answer 1 and shares every stage with the disaster.
+        if (arg("apoc", "") !== "") {
+            City.FORCEAGE = { g:1, phase:"apoc", apoc: parseFloat(arg("apoc","0.5")), cy: 0.995 };
+            City.FORCEDEATH = arg("death", "flood");
+        } else City.FORCEAGE = root.age;
         // ⚠⚠ FORCEWX, NOT `City.weather.x = y`. draw() calls maybeFetchWeather() every frame, and in
         // QML that really fetches — so hand-set weather is overwritten by the live Norwich reading
         // within one frame and every render comes back showing whatever it is doing outside. A node
@@ -62,6 +67,7 @@ Item {
         // the hand-set values survive. That is exactly how this harness reported three identical
         // lakes for clear, rain and thunder while the node probe reported three different ones.
         City.FORCEWX = root.wx();
+        City.FORCEDIS = root.dis();
         root.ready = true;
         if (arg("diag", "0") === "1")
             root.err = "SW=" + City.SW + " SH=" + City.SH + " K=" + City.KSP
@@ -69,6 +75,14 @@ Item {
                      + " biome=" + (City.curBiome && City.curBiome.k)
                      + " cityG=" + City.cityG + " phase=" + City.cityPhase
                      + " FORCEAGE=" + City.FORCEAGE + " riverX=" + City.riverX;
+    }
+    // FORCEDIS drives the dam break: `dis=flood cat=5 disf=0.52`. xf is pinned to the real river so
+    // the forced breach lands where the anchored one would — a harness that puts the event somewhere
+    // the real code never would is a harness that tests a picture nobody will see.
+    function dis() {
+        if (arg("dis", "") === "") return null;
+        return { type: arg("dis", "flood"), intensity: parseInt(arg("cat", "5"), 10),
+                 xf: City.riverX, w: 34, seed: 123, f: parseFloat(arg("disf", "0.5")) };
     }
     function wx() {
         var t = parseInt(arg("temp", "62"), 10), w = parseInt(arg("wind", "6"), 10);
@@ -90,7 +104,7 @@ Item {
         onPaint: {
             if (!root.ready) return;
             try {
-                City.FORCEWX = root.wx();          // re-asserted every paint: see the note in prime()
+                City.FORCEWX = root.wx(); City.FORCEDIS = root.dis();   // re-asserted every paint
                 if (root.arg("onepass", "0") === "1") City.draw(getContext("2d"));
                 else City.draw(getContext("2d"), "bg");
                 if (root.arg("diag", "0") === "1")
@@ -113,7 +127,7 @@ Item {
         antialiasing: false
         onPaint: {
             if (!root.ready || !root.liveOn) return;
-            try { City.FORCEWX = root.wx(); City.draw(getContext("2d"), "live"); }
+            try { City.FORCEWX = root.wx(); City.FORCEDIS = root.dis(); City.draw(getContext("2d"), "live"); }
             catch (e) { root.err = "LIVE THREW: " + e + " | " + (e.stack || "").split("\n").slice(0,4).join(" << "); }
         }
     }

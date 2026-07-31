@@ -17317,6 +17317,22 @@ function disasterInfo(idx){
     var arSt=ashRiftState();
     if(arSt) cx=Math.round(arSt.wx);
   }
+  // …AND ON THE GREAT DAM, A FLOOD IS THE DAM FAILING. Nick: "when a Flood happens on this Map it
+  // needs to be because the Damn Sprung a leak and collapses destroying the whole town." A coastal
+  // storm surge rolling in from the side is nonsense in a gorge under a dam, and the existing
+  // `drawFlood` is exactly that. Re-anchored to the OUTLET — where the dam already discharges, where
+  // the river already runs, and directly above the town — the destruction comes out right for free,
+  // because the per-block ruin footprint is placed from `cx`/`w` and now sits under the breach.
+  // A CAT-5 takes the whole town rather than a district: the wall is a mile of concrete, not a block.
+  // ⚠⚠ ZERO `r()` CALLS, and it must stay that way — see the note above. Every field of this
+  // descriptor comes off one ordered stream, so consuming a single roll here would silently re-roll
+  // `win`, `w`, `seed` and `ruin` for EVERY disaster on EVERY one of the twenty lands.
+  if(type==="flood" && curBiome && curBiome.dam){
+    cx=Math.round(damBreachWX());
+    var dSev=damBreachSev(intensity);
+    if(dSev===2) w=Math.round(WW*0.62);            // the wall goes: the whole town is in the flood path
+    else if(dSev===1) w=Math.round(WW*0.26);       // a partial breach takes the near half of it
+  }
   return { idx:idx, type:type, intensity:intensity, t0:t0, x:cx, w:w, seed:seed, win:win, ruin:ruin, open:open };
 }
 // the disaster active RIGHT NOW (with phase fields), or null
@@ -18165,6 +18181,10 @@ function drawTornado(g,cd,L,now){
   g.fillStyle="rgba(120,110,100,"+(0.42*fade)+")"; g.fillRect((cx-widthK*1.4)|0,gy-3,(widthK*2.8)|0,3);   // dust skirt tracks the funnel
 }
 function drawFlood(g,cd,L,now){
+  // ⚠ NOT A STORM SURGE HERE. Under a dam the water does not roll in from the coast side — it comes
+  // through the wall, at the breach, and down the gorge onto the town. Same event, same footprint,
+  // same per-block ruin; a different origin and a different shape.
+  if(curBiome&&curBiome.dam){ drawDamFlood(g,cd,L,now); return; }
   var cx=disX(cd.x), f=cd.f, i=cd.intensity; if(f>=0.50) return;
   var walled=cityHasBuild("seawall"), blunt=walled?0.5:1;                    // a voted SEAWALL halves the surge — the flood you can watch it hold back
   var gy=HORIZON, dir=(cd.seed&1)?1:-1, waveH=(20+i*8)*blunt, zL=(cx-cd.w*1.4)|0, zR=(cx+cd.w*1.4)|0;
@@ -18188,6 +18208,54 @@ function drawFlood(g,cd,L,now){
   g.fillStyle="rgba(200,225,245,0.5)"; for(var sx=zL;sx<zR;sx+=3){ var sy=gy-level+Math.sin(sx*0.3+now*0.006)*1.5; g.fillRect(sx,sy|0,2,1); }
   for(var d=0;d<4+i;d++){ var dx=zL+((d*30+now*0.02)%Math.max(1,(zR-zL))), dy=gy-level+Math.sin(dx*0.3+now*0.006)*1.5;
     g.fillStyle=["#7a5a3a","#4a4a52","#c8b48a"][d%3]; g.fillRect(dx|0,(dy-1)|0,3,2); }
+}
+// THE DAM'S FLOOD. The wave does not approach from one side: it comes out of the breach and runs
+// BOTH WAYS down the gorge, which is why a CAT-5 takes the whole town instead of a district.
+// Timed off the same six stages the wall is failing through, so the water arrives when the wall goes
+// and not a moment before — the two halves of this set-piece are drawn by different functions in
+// different passes and the ONLY thing keeping them honest is that both read damBreachState().
+function drawDamFlood(g,cd,L,now){
+  var st=damBreachState(now); if(!st) return;
+  if(st.sev===0) return;                                  // they held it: no wave, and that is the point
+  if(st.stage<4) return;                                  // nothing arrives before the wall lets go
+  var day=L>0.5, K=Math.max(1,KSP), gy=HORIZON, cx=disX(st.x!=null?st.x:cd.x);
+  var W=damWater(L), FOAMC=W.foam;
+  var reach=Math.round((cd.w?cd.w:Math.round(WW*0.5))*0.5)+Math.round(30*K);
+  var run=Math.max(0,Math.min(1,(st.f-0.50)/0.16));       // how far the front has travelled
+  var deep=Math.max(0,Math.min(1,(st.f-0.54)/0.14));      // how deep it is where it has already been
+  var fall=(st.f>0.74)?Math.max(0,Math.min(1,(st.f-0.74)/0.22)):0;   // then it drains away down the valley
+  var lvl=Math.round((10+26*deep)*(1-fall*0.86)*Math.max(1,KSP*0.6));
+  var half=Math.round(reach*run);
+  var muddy=mixc(day?[92,78,58]:[16,15,14], W.water, 0.34);          // a dam break is BROWN: it is carrying the valley
+  for(var w=-1;w<=1;w++){
+    var c0=cx+w*WW, a=Math.max(0,c0-half), b=Math.min(SW,c0+half);
+    if(b<=a) continue;
+    for(var y=0;y<lvl;y++){
+      var yy=gy-y;
+      g.fillStyle=rgba(muddy,0.80-0.24*(y/Math.max(1,lvl)));
+      g.fillRect(a|0,yy,(b-a)|0,1);
+    }
+    // the FRONT: a foaming wall at each end, which is the part that reads as moving
+    if(run<1&&lvl>2){
+      for(var e=0;e<2;e++){
+        var ex=e?b:a, lean=Math.round(Math.sin(now*0.008+e)*1.5*K);
+        g.fillStyle=rgba(FOAMC,0.9);
+        g.fillRect((ex+lean-(e?2:0))|0,(gy-lvl)|0,Math.max(2,Math.round(2.4*K)),lvl);
+        g.fillStyle=rgba(FOAMC,0.55);
+        g.fillRect((ex+lean-(e?Math.round(6*K):0))|0,(gy-lvl-Math.round(2*K))|0,Math.round(6*K),Math.round(3*K));
+      }
+    }
+    // debris riding it — what is left of the town going past
+    for(var d=0;d<6;d++){
+      var dh=((d*2654435761+((cd.seed||7)|0))>>>0);
+      var dx=a+(((dh>>>5)+Math.round(now*0.02))%Math.max(1,(b-a)));
+      var dy=gy-lvl+Math.round(Math.sin(dx*0.2+now*0.005)*1.2);
+      g.fillStyle=rgba(day?[74,58,42]:[14,13,12],0.9);
+      g.fillRect(dx|0,dy|0,Math.round((2+(dh%4))*K),Math.max(1,Math.round(K*1.2)));
+    }
+    g.fillStyle=rgba(FOAMC,0.42);                                     // the surface, torn up
+    for(var sx=a;sx<b;sx+=Math.round(5*K)) g.fillRect(sx|0,(gy-lvl+Math.sin(sx*0.3+now*0.006)*1.5)|0,Math.round(3*K),1);
+  }
 }
 // one walker: team>0 = enemy invader (red optic), team<0 = city defender (blue optic). returns its top-y.
 // A towering bipedal WAR MECH: reverse-knee legs (one mid-stride), a broad paneled chassis with a
@@ -20892,9 +20960,23 @@ function damLake(){
   var crest=Math.max(16, HORIZON-Math.round(SH*0.33));
   var resTop=Math.max(4, crest-Math.round(SH*(drawn?0.10:0.17)));
   var ring=resTop+Math.round((crest-resTop)*0.52);
+  var surf=drawn?ring:resTop;
+  // ⚠⚠ THE BREACH DRAINS THE POOL THROUGH THIS ONE LINE, and that is the whole point of having one
+  // waterline. The far town's quay, the log boom, the jetties, the moored boats, the ferry, the
+  // dinghies, the ducks, the reflections and the weather surface all read `surf` from here — so a
+  // dam that lets go empties the lake for every one of them at once, with no per-consumer edit and
+  // no chance of a boat left floating in mid-air over an exposed bed. (The far TOWN deliberately
+  // does not follow it: it is built at the full-pool shore, `resTop`, and is left stranded — which
+  // is the bug I fixed this morning and is now exactly the behaviour a drained reservoir wants.)
+  var br=damBreachState(FRAME_NOW||0), dr=br?br.drain:0;
+  if(dr>0){
+    var bed=crest-Math.max(2,Math.round((crest-resTop)*0.12));   // …down to the river left on the bed
+    surf=Math.round(surf+(bed-surf)*dr);
+  }
   return { crest:crest, resTop:resTop, ring:ring, drawn:drawn,
-           surf:(drawn?ring:resTop),          // the waterline: the top of the open water
-           deep:crest };                      // where the water meets the dam — the NEAR edge of the lake
+           surf:surf,                          // the waterline: the top of the open water
+           drain:dr, breach:br,
+           deep:crest };                       // where the water meets the dam — the NEAR edge of the lake
 }
 // ⚠⚠ AND ONE SOURCE FOR THE WATER'S COLOUR, for the same reason. Nick: "make sure the water in the
 // lake also reacts to the weather." It did not react at all — `WATER` was a fixed pair of literals,
@@ -20925,6 +21007,89 @@ function damWater(L){
   var lit=mixc(w, day?[236,246,255]:[104,132,186], 0.22+0.26*glass*(1-0.55*cloudK));
   return { water:w, lit:lit, foam:day?[246,250,253]:[158,176,204],
            chop:chop, glass:glass, wind:wind, cloudK:cloudK, storm:storm, wet:wet, fog:!!fx.fog };
+}
+// ================================================================================================
+// THE DAM BREAK — "when a Flood happens on this Map it needs to be because the Damn Sprung a leak
+// and collapses destroying the whole town" (Nick).
+// FOUR LOCKED ANSWERS: (1) BOTH floods — the transient disaster AND the `curDeath==="flood"` finale;
+// on this land neither may ever be a coastal storm surge. (2) The leak is always the warning but the
+// collapse is not certain: CAT 1-2 the crews hold it, CAT 3-4 a partial breach, CAT 5 the wall goes
+// (the finale is always total). (3) The breach and the emptied lake are PERMANENT for the rest of
+// that life. (4) A long watchable build in six stages.
+//
+// ⚠ THE BREACH IS AT THE OUTLET, and that is not decoration: the dam already discharges into the
+// real river, the river already runs down through the town, and the town is already in the gorge
+// below it. Tearing the hole where the water is already going means the flood arrives where the
+// geography says it must, and the existing per-block ruin footprint sits under it for free — exactly
+// how anchoring the eruption to the real cone made the volcano's destruction come out right.
+function damBreachWX(){ return (hasRiver&&riverX>0) ? riverX*WW : WW*0.5; }
+// CAT -> what happens. Purely a function of intensity so all three monitors agree without sharing a
+// thing, and so a near miss is a real, watchable outcome rather than a roll nobody can see.
+function damBreachSev(intensity){ return (intensity>=5)?2:((intensity>=3)?1:0); }   // 0 held · 1 partial · 2 total
+// THE SIX STAGES, as fractions of the event. Everything downstream reads these rather than raw `f`,
+// so the staging can be retuned in one place.
+function damBreachStage(f,sev){
+  if(f<0.14) return 1;                    // a dark weep stains the face
+  if(f<0.30) return 2;                    // jets punch through, spray fans out
+  if(f<0.46) return 3;                    // cracks spider, the crest sags
+  if(sev===0) return (f<0.70)?7:8;        // HELD: the crews get on it, and it holds — 7=fighting it, 8=over
+  if(f<0.56) return 4;                    // THE BREACH — the wall lets go
+  if(f<0.76) return 5;                    // the wave takes the town
+  return 6;                               // the pool drains, the bed shows
+}
+// Has this dam ALREADY failed, earlier in this life? Asked of history exactly the way `ruinZones` and
+// `volcanoErupted` ask it — a scan of this life's finished slots, pure f(clock), nothing stored.
+// ⚠ Cached per slot: this walks up to RUIN_MAXSCAN slots and is called every frame by the biome.
+var _dBreach={key:-1,v:null};
+function damBrokenAlready(now){
+  if(!curBiome||!curBiome.dam) return null;
+  if(FORCEDIS) return null;                       // the harness's forced event is the only history there is
+  var base=Math.floor(now/DIS_SLOT);
+  if(_dBreach.key===base) return _dBreach.v;
+  var lifeStart=GROW_EPOCH - GROW_OFFSET_DAYS*86400000 - WORLD_SHIFT + lifeIndexOf(now)*GROW_CYCLE;
+  var firstSlot=Math.max(Math.ceil(lifeStart/DIS_SLOT), base-RUIN_MAXSCAN), found=null;
+  for(var idx=firstSlot; idx<=base; idx++){
+    var di=disasterInfo(idx); if(!di||di.type!=="flood") continue;
+    var sev=damBreachSev(di.intensity); if(sev===0) continue;             // a leak they held leaves no hole
+    var end=idx*DIS_SLOT+di.t0+DIS_DUR*0.56;                              // …from the moment the wall lets go
+    if(end<=now){ found={sev:sev, x:di.x, at:end}; break; }               // the FIRST one: it cannot break twice
+  }
+  _dBreach.key=base; _dBreach.v=found;
+  return found;
+}
+// The whole state of the dam right now: what is happening to it, and what has already happened to it.
+// `notch` is how much of the wall is gone (0..1) and `drain` how empty the pool is — both of which
+// only ever go UP within a life, which is what makes the aftermath permanent.
+// ⚠ MEMOISED PER CLOCK. `damLake()` calls this, and damLake is called by the surface, the shore, the
+// live lake and the bed — several times a frame — so without this each frame re-ran `disasterNow`
+// (which builds an rng) once per caller. Same fix the airshow ticker needed for the same reason.
+var _dbState={t:-1,v:null};
+function damBreachState(now){
+  if(!curBiome||!curBiome.dam) return null;
+  if(_dbState.t===now) return _dbState.v;
+  var _r=damBreachStateRaw(now); _dbState.t=now; _dbState.v=_r; return _r;
+}
+function damBreachStateRaw(now){
+  var past=damBrokenAlready(now), st=null;
+  // (a) THE FINALE. `curDeath==="flood"` on this land is not a rising sea — it is this dam going.
+  if(cityPhase==="apoc"&&curDeath==="flood"){
+    st={ f:Math.max(0,Math.min(1,cityApoc)), sev:2, x:Math.round(damBreachWX()), finale:true };
+  } else {
+    var d=disasterNow(now);
+    if(d&&d.type==="flood") st={ f:d.f, sev:damBreachSev(d.intensity), x:d.x, finale:false };
+  }
+  if(st){
+    st.stage=damBreachStage(st.f,st.sev);
+    var open=(st.sev===0)?0:Math.max(0,Math.min(1,(st.f-0.46)/0.10))*(st.sev===2?1:0.45);
+    st.notch=open;
+    st.drain=(st.sev===0)?Math.max(0,Math.min(1,(st.f-0.20)/0.5))*0.18       // a held leak still lets a lot go
+                         :Math.max(0,Math.min(1,(st.f-0.52)/0.26))*(st.sev===2?1:0.55);
+    if(past){ st.notch=Math.max(st.notch,past.sev===2?1:0.45); st.drain=Math.max(st.drain,past.sev===2?1:0.55); }
+    return st;
+  }
+  if(past) return { f:1, sev:past.sev, x:past.x, stage:9, notch:(past.sev===2?1:0.45),
+                    drain:(past.sev===2?1:0.55), finale:false, over:true };   // 9 = the aftermath it lives in now
+  return null;
 }
 function drawGreatDam(g,L,now,nd){
   var day=L>0.5, B=curBiome, K=Math.max(1,KSP), skc=biomeSkc(day);
@@ -20968,22 +21133,24 @@ function drawGreatDam(g,L,now,nd){
       g.fillStyle=hcTS; g.fillRect(hx,hy,1,Math.max(1,Math.round(K*1.5)));
     }
   }
-  if(drawnDown){
-    // THE DRY POOL: the water is far down and the old shoreline is exposed as a bathtub ring
-    var ring=LK.ring;
-    g.fillStyle=css(mixc(B.ground,[224,214,190],day?0.42:0.05)); g.fillRect(0,resTop,SW,ring-resTop);
-    g.fillStyle=css(mixc(B.ground,[255,250,236],day?0.62:0.10)); g.fillRect(0,ring-Math.max(1,Math.round(K)),SW,Math.max(1,Math.round(K*1.2)));
-    g.fillStyle=wS;  g.fillRect(0,ring,SW,crest-ring);
-    g.fillStyle=wlS; g.fillRect(0,ring,SW,Math.max(1,Math.round(K*1.2)));
-    drawDamSurface(g,L,now,ring,crest,WX,K);       // ⚠ THE DRY POOL HAS WATER TOO, and it is a separate
-                                                   // fill from the brim-full one — the exact branch that
-                                                   // stranded the far town earlier today. Same weather.
-  } else {
-    g.fillStyle=wS;  g.fillRect(0,resTop,SW,crest-resTop);                       // brim-full
-    g.fillStyle=rgba(WATL,0.55);                                                 // it deepens toward the dam
-    g.fillRect(0,crest-Math.round((crest-resTop)*0.34),SW,Math.round((crest-resTop)*0.34));
-    g.fillStyle=wlS; g.fillRect(0,resTop,SW,Math.max(1,Math.round(K*1.6)));      // the far waterline catches the sky
-    drawDamSurface(g,L,now,resTop,crest,WX,K);                                   // …and what the weather is doing to it
+  // ⚠⚠ ONE PATH FOR AN EXPOSED BED. There used to be a `drawnDown` branch and a brim-full branch, and
+  // this morning the DRY POOL branch was the one that stranded the far town — a second, near-identical
+  // copy of the same picture is exactly where that class of bug lives. A drawn-down VARIANT and a pool
+  // emptied by a BREACH are the same thing seen for two different reasons, so they are now the same
+  // code: whatever `damLake()` says the waterline is, everything above it is exposed bed.
+  var surfY=LK.surf;
+  if(surfY>resTop+1){
+    g.fillStyle=css(mixc(B.ground,[224,214,190],day?0.42:0.05)); g.fillRect(0,resTop,SW,surfY-resTop);
+    g.fillStyle=css(mixc(B.ground,[255,250,236],day?0.62:0.10));                 // the old shoreline, left as a bathtub ring
+    g.fillRect(0,resTop,SW,Math.max(1,Math.round(K*1.2)));
+    drawDamBed(g,L,now,resTop,surfY,LK,K,day);                                   // …and what the water left behind on it
+  }
+  if(crest-surfY>1){
+    g.fillStyle=wS;  g.fillRect(0,surfY,SW,crest-surfY);
+    if(surfY<=resTop+1){ g.fillStyle=rgba(WATL,0.55);                            // a full pool deepens toward the dam
+      g.fillRect(0,crest-Math.round((crest-resTop)*0.34),SW,Math.round((crest-resTop)*0.34)); }
+    g.fillStyle=wlS; g.fillRect(0,surfY,SW,Math.max(1,Math.round(K*(surfY>resTop+1?1.2:1.6))));   // the waterline catches the sky
+    drawDamSurface(g,L,now,surfY,crest,WX,K);                                    // …and what the weather is doing to it
   }
 
   drawDamShore(g,L,now,LK);            // the far lakefront town, the log boom and what is moored to it
@@ -21149,6 +21316,9 @@ function drawGreatDam(g,L,now,nd){
       g.fillRect(lx-1,crest-lh-1,Math.round(K*1.6),Math.round(K*1.6));
       g.globalCompositeOperation="source-over"; }
   }
+  // THE DAM FAILING, painted over the finished wall — see drawDamFail for the six stages.
+  drawDamFail(g,L,now,damBreachState(now),crest,faceBot,faceH,K,day,CONC,CONCL,CONCD,FOAM,ROCK);
+
   // ---- 5. THE STILLING BASIN at the foot: churned white water where the fall lands ----
   // ⚠⚠ THE STILLING BASIN WAS A PALE BAND ACROSS THE WHOLE WIDTH, at exactly the height the town
   // stands on. Nick: "there is this weird gap between the town and the Damn." He is right — the town
@@ -21258,6 +21428,141 @@ function drawDamSurface(g,L,now,top,bot,WX,K){
     }
   }
 }
+// WHAT THE WATER LEFT BEHIND. Drawn on the exposed bed whichever reason it is exposed — the DRY POOL
+// variant or a pool a breach has emptied. The river is back in the channel the reservoir drowned, and
+// it runs to the breach, because that is now the lowest point in the valley.
+function drawDamBed(g,L,now,top,bot,LK,K,day){
+  var h=Math.max(2,bot-top); if(h<3) return;
+  var bx=Math.round(damBreachWX()-WOFF);
+  var rc=rgba(day?[86,104,120]:[14,18,26],0.85), sc=rgba(day?[196,188,168]:[24,26,30],0.5);
+  for(var y=0;y<h;y++){
+    var f=y/h;
+    var wig=Math.round(Math.sin((y+((WORLD_SEED%97)))*0.19)*7*K*(1-f*0.55));
+    var wdt=Math.max(1,Math.round((1.1+3.6*f)*K));
+    for(var w=-1;w<=1;w++){
+      var xx=bx+wig+w*WW; if(xx<-wdt||xx>SW+wdt) continue;
+      g.fillStyle=rc; g.fillRect(xx-(wdt>>1),top+y,wdt,1);
+    }
+  }
+  for(var sb=0;sb<3;sb++){                                              // silt terraces: old still-stands, faint
+    var sy=top+Math.round(h*(0.28+sb*0.24));
+    g.fillStyle=sc; g.fillRect(0,sy,SW,Math.max(1,Math.round(K*0.5)));
+  }
+  for(var st2=0;st2<9;st2++){                                            // stumps and boulders the pool had covered
+    var sh=((st2*2654435761+((WORLD_SEED*31)|0))>>>0);
+    var sx2=((sh%Math.max(1,WW))-WOFF)%WW; if(sx2<-6) sx2+=WW; if(sx2>SW+6) sx2-=WW;
+    var sy2=top+Math.round(((sh>>>9)%Math.max(1,h-1)));
+    g.fillStyle=rgba(day?[70,62,50]:[12,13,16],0.8);
+    g.fillRect(sx2|0,sy2,Math.max(1,Math.round(K*0.9)),Math.max(1,Math.round(K*1.3)));
+  }
+}
+// THE FACE, FAILING. Six stages, painted over the finished wall. The static half lives here in the
+// backdrop; the spray, the streaming water and the wave over the town are in drawDamLakeLive.
+function drawDamFail(g,L,now,st,crest,faceBot,faceH,K,day,CONC,CONCL,CONCD,FOAM,ROCK){
+  if(!st) return;
+  var WLIT=damWater(L).lit;                      // hoisted: the lip water, not one damWater() per column
+  var bwx=(st.x!=null?st.x:damBreachWX());
+  var leakY=crest+Math.round(faceH*0.46);                       // where it lets go: mid-height, as they do
+  for(var w=-1;w<=1;w++){
+    var cx=Math.round(bwx-WOFF+w*WW);
+    if(cx<-SW*0.6||cx>SW*1.6) continue;
+    // ---- 1. THE WEEP: a dark stain spreading down the face from a hairline. Nothing else yet.
+    if(st.stage>=1&&st.notch<1){
+      var stW=Math.max(2,Math.round((3+9*Math.min(1,st.f/0.3))*K));
+      g.fillStyle=rgba(CONCD,0.55);
+      g.fillRect(cx-(stW>>1),leakY,stW,faceBot-leakY);
+      g.fillStyle=rgba(day?[60,90,110]:[10,16,26],0.42);
+      g.fillRect(cx-(stW>>2),leakY,Math.max(1,stW>>1),faceBot-leakY);
+    }
+    // ---- 2. THE JETS: water punching clean through and fanning out. The first thing you can see
+    // from across the room, and the first thing that says this is not weather.
+    if(st.stage>=2&&st.notch<1){
+      var jN=(st.stage>=3?4:2), jt=Math.min(1,(st.f-0.12)/0.30);
+      for(var j=0;j<jN;j++){
+        var jy=leakY+Math.round((j-1.2)*3.2*K), jl=Math.round((7+16*jt)*K);
+        g.fillStyle=rgba(FOAM,0.85);
+        g.fillRect(cx-Math.round(1.5*K),jy,jl,Math.max(1,Math.round(K*0.9)));       // the jet
+        g.fillStyle=rgba(FOAM,0.42);
+        g.fillRect(cx+jl-Math.round(2*K),jy-Math.round(K),Math.round(5*K),Math.round(3*K));  // where it breaks up
+      }
+    }
+    // ---- 3. THE CRACKS, spidering out of the leak, and the crest starting to sag over it.
+    if(st.stage>=3&&st.notch<1){
+      var ck=Math.min(1,(st.f-0.28)/0.20);
+      g.fillStyle=rgba(CONCD,0.9);
+      for(var c2=0;c2<5;c2++){
+        var ch2=((c2*40503+((WORLD_SEED*7)|0))>>>0);
+        var cl=Math.round((10+26*ck)*K), dir=((ch2&1)?1:-1);
+        for(var s3=0;s3<cl;s3++){
+          var cxx=cx+dir*Math.round(s3*0.55)+Math.round(Math.sin(s3*0.5+c2)*1.5*K);
+          var cyy=leakY+Math.round((c2-2)*2.2*K)+Math.round(s3*((c2%2)?0.34:-0.26));
+          if(cyy<crest||cyy>faceBot) continue;
+          g.fillRect(cxx,cyy,1,Math.max(1,Math.round(K*0.6)));
+        }
+      }
+      var sagW=Math.round((16+22*ck)*K), sag=Math.round(ck*2.2*K);
+      g.fillStyle=css(CONCD); g.fillRect(cx-(sagW>>1),crest,sagW,sag+1);            // the crest dips over the wound
+    }
+    // ---- 4/5/6. THE BREACH. A ragged notch torn clean out of the wall, and everything the pool has
+    // left pouring through it. ⚠ The notch is filled with the GORGE behind the dam, not with a darker
+    // concrete: a dark hole in a near-black wall is not a hole, it is a smudge. It has to read as
+    // MISSING, which on this land means it has to be lighter than the mass it is missing from.
+    if(st.notch>0){
+      var nW=Math.round((26+64*st.notch)*K), nD=Math.round(faceH*(0.34+0.62*st.notch));
+      var nx0=cx-(nW>>1), nBot=Math.min(faceBot,crest+nD);
+      for(var nx=0;nx<nW;nx++){
+        var u=(nx/nW)*2-1;                                                          // a V, torn wider at the top
+        var d2=Math.round(nD*(1-u*u*0.72));
+        var px=nx0+nx; if(px<0||px>=SW) continue;
+        var jag=(((px+WOFF)*2654435761)>>>0)%Math.max(1,Math.round(2.5*K));
+        var yb=Math.min(nBot,crest+d2-jag);
+        g.fillStyle=css(mixc(ROCK,[0,0,0],day?0.30:0.55));                          // through to the gorge
+        g.fillRect(px,crest-Math.round(2*K),1,yb-crest+Math.round(2*K));
+        g.fillStyle=rgba(CONCL,0.5);                                                // torn edge catching the light
+        g.fillRect(px,yb-Math.max(1,Math.round(K*0.8)),1,Math.max(1,Math.round(K*0.8)));
+      }
+      // …and the torrent going through it. Bounded to the notch so it stays a SHAPE on the dark mass.
+      // …and the torrent going through it.
+      // ⚠⚠ PER COLUMN, NOT AS A BLOCK. The first version filled the notch with two solid rects at
+      // 0.92 alpha and it rendered as a white CINEMA SCREEN hung on the dam — no fall, no volume, and
+      // the single brightest object in the frame with a hard rectangular edge. That is this land's
+      // recorded failure verbatim ("the falls covered the whole face and killed the contrast — the
+      // bright thing must be a distinct SHAPE"). The outlet fifty lines up already solves this exact
+      // problem for this exact material: brightest mid-stream, falling off to the training walls,
+      // with streaming dashes so it reads as travelling. Same object, same treatment.
+      var flow=Math.max(0,1-st.drain*0.85);
+      if(flow>0.06){
+        var tW=Math.round(nW*0.72), t0=cx-(tW>>1);
+        for(var tx=0;tx<tW;tx++){
+          var pxx=t0+tx; if(pxx<0||pxx>=SW) continue;
+          var u3=(tx/tW)*2-1, edge=1-u3*u3;                      // a rounded stream, not a slab
+          if(edge<=0.04) continue;
+          g.fillStyle=rgba(WLIT,0.85*flow*edge);                 // the pool bending over the lip
+          g.fillRect(pxx,crest-Math.round(2*K),1,Math.round(3*K));
+          g.fillStyle=rgba(FOAM,(0.40+0.52*edge)*flow);
+          g.fillRect(pxx,crest,1,faceBot-crest+1);
+          if((((pxx+WOFF)*40503)>>>0)%3===0){                    // streaming texture, so it FALLS
+            g.fillStyle=rgba([255,255,255],0.55*flow*edge);
+            var so3=Math.round((now*0.07+((pxx*13)%53))%Math.max(4,faceH));
+            g.fillRect(pxx,crest+so3,1,Math.max(2,Math.round(faceH*0.16)));
+          }
+        }
+        g.fillStyle=rgba(FOAM,0.45*flow);                        // the plunge cloud where it lands
+        for(var pf=0;pf<Math.round(tW*0.5);pf++){
+          var pfx=t0+(((pf*37)%Math.max(1,tW)));
+          if(pfx<0||pfx>=SW) continue;
+          g.fillRect(pfx,faceBot-Math.round(5*K)-((pfx*7)%Math.round(4*K)),Math.max(1,Math.round(K)),Math.round(4*K));
+        }
+      }
+    }
+    // ---- HELD. The crews got on it: the jets stop, and what is left is a stain and a pale patch of
+    // fresh grout. A near miss has to be visibly a near miss, or it reads as nothing having happened.
+    if(st.sev===0&&st.stage>=8){
+      g.fillStyle=rgba(CONCL,0.55);
+      g.fillRect(cx-Math.round(7*K),leakY-Math.round(2*K),Math.round(14*K),Math.round(6*K));
+    }
+  }
+}
 function damTownFrac(){ return Math.max(0,Math.min(1,(cityG-0.22)/0.50)); }   // 0 at a hamlet, 1 by mid-life
 function drawDamShore(g,L,now,LK){
   var day=L>0.5, K=Math.max(1,KSP), skc=biomeSkc(day);
@@ -21328,6 +21633,10 @@ function drawDamShore(g,L,now,LK){
       }
     }
   }
+  // ⚠ AND NONE OF IT SURVIVES THE POOL. Locked answer 3: after a breach the boats, the ferry and the
+  // boom are gone for the rest of that life. Gated on the DRAIN rather than on the breach stage, so
+  // the lake empties and its furniture leaves together instead of a boom hanging over a dry bed.
+  if(LK.drain>0.45) return;
   // ---- THE LOG BOOM. The chained line of floats every dam keeps upstream of its gates to stop
   // debris reaching them. It is the one piece of lake furniture that is unmistakably part of a DAM,
   // and it gives the herons and the patrol launch something to belong to.
@@ -21380,6 +21689,7 @@ function drawDamShore(g,L,now,LK){
 function drawDamLakeLive(g,L,now,nd){
   var LK=damLake(); if(!LK) return;
   if(cityPhase==="apoc") return;
+  if(LK.drain>0.45) return;                    // the pool is going or gone — nothing is boating on it
   var day=L>0.5, K=Math.max(1,KSP), fx=wfx();
   var surf=LK.surf, deep=LK.deep, band=Math.max(6,deep-surf);
   var calm=!(fx.rain||fx.thunder||fx.snow)&&(weather.wind||5)<20;
