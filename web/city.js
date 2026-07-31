@@ -20958,6 +20958,8 @@ function drawTerraces(g,L,now,nd){
     PSH.push(row);
   }
   var panH=Math.max(2,Math.round(step*0.62));   // bright dominates, but the wall must still SEPARATE two pans
+  // how much depth each arc KEEPS at the bowl's rim, so the flanks still show steps
+  var edgeFan=Math.round(mountH*0.34);
   // ================================================================================================
   // ⚠⚠ THE HILL HAD NO DEPTH. Nick: "THE SLOPE AND HILL ARE AWEFUL LOOKING."
   // It was ONE silhouette — a single flat green mass with a line on top. The lands that read (alpine,
@@ -21031,9 +21033,10 @@ function drawTerraces(g,L,now,nd){
     for(var k=0;k<TERR_ARCS;k++){
       // ARC k: a U — lowest at the bowl's centre, lifting to the rim at its edges.
       var dk=amp+TERR_FRAC[k]*(mountH-amp);
-      var yk=Math.round(hy+dk*(1-uu));
+      var yk=Math.round(hy+dk*(1-uu)+TERR_FRAC[k]*edgeFan*uu);
+
       if(yk<hy+1||yk>=HORIZON) continue;
-      var nxt=Math.round(hy+(amp+TERR_FRAC[k+1]*(mountH-amp))*(1-uu));
+      var nxt=Math.round(hy+(amp+TERR_FRAC[k+1]*(mountH-amp))*(1-uu)+TERR_FRAC[k+1]*edgeFan*uu);
       // ⚠ THE LOWEST WALL RAN ALL THE WAY TO THE GROUND, which put a huge black mass across the
       // bottom of the bowl — the darkest thing in the frame, and it swallowed the valley floor. A
       // retaining wall is only ever as tall as the step it holds up; below the last one is the
@@ -21043,8 +21046,14 @@ function drawTerraces(g,L,now,nd){
         : Math.min(HORIZON,nxt);
       // BRIGHT dominates — most pans hold water; a couple carry crop so it is a farm, not a fountain
       var isW=((((bw.idx*31+k)*2654435761)>>>0)%6)!==0;   // ~5 pans in 6 hold water
-      g.fillStyle=isW?PSH[k][litq]:mS; g.fillRect(x,yk,1,Math.min(panH,Math.max(1,wallTo-yk)));
-      if(wallTo>yk+panH){ g.fillStyle=wS; g.fillRect(x,yk+panH,1,wallTo-(yk+panH)); }
+      // ⚠ THE PAN DEPTH WAS A GLOBAL NUMBER, so where the arcs fan apart at the bowl's flanks the
+      // pans became huge blue slabs and it read as a reservoir rather than as terraces. A paddy is
+      // narrow EVERYWHERE — the step spacing changes across the bowl, so the pan has to be a share
+      // of THIS step's own local height, and capped so it can never become a field of open water.
+      var localH=Math.max(1,wallTo-yk);
+      var pd2=Math.max(1,Math.min(localH-1<1?1:localH-1, Math.min(Math.round(localH*0.60), Math.round(7*K))));
+      g.fillStyle=isW?PSH[k][litq]:mS; g.fillRect(x,yk,1,pd2);
+      if(wallTo>yk+pd2){ g.fillStyle=wS; g.fillRect(x,yk+pd2,1,wallTo-(yk+pd2)); }
     }
   }
   // ---- THE STAIRS. A terrace system is useless without a way up it, and a DIAGONAL cutting across
@@ -21060,7 +21069,8 @@ function drawTerraces(g,L,now,nd){
     var shy=rimY+Math.round(Math.sin(swx*0.0042)*mountH*0.10+Math.sin(swx*0.0111+1.7)*mountH*0.05);
     var lean=((sh2>>>7)&1)?1:-1;                                   // stairs zig-zag rather than run straight
     for(var sk=0;sk<TERR_ARCS;sk++){
-      var sy=Math.round(shy+(amp+TERR_FRAC[sk]*(mountH-amp))*(1-Math.pow(Math.abs(sb.u),1.25)));
+      var suu=Math.pow(Math.abs(sb.u),1.25);
+      var sy=Math.round(shy+(amp+TERR_FRAC[sk]*(mountH-amp))*(1-suu)+TERR_FRAC[sk]*edgeFan*suu);
       var sxx=(sx+lean*sk*Math.max(1,Math.round(K*0.9)))|0;
       if(sxx<0||sxx>=SW||sy<=shy+1||sy>=HORIZON) continue;
       var rise=Math.max(2,Math.round((TERR_FRAC[Math.min(TERR_ARCS-1,sk+1)]-TERR_FRAC[sk])*(mountH-amp)));
@@ -21084,7 +21094,8 @@ function drawTerraces(g,L,now,nd){
     var vb=terrBowl(vwx); if(!vb.inb||Math.abs(vb.u)>0.72) continue;
     var vhy=rimY+Math.round(Math.sin(vwx*0.0042)*mountH*0.10+Math.sin(vwx*0.0111+1.7)*mountH*0.05);
     var vk=1+((vh>>>7)%(TERR_ARCS-2));
-    var vy=Math.round(vhy+(amp+TERR_FRAC[vk]*(mountH-amp))*(1-Math.pow(Math.abs(vb.u),1.25)));
+    var vuu=Math.pow(Math.abs(vb.u),1.25);
+    var vy=Math.round(vhy+(amp+TERR_FRAC[vk]*(mountH-amp))*(1-vuu)+TERR_FRAC[vk]*edgeFan*vuu);
     if(vy<=vhy+2||vy>=HORIZON-1) continue;
     // a hut: a pale wall and a steep dark roof. Two rects, and it is unmistakably a building.
     var hw=Math.max(2,Math.round(2.4*K)), hh=Math.max(2,Math.round(2.2*K));
@@ -21108,7 +21119,8 @@ function drawTerraces(g,L,now,nd){
     var wb=terrBowl(wwx); if(!wb.inb||Math.abs(wb.u)>0.86) continue;
     var whyy=rimY+Math.round(Math.sin(wwx*0.0042)*mountH*0.10+Math.sin(wwx*0.0111+1.7)*mountH*0.05);
     var wk2=1+((wh2>>>5)%(TERR_ARCS-1));
-    var wy2=Math.round(whyy+(amp+TERR_FRAC[wk2]*(mountH-amp))*(1-Math.pow(Math.abs(wb.u),1.25)));
+    var wuu=Math.pow(Math.abs(wb.u),1.25);
+    var wy2=Math.round(whyy+(amp+TERR_FRAC[wk2]*(mountH-amp))*(1-wuu)+TERR_FRAC[wk2]*edgeFan*wuu);
     if(wy2<=whyy+2||wy2>=HORIZON-1) continue;
     if(((wh2>>>17)%4)===0){
       var bw2=Math.max(2,Math.round(2.6*K));                       // a water buffalo standing in the pan
