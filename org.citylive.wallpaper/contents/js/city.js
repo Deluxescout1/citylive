@@ -21009,6 +21009,37 @@ function drawTerraces(g,L,now,nd){
       g.fillStyle=roofC;  g.fillRect((vx+hw)|0,vy-hh-Math.max(1,Math.round(K*0.6)),hw+2,Math.max(1,Math.round(K*1.1)));
     }
   }
+  // ---- PEOPLE AND BUFFALO IN THE PANS. This is the answer to "I don't know what I'm looking at",
+  // and it is worth more than any amount of surface detail: a 3px person standing in a terrace tells
+  // you instantly that the terrace is a FIELD and not a shelf, and that the mountain is a mountain
+  // and not a wall. Scale references, not texture — the exact inverse of attempt 1's mistake.
+  var wkC=["#d8d4c4","#8a9ac0","#c07a5a","#6a8a5a"];
+  for(var w=0;w<16;w++){
+    var wh2=((w*2654435761+((WORLD_SEED*41)|0))>>>0); wh2^=wh2>>>13;
+    var wwx=wh2%Math.max(1,WW), wx2=wwx-WOFF;
+    if(wx2<-10) wx2+=WW; if(wx2>SW+10) wx2-=WW;
+    if(wx2<1||wx2>=SW-1) continue;
+    var wb=terrBowl(wwx); if(!wb.inb||Math.abs(wb.u)>0.86) continue;
+    var whyy=rimY+Math.round(Math.sin(wwx*0.0042)*mountH*0.10+Math.sin(wwx*0.0111+1.7)*mountH*0.05);
+    var wk2=1+((wh2>>>5)%(TERR_ARCS-1));
+    var wy2=Math.round(whyy+(amp+TERR_FRAC[wk2]*(mountH-amp))*(1-wb.u*wb.u));
+    if(wy2<=whyy+2||wy2>=HORIZON-1) continue;
+    if(((wh2>>>17)%4)===0){
+      var bw2=Math.max(2,Math.round(2.6*K));                       // a water buffalo standing in the pan
+      g.fillStyle=day?"#3e3e44":"#131316";
+      g.fillRect(wx2|0,wy2-Math.max(1,Math.round(K*1.2)),bw2,Math.max(1,Math.round(K*1.2)));
+      g.fillRect((wx2+bw2)|0,wy2-Math.max(2,Math.round(K*1.8)),Math.max(1,Math.round(K*0.9)),Math.max(1,Math.round(K*0.9)));
+    } else {
+      var bent=((Math.floor(now/1600)+w)&1);                       // somebody working it
+      g.fillStyle=wkC[wh2%4];
+      if(bent) g.fillRect(wx2|0,wy2-Math.max(1,Math.round(K*1.1)),Math.max(2,Math.round(K*1.4)),Math.max(1,Math.round(K*1.1)));
+      else {
+        g.fillRect(wx2|0,wy2-Math.max(2,Math.round(K*2.2)),Math.max(1,Math.round(K*1.1)),Math.max(2,Math.round(K*2.2)));
+        g.fillStyle="#d8c8a0";                                     // a conical sun hat: reads even at 1px
+        g.fillRect((wx2-1)|0,wy2-Math.max(3,Math.round(K*2.8)),Math.max(2,Math.round(K*1.8)),Math.max(1,Math.round(K*0.6)));
+      }
+    }
+  }
   // trees breaking the rim line, so the silhouette has a scale too
   for(var t=0;t<SW;t+=Math.max(5,Math.round(7*K))){
     var th=(((t+WOFF)*40503)>>>0);
