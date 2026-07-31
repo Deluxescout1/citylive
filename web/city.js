@@ -3037,6 +3037,7 @@ var ROAD_H=43;         // asphalt depth: 2 car lanes · the tramway reservation 
 // which keeps every one of the ~20 sites that read `HORIZON+LANE[i].o` correct without touching them
 // (the parades, the police chases, the ambulances, the casualty tyre tracks, LANE[(p*2)%LANE.length]).
 var LANE_BASE=[2,7,34,39];
+var DAM_KERB_F=0, DAM_KERB_N=0;   // the far and near kerb lips: where a crossing starts and ends
 // The reserved tramway, between the two pairs of traffic lanes. TRAM_BASE is each track's vehicle
 // baseline (drawTram puts its bogies at ey+2, so the rails hang off these); RESV_* bound the
 // reservation the two of them sit in.
@@ -4629,6 +4630,9 @@ function setup(scene,opts){
   // `HORIZON+LANE[i].o` need no edit; it is simply no longer a constant, because the pavement above
   // it scales with the screen.
   for(var _ln=0;_ln<LANE.length;_ln++) LANE[_ln].o=WALK_F+LANE_BASE[_ln];
+  // the two kerb lines a crossing runs between — the lip of each pavement, not a literal
+  DAM_KERB_F=HORIZON+Math.max(1,WALK_F-2);
+  DAM_KERB_N=ROAD_BOT+Math.max(2,Math.min(WALK_N-1,Math.round(3*Math.max(1,KSP))));
   buildWorld(_li0);
   if(!NOFETCH){                  // NOFETCH: headless/almanac callers (Control Center, KDE config page) set this
     maybeFetchWeather();          // seed the shared 10-min window on boot (draw() keeps it fresh thereafter)
@@ -35965,7 +35969,15 @@ function draw(g,pass){
         // that it stands FORWARD of everyone else, right on the lip of the road. HORIZON+2 is the kerb
         // strip: past the furniture line, above the first lane (LANE[0].o is 5), and drawn after the
         // crowd so it sits in front of it.
-        var wy=wgp.up>0?HORIZON+2:HORIZON+21;                                // waiting on whichever kerb they set off from
+        // ⚠⚠ HORIZON+2 AND HORIZON+21 WERE PRE-SIDEWALK OFFSETS. Nick: "make sure people are still
+        // able to walk across the cross walks, they seem to disappear… they need to walk on top of
+        // it." Both are dead: HORIZON+2 is now the middle of the far PAVEMENT, and HORIZON+21 is the
+        // middle of the CARRIAGEWAY — so the far queue stood on the footway and the near queue stood
+        // in a traffic lane, and anyone crossing walked into the road and stopped there.
+        // THE THIRD TIME THIS EXACT FAULT HAS BEEN FOUND: widening the street band silently relocated
+        // every raw offset measured from HORIZON. Lane paint, then horses and off-roaders, now the
+        // crossings. Anything at ground level that was authored before the pavements must be checked.
+        var wy=wgp.up>0?DAM_KERB_F:DAM_KERB_N;                               // waiting on whichever kerb they set off from
         for(var ww2=-1;ww2<=1;ww2++){ var WX=cw2.x-WOFF+wgp.lo+ww2*WW; if(WX<-3||WX>SW+3) continue;
           drawPerson(g,WX,wy,wgp.pc,wgp.sk,-1); }
       }
@@ -35985,7 +35997,9 @@ function draw(g,pass){
       var wt=tt-9000-off; if(wt<0||wt>1800) continue;
       // ⚠ The two ends must be the SAME pixels the queue waited on, or a walker jumps backwards off
       // the kerb the instant the light changes.
-      var prog=wt/1800, py=upDir>0?lerp(HORIZON+2,HORIZON+21,prog):lerp(HORIZON+21,HORIZON+2,prog);
+      // …and the walk itself spans kerb to kerb, so they arrive on the far pavement instead of
+      // stopping in lane two.
+      var prog=wt/1800, py=upDir>0?lerp(DAM_KERB_F,DAM_KERB_N,prog):lerp(DAM_KERB_N,DAM_KERB_F,prog);
       var bob=(((prog*8)|0)&1), c2x=cw2.x-WOFF+lo;
       for(var wp3=-1;wp3<=1;wp3++){ var CX2=c2x+wp3*WW; if(CX2<-3||CX2>SW+3) continue;
         drawPerson(g, CX2, py, pc, sk, bob); }
