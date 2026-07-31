@@ -4313,7 +4313,7 @@ function cwGroup(cw,cyc,hour){
   // JAYWALKS — steps out mid-cycle while the traffic is still running. Most of them make it; the
   // ones who do not are the ones Nick wants to see.
   for(var p=0;p<n;p++) out.push({ off:150+rr()*500, up:rr()<0.5?1:-1, lo:((rr()*7)|0)-3,
-    jay: rr()<0.17,
+    jay: rr()<JAY_P,
     pc:PEDC[(cw.seed+p*5)%PEDC.length], sk:SKINC[(cw.seed+p)%SKINC.length] });
   return out;
 }
@@ -4793,6 +4793,7 @@ function buildWorld(li){
   POPK=(((li*2654435761+4441)>>>0)%1000)/1000;                 // relative bigness of this city (rush-jam factor)
   var mg=rng((seed+71)>>>0);
   mtsCache=null; gorgeCache=null; duneCache=null; karstCache=null; damCache=null; caveCache=null; savCache=null; plateauCache=null;   // new life → new silhouette
+  crossGen++; crossLaneCache=null;       // …and last life's road deaths do not carry into this one
   bioTrees=null;
   // The four height-field biomes build the same two ridges; the biome's amp/base scale them, and its
   // flat/steep/snow decide how they're cut and coloured at draw time.
@@ -36423,6 +36424,287 @@ function drawDoomHud(g,ap,now,early,late){
 // The skyline has per-cataclysm destruction, but the asphalt used to be repainted pristine beneath it.
 // Shatter the road in the same world-space as the catastrophe so damage advances continuously across
 // multi-monitor desktops. This is deterministic and cheap: only the visible road is sampled.
+// ================================================================================================
+// RUN OVER, AND THE MARK STAYS. Nick: "when people get hit by cars or trains or whatever I want the
+// blood to remain there for a while — and it can happen more frequently — regardless of the city speed
+// you need to be able to see it."
+//
+// ⚠⚠ THE OLD BUILD'S STAIN LASTED UNDER THREE SECONDS, and the reason is the best finding here.
+// The commit that added it says "the window now stays open long enough for the mark to dry", and the
+// guard it widened is `if(wt<0||wt>90000) continue;` — but `wt` is derived from `tt=(now+ph)%12000`,
+// so wt CANNOT EXCEED 12000 and the 90000 branch has never once been reached. The fade underneath it
+// runs over 240000 ms and never gets past 0.96 before the cycle rolls over and the stain vanishes
+// outright. 🔑 A GATE WIDENED PAST THE RANGE OF THE VALUE IT TESTS IS NOT A GATE — and it looked
+// exactly like a fix for the reported bug, which is why it survived.
+//
+// Two more faults in the same block, which together meant the feature barely existed:
+//   · THERE WERE TWO UNRELATED JAYWALKERS. The visible one (an 18% runner) is gated on `clear` — no car
+//     within 26 px — so it is BY CONSTRUCTION the one that cannot be hit. The one that can be hit is a
+//     `gp.jay` group member whose entire walk happens inside the `tt<9000` branch, which `continue`s
+//     before the crossing loop, so they were never drawn at all. Nobody could see the death happen.
+//   · THE BURST NEVER DREW. It needs `!pastWalk`, and kills are only evaluated in the branch where
+//     `pastWalk` is always true.
+//
+// So the whole thing is rebuilt around a stain being a FIRST-CLASS OBJECT with its own lifetime,
+// instead of a side effect of whether a walker happens to still be in the loop.
+// ⚠⚠ AND IT IS STILL SCRIPTED FROM THE CLOCK, NEVER SIMULATED. A death is a pure function of
+// (crosswalk, cycle, person) — so any frame can re-derive every death of the last several minutes, and
+// three monitors that started at different moments converge on the identical set. The memo below is a
+// cache OF a pure function, not a record of what this screen happened to witness.
+// ⚠ HOISTED. `CARLEN` was a local of the street-drawing pass, and the collision test now lives at top
+// level so it can be re-derived for any past cycle — a car's body length is the one number both halves
+// must agree on, so there is exactly one of it.
+var CAR_LEN=11;
+// per life: each crossing keeps a small ring of recent cycles' deaths, retired by `crossGen`
+// ⚠ REAL MILLISECONDS, DELIBERATELY. "Regardless of the city speed" — his life cycle can be 1 hour or
+// 3 days, and a stain measured as a fraction of a life would be seven minutes at one setting and eight
+// seconds at another. Wall-clock is the only unit that means the same thing at every speed.
+var CROSS_STAIN_MS=420000;          // seven minutes on the road, whatever the city is doing
+// The traffic state a given INSTANT would have had. Everything here is a pure function of `t`, so a
+// stain computed live and the same stain re-derived four minutes later come out identical — which is
+// what stops a back-filled cycle disagreeing with the one that was watched.
+function trafficAt(t){
+  var G=cityGrowth(t), cg=G.g;
+  return { cg:cg, gp:Math.max(0,Math.min(1,(cg-0.25)/0.45)), cp:dayRhythm(new Date(t)).carPresence };
+}
+// ⚠ THE SAME PRESENCE TEST THE DRAW LOOP USES. Without it a pedestrian can be killed by a car that is
+// never drawn, and an unexplained death in an empty lane reads as a glitch rather than as an accident.
+function carLiveAt(i,S){
+  var laneOn=Math.max(0,Math.min(1,(S.cg-(cars[i].lane<2?0.42:0.50))/0.08));
+  return (((i*2246822519+1)>>>0)/4294967296) <= S.cp*S.gp*laneOn;
+}
+// "cars or TRAINS or whatever" — the tram was in his original words for this feature and was never
+// tested against. It is one vehicle from `crosser()`, itself a pure function of the clock, running in
+// the reservation every crossing has to pass through: the cheapest collision test on the street.
+function tramAt(t,S){
+  if(!(S.cg>0.6 || (curPolicies.carfree && S.cg>0.35))) return null;
+  var tr=crosser(t, curPolicies.carfree?30000:34000, 0.028, 26, 0.82);
+  if(!tr) return null;
+  if(!onPavedRoad(tr.x)||!onRailed(tr.x)) return null;
+  return tr;
+}
+// Did anything hit this walker between the kerb and the far side? Sampled across the WHOLE walk at
+// fixed fractions — not from the kerb to "now" — so the answer is the same on every frame that asks
+// it, and a death cannot flicker as the sampling grid slides under it.
+function crossKillAt(pwx,t0c,dirUp,S){
+  var steps=12, laneIdx=crossLaneIdx();
+  for(var q=1;q<=steps;q++){
+    var pg=q/steps, tq=t0c+1800*pg;
+    var yq=dirUp>0?lerp(DAM_KERB_F,DAM_KERB_N,pg):lerp(DAM_KERB_N,DAM_KERB_F,pg);
+    for(var ln=0;ln<4;ln++){
+      if(Math.abs(yq-(HORIZON+LANE[ln].o))>2.5) continue;               // not in this lane at this instant
+      var lst=laneIdx[ln];
+      for(var z=0;z<lst.length;z++){
+        var ci=lst[z]; if(!carLiveAt(ci,S)) continue;
+        var cc=cars[ci], cxq=wrapW(cc.x0+LANE[cc.lane].d*cc.sp*KSP*tq);
+        var dd=((pwx-cxq+WW*1.5)%WW)-WW*0.5;
+        if(dd>-2&&dd<CAR_LEN) return { t:tq, y:yq, wx:pwx, by:1 };      // by a car
+      }
+    }
+    // …and the tramway, which is a wider band and a much heavier vehicle
+    var tr=tramAt(tq,S);
+    if(tr){
+      var ty=tramLaneY(tr.dir>0?0:1);
+      if(Math.abs(yq-ty)<=3){
+        var dt2=((pwx-tr.x+WW*1.5)%WW)-WW*0.5;
+        if(dt2>-2&&dt2<26) return { t:tq, y:yq, wx:pwx, by:2 };         // by the tram
+      }
+    }
+  }
+  return null;
+}
+var crossLaneCache=null;
+function crossLaneIdx(){
+  if(crossLaneCache&&crossLaneCache.n===cars.length) return crossLaneCache.l;
+  var l=[[],[],[],[]];
+  for(var i=0;i<cars.length;i++) l[cars[i].lane].push(i);
+  crossLaneCache={n:cars.length,l:l};
+  return l;
+}
+// Every death at one crossing during one 12-second cycle. Memoised because it is a pure function and
+// the stain drawing asks for the last ~35 cycles every frame.
+// ⚠⚠ A JAYWALKER WAITS FOR A GAP, and this is a rate control with a reason rather than a magic number.
+// Measured with every jaywalker stepping out blind, the geometry produced 168 deaths alive across the
+// world at once and 62 on one screen — the solid-red road the original build's first fault warned about.
+// The honest fix is not a smaller probability, it is that nobody walks into a car they can see coming:
+// they look, they wait for the near lanes to clear, and the ones who die MISJUDGED THE FAR LANES —
+// which is how it actually happens, and it is still entirely emergent from the traffic.
+function jayLooks(cw,gp,t,S){
+  var laneIdx=crossLaneIdx();
+  // ⚠ THEY ONLY JUDGE THE LANES THEY ARE STEPPING INTO. Checking all four took the death rate to ZERO —
+  // on a four-lane road with a tram reservation there is never a moment when every lane is clear, so
+  // nobody ever stepped off the kerb at all. That is not caution, it is a deadlock. A pedestrian judges
+  // the traffic nearest them and takes their chances on the rest, which is exactly why the far lanes are
+  // the ones that kill people.
+  var lnA=gp.up>0?0:2, lnB=lnA+1;
+  for(var ln=lnA;ln<=lnB;ln++){
+    var lst=laneIdx[ln];
+    for(var z=0;z<lst.length;z++){
+      var ci=lst[z]; if(!carLiveAt(ci,S)) continue;
+      var cc=cars[ci], cx=wrapW(cc.x0+LANE[cc.lane].d*cc.sp*KSP*t);
+      // how far in front of the walker this car is, along its own direction of travel
+      var d=((wrapW(cw.x+gp.lo)-cx+WW*1.5)%WW)-WW*0.5;
+      if(LANE[ln].d<0) d=-d;
+      if(d>-CAR_LEN&&d<JAY_LOOK) return false;          // one is closing: stay on the kerb
+    }
+  }
+  return true;
+}
+var JAY_LOOK=26;      // tuned by desktop/qml-crosskill-probe.qml against the standing count, not the rate
+var JAY_P=0.30;       // share of crossers who chance it against the light      // how far up the road a jaywalker looks before stepping out, in world px
+// did person `p` at this crossing actually step off the kerb this cycle?
+function jayWent(cw,cyc,p){
+  var ds=crossDeaths(cw,cyc);
+  for(var i=0;i<ds.length;i++) if(ds[i].p===p) return !!ds[i].go;
+  return true;
+}
+// Everything that happens to the jaywalkers at one crossing in one 12-second cycle: who stepped out,
+// and which of them did not make it. Memoised, because it is a pure function and both the walker
+// drawing and the stain drawing ask for it every frame.
+var CROSS_BUDGET=0, CROSS_NONE=[], crossGen=0, CROSS_RING=48;
+// ⚠ A RING ON THE CROSSING ITSELF, NOT A STRING-KEYED MAP. The first version built `cw.x+"|"+cyc` and
+// looked it up ~440 times per frame — 440 string concatenations and hash lookups every frame on EVERY
+// land, which measured as +1.1 ms on an 8.5 ms live frame. The cycle number is already a dense integer,
+// so `cyc % 48` indexes an array directly with no allocation and no hashing. `crossGen` retires the
+// whole thing at a life boundary without having to walk it.
+function crossDeaths(cw,cyc){
+  if(cw._g!==crossGen){ cw._g=crossGen; cw._c=new Array(CROSS_RING); cw._v=new Array(CROSS_RING); cw._d=[]; cw._lo=undefined; cw._hi=undefined; }
+  var slot=((cyc%CROSS_RING)+CROSS_RING)%CROSS_RING;
+  if(cw._c[slot]===cyc) return cw._v[slot];
+  if(CROSS_BUDGET<=0) return CROSS_NONE;               // not yet computed; it will be within a second
+  CROSS_BUDGET--;
+  if(!cw._d) cw._d=[];
+  var out=[], t0=cyc*12000-cw.ph;                       // the instant this cycle began
+  var S=trafficAt(t0+6000);
+  if(S.cg>0.30){
+    var grp=cwGroup(cw,cyc,dayRhythm(new Date(t0+6000)).hour);
+    for(var p=0;p<grp.length;p++){
+      var gp=grp[p]; if(!gp.jay) continue;              // you are not run over by traffic stopped for you
+      var start=t0+2200+gp.off;                         // when they would step off the kerb
+      if(!jayLooks(cw,gp,start,S)){ out.push({p:p,go:false}); continue; }
+      var k=crossKillAt(wrapW(cw.x+gp.lo),start,gp.up,S);
+      if(k){ k.p=p; k.go=true; k.lo=gp.lo; k.pc=gp.pc; k.kill=true; out.push(k); CROSSKILLS++; }
+      else out.push({p:p,go:true});
+    }
+  }
+  cw._c[slot]=cyc; cw._v[slot]=out;
+  for(var kk=0;kk<out.length;kk++) if(out[kk].kill) cw._d.push(out[kk]);   // …and onto the flat live list
+  return out;
+}
+// ---- THE MARKS ON THE ROAD. Drawn every frame from the memo, so they persist for their full life no
+// matter what else is happening, at any frame rate and at any city speed.
+// ⚠ It DRIES rather than merely fading: fresh blood is bright red, an hour-old stain is near-black
+// brown. A mark that only loses alpha reads as a rendering artefact going away; one that changes colour
+// reads as something that happened a while ago, which is the whole point of making it last.
+var NOCROSSSTAIN=false;   // containment A/B: suppress the road stains so their cost can be measured
+                          // INTERLEAVED against identical code in one process — two separate runs
+                          // measured a real 18% win as a regression on this project once already.
+function drawCrossStains(g,now,L){
+  if(NOCROSSSTAIN) return;
+  if(cityPhase==="apoc"||nukeFull()) return;
+  var gk=goreK(); if(gk<=0) return;
+  var K=Math.max(1,KSP), day=L>0.5;
+  var back=Math.ceil(CROSS_STAIN_MS/12000);
+  // ⚠ A BUDGET, NOT A SHORTCUT. Bringing up plasmashell mid-life asks for ~440 cycles that have never
+  // been computed, all on one frame. Filling at most 60 per frame spreads that over about a second and
+  // costs nothing afterwards, because a cycle is only ever computed once.
+  // It does NOT weaken the three-monitor guarantee: the KEY SET comes from the clock, so every screen
+  // converges on the identical set of deaths within a second whatever order it fills them in — which is
+  // the property that a "record what this screen witnessed" cache would not have.
+  CROSS_BUDGET=60;
+  // ⚠ THE CURRENT CYCLE FIRST, FOR EVERY CROSSING. The walker loop further down asks the same function
+  // whether the person it is about to draw is already dead — so if the budget were spent on back-fill
+  // the live crossing would go unanswered and a walker would keep striding through the car that hit
+  // them. Twelve crossings out of a budget of sixty; the back-fill gets what is left.
+  for(var pri=0;pri<crosswalks.length;pri++){
+    var cwp=crosswalks[pri];
+    if(cwInst(cwp)&&!nukeHit(cwp.x)) crossDeaths(cwp,Math.floor((now+cwp.ph)/12000));
+  }
+  // ⚠⚠ A FLAT LIST OF MARKS, NOT A SWEEP OF THIRTY-SIX CYCLES PER CROSSING. Asking every crossing about
+  // every cycle in the stain window is 432 iterations a frame to find about a dozen marks, and measured
+  // interleaved that WAS the 1.08 ms — not the memo lookups, and not the drawing. Each crossing keeps the
+  // deaths themselves in `_d` and only ever computes the cycles it has not seen: one per twelve seconds
+  // in the steady state, and the rest back-filled under the budget when the wallpaper first comes up.
+  for(var i=0;i<crosswalks.length;i++){
+    var cw=crosswalks[i];
+    if(!cwInst(cw)||nukeHit(cw.x)) continue;
+    var cur=Math.floor((now+cw.ph)/12000);
+    if(cw._g!==crossGen||cw._hi===undefined){ crossDeaths(cw,cur); cw._lo=cur; cw._hi=cur; }
+    while(cw._hi<cur && CROSS_BUDGET>0){ cw._hi++; crossDeaths(cw,cw._hi); }        // the cycles just gone
+    while(cw._lo>cur-back && CROSS_BUDGET>0){ cw._lo--; crossDeaths(cw,cw._lo); }   // …and the back-fill
+    var lst=cw._d, keep=0;
+    for(var d=0;d<lst.length;d++){
+      var K2=lst[d], age=now-K2.t;
+      if(age>CROSS_STAIN_MS) continue;                  // dried out and gone: drop it from the list
+      lst[keep++]=K2;
+      if(age<0) continue;                               // ⚠ a death in the CURRENT cycle has not happened yet
+      var f=age/CROSS_STAIN_MS;
+      for(var w=-1;w<=1;w++){
+        var X=Math.round(K2.wx-WOFF+w*WW); if(X<-30||X>SW+30) continue;
+        drawCrossStain(g,X,K2,age,f,K,gk,day);
+      }
+    }
+    lst.length=keep;
+  }
+}
+// ⚠ ALPHAS ARE QUANTISED HERE, and it is not fussiness. `rgba()` concatenates the number RAW, so an
+// unrounded 0.6234567890123 becomes a 22-character style string that both V4 and the canvas parser have
+// to chew through, several times per mark. Three decimals is visually identical and a third the length.
+// (Measured interleaved against identical code with the marks suppressed: 0.89 ms of an 8.1 ms live
+// frame, 1.12x. I guessed wrong about where that cost was twice before measuring it properly — first
+// the string memo keys, then the 36-cycle sweep. Both were rewritten anyway and neither was the answer.)
+function q3(a){ return (a*1000|0)/1000; }
+function drawCrossStain(g,X,K2,age,f,K,gk,day){
+  var y=Math.round(K2.y);
+  // THE IMPACT. ⚠ 400 ms, not 160: the live pass runs at 8-12 fps on `balanced`, so a 160 ms window
+  // catches one frame if you are lucky and none if you are not — the moment he most wants to see was
+  // the moment least likely to be on screen.
+  if(age<400){
+    var b=1-age/400;
+    g.fillStyle="rgba(198,26,32,"+(0.95*b).toFixed(3)+")";
+    g.fillRect(X-Math.round(2*K),y-Math.round(2*K),Math.round(4*K),Math.round(3.4*K));
+    g.fillStyle="rgba(255,96,84,"+(0.9*b).toFixed(3)+")";
+    g.fillRect(X-Math.round(1.4*K),y-Math.round(3*K),Math.round(2.8*K),Math.round(1.6*K));
+    for(var sp=0;sp<7;sp++){                                   // and it throws
+      var sa=(sp/7)*Math.PI*2, sr=(1-b)*7*K;
+      g.fillStyle="rgba(214,32,34,"+q3(0.7*b)+")";
+      g.fillRect(Math.round(X+Math.cos(sa)*sr),Math.round(y+Math.sin(sa)*sr*0.45),Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
+    }
+  }
+  // THE POOL. Wet and red for the first minute, then drying darker and browner for the rest.
+  var wet=Math.max(0,1-age/60000);
+  var col=day?mixc([150,16,20],[46,14,12],1-wet):mixc([120,12,16],[34,10,11],1-wet);
+  // ⚠ THE ALPHA FLOOR IS THE POINT OF THE WHOLE CHANGE. "You need to be able to see it" — a stain that
+  // fades to nothing is back to the old behaviour, just slower. It dries to a dark brown mark that stays
+  // legible on tarmac for its whole life and then goes, rather than being a ghost for six of its minutes.
+  var a=(0.86-0.28*f)*gk;
+  // ⚠ SIZED AGAINST A CAR, NOT AGAINST NOTHING. My first pass was 22 wp of pool plus lobes reaching a
+  // further 15 either side — a mark five car-lengths wide for one pedestrian, which reads as spilled
+  // paint rather than as an accident. A car body is 11 wp and a person is about 3; the pool is roughly
+  // one car long at its wettest and shrinks as it dries.
+  var wide=Math.round((3.4+2.6*wet)*K), tall=Math.max(2,Math.round(1.9*K));
+  // ⚠ LOBES, NOT A RECTANGLE — and never one row high. Phase 8 found that at 3x width and 1px height a
+  // pool renders as a PINSTRIPE; a mark on tarmac reads because its edge is irregular.
+  var h32=(K2.wx*2654435761)>>>0;
+  for(var lb=0;lb<6;lb++){
+    var lu=((h32>>>(lb*3))%100)/100, lv=((h32>>>(lb*5+7))%100)/100;
+    var lx=X+Math.round((lu-0.5)*wide*0.95), ly=y+Math.round((lv-0.5)*tall*1.5);
+    g.fillStyle=rgba(col,q3(a*(0.55+0.45*lu)));
+    g.fillRect(lx-Math.round(wide*0.22),ly-Math.round(tall*0.5),Math.max(2,Math.round(wide*0.44)),Math.max(1,tall));
+  }
+  g.fillStyle=rgba(col,q3(a));
+  g.fillRect(X-Math.round(wide*0.5),y-Math.round(tall*0.5),wide,tall);
+  // TYRE DRAG. The traffic keeps driving over it, so the mark is smeared down-lane in streaks — this is
+  // what makes it read as being ON a live road rather than painted beside one.
+  if(age>2500){
+    var dgs=Math.min(1,(age-2500)/45000), dl=Math.round(dgs*9*K), ddir=(K2.wx&1)?1:-1;
+    for(var tq=0;tq<3;tq++){
+      var ty2=y-Math.round(K*0.8)+tq*Math.max(1,Math.round(K*0.9));
+      g.fillStyle=rgba(col,q3(a*0.34*(1-tq*0.22)));
+      g.fillRect(ddir>0?X:X-dl,ty2,Math.max(1,dl),Math.max(1,Math.round(K*0.6)));
+    }
+  }
+}
 function drawApocRoadDamage(g,L){
   if(cityPhase!=="apoc"||cityG<0.38) return;
   for(var sx=-8;sx<SW+12;sx+=10){
@@ -37388,7 +37670,7 @@ function draw(g,pass){
       if(ov && !nukeHit(ov.x)) drawOffroad(g, landRoute(ov.x), ROAD_Y+2+((ofi*4)%10), ov.dir, L, now, ofi%3); } }
 
   // cross-screen cars — 4 lanes, small, and they STOP & queue at red signals (deterministic)
-  var STOPZ=24, CARM=100, CARLEN=11;   // CARM: off-screen cull margin; CARLEN: car body length (drawCar draws left-anchored)
+  var STOPZ=24, CARM=100, CARLEN=CAR_LEN;   // CARM: off-screen cull margin; CARLEN: car body length (drawCar draws left-anchored)
   // CONSTANT per-car speed — position is a clean linear f(now). (A time-VARYING multiplier like
   // rhythm.carSpeed/snow on `now` made every car's position JUMP whenever the factor changed, since
   // now≈1.7e12: a tiny speed change × huge now = a big teleport. Rush hour now reads via DENSITY
@@ -37431,6 +37713,10 @@ function draw(g,pass){
   }
   // precompute which crosswalks are red THIS frame (was re-tested per car × crosswalk)
   var redCW=[]; for(var rci=0;rci<crosswalks.length;rci++) if(cwInst(crosswalks[rci])&&sig(now,crosswalks[rci].ph)===2) redCW.push(crosswalks[rci]);
+  // ⚠ THE MARKS GO ON THE TARMAC, UNDER THE TRAFFIC. Blood is on the road surface, so the cars drive
+  // over it — drawn after the vehicles it would sit on their roofs. Four lanes leave plenty of gaps, and
+  // the drag streaks it grows are precisely the record of being driven over.
+  drawCrossStains(g,now,L);
   for(i=0;i<cars.length;i++){ c=cars[i];
     var laneOn=(cars[i].lane<2)?gstage(0.42,0.50):gstage(0.50,0.58);   // a lane only carries traffic once it's PAVED (outer lanes open first)
     if((((i*2246822519+1)>>>0)/4294967296) > rhythm.carPresence*growPop*laneOn) continue;
@@ -37852,8 +38138,8 @@ function draw(g,pass){
     if(!cwInst(cw2)) continue;
     if(nukeHit(cw2.x)) continue;                               // these walkers are gone once the front reaches their crossing
     var tt=(now+cw2.ph)%12000;
+    var jcyc=Math.floor((now+cw2.ph)/12000);
     if(tt<9000){                                              // green for cars — but a brave few jaywalk when it's clear
-      var jcyc=Math.floor((now+cw2.ph)/12000);
       // ⚠⚠ THE KERB WAS EMPTY FOR NINE SECONDS OUT OF EVERY TWELVE. The crossing worked, but the
       // people using it appeared out of nothing the instant the light changed and were gone 1.8 s
       // later — 1.35 of them per screen at any moment, and nobody EVER waiting. Nick asked for a
@@ -37868,6 +38154,7 @@ function draw(g,pass){
         // signal has the reason drawn next to them, and at 5400 the kerb was empty for 5/6 of the
         // cycle, which is the fault being fixed. Deliberate, and bounded: nobody waits past one light.
         if(tt < 4400+wq*520+(cw2.seed%500)) continue;                        // …not here yet
+        if(wgp.jay && tt >= 2200+wgp.off && jayWent(cw2,jcyc,wq)) continue;  // …and a jaywalker who went is out in the road
         // ⚠ AT THE KERB, NOT ON THE PAVEMENT. The first version stood them at HORIZON-1 — the same row
         // the strollers and the named citizens already occupy — and a rendered light cycle showed
         // nothing: three more people in the back of a crowd is not a queue. What makes a queue read is
@@ -37886,68 +38173,48 @@ function draw(g,pass){
         for(var ww2=-1;ww2<=1;ww2++){ var WX=cw2.x-WOFF+wgp.lo+ww2*WW; if(WX<-3||WX>SW+3) continue;
           drawPerson(g,WX,wy,wgp.pc,wgp.sk,-1); }
       }
-      if(((((cw2.seed^jcyc)*2654435761)>>>0)%100)<18 && tt>3200 && tt<4700){
-        var clear=true;
-        for(var jc=0;jc<cars.length;jc++){ var dxj=cwxAll[jc]-cw2.x; if(dxj<0)dxj=-dxj; if(dxj>WW/2)dxj=WW-dxj;
-          if(dxj<26){ clear=false; break; } }
-        if(clear){ var jp=(tt-3200)/1500, jdir=(cw2.seed&1)?1:-1;
-          var jy=jdir>0?lerp(HORIZON-1,HORIZON+23,jp):lerp(HORIZON+23,HORIZON-1,jp);
-          for(var jw=-1;jw<=1;jw++){ var JX=cw2.x-WOFF+jw*WW+2; if(JX<-3||JX>SW+3) continue;
-            drawPerson(g,JX,jy,PEDC[cw2.seed%PEDC.length],SKINC[cw2.seed%SKINC.length],(Math.floor(tt/120))&1); } }   // running
-      }
-      continue; }
-    var cyc=Math.floor((now+cw2.ph)/12000), grp=cwGroup(cw2,cyc,rhythm.hour);          // 0–3 people cross this cycle — the same ones who just waited at the kerb
+      // ⚠⚠ THE 18% RUNNER THAT USED TO STAND HERE IS GONE, AND DELETING IT IS THE FIX.
+      // There were TWO unrelated jaywalkers on this crossing. This one was drawn — and gated on `clear`,
+      // no car within 26 px, which made it BY CONSTRUCTION the one that could never be hit. The other is
+      // the `gp.jay` group member the kill test reads, whose entire walk happens inside this `tt<9000`
+      // branch, which used to `continue` before the crossing loop — so the one who could die was never
+      // drawn, and the one you could see was never in any danger.
+      // 🔑 They are one person now: the walker loop below runs in BOTH halves of the cycle, and each
+      // person's own window decides when they are out on the road. That is what makes a death watchable.
+    }
+    var cyc=jcyc, grp=cwGroup(cw2,cyc,rhythm.hour);          // 0–3 people cross this cycle — the same ones who just waited at the kerb
     for(var pp=0;pp<grp.length;pp++){
       var gp=grp[pp], off=gp.off, upDir=gp.up, lo=gp.lo, pc=gp.pc, sk=gp.sk;
-      // ⚠ THE STAIN HAS TO OUTLIVE THE WALK. This loop dropped anyone past their 1800 ms crossing
-      // window, so a death vanished 1.8 s later and "all that remains is a blood stain" was true for
-      // under two seconds. Past the window the person is gone either way; what may still be there is
-      // the mark on the road, so the window stays open long enough for it to dry.
+      // ⚠⚠ THE `wt>90000` GUARD HERE WAS THE WHOLE BUG, AND IT WAS UNREACHABLE.
+      // `tt` is `(now+ph) % 12000`, so `wt` cannot exceed 12000 and the 90-second window it claims to
+      // open has never once been entered. "The window now stays open long enough for the mark to dry"
+      // was false the day it was written, and the 240000 ms fade beneath it never got past 0.96 before
+      // the cycle rolled over and the stain disappeared outright — under three seconds on the road.
+      // 🔑 A GATE WIDENED PAST THE RANGE OF THE VALUE IT TESTS IS NOT A GATE. It looked exactly like a
+      // fix for the reported symptom, which is why nobody went back to it.
+      // The stain no longer lives here at all: `drawCrossStains` owns it, keyed off the clock, so its
+      // lifetime is completely independent of whether this walker is still in the loop.
       // a jaywalker sets off early, while the lights are still green for the traffic
-      var wt=tt-(gp.jay?2200:9000)-off; if(wt<0||wt>90000) continue;
-      var pastWalk=(wt>1800);
+      var wt=tt-(gp.jay?2200:9000)-off; if(wt<0||wt>1800) continue;
+      var pastWalk=false;
       // ⚠ The two ends must be the SAME pixels the queue waited on, or a walker jumps backwards off
       // the kerb the instant the light changes.
       // …and the walk itself spans kerb to kerb, so they arrive on the far pavement instead of
       // stopping in lane two.
       var prog=wt/1800, py=upDir>0?lerp(DAM_KERB_F,DAM_KERB_N,prog):lerp(DAM_KERB_N,DAM_KERB_F,prog);
       var bob=(((prog*8)|0)&1), c2x=cw2.x-WOFF+lo;
-      // ---- DID A CAR GET THEM? ----
-      // they stepped off the kerb `wt` ms ago; that is where the walk starts
-      // ⚠⚠ EVERY SINGLE CROSSER WAS DYING — measured at roughly one a second, which would leave the
-      // road solid red. The cause: the test asked only whether a car occupied the same pixels, and a
-      // car QUEUED at a red light occupies them for the entire crossing. You do not get run over by
-      // stationary traffic. So the kill only counts where the signal is NOT holding the traffic —
-      // i.e. the walker is out in a live lane, which is exactly what Nick described.
-      // ⚠ I gated this on `sig(now,cw2.ph)!==2` and it was never once true: sig returns 2 (traffic
-      // held) for the ENTIRE pedestrian phase, which is the whole point of a pedestrian phase. The
-      // condition was also more complicated than the truth. A JAYWALKER IS BY DEFINITION THE ONE
-      // CROSSING AGAINST THE LIGHT — that flag already says everything the gate was trying to say.
-      var carsMoving=!!gp.jay;
-      var kill=(cityG>0.42&&carsMoving)?crossKill(wrapW(cw2.x+lo), now-wt, now, upDir):null;
-      if(kill){ CROSSKILLS++;
-        // ONE FRAME OF RED, then nothing but a stain. The impact is loud and brief; what stays is the
-        // mark on the road, which the traffic then drives over.
-        var since=now-kill.t;
-        for(var wp4=-1;wp4<=1;wp4++){ var KX=c2x+wp4*WW; if(KX<-6||KX>SW+6) continue;
-          if(since<160&&!pastWalk){                                  // the burst
-            g.fillStyle="rgba(196,26,32,0.95)";
-            g.fillRect((KX-2)|0,(kill.y-3)|0,Math.max(3,Math.round(5*Math.max(1,KSP))),Math.max(3,Math.round(4*Math.max(1,KSP))));
-            g.fillStyle="rgba(255,90,80,0.85)";
-            g.fillRect((KX-1)|0,(kill.y-4)|0,Math.max(2,Math.round(3*Math.max(1,KSP))),Math.max(1,Math.round(2*Math.max(1,KSP))));
-          }
-          // the stain, and it dries over the next few minutes rather than vanishing
-          var fade=Math.max(0,1-since/240000);
-          if(fade>0.02){
-            g.fillStyle="rgba(96,14,18,"+(0.80*fade).toFixed(3)+")";
-            g.fillRect((KX-2)|0,(kill.y-1)|0,Math.max(4,Math.round(6*Math.max(1,KSP))),Math.max(1,Math.round(1.4*Math.max(1,KSP))));
-            g.fillStyle="rgba(60,8,12,"+(0.55*fade).toFixed(3)+")";
-            g.fillRect((KX+2)|0,(kill.y)|0,Math.max(2,Math.round(3*Math.max(1,KSP))),Math.max(1,Math.round(K0_1())));
-          }
-        }
-        continue;                                                    // they are not drawn again
-      }
-      if(pastWalk) continue;                                           // they made it across; nothing to draw
+      // ---- DID SOMETHING GET THEM? ----
+      // ⚠⚠ ASKED ABOUT THE WHOLE WALK, ONCE, NOT ABOUT "THE KERB UNTIL NOW" EVERY FRAME. The old call
+      // was `crossKill(x, now-wt, now, up)` sampling 8 points between the kerb and this instant — so as
+      // `now` advanced the sample grid slid under the walker and a death could appear and disappear
+      // between frames. `crossDeaths` decides the whole 1800 ms walk in one go and memoises it, so the
+      // answer is fixed the moment the walk exists and the impact happens at ONE knowable instant.
+      // You do not get run over by traffic that is stopped for you, so only the jaywalkers are exposed —
+      // that flag already says everything the old `sig()` test was reaching for.
+      var kill=null, ds=crossDeaths(cw2,cyc);
+      for(var kq=0;kq<ds.length;kq++) if(ds[kq].p===pp){ kill=ds[kq]; break; }
+      if(kill&&!kill.go) continue;                                     // looked, saw a car, stayed on the kerb
+      if(kill&&kill.kill&&now>=kill.t) continue;                       // dead: the mark is drawn by drawCrossStains
       for(var wp3=-1;wp3<=1;wp3++){ var CX2=c2x+wp3*WW; if(CX2<-3||CX2>SW+3) continue;
         drawPerson(g, CX2, py, pc, sk, bob); }
     }
