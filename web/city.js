@@ -3468,12 +3468,22 @@ var BIOMES=[
   // WHAT FILLS THE FRAME: stacked water. Dozens of flooded rice terraces climbing the hillside, each
   // one a horizontal mirror catching the sky — so the frame fills VERTICALLY with human-made landform
   // rather than with rock. It is the only land whose landscape was built by people.
-  { k:"terrace",name:"THE TERRACES", amp:0.72, base:0.60, flat:0.30, steep:0.44, snow:false, water:"river", steps:1,
-    far:[150,176,132],  near:[104,142,92],  cap:[196,214,158], ground:[124,158,104],
-    walls:[[228,220,200],[196,186,166],[240,236,224],[152,140,120],[212,204,184],[176,166,146],[132,122,104],[236,232,220]],
-    fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:1}, big:["buffalo","boar"], small:["frog","squirrel"], air:["heron","egret"] },
-    flora:{ kinds:["palm","fern","willow","palm","grass"], bloom:["#ffffff","#ffd166","#e8a0c0"] },
-    sky:{ top:[126,166,206], bot:[228,232,214], k:0.48, haze:[232,236,218] } },
+  // ============ THE GREAT DAM — map 17, replacing THE TERRACES ============
+  // ⚠ THE TERRACES WERE DELETED AT NICK'S CALL, after two full overhauls failed. The reason is worth
+  // keeping: a terraced hillside is HORIZONTAL REPETITION, and horizontal repetition is the single
+  // thing this engine renders worst — every land is a per-column band stack, so a subject made of
+  // stacked bands has no way to distinguish itself from the machinery drawing it.
+  // This land is chosen to be its exact opposite, and to obey the two rules every land that reads
+  // obeys: ONE BIG UNMISTAKABLE OBJECT, and EXTREME VALUE CONTRAST.
+  // A colossal dam: near-black concrete against a brim-full reservoir and the sky, with the city
+  // living in the gorge underneath it. Nothing repeats, and the darkest thing in the game sits
+  // against one of the brightest.
+  { k:"dam", name:"THE GREAT DAM", amp:0.30, base:0.40, flat:0.70, steep:0.30, snow:false, water:"river", dam:1,
+    far:[126,140,150],  near:[86,96,104],  cap:[176,188,196], ground:[104,112,116],
+    walls:[[196,192,186],[168,164,158],[212,208,202],[140,136,130],[184,180,174],[156,152,146],[124,120,114],[204,200,194]],
+    fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:1}, big:["boar"], small:["marmot","frog"], air:["eagle","raven"] },
+    flora:{ kinds:["pine","scrub","pine","willow"], bloom:["#ffffff","#ffd166","#c8d8e8"] },
+    sky:{ top:[104,148,196], bot:[218,228,236], k:0.46, haze:[222,230,238] } },
   // ============ THE UNDERCITY — Phase 5, land #7 ============
   // WHAT FILLS THE FRAME: everything. There is NO SKY. A cavern has a ceiling, and a ceiling is the
   // inverse of a horizon — so this is the most radical departure in the queue and deliberately the
@@ -3847,19 +3857,15 @@ var BIOME_VARIANTS={
       fauna:{ keep:{deer:0,rabbit:0,fox:0,goat:0}, big:[], small:["lizard"], air:["bat"] },
       sky:{ top:[16,10,10], bot:[52,30,20], k:0.90, haze:[86,50,30] } } ],
 
-  terrace:[ {},
-    { name:"THE GOLD HARVEST",  // ripe rice: the whole hillside gone amber, water only in the low steps
-      far:[212,196,128], near:[192,170,86],  cap:[240,228,168], ground:[204,182,104], harvest:1,
-      walls:[[236,226,202],[204,192,168],[246,240,228],[160,148,126],[220,210,188],[184,172,150],[140,130,110],[242,238,226]],
-      flora:{ kinds:["palm","grass","willow","palm"], bloom:["#ffd166","#ffffff","#f0c060"] },
-      fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:1}, big:["buffalo"], small:["frog","squirrel"], air:["egret","heron"] },
-      sky:{ top:[134,170,206], bot:[240,232,200], k:0.46, haze:[242,234,204] } },
-    { name:"THE FLOODED STEPS", // just planted and brim-full: the hillside is nearly all mirror
-      far:[168,190,180], near:[122,156,150], cap:[212,228,220], ground:[142,174,164], flooded:1,
-      walls:[[232,228,216],[200,194,182],[242,240,232],[156,148,136],[216,212,200],[180,174,162],[136,130,120],[240,238,230]],
-      flora:{ kinds:["palm","fern","willow","grass"], bloom:["#ffffff","#e8d088","#c8e0a0"] },
-      fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:0}, big:["buffalo"], small:["frog"], air:["heron","egret"] },
-      sky:{ top:[118,160,204], bot:[224,232,226], k:0.50, haze:[228,236,230] } } ],
+  dam:[ {},
+    { name:"THE SPILLWAY",       // every gate open: the whole face is falling water
+      spill:1,
+      far:[132,146,156], near:[92,102,110], cap:[186,198,206], ground:[110,118,122],
+      sky:{ top:[92,132,178], bot:[206,216,226], k:0.42, haze:[210,220,230] } },
+    { name:"THE DRY POOL",       // drawn right down: a bathtub ring, and the old riverbed exposed
+      drawn:1,
+      far:[146,140,124], near:[110,104,90], cap:[196,190,172], ground:[128,122,106],
+      sky:{ top:[118,152,190], bot:[228,230,224], k:0.50, haze:[230,232,226] } } ],
 
   salt:[ {},
     { name:"THE PINK PAN",     // mineral-stained brine: the flats really do go pink
@@ -4761,7 +4767,7 @@ function buildWorld(li){
   EDUB=schoolAt<0.46?0.012:0;                                  // early schooling → tech (space age) sooner (N8)
   POPK=(((li*2654435761+4441)>>>0)%1000)/1000;                 // relative bigness of this city (rush-jam factor)
   var mg=rng((seed+71)>>>0);
-  mtsCache=null; gorgeCache=null; duneCache=null; karstCache=null; terrCache=null; caveCache=null; savCache=null; plateauCache=null;   // new life → new silhouette
+  mtsCache=null; gorgeCache=null; duneCache=null; karstCache=null; damCache=null; caveCache=null; savCache=null; plateauCache=null;   // new life → new silhouette
   bioTrees=null;
   // The four height-field biomes build the same two ridges; the biome's amp/base scale them, and its
   // flat/steep/snow decide how they're cut and coloured at draw time.
@@ -16134,7 +16140,7 @@ function walkMat(L,earthen){
                     M.kerb=day?[84,68,50]:[30,25,19]; M.lip=day?[168,146,112]:[80,68,50];
                     M.seam=[0,0,0]; M.seamA=day?0.22:0.26; M.bay=4; break;
     // cut stone with moss in the cracks — the joints are GREEN, not white
-    case "terrace": M.top=day?[152,148,136]:[54,58,66]; M.low=day?[132,128,117]:[44,48,56];
+    case "dam":     M.top=day?[150,150,152]:[52,54,60]; M.low=day?[128,128,130]:[42,44,50];
                     M.kerb=day?[110,107,97]:[36,40,47]; M.seam=day?[96,128,72]:[38,62,44];
                     M.seamA=day?0.17:0.13; M.bay=7; break;
     // gritted concrete with the snow banked up against the buildings (the low edge does that work)
@@ -20838,325 +20844,178 @@ function drawUndercity(g,L,now,nd){
 // The steps follow the CONTOUR, which is the thing that makes real terraces beautiful and the thing a
 // naive implementation gets wrong: they are not straight shelves stacked like a staircase, they curve
 // with the hill, so each riser wanders left and right as it crosses the frame.
-var terrCache=null;
 // ================================================================================================
-// THE TERRACES — REBUILT FROM A BLANK SHEET (attempt 2)
+// THE GREAT DAM — map 17
 // ------------------------------------------------------------------------------------------------
-// ⚠⚠⚠ ATTEMPT 1 WAS FIVE COMMITS AND ALL OF IT WAS REVERTED. Nick: "this is the WORST looking map we
-// have tried to Overhaul… I don't even know wtf I am looking at."
-//
-// WHY IT FAILED, so it is not repeated: the old hillside was a per-column height field with
-// horizontal bands stacked on it — STRUCTURALLY A STRIPE MACHINE. Fields, tapered pans, per-pan
-// jitter, surface texture, moss and wooded gullies were all more paint on a stripe machine, and at
-// this pixel scale MORE DETAIL READS AS NOISE. I treated a structural fault as a decoration problem
-// four rounds running.
-//
-// The question that unlocked it, which should be asked FIRST on any land going badly: "which maps
-// look GOOD to you?" — every other land in the game reads fine. So the style was never the problem.
-//
-// THE THREE THINGS THAT MAKE THE OTHER LANDS WORK, applied here:
-//   1. A BIG SHAPE. This is a BOWL — an amphitheatre — so the steps are CONCENTRIC ARCS. Arcs cannot
-//      read as stripes; this attacks the primitive instead of decorating it.
-//   2. VALUE SEPARATION. Exactly THREE values, far apart, nothing between: BRIGHT flooded pans, MID
-//      crop, DARK walls. The dark wall is the OUTLINE that turns each step into an object — the same
-//      trick that makes the fjord and the salt mirror read.
-//   3. A CRISP SILHOUETTE against the sky. One dark rim line and nothing above it.
-//
-// AND IT IS SMALL AND BARE ON PURPOSE. ~35% of frame (was 70% — "that is what let the mess fill the
-// screen"), 7 arcs (was 25-50), and NOTHING else in it yet: no village, no water effects, no weather,
-// no life. If the bare version does not read, nothing added on top will save it — which is exactly
-// the mistake that produced attempt 1.
-var TERR_ARCS=7;
-// ⚠ EVENLY-SPACED STEPS READ AS A STADIUM, NOT A MOUNTAIN. Terraces are cut to whatever the rock
-// allows, so the risers are never the same height twice. One fixed table (not a per-frame roll) so
-// the three monitors agree and nothing shimmers.
-var TERR_FRAC=[0,0.11,0.26,0.40,0.57,0.71,0.86,1.0];
-function terrBowl(wx){
-  // Which bowl is this column in, and where across it? World-anchored so the arcs line up across all
-  // three bezels — one bowl is wider than a screen, so each monitor sees a different part of the same
-  // horseshoe and they MUST agree.
-  // one bowl ~= one screen wide: SW is 776 world px on his 4K, so half ~= 400.
-  var half=Math.max(150,Math.round(200*Math.max(1,KSP)));
-  var pitch=Math.round(half*2.15);
-  var idx=Math.floor(wx/pitch);
-  var c=idx*pitch+Math.round(pitch*0.5);
-  var u=(wx-c)/half;
-  return { u:u, inb:(u>-1&&u<1), idx:idx };
+// Replaces THE TERRACES, which was deleted after two failed overhauls. Everything about this land is
+// chosen from what those failures taught:
+//   · ONE BIG OBJECT, not a field of small ones. The dam is a single silhouette that fills the frame.
+//   · EXTREME VALUE CONTRAST. Near-black concrete against a bright reservoir and sky. Every land that
+//     reads does this (alpine: dark rock/white snow; fjord: black wall/bright water) and the terraces
+//     never did it anywhere.
+//   · VERTICAL RHYTHM, not horizontal. The face is broken by buttress ribs and spillway bays running
+//     DOWN it. Horizontal repetition is the one thing this engine renders worst.
+//   · SCALE REFERENCES BUILT IN. Lamp posts on the crest and the town at the foot tell the eye how
+//     big it is — the thing whose absence made the terraces unreadable.
+var damCache=null;
+function damBayAt(wx,W){
+  // spillway bays, world-anchored so all three monitors agree on where they are
+  var pitch=Math.max(40,Math.round(84*Math.max(1,KSP)));
+  var half=Math.max(9,Math.round(16*Math.max(1,KSP)));
+  var c=Math.round((Math.floor(wx/pitch)+0.5)*pitch);
+  var d=Math.abs(wx-c);
+  return { inb:d<half, u:(wx-c)/half, idx:Math.floor(wx/pitch), c:c, half:half };
 }
-function drawTerraces(g,L,now,nd){
+function drawGreatDam(g,L,now,nd){
   var day=L>0.5, B=curBiome, K=Math.max(1,KSP), skc=biomeSkc(day);
-  var mountH=Math.max(24,Math.round(SH*0.35));
-  var rimY=Math.max(4,HORIZON-mountH);
-  // ⚠ FIRST TRY LOOKED LIKE BENT STRIPES, NOT A BOWL. The lift was a fixed amount for every arc,
-  // so at the bowl's edges the arcs FANNED OUT along the rim instead of converging. In a real
-  // amphitheatre every step meets the rim at the same place — the U's are NESTED, sharing their ends.
-  // So the lift has to scale with the arc's own depth: y = hy + depth_k*(1-u²).
-  var amp=Math.max(2,Math.round(mountH*0.10));
-  var step=(mountH-amp)/(TERR_ARCS-1);
-  // ---- THE THREE VALUES. Chosen for LIGHTNESS separation first and hue second: that is the whole
-  // point, and mixing them any closer together is how the old hillside went muddy.
-  var skyT=B.sky?B.sky.top:[120,160,210];
-  // ⚠⚠⚠ THIS IS THE MUDDINESS, AND IT IS THE WHOLE PROBLEM. Zoomed in, the water pans and the crop
-  // pans were the SAME LIGHTNESS — a grey-blue and a mid-green of identical value sitting next to
-  // each other. Nothing separates from anything, so the eye cannot resolve the picture into objects
-  // and it reads as noise. Every land that works does the opposite: alpine is dark rock against
-  // white snow, fjord is black wall against bright water, salt is a white pan against dark
-  // reflections. ONE THING MUCH LIGHTER THAN ANOTHER. That is the entire trick and this land had
-  // none of it.
-  // So the three values are now pushed as far apart as the palette allows:
-  //   BRIGHT = water, genuinely light AND genuinely blue (it was desaturating to concrete grey)
-  //   DARK   = crop, a deep green — NOT a mid-tone. Only two values on the pans, and they are
-  //            near the opposite ends of the range.
-  //   BLACK  = the wall, which is the outline that turns each step into an object.
-  var BRIGHT=day?[188,220,244]:[74,96,138];                                     // flooded pan — bright, BLUE
-  // ⚠⚠ I DROPPED THE VARIANT FLAGS IN THE REBUILD AND BOTH VARIANTS WENT IDENTICAL. The old
-  // drawTerraces read `B.harvest` and `B.flooded`; the new one did not, so THE GOLD HARVEST and THE
-  // FLOODED STEPS rendered exactly like the default and this land silently lost two thirds of its
-  // variety. (I had also claimed in my own notes that this land had only ONE variant — that was
-  // WRONG, I misread the table. It has three and always has.)
-  var harvest=!!B.harvest, flooded=!!B.flooded;
-  // THE GOLD HARVEST: ripe rice, the hillside gone amber, water only in the low steps. Gold has to be
-  // the MID value here — bright is still the water, or the land loses its one high-contrast element.
-  var MID   =harvest ? (day?[196,164,72]:[44,36,16]) : (day?[44,84,44]:[10,24,18]);
-  var DARK  =day?[30,34,28]:[6,8,8];                                            // wall — as near black as the land allows
-  var SLOPE =day?[92,116,78]:[16,24,20];                                        // plain mountain outside the bowl
-  var RIM   =day?[20,26,20]:[4,6,6];                                            // the silhouette
-  var bS=css(BRIGHT), mS=css(MID), dS=css(DARK), slS=css(SLOPE), rS=css(RIM);
-  // the slope's own ramp: hazier at the crown (it is further away), deeper toward the valley
-  var SLB=[];
-  for(var sq=0;sq<6;sq++)
-    SLB.push(css(mixc(mixc(SLOPE, skc, 0.30*(1-sq/5)*(1-sq/5)), day?[0,0,0]:[0,0,0], 0.16*(sq/5))));
-  var scrubS=css(mixc(SLOPE, day?[54,74,44]:[8,14,12], 0.52));
-  var floorS=css(day?[74,102,66]:[12,20,17]);   // the valley floor beneath the lowest terrace
-  var rockS =css(mixc(SLOPE, day?[126,118,100]:[26,26,28], 0.46));
-  // ---- DIRECTIONAL LIGHT, and this is the thing that was missing most. Every retaining wall was the
-  // same flat dark, which is why the bowl read as a diagram: a real terraced slope is legible
-  // because THE SUN IS ON ONE SIDE. The bowl's two flanks face opposite ways, so one is lit and the
-  // other is in shadow, and that single difference is what turns a set of arcs into a carved hollow.
-  // The sun swings east→west through the day, so the lit flank swaps over — the map is different in
-  // the morning and the afternoon without a line of extra content.
-  var hrs=nd?(nd.getHours()+nd.getMinutes()/60):13;
-  var sunDir=Math.max(-1,Math.min(1,(hrs-12.5)/5.5));            // -1 sun in the east, +1 in the west
-  // ⚠ QUANTISED TO 5 BANDS AND PRECOMPUTED. Shade varies per COLUMN, and building a colour string
-  // per column is 776 allocations a frame — the same shape of mistake that cost the old terrace a
-  // 50% night pass, one order of magnitude down. Five strings, chosen once.
-  var WSH=[], PSH=[];
-  for(var q=0;q<5;q++){
-    var t=q/4;                                                    // 0 = deepest shadow, 1 = full sun
-    // ⚠ FIRST TRY LIGHTENED THE LIT WALLS TO 0.62 AND KILLED THE OUTLINE. The dark wall is the thing
-    // that makes each step an OBJECT — locked answer 5 — and washing it out undid the one part that
-    // was already working. The sun shifts the wall's TONE; it must never stop being dark.
-    WSH.push(css(mixc(DARK, day?[96,92,74]:[34,38,48], 0.03+0.20*t)));
-  }
-  // ---- THE PANS MIRROR THE SKY, instead of being one flat pale blue. A flooded terrace is a
-  // horizontal mirror, so what it holds depends on WHERE IT IS: a pan high on the bowl reflects the
-  // deep zenith, one down at the valley floor reflects the pale haze near the horizon. That vertical
-  // gradient up the hillside is most of what separates "water" from "a blue stripe".
-  // ⚠ A REFLECTION MUST BE DARKER THAN WHAT IT REFLECTS. Three prior lands were lost to getting this
-  // backwards (karst, fjord, salt) — the pan is the sky's colour, knocked down, never lifted.
-  var skyB=B.sky?B.sky.bot:[210,225,240];
-  for(var k2=0;k2<TERR_ARCS;k2++){
-    var row=[], f=TERR_FRAC[k2];                                  // 0 at the rim, 1 at the valley floor
-    // ⚠ mixing toward the sky's HAZE colour desaturated the pans into concrete grey — the pan stopped
-    // looking like water at all. The gradient now runs between two BLUE water tones, so it still
-    // reads as a mirror without losing its hue.
-    var mir=mixc(BRIGHT, day?[126,176,214]:[40,58,92], f*0.85);   // brighter high on the bowl, deeper low down
-    mir=mixc(mir, day?[16,26,38]:[2,4,8], day?0.06:0.34);         // knocked DOWN: darker than the sky it reflects
-    for(var q2=0;q2<5;q2++) row.push(css(mixc(mir, [0,0,0], 0.13*(1-q2/4))));
-    PSH.push(row);
-  }
-  var panH=Math.max(2,Math.round(step*0.62));   // bright dominates, but the wall must still SEPARATE two pans
-  // how much depth each arc KEEPS at the bowl's rim, so the flanks still show steps
-  var edgeFan=Math.round(mountH*0.34);
-  // ================================================================================================
-  // ⚠⚠ THE HILL HAD NO DEPTH. Nick: "THE SLOPE AND HILL ARE AWEFUL LOOKING."
-  // It was ONE silhouette — a single flat green mass with a line on top. The lands that read (alpine,
-  // fjord, and he named both) do it with LAYERED RIDGES: a far range pale and hazed, a middle one
-  // darker, the near one darkest, each overlapping the last. That stack is what gives a landform
-  // MASS. A mountain drawn as one shape is a wall, however you texture it — which is why every pass
-  // I made over the surface failed to help.
-  // Three layers, drawn back to front, each a cheap sine ridge at its own scale and value.
-  var RID=[
-    { amp:0.42, off:0.62, f1:0.0021, f2:0.0057, ph:0.0,  haze:0.76 },   // far range
-    { amp:0.60, off:0.34, f1:0.0033, f2:0.0089, ph:2.1,  haze:0.44 },   // middle
-    { amp:0.78, off:0.12, f1:0.0047, f2:0.0121, ph:4.3,  haze:0.10 }    // near shoulder
-  ];
-  for(var r=0;r<RID.length;r++){
-    var R=RID[r];
-    // ⚠ THE THREE RIDGES BLENDED INTO ONE PALE MASS. Layering only works if each layer is clearly a
-    // different VALUE from the one behind it — the same fault as the pans, one scale up. So the haze
-    // steps are pushed apart, each ridge is darkened toward the viewer, and every one gets a LIT
-    // CREST: a bright line along its top edge, which is what actually separates one ridge from the
-    // next in a real range. Without that edge, overlapping shapes of similar tone read as one blob.
-    var rBase=mixc(SLOPE, day?[18,26,18]:[2,3,4], 0.26*(2-r)/2);      // nearer ridges are DARKER
-    var rc =css(mixc(rBase, skc, R.haze));
-    var rcT=css(mixc(mixc(rBase, skc, R.haze), day?[255,252,232]:[120,140,190], day?0.42:0.20));
-    for(var rx=0;rx<SW;rx++){
-      var rwx=rx+WOFF;
-      var ry=rimY - Math.round(mountH*R.off)
-             + Math.round(Math.sin(rwx*R.f1+R.ph)*mountH*R.amp*0.42
-                        + Math.sin(rwx*R.f2+R.ph*1.7)*mountH*R.amp*0.17);
-      if(ry>=HORIZON) continue;
-      if(ry<2) ry=2;
-      g.fillStyle=rc;  g.fillRect(rx,ry,1,HORIZON-ry+1);
-      g.fillStyle=rcT; g.fillRect(rx,ry,1,Math.max(1,Math.round(K*1.8)));   // the lit crest that separates it from the ridge behind
-    }
-  }
-  for(var x=0;x<SW;x++){
-    var wx=x+WOFF, bw=terrBowl(wx);
-    // the mountain's own top edge — a gentle profile so the silhouette is not a ruler
-    var hy=rimY+Math.round(Math.sin(wx*0.0042)*mountH*0.10+Math.sin(wx*0.0111+1.7)*mountH*0.05);
-    // ---- THE PLAIN SLOPE. It was ONE flat green over a huge area — the biggest dead surface in the
-    // frame and the thing that made the background look empty. It gets FORM, not texture: a vertical
-    // ramp (the top of a mountain is further away, so it hazes toward the sky) plus a handful of big
-    // soft masses. Six precomputed bands, not a per-pixel gradient.
-    var sTot=HORIZON-hy+1;
-    for(var sb2=0;sb2<6;sb2++){
-      var y0=hy+Math.round(sTot*(sb2/6)), y1=hy+Math.round(sTot*((sb2+1)/6));
-      g.fillStyle=SLB[sb2]; g.fillRect(x,y0,1,Math.max(1,y1-y0));
-    }
-    // a few broad scrub masses and bare-rock patches, world-keyed, LARGE and soft-edged: big shapes
-    // read at this scale, fine speckle does not (which is the whole lesson of attempt 1)
-    var mh3=((Math.floor((wx)/Math.max(14,Math.round(26*K)))*2654435761)>>>0);
-    if((mh3%5)<2){
-      var mTop=hy+Math.round(sTot*(0.18+((mh3>>>9)%50)/100*0.55));
-      var mDep=Math.round(sTot*(0.10+((mh3>>>15)%40)/100*0.16));
-      g.fillStyle=((mh3>>>21)&1)?scrubS:rockS;
-      g.fillRect(x,mTop,1,Math.max(1,mDep));
-    }
-    g.fillStyle=rS;  g.fillRect(x,hy,1,Math.max(1,Math.round(K*1.6)));   // THE RIM: one crisp dark line
-    if(!bw.inb) continue;                                         // outside a bowl the slope is bare
-    // the valley floor: flat wet ground below the lowest terrace, where the town sits
-    var floorTop=Math.round(hy+amp+(mountH-amp)*1.0)+Math.max(2,Math.round(step*0.5));
-    if(floorTop<HORIZON){ g.fillStyle=floorS; g.fillRect(x,floorTop,1,HORIZON-floorTop+1); }
-    // ⚠ A PARABOLA HAS A FLAT BOTTOM, so the centre of every bowl was horizontal stripes again —
-    // exactly the thing this whole rebuild exists to escape. A real amphitheatre is closer to a V:
-    // the arcs keep bending all the way through the middle. `|u|^1.25` keeps the smooth shoulders
-    // and takes the flat out of the floor.
-    var uu=Math.pow(Math.abs(bw.u),1.25);
-    // which way this bit of the bowl faces, and therefore how much sun it gets
-    var face=-bw.u;                                               // left flank faces right, and vice versa
-    var litq=Math.max(0,Math.min(4,Math.round((0.5+0.5*face*sunDir)*4)));
-    var wS=WSH[litq];
-    for(var k=0;k<TERR_ARCS;k++){
-      // ARC k: a U — lowest at the bowl's centre, lifting to the rim at its edges.
-      var dk=amp+TERR_FRAC[k]*(mountH-amp);
-      var yk=Math.round(hy+dk*(1-uu)+TERR_FRAC[k]*edgeFan*uu);
+  var spillAll=!!B.spill, drawnDown=!!B.drawn;
+  var fx=wfx(), wet=!!(fx.rain||fx.thunder||fx.drizzle);
+  // ---- GEOMETRY. The crest sits high; the face falls from it to the gorge floor the town stands on.
+  var crest=Math.max(16, HORIZON-Math.round(SH*0.33));
+  var faceH=Math.max(8, HORIZON-crest);
+  var apron=Math.max(3,Math.round(faceH*0.10));          // the stilling basin at the foot
+  var faceBot=HORIZON-apron;
+  // ---- THE THREE VALUES ----
+  var CONC =day?[62,64,68]:[10,11,14];                   // concrete: the darkest mass in the game
+  var CONCL=day?[104,106,112]:[22,24,29];                // a buttress rib catching the light
+  var CONCD=day?[42,44,47]:[7,8,10];                     // the recess between ribs
+  var WATER=day?[142,186,222]:[34,52,86];                // the reservoir: BRIGHT
+  var WATL =day?[196,224,244]:[62,84,124];               // its lit surface
+  var FOAM =day?[246,250,253]:[158,176,204];             // discharge and spray: the brightest thing here
+  var ROCK =day?[96,92,86]:[15,16,18];                   // the gorge the dam is wedged into
+  var cS=css(CONC), clS=css(CONCL), cdS=css(CONCD), wS=css(WATER), wlS=css(WATL), fS=css(FOAM), rS=css(ROCK);
 
-      if(yk<hy+1||yk>=HORIZON) continue;
-      var nxt=Math.round(hy+(amp+TERR_FRAC[k+1]*(mountH-amp))*(1-uu)+TERR_FRAC[k+1]*edgeFan*uu);
-      // ⚠ THE LOWEST WALL RAN ALL THE WAY TO THE GROUND, which put a huge black mass across the
-      // bottom of the bowl — the darkest thing in the frame, and it swallowed the valley floor. A
-      // retaining wall is only ever as tall as the step it holds up; below the last one is the
-      // VALLEY FLOOR the town stands on, not more wall.
-      var wallTo=(k===TERR_ARCS-1)
-        ? Math.min(HORIZON, yk+panH+Math.max(2,Math.round(step*0.5)))
-        : Math.min(HORIZON,nxt);
-      // BRIGHT dominates — most pans hold water; a couple carry crop so it is a farm, not a fountain
-      // FLOODED STEPS = brim-full, nearly all mirror. GOLD HARVEST = ripe, and the water has been
-      // drained off everything except the low steps it collects in.
-      var isW = flooded ? true
-              : harvest ? (TERR_FRAC[k]>0.62 && ((((bw.idx*31+k)*2654435761)>>>0)%3)!==0)
-              : ((((bw.idx*31+k)*2654435761)>>>0)%6)!==0;
-      // ⚠ THE PAN DEPTH WAS A GLOBAL NUMBER, so where the arcs fan apart at the bowl's flanks the
-      // pans became huge blue slabs and it read as a reservoir rather than as terraces. A paddy is
-      // narrow EVERYWHERE — the step spacing changes across the bowl, so the pan has to be a share
-      // of THIS step's own local height, and capped so it can never become a field of open water.
-      var localH=Math.max(1,wallTo-yk);
-      var pd2=Math.max(1,Math.min(localH-1<1?1:localH-1, Math.min(Math.round(localH*0.66), Math.round(10*K))));
-      g.fillStyle=isW?PSH[k][litq]:mS; g.fillRect(x,yk,1,pd2);
-      if(wallTo>yk+pd2){ g.fillStyle=wS; g.fillRect(x,yk+pd2,1,wallTo-(yk+pd2)); }
+  // ---- 1. THE RESERVOIR behind it, and the hills beyond ----
+  var resTop=Math.max(4, crest-Math.round(SH*(drawnDown?0.10:0.17)));
+  // ⚠ THE HILLS WERE ONE FLAT GREY MASS across the top third — B.near is a grey-blue and mixing it
+  // half-way to the sky produced fog with an edge on it. A reservoir sits in a valley, so what is
+  // behind it is WOODED SHOULDERS, and they need the same treatment the ridges everywhere else in
+  // this engine need: two layers, clearly different values, each with a lit crest.
+  var HILL=day?[62,86,62]:[10,17,15];
+  for(var hl=0;hl<2;hl++){
+    var hz=hl?0.16:0.52, amp2=hl?0.13:0.09, ofs=hl?0.02:0.07, fq=hl?0.0039:0.0024, pz=hl?2.4:0.0;
+    var hcS =css(mixc(mixc(HILL,skc,hz), day?[0,0,0]:[0,0,0], 0.04*hl));
+    var hcTS=css(mixc(mixc(HILL,skc,hz), day?[255,250,226]:[86,104,142], day?0.40:0.16));
+    for(var hx=0;hx<SW;hx++){
+      var hwx=hx+WOFF;
+      var hy=resTop+Math.round(SH*ofs)
+             -Math.round(Math.abs(Math.sin(hwx*fq+pz))*SH*amp2
+                        +Math.abs(Math.sin(hwx*fq*2.7+pz*1.6))*SH*amp2*0.42);
+      if(hy<1) hy=1;
+      if(hy>=resTop+Math.round(SH*ofs)) continue;
+      g.fillStyle=hcS;  g.fillRect(hx,hy,1,resTop+Math.round(SH*ofs)-hy+1);
+      g.fillStyle=hcTS; g.fillRect(hx,hy,1,Math.max(1,Math.round(K*1.5)));
     }
   }
-  // ---- THE STAIRS. A terrace system is useless without a way up it, and a DIAGONAL cutting across
-  // the arcs is the strongest "this was built by hand" signal available — it is the one line in the
-  // picture that is not a contour, so the eye reads everything else as contours because of it.
-  var stepS=css(day?[196,186,164]:[42,44,50]), stepD=css(day?[58,54,46]:[10,11,13]);
-  for(var st=0;st<5;st++){
-    var sh2=((st*2246822519+((WORLD_SEED*23)|0))>>>0); sh2^=sh2>>>11;
-    var swx=sh2%Math.max(1,WW), sx=swx-WOFF;
-    if(sx<-14) sx+=WW; if(sx>SW+14) sx-=WW;
-    if(sx<1||sx>=SW-1) continue;
-    var sb=terrBowl(swx); if(!sb.inb||Math.abs(sb.u)>0.80) continue;
-    var shy=rimY+Math.round(Math.sin(swx*0.0042)*mountH*0.10+Math.sin(swx*0.0111+1.7)*mountH*0.05);
-    var lean=((sh2>>>7)&1)?1:-1;                                   // stairs zig-zag rather than run straight
-    for(var sk=0;sk<TERR_ARCS;sk++){
-      var suu=Math.pow(Math.abs(sb.u),1.25);
-      var sy=Math.round(shy+(amp+TERR_FRAC[sk]*(mountH-amp))*(1-suu)+TERR_FRAC[sk]*edgeFan*suu);
-      var sxx=(sx+lean*sk*Math.max(1,Math.round(K*0.9)))|0;
-      if(sxx<0||sxx>=SW||sy<=shy+1||sy>=HORIZON) continue;
-      var rise=Math.max(2,Math.round((TERR_FRAC[Math.min(TERR_ARCS-1,sk+1)]-TERR_FRAC[sk])*(mountH-amp)));
-      g.fillStyle=stepD; g.fillRect(sxx,sy,Math.max(1,Math.round(K*1.5)),rise);
-      g.fillStyle=stepS; g.fillRect(sxx,sy,Math.max(1,Math.round(K*1.5)),Math.max(1,Math.round(K*0.5)));
+  if(drawnDown){
+    // THE DRY POOL: the water is far down and the old shoreline is exposed as a bathtub ring
+    var ring=resTop+Math.round((crest-resTop)*0.52);
+    g.fillStyle=css(mixc(B.ground,[224,214,190],day?0.42:0.05)); g.fillRect(0,resTop,SW,ring-resTop);
+    g.fillStyle=css(mixc(B.ground,[255,250,236],day?0.62:0.10)); g.fillRect(0,ring-Math.max(1,Math.round(K)),SW,Math.max(1,Math.round(K*1.2)));
+    g.fillStyle=wS;  g.fillRect(0,ring,SW,crest-ring);
+    g.fillStyle=wlS; g.fillRect(0,ring,SW,Math.max(1,Math.round(K*1.2)));
+  } else {
+    g.fillStyle=wS;  g.fillRect(0,resTop,SW,crest-resTop);                       // brim-full
+    g.fillStyle=rgba(WATL,0.55);                                                 // it deepens toward the dam
+    g.fillRect(0,crest-Math.round((crest-resTop)*0.34),SW,Math.round((crest-resTop)*0.34));
+    g.fillStyle=wlS; g.fillRect(0,resTop,SW,Math.max(1,Math.round(K*1.6)));      // the far waterline catches the sky
+    // a few long lit ripples, broken so they are not rules across the frame
+    g.fillStyle=rgba(WATL,0.55);
+    for(var rp=0;rp<9;rp++){
+      var rh=((rp*2654435761+((WORLD_SEED*11)|0))>>>0);
+      var rx=((rh%Math.max(1,WW))-WOFF+Math.round(now*0.002))%WW; if(rx<-90) rx+=WW; if(rx>SW+90) rx-=WW;
+      var ry=resTop+Math.round(((rh>>>9)%Math.max(1,(crest-resTop-2))));
+      g.fillRect(rx|0,ry,Math.round((22+((rh>>>17)%40))*K),Math.max(1,Math.round(K*0.6)));
     }
   }
-  // ---- THE VILLAGE ON THE STEPS, and a few trees on the rim ----
-  // Nick, twice: "I don't even know wtf I am looking at." That is a SCALE problem, not a detail
-  // problem — a bowl with nothing human in it reads as a stadium, because nothing tells the eye how
-  // big it is or what it is made of. Three or four tiny roofs standing ON a terrace do more for
-  // legibility than any amount of texture on the terrace itself, which is the lesson of attempt 1
-  // stated the other way round.
-  var roofC=day?"#6a4632":"#1b1310", wallC2=day?"#d8cfbc":"#2a2620";
-  var treeC=day?"#2e4a2c":"#0b1410";
-  for(var v=0;v<9;v++){
-    var vh=((v*2654435761+((WORLD_SEED*17)|0))>>>0); vh^=vh>>>13;
-    var vwx=vh%Math.max(1,WW), vx=vwx-WOFF;
-    if(vx<-20) vx+=WW; if(vx>SW+20) vx-=WW;
-    if(vx<2||vx>=SW-2) continue;
-    var vb=terrBowl(vwx); if(!vb.inb||Math.abs(vb.u)>0.72) continue;
-    var vhy=rimY+Math.round(Math.sin(vwx*0.0042)*mountH*0.10+Math.sin(vwx*0.0111+1.7)*mountH*0.05);
-    var vk=1+((vh>>>7)%(TERR_ARCS-2));
-    var vuu=Math.pow(Math.abs(vb.u),1.25);
-    var vy=Math.round(vhy+(amp+TERR_FRAC[vk]*(mountH-amp))*(1-vuu)+TERR_FRAC[vk]*edgeFan*vuu);
-    if(vy<=vhy+2||vy>=HORIZON-1) continue;
-    // a hut: a pale wall and a steep dark roof. Two rects, and it is unmistakably a building.
-    var hw=Math.max(2,Math.round(2.4*K)), hh=Math.max(2,Math.round(2.2*K));
-    g.fillStyle=wallC2; g.fillRect(vx|0,vy-hh,hw,hh);
-    g.fillStyle=roofC;  g.fillRect((vx-1)|0,vy-hh-Math.max(1,Math.round(K*1.3)),hw+2,Math.max(1,Math.round(K*1.3)));
-    if(((vh>>>19)&1)){                                        // often a second one beside it
-      g.fillStyle=wallC2; g.fillRect((vx+hw+1)|0,vy-hh+1,hw,hh-1);
-      g.fillStyle=roofC;  g.fillRect((vx+hw)|0,vy-hh-Math.max(1,Math.round(K*0.6)),hw+2,Math.max(1,Math.round(K*1.1)));
-    }
+
+  // ---- 2. THE FACE. One mass, broken by VERTICAL ribs — never by horizontal bands. ----
+  g.fillStyle=cS; g.fillRect(0,crest,SW,faceBot-crest+1);
+  var ribP=Math.max(10,Math.round(19*K));
+  for(var bx=0;bx<SW;bx++){
+    var bwx=bx+WOFF, m=((bwx%ribP)+ribP)%ribP;
+    if(m<Math.max(1,Math.round(K*1.5)))            { g.fillStyle=cdS; g.fillRect(bx,crest,1,faceBot-crest+1); }
+    else if(m<Math.max(2,Math.round(K*3.4)))       { g.fillStyle=clS; g.fillRect(bx,crest,1,faceBot-crest+1); }
   }
-  // ---- PEOPLE AND BUFFALO IN THE PANS. This is the answer to "I don't know what I'm looking at",
-  // and it is worth more than any amount of surface detail: a 3px person standing in a terrace tells
-  // you instantly that the terrace is a FIELD and not a shelf, and that the mountain is a mountain
-  // and not a wall. Scale references, not texture — the exact inverse of attempt 1's mistake.
-  var wkC=["#d8d4c4","#8a9ac0","#c07a5a","#6a8a5a"];
-  for(var w=0;w<16;w++){
-    var wh2=((w*2654435761+((WORLD_SEED*41)|0))>>>0); wh2^=wh2>>>13;
-    var wwx=wh2%Math.max(1,WW), wx2=wwx-WOFF;
-    if(wx2<-10) wx2+=WW; if(wx2>SW+10) wx2-=WW;
-    if(wx2<1||wx2>=SW-1) continue;
-    var wb=terrBowl(wwx); if(!wb.inb||Math.abs(wb.u)>0.86) continue;
-    var whyy=rimY+Math.round(Math.sin(wwx*0.0042)*mountH*0.10+Math.sin(wwx*0.0111+1.7)*mountH*0.05);
-    var wk2=1+((wh2>>>5)%(TERR_ARCS-1));
-    var wuu=Math.pow(Math.abs(wb.u),1.25);
-    var wy2=Math.round(whyy+(amp+TERR_FRAC[wk2]*(mountH-amp))*(1-wuu)+TERR_FRAC[wk2]*edgeFan*wuu);
-    if(wy2<=whyy+2||wy2>=HORIZON-1) continue;
-    if(((wh2>>>17)%4)===0){
-      var bw2=Math.max(2,Math.round(2.6*K));                       // a water buffalo standing in the pan
-      g.fillStyle=day?"#3e3e44":"#131316";
-      g.fillRect(wx2|0,wy2-Math.max(1,Math.round(K*1.2)),bw2,Math.max(1,Math.round(K*1.2)));
-      g.fillRect((wx2+bw2)|0,wy2-Math.max(2,Math.round(K*1.8)),Math.max(1,Math.round(K*0.9)),Math.max(1,Math.round(K*0.9)));
-    } else {
-      var bent=((Math.floor(now/1600)+w)&1);                       // somebody working it
-      g.fillStyle=wkC[wh2%4];
-      if(bent) g.fillRect(wx2|0,wy2-Math.max(1,Math.round(K*1.1)),Math.max(2,Math.round(K*1.4)),Math.max(1,Math.round(K*1.1)));
-      else {
-        g.fillRect(wx2|0,wy2-Math.max(2,Math.round(K*2.2)),Math.max(1,Math.round(K*1.1)),Math.max(2,Math.round(K*2.2)));
-        g.fillStyle="#d8c8a0";                                     // a conical sun hat: reads even at 1px
-        g.fillRect((wx2-1)|0,wy2-Math.max(3,Math.round(K*2.8)),Math.max(2,Math.round(K*1.8)),Math.max(1,Math.round(K*0.6)));
-      }
+  // THE OGEE LIP — the rounded crest a dam is shaped with so the water leaves it cleanly. A bright
+  // line along the very top edge, and it is the single most dam-shaped thing in the drawing.
+  g.fillStyle=css(mixc(CONCL,[255,255,255],day?0.42:0.06));
+  g.fillRect(0,crest,SW,Math.max(1,Math.round(K*1.2)));
+  // the face BATTERS — it leans back as it rises, so the top of it is in the reservoir's shadow
+  g.fillStyle=rgba(CONCD,day?0.28:0.34);
+  g.fillRect(0,crest,SW,Math.max(2,Math.round(faceH*0.13)));
+  // …and lift lines, very faint: a dam is poured in blocks. Widely spaced so they never comb.
+  g.fillStyle=rgba(CONCD,0.18);
+  for(var lf=crest+Math.round(faceH*0.22); lf<faceBot; lf+=Math.max(6,Math.round(faceH*0.19)))
+    g.fillRect(0,lf,SW,Math.max(1,Math.round(K*0.5)));
+
+  // ---- 3. THE OVERFLOW. ⚠ THE FIRST VERSION READ AS AN OFFICE BUILDING: a tall flat facade with
+  // black rectangles in it, which is exactly what a closed spillway gate looks like at this scale —
+  // a window. Nothing about it said "dam".
+  // What makes a dam unmistakable is WATER GOING OVER IT. So this is an overflow dam: the crest is
+  // divided into broad bays by concrete piers, and the reservoir pours over every bay in a sheet
+  // that falls the full height of the face. Dark wall, white falls, dark pier, white falls — and the
+  // rhythm is VERTICAL, which is the one thing this engine draws well.
+  var pierP=Math.max(30,Math.round(58*K));
+  var pierW=Math.max(4,Math.round(9*K));
+  for(var sx=0;sx<SW;sx++){
+    var swx=sx+WOFF, m2=((swx%pierP)+pierP)%pierP;
+    var bidx=Math.floor(swx/pierP);
+    var bh=((bidx*2654435761+((WORLD_SEED*7)|0))>>>0);
+    if(m2<pierW){
+      // a PIER between the bays: concrete, lit on one edge, and it stands proud of the crest
+      g.fillStyle=(m2<Math.max(1,Math.round(K*1.2)))?cdS:clS;
+      g.fillRect(sx,crest-Math.round(3*K),1,faceBot-crest+Math.round(3*K)+1);
+      continue;
     }
+    if(drawnDown) continue;                                    // nothing to spill
+    // ⚠⚠ THE FALLS COVERED THE WHOLE FACE AND KILLED THE CONTRAST. Pouring white over every pixel of
+    // every bay turned the dam into one pale grey mass — the exact opposite of why this land was
+    // chosen. The dark concrete has to stay the dominant value and the water has to be a distinct
+    // BRIGHT SHAPE on it. So the nappe only occupies the middle of a bay, and in fair weather only
+    // some bays are open at all.
+    var flow=spillAll?1:(wet?1:((((bh>>>5)&1)===0)?0.9:0));   // about half the bays flow in fair weather
+    if(flow<=0) continue;
+    var bu=(m2-pierW)/Math.max(1,(pierP-pierW))*2-1;            // -1..1 across this bay
+    if(Math.abs(bu)>0.62) continue;                             // the fall does not fill the bay
+    var lipY=crest+Math.round(2*K);
+    // THE NAPPE: the sheet leaving the lip, brightest at the top where it is thinnest and whitest
+    var edge=1-Math.abs(bu)/0.62;                               // thinner at the edges of the nappe
+    g.fillStyle=rgba(FOAM,0.95*flow*(0.45+0.55*edge)); g.fillRect(sx,lipY,1,Math.round(faceH*0.30));
+    g.fillStyle=rgba(FOAM,0.60*flow*(0.35+0.65*edge)); g.fillRect(sx,lipY+Math.round(faceH*0.30),1,Math.round(faceH*0.34));
+    g.fillStyle=rgba(FOAM,0.34*flow*edge);             g.fillRect(sx,lipY+Math.round(faceH*0.64),1,faceBot-(lipY+Math.round(faceH*0.64))+1);
+    // streaming texture, moving DOWN the face — this is what makes it read as falling and not painted
+    if((((swx*40503)>>>0)%4)===0){
+      g.fillStyle=rgba([255,255,255],0.55*flow);
+      var sOff=Math.round((now*0.055+((swx*11)%37))%Math.max(3,faceH));
+      g.fillRect(sx,lipY+sOff,1,Math.max(2,Math.round(faceH*0.16)));
+    }
+    // and the reservoir DRAWS DOWN into the lip — the water bends over the edge
+    g.fillStyle=rgba(WATL,0.75*flow); g.fillRect(sx,crest-Math.round(2.5*K),1,Math.round(3*K));
   }
-  // trees breaking the rim line, so the silhouette has a scale too
-  for(var t=0;t<SW;t+=Math.max(5,Math.round(7*K))){
-    var th=(((t+WOFF)*40503)>>>0);
-    if((th%3)===0) continue;
-    var thy=rimY+Math.round(Math.sin((t+WOFF)*0.0042)*mountH*0.10+Math.sin((t+WOFF)*0.0111+1.7)*mountH*0.05);
-    var td=Math.max(2,Math.round((2+(th>>>7)%3)*K));
-    g.fillStyle=treeC; g.fillRect(t,thy-td,Math.max(1,Math.round(K*1.1)),td);
+  // ---- 4. THE CREST: a roadway along the top, with lamps. The scale reference that says how big
+  // this thing is — the lesson the terraces cost four rounds to learn.
+  // ⚠ only over the PIERS — a roadway painted across the falls would put a concrete band through the
+  // middle of the water, which is what turned the face into a facade the first time.
+  var lampP=Math.max(12,Math.round(26*K));
+  for(var lx=((-WOFF%lampP)+lampP)%lampP; lx<SW; lx+=lampP){
+    var lh=Math.round(4*K);
+    g.fillStyle=cdS; g.fillRect(lx,crest-lh,Math.max(1,Math.round(K*0.6)),lh);
+    if(!day){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,224,150,0.85)";
+      g.fillRect(lx-1,crest-lh-1,Math.round(K*1.6),Math.round(K*1.6));
+      g.globalCompositeOperation="source-over"; }
+  }
+  // ---- 5. THE STILLING BASIN at the foot: churned white water where the fall lands ----
+  if(!drawnDown){
+    g.fillStyle=css(mixc(WATER,[255,255,255],0.34)); g.fillRect(0,faceBot,SW,HORIZON-faceBot+1);
+    g.fillStyle=rgba(FOAM,0.8);
+    for(var bq=((-WOFF%5)+5)%5; bq<SW; bq+=5){
+      var bhs=(((bq+WOFF)*2654435761)>>>0);
+      if(((bhs>>>((Math.floor(now/220))%7))&3)===0) continue;
+      g.fillRect(bq,faceBot+((bhs>>>7)%Math.max(1,apron)),Math.max(1,Math.round(K*1.4)),Math.max(1,Math.round(K*0.7)));
+    }
+  } else {
+    g.fillStyle=css(mixc(B.ground,[120,110,92],0.4)); g.fillRect(0,faceBot,SW,HORIZON-faceBot+1);
   }
 }
 
@@ -28990,7 +28849,7 @@ function drawMountains(g,L,now,nd){
   if(curBiome.gorge){ drawGorge(g,L,now,nd); return; }                 // the gorge IS the range here — walls, not peaks
   if(curBiome.dune){ drawDunes(g,L,now,nd); return; }                   // …and a dune sea is not a ridge line either
   if(curBiome.tower){ drawKarst(g,L,now,nd); return; }                  // …nor is a field of limestone towers
-  if(curBiome.steps){ drawTerraces(g,L,now,nd); return; }                // …nor a hillside people cut into steps
+  if(curBiome.dam){ drawGreatDam(g,L,now,nd); return; }                  // …nor a gorge with a dam across it
   if(curBiome.roof){ drawUndercity(g,L,now,nd); return; }                // …and underground there is a CEILING, not a range
   if(curBiome.herd){ drawSavanna(g,L,now,nd); return; }                  // …and on a plain the ACACIA and the kopje are the relief
   if(curBiome.orbit){ drawOrbit(g,L,now,nd); return; }                  // …and in orbit the PLANET is the view
