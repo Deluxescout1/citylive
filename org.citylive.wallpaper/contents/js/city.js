@@ -20896,6 +20896,36 @@ function damLake(){
            surf:(drawn?ring:resTop),          // the waterline: the top of the open water
            deep:crest };                      // where the water meets the dam — the NEAR edge of the lake
 }
+// ⚠⚠ AND ONE SOURCE FOR THE WATER'S COLOUR, for the same reason. Nick: "make sure the water in the
+// lake also reacts to the weather." It did not react at all — `WATER` was a fixed pair of literals,
+// so the reservoir stayed the same bright blue under an overcast, in rain and in a thunderstorm. The
+// same colour under every sky is the ARCTIC's finding verbatim: the sky was the wrong COLOUR, not the
+// wrong weight, and no amount of dimming fixes a hue.
+// ⚠ THE LITERAL WAS IN THREE PLACES — here, in drawDamShore's reflections and in drawDamLakeLive's
+// wakes. Tint one and the reflections float on a surface that is no longer the colour they were
+// mixed against, which is how a reflection ends up LIGHTER than its water for the fifth time.
+// WHAT A LAKE ACTUALLY DOES: it takes the SKY's hue, and it is always darker than the sky it is
+// taking it from. So the reaction is a mix toward `biomeSkc` scaled by cloud, then a darkening —
+// never a lightening, which is what protects the pale far town's separation from the water behind it.
+// `chop` is CONTINUOUS in wind so something changes at every wind speed, with thresholds only for the
+// discrete states (foam, rain dimple) — the haboob-needs-16mph lesson.
+function damWater(L){
+  var day=L>0.5, fx=wfx();
+  var wind=Math.max(0,Math.min(60,(weather.wind==null?6:weather.wind)));
+  var cloudK=Math.max(0,Math.min(1,(weather.cloud==null?0:weather.cloud)/100));
+  var storm=fx.thunder?1:0, wet=(fx.rain||fx.drizzle)?1:0;
+  if(fx.cloudy&&cloudK<0.62) cloudK=0.62;
+  var chop=Math.max(0,Math.min(1, wind/32 + storm*0.34 + wet*0.10 ));
+  var glass=1-chop;                                              // how much of a mirror is left
+  var base=day?[142,186,222]:[34,52,86];
+  var sky=biomeSkc(day);
+  var w=mixc(base, sky, 0.24+0.30*cloudK);                        // it takes the sky's hue…
+  w=mixc(w,[0,0,0], 0.05+0.15*cloudK+0.15*storm+0.07*wet);        // …and is always darker than the sky
+  if(fx.fog) w=mixc(w, day?[214,220,226]:[36,40,50], 0.34);       // fog puts the far water into the haze
+  var lit=mixc(w, day?[236,246,255]:[104,132,186], 0.22+0.26*glass*(1-0.55*cloudK));
+  return { water:w, lit:lit, foam:day?[246,250,253]:[158,176,204],
+           chop:chop, glass:glass, wind:wind, cloudK:cloudK, storm:storm, wet:wet, fog:!!fx.fog };
+}
 function drawGreatDam(g,L,now,nd){
   var day=L>0.5, B=curBiome, K=Math.max(1,KSP), skc=biomeSkc(day);
   var spillAll=!!B.spill, drawnDown=!!B.drawn;
@@ -20909,8 +20939,9 @@ function drawGreatDam(g,L,now,nd){
   var CONC =day?[62,64,68]:[10,11,14];                   // concrete: the darkest mass in the game
   var CONCL=day?[104,106,112]:[22,24,29];                // a buttress rib catching the light
   var CONCD=day?[42,44,47]:[7,8,10];                     // the recess between ribs
-  var WATER=day?[142,186,222]:[34,52,86];                // the reservoir: BRIGHT
-  var WATL =day?[196,224,244]:[62,84,124];               // its lit surface
+  var WX=damWater(L);
+  var WATER=WX.water;                                    // the reservoir: it wears the sky
+  var WATL =WX.lit;                                      // its lit surface, flatter under cloud
   var FOAM =day?[246,250,253]:[158,176,204];             // discharge and spray: the brightest thing here
   var ROCK =day?[96,92,86]:[15,16,18];                   // the gorge the dam is wedged into
   var cS=css(CONC), clS=css(CONCL), cdS=css(CONCD), wS=css(WATER), wlS=css(WATL), fS=css(FOAM), rS=css(ROCK);
@@ -20944,19 +20975,15 @@ function drawGreatDam(g,L,now,nd){
     g.fillStyle=css(mixc(B.ground,[255,250,236],day?0.62:0.10)); g.fillRect(0,ring-Math.max(1,Math.round(K)),SW,Math.max(1,Math.round(K*1.2)));
     g.fillStyle=wS;  g.fillRect(0,ring,SW,crest-ring);
     g.fillStyle=wlS; g.fillRect(0,ring,SW,Math.max(1,Math.round(K*1.2)));
+    drawDamSurface(g,L,now,ring,crest,WX,K);       // ⚠ THE DRY POOL HAS WATER TOO, and it is a separate
+                                                   // fill from the brim-full one — the exact branch that
+                                                   // stranded the far town earlier today. Same weather.
   } else {
     g.fillStyle=wS;  g.fillRect(0,resTop,SW,crest-resTop);                       // brim-full
     g.fillStyle=rgba(WATL,0.55);                                                 // it deepens toward the dam
     g.fillRect(0,crest-Math.round((crest-resTop)*0.34),SW,Math.round((crest-resTop)*0.34));
     g.fillStyle=wlS; g.fillRect(0,resTop,SW,Math.max(1,Math.round(K*1.6)));      // the far waterline catches the sky
-    // a few long lit ripples, broken so they are not rules across the frame
-    g.fillStyle=rgba(WATL,0.55);
-    for(var rp=0;rp<9;rp++){
-      var rh=((rp*2654435761+((WORLD_SEED*11)|0))>>>0);
-      var rx=((rh%Math.max(1,WW))-WOFF+Math.round(now*0.002))%WW; if(rx<-90) rx+=WW; if(rx>SW+90) rx-=WW;
-      var ry=resTop+Math.round(((rh>>>9)%Math.max(1,(crest-resTop-2))));
-      g.fillRect(rx|0,ry,Math.round((22+((rh>>>17)%40))*K),Math.max(1,Math.round(K*0.6)));
-    }
+    drawDamSurface(g,L,now,resTop,crest,WX,K);                                   // …and what the weather is doing to it
   }
 
   drawDamShore(g,L,now,LK);            // the far lakefront town, the log boom and what is moored to it
@@ -21179,12 +21206,64 @@ function drawGreatDam(g,L,now,nd){
 // single feature anywhere is visible on exactly one of three monitors — the powerhouse landed one
 // pixel off the third screen once already. The town is four clusters ~0.22 of the world apart, which
 // guarantees any 28% window contains one; the small life is spread on its own hashes.
+// THE SURFACE, AND WHAT THE WEATHER IS DOING TO IT. Called for whichever band actually holds water,
+// so THE DRY POOL's ring gets the same treatment as a brim-full pool.
+// ⚠ WORLD-ANCHORED AND STILL. The ripples this replaces read the clock (`now*0.002`) from inside the
+// BACKDROP pass, which repaints every 1-4 s — so the lake's only motion was a slide that jumped a
+// pixel a second. Weather APPEARANCE is legitimately static: the chop gets denser and shorter as the
+// wind rises and does not travel. Everything that genuinely moves on this lake is already past the
+// `pass==="bg"` return with the ferry.
+function drawDamSurface(g,L,now,top,bot,WX,K){
+  var band=Math.max(2,bot-top);
+  if(band<3) return;
+  // ---- CHOP. Calm water is a few long mirror-flat streaks; wind breaks them into many short ones.
+  // Both the COUNT and the LENGTH move with `chop`, which is what makes 8 mph and 24 mph look like
+  // different days rather than the same day at a different brightness.
+  var nR=Math.round(7+18*WX.chop);
+  var lenMax=Math.max(3,Math.round((46-34*WX.chop)*K)), lenMin=Math.max(2,Math.round((14-9*WX.chop)*K));
+  g.fillStyle=rgba(WX.lit,0.24+0.30*WX.glass);
+  for(var rp=0;rp<nR;rp++){
+    var rh=((rp*2654435761+((WORLD_SEED*11)|0))>>>0);
+    var rx=((rh%Math.max(1,WW))-WOFF)%WW; if(rx<-lenMax) rx+=WW; if(rx>SW+lenMax) rx-=WW;
+    var ry=top+Math.round(((rh>>>9)%Math.max(1,(band-1))));
+    g.fillRect(rx|0,ry,lenMin+((rh>>>17)%Math.max(1,lenMax-lenMin)),Math.max(1,Math.round(K*0.6)));
+  }
+  // ---- WHITECAPS. ⚠⚠ THE ONE THING THAT CAN WRECK THIS MAP. `foam` is the brightest value in the
+  // frame and this land's recorded failure is exactly "the falls covered the whole face and killed
+  // the contrast — the dark mass must stay dominant and the bright thing must be a distinct SHAPE".
+  // Scattered bright dashes across the whole band would do that to the lake AND compete with the
+  // outlet, which is supposed to be the single brightest thing in the picture. So the count is CAPPED
+  // rather than scaled freely with wind, they only break in the near half where a wave would face you,
+  // and they never run at full alpha.
+  if(WX.chop>0.42){
+    var wcF=Math.min(1,(WX.chop-0.42)/0.45);
+    var nW=Math.min(14,Math.round(3+11*wcF));
+    g.fillStyle=rgba(WX.foam,0.30+0.34*wcF);
+    for(var wc=0;wc<nW;wc++){
+      var wh=((wc*40503+((WORLD_SEED*23)|0))>>>0);
+      var wx2=((wh%Math.max(1,WW))-WOFF)%WW; if(wx2<-12) wx2+=WW; if(wx2>SW+12) wx2-=WW;
+      var wy2=top+Math.round(band*0.46)+((wh>>>11)%Math.max(1,Math.round(band*0.52)));
+      g.fillRect(wx2|0,wy2,Math.max(1,Math.round((1.4+1.6*wcF)*K)),Math.max(1,Math.round(K*0.5)));
+    }
+  }
+  // ---- RAIN ON THE WATER. Not more waves — a fine dimple that kills the sheen, which is what rain
+  // actually does to a lake: it goes matt and slightly paler than the sky it stopped reflecting.
+  if(WX.wet){
+    g.fillStyle=rgba(WX.lit,0.16);
+    var dP=Math.max(3,Math.round(5*K));
+    for(var dx2=((-WOFF%dP)+dP)%dP; dx2<SW; dx2+=dP){
+      var dh=(((dx2+WOFF)*2654435761)>>>0);
+      if((dh%3)===0) continue;
+      g.fillRect(dx2,top+1+(dh%Math.max(1,band-2)),1,1);
+    }
+  }
+}
 function damTownFrac(){ return Math.max(0,Math.min(1,(cityG-0.22)/0.50)); }   // 0 at a hamlet, 1 by mid-life
 function drawDamShore(g,L,now,LK){
   var day=L>0.5, K=Math.max(1,KSP), skc=biomeSkc(day);
   var surf=LK.surf, deep=LK.deep, band=Math.max(6,deep-surf);
   var tf=damTownFrac();
-  var WATER=day?[142,186,222]:[34,52,86];
+  var WX=damWater(L), WATER=WX.water;      // the SAME water the surface is painted in — see damWater
   // ---- THE FAR LAKEFRONT TOWN. Tiny, hazed, and on the OPPOSITE shore, so the lake reads as having
   // two sides. Value contrast is the rule this whole land was chosen for: the wooded shoulders behind
   // are dark, so the town is PALE, and at night it is dark with lit windows. Either way it separates.
@@ -21237,8 +21316,12 @@ function drawDamShore(g,L,now,LK){
           // ⚠ AND ITS REFLECTION IS DARKER THAN THE WATER. Third land where that rule has had to be
           // applied and the one place it was got wrong every time (karst, fjord, salt): a reflection
           // LIGHTER than the surface it sits in disappears into it.
-          if(!LK.drawn){                                      // …and nothing reflects in an exposed riverbed
-            g.fillStyle=rgba(mixc(WATER,[0,0,0],day?0.30:0.42),day?0.42:0.30);
+          // ⚠ AND A CHOPPY SURFACE DOES NOT REFLECT. The reflection fades with `glass`, but it fades
+          // toward the water's own colour and NEVER past it — mixing toward anything lighter is how
+          // a reflection ends up brighter than the water it sits in, which is the one rule this
+          // engine has now got wrong on four separate lands.
+          if(!LK.drawn&&WX.glass>0.12){
+            g.fillStyle=rgba(mixc(WATER,[0,0,0],day?0.30:0.42),(day?0.42:0.30)*WX.glass);
             g.fillRect(bx,townY,bw,Math.max(1,Math.round(bh*0.5)));
           }
         }
@@ -21300,8 +21383,10 @@ function drawDamLakeLive(g,L,now,nd){
   var day=L>0.5, K=Math.max(1,KSP), fx=wfx();
   var surf=LK.surf, deep=LK.deep, band=Math.max(6,deep-surf);
   var calm=!(fx.rain||fx.thunder||fx.snow)&&(weather.wind||5)<20;
-  var WATER=day?[142,186,222]:[34,52,86];
-  var wake=day?"rgba(255,255,255,0.42)":"rgba(150,175,215,0.26)";
+  var WX=damWater(L), WATER=WX.water;
+  // the wake reads against the water it is cut into, so it comes from the same place the water does —
+  // and it stands out LESS on a day the whole surface is already broken up.
+  var wake=rgba(WX.foam,(day?0.42:0.26)*(0.55+0.45*WX.glass));
   function lakeY(f){ return surf+Math.round(band*Math.max(0.03,Math.min(0.97,f))); }
   function tri(t){ return t<0.5?(t*2):(2-t*2); }                     // there and back, at a constant speed
   // ---- 1. THE FERRY. The locked answer called it "a single clear moving object with a purpose", so

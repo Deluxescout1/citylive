@@ -55,7 +55,13 @@ Item {
         City.setup('neon', { cw:4656, ch:2622, woff:root.woff, ww:2269, pxk:3, zoom:6,
                              taskbarWp:17, quality:'balanced', frameMs:125 });
         City.FORCEAGE = root.age;
-        City.weather.code = 0; City.weather.wind = 6; City.weather.temp = 62;
+        // ⚠⚠ FORCEWX, NOT `City.weather.x = y`. draw() calls maybeFetchWeather() every frame, and in
+        // QML that really fetches — so hand-set weather is overwritten by the live Norwich reading
+        // within one frame and every render comes back showing whatever it is doing outside. A node
+        // probe CANNOT see this: node has no XMLHttpRequest, fetchWeather() returns immediately, and
+        // the hand-set values survive. That is exactly how this harness reported three identical
+        // lakes for clear, rain and thunder while the node probe reported three different ones.
+        City.FORCEWX = root.wx();
         root.ready = true;
         if (arg("diag", "0") === "1")
             root.err = "SW=" + City.SW + " SH=" + City.SH + " K=" + City.KSP
@@ -63,6 +69,11 @@ Item {
                      + " biome=" + (City.curBiome && City.curBiome.k)
                      + " cityG=" + City.cityG + " phase=" + City.cityPhase
                      + " FORCEAGE=" + City.FORCEAGE + " riverX=" + City.riverX;
+    }
+    function wx() {
+        var t = parseInt(arg("temp", "62"), 10), w = parseInt(arg("wind", "6"), 10);
+        return { code: parseInt(arg("code", "0"), 10), cloud: parseInt(arg("cloud", "0"), 10),
+                 wind: w, temp: t, feels: t, precip: 0, gust: w };
     }
     function paintAt(ms) {
         City.NOWOVR = City.CLOCK = root.t0 + ms;
@@ -79,13 +90,15 @@ Item {
         onPaint: {
             if (!root.ready) return;
             try {
+                City.FORCEWX = root.wx();          // re-asserted every paint: see the note in prime()
                 if (root.arg("onepass", "0") === "1") City.draw(getContext("2d"));
                 else City.draw(getContext("2d"), "bg");
                 if (root.arg("diag", "0") === "1")
-                    root.err = "post-bg: cityG=" + City.cityG + " phase=" + City.cityPhase
-                             + " FORCEAGE=" + City.FORCEAGE + " HORIZON=" + City.HORIZON
-                             + " damCache=" + (City.damCache ? "set" : "null")
-                             + " NOWOVR=" + City.NOWOVR;
+                    root.err = "post-bg: cityG=" + City.cityG
+                             + " FORCEWX=" + (City.FORCEWX ? JSON.stringify(City.FORCEWX) : "null")
+                             + " weather=" + JSON.stringify(City.weather)
+                             + " chop=" + (City.damWater(0.8).chop).toFixed(2)
+                             + " waterlum=" + City.lum255(City.damWater(0.8).water).toFixed(0);
             }
             catch (e) { root.err = "BG THREW: " + e + " | " + (e.stack || "").split("\n").slice(0,4).join(" << "); }
         }
@@ -100,7 +113,7 @@ Item {
         antialiasing: false
         onPaint: {
             if (!root.ready || !root.liveOn) return;
-            try { City.draw(getContext("2d"), "live"); }
+            try { City.FORCEWX = root.wx(); City.draw(getContext("2d"), "live"); }
             catch (e) { root.err = "LIVE THREW: " + e + " | " + (e.stack || "").split("\n").slice(0,4).join(" << "); }
         }
     }
