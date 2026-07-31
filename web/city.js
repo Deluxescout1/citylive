@@ -20878,12 +20878,30 @@ function damBayAt(wx,W){
   var d=Math.abs(wx-c);
   return { inb:d<half, u:(wx-c)/half, idx:Math.floor(wx/pitch), c:c, half:half };
 }
+// ⚠⚠ ONE SOURCE FOR THE WATERLINE. The reservoir is painted in the BACKDROP pass (drawGreatDam, via
+// drawMountains) but everything on it that MOVES has to be painted in the live pass — main.qml's bg
+// timer is 1000/2000/4000 ms against the live canvas's 83/125/500 ms, so a ferry drawn in the backdrop
+// would cross the lake in two-second jumps. That splits the lake across two functions, and the moment
+// two functions compute the same waterline separately they drift. So both read it from here.
+// `surf` is the actual water SURFACE: on THE DRY POOL the reservoir is drawn right down and the
+// surface is the bathtub ring, not the old shoreline — float a boat on `resTop` there and it sits on
+// dry gravel.
+function damLake(){
+  if(!curBiome||!curBiome.dam) return null;
+  var drawn=!!curBiome.drawn;
+  var crest=Math.max(16, HORIZON-Math.round(SH*0.33));
+  var resTop=Math.max(4, crest-Math.round(SH*(drawn?0.10:0.17)));
+  var ring=resTop+Math.round((crest-resTop)*0.52);
+  return { crest:crest, resTop:resTop, ring:ring, drawn:drawn,
+           surf:(drawn?ring:resTop),          // the waterline: the top of the open water
+           deep:crest };                      // where the water meets the dam — the NEAR edge of the lake
+}
 function drawGreatDam(g,L,now,nd){
   var day=L>0.5, B=curBiome, K=Math.max(1,KSP), skc=biomeSkc(day);
   var spillAll=!!B.spill, drawnDown=!!B.drawn;
   var fx=wfx(), wet=!!(fx.rain||fx.thunder||fx.drizzle);
   // ---- GEOMETRY. The crest sits high; the face falls from it to the gorge floor the town stands on.
-  var crest=Math.max(16, HORIZON-Math.round(SH*0.33));
+  var LK=damLake(), crest=LK.crest;
   var faceH=Math.max(8, HORIZON-crest);
   var apron=Math.max(3,Math.round(faceH*0.10));          // the stilling basin at the foot
   var faceBot=HORIZON-apron;
@@ -20898,7 +20916,7 @@ function drawGreatDam(g,L,now,nd){
   var cS=css(CONC), clS=css(CONCL), cdS=css(CONCD), wS=css(WATER), wlS=css(WATL), fS=css(FOAM), rS=css(ROCK);
 
   // ---- 1. THE RESERVOIR behind it, and the hills beyond ----
-  var resTop=Math.max(4, crest-Math.round(SH*(drawnDown?0.10:0.17)));
+  var resTop=LK.resTop;
   // ⚠ THE HILLS WERE ONE FLAT GREY MASS across the top third — B.near is a grey-blue and mixing it
   // half-way to the sky produced fog with an edge on it. A reservoir sits in a valley, so what is
   // behind it is WOODED SHOULDERS, and they need the same treatment the ridges everywhere else in
@@ -20921,7 +20939,7 @@ function drawGreatDam(g,L,now,nd){
   }
   if(drawnDown){
     // THE DRY POOL: the water is far down and the old shoreline is exposed as a bathtub ring
-    var ring=resTop+Math.round((crest-resTop)*0.52);
+    var ring=LK.ring;
     g.fillStyle=css(mixc(B.ground,[224,214,190],day?0.42:0.05)); g.fillRect(0,resTop,SW,ring-resTop);
     g.fillStyle=css(mixc(B.ground,[255,250,236],day?0.62:0.10)); g.fillRect(0,ring-Math.max(1,Math.round(K)),SW,Math.max(1,Math.round(K*1.2)));
     g.fillStyle=wS;  g.fillRect(0,ring,SW,crest-ring);
@@ -20940,6 +20958,8 @@ function drawGreatDam(g,L,now,nd){
       g.fillRect(rx|0,ry,Math.round((22+((rh>>>17)%40))*K),Math.max(1,Math.round(K*0.6)));
     }
   }
+
+  drawDamShore(g,L,now,LK);            // the far lakefront town, the log boom and what is moored to it
 
   // ---- 2. THE FACE. One mass, broken by VERTICAL ribs — never by horizontal bands. ----
   g.fillStyle=cS; g.fillRect(0,crest,SW,faceBot-crest+1);
@@ -21136,6 +21156,247 @@ function drawGreatDam(g,L,now,nd){
         if(((((bq+WOFF)*40503)>>>0)>>>((Math.floor(now/190))%5)&3)===0) continue;
         g.fillStyle=rgba(FOAM,0.85*fall);
         g.fillRect(bq,trY-Math.max(1,Math.round(K*0.9))+((bq*7)%2),Math.max(1,Math.round(K*1.2)),Math.max(1,Math.round(trH*0.9)));
+      }
+    }
+  }
+}
+
+// ================================================================================================
+// THE LAKE BEHIND THE DAM — the far shore, and everything on the water
+// ------------------------------------------------------------------------------------------------
+// Nick: "Also add boats and water life in the lake behind the Damn … also maybe a small lakefront
+// town starts to form in the distance as the city grows." He took ALL FOUR of the lake's options —
+// working boats, leisure boats, water life and a ferry — and "on the far shore, grows with the city"
+// for the town.
+// SPLIT ACROSS THE TWO PASSES, and that split is the whole architecture:
+//   · drawDamShore — the town, the log boom, the jetties and what is moored to them. Fixed things,
+//     so they belong in the 0.5 fps backdrop where they cost nothing.
+//   · drawDamLakeLive — the ferry, the launch, the dinghies and the water life. These MOVE, so they
+//     are drawn past the `pass==="bg"` return with the cascades and the volcano's plume.
+// Both read their waterline from damLake(), because two functions computing the same surface is how
+// the two passes come apart.
+// ⚠ EVERY POSITION IS WORLD-ANCHORED. His narrowest screen is 640/2269 = 28% of the world, so a
+// single feature anywhere is visible on exactly one of three monitors — the powerhouse landed one
+// pixel off the third screen once already. The town is four clusters ~0.22 of the world apart, which
+// guarantees any 28% window contains one; the small life is spread on its own hashes.
+function damTownFrac(){ return Math.max(0,Math.min(1,(cityG-0.22)/0.50)); }   // 0 at a hamlet, 1 by mid-life
+function drawDamShore(g,L,now,LK){
+  var day=L>0.5, K=Math.max(1,KSP), skc=biomeSkc(day);
+  var surf=LK.surf, deep=LK.deep, band=Math.max(6,deep-surf);
+  var tf=damTownFrac();
+  var WATER=day?[142,186,222]:[34,52,86];
+  // ---- THE FAR LAKEFRONT TOWN. Tiny, hazed, and on the OPPOSITE shore, so the lake reads as having
+  // two sides. Value contrast is the rule this whole land was chosen for: the wooded shoulders behind
+  // are dark, so the town is PALE, and at night it is dark with lit windows. Either way it separates.
+  // ⚠ THE TOWN STANDS ON THE SHORE, NOT ON THE WATERLINE. On THE DRY POOL the reservoir is drawn
+  // right down and `surf` drops to the bathtub ring — built off `surf`, the whole town walked down
+  // the hillside with the water. A settlement is built at the FULL-POOL shore and stays there; when
+  // the pool drops it is left standing above an exposed bed, which is both correct and a better
+  // picture. Boats keep using `surf`, because a boat really does follow the water down.
+  var townY=LK.resTop;
+  if(tf>0.001){
+    var wallC=day?mixc([206,200,188],skc,0.46):[26,29,38];
+    var roofC=day?mixc([150,142,132],skc,0.42):[18,20,27];
+    var quayC=day?mixc([222,218,206],skc,0.30):[30,33,42];
+    var u=Math.max(1,Math.round(K*0.9));                       // the far town's brick: one storey
+    var FR=[0.10,0.32,0.55,0.78];
+    for(var ci=0;ci<FR.length;ci++){
+      var cWX=wrapW(FR[ci]*WW+((WORLD_SEED*7)%97));
+      var seed=((ci*2654435761+(WORLD_SEED|0))>>>0);
+      var nB=1+Math.round(tf*(5+(seed%4)));                    // 1 roof early, up to 9 by mid-life
+      for(var wr=-1;wr<=1;wr++){
+        var cx0=Math.round(cWX-WOFF+wr*WW);
+        if(cx0<-40*K||cx0>SW+40*K) continue;
+        // ⚠ EVENLY SPACED 2px BUILDINGS ARE A PICKET FENCE, and the first version of this town was
+        // exactly that: a row of identical white sticks with identical gaps, which is the salt crust's
+        // graph-paper fault at village scale. A town seen from across a lake is a MASS with a broken
+        // roofline, not a rhythm — so the buildings are laid shoulder to shoulder from a running
+        // cursor, most of them touching, with a gap only where the hash says so.
+        var wd=[], tot=0, bi;
+        for(bi=0;bi<nB;bi++){
+          var hh=((seed>>>(bi%11))*2246822519+bi*40503)>>>0;
+          var w2=u*(1+(hh%3)), gp=(((hh>>>5)%3)===0)?Math.max(1,Math.round(u*0.8)):0;
+          wd.push({w:w2, h:u*(1+((hh>>>3)%3)), g:gp, k:hh});
+          tot+=w2+gp;
+        }
+        var qW=tot+Math.round(3*u), cur=cx0-Math.round(tot*0.5);
+        g.fillStyle=css(quayC); g.fillRect(cx0-(qW>>1),townY-Math.max(1,Math.round(u*0.6)),qW,Math.max(1,Math.round(u*0.6)));
+        for(bi=0;bi<nB;bi++){
+          var h2=wd[bi].k;
+          var bw=wd[bi].w, bh=wd[bi].h;
+          var bx=cur; cur+=bw+wd[bi].g;
+          var by=townY-Math.max(1,Math.round(u*0.6))-bh;
+          g.fillStyle=css(wallC); g.fillRect(bx,by,bw,bh);
+          g.fillStyle=css(roofC); g.fillRect(bx,by,bw,Math.max(1,Math.round(u*0.5)));
+          if(!day&&((h2>>>11)&3)!==0){                          // a lit window: what makes a far town read at night
+            g.globalCompositeOperation="lighter";
+            g.fillStyle="rgba(255,206,140,0.85)";
+            g.fillRect(bx+((h2>>>13)%Math.max(1,bw)),by+Math.max(1,Math.round(u*0.5)),1,1);
+            g.globalCompositeOperation="source-over";
+          }
+          // ⚠ AND ITS REFLECTION IS DARKER THAN THE WATER. Third land where that rule has had to be
+          // applied and the one place it was got wrong every time (karst, fjord, salt): a reflection
+          // LIGHTER than the surface it sits in disappears into it.
+          if(!LK.drawn){                                      // …and nothing reflects in an exposed riverbed
+            g.fillStyle=rgba(mixc(WATER,[0,0,0],day?0.30:0.42),day?0.42:0.30);
+            g.fillRect(bx,townY,bw,Math.max(1,Math.round(bh*0.5)));
+          }
+        }
+      }
+    }
+  }
+  // ---- THE LOG BOOM. The chained line of floats every dam keeps upstream of its gates to stop
+  // debris reaching them. It is the one piece of lake furniture that is unmistakably part of a DAM,
+  // and it gives the herons and the patrol launch something to belong to.
+  // ⚠ A dead-level dashed line across 776 px is the picket-fence fault verbatim. A real boom SAGS
+  // between its anchors — so the sag is both true and the thing that stops it being a rule.
+  var boomY=surf+Math.round(band*0.74);
+  var boomC=day?[92,84,72]:[16,17,21], sag=Math.max(1,Math.round(K*1.6));
+  var pitch=Math.max(4,Math.round(7*K));
+  // ⚠ IN RUNS, NOT PER COLUMN. The sag moves by one pixel over tens of columns, so a per-column
+  // fillRect emitted 776 rects to draw what is really about thirty flat segments — and it measured:
+  // the backdrop pass came in +6.7% with it. Consecutive columns at the same y are one rect. Same
+  // arithmetic, same picture, and it is the trail-of-dots lesson in reverse: batch the run, do not
+  // stamp the sample.
+  var chainH=Math.max(1,Math.round(K*0.5));
+  g.fillStyle=css(boomC);
+  var runX=0, runY=boomY+Math.round(Math.abs(Math.sin(WOFF*0.0068))*sag);
+  for(var bx2=1;bx2<=SW;bx2++){
+    var by2=(bx2<SW)?(boomY+Math.round(Math.abs(Math.sin((bx2+WOFF)*0.0068))*sag)):-1;
+    if(by2!==runY){ g.fillRect(runX,runY,bx2-runX,chainH); runX=bx2; runY=by2; }
+  }
+  for(var fx2=((-WOFF%pitch)+pitch)%pitch; fx2<SW; fx2+=pitch){                 // …and the floats strung on it
+    if((((fx2+WOFF)*2654435761)>>>0)%5===0) continue;                           // one in five missing: not a comb
+    var fy2=boomY+Math.round(Math.abs(Math.sin((fx2+WOFF)*0.0068))*sag);
+    g.fillStyle=css(day?mixc(boomC,[255,240,200],0.42):mixc(boomC,[120,132,160],0.30));
+    g.fillRect(fx2,fy2-Math.max(1,Math.round(K*0.6)),Math.max(1,Math.round(K*1.4)),Math.max(1,Math.round(K*1.2)));
+  }
+  // ---- THE WORKING JETTY and the boats tied to it: the dam's own launch and a barge. Infrastructure,
+  // and it belongs to the dam rather than to the town — which is exactly what Nick's "working boats"
+  // option said it should read as.
+  var jFR=[0.26,0.68];
+  for(var ji=0;ji<jFR.length;ji++){
+    var jWX=wrapW(jFR[ji]*WW+((WORLD_SEED*13)%89));
+    for(var jw=-1;jw<=1;jw++){
+      var jx=Math.round(jWX-WOFF+jw*WW);
+      if(jx<-30*K||jx>SW+30*K) continue;
+      var jy=surf+Math.round(band*(ji?0.40:0.24));
+      var jW=Math.round(9*K);
+      g.fillStyle=css(day?[104,96,82]:[18,19,24]); g.fillRect(jx,jy,jW,Math.max(1,Math.round(K*0.9)));   // the jetty
+      g.fillStyle=rgba(mixc(WATER,[0,0,0],day?0.28:0.40),0.40);
+      g.fillRect(jx,jy+Math.max(1,Math.round(K*0.9)),jW,Math.max(1,Math.round(K*0.8)));                  // its shadow on the water
+      var hW=Math.round(5*K), hH=Math.max(1,Math.round(K*1.1));
+      g.fillStyle=css(day?[210,206,196]:[30,33,42]);                                                     // a moored workboat
+      g.fillRect(jx+Math.round(1.5*K),jy-hH,hW,hH);
+      g.fillStyle=css(day?[120,128,140]:[20,22,29]);
+      g.fillRect(jx+Math.round(3*K),jy-hH-Math.max(1,Math.round(K*0.9)),Math.max(1,Math.round(K*1.6)),Math.max(1,Math.round(K*0.9)));  // wheelhouse
+    }
+  }
+}
+// THE MOVING LAKE — past the backdrop return, because the backdrop repaints once a second at best.
+function drawDamLakeLive(g,L,now,nd){
+  var LK=damLake(); if(!LK) return;
+  if(cityPhase==="apoc") return;
+  var day=L>0.5, K=Math.max(1,KSP), fx=wfx();
+  var surf=LK.surf, deep=LK.deep, band=Math.max(6,deep-surf);
+  var calm=!(fx.rain||fx.thunder||fx.snow)&&(weather.wind||5)<20;
+  var WATER=day?[142,186,222]:[34,52,86];
+  var wake=day?"rgba(255,255,255,0.42)":"rgba(150,175,215,0.26)";
+  function lakeY(f){ return surf+Math.round(band*Math.max(0.03,Math.min(0.97,f))); }
+  function tri(t){ return t<0.5?(t*2):(2-t*2); }                     // there and back, at a constant speed
+  // ---- 1. THE FERRY. The locked answer called it "a single clear moving object with a purpose", so
+  // it is the biggest thing on the water and the only one that crosses the whole lake: town shore to
+  // far shore and back. It recedes as it goes, which is what sells the lake's DEPTH.
+  var fper=196000, ft=((now%fper)/fper), fu=tri(ft);
+  var fWX=wrapW((hasRiver&&riverX>0?riverX:0.5)*WW+WW*0.30);
+  var fFar=0.16, fNear=0.66;                                          // it runs between the two shores
+  var ffy=fFar+(fNear-fFar)*(1-fu);
+  var fsc=0.55+0.85*ffy;                                              // near the dam it is bigger
+  for(var fw=-1;fw<=1;fw++){
+    var fx0=Math.round(fWX-WOFF+fw*WW+Math.round((fu-0.5)*22*K));
+    if(fx0<-40*K||fx0>SW+40*K) continue;
+    var fy0=lakeY(ffy);
+    var fhW=Math.max(3,Math.round(7*K*fsc)), fhH=Math.max(1,Math.round(1.7*K*fsc));
+    g.fillStyle=wake;                                                  // the wake first, so the hull sits on it
+    g.fillRect(fx0-Math.round(fhW*0.7),fy0+fhH,Math.round(fhW*1.7),Math.max(1,Math.round(K*0.5*fsc)));
+    g.fillStyle=css(day?[238,240,244]:[36,40,52]); g.fillRect(fx0,fy0,fhW,fhH);                     // hull
+    g.fillStyle=css(day?[70,96,140]:[22,25,34]);
+    g.fillRect(fx0,fy0+fhH-Math.max(1,Math.round(K*0.5*fsc)),fhW,Math.max(1,Math.round(K*0.5*fsc))); // boot-topping
+    g.fillStyle=css(day?[212,216,224]:[30,34,45]);                                                   // superstructure
+    g.fillRect(fx0+Math.round(fhW*0.28),fy0-Math.max(1,Math.round(1.5*K*fsc)),Math.round(fhW*0.44),Math.max(1,Math.round(1.5*K*fsc)));
+    if(!day){ g.globalCompositeOperation="lighter";
+      g.fillStyle="rgba(255,224,160,0.9)"; g.fillRect(fx0+Math.round(fhW*0.3),fy0-Math.round(K*0.9),Math.max(1,Math.round(K*0.8)),1);
+      g.globalCompositeOperation="source-over"; }
+  }
+  // ---- 2. THE PATROL LAUNCH running the log boom — the dam's own boat, so it travels ALONG the
+  // boom rather than across the lake, which is what makes it read as work and not leisure.
+  var pper=128000, pu=((now%pper)/pper);
+  var pWX=wrapW(pu*WW), pyf=0.70;
+  for(var pw=-1;pw<=1;pw++){
+    var px0=Math.round(pWX-WOFF+pw*WW);
+    if(px0<-20*K||px0>SW+20*K) continue;
+    var py0=lakeY(pyf), pW=Math.max(2,Math.round(4*K)), pH=Math.max(1,Math.round(K));
+    g.fillStyle=wake; g.fillRect(px0-Math.round(pW*1.4),py0+pH,Math.round(pW*1.4),Math.max(1,Math.round(K*0.5)));
+    g.fillStyle=css(day?[236,226,120]:[40,38,22]); g.fillRect(px0,py0,pW,pH);
+    g.fillStyle=css(day?[80,84,92]:[18,20,26]); g.fillRect(px0+Math.round(pW*0.5),py0-Math.max(1,Math.round(K*0.8)),Math.max(1,Math.round(K)),Math.max(1,Math.round(K*0.8)));
+  }
+  // ---- 3. LEISURE. "Reads as somewhere people go, and grows as the city gets richer" — so it is
+  // gated on the city being both grown and prosperous, and on the weather being fit for it. On a
+  // rough or poor day the lake is working boats only, which is a difference you can actually see.
+  if(cityG>0.34&&curEcon>0.42&&calm){
+    var nD=1+Math.round(Math.min(1,(cityG-0.34)/0.4)*2);
+    for(var di=0;di<nD;di++){
+      var dh=((di*2654435761+((WORLD_SEED*5)|0))>>>0);
+      var dper=74000+(dh%37000), dt=(((now+dh%dper)%dper)/dper);
+      var dWX=wrapW((0.14+di*0.29)*WW+(dh%211)+Math.round(tri(dt)*74*K));
+      var dyf=0.26+((dh>>>9)%40)/100;
+      for(var dw=-1;dw<=1;dw++){
+        var dx0=Math.round(dWX-WOFF+dw*WW);
+        if(dx0<-16*K||dx0>SW+16*K) continue;
+        var dy0=lakeY(dyf), dsc=0.5+0.8*dyf;
+        var sH=Math.max(2,Math.round(3.4*K*dsc));
+        g.fillStyle=css(day?[248,248,250]:[40,44,58]);                       // the sail: a triangle, one step per row
+        for(var sr=0;sr<sH;sr++){
+          var sw2=Math.max(1,Math.round((sr+1)*0.5*K*dsc));
+          g.fillRect(dx0,dy0-sH+sr,sw2,1);
+        }
+        g.fillStyle=css(day?[60,66,78]:[16,18,24]);
+        g.fillRect(dx0,dy0,Math.max(2,Math.round(2.4*K*dsc)),Math.max(1,Math.round(K*0.7*dsc)));   // hull
+        g.fillStyle=wake; g.fillRect(dx0-Math.round(K*dsc),dy0+Math.max(1,Math.round(K*0.7*dsc)),Math.max(1,Math.round(2*K*dsc)),1);
+      }
+    }
+  }
+  // ---- 4. WATER LIFE. "Movement without any human presence" — the one option on the list that has
+  // to read at a distance with no silhouette to help it, so it is all MOTION: rings opening where a
+  // fish has risen, and a raft of birds drifting. Kept sparse on purpose: four kinds of small moving
+  // thing in a 74 px band is how a lake becomes stipple.
+  var rings=3;
+  for(var ri=0;ri<rings;ri++){
+    var rh=((ri*40503+((WORLD_SEED*29)|0))>>>0);
+    var rper=7400+(rh%5200), rp=(((now+(rh%rper))%rper)/rper);
+    if(rp>0.55) continue;                                              // most of the time the water is just water
+    var rr=Math.round(rp*3.2*K), ra=(1-rp/0.55)*(day?0.5:0.28);
+    var rWX=wrapW(((rh>>>7)%WW));
+    for(var rw=-1;rw<=1;rw++){
+      var rx0=Math.round(rWX-WOFF+rw*WW);
+      if(rx0<-8*K||rx0>SW+8*K) continue;
+      var ry0=lakeY(0.22+((rh>>>17)%60)/100);
+      g.fillStyle=rgba(day?[255,255,255]:[150,175,215],ra);
+      g.fillRect(rx0-rr,ry0,Math.max(1,rr*2),1);                        // the ring, seen edge-on: a widening dash
+    }
+  }
+  var ducks=2;
+  for(var ui=0;ui<ducks;ui++){
+    var uh=((ui*2246822519+((WORLD_SEED*17)|0))>>>0);
+    var uWX=wrapW(((uh>>>5)%WW)+Math.round(now*0.0016)%WW);
+    for(var uw=-1;uw<=1;uw++){
+      var ux0=Math.round(uWX-WOFF+uw*WW);
+      if(ux0<-10*K||ux0>SW+10*K) continue;
+      var uy0=lakeY(0.34+((uh>>>13)%40)/100);
+      g.fillStyle=css(day?[64,62,58]:[16,17,21]);
+      for(var uk=0;uk<4;uk++){                                          // a raft of four, not a line of four
+        if(((uh>>>(uk*3))&3)===0) continue;
+        g.fillRect(ux0+Math.round(uk*1.7*K),uy0+((uk&1)?Math.max(1,Math.round(K*0.6)):0),Math.max(1,Math.round(K*0.8)),Math.max(1,Math.round(K*0.6)));
       }
     }
   }
@@ -24008,9 +24269,20 @@ function drawRiver(g,L,now){
   // reached all the way across.
   // Sized from the LANE table rather than a constant, so it cannot fall out of step if the road is ever
   // re-laid — the same lesson the hologram mast taught: a span is defined by what it has to reach.
-  var laneMaxO=0; for(var lq=0;lq<LANE.length;lq++) if(LANE[lq].o>laneMaxO) laneMaxO=LANE[lq].o;
-  var deckY=roadY+1;
-  var deckH=Math.max(3,Math.round(3*K), (HORIZON+laneMaxO+Math.round(3*K))-deckY);
+  // ⚠⚠⚠ …AND THEN THE PAVEMENTS ARRIVED AND THE SPAN DID NOT GROW WITH THEM. Nick: "the sidewalk
+  // should have a path over the water." Sizing the deck from `LANE[]` was right when the road WAS the
+  // whole band; it is wrong now, because the two footways are outside the LANE table. Measured at his
+  // real 4K geometry, at the middle of the channel: rows 363-368 (six of the far pavement's ten) and
+  // every row from 414 down (the whole near promenade) were open water `#27557F`, with the carriageway
+  // correctly decked between them. So the bridge carried the CARS across and dropped the PEOPLE in.
+  // 🔑 THE FOURTH RAW-OFFSET CASUALTY, and the first one that is not a literal: this span was
+  // *derived*, and derived from the right thing at the time. Widening the band relocates raw offsets
+  // AND invalidates spans measured from the old band's parts. `laneMaxO` is a correct answer to the
+  // question "how deep is the traffic"; it was never an answer to "how wide is the crossing".
+  // The span now reaches from the top of the cut to the bottom of the promenade — the whole street
+  // band, which is what the channel actually severs.
+  var deckY=HORIZON+3;                                     // the top of the cut (the channel fills from gy+4)
+  var deckH=Math.max(3,Math.round(3*K), WALK_N_BOT-deckY); // …to the outer edge of the near promenade
   for(var w=-1;w<=1;w++){
     var cx=Math.round(riverX*WW-WOFF+w*WW);
     if(cx+halfPx<-4||cx-halfPx>SW+4) continue;
@@ -24087,13 +24359,36 @@ function drawRiver(g,L,now){
         g.fillStyle=pierC; g.fillRect(pxp-(pierW>>1),deckY+deckH,pierW,SH-deckY-deckH);          // piers to the riverbed
         g.fillStyle=day?"rgba(255,255,255,0.14)":"rgba(0,0,0,0.2)"; g.fillRect(pxp-(pierW>>1),deckY+deckH,1,SH-deckY-deckH); }
       var dx0=cx-halfPx-wallW, dW=halfPx*2+wallW*2;
-      g.fillStyle=day?"#3a3f4c":"#272c39"; g.fillRect(dx0,deckY,dW,deckH);                       // deck carries the asphalt over
-      g.fillStyle=day?"#666b78":"#3c4254"; g.fillRect(dx0,deckY-1,dW,1);                         // kerb line
-      g.fillStyle=day?"rgba(20,24,32,0.5)":"rgba(0,0,0,0.5)"; g.fillRect(dx0,deckY+deckH,dW,1);  // deck underside shadow
-      var railY=deckY-Math.round(5*K);                                                           // railings
-      g.fillStyle=day?"rgba(232,238,248,0.9)":"rgba(150,165,195,0.6)";
-      g.fillRect(dx0,railY,dW,Math.max(1,Math.round(K)));
-      for(var rl=dx0;rl<dx0+dW;rl+=Math.round(5*K)) g.fillRect(rl,railY,1,Math.round(5*K));
+      // ---- THE DECK, IN THREE MATERIALS, because it carries three things: the far footway, the
+      // carriageway and the near promenade. A bridge whose footway is a different material from the
+      // pavement it joins reads as a slab dropped on the street, so both walking sections are painted
+      // out of `walkMat` — the same per-biome table the pavements themselves use. The moss-jointed
+      // stone of the dam, the timber of the bayou and the basalt setts of the Ashlands therefore all
+      // walk across their own bridge, with no per-land code here.
+      var BM=walkMat(L);
+      var fwH=Math.max(0,Math.min(deckH, roadY-deckY));                                          // far footway
+      var cwH=Math.max(0,Math.min(deckH-fwH, ROAD_BOT-roadY));                                   // carriageway
+      var nwH=Math.max(0,deckH-fwH-cwH);                                                         // near promenade
+      g.fillStyle=day?"#3a3f4c":"#272c39"; g.fillRect(dx0,deckY,dW,deckH);                       // the structure, in asphalt
+      if(fwH>0){                                                                                  // …the far footway laid over it
+        g.fillStyle=css(BM.top); g.fillRect(dx0,deckY,dW,fwH);
+        g.fillStyle=css(BM.low); g.fillRect(dx0,deckY,dW,Math.max(1,fwH>>2));                    // its shaded back edge, as drawSidewalk lays it
+        g.fillStyle=css(BM.kerb); g.fillRect(dx0,deckY+fwH-1,dW,1); }                            // and the kerb lip at the carriageway
+      if(nwH>0){                                                                                  // …and the promenade on the viewer's side
+        g.fillStyle=css(BM.top); g.fillRect(dx0,deckY+fwH+cwH,dW,nwH);
+        g.fillStyle=css(BM.low); g.fillRect(dx0,deckY+deckH-Math.max(1,nwH>>2),dW,Math.max(1,nwH>>2));
+        g.fillStyle=css(BM.kerb); g.fillRect(dx0,deckY+fwH+cwH,dW,1); }
+      if(deckY+deckH<SH-1){ g.fillStyle=day?"rgba(20,24,32,0.5)":"rgba(0,0,0,0.5)";
+        g.fillRect(dx0,deckY+deckH,dW,1); }                                                       // deck underside shadow (coastal lands only)
+      // ---- THE PARAPET. The near edge of the deck sits behind the panel on all three of his
+      // screens, so the FAR edge is the only one that can read — and it is the thing that says at a
+      // glance that the street is on a bridge here. Contrast is BY RULE against the material it
+      // stands on (locked answer 14), never an authored colour that happens to work on one land.
+      var parC=railContrast(day?[232,238,248]:[150,165,195], BM.top, 58);
+      var parH=Math.max(2,Math.round(4*K)), railY=deckY-parH;
+      g.fillStyle=rgba(parC,day?0.9:0.6);
+      g.fillRect(dx0,railY,dW,Math.max(1,Math.round(K)));                                         // the handrail
+      for(var rl=dx0;rl<dx0+dW;rl+=Math.round(5*K)) g.fillRect(rl,railY,1,parH);                  // and its standards
     }
   }
 }
@@ -35048,6 +35343,9 @@ function draw(g,pass){
   drawPlainsSky(g,L,now,nd,fx);   // on a plain the SKY is the scenery — towers, curtains, a far butte
   drawVolcanoLive(g,L,now,nd);    // …and if it is a volcano, the steam, glow and plume — the moving part
                                   // (its static surface is drawn in the backdrop pass, see drawVolcanoSurface)
+  drawDamLakeLive(g,L,now,nd);    // …and if it is the dam, the ferry, the launch, the dinghies and the
+                                  // water life. The lake's FIXED things (the far town, the boom, the
+                                  // jetties) stay in the backdrop — see drawDamShore.
   drawPlateauTowns(g,L,now,nd);
   drawBlastWreckage(g,L,now);   // …and what the mountain took with it when it went   // and whatever stands on top of a flat-topped mountain
   drawGondola(g,L,now);           // a cable-car + summit lodge on the tallest peak (mature cities)
