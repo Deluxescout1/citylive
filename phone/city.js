@@ -20957,7 +20957,7 @@ function drawTerraces(g,L,now,nd){
     for(var q2=0;q2<5;q2++) row.push(css(mixc(mir, [0,0,0], 0.13*(1-q2/4))));
     PSH.push(row);
   }
-  var panH=Math.max(2,Math.round(step*0.74));   // BRIGHT dominates (locked answer 10): the pan owns most of each step
+  var panH=Math.max(2,Math.round(step*0.62));   // bright dominates, but the wall must still SEPARATE two pans
   // ================================================================================================
   // ⚠⚠ THE HILL HAD NO DEPTH. Nick: "THE SLOPE AND HILL ARE AWEFUL LOOKING."
   // It was ONE silhouette — a single flat green mass with a line on top. The lands that read (alpine,
@@ -21042,7 +21042,7 @@ function drawTerraces(g,L,now,nd){
         ? Math.min(HORIZON, yk+panH+Math.max(2,Math.round(step*0.5)))
         : Math.min(HORIZON,nxt);
       // BRIGHT dominates — most pans hold water; a couple carry crop so it is a farm, not a fountain
-      var isW=((((bw.idx*31+k)*2654435761)>>>0)%7)!==0;   // ~6 pans in 7 hold water
+      var isW=((((bw.idx*31+k)*2654435761)>>>0)%6)!==0;   // ~5 pans in 6 hold water
       g.fillStyle=isW?PSH[k][litq]:mS; g.fillRect(x,yk,1,Math.min(panH,Math.max(1,wallTo-yk)));
       if(wallTo>yk+panH){ g.fillStyle=wS; g.fillRect(x,yk+panH,1,wallTo-(yk+panH)); }
     }
