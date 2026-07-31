@@ -20949,49 +20949,134 @@ function drawGreatDam(g,L,now,nd){
   for(var lf=crest+Math.round(faceH*0.22); lf<faceBot; lf+=Math.max(6,Math.round(faceH*0.19)))
     g.fillRect(0,lf,SW,Math.max(1,Math.round(K*0.5)));
 
-  // ---- 3. THE OVERFLOW. ⚠ THE FIRST VERSION READ AS AN OFFICE BUILDING: a tall flat facade with
-  // black rectangles in it, which is exactly what a closed spillway gate looks like at this scale —
-  // a window. Nothing about it said "dam".
-  // What makes a dam unmistakable is WATER GOING OVER IT. So this is an overflow dam: the crest is
-  // divided into broad bays by concrete piers, and the reservoir pours over every bay in a sheet
-  // that falls the full height of the face. Dark wall, white falls, dark pier, white falls — and the
-  // rhythm is VERTICAL, which is the one thing this engine draws well.
-  var pierP=Math.max(30,Math.round(58*K));
+  // ---- 3. THE OUTLET. ⚠ Nick: "the Damn Should only have one spot where it releases the water and
+  // it should be going into a river." He is right and it is a much stronger picture: a face covered
+  // in falls is a texture, and a texture is what this land was chosen to escape. ONE outlet is a
+  // FOCAL POINT — the single brightest thing in the frame, on the single darkest, in one place.
+  // ⚠⚠ AND IT DISCHARGES INTO THE ACTUAL RIVER. This biome already carries `water:"river"`, and
+  // `riverX` is where that river crosses the world — so the outlet is placed AT it. The fall lands in
+  // the river's head and the river then runs down through the town and under its bridge. That is
+  // what joins the dam to the city instead of leaving them as two stacked pictures.
+  var outWX = (hasRiver&&riverX>0) ? riverX*WW : WW*0.5;
+  var outHalf= Math.max(7,Math.round(15*K));
+  var pierP=Math.max(30,Math.round(58*K));      // structural piers still divide the face, but none of them spill
   var pierW=Math.max(4,Math.round(9*K));
   for(var sx=0;sx<SW;sx++){
     var swx=sx+WOFF, m2=((swx%pierP)+pierP)%pierP;
-    var bidx=Math.floor(swx/pierP);
-    var bh=((bidx*2654435761+((WORLD_SEED*7)|0))>>>0);
-    if(m2<pierW){
-      // a PIER between the bays: concrete, lit on one edge, and it stands proud of the crest
+    if(m2<pierW){                                                  // a buttress pier standing proud of the crest
       g.fillStyle=(m2<Math.max(1,Math.round(K*1.2)))?cdS:clS;
       g.fillRect(sx,crest-Math.round(3*K),1,faceBot-crest+Math.round(3*K)+1);
-      continue;
     }
-    if(drawnDown) continue;                                    // nothing to spill
-    // ⚠⚠ THE FALLS COVERED THE WHOLE FACE AND KILLED THE CONTRAST. Pouring white over every pixel of
-    // every bay turned the dam into one pale grey mass — the exact opposite of why this land was
-    // chosen. The dark concrete has to stay the dominant value and the water has to be a distinct
-    // BRIGHT SHAPE on it. So the nappe only occupies the middle of a bay, and in fair weather only
-    // some bays are open at all.
-    var flow=spillAll?1:(wet?1:((((bh>>>5)&1)===0)?0.9:0));   // about half the bays flow in fair weather
-    if(flow<=0) continue;
-    var bu=(m2-pierW)/Math.max(1,(pierP-pierW))*2-1;            // -1..1 across this bay
-    if(Math.abs(bu)>0.62) continue;                             // the fall does not fill the bay
-    var lipY=crest+Math.round(2*K);
-    // THE NAPPE: the sheet leaving the lip, brightest at the top where it is thinnest and whitest
-    var edge=1-Math.abs(bu)/0.62;                               // thinner at the edges of the nappe
-    g.fillStyle=rgba(FOAM,0.95*flow*(0.45+0.55*edge)); g.fillRect(sx,lipY,1,Math.round(faceH*0.30));
-    g.fillStyle=rgba(FOAM,0.60*flow*(0.35+0.65*edge)); g.fillRect(sx,lipY+Math.round(faceH*0.30),1,Math.round(faceH*0.34));
-    g.fillStyle=rgba(FOAM,0.34*flow*edge);             g.fillRect(sx,lipY+Math.round(faceH*0.64),1,faceBot-(lipY+Math.round(faceH*0.64))+1);
-    // streaming texture, moving DOWN the face — this is what makes it read as falling and not painted
-    if((((swx*40503)>>>0)%4)===0){
-      g.fillStyle=rgba([255,255,255],0.55*flow);
-      var sOff=Math.round((now*0.055+((swx*11)%37))%Math.max(3,faceH));
-      g.fillRect(sx,lipY+sOff,1,Math.max(2,Math.round(faceH*0.16)));
+  }
+  // THE OUTLET ITSELF, world-anchored so all three monitors put it in the same place
+  if(!drawnDown) for(var wr=-1;wr<=1;wr++){
+    var ox=Math.round(outWX-WOFF+wr*WW);
+    if(ox+outHalf<0||ox-outHalf>SW) continue;
+    for(var dx=-outHalf;dx<=outHalf;dx++){
+      var px2=ox+dx; if(px2<0||px2>=SW) continue;
+      var u2=dx/outHalf;
+      if(Math.abs(u2)>0.80){                                       // the chute's training walls
+        g.fillStyle=clS; g.fillRect(px2,crest-Math.round(4*K),1,faceBot-crest+Math.round(4*K)+1);
+        g.fillStyle=cdS; g.fillRect(px2,crest-Math.round(4*K),1,Math.max(1,Math.round(K)));
+        continue;
+      }
+      var lipY=crest+Math.round(2*K);
+      var edge=1-Math.abs(u2)/0.80;
+      // the reservoir bending over the lip, then the nappe falling the full height of the face
+      g.fillStyle=rgba(WATL,0.85); g.fillRect(px2,crest-Math.round(3*K),1,Math.round(3.5*K));
+      g.fillStyle=rgba(FOAM,0.96*(0.5+0.5*edge)); g.fillRect(px2,lipY,1,Math.round(faceH*0.34));
+      g.fillStyle=rgba(FOAM,0.72*(0.4+0.6*edge)); g.fillRect(px2,lipY+Math.round(faceH*0.34),1,faceBot-(lipY+Math.round(faceH*0.34))+1);
+      if((((swx+dx)*40503)>>>0)%3===0){                            // streaming texture, so it falls
+        g.fillStyle=rgba([255,255,255],0.6);
+        var so2=Math.round((now*0.06+((px2*13)%41))%Math.max(3,faceH));
+        g.fillRect(px2,lipY+so2,1,Math.max(2,Math.round(faceH*0.18)));
+      }
+      // spray thrown sideways out of the plunge pool, which is what sells the scale of the drop
+      if(((((px2+WOFF)*2654435761)>>>0)>>>((Math.floor(now/180))%6)&3)!==0){
+        g.fillStyle=rgba(FOAM,0.42);
+        g.fillRect(px2,faceBot-Math.round(6*K)-((px2*7)%Math.round(5*K)),1,Math.round(5*K));
+      }
     }
-    // and the reservoir DRAWS DOWN into the lip — the water bends over the edge
-    g.fillStyle=rgba(WATL,0.75*flow); g.fillRect(sx,crest-Math.round(2.5*K),1,Math.round(3*K));
+  }
+  // ---- 3b. ⚠⚠ ONE OUTLET MEANS TWO OF HIS THREE MONITORS SEE A BLANK WALL. The world is 2269 world
+  // px and his screens tile it, so a single feature anywhere in the world is visible on ONE screen.
+  // Nick asked for one release point AND for the map to "read better on all screens" — both, and they
+  // pull against each other. The answer is not more water: it is to give the other stretches their
+  // own LANDMARKS, so every screen has something to look at and only one has the fall.
+  // Spread a third of the world apart, so his three monitors get one each.
+  var wf=(hasRiver&&riverX>0)?riverX:0.5;
+  // (a) THE POWERHOUSE — penstocks running down the face into a machine hall at the toe. Big pipes
+  // and a real building: unmistakably a dam, and it explains what the dam is FOR.
+  var phWX=wrapW(wf*WW+WW*0.42);
+  for(var pw2=-1;pw2<=1;pw2++){
+    var pxc=Math.round(phWX-WOFF+pw2*WW);
+    if(pxc<-60*K||pxc>SW+60*K) continue;
+    var nPen=4, penGap=Math.round(9*K), penW=Math.max(3,Math.round(5*K));
+    for(var pn=0;pn<nPen;pn++){
+      var pxs=pxc+Math.round((pn-(nPen-1)/2)*penGap);
+      var top2=crest+Math.round(faceH*0.18);
+      g.fillStyle=cdS;  g.fillRect(pxs-1,top2,penW+2,faceBot-top2+1);           // the pipe's shadow
+      g.fillStyle=clS;  g.fillRect(pxs,top2,penW,faceBot-top2+1);               // the penstock
+      g.fillStyle=css(mixc(CONCL,[255,255,255],day?0.34:0.04));
+      g.fillRect(pxs,top2,Math.max(1,Math.round(K*1.1)),faceBot-top2+1);        // its lit side
+      g.fillStyle=cdS;                                                          // support collars
+      for(var cy2=top2+Math.round(10*K); cy2<faceBot; cy2+=Math.round(14*K)) g.fillRect(pxs,cy2,penW,Math.max(1,Math.round(K*0.8)));
+    }
+    var phW=Math.round(nPen*penGap+10*K), phH=Math.max(4,Math.round(apron*1.5));
+    var phX=pxc-(phW>>1);
+    g.fillStyle=css(mixc(CONCL,[0,0,0],0.18)); g.fillRect(phX,HORIZON-phH,phW,phH);        // the machine hall
+    g.fillStyle=css(mixc(CONCL,[255,255,255],day?0.26:0.0)); g.fillRect(phX,HORIZON-phH,phW,Math.max(1,Math.round(K*1.1)));
+    g.fillStyle=day?"rgba(150,180,205,0.8)":"rgba(255,214,150,0.9)";                        // its window band
+    for(var wq2=phX+Math.round(2*K); wq2<phX+phW-Math.round(2*K); wq2+=Math.round(4*K))
+      g.fillRect(wq2,HORIZON-Math.round(phH*0.62),Math.max(1,Math.round(K*1.6)),Math.max(1,Math.round(K*1.4)));
+  }
+  // (b) THE INTAKE TOWER — a cylindrical tower standing out in the reservoir with a footbridge back
+  // to the crest. A strong vertical against flat water, and the tallest thing on the map.
+  if(!drawnDown){
+    // ⚠ ONE OF EACH IS NOT ENOUGH. The powerhouse landed ONE PIXEL off the left edge of his third
+    // screen, so that monitor showed nothing but bare wall. With features placed relative to riverX
+    // the spacing is luck. Landmarks are now spread at fixed fractions ~0.2 apart, which guarantees
+    // that ANY window a third of the world wide — and his narrowest screen is 640/2269 = 28% —
+    // contains at least one. Only the OUTLET is unique; towers and gantries are things real dams
+    // have several of.
+    var itFR=[0.20,0.72];
+    for(var itI=0;itI<itFR.length;itI++){
+    var itWX=wrapW(wf*WW+WW*itFR[itI]);
+    for(var iw=-1;iw<=1;iw++){
+      var ix=Math.round(itWX-WOFF+iw*WW);
+      if(ix<-30*K||ix>SW+30*K) continue;
+      var itW=Math.max(4,Math.round(7*K)), itTop=crest-Math.round(SH*0.11);
+      g.fillStyle=cS;  g.fillRect(ix-(itW>>1),itTop,itW,crest-itTop);
+      g.fillStyle=clS; g.fillRect(ix-(itW>>1),itTop,Math.max(1,Math.round(K*1.4)),crest-itTop);
+      g.fillStyle=css(mixc(CONCL,[255,255,255],day?0.34:0.0));
+      g.fillRect(ix-(itW>>1)-Math.round(K),itTop-Math.round(1.6*K),itW+Math.round(2*K),Math.round(1.8*K));   // its cap
+      g.fillStyle=cdS;                                                                      // the footbridge to the crest
+      var bY=itTop+Math.round(2.6*K);
+      var bA=Math.min(ix,ix+Math.round(18*K)), bB=Math.max(ix,ix+Math.round(18*K));
+      g.fillRect(bA,bY,bB-bA,Math.max(1,Math.round(K*0.9)));
+      if(!day){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,120,90,0.9)";   // its red aircraft light
+        g.fillRect(ix-1,itTop-Math.round(2.4*K),Math.round(K*1.4),Math.round(K*1.4));
+        g.globalCompositeOperation="source-over"; }
+    }}
+  }
+  // (c) A CABLE CRANE GANTRY on the crest — every big dam keeps one for maintenance, and it is a
+  // strong hard silhouette against the sky on whichever screen has no tower and no fall.
+  for(var cgI=0;cgI<2;cgI++){
+    var cgWX=wrapW(wf*WW+WW*(cgI?0.56:0.88));
+    for(var cw2=-1;cw2<=1;cw2++){
+      var cx2=Math.round(cgWX-WOFF+cw2*WW);
+      if(cx2<-40*K||cx2>SW+40*K) continue;
+      var cgW=Math.round(26*K), cgH=Math.round(9*K), cgY=crest-Math.round(4*K);
+      g.fillStyle=cdS;
+      g.fillRect(cx2-(cgW>>1),cgY-cgH,Math.max(1,Math.round(K*1.1)),cgH);                 // the two legs
+      g.fillRect(cx2+(cgW>>1),cgY-cgH,Math.max(1,Math.round(K*1.1)),cgH);
+      g.fillStyle=clS;
+      g.fillRect(cx2-(cgW>>1),cgY-cgH,cgW,Math.max(1,Math.round(K*1.3)));                 // the span
+      g.fillStyle=cdS;
+      g.fillRect(cx2-Math.round(3*K),cgY-cgH+Math.round(1.3*K),Math.max(1,Math.round(K*0.7)),Math.round(4*K));  // the hoist cable
+      g.fillStyle=clS;
+      g.fillRect(cx2-Math.round(4*K),cgY-cgH+Math.round(5*K),Math.round(3*K),Math.round(1.6*K));                 // and its block
+    }
   }
   // ---- 4. THE CREST: a roadway along the top, with lamps. The scale reference that says how big
   // this thing is — the lesson the terraces cost four rounds to learn.
@@ -21006,16 +21091,41 @@ function drawGreatDam(g,L,now,nd){
       g.globalCompositeOperation="source-over"; }
   }
   // ---- 5. THE STILLING BASIN at the foot: churned white water where the fall lands ----
+  // ⚠⚠ THE STILLING BASIN WAS A PALE BAND ACROSS THE WHOLE WIDTH, at exactly the height the town
+  // stands on. Nick: "there is this weird gap between the town and the Damn." He is right — the town
+  // looked like it was standing in a strip of fog, because a light horizontal band was painted
+  // between the dam's foot and the street.
+  // Below a dam there is not a sheet of water: there is a TAILRACE, a narrow channel carrying the
+  // discharge away, with dry apron either side of it that the town is built on. So the ground under
+  // the dam is now GROUND, continuous with the land the city sits on, and the water is confined to a
+  // channel that only churns where a bay is actually falling into it.
+  var apronC=css(mixc(B.ground, day?[86,84,78]:[10,11,13], day?0.34:0.55));
+  g.fillStyle=apronC; g.fillRect(0,faceBot,SW,HORIZON-faceBot+1);
+  g.fillStyle=rgba(CONCD,day?0.20:0.28);                      // the apron slab's own shadow at the toe
+  g.fillRect(0,faceBot,SW,Math.max(1,Math.round(K*1.2)));
   if(!drawnDown){
-    g.fillStyle=css(mixc(WATER,[255,255,255],0.34)); g.fillRect(0,faceBot,SW,HORIZON-faceBot+1);
-    g.fillStyle=rgba(FOAM,0.8);
-    for(var bq=((-WOFF%5)+5)%5; bq<SW; bq+=5){
-      var bhs=(((bq+WOFF)*2654435761)>>>0);
-      if(((bhs>>>((Math.floor(now/220))%7))&3)===0) continue;
-      g.fillRect(bq,faceBot+((bhs>>>7)%Math.max(1,apron)),Math.max(1,Math.round(K*1.4)),Math.max(1,Math.round(K*0.7)));
+    // THE PLUNGE POOL AND THE RIVER'S HEAD — only where the outlet lands, not across the whole width.
+    var trY=faceBot+Math.max(1,Math.round(apron*0.42));
+    var trH=Math.max(2,Math.round(apron*0.46));
+    var poolC=css(mixc(WATER,[0,0,0],day?0.22:0.55)), poolL=rgba(WATL,day?0.5:0.25);
+    for(var wr2=-1;wr2<=1;wr2++){
+      var px3=Math.round(outWX-WOFF+wr2*WW), wide=Math.round(outHalf*2.1);
+      var a3=Math.max(0,px3-wide), b3=Math.min(SW,px3+wide);
+      if(b3<=a3) continue;
+      g.fillStyle=poolC; g.fillRect(a3,trY,b3-a3,trH);
+      g.fillStyle=poolL; g.fillRect(a3,trY,b3-a3,Math.max(1,Math.round(K*0.6)));
     }
-  } else {
-    g.fillStyle=css(mixc(B.ground,[120,110,92],0.4)); g.fillRect(0,faceBot,SW,HORIZON-faceBot+1);
+    // …and it only BOILS where a bay above it is actually discharging
+    for(var wr3=-1;wr3<=1;wr3++){
+      var px4=Math.round(outWX-WOFF+wr3*WW);
+      for(var dq=-Math.round(outHalf*1.5); dq<=Math.round(outHalf*1.5); dq++){
+        var bq=px4+dq; if(bq<0||bq>=SW) continue;
+        var fall=1-Math.min(1,Math.abs(dq)/(outHalf*1.5));
+        if(((((bq+WOFF)*40503)>>>0)>>>((Math.floor(now/190))%5)&3)===0) continue;
+        g.fillStyle=rgba(FOAM,0.85*fall);
+        g.fillRect(bq,trY-Math.max(1,Math.round(K*0.9))+((bq*7)%2),Math.max(1,Math.round(K*1.2)),Math.max(1,Math.round(trH*0.9)));
+      }
+    }
   }
 }
 
