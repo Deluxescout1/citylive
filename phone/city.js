@@ -20955,7 +20955,7 @@ function drawTerraces(g,L,now,nd){
   // A story told every single life, and you can watch the city win.
   // ⚠ Not on THE DROWNED STAIR: that variant's whole premise is that everyone left.
   var urbanF = drowned ? 0 : Math.max(0,Math.min(1,(cityG-0.34)/0.52));
-  var urbanTo = 1 - urbanF*0.42;                            // fractions BELOW this are built over
+  var urbanTo = 1 - urbanF*0.25;                            // fractions BELOW this are built over
   var roofCols = day ? [[136,126,118],[118,110,104],[150,138,126],[104,98,94],[128,116,102]]
                      : [[34,32,34],[28,26,28],[40,37,38],[24,23,25],[31,29,30]];
   var winC = day ? [180,176,168] : [255,214,150];
@@ -21016,13 +21016,44 @@ function drawTerraces(g,L,now,nd){
         var wallJ=1+(((ph>>>11)%5)-2)*0.06;                    // wall tone varies pan to pan
         var wc=mixc([Math.min(255,(wallC[0]*wallJ)|0),Math.min(255,(wallC[1]*wallJ)|0),Math.min(255,(wallC[2]*wallJ)|0)], skc, 0.34*(1-f0)*(1-f0));
         var panFrac=0.44+((ph>>>17)%40)/100*0.24;              // how much of the step is flat vs wall
+        // ⚠⚠ NICK: "this looks so Aweful, can we make this look more realisitc and not blocky?" — and
+        // when I guessed he meant the city, he corrected me: "I am talking about the Farmland above
+        // the city not the city itself." He is right. Fields, not lines, fixed the CORDUROY; it left
+        // every pan a hard-edged rectangle of dead-flat colour with a vertical bar at each end. A
+        // paddy is none of those things: it is a lens that tapers where the contour pinches it out,
+        // its surface carries crop rows or ripple, its edge wanders, and things grow over its wall.
+        // ⚠ EVERY COLOUR STRING IS BUILT ONCE PER PAN. `css(panCol)` and `css(wc)` were being called
+        // PER PIXEL here — the same allocation-in-a-pixel-loop that cost the night pass 50%. Third
+        // instance in two days; it is the first thing to look for in any loop over xx.
+        var panS=css(panCol), wcS=css(wc), wallShS=rgba(wallSh,0.55), lipS=rgba(lipC,0.95);
+        var rowS=rgba(mixc(panCol, st===0?[255,255,255]:[0,0,0], st===0?0.30:0.22), st===0?0.34:0.30);
+        var tuftS=rgba(mixc(day?[74,110,58]:[14,26,18], skc, 0.18*(1-f0)), 0.85);
+        var runW=runEnd-x3, taperW=Math.max(1,Math.round(runW*0.22));
         for(var xx=x3;xx<runEnd;xx++){
           var hy=terrCache[xx], span=Math.max(2,HORIZON-hy);
           var yA=hy+span*f0, yB=hy+span*f1;
           var h=yB-yA; if(h<1.2) continue;
-          var pd=Math.max(1,Math.round(h*panFrac));
-          var yAr=Math.round(yA);
-          g.fillStyle=css(panCol); g.fillRect(xx,yAr,1,pd);      // THE PAN — flat, seen from above
+          var xh=(((xx+WOFF)*2654435761)>>>0);
+          // A FIELD IS A LENS, NOT A BRICK. It pinches out toward its ends where the contour runs out
+          // of room, so the hard vertical edge that made every pan read as a block simply is not there.
+          var edge=Math.min(xx-x3, runEnd-1-xx);
+          var tap=Math.min(1,(edge+1)/taperW);
+          var pd=Math.max(1,Math.round(h*panFrac*(0.72+0.28*tap)));
+          // …and its edge wanders. A contour followed to the pixel is a drawn line; a real bund is
+          // built by hand and never quite level.
+          // ⚠ THE FIRST ATTEMPT AT THIS MADE FUR. Jittering the edge by ±1 PER COLUMN is
+          // high-frequency noise, and a hundred rows of it turned the hillside into hatching — worse
+          // than the blocks it replaced. A hand-built bund wanders over TENS of pixels, not every
+          // one: the wobble has to be low-frequency or it is not a wobble, it is grain.
+          var wob=((((xx+WOFF)/Math.max(6,Math.round(11*K)))|0)*2654435761)>>>0;
+          var yAr=Math.round(yA)+((wob>>>9)%3)-1;
+          g.fillStyle=panS; g.fillRect(xx,yAr,1,pd);             // THE PAN — flat, seen from above
+          // its SURFACE: crop rows on a planted pan, ripple on a flooded one, clods on bare earth.
+          // This is what stops a 30wp field being one flat colour.
+          if(pd>2 && ((xh>>>11)%5)===0){
+            g.fillStyle=rowS;
+            g.fillRect(xx,yAr+1+((xh>>>15)%Math.max(1,pd-1)),1,1);
+          }
           if(st===0&&litK>0.1){                                  // standing water catches the sun
             g.fillStyle=rgba(mixc(waterC,[255,255,255],0.55),0.26*litK);
             g.fillRect(xx,yAr,1,Math.max(1,Math.round(pd*0.4)));
@@ -21030,12 +21061,17 @@ function drawTerraces(g,L,now,nd){
             g.fillStyle=panGlintS;                              // hoisted: one string per PAN, not per pixel
             g.fillRect(xx,yAr,1,Math.max(1,Math.round(pd*0.5)));
           }
-          var wh=Math.max(1,Math.round(h)-pd);
+          var wh=Math.max(1,Math.round(yA+h)-(yAr+pd));
           if(wh>0){
-            g.fillStyle=css(wc); g.fillRect(xx,yAr+pd,1,wh);     // THE RISER — the wall, in shadow
-            g.fillStyle=rgba(wallSh,0.55); g.fillRect(xx,yAr+pd+wh-1,1,1);   // shadow at its foot
+            g.fillStyle=wcS; g.fillRect(xx,yAr+pd,1,wh);         // THE RISER — the wall, in shadow
+            g.fillStyle=wallShS; g.fillRect(xx,yAr+pd+wh-1,1,1); // shadow at its foot
+            // MOSS AND SCRUB SPILLING OVER THE WALL. A dry-stone riser on a wet mountain is never
+            // clean, and a little growth breaking every horizontal is the cheapest way to stop a
+            // stack of steps reading as masonry blocks.
+            if(((xh>>>19)%9)===0){ g.fillStyle=tuftS;
+              g.fillRect(xx,yAr+pd,1,Math.max(1,Math.min(wh,Math.round(K*1.2)))); }
           }
-          g.fillStyle=rgba(lipC,0.95); g.fillRect(xx,yAr-1,1,Math.max(1,Math.round(K*0.5))); // the lit bund holding the water in
+          g.fillStyle=lipS; g.fillRect(xx,yAr-1,1,Math.max(1,Math.round(K*0.5))); // the lit bund holding the water in
         }
         if(st===4){
           // the terrace WALL is now a foundation, and the pan is a roof. One small structure per
@@ -21061,8 +21097,9 @@ function drawTerraces(g,L,now,nd){
         if(runEnd<SW){
           var hyE=terrCache[runEnd-1], spanE=Math.max(2,HORIZON-hyE);
           var yE=Math.round(hyE+spanE*f0), hE=Math.max(1,Math.round(spanE*(f1-f0)));
-          g.fillStyle=rgba(mixc(lipC,[0,0,0],0.18),0.9);
-          g.fillRect(runEnd-1,yE-1,Math.max(1,Math.round(K*0.8)),hE+1);
+          // a low mounded bund, not a bar across the whole step — you walk along these
+          g.fillStyle=rgba(mixc(lipC,[0,0,0],0.18),0.75);
+          g.fillRect(runEnd-1,yE-1,Math.max(1,Math.round(K*0.7)),Math.max(1,Math.round(hE*0.55)));
         }
       }
       x3=runEnd;
