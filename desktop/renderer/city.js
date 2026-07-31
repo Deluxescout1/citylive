@@ -21073,8 +21073,14 @@ function caveHash(a,b){ return (((((a*2654435761)>>>0)^(((b+WORLD_SEED)*15973346
 // SHAPE REPEATED. So the three kinds are intact / hourglass-with-apron / collapsed, and which screen
 // gets the broken one rotates with the world seed.
 function caveBuild(){
-  caveCache={ceil:new Array(SW), cols:[], holes:[]};
-  for(var x=0;x<SW;x++) caveCache.ceil[x]=caveCeilAt(x+WOFF);
+  caveCache={ceil:new Array(SW), wall:new Array(SW), cols:[], holes:[], wallMin:1e9};
+  for(var x=0;x<SW;x++){
+    caveCache.ceil[x]=caveCeilAt(x+WOFF);
+    var wwx0=x+WOFF;
+    var wn0=Math.sin(wwx0*0.0031+1.1)*0.52+Math.sin(wwx0*0.0083+3.3)*0.30+Math.sin(wwx0*0.0201)*0.18;
+    caveCache.wall[x]=HORIZON*(0.60+wn0*0.09);
+    if(caveCache.wall[x]<caveCache.wallMin) caveCache.wallMin=caveCache.wall[x];
+  }
   var CF=[0.17,0.50,0.83], rot=((WORLD_SEED||0)>>>0)%3;
   for(var c=0;c<3;c++){
     var cwx=Math.round((CF[c]+(caveHash(c,17)-0.5)*0.05)*WW);
@@ -21124,6 +21130,7 @@ function caveBuild(){
 // The half-width of a column at depth t (0 at the roof, 1 at the floor): two cones fused at a waist,
 // which is what a real column IS — a stalactite that grew down far enough to meet the stalagmite that
 // grew up. Plus a slow per-column bulge, so the silhouette is never a clean mathematical shape.
+function cDepthOf(C){ return Math.max(10,HORIZON-caveCeilAt(C.wx)); }
 function caveColHW(C,t){
   var w=C.waist, d=t<w ? (w-t)/Math.max(0.08,w) : (t-w)/Math.max(0.08,1-w);
   var prof=C.pinch+(1-C.pinch)*Math.pow(Math.max(0,Math.min(1,d)),1.35);
@@ -21184,32 +21191,76 @@ function drawUndercity(g,L,now,nd){
   var glowC = B.name==="THE DEEP WORKS" ? [255,150,60] : (B.name==="THE GLOWSPORE" ? [110,240,208] : [120,200,255]);
   if(!caveCache) caveBuild();
   var rock=mixc(B.far,[0,0,0],0.30), rock2=mixc(B.near,[0,0,0],0.20);
-  // ---- THE CEILING, hanging from the top of the frame
-  for(var x2=0;x2<SW;x2++){
-    var cy=Math.round(caveCache.ceil[x2]);
-    g.fillStyle=css(rock); g.fillRect(x2,0,1,cy);
-    g.fillStyle=rgba(mixc(rock,glowC,0.16),0.5);          // the underside catches the city's light
-    g.fillRect(x2,cy-Math.max(1,Math.round(K*0.8)),1,Math.max(1,Math.round(K*0.8)));
+  // ================================================================================================
+  // THE FAR WALL — Nick, on a rainy screenshot: "can we do something interesting with the background?"
+  // The cavern does not stop behind the city. A second rock face recedes into the land's own haze, and
+  // a SMALLER settlement clings to it, drawn at a fraction of the near city's scale.
+  // ⚠ DEPTH IS A VALUE DIFFERENCE, NOT A SIZE DIFFERENCE — the far wall is hazed toward `sky.haze` and
+  // never approaches the near rock's value, so it recedes instead of competing with the columns that
+  // stand in front of it. And the little town on it is the scale reference doing a second job: a
+  // skyline you can tell is a skyline, at a tenth the size, says how far away the far wall is.
+  // ================================================================================================
+  var haze=(B.sky&&B.sky.haze)||[44,66,84];
+  // ⚠ 0.50 TOWARD THE HAZE WAS TOO LIGHT. On a bright land distance reads as washing out toward white,
+  // but this room is near-black: at 0.50 the far wall came forward as a pale green mass that competed
+  // with the columns standing in front of it and flattened the beams' contrast. Distance here is a
+  // small lift and a loss of contrast, not a bright wash.
+  var wallTop=mixc(rock,haze,0.26), wallBot=mixc(rock,[0,0,0],0.46);
+  // ⚠⚠ RUN-LENGTH BANDS, NOT A PER-PIXEL GRADIENT. The obvious way to paint a wall with a wandering top
+  // edge is one column at a time, one row at a time — and at Nick's geometry that is SW x 150 fills for a
+  // single backdrop element. Measured, it took the whole backdrop pass from 1.10x alpine to 4.40x in one
+  // change. Ten horizontal bands, each filled as a few long runs, look identical and cost ~2% of it.
+  // 🔑 Same shape as the karst and fjord reflections, which had to be batched into depth bands for the
+  // same reason: in this engine a per-column-per-row loop over a LARGE area is always the thing to fix.
+  var wallY=caveCache.wall, minWY=caveCache.wallMin, NBW=10;
+  var bandH=Math.max(1,(HORIZON-minWY)/NBW);
+  for(var bw=0;bw<NBW;bw++){
+    var by0=minWY+bw*bandH;
+    g.fillStyle=css(mixc(wallTop,wallBot,Math.min(1,((by0+bandH*0.5)-minWY)/Math.max(1,HORIZON-minWY)*1.25)));
+    var run=-1;
+    for(var xw=0;xw<=SW;xw++){
+      var on=(xw<SW)&&(wallY[xw]<=by0);
+      if(on&&run<0) run=xw;
+      else if(!on&&run>=0){ g.fillRect(run,Math.round(by0),xw-run,Math.max(1,Math.round(bandH)+1)); run=-1; }
+    }
   }
-  // ---- STALACTITES. Hung off the ceiling at world positions, so all three monitors agree.
-  for(var t=0;t<40;t++){
-    var twx=((t*2654435761+((WORLD_SEED*29)|0))>>>0)%Math.max(1,WW);
-    for(var o=-1;o<=1;o++){
-      var tx=Math.round(twx-WOFF+o*WW);
-      if(tx<0||tx>=SW) continue;
-      var base=Math.round(caveCache.ceil[tx]);
-      var len=Math.round((6+((t*7919)>>>0)%26)*K*0.6), wdt=Math.max(1,Math.round(2.4*K));
-      for(var q=0;q<len;q++){
-        var wq=Math.max(1,Math.round(wdt*(1-q/len)));
-        g.fillStyle=css(rock2); g.fillRect(tx-((wq/2)|0),base+q,wq,1);
-      }
-      // …and a stalagmite growing to meet it, sometimes joining into a column
-      if(((t*40503)>>>0)%3===0){
-        var gl=Math.round(len*0.7);
-        for(var q2=0;q2<gl;q2++){
-          var wg=Math.max(1,Math.round(wdt*(1-q2/gl)));
-          g.fillStyle=css(rock2); g.fillRect(tx-((wg/2)|0),HORIZON-q2,wg,1);
-        }
+  // …and the ragged strip between each column's own ridge and the first band line below it
+  var rimC2=css(mixc(wallTop,haze,0.35));
+  for(var wx3=0;wx3<SW;wx3++){
+    var wy=Math.round(wallY[wx3]);
+    var stop=Math.round(minWY+Math.ceil((wy-minWY)/bandH)*bandH);
+    if(stop>wy){
+      g.fillStyle=css(mixc(wallTop,wallBot,Math.min(1,(wy-minWY)/Math.max(1,HORIZON-minWY)*1.25)));
+      g.fillRect(wx3,wy,1,stop-wy);
+    }
+    g.fillStyle=rimC2;                                               // the lit rim where it meets the air
+    g.fillRect(wx3,wy,1,Math.max(1,Math.round(K*0.7)));
+  }
+  // ---- THE FAR SETTLEMENT, standing on the wall's own ledge line. Gated on the city's growth, because
+  // it is a place people built, not a landform.
+  if(cityG>0.16){
+    // ⚠ THE FAR TOWN HAS TO BE LIGHTER THAN THE AIR, NOT DARKER THAN THE WALL. My first pass took it 42%
+    // toward black, which is right for something silhouetted against a bright sky and exactly wrong here:
+    // the buildings stand ON the wall's ridge with dark open cavern ABOVE it, so a dark silhouette
+    // disappeared into the dark it was drawn against and only the part overlapping the wall could ever
+    // have shown. Same family as the karst's invisible reflection and the basalt coast's vanished
+    // buildings — every one of them was a value drawn against the wrong neighbour.
+    var fbC=mixc(wallTop,haze,0.55), fwC=mixc(wallTop,glowC,0.30);
+    for(var fb=0;fb<54;fb++){
+      var fbwx=((fb*2654435761+(((WORLD_SEED||0)*37)>>>0))>>>0)%Math.max(1,WW);
+      var fbx=Math.round(fbwx-WOFF); if(fbx<-24) fbx+=WW; if(fbx>SW+24) fbx-=WW;
+      if(fbx<-24||fbx>SW+24) continue;
+      var fbw=Math.max(2,Math.round((2+((fb*7919)%6))*K*0.7));
+      var fbh=Math.max(3,Math.round((4+((fb*104729)%13))*K*0.7));
+      var fby=Math.round(wallY[Math.max(0,Math.min(SW-1,fbx))]);
+      g.fillStyle=css(fbC); g.fillRect(fbx,fby-fbh,fbw,fbh);
+      // …and a window or two. Warm pinpricks at this size are what say "inhabited" — nothing else fits.
+      if(((fb*40503)%3)!==0){
+        g.globalCompositeOperation="lighter";
+        g.fillStyle=rgba(mixc([255,206,140],fwC,0.20),0.9);
+        g.fillRect(fbx+Math.max(1,Math.round(K*0.4)),fby-fbh+Math.max(1,Math.round(K*0.8)),Math.max(1,Math.round(K*0.7)),Math.max(1,Math.round(K*0.7)));
+        if(fbh>7*K) g.fillRect(fbx+fbw-Math.max(1,Math.round(K)),fby-Math.round(fbh*0.5),Math.max(1,Math.round(K*0.7)),Math.max(1,Math.round(K*0.7)));
+        g.globalCompositeOperation="source-over";
       }
     }
   }
@@ -21262,10 +21313,21 @@ function drawUndercity(g,L,now,nd){
     for(var ow=-1;ow<=1;ow++){
       var cx=Math.round(C.wx-WOFF+ow*WW);
       if(cx+C.hw*1.8<-4||cx-C.hw*1.8>SW+4) continue;
-      for(var cy2=Math.round(cTop);cy2<HORIZON;cy2+=step){
+      // ⚠⚠ THE COLUMNS DID NOT TOUCH THE CEILING, and Nick spotted it on his desktop before I did.
+      // A column's top was set to `caveCeilAt(C.wx)` — the roof height at its CENTRE — and then drawn as
+      // a flat top across its whole width. But the roof undulates, and a hero column is ~100 wp wide, so
+      // wherever the ceiling ran HIGHER at the column's edge than at its middle there was a strip of open
+      // air between the two: a colossal floor-to-roof pillar visibly hanging off nothing.
+      // The fix is not a better estimate of where the roof is. It is to draw the column UP PAST it and let
+      // the CEILING paint over the overshoot — which is why the whole ceiling block moved below this loop.
+      // Contact is then exact at every column, on every screen, for free, and no future edit to the roof
+      // profile can reopen it. (Above `t=0` the profile is clamped, so the buried part is a straight
+      // continuation; nobody ever sees it.)
+      var cStart=Math.round(cTop-cDepth*0.14);
+      for(var cy2=cStart;cy2<HORIZON;cy2+=step){
         var t=(cy2-cTop)/cDepth;
         if(t>brkA&&t<brkB) continue;                                   // the missing middle of a fallen column
-        var hw=caveColHW(C,t);
+        var hw=caveColHW(C,Math.max(0,t));
         // the two torn ends. Jittering the half-width ROW BY ROW is what makes a break ragged; a clean
         // horizontal cut reads as a shape that was drawn short, not as rock that gave way.
         // ⚠ BUCKETED COARSELY, NOT PER ROW. Hashing every single row gave each one an independent width
@@ -21359,6 +21421,104 @@ function drawUndercity(g,L,now,nd){
         }
       }
     }
+  }
+  // ---- THE CEILING, hanging from the top of the frame
+  for(var x2=0;x2<SW;x2++){
+    var cy=Math.round(caveCache.ceil[x2]);
+    g.fillStyle=css(rock); g.fillRect(x2,0,1,cy);
+    g.fillStyle=rgba(mixc(rock,glowC,0.16),0.5);          // the underside catches the city's light
+    g.fillRect(x2,cy-Math.max(1,Math.round(K*0.8)),1,Math.max(1,Math.round(K*0.8)));
+  }
+  // ---- STALACTITES. Hung off the ceiling at world positions, so all three monitors agree.
+  for(var t=0;t<40;t++){
+    var twx=((t*2654435761+((WORLD_SEED*29)|0))>>>0)%Math.max(1,WW);
+    for(var o=-1;o<=1;o++){
+      var tx=Math.round(twx-WOFF+o*WW);
+      if(tx<0||tx>=SW) continue;
+      var base=Math.round(caveCache.ceil[tx]);
+      var len=Math.round((6+((t*7919)>>>0)%26)*K*0.6), wdt=Math.max(1,Math.round(2.4*K));
+      for(var q=0;q<len;q++){
+        var wq=Math.max(1,Math.round(wdt*(1-q/len)));
+        g.fillStyle=css(rock2); g.fillRect(tx-((wq/2)|0),base+q,wq,1);
+      }
+      // …and a stalagmite growing to meet it, sometimes joining into a column
+      if(((t*40503)>>>0)%3===0){
+        var gl=Math.round(len*0.7);
+        for(var q2=0;q2<gl;q2++){
+          var wg=Math.max(1,Math.round(wdt*(1-q2/gl)));
+          g.fillStyle=css(rock2); g.fillRect(tx-((wg/2)|0),HORIZON-q2,wg,1);
+        }
+      }
+    }
+  }
+  // ================================================================================================
+  // WHAT HANGS IN THE MIDDLE OF THE ROOM. Second of Nick's four background answers, and the one that
+  // stops the columns reading as three separate objects: chains and cable runs slung between them and
+  // down from the roof, with strings of lamps on the longer runs.
+  // ⚠ A cable is a CATENARY, not a straight line, and this engine already learned that once on the
+  // festival bunting. Straight lines between two anchors read as struts — as structure somebody welded
+  // — where a sag reads as something hung.
+  // ================================================================================================
+  var anchors=[];
+  for(var ac=0;ac<caveCache.cols.length;ac++){
+    var AC=caveCache.cols[ac]; if(AC.kind===3) continue;
+    for(var aw=-1;aw<=1;aw++) anchors.push({x:Math.round(AC.wx-WOFF+aw*WW), t:0.30+caveHash(AC.seed,5)*0.22, d:cDepthOf(AC)});
+  }
+  anchors.sort(function(a,b){ return a.x-b.x; });
+  for(var an=0;an+1<anchors.length;an++){
+    var A0=anchors[an], A1=anchors[an+1];
+    var span=A1.x-A0.x; if(span<40||span>SW*1.4) continue;
+    if(A1.x<-60||A0.x>SW+60) continue;
+    var y0=caveCeilAt(A0.x+WOFF)+A0.t*A0.d, y1=caveCeilAt(A1.x+WOFF)+A1.t*A1.d;
+    var sag=span*(0.10+caveHash(an,29)*0.08);
+    // ⚠ capped: the step COUNT bounds the work, not the span — a run across a whole screen was 1300 fills
+    var lampRun=(caveHash(an,31)<0.6), steps=Math.max(8,Math.min(110,Math.round(span/Math.max(2,Math.round(K*1.6)))));
+    var prevX=A0.x, prevY=y0;
+    for(var cs=1;cs<=steps;cs++){
+      var cu=cs/steps;
+      var cxp=A0.x+span*cu, cyp=y0+(y1-y0)*cu+Math.sin(cu*Math.PI)*sag;
+      // ⚠ FILL THE BOUNDING BOX OF EACH CONSECUTIVE PAIR — a sampled path stamped point by point is a
+      // dotted line, which is exactly what the airshow's first smoke trail was.
+      var bx0=Math.min(prevX,cxp), by0=Math.min(prevY,cyp);
+      g.fillStyle=css(mixc(rock2,[0,0,0],0.45));
+      g.fillRect(Math.round(bx0),Math.round(by0),Math.max(1,Math.round(Math.abs(cxp-prevX))+1),Math.max(1,Math.round(Math.abs(cyp-prevY))+1));
+      if(lampRun&&cityG>0.3&&(cs%Math.max(3,Math.round(steps/7)))===0){
+        g.globalCompositeOperation="lighter";
+        g.fillStyle=rgba([255,200,130],0.8);
+        g.fillRect(Math.round(cxp),Math.round(cyp)+Math.max(1,Math.round(K*0.8)),Math.max(1,Math.round(K*0.8)),Math.max(1,Math.round(K*0.8)));
+        g.fillStyle=rgba([255,190,120],0.12);
+        g.fillRect(Math.round(cxp)-Math.round(K*1.5),Math.round(cyp),Math.round(K*3),Math.round(K*4));
+        g.globalCompositeOperation="source-over";
+      }
+      prevX=cxp; prevY=cyp;
+    }
+  }
+  // ---- CHAINS hanging free from the roof, some with a hook or a hoisted load on the end
+  for(var ch=0;ch<14;ch++){
+    var chwx=((ch*1597334677+(((WORLD_SEED||0)*53)>>>0))>>>0)%Math.max(1,WW);
+    var chx=Math.round(chwx-WOFF); if(chx<-8) chx+=WW; if(chx>SW+8) chx-=WW;
+    if(chx<0||chx>=SW) continue;
+    var chTop=Math.round(caveCache.ceil[chx]);
+    var chLen=Math.round(HORIZON*(0.08+caveHash(ch,61)*0.26));
+    g.fillStyle=css(mixc(rock2,[0,0,0],0.35));
+    for(var cq3=0;cq3<chLen;cq3+=Math.max(2,Math.round(K*1.4)))       // links, not a ruled line
+      g.fillRect(chx,chTop+cq3,Math.max(1,Math.round(K*0.7)),Math.max(1,Math.round(K)));
+    if(((ch*7919)%3)===0){                                            // a load swinging on the end
+      var ldw=Math.max(2,Math.round(4*K)), ldh=Math.max(2,Math.round(3*K));
+      g.fillStyle=css(mixc(rock2,[0,0,0],0.25));
+      g.fillRect(chx-((ldw/2)|0),chTop+chLen,ldw,ldh);
+    }
+  }
+  // ---- LAYERED MIST. Fourth answer. Bands of haze at different heights, warm underneath where the
+  // city lights them and cold above — it is what makes the shafts read as passing THROUGH something.
+  for(var mi=0;mi<3;mi++){
+    var myA=HORIZON*(0.42+mi*0.16), mh2=Math.round(HORIZON*(0.05+mi*0.022));
+    var mc=mixc(haze,[255,196,130],(mi/2)*0.35*Math.min(1,cityG*1.3));
+    var mg=g.createLinearGradient(0,myA-mh2,0,myA+mh2);
+    mg.addColorStop(0,rgba(mc,0));
+    mg.addColorStop(0.5,rgba(mc,0.055+0.030*mi));
+    mg.addColorStop(1,rgba(mc,0));
+    g.fillStyle=mg; g.fillRect(0,Math.round(myA-mh2),SW,mh2*2);
   }
   // ================================================================================================
   // THE SHAFTS OF REAL DAYLIGHT — Nick's locked answer 2. Near-white on near-black is the most extreme
@@ -21461,6 +21621,45 @@ function drawUndercityLive(g,L,now,nd){
     g.fillRect(bx-Math.round(K),by-Math.round(K),Math.max(2,Math.round(3.4*K)),Math.max(2,Math.round(3.4*K)));
     g.globalCompositeOperation="source-over";
   }
+  // ---- DRIFTING SPORE-LIGHT. Third of Nick's four background answers. The fungus on the walls sheds
+  // motes that hang and turn in the air, so the empty middle of the room is never actually empty.
+  // ⚠ They rise SLOWLY and wander — spores drift on the cave's own convection, they do not fall. Paths
+  // are two out-of-phase sines off the clock, so nothing is stored and all three screens agree.
+  for(var sp2=0;sp2<34;sp2++){
+    var spwx=((sp2*2654435761+(((WORLD_SEED||0)*97)>>>0))>>>0)%Math.max(1,WW);
+    var spx=Math.round(spwx-WOFF+Math.sin(now*0.00018+sp2*1.9)*11*K);
+    if(spx<-10) spx+=WW; if(spx>SW+10) spx-=WW;
+    if(spx<0||spx>=SW) continue;
+    var spRange=Math.max(20,HORIZON-caveCache.ceil[spx]);
+    var spy=HORIZON-((now*0.0075*(0.5+((sp2*7919)%40)/50)+sp2*97)%spRange);
+    var spA=0.30+0.30*Math.sin(now*0.0013+sp2*2.4);
+    g.globalCompositeOperation="lighter";
+    g.fillStyle=rgba(glowC,spA*0.55);
+    g.fillRect(spx,Math.round(spy),Math.max(1,Math.round(K*0.7)),Math.max(1,Math.round(K*0.7)));
+    g.globalCompositeOperation="source-over";
+  }
+  // ---- BATS. The land already declares them as its air fauna and nothing had ever flown here. They
+  // wheel under the roof on their own loops — a bat does not cross the frame in a straight line, which
+  // is what would have made them read as birds.
+  // ⚠ NOT GATED ON DARKNESS. A bat is nocturnal because the SURFACE has a day; a thousand feet down
+  // there is no day to be out of, and gating them on `L` would have made them vanish every noon on the
+  // one land whose whole premise is that it never sees the sun.
+  {
+    for(var bt=0;bt<7;bt++){
+      var bph=now*0.00042*(0.7+((bt*104729)%40)/45)+bt*1.7;
+      var bcx=((bt*40503+(((WORLD_SEED||0)*17)>>>0))>>>0)%Math.max(1,WW);
+      var bwx=bcx+Math.sin(bph)*74+Math.sin(bph*0.53+1.2)*38;
+      var bx2=Math.round(bwx-WOFF); if(bx2<-14) bx2+=WW; if(bx2>SW+14) bx2-=WW;
+      if(bx2<0||bx2>=SW) continue;
+      var bTop=caveCache.ceil[bx2];
+      var by2=Math.round(bTop+Math.max(8,(HORIZON-bTop)*0.30)+Math.sin(bph*1.7+bt)*Math.max(6,(HORIZON-bTop)*0.16));
+      var flap=(Math.floor(now*0.012+bt*3)&1);                     // two poses is a wingbeat at this size
+      g.fillStyle=L>0.5?"rgba(26,24,32,0.85)":"rgba(12,12,18,0.9)";
+      g.fillRect(bx2,by2,Math.max(1,Math.round(K*0.8)),Math.max(1,Math.round(K*0.7)));
+      g.fillRect(bx2-Math.round(K*1.6),by2-(flap?Math.round(K*0.7):0),Math.max(1,Math.round(K*1.4)),Math.max(1,Math.round(K*0.6)));
+      g.fillRect(bx2+Math.round(K*0.8),by2-(flap?Math.round(K*0.7):0),Math.max(1,Math.round(K*1.4)),Math.max(1,Math.round(K*0.6)));
+    }
+  }
   // ---- THE ORE CARS, running out of the portal to the tip and back. Scripted from the world clock,
   // never simulated, so all three monitors show the same car in the same place at the same instant —
   // the standing rule for everything that moves on this project.
@@ -21502,8 +21701,91 @@ function drawUndercityLive(g,L,now,nd){
 // the city, which is the paint-order finding in miniature.
 // So the near half of the light is drawn here, after the near buildings: the column of air in front of
 // the town, the pool where it lands, and the dust turning in it.
+// ================================================================================================
+// WHAT A RAINSTORM DOES A THOUSAND FEET DOWN. Nick's locked answer, and it exists because of a bug:
+// his screenshot had drizzle streaks falling through solid rock, so the precipitation block is gated
+// off this land now — and a land that simply ignores the weather is the wrong replacement.
+// THE ROOF HAS HOLES IN IT. Everything falling on Norwich that finds a collapse shaft comes down it, so
+// a storm here is three waterfalls landing exactly where the daylight lands, and nothing else changes.
+// ⚠ WATER FALLS STRAIGHT DOWN — it does NOT take the beam's lean. Gravity is not the sun, and having
+// the fall vertical while the light beside it rakes is most of what sells both of them.
+// ⚠ Scripted from the clock, never simulated: no stored droplets, so the three monitors agree and a
+// frozen frame is still correct.
+// ================================================================================================
+function drawUndercityRain(g,L,now,fx){
+  if(!caveCache||!caveCache.holes) return;
+  var wet=fx.thunder?1.35:(fx.rain?1:(fx.drizzle?0.34:0));
+  if(fx.violent) wet*=1.25;
+  if(wet<=0) return;
+  var K=Math.max(1,KSP), day=L>0.5;
+  var wc=day?[196,210,226]:[128,150,180];
+  for(var s=0;s<caveCache.holes.length;s++){
+    var H=caveCache.holes[s], hTop=caveCeilAt(H.wx), hDep=Math.max(8,HORIZON-hTop);
+    var fw=Math.max(3,Math.round(H.r*0.80*Math.min(1,wet)));
+    for(var o=-1;o<=1;o++){
+      var sx=Math.round(H.wx-WOFF+o*WW);
+      if(sx<-70||sx>SW+70) continue;
+      g.globalCompositeOperation="lighter";
+      // ⚠⚠ A WATERFALL IS A SHEET WITH STREAKS ON IT, not a handful of streaks. My first version gave
+      // each strand ONE moving segment, so at any instant a dozen short dashes were scattered down a
+      // 250 px drop and it read as scratches on the frame rather than as falling water. Each strand
+      // repeats its segment all the way down now, over a translucent BODY — the same lesson the light
+      // beam taught two days' work ago, that one thin bright element cannot carry a whole idea.
+      g.fillStyle=rgba(wc,0.13*wet);                                     // the body of the fall
+      g.fillRect(sx-fw,Math.round(hTop),Math.max(2,fw*2),Math.round(hDep));
+      var strands=Math.max(6,Math.round(fw*1.3));
+      for(var st=0;st<strands;st++){
+        var su=(st/Math.max(1,strands-1))-0.5;
+        var sxx=Math.round(sx+su*fw*2);
+        var spd=0.55+((st*7919)%37)/60, seg=Math.round(hDep*(0.09+((st*104729)%23)/110));
+        var per=Math.max(seg+Math.round(K*2),Math.round(hDep*(0.22+((st*40503)%17)/70)));
+        var off=((now*spd*0.9+st*61)%per);
+        for(var rep=0;rep*per<hDep+per;rep++){                           // …repeating the whole way down
+          var head=hTop+off+rep*per;
+          for(var q=0;q<seg;q+=Math.max(1,Math.round(K))){
+            var yy=head-q; if(yy<hTop||yy>HORIZON) continue;
+            g.fillStyle=rgba(wc,0.34*wet*(1-q/seg));
+            g.fillRect(sxx,Math.round(yy),Math.max(1,Math.round(K*0.7)),Math.max(1,Math.round(K)));
+          }
+        }
+      }
+      // …and the veil of spray hanging round the whole fall
+      g.fillStyle=rgba(wc,0.045*wet);
+      g.fillRect(sx-fw*2,Math.round(hTop),Math.max(2,fw*4),Math.round(hDep));
+      // ---- WHERE IT LANDS. A splash fan, a wet pool, and mist standing over it.
+      var spN=Math.round(22*wet);
+      for(var sp=0;sp<spN;sp++){
+        var su2=((sp*0.13+now*0.0009*(0.6+(sp%4)*0.25))%1);
+        var sdir=(sp&1)?1:-1, srx=Math.round(sx+sdir*su2*fw*3.4);
+        var sry=Math.round(HORIZON-Math.sin(su2*Math.PI)*fw*2.4);
+        g.fillStyle=rgba(wc,0.42*wet*(1-su2));
+        g.fillRect(srx,sry,Math.max(1,Math.round(K*0.8)),Math.max(1,Math.round(K*0.8)));
+      }
+      g.fillStyle=rgba(wc,0.22*wet);                                     // standing mist over the plunge pool
+      fillEllipse(g,sx,HORIZON,Math.round(fw*3.6),Math.max(2,Math.round(fw*1.1)));
+      g.fillStyle=rgba(wc,0.10*wet);
+      fillEllipse(g,sx,HORIZON,Math.round(fw*6),Math.max(3,Math.round(fw*2)));
+      g.globalCompositeOperation="source-over";
+    }
+  }
+  // ---- and the roof leaks everywhere else too: single drips off the stalactites
+  var drips=Math.round(26*wet);
+  for(var dp=0;dp<drips;dp++){
+    var dwx=((dp*1597334677+(((WORLD_SEED||0)*67)>>>0))>>>0)%Math.max(1,WW);
+    var dx=Math.round(dwx-WOFF); if(dx<-6) dx+=WW; if(dx>SW+6) dx-=WW;
+    if(dx<0||dx>=SW) continue;
+    var dTop=caveCache.ceil[dx]+Math.round(6*K);
+    var dfall=HORIZON-dTop; if(dfall<8) continue;
+    var dy=dTop+((now*(0.30+((dp*7919)%29)/70)+dp*137)%dfall);
+    g.globalCompositeOperation="lighter";
+    g.fillStyle=rgba(wc,0.42*wet);
+    g.fillRect(dx,Math.round(dy),Math.max(1,Math.round(K*0.6)),Math.max(1,Math.round(K*1.4)));
+    g.globalCompositeOperation="source-over";
+  }
+}
 function drawUndercityGlow(g,L,now,nd){
   if(!curBiome.roof) return;
+  drawUndercityRain(g,L,now,wfx());     // …and if it is raining up there, it is coming down the holes
   // ⚠⚠ BUILD THE CACHE IF THE BACKDROP HAS NOT YET. Only `drawUndercity` built it, and that runs in the
   // BACKDROP stack at 0.5-2 fps while this runs at 8-12 — so for up to two seconds after every life
   // reboot the live half of this land had no columns to reflect, no shaft to track and no quay, then
@@ -33170,7 +33452,16 @@ function civicProjects(li,term){
   for(var i=0;i<n;i++){ var hh=((mh + i*0x9E3779B9)>>>0);
     var ci=hh%CIVICS.length; if(ci===used) ci=(ci+1)%CIVICS.length; used=ci;
     var type=CIVICS[ci].t;
-    if(type==="marina"&&!hasOcean) type="university";           // landlocked → no marina (mirrors the seawall→stadium swap)
+    // ⚠⚠ `hasOcean` IS NOT THE SAME QUESTION AS "IS THERE A COAST TO BUILD A MARINA ON".
+    // Every land with a SEA FRONT keeps `hasOcean` true and has `seaW` zeroed twelve lines away in
+    // buildWorld — so `civicX("marina")` returns `WW*seaW*0.66` = ZERO and the boardwalk, the moored
+    // yachts and the gulls get built at world x≈0, standing on dry ground with no water anywhere near
+    // them. Nick caught the underground one in a night frame; it is the same on the karst, the fjord,
+    // the sea cliffs, the salt mirror, the dam and THE EMPYREAN — six more lands where a MARINA can be
+    // voted through and built on land.
+    // 🔑 A flag that is TRUE for two different reasons needs both of them tested. This is the `water:null`
+    // finding again: the value said "ocean" and the code read it as "shoreline at the seam".
+    if(type==="marina"&&(!hasOcean||seaW<=0)) type="university";  // no seam coast → no marina (mirrors the seawall→stadium swap)
     var yes=42+((hh>>>8)%26);                                    // 42..67 → ~65% pass
     out.push({t:type,kind:"build",civic:true,pass:(yes>=50),yes:yes,w:civicWOf(type),x:civicX(type,((hh>>>3)%Math.max(1,WW))|0,hh),seed:hh,term:term}); }
   return out;
@@ -36350,6 +36641,14 @@ function draw(g,pass){
   // mild blue as 65%; now it reads as a proper overcast.)
   var cloudF=Math.max(0,Math.min(1,((weather.cloud||0)-45)/55));
   var ocMix=fx.thunder?(isDay?0.92:0.62):(fx.rain||fx.snow||fx.drizzle)?(isDay?0.85:0.5):fx.cloudy?(isDay?(0.32+0.6*cloudF):(0.24+0.4*cloudF)):0;
+  // ⚠⚠ THERE IS NO OVERCAST UNDERGROUND. Nick sent a screenshot of THE UNDERCITY in Norwich drizzle and
+  // asked what could be done about the background — and the answer was that he was not looking at the
+  // background. `ocMix` reaches 0.85 by day in rain, so the cavern's near-black [10,12,20] was being
+  // mixed 85% toward a bright grey overcast and the whole room turned pale lavender. The `roof` branch
+  // eight lines down carefully sets the cavern's own colours and this wash then obliterated them.
+  // 🔑 Third instance in one pass of the same shape: sky machinery with no idea the land has a roof on
+  // it. Anything that greys, lights or fills THE SKY has to ask `noOpenSky()` first.
+  if(noOpenSky()) ocMix=0;
   var ocTop=isDay?(fx.thunder?[118,126,144]:[178,185,197]):[40,40,50],
       ocBot=isDay?(fx.thunder?[148,154,168]:[203,207,214]):[60,60,70];
 
@@ -37691,7 +37990,11 @@ function draw(g,pass){
   if(cityApoc>0) drawApocMoon(g,now,nd,L);      // the Moon's end-events ride ON TOP of the doom sky (portent/shatter/colony-fall)
 
   // weather + holidays (local to each screen — no need to line up)
-  if(fx.rain||fx.drizzle||fx.thunder){
+  // ⚠⚠ AND IT WAS RAINING INSIDE A SEALED CAVERN. Same screenshot: drizzle streaks falling through a
+  // thousand feet of rock, across the ceiling itself. A roofed land does not get rained on — but it does
+  // not ignore the weather either, because the roof has HOLES in it. `drawUndercityRain` puts the storm
+  // down the collapse shafts instead, which is Nick's locked answer and the only way water gets in.
+  if((fx.rain||fx.drizzle||fx.thunder)&&!noOpenSky()){
     var groundY=(HORIZON+GROUND)|0;
     // wet sheet over the scene: a bright grey haze by DAY (stays light, just wet/overcast),
     // a dark cool gloom by NIGHT — so a rainy afternoon doesn't turn pitch-dark
@@ -37776,7 +38079,7 @@ function draw(g,pass){
   } else { if(splashes.length) splashes.length=0; wetness=Math.max(0,wetness-dt*0.000008);
     ashQuench=Math.max(0,ashQuench-dt*0.0000004); }
 
-  if(fx.snow){
+  if(fx.snow&&!noOpenSky()){                                             // ⚠ nor does it snow in a cavern
     var flkN=fx.grains?140:230, flkV=fx.grains?0.55:1;                   // code 77 snow grains: fine, slow, sparse — never a blizzard
     while(flakes.length<flkN) flakes.push({x:Math.random()*SW,y:Math.random()*SH,v:(0.3+Math.random()*0.6)*flkV,ph:Math.random()*6,s:fx.grains?1:(Math.random()<0.3?2:1)});
     if(flakes.length>flkN) flakes.length=flkN;
