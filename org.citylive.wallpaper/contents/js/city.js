@@ -20959,7 +20959,7 @@ function drawTerraces(g,L,now,nd){
   var roofCols = day ? [[136,126,118],[118,110,104],[150,138,126],[104,98,94],[128,116,102]]
                      : [[34,32,34],[28,26,28],[40,37,38],[24,23,25],[31,29,30]];
   var winC = day ? [180,176,168] : [255,214,150];
-  var moonSX=SW*0.5, moonPhK=0.8;
+  var moonSX=SW*0.5, moonPhK=0.8, glintC=mixc(waterC,[236,242,255],0.75);
   if(!day){ try{ var mp=moonScreen(now,nd); if(mp){ moonSX=mp.x; moonPhK=Math.max(0.25,mp.k); } }catch(e){} }
 
   // the mountain body first — everything below is carved into it
@@ -21006,6 +21006,13 @@ function drawTerraces(g,L,now,nd){
                 Math.max(0,Math.min(255,(panCol[1]*tone)|0)),
                 Math.max(0,Math.min(255,(panCol[2]*tone)|0))];
         panCol=mixc(panCol, skc, hazeK);
+        // the moon's glint, resolved ONCE for this pan off its centre — the staircase of mirrors
+        var panGlintA=0, panGlintS="";
+        if(st===0&&!day){
+          var gcx=(x3+runEnd)*0.5;
+          var gl=1-Math.min(1,Math.abs(gcx-moonSX)/(SW*0.34));
+          if(gl>0.02){ panGlintA=0.34*gl*gl*moonPhK; panGlintS=rgba(glintC,panGlintA); }
+        }
         var wallJ=1+(((ph>>>11)%5)-2)*0.06;                    // wall tone varies pan to pan
         var wc=mixc([Math.min(255,(wallC[0]*wallJ)|0),Math.min(255,(wallC[1]*wallJ)|0),Math.min(255,(wallC[2]*wallJ)|0)], skc, 0.34*(1-f0)*(1-f0));
         var panFrac=0.44+((ph>>>17)%40)/100*0.24;              // how much of the step is flat vs wall
@@ -21019,11 +21026,9 @@ function drawTerraces(g,L,now,nd){
           if(st===0&&litK>0.1){                                  // standing water catches the sun
             g.fillStyle=rgba(mixc(waterC,[255,255,255],0.55),0.26*litK);
             g.fillRect(xx,yAr,1,Math.max(1,Math.round(pd*0.4)));
-          } else if(st===0&&!day){
-            // the moon's own glint, in EVERY pan it can see — the staircase of mirrors
-            var gl=1-Math.min(1,Math.abs(xx-moonSX)/(SW*0.34));
-            if(gl>0.02){ g.fillStyle=rgba(mixc(waterC,[236,242,255],0.75),0.34*gl*gl*moonPhK);
-              g.fillRect(xx,yAr,1,Math.max(1,Math.round(pd*0.5))); }
+          } else if(panGlintA>0){
+            g.fillStyle=panGlintS;                              // hoisted: one string per PAN, not per pixel
+            g.fillRect(xx,yAr,1,Math.max(1,Math.round(pd*0.5)));
           }
           var wh=Math.max(1,Math.round(h)-pd);
           if(wh>0){
@@ -24861,17 +24866,19 @@ function drawBiomeWeather(g,L,now,nd,fx){
       var mTop=HORIZON*(0.94-0.62*mF);                   // the LEVEL surface the mist fills to
       var mc=B.sky&&B.sky.haze?B.sky.haze:[228,232,222];
       if(!day) mc=mixc(mc,[16,22,34],0.62);
-      for(var mx=0;mx<SW;mx++){
+      // ⚠ 4 rects x every column was 3100 fillRects a frame, on the pass that repaints every frame.
+      // 3 bands at a 3px stride is visually identical at this scale and a quarter of the work — and
+      // the three alphas are built ONCE rather than per column.
+      var mStride=Math.max(2,Math.round(K*1.5));
+      var mA=[rgba(mc,0.10*mF),rgba(mc,0.19*mF),rgba(mc,0.30*mF)];
+      for(var mx=0;mx<SW;mx+=mStride){
         var lyy=terrCache[mx];
         if(lyy>=HORIZON) continue;
         var top=Math.max(lyy,mTop);
         var dep=HORIZON-top; if(dep<1) continue;
-        // densest at the bottom of the pool, thinning to nothing at its surface — 4 steps, so this
-        // is 4 rects per column and not a per-pixel gradient
-        for(var mq=0;mq<4;mq++){
-          var y0=Math.round(top+dep*(mq/4)), hgt=Math.max(1,Math.round(dep/4));
-          g.fillStyle=rgba(mc,(0.10+0.20*(mq/3))*mF);
-          g.fillRect(mx,y0,1,hgt);
+        for(var mq=0;mq<3;mq++){
+          g.fillStyle=mA[mq];
+          g.fillRect(mx,Math.round(top+dep*(mq/3)),mStride,Math.max(1,Math.round(dep/3)));
         }
       }
       // a few detached banks drifting in the pool, so its surface is not a ruled line
