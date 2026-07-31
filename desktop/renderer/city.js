@@ -20920,7 +20920,20 @@ function drawTerraces(g,L,now,nd){
     // that makes each step an OBJECT — locked answer 5 — and washing it out undid the one part that
     // was already working. The sun shifts the wall's TONE; it must never stop being dark.
     WSH.push(css(mixc(DARK, day?[120,112,92]:[46,50,62], 0.04+0.24*t)));
-    PSH.push(css(mixc(BRIGHT, day?[0,0,0]:[0,0,0], 0.26*(1-t))));
+  }
+  // ---- THE PANS MIRROR THE SKY, instead of being one flat pale blue. A flooded terrace is a
+  // horizontal mirror, so what it holds depends on WHERE IT IS: a pan high on the bowl reflects the
+  // deep zenith, one down at the valley floor reflects the pale haze near the horizon. That vertical
+  // gradient up the hillside is most of what separates "water" from "a blue stripe".
+  // ⚠ A REFLECTION MUST BE DARKER THAN WHAT IT REFLECTS. Three prior lands were lost to getting this
+  // backwards (karst, fjord, salt) — the pan is the sky's colour, knocked down, never lifted.
+  var skyB=B.sky?B.sky.bot:[210,225,240];
+  for(var k2=0;k2<TERR_ARCS;k2++){
+    var row=[], f=TERR_FRAC[k2];                                  // 0 at the rim, 1 at the valley floor
+    var mir=mixc(skyT, skyB, f);                                  // zenith high up, haze low down
+    mir=mixc(mir, day?[26,34,44]:[4,7,12], day?0.10:0.48);        // knocked DOWN: darker than the sky
+    for(var q2=0;q2<5;q2++) row.push(css(mixc(mir, [0,0,0], 0.17*(1-q2/4))));
+    PSH.push(row);
   }
   var panH=Math.max(2,Math.round(step*0.62));
   for(var x=0;x<SW;x++){
@@ -20934,7 +20947,7 @@ function drawTerraces(g,L,now,nd){
     // which way this bit of the bowl faces, and therefore how much sun it gets
     var face=-bw.u;                                               // left flank faces right, and vice versa
     var litq=Math.max(0,Math.min(4,Math.round((0.5+0.5*face*sunDir)*4)));
-    var wS=WSH[litq], pS=PSH[litq];
+    var wS=WSH[litq];
     for(var k=0;k<TERR_ARCS;k++){
       // ARC k: a U — lowest at the bowl's centre, lifting to the rim at its edges.
       var dk=amp+TERR_FRAC[k]*(mountH-amp);
@@ -20944,8 +20957,29 @@ function drawTerraces(g,L,now,nd){
       var wallTo=Math.min(HORIZON,(k===TERR_ARCS-1)?HORIZON:nxt);
       // BRIGHT dominates — most pans hold water; a couple carry crop so it is a farm, not a fountain
       var isW=((((bw.idx*31+k)*2654435761)>>>0)%4)!==0;
-      g.fillStyle=isW?pS:mS; g.fillRect(x,yk,1,Math.min(panH,Math.max(1,wallTo-yk)));
+      g.fillStyle=isW?PSH[k][litq]:mS; g.fillRect(x,yk,1,Math.min(panH,Math.max(1,wallTo-yk)));
       if(wallTo>yk+panH){ g.fillStyle=wS; g.fillRect(x,yk+panH,1,wallTo-(yk+panH)); }
+    }
+  }
+  // ---- THE STAIRS. A terrace system is useless without a way up it, and a DIAGONAL cutting across
+  // the arcs is the strongest "this was built by hand" signal available — it is the one line in the
+  // picture that is not a contour, so the eye reads everything else as contours because of it.
+  var stepS=css(day?[196,186,164]:[42,44,50]), stepD=css(day?[58,54,46]:[10,11,13]);
+  for(var st=0;st<5;st++){
+    var sh2=((st*2246822519+((WORLD_SEED*23)|0))>>>0); sh2^=sh2>>>11;
+    var swx=sh2%Math.max(1,WW), sx=swx-WOFF;
+    if(sx<-14) sx+=WW; if(sx>SW+14) sx-=WW;
+    if(sx<1||sx>=SW-1) continue;
+    var sb=terrBowl(swx); if(!sb.inb||Math.abs(sb.u)>0.80) continue;
+    var shy=rimY+Math.round(Math.sin(swx*0.0042)*mountH*0.10+Math.sin(swx*0.0111+1.7)*mountH*0.05);
+    var lean=((sh2>>>7)&1)?1:-1;                                   // stairs zig-zag rather than run straight
+    for(var sk=0;sk<TERR_ARCS;sk++){
+      var sy=Math.round(shy+(amp+TERR_FRAC[sk]*(mountH-amp))*(1-sb.u*sb.u));
+      var sxx=(sx+lean*sk*Math.max(1,Math.round(K*0.9)))|0;
+      if(sxx<0||sxx>=SW||sy<=shy+1||sy>=HORIZON) continue;
+      var rise=Math.max(2,Math.round((TERR_FRAC[Math.min(TERR_ARCS-1,sk+1)]-TERR_FRAC[sk])*(mountH-amp)));
+      g.fillStyle=stepD; g.fillRect(sxx,sy,Math.max(1,Math.round(K*1.5)),rise);
+      g.fillStyle=stepS; g.fillRect(sxx,sy,Math.max(1,Math.round(K*1.5)),Math.max(1,Math.round(K*0.5)));
     }
   }
   // ---- THE VILLAGE ON THE STEPS, and a few trees on the rim ----
