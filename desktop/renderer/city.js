@@ -4191,6 +4191,19 @@ function seaFrontOf(b){
     // and at 34 the mirror was a strip along the bottom — the frame did not read as doubled, it read
     // as a normal land with a puddle. Widened until the reflection is a real half of the picture.
     case "salt":    return 58;    // the sheet of brine the whole world is reflected in
+    // ⚠⚠ THE UNDERCITY'S WATER WAS AT THE SEAM, WHERE TWO OF THREE MONITORS NEVER MEET IT.
+    // `water:"sea"` gave it the default 4.5-8% per world edge — so the left screen had a strip of water
+    // at its far left, the right screen one at its far right, and the MIDDLE SCREEN had no water at all.
+    // Standing in that strip was a marina and a red-and-white striped lighthouse, a thousand feet
+    // underground: the dunes' fault (a marina in a sand sea) in a second land, and the arctic's fault
+    // (a whole feature drawn only into the off-screen seam) in a third.
+    // Nick's locked answer 3 puts a BLACK UNDERGROUND LAKE on the cavern floor, and a lake nobody can
+    // see is not one. `SEA_FRONT` is the only machinery in the engine that puts a body of water in
+    // FRONT of the town, on every screen — and setting it also zeroes `seaW` twelve lines below, which
+    // deletes the seam ocean and takes the marina and the lighthouse with it. One water, not two.
+    // 38, between the karst's 28 and the fjord's 40: this lake has to hold the reflection of a
+    // floor-to-roof column, which is the tallest thing any of these waters has ever had to carry.
+    case "under":   return 38;    // the black lake on the cavern floor
     default:        return 0;     // every inland land is unchanged
   }
 }
@@ -10893,8 +10906,19 @@ function drawShootingStar(g,L,now){
 // fillRect strips. The old thin-strip version read as harsh vertical lines — and on fractionally-scaled
 // displays (e.g. a 4K@165% monitor, where KWin downsamples the 2x buffer) those 1px beams sharpened into
 // the recurring "vertical lines over the mountains/sky" artifact. Broad soft shafts can't alias into lines.
+// ⚠⚠ THE ONE TEST FOR "IS THERE A SKY OVERHEAD AT ALL". Two lands say no: a cavern has a ceiling and
+// orbit has a vacuum. The gate itself was never in doubt — it was WRITTEN, correctly, in four separate
+// places (drawGodRays, drawRealFlights, drawBalloons, drawSky's dome) and simply never applied to the
+// other five things that own the sky. So THE UNDERCITY still ran a jet with a contrail, a helicopter,
+// an ad-blimp, ambient crossing birds and the seasonal migration V a thousand feet underground, and the
+// brief's note that "the first render had cumulus and airliners underground" read as a fixed bug when
+// four fifths of it was still live.
+// 🔑 A fix applied only where the bug was reported is half a fix — the sun-anchor finding, verbatim, on
+// a second subsystem the same week. The answer both times is ONE named predicate every caller shares,
+// so the next sky-owning feature has something to fail against instead of something to remember.
+function noOpenSky(){ return !!(curBiome && (curBiome.roof || curBiome.orbit)); }
 function drawGodRays(g,L,now,fx){
-  if(curBiome.roof||curBiome.orbit) return;      // ⚠ the sun cannot rake a ceiling — the undercity has its own shafts
+  if(noOpenSky()) return;      // ⚠ the sun cannot rake a ceiling — the undercity has its own shafts
   if(L<0.4||cityPhase==="apoc"||fx.rain||fx.drizzle||fx.snow||fx.thunder||fx.fog) return;
   var cl=weather.cloud||0; if(cl<26||cl>76) return;                              // needs SOME cloud to break the light (not clear, not overcast)
   // anchor the shafts to the REAL drawn sun disc (df*WW world-anchored, the disc's own arc) — the old
@@ -14050,7 +14074,7 @@ function drawAirframe(g,x,y,d,k,K,day,now,i){
 
 // ---- HOT-AIR BALLOONS drift across calm clear skies (daytime) ----
 function drawBalloons(g,L,now,fx){
-  if(curBiome.roof||curBiome.orbit) return;      // ⚠ nobody is ballooning in a cave
+  if(noOpenSky()) return;      // ⚠ nobody is ballooning in a cave
   if(L<0.42||fx.cloudy||fx.rain||fx.snow||(weather.wind||5)>14) return;             // calm, clear, daylit
   if((curEvents&&curEvents.balloonfest) || (curFestival&&curFestival.active&&curFestival.stage>=3&&curFestival.stage<=4)){   // J3 balloon FESTIVAL morning — or the World's Fair (OPENING/FAIR): a sky full of them
     var fenv=[[255,90,90],[90,150,255],[255,200,70],[110,220,140],[240,120,220],[120,230,230],[255,150,90]];
@@ -15624,6 +15648,93 @@ function drawCloudFront(g,L,now){
 // sand and a run-up, a clifftop needs a face dropping into deep water, a bayou needs the land to
 // dissolve into it. Same water, four different edges.
 // All phase terms are keyed to WORLD x so the swell is one continuous sea across three monitors.
+// ================================================================================================
+// THE BLACK LAKE ON THE CAVERN FLOOR — Nick's locked answer 3, and the third of the three lands whose
+// water had to be written from scratch rather than tinted (karst, fjord, and now this).
+// ⚠⚠ EVERY OTHER WATER IN THIS ENGINE TAKES THE SKY'S HUE. That is the rule the dam's reservoir was
+// rebuilt around and it is exactly wrong here: there is no sky. This water is lit entirely from BELOW
+// and BESIDE — by the city on its far shore, by the fungus on the walls, and by whatever daylight is
+// coming down a hole in the roof — so it is built from the land's own glow colour and near-black, and
+// it never once looks at `biomeSkc`.
+// 🔑 AND THE REFLECTION IS DARKER THAN THE WATER. That rule has now caught the karst, the fjord, the
+// salt mirror and the dam: a reflection reads because it is a DARK shape on a lighter surface, and the
+// three times I mixed one toward a pale tint it landed within a few units of the water it was drawn on
+// and was invisible while being technically present. The one exception is deliberate and physical — a
+// LIGHT source reflects as light, so the shaft's track on the water is additive and the columns are not.
+// ================================================================================================
+function drawCavernWater(g,L,now){
+  var B=curBiome, K=Math.max(1,KSP), day=L>0.5;
+  var top=SEA_Y, botY=SH-TASKBAR_WP, depth=Math.max(2,botY-top);
+  var glowC = B.name==="THE DEEP WORKS" ? [255,150,60] : (B.name==="THE GLOWSPORE" ? [110,240,208] : [120,200,255]);
+  var lit=caveShaftLit(L,now,null), beamC=caveShaftCol(lit);
+  // still, black, and DARKER toward the viewer — the far edge picks up the town's lights across it
+  var wTop=mixc(mixc([10,14,18],glowC,0.16),[255,196,120],0.10*Math.min(1,cityG*1.4));
+  wTop=mixc(wTop,beamC,0.10*lit.tot);
+  var wBot=[4,6,9];
+  var step=Math.max(1,Math.round(K*0.6));
+  for(var y=top;y<botY;y+=step){
+    var f=(y-top)/depth;
+    g.fillStyle=css(mixc(wTop,wBot,f*f*(3-2*f)));
+    g.fillRect(0,y,SW,step);
+  }
+  // ---- THE COLUMNS, UPSIDE DOWN. The tallest thing any water in this engine has had to carry, and
+  // the reason the lake is 38 wp deep rather than the karst's 28.
+  if(caveCache&&caveCache.cols){
+    var refC=[2,4,6];                                    // darker than the darkest water, always
+    var COMP=0.30;                                       // foreshortened: a reflection is shorter than its object
+    for(var ci=0;ci<caveCache.cols.length;ci++){
+      var C=caveCache.cols[ci]; if(C.kind===3) continue; // only the heroes are big enough to read down here
+      for(var ow=-1;ow<=1;ow++){
+        var cx=Math.round(C.wx-WOFF+ow*WW);
+        if(cx+C.hw*2<0||cx-C.hw*2>SW) continue;
+        for(var y2=top;y2<botY;y2+=step){
+          var rf=(y2-top)/depth;                         // 0 at the shoreline = the column's own foot
+          var hw=caveColHW(C,Math.max(0,1-rf/COMP));
+          if(rf>COMP) break;
+          g.globalAlpha=(0.72-0.52*(rf/COMP))*(day?1:0.82);
+          g.fillStyle=css(refC);
+          // ⚠ a mirrored edge is never a clean edge: the wobble is what says "water" and not "shadow"
+          var wob=Math.sin(y2*0.7+C.seed%17)*hw*0.06;
+          g.fillRect(Math.round(cx-hw+wob),y2,Math.max(1,Math.round(hw*2)),step);
+        }
+        g.globalAlpha=1;
+      }
+    }
+  }
+  // ---- THE SHAFT'S TRACK. The one reflection that is LIGHTER than the water, because it is a light:
+  // a shivering column of daylight running toward the viewer from wherever the beam meets the lake.
+  if(lit.tot>0.03&&caveCache&&caveCache.holes){
+    var slope=caveShaftSlope();
+    g.globalCompositeOperation="lighter";
+    for(var s=0;s<caveCache.holes.length;s++){
+      var H=caveCache.holes[s], hDep=Math.max(8,HORIZON-caveCeilAt(H.wx));
+      for(var o=-1;o<=1;o++){
+        var tx=Math.round(H.wx-WOFF+o*WW+slope*(hDep+depth*0.5));
+        if(tx<-60||tx>SW+60) continue;
+        for(var ty=top;ty<botY;ty+=step){
+          var tf=(ty-top)/depth;
+          var jit=Math.round(Math.sin(ty*1.7+now*0.0016)*(2+tf*7)*K*0.5);
+          var tw=Math.max(1,Math.round((3+tf*9)*K*0.5));
+          g.fillStyle=rgba(beamC,0.30*lit.tot*(1-tf*0.55));
+          g.fillRect(tx+jit-((tw/2)|0),ty,tw,step);
+        }
+      }
+    }
+    g.globalCompositeOperation="source-over";
+  }
+  // ---- THE FUNGUS on the walls reflects too, in broken dabs — the only other light in the room
+  for(var d2=0;d2<26;d2++){
+    var dwx=((d2*40503+(((WORLD_SEED||0)*11)>>>0))>>>0)%Math.max(1,WW);
+    var dx=Math.round(dwx-WOFF); if(dx<-10) dx+=WW; if(dx>SW+10) dx-=WW;
+    if(dx<0||dx>=SW) continue;
+    var dy=top+((d2*7919)%Math.max(2,Math.round(depth*0.7)));
+    var dp=0.35+0.65*Math.abs(Math.sin(now*0.0011+d2*0.9));
+    g.globalCompositeOperation="lighter";
+    g.fillStyle=rgba(glowC,0.20*dp);
+    g.fillRect(dx,dy,Math.max(2,Math.round(3*K)),Math.max(1,Math.round(K*0.6)));
+    g.globalCompositeOperation="source-over";
+  }
+}
 function drawSeaFrontBand(g,L,now){
   if(SEA_FRONT<=0) return;
   // ⚠ ON THE EMPYREAN THE BAND IN FRONT IS NOT WATER — it is the same cloud deck, nearer. Routed before
@@ -15631,6 +15742,7 @@ function drawSeaFrontBand(g,L,now){
   if(curBiome.celest){ drawCloudFront(g,L,now); return; }
   if(curBiome.tower){ drawKarstWater(g,L,now); return; }
   if(curBiome.cascades){ drawFjordWater(g,L,now); return; }
+  if(curBiome.roof){ drawCavernWater(g,L,now); return; }   // …and a cavern's floor lake takes no sky at all
   var K=Math.max(1,KSP), day=L>0.5, k=curBiome.k, nm=curBiome.name;
   // ⚠ the band ends at the top of the taskbar, not at the bottom of the frame — otherwise the deepest
   // (and most visible) water is drawn underneath a panel and the land just looks like a wide road.
@@ -20840,19 +20952,133 @@ function drawSavannaLife(g,L,now,nd,fx){
 //
 // WHAT FILLS THE FRAME: everything. There is no empty half. Rock above, rock at the sides, black water
 // below, and the only light in the world is what the city and the fungus make.
+// ⚠⚠ THE DIAGNOSIS THIS REBUILD ANSWERS. Nick, on a render at his real 4K geometry: the middle third
+// of the frame — from under the stalactites to the rooftops — was one flat dark-teal void. The cavern
+// was drawn as an ABSENCE, not a thing, and failed all three of the rules every land that reads obeys:
+// no ONE BIG OBJECT (a void is not one), no EXTREME VALUE CONTRAST (the upper 60% was a single dark
+// mass), no SCALE REFERENCE. It read as a normal city with a dark lid on it.
+// ✅ Unlike THE TERRACES — deleted after two failed overhauls because horizontal repetition is the one
+// thing a per-column band engine renders worst — the SUBJECT HERE SUITS THE RENDERER. A cavern's
+// natural content is VERTICAL: columns, shafts, hanging things. So this is fixable by adding the right
+// things rather than by pivoting the land, which is the question worth asking BEFORE an overhaul.
 var caveCache=null;
+// The ceiling profile as a PURE FUNCTION of world x. The cache below still holds one value per SCREEN
+// column for the paint loop, but a column's top, a collapse hole's rim and a stalactite's root all need
+// the roof at a WORLD position — including positions off the side of this screen. Same curve, asked
+// anywhere, so the roof cannot disagree with the things hanging off it.
+function caveCeilAt(wx){
+  // kept FLOAT — rounding a profile before using it is what striped the dunes
+  var n=Math.sin(wx*0.0052)*0.52+Math.sin(wx*0.0137+2.2)*0.28+Math.sin(wx*0.0361)*0.14;
+  return HORIZON*(0.30+n*0.15);
+}
+function caveHash(a,b){ return (((((a*2654435761)>>>0)^(((b+WORLD_SEED)*1597334677)>>>0))>>>0)%100000)/100000; }
+// ---- THE CAVERN'S FURNITURE, world-anchored so all three monitors agree what is where ----
+// ⚠ Three HERO COLUMNS at 0.17/0.50/0.83 of the world. That spacing is deliberate, not rolled: the
+// world is 2269 wp and each of Nick's screens sees 776 of it, so those three land one per monitor,
+// near the middle of each. A hashed position would have clustered two on one screen and left another
+// with a plain dark ceiling — the same reasoning that put one collapse hole in each third.
+// ⚠ AND NO TWO ARE THE SAME SHAPE. "Every tower is the same rounded lozenge" was the karst's headline
+// fault, and the dunes' and the Ashlands' before it — three lands running whose real problem was ONE
+// SHAPE REPEATED. So the three kinds are intact / hourglass-with-apron / collapsed, and which screen
+// gets the broken one rotates with the world seed.
+function caveBuild(){
+  caveCache={ceil:new Array(SW), cols:[], holes:[]};
+  for(var x=0;x<SW;x++) caveCache.ceil[x]=caveCeilAt(x+WOFF);
+  var CF=[0.17,0.50,0.83], rot=((WORLD_SEED||0)>>>0)%3;
+  for(var c=0;c<3;c++){
+    var cwx=Math.round((CF[c]+(caveHash(c,17)-0.5)*0.05)*WW);
+    caveCache.cols.push({
+      wx:cwx,
+      // SCALED TO THE FRAME, NOT TO KSP — the landmark lesson. A column keyed to KSP is a fixed number
+      // of pixels and therefore a different fraction of the picture on every monitor; keyed to HORIZON
+      // it is always the same share of the frame, which is the whole job of "colossal".
+      hw:HORIZON*(0.085+caveHash(c,31)*0.034),
+      // ⚠ THE WAIST AND THE PINCH ARE WHAT MAKES IT A COLUMN AND NOT A FUNNEL. My first values (waist
+      // 0.36-0.56, pinch 0.34-0.50) narrowed it to a third of its width a third of the way down, and it
+      // rendered as a factory chimney or a tornado — a shape that tapers hard reads as something OTHER
+      // than rock. A real fused column is only modestly narrower at the join.
+      waist:0.44+caveHash(c,47)*0.18,          // where the two cones fuse
+      pinch:0.56+caveHash(c,53)*0.16,          // how hard it pinches there — modest, or it stops being a column
+      kind:(c+rot)%3,
+      seed:((c*7919+(((WORLD_SEED||0)*13)>>>0))>>>0) });
+  }
+  // A FAR RANK, half the width and much darker, offset from the heroes: depth costs almost nothing and
+  // without it three columns read as three cut-outs on one plane.
+  for(var f2=0;f2<4;f2++){
+    var fwx=Math.round((0.05+f2*0.25+caveHash(f2,71)*0.09)*WW);
+    // ⚠ A NARROW TALL TAPER READS AS A FACTORY CHIMNEY, not as rock. The first far rank was authored at
+    // 0.030-0.052 of the horizon and rendered as smokestacks standing in a cavern, which is the wrong
+    // object entirely on a land whose other variant is a working mine. Wider, and pinched far less.
+    caveCache.cols.push({ wx:fwx, hw:HORIZON*(0.046+caveHash(f2,73)*0.030),
+      waist:0.42+caveHash(f2,79)*0.20, pinch:0.60+caveHash(f2,83)*0.18,
+      kind:3, seed:((f2*104729+(((WORLD_SEED||0)*7)>>>0))>>>0) });
+  }
+  // ONE COLLAPSE HOLE PER MONITOR-THIRD, set just off its column's shoulder so the beam RAKES the
+  // column instead of hiding behind it — the lit face of a colossal rock is most of why the shaft is
+  // worth having, beyond the beam itself.
+  for(var h=0;h<3;h++){
+    var hero=caveCache.cols[h];
+    caveCache.holes.push({ wx:Math.round(hero.wx+(caveHash(h,91)<0.5?-1:1)*WW*(0.055+caveHash(h,97)*0.030)),
+                           r:HORIZON*(0.032+caveHash(h,101)*0.020), seed:(h*40503+7)>>>0 });
+  }
+}
+// The half-width of a column at depth t (0 at the roof, 1 at the floor): two cones fused at a waist,
+// which is what a real column IS — a stalactite that grew down far enough to meet the stalagmite that
+// grew up. Plus a slow per-column bulge, so the silhouette is never a clean mathematical shape.
+function caveColHW(C,t){
+  var w=C.waist, d=t<w ? (w-t)/Math.max(0.08,w) : (t-w)/Math.max(0.08,1-w);
+  var prof=C.pinch+(1-C.pinch)*Math.pow(Math.max(0,Math.min(1,d)),1.35);
+  return C.hw*prof*(1+0.16*Math.sin(t*7.1+C.seed%13)+0.09*Math.sin(t*13.3+C.seed%29));
+}
+// ⚠⚠ THE SHAFT'S DIRECTION COMES FROM `df`, AND IT IS THE SAME FOR ALL THREE HOLES.
+// Nick's locked answer 2 is that the daylight coming through the collapsed roof MOVES WITH THE REAL
+// SUN, so this is the one place on the land that is tied to the world above it.
+// Two ways to get it wrong, and this project has already paid for both:
+//   1. `sunPos()` returns a SCREEN x (`df*WW-WOFF`). Deriving the tilt from that gives the three
+//      monitors three different slopes for the same shaft — the sun-anchor bug verbatim, whose whole
+//      lesson was that world-anchored is NECESSARY BUT NOT SUFFICIENT. `df` is the world-space value
+//      and it is identical on every screen, so the tilt is taken from `df` alone.
+//   2. Taking the direction as (hole - sun) makes each hole tilt differently, which is right for a
+//      lamp a few hundred metres away and wrong for the sun. THE SUN IS AT INFINITY: every beam in a
+//      cavern is PARALLEL. All three rake the same way, together, all day — vertical at solar noon and
+//      leaning further hour by hour toward the ends of the day. That is both the correct physics and
+//      the more legible picture, because the whole cavern then reads as lit by one thing.
+function caveShaftSlope(){
+  // ⚠ THE CLAMP GOES ROUND `df` ALONE. Written as `Math.max(0.06,Math.min(0.94,df)-0.5)` the floor
+  // applies to the OFFSET, not the day fraction — so `a` could never go negative and every beam on
+  // every land leaned the same way at 8am as at 4pm. The feature Nick asked for is that the light MOVES
+  // with the real sun, and one misplaced bracket had it frozen; two renders four hours apart looked
+  // identical and nothing errored. 🔑 A feature whose whole point is that it changes needs to be
+  // rendered at two different times before it is believed.
+  var df=Math.max(0.06,Math.min(0.94,sunPos().df));
+  var a=(df-0.5)*Math.PI;                                          // the disc's angle off the meridian
+  return Math.max(-2.4,Math.min(2.4,-Math.tan(a)));                // run per unit of depth; +ve = light travelling east
+}
+// How much light is actually coming down the hole right now, split day/night. Both are returned every
+// call because the two cross over at dusk and a hard switch would pop.
+// ⚠ CONTINUOUS IN CLOUD, not thresholded — the haboob-needs-16mph lesson: a reaction with a threshold
+// in it is a reaction Nick never sees. Overcast dims the shaft, fog kills most of it, and the moon's
+// own phase drives the night beam, so the hole is doing something different nearly every hour.
+function caveShaftLit(L,now,nd){
+  var df=Math.max(0.06,Math.min(0.94,sunPos().df)), fx=wfx();
+  var cloudK=Math.max(0,Math.min(1,(weather.cloud==null?0:weather.cloud)/100));
+  if(fx.cloudy&&cloudK<0.62) cloudK=0.62;
+  var alt=Math.sin(df*Math.PI);                                     // the sun's own height in its arc
+  var day=Math.max(0,Math.min(1,(L-0.28)*2.6))*alt*(1-0.52*cloudK)*(fx.fog?0.42:1);
+  var mp=moonPhase(nd||new Date(now)), moonF=Math.max(0,Math.min(1,(1-Math.cos(2*Math.PI*mp))/2));
+  var night=Math.max(0,Math.min(1,(0.40-L)*3.0))*(0.16+0.42*moonF)*(1-0.62*cloudK);
+  return { day:day, night:night, tot:Math.max(day,night) };
+}
+// The shaft's colour: real daylight at noon, gold at the ends of the day (it is coming through a hole
+// in the ground, so it wears whatever the sky is wearing), and cold moonlight after dark.
+function caveShaftCol(lit){
+  var warm=mixc([255,248,226],[255,186,110],Math.min(1,goldenK));
+  return lit.day>=lit.night ? warm : [156,182,228];
+}
 function drawUndercity(g,L,now,nd){
   var B=curBiome, K=Math.max(1,KSP);
   var glowC = B.name==="THE DEEP WORKS" ? [255,150,60] : (B.name==="THE GLOWSPORE" ? [110,240,208] : [120,200,255]);
-  if(!caveCache){
-    caveCache={ceil:new Array(SW)};
-    for(var x=0;x<SW;x++){
-      var wx=x+WOFF;
-      // kept FLOAT — rounding a profile before using it is what striped the dunes
-      var n=Math.sin(wx*0.0052)*0.52+Math.sin(wx*0.0137+2.2)*0.28+Math.sin(wx*0.0361)*0.14;
-      caveCache.ceil[x]=HORIZON*(0.30+n*0.15);
-    }
-  }
+  if(!caveCache) caveBuild();
   var rock=mixc(B.far,[0,0,0],0.30), rock2=mixc(B.near,[0,0,0],0.20);
   // ---- THE CEILING, hanging from the top of the frame
   for(var x2=0;x2<SW;x2++){
@@ -20883,29 +21109,210 @@ function drawUndercity(g,L,now,nd){
       }
     }
   }
-  // ---- LIGHT SHAFTS: holes in the roof, the only daylight that ever gets down here. They track the
-  // REAL sun — they are strongest at local noon and gone at night, which is the one thing that ties
-  // this place to the world above it.
-  var sun=Math.max(0,Math.min(1,(L-0.34)*2.2));
-  if(sun>0.05){
-    for(var sh=0;sh<3;sh++){
-      var swx=((sh*104729+((WORLD_SEED*7)|0))>>>0)%Math.max(1,WW);
-      for(var o2=-1;o2<=1;o2++){
-        var sx=Math.round(swx-WOFF+o2*WW);
-        if(sx<-60||sx>SW+60) continue;
-        var top=Math.round(caveCache.ceil[Math.max(0,Math.min(SW-1,sx))]);
-        var wid=Math.round(10*K);
-        g.globalCompositeOperation="lighter";
-        for(var q3=0;q3<HORIZON-top;q3++){
-          var f=q3/Math.max(1,HORIZON-top);
-          g.fillStyle=rgba([255,244,214],0.10*sun*(1-f));
-          g.fillRect(sx-((wid*(0.5+f*0.6))|0),top+q3,Math.round(wid*(1+f*1.2)),1);
+  // ================================================================================================
+  // THE COLOSSAL COLUMNS — Nick's locked answer 1, and the object the middle third never had.
+  // Two lights model them, which is the whole reason they read: DAYLIGHT down the shaft, cold and
+  // strongest at the top, and the CITY's own warm glow washing up their feet from below. One light
+  // gives a flat cut-out; two give a rock.
+  // ⚠ THE LIT SIDE FOLLOWS THE BEAM. The columns are shaded from the same slope the shafts use, so at
+  // 8am the whole cavern is lit from one side and by 5pm from the other — and it is the same rock in
+  // between, not a different picture.
+  // ================================================================================================
+  var lit=caveShaftLit(L,now,nd), slope=caveShaftSlope(), beamC=caveShaftCol(lit);
+  // ⚠ EVEN WITH NO SUN THERE IS STILL A LIT SIDE. `litK` floors at 0.22 rather than 0 because the city
+  // and the fungus light this place all night, and a column with no modelling at all is the flat
+  // silhouette the whole biome-look pass was fought over.
+  var litK=Math.max(0.22,Math.min(1,lit.day*1.15+lit.night*0.60));
+  var cityWarm=mixc([255,196,124],glowC,0.30), cityK=Math.max(0,Math.min(1,cityG*1.2));
+  var NB=9, colDone=[];
+  for(var ci=0;ci<caveCache.cols.length;ci++){
+    var C=caveCache.cols[ci], far=(C.kind===3);
+    var cTop=caveCeilAt(C.wx), cDepth=Math.max(10,HORIZON-cTop);
+    // ⚠ THE LIT FACE IS THE ONE FACING ITS OWN HOLE, not a global left/right. Each hero column was
+    // deliberately placed a shoulder's width from a collapse hole, so the beam rakes past it — and a
+    // column lit from the side the light is actually on is the difference between modelling and a
+    // gradient. The beam's own lean is folded in, so as the sun crosses, the light walks around the rock.
+    var myH=caveCache.holes[Math.min(caveCache.holes.length-1,far?(C.seed%3):(ci%3))];
+    var litDir=((myH.wx+slope*cDepth*0.45)>=C.wx)?1:-1;
+    // ⚠⚠ A COLLAPSED COLUMN IS BROKEN IN THE MIDDLE, NOT CUT OFF AT THE TOP. My first version simply
+    // stopped the draw partway down — and what that renders is a tapering shape hanging from the roof
+    // and ending in mid-air, which the eye reads as a big STALACTITE, not as a ruin. There is nothing
+    // about it that says "this used to reach the floor".
+    // The break is a GAP: a remnant still hanging from the ceiling, clear air, and a standing stump
+    // rising from the floor with a ragged top — and the missing middle lying where it fell. Only then
+    // does the column read as having failed, and only then does the rubble at its foot have a cause.
+    var brkA=(C.kind===2)?(0.26+caveHash(C.seed,3)*0.12):2;       // the hanging remnant ends here
+    var brkB=(C.kind===2)?(brkA+0.17+caveHash(C.seed,5)*0.15):2;  // …and the standing stump starts here
+    // the two ends of the value range for this rock. A far column is barely above the ceiling it hangs
+    // in front of — depth is a VALUE difference, not a size difference.
+    // ⚠⚠ EXTREME VALUE CONTRAST IS THE RULE, AND 0.34 TOWARD WHITE IS NOT EXTREME. The first build put
+    // the lit face at a mid grey and the picture stayed exactly as flat as the diagnosis described:
+    // every land that reads does this loudly (alpine's dark rock against white snow, the dam's near-black
+    // concrete against a bright reservoir), and every land that failed was a single value mass.
+    var faceLit=far?mixc(rock,beamC,0.14):mixc(rock2,beamC,0.62);
+    var faceDrk=far?mixc(rock,[0,0,0],0.46):mixc(rock2,[0,0,0],0.78);
+    var step=Math.max(1,Math.round(K*0.7));
+    for(var ow=-1;ow<=1;ow++){
+      var cx=Math.round(C.wx-WOFF+ow*WW);
+      if(cx+C.hw*1.8<-4||cx-C.hw*1.8>SW+4) continue;
+      colDone.push({C:C,cx:cx,top:cTop,depth:cDepth});
+      for(var cy2=Math.round(cTop);cy2<HORIZON;cy2+=step){
+        var t=(cy2-cTop)/cDepth;
+        if(t>brkA&&t<brkB) continue;                                   // the missing middle of a fallen column
+        var hw=caveColHW(C,t);
+        // the two torn ends. Jittering the half-width ROW BY ROW is what makes a break ragged; a clean
+        // horizontal cut reads as a shape that was drawn short, not as rock that gave way.
+        if(t>brkA-0.07&&t<=brkA) hw*=0.40+0.60*caveHash(C.seed,Math.round(t*430));
+        if(t>=brkB&&t<brkB+0.07) hw*=0.40+0.60*caveHash(C.seed,Math.round(t*370)+91);
+        // ⚠ the shaft lights the TOP of a column and the city lights its FOOT. Mixing between the two
+        // down the height is what stops the lit face being one flat colour for 300 px.
+        var upC=mixc(faceLit,cityWarm,Math.min(1,t*t*1.35)*cityK*(far?0.35:0.75));
+        for(var bb=0;bb<NB;bb++){
+          var u0=-1+2*bb/NB, u1=-1+2*(bb+1)/NB, um=(u0+u1)*0.5;
+          // a smooth term across the width, NOT a hard light/dark edge: a vertical seam down a column
+          // is exactly the artifact the karst's split towers produced on the 4K fractional downsample.
+          var sh2=Math.max(0,Math.min(1,0.5+0.5*(um*litDir)));
+          sh2=sh2*sh2*(3-2*sh2);
+          g.fillStyle=css(mixc(faceDrk,upC,sh2*litK));
+          g.fillRect(Math.round(cx+u0*hw),cy2,Math.max(1,Math.round((u1-u0)*hw)+1),step);
         }
+      }
+      // ---- FLOWSTONE FLUTES down the face. ⚠ IRREGULAR IN THREE WAYS — position, width AND length.
+      // A picket fence has caught this project twice (the salt's graph paper, the sidewalk joints), and
+      // the lesson both times was that varying ONE parameter is not enough to break a regular rhythm.
+      var nf=(far?3:6)+(C.seed%4);
+      for(var fl=0;fl<nf;fl++){
+        var fu=-0.94+1.88*caveHash(C.seed,fl*3+1);
+        var fwd=0.05+0.11*caveHash(C.seed,fl*5+2);
+        var ft0=caveHash(C.seed,fl*7+3)*0.45, ft1=ft0+0.22+caveHash(C.seed,fl*11+4)*0.62;
+        var fsh=Math.max(0,Math.min(1,0.5+0.5*(fu*litDir)));
+        var fC=mixc(mixc(faceDrk,faceLit,fsh*litK),[0,0,0],0.30);
+        for(var fy=Math.round(cTop+ft0*cDepth);fy<cTop+ft1*cDepth;fy+=step){
+          var ft=(fy-cTop)/cDepth; if(ft>brkA&&ft<brkB) continue;      // …and no flowstone across the gap
+          var fhw=caveColHW(C,ft);
+          g.fillStyle=css(fC);
+          g.fillRect(Math.round(cx+fu*fhw),fy,Math.max(1,Math.round(fwd*fhw*2)),step);
+        }
+      }
+      // ---- THE FOOT. A talus apron spreading wider than the shaft it fell from — and the thing that
+      // makes the column look SET INTO the floor rather than pasted on top of it.
+      {
+        var fh=Math.round(cDepth*(far?0.030:0.055)), fw2=caveColHW(C,1)*(far?1.5:1.9);
+        for(var ay=0;ay<fh;ay++){
+          var au=ay/Math.max(1,fh), aw=fw2*au;
+          g.fillStyle=css(mixc(faceDrk,rock,0.25));
+          g.fillRect(Math.round(cx-aw),HORIZON-fh+ay,Math.max(1,Math.round(aw*2)),1);
+        }
+      }
+      // ---- A COLLAPSED column's missing half, lying where it fell: one huge canted slab, longer than
+      // a city block. This is half of Nick's rubble answer, delivered where the roof actually gave way.
+      if(C.kind===2){
+        var sl=Math.round(cDepth*0.42), sy=HORIZON-Math.round(C.hw*0.5), sdir=(C.seed&1)?1:-1;
+        for(var sq=0;sq<sl;sq++){
+          var sw2=Math.round(C.hw*(1.05-0.45*sq/sl));
+          g.fillStyle=css(mixc(faceDrk,faceLit,(0.16+0.34*(sq/sl))*litK));
+          g.fillRect(Math.round(cx+sdir*(C.hw*0.7+sq*0.9)),sy+Math.round(sq*0.42),Math.max(1,Math.round(sw2*0.5)),Math.max(1,Math.round(K)));
+        }
+      }
+      // ---- THE SCALE REFERENCE, and the reason a column is not just a big shape: a stair cut up the
+      // rock, and a chain of tiny lamps on it. Nick's diagnosis named the missing scale reference
+      // explicitly; a light the size of a window on something 300 px tall says how big it is instantly,
+      // and nothing else on this land does that job.
+      if(C.kind===0&&cityG>0.28){
+        var lamps=Math.round(9+cDepth/(26*K));
+        for(var lp=0;lp<lamps;lp++){
+          var lt=0.16+0.74*(lp/Math.max(1,lamps-1)), lhw=caveColHW(C,lt);
+          var lu=Math.sin(lp*0.9+C.seed%7)*0.72;                 // the stair switchbacks rather than spiralling evenly
+          var lx=Math.round(cx+lu*lhw), ly=Math.round(cTop+lt*cDepth);
+          g.fillStyle=css(mixc(faceDrk,[0,0,0],0.45));            // the cut ledge it stands on
+          g.fillRect(lx-Math.round(2*K),ly,Math.max(2,Math.round(4*K)),Math.max(1,Math.round(K*0.7)));
+          g.globalCompositeOperation="lighter";
+          g.fillStyle=rgba([255,206,132],0.85);
+          g.fillRect(lx,ly-Math.max(1,Math.round(K*0.7)),Math.max(1,Math.round(K*0.8)),Math.max(1,Math.round(K*0.8)));
+          g.fillStyle=rgba([255,196,120],0.16); g.fillRect(lx-Math.round(2*K),ly-Math.round(2*K),Math.round(4*K),Math.round(4*K));
+          g.globalCompositeOperation="source-over";
+        }
+      }
+    }
+  }
+  // ================================================================================================
+  // THE SHAFTS OF REAL DAYLIGHT — Nick's locked answer 2. Near-white on near-black is the most extreme
+  // value contrast available anywhere in this engine, and the diagnosis said this land had none.
+  // ⚠ The old version was structurally right and about five times too faint: 0.10 alpha additive over
+  // an [8,18,20] cavern, which rendered as two barely-perceptible pale wedges. What was missing was
+  // amplitude, the tilt, the torn hole itself, and the BRIGHT POOL where the beam lands — and the pool
+  // is the single biggest readability win here, because it is the one thing that puts a near-white
+  // patch down at city level where the eye already is.
+  // ================================================================================================
+  if(lit.tot>0.02){
+    var beamA=(lit.day*0.30+lit.night*0.22);
+    for(var sh=0;sh<caveCache.holes.length;sh++){
+      var H=caveCache.holes[sh], hTop=caveCeilAt(H.wx), hDep=Math.max(8,HORIZON-hTop);
+      var wid=Math.max(3,Math.round(H.r));
+      for(var o2=-1;o2<=1;o2++){
+        var sx=Math.round(H.wx-WOFF+o2*WW);
+        if(sx+Math.abs(slope)*hDep<-90||sx-Math.abs(slope)*hDep>SW+90) continue;
+        // ---- THE HOLE. A torn opening: the roof fell in here, so the gap has broken rock lips and no
+        // two of them are the same depth.
+        // ⚠ THE LIP MUST NOT BE A BRIGHT LINE ALONG A WOBBLY EDGE. My first pass drew one at up to 0.85
+        // toward white and it rendered as a row of cartoon teeth across the top of the beam — a thing
+        // the eye reads as a DRAWN OUTLINE, which is the one thing a hole in rock must never look like.
+        for(var hx=-wid;hx<=wid;hx++){
+          var hu=hx/wid, hd=Math.round(Math.sqrt(Math.max(0,1-hu*hu))*H.r*0.62*(1+0.30*Math.sin(hx*0.7+H.seed%11)));
+          if(hd<=0) continue;
+          g.fillStyle=css(mixc(rock,[0,0,0],0.62));                            // the void punched up through the roof
+          g.fillRect(sx+hx,Math.round(hTop-hd),1,hd+1);
+          g.fillStyle=css(mixc(rock,beamC,0.18+lit.tot*0.14));                 // …and the raw broken rock of its rim
+          g.fillRect(sx+hx,Math.round(hTop-hd),1,Math.max(1,Math.round(K*0.6)));
+          g.globalCompositeOperation="lighter";
+          g.fillStyle=rgba(beamC,0.40*lit.tot*Math.max(0,1-hu*hu));            // daylight standing in the gap itself
+          g.fillRect(sx+hx,Math.round(hTop-hd),1,Math.max(1,Math.round(hd*0.6)));
+          g.globalCompositeOperation="source-over";
+        }
+        // ---- THE BEAM. Widening and fading with depth, leaning by the sun's own angle.
+        // ⚠⚠ A BEAM OF LIGHT HAS NO EDGE. The first build drew one flat-alpha band plus a brighter core
+        // band inside it, and that is two hard edges: it rendered as a grey concrete ramp leaning against
+        // the ceiling, solid enough to hide the rock behind it. Six nested widths at a low alpha each,
+        // stacked additively, give a soft centre-bright falloff instead — which is what makes it read as
+        // AIR FULL OF LIGHT rather than as an object. Same family as the god rays' finding, that broad
+        // soft shafts cannot alias into lines while thin bright strips can.
+        g.globalCompositeOperation="lighter";
+        var bstep=Math.max(1,Math.round(K*0.8)), NBw=6;
+        for(var q3=0;q3<hDep;q3+=bstep){
+          var f=q3/hDep;
+          var bx=sx+slope*q3, bw=wid*(1.0+f*1.25), fall=(1-f*0.62)*(1-f*f*0.34);
+          for(var wl=0;wl<NBw;wl++){
+            var wf=1-wl/NBw;
+            g.fillStyle=rgba(beamC,beamA*fall*0.17);
+            g.fillRect(Math.round(bx-bw*wf),Math.round(hTop+q3),Math.max(1,Math.round(bw*wf*2)),bstep);
+          }
+        }
+        // ---- WHERE IT LANDS. A pool of near-white on the cavern floor, foreshortened into an ellipse
+        // and stretched as the beam flattens — a low sun throws a long smear, a high one a tight disc.
+        var lx2=Math.round(sx+slope*hDep), lw=Math.round(wid*(2.15+Math.abs(slope)*1.5)), lh=Math.max(2,Math.round(wid*0.5));
+        g.fillStyle=rgba(beamC,Math.min(0.85,beamA*2.4));
+        fillEllipse(g,lx2,HORIZON,lw,lh);
+        g.fillStyle=rgba(beamC,Math.min(0.6,beamA*1.5));
+        fillEllipse(g,lx2,HORIZON,Math.round(lw*1.9),Math.round(lh*2.1));      // the spill around it
         g.globalCompositeOperation="source-over";
       }
     }
   }
-  // ---- BIOLUMINESCENCE on the ceiling and walls: the light that makes this place liveable
+}
+// ⚠⚠ THE BIOLUMINESCENCE WAS WRITTEN TO PULSE AND HAS NEVER PULSED. It sat in `drawUndercity`, which is
+// reached through `drawMountains` inside the BACKDROP stack — and the backdrop canvas repaints at
+// 0.5-2 fps by quality. `0.45+0.55*Math.sin(now*0.0012+…)` sampled twice a second is not a pulse, it is
+// a flicker between two arbitrary poses, which is precisely what "the people up there are just jumping
+// around" turned out to be on the plateau towns.
+// 🔑 A function is ANIMATED if any part of it moves, not if most of it does — and the cost of moving 70
+// rects to the live rate is 70 rects. So the glow lives here now, and the rock it grows on stays in the
+// backdrop where it belongs.
+// This runs BEHIND every building (see its call site, above the cached city), which is right: the fungus
+// is on the cavern walls, a long way back.
+function drawUndercityLive(g,L,now,nd){
+  if(!curBiome.roof||!caveCache) return;
+  var B=curBiome, K=Math.max(1,KSP);
+  var glowC = B.name==="THE DEEP WORKS" ? [255,150,60] : (B.name==="THE GLOWSPORE" ? [110,240,208] : [120,200,255]);
   for(var b2=0;b2<70;b2++){
     var bwx=((b2*40503+((WORLD_SEED*11)|0))>>>0)%Math.max(1,WW);
     var bx=Math.round(bwx-WOFF);
@@ -20913,8 +21320,59 @@ function drawUndercity(g,L,now,nd){
     if(bx<0||bx>=SW) continue;
     var by=Math.round(caveCache.ceil[bx]+((b2*7919)%Math.max(1,Math.round(HORIZON*0.5))));
     var pulse=0.45+0.55*Math.sin(now*0.0012+b2*0.7);
-    g.fillStyle=rgba(glowC,0.55*pulse);
+    g.globalCompositeOperation="lighter";                 // ⚠ a cavern IS dark: additive is right HERE,
+    g.fillStyle=rgba(glowC,0.42*pulse);                   // and it is the inverse of the Empyrean finding
     g.fillRect(bx,by,Math.max(1,Math.round(1.4*K)),Math.max(1,Math.round(1.4*K)));
+    g.fillStyle=rgba(glowC,0.10*pulse);                   // …with a little bloom off the rock around it
+    g.fillRect(bx-Math.round(K),by-Math.round(K),Math.max(2,Math.round(3.4*K)),Math.max(2,Math.round(3.4*K)));
+    g.globalCompositeOperation="source-over";
+  }
+}
+// ⚠⚠ AND THIS HALF OF THE SHAFT GOES IN FRONT OF THE CITY. The beam body in `drawUndercity` is painted
+// in the backdrop, behind every building — correct for the volumetric light hanging in the air BEHIND
+// the town, and useless for the thing that actually sells it: the patch of near-white daylight lying ON
+// the rooftops and the street where the beam comes down. Drawn behind the city that patch is covered by
+// the city, which is the paint-order finding in miniature.
+// So the near half of the light is drawn here, after the near buildings: the column of air in front of
+// the town, the pool where it lands, and the dust turning in it.
+function drawUndercityGlow(g,L,now,nd){
+  if(!curBiome.roof||!caveCache) return;
+  var K=Math.max(1,KSP);
+  var lit=caveShaftLit(L,now,nd); if(lit.tot<=0.02) return;
+  var slope=caveShaftSlope(), beamC=caveShaftCol(lit);
+  var beamA=(lit.day*0.16+lit.night*0.10);
+  for(var s=0;s<caveCache.holes.length;s++){
+    var H=caveCache.holes[s], hTop=caveCeilAt(H.wx), hDep=Math.max(8,HORIZON-hTop);
+    var wid=Math.max(3,Math.round(H.r));
+    for(var o=-1;o<=1;o++){
+      var sx=Math.round(H.wx-WOFF+o*WW);
+      if(sx+Math.abs(slope)*hDep<-90||sx-Math.abs(slope)*hDep>SW+90) continue;
+      g.globalCompositeOperation="lighter";
+      var bstep=Math.max(1,Math.round(K*0.7));
+      for(var q=Math.round(hDep*0.30);q<hDep;q+=bstep){       // only the lower reach: the near air
+        var f=q/hDep, bx=sx+slope*q, bw=wid*(1.0+f*1.15);
+        g.fillStyle=rgba(beamC,beamA*(1-f*0.35));
+        g.fillRect(Math.round(bx-bw),Math.round(hTop+q),Math.max(1,Math.round(bw*2)),bstep);
+      }
+      // the pool, again — this time ON the street and whatever is standing in it
+      var lx=Math.round(sx+slope*hDep), lw=Math.round(wid*(2.15+Math.abs(slope)*1.5));
+      g.fillStyle=rgba(beamC,Math.min(0.55,beamA*2.6));
+      fillEllipse(g,lx,HORIZON,lw,Math.max(2,Math.round(wid*0.5)));
+      g.fillStyle=rgba(beamC,Math.min(0.34,beamA*1.4));
+      fillEllipse(g,lx,HORIZON,Math.round(lw*1.8),Math.max(3,Math.round(wid)));
+      // ---- DUST TURNING IN THE LIGHT. Scripted from a hash and the clock, never simulated, so all
+      // three monitors show the same speck in the same place — the standing rule for anything alive.
+      var nm=18+((cityG>0.5)?10:0);
+      for(var m=0;m<nm;m++){
+        var mt=((m*0.137+now*0.000021*(0.5+(m%5)*0.2))%1);
+        var md=mt*hDep, mf=md/hDep;
+        var mu=Math.sin(now*0.0006+m*2.3)*0.72;
+        var mx=Math.round(sx+slope*md+mu*wid*(1+mf));
+        g.fillStyle=rgba(beamC,0.30*lit.tot*(1-mf*0.4));
+        g.fillRect(mx,Math.round(hTop+md),Math.max(1,Math.round(K*0.6)),Math.max(1,Math.round(K*0.6)));
+      }
+      g.globalCompositeOperation="source-over";
+    }
   }
 }
 // ================================================================================================
@@ -35779,6 +36237,8 @@ function draw(g,pass){
   drawDamLakeLive(g,L,now,nd);    // …and if it is the dam, the ferry, the launch, the dinghies and the
                                   // water life. The lake's FIXED things (the far town, the boom, the
                                   // jetties) stay in the backdrop — see drawDamShore.
+  drawUndercityLive(g,L,now,nd);  // …and underground, the fungus glow, which was written to pulse and
+                                  // could not, sitting on a 0.5 fps canvas (the rock stays in the backdrop)
   drawPlateauTowns(g,L,now,nd);
   drawBlastWreckage(g,L,now);   // …and what the mountain took with it when it went   // and whatever stands on top of a flat-topped mountain
   drawGondola(g,L,now);           // a cable-car + summit lodge on the tallest peak (mature cities)
@@ -35871,15 +36331,24 @@ function draw(g,pass){
       g.globalAlpha=1; }
   }
 
-  // birds riding the same sky (behind the towers): ambient crossers + the seasonal migration V
-  if(!nukeStruck()) drawSkyBirds(g,L,now,fx);        // the thermal flash kills every bird in the sky
-  if(!nukeStruck()) drawMigration(g,now,nd,L);
+  // ⚠⚠ EVERYTHING IN THIS BLOCK NEEDS OPEN SKY OVER IT, and only three of the eight said so. Gating
+  // them together here rather than adding a fifth, sixth and seventh copy of the same early return is
+  // the "three removals in three places is when you hoist the routine" rule — and it means a new sky
+  // attraction added below this line is gated by construction rather than by remembering.
+  // ⚠ drawAirshow is DELIBERATELY OUTSIDE IT: the flypast over a roofed land is lit drones under the
+  // cavern ceiling (drawn from the roof branch at ~13915), which is the one aerial thing that belongs
+  // down here. Gating the whole block would have taken the airshow with it.
+  if(!noOpenSky()){
+    // birds riding the same sky (behind the towers): ambient crossers + the seasonal migration V
+    if(!nukeStruck()) drawSkyBirds(g,L,now,fx);        // the thermal flash kills every bird in the sky
+    if(!nukeStruck()) drawMigration(g,now,nd,L);
 
-  // sky attractions: hot-air balloons on calm days, an ad-blimp on a schedule
-  if(cityG>0.35 && !nukeStruck()) drawBalloons(g,L,now,fx);   // the flash pops the hot-air balloons
-  if(cityG>0.5 && !nukeFull()) drawBlimp(g,L,now,night,nd);
+    // sky attractions: hot-air balloons on calm days, an ad-blimp on a schedule
+    if(cityG>0.35 && !nukeStruck()) drawBalloons(g,L,now,fx);   // the flash pops the hot-air balloons
+    if(cityG>0.5 && !nukeFull()) drawBlimp(g,L,now,night,nd);
+  }
   drawAirshow(g,L,now);                                       // …and the flypast, when one is on
-  if(!nukeFull()){ drawHighFlights(g,L,now,fx); drawHelis(g,L,now); drawRealFlights(g,L,now); }   // busier skies: high cruisers + contrails + downtown choppers + the REAL aircraft overhead
+  if(!nukeFull()&&!noOpenSky()){ drawHighFlights(g,L,now,fx); drawHelis(g,L,now); drawRealFlights(g,L,now); }   // busier skies: high cruisers + contrails + downtown choppers + the REAL aircraft overhead
   if(cityPhase==="apoc"&&curDeath==="nuke") drawNukePlanes(g,L,now);   // …and in the exchange, the blast wave swats aircraft out of the sky (they don't just disappear)
   }
 
@@ -36666,6 +37135,14 @@ function draw(g,pass){
   drawHail(g,L,now,fx);
   if(wmood.hot) drawShimmer(g,L,now);
   drawBiomeWeather(g,L,now,nd,fx);               // how THIS land expresses the real weather
+  // ⚠⚠ THE NEAR HALF OF THE UNDERCITY'S SHAFTS GOES HERE, AND IT TOOK TWO TRIES TO FIND THE RIGHT PLACE.
+  // Putting it straight after the near buildings (which is where the Ashlands' works had to go) was still
+  // too early: the pool of daylight lands ON THE FLOOR, at HORIZON, and the road surface, the kerbs, the
+  // rails and the crossings are all painted after the buildings — so the pool was drawn and then paved
+  // over. Light falls on everything, so it is drawn over everything.
+  // 🔑 "When a sprite isn't drawn, first prove whether it is drawn, THEN ask who painted over it" —
+  // the cascades' lesson, and the second time in one pass that the answer was a later painter.
+  if(curBiome.roof) drawUndercityGlow(g,L,now,nd);
   drawCruise(g,L,now,night);
   drawBlkCrew(g,L,now);
   if(!nukeStruck()) drawGulls(g,L,now);          // K/J/M batch: coast, meadow & street spectacles (gulls killed by the flash)
