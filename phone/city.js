@@ -3472,7 +3472,10 @@ var BIOMES=[
     far:[150,176,132],  near:[104,142,92],  cap:[196,214,158], ground:[124,158,104],
     walls:[[228,220,200],[196,186,166],[240,236,224],[152,140,120],[212,204,184],[176,166,146],[132,122,104],[236,232,220]],
     fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:1}, big:["buffalo","boar"], small:["frog","squirrel"], air:["heron","egret"] },
-    flora:{ kinds:["palm","fern","willow","palm","grass"], bloom:["#ffffff","#ffd166","#e8a0c0"] },
+    // ⚠ TWO OF FIVE SLOTS WERE `palm`, which is why a rice mountain had a palm grove at its foot.
+    // Banaue is tropical HIGHLAND: pine and hardwood crowning the ridge (the watershed that feeds
+    // every pan below), bamboo along the paths and channels, banana and taro at the field edges.
+    flora:{ kinds:["pine","bamboo","banana","fern","pine"], bloom:["#ffffff","#ffd166","#e8a0c0"] },
     sky:{ top:[126,166,206], bot:[228,232,214], k:0.48, haze:[232,236,218] } },
   // ============ THE UNDERCITY — Phase 5, land #7 ============
   // WHAT FILLS THE FRAME: everything. There is NO SKY. A cavern has a ceiling, and a ceiling is the
@@ -3847,7 +3850,21 @@ var BIOME_VARIANTS={
       fauna:{ keep:{deer:0,rabbit:0,fox:0,goat:0}, big:[], small:["lizard"], air:["bat"] },
       sky:{ top:[16,10,10], bot:[52,30,20], k:0.90, haze:[86,50,30] } } ],
 
+  // ⚠ THIS LAND HAD EXACTLY ONE VARIANT — `terrace:[{}]` — so every life of THE TERRACES was the
+  // same picture. Nick's call: the same mountain with three different HISTORIES.
   terrace:[ {},
+    { name:"THE DROWNED STAIR",   // abandoned and reclaimed: the walls have gone, the pans are ponds
+      drowned:1, amp:0.66, steep:0.40,
+      far:[132,150,120],  near:[96,116,88],   cap:[168,182,148], ground:[112,132,98],
+      flora:{ kinds:["fern","bamboo","willow","fern"], bloom:["#e8e8f0","#d8c8a0","#c0d8b0"] },
+      fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:0}, big:["boar"], small:["frog","squirrel"], air:["heron","egret"] },
+      sky:{ top:[118,150,186], bot:[216,222,210], k:0.42, haze:[220,226,214] } },
+    { name:"THE GREAT STAIR",     // twice the height, climbing into the cloud base
+      great:1, amp:0.92, steep:0.60,
+      far:[156,180,138],  near:[110,146,96],  cap:[204,220,166], ground:[128,162,108],
+      flora:{ kinds:["pine","pine","bamboo","fern"], bloom:["#ffffff","#ffe8a0","#e8c0d0"] },
+      fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:1}, big:["buffalo","boar"], small:["frog","squirrel"], air:["heron","eagle"] },
+      sky:{ top:[112,154,202], bot:[232,236,224], k:0.50, haze:[236,238,226] } },
     { name:"THE GOLD HARVEST",  // ripe rice: the whole hillside gone amber, water only in the low steps
       far:[212,196,128], near:[192,170,86],  cap:[240,228,168], ground:[204,182,104], harvest:1,
       walls:[[236,226,202],[204,192,168],[246,240,228],[160,148,126],[220,210,188],[184,172,150],[140,130,110],[242,238,226]],
@@ -20838,69 +20855,226 @@ function drawUndercity(g,L,now,nd){
 // The steps follow the CONTOUR, which is the thing that makes real terraces beautiful and the thing a
 // naive implementation gets wrong: they are not straight shelves stacked like a staircase, they curve
 // with the hill, so each riser wanders left and right as it crosses the frame.
-var terrCache=null;
+var terrCache=null, terrStep=null;
+// The moon's screen position and how much light it is throwing, for the night mirror. Defensive:
+// this reaches into the sky machinery from the other end of the file, and a ReferenceError here
+// would silently kill the whole hillside (the fjord lost a feature exactly that way).
+function moonScreen(now,nd){
+  var hh=(nd?nd.getHours():0)+(nd?nd.getMinutes():0)/60;
+  var t=((hh+12)%24)/24;                                   // crude: the moon crosses opposite the sun
+  var ph=moonPhase?moonPhase(nd):0.5;                       // 0..1 through the cycle; full at 0.5
+  var lit=1-Math.abs(ph-0.5)*2;                            // 1 at full, 0 at new
+  return { x: SW*(0.08+0.84*t), k: 0.30+0.70*Math.max(0,Math.min(1,lit)) };
+}
+function moonUpTint(){ return [150,168,206]; }
+// ⚠⚠ THE TERRACES WERE A VENETIAN BLIND. Nick: "lets rework this, because I am not sure what I am
+// talking about." Every step was the same thickness at the same spacing running the FULL WIDTH of the
+// frame over one smooth two-hump sine — dozens of dead-parallel bands that read as corduroy, a contour
+// map, or a knitted blanket. Three compounding causes, and all three had to go:
+//   · NO RISERS. The steps had no vertical face, so no shadow and no depth: stripes painted on a hill
+//     rather than steps you could stand on.
+//   · The water bands were as thick as the land bands, so nothing read as a flooded pan with a thin
+//     bund around it.
+//   · Every line crossed the whole frame — *a loop over x with no break in it is a rule*, the bayou's
+//     lesson arriving a fourth time.
+// His call, and the one that actually fixes it: FIELDS, NOT LINES. A terrace hillside is a mosaic of
+// individually-owned pans of differing width, separated by bunds, paths and the outcrops the builders
+// had to go around — and a mosaic cannot read as corduroy however many rows it has.
+// It is BANAUE: brutally steep, ~70% of the frame, the steepness itself is the subject.
+function terrStepTable(seed){
+  // Irregular step spacing, computed ONCE per life and shared by every column, so the steps still
+  // follow the contour (which is what makes real terraces beautiful) while no two risers match.
+  var n=Math.max(9, Math.round(HORIZON/Math.max(5,Math.round(7.5*Math.max(1,KSP)))));
+  var inc=[], tot=0;
+  for(var i=0;i<n;i++){
+    var h=((i*2654435761+seed)>>>0); h^=h>>>13;
+    var v=0.55+((h>>>7)%100)/100*0.95;          // risers vary nearly 2:1 in height
+    inc.push(v); tot+=v;
+  }
+  var frac=[], acc=0;
+  for(var j=0;j<n;j++){ acc+=inc[j]/tot; frac.push(acc); }
+  return frac;
+}
 function drawTerraces(g,L,now,nd){
   var day=L>0.5, B=curBiome, K=Math.max(1,KSP), skc=biomeSkc(day);
   var litK=Math.max(0,Math.min(1,(L-0.34)*2.4));
-  var STEPS=Math.max(8, Math.round(HORIZON/Math.max(4,Math.round(7*K))));
+  var drowned=!!B.drowned, great=!!B.great;
   if(!terrCache){
-    // the underlying hill: kept as FLOAT (rounding a profile before using it is what striped the dunes)
+    // the underlying mountain: kept as FLOAT (rounding a profile before using it is what striped the
+    // dunes). Four octaves plus a ridged term, so it has SPURS and GULLIES instead of two smooth humps
+    // — the terraces then visibly wrap around them, which is what makes a slope look carved.
     terrCache=new Array(SW);
+    var topF=great?0.10:0.22, ampF=great?0.20:0.24;
     for(var x=0;x<SW;x++){
       var wx=x+WOFF;
-      var n=Math.sin(wx*0.0031)*0.58 + Math.sin(wx*0.0092+1.3)*0.27 + Math.sin(wx*0.0231)*0.12;
-      terrCache[x]=HORIZON*(0.66 - n*0.30*B.amp);
+      var n1=Math.sin(wx*0.0031)*0.52 + Math.sin(wx*0.0092+1.3)*0.24
+            + Math.sin(wx*0.0197+2.6)*0.13 + Math.sin(wx*0.0411+0.7)*0.07;
+      var ridge=1-Math.abs(Math.sin(wx*0.0057+0.4));      // ridged term → sharp spurs, soft gullies
+      var nn=n1*0.78 + (ridge-0.5)*0.44;
+      terrCache[x]=Math.max(HORIZON*0.05, HORIZON*(topF - nn*ampF*B.amp));
     }
+    terrStep=null;
   }
-  var harvest=!!B.harvest, flooded=!!B.flooded;
-  var soil=mixc(day?B.near:[(B.near[0]*0.18)|0,(B.near[1]*0.20)|0,(B.near[2]*0.30)|0], skc, 0.18);
-  var lip =mixc(day?B.cap:mixc(B.cap,[0,0,0],0.55), [0,0,0], 0.30);
-  // ⚠ A PADDY MIRRORS THE SKY'S BLUE, NOT ITS HORIZON HAZE. Taking sky.bot (a near-white haze colour)
-  // and lightening it further made every wet step almost white, so the whole hillside rendered as one
-  // pale mass with no steps visible in it at all. The zenith colour is what standing water actually
-  // reflects, and it is what separates a flooded terrace from a planted one.
+  if(!terrStep) terrStep=terrStepTable((WORLD_SEED*2654435761)>>>0);
+  var STEPS=terrStep.length;
+  // ---- THE FARMING YEAR. Nick's call: the map is a calendar you can read at a glance. Each PAN rolls
+  // its own state from the season, so the hillside is a quilt rather than a uniform sheet — different
+  // families work to different schedules, which is also true.
+  var sea=(curSeason||seasonInfo(nowDate(now))).name;
+  var mix = drowned      ? [0.62,0.10,0.00,0.28]                 // abandoned: ponds and scrub, nothing worked
+          : sea==="spring"? [0.80,0.16,0.00,0.04]                 // flooded, mirroring the sky
+          : sea==="summer"? [0.22,0.66,0.04,0.08]                 // deep green
+          : sea==="autumn"? [0.17,0.28,0.44,0.11]                 // gold coming in among the green
+          :                 [0.14,0.06,0.10,0.70];                // winter: bare earth, walls exposed
+  var soil=mixc(mixc(day?B.near:[(B.near[0]*0.18)|0,(B.near[1]*0.20)|0,(B.near[2]*0.30)|0],
+                     day?[104,96,64]:[14,14,12], 0.42), skc, 0.18);   // the UNTERRACED slope: dull olive, not paddy green
+  // the retaining wall: stone and packed mud, and it is DARK because it is a vertical face on a slope
+  // that is lit from above. That contrast is the entire reason the steps read as steps.
+  var wallC=mixc(day?[74,64,52]:[17,15,14], skc, day?0.04:0.02);
+  var wallSh=mixc(wallC,[0,0,0],day?0.42:0.30);
+  var lipC =mixc(day?B.cap:mixc(B.cap,[0,0,0],0.55),[255,255,255],day?0.18:0.0);
+  // ⚠ A PADDY MIRRORS THE SKY'S BLUE, NOT ITS HORIZON HAZE — and a reflection must be DARKER than
+  // what it reflects (karst, fjord, salt: three times). sky.bot is a near-white haze and lightening
+  // it further turned the whole hillside into one pale mass with no steps in it.
   var skyT=B.sky?B.sky.top:[120,160,210];
-  var waterC=mixc(skyT, day?[255,255,255]:[6,10,20], day?0.20:0.62);
-  var cropC=mixc(day?(harvest?[224,196,96]:[104,158,84]):[18,34,24], skc, 0.16);
+  // ⚠ AT NIGHT THE PANS WERE MIXED 0.66 TOWARD BLACK, which threw away the whole idea. Nick's call
+  // for this land after dark is "the moon, multiplied": a stack of flooded pans is hundreds of
+  // mirrors, and each one holds a piece of the night sky. So they stay clearly LIGHTER than the land
+  // at night — while still being DARKER than the sky they reflect, which is the rule that has caught
+  // this project three times (karst, fjord, salt).
+  var waterC=mixc(skyT, day?[255,255,255]:[8,14,28], day?0.14:0.34);
+  if(!day) waterC=mixc(waterC, moonUpTint(), 0.22);
+  var greenC=mixc(day?[122,176,68]:[18,38,24], skc, 0.12);   // a growing paddy is VIVID, and yellower than grass
+  var goldC =mixc(day?[186,164,102]:[38,32,18], skc, 0.20);
+  var bareC =mixc(day?[142,118,88]:[26,22,17], skc, 0.14);
+  var panW=Math.max(14,Math.round(30*K));                   // a field is ~30wp of frontage
+  // ---- THE CITY EATS THE TERRACES. Nick's call, and it is the thing that finally makes this one
+  // place instead of two pictures stacked: as the town matures the pans nearest it are built over —
+  // the retaining walls become foundations, the flat pans become plots — and the green retreats UP
+  // the mountain. By full maturity the lower third is city and the terraces survive only high up.
+  // A story told every single life, and you can watch the city win.
+  // ⚠ Not on THE DROWNED STAIR: that variant's whole premise is that everyone left.
+  var urbanF = drowned ? 0 : Math.max(0,Math.min(1,(cityG-0.34)/0.52));
+  var urbanTo = 1 - urbanF*0.42;                            // fractions BELOW this are built over
+  var roofCols = day ? [[136,126,118],[118,110,104],[150,138,126],[104,98,94],[128,116,102]]
+                     : [[34,32,34],[28,26,28],[40,37,38],[24,23,25],[31,29,30]];
+  var winC = day ? [180,176,168] : [255,214,150];
+  var moonSX=SW*0.5, moonPhK=0.8;
+  if(!day){ try{ var mp=moonScreen(now,nd); if(mp){ moonSX=mp.x; moonPhK=Math.max(0.25,mp.k); } }catch(e){} }
 
+  // the mountain body first — everything below is carved into it
   for(var x2=0;x2<SW;x2++){
-    var hy=terrCache[x2];
-    var hyR=Math.round(hy);
+    var hyR=Math.round(terrCache[x2]);
     g.fillStyle=css(soil); g.fillRect(x2,hyR,1,HORIZON-hyR+1);
-    // ⚠ THE RISER HEIGHT MUST COME FROM THE LOCAL SPACING, not a fixed number. With a fixed 3.2*K band
-    // and ~8px of spacing the steps touched and filled the hill solid — the terraces vanished into the
-    // very shape they were supposed to carve. Derived from the gap so a lip is always visible.
-    var span=Math.max(1,HORIZON-hy), gap=span/STEPS;
-    var band=Math.max(1,Math.round(gap*0.62));
-    for(var k=1;k<=STEPS;k++){
-      var y=Math.round(hy+gap*k);
-      if(y<=hyR+1||y>=HORIZON) continue;
-      // which stage is this paddy at? flooded = all water, harvest = mostly crop with water at the
-      // bottom where it drains to, base = alternating, which is what a real hillside looks like
-      var wetStep = flooded ? true : (harvest ? (k>STEPS*0.76) : (((k+((x2+WOFF)/240|0))%3)!==0));
-      g.fillStyle=css(wetStep?waterC:cropC);
-      g.fillRect(x2,y-band,1,band);
-      if(wetStep&&litK>0.1){                                   // the sun glints off standing water
-        g.fillStyle=rgba(mixc(waterC,[255,255,255],0.6),0.30*litK);
-        g.fillRect(x2,y-band,1,Math.max(1,Math.round(band*0.35)));
+  }
+  // ---- THE STEPS, LEVEL BY LEVEL, BROKEN INTO FIELDS ----
+  for(var k=0;k<STEPS;k++){
+    // ⚠ the terraces used to run to the very top of the hill. Nobody terraces into the watershed
+    // forest — the crown is protected because it is what feeds the pans. So the stack starts a
+    // little below the ridge and the untouched slope shows above it.
+    var f0=(k===0)?0.10:0.10+terrStep[k-1]*0.90, f1=0.10+terrStep[k]*0.90;
+    var x3=0;
+    while(x3<SW){
+      // this pan's extent. The +k*137 offset shifts the field boundaries on every level, so no
+      // vertical seam ever runs down the hill either.
+      var wx3=x3+WOFF+k*137;
+      var pid=Math.floor(wx3/panW);
+      var ph=((pid*2654435761+k*40503)>>>0); ph^=ph>>>15;
+      var runEnd=Math.min(SW, x3+(panW-(((wx3%panW)+panW)%panW)));
+      // ~1 pan in 9 is skipped entirely: an outcrop, a landslip, a stand of bamboo the terrace went
+      // around. Gaps are what make it a mosaic rather than a grid.
+      var skip=((ph>>>3)%9)===0;
+      if(!skip){
+        var r=((ph>>>6)%1000)/1000, st;
+        if(r<mix[0]) st=0; else if(r<mix[0]+mix[1]) st=1;
+        else if(r<mix[0]+mix[1]+mix[2]) st=2; else st=3;      // 0 water 1 green 2 gold 3 bare
+        // …unless the city has reached this step. The frontier is ragged, not a level line: a pan
+        // just above the edge may already be sold and one just below may still be worked, which is
+        // what a real edge of town looks like.
+        var built = (f0 > urbanTo - ((ph>>>29)%5)*0.012) && urbanF>0.01;
+        if(built) st=4;
+        var panCol = st===4 ? roofCols[(ph>>>21)%roofCols.length]
+                   : st===0?waterC : st===1?greenC : st===2?goldC : bareC;
+        // ⚠ AERIAL PERSPECTIVE, and it is what stops a 70%-of-frame hillside shouting. The top of
+        // this mountain is genuinely further away than its foot, so every colour up there loses
+        // contrast into the haze. Applied per PAN, not per pixel — a per-pixel mix here would be
+        // ~200,000 mixc() calls a frame, which is the Empyrean's 9.2x face all over again.
+        var away=1-f0;                                          // 1 at the crown, 0 at the foot
+        var hazeK=0.34*away*away;
+        var tone=1+((((ph>>>23)%9)-4)*0.035);                    // no two pans are quite the same colour
+        panCol=[Math.max(0,Math.min(255,(panCol[0]*tone)|0)),
+                Math.max(0,Math.min(255,(panCol[1]*tone)|0)),
+                Math.max(0,Math.min(255,(panCol[2]*tone)|0))];
+        panCol=mixc(panCol, skc, hazeK);
+        var wallJ=1+(((ph>>>11)%5)-2)*0.06;                    // wall tone varies pan to pan
+        var wc=mixc([Math.min(255,(wallC[0]*wallJ)|0),Math.min(255,(wallC[1]*wallJ)|0),Math.min(255,(wallC[2]*wallJ)|0)], skc, 0.34*(1-f0)*(1-f0));
+        var panFrac=0.44+((ph>>>17)%40)/100*0.24;              // how much of the step is flat vs wall
+        for(var xx=x3;xx<runEnd;xx++){
+          var hy=terrCache[xx], span=Math.max(2,HORIZON-hy);
+          var yA=hy+span*f0, yB=hy+span*f1;
+          var h=yB-yA; if(h<1.2) continue;
+          var pd=Math.max(1,Math.round(h*panFrac));
+          var yAr=Math.round(yA);
+          g.fillStyle=css(panCol); g.fillRect(xx,yAr,1,pd);      // THE PAN — flat, seen from above
+          if(st===0&&litK>0.1){                                  // standing water catches the sun
+            g.fillStyle=rgba(mixc(waterC,[255,255,255],0.55),0.26*litK);
+            g.fillRect(xx,yAr,1,Math.max(1,Math.round(pd*0.4)));
+          } else if(st===0&&!day){
+            // the moon's own glint, in EVERY pan it can see — the staircase of mirrors
+            var gl=1-Math.min(1,Math.abs(xx-moonSX)/(SW*0.34));
+            if(gl>0.02){ g.fillStyle=rgba(mixc(waterC,[236,242,255],0.75),0.34*gl*gl*moonPhK);
+              g.fillRect(xx,yAr,1,Math.max(1,Math.round(pd*0.5))); }
+          }
+          var wh=Math.max(1,Math.round(h)-pd);
+          if(wh>0){
+            g.fillStyle=css(wc); g.fillRect(xx,yAr+pd,1,wh);     // THE RISER — the wall, in shadow
+            g.fillStyle=rgba(wallSh,0.55); g.fillRect(xx,yAr+pd+wh-1,1,1);   // shadow at its foot
+          }
+          g.fillStyle=rgba(lipC,0.95); g.fillRect(xx,yAr-1,1,Math.max(1,Math.round(K*0.5))); // the lit bund holding the water in
+        }
+        if(st===4){
+          // the terrace WALL is now a foundation, and the pan is a roof. One small structure per
+          // plot, keyed to the pan so it never flickers.
+          var hyM=terrCache[Math.min(SW-1,(x3+runEnd)>>1)], spanM=Math.max(2,HORIZON-hyM);
+          var ryM=Math.round(hyM+spanM*f0), rhM=Math.max(2,Math.round(spanM*(f1-f0)));
+          var bxM=x3+((ph>>>7)%Math.max(1,(runEnd-x3)>>1));
+          var bwM=Math.max(3,Math.min(runEnd-bxM,Math.round((6+((ph>>>13)%9))*K*0.5)));
+          var bhM=Math.max(2,Math.round(rhM*0.9));
+          if(bwM>1&&ryM-bhM>0){
+            g.fillStyle=css(mixc(roofCols[(ph>>>25)%roofCols.length],skc,0.34*(1-f0)*(1-f0)));
+            g.fillRect(bxM,ryM-bhM,bwM,bhM);                                  // the building standing on the step
+            g.fillStyle=rgba(mixc(lipC,[0,0,0],0.1),0.8);
+            g.fillRect(bxM,ryM-bhM,bwM,Math.max(1,Math.round(K*0.5)));        // its roof edge
+            if(!day&&((ph>>>19)%3)!==0){                                       // a lit window after dark
+              g.fillStyle=rgba(winC,0.85);
+              g.fillRect(bxM+Math.max(1,bwM>>2),ryM-Math.max(2,(bhM>>1)),Math.max(1,Math.round(K*0.8)),Math.max(1,Math.round(K*0.8)));
+            }
+          }
+        }
+        // the BUND between this pan and the next — a raised earth wall you can walk along, and the
+        // single clearest signal that these are separate fields rather than one continuous shelf
+        if(runEnd<SW){
+          var hyE=terrCache[runEnd-1], spanE=Math.max(2,HORIZON-hyE);
+          var yE=Math.round(hyE+spanE*f0), hE=Math.max(1,Math.round(spanE*(f1-f0)));
+          g.fillStyle=rgba(mixc(lipC,[0,0,0],0.18),0.9);
+          g.fillRect(runEnd-1,yE-1,Math.max(1,Math.round(K*0.8)),hE+1);
+        }
       }
-      g.fillStyle=rgba(lip,0.8);                               // the stone lip that holds the water in
-      g.fillRect(x2,y,1,1);
+      x3=runEnd;
+      if(runEnd<=x3-1) break;                                    // paranoia: never spin
     }
   }
-  // a few palms and huts on the ridge line, so the hill has a scale reference
-  for(var t2=0;t2<9;t2++){
-    var twx=((t2*2654435761+((WORLD_SEED*13)|0))>>>0)%Math.max(1,WW);
-    for(var o2=-1;o2<=1;o2++){
-      var tx=Math.round(twx-WOFF+o2*WW);
-      if(tx<0||tx>=SW) continue;
-      var ty=Math.round(terrCache[tx]);
-      g.fillStyle=rgba(mixc(lip,[0,0,0],0.25),0.9);
-      g.fillRect(tx,ty-Math.round(3*K),Math.round(3*K),Math.round(3*K));      // a hut on the crest
-      g.fillStyle=rgba(cropC,0.9);
-      g.fillRect(tx+Math.round(4*K),ty-Math.round(5*K),Math.max(1,Math.round(K)),Math.round(5*K));
-      g.fillRect(tx+Math.round(2.5*K),ty-Math.round(6*K),Math.round(4*K),Math.max(1,Math.round(K)));
-    }
+  // ---- THE FOREST CROWN. Nick's call, and it is not decoration: the forest on the ridge IS the
+  // watershed. It is where the water in every pan below comes from, which is why the Ifugao protect
+  // it by law — so it belongs at the top of this mountain as an explanation, not as scenery.
+  var crownC=mixc(day?[46,78,50]:[10,18,14], skc, day?0.10:0.03);
+  var crownD=mixc(crownC,[0,0,0],0.35);
+  for(var cx=0;cx<SW;cx++){
+    var cy0=Math.round(terrCache[cx]);
+    var ch2=((cx+WOFF)*2654435761)>>>0;
+    var cd=Math.round((3.2+((ch2>>>9)%100)/100*3.4)*K);          // a broken, jagged canopy edge
+    g.fillStyle=css(crownC); g.fillRect(cx,cy0-cd,1,cd);
+    if(((ch2>>>17)%3)===0){ g.fillStyle=css(crownD); g.fillRect(cx,cy0-cd,1,Math.max(1,Math.round(cd*0.4))); }
   }
 }
 // ================================================================================================
@@ -23863,10 +24037,89 @@ function drawRiver(g,L,now){
 // ---- BIOME DETAIL: the signature life of each land, so the four newer biomes carry as much
 // character as the alpine range does with its snowline, gondola and climbers. Everything here is a
 // pure function of the world seed and the clock, drawn into the backdrop behind the city.
+// ============================================================================
+// THE TERRACES — THE WATERWORKS, and the people and animals working the pans
+// ============================================================================
+// ⚠ ALL FOUR BIOME HOOKS WERE EMPTY ON THIS LAND — no landmark, no detail, no ground, no weather.
+// That is the karst's finding repeating verbatim on the very next map in the queue, which is why
+// `under`, `savanna` and `canyon` are worth grepping BEFORE their reviews rather than discovering it
+// three more times.
+//
+// THE LANDMARK IS THE WATERWORKS, and Nick chose it over a temple for the right reason: it EXPLAINS
+// the landscape. Terraces exist because somebody engineered the water — a spring house high on the
+// slope, a head-race running along the contour, bamboo flumes and drop-gates spilling pan to pan.
+// It also reaches from the ridge all the way down to the town, which is the thing that finally joins
+// the two halves of this picture together.
+function terrHillY(x){                                   // the mountain surface at a screen x
+  if(!terrCache) return HORIZON;
+  var i=Math.max(0,Math.min(SW-1,x|0));
+  return terrCache[i];
+}
+function drawTerraceWorks(g,L,now,nd){
+  var B=curBiome; if(!B.steps||!terrCache) return;
+  var day=L>0.5, K=Math.max(1,KSP), skc=biomeSkc(day);
+  var built=Math.max(0,Math.min(1,(cityG-0.10)/0.30));   // the works are dug as the town establishes
+  if(built<=0.01) return;
+  var timber=mixc(day?[112,88,58]:[22,18,13], skc, 0.10);
+  var timberL=mixc(timber,[255,240,200],day?0.30:0.10);
+  var wet=mixc(B.sky?B.sky.top:[120,160,210], day?[255,255,255]:[6,10,20], day?0.10:0.62);
+  // THE HEAD-RACE — one channel following the contour across the whole hill, at a fixed fraction of
+  // the slope. It is the only continuous line allowed on this mountain, and it is allowed because a
+  // channel that did not run level would not work.
+  var raceF=0.30;
+  var rx0=0, rx1=Math.round(SW*built);
+  for(var x=rx0;x<rx1;x++){
+    var hy=terrHillY(x), span=Math.max(2,HORIZON-hy);
+    var ry=Math.round(hy+span*raceF);
+    g.fillStyle=css(timber);  g.fillRect(x,ry,1,Math.max(1,Math.round(K*1.4)));      // the channel wall
+    g.fillStyle=rgba(wet,0.9); g.fillRect(x,ry,1,Math.max(1,Math.round(K*0.7)));      // water in it
+    if((((x+WOFF)*2654435761)>>>0)%7===0){                                            // the water MOVES
+      g.fillStyle=rgba(mixc(wet,[255,255,255],0.5),0.55);
+      g.fillRect(x,ry,1,Math.max(1,Math.round(K*0.4)));
+    }
+  }
+  // THE SPRING HOUSE at the head of it, up under the forest crown
+  var shx=Math.round(SW*0.22), shy=Math.round(terrHillY(shx)+Math.max(2,HORIZON-terrHillY(shx))*raceF);
+  var sw2=Math.round(7*K), sh2=Math.round(6*K);
+  g.fillStyle=css(mixc(timber,[0,0,0],0.15)); g.fillRect(shx-(sw2>>1),shy-sh2,sw2,sh2);
+  g.fillStyle=css(timberL); g.fillRect(shx-(sw2>>1)-1,shy-sh2-Math.max(1,Math.round(K*0.8)),sw2+2,Math.max(1,Math.round(K*0.9)));
+  g.fillStyle=rgba(wet,0.85); g.fillRect(shx-(sw2>>2),shy-Math.round(sh2*0.45),Math.max(1,Math.round(K*1.4)),Math.round(sh2*0.45));
+  // DROP-GATES: bamboo flumes spilling from the race down to the pans below, at intervals. This is
+  // the moving water Nick asked for, and it is what makes the hillside alive without a single
+  // extra creature.
+  var gateGap=Math.max(24,Math.round(52*K));
+  for(var gx=((-WOFF%gateGap)+gateGap)%gateGap; gx<rx1; gx+=gateGap){
+    var ghy=terrHillY(gx), gspan=Math.max(2,HORIZON-ghy);
+    var gy0=Math.round(ghy+gspan*raceF), gh=Math.round(gspan*0.16);
+    var gh9=(((gx+WOFF)*40503)>>>0);
+    g.fillStyle=css(timber);
+    g.fillRect(gx,gy0,Math.max(1,Math.round(K*0.8)),gh);                               // the flume
+    // the fall of water down it, and a splash where it lands — animated off the clock, world-keyed
+    var fp=((now*0.0016+((gh9%100)/100))%1);
+    g.fillStyle=rgba(mixc(wet,[255,255,255],0.45),0.8);
+    g.fillRect(gx,gy0+Math.round(gh*fp),Math.max(1,Math.round(K*0.8)),Math.max(1,Math.round(K*1.6)));
+    g.fillStyle=rgba(mixc(wet,[255,255,255],0.7),0.5);
+    g.fillRect(gx-Math.round(K),gy0+gh,Math.round(3*K),Math.max(1,Math.round(K*0.6)));  // the splash
+  }
+  // THE WATER WHEEL, driven by the race — the one moving machine on the mountain
+  if(built>0.55){
+    var wwx=Math.round(SW*0.63), wwhy=terrHillY(wwx), wwspan=Math.max(2,HORIZON-wwhy);
+    var wwy=Math.round(wwhy+wwspan*raceF)+Math.round(3*K), R=Math.round(4.5*K);
+    var ang=now*0.0011;
+    g.fillStyle=css(mixc(timber,[0,0,0],0.25));
+    for(var sp=0;sp<8;sp++){
+      var a2=ang+sp*Math.PI/4;
+      g.fillRect(Math.round(wwx+Math.cos(a2)*R*0.85),Math.round(wwy+Math.sin(a2)*R*0.85),
+                 Math.max(1,Math.round(K*1.1)),Math.max(1,Math.round(K*1.1)));
+    }
+    g.fillStyle=css(timberL); g.fillRect(wwx-1,wwy-1,Math.max(2,Math.round(K*1.2)),Math.max(2,Math.round(K*1.2)));
+  }
+}
 function drawBiomeDetail(g,L,now,nd){
   if(cityPhase==="apoc") return;
   var B=curBiome, day=L>0.5, gy=HORIZON, K=Math.max(1,KSP), sunsetK=goldenK;
   var skc=biomeSkc(day);
+  if(B.steps) drawTerraceWorks(g,L,now,nd);
   var det=mixc(mixc(day?B.near:[10,14,22], skc, day?0.30:0.24),[150,92,124],sunsetK*0.28);
   // A spire the same tone as the butte behind it is invisible. Lift the detail toward the caprock so
   // it reads as a separate rock, and only stand one where the ridge is LOW enough to leave it sky.
@@ -24589,6 +24842,119 @@ function drawBiomeWeather(g,L,now,nd,fx){
   var B=curBiome; if(!B.fauna||cityPhase==="apoc") return;     // fauna:null ⇒ alpine, unchanged
   var wind=(weather.wind==null?5:weather.wind), day=L>0.5, gy=HORIZON, K=Math.max(1,KSP);
   var wet=!!(fx.rain||fx.snow||fx.drizzle||fx.thunder);
+  // ---- THE TERRACES: VALLEY MIST, and it is a DAILY rhythm, not a rare event ----
+  // Nick's call. Mist lies in the valley bottoms at dawn, burns off UP the slope through the morning
+  // so the terraces emerge from the TOP DOWN, and comes back at dusk.
+  // ⚠ VALLEY MIST LIES LOW AND THINS UPWARD — the karst pass found the same, and a flat band of fog
+  // across the frame is the wrong shape for it: what makes it read is that its TOP EDGE is a level
+  // line while the land under it is not, so the mist pools in the gullies and the spurs stand out.
+  if(B.steps&&terrCache){
+    var hh=nd.getHours()+nd.getMinutes()/60;
+    // full before dawn, gone by late morning, returning after sunset
+    var mF = hh<5.2 ? 0.85
+           : hh<10.5 ? 0.85*(1-(hh-5.2)/5.3)
+           : hh<17.5 ? 0
+           : hh<20.5 ? 0.72*((hh-17.5)/3)
+           : 0.80;
+    if(wet) mF=Math.max(mF,0.55);                        // rain on a warm mountain makes its own mist
+    if(mF>0.02){
+      var mTop=HORIZON*(0.94-0.62*mF);                   // the LEVEL surface the mist fills to
+      var mc=B.sky&&B.sky.haze?B.sky.haze:[228,232,222];
+      if(!day) mc=mixc(mc,[16,22,34],0.62);
+      for(var mx=0;mx<SW;mx++){
+        var lyy=terrCache[mx];
+        if(lyy>=HORIZON) continue;
+        var top=Math.max(lyy,mTop);
+        var dep=HORIZON-top; if(dep<1) continue;
+        // densest at the bottom of the pool, thinning to nothing at its surface — 4 steps, so this
+        // is 4 rects per column and not a per-pixel gradient
+        for(var mq=0;mq<4;mq++){
+          var y0=Math.round(top+dep*(mq/4)), hgt=Math.max(1,Math.round(dep/4));
+          g.fillStyle=rgba(mc,(0.10+0.20*(mq/3))*mF);
+          g.fillRect(mx,y0,1,hgt);
+        }
+      }
+      // a few detached banks drifting in the pool, so its surface is not a ruled line
+      g.fillStyle=rgba(mc,0.22*mF);
+      for(var mb=0;mb<7;mb++){
+        var bh=((mb*2654435761+((WORLD_SEED*7)|0))>>>0);
+        var bx=((bh%Math.max(1,WW))-WOFF+((now*0.0025*(1+(bh>>>9)%3))|0))%WW;
+        if(bx<-60) bx+=WW; if(bx>SW+60) bx-=WW;
+        if(bx<-60||bx>SW+60) continue;
+        var bw=Math.round((26+((bh>>>13)%40))*K), bhh=Math.max(2,Math.round(3*K));
+        g.fillRect(bx|0, Math.round(mTop+((bh>>>19)%9)-4), bw, bhh);
+      }
+    }
+  }
+  // ---- THE TERRACES ARE FARMED. He took all four: farmers, buffalo, herons, and moving water.
+  // A terraced mountain with nobody on it is scenery; the whole point of this landform is that every
+  // inch of it was cut and is still worked by hand.
+  // ⚠ The fauna table has listed buffalo, boar, frog, squirrel, heron and egret for this land since
+  // it was written and NOTHING HAS EVER DRAWN ANY OF THEM. Sixth land where a written feature was
+  // dark — here it was never even reached.
+  if(B.steps&&terrCache&&!B.drowned){
+    var sea2=(curSeason||seasonInfo(nd)).name;
+    var busy = sea2==="spring"?1.0 : sea2==="autumn"?0.9 : sea2==="summer"?0.5 : 0.15;  // planting and harvest are the work
+    var hOut=(nd.getHours()>=6&&nd.getHours()<18)?1:0.12;
+    var nW=Math.round(20*busy*hOut);
+    for(var w=0;w<nW;w++){
+      var wh2=((w*2654435761+((WORLD_SEED*29)|0))>>>0); wh2^=wh2>>>13;
+      var wxs=(wh2%Math.max(1,WW))-WOFF; if(wxs<-8) wxs+=WW; if(wxs>SW+8) wxs-=WW;
+      if(wxs<0||wxs>=SW) continue;
+      var whY=terrCache[wxs|0]; if(whY>=HORIZON) continue;
+      var wspan=Math.max(2,HORIZON-whY);
+      var wy=Math.round(whY+wspan*(0.16+((wh2>>>7)%80)/100*0.78));
+      if(wy>=HORIZON-2) continue;
+      // bent over planting, or standing and straightening — a two-pose loop off the clock
+      var bent=((Math.floor(now/1400)+w)&1);
+      var cloth=["#d8d4c4","#8a9ac0","#c07a5a","#6a8a5a","#b0a068"][wh2%5];
+      if(bent){ g.fillStyle=cloth; g.fillRect(wxs|0,wy-2,2,2);
+                g.fillStyle=SKINC[(wh2>>>11)%SKINC.length]; g.fillRect((wxs+2)|0,wy-1,1,1); }   // stooped in the water
+      else { drawPerson(g,wxs|0,wy,cloth,SKINC[(wh2>>>11)%SKINC.length],-1);
+             g.fillStyle="#d8c8a0"; g.fillRect((wxs-1)|0,wy-5,3,1); }                            // a conical sun hat
+    }
+    // WATER BUFFALO — the most recognisable animal of a rice terrace, standing in the pans
+    var nB=Math.round(4*hOut)+1;
+    for(var bq=0;bq<nB;bq++){
+      var bh2=((bq*40503+((WORLD_SEED*31)|0))>>>0); bh2^=bh2>>>15;
+      var bxs=(bh2%Math.max(1,WW))-WOFF; if(bxs<-12) bxs+=WW; if(bxs>SW+12) bxs-=WW;
+      if(bxs<0||bxs>=SW) continue;
+      var bhY=terrCache[bxs|0]; if(bhY>=HORIZON) continue;
+      var bspan=Math.max(2,HORIZON-bhY);
+      var by=Math.round(bhY+bspan*(0.30+((bh2>>>9)%70)/100*0.62));
+      if(by>=HORIZON-2) continue;
+      var bw2=Math.max(3,Math.round(4*K)), bhh2=Math.max(2,Math.round(2*K));
+      g.fillStyle=day?"#4a4a50":"#16161a";
+      g.fillRect(bxs|0,by-bhh2,bw2,bhh2);                                    // the body, half in the water
+      g.fillRect((bxs+bw2)|0,by-bhh2-Math.max(1,Math.round(K*0.7)),Math.max(1,Math.round(K*1.2)),Math.max(1,Math.round(K*1.2)));  // head
+      g.fillStyle=day?"#6a6a72":"#22222a";                                    // the swept horns
+      g.fillRect((bxs+bw2-1)|0,by-bhh2-Math.round(K*1.6),Math.round(3*K),Math.max(1,Math.round(K*0.5)));
+    }
+    // HERONS AND EGRETS — white birds on a dark mirror is the strongest contrast this map has
+    for(var hq=0;hq<5;hq++){
+      var hh3=((hq*2246822519+((WORLD_SEED*37)|0))>>>0); hh3^=hh3>>>11;
+      var hxs=(hh3%Math.max(1,WW))-WOFF; if(hxs<-10) hxs+=WW; if(hxs>SW+10) hxs-=WW;
+      if(hxs<0||hxs>=SW) continue;
+      var hhY=terrCache[hxs|0]; if(hhY>=HORIZON) continue;
+      var hspan=Math.max(2,HORIZON-hhY);
+      var flyPh=((now*0.00013+((hh3>>>5)%100)/100)%1);                        // most of the time stalking, then up
+      var hy3=Math.round(hhY+hspan*(0.22+((hh3>>>7)%74)/100*0.70));
+      if(hy3>=HORIZON-2) continue;
+      g.fillStyle=day?"rgba(246,248,250,0.95)":"rgba(178,190,208,0.8)";
+      if(flyPh<0.86){                                                         // standing in the pan
+        g.fillRect(hxs|0,hy3-Math.round(2.4*K),Math.max(1,Math.round(K*0.9)),Math.round(2.4*K));
+        g.fillRect((hxs+1)|0,hy3-Math.round(3*K),Math.max(1,Math.round(K*1.1)),Math.max(1,Math.round(K*0.7)));
+      } else {                                                                // put up, climbing away
+        var lift=(flyPh-0.86)/0.14;
+        var fy=Math.round(hy3-lift*14*K), fx3=Math.round(hxs+lift*22*K);
+        if(fx3<SW+6){
+          var flap=(Math.floor(now/170)&1)?1:-1;
+          g.fillRect(fx3,fy,Math.round(2*K),Math.max(1,Math.round(K*0.7)));
+          g.fillRect(fx3-Math.round(K),fy-flap*Math.round(K),Math.round(K*2),Math.max(1,Math.round(K*0.6)));
+        }
+      }
+    }
+  }
   if(B.k==="mesa"){
     // DUST DEVILS — only when it is genuinely windy, warm and dry. A slender rotating column that
     // wanders across the flats and dies out; the desert's answer to the alpine gondola's motion.
