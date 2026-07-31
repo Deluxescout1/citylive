@@ -15892,7 +15892,10 @@ function drawSeaFrontBand(g,L,now){
   // --- the sun/moon track on the water: one bright column under the light, which is what makes a
   // flat band of colour read as a liquid surface ---
   if(day){
-    var sunX=Math.round(SW*0.5);
+    // ⚠ AND THE SUN TRACK FOLLOWED THE SCREEN, NOT THE SUN. `SW*0.5` puts the bright column down the
+    // middle of whatever monitor is drawing — so his three screens each had their own sun glitter,
+    // none of them under the sun. Same fault as the shafts and the dying star, third costume.
+    var sunX=sunPos().x;
     g.globalCompositeOperation="lighter";
     for(var gl=0;gl<h;gl+=Math.max(1,Math.round(K))){
       var spread=Math.round((4+gl*0.9)*K), a6=0.10*(1-gl/h);
@@ -34587,13 +34590,33 @@ function drawApocNuke(g,ap,L,now){
 }
 // SUNBURST: the sun swells into a red giant that BAKES the whole earth, then DETONATES → a dead scorched world.
 // Timeline is on the real-time apocMs clock (grow 0..22s → ignite/firestorm → detonate ~30s → long static aftermath).
+// ================================================================================================
+// WHERE THE SUN ACTUALLY IS. Nick: "whenever the sun explodes and expands, it needs to happen to the
+// real sun on the screen and not in some random spot."
+// ⚠⚠ THIS ENGINE HAS ALREADY BEEN TOLD THIS ONCE. The god-ray shafts used a screen-relative `SW*df`
+// and put their apex on empty sky, differently on every monitor — Nick reported it, and the fix
+// written there says it in as many words: *anchor to the REAL drawn sun disc, `df*WW` world-anchored,
+// on the disc's own arc.* That fix was applied to the shafts and to nothing else, so the same fault
+// was still sitting in two other places: the dying sun, and the sun's glitter track on water.
+// It is one formula and it now lives in one function.
+function sunPos(){
+  var df=Math.max(0.06,Math.min(0.94,curSunDf));          // the disc's own day-arc, world-anchored
+  return { df:df, x:Math.round(df*WW-WOFF),
+           y:Math.round(HORIZON*0.9-Math.sin(df*Math.PI)*HORIZON*0.75) };
+}
 function drawApocSun(g,ap,L,now){
   var grow=Math.min(1,apocMs/SUN_IGNITE_MS);                                                // the sun swells over ~22s
   var burnMs=apocMs-SUN_IGNITE_MS;                                                          // >0 once the ground has ignited
   var expMs=apocMs-SUN_EXPLODE_MS;                                                          // >0 once the sun detonates
-  var sunWX=nukeGZX(now), sx=sunWX-WOFF;                                                    // ONE sun anchored to a world position (consistent across monitors)
+  // ⚠⚠ IT USED TO SWELL AT THE NUCLEAR GROUND ZERO, AT A FIXED ALTITUDE. `nukeGZX(now)` is where a
+  // WARHEAD lands; it has nothing to do with the sun, and `HORIZON*0.34` is not the sun's height at
+  // any hour. So the star that bakes the world detonated in a spot the sun had never occupied, while
+  // the real disc sat somewhere else on the same screen. The comment on that line said the anchoring
+  // was "consistent across monitors" and it was — consistently in the wrong place. Being world-
+  // anchored is necessary, not sufficient: it also has to be anchored to the RIGHT world position.
+  var SP=sunPos(), sx=SP.x;
   if(sx>SW+600 && sx-WW>-600) sx-=WW;  if(sx<-600 && sx+WW<SW+600) sx+=WW;
-  var sy=HORIZON*0.34;
+  var sy=SP.y;                                                                              // …on the disc's own arc, so it swells from where it actually is
 
   // ===== LONG AFTERMATH (hours): the detonation flash has passed → a CHEAP, STATIC scorched world =====
   // drawApocalypse runs EVERY frame for the whole ~7.5h apoc phase; nothing below may grow with time.
