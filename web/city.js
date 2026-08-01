@@ -21865,6 +21865,48 @@ function drawSavanna(g,L,now,nd){
       }
     }
   }
+  // ---- STANDING WATER — the wet season, and the other half of locked answer 4.
+  // ⚠ THE POINT IS THAT THE DRY SEASON PHYSICALLY CANNOT HAVE IT. Ground colour and grass tone were
+  // doing all the work of telling the two seasons apart; a plain with water lying on it after the rains
+  // is a different PLACE, not the same place in a different palette.
+  if(!!B.migration){
+    for(var pn=0;pn<8;pn++){
+      var psd=((pn*2654435761+((WORLD_SEED*331)|0))>>>0);
+      var pwx=psd%Math.max(1,WW);
+      for(var po=-1;po<=1;po++){
+        var px2=Math.round(pwx-WOFF+po*WW);
+        var pw2=Math.round((16+((psd>>>7)%30))*Math.max(1,K*0.5));
+        if(px2+pw2<-4||px2-pw2>SW+4) continue;
+        var pgy=savCache[Math.max(0,Math.min(SW-1,Math.max(0,px2)))];
+        var pyy=Math.round(pgy+(HORIZON-pgy)*(0.30+((psd>>>13)%100)/100*0.54));
+        var pdep=Math.max(1,Math.round(2.2*K));
+        for(var pq=-pw2;pq<=pw2;pq++){
+          var pu=Math.abs(pq/pw2), pxx=px2+pq;
+          if(pxx<0||pxx>=SW) continue;
+          var pd2=Math.round(pdep*Math.sqrt(Math.max(0,1-pu*pu)));
+          if(pd2<1) continue;
+          // a shallow pan lying on the grass takes its colour from the SKY, which is what makes a flat
+          // sheet of water read as water rather than as a grey puddle
+          g.fillStyle=css(mixc(skc, day?[150,170,140]:[16,22,26], 0.30));
+          g.fillRect(pxx,pyy-pd2,1,pd2);
+          // 🔑 AND THE REFLECTION IS DARKER THAN THE WATER. Five lands have now had this backwards
+          // (karst, fjord, salt, dam, undercity): the far bank's vegetation reflected in the near edge
+          // is the DARK part of the sheet, and lightening it is what made those five read as fog.
+          if(pu<0.86){
+            g.fillStyle=rgba(day?[52,72,50]:[8,12,14],0.42);
+            g.fillRect(pxx,pyy-pd2,1,Math.max(1,Math.round(pd2*0.42)));
+          }
+        }
+        // flooded grass standing IN it, which is what says shallow
+        for(var pf=0;pf<5;pf++){
+          var pfx=px2+Math.round((((psd>>>(pf*3+2))%100)/100-0.5)*pw2*1.7);
+          if(pfx<0||pfx>=SW) continue;
+          g.fillStyle=rgba(day?[120,150,86]:[18,26,20],0.75);
+          g.fillRect(pfx,pyy-pdep-Math.round(2.2*K),Math.max(1,Math.round(K*0.6)),Math.round(3*K));
+        }
+      }
+    }
+  }
   // ---- PREDATOR COVER: long grass the cats stalk through, thicker near the hole where the prey is
   for(var lg=0;lg<70;lg++){
     var lwx=((lg*40503+((WORLD_SEED*23)|0))>>>0)%Math.max(1,WW);
