@@ -21557,6 +21557,18 @@ var savCache=null;
 // computing the same position separately is exactly how the dam's waterline drifted, so there is one.
 function savTreeN(r){ return 16+r*10; }
 function savTreeWX(r,t){ return ((t*40503+r*104729+((WORLD_SEED*7)|0))>>>0)%Math.max(1,WW); }
+// ⚠⚠ AND ITS SEED, ITS KIND AND ITS HEIGHT — because "the head goes into the crown" was a COMMENT
+// STATING AN INTENT, not a result. Worked through at Nick's K=2: a rank-0 tree is 61-94 world px tall
+// with its crown underside at 0.76 of that, and a giraffe at the herd's own scale reaches 25 — it was
+// browsing the bare trunk twenty pixels short of the leaves. A comment that states an intent is not a
+// test that the intent was met; this land already taught that once with the sidewalk.
+function savTreeSeed(r,t){ return ((t*2654435761+r*7919+((WORLD_SEED*11)|0))>>>0); }
+function savTreeSC(dep){ return 2.05-1.05*dep; }
+function savTreeH(r,t,K){ return Math.round((15+((savTreeSeed(r,t)>>>9)%9))*Math.max(1,K)*savTreeSC(r/2)); }
+function savTreeKind(r,t){ return (savTreeSeed(r,t)>>>17)%20; }     // <2 euphorbia, <4 kigelia, else acacia
+// the underside of the crown, measured from the tree's own foot. drawAcacia puts the crown at
+// topY = gy-H and gives it 0.24H of depth, so this is where a browsing head has to arrive.
+function savCrownDrop(r,t,K){ return savTreeH(r,t,K)*0.76; }
 // The band a rank stands in, as a fraction of the gap between the escarpment and the horizon. The
 // trees and the animals of a rank must share one, or a giraffe browses a tree standing in front of it.
 function savTreeF(dep){ return 0.15+0.30*dep; }
@@ -21694,20 +21706,20 @@ function drawSavanna(g,L,now,nd){
   // sky is bleached almost white, the trees are the darkest thing the frame can contain and have to
   // be spent as such. Depth now comes from haze and size, never from making the near rank lighter.
   for(var r=2;r>=0;r--){
-    var dep=r/2, sc=(2.05-1.05*dep), n2=savTreeN(r);
+    var dep=r/2, sc=savTreeSC(dep), n2=savTreeN(r);
     // ⚠ HAZE IS FOR DEPTH, NOT FOR DISAPPEARING. At 0.44-0.54 toward the sky the two back ranks came
     // out as pale grey scaffolding and the land went straight back to one mid-value mush — the fault
     // this whole pass is answering. Enough haze to separate the ranks, not enough to bleach them.
     var trk=mixc(day?[30,26,20]:[10,12,12], skc, 0.05+0.30*dep);
     var crn=mixc(day?[38,40,26]:[12,16,14], skc, 0.06+0.32*dep);
     for(var t=0;t<n2;t++){
-      var twx=savTreeWX(r,t), tsd=((t*2654435761+r*7919+((WORLD_SEED*11)|0))>>>0);
+      var twx=savTreeWX(r,t), tsd=savTreeSeed(r,t);
       for(var o2=-1;o2<=1;o2++){
         var tx=Math.round(twx-WOFF+o2*WW);
         if(tx<-60||tx>SW+60) continue;
         var tgc=savCache[Math.max(0,Math.min(SW-1,Math.max(0,tx)))];
         var ty=Math.round(tgc+(HORIZON-tgc)*savTreeF(dep));
-        var th=Math.round((15+((tsd>>>9)%9))*K*sc), tk=(tsd>>>17)%20;
+        var th=savTreeH(r,t,K), tk=savTreeKind(r,t);
         if(tk<2){
           // A CANDELABRA EUPHORBIA. Two in twenty, and they are the only VERTICAL thing in the tree
           // line — one column among the flat crowns is what stops a rank reading as one repeated note.
@@ -22095,7 +22107,10 @@ function drawSavannaLife(g,L,now,nd,fx){
       // elephant at a TRUNK, so those groups take a tree's world position instead of a graze anchor —
       // and then stand in the TREE's depth band, or they browse a tree ten pixels in front of them.
       if((sp.neck||sp.trunk)&&gact===0&&((gsd>>>13)%100)<58){
-        atTree=(gsd>>>3)%savTreeN(r); gwx=savTreeWX(r,atTree); gact=4;
+        var cand=(gsd>>>3)%savTreeN(r);
+        // ⚠ AND IT HAS TO BE AN ACACIA. `savTreeKind<4` is a fluted euphorbia or a kigelia, and a
+        // giraffe reaching into a candelabra cactus is a different picture entirely.
+        if(savTreeKind(r,cand)>=4){ atTree=cand; gwx=savTreeWX(r,atTree); gact=4; }
       }
       var mem=(mig?4:3)+((gsd>>>19)%(mig?5:4));
       var spread=(26+34*(1-dep))*Math.max(1,K*0.6);
@@ -22117,6 +22132,15 @@ function drawSavannaLife(g,L,now,nd,fx){
         var calf=(((msd>>>11)%100)<20&&i>0)?0.56:1;
         var msc=sc*calf*(1+(((msd>>>23)%100)/100-0.5)*0.16);       // no two the same size, even in a group
         var w=Math.max(2,Math.round(sp.w*K*0.5*msc)), h=Math.max(2,Math.round(sp.h*K*0.5*msc));
+        // ⚠ A BROWSING GIRAFFE IS SIZED TO ITS TREE, NOT TO ITS RANK. This land draws its trees at
+        // landscape scale and its herd at animal scale — a pre-existing mismatch — so a giraffe that
+        // keeps the herd's scale stands at the trunk of an 80px acacia like a mouse, and one that
+        // keeps the TREE's scale is the picture everybody has actually seen. drawBeast puts a browsing
+        // head at 2.25*h above the feet, so h is solved from the crown underside rather than guessed.
+        if(atTree>=0&&sp.neck){
+          h=Math.max(3,Math.round(savCrownDrop(r,atTree,K)/2.25*calf));
+          w=Math.max(3,Math.round(h*(sp.w/sp.h)));
+        }
         // ⚠ SILHOUETTE, NOT LOCAL COLOUR — locked answer 3, and the answer to "nothing is dark and
         // nothing is bright". Against a sky bleached almost white, the animals are pulled hard toward
         // black and only the far rank is allowed to haze back toward it.
@@ -22124,7 +22148,12 @@ function drawSavannaLife(g,L,now,nd,fx){
         // litter on the grass. They are the SUBJECT of this land; depth can cost them a quarter.
         // ⚠ 0.62 IS NOT A SILHOUETTE FOR A WHITE ANIMAL. A zebra is [238,236,232]; pulled only 62% to
         // black it lands at mid-grey and the resting ones read as scraps of litter on the grass.
-        var sil=day?0.76:0.38;
+        // ⚠ AND THE NIGHT NUMBER IS A DELIBERATE INVERSION, checked on a night render rather than
+        // assumed. The old night branch was `[c*0.3,c*0.3,c*0.4]`, which made a zebra DARK on a dark
+        // plain and therefore invisible; a zebra is genuinely white and catches the moon. So after
+        // dark the herd is the pale thing against black trees, which is the reverse of the daytime
+        // silhouette and the second half of the answer to "nothing is dark and nothing is bright".
+        var sil=day?0.76:0.52;
         var body=mixc(mixc(sp.c,[16,14,16],sil),biomeSkc(day),0.02+0.24*dep);
         var leg =mixc(mixc(sp.c2,[12,10,12],sil),biomeSkc(day),0.02+0.24*dep);
         var busy=0;
@@ -22244,8 +22273,12 @@ function drawSavannaFront(g,L,now,nd,fx){
     // a giraffe really is half again the stature of an elephant, and this is the land where that
     // difference is the point — so the target height is per-species, not one number for all of them
     var BS=beastSize(sp,FH*(sp.neck?1.0:0.74)), h=BS.h, w=BS.w;
-    var pose=Wf.act;
-    if(pose===1) pose=1; else if(pose===2&&Math.abs(wrapW(wx-waterHoleX()))>200) pose=0;   // no drinking away from water
+    // ⚠ SIGNED SHORTEST PATH, NOT wrapW. wrapW returns [0,WW), so an animal five px to the LEFT of the
+    // hole measured 2264px away and could never be shown drinking. Every other distance test in this
+    // file uses the dx>WW/2 form; this one did not.
+    var pose=Wf.act, dxw=wx-waterHoleX();
+    if(dxw>WW/2) dxw-=WW; if(dxw<-WW/2) dxw+=WW;
+    if(pose===2&&Math.abs(dxw)>200) pose=0;                       // nobody drinks away from the water
     // ⚠ NEAR-BLACK. This close, and drawn over a lit city, the animal is either the darkest mass in the
     // frame or it is noise across the skyline. Locked answer 3 taken all the way to the foreground.
     var body=mixc(sp.c,[10,9,11],day?0.80:0.90), leg=mixc(sp.c2,[8,7,9],day?0.80:0.90);
