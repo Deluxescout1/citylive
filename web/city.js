@@ -21410,6 +21410,86 @@ function drawSavanna(g,L,now,nd){
     }
   }
   }
+  // ================================================================================================
+  // THE GREAT KOPJE — Nick's locked answer 1, and the ONE BIG OBJECT this land has never had.
+  // Diagnosis: ~53% of the frame was empty sky and nothing in it was dark or bright. The kopje series
+  // above is the right idea at the wrong scale and the wrong VALUE — a smooth tan half-ellipse hazed
+  // 0.18 toward a pale sky reads as a dune, not as rock, and at 0.24-0.36 of the horizon it never
+  // dominates anything.
+  // ⚠⚠ A REAL KOPJE IS A PILE OF BOULDERS, NOT A MOUND. That is the whole reason they look like they do
+  // — granite weathering into stacked rounded blocks with hard gaps between them. A smooth profile is
+  // what made this read as sand. The silhouette is built from overlapping blocks, so the skyline has
+  // corners in it.
+  // ⚠ NEAR-BLACK, BARELY HAZED — locked answer 3, silhouettes against a burning sky. Every land that
+  // reads does this loudly and this one did it nowhere: against a bleached savanna sky the darkest rock
+  // available is the strongest thing the frame can contain.
+  // ⚠ ONE PER MONITOR-THIRD, like the undercity's columns and for the same reason: at 2269 wp of world
+  // and 776 per screen, a single hero object leaves two of his three monitors with nothing.
+  var HKF=[0.18,0.51,0.84];
+  for(var hk=0;hk<3;hk++){
+    var hseed=((hk*2654435761+((WORLD_SEED*277)|0))>>>0);
+    var hwx=Math.round((HKF[hk]+(((hseed>>>7)%100)/100-0.5)*0.05)*WW);
+    var hh=Math.round(HORIZON*(0.46+((hseed>>>3)%100)/100*0.20));      // 46-66% of the sky: dominating
+    var hw=Math.round(hh*(0.40+((hseed>>>13)%100)/100*0.22));   // ⚠ NARROWER: at 0.62-0.92 of its height it read as a squat hill, not an outcrop
+    var rockD=mixc(day?[52,44,42]:[14,12,14], skc, 0.06);              // the dark side: almost the sky's opposite
+    var rockL=mixc(day?[104,84,70]:[26,22,22], skc, 0.10);            // …and the face the sun is on
+    var sunLeft=(curSunDf<0.5);
+    for(var ho=-1;ho<=1;ho++){
+      var hx=Math.round(hwx-WOFF+ho*WW);
+      if(hx+hw<-4||hx-hw>SW+4) continue;
+      // the silhouette: four or five stacked blocks of decreasing size, each offset, so the outline has
+      // shoulders and notches instead of one clean curve
+      var NB2=4+(hseed%3), topY=HORIZON;
+      for(var bl=0;bl<NB2;bl++){
+        var bf=bl/NB2;
+        // ⚠⚠ THE BLOCKS HAD TO SHRINK AND STEP HARDER. At 1-bf*0.72 with a 0.20 offset each boulder
+        // still spanned most of the one below it, so five of them merged into a single smooth dome —
+        // the exact fault the stacking was meant to cure. Shrinking faster and offsetting further is
+        // what puts SHOULDERS AND NOTCHES in the outline, and that is the whole reason a kopje looks
+        // like a kopje instead of a dune.
+        var bw2=Math.round(hw*(1-bf*0.88)*(0.80+((hseed>>>(bl*3+2))%100)/100*0.34));
+        var bh2=Math.round(hh*(0.30-bf*0.04)*(0.7+((hseed>>>(bl*5+1))%100)/100*0.6));
+        var bdx=Math.round(hw*0.46*((((hseed>>>(bl*7))%100)/100)-0.5));
+        var byB=HORIZON-Math.round(hh*bf*0.78);
+        for(var q2=-bw2;q2<=bw2;q2++){
+          var u2=Math.abs(q2/Math.max(1,bw2));
+          // a boulder is round on top and cut off flat where it sits on the one below it
+          var prof2=Math.pow(Math.max(0,1-u2*u2*u2),0.42);
+          var xx2=hx+bdx+q2; if(xx2<0||xx2>=SW) continue;
+          var ky2=Math.round(byB-bh2*prof2);
+          if(ky2<topY) topY=ky2;
+          if(ky2>=byB) continue;
+          // ⚠ A RIM, NOT A HALF. Lighting the whole sun-facing half turned a near-black rock into a
+          // mid-brown mass and threw away the silhouette that is the point of the answer. Only the outer
+          // edge catches it, so the rock stays DARK against a bright sky and still reads as solid.
+          var lit2=(sunLeft?(q2<0):(q2>0)) && u2>0.52;
+          g.fillStyle=css(lit2?mixc(rockD,rockL,(u2-0.52)/0.48*litK):rockD);
+          g.fillRect(xx2,ky2,1,byB-ky2+1);
+          // the joint between blocks: a hard dark line, which is what says STACKED rather than carved
+          g.fillStyle=css(mixc(rockD,[0,0,0],0.45));
+          g.fillRect(xx2,ky2,1,Math.max(1,Math.round(K*0.6)));
+        }
+      }
+      // the talus skirt: broken rock spilling out at the foot, so it sits IN the plain rather than on it
+      var tsH=Math.round(hh*0.10), tsW=Math.round(hw*1.35);
+      for(var ts=0;ts<tsH;ts++){
+        var tu=ts/Math.max(1,tsH), tww=Math.round(tsW*tu);
+        g.fillStyle=css(mixc(rockD,day?B.ground:[20,20,22],0.30+0.40*tu));
+        g.fillRect(hx-tww,HORIZON-tsH+ts,Math.max(1,tww*2),1);
+      }
+      // a lone tree ON the rock — the scale reference for the scale reference. A kopje with a fig
+      // growing out of a crack in it is the thing that tells you how big the rock is.
+      if(topY<HORIZON-20){
+        var ftx=hx+Math.round(hw*0.22*((((hseed>>>19)%100)/100)-0.5)*2), fth=Math.round(9*K);
+        g.fillStyle=css(mixc(rockD,[0,0,0],0.25));
+        g.fillRect(ftx,topY-fth,Math.max(1,Math.round(K*0.9)),fth);
+        for(var fq=-Math.round(7*K);fq<=Math.round(7*K);fq++){
+          var fu=Math.abs(fq/Math.round(7*K));
+          g.fillRect(ftx+fq,topY-fth-Math.round(2.4*K*(1-fu*fu*0.7)),1,Math.max(1,Math.round(2.4*K*(1-fu*fu*0.7))));
+        }
+      }
+    }
+  }
   // ---- ACACIA IN THREE RANKS. A flat-topped acacia is the single most recognisable silhouette on
   // earth, and three depths of it is what turns an empty plain into distance.
   // ⚠ BIGGER AND CLOSER. In the full-frame sweep the savanna judged as the emptiest land of all 27:
