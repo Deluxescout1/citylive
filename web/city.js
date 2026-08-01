@@ -21921,19 +21921,63 @@ function drawBeast(g,x,y,w,h,sp,pose,face,ph,body,leg,K,busy){
   // invisible at eight px and unmissable at ninety.
   var bh=Math.max(1,Math.round(h*(lying?0.34:0.50))), by=lying?(y-bh):(y-h);
   var hAx=(s>0)?(x+w):x;                                            // the nose end of the animal
+  // ⚠⚠ BIG ANIMALS NEED INTERNAL STRUCTURE OR THEY ARE HOLES IN THE PICTURE. Nick, on the installed
+  // build at night: a foreground elephant read as a black slab on two black pillars. A pure silhouette
+  // is right at eight pixels, where the OUTLINE is all there is — and at forty it is an absence, which
+  // is exactly the diagnosis THE UNDERCITY got ("the cavern was drawn as an ABSENCE, not a thing").
+  // So above ~18px the same sprite gains three things that cost almost nothing and are what the eye
+  // actually reads as solid: the FAR pair of legs darker and drawn BEHIND the barrel, a one-pixel RIM
+  // along the back, and a contact shadow so it stands on the road instead of hovering over it.
+  var DET=(w>=18);
+  // ⚠⚠ FOUR LEGS ONLY READ IF THE GAPS SURVIVE THE WALK CYCLE. At 0.15 of the body width, pairs seven
+  // per cent apart, plus a stride offset of another five, the four legs CHAINED into two black pillars
+  // — twice. An elephant's legs really are thick, and at this many pixels readability outranks it.
+  var lhP=Math.max(1,Math.round(h*0.54)), lwP=Math.max(1,Math.round(w*(sp.trunk?0.10:0.085)));
+  var splP=(pose===5)?Math.round(w*0.34):((pose===2)?Math.round(w*0.22):0);
+  var sAp=Math.sin(ph), sBp=Math.sin(ph+(pose===5?1.1:Math.PI));
+  if(DET&&!lying){
+    g.fillStyle=css(mixc(leg,[0,0,0],0.42));                        // the off-side pair, in shadow
+    RB(x+Math.round(w*0.30)-Math.round(splP*0.4),y-lhP,lwP,lhP-(pose===1?Math.round(sAp*1.2):0));
+    RB(x+Math.round(w*0.62)+Math.round(splP*0.4),y-lhP,lwP,lhP-(pose===1?Math.round(sBp*1.2):0));
+  }
+  if(DET){                                                          // the shadow it stands in
+    var shw=Math.round(w*(lying?0.94:0.74)), shh=Math.max(1,Math.round(h*0.045));
+    g.fillStyle=rgba([0,0,0],0.30);
+    for(var sq=0;sq<shw;sq++){
+      var su=Math.abs(sq/(shw-1)-0.5)*2, sd3=Math.max(1,Math.round(shh*Math.sqrt(Math.max(0,1-su*su))));
+      g.fillRect(Math.round(x+(w-shw)/2+sq),y-Math.round(sd3/2),1,sd3);
+    }
+  }
   g.fillStyle=css(body);
   // ⚠⚠ THE BARREL IS A PROFILE, NOT A RECTANGLE. At eight pixels a filled rect is a fine animal; at
   // the ninety-three the foreground pass asks for, it is a BLACK BAR lying across the street — which
   // is exactly what the first render of that pass produced, and it was drawing correctly the whole
   // time. Rounded at both ends, highest at the shoulder, belly sagging between the legs: the same
   // sprite now has to survive a twelve-fold size range, so the shape has to come from a curve.
+  var topArr=DET?new Array(w):null;
   for(var q=0;q<w;q++){
     var u=q/Math.max(1,w-1), uu=(s>0)?u:(1-u);                      // uu: 0 at the tail, 1 at the head
     var rnd=Math.min(1,Math.min(uu,1-uu)/0.17);
-    var back=bh*(0.30*(1-rnd)+0.07*Math.min(1,Math.pow(Math.abs(uu-0.66)*2.4,2)));
+    // ⚠ AN ELEPHANT'S BACK DIPS. High at the shoulder AND high over the hips with a saddle between is
+    // the profile everyone knows; one smooth arch is a hippo. Everything else here keeps the arch.
+    var spine=sp.trunk ? (0.16*Math.max(0,Math.sin((uu-0.06)*Math.PI*1.9)))
+                       : (0.07*Math.min(1,Math.pow(Math.abs(uu-0.66)*2.4,2)));
+    var back=bh*(0.30*(1-rnd)+spine);
     var bell=bh*(0.26*(1-rnd));
     var t0=by+back, b0=by+bh-bell;
+    if(topArr) topArr[q]=t0;
     if(b0>t0) g.fillRect(Math.round(x+q),Math.round(t0),1,Math.max(1,Math.round(b0-t0)));
+  }
+  if(DET){
+    // THE RIM. One pixel of sky along the top of the back is the whole difference between a solid
+    // animal and a hole cut in the road — the kopje's "a rim, not a half" lesson, at animal scale.
+    g.fillStyle=css(mixc(body,[198,206,218],0.34));                 // a cool lift: sky by day, moon by night
+    for(var rq=1;rq<w-1;rq++){
+      if(topArr[rq]==null) continue;
+      var rh2=Math.max(1,Math.round(h*0.045));
+      g.fillRect(Math.round(x+rq),Math.round(topArr[rq]),1,rh2);
+    }
+    g.fillStyle=css(body);
   }
   if(sp.hump) RB(x+w*(s>0?0.10:0.55),by-Math.round(h*0.10),w*0.35,Math.round(h*0.12));
   // ---- the head, and the NECK that joins it on. A head-down animal without a neck is a body with a
@@ -21967,13 +22011,16 @@ function drawBeast(g,x,y,w,h,sp,pose,face,ph,body,leg,K,busy){
     var hy=(pose===0)?(y-Math.round(h*0.26)):(pose===2?(y-Math.round(h*0.14)):
            (pose===3?(by-Math.round(h*0.34)):(by-Math.round(h*(pose===4?0.32:0.18)))));
     // rounded at this size too — a square head on a curved body is the join you notice first
+    // ⚠ THE HEAD OVERLAPS THE BODY. Started at the nose end it hung off the front as a separate dark
+    // box with a visible seam — a head is joined on, not bolted to the outside of the barrel.
+    var hox=hAx-s*Math.round(hwd*0.42);
     if(hwd>=5){
       for(var hq=0;hq<hwd;hq++){
         var hu=hq/Math.max(1,hwd-1), hr=Math.min(1,Math.min(hu,1-hu)/0.30);
         var hd2=Math.max(1,Math.round(hgt*(0.55+0.45*hr)));
-        g.fillRect(Math.round((s>0?hAx+hq:hAx-hq-1)),Math.round(hy+(hgt-hd2)*0.55),1,hd2);
+        g.fillRect(Math.round((s>0?hox+hq:hox-hq-1)),Math.round(hy+(hgt-hd2)*0.55),1,hd2);
       }
-    } else RB(hAx,hy,s*hwd,hgt);
+    } else RB(hox,hy,s*hwd,hgt);
     RB(hAx-s*Math.round(w*0.08),Math.min(hy,by),s*Math.max(1,Math.round(w*0.17)),Math.abs(by-hy)+1);   // the neck
     // ⚠ EARS GO ON THE BACK OF THE HEAD, NOT ON THE NOSE. At 0.02 in from the muzzle they rendered as
     // a detached box floating past the animal's face at foreground size.
@@ -21999,7 +22046,13 @@ function drawBeast(g,x,y,w,h,sp,pose,face,ph,body,leg,K,busy){
     for(var eq=0;eq<ew;eq++){
       var euu=eq/Math.max(1,ew-1), er=Math.min(1,Math.min(euu,1-euu)/0.34);
       var ed=Math.max(1,Math.round(eh2*(0.60+0.40*er)));
-      g.fillRect(Math.round(hAx-s*Math.round(w*0.32)+(s>0?eq:-eq)),Math.round(by-h*0.04+(eh2-ed)*0.4),1,ed);
+      var exx=Math.round(hAx-s*Math.round(w*0.32)+(s>0?eq:-eq)), eyy2=Math.round(by-h*0.04+(eh2-ed)*0.4);
+      g.fillRect(exx,eyy2,1,ed);
+      // ⚠ AND AN EDGE ON IT. An ear painted in a near-black inside a near-black body is not there; the
+      // one pixel that separates them is the whole reason an elephant reads as an elephant side-on.
+      if(w>=18){ g.fillStyle=css(mixc(leg,[210,214,222],0.30)); g.fillRect(exx,eyy2,1,1);
+                 if(eq===ew-1) g.fillRect(exx,eyy2,1,ed);
+                 g.fillStyle=rgba(leg,0.9); }
     }
     g.fillStyle=css(body);
   }
@@ -22011,15 +22064,17 @@ function drawBeast(g,x,y,w,h,sp,pose,face,ph,body,leg,K,busy){
       for(var rl=0;rl<4;rl++) RB(x+Math.round(w*(0.18+rl*0.20)),by-Math.round(h*0.26),Math.max(1,Math.round(w*0.09)),Math.round(h*0.26));
     }
   } else {
-    var lh=Math.max(1,Math.round(h*0.54)), sA=Math.sin(ph), sB=Math.sin(ph+(pose===5?1.1:Math.PI));
-    var spl=(pose===5)?Math.round(w*0.34):((pose===2)?Math.round(w*0.22):0);   // gallop splays; drinking braces
-    // ⚠ AN ELEPHANT STANDS ON PILLARS. Legs at 0.12 of the body width are a heron's; the GAP between
-    // the fore and hind pairs is what reads as "four legs" at distance, and thin ones close it up.
-    var lw=Math.max(1,Math.round(w*(sp.trunk?0.17:0.13)));
-    RB(x+Math.round(w*0.12)-spl+(pose===1?Math.round(sA*w*0.05):0),y-lh,lw,lh);
-    RB(x+Math.round(w*0.27)-Math.round(spl*0.4),y-lh,lw,lh-(pose===1?Math.round(sA*1.2):0));
-    RB(x+Math.round(w*0.60)+Math.round(spl*0.4),y-lh,lw,lh-(pose===1?Math.round(sB*1.2):0));
-    RB(x+Math.round(w*0.75)+spl+(pose===1?Math.round(sB*w*0.05):0),y-lh,lw,lh);
+    // ⚠ THE NEAR PAIR ONLY, once the off-side pair has already been drawn behind the barrel in shadow.
+    // Four legs of one flat colour at foreground size close up into two black pillars — which is what
+    // Nick saw. Two tones and a gap is what reads as an animal standing side-on.
+    // ⚠ THE NEAR PAIR GOES ON THE OUTSIDE. At 0.11/0.20 and 0.76/0.67 the two legs of a pair were a
+    // leg-width apart and merged, so a 36px elephant stood on two black pillars — what Nick saw.
+    RB(x+Math.round(w*0.05)-splP+(pose===1?Math.round(sAp*w*0.03):0),y-lhP,lwP,lhP);
+    RB(x+Math.round(w*0.86)+splP+(pose===1?Math.round(sBp*w*0.03):0),y-lhP,lwP,lhP);
+    if(!DET){                                                       // small: all four, flat, as before
+      RB(x+Math.round(w*0.30)-Math.round(splP*0.4),y-lhP,lwP,lhP-(pose===1?Math.round(sAp*1.2):0));
+      RB(x+Math.round(w*0.62)+Math.round(splP*0.4),y-lhP,lwP,lhP-(pose===1?Math.round(sBp*1.2):0));
+    }
   }
   // ⚠ THE TAIL STARTS INSIDE THE RUMP. Hung a further 6% of the body length clear of the tapered end,
   // it read as a separate black box standing behind the animal.
@@ -22252,8 +22307,19 @@ function drawSavannaFront(g,L,now,nd,fx){
   if(!curBiome.herd||cityPhase==="apoc") return;
   var day=L>0.5, K=Math.max(1,KSP), B=curBiome, mig=!!B.migration;
   var footY=SH-TASKBAR_WP-1, band=Math.max(8,footY-HORIZON);
-  var FH=band*1.30;                                   // a giraffe stands a third again the street band
-  var NEAR=mig?["giraffe","elephant","wildebeest"]:["giraffe","elephant","zebra"];
+  // ⚠⚠ SCALE IS MEASURED AGAINST drawPerson's FIXED 7 px, NOT AGAINST THE WIDTH OF THE ROAD. Keyed to
+  // the street band (1.30 of it) the elephant came out as tall as the whole carriageway and about ten
+  // car-lengths long — Nick, on the installed build: "make this look more realistic". A person is
+  // 1.75 m at 7 px, so the street runs at 4 px/m. The near band is closer to the viewer, and 1.8x of
+  // that is as far as the exaggeration goes before an elephant stops being an elephant.
+  // 🔑 The lesson is the kopje's in reverse: "huge" was the right ANSWER and the wrong UNIT. A hero
+  // object is sized against the things standing next to it, never against the frame.
+  var PPM=(7/1.75)*1.8;                               // px per metre in the near band
+  // ⚠ ONLY THE TWO ANIMALS THAT EARN THE FOREGROUND. A zebra is 1.5 m — eleven px here — so up close
+  // it is just a small smudge in the traffic, while the elephant and the giraffe are exactly the pair
+  // locked answer 1 names ("a giraffe taller than a two-storey building, an elephant beside a person").
+  // The zebra and the wildebeest are the far mass, which is where a herd animal belongs.
+  var NEAR=["giraffe","elephant"];
   // A LOCAL WANDER on the same block clock. wildAt's own x is a world-wide destination and wraps, so
   // reading it here would both jump at the seam and cross a screen in seconds at this scale. The act
   // still comes from wildAt — what they are DOING is shared with the rest of the land — but where they
@@ -22271,8 +22337,9 @@ function drawSavannaFront(g,L,now,nd,fx){
     var Wf=wildAt(fsd,now+(fsd%WILD_BLOCK),L);
     var wx=wrapW(anchor+wanderAt(fsd)*110);
     // a giraffe really is half again the stature of an elephant, and this is the land where that
-    // difference is the point — so the target height is per-species, not one number for all of them
-    var BS=beastSize(sp,FH*(sp.neck?1.0:0.74)), h=BS.h, w=BS.w;
+    // difference is the point — so the height is the animal's REAL height in metres, not a fraction
+    var total=Math.min(band*0.95,Math.round((sp.neck?5.4:3.3)*PPM));
+    var BS=beastSize(sp,total), h=BS.h, w=BS.w;
     // ⚠ SIGNED SHORTEST PATH, NOT wrapW. wrapW returns [0,WW), so an animal five px to the LEFT of the
     // hole measured 2264px away and could never be shown drinking. Every other distance test in this
     // file uses the dx>WW/2 form; this one did not.
@@ -22291,7 +22358,7 @@ function drawSavannaFront(g,L,now,nd,fx){
       // a calf at heel — the scale reference for the scale reference, and the reason the adult reads
       // as enormous rather than as a badly placed sprite
       if(((fsd>>>13)%100)<44){
-        var CS=beastSize(sp,FH*(sp.neck?1.0:0.74)*0.46), ch3=CS.h, cw3=CS.w;
+        var CS=beastSize(sp,total*0.46), ch3=CS.h, cw3=CS.w;
         drawBeast(g,fxp+Math.round(w*(Wf.face>=0?-0.85:1.05)),footY,cw3,ch3,sp,pose===3?3:0,Wf.face,
                   now*0.005+f2,body,leg,K*(ch3/Math.max(1,sp.h)),0);
       }
