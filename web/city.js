@@ -21569,7 +21569,22 @@ var savCache=null;
 // trees are placed in drawSavanna while the animals are placed in drawSavannaLife. Two functions
 // computing the same position separately is exactly how the dam's waterline drifted, so there is one.
 function savTreeN(r){ return 16+r*10; }
-function savTreeWX(r,t){ return ((t*40503+r*104729+((WORLD_SEED*7)|0))>>>0)%Math.max(1,WW); }
+// ⚠⚠ THIS WAS A PICKET FENCE, AND mixLi's OWN COMMENT ALREADY SAID WHY. `(t*40503+…)%WW` steps by a
+// CONSTANT STRIDE, so the trees were an arithmetic progression: measured at his 4K geometry, all three
+// ranks had exactly THREE distinct gap sizes — pairs 42 px apart, then a 327-369 px hole, forever.
+// That is the same fault mixLi was written for ("A SINGLE MULTIPLY IS NOT A HASH … a modulo of it is
+// not a stride"), and it is the THIRD time on this land that the cure already existed and was simply
+// not applied here, after the acacia with no dispatcher branch and the sky gated off by `bigSky`.
+// ⚠ A PURE HASH IS THE WRONG FIX — measured too. It breaks the lattice but clumps: min gap 0 (two
+// trees on the same pixel) and 1030 px of bare ground elsewhere. Trading a fence for bald patches.
+// So: STRATIFIED. One tree per bin of WW/n, jittered inside its own bin by an avalanche hash. Even
+// coverage, no lattice, no overlaps — spread drops from 3 distinct gaps to ~29, and the smallest gap
+// is never below 11 px. Regularity has to break, but a scatter that leaves holes is not the answer.
+function savTreeWX(r,t){
+  var n=Math.max(1,savTreeN(r)), bw=Math.max(1,WW)/n;
+  var j=((mixLi(t*8+r,((WORLD_SEED*7)|0))>>>8)%1000)/1000;
+  return Math.round((t+j)*bw)%Math.max(1,WW);
+}
 // ⚠⚠ AND ITS SEED, ITS KIND AND ITS HEIGHT — because "the head goes into the crown" was a COMMENT
 // STATING AN INTENT, not a result. Worked through at Nick's K=2: a rank-0 tree is 61-94 world px tall
 // with its crown underside at 0.76 of that, and a giraffe at the herd's own scale reaches 25 — it was
@@ -21680,7 +21695,12 @@ function drawSavanna(g,L,now,nd){
       if(hx+hw<-4||hx-hw>SW+4) continue;
       // the silhouette: four or five stacked blocks of decreasing size, each offset, so the outline has
       // shoulders and notches instead of one clean curve
-      var NB2=4+(hseed%3), topY=HORIZON;
+      // ⚠⚠ AND THE ROCK'S SURFACE PER COLUMN, not just its summit. `topY` is the single highest pixel
+      // of the WHOLE outcrop; planting anything at it puts that thing at the summit's height while it
+      // stands at its own x, which is how the fig ended up hanging in mid-air over the saddle between
+      // two boulders. Same fault as the browsing giraffe (reached the crown's height at the wrong tree)
+      // and the sidewalk before it: a position taken from one thing while standing at another.
+      var NB2=4+(hseed%3), topY=HORIZON, ksurf=[];
       for(var bl=0;bl<NB2;bl++){
         var bf=bl/NB2;
         // ⚠⚠ THE BLOCKS HAD TO SHRINK AND STEP HARDER. At 1-bf*0.72 with a 0.20 offset each boulder
@@ -21700,6 +21720,7 @@ function drawSavanna(g,L,now,nd){
           var ky2=Math.round(byB-bh2*prof2);
           if(ky2<topY) topY=ky2;
           if(ky2>=byB) continue;
+          if(ksurf[xx2]==null||ky2<ksurf[xx2]) ksurf[xx2]=ky2;   // the skyline of the rock, column by column
           // ⚠ A RIM, NOT A HALF. Lighting the whole sun-facing half turned a near-black rock into a
           // mid-brown mass and threw away the silhouette that is the point of the answer. Only the outer
           // edge catches it, so the rock stays DARK against a bright sky and still reads as solid.
@@ -21722,11 +21743,20 @@ function drawSavanna(g,L,now,nd){
       // growing out of a crack in it is the thing that tells you how big the rock is.
       if(topY<HORIZON-20){
         var ftx=hx+Math.round(hw*0.22*((((hseed>>>19)%100)/100)-0.5)*2), fth=Math.round(9*K);
+        // ⚠ IT GROWS OUT OF THE ROCK AT ITS OWN x. Walk in toward the centre until a column that
+        // actually has rock in it — an offset foot can otherwise land past the boulder's edge — then
+        // plant the trunk on THAT surface. Sinking it a pixel in is deliberate: a foot that merely
+        // touches leaves an antialiased hairline that reads as a gap at his 4K scale.
+        var fsx=ftx, fguard=0;
+        while(ksurf[fsx]==null&&fguard++<Math.abs(ftx-hx)) fsx+=(ftx>hx?-1:1);
+        var fgy=(ksurf[fsx]!=null?ksurf[fsx]:topY)+Math.max(1,Math.round(K*0.5));
+        ftx=fsx;
         g.fillStyle=css(mixc(rockD,[0,0,0],0.25));
-        g.fillRect(ftx,topY-fth,Math.max(1,Math.round(K*0.9)),fth);
+        g.fillRect(ftx,fgy-fth,Math.max(1,Math.round(K*0.9)),fth);
         for(var fq=-Math.round(7*K);fq<=Math.round(7*K);fq++){
           var fu=Math.abs(fq/Math.round(7*K));
-          g.fillRect(ftx+fq,topY-fth-Math.round(2.4*K*(1-fu*fu*0.7)),1,Math.max(1,Math.round(2.4*K*(1-fu*fu*0.7))));
+          // the crown rides on the TRUNK's foot, not the summit — or it detaches the moment the foot moves
+          g.fillRect(ftx+fq,fgy-fth-Math.round(2.4*K*(1-fu*fu*0.7)),1,Math.max(1,Math.round(2.4*K*(1-fu*fu*0.7))));
         }
       }
     }
@@ -22220,14 +22250,26 @@ function drawBeast(g,x,y,w,h,sp,pose,face,ph,body,leg,K,busy){
 // they were doing. "The herd is invisible on a grown city" was diagnosed by eye and cost three renders;
 // `onscreen herd=90 acts=[21,23,13,6,27]` answers both halves of it in one line, and it is the only way
 // to tell "drawn and too small" apart from "not drawn" without reverse-engineering a composited frame.
-var SAVL_N=0, SAVL_ACT=[];
+// ⚠ AND WHICH SPECIES, not just how many. "The migration has no giraffe" was a roster bug that no
+// amount of looking at a frame would settle — a giraffe at 8 world px in the back rank is a smudge,
+// and squinting at smudges is how the occlusion cost three renders. One line of counts answers it.
+var SAVL_N=0, SAVL_ACT=[], SAVL_SP={};
 var PANIC_R=280, PANIC_D=170;              // how far a stampede is felt, and how far it carries — world px
 function drawSavannaLife(g,L,now,nd,fx){
   if(!curBiome.herd||cityPhase==="apoc"||WILD_LAYER==="front") return;   // the herd is landscape: always behind
   var day=L>0.5, K=Math.max(1,KSP), B=curBiome;
   var mig=!!B.migration, dusty=!!B.dust;
-  SAVL_N=0; SAVL_ACT=[];
-  var SPECIES=mig?["wildebeest","zebra","wildebeest","zebra","elephant"]:["elephant","giraffe","zebra","wildebeest"];
+  SAVL_N=0; SAVL_ACT=[]; SAVL_SP={};
+  // ⚠ THE MIGRATION HAD NO GIRAFFE, so a whole built behaviour never appeared on this variant: the
+  // browse gate below is `sp.neck||sp.trunk`, and with no necked animal in the roster the wet season
+  // only ever showed elephants at trunks — the crown-browsing that Round 2 solved (and that the
+  // giraffe's reach was measured against) was unreachable on a third of the land's renders.
+  // ⚠ WEIGHTED, NOT JUST APPENDED. The list IS the probability — one entry per slot, picked by
+  // `gsd%length` — so adding a sixth name would have made giraffes 17% of the herd. A great migration
+  // is a mass of wildebeest and zebra; giraffes are resident, not part of it. Eight slots keeps
+  // wildebeest+zebra at 75% and puts giraffes at 12.5%, i.e. a handful across the whole world.
+  var SPECIES=mig?["wildebeest","zebra","wildebeest","zebra","wildebeest","elephant","zebra","giraffe"]
+                 :["elephant","giraffe","zebra","wildebeest"];
   // ---- THE HUNTS, resolved ONCE for the frame. The herd has to know about them before it can react,
   // and the predators below draw from the same two answers — one hunt, not two that disagree.
   var HUNTS=[];
@@ -22264,7 +22306,7 @@ function drawSavannaLife(g,L,now,nd,fx){
     var ng=(mig?6:4)+r*(mig?4:3);
     for(var gi=0;gi<ng;gi++){
       var gsd=((gi*2654435761+r*104729+((WORLD_SEED*13)|0))>>>0);
-      var sp=FAUNA[SPECIES[gsd%SPECIES.length]]; if(!sp) continue;
+      var spName=SPECIES[gsd%SPECIES.length], sp=FAUNA[spName]; if(!sp) continue;
       var W=wildAt(gsd,now+(gsd%WILD_BLOCK),L);                  // ← its own phase, so nothing moves in unison
       var gwx=W.x, gact=W.act, atTree=-1;
       // ---- THE DRY SEASON CROWDS THE WATER. Locked answer 4: "a shrinking waterhole with everything
@@ -22352,7 +22394,7 @@ function drawSavannaLife(g,L,now,nd,fx){
         if(sp.trunk&&gact===0&&((msd>>>17)%100)<22) busy|=4;       // an elephant throwing dust over itself
         if(sp.striped&&gact===3&&((msd>>>13)%100)<28) busy|=8;     // a zebra rolling on its back
         var ph=now*0.006+i*1.7+gi*0.9;
-        SAVL_N++; SAVL_ACT[pose]=(SAVL_ACT[pose]||0)+1;
+        SAVL_N++; SAVL_ACT[pose]=(SAVL_ACT[pose]||0)+1; SAVL_SP[spName]=(SAVL_SP[spName]||0)+1;
         drawBeast(g,x,y,w,h,sp,pose,W.face,ph,body,leg,K*msc,busy);
         // dust: kicked up by the near rank in the dry season, and by ANY rank in a stampede
         if((dusty&&r===0)||P.run>0.3){
