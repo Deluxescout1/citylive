@@ -12,10 +12,10 @@ Item { id:root; width:4656; height:2622
     var CYC=604800000, EPOCH=1783972450746;
     City.GROW_CYCLE=CYC; City.NOFETCH=true; City.FORCEEGG=null; City.FORCEDIS=null;
     City.applyConfig({land:"alpine"});
-    var d=new Date(EPOCH+62*CYC+Math.round(0.30*CYC)); d.setHours(11,25,0,0);
+    var d=new Date(EPOCH+62*CYC+Math.round(0.17*CYC)); d.setHours(10,05,0,0);
     root.t0=d.getTime(); City.NOWOVR=City.CLOCK=root.t0;
     City.setup('neon',{cw:4656,ch:2622,woff:0,ww:2269,pxk:3,zoom:6,taskbarWp:17,quality:'balanced',frameMs:125});
-    City.FORCEAGE=0.86; City.FORCEWX={code:0,cloud:10,wind:6,temp:64,feels:64,precip:0,gust:6};
+    City.FORCEAGE=0.62; City.FORCEWX={code:0,cloud:10,wind:6,temp:64,feels:64,precip:0,gust:6};
   }
   Canvas { id:bgcv; anchors.fill:parent; renderTarget:Canvas.Image; renderStrategy:Canvas.Immediate; antialiasing:false
     onPaint:{ try{ City.draw(getContext("2d"),"bg"); }catch(e){ console.log("BG "+e); } } }
