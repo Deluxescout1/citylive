@@ -10918,6 +10918,13 @@ function drawShootingStar(g,L,now){
 // a second subsystem the same week. The answer both times is ONE named predicate every caller shares,
 // so the next sky-owning feature has something to fail against instead of something to remember.
 function noOpenSky(){ return !!(curBiome && (curBiome.roof || curBiome.orbit)); }
+// ⚠⚠ AND A SECOND, NARROWER ONE — because a cavern and a vacuum agree about WEATHER and AIRCRAFT and
+// disagree completely about STARS. `noOpenSky()` is right for birds, blimps, jets, balloons, rain and
+// the overcast: none of those belong in either place. It is WRONG for the celestial stack, because
+// SPACE CITY is nothing but sky — gating the stars, the Moon, the satellites and the orbital station on
+// it would have fixed the cavern by emptying the one land whose entire subject is what is up there.
+// 🔑 Two lands sharing one exclusion does not make it one predicate. I nearly shipped this as a fix.
+function underRoof(){ return !!(curBiome && curBiome.roof); }
 function drawGodRays(g,L,now,fx){
   if(noOpenSky()) return;      // ⚠ the sun cannot rake a ceiling — the undercity has its own shafts
   if(L<0.4||cityPhase==="apoc"||fx.rain||fx.drizzle||fx.snow||fx.thunder||fx.fog) return;
@@ -37002,9 +37009,24 @@ function draw(g,pass){
   }
 
   var i,s,c;
-  // the real Norwich night sky (stars) — draws only when dark & clear
-  drawSky(g,now,nd,L,fx);
-  drawCelestial(g,now,nd,L,fx);                 // the Moon (+ planets) in real positions — day AND night
+  // ⚠⚠⚠ THE FIFTH AND SIXTH UNGATED SKY RENDERERS, AND THE WORST TWO.
+  // Nick: "what happened to my background?" — at 20:00 his sealed cavern had the MILKY WAY in the
+  // ceiling. `drawSky` paints the real Norwich star field, the galactic band and the star clusters;
+  // `drawCelestial` paints the Moon and the planets "day AND night". Neither had ever asked whether the
+  // land has a roof on it, and the sun disc, its halo and the dawn/dusk rays below are the same.
+  // 🔑 I WROTE THE PREDICATE AND THEN DID NOT APPLY IT TO THE BIGGEST CALLERS. The commit that added
+  // `noOpenSky()` says in as many words that it exists "so the next sky-owning feature has something to
+  // fail against instead of something to remember" — and I gated birds, blimps, helicopters, jets,
+  // balloons and the overcast, and walked straight past the actual sky. That is the half-a-fix pattern
+  // for the THIRD time on this project, committed by the person writing the comment about it.
+  // 🔑 AND ONE NIGHT RENDER IS NOT "NIGHT". I checked this land at 02:00 and passed it. The sky ROTATES:
+  // at 02:00 in December the galactic band is below the horizon, and at 20:00 it is straight overhead.
+  // A feature keyed to real sidereal time has to be sampled at several hours before it is believed.
+  if(!underRoof()){
+    // the real Norwich night sky (stars) — draws only when dark & clear
+    drawSky(g,now,nd,L,fx);
+    drawCelestial(g,now,nd,L,fx);               // the Moon (+ planets) in real positions — day AND night
+  }
 
   // sun / moon — travels across the whole world so all screens agree
   var st=sunTimes(nd);
@@ -37025,7 +37047,11 @@ function draw(g,pass){
   goldC=curSunDf<0.5?[255,196,140]:[255,158,96];                                          // rose-gold dawn · amber dusk
   solarEclDim=0;
   var sunHidden=fx.rain||fx.drizzle||fx.snow||fx.thunder||fx.fog||(fx.cloudy&&(weather.cloud||0)>85);   // no sun disk through rain/fog/thick overcast
-  if(st.rise){
+  // ⚠ THE GUARD GOES ROUND THE DRAWING ONLY. `curSunDf` and `goldenK` are computed ABOVE this line and
+  // must keep running underground: the undercity's daylight shafts are aimed by `sunPos()`, which reads
+  // `curSunDf`. Gating the whole block would have frozen the one feature on that land that tracks the
+  // real sun — fixing one bug by silently reintroducing another.
+  if(st.rise&&!underRoof()){
     var df=(nd-st.rise)/(st.set-st.rise);
     if(df>0&&df<1&&sunHidden){ var shx=df*WW-WOFF, shy=HORIZON*0.9-Math.sin(df*Math.PI)*HORIZON*0.75;
       if(shx>-10&&shx<SW+10&&!fx.thunder){                   // just a pale bright patch behind the cloud deck
@@ -37188,6 +37214,17 @@ function draw(g,pass){
   // longer forces buildings and roads to be rebuilt at the same cadence as traffic and people.
   if(pass!=="city"&&pass!=="fg"&&pass!=="water"){
   if(pass!=="sky"){
+  // ⚠⚠ SEVEN MORE, AND THIS TIME I ENUMERATED THE WHOLE STACK INSTEAD OF CHASING THEM ONE AT A TIME.
+  // Meteor showers, dozens of drifting satellites, the REAL ISS with its label on it, a Starlink train,
+  // shooting stars, an aurora and a rainbow — every one of them was running a thousand feet underground,
+  // and the faint white dots left in the cavern after the Milky Way was gated were the satellite field.
+  // 🔑 THE GUARD GOES ROUND THE BLOCK, NOT ON EACH CALL. That is what stopped the birds/blimp/jets block
+  // from regressing, and gating individual functions is precisely how a single predicate ends up
+  // correctly written and applied to five of thirteen callers. Anything added below this line is gated
+  // by construction rather than by remembering.
+  // (`drawGodRays` and `drawBalloons` also self-gate; that is belt and braces, not duplication.)
+  // ⚠ `underRoof()`, NOT `noOpenSky()` — see its definition. SPACE CITY keeps every one of these.
+  if(!underRoof()){
   if(curSpace>0.35 && !nukeFull()) drawOrbitals(g,L,now,fx);   // the orbital station + ring + shuttle re-entries
   if(curSpace>0.4 && !nukeFull()) drawExodus(g,L,now);         // crewed departures → the exodus to the colonies
   drawShower(g,nd,L,now,fx);                    // real-date meteor showers
@@ -37196,11 +37233,14 @@ function draw(g,pass){
   drawStarlinkTrain(g,L,now);                   // a Starlink "train" glides over on some nights
   drawShootingStar(g,L,now);                    // the occasional wish-worthy shooting star
   }
+  }
   if(pass!=="skyfast"){
   if(pass!=="cloud"){
+  if(!underRoof()){
   drawAurora(g,nd,L,now,fx);                    // rare frigid-night light show
   drawGodRays(g,L,now,fx);                      // crepuscular sunbeams through broken cloud
   drawRainbow(g,L,fx);                          // an arc when a shower clears under a low sun
+  }
   }
 
   // clouds (deterministic drift)
