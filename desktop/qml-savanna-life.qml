@@ -138,6 +138,7 @@ Item {
                              + " HORIZON=" + City.HORIZON + " GROUND=" + City.GROUND
                              + " TASKBAR_WP=" + City.TASKBAR_WP + " WW=" + City.WW
                              + " variant=" + (City.curBiome && City.curBiome.name)
+                             + " holeX=" + City.waterHoleX() + " WOFF=" + City.WOFF
                              + " || onscreen herd=" + City.SAVL_N + " acts=" + JSON.stringify(City.SAVL_ACT);
             }
             catch (e) { root.err = "BG THREW: " + e + " | " + (e.stack || "").split("\n").slice(0,4).join(" << "); }

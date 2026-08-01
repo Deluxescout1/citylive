@@ -21586,6 +21586,10 @@ function savCrownDrop(r,t,K){ return savTreeH(r,t,K)*0.76; }
 // trees and the animals of a rank must share one, or a giraffe browses a tree standing in front of it.
 function savTreeF(dep){ return 0.15+0.30*dep; }
 function savHerdF(dep){ return 0.30+0.62*(1-dep); }
+// ⚠ AND THE WATERHOLE'S OWN DEPTH, for the same handshake reason as the trees: a thirsty animal has to
+// stand at the WATER, and the hole is drawn in drawSavanna while the herd is placed in drawSavannaLife.
+// Anything that walks here reads its band from this, never from its rank.
+function savHoleF(){ return 0.72; }
 function drawSavanna(g,L,now,nd){
   var day=L>0.5, B=curBiome, K=Math.max(1,KSP), skc=biomeSkc(day);
   var litK=Math.max(0,Math.min(1,(L-0.34)*2.4));
@@ -21822,7 +21826,7 @@ function drawSavanna(g,L,now,nd){
     // buildings and is never seen. The visible open country on this land is the band between the
     // escarpment and the horizon — the same band the herd occupies. Same mistake the herd made.
     var ghy=savCache?savCache[Math.max(0,Math.min(SW-1,Math.max(0,wx0)))]:HORIZON*0.86;
-    var wy=Math.round(ghy+(HORIZON-ghy)*0.72);
+    var wy=Math.round(ghy+(HORIZON-ghy)*savHoleF());
     for(var q2=-ww;q2<ww;q2++){
       var xx2=wx0+q2; if(xx2<0||xx2>=SW) continue;
       var u2=Math.abs(q2/ww);
@@ -21836,6 +21840,30 @@ function drawSavanna(g,L,now,nd){
     // the churned mud ring animals have trodden around it
     g.fillStyle=rgba(day?[142,118,86]:[26,22,18],0.55);
     g.fillRect(Math.max(0,wx0-ww-Math.round(4*K)),wy+Math.round(1.6*K),Math.min(SW,ww*2+Math.round(8*K)),Math.max(1,Math.round(1.4*K)));
+    // ---- WHERE THE WATER USED TO BE. Locked answer 4's cracked earth, and it belongs HERE rather
+    // than scattered over the land: a dry lake bed cracks where a pool stood and dried, which also
+    // says the hole is SHRINKING rather than merely small. Only in the dry season, obviously.
+    if(dry){
+      var panW=Math.round(ww*2.1);
+      g.fillStyle=rgba(day?[214,196,152]:[34,30,24],0.50);
+      g.fillRect(Math.max(0,wx0-panW),wy-Math.round(1.4*K),Math.min(SW,panW*2),Math.max(1,Math.round(4.2*K)));
+      // ⚠ BROKEN THREE WAYS — position, length and angle. Evenly spaced cracks of one length are the
+      // graph-paper fault the salt pan taught, and a dried bed is the most obviously irregular surface
+      // there is, so regularity here would be worse than nothing.
+      for(var ck=0;ck<26;ck++){
+        var cs2=(((ck*2654435761+((WORLD_SEED*577)|0))>>>0));
+        var cx4=wx0+Math.round((((cs2%1000)/1000)-0.5)*panW*2);
+        if(cx4<-4||cx4>SW+4) continue;
+        var cy4=wy-Math.round(K)+Math.round((((cs2>>>11)%100)/100)*3.6*K);
+        var cln=Math.round((2+((cs2>>>7)%5))*K*0.8), cdir=(((cs2>>>17)%100)/100-0.5)*1.4;
+        g.fillStyle=rgba(day?[150,128,92]:[14,12,10],0.55);
+        for(var cq=0;cq<cln;cq++){
+          var cxx=Math.round(cx4+cq*Math.cos(cdir)), cyy=Math.round(cy4+cq*Math.sin(cdir)*0.5);
+          if(cxx<0||cxx>=SW) continue;
+          g.fillRect(cxx,cyy,1,Math.max(1,Math.round(K*0.5)));
+        }
+      }
+    }
   }
   // ---- PREDATOR COVER: long grass the cats stalk through, thicker near the hole where the prey is
   for(var lg=0;lg<70;lg++){
@@ -21844,7 +21872,10 @@ function drawSavanna(g,L,now,nd){
     if(lx<0||lx>=SW) continue;
     var lh=Math.round((2+((lg*7919)%4))*K*0.7);
     var lgy=Math.round(savCache[lx]+(HORIZON-savCache[lx])*0.86);
-    g.fillStyle=rgba(day?[150,142,86]:[24,30,22],0.55);
+    // ⚠ BONE-WHITE IN THE DRY SEASON — locked answer 4. Standing grass on a savanna at the end of the
+    // dry is bleached almost to straw, and it is one of the two things (with the dust) that make the
+    // seasons tell apart at a glance rather than by comparing two frames side by side.
+    g.fillStyle=rgba(day?(dry?[226,214,172]:[150,142,86]):[24,30,22],dry?0.62:0.55);
     g.fillRect(lx,lgy-lh,Math.max(1,Math.round(K*0.6)),lh);
   }
 
@@ -22194,6 +22225,17 @@ function drawSavannaLife(g,L,now,nd,fx){
       var sp=FAUNA[SPECIES[gsd%SPECIES.length]]; if(!sp) continue;
       var W=wildAt(gsd,now+(gsd%WILD_BLOCK),L);                  // ← its own phase, so nothing moves in unison
       var gwx=W.x, gact=W.act, atTree=-1;
+      // ---- THE DRY SEASON CROWDS THE WATER. Locked answer 4: "a shrinking waterhole with everything
+      // crowded round it". The hole already shrinks (26 px against 44) and wildAt already walks the
+      // thirsty here — but only ~26% of blocks at midday, spread over the whole world, so what it
+      // actually produced was an ordinary day with a smaller puddle.
+      // ⚠ THE OVERRIDE IS LOCAL AND HASHED, NOT A CHANGE TO wildAt. That function is shared by every
+      // land's wildlife and its day/night rhythm is deliberate; re-rolling it here keeps the three
+      // monitors in agreement and leaves nineteen other lands alone.
+      if(dusty&&gact!==3&&((gsd>>>23)%100)<52){
+        gact=(((gsd>>>27)%100)<62)?2:1;                           // drinking, or still walking in
+        gwx=wrapW(waterHoleX()+((((gsd>>>9)%1000)/1000)-0.5)*150);
+      }
       // ---- ANIMALS THAT USE THE TREES. A browsing giraffe stands at a CROWN and a bark-stripping
       // elephant at a TRUNK, so those groups take a tree's world position instead of a graze anchor —
       // and then stand in the TREE's depth band, or they browse a tree ten pixels in front of them.
@@ -22204,17 +22246,32 @@ function drawSavannaLife(g,L,now,nd,fx){
         if(savTreeKind(r,cand)>=4){ atTree=cand; gwx=savTreeWX(r,atTree); gact=4; }
       }
       var mem=(mig?4:3)+((gsd>>>19)%(mig?5:4));
-      var spread=(26+34*(1-dep))*Math.max(1,K*0.6);
+      // ⚠ AND THEY CROWD. A herd at a waterhole is shoulder to shoulder — the ordinary grazing spread
+      // is what makes a "crowd" read as the same scattered animals standing slightly nearer a puddle.
+      var spread=(26+34*(1-dep))*Math.max(1,K*0.6)*((gact===1||gact===2)?0.42:1);
       for(var i=0;i<mem;i++){
         var msd=((i*40503+gsd*7919)>>>0);
-        var off=(((msd%1000)/1000)-0.5)*spread;
+        var off=(((msd%1000)/1000)-0.5)*spread, yJit=0;
+        // ⚠⚠ A CROWD AT A WATERHOLE IS A RING, NOT A RANK. Tightening the spread and putting every
+        // thirsty animal on one depth packed them shoulder to shoulder along a single line, which read
+        // as a dark fence across the plain — and they covered the pool they had come to drink from.
+        // They stand AROUND the rim, on both sides, and the ones nearer the viewer stand lower.
+        if(gact===1||gact===2){
+          var sideW=((msd>>>3)&1)?1:-1;
+          off=sideW*(22+((msd>>>15)%36))*Math.max(1,K*0.5);
+          yJit=((((msd>>>21)%100)/100)-0.5)*(HORIZON-gy)*0.26;
+        }
         var P=panicAt(wrapW(gwx+off));
         var wx=wrapW(gwx+off+P.d);
         var x=Math.round(wx-WOFF);
         if(x<-40) x+=WW; if(x>SW+40) x-=WW;
         if(x<-30||x>SW+30) continue;
         var gy=Math.round(savCache?savCache[Math.max(0,Math.min(SW-1,Math.max(0,x)))]:HORIZON*0.86);
-        var y=Math.round(gy+(HORIZON-gy)*(atTree>=0?savTreeF(dep):savHerdF(dep)));
+        // ⚠ AT THE WATER'S DEPTH, NOT THE RANK'S. An animal drinking from a hole drawn 0.72 of the way
+        // down the band while it stands at 0.92 is an animal drinking from dry ground twenty px in
+        // front of the pool — the same class of miss as the giraffe browsing a bare trunk.
+        var atWater=(gact===1||gact===2);
+        var y=Math.round(gy+(HORIZON-gy)*(atTree>=0?savTreeF(dep):(atWater?savHoleF():savHerdF(dep)))+yJit);
         // ⚠ ONE IN SEVEN HAS ITS HEAD UP. A real herd always has a sentinel, and it is also what stops
         // a group of five reading as five copies of one pose.
         var pose=gact;
