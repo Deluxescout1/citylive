@@ -3207,7 +3207,7 @@ var BIOMES=[
   // Per Nick's readability rule (realism for shape, readability for COLOUR) the shape stays a plains
   // shape — low and long, not mountains — and the separation comes from pushing the far bands cooler
   // and bluer than the ground so they read as distance rather than as more field.
-  { k:"plains", name:"OPEN PLAINS",amp:0.46, base:0.85, flat:0.25, steep:0.0, snow:false, water:"river", bigSky:1,
+  { k:"plains", skyRelief:1, name:"OPEN PLAINS",amp:0.46, base:0.85, flat:0.25, steep:0.0, snow:false, water:"river", bigSky:1,
     far:[146,168,166],  near:[118,142,124],cap:[196,204,178], ground:[158,166,116],
     walls:[[178,72,58],[150,60,48],[196,190,166],[214,206,178],[132,118,86],[170,158,124],[186,176,146],[142,132,104]],
     fauna:{ keep:{deer:0,rabbit:1,fox:1,goat:0}, big:["bison","pronghorn","cattle"], small:["prairiedog"], air:["hawk"] },
@@ -3515,7 +3515,12 @@ var BIOMES=[
   // WHAT FILLS THE FRAME: ANIMALS AT SCALE, and distance. A real herd crossing real distance is this
   // land's landform — so the herd is drawn BIG and in DEPTH rather than as a few specks on the ground
   // band, and a lone kopje plus flat-topped acacia give the eye something to measure them against.
-  { k:"savanna",name:"THE SAVANNA",  amp:0.34, base:0.72, flat:0.62, steep:0.16, snow:false, water:"river", herd:1,
+  // ⚠ bigSky + dustSky: this land was diagnosed at ~53% empty sky, second only to OPEN PLAINS' measured
+  // 88.6%, and the sky machinery that answer needs was ALREADY BUILT for the plain — towers with real
+  // anvils, fair-weather cumulus on one condensation level, rain curtains you see from miles off, a
+  // storm shelf. It was gated on a flag this land did not carry. Second time on this land that the
+  // answer was a feature that existed and was switched off for it.
+  { k:"savanna",name:"THE SAVANNA",  amp:0.34, base:0.72, flat:0.62, steep:0.16, snow:false, water:"river", herd:1, bigSky:1, dustSky:1,
     far:[196,186,140],  near:[172,158,104], cap:[214,206,166], ground:[186,168,108],
     walls:[[212,176,132],[186,146,102],[232,214,186],[160,122,84],[224,200,168],[196,164,120],[148,116,86],[236,224,202]],
     fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:0}, big:["elephant","giraffe","zebra","wildebeest"], small:["meerkat","lizard"], air:["vulture","stork"] },
@@ -3844,7 +3849,7 @@ var BIOME_VARIANTS={
   // is free. Every other land keys separately, so a five-entry canyon reshuffles nothing but itself.
   savanna:[ {},
     { name:"THE GREAT MIGRATION", // the wet-season crossing: green grass and the herd at full size
-      far:[168,190,132], near:[132,166,92],  cap:[198,214,158], ground:[146,176,100], migration:1,
+      far:[168,190,132], near:[132,166,92],  cap:[198,214,158], ground:[146,176,100], migration:1, bigSky:1, dustSky:1,
       walls:[[208,180,140],[180,152,110],[228,216,192],[156,128,92],[220,204,176],[192,168,128],[144,120,90],[234,226,208]],
       // the wet season gets the FEVER TREE, which really does follow standing water — a pale-boled
       // acacia against the green, so the two seasons differ in their trees and not only in their grass
@@ -3852,7 +3857,7 @@ var BIOME_VARIANTS={
       fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:0}, big:["wildebeest","zebra","elephant","giraffe"], small:["meerkat"], air:["stork","vulture"] },
       sky:{ top:[104,152,204], bot:[228,232,208], k:0.52, haze:[232,234,204] } },
     { name:"THE DRY SEASON",      // burnt gold, dust, and everything gathered at what water is left
-      far:[210,188,128], near:[192,164,86],  cap:[228,212,164], ground:[204,178,96], dust:1,
+      far:[210,188,128], near:[192,164,86],  cap:[228,212,164], ground:[204,178,96], dust:1, bigSky:1, dustSky:1,
       walls:[[216,178,128],[192,150,98],[236,218,186],[168,128,84],[228,204,168],[202,170,118],[156,120,84],[240,228,204]],
       // …and the dry season gets the euphorbia, which is a succulent and does not care
       flora:{ kinds:["acacia","scrub","acacia","euphorbia","acacia","grass"], bloom:["#ffd166","#e8a040","#ffffff"] },
@@ -31104,8 +31109,11 @@ function drawPlainsSky(g,L,now,nd,fx){
 
   // ---- DISTANT RELIEF: a butte far out, and low bluffs -----------------------------------------
   // Static per life. Not to make the plain hilly — to give the eye somewhere to land on a flat line.
+  // ⚠ GATED SEPARATELY FROM `bigSky`. THE SAVANNA now shares this whole sky writer — it has the same
+  // fault and the machinery was already built — but it already has three great kopjes and a baobab per
+  // monitor-third for the eye to land on, and a fourth far shoulder behind them is one relief too many.
   var bl=rng(((lifeIndexOf(now)*2654435761+8191)>>>0));
-  for(var b=0;b<3;b++){
+  for(var b=0;b<(curBiome.skyRelief?3:0);b++){
     var bx=bl()*WW-WOFF, bw=Math.round((26+bl()*44)*K), bh=Math.round((3+bl()*6)*K);
     for(var wq=-1;wq<=1;wq++){ var sx=bx+wq*WW;
       if(sx+bw<-4||sx>SW+4) continue;
@@ -31223,6 +31231,49 @@ function drawPlainsSky(g,L,now,nd,fx){
           }
         }
       }
+    }
+  }
+
+  // ---- THE HUGE LOW SUN, and the DUST that is what you are actually seeing it through -----------
+  // Locked filler 3. ⚠ NOT A BIGGER SUN DISC: the sun is drawn once, world-anchored, from its real
+  // computed position — the thing five sky renderers were caught flying underground. What makes that
+  // enormous low sun is the AIR, so this is a broad warm bloom around wherever the sun already is,
+  // plus a graded haze that thickens toward the horizon. Both then work on any land that asks.
+  if(curBiome.dustSky && day){
+    var dryV=!!curBiome.dust, wetV=!!curBiome.migration;
+    // ⚠⚠ ANCHORED TO `sunPos()`, NOT TO A FRACTION OF THE SCREEN. My first version read `curSunDf*SW`
+    // — but `curSunDf` is the day ARC, not a screen position, so multiplying it by the screen width
+    // puts a huge glow wherever it lands while the real disc sits somewhere else on the same monitor.
+    // That is the sun-anchor bug precisely: world-anchored is necessary, not sufficient, it has to be
+    // anchored to the RIGHT world position — and it has to WRAP the way the disc itself does.
+    var SPs=sunPos(), sunX=SPs.x;
+    if(sunX>SW+600 && sunX-WW>-600) sunX-=WW;  if(sunX<-600 && sunX+WW<SW+600) sunX+=WW;
+    // ⚠ AND LOW MEANS LOW. My first factor was `1-|df-0.5|*2.6`, which peaks at NOON — the exact
+    // opposite of the huge low sun that was asked for, and it would have turned every midday into
+    // soup while the dawn and dusk it is meant for got nothing.
+    var lowF=Math.min(1,Math.abs(SPs.df-0.5)*2.2);          // 0 overhead, 1 on the horizon
+    var bloom=(dryV?0.34:0.22)*(0.22+0.78*lowF);
+    if(bloom>0.02&&sunX>-700&&sunX<SW+700){
+      var sunY=SPs.y;
+      var rad=Math.round(HORIZON*(dryV?0.62:0.46)*(0.7+0.5*lowF));
+      g.globalCompositeOperation="lighter";
+      var sg=g.createRadialGradient(sunX,sunY,rad*0.06,sunX,sunY,rad);
+      sg.addColorStop(0,   rgba(dryV?[255,236,190]:[255,244,222],bloom));
+      sg.addColorStop(0.42,rgba(dryV?[248,206,140]:[244,226,190],bloom*0.38));
+      sg.addColorStop(1,   rgba([240,200,150],0));
+      g.fillStyle=sg; g.fillRect(sunX-rad,sunY-rad,rad*2,rad*2);
+      g.globalCompositeOperation="source-over";
+    }
+    // ⚠ THE HAZE IS THE VARIANT TELL. Locked answer 4 asked for the two seasons to be unmistakable and
+    // they were still sharing one sky: bleached dust that swallows the horizon in the dry, a heavy
+    // moist band low down in the wet. It is graded, never a flat wash — a flat 0.30 grey is what made
+    // the Ashlands' ashfall read as fog and cost that land its landform.
+    var hzTop=Math.round(gy-HORIZON*(dryV?0.52:0.34)), hzC=dryV?[236,214,166]:[206,214,206];
+    var hzA=dryV?0.30:0.16;
+    for(var hy2=hzTop;hy2<gy;hy2++){
+      var hf2=(hy2-hzTop)/Math.max(1,gy-hzTop);
+      g.fillStyle=rgba(hzC,hzA*hf2*hf2);
+      g.fillRect(0,hy2,SW,1);
     }
   }
 
