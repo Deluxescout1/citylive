@@ -21608,19 +21608,42 @@ function drawSavanna(g,L,now,nd){
   // ⚠ A SERIES, and BIGGER. The savanna judged as the emptiest land in the sweep: one kopje per world
   // meant most monitors had no vertical reference at all, and at 0.17 of the sky even the one that did
   // barely registered. This is the land's only landform — it has to be findable.
+  // ⚠⚠ THESE WERE STILL THE OLD SMOOTH TAN HALF-ELLIPSES — the exact shape the diagnosis called out as
+  // reading like a DUNE — standing right beside the new stacked-boulder great kopjes in near-black. The
+  // land was disagreeing with itself about what a kopje is, and I introduced that by upgrading only the
+  // hero ones. Same construction as the great kopje, at a quarter of the size: a pile of weathered
+  // blocks, so the outline has shoulders and notches, and dark enough to be rock rather than sand.
+  // 🔑 Fixing the headline instance and leaving the rest is the half-fix this project has now made
+  // three times (the sun anchor, then five sky renderers, then thirteen more).
   var KPS=landmarkXs((WORLD_SEED*40503+911)>>>0, 520);
   for(var ki=0;ki<KPS.length;ki++){
   var kwx=KPS[ki].x, kseed=KPS[ki].seed;
+  var kRockD=mixc(day?[62,52,48]:[15,13,15], skc, 0.16);
+  var kRockL=mixc(day?[112,92,76]:[28,24,24], skc, 0.20);
+  var kSunL=(curSunDf<0.5);
   for(var o=-1;o<=1;o++){
-    var kx=Math.round(kwx-WOFF+o*WW), kw=Math.round((54+((kseed>>>5)%26))*Math.max(1,K*0.5)), kh=Math.round(HORIZON*(0.24+0.12*((kseed>>>11)%100)/100));
-    if(kx+kw<0||kx-kw>SW) continue;
-    for(var q=-kw;q<kw;q++){
-      var u=Math.abs(q/kw), prof=Math.pow(Math.max(0,1-u*u),0.5);
-      var xx=kx+q; if(xx<0||xx>=SW) continue;
-      var ky=Math.round(HORIZON-kh*prof);
-      g.fillStyle=css(mixc(day?[150,128,104]:[38,32,28], skc, 0.18));
-      g.fillRect(xx,ky,1,HORIZON-ky+1);
-      if(q<0&&litK>0.1){ g.fillStyle=rgba(mixc([214,190,150],[255,235,190],0.4),0.28*litK); g.fillRect(xx,ky,1,HORIZON-ky+1); }
+    var kx=Math.round(kwx-WOFF+o*WW), kw=Math.round((40+((kseed>>>5)%22))*Math.max(1,K*0.5));
+    var kh=Math.round(HORIZON*(0.14+0.09*((kseed>>>11)%100)/100));
+    if(kx+kw<-6||kx-kw>SW+6) continue;
+    var kNB=3+(kseed%3);
+    for(var kb=0;kb<kNB;kb++){
+      var kf=kb/kNB;
+      var kbw=Math.round(kw*(1-kf*0.86)*(0.80+((kseed>>>(kb*3+2))%100)/100*0.34));
+      var kbh=Math.round(kh*(0.34-kf*0.05)*(0.7+((kseed>>>(kb*5+1))%100)/100*0.6));
+      var kdx=Math.round(kw*0.44*((((kseed>>>(kb*7))%100)/100)-0.5));
+      var kby=HORIZON-Math.round(kh*kf*0.76);
+      for(var q=-kbw;q<=kbw;q++){
+        var u=Math.abs(q/Math.max(1,kbw));
+        var prof=Math.pow(Math.max(0,1-u*u*u),0.42);      // round on top, cut off flat where it sits
+        var xx=kx+kdx+q; if(xx<0||xx>=SW) continue;
+        var ky=Math.round(kby-kbh*prof);
+        if(ky>=kby) continue;
+        var klit=(kSunL?(q<0):(q>0)) && u>0.52;            // a RIM, not a half — see the great kopje
+        g.fillStyle=css(klit?mixc(kRockD,kRockL,(u-0.52)/0.48*litK):kRockD);
+        g.fillRect(xx,ky,1,kby-ky+1);
+        g.fillStyle=css(mixc(kRockD,[0,0,0],0.42));        // the joint: what says STACKED, not carved
+        g.fillRect(xx,ky,1,Math.max(1,Math.round(K*0.5)));
+      }
     }
   }
   }
