@@ -13225,7 +13225,440 @@ var SPEECH_SCENES=[
   {c:'classclash', b:["NOBODY WANTS TO WORK.","I'VE NEVER STOPPED.","THAT'S NOT WHAT I MEANT.","IT NEVER IS."]},
   {c:'partyclash',  b:["WE SHOULD BUILD HERE.","THAT'S THE LAST GREEN LOT.","PEOPLE NEED HOMES.","PEOPLE NEED AIR TOO."]},
   {c:'partyclash',  b:["MORE PATROLS, I SAY.","MORE BUSES, I SAY.","WE WANT DIFFERENT CITIES.","SAME CITY. DIFFERENT FEARS."]},
-  {c:'partyclash',  b:["THE COUNCIL DOES NOTHING.","THEY DID PLENTY TO ME.","WE CAN'T BOTH BE RIGHT.","NO. WE CAN'T."]}
+  {c:'partyclash',  b:["THE COUNCIL DOES NOTHING.","THEY DID PLENTY TO ME.","WE CAN'T BOTH BE RIGHT.","NO. WE CAN'T."]},
+  // ============================================================================================
+  // THE BIG BANK. Nick: "add a BUNCH of new conversations… more jokes and more references to pop
+  // culture and shows and movies and games… make it feel like they never run out."
+  // ⚠ HOUSE STYLE, LOCKED WITH HIM: recognisable but TWISTED — the reference is unmistakable and then
+  // it is bent into a citizen's mundane life. A straight quote reads as copy-paste; a deep cut lands on
+  // nobody. The joke has to work as an ordinary street conversation even if you have never seen the
+  // thing it is quoting.
+  // ⚠ KEEP LINES UNDER ~32 CHARACTERS. `drawSpeechBubble` bails on anything wider than the screen, and
+  // `readMs` caps its hold at 7 s — a line long enough to hit that cap is a line too wide to read at a
+  // glance on a wallpaper.
+  // ⚠ The grim banks (war, plague, regime, disaster, doom) are deliberately NOT part of this — Nick's
+  // call. The contrast is what gives those their weight.
+  // ---------------------------------------------------------------- GAMES
+  {c:'refs_games', b:["MY BACK IS KILLING ME.","STILL?","TOOK AN ARROW TO THE KNEE.","YOU WERE A CYCLIST."]},
+  {c:'refs_games', b:["THE BAKERY IS SHUT.","AGAIN?","THE CAKE IS A LIE.","IT WAS ALWAYS A LIE."]},
+  {c:'refs_games', b:["I FOUND A COIN IN THE ROAD.","LUCKY YOU.","IT MADE A LITTLE NOISE.","...KEEP THAT ONE."]},
+  {c:'refs_games', b:["IT IS DANGEROUS TO GO ALONE.","IT IS A BUS STOP.","TAKE THIS ANYWAY.","IT IS A COUPON."]},
+  {c:'refs_games', b:["I DIED ON THE STAIRS.","IN A GAME?","NO. THE REAL STAIRS.","PRACTICE MAKES PERFECT."]},
+  {c:'refs_games', b:["YOU DIED.","I FELL OFF THE KERB.","GET UP.","I NEED A BONFIRE FIRST."]},
+  {c:'refs_games', b:["WAR NEVER CHANGES.","THE COUNCIL DOES THOUGH.","NOT REALLY.","...FAIR POINT."]},
+  {c:'refs_games', b:["I BUILT A HOUSE LAST NIGHT.","NICE!","OUT OF DIRT.","THAT IS STILL A HOUSE."]},
+  {c:'refs_games', b:["SOMEBODY IS SUS.","IT IS ALWAYS DAVE.","IT WAS DAVE.","IT IS ALWAYS DAVE."]},
+  {c:'refs_games', b:["I NEED TO GO FAST.","THE BUS IS AT NINE.","THAT IS NOT FAST.","IT IS WHAT WE HAVE."]},
+  {c:'refs_games', b:["GOTTA CATCH THEM ALL.","CATCH WHAT?","THE 7:15, THE 8:02...","OH. COMMUTING."]},
+  {c:'refs_games', b:["THE PRINCESS IS IN ANOTHER-","DO NOT.","-CASTLE.","I SAID DO NOT."]},
+  {c:'refs_games', b:["MY WIFE DIED OF DYSENTERY.","WHAT?!","IN THE GAME.","START WITH THAT NEXT TIME."]},
+  {c:'refs_games', b:["FINISH HIM!","IT IS A PARKING METER.","FINISH IT!","I AM PAYING IT, RELAX."]},
+  {c:'refs_games', b:["I SEE A RED DOOR.","AND?","I WANT IT PAINTED BLACK.","THAT IS A DIFFERENT THING."]},
+  {c:'refs_games', b:["THE MINES ARE PLAYED OUT.","SAYS WHO?","SAYS MY PICKAXE.","GET A BETTER PICKAXE."]},
+  {c:'refs_games', b:["I HEARD YOU LIKE FISHING.","I DO.","FOR THIRTY REAL HOURS?","IT IS RELAXING."]},
+  {c:'refs_games', b:["DO A BARREL ROLL!","I AM DRIVING A BUS.","...DO A GENTLE TURN.","THANK YOU."]},
+  {c:'refs_games', b:["ALL YOUR BASE ARE OURS.","YOUR GRAMMAR IS TERRIBLE.","SET UP US THE BOMB.","GO HOME, MARTIN."]},
+  {c:'refs_games', b:["I SAVED BEFORE THE MEETING.","YOU CANNOT SAVE LIFE.","I TRIED.","AND?","..."]},
+  {c:'refs_games', b:["HEY! LISTEN!","WHAT.","HEY! LOOK!","I WILL PAY YOU TO STOP."]},
+  {c:'refs_games', b:["I AM STUCK ON LEVEL ONE.","OF WHAT?","MONDAY.","WE ALL ARE."]},
+  {c:'refs_games', b:["MY HORSE IS ON THE ROOF.","HOW.","I DO NOT WANT TO TALK.","I WOULD LIKE TO."]},
+  {c:'refs_games', b:["THE VENDOR HAS NEW STOCK.","GOOD STUFF?","A ROCK AND SOME STRING.","CLASSIC VENDOR."]},
+  {c:'refs_games', b:["I RESPEC MY WHOLE LIFE.","INTO WHAT?","NAPPING, MOSTLY.","STRONG BUILD."]},
+  {c:'refs_games', b:["THE FRAME RATE IS BAD TODAY.","THE WHAT?","MY EYES. IT IS MONDAY.","AH. YES."]},
+  {c:'refs_games', b:["I GOT THE HIGH SCORE.","AT WHAT?","THE SELF CHECKOUT.","THAT IS NOT A GAME."]},
+  {c:'refs_games', b:["PRESS X TO PAY RESPECTS.","IT IS A PARKING TICKET.","PRESS IT ANYWAY.","...PRESSED."]},
+  {c:'refs_games', b:["I NEED MORE MINERALS.","YOU NEED A JOB.","SAME THING.","NOT REMOTELY."]},
+  {c:'refs_games', b:["MY BUILD IS UNDERPOWERED.","YOU ARE A PLUMBER.","EXACTLY MY POINT.","...HUH."]},
+  {c:'refs_games', b:["I HAVE NO STAMINA LEFT.","IT IS TEN IN THE MORNING.","IT REGENERATES SLOWLY.","SO DOES MINE."]},
+  {c:'refs_games', b:["THAT GUY DROPPED LOOT.","HE DROPPED HIS WALLET.","SAME ENERGY.","GIVE IT BACK, KEVIN."]},
+  {c:'refs_games', b:["I AM FARMING XP.","AT WORK?","AT WORK.","THEY CALL THAT A SHIFT."]},
+  {c:'refs_games', b:["THE TUTORIAL NEVER ENDED.","FOR WHAT?","BEING AN ADULT.","THIRTY YEARS IN. SAME."]},
+  {c:'refs_games', b:["I ROLLED A NATURAL ONE.","ON WHAT?","ASKING HER OUT.","OOF. CRITICAL FAIL."]},
+  {c:'refs_games', b:["WE NEED TO SPLIT THE PARTY.","WHY?","THE QUEUE IS SHORTER.","BOLD. RECKLESS. FINE."]},
+  {c:'refs_games', b:["THE BOSS HAS A SECOND PHASE.","YOUR MANAGER?","AFTER LUNCH. ALWAYS.","LEARN THE PATTERN."]},
+  {c:'refs_games', b:["I AM HARD LOCKED.","BY WHAT?","THE SOFA. THE SOFA WON.","GG."]},
+  {c:'refs_games', b:["ACHIEVEMENT UNLOCKED.","WHICH ONE?","I WASHED THE DISHES.","RARE. VERY RARE."]},
+  {c:'refs_games', b:["THIS IS MY FINAL FORM.","IN A DRESSING GOWN?","IT IS SUNDAY.","...VALID."]},
+  {c:'refs_games', b:["MY INVENTORY IS FULL.","IT IS A HANDBAG.","IT IS ENCUMBERED.","DROP THE ROCKS THEN."]},
+  {c:'refs_games', b:["I NEED A CHECKPOINT.","BEFORE WHAT?","THIS CONVERSATION.","TOO LATE NOW."]},
+  {c:'refs_games', b:["SPEEDRUN TO THE BUS?","ANY PERCENT?","GLITCHLESS.","THEN WE ARE WALKING."]},
+  {c:'refs_games', b:["I PICKED THE WRONG CLASS.","AT SCHOOL?","AT BIRTH.","BIT LATE TO REROLL."]},
+  {c:'refs_games', b:["THE NPC AT THE DESK AGAIN.","THAT IS A PERSON.","HE SAID THE SAME LINE.","HE WORKS THERE!"]},
+  {c:'refs_games', b:["ONE MORE TURN.","IT IS THREE IN THE MORNING.","ONE. MORE. TURN.","I AM CALLING YOUR MUM."]},
+  {c:'refs_games', b:["THE LOOT WAS DISAPPOINTING.","WHAT WAS IT?","SOCKS. AGAIN.","THAT IS CHRISTMAS."]},
+  {c:'refs_games', b:["THE PATCH NOTES ARE BRUTAL.","FOR WHAT?","MY KNEES. FORTY NOW.","NO ROLLBACK EITHER."]},
+  {c:'refs_games', b:["I HAVE FALL DAMAGE.","FROM WHAT?","TWO STEPS. TWO.","WE ARE SO OLD."]},
+  {c:'refs_games', b:["THAT SHOP IS A LOOT BOX.","HOW SO?","I NEVER GET WHAT I WANT.","AND YOU KEEP PAYING."]},
+  {c:'refs_games', b:["I AM AFK FOR TEN.","YOU ARE STANDING HERE.","MENTALLY, I AM AFK.","UNDERSTOOD, TRULY."]},
+  {c:'refs_games', b:["SIDE QUESTS ONLY TODAY.","AND THE MAIN ONE?","IT WILL WAIT.","IT ALWAYS WAITS."]},
+  {c:'refs_games', b:["MY DOG IS A TANK BUILD.","MEANING?","HE ABSORBS EVERYTHING.","INCLUDING MY SHOE?"]},
+  {c:'refs_games', b:["I SEE THE MAP FOG LIFTING.","WHERE?","EAST SIDE. NEW BLOCKS.","WE SHOULD EXPLORE."]},
+  {c:'refs_games', b:["RESPAWN AT THE CAFE?","THAT IS OUR SPAWN POINT.","IT IS THE ONLY ONE.","SEE YOU THERE."]},
+  {c:'refs_games', b:["THE HITBOX ON THAT KERB.","YOU TRIPPED.","THE HITBOX IS WRONG.","IT IS CONCRETE, DAVE."]},
+  {c:'refs_games', b:["I MAXED OUT COOKING.","SINCE WHEN?","SINCE I BURNED THE RICE.","THAT IS NOT MAXED."]},
+  {c:'refs_games', b:["EVERYTHING IS PAY TO WIN.","THAT IS JUST RENT.","YES. THAT IS MY POINT.","...OH."]},
+  {c:'refs_games', b:["I HEAR THE PAUSE MUSIC.","WHERE?","THE LIFT. ALWAYS THE LIFT.","THAT IS JUST JAZZ."]},
+  {c:'refs_games', b:["THIS WEATHER IS SCRIPTED.","IT IS RAIN.","IT RAINS EVERY CUTSCENE.","...ODDLY TRUE."]},
+  {c:'refs_games', b:["I NEED A GUIDE FOR THIS.","FOR TAXES?","FOR TAXES.","NOBODY HAS ONE."]},
+  {c:'refs_games', b:["MY BROTHER IS A SPEEDRUNNER.","AT WHAT?","LEAVING PARTIES.","THAT IS A SKILL."]},
+  {c:'refs_games', b:["THE DIFFICULTY SPIKED.","WHERE?","THIRTY. IT SPIKED AT THIRTY.","NOBODY WARNS YOU."]},
+  {c:'refs_games', b:["I FOUND A SECRET ROOM.","IN YOUR FLAT?","BEHIND THE BOXES.","THAT IS A CUPBOARD."]},
+  {c:'refs_games', b:["THE ESCORT MISSION AGAIN.","MEANING?","WALKING MY NAN HOME.","BE NICE. SHE IS QUICK."]},
+  {c:'refs_games', b:["MY LUCK STAT IS ZERO.","EVIDENCE?","IT RAINED ON MY WEDDING.","AND ON MY DIVORCE."]},
+  {c:'refs_games', b:["I NEED A BIGGER BAG.","FOR WHAT?","EVERYTHING I DO NOT NEED.","THE HUMAN CONDITION."]},
+  {c:'refs_games', b:["THE SHOPKEEPER SEES ME.","AND?","HE STARTS THE SAME SPEECH.","HE IS BEING FRIENDLY!"]},
+  {c:'refs_games', b:["I CANNOT SKIP THIS ADVERT.","NOBODY CAN.","FIVE SECONDS. ALWAYS FIVE.","THE LONGEST FIVE."]},
+  {c:'refs_games', b:["MY COMBO IS BROKEN.","WHAT COMBO?","ELEVEN DAYS OF THE GYM.","START AT ONE AGAIN."]},
+  {c:'refs_games', b:["THE ROADWORKS ARE A WALL.","AN INVISIBLE ONE?","VERY VISIBLE. VERY ORANGE.","OUT OF BOUNDS THEN."]},
+  {c:'refs_games', b:["I AM GRINDING FOR A HOUSE.","HOW LONG?","ELEVEN MORE YEARS.","BRUTAL DROP RATE."]},
+  {c:'refs_games', b:["DID YOU READ THE LORE?","OF WHAT?","THE BIN COLLECTION SIGN.","...NO ONE HAS."]},
+  {c:'refs_games', b:["I THINK THIS IS A TUTORIAL.","OF WHAT?","THE NEW JOB. DAY NINE.","THAT IS JUST THE JOB."]},
+  {c:'refs_games', b:["MY CHARACTER IS OVERWEIGHT.","YOUR CHARACTER?","FINE. ME. IT IS ME.","WE GATHERED THAT."]},
+  {c:'refs_games', b:["I HEARD A CHEST OPEN.","THAT IS THE POST BOX.","IT COULD BE TREASURE.","IT IS A GAS BILL."]},
+  {c:'refs_games', b:["THIS QUEUE HAS NO END.","IT IS THE POST OFFICE.","IT IS AN ENDLESS DUNGEON.","AND NO LOOT."]},
+  {c:'refs_games', b:["I GOT A RARE DROP.","SHOW ME.","A PARKING SPOT. OUT FRONT.","LEGENDARY. TRULY."]},
+  // ---------------------------------------------------------------- SCI-FI & FANTASY FILM
+  {c:'refs_scifi', b:["I AM YOUR LANDLORD.","THAT IS IMPOSSIBLE!","SEARCH YOUR LEASE.","...NOOOO."]},
+  {c:'refs_scifi', b:["I HAVE A BAD FEELING.","ABOUT WHAT?","TUESDAY.","YOU SAY THAT EVERY TUESDAY."]},
+  {c:'refs_scifi', b:["THESE ARE NOT THE KEYS.","THEY ARE YOUR KEYS.","THESE ARE NOT THE KEYS.","THEY ARE IN YOUR HAND."]},
+  {c:'refs_scifi', b:["THERE IS NO SPOON.","THERE IS NO SOUP EITHER.","THEN WHAT IS FOR LUNCH.","BREAD. JUST BREAD."]},
+  {c:'refs_scifi', b:["RED PILL OR BLUE PILL?","WHAT ARE THEY?","VITAMINS. I LOST THE BOX.","BLUE. NO. RED. NO."]},
+  {c:'refs_scifi', b:["I WILL BE BACK.","YOU ARE GOING TO THE SHOP.","I WILL STILL BE BACK.","GET MILK, TERMINATOR."]},
+  {c:'refs_scifi', b:["COME WITH ME IF YOU WANT-","TO LIVE?","-TO GET CHIPS.","EVEN BETTER."]},
+  {c:'refs_scifi', b:["THE SPICE MUST FLOW.","IT IS PAPRIKA.","IT MUST STILL FLOW.","IT IS ON THE SHELF."]},
+  {c:'refs_scifi', b:["ONE DOES NOT SIMPLY-","OH HERE WE GO.","-PARK ON THIS STREET.","...ACTUALLY, FAIR."]},
+  {c:'refs_scifi', b:["YOU SHALL NOT PASS!","IT IS A ZEBRA CROSSING.","YOU SHALL NOT PASS YET.","THE LIGHT IS GREEN."]},
+  {c:'refs_scifi', b:["MY PRECIOUS.","IT IS A PARKING PERMIT.","MY PRECIOUS.","...OKAY, THAT IS FAIR."]},
+  {c:'refs_scifi', b:["WE COULD TAKE THE EAGLES.","THERE ARE NO EAGLES.","THERE ARE NEVER EAGLES.","WE WALK. AS ALWAYS."]},
+  {c:'refs_scifi', b:["LIFE FINDS A WAY.","IT IS A WEED.","IN THE PAVEMENT!","THAT IS STILL A WEED."]},
+  {c:'refs_scifi', b:["HOLD ONTO YOUR HATS.","WHY?","THE BUS DRIVER IS NEW.","OH NO."]},
+  {c:'refs_scifi', b:["WHO YOU GONNA CALL?","THE COUNCIL.","THEY NEVER ANSWER.","THEN NOBODY. AS USUAL."]},
+  {c:'refs_scifi', b:["I AIN'T AFRAID OF NO RENT.","YOU SHOULD BE.","I AM, ACTUALLY.","YES. WE ALL ARE."]},
+  {c:'refs_scifi', b:["GREAT SCOTT!","WHAT?","WE ARE LATE.","YOU SAID THAT AT 1955."]},
+  {c:'refs_scifi', b:["WHERE WE ARE GOING-","YES?","-WE STILL NEED ROADS.","SADLY, YES."]},
+  {c:'refs_scifi', b:["BEAM ME UP.","THE LIFT IS BROKEN.","THEN BEAM ME SIDEWAYS.","TAKE THE STAIRS."]},
+  {c:'refs_scifi', b:["IT IS LIFE, BUT NOT AS-","DO NOT.","-WE KNOW IT.","IT IS A PIGEON, JIM."]},
+  {c:'refs_scifi', b:["RESISTANCE IS FUTILE.","IT IS A QUEUE.","EXACTLY MY POINT.","...ASSIMILATE ME THEN."]},
+  {c:'refs_scifi', b:["IN SPACE NOBODY HEARS YOU.","AND ON THIS BUS?","ALSO NOBODY.","I HEARD YOU."]},
+  {c:'refs_scifi', b:["I HAVE SEEN THINGS.","SUCH AS?","THE BIN LORRY AT DAWN.","POETIC, HONESTLY."]},
+  {c:'refs_scifi', b:["ALL THOSE MOMENTS WILL-","BE LOST?","-LIKE SOCKS IN THE WASH.","TIME TO DRY."]},
+  {c:'refs_scifi', b:["MAY THE FORCE BE WITH YOU.","I AM DOING MY TAXES.","THEN YOU NEED IT MORE.","THANK YOU. TRULY."]},
+  {c:'refs_scifi', b:["IT IS A TRAP!","IT IS A SALE.","SAME THING.","...YOU ARE NOT WRONG."]},
+  {c:'refs_scifi', b:["DO OR DO NOT.","THERE IS NO TRY?","THERE IS A LOT OF TRY.","THAT IS BETTER ADVICE."]},
+  {c:'refs_scifi', b:["THE CAKE IS AT THE BOTTOM.","OF WHAT?","THE BAG. UNDER THE TINS.","A TRAGEDY IN ONE ACT."]},
+  {c:'refs_scifi', b:["I FIND YOUR LACK OF-","OF WHAT.","-MILK DISTURBING.","I WENT SHOPPING SUNDAY!"]},
+  {c:'refs_scifi', b:["THAT IS NO MOON.","IT IS THE GASWORKS.","IT IS A SPACE STATION.","IT IS THE GASWORKS."]},
+  {c:'refs_scifi', b:["I HAVE THE HIGH GROUND.","YOU ARE ON A KERB.","IT IS STILL HIGHER.","...IT IS, ACTUALLY."]},
+  {c:'refs_scifi', b:["HELLO THERE.","GENERAL.","YOU REMEMBERED.","I ALWAYS DO."]},
+  {c:'refs_scifi', b:["THIS IS THE WAY.","TO THE STATION?","TO THE STATION.","THIS IS THE WAY."]},
+  {c:'refs_scifi', b:["I AM ALTERING THE DEAL.","YOU CANNOT.","PRAY I DO NOT ALTER IT MORE.","IT IS A CAR BOOT SALE."]},
+  {c:'refs_scifi', b:["FLY, YOU FOOLS!","THE TRAIN IS NOT HERE.","THEN WALK, YOU FOOLS.","LESS DRAMATIC."]},
+  {c:'refs_scifi', b:["MY RING IS MISSING.","THE WEDDING ONE?","THE ONE FROM THE CEREAL.","BREATHE. JUST BREATHE."]},
+  {c:'refs_scifi', b:["I SEE DEAD PLANTS.","HOW MANY?","ALL OF THEM. ALL MINE.","MAYBE WATER THEM."]},
+  {c:'refs_scifi', b:["THE TRUTH IS OUT THERE.","WHERE?","SOMEWHERE PAST THE RING ROAD.","IT ALWAYS IS."]},
+  {c:'refs_scifi', b:["I WANT TO BELIEVE.","IN WHAT?","THAT THE 8:02 IS REAL.","BOLD OF YOU."]},
+  {c:'refs_scifi', b:["KLAATU BARADA...","BARADA WHAT?","I FORGOT THE LAST WORD.","THAT IS HOW WE DIE."]},
+  {c:'refs_scifi', b:["OPEN THE DOOR PLEASE.","I AM AFRAID I CANNOT.","IT IS THE FRONT DOOR.","I AM AFRAID I CANNOT."]},
+  {c:'refs_scifi', b:["THIS MISSION IS TOO-","IMPORTANT?","-EARLY. IT IS SIX AM.","AGREED. ABORT."]},
+  {c:'refs_scifi', b:["I AM THE ONE.","THE ONE WHAT?","THE ONE WHO FORGOT KEYS.","THE PROPHECY. AGAIN."]},
+  {c:'refs_scifi', b:["THE ANSWER IS FORTY TWO.","THE QUESTION?","NOBODY WROTE IT DOWN.","TYPICAL COUNCIL."]},
+  {c:'refs_scifi', b:["DO NOT PANIC.","I AM NOT PANICKING.","YOU HAVE A TOWEL?","...I AM PANICKING."]},
+  {c:'refs_scifi', b:["SO LONG, AND THANKS-","FOR ALL THE FISH?","-FOR THE BUS FARE.","PAY ME BACK, ARTHUR."]},
+  {c:'refs_scifi', b:["THEY DID NOT ASK IF-","IF THEY SHOULD?","EXACTLY. AND NOW: A ROUNDABOUT.","WITH FIVE EXITS."]},
+  {c:'refs_scifi', b:["I FEEL A DISTURBANCE.","IN THE FORCE?","IN THE FRIDGE.","SOMETHING HAS TURNED."]},
+  {c:'refs_scifi', b:["NEVER TELL ME THE ODDS.","IT IS A WEATHER APP.","NEVER TELL ME THE ODDS.","SEVENTY PERCENT RAIN."]},
+  {c:'refs_scifi', b:["WE ARE GOING TO NEED-","A BIGGER BOAT?","-A BIGGER BIN.","IT IS ALWAYS THE BIN."]},
+  {c:'refs_scifi', b:["THE SHARK IS BACK.","THERE IS NO SHARK.","THEN WHY THE MUSIC.","THAT IS THE ICE CREAM VAN."]},
+  {c:'refs_scifi', b:["HERE IS LOOKING AT YOU.","THAT IS A DIFFERENT FILM.","IT STILL WORKS.","...IT DOES."]},
+  {c:'refs_scifi', b:["ROUND UP THE USUAL LOT.","WHICH LOT?","THE PIGEONS. ALWAYS THEM.","THEY DID NOTHING."]},
+  {c:'refs_scifi', b:["I AM A WIZARD, HARRY.","MY NAME IS DEREK.","I AM A WIZARD, DEREK.","OKAY. GOOD FOR YOU."]},
+  {c:'refs_scifi', b:["TEN POINTS FROM ME.","FOR WHAT?","YOU TOOK THE LAST BISCUIT.","WORTH IT."]},
+  {c:'refs_scifi', b:["WINGARDIUM LEVIOSA.","IT IS A SHOPPING BAG.","IT IS NOT LEVITATING.","BECAUSE IT IS A BAG."]},
+  {c:'refs_scifi', b:["I VOLUNTEER AS TRIBUTE.","FOR WHAT?","SOMEONE MUST DO THE BINS.","BRAVE. TRULY BRAVE."]},
+  {c:'refs_scifi', b:["MAY THE ODDS BE EVER-","IN OUR FAVOUR?","-BETTER THAN LAST WEEK.","LOW BAR. GOOD BAR."]},
+  {c:'refs_scifi', b:["WAKANDA FOREVER!","IT IS A COUNCIL MEETING.","WAKANDA FOREVER.","...SIT DOWN, LEON."]},
+  {c:'refs_scifi', b:["I CAN DO THIS ALL DAY.","THE MEETING IS TWO HOURS.","I CAN DO THIS ALL DAY.","YOU CANNOT."]},
+  {c:'refs_scifi', b:["AVENGERS, ASSEMBLE.","IT IS FLAT PACK FURNITURE.","AVENGERS, ASSEMBLE.","WE ARE MISSING A SCREW."]},
+  {c:'refs_scifi', b:["WITH GREAT POWER COMES-","GREAT RESPONSIBILITY?","-A GREAT ELECTRIC BILL.","OH NO, THE METER."]},
+  {c:'refs_scifi', b:["I AM INEVITABLE.","YOU ARE LATE.","I AM INEVITABLY LATE.","THAT IS TRUE."]},
+  {c:'refs_scifi', b:["I AM SPEED.","YOU ARE ON A BICYCLE.","I AM MODERATE SPEED.","BETTER."]},
+  {c:'refs_scifi', b:["TO INFINITY AND-","BEYOND?","-THE END OF THIS QUEUE.","MUCH FURTHER, THEN."]},
+  {c:'refs_scifi', b:["THE CIRCLE OF LIFE!","IT IS A ROUNDABOUT.","THE CIRCLE OF LIFE.","TAKE THE SECOND EXIT."]},
+  {c:'refs_scifi', b:["HAKUNA MATATA.","MY RENT IS DUE.","HAKUNA SOME MATATA.","THAT IS MORE LIKE IT."]},
+  {c:'refs_scifi', b:["LET IT GO!","IT IS THE LAST PARKING SPOT.","LET IT GO.","NEVER. NEVER EVER."]},
+  {c:'refs_scifi', b:["I SEE THE LIGHT.","THAT IS A STREETLAMP.","IT IS BEAUTIFUL.","IT IS A STREETLAMP."]},
+  {c:'refs_scifi', b:["THE FIRST RULE IS-","DO NOT TALK ABOUT IT?","-BRING YOUR OWN BAG.","SOLID RULE."]},
+  {c:'refs_scifi', b:["I AM KING OF THE WORLD!","GET OFF THE BENCH.","I AM KING OF THE BENCH.","THAT IS ACCURATE."]},
+  {c:'refs_scifi', b:["THERE IS NO PLACE LIKE-","HOME?","-A CHEAP FLAT NEAR WORK.","THAT PLACE IS A MYTH."]},
+  {c:'refs_scifi', b:["WE ARE NOT IN KANSAS.","WE HAVE NEVER BEEN.","STILL FEELS TRUE.","IT ALWAYS DOES."]},
+  {c:'refs_scifi', b:["FOLLOW THE YELLOW LINE.","THE ROAD ONE?","THE ONE ON THE PLATFORM.","LESS MAGICAL."]},
+  {c:'refs_scifi', b:["FRANKLY, MY DEAR-","YES?","-I FORGOT WHAT I WANTED.","HAPPENS TO US ALL."]},
+  {c:'refs_scifi', b:["THE BEES ARE ORGANISED.","INTO WHAT?","A UNION, I THINK.","GOOD FOR THE BEES."]},
+  {c:'refs_scifi', b:["I DRINK YOUR MILKSHAKE.","THAT IS MY COFFEE.","I DRINK YOUR COFFEE.","BUY YOUR OWN."]},
+  {c:'refs_scifi', b:["NOBODY PUTS ME IN A CORNER.","IT IS AN OPEN PLAN OFFICE.","THEN NOBODY CAN.","EXACTLY THE PROBLEM."]},
+  {c:'refs_scifi', b:["SHOW ME THE MONEY.","IT IS PAYDAY FRIDAY.","SHOW ME THE MONEY.","IT IS TUESDAY."]},
+  {c:'refs_scifi', b:["YOU HAD ME AT HELLO.","I SAID GOOD MORNING.","EVEN BETTER.","...OKAY THEN."]},
+  {c:'refs_scifi', b:["LIFE IS LIKE A BOX OF-","CHOCOLATES?","-CABLES. ALL TANGLED.","AND NONE OF THEM FIT."]},
+  {c:'refs_scifi', b:["RUN, FORREST!","MY NAME IS SANDRA.","RUN, SANDRA!","THE BUS IS RIGHT THERE."]},
+  // ---------------------------------------------------------------- TV COMEDY & SITCOMS
+  {c:'refs_tv', b:["I DECLARE BANKRUPTCY!","YOU CANNOT JUST SAY IT.","I DECLARED IT LOUDLY.","THAT IS NOT HOW IT WORKS."]},
+  {c:'refs_tv', b:["BEARS. BEETS. BATTLE-","DO NOT FINISH THAT.","-STAR GALACTICA.","I ASKED YOU NOT TO."]},
+  {c:'refs_tv', b:["THAT IS WHAT SHE SAID.","I SAID THE BIN IS FULL.","...I WILL ALLOW IT.","THANK YOU."]},
+  {c:'refs_tv', b:["IDENTITY THEFT IS NOT-","A JOKE?","-FUNNY. MILLIONS SUFFER.","I ONLY BORROWED A PEN."]},
+  {c:'refs_tv', b:["NO SOUP FOR YOU.","IT IS MY OWN KITCHEN.","NO SOUP FOR YOU.","I MADE THE SOUP!"]},
+  {c:'refs_tv', b:["THESE PRETZELS ARE-","MAKING YOU THIRSTY?","-STALE. VERY STALE.","LESS ICONIC. STILL TRUE."]},
+  {c:'refs_tv', b:["I AM A REAL HUMAN BEING.","NOBODY DOUBTED IT.","SOMEBODY MIGHT.","NOBODY, HONESTLY."]},
+  {c:'refs_tv', b:["THE GANG GOES TO THE SHOP.","THAT IS NOT AN EPISODE.","IT IS TODAY.","AH. FAIR."]},
+  {c:'refs_tv', b:["I AM THE MILK STEAK GUY.","PLEASE STOP.","BOILED OVER HARD.","PLEASE. STOP."]},
+  {c:'refs_tv', b:["TREAT YOURSELF.","IT IS A TUESDAY.","TREAT YOURSELF TUESDAY.","...GO ON THEN."]},
+  {c:'refs_tv', b:["I AM A SIMPLE MAN.","MEANING?","I LIKE BREAKFAST FOODS.","THAT IS ALL OF US."]},
+  {c:'refs_tv', b:["LITERALLY.","YOU MEAN FIGURATIVELY.","LITERALLY.","...FINE. LITERALLY."]},
+  {c:'refs_tv', b:["D-OH!","WHAT NOW?","I LOCKED MYSELF OUT.","AGAIN, HOMER?"]},
+  {c:'refs_tv', b:["EAT MY SHORTS.","THAT IS A HEALTH ISSUE.","IT IS AN EXPRESSION.","STILL A HEALTH ISSUE."]},
+  {c:'refs_tv', b:["WORST DAY EVER.","WHAT HAPPENED?","THEY MOVED THE BREAD.","...WORST DAY EVER."]},
+  {c:'refs_tv', b:["OLD MAN YELLS AT CLOUD.","I AM FORTY.","OLD MAN YELLS AT CLOUD.","THAT IS A REAL HEADLINE."]},
+  {c:'refs_tv', b:["I AM IN GREAT SHAPE.","YOU ARE OUT OF BREATH.","ROUND IS A SHAPE.","IT IS. LEGALLY."]},
+  {c:'refs_tv', b:["BITE MY SHINY-","DO NOT.","-BUS PASS.","...THAT IS FINE ACTUALLY."]},
+  {c:'refs_tv', b:["GOOD NEWS EVERYONE!","THAT IS NEVER GOOD NEWS.","IT IS AWFUL NEWS.","I KNEW IT."]},
+  {c:'refs_tv', b:["SHUT UP AND TAKE MY MONEY.","IT IS A CHARITY TIN.","THEN TAKE IT NICELY.","THANK YOU KINDLY."]},
+  {c:'refs_tv', b:["THIS IS AN EX-PARROT.","IT IS A PIGEON.","IT IS AN EX-PIGEON.","IT IS ASLEEP, JOHN."]},
+  {c:'refs_tv', b:["NOBODY EXPECTS THE-","THE WHAT.","-BIN LORRY AT SIX AM.","NOBODY EVER DOES."]},
+  {c:'refs_tv', b:["IT IS JUST A FLESH WOUND.","YOU STUBBED YOUR TOE.","TIS BUT A SCRATCH.","YOU ARE CRYING."]},
+  {c:'refs_tv', b:["WHAT IS YOUR QUICKEST WAY?","TO THE STATION?","OVER THE BRIDGE OF DEATH.","IT IS A ZEBRA CROSSING."]},
+  {c:'refs_tv', b:["I AM NOT DEAD YET!","NOBODY SAID YOU WERE.","I FEEL HAPPY!","GOOD. HAVE A BISCUIT."]},
+  {c:'refs_tv', b:["I HAVE MADE A HUGE MISTAKE.","HOW HUGE?","I REPLIED ALL.","OH NO. OH NO."]},
+  {c:'refs_tv', b:["THERE IS ALWAYS MONEY IN-","THE BANANA STAND?","-THE COAT POCKET.","CHECK THE OLD COAT."]},
+  {c:'refs_tv', b:["I AM STUDYING.","FOR WHAT?","LIFE. IT IS A GROUP PROJECT.","AND NOBODY DID THEIR PART."]},
+  {c:'refs_tv', b:["SIX SEASONS AND A MOVIE!","OF WHAT?","THIS BUS QUEUE.","IT DOES FEEL THAT LONG."]},
+  {c:'refs_tv', b:["I AM READY.","FOR WHAT?","ANYTHING. I AM READY.","IT IS A DENTIST APPOINTMENT."]},
+  {c:'refs_tv', b:["THE INNER MACHINATIONS-","OF YOUR MIND?","-ARE AN ENIGMA.","THEY REALLY ARE."]},
+  {c:'refs_tv', b:["IMAGINATION!","THAT IS A CARDBOARD BOX.","IMAGINATION.","IT IS STILL A BOX."]},
+  {c:'refs_tv', b:["MY LEG!","WHAT HAPPENED.","NOTHING. I JUST SAY IT.","EVERY TIME. EVERY TIME."]},
+  {c:'refs_tv', b:["HOW YOU DOIN?","I AM FINE THANK YOU.","THAT USUALLY WORKS.","IT NEVER WORKS."]},
+  {c:'refs_tv', b:["WE WERE ON A BREAK!","FROM THE GYM?","FROM THE GYM.","THAT WAS ELEVEN MONTHS."]},
+  {c:'refs_tv', b:["PIVOT! PIVOT!","IT IS A WARDROBE.","PIVOT!","IT WILL NOT FIT. EVER."]},
+  {c:'refs_tv', b:["COULD I BE MORE TIRED?","YOU COULD NOT.","THANK YOU.","YOU LOOK TERRIBLE."]},
+  {c:'refs_tv', b:["I AM VERY IMPORTANT.","AT WORK?","I HAVE MANY LEATHER BOOKS.","YOU HAVE ONE MAGAZINE."]},
+  {c:'refs_tv', b:["STAY CLASSY.","THIS IS A CAR PARK.","STAY CLASSY, CAR PARK.","GOODNIGHT."]},
+  {c:'refs_tv', b:["THAT ESCALATED QUICKLY.","IT IS A PARKING DISPUTE.","IT ESCALATED QUICKLY.","IT REALLY DID."]},
+  {c:'refs_tv', b:["I LOVE LAMP.","YOU LOVE THE LAMP?","I LOVE LAMP.","IT IS A NICE LAMP."]},
+  {c:'refs_tv', b:["SIXTY PERCENT OF THE TIME-","IT WORKS EVERY TIME?","-MY UMBRELLA DOES.","THAT IS NOT AN UMBRELLA."]},
+  {c:'refs_tv', b:["I AM KIND OF A BIG DEAL.","IN WHAT WAY.","THE BAKERY KNOWS MY ORDER.","THAT IS A BIG DEAL."]},
+  {c:'refs_tv', b:["DID I DO THAT?","YES.","...DID I DO THAT?","YES, YOU DID."]},
+  {c:'refs_tv', b:["HOW RUDE!","I SAID GOOD MORNING.","STILL. HOW RUDE.","...GOOD MORNING."]},
+  {c:'refs_tv', b:["YOU GOT IT, DUDE.","GOT WHAT?","I DO NOT KNOW. YOU GOT IT.","THANK YOU?"]},
+  {c:'refs_tv', b:["SUIT UP!","IT IS A DENTIST TRIP.","SUIT UP ANYWAY.","...FINE. I WILL SUIT UP."]},
+  {c:'refs_tv', b:["LEGEN- WAIT FOR IT-","I AM WAITING.","-DARY.","THAT TOOK TOO LONG."]},
+  {c:'refs_tv', b:["I AM ON A BOAT.","IT IS THE FERRY.","I AM STILL ON A BOAT.","TECHNICALLY CORRECT."]},
+  {c:'refs_tv', b:["FIRE!","WHERE?","NO, I AM PRACTISING.","DO NOT PRACTISE THAT."]},
+  {c:'refs_tv', b:["THE DOG ATE MY HOMEWORK.","YOU ARE FORTY-TWO.","THE DOG ATE MY TAX FORM.","...THAT IS WORSE."]},
+  {c:'refs_tv', b:["SCHRUTE FACTS.","NOT NOW.","BEARS EAT BEETS.","NOT NOW, DWIGHT."]},
+  {c:'refs_tv', b:["I AM NOT SUPERSTITIOUS.","GOOD.","I AM A LITTLE STITIOUS.","THAT IS NOT A WORD."]},
+  {c:'refs_tv', b:["PARKOUR!","IT IS A KERB.","PARKOUR!","YOU TRIPPED."]},
+  {c:'refs_tv', b:["WOULD I RATHER BE FEARED-","OR LOVED?","-OR JUST HAVE THE WIFI CODE.","IT IS ON THE FRIDGE."]},
+  {c:'refs_tv', b:["I AM BEYOND THE PALE.","WHICH PALE?","THE ONE PAST THE CO-OP.","THAT IS JUST NORTH SIDE."]},
+  {c:'refs_tv', b:["EVERYBODY LIES.","ABOUT WHAT?","HOW MUCH THEY LIKE FISHING.","...I LOVE FISHING."]},
+  {c:'refs_tv', b:["IT IS ALWAYS SUNNY-","IT IS RAINING.","-SOMEWHERE.","THAT IS A REACH."]},
+  {c:'refs_tv', b:["DENNIS HAS A SYSTEM.","FOR WHAT?","THE SUPERMARKET AISLES.","THAT IS JUST A LIST."]},
+  {c:'refs_tv', b:["I AM THE ONE WHO KNOCKS.","AT MY OWN DOOR?","I FORGOT MY KEYS.","LESS MENACING NOW."]},
+  {c:'refs_tv', b:["SAY MY NAME.","GARY.","YOU ARE RIGHT.","IT IS ON YOUR BADGE."]},
+  {c:'refs_tv', b:["I AM IN THE EMPIRE BUSINESS.","YOU RUN A CAFE.","IT IS A SMALL EMPIRE.","IT IS A NICE CAFE."]},
+  {c:'refs_tv', b:["BETTER CALL SOMEBODY.","WHO?","ANYBODY. THE SINK IS GONE.","GONE WHERE?"]},
+  {c:'refs_tv', b:["LEAVE THE GUN.","AND?","TAKE THE PASTRIES.","NOW THAT IS AN OFFER."]},
+  {c:'refs_tv', b:["I MADE HIM AN OFFER.","AND?","HE SAID THE SHOP IS SHUT.","SOME OFFERS FAIL."]},
+  {c:'refs_tv', b:["A MAN WHO DOES NOT SPEND-","TIME WITH HIS FAMILY?","-CAN NEVER BE A REAL MAN.","I AM WITH THEM NOW."]},
+  {c:'refs_tv', b:["FUNNY HOW?","LIKE A CLOWN?","I AM ASKING SERIOUSLY.","...YOU ARE NOT."]},
+  {c:'refs_tv', b:["AS FAR BACK AS I REMEMBER-","YES?","-I WANTED THE AISLE SEAT.","AND YOU NEVER GET IT."]},
+  {c:'refs_tv', b:["THE OWLS ARE NOT-","WHAT THEY SEEM?","-A PROBLEM. THEY ARE FINE.","...OKAY THEN."]},
+  {c:'refs_tv', b:["DAMN FINE COFFEE.","IT IS INSTANT.","DAMN FINE INSTANT COFFEE.","THAT IS THE SPIRIT."]},
+  {c:'refs_tv', b:["THE UPSIDE DOWN IS REAL.","WHERE?","THE MULTI-STOREY, LEVEL B.","IT IS JUST DARK."]},
+  {c:'refs_tv', b:["FRIENDS DO NOT LIE.","AGREED.","YOU SAID YOU LIKED MY HAIR.","...FRIENDS DO NOT LIE."]},
+  {c:'refs_tv', b:["THE NIGHT IS DARK-","AND FULL OF TERRORS?","-AND I FORGOT A TORCH.","THAT IS THE TERROR."]},
+  {c:'refs_tv', b:["WINTER IS COMING.","IT IS JUNE.","WINTER IS ALWAYS COMING.","...OKAY, THAT IS FAIR."]},
+  {c:'refs_tv', b:["YOU KNOW NOTHING.","ABOUT WHAT?","THE BIN COLLECTION DAYS.","...I KNOW NOTHING."]},
+  {c:'refs_tv', b:["A LANNISTER PAYS HIS DEBTS.","YOU OWE ME A FIVER.","I AM NOT A LANNISTER.","CONVENIENT."]},
+  {c:'refs_tv', b:["THE THINGS I DO FOR-","LOVE?","-THIS PARKING SPOT.","IT IS A GOOD SPOT."]},
+  {c:'refs_tv', b:["DRACARYS!","IT IS A BARBECUE.","DRACARYS.","JUST LIGHT IT NORMALLY."]},
+  {c:'refs_tv', b:["ZOINKS!","WHAT.","THE RENT WENT UP.","JINKIES. THAT IS BAD."]},
+  {c:'refs_tv', b:["AND I WOULD HAVE GOT AWAY-","WITH IT?","-IF NOT FOR THE CAMERAS.","THEY ARE EVERYWHERE NOW."]},
+  {c:'refs_tv', b:["ELEMENTARY, MY DEAR-","DO NOT SAY IT.","-NEIGHBOUR.","...THAT IS WORSE."]},
+  // ---------------------------------------------------------------- EVERYDAY LIFE
+  // ⚠ THE BALLAST, AND IT IS NOT FILLER. A street made only of set-piece references stops reading as a
+  // street — the jokes need ordinary life around them or every bubble is a punchline and none of them
+  // land. These carry the same voice without needing you to have seen anything.
+  {c:'daily', b:["I ALPHABETISED THE SPICES.","WHY?","I WAS AVOIDING SOMETHING.","WHAT?","..."]},
+  {c:'daily', b:["MY PLANT DIED.","WHICH ONE?","THE UNKILLABLE ONE.","THAT IS IMPRESSIVE."]},
+  {c:'daily', b:["I BOUGHT A BREAD MAKER.","USED IT?","ONCE. IN MARCH.","WHICH MARCH?"]},
+  {c:'daily', b:["THE SELF CHECKOUT HATES ME.","UNEXPECTED ITEM?","IT WAS MY HAND.","IT ALWAYS IS."]},
+  {c:'daily', b:["I HAVE TWELVE TABS OPEN.","IN YOUR HEAD?","IN MY HEAD.","CLOSE SOME. PLEASE."]},
+  {c:'daily', b:["I FOUND A FIVER IN A COAT.","LUCKY!","IT WAS MY OWN COAT.","STILL COUNTS."]},
+  {c:'daily', b:["I SAID I WOULD CALL BACK.","WHEN?","MARCH.","IT IS DECEMBER."]},
+  {c:'daily', b:["MY PHONE IS AT ONE PERCENT.","IT HAS BEEN FOR AN HOUR.","IT IS FIGHTING.","RESPECT THE PHONE."]},
+  {c:'daily', b:["I PARKED SOMEWHERE.","WHERE?","THAT IS THE MYSTERY.","GOOD LUCK OUT THERE."]},
+  {c:'daily', b:["I ATE A WHOLE CAKE.","OVER A WEEK?","OVER AN AFTERNOON.","...GOOD FOR YOU."]},
+  {c:'daily', b:["I NEED A HOLIDAY.","YOU JUST HAD ONE.","I NEED ONE FROM THAT ONE.","THAT IS HOW IT GOES."]},
+  {c:'daily', b:["THE FRIDGE IS MAKING A NOISE.","WHAT KIND?","A THINKING KIND.","THAT IS NOT GOOD."]},
+  {c:'daily', b:["I HAVE NOT SLEPT.","AT ALL?","I SLEPT. BADLY. LOUDLY.","LOUDLY?"]},
+  {c:'daily', b:["I JOINED A GYM.","GOOD FOR YOU!","IN JANUARY. OF LAST YEAR.","...AH."]},
+  {c:'daily', b:["MY BACK WENT OUT.","DOING WHAT?","PUTTING ON A SOCK.","THAT IS THE AGE."]},
+  {c:'daily', b:["I TALKED TO MY CAR TODAY.","DID IT ANSWER?","IT MADE A CLUNK.","THAT IS AN ANSWER."]},
+  {c:'daily', b:["I HAVE A SYSTEM.","FOR WHAT?","THE DISHWASHER.","NOBODY ELSE FOLLOWS IT."]},
+  {c:'daily', b:["THE NEIGHBOURS ARE DRILLING.","AGAIN?","IT IS A LIFESTYLE NOW.","WHAT ARE THEY BUILDING?"]},
+  {c:'daily', b:["I HEARD SINGING AT 3AM.","FROM WHERE?","BELOW ME. OPERA.","BOLD CHOICE."]},
+  {c:'daily', b:["MY NEIGHBOUR WAVED FIRST.","AND?","I PANICKED AND SALUTED.","...OH NO."]},
+  {c:'daily', b:["I MET THE UPSTAIRS PERSON.","WHAT ARE THEY LIKE?","THEY HAVE A DRUM KIT.","I AM SO SORRY."]},
+  {c:'daily', b:["I LEFT A NOTE.","SAYING WHAT?","PLEASE STOP. WITH A SMILE.","THE SMILE IS PASSIVE."]},
+  {c:'daily', b:["THE CAT SAT ON MY KEYBOARD.","AND?","I SENT IT TO MY BOSS.","WHAT DID IT SAY?"]},
+  {c:'daily', b:["MY DOG HATES THE POSTMAN.","WHY?","PROFESSIONAL RIVALRY.","THAT IS FAIR."]},
+  {c:'daily', b:["I NAMED THE PIGEON.","WHICH ONE?","THE ONE WITH THE LIMP.","WHAT DID YOU CALL IT?"]},
+  {c:'daily', b:["MY CAT BROUGHT ME A GIFT.","HOW SWEET.","IT WAS ALIVE.","LESS SWEET."]},
+  {c:'daily', b:["THE DOG LEARNED A TRICK.","WHICH?","OPENING THE FRIDGE.","THAT IS NOT A TRICK."]},
+  {c:'daily', b:["I THINK MY FISH KNOWS ME.","THEY DO NOT.","HE SWIMS OVER.","YOU HOLD THE FOOD."]},
+  {c:'daily', b:["I UPDATED MY PHONE.","AND?","NOW NOTHING WORKS.","THAT IS THE UPDATE."]},
+  {c:'daily', b:["THE PRINTER IS JAMMED.","AGAIN?","IT SENSES DEADLINES.","THEY ALL DO."]},
+  {c:'daily', b:["I TURNED IT OFF AND ON.","DID IT HELP?","YES. TERRIFYINGLY.","NEVER ASK WHY."]},
+  {c:'daily', b:["MY PASSWORD EXPIRED.","MAKE A NEW ONE.","IT CANNOT BE THE LAST TWELVE.","I REMEMBER ONE."]},
+  {c:'daily', b:["THE WIFI IS DOWN.","WHAT WILL YOU DO?","I MIGHT GO OUTSIDE.","BE BRAVE."]},
+  {c:'daily', b:["I READ THE TERMS.","ALL OF THEM?","I SCROLLED PAST THEM FAST.","THAT COUNTS."]},
+  {c:'daily', b:["MY KID ASKED WHY.","ABOUT WHAT?","EVERYTHING. FOR AN HOUR.","AND YOUR ANSWERS?"]},
+  {c:'daily', b:["THE BABY SLEPT THROUGH.","REALLY?","NO. I WAS DREAMING.","OH, MATE."]},
+  {c:'daily', b:["MY SON BEAT ME AT CHESS.","HOW OLD IS HE?","SEVEN.","...I NEED A DRINK."]},
+  {c:'daily', b:["MY DAUGHTER IS A TEENAGER.","AND?","I AM NOW DEEPLY UNCOOL.","IT IS PERMANENT."]},
+  {c:'daily', b:["THE SCHOOL RANG.","GOOD OR BAD?","THEY NEVER RING FOR GOOD.","THAT IS TRUE."]},
+  {c:'daily', b:["I MADE DINNER.","FROM WHAT?","THREE THINGS AND HOPE.","HOW WAS IT?"]},
+  {c:'daily', b:["I BURNED THE TOAST.","MAKE MORE.","IT WAS THE LAST BREAD.","A TRAGEDY."]},
+  {c:'daily', b:["I TRIED A NEW RECIPE.","AND?","THE SMOKE ALARM REVIEWED IT.","HARSH BUT FAIR."]},
+  {c:'daily', b:["THIS COFFEE IS TERRIBLE.","WHY DRINK IT?","IT IS HOT AND IT IS MINE.","THAT IS ENOUGH."]},
+  {c:'daily', b:["I ORDERED A SALAD.","VERY HEALTHY.","AND CHIPS. AND CAKE.","LESS HEALTHY."]},
+  {c:'daily', b:["I AM CUTTING BACK ON SUGAR.","SINCE WHEN?","SINCE THIS AFTERNOON.","AMBITIOUS START."]},
+  {c:'daily', b:["THEY CHANGED THE RECIPE.","OF WHAT?","EVERYTHING. ALL OF IT.","IT IS NEVER THE SAME."]},
+  {c:'daily', b:["THINGS WERE BETTER BEFORE.","BEFORE WHAT?","I HAVE NOT DECIDED YET.","TAKE YOUR TIME."]},
+  {c:'daily', b:["I MISS THE OLD SHOPS.","THEY WERE THE SAME SHOPS.","THEY FELT DIFFERENT.","YOU WERE YOUNGER."]},
+  {c:'daily', b:["MUSIC WAS BETTER THEN.","YOU SAID THAT AT TWENTY.","AND I WAS RIGHT THEN TOO.","OF COURSE YOU WERE."]},
+  {c:'daily', b:["THIS STREET HAD A CINEMA.","WHERE?","WHERE THE BANK IS NOW.","OF COURSE IT IS A BANK."]},
+  {c:'daily', b:["I REMEMBER WHEN THIS WAS-","FIELDS?","-A SLIGHTLY WORSE STREET.","LESS ROMANTIC."]},
+  {c:'daily', b:["THE PIGEONS KNOW SOMETHING.","THEY DO NOT.","THEY ARE ORGANISED.","THEY ARE BIRDS."]},
+  {c:'daily', b:["WHY IS THAT VAN ALWAYS HERE?","IT IS A PLUMBER.","EVERY DAY? FOR MONTHS?","...OKAY THAT IS ODD."]},
+  {c:'daily', b:["THE COUNCIL KNOWS.","KNOWS WHAT?","THAT IS THE PART I WANT.","GO HOME, TERRY."]},
+  {c:'daily', b:["THEY MOVED THE POSTBOX.","BY HOW MUCH?","TWO FEET. NO WARNING.","WHY WOULD THEY."]},
+  {c:'daily', b:["I SAW A MAN IN A HAT.","AND?","THE SAME HAT. THREE TIMES.","IT IS HIS HAT."]},
+  {c:'daily', b:["THE CLOUDS LOOK WRONG.","THEY LOOK LIKE CLOUDS.","EXACTLY WHAT THEY WANT.","GO INSIDE, TERRY."]},
+  {c:'daily', b:["I HAVE A THEORY.","I AM NOT LISTENING.","IT IS ABOUT THE BUSES.","...GO ON THEN."]},
+  {c:'daily', b:["THE BUS WAS EARLY.","IMPOSSIBLE.","I HAVE A PHOTO.","THAT IS YESTERDAY'S BUS."]},
+  {c:'daily', b:["TWO BUSES CAME AT ONCE.","THEY ALWAYS DO.","THEY ARE FRIENDS.","THEY ARE COLLEAGUES."]},
+  {c:'daily', b:["I RAN FOR THE TRAIN.","AND?","THE DOORS SAW ME.","THEY ALWAYS SEE YOU."]},
+  {c:'daily', b:["SOMEONE TOOK MY SEAT.","THE SPECIFIC ONE?","MY SPECIFIC ONE.","THAT IS A DECLARATION."]},
+  {c:'daily', b:["THE TRAIN IS DELAYED.","BY WHAT?","A REASON THEY WILL NOT GIVE.","THE USUAL REASON."]},
+  {c:'daily', b:["I CYCLED IN TODAY.","BRAVE.","IT RAINED SIDEWAYS.","VERY BRAVE."]},
+  {c:'daily', b:["MY BOSS SAID QUICK CHAT.","OH NO.","QUICK CHAT NEVER IS.","IT NEVER IS."]},
+  {c:'daily', b:["THAT MEETING WAS AN EMAIL.","MOST ARE.","IT WAS NINETY MINUTES.","THAT IS A NOVEL."]},
+  {c:'daily', b:["I SAID I WOULD CIRCLE BACK.","DID YOU?","I HAVE NEVER CIRCLED.","NOBODY EVER HAS."]},
+  {c:'daily', b:["WE ARE RESTRUCTURING.","AGAIN?","SAME DESKS. NEW WORDS.","THAT IS THE JOB."]},
+  {c:'daily', b:["I AM ON MUTE, AM I?","YOU HAVE BEEN FOR A WHILE.","HOW LONG.","THE WHOLE STORY."]},
+  {c:'daily', b:["I LOVE MONDAYS.","NOBODY LOVES MONDAYS.","I AM BEING BRAVE.","THAT IS ALLOWED."]},
+  {c:'daily', b:["PAYDAY IS FRIDAY.","AND THE MONEY?","GONE BY SATURDAY.","CLASSIC."]},
+  {c:'daily', b:["I ASKED FOR A RAISE.","AND?","HE SAID INTERESTING.","THAT IS A NO."]},
+  {c:'daily', b:["I HAVE A SIDE HUSTLE.","DOING WHAT?","SLEEPING. PROFESSIONALLY.","NO INCOME THOUGH."]},
+  {c:'daily', b:["I WON THE RAFFLE.","WHAT DID YOU WIN?","A SECOND RAFFLE TICKET.","AN INVESTMENT."]},
+  {c:'daily', b:["I HAVE BEEN GOOD ALL WEEK.","IT IS TUESDAY.","IT HAS BEEN A LONG WEEK.","IT HAS."]},
+  {c:'daily', b:["I NEED NEW SHOES.","WHAT HAPPENED?","NOTHING. I WANT SHOES.","THAT IS ALSO A REASON."]},
+  {c:'daily', b:["I BOUGHT A COAT.","YOU HAVE FOUR.","THIS ONE IS DIFFERENT.","IT IS NAVY. THEY ARE ALL NAVY."]},
+  {c:'daily', b:["THE SALE IS ON.","ON WHAT?","THINGS I DID NOT WANT.","UNTIL NOW."]},
+  {c:'daily', b:["I QUEUED FOR AN HOUR.","FOR WHAT?","I FORGOT PARTWAY THROUGH.","AND YOU STAYED?"]},
+  {c:'daily', b:["MY UMBRELLA INVERTED.","IN THIS WIND?","IT LOOKED AT ME FIRST.","THEY DO THAT."]},
+  {c:'daily', b:["IT RAINED ON MY WASHING.","ALL OF IT?","THE GOOD SHIRT ONLY.","IT KNEW."]},
+  {c:'daily', b:["I FORGOT MY UMBRELLA.","IT IS SUNNY.","IT WILL NOT STAY SUNNY.","IT NEVER DOES."]},
+  {c:'daily', b:["NICE WEATHER FOR DUCKS.","THERE ARE NO DUCKS.","THEY KNOW BETTER.","EVEN THE DUCKS."]},
+  {c:'daily', b:["I SAW A RAINBOW EARLIER.","WHERE?","OVER THE GASWORKS.","EVEN THERE."]},
+  {c:'daily', b:["THE HEATING IS ON.","IN JUNE?","I AM COLD IN MY SOUL.","THAT IS NOT A SETTING."]},
+  {c:'daily', b:["I MISS THE SUN.","IT IS RIGHT THERE.","I MISS FEELING IT.","...THAT IS FAIR."]},
+  {c:'daily', b:["MY KNEE PREDICTS RAIN.","IS IT ACCURATE?","MORE THAN THE FORECAST.","THAT IS A LOW BAR."]},
+  {c:'daily', b:["I SNEEZED ELEVEN TIMES.","IN A ROW?","IN A ROW.","THAT IS A CONDITION."]},
+  {c:'daily', b:["I AM TRYING TO DRINK WATER.","JUST DRINK IT.","IT IS SO BORING.","IT IS WATER."]},
+  {c:'daily', b:["MY STEP COUNT IS LOW.","HOW LOW?","IT ASKED IF I WAS WELL.","THAT IS LOW."]},
+  {c:'daily', b:["I STOOD UP TOO FAST.","AND?","I SAW THE UNIVERSE.","WELCOME BACK."]},
+  {c:'daily', b:["I THINK I PULLED SOMETHING.","DOING WHAT?","SLEEPING. I PULLED IT SLEEPING.","THAT IS THE AGE."]},
+  {c:'daily', b:["THE DOCTOR SAID REST.","WILL YOU?","I RESTED ON THE WAY HOME.","THAT IS NOT REST."]},
+  {c:'daily', b:["I LOST MY GLASSES.","THEY ARE ON YOUR HEAD.","...THEY WERE HIDING.","THEY WERE NOT."]},
+  {c:'daily', b:["I FORGOT WHY I CAME IN.","GO BACK OUT.","DOES THAT WORK?","IT IS THE ONLY CURE."]},
+  {c:'daily', b:["I HAVE A LIST SOMEWHERE.","WHERE?","THAT IS ON THE LIST.","OF COURSE IT IS."]},
+  {c:'daily', b:["I DREAMT ABOUT WORK.","THAT IS UNPAID.","I FILED THINGS ALL NIGHT.","INVOICE THEM."]},
+  {c:'daily', b:["I AM GOING TO BED EARLY.","WHEN?","SOON. VERY SOON.","IT IS ALREADY LATE."]},
+  {c:'daily', b:["I SET SIX ALARMS.","DID THEY WORK?","THEY BECAME A LULLABY.","THEY ALWAYS DO."]},
+  {c:'daily', b:["SUNDAY IS FOR NOTHING.","AND YET?","I HAVE A LIST OF NOTHING.","THAT IS NOT NOTHING."]},
+  // ---------------------------------------------------------------- HORROR, CRIME & THE ABSURD
+  {c:'refs_dark', b:["HERE IS JOHNNY!","IT IS A BATHROOM DOOR.","HERE IS JOHNNY.","I AM IN HERE, MATE."]},
+  {c:'refs_dark', b:["ALL WORK AND NO PLAY.","IS THAT YOUR REPORT?","IT IS ONE SENTENCE.","REPEATED HOW MANY TIMES?"]},
+  {c:'refs_dark', b:["THEY ARE HERE.","WHO?","THE CAROL SINGERS.","BOLT THE DOOR."]},
+  {c:'refs_dark', b:["DO NOT GO IN THE BASEMENT.","WHY NOT?","THE BOILER IS DOWN THERE.","THAT IS GENUINELY SCARY."]},
+  {c:'refs_dark', b:["I HEAR A HEARTBEAT.","WHERE?","UNDER THE FLOORBOARDS.","THAT IS THE WASHING MACHINE."]},
+  {c:'refs_dark', b:["SOMETHING IS IN THE ATTIC.","A MOUSE?","IT PAID THE RENT.","THEN LET IT STAY."]},
+  {c:'refs_dark', b:["THE CALL IS COMING FROM-","INSIDE THE HOUSE?","-MY POCKET. IT WAS ME.","...GOOD."]},
+  {c:'refs_dark', b:["NEVER SPLIT UP.","WE ARE GOING SHOPPING.","THAT IS HOW IT STARTS.","IT IS AISLE FOUR."]},
+  {c:'refs_dark', b:["I WOULD NOT GO IN THERE.","IT IS A CAFE.","THE COFFEE IS CURSED.","IT IS JUST BAD."]},
+  {c:'refs_dark', b:["THEY MOSTLY COME AT NIGHT.","WHAT DO?","THE NEIGHBOURS. WITH BASS.","MOSTLY."]},
+  {c:'refs_dark', b:["THE HORROR. THE HORROR.","WHAT HAPPENED?","THE COFFEE MACHINE BROKE.","...THE HORROR."]},
+  {c:'refs_dark', b:["I SEE DEAD PIXELS.","HOW MANY?","JUST ONE. BUT I SEE IT.","YOU ALWAYS WILL."]},
+  {c:'refs_dark', b:["BE AFRAID.","OF WHAT?","THE PARKING INSPECTOR.","BE VERY AFRAID."]},
+  {c:'refs_dark', b:["THE LAMBS HAVE STOPPED.","STOPPED WHAT?","THE UPSTAIRS FLAT IS QUIET.","ENJOY IT WHILE IT LASTS."]},
+  {c:'refs_dark', b:["I HAVE AN OLD FRIEND-","FOR DINNER?","-COMING FOR DINNER.","PHRASE THAT BETTER."]},
+  {c:'refs_dark', b:["THE FIRST RULE OF THE CLUB-","YES?","-IS THAT WE MEET AT SEVEN.","THAT IS A BOOK CLUB."]},
+  {c:'refs_dark', b:["I KNOW WHAT YOU DID.","WHEN?","LAST SUMMER.","I WENT TO WALES."]},
+  {c:'refs_dark', b:["THE TRUTH WILL COME OUT.","ABOUT WHAT?","WHO ATE THE LAST YOGHURT.","IT WAS ME. I CONFESS."]},
+  {c:'refs_dark', b:["THIS TOWN HAS SECRETS.","EVERY TOWN DOES.","OURS ARE BORING SECRETS.","THAT IS THE WORST KIND."]},
+  {c:'refs_dark', b:["FOLLOW THE MONEY.","TO WHERE?","THE RENT. IT ALL GOES THERE.","CASE CLOSED."]},
+  {c:'refs_dark', b:["I HAVE A CONFESSION.","GO ON.","I TOOK YOUR STAPLER.","I KNEW IT WAS YOU."]},
+  {c:'refs_dark', b:["EVERY CONTACT LEAVES A TRACE.","WHOSE TRACE?","MUDDY BOOTS IN THE HALL.","THAT WAS ALSO ME."]},
+  {c:'refs_dark', b:["THE GAME IS AFOOT.","WHICH GAME?","FINDING THE TV REMOTE.","IT IS IN THE SOFA."]},
+  {c:'refs_dark', b:["I NEVER GUESS.","NEVER?","IT IS A BAD HABIT.","YOU GUESSED YESTERDAY."]},
+  // ---------------------------------------------------------------- SPOUSES: ROMANCE
+  {c:'romance', b:["YOU MADE THE BED.","I DID.","YOU NEVER MAKE THE BED.","I HAD A GOOD DAY."], o:'heart'},
+  {c:'romance', b:["THIRTY YEARS TODAY.","IS IT?","YOU FORGOT.","I BOOKED DINNER IN MARCH."], o:'heart'},
+  {c:'romance', b:["I KEPT YOUR TICKET STUB.","FROM WHEN?","OUR FIRST FILM.","YOU TERRIBLE ROMANTIC."], o:'heart'},
+  {c:'romance', b:["YOU STILL DO THAT THING.","WHAT THING?","THE HUMMING. WHEN YOU COOK.","I DO NOT HUM!"], o:'heart'},
+  {c:'romance', b:["I WOULD DO IT ALL AGAIN.","EVEN THE FLAT ABOVE THE PUB?","EVEN THAT.","...COME HERE."], o:'heart'},
+  {c:'romance', b:["YOU TOOK THE BINS OUT.","I DID.","WITHOUT BEING ASKED.","DO NOT MAKE IT WEIRD."], o:'heart'},
+  {c:'romance', b:["I SAVED YOU THE LAST ONE.","THE LAST WHAT?","THE GOOD BISCUIT.","MARRY ME AGAIN."], o:'heart'},
+  {c:'romance', b:["YOU LOOK NICE TODAY.","I LOOK THE SAME.","THAT IS THE POINT.","...OH, YOU."], o:'heart'},
+  {c:'romance', b:["I WAS THINKING ABOUT US.","GOOD THINKING?","VERY GOOD THINKING.","THEN CARRY ON."], o:'heart'},
+  {c:'romance', b:["I MADE TEA.","YOU HATE TEA.","YOU DO NOT.","...THANK YOU."], o:'heart'},
+  {c:'romance', b:["DANCE WITH ME.","HERE? IN THE STREET?","HERE. IN THE STREET.","...ONE SONG."], o:'heart'},
+  {c:'romance', b:["I FOUND OUR OLD PHOTOS.","THE TERRIBLE HAIRCUT ONES?","THOSE EXACT ONES.","BURN THEM. LOVINGLY."], o:'heart'},
+  // ---------------------------------------------------------------- SPOUSES: DRAMA
+  {c:'drama', b:["YOU DID NOT LISTEN.","I WAS LISTENING.","WHAT DID I SAY?","...SOMETHING IMPORTANT."], o:'storm'},
+  {c:'drama', b:["IT IS ALWAYS ME.","WHAT IS?","THE BINS. THE FORMS. ALL OF IT.","...I KNOW."], o:'storm'},
+  {c:'drama', b:["YOU TOLD YOUR MOTHER.","SHE ASKED.","THAT IS NOT AN ANSWER.","...NO. IT IS NOT."], o:'storm'},
+  {c:'drama', b:["WE NEVER TALK ANYMORE.","WE ARE TALKING.","YOU KNOW WHAT I MEAN.","...I DO."], o:'storm'},
+  {c:'drama', b:["I WAITED AN HOUR.","THE TRAIN WAS LATE.","YOUR PHONE WAS NOT.","THAT IS FAIR."], o:'storm'},
+  {c:'drama', b:["SAY SOMETHING.","WHAT DO YOU WANT?","ANYTHING. JUST SOMETHING.","...I AM SORRY."], o:'heart'},
+  {c:'drama', b:["I AM NOT ANGRY.","YOU LOOK ANGRY.","I AM TIRED.","...COME HOME EARLY."], o:'heart'},
+  {c:'drama', b:["YOU PROMISED.","I KNOW.","YOU PROMISED.","I WILL FIX IT. TODAY."], o:'storm'},
+  {c:'drama', b:["I FOUND THE RECEIPT.","IT WAS A SURPRISE.","FOR ME?","...FOR YOU."], o:'heart'},
+  {c:'drama', b:["ARE WE OKAY?","...ASK ME TOMORROW.","THAT IS NOT A YES.","IT IS NOT A NO EITHER."], o:'storm'},
+  // ---------------------------------------------------------------- SPORT
+  {c:'sports', b:["WE SIGNED SOMEBODY.","ANY GOOD?","NOBODY HAS HEARD OF HIM.","THOSE ARE THE BEST ONES."]},
+  {c:'sports', b:["THE MANAGER IS FINISHED.","IT IS SEPTEMBER.","HE IS FINISHED.","GIVE HIM UNTIL OCTOBER."]},
+  {c:'sports', b:["WE WERE ROBBED.","THE SCORE WAS SIX NIL.","ROBBED OF DIGNITY.","THAT IS TRUE."]},
+  {c:'sports', b:["I AM NOT WATCHING AGAIN.","YOU SAY THAT EVERY WEEK.","THIS TIME I MEAN IT.","SEE YOU SATURDAY."]},
+  {c:'sports', b:["MY TEAM PLAYS TONIGHT.","HOPEFUL?","I AM NEVER HOPEFUL.","THAT IS SAFEST."]},
+  {c:'sports', b:["HE SHOULD HAVE PASSED.","HE SCORED.","HE STILL SHOULD HAVE PASSED.","...INCREDIBLE."]},
+  {c:'sports', b:["THE REF WAS BLIND.","HE WAS FINE.","HE WAS BLIND AND HOSTILE.","IT WAS A FOUL."]},
+  {c:'sports', b:["I BET A FIVER.","ON WHAT?","A DRAW. I ALWAYS DO.","AND IT NEVER IS."]},
+  {c:'sports', b:["NEXT YEAR IS OUR YEAR.","YOU SAID THAT LAST YEAR.","AND I WILL SAY IT NEXT YEAR.","THAT IS THE DEAL."]},
+  {c:'sports', b:["I PLAYED FIVE-A-SIDE.","HOW DID IT GO?","I AM RETIRED NOW.","AFTER ONE GAME?"]},
+  // ---------------------------------------------------------------- CLASS & POLITICS
+  {c:'classclash', b:["I MIGHT BUY THE UNIT.","THE ONE I RENT?","IS IT? SMALL WORLD.","VERY SMALL WORLD."]},
+  {c:'classclash', b:["THE MARKET WILL SORT IT.","IT HAS NOT YET.","GIVE IT TIME.","I HAVE GIVEN IT YEARS."]},
+  {c:'classclash', b:["I STARTED WITH NOTHING.","AND THE HOUSE?","THAT WAS MY FATHER'S.","THAT IS NOT NOTHING."]},
+  {c:'classclash', b:["ANYONE CAN GET AHEAD.","WITH WHAT?","AMBITION. DRIVE.","AND A DEPOSIT."]},
+  {c:'classclash', b:["LUXURY FLATS ARE COMING.","TO WHERE?","YOUR STREET, I THINK.","THAT IS MY STREET."]},
+  {c:'classclash', b:["THE ECONOMY IS FINE.","FOR YOU.","FOR EVERYONE.","ASK THE QUEUE BEHIND YOU."]},
+  {c:'partyclash', b:["THE PARK NEEDS FUNDING.","THE ROADS NEED IT MORE.","YOU CANNOT DRIVE ON GRASS.","YOU CANNOT DRIVE AT ALL."]},
+  {c:'partyclash', b:["CUT THE RED TAPE.","THAT TAPE IS THE SAFETY.","IT IS THE DELAY.","IT IS BOTH."]},
+  {c:'partyclash', b:["MORE CAMERAS DOWNTOWN.","MORE LIGHTS WOULD DO IT.","LIGHTS DO NOT CATCH THEM.","LIGHTS STOP THEM."]},
+  {c:'partyclash', b:["TAX THE TOWERS.","THEY WILL LEAVE.","THEY ALWAYS SAY THAT.","THEY ALWAYS STAY."]},
+  {c:'partyclash', b:["I VOTED FOR CHANGE.","SO DID I.","WE VOTED OPPOSITE WAYS.","AND YET. HERE WE ARE."]},
+  {c:'partyclash', b:["THE OLD MAYOR WAS WORSE.","THEY ALL SAY THAT.","BECAUSE IT IS ALWAYS TRUE.","...GRIM, BUT TRUE."]},
 ];
 // event banks — surfaced ONLY while their event is live (Nick: talk Order/Bills only around the takeover)
 var SPEECH_EVENT={
@@ -13334,6 +13767,69 @@ function bubbleCat(a, b, slot){
   if(a.k===0) return 'class_poor'; if(a.k===3) return 'class_rich';
   var cats=['greet','smalltalk','weather','work','gossip','economy','politics','family']; return cats[((a.pid^slot)>>>0)%cats.length];
 }
+// ================================================================================================
+// THE DIALOGUE ENGINE — pacing, selection, and why both are the way they are.
+// Nick: "expand all the conversations and add a BUNCH of new ones… despite the speed running they are
+// always slow enough to actually read… make it feel like they never run out."
+// ================================================================================================
+// ⚠⚠ HOW LONG A LINE IS HELD IS A FUNCTION OF ITS LENGTH, and this was the actual reading bug. Every
+// bubble held for a flat 3200 ms whether it said "ALL GOOD?" or a thirty-character punchline — so the
+// lines that needed the most time on screen got exactly as much as the shortest ones, and the longest
+// jokes were the ones you could never finish. (It was never the city's SPEED: `now` here is the wall
+// clock, so a 1-hour life and a 3-day life already held bubbles for the same real seconds. The fault
+// was that the flat hold was tuned for a short line.)
+function readMs(t){ return Math.max(2600, Math.min(7000, 1500 + t.length*105)); }
+// ⚠ WALK THE SPACE, DON'T SAMPLE IT. `pool[(h>>>8)%pool.length]` picks at random per (pair, slot), so
+// with 500 scenes a given PAIR can draw the same one twice in a few minutes while hundreds go unused —
+// and a repeat from the same two people is far more noticeable than a repeat from strangers. Stepping
+// by a large PRIME instead visits every entry exactly once before any repeat, per pair, and it is still
+// a pure function of (pair, slot) with nothing stored. 10007 is coprime with every pool size we will
+// ever have, so the cycle is always full.
+var SCENE_STEP=10007;
+// what share of ordinary conversations are an authored four-beat scene rather than smalltalk (percent)
+var SCENE_SHARE=58;
+function pickWalk(arr,pairH,slot){ var n=arr&&arr.length; if(!n) return null; return arr[(((pairH>>>0)+slot*SCENE_STEP)>>>0)%n]; }
+// ⚠ BUCKETED ONCE AT FIRST USE, NOT FILTERED PER FRAME. `sceneTopic` used to walk the WHOLE scene array
+// building a fresh pool for every talking pair on every frame. At 21 scenes that is free; at 500+ with
+// four pairs talking it is thousands of iterations and an allocation per frame, which is precisely the
+// per-frame sweep that cost 1 ms in the road-stain work an hour ago. Categories are resolved once.
+var SCENES_BY_CAT=null, SCENE_CATS=null;
+// What a scene NEEDS to be usable, declared per CATEGORY rather than inferred from the category name —
+// so a reference bank can later have a spouses-only variant without the name doing two jobs.
+var SCENE_REQ={ romance:'spouses', drama:'spouses_soft', classclash:'klass', partyclash:'party' };
+function sceneBuckets(){
+  if(SCENES_BY_CAT) return SCENES_BY_CAT;
+  SCENES_BY_CAT={}; SCENE_CATS=[];
+  for(var i=0;i<SPEECH_SCENES.length;i++){ var sc=SPEECH_SCENES[i], c=sc.c||'humor';
+    if(!SCENES_BY_CAT[c]){ SCENES_BY_CAT[c]=[]; SCENE_CATS.push(c); }
+    SCENES_BY_CAT[c].push(sc); }
+  return SCENES_BY_CAT;
+}
+// ⚠⚠ A FLAT ELIGIBLE SET, NOT A LIST OF CATEGORIES — and this was a real fault in my own first cut.
+// Picking a CATEGORY uniformly and then a scene inside it makes every bucket equally likely no matter
+// how big it is: with 100 everyday scenes and 6 old `humor` ones, each humor scene came up sixteen
+// times more often than each daily one. That is exactly the "it runs out" feeling Nick asked me to
+// remove, produced by the selection rather than by the writing.
+// So the pair's whole eligible SET is flattened once per requirement combination (sixteen of them,
+// cached), and `pickWalk` steps through THAT — uniform across scenes, and still a full cycle before
+// anything repeats for that pair.
+var SCENE_OK_CACHE=null;
+function scenesFor(spouses,clashK,clashP,soft){
+  sceneBuckets();
+  if(!SCENE_OK_CACHE) SCENE_OK_CACHE={};
+  var key=(spouses?1:0)|(clashK?2:0)|(clashP?4:0)|(soft?8:0), got=SCENE_OK_CACHE[key];
+  if(got) return got;
+  var out=[];
+  for(var i=0;i<SCENE_CATS.length;i++){ var c=SCENE_CATS[i], r=SCENE_REQ[c];
+    if(r==='spouses'&&!spouses) continue;
+    if(r==='spouses_soft'&&!spouses&&!soft) continue;
+    if(r==='klass'&&(!clashK||spouses)) continue;
+    if(r==='party'&&(!clashP||spouses)) continue;
+    var bk=SCENES_BY_CAT[c];
+    for(var j=0;j<bk.length;j++) out.push(bk[j]); }
+  SCENE_OK_CACHE[key]=out;
+  return out;
+}
 function bubbleLine(a, b, slot){
   var h=(P_hash((a.pid^slot*31)>>>0));
   var ctx=speechCtxLines(slot);
@@ -13394,17 +13890,18 @@ function sceneTopic(a, b, sslot, now){
     var ek=curMayor.electionDay?9:(curMayor.debate?7:4);           // polling day is nearly all anyone says
     if((h%10) < ek) return {ev:'election'};
   }
-  // authored scene ~30%: humor / drama / romance (spouses only) / sports
-  if((h%10)<3){ var pool=[], pa=drawnPopRef&&drawnPopRef[a.idx], pb=drawnPopRef&&drawnPopRef[b.idx];
+  // ⚠ THE AUTHORED SCENES ARE THE GOOD CONTENT, and they used to fire only 30% of the time. Nick asked
+  // for more jokes and for it to feel like the city never runs out; the written four-beat exchanges are
+  // where both of those live, so they take the majority of ordinary chat now. The remainder stays
+  // one-liner smalltalk on purpose — an unbroken run of set-piece jokes stops reading as a street.
+  if((h%100)<SCENE_SHARE){
+    var pa=drawnPopRef&&drawnPopRef[a.idx], pb=drawnPopRef&&drawnPopRef[b.idx];
     var spouses=!!(pa&&pb&&pa.gen===a.gen&&pb.gen===b.gen&&pa.spouse===b.idx&&pa.spouseGen===b.gen);
     var clashK=!!(pa&&pb&&pa.gen===a.gen&&pb.gen===b.gen&&Math.abs(pa.klass-pb.klass)>=2);
     var clashP=!!(pa&&pb&&pa.gen===a.gen&&pb.gen===b.gen&&pa.party!=null&&pb.party!=null&&pa.party!==pb.party);
-    for(var i=0;i<SPEECH_SCENES.length;i++){ var sc=SPEECH_SCENES[i];
-      if(sc.c==='romance'&&!spouses) continue; if(sc.c==='drama'&&!spouses&&(h&1)) continue;
-      if(sc.c==='classclash'&&(!clashK||spouses)) continue;      // spouses don't have this argument here
-      if(sc.c==='partyclash'&&(!clashP||spouses)) continue;
-      pool.push(sc); }
-    if(pool.length) return {scene:pool[(h>>>8)%pool.length]};
+    var pool2=scenesFor(spouses,clashK,clashP,!(h&1));
+    var sc2=pickWalk(pool2, (a.pid^b.pid)>>>0, sslot);
+    if(sc2) return {scene:sc2};
   }
   return {};                                                     // free chat: context/relationship/gossip lines
 }
@@ -13412,34 +13909,55 @@ function drawSpeechBubbles(g, now, night){
   var apocFinal=(cityPhase==="apoc"&&typeof apocStruck==='function'&&!apocStruck());   // the FINAL-WORDS window (the approach, before it strikes)
   if(!drawnNamed || drawnNamed.length<2 || cityG<0.22 || (cityPhase==="apoc"&&!apocFinal)) return;
   var arr=drawnNamed.slice().sort(function(a,b){return a.sx-b.sx;});
-  // A readable exchange has four held lines followed by a real quiet spell. Previously a new line
-  // replaced the old one every 1.3s and another scene began immediately, making the street feel
-  // like a wall of chatter. Normal dialogue now holds for 3.2s, rests for 11.2s, and uses fewer pairs.
-  var beatMs=apocFinal?1800:3200, sceneCycle=apocFinal?9000:24000;
-  var scenePos=now%sceneCycle; if(scenePos>=beatMs*4) return;
-  var sslot=(now/sceneCycle)|0, beat=(scenePos/beatMs)|0, shown=0, taken=[], cand=[];
-  var gate=apocFinal?2:11;                                       // urgent final words remain exceptional
+  // ⚠⚠ EVERY PAIR NOW RUNS ON ITS OWN CLOCK. `scenePos` used to come straight off `now`, so every
+  // conversation in the city started and ended in UNISON: the whole street spoke for 12.8 s and then
+  // went silent together for 11.2 s. Offsetting the clock by a per-pair phase staggers them, which is
+  // what makes the street feel continuously alive without anyone talking faster.
+  // ⚠ The phase MUST come from the pair's ids alone — never from `sx` or the array index, or two
+  // monitors disagree about who is mid-sentence at a screen seam. Same rule as everything else here.
+  var sceneCycle=apocFinal?9000:34000;
+  var shown=0, taken=[], cand=[];
+  var gate=apocFinal?2:4;                                        // urgent final words remain exceptional
+  var maxBub=apocFinal?2:4;
   for(var i=0;i<arr.length-1;i++){ var a=arr[i], b=arr[i+1];
     if(Math.abs(a.sx-b.sx)>8 || Math.abs(a.y-b.y)>3) continue;    // co-located (adjacency bucket, not float equality)
-    if(((a.pid ^ b.pid ^ sslot)>>>0) % gate !== 0) continue;     // only some pairs talk, rotating slowly
-    cand.push([P_hash((a.pid^b.pid^sslot)>>>0), a, b]);          // hash-ordered, NOT leftmost-first — else both
+    var ph=(((a.pid*2654435761)^(b.pid*1597334677))>>>0)%sceneCycle;
+    var tp=now+ph, sl=(tp/sceneCycle)|0, pos=tp%sceneCycle;
+    if(((a.pid ^ b.pid ^ sl)>>>0) % gate !== 0) continue;        // only some pairs talk, rotating slowly
+    cand.push([P_hash((a.pid^b.pid^sl)>>>0), a, b, sl, pos]);    // hash-ordered, NOT leftmost-first — else both
   }                                                              // bubbles always land in the densest knot
   cand.sort(function(x,y){return x[0]-y[0];});
-  for(var c=0;c<cand.length && shown<2;c++){ var a2=cand[c][1], b2=cand[c][2];
-    // a 4-beat SCENE: line → reply → counter → closer; speakers alternate, the tail follows the speaker
-    var top=apocFinal?{ev:'finale'}:sceneTopic(a2,b2,sslot,now), line=null, spk=(beat&1)?b2:a2;
-    var h2=P_hash((a2.pid^b2.pid^sslot*29)>>>0);
-    if(top.scene){ line=top.scene.b[beat]; }
-    else if(top.ev){ var EB=SPEECH_EVENT[top.ev]||[];
-      if(beat===0||beat===2) line=EB[((h2>>>3)+beat)%EB.length];
-      else if(beat===1) line=SPEECH_REPLIES[(((b2.pid*13)^sslot)>>>0)%SPEECH_REPLIES.length];
-      else line=(top.ev==='finale')?EB[((h2>>>9)+3)%EB.length]:SPEECH_CLOSERS[(((b2.pid*17)^sslot)>>>0)%SPEECH_CLOSERS.length];
-    } else {
-      if(beat===0) line=bubbleLine(a2,b2,sslot);
-      else if(beat===1) line=SPEECH_REPLIES[(((b2.pid*13)^sslot)>>>0)%SPEECH_REPLIES.length];
-      else if(beat===2) line=bubbleLine(a2,b2,sslot+1);          // a second topic keeps the scene moving
-      else line=SPEECH_CLOSERS[(((b2.pid*17)^sslot)>>>0)%SPEECH_CLOSERS.length];
+  for(var c=0;c<cand.length && shown<maxBub;c++){
+    var a2=cand[c][1], b2=cand[c][2], sslot=cand[c][3], scenePos=cand[c][4];
+    // ⚠⚠ THE WHOLE SCRIPT IS RESOLVED BEFORE ANY OF IT IS TIMED, and it has to be: a beat's duration
+    // depends on the length of its line, and which line it is depends on the beat. Resolving all four
+    // first, then measuring, then finding which beat `scenePos` falls into, breaks that circle.
+    var top=apocFinal?{ev:'finale'}:sceneTopic(a2,b2,sslot,now);
+    var h2=P_hash((a2.pid^b2.pid^sslot*29)>>>0), script=[];
+    for(var bt=0;bt<4;bt++){
+      var ln=null;
+      if(top.scene){ ln=top.scene.b[bt]; }
+      else if(top.ev){ var EB=SPEECH_EVENT[top.ev]||[];
+        if(bt===0||bt===2) ln=EB[((h2>>>3)+bt)%EB.length];
+        else if(bt===1) ln=SPEECH_REPLIES[(((b2.pid*13)^sslot)>>>0)%SPEECH_REPLIES.length];
+        else ln=(top.ev==='finale')?EB[((h2>>>9)+3)%EB.length]:SPEECH_CLOSERS[(((b2.pid*17)^sslot)>>>0)%SPEECH_CLOSERS.length];
+      } else {
+        if(bt===0) ln=bubbleLine(a2,b2,sslot);
+        else if(bt===1) ln=SPEECH_REPLIES[(((b2.pid*13)^sslot)>>>0)%SPEECH_REPLIES.length];
+        else if(bt===2) ln=bubbleLine(a2,b2,sslot+1);            // a second topic keeps the scene moving
+        else ln=SPEECH_CLOSERS[(((b2.pid*17)^sslot)>>>0)%SPEECH_CLOSERS.length];
+      }
+      script.push(ln||"");
     }
+    // …now time it. A held line lasts as long as it takes to READ, and the scene ends when it ends.
+    var beat=-1, acc=0, rate=apocFinal?0.56:1;
+    for(var bt2=0;bt2<4;bt2++){
+      var dur=Math.round(readMs(script[bt2])*rate);
+      if(scenePos<acc+dur){ beat=bt2; break; }
+      acc+=dur;
+    }
+    if(beat<0) continue;                                          // this pair has finished talking; resting
+    var line=script[beat], spk=(beat&1)?b2:a2;
     if(!line) continue;
     var w=textW(line), cx=spk.sx;
     var lo=cx-(w>>1)-34, hi=cx+(w>>1)+34, clash=false;           // ±30px breathing room: bubbles spread down the street

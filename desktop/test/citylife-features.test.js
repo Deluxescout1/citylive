@@ -230,13 +230,44 @@ test('the elevated train cannot cover important landmarks or information surface
   }
 });
 
-test('dialogue is readable, sparse, and never overwhelms the street', () => {
+// ⚠ THE INTENT OF THIS TEST CHANGED, DELIBERATELY. It used to pin the flat 3200 ms beat, the 24 s cycle
+// and a 2-bubble ceiling, under the heading "sparse". Nick has since asked for the opposite on both
+// axes — "always slow enough to actually read" and a street that never seems to run out of talk — so
+// the guard now protects the NEW intent: a hold that scales with how much there is to read, a floor
+// under it, per-pair staggering, and a ceiling that is still a ceiling.
+// Updated rather than deleted: the thing worth guarding is that dialogue stays READABLE and BOUNDED,
+// and that is still exactly what is asserted.
+test('dialogue holds long enough to read, staggers per pair, and stays bounded', () => {
   const source = fs.readFileSync(ENGINE, 'utf8');
   const speech = source.slice(source.indexOf('function drawSpeechBubbles'), source.indexOf('function peopleMarketBeat'));
-  assert.match(speech, /beatMs=apocFinal\?1800:3200/);
-  assert.match(speech, /sceneCycle=apocFinal\?9000:24000/);
-  assert.match(speech, /gate=apocFinal\?2:11/);
-  assert.match(speech, /shown<2/);
+  // the hold is a function of line length, with a readable floor and a sane cap
+  assert.match(source, /function readMs\(t\)\{ return Math\.max\(2600, Math\.min\(7000, 1500 \+ t\.length\*105\)\); \}/);
+  // the whole four-line script is resolved BEFORE it is timed (a beat's length depends on its line)
+  assert.match(speech, /script\.push/);
+  assert.match(speech, /readMs\(script\[bt2\]\)/);
+  // every pair runs on its own phase, derived from the pair's ids alone (three monitors must agree)
+  assert.match(speech, /a\.pid\*2654435761/);
+  assert.match(speech, /sceneCycle=apocFinal\?9000:34000/);
+  // busier, but still bounded
+  assert.match(speech, /gate=apocFinal\?2:4/);
+  assert.match(speech, /maxBub=apocFinal\?2:4/);
+  assert.match(speech, /shown<maxBub/);
+});
+
+// The scene bank is picked by walking the space, not sampling it — otherwise a pair can repeat a scene
+// while hundreds go unused, and a repeat from the SAME two people is the noticeable kind.
+test('scenes are bucketed once and indexed by a full-cycle walk', () => {
+  const source = fs.readFileSync(ENGINE, 'utf8');
+  assert.match(source, /var SCENE_STEP=10007;/);
+  assert.match(source, /function pickWalk\(arr,pairH,slot\)/);
+  assert.match(source, /slot\*SCENE_STEP/);
+  assert.match(source, /function sceneBuckets\(\)/);
+  // sceneTopic must NOT walk the whole array per frame any more
+  const topic = source.slice(source.indexOf('function sceneTopic'), source.indexOf('function drawSpeechBubbles'));
+  assert.doesNotMatch(topic, /for\(var i=0;i<SPEECH_SCENES\.length;i\+\+\)/);
+  assert.match(topic, /pickWalk\(pool2, \(a\.pid\^b\.pid\)>>>0, sslot\)/);
+  // and the eligible set is FLATTENED, so a 6-scene bucket is not as likely as a 100-scene one
+  assert.match(source, /function scenesFor\(spouses,clashK,clashP,soft\)/);
 });
 
 test('top monorail uses world coordinates and renders in the live service layer', () => {
