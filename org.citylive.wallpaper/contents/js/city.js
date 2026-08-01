@@ -3511,7 +3511,10 @@ var BIOMES=[
     far:[196,186,140],  near:[172,158,104], cap:[214,206,166], ground:[186,168,108],
     walls:[[212,176,132],[186,146,102],[232,214,186],[160,122,84],[224,200,168],[196,164,120],[148,116,86],[236,224,202]],
     fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:0}, big:["elephant","giraffe","zebra","wildebeest"], small:["meerkat","lizard"], air:["vulture","stork"] },
-    flora:{ kinds:["acacia","grass","acacia","scrub","acacia"], bloom:["#ffd166","#ffffff","#e8b060"] },
+    // ⚠ FOUR KINDS OF TREE, NOT ONE REPEATED. `acacia` is now four ages inside its own writer, and the
+    // euphorbia's vertical fluted column and the kigelia's dense ROUND crown are here so the tree line
+    // is not a row of the same outline — this land's fourth-listed fault.
+    flora:{ kinds:["acacia","grass","acacia","scrub","acacia","euphorbia","acacia","sausage"], bloom:["#ffd166","#ffffff","#e8b060"] },
     // the huge dry-season sky this land is known for, bleached almost white at the horizon
     sky:{ top:[112,158,208], bot:[244,232,196], k:0.56, haze:[246,230,190] } },
   { k:"canyon", name:"THE GORGE",   amp:0.55, base:0.30, flat:0.9,  steep:0.72, snow:false, water:"river", gorge:1,
@@ -3835,13 +3838,16 @@ var BIOME_VARIANTS={
     { name:"THE GREAT MIGRATION", // the wet-season crossing: green grass and the herd at full size
       far:[168,190,132], near:[132,166,92],  cap:[198,214,158], ground:[146,176,100], migration:1,
       walls:[[208,180,140],[180,152,110],[228,216,192],[156,128,92],[220,204,176],[192,168,128],[144,120,90],[234,226,208]],
-      flora:{ kinds:["acacia","grass","acacia","grass","scrub"], bloom:["#ffd166","#ffffff","#f0c060"] },
+      // the wet season gets the FEVER TREE, which really does follow standing water — a pale-boled
+      // acacia against the green, so the two seasons differ in their trees and not only in their grass
+      flora:{ kinds:["acacia","grass","acacia","fevertree","acacia","grass","sausage","scrub"], bloom:["#ffd166","#ffffff","#f0c060"] },
       fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:0}, big:["wildebeest","zebra","elephant","giraffe"], small:["meerkat"], air:["stork","vulture"] },
       sky:{ top:[104,152,204], bot:[228,232,208], k:0.52, haze:[232,234,204] } },
     { name:"THE DRY SEASON",      // burnt gold, dust, and everything gathered at what water is left
       far:[210,188,128], near:[192,164,86],  cap:[228,212,164], ground:[204,178,96], dust:1,
       walls:[[216,178,128],[192,150,98],[236,218,186],[168,128,84],[228,204,168],[202,170,118],[156,120,84],[240,228,204]],
-      flora:{ kinds:["acacia","scrub","acacia","grass"], bloom:["#ffd166","#e8a040","#ffffff"] },
+      // …and the dry season gets the euphorbia, which is a succulent and does not care
+      flora:{ kinds:["acacia","scrub","acacia","euphorbia","acacia","grass"], bloom:["#ffd166","#e8a040","#ffffff"] },
       fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:0}, big:["elephant","giraffe","zebra"], small:["meerkat","lizard"], air:["vulture"] },
       sky:{ top:[128,158,196], bot:[248,226,176], k:0.60, haze:[250,222,168] } } ],
 
@@ -20354,6 +20360,94 @@ function treeGrow(){ return 0.26+0.88*Math.min(1.0,Math.max(0,cityG)*1.12); }
 // can carry — they visibly thicken over the week and are still colossal on day one, because a giant
 // that sprouted on Tuesday would undo the one thing that land is about.
 function standGrow(){ return 0.62+0.42*Math.min(1.0,Math.max(0,cityG)*1.2); }
+// ================================================================================================
+// THE ACACIA — the silhouette this land is named by, and it was never drawn at all
+// ------------------------------------------------------------------------------------------------
+// ⚠⚠ `acacia` WAS DECLARED BY ALL THREE SAVANNA FLORA ROSTERS AND HAD NO BRANCH IN drawBiomePlant.
+// It fell through the entire else-if chain below and drew NOTHING but a snow cap, so every park,
+// verge and terrain tree on this land has been invisible since the land was written — three of the
+// five slots on the base savanna, two of five on THE GREAT MIGRATION, two of four on THE DRY SEASON.
+// 🔑 FOUND BY AUDIT, NOT BY LOOKING. Extract every string in every `kinds:[…]` across BIOMES and
+// BIOME_VARIANTS, set-subtract this function's branch list, and THREE kinds came back declared and
+// never drawn: `acacia`, `fungus`, `pine` — so the UNDERCITY (3 of 4 slots, both variants) and THE
+// GREAT DAM (2 of 4) were half-treeless too, both of them maps finished days ago. Same class as the
+// nine FAUNA species that silently did not exist. "Nothing" is invisible in a render; only the audit
+// finds it, and it costs two minutes for all 20 lands.
+// ⚠ ONE WRITER, TWO CALLERS. drawSavanna hand-rolled its own tree for the three landscape ranks while
+// the dispatcher drew none, so "make the trees better" meant editing two places that had to agree —
+// the hoist rule from the volcano pass, applied before the second copy could drift.
+// ⚠ IT IS AN OUTLINE, NOT A SLAB. Nick's call was realism in the SHAPE and silhouette in the VALUE.
+// What makes an acacia read is its ARCHITECTURE: a bare bole that FORKS into a spreading V of limbs,
+// each limb forking again, carrying a crown three to four times wider than it is tall. The old
+// version was a trunk rectangle with a filled parabola on top — the umbrella fault written as code.
+// ⚠ FOUR AGES, because "every acacia is the same umbrella" was this land's fourth-listed fault and
+// the FOURTH land running whose headline problem was ONE SHAPE REPEATED (karst lozenges, dune sines,
+// Ashlands comb). Young vase · mature flat-top · old broken leaner · dead snag.
+function acaciaForm(seed){ var r=((seed>>>3)%100); return r<15?3:(r<38?0:(r<76?1:2)); }
+function drawAcacia(g,X,gy,H,CW,form,seed,K,cTrunk,cCrown,sway){
+  H=Math.max(5,Math.round(H)); CW=Math.max(2,Math.round(CW)); sway=sway||0;
+  var un=Math.max(1,Math.round(K*0.8));
+  function hsh(i){ return (((((seed*2654435761)>>>0)^(((i|0)*40503)>>>0))>>>0)%1000)/1000; }
+  // a limb: squares walked along a line and TAPERING, so a branch reads as a branch and not as a bar
+  function limb(x0,y0,x1,y1,w0,w1){
+    var dx=x1-x0, dy=y1-y0, n=Math.max(1,Math.round(Math.max(Math.abs(dx),Math.abs(dy))/Math.max(1,un*0.6)));
+    for(var s=0;s<=n;s++){
+      var f=s/n, w=Math.max(1,Math.round(w0+(w1-w0)*f));
+      g.fillRect(Math.round(x0+dx*f-w/2),Math.round(y0+dy*f-w/2),w,w);
+    }
+  }
+  var lean=(form===2)?((seed&1)?1:-1)*H*0.20:0;
+  var forkF=(form===0)?0.38:(form===3?0.46:0.54);       // a young tree forks low; an old bole is long and bare
+  var forkY=gy-H*forkF, forkX=X+lean*forkF+sway*0.3;
+  var boleW=un*(form===0?1.2:(form===2?2.0:1.7));
+  var topY=gy-H+(form===0?H*0.10:0);
+  g.fillStyle=cTrunk;
+  limb(X,gy,forkX,forkY,boleW,boleW*0.72);
+  // ---- THE V. Without limbs leaving the fork and spreading to the crown's underside, a flat crown
+  // just floats on a post. This is the single detail that says acacia at any size.
+  var NL=(form===0)?3:(2+((seed>>>7)&1));
+  for(var b=0;b<NL;b++){
+    var side=(b===0)?-1:(b===1?1:0), spread=0.55+hsh(b)*0.42;
+    var tipX=forkX+side*CW*spread+sway, tipY=topY+H*(form===0?0.08:0.05)+hsh(b+9)*H*0.05;
+    limb(forkX,forkY,tipX,tipY,boleW*0.72,un*0.8);
+    var mx=forkX+(tipX-forkX)*0.55, my=forkY+(tipY-forkY)*0.55;      // one more generation of forking
+    limb(mx,my,mx+(side||(hsh(b+3)<0.5?-1:1))*CW*0.30,my-H*0.10,un*0.9,un*0.7);
+  }
+  if(form===3){                                          // DEAD: no crown at all, just bleached stubs
+    for(var d=0;d<3;d++){
+      var dyy=forkY-H*(0.10+d*0.14), dsd=(hsh(d+21)<0.5?-1:1);
+      limb(forkX,dyy,forkX+dsd*CW*(0.28+hsh(d+31)*0.30),dyy-H*0.08,un*0.8,un*0.5);
+    }
+    return;
+  }
+  g.fillStyle=cCrown;
+  var cth=H*(form===0?0.34:0.24), cw2=Math.round((form===0)?CW*0.66:CW);
+  var lostSide=(seed&1)?1:-1;
+  for(var q=-cw2;q<=cw2;q++){
+    var u=Math.abs(q/cw2), th, ty;
+    if(form===0){                                        // VASE: a young acacia is round and lifting
+      th=cth*Math.pow(Math.max(0,1-u*u),0.62); ty=topY+(cth-th)*0.72;
+    } else {
+      // ⚠ THE TAPER GOES ON THE UNDERSIDE. "Flat-topped" means the TOP edge is a straight line and the
+      // crown thins downward at the edges. A symmetric lens — which is what a parabola gives you — is
+      // a bush. This asymmetry is most of the difference between an acacia and a green blob.
+      th=cth*(1-u*u*u*0.86); ty=topY+(cth-th)*0.18;
+    }
+    if(form===2&&(lostSide>0?q>cw2*0.35:q<-cw2*0.35)) th*=0.42;      // the old one has lost half its crown
+    var rag=hsh(200+q+cw2)-0.5;                          // a ragged edge, broken in POSITION and in DEPTH
+    ty+=rag*un*1.0; th+=rag*un*0.5;
+    // ⚠ THE RAGGED EDGE MUST NOT PUNCH HOLES IN THE MIDDLE. On a far-rank crown only ten px thick the
+    // jitter drove whole columns below 1 and the canopy rendered as a dashed line — the trees looked
+    // like dead scaffolding. Only the outer eighth is allowed to break up.
+    if(th<1){ if(u>0.88) continue; th=1; }
+    var xx=Math.round(X+q+sway*(1-u*0.3)+lean*0.9);
+    g.fillRect(xx,Math.round(ty),1,Math.max(1,Math.round(th)));
+  }
+  if(form===2){                                          // and a dead spar out through the top of it
+    g.fillStyle=cTrunk;
+    limb(X+lean*0.9,topY+cth*0.4,X+lean*0.9+lostSide*CW*0.5,topY-H*0.10,un*0.7,un*0.4);
+  }
+}
 // What grows on THIS land. One writer per plant, dispatched from drawTree by the biome's `flora.kinds`
 // — so the desert stops growing oaks without every caller having to know which biome it is in.
 // Desert and coastal plants ignore `season.bare`: a saguaro does not drop its leaves in February.
@@ -20684,6 +20778,87 @@ function drawBiomePlant(g,X,gy,day,now,seed,sc,kind,swayOn){
       for(var lq=1;lq<Math.round(5*K);lq++)
         R(Math.cos(la)*lq+sway*(lq/(5*K)),-pnh+Math.sin(la)*lq*0.7+ (lq*lq)/(9*K),Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
     }
+  } else if(kind==="acacia"){
+    // The dispatcher's acacia — parks, verges and terrain trees. SAME WRITER as the three landscape
+    // ranks in drawSavanna, so the two cannot drift apart the way they already had.
+    var acH=Math.round((13+(seed%7))*K), acF=acaciaForm(seed);
+    drawAcacia(g,X,gy,acH,Math.round(acH*(acF===0?0.44:0.62)),acF,seed,K,
+               C([54,44,32]),C(season_autumn_ok()?[78,74,46]:[56,72,44]),sway);
+  } else if(kind==="fevertree"){
+    // FEVER TREE — an acacia with smooth, almost luminous yellow-green bark that grows where the water
+    // is. Same architecture, a pale bole and a higher narrower crown: the entire point of a second
+    // acacia species is that it is TELLABLE from the first at a glance.
+    var fvH=Math.round((15+(seed%6))*K);
+    drawAcacia(g,X,gy,fvH,Math.round(fvH*0.50),1,seed,K,C([158,166,96]),C([62,84,50]),sway);
+  } else if(kind==="baobab"){
+    // THE UPSIDE-DOWN TREE. Nothing else on this land has this outline: an enormous smooth bottle of a
+    // trunk with a waist in it, and a few stubby root-like branches where a canopy ought to be.
+    var bbH=Math.round((15+(seed%7))*K), bbW=bbH*0.42;
+    g.fillStyle=C([124,110,92]);
+    for(var bby=0;bby<bbH;bby++){
+      var bbu=bby/bbH, bbw=bbW*(1-Math.pow(bbu,1.4)*0.66)*(1+0.08*Math.sin(bbu*7));
+      R(-bbw/2,-bby,Math.max(1,bbw),1);
+    }
+    g.fillStyle=C([104,92,76]);
+    for(var bbb=0;bbb<5;bbb++){
+      var bba=-2.55+bbb*0.64, bbl=bbH*(0.16+((seed>>bbb)&3)*0.035);
+      for(var bbs=0;bbs<bbl;bbs++)
+        R(Math.cos(bba)*bbs+sway*0.4,-bbH+Math.sin(bba)*bbs*0.9,Math.max(1,Math.round(K*0.9)),Math.max(1,Math.round(K*0.9)));
+    }
+  } else if(kind==="euphorbia"){
+    // CANDELABRA EUPHORBIA — vertical, fluted, branching UPWARD in parallel arms. A column among flat
+    // crowns; the tree line stops being one repeated note the moment one of these stands in it.
+    var euH=Math.round((11+(seed%5))*K), euU=Math.max(1,Math.round(K*0.9));
+    g.fillStyle=C([48,84,52]);
+    R(-euU/2,-euH*0.72,euU,euH*0.72);
+    for(var eua=0;eua<4;eua++){
+      var eus=(eua<2?-1:1), euo=(1+(eua%2))*euU*1.7, euy=euH*(0.30+(eua%2)*0.14), euT=euH*(0.62+(eua%2)*0.20);
+      R(Math.min(0,eus*euo)-euU/2,-euy,Math.max(1,euo+euU),Math.max(1,euU));     // out from the column…
+      R(eus*euo-euU/2,-euT,euU,Math.max(1,euT-euy));                             // …then straight up
+    }
+  } else if(kind==="sausage"){
+    // KIGELIA — a DENSE ROUND crown, which is exactly what nothing else here has, and the hanging
+    // fruits it is named for.
+    var sgH=Math.round((12+(seed%5))*K);
+    g.fillStyle=C([72,58,42]);
+    R(-Math.round(K*0.8),-sgH*0.60,Math.max(1,Math.round(1.6*K)),sgH*0.60);
+    g.fillStyle=C([50,74,46]);
+    folMass(g,X+sway*0.5,gy-sgH*0.78,sgH*0.72,sgH*0.42,seed,K);
+    g.fillStyle=C([84,64,40]);
+    for(var sgf=0;sgf<4;sgf++)
+      R((sgf-1.5)*1.9*K+sway*0.6,-sgH*0.56,Math.max(1,Math.round(K*0.8)),Math.max(1,Math.round(2.6*K)));
+  } else if(kind==="pine"){
+    // ⚠ DECLARED BY THE GREAT DAM AND NEVER DRAWN — two of its four flora slots have been empty since
+    // the land was built, found by the same audit as the acacia. And a pine is NOT a spruce: a long
+    // bare bole with a rounded open crown carried high, not a spire that starts near the ground.
+    var pnH2=Math.round((13+(seed%6))*K);
+    g.fillStyle=C([84,66,48]);
+    R(-Math.round(K*0.7),-pnH2,Math.max(1,Math.round(1.5*K)),pnH2);
+    g.fillStyle=C([44,74,54]);
+    for(var pnw=0;pnw<4;pnw++){
+      var pnf=pnw/4, pnW=Math.round((5.0-2.4*pnf)*K);
+      R(-pnW/2+sway*0.4,-pnH2*(0.62+0.30*pnf),pnW,Math.max(1,Math.round(1.9*K)));
+    }
+    g.fillStyle=C([32,56,42]);
+    R(-Math.round(2*K)+sway*0.4,-pnH2*0.74,Math.round(4*K),Math.max(1,Math.round(K)));
+  } else if(kind==="fungus"){
+    // ⚠ DECLARED BY THE UNDERCITY AND BOTH ITS VARIANTS AND NEVER DRAWN — three of four slots, so the
+    // land whose second variant is literally called THE GLOWSPORE had no fungus growing in it.
+    // ⚠ IT IS ITS OWN LIGHT SOURCE. A cavern has no sun, so a mushroom drawn in reflected light down
+    // there is a grey lump; the cap is painted in the biome's own bloom colour and given an additive
+    // halo, which is what the rest of the undercity's light does.
+    var fgB=(curBiome.flora&&curBiome.flora.bloom)||["#7cf0d0"], fgC=fgB[seed%fgB.length];
+    for(var fgi=0;fgi<3;fgi++){
+      var fgH=Math.round((3+((seed>>(fgi*2))%4))*K), fgW=Math.round((2.2+((seed>>fgi)%3)*0.8)*K), fgX=(fgi-1)*2.2*K;
+      g.fillStyle=C([132,124,112]);
+      R(fgX-Math.round(K*0.4),-fgH,Math.max(1,Math.round(K*0.9)),fgH);                       // the stipe
+      g.fillStyle=fgC;
+      R(fgX-fgW/2,-fgH-Math.round(K),Math.max(1,fgW),Math.max(1,Math.round(1.2*K)));         // the cap
+      g.globalCompositeOperation="lighter";
+      g.fillStyle=hexA(fgC,0.16);
+      R(fgX-fgW*0.8,-fgH-Math.round(1.9*K),Math.max(1,fgW*1.6),Math.max(1,Math.round(2.6*K)));
+      g.globalCompositeOperation="source-over";
+    }
   }
   biomePlantSnow(g,X,gy,sc,kind);      // the city's real weather still lands on the biome's plants
 }
@@ -20692,7 +20867,11 @@ function drawBiomePlant(g,X,gy,day,now,seed,sc,kind,swayOn){
 // what the sky is doing. Called last by drawBiomePlant so the cap sits on whatever was drawn.
 function biomePlantSnow(g,X,gy,sc,kind){
   if(snowpack<=0.1) return;
-  var K=Math.max(1,sc), h={saguaro:11,ocotillo:9,cottonwood:13,windbent:8,spruce:12,larch:10,stonepine:9,fern:3,log:2,gorse:2,scrub:2,grass:3}[kind]||3;
+  // ⚠ AN UNKNOWN KIND FALLS BACK TO h=3, so while `acacia`/`pine`/`fungus` had no writer these lands
+  // put a white cap in mid-air over ground with no plant under it. Every kind this function can be
+  // called with needs a row here, not just the ones that existed when it was written.
+  var K=Math.max(1,sc), h={saguaro:11,ocotillo:9,cottonwood:13,windbent:8,spruce:12,larch:10,stonepine:9,fern:3,log:2,gorse:2,scrub:2,grass:3,
+                           acacia:13,fevertree:15,baobab:15,euphorbia:11,sausage:12,pine:13,fungus:3}[kind]||3;
   g.fillStyle="rgba(240,244,255,"+Math.min(0.9,0.35+snowpack*0.6).toFixed(2)+")";
   var top=Math.round(gy-h*K), wdt=Math.max(2,Math.round((kind==="log"?6:3)*K));
   g.fillRect(Math.round(X-wdt/2),top,wdt,Math.max(1,Math.round(K)));
@@ -21372,6 +21551,16 @@ function drawOrbit(g,L,now,nd){
 // three ranks of flat-topped acacia marching back into heat haze, a lone kopje to measure against,
 // and a herd drawn BIG in the near rank rather than as dots on the horizon.
 var savCache=null;
+// WHERE THE TREES ARE, as a pure function of rank and index. The HERD needs this: a browsing giraffe
+// is a giraffe standing at a CROWN and a bark-stripping elephant is one standing at a TRUNK, and the
+// trees are placed in drawSavanna while the animals are placed in drawSavannaLife. Two functions
+// computing the same position separately is exactly how the dam's waterline drifted, so there is one.
+function savTreeN(r){ return 16+r*10; }
+function savTreeWX(r,t){ return ((t*40503+r*104729+((WORLD_SEED*7)|0))>>>0)%Math.max(1,WW); }
+// The band a rank stands in, as a fraction of the gap between the escarpment and the horizon. The
+// trees and the animals of a rank must share one, or a giraffe browses a tree standing in front of it.
+function savTreeF(dep){ return 0.15+0.30*dep; }
+function savHerdF(dep){ return 0.30+0.62*(1-dep); }
 function drawSavanna(g,L,now,nd){
   var day=L>0.5, B=curBiome, K=Math.max(1,KSP), skc=biomeSkc(day);
   var litK=Math.max(0,Math.min(1,(L-0.34)*2.4));
@@ -21496,26 +21685,80 @@ function drawSavanna(g,L,now,nd){
   // the acacias were small, far and few, so a flat-topped silhouette — the most recognisable shape on
   // this land — barely registered. Nick's call was to give each empty land its OWN missing mass rather
   // than a blanket relief bump, and on a grassland the trees ARE the mass.
+  // ⚠ ONE WRITER, SHARED WITH THE FLORA DISPATCHER. These ranks used to hand-roll a trunk rectangle
+  // with a filled parabola on top, while `drawBiomePlant`'s `acacia` — declared by all three of this
+  // land's flora rosters — had no branch at all and drew nothing. Both now call drawAcacia, which is
+  // where the four ages and the forked-limb architecture live.
+  // ⚠ NEAR-BLACK, HAZED ONLY BY DISTANCE. Locked answer 3, silhouettes against a burning sky. The old
+  // mid-olive mixed 0.20-0.70 toward the sky colour IS fault 3 written as a constant: on a land whose
+  // sky is bleached almost white, the trees are the darkest thing the frame can contain and have to
+  // be spent as such. Depth now comes from haze and size, never from making the near rank lighter.
   for(var r=2;r>=0;r--){
-    var dep=r/2, sc=(1.75-0.85*dep), n2=16+r*10;
-    var col=mixc(day?[92,110,64]:[16,24,18], skc, 0.20+0.50*dep);
+    var dep=r/2, sc=(2.05-1.05*dep), n2=savTreeN(r);
+    // ⚠ HAZE IS FOR DEPTH, NOT FOR DISAPPEARING. At 0.44-0.54 toward the sky the two back ranks came
+    // out as pale grey scaffolding and the land went straight back to one mid-value mush — the fault
+    // this whole pass is answering. Enough haze to separate the ranks, not enough to bleach them.
+    var trk=mixc(day?[30,26,20]:[10,12,12], skc, 0.05+0.30*dep);
+    var crn=mixc(day?[38,40,26]:[12,16,14], skc, 0.06+0.32*dep);
     for(var t=0;t<n2;t++){
-      var twx=((t*40503+r*104729+((WORLD_SEED*7)|0))>>>0)%Math.max(1,WW);
+      var twx=savTreeWX(r,t), tsd=((t*2654435761+r*7919+((WORLD_SEED*11)|0))>>>0);
       for(var o2=-1;o2<=1;o2++){
         var tx=Math.round(twx-WOFF+o2*WW);
-        if(tx<-40||tx>SW+40) continue;
-        var ty=Math.round(savCache[Math.max(0,Math.min(SW-1,tx))]+(HORIZON-savCache[Math.max(0,Math.min(SW-1,tx))])*(0.15+0.30*dep));
-        var th=Math.round(16*K*sc), cw=Math.round(15*K*sc);
-        g.fillStyle=css(col);
-        g.fillRect(tx-Math.max(1,Math.round(K*0.5*sc)),ty-th,Math.max(1,Math.round(1.4*K*sc)),th);   // trunk
-        // the crown: WIDE and FLAT, thickest in the middle — never a ball, that is what makes it acacia
-        for(var cq=-cw;cq<cw;cq++){
-          var cu=Math.abs(cq/cw);
-          var ch2=Math.round((3.4*K*sc)*(1-cu*cu*0.8));
-          if(ch2<1) continue;
-          var cx2=tx+cq; if(cx2<0||cx2>=SW) continue;
-          g.fillRect(cx2,ty-th-ch2,1,ch2);
+        if(tx<-60||tx>SW+60) continue;
+        var tgc=savCache[Math.max(0,Math.min(SW-1,Math.max(0,tx)))];
+        var ty=Math.round(tgc+(HORIZON-tgc)*savTreeF(dep));
+        var th=Math.round((15+((tsd>>>9)%9))*K*sc), tk=(tsd>>>17)%20;
+        if(tk<2){
+          // A CANDELABRA EUPHORBIA. Two in twenty, and they are the only VERTICAL thing in the tree
+          // line — one column among the flat crowns is what stops a rank reading as one repeated note.
+          var euu=Math.max(1,Math.round(K*sc));
+          g.fillStyle=css(crn);
+          g.fillRect(tx-euu,ty-th,euu*2,th);
+          for(var ea=0;ea<4;ea++){
+            var es=(ea<2?-1:1), eo=Math.round((1+(ea%2))*euu*2.2);
+            var eyy=Math.round(th*(0.34+(ea%2)*0.16)), etp=Math.round(th*(0.66+(ea%2)*0.20));
+            g.fillRect(Math.min(tx,tx+es*eo),ty-eyy,Math.max(1,eo+euu),euu);
+            g.fillRect(tx+es*eo-Math.round(euu/2),ty-etp,euu,Math.max(1,etp-eyy));
+          }
+        } else if(tk<4){
+          // A KIGELIA — a dense ROUND crown, the one outline nothing else on this land has.
+          g.fillStyle=css(trk);
+          g.fillRect(tx-Math.max(1,Math.round(K*sc*0.6)),ty-Math.round(th*0.55),Math.max(1,Math.round(1.4*K*sc)),Math.round(th*0.55));
+          g.fillStyle=css(crn);
+          folMass(g,tx,ty-th*0.72,th*0.52,th*0.34,tsd,Math.max(1,K*sc));
+        } else {
+          // ⚠ CROWN WIDTH IS 1.0-1.5x THE HEIGHT, NOT 2x. At 0.58-0.98 of H per side the near rank rendered as
+          // dark horizontal STREAKS across the sky — flat-topped taken so far it stopped being a tree.
+          drawAcacia(g,tx,ty,th,Math.round(th*(0.48+((tsd>>>5)%26)/100)),acaciaForm(tsd),tsd,Math.max(1,K*sc),css(trk),css(crn),0);
         }
+      }
+    }
+  }
+  // ---- THE LONE BAOBAB. Locked answer 1's fourth filler, and the second big object this land has.
+  // ⚠ ONE PER MONITOR-THIRD, offset from the kopjes, for the reason the kopjes are: a single hero on a
+  // 2269 wp world leaves two of Nick's three screens without one. "Lone" means lone ON A SCREEN.
+  for(var bq=0;bq<3;bq++){
+    var bsd=((bq*2654435761+((WORLD_SEED*613)|0))>>>0);
+    var bwx=Math.round((0.33+bq*0.33+(((bsd>>>9)%100)/100-0.5)*0.09)*WW);
+    var bhh=Math.round(HORIZON*(0.17+((bsd>>>5)%100)/100*0.06));      // far larger than any acacia
+    for(var bo=-1;bo<=1;bo++){
+      var bx=Math.round(bwx-WOFF+bo*WW);
+      if(bx<-80||bx>SW+80) continue;
+      var bgc=savCache[Math.max(0,Math.min(SW-1,Math.max(0,bx)))];
+      var by=Math.round(bgc+(HORIZON-bgc)*0.40);
+      var bw2=bhh*0.44;
+      g.fillStyle=css(mixc(day?[34,28,22]:[10,12,12], skc, 0.10));
+      for(var bl2=0;bl2<bhh;bl2++){
+        // the waisted bottle trunk: fat at the ground, pinched, then shouldered out again at the top.
+        // A straight taper is a cone and reads as a dead conifer; the WAIST is the whole silhouette.
+        var bu2=bl2/bhh, bww=bw2*(1-Math.pow(bu2,1.4)*0.66)*(1+0.09*Math.sin(bu2*7));
+        g.fillRect(Math.round(bx-bww/2),by-bl2,Math.max(1,Math.round(bww)),1);
+      }
+      for(var br3=0;br3<6;br3++){                                     // the stubby root-like branches
+        var ba2=-2.62+br3*0.52, bln=bhh*(0.16+((bsd>>br3)&3)*0.04);
+        for(var bs2=0;bs2<bln;bs2++)
+          g.fillRect(Math.round(bx+Math.cos(ba2)*bs2),Math.round(by-bhh+Math.sin(ba2)*bs2*0.85),
+                     Math.max(1,Math.round(K*1.1)),Math.max(1,Math.round(K*1.1)));
       }
     }
   }
@@ -21639,15 +21882,202 @@ function drawLandPredators(g,L,now,nd,fx){
     }
   }
 }
+// ONE ANIMAL, IN ONE OF SIX POSES.
+//   0 graze (head down) · 1 walk · 2 drink · 3 rest (lying) · 4 alert (head up) · 5 run
+// ⚠ HOISTED, because the foreground pass draws the same species at four times the size and a second
+// copy of this would drift from it — the volcano's three-removals-in-three-places rule. The bit flags
+// in `busy` are the idle business: 1 oxpecker on the back · 2 trunk/head raised into a tree ·
+// 4 dust-bathing · 8 rolling on its back.
+// HOW BIG AN ANIMAL IS, given the height its TALLEST POINT should reach. Shared by the foreground
+// pass and the sprite-sheet harness so the two cannot disagree about proportion.
+// ⚠ sp.h IS SHOULDER HEIGHT AND A GIRAFFE CARRIES MOST OF ITS STATURE IN THE NECK, so "how tall is
+// it" is not sp.h. Sizing a giraffe by sp.w/sp.h alone gave a body 21 wide and 29 deep — a vertical
+// box with a neck on it, which is the one animal on this land nobody could fail to recognise.
+function beastSize(sp,total){
+  var f=sp.neck?1.96:1.32;                       // total height as a multiple of shoulder height
+  var h=Math.max(2,Math.round(total/f));
+  return { h:h, w:Math.max(3,Math.round(h*(sp.w/sp.h))) };
+}
+function drawBeast(g,x,y,w,h,sp,pose,face,ph,body,leg,K,busy){
+  busy=busy||0;
+  var s=(face>=0)?1:-1, lying=(pose===3||(busy&8));
+  function RB(ax,ay,aw,ah){ g.fillRect(Math.round(aw<0?ax+aw:ax),Math.round(ah<0?ay+ah:ay),
+                                       Math.max(1,Math.round(Math.abs(aw))),Math.max(1,Math.round(Math.abs(ah)))); }
+  // ⚠ PROPORTION. `h` is SHOULDER height — the top of the back — for every species, and a real
+  // quadruped's barrel is about half of that with the legs making up the rest. At 0.62 body and 0.44
+  // legs the two overlapped and every animal came out as a deep-bodied pig on stumps, which is
+  // invisible at eight px and unmissable at ninety.
+  var bh=Math.max(1,Math.round(h*(lying?0.34:0.50))), by=lying?(y-bh):(y-h);
+  var hAx=(s>0)?(x+w):x;                                            // the nose end of the animal
+  g.fillStyle=css(body);
+  // ⚠⚠ THE BARREL IS A PROFILE, NOT A RECTANGLE. At eight pixels a filled rect is a fine animal; at
+  // the ninety-three the foreground pass asks for, it is a BLACK BAR lying across the street — which
+  // is exactly what the first render of that pass produced, and it was drawing correctly the whole
+  // time. Rounded at both ends, highest at the shoulder, belly sagging between the legs: the same
+  // sprite now has to survive a twelve-fold size range, so the shape has to come from a curve.
+  for(var q=0;q<w;q++){
+    var u=q/Math.max(1,w-1), uu=(s>0)?u:(1-u);                      // uu: 0 at the tail, 1 at the head
+    var rnd=Math.min(1,Math.min(uu,1-uu)/0.17);
+    var back=bh*(0.30*(1-rnd)+0.07*Math.min(1,Math.pow(Math.abs(uu-0.66)*2.4,2)));
+    var bell=bh*(0.26*(1-rnd));
+    var t0=by+back, b0=by+bh-bell;
+    if(b0>t0) g.fillRect(Math.round(x+q),Math.round(t0),1,Math.max(1,Math.round(b0-t0)));
+  }
+  if(sp.hump) RB(x+w*(s>0?0.10:0.55),by-Math.round(h*0.10),w*0.35,Math.round(h*0.12));
+  // ---- the head, and the NECK that joins it on. A head-down animal without a neck is a body with a
+  // lump next to it; the neck is what makes grazing legible at eight pixels.
+  if(sp.neck){                                                      // giraffe
+    var nkw=Math.max(1,Math.round(w*0.17));
+    if(pose===0||pose===2){
+      // A giraffe reaching the ground is the most recognisable posture on this land — and the first
+      // version drew the neck STRAIGHT DOWN from inside the shoulder, i.e. entirely behind the body,
+      // so a drinking giraffe rendered as a box on legs. It has to come FORWARD as it descends, past
+      // the animal's own nose, which is also why they splay their front legs to do it.
+      var nx0=hAx-s*nkw, ny0=by+Math.round(bh*0.10);
+      var nx1=hAx+s*Math.round(w*0.42), ny1=y-Math.round(h*0.10);
+      var nn=Math.max(1,Math.round(Math.max(Math.abs(nx1-nx0),Math.abs(ny1-ny0))));
+      for(var nq=0;nq<=nn;nq++){
+        var nf=nq/nn;
+        g.fillRect(Math.round(nx0+(nx1-nx0)*nf-(s>0?0:nkw)),Math.round(ny0+(ny1-ny0)*nf),nkw,Math.max(1,Math.round(nkw*0.9)));
+      }
+      RB(nx1,ny1,s*Math.round(w*0.24),Math.round(h*0.11));            // the head, down at the grass
+    } else {
+      var nkh=Math.round(h*((busy&2)?1.25:(pose===4?1.08:0.96)));    // browsing: the head goes INTO the crown
+      RB(hAx-s*nkw,by-nkh,s*nkw,nkh);
+      RB(hAx-s*nkw,by-nkh-Math.round(h*0.06),s*Math.round(w*0.26),Math.round(h*0.12));
+      RB(hAx-s*nkw+s*Math.round(w*0.20),by-nkh-Math.round(h*0.14),s*Math.max(1,Math.round(w*0.05)),Math.round(h*0.09));  // ossicones
+    }
+  } else {
+    var hgt=Math.max(1,Math.round(h*(sp.trunk?0.34:0.30))), hwd=Math.max(1,Math.round(w*(sp.trunk?0.30:0.26)));
+    // ⚠ A LYING ANIMAL KEEPS ITS HEAD UP. Tucked at 0.10 above the back it merged into the barrel and
+    // a resting elephant rendered as a featureless black lozenge lying across the street — three
+    // renders went into working out that it was drawing correctly and simply asleep.
+    var hy=(pose===0)?(y-Math.round(h*0.26)):(pose===2?(y-Math.round(h*0.14)):
+           (pose===3?(by-Math.round(h*0.34)):(by-Math.round(h*(pose===4?0.32:0.18)))));
+    // rounded at this size too — a square head on a curved body is the join you notice first
+    if(hwd>=5){
+      for(var hq=0;hq<hwd;hq++){
+        var hu=hq/Math.max(1,hwd-1), hr=Math.min(1,Math.min(hu,1-hu)/0.30);
+        var hd2=Math.max(1,Math.round(hgt*(0.55+0.45*hr)));
+        g.fillRect(Math.round((s>0?hAx+hq:hAx-hq-1)),Math.round(hy+(hgt-hd2)*0.55),1,hd2);
+      }
+    } else RB(hAx,hy,s*hwd,hgt);
+    RB(hAx-s*Math.round(w*0.08),Math.min(hy,by),s*Math.max(1,Math.round(w*0.17)),Math.abs(by-hy)+1);   // the neck
+    // ⚠ EARS GO ON THE BACK OF THE HEAD, NOT ON THE NOSE. At 0.02 in from the muzzle they rendered as
+    // a detached box floating past the animal's face at foreground size.
+    if(pose===4) RB(hAx-s*Math.round(w*0.17),hy-Math.round(h*0.09),s*Math.max(1,Math.round(w*0.05)),Math.round(h*0.10));
+  }
+  if(sp.trunk){                                                     // elephant
+    var tl=Math.round(h*((busy&2)?0.62:(pose===0?0.60:0.50)));
+    var tw2=Math.max(1,Math.round(w*0.09));
+    // the trunk TAPERS — a constant-width one is a rope, and it is the single most identifiable
+    // thing on the animal, so it is worth the loop
+    for(var tq=0;tq<tl;tq++){
+      var tf=tq/Math.max(1,tl), tww=Math.max(1,Math.round(tw2*(1-tf*0.55)));
+      var tyy=(busy&2)?(by+Math.round(bh*0.08)-tq):(by+Math.round(bh*0.08)+tq);
+      g.fillRect(Math.round(hAx+s*Math.round(w*0.10)+(s>0?0:-tww)+s*Math.round(tf*w*0.05)),tyy,tww,1);
+    }
+    if(w>=16){                                                      // tusks, once there is room for them
+      g.fillStyle=rgba([226,220,200],0.85);
+      RB(hAx+s*Math.round(w*0.04),by+Math.round(bh*0.22),s*Math.round(w*0.16),Math.max(1,Math.round(h*0.05)));
+    }
+    g.fillStyle=rgba(leg,0.9);
+    // the EAR, rounded and big — on an African elephant it is most of the head's outline
+    var ew=Math.max(1,Math.round(w*0.24)), eh2=Math.max(1,Math.round(h*0.34));
+    for(var eq=0;eq<ew;eq++){
+      var euu=eq/Math.max(1,ew-1), er=Math.min(1,Math.min(euu,1-euu)/0.34);
+      var ed=Math.max(1,Math.round(eh2*(0.60+0.40*er)));
+      g.fillRect(Math.round(hAx-s*Math.round(w*0.32)+(s>0?eq:-eq)),Math.round(by-h*0.04+(eh2-ed)*0.4),1,ed);
+    }
+    g.fillStyle=css(body);
+  }
+  // ---- legs
+  g.fillStyle=css(leg);
+  if(lying){
+    RB(x+Math.round(w*0.16),y-Math.round(h*0.14),Math.round(w*0.24),Math.round(h*0.14));               // folded under
+    if(busy&8){                                                     // rolling: all four in the air
+      for(var rl=0;rl<4;rl++) RB(x+Math.round(w*(0.18+rl*0.20)),by-Math.round(h*0.26),Math.max(1,Math.round(w*0.09)),Math.round(h*0.26));
+    }
+  } else {
+    var lh=Math.max(1,Math.round(h*0.54)), sA=Math.sin(ph), sB=Math.sin(ph+(pose===5?1.1:Math.PI));
+    var spl=(pose===5)?Math.round(w*0.34):((pose===2)?Math.round(w*0.22):0);   // gallop splays; drinking braces
+    // ⚠ AN ELEPHANT STANDS ON PILLARS. Legs at 0.12 of the body width are a heron's; the GAP between
+    // the fore and hind pairs is what reads as "four legs" at distance, and thin ones close it up.
+    var lw=Math.max(1,Math.round(w*(sp.trunk?0.17:0.13)));
+    RB(x+Math.round(w*0.12)-spl+(pose===1?Math.round(sA*w*0.05):0),y-lh,lw,lh);
+    RB(x+Math.round(w*0.27)-Math.round(spl*0.4),y-lh,lw,lh-(pose===1?Math.round(sA*1.2):0));
+    RB(x+Math.round(w*0.60)+Math.round(spl*0.4),y-lh,lw,lh-(pose===1?Math.round(sB*1.2):0));
+    RB(x+Math.round(w*0.75)+spl+(pose===1?Math.round(sB*w*0.05):0),y-lh,lw,lh);
+  }
+  // ⚠ THE TAIL STARTS INSIDE THE RUMP. Hung a further 6% of the body length clear of the tapered end,
+  // it read as a separate black box standing behind the animal.
+  RB(hAx-s*w+s*Math.round(w*0.03),by+Math.round(bh*0.06),-s*Math.max(1,Math.round(w*0.055)),Math.round(h*0.30));
+  if(sp.striped&&w>=6){                                             // zebra
+    // ⚠ THE STRIPES HAVE TO KNOW WHICH WAY ROUND THE ANIMAL IS. Dark stripes are right on a lit white
+    // zebra and invisible on a silhouetted one, which is what this land now draws — so they flip.
+    g.fillStyle=rgba(lum255(body)<96?[208,204,198]:[30,28,30],0.55);
+    for(var st=1;st<w-1;st+=Math.max(2,Math.round(w*0.22))) g.fillRect(Math.round(x+st),by,1,Math.max(1,Math.round(bh*0.95)));
+  }
+  if(busy&1){ g.fillStyle=rgba([228,220,196],0.9);                  // an oxpecker riding the back
+    g.fillRect(Math.round(x+w*0.42),by-Math.max(1,Math.round(K*0.7)),Math.max(1,Math.round(K*0.7)),Math.max(1,Math.round(K*0.7))); }
+  if(busy&4){ g.fillStyle=rgba([224,204,164],0.30);                 // dust thrown over its own back
+    g.fillRect(Math.round(x-w*0.25),Math.round(by-h*0.30),Math.round(w*1.5),Math.max(1,Math.round(h*0.38))); }
+}
 // THE HERD. Drawn HERE rather than left to drawBiomeFauna, because that writer places animals on the
 // ground band at speck scale — correct on every other land and fatal on this one, where the herd IS
 // the subject. Three depth ranks, the nearest at full size so an elephant actually reads as an
 // elephant next to a 7px person.
+// ⚠⚠ IT WAS A CONVEYOR BELT. Every animal moved on `wx = seed + now*speed*WW` — a constant velocity,
+// forever, with no stop in it. Nothing grazed, nothing drank, nothing stood still. That is the fault
+// Nick named on this very land ("not just running from one side of the screen to the other"), and the
+// pedestrians were rebuilt around it two passes ago; the herd it was named about never was.
+// ⚠ AND THE CURE ALREADY EXISTED IN THIS FILE. `wildAt` scripts graze / walk to water / drink / rest /
+// watch from a hash in 26-second blocks, anchored on the watering hole — and the predators fifty lines
+// below already call it. Only the herd did not.
+// ⚠ ANCHORED PER GROUP, NEVER PER ANIMAL. wildAt's graze anchor is `x = r2*WW`, so calling it once per
+// animal would have given 126 independent destinations spread over the whole world and DISSOLVED the
+// herd — worse than the conveyor. A group gets one anchor and its members sit around it.
+// ⚠ AND EVERY GROUP GETS ITS OWN PHASE. Reading the same block clock would stop and start the entire
+// land in unison, which is exactly what the dialogue pass found when 509 conversations all began
+// together. One offset per group, drawn from its own seed, and the land is never all doing one thing.
+// A PROBE, not decoration: how many of the herd actually landed on THIS screen this frame, and what
+// they were doing. "The herd is invisible on a grown city" was diagnosed by eye and cost three renders;
+// `onscreen herd=90 acts=[21,23,13,6,27]` answers both halves of it in one line, and it is the only way
+// to tell "drawn and too small" apart from "not drawn" without reverse-engineering a composited frame.
+var SAVL_N=0, SAVL_ACT=[];
+var PANIC_R=280, PANIC_D=170;              // how far a stampede is felt, and how far it carries — world px
 function drawSavannaLife(g,L,now,nd,fx){
   if(!curBiome.herd||cityPhase==="apoc"||WILD_LAYER==="front") return;   // the herd is landscape: always behind
   var day=L>0.5, K=Math.max(1,KSP), B=curBiome;
   var mig=!!B.migration, dusty=!!B.dust;
+  SAVL_N=0; SAVL_ACT=[];
   var SPECIES=mig?["wildebeest","zebra","wildebeest","zebra","elephant"]:["elephant","giraffe","zebra","wildebeest"];
+  // ---- THE HUNTS, resolved ONCE for the frame. The herd has to know about them before it can react,
+  // and the predators below draw from the same two answers — one hunt, not two that disagree.
+  var HUNTS=[];
+  for(var hp=0;hp<2;hp++){
+    var hsd=((hp*104729+((WORLD_SEED*31)|0))>>>0);
+    HUNTS.push({seed:hsd,h:huntAt(hsd,now,L)});
+  }
+  // THE STAMPEDE. Displacement in world px for an animal at wx, plus how hard it is running.
+  // ⚠ EASED IN AND EASED BACK TO ZERO — f(rush start)=0 and f(block end)=0 — so nothing JUMPS when the
+  // hash flips. That continuity is the same rule gaitEase obeys, and the note there says making speed
+  // change abruptly is what made the walkers teleport.
+  // ⚠ NOTHING BOLTS DURING THE STALK. A stalk that scattered the herd would never end in a kill, and
+  // the whole read of a hunt is the speed change between creeping and rushing.
+  function panicAt(wx){
+    var d=0, run=0;
+    for(var q=0;q<HUNTS.length;q++){
+      var H=HUNTS[q].h; if(!H||H.phase==="stalk") continue;
+      var dx=wx-H.x; if(dx>WW/2) dx-=WW; if(dx<-WW/2) dx+=WW;
+      var ad=Math.abs(dx); if(ad>PANIC_R) continue;
+      var f=(H.t<0.62)?((H.t-0.45)/0.17):(1-(H.t-0.62)/0.38);
+      f=Math.max(0,Math.min(1,f)); f=f*f*(3-2*f);
+      var amt=f*(1-ad/PANIC_R);
+      if(amt>run){ run=amt; d=(dx>=0?1:-1)*amt*PANIC_D; }
+    }
+    return {d:d,run:run};
+  }
   for(var r=2;r>=0;r--){
     var dep=r/2, sc=(1-0.58*dep);
     // ⚠ COUNT AND CONTRAST, NOT SIZE. The first herd was correctly proportioned — an elephant renders
@@ -21655,47 +22085,62 @@ function drawSavannaLife(g,L,now,nd,fx){
     // five of them and they were hazed toward the background. Nick's rule for exactly this case is
     // realism for SHAPE, readability for COLOUR: so the animals keep their honest size and instead
     // there are far more of them, and the near rank is barely hazed at all.
-    var n=(mig?26:15)+r*(mig?16:9);
-    var speed=(0.000010+0.000006*(1-dep));
-    var band=Math.round(HORIZON-(HORIZON-savCache?0:0));
-    for(var i=0;i<n;i++){
-      var sd=((i*2654435761+r*104729+((WORLD_SEED*13)|0))>>>0);
-      var sp=FAUNA[SPECIES[sd%SPECIES.length]]; if(!sp) continue;
-      var wx=((sd%Math.max(1,WW))+now*speed*WW)%WW;
-      var x=Math.round(wx-WOFF);
-      if(x<-40) x+=WW; if(x>SW+40) x-=WW;
-      if(x<-30||x>SW+30) continue;
-      var gy=Math.round((savCache?savCache[Math.max(0,Math.min(SW-1,Math.max(0,x)))]:HORIZON*0.86));
-      var y=Math.round(gy+(HORIZON-gy)*(0.30+0.62*(1-dep)));
-      var w=Math.max(2,Math.round(sp.w*K*0.5*sc)), h=Math.max(2,Math.round(sp.h*K*0.5*sc));
-      var body=mixc(day?sp.c:[(sp.c[0]*0.3)|0,(sp.c[1]*0.3)|0,(sp.c[2]*0.4)|0], biomeSkc(day), 0.02+0.44*dep);
-      var leg=mixc(day?sp.c2:[(sp.c2[0]*0.3)|0,(sp.c2[1]*0.3)|0,(sp.c2[2]*0.4)|0], biomeSkc(day), 0.02+0.44*dep);
-      var step=Math.sin(now*0.006+i*1.7);
-      g.fillStyle=css(body);
-      g.fillRect(x,y-h,w,Math.max(1,Math.round(h*0.62)));                       // barrel
-      if(sp.neck){                                                              // giraffe
-        g.fillRect(x+w-Math.max(1,Math.round(w*0.16)),y-h-Math.round(h*0.72),Math.max(1,Math.round(w*0.16)),Math.round(h*0.75));
-        g.fillRect(x+w-Math.max(1,Math.round(w*0.06)),y-h-Math.round(h*0.80),Math.max(1,Math.round(w*0.22)),Math.max(1,Math.round(h*0.14)));
-      } else {
-        g.fillRect(x+w-Math.max(1,Math.round(w*0.20)),y-h-Math.round(h*0.24),Math.max(1,Math.round(w*0.26)),Math.max(1,Math.round(h*0.30)));
+    var ng=(mig?6:4)+r*(mig?4:3);
+    for(var gi=0;gi<ng;gi++){
+      var gsd=((gi*2654435761+r*104729+((WORLD_SEED*13)|0))>>>0);
+      var sp=FAUNA[SPECIES[gsd%SPECIES.length]]; if(!sp) continue;
+      var W=wildAt(gsd,now+(gsd%WILD_BLOCK),L);                  // ← its own phase, so nothing moves in unison
+      var gwx=W.x, gact=W.act, atTree=-1;
+      // ---- ANIMALS THAT USE THE TREES. A browsing giraffe stands at a CROWN and a bark-stripping
+      // elephant at a TRUNK, so those groups take a tree's world position instead of a graze anchor —
+      // and then stand in the TREE's depth band, or they browse a tree ten pixels in front of them.
+      if((sp.neck||sp.trunk)&&gact===0&&((gsd>>>13)%100)<58){
+        atTree=(gsd>>>3)%savTreeN(r); gwx=savTreeWX(r,atTree); gact=4;
       }
-      if(sp.trunk){                                                             // elephant
-        g.fillRect(x+w+Math.round(w*0.04),y-h+Math.round(h*0.06),Math.max(1,Math.round(w*0.08)),Math.round(h*0.52));
-        g.fillStyle=rgba(leg,0.9);
-        g.fillRect(x+w-Math.round(w*0.30),y-h-Math.round(h*0.06),Math.max(1,Math.round(w*0.20)),Math.max(1,Math.round(h*0.26)));  // ear
-        g.fillStyle=css(body);
+      var mem=(mig?4:3)+((gsd>>>19)%(mig?5:4));
+      var spread=(26+34*(1-dep))*Math.max(1,K*0.6);
+      for(var i=0;i<mem;i++){
+        var msd=((i*40503+gsd*7919)>>>0);
+        var off=(((msd%1000)/1000)-0.5)*spread;
+        var P=panicAt(wrapW(gwx+off));
+        var wx=wrapW(gwx+off+P.d);
+        var x=Math.round(wx-WOFF);
+        if(x<-40) x+=WW; if(x>SW+40) x-=WW;
+        if(x<-30||x>SW+30) continue;
+        var gy=Math.round(savCache?savCache[Math.max(0,Math.min(SW-1,Math.max(0,x)))]:HORIZON*0.86);
+        var y=Math.round(gy+(HORIZON-gy)*(atTree>=0?savTreeF(dep):savHerdF(dep)));
+        // ⚠ ONE IN SEVEN HAS ITS HEAD UP. A real herd always has a sentinel, and it is also what stops
+        // a group of five reading as five copies of one pose.
+        var pose=gact;
+        if(((msd>>>7)%100)<14&&gact!==3) pose=4;
+        if(P.run>0.12) pose=5;                                     // …and everything runs when the cat rushes
+        var calf=(((msd>>>11)%100)<20&&i>0)?0.56:1;
+        var msc=sc*calf*(1+(((msd>>>23)%100)/100-0.5)*0.16);       // no two the same size, even in a group
+        var w=Math.max(2,Math.round(sp.w*K*0.5*msc)), h=Math.max(2,Math.round(sp.h*K*0.5*msc));
+        // ⚠ SILHOUETTE, NOT LOCAL COLOUR — locked answer 3, and the answer to "nothing is dark and
+        // nothing is bright". Against a sky bleached almost white, the animals are pulled hard toward
+        // black and only the far rank is allowed to haze back toward it.
+        // ⚠ …AND THE ANIMALS EVEN MORE SO. Hazed 0.46 into the sky the far ranks read as scraps of
+        // litter on the grass. They are the SUBJECT of this land; depth can cost them a quarter.
+        // ⚠ 0.62 IS NOT A SILHOUETTE FOR A WHITE ANIMAL. A zebra is [238,236,232]; pulled only 62% to
+        // black it lands at mid-grey and the resting ones read as scraps of litter on the grass.
+        var sil=day?0.76:0.38;
+        var body=mixc(mixc(sp.c,[16,14,16],sil),biomeSkc(day),0.02+0.24*dep);
+        var leg =mixc(mixc(sp.c2,[12,10,12],sil),biomeSkc(day),0.02+0.24*dep);
+        var busy=0;
+        if(atTree>=0) busy|=2;                                     // head in the crown / trunk on the bark
+        if(((msd>>>5)%100)<12&&w>=5) busy|=1;                      // an oxpecker riding it
+        if(sp.trunk&&gact===0&&((msd>>>17)%100)<22) busy|=4;       // an elephant throwing dust over itself
+        if(sp.striped&&gact===3&&((msd>>>13)%100)<28) busy|=8;     // a zebra rolling on its back
+        var ph=now*0.006+i*1.7+gi*0.9;
+        SAVL_N++; SAVL_ACT[pose]=(SAVL_ACT[pose]||0)+1;
+        drawBeast(g,x,y,w,h,sp,pose,W.face,ph,body,leg,K*msc,busy);
+        // dust: kicked up by the near rank in the dry season, and by ANY rank in a stampede
+        if((dusty&&r===0)||P.run>0.3){
+          g.fillStyle=rgba([214,192,150],0.20+0.28*P.run);
+          g.fillRect(x-Math.round(w*0.6),y-Math.round(h*0.18),Math.round(w*1.7),Math.max(1,Math.round(h*0.22)));
+        }
       }
-      g.fillStyle=css(leg);
-      var lh=Math.max(1,Math.round(h*0.44));
-      g.fillRect(x+Math.round(w*0.14),y-lh,Math.max(1,Math.round(w*0.12)),lh+Math.round(step*0.6));
-      g.fillRect(x+Math.round(w*0.68),y-lh,Math.max(1,Math.round(w*0.12)),lh-Math.round(step*0.6));
-      if(sp.striped&&w>=6){                                                     // zebra
-        g.fillStyle=rgba([30,28,30],0.8);
-        for(var st=1;st<w-1;st+=Math.max(2,Math.round(w*0.22))) g.fillRect(x+st,y-h,1,Math.round(h*0.6));
-      }
-      // dust kicked up by the near rank in the dry season
-      if(dusty&&r===0){ g.fillStyle=rgba([214,192,150],0.22);
-        g.fillRect(x-Math.round(w*0.5),y-Math.round(h*0.18),Math.round(w*1.6),Math.max(1,Math.round(h*0.2))); }
     }
   }
 
@@ -21706,8 +22151,10 @@ function drawSavannaLife(g,L,now,nd,fx){
   function bandY(sxp){ var gh=savCache?savCache[Math.max(0,Math.min(SW-1,Math.max(0,sxp)))]:HORIZON*0.86;
     return Math.round(gh+(HORIZON-gh)*0.80); }
   for(var p2=0;p2<2;p2++){
-    var pseed=((p2*104729+((WORLD_SEED*31)|0))>>>0);
-    var hunt=huntAt(pseed,now,L);
+    // ⚠ THE SAME TWO ANSWERS THE HERD PANICKED AT. Recomputing huntAt here would be a second call that
+    // could disagree with the first — and a stampede away from a cat that is somewhere else is worse
+    // than no stampede at all.
+    var pseed=HUNTS[p2].seed, hunt=HUNTS[p2].h;
     var cat=day?[190,158,96]:[92,76,48], catD=day?[142,112,64]:[62,50,32];
     var px, stance;
     if(hunt){
@@ -21751,6 +22198,69 @@ function drawSavannaLife(g,L,now,nd,fx){
           g.fillStyle=rgba([196,172,150],0.8);
           g.fillRect(vx,groundY-Math.round(3*K),Math.max(1,Math.round(1.2*K)),Math.max(1,Math.round(K*0.8)));
         }
+      }
+    }
+  }
+}
+// ================================================================================================
+// THE HERD IN FRONT OF THE TOWN — locked answer 2, and the fix for this land's headline bug
+// ------------------------------------------------------------------------------------------------
+// ⚠⚠ THE SUBJECT OF THIS LAND WAS INVISIBLE ON A GROWN CITY. drawSavannaLife runs every rank between
+// 0.86*HORIZON and HORIZON, which is precisely where the mature skyline stands — so at city age 0.30
+// you can see zebra and wildebeest and at 0.85 there is NOT ONE ANIMAL ON SCREEN. Not gated off like
+// the six previous "written and invisible" lands: running correctly and OCCLUDED. It only showed up
+// by rendering the same frame at a young AND a grown city, which is now the rule on this land.
+// ⚠ SO A FEW COME FORWARD, and this pass runs AFTER the buildings — the only way anything on this land
+// survives a full skyline. Locked answer 2 keeps the far mass for depth and puts big animals in front.
+// ⚠ THEY STAND IN THE STREET BAND, NOT ON THE HORIZON. `SEA_FRONT` is the only machinery that puts a
+// body in front of the town and this land has none, so the near ground is the ~46-80 world px between
+// HORIZON and the bottom of the frame. Drawing them at the horizon in the front pass is what once put
+// a zebra on a rooftop — the feet have to be genuinely nearer the viewer, not just painted later.
+// ⚠ AND ABOVE THE TASKBAR. `SH-TASKBAR_WP` is the real bottom edge; the off-by-seven that hid the
+// outermost traffic lane behind Nick's panel for twenty maps came from measuring to SH instead.
+// ⚠ ONE PER MONITOR-THIRD. 2269 wp of world, 776 per screen: a single hero leaves two screens empty.
+function drawSavannaFront(g,L,now,nd,fx){
+  if(!curBiome.herd||cityPhase==="apoc") return;
+  var day=L>0.5, K=Math.max(1,KSP), B=curBiome, mig=!!B.migration;
+  var footY=SH-TASKBAR_WP-1, band=Math.max(8,footY-HORIZON);
+  var FH=band*1.30;                                   // a giraffe stands a third again the street band
+  var NEAR=mig?["giraffe","elephant","wildebeest"]:["giraffe","elephant","zebra"];
+  // A LOCAL WANDER on the same block clock. wildAt's own x is a world-wide destination and wraps, so
+  // reading it here would both jump at the seam and cross a screen in seconds at this scale. The act
+  // still comes from wildAt — what they are DOING is shared with the rest of the land — but where they
+  // stand is a few metres of drift, eased with the same curve so it is continuous across blocks.
+  function wanderAt(seed){
+    var bi=Math.floor(now/WILD_BLOCK), t=(now%WILD_BLOCK)/WILD_BLOCK;
+    var m=Math.min(1,t/0.55), e=m*m*(3-2*m);
+    var a=wildHash(seed,bi-1,7919)-0.5, b=wildHash(seed,bi,7919)-0.5;
+    return a+(b-a)*e;
+  }
+  for(var f2=0;f2<3;f2++){
+    var fsd=((f2*2654435761+((WORLD_SEED*907)|0))>>>0);
+    var sp=FAUNA[NEAR[(fsd>>>11)%NEAR.length]]; if(!sp) continue;
+    var anchor=Math.round((0.09+f2*0.33+(((fsd>>>7)%100)/100-0.5)*0.06)*WW);
+    var Wf=wildAt(fsd,now+(fsd%WILD_BLOCK),L);
+    var wx=wrapW(anchor+wanderAt(fsd)*110);
+    // a giraffe really is half again the stature of an elephant, and this is the land where that
+    // difference is the point — so the target height is per-species, not one number for all of them
+    var BS=beastSize(sp,FH*(sp.neck?1.0:0.74)), h=BS.h, w=BS.w;
+    var pose=Wf.act;
+    if(pose===1) pose=1; else if(pose===2&&Math.abs(wrapW(wx-waterHoleX()))>200) pose=0;   // no drinking away from water
+    // ⚠ NEAR-BLACK. This close, and drawn over a lit city, the animal is either the darkest mass in the
+    // frame or it is noise across the skyline. Locked answer 3 taken all the way to the foreground.
+    var body=mixc(sp.c,[10,9,11],day?0.80:0.90), leg=mixc(sp.c2,[8,7,9],day?0.80:0.90);
+    var busy=(((fsd>>>17)%100)<30)?1:0;
+    if(sp.trunk&&pose===0&&((fsd>>>21)%100)<26) busy|=4;
+    for(var fo=-1;fo<=1;fo++){
+      var fxp=Math.round(wx-WOFF+fo*WW);
+      if(fxp+w<-8||fxp-w>SW+8) continue;
+      drawBeast(g,fxp,footY,w,h,sp,pose,Wf.face,now*0.004+f2*2.1,body,leg,K*(h/Math.max(1,sp.h)),busy);
+      // a calf at heel — the scale reference for the scale reference, and the reason the adult reads
+      // as enormous rather than as a badly placed sprite
+      if(((fsd>>>13)%100)<44){
+        var CS=beastSize(sp,FH*(sp.neck?1.0:0.74)*0.46), ch3=CS.h, cw3=CS.w;
+        drawBeast(g,fxp+Math.round(w*(Wf.face>=0?-0.85:1.05)),footY,cw3,ch3,sp,pose===3?3:0,Wf.face,
+                  now*0.005+f2,body,leg,K*(ch3/Math.max(1,sp.h)),0);
       }
     }
   }
@@ -39243,6 +39753,13 @@ function draw(g,pass){
   // (drawn in the BACK pass above, before the city — see WILD_LAYER)
   // (drawn in the BACK pass above, before the city — see WILD_LAYER)
   // (drawn in the BACK pass above, before the city — see WILD_LAYER)
+  // ⚠⚠ HERE, NOT WITH THE OTHER WILDLIFE, AND FOR THE REASON STATED TWO LINES UP. Placed with the
+  // front-pass fauna it was drawn BEFORE the lane markings, the tram rails and the kerb, and a 93x58
+  // elephant came out as a black lozenge with its whole upper body painted over by road furniture —
+  // and it had been drawing perfectly the entire time. That is the paint-order item again, one layer
+  // below where it has bitten before. THE OLD FOREST's giants already solve this exact problem by
+  // being drawn last so they occlude the skyline, the road and the traffic; the herd is the same case.
+  drawSavannaFront(g,L,now,nd,fx);
   drawSaltMirror(g,L,now,nd);      // the world doubled in a centimetre of brine
   // (drawn in the BACK pass above, before the city — see WILD_LAYER)
   drawMesaLife(g,L,now,nd,fx);     // vultures on the thermals, heat shimmer, dust devils, the arch
