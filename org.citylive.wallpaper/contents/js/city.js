@@ -263,6 +263,14 @@ function pushNotif(sev,text,col){
 var CLOCK = null;   // test-harness override: ms timestamp for time-of-day (null = real wall clock)
 var NOWOVR = null;  // test-harness override: ms value returned as Date.now() inside draw() (null = real)
 var NOFETCH = false;  // headless flag (own line = QML-namespace writable): almanac callers set this so setup() makes NO network calls
+// PROBE HOOK (own line for the same reason a NOFETCH is): a harness sets this to a function and gets
+// called with the live context immediately before and after the two biome-detail writers.
+// ⚠⚠ IT IS A SNAPSHOT HOOK AND NOT A SUPPRESS FLAG, AND THAT IS THE WHOLE POINT. The obvious probe —
+// render once normally, once with those two calls skipped, and diff — is CONTAMINATED: skipping them
+// changes what the shared seeded stream does afterwards, so the diff picks up unrelated pixels. It
+// reported the same ~1,500 px on eight unrelated lands before that was noticed. One render, three
+// snapshots, and the arithmetic is exact.
+var DETAILPROBE = null;
 var VERSION = "2.0.2";  // the build the user is running — surfaced in the Almanac + KDE config page (keep in sync with desktop/package.json)
 var FORCELAYOUT = null;   // test hook: pin every building's window layout (grid/ribbon/band/punch/corp) — verify per-layout render
 var FORCECROWN = null;    // test hook: pin every building's crown/roof (gable/hip/saltbox/mansard/deco/…) — verify per-roof render
@@ -38474,8 +38482,13 @@ function draw(g,pass){
   // and drift and its rain curtains hang and move. That half of the old comment was sound — it has
   // just never been measured either, so do not quote it as one.
   drawSpireWorld(g,L,now,nd);     // the high temples, standing on cloud
+  // ⚠ DETAILPROBE brackets these two so `qml-detail-occlusion.qml` can measure how much of what they
+  // paint is still visible once the city has been drawn on top — the paint-order question, which has
+  // been answered by eye on six lands and never measured.
+  if(DETAILPROBE) DETAILPROBE("pre",g);
   drawBiomeDetail(g,L,now,nd);    // and whatever else lives on this particular land
   drawBiomeLandmark(g,L,now,nd);  // and the one structure that says where you are
+  if(DETAILPROBE) DETAILPROBE("post",g);
   // ⚠⚠ THE ASHLANDS' WORKS ARE **NOT** CALLED HERE — see the call after drawLayer(near) below, and the note
   // there. This is the paint-order finding that explains the whole "built, then invisible" audit on this land.
   // ⚠ THE PLATEAU TOWNS MOVED TO THE LIVE RATE TOO — see past the "bg" return.
@@ -38708,6 +38721,11 @@ function draw(g,pass){
   if(!nukeFull()) drawIce(g,L,now);                            // deep winter: the bay is a skating rink (skaters gone with the blast)
   if(hasOcean && !nukeFull()) drawRival(g,L,now);              // the rival city, growing across the bay (also gone in the exchange)
   drawLayer(g,near,L,now,fx,hol,0);
+  // ⚠ THE THIRD SNAPSHOT, and the one that makes the measurement honest. Comparing the finished frame
+  // against the pre-city one conflates "a building was painted over it" with "a later full-screen tint
+  // touched it" — the forest's canopy light alone would have reported 1% survival with nothing actually
+  // occluded. Sampling here isolates the three building layers, which is the paint-order question.
+  if(DETAILPROBE) DETAILPROBE("city",g);
   // ============ 🔑 THE PAINT-ORDER FINDING ============
   // The Ashlands' works go HERE, after the near buildings — and finding out why is the answer to the audit
   // that started this whole pass.
