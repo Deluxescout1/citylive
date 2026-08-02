@@ -35220,6 +35220,83 @@ function drawPuddles(g,L,now){
     }
   }
 }
+// ⚠⚠ THIS RUNS AFTER drawTerrain, AND THAT IS THE WHOLE POINT. It was first written inside
+// drawBiomeDetail with the wind farm — and drew nothing, because drawBiomeDetail paints BEFORE the
+// terrain and the ground simply covered it. The wind farm survives there only because it is tall
+// enough to stand clear; crop strips are by definition at ground level and can never be. That is
+// the paint-order item this project has now hit on both sides: things buried by what comes later.
+function drawPlainsWorked(g,L,now,nd){
+  if(!curBiome||curBiome.k!=="plains"||cityPhase==="apoc") return;
+  var day=L>0.5, K=Math.max(1,KSP), B=curBiome;
+  // ================= WORKED LAND =================
+    // Locked answer 1: the land stays honestly FLAT and stops being BARE. Relief is the wrong answer
+    // here and that is the whole design problem — faking mountains on a prairie is a lie about the
+    // land. So the fill comes from what people have DONE to it: strips of different crop receding to
+    // the horizon, tree lines planted against the wind, and the fences between.
+    // ⚠ STRIPS RECEDE, THEY DO NOT TILE. Even bands would be the ruled-line family this project has
+    // now found five times. Widths are hashed and they COMPRESS with distance, which is also the only
+    // perspective cue a flat map can offer.
+    var pgy=HORIZON, hz2=biomeSkc(day);
+    var STRIP=[[128,142,74],[156,158,88],[176,166,104],[110,128,68],[188,176,120]];
+    for(var band=0;band<4;band++){
+      var bf=band/4;                                        // 0 = nearest strip band, 1 = furthest
+      // ⚠ AND THEY HAVE TO BE WHERE THE EYE SEES LAND. At HORIZON-4..-16 they drew correctly and were
+      // invisible: that band is where the city stands and where the near ground already is. The
+      // readable prairie on this map is the wedge BETWEEN the street and the far hills, so the strips
+      // climb it — and climbing it is also what makes them recede, which is the only perspective a
+      // flat land can offer.
+      var by=Math.round(pgy-(7+band*7)*K);
+      var bh=Math.max(1,Math.round((5.0-band*0.9)*K));
+      var wx0=Math.floor(WOFF/40)*40;
+      for(var st=0;st<26;st++){
+        var swx=wx0+st*Math.round(40+((mixLi((st*7+band)>>>0,4211))%36));
+        var sw2=Math.round((22+((mixLi((st*13+band)>>>0,7717))%40))*(1-bf*0.45));
+        var sx5=swx-WOFF; if(sx5>SW+60) continue; if(sx5+sw2<-60) continue;
+        var SC2=STRIP[(mixLi((st*31+band)>>>0,9151))%STRIP.length];
+        g.fillStyle=css(mixc(day?SC2:[(SC2[0]*0.30)|0,(SC2[1]*0.32)|0,(SC2[2]*0.38)|0], hz2, 0.18+0.42*bf));
+        g.fillRect(Math.round(sx5),by,sw2,bh);
+      }
+    }
+    // shelterbelts: a line of trees planted ACROSS the wind, which is why a prairie farm has them at
+    // all. They are the only vertical thing between the elevators, so they carry the middle distance.
+    for(var sb2=0;sb2<7;sb2++){
+      var sbh=mixLi((sb2*40503+83)>>>0,6229);
+      var sbx=((sbh%Math.max(1,WW))-WOFF); if(sbx<-90) sbx+=WW; if(sbx>SW+90) sbx-=WW;
+      if(sbx<-90||sbx>SW+90) continue;
+      var sbn=6+((sbh>>>7)%9), sby=pgy-Math.round((3+((sbh>>>11)%3))*K);
+      for(var tq=0;tq<sbn;tq++){
+        var tx5=Math.round(sbx+tq*Math.round(2.6*K));
+        var th5=Math.round((3.5+((mixLi((sbh+tq)>>>0,3313))%4)*0.6)*K);
+        g.fillStyle=css(mixc(day?[62,82,52]:[16,24,18], hz2, 0.22));
+        g.fillRect(tx5,sby-th5,Math.max(1,Math.round(K*1.3)),th5);
+      }
+    }
+    // ================= THE FREIGHT LINE =================
+    // Locked answer 4's fourth part, and the brief's own words: "the thing that makes distance
+    // readable on a flat map". A train is the only object here whose LENGTH tells you how far away it
+    // is — nothing else on a prairie gives the eye a ruler. It crosses the whole world, so it is a
+    // pure function of the clock and every screen sees the same train in the same place.
+    var trLen=Math.round(46+ (WORLD_SEED%9)*4);
+    var trSpeed=0.0000085;
+    var trWx=((now*trSpeed*WW)%(WW+trLen*3))-trLen*2;
+    var trY=pgy-Math.round(30*K);   // the freight runs along the far edge of the worked land
+    for(var to=-1;to<=1;to++){
+      var tsx=Math.round(trWx-WOFF+to*WW);
+      if(tsx+trLen*Math.round(2*K)<-8||tsx>SW+8) continue;
+      // the rail it runs on — one thin line, so the train is not floating
+      g.fillStyle=css(mixc(day?[122,118,110]:[34,34,40],hz2,0.34));
+      g.fillRect(Math.max(0,tsx-40),trY+Math.round(1.6*K),Math.min(SW,trLen*Math.round(2*K)+80),Math.max(1,Math.round(K*0.4)));
+      for(var cq=0;cq<trLen;cq++){
+        var cxx=tsx+cq*Math.round(2*K);
+        if(cxx<-4||cxx>SW+4) continue;
+        var chh=mixLi((cq*7919+(WORLD_SEED|0))>>>0,8123);
+        var CC=(cq===0)?[40,44,52]:[[92,64,54],[70,84,96],[104,96,72],[58,70,60]][(chh>>>5)%4];
+        var cH=Math.round(((cq===0)?2.6:2.0)*K);
+        g.fillStyle=css(mixc(day?CC:[(CC[0]*0.34)|0,(CC[1]*0.36)|0,(CC[2]*0.42)|0],hz2,0.26));
+        g.fillRect(cxx,trY-cH,Math.max(1,Math.round(1.7*K)),cH);
+      }
+    }
+}
 function drawTerrain(g,cg,L,now,nd,pass){
   if(cg>=0.985) return;                                     // fully urban
   var BGp=pass!=="fg", FGp=pass!=="bg";                     // which halves of the landscape to paint
@@ -39790,6 +39867,7 @@ function draw(g,pass){
   if(pass!=="fg"){
   // the wilderness the city grows out of (hills, grass, river, trees, the first cabin) — recedes as it matures
   if(cityG<0.985) drawTerrain(g,cityG,L,now,nd,(pass==="fg"||pass==="city"||pass==="live")?"fg":undefined);
+  drawPlainsWorked(g,L,now,nd);   // the worked prairie, ON the ground the terrain just laid down
   // the falls, at the live rate. `undefined` already drew them on the classic single-canvas path
   // further up, so this is the split-canvas half only — double-painting is what pass-split guards.
   if(pass==="fg"||pass==="city"||pass==="live") drawCascades(g,L,now,nd);
