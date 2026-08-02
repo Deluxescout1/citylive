@@ -3530,7 +3530,13 @@ var BIOMES=[
     flora:{ kinds:["acacia","grass","acacia","scrub","acacia","euphorbia","acacia","sausage"], bloom:["#ffd166","#ffffff","#e8b060"] },
     // the huge dry-season sky this land is known for, bleached almost white at the horizon
     sky:{ top:[112,158,208], bot:[244,232,196], k:0.56, haze:[246,230,190] } },
-  { k:"canyon", name:"THE GORGE",   amp:0.55, base:0.30, flat:0.9,  steep:0.72, snow:false, water:"river", gorge:1,
+  // ⚠⚠ `rock` IS THE VARIANT'S STRUCTURE, NOT ITS COLOUR. Every one of these four variants already
+  // DESCRIBED its own rock in a comment — sculpted sandstone, hanging-garden limestone, hexagonal
+  // organ pipes — and drawGorge branched on none of it: the four differed by palette alone, so all
+  // four were the same trapezoid in a different hue. Fourth time on these lands that the intent was
+  // written down and the code did not do it (after the acacia with no dispatcher branch, the sky gated
+  // behind bigSky, and the sidewalk comment no test checked). The prose in this table is a SPEC.
+  { k:"canyon", name:"THE GORGE",   amp:0.55, base:0.30, flat:0.9,  steep:0.72, snow:false, water:"river", gorge:1, rock:"mesa",
     far:[188,118,84],   near:[156,86,60],   cap:[224,168,120], ground:[196,150,104],
     // the vernacular of a canyon floor: adobe, sandstone block, sun-bleached timber, painted stucco
     walls:[[206,150,104],[178,116,78],[228,196,158],[150,96,66],[236,214,180],[196,132,88],[168,140,110],[214,178,132]],
@@ -3945,19 +3951,19 @@ var BIOME_VARIANTS={
       sky:{ top:[92,138,196], bot:[248,196,142], k:0.60, haze:[250,192,134] } } ],
 
   canyon:[ {},
-    { name:"THE SLOT",           // sculpted sandstone; light bounces down the walls and barely lands
+    { name:"THE SLOT", rock:"slot",   // sculpted sandstone; light bounces down the walls and barely lands
       far:[212,132,78],  near:[178,92,48],   cap:[248,192,128], ground:[210,158,102], steep:0.9, flat:0.55,
       walls:[[224,166,112],[196,128,80],[240,206,164],[168,106,68],[246,224,190],[210,146,94],[182,152,118],[228,190,142]],
       flora:{ kinds:["scrub","grass","scrub","cottonwood"], bloom:["#ffd166","#ffffff","#f0a060"] },
       fauna:{ keep:{deer:0,rabbit:1,fox:1,goat:1}, big:["bighorn"], small:["marmot","lizard"], air:["raven","vulture"] },
       sky:{ top:[74,120,182], bot:[248,196,140], k:0.46, haze:[246,190,132] } },
-    { name:"THE GREEN RIVER",    // limestone draped in hanging gardens; the lush answer to red rock
+    { name:"THE GREEN RIVER", rock:"limestone",  // limestone draped in hanging gardens; the lush answer to red rock
       far:[150,164,132],  near:[110,128,98],  cap:[206,214,182], ground:[128,152,104], steep:0.62,
       walls:[[196,196,178],[164,168,150],[218,216,198],[142,148,130],[228,226,208],[178,180,160],[152,158,138],[206,206,188]],
       flora:{ kinds:["fern","willow","cottonwood","fern","grass"], bloom:["#ffffff","#e8d088","#c8e0a0"] },
       fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:1}, big:["ibex","bighorn"], small:["marmot"], air:["eagle","raven"] },
       sky:{ top:[104,152,200], bot:[210,222,198], k:0.36, haze:[206,220,196] } },
-    { name:"THE BLACK BASALT",   // hexagonal stone organ pipes the full height of both walls
+    { name:"THE BLACK BASALT", rock:"basalt",  // hexagonal stone organ pipes the full height of both walls
       far:[86,90,102],   near:[52,56,68],    cap:[140,146,162], ground:[74,78,88], steep:0.96, flat:0.2,
       walls:[[112,116,126],[76,80,92],[140,144,154],[58,62,72],[158,162,172],[92,96,108],[68,72,84],[126,130,140]],
       flora:{ kinds:["scrub","grass","willow","scrub"], bloom:["#c8d8e8","#ffffff","#a0c0d8"] },
@@ -25577,6 +25583,9 @@ function drawGorge(g,L,now,nd){
   var rimC =mixc(day?B.cap:mixc(B.cap,[0,0,0],0.58), [255,178,132], goldenK*0.6);
   var litK =Math.max(0,Math.min(1,(L-0.34)*2.4));
   var steep=(B.steep!=null?B.steep:0.72);
+  // Which rock this variant is MADE of. Declared in the biome table beside the palette, because the
+  // four variants describe four different rocks and used to render as one.
+  var ROCK=(B.rock||"mesa");
 
   if(!gorgeCache){
     gorgeCache={far:new Array(SW), but:new Array(SW)};
@@ -25606,15 +25615,60 @@ function drawGorge(g,L,now,nd){
       // PLATEAU — a flat top with near-vertical flanks — so the rock reads as a face you could fall
       // off. `edge` is how much of the half-width is spent on the flank: steep rock spends almost none.
       var edge=0.10+0.30*(1-steep);
+      // ---- EROSION FORMS. One trapezoid stamped along the world is the karst-lozenge fault, and this
+      // is the fifth land to have it. The placement was never the problem — gap and width are already
+      // properly mixLi-hashed — it was that every mass ran the SAME profile formula. So a mass now
+      // picks a form, and the form changes the silhouette, not just its size.
+      var fr=mixLi(i*7919+23,4211)%1000/1000;
+      var form=(fr<0.16)?"spire":(fr<0.30)?"hoodoo":(fr<0.40)?"notched":"wall";
+      if(form==="spire"){  bw=Math.round(bw*0.30); bh*=1.55; }      // a needle: narrow and far taller
+      if(form==="hoodoo"){ bw=Math.round(bw*0.42); bh*=1.28; }      // narrow, but capped — see below
+      // ⚠ THE VERTICAL-FLANKED ROCKS MUST BE NARROWER. basalt and slot spend almost nothing on their
+      // flanks, so at the shared width they read as a wall across the whole screen rather than as a
+      // mass standing IN a canyon — the sky closed up and the gorge stopped being a gorge.
+      if(ROCK==="basalt") bw=Math.round(bw*0.62);
+      if(ROCK==="slot")   bw=Math.round(bw*0.70);
       for(var w=-1;w<=1;w++){
         var sx0=Math.round(wxp - WOFF + w*WW);
-        if(sx0+bw>=-40 && sx0-bw<=SW+40) gorgeCache.spurs.push({x:sx0, w:bw, top:Math.round(bh), seed:(i*104729+7)>>>0});
+        if(sx0+bw>=-40 && sx0-bw<=SW+40) gorgeCache.spurs.push({x:sx0, w:bw, top:Math.round(bh), seed:(i*104729+7)>>>0, form:form});
         for(var bx=Math.max(0,sx0-bw);bx<Math.min(SW,sx0+bw);bx++){
-          var t=Math.abs((bx-sx0)/bw);                             // 0 at the centre, 1 at the flank
-          var prof=Math.min(1,(1-t)/edge);                         // flat top, then a fast fall to nothing
+          // THE SLOT wanders. Sculpted sandstone is not a straight-sided block: the face swings in and
+          // out as it rises, so the centre this column measures against moves with world x.
+          var cx0=sx0 + ((ROCK==="slot") ? Math.sin((bx+WOFF)*0.055+i)*bw*0.40 : 0);
+          var t=Math.abs((bx-cx0)/bw);                             // 0 at the centre, 1 at the flank
+          if(t>=1) continue;
+          var prof;
+          if(ROCK==="basalt"){
+            // ORGAN PIPES: dead vertical flanks and a crest made of individual columns, each broken off
+            // at its own height. The pipes are what this variant's own comment promised and never had.
+            prof=(t<1-edge*0.35)?1:0;
+            if(prof>0){
+              var pipe=Math.floor((bx+WOFF)/Math.max(2,Math.round(4)));
+              prof-= (mixLi(pipe*2654435761,8123)%1000/1000)*0.10;   // each column ends where it ends
+            }
+          } else if(ROCK==="limestone"){
+            // Limestone weathers ROUND, and it undercuts: domed shoulders with alcoves bitten out.
+            prof=Math.pow(Math.max(0,1-t*t),0.55);
+            var alc=mixLi(Math.floor((bx+WOFF)/9)*40503,6229)%1000/1000;
+            if(alc>0.86) prof*=0.82;                                 // a seep hollow in the face
+          } else if(ROCK==="slot"){
+            prof=Math.min(1,(1-t)/(edge*0.55));                      // tighter, more vertical than mesa
+          } else {
+            // MESA: hard beds stand proud and soft ones cut back, so the flank comes down in BENCHES
+            // rather than one ramp. Quantising the profile is what turns a slope into a staircase.
+            // ⚠ QUANTISE THE FLANK ONLY, AND ROUND DOWN. `Math.ceil(prof*NB)/NB` over the WHOLE profile
+            // pushed every non-zero column up to at least one step and everything above (NB-1)/NB to a
+            // full 1 — which widened the plateau until the mesa was a rectangle spanning the frame.
+            // It turned "one shape repeated" into "one BIGGER shape repeated". Step only where the
+            // rock is already falling away.
+            prof=Math.min(1,(1-t)/edge);
+            if(prof<1){ var NB=3+(mixLi(i*31+5,7331)%2); prof=Math.floor(prof*NB)/NB; }
+          }
+          if(form==="hoodoo"&&t>0.55) prof*=0.42;                    // a slim stem under a broad cap
+          if(form==="notched"&&Math.abs(t-0.42)<0.06) prof*=0.55;    // a cleft split into the shoulder
           if(prof<=0) continue;
           // a ragged crest: real rock is not a ruled line, and a perfectly flat top reads as a box
-          var jag=(mixLi(((bx+WOFF)*2654435761)>>>0,3571)%1000/1000-0.5)*4;
+          var jag=(mixLi(((bx+WOFF)*2654435761)>>>0,3571)%1000/1000-0.5)*(ROCK==="basalt"?1.5:4);
           var y=Math.round(bh+jag + (HORIZON*0.55-bh)*(1-prof));
           if(y<gorgeCache.but[bx]) gorgeCache.but[bx]=y;
         }
