@@ -45,6 +45,84 @@ if (process.platform === 'win32') app.setAppUserModelId('org.citylive.app');
 app.commandLine.appendSwitch('enable-gpu-rasterization');
 app.disableHardwareAcceleration && false; // (keep HW accel on for smooth canvas)
 
+// ================================================================================================
+// CRASH RECOVERY — never leave the user staring at a black window they cannot fix
+// ------------------------------------------------------------------------------------------------
+// ⚠⚠ REPORTED BY MICAH, 2026-08-02: "citylive crashed this morning and now the settings wont open."
+// The Control Center opened and painted nothing but its own `#05070c` background — a black box, on
+// every launch, permanently. Two separate gaps made that state both PERMANENT and INVISIBLE:
+//   · Electron caches compiled GPU/shader and code artefacts under userData. A hard crash can leave
+//     those TORN, and every later run renders blank windows off them. Nothing ever cleared them, so
+//     the app could not recover from its own crash no matter how many times he restarted it.
+//   · This file had NO `did-fail-load`, `render-process-gone`, `gpu-process-crashed` or `unresponsive`
+//     handler anywhere. A renderer that died left a window that merely SAT there, and because `ccWin`
+//     was still truthy `openControlCenter` would `show()` the corpse forever after.
+// 🔑 A FAILURE THE USER CANNOT SEE OR CLEAR IS WORSE THAN A CRASH. A crash restarts; this did not.
+// So an unclean shutdown is now DETECTED and the volatile caches are dropped before boot; a repeat
+// crash escalates to disabling hardware acceleration, the standard cure for a driver that cannot be
+// trusted with a canvas. Both are logged so the next report has something in it.
+const fsx = require('fs');
+let CRASH_STATE = { unclean: false, count: 0 };
+function crashMarkPath() { return path.join(app.getPath('userData'), '.running'); }
+function recoverFromUncleanShutdown() {
+  let mark = null;
+  try { mark = crashMarkPath(); } catch (e) { return; }            // userData unavailable → nothing to do
+  try {
+    if (fsx.existsSync(mark)) {
+      CRASH_STATE.unclean = true;
+      try { CRASH_STATE.count = (JSON.parse(fsx.readFileSync(mark, 'utf8')) || {}).count || 1; }
+      catch (e) { CRASH_STATE.count = 1; }
+      // Drop only VOLATILE, regenerable caches. config.json and chronicle.json are the user's data
+      // and are never touched here — losing a city's history to a graphics glitch would be its own bug.
+      const ud = app.getPath('userData');
+      for (const dir of ['GPUCache', 'Code Cache', 'DawnGraphiteCache', 'DawnWebGPUCache', 'ShaderCache']) {
+        try { fsx.rmSync(path.join(ud, dir), { recursive: true, force: true }); } catch (e) { /* best effort */ }
+      }
+      console.log('[citylive] previous run did not exit cleanly (x' + CRASH_STATE.count + ') — cleared GPU/code caches');
+      // Twice in a row is not a fluke: stop trusting the GPU for this machine.
+      if (CRASH_STATE.count >= 2) {
+        try { app.disableHardwareAcceleration(); } catch (e) { /* too late / unsupported */ }
+        console.log('[citylive] repeated unclean shutdowns — hardware acceleration DISABLED for this run');
+      }
+    }
+  } catch (e) { /* recovery must never be the thing that stops the app starting */ }
+  try {
+    fsx.mkdirSync(path.dirname(mark), { recursive: true });
+    fsx.writeFileSync(mark, JSON.stringify({ count: (CRASH_STATE.unclean ? CRASH_STATE.count : 0) + 1, at: Date.now() }), 'utf8');
+  } catch (e) { /* best effort */ }
+}
+function clearCrashMark() { try { fsx.rmSync(crashMarkPath(), { force: true }); } catch (e) { /* best effort */ } }
+// `--safe-mode` is the escape hatch to hand a user whose machine we cannot see.
+if (process.argv.includes('--safe-mode')) { try { app.disableHardwareAcceleration(); } catch (e) {} }
+recoverFromUncleanShutdown();
+app.on('will-quit', clearCrashMark);
+app.on('before-quit', clearCrashMark);
+
+// Attach the handlers that turn a dead renderer into either a working window or a VISIBLE error.
+// Without these the window is simply black and the user has nothing to report but "it won't open".
+function guardWindow(w, label, reload) {
+  if (!w || w.isDestroyed()) return w;
+  const wc = w.webContents;
+  wc.on('did-fail-load', (e, code, desc, url, isMainFrame) => {
+    if (!isMainFrame || code === -3) return;                        // -3 = aborted (navigation superseded)
+    console.log('[citylive] ' + label + ' failed to load: ' + code + ' ' + desc + ' ' + url);
+    if (reload && !w.isDestroyed()) { try { reload(w); } catch (err) { /* fall through to the notice */ } }
+  });
+  wc.on('render-process-gone', (e, details) => {
+    console.log('[citylive] ' + label + ' render process gone: ' + (details && details.reason));
+    if (w.isDestroyed()) return;
+    if (reload) { try { reload(w); return; } catch (err) { /* fall through */ } }
+    try { w.destroy(); } catch (err) {}
+  });
+  wc.on('unresponsive', () => console.log('[citylive] ' + label + ' unresponsive'));
+  return w;
+}
+// A GPU process that dies takes every window's pixels with it. Recover once, then stop trusting it.
+app.on('child-process-gone', (e, details) => {
+  if (!details || details.type !== 'GPU') return;
+  console.log('[citylive] GPU process gone: ' + details.reason + ' — windows may be blank until restart');
+});
+
 let win = null;
 // ⚠⚠ SIBLING WALLPAPER WINDOWS — ONE PER EXTRA DISPLAY. Reported by Micah on 1920x1080 + 3840x2160:
 // the city drew over his taskbar on one screen and had NO GROUND AT ALL on the other.
@@ -115,8 +193,13 @@ function createWindow(opts) {
     }
   });
 
-  win.loadFile(path.join(__dirname, 'renderer', 'index.html'),
-    (wp && wpDisp && wpUnion) ? { search: dispSearch(wpDisp, wpUnion) } : undefined);
+  // ⚠ THE WALLPAPER DIES THE SAME WAY THE SETTINGS WINDOW DOES. In the VM reproduction of Micah's
+  // report, killing the renderer left the Control Center black AND took the city off the desktop —
+  // and neither came back. A wallpaper that has silently stopped is the worse of the two, because it
+  // is reparented behind the icons where there is nothing to click and no window to close.
+  const winArgs = (wp && wpDisp && wpUnion) ? { search: dispSearch(wpDisp, wpUnion) } : undefined;
+  guardWindow(win, 'wallpaper', (w) => w.loadFile(path.join(__dirname, 'renderer', 'index.html'), winArgs));
+  win.loadFile(path.join(__dirname, 'renderer', 'index.html'), winArgs);
 
   // NOTIFICATIONS (Nick): poll the engine ~1/min for something of SUBSTANCE on screen (elections,
   // CAT-3+ disasters, the takeover, the finale approach, eclipse days). The engine's notifySnapshot
@@ -245,6 +328,12 @@ function spawnSiblingWallpapers(uni, primary) {
       }
     });
     w.setMenuBarVisibility(false);
+    // Same guard on every extra display — a sibling that dies leaves ONE monitor blank, which is
+    // even harder to attribute than all of them going at once.
+    guardWindow(w, 'wallpaper-sibling', (ww) => {
+      ww.loadFile(path.join(__dirname, 'renderer', 'index.html'), { search: dispSearch(d, uni) });
+      ww.webContents.once('did-finish-load', () => { if (!ww.isDestroyed()) { try { wallpaper.attach(ww); } catch (e) {} } });
+    });
     w.loadFile(path.join(__dirname, 'renderer', 'index.html'), { search: dispSearch(d, uni) });
     w.webContents.once('did-finish-load', () => {
       if (!w.isDestroyed()) { try { wallpaper.attach(w); } catch (e) {} }
@@ -385,7 +474,14 @@ function reloadCity() {
 // desktop/Start-menu shortcut (--settings), and the screensaver Settings button (/c).
 function openControlCenter(tab) {
   const wanted = tab === 'chronicle' ? 'chronicle' : 'settings';
-  if (ccWin && !ccWin.isDestroyed()) { ccWin.show(); ccWin.focus(); ccWin.webContents.send('citylive:navigate', wanted); return; }
+  // ⚠⚠ A LIVE HANDLE IS NOT A LIVE WINDOW. This used to `show()` whatever `ccWin` pointed at, and if
+  // that window's renderer had died the user got the black box again on every single launch — the
+  // exact loop Micah was stuck in, because nothing here ever asked whether the thing was still alive.
+  if (ccWin && !ccWin.isDestroyed() && ccWin.webContents && !ccWin.webContents.isCrashed()) {
+    ccWin.show(); ccWin.focus(); ccWin.webContents.send('citylive:navigate', wanted); return;
+  }
+  if (ccWin && !ccWin.isDestroyed()) { try { ccWin.destroy(); } catch (e) {} }   // dead: rebuild it
+  ccWin = null;
   ccWin = new BrowserWindow({
     width: 620, height: 760, minWidth: 480, minHeight: 520,
     title: 'CityLive Settings',
@@ -398,7 +494,20 @@ function openControlCenter(tab) {
       nodeIntegration: false
     }
   });
-  ccWin.loadFile(path.join(__dirname, 'renderer', 'settings.html'));
+  const ccFile = path.join(__dirname, 'renderer', 'settings.html');
+  // One retry, then a VISIBLE explanation. The window must never again be a silent black rectangle:
+  // if it cannot show the Control Center it says so, and says what to do about it.
+  let ccTried = 0;
+  guardWindow(ccWin, 'control-center', (w) => {
+    if (ccTried++ < 1) { w.loadFile(ccFile); return; }
+    w.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(
+      '<body style="background:#05070c;color:#cfe6ff;font:14px system-ui;padding:28px">' +
+      '<h2 style="color:#5ad7ff">CityLive Settings could not load</h2>' +
+      '<p>The settings page failed to render. This is usually a graphics-driver problem after a crash.</p>' +
+      '<p>Quit CityLive from the tray icon and start it again — it clears its graphics cache automatically ' +
+      'after an unclean shutdown. If it keeps happening, start it once with <b>--safe-mode</b>.</p></body>'));
+  });
+  ccWin.loadFile(ccFile);
   ccWin.webContents.once('did-finish-load', () => { pushStateToCC(); ccWin.webContents.send('citylive:navigate', wanted); });
   ccWin.on('closed', () => { ccWin = null; });
 }
