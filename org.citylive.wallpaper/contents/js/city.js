@@ -4210,7 +4210,15 @@ function seaFrontOf(b){
     case "swamp":   return 32;    // the bayou is water FIRST — cypress stand in it
     case "volcano": return 26;    // an island, so the sea is on every side
     case "arctic":  return 28;    // broken floes and open leads
-    case "canyon":  return 16;    // the river on the gorge floor — narrower than any coast, but always there
+    // ⚠ 16 WAS THE NARROWEST VALUE IN THE GAME and this land's whole premise is a river in a gorge.
+    // At a young city it read fine; by 0.85 the skyline had eaten it and the water was a sliver at the
+    // frame's edge. Widened to the sea cliffs' 34 — enough that the river survives a grown city, while
+    // still leaving the generous sky the BROAD gorge was deliberately chosen for.
+    case "canyon":  return 34;    // the river on the gorge floor, wide enough to still be there at full city
+    // THE GREAT DAM had NO CASE AT ALL, so it returned 0 and its river ran entirely BEHIND the town —
+    // which is exactly the open item that land shipped with. SEA_FRONT is the only machinery in the
+    // engine that puts water in FRONT of the buildings, so the fix is the same one, not a bespoke one.
+    case "dam":     return 30;    // the river below the dam, on the near side of the town
     case "fjord":   return 40;    // the deepest water in the game: a drowned valley has no shore at all
     // ⚠ 34 WAS TOO THIN TO CARRY THE IDEA. This land's entire thesis is that the world appears TWICE,
     // and at 34 the mirror was a strip along the bottom — the frame did not read as doubled, it read

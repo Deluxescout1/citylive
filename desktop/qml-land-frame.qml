@@ -67,6 +67,9 @@ Item {
             if (root.warm === 0) root.arm();
             bg.requestPaint(); live.requestPaint();
             if (root.warm < 1) { root.warm++; return; }
+            console.warn("GEOM land=" + root.land + " SW=" + City.SW + " SH=" + City.SH +
+                         " HORIZON=" + City.HORIZON + " GROUND=" + City.GROUND +
+                         " SEA_FRONT=" + City.SEA_FRONT + " KSP=" + City.KSP);
             console.warn("SAVL v" + root.variant + " w" + root.woff +
                          " onscreen=" + City.SAVL_N +
                          " species=" + JSON.stringify(City.SAVL_SP) +
