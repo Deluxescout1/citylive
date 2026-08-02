@@ -21377,6 +21377,64 @@ function depthRuns(g,prof,col,aTop,aBot,bands){
     }
   }
 }
+// THE ARCH — the one thing in this game with a HOLE in it.
+// ⚠ IT CANNOT LIVE IN THE SKYLINE ARRAY. `gorgeCache.but[]` holds ONE y per column, which can describe
+// any solid mass but cannot describe rock with sky underneath it. So the arch is its own pass: per
+// column, the solid runs from the outer shoulder down to either the floor (the legs) or to the top of
+// the opening (the span). That is also why it is drawn AFTER the near buttresses — it stands in front
+// of them and must occlude, not be occluded.
+// Shaded from the same depth ramp as the walls: two fills per column, not a per-pixel gradient.
+function drawGorgeArch(g,awx,AW,AH,openW,openH,baseC,rimC,shadeC,K){
+  for(var w=-1;w<=1;w++){
+    var ax=Math.round(awx-WOFF+w*WW);
+    if(ax+AW<-4||ax-AW>SW+4) continue;
+    var TOPS=[], BOTS=[];
+    for(var q=-AW;q<=AW;q++){
+      var x=ax+q; if(x<0||x>=SW) continue;
+      // ⚠ A SMOOTH DOME OVER A SEMICIRCLE IS A DONUT, NOT AN ARCH. The first build read as a croissant:
+      // both curves were perfect and concentric, so the span had a constant thickness no rock ever has.
+      // Real arches are LOPSIDED — one leg heavier, the opening off-centre, the crest chewed. Three
+      // cheap asymmetries fix it, all hashed off the arch's own seed so every one differs.
+      var lean=((mixLi(Math.round(awx)*7919,5507)%1000/1000)-0.5)*0.42;   // which leg carries the weight
+      var t=Math.abs((q-lean*AW)/AW);
+      var jagA=(mixLi(((x+WOFF)*2654435761)>>>0,3571)%1000/1000-0.5)*3.2;  // the same ragged crest the walls get
+      var outT=Math.round(HORIZON-AH*Math.pow(Math.max(0,1-t*t*0.88),0.40)+jagA);
+      var bot=HORIZON;
+      var oq=q-lean*AW*0.55;                                              // the hole leans the other way
+      if(Math.abs(oq)<openW){
+        var u=Math.abs(oq/openW);
+        bot=Math.round(HORIZON-openH*Math.sqrt(Math.max(0,1-u*u*u*0.9)));  // flatter-topped than a circle
+      }
+      if(bot<=outT) continue;
+      g.fillStyle=css(baseC); g.fillRect(x,outT,1,bot-outT);
+      // depth: the closer to the floor a piece of this rock is, the less light reaches it
+      var mid=(outT+bot)/2, dep=Math.max(0,Math.min(1,(mid-outT)/Math.max(1,HORIZON-outT)));
+      var a=0.10+0.46*Math.max(0,Math.min(1,(bot-outT)/Math.max(1,HORIZON-outT)));
+      g.fillStyle=rgba(shadeC,a*0.9); g.fillRect(x,Math.round(mid),1,bot-Math.round(mid));
+      TOPS[x]=outT; BOTS[x]=bot;                       // kept for the bedding-plane pass below
+      g.fillStyle=css(rimC); g.fillRect(x,outT,1,Math.max(1,Math.round(K*0.7)));   // the sunlit crest
+      if(Math.abs(q)<openW&&bot<HORIZON){                                          // and the underside
+        g.fillStyle=rgba(shadeC,0.55); g.fillRect(x,bot-Math.max(1,Math.round(K*0.6)),1,Math.max(1,Math.round(K*0.6)));
+      }
+    }
+    // ---- bedding planes, as RUNS. World-anchored like the walls', because strata drawn in screen
+    // space slide as the world scrolls and the rock stops looking like rock.
+    // ⚠ ONE FILL PER CONTIGUOUS RUN, NOT PER COLUMN. Done per column this cost ~10 extra fillRects for
+    // every one of ~250 columns — about 2,500 on its own, against the 3,493 that drawGorge's whole bg
+    // pass was cut down to. That would have handed the entire stratRuns win back for one landmark.
+    var sb=Math.max(3,Math.round(4*K));
+    g.fillStyle=rgba(mixc(baseC,[0,0,0],0.20),0.30);
+    var yTopA=HORIZON; for(var k1 in TOPS) if(TOPS[k1]<yTopA) yTopA=TOPS[k1];
+    for(var sy=Math.round(yTopA/sb)*sb; sy<HORIZON; sy+=sb){
+      var run=-1;
+      for(var rx=Math.max(0,ax-AW); rx<=Math.min(SW,ax+AW+1); rx++){
+        var on=(TOPS[rx]!=null && sy>TOPS[rx] && sy<BOTS[rx]);
+        if(on && run<0) run=rx;
+        else if(!on && run>=0){ g.fillRect(run,sy,rx-run,1); run=-1; }
+      }
+    }
+  }
+}
 function stratRuns(g,prof,y0,step,style){
   g.fillStyle=style;
   for(var y=y0;y<HORIZON;y+=step){
@@ -25630,6 +25688,11 @@ function drawGorge(g,L,now,nd){
     // ⚠ AND THE SPACING MUST BEAT THE NARROWEST SCREEN, not the widest. At 600-900 wp a 640 wp
     // monitor saw exactly one spur; the gorge has to read on the SMALL screen too.
     gorgeCache.spurs=[];                                        // where the wall-city can build
+    // ⚠ ONE COLOSSAL MASS PER MONITOR-THIRD, not one per world. A single hero on a 2269 wp world across
+    // three screens leaves two of them with nothing to measure against — the lone baobab taught this on
+    // the savanna, where "lone" had to mean lone ON A SCREEN. Claimed by the first spur that falls near
+    // each third's anchor, so it reuses the ordinary mass machinery instead of a parallel one.
+    var colossalDone=[0,0,0];
     var span=WW, i=0, wxp=0;
     while(wxp<span+500){
       var h=mixLi(((wxp*7919)>>>0)+i*104729, 7717)%1000/1000;
@@ -25653,6 +25716,12 @@ function drawGorge(g,L,now,nd){
       // mass standing IN a canyon — the sky closed up and the gorge stopped being a gorge.
       if(ROCK==="basalt") bw=Math.round(bw*0.62);
       if(ROCK==="slot")   bw=Math.round(bw*0.70);
+      // the colossal one for this third, if it has not been claimed yet
+      var third=Math.max(0,Math.min(2,Math.floor((wxp/Math.max(1,WW))*3)));
+      if(!colossalDone[third] && Math.abs(wxp-(third+0.42)*WW/3)<gap*0.60){
+        colossalDone[third]=1; form="colossal";
+        bw=Math.round(bw*2.15); bh*=1.95;                          // far beyond anything standing near it
+      }
       for(var w=-1;w<=1;w++){
         var sx0=Math.round(wxp - WOFF + w*WW);
         if(sx0+bw>=-40 && sx0-bw<=SW+40) gorgeCache.spurs.push({x:sx0, w:bw, top:Math.round(bh), seed:(i*104729+7)>>>0, form:form});
@@ -25739,6 +25808,20 @@ function drawGorge(g,L,now,nd){
   // fast and its foot is the darkest thing in the frame — which is what finally puts a dark end on a
   // land where the sky was the only contrast. Nearly twice the far wall's ramp, from the same rim.
   depthRuns(g, gorgeCache.but, day?[30,14,12]:[4,5,10], 0.04, 0.62, 8);
+
+  // ---- THE ARCH, one per monitor-third. Nick's locked answer 1 and the thing this land had no
+  // equivalent of: a mass with SKY THROUGH IT. Anchored at 0.78 of each third against the colossal
+  // butte's 0.42, so a screen never has to show both stacked on top of each other.
+  var shadeC=day?[30,14,12]:[4,5,10];
+  for(var aq=0;aq<3;aq++){
+    var asd=mixLi(aq*2654435761+911, 6151);
+    var awx=Math.round(((aq+0.78)/3 + (((asd>>>9)%100)/100-0.5)*0.05)*WW);
+    var AW=Math.round(78+((asd>>>5)%100)/100*46);          // world px, like every other size here
+    var AH=Math.round(HORIZON*(0.30+((asd>>>13)%100)/100*0.10));
+    drawGorgeArch(g, awx, AW, AH,
+                  Math.round(AW*0.52), Math.round(AH*0.58),
+                  nearC, rimC, shadeC, K);
+  }
 
   drawGorgeCity(g,L,now,nd);      // the half of this city that lives ON the rock
 
