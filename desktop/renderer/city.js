@@ -5511,6 +5511,27 @@ function drawCar(g,x,y,col,dir,L,kind){
   x=x|0; y=y|0;
   var hover=curSpace>0.55;                                         // G1: the fleet converts to hovercraft
   if(hover) y-=1;
+  // ---- SPRAY OFF THE WHEELS. Locked rain answer: a wet road with traffic on it throws water, and
+  // without this the only sign of rain at street level was the puddles sitting still. It rides the same
+  // `wetness` the puddles do, so it builds as the storm does and lingers on a drying road — a car
+  // still throws spray for a while after the rain stops, which is exactly when a dry-looking street
+  // with wet tyres is most obviously wrong.
+  // ⚠ Hovercraft do not touch the road, so they do not throw anything.
+  if(!hover && wetness>0.12 && !(wfx().snow)){
+    var spK=Math.min(1,wetness*1.5), K2=Math.max(1,KSP);
+    var tail=Math.round((3+spK*5)*K2);
+    var sc=biomeSkc(L>0.5);
+    for(var sq=0;sq<tail;sq++){
+      // hashed off the CAR's x so every vehicle throws its own plume and they do not pulse together
+      var sh=mixLi((((x*2654435761)>>>0)+sq)>>>0,4787);
+      if(((sh>>>3)%100)<38) continue;                               // broken, not a ruled tail
+      var sx=x-dir*(2+sq)*Math.max(1,Math.round(K2*0.8));
+      var sy=y-((sh>>>7)%Math.max(1,Math.round(2*K2)));
+      var sa=0.34*spK*(1-sq/tail);
+      g.fillStyle="rgba("+sc[0]+","+sc[1]+","+sc[2]+","+sa.toFixed(3)+")";
+      g.fillRect(sx,sy,Math.max(1,Math.round(K2*0.7)),Math.max(1,Math.round(K2*0.5)));
+    }
+  }
   var shd=pantsOf(col);                                            // darker lower-body shade
   // ⚠ AND A HEAVY ASHFALL COUNTS AS NIGHT AS FAR AS THE LAMPS ARE CONCERNED. Nick locked "traffic slows with
   // headlights"; the slowing is on `rhythm.carSpeed`, and this is the lamps. `night` here means "the driver
@@ -10725,10 +10746,25 @@ function drawHarbor(g,L,now,night,nd){
   var brA=gstage(0.52,0.66);                                                      // the bridge takes shape over time
   if(brA>0){ g.globalAlpha=brA; drawHarborBridge(g,L,now,night,wTop); g.globalAlpha=1; }
   if(!iceNow && !nukeFull())
+  // ---- AND IN A STORM THEY RUN FOR SHELTER, so the water empties. Locked rain answer, and it already
+  // existed for exactly ONE land (the sprawl's flooded flats, on sprawlSurgeState) while every other
+  // harbour carried on patrolling through a thunderstorm as though nothing were happening. This is the
+  // general version: it rides the real weather, so it is the same storm the rain and the chop come from.
+  // ⚠ They do not teleport into port. The fleet SLOWS and bunches toward the near end of its own beat
+  // as the wind gets up, and the smallest boats give up first — a sailing dinghy is off the water long
+  // before a working barge is.
+  var stormK=(function(){ var fx=wfx(), wnd=(weather.wind||0);
+    return Math.min(1, Math.max(fx.thunder?0.85:(fx.violent?0.7:(fx.rain?0.3:0)), wnd/34)); })();
   for(var i=0;i<boats.length;i++){ var bt=boats[i], span=bt.zb-bt.za;             // boats patrol their harbour
     if(bt.kind!=="sail" && cityG < 0.5+((bt.s%997)/997)*0.2) continue;             // settlers sail; powered ships come with industry
-    var trav=bt.sp*KSP*now*0.001+bt.ph*span, m=trav%(2*span); if(m<0)m+=2*span;
-    var pp=m<span?m:2*span-m, dir=m<span?1:-1, bwx=bt.za+pp, wl=HORIZON-2-bt.y;
+    if(stormK>0.25){
+      var small=(bt.kind==="sail")?1:0;                                            // dinghies quit first
+      var quit=0.30+0.42*(1-small);
+      if(stormK>quit && ((bt.s*2654435761)>>>0)%100 < Math.round((stormK-quit)/(1-quit)*100)) continue;
+    }
+    var trav=bt.sp*KSP*now*0.001*(1-stormK*0.55)+bt.ph*span, m=trav%(2*span); if(m<0)m+=2*span;
+    var pp=m<span?m:2*span-m, dir=m<span?1:-1;
+    var bwx=bt.za+pp*(1-stormK*0.35), wl=HORIZON-2-bt.y;
     for(var off=-WW;off<=WW;off+=WW){ var sx=bwx-WOFF+off; if(sx<-16||sx>SW+16) continue; drawBoat(g,sx,wl,bt.kind,dir,L,now); }
   }
 }
@@ -16632,7 +16668,18 @@ function drawSeaFrontBand(g,L,now){
   var K=Math.max(1,KSP), day=L>0.5, k=curBiome.k, nm=curBiome.name;
   // ⚠ the band ends at the top of the taskbar, not at the bottom of the frame — otherwise the deepest
   // (and most visible) water is drawn underneath a panel and the land just looks like a wide road.
-  var top=SEA_Y, h=(SH-TASKBAR_WP)-SEA_Y;
+  // ---- THE STORM SURGE. Locked rain answer: the sea rises slightly, the surf reaches further in,
+  // then it falls back.
+  // ⚠⚠ IT MUST NOT MOVE `SEA_Y`. That constant is computed ONCE in setup(), and HORIZON, GROUND and
+  // WALK_N_BOT are all derived from it — 37 sites read it. Raising it at runtime would lift the street
+  // baseline, the pavement and everything anchored to the horizon in the middle of a life, so the whole
+  // city would jump when the weather turned. The brief flagged this and the audit confirmed it.
+  // So the surge is DRAWN, not laid out: the water's painted top edge creeps up a few px and the surf
+  // reaches further, while every layout constant stays exactly where setup() put it.
+  var surgeK=(function(){ var fx=wfx(), wnd=(weather.wind||0);
+    return Math.min(1, Math.max(fx.thunder?0.9:(fx.violent?0.75:(fx.rain?0.25:0)), wnd/38)); })();
+  var surgePx=Math.round(surgeK*Math.max(1,KSP)*3.2);
+  var top=SEA_Y-surgePx, h=(SH-TASKBAR_WP)-top;
   // --- the water body: deeper and darker toward the viewer ---
   var shallow, deep;
   if(k==="swamp"){ shallow=day?[54,62,48]:[14,18,16];  deep=day?[26,32,26]:[7,9,9]; }        // a black mirror
@@ -32633,6 +32680,19 @@ function drawCascades(g,L,now,nd){
     if(ok) edges.push(cand[ci]);
   }
   var wTopC=day?[236,248,252]:[120,140,166], wMid=day?[176,214,234]:[60,84,112];
+  // ---- AND AFTER RAIN THEY SWELL AND RUN BROWN. Locked rain answer: a waterfall is the one thing on
+  // a landscape that reports last night's weather. It rides the same `wetness` the puddles do, so it
+  // is still in spate for a while after the sky clears and settles back as the ground drains — which
+  // is the honest behaviour, since the catchment above it does not empty the moment the rain stops.
+  // ⚠ COLOUR AND VOLUME MOVE TOGETHER. A brown fall at its clear-weather width reads as dirty water
+  // rather than as a flood; it has to be visibly fuller at the same time or the silt looks like a
+  // palette mistake.
+  var spate=Math.min(1,wetness*1.6);
+  if(spate>0.05){
+    var silt=day?[168,138,96]:[86,70,50];
+    wTopC=mixc(wTopC,silt,spate*0.62);
+    wMid =mixc(wMid ,silt,spate*0.70);
+  }
   for(var e=0;e<edges.length&&e<3;e++){
     var ed=edges[e], fw=Math.round((15+((e*7919)>>>0)%11)*K);   // wide: the falls ARE the land
     // the sheet runs from the lip to the FLOOR, not merely to the next bedding step: a plateau
@@ -32652,7 +32712,7 @@ function drawCascades(g,L,now,nd){
     // the lip, then the sheet, widening and breaking up as it falls
     g.fillStyle=css(wTopC); g.fillRect(fx,ed.top-Math.max(1,Math.round(K)),fw,Math.round(2*K));
     for(var q=0;q<len;q++){
-      var f=q/len, w2=Math.round(fw*(1+f*0.55));
+      var f=q/len, w2=Math.round(fw*(1+f*0.55)*(1+spate*0.55));   // in spate it is visibly fuller, not just browner
       var band=mixc(wTopC,wMid,Math.min(1,f*1.3));
       g.fillStyle=rgba(band,0.86-0.18*f);
       g.fillRect(fx-Math.round((w2-fw)*0.5),ed.top+q,w2,1);
