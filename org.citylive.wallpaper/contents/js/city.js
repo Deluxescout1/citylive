@@ -18224,8 +18224,15 @@ function disasterInfo(idx){
 }
 // the disaster active RIGHT NOW (with phase fields), or null
 function disasterNow(now){
+  // ⚠ `win` AND `ruin` NOW COME THROUGH. They used to be dropped, so a forced disaster was always
+  // treated as WON — which silently capped the toll at 26 instead of 44 and made the entire
+  // lost-CAT-5 path (the one where the named dead and the mayor's death live) impossible to render.
+  // A harness that cannot reach the worst case cannot verify the feature that only fires there.
   if(FORCEDIS){ var d={type:FORCEDIS.type,intensity:FORCEDIS.intensity,x:Math.round((FORCEDIS.xf||0.4)*WW),
-    w:FORCEDIS.w||34,seed:FORCEDIS.seed||123,idx:-1}; d.f=FORCEDIS.f; d.tp=d.f*DIS_DUR; return d; }
+    w:FORCEDIS.w||34,seed:FORCEDIS.seed||123,idx:-1};
+    if(FORCEDIS.win!=null) d.win=FORCEDIS.win;
+    if(FORCEDIS.ruin!=null) d.ruin=FORCEDIS.ruin;
+    d.f=FORCEDIS.f; d.tp=d.f*DIS_DUR; return d; }
   var idx=Math.floor(now/DIS_SLOT), di=disasterInfo(idx);
   if(!di) return null;
   var tp=now-idx*DIS_SLOT-di.t0;
@@ -19674,6 +19681,60 @@ function casualtyToll(cd){
   var n=0; for(var i=0;i<N;i++) if(cd.f>=casualtyAt(cd,i).dieF) n++;
   return n;
 }
+// ---- NAMED DEATHS. Locked answers 6 and 12: anyone can die, including the mayor, and the number of
+// people who get a NAME is proportional to the toll — a CAT-1 usually nobody, a CAT-3 one or two, a
+// lost CAT-5 four to eight and possibly the mayor.
+// ⚠⚠ PURE FUNCTIONS OF (disaster seed, index), like the victims and the hunts. Three monitors must
+// agree on WHO died with no shared state; a list built by pushing names as people fall would diverge
+// the instant one screen missed a frame, and the same street would mourn different people.
+var DEAD_ROLE=["BAKER","FISHER","OFFICER","TEACHER","ENGINEER","DOCTOR","ARTIST","PILOT",
+               "DOCKER","DRIVER","NURSE","GROCER","WELDER","CLERK"];
+function namedDeathCount(cd){
+  if(!cd||!casualtyCount(cd)) return 0;
+  var lost=(cd.win===false), I=cd.intensity||1;
+  var h=mixLi((cd.seed*7919+41)>>>0,5471);
+  if(I<=1) return ((h%100)<18)?1:0;                 // a CAT-1 usually takes nobody anyone knew
+  if(I<=2) return ((h%100)<46)?1:0;
+  if(I<=3) return 1+(((h>>>7)%100)<38?1:0);         // one or two
+  if(I<=4) return 2+((h>>>11)%3);
+  return lost ? 4+((h>>>13)%5) : 2+((h>>>13)%3);    // a lost CAT-5 is the one that takes four to eight
+}
+// WHO the i-th named victim was. The mayor is only ever in slot 0, only when the city LOST, and only
+// sometimes — otherwise every bad night would decapitate the government.
+function namedDeadAt(cd,i){
+  var h=mixLi((i*2654435761+((cd.seed*104729)|0))>>>0,8221);
+  var lost=(cd.win===false), I=cd.intensity||1;
+  if(i===0&&lost&&I>=5&&curMayor&&curMayor.winName&&((h>>>7)%100)<34)
+    return { name:curMayor.winName, role:"MAYOR", mayor:true };
+  // ⚠ NO TWO OF THEM MAY SHARE A NAME. Rolling first and surname independently produced "MARA KOVACS"
+  // twice in one disaster with different trades, which reads as a bug rather than as a coincidence.
+  // There are FNAMES*LNAMES combinations; walking the combined index by a step COPRIME to that total
+  // makes the (first, surname) pairs distinct by construction for every i in one event, rather than
+  // merely unlikely to collide.
+  // ⚠ AND THE BASE MUST BE PER-EVENT, NOT PER-VICTIM. Stepping by a coprime only guarantees distinct
+  // pairs if it steps from a FIXED start — deriving the base from the victim's own hash meant the
+  // start moved too, and measuring found 817 duplicate-name events in 3000. The step is the guarantee;
+  // the base has to hold still for it to mean anything.
+  var COMB=FNAMES.length*LNAMES.length;
+  var base=mixLi((cd.seed*104729)>>>0,3907)%COMB;
+  var idx=(base+i*13)%COMB;
+  var fn=FNAMES[idx%FNAMES.length], ln=LNAMES[Math.floor(idx/FNAMES.length)%LNAMES.length];
+  return { name:fn+" "+ln, role:DEAD_ROLE[(h>>>17)%DEAD_ROLE.length], mayor:false };
+}
+// How many names are KNOWN by now. Names arrive later than bodies — the dead are counted before they
+// are identified — so a named death rides the victim's own dieF plus a lag, and the panel fills in
+// over the arc instead of announcing the whole list at the first casualty.
+function namedDeadRevealed(cd){
+  var n=namedDeathCount(cd); if(!n) return 0;
+  var k=0; for(var i=0;i<n;i++) if(cd.f>=Math.min(0.92,casualtyAt(cd,i).dieF+0.16)) k++;
+  return k;
+}
+// Did the mayor die in this disaster, and is it known yet? Locked answer 11 hangs off this.
+function mayorKilledBy(cd){
+  if(!cd||!namedDeathCount(cd)) return false;
+  var d0=namedDeadAt(cd,0);
+  return !!(d0&&d0.mayor&&namedDeadRevealed(cd)>=1);
+}
 // the n-th victim of this disaster: where they fell, and at what disaster-progress
 function casualtyAt(cd,n){
   var h=((n*2654435761+((cd.seed*7919)|0))>>>0); h^=h>>>13;
@@ -19836,6 +19897,20 @@ function drawDisasterHud(g,cd,now){
   // the toll rides the alert itself rather than taking a second row — one line, everything on it
   var toll=casualtyToll(cd), pmsg=msg+(toll>0?("   DEAD "+toll):"");
   var ty=notifLane(0), owned=pushNotif(90,pmsg,col);
+  // ---- and the NAMES, one row each, under the alert they belong to. Locked answer 7: recorded
+  // everywhere. A number is a statistic; a name is the thing that makes the number land, which is the
+  // whole point of the answer. The mayor outranks the rest so the city hears that first.
+  if(owned){
+    var nr=namedDeadRevealed(cd);
+    for(var ni=0;ni<nr;ni++){
+      var dd=namedDeadAt(cd,ni);
+      // the mayor's title IS their role — "MAYOR ROSE BURNS - MAYOR" said it twice
+      pushNotif(dd.mayor?95:88,
+                dd.mayor ? ("MAYOR "+dd.name+" - CONFIRMED DEAD")
+                         : (dd.name+" - "+dd.role+" - CONFIRMED DEAD"),
+                dd.mayor?"rgba(255,60,60,":"rgba(230,120,120,");
+    }
+  }
   if(!owned){
     var tw=textW(msg), tx=Math.round(cd.x-tw/2);
     // backing bar (world-anchored, wraps)

@@ -36,6 +36,11 @@ Item {
     property string tag: arg("tag", "frame")
     property string wx: arg("wx", "clear")
     property string egg: arg("egg", "")
+    property string dis: arg("dis", "")          // e.g. dis=kaiju
+    property double disF: parseFloat(arg("disf", "0.55"))
+    property int disI: parseInt(arg("disi", "5"), 10)
+    property int disSeed: parseInt(arg("disseed", "4242"), 10)
+    property string disWin: arg("diswin", "")    // "0" forces the city to LOSE
     property string outDir: arg("out", "/tmp/claude-1000/-home-deluxescout/bb7d3665-023a-4a7c-beb2-9139002a7460/scratchpad/land")
     property double t0: 0
     property int warm: 0
@@ -56,6 +61,13 @@ Item {
         City.setup('neon', { cw: root.cw, ch: root.ch, woff: root.woff, ww: 2269, pxk: 3, zoom: root.zoom,
                              taskbarWp: 17, quality: 'balanced', frameMs: 125 });
         City.FORCEAGE = root.age;
+        // ⚠ xf is a fraction of WW (2269), NOT of the screen — 0.42 lands off the right edge of a
+        // 776 wp primary and renders nothing, which reads exactly like a broken feature.
+        if (root.dis !== "")
+            City.FORCEDIS = { type:root.dis, intensity:root.disI, xf:(root.woff + 380) / 2269,
+                              w:40, seed:root.disSeed, f:root.disF,
+                              win:(root.disWin === "0" ? false : null) };
+        else City.FORCEDIS = null;
         // ⚠ FORCEWX, not City.weather.x = y — the latter is clobbered by the live fetch.
         if (root.wx === "overcast")
             City.FORCEWX = { code:3, cloud:100, wind:10, temp:73, precip:0, feels:73, gust:14 };
