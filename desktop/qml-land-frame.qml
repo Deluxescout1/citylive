@@ -42,6 +42,7 @@ Item {
     property int disSeed: parseInt(arg("disseed", "4242"), 10)
     property string clockAt: arg("clock", "")   // absolute ms — renders a specific moment in history
     property string disWin: arg("diswin", "")    // "0" forces the city to LOSE
+    property string disX: arg("disx", "")        // ABSOLUTE strike position, 0..1 of WW (see FORCEDIS below)
     property string outDir: arg("out", "/tmp/claude-1000/-home-deluxescout/bb7d3665-023a-4a7c-beb2-9139002a7460/scratchpad/land")
     property double t0: 0
     property int warm: 0
@@ -71,8 +72,17 @@ Item {
         City.FORCEAGE = root.age;
         // ⚠ xf is a fraction of WW (2269), NOT of the screen — 0.42 lands off the right edge of a
         // 776 wp primary and renders nothing, which reads exactly like a broken feature.
+        // ⚠⚠ BY DEFAULT THE STRIKE FOLLOWS THE VIEWPORT — `woff + 380` puts it 380 wp into whatever
+        // screen is being rendered, which is what you want when reviewing how ONE disaster LOOKS and
+        // is actively misleading for anything else. It means every disaster ever reviewed through this
+        // harness was centred on screen BY CONSTRUCTION, so "does the event reach the other monitors"
+        // could never have been asked, let alone answered: three woffs all render the strike in front
+        // of you and the frames agree, wrongly.
+        // `disx=` pins it in ABSOLUTE world coordinates (0..1 of WW) instead. Use it whenever the
+        // question involves more than one screen.
         if (root.dis !== "")
-            City.FORCEDIS = { type:root.dis, intensity:root.disI, xf:(root.woff + 380) / 2269,
+            City.FORCEDIS = { type:root.dis, intensity:root.disI,
+                              xf:(root.disX !== "" ? parseFloat(root.disX) : (root.woff + 380) / 2269),
                               w:40, seed:root.disSeed, f:root.disF,
                               win:(root.disWin === "0" ? false : null) };
         else City.FORCEDIS = null;

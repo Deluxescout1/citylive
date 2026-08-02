@@ -3191,7 +3191,11 @@ var BIOMES=[
     fauna:{ keep:{deer:0,rabbit:1,fox:0,goat:0}, big:["bighorn","coyote"], small:["lizard","roadrunner"], air:["vulture"] },
     flora:{ kinds:["saguaro","scrub","ocotillo","scrub","saguaro"], bloom:["#e8c04a","#d8734a","#c8506a"] },
     sky:{ top:[132,150,196], bot:[214,182,150], k:0.34, haze:[206,166,126] } },
-  { k:"cliffs", name:"SEA CLIFFS", amp:0.92, base:0.62, flat:0.55, steep:1.0, snow:false, water:"sea", cliffLife:1,
+  // `coast` is the SHAPE OF THE COASTLINE, and it is a property of the rock rather than a palette.
+  // Nick's locked answer 2 is "different rock AND different coastline shape per variant — three
+  // places, not three palettes", and the three faces were shipping as three tints of one identical
+  // silhouette. See `coastField`.
+  { k:"cliffs", name:"SEA CLIFFS", amp:0.92, base:0.62, flat:0.55, steep:1.0, snow:false, water:"sea", cliffLife:1, coast:"layered",
     far:[126,132,140],  near:[92,98,108],  cap:[168,176,182], ground:[132,138,126],
     walls:[[196,196,190],[172,176,178],[212,210,202],[150,158,162],[128,136,142],[186,178,166],[160,152,144],[204,198,186]],
     fauna:{ keep:{deer:0,rabbit:1,fox:1,goat:0}, big:["seal"], small:["otter","puffin"], air:[] },
@@ -3714,6 +3718,7 @@ var BIOME_VARIANTS={
 
   cliffs:[ {},
     { name:"THE CHALK COAST",  // brilliant white chalk with turf on top — the brightest cliff there is
+      coast:"smooth",          // chalk erodes evenly: long sweeping bays with soft shoulders
       far:[236,234,228], near:[212,210,202], cap:[250,250,246], ground:[142,164,110],
       walls:[[246,244,238],[228,226,218],[252,252,248],[210,208,198],[238,236,228],[220,218,208],[248,246,240],[202,200,190]],
       flora:{ kinds:["gorse","grass","windbent","gorse","grass"], bloom:["#f0d878","#e8a0c0","#ffffff"] },
@@ -3729,6 +3734,9 @@ var BIOME_VARIANTS={
       // The rock lifts and the walls brighten, so the city reads as objects standing IN FRONT of a
       // wall rather than as sparks on it. Still unmistakably dark basalt — just no longer the same
       // value as the things standing on it. (Readability for colour; the shapes are untouched.)
+      // COLUMNAR ROCK FAILS ALONG ITS JOINTS, so a basalt coast does not curve — it goes in square
+      // bites, leaving flat-topped headlands with vertical sides and blocky stacks offshore.
+      coast:"blocky",
       far:[96,102,110],  near:[68,74,82],   cap:[126,130,138], ground:[62,66,64],
       walls:[[168,172,178],[136,140,148],[192,194,198],[118,122,130],[154,158,166],[128,132,140],[180,182,188],[108,112,120]],
       flora:{ kinds:["windbent","gorse","windbent","grass","gorse"], bloom:["#e8e0a0","#c0d0c0","#ffffff"] },
@@ -18457,6 +18465,27 @@ function inZone(wx,ww,z){ var a=z.x-(z.w>>1)-2, b=z.x+(z.w>>1)+2; return wx< b &
 // ⚠ AND THE ENDTIMES COUNT. Nick: "that goes for End Times too." Several land renderers return early
 // on `apoc`, which meant the landscape sat pristine while the city died — the apocalypse is not zoned,
 // so it damages the WHOLE world rather than a strike footprint.
+// ------------------------------------------------------------------------------------------------
+// HOW HARD DOES THIS EVENT REACH THIS POINT OF THE WORLD? — the pure SPATIAL law, 0..1.
+// Total inside the strike, squared decay outward, and a floor so the far side of the world still
+// feels it. Shared on purpose: the LANDSCAPE damage and the SKY must not drift apart, because two
+// different falloff curves describing one event diverge visibly and there is no way to tell which
+// one is wrong from a render.
+// ⚠ Note what the numbers already do — `reach` for a big disaster EXCEEDS WW/2, so a lost CAT-5
+// genuinely reaches every point of the world (~0.48 at the antipode) while a CAT-1 drops to the 0.10
+// floor well before it gets there. Small events stay local; only the big ones take the whole map.
+function disFalloff(wx,d){
+  d=d||curDis; if(!d) return 0;
+  var dx=wx-d.x;                                         // signed, wrapped: the world is a loop
+  if(dx>WW/2) dx-=WW; if(dx<-WW/2) dx+=WW;
+  var core=Math.max(1,d.w*0.5);
+  var reach=core+(WW*0.5)*(0.30+0.14*(d.intensity||1))*((d.win===false)?1.35:1);
+  var ad=Math.abs(dx);
+  if(ad<=core) return 1;                                 // inside the strike: total
+  if(ad>=reach) return 0.10;                             // the far side of the world still feels it
+  var u=(ad-core)/(reach-core);
+  return Math.max(0.10,1-u*u);                           // squared: severe well beyond the core
+}
 function landDamageAt(wx,ww){
   ww=ww||1;
   if(cityPhase==="apoc") return 1;                       // the endtimes are not a footprint
@@ -18468,18 +18497,8 @@ function landDamageAt(wx,ww){
     // which is exactly the thing he noticed. The building footprint stays as balanced; the LANDSCAPE
     // gets a graded falloff instead, so the whole map shows the event and only the strike is erased.
     var t=Math.max(0,Math.min(1,(curDis.f-0.14)/0.26));            // how far into the event we are
-    if(t>0){
-      var dx=wx+ww*0.5-curDis.x;                                   // signed, wrapped: the world is a loop
-      if(dx>WW/2) dx-=WW; if(dx<-WW/2) dx+=WW;
-      var core=Math.max(1,curDis.w*0.5);
-      var reach=core+ (WW*0.5)*(0.30+0.14*(curDis.intensity||1))*((curDis.win===false)?1.35:1);
-      var ad=Math.abs(dx);
-      var f2;
-      if(ad<=core) f2=1;                                           // inside the strike: total
-      else if(ad>=reach) f2=0.10;                                  // the far side of the world still feels it
-      else { var u=(ad-core)/(reach-core); f2=Math.max(0.10,1-u*u); }  // squared: severe well beyond the core
-      d=Math.max(d,t*f2);
-    }
+    // the spatial law now lives in `disFalloff` so the sky obeys the same curve — see there.
+    if(t>0) d=Math.max(d,t*disFalloff(wx+ww*0.5,curDis));
   }
   if(curRuins) for(var r=0;r<curRuins.length;r++)
     if(inZone(wx,ww,curRuins[r])) return 1;              // a lost district is dead for the rest of the life
@@ -19668,23 +19687,46 @@ function drawRift(g,cd,L,now){
 // (it draws its own ochre veil).
 var DIS_ATMO={ volcano:[255,74,22,1], asteroid:[255,120,40,1], alien:[120,255,190,1], rift:[178,86,255,1],
   kaiju:[150,90,220,1], mech:[255,150,90,1], kraken:[70,196,164,1], iceage:[176,226,255,1],
-  zombie:[18,44,14,0], flood:[10,28,50,0], tornado:[20,20,28,0] };
+  zombie:[18,44,14,0], flood:[10,28,50,0], tornado:[20,20,28,0],
+  // ⚠ SANDSTORM HAD NO ENTRY AT ALL, on the one disaster whose entire subject is the air. Added.
+  // ⚠⚠ BLACKOUT AND SMOG STAY OUT DELIBERATELY. `drawBlackout` carries an explicit ruling, with the
+  // render that produced it: a power cut is a loss of ARTIFICIAL light and cannot darken the sky —
+  // it dimmed the sun and a dune three kilometres away before it was bounded. Smog is a veil over the
+  // city for the same reason. Filling the table for tidiness would re-open a fixed bug.
+  sandstorm:[194,150,88,0] };
 function drawDisasterAtmosphere(g,cd,L,now){
   var a=DIS_ATMO[cd.type]; if(!a) return;
   var f=cd.f; if(f<0.06||f>=0.50) return;
   var ramp=(f<0.12)?(f-0.06)/0.06:((f>0.40)?(0.50-f)/0.10:1); if(ramp<=0) return;   // fade in on strike, out into aftermath
-  var lum=(a[3]===1), cx=disX(cd.x);
-  var span=90+cd.intensity*62;                                                       // world-px half-width, wider at higher CAT
-  if(cx+span<0||cx-span>SW) return;
+  // ⚠⚠⚠ THIS RETURNED ON EVERY SCREEN THAT WAS NOT LOOKING AT THE STRIKE. Nick: "disasters need to
+  // affect all screens being used." Measured on his three monitors, pinning a CAT-5 tornado at one
+  // world x and rendering each screen's own `woff`: the left monitor showed a funnel filling the sky
+  // and the other two showed a sunny afternoon. `span` was 90+intensity*62 — a 800 world-px bell in a
+  // 2269 px world — and `if(cx+span<0||cx-span>SW) return;` then skipped the pass outright for any
+  // screen outside it.
+  // 🔑 THIS IS THE SAME 5%-OF-THE-WORLD DEFECT `landDamageAt` WAS WRITTEN TO FIX, LEFT IN PLACE ON THE
+  // SKY. That commit graded the LANDSCAPE across the whole map and stopped one function short of the
+  // atmosphere, so the ground remembered the disaster and the air above it did not. A fix applied only
+  // where the bug was reported is half a fix — the third time this project has recorded that.
+  // So: the geometry `return` is gone and the falloff is the SHARED `disFalloff` law. A lost CAT-5
+  // reaches ~0.48 at the far side of the world; a CAT-1 is down to the 0.10 floor long before it,
+  // which is right — a thunderstorm two towns over should not blacken the sky here.
+  var lum=(a[3]===1);
   var night=1-L, pulse=1+0.14*Math.sin(now*0.02);
   var peak=(lum?(0.10+0.11*night):0.10+0.055*cd.intensity)*ramp*(lum?(0.62+0.09*cd.intensity):1)*pulse;   // glows bite harder in the dark; gloom scales with CAT
-  g.globalCompositeOperation="lighter";
-  if(!lum) g.globalCompositeOperation="source-over";
-  var x0=Math.max(0,(cx-span)|0), x1=Math.min(SW,(cx+span)|0);
-  for(var sx=x0;sx<x1;sx++){ var d=Math.abs(sx-cx)/span, fall=0.5+0.5*Math.cos(d*Math.PI);   // cosine bell falloff
-    var al=peak*fall; if(al<=0.004) continue;
-    g.fillStyle="rgba("+a[0]+","+a[1]+","+a[2]+","+(al<1?al:1).toFixed(3)+")";
-    g.fillRect(sx,0,1,HORIZON); }
+  // ⚠ A GRADIENT, NOT A WIDER LOOP. The old pass did one fillRect PER COLUMN and was bounded by the
+  // bell; running that full-width would put ~800 fills per frame into the LIVE pass on every screen,
+  // on the one event where the frame is already doing the most work. Sampled stops across the screen
+  // reproduce the curve and cost a single fill.
+  var grad=g.createLinearGradient(0,0,SW,0), STOPS=14, anyVis=false;
+  for(var gs=0;gs<=STOPS;gs++){
+    var gx=SW*gs/STOPS, al=peak*disFalloff(gx+WOFF,cd);
+    if(al>0.004) anyVis=true;
+    grad.addColorStop(gs/STOPS,"rgba("+a[0]+","+a[1]+","+a[2]+","+(al<1?al:1).toFixed(3)+")");
+  }
+  if(!anyVis) return;                                    // physics, not geometry: too faint to see anywhere
+  g.globalCompositeOperation=lum?"lighter":"source-over";
+  g.fillStyle=grad; g.fillRect(0,0,SW,HORIZON);
   g.globalCompositeOperation="source-over";
 }
 // BLACKOUT: the power grid fails — a swathe of the skyline goes dark (windows out), a few candles &
@@ -33254,6 +33296,43 @@ function drawAshFissures(g,hs,gy,day,mNight,now,rift){
     }
   }
 }
+// ================================================================================================
+// THE COASTLINE — where the headlands stand and where the bays bite back
+// ------------------------------------------------------------------------------------------------
+// Returns 0 on a HEADLAND (rock standing out to sea at full height) rising to 1 at the head of a BAY
+// (the cliff cut right back). Nick's diagnosis of this land was that "the whole thing isn't reading
+// correctly", and the structural half of that is this: THE CLIFF RAN UNBROKEN ACROSS THE ENTIRE
+// WORLD. A sheer face that never stops is a grey WALL behind the town; what makes a cliff coast read
+// as a COAST is that it is INDENTED. His locked answer calls headlands and bays "the biggest single
+// win" on the map.
+//
+// ⚠ WORLD-ANCHORED, so all three monitors agree on where the coast turns — the standing rule that
+// everything here is scripted from a hash and never simulated.
+// ⚠⚠ NOT A LATTICE. `(i*K+salt)%WW` is an arithmetic progression, not a scatter, and this project has
+// now shipped that same bug four times (savanna acacias, fungus, shrine, station spine). Evenly
+// spaced indentations would read as a row of teeth — the regularity fault fixed on five lands. Two
+// INCOMMENSURATE octaves instead, so no two bays share a width or a spacing.
+// ⚠ FREQUENCIES DIVIDE BY KSP, like the caprock's hash does, so the coast keeps its shape rather
+// than its pixel count when the scale changes.
+function coastField(wx, B){
+  var s=(B&&B.coast)||"layered", K=Math.max(1,KSP);
+  if(s==="smooth"){
+    // CHALK erodes evenly and undercuts in long smooth curves, so its bays are wide and sweeping and
+    // the shoulders ease round into them.
+    var fc=Math.sin(wx*0.0193/K+1.1)*0.66+Math.sin(wx*0.0417/K+3.9)*0.34;
+    return Math.max(0,Math.min(1,(fc+0.20)/0.90));
+  }
+  var f=Math.sin(wx*0.0301/K+1.7)*0.60+Math.sin(wx*0.0577/K+4.3)*0.40;
+  if(s==="blocky"){
+    // BASALT fails along its columns: hard shoulders, flat-topped headlands, square bites. A short
+    // ramp rather than a true step, so the transition is a vertical WALL and not a torn seam.
+    var t=Math.max(0,Math.min(1,(f+0.12)/0.58));
+    return t<0.5 ? Math.max(0,(t-0.34)/0.16)*0.10 : Math.min(1,0.90+(t-0.5)*0.20);
+  }
+  // SEA CLIFFS: layered sandstone — moderate bays with an ordinary shoulder.
+  return Math.max(0,Math.min(1,(f+0.14)/0.72));
+}
+
 function drawMountains(g,L,now,nd){
   if(curBiome.k==="forest"){ drawForestBackdrop(g,L,now,nd); return; }   // the forest is the range here
   if(curBiome.k==="core"){ drawCoreWorld(g,L,now,nd); return; }         // …and on the core world the CITY is
@@ -33325,6 +33404,18 @@ function drawMountains(g,L,now,nd){
   nearC=clearOf(nearC,skyRef, 52);
   var snF=mixc(day?B.cap:mixc(B.cap,[0,0,0],0.62), [255,168,148], sunsetK*0.55);   // alpenglow on the snow
   var snN=mixc(day?mixc(B.cap,[255,255,255],0.35):mixc(B.cap,[0,0,0],0.55), [255,150,128], sunsetK*0.6);
+  // ⚠⚠ A SEA CLIFF'S LIP IS TURF, NOT SNOW. These two mix the cap colour toward WHITE, which is right
+  // for a summit and wrong for a coast: on the cliffs it laid a pale band along every clifftop that
+  // read as snow, pulling a warm Atlantic coast toward the alpine map. It got worse the moment the
+  // headlands went in — levelling the profile put far more clifftop in frame for it to whiten.
+  // What sits on top of a sea cliff is GRASS, wind-cropped and running right to the edge, and a green
+  // lip over a pale face is the most recognisable thing about this coastline. It is also, verbatim,
+  // the locked answer for chalk: "blinding white wall, TURF LIP ON TOP".
+  // Keyed off each variant's own `ground`, so chalk gets downland green, basalt a thin dark sward.
+  if(B.cliffLife){
+    snF=mixc(day?mixc(B.ground,[0,0,0],0.16):mixc(B.ground,[0,0,0],0.62), [255,168,148], sunsetK*0.35);
+    snN=mixc(day?B.ground:mixc(B.ground,[0,0,0],0.50), [255,150,128], sunsetK*0.40);
+  }
   var litK=Math.max(0,Math.min(1,(L-0.34)*2.4));                  // how hard the sun models the rock
   // ⚠ THE ONE PIECE OF STATE THE SILHOUETTE IS ALLOWED TO CARE ABOUT. mtsCache exists because the
   // range never moves within a life — which stopped being true the moment an eruption started taking
@@ -33587,6 +33678,57 @@ function drawMountains(g,L,now,nd){
             var floor0=(2.5+Math.sin(wx0*0.021)*1.4)*KSP*B.base;                  // drop to the desert floor
             var edge0=Math.min(1,(B.buttes-gp0)/0.10);                            // a short ramp = a vertical wall
             rh0=rh0+(floor0-rh0)*edge0;
+          }
+        }
+        // ---- HEADLANDS AND BAYS: the coast stops being a wall -----------------------------------
+        // Exactly the fault RED MESA had directly above — one unbroken line across the whole world —
+        // and it takes the same cure: carve the shape explicitly into the height field rather than
+        // hoping the peak list happens to produce it. Doing it HERE, before the field is cached, is
+        // what makes it free: the caprock, the ribs, the slope light and drawCliffLife's ledges all
+        // read `mtsCache.h` and so they all follow the new coast without a line of their own.
+        // ⚠ BOTH VISIBLE BANDS. A coast is a plan-view shape, so the far ridge turns with the near
+        // one; carving only the near band would leave the old unbroken wall showing through behind
+        // every bay. (The ashlands' rift learned the opposite lesson — a RIFT is one place in the
+        // ground, so it is near-band only. An indented coastline is not one place, it is the shape
+        // of the whole edge.)
+        if(B.cliffLife && pi0<=1 && rh0>2){
+          // ⚠⚠ LEVEL THE CLIFFTOP FIRST, OR THE BAYS BUILD A MOUNTAIN RANGE. Carving the gaps alone
+          // was measurably worse than the wall it replaced: `steep:1.0` had been plateauing the peak
+          // list into one continuous rampart, and opening sky between the peaks exposed them as what
+          // they always were underneath — CONES, tall enough to wear the caprock band as a snow cap.
+          // The map rendered as a volcano. That is this project's oldest failure mode ("what map is
+          // this even supposed to be") and it arrived here by fixing something else.
+          // A sea cliff coast is a LEVEL PLATEAU that the sea has cut into: the clifftop runs at
+          // roughly one altitude and the drama is in the plan shape, not in the skyline. So the
+          // profile is compressed toward a characteristic clifftop before the bays are cut, keeping
+          // enough of its own variation (and a fast octave) that no run reads as a `plateaus()` table.
+          // ⚠ AND LEVELLING IS NOT LOWERING. Compressing toward 0.58 of the peak list gave a tidy
+          // level clifftop that the OFFICE BLOCKS THEN STOOD OVER — and a sea cliff the town can see
+          // past is not the subject of the map. The locked answer is "the town is squeezed onto the
+          // shelf between rock and water", so the rock has to dominate: it levels ABOVE the old
+          // skyline, not below it.
+          var ctop=mtsCache.mx[pi0]*(0.98+Math.sin(wx0*0.0131/Math.max(1,KSP)+2.3)*0.09
+                                         +Math.sin(wx0*0.0487/Math.max(1,KSP))*0.035);
+          rh0=ctop+(rh0-ctop)*0.30;
+          // ⚠ AND THE SHOULDER HAS TO BE SHORT. A gradual ramp into a bay is a mountain FLANK; rock
+          // that the sea has undercut fails vertically. Steepening the field's own transition (rather
+          // than narrowing the bays) keeps the plan shape and turns the sides into walls — the same
+          // trick the buttes use with `edge0` two blocks up.
+          var cf0=Math.max(0,Math.min(1,(coastField(wx0,B)-0.5)*3.6+0.5));
+          if(cf0>0){
+            // ⚠⚠ THE BAY FLOOR MUST NOT COME OUT DEAD FLAT. `plateaus()` scans for a run of 30+
+            // columns varying by under 1.6px and drawPlateauTowns BUILDS ON WHAT IT FINDS — that is
+            // how the blown volcano registered as a mesa and got a town with its walls sunk into the
+            // rock. A slow sine alone would sit inside that tolerance at the bottom of every bay, so
+            // there is a fast octave under it: local variation stays well clear of the threshold.
+            // ⚠ A BAY IS STILL CLIFFED. Cutting to a near-zero floor opened holes of bare sky and the
+            // coast came apart into separate hills; what the sea actually leaves between two
+            // headlands is LOWER rock curving back, not an absence of rock. So the floor is a
+            // fraction of the local clifftop rather than a fixed height — the bay recedes, and the
+            // land stays continuous behind the town.
+            var bayH=ctop*(0.40+Math.sin(wx0*0.019/Math.max(1,KSP))*0.05
+                               +Math.sin(wx0*0.071/Math.max(1,KSP))*0.035);
+            rh0=rh0+(bayH-rh0)*cf0;
           }
         }
         mtsCache.h[pi0][cx0]=rh0;

@@ -18465,6 +18465,27 @@ function inZone(wx,ww,z){ var a=z.x-(z.w>>1)-2, b=z.x+(z.w>>1)+2; return wx< b &
 // ⚠ AND THE ENDTIMES COUNT. Nick: "that goes for End Times too." Several land renderers return early
 // on `apoc`, which meant the landscape sat pristine while the city died — the apocalypse is not zoned,
 // so it damages the WHOLE world rather than a strike footprint.
+// ------------------------------------------------------------------------------------------------
+// HOW HARD DOES THIS EVENT REACH THIS POINT OF THE WORLD? — the pure SPATIAL law, 0..1.
+// Total inside the strike, squared decay outward, and a floor so the far side of the world still
+// feels it. Shared on purpose: the LANDSCAPE damage and the SKY must not drift apart, because two
+// different falloff curves describing one event diverge visibly and there is no way to tell which
+// one is wrong from a render.
+// ⚠ Note what the numbers already do — `reach` for a big disaster EXCEEDS WW/2, so a lost CAT-5
+// genuinely reaches every point of the world (~0.48 at the antipode) while a CAT-1 drops to the 0.10
+// floor well before it gets there. Small events stay local; only the big ones take the whole map.
+function disFalloff(wx,d){
+  d=d||curDis; if(!d) return 0;
+  var dx=wx-d.x;                                         // signed, wrapped: the world is a loop
+  if(dx>WW/2) dx-=WW; if(dx<-WW/2) dx+=WW;
+  var core=Math.max(1,d.w*0.5);
+  var reach=core+(WW*0.5)*(0.30+0.14*(d.intensity||1))*((d.win===false)?1.35:1);
+  var ad=Math.abs(dx);
+  if(ad<=core) return 1;                                 // inside the strike: total
+  if(ad>=reach) return 0.10;                             // the far side of the world still feels it
+  var u=(ad-core)/(reach-core);
+  return Math.max(0.10,1-u*u);                           // squared: severe well beyond the core
+}
 function landDamageAt(wx,ww){
   ww=ww||1;
   if(cityPhase==="apoc") return 1;                       // the endtimes are not a footprint
@@ -18476,18 +18497,8 @@ function landDamageAt(wx,ww){
     // which is exactly the thing he noticed. The building footprint stays as balanced; the LANDSCAPE
     // gets a graded falloff instead, so the whole map shows the event and only the strike is erased.
     var t=Math.max(0,Math.min(1,(curDis.f-0.14)/0.26));            // how far into the event we are
-    if(t>0){
-      var dx=wx+ww*0.5-curDis.x;                                   // signed, wrapped: the world is a loop
-      if(dx>WW/2) dx-=WW; if(dx<-WW/2) dx+=WW;
-      var core=Math.max(1,curDis.w*0.5);
-      var reach=core+ (WW*0.5)*(0.30+0.14*(curDis.intensity||1))*((curDis.win===false)?1.35:1);
-      var ad=Math.abs(dx);
-      var f2;
-      if(ad<=core) f2=1;                                           // inside the strike: total
-      else if(ad>=reach) f2=0.10;                                  // the far side of the world still feels it
-      else { var u=(ad-core)/(reach-core); f2=Math.max(0.10,1-u*u); }  // squared: severe well beyond the core
-      d=Math.max(d,t*f2);
-    }
+    // the spatial law now lives in `disFalloff` so the sky obeys the same curve — see there.
+    if(t>0) d=Math.max(d,t*disFalloff(wx+ww*0.5,curDis));
   }
   if(curRuins) for(var r=0;r<curRuins.length;r++)
     if(inZone(wx,ww,curRuins[r])) return 1;              // a lost district is dead for the rest of the life
@@ -19676,23 +19687,46 @@ function drawRift(g,cd,L,now){
 // (it draws its own ochre veil).
 var DIS_ATMO={ volcano:[255,74,22,1], asteroid:[255,120,40,1], alien:[120,255,190,1], rift:[178,86,255,1],
   kaiju:[150,90,220,1], mech:[255,150,90,1], kraken:[70,196,164,1], iceage:[176,226,255,1],
-  zombie:[18,44,14,0], flood:[10,28,50,0], tornado:[20,20,28,0] };
+  zombie:[18,44,14,0], flood:[10,28,50,0], tornado:[20,20,28,0],
+  // ⚠ SANDSTORM HAD NO ENTRY AT ALL, on the one disaster whose entire subject is the air. Added.
+  // ⚠⚠ BLACKOUT AND SMOG STAY OUT DELIBERATELY. `drawBlackout` carries an explicit ruling, with the
+  // render that produced it: a power cut is a loss of ARTIFICIAL light and cannot darken the sky —
+  // it dimmed the sun and a dune three kilometres away before it was bounded. Smog is a veil over the
+  // city for the same reason. Filling the table for tidiness would re-open a fixed bug.
+  sandstorm:[194,150,88,0] };
 function drawDisasterAtmosphere(g,cd,L,now){
   var a=DIS_ATMO[cd.type]; if(!a) return;
   var f=cd.f; if(f<0.06||f>=0.50) return;
   var ramp=(f<0.12)?(f-0.06)/0.06:((f>0.40)?(0.50-f)/0.10:1); if(ramp<=0) return;   // fade in on strike, out into aftermath
-  var lum=(a[3]===1), cx=disX(cd.x);
-  var span=90+cd.intensity*62;                                                       // world-px half-width, wider at higher CAT
-  if(cx+span<0||cx-span>SW) return;
+  // ⚠⚠⚠ THIS RETURNED ON EVERY SCREEN THAT WAS NOT LOOKING AT THE STRIKE. Nick: "disasters need to
+  // affect all screens being used." Measured on his three monitors, pinning a CAT-5 tornado at one
+  // world x and rendering each screen's own `woff`: the left monitor showed a funnel filling the sky
+  // and the other two showed a sunny afternoon. `span` was 90+intensity*62 — a 800 world-px bell in a
+  // 2269 px world — and `if(cx+span<0||cx-span>SW) return;` then skipped the pass outright for any
+  // screen outside it.
+  // 🔑 THIS IS THE SAME 5%-OF-THE-WORLD DEFECT `landDamageAt` WAS WRITTEN TO FIX, LEFT IN PLACE ON THE
+  // SKY. That commit graded the LANDSCAPE across the whole map and stopped one function short of the
+  // atmosphere, so the ground remembered the disaster and the air above it did not. A fix applied only
+  // where the bug was reported is half a fix — the third time this project has recorded that.
+  // So: the geometry `return` is gone and the falloff is the SHARED `disFalloff` law. A lost CAT-5
+  // reaches ~0.48 at the far side of the world; a CAT-1 is down to the 0.10 floor long before it,
+  // which is right — a thunderstorm two towns over should not blacken the sky here.
+  var lum=(a[3]===1);
   var night=1-L, pulse=1+0.14*Math.sin(now*0.02);
   var peak=(lum?(0.10+0.11*night):0.10+0.055*cd.intensity)*ramp*(lum?(0.62+0.09*cd.intensity):1)*pulse;   // glows bite harder in the dark; gloom scales with CAT
-  g.globalCompositeOperation="lighter";
-  if(!lum) g.globalCompositeOperation="source-over";
-  var x0=Math.max(0,(cx-span)|0), x1=Math.min(SW,(cx+span)|0);
-  for(var sx=x0;sx<x1;sx++){ var d=Math.abs(sx-cx)/span, fall=0.5+0.5*Math.cos(d*Math.PI);   // cosine bell falloff
-    var al=peak*fall; if(al<=0.004) continue;
-    g.fillStyle="rgba("+a[0]+","+a[1]+","+a[2]+","+(al<1?al:1).toFixed(3)+")";
-    g.fillRect(sx,0,1,HORIZON); }
+  // ⚠ A GRADIENT, NOT A WIDER LOOP. The old pass did one fillRect PER COLUMN and was bounded by the
+  // bell; running that full-width would put ~800 fills per frame into the LIVE pass on every screen,
+  // on the one event where the frame is already doing the most work. Sampled stops across the screen
+  // reproduce the curve and cost a single fill.
+  var grad=g.createLinearGradient(0,0,SW,0), STOPS=14, anyVis=false;
+  for(var gs=0;gs<=STOPS;gs++){
+    var gx=SW*gs/STOPS, al=peak*disFalloff(gx+WOFF,cd);
+    if(al>0.004) anyVis=true;
+    grad.addColorStop(gs/STOPS,"rgba("+a[0]+","+a[1]+","+a[2]+","+(al<1?al:1).toFixed(3)+")");
+  }
+  if(!anyVis) return;                                    // physics, not geometry: too faint to see anywhere
+  g.globalCompositeOperation=lum?"lighter":"source-over";
+  g.fillStyle=grad; g.fillRect(0,0,SW,HORIZON);
   g.globalCompositeOperation="source-over";
 }
 // BLACKOUT: the power grid fails — a swathe of the skyline goes dark (windows out), a few candles &
