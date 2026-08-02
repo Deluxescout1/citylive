@@ -35187,6 +35187,70 @@ function drawSprawlWetDay(g,L,now,nd){
     }
   }
 }
+// ---- HIGHWAY LIGHTING OVER THE CARRIAGEWAY. Nick: "add street lights to the road once the city
+// develops enough." The pavement already had kerb lamps — 9 px, arriving from ~28% growth — but the
+// multi-lane road itself had NOTHING, which is why a night frame was a black band lit only by
+// headlights. These are a different piece of infrastructure: tall columns with a long arm reaching out
+// over the lanes, throwing an oval pool onto the asphalt.
+// ⚠ They arrive LATER than the kerb lamps (his call) so lighting the highway reads as a stage the
+// town reaches rather than something it always had. Staggered per mast off its own hash, like the
+// furniture, so they do not all switch on in one frame.
+// ⚠ World-anchored and hashed: the same mast stands in the same place on all three monitors.
+function drawRoadLights(g,L,now,night){
+  if(cityPhase==="apoc"||ROAD_Y<=0) return;
+  var K=Math.max(1,KSP), day=L>0.5;
+  var lit=(L<0.62);
+  var roadTop=ROAD_Y, roadBot=ROAD_BOT>roadTop?ROAD_BOT:(roadTop+Math.round(10*K));
+  var gap=Math.round(58*K);
+  var first=Math.floor(WOFF/gap)*gap;
+  for(var wx=first-gap; wx<WOFF+SW+gap; wx+=gap){
+    var mh=mixLi((Math.floor(wx/gap)*2654435761)>>>0,3181);
+    // ⚠ the development gate, staggered: 55% to 75% growth
+    if(cityG < 0.55+((mh>>>5)%1000)/1000*0.20) continue;
+    var X=Math.round(wx-WOFF); if(X<-14||X>SW+14) continue;
+    // ⚠ ALL ON THE FAR VERGE. Alternating sides put half the masts on the NEAR verge, where the column
+    // rises straight up through the carriageway and crosses every lane of moving traffic — it read as
+    // a pole planted in the middle of the road. A real gantry stands off the road and reaches over it,
+    // so they all stand behind the traffic and the arm does the reaching.
+    var baseY=roadTop-1;
+    var poleH=Math.round((16+((mh>>>9)%5))*K);
+    var armL=Math.round((8+((mh>>>13)%4))*K);
+    var armY=baseY-poleH;
+    g.fillStyle=day?"#5a5f6a":"#20242c";
+    g.fillRect(X,armY,Math.max(1,Math.round(K*0.9)),poleH);                       // the column
+    g.fillRect(X,armY,armL,Math.max(1,Math.round(K*0.8)));                        // the arm, out over the lanes
+    // a stay wire back to the column, which is what stops the arm reading as a floating bar
+    g.fillStyle=day?"rgba(90,95,106,0.75)":"rgba(32,36,44,0.85)";
+    g.fillRect(X,armY+Math.round(K*2),Math.round(armL*0.45),Math.max(1,Math.round(K*0.4)));
+    var headX=X+armL;
+    g.fillStyle=day?"#6a707c":"#22262e";
+    g.fillRect(headX-Math.round(K),armY,Math.round(2.2*K),Math.max(1,Math.round(K*0.9)));
+    if(!lit) continue;
+    // the lamp itself, then the pool it throws on the asphalt
+    g.globalCompositeOperation="lighter";
+    var warm=(curSpace>0.6)?"174,244,255":"255,214,140";
+    g.fillStyle="rgba("+warm+",0.9)";
+    g.fillRect(headX-Math.round(K*0.6),armY+Math.round(K*0.6),Math.max(1,Math.round(K*1.2)),Math.max(1,Math.round(K*0.7)));
+    g.fillStyle="rgba("+warm+","+(0.22*night+0.06).toFixed(3)+")";
+    g.fillRect(headX-Math.round(2.4*K),armY-Math.round(K),Math.round(4.8*K),Math.round(3*K));
+    // ⚠ THE POOL IS AN OVAL ON THE ROAD, NOT A RECTANGLE. A flat block of light reads as a painted
+    // panel; the road is a surface being lit from above and the falloff is what says so. It also
+    // brightens with `wetness`, so the wet-asphalt work reflects these rather than ignoring them —
+    // a rainy night road is the best-looking thing on the map instead of the darkest.
+    var wetB=1+Math.min(1,wetness*1.6)*0.9;
+    var pR=Math.round((13+((mh>>>17)%6))*K), pH=Math.max(2,roadBot-roadTop);
+    for(var py=0;py<pH;py++){
+      var pf=py/Math.max(1,pH-1);
+      var wdt=Math.round(pR*Math.sqrt(Math.max(0,1-(pf-0.45)*(pf-0.45)*3.2)));
+      if(wdt<1) continue;
+      var pa=0.085*wetB*(1-Math.abs(pf-0.45)*1.15)*(0.45+0.55*night);
+      if(pa<=0.004) continue;
+      g.fillStyle="rgba("+warm+","+pa.toFixed(3)+")";
+      g.fillRect(headX-wdt,roadTop+py,wdt*2,1);
+    }
+    g.globalCompositeOperation="source-over";
+  }
+}
 function drawPuddles(g,L,now){
   if(wetness<=0.05||cityPhase==="apoc") return;
   var fx=wfx(); if(fx.snow&&!fx.rain&&!fx.drizzle) return;   // it lies as snow, it does not pool
@@ -40253,6 +40317,7 @@ function draw(g,pass){
   // taskbar allowance below the sea. The band runs SEA_Y .. SEA_Y+SEA_FRONT, which is SH-TASKBAR_WP.
   if(curBiome.polar&&SEA_FRONT>0) drawPackIce(g,L,now,nd,0,SW,0,SEA_Y,SH-TASKBAR_WP);
   drawHarbourLighthouse(g,L,now,fx);               // …and the working harbour standing in it
+  drawRoadLights(g,L,now,night);   // the highway lighting, once the town is big enough to have it
   drawPuddles(g,L,now);
   drawWetSheen(g,L,now,Math.min(1,wetness*1.7));   // wet asphalt mirrors the street lighting
   if(curBiome.molten) drawAshDust(g,L,now);        // …and on the Ashlands, what the last few hours of ash left behind
