@@ -71,7 +71,26 @@ WallpaperItem {
     // The cost is real and measured, not hand-waved: this screen's live canvas becomes 2328x1311
     // instead of 1552x874 (2.24x the pixels, repainted every frame), which came to about twelve
     // points of one core at 8fps across the three screens last time it was measured.
-    readonly property real texelBuf: (dpr > 1) ? 1 : pxk
+    // ⚠⚠⚠ AND THEY CAME BACK A FOURTH TIME — Nick, 2026-08-02: "also the lines are back", on THE KARST.
+    // The guard above keyed on `dpr > 1`, which is not the trigger. It is a PROXY for the trigger that
+    // happened to be true on the only screen that had ever shown the fault, and the note beside it even
+    // said the other two monitors "never had a problem" — scoping a fix to where the symptom appeared,
+    // which is this project's most repeated mistake.
+    // THE REAL TRIGGER IS WHETHER THE CANVAS IS UPSCALED BY A WHOLE NUMBER. With coarse texels the canvas
+    // is `ceil(width*dpr/pxk)` and the compositor stretches it back to `width*dpr`. Measured on his three:
+    //   · 3840 @1.65 → dpr 2 → fine texels already          → clean
+    //   · 2560 @1    → 2560/3 = 853.3 → 854*3 = 2562 ≠ 2560 → stretched by 2.9977, BEATS  ← the karst screen
+    //   · 1920 @1    → 1920/3 = 640   → 640*3  = 1920 ✓     → exact, clean
+    // That is why exactly one monitor striped and why it looked screen-specific: 1920 divides by pxk and
+    // 2560 does not. Verified by rendering his exact frame (SCR 854x480 Z1 K2 WOFF 776) both ways — the
+    // coarse canvas streaks down the towers, the fine one is clean.
+    // So the test is the arithmetic, not the dpr. A screen whose canvas scales by an exact integer keeps
+    // the cheap coarse texels and pays nothing; only a screen that would be fractionally stretched pays.
+    readonly property bool fractionalTexel: {
+        var q = (width * dpr) / pxk;
+        return Math.abs(q - Math.round(q)) > 0.001;
+    }
+    readonly property real texelBuf: (dpr > 1 || fractionalTexel) ? 1 : pxk
     readonly property int zoom: Math.max(1, Math.round(pxk * dpr / texelBuf))
     // total width (logical px) of the whole desktop the city spans. If unset in config,
     // auto-detect by summing every screen's width (works for a single laptop screen or

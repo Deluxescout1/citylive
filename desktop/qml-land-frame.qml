@@ -26,8 +26,14 @@ Item {
         return d;
     }
     property int zoom: parseInt(arg("zoom", "2"), 10)
-    property int cw: 776 * zoom
-    property int ch: 437 * zoom
+    // `cw=`/`ch=`/`pxk=` override the derived geometry so a REAL screen's exact canvas can be
+    // reproduced — needed for the vertical-lines class, where the fault is not in the engine output
+    // but in how that canvas is resampled onto the panel. The KDE plugin's own law is
+    // `texelBuf = (dpr>1) ? 1 : pxk` and `zoom = round(pxk*dpr/texelBuf)`, so a dpr-1 screen renders
+    // ONE canvas px per world px and the compositor stretches it by ~pxk. That stretch is the bug.
+    property int cw: arg("cw","") !== "" ? parseInt(arg("cw","0"),10) : 776 * zoom
+    property int ch: arg("ch","") !== "" ? parseInt(arg("ch","0"),10) : 437 * zoom
+    property int pxk: parseInt(arg("pxk", "3"), 10)
     property int woff: parseInt(arg("woff", "0"), 10)
     property double age: parseFloat(arg("age", "0.85"))
     property int hour: parseInt(arg("hour", "13"), 10)
@@ -63,7 +69,7 @@ Item {
         if (root.clockAt !== "") root.t0 = parseFloat(root.clockAt);
         City.NOWOVR = City.CLOCK = root.t0;
         City.applyConfig({ lat: 41.5243, lon: -72.0759 });
-        City.setup('neon', { cw: root.cw, ch: root.ch, woff: root.woff, ww: 2269, pxk: 3, zoom: root.zoom,
+        City.setup('neon', { cw: root.cw, ch: root.ch, woff: root.woff, ww: 2269, pxk: root.pxk, zoom: root.zoom,
                              taskbarWp: 17, quality: 'balanced', frameMs: 125 });
         City.CFG_GORE = arg("gore","full");
         // wetness ACCUMULATES over minutes of real time; a one-frame harness would always render a dry
