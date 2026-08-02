@@ -25695,9 +25695,18 @@ function landmarkXs(seed,gapMax){
 var gorgeCache=null;   // per-screen wall profile — static within a life, so build it ONCE
 function drawGorge(g,L,now,nd){
   var day=L>0.5, B=curBiome, K=Math.max(1,KSP), skc=biomeSkc(day);
-  var farC =mixc(day?B.far:[(B.far[0]*0.20)|0,(B.far[1]*0.22)|0,(B.far[2]*0.34)|0],  skc, day?0.42:0.34);
-  var nearC=mixc(day?B.near:[(B.near[0]*0.16)|0,(B.near[1]*0.18)|0,(B.near[2]*0.30)|0],skc, day?0.16:0.16);
-  var rimC =mixc(day?B.cap:mixc(B.cap,[0,0,0],0.58), [255,178,132], goldenK*0.6);
+  // ⚠⚠ THE VALUE LOGIC INVERTS AT NIGHT AND THIS LAND HAD ONLY THE DAY HALF OF IT.
+  // By day the rock is DARK against a bright sky: measured 250 sky vs 84 rock, a separation of 167.
+  // At night the sky falls to 48 — so darkening the rock to 70 left a separation of 21, an eight-fold
+  // collapse, and the canyon lost its silhouette entirely. Worse, the three receding ridges landed
+  // 3.6 apart, so every layer of distance simply vanished. That is the mud.
+  // A real canyon at night is MOONLIT: the rock is the LIGHTER thing and the sky is the dark one. So
+  // the night rock is lifted well clear of the sky and cooled toward moonlight rather than crushed
+  // toward black. (Same shape as the Empyrean's lesson that a value strategy has a time of day.)
+  var MOON=[176,196,232];
+  var farC =mixc(day?B.far :mixc([(B.far[0]*0.62)|0,(B.far[1]*0.60)|0,(B.far[2]*0.66)|0], MOON,0.30), skc, day?0.42:0.14);
+  var nearC=mixc(day?B.near:mixc([(B.near[0]*0.50)|0,(B.near[1]*0.48)|0,(B.near[2]*0.56)|0],MOON,0.22), skc, day?0.16:0.08);
+  var rimC =mixc(day?B.cap:mixc(B.cap,MOON,0.55), [255,178,132], goldenK*0.6);
   var litK =Math.max(0,Math.min(1,(L-0.34)*2.4));
   var steep=(B.steep!=null?B.steep:0.72);
   // Which rock this variant is MADE of. Declared in the biome table beside the palette, because the
@@ -25810,13 +25819,34 @@ function drawGorge(g,L,now,nd){
     }
   }
 
+  // ---- AN OVERCAST NIGHT OVER A CITY HAS AN ORANGE CEILING. The cloud deck catches the town's light
+  // and throws it back down, which is the one thing that gives the rock a BRIGHT backdrop to stand
+  // against after dark — exactly what Nick's overcast frame was missing. Clear nights get none of it:
+  // there is nothing up there to catch the glow.
+  var oc=(weather&&weather.cloud!=null)?weather.cloud/100:0;
+  if(!day && oc>0.55){
+    var glowH=Math.round(HORIZON*0.42), gA=0.34*Math.min(1,(oc-0.55)/0.35);
+    for(var gb=0;gb<7;gb++){
+      var gy0=Math.round(HORIZON*0.10+(glowH-HORIZON*0.10)*(gb/7));
+      var gy1=Math.round(HORIZON*0.10+(glowH-HORIZON*0.10)*((gb+1)/7));
+      if(gy1<=gy0) continue;
+      g.fillStyle=rgba([255,164,92], gA*(gb/6)*(gb/6));      // brightest where the deck meets the rim
+      g.fillRect(0,gy0,SW,gy1-gy0);
+    }
+  }
+
   // ---- the two DISTANT ridges, drawn first so everything else stands in front of them. Each is mixed
   // further toward the sky: that graded loss of contrast IS the distance, and it is why they need no
   // detail. A rim line on each keeps them from reading as flat cut-outs.
   for(var rr=0;rr<2;rr++){
     var rprof=(rr===0)?gorgeCache.far3:gorgeCache.far2;
-    var rc=mixc(farC, skc, rr===0?0.62:0.40);
-    var rrim=mixc(rimC, skc, rr===0?0.58:0.36);
+    // ⚠ AND THE DISTANCE RAMP INVERTS WITH IT. By day a ridge recedes by hazing toward a BRIGHT sky,
+    // which lightens it. Reusing that at night hazed it toward a DARK sky, so the far country got
+    // darker with distance — backwards, and the reason the layers read 3.6 apart. At night the ridges
+    // recede toward moonlight instead, so further is still paler.
+    var rhaze=day?skc:MOON;
+    var rc=mixc(farC, rhaze, rr===0?0.62:0.40);
+    var rrim=mixc(rimC, rhaze, rr===0?0.58:0.36);
     for(var rx2=0;rx2<SW;rx2++){
       var ry=rprof[rx2]; if(ry>=HORIZON) continue;
       g.fillStyle=css(rc);   g.fillRect(rx2,ry,1,HORIZON-ry+1);

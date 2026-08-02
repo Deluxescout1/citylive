@@ -34,6 +34,7 @@ Item {
     property int variant: parseInt(arg("variant", "0"), 10)
     property string land: arg("land", "canyon")
     property string tag: arg("tag", "frame")
+    property string wx: arg("wx", "clear")
     property string outDir: arg("out", "/tmp/claude-1000/-home-deluxescout/bb7d3665-023a-4a7c-beb2-9139002a7460/scratchpad/land")
     property double t0: 0
     property int warm: 0
@@ -51,7 +52,11 @@ Item {
         City.setup('neon', { cw: root.cw, ch: root.ch, woff: root.woff, ww: 2269, pxk: 3, zoom: root.zoom,
                              taskbarWp: 17, quality: 'balanced', frameMs: 125 });
         City.FORCEAGE = root.age;
-        City.weather.code = 0; City.weather.wind = 8; City.weather.temp = 76;
+        // ⚠ FORCEWX, not City.weather.x = y — the latter is clobbered by the live fetch.
+        if (root.wx === "overcast")
+            City.FORCEWX = { code:3, cloud:100, wind:10, temp:73, precip:0, feels:73, gust:14 };
+        else
+            City.FORCEWX = { code:0, cloud:5, wind:8, temp:76, precip:0, feels:76, gust:10 };
     }
 
     Canvas { id: bg; anchors.fill: parent; renderTarget: Canvas.Image
@@ -76,7 +81,7 @@ Item {
                          " acts=" + JSON.stringify(City.SAVL_ACT));
             root.grabToImage(function (r) {
                 r.saveToFile(root.outDir + "/" + root.land + "-" + root.tag + "-w" + root.woff +
-                             "-v" + root.variant + "-a" + root.age + ".png");
+                             "-v" + root.variant + "-a" + root.age + "-h" + root.hour + ".png");
                 Qt.quit();
             });
         }
