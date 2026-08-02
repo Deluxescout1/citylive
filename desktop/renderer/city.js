@@ -19705,6 +19705,7 @@ function drawDisaster(g,cd,L,now){
   else if(cd.type==="smog") drawSmog(g,cd,L,now);
   else if(cd.type==="planecrash") drawPlaneCrash(g,cd,L,now);
   if(disDestroys(cd.type) && cd.type!=="planecrash"){ drawMilitaryResponse(g,cd,L,now); drawVictoryBeat(g,cd,L,now); }   // no tanks/jets fight a power cut, an inversion layer, or a plane crash (fire crews handle that — in drawPlaneCrash)
+  drawRecoveryCrews(g,cd,L,now);  // …and the people who come to carry them away
   drawCasualties(g,cd,L,now);   // …and what the thing left behind. Drawn LAST so nothing paints over the dead.
 }
 // ============ THE DEAD ============
@@ -19837,6 +19838,103 @@ function casualtyAt(cd,n){
 // So the stain, the runnels, the gutter, the drag trails and the tyre tracks draw with the ROAD,
 // before a single car or pedestrian; the bodies stay late, where a solid object belongs.
 function roadPavedNow(){ return !curVillage && cityG>=0.30; }   // tyres only track blood once there is asphalt
+// ---- RECOVERY CREWS. Locked answer 5: bodies get cleared because somebody visibly clears them.
+// Until now a body simply stopped being drawn at age>0.30, which is the city tidying itself up when
+// nobody is looking. A crew walks in from the edge of the strike during the aftermath, reaches each
+// victim in turn, and the body goes when they get there — the same event, with a cause.
+// ⚠ Hashed, never simulated. A crew's position is a pure function of (seed, victim index, f) so all
+// three monitors agree on who has been reached and who has not.
+function crewReach(cd,n){
+  // the aftermath runs 0.55..0.95; crews work outward from the middle of it
+  var h=mixLi((n*2654435761+((cd.seed*40503)|0))>>>0,6733);
+  return 0.55+((h>>>5)%1000)/1000*0.34;
+}
+function drawRecoveryCrews(g,cd,L,now){
+  if(goreK()<=0) return;
+  var N=casualtyCount(cd); if(!N) return;
+  var f=cd.f; if(f<0.50||f>1.0) return;
+  var K=Math.max(1,KSP), day=L>0.5;
+  for(var n=0;n<N;n++){
+    var V=casualtyAt(cd,n); if(f<V.dieF) continue;
+    var reach=crewReach(cd,n);
+    // walk in over the 0.10 before they arrive, then stand and work
+    var t=Math.max(0,Math.min(1,(f-(reach-0.10))/0.10));
+    if(t<=0) continue;
+    var vx=Math.round(V.x-WOFF), from=vx-Math.round(26*K)*((n&1)?1:-1);
+    var cx=Math.round(from+(vx-from)*t);
+    for(var w=-1;w<=1;w++){
+      var px=cx+w*WW; if(px<-10||px>SW+10) continue;
+      // two of them: a hi-vis worker and a stretcher-bearer
+      drawPerson(g,px,HORIZON-1,day?"#e8a020":"#a86c10",SKINC[n%SKINC.length],(n&1)?1:-1);
+      drawPerson(g,px+Math.round(3*K),HORIZON-1,day?"#d8dce4":"#7a8090",SKINC[(n+1)%SKINC.length],(n&1)?1:-1);
+      if(t>=1){                                                    // the stretcher, once they are on site
+        g.fillStyle=day?"rgba(220,226,234,0.9)":"rgba(140,148,162,0.9)";
+        g.fillRect(px,HORIZON-Math.round(2*K),Math.round(5*K),Math.max(1,Math.round(K*0.8)));
+      }
+    }
+  }
+}
+// ---- MEMORIALS. Locked answer 16: only at the worst sites, so finding one means something.
+// A district lost for good, or twenty dead and up — against a CAT-5's 26-44 that is the worst events
+// only, a handful per life at most. Stone, flowers, and candles lit after dark. Stays for the rest of
+// the life, which is what makes it a memorial rather than a decoration.
+function memorialZones(now){
+  if(FORCEDIS) return [];
+  var out=[], base=Math.floor(now/DIS_SLOT);
+  var lifeStart=GROW_EPOCH - GROW_OFFSET_DAYS*86400000 - WORLD_SHIFT + lifeIndexOf(now)*GROW_CYCLE;
+  var firstSlot=Math.max(Math.ceil(lifeStart/DIS_SLOT), base-RUIN_MAXSCAN);
+  for(var idx=base; idx>=firstSlot; idx--){
+    var di=disasterInfo(idx); if(!di) continue;
+    var end=idx*DIS_SLOT+di.t0+DIS_DUR; if(end>now) continue;
+    var probe={ type:di.type, intensity:di.intensity, x:di.x, w:di.w, seed:di.seed,
+                win:di.win, ruin:di.ruin, f:1 };
+    if(!(di.ruin||casualtyCount(probe)>=20)) continue;
+    out.push({ x:di.x, seed:di.seed, ruin:!!di.ruin, since:now-end });
+    // ⚠⚠ AND A CITY ONLY KEEPS SO MANY. The threshold Nick chose was "a district lost, or 20+ dead",
+    // and I told him that meant the worst events only — a handful per life. That arithmetic was WRONG:
+    // a CAT-5 the city WINS still returns 23 dead, so the rule catches nearly every CAT-5 and the
+    // heavier CAT-4s, and the first render put FIFTY-THREE memorials on a 2269 wp world. His actual
+    // instruction was "rare enough that finding one means something", so the rule stands and the count
+    // is capped at the most recent few — which is also how real cities work: the older grief gets
+    // absorbed into the fabric and stops being a marked site.
+    if(out.length>=5) break;
+  }
+  return out;
+}
+function drawMemorials(g,L,now,night){
+  var ms=memorialZones(now); if(!ms.length) return;
+  var K=Math.max(1,KSP), day=L>0.5;
+  for(var i=0;i<ms.length;i++){
+    var m=ms[i];
+    for(var w=-1;w<=1;w++){
+      var px=Math.round(m.x-WOFF+w*WW); if(px<-12||px>SW+12) continue;
+      var sh=Math.round(7*K), sw=Math.round(3*K), gy=HORIZON-1;
+      g.fillStyle=day?"#b9bcc4":"#4e525c";                          // the stone
+      g.fillRect(px,gy-sh,sw,sh);
+      g.fillStyle=day?"#d6d9e0":"#6a6f7a";
+      g.fillRect(px,gy-sh,sw,Math.max(1,Math.round(K*0.7)));         // its lit top edge
+      // flowers at the foot, hashed so no two are laid the same
+      for(var fq=0;fq<4;fq++){
+        var fh2=mixLi((m.seed*31+fq)>>>0,9151);
+        var fx2=px-Math.round(2*K)+((fh2>>>3)%Math.max(1,Math.round(7*K)));
+        var FC=["#d85a7a","#e8c860","#e0e4ec","#c86ab0"][(fh2>>>9)%4];
+        g.fillStyle=day?FC:mixcSafeDark(FC);
+        g.fillRect(fx2,gy-Math.max(1,Math.round(K*0.9)),Math.max(1,Math.round(K*0.9)),Math.max(1,Math.round(K*0.9)));
+      }
+      if(night){                                                     // candles, only after dark
+        for(var cq=0;cq<3;cq++){
+          var ch2=mixLi((m.seed*17+cq)>>>0,4093);
+          var cx2=px-Math.round(K)+((ch2>>>5)%Math.max(1,Math.round(6*K)));
+          var flick=0.55+0.45*Math.sin(now*0.004+cq*2.1+(ch2%100)/16);
+          g.fillStyle="rgba(255,196,110,"+(0.55*flick).toFixed(2)+")";
+          g.fillRect(cx2,gy-Math.round(2*K),Math.max(1,Math.round(K*0.8)),Math.max(1,Math.round(K*1.2)));
+          g.fillStyle="rgba(255,228,170,"+(0.30*flick).toFixed(2)+")";
+          g.fillRect(cx2-1,gy-Math.round(3*K),Math.max(2,Math.round(K*1.6)),Math.max(1,Math.round(K*0.8)));
+        }
+      }
+    }
+  }
+}
 // ---- THE MARKS OUTLAST THE EVENT. Locked answer 3: stains persist well past the disaster arc,
 // visible long after, then weather away. Until now every stain died WITH its disaster — `stainA`
 // reaches zero at age 0.62 of a four-minute arc, so the street was spotless about two minutes after
@@ -19975,7 +20073,10 @@ function drawCasualties(g,cd,L,now){
     var V=casualtyAt(cd,n);
     if(f<V.dieF) continue;                           // not yet
     var age=f-V.dieF;
-    var bodyGone=age>0.30, stainA=Math.max(0, 1-age/0.62);
+    // ⚠ THE BODY GOES WHEN SOMEBODY TAKES IT. `age>0.30` was the city tidying itself up while nobody
+    // watched; now it leaves when the recovery crew actually reaches this victim, so the disappearance
+    // has a cause you can see walking toward it.
+    var bodyGone=(f>=crewReach(cd,n)), stainA=Math.max(0, 1-age/0.62);
     if(bodyGone||stainA<=0.02) continue;             // carried away during the long aftermath
     var X=disX(V.x); if(X<-10||X>SW+10) continue;
     var Y=HORIZON-1;
@@ -40401,6 +40502,7 @@ function draw(g,pass){
   // ---- DISASTER overlay: the threat + the city's military/emergency response + alert HUD ----
   // (the destruction/rubble/rebuild of the buildings themselves is handled in drawLayer)
   if(curDis){ drawDisaster(g,curDis,L,now); drawDisasterHud(g,curDis,now); }
+  drawMemorials(g,L,now,night);                              // the worst sites keep a marker for the rest of the life
   drawHalfMast(g,L,now,night);                               // …and the city mourns a mayor who did not survive
   if(curWar) drawWar(g,L,now,night);                         // the war for the city plays out on top
   if(cityG>0.5) drawElections(g,L,now,night);                // democracy in the streets
