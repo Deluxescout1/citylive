@@ -11390,6 +11390,17 @@ function tickerMsg(now){
               "FLAGS AT HALF MAST ACROSS "+cityName,
               "THE CITY REMEMBERS MAYOR "+curMayor.deadName);
   }
+  // ---- THE TICKER RETURNS TO THEM BY NAME. Locked answer 17. Only the mayor got a tribute before,
+  // which made everyone else a number that scrolled past once. These are the people the panel named
+  // while they were being counted; the ticker is where the city says their names afterwards.
+  if(curDis){
+    var nr2=namedDeadRevealed(curDis);
+    for(var td=0;td<nr2&&td<3;td++){
+      var dd2=namedDeadAt(curDis,td); if(!dd2||dd2.mayor) continue;
+      msgs.push(dd2.name+" - "+dd2.role+" - REMEMBERED BY "+cityName,
+                "TRIBUTES FOR "+dd2.name+" AT THE SITE");
+    }
+  }
   if(curMayor&&curMayor.justElected){ msgs.push("MAYOR "+curMayor.winName+" TAKES OFFICE - "+curMayor.party.k+" AGENDA");
     var jm5=curMayor.measures||[]; for(var mi5=0;mi5<jm5.length;mi5++){ var mm5=jm5[mi5];
       msgs.push("PROP "+MEASURE_LABEL[mm5.t]+" - "+(mm5.pass?"PASSES ":"FAILS ")+mm5.yes+"-"+(100-mm5.yes)); } }
@@ -19956,6 +19967,37 @@ function memorialZones(now){
   }
   return out;
 }
+// ---- THE FUNERAL. Locked answer 5: a heavy toll brings a procession. It walks the street once, in
+// the days after the worst events, and it is deliberately slow — a line of people moving at half the
+// pace of the traffic beside them is the whole read, and it is the only thing on this street that is
+// not in a hurry.
+function drawFuneral(g,L,now,night){
+  var ms=memorialZones(now); if(!ms.length) return;
+  var m=ms[0];                                                       // the most recent site only
+  var WINDOW=16*60000;
+  if(m.since>WINDOW) return;
+  var K=Math.max(1,KSP), day=L>0.5;
+  var t=m.since/WINDOW;                                              // it crosses once, over the window
+  var span=Math.round(WW*0.42);
+  var headWx=m.x-span*0.5+span*t;
+  var n=Math.round(9+(mixLi(m.seed>>>0,5231)%7));
+  for(var w=-1;w<=1;w++){
+    for(var i=0;i<n;i++){
+      var px=Math.round(headWx-i*Math.round(2.6*K)-WOFF+w*WW);
+      if(px<-8||px>SW+8) continue;
+      var hh=mixLi((m.seed*7+i)>>>0,8837);
+      // the hearse leads; everyone else walks behind it in dark clothes
+      if(i===0){
+        g.fillStyle=day?"#1a1a20":"#0c0c12";
+        g.fillRect(px-Math.round(3*K),HORIZON-Math.round(3*K),Math.round(7*K),Math.round(3*K));
+        g.fillStyle=day?"#d8d0b8":"#6a6458";                          // the flowers on the roof
+        g.fillRect(px-Math.round(2*K),HORIZON-Math.round(4*K),Math.round(5*K),Math.max(1,Math.round(K*0.8)));
+      } else {
+        drawPerson(g,px,HORIZON-1,day?"#2a2830":"#16151c",SKINC[(hh>>>7)%SKINC.length],-1);
+      }
+    }
+  }
+}
 function drawMemorials(g,L,now,night){
   var ms=memorialZones(now); if(!ms.length) return;
   var K=Math.max(1,KSP), day=L>0.5;
@@ -19975,6 +20017,19 @@ function drawMemorials(g,L,now,night){
         var FC=["#d85a7a","#e8c860","#e0e4ec","#c86ab0"][(fh2>>>9)%4];
         g.fillStyle=day?FC:mixcSafeDark(FC);
         g.fillRect(fx2,gy-Math.max(1,Math.round(K*0.9)),Math.max(1,Math.round(K*0.9)),Math.max(1,Math.round(K*0.9)));
+      }
+      // ---- MOURNERS, AND THEY STOP COMING. Locked answer 17: they gather at the site for a few days,
+      // then stop. That ending is the point — a memorial with a permanent crowd is a tourist
+      // attraction, and grief that never thins is not grief, it is set dressing. The site stays; the
+      // people fade off it.
+      var MOURN_WINDOW=22*60000;                                     // a few "days" on the city's clock
+      var mf=1-Math.min(1,m.since/MOURN_WINDOW);
+      var mn=Math.round(mf*mf*5);                                    // squared: a crowd at first, then one or two
+      for(var mq=0;mq<mn;mq++){
+        var mh=mixLi((m.seed*13+mq)>>>0,7717);
+        var mx=px-Math.round(4*K)+((mh>>>3)%Math.max(1,Math.round(11*K)));
+        // they stand still and face the stone, rather than walking past it
+        drawPerson(g,mx,gy,day?"#5a5560":"#2e2b34",SKINC[(mh>>>9)%SKINC.length],(mx<px)?1:-1);
       }
       if(night){                                                     // candles, only after dark
         for(var cq=0;cq<3;cq++){
@@ -40560,6 +40615,7 @@ function draw(g,pass){
   // (the destruction/rubble/rebuild of the buildings themselves is handled in drawLayer)
   if(curDis){ drawDisaster(g,curDis,L,now); drawDisasterHud(g,curDis,now); }
   drawMemorials(g,L,now,night);                              // the worst sites keep a marker for the rest of the life
+  drawFuneral(g,L,now,night);                                // …and the city walks its dead through the street once
   drawHalfMast(g,L,now,night);                               // …and the city mourns a mayor who did not survive
   if(curWar) drawWar(g,L,now,night);                         // the war for the city plays out on top
   if(cityG>0.5) drawElections(g,L,now,night);                // democracy in the streets
