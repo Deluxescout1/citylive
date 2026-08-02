@@ -35428,7 +35428,16 @@ function drawPlainsWorked(g,L,now,nd){
     // now found five times. Widths are hashed and they COMPRESS with distance, which is also the only
     // perspective cue a flat map can offer.
     var pgy=HORIZON, hz2=biomeSkc(day);
-    var STRIP=[[128,142,74],[156,158,88],[176,166,104],[110,128,68],[188,176,120]];
+    // ---- THE CROP FOLLOWS THE YEAR. Locked answer 4's first part. A fixed palette meant the same
+    // field in February and August, which on a land whose whole subject is farming is the one thing
+    // you would notice. Spring is young green, summer deepens, autumn goes to gold and stubble, winter
+    // is bare earth and snow-streaked. It rides the same seasonInfo the trees do, so the field and the
+    // shelterbelt beside it are never in different months.
+    var _sea=curSeason||seasonInfo(nowDate());
+    var STRIP=(_sea.name==="spring")?[[120,166,84],[146,182,104],[104,150,76],[132,172,92],[158,190,116]]
+             :(_sea.name==="summer")?[[92,140,64],[128,152,78],[76,124,58],[112,146,72],[150,168,96]]
+             :(_sea.name==="autumn")?[[196,168,88],[214,186,104],[168,142,74],[204,176,96],[182,154,80]]
+                                    :[[122,116,102],[140,134,118],[104,100,88],[132,126,110],[150,146,132]];
     for(var band=0;band<4;band++){
       var bf=band/4;                                        // 0 = nearest strip band, 1 = furthest
       // ⚠ AND THEY HAVE TO BE WHERE THE EYE SEES LAND. At HORIZON-4..-16 they drew correctly and were
@@ -35460,6 +35469,40 @@ function drawPlainsWorked(g,L,now,nd){
         var th5=Math.round((3.5+((mixLi((sbh+tq)>>>0,3313))%4)*0.6)*K);
         g.fillStyle=css(mixc(day?[62,82,52]:[16,24,18], hz2, 0.22));
         g.fillRect(tx5,sby-th5,Math.max(1,Math.round(K*1.3)),th5);
+      }
+    }
+    // ================= THE HARVEST =================
+    // Combines cutting in season, and the grain trucks that take it off the field. It only happens in
+    // AUTUMN, which is the point — a machine that runs all year is scenery, and one that only appears
+    // when the crop is ready is a calendar you can see from the sofa.
+    // ⚠ They CUT: each combine leaves a pale stubble scar behind it that grows as it advances, so the
+    // field visibly changes state rather than a sprite sliding over an unchanged strip.
+    if(_sea.name==="autumn"){
+      for(var cb=0;cb<3;cb++){
+        var cbh=mixLi((cb*104729+61)>>>0,4441);
+        var lane=pgy-Math.round((9+((cbh>>>5)%16))*K);
+        var run=WW+120;
+        var prog=((now*0.0000060*(1+((cbh>>>9)%3)*0.25)+((cbh>>>13)%1000)/1000)%1);
+        var cwx=prog*run-60;
+        var csx=Math.round(cwx-WOFF);
+        // the cut strip behind it — this is the part that makes it work rather than decorate
+        g.fillStyle=css(mixc(day?[206,196,160]:[64,62,56],hz2,0.24));
+        var cutW=Math.round(prog*run*0.9);
+        if(cutW>0) g.fillRect(Math.max(0,csx-cutW),lane,Math.min(SW,cutW),Math.max(1,Math.round(K*1.6)));
+        if(csx>-14&&csx<SW+14){
+          g.fillStyle=css(mixc(day?[190,72,48]:[52,24,20],hz2,0.16));            // the combine
+          g.fillRect(csx,lane-Math.round(2.6*K),Math.round(5*K),Math.round(2.6*K));
+          g.fillStyle=css(mixc(day?[220,214,196]:[70,70,66],hz2,0.16));          // its header, out front
+          g.fillRect(csx+Math.round(5*K),lane-Math.round(K),Math.round(2.4*K),Math.max(1,Math.round(K*1.2)));
+          g.fillStyle="rgba(214,198,150,"+(0.16).toFixed(2)+")";                 // chaff off the back
+          g.fillRect(csx-Math.round(4*K),lane-Math.round(3.4*K),Math.round(4*K),Math.round(2*K));
+        }
+        // a grain truck running the other way, to the elevator
+        var twx=((1-prog)*run-60), tsx=Math.round(twx-WOFF);
+        if(tsx>-12&&tsx<SW+12&&((cbh>>>17)&1)){
+          g.fillStyle=css(mixc(day?[70,86,120]:[22,26,40],hz2,0.18));
+          g.fillRect(tsx,lane-Math.round(1.9*K),Math.round(4.4*K),Math.round(1.9*K));
+        }
       }
     }
     // ================= FARMSTEADS =================
