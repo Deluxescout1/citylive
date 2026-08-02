@@ -11302,6 +11302,14 @@ function tickerMsg(now){
   if(curMayor&&curMayor.campaign){ msgs.push("ELECTION AHEAD - "+curMayor.winName+" VS "+curMayor.loseName,"RALLY TONIGHT IN THE PLAZA");
     var nm5=curMayor.nextMeasures; if(nm5&&nm5.length) msgs.push("ON THE BALLOT - PROP "+MEASURE_LABEL[nm5[0].t]+(nm5[1]?(" AND "+MEASURE_LABEL[nm5[1].t]):"")); }
   if(curMayor&&curMayor.electionDay) msgs.push("POLLS OPEN - VOTE TODAY");
+  // the succession. The ticker returns to the dead by NAME (locked answer 17) rather than reporting a
+  // vacancy as an administrative fact.
+  if(curMayor&&curMayor.emergency){
+    msgs.push("CITY HALL IN MOURNING - MAYOR "+curMayor.deadName+" IS DEAD",
+              "EMERGENCY SUCCESSION - "+curMayor.winName+" SWORN IN",
+              "FLAGS AT HALF MAST ACROSS "+cityName,
+              "THE CITY REMEMBERS MAYOR "+curMayor.deadName);
+  }
   if(curMayor&&curMayor.justElected){ msgs.push("MAYOR "+curMayor.winName+" TAKES OFFICE - "+curMayor.party.k+" AGENDA");
     var jm5=curMayor.measures||[]; for(var mi5=0;mi5<jm5.length;mi5++){ var mm5=jm5[mi5];
       msgs.push("PROP "+MEASURE_LABEL[mm5.t]+" - "+(mm5.pass?"PASSES ":"FAILS ")+mm5.yes+"-"+(100-mm5.yes)); } }
@@ -19701,11 +19709,29 @@ function namedDeathCount(cd){
 }
 // WHO the i-th named victim was. The mayor is only ever in slot 0, only when the city LOST, and only
 // sometimes — otherwise every bad night would decapitate the government.
+// ⚠⚠ WHETHER THE MAYOR DIED MUST NOT DEPEND ON `curMayor`. It did, and it made the whole feature
+// unreachable: `mayorState` is what COMPUTES curMayor, and it asks this question to decide whether to
+// run the succession — so the answer was being read from the value it was supposed to produce.
+// Censused the real disaster stream to find it: 706 lost CAT-5s in 40,000 slots and ZERO mayor deaths,
+// which is a broken predicate, not a rare event. The ROLL is a pure hash; only the NAME needs context.
+function namedDeadIsMayor(cd,i){
+  if(i!==0||!cd) return false;
+  if(cd.win!==false||(cd.intensity||1)<5) return false;
+  if(!namedDeathCount(cd)) return false;
+  var h=mixLi((0*2654435761+((cd.seed*104729)|0))>>>0,8221);
+  return ((h>>>7)%100)<34;
+}
 function namedDeadAt(cd,i){
   var h=mixLi((i*2654435761+((cd.seed*104729)|0))>>>0,8221);
   var lost=(cd.win===false), I=cd.intensity||1;
-  if(i===0&&lost&&I>=5&&curMayor&&curMayor.winName&&((h>>>7)%100)<34)
-    return { name:curMayor.winName, role:"MAYOR", mayor:true };
+  // ⚠ `deadName` FIRST, and it is not a nicety. Once the emergency succession has been applied,
+  // `winName` is the person who REPLACED them — naming from it would have the panel report the new
+  // mayor as the corpse. `deadName` is kept on the mayor object precisely so the person we lost stays
+  // nameable after City Hall has changed hands.
+  if(namedDeadIsMayor(cd,i)){
+    var mn=(curMayor&&(curMayor.deadName||curMayor.winName))||null;
+    if(mn) return { name:mn, role:"MAYOR", mayor:true };
+  }
   // ⚠ NO TWO OF THEM MAY SHARE A NAME. Rolling first and surname independently produced "MARA KOVACS"
   // twice in one disaster with different trades, which reads as a bug rather than as a coincidence.
   // There are FNAMES*LNAMES combinations; walking the combined index by a step COPRIME to that total
@@ -19731,9 +19757,9 @@ function namedDeadRevealed(cd){
 }
 // Did the mayor die in this disaster, and is it known yet? Locked answer 11 hangs off this.
 function mayorKilledBy(cd){
-  if(!cd||!namedDeathCount(cd)) return false;
-  var d0=namedDeadAt(cd,0);
-  return !!(d0&&d0.mayor&&namedDeadRevealed(cd)>=1);
+  // the pure predicate, NOT namedDeadAt — that one needs curMayor for the name and would reintroduce
+  // the circular dependency this function exists inside of
+  return !!(cd&&namedDeadIsMayor(cd,0)&&namedDeadRevealed(cd)>=1);
 }
 // the n-th victim of this disaster: where they fell, and at what disaster-progress
 function casualtyAt(cd,n){
@@ -35241,6 +35267,29 @@ function addictionTicker(now){
   };
   var arr=S[A.stage]||["ADDICTION CRISIS"]; return arr[((slow%arr.length)+arr.length)%arr.length];
 }
+// ---- DID THE MAYOR DIE EARLIER IN THIS TERM? Recomputed from the clock, never stored.
+// Bounded three ways so a long life cannot run an unbounded loop: to the term, to this life, and to a
+// hard scan cap — the same belt-and-braces ruinZones uses, for the same reason.
+// ⚠ It answers at the moment the death is KNOWN (the naming lag), not when the body fell, so City Hall
+// does not change hands before the panel has said who died.
+var MAYORDEAD_MAXSCAN=520;
+function mayorDeathThisTerm(now,li,term){
+  if(FORCEDIS) return null;
+  var base=Math.floor(now/DIS_SLOT);
+  var lifeStart=GROW_EPOCH - GROW_OFFSET_DAYS*86400000 - WORLD_SHIFT + li*GROW_CYCLE;
+  var termStart=lifeStart + term*TERM*GROW_CYCLE;
+  var firstSlot=Math.max(Math.ceil(Math.max(lifeStart,termStart)/DIS_SLOT), base-MAYORDEAD_MAXSCAN);
+  for(var idx=base; idx>=firstSlot; idx--){
+    var di=disasterInfo(idx); if(!di) continue;
+    var t0=idx*DIS_SLOT+di.t0;
+    var knownAt=t0+DIS_DUR*0.78;                       // when the name is confirmed, not when they fell
+    if(knownAt>now) continue;
+    var probe={ type:di.type, intensity:di.intensity, x:di.x, w:di.w, seed:di.seed,
+                win:di.win, ruin:di.ruin, f:1 };       // evaluate the event at full progress
+    if(mayorKilledBy(probe)) return { t:knownAt, di:probe };
+  }
+  return null;
+}
 function mayorState(now){
   var cg2=cityGrowth(now); if(cg2.g<0.35||cg2.phase==="apoc") return null;   // no politics in a hamlet or an inferno
   var li=lifeIndexOf(now), term=Math.floor(cg2.cy/TERM);
@@ -35301,6 +35350,23 @@ function mayorState(now){
     if(FORCEELECT.scandal){ M.scandal=true; M.scandalTerm=true; }
     if(FORCEELECT.recallVote) M.recallVote=true;
   }
+  // ---- A DEAD MAYOR TRIGGERS AN EMERGENCY ELECTION. Locked answer 11.
+  // ⚠ NOTHING IS STORED. Same shape as ruinZones: the state is recomputed from the clock by scanning
+  // this TERM's disaster slots, so all three monitors reach the same conclusion with no shared state
+  // and a death can never bleed across the reincarnation wipe.
+  // The runner-up takes office rather than rolling a fresh race: there is no time for a campaign when
+  // City Hall is empty, the loser is already a real, named, stable citizen of this term, and it keeps
+  // the succession deterministic without inventing a second election the Chronicle would have to
+  // reconcile with the first.
+  var MD=mayorDeathThisTerm(now,li,term);
+  if(MD&&!(M.regime)){
+    M.deadName=M.winName;                       // ⚠ kept, because namedDeadAt must still name the person
+    M.winName=M.loseName;                       //    we LOST, not the one who replaced them
+    M.emergency=true; M.emergencySince=MD.t; M.halfMast=true;
+    M.campaign=false; M.electionDay=false; M.debate=false; M.scandal=false; M.recallVote=false;
+    M.justElected=((now-MD.t)<GROW_CYCLE*0.02);
+  }
+
   // THE ORDER — the ONE guarded branch: skipped entirely (M untouched) unless this is a regime life IN its window,
   // so non-regime lives stay byte-identical. From stage 2 the Order holds City Hall; from stage 3 elections are postponed.
   var RG=regimeState(now);
@@ -35672,11 +35738,19 @@ function drawElections(g,L,now,night){
   }
   if(M.justElected){                                                    // the results, city-wide
     var rm;                                                             // how the night was won (a HOLD names the PARTY, not a fresh person — matches the ticker)
-    if(M.share>=58) rm="LANDSLIDE "+M.winName+" - "+M.share+" TO "+(100-M.share);
+    // ⚠ A SUCCESSION IS NOT AN ELECTION NIGHT. `justElected` is set briefly when the runner-up takes
+    // office, and it was borrowing this block wholesale — the panel announced "RECOUNT CONFIRMS
+    // CARRIE KENNEDY - 29 TO 71" for a woman nobody had voted for, complete with a share of a vote
+    // that never happened. Nobody won this; somebody died.
+    if(M.emergency) rm="EMERGENCY SUCCESSION - "+M.winName+" SWORN IN";
+    else if(M.share>=58) rm="LANDSLIDE "+M.winName+" - "+M.share+" TO "+(100-M.share);
     else if(M.share<=53) rm="RECOUNT CONFIRMS "+M.winName+" - "+M.share+" TO "+(100-M.share);
     else if(M.hold) rm=M.party.k+" HOLDS CITY HALL - "+M.share+" TO "+(100-M.share);
     else rm="MAYOR-ELECT "+M.winName+" - "+M.share+" TO "+(100-M.share);
-    if(!pushNotif(45,rm,"rgba(150,190,255,")){
+    // the city we lost outranks the city we got: the dead mayor's line sits above the succession
+    if(M.emergency&&M.deadName)
+      pushNotif(96,"MAYOR "+M.deadName+" IS DEAD - FLAGS AT HALF MAST","rgba(255,60,60,");
+    if(!pushNotif(M.emergency?46:45,rm,M.emergency?"rgba(210,170,170,":"rgba(150,190,255,")){
     var tw4=textW(rm), tx4=Math.round(WW*0.5-tw4/2), ly4=notifLane(1);
     for(var w3=-1;w3<=1;w3++){ var px4=tx4-3-WOFF+w3*WW; if(px4+tw4+6<-2||px4>SW+2) continue;
       g.fillStyle="rgba(8,14,30,0.80)"; g.fillRect(px4|0,ly4,tw4+6,9);

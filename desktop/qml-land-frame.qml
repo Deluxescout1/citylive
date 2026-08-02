@@ -40,6 +40,7 @@ Item {
     property double disF: parseFloat(arg("disf", "0.55"))
     property int disI: parseInt(arg("disi", "5"), 10)
     property int disSeed: parseInt(arg("disseed", "4242"), 10)
+    property string clockAt: arg("clock", "")   // absolute ms — renders a specific moment in history
     property string disWin: arg("diswin", "")    // "0" forces the city to LOSE
     property string outDir: arg("out", "/tmp/claude-1000/-home-deluxescout/bb7d3665-023a-4a7c-beb2-9139002a7460/scratchpad/land")
     property double t0: 0
@@ -56,6 +57,9 @@ Item {
         d.setHours(root.hour, 0, 0, 0);
         var base = d.getTime();
         root.t0 = base - (base % 900000) + 450000;
+        // an absolute clock overrides the derived one: some states (the emergency succession) exist
+        // only at a particular moment in the real timeline and cannot be forced into being.
+        if (root.clockAt !== "") root.t0 = parseFloat(root.clockAt);
         City.NOWOVR = City.CLOCK = root.t0;
         City.applyConfig({ lat: 41.5243, lon: -72.0759 });
         City.setup('neon', { cw: root.cw, ch: root.ch, woff: root.woff, ww: 2269, pxk: 3, zoom: root.zoom,
