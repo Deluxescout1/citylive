@@ -64,6 +64,7 @@ Item {
         City.applyConfig({ lat: 41.5243, lon: -72.0759 });
         City.setup('neon', { cw: root.cw, ch: root.ch, woff: root.woff, ww: 2269, pxk: 3, zoom: root.zoom,
                              taskbarWp: 17, quality: 'balanced', frameMs: 125 });
+        City.CFG_GORE = arg("gore","full");
         City.FORCEAGE = root.age;
         // ⚠ xf is a fraction of WW (2269), NOT of the screen — 0.42 lands off the right edge of a
         // 776 wp primary and renders nothing, which reads exactly like a broken feature.

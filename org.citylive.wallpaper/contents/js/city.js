@@ -19837,7 +19837,45 @@ function casualtyAt(cd,n){
 // So the stain, the runnels, the gutter, the drag trails and the tyre tracks draw with the ROAD,
 // before a single car or pedestrian; the bodies stay late, where a solid object belongs.
 function roadPavedNow(){ return !curVillage && cityG>=0.30; }   // tyres only track blood once there is asphalt
-function drawCasualtyGround(g,cd,L,now){
+// ---- THE MARKS OUTLAST THE EVENT. Locked answer 3: stains persist well past the disaster arc,
+// visible long after, then weather away. Until now every stain died WITH its disaster — `stainA`
+// reaches zero at age 0.62 of a four-minute arc, so the street was spotless about two minutes after
+// the monster left, which reads as the city being hosed down off-screen.
+// ⚠ Recomputed from the clock, nothing stored, life-scoped and hard-capped — the ruinZones pattern,
+// for the same three-monitor reason. A stain is a pure function of (disaster seed, victim, age).
+var STAIN_LIFE=60*60000;        // an hour of city time, Nick's call: a life still carries its scars
+var STAIN_MAXSCAN=Math.ceil(STAIN_LIFE/(7*60000))+2;
+function stainZones(now){
+  if(FORCEDIS) return [];
+  var out=[], base=Math.floor(now/DIS_SLOT);
+  var lifeStart=GROW_EPOCH - GROW_OFFSET_DAYS*86400000 - WORLD_SHIFT + lifeIndexOf(now)*GROW_CYCLE;
+  var firstSlot=Math.max(Math.ceil(lifeStart/DIS_SLOT), base-STAIN_MAXSCAN);
+  for(var idx=base; idx>=firstSlot; idx--){
+    var di=disasterInfo(idx); if(!di) continue;
+    var end=idx*DIS_SLOT+di.t0+DIS_DUR;
+    if(end>now) continue;                                  // still running — the live pass owns it
+    var since=now-end; if(since>STAIN_LIFE) continue;
+    // one weathering curve for the whole event, on top of each victim's own drying
+    out.push({ di:di, weather:Math.max(0,1-since/STAIN_LIFE) });
+  }
+  return out;
+}
+function drawOldStains(g,L,now){
+  if(goreK()<=0) return;
+  var zs=stainZones(now);
+  for(var i=0;i<zs.length;i++){
+    var z=zs[i], di=z.di;
+    // hand the ground pass a FINISHED event: f=1 puts every victim past their own dying, and the
+    // weathering rides on top as a global fade rather than by faking the age of each one
+    var cd={ type:di.type, intensity:di.intensity, x:di.x, w:di.w, seed:di.seed,
+             win:di.win, ruin:di.ruin, f:1.0 };
+    var a=g.globalAlpha;
+    g.globalAlpha=a*(0.22+0.55*z.weather*z.weather);        // squared: it lingers, then goes quickly
+    drawCasualtyGround(g,cd,L,now,true);
+    g.globalAlpha=a;
+  }
+}
+function drawCasualtyGround(g,cd,L,now,old){
   var GK=goreK(); if(GK<=0) return;
   var N=casualtyCount(cd); if(!N) return;
   var f=cd.f; if(f<0.12) return;
@@ -19847,6 +19885,11 @@ function drawCasualtyGround(g,cd,L,now){
     var V=casualtyAt(cd,n);
     if(f<V.dieF) continue;
     var age=f-V.dieF, stainA=Math.max(0, 1-age/0.62);
+    // ⚠ AN OLD STAIN IS DRIED, NOT GONE. Replaying a finished event at f=1 puts every victim's age
+    // past 0.62, so this curve returns 0 and the persistence pass would have drawn precisely nothing
+    // — the feature would have looked built and been invisible. Old marks hold at their dried value
+    // and let the caller's weathering alpha do the fading instead.
+    if(old) stainA=0.42;
     if(stainA<=0.02) continue;
     var X=disX(V.x); if(X<-10||X>SW+10) continue;
     var Y=HORIZON-1;
@@ -19854,6 +19897,11 @@ function drawCasualtyGround(g,cd,L,now){
     var bw=Math.max(2, Math.round((2+V.kind)*spread*K*0.7*(1+2.2*GK)));
     var dry=Math.min(1, age/0.34);
     var br=Math.round(150-70*dry), bg2=Math.round(18+10*dry), bb=Math.round(22+10*dry);
+    // ⚠ AN OLD STAIN DRIES BROWN, IT DOES NOT FADE PINK. Persisting a mark by lowering its alpha alone
+    // blends bright red toward the grey pavement underneath, so week-old blood came out MAGENTA — the
+    // colour went the wrong way while the opacity went the right one. Age darkens and browns it, and
+    // the caller's weathering alpha then takes it the rest of the way out.
+    if(old){ br=Math.round(br*0.52+18); bg2=Math.round(bg2*0.75+14); bb=Math.round(bb*0.55+8); }
     // ⚠ TYRE TRACKS. "The cars drive over it" is not only a draw-order question — traffic running
     // through a pool CARRIES it, and the tracks are how you know the street is still being used.
     // Two lanes' worth, fading as the wheel picks the road clean, and hashed off the victim so all
@@ -39693,6 +39741,7 @@ function draw(g,pass){
   // over it and the cars drive over it." Drawn here — after the asphalt and the lane paint, before a
   // single car or pedestrian — so the traffic and the crowd pass over the top of it, and the tyres
   // track it along the lanes. The bodies still draw late, in `drawCasualties`.
+  drawOldStains(g,L,now);                      // …and everything the last hour left on the road
   if(curDis) drawCasualtyGround(g,curDis,L,now);
 
   // THE OPEN WATER along the bottom of the frame, on the six coastal lands. Drawn AFTER the road
