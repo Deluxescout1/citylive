@@ -3530,7 +3530,13 @@ var BIOMES=[
     flora:{ kinds:["acacia","grass","acacia","scrub","acacia","euphorbia","acacia","sausage"], bloom:["#ffd166","#ffffff","#e8b060"] },
     // the huge dry-season sky this land is known for, bleached almost white at the horizon
     sky:{ top:[112,158,208], bot:[244,232,196], k:0.56, haze:[246,230,190] } },
-  { k:"canyon", name:"THE GORGE",   amp:0.55, base:0.30, flat:0.9,  steep:0.72, snow:false, water:"river", gorge:1,
+  // ⚠⚠ `rock` IS THE VARIANT'S STRUCTURE, NOT ITS COLOUR. Every one of these four variants already
+  // DESCRIBED its own rock in a comment — sculpted sandstone, hanging-garden limestone, hexagonal
+  // organ pipes — and drawGorge branched on none of it: the four differed by palette alone, so all
+  // four were the same trapezoid in a different hue. Fourth time on these lands that the intent was
+  // written down and the code did not do it (after the acacia with no dispatcher branch, the sky gated
+  // behind bigSky, and the sidewalk comment no test checked). The prose in this table is a SPEC.
+  { k:"canyon", name:"THE GORGE",   amp:0.55, base:0.30, flat:0.9,  steep:0.72, snow:false, water:"river", gorge:1, rock:"mesa",
     far:[188,118,84],   near:[156,86,60],   cap:[224,168,120], ground:[196,150,104],
     // the vernacular of a canyon floor: adobe, sandstone block, sun-bleached timber, painted stucco
     walls:[[206,150,104],[178,116,78],[228,196,158],[150,96,66],[236,214,180],[196,132,88],[168,140,110],[214,178,132]],
@@ -3945,19 +3951,19 @@ var BIOME_VARIANTS={
       sky:{ top:[92,138,196], bot:[248,196,142], k:0.60, haze:[250,192,134] } } ],
 
   canyon:[ {},
-    { name:"THE SLOT",           // sculpted sandstone; light bounces down the walls and barely lands
+    { name:"THE SLOT", rock:"slot",   // sculpted sandstone; light bounces down the walls and barely lands
       far:[212,132,78],  near:[178,92,48],   cap:[248,192,128], ground:[210,158,102], steep:0.9, flat:0.55,
       walls:[[224,166,112],[196,128,80],[240,206,164],[168,106,68],[246,224,190],[210,146,94],[182,152,118],[228,190,142]],
       flora:{ kinds:["scrub","grass","scrub","cottonwood"], bloom:["#ffd166","#ffffff","#f0a060"] },
       fauna:{ keep:{deer:0,rabbit:1,fox:1,goat:1}, big:["bighorn"], small:["marmot","lizard"], air:["raven","vulture"] },
       sky:{ top:[74,120,182], bot:[248,196,140], k:0.46, haze:[246,190,132] } },
-    { name:"THE GREEN RIVER",    // limestone draped in hanging gardens; the lush answer to red rock
+    { name:"THE GREEN RIVER", rock:"limestone",  // limestone draped in hanging gardens; the lush answer to red rock
       far:[150,164,132],  near:[110,128,98],  cap:[206,214,182], ground:[128,152,104], steep:0.62,
       walls:[[196,196,178],[164,168,150],[218,216,198],[142,148,130],[228,226,208],[178,180,160],[152,158,138],[206,206,188]],
       flora:{ kinds:["fern","willow","cottonwood","fern","grass"], bloom:["#ffffff","#e8d088","#c8e0a0"] },
       fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:1}, big:["ibex","bighorn"], small:["marmot"], air:["eagle","raven"] },
       sky:{ top:[104,152,200], bot:[210,222,198], k:0.36, haze:[206,220,196] } },
-    { name:"THE BLACK BASALT",   // hexagonal stone organ pipes the full height of both walls
+    { name:"THE BLACK BASALT", rock:"basalt",  // hexagonal stone organ pipes the full height of both walls
       far:[86,90,102],   near:[52,56,68],    cap:[140,146,162], ground:[74,78,88], steep:0.96, flat:0.2,
       walls:[[112,116,126],[76,80,92],[140,144,154],[58,62,72],[158,162,172],[92,96,108],[68,72,84],[126,130,140]],
       flora:{ kinds:["scrub","grass","willow","scrub"], bloom:["#c8d8e8","#ffffff","#a0c0d8"] },
@@ -4204,7 +4210,15 @@ function seaFrontOf(b){
     case "swamp":   return 32;    // the bayou is water FIRST — cypress stand in it
     case "volcano": return 26;    // an island, so the sea is on every side
     case "arctic":  return 28;    // broken floes and open leads
-    case "canyon":  return 16;    // the river on the gorge floor — narrower than any coast, but always there
+    // ⚠ 16 WAS THE NARROWEST VALUE IN THE GAME and this land's whole premise is a river in a gorge.
+    // At a young city it read fine; by 0.85 the skyline had eaten it and the water was a sliver at the
+    // frame's edge. Widened to the sea cliffs' 34 — enough that the river survives a grown city, while
+    // still leaving the generous sky the BROAD gorge was deliberately chosen for.
+    case "canyon":  return 34;    // the river on the gorge floor, wide enough to still be there at full city
+    // THE GREAT DAM had NO CASE AT ALL, so it returned 0 and its river ran entirely BEHIND the town —
+    // which is exactly the open item that land shipped with. SEA_FRONT is the only machinery in the
+    // engine that puts water in FRONT of the buildings, so the fix is the same one, not a bespoke one.
+    case "dam":     return 30;    // the river below the dam, on the near side of the town
     case "fjord":   return 40;    // the deepest water in the game: a drowned valley has no shore at all
     // ⚠ 34 WAS TOO THIN TO CARRY THE IDEA. This land's entire thesis is that the world appears TWICE,
     // and at 34 the mirror was a strip along the bottom — the frame did not read as doubled, it read
@@ -21346,6 +21360,89 @@ function drawBole(g,t,sx,gy,cTrunk,cBark,cFol,K,detail,litK,mossC){
 // Horizontal bedding planes over a wall profile, emitted as CONTIGUOUS RUNS.
 // See the note at the call site: the per-pixel version measured 10.4x the draw calls for the same
 // pixels (36,293 vs 3,493 on the primary screen alone).
+// LIGHT DOES NOT REACH THE BOTTOM OF A GORGE. Shade a wall by DEPTH: near-nothing at the sunlit rim,
+// heavy by the floor. That single ramp is what makes a canyon read as a canyon rather than as an
+// orange hill, and it is the whole answer to "nothing is dark and nothing is bright".
+// ⚠ BANDED RUNS, NOT A PER-PIXEL GRADIENT. drawGorge already fought this fight once — 36,293 fillRects
+// per bg frame became 3,493 by drawing contiguous runs instead of pixels — so this scans once per BAND
+// and fills rects of the band's height. Eight bands over the whole wall, not one pass per row.
+// The run set only grows downward (if prof[x]<y0 then prof[x]<y for every y below), so scanning at the
+// band top can miss a column whose crest falls inside that band. At the top the alpha is ~0, so the
+// worst case is invisible.
+function depthRuns(g,prof,col,aTop,aBot,bands){
+  var yTop=HORIZON; for(var i=0;i<SW;i++) if(prof[i]<yTop) yTop=prof[i];
+  if(yTop>=HORIZON) return;
+  for(var b=0;b<bands;b++){
+    var y0=Math.round(yTop+(HORIZON-yTop)*(b/bands));
+    var y1=Math.round(yTop+(HORIZON-yTop)*((b+1)/bands));
+    if(y1<=y0) continue;
+    g.fillStyle=rgba(col, aTop+(aBot-aTop)*((b+0.5)/bands));
+    var run=-1;
+    for(var x=0;x<=SW;x++){
+      var on=(x<SW && prof[x]<y0);
+      if(on && run<0) run=x;
+      else if(!on && run>=0){ g.fillRect(run,y0,x-run,y1-y0); run=-1; }
+    }
+  }
+}
+// THE ARCH — the one thing in this game with a HOLE in it.
+// ⚠ IT CANNOT LIVE IN THE SKYLINE ARRAY. `gorgeCache.but[]` holds ONE y per column, which can describe
+// any solid mass but cannot describe rock with sky underneath it. So the arch is its own pass: per
+// column, the solid runs from the outer shoulder down to either the floor (the legs) or to the top of
+// the opening (the span). That is also why it is drawn AFTER the near buttresses — it stands in front
+// of them and must occlude, not be occluded.
+// Shaded from the same depth ramp as the walls: two fills per column, not a per-pixel gradient.
+function drawGorgeArch(g,awx,AW,AH,openW,openH,baseC,rimC,shadeC,K){
+  for(var w=-1;w<=1;w++){
+    var ax=Math.round(awx-WOFF+w*WW);
+    if(ax+AW<-4||ax-AW>SW+4) continue;
+    var TOPS=[], BOTS=[];
+    for(var q=-AW;q<=AW;q++){
+      var x=ax+q; if(x<0||x>=SW) continue;
+      // ⚠ A SMOOTH DOME OVER A SEMICIRCLE IS A DONUT, NOT AN ARCH. The first build read as a croissant:
+      // both curves were perfect and concentric, so the span had a constant thickness no rock ever has.
+      // Real arches are LOPSIDED — one leg heavier, the opening off-centre, the crest chewed. Three
+      // cheap asymmetries fix it, all hashed off the arch's own seed so every one differs.
+      var lean=((mixLi(Math.round(awx)*7919,5507)%1000/1000)-0.5)*0.42;   // which leg carries the weight
+      var t=Math.abs((q-lean*AW)/AW);
+      var jagA=(mixLi(((x+WOFF)*2654435761)>>>0,3571)%1000/1000-0.5)*3.2;  // the same ragged crest the walls get
+      var outT=Math.round(HORIZON-AH*Math.pow(Math.max(0,1-t*t*0.88),0.40)+jagA);
+      var bot=HORIZON;
+      var oq=q-lean*AW*0.55;                                              // the hole leans the other way
+      if(Math.abs(oq)<openW){
+        var u=Math.abs(oq/openW);
+        bot=Math.round(HORIZON-openH*Math.sqrt(Math.max(0,1-u*u*u*0.9)));  // flatter-topped than a circle
+      }
+      if(bot<=outT) continue;
+      g.fillStyle=css(baseC); g.fillRect(x,outT,1,bot-outT);
+      // depth: the closer to the floor a piece of this rock is, the less light reaches it
+      var mid=(outT+bot)/2, dep=Math.max(0,Math.min(1,(mid-outT)/Math.max(1,HORIZON-outT)));
+      var a=0.10+0.46*Math.max(0,Math.min(1,(bot-outT)/Math.max(1,HORIZON-outT)));
+      g.fillStyle=rgba(shadeC,a*0.9); g.fillRect(x,Math.round(mid),1,bot-Math.round(mid));
+      TOPS[x]=outT; BOTS[x]=bot;                       // kept for the bedding-plane pass below
+      g.fillStyle=css(rimC); g.fillRect(x,outT,1,Math.max(1,Math.round(K*0.7)));   // the sunlit crest
+      if(Math.abs(q)<openW&&bot<HORIZON){                                          // and the underside
+        g.fillStyle=rgba(shadeC,0.55); g.fillRect(x,bot-Math.max(1,Math.round(K*0.6)),1,Math.max(1,Math.round(K*0.6)));
+      }
+    }
+    // ---- bedding planes, as RUNS. World-anchored like the walls', because strata drawn in screen
+    // space slide as the world scrolls and the rock stops looking like rock.
+    // ⚠ ONE FILL PER CONTIGUOUS RUN, NOT PER COLUMN. Done per column this cost ~10 extra fillRects for
+    // every one of ~250 columns — about 2,500 on its own, against the 3,493 that drawGorge's whole bg
+    // pass was cut down to. That would have handed the entire stratRuns win back for one landmark.
+    var sb=Math.max(3,Math.round(4*K));
+    g.fillStyle=rgba(mixc(baseC,[0,0,0],0.20),0.30);
+    var yTopA=HORIZON; for(var k1 in TOPS) if(TOPS[k1]<yTopA) yTopA=TOPS[k1];
+    for(var sy=Math.round(yTopA/sb)*sb; sy<HORIZON; sy+=sb){
+      var run=-1;
+      for(var rx=Math.max(0,ax-AW); rx<=Math.min(SW,ax+AW+1); rx++){
+        var on=(TOPS[rx]!=null && sy>TOPS[rx] && sy<BOTS[rx]);
+        if(on && run<0) run=rx;
+        else if(!on && run>=0){ g.fillRect(run,sy,rx-run,1); run=-1; }
+      }
+    }
+  }
+}
 function stratRuns(g,prof,y0,step,style){
   g.fillStyle=style;
   for(var y=y0;y<HORIZON;y+=step){
@@ -25486,7 +25583,13 @@ function drawGorgeCity(g,L,now,nd){
   for(var si=0;si<gorgeCache.spurs.length;si++){
     var sp=gorgeCache.spurs[si], sd=sp.seed;
     // LEDGES: horizontal shelves up the face. The lowest are settled first.
-    var nL=2+((sd>>>3)%3);                                        // 2-4 shelves on this spur
+    // ⚠ THE WALLS ARE THE CITY HERE — Nick's locked answer. Two to four shelves left most of every face
+    // bare rock, so the gorge read as a canyon with a town at the bottom rather than a canyon that IS
+    // the town. The cliff dwellings were already the best thing on this land and its only true scale
+    // reference; this makes them the subject. The COLOSSAL masses carry proportionally more again —
+    // they are 2.15x wide and nearly 2x tall, so a fixed shelf count left them emptiest of all.
+    var nL=3+((sd>>>3)%4);                                        // 3-6 shelves on an ordinary spur
+    if(sp.form==="colossal") nL+=3;                               // and the hero mass is inhabited top to bottom
     for(var li2=0;li2<nL;li2++){
       var lf=(li2+1)/(nL+1);                                      // 0..1 up the face
       if(grow < lf*0.85) continue;                                // this shelf is not settled yet
@@ -25499,7 +25602,7 @@ function drawGorgeCity(g,L,now,nd){
       var shC=mixc(B.ground,[0,0,0],day?0.10:0.55);
       g.fillStyle=css(shC); g.fillRect(Math.max(0,lx0),ly,Math.min(SW,lx1)-Math.max(0,lx0),Math.max(1,Math.round(1.4*K)));
       // DWELLINGS along it: square blocks with a dark door and a window that lights at night
-      var step=Math.round(7*K), n=0;
+      var step=Math.round(5.4*K), n=0;                             // denser terraces, not just more of them
       for(var dx=lx0+2;dx<lx1-4;dx+=step){
         var hsd=((dx*2654435761)>>>0)^sd, per=((hsd>>>5)%1000)/1000;
         if(per > grow*1.25) continue;                             // this one is not built yet
@@ -25577,6 +25680,9 @@ function drawGorge(g,L,now,nd){
   var rimC =mixc(day?B.cap:mixc(B.cap,[0,0,0],0.58), [255,178,132], goldenK*0.6);
   var litK =Math.max(0,Math.min(1,(L-0.34)*2.4));
   var steep=(B.steep!=null?B.steep:0.72);
+  // Which rock this variant is MADE of. Declared in the biome table beside the palette, because the
+  // four variants describe four different rocks and used to render as one.
+  var ROCK=(B.rock||"mesa");
 
   if(!gorgeCache){
     gorgeCache={far:new Array(SW), but:new Array(SW)};
@@ -25596,6 +25702,11 @@ function drawGorge(g,L,now,nd){
     // ⚠ AND THE SPACING MUST BEAT THE NARROWEST SCREEN, not the widest. At 600-900 wp a 640 wp
     // monitor saw exactly one spur; the gorge has to read on the SMALL screen too.
     gorgeCache.spurs=[];                                        // where the wall-city can build
+    // ⚠ ONE COLOSSAL MASS PER MONITOR-THIRD, not one per world. A single hero on a 2269 wp world across
+    // three screens leaves two of them with nothing to measure against — the lone baobab taught this on
+    // the savanna, where "lone" had to mean lone ON A SCREEN. Claimed by the first spur that falls near
+    // each third's anchor, so it reuses the ordinary mass machinery instead of a parallel one.
+    var colossalDone=[0,0,0];
     var span=WW, i=0, wxp=0;
     while(wxp<span+500){
       var h=mixLi(((wxp*7919)>>>0)+i*104729, 7717)%1000/1000;
@@ -25606,15 +25717,66 @@ function drawGorge(g,L,now,nd){
       // PLATEAU — a flat top with near-vertical flanks — so the rock reads as a face you could fall
       // off. `edge` is how much of the half-width is spent on the flank: steep rock spends almost none.
       var edge=0.10+0.30*(1-steep);
+      // ---- EROSION FORMS. One trapezoid stamped along the world is the karst-lozenge fault, and this
+      // is the fifth land to have it. The placement was never the problem — gap and width are already
+      // properly mixLi-hashed — it was that every mass ran the SAME profile formula. So a mass now
+      // picks a form, and the form changes the silhouette, not just its size.
+      var fr=mixLi(i*7919+23,4211)%1000/1000;
+      var form=(fr<0.16)?"spire":(fr<0.30)?"hoodoo":(fr<0.40)?"notched":"wall";
+      if(form==="spire"){  bw=Math.round(bw*0.30); bh*=1.55; }      // a needle: narrow and far taller
+      if(form==="hoodoo"){ bw=Math.round(bw*0.42); bh*=1.28; }      // narrow, but capped — see below
+      // ⚠ THE VERTICAL-FLANKED ROCKS MUST BE NARROWER. basalt and slot spend almost nothing on their
+      // flanks, so at the shared width they read as a wall across the whole screen rather than as a
+      // mass standing IN a canyon — the sky closed up and the gorge stopped being a gorge.
+      if(ROCK==="basalt") bw=Math.round(bw*0.62);
+      if(ROCK==="slot")   bw=Math.round(bw*0.70);
+      // the colossal one for this third, if it has not been claimed yet
+      var third=Math.max(0,Math.min(2,Math.floor((wxp/Math.max(1,WW))*3)));
+      if(!colossalDone[third] && Math.abs(wxp-(third+0.42)*WW/3)<gap*0.60){
+        colossalDone[third]=1; form="colossal";
+        bw=Math.round(bw*2.15); bh*=1.95;                          // far beyond anything standing near it
+      }
       for(var w=-1;w<=1;w++){
         var sx0=Math.round(wxp - WOFF + w*WW);
-        if(sx0+bw>=-40 && sx0-bw<=SW+40) gorgeCache.spurs.push({x:sx0, w:bw, top:Math.round(bh), seed:(i*104729+7)>>>0});
+        if(sx0+bw>=-40 && sx0-bw<=SW+40) gorgeCache.spurs.push({x:sx0, w:bw, top:Math.round(bh), seed:(i*104729+7)>>>0, form:form});
         for(var bx=Math.max(0,sx0-bw);bx<Math.min(SW,sx0+bw);bx++){
-          var t=Math.abs((bx-sx0)/bw);                             // 0 at the centre, 1 at the flank
-          var prof=Math.min(1,(1-t)/edge);                         // flat top, then a fast fall to nothing
+          // THE SLOT wanders. Sculpted sandstone is not a straight-sided block: the face swings in and
+          // out as it rises, so the centre this column measures against moves with world x.
+          var cx0=sx0 + ((ROCK==="slot") ? Math.sin((bx+WOFF)*0.055+i)*bw*0.40 : 0);
+          var t=Math.abs((bx-cx0)/bw);                             // 0 at the centre, 1 at the flank
+          if(t>=1) continue;
+          var prof;
+          if(ROCK==="basalt"){
+            // ORGAN PIPES: dead vertical flanks and a crest made of individual columns, each broken off
+            // at its own height. The pipes are what this variant's own comment promised and never had.
+            prof=(t<1-edge*0.35)?1:0;
+            if(prof>0){
+              var pipe=Math.floor((bx+WOFF)/Math.max(2,Math.round(4)));
+              prof-= (mixLi(pipe*2654435761,8123)%1000/1000)*0.10;   // each column ends where it ends
+            }
+          } else if(ROCK==="limestone"){
+            // Limestone weathers ROUND, and it undercuts: domed shoulders with alcoves bitten out.
+            prof=Math.pow(Math.max(0,1-t*t),0.55);
+            var alc=mixLi(Math.floor((bx+WOFF)/9)*40503,6229)%1000/1000;
+            if(alc>0.86) prof*=0.82;                                 // a seep hollow in the face
+          } else if(ROCK==="slot"){
+            prof=Math.min(1,(1-t)/(edge*0.55));                      // tighter, more vertical than mesa
+          } else {
+            // MESA: hard beds stand proud and soft ones cut back, so the flank comes down in BENCHES
+            // rather than one ramp. Quantising the profile is what turns a slope into a staircase.
+            // ⚠ QUANTISE THE FLANK ONLY, AND ROUND DOWN. `Math.ceil(prof*NB)/NB` over the WHOLE profile
+            // pushed every non-zero column up to at least one step and everything above (NB-1)/NB to a
+            // full 1 — which widened the plateau until the mesa was a rectangle spanning the frame.
+            // It turned "one shape repeated" into "one BIGGER shape repeated". Step only where the
+            // rock is already falling away.
+            prof=Math.min(1,(1-t)/edge);
+            if(prof<1){ var NB=3+(mixLi(i*31+5,7331)%2); prof=Math.floor(prof*NB)/NB; }
+          }
+          if(form==="hoodoo"&&t>0.55) prof*=0.42;                    // a slim stem under a broad cap
+          if(form==="notched"&&Math.abs(t-0.42)<0.06) prof*=0.55;    // a cleft split into the shoulder
           if(prof<=0) continue;
           // a ragged crest: real rock is not a ruled line, and a perfectly flat top reads as a box
-          var jag=(mixLi(((bx+WOFF)*2654435761)>>>0,3571)%1000/1000-0.5)*4;
+          var jag=(mixLi(((bx+WOFF)*2654435761)>>>0,3571)%1000/1000-0.5)*(ROCK==="basalt"?1.5:4);
           var y=Math.round(bh+jag + (HORIZON*0.55-bh)*(1-prof));
           if(y<gorgeCache.but[bx]) gorgeCache.but[bx]=y;
         }
@@ -25638,6 +25800,8 @@ function drawGorge(g,L,now,nd){
   // World-anchoring matters too: bedding planes drawn in SCREEN space slide as the world scrolls and
   // the wall stops looking like rock.
   stratRuns(g, gorgeCache.far, Math.round(HORIZON*0.20), strat, rgba(mixc(farC,[0,0,0],0.16),0.34));
+  // the far wall is across the canyon and lit — it only loses light near its own foot
+  depthRuns(g, gorgeCache.far, day?[38,20,16]:[6,8,14], 0.00, 0.34, 8);
 
   // ---- the near buttresses: darker, in front, and they carry the sun on one flank ----
   for(var nx=0;nx<SW;nx++){
@@ -25654,6 +25818,24 @@ function drawGorge(g,L,now,nd){
     g.fillStyle=css(rimC); g.fillRect(nx,ny,1,Math.max(1,Math.round(K*0.7)));
   }
   stratRuns(g, gorgeCache.but, Math.round(HORIZON*0.30), strat, rgba(mixc(nearC,[0,0,0],0.22),0.30));
+  // ⚠ AND THE NEAR WALL IS THE ONE IN SHADOW. It stands on THIS side of the gorge, so it loses light
+  // fast and its foot is the darkest thing in the frame — which is what finally puts a dark end on a
+  // land where the sky was the only contrast. Nearly twice the far wall's ramp, from the same rim.
+  depthRuns(g, gorgeCache.but, day?[30,14,12]:[4,5,10], 0.04, 0.62, 8);
+
+  // ---- THE ARCH, one per monitor-third. Nick's locked answer 1 and the thing this land had no
+  // equivalent of: a mass with SKY THROUGH IT. Anchored at 0.78 of each third against the colossal
+  // butte's 0.42, so a screen never has to show both stacked on top of each other.
+  var shadeC=day?[30,14,12]:[4,5,10];
+  for(var aq=0;aq<3;aq++){
+    var asd=mixLi(aq*2654435761+911, 6151);
+    var awx=Math.round(((aq+0.78)/3 + (((asd>>>9)%100)/100-0.5)*0.05)*WW);
+    var AW=Math.round(78+((asd>>>5)%100)/100*46);          // world px, like every other size here
+    var AH=Math.round(HORIZON*(0.30+((asd>>>13)%100)/100*0.10));
+    drawGorgeArch(g, awx, AW, AH,
+                  Math.round(AW*0.52), Math.round(AH*0.58),
+                  nearC, rimC, shadeC, K);
+  }
 
   drawGorgeCity(g,L,now,nd);      // the half of this city that lives ON the rock
 
