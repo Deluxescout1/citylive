@@ -32226,6 +32226,26 @@ function drawPlainsSky(g,L,now,nd,fx){
   // ---- THE TOWERS ------------------------------------------------------------------------------
   // A cumulus tower has a hard cauliflower shoulder and a flat base, and on a plain you see the WHOLE
   // thing from base to anvil, which is exactly the vertical the frame is missing.
+  // ---- HEAT LIGHTNING ON THE HORIZON. Locked answer 2's last part, and the one that is not a storm:
+  // a warm still night with a cell too far away to hear, so the far edge of the world flickers with no
+  // cloud, no rain and no sound. It needs the sky CLEAR here to read — heat lightning under a rain
+  // cloud is just lightning — so it is gated off the real forecast being calm and warm.
+  if(!day && !fx.rain && !fx.thunder && !fx.snow && !fx.fog && (weather.temp==null||weather.temp>58)){
+    var hb=mixLi(Math.floor(now/1400)>>>0,7549);
+    if((hb%1000)/1000>0.86){
+      var hx=((hb>>>7)%Math.max(1,WW))-WOFF;
+      if(hx>-120&&hx<SW+120){
+        var hstr=0.10+0.16*(((hb>>>13)%100)/100);
+        g.globalCompositeOperation="lighter";
+        for(var hq=0;hq<4;hq++){
+          var hw=Math.round((30+hq*22)*K), hh2=Math.round((3+hq*2)*K);
+          g.fillStyle="rgba(196,214,255,"+(hstr*(1-hq/4)*0.5).toFixed(3)+")";
+          g.fillRect((hx-hw*0.5)|0,(gy-Math.round(6*K)-hh2)|0,hw,hh2);
+        }
+        g.globalCompositeOperation="source-over";
+      }
+    }
+  }
   if(conv>0.08){
     var nT=1+Math.round(conv*3);
     for(var t=0;t<nT;t++){
@@ -32261,11 +32281,31 @@ function drawPlainsSky(g,L,now,nd,fx){
         // ---- RAIN CURTAIN hanging under the cell ------------------------------------------------
         // Rain you can see FROM OUTSIDE, miles off, which only happens where the view is this long.
         if(conv>0.55&&((ts>>5)&1)){
+          // ⚠ IT HAS TO REACH THE GROUND. The curtain was 6*K deep — a fringe under the cloud, which
+          // reads as a smudge on the base rather than as rain falling somewhere else. A shaft you can
+          // watch coming is the whole locked answer, and what makes it one is that it visibly connects
+          // the cloud to the LAND: it runs from the base down to the horizon, leaning with the drift,
+          // fading as it goes because that is what distance does to falling rain.
           var cw=Math.round(basew*0.40), cxr=sx2-basew*0.16;
-          for(var r=0;r<Math.round(6*K);r++){
-            var rf=r/Math.round(6*K);
-            g.fillStyle=day?"rgba(120,134,158,"+(0.26-0.20*rf).toFixed(3)+")":"rgba(60,70,94,"+(0.24-0.18*rf).toFixed(3)+")";
-            g.fillRect((cxr-cw*0.5+rf*3*K)|0,(baseY+r)|0,Math.max(1,Math.round(cw*(1-rf*0.3))),1);
+          var shaft=Math.max(Math.round(6*K), (gy-baseY));
+          for(var r=0;r<shaft;r++){
+            var rf=r/Math.max(1,shaft);
+            var lean=Math.round(rf*4*K);                       // the shaft trails behind the cell
+            var a3=(0.30-0.24*rf)*Math.min(1,(conv-0.55)/0.30);
+            if(a3<=0.004) continue;
+            g.fillStyle=day?"rgba(120,134,158,"+a3.toFixed(3)+")":"rgba(60,70,94,"+a3.toFixed(3)+")";
+            g.fillRect((cxr-cw*0.5+lean)|0,(baseY+r)|0,Math.max(1,Math.round(cw*(1-rf*0.22))),1);
+          }
+          // ---- AND LIGHTNING INSIDE IT. Not a bolt drawn across the sky — the light comes from WITHIN
+          // the tower and lights the cloud from the inside, which is what you actually see from this
+          // far away. Hashed off the clock so all three monitors flash on the same beat.
+          var lf=mixLi((Math.floor(now/700)+ (ts&255))>>>0,6421)%1000/1000;
+          if(lf>0.90&&conv>0.62){
+            g.globalCompositeOperation="lighter";
+            var fh=Math.round(top*(0.30+((ts>>9)%40)/100));
+            g.fillStyle="rgba(210,224,255,"+(0.30*(lf-0.90)/0.10).toFixed(3)+")";
+            g.fillRect((sx2-basew*0.30)|0,(baseY-fh)|0,Math.max(1,Math.round(basew*0.60)),Math.max(1,Math.round(fh*0.55)));
+            g.globalCompositeOperation="source-over";
           }
         }
       }
