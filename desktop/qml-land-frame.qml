@@ -65,6 +65,9 @@ Item {
         City.setup('neon', { cw: root.cw, ch: root.ch, woff: root.woff, ww: 2269, pxk: 3, zoom: root.zoom,
                              taskbarWp: 17, quality: 'balanced', frameMs: 125 });
         City.CFG_GORE = arg("gore","full");
+        // wetness ACCUMULATES over minutes of real time; a one-frame harness would always render a dry
+        // street and the whole rain-impact feature would look unbuilt.
+        if (arg("wet","") !== "") City.wetness = parseFloat(arg("wet","0"));
         City.FORCEAGE = root.age;
         // ⚠ xf is a fraction of WW (2269), NOT of the screen — 0.42 lands off the right edge of a
         // 776 wp primary and renders nothing, which reads exactly like a broken feature.
@@ -74,7 +77,11 @@ Item {
                               win:(root.disWin === "0" ? false : null) };
         else City.FORCEDIS = null;
         // ⚠ FORCEWX, not City.weather.x = y — the latter is clobbered by the live fetch.
-        if (root.wx === "overcast")
+        if (root.wx === "rain")
+            City.FORCEWX = { code:63, cloud:100, wind:14, temp:58, precip:6, feels:56, gust:20 };
+        else if (root.wx === "storm")
+            City.FORCEWX = { code:95, cloud:100, wind:34, temp:60, precip:14, feels:57, gust:48 };
+        else if (root.wx === "overcast")
             City.FORCEWX = { code:3, cloud:100, wind:10, temp:73, precip:0, feels:73, gust:14 };
         else
             City.FORCEWX = { code:0, cloud:5, wind:8, temp:76, precip:0, feels:76, gust:10 };

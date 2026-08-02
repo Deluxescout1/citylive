@@ -35115,6 +35115,50 @@ function drawPuddles(g,L,now){
                  Math.max(1,Math.round(K)),Math.max(1,Math.round(2*K)));
     }
   }
+
+  // ---- RUNOFF ALONG THE KERB, INTO THE DRAINS. Locked answer: the water has to GO somewhere. A road
+  // that only holds puddles is a road with no gradient — the sheet runs to the kerb, tracks along it,
+  // and disappears down a grate. Only while it is actually coming down; once it stops the kerb dries
+  // first because it is the thinnest water on the street.
+  if(raining){
+    var kerbY=gy+2, runA=(0.10+0.20*wet)*(day?1:0.72);
+    for(var kx=0;kx<SW;kx++){
+      var kwx=kx+WOFF;
+      var kh=mixLi((Math.floor(kwx/3))>>>0,6337);
+      if((kh%100)>=58) continue;                                  // it runs in threads, not as a sheet
+      var flow=((now*0.0009+((kh>>>7)%100)/100)%1);
+      var kl=Math.max(1,Math.round((1+((kh>>>11)%3))*K*0.7));
+      g.fillStyle="rgba("+refl[0]+","+refl[1]+","+refl[2]+","+(runA*(0.5+0.5*Math.sin(flow*6.283))).toFixed(3)+")";
+      g.fillRect(kx,kerbY,1,kl);
+    }
+    // the grates it is heading for, and the dimple of water going down one
+    for(var dr=0;dr<4;dr++){
+      var dh=mixLi((dr*40503+91)>>>0,2609);
+      var dx=((dh%Math.max(1,WW))-WOFF); if(dx<-6) dx+=WW; if(dx>SW+6) dx-=WW;
+      if(dx<-6||dx>SW+6) continue;
+      g.fillStyle="rgba(20,22,28,"+(0.5*(day?1:0.8)).toFixed(2)+")";
+      g.fillRect(Math.round(dx),kerbY+Math.round(K),Math.round(3*K),Math.max(1,Math.round(K*0.8)));
+    }
+  }
+  // ---- WET ASPHALT REFLECTS THE LIGHTS. This is also the open item on the street overhaul, so doing
+  // it here ticks both. A wet road at night is mostly this: vertical smears under every bright thing,
+  // longer the wetter it is, broken up rather than ruled so it reads as a surface and not as bars.
+  if(!day && wet>0.15){
+    var smearN=Math.round(14+16*wet);
+    for(var sq=0;sq<smearN;sq++){
+      var sh4=mixLi((sq*2654435761+53)>>>0,8467);
+      var sx4=((sh4%Math.max(1,WW))-WOFF); if(sx4<-8) sx4+=WW; if(sx4>SW+8) sx4-=WW;
+      if(sx4<-8||sx4>SW+8) continue;
+      var SC=[[255,196,110],[255,120,90],[120,200,255],[200,140,255]][(sh4>>>5)%4];
+      var sl4=Math.round((3+((sh4>>>9)%7))*K*(0.5+wet));
+      for(var sy4=0;sy4<sl4;sy4++){
+        if(((sh4>>>(sy4%13))&1)===0&&sy4>2) continue;             // broken, so it reads as a surface
+        var sa4=0.30*wet*(1-sy4/sl4);
+        g.fillStyle="rgba("+SC[0]+","+SC[1]+","+SC[2]+","+sa4.toFixed(3)+")";
+        g.fillRect(Math.round(sx4),gy+2+sy4,Math.max(1,Math.round(K*0.7)),1);
+      }
+    }
+  }
 }
 function drawTerrain(g,cg,L,now,nd,pass){
   if(cg>=0.985) return;                                     // fully urban
