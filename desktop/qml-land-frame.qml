@@ -35,6 +35,7 @@ Item {
     property string land: arg("land", "canyon")
     property string tag: arg("tag", "frame")
     property string wx: arg("wx", "clear")
+    property string egg: arg("egg", "")
     property string outDir: arg("out", "/tmp/claude-1000/-home-deluxescout/bb7d3665-023a-4a7c-beb2-9139002a7460/scratchpad/land")
     property double t0: 0
     property int warm: 0
@@ -42,7 +43,10 @@ Item {
     function arm() {
         var CYC = 604800000, EPOCH = 1783972450746;
         City.GROW_CYCLE = CYC; City.NOFETCH = true; City.FORCEEGG = null;
-        City.FORCEBIOME = root.land; City.FORCEVARIANT = root.variant;
+        // egg lands are not reachable via FORCEBIOME — they live in EGG_BIOMES and need FORCEEGG
+        if (root.egg !== "") { City.FORCEEGG = root.egg; City.FORCEBIOME = null; }
+        else { City.FORCEBIOME = root.land; }
+        City.FORCEVARIANT = root.variant;
         var d = new Date(EPOCH + 44 * CYC + Math.round(0.45 * CYC));
         d.setHours(root.hour, 0, 0, 0);
         var base = d.getTime();
@@ -80,7 +84,7 @@ Item {
                          " species=" + JSON.stringify(City.SAVL_SP) +
                          " acts=" + JSON.stringify(City.SAVL_ACT));
             root.grabToImage(function (r) {
-                r.saveToFile(root.outDir + "/" + root.land + "-" + root.tag + "-w" + root.woff +
+                r.saveToFile(root.outDir + "/" + (root.egg !== "" ? root.egg : root.land) + "-" + root.tag + "-w" + root.woff +
                              "-v" + root.variant + "-a" + root.age + "-h" + root.hour + ".png");
                 Qt.quit();
             });

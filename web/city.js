@@ -3952,8 +3952,13 @@ var BIOME_VARIANTS={
 
   canyon:[ {},
     { name:"THE SLOT", rock:"slot",   // sculpted sandstone; light bounces down the walls and barely lands
-      far:[212,132,78],  near:[178,92,48],   cap:[248,192,128], ground:[210,158,102], steep:0.9, flat:0.55,
-      walls:[[224,166,112],[196,128,80],[240,206,164],[168,106,68],[246,224,190],[210,146,94],[182,152,118],[228,190,142]],
+      // ⚠ IT WAS THE SAME ORANGE AS THE GORGE. Rendered side by side the two read as one land in two
+      // shapes — the green and the basalt variants separate at a glance and these two did not. A slot
+      // is not a broad gorge in a different silhouette: its walls are BLEACHED and pink-white, because
+      // the only light down there has bounced off sandstone before it arrives, while a broad gorge
+      // takes the sun directly and stays deep iron-red. The colour is the variant, as much as the rock.
+      far:[236,186,166],  near:[214,146,124],   cap:[252,226,206], ground:[232,198,172], steep:0.9, flat:0.55,
+      walls:[[244,208,186],[224,174,150],[250,230,214],[206,156,134],[252,238,226],[236,192,168],[216,186,166],[246,218,198]],
       flora:{ kinds:["scrub","grass","scrub","cottonwood"], bloom:["#ffd166","#ffffff","#f0a060"] },
       fauna:{ keep:{deer:0,rabbit:1,fox:1,goat:1}, big:["bighorn"], small:["marmot","lizard"], air:["raven","vulture"] },
       sky:{ top:[74,120,182], bot:[248,196,140], k:0.46, haze:[246,190,132] } },
@@ -16489,7 +16494,9 @@ function drawCavernWater(g,L,now){
   }
   // ---- THE FUNGUS on the walls reflects too, in broken dabs — the only other light in the room
   for(var d2=0;d2<26;d2++){
-    var dwx=((d2*40503+(((WORLD_SEED||0)*11)>>>0))>>>0)%Math.max(1,WW);
+    // ⚠ `(i*K+salt)%WW` IS A CONSTANT STRIDE, i.e. evenly spaced — the savanna acacias' picket fence.
+    // Fungus is supposed to be BROKEN DABS; a lattice of them reads as tiling. mixLi avalanches.
+    var dwx=mixLi(d2*8+1,((WORLD_SEED||0)*11)>>>0)%Math.max(1,WW);
     var dx=Math.round(dwx-WOFF); if(dx<-10) dx+=WW; if(dx>SW+10) dx-=WW;
     if(dx<0||dx>=SW) continue;
     var dy=top+((d2*7919)%Math.max(2,Math.round(depth*0.7)));
@@ -21563,7 +21570,9 @@ function drawPlateau(g,L,now,nd){
   // ---- SHRINE GLOW: soft points of light scattered across the land, pulsing slowly. The one piece of
   // pure fantasy in the frame, and the thing that says this is not an ordinary countryside.
   for(var s3=0;s3<7;s3++){
-    var swx=((s3*104729+((WORLD_SEED*17)|0))>>>0)%Math.max(1,WW);
+    // ⚠ same constant stride: shrine lights are meant to be SCATTERED across the land, and evenly
+    // spaced points of light read as street lamps rather than as something half-magical.
+    var swx=mixLi(s3*8+3,(WORLD_SEED*17)|0)%Math.max(1,WW);
     var sx=Math.round(swx-WOFF);
     if(sx<-10) sx+=WW; if(sx>SW+10) sx-=WW;
     if(sx<0||sx>=SW) continue;
@@ -21657,7 +21666,9 @@ function drawOrbit(g,L,now,nd){
   g.fillStyle=css(mixc([150,158,172],[255,255,255],0.15*lit));
   g.fillRect(0,spineY,SW,Math.max(2,Math.round(2.4*K)));
   for(var a2=0;a2<14;a2++){
-    var awx=((a2*104729+((WORLD_SEED*3)|0))>>>0)%Math.max(1,WW);
+    // ⚠ same constant stride. A station spine's arms being regular is arguable — Nick's call was to
+    // fix all three — so they are hashed but kept within a tighter band, so it still reads BUILT.
+    var awx=(Math.round(a2*(WW/14)) + (mixLi(a2*8+5,(WORLD_SEED*3)|0)%Math.max(1,Math.round(WW/28))))%Math.max(1,WW);
     for(var o=-1;o<=1;o++){
       var ax=Math.round(awx-WOFF+o*WW);
       if(ax<-30||ax>SW+30) continue;
