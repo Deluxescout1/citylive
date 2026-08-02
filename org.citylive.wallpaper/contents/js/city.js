@@ -35462,6 +35462,55 @@ function drawPlainsWorked(g,L,now,nd){
         g.fillRect(tx5,sby-th5,Math.max(1,Math.round(K*1.3)),th5);
       }
     }
+    // ================= FARMSTEADS =================
+    // Locked answer 1's last item. A worked plain without anybody living on it is a diagram; the
+    // farmstead is the thing that says somebody drives out here every morning. House, barn and a
+    // bin, planted among the strips rather than on the street, and hashed so each one differs.
+    for(var fs=0;fs<5;fs++){
+      var fsh=mixLi((fs*104729+29)>>>0,5711);
+      var fsx=((fsh%Math.max(1,WW))-WOFF); if(fsx<-40) fsx+=WW; if(fsx>SW+40) fsx-=WW;
+      if(fsx<-40||fsx>SW+40) continue;
+      var fsy=pgy-Math.round((10+((fsh>>>5)%14))*K);
+      var fw2=Math.round((5+((fsh>>>9)%3))*K), fh4=Math.round((3.4+((fsh>>>13)%3)*0.5)*K);
+      g.fillStyle=css(mixc(day?[204,196,182]:[46,44,48],hz2,0.20));      // the house
+      g.fillRect(Math.round(fsx),fsy-fh4,fw2,fh4);
+      g.fillStyle=css(mixc(day?[92,62,52]:[24,20,22],hz2,0.20));         // its roof
+      g.fillRect(Math.round(fsx)-1,fsy-fh4-Math.max(1,Math.round(K*0.7)),fw2+2,Math.max(1,Math.round(K*0.8)));
+      g.fillStyle=css(mixc(day?[132,66,54]:[32,20,20],hz2,0.22));        // the barn beside it
+      g.fillRect(Math.round(fsx)+fw2+Math.round(K),fsy-Math.round(fh4*0.9),Math.round(fw2*1.1),Math.round(fh4*0.9));
+      g.fillStyle=css(mixc(day?[176,178,172]:[40,42,48],hz2,0.22));      // and the grain bin
+      g.fillRect(Math.round(fsx)-Math.round(2.4*K),fsy-Math.round(fh4*1.15),Math.max(1,Math.round(1.8*K)),Math.round(fh4*1.15));
+    }
+    // ================= WEATHER ON THE GRASS =================
+    // Locked answer 4's second part. Wind is invisible until something moves in it, and on a prairie
+    // the crop IS the anemometer — the waves crossing a wheat field are the only way a flat land shows
+    // you the weather it is having. Speed and depth come off the REAL wind reading, so a still day is
+    // genuinely still rather than idling.
+    var wnd5=(weather.wind==null?5:weather.wind);
+    if(wnd5>3){
+      var gustK=Math.min(1,wnd5/28);
+      for(var gw=0;gw<3;gw++){
+        var gy5=pgy-Math.round((8+gw*7)*K);
+        var phase=now*0.00016*(1+gustK*2.2)+gw*1.7;
+        for(var gx=0;gx<SW;gx+=Math.max(2,Math.round(K))){
+          var wv=Math.sin((gx+WOFF)*0.021+phase)+Math.sin((gx+WOFF)*0.007-phase*0.6)*0.6;
+          if(wv<0.55) continue;                                          // only the crest of the wave shows
+          g.fillStyle="rgba("+(day?"238,240,220":"120,126,116")+","+(0.05+0.10*gustK*(wv-0.55)/0.45).toFixed(3)+")";
+          g.fillRect(gx,gy5,Math.max(1,Math.round(K*1.6)),Math.max(1,Math.round(K*0.7)));
+        }
+      }
+      // dust lifting off a dry field when it really blows
+      if(gustK>0.55&&!(wfx().rain||wfx().snow)){
+        for(var du=0;du<7;du++){
+          var duh=mixLi((du*40503+((now/2400)|0))>>>0,3907);
+          var dux=((duh%Math.max(1,WW))-WOFF); if(dux<-20) dux+=WW; if(dux>SW+20) dux-=WW;
+          if(dux<-20||dux>SW+20) continue;
+          var duy=pgy-Math.round((6+((duh>>>7)%12))*K);
+          g.fillStyle="rgba(198,178,140,"+(0.05+0.09*(gustK-0.55)/0.45).toFixed(3)+")";
+          g.fillRect(Math.round(dux),duy,Math.round((10+((duh>>>11)%16))*K),Math.max(1,Math.round(K*1.4)));
+        }
+      }
+    }
     // ================= THE FREIGHT LINE =================
     // Locked answer 4's fourth part, and the brief's own words: "the thing that makes distance
     // readable on a flat map". A train is the only object here whose LENGTH tells you how far away it
