@@ -6782,6 +6782,12 @@ function drawMafiaEnforcement(g,L,now){
     g.fillStyle="#0a1a44"; g.fillRect((encX+2)|0,HORIZON-4,4,2);        // the (paint) cannon
     if(blasting){ var bt=(t-0.5)/0.22, cr=rng((0x8117+slot*131)>>>0);
       g.globalCompositeOperation="lighter";
+      // ⚠ NICK CHOSE "ABSOLUTELY EVERYTHING, BILLS INCLUDED". This regime was written as a JOKE — its
+      // own comment calls it a comic crackdown and cites "the wallpaper's no-gore rule" — so blood
+      // here is a deliberate tonal turn, not an oversight being corrected. It is gated on gore like
+      // everything else, so `restrained` or `off` puts the gag back.
+      if(converted && goreK()>0.5 && ((slot+X)&3)===0)
+        bloodMark(g,X|0,HORIZON-1,((slot*7919+X)>>>0),1.8,0.35,L);
       for(var p=0;p<12;p++){ var pxp=encX+6+(X-encX-6)*bt+(cr()-0.5)*7, pyp=HORIZON-3+(cr()-0.5)*7;
         g.fillStyle=(p%4===0)?"rgba(198,12,48,0.9)":"rgba(50,120,240,0.9)"; g.fillRect(pxp|0,pyp|0,1,1); }
       g.globalCompositeOperation="source-over"; }
@@ -6832,6 +6838,22 @@ function drawUprising(g,L,now){
       if(winning && (((Math.floor(now/200)+t)&1))) continue;                                       // the line breaks and flees
       g.fillStyle=shieldC; g.fillRect((tx-2)|0,HORIZON-5,1,4);                                      // riot shield
       drawTrooper(g,tx|0,HORIZON-1,now,(Math.floor(now/150)+t)&1); }
+    // ---- AND IT COSTS SOMETHING. Locked answer 4: riots and crackdowns were deliberately bloodless,
+    // which made a crowd being "put down" read as a crowd being politely asked to leave. When the line
+    // has done its work there are people on the ground in front of it, and the ground shows it.
+    if(crushed){
+      var fn2=Math.round(2+inten*4);
+      for(var fq2=0;fq2<fn2;fq2++){
+        var fh3=mixLi((fq2*2654435761+((R.seed||0)*7919))>>>0,5099);
+        var fx3=X-(spread>>1)+((fh3>>>3)%Math.max(1,spread));
+        var fage=Math.min(1,disperse*0.9+((fh3>>>17)%40)/100);
+        bloodMark(g,fx3|0,HORIZON-1,(fh3>>>1),2.2,fage,L);
+        if(goreK()>0.34&&((fh3>>>11)%100)<62){                       // and the body that made the mark
+          g.fillStyle=L>0.5?"rgba(38,34,40,0.92)":"rgba(20,18,24,0.92)";
+          g.fillRect((fx3-2)|0,HORIZON-2,Math.max(3,Math.round(KSP*2.2)),Math.max(1,Math.round(KSP*0.9)));
+        }
+      }
+    }
     // searchlights raking the plaza as the crackdown succeeds
     if(crushed && night>0.4){ g.globalCompositeOperation="lighter";
       for(var sl=-1;sl<=1;sl+=2){ var lx=X+sl*32; for(var q=0;q<44;q+=3){ var bt=q/44; g.fillStyle="rgba(255,244,200,"+(0.08*(1-bt)).toFixed(3)+")"; g.fillRect((lx+(X-lx)*bt)|0,(HORIZON-2-q)|0,2,2); } }
@@ -19838,6 +19860,39 @@ function casualtyAt(cd,n){
 // So the stain, the runnels, the gutter, the drag trails and the tyre tracks draw with the ROAD,
 // before a single car or pedestrian; the bodies stay late, where a solid object belongs.
 function roadPavedNow(){ return !curVillage && cityG>=0.30; }   // tyres only track blood once there is asphalt
+// ---- ONE MARK, SHARED. Locked answer 4 takes the blood beyond disasters — riots, THE ORDER's
+// crackdowns, the Bills regime, the plague, and animal kills all needed the same thing: a small pool
+// with a few runnels, hashed off a seed. Five copies of the pool code would drift apart within a
+// month and each would have to relearn the gore gate, the dry curve and the kerb runnel separately.
+// ⚠ Everything here respects goreK(), so `gore:off` really does turn ALL of it off — that is the whole
+// point of the config level, and a bloodbath that ignores it on four of six code paths is not a
+// setting, it is a suggestion.
+function bloodMark(g,x,gy,seed,size,age,L){
+  var GK=goreK(); if(GK<=0) return;
+  var K=Math.max(1,KSP), day=L>0.5;
+  var dry=Math.min(1,Math.max(0,age));
+  var br=Math.round(150-70*dry), bg2=Math.round(18+10*dry), bb=Math.round(22+10*dry);
+  var a=(0.72-0.34*dry)*GK;
+  var w=Math.max(1,Math.round(size*K*(0.6+0.9*GK)));
+  for(var r=0;r<Math.max(1,Math.round(size*K*0.5));r++){
+    var h=mixLi((seed*31+r)>>>0,7607);
+    var lw=Math.max(1,Math.round(w*(0.5+((h>>>5)%100)/200)));
+    g.fillStyle="rgba("+br+","+bg2+","+bb+","+(a*(1-r/Math.max(1,size*K*0.5))).toFixed(3)+")";
+    g.fillRect(Math.round(x-lw/2),gy-r,lw,1);
+  }
+  // and it runs — a pool that stops dead at its own edge is paint, which is the note the disaster
+  // blood already carries
+  if(GK>0.5){
+    var rn=1+((mixLi(seed>>>0,3313))%2);
+    for(var q=0;q<rn;q++){
+      var rh=mixLi((seed*17+q)>>>0,9721);
+      var rx=Math.round(x-w/2+((rh>>>3)%Math.max(1,w)));
+      var rl=Math.round((2+((rh>>>9)%4))*K*(1-dry*0.5));
+      g.fillStyle="rgba("+br+","+bg2+","+bb+","+(a*0.55).toFixed(3)+")";
+      g.fillRect(rx,gy,Math.max(1,Math.round(K*0.6)),rl);
+    }
+  }
+}
 // ---- RECOVERY CREWS. Locked answer 5: bodies get cleared because somebody visibly clears them.
 // Until now a body simply stopped being drawn at age>0.30, which is the city tidying itself up when
 // nobody is looking. A crew walks in from the edge of the strike during the aftermath, reaches each
@@ -22454,6 +22509,7 @@ function drawLandPredators(g,L,now,nd,fx){
         g.fillStyle=rgba(day?[104,76,64]:[32,24,22],0.92-0.4*car.age);
         g.fillRect(cx,gy-Math.round(1.5*K),Math.round(6*K),Math.max(1,Math.round(1.5*K)));
         if(!P.water){
+          bloodMark(g,cx,gy,((pseed*31+1)>>>0),2.0,car.age,L);   // a real kill site, not a swatch
           g.fillStyle=rgba([132,34,30],0.5*(1-car.age));
           g.fillRect(cx-Math.round(2*K),gy-Math.max(1,Math.round(K*0.5)),Math.round(10*K),Math.max(1,Math.round(K*0.5)));
           for(var v=0;v<3;v++){                                  // scavengers, as on the savanna
@@ -22885,6 +22941,7 @@ function drawSavannaLife(g,L,now,nd,fx){
         var groundY=bandY(cx3);
         g.fillStyle=rgba(day?[104,76,64]:[34,26,24],0.95-0.35*car.age);
         g.fillRect(cx3,groundY-Math.round(1.6*K),Math.round(7*K*0.6),Math.max(1,Math.round(1.6*K)));
+        bloodMark(g,cx3,HORIZON-1,((pseed*31+2)>>>0),2.2,car.age,L);     // predators leave a mess
         g.fillStyle=rgba([132,34,30],0.55*(1-car.age));                                // blood, fading
         g.fillRect(cx3-Math.round(2*K),groundY-Math.max(1,Math.round(K*0.5)),Math.round(11*K*0.6),Math.max(1,Math.round(K*0.5)));
         // vultures walk in and hop around it — they arrive AFTER the kill, never during
