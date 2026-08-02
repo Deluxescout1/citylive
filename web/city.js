@@ -11317,6 +11317,21 @@ function titanTicker(now){
 function tickerMsg(now){
   var mn=meteorNews(now); if(mn) return mn;                     // the incoming planet-killer dominates the news for ~2 days out
   if(cityPhase==="apoc") return "EMERGENCY BROADCAST - EVACUATE "+cityName+" NOW";
+  // ---- THE CHRONICLE REMEMBERS WHO, NOT JUST WHAT. Locked answer 7: recorded everywhere — the live
+  // ticker, the almanac and the HUD. This function IS the chronicle's source (it is what gets written
+  // into chronicles/life-N.md), and every entry it produced for a disaster read "BREAKING - CAT-5
+  // KAIJU - SEEK SHELTER". A life's history was a list of weather warnings with nobody in it.
+  // A dead mayor outranks the event that killed them, and a named citizen outranks the category.
+  if(curMayor&&curMayor.emergency&&curMayor.deadName&&(Math.floor(now/9000))%3===0)
+    return "MAYOR "+curMayor.deadName+" IS DEAD - "+curMayor.winName+" SWORN IN";
+  if(curDis){
+    var nrc=namedDeadRevealed(curDis);
+    if(nrc>0&&(Math.floor(now/9000))%2===0){
+      var dc=namedDeadAt(curDis,(Math.floor(now/9000))%nrc);
+      if(dc&&!dc.mayor)
+        return "NAMED AMONG THE DEAD - "+dc.name+", "+dc.role+" - "+DIS_NAME[curDis.type];
+    }
+  }
   if(curWar&&curWar.f>=0&&curWar.f<1) return "INVASION UNDERWAY - SHELTER IN PLACE";
   if(curWar&&curWar.f>=1&&!curWar.win) return "CURFEW IN EFFECT BY ORDER OF THE OCCUPATION";
   if(curDis) return "BREAKING - CAT-"+curDis.intensity+" "+DIS_NAME[curDis.type]+(curDis.type==="rift"?" - "+riftInvaderNames(curDis)+" SIGHTED":"")+" - SEEK SHELTER";
