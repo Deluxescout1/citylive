@@ -25583,7 +25583,13 @@ function drawGorgeCity(g,L,now,nd){
   for(var si=0;si<gorgeCache.spurs.length;si++){
     var sp=gorgeCache.spurs[si], sd=sp.seed;
     // LEDGES: horizontal shelves up the face. The lowest are settled first.
-    var nL=2+((sd>>>3)%3);                                        // 2-4 shelves on this spur
+    // ⚠ THE WALLS ARE THE CITY HERE — Nick's locked answer. Two to four shelves left most of every face
+    // bare rock, so the gorge read as a canyon with a town at the bottom rather than a canyon that IS
+    // the town. The cliff dwellings were already the best thing on this land and its only true scale
+    // reference; this makes them the subject. The COLOSSAL masses carry proportionally more again —
+    // they are 2.15x wide and nearly 2x tall, so a fixed shelf count left them emptiest of all.
+    var nL=3+((sd>>>3)%4);                                        // 3-6 shelves on an ordinary spur
+    if(sp.form==="colossal") nL+=3;                               // and the hero mass is inhabited top to bottom
     for(var li2=0;li2<nL;li2++){
       var lf=(li2+1)/(nL+1);                                      // 0..1 up the face
       if(grow < lf*0.85) continue;                                // this shelf is not settled yet
@@ -25596,7 +25602,7 @@ function drawGorgeCity(g,L,now,nd){
       var shC=mixc(B.ground,[0,0,0],day?0.10:0.55);
       g.fillStyle=css(shC); g.fillRect(Math.max(0,lx0),ly,Math.min(SW,lx1)-Math.max(0,lx0),Math.max(1,Math.round(1.4*K)));
       // DWELLINGS along it: square blocks with a dark door and a window that lights at night
-      var step=Math.round(7*K), n=0;
+      var step=Math.round(5.4*K), n=0;                             // denser terraces, not just more of them
       for(var dx=lx0+2;dx<lx1-4;dx+=step){
         var hsd=((dx*2654435761)>>>0)^sd, per=((hsd>>>5)%1000)/1000;
         if(per > grow*1.25) continue;                             // this one is not built yet
