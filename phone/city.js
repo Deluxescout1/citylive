@@ -21369,6 +21369,26 @@ function drawBole(g,t,sx,gy,cTrunk,cBark,cFol,K,detail,litK,mossC){
 // The run set only grows downward (if prof[x]<y0 then prof[x]<y for every y below), so scanning at the
 // band top can miss a column whose crest falls inside that band. At the top the alpha is ~0, so the
 // worst case is invisible.
+// A CANYON RIM IS BLOCKS, NOT WAVES. The far wall used to be three summed sines — smooth rolling
+// hills wearing canyon colours, which is why the background read as sand rather than as the other side
+// of the same gorge. It is the Dune Sea's fault exactly: symmetric sines that no amount of shading can
+// rescue, because the GEOMETRY is wrong, not the paint.
+// So a ridge is walked in BLOCKS of world x. Each block holds one height for its whole width — a flat
+// top — and the step between blocks is a vertical cliff. Some blocks are cut down hard: those are the
+// notches and side canyons that stop a rim being a fence. Blocks are hashed off world x, so all three
+// monitors agree and the rim never repeats within a screen.
+function ridgeInto(arr,baseFrac,ampFrac,salt,blockW){
+  for(var x=0;x<SW;x++){
+    var wx=x+WOFF;
+    var b=Math.floor(wx/Math.max(1,blockW));
+    var h=mixLi((b*2654435761+salt)>>>0,7717)%1000/1000;
+    var nb=mixLi((b*40503+salt)>>>0,3313)%1000/1000;
+    if(nb>0.86) h*=0.42;                                  // a side canyon cut back into the rim
+    else if(nb>0.72) h*=0.72;                             // a shallower notch
+    var jag=(mixLi(((wx*7919)>>>0)+salt,4441)%1000/1000-0.5)*1.8;
+    arr[x]=Math.round(HORIZON*(baseFrac-h*ampFrac)+jag);
+  }
+}
 function depthRuns(g,prof,col,aTop,aBot,bands){
   var yTop=HORIZON; for(var i=0;i<SW;i++) if(prof[i]<yTop) yTop=prof[i];
   if(yTop>=HORIZON) return;
@@ -25685,14 +25705,19 @@ function drawGorge(g,L,now,nd){
   var ROCK=(B.rock||"mesa");
 
   if(!gorgeCache){
-    gorgeCache={far:new Array(SW), but:new Array(SW)};
-    // the far wall: three octaves of world-space noise, so the rim never repeats within a screen
-    for(var x=0;x<SW;x++){
-      var wx=x+WOFF;
-      var n=Math.sin(wx*0.0043)*0.52 + Math.sin(wx*0.0111+1.7)*0.28 + Math.sin(wx*0.0295+0.4)*0.13;
-      gorgeCache.far[x]=Math.round(HORIZON*(0.55 - n*0.16*(0.6+0.8*(1-steep))));
-      gorgeCache.but[x]=1e9;
-    }
+    gorgeCache={far:new Array(SW), but:new Array(SW), far2:new Array(SW), far3:new Array(SW)};
+    // THREE RECEDING RIDGES, each paler than the one in front. Atmospheric perspective is the strongest
+    // realism cue there is at this pixel scale, and it costs only silhouettes — the distant ones need no
+    // detail at all, because distance is exactly what removes detail.
+    // Wider blocks further away: a distant rim's individual mesas subtend less, so they read as longer,
+    // lower steps, and they get narrower and taller as the rim comes forward.
+    // ⚠ AMPLITUDE, MEASURED AGAINST HORIZON. At 0.055 the most distant ridge varied by ~18 px on his
+    // primary and read as a horizontal BAND, not as country — the blocks were right and the relief was
+    // too small to see them. Distance flattens contrast, not silhouette.
+    ridgeInto(gorgeCache.far3, 0.440, 0.115, 9137, 210);
+    ridgeInto(gorgeCache.far2, 0.505, 0.150, 5261, 140);
+    ridgeInto(gorgeCache.far,  0.550, 0.16*(0.6+0.8*(1-steep)), 1873, 95);
+    for(var x=0;x<SW;x++) gorgeCache.but[x]=1e9;
     // the buttresses. Placed off mixLi so they are a property of the WORLD and this life, never of
     // this screen — and drawn with the -1/0/+1 wrap so one straddling the world seam is not cut in half.
     // ⚠ SIZES HERE ARE WORLD PIXELS, NOT SCALED BY K. SW/HORIZON/WOFF are already world px (the
@@ -25785,6 +25810,20 @@ function drawGorge(g,L,now,nd){
     }
   }
 
+  // ---- the two DISTANT ridges, drawn first so everything else stands in front of them. Each is mixed
+  // further toward the sky: that graded loss of contrast IS the distance, and it is why they need no
+  // detail. A rim line on each keeps them from reading as flat cut-outs.
+  for(var rr=0;rr<2;rr++){
+    var rprof=(rr===0)?gorgeCache.far3:gorgeCache.far2;
+    var rc=mixc(farC, skc, rr===0?0.62:0.40);
+    var rrim=mixc(rimC, skc, rr===0?0.58:0.36);
+    for(var rx2=0;rx2<SW;rx2++){
+      var ry=rprof[rx2]; if(ry>=HORIZON) continue;
+      g.fillStyle=css(rc);   g.fillRect(rx2,ry,1,HORIZON-ry+1);
+      g.fillStyle=css(rrim); g.fillRect(rx2,ry,1,Math.max(1,Math.round(K*0.6)));
+    }
+  }
+
   // ---- the far wall: fill from its rim down to the floor, then band it with strata ----
   var strat=Math.max(2,Math.round(4*K));
   for(var fx=0;fx<SW;fx++){
@@ -25802,6 +25841,30 @@ function drawGorge(g,L,now,nd){
   stratRuns(g, gorgeCache.far, Math.round(HORIZON*0.20), strat, rgba(mixc(farC,[0,0,0],0.16),0.34));
   // the far wall is across the canyon and lit — it only loses light near its own foot
   depthRuns(g, gorgeCache.far, day?[38,20,16]:[6,8,14], 0.00, 0.34, 8);
+
+  // ---- SCREE at the far wall's foot: fans of fallen rock, so the wall sits IN the canyon instead of
+  // being pasted onto it. World-anchored like everything else, and only a few px tall — this is a
+  // JOIN, not a landform, and oversizing it would eat the floor.
+  var scrH=Math.round(4*K);
+  for(var sx2=0;sx2<SW;sx2++){
+    var swx=sx2+WOFF, sb2=Math.floor(swx/46);
+    var fan=mixLi((sb2*2654435761)>>>0,2707)%1000/1000;
+    var d2=Math.abs(((swx%46)/46)-0.5)*2;                     // a cone: tallest at the block's centre
+    var sh2=Math.round(scrH*(0.35+0.65*fan)*(1-d2*d2));
+    if(sh2<1) continue;
+    g.fillStyle=rgba(mixc(farC,B.ground,0.45),0.55);
+    g.fillRect(sx2,HORIZON-sh2,1,sh2+1);
+  }
+  // ---- DUST IN THE GORGE. The vertical twin of the ridges' haze: air thickens with depth, so the far
+  // wall's foot is mistier than its rim. It is what stops the background reading as a flat backdrop.
+  var hz=B.sky&&B.sky.haze?B.sky.haze:[224,180,136];
+  for(var hb=0;hb<6;hb++){
+    var hy0=Math.round(HORIZON*0.36+(HORIZON-HORIZON*0.36)*(hb/6));
+    var hy1=Math.round(HORIZON*0.36+(HORIZON-HORIZON*0.36)*((hb+1)/6));
+    if(hy1<=hy0) continue;
+    g.fillStyle=rgba(hz,(0.015+0.055*(hb/5))*(day?1:0.45));
+    g.fillRect(0,hy0,SW,hy1-hy0);
+  }
 
   // ---- the near buttresses: darker, in front, and they carry the sun on one flank ----
   for(var nx=0;nx<SW;nx++){
@@ -25835,6 +25898,25 @@ function drawGorge(g,L,now,nd){
     drawGorgeArch(g, awx, AW, AH,
                   Math.round(AW*0.52), Math.round(AH*0.58),
                   nearC, rimC, shadeC, K);
+  }
+
+  // ---- CONDORS ON THE THERMALS. The biome already declares eagle/raven/vulture; this is the one that
+  // works the rim. Specks at rim height are the cheapest scale reference there is — a bird you can
+  // barely resolve says the rock behind it is enormous, which no amount of rock detail can.
+  // ⚠ They circle rather than cross: a slow ellipse on a per-bird phase, so no two share a beat.
+  if(day){
+    for(var bd=0;bd<5;bd++){
+      var bsd2=mixLi(bd*2654435761+571,8837);
+      var bcx=((bsd2>>>7)%Math.max(1,WW)), bph=now*0.00006+((bsd2>>>3)%628)/100;
+      var brx=40+((bsd2>>>11)%60), bry=8+((bsd2>>>15)%14);
+      var bwx2=bcx+Math.cos(bph)*brx;
+      var bx2=Math.round(wrapW(bwx2)-WOFF); if(bx2<-8||bx2>SW+8) continue;
+      var by2=Math.round(HORIZON*(0.30+((bsd2>>>19)%100)/100*0.16)+Math.sin(bph)*bry);
+      var bw3=Math.max(1,Math.round(K*0.8));
+      g.fillStyle=rgba([28,20,18],0.72);
+      g.fillRect(bx2-bw3,by2,bw3,Math.max(1,Math.round(K*0.4)));                 // one wing
+      g.fillRect(bx2+1,by2-(Math.sin(bph*3)>0?1:0),bw3,Math.max(1,Math.round(K*0.4)));  // the other, on the beat
+    }
   }
 
   drawGorgeCity(g,L,now,nd);      // the half of this city that lives ON the rock
