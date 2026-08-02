@@ -21352,6 +21352,31 @@ function drawBole(g,t,sx,gy,cTrunk,cBark,cFol,K,detail,litK,mossC){
 // Horizontal bedding planes over a wall profile, emitted as CONTIGUOUS RUNS.
 // See the note at the call site: the per-pixel version measured 10.4x the draw calls for the same
 // pixels (36,293 vs 3,493 on the primary screen alone).
+// LIGHT DOES NOT REACH THE BOTTOM OF A GORGE. Shade a wall by DEPTH: near-nothing at the sunlit rim,
+// heavy by the floor. That single ramp is what makes a canyon read as a canyon rather than as an
+// orange hill, and it is the whole answer to "nothing is dark and nothing is bright".
+// ⚠ BANDED RUNS, NOT A PER-PIXEL GRADIENT. drawGorge already fought this fight once — 36,293 fillRects
+// per bg frame became 3,493 by drawing contiguous runs instead of pixels — so this scans once per BAND
+// and fills rects of the band's height. Eight bands over the whole wall, not one pass per row.
+// The run set only grows downward (if prof[x]<y0 then prof[x]<y for every y below), so scanning at the
+// band top can miss a column whose crest falls inside that band. At the top the alpha is ~0, so the
+// worst case is invisible.
+function depthRuns(g,prof,col,aTop,aBot,bands){
+  var yTop=HORIZON; for(var i=0;i<SW;i++) if(prof[i]<yTop) yTop=prof[i];
+  if(yTop>=HORIZON) return;
+  for(var b=0;b<bands;b++){
+    var y0=Math.round(yTop+(HORIZON-yTop)*(b/bands));
+    var y1=Math.round(yTop+(HORIZON-yTop)*((b+1)/bands));
+    if(y1<=y0) continue;
+    g.fillStyle=rgba(col, aTop+(aBot-aTop)*((b+0.5)/bands));
+    var run=-1;
+    for(var x=0;x<=SW;x++){
+      var on=(x<SW && prof[x]<y0);
+      if(on && run<0) run=x;
+      else if(!on && run>=0){ g.fillRect(run,y0,x-run,y1-y0); run=-1; }
+    }
+  }
+}
 function stratRuns(g,prof,y0,step,style){
   g.fillStyle=style;
   for(var y=y0;y<HORIZON;y+=step){
@@ -25692,6 +25717,8 @@ function drawGorge(g,L,now,nd){
   // World-anchoring matters too: bedding planes drawn in SCREEN space slide as the world scrolls and
   // the wall stops looking like rock.
   stratRuns(g, gorgeCache.far, Math.round(HORIZON*0.20), strat, rgba(mixc(farC,[0,0,0],0.16),0.34));
+  // the far wall is across the canyon and lit — it only loses light near its own foot
+  depthRuns(g, gorgeCache.far, day?[38,20,16]:[6,8,14], 0.00, 0.34, 8);
 
   // ---- the near buttresses: darker, in front, and they carry the sun on one flank ----
   for(var nx=0;nx<SW;nx++){
@@ -25708,6 +25735,10 @@ function drawGorge(g,L,now,nd){
     g.fillStyle=css(rimC); g.fillRect(nx,ny,1,Math.max(1,Math.round(K*0.7)));
   }
   stratRuns(g, gorgeCache.but, Math.round(HORIZON*0.30), strat, rgba(mixc(nearC,[0,0,0],0.22),0.30));
+  // ⚠ AND THE NEAR WALL IS THE ONE IN SHADOW. It stands on THIS side of the gorge, so it loses light
+  // fast and its foot is the darkest thing in the frame — which is what finally puts a dark end on a
+  // land where the sky was the only contrast. Nearly twice the far wall's ramp, from the same rim.
+  depthRuns(g, gorgeCache.but, day?[30,14,12]:[4,5,10], 0.04, 0.62, 8);
 
   drawGorgeCity(g,L,now,nd);      // the half of this city that lives ON the rock
 
