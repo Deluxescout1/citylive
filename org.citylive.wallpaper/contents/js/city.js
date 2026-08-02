@@ -18440,6 +18440,54 @@ function ruinZones(now){
   return out;   // nearest-first
 }
 function inZone(wx,ww,z){ var a=z.x-(z.w>>1)-2, b=z.x+(z.w>>1)+2; return wx< b && wx+ww> a; }
+// ================================================================================================
+// IS THIS PATCH OF LAND BEING DEVASTATED? — 0 = untouched, 1 = flattened.
+// ------------------------------------------------------------------------------------------------
+// ⚠⚠ NOTHING OUTSIDE THE BUILDING LOOP EVER ASKED THIS. Nick: "make sure each disaster devastates the
+// entire map — there are sections we have added that do not get affected, and I assume this is across
+// all the maps." He is right and it is every land: `inZone` was only ever consulted by the building
+// loop, so a CAT-5 the city LOST would leave blood along the pavement, wreck the skyline — and leave
+// the great kopje, every acacia, the wind farm, the crop strips and the cliff dwellings untouched.
+// The city took the hit and the landscape was immune.
+//
+// THE SCOPE, per his call: vegetation and structures are destroyed, landform is SCARRED but stays.
+// A granite kopje cannot burn down, and a mountain that vanishes reads as a bug rather than as damage.
+// Callers decide which of those they are; this only answers "how hard is this spot being hit".
+//
+// ⚠ AND THE ENDTIMES COUNT. Nick: "that goes for End Times too." Several land renderers return early
+// on `apoc`, which meant the landscape sat pristine while the city died — the apocalypse is not zoned,
+// so it damages the WHOLE world rather than a strike footprint.
+function landDamageAt(wx,ww){
+  ww=ww||1;
+  if(cityPhase==="apoc") return 1;                       // the endtimes are not a footprint
+  var d=0;
+  if(curDis && disDestroys(curDis.type)){
+    // ⚠⚠ THE FOOTPRINT IS 5% OF THE WORLD AND THAT IS THE REAL ANSWER TO HIS QUESTION. `w` is
+    // (14+intensity*11)*(win?1:1.7) — so a CAT-5 the city LOSES is 117 world px against a 2269 px
+    // world. Checking `inZone` for the landscape too would still have left 95% of every map pristine,
+    // which is exactly the thing he noticed. The building footprint stays as balanced; the LANDSCAPE
+    // gets a graded falloff instead, so the whole map shows the event and only the strike is erased.
+    var t=Math.max(0,Math.min(1,(curDis.f-0.14)/0.26));            // how far into the event we are
+    if(t>0){
+      var dx=wx+ww*0.5-curDis.x;                                   // signed, wrapped: the world is a loop
+      if(dx>WW/2) dx-=WW; if(dx<-WW/2) dx+=WW;
+      var core=Math.max(1,curDis.w*0.5);
+      var reach=core+ (WW*0.5)*(0.30+0.14*(curDis.intensity||1))*((curDis.win===false)?1.35:1);
+      var ad=Math.abs(dx);
+      var f2;
+      if(ad<=core) f2=1;                                           // inside the strike: total
+      else if(ad>=reach) f2=0.10;                                  // the far side of the world still feels it
+      else { var u=(ad-core)/(reach-core); f2=Math.max(0.10,1-u*u); }  // squared: severe well beyond the core
+      d=Math.max(d,t*f2);
+    }
+  }
+  if(curRuins) for(var r=0;r<curRuins.length;r++)
+    if(inZone(wx,ww,curRuins[r])) return 1;              // a lost district is dead for the rest of the life
+  // a block that has rebuilt is REGROWING: the concrete went back up faster than anything living does
+  if(curRebuilt) for(var b=0;b<curRebuilt.length;b++)
+    if(inZone(wx,ww,curRebuilt[b])) d=Math.max(d,0.42);
+  return d;
+}
 // ============ HAS THIS LAND ERUPTED YET, THIS LIFE? ============
 // Nick's volcano brief asks for TWO STATES, pre-eruption and post-eruption. He also chose that the
 // BIOME never erupts on its own — eruptions are the disaster's job. Those reconcile as: the mountain
@@ -20899,6 +20947,25 @@ function standGrow(){ return 0.62+0.42*Math.min(1.0,Math.max(0,cityG)*1.2); }
 // Ashlands comb). Young vase · mature flat-top · old broken leaner · dead snag.
 function acaciaForm(seed){ var r=((seed>>>3)%100); return r<15?3:(r<38?0:(r<76?1:2)); }
 function drawAcacia(g,X,gy,H,CW,form,seed,K,cTrunk,cCrown,sway){
+  // ⚠ AND THIS ONE TOO. Putting the damage check in drawTree was supposed to cover every land at once
+  // and did not: the savanna's ranks, the gorge and the dam all call drawAcacia DIRECTLY, so the
+  // "shared entry point" was shared by everything except the lands with the most trees on them. The
+  // before/after render was identical and that is what gave it away. Bespoke renderers need the check
+  // at the leaf, not at the dispatcher they skip.
+  var _ad=landDamageAt(X+WOFF,4);
+  if(_ad>0.15){
+    var _ah=mixLi((seed>>>0)+11,5077), _am=(_ah>>>3)%3;
+    if(_am===2&&_ad>0.66) return;                                  // flattened
+    var _at=Math.round(H*(0.30+0.30*(1-_ad)));
+    var _lean=(_am===0)?Math.round(K*(1+((_ah>>>11)%2))):0;
+    g.fillStyle=(_am===1)?"rgba(26,22,22,0.94)":"rgba(52,42,34,0.92)";
+    for(var _q=0;_q<_at;_q++)
+      g.fillRect(X+Math.round(_lean*(_q/Math.max(1,_at))),gy-_q,Math.max(1,Math.round(K*1.1)),1);
+    if(_am===1&&_ad>0.4){                                          // the flat top burnt down to limbs
+      g.fillRect(X-Math.round(CW*0.22),gy-_at,Math.round(CW*0.44),Math.max(1,Math.round(K*0.7)));
+    }
+    return;
+  }
   H=Math.max(5,Math.round(H)); CW=Math.max(2,Math.round(CW)); sway=sway||0;
   var un=Math.max(1,Math.round(K*0.8));
   function hsh(i){ return (((((seed*2654435761)>>>0)^(((i|0)*40503)>>>0))>>>0)%1000)/1000; }
@@ -21393,6 +21460,26 @@ function biomePlantSnow(g,X,gy,sc,kind){
 function season_bare_ok(seed){ var s=curSeason||seasonInfo(nowDate()); return !!s.bare; }
 function season_autumn_ok(){ var s=curSeason||seasonInfo(nowDate()); return s.name==="autumn"||!!s.bare; }
 function drawTree(g,X,gy,day,now,seed,mul,swayOn){
+  // ---- IS THIS TREE IN THE BLAST? Every land's trees come through here, so one check covers all
+  // twenty. How a given tree fails is hashed off its own seed, so the same tree always dies the same
+  // way on all three monitors and does not flicker between states between frames.
+  var _dmg=landDamageAt(X+WOFF,4);
+  if(_dmg>0.15){
+    var _dh=mixLi((seed>>>0)+7,5077), _K=Math.max(1,KSP);
+    var _mode=(_dh>>>3)%3;                                  // 0 snapped · 1 burnt · 2 flattened
+    if(_mode===2 && _dmg>0.66) return;                      // flattened: there is nothing left standing
+    var _h=Math.round((3+((_dh>>>7)%4))*_K*(1-_dmg*0.45));
+    var _lean=(_mode===0)?Math.round(_K*(1+((_dh>>>11)%2))):0;
+    // a snapped trunk leans, a burnt one stands black and bare — both keep the tree's own footprint
+    g.fillStyle=(_mode===1)?(day?"rgba(38,32,30,0.92)":"rgba(16,14,16,0.94)")
+                           :(day?"rgba(62,50,40,0.92)":"rgba(24,20,20,0.94)");
+    for(var _q=0;_q<_h;_q++)
+      g.fillRect(X+Math.round(_lean*(_q/Math.max(1,_h))),gy-_q,Math.max(1,Math.round(_K*0.9)),1);
+    if(_mode===1&&_dmg>0.4){                                // a few dead limbs left on the burnt one
+      g.fillRect(X-Math.round(_K),gy-_h,Math.round(_K*2),Math.max(1,Math.round(_K*0.6)));
+    }
+    return;
+  }
   var sc=treeSC(seed)*(mul||1)*treeGrow(), v=seed%7;
   // the land decides what grows on it before the season decides what the leaves are doing
   var BF=curBiome.flora;
