@@ -6016,6 +6016,64 @@ function drawFestivalHud(g,now,night){
   drawUiText(g,full,x0+ew,ty,"#ffeeba",1);
 }
 // THE ORDER's crimson BANNERS hang down the facades once the dictatorship takes hold (stage 3+, dense at 5)
+// ---- FLAGS AT HALF MAST. The panel has been saying this and the city has not been showing it, which
+// is the "a comment that states an intent is not a test that the intent was met" fault in another
+// costume: a notification asserting a thing the world does not do.
+// ⚠ ONE PER MONITOR-THIRD. A single pole on a 2269 wp world leaves two of his three screens with no
+// sign the city is in mourning at all — the lone-baobab rule, and it applies to civic signals as much
+// as to landmarks.
+// The flag flies at two-thirds down its own pole, which is what half mast actually means, and it hangs
+// slack rather than waving: a lowered flag on a still day is the whole image.
+function drawHalfMast(g,L,now,night){
+  var M=curMayor; if(!M||!M.emergency||!M.halfMast) return;
+  if(cityPhase==="apoc"||cityG<0.35) return;
+  var day=L>0.5;
+  for(var q=0;q<3;q++){
+    var sd=mixLi(q*2654435761+7717,4051);
+    var wx=Math.round(((q+0.20)/3+(((sd>>>9)%100)/100-0.5)*0.06)*WW);
+    for(var o=-1;o<=1;o++){
+      var px=Math.round(wx-WOFF+o*WW); if(px<-8||px>SW+8) continue;
+      // ⚠ A 32 px POLE AT STREET LEVEL IS INVISIBLE. The first build stood it on the pavement at
+      // HORIZON-1, where a mature skyline is hundreds of px tall — it drew correctly, on top, and was
+      // simply lost among the towers. Debug printed px=93 gy=358 with HORIZON=359 and the thing still
+      // could not be found by eye at two magnifications. A civic signal has to clear the roofline: it
+      // is read against the SKY or it is not read at all.
+      var K=Math.max(1,KSP), poleH=Math.round(HORIZON*0.34), gy=HORIZON-1;
+      g.fillStyle=day?"#3a3d46":"#22252e";                                   // a DARK pole: it must read against sky
+      g.fillRect(px,gy-poleH,Math.max(1,Math.round(K*0.7)),poleH);
+      g.fillStyle=day?"#f0ece2":"#6a6a74";
+      g.fillRect(px,gy-poleH,Math.max(1,Math.round(K*0.6)),Math.max(1,Math.round(K*0.6)));   // the truck
+      // two thirds DOWN, not half way up the frame — half mast is measured on the pole
+      var fy=gy-Math.round(poleH*0.55), fw=Math.round(9*K), fh=Math.round(5*K);
+      // ⚠ THE PARTY COLOUR WAS THE WRONG CHOICE and it is the value lesson again. A party colour is
+      // ANY hue at ANY lightness — against a neon sprawl at 0.85 it can land within a few points of
+      // whatever is behind it and the flag simply is not there. A mourning flag has one job: to be
+      // SEEN. So it is pale and near-white with a hard dark hoist, which reads against sky, against
+      // towers, and against night, and the party keeps only the thin band at the fly.
+      var pc=(M.party&&M.party.c)?M.party.c:"#c8ccd4";
+      for(var r=0;r<fh;r++){
+        var drop=Math.round((r/Math.max(1,fh-1))*K*0.8);                    // it hangs, it does not wave
+        g.fillStyle=day?"#eceff5":"#b9bfcc";
+        g.fillRect(px+1,fy+r+drop,fw,1);
+        g.fillStyle=day?"#2a2e38":"#171a22";                                // the hoist, hard against the pole
+        g.fillRect(px+1,fy+r+drop,Math.max(1,Math.round(K*0.8)),1);
+      }
+      g.fillStyle=day?pc:mixcSafeDark(pc);                                  // one band of the party at the fly
+      g.fillRect(px+1+fw-Math.max(1,Math.round(K*1.2)),fy,Math.max(1,Math.round(K*1.2)),fh);
+      g.fillStyle="rgba(8,8,12,0.92)";                                      // the black mourning ribbon at the truck
+      g.fillRect(px,fy-Math.max(2,Math.round(K*2.2)),Math.max(2,Math.round(K*2.2)),Math.max(2,Math.round(K*2.2)));
+      if(night){ g.fillStyle="rgba(255,214,150,0.30)";                      // lit from below after dark
+        g.fillRect(px-1,gy-2,Math.max(2,Math.round(K*2)),2); }
+    }
+  }
+}
+// a party colour is a CSS string, not a triple — darkening it needs a parse, and a wrong guess here
+// paints the flag black at night rather than dim
+function mixcSafeDark(c){
+  if(typeof c!=="string"||c.charAt(0)!=="#"||c.length<7) return "#5a5a62";
+  var r=parseInt(c.substr(1,2),16), gg=parseInt(c.substr(3,2),16), b=parseInt(c.substr(5,2),16);
+  return "rgb("+Math.round(r*0.42)+","+Math.round(gg*0.42)+","+Math.round(b*0.46)+")";
+}
 // ---- v1.24 TOTAL CONTROL — a rooftop flag flying from a tower top (waving crimson pennant + emblem)
 function drawOrderFlag(g,cx,cy,ph,L,now,scale){
   scale=scale||1; var poleH=Math.max(4,Math.round(6*scale)), fw=Math.max(3,Math.round(5*scale)), fh=Math.max(2,Math.round(3*scale));
@@ -40294,6 +40352,7 @@ function draw(g,pass){
   // ---- DISASTER overlay: the threat + the city's military/emergency response + alert HUD ----
   // (the destruction/rubble/rebuild of the buildings themselves is handled in drawLayer)
   if(curDis){ drawDisaster(g,curDis,L,now); drawDisasterHud(g,curDis,now); }
+  drawHalfMast(g,L,now,night);                               // …and the city mourns a mayor who did not survive
   if(curWar) drawWar(g,L,now,night);                         // the war for the city plays out on top
   if(cityG>0.5) drawElections(g,L,now,night);                // democracy in the streets
   drawRegime(g,L,now,night);                                 // …or THE ORDER's banners + statue when democracy has fallen
