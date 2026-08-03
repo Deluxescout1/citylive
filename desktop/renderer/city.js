@@ -22942,6 +22942,33 @@ function drawTempleOfTime(g,cx,baseY,K,day,skc,now){
   g.fillStyle=css(stoneL);
   for(var st=0;st<3;st++) g.fillRect(cx-(dw>>1)-Math.round(st*1.4*T),baseY+st,dw+Math.round(st*2.8*T),Math.max(1,Math.round(T*0.9)));
 }
+// ============ THE TRIFORCE ============
+// Nick: "I also want to add a Triforce to this if possible." Three equilateral triangles making a
+// larger one with a hole in the middle — and the HOLE is the whole trick: filled in, it is a yellow
+// blob. Drawn as scanline runs so it stays a clean triangle at any size, with a glow after dark.
+function drawTriforce(g,cx,baseY,sz,day,now){
+  var gold=day?"#f2cf4a":"#ffd867", goldD=day?"#c9a021":"#8a6d18";
+  function tri(px,py,h){                                  // one solid triangle, apex up
+    for(var r=0;r<h;r++){
+      var w=Math.max(1,Math.round((r+1)*1.16));
+      g.fillRect(Math.round(px-w/2),py-r,w,1);
+    }
+  }
+  var h1=Math.max(2,Math.round(sz*0.5));
+  g.fillStyle=goldD;                                      // a shadow pass, so it has an edge
+  tri(cx+1,baseY+1,h1); tri(cx-h1*0.60+1,baseY+h1+1,h1); tri(cx+h1*0.60+1,baseY+h1+1,h1);
+  g.fillStyle=gold;
+  tri(cx,baseY,h1);                                       // top
+  tri(cx-h1*0.60,baseY+h1,h1);                            // bottom-left
+  tri(cx+h1*0.60,baseY+h1,h1);                            // bottom-right
+  if(!day){                                               // it glows at night, slowly
+    var pl=0.55+0.45*Math.sin(now*0.0013);
+    g.globalCompositeOperation="lighter";
+    g.fillStyle="rgba(255,214,80,"+(0.16*pl).toFixed(2)+")";
+    g.fillRect(cx-h1*1.4,baseY-h1*1.2,h1*2.8,h1*2.8);
+    g.globalCompositeOperation="source-over";
+  }
+}
 // ============ THE CASTLE ON THE HEIGHT ============
 // Nick, with a reference frame: "I want there to be a massive castle at the top of the hill." That
 // supersedes the earlier answer of a small keep on the far horizon — and it is the better call, because
@@ -22952,7 +22979,7 @@ function drawTempleOfTime(g,cx,baseY,K,day,skc,now){
 // a single tower with a cone on it is a chess piece.
 // ⚠ Sized off the FRAME (HORIZON), not off KSP, so it is the same fraction of the picture on any
 // monitor — the lesson the carved rock's `SW/150` taught.
-function drawHeightCastle(g,cx,capY,K,day,skc,now,seed){
+function drawHeightCastle(g,cx,capY,K,day,skc,now,seed,groundAt){
   // ⚠ IT HAS TO SPRAWL. At W = H*0.92 the eleven towers were packed into 88 px and merged into one
   // grey bundle that read as chimneys or a pipe rack — the reference is WIDE, a long terraced wall
   // with spires spread along it, and the width is what makes it a castle rather than a tower block.
@@ -22967,8 +22994,10 @@ function drawHeightCastle(g,cx,capY,K,day,skc,now,seed){
   // off. Solved for H instead of guessed: whatever the rim height, the finial lands on or below the
   // pad. 🔑 Clamp the TOTAL, not the tallest piece you happened to think of.
   var TOPPAD=Math.round(6*K);
-  var H=Math.round(Math.min(HORIZON*0.30, Math.max(8,(capY-TOPPAD)/1.62)));  // how far it rises above the rim
-  var W=Math.round(H*2.30);
+  var H=Math.round(Math.min(HORIZON*0.42, Math.max(8,(capY-TOPPAD)/1.62)));  // how far it rises above the rim
+  // ⚠ W was H*2.30, which is a long low curtain — the reference is a TALL cluster. Nick wants the
+  // castle roughly doubled and dominating its hill; taller-than-wide is what does that.
+  var W=Math.round(H*1.90);
   // pale stone against dark slate — the value gap between wall and spire is what separates the
   // silhouette into parts at this size; at 0.42/0.12 apart it was one grey mass.
   var wall =mixc(day?[196,196,198]:[38,40,54], skc, 0.10);
@@ -22977,13 +23006,21 @@ function drawHeightCastle(g,cx,capY,K,day,skc,now,seed){
   var roofL=mixc(roof,day?[150,182,226]:[70,90,132],0.42);
   // ---- THE TERRACED BASE: two stepped curtain walls with battlements, which is what gives the
   // spires something to stand on instead of sprouting out of the grass.
+  // ⚠⚠ THE BASE MUST FOLLOW THE GROUND. Drawn as straight horizontal bands on a DOMED hill, the ends
+  // of the base overhung the curve and the whole castle read as FLOATING — clearly visible in Nick's
+  // desktop shot, a gap of sky under both shoulders. `groundAt` lets the base sit on the hill it is on.
   for(var t=0;t<2;t++){
     var bw=Math.round(W*(1.0-t*0.16)), bh=Math.round(H*(0.20-t*0.04));
-    var by=capY-Math.round(H*(0.02+t*0.13));
-    g.fillStyle=css(t?wall:wallD); g.fillRect(cx-(bw>>1),by-bh,bw,bh);
-    g.fillStyle=css(wallL);        g.fillRect(cx-(bw>>1),by-bh,bw,Math.max(1,Math.round(K*0.7)));
-    for(var m=0;m<Math.round(bw/(3.2*K));m++)          // battlements
-      g.fillRect(cx-(bw>>1)+Math.round(m*3.2*K),by-bh-Math.round(1.4*K),Math.max(1,Math.round(1.6*K)),Math.round(1.4*K));
+    var x0b=cx-(bw>>1);
+    for(var bxx=0;bxx<bw;bxx++){
+      var gxx=x0b+bxx; if(gxx<0||gxx>=SW) continue;
+      var gnd=groundAt?groundAt(gxx):capY;
+      var by=gnd-Math.round(H*(0.02+t*0.13));
+      g.fillStyle=css(t?wall:wallD); g.fillRect(gxx,by-bh,1,bh+Math.round(H*0.10));
+      g.fillStyle=css(wallL);        g.fillRect(gxx,by-bh,1,Math.max(1,Math.round(K*0.7)));
+      if((((gxx+WOFF)%Math.max(2,Math.round(3.2*K)))|0)<Math.max(1,Math.round(1.6*K)))
+        g.fillRect(gxx,by-bh-Math.round(1.4*K),1,Math.round(1.4*K));      // battlements
+    }
   }
   // ---- THE SPIRES. Hashed heights and offsets, tallest in the middle, so the skyline is ragged.
   var N=9;
@@ -23022,6 +23059,17 @@ function drawHeightCastle(g,cx,capY,K,day,skc,now,seed){
     g.fillRect(cx-(rw2>>1),gy2-r2,rw2,1);
   }
   g.fillStyle=css(roofL); g.fillRect(cx-1,gy2-gs,Math.max(2,Math.round(K)),Math.round(2*K));
+  // the Triforce crowning the great tower — the highest point in the frame
+  drawTriforce(g,cx,gy2-gs-Math.round(2*K),Math.max(3,Math.round(3.6*K)),day,now);
+  // and banners hung down the curtain, each with its own small one
+  for(var bn=-1;bn<=1;bn+=2){
+    var bnx=cx+Math.round(bn*W*0.30), bny=capY-Math.round(H*0.14);
+    g.fillStyle=day?"#8e2f34":"#2a1114";
+    g.fillRect(bnx-Math.round(1.6*K),bny,Math.max(2,Math.round(3.2*K)),Math.round(9*K));
+    g.fillStyle=day?"#6d2126":"#1c0c0e";
+    g.fillRect(bnx-Math.round(1.6*K),bny+Math.round(9*K),Math.max(2,Math.round(3.2*K)),Math.max(1,Math.round(K)));
+    drawTriforce(g,bnx,bny+Math.round(6*K),Math.max(2,Math.round(2.2*K)),day,now);
+  }
   if(!day){ g.fillStyle="rgba(255,206,130,0.95)";
     for(var w4=0;w4<5;w4++) g.fillRect(cx-Math.round(K*0.6),gy2+Math.round(gh*(0.18+w4*0.16)),Math.max(1,Math.round(1.2*K)),Math.max(1,Math.round(1.2*K))); }
 }
@@ -23177,11 +23225,29 @@ function drawPlateau(g,L,now,nd){
   // dressing on a mesa makes it a castle hill. His answer: a rounded green hill with rock outcrops,
   // grass over broken rock, an uneven crown, wider at the base. That is what the reference shows and
   // it is a completely different profile function, not a retexture.
-  var hcx=wrapX(HY_BLUFF), hW=Math.round(HORIZON*0.70), hH=Math.round(HORIZON*0.38);
+  // ⚠ THE SUMMIT IS LEVELLED. Nick's call: the castle's base following the dome read as an ARCH, a
+  // viaduct with towers on it. A real castle site is CUT FLAT — so the crown is a platform and only
+  // the flanks are domed, which keeps it a hill (the sides still fall away) without asking the
+  // building to curve. And the hill is lower and narrower than it was, because he wants the castle to
+  // be the object and the hill to be its pedestal.
+  // ⚠⚠ AND LOWERING THE HILL BURIED THE TOWN. Dropping it to 0.26 of the sky to make the castle
+  // dominate put the shelf at y 305 — BEHIND the modern city's towers, which reach ~210 — and the
+  // whole walled town, temple and wall disappeared. The hill has to stay tall enough that its shelf
+  // clears the skyline the city has grown; the castle is made to dominate by being BIGGER and the
+  // hill WIDER under it, not by the hill being shorter.
+  // 🔑🔑 AND THE THING BURYING THE TOWN IS THE CITY'S AGE, NOT THE LANDFORM. Nick's screenshot showed
+  // the town clearly — at POP 340, AGE 0.197. Rendered at AGE 0.85 the same town is gone, because a
+  // MATURE skyline reaches ~190 px and the shelf sat at 287. A landmark that is legible in a young
+  // city and buried in an old one has not been placed, it has been left to chance.
+  // So the hill is tall enough that its crown clears a grown skyline, and WIDE enough that the flanks
+  // still fall away over a long distance rather than reading as a table.
+  var HY_CROWN=0.34;
+  var hcx=wrapX(HY_BLUFF), hW=Math.round(HORIZON*0.95), hH=Math.round(HORIZON*0.56);
   function hillY(sgn){                                                // sgn -1..1 across the hill
-    var dome=Math.pow(Math.max(0,Math.cos(sgn*1.5708)),1.30);
-    var rough=Math.sin(sgn*7.3+1.1)*0.045+Math.sin(sgn*13.7)*0.020;   // an uneven crown, never level
-    return Math.round(HORIZON-hH*Math.max(0,dome+rough*(1-Math.abs(sgn))));
+    var a=Math.abs(sgn), lev=(a<HY_CROWN), u=lev?HY_CROWN:a;
+    var dome=Math.pow(Math.max(0,Math.cos(u*1.5708)),1.30);
+    var rough=lev?0:(Math.sin(sgn*7.3+1.1)*0.045+Math.sin(sgn*13.7)*0.020);
+    return Math.round(HORIZON-hH*Math.max(0,dome+rough*(1-u)));
   }
   if(hcx>-hW-40&&hcx<SW+hW+40){
     for(var q5=-hW;q5<=hW;q5++){
@@ -23203,46 +23269,98 @@ function drawPlateau(g,L,now,nd){
         }
       }
     }
-    // ---- THE CURTAIN WALL, FOLLOWING THE HILL'S CONTOUR. It was a flat grey slab filling half the
-    // frame; a wall on a hill is a CURVE, and the hillside has to stay visible above and below it.
-    var wallSpan=0.64;
-    for(var q6=-Math.round(hW*wallSpan);q6<=Math.round(hW*wallSpan);q6++){
-      var xx6=hcx+q6; if(xx6<0||xx6>=SW) continue;
-      var sg6=q6/hW, wy=hillY(sg6)+Math.round(hH*0.34);
-      var wh2=Math.round(7*K);
-      g.fillStyle=css(mixc(stoneC,day?[218,210,190]:[40,42,54],day?0.46:0.24));
-      g.fillRect(xx6,wy,1,wh2);
-      g.fillStyle=css(mixc(stoneC,[58,50,42],0.36));                  // its shaded foot
-      g.fillRect(xx6,wy+wh2-Math.max(1,Math.round(K*0.8)),1,Math.max(1,Math.round(K*0.8)));
-      if((((xx6+WOFF)%Math.max(2,Math.round(3.6*K)))|0)<Math.max(1,Math.round(1.8*K)))   // battlements
-        g.fillRect(xx6,wy-Math.round(1.6*K),1,Math.round(1.6*K));
+    // ---- A CUT TERRACE FOR THE TOWN. ⚠⚠ THE TOWN WAS A ZIPPER. Following the contour with a ribbon
+    // of wall and a row of identical roofs marched them down both slopes in single file — Nick: "the
+    // village looks really bad", and it did: houses do not queue down a hillside in a line, they crowd
+    // onto the flattest ground they can find. So a SHELF is cut into the hill and the town is a packed
+    // cluster on it, inside a wall that encloses it rather than a stripe that decorates it.
+    var twSpan=0.30, shelfY=hillY(0)+Math.round(hH*0.13);
+    for(var q7=-Math.round(hW*twSpan);q7<=Math.round(hW*twSpan);q7++){
+      var xx7=hcx+q7; if(xx7<0||xx7>=SW) continue;
+      var sg7=q7/hW, ends=Math.min(1,(twSpan-Math.abs(sg7))/0.10);      // eased into the slope at both ends
+      var yq7=Math.round(hillY(sg7)+(shelfY-hillY(sg7))*Math.max(0,Math.min(1,ends)));
+      if(yq7<=hillY(sg7)) continue;
+      g.fillStyle=css(mixc(grass,grassD,0.10));
+      g.fillRect(xx7,yq7,1,Math.round(hH*0.10));
+      g.fillStyle=css(grassL); g.fillRect(xx7,yq7,1,Math.max(1,Math.round(K*0.8)));
     }
-    // the gate, at the low point of the wall in front of the crown
-    var gwy=hillY(0)+Math.round(hH*0.34), gwW=Math.round(6*K);
-    g.fillStyle=css(mixc(stoneC,[30,26,22],0.56));
-    g.fillRect(hcx-(gwW>>1),gwy+Math.round(2*K),gwW,Math.round(5*K));
-    for(var ga2=0;ga2<Math.round(3*K);ga2++){
-      var aw3=Math.max(1,Math.round(gwW*(1-ga2/Math.round(3*K))));
-      g.fillRect(hcx-(aw3>>1),gwy+Math.round(2*K)-ga2,aw3,1);
+    // ---- THE TOWN, PACKED ON THE SHELF: varied widths, varied heights, shoulder to shoulder.
+    var twL=hcx+Math.round(hW*0.02), twR=hcx+Math.round(hW*twSpan*1.30);
+    var bx7=twL;
+    for(var bi7=0;bi7<40&&bx7<twR;bi7++){
+      var bh7=mixLi(bi7,0x7A1E);
+      var bw7=Math.round(K*(4+((bh7)%5))), bht=Math.round(K*(6+((bh7>>>5)%9)));
+      if(bx7>-20&&bx7<SW+20){
+        var byy=shelfY-bht;
+        g.fillStyle=css(mixc(day?[214,204,184]:[34,34,42],skc,0.08));
+        g.fillRect(bx7,byy,bw7,bht);
+        g.fillStyle=css(mixc(day?[176,90,64]:[26,18,20],skc,0.06));      // steep tile roof
+        for(var rr7=0;rr7<Math.round(bw7*0.55);rr7++)
+          g.fillRect(bx7-1+rr7,byy-Math.round(bw7*0.55)+rr7,Math.max(1,bw7+2-rr7*2),1);
+        if(!day){ g.fillStyle="rgba(255,206,130,0.9)";                    // a lit window each
+          g.fillRect(bx7+Math.round(bw7*0.3),byy+Math.round(bht*0.35),Math.max(1,Math.round(K)),Math.max(1,Math.round(K))); }
+      }
+      // chimneys with smoke drifting off them — the cheapest thing that says somebody lives here
+      if(bx7>-20&&bx7<SW+20&&((bh7>>>11)%100)<46){
+        var chx=bx7+Math.round(bw7*0.66), chy=shelfY-bht-Math.round(bw7*0.55);
+        g.fillStyle=css(mixc(day?[150,140,124]:[26,26,32],skc,0.08));
+        g.fillRect(chx,chy-Math.round(2.4*K),Math.max(1,Math.round(1.6*K)),Math.round(3*K));
+        for(var sm=0;sm<3;sm++){
+          var sph=(now*0.00035+bi7*0.7+sm*0.33)%1;
+          g.fillStyle="rgba("+(day?"228,226,220":"90,88,96")+","+((0.30-sm*0.07)*(1-sph)).toFixed(2)+")";
+          g.fillRect(chx-Math.round(sph*3*K),chy-Math.round(3*K)-Math.round(sph*10*K),
+                     Math.max(1,Math.round((1.4+sph*2.4)*K)),Math.max(1,Math.round((1.2+sph*1.6)*K)));
+        }
+      }
+      bx7+=bw7+Math.max(1,Math.round(K*0.6));
+      if(bi7===13) bx7+=Math.round(7*K);                                 // a market square in the middle
     }
-    // ---- THE TOWN, behind the wall and up the slope: roofs stepping with the contour
-    for(var rf=0;rf<26;rf++){
-      var rfs=(rf/25)*2-1, rfx=hcx+Math.round(rfs*hW*0.58);
-      if(rfx<-10||rfx>SW+10) continue;
-      var rh5=mixLi(rf,0x70FA);
-      var ry5=hillY(rfs)+Math.round(hH*0.34)-Math.round(2*K)-Math.round((3+((rh5>>>7)%4))*K);
-      if(ry5<=hillY(rfs)+Math.round(K)) continue;                     // never above the hill it stands on
-      var rw5=Math.round(4.6*K), rht=Math.round((4+((rh5>>>3)%4))*K);
-      g.fillStyle=css(mixc(day?[212,202,182]:[34,34,42],skc,0.10));
-      g.fillRect(rfx,ry5,rw5,rht);
-      g.fillStyle=css(mixc(day?[172,88,64]:[26,18,20],skc,0.08));
-      for(var rr5=0;rr5<Math.round(2.4*K);rr5++)
-        g.fillRect(rfx-1+rr5,ry5-Math.round(2.4*K)+rr5,Math.max(1,rw5+2-rr5*2),1);
+    // stalls in the square, and folk up on the wall walk
+    for(var st2=0;st2<4;st2++){
+      var stx=hcx-Math.round(4*K)+Math.round(st2*3.4*K);
+      if(stx<0||stx>=SW) continue;
+      g.fillStyle=["#c9584e","#4e7fc9","#c9a84e","#5aa86a"][st2];
+      g.fillRect(stx,shelfY-Math.round(3.4*K),Math.max(2,Math.round(2.8*K)),Math.max(1,Math.round(1.2*K)));
+      g.fillStyle=day?"#6b5a44":"#221c16";
+      g.fillRect(stx+Math.round(1.2*K),shelfY-Math.round(2.2*K),Math.max(1,Math.round(K*0.7)),Math.round(2.2*K));
     }
-    // ---- THE TEMPLE OF TIME, standing clear of the roofs inside the walls
-    drawTempleOfTime(g,hcx-Math.round(hW*0.30),hillY(-0.30)+Math.round(hH*0.30),K,day,skc,now);
+    // ---- THE TEMPLE OF TIME, inside the walls and taller than the houses around it
+    drawTempleOfTime(g,hcx+Math.round(hW*0.20),shelfY,K,day,skc,now);
+    // ---- THE WALL that encloses them: a solid face with towers at both ends and a gate in the middle
+    var wTop=shelfY-Math.round(2*K), wBot=shelfY+Math.round(hH*0.10);
+    g.fillStyle=css(mixc(stoneC,day?[212,204,186]:[40,42,54],day?0.48:0.24));
+    g.fillRect(Math.max(0,twL-Math.round(3*K)),wTop,Math.min(SW,(twR-twL)+Math.round(6*K)),wBot-wTop);
+    g.fillStyle=css(mixc(stoneC,[58,50,42],0.34));
+    g.fillRect(Math.max(0,twL-Math.round(3*K)),wBot-Math.max(1,Math.round(K*0.9)),Math.min(SW,(twR-twL)+Math.round(6*K)),Math.max(1,Math.round(K*0.9)));
+    for(var mb2=twL-Math.round(3*K);mb2<twR+Math.round(3*K);mb2+=Math.round(3.4*K)){    // battlements
+      if(mb2<0||mb2>=SW) continue;
+      g.fillStyle=css(mixc(stoneC,day?[224,216,198]:[44,46,58],day?0.48:0.24));
+      g.fillRect(mb2,wTop-Math.round(1.6*K),Math.max(1,Math.round(1.8*K)),Math.round(1.6*K));
+    }
+    for(var tg=0;tg<2;tg++){                                            // a gate tower at each end
+      var gtx=tg?twR:twL, gth=Math.round(hH*0.20);
+      g.fillStyle=css(mixc(stoneC,day?[222,214,196]:[44,46,58],day?0.48:0.24));
+      g.fillRect(gtx-Math.round(2.4*K),wTop-gth,Math.round(4.8*K),gth+(wBot-wTop));
+      g.fillStyle=css(mixc(day?[150,72,58]:[24,16,18],skc,0.06));        // conical cap
+      for(var cr=0;cr<Math.round(3.2*K);cr++)
+        g.fillRect(gtx-Math.round(2.4*K)+cr,wTop-gth-Math.round(3.2*K)+cr,Math.max(1,Math.round(4.8*K)-cr*2),1);
+    }
+    var gtw=Math.round(5*K);                                            // the gate itself
+    g.fillStyle=css(mixc(stoneC,[26,22,20],0.60));
+    g.fillRect(hcx-(gtw>>1),wBot-Math.round(6*K),gtw,Math.round(6*K));
+    for(var gaa=0;gaa<Math.round(2.6*K);gaa++){
+      var aw4=Math.max(1,Math.round(gtw*(1-gaa/Math.round(2.6*K))));
+      g.fillRect(hcx-(aw4>>1),wBot-Math.round(6*K)-gaa,aw4,1);
+    }
+    // ---- THE TRIFORCE over the gate. Nick asked for one; three gold triangles stacked is the shape,
+    // and at this size the NEGATIVE triangle in the middle is what makes it read as more than a blob.
+    drawTriforce(g,hcx,wTop-Math.round(4.4*K),Math.max(3,Math.round(4.2*K)),day,now);
     // ---- AND THE CASTLE ON THE CROWN
-    drawHeightCastle(g,hcx,hillY(0)+1,K,day,skc,now,((WORLD_SEED*7919)>>>0));
+    drawHeightCastle(g,hcx-Math.round(hW*0.16),hillY(0)+1,K,day,skc,now,((WORLD_SEED*7919)>>>0),null);
+    // ---- THE TRIFORCE, hanging over the castle. Faint by day, and after dark it is the brightest
+    // thing on the land — which is the point of putting it in the sky rather than only on a wall.
+    var tfY=hillY(0)-Math.round(HORIZON*0.42)-Math.round(20*K);
+    if(tfY>Math.round(8*K)) drawTriforce(g,hcx-Math.round(hW*0.16),tfY,Math.max(6,Math.round(11*K)),day,now);
   }
   // ---- SHRINE GLOW, scattered over the field on the surface it actually stands on
   for(var s3=0;s3<7;s3++){
