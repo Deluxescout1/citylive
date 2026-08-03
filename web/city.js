@@ -39859,14 +39859,54 @@ function drawApocFox(g,ap,L,now){
   var faceDir=(sx>SW*0.5)?-1:1;                                    // it faces the middle of the world
   var headX=cxB+Math.round(W*0.40)*faceDir, rumpX=cxB-Math.round(W*0.34)*faceDir;
 
+  // ---- 0. THE BURNING SHROUD. 🔒 Nick's answer: it carries one, and it BUILDS — nothing while it is
+  // still rising out of the treeline, igniting as it comes up, hottest when the beam goes out. It is
+  // what makes the thing supernatural rather than a very large animal, and it is the only light source
+  // in the valley once it is lit: the village, the carved rock and the underside of the cloud all take
+  // it. Drawn UNDER the body so it reads as light coming off the fur, never as a rim pasted on top.
+  var shroud=Math.max(0,Math.min(1,(apocMs-FOX_ARRIVE_MS*0.45)/(FOX_ARRIVE_MS*0.8)));
+  if(shroud>0.02){
+    g.globalCompositeOperation="lighter";
+    var flick=0.86+0.14*Math.sin(now*0.011)+0.06*Math.sin(now*0.027);
+    // ⚠ KEEP IT ON THE ANIMAL. The first shells ran to 1.9x the body and the outermost was wider than
+    // the frame — the whole picture went orange and the village it is destroying stopped being
+    // readable, which loses the only thing that gives the fox its scale. A shroud is a skin of fire,
+    // not a sunset.
+    for(var au=0;au<5;au++){
+      var af=(5-au)/5, ar=1.0+af*0.34;
+      g.fillStyle="rgba(255,"+(96+au*22)+","+(24+au*12)+","+(0.05*shroud*flick*(1+au*0.20)).toFixed(3)+")";
+      fillEllipse(g,cxB,backY+Math.round(H*0.44),Math.round(W*0.56*ar),Math.round(H*0.74*ar));
+    }
+    // …and it licks upward off the back, so the shroud is alive rather than a halo
+    for(var lk=0;lk<12;lk++){
+      var lh=mixLi(lk*8+3,0x5401);
+      var lx=cxB+Math.round(((((lh%1000)/1000)*2)-1)*W*0.44);
+      var lph=((now*0.0016+((lh>>>9)%100)/100)%1);
+      var lhh=Math.round(H*0.30*(1-lph)*shroud);
+      if(lhh<2) continue;
+      g.fillStyle="rgba(255,150,50,"+(0.16*shroud*(1-lph)).toFixed(3)+")";
+      g.fillRect(lx-Math.round(H*0.03),backY+Math.round(H*0.06)-lhh,Math.round(H*0.06),lhh);
+    }
+    g.globalCompositeOperation="source-over";
+  }
+
   // ---- 1. THE NINE TAILS, behind everything, fanned off the rump, each on its own phase ----
+  // 🔒 NICK'S ANSWER: BOTH, BY PHASE. Fanned wide while it rises — that half of the event is a DISPLAY,
+  // and the fan is the whole identity — then whipping FORWARD over the village once the beam goes out,
+  // so the tails stop being a backdrop and become part of what is happening to the valley. The tails
+  // tell you which half of the event you are in without a word on the panel.
+  var whip=Math.max(0,Math.min(1,(apocMs-FOX_ARRIVE_MS)/2200));     // 0 fanned … 1 thrown forward
   for(var t=0;t<9;t++){
     var th=mixLi(t*8+11,0x7A115);
     var spread=(t-4)/4;                                             // -1 … 1 across the fan
-    var tlen=Math.round(H*(1.05+((th%100)/100)*0.55));
+    var tlen=Math.round(H*(1.05+((th%100)/100)*0.55)*(1+whip*0.25));
     var baseY=backY+Math.round(H*0.30);
     var lash=Math.sin(now*0.0016+t*0.7)*0.26+Math.sin(now*0.0009+t*1.9)*0.13;
-    var ang=(faceDir>0? Math.PI : 0) + (-0.62+spread*0.62+lash)*(faceDir>0?1:-1);
+    // fanned: up and back off the rump. whipped: swung over the top toward the village, still fanned
+    // enough that you can count them.
+    var fanA=(-0.62+spread*0.62+lash);
+    var whipA=(-2.05+spread*0.42+lash*0.6);
+    var ang=(faceDir>0? Math.PI : 0) + (fanA*(1-whip)+whipA*whip)*(faceDir>0?1:-1);
     var tw=Math.max(2,Math.round(H*0.085));
     var steps=Math.max(24,Math.round(tlen*0.9));
     for(var q=0;q<=steps;q++){
@@ -39939,7 +39979,42 @@ function drawApocFox(g,ap,L,now){
   g.fillRect(headX-Math.round(hw*0.44),eyeY-Math.round(eyeW*0.6),Math.round(hw*0.92),Math.round(eyeW*2));
   g.globalCompositeOperation="source-over";
 
-  // ---- 4. THE SHOCKWAVE, once it moves: a ring of dust racing out along the ground ----
+  // ---- 4. THE BEAM. 🔒 Nick's answer for what it actually DOES: it gathers light at the muzzle and
+  // fires, and the beam is what levels the valley. That matters beyond the look — every other death on
+  // this project radiates from a point for reasons you have to be told; this one has a visible CAUSE
+  // you can trace from the mouth to the ground, and the shockwave leaves from where it lands.
+  // Three beats: a charge that swells at the muzzle over ~0.9s, the shot, then the beam thinning as it
+  // sustains. The muzzle is the anchor for all three, so it cannot detach from the head.
+  var mzX=(faceDir>0?headX+Math.round(hw*0.5)+mzL:headX-Math.round(hw*0.5)-mzL);
+  var mzY=headY+Math.round(hh*0.44)+Math.round(mzH*0.5);
+  var chargeMs=900, chP=Math.max(0,Math.min(1,(apocMs-(FOX_ARRIVE_MS-chargeMs))/chargeMs));
+  if(chP>0&&apocMs<FOX_ARRIVE_MS){                                  // …the charge, before it fires
+    g.globalCompositeOperation="lighter";
+    var cr3=Math.round(H*0.05+H*0.13*chP*(0.9+0.1*Math.sin(now*0.03)));
+    g.fillStyle="rgba(255,236,170,"+(0.5*chP).toFixed(3)+")"; fillEllipse(g,mzX,mzY,cr3,cr3);
+    g.fillStyle="rgba(255,150,60,"+(0.28*chP).toFixed(3)+")";  fillEllipse(g,mzX,mzY,Math.round(cr3*1.9),Math.round(cr3*1.9));
+    g.globalCompositeOperation="source-over";
+  }
+  if(apocMs>=FOX_ARRIVE_MS){                                        // …and the shot itself
+    var fireP=Math.min(1,(apocMs-FOX_ARRIVE_MS)/1400);
+    var bw3=Math.round(H*0.20*(1-fireP*0.55)*(0.92+0.08*Math.sin(now*0.05)));
+    var landX=cxB+Math.round((frontR*0.06+H*0.30))*faceDir;         // where it meets the ground
+    var dxb=landX-mzX, dyb=gy-mzY, len3=Math.max(1,Math.sqrt(dxb*dxb+dyb*dyb));
+    g.globalCompositeOperation="lighter";
+    for(var bq=0;bq<=len3;bq+=2){
+      var bf3=bq/len3;
+      var bx3=Math.round(mzX+dxb*bf3), by3=Math.round(mzY+dyb*bf3);
+      var bwq=Math.max(2,Math.round(bw3*(1-bf3*0.25)));
+      g.fillStyle="rgba(255,180,70,0.30)"; g.fillRect(bx3-bwq,by3,bwq*2,3);
+      g.fillStyle="rgba(255,248,222,0.85)"; g.fillRect(bx3-(bwq>>1),by3,bwq,2);   // the white core
+    }
+    var bl=Math.round(H*0.22*(0.9+0.1*Math.sin(now*0.04)));         // the flash where it lands
+    g.fillStyle="rgba(255,214,140,0.45)"; fillEllipse(g,landX,gy,bl,Math.round(bl*0.5));
+    g.fillStyle="rgba(255,255,240,0.5)";  fillEllipse(g,landX,gy,Math.round(bl*0.45),Math.round(bl*0.22));
+    g.globalCompositeOperation="source-over";
+  }
+
+  // ---- 5. THE SHOCKWAVE, once it moves: a ring of dust racing out along the ground ----
   if(apocMs>=FOX_ARRIVE_MS){
     for(var d2=0;d2<2;d2++){
       var rr=Math.round(frontR*(d2?0.86:1));
