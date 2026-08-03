@@ -22862,6 +22862,86 @@ function stratRuns(g,prof,y0,step,style){
 // the field town between them. Three distinct masses at three distances is the composition — the eye
 // always has somewhere to travel, which is what the empty maps never gave it.
 var plateauCache=null;
+// ============ HOW MUCH OF HYRULE ONE SCREEN CAN HOLD ============
+// Nick: "this needs to be determined by how many monitors we have — for me with 3 monitors it should
+// span all of them, but if someone only has 1 monitor then we need to keep and rotate the important
+// stuff. It needs to be accessible for all monitors."
+// The engine is never told how many monitors there are, but every instance knows what FRACTION of the
+// world it can see (`SW/WW`), which is the same fact: a third means a three-head desktop, nearly all
+// of it means one screen carrying the whole world. So the layout is chosen from that, per screen,
+// with no cross-screen communication and nothing screen-ANCHORED — the regions keep their world
+// positions either way, and only which ones are BUILT changes.
+function hyruleSolo(){ return (SW/Math.max(1,WW))>0.55; }
+// On a single screen the whole geography would be ten regions in 776 px — 70 px each, unreadable. So
+// a solo screen builds the castle core always, and rotates ONE secondary region through the same
+// slot, changing with the life. Everybody sees everything eventually; nobody sees mush.
+function hyruleRotate(n,now){ return (Math.abs(lifeIndexOf(now))+((WORLD_SEED>>>3)|0))%Math.max(1,n); }
+
+// ============ THE TEMPLE OF TIME ============
+// From his reference: a gothic stone hall — one tall central tower with a steep spire, two flanking
+// towers of unequal height with their own spires, a ROSE WINDOW over a pointed-arch door, tall narrow
+// lights down the front, and steps up to it. The rose window and the three-spire front are the two
+// things that make it that building and not a generic church, so both are drawn at any size.
+// ⚠ Unnamed, like every homage on this project — nothing on screen claims anything.
+function drawTempleOfTime(g,cx,baseY,K,day,skc,now){
+  // ⚠ THE CASTLE HAS TO WIN. At HORIZON/120 the temple came out ~190 px and out-topped the keep on
+  // its own hill — Nick asked for "a massive castle at the top" with the temple visible below it, and
+  // a temple that dwarfs the castle inverts the whole composition. Sized to sit clearly under it.
+  var T=Math.max(1, HORIZON/260);                       // its own scale, off the frame
+  var stone =mixc(day?[150,132,104]:[30,28,32], skc, 0.10);
+  var stoneL=mixc(stone,day?[228,214,180]:[110,120,150],day?0.42:0.18);
+  var stoneD=mixc(stone,[44,36,30],0.44);
+  var roofC =mixc(day?[118,72,48]:[24,18,20], skc, 0.06);
+  var glass =day?"rgba(150,205,225,0.85)":"rgba(255,206,130,0.90)";
+  var bw=Math.round(26*T), bh=Math.round(24*T);
+  // the hall
+  g.fillStyle=css(stone);  g.fillRect(cx-(bw>>1),baseY-bh,bw,bh);
+  g.fillStyle=css(stoneL); g.fillRect(cx-(bw>>1),baseY-bh,Math.max(1,Math.round(T*1.2)),bh);
+  g.fillStyle=css(stoneD); g.fillRect(cx+(bw>>1)-Math.max(1,Math.round(T*1.2)),baseY-bh,Math.max(1,Math.round(T*1.2)),bh);
+  // three towers: tall centre, two flanking and deliberately unequal
+  var tw=[Math.round(7*T),Math.round(9*T),Math.round(6*T)];
+  var th=[Math.round(16*T),Math.round(24*T),Math.round(12*T)];
+  var tox=[-Math.round(bw*0.36),0,Math.round(bw*0.37)];
+  for(var i=0;i<3;i++){
+    var x0=cx+tox[i]-(tw[i]>>1), ty=baseY-bh-th[i]+Math.round(bh*0.30);
+    g.fillStyle=css(stone);  g.fillRect(x0,ty,tw[i],th[i]+Math.round(bh*0.70));
+    g.fillStyle=css(stoneL); g.fillRect(x0,ty,Math.max(1,Math.round(T*1.1)),th[i]+Math.round(bh*0.70));
+    var sp=Math.round(th[i]*0.52);                       // the steep spire
+    g.fillStyle=css(roofC);
+    for(var r=0;r<sp;r++){
+      var rw=Math.max(1,Math.round((tw[i]+Math.round(2*T))*(1-r/sp)));
+      g.fillRect(x0+((tw[i]-rw)>>1),ty-r,rw,1);
+    }
+    if(i!==1){                                           // a lancet light in each flanking tower
+      g.fillStyle=glass;
+      g.fillRect(x0+Math.round(tw[i]*0.34),ty+Math.round(th[i]*0.42),Math.max(1,Math.round(1.6*T)),Math.round(4*T));
+    }
+  }
+  // THE ROSE WINDOW — the single most identifying mark on the front
+  var rY=baseY-bh-Math.round(bh*0.02), rr=Math.round(4.2*T);
+  g.fillStyle=css(stoneD);
+  for(var yy=-rr;yy<=rr;yy++){ var ww=Math.round(Math.sqrt(Math.max(0,rr*rr-yy*yy)));
+    g.fillRect(cx-ww,rY+yy,ww*2,1); }
+  g.fillStyle=glass;
+  for(var yy2=-rr+1;yy2<=rr-1;yy2++){ var w2=Math.round(Math.sqrt(Math.max(0,(rr-1)*(rr-1)-yy2*yy2)));
+    g.fillRect(cx-w2,rY+yy2,w2*2,1); }
+  g.fillStyle=css(stoneD);                               // its tracery
+  g.fillRect(cx-rr,rY-Math.max(1,Math.round(T*0.5)),rr*2,Math.max(1,Math.round(T)));
+  g.fillRect(cx-Math.max(1,Math.round(T*0.5)),rY-rr,Math.max(1,Math.round(T)),rr*2);
+  // the tall lights either side of the door
+  g.fillStyle=glass;
+  g.fillRect(cx-Math.round(bw*0.30),baseY-Math.round(bh*0.52),Math.max(1,Math.round(2.2*T)),Math.round(9*T));
+  g.fillRect(cx+Math.round(bw*0.24),baseY-Math.round(bh*0.52),Math.max(1,Math.round(2.2*T)),Math.round(9*T));
+  // the pointed-arch door, and the steps up to it
+  var dw=Math.round(7*T), dh=Math.round(11*T);
+  g.fillStyle=css(stoneD); g.fillRect(cx-(dw>>1),baseY-dh,dw,dh);
+  for(var a=0;a<Math.round(4*T);a++){
+    var aw=Math.max(1,Math.round(dw*(1-a/Math.round(4*T))));
+    g.fillRect(cx-(aw>>1),baseY-dh-a,aw,1);
+  }
+  g.fillStyle=css(stoneL);
+  for(var st=0;st<3;st++) g.fillRect(cx-(dw>>1)-Math.round(st*1.4*T),baseY+st,dw+Math.round(st*2.8*T),Math.max(1,Math.round(T*0.9)));
+}
 // ============ THE CASTLE ON THE HEIGHT ============
 // Nick, with a reference frame: "I want there to be a massive castle at the top of the hill." That
 // supersedes the earlier answer of a small keep on the far horizon — and it is the better call, because
@@ -23136,7 +23216,45 @@ function drawPlateau(g,L,now,nd){
       var px=px2, pw=pw2, pTop=pTop2;
       // THE CASTLE STANDS ON THE TALLEST MASS IN THE WORLD, and that mass carries nothing else.
       if(pi2===castleIdx){
+        // ============ THE CASTLE, THE TOWN AND THE TEMPLE — three tiers on one height ============
+        // Nick: "The Castle and the Temple of Time and everything should be there and the city grows
+        // below it." So the castle's own mass carries a SHELF: the keep on the crown, the walled town
+        // on the terrace under it with the temple standing in it, and the modern city at ground level
+        // below all of it. Three tiers of three different ages, which is the whole idea of this land.
         drawHeightCastle(g,px2,pTop2+1,K,day,skc,now,pseed2);
+        var shelfY=pTop2+Math.round((HORIZON-pTop2)*0.40);        // the terrace, cut into the face
+        var shelfW=Math.round(pw2*1.34);
+        var sxL=px2-(shelfW>>1);
+        g.fillStyle=css(mixc(stoneC,day?[196,196,180]:[36,38,48],day?0.30:0.20));
+        g.fillRect(sxL,shelfY,shelfW,Math.round((HORIZON-shelfY)));
+        g.fillStyle=css(capG); g.fillRect(sxL,shelfY,shelfW,Math.max(2,Math.round(2.6*K)));   // turf on the terrace
+        // THE TOWN WALL along the front of the terrace, with a gatehouse in the middle
+        var wallY=shelfY+Math.round(3*K), wh=Math.round(9*K);
+        g.fillStyle=css(mixc(stoneC,day?[214,206,186]:[40,42,54],day?0.42:0.24));
+        g.fillRect(sxL,wallY,shelfW,wh);
+        g.fillStyle=css(mixc(stoneC,[60,52,44],0.34));
+        for(var mb=0;mb<Math.round(shelfW/(3.6*K));mb++)                                       // battlements
+          g.fillRect(sxL+Math.round(mb*3.6*K),wallY-Math.round(1.6*K),Math.max(1,Math.round(1.8*K)),Math.round(1.6*K));
+        var gx=px2, gw2=Math.round(7*K);                                                       // the gate
+        g.fillStyle=css(mixc(stoneC,[34,28,24],0.52));
+        g.fillRect(gx-(gw2>>1),wallY+Math.round(wh*0.30),gw2,Math.round(wh*0.70));
+        for(var ga=0;ga<Math.round(3*K);ga++){
+          var aw2=Math.max(1,Math.round(gw2*(1-ga/Math.round(3*K))));
+          g.fillRect(gx-(aw2>>1),wallY+Math.round(wh*0.30)-ga,aw2,1);
+        }
+        // the town's own roofs crowding behind the wall
+        for(var rf=0;rf<Math.round(shelfW/(7*K));rf++){
+          var rh4=mixLi(rf+pseed2,0x70FA), rx4=sxL+Math.round(rf*7*K)+Math.round(((rh4%100)/100)*2*K);
+          if(rx4<-10||rx4>SW+10) continue;
+          var rw4=Math.round(5.4*K), rht=Math.round((5+((rh4>>>7)%4))*K);
+          g.fillStyle=css(mixc(day?[206,196,176]:[34,34,42],skc,0.10));
+          g.fillRect(rx4,wallY-rht,rw4,rht);
+          g.fillStyle=css(mixc(day?[168,86,64]:[26,18,20],skc,0.08));                          // red tile
+          for(var rr4=0;rr4<Math.round(2.6*K);rr4++)
+            g.fillRect(rx4-1+rr4,wallY-rht-Math.round(2.6*K)+rr4,Math.max(1,rw4+2-rr4*2),1);
+        }
+        // AND THE TEMPLE, standing clear of the roofs inside the walls
+        drawTempleOfTime(g,px2-Math.round(pw2*0.30),wallY-Math.round(1*K),K,day,skc,now);
         continue;
       }
     // THE RUINED TEMPLE on top — a few broken columns and a fallen lintel, never a whole building.
