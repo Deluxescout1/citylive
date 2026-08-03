@@ -23650,7 +23650,7 @@ function plateauSurfaceAt(wx){
   // ONE source for the height of the land at a world x — the castle hill's dome where it covers, Death
   // Mountain's flank where it does, the lake's surface over the lake, and the rolling field elsewhere.
   // Anything that stands on this land reads it rather than carrying its own guess at the ground.
-  var HY_BLUFF=0.44, HY_DEATH=0.80, HY_LAKE=0.12, K2=Math.max(1,KSP);
+  var HY_BLUFF=0.44, HY_DEATH=HY_DEATH_X, HY_LAKE=HY_LAKE_X, K2=Math.max(1,KSP);
   function dSign(a,b2){ var d=(((a-b2)%WW)+WW*1.5)%WW-WW*0.5; return d; }
   // ⚠⚠ THE PHASE HAS TO MATCH THE BAND THAT IS ACTUALLY DRAWN. The field is two bands and the NEAR one
   // — the ground anything in the field stands on — is drawn with `+bnd*2.1` at bnd=1. This helper had
@@ -23763,7 +23763,9 @@ function drawPlateau(g,L,now,nd){
   // 🔑 A land is its SHAPE before it is its colour. Repainting mesas green would still be mesas.
   // So: rolling field everywhere, ONE bluff carrying the castle/town/temple, and Death Mountain.
   // world fractions, west→east off the N64 map (his locked layout)
-  var HY_BLUFF=0.44, HY_DEATH=0.80, HY_LAKE=0.12, HY_RANCH=0.30, HY_KAKARIKO=0.68;
+  // ⚠ `HY_LAKE`/`HY_DEATH` read the hoisted constants rather than repeating the numbers — two names
+  // for one position is how the lake's surface came to be written out four times in the first place.
+  var HY_BLUFF=0.44, HY_DEATH=HY_DEATH_X, HY_LAKE=HY_LAKE_X, HY_RANCH=0.30, HY_KAKARIKO=0.68;
   var TOPPAD=Math.round(6*K);                              // ⚠ NOTHING may be drawn above this line
   var grass  =mixc(day?[112,166,86]:[18,34,26], skc, 0.10);
   var grassD =mixc(grass,[30,58,34],0.34), grassL=mixc(grass,day?[196,224,142]:[60,84,70],day?0.30:0.12);
@@ -23899,7 +23901,6 @@ function drawPlateau(g,L,now,nd){
       if(bot3<=top3) continue;
       var wc3=mixc(watC,day?[190,220,236]:[40,54,86],0.30*(1-t3));
       // the far bank is further away than the near one even within the lake — haze across the BAND
-      var dep3=(bot3>top3)?0:0;
       g.fillStyle=css(mixc(wc3,hazeC,day?(0.46-0.16*t3):0.22));      // aerial perspective across the water
       g.fillRect(xx3,top3,1,bot3-top3+1);
       if(bot3-top3>2){                                               // the far half sits back a shade more
@@ -24232,7 +24233,16 @@ function drawPlateau(g,L,now,nd){
   for(var hx=0;hx<SW;hx++){
     var hwx=hx+WOFF, hy=hyRoadY(hwx);
     if(hy>=HORIZON-1){ flushRoad(hx); continue; }
-    var overWater=(PC.lake[hx]>=0&&PC.lake[hx]<=hy);
+    // ⚠⚠⚠ THE SAME RULE, WRITTEN TWICE, AND THE SECOND COPY DID NOT MOVE. When the lake gained a near
+    // shore this test still asked "is the water's surface above the road", which is TRUE for every
+    // column of a lake that now sits a hundred pixels higher up the field. So the highway believed it
+    // was over water for the lake's whole x-range: 145 world px of road simply missing in open grass,
+    // travellers walking on air across the gap, and a stone bridge deck where the dirt road should be.
+    // 🔑 It hid at age 0.85 because the city's towers paint over y=312 exactly there — and his machine
+    // runs 1-hour lives, so he passes through the young ages that expose it every cycle.
+    // The road is over water when the road line is INSIDE the band, which is what `hyRoadFirm` has
+    // asked all along. Both shores are already cached; this now asks the same question.
+    var overWater=(PC.lake[hx]>=0&&hy>=PC.lake[hx]&&hy<=PC.lakeB[hx]);
     if(overWater){
       flushRoad(hx);
       // ⚠ A BRIDGE, NOT A STOP. His pick: routes that meet water get a bridge. A road that simply
@@ -24243,7 +24253,7 @@ function drawPlateau(g,L,now,nd){
       g.fillStyle=css(mixc(stoneC,[54,46,40],0.34));
       g.fillRect(hx,hy+Math.max(2,Math.round(2.6*K)),1,1);
       if((((hwx)%Math.max(6,Math.round(11*K)))|0)<Math.max(1,Math.round(2*K)))   // piers into the water
-        g.fillRect(hx,hy,1,Math.min(HORIZON,PC.lake[hx]+Math.round(3*K))-hy);
+        g.fillRect(hx,hy,1,Math.max(1,Math.min(HORIZON,PC.lakeB[hx]+Math.round(3*K))-hy));
       continue;
     }
     var wr=mixLi(Math.floor(hwx/cell),0x20AD);
