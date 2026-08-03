@@ -9960,13 +9960,43 @@ function drawPackIce(g,L,now,nd,sa,sb,zi,wTop,wBot){
   // THE FLOES. Irregular plates with a bright top edge and a shadowed lower one, packed tighter and
   // bigger the further out you look, with dark LEADS of open water between them.
   var rows=Math.max(3,Math.round(wDep/(7*K)));
+  // ⚠⚠ THE PACK NEVER MOVED, AND IT WAS ANCHORED TO THE SCREEN. Both faults are in the one line that
+  // placed a plate: `fx` stepped from `sa` to `sb`, which are SCREEN coordinates, and the hash was
+  // taken on it — so every monitor stepped 0..SW and laid down the identical arrangement of ice, and
+  // nothing in the placement mentioned `now`, so a drifting pack sat perfectly still for the whole
+  // life of the city. Nick, looking at it: "if this is ice in the water we should make some of them
+  // float away."
+  // A plate's identity is its INDEX in a slowly moving frame now, not its pixel position: the frame
+  // translates with the current, the index is hashed for shape and gap, and the screen position is
+  // worked out last (`+WOFF`, so the three monitors are looking at one ocean). Outer rows run a touch
+  // faster than the shore fast-ice, which is the shear that makes a pack read as floating rather than
+  // as a texture — and a broken summer pack is looser, so it moves more.
+  // ⚠⚠ NOTHING THAT MULTIPLIES `now` MAY DEPEND ON THE WEATHER. The rate started out scaled by wind and
+  // melt, which looks harmless and is not: `now` is ~1.8e12, so a wind reading of 8 changing to 9 moves
+  // the accumulated offset by ~6e7 px, and mod the world that is a completely new arrangement of ice.
+  // The live fetch updates `weather` several times a day, so the pack would have blinked into a
+  // different configuration every time it did. The drift rate is a CONSTANT; the weather still decides
+  // how broken the pack is, which is where it belongs.
+  var packDrift=0.55/1000;                                     // world px per ms
   for(var r=0;r<rows;r++){
     var rf=r/rows, ry=wTop+Math.round(rf*wDep);
     var packHere=pack*(0.62+0.38*(1-rf));                      // the shore fast-ice is the last to go
     if(packHere<0.10) continue;
-    var fw=Math.round((10+rf*26)*K), step=Math.round(fw*(1.25-packHere*0.34));
-    for(var fx=sa-Math.round(fw);fx<sb+fw;fx+=step){
-      var hh=(((fx*2654435761)^(r*40503))>>>0);
+    // ⚠ AND THE SPACING HAD TO COME OFF THE WEATHER TOO, for the same reason one step further along:
+    // `pi` runs to tens of millions, so one pixel of change in `step` shifts every plate by tens of
+    // millions of px. Under the old screen-stepped loop the index was ~20 and it merely nudged them.
+    // Nothing is lost — the density gate below already opens the leads as the pack melts.
+    var fw=Math.round((10+rf*26)*K), step=Math.round(fw*1.08);
+    if(step<1) step=1;
+    var dw=now*packDrift*(0.55+rf*0.9), wl=sa+WOFF-dw;         // where the drifting frame starts, on screen
+    var pi0=Math.floor((wl-fw)/step), pi1=Math.ceil((wl+(sb-sa)+fw)/step);
+    for(var pi=pi0;pi<=pi1;pi++){
+      var fx=Math.round(pi*step+dw-WOFF);
+      // ⚠ the index is folded before it is hashed. `now*drift/step` runs to tens of millions, and
+      // mixLi multiplies its argument by 2654435761 — past 2^53 the products stop being exact and the
+      // hash degenerates into a pattern, which is how a scatter turns back into a lattice. Folding
+      // repeats the pack every 65536 plates, i.e. a few hundred hours of drift.
+      var hh=mixLi((((pi%65536)+65536)%65536)*8+r,0x1CEF10E);
       if((hh%100)>packHere*100+8) continue;                    // a gap in the pack is a lead
       var w2=Math.round(fw*(0.55+((hh%100)/100)*0.7)), h2=Math.max(1,Math.round((1.4+rf*2.2)*K));
       var jx=Math.round((((hh>>>9)%100)/100-0.5)*fw*0.5);
@@ -10006,11 +10036,25 @@ function drawPackIce(g,L,now,nd,sa,sb,zi,wTop,wBot){
     }
   }
   // AN ICEBERG or two standing well clear of the pack — the glacier variant gets more of them.
+  // ⚠ THE BERG WAS PLACED OFF `sa`, WHICH IS A SCREEN COORDINATE, so it sat at the same spot on the
+  // frame no matter which monitor was drawing or where the world had got to — and the locked answer
+  // for this land says the bergs DRIFT. Placed in the world now and carried by the same current as
+  // the pack, only faster: a berg is under the water more than in the wind, so it walks through the
+  // floes rather than with them, which is what makes it read as a separate body of ice.
   var nB=curBiome.name==="THE GLACIER"?3:1;
   for(var b=0;b<nB;b++){
-    var bh2=(((sa*7919)+b*104729)>>>0);
-    var bx=sa+Math.round(((bh2%1000)/1000)*span), by=wTop+Math.round((0.20+((bh2>>>9)%100)/100*0.45)*wDep);
+    var bh2=mixLi(b*8+2,0xBE46);
     var bw=Math.round((7+((bh2>>>13)%8))*K), bht=Math.round((6+((bh2>>>17)%9))*K);
+    // a berg is under the water far more than it is in the wind, so it walks THROUGH the floes rather
+    // than with them — its own constant rate per berg, so the glacier's three do not move in lockstep
+    var bDrift=(0.7+((bh2>>>21)%100)/100*0.5)/1000;
+    var bwx=((((bh2%1000)/1000)*WW+now*bDrift)%WW+WW)%WW;      // wrapped in WORLD space, before WOFF
+    var bx=Math.round(bwx-WOFF); if(bx<sa-span) bx+=WW; if(bx>sb+span) bx-=WW;
+    // ⚠ AND IT NEEDS ITS OWN CLIP NOW. `sa+…*span` was structurally inside the span it was handed;
+    // a world position is not, and this routine is also called for the SEAM water, whose span is a
+    // narrow bay — an unclipped berg would draw across the land beside it.
+    if(bx+bw<sa||bx-bw>sb) continue;
+    var by=wTop+Math.round((0.20+((bh2>>>9)%100)/100*0.45)*wDep);
     g.fillStyle=css(iceS);
     for(var bq=0;bq<bht;bq++){                                 // a blocky berg, wider at the waterline
       var bf=bq/bht, bwq=Math.round(bw*(1-bf*0.55)*(0.8+(((bh2>>>(bq&7))%10)/10)*0.4));
@@ -16894,15 +16938,58 @@ function drawSeaFrontBand(g,L,now){
     drawCypress(g,L,now,top,wTop,h,K,day);        // …and the trees standing IN it
   } else if(k==="arctic"){
     // brash ice packed against the wall, and floes drifting in the open lead beyond it
-    g.fillStyle=day?"#dfeaf4":"#2c3a4c";
-    for(var ic=0;ic<SW;ic++){ var wic=ic+WOFF; if(((wic*5)%7)<3) g.fillRect(ic,wTop-Math.round(1*K)+Math.round(((wic*3)%3)*K),1,Math.round(2.2*K)); }
-    for(var fl=0;fl<6;fl++){
-      var fhx=((fl*2654435761)>>>0), fw7=Math.round((14+(fhx%22))*K);
-      var fx7=Math.round(((fhx%1000)/1000)*WW - WOFF + Math.sin(now*0.00002+fl)*8*K);
-      for(var fo2=-1;fo2<=1;fo2++){ var FX2=Math.round(fx7+fo2*WW); if(FX2+fw7<0||FX2>SW) continue;
-        var fy7=top+Math.round((2+(fhx>>>7)%Math.max(1,h-4)));
-        g.fillStyle=day?"#eef5fb":"#33435a"; g.fillRect(FX2,fy7,fw7,Math.round(2.4*K));
-        g.fillStyle=day?"#c3d5e6":"#243244"; g.fillRect(FX2,fy7+Math.round(2.4*K),fw7,Math.max(1,Math.round(K))); }
+    // ⚠ THE BRASH WAS A PICKET FENCE. `((wic*5)%7)<3` is a period-7 stride with a period-3 height,
+    // so the ice against the wall came out as evenly spaced ticks of one size all the way across the
+    // world — the savanna-acacia lattice again, in white, on the one land whose whole subject is
+    // BROKEN ground. Hashed per world column now, and broken all THREE ways (where a piece sits, how
+    // wide it is, how tall), because varying only one of them still reads as ruling.
+    var brashC=day?"#dfeaf4":"#2c3a4c";
+    for(var ic=0;ic<SW;ic++){
+      var wic=ic+WOFF, bh7=mixLi(wic,0x1CE1);
+      if((bh7%100)<42) continue;                                     // gaps of no fixed length
+      var bw7=1+((bh7>>>7)%Math.max(1,Math.round(2.6*K)));           // pieces of different widths…
+      var bt7=Math.max(1,Math.round((0.8+((bh7>>>13)%7)*0.32)*K));   // …and of different heights
+      g.fillStyle=brashC;
+      g.fillRect(ic,wTop-Math.round(1*K)+Math.round(((bh7>>>19)%5)*K*0.4),bw7,bt7);
+      ic+=bw7-1;                                                     // one piece occupies its own width
+    }
+    // ⚠⚠ AND THE FLOES NEVER WENT ANYWHERE. Nick, on the ice in the water: "we should make some of
+    // them float away." They were six rectangles whose x was `sin(now*0.00002+fl)*8*K` — a bob of a
+    // few px about a fixed point, which is moored ice, not pack. Ice in a lead drifts with the
+    // current: it travels, it leaves the frame, and another one comes in behind it.
+    // ⚠ The drift is WRAPPED IN WORLD SPACE, before WOFF is subtracted. The ±WW wrap loop below only
+    // reaches a floe within one world-width of the viewport, so an unbounded `now*spd` would walk
+    // every floe off the map and none of them would ever come back.
+    // ⚠ Position stays a pure function of (now, fl) — his three monitors each run their own copy of
+    // this engine off the same clock, and anything accumulated per frame would drift them apart.
+    for(var fl=0;fl<11;fl++){
+      var fhx=mixLi(fl*8+7,0xF10E);                                  // ⚠ fl*2654435761 made floe 0 a zero
+      var fw7=Math.round((8+(fhx%28))*K);                            // growlers through to proper plates
+      // ⚠ the rate comes off the floe's own hash and NOTHING else. Scaling it by the wind multiplies a
+      // live reading into `now`, and every weather refresh would jump the ice somewhere else entirely.
+      var spd7=(1.2+(((fhx>>>7)%100)/100)*2.8)/1000;                 // world px per ms
+      var wxf7=((((fhx>>>11)%1000)/1000)*WW+now*spd7)%WW; if(wxf7<0) wxf7+=WW;
+      var fy7=top+Math.round(2+((fhx>>>17)%Math.max(1,h-Math.round(4*K))))
+                 +Math.round(Math.sin(now*0.00035+fl)*0.6*K);        // and it rides the swell as it goes
+      var th7=Math.max(1,Math.round(2.4*K));
+      for(var fo2=-1;fo2<=1;fo2++){
+        var FX2=Math.round(wxf7-WOFF)+fo2*WW; if(FX2+fw7<0||FX2>SW) continue;
+        // a floe is not a rectangle: abutting plates at slightly different heights, so the top edge
+        // breaks the way ice does instead of ruling straight for its whole width
+        var nseg=2+((fhx>>>5)%3), segX=FX2;
+        for(var sg7=0;sg7<nseg;sg7++){
+          var sh7=mixLi(fl*8+7,0x51CE+sg7);
+          var sw7=(sg7===nseg-1)?Math.max(1,FX2+fw7-segX):Math.max(1,Math.round(fw7*(0.24+((sh7%36)/100))));
+          if(segX>=FX2+fw7) break;
+          if(segX+sw7>FX2+fw7) sw7=FX2+fw7-segX;
+          var sy7=fy7-Math.round(((sh7>>>9)%2)*K*0.5);
+          g.fillStyle=day?(((sh7>>>13)%3)?"#eef5fb":"#f8fcff"):"#33435a";
+          g.fillRect(segX,sy7,sw7,th7+(fy7-sy7));
+          segX+=sw7;
+        }
+        g.fillStyle=day?"#c3d5e6":"#243244";                         // the wet edge down in the water
+        g.fillRect(FX2,fy7+th7,fw7,Math.max(1,Math.round(K)));
+      }
     }
   } else if(k==="volcano"){
     // ⚠⚠ THE BAR IS GONE. Nick, three separate times: "please remove that bottom bar under the
