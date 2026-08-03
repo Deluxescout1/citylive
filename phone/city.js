@@ -23030,6 +23030,7 @@ function drawHyruleLive(g,L,now,nd,fx){
   // is something to LOSE when the shadow comes. All of it in the live pass, because a cart that moves
   // twice a second is a cart nobody believes.
   drawFieldLife(g,L,now,nd,fx);
+  drawHyruleFolk(g,L,now,K,day);        // rock folk on the mountain, water folk at the lake
   var sumY=Math.max(TOPPAD,HORIZON-dmH);
   var ringY=sumY+Math.round(dmH*0.11), rx0=Math.round(dmW*0.26), ry0=Math.max(2,Math.round(rx0*0.24));
   // ---- THE RING. Cloud when the mountain is quiet; as it wakes the same ring burns through to fire.
@@ -23175,6 +23176,97 @@ function drawHyruleLive(g,L,now,nd,fx){
       g.fillStyle="rgba(255,"+Math.round(120+60*heat)+",50,"+((0.05+0.22*un)*al).toFixed(2)+")";
       g.fillRect(S.x-w,S.y-w,w*2,w*2);
       g.globalCompositeOperation="source-over";
+    }
+  }
+}
+// ---- THE PEOPLES OF THIS LAND: rock folk on the mountain, water folk at the lake.
+// Nick: "we need to add Gorons and Zora, in their respective areas."
+// ⚠ THE HOMAGE RULE STILL HOLDS — no likenesses and no names. What goes on screen is the IDEA of each:
+// boulder-backed folk who live on the volcano and curl up to travel, and pale finned folk who live in
+// the water. At seven pixels a figure that is all you could read anyway; what identifies them is
+// SILHOUETTE and WHERE THEY ARE, which is the same thing that identifies every other creature here.
+// 🔑 They stand on `plateauSurfaceAt` and `hyLakeTop/Bot` — the same accessors the landform draws
+// itself from — rather than on their own guess at where the mountain and the water are. That is the
+// fault this land produced three times over (the temple, the road's traffic, the lake's own surface)
+// and it is not worth a fourth.
+function drawHyruleFolk(g,L,now,K,day){
+  var W=Math.max(1,WW|0);
+  var un=(typeof deathUnrest==="function")?deathUnrest(now):0;
+  var quiet=Math.max(0,1-un*1.4);                          // the shadow drives them under cover too
+  if(quiet<=0.02) return;
+  // ---- ROCK FOLK, on Death Mountain's flanks. Squat, wide, and heavier than anything else here.
+  // ⚠ ON THE MOUNTAIN'S FACE, NOT ON ITS OUTLINE. Seated on `plateauSurfaceAt` they balanced on the
+  // silhouette edge like beads on a wire, and the ones the hash threw past the mountain's foot stood
+  // out in the open grass. They belong ON the rock, seen against it — so the seat is the mountain's
+  // own profile pushed DOWN into the flank, and anything the hash puts off the mountain is skipped
+  // rather than dropped in the field.
+  // 🔑 AND THEY MUST BE DARKER THAN THE ROCK. Brown folk on a brown mountain is the salt-mirror fault
+  // again (drawing the whole time and impossible to see): the body is the dark value and the lit crown
+  // is the bright one, so the silhouette exists whatever the rock behind it is doing.
+  var rockC =day?[62,44,34]:[18,14,14], rockL=day?[186,150,112]:[58,46,38], rockD=day?[34,24,20]:[8,6,8];
+  var nR=Math.round(7*quiet);
+  for(var i=0;i<nR;i++){
+    var h=mixLi(i,0x60A0);
+    var roll=((h>>>17)%100)<34;                            // a third of them are travelling, curled up
+    // world-anchored, and scattered off a HASH rather than a stride — an even spacing across the
+    // mountain would read as a fence of boulders
+    var span=Math.round(HORIZON*0.92);
+    var base=Math.round(HY_DEATH_X*WW)+(((h>>>3)%(span*2))-span);
+    var wx=roll?(((base+now*0.0000042*W*(((h>>>7)&1)?1:-1))%W+W)%W):base;
+    var mtop=hyMountainTop(wx); if(mtop<0) continue;        // …and never off the mountain
+    var sx=Math.round(wx-WOFF); if(sx<-40) sx+=W; if(sx>SW+40) sx-=W;
+    if(sx<-10||sx>=SW+10) continue;
+    var gy=mtop+Math.round((0.14+((h>>>23)%70)/100*0.62)*(HORIZON-mtop));
+    if(gy<=0||gy>=HORIZON) continue;
+    var u=Math.max(1,Math.round(K*1.1));                   // their unit — deliberately fatter than a person
+    if(roll){
+      var spin=Math.floor(now/110+i)&3;                    // the ball turns as it goes
+      g.fillStyle=css(rockC); g.fillRect(sx-u*2,gy-u*4,u*4,u*4);
+      g.fillStyle=css(rockL); g.fillRect(sx-u*2,gy-u*4,u*4,u);                    // lit crown
+      g.fillStyle=css(rockD);
+      g.fillRect(sx-u*2+((spin&1)?u:u*2),gy-u*3,u,u); g.fillRect(sx-u*2+((spin&2)?u*2:u),gy-u*2,u,u);
+      if(day){ g.fillStyle="rgba(190,170,150,0.34)";                              // dust off the roll
+        g.fillRect(sx-u*4,gy-u,u*2,u); g.fillRect(sx-u*5,gy-u*2,u,u); }
+    } else {
+      g.fillStyle=css(rockC); g.fillRect(sx-u*2,gy-u*4,u*4,u*3);                  // the boulder back
+      g.fillStyle=css(rockL); g.fillRect(sx-u*2,gy-u*4,u*4,u);                    // knobbled, lit on top
+      g.fillStyle=css(rockD); g.fillRect(sx-u,gy-u*4,u,u); g.fillRect(sx+u,gy-u*4,u,u);
+      g.fillStyle=css(rockL); g.fillRect(sx-u,gy-u*5,u*2,u);                      // head sunk into shoulders
+      g.fillStyle=css(rockD);
+      g.fillRect(sx-u*2,gy-u,u,u); g.fillRect(sx+u,gy-u,u,u);                     // short thick legs
+    }
+  }
+  // ---- WATER FOLK, at the lake. Pale and slim — the opposite silhouette on purpose, because two
+  // peoples that read the same are one people.
+  var finC=day?[150,214,214]:[36,72,86], finL=day?[214,246,244]:[64,110,126], finD=day?[54,110,124]:[12,30,42];
+  var nZ=Math.round(7*quiet);
+  for(var z=0;z<nZ;z++){
+    var zh=mixLi(z,0x20A4);
+    var swim=((zh>>>19)%100)<58;
+    var zw=Math.round(HY_LAKE_X*WW)+(((zh>>>3)%(hyLakeW()*2))-hyLakeW());
+    if(swim) zw=Math.round(zw+Math.sin(now*0.00022+z*1.7)*hyLakeW()*0.42);
+    var t=hyLakeT(zw); if(t>=0.94) continue;               // never out on dry land
+    var zx=Math.round(zw-WOFF); if(zx<-40) zx+=W; if(zx>SW+40) zx-=W;
+    if(zx<0||zx>=SW) continue;
+    var top=hyLakeTop(t), bot=hyLakeBot(t);
+    var zu=Math.max(1,Math.round(K*0.75));
+    if(swim){
+      // a head and a WAKE. At this distance the wake is the whole read — a dot alone is a speck of dirt.
+      var zy=top+Math.round((bot-top)*(0.30+((zh>>>11)%60)/100*0.55));
+      var dir=((zh>>>5)&1)?1:-1;
+      g.fillStyle=css(finL); g.fillRect(zx,zy,zu,zu);
+      g.fillStyle=css(finC); g.fillRect(zx-dir*zu,zy,zu,zu);                       // shoulders under the surface
+      g.fillStyle="rgba(255,255,255,0.34)";
+      for(var wq=1;wq<=3;wq++) g.fillRect(zx-dir*zu*(wq+1),zy+((wq&1)?0:zu),zu,1);  // the V trailing behind
+    } else {
+      var zy=bot+Math.round(1.2*K);                                                 // standing on the near bank
+      if(zy>=HORIZON) continue;
+      g.fillStyle=css(finD); g.fillRect(zx-1,zy-zu*6,zu*2+2,zu*6);                  // its own edge, first
+      g.fillStyle=css(finC); g.fillRect(zx,zy-zu*4,zu*2,zu*3);                      // body
+      g.fillStyle=css(finL); g.fillRect(zx,zy-zu*4,zu,zu*3);                        // lit edge
+      g.fillStyle=css(finL); g.fillRect(zx,zy-zu*6,zu*2,zu*2);                      // head
+      g.fillStyle=css(finD); g.fillRect(zx-zu*2,zy-zu*6,zu*2,zu);                   // the head-fin, swept back
+      g.fillStyle=css(finD); g.fillRect(zx,zy-zu,zu,zu); g.fillRect(zx+zu,zy-zu,zu,zu);
     }
   }
 }
@@ -23465,11 +23557,10 @@ function plateauSurfaceAt(wx){
     var yd=Math.round(HORIZON-Math.round(HORIZON*0.84)*prof);
     if(yd<best) best=yd;
   }
-  var lW=Math.round(HORIZON*0.72), dl=dSign(wx,HY_LAKE*WW);
-  if(Math.abs(dl)<lW){                                        // over water, the SURFACE is the ground
-    var yl=HORIZON-Math.round(HORIZON*0.30)+Math.round(Math.pow(Math.abs(dl)/lW,2.4)*HORIZON*0.28);
-    if(yl>best) best=yl;
-  }
+  // ⚠ THE LAKE IS NO LONGER PART OF THE GROUND. It used to run down to the horizon, so over its
+  // columns the water surface WAS what you stood on. Now it is a band sitting back in the field with
+  // grass in front of it, and the ground at those columns is that grass — anything wanting the water
+  // itself asks `hyLakeTop`/`hyLakeBot` directly.
   return best;
 }
 // ⚠⚠⚠ ONE ROAD, AND EVERYTHING THAT BELONGS TO IT READS THIS LINE. Nick, at his desktop: "what is it
@@ -23497,13 +23588,50 @@ function hyRoadY(wx){
 // on its deck is not. Today's signpost lattice happens to miss the span, which is luck rather than
 // design and precisely the kind of gate that holds until someone retunes the thing beside it — so the
 // firm-ground test is its own predicate and the furniture asks that one.
-function hyLakeT(wx){
-  var lW=Math.max(1,Math.round(HORIZON*0.72));
-  return Math.abs((((wx-Math.round(0.12*WW))%WW)+WW*1.5)%WW-WW*0.5)/lW;
+// ⚠⚠⚠ LAKE HYLIA'S GEOMETRY, IN ONE PLACE. Nick: "move Lake Hyrule up on the map so it isn't next to
+// the city but kind of far away." Its surface height was written out FOUR TIMES — in
+// `plateauSurfaceAt`, in the landform cache, in the road's firm-ground test, and in the renderer — so
+// "move it" meant finding all four and hoping. That is the same shape of fault as the road's traffic
+// being pinned to the road's previous position, two hundred lines up, and this land has now produced
+// it three times. One accessor; everything asks it.
+// 🔑 FURTHER AWAY IS HIGHER UP THE FRAME. At 0.30 of the sky the near shore sat 108 px above the
+// horizon, which in this projection is the ground immediately behind the buildings — the lake read as
+// a pond at the end of the street. At 0.47 it sits back in the field, and its dish is shallower
+// because a distant water body is FORESHORTENED: the far shore crowds toward the near one.
+// ⚠⚠ AND MOVING THE SURFACE UP IS NOT MOVING THE LAKE BACK. The water was drawn from its surface
+// DOWN TO THE HORIZON, so the lake had no near shore — it ran from its far bank all the way to the
+// viewer's feet, and raising the surface simply made it bigger. First attempt filled two thirds of
+// the field with blue. 🔑 "Far away" means THERE IS GROUND IN FRONT OF IT: the water is a BAND with
+// two shores, sitting in the field with grass between it and the city, not a fill to the bottom of
+// the frame. The near shore bulges further than the far one because that is what foreshortening does
+// to a body of water — you see more of the half nearest you.
+// Death Mountain's silhouette at a world x, or -1 where the mountain isn't — the same profile the
+// landform cache builds, so anything standing on the mountain agrees with the rock that was drawn.
+var HY_DEATH_X=0.80;
+function hyMountainTop(wx){
+  var dW=Math.round(HORIZON*1.10), dH=Math.round(HORIZON*0.84);
+  var d=(((wx-Math.round(HY_DEATH_X*WW))%WW)+WW*1.5)%WW-WW*0.5, t=Math.abs(d)/dW;
+  if(t>=1) return -1;
+  var prof=Math.pow(1-t,1.42)+Math.max(0,0.10-Math.abs(t-0.42))*0.9;
+  return Math.max(Math.round(6*Math.max(1,KSP)),Math.round(HORIZON-dH*prof));
 }
-function hyRoadFirm(wx){                                  // dry ground: the lake's surface sits BELOW the road
+var HY_LAKE_X=0.12;
+function hyLakeY(){ return HORIZON-Math.round(HORIZON*0.47); }      // the far bank at the lake's centre
+function hyLakeW(){ return Math.max(1,Math.round(HORIZON*0.60)); }  // …and smaller with the distance
+// ⚠ AND A DISTANT LAKE IS A THIN LENS, NOT AN OVAL. At 0.15 of the sky the band came out as a fat
+// ellipse lying in the grass — a puddle drawn on a map rather than water seen edge-on from a long way
+// off. Depth on the ground plane FORESHORTENS with distance; width does not.
+function hyLakeH(){ return Math.max(3,Math.round(HORIZON*0.085)); } // how deep the water band runs
+function hyLakeLens(t){ return Math.sqrt(Math.max(0,1-t*t)); }
+function hyLakeTop(t){ return hyLakeY()+Math.round(hyLakeH()*(1-hyLakeLens(t))*0.42); }
+function hyLakeBot(t){ return hyLakeY()+Math.round(hyLakeH()*(0.42+0.58*hyLakeLens(t))); }
+function hyLakeT(wx){
+  return Math.abs((((wx-Math.round(HY_LAKE_X*WW))%WW)+WW*1.5)%WW-WW*0.5)/hyLakeW();
+}
+function hyRoadFirm(wx){                                  // dry ground: the road is not inside the water band
   var t=hyLakeT(wx); if(t>=1) return true;
-  return HORIZON-Math.round(HORIZON*0.30)+Math.round(Math.pow(t,2.4)*HORIZON*0.28)>hyRoadY(wx);
+  var ry=hyRoadY(wx);
+  return !(ry>=hyLakeTop(t)&&ry<=hyLakeBot(t));
 }
 function hyRoadOn(wx){ return hyRoadFirm(wx)||hyLakeT(wx)>=0.34; }   // firm ground, or a bridge over the shallows
 function drawPlateau(g,L,now,nd){
@@ -23579,10 +23707,10 @@ function drawPlateau(g,L,now,nd){
     if(_hcx<-WW*0.5)_hcx+=WW; if(_hcx>WW*0.5)_hcx-=WW;
     var _dW=Math.round(HORIZON*1.10), _dH=Math.round(HORIZON*0.84), _dcx=Math.round(0.80*WW)-WOFF;
     if(_dcx<-WW*0.5)_dcx+=WW; if(_dcx>WW*0.5)_dcx-=WW;
-    var _lW=Math.round(HORIZON*0.72), _lcx=Math.round(0.12*WW)-WOFF;
+    var _lW=hyLakeW(), _lcx=Math.round(HY_LAKE_X*WW)-WOFF;
     if(_lcx<-WW*0.5)_lcx+=WW; if(_lcx>WW*0.5)_lcx-=WW;
-    var _lkY=HORIZON-Math.round(HORIZON*0.30), _CR=0.34;
-    PC.hill=[]; PC.hsg=[]; PC.oc=[]; PC.dm=[]; PC.dsg=[]; PC.lake=[]; PC.lt=[];
+    var _lkY=hyLakeY(), _CR=0.34;
+    PC.hill=[]; PC.hsg=[]; PC.oc=[]; PC.dm=[]; PC.dsg=[]; PC.lake=[]; PC.lakeB=[]; PC.lt=[];
     for(var cj=0;cj<SW;cj++){
       var cwx=cj+WOFF;
       var sgq=(cj-_hcx)/_hW, hyq=-1, ocq=null;
@@ -23607,9 +23735,9 @@ function drawPlateau(g,L,now,nd){
         if(dyq<Math.round(6*K)) dyq=Math.round(6*K);
       }
       PC.dm.push(dyq); PC.dsg.push(sgd);
-      var tl=Math.abs(cj-_lcx)/_lW, lyq=-1;
-      if(tl<1) lyq=_lkY+Math.round(Math.pow(tl,2.4)*HORIZON*0.28);
-      PC.lake.push(lyq); PC.lt.push(tl);
+      var tl=Math.abs(cj-_lcx)/_lW, lyq=-1, lyb=-1;
+      if(tl<1){ lyq=hyLakeTop(tl); lyb=hyLakeBot(tl); }
+      PC.lake.push(lyq); PC.lakeB.push(lyb); PC.lt.push(tl);
     }
     plateauCache=PC;
   }
@@ -23629,36 +23757,55 @@ function drawPlateau(g,L,now,nd){
   }
   // ---- LAKE HYLIA, on the far side of the field from the mountain. Nick's call: large. It is the
   // only still water in Hyrule and it balances Death Mountain at the other end of the world.
-  var lkx=wrapX(HY_LAKE), lkW=Math.round(HORIZON*0.72);
+  var lkx=wrapX(HY_LAKE), lkW=hyLakeW();
   if(lkx>-lkW-40&&lkx<SW+lkW+40){
     // ⚠ 0.075 OF THE SKY IS A PUDDLE. The first cut put the surface 27 px above the horizon, so the
     // lake was a sliver at the very bottom of the terrain band with the city drawn straight over it —
     // invisible on his screen. "Large" has to mean large: it takes a real bite out of the field.
-    var lkY=HORIZON-Math.round(HORIZON*0.30);
+    // ⚠⚠ AND IT HAS TO LOOK FAR, NOT JUST SIT FAR. Moving the surface up the frame alone leaves a
+    // saturated slab of blue where a distant lake should be, and a bright object at depth reads as a
+    // NEAR object drawn small. Distance in this engine is carried by VALUE: everything at the far end
+    // of the field is already mixed toward `farG`, so the water is too — hardest at the far shore,
+    // clearing as it comes toward us — and the glitter and the shoreline thin with it.
+    var lkY=hyLakeY();
     var watC=mixc(day?[86,146,178]:[14,26,44], skc, 0.14);
+    var hazeC=day?mixc(farG,skc,0.45):mixc(skc,[10,14,26],0.35);
+    var sandC=mixc(mixc(day?[206,196,158]:[38,38,40],skc,0.10),hazeC,day?0.34:0.14);
+    var srim=Math.max(1,Math.round(K*0.7));
     for(var xx3=0;xx3<SW;xx3++){
-      var top3=PC.lake[xx3]; if(top3<0||top3>=HORIZON) continue;     // a shallow dish, wide and flat
-      var t3=PC.lt[xx3];
-      g.fillStyle=css(mixc(watC,day?[190,220,236]:[40,54,86],0.30*(1-t3)));
-      g.fillRect(xx3,top3,1,HORIZON-top3+1);
-      // the shore: a pale rim of sand where the water meets the field
-      g.fillStyle=css(mixc(day?[206,196,158]:[38,38,40],skc,0.10));
-      g.fillRect(xx3,top3-Math.max(1,Math.round(K*0.9)),1,Math.max(1,Math.round(K*0.9)));
+      var top3=PC.lake[xx3]; if(top3<0||top3>=HORIZON) continue;
+      var bot3=Math.min(HORIZON,PC.lakeB[xx3]), t3=PC.lt[xx3];
+      // 🪵 a bay or two, so the outline is not the ellipse the maths gives it
+      var bay=Math.round(Math.sin((xx3+WOFF)*0.055)*1.1*K+Math.sin((xx3+WOFF)*0.017+2.1)*1.6*K);
+      top3+=bay; bot3+=Math.round(bay*0.5);
+      if(bot3<=top3) continue;
+      var wc3=mixc(watC,day?[190,220,236]:[40,54,86],0.30*(1-t3));
+      // the far bank is further away than the near one even within the lake — haze across the BAND
+      var dep3=(bot3>top3)?0:0;
+      g.fillStyle=css(mixc(wc3,hazeC,day?(0.46-0.16*t3):0.22));      // aerial perspective across the water
+      g.fillRect(xx3,top3,1,bot3-top3+1);
+      if(bot3-top3>2){                                               // the far half sits back a shade more
+        g.fillStyle=css(mixc(mixc(wc3,hazeC,day?0.60:0.30),[0,0,0],day?0:0.10));
+        g.fillRect(xx3,top3,1,Math.max(1,Math.round((bot3-top3)*0.34)));
+      }
+      g.fillStyle=css(sandC); g.fillRect(xx3,top3-srim,1,srim);      // the far bank
+      g.fillStyle=css(sandC); g.fillRect(xx3,bot3+1,1,srim);         // …and the near one
     }
     // glitter, and the island in the middle of it
-    for(var gl=0;gl<Math.round(lkW*0.5);gl++){
+    for(var gl=0;gl<Math.round(lkW*0.42);gl++){
       var gx2=lkx-lkW+Math.round(((mixLi(gl,0x1A4E)%1000)/1000)*lkW*2);
       if(gx2<0||gx2>=SW) continue;
-      var gy3=lkY+Math.round(((mixLi(gl,0x1A4F)%100)/100)*HORIZON*0.22);
+      var gy3=lkY+Math.round(((mixLi(gl,0x1A4F)%100)/100)*hyLakeH()*0.85);
       var tw2=0.5+0.5*Math.sin(now*0.002+gl);
-      g.fillStyle="rgba(255,255,255,"+(0.10+0.22*tw2).toFixed(2)+")";
-      g.fillRect(gx2,gy3,Math.max(1,Math.round(1.6*K)),1);
+      g.fillStyle="rgba(255,255,255,"+(0.06+0.14*tw2).toFixed(2)+")";
+      g.fillRect(gx2,gy3,Math.max(1,Math.round(1.2*K)),1);
     }
-    var isW=Math.round(lkW*0.15), isH=Math.round(HORIZON*0.085);
+    var isW=Math.round(lkW*0.17), isH=Math.round(HORIZON*0.022), isBase=lkY+Math.round(hyLakeH()*0.42);
     for(var q4=-isW;q4<=isW;q4++){
       var xx4=lkx+q4; if(xx4<0||xx4>=SW) continue;
-      var iy=lkY-Math.round(isH*Math.pow(1-Math.abs(q4)/isW,0.8));
-      g.fillStyle=css(mixc(grass,[40,64,42],0.20)); g.fillRect(xx4,iy,1,lkY-iy+2);
+      var iy=isBase-Math.round(isH*Math.pow(1-Math.abs(q4)/isW,0.8));
+      g.fillStyle=css(mixc(mixc(grass,[40,64,42],0.20),hazeC,day?0.32:0.14));
+      g.fillRect(xx4,iy,1,isBase-iy+2);
     }
   }
   // ---- DEATH MOUNTAIN. Nick: it "should be bigger than the castle" and dominate its screen. It is
