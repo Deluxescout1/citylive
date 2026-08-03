@@ -6351,13 +6351,20 @@ function drawLiberation(g,L,now){
 // thing the takeover exists to end.
 function drawGanonWash(g,L,now){
   var r=(typeof ganonRise==="function")?ganonRise(now):0; if(r<=0.02) return;
-  var amt=0.34*Math.pow(r,1.15)*(1+0.06*Math.sin(now*0.0009));      // a slow breathe, like the regime's
-  var night=1+(L<0.5?0.30:0);                                        // worse after dark, never absent by day
-  amt=Math.min(0.42,amt*night);
+  // ⚠ NICK'S CALL AFTER SEEING THE FIRST CONTACT SHEET: "push it harder than now" — but harder at the
+  // TOP of the arc, with the early stages left where they are. So the curve gets a second term with a
+  // high exponent rather than a bigger multiplier: `r^3.6` is ~0.02 at rise 0.35 and 1 at rise 1, which
+  // moves the peak a long way and the approach to it almost not at all.
+  // 🔑 Raising the whole curve would have made the land look wrong from cy 0.40 onward, which is most
+  // of the life — the point of a slow takeover is that the beginning is deniable.
+  var amt=(0.30*Math.pow(r,1.15)+0.34*Math.pow(r,3.6))*(1+0.06*Math.sin(now*0.0009));
+  var night=1+(L<0.5?0.34:0);                                        // worse after dark, never absent by day
+  amt=Math.min(0.66,amt*night);
+  var deep=Math.pow(r,2.4);                                          // …and it goes REDDER as it deepens
   var gd=g.createLinearGradient(0,0,0,SH);
-  gd.addColorStop(0,    "rgba(46,10,28,"+(amt*0.50).toFixed(3)+")");  // sky: a bruised violet-red
-  gd.addColorStop(0.52, "rgba(40,8,18,"+(amt*0.92).toFixed(3)+")");
-  gd.addColorStop(1,    "rgba(20,4,8,"+(amt*1.10).toFixed(3)+")");    // streets: nearly smothered
+  gd.addColorStop(0,    "rgba("+Math.round(46+42*deep)+",10,"+Math.round(28-14*deep)+","+(amt*0.50).toFixed(3)+")");
+  gd.addColorStop(0.52, "rgba("+Math.round(40+38*deep)+",8,"+Math.round(18-8*deep)+","+(amt*0.92).toFixed(3)+")");
+  gd.addColorStop(1,    "rgba("+Math.round(20+22*deep)+",4,8,"+(amt*1.10).toFixed(3)+")");   // streets: smothered
   g.fillStyle=gd; g.fillRect(0,0,SW,SH);
 }
 // the whole regime world-overlay dispatcher (banners + statue + …), drawn over the near layer
@@ -11677,6 +11684,24 @@ function titanTicker(now){
   if(T.outcome==="withdraws") return "IT HAS TURNED BACK INTO THE TREES - WATCH CONTINUES";
   return "BOULEVARD CLOSED - CORPS DRIVING IT BACK TO THE TREELINE";
 }
+// 🔒 CIVIC LANGUAGE, and it degrades no further than a bureaucracy would let it. Three bands, so the
+// wording tracks the arc without ever admitting what it is.
+function ganonTicker(now){
+  var r=(typeof ganonRise==="function")?ganonRise(now):0;
+  if(!curBiome||!curBiome.shrine||r<0.10||cityPhase==="apoc") return null;
+  var k=Math.floor(now/17000);
+  if(r<0.42) return ["UNEXPLAINED ATMOSPHERIC EVENT OVER THE HEIGHT - NO CAUSE FOR ALARM",
+                     "AIR QUALITY ADVISORY IN EFFECT FOR THE NORTH DISTRICTS",
+                     "UNIVERSITY SAYS THE LIGHT IS A SEASONAL OPTICAL EFFECT"][k%3];
+  if(r<0.76) return ["SHELTER IN PLACE AFTER DARK UNTIL FURTHER NOTICE",
+                     "NATIONAL GUARD ON STANDBY - DO NOT APPROACH THE HEIGHT",
+                     "TRAFFIC ADVISORY - THE OLD ROAD IS CLOSED AT THE FIELD",
+                     "OFFICIALS DECLINE TO CHARACTERISE THE EVENT"][k%4];
+  return ["EVACUATION ADVISORY - NORTH OF THE BOULEVARD, VOLUNTARY",
+          "THE HEIGHT IS UNDER CONTINUOUS ELECTRICAL STORM - STAY INDOORS",
+          "OFFICIALS: WE HAVE NO PRECEDENT FOR THIS AND NO FURTHER GUIDANCE",
+          "ALL NIGHT SERVICES SUSPENDED - CURFEW UNTIL DAWN"][k%4];
+}
 function tickerMsg(now){
   var mn=meteorNews(now); if(mn) return mn;                     // the incoming planet-killer dominates the news for ~2 days out
   if(cityPhase==="apoc") return "EMERGENCY BROADCAST - EVACUATE "+cityName+" NOW";
@@ -11704,6 +11729,13 @@ function tickerMsg(now){
   var ftm=festivalTicker(now); if(ftm && (Math.floor(now/12000))%4!==0) return ftm;  // THE FESTIVAL's expo news while the World's Fair is on (mutually exclusive with war/regime/plague)
   var adm=addictionTicker(now); if(adm && (Math.floor(now/12000))%4!==0) return adm;  // THE ADDICTION CRISIS dominates the news while it rages (mutually exclusive with the others)
   var ttk=titanTicker(now); if(ttk) return ttk;   // the treeline outranks weather but never a real emergency
+  // ---- THE TAKEOVER, IN THE CITY'S OWN WORDS. 🔒 Nick's pick: CIVIC LANGUAGE — they cannot name it.
+  // A city with a monorail and a casino, sitting under an ancient kingdom, meeting a mythic thing and
+  // reaching for the vocabulary of a weather advisory. That gap is the joke and the dread at once, and
+  // it is what makes the two halves of this land read as ONE world rather than two pictures.
+  // ⚠ Ranked below every real emergency above — a CAT-5 outranks a shadow — and it takes three ticker
+  // slots in four, like the regime, so ordinary city news still gets through.
+  var gtk=ganonTicker(now); if(gtk && (Math.floor(now/12000))%4!==0) return gtk;
   var fx=wfx();
   if(fireBurning) return "WILDFIRE ON THE RIDGE - STAY CLEAR OF THE TREELINE";
   if(iceNow) return "THE BAY IS FROZEN - SKATE AT YOUR OWN JOY";
@@ -23094,6 +23126,7 @@ function drawHyruleLive(g,L,now,nd,fx){
   // twice a second is a cart nobody believes.
   drawFieldLife(g,L,now,nd,fx);
   drawHyruleFolk(g,L,now,K,day);        // rock folk on the mountain, water folk at the lake
+  drawGanonWisps(g,L,now,K,day);        // …and what has started drifting between them
   var sumY=Math.max(TOPPAD,HORIZON-dmH);
   var ringY=sumY+Math.round(dmH*0.11), rx0=Math.round(dmW*0.26), ry0=Math.max(2,Math.round(rx0*0.24));
   // ---- THE RING. Cloud when the mountain is quiet; as it wakes the same ring burns through to fire.
@@ -23330,6 +23363,55 @@ function drawHyruleFolk(g,L,now,K,day){
       g.fillStyle=css(finD); g.fillRect(zx-zu*2,zy-zu*6,zu*2,zu);                   // the head-fin, swept back
       g.fillStyle=css(finD); g.fillRect(zx,zy-zu,zu,zu); g.fillRect(zx+zu,zy-zu,zu,zu);
     }
+  }
+}
+// ---- WISPS AND WATCHING LIGHTS — the first thing that ARRIVES, as opposed to the first thing that
+// changes. 🔒 Nick's pick was "both, escalating": wisps as the rise starts, shadow beasts on the
+// emptied road at the top, so the field's decline has two stages you can read apart.
+// 🔑 NOTHING SOLID YET, ON PURPOSE. A haunting before an invasion — and the PAIRS are the whole trick:
+// a drifting single light is an atmosphere, two lights side by side at a constant spacing that stop
+// and hold still are EYES, and the eye reads it as being looked at. Same principle as the cave mouth:
+// a hole is the one thing a silhouette cannot fake.
+// ⚠ Live pass. These drift and blink, and a drift redrawn twice a second is a stutter.
+function drawGanonWisps(g,L,now,K,day){
+  var r=(typeof ganonRise==="function")?ganonRise(now):0; if(r<0.08) return;
+  var W=Math.max(1,WW|0);
+  // strongest at night, but never absent — his answer was that the light goes wrong first, and a wisp
+  // you can only just see by day is exactly that
+  var vis=(L<0.42?1:(L<0.6?0.45:0.22))*Math.min(1,r*1.35);
+  if(vis<0.05) return;
+  var n=Math.round(14*Math.min(1,r*1.2));
+  for(var i=0;i<n;i++){
+    var h=mixLi(i,0x9157);
+    var pair=((h>>>17)%100)<38;                            // a bit over a third are a WATCHING pair
+    // drift: slow, wandering, world-anchored so the three monitors see the same lights
+    var wx=(((h%W)+Math.sin(now*0.00007+i*1.7)*HORIZON*0.55+now*0.0000009*W*(((h>>>5)&1)?1:-1))%W+W)%W;
+    var sx=Math.round(wx-WOFF); if(sx<-40) sx+=W; if(sx>SW+40) sx-=W;
+    if(sx<-6||sx>=SW+6) continue;
+    var base=hyRoadY(wx)-Math.round((6+((h>>>9)%26))*K);
+    var sy=base+Math.round(Math.sin(now*0.00042+i*2.3)*2.6*K);
+    if(!hyOpenField(wx,sy)||sy<=0||sy>=HORIZON) continue;
+    // a watching pair stops moving while it looks at you — the stillness is what makes it register
+    var hold=pair&&(((Math.floor(now/3400)+i)%3)===0);
+    if(hold) sy=base;
+    var puls=hold?1:(0.55+0.45*Math.sin(now*0.0016+i*1.1));
+    var u=Math.max(1,Math.round(K*0.7));
+    // ⚠ THE HALO STARTS AT 1, NOT 0. `fillRect(sx-q, sy-q, q*2, q*2)` at q=0 is a ZERO-SIZE RECT — the
+    // brightest ring of the glow, the one carrying the peak alpha, drew nothing at all. Every ring after
+    // it is dimmer by construction, so the whole halo topped out at alpha 0.009 and the wisps were
+    // invisible against the wash they have to be seen through.
+    // 🔑 A loop whose first iteration is degenerate silently throws away the value you tuned for.
+    var hR=Math.max(2,Math.round(4*K));
+    g.globalCompositeOperation="lighter";
+    for(var q=1;q<=hR;q++){                               // the sick halo
+      g.fillStyle=rgba([120,255,170],0.10*vis*puls*(1-(q-1)/hR));
+      g.fillRect(sx-q,sy-q,q*2,q*2);
+      if(pair) g.fillRect(sx+Math.round(2.2*K)-q,sy-q,q*2,q*2);
+    }
+    g.globalCompositeOperation="source-over";
+    g.fillStyle=rgba([210,255,224],Math.min(1,0.95*vis*puls));
+    g.fillRect(sx,sy,u,u);
+    if(pair) g.fillRect(sx+Math.round(2.2*K),sy,u,u);      // …the second eye, at a fixed spacing
   }
 }
 // ---- THE FIELD, LIVED IN: carts and walkers on the road, horses loose on the grass.
