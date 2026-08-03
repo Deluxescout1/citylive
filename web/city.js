@@ -23845,7 +23845,21 @@ function drawSavannaLife(g,L,now,nd,fx){
         if(gact===1||gact===2){
           var sideW=((msd>>>3)&1)?1:-1;
           off=sideW*(22+((msd>>>15)%36))*Math.max(1,K*0.5);
-          yJit=((((msd>>>21)%100)/100)-0.5)*(HORIZON-gy)*0.26;
+          // ⚠⚠ `yJit` USED TO BE SET HERE, AND IT READ `gy` SEVEN LINES BEFORE `gy` EXISTS.
+          // MEASURED, by printing gy and yJit at this exact site on both builds at 17:00:
+          //     buggy:  gy=undefined yJit=NaN   ← the FIRST one only
+          //             gy=309       yJit=3.38  ← and every one after it
+          // `var` is function-scoped, not block-scoped, so only the first animal through this loop
+          // sees the hoisted `undefined`; the rest silently inherit the PREVIOUS animal's gy. So the
+          // damage is one animal per frame dropped outright (a canvas draw at NaN is a no-op) and
+          // every other one jittered off a depth that belongs to its neighbour.
+          // ⚠ MY FIRST READING OF THIS WAS WRONG AND WOULD HAVE SHIPPED AS A COMMENT: I reasoned from
+          // the hoisting alone that no drinking animal had ever been drawn, and the instrumentation
+          // says one per frame. 🔑 The reasoning was right about the mechanism and wrong about the
+          // blast radius — which is exactly what measuring is for.
+          // 🔑 QML SAID SO ALL ALONG: `plasmashell` logged "Variable gy is used before its
+          // declaration" on every start, on his own desktop. **A runtime warning naming a variable
+          // and a line number is not noise.** It moves below, where gy is known.
         }
         var P=panicAt(wrapW(gwx+off));
         var wx=wrapW(gwx+off+P.d);
@@ -23857,6 +23871,7 @@ function drawSavannaLife(g,L,now,nd,fx){
         // down the band while it stands at 0.92 is an animal drinking from dry ground twenty px in
         // front of the pool — the same class of miss as the giraffe browsing a bare trunk.
         var atWater=(gact===1||gact===2);
+        if(atWater) yJit=((((msd>>>21)%100)/100)-0.5)*(HORIZON-gy)*0.26;   // ring the pool in DEPTH, not on one line
         var y=Math.round(gy+(HORIZON-gy)*(atTree>=0?savTreeF(dep):(atWater?savHoleF():savHerdF(dep)))+yJit);
         // ⚠ ONE IN SEVEN HAS ITS HEAD UP. A real herd always has a sentinel, and it is also what stops
         // a group of five reading as five copies of one pose.
