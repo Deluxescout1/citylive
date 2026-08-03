@@ -12543,10 +12543,48 @@ var VLM_GATES=0.155, VLM_ACADEMY=0.505, VLM_TRAINING=0.815;
 // picked because it is a thing you could NAME rather than more village texture: the leader's tower,
 // the noodle stand, the walled clan compounds and the shrine path up the hill. World fractions
 // chosen to miss every LM_* the restyled civic set already occupies.
-var VLM_TOWER=0.225, VLM_RAMEN=0.66, VLM_SHRINE=0.955, VLM_CLAN=[0.075,0.755];
+// ⚠⚠ THE TOWER WAS STANDING IN FRONT OF THE FACES. Nick: "make sure no building blocks the Stone
+// Faces." MEASURED at his geometry: the carved panel is 53.5*FK wide at FK≈5.2, so it occupies world
+// 0.204–0.326 — and the leader's tower sat at 0.225, dead inside it, with its cone roof across the
+// leftmost elder. It was placed "just left of the rock" back when the rock was a narrow billboard;
+// widening the carving to five separated heads swallowed the tower's plot without anything saying so.
+// 🔑 A CLEARANCE STATED IN A COMMENT IS NOT A CLEARANCE ENFORCED IN CODE — see `vlmClear()` below,
+// which is the enforcement, and is asserted against every one of these fractions at build time.
+var VLM_TOWER=0.400, VLM_RAMEN=0.66, VLM_SHRINE=0.955, VLM_CLAN=[0.075,0.755];
 // THE ROCK sits behind and just left of the tower, which is where the reference puts it. World-
 // anchored like everything else here — see the note in drawBiomeLandmark about the three monuments.
 var VLM_ROCK=0.265;
+// ⚠⚠ AND ITS SIZE HAS TO BE WORLD-ANCHORED TOO. The carving's scale was `max(KSP*1.6, SW/150)` — SW
+// is the SCREEN's width, so at his three monitors (776 · 853 · 640 wp) the same monument was drawn
+// 5.17, 5.69 and 4.27 px per unit: a fifth bigger on the middle screen than on the left one, with the
+// join between them running down a bezel. The placement bug on this rock was fixed months ago and
+// this is the same bug in the other axis — 🔑 A SIZE IS WORLD-ANCHORED ONLY IF WHAT IT IS MEASURED
+// AGAINST IS. `WW/438` reproduces the intended scale at his geometry and cannot differ per screen.
+function vlmFK(){ return Math.max(Math.max(1,KSP)*1.6, WW/438); }
+// THE ONE SOURCE for how wide the face row is. The keep-out and the carving MUST agree — a reserved
+// plaza computed from a second copy of this arithmetic is a plaza that stops agreeing the first time
+// either copy is touched, which is how the tower ended up standing in the middle of the monument.
+function vlmRockSpan(){
+  if(!curVillage||curRainV) return null;
+  var FK=vlmFK(), fw=Math.round(6.5*FK), pitch=fw+Math.round(3.4*FK);
+  var panelW=Math.round(5*pitch+4*FK), cx=Math.round(VLM_ROCK*WW);
+  return [cx-Math.round(panelW*0.5)-Math.round(2*FK), cx+Math.round(panelW*0.5)+Math.round(2*FK)];
+}
+// Nothing the village builds may stand in the face row's span. Asserted here rather than trusted to
+// the fractions above being eyeballed apart, because they were eyeballed apart and one of them wasn't.
+function vlmClear(f){
+  var sp=vlmRockSpan(); if(!sp) return true;
+  var x=Math.round(f*WW);
+  return x<sp[0]-8 || x>sp[1]+8;
+}
+// The leader's tower is the ONE piece of village architecture tall enough to reach the face row, so
+// it is the one that gets pushed rather than trusted. Computed, not written down: if the carving ever
+// grows again, the tower gets out of its way instead of quietly standing in front of it for a month.
+function vlmTowerX(){
+  if(vlmClear(VLM_TOWER)) return VLM_TOWER;
+  var sp=vlmRockSpan();
+  return Math.min(0.97,(sp[1]+Math.round(24*vlmFK()))/WW);
+}
 // THE RAIN VILLAGE's own fractions. The tower sits a third of the way along so it is never on the
 // same screen edge as the lock, and both are clear of the pipe bridge's supports.
 var RLM_TOWER=0.50, RLM_LOCK=0.86;
@@ -12559,6 +12597,13 @@ function computeLmFoot(){ lmFoot.length=0;
   if(curVillage){
     var vg=Math.round(VLM_GATES*WW),   va=Math.round(VLM_ACADEMY*WW), vt=Math.round(VLM_TRAINING*WW);
     lmFoot.push([vg-22,vg+22]);        // the great gates
+    // ⚠ NO BLANKET RESERVATION IN FRONT OF THE FACES, DELIBERATELY. It is the obvious answer to "no
+    // building blocks the Stone Faces" and it is the wrong one here: the span is ~300 of 2269 wp, and
+    // over-reserving is exactly what emptied this land the first time — it would clear a bald strip
+    // through the middle of the village under the one thing you are meant to be looking at, and the
+    // reference has houses packed right up to the cliff. Ordinary houses CANNOT reach the chins; the
+    // clearance is enforced where it belongs, in the carving's own seat (see `maxRoofH+23*FK`), and
+    // the one thing that could reach — a landmark tower — is pushed out of the span by `vlmTowerX`.
     lmFoot.push([va-26,va+26]);        // the academy tower
     lmFoot.push([vt-30,vt+30]);        // the training ground
     // …and a plaza for each restyled civic compound, sized to the compound rather than to the
@@ -17425,6 +17470,17 @@ function drawVillageForest(g,gy,day,now){
     { c:day?[74,110,72]:[20,30,28],  rise:0.55, step:Math.max(3,Math.round(5*K)), h:Math.round(13*K), jit:Math.round(4*K) },
     { c:day?[46,80,54]:[13,21,21],   rise:0.0,  step:Math.max(3,Math.round(6*K)), h:Math.round(17*K), jit:Math.round(5*K) }
   ];
+  // ⚠⚠ A FOREST THAT CLIMBS A SHEER WALL. `rise` is a fraction of the RIDGE, which was right while the
+  // ridge was a green hillside and is catastrophic now that it is an escarpment: at 0.86 the far band
+  // plants trees 86% of the way up a cliff face and buries the wall — and on this land the wall IS the
+  // map. In the reference the forest is a BELT at the cliff's foot, near-black against the tan, which
+  // is also where this land's whole value contrast comes from. So the bands are anchored to the GROUND
+  // here, not to the rock. The rim's own trees are drawn by drawVillageCliff, on top, where they grow.
+  if(curBiome&&curBiome.k==="leaf"){
+    bands[0].rise=0; bands[0].foot=0.150;
+    bands[1].rise=0; bands[1].foot=0.086;
+    bands[2].foot=0;
+  }
   for(var bi=0;bi<bands.length;bi++){
     var B2=bands[bi], col=css(B2.c), hi=css(mixc(B2.c,[210,230,180],day?0.22:0.06));
     for(var x=-B2.step;x<SW+B2.step;x+=B2.step){
@@ -17435,7 +17491,8 @@ function drawVillageForest(g,gy,day,now){
       var hsh=((wx*2654435761)>>>0);
       // the band's baseline: high up the ridge for the far band, at the rooftops for the near one
       var base;
-      if(ridge && x>=0 && x<SW) base=gy-Math.round(ridge[x]*B2.rise);
+      if(B2.foot!=null) base=gy-Math.round(gy*B2.foot);
+      else if(ridge && x>=0 && x<SW) base=gy-Math.round(ridge[x]*B2.rise);
       else base=gy-Math.round((gy*0.16)*B2.rise);
       base+=(hsh%Math.max(1,B2.jit))-((B2.jit/2)|0);
       var th=B2.h+((hsh>>>7)%Math.max(1,Math.round(6*K)));
@@ -18039,7 +18096,7 @@ function drawVillageLandmarks(g,L,now,night,nd){
   // LARGER and with one addition that does all the work: a painted disc on the face carrying the
   // village's mark, big enough to read from the far side of a monitor. It stands apart from the
   // housing so its silhouette is never just another roof in the row.
-  if(cityG>0.14) at(VLM_TOWER,function(X){
+  if(cityG>0.14) at(vlmTowerX(),function(X){
     var th=Math.round(64*K), hw=Math.round(15*K), top=gy-th;
     var plaster=day?"#e6dfc6":"#2c2f3c", plasterL=day?"#f4eeda":"#3a3e4e", plasterS=day?"#c3b99c":"#20222c";
     var tile=day?"#b4543c":"#2a1614", tileD=day?"#8f3f2e":"#1d0f0e", wood=day?"#6e4a30":"#1d1410";
@@ -30156,9 +30213,15 @@ function drawBiomeLandmark(g,L,now,nd){
     // FK = KSP*1.6 and read as a small brown billboard propped on a green hill. It is now scaled off
     // the FRAME, not off the texel size, so it occupies about a third of the screen width whatever the
     // geometry — that is what "dominates one side" means and it cannot drift with resolution.
-    var FK=Math.max(Math.max(1,KSP)*1.6, SW/150);               // the carving's own scale
+    var FK=vlmFK();                                             // the carving's own scale — world-anchored, see vlmFK
     var faces=5, fw=Math.round(6.5*FK), fh=Math.round(9*FK);
-    var panelW=Math.round(faces*(fw+2*FK)+4*FK);                // the REAL width the rock will occupy
+    // ⚠⚠ THE PITCH WAS TIGHTER THAN THE NICHES, so the five recesses touched and the row rendered as
+    // ONE DARK HORIZONTAL BAND with faces in it — a shelf cut across the cliff, or a strip of windows.
+    // MEASURED: pitch `fw+2*FK` against a niche of `fw+1.8*FK` leaves 0.2*FK — a single pixel of rock
+    // between two heads at his geometry. In the reference each head is its own carving with a clear
+    // run of undisturbed wall beside it. Widened, and each head is seated at its own height.
+    var pitch=fw+Math.round(3.4*FK);
+    var panelW=Math.round(faces*pitch+4*FK);                    // the REAL width the rock will occupy
     var lhs=mtsCache.h[1];
     // ⚠⚠ AND IT WAS ANCHORED TO THE SCREEN. The seat was chosen by scanning `lhs` from `SW*0.04` to
     // `SW*0.96` — screen columns — so every monitor ran the search over its own frame and CARVED ITS
@@ -30189,7 +30252,13 @@ function drawBiomeLandmark(g,L,now,nd){
     var maxRoofH=Math.round(55*Math.max(1,KSP));
     // 19*FK is not a taste number: the crown carries the village mark at 3.6*FK and the elders from
     // 8*FK down to 17*FK, so anything less puts the lowest chin back behind a roof.
-    var baseTop=Math.min(Math.round(maxRoofH+19*FK),Math.round(gy*0.88));
+    // ⚠⚠ 19*FK WAS THE MARGIN, AND THE MARGIN IS WHERE THE MONUMENT GETS BLOCKED. Nick: "make sure no
+    // building blocks the Stone Faces." Two things ate into it at once: the elders are now seated at
+    // their own hashed heights (up to a fifth of a face lower), and a roof is not the top of what
+    // stands on a roof — a runner, a flag or an aerial clears the ridge by several px and the lowest
+    // chin sat about two px above the tallest roofline. 23*FK puts a whole storey of daylight between
+    // the roofs and the carving, which is what "not blocked" has to mean on a land whose houses drift.
+    var baseTop=Math.min(Math.round(maxRoofH+23*FK),Math.round(gy*0.88));
     var RY=gy-baseTop;
     // ============ CUT INTO THE HILLSIDE, NOT PROPPED AGAINST IT ============
     // Nick: it read as "a flat brown panel". It was one — a dressed rectangle laid over the green
@@ -30203,7 +30272,12 @@ function drawBiomeLandmark(g,L,now,nd){
     // (near = [62,88,62]) dominated and the cliff read as a dark green wall rather than rock — the
     // carving disappeared into the hillside it was cut from, which is the opposite failure to the
     // brown-panel one. A granite grey with a whisper of the land in it is what reads.
-    var rockBase=mixc(B.near,[168,158,142],0.86);                 // stone, but still this land's stone
+    // ⚠ THE SAME ROCK AS THE WALL, from the wall's own routine. This used to mix the biome's forest
+    // green toward a neutral grey-tan, which was the right idea while the massif stood against green
+    // hills and is wrong now that it is a section OF a sandstone escarpment: two greys that nearly
+    // match read as a panel bolted onto the cliff, and the whole point of carving in relief is that
+    // the heads are the same material as the mountain. One source, both places.
+    var rockBase=villageStoneBase();
     var stoneC=day?rockBase:mixc(rockBase,[16,18,30],0.72);
     var stone=css(stoneC);
     var cut=css(mixc(stoneC,[30,26,24],day?0.42:0.55));           // shadow inside a cut
@@ -30299,7 +30373,11 @@ function drawBiomeLandmark(g,L,now,nd){
       g.fillRect(tbx,gy-Math.round(talH*0.4)-((tbx*5)%Math.max(1,Math.round(2*FK))),Math.max(1,Math.round(FK*0.8)),Math.max(1,Math.round(FK*0.8)));
     }
     for(var fi2=0;fi2<faces;fi2++){
-      var FX=RX+Math.round(fi2*(fw+2*FK)), FY=RY+Math.round(8*FK);
+      var FX=RX+Math.round(fi2*pitch);
+      // ⚠ AND THEY ARE NOT A ROW OF STAMPS. A hashed drop of up to a face-height's fifth per elder —
+      // world-seeded, so all three monitors carve the same five — breaks the ruled line the equal
+      // pitch would otherwise draw across the wall.
+      var FY=RY+Math.round(8*FK)+Math.round(((mixLi(fi2,0xE1DE)%100)/100)*fh*0.20);
       var newest=(fi2===faces-1);
       // RELIEF, NOT APPLIQUE. Every mark below is the SAME stone as the cliff; only the VALUE
       // changes. A recess is darker because less sky reaches it, a brow is lighter because it
@@ -30366,7 +30444,7 @@ function drawBiomeLandmark(g,L,now,nd){
     // and the village's mark, cut into the crown ABOVE the elders — not floating over the skyline,
     // which is where it sat when `RY` was the ridge top rather than the crown
     g.fillStyle=cut;
-    var mx2=RX+Math.round(faces*(fw+2*FK)*0.5), my2=RY+Math.round(3.6*FK);
+    var mx2=RX+Math.round(faces*pitch*0.5), my2=RY+Math.round(3.6*FK);
     for(var lf3=0;lf3<5;lf3++){
       var la2=-2.2+lf3*0.55, lr2=Math.round(2.4*FK);
       for(var lq2=1;lq2<lr2;lq2++)
@@ -34065,7 +34143,313 @@ function coastField(wx, B){
   return Math.max(0,Math.min(1,(f+0.14)/0.72));
 }
 
+// ============ THE HIDDEN VILLAGE'S ESCARPMENT — the wall the faces are cut into ============
+// Nick, with two reference frames from the show: "make the mountains on this map look like it looks
+// in the show." Read against what this land actually rendered, the reference is four things and the
+// land had none of them:
+//   • A CONTINUOUS SANDSTONE WALL right across the horizon. Not a row of green peaks with one grey
+//     monument propped in front of them: the faces are cut INTO the wall, and the wall runs on past
+//     them both ways and off both ends of the frame. (His call: full world, all three monitors.)
+//   • WARM TAN OVER DARK GREEN. The forest belt sits at its FOOT and the value gap between the two is
+//     the entire picture. This land was green rock, over green trees, under a green haze — one value.
+//   • VERTICAL GRAIN. An escarpment is a rank of buttresses with deep slots between them. The shared
+//     range renderer's texture is horizontal crag noise and bedding, which is the wrong grain, and no
+//     amount of `flat`/`steep` on the biome row turns a peak engine into a wall.
+//   • A RIM YOU CAN READ: trees along the top edge, roofs up there for scale, a stair cut up the face.
+// So this is a dispatch off drawMountains exactly like the gorge, the karst and the plateau — on this
+// land the relief is not a mountain range.
+// ⚠⚠ IT STILL FILLS `mtsCache` IN THE STANDARD SHAPE. Seven other systems read `h[1]` as "the ridge":
+// the carved rock seats itself off it, the village forest rises off it, the weather asks how high the
+// land is, the water reflects it. A bespoke renderer that quietly skipped the cache would unbuild all
+// of them at once and every one of those failures would look like a different bug.
+var VLM_RIM=0.470;          // the tableland's rim, as a fraction of the sky — framed, not KSP-scaled
+// ⚠ AND THE STAIR HAS TO CLEAR IT TOO — at 0.205 the switchback climbed straight through the leftmost
+// elder's cheek. Seated off the carving's own span rather than off a number typed next to it.
+var VLM_STAIR=0.205;
+function villageStoneBase(){
+  // ⚠ ONE ROCK FOR THE WALL AND FOR THE CARVING. The elders are cut OUT of this cliff, so the moment
+  // the monument has a colour of its own it is a panel hung on a hill again — which is the exact
+  // fault reported the first time this land was built. Warm apricot sandstone (his pick of the two
+  // references): the wall is lit warm and the forest under it is near-black green, and that gap is
+  // what makes the land read across a room.
+  return [204,166,124];
+}
+function drawVillageCliff(g,L,now,nd){
+  var gy=HORIZON, day=L>0.5, K=Math.max(1,KSP), skc=biomeSkc(day);
+  var W=Math.max(1,WW|0);
+  if(!mtsCache){
+    // ---- THE PROFILE. Built ONCE per life, in WORLD coordinates, then sampled per screen column.
+    // ⚠ Everything below is a function of `wx`, never of `x`. The pack ice, the iceberg and this
+    // land's own carved rock were each anchored to the screen and drew a private copy of themselves
+    // on every monitor; a wall that did that would put a different skyline on each of his three.
+    mtsCache={h:[[],[],[]], sl:[[],[],[]], rib:[[],[],[]], wig:[], mx:[0,0,0], vk:0,
+              blown:false, blowCp:0, vflu:null};
+    var sd=rng((WORLD_SEED+8821)>>>0);
+    // The tableland is not flat: a handful of dominant bluffs stand off it, and two saddles drop
+    // through it far enough for the distant blue range to show in the gap — which is the depth cue
+    // the reference gets from having a real horizon behind the wall.
+    var pk=[], nq=[], q;
+    for(q=0;q<5;q++) pk.push({ x:((q+0.16+sd()*0.68)/5)*W, w:(0.042+sd()*0.048)*W, h:(0.085+sd()*0.080)*gy });
+    for(q=0;q<2;q++) nq.push({ x:sd()*W,                   w:(0.030+sd()*0.030)*W, d:(0.10+sd()*0.07)*gy });
+    var lump=Math.max(1,Math.round(7*K));
+    // ⚠ QUANTISED INTO LEDGES, NOT HASHED PER COLUMN. A per-column hash on a crest is not roughness,
+    // it is fuzz — on this same land it came out as grass growing along the top of a sheer cliff.
+    function rimAt(wx){
+      // ⚠ THE MID FREQUENCY IS THE ONE THAT MATTERS. With only a world-scale swell and a hand of
+      // bluffs, ANY ONE SCREEN sees about 25 px of variation across 776 and the wall reads as a
+      // constant-height rampart — his middle monitor rendered as a row of silos. A screen is a third
+      // of this world; the profile has to move inside a third of the world.
+      var h=gy*VLM_RIM + Math.sin(wx/(W*0.128))*gy*0.030 + Math.sin(wx/(W*0.039)+2.1)*gy*0.013
+            + Math.sin(wx/(W*0.0135)+0.9)*gy*0.042 + Math.sin(wx/(W*0.0062)+4.3)*gy*0.021;
+      for(var a=0;a<pk.length;a++){ var p=pk[a], d=(((wx-p.x)%W)+W*1.5)%W-W*0.5; if(d<0)d=-d;
+        if(d<p.w){ var t=1-d/p.w; t=t*t*(3-2*t); h+=p.h*t; } }
+      for(var b=0;b<nq.length;b++){ var n=nq[b], d2=(((wx-n.x)%W)+W*1.5)%W-W*0.5; if(d2<0)d2=-d2;
+        if(d2<n.w){ var t2=1-d2/n.w; t2=t2*t2*(3-2*t2); h-=n.d*t2; } }
+      h+=((((mixLi(Math.floor(wx/lump),0x51CF)%100)/100)-0.5))*gy*0.019;
+      return h;
+    }
+    // ---- THE BUTTRESSES. The wall is walked ONCE across the world as a row of blocks: each one takes
+    // a level top and its own facing, and the step between two of them is a vertical riser.
+    // 🔑🔑 THIS IS WHAT MAKES IT A CLIFF INSTEAD OF A DUNE. Round one drew the smooth profile straight
+    // and it came out as a sand hill with trees on it — the reference's escarpment is FLAT-TOPPED and
+    // its corners are VERTICAL, and a skyline made of eased sines can never say that no matter what
+    // colour it is painted. Rock breaks along joints; it does not roll.
+    // ⚠ NOT `(i*step)%WW`. A constant stride is an arithmetic progression, not a scatter, and this
+    // project has shipped four of them (acacias, fungus, shrine, station spine). The walk accumulates
+    // a different width every block, so no two bays are alike and nothing beats across the frame.
+    var vf=new Array(W), vd=new Array(W), lv=new Array(W), sdr=rng((WORLD_SEED+3313)>>>0), wxr=0;
+    var rung=Math.max(2,Math.round(gy*0.024));                     // the ladder the tops snap to
+    var blocks=[];
+    while(wxr<W){
+      // ⚠⚠ AND THE WIDTHS HAVE TO BE WILD. Round two drew every bay 14–60 px and the wall came out as
+      // a rank of concrete silos — the "rock as masonry" fault this project has now hit on the
+      // Dolomites, the sea cliffs and here. A cubed roll gives a long tail: mostly narrow buttresses,
+      // occasionally one huge headland, which is what an escarpment actually is.
+      var u=sdr(); var bw=Math.max(5,Math.round((10+u*u*u*230)*Math.max(0.6,K*0.5)));
+      if(W-wxr<bw*1.4) bw=W-wxr;                                   // fold the last block in, so the world seam is not a splinter
+      var lvl=Math.round(rimAt(wxr+bw*0.5)/rung)*rung;
+      var r2=sdr();
+      // a few blocks stand off as TOWERS and a few have dropped away, so the skyline has events in it
+      if(r2<0.13) lvl+=rung*(1+Math.round(sdr()*2));
+      else if(r2>0.90) lvl-=rung*(1+Math.round(sdr()));
+      blocks.push({ x:wxr, w:bw, top:lvl, s:0.14+sdr()*0.86,
+                    slot:Math.max(1,Math.round(K*(0.8+sdr()*1.8))),
+                    // ⚠ A JOINT THAT RUNS TOP TO BOTTOM ON EVERY BAY IS A LATTICE, and ruled bedding
+                    // across it is masonry — the note already written on the carved rock, and the
+                    // same mistake was waiting here. Rock splits in SECTIONS: most clefts die out
+                    // partway down the face.
+                    cleft:0.28+sdr()*sdr()*0.72,
+                    // ⚠ NOT EVERY TOP IS A TABLE. All-flat tops with all-vertical risers is a
+                    // battlement, which is the same wrong answer wearing a different hat. A third of
+                    // them are eroded: the top ramps toward the next block instead of stepping.
+                    erode:(sdr()<0.34), notch:(sdr()<0.22) });
+      wxr+=bw;
+    }
+    for(var bq2=0;bq2<blocks.length;bq2++){
+      var bk=blocks[bq2], nx=blocks[(bq2+1)%blocks.length], pv=blocks[(bq2+blocks.length-1)%blocks.length];
+      for(var c=0;c<bk.w&&bk.x+c<W;c++){
+        var f=c/Math.max(1,bk.w), t2=bk.top;
+        if(bk.erode){                                              // an eroded crown: ramps to its neighbours
+          if(f<0.34) t2=Math.round(bk.top+(pv.top-bk.top)*(0.34-f)/0.34*0.5);
+          else if(f>0.66) t2=Math.round(bk.top+(nx.top-bk.top)*(f-0.66)/0.34*0.5);
+        }
+        if(bk.notch&&f>0.42&&f<0.56) t2-=Math.round(rung*0.8);     // a cleft bitten out of the crown
+        // ⚠ "ROUGHLY FLAT", NOT DEAD FLAT. A crown that is level to the pixel with a riser square to
+        // the pixel is a parapet — round three came out as a retaining wall with trees planted on it.
+        // Two quantised scales of break: coarse blocks of weathering and a finer crumble on top.
+        t2+=Math.round(((((mixLi(Math.floor((bk.x+c)/Math.max(2,Math.round(11*K))),0x0CEE)%100)/100)-0.5)*rung*0.55)
+                      +((((mixLi(Math.floor((bk.x+c)/Math.max(1,Math.round(3*K))),0x0C1B)%100)/100)-0.5)*rung*0.26));
+        lv[bk.x+c]=t2;
+        // ---- THE FINE GRAIN, inside the bay. A block of one value is a painted panel however good
+        // its outline is: what says "sandstone" is a rank of narrow ribs, each catching the light a
+        // little differently, with the odd deeper flute between them. This is the texture the
+        // reference wall is almost entirely made of.
+        var rib=Math.floor((bk.x+c)/Math.max(2,Math.round(4.5*K)));
+        var rh2=mixLi(rib,0x81BB);
+        var ribS=((rh2%100)/100-0.5)*0.46;                          // ±0.23 either side of the bay's own value
+        var flute=(((rh2>>>9)%100)<16)?-0.30:0;                     // an occasional deep flute
+        var fine=0.90+0.10*Math.sin((bk.x+c)/(2.6*Math.max(1,K)));
+        vf[bk.x+c]=Math.max(0.02,Math.min(1,bk.s*fine+ribS+flute));
+        vd[bk.x+c]=(c<bk.slot)?bk.cleft:0;
+      }
+    }
+    mtsCache.vflu=vf; mtsCache.vcl=vd;
+    for(var x=0;x<SW;x++){
+      var wx=x+WOFF;
+      var r=Math.max(2,lv[((wx%W)+W)%W]);
+      mtsCache.h[1][x]=r;
+      mtsCache.h[0][x]=Math.round(r*0.78);                          // the back shelf, for whatever reads the far band
+      mtsCache.h[2][x]=Math.round(gy*0.285 + Math.sin(wx/(W*0.055)+0.7)*gy*0.055
+                                            + Math.sin(wx/(W*0.017)+3.3)*gy*0.024);
+      if(r>mtsCache.mx[1]) mtsCache.mx[1]=r;
+      if(mtsCache.h[0][x]>mtsCache.mx[0]) mtsCache.mx[0]=mtsCache.h[0][x];
+      if(mtsCache.h[2][x]>mtsCache.mx[2]) mtsCache.mx[2]=mtsCache.h[2][x];
+    }
+    mtsCache.plats=[];                                              // nothing is built on a sheer face — the roofs on top are drawn here
+  }
+  var hs=mtsCache.h[1], ds=mtsCache.h[2], vf2=mtsCache.vflu, vc2=mtsCache.vcl;
+  // ---- THE RANGE BEHIND, cool and hazed. It only ever shows through the saddles, and that is the
+  // point: it is what stops the wall from reading as a flat backdrop pinned to the sky.
+  var farC=mixc(day?[126,144,176]:[24,30,50], skc, day?0.44:0.36);
+  g.fillStyle=css(farC);
+  for(var x2=0;x2<SW;x2++){ var dh=ds[x2]; if(dh>0) g.fillRect(x2,gy-dh,1,dh); }
+  // ---- THE WALL
+  var baseC=villageStoneBase();
+  // ⚠ THE SUNSET PUSH IS KEPT SMALL AND PAID FOR WITH A DARKENING, which is the fix the shared range
+  // renderer needed when THE DOLOMITES dissolved into a pink sky: warm rock under a warm sky closes
+  // the value gap from both ends at once.
+  var stoneC=day?mixc(baseC,[255,226,190],(goldenK||0)*0.30):mixc(baseC,[16,20,36],0.70);
+  if(day) stoneC=mixc(stoneC,[0,0,0],(goldenK||0)*0.16);
+  // ⚠ THE VALUE RANGE IS THE MATERIAL. Round four was legible and still read as one flat tan because
+  // lit and shadow were only a third of a step apart — sandstone in open sun has a very wide range,
+  // and it is that range, not the hue, that says "rock" rather than "paper".
+  var litC =mixc(stoneC,day?[255,246,220]:[150,176,220],day?0.44:0.32);
+  var darkC=mixc(stoneC,[40,25,20],day?0.58:0.62);
+  var bedC =mixc(stoneC,[74,52,38],day?0.24:0.34);
+  var sunLeft=(curSunDf<0.5);
+  for(var x3=0;x3<SW;x3++){
+    var h3=hs[x3]; if(h3<=0) continue;
+    var wx3=x3+WOFF, top=gy-h3;
+    var s3=vf2[((wx3%W)+W)%W];
+    // the buttress shade, plus a long slow swell across the whole wall so one limb of it takes the
+    // light and the other falls away — a cliff lit flat is a silhouette, which is the note this land
+    // got at night the first time round
+    var m3=0.5+Math.sin(wx3/(W*0.021)+(sunLeft?0:3.14))*0.24;
+    var t3=Math.max(0,Math.min(1,s3*0.60+m3*0.40));
+    g.fillStyle=css(mixc(darkC,litC,t3));
+    g.fillRect(x3,top,1,h3);
+    // ⚠ AND THE WALL IS LIT FROM ABOVE, NOT ONLY FROM THE SIDE. A column of one value from rim to
+    // scree is a painted flat however well the bays are modelled: the top of an escarpment takes
+    // open sky and the foot sits in its own shadow with the forest closing in. Two bands, not a
+    // per-pixel gradient — same read, a handful of rects.
+    var upH=Math.round(h3*0.30);
+    g.fillStyle=day?"rgba(255,246,220,0.16)":"rgba(150,176,220,0.10)";
+    g.fillRect(x3,top,1,upH);
+    g.fillStyle=day?"rgba(46,30,24,0.16)":"rgba(6,8,16,0.20)";
+    g.fillRect(x3,top+Math.round(h3*0.62),1,h3-Math.round(h3*0.62));
+    // THE BROW. A sandstone rim overhangs, and the shadow it throws on itself is the single strongest
+    // cue that the top edge is an EDGE and not where the paint stops.
+    g.fillStyle=day?"rgba(58,38,28,0.30)":"rgba(6,8,16,0.34)";
+    g.fillRect(x3,top+Math.max(1,Math.round(K*0.9)),1,Math.max(1,Math.round(K*1.6)));
+    // the cleft at this joint, running only as far down the face as this one happens to go
+    var cd=vc2?vc2[((wx3%W)+W)%W]:0;
+    if(cd>0){ g.fillStyle=day?"rgba(52,32,24,0.46)":"rgba(4,6,14,0.50)";
+      g.fillRect(x3,top,1,Math.round(h3*cd)); }
+    // the sunlit rim: the top few px of a wall under an open sky are the brightest thing on it
+    // ⚠ NOT AT NIGHT IT IS NOT. At 0.34 toward a pale blue the moonlit lip came out as a continuous
+    // white line along every crown and the whole escarpment read as SNOW-CAPPED — on a temperate land
+    // whose biome row is `snow:false`. Moonlight models rock; it does not ice it.
+    g.fillStyle=css(mixc(litC,day?[255,252,236]:[180,200,240],day?0.45:0.12));
+    g.fillRect(x3,top,1,Math.max(1,Math.round(K*0.9)));
+    // and the foot, where the light never reaches and the trees crowd in
+    var ftH=Math.min(h3,Math.round(gy*0.055));
+    g.fillStyle=day?"rgba(38,26,22,0.30)":"rgba(6,8,16,0.40)";
+    g.fillRect(x3,gy-ftH,1,ftH);
+  }
+  // ---- BEDDING, secondary and broken. Sandstone is bedded, but on this wall the vertical grain is
+  // the story: these are a handful of runs that stop wherever the rim is lower than the plane, never
+  // a ruled table across the frame.
+  var bedY=gy-Math.round(gy*0.42), bq=0;
+  while(bedY<gy-Math.round(gy*0.07)&&bq<9){
+    var bh9=mixLi(bq*7+3,0xBED7), run=-1, thk=Math.max(1,Math.round(K*(0.5+((bh9>>>5)%100)/100*0.7)));
+    g.fillStyle=css(bedC);
+    for(var xb=0;xb<=SW;xb++){
+      var dipY=bedY+Math.round(Math.sin((xb+WOFF)/(W*0.06)+bq)*gy*0.010);
+      var onB=(xb<SW)&&(gy-hs[xb]<dipY)&&(((mixLi(Math.floor((xb+WOFF)/Math.max(2,Math.round(9*K)))+bq*29,0xB0DD)%100)<62));
+      if(onB){ if(run<0) run=xb; }
+      else if(run>=0){ g.fillRect(run,dipY,xb-run,thk); run=-1; }
+    }
+    bedY+=Math.round(gy*(0.030+((bh9%100)/100)*0.045)); bq++;
+  }
+  // ---- THE STAIR, cut up the face. His pick, and it is the reference's own scale reference: a
+  // switchback is a row of things you know the size of, climbing something you do not.
+  var vsp=vlmRockSpan();
+  var stF=(vsp&&VLM_STAIR*W>vsp[0]-40)?Math.max(0.02,(vsp[0]-Math.round(26*vlmFK()))/W):VLM_STAIR;
+  var stX=Math.round(stF*W)-WOFF;
+  if(stX<-140) stX+=W; if(stX>SW+140) stX-=W;
+  if(stX>-140&&stX<SW+140){
+    var stH=hs[Math.max(0,Math.min(SW-1,stX))]||Math.round(gy*VLM_RIM);
+    var legW=Math.round(11*K), legH=Math.max(2,Math.round(3.2*K)), legs=Math.max(3,Math.round(stH/legH*0.62));
+    for(var lg=0;lg<legs;lg++){
+      var ly=gy-Math.round(gy*0.045)-lg*legH, lx=stX+((lg&1)?0:-legW);
+      if(ly<gy-stH+Math.round(4*K)) break;
+      g.fillStyle=day?"rgba(58,40,30,0.55)":"rgba(8,10,18,0.60)";      // the cut ledge, in shadow
+      g.fillRect(lx,ly,legW,Math.max(1,Math.round(K*1.1)));
+      g.fillStyle=day?"rgba(255,240,210,0.40)":"rgba(150,176,220,0.30)";  // and its lit tread
+      g.fillRect(lx,ly-1,legW,1);
+    }
+  }
+  // ---- THE RIM: trees along the top edge, and roofs up there for scale.
+  // ⚠ World-aligned grid, jittered per slot — so the same tree stands in the same world place on
+  // every monitor and the row is not a comb.
+  var step=Math.max(3,Math.round(5*K)), gx0=Math.floor((WOFF-step*3)/step)*step;
+  // ⚠ AT NIGHT THESE WERE FENCE POSTS. Near-black rectangles standing on a lit rim read as chimneys,
+  // not as trees; what makes a tree at this size is that it is NARROWER AT THE TOP and that its edge
+  // catches a little of whatever light there is.
+  var canC=day?[38,62,40]:[13,21,19], canHi=mixc(canC,day?[150,190,120]:[86,104,128],day?0.24:0.30);
+  for(var gwx=gx0;gwx<WOFF+SW+step*3;gwx+=step){
+    var sxT=gwx-WOFF; if(sxT<-step||sxT>SW+step) continue;
+    var hT=hs[Math.max(0,Math.min(SW-1,sxT))]||0; if(hT<=0) continue;
+    var hz=mixLi(gwx,0x7EE5);
+    // ⚠ EVENLY SCATTERED TREES READ AS A FENCE. Round one put one dark post every other slot along the
+    // whole rim and it came out as palings, not woodland. Trees grow in STANDS: a low-frequency term
+    // decides where there is any wood at all, and the per-slot hash only thins it out inside a stand.
+    var stand=0.5+0.5*Math.sin(gwx/(W*0.026)+2.4)*Math.sin(gwx/(W*0.0071)+1.1);
+    if((hz%100)>=Math.round(14+stand*78)) continue;
+    var jit=(hz>>>7)%Math.max(1,step), tw=Math.max(2,Math.round(K*(1.6+((hz>>>11)%100)/100*1.6)));
+    var th=Math.max(2,Math.round(K*(2.4+((hz>>>17)%100)/100*3.2)));
+    var bx=sxT+jit-(step>>1), by=gy-hT;
+    g.fillStyle=css(canC);
+    for(var ty3=0;ty3<th;ty3++){                                      // tapered, so it is a crown and not a post
+      var tw3=Math.max(1,Math.round(tw*(1-(ty3/th)*0.62)));
+      g.fillRect(bx-(tw3>>1),by-th+ty3,tw3,1);
+    }
+    g.fillRect(bx-(tw>>1),by,tw,Math.max(1,Math.round(K*0.6)));
+    g.fillStyle=css(canHi);
+    g.fillRect(bx-(tw>>1),by-th+Math.round(th*0.15),Math.max(1,Math.round(tw*0.34)),Math.max(1,Math.round(th*0.45)));
+  }
+  // the clifftop settlement: plaster drums under terracotta cones, tiny, standing on the rim
+  var roofs=[0.075,0.318,0.585,0.845];
+  for(var rf=0;rf<roofs.length;rf++){
+    var rx=Math.round(roofs[rf]*W)-WOFF;
+    if(rx<-60) rx+=W; if(rx>SW+60) rx-=W;
+    if(rx<-60||rx>SW+60) continue;
+    var rh=hs[Math.max(0,Math.min(SW-1,rx))]||0; if(rh<=0) continue;
+    var bw=Math.max(3,Math.round(6*K)), bhh=Math.max(3,Math.round(5*K)), ry=gy-rh-bhh;
+    g.fillStyle=day?"#e8dcc4":"#3a3830";
+    g.fillRect(rx-(bw>>1),ry,bw,bhh);
+    g.fillStyle=day?"#b8503c":"#4a2420";                              // the terracotta cone, overhanging
+    for(var cn=0;cn<Math.max(2,Math.round(2.4*K));cn++){
+      var cw=Math.round(bw*1.5*(1-cn/Math.max(2,Math.round(2.4*K))*0.85));
+      g.fillRect(rx-(cw>>1),ry-cn-1,Math.max(1,cw),1);
+    }
+    if(!day){ g.fillStyle="rgba(255,190,110,0.75)"; g.fillRect(rx-Math.max(1,Math.round(K*0.6)),ry+Math.round(bhh*0.35),Math.max(1,Math.round(K*1.2)),Math.max(1,Math.round(K*1.2))); }
+  }
+  // ---- THE SCREE APRON, so the wall MEETS the forest instead of being pasted in behind it.
+  // ⚠⚠ IT HAS TO SIT ABOVE THE TREELINE OR IT DOES NOT EXIST. The first cut piled talus at `gy` — the
+  // ground — which is exactly where drawVillageForest's near band is drawn a few hundred lines later,
+  // so every pixel of it was buried the moment the trees went in. Same burial as the falls under the
+  // plateau towns, and as this land's own river under its bridge deck. Drawn from the top of the
+  // forest belt UPWARD, in fans, so the rock spills down into the canopy.
+  var talC=css(mixc(stoneC,[54,38,30],day?0.30:0.46));
+  var talHi=css(mixc(stoneC,[255,240,210],day?0.20:0.10));
+  // ⚠ MEASURED, not guessed: the far forest band is based at `gy*0.150` and its trees stand 9*K and up,
+  // so the canopy tops out around `gy*0.23`. An apron below that line is an apron nobody will ever see.
+  var apron=Math.round(gy*0.225);
+  for(var tx2=0;tx2<SW;tx2++){
+    var wxt=tx2+WOFF;
+    var fan=0.5+0.5*Math.sin(wxt/(W*0.0135)+1.9)*Math.sin(wxt/(W*0.0037)+0.4);
+    var tH=Math.round(gy*0.018+gy*0.045*fan
+           +((mixLi(Math.floor(wxt/Math.max(1,Math.round(2.5*K))),0x7A15)%100)/100)*K*2.2);
+    if(tH<2) continue;
+    g.fillStyle=talC; g.fillRect(tx2,gy-apron-tH,1,tH+Math.round(apron*0.5));
+    if((mixLi(wxt,0x5C2E)%100)<16){                                  // boulders that have come off the face
+      g.fillStyle=talHi; g.fillRect(tx2,gy-apron-tH+Math.round(((mixLi(wxt,0x5C2F)%100)/100)*tH),Math.max(1,Math.round(K*1.2)),Math.max(1,Math.round(K*1.2)));
+    }
+  }
+}
 function drawMountains(g,L,now,nd){
+  if(curBiome.k==="leaf"){ drawVillageCliff(g,L,now,nd); return; }      // …and here the range is a WALL with faces cut into it
   if(curBiome.k==="forest"){ drawForestBackdrop(g,L,now,nd); return; }   // the forest is the range here
   if(curBiome.k==="core"){ drawCoreWorld(g,L,now,nd); return; }         // …and on the core world the CITY is
   if(curBiome.gorge){ drawGorge(g,L,now,nd); return; }                 // the gorge IS the range here — walls, not peaks
