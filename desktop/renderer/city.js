@@ -6350,37 +6350,30 @@ function drawLiberation(g,L,now){
 // ⚠ It covers the modern city too, on purpose. The two halves of this land ignoring each other is the
 // thing the takeover exists to end.
 function drawGanonWash(g,L,now){
-  var r=(typeof ganonRise==="function")?ganonRise(now):0; if(r<=0.02) return;
-  // ⚠ NICK'S CALL AFTER SEEING THE FIRST CONTACT SHEET: "push it harder than now" — but harder at the
-  // TOP of the arc, with the early stages left where they are. So the curve gets a second term with a
-  // high exponent rather than a bigger multiplier: `r^3.6` is ~0.02 at rise 0.35 and 1 at rise 1, which
-  // moves the peak a long way and the approach to it almost not at all.
-  // 🔑 Raising the whole curve would have made the land look wrong from cy 0.40 onward, which is most
-  // of the life — the point of a slow takeover is that the beginning is deniable.
-  // ⚠ AND THEN BACKED OFF ONE NOTCH, on his call after seeing it on the three monitors: the storm, the
-  // burning moat and the corrupted castle all have to READ AGAINST this, and at 0.66 there was no room
-  // left for them. Only the high-exponent term moved (0.34 → 0.21), so everything below rise ~0.8 is
-  // within a couple of percent of what he already approved.
-  // 🔑 A veil that leaves nothing visible has stopped being dread and become a lens cap.
-  // ⚠⚠⚠ AND THEN CUT IN HALF. Nick, watching it on the three monitors: "maybe we went too far on the
-  // red dark tint." He was right, and the first correction — trimming only the high-exponent term —
-  // was too timid because it treated this as a tuning error when it was a KIND error.
-  // 🔑 THE VEIL WAS DOING TWO JOBS AND ONLY ONE OF THEM IS ITS OWN. Darkening AND reddening the whole
-  // frame at once turns everything the same colour, and once everything is one colour the storm, the
-  // burning moat and the bleeding Triforce have nothing to be brighter THAN. The stage-3 machinery is
-  // what should carry the horror; the wash is only supposed to set the room's light.
-  // So: the peak alpha is roughly halved, the red push is cut to a third, and the night multiplier
-  // comes down — the land now goes GLOOMY and slightly sick rather than being painted red.
-  // ⚠ The early arc barely moves (rise 0.35 goes 0.12 → 0.08), which is the part he approved twice.
-  var amt=(0.19*Math.pow(r,1.15)+0.09*Math.pow(r,3.6))*(1+0.06*Math.sin(now*0.0009));
-  var night=1+(L<0.5?0.22:0);                                        // worse after dark, never absent by day
-  amt=Math.min(0.30,amt*night);
-  var deep=Math.pow(r,2.4);                                          // …and it warms a little as it deepens
-  var gd=g.createLinearGradient(0,0,0,SH);
-  gd.addColorStop(0,    "rgba("+Math.round(40+14*deep)+",14,"+Math.round(34-6*deep)+","+(amt*0.50).toFixed(3)+")");
-  gd.addColorStop(0.52, "rgba("+Math.round(34+13*deep)+",11,"+Math.round(24-4*deep)+","+(amt*0.92).toFixed(3)+")");
-  gd.addColorStop(1,    "rgba("+Math.round(18+8*deep)+",6,12,"+(amt*1.10).toFixed(3)+")");   // streets: dim, not red
-  g.fillStyle=gd; g.fillRect(0,0,SW,SH);
+  // ⚠⚠⚠ THIS USED TO VEIL THE WHOLE FRAME AND IT WAS THE WRONG IDEA TWICE OVER. Nick, after two rounds
+  // of me toning it down: "brighten it back on and just focus on a storm over the castle."
+  // 🔑🔑 A GLOBAL TINT IS NOT AN EVENT, IT IS A FILTER. Darkening every pixel makes the whole land look
+  // like a different render rather than like something is HAPPENING somewhere — and it costs you the
+  // water temple, the ranch, the Deku tree and the daylight they were built for, on every life, for
+  // most of every life. A thing that is everywhere is not a thing you can look at.
+  // So the takeover is now LOCAL: the sky darkens only where the storm actually is, as its bed, and
+  // falls off to nothing well before the edges of the screen. Everything outside that stays the colour
+  // it was built.
+  var r=(typeof ganonRise==="function")?ganonRise(now):0; if(r<=0.10) return;
+  var t=Math.min(1,(r-0.10)/0.90);
+  var cx=Math.round(HY_BLUFF_X*WW)-WOFF; if(cx<-WW*0.5) cx+=WW; if(cx>WW*0.5) cx-=WW;
+  var rw=Math.round(HORIZON*1.35);
+  if(cx<-rw||cx>SW+rw) return;
+  var lo=Math.round(HORIZON*0.62);                            // fades out well above the city
+  for(var x=Math.max(0,cx-rw);x<Math.min(SW,cx+rw);x++){
+    var u=Math.abs(x-cx)/rw, k=Math.pow(Math.max(0,1-u*u),1.4)*t;
+    if(k<0.02) continue;
+    var a=0.30*k;
+    g.fillStyle="rgba(30,16,34,"+a.toFixed(3)+")";
+    g.fillRect(x,0,1,lo);
+    g.fillStyle="rgba(30,16,34,"+(a*0.45).toFixed(3)+")";     // and thins toward the ground
+    g.fillRect(x,lo,1,Math.round(HORIZON*0.22));
+  }
 }
 // the whole regime world-overlay dispatcher (banners + statue + …), drawn over the near layer
 // v1.24 — the oppressive CRIMSON WASH over the whole city, deepening with the stage, lifting at liberation.
@@ -23495,10 +23488,13 @@ function drawGanonHerald(g,L,now,K,day){
 // 🔑 WORLD-ANCHORED RING, SCREEN-CLIPPED BOLTS. The ring hangs at the castle's own world x so all three
 // monitors agree about where the storm is; only which part of it you can see changes.
 function drawGanonStorm(g,L,now,K,day){
-  var r=(typeof ganonRise==="function")?ganonRise(now):0; if(r<0.62) return;
-  var t=Math.min(1,(r-0.62)/0.38);                        // fades in across the top of the arc
+  // ⚠⚠ THIS IS THE WHOLE FEATURE NOW. Nick: "just focus on a storm over the castle." With the global
+  // veil gone, the storm is no longer one symptom among many — it IS the takeover, so it starts far
+  // earlier in the arc and grows the entire way rather than appearing at the end.
+  var r=(typeof ganonRise==="function")?ganonRise(now):0; if(r<0.14) return;
+  var t=Math.min(1,(r-0.14)/0.86);                        // builds across almost the whole arc
   var cx=Math.round(HY_BLUFF_X*WW)-WOFF; if(cx<-WW*0.5) cx+=WW; if(cx>WW*0.5) cx-=WW;
-  var rw=Math.round(HORIZON*0.95), rh=Math.round(HORIZON*0.10);
+  var rw=Math.round(HORIZON*(0.62+0.46*t)), rh=Math.round(HORIZON*(0.05+0.09*t));   // it spreads as it grows
   if(cx<-rw-40||cx>SW+rw+40) return;
   var top=Math.round(HORIZON*0.10), hillTop=Math.round(HORIZON*0.46);
   // ---- THE RING: a black deck of cloud anchored over the height, churning slowly
@@ -23529,15 +23525,20 @@ function drawGanonStorm(g,L,now,K,day){
   }
   flushRing(Math.min(SW,cx+rw+1));
   // ---- THE STRIKES. One every ~1.4 s, forked, landing on the height and never anywhere else.
-  var slot=Math.floor(now/1400), age=(now%1400)/1400;
-  if(age>0.30) return;                                    // each bolt lives ~420 ms
+  var period=Math.round(3600-2300*t);                      // ~3.6 s apart early, ~1.3 s at full
+  var slot=Math.floor(now/period), age=(now%period)/period;
+  if(age>0.34*(1400/period)) return;                      // each bolt lives ~430 ms whatever the rate
   var bh=mixLi(slot,0x5701);
   var bx=cx+Math.round((((bh%1000)/1000)-0.5)*rw*1.10);   // somewhere across the height
-  var fade=1-age/0.30, flick=((Math.floor(now/60)+slot)&1)?1:0.55;
-  var a=Math.min(1,fade*flick*(0.55+0.45*t));
+  var fade=1-age/(0.34*(1400/period)), flick=((Math.floor(now/60)+slot)&1)?1:0.55;
+  var a=Math.min(1,fade*flick*(0.62+0.38*t));
   // the sky flashes with it — the cheapest half of a lightning strike
   g.globalCompositeOperation="lighter";
-  g.fillStyle=rgba([150,110,190],0.12*a); g.fillRect(0,0,SW,Math.round(HORIZON*0.72));
+  // the flash — brightest ON the height and falling away, so it lights the castle rather than the world
+  for(var fq=0;fq<Math.round(HORIZON*0.72);fq+=2){
+    g.fillStyle=rgba([170,130,210],0.16*a*(1-fq/(HORIZON*0.72)));
+    g.fillRect(Math.max(0,bx-rw),fq,Math.min(SW,rw*2),2);
+  }
   var yy=top+rh, seg=Math.max(2,Math.round(3*K)), px=bx;
   while(yy<hillTop){
     var nx=px+Math.round((((mixLi(yy+slot,0x5702)%100)/100)-0.5)*5*K);
@@ -24535,10 +24536,11 @@ function drawPlateau(g,L,now,nd){
   // below — grass, stone, the cap, the roads, the water, the folk — takes `mixc(…, skc, k)`, so
   // shifting it here bleeds the shadow through the WHOLE land in one line instead of thirty. Tinting
   // thirty palettes separately is how a land ends up half-corrupted.
+  // ⚠ THE LAND KEEPS ITS OWN COLOUR. Tinting `skc` bleeds the shadow through every palette here in one
+  // line, which is elegant and was exactly wrong: it repaints the whole land rather than putting
+  // something ON it. `GR` still drives the castle, the town and the storm — the things that are
+  // actually being taken over — and the grass, the lake, the temple and the ranch stay themselves.
   var GR=ganonRise(now);
-  if(GR>0.02){
-    skc=mixc(skc,day?[96,78,74]:[34,20,26],GR*0.42);            // a sick, drained light — not a red one
-  }
   // ⚠⚠⚠ IT WAS MONUMENT VALLEY, NOT HYRULE. Nick, looking at all three screens: "this does not look
   // like Hyrule." He was right and the fault was structural, not cosmetic — this land drew a ROW OF
   // FLAT-TOPPED MESAS because the biome key is `plateau` and the row is `flat:0.95 steep:0.86`, i.e.
@@ -24553,7 +24555,7 @@ function drawPlateau(g,L,now,nd){
   var HY_BLUFF=0.44, HY_DEATH=HY_DEATH_X, HY_LAKE=HY_LAKE_X, HY_RANCH=0.30, HY_KAKARIKO=0.68;
   var TOPPAD=Math.round(6*K);                              // ⚠ NOTHING may be drawn above this line
   var grass  =mixc(day?[112,166,86]:[18,34,26], skc, 0.10);
-  if(GR>0.02) grass=mixc(grass,day?[92,88,62]:[16,18,16],GR*0.42);   // the field goes over to a dead ochre
+  if(GR>0.45) grass=mixc(grass,day?[104,120,74]:[16,20,18],(GR-0.45)*0.34);   // only a touch, and only late
   var grassD =mixc(grass,[30,58,34],0.34), grassL=mixc(grass,day?[196,224,142]:[60,84,70],day?0.30:0.12);
   var farG   =mixc(day?[128,172,116]:[20,30,30], skc, 0.42);
   var stoneC =mixc(day?[122,110,94]:[24,24,30], skc, 0.18);
@@ -43894,9 +43896,12 @@ function draw(g,pass){
       var gHr=nd.getHours()+nd.getMinutes()/60;
       var gNight=(gHr>=20||gHr<6)?1:0.42;                                          // it is worse after dark, never absent
       curDread=Math.max(0,Math.min(1,gr0*gNight));
-      curLit=Math.max(0.12,curLit*(1-0.60*curDread));                              // the city dims
-      wmood.pedFactor*=(1-0.72*curDread);                                          // people stop going out
-      rhythm.carPresence*=(1-0.66*curDread);                                       // and stop driving
+      // ⚠ THE CITY EMPTIES, IT DOES NOT GO DARK. Dimming every window was part of the same mistake as
+      // the wash — it darkened the frame globally to say something local. The sidewalks and the roads
+      // still clear, which reads as fear without turning the picture down.
+      curLit=Math.max(0.55,curLit*(1-0.22*curDread));                              // barely dims
+      wmood.pedFactor*=(1-0.66*curDread);                                          // people stop going out
+      rhythm.carPresence*=(1-0.60*curDread);                                       // and stop driving
     }
   }
   // v1.29 THE PLAGUE — quarantine empties the streets (peaks at the SURGE) & citizens mask up. Strictly gated
