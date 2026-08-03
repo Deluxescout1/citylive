@@ -4127,7 +4127,29 @@ var EGG_BIOMES=[
     fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:1}, big:["horse","elk","boar"], small:["squirrel","frog"], air:["eagle","owl","dove"] },
     flora:{ kinds:["generic","windbent","generic","grass","goldtree"], bloom:["#ffd166","#ff9ec4","#ffffff","#a8e0ff"] },
     // a cel-bright storybook sky: high saturation, high contrast, nothing muddy anywhere in it
-    sky:{ top:[74,150,224], bot:[214,238,236], k:0.44, haze:[220,240,232] } }
+    sky:{ top:[74,150,224], bot:[214,238,236], k:0.44, haze:[220,240,232] } },
+  // ============ THE RAIN VILLAGE ============
+  // ⚠⚠ THE THIRD UNNAMED HOMAGE, under the rules the Hidden Village set: the trademark never appears
+  // in a shipped string, no glyph is copied, and every city system keeps running in costume.
+  // ⚠⚠⚠ AND IT DOES NOT INVENT ITS OWN WEATHER. The obvious build for a village hidden in the rain is
+  // to force rain, and the standing rule on this project is that the wallpaper never invents weather
+  // the world does not have — the same rule that made the dune sea LOWER a threshold rather than raise
+  // a storm. So this land takes the arctic's answer: the pack is the GEOGRAPHY, not the weather. What
+  // says "it always rains here" is the PLACE — canals where streets should be, run-off down every
+  // wall, drips off every ledge, rust streaking the concrete, standing water on the ground, low cloud
+  // caught between the towers. Real rain then falls on top of all of it and the land intensifies.
+  //
+  // WHAT FILLS THE FRAME: the great tower, and the forest of pipe-towers around it. No horizon, no
+  // greenery, no sky worth looking at — the whole frame is wet grey concrete going up.
+  { k:"rainv",  name:"THE RAIN VILLAGE", egg:1, amp:0.30, base:0.24, flat:0.60, steep:0.40, snow:false, water:"river", rainv:1,
+    far:[104,110,120],  near:[74,80,90],    cap:[150,156,166], ground:[86,88,94],
+    // wet poured concrete, weathered steel and rust. Nothing in this palette ever grew.
+    walls:[[128,132,140],[96,100,110],[150,154,162],[78,82,92],[112,116,126],[86,90,100],[138,142,150],[68,72,82]],
+    fauna:{ keep:{deer:0,rabbit:0,fox:0,goat:0}, big:[], small:["frog"], air:["crow"] },
+    flora:{ kinds:["generic","fern","generic"], bloom:["#8fa0b0","#ffffff","#b0c0d0"] },
+    // ⚠ k:0.62 — over 0.5, so SKY_GAIN passes it through untouched. That is the point: this land's
+    // identity IS its sky, a flat drained white-grey with no blue anywhere in it, at every hour.
+    sky:{ top:[152,157,162], bot:[199,201,203], k:0.86, haze:[202,205,208] } }
 ];
 // ONE TRUTH ABOUT WHICH LAND THIS LIFE IS. Extracted from buildWorld because `setup` now has to know
 // the land BEFORE it can place HORIZON: the coastal lands put open water along the bottom of the
@@ -4273,6 +4295,7 @@ var curNeon=false;   // this life's city wears the neon style (always in THE SPR
 // that would otherwise build a metropolis has to ask this first, so it is hoisted to a global rather
 // than re-testing `curBiome.k` in a dozen hot loops.
 var curVillage=false;
+var curRainV=false;      // the second hidden village: concrete, canals and run-off instead of plaster and forest
 // DOES THIS LAND WEAR A MODERN CITY'S BRANDED FURNITURE? Stadiums with real team names, corporate
 // hoardings, rooftop jumbotrons, LED news screens, a voted zoning ceiling. On most lands the answer
 // is yes and that furniture is half of what makes the place feel inhabited. On the mythic lands it is
@@ -4411,7 +4434,12 @@ function makeLayer(seed,y0,baseHMin,baseHMax,layerK){
     // drawApocBuilding, drawRuinBuilding and the ruin/occlusion bookkeeping, so a plot drawn 9 px tall
     // while `b.h` claims 60 would collapse an INVISIBLE SKYSCRAPER over the village every time the nuke
     // or the kaiju came through. One truth: the plot really is small.
-    if(curVillage) bh=Math.max(Math.round(18*KSP), Math.round(bh*0.34));
+    // ⚠ THE RAIN VILLAGE GOES UP, NOT ALONG. Same clamp, opposite sign: its plots are the tallest
+    // things on any land here, because the whole read is a canyon of concrete with no sky in it at
+    // street level. `b.h` stays the TRUTH of what is drawn either way — drawRainTower builds off it,
+    // so the disaster, ruin and occlusion bookkeeping that reads `b.h` still describes a real tower.
+    if(curRainV) bh=Math.max(Math.round(46*KSP), Math.round(bh*1.75));
+    else if(curVillage) bh=Math.max(Math.round(18*KSP), Math.round(bh*0.34));
     // …and small plots stand CLOSE. A village is packed; a city has setbacks and frontage.
     var vGapK=curVillage?0.34:1;
     var base=d.brick ? hex2rgb(["#2a1a14","#31201a","#241712","#2e1c14"][(r()*4)|0]) : hex2rgb(BLDBASE[(r()*BLDBASE.length)|0]);
@@ -4765,7 +4793,12 @@ function buildWorld(li){
   // THE HIDDEN VILLAGE is decided before the neon roll, because it VETOES it. The village's whole
   // identity is that it is not a city, and a 1-in-12 chance of holograms over the tile roofs would
   // throw that away roughly once a year — precisely on the rare life somebody finally gets the egg.
-  curVillage = (curBiome.k==="leaf");
+  // ⚠ BOTH HIDDEN VILLAGES SET THIS. `curVillage` carries ~25 BANS — no cars, buses, trams,
+  // ambulances, scooters, street-name plates — and every one of them is right for the rain village too.
+  // What differs is only the architecture and the civic set, so those two renderers branch on
+  // `curRainV` and nothing else has to know there is a second one.
+  curVillage = (curBiome.k==="leaf"||curBiome.k==="rainv");
+  curRainV   = (curBiome.k==="rainv");
   // ⚠ THE CORE WORLD AND THE FALLS CITY ARE NOT ON THIS LIST, on purpose. Both are genuinely CITIES —
   // a world that is city everywhere, and a metropolis on a plateau — so their billboards and their
   // stadium belong. Only the three lands that are emphatically NOT modern cities opt out.
@@ -7545,6 +7578,108 @@ function drawCreole(g,bx,b,L,now,dayLit){
   g.fillStyle=L>0.5?"#3a2418":"#180f08"; g.fillRect(hx+((hw-3)>>1),HORIZON-5,3,5);                       // tall door
   if(L<0.62){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,190,90,0.75)"; g.fillRect(hx,HORIZON-6,1,1); g.globalCompositeOperation="source-over"; }  // gas lamp
 }
+// ============ THE RAIN VILLAGE: ITS ARCHITECTURE ============
+// The leaf village reads by its BUILDING and so does this one, and the building is the opposite of a
+// plaster drum: a poured-concrete pipe-tower, straight-sided, ringed with lift bands and catwalks,
+// standing shoulder to shoulder with the next one so there is no sky between them at street level.
+//
+// WHAT MAKES IT READ, in the order the three ideas a pixel sprite gets should be spent:
+//   1. the PROPORTION — far taller than it is wide, and flat-topped. No pitch, no eave, nothing that
+//      sheds water gracefully, because the whole place has given up on shedding water.
+//   2. the RUN-OFF — dark vertical streaks down the face under every ledge, and a wet-black base. This
+//      is the single detail that says "it rains here" without a raindrop being drawn.
+//   3. the LIT WINDOWS — small, warm, and in broken runs. The towers are near-black; the windows are
+//      the only warm thing in the frame, and the contrast is what stops it reading as a grey wall.
+function drawRainTower(g,bx,b,L,now,dayLit,night){
+  var K=Math.max(1,KSP), s=b.seed>>>0;
+  var day=L>0.5;
+  // proportions: tall and narrow, with a few squat service blocks among them for rhythm
+  var squat=(s%9)===0;
+  var tw=Math.min(b.w+Math.round(3*K), Math.round((squat?20:12)*K)+((s>>>5)%Math.max(1,Math.round(5*K))));
+  var th=Math.max(Math.round(14*K), squat?Math.round(b.h*0.42):b.h);   // …off the plot's own height, see the clamp
+  var tx=bx+((b.w-tw)>>1), top=HORIZON-th;
+  // CONCRETE. Cool grey, weathered per tower, and always darker toward the base where the water sits.
+  var wear=((s>>>13)%26)/100;
+  var conc=[128-wear*44, 132-wear*44, 140-wear*42];
+  if(cityEra.tint) conc=mixc(conc,cityEra.tint,cityEra.blend*0.30);
+  var lit=mixc(conc,[210,216,224],0.26*dayLit), shade=mixc(conc,[24,26,34],0.42);
+  var body=dayLit>0.12?conc:mixc(conc,[16,18,26],0.62);
+  g.fillStyle=css(dayLit>0.12?lit:mixc(conc,[20,22,32],0.56)); g.fillRect(tx,top,Math.max(1,Math.round(tw*0.22)),th);
+  g.fillStyle=css(body); g.fillRect(tx+Math.round(tw*0.22),top,Math.round(tw*0.62),th);
+  g.fillStyle=css(dayLit>0.12?shade:mixc(conc,[12,14,22],0.70)); g.fillRect(tx+Math.round(tw*0.84),top,Math.round(tw*0.16),th);
+  // THE WET BASE — everything standing in water is black for the first few px, on every tower
+  g.fillStyle=css(mixc(conc,[10,12,18],day?0.62:0.78));
+  g.fillRect(tx,HORIZON-Math.round(3.4*K),tw,Math.round(3.4*K));
+  // LIFT BANDS: a heavier course every few storeys, where the shuttering was moved up. Hashed
+  // spacing, because a band every N px is the ruled-line family in vertical form.
+  var bandC=css(mixc(conc,[70,72,80],day?0.42:0.30));
+  var by=top+Math.round(6*K);
+  for(var bn=0;bn<14&&by<HORIZON-Math.round(4*K);bn++){
+    g.fillStyle=bandC; g.fillRect(tx,by,tw,Math.max(1,Math.round(1.2*K)));
+    if(day){ g.fillStyle=css(mixc(conc,[220,226,232],0.22)); g.fillRect(tx,by-1,tw,1); }
+    by+=Math.round((7+((mixLi(s+bn,0x8A2D)%100)/100)*7)*K);
+  }
+  // RUN-OFF: dark streaks hanging under the ledges. Not one per band and not evenly spaced — water
+  // finds a few paths down a wall and uses them for years, which is why real concrete streaks in
+  // clumps. Anchored to the tower's seed so a tower's stains do not crawl about between frames.
+  for(var rs=0;rs<5;rs++){
+    var rh2=mixLi(s+rs*7,0x2A17);
+    if((rh2%100)<34) continue;
+    var rx2=tx+Math.round(((rh2>>>7)%100)/100*(tw-Math.round(1.6*K)));
+    var ry2=top+Math.round(((rh2>>>13)%100)/100*th*0.7);
+    var rl=Math.round((6+((rh2>>>19)%100)/100*22)*K);
+    g.globalAlpha=day?0.26:0.18;
+    g.fillStyle=css(mixc(conc,[26,28,34],0.80));
+    g.fillRect(rx2,ry2,Math.max(1,Math.round(1.4*K)),Math.min(rl,HORIZON-ry2));
+    g.globalAlpha=1;
+  }
+  // WINDOWS, in broken runs — the only warm thing on the land after dark
+  var wOn=(L<0.66);
+  var cols=Math.max(1,Math.floor(tw/Math.round(5*K)));
+  for(var wy=top+Math.round(5*K);wy<HORIZON-Math.round(6*K);wy+=Math.round(8*K)){
+    for(var wc=0;wc<cols;wc++){
+      var wh2=mixLi(s+((wy*31+wc)|0),0x11DE);
+      if((wh2%100)<38) continue;                                  // gaps: not every bay is a room
+      var on=wOn&&((wh2>>>9)%100)<62;
+      g.fillStyle=on?"rgba(255,198,120,0.95)":(day?"#5c6672":"#12151c");
+      g.fillRect(tx+Math.round(1.4*K)+wc*Math.round(5*K),wy,Math.round(2.6*K),Math.round(2.8*K));
+    }
+  }
+  // PIPEWORK down the outside — this village plumbs its water on the OUTSIDE of the building, which is
+  // half of why the reference reads as industrial rather than as a modern city
+  if(((s>>>17)&1)===0){
+    var px2=tx+(((s>>>19)&1)?Math.round(1.2*K):tw-Math.round(2.6*K));
+    g.fillStyle=css(mixc(conc,[54,50,44],day?0.52:0.36));
+    g.fillRect(px2,top+Math.round(4*K),Math.max(1,Math.round(1.6*K)),th-Math.round(6*K));
+    for(var cl2=0;cl2<4;cl2++)                                    // its collars
+      g.fillRect(px2-Math.max(1,Math.round(K*0.5)),top+Math.round((8+cl2*11)*K),Math.round(2.6*K),Math.max(1,Math.round(K*0.8)));
+  }
+  // THE TOP: flat, with a parapet, an aerial mast and — on the taller ones — a red obstruction light,
+  // which is the scale reference that says how big all of this is.
+  g.fillStyle=css(mixc(conc,[60,62,70],day?0.34:0.24));
+  g.fillRect(tx-Math.max(1,Math.round(K*0.8)),top-Math.round(1.6*K),tw+Math.round(1.6*K),Math.round(1.6*K));
+  if(!squat){
+    var mh=Math.round((5+((s>>>23)%7))*K);
+    g.fillStyle=css(mixc(conc,[40,42,50],0.6));
+    g.fillRect(tx+Math.round(tw*0.5),top-Math.round(1.6*K)-mh,Math.max(1,Math.round(K*0.8)),mh);
+    if(th>Math.round(60*K)){
+      var blink=((now%2400)<1500)?1:0.35;
+      g.fillStyle="rgba(255,70,60,"+(0.55+0.45*blink).toFixed(2)+")";
+      g.fillRect(tx+Math.round(tw*0.5)-Math.max(1,Math.round(K*0.4)),top-Math.round(1.6*K)-mh-Math.round(1.4*K),Math.max(2,Math.round(1.6*K)),Math.max(2,Math.round(1.6*K)));
+    }
+  }
+  // PUBLISH THE ROOFLINE, exactly as the plaster drums do — the roof runners work this village too,
+  // and a flat concrete top is a better place to land than a tiled cone.
+  b._roofY=top-Math.round(1.6*K); b._roofX=tx+(tw>>1);
+  // …and a catwalk bridging toward the next tower, which is how anyone gets about up there
+  if(((s>>>21)%3)===0){
+    var cwy=top+Math.round(((s>>>11)%100)/100*th*0.5)+Math.round(8*K);
+    g.fillStyle=css(mixc(conc,[48,50,58],0.5));
+    g.fillRect(tx+tw,cwy,Math.round(9*K),Math.max(1,Math.round(1.2*K)));
+    g.fillStyle=css(mixc(conc,[70,74,82],0.4));
+    g.fillRect(tx+tw,cwy-Math.round(2.4*K),Math.round(9*K),Math.max(1,Math.round(K*0.6)));
+  }
+}
 // ============ THE HIDDEN VILLAGE: ITS ARCHITECTURE ============
 // Nick, on why the leaf land did not read as the village even with the carved faces and the roof
 // runners in place: it had "ordinary CityLive city blocks". Right diagnosis — the single most
@@ -7673,6 +7808,7 @@ function drawHouse(g,bx,b,L,now,dayLit,night){
   // THE HIDDEN VILLAGE replaces the vernacular outright — see drawVillageHouse. It comes first
   // because on this land the "starter house" is not a stage the plot grows out of, it IS the
   // architecture: `bAge` is pinned above 1 in makeLayer so no plot here ever redevelops into a tower.
+  if(curRainV){ drawRainTower(g,bx,b,L,now,dayLit,night); return; }
   if(curVillage){ drawVillageHouse(g,bx,b,L,now,dayLit,night); return; }
   var era=cityEra.name, style="colonial";                                              // pick an architectural style for this house
   if(era==="boston") style="brownstone"; else if(era==="london"||era==="paris"||era==="china"||era==="tokyo") style="terrace";   // themed lives → whole-city look
@@ -11124,6 +11260,10 @@ function drawShootingStar(g,L,now){
 // a second subsystem the same week. The answer both times is ONE named predicate every caller shares,
 // so the next sky-owning feature has something to fail against instead of something to remember.
 function noOpenSky(){ return !!(curBiome && (curBiome.roof || curBiome.orbit)); }
+// ⚠ A SECOND, DIFFERENT EXCLUSION, and the distinction matters as much as the roof/stars one did.
+// `noOpenSky()` asks whether there IS a sky. This asks whether anything with an ENGINE belongs in it.
+// The hidden villages have an open sky full of weather and birds and nothing built after 1900 in it.
+function noMachineSky(){ return !!curVillage; }
 // ⚠⚠ AND A SECOND, NARROWER ONE — because a cavern and a vacuum agree about WEATHER and AIRCRAFT and
 // disagree completely about STARS. `noOpenSky()` is right for birds, blimps, jets, balloons, rain and
 // the overcast: none of those belong in either place. It is WRONG for the celestial stack, because
@@ -12366,6 +12506,17 @@ var lmFoot=[];                                                 // cleared plaza 
 // housing here, which is the entire reason the village looked empty: those plazas cover most of a
 // 2269 wp world, and once the metropolis landmarks were banned they were simply holes.
 var VLM_GATES=0.155, VLM_ACADEMY=0.505, VLM_TRAINING=0.815;
+// Nick: "add more buildings that would make someone think this is naruto". Four more places, each
+// picked because it is a thing you could NAME rather than more village texture: the leader's tower,
+// the noodle stand, the walled clan compounds and the shrine path up the hill. World fractions
+// chosen to miss every LM_* the restyled civic set already occupies.
+var VLM_TOWER=0.225, VLM_RAMEN=0.66, VLM_SHRINE=0.955, VLM_CLAN=[0.075,0.755];
+// THE ROCK sits behind and just left of the tower, which is where the reference puts it. World-
+// anchored like everything else here — see the note in drawBiomeLandmark about the three monuments.
+var VLM_ROCK=0.265;
+// THE RAIN VILLAGE's own fractions. The tower sits a third of the way along so it is never on the
+// same screen edge as the lock, and both are clear of the pipe bridge's supports.
+var RLM_TOWER=0.50, RLM_LOCK=0.86;
 function computeLmFoot(){ lmFoot.length=0;
   // 🚨 THE VILLAGE CLEARS ALMOST NOTHING. A plot census said 54 plots should draw and a draw-call
   // recorder said only 7 did; the difference was `overLandmark`, true for nearly every plot on screen.
@@ -12533,6 +12684,14 @@ function corpState(now){
 }
 // Business-news headlines from the corporate landscape — rise/IPO/record/merger/bankruptcy, naming the firms
 function corpNews(now){
+  // ⚠ NOT ON THE HIDDEN VILLAGES. `curNoBrands` takes the billboards, the jumbotrons and the hoardings
+  // off these lands, and then the ticker went right on reading the same corporate roster out loud —
+  // "VACTRAIN TRANSIT NAMED CITYS LARGEST EMPLOYER" over a village with no companies in it. Found by
+  // trapping the text renderer and printing the call stack, which is the technique that should have
+  // been reached for the first time a sign turned up somewhere it did not belong.
+  // The ticker itself stays: Nick's rule for these lands is that every system keeps running and the
+  // ticker "speaks in-world". It has plenty else to say — weather, elections, the chronicle, the dead.
+  if(curNoBrands) return [];
   var C=curCorps||corpState(now); if(!C) return [];
   var out=[];
   for(var i=0;i<C.cos.length;i++){ var e=C.cos[i], nm=e.co.n;
@@ -17281,6 +17440,13 @@ function walkMat(L,earthen){
           seam:day?[255,255,255]:[150,165,195], seamA:day?0.13:0.10, bay:8,
           grit:[0,0,0], gritA:day?0.07:0.11, kerbOn:1, plant:1 };
   switch(k){
+    // THE RAIN VILLAGE: wet poured concrete. Darker than any other pavement here and with almost no
+    // value range across it, because a surface with a film of water on it stops showing its own
+    // texture — the joints go DARKER, not brighter, since that is where the water sits.
+    case "rainv":   M.top=day?[92,96,104]:[26,30,40]; M.low=day?[76,80,88]:[20,24,32];
+                    M.kerb=day?[60,64,72]:[16,20,28]; M.lip=day?[150,158,170]:[60,70,90];
+                    M.seam=day?[34,38,46]:[10,12,18]; M.seamA=day?0.30:0.24; M.bay=7;
+                    M.gritA=day?0.03:0.05; M.plant=0; break;
     // pale flagstone, and the salt gets into every joint — the joints are BRIGHTER than the slab here,
     // which is the one place on the map that is true
     case "salt":    M.top=day?[204,202,194]:[70,74,86]; M.low=day?[186,184,176]:[58,62,74];
@@ -17633,6 +17799,134 @@ function drawVillageCompound(g,X,spec,L,now){
     g.fillRect(X-Math.round(2.4*K),cy3-Math.round(7*K),Math.round(4.8*K),Math.round(4.4*K));
   }
 }
+// ============ THE RAIN VILLAGE'S CIVIC SET ============
+// ONE BIG OBJECT, which is the first of the three rules every land that reads on this project obeys.
+// The great tower is not the tallest building here by a margin — it is a different ORDER of thing: a
+// single ringed concrete pillar wide enough to hold a street inside it, going up past the top of the
+// frame, with the pipe-towers crowding round its foot. If the eye has nowhere to land, the land does
+// not read, and on a map with no horizon and no sky the tower has to be that place.
+function drawRainVillageLandmarks(g,L,now,night,nd){
+  var day=L>0.5, K=Math.max(1,KSP), gy=HORIZON;
+  function at(frac,fn){
+    var wx=Math.round(frac*WW);
+    for(var o=-1;o<=1;o++){ var X=Math.round(wx-WOFF+o*WW); if(X>-260&&X<SW+260) fn(X); }
+  }
+  var conc=day?[122,126,134]:[30,33,42];
+  var concL=day?[158,162,170]:[44,48,60], concD=day?[78,82,92]:[16,18,26];
+  var rust=day?[122,78,52]:[38,24,18];
+
+  // ---- THE GREAT TOWER ----
+  if(cityG>0.06) at(RLM_TOWER,function(X){
+    var hw=Math.round(26*K);                                  // half-width — a building you could not walk round
+    var th=Math.round(gy*0.96);                               // …that runs almost the full height of the frame
+    var top=gy-th;
+    // the shaft, shaded across its width so a 52*K-wide slab still reads as a CYLINDER
+    g.fillStyle=css(concL); g.fillRect(X-hw,top,Math.round(hw*0.42),th);
+    g.fillStyle=css(conc);  g.fillRect(X-Math.round(hw*0.58),top,Math.round(hw*1.30),th);
+    g.fillStyle=css(concD); g.fillRect(X+Math.round(hw*0.72),top,Math.round(hw*0.28),th);
+    // THE RINGS: heavy collars every few storeys, each with a walkway and a rail on it. They are what
+    // give the shaft its scale — without them it is a grey rectangle of no particular size.
+    var ry=top+Math.round(9*K), rn=0;
+    while(ry<gy-Math.round(6*K)&&rn<20){
+      var rh3=mixLi(rn,0x5A17);
+      var ov=Math.round((3.4+((rh3%100)/100)*1.6)*K);
+      g.fillStyle=css(concD); g.fillRect(X-hw-ov,ry,(hw+ov)*2,Math.round(2.2*K));
+      g.fillStyle=css(concL); g.fillRect(X-hw-ov,ry,(hw+ov)*2,Math.max(1,Math.round(K*0.7)));
+      // the rail, and a figure on the walkway now and then — the scale reference that sells the size
+      g.fillStyle=css(concD);
+      for(var rp2=-hw-ov;rp2<hw+ov;rp2+=Math.round(5*K))
+        g.fillRect(X+rp2,ry-Math.round(2.6*K),Math.max(1,Math.round(K*0.6)),Math.round(2.6*K));
+      if(((rh3>>>11)%100)<42&&cityG>0.3)
+        drawPerson(g,X+Math.round(((((rh3>>>17)%100)/100)-0.5)*hw*1.6),ry,day?"#3a4250":"#1a1e26",SKINC[rn%SKINC.length],-1);
+      ry+=Math.round((14+((rh3>>>7)%100)/100*9)*K); rn++;
+    }
+    // WINDOW SLOTS — tall narrow slits, in broken vertical runs. Warm light in a grey land.
+    var wOn=(L<0.68);
+    for(var wc2=-3;wc2<=3;wc2++){
+      for(var wy2=top+Math.round(14*K);wy2<gy-Math.round(10*K);wy2+=Math.round(11*K)){
+        var wh3=mixLi(((wy2*17+wc2)|0),0x9C1D);
+        if((wh3%100)<44) continue;
+        var on2=wOn&&((wh3>>>9)%100)<58;
+        g.fillStyle=on2?"rgba(255,196,116,0.92)":(day?"#5a646f":"#101318");
+        g.fillRect(X+wc2*Math.round(7*K)-Math.round(1.2*K),wy2,Math.round(2.4*K),Math.round(4.6*K));
+      }
+    }
+    // RUN-OFF down the shaft: long streaks under the rings, and rust where the steel bleeds through
+    for(var st2=0;st2<9;st2++){
+      var sh3=mixLi(st2*8+1,0x2E11);
+      var sx3=X-hw+Math.round(((sh3%100)/100)*hw*2);
+      var sy3=top+Math.round(((sh3>>>7)%100)/100*th*0.8);
+      g.globalAlpha=day?0.22:0.14;
+      g.fillStyle=css(((sh3>>>13)%5===0)?rust:concD);
+      g.fillRect(sx3,sy3,Math.max(1,Math.round(1.6*K)),Math.round(((sh3>>>19)%100)/100*26*K));
+      g.globalAlpha=1;
+    }
+    // THE CROWN: the shaft steps out, not in — a heavy overhanging head, with the mast above it and a
+    // beacon on that. Stepping out is the whole silhouette: it says built by people who never expected
+    // to see the sun and wanted the rain thrown clear of the walls.
+    var chw=Math.round(hw*1.34), ch=Math.round(13*K);
+    g.fillStyle=css(conc);  g.fillRect(X-chw,top-ch,chw*2,ch);
+    g.fillStyle=css(concL); g.fillRect(X-chw,top-ch,chw*2,Math.max(1,Math.round(1.4*K)));
+    g.fillStyle=css(concD); g.fillRect(X-chw,top-Math.round(2.4*K),chw*2,Math.round(2.4*K));
+    for(var cf=0;cf<5;cf++)                                     // fins round the head
+      g.fillRect(X-chw+Math.round(cf*chw*0.5),top-ch,Math.max(1,Math.round(1.2*K)),ch);
+    var mh2=Math.round(16*K);
+    g.fillStyle=css(concD); g.fillRect(X-Math.max(1,Math.round(K)),top-ch-mh2,Math.max(2,Math.round(2*K)),mh2);
+    var bl2=((now%2600)<1600)?1:0.3;
+    g.fillStyle="rgba(255,74,60,"+(0.5+0.5*bl2).toFixed(2)+")";
+    g.fillRect(X-Math.round(1.4*K),top-ch-mh2-Math.round(2.6*K),Math.round(2.8*K),Math.round(2.6*K));
+  });
+
+  // ---- THE CANAL LOCK: where the water in the streets is admitted, and let out again ----
+  // A village that is permanently wet needs somewhere for the water to GO, and a lock says that
+  // better than any amount of puddling: two chambers, a gate between them, and a level difference.
+  if(cityG>0.22) at(RLM_LOCK,function(X){
+    var lw=Math.round(30*K), lh=Math.round(9*K);
+    g.fillStyle=css(concD); g.fillRect(X-lw,gy-lh,lw*2,lh);                    // the chamber walls
+    g.fillStyle=css(day?[54,66,74]:[12,16,22]);                                // the water in it
+    g.fillRect(X-lw+Math.round(2*K),gy-lh+Math.round(2.4*K),lw*2-Math.round(4*K),lh-Math.round(2.4*K));
+    g.fillStyle=css(day?[74,90,98]:[18,24,32]);                                // …and a lighter surface line
+    g.fillRect(X-lw+Math.round(2*K),gy-lh+Math.round(2.4*K),lw*2-Math.round(4*K),Math.max(1,Math.round(K*0.8)));
+    g.fillStyle=css(rust);                                                     // the gate, and its gear
+    g.fillRect(X-Math.round(1.6*K),gy-lh-Math.round(6*K),Math.round(3.2*K),Math.round(6*K)+lh);
+    g.fillRect(X-Math.round(5*K),gy-lh-Math.round(6*K),Math.round(10*K),Math.max(1,Math.round(1.4*K)));
+    g.fillStyle=css(concL);
+    g.fillRect(X-lw,gy-lh-Math.round(1.4*K),lw*2,Math.max(1,Math.round(1.4*K)));   // the coping
+  });
+
+  // ---- THE PIPE BRIDGE: a bundle of mains crossing the whole world overhead ----
+  // The land's traversal layer read from the ground: water and steam are moved ABOVE the streets here,
+  // in the open, and the bundle crossing the frame is the thing that ties one side to the other.
+  if(cityG>0.16){
+    var py2=gy-Math.round(58*K);
+    for(var pp=0;pp<3;pp++){
+      g.fillStyle=css(pp===1?rust:concD);
+      g.fillRect(0,py2+pp*Math.round(3.4*K),SW,Math.round(2.6*K));
+      g.fillStyle=css(concL);
+      g.fillRect(0,py2+pp*Math.round(3.4*K),SW,Math.max(1,Math.round(K*0.6)));
+    }
+    // supports, hashed along the world so the bundle is not a ruled line on stilts at a fixed pitch
+    // ⚠ EVENLY SPACED SUPPORTS ARE A COLONNADE, and the first version put one every 26*K across the
+    // whole world: a picket fence in steel, straight through the middle of the frame. Sparser, and the
+    // offset is most of the pitch now, so no two gaps are the same width.
+    for(var sp2=-Math.round(50*K);sp2<SW+Math.round(50*K);sp2+=Math.round(50*K)){
+      var wsp=sp2+WOFF, jh=mixLi(Math.floor(wsp/Math.max(1,Math.round(50*K))),0x71BE);
+      var sx4=sp2+Math.round(((jh%100)/100)*38*K);
+      g.fillStyle=css(concD);
+      g.fillRect(sx4,py2,Math.max(2,Math.round(2.4*K)),gy-py2-Math.round(2*K));
+      g.fillStyle=css(concL); g.fillRect(sx4,py2,Math.max(1,Math.round(K*0.7)),gy-py2-Math.round(2*K));
+    }
+    // …and drips coming off it, which is what makes it read as carrying water rather than as scaffold
+    for(var dp=0;dp<14;dp++){
+      var dh2=mixLi(dp*8+3,0x0D11);
+      var dx3=Math.round(((dh2%1000)/1000)*WW-WOFF); if(dx3<-20) dx3+=WW; if(dx3>SW+20) dx3-=WW;
+      if(dx3<0||dx3>SW) continue;
+      var dph=((now*0.0009+((dh2>>>9)%100)/100)%1);
+      g.fillStyle=day?"rgba(180,196,206,0.55)":"rgba(120,140,160,0.4)";
+      g.fillRect(dx3,py2+Math.round(9*K)+Math.round(dph*40*K),Math.max(1,Math.round(K*0.7)),Math.round(2.4*K));
+    }
+  }
+}
 function drawVillageLandmarks(g,L,now,night,nd){
   var day=L>0.5, K=Math.max(1,KSP), gy=HORIZON;
   function at(frac,fn){                                   // draw once per world wrap that lands on-screen
@@ -17691,6 +17985,204 @@ function drawVillageLandmarks(g,L,now,night,nd){
     g.fillStyle=day?"#4e7a44":"#16241a";                                                   // the crest banner on the face
     g.fillRect(X-Math.round(1.4*K),gy-th+Math.round(4*K),Math.round(2.8*K),Math.round(6*K));
   });
+  // ---- THE LEADER'S TOWER: the round administration drum, and the great roundel on the front ----
+  // The one building in this village anybody could name. Everything about it is the academy drum done
+  // LARGER and with one addition that does all the work: a painted disc on the face carrying the
+  // village's mark, big enough to read from the far side of a monitor. It stands apart from the
+  // housing so its silhouette is never just another roof in the row.
+  if(cityG>0.14) at(VLM_TOWER,function(X){
+    var th=Math.round(64*K), hw=Math.round(15*K), top=gy-th;
+    var plaster=day?"#e6dfc6":"#2c2f3c", plasterL=day?"#f4eeda":"#3a3e4e", plasterS=day?"#c3b99c":"#20222c";
+    var tile=day?"#b4543c":"#2a1614", tileD=day?"#8f3f2e":"#1d0f0e", wood=day?"#6e4a30":"#1d1410";
+    // the drum, shaded across its width so it reads round rather than as a flat slab
+    g.fillStyle=plasterL; g.fillRect(X-hw,top,Math.round(hw*0.5),th);
+    g.fillStyle=plaster;  g.fillRect(X-Math.round(hw*0.5),top,Math.round(hw*1.4),th);
+    g.fillStyle=plasterS; g.fillRect(X+Math.round(hw*0.62),top,Math.round(hw*0.38),th);
+    // THE BALCONY RING — a timber deck right round the drum, two thirds up, with a rail on it.
+    // This is the shape people picture: an announcement is made from it.
+    var by=top+Math.round(th*0.34), bo=Math.round(3.4*K);
+    g.fillStyle=wood; g.fillRect(X-hw-bo,by,(hw+bo)*2,Math.max(1,Math.round(1.6*K)));
+    g.fillStyle=day?"#8a5e3c":"#251a14";
+    g.fillRect(X-hw-bo,by-Math.round(2.4*K),(hw+bo)*2,Math.max(1,Math.round(K*0.7)));      // the rail
+    for(var rp=-hw-bo;rp<=hw+bo;rp+=Math.round(4.5*K))                                     // its posts
+      g.fillRect(X+rp,by-Math.round(2.4*K),Math.max(1,Math.round(K*0.7)),Math.round(2.4*K));
+    // WINDOWS. Regular, because a built thing is built — but lit in RUNS with gaps at night, which is
+    // what says somebody is in there rather than that a texture was applied.
+    var lit=(L<0.62);
+    for(var wr=0;wr<4;wr++){
+      var wy=top+Math.round((7+wr*13)*K);
+      if(wy>by-Math.round(4*K)&&wy<by+Math.round(3*K)) continue;                            // not through the deck
+      for(var wc=-1;wc<=1;wc++){
+        var wx=X+wc*Math.round(8*K)-Math.round(1.5*K);
+        var on=lit&&((mixLi(wr*8+wc+3,0x70E2)%100)<64);
+        g.fillStyle=on?"rgba(255,206,140,0.95)":(day?"#6b7a86":"#171b24");
+        g.fillRect(wx,wy,Math.round(3*K),Math.round(3.4*K));
+      }
+    }
+    // THE ROUNDEL — a pale disc on the drum with the mark cut into it. Drawn as row runs so the
+    // circle is a circle at this size instead of a stack of visible steps.
+    var cy=top+Math.round(th*0.16), cr=Math.round(8.5*K);
+    for(var dy=-cr;dy<=cr;dy++){
+      var dw=Math.round(Math.sqrt(Math.max(0,cr*cr-dy*dy)));
+      g.fillStyle=day?"#efe7cd":"#3c3f4c"; g.fillRect(X-dw,cy+dy,dw*2,1);
+    }
+    g.fillStyle=day?"#c9bfa2":"#2b2e38";                                                    // its shadowed lower limb
+    for(var dy2=1;dy2<=cr;dy2++){
+      var dw2=Math.round(Math.sqrt(Math.max(0,cr*cr-dy2*dy2)));
+      g.fillRect(X-dw2,cy+dy2,dw2*2,1); if(dy2<cr*0.62) dy2+=cr;                            // just the rim, not a fill
+    }
+    // the mark itself: a flame-and-leaf stroke, four wedges around a centre — read as a device, not
+    // as any one glyph, which is the whole point of an UNNAMED homage
+    g.fillStyle=day?"#a8432c":"#4a1a14";
+    g.fillRect(X-Math.round(cr*0.16),cy-Math.round(cr*0.62),Math.round(cr*0.32),Math.round(cr*1.24));
+    g.fillRect(X-Math.round(cr*0.58),cy-Math.round(cr*0.10),Math.round(cr*1.16),Math.round(cr*0.30));
+    g.fillRect(X-Math.round(cr*0.50),cy-Math.round(cr*0.54),Math.round(cr*0.26),Math.round(cr*0.42));
+    g.fillRect(X+Math.round(cr*0.24),cy-Math.round(cr*0.54),Math.round(cr*0.26),Math.round(cr*0.42));
+    // THE CONE, overhanging the drum — the same tell as every roof in the village, at four times the size
+    var rw=Math.round(hw*2.5), rh=Math.round(15*K);
+    for(var rr=0;rr<rh;rr++){
+      var f=rr/rh, w2=Math.max(Math.round(2*K),Math.round(rw*(1-f*0.90)));
+      g.fillStyle=(rr%2===0)?tile:tileD;
+      g.fillRect(X-(w2>>1),top-1-rr,w2,1);
+      if(day&&w2>Math.round(3*K)){ g.fillStyle=day?"#cf6b4c":"#331a16"; g.fillRect(X-(w2>>1),top-1-rr,Math.round(w2*0.26),1); }
+    }
+    g.fillStyle=wood; g.fillRect(X-Math.max(1,Math.round(K*0.8)),top-rh-Math.round(3*K),Math.max(2,Math.round(1.6*K)),Math.round(3*K));  // finial
+    // …and a guard on the balcony after dark, because an administration building with nobody in it is a prop
+    if(cityG>0.3) drawPerson(g,X+Math.round(hw*0.55),by,day?"#3c4450":"#20242c",SKINC[3],-1);
+  });
+
+  // ---- THE NOODLE STAND: a counter, a curtain, three stools and steam ----
+  // Small on purpose. The tower is the landmark you see; this is the one you FIND, and it is the most
+  // quoted place in the whole reference. A split curtain hung over the front, stools under the eave,
+  // and steam coming off the pots that moves.
+  if(cityG>0.20) at(VLM_RAMEN,function(X){
+    var sw=Math.round(17*K), sh=Math.round(11*K), top=gy-sh;
+    var wood=day?"#7a5232":"#20160f", wood2=day?"#94693f":"#2a1c12";
+    g.fillStyle=wood; g.fillRect(X-sw,top,sw*2,sh);                                        // the shack behind
+    g.fillStyle=day?"#c9a86e":"#241a12"; g.fillRect(X-sw,top+Math.round(3*K),sw*2,Math.round(1.2*K));
+    // the eave: a shallow tiled pitch over the counter
+    var eh=Math.round(4*K);
+    for(var er=0;er<eh;er++){
+      g.fillStyle=(er%2===0)?(day?"#b4543c":"#2a1614"):(day?"#8f3f2e":"#1d0f0e");
+      g.fillRect(X-sw-Math.round(3*K)+er,top-1-er,(sw+Math.round(3*K))*2-er*2,1);
+    }
+    // THE SPLIT CURTAIN — four panels with gaps, the middle two parted where people duck under
+    for(var np=0;np<4;np++){
+      var pw=Math.round(7*K), px=X-sw+Math.round(1.5*K)+np*Math.round(8.2*K);
+      var drop=Math.round((np===1||np===2)?4.2*K:7.4*K);
+      g.fillStyle=day?"#b8452f":"#2c1210"; g.fillRect(px,top-Math.round(0.5*K),pw,drop);
+      g.fillStyle=day?"#e8dcc0":"#3a3226";                                                  // a pale band of lettering
+      g.fillRect(px+Math.round(1.4*K),top+Math.round(1.4*K),Math.round(4.2*K),Math.max(1,Math.round(1.2*K)));
+    }
+    // the counter itself and its stools
+    g.fillStyle=wood2; g.fillRect(X-sw-Math.round(2*K),gy-Math.round(4.6*K),(sw+Math.round(2*K))*2,Math.round(1.4*K));
+    for(var st=-1;st<=1;st++){
+      var stx=X+st*Math.round(8*K);
+      g.fillStyle=day?"#6e4a30":"#1d1410";
+      g.fillRect(stx-Math.max(1,Math.round(K*0.6)),gy-Math.round(3.2*K),Math.max(2,Math.round(1.2*K)),Math.round(3.2*K));
+      g.fillStyle=day?"#8a5e3c":"#251a14"; g.fillRect(stx-Math.round(1.6*K),gy-Math.round(3.6*K),Math.round(3.2*K),Math.max(1,Math.round(K*0.8)));
+      if(((mixLi(st+2,0x9A11E)%100)<62)&&cityG>0.28)                                        // …and somebody eating at it
+        drawPerson(g,stx,gy-Math.round(3.6*K),day?"#5a6a7a":"#232a34",SKINC[(st+2)%SKINC.length],-1);
+    }
+    // STEAM off the pots — three plumes on their own clocks, so it never pulses as one block
+    for(var sp=0;sp<3;sp++){
+      var sph=mixLi(sp*8+5,0x57EA), spx=X-Math.round(6*K)+sp*Math.round(6*K);
+      var ph=((now*0.00055+(sph%100)/100)%1);
+      var syy=top-Math.round(2*K)-Math.round(ph*10*K);
+      g.fillStyle=day?"rgba(240,240,235,"+(0.34*(1-ph)).toFixed(3)+")":"rgba(200,206,216,"+(0.22*(1-ph)).toFixed(3)+")";
+      g.fillRect(spx+Math.round(Math.sin(ph*5+sp)*1.6*K),syy,Math.round(2.4*K),Math.round(2.4*K));
+    }
+    if(L<0.62){                                                                             // the lantern over the door
+      g.fillStyle="rgba(255,186,90,0.95)";
+      g.fillRect(X+sw-Math.round(2*K),top+Math.round(1.6*K),Math.round(2.6*K),Math.round(3.4*K));
+    }
+  });
+
+  // ---- THE CLAN COMPOUNDS: a long wall, a gate, and a crest on the gable ----
+  // Two of them, at opposite ends of the world. What makes a compound read is not the house — you can
+  // barely see the house — it is the WALL: tile-capped, longer than anything else at street level, with
+  // one gate in it and a family mark over that gate. A village of houses plus two walls reads as a
+  // village with clans in it.
+  for(var cli=0;cli<VLM_CLAN.length;cli++) if(cityG>0.24) (function(ci){
+    at(VLM_CLAN[ci],function(X){
+      var wlen=Math.round(46*K), wh=Math.round(13*K), top=gy-wh;
+      var wall=day?"#d8cdb0":"#282a34", wallS=day?"#b3a88c":"#1c1e26";
+      var tile=day?"#8f3f2e":"#1d0f0e";
+      // the house behind it first, so the wall stands in front of its own compound
+      var rh2=Math.round(9*K), hy=gy-Math.round(26*K);
+      g.fillStyle=day?"#e6dfc6":"#2c2f3c"; g.fillRect(X-Math.round(13*K),hy,Math.round(26*K),Math.round(26*K)-wh);
+      for(var hr=0;hr<rh2;hr++){
+        var hw2=Math.round(30*K*(1-(hr/rh2)*0.82));
+        g.fillStyle=(hr%2===0)?(day?"#b4543c":"#2a1614"):tile;
+        g.fillRect(X-(hw2>>1),hy-1-hr,hw2,1);
+      }
+      // a garden tree showing over the wall — a compound has a courtyard in it
+      var tx=X-Math.round(wlen*0.55);
+      g.fillStyle=day?"#4e7a44":"#16241a";
+      g.fillRect(tx-Math.round(4*K),gy-Math.round(22*K),Math.round(8*K),Math.round(7*K));
+      g.fillRect(tx-Math.round(2.4*K),gy-Math.round(24*K),Math.round(5*K),Math.round(3*K));
+      // THE WALL
+      g.fillStyle=wall;  g.fillRect(X-wlen,top,wlen*2,wh);
+      g.fillStyle=wallS; g.fillRect(X-wlen,gy-Math.round(2.4*K),wlen*2,Math.round(2.4*K));   // its damp footing
+      for(var cr2=0;cr2<Math.round(2.2*K);cr2++){                                            // the tiled cap
+        g.fillStyle=tile;
+        g.fillRect(X-wlen-Math.round(1.6*K)+cr2,top-1-cr2,(wlen+Math.round(1.6*K))*2-cr2*2,1);
+      }
+      // THE GATE, off centre — a compound gate is where the lane meets it, not at the midpoint
+      var gx=X+Math.round(wlen*(ci===0?0.34:-0.30)), gw2=Math.round(7*K);
+      g.fillStyle=day?"#6e4a30":"#1d1410"; g.fillRect(gx-gw2,gy-Math.round(11*K),gw2*2,Math.round(11*K));
+      g.fillStyle=day?"#3a2418":"#120c08"; g.fillRect(gx-Math.max(1,Math.round(K*0.6)),gy-Math.round(11*K),Math.max(2,Math.round(1.2*K)),Math.round(11*K));
+      // the family crest over it — two different marks, so the two compounds are two families
+      var mcx=gx, mcy=top+Math.round(wh*0.42), mr=Math.round(3.2*K);
+      g.fillStyle=day?"#f2ecd8":"#34363f";
+      for(var my3=-mr;my3<=mr;my3++){
+        var mw=Math.round(Math.sqrt(Math.max(0,mr*mr-my3*my3)));
+        g.fillRect(mcx-mw,mcy+my3,mw*2,1);
+      }
+      g.fillStyle=ci===0?(day?"#9c3a52":"#3a1620"):(day?"#3a5a8c":"#161f30");
+      if(ci===0){                                                                            // a fan of three blades
+        for(var bl=0;bl<3;bl++)
+          g.fillRect(mcx-Math.round(mr*0.7)+bl*Math.round(mr*0.62),mcy-Math.round(mr*0.5)+Math.round(bl*mr*0.18),Math.max(1,Math.round(mr*0.36)),Math.round(mr*1.0));
+      } else {                                                                               // a spiral, drawn as a step
+        g.fillRect(mcx-Math.round(mr*0.72),mcy-Math.round(mr*0.20),Math.round(mr*1.44),Math.max(1,Math.round(mr*0.34)));
+        g.fillRect(mcx-Math.round(mr*0.20),mcy-Math.round(mr*0.72),Math.max(1,Math.round(mr*0.34)),Math.round(mr*1.10));
+      }
+    });
+  })(cli);
+
+  // ---- THE SHRINE PATH: torii climbing the hill ----
+  // A run of gates up the slope behind the village, shrinking with distance, with a small shrine at the
+  // top of them. ⚠ NOT on a fixed pitch — the spacing and the lean of each gate are hashed off the
+  // world, because a row of identical arches evenly spaced is a fence, and this is a path.
+  if(cityG>0.18) at(VLM_SHRINE,function(X){
+    var n=7, px=X, py=gy;
+    for(var ti=0;ti<n;ti++){
+      var h7=mixLi(ti*8+9,0x70211);
+      var f=ti/(n-1);
+      var tw2=Math.round((7.5-f*4.2)*K), th2=Math.round((11-f*6)*K);
+      px+=Math.round((7+((h7%100)/100)*4)*K);                                 // gaps of no fixed length
+      py-=Math.round((5.5+((h7>>>7)%100)/100*2.5)*K);                          // …climbing as it goes
+      var lean=Math.round((((h7>>>13)%100)/100-0.5)*1.6*K);
+      var post=Math.max(1,Math.round((1.5-f*0.6)*K));
+      g.fillStyle=day?"#b8452f":"#2c1210";
+      g.fillRect(px-tw2+lean,py-th2,post,th2);
+      g.fillRect(px+tw2-post+lean,py-th2,post,th2);
+      g.fillRect(px-tw2-Math.round(1.4*K)+lean,py-th2,tw2*2+Math.round(2.8*K),Math.max(1,Math.round((1.6-f*0.7)*K)));   // the lintel
+      g.fillStyle=day?"#8f2f22":"#20100e";
+      g.fillRect(px-tw2+lean,py-th2+Math.round((2.6-f*1.2)*K),tw2*2,Math.max(1,Math.round((1.1-f*0.4)*K)));             // the tie beam
+    }
+    // the shrine itself at the head of the path
+    var shw=Math.round(7*K), shh=Math.round(8*K);
+    g.fillStyle=day?"#d8cdb0":"#282a34"; g.fillRect(px-shw,py-shh,shw*2,shh);
+    for(var sr=0;sr<Math.round(3.4*K);sr++){
+      g.fillStyle=(sr%2===0)?(day?"#b4543c":"#2a1614"):(day?"#8f3f2e":"#1d0f0e");
+      g.fillRect(px-shw-Math.round(2*K)+sr,py-shh-1-sr,(shw+Math.round(2*K))*2-sr*2,1);
+    }
+    g.fillStyle=day?"#6e4a30":"#1d1410"; g.fillRect(px-Math.round(1.6*K),py-Math.round(5*K),Math.round(3.2*K),Math.round(5*K));
+    if(L<0.62){ g.fillStyle="rgba(255,186,90,0.9)";                                          // a lamp burning at the shrine
+      g.fillRect(px-Math.round(4.4*K),py-Math.round(6*K),Math.round(2*K),Math.round(2.6*K)); }
+  });
+
   // ---- EVERY METROPOLIS LANDMARK, REBUILT IN VILLAGE FORM ----
   // Nick chose restyling over removal, so each civic institution keeps its PLACE in the world and its
   // growth stage, and changes only its architecture. Same world fractions as the city (LM_*), so a
@@ -17745,6 +18237,7 @@ function drawVillageLandmarks(g,L,now,night,nd){
 }
 function drawLandmarks(g,L,now,night,nd){
   // VILLAGE: the metropolis civic set is replaced, not restyled — see drawVillageLandmarks.
+  if(curRainV){ drawRainVillageLandmarks(g,L,now,night,nd); return; }   // concrete has its own institutions
   if(curVillage){ drawVillageLandmarks(g,L,now,night,nd); return; }
   // each landmark RISES bottom-up out of the ground while it's being built (clip reveal)
   function rise(st,fn){ if(st<=0) return;
@@ -18312,6 +18805,15 @@ function siteStalled(st,now){ var e=econOf(now); if(e>=0.42) return false;
   return (((st.seed*2654435761)>>>0)/4294967296) < (0.42-e)*1.7; }
 // ---- construction site: scaffolded tower grows floor-by-floor over real days + a tower crane ----
 function drawSite(g,st,L,now,nd){
+  // ⚠⚠ NOT ON THE HIDDEN VILLAGES. Found by trapping fillRect over the exact column and printing the
+  // call stack: the slim glass office block standing in the middle of the village market — the one
+  // building on that screen nobody could explain — was a CONSTRUCTION SITE. Steel columns, concrete
+  // slabs and a lit curtain wall going up floor by floor, on a land whose finished buildings are
+  // single-storey plaster drums. The site system draws its own architecture and nothing told it where
+  // it was, exactly like the voted builds did.
+  // The village raises its buildings the way it lives in them: the plot simply grows into a finished
+  // house. Losing the crane here costs nothing — the compound sites keep theirs (drawBuildSite).
+  if(curVillage) return;
   var dayF=nd.getTime()/86400000, buildDays=st.floors*st.dpf, hold=5, cyc=buildDays+hold;
   var ph=(((dayF-st.offset)%cyc)+cyc)%cyc, building=(ph<buildDays);
   var fb=building?Math.floor(ph/st.dpf):st.floors; fb=Math.max(1,Math.min(st.floors,fb));
@@ -29586,46 +30088,38 @@ function drawBiomeLandmark(g,L,now,nd){
     var FK=Math.max(Math.max(1,KSP)*1.6, SW/150);               // the carving's own scale
     var faces=5, fw=Math.round(6.5*FK), fh=Math.round(9*FK);
     var panelW=Math.round(faces*(fw+2*FK)+4*FK);                // the REAL width the rock will occupy
-    var lhs=mtsCache.h[1], lbest=-1, lbh=0;
-    var need=Math.max(14*Math.max(1,KSP), mtsCache.mx[1]*0.55);
-    // 🚨 ANCHOR TO THE WHOLE FOOTPRINT, NOT TO TWO SAMPLE COLUMNS. This is the third time this exact
-    // bug has come up: the monastery floated above the alpine summit and the mesa arch floated in mid
-    // air, both because they were anchored to a SUMMARY STATISTIC of a region (a run's max height, the
-    // higher of two probes) instead of the terrain under their own width. The old code here sampled
-    // `lhs[lx2]` and `lhs[lx2+22*KSP]` while the panel is `panelW` wide — harmless only because the
-    // panel used to be small. Scaling it up widens exactly that gap. So: scan EVERY column the panel
-    // covers, keep the MINIMUM, and seat the rock on that. A carving cannot hang off a cliff it is cut
-    // into, and a thing seated at the lowest ground it covers physically cannot float.
-    for(var lx2=Math.round(SW*0.04);lx2<Math.round(SW*0.96)-panelW;lx2+=Math.max(2,Math.round(3*KSP))){
-      var lo=1e9;
-      for(var lp=0;lp<panelW;lp+=Math.max(1,Math.round(2*KSP))){
-        var hcol=lhs[Math.min(SW-1,lx2+lp)];
-        if(hcol<lo) lo=hcol;
-      }
-      if(lo>need&&lo>lbh){ lbh=lo; lbest=lx2; }                 // wants a broad, tall face of rock
-    }
-    // …and if no ridge is broad enough for the bigger panel, RELAX rather than vanish. The stricter
-    // alpine search silently deleted the monastery from THE DRY RANGE — a visible bug traded for an
-    // invisible one. Here the rock IS the land's identity, so it must never simply not appear.
-    if(lbest<0){
-      for(var rl=0;rl<3&&lbest<0;rl++){
-        var relax=need*(0.78-rl*0.18), fw2=Math.round(panelW*(1-0.18*(rl+1)));
-        for(var lx3=Math.round(SW*0.04);lx3<Math.round(SW*0.96)-fw2;lx3+=Math.max(2,Math.round(3*KSP))){
-          var lo2=1e9;
-          for(var lp2=0;lp2<fw2;lp2+=Math.max(1,Math.round(2*KSP))){
-            var hc2=lhs[Math.min(SW-1,lx3+lp2)];
-            if(hc2<lo2) lo2=hc2;
-          }
-          if(lo2>relax&&lo2>lbh){ lbh=lo2; lbest=lx3; }
-        }
-        if(lbest>=0){                                           // shrink the carving to the ledge we found
-          FK*=(1-0.18*(rl+1)); fw=Math.round(6.5*FK); fh=Math.round(9*FK);
-          panelW=Math.round(faces*(fw+2*FK)+4*FK);
-        }
-      }
-    }
-    if(lbest<0) return;
-    var RX=lbest, RY=gy-Math.round(lbh);
+    var lhs=mtsCache.h[1];
+    // ⚠⚠ AND IT WAS ANCHORED TO THE SCREEN. The seat was chosen by scanning `lhs` from `SW*0.04` to
+    // `SW*0.96` — screen columns — so every monitor ran the search over its own frame and CARVED ITS
+    // OWN MONUMENT. Rendered at woff 0 and woff 776 side by side, his desktop had two rocks with five
+    // elders each. Same fault as the pack ice's plates and the iceberg, third costume on this project:
+    // a search is world-anchored only if the thing it searches is.
+    // The rock is placed at a world fraction now, like every other landmark on this land, sitting just
+    // behind and left of the leader's tower — which is exactly where the reference puts it.
+    var tap=Math.round(16*FK);
+    var pW=panelW+tap*2;
+    var RX=Math.round(VLM_ROCK*WW)-Math.round(panelW*0.5)-WOFF;
+    if(RX<-pW-80) RX+=WW; if(RX>SW+80) RX-=WW;
+    if(RX<-pW-80||RX>SW+80) return;                              // not on this screen at all
+    // ---- HOW HIGH IT HAS TO STAND ----
+    // The faces are cut from `8*FK` below the crest down to `17*FK`, so the bottom of the lowest elder
+    // has to clear the tallest roof in the village for any of it to be seen.
+    // ⚠⚠ AND `b.h` IS NOT THE HEIGHT OF A VILLAGE HOUSE. The first attempt read the layout's `b.h` and
+    // seated the crown above it — MEASURED: the tallest `b.h` was 53 while the tallest roof actually
+    // drawn was 91, so the elders came out 28 px BELOW the rooftops and the fix changed nothing you
+    // could see. `drawVillageHouse` derives storeys, storey height, drum width and the cone's rise from
+    // the SEED and never looks at `b.h` at all.
+    // The apex it publishes (`_roofY`) is only known after the houses are drawn, and this runs before
+    // them — on the first frame of a life it does not exist, and a crown that moved on frame 2 would be
+    // a village that jumps. So this is the CEILING of that formula, not a copy of it: storeys ≤ 3,
+    // storey ≤ 14*K, cone ≤ 0.46 of a drum of ≤ 27*K. Nothing it can draw exceeds it.
+    // ⚠ It is also deliberately free of any per-screen quantity, so the crown lands at the same height
+    // on all three monitors.
+    var maxRoofH=Math.round(55*Math.max(1,KSP));
+    // 19*FK is not a taste number: the crown carries the village mark at 3.6*FK and the elders from
+    // 8*FK down to 17*FK, so anything less puts the lowest chin back behind a roof.
+    var baseTop=Math.min(Math.round(maxRoofH+19*FK),Math.round(gy*0.88));
+    var RY=gy-baseTop;
     // ============ CUT INTO THE HILLSIDE, NOT PROPPED AGAINST IT ============
     // Nick: it read as "a flat brown panel". It was one — a dressed rectangle laid over the green
     // hill, so the eye saw a billboard standing in a field. The fix is not more detail on the panel;
@@ -29644,28 +30138,56 @@ function drawBiomeLandmark(g,L,now,nd){
     var cut=css(mixc(stoneC,[30,26,24],day?0.42:0.55));           // shadow inside a cut
     var lit2=css(mixc(stoneC,[255,240,214],day?0.30:0.06));       // a lit edge catching the sun
     var strata=css(mixc(stoneC,[70,62,56],day?0.16:0.26));
-    var pL=RX-Math.round(2*FK), pW=panelW;
+    // THE FACE ROW SITS ON A FLAT CROWN, and the rock RAMPS UP TO IT from the hillside on both sides.
+    // A massif that starts at full height in one column is a block; one that only ramps is a hill with
+    // no wall to carve. `tap` is the ramp, and the elders are placed inside the crown so none of them
+    // is ever cut on a slope.
+    var pL=RX-Math.round(2*FK)-tap;
     // publish the footprint so the forest (drawn later, inside drawTerrain) leaves the face bare
     villageRockSpan=[pL-Math.round(3*FK), pL+pW+Math.round(3*FK)];
-    // THE CLIFF: every column of terrain across the footprint becomes rock, from the ridge top down.
-    // Following `lhs` per column is what welds it to the land — a flat-topped block would be a panel
-    // again, just a grey one.
+    // THE CLIFF: every column across the footprint becomes rock, from its own crest down to the ground.
+    // ⚠ The crest is `max(this column's ridge, the raised crown)` — never less than the land that was
+    // already there, so the massif still WELDS to the hillside instead of hovering in front of it, and
+    // never flat, because a flat top is how this read as a propped panel the first time round.
+    var colTop=[];
     for(var cx2=0;cx2<pW;cx2++){
-      var sxc=pL+cx2; if(sxc<0||sxc>=SW) continue;
-      var topH=lhs[sxc];                                          // this column's ridge height
-      var cyTop=gy-Math.round(topH);
+      var sxc=pL+cx2; if(sxc<0||sxc>=SW){ colTop.push(-1); continue; }
+      var ramp=Math.min(cx2,pW-cx2)/tap; if(ramp>1) ramp=1;
+      ramp=ramp*ramp*(3-2*ramp);                                   // eased, so the shoulder is a slope not a corner
+      var wxc=sxc+WOFF;
+      // ⚠ A PER-COLUMN HASH HERE IS NOT ROUGHNESS, IT IS FUZZ. The first version added ±0.55*FK of
+      // white noise per column and the crest came out as a comb of 1px spikes that read, at his real
+      // geometry, as GRASS growing along the top of a sheer cliff. Rock breaks in LEDGES: the hash is
+      // quantised into steps ~5*FK wide, under two incommensurate sines.
+      var seg=Math.floor(wxc/Math.max(1,Math.round(5*FK)));
+      var jag=Math.sin(wxc/(9.5*FK))*1.9*FK+Math.sin(wxc/(3.7*FK))*0.9*FK
+             +((((mixLi(seg,0x0C11FF)%100)/100)-0.5)*2.2*FK);
+      var ridgeH2=lhs[sxc];
+      var topH=Math.max(ridgeH2, Math.round((baseTop+jag)*ramp+ridgeH2*(1-ramp)));
+      var cyTop=gy-topH; colTop.push(cyTop);
       g.fillStyle=stone; g.fillRect(sxc,cyTop,1,gy-cyTop);
       // vertical jointing — sparse darker seams so the wall is not a flat fill
-      if(((sxc+WOFF)*7%23)===0){ g.fillStyle=strata; g.fillRect(sxc,cyTop,1,gy-cyTop); }
+      if(((wxc*7)%23)===0){ g.fillStyle=strata; g.fillRect(sxc,cyTop,1,gy-cyTop); }
     }
     // STRATA: horizontal bedding planes across the whole face, each dipping slightly, with a lit
     // upper lip. Bedding is what makes a rock wall read as rock rather than as grey paint.
+    // ⚠ AND A BEDDING PLANE CANNOT CROSS THIN AIR. These were full-width bars from `pL` for `pW`, which
+    // was harmless while the rock's top followed the ridge and is not once it ramps: over the ramps the
+    // bar runs out beyond the stone and rules across open sky. Emitted as RUNS that stop wherever the
+    // column's own crest is lower than the plane — same twelve planes, a handful more rects.
     for(var sy=0;sy<12;sy++){
       var syY=RY+Math.round((sy+0.5)*(gy-RY)/12);
-      var dip=Math.round(Math.sin(sy*1.7)*FK*0.8);
-      g.fillStyle=strata;
-      g.fillRect(pL,syY+dip,pW,Math.max(1,Math.round(FK*0.5)));
-      if(day){ g.fillStyle=lit2; g.fillRect(pL,syY+dip-1,pW,1); }
+      var dip=Math.round(Math.sin(sy*1.7)*FK*0.8), yy2=syY+dip, th3=Math.max(1,Math.round(FK*0.5));
+      var run=-1;
+      for(var sc3=0;sc3<=pW;sc3++){
+        var okc=(sc3<pW&&colTop[sc3]>=0&&colTop[sc3]<=yy2);
+        if(okc&&run<0) run=sc3;
+        if(!okc&&run>=0){
+          g.fillStyle=strata; g.fillRect(pL+run,yy2,sc3-run,th3);
+          if(day){ g.fillStyle=lit2; g.fillRect(pL+run,yy2-1,sc3-run,1); }
+          run=-1;
+        }
+      }
     }
     // TALUS at the foot — broken rock spilling out onto the slope, so the wall meets the ground
     // instead of being pasted onto it.
@@ -29682,7 +30204,7 @@ function drawBiomeLandmark(g,L,now,nd){
       g.fillRect(tbx,gy-Math.round(talH*0.4)-((tbx*5)%Math.max(1,Math.round(2*FK))),Math.max(1,Math.round(FK*0.8)),Math.max(1,Math.round(FK*0.8)));
     }
     for(var fi2=0;fi2<faces;fi2++){
-      var FX=RX+Math.round(fi2*(fw+2*FK)), FY=RY+Math.round(5*FK);
+      var FX=RX+Math.round(fi2*(fw+2*FK)), FY=RY+Math.round(8*FK);
       var newest=(fi2===faces-1);
       // RELIEF, NOT APPLIQUE. Every mark below is the SAME stone as the cliff; only the VALUE
       // changes. A recess is darker because less sky reaches it, a brow is lighter because it
@@ -29719,11 +30241,12 @@ function drawBiomeLandmark(g,L,now,nd){
         g.fillRect(FX+Math.round(fw*0.5),FY,Math.max(1,Math.round(FK)),fh);
       }
     }
-    // and the village's mark cut above them
-    g.fillStyle=day?"#6f7f58":"#1b2018";
-    var mx2=RX+Math.round(faces*(fw+2*FK)*0.5), my2=RY-Math.round(3*FK);
+    // and the village's mark, cut into the crown ABOVE the elders — not floating over the skyline,
+    // which is where it sat when `RY` was the ridge top rather than the crown
+    g.fillStyle=cut;
+    var mx2=RX+Math.round(faces*(fw+2*FK)*0.5), my2=RY+Math.round(3.6*FK);
     for(var lf3=0;lf3<5;lf3++){
-      var la2=-2.2+lf3*0.55, lr2=Math.round(3.4*FK);
+      var la2=-2.2+lf3*0.55, lr2=Math.round(2.4*FK);
       for(var lq2=1;lq2<lr2;lq2++)
         g.fillRect(Math.round(mx2+Math.cos(la2)*lq2),Math.round(my2+Math.sin(la2)*lq2*0.7),Math.max(1,Math.round(FK)),Math.max(1,Math.round(FK)));
     }
@@ -35851,7 +36374,9 @@ function drawTerrain(g,cg,L,now,nd,pass){
     g.globalAlpha=1;
     g.fillStyle=day?"rgba(122,96,58,0.7)":"rgba(84,70,48,0.7)"; g.fillRect(0,(gy+Math.round((SH-gy)*0.5))|0,SW,3); }  // dirt trail where the road will be
   if(BGp) drawBiomeGround(g,gy,day,now,wild);                    // and the land's own surface on top
-  if(BGp && curVillage) drawVillageForest(g,gy,day,now);         // …and the forest that hides the village
+  if(BGp && curVillage && !curRainV) drawVillageForest(g,gy,day,now);   // …and the forest that hides the village
+  // ⚠ NOT ON THE RAIN VILLAGE. Nothing grows there — it is concrete to the horizon, and a treeline
+  // behind it would put the leaf village's hillside on the wrong land.
   // a river winding through, present early, culverted as the city grows
   var riverW=Math.round(6*wild);
   if(riverW>0&&BGp){ var rvx=Math.round(0.62*WW), rsx=rvx-WOFF;
@@ -37160,6 +37685,17 @@ function warState(now){
 // drawn here in ONE pass, in the near layer (so traffic passes in front). Rendered EVERY frame for hours →
 // every renderer is STATIC/cheap with hard-bounded loops (same freeze discipline as ruins).
 function isZoneBuild(t){ return t==="stadium"||t==="park"||t==="casino"||t==="university"||t==="zoo"||t==="grandcentral"; }   // in-city plots that clear a plaza (marina→shore, observatory→mountain place themselves)
+// THE VOTED BUILDS, IN VILLAGE FORM. Nick's screenshot of the hidden village had a lit CASINO marquee,
+// two UNIVERSITY halls with the word painted on them and a glass tower, because the ballot system draws
+// its own architecture and nothing told it where it was. The metropolis LANDMARK set was restyled for
+// this land ages ago (VCIVIC); the voted BUILDS were simply never part of that pass.
+// ⚠ RESTYLED, NOT REMOVED — the rule for these lands is that every city system keeps running in
+// costume. The ballot still passes, the chronicle still announces it, the ribbon is still cut; what
+// changes is that the village builds a walled compound instead of a stadium, and hangs no sign on it.
+var VBUILD={ stadium:{w:58,halls:1,feature:"arena"},   casino:{w:34,halls:2,feature:"lanterns"},
+             park:{w:40,halls:1,feature:"lanterns"},   university:{w:46,halls:3,feature:"bell",tall:1},
+             grandcentral:{w:52,halls:2,feature:"hawks"}, zoo:{w:44,halls:2,feature:"arena"},
+             observatory:{w:30,halls:1,feature:"watch",tall:1}, marina:{w:38,halls:1,feature:"torii"} };
 function drawBuilds(g,L,now,night){
   if(!curBuilds.length||nukeStruck()) return;
   for(var i=0;i<curBuilds.length;i++){ var cb=curBuilds[i];
@@ -37167,6 +37703,12 @@ function drawBuilds(g,L,now,night){
     if(cb.t==="seawall"){ if(hasOcean) drawSeawall(g,L,now,cb); continue; } // runs along the shore
     var cx=disX(cb.x); if(cx<-(cb.w||70)-24||cx>SW+(cb.w||70)+24) continue;  // zone-builds: offscreen cull (disX wraps)
     if(cb.bp==="cons"){ drawBuildSite(g,cx,cb,L,now,night); continue; }      // still going up → construction site, not the finished landmark
+    if(curVillage){                                                          // …and on the two hidden villages, in their own vernacular
+      var vsp=VBUILD[cb.t];
+      if(vsp) drawVillageCompound(g,cx,vsp,L,now);
+      if(cb.bp==="open") drawRibbon(g,cx,cb,L,now);
+      continue;
+    }
     if(cb.t==="stadium") drawArena(g,cx,cb,L,now,night);
     else if(cb.t==="casino") drawCasino(g,cx,cb,L,now);
     else if(cb.t==="park") drawCityPark(g,cx,cb,L,now);
@@ -37240,6 +37782,11 @@ function drawBuildSite(g,cx,cb,L,now,night){
   g.fillStyle=L>0.5?"#a08040":"#5a4a20"; g.fillRect(hookX-2,hookY,4,3);
   if(L<0.5){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,240,180,0.4)"; g.fillRect(x0+4,gy-6-sh-1,6,3); g.globalCompositeOperation="source-over"; }
   // "COMING SOON — <PROJECT>" board with a live progress bar
+  // ⚠ NOT ON THE HIDDEN VILLAGES. A backlit developer's hoarding advertising the project by name is
+  // the same class of thing as the billboards `curNoBrands` already bans, and it was announcing CITY
+  // PARK over the village lane in Nick's screenshot. The scaffold and the crane stay — something is
+  // visibly being built, which is the point of the beat — it just does not hang a sign on itself.
+  if(curVillage) return;
   var lab=MEASURE_LABEL[cb.t]||"PROJECT", tw=textW(lab), bw2=Math.max(tw,textW("COMING SOON"))+6, bxb=(cx-(bw2>>1))|0, byb=mastTop-13;
   g.fillStyle="rgba(10,12,18,0.86)"; g.fillRect(bxb,byb,bw2,14);
   g.fillStyle="#e0b040"; g.fillRect(bxb,byb-1,bw2,1); g.fillRect(bxb,byb+14,bw2,1);
@@ -37261,6 +37808,7 @@ function drawRibbon(g,cx,cb,L,now){
   for(var c=0;c<16;c++){ var cc=((c*seed+c*17)>>>0), cxp=x0+(cc%w), cyp=gy-26+((now*0.05+c*23)%40);   // confetti fall
     g.fillStyle=CONF[c%CONF.length]; g.fillRect(cxp|0,cyp|0,1,1); }
   g.globalCompositeOperation="source-over";
+  if(curVillage) return;                                                                            // …and no lit banner over a village ribbon either
   var msg="NOW OPEN", tw=textW(msg), bxb=(cx-((tw+8)>>1))|0, byb=gy-36;
   g.fillStyle="rgba(10,12,18,0.86)"; g.fillRect(bxb,byb,tw+8,9);
   g.fillStyle="#ffd24a"; g.fillRect(bxb,byb-1,tw+8,1); g.fillRect(bxb,byb+9,tw+8,1);
@@ -40357,11 +40905,16 @@ function draw(g,pass){
     if(!nukeStruck()) drawMigration(g,now,nd,L);
 
     // sky attractions: hot-air balloons on calm days, an ad-blimp on a schedule
-    if(cityG>0.35 && !nukeStruck()) drawBalloons(g,L,now,fx);   // the flash pops the hot-air balloons
-    if(cityG>0.5 && !nukeFull()) drawBlimp(g,L,now,night,nd);
+    // ⚠⚠ NOT OVER A HIDDEN VILLAGE. `curNoBrands` already stops the billboards and the jumbotrons, and
+    // an ADVERTISING BLIMP is the same thing with an engine on it — Nick's screenshot of the leaf land
+    // had "22BUZZ MEDIA - YOU DESERVE IT" flying over the great gates. `noMachineSky()` covers the whole
+    // powered stack: no blimp, no balloons, no airliners with live callsign plates, no downtown
+    // choppers, no flypast. The BIRDS stay, because birds are not furniture.
+    if(cityG>0.35 && !nukeStruck() && !noMachineSky()) drawBalloons(g,L,now,fx);   // the flash pops the hot-air balloons
+    if(cityG>0.5 && !nukeFull() && !noMachineSky()) drawBlimp(g,L,now,night,nd);
   }
-  drawAirshow(g,L,now);                                       // …and the flypast, when one is on
-  if(!nukeFull()&&!noOpenSky()){ drawHighFlights(g,L,now,fx); drawHelis(g,L,now); drawRealFlights(g,L,now); }   // busier skies: high cruisers + contrails + downtown choppers + the REAL aircraft overhead
+  if(!noMachineSky()) drawAirshow(g,L,now);                   // …and the flypast, when one is on
+  if(!nukeFull()&&!noOpenSky()&&!noMachineSky()){ drawHighFlights(g,L,now,fx); drawHelis(g,L,now); drawRealFlights(g,L,now); }   // busier skies: high cruisers + contrails + downtown choppers + the REAL aircraft overhead
   if(cityPhase==="apoc"&&curDeath==="nuke") drawNukePlanes(g,L,now);   // …and in the exchange, the blast wave swats aircraft out of the sky (they don't just disappear)
   }
 
@@ -41427,6 +41980,12 @@ function draw(g,pass){
     // approximation this engine already accepts for wet roads and puddles.
     ashQuench=Math.min(1,ashQuench+dt*0.000025);
   } else { if(splashes.length) splashes.length=0; wetness=Math.max(0,wetness-dt*0.000008);
+    // ⚠ …BUT THE RAIN VILLAGE NEVER DRIES. This is not the wallpaper inventing weather: the sky over
+    // it is whatever the sky over Norwich is, and no rain is drawn that is not falling. What does not
+    // change is the GROUND — a village built in a floodplain of its own run-off has standing water in
+    // its streets on the finest day of the year, which is the arctic's answer applied here: the water
+    // is the geography. Real rain still takes it the rest of the way to 1.
+    if(curRainV) wetness=Math.max(wetness,0.55);
     ashQuench=Math.max(0,ashQuench-dt*0.0000004); }
 
   if(fx.snow&&!noOpenSky()){                                             // ⚠ nor does it snow in a cavern
@@ -41586,7 +42145,10 @@ function draw(g,pass){
   drawCliffLife(g,L,now,nd,fx);    // the seabird colony on the ledges, and the stacks off the headland
   drawCinderLife(g,L,now,nd,fx);   // the Fire Nation's caldera: rim glow, lava seams, ember fall
   drawRoofRunners(g,L,now,nd);     // the Hidden Village crossing itself by rooftop
-  drawVillageLife(g,L,now,nd);     // …and living in it the rest of the time
+  if(!curRainV) drawVillageLife(g,L,now,nd);     // …and living in it the rest of the time
+  // ⚠ the leaf village's life layer is its market stalls, its errands and its kids on the lane, all of
+  // it drawn in that land's palette against that land's forest. On the concrete it read as a bazaar
+  // pasted onto an industrial estate. Its own layer is a round of work, not a flag.
   drawNeonCity(g,L,now,nd);        // the neon style, over the city, whatever land it landed on
   drawSignageStacks(g,L,now,nd);   // …and the sprawl's own vertical brand signage, bolted to the frontages
   drawSprawlAirTraffic(g,L,now,nd);// …the maglev on its guideway, the aircar lanes and the cargo lifter
