@@ -23443,6 +23443,14 @@ function drawPlateau(g,L,now,nd){
   // cost that cannot be cached (the damage is the one thing here that changes within a life).
   var DMG=[], dmgStep=Math.max(4,Math.round(8*K));
   for(var dq0=0;dq0<=SW;dq0+=dmgStep) DMG.push(landDamageAt(dq0+WOFF,dmgStep));
+  // ⚠ SMOOTHED AT THE SEAMS. `landDamageAt` returns a flat 1 inside a permanently-ruined district and
+  // its falloff otherwise, so a lost zone lands as a RECTANGLE — which is right for a city block and
+  // reads as a printing error on open grass. Three-tap blur over the sampled strip: the burn covers
+  // exactly the same ground, it just stops having a straight edge in the middle of a meadow.
+  var DMS=[];
+  for(var ds=0;ds<DMG.length;ds++)
+    DMS.push((DMG[Math.max(0,ds-1)]+DMG[ds]*2+DMG[Math.min(DMG.length-1,ds+1)])*0.25);
+  DMG=DMS;
   function dmgAt(x){ return DMG[Math.max(0,Math.min(DMG.length-1,Math.round(x/dmgStep)))]||0; }
   var scorch=day?[92,74,50]:[18,16,14];
   var PC=plateauCache;
@@ -23709,6 +23717,22 @@ function drawPlateau(g,L,now,nd){
       var aw4=Math.max(1,Math.round(gtw*(1-gaa/Math.round(2.6*K))));
       g.fillRect(gateX-(aw4>>1),wBot-Math.round(6*K)-gaa,aw4,1);
     }
+    // ---- THE RAMP UP TO THE GATE. It sits ON the hill's own surface — the same `hillY` the rock is
+    // drawn from — so it hugs the slope instead of hovering over it, and it ENDS at the gate.
+    var rampFrom=hcx-Math.round(hW*0.92), rampTo=gateX;
+    if(rampTo>rampFrom){
+      for(var rp=rampFrom;rp<=rampTo;rp++){
+        if(rp<0||rp>=SW) continue;
+        var rsg=(rp-hcx)/hW; if(Math.abs(rsg)>=1) continue;
+        var rt=(rp-rampFrom)/Math.max(1,(rampTo-rampFrom));
+        // it starts on the grass at the foot and lifts onto the wall's threshold at the gate
+        var ry2=Math.round(hillY(rsg)+Math.round(4*K)+(wBot-Math.round(4*K)-hillY(rsg))*rt*rt);
+        g.fillStyle=css(mixc(day?[198,186,152]:[34,34,36],skc,0.10));
+        g.fillRect(rp,ry2,1,Math.max(2,Math.round(3*K)));
+        g.fillStyle=css(mixc(day?[150,138,110]:[24,24,26],skc,0.10));
+        g.fillRect(rp,ry2+Math.max(2,Math.round(3*K))-1,1,1);
+      }
+    }
     // ---- THE TRIFORCE over the gate. Nick asked for one; three gold triangles stacked is the shape,
     // and at this size the NEGATIVE triangle in the middle is what makes it read as more than a blob.
     drawTriforce(g,gateX,wTop-Math.round(4.4*K),Math.max(3,Math.round(4.2*K)),day,now);
@@ -23734,19 +23758,29 @@ function drawPlateau(g,L,now,nd){
     var rwx=rx0+WOFF;
     // ⚠ THE ROAD KEEPS OFF THE LANDFORMS. It is a track across the FIELD; running it up a mountain or
     // over a lake would read as a bug, so it simply stops where the ground it belongs to stops.
-    if(Math.abs(PC.surf[rx0]-PC.f1[rx0])>Math.round(6*K)) continue;   // the hill, the mountain or the water
+    // ⚠ THE LANDFORMS, TESTED DIRECTLY. The old test compared the surface against the field crown,
+    // which lumped the lake in with the hill and the mountain and cut the road at whatever distance
+    // that comparison happened to cross a threshold — nowhere near the water. Ask each mass.
+    if(PC.hill[rx0]>=0||PC.dm[rx0]>=0) continue;                      // the hill and the mountain
     // ⚠ IT WENT STRAIGHT PAST EVERYTHING. Nick: "these paths you made are going right through the
     // Castle town lol — maybe it should go to it? and maybe it should also finish going to the lake."
     // Right, and it is the difference between a road and a stripe: a road is FOR somewhere. It stops
     // at the lake shore instead of running into the water, and it lifts toward the gate as it passes
     // under the castle hill rather than ignoring the one town on the map.
-    if(PC.lake[rx0]>=0&&PC.lt[rx0]<0.82) continue;                    // the shore is the end of the road
+    // ⚠⚠ AND THE SHORE IS WHERE THE WATER IS, not a fraction of the lake's radius. Nick: "also doesn't
+    // go to the lake" — I had stopped it at 0.82 of the RADIUS, which on a dish this wide leaves the
+    // track ending in open grass with the water still far below it. The road runs until the water's
+    // surface rises above the road line, which IS the shoreline, whatever shape the dish is.
+    var ryTest=PC.road[rx0];
+    if(PC.lake[rx0]>=0&&PC.lake[rx0]<=ryTest+Math.round(2*K)) continue;
+    // ⚠⚠ AND IT DOES NOT CLIMB HERE. My first attempt at "make it go to the town" lifted the road
+    // toward the hill while it was still out on the flat, which built a TENT: a sharp peak in the
+    // middle of open field, the track visibly off the ground either side of it, and the far slope
+    // carrying straight on THROUGH the town and out the other side. Nick: "the walkway is still
+    // wrong." 🔑 A road does not rise before it reaches the hill. It runs level across the field and
+    // STOPS at the foot; the climb is a separate ramp on the hillside, drawn with the town that owns
+    // it, so the two cannot disagree about where the ground is.
     var ry=PC.road[rx0];                                              // it weaves as it crosses
-    var twd=Math.abs(((rwx%WW)+WW)%WW-HY_BLUFF*WW);
-    if(twd<HORIZON*0.34){                                             // …and climbs toward the gate
-      var lift=(1-twd/(HORIZON*0.34));
-      ry-=Math.round(lift*lift*HORIZON*0.10);
-    }
     if(ry>=HORIZON-2) continue;
     g.fillStyle=css(roadC); g.fillRect(rx0,ry,1,roadH);
     g.fillStyle=css(roadD); g.fillRect(rx0,ry+roadH-1,1,1);
