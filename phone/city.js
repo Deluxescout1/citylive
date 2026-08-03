@@ -2788,13 +2788,29 @@ function fetchWeather(bucket){
             var idx=Math.floor((rn2-t0)/900000);
             var lo15=Math.max(0,idx-2), hi15=Math.min(m15.time.length-1,idx+1);
             if(idx>=0&&lo15<=hi15){
+              // ⚠⚠ AND THE WINDOW MUST NOT CROSS FROM RAIN TO SNOW. Taking the worst code in half an
+              // hour is right; taking it from the wrong KIND of precipitation is how a March
+              // changeover renders a blizzard over a rain shower (code 75 outranks code 63 on any
+              // severity scale, and `wfx` then reports snow:true / rain:false). The band is decided
+              // by the bucket happening NOW — or, if now is dry, by the nearest wet one — and only
+              // codes of that band may win. A CHANGEOVER IS A REAL THING THAT HAPPENS TWICE A YEAR,
+              // and Norwich in August was never going to show it.
+              var band=wxBand((m15.weather_code&&m15.weather_code[idx]!=null)?m15.weather_code[idx]:null);
+              if(band===0) for(var d15=1;d15<=2&&band===0;d15++){
+                var lc=(m15.weather_code&&m15.weather_code[idx-d15]!=null)?m15.weather_code[idx-d15]:null;
+                var rc=(m15.weather_code&&m15.weather_code[idx+d15]!=null)?m15.weather_code[idx+d15]:null;
+                band=wxBand(rc)||wxBand(lc);
+              }
               var wCode=null, wPre=0, wetSeen=false, sawAny=false;
               for(var q15=lo15;q15<=hi15;q15++){
                 var pc15=(m15.weather_code&&m15.weather_code[q15]!=null)?m15.weather_code[q15]:null;
                 var pp15=(m15.precipitation&&m15.precipitation[q15]!=null)?m15.precipitation[q15]:null;
                 if(pc15!=null){ sawAny=true;
-                  if(wCode===null||wxSev(pc15)>wxSev(wCode)) wCode=pc15;
-                  if(wxSev(pc15)>=2) wetSeen=true; }
+                  var pb15=wxBand(pc15);
+                  if(pb15===0||band===0||pb15===band){
+                    if(wCode===null||wxSev(pc15)>wxSev(wCode)) wCode=pc15;
+                    if(wxSev(pc15)>=2) wetSeen=true; }
+                }
                 if(pp15!=null&&pp15>wPre) wPre=pp15;
               }
               if(sawAny){
@@ -2841,6 +2857,14 @@ function wxSev(c){
   if((c>=61&&c<=67)||(c>=80&&c<=82)||(c>=71&&c<=77)||c===85) return 3;
   if(c>=51&&c<=57) return 2;
   if(c===45||c===48) return 1;
+  return 0;
+}
+// Which KIND of precipitation a code is: 0 none/fog · 1 liquid · 2 frozen. The window below may take
+// the worst quarter-hour in half an hour, but it may never take it from the OTHER kind.
+function wxBand(c){
+  if(c==null) return 0;
+  if((c>=71&&c<=77)||c===85||c===86) return 2;
+  if((c>=51&&c<=67)||(c>=80&&c<=82)||c>=95) return 1;
   return 0;
 }
 function wfx(){
