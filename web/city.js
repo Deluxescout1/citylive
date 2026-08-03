@@ -30185,7 +30185,12 @@ function drawBiomeLandmark(g,L,now,nd){
     var stoneC=day?rockBase:mixc(rockBase,[16,18,30],0.72);
     var stone=css(stoneC);
     var cut=css(mixc(stoneC,[30,26,24],day?0.42:0.55));           // shadow inside a cut
-    var lit2=css(mixc(stoneC,[255,240,214],day?0.30:0.06));       // a lit edge catching the sun
+    // ⚠ AT NIGHT THERE WAS NOTHING TO CARVE WITH. `lit2` mixed toward white at 0.06 after dark, so the
+    // highlight and the stone were the same colour and every cue that says "this is cut, not painted"
+    // vanished — Nick's night screenshot has five elders reading as flat dark panels. Relief is a
+    // VALUE vocabulary; take the value away and there is no relief at any level of detail. The night
+    // highlight is moonlight, cool and much stronger than a sixth of a percent.
+    var lit2=css(mixc(stoneC,day?[255,240,214]:[150,176,220],day?0.30:0.30));
     var strata=css(mixc(stoneC,[70,62,56],day?0.16:0.26));
     // THE FACE ROW SITS ON A FLAT CROWN, and the rock RAMPS UP TO IT from the hillside on both sides.
     // A massif that starts at full height in one column is a block; one that only ramps is a hill with
@@ -30215,8 +30220,18 @@ function drawBiomeLandmark(g,L,now,nd){
       var topH=Math.max(ridgeH2, Math.round((baseTop+jag)*ramp+ridgeH2*(1-ramp)));
       var cyTop=gy-topH; colTop.push(cyTop);
       g.fillStyle=stone; g.fillRect(sxc,cyTop,1,gy-cyTop);
-      // vertical jointing — sparse darker seams so the wall is not a flat fill
-      if(((wxc*7)%23)===0){ g.fillStyle=strata; g.fillRect(sxc,cyTop,1,gy-cyTop); }
+      // ⚠⚠ THE JOINTING WAS A LATTICE, AND WITH THE BEDDING PLANES CROSSING IT THE CLIFF CAME OUT AS
+      // MASONRY. `((wxc*7)%23)===0` is a seam every 23 world px forever; ruled bands across it made a
+      // grid, and a grid on the biggest natural object on the map reads as a brick wall — Nick, on his
+      // night desktop: "make the mountain look better."
+      // Hashed columns now, and a joint runs only PART of the face: rock splits in sections, it is not
+      // scored top to bottom like a drawn elevation.
+      var jh7=mixLi(wxc,0x30117);
+      if((jh7%100)<7){
+        var jTop=cyTop+Math.round(((jh7>>>7)%100)/100*(gy-cyTop)*0.5);
+        var jLen=Math.round((0.25+((jh7>>>13)%100)/100*0.5)*(gy-jTop));
+        g.fillStyle=strata; g.fillRect(sxc,jTop,1,jLen);
+      }
     }
     // STRATA: horizontal bedding planes across the whole face, each dipping slightly, with a lit
     // upper lip. Bedding is what makes a rock wall read as rock rather than as grey paint.
@@ -30224,19 +30239,28 @@ function drawBiomeLandmark(g,L,now,nd){
     // was harmless while the rock's top followed the ridge and is not once it ramps: over the ramps the
     // bar runs out beyond the stone and rules across open sky. Emitted as RUNS that stop wherever the
     // column's own crest is lower than the plane — same twelve planes, a handful more rects.
-    for(var sy=0;sy<12;sy++){
-      var syY=RY+Math.round((sy+0.5)*(gy-RY)/12);
-      var dip=Math.round(Math.sin(sy*1.7)*FK*0.8), yy2=syY+dip, th3=Math.max(1,Math.round(FK*0.5));
+    // ⚠ AND THE PLANES THEMSELVES WERE ON AN EXACT PITCH — twelve of them at `(sy+0.5)*(gy-RY)/12`,
+    // i.e. a table. Real bedding is uneven: thick beds and thin ones, and a plane that fades out and
+    // picks up again along its length rather than ruling the full width. Spacing is hashed, each plane
+    // dips along ITS OWN length, and it is emitted in broken runs.
+    var syAcc=RY+Math.round(FK*2), sBed=0;
+    while(syAcc<gy-Math.round(FK)&&sBed<16){
+      var bh8=mixLi(sBed*8+1,0xBED0);
+      var th3=Math.max(1,Math.round(FK*(0.35+((bh8>>>5)%100)/100*0.45)));
       var run=-1;
       for(var sc3=0;sc3<=pW;sc3++){
-        var okc=(sc3<pW&&colTop[sc3]>=0&&colTop[sc3]<=yy2);
+        var wx8=pL+sc3+WOFF;
+        var yy2=syAcc+Math.round(Math.sin(wx8/(23*FK)+sBed)*FK*1.1+Math.sin(wx8/(7.5*FK))*FK*0.4);
+        var gap8=(mixLi(Math.floor(wx8/Math.max(1,Math.round(4.5*FK))),0xBED1+sBed)%100)<44;  // it fades out and picks up again, often
+        var okc=(sc3<pW&&!gap8&&colTop[sc3]>=0&&colTop[sc3]<=yy2);
         if(okc&&run<0) run=sc3;
         if(!okc&&run>=0){
           g.fillStyle=strata; g.fillRect(pL+run,yy2,sc3-run,th3);
-          if(day){ g.fillStyle=lit2; g.fillRect(pL+run,yy2-1,sc3-run,1); }
+          g.fillStyle=lit2; g.fillRect(pL+run,yy2-1,sc3-run,1);        // the lit lip of the bed, day or moon
           run=-1;
         }
       }
+      syAcc+=Math.round(FK*(1.6+((bh8%100)/100)*3.4)); sBed++;          // thick beds and thin ones
     }
     // TALUS at the foot — broken rock spilling out onto the slope, so the wall meets the ground
     // instead of being pasted onto it.
@@ -30289,6 +30313,33 @@ function drawBiomeLandmark(g,L,now,nd){
         for(var sc2=0;sc2<3;sc2++) g.fillRect(FX-Math.round(FK),FY+Math.round(fh*(0.4+sc2*0.22)),fw+Math.round(2*FK),Math.max(1,Math.round(FK)));
         g.fillRect(FX+Math.round(fw*0.5),FY,Math.max(1,Math.round(FK)),fh);
       }
+    }
+    // ---- THE FORM, LAST OF ALL. A cliff lit flat is a silhouette: Nick's night shot is one grey mass with a grid
+    // on it and no shape at all. Rock reads as a BODY when one limb takes the light and the other
+    // falls away, so the whole footprint gets a cross-face ramp — lit on the sun's side, shaded on the
+    // other — plus a dark foot where the light never reaches and a bright crown where it always does.
+    // Eight run-length bands, not a per-column fill: same read, a handful of rects.
+    // ⚠ AND IT HAS TO RUN AFTER THE CARVING. Drawn before the elders, everything around them darkened
+    // and the face row did not — so the carving sat in a bright rectangle of untouched stone, which is
+    // worse than no shading at all. One light falls on the whole mass, heads included.
+    var sunLeft=(curSunDf<0.5);
+    for(var fb2=0;fb2<8;fb2++){
+      var f8=(fb2+0.5)/8, side=sunLeft?(1-f8):f8;                  // 0 at the lit limb, 1 at the shaded one
+      var bx8=pL+Math.round(f8*pW), bw8=Math.round(pW/8)+1;
+      var a8=(side-0.42)*(day?0.30:0.36);
+      if(Math.abs(a8)<0.012) continue;
+      g.fillStyle=(a8>0?(day?"rgba(24,22,28,":"rgba(6,8,16,"):(day?"rgba(255,244,220,":"rgba(150,176,220,"))+Math.min(0.34,Math.abs(a8)).toFixed(3)+")";
+      for(var cq8=0;cq8<bw8;cq8++){
+        var ci8=Math.round(f8*pW)+cq8; if(ci8<0||ci8>=pW) continue;
+        var ct8=colTop[ci8]; if(ct8<0) continue;
+        g.fillRect(pL+ci8,ct8,1,gy-ct8);
+      }
+    }
+    g.fillStyle=day?"rgba(28,24,26,0.30)":"rgba(6,8,14,0.38)";     // the foot, where nothing reaches
+    for(var ft8=0;ft8<pW;ft8++){
+      var ftT=colTop[ft8]; if(ftT<0) continue;
+      var ftH=Math.min(gy-ftT,Math.round(10*FK));
+      g.fillRect(pL+ft8,gy-ftH,1,ftH);
     }
     // and the village's mark, cut into the crown ABOVE the elders — not floating over the skyline,
     // which is where it sat when `RY` was the ridge top rather than the crown
