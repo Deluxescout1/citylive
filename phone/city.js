@@ -5584,6 +5584,7 @@ function drawWindowVignettes(g,L,now){
   if(L>0.52||!near||!near.blds) return; var night=1-L;
   for(var i=0;i<near.blds.length;i++){ var b=near.blds[i];
     if(b.type==="park"||b.nePitch||b.h<10) continue;
+    if(!buildingHasRoof(b,cityG)) continue;      // ⚠ same family as the rooftop solar: no lit window in a tower that is not there
     var h=((b.seed*2654435761)>>>0); if((h%3)!==0) continue;                 // ~1/3 of blocks show a vignette
     var top=near.y0-b.h, wx=b.x+2+(h%Math.max(1,b.w-4)), wy=top+3+((h>>8)%Math.max(1,b.h-6));
     var sx=wx-WOFF; if(sx>SW+4&&sx-WW>-4)sx-=WW; if(sx<-4&&sx+WW<SW+4)sx+=WW; if(sx<-2||sx>SW+2) continue;
@@ -5598,6 +5599,7 @@ function drawWindowVignettes(g,L,now){
 function drawRoofCat(g,L,now){
   if(L>0.45||!near||!near.blds||near.blds.length<3) return;
   var bi=Math.floor(now/23000)%near.blds.length, b=near.blds[bi]; if(b.type==="park"||b.h<8) return;
+  if(!buildingHasRoof(b,cityG)) return;          // ⚠ same family: no cat on a roof that is not there
   var top=near.y0-b.h, ph=(now%23000)/23000, wx=b.x+2+ph*(b.w-4), sx=wx-WOFF;
   if(sx>SW+4&&sx-WW>-4)sx-=WW; if(sx<-4&&sx+WW<SW+4)sx+=WW; if(sx<-2||sx>SW+2) return;
   var step=(Math.floor(now/220))&1;
@@ -9130,6 +9132,13 @@ function drawGreenery(g,L,now){
   }
   var bStride=QUAL===0?2:1;
   for(var i=0;i<near.blds.length;i+=bStride){ var b=near.blds[i]; if(b.type==="park") continue;
+    // ⚠⚠ AND THE IVY WAS THE SAME BUG WEARING GREEN. It climbs from the pavement to `near.y0-b.h`, so
+    // on a tower that has not been built yet it drew a vine hanging up the sky — the wiggling green
+    // line in Nick's Hyrule field, right beside the blue panels, from the identical cause. The
+    // abandonment vines and the rooftop tree below run off `b.h` too.
+    // 🔑 FOUR SITES IN THE FAMILY, not one: solar arrays, a tower crane, lit window vignettes, and
+    // this. A fix applied only where the bug was reported is half a fix.
+    if(!buildingHasRoof(b,cityG)) continue;
     var bx=(b.x-WOFF); if(bx>SW+4||bx+b.w<-4) continue; var h2=((b.seed*40503)>>>0);
     if(b.brick && (h2%3)===0 && !noClimb){ var top=near.y0-b.h, side=(h2&1)?0:b.w-1;                // ivy up a brick edge
       g.fillStyle=day?"#3a6a3a":"#1c3320";
@@ -13368,6 +13377,21 @@ function peopleRegimeLeader(lifeIndex, anchorCy, endCy){
 // equality (cityG-bAge === bandOf) counts as STILL SCAFFOLDING (matches line 6232's strict `>`); the
 // one-frame boundary instant simply isn't yet a valid destination — harmless.
 function buildingBuilt(b, cityG){ return b && (b.bAge===undefined || (cityG - b.bAge) > bandOf(b)); }
+// ⚠⚠⚠ AND "BUILT" IS NOT "HAS A ROOF AT `b.h`". Nick: "the BLUE LINES ARE BACK." Gating the rooftop
+// solar on `buildingBuilt` killed most of them and left one row per screen still hanging in Hyrule
+// Field. MEASURED: the survivor was `x=1978 h=49 built=true overLandmark=true` — the plot holds a CIVIC
+// LANDMARK, so the tower it describes is never drawn, and the array sat at the roofline of a building
+// the city had decided not to build there. A construction site on the plot does the same.
+// 🔑 Anything MOUNTED at `near.y0-b.h` needs this, not `buildingBuilt`: the sibling renderer in the
+// legacy block has carried all three tests inline for months with the reason in its own comment
+// ("plot holds a construction site / civic landmark, not this building → nothing at b.h to tie to"),
+// and every site that copied only the first kept a floating decoration.
+function buildingHasRoof(b, cityG){
+  if(!buildingBuilt(b, cityG)) return false;
+  if(typeof overSite==='function' && overSite(b.x, b.w)) return false;          // a construction site holds the plot
+  if(typeof overLandmark==='function' && overLandmark(b.x, b.w)) return false;  // …or a civic landmark does
+  return true;
+}
 // standing = built AND not currently destroyed. Destruction predicates are ENGINE globals present only
 // in the draw context; typeof-guarded so this is safe headless and active once spliced. VERIFY the exact
 // names when splicing (nukeStruck/nukeHit confirmed; ruin predicate TBD at splice).
@@ -23157,12 +23181,14 @@ function drawHyruleLive(g,L,now,nd,fx){
 // ---- THE FIELD, LIVED IN: carts and walkers on the road, horses loose on the grass.
 function drawFieldLife(g,L,now,nd,fx){
   var day=L>0.5, K=Math.max(1,KSP), W=Math.max(1,WW|0);
-  function fieldY(wx){
-    var n1=Math.sin(wx*0.0017+2.1)*0.55+Math.sin(wx*0.0049+0.7)*0.3+Math.sin(wx*0.0131+2.6)*0.15;
-    return HORIZON-Math.round(HORIZON*(0.50+n1*0.055));
-  }
-  function onRoad(wx){ return Math.abs(plateauSurfaceAt(wx)-fieldY(wx))<=Math.round(6*K); }
-  function roadY(wx){ return fieldY(wx)+Math.round(9*K)+Math.round(Math.sin(wx*0.0026)*3*K); }
+  // ⚠⚠⚠ THIS FUNCTION HELD ITS OWN COPY OF WHERE THE ROAD IS, AND THE COPY WAS A ROAD AGO. It carried
+  // a private `roadY = fieldY + 9K` — the highway's position before it was moved down to clear the
+  // town's shelf — so every cart, rider, walker and horse was drawn at y 198–209 while the road they
+  // are on was at y 312. MEASURED, in a recorded frame: a hundred pixels of open grass between the
+  // traffic and the road. The land looked empty AND the road looked pointless, from one cause.
+  // 🔑 The road is `hyRoadY` and nothing else. Two expressions of one position will drift the moment
+  // either is touched, and this one drifted the first time it was.
+  var roadY=hyRoadY, onRoad=hyRoadOn;
   // ---- TRAVELLERS. Fewer after dark, and — once the shadow is on the land — the road empties, which
   // is the quietest and most effective thing the takeover can do to it.
   var un=(typeof deathUnrest==="function")?deathUnrest(now):0;
@@ -23202,7 +23228,10 @@ function drawFieldLife(g,L,now,nd,fx){
     if(!onRoad(hwx)) continue;
     var hsx=Math.round(hwx-WOFF); if(hsx<-30) hsx+=W; if(hsx>SW+30) hsx-=W;
     if(hsx<-16||hsx>SW+16) continue;
-    var hy=roadY(hwx)-Math.round((6+((hh>>>9)%7))*K);               // off the road, up the grass
+    // ⚠ SPREAD, now the road is where the road is. Off a road at y 198 a 6–13K offset was as far up
+    // the grass as there was room for; off the foreground road there is a whole field above it, and
+    // horses that all stand the same distance back read as a fence rather than as loose animals.
+    var hy=roadY(hwx)-Math.round((7+((hh>>>9)%19))*K);              // off the road, out into the field
     var hu=Math.max(1,Math.round(K));
     var graze=(((hh>>>13)+Math.floor(now/4000))%3===0);             // heads down, most of the time
     g.fillStyle=day?((hh&1)?"#6b4a30":"#3a3028"):"#181410";
@@ -23443,6 +23472,40 @@ function plateauSurfaceAt(wx){
   }
   return best;
 }
+// ⚠⚠⚠ ONE ROAD, AND EVERYTHING THAT BELONGS TO IT READS THIS LINE. Nick, at his desktop: "what is it
+// even doing here?" — and the honest answer was that the road had moved and nothing on it had moved
+// with it. The highway was lifted to the bottom of the field (`0.13*HORIZON`) so it would stop
+// painting across the town's shelf, and it was lifted ALONE:
+//   · the travellers kept a private `roadY = fieldY+9K` inside `drawFieldLife`,
+//   · the signposts and roadside shrines kept the same stale expression,
+//   · and the castle switchback climbed to the HILL'S CENTRE rather than to the gate.
+// MEASURED at his geometry (HORIZON 359, K 2): the carts, riders and walkers were drawn at y 198–209
+// with the road at y 312. A hundred pixels of open grass between the traffic and the road it was on —
+// which is exactly what "what is it even doing here" looks like from the outside: a bare ribbon, and
+// separately, people walking on nothing.
+// 🔑🔑 THIRD TIME IN THIS ONE FUNCTION. The gate was pinned to `hcx` instead of to its town; the
+// temple was seated off a constant instead of off the plateau it stood on; and now the road's whole
+// population was seated off the road's PREVIOUS position. ANYTHING THAT BELONGS TO A THING IS
+// POSITIONED FROM THAT THING — so there is one road line here and everybody asks it.
+function hyRoadY(wx){
+  var K=Math.max(1,KSP);
+  return HORIZON-Math.round(HORIZON*0.13)+Math.round(Math.sin(wx*0.0026)*2.2*K);
+}
+// …and where it EXISTS. Nothing spans the middle of Lake Hylia, so the road has a gap there and the
+// traffic has to know about it — otherwise a cart walks out over open water.
+// ⚠ TWO QUESTIONS, NOT ONE. Traffic is welcome on the bridge; a milestone or a stone shrine planted
+// on its deck is not. Today's signpost lattice happens to miss the span, which is luck rather than
+// design and precisely the kind of gate that holds until someone retunes the thing beside it — so the
+// firm-ground test is its own predicate and the furniture asks that one.
+function hyLakeT(wx){
+  var lW=Math.max(1,Math.round(HORIZON*0.72));
+  return Math.abs((((wx-Math.round(0.12*WW))%WW)+WW*1.5)%WW-WW*0.5)/lW;
+}
+function hyRoadFirm(wx){                                  // dry ground: the lake's surface sits BELOW the road
+  var t=hyLakeT(wx); if(t>=1) return true;
+  return HORIZON-Math.round(HORIZON*0.30)+Math.round(Math.pow(t,2.4)*HORIZON*0.28)>hyRoadY(wx);
+}
+function hyRoadOn(wx){ return hyRoadFirm(wx)||hyLakeT(wx)>=0.34; }   // firm ground, or a bridge over the shallows
 function drawPlateau(g,L,now,nd){
   var day=L>0.5, B=curBiome, K=Math.max(1,KSP), skc=biomeSkc(day);
   // ⚠⚠⚠ IT WAS MONUMENT VALLEY, NOT HYRULE. Nick, looking at all three screens: "this does not look
@@ -23771,12 +23834,20 @@ function drawPlateau(g,L,now,nd){
     if(tfY>Math.round(8*K)) drawTriforce(g,hcx-Math.round(hW*0.16),tfY,Math.max(6,Math.round(11*K)),day,now);
   }
   // ---- SIGNPOSTS where the road runs on, and small roadside shrines
+  // ⚠⚠ ROADSIDE FURNITURE THAT IS NOT BESIDE THE ROAD IS LITTER. These stood at `fieldY+9K` — the
+  // road's OLD line — so seven signposts and shrines were planted in the middle of an empty meadow a
+  // hundred pixels above the highway they mark. They stand on the verge now, which also gives the road
+  // the one thing it had none of: something on it whose size you already know.
+  // 🪵 AND THE SPACING WAS A LATTICE. `0.07 + i*0.13` is an arithmetic progression, not a scatter —
+  // seven posts at exactly equal intervals across the world. Each one is jogged off the lattice by its
+  // own hash so the eye stops finding the ruler.
   for(var sp2=0;sp2<7;sp2++){
-    var swx2=Math.round((0.07+sp2*0.13)*WW), sx3=Math.round(swx2-WOFF);
+    var sph2=mixLi(sp2,0x51A7);
+    var swx2=Math.round((0.07+sp2*0.13+(((sph2%100)/100)-0.5)*0.075)*WW), sx3=Math.round(swx2-WOFF);
     if(sx3<-20) sx3+=WW; if(sx3>SW+20) sx3-=WW;
     if(sx3<-10||sx3>SW+10) continue;
-    var sy3=fieldY(swx2)+Math.round(9*K);
-    if(Math.abs(plateauSurfaceAt(swx2)-fieldY(swx2))>Math.round(6*K)) continue;
+    var sy3=hyRoadY(swx2);                                       // ON the verge of the road it marks
+    if(!hyRoadFirm(swx2)) continue;                           // …on firm ground, never on the lake or its bridge
     if((sp2&1)===0){                                              // a signpost
       g.fillStyle=css(mixc(day?[132,104,72]:[26,22,20],skc,0.08));
       g.fillRect(sx3,sy3-Math.round(7*K),Math.max(1,Math.round(1.2*K)),Math.round(7*K));
@@ -23844,7 +23915,11 @@ function drawPlateau(g,L,now,nd){
   }
 
   var hwyC=mixc(day?[204,192,158]:[36,36,38], skc, 0.10), hwyD=mixc(hwyC,[76,62,46],0.36);
-  var hwyH=Math.max(3,Math.round(3.6*K));
+  var hwyLit =mixc(hwyC,day?[255,248,228]:[110,122,146],day?0.26:0.10);   // the crown
+  var hwyRut =mixc(hwyC,[120,100,74],0.42);                               // the cart ruts
+  var hwyBank=mixc(hwyD,[40,32,24],0.34);                                 // the bank under the verge
+  var vergeC =mixc(grass,hwyC,0.46);                                      // turf scuffed to dust
+  var hwyH=Math.max(4,Math.round(4.4*K));
   // ⚠⚠⚠ THE HEIGHT WAS THE WHOLE BUG. Nick, zoomed in: "the path shouldn't go THROUGH THE TOWN."
   // MEASURED: the highway sat at `fieldY + 11K` ≈ 0.50*HORIZON, and the town's shelf lands at
   // `hillY(0) + hH*0.13` ≈ 0.513*HORIZON. THIRTEEN THOUSANDTHS OF THE SKY APART — the same height. So
@@ -23853,18 +23928,48 @@ function drawPlateau(g,L,now,nd){
   // 🔑 Two things placed by different formulas are only "in front of" each other by accident. The
   // highway is pinned near the BOTTOM of the field band now — foreground ground, close to the viewer,
   // a long way below anything on the hill — instead of being derived from the far band's crown.
-  function hwyY(wx){
-    return HORIZON-Math.round(HORIZON*0.13)+Math.round(Math.sin(wx*0.0026)*2.2*K);
-  }
+  // ⚠ AND THE POSITION ITSELF LIVES IN `hyRoadY`, not in a local here. A private copy of where the
+  // road is, inside the one function that draws it, is exactly how the traffic came to be a hundred
+  // pixels off it — and an ALIAS is still a second name to forget to update, so there isn't one.
   // ⚠ drawPlateau takes (g,L,now,nd) — no `fx`. The weather comes from the shared accessor.
   var _wfx=(typeof wfx==="function")?wfx():null;
   var _rainNow=!!(_wfx&&(_wfx.rain||_wfx.drizzle||_wfx.thunder));
   // ---- THE HIGHWAY. One continuous run in front of everything, bridged where it meets water.
+  // ---- THE ROAD'S BODY. It was ONE flat tan band with a single dark pixel under it, the same width
+  // for the whole world: at that length that is a ruled ribbon, not a road, and it is the other half
+  // of "what is it even doing here". A road at the foot of a field has a crown that catches the light,
+  // a bank underneath that does not, ruts where the carts run, and turf scuffed to dust at the verge —
+  // and not one of its edges is a straight line.
+  // 🔑 REGULARITY BROKEN THREE WAYS, because breaking one still reads as ruling: the WIDTH, the VERGE
+  // and the RUTS each vary on their own hash.
+  // ⚠⚠ AND IT IS DRAWN IN RUNS, NOT PER COLUMN. The first cut of this body issued six fills for every
+  // one of the 776 columns and cost +5.4 ms on the BG pass, measured interleaved against a matched
+  // alpine control — which is most of the way back to the stall that caching this land's landform was
+  // written to fix, and the backdrop is the pass a stall shows up in.
+  // 🔑 The road's profile changes rarely: `hyRoadY` moves a few px across a whole screen, and the width
+  // wobble is deliberately quantised to a WORLD cell so it changes every ~9K px rather than every 2K.
+  // So the body is accumulated into spans and flushed when the profile actually changes, and the ruts
+  // and verge are dashes over the same cells instead of a fill per column. Fewer fills than the flat
+  // ribbon it replaces, for four times the detail. (World-anchored cells, so the three monitors agree.)
+  var cH=Math.max(1,Math.round(K*0.7)), eH=Math.max(1,Math.round(K*0.7)), bH=Math.max(1,Math.round(K*0.5));
+  var vH=Math.max(1,Math.round(K*0.6)), rH=Math.max(1,Math.round(K*0.6));
+  var cell=Math.max(3,Math.round(9*K));                        // the wear cell, in WORLD px
+  var segX=-1, segY=0, segH=0;
+  function flushRoad(x1){
+    if(segX<0||x1<=segX) return;
+    var w=x1-segX;
+    g.fillStyle=css(hwyC);   g.fillRect(segX,segY,w,segH);
+    g.fillStyle=css(hwyLit); g.fillRect(segX,segY,w,cH);                        // the crown, lit
+    g.fillStyle=css(hwyD);   g.fillRect(segX,segY+segH-eH,w,eH);
+    g.fillStyle=css(hwyBank);g.fillRect(segX,segY+segH,w,bH);                   // the bank below it
+    segX=-1;
+  }
   for(var hx=0;hx<SW;hx++){
-    var hwx=hx+WOFF, hy=hwyY(hwx);
-    if(hy>=HORIZON-1) continue;
+    var hwx=hx+WOFF, hy=hyRoadY(hwx);
+    if(hy>=HORIZON-1){ flushRoad(hx); continue; }
     var overWater=(PC.lake[hx]>=0&&PC.lake[hx]<=hy);
     if(overWater){
+      flushRoad(hx);
       // ⚠ A BRIDGE, NOT A STOP. His pick: routes that meet water get a bridge. A road that simply
       // ends at a shoreline reads as unfinished, which is exactly how the last one read.
       if(PC.lt[hx]<0.34) continue;                          // …but nothing spans the middle of a lake
@@ -23876,57 +23981,128 @@ function drawPlateau(g,L,now,nd){
         g.fillRect(hx,hy,1,Math.min(HORIZON,PC.lake[hx]+Math.round(3*K))-hy);
       continue;
     }
-    g.fillStyle=css(hwyC); g.fillRect(hx,hy,1,hwyH);
-    g.fillStyle=css(hwyD); g.fillRect(hx,hy+hwyH-1,1,1);
-    // wear: ruts, and mud that holds water when it rains
-    var wr=mixLi(Math.floor(hwx/Math.max(1,Math.round(2*K))),0x20AD);
-    if((wr%100)<26) { g.fillStyle=css(mixc(hwyC,[126,108,82],0.34)); g.fillRect(hx,hy+Math.round(hwyH*0.45),1,1); }
-    if(_rainNow&&((wr>>>7)%100)<11){
-      g.fillStyle="rgba(150,170,190,0.45)"; g.fillRect(hx,hy+hwyH-2,1,2);
+    var wr=mixLi(Math.floor(hwx/cell),0x20AD);
+    var h2=Math.max(3,hwyH+(((wr>>>3)%3)-1));
+    if(segX<0){ segX=hx; segY=hy; segH=h2; }
+    else if(hy!==segY||h2!==segH){ flushRoad(hx); segX=hx; segY=hy; segH=h2; }
+  }
+  flushRoad(SW);
+  // the WEAR, one dash per world cell rather than one fill per column
+  for(var wc=Math.floor(WOFF/cell);wc<=Math.floor((WOFF+SW)/cell);wc++){
+    var cwx=wc*cell, cx0=cwx-WOFF, cy=hyRoadY(cwx);
+    if(cy>=HORIZON-1) continue;
+    var cw2=Math.min(cell,SW-cx0); if(cx0<0){ cw2+=cx0; cx0=0; }
+    if(cw2<1) continue;
+    if(PC.lake[cx0]>=0&&PC.lake[cx0]<=cy) continue;                  // no ruts on a bridge deck
+    var cwr=mixLi(wc,0x20AD), ch2=Math.max(3,hwyH+(((cwr>>>3)%3)-1));
+    if(((cwr>>>21)%100)<78){ g.fillStyle=css(vergeC); g.fillRect(cx0,cy-vH,cw2,vH); }   // scuffed turf
+    if(((cwr>>>9)%100)<74){                                                             // the cart ruts
+      g.fillStyle=css(hwyRut);
+      g.fillRect(cx0,cy+Math.round(ch2*0.36),Math.max(1,Math.round(cw2*0.72)),rH);
+      if(((cwr>>>15)%100)<82)
+        g.fillRect(cx0+Math.round(cw2*0.2),cy+Math.round(ch2*0.66),Math.max(1,Math.round(cw2*0.66)),rH);
+    }
+    if(_rainNow&&((cwr>>>7)%100)<26){                                                   // mud holding water
+      g.fillStyle="rgba(150,170,190,0.45)";
+      g.fillRect(cx0,cy+ch2-Math.max(2,Math.round(K)),Math.max(1,Math.round(cw2*0.5)),Math.max(2,Math.round(K)));
     }
   }
   // ---- THE SPURS. Each leaves the highway at a junction and ENDS at the thing it serves.
-  function spur(wxTo,topY,wide){
-    var jx=Math.round(wxTo-WOFF); if(jx<-WW*0.5) jx+=WW; if(jx>WW*0.5) jx-=WW;
-    if(jx<-60||jx>SW+60) return;
-    var jy=hwyY(wxTo), span=Math.round((wide||10)*K);
-    for(var q=-span;q<=span;q++){
-      var sx=jx+q; if(sx<0||sx>=SW) continue;
-      var t=1-Math.abs(q)/span;                              // a wedge: wide at the road, narrow at the end
-      var yy=Math.round(jy+(topY-jy)*t*t);
-      g.fillStyle=css(hwyC); g.fillRect(sx,yy,1,Math.max(2,Math.round(hwyH*(0.55+0.45*t))));
+  // ⚠⚠ THE OLD SPUR WAS A CHEVRON. It drew a SYMMETRIC WEDGE ±11K wide whose centre reached the
+  // landmark — 44 px across against a 108 px climb — so what landed on the screen was a spike of road
+  // rising out of the highway and dropping straight back into it. Nobody reads that as a turning.
+  // 🔑 A spur is ONE track that leaves the road and goes AWAY from you. In this projection "away" is
+  // up the frame, so its horizontal run is a FRACTION of its vertical run, it eases out of the
+  // junction rather than kinking, it bends on the way, and it NARROWS as it recedes — narrowing is
+  // the only depth cue a per-column engine has, and the old wedge got it backwards by being widest at
+  // the road and pointed at the far end for reasons of shape rather than distance.
+  // ⚠ AND THE TRACK ENDS AT THE LANDMARK, so the JUNCTION is derived backwards from it. Placing the
+  // junction under the landmark and letting the track wander off sideways is how the last one finished
+  // in open grass beside the thing it was for.
+  function spur(wxTo,topY,side){
+    var sd=(side||1), jwx=wxTo-Math.round((hyRoadY(wxTo)-topY)*0.72)*sd;
+    var jx=Math.round(jwx-WOFF); if(jx<-WW*0.5) jx+=WW; if(jx>WW*0.5) jx-=WW;
+    var jy=hyRoadY(jwx), run=Math.max(1,jy-topY), lead=Math.round(run*0.72)*sd;
+    if(Math.max(jx,jx+lead)<-40||Math.min(jx,jx+lead)>SW+40) return;
+    // ⚠ EASE X AND Y OR NEITHER. Easing only the height while x ran linear bent the track into a
+    // ski-jump — it left the highway almost vertically and flattened off at the top. A road receding
+    // from you is STRAIGHT; what changes with distance is how much of it fits in a pixel, which is
+    // carried by the width, not by the shape. Stepped along the LONGER axis so a 108 px climb over a
+    // 78 px run does not come out as a dotted line.
+    var n=Math.max(Math.abs(lead),run);
+    for(var q=0;q<=n;q++){
+      var t=q/n;                                             // 0 at the road → 1 at the landmark
+      var sx=jx+Math.round(lead*t)+Math.round(Math.sin(t*3.1)*1.8*K);      // …and it bends on the way
+      if(sx<0||sx>=SW) continue;
+      var yy=Math.round(jy-run*t);
+      var w2=Math.max(1,Math.round(hwyH*(1-t*0.74)));        // narrowing IS the distance cue
+      g.fillStyle=css(hwyC); g.fillRect(sx,yy,1,w2);
+      g.fillStyle=css(hwyD); g.fillRect(sx,yy+w2-1,1,1);
     }
-    g.fillStyle=css(mixc(hwyC,[120,104,80],0.30));           // a milestone at the junction
-    if(jx-span-Math.round(2*K)>=0&&jx-span<SW)
-      g.fillRect(jx-span-Math.round(2*K),jy-Math.round(3*K),Math.max(1,Math.round(1.4*K)),Math.round(3*K));
+    if(jx-Math.round(3*K)>=0&&jx<SW){                        // a milestone at the junction, ON the road
+      g.fillStyle=css(mixc(hwyC,[120,104,80],0.30));
+      g.fillRect(jx-Math.round(3*K),jy-Math.round(3*K),Math.max(1,Math.round(1.4*K)),Math.round(3*K));
+    }
   }
-  spur(HY_RANCH*WW, fieldY(HY_RANCH*WW)+Math.round(10*K), 11);        // out to the ranch gate
+  spur(HY_RANCH*WW, fieldY(HY_RANCH*WW)+Math.round(10*K), 1);         // out to the ranch gate
   // ---- THE CASTLE APPROACH: a switchback climbing the hillside to the gate. His pick over a straight
   // ramp, and it is what makes the hill read as ENGINEERED rather than decorated.
-  if(hcx>-hW&&hcx<SW+hW){
-    var gY=hillY(0)+Math.round(hH*0.13)+Math.round(hH*0.12), gX=hcx+Math.round(hW*0.02);
-    var footX=hcx-Math.round(hW*0.44), footY=hwyY((footX+WOFF));
-    var legs=3;
-    for(var lg2=0;lg2<legs;lg2++){
-      var y0=footY+(gY-footY)*(lg2/legs), y1=footY+(gY-footY)*((lg2+1)/legs);
-      var xA=(lg2%2===0)?footX:gX, xB=(lg2%2===0)?gX:footX;
-      var stepsN=Math.abs(xB-xA);
-      for(var st3=0;st3<=stepsN;st3++){
-        var sxx=Math.round(xA+(xB-xA)*(st3/Math.max(1,stepsN)));
-        if(sxx<0||sxx>=SW) continue;
-        var syy=Math.round(y0+(y1-y0)*(st3/Math.max(1,stepsN)));
+  // ⚠⚠⚠ IT CLIMBED TO THE HILL'S CENTRE, AND THE GATE IS NOT THERE. MEASURED at his geometry: the
+  // legs topped out at `hcx + hW*0.02` = x 229, while the town's gate stands at x 359 — 130 px of bare
+  // hillside between the road and the door it exists to reach. That is the THIRD thing in this one
+  // function pinned to `hcx` instead of to the thing it serves; the gate and its own Triforce were the
+  // last, and that note is a hundred lines up this file.
+  // ⚠⚠ AND RETARGETING ALONE WOULD HAVE MADE IT WORSE. Dragging only the top from 229 to 359 stretches
+  // each leg from 157 px to 286 against a 72 px climb — a 1:12 gradient, which is not a road up a
+  // hill, it is three ribbons lying on flat grass. That is precisely what he photographed.
+  // 🔑 So the LEG LENGTH is derived from the climb and a believable gradient, and the zigzag is then
+  // centred under the gate: BOTH ends move, because the shape is a consequence of the height to be
+  // gained, not of `hW`. And a hairpin is a flat LANDING, not a knife point — the corner is the one
+  // place a switchback is unmistakably a switchback.
+  if(hcx>-hW&&hcx<SW+hW&&typeof gateX==="number"){
+    var gX=gateX, gY=wBot, footY=hyRoadY(gX+WOFF);
+    // ⚠ FOUR SHORT LEGS, NOT THREE LONG ONES. At three the legs still came out 83 px for a 24 px drop
+    // and read as planks laid on the grass. The zigzag is the whole point — more reversals in less
+    // width is what says "this climbs".
+    var legs=4, climb=Math.max(Math.round(6*K),footY-gY);
+    var legW=Math.max(Math.round(10*K),Math.round((climb/legs)*2.6));    // ~1:2.6 — steep, engineered
+    var landW=Math.max(2,Math.round(3.4*K)), rdH=Math.max(2,Math.round(3.2*K));
+    var retC=mixc(stoneC,[60,50,42],0.30), cutC=mixc(grassD,[34,44,30],0.34);
+    var crownC=mixc(hwyC,day?[255,248,228]:[110,122,146],day?0.22:0.08);
+    // 🔑 A ROAD ON A HILL IS CUT INTO IT, NOT LAID ON IT. The old leg had a dark line underneath and
+    // nothing above, so on a hillside of one flat green it read as a ribbon floating in front of the
+    // slope. The bank ABOVE the road — the face the cutting was taken out of — is what seats it: dark
+    // above, light surface, retaining wall below. Three values, and the hill suddenly has a body.
+    function leg(x0,x1,ya,yb,flat){                            // one run of the climb, or a landing
+      var n=Math.max(1,Math.abs(x1-x0));
+      for(var s=0;s<=n;s++){
+        var sxx=Math.round(x0+(x1-x0)*(s/n)); if(sxx<0||sxx>=SW) continue;
+        var syy=Math.round(flat?ya:(ya+(yb-ya)*(s/n)));
         var hsg2=(sxx-hcx)/hW;
         if(Math.abs(hsg2)<1){ var hsurf=hillY(hsg2); if(syy<hsurf+Math.round(2*K)) syy=hsurf+Math.round(2*K); }
-        g.fillStyle=css(hwyC); g.fillRect(sxx,syy,1,Math.max(2,Math.round(3*K)));
-        g.fillStyle=css(mixc(stoneC,[60,50,42],0.30));        // the retaining edge below each leg
-        g.fillRect(sxx,syy+Math.max(2,Math.round(3*K)),1,Math.max(1,Math.round(K)));
+        g.fillStyle=css(cutC);                                 // the cut bank the road was taken out of
+        g.fillRect(sxx,syy-Math.max(1,Math.round(1.6*K)),1,Math.max(1,Math.round(1.6*K)));
+        g.fillStyle=css(hwyC); g.fillRect(sxx,syy,1,rdH+(flat?1:0));
+        g.fillStyle=css(crownC); g.fillRect(sxx,syy,1,Math.max(1,Math.round(K*0.6)));
+        g.fillStyle=css(retC);                                 // the retaining wall holding the leg up
+        g.fillRect(sxx,syy+rdH+(flat?1:0),1,Math.max(1,Math.round(2*K)));
       }
+    }
+    for(var lg2=0;lg2<legs;lg2++){
+      var y0=Math.round(footY-climb*(lg2/legs)), y1=Math.round(footY-climb*((lg2+1)/legs));
+      // ⚠ THE PARITY IS ANCHORED TO THE TOP, not to the foot. Alternating from the bottom leaves the
+      // last leg finishing at `gX-legW` whenever the leg count is even — i.e. the climb arrives one
+      // leg's width to the side of the gate, which is the bug this whole block exists to fix, sneaking
+      // back in through the loop counter. The end that has to land on something decides the phase.
+      var up=(((legs-1-lg2)%2)===0), xA=up?(gX-legW):gX, xB=up?gX:(gX-legW);
+      leg(xA,xB,y0,y1,false);
+      if(lg2<legs-1) leg(xB,xB+(up?landW:-landW),y1,y1,true);  // the landing where it doubles back
     }
   }
   // ---- KAKARIKO IS WHERE THE ROAD ENDS, and a thinner trail goes on up the mountain from it.
   var kkx=wrapX(HY_KAKARIKO);
   if(kkx>-80&&kkx<SW+80){
-    spur(HY_KAKARIKO*WW, fieldY(HY_KAKARIKO*WW)+Math.round(8*K), 10);
+    spur(HY_KAKARIKO*WW, fieldY(HY_KAKARIKO*WW)+Math.round(8*K), -1);   // …and it comes in from the west
     var trFrom=kkx, trTo=wrapX(HY_DEATH);
     for(var tr=0;tr<=Math.abs(trTo-trFrom);tr+=1){
       var tx3=trFrom+(trTo>trFrom?tr:-tr); if(tx3<0||tx3>=SW) continue;
@@ -39189,6 +39365,18 @@ function drawCivicPolicy(g,L,now){
   if(!curMayor||!near||!near.blds) return; var k=curMayor.party.k;
   if(k==="GREENS"){                                             // rooftop solar arrays
     for(var i=0;i<near.blds.length;i++){ var b=near.blds[i]; if(b.type==="park"||b.nePitch||b.h<12||((b.seed>>>6)%3)!==0) continue;
+      // ⚠⚠⚠ AND THEY CAME BACK, because the panels were never the whole fault. Nick, months later, on
+      // Hyrule: "the BLUE LINES ARE BACK." MEASURED at life 24 / age 0.45: six of the eight arrays on
+      // screen were mounted on buildings that ARE NOT STANDING YET. `b.h` is a tower's FINAL height and
+      // the tower itself is not drawn until it has grown, so the array was floating at the roofline of
+      // a building that does not exist — which is why they hang at several unrelated heights with
+      // nothing beneath them however good the panel sprite gets.
+      // 🔑 THE 2026-07-28 FIX ADDRESSED CONTRAST; THE FAULT WAS EXISTENCE. A sprite given its own edge
+      // still needs the thing it sits on to be there. The sibling renderer six hundred lines down has
+      // had this test inline the whole time — this block was simply never given it.
+      // ⚠ AND "BUILT" WAS NOT ENOUGH: one row per screen survived the first gate, mounted on a plot
+      // that holds a civic landmark instead of the tower it describes. See `buildingHasRoof`.
+      if(!buildingHasRoof(b,cityG)) continue;
       var top=near.y0-b.h, sx=(b.x-WOFF); if(sx>SW+4||sx+b.w<-4) continue;
       // ⚠⚠ THIS IS THE OTHER HALF OF THE "BLUE BOXES", and Nick spotted it the day after the monorail:
       // "the windows are back." Rooftop solar was a row of 2x2 DARK NAVY squares placed every 3px at
@@ -39222,7 +39410,9 @@ function drawCivicPolicy(g,L,now){
       if((Math.floor(now/700)+c)&1){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,60,60,0.85)"; g.fillRect(cx|0,HORIZON-9,1,1); g.globalCompositeOperation="source-over"; } }
   } else if(k==="BUILDERS"){                                    // a building boom — an extra crane swinging over a tower
     var bi=(Math.floor(now/9000))%Math.max(1,near.blds.length), b2=near.blds[bi];
-    if(b2&&b2.type!=="park"&&b2.h>14){ var top2=near.y0-b2.h, sx2=(b2.x-WOFF)+b2.w;
+    // ⚠ THE SAME GATE. A crane hung off an unbuilt tower's roofline is the same floating-junk fault as
+    // the solar array above it — a fix applied only where the bug was reported is half a fix.
+    if(b2&&b2.type!=="park"&&b2.h>14&&buildingHasRoof(b2,cityG)){ var top2=near.y0-b2.h, sx2=(b2.x-WOFF)+b2.w;
       if(sx2>-4&&sx2<SW+4){ g.fillStyle=L>0.5?"#e0a83a":"#5a4418"; g.fillRect(sx2|0,top2-14,2,14);
         var jib=10, slew=Math.sin(now*0.0006+bi); if(slew>0) g.fillRect((sx2+2)|0,top2-14,jib,1); else g.fillRect((sx2-jib)|0,top2-14,jib,1); } }
   }
