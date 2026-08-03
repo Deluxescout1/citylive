@@ -6357,9 +6357,14 @@ function drawGanonWash(g,L,now){
   // moves the peak a long way and the approach to it almost not at all.
   // 🔑 Raising the whole curve would have made the land look wrong from cy 0.40 onward, which is most
   // of the life — the point of a slow takeover is that the beginning is deniable.
-  var amt=(0.30*Math.pow(r,1.15)+0.34*Math.pow(r,3.6))*(1+0.06*Math.sin(now*0.0009));
+  // ⚠ AND THEN BACKED OFF ONE NOTCH, on his call after seeing it on the three monitors: the storm, the
+  // burning moat and the corrupted castle all have to READ AGAINST this, and at 0.66 there was no room
+  // left for them. Only the high-exponent term moved (0.34 → 0.21), so everything below rise ~0.8 is
+  // within a couple of percent of what he already approved.
+  // 🔑 A veil that leaves nothing visible has stopped being dread and become a lens cap.
+  var amt=(0.30*Math.pow(r,1.15)+0.21*Math.pow(r,3.6))*(1+0.06*Math.sin(now*0.0009));
   var night=1+(L<0.5?0.34:0);                                        // worse after dark, never absent by day
-  amt=Math.min(0.66,amt*night);
+  amt=Math.min(0.54,amt*night);
   var deep=Math.pow(r,2.4);                                          // …and it goes REDDER as it deepens
   var gd=g.createLinearGradient(0,0,0,SH);
   gd.addColorStop(0,    "rgba("+Math.round(46+42*deep)+",10,"+Math.round(28-14*deep)+","+(amt*0.50).toFixed(3)+")");
@@ -23128,6 +23133,8 @@ function drawHyruleLive(g,L,now,nd,fx){
   drawHyruleFolk(g,L,now,K,day);        // rock folk on the mountain, water folk at the lake
   drawGanonWisps(g,L,now,K,day);        // …and what has started drifting between them
   drawGanonHerald(g,L,now,K,day);       // …and the one that crosses
+  drawGanonBeasts(g,L,now,K,day);       // …and what comes down the road after it
+  drawGanonStorm(g,L,now,K,day);        // …under a storm that never moves on
   var sumY=Math.max(TOPPAD,HORIZON-dmH);
   var ringY=sumY+Math.round(dmH*0.11), rx0=Math.round(dmW*0.26), ry0=Math.max(2,Math.round(rx0*0.24));
   // ---- THE RING. Cloud when the mountain is quiet; as it wakes the same ring burns through to fire.
@@ -23469,6 +23476,113 @@ function drawGanonHerald(g,L,now,K,day){
   g.fillStyle=rgba([150,200,255],0.55);
   g.fillRect(sx+Math.round(2.2*K),ry-Math.round(5.2*K)-bob,Math.max(1,Math.round(K*0.7)),Math.max(1,Math.round(K*0.7)));
   g.globalCompositeOperation="source-over";
+}
+// ---- THE ENDLESS STORM. 🔒 His pick for the third presence: "a permanent storm ringed on the castle,
+// striking constantly, never moving on", and 🔒 "the castle and the height only — the city watches it
+// from below." That second answer is what ties the land together: the city's curfew, its evacuation
+// advisory and its floodlights only read as a RESPONSE if there is something over there to respond to.
+// ⚠ Live pass. A bolt redrawn twice a second is not lightning, it is a slideshow of lightning.
+// 🔑 WORLD-ANCHORED RING, SCREEN-CLIPPED BOLTS. The ring hangs at the castle's own world x so all three
+// monitors agree about where the storm is; only which part of it you can see changes.
+function drawGanonStorm(g,L,now,K,day){
+  var r=(typeof ganonRise==="function")?ganonRise(now):0; if(r<0.62) return;
+  var t=Math.min(1,(r-0.62)/0.38);                        // fades in across the top of the arc
+  var cx=Math.round(HY_BLUFF_X*WW)-WOFF; if(cx<-WW*0.5) cx+=WW; if(cx>WW*0.5) cx-=WW;
+  var rw=Math.round(HORIZON*0.95), rh=Math.round(HORIZON*0.10);
+  if(cx<-rw-40||cx>SW+rw+40) return;
+  var top=Math.round(HORIZON*0.10), hillTop=Math.round(HORIZON*0.46);
+  // ---- THE RING: a black deck of cloud anchored over the height, churning slowly
+  // ⚠⚠ DRAWN IN RUNS. Per column this is ~680 fills EVERY LIVE FRAME and it cost +4.2 ms on the live
+  // pass, measured against a matched control — and the live pass runs at 8–12 fps, so unlike the
+  // backdrop there is nowhere for that to hide. The ring's profile is smooth, so adjacent columns
+  // share a height and an alpha bucket; flush when they actually change.
+  // 🔑 Third time this session: road body, castle ashlar, now the storm. PER-COLUMN IS A CHOICE.
+  var segX=-1,segH=0,segA=0;
+  function flushRing(x1){
+    if(segX<0||x1<=segX||segH<1) { segX=-1; return; }
+    g.fillStyle=rgba(day?[26,16,26]:[10,6,14],segA);
+    g.fillRect(segX,top,x1-segX,segH);
+    g.fillStyle=rgba([70,30,60],0.30*(segA/(0.42+0.44*t))*t);      // a sick underlit edge
+    g.fillRect(segX,top+segH-Math.max(1,Math.round(K*0.8)),x1-segX,Math.max(1,Math.round(K*0.8)));
+    segX=-1;
+  }
+  for(var q=-rw;q<=rw;q++){
+    var x=cx+q;
+    if(x<0||x>=SW){ flushRing(x); continue; }
+    var u=Math.abs(q)/rw, prof=Math.pow(Math.max(0,1-u*u),0.5);
+    var wob=Math.sin((x+WOFF)*0.031+now*0.00018)*1.8*K+Math.sin((x+WOFF)*0.011-now*0.00011)*3.0*K;
+    var h=Math.round(rh*prof*(0.7+0.3*t))+Math.round(wob*prof);
+    var al=Math.round((0.42+0.44*t)*prof*40)/40;                    // quantised so runs can form at all
+    if(h<1){ flushRing(x); continue; }
+    if(segX<0){ segX=x; segH=h; segA=al; }
+    else if(h!==segH||al!==segA){ flushRing(x); segX=x; segH=h; segA=al; }
+  }
+  flushRing(Math.min(SW,cx+rw+1));
+  // ---- THE STRIKES. One every ~1.4 s, forked, landing on the height and never anywhere else.
+  var slot=Math.floor(now/1400), age=(now%1400)/1400;
+  if(age>0.30) return;                                    // each bolt lives ~420 ms
+  var bh=mixLi(slot,0x5701);
+  var bx=cx+Math.round((((bh%1000)/1000)-0.5)*rw*1.10);   // somewhere across the height
+  var fade=1-age/0.30, flick=((Math.floor(now/60)+slot)&1)?1:0.55;
+  var a=Math.min(1,fade*flick*(0.55+0.45*t));
+  // the sky flashes with it — the cheapest half of a lightning strike
+  g.globalCompositeOperation="lighter";
+  g.fillStyle=rgba([150,110,190],0.12*a); g.fillRect(0,0,SW,Math.round(HORIZON*0.72));
+  var yy=top+rh, seg=Math.max(2,Math.round(3*K)), px=bx;
+  while(yy<hillTop){
+    var nx=px+Math.round((((mixLi(yy+slot,0x5702)%100)/100)-0.5)*5*K);
+    var steps=Math.max(1,Math.abs(nx-px));
+    for(var sq=0;sq<=steps;sq++){
+      var lx=Math.round(px+(nx-px)*(sq/steps)), ly=yy+Math.round(seg*(sq/steps));
+      if(lx<0||lx>=SW) continue;
+      g.fillStyle=rgba([236,214,255],a);        g.fillRect(lx,ly,Math.max(1,Math.round(K*0.8)),1);
+      g.fillStyle=rgba([170,120,220],a*0.45);   g.fillRect(lx-1,ly,Math.max(2,Math.round(1.8*K)),1);
+    }
+    if(((mixLi(yy*3+slot,0x5703)%100)<26)&&yy>top+rh*2){   // a fork branching off and dying
+      var fx2=nx, fy2=yy;
+      for(var f2=0;f2<Math.round(7*K);f2++){
+        fx2+=((mixLi(f2+slot,0x5704)%3)-1)*Math.max(1,Math.round(K*0.8)); fy2+=Math.max(1,Math.round(K*0.9));
+        if(fx2<0||fx2>=SW||fy2>=hillTop) break;
+        g.fillStyle=rgba([220,196,255],a*0.55*(1-f2/(7*K)));
+        g.fillRect(fx2,fy2,Math.max(1,Math.round(K*0.7)),1);
+      }
+    }
+    px=nx; yy+=seg;
+  }
+  g.fillStyle=rgba([255,236,210],a*0.30);                  // the ground-flash where it lands
+  g.fillRect(px-Math.round(9*K),hillTop-Math.round(2*K),Math.round(18*K),Math.round(4*K));
+  g.globalCompositeOperation="source-over";
+}
+// ---- THE SHADOW BEASTS. 🔒 His pick: "coming down the road toward the city" — they use the highway the
+// carts used, heading for the modern city, which is what makes the evacuation advisory a rational
+// response to something actually approaching rather than a mood.
+// 🔑 ALL MOVING ONE WAY. The horses mill and the wisps drift; these hold a heading, like the herald
+// did — and unlike the herald there are many of them, which is the whole escalation.
+function drawGanonBeasts(g,L,now,K,day){
+  var r=(typeof ganonRise==="function")?ganonRise(now):0; if(r<0.70) return;
+  var W=Math.max(1,WW|0), t=Math.min(1,(r-0.70)/0.30);
+  var n=Math.round(9*t);
+  for(var i=0;i<n;i++){
+    var h=mixLi(i,0x8EA5);
+    var wx=(((h%W)+now*0.0000042*W)%W+W)%W;                // one direction, all of them
+    var sx=Math.round(wx-WOFF); if(sx<-40) sx+=W; if(sx>SW+40) sx-=W;
+    if(sx<-8||sx>=SW+8) continue;
+    if(!hyRoadOn(wx)) continue;
+    // …and a third of them have left the road and are working DOWN toward the city
+    var drop=(((h>>>19)%100)<34)?Math.round(((h>>>7)%100)/100*(HORIZON-hyRoadY(wx))*0.66):0;
+    var ry=hyRoadY(wx)+drop-Math.round(1.4*K);
+    if(ry>=HORIZON-1) continue;
+    var st=(Math.floor(now/170)+i)&1, u=Math.max(1,Math.round(K));
+    g.fillStyle=css(day?[18,12,18]:[7,5,9]);
+    g.fillRect(sx,ry-Math.round(2.2*K),Math.round(5*K),Math.round(2.2*K));                 // a low, long body
+    g.fillRect(sx+(st?0:Math.round(0.6*K)),ry,u,Math.round(1.6*K));                        // four legs, out of step
+    g.fillRect(sx+Math.round(3.8*K)-(st?0:Math.round(0.6*K)),ry,u,Math.round(1.6*K));
+    g.fillRect(sx+Math.round(4.6*K),ry-Math.round(3.0*K),Math.round(1.8*K),Math.round(1.4*K));  // a low head, forward
+    g.globalCompositeOperation="lighter";                                                   // and the eyes
+    g.fillStyle=rgba([255,90,70],0.75);
+    g.fillRect(sx+Math.round(5.4*K),ry-Math.round(2.8*K),Math.max(1,Math.round(K*0.7)),Math.max(1,Math.round(K*0.7)));
+    g.globalCompositeOperation="source-over";
+  }
 }
 // ---- THE FIELD, LIVED IN: carts and walkers on the road, horses loose on the grass.
 function drawFieldLife(g,L,now,nd,fx){
@@ -23981,7 +24095,17 @@ function drawHeightCastle(g,cx,capY,K,day,skc,now,seed,groundAt){
   var roofD=mixc(roof,[8,10,20],0.45);
   // ⚠ AND IT BREAKS. A castle standing pristine through a CAT-5 while the city below is rubble is the
   // thing he noticed. Towers are lost outward-in, the stone blackens, and the survivors burn.
+  // 🔒 GANON TAKES THE CASTLE. His locked answer: broken spires, a lava/fire moat at its foot, and the
+  // Triforce corrupted — the silhouette rebuilt last week stays recognisable and goes WRONG, which is
+  // the whole point of not re-skinning it into something else.
+  var GC=(typeof ganonRise==="function")?ganonRise(now):0;
   var dmgC=(typeof landDamageAt==="function")?landDamageAt(cx+WOFF,W):0;
+  if(GC>0.30){                                                    // the stone itself turns
+    var gk=(GC-0.30)/0.70;
+    wall =mixc(wall ,[46,26,34],gk*0.62); wallD=mixc(wallD,[28,14,20],gk*0.66);
+    wallL=mixc(wallL,[92,56,66],gk*0.50); roof =mixc(roof ,[26,10,18],gk*0.70);
+    roofL=mixc(roofL,[96,44,60],gk*0.55); roofD=mixc(roofD,[14,6,10],gk*0.60);
+  }
   if(dmgC>0.02){ wall=mixc(wall,[46,40,40],dmgC*0.72); wallD=mixc(wallD,[30,26,26],dmgC*0.72);
                  wallL=mixc(wallL,[70,60,58],dmgC*0.60); roof=mixc(roof,[22,18,18],dmgC*0.85);
                  roofL=mixc(roofL,[40,34,34],dmgC*0.70); roofD=mixc(roofD,[16,12,12],dmgC*0.70); }
@@ -24082,7 +24206,17 @@ function drawHeightCastle(g,cx,capY,K,day,skc,now,seed,groundAt){
       g.fillRect(tx-(winW>>1)+1,wy-1,Math.max(1,winW-2),1);
     }
     var tsh=Math.round(th*(0.50+((h2>>>13)%100)/100*0.22));
-    spire(tx,tw,ty,tsh,roof,roofL,roofD);
+    // ⚠ BROKEN SPIRES — his answer, and they break OUTWARD-IN on each tower's own hash, so the roofline
+    // goes ragged in a believable order rather than all at once. A snapped spire leaves a jagged stub,
+    // not a flat top: the break is the read.
+    var snapped=(GC>0.52)&&(((h2>>>27)%100)<(GC-0.52)*180*(0.4+0.6*Math.abs(f)));
+    if(snapped){
+      var stub=Math.round(tsh*0.30);
+      spire(tx,tw,ty,stub,mixc(roof,[16,8,12],0.5),mixc(roofL,[40,20,28],0.5),roofD);
+      g.fillStyle=css(mixc(wallD,[10,6,8],0.55));
+      for(var jg=0;jg<Math.max(2,Math.round(2.2*K));jg++)                   // the jagged break
+        g.fillRect(tx-tw+((jg*7+i2)%Math.max(1,tw*2)),ty-stub-((jg*3+i2)%3),Math.max(1,Math.round(K*0.8)),Math.round(1.6*K));
+    } else spire(tx,tw,ty,tsh,roof,roofL,roofD);
     // ⚠ ON THE TIP, not near it. The first cut hung the pennant off a fraction of the tower's height
     // and it floated in the sky beside the spire — the same "positioned off a formula instead of off
     // the thing it belongs to" that this land keeps producing, in miniature.
@@ -24158,6 +24292,26 @@ function drawHeightCastle(g,cx,capY,K,day,skc,now,seed,groundAt){
       g.fillRect(ggx,ggnd-Math.round(ah*0.72)+rise,1,Math.round(ah*0.72)-rise);
     }
   }
+  // ---- 🔒 THE MOAT. Fire at the foot of the curtain, the length of it. ⚠ Its FLICKER lives in the live
+  // pass (`drawGanonStorm`'s neighbourhood) — this is the bed it burns in, which does not move.
+  if(GC>0.46){
+    var mk=Math.min(1,(GC-0.46)/0.54), mY=(groundAt?groundAt(cx):capY)+Math.round(H*0.085);
+    for(var mq=-(W>>1)-Math.round(4*K);mq<=(W>>1)+Math.round(4*K);mq++){
+      var mx=cx+mq; if(mx<0||mx>=SW) continue;
+      var mg=(groundAt?groundAt(mx):capY)+Math.round(H*0.085);
+      var mh=Math.max(1,Math.round((2.2+1.6*Math.sin((mx+WOFF)*0.21))*K*mk));
+      g.fillStyle=css(mixc([180,52,18],[70,12,8],0.35+0.4*Math.sin((mx+WOFF)*0.13)));
+      g.fillRect(mx,mg,1,mh);
+      g.fillStyle=rgba([255,180,90],0.55*mk);                              // the hot lip
+      g.fillRect(mx,mg,1,Math.max(1,Math.round(K*0.7)));
+    }
+    g.globalCompositeOperation="lighter";                                   // it lights the wall above it
+    for(var gq3=0;gq3<Math.round(7*K);gq3++){
+      g.fillStyle=rgba([255,120,50],0.05*mk*(1-gq3/(7*K)));
+      g.fillRect(cx-(W>>1)-Math.round(4*K),mY-gq3,W+Math.round(8*K),1);
+    }
+    g.globalCompositeOperation="source-over";
+  }
   // ================= 5. THE GREAT SPIRE, out of the keep =================
   var gw=Math.max(3,Math.round(4.4*K)), gh=Math.round(H*1.02), gy2=baseY-gh;
   shaft(cx,gw,gy2,gh,wall,wallL,4*K);
@@ -24172,7 +24326,26 @@ function drawHeightCastle(g,cx,capY,K,day,skc,now,seed,groundAt){
   g.fillStyle=css(mixc(roofL,[255,240,200],0.5)); g.fillRect(cx-1,gy2-gs,Math.max(2,Math.round(K)),Math.round(2*K));
   // ⚠ THE GREAT SPIRE SNAPS at the worst of it, and the Triforce goes with it — losing the highest
   // point in the frame is what makes the damage register from across the room.
-  if(dmgC<0.66) drawTriforce(g,cx,gy2-gs-Math.round(2*K),Math.max(3,Math.round(3.6*K)),day,now);
+  if(dmgC<0.66){
+    drawTriforce(g,cx,gy2-gs-Math.round(2*K),Math.max(3,Math.round(3.6*K)),day,now);
+    // 🔒 IT BLEEDS. His pick over breaking or inverting it: the shape and the gold survive, and what
+    // comes OFF it turns red and runs down the spire. Keeping the silhouette intact is what makes it
+    // read as the same object gone wrong rather than a different ornament.
+    if(GC>0.40){
+      var bk=Math.min(1,(GC-0.40)/0.60), tfB=gy2-gs-Math.round(2*K);
+      g.globalCompositeOperation="lighter";
+      for(var bq=0;bq<Math.round(8*K);bq++){                                // the halo turns
+        g.fillStyle=rgba([255,40,30],0.10*bk*(1-bq/(8*K)));
+        g.fillRect(cx-bq,tfB-bq,bq*2,bq*2);
+      }
+      g.globalCompositeOperation="source-over";
+      for(var dq=0;dq<Math.round(11*K*bk);dq++){                            // …and runs down the spire
+        var dw=Math.max(1,Math.round(K*(1.2-dq/(14*K))));
+        g.fillStyle=rgba([200,26,22],(0.60-0.38*(dq/Math.max(1,Math.round(11*K*bk))))*bk);
+        g.fillRect(cx-(dw>>1)+Math.round(Math.sin(dq*0.5)*K*0.6),tfB+Math.round(2.4*K)+dq,dw,1);
+      }
+    }
+  }
   if(dmgC>0.66){
     g.fillStyle=css(mixc(day?[74,66,66]:[16,14,16],skc,0.10));      // a broken stump where it stood
     g.fillRect(cx-gw,gy2,gw*2,Math.round(gh*0.30));
