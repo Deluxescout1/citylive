@@ -15,7 +15,12 @@ const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
 
-const SRC = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'city.js'), 'utf8');
+// ⚠⚠ NORMALISE LINE ENDINGS BEFORE SLICING SOURCE. This test cuts the engine on the literal '\n}\n',
+// and a Windows checkout has CRLF — so on the CI Windows leg the search missed, the slice returned a
+// fragment, and `new Function` threw "fu is not defined" (the tail of the word "function"). It passed
+// on Linux and failed on Windows, which is exactly the class of thing the both-platform gate is for.
+// 🔑 Any test that parses source text by hand must not care how the file was checked out.
+const SRC = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'city.js'), 'utf8').replace(/\r\n/g, '\n');
 const CYCLE = 7 * 24 * 3600 * 1000;
 
 // lift the real implementation out of the engine rather than restating it
@@ -68,7 +73,7 @@ test('the shift stays inside safe integer range', () => {
 });
 
 test('the settings form carries worldRestartAt through a save', () => {
-  const html = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'settings.html'), 'utf8');
+  const html = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'settings.html'), 'utf8').replace(/\r\n/g, '\n');
   // ⚠ slice to the function's own `return cfg;` — an earlier attempt cut at 'bdayAdd', which appears
   // as an element id in the markup long before the script, so the slice was EMPTY and the assertion
   // was testing nothing. A test that reads the wrong region passes for the wrong reason.
