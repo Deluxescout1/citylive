@@ -22975,6 +22975,10 @@ function drawHyruleLive(g,L,now,nd,fx){
   var dmW=Math.round(HORIZON*1.10), dmH=Math.round(HORIZON*0.84);
   if(dmx<-dmW-60||dmx>SW+dmW+60) return;
   var un=deathUnrest(now);
+  // ---- TRAFFIC ON THE ROAD, AND HORSES IN THE FIELD. Nick wanted the country lived-in so that there
+  // is something to LOSE when the shadow comes. All of it in the live pass, because a cart that moves
+  // twice a second is a cart nobody believes.
+  drawFieldLife(g,L,now,nd,fx);
   var sumY=Math.max(TOPPAD,HORIZON-dmH);
   var ringY=sumY+Math.round(dmH*0.11), rx0=Math.round(dmW*0.26), ry0=Math.max(2,Math.round(rx0*0.24));
   // ---- THE RING. Cloud when the mountain is quiet; as it wakes the same ring burns through to fire.
@@ -23123,6 +23127,67 @@ function drawHyruleLive(g,L,now,nd,fx){
     }
   }
 }
+// ---- THE FIELD, LIVED IN: carts and walkers on the road, horses loose on the grass.
+function drawFieldLife(g,L,now,nd,fx){
+  var day=L>0.5, K=Math.max(1,KSP), W=Math.max(1,WW|0);
+  function fieldY(wx){
+    var n1=Math.sin(wx*0.0017+2.1)*0.55+Math.sin(wx*0.0049+0.7)*0.3+Math.sin(wx*0.0131+2.6)*0.15;
+    return HORIZON-Math.round(HORIZON*(0.50+n1*0.055));
+  }
+  function onRoad(wx){ return Math.abs(plateauSurfaceAt(wx)-fieldY(wx))<=Math.round(6*K); }
+  function roadY(wx){ return fieldY(wx)+Math.round(9*K)+Math.round(Math.sin(wx*0.0026)*3*K); }
+  // ---- TRAVELLERS. Fewer after dark, and — once the shadow is on the land — the road empties, which
+  // is the quietest and most effective thing the takeover can do to it.
+  var un=(typeof deathUnrest==="function")?deathUnrest(now):0;
+  var quiet=Math.max(0,1-un*1.4)*(day?1:0.45);
+  var N=Math.round(9*quiet);
+  for(var i=0;i<N;i++){
+    var h=mixLi(i,0x1204), dir=((h>>>3)&1)?1:-1;
+    var speed=0.0000075*(0.7+((h>>>7)%100)/100*0.6);
+    var wx=(((h%W)+dir*now*speed*W)%W+W)%W;
+    if(!onRoad(wx)) continue;
+    var sx=Math.round(wx-WOFF); if(sx<-30) sx+=W; if(sx>SW+30) sx-=W;
+    if(sx<-20||sx>SW+20) continue;
+    var ry=roadY(wx), kind=(h>>>11)%3;
+    if(kind===0){                                                   // an ox cart
+      g.fillStyle=day?"#7a5a38":"#1d1610";
+      g.fillRect(sx,ry-Math.round(3.4*K),Math.round(6*K),Math.round(2.6*K));       // the bed
+      g.fillStyle=day?"#5d4429":"#150f0b";
+      g.fillRect(sx+Math.round(K),ry-Math.round(K),Math.max(1,Math.round(1.4*K)),Math.max(1,Math.round(1.4*K)));   // wheels
+      g.fillRect(sx+Math.round(4*K),ry-Math.round(K),Math.max(1,Math.round(1.4*K)),Math.max(1,Math.round(1.4*K)));
+      g.fillStyle=day?"#4a3a2a":"#120d09";                                          // the ox
+      g.fillRect(sx+dir*Math.round(7*K),ry-Math.round(3.2*K),Math.round(4*K),Math.round(2.4*K));
+    } else if(kind===1){                                            // a rider
+      g.fillStyle=day?"#5a4030":"#151009";
+      g.fillRect(sx,ry-Math.round(3.4*K),Math.round(4.4*K),Math.round(2.2*K));
+      g.fillRect(sx+Math.round(0.6*K),ry-Math.round(1.4*K),Math.max(1,Math.round(K)),Math.round(1.6*K));
+      g.fillRect(sx+Math.round(3*K),ry-Math.round(1.4*K),Math.max(1,Math.round(K)),Math.round(1.6*K));
+      drawPerson(g,sx+Math.round(2*K),ry-Math.round(3.6*K),"#3c4a5a","#c9a184",(Math.floor(now/200)+i)&3);
+    } else {                                                        // somebody walking
+      drawPerson(g,sx,ry-Math.round(1.2*K),((h>>>17)&1)?"#5a6a4a":"#6a5040","#c9a184",(Math.floor(now/240)+i)&3);
+    }
+  }
+  // ---- HORSES loose on the grass, in a band rather than a rank — a herd is a RING, not a queue.
+  var HN=Math.round(6*Math.max(0.25,quiet));
+  for(var hz=0;hz<HN;hz++){
+    var hh=mixLi(hz,0x40E5);
+    var hwx=(((hh%W)+now*0.0000016*W*(((hh>>>5)&1)?1:-1))%W+W)%W;
+    if(!onRoad(hwx)) continue;
+    var hsx=Math.round(hwx-WOFF); if(hsx<-30) hsx+=W; if(hsx>SW+30) hsx-=W;
+    if(hsx<-16||hsx>SW+16) continue;
+    var hy=roadY(hwx)-Math.round((6+((hh>>>9)%7))*K);               // off the road, up the grass
+    var hu=Math.max(1,Math.round(K));
+    var graze=(((hh>>>13)+Math.floor(now/4000))%3===0);             // heads down, most of the time
+    g.fillStyle=day?((hh&1)?"#6b4a30":"#3a3028"):"#181410";
+    g.fillRect(hsx,hy,Math.round(4.4*K),Math.round(2.2*K));                          // body
+    g.fillRect(hsx+Math.round(0.4*K),hy+Math.round(2.2*K),hu,Math.round(1.8*K));      // legs
+    g.fillRect(hsx+Math.round(3.4*K),hy+Math.round(2.2*K),hu,Math.round(1.8*K));
+    g.fillRect(hsx+Math.round(4.2*K),graze?hy+Math.round(1.6*K):hy-Math.round(1.4*K),
+               Math.round(1.8*K),Math.round(1.8*K));                                 // head, up or down
+    g.fillStyle=day?"#2a2018":"#0d0a08";
+    g.fillRect(hsx-Math.round(0.8*K),hy-Math.round(0.4*K),Math.max(1,Math.round(K*0.8)),Math.round(1.6*K));  // tail
+  }
+}
 // ============ THE TRIFORCE ============
 // Nick: "I also want to add a Triforce to this if possible." Three equilateral triangles making a
 // larger one with a hole in the middle — and the HOLE is the whole trick: filled in, it is a yellow
@@ -23264,7 +23329,13 @@ function plateauSurfaceAt(wx){
   // Anything that stands on this land reads it rather than carrying its own guess at the ground.
   var HY_BLUFF=0.44, HY_DEATH=0.80, HY_LAKE=0.12, K2=Math.max(1,KSP);
   function dSign(a,b2){ var d=(((a-b2)%WW)+WW*1.5)%WW-WW*0.5; return d; }
-  var n1=Math.sin(wx*0.0017)*0.55+Math.sin(wx*0.0049+0.7)*0.3+Math.sin(wx*0.0131+2.6)*0.15;
+  // ⚠⚠ THE PHASE HAS TO MATCH THE BAND THAT IS ACTUALLY DRAWN. The field is two bands and the NEAR one
+  // — the ground anything in the field stands on — is drawn with `+bnd*2.1` at bnd=1. This helper had
+  // the same base and amplitude but phase 0, i.e. it described the FAR band. Everything that asked
+  // "am I standing on the field?" got an answer about a different hill: the road was skipped almost
+  // everywhere it should have been drawn, and it took a rendered frame to see it because the numbers
+  // are individually reasonable. 🔑 Two copies of a curve are one copy and one bug.
+  var n1=Math.sin(wx*0.0017+2.1)*0.55+Math.sin(wx*0.0049+0.7)*0.3+Math.sin(wx*0.0131+2.6)*0.15;
   var best=HORIZON-Math.round(HORIZON*(0.50+n1*0.055));
   var hW=Math.round(HORIZON*0.70), hH=Math.round(HORIZON*0.38), dh=dSign(wx,HY_BLUFF*WW);
   if(Math.abs(dh)<hW){
@@ -23298,7 +23369,8 @@ function drawPlateau(g,L,now,nd){
   // volcanic mountain at the north-east. There are no sandstone tables anywhere in it.
   // 🔑 A land is its SHAPE before it is its colour. Repainting mesas green would still be mesas.
   // So: rolling field everywhere, ONE bluff carrying the castle/town/temple, and Death Mountain.
-  var HY_BLUFF=0.44, HY_DEATH=0.80, HY_LAKE=0.12;          // castle north · mountain north-east · lake far west
+  // world fractions, west→east off the N64 map (his locked layout)
+  var HY_BLUFF=0.44, HY_DEATH=0.80, HY_LAKE=0.12, HY_RANCH=0.30;
   var TOPPAD=Math.round(6*K);                              // ⚠ NOTHING may be drawn above this line
   var grass  =mixc(day?[112,166,86]:[18,34,26], skc, 0.10);
   var grassD =mixc(grass,[30,58,34],0.34), grassL=mixc(grass,day?[196,224,142]:[60,84,70],day?0.30:0.12);
@@ -23543,6 +23615,84 @@ function drawPlateau(g,L,now,nd){
     // thing on the land — which is the point of putting it in the sky rather than only on a wall.
     var tfY=hillY(0)-Math.round(HORIZON*0.42)-Math.round(20*K);
     if(tfY>Math.round(8*K)) drawTriforce(g,hcx-Math.round(hW*0.16),tfY,Math.max(6,Math.round(11*K)),day,now);
+  }
+  // ============ THE ROAD, AND LON LON RANCH ============
+  // Nick: "Hyrule field is super empty." It was — two bands of grass and nothing between the lake and
+  // the castle. The road does most of the work on its own: a track that goes somewhere turns a lawn
+  // into a country, and it gives every landmark a reason to be where it is.
+  function fieldY(wx){                                            // the near band's crown at a world x
+    var n1=Math.sin(wx*0.0017+2.1)*0.55+Math.sin(wx*0.0049+0.7)*0.3+Math.sin(wx*0.0131+2.6)*0.15;
+    return HORIZON-Math.round(HORIZON*(0.50+n1*0.055));
+  }
+  var roadC =mixc(day?[198,186,152]:[34,34,36], skc, 0.10);
+  var roadD =mixc(roadC,[70,58,44],0.34);
+  var roadH=Math.max(2,Math.round(3.2*K));
+  for(var rx0=0;rx0<SW;rx0++){
+    var rwx=rx0+WOFF;
+    // ⚠ THE ROAD KEEPS OFF THE LANDFORMS. It is a track across the FIELD; running it up a mountain or
+    // over a lake would read as a bug, so it simply stops where the ground it belongs to stops.
+    var srf=plateauSurfaceAt(rwx), fy=fieldY(rwx);
+    if(Math.abs(srf-fy)>Math.round(6*K)) continue;                // the hill, the mountain or the water
+    var ry=fy+Math.round(9*K)+Math.round(Math.sin(rwx*0.0026)*3*K);   // it weaves as it crosses
+    if(ry>=HORIZON-2) continue;
+    g.fillStyle=css(roadC); g.fillRect(rx0,ry,1,roadH);
+    g.fillStyle=css(roadD); g.fillRect(rx0,ry+roadH-1,1,1);
+    if((mixLi(Math.floor(rwx/Math.max(1,Math.round(2*K))),0x20AD)%100)<22){   // ruts and stones
+      g.fillStyle=css(mixc(roadC,[120,104,80],0.30));
+      g.fillRect(rx0,ry+Math.round(roadH*0.4),1,1);
+    }
+  }
+  // ---- SIGNPOSTS where the road runs on, and small roadside shrines
+  for(var sp2=0;sp2<7;sp2++){
+    var swx2=Math.round((0.07+sp2*0.13)*WW), sx3=Math.round(swx2-WOFF);
+    if(sx3<-20) sx3+=WW; if(sx3>SW+20) sx3-=WW;
+    if(sx3<-10||sx3>SW+10) continue;
+    var sy3=fieldY(swx2)+Math.round(9*K);
+    if(Math.abs(plateauSurfaceAt(swx2)-fieldY(swx2))>Math.round(6*K)) continue;
+    if((sp2&1)===0){                                              // a signpost
+      g.fillStyle=css(mixc(day?[132,104,72]:[26,22,20],skc,0.08));
+      g.fillRect(sx3,sy3-Math.round(7*K),Math.max(1,Math.round(1.2*K)),Math.round(7*K));
+      g.fillRect(sx3-Math.round(2.4*K),sy3-Math.round(7*K),Math.round(6*K),Math.max(1,Math.round(1.6*K)));
+    } else {                                                      // a roadside shrine, a little stone
+      g.fillStyle=css(mixc(stoneC,day?[210,204,188]:[38,40,50],day?0.40:0.20));
+      g.fillRect(sx3,sy3-Math.round(4.4*K),Math.round(3.2*K),Math.round(4.4*K));
+      g.fillStyle=css(mixc(stoneC,[50,44,38],0.34));
+      g.fillRect(sx3-Math.round(K),sy3-Math.round(5.6*K),Math.round(5.2*K),Math.max(1,Math.round(1.4*K)));
+    }
+  }
+  // ---- LON LON RANCH, dead centre of the field exactly as the map has it: a fenced corral with the
+  // barn and its silo standing over it. The one built thing in the middle of Hyrule.
+  var lrx=wrapX(HY_RANCH);
+  if(lrx>-140&&lrx<SW+140){
+    var lry=fieldY(HY_RANCH*WW)+Math.round(9*K);
+    var corW=Math.round(46*K);
+    // the corral fence — posts and two rails, open at the front so you can see into it
+    g.fillStyle=css(mixc(day?[146,116,80]:[28,24,20],skc,0.08));
+    for(var fp=0;fp<=corW;fp+=Math.round(5*K)){
+      var fx2=lrx-(corW>>1)+fp; if(fx2<0||fx2>=SW) continue;
+      g.fillRect(fx2,lry-Math.round(5*K),Math.max(1,Math.round(1.2*K)),Math.round(5*K));
+    }
+    for(var fr=0;fr<2;fr++){
+      var fry=lry-Math.round((4.2-fr*2.0)*K);
+      g.fillRect(Math.max(0,lrx-(corW>>1)),fry,Math.min(SW,corW),Math.max(1,Math.round(K*0.8)));
+    }
+    // THE BARN: a long red-roofed building with a big door, and the silo beside it
+    var bnx=lrx-Math.round(corW*0.34), bnw=Math.round(20*K), bnh=Math.round(11*K);
+    g.fillStyle=css(mixc(day?[226,214,190]:[34,34,42],skc,0.08));
+    g.fillRect(bnx-(bnw>>1),lry-bnh,bnw,bnh);
+    g.fillStyle=css(mixc(day?[176,74,58]:[26,16,18],skc,0.06));            // the roof, steep and long
+    for(var br=0;br<Math.round(7*K);br++)
+      g.fillRect(bnx-(bnw>>1)-Math.round(K)+br,lry-bnh-Math.round(7*K)+br,Math.max(1,bnw+Math.round(2*K)-br*2),1);
+    g.fillStyle=css(mixc(day?[120,86,58]:[20,16,14],skc,0.06));            // the door
+    g.fillRect(bnx-Math.round(3*K),lry-Math.round(7*K),Math.round(6*K),Math.round(7*K));
+    var slx=bnx+Math.round(bnw*0.78), slw=Math.round(7*K), slh=Math.round(17*K);
+    g.fillStyle=css(mixc(day?[214,206,186]:[32,32,40],skc,0.08));          // the silo
+    g.fillRect(slx-(slw>>1),lry-slh,slw,slh);
+    g.fillStyle=css(mixc(day?[168,72,56]:[24,16,16],skc,0.06));            // its domed cap
+    for(var sr=0;sr<Math.round(3.4*K);sr++)
+      g.fillRect(slx-(slw>>1)+sr,lry-slh-Math.round(3.4*K)+sr,Math.max(1,slw-sr*2),1);
+    if(!day){ g.fillStyle="rgba(255,206,130,0.9)";
+      g.fillRect(bnx+Math.round(bnw*0.22),lry-Math.round(bnh*0.6),Math.max(1,Math.round(1.4*K)),Math.max(1,Math.round(1.4*K))); }
   }
   // ---- SHRINE GLOW, scattered over the field on the surface it actually stands on
   for(var s3=0;s3<7;s3++){
