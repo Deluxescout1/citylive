@@ -30383,8 +30383,9 @@ function drawBiomeLandmark(g,L,now,nd){
     // i.e. a table. Real bedding is uneven: thick beds and thin ones, and a plane that fades out and
     // picks up again along its length rather than ruling the full width. Spacing is hashed, each plane
     // dips along ITS OWN length, and it is emitted in broken runs.
-    var syAcc=RY+Math.round(FK*2), sBed=0;
+    var syAcc=RY+Math.round(FK*2), sBed=0, bedYs=[];
     while(syAcc<gy-Math.round(FK)&&sBed<16){
+      bedYs.push(syAcc);       // kept, so the bedding can be run BACK ACROSS the carving — see below
       var bh8=mixLi(sBed*8+1,0xBED0);
       var th3=Math.max(1,Math.round(FK*(0.35+((bh8>>>5)%100)/100*0.45)));
       var run=-1;
@@ -30416,46 +30417,119 @@ function drawBiomeLandmark(g,L,now,nd){
       var tbx=pL+tb; if(tbx<0||tbx>=SW) continue;
       g.fillRect(tbx,gy-Math.round(talH*0.4)-((tbx*5)%Math.max(1,Math.round(2*FK))),Math.max(1,Math.round(FK*0.8)),Math.max(1,Math.round(FK*0.8)));
     }
+    // ============ THE ELDERS ============
+    // Nick, on the first cut: they sit in rectangular frames · they are all the same head · they are
+    // too clean for the rock · they are a flat row. All four are the same underlying mistake — the
+    // carving was drawn as five copies of a SYMBOL laid on the wall, instead of five different heads
+    // taken OUT of it. Every answer below is about belonging to the rock rather than about detail.
+    var sunLeftF=(curSunDf<0.5);
     for(var fi2=0;fi2<faces;fi2++){
-      var FX=RX+Math.round(fi2*pitch);
-      // ⚠ AND THEY ARE NOT A ROW OF STAMPS. A hashed drop of up to a face-height's fifth per elder —
-      // world-seeded, so all three monitors carve the same five — breaks the ruled line the equal
-      // pitch would otherwise draw across the wall.
-      var FY=RY+Math.round(8*FK)+Math.round(((mixLi(fi2,0xE1DE)%100)/100)*fh*0.20);
+      var eh=mixLi(fi2*13+7,0xE1DE);
+      var e1=(eh%100)/100, e2=((eh>>>7)%100)/100, e3=((eh>>>11)%100)/100,
+          e4=((eh>>>16)%100)/100, e5=((eh>>>21)%100)/100, e6=((eh>>>26)%7)/7;
+      // ---- NO TWO ALIKE, AND NOT ON A LINE ----
+      // Size, seat, spacing and DEPTH all vary. The depth is the one that does the most work: a head
+      // cut further back throws a wider shadow and takes less light, so the row has a front and a back
+      // instead of being five stamps at one distance.
+      var Fw=Math.round(fw*(0.84+e1*0.34)), Fh=Math.round(fh*(0.88+e2*0.26));
+      var FX=RX+Math.round(fi2*pitch+(e3-0.5)*pitch*0.20);
+      var FY=RY+Math.round(8*FK)+Math.round((e4-0.34)*fh*0.42);
+      var rel=0.62+e5*0.75;                                            // how far this one is cut back
+      // ⚠ THE SHADED LIMB IS A LIP, NOT A CRESCENT. At 0.9*FK*rel it came out as a thick dark C down
+      // one side of every head — the shadow read as bigger than the feature throwing it, which turns
+      // a carving into a stencil. Zoomed, that one band was doing more visual work than the face.
+      var u2=Math.max(1,Math.round(FK*0.5*rel));
       var newest=(fi2===faces-1);
-      // RELIEF, NOT APPLIQUE. Every mark below is the SAME stone as the cliff; only the VALUE
-      // changes. A recess is darker because less sky reaches it, a brow is lighter because it
-      // catches the sun — that is the entire vocabulary of carving, and using a different hue for
-      // the heads is exactly what made this read as a sign hung on a hill.
-      var u2=Math.max(1,Math.round(FK*0.9));
-      g.fillStyle=cut;                                                  // the niche cut back into the wall
-      g.fillRect(FX-u2,FY-u2,fw+u2*2,fh+u2*2);
-      g.fillStyle=stone; g.fillRect(FX,FY,fw,fh);                       // the head, left proud of the recess
-      g.fillStyle=lit2;                                                 // sunlit top and left limb of the head
-      g.fillRect(FX,FY,fw,u2);
-      g.fillRect(FX,FY,u2,fh);
-      g.fillStyle=cut;                                                  // and its own shadow thrown right
-      g.fillRect(FX+fw-u2,FY,u2,fh);
-      g.fillStyle=lit2;                                                 // brow ridge and cheekbone,
-      g.fillRect(FX,FY+Math.round(fh*0.24),fw,Math.max(1,Math.round(1.4*FK)));   // which is all a face
-      g.fillRect(FX,FY+Math.round(fh*0.60),fw,Math.max(1,Math.round(FK)));       // needs at this size
+      var jaw=0.24+e2*0.26, brow=1.1+e1*0.9;                           // a narrow chin or a heavy one
+      // THE HEAD'S OWN OUTLINE — no rectangle anywhere. Widest at the cheekbones, rounded over the
+      // crown, tapering to a jaw. ⚠ THE RECTANGULAR NICHE WAS THE WHOLE "FRAMED PANEL" READ: a square
+      // recess around a square head is a plaque, and no amount of modelling inside it survives that.
+      function headW(t){
+        var w;
+        if(t<0.14) w=0.72+ (t/0.14)*0.26;                              // the crown rounds over
+        else if(t<0.52) w=0.98+0.02*Math.sin((t-0.14)*8);              // cheekbones, the widest part
+        else w=0.98-((t-0.52)/0.48)*jaw;                               // and down to the jaw
+        return Math.max(1,Math.round(Fw*w));
+      }
+      // 1. THE RECESS. Cut to the head's own shape and offset toward the shade, so the rock closes
+      //    around the carving instead of framing it.
+      // ⚠ AND THE RECESS MUST HUG THE HEAD. At 1.5*u2 offset and double that in width it threw a dark
+      // mass out to the shaded side that read as a SECOND SHAPE beside each elder — a carving with a
+      // shadow puppet next to it. It is a cut in a wall a few inches deep, not a cave.
       g.fillStyle=cut;
-      g.fillRect(FX,FY+Math.round(fh*0.24)+Math.round(1.4*FK),fw,Math.max(1,Math.round(FK*0.7)));   // shadow UNDER the brow — the deepest cue that it is cut
-      g.fillRect(FX+Math.round(fw*0.18),FY+Math.round(fh*0.32),Math.max(1,Math.round(1.3*FK)),Math.max(1,Math.round(1.6*FK)));  // eyes, deep
-      g.fillRect(FX+Math.round(fw*0.62),FY+Math.round(fh*0.32),Math.max(1,Math.round(1.3*FK)),Math.max(1,Math.round(1.6*FK)));
-      g.fillRect(FX+Math.round(fw*0.40),FY+Math.round(fh*0.36),Math.max(1,Math.round(1.2*FK)),Math.round(fh*0.26));            // the nose
-      g.fillStyle=lit2;                                                 // …lit down its left ridge
-      g.fillRect(FX+Math.round(fw*0.40)-Math.max(1,Math.round(FK*0.6)),FY+Math.round(fh*0.36),Math.max(1,Math.round(FK*0.6)),Math.round(fh*0.26));
+      var offR=Math.max(1,Math.round(u2*0.7));
+      for(var ry2=-offR;ry2<Fh+offR;ry2++){
+        var tr=Math.max(0,Math.min(1,ry2/Fh)), wr=headW(tr)+offR;
+        g.fillRect(FX+((Fw-wr)>>1)+(sunLeftF?offR:-offR),FY+ry2,wr,1);
+      }
+      // 2. THE HEAD, left proud of it, in the same stone as the cliff — relief is a VALUE vocabulary.
+      for(var ry3=0;ry3<Fh;ry3++){
+        var t3=ry3/Fh, w3=headW(t3), x3=FX+((Fw-w3)>>1);
+        g.fillStyle=stone; g.fillRect(x3,FY+ry3,w3,1);
+        g.fillStyle=lit2;  g.fillRect(sunLeftF?x3:(x3+w3-u2),FY+ry3,u2,1);      // the lit limb
+        g.fillStyle=cut;   g.fillRect(sunLeftF?(x3+w3-u2):x3,FY+ry3,u2,1);      // and the shaded one
+      }
+      
+      // 3. THE FEATURES. Same five marks on every head, none of them the same size twice.
+      // ⚠ A BROW THAT RUNS THE FULL WIDTH IS A VISOR. Ruled edge to edge it read as a helmet band on
+      // all five; a brow ridge stops short of the temples, and the gap either side is what makes it a
+      // face rather than a stripe.
+      var bY=FY+Math.round(Fh*(0.22+e3*0.05)), bW=Math.round(Fw*(0.70+e5*0.10)), bX=FX+Math.round((Fw-bW)*0.5);
+      g.fillStyle=lit2; g.fillRect(bX,bY,bW,Math.max(1,Math.round(brow*FK)));
+      g.fillStyle=cut;  g.fillRect(bX,bY+Math.round(brow*FK),bW,Math.max(1,Math.round(FK*(0.7+e4*0.6))));
+      var eyY=FY+Math.round(Fh*(0.33+e4*0.03)), eyW=Math.max(1,Math.round(FK*(0.9+e1*0.5))), eyH=Math.max(1,Math.round(FK*(1.1+e5*0.5)));
+      g.fillRect(FX+Math.round(Fw*(0.16+e2*0.05)),eyY,eyW,eyH);
+      g.fillRect(FX+Math.round(Fw*(0.66-e2*0.05)),eyY,eyW,eyH);
+      var noL=Math.round(Fh*(0.22+e5*0.10)), noX=FX+Math.round(Fw*0.42);
+      g.fillRect(noX,FY+Math.round(Fh*0.34),Math.max(1,Math.round(FK*(1.0+e3*0.6))),noL);
+      g.fillStyle=lit2;
+      g.fillRect(noX-Math.max(1,Math.round(FK*0.6)),FY+Math.round(Fh*0.34),Math.max(1,Math.round(FK*0.6)),noL);
       g.fillStyle=cut;
-      g.fillRect(FX+Math.round(fw*0.26),FY+Math.round(fh*0.74),Math.round(fw*0.48),Math.max(1,Math.round(FK)));               // mouth
-      g.fillStyle=css(mixc(stoneC,[60,54,48],day?0.30:0.42));            // hair, and a headpiece
-      g.fillRect(FX-Math.max(1,Math.round(FK)),FY-Math.round(1.6*FK),fw+Math.round(2*FK),Math.round(2.4*FK));
+      g.fillRect(FX+Math.round(Fw*(0.24+e1*0.06)),FY+Math.round(Fh*(0.70+e2*0.06)),Math.round(Fw*(0.40+e4*0.14)),Math.max(1,Math.round(FK*(0.8+e5*0.5))));
+      // 4. THE HEADPIECE — three kinds, so the row is five PEOPLE and not one repeated: a plain
+      //    fillet, a heavier crown, or a topknot standing above the crown.
+      g.fillStyle=css(mixc(stoneC,[60,54,48],day?0.30:0.42));
+      // ⚠ AND IT HAS TO SIT ON THE HEAD. Drawn from `FY-1.1*FK` upward it floated over the crown with
+      // the recess shadow showing between — five hats hovering above five heads.
+      var hpW=headW(0.10);
+      if(e6<0.34){ g.fillRect(FX+((Fw-hpW)>>1)-Math.round(FK*0.5),FY-Math.round(FK*1.4),hpW+Math.round(FK),Math.round(FK*3.0)); }
+      else if(e6<0.7){ g.fillRect(FX+((Fw-hpW)>>1)-Math.round(FK),FY-Math.round(FK*2.0),hpW+Math.round(2*FK),Math.round(3.8*FK)); }
+      else { g.fillRect(FX+((Fw-hpW)>>1)-Math.round(FK*0.5),FY-Math.round(FK*1.2),hpW+Math.round(FK),Math.round(FK*2.8));
+             g.fillRect(FX+Math.round(Fw*0.40),FY-Math.round(FK*3.6),Math.max(2,Math.round(FK*1.8)),Math.round(FK*2.6)); }
+      // 5. WEATHERING — the answer to "too clean for the rock", and the cheapest of the four.
+      //    a) RAIN STREAKS running down off the chin and the brows. Every weathered carving in the
+      //       world has them, and nothing else says "this has stood here a long time" as fast.
+      for(var st2=0;st2<3;st2++){
+        var sh2=mixLi(fi2*31+st2,0x57A1), sx2=FX+Math.round(((sh2%100)/100)*Fw);
+        var sl2=Math.round(Fh*(0.35+((sh2>>>9)%100)/100*1.15));
+        g.fillStyle=day?"rgba(58,40,28,0.20)":"rgba(6,8,16,0.24)";
+        g.fillRect(sx2,FY+Math.round(Fh*0.72),Math.max(1,Math.round(FK*(0.5+((sh2>>>17)%3)*0.5))),sl2);
+      }
+      //    b) CHIPS out of the silhouette. A carving this old has lost corners.
+      for(var ch2=0;ch2<2;ch2++){
+        var chh=mixLi(fi2*17+ch2,0xC41F0), ct2=((chh%100)/100)*0.9+0.05;
+        var cw2=Math.max(1,Math.round(FK*(0.8+((chh>>>7)%3)*0.7))), chH=Math.max(1,Math.round(FK*(1.0+((chh>>>11)%4)*0.6)));
+        var cwid=headW(ct2), cx2=(((chh>>>15)&1)?(FX+((Fw-cwid)>>1)+cwid-cw2):(FX+((Fw-cwid)>>1)));
+        g.fillStyle=cut; g.fillRect(cx2,FY+Math.round(ct2*Fh),cw2,chH);
+      }
+      //    c) THE BEDDING RUNS THROUGH IT. 🔑 This is the one that beds them in: the strata were drawn
+      //       BEFORE the heads and so stopped dead at every one of them, which is exactly what a decal
+      //       does and exactly what a carving does not. The same planes are run back across the face,
+      //       faintly — the rock the elder is made of is the rock beside him.
+      for(var bd2=0;bd2<bedYs.length;bd2++){
+        var byy=bedYs[bd2]; if(byy<FY+2||byy>FY+Fh-2) continue;
+        var tb2=(byy-FY)/Fh, wb2=headW(tb2);
+        g.fillStyle=day?"rgba(70,56,44,0.18)":"rgba(10,14,26,0.22)";
+        g.fillRect(FX+((Fw-wb2)>>1),byy,wb2,Math.max(1,Math.round(FK*0.4)));
+      }
       if(newest&&cityG<0.72){                                           // the newest is still being cut
         g.fillStyle=day?"rgba(140,128,110,0.85)":"rgba(40,36,32,0.85)";
-        g.fillRect(FX,FY+Math.round(fh*(0.30+cityG*0.5)),fw,fh);        // unfinished below the working line
+        for(var uy=Math.round(Fh*(0.30+cityG*0.5));uy<Fh;uy++){
+          var wu=headW(uy/Fh); g.fillRect(FX+((Fw-wu)>>1),FY+uy,wu,1);
+        }
         g.fillStyle=day?"#6a5f52":"#191714";                            // and the scaffold on it
-        for(var sc2=0;sc2<3;sc2++) g.fillRect(FX-Math.round(FK),FY+Math.round(fh*(0.4+sc2*0.22)),fw+Math.round(2*FK),Math.max(1,Math.round(FK)));
-        g.fillRect(FX+Math.round(fw*0.5),FY,Math.max(1,Math.round(FK)),fh);
+        for(var sc2=0;sc2<3;sc2++) g.fillRect(FX-Math.round(FK),FY+Math.round(Fh*(0.4+sc2*0.22)),Fw+Math.round(2*FK),Math.max(1,Math.round(FK)));
+        g.fillRect(FX+Math.round(Fw*0.5),FY,Math.max(1,Math.round(FK)),Fh);
       }
     }
     // ---- THE FORM, LAST OF ALL. A cliff lit flat is a silhouette: Nick's night shot is one grey mass with a grid
