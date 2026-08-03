@@ -21241,7 +21241,19 @@ function worldShiftFrom(at,mode){
   if(!at||!isFinite(+at)) return 0;
   var target=(mode==="fresh")?0.0005:APOC_AT;                         // fresh = reborn wilderness; apoc = the finale begins AT DETONATION (cy APOC_AT → apocMs≈0, so you WITNESS it play out in real time, not land in the aftermath)
   var base=(((+at)-GROW_EPOCH+GROW_OFFSET_DAYS*86400000)%GROW_CYCLE+GROW_CYCLE)%GROW_CYCLE;
-  return target*GROW_CYCLE-base;
+  // 🚨🚨 A NEW WORLD HAS TO BE A NEW WORLD. Micah, on v3.31.0: "can I just keep pressing 'new world'
+  // until I get the one I want? Like Konoha? Cause when I do it it just resets to the same one I'm at."
+  // He is exactly right and the arithmetic proves it. Setting the shift so the phase at the click
+  // equals `target` forces `(now-EPOCH+off+SHIFT)` to land on `(k+target)*GROW_CYCLE`, so the LIFE
+  // INDEX is always `k` — floor of the click time over the cycle, i.e. WHICHEVER REAL-WORLD WEEK IT
+  // IS. Three presses a minute apart measured identical: shift moved, life index 2952 every time.
+  // So "New World" reset the AGE and never the IDENTITY: same land, same city, same name, for ever.
+  // 🔑 The land is chosen by the life INDEX; a shift that only changes the phase can never change it.
+  // A whole number of cycles moves the identity and leaves the phase untouched, which is exactly the
+  // knob that was missing. Bounded so the shift stays far inside 2^53 — 4096 worlds is plenty, and
+  // any two presses more than a second apart land on different ones.
+  var lives=Math.abs(Math.floor((+at)/1000))%4096;
+  return target*GROW_CYCLE-base-lives*GROW_CYCLE;
 }
 if(CFG.worldRestartAt) WORLD_SHIFT=worldShiftFrom(CFG.worldRestartAt, CFG.worldRestartMode);
                                        //    ~0=newborn wilderness, ~6=village, ~12=growing city, ~20=near-metropolis, ~24=peak metropolis.

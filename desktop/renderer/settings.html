@@ -472,10 +472,19 @@
     });
   })();
 
+  var keepWorld = { at: undefined, mode: undefined };   // config this form does not own — see loadCity
   function loadCity(){
     try {
       api.getConfig().then(function(cfg){
         cfg = cfg||{};
+        // 🚨 KEYS THIS FORM DOES NOT MANAGE MUST SURVIVE A SAVE. Micah, on v3.31.0: "I just started a
+        // fresh one and pressed save and it reset to my dead city." `gatherCity()` builds its payload
+        // from the FORM FIELDS ONLY, and the saved config is replaced rather than merged — so every
+        // Save silently dropped `worldRestartAt`, WORLD_SHIFT fell back to 0, and the world snapped
+        // back to the un-shifted timeline, which by then is the old dead city.
+        // 🔑 A form that saves "everything" saves only what it knows about. Anything set from
+        // elsewhere has to be carried through explicitly.
+        keepWorld = { at: cfg.worldRestartAt, mode: cfg.worldRestartMode };
         listEl.innerHTML='';
         (cfg.birthdays||[]).forEach(function(b){ listEl.appendChild(bdayRow(b)); });
         document.getElementById('lat').value = (cfg.lat!=null)?cfg.lat:'';
@@ -532,6 +541,8 @@
     if(isFinite(lat)&&isFinite(lon)){ cfg.lat=lat; cfg.lon=lon; }
     var locName = document.getElementById('locationName').value;
     if(locName) cfg.locationName = locName;
+    if(keepWorld.at != null) cfg.worldRestartAt = keepWorld.at;        // carried through, never dropped
+    if(keepWorld.mode != null) cfg.worldRestartMode = keepWorld.mode;
     return cfg;
   }
 
@@ -658,6 +669,7 @@
       var cfg = gatherCity();
       cfg.worldRestartAt = Date.now();
       cfg.worldRestartMode = mode;
+      keepWorld.at = cfg.worldRestartAt; keepWorld.mode = mode;        // …and a later Save keeps THIS one
       api.saveConfig(cfg).then(function(){
         worldNote.textContent = noteText;
         setTimeout(function(){ worldNote.textContent = ''; }, 4000);
