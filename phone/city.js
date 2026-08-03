@@ -19121,6 +19121,13 @@ function disasterInfo(idx){
     var vConeX=volcanoConeWX();
     if(vConeX!=null) cx=Math.round(vConeX);
   }
+  // …AND ON THE OLD KINGDOM IT COMES OUT OF DEATH MOUNTAIN. Nick: "add this map to the list of maps
+  // where the volcano explodes." It already WAS in the list — "volcano" is in DIS_TYPES for every land
+  // — but the strike was rolled to a random world x, so the generic renderer raised a substitute cone
+  // in the middle of Hyrule Field while the actual mountain sat there doing nothing. Pinning the
+  // strike to the mountain is the whole fix, and it is the same one-line hook the volcanic islands
+  // already use. 🔑 The event existed; it was just happening in the wrong place.
+  if(type==="volcano" && curBiome && curBiome.shrine) cx=Math.round(0.80*WW);
   // …AND ON THE ASHLANDS IT COMES OUT OF THE RIFT. Nick's locked answer was "reuse it, fired from the rift"
   // rather than a bespoke event — and it turned out barely anything needed building: "volcano" is in
   // DIS_TYPES for every land, and `drawVolcanoDisaster` is already generic (it raises its own cone on the
@@ -22942,6 +22949,121 @@ function drawTempleOfTime(g,cx,baseY,K,day,skc,now){
   g.fillStyle=css(stoneL);
   for(var st=0;st<3;st++) g.fillRect(cx-(dw>>1)-Math.round(st*1.4*T),baseY+st,dw+Math.round(st*2.8*T),Math.max(1,Math.round(T*0.9)));
 }
+// ============ DEATH MOUNTAIN'S TEMPER ============
+// Nick: add this map to the lands where the volcano erupts, show it "starting to act up" beforehand,
+// put a dragon around THIS volcano only, and make the ring turn to fire as it nears active.
+// 0 = quiet · 0..1 = building · 1 = erupting. Read off the SAME disaster schedule every other land
+// uses, so the mountain's mood is the real event and not a decoration on its own timer.
+var HY_LEAD=150000;                                   // 2.5 min of warning before the strike
+function deathUnrest(now){
+  if(FORCEDIS) return (FORCEDIS.type==="volcano")?Math.max(0,Math.min(1,(FORCEDIS.f||0)/0.45)):0;
+  var idx=Math.floor(now/DIS_SLOT), di=disasterInfo(idx);
+  if(!di||di.type!=="volcano") return 0;
+  var tp=now-idx*DIS_SLOT-di.t0;
+  if(tp<0)        return Math.max(0,Math.min(1,1+tp/HY_LEAD));      // the build-up
+  if(tp<=DIS_DUR) return 1;                                          // erupting
+  return Math.max(0,1-(tp-DIS_DUR)/(HY_LEAD*2));                     // and settling afterwards
+}
+// ============ THE RING, AND THE DRAGON THAT LIVES IN IT ============
+// Drawn in the LIVE pass: a ring of fire that only redraws twice a second is a ring of fire that
+// flickers between two poses, and the dragon has to fly.
+function drawHyruleLive(g,L,now,nd,fx){
+  if(!curBiome||!curBiome.shrine) return;
+  var day=L>0.5, K=Math.max(1,KSP), skc=biomeSkc(day), TOPPAD=Math.round(6*K);
+  var HY_DEATH=0.80;
+  var dmx=Math.round(HY_DEATH*WW)-WOFF; if(dmx<-WW*0.5) dmx+=WW; if(dmx>WW*0.5) dmx-=WW;
+  var dmW=Math.round(HORIZON*1.10), dmH=Math.round(HORIZON*0.84);
+  if(dmx<-dmW-60||dmx>SW+dmW+60) return;
+  var un=deathUnrest(now);
+  var sumY=Math.max(TOPPAD,HORIZON-dmH);
+  var ringY=sumY+Math.round(dmH*0.11), rx0=Math.round(dmW*0.26), ry0=Math.max(2,Math.round(rx0*0.24));
+  // ---- THE RING. Cloud when the mountain is quiet; as it wakes the same ring burns through to fire.
+  // ⚠ It is the SAME ring either way — a second, different object appearing next to the first would
+  // read as two things, not as one thing changing.
+  var spin=(now*0.00006)%1;
+  for(var seg=0;seg<64;seg++){
+    var th2=(seg/64)*6.2832+spin*6.2832;
+    var ex=dmx+Math.round(Math.cos(th2)*rx0), ey=ringY+Math.round(Math.sin(th2)*ry0);
+    if(ex<0||ex>=SW||ey<TOPPAD) continue;
+    var farSide=(Math.sin(th2)<0);
+    var lick=0.5+0.5*Math.sin(now*0.006+seg*0.9);              // the flame licking along it
+    var w2=Math.max(2,Math.round((3.4+un*lick*3.2)*K)), h2=Math.max(1,Math.round((2+un*lick*2.6)*K));
+    if(un<0.02){
+      g.fillStyle=day?("rgba(244,236,224,"+(farSide?0.34:0.74)+")"):("rgba(150,138,150,"+(farSide?0.26:0.58)+")");
+      g.fillRect(ex-Math.round(1.6*K),ey,w2,h2);
+    } else {
+      // fire: a dark ember core under a bright crest, which is what makes flame read at this size
+      g.fillStyle="rgba("+Math.round(150+90*lick)+","+Math.round(40+60*lick)+",20,"+((farSide?0.44:0.86)*un).toFixed(2)+")";
+      g.fillRect(ex-Math.round(1.6*K),ey,w2,h2);
+      g.globalCompositeOperation="lighter";
+      g.fillStyle="rgba(255,"+Math.round(170+70*lick)+",70,"+((farSide?0.20:0.52)*un).toFixed(2)+")";
+      g.fillRect(ex-Math.round(1.2*K),ey-Math.round(K*0.6),Math.max(2,Math.round(w2*0.7)),Math.max(1,Math.round(h2*0.8)));
+      g.globalCompositeOperation="source-over";
+    }
+  }
+  // ---- THE ERUPTION ITSELF, once it is properly awake
+  if(un>0.55){
+    var ek=(un-0.55)/0.45;
+    g.globalCompositeOperation="lighter";
+    g.fillStyle="rgba(255,120,40,"+(0.30*ek).toFixed(2)+")";
+    g.fillRect(dmx-Math.round(8*K),sumY-Math.round(2*K),Math.round(16*K),Math.round(6*K));   // crater glow
+    g.globalCompositeOperation="source-over";
+    for(var pm=0;pm<Math.round(18*ek);pm++){                                                  // the ash column
+      var pph=((now*0.00022+pm*0.11)%1);
+      var pw=Math.round((6+pph*30)*K), py=sumY-Math.round(pph*HORIZON*0.34);
+      if(py<TOPPAD) continue;
+      g.fillStyle="rgba("+Math.round(70+40*(1-pph))+","+Math.round(62+30*(1-pph))+",62,"+((0.34-0.28*pph)*ek).toFixed(2)+")";
+      g.fillRect(dmx-(pw>>1)+Math.round(Math.sin(pph*5+pm)*4*K),py,pw,Math.max(2,Math.round(5*K)));
+    }
+    for(var lb=0;lb<Math.round(7*ek);lb++){                                                   // lava bombs
+      var lph=((now*0.0005+lb*0.29)%1);
+      var lx=dmx+Math.round((lb%2?1:-1)*lph*dmW*0.34), ly=sumY-Math.round(Math.sin(lph*3.14)*HORIZON*0.14)+Math.round(lph*lph*HORIZON*0.2);
+      if(ly<TOPPAD||ly>HORIZON) continue;
+      g.fillStyle="rgba(255,"+Math.round(150-90*lph)+",40,"+(1-lph*0.6).toFixed(2)+")";
+      g.fillRect(lx,ly,Math.max(2,Math.round(2.2*K)),Math.max(2,Math.round(2.2*K)));
+    }
+  }
+  // ---- THE DRAGON. It circles this mountain and no other — a long serpent, head, ribbed body and a
+  // whipping tail, drawn as a chain of segments around the same ellipse the ring uses so it clearly
+  // belongs to the peak. Calm and dark when the mountain sleeps; lit from within when it wakes.
+  var dph=(now*0.000045)%1, N=16;
+  var drx=rx0*1.28, dry=ry0*1.55;
+  for(var sgm=N-1;sgm>=0;sgm--){
+    var a2=(dph+sgm*0.028)*6.2832;
+    var sx2=dmx+Math.round(Math.cos(a2)*drx);
+    var sy2=ringY-Math.round(dmH*0.05)+Math.round(Math.sin(a2)*dry)+Math.round(Math.sin(now*0.003+sgm*0.6)*1.2*K);
+    if(sx2<-10||sx2>SW+10||sy2<TOPPAD) continue;
+    var head=(sgm===0), behind=(Math.sin(a2)<0);
+    var t4=1-sgm/N, w4=Math.max(2,Math.round((1.2+t4*3.2)*K));
+    var bodyA=(behind?0.45:1);
+    g.fillStyle="rgba("+Math.round(120+un*110)+","+Math.round(52+un*40)+","+Math.round(40)+","+(bodyA).toFixed(2)+")";
+    g.fillRect(sx2-(w4>>1),sy2-(w4>>1),w4,w4);
+    if(un>0.15){                                                       // it glows as the mountain wakes
+      g.globalCompositeOperation="lighter";
+      g.fillStyle="rgba(255,140,50,"+(0.30*un*bodyA).toFixed(2)+")";
+      g.fillRect(sx2-w4,sy2-w4,w4*2,w4*2);
+      g.globalCompositeOperation="source-over";
+    }
+    if(head){
+      var hd=Math.max(3,Math.round(4.4*K));
+      g.fillStyle="rgba("+Math.round(140+un*100)+",60,44,"+bodyA.toFixed(2)+")";
+      g.fillRect(sx2-(hd>>1),sy2-(hd>>1),hd,hd);                       // the head
+      g.fillRect(sx2+(Math.cos(a2)>0?hd:-hd*1.6),sy2-Math.round(K),Math.max(2,Math.round(2.2*K)),Math.max(1,Math.round(1.4*K)));  // snout
+      g.fillStyle="rgba(255,220,90,"+bodyA.toFixed(2)+")";             // eye
+      g.fillRect(sx2+(Math.cos(a2)>0?Math.round(K):-Math.round(2*K)),sy2-Math.round(K),Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
+      // a wing beat, and fire from the mouth once it is angry
+      var wb=Math.sin(now*0.005)*0.5+0.5;
+      g.fillStyle="rgba("+Math.round(120+un*90)+",56,44,"+(0.85*bodyA).toFixed(2)+")";
+      g.fillRect(sx2-Math.round(5*K),sy2-Math.round((2+wb*3)*K),Math.round(10*K),Math.max(1,Math.round(1.6*K)));
+      if(un>0.5&&((Math.floor(now/900)%7)===0)){
+        g.globalCompositeOperation="lighter";
+        g.fillStyle="rgba(255,170,60,0.8)";
+        g.fillRect(sx2+(Math.cos(a2)>0?hd:-hd*3),sy2-Math.round(K),Math.round(9*K),Math.max(2,Math.round(2.4*K)));
+        g.globalCompositeOperation="source-over";
+      }
+    }
+  }
+}
 // ============ THE TRIFORCE ============
 // Nick: "I also want to add a Triforce to this if possible." Three equilateral triangles making a
 // larger one with a hole in the middle — and the HOLE is the whole trick: filled in, it is a yellow
@@ -23204,19 +23326,9 @@ function drawPlateau(g,L,now,nd){
       g.fillStyle=css(mixc(mixc(day?[118,96,80]:[24,20,24],skc,0.14),(lit>0)?[242,228,202]:[38,28,24],Math.abs(lit)));
       g.fillRect(xx1,yq,1,HORIZON-yq+1);
     }
-    // ---- THE RING OF CLOUD around the summit — a halo seen edge-on, far side dimmer so it wraps.
-    var sumY=Math.max(TOPPAD,HORIZON-dmH);
-    var ringY=sumY+Math.round(dmH*0.11), rx0=Math.round(dmW*0.26), ry0=Math.max(2,Math.round(rx0*0.24));
-    var spin=(now*0.00006)%1;
-    for(var seg=0;seg<52;seg++){
-      var th2=(seg/52)*6.2832+spin*6.2832;
-      var ex=dmx+Math.round(Math.cos(th2)*rx0), ey=ringY+Math.round(Math.sin(th2)*ry0);
-      if(ex<0||ex>=SW||ey<TOPPAD) continue;
-      var farSide=(Math.sin(th2)<0);
-      g.fillStyle=day?("rgba(244,236,224,"+(farSide?0.34:0.74)+")")
-                     :("rgba(150,138,150,"+(farSide?0.26:0.58)+")");
-      g.fillRect(ex-Math.round(1.6*K),ey,Math.max(2,Math.round(3.4*K)),Math.max(1,Math.round(2*K)));
-    }
+    // ⚠ THE RING IS DRAWN IN THE LIVE PASS (drawHyruleLive) — it burns and turns, and the backdrop
+    // repaints twice a second. Fire on a 0.5 fps canvas is not fire.
+    var sumY=Math.max(TOPPAD,HORIZON-dmH);                          // (the ring block that declared this moved to the live pass)
     g.fillStyle=css(mixc(day?[92,74,62]:[16,14,18],skc,0.12));       // the crater notch
     g.fillRect(dmx-Math.round(6*K),sumY,Math.round(12*K),Math.max(1,Math.round(2.6*K)));
   }
@@ -23285,7 +23397,14 @@ function drawPlateau(g,L,now,nd){
       g.fillStyle=css(grassL); g.fillRect(xx7,yq7,1,Math.max(1,Math.round(K*0.8)));
     }
     // ---- THE TOWN, PACKED ON THE SHELF: varied widths, varied heights, shoulder to shoulder.
-    var twL=hcx+Math.round(hW*0.02), twR=hcx+Math.round(hW*twSpan*1.30);
+    // ⚠⚠ THEY WERE OVERLAPPING. Nick sent the frame: the castle's base wall and the town's wall run
+    // into each other. MEASURED at his geometry — castle centre `hcx-0.16*hW` with a half-width of
+    // W/2=94 reaches `hcx+35`, and the town started at `hcx+0.02*hW = hcx+7`: 28 px of collision.
+    // 🔑 Both were placed by eye against the hill and neither was placed against THE OTHER. The town
+    // now starts from the castle's measured right edge plus a gap, so they cannot touch whatever the
+    // castle's size does next.
+    var castR=(hcx-Math.round(hW*0.16))+Math.round(Math.min(HORIZON*0.42,Math.max(8,(hillY(0)+1-Math.round(6*K))/1.62))*1.90*0.5);
+    var twL=castR+Math.round(9*K), twR=twL+Math.round(hW*twSpan*1.30);
     var bx7=twL;
     for(var bi7=0;bi7<40&&bx7<twR;bi7++){
       var bh7=mixLi(bi7,0x7A1E);
@@ -23325,7 +23444,7 @@ function drawPlateau(g,L,now,nd){
       g.fillRect(stx+Math.round(1.2*K),shelfY-Math.round(2.2*K),Math.max(1,Math.round(K*0.7)),Math.round(2.2*K));
     }
     // ---- THE TEMPLE OF TIME, inside the walls and taller than the houses around it
-    drawTempleOfTime(g,hcx+Math.round(hW*0.20),shelfY,K,day,skc,now);
+    drawTempleOfTime(g,Math.round((twL+twR)*0.5)+Math.round(6*K),shelfY,K,day,skc,now);
     // ---- THE WALL that encloses them: a solid face with towers at both ends and a gate in the middle
     var wTop=shelfY-Math.round(2*K), wBot=shelfY+Math.round(hH*0.10);
     g.fillStyle=css(mixc(stoneC,day?[212,204,186]:[40,42,54],day?0.48:0.24));
@@ -23345,16 +23464,20 @@ function drawPlateau(g,L,now,nd){
       for(var cr=0;cr<Math.round(3.2*K);cr++)
         g.fillRect(gtx-Math.round(2.4*K)+cr,wTop-gth-Math.round(3.2*K)+cr,Math.max(1,Math.round(4.8*K)-cr*2),1);
     }
+    // ⚠ THE GATE HAS TO MOVE WITH THE TOWN. It was pinned to `hcx` — the hill's centre — so when the
+    // town shifted right to clear the castle, the gate and its Triforce were left standing on open
+    // grass with no wall around them. Anything that belongs to a thing is positioned FROM that thing.
+    var gateX=Math.round((twL+twR)*0.5);
     var gtw=Math.round(5*K);                                            // the gate itself
     g.fillStyle=css(mixc(stoneC,[26,22,20],0.60));
-    g.fillRect(hcx-(gtw>>1),wBot-Math.round(6*K),gtw,Math.round(6*K));
+    g.fillRect(gateX-(gtw>>1),wBot-Math.round(6*K),gtw,Math.round(6*K));
     for(var gaa=0;gaa<Math.round(2.6*K);gaa++){
       var aw4=Math.max(1,Math.round(gtw*(1-gaa/Math.round(2.6*K))));
-      g.fillRect(hcx-(aw4>>1),wBot-Math.round(6*K)-gaa,aw4,1);
+      g.fillRect(gateX-(aw4>>1),wBot-Math.round(6*K)-gaa,aw4,1);
     }
     // ---- THE TRIFORCE over the gate. Nick asked for one; three gold triangles stacked is the shape,
     // and at this size the NEGATIVE triangle in the middle is what makes it read as more than a blob.
-    drawTriforce(g,hcx,wTop-Math.round(4.4*K),Math.max(3,Math.round(4.2*K)),day,now);
+    drawTriforce(g,gateX,wTop-Math.round(4.4*K),Math.max(3,Math.round(4.2*K)),day,now);
     // ---- AND THE CASTLE ON THE CROWN
     drawHeightCastle(g,hcx-Math.round(hW*0.16),hillY(0)+1,K,day,skc,now,((WORLD_SEED*7919)>>>0),null);
     // ---- THE TRIFORCE, hanging over the castle. Faint by day, and after dark it is the brightest
@@ -42356,6 +42479,7 @@ function draw(g,pass){
   drawDamLakeLive(g,L,now,nd);    // …and if it is the dam, the ferry, the launch, the dinghies and the
                                   // water life. The lake's FIXED things (the far town, the boom, the
                                   // jetties) stay in the backdrop — see drawDamShore.
+  drawHyruleLive(g,L,now,nd,fx);   // …and on the old kingdom: the ring, the eruption, and the dragon
   drawVillageCliffLive(g,L,now,nd,fx);  // …and on the hidden village, everything the WALL does: water
                                   // off the rim, mist at its foot, climbers on the stair, hawks on the
                                   // updraft, the roost at dawn and dusk, lit chambers after dark
