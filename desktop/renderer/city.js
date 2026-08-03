@@ -22975,6 +22975,21 @@ function drawHyruleLive(g,L,now,nd,fx){
   var dmW=Math.round(HORIZON*1.10), dmH=Math.round(HORIZON*0.84);
   if(dmx<-dmW-60||dmx>SW+dmW+60) return;
   var un=deathUnrest(now);
+  for(var s3=0;s3<7;s3++){
+    var swx=mixLi(s3*8+3,(WORLD_SEED*17)|0)%Math.max(1,WW);
+    var sx=Math.round(swx-WOFF);
+    if(sx<-10) sx+=WW; if(sx>SW+10) sx-=WW;
+    if(sx<0||sx>=SW) continue;
+    var sy=plateauSurfaceAt(swx);
+    var pulse=0.45+0.55*Math.sin(now*0.0011+s3*1.3);
+    g.globalCompositeOperation="lighter";
+    for(var rr=0;rr<Math.round(5*K);rr++){
+      g.fillStyle=rgba([120,230,255],0.10*pulse*(1-rr/(5*K)));
+      g.fillRect(sx-rr,sy-rr,rr*2,rr*2);
+    }
+    g.globalCompositeOperation="source-over";
+    g.fillStyle=rgba([190,245,255],0.9*pulse); g.fillRect(sx,sy,Math.max(1,Math.round(1.4*K)),Math.max(1,Math.round(1.4*K)));
+  }
   // ---- TRAFFIC ON THE ROAD, AND HORSES IN THE FIELD. Nick wanted the country lived-in so that there
   // is something to LOSE when the shadow comes. All of it in the live pass, because a cart that moves
   // twice a second is a cart nobody believes.
@@ -23381,22 +23396,78 @@ function drawPlateau(g,L,now,nd){
   var capG   =mixc(day?[118,180,86]:[20,42,32], skc, 0.10);
   var capC   =mixc(day?B.cap:mixc(B.cap,[0,0,0],0.55), [255,220,180], goldenK*0.5);
   function wrapX(f){ var x=Math.round(f*WW)-WOFF; if(x<-WW*0.5) x+=WW; if(x>WW*0.5) x-=WW; return x; }
-  // ---- FAR RANGE: soft green ridges, so the field has a horizon rather than bare sky behind it
-  for(var x0=0;x0<SW;x0++){
-    var wx0=x0+WOFF;
-    var n0=Math.sin(wx0*0.0031)*0.5+Math.sin(wx0*0.0092+1.4)*0.3+Math.sin(wx0*0.0223)*0.12;
-    var hy0=Math.round(HORIZON*(0.70-n0*0.09));
-    g.fillStyle=css(farG); g.fillRect(x0,hy0,1,HORIZON-hy0+1);
+  // ⚠⚠⚠ THE LANDFORM IS CACHED. Nick: "the background is jittery again." MEASURED against a matched
+  // alpine control at his geometry: the BG pass on this land was 27.4 ms against alpine's 9.9 —
+  // **+17.5 ms** — while the live pass was only +2.0. Everything this land grew recently is backdrop
+  // work, and all of it was recomputing the same curves on every repaint: two field bands, the
+  // mountain's profile, the hill's dome, the lake's dish, five bedding planes per column, and
+  // `plateauSurfaceAt` called once PER COLUMN for the road — each of those a fistful of sin/cos/pow.
+  // None of it changes within a life. This is the same `mtsCache` pattern every other landform land
+  // already uses, and `plateauCache` was declared and nulled at life reset months ago and never used.
+  // 🔑 A backdrop that recomputes static geometry is paying for it at every repaint, and the backdrop
+  // is exactly the pass a stall is visible in.
+  var PC=plateauCache;
+  if(!PC||PC.sw!==SW||PC.woff!==WOFF||PC.hz!==HORIZON||PC.k!==K){
+    PC={ sw:SW, woff:WOFF, hz:HORIZON, k:K, far:[], f0:[], f1:[], surf:[], road:[] };
+    for(var ci=0;ci<SW;ci++){
+      var cw=ci+WOFF;
+      var na=Math.sin(cw*0.0017+0)*0.55+Math.sin(cw*0.0049+0.7)*0.3+Math.sin(cw*0.0131+2.6)*0.15;
+      var nb=Math.sin(cw*0.0017+2.1)*0.55+Math.sin(cw*0.0049+0.7)*0.3+Math.sin(cw*0.0131+2.6)*0.15;
+      var n0c=Math.sin(cw*0.0031)*0.5+Math.sin(cw*0.0092+1.4)*0.3+Math.sin(cw*0.0223)*0.12;
+      PC.far.push(Math.round(HORIZON*(0.70-n0c*0.09)));
+      PC.f0.push(HORIZON-Math.round(HORIZON*(0.40+na*0.085)));
+      PC.f1.push(HORIZON-Math.round(HORIZON*(0.50+nb*0.055)));
+      PC.surf.push(plateauSurfaceAt(cw));
+      PC.road.push(PC.f1[ci]+Math.round(9*K)+Math.round(Math.sin(cw*0.0026)*3*K));
+    }
+    // ---- and the three masses, per screen column. This is where the rest of the time was: a dome
+    // (cos+pow) for the hill and a pow for the mountain and the lake, on every column, every repaint.
+    var _hW=Math.round(HORIZON*0.95), _hH=Math.round(HORIZON*0.56), _hcx=Math.round(0.44*WW)-WOFF;
+    if(_hcx<-WW*0.5)_hcx+=WW; if(_hcx>WW*0.5)_hcx-=WW;
+    var _dW=Math.round(HORIZON*1.10), _dH=Math.round(HORIZON*0.84), _dcx=Math.round(0.80*WW)-WOFF;
+    if(_dcx<-WW*0.5)_dcx+=WW; if(_dcx>WW*0.5)_dcx-=WW;
+    var _lW=Math.round(HORIZON*0.72), _lcx=Math.round(0.12*WW)-WOFF;
+    if(_lcx<-WW*0.5)_lcx+=WW; if(_lcx>WW*0.5)_lcx-=WW;
+    var _lkY=HORIZON-Math.round(HORIZON*0.30), _CR=0.34;
+    PC.hill=[]; PC.hsg=[]; PC.oc=[]; PC.dm=[]; PC.dsg=[]; PC.lake=[]; PC.lt=[];
+    for(var cj=0;cj<SW;cj++){
+      var cwx=cj+WOFF;
+      var sgq=(cj-_hcx)/_hW, hyq=-1, ocq=null;
+      if(Math.abs(sgq)<1){
+        var aq=Math.abs(sgq), lvq=(aq<_CR), uq=lvq?_CR:aq;
+        var domeq=Math.pow(Math.max(0,Math.cos(uq*1.5708)),1.30);
+        var rghq=lvq?0:(Math.sin(sgq*7.3+1.1)*0.045+Math.sin(sgq*13.7)*0.020);
+        hyq=Math.round(HORIZON-_hH*Math.max(0,domeq+rghq*(1-uq)));
+        var ohq=mixLi(Math.floor(cwx/Math.max(1,Math.round(9*K))),0x0C40);
+        if((ohq%100)<34){
+          var oyq=hyq+Math.round((((ohq>>>7)%100)/100)*(HORIZON-hyq)*0.72)+Math.round(4*K);
+          var ohhq=Math.round(K*(2.2+((ohq>>>13)%4)));
+          if(oyq+ohhq<HORIZON) ocq=[oyq,ohhq];
+        }
+      }
+      PC.hill.push(hyq); PC.hsg.push(sgq); PC.oc.push(ocq);
+      var sgd=(cj-_dcx)/_dW, dyq=-1;
+      if(Math.abs(sgd)<1){
+        var td=Math.abs(sgd);
+        var profd=Math.pow(1-td,1.42)+Math.max(0,0.10-Math.abs(td-0.42))*0.9;
+        dyq=Math.round(HORIZON-_dH*profd)+Math.round(Math.sin(cwx*0.07)*1.6*K*(1-td));
+        if(dyq<Math.round(6*K)) dyq=Math.round(6*K);
+      }
+      PC.dm.push(dyq); PC.dsg.push(sgd);
+      var tl=Math.abs(cj-_lcx)/_lW, lyq=-1;
+      if(tl<1) lyq=_lkY+Math.round(Math.pow(tl,2.4)*HORIZON*0.28);
+      PC.lake.push(lyq); PC.lt.push(tl);
+    }
+    plateauCache=PC;
   }
+  // ---- FAR RANGE: soft green ridges, so the field has a horizon rather than bare sky behind it
+  g.fillStyle=css(farG);
+  for(var x0=0;x0<SW;x0++){ var hy0=PC.far[x0]; g.fillRect(x0,hy0,1,HORIZON-hy0+1); }
   // ---- HYRULE FIELD: two rolling green bands. Gentle, wide, and NEVER flat-topped — the whole read
   // of this land is open country you could ride across.
   for(var bnd=0;bnd<2;bnd++){
-    var amp=(bnd?0.055:0.085), base=(bnd?0.50:0.40);
     for(var x1=0;x1<SW;x1++){
-      var wx1=x1+WOFF;
-      var n1=Math.sin(wx1*0.0017+bnd*2.1)*0.55+Math.sin(wx1*0.0049+0.7)*0.3+Math.sin(wx1*0.0131+2.6)*0.15;
-      var hy1=Math.round(HORIZON*(base+n1*amp));
-      var yy1=HORIZON-hy1;
+      var yy1=bnd?PC.f1[x1]:PC.f0[x1];
       g.fillStyle=css(bnd?grass:mixc(grass,farG,0.34));
       g.fillRect(x1,yy1,1,HORIZON-yy1+1);
       g.fillStyle=css(grassL); g.fillRect(x1,yy1,1,Math.max(1,Math.round(K*0.8)));   // sun on the crown of each roll
@@ -23411,11 +23482,9 @@ function drawPlateau(g,L,now,nd){
     // invisible on his screen. "Large" has to mean large: it takes a real bite out of the field.
     var lkY=HORIZON-Math.round(HORIZON*0.30);
     var watC=mixc(day?[86,146,178]:[14,26,44], skc, 0.14);
-    for(var q3=-lkW;q3<=lkW;q3++){
-      var xx3=lkx+q3; if(xx3<0||xx3>=SW) continue;
-      var t3=Math.abs(q3)/lkW;
-      var top3=lkY+Math.round(Math.pow(t3,2.4)*HORIZON*0.28);        // a shallow dish, wide and flat
-      if(top3>=HORIZON) continue;
+    for(var xx3=0;xx3<SW;xx3++){
+      var top3=PC.lake[xx3]; if(top3<0||top3>=HORIZON) continue;     // a shallow dish, wide and flat
+      var t3=PC.lt[xx3];
       g.fillStyle=css(mixc(watC,day?[190,220,236]:[40,54,86],0.30*(1-t3)));
       g.fillRect(xx3,top3,1,HORIZON-top3+1);
       // the shore: a pale rim of sand where the water meets the field
@@ -23444,15 +23513,11 @@ function drawPlateau(g,L,now,nd){
   var dmx=wrapX(HY_DEATH), dmW=Math.round(HORIZON*1.10), dmH=Math.round(HORIZON*0.84);
   if(dmx>-dmW-40&&dmx<SW+dmW+40){
     var dmTop=Math.max(TOPPAD,HORIZON-dmH);
-    for(var q1=-dmW;q1<=dmW;q1++){
-      var xx1=dmx+q1; if(xx1<0||xx1>=SW) continue;
-      var sgn=q1/dmW, t1=Math.abs(sgn);
-      // ⚠ NOT A CONE. A smooth triangle reads as a slag heap; this is a shouldered massif with a
-      // steeper near flank, broken by two ridges running down from the head.
-      var prof=Math.pow(1-t1,1.42)+Math.max(0,0.10-Math.abs(t1-0.42))*0.9;
-      var yq=Math.round(HORIZON-dmH*prof)+Math.round(Math.sin((xx1+WOFF)*0.07)*1.6*K*(1-t1));
-      if(yq<dmTop) yq=dmTop;
-      if(yq>=HORIZON) continue;
+    // ⚠ NOT A CONE. A smooth triangle reads as a slag heap; this is a shouldered massif with a
+    // steeper near flank, broken by ridges running down from the head. (Profile cached.)
+    for(var xx1=0;xx1<SW;xx1++){
+      var yq=PC.dm[xx1]; if(yq<0||yq>=HORIZON) continue;
+      var sgn=PC.dsg[xx1];
       var lit=(sgn<0)?0.18:-0.12;
       g.fillStyle=css(mixc(mixc(day?[118,96,80]:[24,20,24],skc,0.14),(lit>0)?[242,228,202]:[38,28,24],Math.abs(lit)));
       g.fillRect(xx1,yq,1,HORIZON-yq+1);
@@ -23493,23 +23558,17 @@ function drawPlateau(g,L,now,nd){
     return Math.round(HORIZON-hH*Math.max(0,dome+rough*(1-u)));
   }
   if(hcx>-hW-40&&hcx<SW+hW+40){
-    for(var q5=-hW;q5<=hW;q5++){
-      var xx5=hcx+q5; if(xx5<0||xx5>=SW) continue;
-      var sg5=q5/hW, y5=hillY(sg5);
-      if(y5>=HORIZON) continue;
-      var wx5=xx5+WOFF;
+    for(var xx5=0;xx5<SW;xx5++){
+      var y5=PC.hill[xx5]; if(y5<0||y5>=HORIZON) continue;
+      var sg5=PC.hsg[xx5], wx5=xx5+WOFF;
       g.fillStyle=css(mixc(grass,grassD,0.20+0.30*Math.abs(sg5)));    // grass, darker down the flanks
       g.fillRect(xx5,y5,1,HORIZON-y5+1);
       g.fillStyle=css(grassL); g.fillRect(xx5,y5,1,Math.max(1,Math.round(K*0.9)));
       // ROCK OUTCROPS breaking through the turf — the thing that says "hill of rock under grass"
-      var oh=mixLi(Math.floor(wx5/Math.max(1,Math.round(9*K))),0x0C40);
-      if((oh%100)<34){
-        var oy=y5+Math.round(((( oh>>>7)%100)/100)*(HORIZON-y5)*0.72)+Math.round(4*K);
-        var ohh=Math.round(K*(2.2+((oh>>>13)%4)));
-        if(oy+ohh<HORIZON){
-          g.fillStyle=css(mixc(stoneC,stoneLo,0.30)); g.fillRect(xx5,oy,1,ohh);
-          g.fillStyle=css(stoneHi); g.fillRect(xx5,oy,1,Math.max(1,Math.round(K*0.6)));
-        }
+      var ocq2=PC.oc[xx5];
+      if(ocq2){
+        g.fillStyle=css(mixc(stoneC,stoneLo,0.30)); g.fillRect(xx5,ocq2[0],1,ocq2[1]);
+        g.fillStyle=css(stoneHi); g.fillRect(xx5,ocq2[0],1,Math.max(1,Math.round(K*0.6)));
       }
     }
     // ---- A CUT TERRACE FOR THE TOWN. ⚠⚠ THE TOWN WAS A ZIPPER. Following the contour with a ribbon
@@ -23631,9 +23690,19 @@ function drawPlateau(g,L,now,nd){
     var rwx=rx0+WOFF;
     // ⚠ THE ROAD KEEPS OFF THE LANDFORMS. It is a track across the FIELD; running it up a mountain or
     // over a lake would read as a bug, so it simply stops where the ground it belongs to stops.
-    var srf=plateauSurfaceAt(rwx), fy=fieldY(rwx);
-    if(Math.abs(srf-fy)>Math.round(6*K)) continue;                // the hill, the mountain or the water
-    var ry=fy+Math.round(9*K)+Math.round(Math.sin(rwx*0.0026)*3*K);   // it weaves as it crosses
+    if(Math.abs(PC.surf[rx0]-PC.f1[rx0])>Math.round(6*K)) continue;   // the hill, the mountain or the water
+    // ⚠ IT WENT STRAIGHT PAST EVERYTHING. Nick: "these paths you made are going right through the
+    // Castle town lol — maybe it should go to it? and maybe it should also finish going to the lake."
+    // Right, and it is the difference between a road and a stripe: a road is FOR somewhere. It stops
+    // at the lake shore instead of running into the water, and it lifts toward the gate as it passes
+    // under the castle hill rather than ignoring the one town on the map.
+    if(PC.lake[rx0]>=0&&PC.lt[rx0]<0.82) continue;                    // the shore is the end of the road
+    var ry=PC.road[rx0];                                              // it weaves as it crosses
+    var twd=Math.abs(((rwx%WW)+WW)%WW-HY_BLUFF*WW);
+    if(twd<HORIZON*0.34){                                             // …and climbs toward the gate
+      var lift=(1-twd/(HORIZON*0.34));
+      ry-=Math.round(lift*lift*HORIZON*0.10);
+    }
     if(ry>=HORIZON-2) continue;
     g.fillStyle=css(roadC); g.fillRect(rx0,ry,1,roadH);
     g.fillStyle=css(roadD); g.fillRect(rx0,ry+roadH-1,1,1);
@@ -23694,22 +23763,9 @@ function drawPlateau(g,L,now,nd){
     if(!day){ g.fillStyle="rgba(255,206,130,0.9)";
       g.fillRect(bnx+Math.round(bnw*0.22),lry-Math.round(bnh*0.6),Math.max(1,Math.round(1.4*K)),Math.max(1,Math.round(1.4*K))); }
   }
-  // ---- SHRINE GLOW, scattered over the field on the surface it actually stands on
-  for(var s3=0;s3<7;s3++){
-    var swx=mixLi(s3*8+3,(WORLD_SEED*17)|0)%Math.max(1,WW);
-    var sx=Math.round(swx-WOFF);
-    if(sx<-10) sx+=WW; if(sx>SW+10) sx-=WW;
-    if(sx<0||sx>=SW) continue;
-    var sy=plateauSurfaceAt(swx);
-    var pulse=0.45+0.55*Math.sin(now*0.0011+s3*1.3);
-    g.globalCompositeOperation="lighter";
-    for(var rr=0;rr<Math.round(5*K);rr++){
-      g.fillStyle=rgba([120,230,255],0.10*pulse*(1-rr/(5*K)));
-      g.fillRect(sx-rr,sy-rr,rr*2,rr*2);
-    }
-    g.globalCompositeOperation="source-over";
-    g.fillStyle=rgba([190,245,255],0.9*pulse); g.fillRect(sx,sy,Math.max(1,Math.round(1.4*K)),Math.max(1,Math.round(1.4*K)));
-  }
+  // ⚠ THE SHRINE GLOW MOVED TO THE LIVE PASS (drawHyruleLive). It PULSES, and a pulse on a canvas
+  // that repaints twice a second does not pulse — it steps, and stepping light in an otherwise still
+  // backdrop is exactly what reads as the background juddering. Same rule as the ring and the falls.
 }
 // ================================================================================================
 // SPACE CITY — the planet is the view
