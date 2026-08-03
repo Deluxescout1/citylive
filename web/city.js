@@ -23411,7 +23411,7 @@ function drawPlateau(g,L,now,nd){
   // 🔑 A land is its SHAPE before it is its colour. Repainting mesas green would still be mesas.
   // So: rolling field everywhere, ONE bluff carrying the castle/town/temple, and Death Mountain.
   // world fractions, west→east off the N64 map (his locked layout)
-  var HY_BLUFF=0.44, HY_DEATH=0.80, HY_LAKE=0.12, HY_RANCH=0.30;
+  var HY_BLUFF=0.44, HY_DEATH=0.80, HY_LAKE=0.12, HY_RANCH=0.30, HY_KAKARIKO=0.68;
   var TOPPAD=Math.round(6*K);                              // ⚠ NOTHING may be drawn above this line
   var grass  =mixc(day?[112,166,86]:[18,34,26], skc, 0.10);
   var grassD =mixc(grass,[30,58,34],0.34), grassL=mixc(grass,day?[196,224,142]:[60,84,70],day?0.30:0.12);
@@ -23717,22 +23717,6 @@ function drawPlateau(g,L,now,nd){
       var aw4=Math.max(1,Math.round(gtw*(1-gaa/Math.round(2.6*K))));
       g.fillRect(gateX-(aw4>>1),wBot-Math.round(6*K)-gaa,aw4,1);
     }
-    // ---- THE RAMP UP TO THE GATE. It sits ON the hill's own surface — the same `hillY` the rock is
-    // drawn from — so it hugs the slope instead of hovering over it, and it ENDS at the gate.
-    var rampFrom=hcx-Math.round(hW*0.92), rampTo=gateX;
-    if(rampTo>rampFrom){
-      for(var rp=rampFrom;rp<=rampTo;rp++){
-        if(rp<0||rp>=SW) continue;
-        var rsg=(rp-hcx)/hW; if(Math.abs(rsg)>=1) continue;
-        var rt=(rp-rampFrom)/Math.max(1,(rampTo-rampFrom));
-        // it starts on the grass at the foot and lifts onto the wall's threshold at the gate
-        var ry2=Math.round(hillY(rsg)+Math.round(4*K)+(wBot-Math.round(4*K)-hillY(rsg))*rt*rt);
-        g.fillStyle=css(mixc(day?[198,186,152]:[34,34,36],skc,0.10));
-        g.fillRect(rp,ry2,1,Math.max(2,Math.round(3*K)));
-        g.fillStyle=css(mixc(day?[150,138,110]:[24,24,26],skc,0.10));
-        g.fillRect(rp,ry2+Math.max(2,Math.round(3*K))-1,1,1);
-      }
-    }
     // ---- THE TRIFORCE over the gate. Nick asked for one; three gold triangles stacked is the shape,
     // and at this size the NEGATIVE triangle in the middle is what makes it read as more than a blob.
     drawTriforce(g,gateX,wTop-Math.round(4.4*K),Math.max(3,Math.round(4.2*K)),day,now);
@@ -23742,52 +23726,6 @@ function drawPlateau(g,L,now,nd){
     // thing on the land — which is the point of putting it in the sky rather than only on a wall.
     var tfY=hillY(0)-Math.round(HORIZON*0.42)-Math.round(20*K);
     if(tfY>Math.round(8*K)) drawTriforce(g,hcx-Math.round(hW*0.16),tfY,Math.max(6,Math.round(11*K)),day,now);
-  }
-  // ============ THE ROAD, AND LON LON RANCH ============
-  // Nick: "Hyrule field is super empty." It was — two bands of grass and nothing between the lake and
-  // the castle. The road does most of the work on its own: a track that goes somewhere turns a lawn
-  // into a country, and it gives every landmark a reason to be where it is.
-  function fieldY(wx){                                            // the near band's crown at a world x
-    var n1=Math.sin(wx*0.0017+2.1)*0.55+Math.sin(wx*0.0049+0.7)*0.3+Math.sin(wx*0.0131+2.6)*0.15;
-    return HORIZON-Math.round(HORIZON*(0.50+n1*0.055));
-  }
-  var roadC =mixc(day?[198,186,152]:[34,34,36], skc, 0.10);
-  var roadD =mixc(roadC,[70,58,44],0.34);
-  var roadH=Math.max(2,Math.round(3.2*K));
-  for(var rx0=0;rx0<SW;rx0++){
-    var rwx=rx0+WOFF;
-    // ⚠ THE ROAD KEEPS OFF THE LANDFORMS. It is a track across the FIELD; running it up a mountain or
-    // over a lake would read as a bug, so it simply stops where the ground it belongs to stops.
-    // ⚠ THE LANDFORMS, TESTED DIRECTLY. The old test compared the surface against the field crown,
-    // which lumped the lake in with the hill and the mountain and cut the road at whatever distance
-    // that comparison happened to cross a threshold — nowhere near the water. Ask each mass.
-    if(PC.hill[rx0]>=0||PC.dm[rx0]>=0) continue;                      // the hill and the mountain
-    // ⚠ IT WENT STRAIGHT PAST EVERYTHING. Nick: "these paths you made are going right through the
-    // Castle town lol — maybe it should go to it? and maybe it should also finish going to the lake."
-    // Right, and it is the difference between a road and a stripe: a road is FOR somewhere. It stops
-    // at the lake shore instead of running into the water, and it lifts toward the gate as it passes
-    // under the castle hill rather than ignoring the one town on the map.
-    // ⚠⚠ AND THE SHORE IS WHERE THE WATER IS, not a fraction of the lake's radius. Nick: "also doesn't
-    // go to the lake" — I had stopped it at 0.82 of the RADIUS, which on a dish this wide leaves the
-    // track ending in open grass with the water still far below it. The road runs until the water's
-    // surface rises above the road line, which IS the shoreline, whatever shape the dish is.
-    var ryTest=PC.road[rx0];
-    if(PC.lake[rx0]>=0&&PC.lake[rx0]<=ryTest+Math.round(2*K)) continue;
-    // ⚠⚠ AND IT DOES NOT CLIMB HERE. My first attempt at "make it go to the town" lifted the road
-    // toward the hill while it was still out on the flat, which built a TENT: a sharp peak in the
-    // middle of open field, the track visibly off the ground either side of it, and the far slope
-    // carrying straight on THROUGH the town and out the other side. Nick: "the walkway is still
-    // wrong." 🔑 A road does not rise before it reaches the hill. It runs level across the field and
-    // STOPS at the foot; the climb is a separate ramp on the hillside, drawn with the town that owns
-    // it, so the two cannot disagree about where the ground is.
-    var ry=PC.road[rx0];                                              // it weaves as it crosses
-    if(ry>=HORIZON-2) continue;
-    g.fillStyle=css(roadC); g.fillRect(rx0,ry,1,roadH);
-    g.fillStyle=css(roadD); g.fillRect(rx0,ry+roadH-1,1,1);
-    if((mixLi(Math.floor(rwx/Math.max(1,Math.round(2*K))),0x20AD)%100)<22){   // ruts and stones
-      g.fillStyle=css(mixc(roadC,[120,104,80],0.30));
-      g.fillRect(rx0,ry+Math.round(roadH*0.4),1,1);
-    }
   }
   // ---- SIGNPOSTS where the road runs on, and small roadside shrines
   for(var sp2=0;sp2<7;sp2++){
@@ -23842,6 +23780,114 @@ function drawPlateau(g,L,now,nd){
     if(!day){ g.fillStyle="rgba(255,206,130,0.9)";
       g.fillRect(bnx+Math.round(bnw*0.22),lry-Math.round(bnh*0.6),Math.max(1,Math.round(1.4*K)),Math.max(1,Math.round(1.4*K))); }
   }
+
+  // ============ THE ROAD NETWORK ============
+  // Nick, on the fourth attempt: "the path is not fixed… it still isn't connected right, it is cutting
+  // through the castle town, and there is no direct path to Death Mountain… this looks really basic."
+  // Every previous version was ONE road that tried to be everything, and each fix bent it further out
+  // of shape: it climbed before it reached the hill, ran through the town it was meant to serve, and
+  // simply stopped where a landform got in the way, leaving a spur hanging in mid-field joined to
+  // nothing.
+  // 🔑🔑 TWO STRUCTURAL MISTAKES, NOT A TUNING PROBLEM.
+  //  1. It was drawn BEFORE the masses, so the hill and the mountain painted over it — which is why
+  //     every attempt to route it "past" them had to stop it instead. Drawn AFTER, the highway simply
+  //     passes IN FRONT of the hill, which is what a road at the foot of a castle mount actually does.
+  //  2. There was no NETWORK. A highway and its spurs are different things with different jobs; one
+  //     polyline cannot be both, and joining them by eye is what left the gap he photographed.
+  // His layout: one highway the length of the field, with a signposted spur off it for each landmark.
+  function fieldY(wx){                                            // the near band's crown at a world x
+    var n1=Math.sin(wx*0.0017+2.1)*0.55+Math.sin(wx*0.0049+0.7)*0.3+Math.sin(wx*0.0131+2.6)*0.15;
+    return HORIZON-Math.round(HORIZON*(0.50+n1*0.055));
+  }
+
+  var hwyC=mixc(day?[204,192,158]:[36,36,38], skc, 0.10), hwyD=mixc(hwyC,[76,62,46],0.36);
+  var hwyH=Math.max(3,Math.round(3.6*K));
+  function hwyY(wx){ return fieldY(wx)+Math.round(11*K)+Math.round(Math.sin(wx*0.0026)*2.4*K); }
+  // ⚠ drawPlateau takes (g,L,now,nd) — no `fx`. The weather comes from the shared accessor.
+  var _wfx=(typeof wfx==="function")?wfx():null;
+  var _rainNow=!!(_wfx&&(_wfx.rain||_wfx.drizzle||_wfx.thunder));
+  // ---- THE HIGHWAY. One continuous run in front of everything, bridged where it meets water.
+  for(var hx=0;hx<SW;hx++){
+    var hwx=hx+WOFF, hy=hwyY(hwx);
+    if(hy>=HORIZON-1) continue;
+    var overWater=(PC.lake[hx]>=0&&PC.lake[hx]<=hy);
+    if(overWater){
+      // ⚠ A BRIDGE, NOT A STOP. His pick: routes that meet water get a bridge. A road that simply
+      // ends at a shoreline reads as unfinished, which is exactly how the last one read.
+      if(PC.lt[hx]<0.34) continue;                          // …but nothing spans the middle of a lake
+      g.fillStyle=css(mixc(stoneC,day?[214,206,188]:[40,42,52],day?0.44:0.22));
+      g.fillRect(hx,hy,1,Math.max(2,Math.round(2.6*K)));                     // the deck
+      g.fillStyle=css(mixc(stoneC,[54,46,40],0.34));
+      g.fillRect(hx,hy+Math.max(2,Math.round(2.6*K)),1,1);
+      if((((hwx)%Math.max(6,Math.round(11*K)))|0)<Math.max(1,Math.round(2*K)))   // piers into the water
+        g.fillRect(hx,hy,1,Math.min(HORIZON,PC.lake[hx]+Math.round(3*K))-hy);
+      continue;
+    }
+    g.fillStyle=css(hwyC); g.fillRect(hx,hy,1,hwyH);
+    g.fillStyle=css(hwyD); g.fillRect(hx,hy+hwyH-1,1,1);
+    // wear: ruts, and mud that holds water when it rains
+    var wr=mixLi(Math.floor(hwx/Math.max(1,Math.round(2*K))),0x20AD);
+    if((wr%100)<26) { g.fillStyle=css(mixc(hwyC,[126,108,82],0.34)); g.fillRect(hx,hy+Math.round(hwyH*0.45),1,1); }
+    if(_rainNow&&((wr>>>7)%100)<11){
+      g.fillStyle="rgba(150,170,190,0.45)"; g.fillRect(hx,hy+hwyH-2,1,2);
+    }
+  }
+  // ---- THE SPURS. Each leaves the highway at a junction and ENDS at the thing it serves.
+  function spur(wxTo,topY,wide){
+    var jx=Math.round(wxTo-WOFF); if(jx<-WW*0.5) jx+=WW; if(jx>WW*0.5) jx-=WW;
+    if(jx<-60||jx>SW+60) return;
+    var jy=hwyY(wxTo), span=Math.round((wide||10)*K);
+    for(var q=-span;q<=span;q++){
+      var sx=jx+q; if(sx<0||sx>=SW) continue;
+      var t=1-Math.abs(q)/span;                              // a wedge: wide at the road, narrow at the end
+      var yy=Math.round(jy+(topY-jy)*t*t);
+      g.fillStyle=css(hwyC); g.fillRect(sx,yy,1,Math.max(2,Math.round(hwyH*(0.55+0.45*t))));
+    }
+    g.fillStyle=css(mixc(hwyC,[120,104,80],0.30));           // a milestone at the junction
+    if(jx-span-Math.round(2*K)>=0&&jx-span<SW)
+      g.fillRect(jx-span-Math.round(2*K),jy-Math.round(3*K),Math.max(1,Math.round(1.4*K)),Math.round(3*K));
+  }
+  spur(HY_RANCH*WW, fieldY(HY_RANCH*WW)+Math.round(9*K), 9);          // out to the ranch gate
+  // ---- THE CASTLE APPROACH: a switchback climbing the hillside to the gate. His pick over a straight
+  // ramp, and it is what makes the hill read as ENGINEERED rather than decorated.
+  if(hcx>-hW&&hcx<SW+hW){
+    var gY=hillY(0)+Math.round(hH*0.13)+Math.round(hH*0.10), gX=hcx+Math.round(hW*0.10);
+    var footX=hcx-Math.round(hW*0.62), footY=hwyY((footX+WOFF));
+    var legs=3;
+    for(var lg2=0;lg2<legs;lg2++){
+      var y0=footY+(gY-footY)*(lg2/legs), y1=footY+(gY-footY)*((lg2+1)/legs);
+      var xA=(lg2%2===0)?footX:gX, xB=(lg2%2===0)?gX:footX;
+      var stepsN=Math.abs(xB-xA);
+      for(var st3=0;st3<=stepsN;st3++){
+        var sxx=Math.round(xA+(xB-xA)*(st3/Math.max(1,stepsN)));
+        if(sxx<0||sxx>=SW) continue;
+        var syy=Math.round(y0+(y1-y0)*(st3/Math.max(1,stepsN)));
+        var hsg2=(sxx-hcx)/hW;
+        if(Math.abs(hsg2)<1){ var hsurf=hillY(hsg2); if(syy<hsurf+Math.round(2*K)) syy=hsurf+Math.round(2*K); }
+        g.fillStyle=css(hwyC); g.fillRect(sxx,syy,1,Math.max(2,Math.round(3*K)));
+        g.fillStyle=css(mixc(stoneC,[60,50,42],0.30));        // the retaining edge below each leg
+        g.fillRect(sxx,syy+Math.max(2,Math.round(3*K)),1,Math.max(1,Math.round(K)));
+      }
+    }
+  }
+  // ---- KAKARIKO IS WHERE THE ROAD ENDS, and a thinner trail goes on up the mountain from it.
+  var kkx=wrapX(HY_KAKARIKO);
+  if(kkx>-80&&kkx<SW+80){
+    spur(HY_KAKARIKO*WW, fieldY(HY_KAKARIKO*WW)+Math.round(7*K), 8);
+    var trFrom=kkx, trTo=wrapX(HY_DEATH);
+    for(var tr=0;tr<=Math.abs(trTo-trFrom);tr+=1){
+      var tx3=trFrom+(trTo>trFrom?tr:-tr); if(tx3<0||tx3>=SW) continue;
+      var tt=tr/Math.max(1,Math.abs(trTo-trFrom));
+      var base=(PC.dm[tx3]>=0)?PC.dm[tx3]:fieldY(tx3+WOFF);
+      var ty3=Math.round(base+Math.round(10*K)*(1-tt)+Math.round(3*K));
+      if(ty3>=HORIZON) continue;
+      if(((tx3+WOFF)%Math.max(2,Math.round(3*K)))<Math.max(1,Math.round(2*K))){   // a worn trail, not a road
+        g.fillStyle=css(mixc(hwyC,scorch,0.30+0.4*tt));
+        g.fillRect(tx3,ty3,1,Math.max(1,Math.round(2*K*(1-tt*0.6))));
+      }
+    }
+  }
+
   // ⚠ THE SHRINE GLOW MOVED TO THE LIVE PASS (drawHyruleLive). It PULSES, and a pulse on a canvas
   // that repaints twice a second does not pulse — it steps, and stepping light in an otherwise still
   // backdrop is exactly what reads as the background juddering. Same rule as the ring and the falls.
