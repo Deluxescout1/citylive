@@ -4414,6 +4414,8 @@ function landRoute(x){ if(!hasOcean||seaW<=0) return x;
   var a=WW*seaW+8, b=WW*(1-seaW)-8; return a+(x/WW)*(b-a); }
 var curLit=1;        // fraction of night windows actually on (ramps up through the evening, dims after midnight)
 var curCurfew=0;     // v1.24 THE ORDER curfew strength 0..1 (Martial Law nights): dark windows + empty streets. 0 on every non-regime life.
+var curDread=0;      // GANON's hold on the modern city 0..1 — feeds the SAME three dials as the curfew (see below)
+var FORCEGANON=null; // render any point of the takeover: 0 clear … 1 at its darkest (the arc is unreachable via FORCEAGE)
 var curMaskK=0;      // v1.29 THE PLAGUE mask prevalence 0..1: citizens wear surgical masks. 0 on every non-plague life (drawPerson reads it).
 var ashMask=0;       // …and the Ashlands' share of that, which draws as a grey respirator instead of a blue surgical mask
 var curPlagueEmpty=0;// v1.29 THE PLAGUE emptiness 0..1 (peaks at the SURGE): dims the streets like the curfew. 0 on every non-plague life.
@@ -6334,6 +6336,29 @@ function drawLiberation(g,L,now){
       if(((hh>>>9)%4)===0){ g.fillStyle=(regimeBills()?["#00338d","#c60c30","#ffffff","#6ad0ff"]:["#ffd24a","#6ad0ff","#ff7ad0","#7affb0"])[(hh>>>11)%4]; g.fillRect(px|0,HORIZON-7-jump,1,2); } }  // raised flags/sparks (Bills colours during the parade)
     if(joy>0.2){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,236,180,"+(0.10*joy)+")"; g.fillRect(X-64,HORIZON-40,128,40); g.globalCompositeOperation="source-over"; }  // the lights come back on
   }
+}
+// ---- GANON'S WASH. Nick asked for the city to react "using what is already built", and this is the
+// clearest instance of that: THE ORDER's crimson wash is a solved problem — a source-over gradient
+// veil, denser toward the streets and light on the sky so the stars survive, no additive or multiply
+// so the QML FBO and Chromium agree. The takeover gets one on the same pattern rather than a new
+// compositing trick invented for it.
+// 🔑 THIS IS THE SINGLE BIGGEST MOVE IN THE WHOLE FEATURE. The first cut tinted `skc` inside
+// `drawPlateau`, which bled the shadow through the land's palettes correctly — and rendered as almost
+// nothing, because the SKY is the largest surface in the frame and `drawPlateau` does not own it. Four
+// frames at rise 0 / 0.35 / 0.7 / 1.0 side by side were nearly identical. A slow arc has to be checked
+// as a PROGRESSION; any single frame of it looks deliberate whatever it does.
+// ⚠ It covers the modern city too, on purpose. The two halves of this land ignoring each other is the
+// thing the takeover exists to end.
+function drawGanonWash(g,L,now){
+  var r=(typeof ganonRise==="function")?ganonRise(now):0; if(r<=0.02) return;
+  var amt=0.34*Math.pow(r,1.15)*(1+0.06*Math.sin(now*0.0009));      // a slow breathe, like the regime's
+  var night=1+(L<0.5?0.30:0);                                        // worse after dark, never absent by day
+  amt=Math.min(0.42,amt*night);
+  var gd=g.createLinearGradient(0,0,0,SH);
+  gd.addColorStop(0,    "rgba(46,10,28,"+(amt*0.50).toFixed(3)+")");  // sky: a bruised violet-red
+  gd.addColorStop(0.52, "rgba(40,8,18,"+(amt*0.92).toFixed(3)+")");
+  gd.addColorStop(1,    "rgba(20,4,8,"+(amt*1.10).toFixed(3)+")");    // streets: nearly smothered
+  g.fillStyle=gd; g.fillRect(0,0,SW,SH);
 }
 // the whole regime world-overlay dispatcher (banners + statue + …), drawn over the near layer
 // v1.24 — the oppressive CRIMSON WASH over the whole city, deepening with the stage, lifting at liberation.
@@ -22991,6 +23016,44 @@ function drawTempleOfTime(g,cx,baseY,K,day,skc,now){
 // 0 = quiet · 0..1 = building · 1 = erupting. Read off the SAME disaster schedule every other land
 // uses, so the mountain's mood is the real event and not a decoration on its own timer.
 var HY_LEAD=150000;                                   // 2.5 min of warning before the strike
+// ============ GANON — THE SLOW TAKEOVER ============
+// 🔒 NICK'S LOCKED BRIEF: "Hyrule field is super empty… maybe we can include Ganon taking over."
+// A SLOW TAKEOVER, ONCE PER LIFE, IN THE BACK HALF, **PEAKING AS THE CITY PEAKS** — at its darkest
+// exactly when the metropolis below is at its biggest, because the contrast between the two halves of
+// the frame is the entire point of this land. It LIFTS when the world reboots, and it deliberately
+// LEAVES THE EXISTING APOCALYPSE ALONE: the cataclysm is its own thing and gets the frame back.
+//
+// 🔑 THE SHAPE OF THE ARC, tied to the life's own clock rather than to a timer of its own:
+//   cy < 0.40   nothing. Hyrule is Hyrule, and the water temple and the ranch get their daylight.
+//   0.40→0.78   the rise, reaching full exactly as `cityGrowth` hits `g:1` and the city stops growing.
+//   0.78→0.98   held at full across the whole peak plateau — a fifth of the life at its darkest.
+//   0.98→1      fading back through the apocalypse, so the cataclysm is not competing with a shadow.
+//
+// ⚠⚠ `FORCEGANON` IS NOT A CONVENIENCE, IT IS THE ONLY WAY TO SEE THE TOP OF THIS ARC. `FORCEAGE`
+// short-circuits `cityGrowth` and returns `cy = FORCEAGE*0.78`, so the harness's `age=0.85` is really
+// cy 0.663 and `age=1` is cy 0.78 — the peak plateau and the fade are UNREACHABLE through `age=`.
+// A slow arc is also invisible in any single frame: render the same screen at several values and
+// compare, because a feature whose point is that it CHANGES must be seen at two times to be believed.
+function ganonRise(now){
+  if(FORCEGANON!=null) return Math.max(0,Math.min(1,FORCEGANON));
+  if(!curBiome||!curBiome.shrine) return 0;                 // this land's arc, and only this land's
+  var cg=cityGrowth(now);
+  if(cg.phase==="apoc") return Math.max(0,1-cg.apoc*2.2);   // hand the frame back to the cataclysm
+  if(cg.cy<0.40) return 0;
+  return Math.max(0,Math.min(1,(cg.cy-0.40)/0.38));
+}
+// The three presences, escalating — ⚠ no likeness; the homage rule holds. What escalates is how much
+// of the world he is, not how much of him you see.
+// How empty is this land right now, for ANY reason — the mountain waking, or the shadow spreading.
+// One accessor, so the traffic, the horses, the rock folk and the water folk cannot disagree.
+function hyDread(now){
+  var u=(typeof deathUnrest==="function")?deathUnrest(now):0;
+  return Math.max(u,ganonRise(now));
+}
+function ganonStage(now){
+  var r=ganonRise(now);
+  return r<=0.02?0:(r<0.42?1:(r<0.76?2:3));   // 1 the light goes wrong · 2 a rider on the field · 3 over the castle
+}
 function deathUnrest(now){
   if(FORCEDIS) return (FORCEDIS.type==="volcano")?Math.max(0,Math.min(1,(FORCEDIS.f||0)/0.45)):0;
   var idx=Math.floor(now/DIS_SLOT), di=disasterInfo(idx);
@@ -23191,8 +23254,7 @@ function drawHyruleLive(g,L,now,nd,fx){
 // and it is not worth a fourth.
 function drawHyruleFolk(g,L,now,K,day){
   var W=Math.max(1,WW|0);
-  var un=(typeof deathUnrest==="function")?deathUnrest(now):0;
-  var quiet=Math.max(0,1-un*1.4);                          // the shadow drives them under cover too
+  var quiet=Math.max(0,1-hyDread(now)*1.4);                // the shadow drives them under cover too
   if(quiet<=0.02) return;
   // ---- ROCK FOLK, on Death Mountain's flanks. Squat, wide, and heavier than anything else here.
   // ⚠ ON THE MOUNTAIN'S FACE, NOT ON ITS OUTLINE. Seated on `plateauSurfaceAt` they balanced on the
@@ -23289,8 +23351,9 @@ function drawFieldLife(g,L,now,nd,fx){
   }
   // ---- TRAVELLERS. Fewer after dark, and — once the shadow is on the land — the road empties, which
   // is the quietest and most effective thing the takeover can do to it.
-  var un=(typeof deathUnrest==="function")?deathUnrest(now):0;
-  var quiet=Math.max(0,1-un*1.4)*(day?1:0.45);
+  // ⚠ ONE DIAL. The field already emptied for the volcano's unrest; Ganon must not bring a second
+  // "how quiet is it" or the two diverge the first time either is touched. `hyDread` is the max.
+  var quiet=Math.max(0,1-hyDread(now)*1.4)*(day?1:0.45);
   var N=Math.round(9*quiet);
   for(var i=0;i<N;i++){
     var h=mixLi(i,0x1204), dir=((h>>>3)&1)?1:-1;
@@ -24145,6 +24208,16 @@ function hyRoadFirm(wx){                                  // dry ground: the roa
 function hyRoadOn(wx){ return hyRoadFirm(wx)||hyLakeT(wx)>=0.34; }   // firm ground, or a bridge over the shallows
 function drawPlateau(g,L,now,nd){
   var day=L>0.5, B=curBiome, K=Math.max(1,KSP), skc=biomeSkc(day);
+  // ---- GANON: THE LIGHT GOES WRONG FIRST. Stage 1 of the three presences, and the one that does the
+  // most work — before there is anything to point at, the land is simply the wrong colour.
+  // 🔑 APPLIED TO `skc`, WHICH IS THE ONE THING EVERY COLOUR ON THIS LAND IS MIXED WITH. Every palette
+  // below — grass, stone, the cap, the roads, the water, the folk — takes `mixc(…, skc, k)`, so
+  // shifting it here bleeds the shadow through the WHOLE land in one line instead of thirty. Tinting
+  // thirty palettes separately is how a land ends up half-corrupted.
+  var GR=ganonRise(now);
+  if(GR>0.02){
+    skc=mixc(skc,day?[92,58,58]:[38,14,22],GR*0.62);            // a sick, bruised light
+  }
   // ⚠⚠⚠ IT WAS MONUMENT VALLEY, NOT HYRULE. Nick, looking at all three screens: "this does not look
   // like Hyrule." He was right and the fault was structural, not cosmetic — this land drew a ROW OF
   // FLAT-TOPPED MESAS because the biome key is `plateau` and the row is `flat:0.95 steep:0.86`, i.e.
@@ -24159,6 +24232,7 @@ function drawPlateau(g,L,now,nd){
   var HY_BLUFF=0.44, HY_DEATH=HY_DEATH_X, HY_LAKE=HY_LAKE_X, HY_RANCH=0.30, HY_KAKARIKO=0.68;
   var TOPPAD=Math.round(6*K);                              // ⚠ NOTHING may be drawn above this line
   var grass  =mixc(day?[112,166,86]:[18,34,26], skc, 0.10);
+  if(GR>0.02) grass=mixc(grass,day?[86,80,54]:[16,18,16],GR*0.50);   // the field goes over to a dead ochre
   var grassD =mixc(grass,[30,58,34],0.34), grassL=mixc(grass,day?[196,224,142]:[60,84,70],day?0.30:0.12);
   var farG   =mixc(day?[128,172,116]:[20,30,30], skc, 0.42);
   var stoneC =mixc(day?[122,110,94]:[24,24,30], skc, 0.18);
@@ -43472,6 +43546,25 @@ function draw(g,pass){
       rhythm.carPresence*=(1-0.88*curCurfew);                                      // the roads empty
     }
   }
+  // ---- GANON REACHES THE MODERN CITY. Nick: the city reacts "using what is already built" — no new
+  // machinery; the two halves of the frame simply stop ignoring each other. The curfew already owns
+  // the three dials that empty a city (lit windows, sidewalk density, cars on the road), so the
+  // takeover drives THOSE.
+  // ⚠ IT MUST NOT WRITE `curCurfew`. A regime life would then have two writers of one variable and
+  // whichever ran last would win — the same "one rule, two expressions" fault this land has produced
+  // five times. `curDread` is its own value and the dials take the STRONGER of the two.
+  curDread=0;
+  if(curBiome&&curBiome.shrine&&cityPhase!=="apoc"){
+    var gr0=ganonRise(now);
+    if(gr0>0.05){
+      var gHr=nd.getHours()+nd.getMinutes()/60;
+      var gNight=(gHr>=20||gHr<6)?1:0.42;                                          // it is worse after dark, never absent
+      curDread=Math.max(0,Math.min(1,gr0*gNight));
+      curLit=Math.max(0.12,curLit*(1-0.60*curDread));                              // the city dims
+      wmood.pedFactor*=(1-0.72*curDread);                                          // people stop going out
+      rhythm.carPresence*=(1-0.66*curDread);                                       // and stop driving
+    }
+  }
   // v1.29 THE PLAGUE — quarantine empties the streets (peaks at the SURGE) & citizens mask up. Strictly gated
   // on curPlague → both stay 0 on every non-plague life (plague never co-occurs with war/regime/curfew).
   curMaskK=0; curPlagueEmpty=0;
@@ -44904,6 +44997,13 @@ function draw(g,pass){
   if(curWar) drawWar(g,L,now,night);                         // the war for the city plays out on top
   if(cityG>0.5) drawElections(g,L,now,night);                // democracy in the streets
   drawRegime(g,L,now,night);                                 // …or THE ORDER's banners + statue when democracy has fallen
+  // ⚠⚠ CALLED FROM HERE, NOT FROM INSIDE `drawRegime`. The first cut put it next to `drawRegimeWash`,
+  // which reads as the right neighbourhood and is inside a function whose SECOND LINE is
+  // `if(!curRegime||!curRegime.active) return;` — so the takeover's wash ran on regime lives only, i.e.
+  // essentially never, and four comparison frames came back identical for the second time.
+  // 🔑 A feature placed next to the thing it resembles inherits that thing's GATE. Put it where it must
+  // run, then make it decide for itself whether to draw.
+  drawGanonWash(g,L,now);                                    // …and the takeover's own shadow over the whole frame
   drawPlague(g,L,now,night);                                 // …or THE PLAGUE's field hospitals + ambulances (mutually exclusive with the regime)
   drawFestival(g,L,now,night);                               // …or THE FESTIVAL's great wheel + fairgrounds (mutually exclusive with war/regime/plague)
   drawFootballTossers(g,L,now);                              // Bills days: people playing catch with a football in the street

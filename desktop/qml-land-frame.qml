@@ -72,6 +72,10 @@ Item {
         City.setup('neon', { cw: root.cw, ch: root.ch, woff: root.woff, ww: 2269, pxk: root.pxk, zoom: root.zoom,
                              taskbarWp: 17, quality: 'balanced', frameMs: 125 });
         City.CFG_GORE = arg("gore","full");
+        // ⚠ THE TAKEOVER IS UNREACHABLE THROUGH `age=`. FORCEAGE short-circuits cityGrowth and returns
+        // `cy = age*0.78`, so age=1 is only cy 0.78 and the peak plateau and the fade cannot be reached
+        // at all. `ganon=` renders any point of the arc: 0 clear … 1 at its darkest.
+        if (arg("ganon","") !== "") City.FORCEGANON = parseFloat(arg("ganon","0"));
         // wetness ACCUMULATES over minutes of real time; a one-frame harness would always render a dry
         // street and the whole rain-impact feature would look unbuilt.
         if (arg("wet","") !== "") City.wetness = parseFloat(arg("wet","0"));
