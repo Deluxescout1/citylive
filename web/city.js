@@ -6362,14 +6362,24 @@ function drawGanonWash(g,L,now){
   // left for them. Only the high-exponent term moved (0.34 → 0.21), so everything below rise ~0.8 is
   // within a couple of percent of what he already approved.
   // 🔑 A veil that leaves nothing visible has stopped being dread and become a lens cap.
-  var amt=(0.30*Math.pow(r,1.15)+0.21*Math.pow(r,3.6))*(1+0.06*Math.sin(now*0.0009));
-  var night=1+(L<0.5?0.34:0);                                        // worse after dark, never absent by day
-  amt=Math.min(0.54,amt*night);
-  var deep=Math.pow(r,2.4);                                          // …and it goes REDDER as it deepens
+  // ⚠⚠⚠ AND THEN CUT IN HALF. Nick, watching it on the three monitors: "maybe we went too far on the
+  // red dark tint." He was right, and the first correction — trimming only the high-exponent term —
+  // was too timid because it treated this as a tuning error when it was a KIND error.
+  // 🔑 THE VEIL WAS DOING TWO JOBS AND ONLY ONE OF THEM IS ITS OWN. Darkening AND reddening the whole
+  // frame at once turns everything the same colour, and once everything is one colour the storm, the
+  // burning moat and the bleeding Triforce have nothing to be brighter THAN. The stage-3 machinery is
+  // what should carry the horror; the wash is only supposed to set the room's light.
+  // So: the peak alpha is roughly halved, the red push is cut to a third, and the night multiplier
+  // comes down — the land now goes GLOOMY and slightly sick rather than being painted red.
+  // ⚠ The early arc barely moves (rise 0.35 goes 0.12 → 0.08), which is the part he approved twice.
+  var amt=(0.19*Math.pow(r,1.15)+0.09*Math.pow(r,3.6))*(1+0.06*Math.sin(now*0.0009));
+  var night=1+(L<0.5?0.22:0);                                        // worse after dark, never absent by day
+  amt=Math.min(0.30,amt*night);
+  var deep=Math.pow(r,2.4);                                          // …and it warms a little as it deepens
   var gd=g.createLinearGradient(0,0,0,SH);
-  gd.addColorStop(0,    "rgba("+Math.round(46+42*deep)+",10,"+Math.round(28-14*deep)+","+(amt*0.50).toFixed(3)+")");
-  gd.addColorStop(0.52, "rgba("+Math.round(40+38*deep)+",8,"+Math.round(18-8*deep)+","+(amt*0.92).toFixed(3)+")");
-  gd.addColorStop(1,    "rgba("+Math.round(20+22*deep)+",4,8,"+(amt*1.10).toFixed(3)+")");   // streets: smothered
+  gd.addColorStop(0,    "rgba("+Math.round(40+14*deep)+",14,"+Math.round(34-6*deep)+","+(amt*0.50).toFixed(3)+")");
+  gd.addColorStop(0.52, "rgba("+Math.round(34+13*deep)+",11,"+Math.round(24-4*deep)+","+(amt*0.92).toFixed(3)+")");
+  gd.addColorStop(1,    "rgba("+Math.round(18+8*deep)+",6,12,"+(amt*1.10).toFixed(3)+")");   // streets: dim, not red
   g.fillStyle=gd; g.fillRect(0,0,SW,SH);
 }
 // the whole regime world-overlay dispatcher (banners + statue + …), drawn over the near layer
@@ -24527,7 +24537,7 @@ function drawPlateau(g,L,now,nd){
   // thirty palettes separately is how a land ends up half-corrupted.
   var GR=ganonRise(now);
   if(GR>0.02){
-    skc=mixc(skc,day?[92,58,58]:[38,14,22],GR*0.62);            // a sick, bruised light
+    skc=mixc(skc,day?[96,78,74]:[34,20,26],GR*0.42);            // a sick, drained light — not a red one
   }
   // ⚠⚠⚠ IT WAS MONUMENT VALLEY, NOT HYRULE. Nick, looking at all three screens: "this does not look
   // like Hyrule." He was right and the fault was structural, not cosmetic — this land drew a ROW OF
@@ -24543,7 +24553,7 @@ function drawPlateau(g,L,now,nd){
   var HY_BLUFF=0.44, HY_DEATH=HY_DEATH_X, HY_LAKE=HY_LAKE_X, HY_RANCH=0.30, HY_KAKARIKO=0.68;
   var TOPPAD=Math.round(6*K);                              // ⚠ NOTHING may be drawn above this line
   var grass  =mixc(day?[112,166,86]:[18,34,26], skc, 0.10);
-  if(GR>0.02) grass=mixc(grass,day?[86,80,54]:[16,18,16],GR*0.50);   // the field goes over to a dead ochre
+  if(GR>0.02) grass=mixc(grass,day?[92,88,62]:[16,18,16],GR*0.42);   // the field goes over to a dead ochre
   var grassD =mixc(grass,[30,58,34],0.34), grassL=mixc(grass,day?[196,224,142]:[60,84,70],day?0.30:0.12);
   var farG   =mixc(day?[128,172,116]:[20,30,30], skc, 0.42);
   var stoneC =mixc(day?[122,110,94]:[24,24,30], skc, 0.18);
