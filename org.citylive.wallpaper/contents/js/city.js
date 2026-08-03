@@ -27785,54 +27785,101 @@ function drawPrimates(g,L,now,K){
 function drawRoofRunners(g,L,now,nd){
   if(curBiome.k!=="leaf"||cityPhase==="apoc") return;
   if(cityG<0.22) return;                                  // nothing to run across yet
-  var day=L>0.5, K=Math.max(1,KSP), gy=HORIZON;
+  var day=L>0.5, K=Math.max(1,KSP), gy=HORIZON, W=Math.max(1,WW|0);
   var body=day?"#2e3138":"#0b0d10", cloth=day?"#8a4a3a":"#2a1512", skin=day?"#c9a888":"#3a3226";
-  // ⚠⚠ REAL ROOFS. This used to invent both rooftops — an x from a hash and a height from
-  // `gy - (14+rand)*K` — so a runner leapt between two points that had nothing to do with the
-  // village underneath it, sometimes through open air and sometimes through a wall. The village
-  // brief calls this the land's TRAVERSAL LAYER, and a traversal layer that ignores the terrain it
-  // traverses is decoration. Houses publish their drawn roof apex (see drawVillageHouse) and the
-  // runners hop between ACTUAL neighbouring roofs.
+  // ⚠⚠ REAL ROOFS, AND NOW IN WORLD COORDINATES. Houses publish their drawn roof apex (see
+  // drawVillageHouse) as a SCREEN x, so the old pair-picking — index into the on-screen list by a
+  // hash — chose different roofs on every monitor: the same runner was mid-leap on one screen and
+  // somewhere else entirely on the next. Fourth costume on this project with that fault. The journey
+  // below is driven in WORLD x and the roofline is merely looked up, so all three screens agree and a
+  // runner crossing a bezel arrives where he left.
   var roofs=[];
   if(near&&near.blds){
     for(var ri=0;ri<near.blds.length;ri++){ var rb=near.blds[ri];
       if(rb._roofY===undefined) continue;
-      if(rb._roofX<-20||rb._roofX>SW+20) continue;
-      roofs.push(rb);
+      if(rb._roofX<-140||rb._roofX>SW+140) continue;
+      roofs.push({ wx:rb._roofX+WOFF, y:rb._roofY });
     }
-    roofs.sort(function(p,q){ return p._roofX-q._roofX; });
+    roofs.sort(function(p,q){ return p.wx-q.wx; });
   }
-  if(roofs.length<2) return;                       // nothing to cross between yet
-  var n=Math.min(roofs.length-1, Math.max(2,Math.round(SW/(120*K))));
-  for(var i=0;i<n;i++){
+  if(roofs.length<2) return;
+  var lo=roofs[0].wx, hi=roofs[roofs.length-1].wx;
+  // ---- WHERE A MISSION GOES. Out of the village is out through the GREAT GATES; back from one is in
+  // from the gates to the leader's tower. That is the whole reason this layer exists — Nick: they
+  // should "run off and do things like they are coming back from missions or going to a mission" —
+  // and a destination is what turns a moving sprite into somebody with somewhere to be.
+  var wGate=VLM_GATES*W, wHQ=vlmTowerX()*W;
+  function roofAt(wx){                                   // the two roofs this world x sits between
+    if(wx<=lo||wx>=hi) return null;
+    for(var q=0;q<roofs.length-1;q++)
+      if(wx>=roofs[q].wx&&wx<=roofs[q+1].wx) return [roofs[q],roofs[q+1]];
+    return null;
+  }
+  // ⚠ A JOURNEY, NOT A SHUTTLE. What was here ran a figure back and forth between ONE adjacent pair
+  // for ever, and — the thing Nick actually reported — `continue`d out of the draw between the two
+  // legs, so every runner VANISHED THE INSTANT HE LANDED. The comment beside it said "crouched on the
+  // ridge between runs" and nothing was ever drawn crouching. 🔑 A comment describing a pose is not a
+  // pose; the frame is the only witness.
+  var JN=6;                                              // journeys in flight across the whole world
+  for(var i=0;i<JN;i++){
     var h=((i*2654435761+((WORLD_SEED*17)|0))>>>0);
-    // pick a real pair of NEIGHBOURING roofs — a leap is only a leap if it lands somewhere
-    var from=roofs[(h>>>3)%(roofs.length-1)], to=roofs[((h>>>3)%(roofs.length-1))+1];
-    var ax=from._roofX, bx=to._roofX;
-    var span=bx-ax;
-    if(span<Math.round(6*K)||span>Math.round(150*K)) continue;   // too close to bother, too far to jump
-    var ay=from._roofY, by=to._roofY;
-    var cyc=5200+((h>>>5)%3200), tp=((now+i*1100)%cyc)/cyc;
-    var out=tp<0.44, back=tp>=0.52&&tp<0.96;
-    if(!out&&!back) continue;                             // crouched on the ridge between runs
-    var f=out?(tp/0.44):(1-(tp-0.52)/0.44);
-    var px=ax+(bx-ax)*f;
-    var arc=Math.sin(Math.PI*f)*Math.min(span*0.34,Math.round(16*K));   // the leap
-    var py=ay+(by-ay)*f-arc;
-    if(px<-6||px>SW+6) continue;
-    var u=Math.max(1,Math.round(K)), lean=out?1:-1;
-    // the scarf trailing behind is what sells the speed, so it is drawn first and long
-    g.fillStyle=cloth;
-    for(var sq=0;sq<Math.round(7*K);sq++)
-      g.fillRect(Math.round(px-lean*sq),Math.round(py+Math.sin(now*0.01+sq*0.5)*1.2*K),u,u);
-    g.fillStyle=body;                                      // body, pitched forward in the jump
-    g.fillRect(Math.round(px),Math.round(py),u*2,Math.round(3.4*K));
-    g.fillRect(Math.round(px)+lean*u,Math.round(py)+Math.round(2.6*K),u*2,Math.round(1.6*K));   // trailing leg
-    g.fillRect(Math.round(px)-lean*u,Math.round(py)+Math.round(1.2*K),u*2,u);                   // lead arm
-    g.fillStyle=skin;
-    g.fillRect(Math.round(px)+Math.round(u*0.4),Math.round(py)-Math.round(1.6*K),Math.round(1.6*K),Math.round(1.6*K));
-    g.fillStyle=cloth;                                     // and the band across the brow
-    g.fillRect(Math.round(px)+Math.round(u*0.4),Math.round(py)-Math.round(1.6*K),Math.round(1.6*K),Math.max(1,Math.round(K*0.8)));
+    var period=30000+((h>>>4)%26000);                    // one run every ~30–56 s
+    var tp=((now+i*4200)%period)/period;
+    if(tp>0.66) continue;                                // away on the mission — genuinely gone, not blinking
+    var p=tp/0.66;
+    var outbound=((h>>>9)&1)===0;
+    var jit=(((h>>>12)%100)/100-0.5)*W*0.06;
+    var wA=(outbound?wHQ:wGate)+jit, wB=(outbound?wGate:wHQ)-jit;
+    for(var mate=0;mate<((((h>>>17)%100)<42)?2:1);mate++){     // ninja travel in pairs about half the time
+      var pm=p-mate*0.055; if(pm<0||pm>1) continue;
+      var wx=wA+(wB-wA)*pm;
+      var br=roofAt(wx); if(!br) continue;               // that stretch of the run is on another screen
+      var f=(wx-br[0].wx)/Math.max(1,(br[1].wx-br[0].wx));
+      // eased WITHIN each gap, so he gathers on the ridge, springs, and lands — the rhythm of the run
+      // comes from the easing, not from being deleted between poses.
+      var fe=f*f*f*(f*(6*f-15)+10);
+      var span=br[1].wx-br[0].wx;
+      var px=Math.round(br[0].wx+span*fe-WOFF);
+      if(px<-40||px>SW+40) continue;
+      var arcH=Math.min(span*0.30,Math.round(14*K));
+      var py=br[0].y+(br[1].y-br[0].y)*fe-Math.sin(Math.PI*fe)*arcH;
+      var crouch=(f<0.24||f>0.78);
+      // ---- ARRIVING AND LEAVING. He climbs up onto the roofline at the start and drops down off it
+      // at the end rather than appearing and disappearing in mid-air.
+      if(pm<0.05) py+=Math.round((1-pm/0.05)*10*K);
+      else if(pm>0.95) py+=Math.round(((pm-0.95)/0.05)*12*K);
+      var u=Math.max(1,Math.round(K)), lean=(wB>wA)?1:-1;
+      if(crouch){
+        // CROUCHED ON THE RIDGE: gathered, low, head up and looking the way he is going. This is the
+        // pose that was described in a comment and never drawn.
+        g.fillStyle=cloth;                               // the scarf hangs and settles when he is still
+        for(var sq2=0;sq2<Math.round(4*K);sq2++)
+          g.fillRect(Math.round(px-lean*sq2*0.6),Math.round(py+Math.round(1.2*K)+Math.sin(now*0.004+sq2*0.7)*0.8*K),u,u);
+        g.fillStyle=body;
+        g.fillRect(Math.round(px),Math.round(py)+Math.round(K),u*2,Math.round(2.2*K));          // gathered body
+        g.fillRect(Math.round(px)+lean*u,Math.round(py)+Math.round(2.6*K),u*2,u);               // braced leg
+        g.fillRect(Math.round(px)-lean*u,Math.round(py)+Math.round(2.2*K),u,u);                 // trailing hand down
+      } else {
+        g.fillStyle=cloth;                               // the scarf streams — it is what sells the speed
+        for(var sq=0;sq<Math.round(7*K);sq++)
+          g.fillRect(Math.round(px-lean*sq),Math.round(py+Math.sin(now*0.01+sq*0.5)*1.2*K),u,u);
+        g.fillStyle=body;
+        g.fillRect(Math.round(px),Math.round(py),u*2,Math.round(3.4*K));
+        g.fillRect(Math.round(px)+lean*u,Math.round(py)+Math.round(2.6*K),u*2,Math.round(1.6*K));  // trailing leg
+        g.fillRect(Math.round(px)-lean*u,Math.round(py)+Math.round(1.2*K),u*2,u);                  // lead arm
+      }
+      g.fillStyle=skin;
+      g.fillRect(Math.round(px)+Math.round(u*0.4),Math.round(py)-Math.round(1.6*K)+(crouch?Math.round(K):0),Math.round(1.6*K),Math.round(1.6*K));
+      g.fillStyle=cloth;                                 // the band across the brow
+      g.fillRect(Math.round(px)+Math.round(u*0.4),Math.round(py)-Math.round(1.6*K)+(crouch?Math.round(K):0),Math.round(1.6*K),Math.max(1,Math.round(K*0.8)));
+      // ⚠ COMING BACK CARRIES SOMETHING. One rect, and it is the difference between "a figure is
+      // moving" and "that one is on his way home with the report" — the errand is legible from the
+      // silhouette, which is the only channel this engine has at this size.
+      if(!outbound){
+        g.fillStyle=day?"#d8cba8":"#3a3628";
+        g.fillRect(Math.round(px)-lean*u,Math.round(py)+Math.round(0.6*K),Math.max(1,Math.round(K*0.9)),Math.round(2.2*K));
+      }
+    }
   }
 }
 // ============ THE NEON STYLE ============
