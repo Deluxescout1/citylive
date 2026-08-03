@@ -76,6 +76,12 @@ Item {
         // street and the whole rain-impact feature would look unbuilt.
         if (arg("wet","") !== "") City.wetness = parseFloat(arg("wet","0"));
         City.FORCEAGE = root.age;
+        // THE FINALE. `apocms=` plays the cataclysm at a chosen moment on its own real-seconds clock —
+        // without it the harness can only ever render a living city, and every end-times renderer is
+        // unreviewable. `death=` picks which one. (DEMO_APOC_SEC is the engine's own live loop; this is
+        // the single-frame equivalent.)
+        if (arg("apocms","") !== "") { City.FORCEAPOCMS = parseFloat(arg("apocms","0")); }
+        if (arg("death","") !== "")  { City.FORCEDEATH = arg("death",""); }
         // ⚠ xf is a fraction of WW (2269), NOT of the screen — 0.42 lands off the right edge of a
         // 776 wp primary and renders nothing, which reads exactly like a broken feature.
         // ⚠⚠ BY DEFAULT THE STRIKE FOLLOWS THE VIEWPORT — `woff + 380` puts it 380 wp into whatever

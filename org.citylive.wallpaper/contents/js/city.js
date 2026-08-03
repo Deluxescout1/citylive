@@ -18310,6 +18310,7 @@ function drawLandmarks(g,L,now,night,nd){
     else if(curDeath==="alienwar"){ var wcL=alienCl(cxw); cl=(wcL>=0?wcL:0); bd=0; }   // beam-struck & blasted into wreckage
     else if(curDeath==="frost"){ var frL2=frostCl(cxw); cl=(frL2>=0?frL2:0); bd=0; }   // frozen over & buried
     else if(curDeath==="kaiju"){ var kcL=frontCollapse(cxw,kaijuFrontR()); cl=(kcL>=0?kcL:0); bd=0; }   // stomped flat
+    else if(curDeath==="ninetails"){ var fcL=frontCollapse(cxw,foxFrontR()); cl=(fcL>=0?fcL:0); bd=0; }  // levelled by the shockwave
     else if(curDeath==="kaijuwar"){ var kwL=kwCl(cxw,now); cl=(kwL>=0?kwL:0); bd=0; }   // trampled by a titan or caught in the melee
     else { cl=Math.min(1,(frL-nukeDist(cxw,gzL))/(WW*0.09)); var sd=((cxw-gzL)%WW+WW*1.5)%WW-WW*0.5; bd=(sd>=0)?1:-1; }
     for(var o=-WW;o<=WW;o+=WW){ var sx=cxw-WOFF+o; if(sx<-w-60||sx>SW+60) continue;
@@ -37149,7 +37150,7 @@ function curPoliciesOf(now){
 // the almanac can NEVER disagree with what the city is showing. It NEVER touches near/mid/far or any
 // render global, so it is safe to call from the Electron Control Center and the KDE config page WITHOUT
 // a render. Population is a pure estimate from growth — cityPop() needs the built layout, which we avoid.
-var DEATH_LABEL={meteors:"Meteor Storm",nuke:"Nuclear Strike",sunburst:"Solar Flare",ai:"AI Uprising",
+var DEATH_LABEL={ninetails:"The Nine-Tailed Fox",meteors:"Meteor Storm",nuke:"Nuclear Strike",sunburst:"Solar Flare",ai:"AI Uprising",
   bh:"Black Hole",alienwar:"Alien War",frost:"Deep Freeze",kaiju:"Kaiju Attack",flood:"The Flood",
   kaijuwar:"Kaiju War",pollution:"The Great Smog",moonfall:"Moonfall"};
 var LANDMARK_LABEL={monorail:"Monorail",stadium:"Stadium",park:"City Park",casino:"Casino",seawall:"Seawall",
@@ -38397,11 +38398,21 @@ function drawWar(g,L,now,night){
 // which death this life ends by — every civilization falls differently
 var DEATHS=["meteors","nuke","sunburst","ai","bh","alienwar","frost","kaiju","flood","kaijuwar","pollution","moonfall"];   // append-only (auto-mode hash maps h%length)
 var CFG_FINALE=null;   // config: pin which apocalypse ends EVERY life ("auto"/unset = varied per life)
+// THE VILLAGE HAS ITS OWN END. Nick: "when the Hidden Leaf Village [rolls], add an end time disaster
+// where a 9 tail fox demon comes and destroys the world."
+// ⚠ IT IS NOT IN `DEATHS`, DELIBERATELY. That array is documented append-only because the auto roll is
+// `h % DEATHS.length` — appending a thirteenth entry re-maps the modulus and silently changes the fate
+// of every past life in the chronicle, including ones already written down. A land-triggered death
+// needs no slot in the pool: the pool keeps its twelve, and the leaf land answers before it is asked.
+// A nine-tailed fox is kitsune folklore, not anybody's trademark — the homage rule is untouched.
+var DEATHS_SPECIAL=["ninetails"];
 function deathOf(li){ if(CFG_FINALE) return CFG_FINALE;
+  var lb=landOf(li); if(lb&&lb.b&&lb.b.k==="leaf") return "ninetails";
   var h=((li*2654435761+977)>>>0); h=(h^(h>>>15))>>>0; return DEATHS[h%DEATHS.length]; }
 var curDeath="meteors";
-if(CFG.finale&&CFG.finale!=="auto"&&DEATHS.indexOf(CFG.finale)>=0) CFG_FINALE=CFG.finale;
+if(CFG.finale&&CFG.finale!=="auto"&&(DEATHS.indexOf(CFG.finale)>=0||DEATHS_SPECIAL.indexOf(CFG.finale)>=0)) CFG_FINALE=CFG.finale;
 var FORCEDEATH=null;   // test hook: "meteors"|"nuke"|"sunburst"|"ai" (own line — QML namespace writable)
+var FORCEAPOCMS=null;  // test hook: play the finale at a chosen ms on its own clock, in ONE frame
 // ---- THE NUKE CLOCK: the strike plays out in REAL SECONDS, not over the ~7.5-hour apoc phase. apocMs
 // is real ms since detonation (set per-frame in draw). One bomb: bang → a heat wave races across the
 // whole city in ~6 s, vaporizing everything in its path → a huge mushroom towers in the distance. ----
@@ -38435,6 +38446,10 @@ var FROST_FREEZE_MS=3000;          // each structure frosts → encases in ice �
 // ---- KAIJU: a colossal monster rises at the epicentre and rampages across the city, smashing everything ----
 var KAIJU_ARRIVE_MS=3500;          // the beast emerges & roars for ~3.5s before the rampage spreads (city still alive)
 var KAIJU_WIPE_MS=11000;           // its swath of destruction then crosses the whole city in ~11s (nearest first)
+// ---- THE NINE-TAILED FOX: the village's own apocalypse. It stands over the valley before it moves,
+// because the SIGHT of it is the event — a beast the size of the mountain the elders are carved into.
+var FOX_ARRIVE_MS=5200;            // it rises, the tails spread, it roars: ~5.2s with the village still alive
+var FOX_WIPE_MS=9000;              // then the shockwave of its rampage crosses the whole world in ~9s
 // ---- THE FLOOD: the sea rises and drowns the city — tall towers hold out longest, then topple & vanish under the water ----
 var FLOOD_ONSET_MS=3000;           // the waters start rising ~3s in (city still alive, people running for high ground)
 var FLOOD_RISE_MS=13000;           // the sea then climbs to swallow the whole skyline over ~13s
@@ -38508,7 +38523,7 @@ function polDark(b){
 // its case here + a per-building branch + its drawApoc* — no touching the ~48 scattered call sites.
 // apocPositional() = this death destroys the city by POSITION (a front / impacts), so cars/peds/etc.
 // die exactly as it reaches them, rather than fading out globally over the phase.
-function apocPositional(){ return curDeath==="nuke" || curDeath==="meteors" || curDeath==="ai" || curDeath==="bh" || curDeath==="kaiju" || curDeath==="kaijuwar"; }
+function apocPositional(){ return curDeath==="nuke" || curDeath==="meteors" || curDeath==="ai" || curDeath==="bh" || curDeath==="kaiju" || curDeath==="kaijuwar" || curDeath==="ninetails"; }
 function apocStruck(){ if(cityPhase!=="apoc") return false;
   if(curDeath==="nuke")    return apocMs>=NUKE_FALL_MS;                                  // the warhead has DETONATED
   if(curDeath==="meteors") return apocMs>=METEOR_SWARM_MS;                              // the small-meteor swarm has begun
@@ -38518,6 +38533,7 @@ function apocStruck(){ if(cityPhase!=="apoc") return false;
   if(curDeath==="alienwar") return apocMs>=WAR_ONSET_MS;                               // the crossfire has started raining on the city
   if(curDeath==="frost")   return apocMs>=FROST_ONSET_MS;                              // the killing freeze has begun
   if(curDeath==="kaiju")   return apocMs>=KAIJU_ARRIVE_MS;                             // the beast has emerged & begun its rampage
+  if(curDeath==="ninetails") return apocMs>=FOX_ARRIVE_MS;                             // …and the fox has finished rising
   if(curDeath==="flood")   return apocMs>=FLOOD_ONSET_MS;                              // the waters have started rising
   if(curDeath==="kaijuwar") return apocMs>=KW_ARRIVE_MS;                               // the titans have engaged
   if(curDeath==="pollution") return cityApoc>0.02;                                     // the inversion has settled in
@@ -38531,6 +38547,7 @@ function apocHit(x){ if(cityPhase!=="apoc") return false;
   if(curDeath==="alienwar") return alienCl(x)>=0;                                       // a stray beam/wreckage strike has raked world-x
   if(curDeath==="frost")   return frostCl(x)>=0;                                        // the freeze has reached & frozen world-x
   if(curDeath==="kaiju")   return frontCollapse(x,kaijuFrontR())>=0;                    // the monster's rampage has reached world-x
+  if(curDeath==="ninetails") return frontCollapse(x,foxFrontR())>=0;                     // the shockwave has reached world-x
   if(curDeath==="flood")   return floodGroundHit(x);                                    // the water has risen above the ground here
   if(curDeath==="kaijuwar") return kwCl(x,NOWOVR!=null?NOWOVR:Date.now())>=0;           // trampled or caught in the melee
   if(curDeath==="pollution") return cityApoc>=0.92;                                     // nothing is DEMOLISHED until the very end (movers die via apocKill fade)
@@ -38544,6 +38561,7 @@ function apocFull(){ if(cityPhase!=="apoc") return false;
   if(curDeath==="alienwar") return apocMs >= WAR_ONSET_MS+WAR_STAGGER_MS+WAR_HIT_MS;   // the crossfire has raked the whole city (~12.4s)
   if(curDeath==="frost")   return apocMs >= FROST_ONSET_MS+FROST_STAGGER_MS+FROST_FREEZE_MS;   // the whole city is frozen & buried (~13s)
   if(curDeath==="kaiju")   return kaijuFrontR() >= WW*0.5;                              // the rampage has flattened the whole city
+  if(curDeath==="ninetails") return foxFrontR() >= WW*0.5;
   if(curDeath==="flood")   return floodLevel() >= floodMax()*0.95;                      // the water has risen over the whole skyline
   if(curDeath==="kaijuwar") return kwT1()>=1 && kwClashR()>=WW*KW_SAFE*0.98;             // trample complete + the melee has wrecked downtown
   if(curDeath==="pollution") return cityApoc>=0.92;                                     // the air is gone
@@ -38575,6 +38593,7 @@ function frostCl(k){
   return Math.min(1,t/FROST_FREEZE_MS);
 }
 function kaijuFrontR(){ return apocFrontR(KAIJU_ARRIVE_MS,KAIJU_WIPE_MS); }   // the monster's advancing swath of destruction
+function foxFrontR(){ return apocFrontR(FOX_ARRIVE_MS,FOX_WIPE_MS); }         // the fox's shockwave, spreading from where it stands
 // THE FLOOD — the rising waterline in world-px above HORIZON (0 until the waters come, then climbs to swallow the skyline)
 function floodMax(){ return HORIZON*0.92; }
 function floodLevel(){ return Math.max(0,Math.min(1,(apocMs-FLOOD_ONSET_MS)/FLOOD_RISE_MS)) * floodMax(); }
@@ -38630,6 +38649,7 @@ function drawApocalypse(g,ap,L,now){
   if(curDeath==="alienwar"){ drawApocAlienWar(g,ap,L,now); return; }
   if(curDeath==="frost"){ drawApocFrost(g,ap,L,now); return; }
   if(curDeath==="kaiju"){ drawApocKaiju(g,ap,L,now); return; }
+  if(curDeath==="ninetails"){ drawApocFox(g,ap,L,now); return; }
   if(curDeath==="flood"){ drawApocFlood(g,ap,L,now); return; }
   if(curDeath==="kaijuwar"){ drawApocKaijuWar(g,ap,L,now); return; }
   if(curDeath==="pollution"){ drawApocPollution(g,ap,L,now); return; }
@@ -39763,6 +39783,194 @@ function drawApocFrost(g,ap,L,now){
   drawDoomHud(g,ap,now,msg,"A NEW ICE AGE");
 }
 // KAIJU: a colossal monster towers over the city, atomic breath raking the skyline, destruction radiating out.
+// ============ THE NINE-TAILED FOX — the hidden village's own apocalypse ============
+// Nick: "when the Hidden Leaf Village [rolls], add an end time disaster where a 9 tail fox demon comes
+// and destroys the world." It is the only death on this project tied to a LAND rather than rolled, and
+// it is drawn to a different brief from the kaiju: the kaiju is a monster IN the city, this is a thing
+// the size of the mountain the elders are carved into, standing over the valley.
+//
+// WHAT MAKES IT READ, in the order a pixel silhouette gets to spend its ideas:
+//   1. THE TAILS. Nine of them, fanned and lashing on their own phases. Nothing else in the game has a
+//      fan of moving limbs, and the count is the whole identity — they are drawn FIRST, behind the
+//      body, so the body never has to compete with them.
+//   2. THE SCALE. It stands taller than the carved rock and its head is above the top of the frame at
+//      full height. Scale reads only against something known, so it rises out of the treeline the
+//      village is built under.
+//   3. THE COLOUR. Everything else on this land is plaster, terracotta and forest green; the fox is
+//      furnace orange with a black underside, lighting its own dust cloud.
+// ⚠ A nine-tailed fox is kitsune folklore and belongs to nobody. Nothing here is named, and no glyph
+// or likeness is copied — the same contract the village itself runs under.
+function drawApocFox(g,ap,L,now){
+  var arriveP=Math.min(1,apocMs/FOX_ARRIVE_MS);
+  var frontR=foxFrontR(), prog=Math.min(1,frontR/(WW*0.5));
+  var epiX=apocEpiX(now), sx=epiX-WOFF, gy=HORIZON;
+  if(sx>SW+900&&sx-WW>-900)sx-=WW; if(sx<-900&&sx+WW<SW+900)sx+=WW;
+  var K=Math.max(1,KSP);
+
+  // ===== LONG AFTERMATH (hours): a flattened valley under a red pall, the fox gone from the frame =====
+  if(apocMs>FOX_ARRIVE_MS+FOX_WIPE_MS+1500){
+    g.fillStyle="rgba(64,34,26,0.58)"; g.fillRect(0,0,SW,gy);
+    g.globalCompositeOperation="lighter";
+    for(var sm=0;sm<6;sm++){ var smx=((sm*2654435761)>>>0)%SW;
+      g.fillStyle="rgba(150,70,30,0.09)"; g.fillRect(smx-24,(gy*0.28)|0,48,(gy*0.72)|0); }
+    g.globalCompositeOperation="source-over";
+    // nine embers still burning where it stood — the only thing left that says what did this
+    for(var em=0;em<9;em++){
+      var eh=mixLi(em*8+3,0xF0E9), ex=sx+Math.round((((eh%1000)/1000)-0.5)*SW*0.8);
+      if(ex<0||ex>SW) continue;
+      var epul=0.4+0.6*Math.abs(Math.sin(now*0.0013+em));
+      g.globalCompositeOperation="lighter";
+      g.fillStyle="rgba(255,120,40,"+(0.22*epul).toFixed(3)+")";
+      g.fillRect(ex-Math.round(3*K),gy-Math.round(3*K),Math.round(6*K),Math.round(3*K));
+      g.globalCompositeOperation="source-over";
+    }
+    g.fillStyle="rgba(8,4,4,0.9)"; g.fillRect(0,gy,SW,SH-gy);
+    drawDoomHud(g,ap,now,cityName+" IS GONE","THE FOX IS NOT SEEN AGAIN");
+    return;
+  }
+
+  // ===== THE SKY. It lights the cloud from below, so the glow grows as it rises. =====
+  g.fillStyle="rgba(96,34,14,"+(0.10+0.40*Math.max(arriveP,prog)).toFixed(3)+")"; g.fillRect(0,0,SW,gy);
+  g.globalCompositeOperation="lighter";
+  var glowH=Math.round(gy*0.7);
+  var gl=g.createLinearGradient(0,gy-glowH,0,gy);
+  gl.addColorStop(0,"rgba(255,90,20,0)");
+  gl.addColorStop(1,"rgba(255,120,30,"+(0.10+0.22*arriveP).toFixed(3)+")");
+  g.fillStyle=gl; g.fillRect(0,gy-glowH,SW,glowH);
+  g.globalCompositeOperation="source-over";
+
+  // ===== THE FOX =====
+  // ⚠ THE FIRST VERSION WAS BUILT UPRIGHT and read as a bear: a vertical mass with a black slab of
+  // belly down the middle and the tails breaking into detached squares across the sky. A fox is a
+  // HORIZONTAL animal — a long level back, four legs under it, a neck rising at one end — and that
+  // profile is the whole recognition. Rebuilt in profile, and the tails are drawn as continuous runs
+  // rather than eleven samples of a curve.
+  // ⚠ SIZE IT SO THE WHOLE ANIMAL IS IN THE FRAME. At `gy*0.92` tall and `H*1.35` long the body alone
+  // was wider than half his screen and the head sat off the top edge — a giant is only a giant next to
+  // something, and there was nothing left to compare it to. It tops the carved rock and still leaves
+  // the village readable underneath it, which is the whole point of putting it HERE.
+  var Hfull=Math.round(gy*0.60);
+  var H=Math.round(Hfull*(0.42+0.58*arriveP));                     // …and it RISES over the arrival
+  var backY=gy-H, W=Math.round(H*1.25);                            // longer than it is tall, as an animal is
+  var cxB=(sx+Math.round(Math.sin(now*0.0011)*3*K))|0;
+  var dayF=L>0.5;
+  var fur=dayF?"#c8551c":"#8e3812", furD=dayF?"#8e3410":"#4a1a08";
+  var furL=dayF?"#f08a34":"#b45420", belly=dayF?"#5a2408":"#2a1206";
+  var faceDir=(sx>SW*0.5)?-1:1;                                    // it faces the middle of the world
+  var headX=cxB+Math.round(W*0.40)*faceDir, rumpX=cxB-Math.round(W*0.34)*faceDir;
+
+  // ---- 1. THE NINE TAILS, behind everything, fanned off the rump, each on its own phase ----
+  for(var t=0;t<9;t++){
+    var th=mixLi(t*8+11,0x7A115);
+    var spread=(t-4)/4;                                             // -1 … 1 across the fan
+    var tlen=Math.round(H*(1.05+((th%100)/100)*0.55));
+    var baseY=backY+Math.round(H*0.30);
+    var lash=Math.sin(now*0.0016+t*0.7)*0.26+Math.sin(now*0.0009+t*1.9)*0.13;
+    var ang=(faceDir>0? Math.PI : 0) + (-0.62+spread*0.62+lash)*(faceDir>0?1:-1);
+    var tw=Math.max(2,Math.round(H*0.085));
+    var steps=Math.max(24,Math.round(tlen*0.9));
+    for(var q=0;q<=steps;q++){
+      var qf=q/steps;
+      var curl=ang - qf*qf*0.62*spread*(faceDir>0?1:-1);            // the tips curl away from the fan's centre
+      var px=rumpX+Math.round(Math.cos(curl)*tlen*qf);
+      var py=baseY+Math.round(Math.sin(curl)*tlen*qf*0.86)-Math.round(qf*H*0.22);
+      var pw=Math.max(2,Math.round(tw*(1-qf*0.55)));
+      g.fillStyle=(qf>0.82)?furL:fur;                               // the tips catch the light
+      g.fillRect(px-(pw>>1),py-(pw>>1),pw,pw);
+      g.fillStyle=furD;                                             // an underside shadow the whole length
+      g.fillRect(px-(pw>>1),py+(pw>>1)-Math.max(1,Math.round(pw*0.28)),pw,Math.max(1,Math.round(pw*0.28)));
+    }
+  }
+
+  // ---- 2. THE BODY, in profile: a level back, a deep chest, a tucked waist ----
+  var bodyH=Math.round(H*0.40), bodyTop=backY+Math.round(H*0.10);
+  for(var bxq=-Math.round(W*0.42);bxq<=Math.round(W*0.42);bxq++){
+    var lf=(bxq+W*0.42)/(W*0.84);                                   // 0 at the rump, 1 at the chest
+    var lfd=(faceDir>0)?lf:(1-lf);
+    var hgt=Math.round(bodyH*(0.72+0.28*Math.sin(lfd*3.14159))*(1-0.16*Math.abs(lfd-0.5)));
+    var X=cxB+bxq;
+    g.fillStyle=fur;  g.fillRect(X,bodyTop+(bodyH-hgt),1,hgt);
+    g.fillStyle=furL; g.fillRect(X,bodyTop+(bodyH-hgt),1,Math.max(1,Math.round(hgt*0.16)));   // sun along the spine
+    g.fillStyle=belly;g.fillRect(X,bodyTop+bodyH-Math.max(1,Math.round(hgt*0.22)),1,Math.max(1,Math.round(hgt*0.22)));
+  }
+  // ---- the four legs, front pair planted forward, hind pair braced ----
+  var legTop=bodyTop+bodyH-Math.round(H*0.04), legW=Math.max(3,Math.round(H*0.10));
+  for(var lg=0;lg<4;lg++){
+    var fwd=(lg<2), lx=cxB+Math.round(W*(fwd?0.30:-0.26))*faceDir+Math.round((lg%2)*legW*1.5)*faceDir;
+    g.fillStyle=(lg%2)?furD:fur;
+    g.fillRect(lx-(legW>>1),legTop,legW,gy-legTop);
+    g.fillStyle=furD; g.fillRect(lx-(legW>>1),gy-Math.round(H*0.05),legW,Math.round(H*0.05));   // dark paws
+  }
+  // ---- 3. THE HEAD: a neck rising off the shoulder, a long muzzle, two tall ears ----
+  // ⚠ THE NECK HAS TO REACH. Drawn as a fixed-length column it left the head floating clear of the
+  // shoulder — a giant animal in two pieces. It is a WEDGE spanning the real distance between the two,
+  // widening into the chest, so the join exists whatever the rise has done to the proportions.
+  var headY=backY-Math.round(H*0.16);
+  var neckTop=headY+Math.round(H*0.14), neckBot=bodyTop+Math.round(H*0.18);
+  var neckX0=headX+Math.round(H*0.06)*(-faceDir);
+  for(var ny=neckTop;ny<neckBot;ny++){
+    var nf=(ny-neckTop)/Math.max(1,neckBot-neckTop);
+    var nw=Math.round(H*(0.17+0.20*nf));                            // narrow at the skull, deep at the chest
+    var nx=neckX0+Math.round(nf*H*0.16)*(-faceDir);
+    g.fillStyle=fur;  g.fillRect(nx-(nw>>1),ny,nw,1);
+    g.fillStyle=furL; g.fillRect(nx-(nw>>1),ny,Math.max(1,Math.round(nw*0.18)),1);
+  }
+  var hw=Math.round(H*0.30), hh=Math.round(H*0.20);
+  g.fillStyle=fur; g.fillRect(headX-(hw>>1),headY,hw,hh);
+  var mzL=Math.round(hw*0.80), mzH=Math.round(hh*0.44);
+  g.fillRect(faceDir>0?headX+(hw>>1):headX-(hw>>1)-mzL,headY+Math.round(hh*0.44),mzL,mzH);
+  g.fillStyle=furD;
+  g.fillRect(faceDir>0?headX+(hw>>1):headX-(hw>>1)-mzL,headY+Math.round(hh*0.44)+mzH-Math.max(1,Math.round(mzH*0.36)),mzL,Math.max(1,Math.round(mzH*0.36)));
+  for(var er=0;er<2;er++){                                          // ears: tall triangles, the fox tell
+    var ex2=headX-(hw>>1)+Math.round(hw*(er?0.58:0.08)), eh2=Math.round(hh*1.05), ew2=Math.round(hw*0.30);
+    for(var ey=0;ey<eh2;ey++){
+      var ef=ey/eh2, ww2=Math.max(1,Math.round(ew2*(1-ef)));
+      g.fillStyle=(ef>0.58)?furD:fur;
+      g.fillRect(ex2+((ew2-ww2)>>1),headY-ey,ww2,1);
+    }
+  }
+  // the eyes — the brightest thing in the frame, and they do not blink
+  g.globalCompositeOperation="lighter";
+  var eyeY=headY+Math.round(hh*0.26), eyeW=Math.max(2,Math.round(hw*0.18));
+  g.fillStyle="rgba(255,232,130,0.95)";
+  g.fillRect(headX-Math.round(hw*0.30),eyeY,eyeW,Math.max(2,Math.round(eyeW*0.66)));
+  g.fillRect(headX+Math.round(hw*0.10),eyeY,eyeW,Math.max(2,Math.round(eyeW*0.66)));
+  g.fillStyle="rgba(255,150,40,0.30)";
+  g.fillRect(headX-Math.round(hw*0.44),eyeY-Math.round(eyeW*0.6),Math.round(hw*0.92),Math.round(eyeW*2));
+  g.globalCompositeOperation="source-over";
+
+  // ---- 4. THE SHOCKWAVE, once it moves: a ring of dust racing out along the ground ----
+  if(apocMs>=FOX_ARRIVE_MS){
+    for(var d2=0;d2<2;d2++){
+      var rr=Math.round(frontR*(d2?0.86:1));
+      for(var sgn=-1;sgn<=1;sgn+=2){
+        var wxr=sx+sgn*rr;
+        if(wxr<-30||wxr>SW+30) continue;
+        var wh=Math.round(28*K*(1-prog*0.4));
+        g.globalCompositeOperation="lighter";
+        g.fillStyle="rgba(255,150,60,"+(0.26*(1-prog*0.5)).toFixed(3)+")";
+        g.fillRect((wxr-Math.round(2*K))|0,gy-wh,Math.round(4*K),wh);
+        g.globalCompositeOperation="source-over";
+        g.fillStyle="rgba(120,80,60,0.34)";
+        g.fillRect((wxr-Math.round(6*K))|0,gy-Math.round(wh*0.6),Math.round(12*K),Math.round(wh*0.6));
+      }
+    }
+    // dust boiling along everything it has already flattened
+    g.globalCompositeOperation="lighter";
+    for(var dc=0;dc<16;dc++){
+      var dh=mixLi(dc*8+5,0xD0FF), dsx=sx+((((dh%1000)/1000)*2)-1)*frontR;
+      if(dsx<-20||dsx>SW+20) continue;
+      var dph=((now*0.02+dc*70)%100)/100;
+      g.fillStyle="rgba(180,110,70,"+(0.18*(1-dph)).toFixed(3)+")";
+      g.fillRect((dsx-4)|0,(gy-6-dph*34)|0,8,6);
+    }
+    g.globalCompositeOperation="source-over";
+  }
+
+  var msg=(apocMs<FOX_ARRIVE_MS) ? "SOMETHING IS STANDING OVER THE VALLEY"
+        : (prog<0.9 ? cityName+" IS BEING LEVELLED" : cityName+" IS GONE");
+  drawDoomHud(g,ap,now,msg,"NINE TAILS ABOVE THE TREELINE");
+}
 function drawApocKaiju(g,ap,L,now){
   var arriveP=Math.min(1,apocMs/KAIJU_ARRIVE_MS);
   var frontR=kaijuFrontR(), prog=Math.min(1,frontR/(WW*0.5));
@@ -40039,7 +40247,7 @@ function drawApocBuilding(g,b,bx,cl,L,now,bdir){
     g.fillStyle="rgba(206,226,246,0.7)"; g.fillRect(bx-2,gy-buryH,Wf+4,1);
     return;
   }
-  if(curDeath==="kaiju"){                                        // SMASHED — the monster stomps it flat; it buckles & crumbles into rubble
+  if(curDeath==="kaiju"||curDeath==="ninetails"){                // SMASHED — stomped flat by the beast, or levelled by the fox's shockwave
     var Hk=b.h, Wk=b.w;
     if(cl<0.12){ var kf=1-cl/0.12;                              // the stomp — a burst of pulverized concrete dust
       g.fillStyle="#2a2620"; g.fillRect(bx,gy-Hk,Wk,Hk);
@@ -40460,6 +40668,10 @@ function draw(g,pass){
   cityApoc=(cityPhase==="apoc")?cg.apoc:0;                   // the grand cataclysm progress (0..1)
   apocMs=cityApoc*APOC_BAND*GROW_CYCLE;                      // REAL ms since detonation (drives the fast bang/heat-wave/vaporize)
   curDeath=FORCEDEATH||deathOf(lifeI);                       // how this civilization is fated to end
+  // ⚠ THE FINALES WERE UNREVIEWABLE IN A SINGLE FRAME. `apocMs` is derived from the life clock, so a
+  // one-frame harness could only ever catch whatever moment the city happened to be at — and every
+  // end-times renderer is a TIMELINE. This pins it.
+  if(FORCEAPOCMS!=null){ cityPhase="apoc"; cityG=1; apocMs=FORCEAPOCMS; cityApoc=Math.min(1,apocMs/(APOC_BAND*GROW_CYCLE)); }
   if(DEMO_APOC_SEC>0){ cityPhase="apoc"; cityG=1; curSpace=1;   // TEST: play the apocalypse live on a short repeating loop
     apocMs=Date.now()%(DEMO_APOC_SEC*1000); cityApoc=Math.min(1,apocMs/(DEMO_APOC_SEC*1000)); curDeath=FORCEDEATH||"nuke"; }
   blastMs = (curDeath==="nuke") ? Math.max(0, apocMs-NUKE_FALL_MS) : apocMs;   // ms since DETONATION — 0 while the warhead is still falling, so nothing dies until impact
@@ -40479,6 +40691,8 @@ function draw(g,pass){
                                                     : Math.min(1,0.3+(apocMs-FROST_ONSET_MS)/6000))   //   …then the freeze takes everyone
     : (curDeath==="kaiju") ? (apocMs<KAIJU_ARRIVE_MS ? Math.min(0.28,apocMs/KAIJU_ARRIVE_MS*0.28)   //   kaiju: terror as the beast emerges…
                                                      : Math.min(1,0.28+(apocMs-KAIJU_ARRIVE_MS)/KAIJU_WIPE_MS))   //   …then the rampage empties the city
+    : (curDeath==="ninetails") ? (apocMs<FOX_ARRIVE_MS ? Math.min(0.34,apocMs/FOX_ARRIVE_MS*0.34)   //   the fox: they watch it RISE before they run…
+                                                       : Math.min(1,0.34+(apocMs-FOX_ARRIVE_MS)/FOX_WIPE_MS))     //   …then the shockwave takes the valley
     : (curDeath==="flood") ? (apocMs<FLOOD_ONSET_MS ? Math.min(0.3,apocMs/FLOOD_ONSET_MS*0.3)   //   flood: people run for high ground as the waters rise…
                                                     : Math.min(1,0.3+(apocMs-FLOOD_ONSET_MS)/9000))   //   …then the sea drowns the city
     : (curDeath==="kaijuwar") ? (apocMs<KW_ARRIVE_MS ? Math.min(0.3,apocMs/KW_ARRIVE_MS*0.3)   //   kaiju war: terror as the two titans rise…
@@ -41675,6 +41889,10 @@ function draw(g,pass){
           if(vsx7>-3&&vsx7<SW+3){ g.fillStyle="rgba("+(150+80*frp)+","+(190+50*frp)+",255,"+(0.5+0.5*Math.min(1,frp))+")"; g.fillRect(vsx7|0,HORIZON-4,2,4); }   // frozen where they stood
           continue; }
         fleeing=true; pwx=wrapW(pwx + pd.dir*(now%4000)*0.038); }
+      else if(curDeath==="ninetails"){                           // the fox: run from the shockwave, and be gone when it arrives
+        var gzF=apocEpiX(now), dF=nukeDist(pwx,gzF), frF=foxFrontR();
+        if(frF>=dF){ continue; }
+        fleeing=true; pwx=wrapW(pwx + pd.dir*(now%4000)*0.052); }  // they run harder than they do from anything else
       else if(curDeath==="kaiju"){                               // kaiju: flee the rampage, then get stomped/swept when the beast reaches them
         var gzK=apocEpiX(now), dK=nukeDist(pwx,gzK), frK=kaijuFrontR();
         if(frK>=dK){ continue; }                                 // the rampage reached them → gone
