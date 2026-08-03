@@ -30324,7 +30324,11 @@ function drawBiomeLandmark(g,L,now,nd){
     var rockBase=villageStoneBase();
     var stoneC=day?rockBase:mixc(rockBase,[16,18,30],0.72);
     var stone=css(stoneC);
-    var cut=css(mixc(stoneC,[30,26,24],day?0.42:0.55));           // shadow inside a cut
+    // ⚠ AT NIGHT RELIEF HAS TO COME FROM THE SHADOW, NOT THE HIGHLIGHT. With the recess only a little
+    // darker than the head, the moonlit limb was the only thing separating them and every elder read
+    // as a bright OUTLINE around a dark hollow — a shell, not a head. Moonlight is dim; the shadow it
+    // fails to reach is not. The night cut goes deeper so the carving is read by its dark side.
+    var cut=css(mixc(stoneC,[30,26,24],day?0.42:0.74));           // shadow inside a cut
     // ⚠ AT NIGHT THERE WAS NOTHING TO CARVE WITH. `lit2` mixed toward white at 0.06 after dark, so the
     // highlight and the stone were the same colour and every cue that says "this is cut, not painted"
     // vanished — Nick's night screenshot has five elders reading as flat dark panels. Relief is a
@@ -34484,6 +34488,7 @@ function drawVillageCliff(g,L,now,nd){
   var vsp=vlmRockSpan();
   var stF=(vsp&&VLM_STAIR*W>vsp[0]-40)?Math.max(0.02,(vsp[0]-Math.round(26*vlmFK()))/W):VLM_STAIR;
   var stX=Math.round(stF*W)-WOFF;
+  mtsCache.vstF=stF;                     // published for drawVillageCliffLive — one stair, one place
   if(stX<-140) stX+=W; if(stX>SW+140) stX-=W;
   if(stX>-140&&stX<SW+140){
     var stH=hs[Math.max(0,Math.min(SW-1,stX))]||Math.round(gy*VLM_RIM);
@@ -34563,6 +34568,156 @@ function drawVillageCliff(g,L,now,nd){
     g.fillStyle=talC; g.fillRect(tx2,gy-apron-tH,1,tH+Math.round(apron*0.5));
     if((mixLi(wxt,0x5C2E)%100)<16){                                  // boulders that have come off the face
       g.fillStyle=talHi; g.fillRect(tx2,gy-apron-tH+Math.round(((mixLi(wxt,0x5C2F)%100)/100)*tH),Math.max(1,Math.round(K*1.2)),Math.max(1,Math.round(K*1.2)));
+    }
+  }
+}
+// ============ THE CLIFF, LIVE ============
+// Nick: make the map "more grounded and dynamic". The wall was the biggest object on the land and the
+// most completely dead thing on it — 2269 wp of rock that did the same thing at 3 a.m. in a gale as at
+// noon in June. Everything here is in the LIVE pass on purpose: the backdrop canvas repaints at about
+// 0.5 fps, and water that falls at half a frame a second does not fall, it flickers between two poses.
+// That is the mistake the cascades made on the plateau and the fungus made underground.
+// ⚠ It reads `mtsCache.h[1]` — the same rim the wall was drawn from — so nothing here can drift off
+// the cliff it belongs to, at any resolution or on any monitor.
+function drawVillageCliffLive(g,L,now,nd,fx){
+  if(!curVillage||curRainV) return;
+  if(!mtsCache||!mtsCache.h||!mtsCache.h[1]) return;
+  var gy=HORIZON, day=L>0.5, K=Math.max(1,KSP), W=Math.max(1,WW|0), hs=mtsCache.h[1];
+  function rim(sx){ var i=sx<0?0:(sx>=SW?SW-1:sx); return hs[i]||0; }
+  function onScreen(f){ var x=Math.round(f*W)-WOFF; if(x<-120) x+=W; if(x>SW+120) x-=W; return x; }
+  var rainK=fx.thunder?1:(fx.violent?0.92:(fx.rain?0.7:(fx.drizzle?0.3:0)));
+  // ⚠ WETNESS, NOT JUST RAIN. `wetness` accumulates over MINUTES and drains slowly, so the falls keep
+  // running after the shower has passed — which is what actually happens to a cliff, and is the whole
+  // difference between "it is raining" and "it rained this morning".
+  var wetK=Math.max(0,Math.min(1,wetness));
+  var fallK=Math.max(rainK,wetK*0.85);
+  // stable per life, world-anchored: where the water comes off, and which holes are lit at night
+  if(!mtsCache.vspt){
+    var sd=rng((WORLD_SEED+9137)>>>0), sp=[], wn=[];
+    // ⚠ SEVEN ACROSS THE WORLD IS TWO PER SCREEN AT BEST, and the roll can easily put both of those
+    // on someone else's monitor. Ten, so every screen reliably gets water off its own rim.
+    for(var q=0;q<10;q++) sp.push({ f:sd(), w:0.7+sd()*1.5, ph:sd()*9, gully:sd()<0.4 });
+    for(var q2=0;q2<14;q2++) wn.push({ f:sd(), d:0.12+sd()*0.62, ph:sd()*9 });
+    mtsCache.vspt=sp; mtsCache.vwin=wn;
+  }
+  var sp2=mtsCache.vspt, wn2=mtsCache.vwin;
+  // ---- 1. WATER OFF THE RIM. In rain it sheets; for a while after, the gullies keep running.
+  if(fallK>0.04){
+    for(var f1=0;f1<sp2.length;f1++){
+      var S=sp2[f1];
+      if(!S.gully && fallK<rainK*0.5) continue;                 // the sheet stops when the rain does
+      var k1=S.gully?fallK:rainK; if(k1<=0.04) continue;
+      var sx1=onScreen(S.f); if(sx1<-8||sx1>SW+8) continue;
+      var top=gy-rim(sx1), foot=gy-Math.round(gy*0.20);
+      // ⚠ AT 1*K WIDE AND 0.28 ALPHA THIS WAS INVISIBLE at his real geometry — a fall you have to look
+      // for is not an event. A cliff shedding a storm is one of the loudest things in nature.
+      var wdt=Math.max(2,Math.round(K*S.w*(1.4+1.4*k1)));
+      // a falling sheet is a DASHED column that moves — a solid bar reads as a pipe
+      var off=Math.floor(now*0.22+S.ph*40)%Math.max(4,Math.round(9*K));
+      g.fillStyle="rgba(226,238,248,"+(0.20+0.44*k1).toFixed(2)+")";
+      g.fillRect(sx1,top,wdt,foot-top);
+      g.fillStyle="rgba(255,255,255,"+(0.30+0.50*k1).toFixed(2)+")";
+      for(var yy=top+off;yy<foot;yy+=Math.max(4,Math.round(9*K)))
+        g.fillRect(sx1,yy,wdt,Math.max(1,Math.round(3*K)));
+      // where it comes over the lip it breaks white — the top of a fall is its brightest part
+      g.fillStyle="rgba(255,255,255,"+(0.34+0.40*k1).toFixed(2)+")";
+      g.fillRect(sx1-Math.round(K),top,wdt+Math.round(2*K),Math.max(1,Math.round(2.4*K)));
+      // and it lands: a splash that breathes, so the bottom of the fall is not a cut line
+      var pl=0.5+0.5*Math.sin(now*0.006+S.ph);
+      g.fillStyle="rgba(236,244,252,"+(0.22+0.30*k1*pl).toFixed(2)+")";
+      g.fillRect(sx1-Math.round(3*K),foot-Math.round(2*K),wdt+Math.round(6*K),Math.max(2,Math.round(3*K+pl*3*K)));
+    }
+  }
+  // ---- 2. THE FACE RUNS WET. Not a fall — the whole wall darkens in streaks while it rains.
+  if(rainK>0.05){
+    g.fillStyle="rgba(40,28,22,"+(0.10*rainK).toFixed(2)+")";
+    for(var xw=0;xw<SW;xw+=Math.max(2,Math.round(3*K))){
+      if((mixLi(Math.floor((xw+WOFF)/Math.max(1,Math.round(3*K))),0x5EE0)%100)<58) continue;
+      var rh2=rim(xw); if(rh2<=0) continue;
+      g.fillRect(xw,gy-rh2,Math.max(1,Math.round(K)),Math.round(rh2*(0.5+0.5*rainK)));
+    }
+  }
+  // ---- 3. MIST POOLING AT THE FOOT. Early morning, and after rain — cold air draining off the rock.
+  var hr=nd.getHours()+nd.getMinutes()/60;
+  var mistK=Math.max((hr>3.5&&hr<9)?(1-Math.abs(hr-6)/2.6):0, wetK*0.55);
+  if(mistK>0.05){
+    for(var m1=0;m1<3;m1++){
+      var my=gy-Math.round(gy*(0.17+m1*0.035)), dr=(now*0.004*(0.6+m1*0.5))%(W);
+      g.fillStyle="rgba(226,232,238,"+(0.06+0.24*mistK*(1-m1*0.22)).toFixed(2)+")";
+      for(var mx=-60;mx<SW+60;mx+=Math.max(6,Math.round(9*K))){
+        var mw=Math.round((14+((mixLi(Math.floor((mx+WOFF+dr)/9),0x1157)%100)/100)*30)*K*0.5);
+        g.fillRect(mx,my,mw,Math.max(2,Math.round(K*(3.0+m1*1.4))));
+      }
+    }
+  }
+  // ---- 4. PEOPLE ON THE CLIFF. The switchback is a stair, so somebody is on it.
+  if(mtsCache.vstF!=null){
+    var stx=onScreen(mtsCache.vstF), stH=rim(stx);
+    if(stx>-40&&stx<SW+40&&stH>0){
+      var legW=Math.round(11*K);
+      for(var c1=0;c1<2;c1++){
+        var per=44000+c1*17000, tt=((now+c1*23000)%per)/per;
+        var up=(c1&1)?tt:1-tt;                                  // one going up, one coming down
+        var cy=gy-Math.round(gy*0.045)-Math.round(up*(stH-Math.round(gy*0.10)));
+        var leg=Math.floor((gy-Math.round(gy*0.045)-cy)/Math.max(1,Math.round(3.2*K)));
+        var cx=stx+((leg&1)?Math.round(legW*0.4):-Math.round(legW*0.6));
+        drawPerson(g,cx,cy,c1?"#3a4a5a":"#5a4030","#c9a184",(Math.floor(now/220)+c1)&3);
+      }
+    }
+  }
+  // ---- 5. SOMEBODY WORKING ON AN ELDER'S FACE. Not permanent: a hashed window of a couple of hours,
+  // because a stonemason who is ALWAYS there is scenery, and one you catch sometimes is an event.
+  var vsp2=vlmRockSpan();
+  if(vsp2&&day&&(mixLi(Math.floor(now/3600000),0x1A50)%100)<26){
+    var wx5=(vsp2[0]+vsp2[1])*0.5+(((mixLi(Math.floor(now/3600000),0x1A51)%100)/100)-0.5)*(vsp2[1]-vsp2[0])*0.7;
+    var sx5=onScreen(wx5/W);
+    if(sx5>-20&&sx5<SW+20){
+      var rt5=gy-rim(sx5), sway=Math.sin(now*0.0011)*2.2*K;
+      var wy5=rt5+Math.round(gy*0.10);
+      g.fillStyle=day?"rgba(40,34,28,0.75)":"rgba(10,12,18,0.8)";   // the rope, from the rim
+      g.fillRect(Math.round(sx5+sway*0.4),rt5,Math.max(1,Math.round(K*0.6)),Math.round(wy5-rt5));
+      drawPerson(g,Math.round(sx5+sway),wy5,"#6a5030","#c9a184",(Math.floor(now/300))&3);
+    }
+  }
+  // ---- 6. HAWKS ON THE UPDRAFT. A cliff face makes lift, and raptors use it; this is the cheapest
+  // possible "this place has weather and air in it".
+  if(day&&rainK<0.5){
+    for(var b1=0;b1<3;b1++){
+      var bp=(now*0.00004*(0.7+b1*0.22)+b1*0.37)%1, ang=bp*Math.PI*2;
+      var cxb=onScreen(0.18+b1*0.31), rr=Math.round(gy*(0.10+b1*0.03));
+      var bx=Math.round(cxb+Math.cos(ang)*rr*2.2), by=gy-Math.round(rim(bx)*0.72)-Math.round(Math.sin(ang)*rr*0.35);
+      if(bx<-10||bx>SW+10) continue;
+      drawBird(g,bx,by,Math.floor(now/420)+b1,day?"#4a3f36":"#20242c",Math.cos(ang)>0?1:-1,true);
+    }
+  }
+  // ---- 7. THE ROOST. They leave the rim at first light and come back to it at dusk — the one event
+  // on this land that tells you what hour it is without looking at the clock.
+  var gk=(goldenK||0);
+  if(gk>0.12&&!fx.thunder){
+    var out=(hr<12), flock=Math.round(10+gk*14);
+    for(var b2=0;b2<flock;b2++){
+      var hh2=mixLi(b2,0xF10C), ph2=((hh2%100)/100);
+      var t2=((now*0.00007+ph2)%1), tr=out?t2:1-t2;
+      var fx2=onScreen(0.30+ph2*0.42)+Math.round((tr-0.5)*gy*1.1);
+      var fy2=gy-Math.round(rim(fx2))-Math.round(gy*0.02)-Math.round(Math.sin(tr*3.14)*gy*0.16)-Math.round(((hh2>>>9)%40)*K*0.2);
+      if(fx2<-10||fx2>SW+10) continue;
+      drawBird(g,fx2,fy2,Math.floor(now/300)+b2,"#2e2a26",out?1:-1);
+    }
+  }
+  // ---- 8. LIGHTS IN THE ROCK. Cut chambers, lit from inside, and lanterns along the rim path — the
+  // thing that says the cliff is INHABITED rather than merely large.
+  if(!day){
+    for(var n1=0;n1<wn2.length;n1++){
+      var Wn=wn2[n1], nx=onScreen(Wn.f); if(nx<-6||nx>SW+6) continue;
+      var nrh=rim(nx); if(nrh<=0) continue;
+      var ny=gy-Math.round(nrh*(1-Wn.d));
+      var fl=0.72+0.28*Math.sin(now*0.0013+Wn.ph*7);
+      g.fillStyle="rgba(255,190,110,"+(0.55*fl).toFixed(2)+")";
+      g.fillRect(nx,ny,Math.max(1,Math.round(K*1.4)),Math.max(1,Math.round(K*1.6)));
+      g.globalCompositeOperation="lighter";
+      g.fillStyle="rgba(255,170,90,"+(0.13*fl).toFixed(2)+")";
+      g.fillRect(nx-Math.round(2*K),ny-Math.round(2*K),Math.round(5*K),Math.round(5*K));
+      g.globalCompositeOperation="source-over";
     }
   }
 }
@@ -41696,6 +41851,9 @@ function draw(g,pass){
   drawDamLakeLive(g,L,now,nd);    // …and if it is the dam, the ferry, the launch, the dinghies and the
                                   // water life. The lake's FIXED things (the far town, the boom, the
                                   // jetties) stay in the backdrop — see drawDamShore.
+  drawVillageCliffLive(g,L,now,nd,fx);  // …and on the hidden village, everything the WALL does: water
+                                  // off the rim, mist at its foot, climbers on the stair, hawks on the
+                                  // updraft, the roost at dawn and dusk, lit chambers after dark
   drawUndercityLive(g,L,now,nd);  // …and underground, the fungus glow, which was written to pulse and
                                   // could not, sitting on a 0.5 fps canvas (the rock stays in the backdrop)
   drawPlateauTowns(g,L,now,nd);
