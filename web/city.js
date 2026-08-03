@@ -2766,13 +2766,44 @@ function fetchWeather(bucket){
           var rn2=Date.now();
           // --- NOWCAST: read the 15-min precipitation bucket for right-now so a shower that just
           //     started/stopped shows here without waiting on the slower `current` block ---
+          // 🚨🚨 AND IT READ ONE BUCKET, WHICH IS WHY IT SAID DRIZZLE IN A DOWNPOUR.
+          // Nick, 2026-08-03: "it is raining outside and it doesn't seem to be detecting my local
+          // weather." MEASURED against the live API at that moment, at his own coordinates, the
+          // fifteen-minute series read:
+          //     08:30  26.0 mm  code 65      08:45  7.7 mm  code 65
+          //     09:00   0.1 mm  code 51      09:15  0.7 mm  code 63      09:30  28.4 mm  code 65
+          // — a squall line, which is what rain in Connecticut in August actually looks like. He asked
+          // at 09:1x, the engine took the single bucket it happened to land in, and 0.1 mm of code 51
+          // is LIGHT DRIZZLE: three visible streaks and a dry street, between two buckets of heavy
+          // rain. The fetch was never broken and the location was never wrong. **An instantaneous
+          // sample is not the weather — "it is raining out" is a statement about the last half hour.**
+          // So: the strongest condition over the last 30 minutes and the next 15, not the instant.
+          // ⚠ IT MUST STILL BE ABLE TO GO DOWN. The whole reason this block exists is that a shower
+          // which has just stopped should clear without waiting on the slower `current` field. So a
+          // window that is dry all the way across still clears a stale `current` — it just cannot be
+          // talked out of the rain by ONE quiet quarter-hour in the middle of a storm.
           var m15=j.minutely_15;
           if(m15&&m15.time&&m15.time.length){
             var t0=Date.parse(m15.time[0].length<=16?(m15.time[0]+":00"):m15.time[0]);
             var idx=Math.floor((rn2-t0)/900000);
-            if(idx>=0&&idx<m15.time.length){
-              if(m15.precipitation&&m15.precipitation[idx]!=null) weather.precip=m15.precipitation[idx];
-              if(m15.weather_code&&m15.weather_code[idx]!=null)   weather.code=m15.weather_code[idx];
+            var lo15=Math.max(0,idx-2), hi15=Math.min(m15.time.length-1,idx+1);
+            if(idx>=0&&lo15<=hi15){
+              var wCode=null, wPre=0, wetSeen=false, sawAny=false;
+              for(var q15=lo15;q15<=hi15;q15++){
+                var pc15=(m15.weather_code&&m15.weather_code[q15]!=null)?m15.weather_code[q15]:null;
+                var pp15=(m15.precipitation&&m15.precipitation[q15]!=null)?m15.precipitation[q15]:null;
+                if(pc15!=null){ sawAny=true;
+                  if(wCode===null||wxSev(pc15)>wxSev(wCode)) wCode=pc15;
+                  if(wxSev(pc15)>=2) wetSeen=true; }
+                if(pp15!=null&&pp15>wPre) wPre=pp15;
+              }
+              if(sawAny){
+                weather.precip=wPre;
+                // wet anywhere in the window → take the worst of it and of `current`; dry right
+                // across → let it clear a `current` that is still claiming precipitation
+                if(wetSeen){ if(wxSev(wCode)>wxSev(weather.code)) weather.code=wCode; }
+                else if(wxSev(weather.code)>=2) weather.code=wCode;
+              }
             }
           }
           // --- PROJECTED: scan the next ~12h of hourly forecast → high/low, peak rain chance,
@@ -2798,6 +2829,19 @@ function fetchWeather(bucket){
     xhr.open("GET","https://api.open-meteo.com/v1/forecast?latitude="+LAT+"&longitude="+LON+"&current=weather_code,cloud_cover,wind_speed_10m,wind_gusts_10m,temperature_2m,apparent_temperature,precipitation&minutely_15=precipitation,weather_code&hourly=weather_code,precipitation_probability,temperature_2m&forecast_days=2&temperature_unit=fahrenheit&timezone=auto");
     xhr.send();
   }catch(e){}
+}
+// How BAD a WMO code is, on one scale, so two of them can be compared. Used by the nowcast window to
+// pick the worst quarter-hour rather than the latest one. Deliberately coarse: the only question it
+// has to answer is "which of these two is more weather".
+//   0 clear/cloudy · 1 fog · 2 drizzle · 3 rain or snow · 4 heavy/violent · 5 thunder
+function wxSev(c){
+  if(c==null) return -1;
+  if(c>=95) return 5;
+  if(c===65||c===67||c===82||c===75||c===86) return 4;
+  if((c>=61&&c<=67)||(c>=80&&c<=82)||(c>=71&&c<=77)||c===85) return 3;
+  if(c>=51&&c<=57) return 2;
+  if(c===45||c===48) return 1;
+  return 0;
 }
 function wfx(){
   var c=weather.code;
