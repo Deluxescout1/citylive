@@ -29924,13 +29924,34 @@ function drawBiomeLandmark(g,L,now,nd){
   // city grew up under, and the most-seen of the seven, was the only one with NOTHING that says where
   // you are. That gate existed to protect the life-0 byte-unchanged invariant, which Nick has since
   // deliberately retired. Alpine gets a landmark like everything else now.
-  var B=curBiome; if(cityPhase==="apoc") return;
+  var B=curBiome;
+  // ⚠ CLEARED EVERY FRAME, because it is PUBLISHED every frame. `villageRockSpan` was only ever
+  // assigned — never reset — so once the carved cliff had drawn, the span outlived it: a later life on
+  // another land, or a screen the rock does not reach, still had the old [lo,hi] sitting in the global
+  // and `drawVillageForest` kept a bare stripe through its trees for a monument that was not there.
+  // Clearing at the top means every early return below clears it too, which is the only place that
+  // covers the off-screen case as well as the wrong-land one.
+  villageRockSpan=null;
+  // ⚠⚠ A LANDMARK THE CITY DID NOT BUILD CANNOT BE GATED ON THE CITY. Nick: on the hidden village
+  // "the rockface should always be there." MEASURED at his geometry, it was there for about three
+  // quarters of a life and gone for the rest: absent below `cityG<0.24` (age 0.10 renders bare green
+  // hills where the massif stands at 0.85) and absent for the WHOLE apocalypse band, which is the one
+  // stretch that most needs it — the nine-tailed fox is written as "the size of the mountain the elders
+  // are carved into", and during its own finale that mountain had vanished.
+  // Both gates are right for everything else here: a headframe, a foundry, a cable car are things the
+  // city makes and things the cataclysm takes. The rock is the LAND — older than the village that sits
+  // under it, and still standing when the village is gone.
+  var landmarkIsTerrain = (B.k==="leaf");
+  if(cityPhase==="apoc" && !landmarkIsTerrain) return;
   // ⚠ NOBODY HAS BUILT IT YET — except on THE EMPYREAN, where nobody built it at all. Every other
   // landmark here is something the city makes (a headframe, a foundry, a cable car), so gating it on the
   // city's growth is exactly right. THE GREAT GATE is the one that "goes nowhere and predates everything"
   // by its own description, and it was the LAST thing to appear — absent until the town was a quarter
   // grown, which is the opposite of what it is for. `celest`-only, so the other nineteen are untouched.
-  if(cityG<0.24 && !B.celest) return;
+  // ⚠ THE GREAT GATE IS STILL GATED ON THE APOCALYPSE by the line above. By its own description it
+  // predates the city too, so it arguably outlives it as well — but THE EMPYREAN was not what was
+  // reported and its finale has not been looked at, so that one is left exactly as it was.
+  if(cityG<0.24 && !B.celest && !landmarkIsTerrain) return;
   // ⚠ SCALED TO THE FRAME, NOT TO KSP. The previous fix here was "half again the usual scale",
   // because at plain KSP the mine headframe stood shorter than the office blocks beside it. That was
   // the right diagnosis and an insufficient dose: 1.7x KSP is still a fraction of a MATURE skyline,
