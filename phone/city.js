@@ -22961,7 +22961,13 @@ function drawHeightCastle(g,cx,capY,K,day,skc,now,seed){
   // land cropped away. The castle's height is a fraction of the HEADROOM above its own rim.
   // 🔑 Third time on this land: temple, castle placement, castle height — every one of them a
   // constant standing in for a measurement of what it is standing on.
-  var H=Math.round(Math.min(HORIZON*0.30, capY*0.70));  // how far it rises above the rim
+  // ⚠⚠ AND NOTHING MAY LEAVE THE TOP OF THE FRAME. Nick: "you did not fix the building going off the
+  // top of the screen." The castle's real top is `capY - 1.568*H` once the base offset, the great
+  // spire's shaft AND its spire are counted — clamping only the shaft is what let the point get cut
+  // off. Solved for H instead of guessed: whatever the rim height, the finial lands on or below the
+  // pad. 🔑 Clamp the TOTAL, not the tallest piece you happened to think of.
+  var TOPPAD=Math.round(6*K);
+  var H=Math.round(Math.min(HORIZON*0.30, Math.max(8,(capY-TOPPAD)/1.62)));  // how far it rises above the rim
   var W=Math.round(H*2.30);
   // pale stone against dark slate — the value gap between wall and spire is what separates the
   // silhouette into parts at this size; at 0.42/0.12 apart it was one grey mass.
@@ -23024,302 +23030,180 @@ function drawHeightCastle(g,cx,capY,K,day,skc,now,seed){
 // STANDS on this land (the temple, the shrines, and whatever comes next) agrees with the rock the
 // same pass just drew rather than carrying its own guess at where the ground is.
 function plateauSurfaceAt(wx){
-  var best=HORIZON;
-  var PLS2=landmarkXs((WORLD_SEED*2654435761)>>>0, 540);
-  for(var i=0;i<PLS2.length;i++){
-    var pseed=PLS2[i].seed;
-    var dPrev2=(i>0)?(PLS2[i].x-PLS2[i-1].x):560, dNext2=(i<PLS2.length-1)?(PLS2[i+1].x-PLS2[i].x):560;
-    var pw=Math.round(Math.min(WW*0.16*(0.72+0.5*((pseed%1000)/1000)),0.38*Math.min(dPrev2,dNext2)));
-    var pTop=Math.round(HORIZON*(0.26+0.16*((pseed>>>7)%100)/100));
-    var d=(((wx-PLS2[i].x)%WW)+WW*1.5)%WW-WW*0.5; if(d<0)d=-d;
-    if(d>=pw) continue;
-    var u=d/pw, edge=0.86;
-    var y=(u<edge)?pTop:Math.round(pTop+(HORIZON-pTop)*Math.min(1,(u-edge)/(1-edge)));
-    if(y<best) best=y;
+  // the height of the land at a world x: the castle bluff's crown where it covers, Death Mountain's
+  // flank where it does, and the rolling field everywhere else. ONE source, so anything standing on
+  // this land agrees with the ground the same pass just drew.
+  var HY_BLUFF=0.40, HY_DEATH=0.76;
+  function dWrap(a,b2){ var d=(((a-b2)%WW)+WW*1.5)%WW-WW*0.5; return d<0?-d:d; }
+  var n1=Math.sin(wx*0.0017)*0.55+Math.sin(wx*0.0049+0.7)*0.3+Math.sin(wx*0.0131+2.6)*0.15;
+  var best=HORIZON-Math.round(HORIZON*(0.50+n1*0.055));
+  var bW=Math.round(HORIZON*0.46), db=dWrap(wx,HY_BLUFF*WW);
+  if(db<bW){
+    var bTop=Math.max(Math.round(6*Math.max(1,KSP))+Math.round(30*Math.max(1,KSP)),Math.round(HORIZON*0.34));
+    var edgeB=Math.max(0.70,1-Math.max(6,Math.round(7*Math.max(1,KSP)))/Math.max(1,bW)), ub=db/bW;
+    var yb=(ub<edgeB)?bTop:Math.round(bTop+(HORIZON-bTop)*Math.min(1,(ub-edgeB)/(1-edgeB)));
+    if(yb<best) best=yb;
   }
-  if(best>=HORIZON){                                     // not on a plateau — the far-hill line
-    var n=Math.sin(wx*0.0034)*0.5+Math.sin(wx*0.0101+1.4)*0.28+Math.sin(wx*0.0241)*0.12;
-    best=Math.round(HORIZON*(0.68-n*0.10));
+  var dW=Math.round(HORIZON*0.62), dd=dWrap(wx,HY_DEATH*WW);
+  if(dd<dW){
+    var yd=Math.round(HORIZON-Math.round(HORIZON*0.50)*Math.pow(1-dd/dW,1.5));
+    if(yd<best) best=yd;
   }
   return best;
 }
 function drawPlateau(g,L,now,nd){
   var day=L>0.5, B=curBiome, K=Math.max(1,KSP), skc=biomeSkc(day);
-  var litK=Math.max(0,Math.min(1,(L-0.34)*2.4));
-  var rock=mixc(day?B.near:[(B.near[0]*0.2)|0,(B.near[1]*0.22)|0,(B.near[2]*0.34)|0], skc, 0.22);
-  var rockF=mixc(day?B.far:[(B.far[0]*0.2)|0,(B.far[1]*0.22)|0,(B.far[2]*0.34)|0], skc, 0.46);
-  var grass=mixc(day?[104,158,84]:[20,38,28], skc, 0.20);
-  // the plateau's own materials: stone for the wall, a vivid meadow for the crown
+  // ⚠⚠⚠ IT WAS MONUMENT VALLEY, NOT HYRULE. Nick, looking at all three screens: "this does not look
+  // like Hyrule." He was right and the fault was structural, not cosmetic — this land drew a ROW OF
+  // FLAT-TOPPED MESAS because the biome key is `plateau` and the row is `flat:0.95 steep:0.86`, i.e.
+  // a table of rock. The reference is the opposite: Hyrule Field is ROLLING GREEN, open and gentle,
+  // with a handful of named masses standing out of it — a castle on a bluff at the north and a single
+  // volcanic mountain at the north-east. There are no sandstone tables anywhere in it.
+  // 🔑 A land is its SHAPE before it is its colour. Repainting mesas green would still be mesas.
+  // So: rolling field everywhere, ONE bluff carrying the castle/town/temple, and Death Mountain.
+  var HY_BLUFF=0.40, HY_DEATH=0.76;                        // world fractions — north, and north-east
+  var TOPPAD=Math.round(6*K);                              // ⚠ NOTHING may be drawn above this line
+  var grass  =mixc(day?[112,166,86]:[18,34,26], skc, 0.10);
+  var grassD =mixc(grass,[30,58,34],0.34), grassL=mixc(grass,day?[196,224,142]:[60,84,70],day?0.30:0.12);
+  var farG   =mixc(day?[128,172,116]:[20,30,30], skc, 0.42);
   var stoneC =mixc(day?[122,110,94]:[24,24,30], skc, 0.18);
   var stoneLo=mixc(stoneC,[44,34,28],0.42);
   var stoneHi=mixc(stoneC,day?[250,242,222]:[140,160,200],day?0.30:0.16);
   var capG   =mixc(day?[118,180,86]:[20,42,32], skc, 0.10);
-  var capC=mixc(day?B.cap:mixc(B.cap,[0,0,0],0.55), [255,220,180], goldenK*0.5);
-
-  // ---- FAR HILLS, so the plateau and the castle are not floating on bare sky
-  for(var x=0;x<SW;x++){
-    var wx=x+WOFF;
-    var n=Math.sin(wx*0.0034)*0.5+Math.sin(wx*0.0101+1.4)*0.28+Math.sin(wx*0.0241)*0.12;
-    var hy=Math.round(HORIZON*(0.68-n*0.10));
-    g.fillStyle=css(rockF); g.fillRect(x,hy,1,HORIZON-hy+1);
+  var capC   =mixc(day?B.cap:mixc(B.cap,[0,0,0],0.55), [255,220,180], goldenK*0.5);
+  function wrapX(f){ var x=Math.round(f*WW)-WOFF; if(x<-WW*0.5) x+=WW; if(x>WW*0.5) x-=WW; return x; }
+  // ---- FAR RANGE: soft green ridges, so the field has a horizon rather than bare sky behind it
+  for(var x0=0;x0<SW;x0++){
+    var wx0=x0+WOFF;
+    var n0=Math.sin(wx0*0.0031)*0.5+Math.sin(wx0*0.0092+1.4)*0.3+Math.sin(wx0*0.0223)*0.12;
+    var hy0=Math.round(HORIZON*(0.70-n0*0.09));
+    g.fillStyle=css(farG); g.fillRect(x0,hy0,1,HORIZON-hy0+1);
   }
-  // ---- THE CASTLE on the far skyline: a keep, towers and a curtain wall, all silhouette
-  // ⚠⚠ AND IT HAS TO STAND IN A GAP. Drawing it behind the landform was right and, on its own, made it
-  // vanish: its keep tops out at 114 while the plateaus' tops run 99-146, so a mass in front swallowed
-  // it whole and left one roof tip showing. Occlusion without a SIGHTLINE is just deletion.
-  // The biome row's own note says what the frame is meant to be — "a vast flat-topped mesa on one side
-  // of the world and a castle silhouette on the other" — so the castle slides to the open ground
-  // nearest its seeded spot and stands on the far hills there, flanked by the plateaus rather than
-  // buried behind one.
-  var cwx=((WORLD_SEED*40503+104729)>>>0)%Math.max(1,WW);
-  (function(){
-    function openAt(wx){                                   // true where no plateau covers this world x
-      var n=Math.sin(wx*0.0034)*0.5+Math.sin(wx*0.0101+1.4)*0.28+Math.sin(wx*0.0241)*0.12;
-      return plateauSurfaceAt(wx)>=Math.round(HORIZON*(0.68-n*0.10))-1;
+  // ---- HYRULE FIELD: two rolling green bands. Gentle, wide, and NEVER flat-topped — the whole read
+  // of this land is open country you could ride across.
+  for(var bnd=0;bnd<2;bnd++){
+    var amp=(bnd?0.055:0.085), base=(bnd?0.50:0.40);
+    for(var x1=0;x1<SW;x1++){
+      var wx1=x1+WOFF;
+      var n1=Math.sin(wx1*0.0017+bnd*2.1)*0.55+Math.sin(wx1*0.0049+0.7)*0.3+Math.sin(wx1*0.0131+2.6)*0.15;
+      var hy1=Math.round(HORIZON*(base+n1*amp));
+      var yy1=HORIZON-hy1;
+      g.fillStyle=css(bnd?grass:mixc(grass,farG,0.34));
+      g.fillRect(x1,yy1,1,HORIZON-yy1+1);
+      g.fillStyle=css(grassL); g.fillRect(x1,yy1,1,Math.max(1,Math.round(K*0.8)));   // sun on the crown of each roll
     }
-    if(openAt(cwx)) return;
-    for(var d=1;d<Math.round(WW*0.5);d+=8){                // walk out from the seeded spot, both ways
-      if(openAt((cwx+d)%WW)){ cwx=(cwx+d)%WW; return; }
-      if(openAt((cwx-d+WW)%WW)){ cwx=(cwx-d+WW)%WW; return; }
+  }
+  // ---- DEATH MOUNTAIN: one big mass, brown-grey, with the RING CLOUD around its head. That ring is
+  // the single most identifying thing in the whole reference — it is in his temple screenshot too.
+  var dmx=wrapX(HY_DEATH), dmW=Math.round(HORIZON*0.62), dmH=Math.round(HORIZON*0.50);
+  if(dmx>-dmW-40&&dmx<SW+dmW+40){
+    var dmTop=Math.max(TOPPAD,HORIZON-dmH);
+    for(var q1=-dmW;q1<=dmW;q1++){
+      var xx1=dmx+q1; if(xx1<0||xx1>=SW) continue;
+      var t1=Math.abs(q1)/dmW;
+      var prof=Math.pow(1-t1,1.5);
+      var yq=Math.round(HORIZON-dmH*prof)+Math.round(Math.sin((xx1+WOFF)*0.09)*1.4*K*(1-t1));
+      if(yq<dmTop) yq=dmTop;
+      if(yq>=HORIZON) continue;
+      var lit=(q1<0)?0.16:-0.10;
+      g.fillStyle=css(mixc(mixc(day?[126,104,86]:[26,22,26],skc,0.16),(lit>0)?[240,226,200]:[40,30,26],Math.abs(lit)));
+      g.fillRect(xx1,yq,1,HORIZON-yq+1);
     }
-  })();
-  var cHillY=(function(){
-    var n=Math.sin(cwx*0.0034)*0.5+Math.sin(cwx*0.0101+1.4)*0.28+Math.sin(cwx*0.0241)*0.12;
-    return Math.round(HORIZON*(0.68-n*0.10));
-  })();
-  for(var o2=-1;o2<=1;o2++){
-    var cx0=Math.round(cwx-WOFF+o2*WW);
-    if(cx0<-200||cx0>SW+200) continue;
-    // seated on the far hills it actually stands on, not on a constant — the same fault the temple had
-    var base=cHillY+Math.round(2*K), kw=Math.round(20*K), kh=Math.round(HORIZON*0.30);
-    // ⚠⚠ HAZED BACK, AND DRAWN BEFORE THE PLATEAUS. At 0.30 toward the sky and painted AFTER the
-    // landform, the castle came out at full contrast standing in front of a hill — I mistook it for a
-    // civic block on my own first pass. Nothing in the frame said "far away": no aerial perspective,
-    // and, worse, near things did not cover it. Depth is occlusion first and colour second.
-    var cc=mixc(day?[104,116,132]:[26,30,42], skc, 0.58);
-    g.fillStyle=css(cc);
-    g.fillRect(cx0-kw,base-kh*0.55,kw*2,Math.round(kh*0.55));                                 // curtain wall
-    g.fillRect(cx0-Math.round(kw*0.34),base-kh,Math.round(kw*0.68),kh);                       // the keep
-    for(var t2=-2;t2<=2;t2++){                                                                // towers
-      var tw=Math.round(3.4*K), tx2=cx0+Math.round(t2*kw*0.42);
-      var th=Math.round(kh*(t2===0?1.16:0.72));
-      g.fillRect(tx2-tw,base-th,tw*2,th);
-      g.fillStyle=css(mixc([196,86,74],skc,0.52));                                            // a red conical roof, hazed with the rest
-      for(var r2=0;r2<Math.round(4*K);r2++)
-        g.fillRect(tx2-tw+r2,base-th-Math.round(4*K)+r2,Math.max(1,(tw*2)-r2*2),1);
-      g.fillStyle=css(cc);
+    // ---- THE RING OF CLOUD around the summit. ⚠ First cut used a half-width of `dmW*0.52..0.72` —
+    // 115 to 160 px — so it spanned most of the screen and read as a haze band lying across the land
+    // rather than a ring around a peak. It is a HALO: an ellipse the width of the mountain's neck,
+    // seen edge-on, with the far side drawn dimmer than the near side so it wraps.
+    var sumY=Math.max(TOPPAD,HORIZON-dmH);
+    var ringY=sumY+Math.round(dmH*0.13), rx0=Math.round(dmW*0.30), ry0=Math.max(2,Math.round(rx0*0.26));
+    var spin=(now*0.00006)%1;
+    for(var seg=0;seg<40;seg++){
+      var th2=(seg/40)*6.2832+spin*6.2832;
+      var ex=dmx+Math.round(Math.cos(th2)*rx0), ey=ringY+Math.round(Math.sin(th2)*ry0);
+      if(ex<0||ex>=SW||ey<TOPPAD) continue;
+      var farSide=(Math.sin(th2)<0);                       // behind the peak → dimmer
+      g.fillStyle=day?("rgba(244,236,224,"+(farSide?0.34:0.72)+")")
+                     :("rgba(150,138,150,"+(farSide?0.26:0.56)+")");
+      g.fillRect(ex-Math.round(1.6*K),ey,Math.max(2,Math.round(3.2*K)),Math.max(1,Math.round(1.8*K)));
     }
-    // lit windows at night — a castle is never fully dark
-    if(!day){ for(var w2=0;w2<10;w2++){
-      var wx2=cx0-Math.round(kw*0.3)+((w2*5*K)|0)%Math.round(kw*0.6);
-      g.fillStyle="rgba(255,206,130,0.9)";
-      g.fillRect(wx2,base-Math.round(kh*(0.30+0.5*((w2*7)%5)/5)),Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
-    } }
+    // a crater notch in the head, so the summit is not a smooth point
+    g.fillStyle=css(mixc(day?[96,78,66]:[18,16,20],skc,0.14));
+    g.fillRect(dmx-Math.round(5*K),sumY,Math.round(10*K),Math.max(1,Math.round(2.4*K)));
+    g.fillStyle=css(mixc(day?[150,126,104]:[26,24,28],skc,0.14));
+    g.fillRect(dmx-Math.round(6*K),sumY-Math.max(1,Math.round(K)),Math.round(3*K),Math.max(1,Math.round(K*1.4)));
+    g.fillRect(dmx+Math.round(3*K),sumY-Math.max(1,Math.round(K*1.6)),Math.round(3*K),Math.max(1,Math.round(K*2)));
   }
-  // ---- THE PLATEAU ITSELF: a huge flat top with sheer sides. `flat:0.95` is what it is named for —
-  // the top must be genuinely LEVEL, because a rounded top is a hill and this is a table of rock.
-  // ⚠ A SERIES, not a single plateau — see landmarkXs. One per world left whole monitors with none.
-  var PLS=landmarkXs((WORLD_SEED*2654435761)>>>0, 540);
-  // ⚠⚠ THEY WERE MERGING INTO ONE WALL, AND THAT IS WHY THIS LAND READ AS A FLAT GREEN SLAB.
-  // `landmarkXs` spaces them 403-683 apart and each was `WW*0.16` half-wide — 522-886 across — so
-  // every one overlapped its neighbours. MEASURED at woff 0: spans [-319,405] [-200,554] [465,1121],
-  // unbroken across the whole screen. "A series of plateaus" was one continuous ridge with a step in
-  // it, there was no sky between them to read them as separate masses, and no open ground anywhere
-  // for the castle to stand in.
-  // Each one's width is now clamped against the ACTUAL distance to its neighbours, so there is always
-  // sky between. 🔑 A width rolled independently of the spacing is not a width, it is a coin flip on
-  // whether the landform has any shape at all.
-  var castleIdx=-1, castleTop=1e9;
-  for(var pk=0;pk<PLS.length;pk++){
-    var ptk=Math.round(HORIZON*(0.26+0.16*((PLS[pk].seed>>>7)%100)/100));
-    if(ptk<castleTop){ castleTop=ptk; castleIdx=pk; }     // the TALLEST mass in the world gets the castle
-  }
-  for(var pj=0;pj<PLS.length;pj++){
-    var dPrev=(pj>0)?(PLS[pj].x-PLS[pj-1].x):560, dNext=(pj<PLS.length-1)?(PLS[pj+1].x-PLS[pj].x):560;
-    PLS[pj].hw=Math.round(Math.min(WW*0.16*(0.72+0.5*((PLS[pj].seed%1000)/1000)),
-                                   0.38*Math.min(dPrev,dNext)));
-  }
-  for(var pi=0;pi<PLS.length;pi++){
-  var pwx=PLS[pi].x, pseed=PLS[pi].seed;
-  for(var o=-1;o<=1;o++){
-    var px=Math.round(pwx-WOFF+o*WW);
-    var pw=PLS[pi].hw, pTop=Math.round(HORIZON*(0.26+0.16*((pseed>>>7)%100)/100));
-    if(px+pw<0||px-pw>SW) continue;
-    for(var q=-pw;q<pw;q++){
-      var xx=px+q; if(xx<0||xx>=SW) continue;
-      var u=Math.abs(q/pw);
-      // level top, then a fast fall to a talus skirt: near-vertical sides, exactly like the mesa
-      // ⚠ 0.86 WAS FINE WHILE THEY WERE 900 PX WIDE AND IS A RAMP NOW THEY ARE 300. The fall is a
-      // FRACTION of the half-width, so narrowing the masses turned the same number into a visible
-      // slope and all three came out as pyramids. A cliff is sheer: the shoulder is a fixed handful
-      // of pixels, not a percentage of a width that changes underneath it.
-      var edge=Math.max(0.72,1-Math.max(6,Math.round(7*K))/Math.max(1,pw));
-      var y=(u<edge)?pTop:Math.round(pTop+(HORIZON-pTop)*Math.min(1,(u-edge)/(1-edge)));
-      if(y>=HORIZON) continue;
-      // ⚠⚠ THE FACE IS ROCK, THE TOP IS MEADOW. It used to be `B.near` — the land's GREEN — all the way
-      // down, so a 250 px cliff was the same colour as the grass on it and as the hills behind it: one
-      // value across 60% of the frame, which is why it read as a painted slab rather than a landform.
-      // Nick's call: grey-brown stone with a bright green cap. Dark face / vivid top / dark city below
-      // is the contrast, and it is deliberately NOT the village's warm sandstone — two lands must not
-      // rhyme.
-      var wxc=xx+WOFF;
-      var vv=((mixLi(Math.floor(wxc/Math.max(1,Math.round(2.5*K))),0x9A17)%100)/100-0.5)*0.16;
+  // ---- THE CASTLE BLUFF: ONE height, not a series. Rock sides, turf crown, sized so the castle that
+  // stands on it still clears the top of the frame — see the clamp in drawHeightCastle.
+  var bx=wrapX(HY_BLUFF), bW=Math.round(HORIZON*0.46), bTop=Math.max(TOPPAD+Math.round(30*K),Math.round(HORIZON*0.34));
+  if(bx>-bW-40&&bx<SW+bW+40){
+    var edgeB=Math.max(0.70,1-Math.max(6,Math.round(7*K))/Math.max(1,bW));
+    for(var q2=-bW;q2<=bW;q2++){
+      var xx2=bx+q2; if(xx2<0||xx2>=SW) continue;
+      var u2=Math.abs(q2)/bW;
+      var y2=(u2<edgeB)?bTop:Math.round(bTop+(HORIZON-bTop)*Math.min(1,(u2-edgeB)/(1-edgeB)));
+      if(y2>=HORIZON) continue;
+      var wxb=xx2+WOFF;
+      var vv=((mixLi(Math.floor(wxb/Math.max(1,Math.round(2.5*K))),0x9A17)%100)/100-0.5)*0.16;
       g.fillStyle=css(mixc(stoneC,(vv>0)?stoneHi:stoneLo,Math.abs(vv)*2.2));
-      g.fillRect(xx,y,1,HORIZON-y+1);
-      // the meadow rolling over the rim, and its sunlit lip
-      var capH=Math.max(2,Math.round(3.4*K));
-      g.fillStyle=css(capG); g.fillRect(xx,y,1,capH);
-      g.fillStyle=rgba(capC,0.9); g.fillRect(xx,y,1,Math.max(1,Math.round(K*0.9)));
-      if(u>edge){                                                                            // scree where the side falls away
-        g.fillStyle=css(mixc(stoneC,[52,42,34],0.30));
-        g.fillRect(xx,y+capH,1,Math.round(4*K));
+      g.fillRect(xx2,y2,1,HORIZON-y2+1);
+      var capH2=Math.max(2,Math.round(3.4*K));
+      g.fillStyle=css(capG); g.fillRect(xx2,y2,1,capH2);
+      g.fillStyle=rgba(capC,0.9); g.fillRect(xx2,y2,1,Math.max(1,Math.round(K*0.9)));
+      for(var bd2=1;bd2<=5;bd2++){                                        // bedding in the rock
+        var by2=y2+capH2+Math.round((HORIZON-y2-capH2)*(bd2/6))+Math.round(Math.sin((wxb+bd2*97)/(31*K))*1.6*K);
+        if(by2<=y2+capH2||by2>=HORIZON) continue;
+        if((mixLi(Math.floor(wxb/Math.max(1,Math.round(6*K)))+bd2*17,0xBA5E)%100)<26) continue;
+        g.fillStyle=css(mixc(stoneC,[56,44,34],0.26)); g.fillRect(xx2,by2,1,Math.max(1,Math.round(K*0.8)));
       }
-      // BEDDING. A mesa is a stack of courses and reading them is the whole point of one — and it is
-      // deliberately a HORIZONTAL grain, where the village's escarpment is vertical, so the two
-      // biggest walls in the project do not rhyme.
-      var bandN=6;
-      for(var bd=1;bd<=bandN;bd++){
-        var by=y+capH+Math.round((HORIZON-y-capH)*(bd/(bandN+1)))
-              +Math.round(Math.sin((wxc+bd*97)/(31*K))*1.6*K);
-        if(by<=y+capH||by>=HORIZON) continue;
-        if((mixLi(Math.floor(wxc/Math.max(1,Math.round(6*K)))+bd*17,0xBA5E)%100)<26) continue;   // beds fade and pick up again
-        g.fillStyle=css(mixc(stoneC,[56,44,34],0.26));
-        g.fillRect(xx,by,1,Math.max(1,Math.round(K*0.8)));
-        g.fillStyle=css(mixc(stoneC,day?[250,244,226]:[130,150,190],day?0.20:0.10));
-        g.fillRect(xx,by-1,1,1);
-      }
-      // and the talus the whole mass stands in
-      var tal=Math.round(6*K+((mixLi(Math.floor(wxc/Math.max(1,Math.round(3*K))),0x7A44)%100)/100)*4*K);
-      g.fillStyle=css(mixc(stoneC,[60,48,38],0.34));
-      g.fillRect(xx,HORIZON-tal,1,tal);
     }
+    // and on it, the three tiers he asked for
+    var pw2=bW, pTop2=bTop, px2=bx, pseed2=((WORLD_SEED*7919)>>>0);
+    // ============ THE CASTLE, THE TOWN AND THE TEMPLE — three tiers on one height ============
+    // Nick: "The Castle and the Temple of Time and everything should be there and the city grows
+    // below it." So the castle's own mass carries a SHELF: the keep on the crown, the walled town
+    // on the terrace under it with the temple standing in it, and the modern city at ground level
+    // below all of it. Three tiers of three different ages, which is the whole idea of this land.
+    drawHeightCastle(g,px2,pTop2+1,K,day,skc,now,pseed2);
+    var shelfY=pTop2+Math.round((HORIZON-pTop2)*0.40);        // the terrace, cut into the face
+    var shelfW=Math.round(pw2*1.34);
+    var sxL=px2-(shelfW>>1);
+    g.fillStyle=css(mixc(stoneC,day?[196,196,180]:[36,38,48],day?0.30:0.20));
+    g.fillRect(sxL,shelfY,shelfW,Math.round((HORIZON-shelfY)));
+    g.fillStyle=css(capG); g.fillRect(sxL,shelfY,shelfW,Math.max(2,Math.round(2.6*K)));   // turf on the terrace
+    // THE TOWN WALL along the front of the terrace, with a gatehouse in the middle
+    var wallY=shelfY+Math.round(3*K), wh=Math.round(9*K);
+    g.fillStyle=css(mixc(stoneC,day?[214,206,186]:[40,42,54],day?0.42:0.24));
+    g.fillRect(sxL,wallY,shelfW,wh);
+    g.fillStyle=css(mixc(stoneC,[60,52,44],0.34));
+    for(var mb=0;mb<Math.round(shelfW/(3.6*K));mb++)                                       // battlements
+      g.fillRect(sxL+Math.round(mb*3.6*K),wallY-Math.round(1.6*K),Math.max(1,Math.round(1.8*K)),Math.round(1.6*K));
+    var gx=px2, gw2=Math.round(7*K);                                                       // the gate
+    g.fillStyle=css(mixc(stoneC,[34,28,24],0.52));
+    g.fillRect(gx-(gw2>>1),wallY+Math.round(wh*0.30),gw2,Math.round(wh*0.70));
+    for(var ga=0;ga<Math.round(3*K);ga++){
+      var aw2=Math.max(1,Math.round(gw2*(1-ga/Math.round(3*K))));
+      g.fillRect(gx-(aw2>>1),wallY+Math.round(wh*0.30)-ga,aw2,1);
+    }
+    // the town's own roofs crowding behind the wall
+    for(var rf=0;rf<Math.round(shelfW/(7*K));rf++){
+      var rh4=mixLi(rf+pseed2,0x70FA), rx4=sxL+Math.round(rf*7*K)+Math.round(((rh4%100)/100)*2*K);
+      if(rx4<-10||rx4>SW+10) continue;
+      var rw4=Math.round(5.4*K), rht=Math.round((5+((rh4>>>7)%4))*K);
+      g.fillStyle=css(mixc(day?[206,196,176]:[34,34,42],skc,0.10));
+      g.fillRect(rx4,wallY-rht,rw4,rht);
+      g.fillStyle=css(mixc(day?[168,86,64]:[26,18,20],skc,0.08));                          // red tile
+      for(var rr4=0;rr4<Math.round(2.6*K);rr4++)
+        g.fillRect(rx4-1+rr4,wallY-rht-Math.round(2.6*K)+rr4,Math.max(1,rw4+2-rr4*2),1);
+    }
+    // AND THE TEMPLE, standing clear of the roofs inside the walls
+    drawTempleOfTime(g,px2-Math.round(pw2*0.30),wallY-Math.round(1*K),K,day,skc,now);
   }
-  // ⚠⚠ EVERY TEMPLE AFTER EVERY PLATEAU — A SECOND PASS, NOT THE SAME LOOP. Seating the temple on its
-  // own `pTop` fixed one of them and left the other invisible: with rock and temple interleaved,
-  // plateau N+1's rock is painted AFTER plateau N's temple, and these overlap. MEASURED: the plateau
-  // at px 43 has a top of 131 and is drawn after the one at px 177 whose temple stands at 132-147 —
-  // so the later rock buried the earlier ruin completely.
-  // 🔑 A landform made of several masses cannot draw its furniture inside the mass loop. Rock first,
-  // everything that STANDS on the rock second.
-  for(var pi2=0;pi2<PLS.length;pi2++){
-    var pwx2=PLS[pi2].x, pseed2=PLS[pi2].seed;
-    for(var o3=-1;o3<=1;o3++){
-      var px2=Math.round(pwx2-WOFF+o3*WW);
-      var pw2=PLS[pi2].hw;
-      var pTop2=Math.round(HORIZON*(0.26+0.16*((pseed2>>>7)%100)/100));
-      if(px2+pw2<0||px2-pw2>SW) continue;
-      // ⚠ AND IT MUST NOT STAND ON A PLATEAU THAT IS BEHIND ANOTHER ONE. `plateauSurfaceAt` returns the
-      // HIGHEST surface at that world x, so a temple whose own top is below a nearer mass is simply
-      // not drawn rather than sunk into it.
-      var twx=px2-Math.round(pw2*0.3)+WOFF;
-      if(plateauSurfaceAt(twx+Math.round(9*K))<pTop2-1) continue;
-      var px=px2, pw=pw2, pTop=pTop2;
-      // THE CASTLE STANDS ON THE TALLEST MASS IN THE WORLD, and that mass carries nothing else.
-      if(pi2===castleIdx){
-        // ============ THE CASTLE, THE TOWN AND THE TEMPLE — three tiers on one height ============
-        // Nick: "The Castle and the Temple of Time and everything should be there and the city grows
-        // below it." So the castle's own mass carries a SHELF: the keep on the crown, the walled town
-        // on the terrace under it with the temple standing in it, and the modern city at ground level
-        // below all of it. Three tiers of three different ages, which is the whole idea of this land.
-        drawHeightCastle(g,px2,pTop2+1,K,day,skc,now,pseed2);
-        var shelfY=pTop2+Math.round((HORIZON-pTop2)*0.40);        // the terrace, cut into the face
-        var shelfW=Math.round(pw2*1.34);
-        var sxL=px2-(shelfW>>1);
-        g.fillStyle=css(mixc(stoneC,day?[196,196,180]:[36,38,48],day?0.30:0.20));
-        g.fillRect(sxL,shelfY,shelfW,Math.round((HORIZON-shelfY)));
-        g.fillStyle=css(capG); g.fillRect(sxL,shelfY,shelfW,Math.max(2,Math.round(2.6*K)));   // turf on the terrace
-        // THE TOWN WALL along the front of the terrace, with a gatehouse in the middle
-        var wallY=shelfY+Math.round(3*K), wh=Math.round(9*K);
-        g.fillStyle=css(mixc(stoneC,day?[214,206,186]:[40,42,54],day?0.42:0.24));
-        g.fillRect(sxL,wallY,shelfW,wh);
-        g.fillStyle=css(mixc(stoneC,[60,52,44],0.34));
-        for(var mb=0;mb<Math.round(shelfW/(3.6*K));mb++)                                       // battlements
-          g.fillRect(sxL+Math.round(mb*3.6*K),wallY-Math.round(1.6*K),Math.max(1,Math.round(1.8*K)),Math.round(1.6*K));
-        var gx=px2, gw2=Math.round(7*K);                                                       // the gate
-        g.fillStyle=css(mixc(stoneC,[34,28,24],0.52));
-        g.fillRect(gx-(gw2>>1),wallY+Math.round(wh*0.30),gw2,Math.round(wh*0.70));
-        for(var ga=0;ga<Math.round(3*K);ga++){
-          var aw2=Math.max(1,Math.round(gw2*(1-ga/Math.round(3*K))));
-          g.fillRect(gx-(aw2>>1),wallY+Math.round(wh*0.30)-ga,aw2,1);
-        }
-        // the town's own roofs crowding behind the wall
-        for(var rf=0;rf<Math.round(shelfW/(7*K));rf++){
-          var rh4=mixLi(rf+pseed2,0x70FA), rx4=sxL+Math.round(rf*7*K)+Math.round(((rh4%100)/100)*2*K);
-          if(rx4<-10||rx4>SW+10) continue;
-          var rw4=Math.round(5.4*K), rht=Math.round((5+((rh4>>>7)%4))*K);
-          g.fillStyle=css(mixc(day?[206,196,176]:[34,34,42],skc,0.10));
-          g.fillRect(rx4,wallY-rht,rw4,rht);
-          g.fillStyle=css(mixc(day?[168,86,64]:[26,18,20],skc,0.08));                          // red tile
-          for(var rr4=0;rr4<Math.round(2.6*K);rr4++)
-            g.fillRect(rx4-1+rr4,wallY-rht-Math.round(2.6*K)+rr4,Math.max(1,rw4+2-rr4*2),1);
-        }
-        // AND THE TEMPLE, standing clear of the roofs inside the walls
-        drawTempleOfTime(g,px2-Math.round(pw2*0.30),wallY-Math.round(1*K),K,day,skc,now);
-        continue;
-      }
-    // THE RUINED TEMPLE on top — a few broken columns and a fallen lintel, never a whole building.
-    // ⚠⚠ IT STANDS ON `pTop`, THE PLATEAU IT IS ON. It used to be seated at `HORIZON*0.30` — a
-    // CONSTANT, the same for every plateau in the world — while the plateaus' own tops are rolled per
-    // seed. MEASURED at his geometry: baseY 108 against tops of 146, 99 and 131, so the temple stood
-    // 38 px ABOVE the rim of one (five pale columns and a lintel hanging in open sky, which reads as a
-    // CLOUD — I mistook it for one myself) and 9 px BELOW the rim of the next, sunk in the rock with
-    // its feet cut off. It has been drawn correctly and has NEVER ONCE STOOD ON THE GROUND, since
-    // v3.10.0. 🔑 Same class as "`b.h` is not the height of a village house": a landmark seated off a
-    // formula instead of off the thing it stands on.
-    // ⚠ `u` at the temple's x is 0.3, well inside `edge` (0.86), so the surface there is exactly
-    // `pTop` — it is on the flat, never on the falling shoulder.
-    // ⚠⚠ AND IT HAS TO BE SEEN. Nick: "I also want you to clearly see the temple." Five columns 15 px
-    // tall on a mass 300 px wide is a detail, not a landmark — it was legible only because I knew the
-    // coordinates to crop. Scaled off the FRAME like every other hero object on this project, given a
-    // pediment and the BROKEN SPIRE he asked for, so it has a silhouette you can name at a glance.
-    var TS=Math.max(K*1.4, HORIZON/90);                                  // the temple's own scale
-    var tBase=pTop+1;                                                    // +1 so it sits IN the turf
-    var tw0=Math.round(26*TS), tx=px-Math.round(pw*0.34);
-    var stoneT=css(mixc([232,226,204],skc,0.12)), stoneTd=css(mixc([176,170,150],skc,0.12));
-    for(var c2=0;c2<6;c2++){
-      var cx=tx+Math.round(c2*4.6*TS);
-      if(cx<-20||cx>=SW+20) continue;
-      var ch=Math.round((13+((c2*7919)%6))*TS);
-      if(c2===2) ch=Math.round(ch*0.42);                                                     // one column is broken
-      if(c2===5) ch=Math.round(ch*0.68);                                                     // and one is half gone
-      g.fillStyle=stoneT;  g.fillRect(cx,tBase-ch,Math.max(2,Math.round(2.6*TS)),ch);
-      g.fillStyle=stoneTd; g.fillRect(cx+Math.max(2,Math.round(2.6*TS))-Math.max(1,Math.round(TS*0.8)),tBase-ch,Math.max(1,Math.round(TS*0.8)),ch);
-    }
-    // the fallen lintel across the standing columns, and a pediment over the middle of it
-    var lintY=tBase-Math.round(15*TS);
-    g.fillStyle=stoneT;  g.fillRect(Math.max(-20,tx-Math.round(2*TS)),lintY,tw0,Math.max(2,Math.round(2.4*TS)));
-    g.fillStyle=stoneTd; g.fillRect(Math.max(-20,tx-Math.round(2*TS)),lintY+Math.max(2,Math.round(2.4*TS)),tw0,Math.max(1,Math.round(TS*0.8)));
-    var pedW=Math.round(tw0*0.52), pedX=tx+Math.round(tw0*0.16);
-    for(var pr=0;pr<Math.round(5*TS);pr++){
-      var pw3=Math.max(1,Math.round(pedW*(1-pr/Math.round(5*TS))));
-      g.fillStyle=stoneT; g.fillRect(pedX+((pedW-pw3)>>1),lintY-pr,pw3,1);
-    }
-    // THE BROKEN SPIRE — snapped off at an angle, which is the shape that says "ruin" fastest
-    var spX=tx+Math.round(tw0*0.42), spTop=lintY-Math.round(5*TS);
-    for(var sp=0;sp<Math.round(16*TS);sp++){
-      var sw=Math.max(1,Math.round(3.2*TS*(1-sp/Math.round(22*TS))));
-      g.fillStyle=(sp%3===0)?stoneTd:stoneT;
-      g.fillRect(spX-(sw>>1)+Math.round(sp*0.18),spTop-sp,sw,1);
-    }
-    }
-  }
-  }
-  // ---- SHRINE GLOW: soft points of light scattered across the land, pulsing slowly. The one piece of
-  // pure fantasy in the frame, and the thing that says this is not an ordinary countryside.
+  // ---- SHRINE GLOW, scattered over the field on the surface it actually stands on
   for(var s3=0;s3<7;s3++){
-    // ⚠ same constant stride: shrine lights are meant to be SCATTERED across the land, and evenly
-    // spaced points of light read as street lamps rather than as something half-magical.
     var swx=mixLi(s3*8+3,(WORLD_SEED*17)|0)%Math.max(1,WW);
     var sx=Math.round(swx-WOFF);
     if(sx<-10) sx+=WW; if(sx>SW+10) sx-=WW;
     if(sx<0||sx>=SW) continue;
-    // ⚠⚠ THEY WERE AT STREET LEVEL, UNDER THE CITY. `HORIZON - (4..13)*K` measured out at sy 333 and
-    // 347 against a HORIZON of 359 — twelve to twenty-six pixels off the ground, i.e. among the
-    // buildings — and this whole function runs in the BACKDROP pass, so the city painted over every
-    // one of them on every frame. The comment says "scattered across the land"; they were scattered
-    // across the bottom of it. A light source drawn before the thing that covers it is not a light.
-    // A shrine now sits on whatever surface it actually stands on: the plateau top where it is over
-    // one, the hillside where it is not.
     var sy=plateauSurfaceAt(swx);
     var pulse=0.45+0.55*Math.sin(now*0.0011+s3*1.3);
     g.globalCompositeOperation="lighter";
