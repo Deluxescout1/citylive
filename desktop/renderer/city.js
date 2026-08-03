@@ -39022,6 +39022,27 @@ function civicProjects(li,term){
     out.push({t:type,kind:"build",civic:true,pass:(yes>=50),yes:yes,w:civicWOf(type),x:civicX(type,((hh>>>3)%Math.max(1,WW))|0,hh),seed:hh,term:term}); }
   return out;
 }
+// ⚠⚠⚠ A JITTER SMALLER THAN THE THING IT JITTERS IS A DOUBLE EXPOSURE, NOT A SCATTER.
+// Nick, with a crop of the skyline: "sign is having issues" — the OBSERVATORY's name was printed twice,
+// a few pixels apart, so the letters interleaved into mush. Same on GRAND CENTRAL in a night frame.
+// MEASURED over 160 lives: 45% of the lives that get a civic landmark build a DUPLICATE of one type,
+// because `passedCivics` accumulates every passing project from every term and nothing asks whether the
+// city already has that landmark. For the two types whose site is FIXED — the observatory on its bluff
+// (`WW*0.05` + a 0-7px jitter) and Grand Central downtown (`WW*0.52` +/- 20px) — the second copy lands
+// 2-5 px from the first: two 40-60px buildings and two labels on the same spot.
+// 🔑 `civicX`'s own comment says the jitter is there "so repeats don't stack". Eight pixels of jitter on
+// a sixty-pixel building was never going to do that; the jitter was treating a DUPLICATION bug as a
+// placement one. Two universities across town is a city with two universities and reads fine — two
+// observatories on one bluff is a rendering error. So the test is OVERLAP, not type: a project whose
+// footprint collides with a landmark already standing simply is not built, and the one that stands is
+// the one the city built FIRST.
+function civicClear(standing,m){
+  for(var i=0;i<standing.length;i++){
+    var d=(((m.x-standing[i].x)%WW)+WW*1.5)%WW-WW*0.5;          // world-wrap aware
+    if(Math.abs(d)<(m.w+standing[i].w)*0.5+8) return false;
+  }
+  return true;
+}
 // PERMANENT CIVIC LANDMARKS standing this life (same shape/lifecycle as passedBuilds, own pool)
 function passedCivics(now){
   if(FORCEELECT&&FORCEELECT.civics) return FORCEELECT.civics;
@@ -39035,6 +39056,7 @@ function passedCivics(now){
         else if(bt<0.37){ m.bp="open"; m.prog=1; }                                  // GRAND OPENING
         else { m.bp="done"; m.prog=1; }
       } else { m.bp="done"; m.prog=1; }
+      if(!civicClear(out,m)) continue;                          // the city already has one here
       out.push(m); } }
   return out;
 }
