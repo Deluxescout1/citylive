@@ -1,5 +1,17 @@
 # CityLive Roadmap — user notes from watching cycles (2026-07-05)
 
+> ## ⚠ THIS FILE IS A SNAPSHOT OF 2026-07-05 AND IS NO LONGER THE CURRENT PLAN.
+> It is kept because the reasoning behind items A–N is still worth reading, but the "REMAINING"
+> line below is a year of releases out of date. **For where the project actually is, start here:**
+>
+> | Question | Read |
+> |---|---|
+> | How is the engine laid out? | [`ENGINE-MAP.md`](ENGINE-MAP.md) |
+> | What lands exist, how do I render one, what rules apply to all of them? | [`docs/LANDS.md`](docs/LANDS.md) |
+> | What is the land under active work? | [`docs/LAND-hyrule.md`](docs/LAND-hyrule.md) |
+> | What shipped, and when? | `git tag` — every release is a tag with a summary message, and `git log <tag>` reads as a changelog. Commit messages here are long on purpose: each one states the fault, the measurement that found it, and the rule it produced. |
+> | How do I verify before releasing? | [`docs/RELEASING.md`](docs/RELEASING.md) |
+
 Status legend: [ ] todo · [~] in progress · [x] done
 
 **REMAINING:** C4 gov+schools, C5 mega towers, H1 single-screen, I3 museum relic, L1 blackouts,

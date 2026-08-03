@@ -8,6 +8,22 @@ plain function drawing pixels.
 > Line numbers below are **approximate anchors** (they drift as the file is edited);
 > the **section order** is stable. Search for the quoted banner comment to jump.
 
+### Companion docs
+- **[`docs/LANDS.md`](docs/LANDS.md)** — the 28 lands (20 rolled + 8 rare "egg" lands), the
+  dispatcher that picks a renderer, how to render any of them at Nick's real geometry, how to find
+  out which function drew a pixel, and the eight rules that apply to every land. **Read this before
+  touching a biome** — in particular the `land=` vs `egg=` trap, which silently renders the wrong
+  land and has cost more than one session.
+- **[`docs/LAND-hyrule.md`](docs/LAND-hyrule.md)** — the land under active work, in full.
+- **[`docs/RELEASING.md`](docs/RELEASING.md)** — the two-platform gate between a commit and a user.
+
+### Why the comments are so long
+This file's comments carry the *reasoning*, not a restatement of the code. Where something looks
+odd, the comment above it generally names the bug that made it that way, the measurement that found
+it, and the rule it produced. That is deliberate: most faults in this engine are repeats of an
+earlier fault in a new place, and the note is what makes the repeat recognisable. **If you change
+one of these lines, update its note — a comment stating an intent is not a test that it was met.**
+
 ---
 
 ## 1. Entry points & the two calls QML makes

@@ -10,6 +10,19 @@ banners.
 It is a **pure QML + JavaScript** Plasma wallpaper plugin — no compiling, no
 dependencies, no WebEngine. Just files.
 
+### 🧭 Working on it? Start here
+| | |
+|---|---|
+| [`ENGINE-MAP.md`](ENGINE-MAP.md) | how `city.js` is laid out, and the two calls QML makes |
+| [`docs/LANDS.md`](docs/LANDS.md) | the 28 lands, how to render one, and the rules that apply to all of them |
+| [`docs/LAND-hyrule.md`](docs/LAND-hyrule.md) | the land under active work: geography, accessors, traps, what's open |
+| [`docs/RELEASING.md`](docs/RELEASING.md) | the two-platform gate that stands between a commit and a user |
+
+The engine is edited in **one canonical file** — `org.citylive.wallpaper/contents/js/city.js` — and
+mirrored to Electron, web and phone by `node tools/sync-engine.js`. `cd desktop && npm test` fails if
+the copies drift. Comments in that file are long on purpose: where something looks odd, the comment
+above it usually says which bug made it that way.
+
 ## ⬇️ Download
 
 > **Windows** → **[Download CityLive Setup (.exe)](https://github.com/Deluxescout1/citylive/releases/latest/download/CityLive-Setup.exe)**
