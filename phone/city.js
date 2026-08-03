@@ -23127,6 +23127,7 @@ function drawHyruleLive(g,L,now,nd,fx){
   drawFieldLife(g,L,now,nd,fx);
   drawHyruleFolk(g,L,now,K,day);        // rock folk on the mountain, water folk at the lake
   drawGanonWisps(g,L,now,K,day);        // …and what has started drifting between them
+  drawGanonHerald(g,L,now,K,day);       // …and the one that crosses
   var sumY=Math.max(TOPPAD,HORIZON-dmH);
   var ringY=sumY+Math.round(dmH*0.11), rx0=Math.round(dmW*0.26), ry0=Math.max(2,Math.round(rx0*0.24));
   // ---- THE RING. Cloud when the mountain is quiet; as it wakes the same ring burns through to fire.
@@ -23413,6 +23414,61 @@ function drawGanonWisps(g,L,now,K,day){
     g.fillRect(sx,sy,u,u);
     if(pair) g.fillRect(sx+Math.round(2.2*K),sy,u,u);      // …the second eye, at a fixed spacing
   }
+}
+// ---- THE HERALD. 🔒 His locked answer: keep the lone rider, and keep it as a HERALD — partway up the
+// arc, at night, BEFORE the beasts arrive. "A single figure is a different kind of dread from a swarm,
+// and it marks the turn."
+// 🔑 IT IS ONE, AND IT IS GOING SOMEWHERE. Everything else that moves on this land wanders, mills or
+// grazes; this crosses. A single silhouette holding one heading across an emptying field is the whole
+// read, so it gets a long, slow, uninterrupted traverse rather than a spawn count — and only ever ONE
+// is on the land at a time.
+// ⚠ No likeness: a dark rider, a dark horse, and a smear of cold light where it has passed.
+function drawGanonHerald(g,L,now,K,day){
+  var r=(typeof ganonRise==="function")?ganonRise(now):0;
+  if(r<0.34||L>0.44) return;                              // stage 2 onward, and only after dark
+  var W=Math.max(1,WW|0);
+  // ONE crossing every ~4 minutes of real time, taking ~70s to cross the world; the rest of the cycle
+  // the field is simply empty, which is what makes the crossing register when it happens.
+  var CYCLE=240000, RIDE=70000;
+  var ph=(now%CYCLE)/RIDE; if(ph>1) return;
+  var dir=((Math.floor(now/CYCLE)&1)?-1:1);
+  var wx=((dir>0?ph:(1-ph))*W+W)%W;
+  var sx=Math.round(wx-WOFF); if(sx<-60) sx+=W; if(sx>SW+60) sx-=W;
+  if(sx<-14||sx>=SW+14) return;
+  var ry=hyRoadY(wx)-Math.round(1.2*K);                   // ON the road, which is empty by now
+  // ⚠ THE ROAD PREDICATE, NOT THE GRASS ONE. First cut gated this on `hyOpenField`, which asks "is this
+  // point clear of the hill and the mountain" — the right question for a horse grazing on turf and the
+  // WRONG one for anything on the highway, because the highway passes IN FRONT of the castle hill by
+  // design. The herald was silently skipped across the whole middle of the world, which is exactly
+  // where you would want to see it cross.
+  // 🔑 Two predicates that both sound like "is there ground here" answer different questions.
+  if(!hyRoadOn(wx)) return;
+  var bob=(Math.floor(now/140)&1)?1:0, u=Math.max(1,Math.round(K));
+  var dark=day?[16,12,20]:[6,5,10];
+  // the cold trail it leaves — laid FIRST so the rider is never inside its own glow
+  g.globalCompositeOperation="lighter";
+  for(var t=1;t<=Math.round(9*K);t++){
+    g.fillStyle=rgba([90,150,255],0.055*(1-t/(9*K)));
+    g.fillRect(sx-dir*t,ry-Math.round(1.4*K),Math.max(1,Math.round(K)),Math.round(2.4*K));
+  }
+  g.globalCompositeOperation="source-over";
+  g.fillStyle=css(dark);
+  g.fillRect(sx,ry-Math.round(2.4*K)-bob,Math.round(5*K),Math.round(2.4*K));                    // the horse
+  g.fillRect(sx+Math.round(0.4*K),ry-bob,u,Math.round(2.2*K));                                  // legs, mid-stride
+  g.fillRect(sx+Math.round(4*K),ry-bob,u,Math.round(2.2*K));
+  g.fillRect(sx+(dir>0?Math.round(5*K):-u),ry-Math.round(3.4*K)-bob,Math.round(1.6*K),Math.round(1.8*K));  // its head, leading
+  g.fillRect(sx+Math.round(1.8*K),ry-Math.round(5.6*K)-bob,Math.round(1.8*K),Math.round(3.4*K));// the rider
+  // a cloak streaming back — TAPERED, because a solid rectangle behind a rider is a box, not cloth
+  g.fillStyle=css(mixc(dark,[60,40,90],0.5));
+  var clN=Math.max(2,Math.round(3.4*K));
+  for(var cq=0;cq<clN;cq++){
+    var clh=Math.max(1,Math.round(2.8*K*(1-cq/clN)));
+    g.fillRect(sx+(dir>0?(-cq-1):(Math.round(3.6*K)+cq)),ry-Math.round(5.2*K)-bob+Math.round(cq*0.4),1,clh);
+  }
+  g.globalCompositeOperation="lighter";                                                          // two cold points where a face would be
+  g.fillStyle=rgba([150,200,255],0.55);
+  g.fillRect(sx+Math.round(2.2*K),ry-Math.round(5.2*K)-bob,Math.max(1,Math.round(K*0.7)),Math.max(1,Math.round(K*0.7)));
+  g.globalCompositeOperation="source-over";
 }
 // ---- THE FIELD, LIVED IN: carts and walkers on the road, horses loose on the grass.
 function drawFieldLife(g,L,now,nd,fx){
@@ -24621,14 +24677,26 @@ function drawPlateau(g,L,now,nd){
         var byy=shelfY-bht;
         g.fillStyle=css(mixc(mixc(day?[214,204,184]:[34,34,42],skc,0.08),scorch,dgT*0.70));
         g.fillRect(bx7,byy,bw7,bht);
-        g.fillStyle=css(mixc(mixc(day?[176,90,64]:[26,18,20],skc,0.06),[26,22,20],dgT*0.85));   // roof, burnt
+        g.fillStyle=css(mixc(mixc(mixc(day?[176,90,64]:[26,18,20],skc,0.06),[26,22,20],dgT*0.85),[22,14,16],GR*0.62));   // roof, burnt / gone dark
         for(var rr7=0;rr7<Math.round(bw7*0.55)*(dgT>0.45?0.5:1);rr7++)         // and half fallen in
           g.fillRect(bx7-1+rr7,byy-Math.round(bw7*0.55)+rr7,Math.max(1,bw7+2-rr7*2),1);
-        if(!day){ g.fillStyle="rgba(255,206,130,0.9)";                    // a lit window each
+        // 🔒 CASTLE TOWN FALLS — his locked answer. It is still standing and it is clearly abandoned:
+        // the roofs go dark, the lights go out one by one, and the windows get boarded.
+        // ⚠ ONE BY ONE, on each house's own hash, not all at once — a town where every light dies on
+        // the same frame is a switch being thrown, not a town emptying.
+        var gone=(GR>0.30)&&(((bh7>>>23)%100)<(GR-0.30)*150);
+        if(!day&&!gone){ g.fillStyle=rgba([255,206,130],0.9*Math.max(0,1-GR*0.9));   // a lit window each
           g.fillRect(bx7+Math.round(bw7*0.3),byy+Math.round(bht*0.35),Math.max(1,Math.round(K)),Math.max(1,Math.round(K))); }
+        if(gone){                                                          // boards across the window
+          g.fillStyle=css(mixc(day?[108,84,58]:[18,14,12],skc,0.06));
+          g.fillRect(bx7+Math.round(bw7*0.18),byy+Math.round(bht*0.32),Math.max(2,Math.round(bw7*0.6)),Math.max(1,Math.round(K*0.8)));
+          g.fillRect(bx7+Math.round(bw7*0.18),byy+Math.round(bht*0.50),Math.max(2,Math.round(bw7*0.6)),Math.max(1,Math.round(K*0.8)));
+        }
       }
       // chimneys with smoke drifting off them — the cheapest thing that says somebody lives here
-      if(bx7>-20&&bx7<SW+20&&((bh7>>>11)%100)<46){
+      // ⚠ AND THE SMOKE STOPS. The cheapest thing that said somebody lives here is also the cheapest
+      // thing that says nobody does any more — the chimneys go out on the same per-house hash.
+      if(bx7>-20&&bx7<SW+20&&((bh7>>>11)%100)<46*Math.max(0,1-GR*1.25)){
         var chx=bx7+Math.round(bw7*0.66), chy=shelfY-bht-Math.round(bw7*0.55);
         g.fillStyle=css(mixc(day?[150,140,124]:[26,26,32],skc,0.08));
         g.fillRect(chx,chy-Math.round(2.4*K),Math.max(1,Math.round(1.6*K)),Math.round(3*K));
@@ -24646,6 +24714,7 @@ function drawPlateau(g,L,now,nd){
     for(var st2=0;st2<4;st2++){
       var stx=hcx-Math.round(4*K)+Math.round(st2*3.4*K);
       if(stx<0||stx>=SW) continue;
+      if(GR>0.26&&st2>=Math.round(4*Math.max(0,1-(GR-0.26)/0.44))) continue;   // the market packs up, stall by stall
       g.fillStyle=["#c9584e","#4e7fc9","#c9a84e","#5aa86a"][st2];
       g.fillRect(stx,shelfY-Math.round(3.4*K),Math.max(2,Math.round(2.8*K)),Math.max(1,Math.round(1.2*K)));
       g.fillStyle=day?"#6b5a44":"#221c16";
