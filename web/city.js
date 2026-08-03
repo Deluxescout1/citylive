@@ -23802,7 +23802,17 @@ function drawPlateau(g,L,now,nd){
 
   var hwyC=mixc(day?[204,192,158]:[36,36,38], skc, 0.10), hwyD=mixc(hwyC,[76,62,46],0.36);
   var hwyH=Math.max(3,Math.round(3.6*K));
-  function hwyY(wx){ return fieldY(wx)+Math.round(11*K)+Math.round(Math.sin(wx*0.0026)*2.4*K); }
+  // ⚠⚠⚠ THE HEIGHT WAS THE WHOLE BUG. Nick, zoomed in: "the path shouldn't go THROUGH THE TOWN."
+  // MEASURED: the highway sat at `fieldY + 11K` ≈ 0.50*HORIZON, and the town's shelf lands at
+  // `hillY(0) + hH*0.13` ≈ 0.513*HORIZON. THIRTEEN THOUSANDTHS OF THE SKY APART — the same height. So
+  // "draw it in front" painted it straight across the wall and the houses, and the switchback's legs
+  // came out HORIZONTAL because they were climbing from a road that was already at gate level.
+  // 🔑 Two things placed by different formulas are only "in front of" each other by accident. The
+  // highway is pinned near the BOTTOM of the field band now — foreground ground, close to the viewer,
+  // a long way below anything on the hill — instead of being derived from the far band's crown.
+  function hwyY(wx){
+    return HORIZON-Math.round(HORIZON*0.13)+Math.round(Math.sin(wx*0.0026)*2.2*K);
+  }
   // ⚠ drawPlateau takes (g,L,now,nd) — no `fx`. The weather comes from the shared accessor.
   var _wfx=(typeof wfx==="function")?wfx():null;
   var _rainNow=!!(_wfx&&(_wfx.rain||_wfx.drizzle||_wfx.thunder));
@@ -23847,12 +23857,12 @@ function drawPlateau(g,L,now,nd){
     if(jx-span-Math.round(2*K)>=0&&jx-span<SW)
       g.fillRect(jx-span-Math.round(2*K),jy-Math.round(3*K),Math.max(1,Math.round(1.4*K)),Math.round(3*K));
   }
-  spur(HY_RANCH*WW, fieldY(HY_RANCH*WW)+Math.round(9*K), 9);          // out to the ranch gate
+  spur(HY_RANCH*WW, fieldY(HY_RANCH*WW)+Math.round(10*K), 11);        // out to the ranch gate
   // ---- THE CASTLE APPROACH: a switchback climbing the hillside to the gate. His pick over a straight
   // ramp, and it is what makes the hill read as ENGINEERED rather than decorated.
   if(hcx>-hW&&hcx<SW+hW){
-    var gY=hillY(0)+Math.round(hH*0.13)+Math.round(hH*0.10), gX=hcx+Math.round(hW*0.10);
-    var footX=hcx-Math.round(hW*0.62), footY=hwyY((footX+WOFF));
+    var gY=hillY(0)+Math.round(hH*0.13)+Math.round(hH*0.12), gX=hcx+Math.round(hW*0.02);
+    var footX=hcx-Math.round(hW*0.44), footY=hwyY((footX+WOFF));
     var legs=3;
     for(var lg2=0;lg2<legs;lg2++){
       var y0=footY+(gY-footY)*(lg2/legs), y1=footY+(gY-footY)*((lg2+1)/legs);
@@ -23873,7 +23883,7 @@ function drawPlateau(g,L,now,nd){
   // ---- KAKARIKO IS WHERE THE ROAD ENDS, and a thinner trail goes on up the mountain from it.
   var kkx=wrapX(HY_KAKARIKO);
   if(kkx>-80&&kkx<SW+80){
-    spur(HY_KAKARIKO*WW, fieldY(HY_KAKARIKO*WW)+Math.round(7*K), 8);
+    spur(HY_KAKARIKO*WW, fieldY(HY_KAKARIKO*WW)+Math.round(8*K), 10);
     var trFrom=kkx, trTo=wrapX(HY_DEATH);
     for(var tr=0;tr<=Math.abs(trTo-trFrom);tr+=1){
       var tx3=trFrom+(trTo>trFrom?tr:-tr); if(tx3<0||tx3>=SW) continue;
