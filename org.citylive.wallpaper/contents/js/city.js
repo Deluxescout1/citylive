@@ -4128,7 +4128,7 @@ var EGG_BIOMES=[
     flora:{ kinds:["generic","windbent","generic","grass","goldtree"], bloom:["#ffd166","#ff9ec4","#ffffff","#a8e0ff"] },
     // a cel-bright storybook sky: high saturation, high contrast, nothing muddy anywhere in it
     sky:{ top:[74,150,224], bot:[214,238,236], k:0.44, haze:[220,240,232] } },
-  // ============ THE RAIN VILLAGE ============
+  // ============ THE HIDDEN RAIN ============
   // ⚠⚠ THE THIRD UNNAMED HOMAGE, under the rules the Hidden Village set: the trademark never appears
   // in a shipped string, no glyph is copied, and every city system keeps running in costume.
   // ⚠⚠⚠ AND IT DOES NOT INVENT ITS OWN WEATHER. The obvious build for a village hidden in the rain is
@@ -4141,7 +4141,7 @@ var EGG_BIOMES=[
   //
   // WHAT FILLS THE FRAME: the great tower, and the forest of pipe-towers around it. No horizon, no
   // greenery, no sky worth looking at — the whole frame is wet grey concrete going up.
-  { k:"rainv",  name:"THE RAIN VILLAGE", egg:1, amp:0.30, base:0.24, flat:0.60, steep:0.40, snow:false, water:"river", rainv:1,
+  { k:"rainv",  name:"THE HIDDEN RAIN", egg:1, amp:0.30, base:0.24, flat:0.60, steep:0.40, snow:false, water:"river", rainv:1,
     far:[104,110,120],  near:[74,80,90],    cap:[150,156,166], ground:[86,88,94],
     // wet poured concrete, weathered steel and rust. Nothing in this palette ever grew.
     walls:[[128,132,140],[96,100,110],[150,154,162],[78,82,92],[112,116,126],[86,90,100],[138,142,150],[68,72,82]],
@@ -7654,10 +7654,35 @@ function drawRainTower(g,bx,b,L,now,dayLit,night){
     for(var cl2=0;cl2<4;cl2++)                                    // its collars
       g.fillRect(px2-Math.max(1,Math.round(K*0.5)),top+Math.round((8+cl2*11)*K),Math.round(2.6*K),Math.max(1,Math.round(K*0.8)));
   }
-  // THE TOP: flat, with a parapet, an aerial mast and — on the taller ones — a red obstruction light,
-  // which is the scale reference that says how big all of this is.
+  // ⚠⚠ THEY ARE PIPES, NOT BLOCKS. Nick, asked what the rain village should get: "make it look like
+  // the Hidden Rain village from Naruto." The single thing that separates that silhouette from any
+  // other grey industrial skyline is that the buildings read as PLUMBING — ribbed cylinders with
+  // rounded caps, some bent over at the top like an elbow, strung together with pipework. Flat-topped
+  // slabs read as a business district, which is what these were.
+  // ⚠ The homage rule is unchanged: silhouette and vernacular only. No trademark in any shipped
+  // string, no glyph copied — the same contract the leaf village has always run under.
+  var capKind=(s>>>25)%3;                                        // 0 flat · 1 domed · 2 elbowed over
+  var capC=css(mixc(conc,[70,74,84],day?0.30:0.20)), capL=css(mixc(conc,[190,198,208],day?0.26:0.10));
+  if(capKind===1){                                               // a rounded head, drawn as row runs
+    var cr2=Math.max(2,Math.round(tw*0.5));
+    for(var cy2=0;cy2<cr2;cy2++){
+      var cw2=Math.round(Math.sqrt(Math.max(0,cr2*cr2-cy2*cy2)));
+      g.fillStyle=capC; g.fillRect(tx+(tw>>1)-cw2,top-cy2,cw2*2,1);
+      if(day&&cy2>cr2*0.55){ g.fillStyle=capL; g.fillRect(tx+(tw>>1)-cw2,top-cy2,Math.max(1,Math.round(cw2*0.5)),1); }
+    }
+    top-=cr2;
+  } else if(capKind===2){                                        // …or bent over, the way a vent stack is
+    var eh2=Math.round(7*K), ew=Math.round(tw*0.86);
+    g.fillStyle=capC; g.fillRect(tx,top-eh2,tw,eh2);
+    var dir=((s>>>27)&1)?1:-1;
+    g.fillRect(dir>0?tx+tw:tx-ew,top-eh2,ew,Math.round(tw*0.62));
+    g.fillStyle=capL; g.fillRect(tx,top-eh2,tw,Math.max(1,Math.round(K*0.7)));
+    top-=eh2;
+  }
+  // THE TOP: a parapet, an aerial mast and — on the taller ones — a red obstruction light, which is
+  // the scale reference that says how big all of this is.
   g.fillStyle=css(mixc(conc,[60,62,70],day?0.34:0.24));
-  g.fillRect(tx-Math.max(1,Math.round(K*0.8)),top-Math.round(1.6*K),tw+Math.round(1.6*K),Math.round(1.6*K));
+  if(capKind===0) g.fillRect(tx-Math.max(1,Math.round(K*0.8)),top-Math.round(1.6*K),tw+Math.round(1.6*K),Math.round(1.6*K));
   if(!squat){
     var mh=Math.round((5+((s>>>23)%7))*K);
     g.fillStyle=css(mixc(conc,[40,42,50],0.6));
@@ -7671,13 +7696,21 @@ function drawRainTower(g,bx,b,L,now,dayLit,night){
   // PUBLISH THE ROOFLINE, exactly as the plaster drums do — the roof runners work this village too,
   // and a flat concrete top is a better place to land than a tiled cone.
   b._roofY=top-Math.round(1.6*K); b._roofX=tx+(tw>>1);
-  // …and a catwalk bridging toward the next tower, which is how anyone gets about up there
+  // …and the PLUMBING between them: a catwalk to the next tower and a bundle of mains slung under it,
+  // with a valve wheel where they join. Towers that are merely near each other read as a skyline;
+  // towers that are PIPED to each other read as one machine, which is the whole idea of this place.
   if(((s>>>21)%3)===0){
-    var cwy=top+Math.round(((s>>>11)%100)/100*th*0.5)+Math.round(8*K);
+    var cwy=HORIZON-Math.round(th*0.5)+Math.round(((s>>>11)%100)/100*th*0.3);
+    var span2=Math.round(11*K);
     g.fillStyle=css(mixc(conc,[48,50,58],0.5));
-    g.fillRect(tx+tw,cwy,Math.round(9*K),Math.max(1,Math.round(1.2*K)));
+    g.fillRect(tx+tw,cwy,span2,Math.max(1,Math.round(1.2*K)));                       // the walkway
     g.fillStyle=css(mixc(conc,[70,74,82],0.4));
-    g.fillRect(tx+tw,cwy-Math.round(2.4*K),Math.round(9*K),Math.max(1,Math.round(K*0.6)));
+    g.fillRect(tx+tw,cwy-Math.round(2.4*K),span2,Math.max(1,Math.round(K*0.6)));     // its handrail
+    g.fillStyle=css(mixc(conc,[54,50,44],day?0.5:0.34));                             // two mains under it
+    g.fillRect(tx+tw,cwy+Math.round(2.6*K),span2,Math.max(1,Math.round(1.4*K)));
+    g.fillRect(tx+tw,cwy+Math.round(5*K),span2,Math.max(1,Math.round(K)));
+    g.fillStyle=css(mixc(conc,[86,72,58],day?0.55:0.3));                             // and a valve where they meet
+    g.fillRect(tx+tw+Math.round(span2*0.5)-Math.round(1.2*K),cwy+Math.round(1.8*K),Math.round(2.4*K),Math.round(3.4*K));
   }
 }
 // ============ THE HIDDEN VILLAGE: ITS ARCHITECTURE ============
@@ -17102,8 +17135,14 @@ function drawSeaFrontBand(g,L,now){
     // world — the savanna-acacia lattice again, in white, on the one land whose whole subject is
     // BROKEN ground. Hashed per world column now, and broken all THREE ways (where a piece sits, how
     // wide it is, how tall), because varying only one of them still reads as ruling.
+    // ⚠ …AND THE SUMMER VARIANT HAS NO SHELF AT ALL. THE TUNDRA's own definition is "arctic SUMMER:
+    // the sea ice gone", and it was rendering a packed brash shelf along the entire shore — the land
+    // that is supposed to read as the ice having GONE looked exactly like the land it breaks from.
+    // Nick's call: drop the shelf, keep the floes drifting past. The fast ice is what melts first; the
+    // pack out in the lead is what is still going by in August.
+    var summerIce=(curBiome.name==="THE TUNDRA");
     var brashC=day?"#dfeaf4":"#2c3a4c";
-    for(var ic=0;ic<SW;ic++){
+    if(!summerIce) for(var ic=0;ic<SW;ic++){
       var wic=ic+WOFF, bh7=mixLi(wic,0x1CE1);
       if((bh7%100)<42) continue;                                     // gaps of no fixed length
       var bw7=1+((bh7>>>7)%Math.max(1,Math.round(2.6*K)));           // pieces of different widths…
@@ -17121,7 +17160,7 @@ function drawSeaFrontBand(g,L,now){
     // every floe off the map and none of them would ever come back.
     // ⚠ Position stays a pure function of (now, fl) — his three monitors each run their own copy of
     // this engine off the same clock, and anything accumulated per frame would drift them apart.
-    for(var fl=0;fl<11;fl++){
+    for(var fl=0;fl<(summerIce?14:11);fl++){
       var fhx=mixLi(fl*8+7,0xF10E);                                  // ⚠ fl*2654435761 made floe 0 a zero
       var fw7=Math.round((8+(fhx%28))*K);                            // growlers through to proper plates
       // ⚠ the rate comes off the floe's own hash and NOTHING else. Scaling it by the wind multiplies a
@@ -17701,6 +17740,16 @@ function drawVillageCompound(g,X,spec,L,now){
   var plaster=day?[232,224,204]:[36,32,26], plaster2=day?[204,194,172]:[26,23,19];
   var tile=day?[168,74,52]:[26,15,12], tile2=day?[126,50,38]:[19,11,9];
   var wood=day?[110,76,48]:[24,17,11];
+  // ⚠ THE OTHER HIDDEN VILLAGE BUILDS IN CONCRETE. This routine is what a passed ballot puts up on
+  // both lands, and in plaster and terracotta it dropped a warm tiled compound into a wet grey
+  // industrial one — the leaf village's vernacular on a land that has never seen a roof tile.
+  // Same structure, same walls, same gate: only the material changes, which is all that ever
+  // separated the two places architecturally.
+  if(curRainV){
+    plaster=day?[128,132,140]:[26,29,38]; plaster2=day?[100,104,114]:[18,21,28];
+    tile=day?[86,90,100]:[16,19,26];      tile2=day?[66,70,80]:[12,14,20];
+    wood=day?[92,78,62]:[20,17,13];
+  }
   // the perimeter wall + its own little tiled coping — the thing that makes a compound a compound
   g.fillStyle=css(plaster2); g.fillRect(X-(w>>1),gy-wallH,w,wallH);
   g.fillStyle=css(tile2);    g.fillRect(X-(w>>1)-Math.round(K),gy-wallH-Math.round(1.4*K),w+Math.round(2*K),Math.round(1.6*K));
