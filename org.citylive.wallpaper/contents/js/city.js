@@ -23023,44 +23023,103 @@ function drawHyruleLive(g,L,now,nd,fx){
       g.fillRect(lx,ly,Math.max(2,Math.round(2.2*K)),Math.max(2,Math.round(2.2*K)));
     }
   }
-  // ---- THE DRAGON. It circles this mountain and no other — a long serpent, head, ribbed body and a
-  // whipping tail, drawn as a chain of segments around the same ellipse the ring uses so it clearly
-  // belongs to the peak. Calm and dark when the mountain sleeps; lit from within when it wakes.
-  var dph=(now*0.000045)%1, N=16;
-  var drx=rx0*1.28, dry=ry0*1.55;
-  for(var sgm=N-1;sgm>=0;sgm--){
-    var a2=(dph+sgm*0.028)*6.2832;
-    var sx2=dmx+Math.round(Math.cos(a2)*drx);
-    var sy2=ringY-Math.round(dmH*0.05)+Math.round(Math.sin(a2)*dry)+Math.round(Math.sin(now*0.003+sgm*0.6)*1.2*K);
-    if(sx2<-10||sx2>SW+10||sy2<TOPPAD) continue;
-    var head=(sgm===0), behind=(Math.sin(a2)<0);
-    var t4=1-sgm/N, w4=Math.max(2,Math.round((1.2+t4*3.2)*K));
-    var bodyA=(behind?0.45:1);
-    g.fillStyle="rgba("+Math.round(120+un*110)+","+Math.round(52+un*40)+","+Math.round(40)+","+(bodyA).toFixed(2)+")";
-    g.fillRect(sx2-(w4>>1),sy2-(w4>>1),w4,w4);
-    if(un>0.15){                                                       // it glows as the mountain wakes
-      g.globalCompositeOperation="lighter";
-      g.fillStyle="rgba(255,140,50,"+(0.30*un*bodyA).toFixed(2)+")";
-      g.fillRect(sx2-w4,sy2-w4,w4*2,w4*2);
-      g.globalCompositeOperation="source-over";
-    }
-    if(head){
-      var hd=Math.max(3,Math.round(4.4*K));
-      g.fillStyle="rgba("+Math.round(140+un*100)+",60,44,"+bodyA.toFixed(2)+")";
-      g.fillRect(sx2-(hd>>1),sy2-(hd>>1),hd,hd);                       // the head
-      g.fillRect(sx2+(Math.cos(a2)>0?hd:-hd*1.6),sy2-Math.round(K),Math.max(2,Math.round(2.2*K)),Math.max(1,Math.round(1.4*K)));  // snout
-      g.fillStyle="rgba(255,220,90,"+bodyA.toFixed(2)+")";             // eye
-      g.fillRect(sx2+(Math.cos(a2)>0?Math.round(K):-Math.round(2*K)),sy2-Math.round(K),Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
-      // a wing beat, and fire from the mouth once it is angry
-      var wb=Math.sin(now*0.005)*0.5+0.5;
-      g.fillStyle="rgba("+Math.round(120+un*90)+",56,44,"+(0.85*bodyA).toFixed(2)+")";
-      g.fillRect(sx2-Math.round(5*K),sy2-Math.round((2+wb*3)*K),Math.round(10*K),Math.max(1,Math.round(1.6*K)));
-      if(un>0.5&&((Math.floor(now/900)%7)===0)){
-        g.globalCompositeOperation="lighter";
-        g.fillStyle="rgba(255,170,60,0.8)";
-        g.fillRect(sx2+(Math.cos(a2)>0?hd:-hd*3),sy2-Math.round(K),Math.round(9*K),Math.max(2,Math.round(2.4*K)));
-        g.globalCompositeOperation="source-over";
+  // ============ THE DRAGON ============
+  // Nick: "make sure the dragon only comes out when the volcano begins to be a problem", "give it a
+  // faint ember glow when calm too", and "make it look more like a dragon".
+  // ⚠ IT IS NOT ALWAYS THERE. It comes up out of the mountain as the unrest starts, so seeing it AT
+  // ALL is the warning — a dragon that is always circling is scenery, and then it cannot mean anything
+  // when the mountain wakes. It fades in over the first sliver of unrest and is gone when quiet.
+  if(un<=0.04) return;
+  var drAlpha=Math.max(0,Math.min(1,(un-0.04)/0.16));       // fades in as the mountain stirs
+  var dph=(now*0.000045)%1, N=22;
+  var drx=rx0*1.30, dry=ry0*1.70, dcy=ringY-Math.round(dmH*0.05);
+  // ⚠ EMBER, NOT FIRE, WHEN IT IS CALM. A cold silhouette against dark rock is invisible — his note.
+  // It carries its own heat from the moment it appears and only BRIGHTENS as the mountain does.
+  var heat=0.22+0.78*un;
+  function dSeg(i){   // ⚠ NOT `seg` — the ring loop above uses `var seg` as its counter, and `var`
+                      // hoists to the whole function, so the counter (64) overwrote the function and every
+                      // call threw "64 is not a function". Two loops, one scope, one name.                                          // where segment i is, and which way it faces
+    var a2=(dph+i*0.021)*6.2832;
+    return { x:dmx+Math.round(Math.cos(a2)*drx), y:dcy+Math.round(Math.sin(a2)*dry)
+                 +Math.round(Math.sin(now*0.0026+i*0.5)*1.1*K),
+             a:a2, back:(Math.sin(a2)<0) };
+  }
+  // body thickness: thin neck, deep chest at the shoulders, long taper to the tail
+  function girth(i){
+    var t=i/(N-1);
+    var w=(t<0.10)? (2.2+t*10) : (t<0.30)? (3.4+ (0.30-t)*2) : (3.4*Math.pow(1-(t-0.30)/0.72,0.85)+0.6);
+    return Math.max(1,Math.round(w*K));
+  }
+  var bodyC=function(al){ return "rgba("+Math.round(74+120*heat)+","+Math.round(30+52*heat)+","+Math.round(30+18*heat)+","+al.toFixed(2)+")"; };
+  var bellyC=function(al){ return "rgba("+Math.round(150+90*heat)+","+Math.round(96+70*heat)+","+Math.round(52)+","+al.toFixed(2)+")"; };
+  // ---- draw far half first so the near half overlaps it, which is what makes it wrap the peak
+  for(var pass=0;pass<2;pass++){
+    for(var i=N-1;i>=0;i--){
+      var S=dSeg(i); if(S.back!==(pass===0)) continue;
+      if(S.x<-20||S.x>SW+20||S.y<TOPPAD) continue;
+      var al=(S.back?0.42:1)*drAlpha, w=girth(i);
+      // the body segment, with a lit belly line under it
+      g.fillStyle=bodyC(al);  g.fillRect(S.x-(w>>1),S.y-(w>>1),w,w);
+      g.fillStyle=bellyC(al*0.55); g.fillRect(S.x-(w>>1),S.y+(w>>1)-Math.max(1,Math.round(K*0.5)),w,Math.max(1,Math.round(K*0.5)));
+      // ---- THE SPINE. A row of fins down the back is the cheapest thing that reads as "dragon"
+      // rather than "snake": it breaks the smooth silhouette at a regular beat.
+      if(i>2&&i<N-2&&(i%2===0)){
+        var fh=Math.max(1,Math.round(w*0.72));
+        g.fillStyle=bodyC(al*0.9);
+        g.fillRect(S.x-Math.max(1,Math.round(K*0.5)),S.y-(w>>1)-fh,Math.max(1,Math.round(K)),fh);
       }
+      // ---- THE WINGS, at the shoulder, beating
+      if(i===4){
+        var beat=Math.sin(now*0.0055), span=Math.round((11+beat*4)*K), rise=Math.round((7+beat*5)*K);
+        for(var wg=-1;wg<=1;wg+=2){
+          g.fillStyle=bodyC(al*0.80);
+          for(var wr=0;wr<span;wr++){                        // a swept membrane, thinning outward
+            var hh=Math.max(1,Math.round(rise*(1-wr/span)));
+            g.fillRect(S.x+wg*wr,S.y-hh,1,hh);
+          }
+          g.fillStyle=bodyC(al);                             // the leading bone
+          g.fillRect(S.x+(wg>0?0:-span),S.y-rise,span,Math.max(1,Math.round(K*0.7)));
+        }
+      }
+      // ---- THE TAIL FIN
+      if(i===N-1){
+        g.fillStyle=bodyC(al);
+        g.fillRect(S.x-Math.round(3*K),S.y-Math.round(2.4*K),Math.round(6*K),Math.max(1,Math.round(K*0.8)));
+        g.fillRect(S.x-Math.round(K),S.y-Math.round(4*K),Math.max(1,Math.round(2*K)),Math.round(4*K));
+      }
+      // ---- THE HEAD: snout, jaw, swept horns and a lit eye
+      if(i===0){
+        var dir=(Math.cos(S.a)>=0)?1:-1, hw=Math.max(3,Math.round(5*K)), hh2=Math.max(2,Math.round(3.4*K));
+        g.fillStyle=bodyC(al);
+        g.fillRect(S.x-(hw>>1),S.y-(hh2>>1),hw,hh2);                                   // skull
+        g.fillRect(S.x+dir*Math.round(hw*0.4),S.y-Math.round(K*0.6),Math.round(4*K),Math.max(2,Math.round(1.8*K)));   // snout
+        g.fillStyle=bellyC(al*0.8);                                                     // the jaw, paler
+        g.fillRect(S.x+dir*Math.round(hw*0.4),S.y+Math.round(K*0.7),Math.round(3.4*K),Math.max(1,Math.round(K*0.9)));
+        g.fillStyle=bodyC(al);                                                          // two horns swept back
+        for(var hn=0;hn<2;hn++)
+          g.fillRect(S.x-dir*Math.round((1+hn*1.6)*K),S.y-(hh2>>1)-Math.round((2.4-hn*0.8)*K),
+                     Math.max(1,Math.round(K*0.9)),Math.round((2.4-hn*0.6)*K));
+        g.globalCompositeOperation="lighter";                                           // the eye, always lit
+        g.fillStyle="rgba(255,232,120,"+(0.9*al).toFixed(2)+")";
+        g.fillRect(S.x+dir*Math.round(K*0.8),S.y-Math.round(K*0.8),Math.max(1,Math.round(1.2*K)),Math.max(1,Math.round(1.2*K)));
+        g.globalCompositeOperation="source-over";
+        // it breathes fire once the mountain is properly angry
+        if(un>0.5&&((Math.floor(now/1100)%5)===0)){
+          g.globalCompositeOperation="lighter";
+          for(var fb=0;fb<7;fb++){
+            var ff=fb/7;
+            g.fillStyle="rgba(255,"+Math.round(200-110*ff)+",60,"+((0.85-0.7*ff)*al).toFixed(2)+")";
+            g.fillRect(S.x+dir*Math.round((4+fb*3.4)*K),S.y-Math.round((0.6+ff*2.4)*K),
+                       Math.round(3.4*K),Math.max(2,Math.round((1.6+ff*3)*K)));
+          }
+          g.globalCompositeOperation="source-over";
+        }
+      }
+      // ---- THE EMBER GLOW it carries even when calm
+      g.globalCompositeOperation="lighter";
+      g.fillStyle="rgba(255,"+Math.round(120+60*heat)+",50,"+((0.05+0.22*un)*al).toFixed(2)+")";
+      g.fillRect(S.x-w,S.y-w,w*2,w*2);
+      g.globalCompositeOperation="source-over";
     }
   }
 }
