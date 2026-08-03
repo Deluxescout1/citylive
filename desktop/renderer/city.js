@@ -23279,6 +23279,10 @@ function drawHeightCastle(g,cx,capY,K,day,skc,now,seed,groundAt){
       var by=gnd-Math.round(H*(0.02+t*0.13));
       g.fillStyle=css(t?wall:wallD); g.fillRect(gxx,by-bh,1,bh+Math.round(H*0.10));
       g.fillStyle=css(wallL);        g.fillRect(gxx,by-bh,1,Math.max(1,Math.round(K*0.7)));
+      if(((gxx+WOFF)%Math.max(3,Math.round(4.4*K)))<1){                       // coursing across the curtain
+        g.fillStyle=css(mixc(t?wall:wallD,[48,44,52],0.20));
+        g.fillRect(gxx,by-bh,1,bh);
+      }
       if((((gxx+WOFF)%Math.max(2,Math.round(3.2*K)))|0)<Math.max(1,Math.round(1.6*K)))
         g.fillRect(gxx,by-bh-Math.round(1.4*K),1,Math.round(1.4*K));      // battlements
     }
@@ -23303,26 +23307,53 @@ function drawHeightCastle(g,cx,capY,K,day,skc,now,seed,groundAt){
     var th=Math.round(H*(0.30+mid*0.52+((h2%100)/100)*0.20));
     var tx=cx+Math.round(f*W*0.46)+Math.round((((h2>>>9)%100)/100-0.5)*4*K);
     var ty=capY-Math.round(H*0.12)-th;
-    g.fillStyle=css(((h2>>>5)&1)?wall:wallD);
-    g.fillRect(tx-tw,ty,tw*2,th);
-    g.fillStyle=css(wallL); g.fillRect(tx-tw,ty,Math.max(1,Math.round(K*0.7)),th);   // a lit edge down each
-    var sh=Math.round(th*(0.46+((h2>>>13)%100)/100*0.30));                            // the spire itself
-    g.fillStyle=css(roof);
+    // ---- THE SHAFT, MODELLED. A tower is a CYLINDER: a flat fill with a one-pixel highlight is a
+    // rectangle, and nine rectangles are a pipe rack. Three bands of value across each one turn it
+    // round, and it costs three fills instead of one.
+    var body=((h2>>>5)&1)?wall:wallD;
+    g.fillStyle=css(body); g.fillRect(tx-tw,ty,tw*2,th);
+    g.fillStyle=css(mixc(body,wallL,0.55)); g.fillRect(tx-tw,ty,Math.max(1,Math.round(tw*0.55)),th);
+    g.fillStyle=css(mixc(body,[40,36,44],0.34)); g.fillRect(tx+tw-Math.max(1,Math.round(tw*0.42)),ty,Math.max(1,Math.round(tw*0.42)),th);
+    // ---- STONE COURSES. The single cheapest thing that stops a wall reading as paper.
+    g.fillStyle=css(mixc(body,[52,48,56],0.22));
+    for(var cs=Math.round(2.4*K);cs<th;cs+=Math.max(2,Math.round(3.4*K))) g.fillRect(tx-tw,ty+cs,tw*2,1);
+    // ---- CORBELS under the parapet — the little overhang that says "castle" and not "silo"
+    g.fillStyle=css(mixc(body,wallL,0.30));
+    g.fillRect(tx-tw-Math.max(1,Math.round(K*0.7)),ty-Math.max(1,Math.round(K*0.8)),tw*2+Math.max(2,Math.round(1.4*K)),Math.max(1,Math.round(K*0.8)));
+    // ---- ARCHED WINDOWS, in a line up the shaft, lit from inside after dark
+    var winW=Math.max(1,Math.round(tw*0.34)), winH=Math.max(2,Math.round(2.2*K));
+    for(var w3=0;w3<Math.max(2,Math.round(th/(7*K)));w3++){
+      var wy=ty+Math.round(th*0.16)+w3*Math.round(6.6*K);
+      if(wy+winH>ty+th-Math.round(2*K)) break;
+      g.fillStyle=day?"rgba(38,34,44,0.86)":"rgba(255,206,130,0.92)";
+      g.fillRect(tx-(winW>>1),wy,winW,winH);
+      g.fillStyle=day?"rgba(38,34,44,0.86)":"rgba(255,206,130,0.92)";     // its little arch
+      g.fillRect(tx-(winW>>1)+1,wy-1,Math.max(1,winW-2),1);
+    }
+    // ---- THE SPIRE: a lit leading edge, courses of slate, and a finial on the point
+    var sh=Math.round(th*(0.46+((h2>>>13)%100)/100*0.30));
     for(var r=0;r<sh;r++){
       var rw=Math.max(1,Math.round((tw*2+Math.round(1.6*K))*(1-r/sh)));
+      g.fillStyle=css((r%Math.max(2,Math.round(2.2*K))===0)?mixc(roof,[0,0,0],0.18):roof);
       g.fillRect(tx-(rw>>1),ty-r,rw,1);
+      g.fillStyle=css(roofL); g.fillRect(tx-(rw>>1),ty-r,Math.max(1,Math.round(K*0.6)),1);
     }
-    g.fillStyle=css(roofL); g.fillRect(tx-1,ty-sh,Math.max(1,Math.round(K*0.9)),Math.max(1,Math.round(K*0.9)));
-    if(!day){                                                                         // lit windows
-      g.fillStyle="rgba(255,206,130,0.92)";
-      for(var w3=0;w3<3;w3++) g.fillRect(tx-Math.round(K*0.5),ty+Math.round(th*(0.24+w3*0.26)),Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
-    }
+    g.fillStyle=css(mixc(roofL,[255,240,200],0.5));
+    g.fillRect(tx-Math.max(1,Math.round(K*0.5)),ty-sh-Math.round(1.6*K),Math.max(1,Math.round(K)),Math.round(1.8*K));
   }
   // ---- THE GREAT SPIRE, taller than everything, dead centre. One dominant vertical is what stops a
   // cluster of towers reading as a skyline of offices.
   var gw=Math.max(3,Math.round(4.4*K)), gh=Math.round(H*1.02), gy2=capY-Math.round(H*0.12)-gh;
   g.fillStyle=css(wall);  g.fillRect(cx-gw,gy2,gw*2,gh);
-  g.fillStyle=css(wallL); g.fillRect(cx-gw,gy2,Math.max(1,Math.round(K*0.8)),gh);
+  g.fillStyle=css(mixc(wall,wallL,0.55)); g.fillRect(cx-gw,gy2,Math.max(1,Math.round(gw*0.6)),gh);
+  g.fillStyle=css(mixc(wall,[40,36,44],0.32)); g.fillRect(cx+gw-Math.max(1,Math.round(gw*0.45)),gy2,Math.max(1,Math.round(gw*0.45)),gh);
+  g.fillStyle=css(mixc(wall,[52,48,56],0.22));
+  for(var cs2=Math.round(3*K);cs2<gh;cs2+=Math.max(2,Math.round(4*K))) g.fillRect(cx-gw,gy2+cs2,gw*2,1);
+  // the great window on the keep — one big arched light, the face of the building
+  var gwW=Math.max(2,Math.round(gw*0.9)), gwH=Math.max(3,Math.round(5*K));
+  g.fillStyle=day?"rgba(34,30,40,0.88)":"rgba(255,214,140,0.95)";
+  g.fillRect(cx-(gwW>>1),gy2+Math.round(gh*0.30),gwW,gwH);
+  g.fillRect(cx-(gwW>>1)+1,gy2+Math.round(gh*0.30)-1,Math.max(1,gwW-2),1);
   g.fillStyle=css(roof);
   var gs=Math.round(gh*0.42);
   for(var r2=0;r2<gs;r2++){
