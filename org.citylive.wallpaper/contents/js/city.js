@@ -24045,58 +24045,36 @@ function drawPlateau(g,L,now,nd){
     }
   }
   spur(HY_RANCH*WW, fieldY(HY_RANCH*WW)+Math.round(10*K), 1);         // out to the ranch gate
-  // ---- THE CASTLE APPROACH: a switchback climbing the hillside to the gate. His pick over a straight
-  // ramp, and it is what makes the hill read as ENGINEERED rather than decorated.
-  // ⚠⚠⚠ IT CLIMBED TO THE HILL'S CENTRE, AND THE GATE IS NOT THERE. MEASURED at his geometry: the
-  // legs topped out at `hcx + hW*0.02` = x 229, while the town's gate stands at x 359 — 130 px of bare
-  // hillside between the road and the door it exists to reach. That is the THIRD thing in this one
-  // function pinned to `hcx` instead of to the thing it serves; the gate and its own Triforce were the
-  // last, and that note is a hundred lines up this file.
-  // ⚠⚠ AND RETARGETING ALONE WOULD HAVE MADE IT WORSE. Dragging only the top from 229 to 359 stretches
-  // each leg from 157 px to 286 against a 72 px climb — a 1:12 gradient, which is not a road up a
-  // hill, it is three ribbons lying on flat grass. That is precisely what he photographed.
-  // 🔑 So the LEG LENGTH is derived from the climb and a believable gradient, and the zigzag is then
-  // centred under the gate: BOTH ends move, because the shape is a consequence of the height to be
-  // gained, not of `hW`. And a hairpin is a flat LANDING, not a knife point — the corner is the one
-  // place a switchback is unmistakably a switchback.
+  // ---- THE CASTLE APPROACH: ONE STRAIGHT RAMP from the highway up to the gate.
+  // Nick, at the frame: "just make this a straight line." It was a three- then four-leg switchback —
+  // his own earlier pick, and it did climb to the right place once the top was anchored to the gate,
+  // but at this scale the reversals read as a stack of shelves rather than as one road, and stacked
+  // shelves are what he has been pointing at since the first version.
+  // 🔑 THE ANCHORING IS THE PART THAT MATTERS AND IT IS UNCHANGED: the top is the GATE (`gateX`,
+  // `wBot`), not the hill's centre, and the foot is derived BACKWARDS from it by the climb — so the
+  // ramp's length is still a consequence of the height it has to gain, not of `hW`. Only the shape
+  // between those two fixed ends is different.
+  // 🔑 And it is still CUT INTO the hill, not laid on it: dark bank above, light surface, retaining
+  // wall below. Three values are what give a flat green hillside a body under the road.
   if(hcx>-hW&&hcx<SW+hW&&typeof gateX==="number"){
     var gX=gateX, gY=wBot, footY=hyRoadY(gX+WOFF);
-    // ⚠ FOUR SHORT LEGS, NOT THREE LONG ONES. At three the legs still came out 83 px for a 24 px drop
-    // and read as planks laid on the grass. The zigzag is the whole point — more reversals in less
-    // width is what says "this climbs".
-    var legs=4, climb=Math.max(Math.round(6*K),footY-gY);
-    var legW=Math.max(Math.round(10*K),Math.round((climb/legs)*2.6));    // ~1:2.6 — steep, engineered
-    var landW=Math.max(2,Math.round(3.4*K)), rdH=Math.max(2,Math.round(3.2*K));
+    var climb=Math.max(Math.round(6*K),footY-gY);
+    var rampW=Math.max(Math.round(12*K),Math.round(climb*1.25));       // ~1:1.25 — a straight approach
+    var rdH=Math.max(2,Math.round(3.2*K));
     var retC=mixc(stoneC,[60,50,42],0.30), cutC=mixc(grassD,[34,44,30],0.34);
     var crownC=mixc(hwyC,day?[255,248,228]:[110,122,146],day?0.22:0.08);
-    // 🔑 A ROAD ON A HILL IS CUT INTO IT, NOT LAID ON IT. The old leg had a dark line underneath and
-    // nothing above, so on a hillside of one flat green it read as a ribbon floating in front of the
-    // slope. The bank ABOVE the road — the face the cutting was taken out of — is what seats it: dark
-    // above, light surface, retaining wall below. Three values, and the hill suddenly has a body.
-    function leg(x0,x1,ya,yb,flat){                            // one run of the climb, or a landing
-      var n=Math.max(1,Math.abs(x1-x0));
-      for(var s=0;s<=n;s++){
-        var sxx=Math.round(x0+(x1-x0)*(s/n)); if(sxx<0||sxx>=SW) continue;
-        var syy=Math.round(flat?ya:(ya+(yb-ya)*(s/n)));
-        var hsg2=(sxx-hcx)/hW;
-        if(Math.abs(hsg2)<1){ var hsurf=hillY(hsg2); if(syy<hsurf+Math.round(2*K)) syy=hsurf+Math.round(2*K); }
-        g.fillStyle=css(cutC);                                 // the cut bank the road was taken out of
-        g.fillRect(sxx,syy-Math.max(1,Math.round(1.6*K)),1,Math.max(1,Math.round(1.6*K)));
-        g.fillStyle=css(hwyC); g.fillRect(sxx,syy,1,rdH+(flat?1:0));
-        g.fillStyle=css(crownC); g.fillRect(sxx,syy,1,Math.max(1,Math.round(K*0.6)));
-        g.fillStyle=css(retC);                                 // the retaining wall holding the leg up
-        g.fillRect(sxx,syy+rdH+(flat?1:0),1,Math.max(1,Math.round(2*K)));
-      }
-    }
-    for(var lg2=0;lg2<legs;lg2++){
-      var y0=Math.round(footY-climb*(lg2/legs)), y1=Math.round(footY-climb*((lg2+1)/legs));
-      // ⚠ THE PARITY IS ANCHORED TO THE TOP, not to the foot. Alternating from the bottom leaves the
-      // last leg finishing at `gX-legW` whenever the leg count is even — i.e. the climb arrives one
-      // leg's width to the side of the gate, which is the bug this whole block exists to fix, sneaking
-      // back in through the loop counter. The end that has to land on something decides the phase.
-      var up=(((legs-1-lg2)%2)===0), xA=up?(gX-legW):gX, xB=up?gX:(gX-legW);
-      leg(xA,xB,y0,y1,false);
-      if(lg2<legs-1) leg(xB,xB+(up?landW:-landW),y1,y1,true);  // the landing where it doubles back
+    var x0r=gX-rampW, nR=Math.max(1,rampW);
+    for(var s2=0;s2<=nR;s2++){
+      var sxx=x0r+s2; if(sxx<0||sxx>=SW) continue;
+      var syy=Math.round(footY-climb*(s2/nR));
+      var hsg2=(sxx-hcx)/hW;
+      if(Math.abs(hsg2)<1){ var hsurf=hillY(hsg2); if(syy<hsurf+Math.round(2*K)) syy=hsurf+Math.round(2*K); }
+      g.fillStyle=css(cutC);                                   // the cut bank the road was taken out of
+      g.fillRect(sxx,syy-Math.max(1,Math.round(1.6*K)),1,Math.max(1,Math.round(1.6*K)));
+      g.fillStyle=css(hwyC);   g.fillRect(sxx,syy,1,rdH);
+      g.fillStyle=css(crownC); g.fillRect(sxx,syy,1,Math.max(1,Math.round(K*0.6)));
+      g.fillStyle=css(retC);                                   // the retaining wall holding it up
+      g.fillRect(sxx,syy+rdH,1,Math.max(1,Math.round(2*K)));
     }
   }
   // ---- KAKARIKO IS WHERE THE ROAD ENDS, and a thinner trail goes on up the mountain from it.
