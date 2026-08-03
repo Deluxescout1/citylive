@@ -23281,6 +23281,12 @@ function drawFieldLife(g,L,now,nd,fx){
   // 🔑 The road is `hyRoadY` and nothing else. Two expressions of one position will drift the moment
   // either is touched, and this one drifted the first time it was.
   var roadY=hyRoadY, onRoad=hyRoadOn;
+  // ⚠ the ranch stands on the FIELD's crown, not on the road — same expression `drawPlateau` seats it
+  // with, kept here as one small helper rather than a second guess at where the ground is.
+  function fieldYLive(wx){
+    var n1=Math.sin(wx*0.0017+2.1)*0.55+Math.sin(wx*0.0049+0.7)*0.3+Math.sin(wx*0.0131+2.6)*0.15;
+    return HORIZON-Math.round(HORIZON*(0.50+n1*0.055));
+  }
   // ---- TRAVELLERS. Fewer after dark, and — once the shadow is on the land — the road empties, which
   // is the quietest and most effective thing the takeover can do to it.
   var un=(typeof deathUnrest==="function")?deathUnrest(now):0;
@@ -23312,6 +23318,28 @@ function drawFieldLife(g,L,now,nd,fx){
       drawPerson(g,sx,ry-Math.round(1.2*K),((h>>>17)&1)?"#5a6a4a":"#6a5040","#c9a184",(Math.floor(now/240)+i)&3);
     }
   }
+  // ---- THE RANCH'S OWN STOCK, inside its rails. Nick: "make the Lon Lon Ranch look like an actual
+  // Ranch" — and a corral with nothing in it is a diagram of a corral. These are anchored to the
+  // ranch, not to the road, and they mill about inside the fence instead of crossing the world.
+  var rWX=0.30*W, rCorr=Math.round(46*K);
+  for(var rh2=0;rh2<4;rh2++){
+    var rhh=mixLi(rh2,0x1055);
+    var rsx=Math.round(rWX-WOFF); if(rsx<-60) rsx+=W; if(rsx>SW+60) rsx-=W;
+    var off=Math.round((((rhh%1000)/1000)-0.5)*rCorr*0.72)
+           +Math.round(Math.sin(now*0.00013+rh2*2.1)*rCorr*0.10);      // milling, not marching
+    var rx2=rsx+off; if(rx2<-8||rx2>=SW+8) continue;
+    var ry4=fieldYLive(rWX)+Math.round(9*K)-Math.round((1+(rhh>>>7)%3)*K);
+    var ru=Math.max(1,Math.round(K));
+    var rgz=(((rhh>>>13)+Math.floor(now/3600))%3===0);
+    // three coats, not two — four animals of two colours reads as two pairs
+    g.fillStyle=day?["#8a5c38","#3a3028","#c8bda8","#6a4630"][rhh&3]:"#181410";
+    g.fillRect(rx2,ry4,Math.round(4.4*K),Math.round(2.2*K));
+    g.fillRect(rx2+Math.round(0.4*K),ry4+Math.round(2.2*K),ru,Math.round(1.8*K));
+    g.fillRect(rx2+Math.round(3.4*K),ry4+Math.round(2.2*K),ru,Math.round(1.8*K));
+    g.fillRect(rx2+Math.round(4.2*K),rgz?ry4+Math.round(1.6*K):ry4-Math.round(1.4*K),Math.round(1.8*K),Math.round(1.8*K));
+    g.fillStyle=day?"#2a2018":"#0d0a08";
+    g.fillRect(rx2-Math.round(0.8*K),ry4-Math.round(0.4*K),Math.max(1,Math.round(K*0.8)),Math.round(1.6*K));
+  }
   // ---- HORSES loose on the grass, in a band rather than a rank — a herd is a RING, not a queue.
   var HN=Math.round(6*Math.max(0.25,quiet));
   for(var hz=0;hz<HN;hz++){
@@ -23324,6 +23352,7 @@ function drawFieldLife(g,L,now,nd,fx){
     // the grass as there was room for; off the foreground road there is a whole field above it, and
     // horses that all stand the same distance back read as a fence rather than as loose animals.
     var hy=roadY(hwx)-Math.round((7+((hh>>>9)%19))*K);              // off the road, out into the field
+    if(!hyOpenField(hwx,hy)) continue;                              // …and never up the side of a mountain
     var hu=Math.max(1,Math.round(K));
     var graze=(((hh>>>13)+Math.floor(now/4000))%3===0);             // heads down, most of the time
     g.fillStyle=day?((hh&1)?"#6b4a30":"#3a3028"):"#181410";
@@ -23334,6 +23363,346 @@ function drawFieldLife(g,L,now,nd,fx){
                Math.round(1.8*K),Math.round(1.8*K));                                 // head, up or down
     g.fillStyle=day?"#2a2018":"#0d0a08";
     g.fillRect(hsx-Math.round(0.8*K),hy-Math.round(0.4*K),Math.max(1,Math.round(K*0.8)),Math.round(1.6*K));  // tail
+  }
+}
+// ============ THE WATER TEMPLE, on the island in Lake Hylia ============
+// Nick: "Add a Visable Water Temple on the lake ontop of this Island."
+// ⚠⚠ VISIBLE IS THE SPECIFICATION, NOT A COMPLIMENT. The failure this land keeps producing is a
+// landmark that is drawn and cannot be seen — the plateau's temple hanging in open sky, the shrine
+// glow under the city, the salt mirror lighter than its own pan. Two measurements decide it here:
+// 🔑 IT MUST BREAK THE SKYLINE. MEASURED at his geometry: the island's crown is y 195 and the field's
+//    near crest is y 179, so a temple of 0.115*HORIZON tops out at 154 — its foot against the island
+//    and the pale water, its middle against green field, its head against open sky. A landmark that
+//    finishes below the ridge behind it is a texture, not a landmark.
+// 🔑 AND IT MUST BE DARK. The lake is hazed pale toward the far-band colour now, so pale stone — which
+//    is what a temple "should" be — would disappear into it exactly as the salt mirror did. Deep
+//    blue-grey with a lit western face: the contrast lives INSIDE the building.
+function drawWaterTemple(g,tx,gy,K,day,skc,now,haze){
+  var H=Math.round(HORIZON*0.115), W=Math.round(H*0.80);
+  var st =mixc(mixc(day?[84,100,118]:[16,20,32],skc,0.08),haze,day?0.14:0.08);
+  var stL=mixc(st,day?[218,234,242]:[74,98,126],day?0.46:0.18);
+  var stD=mixc(st,[16,20,28],0.52);
+  var rf =mixc(mixc(day?[38,64,88]:[8,14,24],skc,0.05),haze,day?0.10:0.06);
+  var rfL=mixc(rf,day?[126,180,206]:[52,82,108],0.42);
+  // ---- MOSTLY UNDER THE WATER, which is the one thing anybody remembers about this building. A
+  // darker mass spreading into the lake beneath the island says so in four rows.
+  for(var sb=0;sb<Math.max(2,Math.round(H*0.14));sb++){
+    var sbw=Math.round(W*(1.05-sb*0.05));
+    g.fillStyle=rgba(stD,0.26-sb*0.03);
+    g.fillRect(tx-(sbw>>1),gy+sb,Math.max(1,sbw),1);
+  }
+  // ---- STEPS out of the water — and the scale reference for the whole thing
+  // ⚠ WIDEST AT THE BOTTOM. First cut widened them going UP, so the temple stood on an inverted
+  // wedding cake and the whole building read as hovering over the island rather than landing on it.
+  var stepN=Math.max(2,Math.round(H*0.11));
+  for(var s2=0;s2<stepN;s2++){
+    var sw2=Math.round(W*(0.86-s2*0.05));
+    g.fillStyle=css(s2&1?st:stL); g.fillRect(tx-(sw2>>1),gy-s2,Math.max(1,sw2),1);
+  }
+  var pl=gy-stepN;
+  var p1w=Math.round(W*1.14), p1h=Math.max(2,Math.round(H*0.10));      // plinth, two tiers
+  g.fillStyle=css(stD); g.fillRect(tx-(p1w>>1),pl-p1h,p1w,p1h);
+  g.fillStyle=css(st);  g.fillRect(tx-(p1w>>1),pl-p1h,p1w,Math.max(1,Math.round(K*0.7)));
+  var p2w=Math.round(W*0.98), p2h=Math.max(2,Math.round(H*0.08));
+  g.fillStyle=css(st);  g.fillRect(tx-(p2w>>1),pl-p1h-p2h,p2w,p2h);
+  g.fillStyle=css(stL); g.fillRect(tx-(p2w>>1),pl-p1h-p2h,p2w,Math.max(1,Math.round(K*0.6)));
+  var by=pl-p1h-p2h, bh=Math.round(H*0.34);
+  // ---- THE COLONNADE. Pillars are the most temple-ish thing there is, and at this size the RHYTHM of
+  // light and dark across them is the whole building.
+  g.fillStyle=css(stD); g.fillRect(tx-(W>>1),by-bh,W,bh);              // the dark cella behind them
+  var pw=Math.max(1,Math.round(K*0.9)), pgap=Math.max(2,Math.round(K*1.9));
+  for(var px2=tx-(W>>1)+Math.round(K);px2<tx+(W>>1)-pw;px2+=pgap+pw){
+    g.fillStyle=css(st);  g.fillRect(px2,by-bh,pw,bh);
+    g.fillStyle=css(stL); g.fillRect(px2,by-bh,Math.max(1,Math.round(pw*0.6)),bh);
+  }
+  var dw=Math.max(2,Math.round(W*0.22)), dh=Math.round(bh*0.74);       // the door, dead centre
+  g.fillStyle=css(mixc(stD,[4,8,14],0.60)); g.fillRect(tx-(dw>>1),by-dh,dw,dh);
+  for(var ar=0;ar<Math.max(1,Math.round(K*1.4));ar++)
+    g.fillRect(tx-(dw>>1)+ar,by-dh-ar,Math.max(1,dw-ar*2),1);          // …and its arch
+  var eh=Math.max(2,Math.round(H*0.06)), ew=Math.round(W*1.12);        // entablature, overhanging
+  g.fillStyle=css(st);  g.fillRect(tx-(ew>>1),by-bh-eh,ew,eh);
+  g.fillStyle=css(stL); g.fillRect(tx-(ew>>1),by-bh-eh,ew,Math.max(1,Math.round(K*0.6)));
+  g.fillStyle=css(stD); g.fillRect(tx-(ew>>1),by-bh-1,ew,1);           // its shadow on the columns
+  var ry2=by-bh-eh;
+  var pyw=Math.max(2,Math.round(W*0.17)), pyh=Math.round(H*0.20);      // corner pylons
+  for(var sgn=-1;sgn<=1;sgn+=2){
+    var pyx=tx+sgn*Math.round(W*0.50)-(pyw>>1);
+    g.fillStyle=css(st);  g.fillRect(pyx,ry2-pyh,pyw,pyh+eh);
+    g.fillStyle=css(stL); g.fillRect(pyx,ry2-pyh,Math.max(1,Math.round(pyw*0.5)),pyh+eh);
+    g.fillStyle=css(rf);
+    for(var cq=0;cq<Math.max(1,Math.round(K*1.6));cq++)
+      g.fillRect(pyx+cq,ry2-pyh-Math.round(K*1.6)+cq,Math.max(1,pyw-cq*2),1);
+  }
+  // ---- THE ROOF: a stepped pyramid. A dome at thirty pixels reads as a blob; steps read as BUILT.
+  var rh=Math.round(H*0.24), rn=Math.max(3,Math.round(rh/Math.max(1,Math.round(K*1.5))));
+  for(var ri=0;ri<rn;ri++){
+    var rt=ri/rn, rw3=Math.round(W*(1.04-0.82*rt)), rhy=ry2-Math.round(rh*rt)-Math.max(1,Math.round(rh/rn));
+    g.fillStyle=css(rf);  g.fillRect(tx-(rw3>>1),rhy,Math.max(1,rw3),Math.max(1,Math.round(rh/rn))+1);
+    g.fillStyle=css(rfL); g.fillRect(tx-(rw3>>1),rhy,Math.max(1,Math.round(rw3*0.34)),1);
+  }
+  var fy=ry2-rh;                                                       // a finial on the point
+  g.fillStyle=css(stL); g.fillRect(tx-Math.max(1,Math.round(K*0.5)),fy-Math.round(H*0.11),Math.max(1,Math.round(K)),Math.round(H*0.11));
+  g.fillStyle=css(mixc(rfL,[200,244,255],0.55));
+  g.fillRect(tx-Math.max(1,Math.round(K*0.9)),fy-Math.round(H*0.13),Math.max(2,Math.round(1.8*K)),Math.max(1,Math.round(K*1.2)));
+  // ---- ITS REFLECTION. ⚠ DARKER THAN THE WATER — six lands have now taught this; a reflection lighter
+  // than what it lies on reads as fog, not as water.
+  for(var rq=0;rq<Math.round(H*0.30);rq++){
+    g.fillStyle=rgba(stD,0.22*(1-rq/Math.max(1,Math.round(H*0.30))));
+    g.fillRect(tx-Math.round(W*0.42),gy+Math.round(H*0.16)+rq,Math.round(W*0.84),1);
+  }
+  if(!day){                                                            // lit from within after dark
+    g.fillStyle="rgba(150,225,255,0.85)"; g.fillRect(tx-(dw>>1)+1,by-Math.round(dh*0.8),Math.max(1,dw-2),Math.round(dh*0.8));
+    g.globalCompositeOperation="lighter";
+    for(var gq2=0;gq2<Math.round(6*K);gq2++){
+      g.fillStyle=rgba([110,210,255],0.05*(1-gq2/(6*K)));
+      g.fillRect(tx-gq2,by-Math.round(dh*0.5)-gq2,gq2*2,gq2*2);
+    }
+    g.globalCompositeOperation="source-over";
+  }
+}
+// ============ LON LON RANCH ============
+// Nick: "make the Lon Lon Ranch Look like an actual Ranch lol" — and he was right to laugh. It was a
+// plain box with a red lid, a tube beside it, and two rails on posts. Nothing about it said FARM.
+// 🔑 A barn is not a house with a red roof. What makes one read at twenty pixels is the GAMBREL — the
+// double-pitched roof with a break in the slope — plus the hayloft door in the gable, the big
+// cross-braced sliding doors, and vertical board siding. Those four, and it cannot be anything else.
+// 🔑 And a ranch is a PLACE, not a building: somewhere to live, something for the animals to drink,
+// hay to feed them, and stock actually inside the fence. A corral with nothing in it is a diagram.
+function drawRanch(g,rx,ry,K,day,skc,now,dmg){
+  var wood =mixc(day?[150,60,48]:[26,16,18],skc,0.06), woodD=mixc(wood,[40,20,18],0.45);
+  var trim =mixc(day?[236,230,216]:[38,38,46],skc,0.08);
+  var roofR=mixc(mixc(day?[176,74,58]:[26,16,18],skc,0.06),[24,20,18],dmg*0.88);
+  var post =mixc(day?[146,116,80]:[28,24,20],skc,0.08);
+  var corW=Math.round(46*K);
+  // ---- THE CORRAL: post-and-rail, with a real GATE, and a paddock of trodden ground inside it
+  // trodden ground inside the rails — worn hardest in the middle, feathered at the ends so it is a
+  // paddock rather than a tan plank laid on the grass
+  for(var pq=0;pq<corW;pq++){
+    var pxx=rx-(corW>>1)+pq; if(pxx<0||pxx>=SW) continue;
+    var pw2=1-Math.pow(Math.abs(pq/corW*2-1),2.2);
+    if(((mixLi(pq,0x9A21)%100)/100)>pw2*0.94) continue;
+    g.fillStyle=css(mixc(mixc(day?[168,150,104]:[24,26,22],skc,0.10),day?[128,142,86]:[16,20,18],0.30*(1-pw2)));
+    g.fillRect(pxx,ry-Math.round(1.0*K),1,Math.round(2.0*K));
+  }
+  var gateAt=rx+Math.round(corW*0.30);
+  g.fillStyle=css(post);
+  for(var fp=0;fp<=corW;fp+=Math.round(5*K)){
+    var fx2=rx-(corW>>1)+fp; if(fx2<0||fx2>=SW) continue;
+    var tall=(fp===0||fp>=corW-Math.round(5*K));
+    g.fillRect(fx2,ry-Math.round((tall?7:5)*K),Math.max(1,Math.round(1.4*K)),Math.round((tall?7:5)*K));
+  }
+  for(var fr=0;fr<3;fr++){
+    var fry=ry-Math.round((4.6-fr*1.5)*K);
+    g.fillRect(Math.max(0,rx-(corW>>1)),fry,Math.min(SW,corW),Math.max(1,Math.round(K*0.8)));
+  }
+  if(gateAt>=0&&gateAt<SW){                                            // the gate: two leaves, braced
+    g.fillStyle=css(trim);
+    g.fillRect(gateAt-Math.round(4*K),ry-Math.round(5*K),Math.round(8*K),Math.max(1,Math.round(K*0.8)));
+    g.fillRect(gateAt-Math.round(4*K),ry-Math.round(2.6*K),Math.round(8*K),Math.max(1,Math.round(K*0.8)));
+    for(var gb=0;gb<Math.round(8*K);gb++)                              // the diagonal brace
+      g.fillRect(gateAt-Math.round(4*K)+gb,ry-Math.round(5*K)+Math.round(gb*0.30),Math.max(1,Math.round(K*0.6)),1);
+  }
+  // ---- THE BARN, with the gambrel that makes it a barn
+  var bnx=rx-Math.round(corW*0.34), bnw=Math.round(20*K), bnh=Math.round(11*K);
+  g.fillStyle=css(wood);  g.fillRect(bnx-(bnw>>1),ry-bnh,bnw,bnh);
+  g.fillStyle=css(woodD);                                              // vertical board siding
+  for(var bd=Math.round(1.6*K);bd<bnw;bd+=Math.round(2.4*K)) g.fillRect(bnx-(bnw>>1)+bd,ry-bnh,1,bnh);
+  g.fillStyle=css(trim);                                               // corner trim + eaves board
+  g.fillRect(bnx-(bnw>>1),ry-bnh,Math.max(1,Math.round(K*0.9)),bnh);
+  g.fillRect(bnx+(bnw>>1)-Math.max(1,Math.round(K*0.9)),ry-bnh,Math.max(1,Math.round(K*0.9)),bnh);
+  // the GAMBREL: a shallow upper pitch over a steep lower one, with a break between them
+  // ⚠⚠ THE GAMBREL HAS TO ACTUALLY BREAK. First cut narrowed the roof by ten pixels across a forty-pixel
+  // barn, which is a flat dark lid, not a roof — the double pitch IS the barn, and a barn-shaped roof
+  // that does not change angle is just a box with a hat. The lower pitch is STEEP (it eats most of the
+  // width in a third of the height); the upper one is shallow and runs to a short ridge.
+  var roofW=bnw+Math.round(2*K), rx0=bnx-(roofW>>1);
+  var gh1=Math.round(4.0*K), gh2=Math.round(4.4*K), fall=(dmg>0.5)?0.35:1;
+  var n1=Math.max(1,Math.round(gh1*fall)), n2=Math.max(1,Math.round(gh2*fall));
+  g.fillStyle=css(roofR);
+  var midW=Math.round(roofW*0.62);                                     // the width at the break
+  for(var g1=0;g1<n1;g1++){                                            // steep lower pitch
+    var w1=Math.round(roofW+(midW-roofW)*(g1/n1));
+    g.fillRect(bnx-(w1>>1),ry-bnh-g1,Math.max(1,w1),1);
+  }
+  for(var g2=0;g2<n2;g2++){                                            // shallow upper pitch to the ridge
+    var w2=Math.round(midW+(Math.round(roofW*0.10)-midW)*(g2/n2));
+    g.fillRect(bnx-(w2>>1),ry-bnh-n1-g2,Math.max(1,w2),1);
+  }
+  g.fillStyle=css(mixc(roofR,[255,240,220],0.26));                     // the break line and the ridge, lit
+  g.fillRect(bnx-(midW>>1),ry-bnh-n1,midW,Math.max(1,Math.round(K*0.6)));
+  g.fillRect(bnx-Math.round(1.6*K),ry-bnh-n1-n2,Math.round(3.2*K),Math.max(1,Math.round(K*0.7)));
+  g.fillStyle=css(mixc(roofR,[30,22,20],0.34));                        // the eaves shadow on the wall
+  g.fillRect(rx0,ry-bnh,roofW,Math.max(1,Math.round(K*0.6)));
+  if(dmg<0.5){
+    g.fillStyle=css(mixc(day?[96,68,44]:[16,12,10],skc,0.06));          // the HAYLOFT DOOR in the gable
+    g.fillRect(bnx-Math.round(1.4*K),ry-bnh-n1-Math.round(2.4*K),Math.round(2.8*K),Math.round(2.6*K));
+    g.fillStyle=css(trim);                                             // …and the hoist beam over it
+    g.fillRect(bnx-Math.round(2.4*K),ry-bnh-n1-Math.round(3.0*K),Math.round(4.8*K),Math.max(1,Math.round(K*0.6)));
+  }
+  // the big sliding doors, cross-braced, with the rail they hang from
+  var dW=Math.round(7*K), dH=Math.round(7*K), dX=bnx-Math.round(1*K);
+  g.fillStyle=css(mixc(day?[110,78,52]:[18,14,12],skc,0.06)); g.fillRect(dX-(dW>>1),ry-dH,dW,dH);
+  g.fillStyle=css(trim);
+  g.fillRect(dX-(dW>>1),ry-dH-Math.max(1,Math.round(K*0.7)),dW,Math.max(1,Math.round(K*0.7)));   // the rail
+  g.fillRect(dX-Math.max(1,Math.round(K*0.4)),ry-dH,Math.max(1,Math.round(K*0.8)),dH);           // the meeting stile
+  for(var xb=0;xb<dH;xb++){                                            // the X brace on each leaf
+    g.fillRect(dX-(dW>>1)+Math.round(xb*0.42),ry-dH+xb,Math.max(1,Math.round(K*0.5)),1);
+    g.fillRect(dX+(dW>>1)-Math.round(xb*0.42),ry-dH+xb,Math.max(1,Math.round(K*0.5)),1);
+  }
+  // ---- THE SILO: hooped, with a proper domed cap and a chute back to the barn
+  var slx=bnx+Math.round(bnw*0.80), slw=Math.round(7*K), slh=Math.round(19*K);
+  g.fillStyle=css(mixc(day?[214,206,186]:[32,32,40],skc,0.08)); g.fillRect(slx-(slw>>1),ry-slh,slw,slh);
+  g.fillStyle=css(mixc(day?[164,156,138]:[22,22,28],skc,0.06));
+  g.fillRect(slx+(slw>>1)-Math.max(1,Math.round(slw*0.3)),ry-slh,Math.max(1,Math.round(slw*0.3)),slh);
+  g.fillStyle=css(mixc(day?[176,168,150]:[24,24,30],skc,0.06));        // the hoops
+  for(var hp=Math.round(2.4*K);hp<slh;hp+=Math.round(3.4*K)) g.fillRect(slx-(slw>>1),ry-slh+hp,slw,1);
+  // ⚠ THE CAP WAS UPSIDE DOWN. Widest at the TOP and pointed at the bottom, so the silo wore a funnel
+  // floating over it. A dome is widest where it MEETS the tube.
+  var capH=Math.max(2,Math.round(3.6*K));
+  g.fillStyle=css(mixc(day?[168,72,56]:[24,16,16],skc,0.06));
+  for(var sr=0;sr<capH;sr++){
+    var cw3=Math.max(1,Math.round(slw*Math.sqrt(Math.max(0,1-Math.pow((capH-1-sr)/capH,2)))));
+    g.fillRect(slx-(cw3>>1),ry-slh-capH+sr,cw3,1);
+  }
+  g.fillStyle=css(mixc(day?[220,150,120]:[34,24,22],skc,0.06));        // the lit side of the dome
+  for(var sr2=0;sr2<capH;sr2++){
+    var cw4=Math.max(1,Math.round(slw*Math.sqrt(Math.max(0,1-Math.pow((capH-1-sr2)/capH,2)))));
+    g.fillRect(slx-(cw4>>1),ry-slh-capH+sr2,Math.max(1,Math.round(cw4*0.34)),1);
+  }
+  // ---- THE FARMHOUSE. A ranch is where somebody LIVES; without it this is an outbuilding.
+  var fhx=rx+Math.round(corW*0.40), fhw=Math.round(11*K), fhh=Math.round(7*K);
+  if(dmg<0.62){
+    g.fillStyle=css(mixc(day?[224,212,188]:[32,32,40],skc,0.08)); g.fillRect(fhx-(fhw>>1),ry-fhh,fhw,fhh);
+    // ⚠ NARROW AT THE TOP. Third inverted triangle in this session (the silo's cap and the temple's
+    // steps were the others) — a loop that grows `y` while shrinking the width draws the roof upside
+    // down, and it comes out as a butterfly sitting on the house.
+    var fhr=Math.max(2,Math.round(4*K));
+    g.fillStyle=css(mixc(day?[132,96,66]:[20,16,14],skc,0.06));
+    for(var fr2=0;fr2<fhr;fr2++)
+      g.fillRect(fhx-Math.round((fhw+Math.round(2*K))*0.5*(fr2/fhr)),ry-fhh-fhr+fr2,
+                 Math.max(1,Math.round((fhw+Math.round(2*K))*(fr2/fhr))),1);
+    g.fillStyle=css(mixc(day?[110,78,52]:[16,12,10],skc,0.06));        // door + a window each side
+    g.fillRect(fhx-Math.round(1.2*K),ry-Math.round(4*K),Math.round(2.4*K),Math.round(4*K));
+    g.fillStyle=day?css(mixc([150,180,200],skc,0.20)):"rgba(255,206,130,0.92)";
+    g.fillRect(fhx-Math.round(4*K),ry-Math.round(5.4*K),Math.round(2*K),Math.round(2*K));
+    g.fillRect(fhx+Math.round(2.4*K),ry-Math.round(5.4*K),Math.round(2*K),Math.round(2*K));
+    var chx=fhx+Math.round(fhw*0.22), chy=ry-fhh-Math.round(2.2*K);    // chimney + smoke
+    g.fillStyle=css(mixc(day?[150,140,124]:[26,26,32],skc,0.08));
+    g.fillRect(chx,chy-Math.round(2.4*K),Math.max(1,Math.round(1.8*K)),Math.round(3.4*K));
+    for(var sm2=0;sm2<3;sm2++){
+      var sp2=(now*0.00030+sm2*0.34)%1;
+      g.fillStyle="rgba("+(day?"228,226,220":"90,88,96")+","+((0.28-sm2*0.07)*(1-sp2)).toFixed(2)+")";
+      g.fillRect(chx-Math.round(sp2*3*K),chy-Math.round(3*K)-Math.round(sp2*9*K),
+                 Math.max(1,Math.round((1.4+sp2*2.2)*K)),Math.max(1,Math.round((1.2+sp2*1.6)*K)));
+    }
+  }
+  // ---- THE THINGS THAT MAKE IT A WORKING FARM: a water trough, a hay stack, and a feed rack
+  var trx=rx+Math.round(corW*0.06);
+  g.fillStyle=css(mixc(day?[120,96,70]:[18,16,14],skc,0.06));
+  g.fillRect(trx,ry-Math.round(2.2*K),Math.round(7*K),Math.round(2.2*K));
+  g.fillStyle=css(mixc(day?[126,168,190]:[18,26,38],skc,0.14));        // …with water in it
+  g.fillRect(trx+Math.max(1,Math.round(K*0.5)),ry-Math.round(2.0*K),Math.round(7*K)-Math.round(K),Math.max(1,Math.round(K*0.8)));
+  var hyx=rx-Math.round(corW*0.06);
+  for(var hb=0;hb<3;hb++){                                             // round bales, stacked two-and-one
+    var hbx=hyx+((hb<2)?hb*Math.round(4.4*K):Math.round(2.2*K));
+    var hby=ry-((hb<2)?Math.round(3.4*K):Math.round(6.6*K));
+    g.fillStyle=css(mixc(day?[206,180,104]:[30,26,18],skc,0.08));
+    g.fillRect(hbx,hby,Math.round(4*K),Math.round(3.4*K));
+    g.fillStyle=css(mixc(day?[234,214,148]:[38,34,24],skc,0.08));
+    g.fillRect(hbx,hby,Math.round(4*K),Math.max(1,Math.round(K*0.8)));
+  }
+}
+// ============ THE GREAT DEKU TREE ============
+// Nick: "add the Great Deku Tree somewhere in the backround." His locked layout puts Kokiri Forest at
+// the far east of the world, so that is where it is.
+// 🔑 IT ONLY WORKS IF IT IS ENORMOUS. A big tree drawn among ordinary trees is a big tree; the point of
+// this one is that it is a different ORDER of thing, so it is seven times the height of the grove that
+// stands around it — and the grove is there precisely to say so. That is the scale-reference rule doing
+// actual work rather than being decoration.
+// ⚠ No likeness: what reads is an ancient bole with a hollow arch at its foot, buttressed roots and a
+// canopy wide enough to be its own horizon. The knots above the arch are knots.
+function drawDekuTree(g,tx,gy,K,day,skc,now,haze){
+  var H=Math.round(HORIZON*0.29), TW=Math.round(H*0.30);
+  var bark =mixc(mixc(day?[92,68,46]:[18,14,12],skc,0.10),haze,day?0.20:0.10);
+  var barkL=mixc(bark,day?[168,136,96]:[46,38,30],day?0.42:0.16);
+  var barkD=mixc(bark,[24,16,12],0.50);
+  var leaf =mixc(mixc(day?[54,96,52]:[10,20,18],skc,0.10),haze,day?0.18:0.08);
+  var leafL=mixc(leaf,day?[126,176,90]:[26,44,32],day?0.40:0.16);
+  var leafD=mixc(leaf,[12,26,18],0.46);
+  // ---- BUTTRESS ROOTS: it grips the ground, which is most of what says "old"
+  for(var rt=-3;rt<=3;rt++){
+    if(!rt) continue;
+    var rl=Math.round(TW*(1.5-Math.abs(rt)*0.28)), rh2=Math.round(H*(0.10-Math.abs(rt)*0.018));
+    for(var rq=0;rq<rl;rq++){
+      var rx2=tx+(rt>0?1:-1)*Math.round(TW*0.5+rq), ry3=gy-Math.round(rh2*(1-rq/rl));
+      if(rx2<0||rx2>=SW) continue;
+      g.fillStyle=css(rq<2?bark:barkD); g.fillRect(rx2,ry3,1,gy-ry3+1);
+      g.fillStyle=css(barkD); g.fillRect(rx2,ry3,1,1);
+    }
+  }
+  // ---- THE BOLE, tapering, with deep bark grain
+  var th2=Math.round(H*0.52);
+  for(var by2=0;by2<th2;by2++){
+    var tw2=Math.round(TW*(1.0-0.30*(by2/th2)));
+    var yy2=gy-by2;
+    g.fillStyle=css(bark);  g.fillRect(tx-tw2,yy2,tw2*2,1);
+    g.fillStyle=css(barkL); g.fillRect(tx-tw2,yy2,Math.max(1,Math.round(tw2*0.42)),1);
+    g.fillStyle=css(barkD); g.fillRect(tx+tw2-Math.max(1,Math.round(tw2*0.30)),yy2,Math.max(1,Math.round(tw2*0.30)),1);
+  }
+  g.fillStyle=css(barkD);                                              // grain, wandering rather than ruled
+  for(var gr=0;gr<7;gr++){
+    var gx3=tx-TW+Math.round(((mixLi(gr,0x0DEC)%1000)/1000)*TW*2);
+    for(var gy4=0;gy4<th2;gy4+=2)
+      g.fillRect(gx3+Math.round(Math.sin(gy4*0.13+gr)*1.4*K),gy-gy4,Math.max(1,Math.round(K*0.7)),1);
+  }
+  // ---- THE HOLLOW at its foot: a pointed arch, black, with a lit lip. The one clear silhouette hole.
+  var hw=Math.round(TW*0.52), hh2=Math.round(th2*0.46);
+  g.fillStyle=css(mixc(barkD,[0,0,0],0.55));
+  g.fillRect(tx-(hw>>1),gy-hh2,hw,hh2);
+  for(var ha=0;ha<Math.round(hw*0.5);ha++)
+    g.fillRect(tx-(hw>>1)+ha,gy-hh2-ha,Math.max(1,hw-ha*2),1);
+  g.fillStyle=css(barkL);
+  g.fillRect(tx-(hw>>1)-Math.max(1,Math.round(K*0.6)),gy-hh2-Math.round(hw*0.5),Math.max(1,Math.round(K*0.6)),hh2+Math.round(hw*0.5));
+  // two deep knots and a heavy brow above it — bark, and old
+  g.fillStyle=css(barkD);
+  g.fillRect(tx-Math.round(TW*0.46),gy-Math.round(th2*0.74),Math.round(TW*0.24),Math.round(K*1.6));
+  g.fillRect(tx+Math.round(TW*0.22),gy-Math.round(th2*0.74),Math.round(TW*0.24),Math.round(K*1.6));
+  g.fillRect(tx-Math.round(TW*0.52),gy-Math.round(th2*0.86),Math.round(TW*1.04),Math.max(1,Math.round(K*0.9)));
+  // ---- THE CANOPY: three overlapping crowns, not one dome, so its edge is broken
+  var cy3=gy-th2, cw=Math.round(H*0.62);
+  var CR=[[0,0,1.00],[-0.46,0.16,0.70],[0.44,0.20,0.66],[-0.16,-0.20,0.62],[0.20,-0.24,0.56]];
+  for(var ci=0;ci<CR.length;ci++){
+    var ccx=tx+Math.round(CR[ci][0]*cw), ccy=cy3+Math.round(CR[ci][1]*cw*0.5), cr=Math.round(cw*0.5*CR[ci][2]);
+    for(var q5=-cr;q5<=cr;q5++){
+      var xq=ccx+q5; if(xq<0||xq>=SW) continue;
+      var half=Math.round(Math.sqrt(Math.max(0,1-(q5/cr)*(q5/cr)))*cr*0.72);
+      var lobe=Math.round(Math.sin(q5*0.22+ci)*1.6*K);                 // a broken, leafy edge
+      g.fillStyle=css(leaf);  g.fillRect(xq,ccy-half+lobe,1,half*2);
+      g.fillStyle=css(leafL); g.fillRect(xq,ccy-half+lobe,1,Math.max(1,Math.round(cr*0.16)));
+      g.fillStyle=css(leafD); g.fillRect(xq,ccy+half-Math.max(1,Math.round(cr*0.10)),1,Math.max(1,Math.round(cr*0.10)));
+    }
+  }
+  // ---- THE GROVE at its feet. The whole point of the tree is the comparison, so the comparison has
+  // to be IN the frame — ordinary trees, one seventh its height, and a few small steep roofs.
+  for(var gv=0;gv<9;gv++){
+    var gh3=mixLi(gv,0x4EEC);
+    var gvx=tx+Math.round((((gh3%1000)/1000)-0.5)*H*1.5);
+    if(gvx<0||gvx>=SW||Math.abs(gvx-tx)<TW*1.2) continue;
+    var gvh=Math.round(H*(0.10+((gh3>>>9)%40)/100*0.06));
+    g.fillStyle=css(mixc(bark,haze,0.20));
+    g.fillRect(gvx,gy-gvh,Math.max(1,Math.round(K*0.9)),gvh);
+    g.fillStyle=css(leaf);
+    for(var cq2=0;cq2<Math.round(gvh*0.7);cq2++){
+      var cw2=Math.round((gvh*0.62)*(1-cq2/Math.max(1,Math.round(gvh*0.7))));
+      g.fillRect(gvx-cw2,gy-gvh-cq2+Math.round(gvh*0.34),cw2*2+1,1);
+    }
+    if(((gh3>>>17)%100)<34){                                           // a little steep-roofed house
+      g.fillStyle=css(mixc(day?[188,164,120]:[24,22,26],skc,0.10));
+      g.fillRect(gvx+Math.round(2*K),gy-Math.round(3.4*K),Math.round(4*K),Math.round(3.4*K));
+      g.fillStyle=css(mixc(day?[120,88,58]:[18,14,14],skc,0.06));
+      for(var hr=0;hr<Math.round(2.6*K);hr++)
+        g.fillRect(gvx+Math.round(2*K)-1+hr,gy-Math.round(3.4*K)-Math.round(2.6*K)+hr,Math.max(1,Math.round(4*K)+2-hr*2),1);
+    }
   }
 }
 // ============ THE TRIFORCE ============
@@ -23733,6 +24102,28 @@ function hyMountainTop(wx){
   var prof=Math.pow(1-t,1.42)+Math.max(0,0.10-Math.abs(t-0.42))*0.9;
   return Math.max(Math.round(6*Math.max(1,KSP)),Math.round(HORIZON-dH*prof));
 }
+// The castle hill's dome at a world x, or -1 where it isn't — same profile as the landform cache.
+var HY_BLUFF_X=0.44;
+function hyHillTop(wx){
+  var hW=Math.round(HORIZON*0.95), hH=Math.round(HORIZON*0.56), CR=0.34;
+  var d=(((wx-Math.round(HY_BLUFF_X*WW))%WW)+WW*1.5)%WW-WW*0.5, sg=d/hW;
+  if(Math.abs(sg)>=1) return -1;
+  var a=Math.abs(sg), lev=(a<CR), u=lev?CR:a;
+  var dome=Math.pow(Math.max(0,Math.cos(u*1.5708)),1.30);
+  var rough=lev?0:(Math.sin(sg*7.3+1.1)*0.045+Math.sin(sg*13.7)*0.020);
+  return Math.round(HORIZON-hH*Math.max(0,dome+rough*(1-u)));
+}
+// ⚠ Is this point OPEN FIELD — grass, not the flank of something? Nick's frame had horses grazing
+// halfway up Death Mountain: with the road now running the full width, `hyRoadOn` is true everywhere,
+// and the horses that stand "off the road, up the grass" were standing up the MOUNTAIN. The old test
+// (`plateauSurfaceAt` vs `fieldY`) answered this and was dropped when the road line was hoisted.
+// 🔑 A predicate replaced by a cheaper one has to answer the same QUESTION, not just return true in
+// the same places you happened to look.
+function hyOpenField(wx,y){
+  var mt=hyMountainTop(wx); if(mt>=0&&y>mt) return false;
+  var ht=hyHillTop(wx);     if(ht>=0&&y>ht) return false;
+  return true;
+}
 var HY_LAKE_X=0.12;
 function hyLakeY(){ return HORIZON-Math.round(HORIZON*0.47); }      // the far bank at the lake's centre
 function hyLakeW(){ return Math.max(1,Math.round(HORIZON*0.60)); }  // …and smaller with the distance
@@ -23875,6 +24266,11 @@ function drawPlateau(g,L,now,nd){
       g.fillStyle=css(mixc(grassL,scorch,dg1*0.85)); g.fillRect(x1,yy1,1,Math.max(1,Math.round(K*0.8)));
     }
   }
+  // ---- THE GREAT DEKU TREE, at the far east of the world where his map puts Kokiri Forest. Drawn
+  // with the field, so the highway passes in front of it like everything else out there.
+  var dkx=wrapX(0.965);
+  if(dkx>-Math.round(HORIZON*0.5)&&dkx<SW+Math.round(HORIZON*0.5))
+    drawDekuTree(g,dkx,fieldY(0.965*WW)+Math.round(10*K),K,day,skc,now,mixc(farG,skc,0.35));
   // ---- LAKE HYLIA, on the far side of the field from the mountain. Nick's call: large. It is the
   // only still water in Hyrule and it balances Death Mountain at the other end of the world.
   var lkx=wrapX(HY_LAKE), lkW=hyLakeW();
@@ -23926,6 +24322,11 @@ function drawPlateau(g,L,now,nd){
       g.fillStyle=css(mixc(mixc(grass,[40,64,42],0.20),hazeC,day?0.32:0.14));
       g.fillRect(xx4,iy,1,isBase-iy+2);
     }
+    // ---- AND THE TEMPLE ON IT. ⚠ Seated off the ISLAND'S CROWN, not off a constant — the exact fault
+    // this land's other temple shipped with for months (`baseY = HORIZON*0.30`, the same number on
+    // every plateau, so it floated 38px above one rim and was buried 9px under another).
+    if(lkx>-Math.round(HORIZON*0.12)&&lkx<SW+Math.round(HORIZON*0.12))
+      drawWaterTemple(g,lkx,isBase-isH+Math.round(K*0.6),K,day,skc,now,hazeC);
   }
   // ---- DEATH MOUNTAIN. Nick: it "should be bigger than the castle" and dominate its screen. It is
   // the largest thing in Hyrule and the ring of cloud round its head is the most identifying mark in
@@ -23947,6 +24348,43 @@ function drawPlateau(g,L,now,nd){
     var sumY=Math.max(TOPPAD,HORIZON-dmH);                          // (the ring block that declared this moved to the live pass)
     g.fillStyle=css(mixc(day?[92,74,62]:[16,14,18],skc,0.12));       // the crater notch
     g.fillRect(dmx-Math.round(6*K),sumY,Math.round(12*K),Math.max(1,Math.round(2.6*K)));
+    // ---- THE CAVE. Nick: "add a cave on top of Mount Death."
+    // 🔑 A HOLE IS THE ONE THING A SILHOUETTE CANNOT FAKE. Everything else on this mountain is the same
+    // brown mass at slightly different values; a black arched void with a lit rim is the only mark that
+    // cannot be mistaken for a fold in the rock. Off-centre, because a mouth centred on a symmetrical
+    // cone reads as a keyhole in a door.
+    // ⚠⚠ FIRST CUT WAS A BUILDING STUCK ON A HILL. Two faults, both from sizing against the MOUNTAIN
+    // instead of against a doorway: the mouth came out 30x41 px — the size of the barn — and the
+    // "spoil apron" grew 10% per row for 39 rows, i.e. a 151 px grey shelf flaring out of the slope.
+    // And it was seated at a fixed drop from the SUMMIT, which at that x is two pixels under the
+    // surface, so the whole thing hung off the silhouette into open sky.
+    // 🔑 SEATED OFF `hyMountainTop` AT ITS OWN X — the fault this land has now produced five times —
+    // and sized so a person would fit through it, which is what makes it read as a way in.
+    var cvX=dmx+Math.round(dmW*0.13), cvW=Math.max(4,Math.round(dmW*0.042)), cvH=Math.max(4,Math.round(dmH*0.052));
+    var cvTop=hyMountainTop(cvX+WOFF);
+    if(cvTop>=0&&cvX>-cvW*3&&cvX<SW+cvW*3){
+      var cvY=cvTop+Math.round(dmH*0.135);                         // high on the face, and ON the rock
+      // a small scree fan below the mouth — the rubble it has spilled, and the reason the mouth sits
+      // ON something instead of being a sticker
+      for(var ap=0;ap<Math.round(cvH*0.9);ap++){
+        var apw=Math.round(cvW*(1.05+ap*0.10));
+        g.fillStyle=rgba(mixc(day?[104,84,68]:[20,17,18],skc,0.10),0.85-ap*0.05);
+        g.fillRect(cvX-(apw>>1),cvY+ap,Math.max(1,apw),1);
+      }
+      // the MOUTH: a rounded arch cut into the face
+      g.fillStyle=css(day?[18,13,12]:[4,3,4]);
+      g.fillRect(cvX-(cvW>>1),cvY-cvH,cvW,cvH);
+      for(var cq3=0;cq3<Math.round(cvW*0.42);cq3++)
+        g.fillRect(cvX-(cvW>>1)+cq3,cvY-cvH-cq3,Math.max(1,cvW-cq3*2),1);
+      // the cut rim: lit on the sunward side only, so it reads as an opening rather than an outline
+      g.fillStyle=css(mixc(day?[186,158,126]:[40,34,32],skc,0.12));
+      g.fillRect(cvX-(cvW>>1)-Math.max(1,Math.round(K*0.6)),cvY-cvH,Math.max(1,Math.round(K*0.6)),cvH);
+      for(var lq=0;lq<Math.round(cvW*0.42);lq++)
+        g.fillRect(cvX-(cvW>>1)+lq-Math.max(1,Math.round(K*0.6)),cvY-cvH-lq,Math.max(1,Math.round(K*0.6)),1);
+      // a lintel across it — the scale reference: you know how big a doorway is
+      g.fillStyle=css(mixc(day?[128,102,80]:[24,20,20],skc,0.08));
+      g.fillRect(cvX-(cvW>>1)+Math.max(1,Math.round(K*0.6)),cvY-Math.round(cvH*0.72),Math.max(1,cvW-Math.round(1.2*K)),Math.max(1,Math.round(K*0.7)));
+    }
   }
   // ---- THE CASTLE HILL. ⚠⚠ NOT A PLATEAU. Nick, at his own desktop: "is there a way to do this
   // without a stupid plateau" — the flat top and sheer sides were the whole problem, and no amount of
@@ -24128,38 +24566,8 @@ function drawPlateau(g,L,now,nd){
   // ---- LON LON RANCH, dead centre of the field exactly as the map has it: a fenced corral with the
   // barn and its silo standing over it. The one built thing in the middle of Hyrule.
   var lrx=wrapX(HY_RANCH);
-  if(lrx>-140&&lrx<SW+140){
-    var lry=fieldY(HY_RANCH*WW)+Math.round(9*K);
-    var corW=Math.round(46*K);
-    // the corral fence — posts and two rails, open at the front so you can see into it
-    g.fillStyle=css(mixc(day?[146,116,80]:[28,24,20],skc,0.08));
-    for(var fp=0;fp<=corW;fp+=Math.round(5*K)){
-      var fx2=lrx-(corW>>1)+fp; if(fx2<0||fx2>=SW) continue;
-      g.fillRect(fx2,lry-Math.round(5*K),Math.max(1,Math.round(1.2*K)),Math.round(5*K));
-    }
-    for(var fr=0;fr<2;fr++){
-      var fry=lry-Math.round((4.2-fr*2.0)*K);
-      g.fillRect(Math.max(0,lrx-(corW>>1)),fry,Math.min(SW,corW),Math.max(1,Math.round(K*0.8)));
-    }
-    // THE BARN: a long red-roofed building with a big door, and the silo beside it
-    var bnx=lrx-Math.round(corW*0.34), bnw=Math.round(20*K), bnh=Math.round(11*K);
-    g.fillStyle=css(mixc(day?[226,214,190]:[34,34,42],skc,0.08));
-    g.fillRect(bnx-(bnw>>1),lry-bnh,bnw,bnh);
-    var dgR=dmgAt(lrx);
-    g.fillStyle=css(mixc(mixc(day?[176,74,58]:[26,16,18],skc,0.06),[24,20,18],dgR*0.88));  // the roof, burnt
-    for(var br=0;br<Math.round(7*K)*(dgR>0.5?0.35:1);br++)                                 // and collapsed
-      g.fillRect(bnx-(bnw>>1)-Math.round(K)+br,lry-bnh-Math.round(7*K)+br,Math.max(1,bnw+Math.round(2*K)-br*2),1);
-    g.fillStyle=css(mixc(day?[120,86,58]:[20,16,14],skc,0.06));            // the door
-    g.fillRect(bnx-Math.round(3*K),lry-Math.round(7*K),Math.round(6*K),Math.round(7*K));
-    var slx=bnx+Math.round(bnw*0.78), slw=Math.round(7*K), slh=Math.round(17*K);
-    g.fillStyle=css(mixc(day?[214,206,186]:[32,32,40],skc,0.08));          // the silo
-    g.fillRect(slx-(slw>>1),lry-slh,slw,slh);
-    g.fillStyle=css(mixc(day?[168,72,56]:[24,16,16],skc,0.06));            // its domed cap
-    for(var sr=0;sr<Math.round(3.4*K);sr++)
-      g.fillRect(slx-(slw>>1)+sr,lry-slh-Math.round(3.4*K)+sr,Math.max(1,slw-sr*2),1);
-    if(!day){ g.fillStyle="rgba(255,206,130,0.9)";
-      g.fillRect(bnx+Math.round(bnw*0.22),lry-Math.round(bnh*0.6),Math.max(1,Math.round(1.4*K)),Math.max(1,Math.round(1.4*K))); }
-  }
+  if(lrx>-140&&lrx<SW+140)
+    drawRanch(g,lrx,fieldY(HY_RANCH*WW)+Math.round(9*K),K,day,skc,now,dmgAt(lrx));
 
   // ============ THE ROAD NETWORK ============
   // Nick, on the fourth attempt: "the path is not fixed… it still isn't connected right, it is cutting
@@ -24356,7 +24764,9 @@ function drawPlateau(g,L,now,nd){
   var kkx=wrapX(HY_KAKARIKO);
   if(kkx>-80&&kkx<SW+80){
     spur(HY_KAKARIKO*WW, fieldY(HY_KAKARIKO*WW)+Math.round(8*K), -1);   // …and it comes in from the west
-    var trFrom=kkx, trTo=wrapX(HY_DEATH);
+    // ⚠ THE TRAIL ENDS AT THE CAVE. A path up a mountain that stops on a blank slope is the same
+    // "joined to nothing" fault the road network was rebuilt to fix; now it goes somewhere.
+    var trFrom=kkx, trTo=wrapX(HY_DEATH)+Math.round(HORIZON*1.10*0.11);
     for(var tr=0;tr<=Math.abs(trTo-trFrom);tr+=1){
       var tx3=trFrom+(trTo>trFrom?tr:-tr); if(tx3<0||tx3>=SW) continue;
       var tt=tr/Math.max(1,Math.abs(trTo-trFrom));
