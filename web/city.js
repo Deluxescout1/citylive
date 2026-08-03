@@ -23284,9 +23284,19 @@ function drawHeightCastle(g,cx,capY,K,day,skc,now,seed,groundAt){
     }
   }
   // ---- THE SPIRES. Hashed heights and offsets, tallest in the middle, so the skyline is ragged.
+  // ⚠ AND IT BREAKS. A castle that stands pristine through a CAT-5 while the city below it is rubble
+  // is the thing he actually noticed. Towers are lost outward-in (the outer ones go first, the keep
+  // last), the stone blackens, and the survivors burn.
+  var dmgC=(typeof landDamageAt==="function")?landDamageAt(cx+WOFF,W):0;
+  if(dmgC>0.02){ wall=mixc(wall,[46,40,40],dmgC*0.72); wallD=mixc(wallD,[30,26,26],dmgC*0.72);
+                 wallL=mixc(wallL,[70,60,58],dmgC*0.60); roof=mixc(roof,[22,18,18],dmgC*0.85); }
   var N=9;
   for(var i2=0;i2<N;i2++){
     var h2=mixLi(i2+seed,0xCA57);
+    // the outer towers fall first — damage eats inward toward the keep
+    // ⚠ CAPPED. Uncapped, a direct CAT-5 took every tower and left a bare curtain with a chimney on
+    // it — demolished rather than wrecked. Something always survives, and the ruin reads better for it.
+    if(dmgC>0.30 && (1-Math.abs((i2/(N-1))*2-1)) < Math.min(0.70,(dmgC-0.30)*1.5)) continue;
     var f=(i2/(N-1))*2-1;                               // -1..1 across the castle
     var mid=1-Math.abs(f);                              // tallest at the centre
     var tw=Math.max(2,Math.round(K*(2.4+((h2>>>3)%100)/100*2.2)));
@@ -23320,8 +23330,24 @@ function drawHeightCastle(g,cx,capY,K,day,skc,now,seed,groundAt){
     g.fillRect(cx-(rw2>>1),gy2-r2,rw2,1);
   }
   g.fillStyle=css(roofL); g.fillRect(cx-1,gy2-gs,Math.max(2,Math.round(K)),Math.round(2*K));
-  // the Triforce crowning the great tower — the highest point in the frame
-  drawTriforce(g,cx,gy2-gs-Math.round(2*K),Math.max(3,Math.round(3.6*K)),day,now);
+  // ⚠ THE GREAT SPIRE SNAPS at the worst of it, and the Triforce goes with it — losing the highest
+  // point in the frame is what makes the damage register from across the room.
+  if(dmgC<0.66) drawTriforce(g,cx,gy2-gs-Math.round(2*K),Math.max(3,Math.round(3.6*K)),day,now);
+  if(dmgC>0.66){
+    g.fillStyle=css(mixc(day?[74,66,66]:[16,14,16],skc,0.10));      // a broken stump where it stood
+    g.fillRect(cx-gw,gy2,gw*2,Math.round(gh*0.30));
+  }
+  if(dmgC>0.42){                                                    // fires along the curtain
+    for(var fz=0;fz<Math.round(6*dmgC);fz++){
+      var fzx=cx+Math.round((((mixLi(fz,0xF13E)%1000)/1000)-0.5)*W*0.9);
+      var fzy=capY-Math.round(H*(0.10+((mixLi(fz,0xF13F)%100)/100)*0.30));
+      var fl2=0.5+0.5*Math.sin(now*0.008+fz);
+      g.globalCompositeOperation="lighter";
+      g.fillStyle="rgba(255,"+Math.round(120+80*fl2)+",50,"+(0.5*dmgC).toFixed(2)+")";
+      g.fillRect(fzx,fzy,Math.max(2,Math.round(2.4*K)),Math.max(2,Math.round((3+fl2*3)*K)));
+      g.globalCompositeOperation="source-over";
+    }
+  }
   // and banners hung down the curtain, each with its own small one
   for(var bn=-1;bn<=1;bn+=2){
     var bnx=cx+Math.round(bn*W*0.30), bny=capY-Math.round(H*0.14);
@@ -23406,6 +23432,19 @@ function drawPlateau(g,L,now,nd){
   // already uses, and `plateauCache` was declared and nulled at life reset months ago and never used.
   // 🔑 A backdrop that recomputes static geometry is paying for it at every repaint, and the backdrop
   // is exactly the pass a stall is visible in.
+  // ⚠⚠ HYRULE WAS IMMUNE. Nick: "make sure Hyrule also gets destroyed by disasters." `landDamageAt`
+  // already exists — it was written the LAST time he raised this ("there are sections we have added
+  // that do not get affected, and I assume this is across all the maps") — and a grep says it is
+  // called from exactly TWO places in the whole engine. So the sweep never reached most lands, and
+  // this one arrived after it entirely: the castle, the town, the temple, the ranch and the grass all
+  // sat pristine through a CAT-5.
+  // 🔑 The helper existing is not the helper being used. A shared answer nobody asks is dead code.
+  // Sampled every 8th column rather than per column — the falloff is smooth and this is a per-frame
+  // cost that cannot be cached (the damage is the one thing here that changes within a life).
+  var DMG=[], dmgStep=Math.max(4,Math.round(8*K));
+  for(var dq0=0;dq0<=SW;dq0+=dmgStep) DMG.push(landDamageAt(dq0+WOFF,dmgStep));
+  function dmgAt(x){ return DMG[Math.max(0,Math.min(DMG.length-1,Math.round(x/dmgStep)))]||0; }
+  var scorch=day?[92,74,50]:[18,16,14];
   var PC=plateauCache;
   if(!PC||PC.sw!==SW||PC.woff!==WOFF||PC.hz!==HORIZON||PC.k!==K){
     PC={ sw:SW, woff:WOFF, hz:HORIZON, k:K, far:[], f0:[], f1:[], surf:[], road:[] };
@@ -23468,9 +23507,10 @@ function drawPlateau(g,L,now,nd){
   for(var bnd=0;bnd<2;bnd++){
     for(var x1=0;x1<SW;x1++){
       var yy1=bnd?PC.f1[x1]:PC.f0[x1];
-      g.fillStyle=css(bnd?grass:mixc(grass,farG,0.34));
+      var dg1=dmgAt(x1);
+      g.fillStyle=css(mixc(bnd?grass:mixc(grass,farG,0.34),scorch,dg1*0.80));
       g.fillRect(x1,yy1,1,HORIZON-yy1+1);
-      g.fillStyle=css(grassL); g.fillRect(x1,yy1,1,Math.max(1,Math.round(K*0.8)));   // sun on the crown of each roll
+      g.fillStyle=css(mixc(grassL,scorch,dg1*0.85)); g.fillRect(x1,yy1,1,Math.max(1,Math.round(K*0.8)));
     }
   }
   // ---- LAKE HYLIA, on the far side of the field from the mountain. Nick's call: large. It is the
@@ -23561,9 +23601,12 @@ function drawPlateau(g,L,now,nd){
     for(var xx5=0;xx5<SW;xx5++){
       var y5=PC.hill[xx5]; if(y5<0||y5>=HORIZON) continue;
       var sg5=PC.hsg[xx5], wx5=xx5+WOFF;
-      g.fillStyle=css(mixc(grass,grassD,0.20+0.30*Math.abs(sg5)));    // grass, darker down the flanks
+      // ⚠ VEGETATION AND STRUCTURES DIE, LANDFORM ONLY SCARS — the scope written into the helper's own
+      // note. A hill that vanishes reads as a bug rather than as damage.
+      var dg5=dmgAt(xx5);
+      g.fillStyle=css(mixc(mixc(grass,grassD,0.20+0.30*Math.abs(sg5)),scorch,dg5*0.82));
       g.fillRect(xx5,y5,1,HORIZON-y5+1);
-      g.fillStyle=css(grassL); g.fillRect(xx5,y5,1,Math.max(1,Math.round(K*0.9)));
+      g.fillStyle=css(mixc(grassL,scorch,dg5*0.85)); g.fillRect(xx5,y5,1,Math.max(1,Math.round(K*0.9)));
       // ROCK OUTCROPS breaking through the turf — the thing that says "hill of rock under grass"
       var ocq2=PC.oc[xx5];
       if(ocq2){
@@ -23599,12 +23642,13 @@ function drawPlateau(g,L,now,nd){
     for(var bi7=0;bi7<40&&bx7<twR;bi7++){
       var bh7=mixLi(bi7,0x7A1E);
       var bw7=Math.round(K*(4+((bh7)%5))), bht=Math.round(K*(6+((bh7>>>5)%9)));
-      if(bx7>-20&&bx7<SW+20){
+      var dgT=dmgAt(bx7);
+      if(bx7>-20&&bx7<SW+20&&!(dgT>0.62&&((bh7>>>19)%100)<(dgT-0.62)*230)){    // the worst-hit are simply gone
         var byy=shelfY-bht;
-        g.fillStyle=css(mixc(day?[214,204,184]:[34,34,42],skc,0.08));
+        g.fillStyle=css(mixc(mixc(day?[214,204,184]:[34,34,42],skc,0.08),scorch,dgT*0.70));
         g.fillRect(bx7,byy,bw7,bht);
-        g.fillStyle=css(mixc(day?[176,90,64]:[26,18,20],skc,0.06));      // steep tile roof
-        for(var rr7=0;rr7<Math.round(bw7*0.55);rr7++)
+        g.fillStyle=css(mixc(mixc(day?[176,90,64]:[26,18,20],skc,0.06),[26,22,20],dgT*0.85));   // roof, burnt
+        for(var rr7=0;rr7<Math.round(bw7*0.55)*(dgT>0.45?0.5:1);rr7++)         // and half fallen in
           g.fillRect(bx7-1+rr7,byy-Math.round(bw7*0.55)+rr7,Math.max(1,bw7+2-rr7*2),1);
         if(!day){ g.fillStyle="rgba(255,206,130,0.9)";                    // a lit window each
           g.fillRect(bx7+Math.round(bw7*0.3),byy+Math.round(bht*0.35),Math.max(1,Math.round(K)),Math.max(1,Math.round(K))); }
@@ -23749,8 +23793,9 @@ function drawPlateau(g,L,now,nd){
     var bnx=lrx-Math.round(corW*0.34), bnw=Math.round(20*K), bnh=Math.round(11*K);
     g.fillStyle=css(mixc(day?[226,214,190]:[34,34,42],skc,0.08));
     g.fillRect(bnx-(bnw>>1),lry-bnh,bnw,bnh);
-    g.fillStyle=css(mixc(day?[176,74,58]:[26,16,18],skc,0.06));            // the roof, steep and long
-    for(var br=0;br<Math.round(7*K);br++)
+    var dgR=dmgAt(lrx);
+    g.fillStyle=css(mixc(mixc(day?[176,74,58]:[26,16,18],skc,0.06),[24,20,18],dgR*0.88));  // the roof, burnt
+    for(var br=0;br<Math.round(7*K)*(dgR>0.5?0.35:1);br++)                                 // and collapsed
       g.fillRect(bnx-(bnw>>1)-Math.round(K)+br,lry-bnh-Math.round(7*K)+br,Math.max(1,bnw+Math.round(2*K)-br*2),1);
     g.fillStyle=css(mixc(day?[120,86,58]:[20,16,14],skc,0.06));            // the door
     g.fillRect(bnx-Math.round(3*K),lry-Math.round(7*K),Math.round(6*K),Math.round(7*K));
