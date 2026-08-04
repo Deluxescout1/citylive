@@ -22767,6 +22767,10 @@ function drawDisaster(g,cd,L,now){
   else if(cd.type==="smog") drawSmog(g,cd,L,now);
   else if(cd.type==="planecrash") drawPlaneCrash(g,cd,L,now);
   else if(DIS_T2[cd.type]) DIS_T2[cd.type](g,cd,L,now);        // TIER 2 — a table, not eight more branches
+  // …and the two halves of the gore push that are NOT road surface: a shadow burnt onto a wall belongs
+  // on the wall, and a body in the flow belongs in the flow.
+  drawGoreShadows(g,cd,L,now);
+  drawGoreCarried(g,cd,L,now);
   if(disDestroys(cd.type) && cd.type!=="planecrash"){ drawMilitaryResponse(g,cd,L,now); drawVictoryBeat(g,cd,L,now); }   // no tanks/jets fight a power cut, an inversion layer, or a plane crash (fire crews handle that — in drawPlaneCrash)
   drawRecoveryCrews(g,cd,L,now);  // …and the people who come to carry them away
   drawCasualties(g,cd,L,now);   // …and what the thing left behind. Drawn LAST so nothing paints over the dead.
@@ -23111,6 +23115,107 @@ function drawOldStains(g,L,now){
     g.globalAlpha=a*(0.22+0.55*z.weather*z.weather);        // squared: it lingers, then goes quickly
     drawCasualtyGround(g,cd,L,now,true);
     g.globalAlpha=a;
+  }
+}
+// ================================================================================================
+// 🔒 PUSH IT FURTHER THAN PHASE 8 — his locked answer, and he named three things by name: blood
+// POOLING INTO THE GUTTERS, VAPORIZED SILHOUETTES on walls, and BODIES CAUGHT AND CARRIED.
+// ------------------------------------------------------------------------------------------------
+// ⚠ All three route through `goreK()`, which means all three vanish at `gore:"off"` and come in at a
+// third at `"restrained"`. The toll, the victim list, the memorials, the emergency election and the
+// almanac record are IDENTICAL at all three levels — this scales the drawing only, because two
+// monitors on different settings must never disagree about who is dead.
+// ================================================================================================
+
+// 1. IT RUNS DOWNHILL. A pool on a pavement does not stay a disc: it finds the camber and it collects
+//    along the kerb, which is where the eye already expects liquid on a street to end up.
+//    ⚠ The kerb is `HORIZON + WALK_F`, not a constant offset — `setup` K-scales the pavement, so a
+//    hardcoded number here would sit in the road on his screens and on the pavement on mine.
+function drawGoreGutter(g,cd,L,now){
+  var GK=goreK(); if(GK<=0) return;
+  var N=casualtyCount(cd); if(!N) return;
+  var f=cd.f, day=L>0.5, K=Math.max(1,KSP);
+  var kerb=HORIZON+Math.max(1,WALK_F-1), dep=Math.max(1,Math.round(K));
+  for(var n=0;n<N;n++){
+    var V=casualtyAt(cd,n); if(f<V.dieF) continue;
+    var age=f-V.dieF;
+    var run=Math.min(1,age/0.10);                       // it takes a moment to reach the kerb
+    if(run<=0.05) continue;
+    var X=disX(V.x); if(X<-14||X>SW+14) continue;
+    var dry=Math.min(1,age/0.40);
+    var col="rgba("+Math.round(128-58*dry)+","+Math.round(14+10*dry)+","+Math.round(18+10*dry)+","
+            +(0.72*GK*(1-dry*0.35)).toFixed(2)+")";
+    // the trickle down the pavement to the kerb…
+    g.fillStyle=col;
+    var trick=Math.round((kerb-HORIZON)*run);
+    var wob=((V.x*2654435761)>>>0)%3-1;
+    g.fillRect(X+wob,HORIZON,Math.max(1,Math.round(K*0.7)),trick);
+    // …and the pool along it, which SPREADS SIDEWAYS because that is what a gutter does
+    if(run>=1){
+      var spread=Math.round((3+((V.x>>>3)%7))*K*GK*Math.min(1,(age-0.10)/0.22));
+      if(spread>0) g.fillRect(X-spread,kerb,spread*2,dep);
+    }
+  }
+}
+// 2. VAPORIZED SILHOUETTES. Only for the events that actually flash — the thermal ones. On anything
+//    else this would be a person-shaped stain appearing for no reason, which is worse than nothing.
+//    🔑 The read is INVERTED from every other gore mark on these maps: the wall around them is
+//    scorched and the shadow is the CLEAN part, because the body was what blocked the light. Drawing
+//    it as a dark figure would be a mural.
+function goreFlash(t){ return t==="asteroid"||t==="firestorm"||t==="meltdown"||t==="meteorswarm"||t==="volcano"; }
+function drawGoreShadows(g,cd,L,now){
+  var GK=goreK(); if(GK<=0||!goreFlash(cd.type)) return;
+  var f=cd.f; if(f<0.20) return;
+  var day=L>0.5, K=Math.max(1,KSP), cx=disX(cd.x);
+  var w=Math.max(20,cd.w);
+  var fade=Math.max(0,Math.min(1,(f-0.20)/0.12));
+  for(var i=0;i<4;i++){
+    var h=mixLi(i+cd.seed,0x60A5);
+    var X=cx+Math.round((((h%2000)/1000)-1)*w);
+    if(X<-8||X>SW+8) continue;
+    var wallY=HORIZON-Math.round((10+((h>>>7)%16))*K);          // up a frontage, at a plausible height
+    var hh=Math.round(6*K), ww=Math.round(2.4*K);
+    // the scorch around it first…
+    g.fillStyle="rgba(18,14,13,"+(0.62*GK*fade).toFixed(2)+")";
+    g.fillRect(X-ww,wallY-Math.round(hh*0.2),ww*2,Math.round(hh*1.3));
+    // …then the figure knocked back out of it, in whatever the wall was
+    g.fillStyle=day?"rgba(196,190,180,"+(0.80*fade).toFixed(2)+")":"rgba(96,96,100,"+(0.72*fade).toFixed(2)+")";
+    g.fillRect(X-Math.round(ww*0.35),wallY-hh,Math.max(1,Math.round(ww*0.7)),hh);           // torso and legs
+    g.fillRect(X-Math.round(ww*0.35),wallY-hh-Math.round(K),Math.max(1,Math.round(ww*0.7)),Math.round(K)); // head
+    g.fillRect(X-ww,wallY-hh+Math.round(K),ww*2,Math.max(1,Math.round(K*0.8)));             // arms, thrown out
+  }
+}
+// 3. CAUGHT AND CARRIED. Only where there is something MOVING to carry them — a flood front, a
+//    hurricane, a surge, a pyroclastic flow. Everywhere else the dead stay where they fell, which is
+//    what `drawCasualtyGround` already does correctly and must keep doing.
+function goreCarries(t){ return t==="flood"||t==="dambreak"||t==="tornado"||t==="hurricane"||t==="kraken"; }
+function drawGoreCarried(g,cd,L,now){
+  var GK=goreK(); if(GK<=0||!goreCarries(cd.type)) return;
+  var f=cd.f; if(f<0.16||f>0.62) return;
+  var K=Math.max(1,KSP), cx=disX(cd.x), day=L>0.5;
+  var side=(cd.seed&1)?1:-1, w=Math.max(20,cd.w);
+  var N=Math.min(6,casualtyCount(cd)); if(!N) return;
+  for(var n=0;n<N;n++){
+    var h=mixLi(n+cd.seed,0x60C7);
+    var t0=0.16+((h>>>5)%40)/100*0.30;
+    var tf=(f-t0)/0.34; if(tf<=0||tf>=1) continue;
+    var X=cx+side*Math.round(tf*(w*2+SW*0.35))+Math.round((((h%1000)/1000)-0.5)*w);
+    if(X<-8||X>SW+8) continue;
+    // ⚠ TUMBLING, not swimming. A figure carried by water is limp and rotating, and the thing that
+    // sells it at this size is that the limbs do not stay in the same relation to the body.
+    var spin=(now*0.006+n*1.7)%(Math.PI*2);
+    var Y=HORIZON-Math.round(Math.abs(Math.sin(spin*0.5))*4*K)-Math.round(2*K);
+    var lx=Math.round(Math.cos(spin)*2.2*K), ly=Math.round(Math.sin(spin)*1.6*K);
+    g.fillStyle=day?"rgba(44,40,44,0.88)":"rgba(16,14,18,0.9)";
+    g.fillRect(X,Y,Math.max(1,Math.round(1.6*K)),Math.max(1,Math.round(3*K)));      // the body
+    g.fillStyle=SKINC[(h>>>11)%SKINC.length];
+    g.fillRect(X,Y-Math.round(K),Math.max(1,Math.round(1.6*K)),Math.max(1,Math.round(K)));
+    g.fillStyle=day?"rgba(44,40,44,0.7)":"rgba(16,14,18,0.72)";
+    g.fillRect(X+lx,Y+ly,Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));      // a limb, elsewhere
+    g.fillRect(X-lx,Y-ly+Math.round(K),Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
+    // and the water goes white where it has hold of them
+    g.fillStyle="rgba(226,234,238,"+(0.30*GK).toFixed(2)+")";
+    g.fillRect(X-Math.round(2*K),Y+Math.round(3*K),Math.round(5*K),Math.max(1,Math.round(K)));
   }
 }
 function drawCasualtyGround(g,cd,L,now,old){
@@ -46744,7 +46849,14 @@ function draw(g,pass){
   // single car or pedestrian — so the traffic and the crowd pass over the top of it, and the tyres
   // track it along the lanes. The bodies still draw late, in `drawCasualties`.
   drawOldStains(g,L,now);                      // …and everything the last hour left on the road
-  if(curDis) drawCasualtyGround(g,curDis,L,now);
+  if(curDis){
+    drawCasualtyGround(g,curDis,L,now);
+    // ⚠ THE GUTTER GOES HERE, WITH THE STAINS, and for the reason the stains were moved here in the
+    // first place: a pool in the road is part of the ROAD SURFACE, and the traffic and the crowd pass
+    // over the top of it. Nick asked for exactly that ("make sure the alive people run over it and the
+    // cars drive over it") and it took a correction to get right once already.
+    drawGoreGutter(g,curDis,L,now);
+  }
 
   // THE OPEN WATER along the bottom of the frame, on the six coastal lands. Drawn AFTER the road
   // surface deliberately: the road code fills to SH and would otherwise lay asphalt over the sea.
