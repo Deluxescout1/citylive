@@ -21196,6 +21196,7 @@ function drawDisasterArc(g,L,now){
   if(cx<-half-200||cx>SW+half+200) return;
   // the type's own signature runs UNDER the generic agents — the crews and the crowd are the thing the
   // eye should land on, and a plume drawn over the top of them buries the people this phase is about.
+  if(typeof DBGDMG!=="undefined"&&DBGDMG) console.log("ARC type="+di.type+" phase="+A.phase+" f="+A.f.toFixed(2)+" cx="+disX(di.x)+" half="+Math.max(20,di.w)+" HORIZON="+HORIZON);
   var sig=disSig(di.type,(A.phase==="warn")?"warn":((A.phase==="ripple"||A.phase==="recover")?"after":null));
   if(sig) sig(g,di,A,L,now,cx,half,K,day);
   if(A.phase==="warn"){
@@ -21264,6 +21265,105 @@ function drawDisasterArc(g,L,now){
   }
 }
 
+// ---------------- KAIJU — something is coming, and afterwards you can see where it walked ---------
+// 🔒 The third retrofit class: a CREATURE, and the only type in the set with both a disaster form and
+// an end-time form. That is why it was chosen — it is the one case where the lifecycle and the doom
+// flow can be asked to be on screen at the same instant, and the answer turned out to be that nothing
+// had ever stopped them (see the `curDisArc` guard in `draw`).
+DIS_SIG.kaiju={
+  // WARN — you do not see it yet. What you see is everything else reacting: the birds go up, the water
+  // humps where something big is moving under it, and the ground takes a footfall you can feel before
+  // you can see what is making it. A monster that simply appears is a jump scare; a monster that is
+  // ANNOUNCED for a minute is dread, and dread is the thing an hour-long life can actually carry.
+  warn:function(g,di,A,L,now,cx,half,K,day){
+    var f=A.f;
+    // the flocks, going the other way. They leave EARLY and they leave fast — the first tell.
+    var bn=Math.round(14*Math.min(1,f*2));
+    for(var b=0;b<bn;b++){
+      var h=mixLi(b+di.seed,0x4A11);
+      var away=(h&1)?-1:1, prog=Math.min(1,f*1.6+((h>>>7)%40)/100);
+      var bx=cx+away*Math.round(prog*(120+((h>>>3)%180)));
+      var by=Math.round(HORIZON*(0.30+((h>>>11)%40)/100)) - Math.round(prog*20*K);
+      if(bx<-4||bx>SW+4) continue;
+      g.fillStyle=day?"rgba(40,42,48,0.72)":"rgba(150,154,168,0.5)";
+      var flap=((Math.floor(now/120)+b)&1)?1:0;
+      g.fillRect(bx,by,2,1); g.fillRect(bx-1,by-flap,1,1); g.fillRect(bx+2,by-flap,1,1);
+    }
+    // the footfall. Not a sound — a ring of dust lifting off the ground on the beat, at a place you
+    // cannot see yet, beyond the edge of the district.
+    var beat=(now%2400)/2400, hit=beat<0.16?(1-beat/0.16):0;
+    if(hit>0){
+      var fx2=cx+((di.seed&1)?1:-1)*Math.round(half*2.2);
+      for(var d3=0;d3<Math.round(18*K);d3++){
+        var df2=d3/Math.max(1,Math.round(18*K));
+        g.fillStyle="rgba("+(day?"186,178,166":"70,72,80")+","+(0.34*hit*(1-df2)*f).toFixed(3)+")";
+        g.fillRect(fx2-Math.round(d3*1.6),HORIZON-Math.round(d3*0.5),Math.max(1,Math.round(2*K)),Math.max(1,Math.round(K)));
+        g.fillRect(fx2+Math.round(d3*1.6),HORIZON-Math.round(d3*0.5),Math.max(1,Math.round(2*K)),Math.max(1,Math.round(K)));
+      }
+    }
+    // …and if there is water on this land, it humps up over whatever is moving under it
+    if(hasOcean&&typeof SEA_Y==="number"&&SEA_Y>0&&SEA_Y<SH){
+      var wx2=cx+Math.round(Math.sin(now*0.0007)*30*K), hump=Math.round((3+7*f)*K);
+      g.fillStyle=day?"rgba(210,225,235,0.45)":"rgba(120,140,170,0.40)";
+      for(var q2=0;q2<hump;q2++){
+        var w2=Math.round((26-q2*1.6)*K); if(w2<2) break;
+        g.fillRect(wx2-w2,SEA_Y-q2,w2*2,1);
+      }
+    }
+  },
+  // AFTER — it went back where it came from, and the thing that says so is the TRAIL. Enormous prints
+  // crushed into the ground leading away from the district, filling in over the recovery as the crews
+  // work; and early on, the beast itself still visible on the horizon, going.
+  after:function(g,di,A,L,now,cx,half,K,day){
+    var f=(A.phase==="ripple")?0:A.f;
+    var away=(di.seed&1)?1:-1;
+    // ---- the tracks. ⚠ Hashed spacing, not a constant stride: a fixed step is an arithmetic
+    // progression, which reads as a dotted line rather than as something walking, and this project has
+    // had to unpick that exact shape four times on other features.
+    var fill=Math.min(1,f*1.2);                                     // how far the crews have got filling them
+    // 🔑🔑 A FOOTPRINT BIGGER THAN THE ANIMAL IS A BAR, NOT A TRACK. First version drew prints 26-40
+    // world px wide on a 22-41 px stride, so consecutive prints OVERLAPPED and the trail rendered as one
+    // continuous magenta-probe-confirmed slab along the horizon. `drawKaiju` builds the beast itself
+    // `W=11+i` wide — about 15 world px — so a print three times that was never a foot.
+    // 🔑 The check that catches this class is arithmetic and takes ten seconds: STRIDE MUST EXCEED
+    // WIDTH, by enough that ground shows between. A real one is several body-lengths.
+    for(var s=0;s<9;s++){
+      var h=mixLi(s+di.seed,0x4A22);
+      var step=Math.round(86+((h>>>5)%64));                         // ~2-3 body heights, and hashed so it is a walk
+      var px=cx+away*(Math.round(half*0.4)+s*step);
+      if(px<-30||px>SW+30) continue;
+      var pw=Math.round((6+((h>>>9)%5))*K*0.5), ph=Math.round((2+((h>>>13)%2))*K*0.5);
+      var depth=1-fill*(0.35+((h>>>17)%50)/100);                    // and they fill in at different rates
+      if(depth<=0.08) continue;
+      // the print: crushed dark ground, with the spoil ridge thrown up on the far side of it
+      g.fillStyle=day?"rgba(26,22,20,"+(0.72*depth).toFixed(2)+")":"rgba(8,7,8,"+(0.80*depth).toFixed(2)+")";
+      g.fillRect(px-(pw>>1),HORIZON-ph,pw,ph+1);
+      g.fillStyle=day?"rgba(120,108,92,"+(0.50*depth).toFixed(2)+")":"rgba(48,46,50,"+(0.45*depth).toFixed(2)+")";
+      g.fillRect(px-(pw>>1)-Math.round(K),HORIZON-ph-Math.round(K),pw+Math.round(2*K),Math.max(1,Math.round(K)));
+      // three toes at the leading edge, so it is a FOOT and not a pothole
+      for(var t2=0;t2<3;t2++){
+        g.fillStyle=day?"rgba(20,17,16,"+(0.70*depth).toFixed(2)+")":"rgba(6,5,6,"+(0.78*depth).toFixed(2)+")";
+        g.fillRect(px+away*(pw>>1)-Math.round(K*0.5)+t2*Math.round(K*0.8)-Math.round(K*0.8),
+                   HORIZON-ph-Math.max(1,Math.round(K*0.5)),Math.max(1,Math.round(K*0.6)),Math.max(1,Math.round(K)));
+      }
+    }
+    // ---- and it is still out there, for the first part of the recovery. Small, low, and going: the
+    // silhouette is the same body the impact drew, at a fraction of the size, which is what makes it
+    // read as DISTANCE rather than as a different animal.
+    var go=Math.max(0,1-f*2.2);
+    if(go>0.05){
+      var bx2=cx+away*Math.round(half*3+ (1-go)*SW*0.5);
+      var bh=Math.round((8+di.intensity*3)*K*go);
+      if(bx2>-30&&bx2<SW+30&&bh>2){
+        var bw=Math.round(bh*0.42);
+        g.fillStyle=day?"rgba(44,58,42,"+(0.30+0.45*go).toFixed(2)+")":"rgba(16,26,18,"+(0.40+0.45*go).toFixed(2)+")";
+        g.fillRect(bx2-(bw>>1),HORIZON-bh,bw,bh);                                   // body
+        g.fillRect(bx2-(bw>>1)-Math.round(bw*0.5),HORIZON-Math.round(bh*0.34),Math.round(bw*0.6),Math.max(1,Math.round(K)));  // tail
+        g.fillRect(bx2+away*Math.round(bw*0.4),HORIZON-bh-Math.round(K),Math.round(bw*0.5),Math.round(2*K));                  // head
+      }
+    }
+  }
+};
 // ---------------- BLACKOUT — the grid strains, then it comes back one block at a time -------------
 // 🔒 The second retrofit class: NON-DESTRUCTIVE. It skips the collapse pipeline entirely, `landDamageAt`
 // returns zero for it, and the generic recovery above declines to run — so everything this event has
@@ -44804,7 +44904,15 @@ function draw(g,pass){
   if(curWar&&curWar.f>=0&&curWar.f<1) curDis=null;           // a war eclipses lesser troubles
   curRebuilt=rebuiltZones(now);       // blocks wearing their post-disaster (rebuilt) tower
   curRuins=ruinZones(now);            // blocks a rare lost CAT-5 left permanently ruined this life
-  if(cityG<0.22||cityPhase==="apoc"){ curDis=null; curRebuilt=[]; curRuins=[]; }  // disasters start earlier now (young town), but not in raw wilderness or the apocalypse
+  // ⚠⚠ AND `curDisArc` HAS TO GO WITH IT. This guard has cleared `curDis` for months and the arc
+  // — added days ago, three lines above — was not in it, so through the entire apocalypse the city went
+  // on running evacuations, parking ambulances, raising scaffolding and printing "REBUILDING IN 4:12"
+  // in the ticker while the moon came down. Retrofitting the kaiju is what surfaced it: it is the one
+  // type with BOTH a disaster and an end-time form, so it was the first case where the two systems were
+  // asked to be on screen at the same moment and it turned out nothing had ever stopped them.
+  // 🔑 A new global that shadows an existing one inherits none of its guards. `curDis` is checked in 54
+  // places; `curDisArc` was checked in five, and this was not one of them.
+  if(cityG<0.22||cityPhase==="apoc"){ curDis=null; curDisArc=null; curRebuilt=[]; curRuins=[]; }  // disasters start earlier now (young town), but not in raw wilderness or the apocalypse
   buildDamageStrip();                 // …and now every land can ask how hard the event reaches it, for free (see `dmgAtScreen`)
   // overcast pull: how far the sky greys over. By DAY it greys toward a BRIGHT overcast (stays light, just
   // cloudy); by NIGHT toward a dark storm grey. This keeps a rainy afternoon bright, not gloomy-dark.
