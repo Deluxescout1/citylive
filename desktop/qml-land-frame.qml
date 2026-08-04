@@ -102,6 +102,9 @@ Item {
                               w:40, seed:root.disSeed, f:root.disF,
                               win:(root.disWin === "0" ? false : null) };
         else City.FORCEDIS = null;
+        // `dmgdbg=1` prints the resolved damage strip for THIS woff. The reach of an event onto a screen
+        // that is not looking at it is the one thing a render cannot be read for.
+        City.DBGDMG = (arg("dmgdbg","0") === "1") ? 1 : 0;
         // ⚠ FORCEWX, not City.weather.x = y — the latter is clobbered by the live fetch.
         if (root.wx === "rain")
             City.FORCEWX = { code:63, cloud:100, wind:14, temp:58, precip:6, feels:56, gust:20 };

@@ -19366,6 +19366,10 @@ var DIS_NAME={asteroid:"ASTEROID",volcano:"VOLCANO",zombie:"ZOMBIES",alien:"ALIE
 // non-destructive threats (blackout, smog) skip the collapse→rubble→rebuild machinery: they veil the city, they don't level it.
 function disDestroys(t){ return t!=="blackout" && t!=="smog"; }
 var FORCEDIS=null;           // test hook: {type,intensity,xf,w,seed,f}
+// Test hook: print the damage strip this screen actually resolved to. Worth keeping as a flag rather
+// than as a throwaway console.log, because the ONE thing that cannot be judged from a render is how
+// hard the event reaches a screen that is not looking at it — which is the whole subject of this phase.
+var DBGDMG=0;
 var FORCERUIN=null;          // test hook: {type,intensity,xf,w,seed} — pins a permanently-ruined zone for render tests
 
 // deterministic descriptor of the disaster in slot idx (or null)
@@ -19580,17 +19584,38 @@ function inZone(wx,ww,z){ var a=z.x-(z.w>>1)-2, b=z.x+(z.w>>1)+2; return wx< b &
 // ⚠ Note what the numbers already do — `reach` for a big disaster EXCEEDS WW/2, so a lost CAT-5
 // genuinely reaches every point of the world (~0.48 at the antipode) while a CAT-1 drops to the 0.10
 // floor well before it gets there. Small events stay local; only the big ones take the whole map.
-function disFalloff(wx,d){
+// 🔒 THE GROUND CURVE IS TIGHTER THAN THE SKY'S, and it is DERIVED from it rather than written twice.
+// Nick, asked directly: keep the wide sky — a supercell darkens the whole county — but stop a single
+// strike from scarring vegetation on all three monitors equally. So there is still ONE law with one
+// shape; `ground` shortens its reach and drops its floor to zero. Two independently-authored curves
+// for one event drift and no render tells you which of them is wrong, which is why this is a parameter
+// and not a second function.
+var DMG_GROUND_REACH=0.72;             // ground damage carries this fraction of the sky's reach
+// ⚠ AND THE THRESHOLD IS PART OF THE CURVE, not a detail of the tree renderer. Damage to vegetation is
+// effectively BINARY — below this a tree is untouched, above it the tree is gone — so where this sits
+// decides the burn radius far more than the falloff shape does. It lived as a bare `0.15` inside two
+// different draw functions, which is how "a lost CAT-5 kills trees on all three monitors" happened
+// without anyone ever choosing it.
+// 🔑 THESE TWO NUMBERS WERE PICKED BY MEASURING THE PAIR, NOT BY REASONING ABOUT EITHER. My first
+// estimate put the antipode of a lost CAT-5 at 0.14, safely under the threshold; sweeping the actual
+// curve put it at 0.230 against a 0.22 threshold — a knife edge that flips an entire monitor from
+// green to burnt on one intensity roll. Burn radius at 0.72/0.22, measured: CAT-1 329 world px ·
+// CAT-3 542 · won CAT-5 755 (about one monitor) · lost CAT-5 1032, and that one still leaves the far
+// side of the world standing at 0.049. The SKY is untouched by this and still reaches everything.
+var DMG_KILL=0.22;
+function disFalloff(wx,d,ground){
   d=d||curDis; if(!d) return 0;
   var dx=wx-d.x;                                         // signed, wrapped: the world is a loop
   if(dx>WW/2) dx-=WW; if(dx<-WW/2) dx+=WW;
   var core=Math.max(1,d.w*0.5);
   var reach=core+(WW*0.5)*(0.30+0.14*(d.intensity||1))*((d.win===false)?1.35:1);
+  var flr=0.10;                                          // the far side of the world still feels it…
+  if(ground){ reach=core+(reach-core)*DMG_GROUND_REACH; flr=0; }   // …in the AIR. On the ground it ends.
   var ad=Math.abs(dx);
   if(ad<=core) return 1;                                 // inside the strike: total
-  if(ad>=reach) return 0.10;                             // the far side of the world still feels it
+  if(ad>=reach) return flr;
   var u=(ad-core)/(reach-core);
-  return Math.max(0.10,1-u*u);                           // squared: severe well beyond the core
+  return Math.max(flr,1-u*u);                            // squared: severe well beyond the core
 }
 function landDamageAt(wx,ww){
   ww=ww||1;
@@ -19603,8 +19628,9 @@ function landDamageAt(wx,ww){
     // which is exactly the thing he noticed. The building footprint stays as balanced; the LANDSCAPE
     // gets a graded falloff instead, so the whole map shows the event and only the strike is erased.
     var t=Math.max(0,Math.min(1,(curDis.f-0.14)/0.26));            // how far into the event we are
-    // the spatial law now lives in `disFalloff` so the sky obeys the same curve — see there.
-    if(t>0) d=Math.max(d,t*disFalloff(wx+ww*0.5,curDis));
+    // the spatial law now lives in `disFalloff` so the sky obeys the same curve — see there. The
+    // `true` is the GROUND variant of that one law: shorter reach, no floor.
+    if(t>0) d=Math.max(d,t*disFalloff(wx+ww*0.5,curDis,true));
   }
   if(curRuins) for(var r=0;r<curRuins.length;r++)
     if(inZone(wx,ww,curRuins[r])) return 1;              // a lost district is dead for the rest of the life
@@ -19612,6 +19638,39 @@ function landDamageAt(wx,ww){
   if(curRebuilt) for(var b=0;b<curRebuilt.length;b++)
     if(inZone(wx,ww,curRebuilt[b])) d=Math.max(d,0.42);
   return d;
+}
+// ============ THE DAMAGE STRIP — this screen's whole answer, sampled ONCE PER FRAME ============
+// 🔑 HOISTED. `curDis`, `curRuins`, `curRebuilt`, `SW` and `WOFF` are every one of them CONSTANT within
+// a frame, so twenty-eight lands each asking `landDamageAt` per column is the same arithmetic redone
+// twenty-eight times. Built once in `draw()`, read by all of them. (It cannot be cached ACROSS frames —
+// the damage is the one thing on these maps that changes within a life — but within one frame it is a
+// constant, and that is the distinction the Hyrule comment got half right.)
+// ⚠ SMOOTHED AT THE SEAMS, and that is not cosmetic. `landDamageAt` returns a flat 1 inside a
+// permanently-ruined district and its graded falloff everywhere else, so a lost zone arrives as a
+// RECTANGLE — which is correct for a city block and reads as a printing error across open grass. The
+// three-tap blur covers exactly the same ground; it just stops having a straight edge in a meadow.
+var DMG_STEP=0, DMG_STRIP=null, DMG_ANY=0;
+function buildDamageStrip(){
+  var step=Math.max(4,Math.round(SW/128)), n=Math.ceil(SW/step)+1, raw=[], i;
+  for(i=0;i<n;i++) raw.push(landDamageAt(i*step+WOFF,step));
+  var out=[], mx=0, v;
+  for(i=0;i<n;i++){
+    v=(raw[Math.max(0,i-1)]+raw[i]*2+raw[Math.min(n-1,i+1)])*0.25;
+    out.push(v); if(v>mx) mx=v;
+  }
+  DMG_STEP=step; DMG_STRIP=out; DMG_ANY=mx;
+  if(typeof DBGDMG!=="undefined"&&DBGDMG){ var s=[]; for(i=0;i<n;i+=16) s.push((i*step)+":"+out[i].toFixed(2));
+    console.log("DMGSTRIP woff="+WOFF+" any="+mx.toFixed(3)+" step="+step+" "+s.join(" ")); }
+}
+// Screen x (canvas px, which on this engine IS world px, 0..SW) -> 0..1.
+// 🔑 GATE ON `DMG_ANY` BEFORE DOING ANY PER-COLUMN DAMAGE WORK. On the overwhelming majority of frames
+// there is no disaster within reach and the answer is zero for every column on the screen; a land that
+// checks the peak first pays nothing at all on those frames, which is what makes this sweep affordable
+// across twenty-eight backdrops.
+function dmgAtScreen(sx){
+  if(!DMG_STRIP||DMG_ANY<=0) return 0;
+  var i=Math.round(sx/DMG_STEP), n=DMG_STRIP.length;
+  return DMG_STRIP[i<0?0:(i>=n?n-1:i)]||0;
 }
 // ============ HAS THIS LAND ERUPTED YET, THIS LIFE? ============
 // Nick's volcano brief asks for TWO STATES, pre-eruption and post-eruption. He also chose that the
@@ -22183,8 +22242,8 @@ function drawAcacia(g,X,gy,H,CW,form,seed,K,cTrunk,cCrown,sway){
   // "shared entry point" was shared by everything except the lands with the most trees on them. The
   // before/after render was identical and that is what gave it away. Bespoke renderers need the check
   // at the leaf, not at the dispatcher they skip.
-  var _ad=landDamageAt(X+WOFF,4);
-  if(_ad>0.15){
+  var _ad=dmgAtScreen(X);
+  if(_ad>DMG_KILL){
     var _ah=mixLi((seed>>>0)+11,5077), _am=(_ah>>>3)%3;
     if(_am===2&&_ad>0.66) return;                                  // flattened
     var _at=Math.round(H*(0.30+0.30*(1-_ad)));
@@ -22694,8 +22753,8 @@ function drawTree(g,X,gy,day,now,seed,mul,swayOn){
   // ---- IS THIS TREE IN THE BLAST? Every land's trees come through here, so one check covers all
   // twenty. How a given tree fails is hashed off its own seed, so the same tree always dies the same
   // way on all three monitors and does not flicker between states between frames.
-  var _dmg=landDamageAt(X+WOFF,4);
-  if(_dmg>0.15){
+  var _dmg=dmgAtScreen(X);
+  if(_dmg>DMG_KILL){
     var _dh=mixLi((seed>>>0)+7,5077), _K=Math.max(1,KSP);
     var _mode=(_dh>>>3)%3;                                  // 0 snapped · 1 burnt · 2 flattened
     if(_mode===2 && _dmg>0.66) return;                      // flattened: there is nothing left standing
@@ -24898,19 +24957,11 @@ function drawPlateau(g,L,now,nd){
   // this one arrived after it entirely: the castle, the town, the temple, the ranch and the grass all
   // sat pristine through a CAT-5.
   // 🔑 The helper existing is not the helper being used. A shared answer nobody asks is dead code.
-  // Sampled every 8th column rather than per column — the falloff is smooth and this is a per-frame
-  // cost that cannot be cached (the damage is the one thing here that changes within a life).
-  var DMG=[], dmgStep=Math.max(4,Math.round(8*K));
-  for(var dq0=0;dq0<=SW;dq0+=dmgStep) DMG.push(landDamageAt(dq0+WOFF,dmgStep));
-  // ⚠ SMOOTHED AT THE SEAMS. `landDamageAt` returns a flat 1 inside a permanently-ruined district and
-  // its falloff otherwise, so a lost zone lands as a RECTANGLE — which is right for a city block and
-  // reads as a printing error on open grass. Three-tap blur over the sampled strip: the burn covers
-  // exactly the same ground, it just stops having a straight edge in the middle of a meadow.
-  var DMS=[];
-  for(var ds=0;ds<DMG.length;ds++)
-    DMS.push((DMG[Math.max(0,ds-1)]+DMG[ds]*2+DMG[Math.min(DMG.length-1,ds+1)])*0.25);
-  DMG=DMS;
-  function dmgAt(x){ return DMG[Math.max(0,Math.min(DMG.length-1,Math.round(x/dmgStep)))]||0; }
+  // ⚠ THE SAMPLING AND THE SEAM-BLUR THAT USED TO LIVE HERE ARE NOW `buildDamageStrip` — this was the
+  // first land to need them and it turned out to be the pattern all twenty-eight want, so it was
+  // hoisted rather than copied twenty-seven times. Same numbers, one owner, and it now costs one strip
+  // per FRAME instead of one per land.
+  function dmgAt(x){ return dmgAtScreen(x); }
   var scorch=day?[92,74,50]:[18,16,14];
   var PC=plateauCache;
   if(!PC||PC.sw!==SW||PC.woff!==WOFF||PC.hz!==HORIZON||PC.k!==K){
@@ -44260,6 +44311,7 @@ function draw(g,pass){
   curRebuilt=rebuiltZones(now);       // blocks wearing their post-disaster (rebuilt) tower
   curRuins=ruinZones(now);            // blocks a rare lost CAT-5 left permanently ruined this life
   if(cityG<0.22||cityPhase==="apoc"){ curDis=null; curRebuilt=[]; curRuins=[]; }  // disasters start earlier now (young town), but not in raw wilderness or the apocalypse
+  buildDamageStrip();                 // …and now every land can ask how hard the event reaches it, for free (see `dmgAtScreen`)
   // overcast pull: how far the sky greys over. By DAY it greys toward a BRIGHT overcast (stays light, just
   // cloudy); by NIGHT toward a dark storm grey. This keeps a rainy afternoon bright, not gloomy-dark.
   var isDay=L>0.5;
