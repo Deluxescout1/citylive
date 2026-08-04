@@ -17,6 +17,7 @@ dependencies, no WebEngine. Just files.
 | [`docs/LANDS.md`](docs/LANDS.md) | the 28 lands, how to render one, and the rules that apply to all of them |
 | [`docs/LAND-hyrule.md`](docs/LAND-hyrule.md) | the land under active work: geography, accessors, traps, what's open |
 | [`docs/RELEASING.md`](docs/RELEASING.md) | the two-platform gate that stands between a commit and a user |
+| [`docs/DISASTERS_INVENTORY.md`](docs/DISASTERS_INVENTORY.md) | every disaster and end-time event, the cadence numbers, and how the ticker/HUD/population read them |
 
 The engine is edited in **one canonical file** — `org.citylive.wallpaper/contents/js/city.js` — and
 mirrored to Electron, web and phone by `node tools/sync-engine.js`. `cd desktop && npm test` fails if
