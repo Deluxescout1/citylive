@@ -21036,7 +21036,9 @@ function drawBlackout(g,cd,L,now){
   var cx=disX(cd.x), f=cd.f, i=cd.intensity; if(f>=0.55) return;
   var inten=Math.min(1,f/0.10)*((f>0.42)?1-(f-0.42)/0.13:1); if(inten<=0) return;
   var cascade=Math.min(1,f/0.18);                                  // the outage CASCADES district by district
-  var w=(cd.w*2.2+60+i*50)*(0.45+0.55*cascade), x0=Math.max(0,(cx-w/2)|0), x1=Math.min(SW,(cx+w/2)|0); if(x1<=x0) return;
+  // ⚠ width from `blackoutHalfW` — the lifecycle's warning and its restoration front read the same
+  // function, and when they each had their own the front swept a third of the district and stopped.
+  var w=blackoutHalfW(cd)*2*(0.45+0.55*cascade), x0=Math.max(0,(cx-w/2)|0), x1=Math.min(SW,(cx+w/2)|0); if(x1<=x0) return;
   var surge=((Math.floor(now/1100)%8)===0);                    // brief grid surges try to restore power
   // ⚠⚠⚠ A BLACKOUT IS A LOSS OF ARTIFICIAL LIGHT. IT CANNOT DARKEN THE SKY. This veil was
   // `fillRect(sx, 0, 1, HORIZON+6)` — a near-black column over the FULL HEIGHT of the frame — so a power
@@ -21091,7 +21093,7 @@ function drawBlackout(g,cd,L,now){
 function drawSmog(g,cd,L,now){
   var cx=disX(cd.x), f=cd.f, i=cd.intensity; if(f>=0.55) return;
   var inten=Math.min(1,f/0.12)*((f>0.42)?1-(f-0.42)/0.13:1); if(inten<=0) return;
-  var w=cd.w*2.8+100+i*40, x0=Math.max(0,(cx-w/2)|0), x1=Math.min(SW,(cx+w/2)|0); if(x1<=x0) return;
+  var w=smogHalfW(cd)*2, x0=Math.max(0,(cx-w/2)|0), x1=Math.min(SW,(cx+w/2)|0); if(x1<=x0) return;   // shared with the lifecycle — see `smogHalfW`
   var day=L>0.4, base=day?[150,120,66]:[64,54,34], streetH=26+i*8;
   for(var sx=x0;sx<x1;sx++){ var d=Math.abs(sx-cx)/(w/2), fall=d>=1?0:(0.5+0.5*Math.cos(d*Math.PI));
     g.fillStyle="rgba("+base[0]+","+base[1]+","+base[2]+","+((0.16+0.04*i)*inten*fall).toFixed(3)+")"; g.fillRect(sx,0,1,HORIZON);              // thicker haze veil nearly hides the towers
@@ -21201,8 +21203,10 @@ function drawDisasterArc(g,L,now){
     // further they have got — so the crowd thins near the zone and thickens beyond it.
     // 🔑 The stragglers are the point: a fixed fraction never leave, which is what makes the impact
     // land on people rather than on an empty set.
+    // ⚠ NOBODY EVACUATES A POWER CUT. The patrol car below still runs — that is exactly what a utility
+    // announcing rolling outages looks like — but twenty-six people fleeing a blackout reads as farce.
     var run=Math.min(1,A.f*1.25);
-    for(var i=0;i<26;i++){
+    for(var i=0;i<(disMinorEvent(di.type)?0:26);i++){
       var h=mixLi(i+di.seed,0x0FEE), side=(h&1)?1:-1;
       var strag=((h>>>9)%100)<18;                       // …and some of them do not
       var d0=Math.round(((h>>>3)%Math.max(1,half)));
@@ -21222,6 +21226,12 @@ function drawDisasterArc(g,L,now){
     // ---- AND THE CITY COMES BACK, WITH AGENTS DOING IT. Damage never blinks away: every stage of
     // this is somebody on screen doing the work, and which agents are out depends on how far through
     // the recovery you are.
+    // ⚠⚠ BUT NOT FOR THE TWO THAT BREAK NOTHING. Nobody sends ambulances and raises scaffolding over a
+    // power cut or an inversion layer — there is no rubble to clear and no structure to prop. The
+    // engine already knows which those are (`disMinorEvent`, and `drawDisaster` already declines to
+    // send tanks and jets at them for the same reason); the lifecycle was the one place that treated
+    // all fifteen alike. Their own recovery is in their signature, above.
+    if(disMinorEvent(di.type)) return;
     var f=(A.phase==="ripple")?0:A.f;
     // medics and fire first, then they thin out as the crews take over
     var emN=Math.max(1,Math.round(4*(1-f*0.7)));
@@ -21254,6 +21264,128 @@ function drawDisasterArc(g,L,now){
   }
 }
 
+// ---------------- BLACKOUT — the grid strains, then it comes back one block at a time -------------
+// 🔒 The second retrofit class: NON-DESTRUCTIVE. It skips the collapse pipeline entirely, `landDamageAt`
+// returns zero for it, and the generic recovery above declines to run — so everything this event has
+// during two thirds of its arc has to be here. That is exactly why it was chosen: it stresses the spine
+// in the one way a destructive disaster cannot.
+// ⚠ AND NOTHING HERE MAY TOUCH THE SKY. `drawBlackout` carries an explicit ruling — a blackout is the
+// loss of ARTIFICIAL light and cannot darken the sky, the clouds, the sun or a dune three kilometres
+// away — and it was fixed once already after Nick spotted it on the dune sea. Every rect below is
+// bounded to the city band for that reason. This is also why blackout is deliberately absent from
+// `DIS_ATMO`; adding it back for tidiness re-opens a closed bug.
+// 🔑🔑 HOW WIDE IS THE OUTAGE? — and this is not a detail. The signatures first invented their own
+// width (`half*1.6` = 64 world px) while `drawBlackout` blacks out `w*2.2+60+50i` = 348 of them. So the
+// warning dipped a fifth of the district that was about to go dark, and the restoration front swept
+// across 128 px of a 348 px outage and declared it over — the lights came back on a strip in the middle
+// and the rest of the blackout simply ended when the clock said so.
+// Both formulas now live here, once. The lesson is the same one `disFalloff` and `volcConeGeom` already
+// carry in this file: when two functions describe one event, the second one is a bug with a delay on it.
+function blackoutHalfW(d){ return (d.w*2.2+60+(d.intensity||1)*50)*0.5; }
+function smogHalfW(d){ return (d.w*2.8+100+(d.intensity||1)*40)*0.5; }
+DIS_SIG.blackout={
+  // WARN — the grid is failing before it fails: brownout dips rolling through the district, each one
+  // deeper than the last. A power cut with no warning is indistinguishable from night.
+  warn:function(g,di,A,L,now,cx,half,K,day){
+    if(L>0.62) return;                                    // by day a brownout is not visible from outside
+    var top=Math.max(0,HORIZON-Math.round(HORIZON*0.62));
+    var dip=Math.max(0,Math.sin(now*0.006)*Math.sin(now*0.0017));   // irregular: two beats, not one pulse
+    var a=(0.05+0.30*A.f)*dip; if(a<=0.01) return;
+    var w=blackoutHalfW(di), x0=Math.max(0,(cx-w)|0), x1=Math.min(SW,(cx+w)|0);
+    for(var sx=x0;sx<x1;sx+=2){
+      var d=Math.abs(sx-cx)/w, fall=d>=1?0:(0.5+0.5*Math.cos(d*Math.PI));
+      if(fall<=0.02) continue;
+      g.fillStyle="rgba(6,7,12,"+(a*fall).toFixed(3)+")";
+      g.fillRect(sx,top,2,HORIZON-top+4);
+    }
+  },
+  // AFTER — THE RESTORATION FRONT, and this is the whole point of giving this type an arc. 🔒 "The
+  // city's return to normal is something you can WATCH HAPPEN." For a blackout that is literal: the
+  // power comes back as a line sweeping across the district, dark on one side and lit on the other,
+  // with the line crews working at the edge of it.
+  after:function(g,di,A,L,now,cx,half,K,day){
+    var f=(A.phase==="ripple")?0:A.f;
+    var w=blackoutHalfW(di), top=Math.max(0,HORIZON-Math.round(HORIZON*0.62));
+    var side=(di.seed&1)?1:-1;                            // which end of the district gets its power first
+    var front=cx-side*w+side*(2*w)*Math.min(1,f*1.25);
+    if(L<=0.62){
+      // still dark AHEAD of the front, and nothing behind it — a receding veil, not a fading one
+      var x0=Math.max(0,(cx-w)|0), x1=Math.min(SW,(cx+w)|0);
+      for(var sx=x0;sx<x1;sx+=2){
+        if(side>0?(sx<front):(sx>front)) continue;        // this block has its lights back
+        var d=Math.abs(sx-cx)/w, fall=d>=1?0:(0.5+0.5*Math.cos(d*Math.PI));
+        var edge=Math.min(1,Math.abs(sx-front)/(28*K));   // and the edge itself is soft, not a ruled line
+        if(fall<=0.02) continue;
+        g.fillStyle="rgba(6,7,12,"+(0.34*fall*edge).toFixed(3)+")";
+        g.fillRect(sx,top,2,HORIZON-top+4);
+      }
+    }
+    // the crews at the front: a utility truck with its bucket up at a pole
+    if(front>-20&&front<SW+20){
+      var px=Math.round(front);
+      g.fillStyle=day?"#4a4a52":"#2a2a30";
+      g.fillRect(px,HORIZON-Math.round(13*K),Math.max(1,Math.round(K)),Math.round(13*K));    // the pole
+      g.fillRect(px-Math.round(3*K),HORIZON-Math.round(13*K),Math.round(7*K),Math.max(1,Math.round(K)));
+      var bY=HORIZON-Math.round((8+Math.sin(now*0.0012)*2)*K);                               // the bucket, rising and settling
+      g.fillStyle="#e8b32a"; g.fillRect(px-Math.round(4*K),bY,Math.round(3*K),Math.round(2*K));
+      g.fillStyle=day?"#c8b26a":"#6a5a30";
+      g.fillRect(px-Math.round(4*K),bY+Math.round(2*K),Math.max(1,Math.round(K)),HORIZON-bY-Math.round(2*K));
+      drawEmv(g,px-Math.round(12*K)+WOFF,EMV_TYPES[0],1,2,L,now);
+      drawPerson(g,(px-Math.round(9*K))|0,HORIZON-1,"#e8b32a",SKINC[di.seed%SKINC.length],(Math.floor(now/300))&3);
+    }
+  }
+};
+// ---------------- SMOG — an inversion settles, sits, and is blown out -----------------------------
+// The other non-destructive one, and its arc is the opposite shape: a blackout ENDS at a moment you can
+// point at, and an inversion just thins. What makes it read as recovery rather than as fade is the
+// people — the masks come off, and that is a thing you can see happen.
+DIS_SIG.smog={
+  warn:function(g,di,A,L,now,cx,half,K,day){
+    // the lid coming down: a thin brown layer forming at roof height and thickening, and NOT reaching
+    // the ground yet — that is what an inversion is and it is why the impact hides the towers first.
+    var d2=L>0.4, base=d2?[150,120,66]:[64,54,34];
+    var w=smogHalfW(di), lidY=Math.max(0,HORIZON-Math.round(HORIZON*0.52));
+    var lidH=Math.max(2,Math.round(HORIZON*0.10*(0.35+0.9*A.f)));
+    var x0=Math.max(0,(cx-w)|0), x1=Math.min(SW,(cx+w)|0);
+    for(var sx=x0;sx<x1;sx+=2){
+      var d=Math.abs(sx-cx)/w, fall=d>=1?0:(0.5+0.5*Math.cos(d*Math.PI));
+      if(fall<=0.02) continue;
+      for(var q=0;q<lidH;q++){
+        var qf=q/lidH;
+        g.fillStyle=rgba(base,(0.16*fall*(1-qf*0.7)*A.f).toFixed(3));
+        g.fillRect(sx,lidY+q,2,1);
+      }
+    }
+  },
+  after:function(g,di,A,L,now,cx,half,K,day){
+    var f=(A.phase==="ripple")?0:A.f;
+    var left=Math.max(0,1-f*1.15);                        // what is left of the murk
+    var d2=L>0.4, base=d2?[150,120,66]:[64,54,34];
+    var w=smogHalfW(di), x0=Math.max(0,(cx-w)|0), x1=Math.min(SW,(cx+w)|0);
+    if(left>0.02){
+      // it lifts from the BOTTOM — the street clears first and the last of it hangs at roof height,
+      // which is the reverse of how it arrived and is the read that says "going", not "less"
+      var hangY=Math.max(0,HORIZON-Math.round(HORIZON*(0.16+0.36*(1-left))));
+      for(var sx=x0;sx<x1;sx+=2){
+        var d=Math.abs(sx-cx)/w, fall=d>=1?0:(0.5+0.5*Math.cos(d*Math.PI));
+        if(fall<=0.02) continue;
+        g.fillStyle=rgba(base,(0.22*fall*left).toFixed(3));
+        g.fillRect(sx,hangY,2,Math.max(1,Math.round(HORIZON*0.14)));
+      }
+    }
+    // …and the masks come off. Same people the impact drew, and the white pixel stops being drawn on
+    // more of them as it clears — the one agent this event has, and it costs nothing to keep.
+    for(var p=0;p<5;p++){
+      var pw=cx-w+((p*197+di.seed)%Math.max(1,Math.round(w*2)));
+      if(pw<-2||pw>SW+2) continue;
+      drawPerson(g,pw|0,HORIZON-1,d2?"#6a6458":"#3a3830",SKINC[p%SKINC.length],((now/140|0)+p)&1);
+      if(((p*7+di.seed)%100)<Math.round(left*100)){
+        g.fillStyle="rgba(230,235,240,"+(0.6*left).toFixed(2)+")";
+        g.fillRect(pw|0,HORIZON-3,1,1);
+      }
+    }
+  }
+};
 // ---------------- AND THE MOUNTAIN STAYS. -----------------------------------------------------------
 // 🔒 His locked answer: landform scars PERSIST FOR THE LIFE. Nothing in the engine took that further
 // than a wash until now — `drawVolcanoDisaster` raises a cone on the nineteen lands with no mountain of
