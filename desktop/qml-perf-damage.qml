@@ -17,10 +17,13 @@ import "_ctl_city.js" as Ctl
 //
 // Run: QT_ASSUME_STDERR_HAS_CONSOLE=1 QT_QPA_PLATFORM=offscreen qml6 desktop/qml-perf-damage.qml
 //
-// MEASURED 2026-08-04, three rounds, two hours, six lands:
-//   clean +0.44 / +1.44 / -0.38 / +0.08 / +0.73 / +0.46 ms — zero within a run-to-run noise of ~±1.5ms
-//   hit   +1.98 / -0.06 / +2.10 / +1.23 / +3.04 / +2.10 ms — the sweep costs 1-3ms while an event is
-//                                                            in reach, on a pass that repaints at ~0.5fps
+// MEASURED 2026-08-04, end of Phase 9 (damage sweep + 23 signatures + 8 new disasters + the gore push),
+// three rounds, two hours, six lands, against d297571:
+//   BG   clean -0.25..+2.48ms · hit -0.27..+3.27ms
+//   LIVE clean -0.45..+0.63ms · hit -0.71..+0.11ms
+// 🔑 THE LIVE LINE IS THE RESULT. Every signature and every gore mark added this phase draws in the
+// live pass, and it did not move — the whole cost sits in `bg`, which repaints at ~0.5fps, and it is
+// only paid while an event is actually in reach.
 Item {
     width: 1552; height: 874
     Canvas {
@@ -59,9 +62,26 @@ Item {
                     C.NOWOVR = C.CLOCK = d.getTime() + k*140;
                     C.draw(g, "bg");
                 }
+                // ⚠ STOP THE BG CLOCK HERE. The first version of this edit accumulated `t0` AFTER the
+                // live loop below, so every bg figure silently included a live pass and the deltas
+                // jumped from +0.02..+0.94 to +2.00..+4.21 — a "regression" that was entirely the
+                // instrument. A timer that spans two things measures neither.
+                var bgMs = Date.now() - t0;
+                // ⚠ AND THE LIVE PASS, which is where every signature and every gore mark actually
+                // lives. `bg` repaints at ~0.5fps and `live` repaints every frame, so a regression
+                // that only shows here is the one that would be felt. Timed separately, same
+                // interleaving, and reported on its own line.
+                var tl = Date.now(), NL = 14;
+                for (var kl = 0; kl < NL; kl++) {
+                    C.NOWOVR = C.CLOCK = d.getTime() + kl*140;
+                    C.draw(g, "live");
+                }
+                var lk = key(eng, mode, land) + "|live";
+                if (!acc[lk]) acc[lk] = { ms:0, n:0 };
+                acc[lk].ms += Date.now() - tl; acc[lk].n += NL;
                 var kk = key(eng, mode, land);
                 if (!acc[kk]) acc[kk] = { ms:0, n:0 };
-                acc[kk].ms += Date.now() - t0; acc[kk].n += N;
+                acc[kk].ms += bgMs; acc[kk].n += N;
             }
 
             for (var r = 0; r < 3; r++)
@@ -82,8 +102,11 @@ Item {
                     var mode = mi ? "hit" : "clean";
                     var a = acc[key("new", mode, L)], b = acc[key("ctl", mode, L)];
                     var va = a.ms / a.n, vb = b.ms / b.n;
-                    line += "   " + mode + " new=" + va.toFixed(2) + " ctl=" + vb.toFixed(2)
-                          + " (" + (va - vb >= 0 ? "+" : "") + (va - vb).toFixed(2) + "ms)";
+                    var al = acc[key("new", mode, L) + "|live"], bl = acc[key("ctl", mode, L) + "|live"];
+                    var la = al.ms / al.n, lb = bl.ms / bl.n;
+                    line += "   " + mode + " bg" + (va - vb >= 0 ? "+" : "") + (va - vb).toFixed(2)
+                          + " live" + (la - lb >= 0 ? "+" : "") + (la - lb).toFixed(2)
+                          + " (live " + la.toFixed(1) + "/" + lb.toFixed(1) + ")";
                 }
                 out += line;
             }
