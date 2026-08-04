@@ -43231,7 +43231,12 @@ function curPoliciesOf(now){
 // a render. Population is a pure estimate from growth — cityPop() needs the built layout, which we avoid.
 var DEATH_LABEL={ninetails:"The Nine-Tailed Fox",meteors:"Meteor Storm",nuke:"Nuclear Strike",sunburst:"Solar Flare",ai:"AI Uprising",
   bh:"Black Hole",alienwar:"Alien War",frost:"Deep Freeze",kaiju:"Kaiju Attack",flood:"The Flood",
-  kaijuwar:"Kaiju War",pollution:"The Great Smog",moonfall:"Moonfall"};
+  kaijuwar:"Kaiju War",pollution:"The Great Smog",moonfall:"Moonfall",
+  // the eight added 2026-08-04. ⚠ These strings reach the chronicle, the almanac and the doom clock —
+  // a death with no label prints its raw key at the user, which is how "kaijuwar" nearly shipped.
+  gammaray:"Gamma-Ray Burst",rogueplanet:"The Rogue Planet",crustcrack:"The Crust Cracks",
+  oceansboil:"The Oceans Boil",greygoo:"Grey Goo",lastwinter:"The Last Winter",
+  skyfall:"The Sky Falls",timestop:"Everything Stops"};
 var LANDMARK_LABEL={monorail:"Monorail",stadium:"Stadium",park:"City Park",casino:"Casino",seawall:"Seawall",
   university:"University",marina:"Marina",zoo:"City Zoo",observatory:"Observatory",grandcentral:"Grand Central"};
 var ERA_LABEL={cyber:"Cyberpunk",ancient:"Ancient",brutal:"Brutalist",solar:"Solarpunk",vaporwave:"Vaporwave",
@@ -44499,11 +44504,31 @@ var CFG_FINALE=null;   // config: pin which apocalypse ends EVERY life ("auto"/u
 // needs no slot in the pool: the pool keeps its twelve, and the leaf land answers before it is asked.
 // A nine-tailed fox is kitsune folklore, not anybody's trademark — the homage rule is untouched.
 var DEATHS_SPECIAL=["ninetails"];
+// 🚨 THIS BLOCK HAS TO SIT HERE, NOT NEXT TO ITS RENDERERS. `var` hoists the NAME but not the
+// VALUE, so with the definitions down beside `drawApocalypse` the `CFG_FINALE` validator forty
+// lines below read `DEATHS_ALL` as undefined and would have thrown on any install that pins a
+// finale in config. It never showed in the harness because `CFG.finale` is unset there and the
+// `&&` short-circuits before it reaches the array — a crash that only fires for users.
+// 🚨🚨 `DEATHS` IS INDEXED BY `h % DEATHS.length`, so appending to it re-maps every past life's fate —
+// the trap this file already documents where the nine-tailed fox was deliberately kept OUT of the
+// array. The disasters solved the same problem with a slot cutover; this one cannot use that, because
+// `deathOf` is keyed on the LIFE INDEX and the life index is not a portable number: his box runs
+// 1-hour lives and a default install runs week-long ones, so life 4,000 is a different moment on each.
+// 🔑 SO THE BOUNDARY IS A WALL CLOCK, which is the one thing every install agrees on. A life that
+// STARTED before it keeps the original twelve; one that starts after can draw any of the twenty.
+// ⚠ Same rule as the disaster eras: the date must be in the FUTURE when it ships. The almanac replays
+// finished lives through `deathOf`, so moving it backwards rewrites what they are remembered as.
+var DEATHS_NEW=["gammaray","rogueplanet","crustcrack","oceansboil","greygoo","lastwinter","skyfall","timestop"];
+var DEATHS_ALL=DEATHS.concat(DEATHS_NEW);
+var DEATH_ERA_MS=Date.UTC(2026,7,6,0,0,0);        // 2026-08-06
+function lifeStartMs(li){ return GROW_EPOCH - GROW_OFFSET_DAYS*86400000 - WORLD_SHIFT + li*GROW_CYCLE; }
+function deathsFor(li){ return lifeStartMs(li) < DEATH_ERA_MS ? DEATHS : DEATHS_ALL; }
 function deathOf(li){ if(CFG_FINALE) return CFG_FINALE;
   var lb=landOf(li); if(lb&&lb.b&&lb.b.k==="leaf") return "ninetails";
-  var h=((li*2654435761+977)>>>0); h=(h^(h>>>15))>>>0; return DEATHS[h%DEATHS.length]; }
+  var h=((li*2654435761+977)>>>0); h=(h^(h>>>15))>>>0;
+  var pool=deathsFor(li); return pool[h%pool.length]; }
 var curDeath="meteors";
-if(CFG.finale&&CFG.finale!=="auto"&&(DEATHS.indexOf(CFG.finale)>=0||DEATHS_SPECIAL.indexOf(CFG.finale)>=0)) CFG_FINALE=CFG.finale;
+if(CFG.finale&&CFG.finale!=="auto"&&(DEATHS_ALL.indexOf(CFG.finale)>=0||DEATHS_SPECIAL.indexOf(CFG.finale)>=0)) CFG_FINALE=CFG.finale;
 var FORCEDEATH=null;   // test hook: "meteors"|"nuke"|"sunburst"|"ai" (own line — QML namespace writable)
 var FORCEAPOCMS=null;  // test hook: play the finale at a chosen ms on its own clock, in ONE frame
 // ---- THE NUKE CLOCK: the strike plays out in REAL SECONDS, not over the ~7.5-hour apoc phase. apocMs
@@ -44733,6 +44758,242 @@ function meteorHitAt(x){ var arr=meteorImpacts(), best=null;
   return best || {t:-1,x:0,r:0,d:0,big:false};
 }
 // ---- THE GRAND CATACLYSM: a world-ending event that levels the whole city at the end of its life ----
+// ================================================================================================
+// EIGHT MORE ENDS — cosmic, earthly, human and strange.
+// ------------------------------------------------------------------------------------------------
+
+// ---- the renderers. A table, not eight more `if(curDeath===...)` lines in the dispatch. ----
+var APOC_X={};
+
+// GAMMA-RAY BURST — the fastest end in the set. One instant, and then a sky that is simply wrong.
+APOC_X.gammaray=function(g,ap,L,now){
+  var K=Math.max(1,KSP);
+  // 🔑 THE FLASH IS ALMOST ALL OF IT, and it is over in the first eighth. Everything after is the
+  // AFTERMATH of a light — a stripped, ionised sky that will not go back. An end that takes its time
+  // is every other end here; this one's whole character is that there was no time.
+  var flash=Math.max(0,1-Math.abs(ap-0.06)/0.06);
+  var burnt=Math.min(1,Math.max(0,(ap-0.10)/0.18));
+  if(burnt>0){
+    for(var q=0;q<HORIZON;q++){
+      var qf=q/HORIZON;
+      g.fillStyle=rgba(mixc([176,90,220],[240,160,90],qf),(0.55*burnt*(1-qf*0.35)).toFixed(3));
+      g.fillRect(0,q,SW,1);
+    }
+    // the air itself glowing in bands — an aurora with no poles and no shape
+    g.globalCompositeOperation="lighter";
+    for(var b=0;b<9;b++){
+      var by=Math.round(HORIZON*(0.05+b*0.09)), sw=Math.round(Math.sin(now*0.0004+b)*14*K);
+      g.fillStyle="rgba(190,255,210,"+(0.10*burnt).toFixed(3)+")";
+      g.fillRect(sw,by,SW,Math.max(1,Math.round(2*K)));
+    }
+    g.globalCompositeOperation="source-over";
+  }
+  if(flash>0.01){ g.fillStyle="rgba(255,255,255,"+flash.toFixed(3)+")"; g.fillRect(0,0,SW,SH); }
+};
+
+// A ROGUE PLANET — it does not hit. It passes, and that is worse: it takes the air and the sea with it.
+APOC_X.rogueplanet=function(g,ap,L,now){
+  var K=Math.max(1,KSP);
+  var r=Math.round((10+ap*ap*230)*K);
+  var cx=Math.round(SW*0.62), cy=Math.round(HORIZON*0.30-ap*HORIZON*0.10);
+  // it eclipses. The light on the whole frame goes as it comes, which is the only way a thing in the
+  // sky can affect a city that is drawn separately from it.
+  var dark=Math.min(0.72,ap*0.9);
+  g.fillStyle="rgba(10,8,16,"+dark.toFixed(3)+")"; g.fillRect(0,0,SW,SH);
+  var body=mixc([96,74,58],[36,26,24],0.3);
+  g.fillStyle=css(body); fillEllipse(g,cx,cy,r,r);
+  // banded, and lit only along the limb that faces our sun — a flat disc is a hole, not a world
+  for(var b=0;b<10;b++){
+    var by=cy-r+Math.round((b+0.5)*(r*2/10));
+    var hw=Math.round(Math.sqrt(Math.max(0,r*r-(by-cy)*(by-cy))));
+    g.fillStyle=rgba(mixc(body,(b&1)?[128,102,78]:[64,48,42],0.55),0.55);
+    g.fillRect(cx-hw,by,hw*2,Math.max(1,Math.round(r*0.12)));
+  }
+  g.globalCompositeOperation="lighter";
+  for(var q=0;q<Math.round(r*0.16);q++){
+    g.fillStyle="rgba(255,214,170,"+(0.30*(1-q/Math.max(1,r*0.16))).toFixed(3)+")";
+    fillEllipse(g,cx-Math.round(r*0.06),cy-Math.round(r*0.05),r-q,r-q);
+  }
+  g.globalCompositeOperation="source-over";
+  g.fillStyle=css(body); fillEllipse(g,cx,cy,Math.round(r*0.94),Math.round(r*0.94));
+  // and the tide comes with it — drawn, never by moving SEA_Y
+  if(typeof SEA_Y==="number"&&SEA_Y>0&&SEA_Y<SH&&ap>0.3){
+    var rise=Math.round(HORIZON*0.30*(ap-0.3)/0.7);
+    g.fillStyle="rgba(12,20,32,0.86)"; g.fillRect(0,SEA_Y-rise,SW,rise+2);
+  }
+};
+
+// THE CRUST CRACKS — the terrain version of the end. It opens, and what is underneath comes up.
+APOC_X.crustcrack=function(g,ap,L,now){
+  var K=Math.max(1,KSP);
+  var n=Math.round(2+ap*7);
+  g.fillStyle="rgba(18,8,6,"+(0.30*ap).toFixed(2)+")"; g.fillRect(0,0,SW,SH);
+  for(var c=0;c<n;c++){
+    var h=((c*2654435761+7)>>>0);
+    var t0=(c/n)*0.5;
+    var lf=Math.min(1,Math.max(0,(ap-t0)/0.30)); if(lf<=0) continue;
+    var cx=Math.round(((h%1000)/1000)*SW);
+    var w=Math.round((4+((h>>>7)%14))*K*lf);
+    // the fissure, and the light in it. ⚠ It gets WIDER, never longer — a crack that grows sideways
+    // reads as the ground failing; one that grows lengthways reads as a drawn line.
+    // 🚨 AND IT IS SHALLOW. The first version ran the black down `HORIZON*0.4` into the foreground and
+    // rendered as a tall black COLUMN standing in front of the city — a crack seen side-on is a thin
+    // dark opening AT the ground line, and everything that says "deep" is the light coming out of it.
+    g.fillStyle="rgba(6,4,4,0.95)";
+    g.fillRect(cx-w,HORIZON-Math.round(w*0.35),w*2,Math.max(2,Math.round(w*0.9)));
+    g.globalCompositeOperation="lighter";
+    for(var q=0;q<Math.round(w*1.6);q++){
+      var qf=q/Math.max(1,Math.round(w*1.6));
+      g.fillStyle=rgba(mixc([255,190,80],[220,40,10],qf),(0.55*(1-qf)*lf).toFixed(3));
+      g.fillRect(cx-Math.round(w*(1-qf*0.6)),HORIZON-Math.round(q*0.6),Math.round(w*2*(1-qf*0.6)),1);
+    }
+    g.globalCompositeOperation="source-over";
+  }
+  // ash over everything, thickening — and a glow along the whole ground line, which is what says the
+  // crust is open from here to the horizon rather than in eight separate places
+  g.globalCompositeOperation="lighter";
+  for(var q2=0;q2<Math.round(HORIZON*0.20*ap);q2++){
+    var qg=q2/Math.max(1,Math.round(HORIZON*0.20*ap));
+    g.fillStyle="rgba(255,120,40,"+(0.16*ap*(1-qg)).toFixed(3)+")";
+    g.fillRect(0,HORIZON-q2,SW,1);
+  }
+  g.globalCompositeOperation="source-over";
+  g.fillStyle="rgba(40,30,26,"+(0.40*ap).toFixed(2)+")"; g.fillRect(0,0,SW,HORIZON);
+};
+
+// THE OCEANS BOIL — a white-out that comes IN from the water, so it only makes sense where there is water.
+APOC_X.oceansboil=function(g,ap,L,now){
+  var K=Math.max(1,KSP);
+  var sea=(typeof SEA_Y==="number"&&SEA_Y>0&&SEA_Y<SH)?SEA_Y:HORIZON;
+  // the steam front: a wall of white that rises out of the sea and takes the frame
+  var h=Math.round(SH*ap*1.15);
+  for(var q=0;q<h;q++){
+    var qf=q/Math.max(1,h);
+    var wob=((((q*2654435761)>>>0)%3)-1)*Math.round(K);
+    g.fillStyle="rgba("+(L>0.5?"236,238,240":"150,156,164")+","+(0.86*(1-qf*0.30)).toFixed(3)+")";
+    g.fillRect(wob,sea-q,SW,1);
+  }
+  // …and it is BOILING, not fog: bubbles bursting along the waterline
+  for(var b=0;b<Math.round(50*ap);b++){
+    var hb=((b*2654435761+13)>>>0);
+    var bx=((hb%1000)/1000)*SW;
+    var ph=((now*0.004+b*7)%1);
+    g.fillStyle="rgba(255,255,255,"+(0.7*(1-ph)).toFixed(2)+")";
+    g.fillRect(bx,sea-Math.round(ph*22*K),Math.round((1+(hb>>>9)%3)*K),Math.max(1,Math.round(K)));
+  }
+  // ⚠ the air going opaque is the END of this, not the middle of it. At a flat 0.5*ap the city was
+  // already gone by the time the steam front had climbed it, which throws away the only thing worth
+  // watching — the city disappearing INTO it.
+  g.fillStyle="rgba(210,200,190,"+(0.55*Math.max(0,(ap-0.45)/0.55)).toFixed(3)+")"; g.fillRect(0,0,SW,SH);
+};
+
+// GREY GOO — it does not burn or crush. It DISASSEMBLES, and what it leaves is featureless.
+APOC_X.greygoo=function(g,ap,L,now){
+  var K=Math.max(1,KSP);
+  var side=1, front=Math.round(-SW*0.15+ap*SW*1.4);
+  // 🔑 THE READ IS THE ABSENCE OF DETAIL. Everything behind the front becomes ONE smooth grey with no
+  // windows, no edges and no silhouette — which on a map made entirely of small bright detail is the
+  // most disturbing thing that can happen to it. Nothing else in the set removes information.
+  var goo=L>0.5?[150,150,154]:[62,62,68];
+  g.fillStyle=css(goo);
+  g.fillRect(0,0,Math.max(0,Math.min(SW,front)),HORIZON+Math.round(GROUND*0.6));
+  // the front itself is a fine boiling edge, not a straight one
+  if(front>-20&&front<SW+20){
+    for(var q=0;q<Math.round(HORIZON*0.9);q+=2){
+      var wob=Math.round(Math.sin(now*0.006+q*0.19)*4*K)+((((q*2654435761)>>>0)%5)-2);
+      g.fillStyle=css(goo);
+      g.fillRect(front+wob-Math.round(3*K),q,Math.round(6*K),2);
+      g.fillStyle=L>0.5?"rgba(200,200,206,0.7)":"rgba(110,110,120,0.7)";
+      g.fillRect(front+wob+Math.round(3*K),q,Math.max(1,Math.round(K)),2);
+    }
+  }
+  // and a haze of it in the air ahead — the part that gets to you before the wall does
+  for(var m=0;m<Math.round(70*Math.min(1,ap*2));m++){
+    var hm=((m*2654435761+29)>>>0);
+    var mx=front+Math.round(((hm%1000)/1000)*90*K);
+    if(mx<0||mx>SW) continue;
+    g.fillStyle=rgba(goo,0.5);
+    g.fillRect(mx,Math.round(((hm>>>9)%1000)/1000*HORIZON),Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
+  }
+};
+
+// THE LAST WINTER — the SLOW one, and it is distinct from `frost` by exactly that.
+APOC_X.lastwinter=function(g,ap,L,now){
+  var K=Math.max(1,KSP);
+  // 🔑 `frost` is a killing snap that reaches each block in turn. This is a winter that simply does not
+  // end: the city keeps working for most of it and gradually stops, and the tell is the SNOW LINE
+  // climbing the buildings rather than anything dramatic happening to them.
+  var depth=Math.round(HORIZON*0.42*ap*ap);
+  var sn=L>0.5?[236,242,250]:[150,164,186];
+  for(var q=0;q<depth;q++){
+    var qf=q/Math.max(1,depth);
+    var wob=(((q*2654435761)>>>0)%3);
+    g.fillStyle=rgba(sn,(0.92-qf*0.15).toFixed(2));
+    g.fillRect(0,HORIZON-q+wob,SW,1);
+  }
+  // snow falling the whole time, thickening
+  for(var f2=0;f2<Math.round(120*ap);f2++){
+    var hf=((f2*2654435761+5)>>>0);
+    var fx2=((hf%1000)/1000)*SW+Math.round(Math.sin(now*0.0008+f2)*10*K);
+    var fy=((((hf>>>9)%1000)/1000)*HORIZON+(now*0.03)%HORIZON)%HORIZON;
+    g.fillStyle="rgba(240,246,252,0.8)";
+    g.fillRect(fx2,fy,Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
+  }
+  // and the light goes blue and low
+  g.fillStyle="rgba(40,60,96,"+(0.42*ap).toFixed(2)+")"; g.fillRect(0,0,SW,SH);
+};
+
+// THE SKY FALLS — the ceiling of the world comes down in sheets.
+APOC_X.skyfall=function(g,ap,L,now){
+  var K=Math.max(1,KSP);
+  var skc=biomeSkc(L>0.5);
+  // 🔑 SHEETS, NOT PIECES. The horror is that it comes down in ONE PLANE — big flat slabs of sky
+  // detaching and sliding, with black behind them. Small falling fragments would just be debris.
+  var n=7;
+  for(var s=0;s<n;s++){
+    var h=((s*2654435761+11)>>>0);
+    var t0=(s/n)*0.45;
+    var lf=Math.min(1,Math.max(0,(ap-t0)/0.42)); if(lf<=0) continue;
+    var x0=Math.round((s/n)*SW-SW*0.06), w=Math.round(SW/n*1.25);
+    var top=Math.round(-HORIZON*0.1+lf*HORIZON*1.15);
+    var hh=Math.round(HORIZON*0.42);
+    var tilt=Math.round(((h%100)/100-0.5)*10*K*lf);
+    g.fillStyle="rgba(4,4,8,0.96)";                                  // the black behind it
+    g.fillRect(x0,0,w,Math.max(0,top));
+    g.fillStyle=rgba(skc,0.95);                                      // the sheet itself
+    g.fillRect(x0+tilt,top,w,hh);
+    g.fillStyle="rgba(255,255,255,0.35)";                            // a lit edge, so it reads as a plate
+    g.fillRect(x0+tilt,top,w,Math.max(1,Math.round(K)));
+  }
+};
+
+// EVERYTHING STOPS — the strange one. Nothing is destroyed and that is the point.
+APOC_X.timestop=function(g,ap,L,now){
+  var K=Math.max(1,KSP);
+  // 🔑 COLOUR IS THE ONLY THING THAT CAN BE TAKEN AWAY HERE. People and traffic are drawn from the
+  // clock by other functions and this renderer cannot freeze them — but it CAN drain the world to
+  // grey and put a hard stillness over it, and a city that has gone monochrome while still moving
+  // reads as wrong in a way nothing else in the set does.
+  g.fillStyle="rgba(126,126,130,"+(0.80*ap).toFixed(3)+")";
+  g.globalCompositeOperation="saturation";
+  g.fillRect(0,0,SW,SH);
+  g.globalCompositeOperation="source-over";
+  // the light drains from the edges inward — a vignette that closes
+  var vig=Math.round(SW*0.42*ap);
+  for(var q=0;q<vig;q++){
+    var a=(0.85*ap*(1-q/Math.max(1,vig)));
+    g.fillStyle="rgba(6,6,9,"+a.toFixed(3)+")";
+    g.fillRect(q,0,1,SH); g.fillRect(SW-q-1,0,1,SH);
+  }
+  // …and a few things hanging in the air that should have landed
+  for(var m=0;m<Math.round(26*ap);m++){
+    var hm=((m*2654435761+31)>>>0);
+    var mx=((hm%1000)/1000)*SW, my=Math.round(((hm>>>9)%1000)/1000*HORIZON*0.9);
+    g.fillStyle="rgba(210,210,216,"+(0.5*ap).toFixed(2)+")";
+    g.fillRect(mx,my,Math.max(1,Math.round(2*K)),Math.max(1,Math.round(K)));
+  }
+};
+
 function drawApocalypse(g,ap,L,now){
   if(curDeath==="nuke"){ drawApocNuke(g,ap,L,now); return; }
   if(curDeath==="meteors"){ drawApocMeteor(g,ap,L,now); return; }
@@ -44747,6 +45008,7 @@ function drawApocalypse(g,ap,L,now){
   if(curDeath==="kaijuwar"){ drawApocKaijuWar(g,ap,L,now); return; }
   if(curDeath==="pollution"){ drawApocPollution(g,ap,L,now); return; }
   if(curDeath==="moonfall"){ drawApocMoonfall(g,ap,L,now); return; }
+  if(APOC_X[curDeath]){ APOC_X[curDeath](g,ap,L,now); return; }   // the eight added later — a table, not eight lines
 }
 // ---- MOONFALL (Majora's Mask): the Moon grows ENORMOUS, its carved face leering, and plunges into the city. ----
 function drawApocMoonfall(g,ap,L,now){
