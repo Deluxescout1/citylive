@@ -229,7 +229,7 @@ sufficient: the automated pass cannot see "invisible", and the sheets cannot cov
 
 ---
 
-# The capability matrix — 15 disasters x 28 lands
+# The capability matrix — 23 disasters x 28 lands
 
 **Generated, not written.** `desktop/qml-dis-matrix.qml` sets each biome up for real and asks
 `disExemption`, `DIS_SIG`, `disDestroys` and `disMinorEvent` what they actually say. Regenerate with:
@@ -256,8 +256,8 @@ almanac replays history through the same function. That was already true of the 
 trade for not showing a tornado inside a sealed cavern — but a real cost, not a free one.
 
 ```
-SIGNED 4/15   SUBSTITUTIONS 33
-
+SIGNATURES (W=warn A=after): asteroid:WA volcano:WA zombie:WA alien:WA kaiju:WA tornado:WA flood:WA mech:WA kraken:WA sandstorm:WA iceage:WA rift:WA blackout:WA smog:WA planecrash:WA earthquake:WA hurricane:WA meltdown:WA dambreak:WA firestorm:WA sinkhole:WA riot:WA meteorswarm:WA
+SIGNED 23/23   SUBSTITUTIONS 49
     alpine | ALPINE | ocean=Y | exempt=- | (all fifteen play here)
     forest | OLD FOREST | ocean=Y | exempt=- | (all fifteen play here)
     mesa | RED MESA | ocean=N | exempt=- | kraken->tornado
@@ -266,29 +266,29 @@ SIGNED 4/15   SUBSTITUTIONS 33
     beach | CORAL COAST | ocean=Y | exempt=- | (all fifteen play here)
     swamp | THE BAYOU | ocean=Y | exempt=- | (all fifteen play here)
     volcano | THE NEW ISLAND | ocean=Y | exempt=- | (all fifteen play here)
-    arctic | THE PACK ICE | ocean=Y | exempt=- | (all fifteen play here)
+    arctic | THE PACK ICE | ocean=Y | exempt=- | firestorm->blackout
     sprawl | THE SPRAWL | ocean=Y | exempt=- | (all fifteen play here)
     hell | THE ASHLANDS | ocean=N | exempt=- | kraken->tornado
-    heaven | THE EMPYREAN | ocean=N | exempt=heaven | volcano->asteroid, flood->tornado, kraken->tornado, sandstorm->tornado
-    dunes | THE DUNE SEA | ocean=N | exempt=- | kraken->tornado
+    heaven | THE EMPYREAN | ocean=N | exempt=heaven | volcano->asteroid, flood->tornado, kraken->tornado, sandstorm->tornado, earthquake->asteroid, dambreak->tornado, sinkhole->asteroid
+    dunes | THE DUNE SEA | ocean=N | exempt=- | kraken->tornado, dambreak->flood
     karst | THE KARST | ocean=N | exempt=- | kraken->tornado
     fjord | THE FJORD | ocean=Y | exempt=- | (all fifteen play here)
     salt | THE SALT MIRROR | ocean=Y | exempt=- | (all fifteen play here)
     dam | THE GREAT DAM | ocean=N | exempt=- | kraken->tornado
-    under | THE UNDERCITY | ocean=Y | exempt=roof | tornado->flood, sandstorm->smog, iceage->blackout, planecrash->blackout
+    under | THE UNDERCITY | ocean=Y | exempt=roof | tornado->flood, sandstorm->smog, iceage->blackout, planecrash->blackout, hurricane->blackout
     savanna | THE SAVANNA | ocean=N | exempt=- | kraken->tornado
     canyon | THE GORGE | ocean=N | exempt=- | kraken->tornado
 egg leaf | THE HIDDEN VILLAGE | ocean=N | exempt=- | kraken->tornado
-egg core | THE CORE WORLD | ocean=N | exempt=- | kraken->tornado
+egg core | THE CORE WORLD | ocean=N | exempt=- | kraken->tornado, dambreak->flood
 egg fire | THE CINDER THRONE | ocean=N | exempt=- | kraken->tornado
-egg air | THE HIGH TEMPLES | ocean=N | exempt=air | volcano->asteroid, flood->tornado, kraken->tornado
+egg air | THE HIGH TEMPLES | ocean=N | exempt=air | volcano->asteroid, flood->tornado, kraken->tornado, earthquake->asteroid, dambreak->tornado, firestorm->tornado, sinkhole->asteroid
 egg falls | THE FALLS CITY | ocean=N | exempt=- | kraken->tornado
-egg orbit | SPACE CITY | ocean=N | exempt=orbit | volcano->asteroid, tornado->asteroid, flood->asteroid, kraken->asteroid, sandstorm->asteroid, iceage->asteroid, smog->blackout, planecrash->asteroid
+egg orbit | SPACE CITY | ocean=N | exempt=orbit | volcano->asteroid, tornado->asteroid, flood->asteroid, kraken->asteroid, sandstorm->asteroid, iceage->asteroid, smog->blackout, planecrash->asteroid, earthquake->asteroid, hurricane->blackout, dambreak->asteroid, firestorm->blackout, sinkhole->asteroid
 egg plateau | THE SEALED HEIGHT | ocean=N | exempt=- | kraken->tornado
 egg rainv | THE HIDDEN RAIN | ocean=N | exempt=- | kraken->tornado
 ```
 
-## Lifecycle signatures — 4 of 15
+## Lifecycle signatures — 23 of 23
 
 `W` = a bespoke WARNING, `A` = a bespoke AFTERMATH. Everything unsigned still gets the generic arc
 (evacuation, medics, crews, scaffolding) — it is not missing, it is just not yet its own.
@@ -300,8 +300,18 @@ egg rainv | THE HIDDEN RAIN | ocean=N | exempt=- | kraken->tornado
 | `blackout` | brownout dips rolling through · a **restoration front** sweeping across, crews at its edge |
 | `smog` | a lid forming at roof height · lifting from the bottom, street first, masks coming off |
 
-Unsigned: `asteroid` `zombie` `alien` `tornado` `flood` `mech` `kraken` `sandstorm` `iceage` `rift`
-`planecrash`.
+All fifteen of the original set are signed, and so are the eight Tier-2 additions — `earthquake`
+(foreshocks · a fissure that never quite levels again) · `hurricane` (shutters going up · a wrack line)
+· `meltdown` (deliberate venting, buses leaving · a zone nobody reopens) · `dambreak` (the leak before
+the wall · a waterline far above the street) · `firestorm` (glow over the ridge, ash ahead of it ·
+ground that stays burnt) · `sinkhole` (the road sags first · plates and barriers, never filled) ·
+`riot` (it gathers · boarded frontages) · `meteorswarm` (the first few, high · many small craters).
+
+**Tier 2 arrives through a cutover**, exactly as the cadence change did. `DIS_TYPES` is INDEXED, not
+hashed by name — `(r()*DIS_TYPES.length)|0` — so growing it from 15 to 23 would re-map every past slot
+and retroactively change what every life in the chronicles suffered. That is the `DEATHS` trap one
+array over. Slots before `DIS_TYPE_CUTOVER` roll the frozen 15; after it, all 23. One `r()` call either
+way, so the stream is untouched.
 
 ## Where the landscape damage reaches
 

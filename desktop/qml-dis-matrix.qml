@@ -24,7 +24,10 @@ Item {
         for (var i = 0; i < City.BIOMES.length; i++) lands.push({ k: City.BIOMES[i].k, egg: false });
         for (var e = 0; e < City.EGG_BIOMES.length; e++) lands.push({ k: City.EGG_BIOMES[e].k, egg: true });
 
-        var types = City.DIS_TYPES;
+        // ⚠ DIS_TYPES_ALL, not DIS_TYPES. The frozen 15 is what slots BEFORE the cutover roll; the
+        // matrix has to describe what the engine does now, and reading the wrong array is how a
+        // generated report ends up as confidently wrong as a hand-typed one.
+        var types = City.DIS_TYPES_ALL;
         var rows = [], swapCount = 0, sigCount = 0;
 
         for (var L = 0; L < lands.length; L++) {

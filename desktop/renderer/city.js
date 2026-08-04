@@ -11873,7 +11873,15 @@ var DIS_WARN_LINE={
   rift:      "THE SKY IS WRONG ABOVE THE DISTRICT - DO NOT LOOK UP",
   blackout:  "GRID INSTABILITY - ROLLING OUTAGES EXPECTED WITHIN THE HOUR",
   smog:      "AIR QUALITY EMERGENCY - THE HAZE IS CLOSING IN",
-  planecrash:"AIRCRAFT IN DISTRESS OVERHEAD - CLEAR THE STREETS"
+  planecrash:"AIRCRAFT IN DISTRESS OVERHEAD - CLEAR THE STREETS",
+  earthquake: "SEISMIC ALERT - GET AWAY FROM THE GLASS, THIS IS THE FORESHOCK",
+  hurricane:  "HURRICANE WARNING - LANDFALL EXPECTED, SHUTTERS DOWN",
+  meltdown:   "REACTOR EMERGENCY - SHELTER IN PLACE, DO NOT DRINK THE WATER",
+  dambreak:   "THE WALL IS FAILING - EVERYONE BELOW THE LINE, MOVE NOW",
+  firestorm:  "FIRE FRONT ADVANCING - IT IS FASTER THAN YOU ARE, GO",
+  sinkhole:   "GROUND SUBSIDENCE - STAY OFF THE STREETS, THE ROAD IS NOT SOLID",
+  riot:       "CIVIL DISORDER SPREADING - CURFEW IN EFFECT AT DUSK",
+  meteorswarm:"METEOR SWARM INBOUND - THIS ONE IS NOT A SHOWER, TAKE COVER"
 };
 function disWarnLine(di){
   return DIS_WARN_LINE[di.type] || ("EMERGENCY WARNING - "+(DIS_NAME[di.type]||"INCIDENT")+" IMMINENT");
@@ -19373,12 +19381,35 @@ var DIS_DUR=240000;          // full lifecycle length (4 min): warn→build→st
 var DIS_LOOKBACK=10;         // how many past slots to remember rebuilt towers for
 var RUIN_CHANCE=0.20;        // of the RARE lost CAT-5 events, the fraction that scar the district PERMANENTLY (rest of this life) instead of eventually rebuilding — tuned so a week-long life sees only ~a handful of dead districts (a real, memorable event; use FORCERUIN to see one on demand)
 var RUIN_MAXSCAN=2000;       // hard cap on how many past slots the ruin scan walks (covers a full week-life; clamped tighter to this life's birth)
+// 🚨🚨 APPEND-ONLY IS NOT ENOUGH HERE — THIS ARRAY IS INDEXED, NOT HASHED BY NAME. `disasterInfo` picks
+// with `(r()*DIS_TYPES.length)|0`, so growing the array from 15 to 23 re-maps EVERY past slot: the roll
+// that used to land on `tornado` lands somewhere else, and every life already written to the chronicles
+// is retroactively recorded as having suffered something different. It is the `DEATHS` trap exactly
+// (append and `h % length` rewrites every past life's fate), one array over.
+// 🔒 So the eight new ones arrive through a CUTOVER, the same device `disProbFor` uses for the cadence:
+// the frozen 15 for every slot before it, the full 23 after. One `r()` call either way, so the stream is
+// untouched and the past is bit-for-bit what it always was.
 var DIS_TYPES=["asteroid","volcano","zombie","alien","kaiju","tornado","flood","mech","kraken","sandstorm","iceage","rift","blackout","smog","planecrash"];
+// TIER 2 — the genuinely new ones, and the only eight in his expansion brief that were not already
+// shipping in some form. (The brief's other ten "new" events all existed; see docs/DISASTERS_INVENTORY.md.)
+var DIS_TYPES_NEW=["earthquake","hurricane","meltdown","dambreak","firestorm","sinkhole","riot","meteorswarm"];
+var DIS_TYPES_ALL=DIS_TYPES.concat(DIS_TYPES_NEW);
+var DIS_TYPE_CUTOVER=4252115;            // same slot as DIS_CUTOVER, verified against `new Date(idx*DIS_SLOT)`
+function disTypesFor(idx){ return idx<DIS_TYPE_CUTOVER ? DIS_TYPES : DIS_TYPES_ALL; }
 var DIS_NAME={asteroid:"ASTEROID",volcano:"VOLCANO",zombie:"ZOMBIES",alien:"ALIENS",kaiju:"KAIJU",
   tornado:"TORNADO",flood:"FLOOD",mech:"MECH WAR",kraken:"KRAKEN",sandstorm:"SANDSTORM",iceage:"ICE AGE",rift:"RIFT",
-  blackout:"BLACKOUT",smog:"SMOG",planecrash:"PLANE CRASH"};
-// non-destructive threats (blackout, smog) skip the collapse→rubble→rebuild machinery: they veil the city, they don't level it.
-function disDestroys(t){ return t!=="blackout" && t!=="smog"; }
+  blackout:"BLACKOUT",smog:"SMOG",planecrash:"PLANE CRASH",
+  // TIER 2
+  earthquake:"EARTHQUAKE",hurricane:"HURRICANE",meltdown:"MELTDOWN",dambreak:"DAM BREAK",
+  firestorm:"FIRESTORM",sinkhole:"SINKHOLES",riot:"UNREST",meteorswarm:"METEOR SWARM"};
+// non-destructive threats skip the collapse→rubble→rebuild machinery: they veil or disrupt the city,
+// they do not level it.
+// ⚠ `riot` IS IN THIS SET, and it is the one judgement call among the eight. Civil unrest burns cars
+// and breaks frontages; it does not flatten a district, and putting it through the collapse pipeline
+// would have it levelling towers like a CAT-5 asteroid. It is also the third member of a class that had
+// only two, which is worth something on its own — the non-destructive path is the one the lifecycle
+// exercises least.
+function disDestroys(t){ return t!=="blackout" && t!=="smog" && t!=="riot"; }
 var FORCEDIS=null;           // test hook: {type,intensity,xf,w,seed,f}
 // Test hook: print the damage strip this screen actually resolved to. Worth keeping as a flag rather
 // than as a throwaway console.log, because the ONE thing that cannot be judged from a render is how
@@ -19404,7 +19435,15 @@ var FORCERUIN=null;          // test hook: {type,intensity,xf,w,seed} — pins a
 // change what every life ALREADY WRITTEN to the chronicles is recorded as having suffered — the same
 // trap as appending to `DEATHS`. The cutover below changes the THRESHOLD without changing the number
 // of rolls consumed, so slots before it are bit-for-bit what they always were.
-var DIS_CUTOVER=4283000;                 // slot index ≈ 2026-08-03; before it, the original cadence
+// 🚨🚨 THIS NUMBER WAS FIVE MONTHS IN THE FUTURE. The comment said "≈ 2026-08-03" — the day it was
+// written — and 4283000 * 420000 ms is **2027-01-02**. So the locked answer "RARER, each one is an
+// EVENT" has been in the code since it was locked and has never once been in force: every life since
+// has run at the old one-per-28-minutes, and would have kept doing so until January.
+// 🔑 Nothing about the mechanism was wrong. The cutover trick works exactly as designed; the constant
+// was simply never checked against a clock, and a slot index is not a thing anyone can eyeball. Lowering
+// it rewrites no history — every slot below it is in the past and keeps the rate it already had, and the
+// slots this moves are ones nobody has seen yet.
+var DIS_CUTOVER=4252115;                 // slot index for 2026-08-05, VERIFIED against `new Date(idx*DIS_SLOT)`
 var DIS_PROB_LATE=0.13;                  // ≈ one per 54 min instead of one per 29 — each one an event
 function disProbFor(idx){ return idx<DIS_CUTOVER ? DIS_PROB : DIS_PROB_LATE; }
 // The full arc, as offsets from the disaster's own `t0`. PURE — no rolls, no state.
@@ -19482,8 +19521,23 @@ var DIS_EXEMPT={
   // odd lands were taken from the brief rather than from the table. Reading the roster is what a
   // generated matrix is FOR.
   air:  { why:"needle spires in open air — no sea floor and no water table",
-          flood:"tornado", kraken:"tornado", volcano:"asteroid" }
+          flood:"tornado", kraken:"tornado", volcano:"asteroid",
+          dambreak:"tornado", sinkhole:"earthquake", firestorm:"tornado" }
 };
+// …and four of the eight new ones need a rule that is about WATER or GROUND rather than about a land,
+// so they are predicates rather than table rows. A dam break needs something impounded to break; a
+// sinkhole and an earthquake need ground to open.
+function disExemptT2(type,B){
+  if((type==="dambreak") && !hasOcean && !(B&&(B.water==="river"||B.dam)))
+    return {to:"flood", why:"nothing impounded above this town"};
+  if((type==="sinkhole"||type==="earthquake") && B && (B.orbit||B.k==="heaven"||B.k==="air"))
+    return {to:"asteroid", why:"no ground to open"};
+  if(type==="hurricane" && B && (B.orbit||B.roof))
+    return {to:"blackout", why:"no weather reaches here"};
+  if(type==="firestorm" && B && (B.orbit||B.polar))
+    return {to:"blackout", why:"nothing here will carry a fire front"};
+  return null;
+}
 function disExemptKey(B){
   B=B||curBiome; if(!B) return null;
   if(B.orbit) return "orbit";
@@ -19492,7 +19546,27 @@ function disExemptKey(B){
   if(B.k==="air")    return "air";
   return null;
 }
+// ⚠⚠ A SUBSTITUTION HAS TO BE LEGAL ITSELF, and the first version did not check. The matrix reported
+// SPACE CITY sending `dambreak->flood` — a FLOOD, on a space station, and the orbit table exists
+// precisely to stop that. What happened is that the T2 rule fired, produced `flood`, and nobody asked
+// the land table about the answer. So the resolution iterates, with a hard cap: three passes is far
+// more than any chain here needs, and a cap means a cycle in the tables degrades to "leave it alone"
+// rather than hanging the paint loop.
+// 🔑 Second time this phase that the generated matrix found something no amount of reading the code
+// would have. Both were in the same place — the order things are consulted in.
 function disExemption(type,B){
+  B=B||curBiome;
+  var first=null, cur=type;
+  for(var pass=0;pass<3;pass++){
+    var step=disExemption1(cur,B);
+    if(!step) break;
+    if(!first) first={to:step.to, why:step.why};
+    first.to=step.to;
+    cur=step.to;
+  }
+  return first;
+}
+function disExemption1(type,B){
   B=B||curBiome;
   // ⚠ THE LAND TABLE IS CONSULTED FIRST, and the order is not cosmetic. With the landlocked-kraken
   // rule ahead of it the matrix reported SPACE CITY as sending `kraken->tornado` — a tornado, on a
@@ -19500,6 +19574,7 @@ function disExemption(type,B){
   // The narrow rule has to run last: a land that exempts a type has already answered the question.
   var k=disExemptKey(B);
   if(k){ var tb=DIS_EXEMPT[k], to=tb[type]; if(to) return {to:to, why:tb.why}; }
+  var t2=disExemptT2(type,B); if(t2) return t2;
   // the original rule, kept as a rule rather than folded into the table: it is keyed on whether this
   // LIFE has an ocean, not on which biome it is, and several biomes go both ways.
   if(type==="kraken" && !hasOcean) return {to:"tornado", why:"landlocked — no sea for a sea-beast"};
@@ -19508,7 +19583,8 @@ function disExemption(type,B){
 function disasterInfo(idx){
   var r=rng((idx*2246822519+13)>>>0);
   if(r()>disProbFor(idx)) return null;
-  var type=DIS_TYPES[(r()*DIS_TYPES.length)|0];
+  var _TT=disTypesFor(idx);                          // 15 before the cutover, 23 after — see `disTypesFor`
+  var type=_TT[(r()*_TT.length)|0];
   var _sw=disExemption(type); if(_sw) type=_sw.to;   // …and some events are absurd on some lands — see there
   var intensity=1+((r()*5)|0);                     // CAT 1..5
   var t0=r()*(DIS_SLOT-DIS_DUR);                    // start offset within the slot (fits fully inside)
@@ -21038,7 +21114,13 @@ function drawRift(g,cd,L,now){
 // [r,g,b, mode]  mode 1 = additive glow (luminous colour) · 0 = gloom (a DARK tint laid over the sky to
 // darken+colour it, no "multiply" op needed — Qt Canvas support for that is spotty). sandstorm skips this
 // (it draws its own ochre veil).
+// TIER 2 sky reactions. ⚠ `meltdown` and `sinkhole` are deliberately ABSENT and it is the same ruling
+// blackout and smog carry: contamination is invisible and a hole in the road is in the GROUND. Filling
+// the table for tidiness is how the blackout-dims-the-sun bug got written the first time. `riot` is out
+// too — a burning car does not colour the sky over a county.
 var DIS_ATMO={ volcano:[255,74,22,1], asteroid:[255,120,40,1], alien:[120,255,190,1], rift:[178,86,255,1],
+  earthquake:[120,104,86,0], hurricane:[26,34,48,0], dambreak:[16,34,44,0],
+  firestorm:[255,96,26,1], meteorswarm:[255,140,60,1],
   kaiju:[150,90,220,1], mech:[255,150,90,1], kraken:[70,196,164,1], iceage:[176,226,255,1],
   zombie:[18,44,14,0], flood:[10,28,50,0], tornado:[20,20,28,0],
   // ⚠ SANDSTORM HAD NO ENTRY AT ALL, on the one disaster whose entire subject is the air. Added.
@@ -21317,6 +21399,323 @@ function drawDisasterArc(g,L,now){
   }
 }
 
+// ================================================================================================
+// TIER 2 — THE EIGHT GENUINELY NEW DISASTERS
+// ------------------------------------------------------------------------------------------------
+// 🔒 His locked priority was depth first and then these, and the eight are precisely the ones his
+// expansion brief proposed that were NOT already shipping in some form. A table rather than eight more
+// `else if` branches in `drawDisaster`, so the next eight cost one line there instead of eight.
+// ⚠ Each one is asked the same question the fifteen were: what does ONLY this event look like? An
+// earthquake that renders as generic rubble is an asteroid with a different name in the ticker.
+// ================================================================================================
+var DIS_T2={};
+// EARTHQUAKE — the ground moves, and it is the only event here whose subject is the FRAME itself.
+DIS_T2.earthquake=function(g,cd,L,now){
+  var f=cd.f, i=cd.intensity, cx=disX(cd.x), K=Math.max(1,KSP), day=L>0.5;
+  if(f>=0.62) return;
+  var shake=Math.min(1,f/0.10)*(f>0.42?Math.max(0,1-(f-0.42)/0.20):1);
+  if(shake<=0.01) return;
+  var w=Math.round((cd.w*2.6+70+i*40)*0.5);
+  // 🔑 THE FISSURE IS THE READ, not the shaking. Everything else on these maps can rattle; only an
+  // earthquake OPENS the ground, and a crack that runs across the district with jagged edges says it
+  // in one glance and keeps saying it after the shaking stops.
+  var gap=Math.round((3+i*2.4)*K*shake);          // was (1+0.9i): a 9px crack behind a city is nothing
+  for(var x=Math.max(0,cx-w);x<Math.min(SW,cx+w);x+=2){
+    var d=Math.abs(x-cx)/w, fall=d>=1?0:(0.5+0.5*Math.cos(d*Math.PI));
+    if(fall<=0.04) continue;
+    var hsh=((x+WOFF)*2654435761)>>>0;
+    var gw=Math.max(1,Math.round(gap*fall*(0.5+((hsh%100)/100))));
+    var dy=Math.round(((hsh>>>7)%3)-1);
+    g.fillStyle="rgba(8,7,8,"+(0.90*fall).toFixed(2)+")";
+    g.fillRect(x,HORIZON-Math.round(gw*0.5)+dy,2,gw+1);
+    if((hsh>>>13)%5===0){                                          // slabs tipped up along the edge
+      g.fillStyle=day?"rgba(96,88,78,0.85)":"rgba(34,32,32,0.85)";
+      g.fillRect(x,HORIZON-gw-Math.round(2*K)+dy,Math.round(3*K),Math.round(2*K));
+    }
+  }
+  // dust shaken off everything standing — this is what makes it read as violent rather than as a ditch
+  var dust=shake*(1-Math.min(1,f/0.5));
+  if(dust>0.05) for(var q=0;q<26;q++){
+    var h=mixLi(q+cd.seed,0xEA01);
+    var px=cx+Math.round((((h%2000)/1000)-1)*w);
+    var py=HORIZON-Math.round(((h>>>7)%Math.round(HORIZON*0.44)));
+    g.fillStyle="rgba("+(day?"196,188,176":"78,76,80")+","+(0.32*dust).toFixed(2)+")";
+    g.fillRect(px,py+Math.round(Math.sin(now*0.01+q)*1.5),Math.max(1,Math.round(2*K)),Math.max(1,Math.round(K)));
+  }
+};
+// HURRICANE — not a tornado. A tornado is a point; a hurricane is the WHOLE SCREEN, for a long time.
+DIS_T2.hurricane=function(g,cd,L,now){
+  var f=cd.f, i=cd.intensity, K=Math.max(1,KSP), day=L>0.5;
+  if(f>=0.72) return;
+  var str=Math.min(1,f/0.14)*(f>0.52?Math.max(0,1-(f-0.52)/0.20):1);
+  if(str<=0.02) return;
+  var side=(cd.seed&1)?1:-1;
+  // ⚠ FULL WIDTH ON PURPOSE, which almost nothing else here is. The eye reads "storm" from rain that
+  // is not falling straight down, so the rake angle carries this more than the density does.
+  var rake=side*Math.round((6+i*2)*str);
+  var n=Math.round((70+i*40)*str);
+  g.strokeStyle="rgba("+(day?"180,196,214":"120,140,170")+","+(0.42*str).toFixed(2)+")";
+  g.lineWidth=1; g.beginPath();
+  for(var r2=0;r2<n;r2++){
+    var h=mixLi(r2+cd.seed,0xE801);
+    var rx=((h%1000)/1000)*SW + ((now*0.5*side*str)%SW);
+    if(rx>SW) rx-=SW;
+    var ry=((((h>>>9)%1000)/1000)*HORIZON + (now*0.9)%HORIZON)%HORIZON;
+    g.moveTo(rx,ry); g.lineTo(rx+rake,ry+Math.round(9*K));
+  }
+  g.stroke();
+  // the surge, where there is water to surge — DRAWN, never by moving SEA_Y (37 read sites)
+  if(typeof SEA_Y==="number"&&SEA_Y>0&&SEA_Y<SH){
+    var rise=Math.round(HORIZON*0.05*str);
+    g.fillStyle=day?"rgba(58,78,92,0.72)":"rgba(14,22,34,0.78)";
+    g.fillRect(0,SEA_Y-rise,SW,rise+2);
+    for(var s2=0;s2<SW;s2+=3){
+      var hs=((s2+WOFF)*2654435761)>>>0;
+      g.fillStyle="rgba(226,236,244,"+(0.30*str).toFixed(2)+")";
+      g.fillRect(s2,SEA_Y-rise-((hs%Math.max(1,Math.round(3*K)))),3,1);
+    }
+  }
+  // things going past horizontally that have no business being airborne
+  for(var d3=0;d3<Math.round(14*str);d3++){
+    var dh=mixLi(d3+cd.seed,0xE802);
+    var dx2=((dh%1000)/1000)*SW + side*((now*0.22)%SW); if(dx2>SW) dx2-=SW; if(dx2<0) dx2+=SW;
+    var dy2=HORIZON-Math.round(((dh>>>7)%Math.round(HORIZON*0.5)));
+    g.fillStyle=day?"rgba(84,74,60,0.8)":"rgba(150,146,144,0.55)";
+    g.fillRect(dx2,dy2+Math.round(Math.sin(now*0.004+d3)*3),Math.round(3*K),Math.max(1,Math.round(K)));
+  }
+};
+// MELTDOWN — nothing falls over. The damage is INVISIBLE, and that is the entire design problem.
+DIS_T2.meltdown=function(g,cd,L,now){
+  var f=cd.f, i=cd.intensity, cx=disX(cd.x), K=Math.max(1,KSP), day=L>0.5;
+  if(f>=0.80) return;
+  var str=Math.min(1,f/0.12);
+  var w=Math.round((cd.w*2.4+90+i*46)*0.5);
+  // 🔑 SO IT IS DRAWN AS THE RESPONSE, NOT AS THE EVENT. Contamination has no silhouette; a cordon,
+  // a plume and people in suits do. This is the one disaster in the set you can only see by looking
+  // at what the city is doing about it.
+  var ph=Math.round(HORIZON*0.44*str*(1-Math.max(0,(f-0.5)/0.3)));
+  for(var q=0;q<ph;q++){
+    var qf=q/Math.max(1,ph), pw=Math.round((5+q*0.55)*K*0.5);
+    var drift=Math.round(Math.sin(now*0.0005+qf*2.4)*10*K*qf);
+    // ⚠ A WHITE PLUME ON A PALE BLUE SKY IS NOT A PLUME. Value contrast, not hue: the column is
+    // denser than the first version and carries a darker edge, so it separates from the sky at noon
+    // instead of dissolving into it the way the salt pan did.
+    g.fillStyle="rgba("+(day?"238,240,236":"128,132,134")+","+(0.60*(1-qf*0.7)*str).toFixed(3)+")";
+    g.fillRect(cx-pw+drift,HORIZON-q,pw*2,1);
+    g.fillStyle="rgba("+(day?"150,150,146":"70,74,78")+","+(0.34*(1-qf*0.7)*str).toFixed(3)+")";
+    g.fillRect(cx-pw+drift,HORIZON-q,Math.max(1,Math.round(K)),1);
+    g.fillRect(cx+pw+drift-Math.max(1,Math.round(K)),HORIZON-q,Math.max(1,Math.round(K)),1);
+  }
+  // the cordon: hazard tape at the perimeter, which is where the story actually is
+  for(var s3=-1;s3<=1;s3+=2){
+    var px2=cx+s3*w;
+    if(px2<-10||px2>SW+10) continue;
+    for(var t2=0;t2<Math.round(9*K);t2++){
+      g.fillStyle=((t2>>1)&1)?"rgba(240,208,40,0.92)":"rgba(30,28,26,0.92)";
+      g.fillRect(px2,HORIZON-Math.round(6*K)+t2,Math.round(2*K),1);
+    }
+    g.fillStyle=day?"rgba(90,88,86,0.9)":"rgba(36,36,38,0.9)";
+    g.fillRect(px2,HORIZON-Math.round(7*K),Math.max(1,Math.round(K)),Math.round(7*K));
+  }
+  // and at night, the one thing everybody expects: it glows. By day it does not, and it should not.
+  if(!day&&str>0.2){
+    g.globalCompositeOperation="lighter";
+    var gl=0.10+0.10*Math.abs(Math.sin(now*0.0014));
+    g.fillStyle="rgba(140,255,150,"+(gl*str).toFixed(3)+")";
+    g.fillRect(cx-Math.round(w*0.35),HORIZON-Math.round(10*K),Math.round(w*0.7),Math.round(10*K));
+    g.globalCompositeOperation="source-over";
+  }
+  for(var p2=0;p2<4;p2++){
+    var hp=mixLi(p2+cd.seed,0xE901), px3=cx+Math.round((((hp%2000)/1000)-1)*w*0.8);
+    if(px3<-4||px3>SW+4) continue;
+    drawPerson(g,px3|0,HORIZON-1,"#f0f2ec",SKINC[(hp>>>11)%SKINC.length],(Math.floor(now/400)+p2)&3);
+  }
+};
+// DAM BREAK — a wall of water with a FRONT, which is what makes it not a flood.
+DIS_T2.dambreak=function(g,cd,L,now){
+  var f=cd.f, i=cd.intensity, cx=disX(cd.x), K=Math.max(1,KSP), day=L>0.5;
+  if(f>=0.70) return;
+  var side=(cd.seed&1)?1:-1;
+  var run=Math.min(1,f/0.34);
+  // the front, travelling. A flood RISES; this ARRIVES, and the difference is a moving vertical edge.
+  var front=cx+side*Math.round(run*SW*0.9);
+  var depth=Math.round(HORIZON*0.16*Math.min(1,f/0.18)*(f>0.5?Math.max(0,1-(f-0.5)/0.2):1));
+  if(depth<1) return;
+  var x0=(side>0)?Math.max(0,cx-Math.round(SW*0.1)):Math.max(0,front);
+  var x1=(side>0)?Math.min(SW,front):Math.min(SW,cx+Math.round(SW*0.1));
+  for(var x=x0;x<x1;x+=2){
+    var near=Math.min(1,Math.abs(x-front)/(60*K));
+    var d2=Math.round(depth*(0.45+0.55*near));
+    g.fillStyle=day?"rgba(74,92,96,0.86)":"rgba(16,26,34,0.9)";
+    g.fillRect(x,HORIZON-d2,2,d2+1);
+    if(((((x+WOFF)*2654435761)>>>0)%4)===0){                     // churn on the surface
+      g.fillStyle="rgba(228,238,242,"+(0.34+0.3*(1-near)).toFixed(2)+")";
+      g.fillRect(x,HORIZON-d2,2,Math.max(1,Math.round(K)));
+    }
+  }
+  // the head of it — taller, white, and leaning the way it is going
+  if(front>-40&&front<SW+40){
+    var hh=Math.round(depth*1.7);
+    for(var q2=0;q2<hh;q2++){
+      var qf2=q2/Math.max(1,hh);
+      var lean=Math.round(side*qf2*7*K);
+      g.fillStyle="rgba("+(day?"212,226,230":"96,116,130")+","+(0.80*(1-qf2*0.55)).toFixed(2)+")";
+      g.fillRect(front-Math.round(7*K)+lean,HORIZON-q2,Math.round(14*K),1);
+    }
+  }
+};
+// FIRESTORM — a FRONT that moves and leaves black behind it. Not a fire; a fire has a place.
+DIS_T2.firestorm=function(g,cd,L,now){
+  var f=cd.f, i=cd.intensity, cx=disX(cd.x), K=Math.max(1,KSP), day=L>0.5;
+  if(f>=0.76) return;
+  var side=(cd.seed&1)?1:-1;
+  var run=Math.min(1,Math.max(0,(f-0.06)/0.46));
+  var front=cx+side*Math.round(run*SW*0.95);
+  var burnt0=Math.min(cx,front), burnt1=Math.max(cx,front);
+  // what it has already been through
+  for(var x=Math.max(0,burnt0);x<Math.min(SW,burnt1);x+=2){
+    var hsh=((x+WOFF)*2654435761)>>>0;
+    var hh2=Math.max(1,Math.round((2+(hsh%4))*K));
+    g.fillStyle="rgba(14,11,10,0.90)"; g.fillRect(x,HORIZON-hh2,2,hh2+1);
+    if((hsh>>>9)%9===0){                                          // stumps still glowing in the black
+      g.globalCompositeOperation="lighter";
+      g.fillStyle="rgba(255,110,30,"+(0.30+0.25*Math.sin(now*0.006+x)).toFixed(2)+")";
+      g.fillRect(x,HORIZON-hh2,2,Math.max(1,Math.round(K)));
+      g.globalCompositeOperation="source-over";
+    }
+  }
+  // the front itself: a wall of flame with embers running ahead of it, which is how it outruns you
+  if(front>-60&&front<SW+60){
+    var fh=Math.round(HORIZON*0.30*(0.5+0.5*Math.min(1,f/0.2)));
+    // ⚠⚠ ADDITIVE IS FOR NIGHT. This wall was `lighter` at every hour, and against a bright daytime sky
+    // that is a pale smudge — the Empyrean already cost this project a round for the same reason and
+    // the note there says so in as many words. By day the flame front is drawn OPAQUE, which is also
+    // truer: a fire front at noon reads as a solid orange wall with black over it, not as a glow.
+    if(!day) g.globalCompositeOperation="lighter";
+    for(var q3=0;q3<fh;q3++){
+      var qf3=q3/fh, ww3=Math.round((20-qf3*13)*K);
+      var jit=((((q3*2654435761)^cd.seed)>>>0)%Math.max(1,Math.round(6*K)))-Math.round(3*K);
+      g.fillStyle=rgba(mixc([255,228,140],[214,32,8],qf3),day?(0.94-qf3*0.35).toFixed(3):(0.62*(1-qf3*0.7)).toFixed(3));
+      g.fillRect(front-ww3+jit,HORIZON-q3,ww3*2,1);
+    }
+    // the smoke column above it, which is what carries the event on a bright day
+    for(var q4=0;q4<Math.round(fh*1.5);q4++){
+      var qf4=q4/Math.max(1,Math.round(fh*1.5));
+      var sw4=Math.round((16+qf4*30)*K);
+      g.fillStyle="rgba("+(day?"58,52,50":"26,24,26")+","+(0.55*(1-qf4*0.85)).toFixed(3)+")";
+      g.fillRect(front-sw4+Math.round(qf4*qf4*26*K),HORIZON-fh-q4,sw4*2,1);
+    }
+    for(var e2=0;e2<20;e2++){
+      var he=mixLi(e2+cd.seed,0xF101);
+      var ex=front+side*Math.round(((he%600)/600)*90*K);
+      var ey=HORIZON-Math.round(((he>>>7)%Math.round(HORIZON*0.34)));
+      g.fillStyle="rgba(255,150,50,"+(0.30+0.4*Math.abs(Math.sin(now*0.008+e2))).toFixed(2)+")";
+      g.fillRect(ex,ey+Math.round(Math.sin(now*0.005+e2*1.3)*4),Math.max(1,Math.round(2*K)),Math.max(1,Math.round(K)));
+    }
+    g.globalCompositeOperation="source-over";
+  }
+};
+// SINKHOLE SWARM — several holes, not one, and the ground is what fails rather than the buildings.
+DIS_T2.sinkhole=function(g,cd,L,now){
+  var f=cd.f, i=cd.intensity, cx=disX(cd.x), K=Math.max(1,KSP), day=L>0.5;
+  if(f>=0.66) return;
+  var w=Math.round((cd.w*2.2+60+i*36)*0.5);
+  var n=2+i;
+  for(var h2=0;h2<n;h2++){
+    var hh3=mixLi(h2+cd.seed,0xF201);
+    // ⚠ THEY OPEN AT DIFFERENT TIMES. A swarm that appears all at once is one event with several
+    // holes; staggering the onsets is what makes it read as the ground failing repeatedly.
+    var t0=0.06+((hh3>>>5)%40)/100*0.5;
+    var lf=Math.min(1,Math.max(0,(f-t0)/0.20));
+    if(lf<=0) continue;
+    var px=cx+Math.round((((hh3%2000)/1000)-1)*w);
+    if(px<-40||px>SW+40) continue;
+    var rw=Math.round((10+((hh3>>>9)%18))*K*lf), rd=Math.round(rw*0.55);
+    // the hole: black, with a lip of broken ground and the road ends hanging over it
+    g.fillStyle="rgba(6,5,7,0.95)";
+    g.fillRect(px-rw,HORIZON-Math.round(rd*0.4),rw*2,rd);
+    g.fillStyle=day?"rgba(104,96,84,0.9)":"rgba(38,36,36,0.9)";
+    g.fillRect(px-rw-Math.round(2*K),HORIZON-Math.round(rd*0.4)-Math.round(K),Math.round(4*K),Math.round(2*K));
+    g.fillRect(px+rw-Math.round(2*K),HORIZON-Math.round(rd*0.4)-Math.round(K),Math.round(4*K),Math.round(2*K));
+    // …and something that was on the road is now in it
+    if(((hh3>>>17)&1)&&lf>0.6){
+      g.fillStyle=day?"rgba(150,60,50,0.9)":"rgba(60,26,24,0.9)";
+      g.fillRect(px-Math.round(3*K),HORIZON+Math.round(rd*0.2),Math.round(6*K),Math.round(2*K));
+    }
+    if(lf<0.5){                                                   // dust still coming up out of a fresh one
+      g.fillStyle="rgba("+(day?"186,178,166":"70,72,78")+","+(0.40*(1-lf*2)).toFixed(2)+")";
+      g.fillRect(px-rw,HORIZON-Math.round(rd*0.4)-Math.round(6*K*(1-lf*2)),rw*2,Math.round(6*K*(1-lf*2)));
+    }
+  }
+};
+// UNREST — the one disaster whose agent is the CITY'S OWN PEOPLE.
+DIS_T2.riot=function(g,cd,L,now){
+  var f=cd.f, i=cd.intensity, cx=disX(cd.x), K=Math.max(1,KSP), day=L>0.5;
+  if(f>=0.70) return;
+  var str=Math.min(1,f/0.14)*(f>0.52?Math.max(0,1-(f-0.52)/0.18):1);
+  if(str<=0.02) return;
+  var w=Math.round((cd.w*2.0+80+i*44)*0.5);
+  // 🔑 TWO CROWDS FACING EACH OTHER, and the gap between them is the whole picture. One crowd is a
+  // festival; a LINE with a space in front of it is unrest, and it costs nothing extra to draw.
+  var linex=cx+Math.round(Math.sin(now*0.0003)*10*K);
+  var push=Math.round((6+10*str)*K);
+  for(var p3=0;p3<Math.round(20*str);p3++){                       // the crowd
+    var h3=mixLi(p3+cd.seed,0xF301);
+    var px4=linex-push-Math.round(((h3%1000)/1000)*w*0.8);
+    if(px4<-4||px4>SW+4) continue;
+    drawPerson(g,px4|0,HORIZON-1,["#7a3a3a","#3a4a7a","#6a6a3a","#4a3a6a"][(h3>>>5)&3],
+               SKINC[(h3>>>11)%SKINC.length],(Math.floor(now/150)+p3)&3);
+  }
+  for(var q4=0;q4<Math.round(9*str);q4++){                        // and the line, evenly spaced, which
+    var h4=mixLi(q4+cd.seed,0xF302);                              // is exactly what the crowd is not
+    var px5=linex+push+q4*Math.round(4*K);
+    if(px5<-4||px5>SW+4) continue;
+    drawPerson(g,px5|0,HORIZON-1,"#20242e",SKINC[(h4>>>11)%SKINC.length],0);
+    g.fillStyle="rgba(150,160,178,0.8)";                          // shields
+    g.fillRect(px5-Math.round(K),HORIZON-Math.round(5*K),Math.max(1,Math.round(K)),Math.round(4*K));
+  }
+  // fires in the street, and things in the air between the two
+  for(var b2=0;b2<Math.round(4*str);b2++){
+    var hb=mixLi(b2+cd.seed,0xF303);
+    var bx3=linex-push-Math.round(((hb%1000)/1000)*w*0.7);
+    if(bx3<-6||bx3>SW+6) continue;
+    g.globalCompositeOperation="lighter";
+    var fl2=0.5+0.5*Math.abs(Math.sin(now*0.007+b2*1.9));
+    g.fillStyle="rgba(255,130,40,"+(0.55*str*fl2).toFixed(2)+")";
+    g.fillRect(bx3-Math.round(2*K),HORIZON-Math.round((5+2*fl2)*K),Math.round(4*K),Math.round(5*K));
+    g.globalCompositeOperation="source-over";
+  }
+};
+// METEOR SWARM — many, small, and continuous. The asteroid is one big one; this is weather.
+DIS_T2.meteorswarm=function(g,cd,L,now){
+  var f=cd.f, i=cd.intensity, cx=disX(cd.x), K=Math.max(1,KSP), day=L>0.5;
+  if(f>=0.70) return;
+  var str=Math.min(1,f/0.12)*(f>0.50?Math.max(0,1-(f-0.50)/0.20):1);
+  if(str<=0.02) return;
+  var w=Math.round((cd.w*2.6+120+i*50)*0.5);
+  var n=Math.round((6+i*4)*str);
+  g.globalCompositeOperation="lighter";
+  for(var m=0;m<n;m++){
+    var hm=mixLi(m+cd.seed,0xF401);
+    // each one has its OWN fall cycle, so they do not arrive in ranks — a synchronised swarm is rain
+    var cyc=1400+((hm>>>5)%1800);
+    var t3=((now+((hm>>>9)%cyc))%cyc)/cyc;
+    var lx=cx+Math.round((((hm%2000)/1000)-1)*w);
+    var ly=Math.round(t3*HORIZON);
+    if(lx<-20||lx>SW+20) continue;
+    var side2=((hm>>>13)&1)?1:-1;
+    for(var q5=0;q5<Math.round(9*K);q5++){
+      var qf5=q5/Math.round(9*K);
+      g.fillStyle="rgba(255,190,110,"+(0.72*(1-qf5)*str).toFixed(2)+")";
+      g.fillRect(lx-side2*Math.round(q5*1.2),ly-q5*2,Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
+    }
+    if(t3>0.93){                                                  // the strike, small and bright
+      g.fillStyle="rgba(255,220,150,"+(0.8*str).toFixed(2)+")";
+      g.fillRect(lx-Math.round(3*K),HORIZON-Math.round(2*K),Math.round(6*K),Math.round(2*K));
+    }
+  }
+  g.globalCompositeOperation="source-over";
+};
 // ============ THE FOUR THINGS EVERY SIGNATURE NEEDS ============
 // Eleven more signatures were about to be written and most of them wanted the same four pictures:
 // something piled against the ground, wreckage scattered over it, a mark left on the buildings, and
@@ -21950,6 +22349,237 @@ DIS_SIG.planecrash={
     }
   }
 };
+// ============ AND THE EIGHT NEW ONES GET SIGNATURES TOO ============
+// 🔒 The standard the retrofit set — "all of them to the lifecycle standard" — applies to anything
+// added afterwards, or the phase ends with fifteen signed types and eight unsigned ones and a matrix
+// that says so. Built from the same four primitives.
+DIS_SIG.earthquake={
+  // foreshocks: small, early, and the reason anyone gets out at all
+  warn:function(g,di,A,L,now,cx,half,K,day){
+    var tick=(now%3400)/3400, jolt=tick<0.10?(1-tick/0.10):0;
+    if(jolt<=0.02) return;
+    var w=half*2;
+    for(var x=Math.max(0,cx-w);x<Math.min(SW,cx+w);x+=3){
+      var hsh=((x+WOFF)*2654435761)>>>0;
+      g.fillStyle="rgba("+(day?"180,172,160":"66,66,72")+","+(0.26*jolt*A.f).toFixed(3)+")";
+      g.fillRect(x,HORIZON-Math.round((1+(hsh%3))*K),3,Math.round(2*K));
+    }
+  },
+  // the fissure does not close. 🔒 Landform scars persist for the life — this is one.
+  after:function(g,di,A,L,now,cx,half,K,day){
+    var f=(A.phase==="ripple")?0:A.f, w=half*2;
+    for(var x=Math.max(0,cx-w);x<Math.min(SW,cx+w);x+=2){
+      var d=Math.abs(x-cx)/w, fall=d>=1?0:(0.5+0.5*Math.cos(d*Math.PI));
+      if(fall<=0.05) continue;
+      var hsh=((x+WOFF)*2654435761)>>>0;
+      // filled and repaved over the recovery, but never quite level again
+      var gw=Math.max(1,Math.round((2+(hsh%4))*K*fall*(1-f*0.55)));
+      g.fillStyle="rgba(10,9,10,"+(0.80*fall*(1-f*0.35)).toFixed(2)+")";
+      g.fillRect(x,HORIZON-Math.round(gw*0.5)+(((hsh>>>7)%3)-1),2,gw+1);
+    }
+    sigDebris(g,cx,w,day,Math.max(0,1-f*1.2),di.seed,[104,96,86],16);
+  }
+};
+DIS_SIG.hurricane={
+  warn:function(g,di,A,L,now,cx,half,K,day){
+    // shutters and boards going up — the one preparation nobody mistakes for anything else
+    for(var x=Math.max(0,cx-half*2);x<Math.min(SW,cx+half*2);x+=Math.round(7*K)){
+      var hsh=((x+WOFF)*2654435761)>>>0;
+      if((hsh%100)>=Math.round(A.f*90)) continue;
+      g.fillStyle=day?"rgba(146,116,78,0.9)":"rgba(48,38,26,0.9)";
+      g.fillRect(x,HORIZON-Math.round((10+(hsh%14))*K),Math.round(5*K),Math.max(1,Math.round(K)));
+    }
+    // and the first of the bands, well ahead of landfall
+    g.strokeStyle="rgba("+(day?"180,196,214":"110,130,160")+","+(0.22*A.f).toFixed(2)+")";
+    g.lineWidth=1; g.beginPath();
+    for(var r2=0;r2<Math.round(30*A.f);r2++){
+      var h=mixLi(r2+di.seed,0xE811);
+      var rx=((h%1000)/1000)*SW, ry=((((h>>>9)%1000)/1000)*HORIZON+(now*0.7)%HORIZON)%HORIZON;
+      g.moveTo(rx,ry); g.lineTo(rx+Math.round(4*K),ry+Math.round(8*K));
+    }
+    g.stroke();
+  },
+  after:function(g,di,A,L,now,cx,half,K,day){
+    var f=(A.phase==="ripple")?0:A.f, a=Math.max(0,1-f*1.1);
+    sigStain(g,cx,half*2.2,HORIZON-Math.round(HORIZON*0.07),HORIZON-Math.round(HORIZON*0.055),day,0.44*a);
+    sigDebris(g,cx,half*2.6,day,a,di.seed,[126,110,84],22);       // everything that was not tied down
+    sigDrift(g,cx,half*2,day,a*0.6,day?[96,102,86]:[32,36,32],now); // and a wrack line of it
+  }
+};
+DIS_SIG.meltdown={
+  warn:function(g,di,A,L,now,cx,half,K,day){
+    // the plant venting deliberately, which is the last thing that happens before it is not deliberate
+    var ph=Math.round(HORIZON*0.16*A.f);
+    for(var q=0;q<ph;q++){
+      var qf=q/Math.max(1,ph);
+      g.fillStyle="rgba("+(day?"236,238,236":"128,132,134")+","+(0.30*(1-qf)*A.f).toFixed(3)+")";
+      g.fillRect(cx-Math.round((3+q*0.4)*K),HORIZON-q,Math.round((6+q*0.8)*K),1);
+    }
+    // buses, going the other way, full
+    var bx=cx+Math.round(half*1.4)-Math.round(A.f*half*2.2);
+    if(bx>-30&&bx<SW+30) drawEmv(g,bx+WOFF,EMV_TYPES[1],-1,2,L,now);
+  },
+  after:function(g,di,A,L,now,cx,half,K,day){
+    // 🔑 THE ZONE DOES NOT REOPEN. Everything else in this set is cleared by people on screen; the one
+    // honest thing about this disaster is that the recovery is a fence nobody takes down.
+    var w=half*2.4;
+    for(var s=-1;s<=1;s+=2){
+      var px=cx+s*w; if(px<-10||px>SW+10) continue;
+      g.fillStyle=day?"rgba(96,94,92,0.92)":"rgba(38,38,40,0.92)";
+      g.fillRect(px,HORIZON-Math.round(8*K),Math.max(1,Math.round(K)),Math.round(8*K));
+      for(var t=0;t<Math.round(8*K);t++){
+        g.fillStyle=((t>>1)&1)?"rgba(240,208,40,0.9)":"rgba(30,28,26,0.9)";
+        g.fillRect(px,HORIZON-Math.round(7*K)+t,Math.round(2*K),1);
+      }
+    }
+    if(!day){ g.globalCompositeOperation="lighter";
+      g.fillStyle="rgba(140,255,150,"+(0.06+0.04*Math.abs(Math.sin(now*0.001))).toFixed(3)+")";
+      g.fillRect(cx-Math.round(w*0.5),HORIZON-Math.round(8*K),Math.round(w),Math.round(8*K));
+      g.globalCompositeOperation="source-over"; }
+  }
+};
+DIS_SIG.dambreak={
+  warn:function(g,di,A,L,now,cx,half,K,day){
+    // the leak before the wall goes — a jet, growing, from one point. Everyone who has seen a dam
+    // failure recognises the spurt that appears minutes before the rest of it.
+    var jl=Math.round((4+18*A.f)*K);
+    g.fillStyle=day?"rgba(214,228,232,0.85)":"rgba(96,116,132,0.85)";
+    for(var q=0;q<jl;q++){
+      var qf=q/Math.max(1,jl);
+      g.fillRect(cx+Math.round(q*2.2),HORIZON-Math.round(6*K)+Math.round(qf*qf*7*K),
+                 Math.max(1,Math.round(2*K)),Math.max(1,Math.round(K*(1+qf))));
+    }
+  },
+  after:function(g,di,A,L,now,cx,half,K,day){
+    var f=(A.phase==="ripple")?0:A.f;
+    sigStain(g,cx,half*2.6,HORIZON-Math.round(HORIZON*0.13),HORIZON-Math.round(HORIZON*0.11),day,0.6*Math.max(0,1-f*0.5));
+    sigDrift(g,cx,half*2.2,day,Math.max(0,1-f*1.1),day?[104,94,74]:[34,32,26],now);
+    sigDebris(g,cx,half*2.4,day,Math.max(0,1-f*1.2),di.seed,[92,74,52],18);
+  }
+};
+DIS_SIG.firestorm={
+  warn:function(g,di,A,L,now,cx,half,K,day){
+    // the glow over the ridge before the front is in sight, and ash falling ahead of it
+    g.globalCompositeOperation="lighter";
+    var side=(di.seed&1)?1:-1, gx=cx+side*Math.round(SW*0.5*(1-A.f));
+    for(var q=0;q<Math.round(HORIZON*0.10);q++){
+      var qf=q/Math.round(HORIZON*0.10);
+      g.fillStyle="rgba(255,120,40,"+(0.24*A.f*(1-qf)).toFixed(3)+")";
+      g.fillRect(gx-Math.round(60*K*(1-qf*0.5)),HORIZON-q,Math.round(120*K*(1-qf*0.5)),1);
+    }
+    g.globalCompositeOperation="source-over";
+    for(var m=0;m<Math.round(22*A.f);m++){
+      var h=mixLi(m+di.seed,0xF111);
+      var mx=((h%1000)/1000)*SW, my=((((h>>>9)%1000)/1000)*HORIZON+(now*0.06)%HORIZON)%HORIZON;
+      g.fillStyle="rgba("+(day?"110,102,96":"150,146,144")+",0.45)";
+      g.fillRect(mx,my,Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
+    }
+  },
+  after:function(g,di,A,L,now,cx,half,K,day){
+    var f=(A.phase==="ripple")?0:A.f;
+    // 🔒 burnt ground stays burnt for the life — it greens back only a little, and slowly
+    var w=half*3;
+    for(var x=Math.max(0,cx-w);x<Math.min(SW,cx+w);x+=2){
+      var d=Math.abs(x-cx)/w, fall=d>=1?0:(0.5+0.5*Math.cos(d*Math.PI));
+      if(fall<=0.05) continue;
+      var hsh=((x+WOFF)*2654435761)>>>0;
+      g.fillStyle="rgba(16,13,12,"+(0.78*fall*(1-f*0.25)).toFixed(2)+")";
+      g.fillRect(x,HORIZON-Math.max(1,Math.round((2+(hsh%4))*K)),2,Math.round((2+(hsh%4))*K)+1);
+      if((hsh>>>11)%17===0&&f<0.7){                                // stumps still smoking
+        g.fillStyle="rgba("+(day?"200,196,192":"96,96,100")+","+(0.30*(1-f/0.7)).toFixed(2)+")";
+        g.fillRect(x,HORIZON-Math.round(9*K),Math.max(1,Math.round(K)),Math.round(7*K));
+      }
+    }
+  }
+};
+DIS_SIG.sinkhole={
+  warn:function(g,di,A,L,now,cx,half,K,day){
+    // the road cracks and DIPS before it goes — a sag, not a hole
+    var w=half*1.8;
+    for(var x=Math.max(0,cx-w);x<Math.min(SW,cx+w);x+=2){
+      var d=Math.abs(x-cx)/w, sag=d>=1?0:Math.pow(1-d,2);
+      if(sag<=0.03) continue;
+      g.fillStyle="rgba(18,16,16,"+(0.55*sag*A.f).toFixed(3)+")";
+      g.fillRect(x,HORIZON-Math.round(sag*3*K*A.f),2,Math.max(1,Math.round(2*K*sag*A.f))+1);
+    }
+  },
+  // 🔒 A HOLE IS LANDFORM. It gets fenced and it gets a plate over it; it does not get filled in.
+  after:function(g,di,A,L,now,cx,half,K,day){
+    var f=(A.phase==="ripple")?0:A.f, w=half*1.8;
+    for(var h2=0;h2<(2+di.intensity);h2++){
+      var hh=mixLi(h2+di.seed,0xF211);
+      var px=cx+Math.round((((hh%2000)/1000)-1)*w);
+      if(px<-40||px>SW+40) continue;
+      var rw=Math.round((6+((hh>>>9)%14))*K), rd=Math.round(rw*0.42);
+      if(f>0.55){                                                 // steel plate over it, later
+        g.fillStyle=day?"rgba(122,120,118,0.95)":"rgba(46,46,48,0.95)";
+        g.fillRect(px-rw,HORIZON-Math.round(K),rw*2,Math.round(2*K));
+      } else {
+        g.fillStyle="rgba(6,5,7,0.95)";
+        g.fillRect(px-rw,HORIZON-Math.round(rd*0.4),rw*2,rd);
+      }
+      for(var b=-1;b<=1;b+=2){                                    // barriers either side, all the way through
+        g.fillStyle="rgba(240,120,30,0.92)";
+        g.fillRect(px+b*rw-Math.round(K),HORIZON-Math.round(4*K),Math.round(2*K),Math.round(4*K));
+      }
+    }
+  }
+};
+DIS_SIG.riot={
+  warn:function(g,di,A,L,now,cx,half,K,day){
+    // it gathers. Small groups converging is the only warning civil disorder gives.
+    var n=Math.round(3+9*A.f);
+    for(var p=0;p<n;p++){
+      var h=mixLi(p+di.seed,0xF311), side=(h&1)?1:-1;
+      var px=cx+side*Math.round((1-A.f*0.7)*half*2*(((h>>>7)%100)/100));
+      if(px<-4||px>SW+4) continue;
+      drawPerson(g,px|0,HORIZON-1,["#7a3a3a","#3a4a7a","#6a6a3a"][(h>>>5)%3],
+                 SKINC[(h>>>11)%SKINC.length],(Math.floor(now/200)+p)&3);
+    }
+  },
+  after:function(g,di,A,L,now,cx,half,K,day){
+    var f=(A.phase==="ripple")?0:A.f, a=Math.max(0,1-f*1.15);
+    // boarded frontages and the scorch where the fires were — a riot's aftermath is at eye level
+    for(var x=Math.max(0,cx-half*1.6);x<Math.min(SW,cx+half*1.6);x+=Math.round(6*K)){
+      var hsh=((x+WOFF)*2654435761)>>>0;
+      if((hsh%100)>=Math.round(a*70)) continue;
+      g.fillStyle=day?"rgba(140,112,74,0.9)":"rgba(46,36,24,0.9)";
+      g.fillRect(x,HORIZON-Math.round(6*K),Math.round(5*K),Math.round(5*K));
+    }
+    sigDrift(g,cx,half*1.4,day,a*0.5,day?[40,34,30]:[14,12,12],now);
+  }
+};
+DIS_SIG.meteorswarm={
+  warn:function(g,di,A,L,now,cx,half,K,day){
+    // the first few, high and harmless-looking, before the rest arrive
+    g.globalCompositeOperation="lighter";
+    for(var m=0;m<Math.round(2+6*A.f);m++){
+      var h=mixLi(m+di.seed,0xF411);
+      var cyc=2600+((h>>>5)%2200), t=((now+((h>>>9)%cyc))%cyc)/cyc;
+      var lx=cx+Math.round((((h%2000)/1000)-1)*half*3);
+      var ly=Math.round(t*HORIZON*0.55);
+      for(var q=0;q<Math.round(7*K);q++)
+        { g.fillStyle="rgba(255,200,130,"+(0.5*(1-q/(7*K))*A.f).toFixed(2)+")";
+          g.fillRect(lx-Math.round(q*1.1),ly-q*2,Math.max(1,Math.round(K)),Math.max(1,Math.round(K))); }
+    }
+    g.globalCompositeOperation="source-over";
+  },
+  after:function(g,di,A,L,now,cx,half,K,day){
+    var f=(A.phase==="ripple")?0:A.f, a=Math.max(0,1-f*1.1);
+    // 🔑 MANY SMALL CRATERS, which is the whole difference from the asteroid's one big one.
+    for(var c=0;c<12;c++){
+      var h=mixLi(c+di.seed,0xF412);
+      var px=cx+Math.round((((h%2000)/1000)-1)*half*2.6);
+      if(px<-8||px>SW+8) continue;
+      if(((h>>>19)%100)>=Math.round(a*100)) continue;
+      var rw=Math.round((2+((h>>>7)%4))*K);
+      g.fillStyle="rgba(10,9,10,0.88)"; g.fillRect(px-rw,HORIZON-Math.round(K),rw*2,Math.round(2*K));
+      g.fillStyle=day?"rgba(118,108,94,0.75)":"rgba(44,42,42,0.75)";
+      g.fillRect(px-rw-Math.round(K),HORIZON-Math.round(2*K),Math.round(2*K),Math.round(2*K));
+      g.fillRect(px+rw-Math.round(K),HORIZON-Math.round(2*K),Math.round(2*K),Math.round(2*K));
+    }
+  }
+};
 // ---------------- AND THE MOUNTAIN STAYS. -----------------------------------------------------------
 // 🔒 His locked answer: landform scars PERSIST FOR THE LIFE. Nothing in the engine took that further
 // than a wash until now — `drawVolcanoDisaster` raises a cone on the nineteen lands with no mountain of
@@ -22115,7 +22745,9 @@ function drawDisaster(g,cd,L,now){
   if(cd.f>=0.10&&cd.f<0.50 && cd.type!=="blackout" && cd.type!=="smog"){ var gx=disX(cd.x);
     if(gx>-50&&gx<SW+50){ g.globalCompositeOperation="lighter";
       var GLOW={alien:[110,255,180],zombie:[90,225,90],volcano:[255,120,30],flood:[70,150,220],
-        kraken:[80,200,160],sandstorm:[200,160,90],iceage:[150,215,255],rift:[170,90,255],mech:[255,140,90]};
+        kraken:[80,200,160],sandstorm:[200,160,90],iceage:[150,215,255],rift:[170,90,255],mech:[255,140,90],
+        firestorm:[255,110,30],meteorswarm:[255,180,90],dambreak:[70,150,220],earthquake:[150,130,100],
+        hurricane:[110,150,190],meltdown:[140,255,150]};
       var gc=GLOW[cd.type]||[255,95,45];
       g.fillStyle=rgba(gc,0.12+0.06*Math.sin(now*0.02)); g.fillRect((gx-cd.w)|0,HORIZON-46,(cd.w*2)|0,50);
       g.globalCompositeOperation="source-over"; } }
@@ -22134,6 +22766,7 @@ function drawDisaster(g,cd,L,now){
   else if(cd.type==="blackout") drawBlackout(g,cd,L,now);
   else if(cd.type==="smog") drawSmog(g,cd,L,now);
   else if(cd.type==="planecrash") drawPlaneCrash(g,cd,L,now);
+  else if(DIS_T2[cd.type]) DIS_T2[cd.type](g,cd,L,now);        // TIER 2 — a table, not eight more branches
   if(disDestroys(cd.type) && cd.type!=="planecrash"){ drawMilitaryResponse(g,cd,L,now); drawVictoryBeat(g,cd,L,now); }   // no tanks/jets fight a power cut, an inversion layer, or a plane crash (fire crews handle that — in drawPlaneCrash)
   drawRecoveryCrews(g,cd,L,now);  // …and the people who come to carry them away
   drawCasualties(g,cd,L,now);   // …and what the thing left behind. Drawn LAST so nothing paints over the dead.
@@ -22157,7 +22790,7 @@ function drawDisaster(g,cd,L,now){
 // ⚠ `disDestroys` is deliberately left alone. It gates the military response and the permanent ruin
 // as well as the toll, and no tank has ever been dispatched to fight a power cut — the lethality and
 // the destruction are separate questions and this only answers the first.
-function disMinorEvent(t){ return t==="blackout"||t==="smog"; }
+function disMinorEvent(t){ return t==="blackout"||t==="smog"||t==="riot"; }
 function casualtyCount(cd){
   if(!cd) return 0;
   if(disMinorEvent(cd.type)) return Math.min(5, 1+Math.round(cd.intensity*0.8));
