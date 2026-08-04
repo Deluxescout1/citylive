@@ -24783,6 +24783,22 @@ function drawTreeCrown(g,t,sx,gy,K,i){
 // `mossC` — the moss tone this depth band wears, or null for the far rank (moss on a 40px background
 // tree is one grey pixel). Passed in rather than derived here so each band's haze stays its own.
 function drawBole(g,t,sx,gy,cTrunk,cBark,cFol,K,detail,litK,mossC){
+  // ---- IS THIS GIANT IN THE BLAST? The forest was one of four lands the damage sweep reached only at
+  // the horizon, and on THIS land that is close to reaching nothing: the boles ARE the landform, and a
+  // scorched strip at their feet under an untouched canopy reads as a lighting error.
+  // 🔑 Every rank comes through here — far, mid, mid2, mid3, near, fore — so this is the same
+  // one-check-covers-all that `drawTree` gives the small vegetation. Bespoke ranks that call their own
+  // renderer are exactly how the first sweep missed the savanna's acacias.
+  // ⚠ NOT A SILHOUETTE CHANGE below the kill line: a burnt giant is the same shape, black. Above it the
+  // tree is GONE, which on a bole this size is the most violent thing damage can do on any land.
+  var _bd=dmgAtScreen(sx);
+  if(_bd>DMG_KILL){
+    var _bh=mixLi(((t.ph*1000)|0)+13,5077);
+    if(((_bh>>>3)%3)===0 && _bd>0.70) return;                       // snapped off and gone
+    t={x:t.x,w:t.w,h:t.h*(1-_bd*0.42),ph:t.ph,broad:t.broad,h0:t.h0};   // …or standing shorter, and dead
+    cTrunk=cBark=(litK>0.5)?"#33291f":"#120e0c";
+    cFol="rgba(0,0,0,0)"; mossC=null; detail=false;
+  }
   var hw0=Math.max(2,Math.round(t.w*(t.broad?0.30:0.24))), hwTip=Math.max(1,Math.round(hw0*0.42));
   var y0=Math.max(-4,Math.round(gy-t.h)), step=Math.max(2,Math.round(3*K)), bot=gy+2;
   // A LEAN. Every trunk was mathematically vertical, and nothing in nature that big is: a column of

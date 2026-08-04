@@ -320,8 +320,11 @@ way, so the stream is untouched.
 | Coverage | Lands |
 |---|---|
 | **Full profile** — relief follows its own cached height field | the 14 on the shared dispatcher (alpine, mesa, cliffs, plains, beach, swamp, volcano, arctic, sprawl, hell, heaven, fjord, salt + variants) · savanna · dunes · karst · gorge · Hyrule |
-| **Base band only** — the shallow strip at the horizon, no relief treatment | forest boles · the dam · the cavern ceiling · the village cliff |
+| **Per-feature** — the feature itself takes it | the forest's giants (every rank, via `drawBole`) · all trees and acacias |
+| **Base band only** — the shallow strip at the horizon, no relief treatment | the dam · the cavern ceiling · the village cliff |
 | **Ground + vegetation** — every land | via `drawTerrain` and `drawTree`/`drawAcacia` |
 | **Exempt** — no ground to scar | SPACE CITY · THE CORE WORLD |
 
-⚠ The four "base band only" entries are honest gaps, not oversights that got written up as features.
+⚠ The three "base band only" entries are honest gaps, not oversights that got written up as features.
+The forest was a fourth until `drawBole` got the check: on that land the boles ARE the landform, so a
+scorched strip at their feet under an untouched canopy read as a lighting error rather than as damage.
