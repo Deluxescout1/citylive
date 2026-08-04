@@ -4481,6 +4481,17 @@ function makeLayer(seed,y0,baseHMin,baseHMax,layerK){
   var r=rng(seed), blds=[], x=0;
   while(x<WW){
     if(inSea(x)||inSea(x+24)){ x+=8; continue; }             // nothing is built in the open sea
+    // 🔒 AND NOTHING IS BUILT ON THE RIVER — his answer: "clear it", open ground and riverside park.
+    // ⚠⚠ THIS IS THE LINE THAT WAS MISSING. `inRiver`'s own comment has read "nothing is built here"
+    // for as long as it has existed and NOTHING ENFORCED IT — the helper had two consumers in the
+    // engine and neither was the layout. Measured before this: 3 of 44 near-layer buildings standing
+    // in the channel, one dead centre. *A comment stating an intent is not a test that it was met.*
+    // 🔑 Only the NEAR layer gives way. The far and mid ranks sit further back than the water, so they
+    // are correctly behind it; clearing them too would open a hole in the skyline for nothing.
+    // ⚠ It costs ~30% of the near frontage, which is the honest price of a river that crosses the whole
+    // world. That ground is not left blank — the bank, its reeds and its trees are what fill it.
+    if(typeof riverOpenAt==="function" && hasRiver && y0>=HORIZON-1 &&
+       (riverOpenAt(x)||riverOpenAt(x+24))){ x+=8; continue; }
     var d=districtAt(x), pair=d.pal[(r()*d.pal.length)|0], acc=pair[0], acc2=pair[1], winPal=d.win;
     // greenspace / park — a low open plot; this district's parkChance, biased to the edges
     if(d.park>0 && r()<d.park*(0.2+0.8*edgeBias(x))){
@@ -5363,6 +5374,7 @@ function drawWorldRiver(g,L,now){
   var shal =mixc(day?[112,164,194]:[20,38,62], biomeSkc(day), 0.14);
   var mud  =mixc(day?[122,104,78]:[20,17,14], biomeSkc(day), 0.08);
   var shing=mixc(day?[168,158,136]:[26,26,26], biomeSkc(day), 0.10);
+  var bank =mixc(day?[104,132,74]:[14,22,18], biomeSkc(day), 0.10);
   // ⚠ AND IT IS DRAWN IN RUNS. Per column this was ~6 fills x 776 = +8 ms on the backdrop even after
   // the per-pixel gradient came out. The bend and its banks are smooth, so neighbouring columns share
   // a profile; flush when it actually changes. FIFTH time in this session — it is not a coincidence,
@@ -5376,6 +5388,8 @@ function drawWorldRiver(g,L,now){
     g.fillStyle=css(deep);  g.fillRect(sX,sDT,w,sDH);                  // and the deep channel itself
     g.fillStyle=css(shing); g.fillRect(sX,sT-Math.max(1,Math.round(1.4*K)),w,Math.max(1,Math.round(1.4*K)));
     g.fillStyle=css(mud);   g.fillRect(sX,sB+1,w,Math.max(1,Math.round(1.6*K)));
+    var bB=Math.min(HORIZON-1,sB+Math.round(1.6*K));           // the turf the city gave up, in one fill
+    if(bB<HORIZON-1){ g.fillStyle=css(bank); g.fillRect(sX,bB,w,HORIZON-bB); }
     sX=-1;
   }
   for(var x=0;x<SW;x++){
@@ -5399,6 +5413,30 @@ function drawWorldRiver(g,L,now){
     if(((mixLi(Math.floor(wx/Math.max(1,Math.round(3*K))),0x2EED))%100)<22){
       g.fillStyle=css(mixc(day?[86,112,58]:[14,22,16],biomeSkc(day),0.08));
       g.fillRect(x,bot-Math.round(1.2*K),1,Math.round(3.4*K));
+    }
+    // ⚠ AND THE GROUND THE CITY GAVE UP HAS TO BE SOMETHING. Clearing 30% of the near frontage and
+    // leaving it blank would read as missing buildings, not as a riverside — so the near bank carries
+    // turf, scrub and trees down to the street. This is the difference between a setback and a hole.
+    // ⚠ THE TURF IS FLUSHED WITH THE RUN — see `flushRiv`. Drawn per column here it took the backdrop
+    // from 9.9 ms to 14.1: the SIXTH per-column regression of this session, added by the very commit
+    // whose message was about the previous five. Knowing the shape of a mistake is not immunity to it;
+    // the only defence that works is measuring after every change rather than after every feature.
+    if(((mixLi(Math.floor(wx/Math.max(1,Math.round(2*K))),0x3B01))%100)<26){
+      var scY=Math.min(HORIZON-2,bot+Math.round(1.6*K));
+      g.fillStyle=css(mixc(day?[86,116,60]:[12,20,15],biomeSkc(day),0.08));
+      g.fillRect(x,scY+Math.round(((mixLi(x,0x3B02)%5))*K*0.5),1,Math.max(1,Math.round(1.6*K)));
+    }
+    // ⚠ ONCE PER CELL, NOT ONCE PER COLUMN. The hash is bucketed to an 18 px cell but the TEST ran every
+    // column, so each tree was drawn eighteen times on top of itself — invisible in the frame, and pure
+    // cost in the profile. A bucketed condition needs a bucketed trigger.
+    var tcell=Math.max(2,Math.round(9*K));
+    if((wx%tcell)===0 && ((mixLi(Math.floor(wx/tcell),0x3B03))%100)<34){          // trees along the bank
+      var trh=Math.round((5+((mixLi(Math.floor(wx/tcell),0x3B04))%5))*K);
+      var trY=Math.min(HORIZON-1,bot+Math.round(3*K));
+      g.fillStyle=css(mixc(day?[74,58,38]:[12,10,9],biomeSkc(day),0.06));
+      g.fillRect(x,trY-trh,Math.max(1,Math.round(K*0.9)),trh);
+      g.fillStyle=css(mixc(day?[62,104,52]:[10,20,14],biomeSkc(day),0.08));
+      g.fillRect(x-Math.round(2*K),trY-trh-Math.round(3*K),Math.round(5*K),Math.round(4*K));
     }
   }
   flushRiv(SW);
