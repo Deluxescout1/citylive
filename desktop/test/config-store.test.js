@@ -32,7 +32,10 @@ test('unknown keys are still dropped, valid new keys survive alongside junk', ()
   });
   assert.deepStrictEqual(
     Object.keys(out).sort(),
-    ['apocHour', 'birthdays', 'cycle', 'disasters', 'era', 'quality', 'wallpaper']
+    // `apocAt` joined the shape when the finale got an exact date as well as an hour (Micah:
+    // "a planned date of apocolypse"). This list is a deliberate net — a new key belongs here only
+    // when it is meant to be persisted, which is exactly the question it forces you to answer.
+    ['apocAt', 'apocHour', 'birthdays', 'cycle', 'disasters', 'era', 'quality', 'wallpaper']
   );
 });
 

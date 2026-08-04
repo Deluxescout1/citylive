@@ -38,8 +38,11 @@ ColumnLayout {
     }
     function clearChronicle() { try { var db=LocalStorage.openDatabaseSync("CityLiveChronicle","1.0","Witnessed CityLive history",1048576);db.transaction(function(tx){tx.executeSql("DELETE FROM events");});refreshChronicle(); } catch(e){} }
 
-    // Friendly name -> engine name for the finale picker (first 9 in the order DEATHS
-    // cycles them in city.js; kaijuwar/pollution are picker-only fates appended after).
+    // Friendly name -> engine name for the finale picker.
+    // ⚠⚠ MUST TRACK `DEATHS` + `DEATHS_NEW` IN city.js. A fate the engine can roll but this list cannot
+    // name is a fate nobody can choose — which was true of all thirteen added on 2026-08-04.
+    // ⚠ 'Godzilla vs Kong' was here, in a shipped UI. The engine already calls that fate 'Kaiju War',
+    // and this repo strips branding on principle; the picker was the last place a trademark survived.
     readonly property var finaleChoices: [
         { text: i18n("Auto (a different fate each life)"), value: "auto" },
         { text: i18n("Meteor Storm"), value: "meteors" },
@@ -51,9 +54,22 @@ ColumnLayout {
         { text: i18n("Deep Freeze"), value: "frost" },
         { text: i18n("Kaiju Attack"), value: "kaiju" },
         { text: i18n("Great Flood"), value: "flood" },
-        { text: i18n("Godzilla vs Kong"), value: "kaijuwar" },
+        { text: i18n("Kaiju War"), value: "kaijuwar" },
         { text: i18n("Pollution"), value: "pollution" },
-        { text: i18n("Moonfall"), value: "moonfall" }
+        { text: i18n("Moonfall"), value: "moonfall" },
+        { text: i18n("Gamma-Ray Burst"), value: "gammaray" },
+        { text: i18n("The Rogue Planet"), value: "rogueplanet" },
+        { text: i18n("The Crust Cracks"), value: "crustcrack" },
+        { text: i18n("The Oceans Boil"), value: "oceansboil" },
+        { text: i18n("Grey Goo"), value: "greygoo" },
+        { text: i18n("The Last Winter"), value: "lastwinter" },
+        { text: i18n("The Sky Falls"), value: "skyfall" },
+        { text: i18n("Everything Stops"), value: "timestop" },
+        { text: i18n("The Comet"), value: "thecomet" },
+        { text: i18n("The Change"), value: "thechange" },
+        { text: i18n("The Burst"), value: "theburst" },
+        { text: i18n("The Titans"), value: "thetitans" },
+        { text: i18n("Ragnarok"), value: "ragnarok" }
     ]
 
     // Reflects the current cfg_locationName / lookup state into locStatus.text.

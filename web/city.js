@@ -139,7 +139,11 @@ function applyConfig(cfg){ if(!cfg) return;
   // that moves WORLD_SHIFT or GROW_CYCLE leaves an alignment computed against the old grid. That
   // route drifted the 20:00 rollover to 17:12 on KDE.
   if(cfg.apocHour!=null) APOC_HOUR=cfg.apocHour;
-  GROW_ALIGN=alignMsFor(APOC_HOUR, GROW_CYCLE);
+  if(cfg.apocAt!=null) APOC_AT_MS=(+cfg.apocAt>0)?+cfg.apocAt:0;
+  // ⚠ AN EXACT DATE OUTRANKS AN HOUR. Both can be present in a config — the hour picker is older and
+  // stays in the file — and if both were applied the last one written would win by accident. The more
+  // specific answer is the one the user gave most recently and it is the one that wins, always.
+  GROW_ALIGN = APOC_AT_MS>0 ? alignMsForTs(APOC_AT_MS, GROW_CYCLE) : alignMsFor(APOC_HOUR, GROW_CYCLE);
   if(cfg.finaleDemo!==undefined) FINALE_DEMO=(+cfg.finaleDemo>0)?+cfg.finaleDemo:null;   // seconds for a full apocalypse loop
   if(cfg.era!==undefined){ FORCEERA=null;
     if(cfg.era && cfg.era!=="auto"){ for(var ei=0;ei<ERAS.length;ei++){ if(ERAS[ei].name===cfg.era){ FORCEERA=ei; break; } } } }
@@ -4858,6 +4862,31 @@ function setup(scene,opts){
 // Only meaningful when the cycle divides a day (1h/12h/1d); on a 1-week life the boundary already lands
 // wherever the epoch put it, and `GROW_ALIGN` is simply 0.
 var GROW_ALIGN=0, APOC_HOUR=-1;   // APOC_HOUR is remembered so a later partial applyConfig can re-derive the phase
+// ⚠⚠ …AND THE EXACT DAY, NOT JUST THE HOUR. Micah: *"Is there a way to put a 'planned date of
+// apocalypse' on there?"* — the settings offered only a clock hour, so on a week-long life you could
+// say 10 AM but not WHICH 10 AM.
+// 🔑 IT IS THE SAME LEVER. A life ends when `lifeIndexOf` ticks over, so pinning that boundary to an
+// exact instant is the same alignment `apocHour` already does, with a full timestamp instead of an
+// hour — no scheduler, no state, still a pure function of the clock, so three monitors and the phone
+// all compute the identical moment without talking to each other.
+// 🔑 AND IT WORKS ON EVERY CYCLE. `alignMsFor` has to refuse any cycle that neither tiles a day nor is
+// a whole number of days, because a repeating clock hour is meaningless against one. An exact INSTANT
+// has no such problem — there is nothing to repeat — so the date picker is honourable on cycles where
+// the hour picker legitimately is not.
+// ⚠ THIS IS THE MOMENT THE WORLD ENDS (the rollover), which is what `apocHour` has always aligned. The
+// apocalypse itself runs across the last APOC_BAND of the life and finishes here; the UI says so in as
+// many words rather than leaving the user to discover it.
+// 🚨🚨 NAMED `APOC_AT_MS`, AND THE FIRST NAME COLLIDED. `APOC_AT` ALREADY EXISTS 19,000 lines below
+// as `var APOC_AT=0.98` — the growth fraction at which the apocalypse begins. `var` hoists to one
+// binding, so the later assignment won at load time and my alignment ran with 0.98 as an epoch
+// timestamp: apocHour=0 started rolling the city over at 20:00 and four existing tests went red.
+// 🔑 The suite caught it in one run. `no-shadowed-functions.test.js` guards this for FUNCTIONS; there
+// is no such guard for vars, and a 46,000-line single scope is exactly where one is wanted.
+var APOC_AT_MS=0;                 // absolute epoch ms of a chosen finale, or 0 for "not set"
+function alignMsForTs(ts, cyc){
+  if(!ts||!isFinite(ts)||ts<=0) return 0;
+  return ((ts-GROW_EPOCH+GROW_OFFSET_DAYS*86400000+WORLD_SHIFT)%cyc+cyc)%cyc;
+}
 function alignMsFor(hour, cyc){
   if(hour==null||hour<0) return 0;
   // A clock hour is only honourable if the cycle either tiles the day (1h, 12h) or is a

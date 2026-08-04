@@ -11,7 +11,7 @@ const fs = require('fs');
 
 // A brand-new install: no birthdays, one lifetime per week. (No lat/lon → the engine
 // keeps its built-in default location.)
-const DEFAULT_CONFIG = { birthdays: [], cycle: '1w', apocHour: -1 };
+const DEFAULT_CONFIG = { birthdays: [], cycle: '1w', apocHour: -1, apocAt: 0 };
 
 // Timeline choices the app offers. "weekly"/"monthly" are accepted as aliases (older
 // configs) and normalized; anything unrecognized falls back to one week.
@@ -43,9 +43,14 @@ function sanitizeConfig(raw) {
   // ⚠ -1 means "whenever it falls" — the historical behaviour, and the default. Anything outside 0-23 is
   // treated as unset rather than clamped, because a silently clamped hour would move someone's finale
   // without telling them.
+  // ⚠ apocAt is ABSOLUTE EPOCH MS, not a local date string. A string would have to be parsed against
+  // whichever machine read it, and the whole engine rests on every surface computing the identical
+  // instant. The picker converts local→epoch once, at the moment the user chooses.
+  const aa = Number(cfg.apocAt);
   const ah = Number(cfg.apocHour);
   const out = { birthdays: [], cycle: normalizeCycle(cfg.cycle),
-                apocHour: (Number.isInteger(ah) && ah >= 0 && ah <= 23) ? ah : -1 };
+                apocHour: (Number.isInteger(ah) && ah >= 0 && ah <= 23) ? ah : -1,
+                apocAt: (Number.isFinite(aa) && aa > 0) ? Math.round(aa) : 0 };
 
   const list = Array.isArray(cfg.birthdays) ? cfg.birthdays : [];
   for (let i = 0; i < list.length && out.birthdays.length < 50; i++) {

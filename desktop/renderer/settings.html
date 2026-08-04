@@ -175,6 +175,17 @@
             <option value="-1">whenever it falls</option>
           </select></label>
       </div>
+      <!-- Micah: "Is there a way to put a 'planned date of apocalypse' on there?" The hour picker above
+           can say 10 AM but not WHICH 10 AM, which on a week-long life is most of the question. -->
+      <div class="row2">
+        <label>Apocalypse date &amp; time
+          <input type="datetime-local" id="apocAt"></label>
+        <label>&nbsp;
+          <button type="button" id="apocAtClear">Clear the date</button></label>
+      </div>
+      <p class="hint" id="apocAtHint">Set an exact moment for the world to end. This is when the city is
+        gone — the finale plays out over the hours before it. Overrides “Finale at”. Leave empty to let
+        it fall wherever the cycle puts it.</p>
     </section>
     <section>
       <h3>Look &amp; feel</h3>
@@ -456,11 +467,23 @@
 
   // Finale select: "Auto" (a different fate each life) + all 12 apocalypse names,
   // with friendly labels. Value = the engine's stable internal name.
+  // ⚠⚠ 'Godzilla vs Kong' WAS IN THIS LIST, IN A SHIPPED UI. The engine's own label for that fate is
+  // already 'Kaiju War' (DEATH_LABEL), and this repo strips branding on principle — the ancient kingdom
+  // lost its name for exactly this reason and the fox is filed as folklore rather than a trademark.
+  // The picker was the one surface where a trademark survived.
+  // ⚠ These MUST track DEATHS/DEATHS_NEW in city.js. A fate the engine can roll but the picker cannot
+  // name is a fate nobody can choose — which was true of all thirteen added today.
   var FINALES = [
     ['meteors', 'Meteor Storm'], ['nuke', 'Nuclear Strike'], ['sunburst', 'Solar Flare'],
     ['ai', 'AI Uprising'], ['bh', 'Black Hole'], ['alienwar', 'Alien War'],
     ['frost', 'Deep Freeze'], ['kaiju', 'Kaiju Attack'], ['flood', 'Great Flood'],
-    ['kaijuwar', 'Godzilla vs Kong'], ['pollution', 'Pollution'], ['moonfall', 'Moonfall']
+    ['kaijuwar', 'Kaiju War'], ['pollution', 'Pollution'], ['moonfall', 'Moonfall'],
+    ['gammaray', 'Gamma-Ray Burst'], ['rogueplanet', 'The Rogue Planet'],
+    ['crustcrack', 'The Crust Cracks'], ['oceansboil', 'The Oceans Boil'],
+    ['greygoo', 'Grey Goo'], ['lastwinter', 'The Last Winter'],
+    ['skyfall', 'The Sky Falls'], ['timestop', 'Everything Stops'],
+    ['thecomet', 'The Comet'], ['thechange', 'The Change'], ['theburst', 'The Burst'],
+    ['thetitans', 'The Titans'], ['ragnarok', 'Ragnarok']
   ];
   var finaleSel = document.getElementById('finale');
   (function fillFinale(){
@@ -504,6 +527,19 @@
           }
         }
         if (ah) ah.value = String(cfg.apocHour == null ? -1 : cfg.apocHour);
+        // ⚠ epoch ms -> a LOCAL datetime-local value. `toISOString()` would render UTC and the user
+        // would be shown a different time than the one they picked; the offset has to come off first.
+        var aaEl = document.getElementById('apocAt');
+        if (aaEl) {
+          var aaMs = Number(cfg.apocAt || 0);
+          if (aaMs > 0) {
+            var d = new Date(aaMs - new Date(aaMs).getTimezoneOffset() * 60000);
+            aaEl.value = d.toISOString().slice(0, 16);
+          } else aaEl.value = '';
+        }
+        var aaC = document.getElementById('apocAtClear');
+        if (aaC && !aaC._wired) { aaC._wired = true; aaC.addEventListener('click', function () {
+          var e = document.getElementById('apocAt'); if (e) e.value = ''; }); }
         document.getElementById('quality').value = ['spectacle','balanced','performance'].indexOf(cfg.quality)>=0 ? cfg.quality : 'spectacle';
         eraSel.value = (cfg.era && ERA_NAMES.indexOf(cfg.era)>=0) ? cfg.era : 'auto';
         var disF = ['rare','normal','frequent'].indexOf(cfg.disasters)>=0 ? cfg.disasters : 'normal';
@@ -530,6 +566,14 @@
       birthdays: birthdays,
       cycle: document.getElementById('cycle').value,
         apocHour: parseInt(document.getElementById('apocHour').value, 10),
+      // datetime-local has no timezone, so `new Date(value)` reads it as LOCAL — which is what the user
+      // typed. Stored as absolute epoch ms so every surface resolves the same instant.
+      apocAt: (function () {
+        var e = document.getElementById('apocAt');
+        if (!e || !e.value) return 0;
+        var t = new Date(e.value).getTime();
+        return isFinite(t) && t > 0 ? t : 0;
+      })(),
       quality: document.getElementById('quality').value,
       era: eraSel.value,
       disasters: document.getElementById('disasters').value,

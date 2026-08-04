@@ -854,9 +854,10 @@ if (SS.preview) {
         rebuildMenu();
       }
       if (SS.config || START_SETTINGS) openControlCenter();   // /c (screensaver Settings) or --settings shortcut
-      // Monitors added/removed/rescaled while we're the wallpaper: rebuild the window at
-      // the new union so the one continuous city covers whatever is connected. Debounced —
-      // Windows fires several metrics events per hotplug.
+      // Monitors added/removed/rescaled while we're the wallpaper: rebuild ONE WINDOW PER DISPLAY at
+      // the new geometry, so the one continuous city covers whatever is connected. (This comment said
+      // "at the new union" — it described the design that produced Micah's bug, not the one that
+      // replaced it.) Debounced — Windows fires several metrics events per hotplug.
       let displayDebounce = null;
       const onDisplayChange = () => {
         if (!desktopWallpaper) return;
