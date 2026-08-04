@@ -16812,25 +16812,19 @@ function depthFrac(f,top,botY){ return Math.round(f*(botY-top)); }
 // `karstCache` — the same array the towers themselves are drawn from — and can never disagree with them.
 // ⚠ COMPRESSED AND WOBBLED, not mirrored one-for-one. A perfect mirror reads as a fold in the paper; a
 // real reflection in moving water is foreshortened and broken up by ripple.
-function drawKarstWater(g,L,now){
-  var K=Math.max(1,KSP), day=L>0.5, B=curBiome;
-  var top=SEA_Y, botY=SH-TASKBAR_WP, depth=Math.max(2,botY-top);
-  if(!karstCache||!karstCache.length) return;
-  var skc=biomeSkc(day);
-  var _mpW=moonPhase(new Date(now)), moonW=Math.max(0,Math.min(1,(1-Math.cos(2*Math.PI*_mpW))/2));
-  // jade-green, still, and darker toward the viewer — the colour of limestone water everywhere
-  var wTop=day?mixc([104,150,132],skc,0.30):mixc([16,30,34],[46,60,92],0.20+0.28*moonW);
-  var wBot=day?[38,74,72]:[8,14,18];
-  var step=Math.max(1,Math.round(K*0.6));
-  for(var y=top;y<botY;y+=step){
-    var f=(y-top)/depth;
-    g.fillStyle=css(mixc(wTop,wBot,f*f*(3-2*f)));
-    g.fillRect(0,y,SW,step);
-  }
-  // ---- the towers, upside down and broken by the surface ----
-  // build the near silhouette once: the topmost rock at each column across the two nearest ranks
-  var sil=new Array(SW);
-  for(var x=0;x<SW;x++) sil[x]=1e9;
+// WHERE IS THE TOPMOST ROCK IN EACH COLUMN? — the near karst silhouette, across the two nearest ranks.
+// 🔑 HOISTED OUT OF `drawKarstWater`, which built it inline. The reflection needed it first; the
+// disaster scorch needs exactly the same answer, and two routines deriving one silhouette from one
+// cache is how a land ends up with its reflection and its burn scars on different towers. Same reason
+// `disFalloff` is shared by the sky and the ground.
+// ⚠ Cached per frame, keyed on the viewport: the towers do not move within a life, but WOFF and the
+// cache itself do change, and this is ~15 columns of work per tower.
+var _ksil={sw:-1,woff:-1,cache:null,sil:null};
+function karstSil(){
+  if(!karstCache||!karstCache.length) return null;
+  if(_ksil.sil && _ksil.sw===SW && _ksil.woff===WOFF && _ksil.cache===karstCache) return _ksil.sil;
+  var sil=new Array(SW), x;
+  for(x=0;x<SW;x++) sil[x]=1e9;
   for(var r=0;r<Math.min(2,karstCache.length);r++){
     var rank=karstCache[r];
     for(var t=0;t<rank.length;t++){
@@ -16849,6 +16843,26 @@ function drawKarstWater(g,L,now){
       }
     }
   }
+  _ksil={sw:SW,woff:WOFF,cache:karstCache,sil:sil};
+  return sil;
+}
+function drawKarstWater(g,L,now){
+  var K=Math.max(1,KSP), day=L>0.5, B=curBiome;
+  var top=SEA_Y, botY=SH-TASKBAR_WP, depth=Math.max(2,botY-top);
+  if(!karstCache||!karstCache.length) return;
+  var skc=biomeSkc(day);
+  var _mpW=moonPhase(new Date(now)), moonW=Math.max(0,Math.min(1,(1-Math.cos(2*Math.PI*_mpW))/2));
+  // jade-green, still, and darker toward the viewer — the colour of limestone water everywhere
+  var wTop=day?mixc([104,150,132],skc,0.30):mixc([16,30,34],[46,60,92],0.20+0.28*moonW);
+  var wBot=day?[38,74,72]:[8,14,18];
+  var step=Math.max(1,Math.round(K*0.6));
+  for(var y=top;y<botY;y+=step){
+    var f=(y-top)/depth;
+    g.fillStyle=css(mixc(wTop,wBot,f*f*(3-2*f)));
+    g.fillRect(0,y,SW,step);
+  }
+  // ---- the towers, upside down and broken by the surface ----
+  var sil=karstSil();
   // ⚠ THE REFLECTION MUST BE DARKER THAN THE WATER, not a tint of it. My first pass mixed the reflection
   // colour toward the pale sky haze, which landed it within a few units of the water it was drawn on — so
   // the towers' reflections were technically present and completely invisible. A reflection reads because
@@ -28935,6 +28949,11 @@ function drawKarst(g,L,now,nd){
       }
     }
   }
+  // ---- and the towers take the event. DUST: this is limestone. The vegetation ON them is drawn by
+  // `drawTree`/`drawBiomePlant`, which have their own damage check, so it is only the rock here.
+  // ⚠ Uses `karstSil` — the same silhouette the water's reflection is built from, so the burn scars and
+  // the reflections can never end up on different towers.
+  drawDamageScorchY(g,karstSil(),HORIZON,day,0.58,2,true);
 }
 // ================================================================================================
 // THE DUNE SEA
@@ -30070,6 +30089,11 @@ function drawGorge(g,L,now,nd){
     g.fillStyle=rgba(mixc(B.ground,farC,0.4), 0.55);
     g.fillRect(qx,HORIZON-th,1,th+1);
   }
+  // ---- and the walls take the event. DUST on sandstone. `but` carries 1e9 in the columns with no
+  // butte over them, which `drawDamageScorchY` resolves to a zero height and skips — so the gaps
+  // between the masses stay gaps and no wash lands in the open air of the gorge.
+  drawDamageScorchY(g,gorgeCache.but ,HORIZON,day,0.60,2,true);
+  drawDamageScorchY(g,gorgeCache.far ,HORIZON,day,0.26,2,true);
 }
 function drawForestBackdrop(g,L,now,nd){
   if(!bioTrees) return;
