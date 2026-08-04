@@ -19316,9 +19316,65 @@ var FORCEDIS=null;           // test hook: {type,intensity,xf,w,seed,f}
 var FORCERUIN=null;          // test hook: {type,intensity,xf,w,seed} — pins a permanently-ruined zone for render tests
 
 // deterministic descriptor of the disaster in slot idx (or null)
+// ============ THE DISASTER LIFECYCLE (Phase 9) ============
+// 🔒 His locked answers: warning ~1 min · recovery 2–6x the impact, scaled by severity · rarer from
+// here on, with the past preserved · each disaster keeps a bespoke WARNING tell, everything else shared.
+//
+// ⚠⚠⚠ THE ONE RULE THAT GOVERNS EVERY LINE OF THIS PHASE: `disasterInfo` draws every field of a
+// disaster off ONE ORDERED `r()` STREAM. Consuming a single extra roll inside it shifts `win`, `w`,
+// `seed` and `ruin` for EVERY disaster on EVERY land — silently re-rolling twenty maps' recorded
+// history. The file already warns about this three separate times, and every one of those warnings was
+// written after somebody nearly did it.
+// 🔑 SO NOTHING IN THE LIFECYCLE MAY CALL `r()`. Arc timings are derived from the descriptor's
+// EXISTING fields (`intensity`, `seed`, `idx`) through a separate hash. They are free.
+//
+// ⚠ AND MAKING DISASTERS RARER WOULD REWRITE THE PAST. `disasterInfo(idx)` is a pure function of the
+// slot index and the almanac replays past lives from it, so lowering the probability outright would
+// change what every life ALREADY WRITTEN to the chronicles is recorded as having suffered — the same
+// trap as appending to `DEATHS`. The cutover below changes the THRESHOLD without changing the number
+// of rolls consumed, so slots before it are bit-for-bit what they always were.
+var DIS_CUTOVER=4283000;                 // slot index ≈ 2026-08-03; before it, the original cadence
+var DIS_PROB_LATE=0.13;                  // ≈ one per 54 min instead of one per 29 — each one an event
+function disProbFor(idx){ return idx<DIS_CUTOVER ? DIS_PROB : DIS_PROB_LATE; }
+// The full arc, as offsets from the disaster's own `t0`. PURE — no rolls, no state.
+var DIS_WARN=60000;                      // ~1 minute of siren, ticker and people getting out
+function disArc(di){
+  if(!di) return null;
+  var rec=DIS_DUR*(1+di.intensity);      // CAT-1 → 2x the impact, CAT-5 → 6x. His scale, exactly.
+  return { warn:DIS_WARN, impact:DIS_DUR, recover:rec, total:DIS_WARN+DIS_DUR+rec };
+}
+// Which phase is a disaster in at a given ms into its arc (0 = the siren starts)?
+// warn → impact → ripple → recover.  `f` is 0..1 THROUGH THAT PHASE, which is what renderers want.
+function disPhaseOf(di,tp){
+  var a=disArc(di); if(!a) return null;
+  if(tp<0)          return {phase:"pre",    f:0};
+  if(tp<a.warn)     return {phase:"warn",   f:tp/a.warn};
+  tp-=a.warn;
+  if(tp<a.impact)   return {phase:"impact", f:tp/a.impact};
+  tp-=a.impact;
+  // ⚠ RIPPLE IS NOT A DURATION, IT IS THE FIRST FIFTH OF RECOVERY. The economy dip, the hospital
+  // crowds and the population drop all land while the crews are still arriving; giving it its own
+  // slot would have left a gap where nothing was happening.
+  if(tp<a.recover*0.20) return {phase:"ripple", f:tp/(a.recover*0.20)};
+  if(tp<a.recover)      return {phase:"recover",f:(tp-a.recover*0.20)/(a.recover*0.80)};
+  return {phase:"done", f:1};
+}
+// ⚠ THE ARC OUTLIVES ITS OWN SLOT. `t0` is rolled so the IMPACT fits inside the 7-minute slot, but a
+// CAT-5's recovery runs 24 minutes — three slots on. Anything asking "is a disaster happening" must
+// look BACK, or every recovery would vanish the moment its slot ended.
+function disArcNow(now){
+  var cur=Math.floor(now/DIS_SLOT);
+  for(var back=0;back<=5;back++){
+    var idx=cur-back, di=disasterInfo(idx); if(!di) continue;
+    var tp=now-(idx*DIS_SLOT+di.t0)+DIS_WARN;        // the siren starts DIS_WARN before t0
+    var ph=disPhaseOf(di,tp);
+    if(ph&&ph.phase!=="pre"&&ph.phase!=="done") return {di:di,tp:tp,phase:ph.phase,f:ph.f};
+  }
+  return null;
+}
 function disasterInfo(idx){
   var r=rng((idx*2246822519+13)>>>0);
-  if(r()>DIS_PROB) return null;
+  if(r()>disProbFor(idx)) return null;
   var type=DIS_TYPES[(r()*DIS_TYPES.length)|0];
   if(type==="kraken" && !hasOcean) type="tornado";  // a landlocked city can't be raided by a sea-beast — send weather instead
   var intensity=1+((r()*5)|0);                     // CAT 1..5
