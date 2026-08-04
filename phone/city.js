@@ -19453,11 +19453,63 @@ function disArcNow(now){
   }
   return null;
 }
+// ============ WHICH EVENTS ARE ABSURD ON WHICH LAND ============
+// 🔒 Nick's locked answer on map coverage: ADAPT WHERE SANE, EXEMPT WHERE ABSURD, with the exemptions
+// written down honestly rather than left as things that quietly look wrong. This is that list, and it
+// lives in the ENGINE rather than in a document so the capability matrix can be READ OUT of it — a
+// hand-typed matrix rots the first time somebody adds a land, which is exactly how the disaster set
+// came to predate maps 12-20 with nobody noticing.
+// ⚠⚠ IT SUBSTITUTES, IT NEVER SKIPS, AND IT CALLS `r()` ZERO TIMES. Every field of a disaster
+// descriptor comes off one ordered stream, so consuming or skipping a roll here would silently re-roll
+// `win`, `w`, `seed` and `ruin` for every disaster on every land and rewrite twenty maps' history.
+// Returning a different TYPE for the same roll leaves the stream untouched. This is the pattern the
+// landlocked-kraken rule has used all along; it is now one table instead of one special case.
+// ⚠ It does change what a PAST life is recorded as having suffered on these three lands, because the
+// almanac replays history through this same function. That was already true of the kraken rule. It is
+// a fair trade for not showing a tornado inside a sealed cavern, but it is a real cost and not a
+// free one.
+// 🔑 The three odd lands are exactly the three Nick named: orbit, the undercity's roof, and heaven.
+var DIS_EXEMPT={
+  orbit:{ why:"no ground, no weather, no atmosphere",
+          volcano:"asteroid", tornado:"asteroid", flood:"asteroid", sandstorm:"asteroid",
+          iceage:"asteroid", kraken:"asteroid", planecrash:"asteroid", smog:"blackout" },
+  roof: { why:"sealed cavern — no open sky and no aircraft",
+          tornado:"flood", sandstorm:"smog", planecrash:"blackout", iceage:"blackout" },
+  heaven:{ why:"a cloud land: nothing to flood, nothing to erupt",
+          flood:"tornado", kraken:"tornado", volcano:"asteroid", sandstorm:"tornado" },
+  // ⚠ THE MATRIX FOUND THIS ONE. THE HIGH TEMPLES is six needle columns standing in open air with
+  // `water:"none"` — the same situation as heaven and it had no exemptions at all, because the three
+  // odd lands were taken from the brief rather than from the table. Reading the roster is what a
+  // generated matrix is FOR.
+  air:  { why:"needle spires in open air — no sea floor and no water table",
+          flood:"tornado", kraken:"tornado", volcano:"asteroid" }
+};
+function disExemptKey(B){
+  B=B||curBiome; if(!B) return null;
+  if(B.orbit) return "orbit";
+  if(B.roof)  return "roof";
+  if(B.k==="heaven") return "heaven";
+  if(B.k==="air")    return "air";
+  return null;
+}
+function disExemption(type,B){
+  B=B||curBiome;
+  // ⚠ THE LAND TABLE IS CONSULTED FIRST, and the order is not cosmetic. With the landlocked-kraken
+  // rule ahead of it the matrix reported SPACE CITY as sending `kraken->tornado` — a tornado, on a
+  // space station, because the ocean rule matched and returned before the orbit table was ever read.
+  // The narrow rule has to run last: a land that exempts a type has already answered the question.
+  var k=disExemptKey(B);
+  if(k){ var tb=DIS_EXEMPT[k], to=tb[type]; if(to) return {to:to, why:tb.why}; }
+  // the original rule, kept as a rule rather than folded into the table: it is keyed on whether this
+  // LIFE has an ocean, not on which biome it is, and several biomes go both ways.
+  if(type==="kraken" && !hasOcean) return {to:"tornado", why:"landlocked — no sea for a sea-beast"};
+  return null;
+}
 function disasterInfo(idx){
   var r=rng((idx*2246822519+13)>>>0);
   if(r()>disProbFor(idx)) return null;
   var type=DIS_TYPES[(r()*DIS_TYPES.length)|0];
-  if(type==="kraken" && !hasOcean) type="tornado";  // a landlocked city can't be raided by a sea-beast — send weather instead
+  var _sw=disExemption(type); if(_sw) type=_sw.to;   // …and some events are absurd on some lands — see there
   var intensity=1+((r()*5)|0);                     // CAT 1..5
   var t0=r()*(DIS_SLOT-DIS_DUR);                    // start offset within the slot (fits fully inside)
   var cx=Math.round(0.15*WW + r()*0.70*WW);         // impact centre (world x, kept off the far edges)

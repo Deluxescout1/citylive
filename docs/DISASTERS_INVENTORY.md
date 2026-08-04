@@ -226,3 +226,92 @@ Not "add ten disasters". It is:
 Verification is **both** an automated matrix pass (so nothing is silently missing) **and**
 signature-shot contact sheets (so the moment actually reads at wallpaper distance). Neither alone is
 sufficient: the automated pass cannot see "invisible", and the sheets cannot cover 750 cells.
+
+---
+
+# The capability matrix — 15 disasters x 28 lands
+
+**Generated, not written.** `desktop/qml-dis-matrix.qml` sets each biome up for real and asks
+`disExemption`, `DIS_SIG`, `disDestroys` and `disMinorEvent` what they actually say. Regenerate with:
+
+```
+QT_ASSUME_STDERR_HAS_CONSOLE=1 QT_QPA_PLATFORM=offscreen qml6 desktop/qml-dis-matrix.qml
+```
+
+420 cells typed by hand are correct on the day they are typed and wrong the first time somebody adds a
+land — which is exactly how the disaster set came to predate maps 12-20 with nobody noticing. It has
+already earned that: the generated pass found that THE HIGH TEMPLES had no exemptions at all (six
+needle columns in open air, with floods), and that SPACE CITY was sending a **tornado** because the
+landlocked-kraken rule matched and returned before the orbit table was ever read.
+
+## Exemptions — "adapt where sane, exempt where absurd"
+
+They **substitute**, they never skip, and they call `r()` zero times: every field of a disaster comes
+off one ordered stream, so consuming or skipping a roll would silently re-roll `win`, `w`, `seed` and
+`ruin` for every disaster on every land. Returning a different type for the same roll leaves the
+stream untouched.
+
+⚠ It does change what a PAST life is recorded as having suffered on these four lands, because the
+almanac replays history through the same function. That was already true of the kraken rule. A fair
+trade for not showing a tornado inside a sealed cavern — but a real cost, not a free one.
+
+```
+SIGNED 4/15   SUBSTITUTIONS 33
+
+    alpine | ALPINE | ocean=Y | exempt=- | (all fifteen play here)
+    forest | OLD FOREST | ocean=Y | exempt=- | (all fifteen play here)
+    mesa | RED MESA | ocean=N | exempt=- | kraken->tornado
+    cliffs | SEA CLIFFS | ocean=Y | exempt=- | (all fifteen play here)
+    plains | OPEN PLAINS | ocean=N | exempt=- | kraken->tornado
+    beach | CORAL COAST | ocean=Y | exempt=- | (all fifteen play here)
+    swamp | THE BAYOU | ocean=Y | exempt=- | (all fifteen play here)
+    volcano | THE NEW ISLAND | ocean=Y | exempt=- | (all fifteen play here)
+    arctic | THE PACK ICE | ocean=Y | exempt=- | (all fifteen play here)
+    sprawl | THE SPRAWL | ocean=Y | exempt=- | (all fifteen play here)
+    hell | THE ASHLANDS | ocean=N | exempt=- | kraken->tornado
+    heaven | THE EMPYREAN | ocean=N | exempt=heaven | volcano->asteroid, flood->tornado, kraken->tornado, sandstorm->tornado
+    dunes | THE DUNE SEA | ocean=N | exempt=- | kraken->tornado
+    karst | THE KARST | ocean=N | exempt=- | kraken->tornado
+    fjord | THE FJORD | ocean=Y | exempt=- | (all fifteen play here)
+    salt | THE SALT MIRROR | ocean=Y | exempt=- | (all fifteen play here)
+    dam | THE GREAT DAM | ocean=N | exempt=- | kraken->tornado
+    under | THE UNDERCITY | ocean=Y | exempt=roof | tornado->flood, sandstorm->smog, iceage->blackout, planecrash->blackout
+    savanna | THE SAVANNA | ocean=N | exempt=- | kraken->tornado
+    canyon | THE GORGE | ocean=N | exempt=- | kraken->tornado
+egg leaf | THE HIDDEN VILLAGE | ocean=N | exempt=- | kraken->tornado
+egg core | THE CORE WORLD | ocean=N | exempt=- | kraken->tornado
+egg fire | THE CINDER THRONE | ocean=N | exempt=- | kraken->tornado
+egg air | THE HIGH TEMPLES | ocean=N | exempt=air | volcano->asteroid, flood->tornado, kraken->tornado
+egg falls | THE FALLS CITY | ocean=N | exempt=- | kraken->tornado
+egg orbit | SPACE CITY | ocean=N | exempt=orbit | volcano->asteroid, tornado->asteroid, flood->asteroid, kraken->asteroid, sandstorm->asteroid, iceage->asteroid, smog->blackout, planecrash->asteroid
+egg plateau | THE SEALED HEIGHT | ocean=N | exempt=- | kraken->tornado
+egg rainv | THE HIDDEN RAIN | ocean=N | exempt=- | kraken->tornado
+```
+
+## Lifecycle signatures — 4 of 15
+
+`W` = a bespoke WARNING, `A` = a bespoke AFTERMATH. Everything unsigned still gets the generic arc
+(evacuation, medics, crews, scaffolding) — it is not missing, it is just not yet its own.
+
+| Signed | What it does |
+|---|---|
+| `volcano` | fissures venting and glowing before it blows · lava cooling orange→black, ash drifts swept away · **and the cone stays for the life** |
+| `kaiju` | flocks leaving, water humping, a footfall from past the district · tracks filling in, the beast receding on the horizon |
+| `blackout` | brownout dips rolling through · a **restoration front** sweeping across, crews at its edge |
+| `smog` | a lid forming at roof height · lifting from the bottom, street first, masks coming off |
+
+Unsigned: `asteroid` `zombie` `alien` `tornado` `flood` `mech` `kraken` `sandstorm` `iceage` `rift`
+`planecrash`.
+
+## Where the landscape damage reaches
+
+`landDamageAt` had **two** consumers in the whole engine before this phase. Now:
+
+| Coverage | Lands |
+|---|---|
+| **Full profile** — relief follows its own cached height field | the 14 on the shared dispatcher (alpine, mesa, cliffs, plains, beach, swamp, volcano, arctic, sprawl, hell, heaven, fjord, salt + variants) · savanna · dunes · karst · gorge · Hyrule |
+| **Base band only** — the shallow strip at the horizon, no relief treatment | forest boles · the dam · the cavern ceiling · the village cliff |
+| **Ground + vegetation** — every land | via `drawTerrain` and `drawTree`/`drawAcacia` |
+| **Exempt** — no ground to scar | SPACE CITY · THE CORE WORLD |
+
+⚠ The four "base band only" entries are honest gaps, not oversights that got written up as features.
