@@ -107,6 +107,15 @@ Item {
                               phase:(arg("disphase","") !== "" ? arg("disphase","") : null),
                               pf:parseFloat(arg("disphf","0.5")) };
         else City.FORCEDIS = null;
+        // 🚨 `ruin=` REACHES A CASE `dis=` CANNOT. `ruinZones` opens with `if(FORCEDIS) return []`, so
+        // every forced-disaster frame ever rendered on this harness had `curRuins` EMPTY — which means
+        // the permanently-ruined district, the flat-1 region the seam blur was hoisted for, had never
+        // once been on screen. `FORCERUIN` already existed in the engine and takes precedence; it was
+        // simply never wired to an argument.
+        City.FORCERUIN = (arg("ruin","") !== "")
+            ? { type:(root.dis !== "" ? root.dis : "asteroid"), intensity:root.disI,
+                xf:parseFloat(arg("ruin","0.17")), w:40, seed:root.disSeed }
+            : null;
         // `dmgdbg=1` prints the resolved damage strip for THIS woff. The reach of an event onto a screen
         // that is not looking at it is the one thing a render cannot be read for.
         City.DBGDMG = (arg("dmgdbg","0") === "1") ? 1 : 0;

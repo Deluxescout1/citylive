@@ -21538,11 +21538,17 @@ DIS_T2.dambreak=function(g,cd,L,now){
   var side=(cd.seed&1)?1:-1;
   var run=Math.min(1,f/0.34);
   // the front, travelling. A flood RISES; this ARRIVES, and the difference is a moving vertical edge.
-  var front=cx+side*Math.round(run*SW*0.9);
+// 🔑🔑 WORLD PX, NOT SCREEN PX, AND THIS IS THE ENGINE'S FOUNDATIONAL LAW. `SW` is how wide THIS
+// MONITOR is (776 on his primary, 640 on the third), so anything that TRAVELS a fraction of `SW`
+// travels a different distance on each screen and the three of them stop agreeing about where the
+// event is. `WW` (2269) is the world and is the same number everywhere. I wrote "hashed off WORLD x,
+// never screen x" twice in this same phase and then scaled travel off the screen anyway — `SW` is
+// fine as a CLIP BOUND and is never a distance.
+  var front=cx+side*Math.round(run*WW*0.30);
   var depth=Math.round(HORIZON*0.16*Math.min(1,f/0.18)*(f>0.5?Math.max(0,1-(f-0.5)/0.2):1));
   if(depth<1) return;
-  var x0=(side>0)?Math.max(0,cx-Math.round(SW*0.1)):Math.max(0,front);
-  var x1=(side>0)?Math.min(SW,front):Math.min(SW,cx+Math.round(SW*0.1));
+  var x0=(side>0)?Math.max(0,cx-Math.round(WW*0.035)):Math.max(0,front);
+  var x1=(side>0)?Math.min(SW,front):Math.min(SW,cx+Math.round(WW*0.035));
   for(var x=x0;x<x1;x+=2){
     var near=Math.min(1,Math.abs(x-front)/(60*K));
     var d2=Math.round(depth*(0.45+0.55*near));
@@ -21570,7 +21576,13 @@ DIS_T2.firestorm=function(g,cd,L,now){
   if(f>=0.76) return;
   var side=(cd.seed&1)?1:-1;
   var run=Math.min(1,Math.max(0,(f-0.06)/0.46));
-  var front=cx+side*Math.round(run*SW*0.95);
+// 🔑🔑 WORLD PX, NOT SCREEN PX, AND THIS IS THE ENGINE'S FOUNDATIONAL LAW. `SW` is how wide THIS
+// MONITOR is (776 on his primary, 640 on the third), so anything that TRAVELS a fraction of `SW`
+// travels a different distance on each screen and the three of them stop agreeing about where the
+// event is. `WW` (2269) is the world and is the same number everywhere. I wrote "hashed off WORLD x,
+// never screen x" twice in this same phase and then scaled travel off the screen anyway — `SW` is
+// fine as a CLIP BOUND and is never a distance.
+  var front=cx+side*Math.round(run*WW*0.32);
   var burnt0=Math.min(cx,front), burnt1=Math.max(cx,front);
   // what it has already been through
   for(var x=Math.max(0,burnt0);x<Math.min(SW,burnt1);x+=2){
@@ -21716,6 +21728,30 @@ DIS_T2.meteorswarm=function(g,cd,L,now){
   }
   g.globalCompositeOperation="source-over";
 };
+// 🔑🔑 WHICH BUILDINGS ARE ACTUALLY STANDING HERE, RIGHT NOW? — and the answer is not "the ones in
+// `near.blds`". A plot can hold a construction SITE, a civic LANDMARK can have cleared it, or the
+// building may simply not have been born yet at this age. Decoration hung off a hashed x with none of
+// those asked is decoration floating in open sky, which is THE BLUE LINES, and this is the fifth site
+// in that family. The three culls are copied from `drawLayer` because they have to match it exactly.
+// 🚨 IT ONLY REPRODUCES AT YOUNG AGES. The harness default `age=0.85` has towers nearly everywhere and
+// cannot show it; his box runs 1-hour lives and he sees every age. Render 0.30 and 0.50.
+function standingNear(wx,span,cap){
+  var out=[];
+  if(!near||!near.blds) return out;
+  for(var i=0;i<near.blds.length;i++){
+    var b=near.blds[i];
+    if(b.type==="park"||b.h<14||b.w<8) continue;
+    if(overSite(b.x,b.w)||overLandmark(b.x,b.w)) continue;
+    if(b.bAge!==undefined && cityG-b.bAge<bandOf(b)) continue;      // not born yet at this age
+    var d=b.x-wx; if(d>WW/2) d-=WW; if(d<-WW/2) d+=WW;
+    if(Math.abs(d)>span) continue;
+    var bx=(b.x-WOFF)|0; if(bx>SW+4&&bx-WW>-4)bx-=WW; if(bx<-4-b.w&&bx+WW<SW+4)bx+=WW;
+    if(bx+b.w<-4||bx>SW+4) continue;
+    out.push({b:b,bx:bx});
+    if(cap&&out.length>=cap) break;
+  }
+  return out;
+}
 // ============ THE FOUR THINGS EVERY SIGNATURE NEEDS ============
 // Eleven more signatures were about to be written and most of them wanted the same four pictures:
 // something piled against the ground, wreckage scattered over it, a mark left on the buildings, and
@@ -21751,16 +21787,23 @@ function sigDebris(g,cx,w,day,amt,seed,rgb,n){                // wreckage strewn
     if((h>>>13)&1) g.fillRect(px+pw,HORIZON-1,Math.round(pw*1.6),1);   // …and half of them lie flat
   }
 }
-function sigStain(g,cx,w,yTop,yBot,day,a){                    // a mark left ON the buildings, not the ground
+// ⚠⚠ ON THE BUILDINGS, WHICH MEANS ON BUILDINGS THAT EXIST. The name said so and the first version did
+// not do it: a per-column sweep draws the waterline straight across open ground between plots, and at a
+// young age that is most of the frame. Per BUILDING, and clipped to each facade — which also gets the
+// detail right for free, because a real tidemark stops at the corner of the wall it is on.
+function sigStain(g,wxc,w,yTop,yBot,day,a){                   // a mark left ON the buildings, not the ground
   if(a<=0.02) return;
-  var x0=Math.max(0,Math.round(cx-w)), x1=Math.min(SW,Math.round(cx+w));
   var h=Math.max(1,Math.round(yBot-yTop));
-  for(var x=x0;x<x1;x+=3){
-    var d=Math.abs(x-cx)/w, fall=d>=1?0:(0.5+0.5*Math.cos(d*Math.PI));
+  var BS=standingNear(wxc,w,26);
+  for(var i=0;i<BS.length;i++){
+    var B=BS[i].b, bx=BS[i].bx;
+    var d=B.x-wxc; if(d>WW/2) d-=WW; if(d<-WW/2) d+=WW;
+    var fall=Math.abs(d)>=w?0:(0.5+0.5*Math.cos(Math.abs(d)/w*Math.PI));
     if(fall<=0.03) continue;
-    var wob=(((x+WOFF)*2654435761)>>>0)%3;                    // a waterline is never dead level
+    if(HORIZON-B.h > yTop) continue;                          // the water never reached this roof
+    var wob=((B.seed*2654435761)>>>0)%3;                      // a waterline is never dead level
     g.fillStyle="rgba("+(day?"84,74,54":"22,20,16")+","+(a*fall).toFixed(3)+")";
-    g.fillRect(x,yTop+wob,3,h);
+    g.fillRect(bx+1,yTop+wob,Math.max(1,B.w-2),h);
   }
 }
 function sigSkyOmen(g,cx,day,f,rgb,now,seed){                 // something in the sky, growing
@@ -22157,7 +22200,7 @@ DIS_SIG.flood={
     // after the water is gone, and unlike the water it can be drawn without touching SEA_Y — which
     // this project has a standing rule against moving (37 read sites).
     var wl=HORIZON-Math.round(HORIZON*0.10*(0.5+0.1*di.intensity));
-    sigStain(g,cx,half*1.6,wl,wl+Math.round(2*K),day,0.55*Math.max(0,1-f*0.55));
+    sigStain(g,di.x,half*1.6,wl,wl+Math.round(2*K),day,0.55*Math.max(0,1-f*0.55));
     // silt on the ground, shovelled away over the recovery
     sigDrift(g,cx,half*1.5,day,Math.max(0,1-f*1.2),day?[112,98,72]:[38,34,26],now);
   }
@@ -22230,7 +22273,10 @@ DIS_SIG.sandstorm={
     // ⚠ It approaches from ONE SIDE and it is a WALL — a haze that thickens everywhere is smog, and
     // the two already look too much alike at low intensity.
     var side=(di.seed&1)?1:-1;
-    var edge=(side>0)?(SW-SW*A.f*0.85):(SW*A.f*0.85);
+    // ⚠ the wall's edge is a WORLD position that sweeps toward the strike, converted to screen for the
+    // clip — one wall crossing one world, not three walls each crossing their own monitor.
+    var edgeW=di.x+side*Math.round(WW*0.42*(1-A.f));
+    var edge=disX(edgeW);
     var h=Math.round(HORIZON*(0.34+0.30*A.f));
     for(var x=0;x<SW;x+=2){
       var beyond=(side>0)?(x>edge):(x<edge);
@@ -22256,13 +22302,17 @@ DIS_SIG.iceage={
   warn:function(g,di,A,L,now,cx,half,K,day){
     // frost creeping IN from the frame edges rather than out from a centre — a cold snap has no
     // epicentre, and drawing one at `cx` was the first thing that read wrong here
-    var reach=Math.round(SW*0.42*A.f);
-    for(var x=0;x<reach;x+=2){
-      var a=(1-x/Math.max(1,reach))*0.42*A.f;
+    // ⚠⚠ THIS CREPT IN FROM THE SCREEN EDGES, which on his three monitors put a frost band at every
+    // internal monitor boundary — six hard seams across one world. A cold snap has no epicentre, which
+    // is right, but "no epicentre" means it comes in from the edges of the WORLD.
+    var reachW=Math.round(WW*0.30*A.f);
+    for(var wq=0;wq<reachW;wq+=2){
+      var a=(1-wq/Math.max(1,reachW))*0.42*A.f;
+      var hsh=(wq*2654435761)>>>0, hh=Math.round((1+(hsh%3))*K*0.5);
       g.fillStyle="rgba(206,228,246,"+a.toFixed(3)+")";
-      var hsh=((x+WOFF)*2654435761)>>>0, hh=Math.round((1+(hsh%3))*K*0.5);
-      g.fillRect(x,HORIZON-hh,2,hh+1);
-      g.fillRect(SW-x-2,HORIZON-hh,2,hh+1);
+      var xa=disX(wq), xb=disX(WW-wq-2);
+      if(xa>-4&&xa<SW) g.fillRect(xa,HORIZON-hh,2,hh+1);
+      if(xb>-4&&xb<SW) g.fillRect(xb,HORIZON-hh,2,hh+1);
     }
   },
   after:function(g,di,A,L,now,cx,half,K,day){
@@ -22382,12 +22432,15 @@ DIS_SIG.earthquake={
 };
 DIS_SIG.hurricane={
   warn:function(g,di,A,L,now,cx,half,K,day){
-    // shutters and boards going up — the one preparation nobody mistakes for anything else
-    for(var x=Math.max(0,cx-half*2);x<Math.min(SW,cx+half*2);x+=Math.round(7*K)){
-      var hsh=((x+WOFF)*2654435761)>>>0;
+    // shutters and boards going up — the one preparation nobody mistakes for anything else.
+    // ⚠ per BUILDING, mirroring `drawLayer`'s culls, or they hang in the sky over empty plots.
+    var SH2=standingNear(di.x,half*2,14);
+    for(var si=0;si<SH2.length;si++){
+      var Bh=SH2[si].b, hsh=((Bh.seed^0x77)>>>1);
       if((hsh%100)>=Math.round(A.f*90)) continue;
       g.fillStyle=day?"rgba(146,116,78,0.9)":"rgba(48,38,26,0.9)";
-      g.fillRect(x,HORIZON-Math.round((10+(hsh%14))*K),Math.round(5*K),Math.max(1,Math.round(K)));
+      g.fillRect(SH2[si].bx+1,HORIZON-Math.max(Math.round(4*K),Math.round(Bh.h*0.24)),
+                 Math.max(2,Math.min(Bh.w-2,Math.round(5*K))),Math.max(1,Math.round(K)));
     }
     // and the first of the bands, well ahead of landfall
     g.strokeStyle="rgba("+(day?"180,196,214":"110,130,160")+","+(0.22*A.f).toFixed(2)+")";
@@ -22401,7 +22454,7 @@ DIS_SIG.hurricane={
   },
   after:function(g,di,A,L,now,cx,half,K,day){
     var f=(A.phase==="ripple")?0:A.f, a=Math.max(0,1-f*1.1);
-    sigStain(g,cx,half*2.2,HORIZON-Math.round(HORIZON*0.07),HORIZON-Math.round(HORIZON*0.055),day,0.44*a);
+    sigStain(g,di.x,half*2.2,HORIZON-Math.round(HORIZON*0.07),HORIZON-Math.round(HORIZON*0.055),day,0.44*a);
     sigDebris(g,cx,half*2.6,day,a,di.seed,[126,110,84],22);       // everything that was not tied down
     sigDrift(g,cx,half*2,day,a*0.6,day?[96,102,86]:[32,36,32],now); // and a wrack line of it
   }
@@ -22452,7 +22505,7 @@ DIS_SIG.dambreak={
   },
   after:function(g,di,A,L,now,cx,half,K,day){
     var f=(A.phase==="ripple")?0:A.f;
-    sigStain(g,cx,half*2.6,HORIZON-Math.round(HORIZON*0.13),HORIZON-Math.round(HORIZON*0.11),day,0.6*Math.max(0,1-f*0.5));
+    sigStain(g,di.x,half*2.6,HORIZON-Math.round(HORIZON*0.13),HORIZON-Math.round(HORIZON*0.11),day,0.6*Math.max(0,1-f*0.5));
     sigDrift(g,cx,half*2.2,day,Math.max(0,1-f*1.1),day?[104,94,74]:[34,32,26],now);
     sigDebris(g,cx,half*2.4,day,Math.max(0,1-f*1.2),di.seed,[92,74,52],18);
   }
@@ -22461,7 +22514,7 @@ DIS_SIG.firestorm={
   warn:function(g,di,A,L,now,cx,half,K,day){
     // the glow over the ridge before the front is in sight, and ash falling ahead of it
     g.globalCompositeOperation="lighter";
-    var side=(di.seed&1)?1:-1, gx=cx+side*Math.round(SW*0.5*(1-A.f));
+    var side=(di.seed&1)?1:-1, gx=cx+side*Math.round(WW*0.17*(1-A.f));
     for(var q=0;q<Math.round(HORIZON*0.10);q++){
       var qf=q/Math.round(HORIZON*0.10);
       g.fillStyle="rgba(255,120,40,"+(0.24*A.f*(1-qf)).toFixed(3)+")";
@@ -22540,11 +22593,12 @@ DIS_SIG.riot={
   after:function(g,di,A,L,now,cx,half,K,day){
     var f=(A.phase==="ripple")?0:A.f, a=Math.max(0,1-f*1.15);
     // boarded frontages and the scorch where the fires were — a riot's aftermath is at eye level
-    for(var x=Math.max(0,cx-half*1.6);x<Math.min(SW,cx+half*1.6);x+=Math.round(6*K)){
-      var hsh=((x+WOFF)*2654435761)>>>0;
-      if((hsh%100)>=Math.round(a*70)) continue;
+    var RB=standingNear(di.x,half*1.6,12);
+    for(var ri=0;ri<RB.length;ri++){
+      var Br=RB[ri].b, rh=((Br.seed^0x31)>>>1);
+      if((rh%100)>=Math.round(a*70)) continue;
       g.fillStyle=day?"rgba(140,112,74,0.9)":"rgba(46,36,24,0.9)";
-      g.fillRect(x,HORIZON-Math.round(6*K),Math.round(5*K),Math.round(5*K));
+      g.fillRect(RB[ri].bx+1,HORIZON-Math.round(6*K),Math.max(2,Math.min(Br.w-2,Math.round(5*K))),Math.round(5*K));
     }
     sigDrift(g,cx,half*1.4,day,a*0.5,day?[40,34,30]:[14,12,12],now);
   }
@@ -23169,11 +23223,15 @@ function drawGoreShadows(g,cd,L,now){
   var day=L>0.5, K=Math.max(1,KSP), cx=disX(cd.x);
   var w=Math.max(20,cd.w);
   var fade=Math.max(0,Math.min(1,(f-0.20)/0.12));
-  for(var i=0;i<4;i++){
-    var h=mixLi(i+cd.seed,0x60A5);
-    var X=cx+Math.round((((h%2000)/1000)-1)*w);
+  // ⚠ ON REAL WALLS ONLY. A shadow burnt onto a wall needs a wall; hashed against open sky it is the
+  // blue-lines fault with a new costume, and it only shows at young ages.
+  var ST=standingNear(cd.x,w,4);
+  for(var i=0;i<ST.length;i++){
+    var h=mixLi(i+cd.seed,0x60A5), B=ST[i].b;
+    var X=ST[i].bx+Math.round(((h%1000)/1000)*Math.max(1,B.w-2))+1;
     if(X<-8||X>SW+8) continue;
-    var wallY=HORIZON-Math.round((10+((h>>>7)%16))*K);          // up a frontage, at a plausible height
+    // …and at a height that is ON the building, never above its roof
+    var wallY=HORIZON-Math.max(Math.round(6*K),Math.round(B.h*(0.18+((h>>>7)%40)/100*0.45)));
     var hh=Math.round(6*K), ww=Math.round(2.4*K);
     // the scorch around it first…
     g.fillStyle="rgba(18,14,13,"+(0.62*GK*fade).toFixed(2)+")";
@@ -23199,7 +23257,7 @@ function drawGoreCarried(g,cd,L,now){
     var h=mixLi(n+cd.seed,0x60C7);
     var t0=0.16+((h>>>5)%40)/100*0.30;
     var tf=(f-t0)/0.34; if(tf<=0||tf>=1) continue;
-    var X=cx+side*Math.round(tf*(w*2+SW*0.35))+Math.round((((h%1000)/1000)-0.5)*w);
+    var X=cx+side*Math.round(tf*(w*2+WW*0.12))+Math.round((((h%1000)/1000)-0.5)*w);
     if(X<-8||X>SW+8) continue;
     // ⚠ TUMBLING, not swimming. A figure carried by water is limp and rotating, and the thing that
     // sells it at this size is that the limbs do not stay in the same relation to the body.

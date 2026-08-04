@@ -34,7 +34,7 @@ Item {
             if (done) return; done = true;
             var g = getContext("2d");
             var CYC = 604800000, EPOCH = 1783972450746;
-            var lands = ["alpine","savanna","dunes","cliffs","mesa","karst"];
+            var lands = ["alpine","savanna","dunes","cliffs","mesa","karst","forest"];
             var acc = {};   // acc[engine][mode][land] = {ms, n}
             function key(e,m,l){ return e+"|"+m+"|"+l; }
 

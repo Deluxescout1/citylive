@@ -328,3 +328,23 @@ way, so the stream is untouched.
 ⚠ The three "base band only" entries are honest gaps, not oversights that got written up as features.
 The forest was a fourth until `drawBole` got the check: on that land the boles ARE the landform, so a
 scorched strip at their feet under an untouched canopy read as a lighting error rather than as damage.
+
+
+## The cutovers, verified — `desktop/qml-dis-cutover.qml`
+
+Three assertions no amount of reading the code can make, in one run:
+
+```
+CUTOVER  DIS_TYPE_CUTOVER=4252115  (2026-08-05T00:05:00.000Z)
+  1 HISTORY   9588 pre-cutover disasters diffed vs d297571 -> 0 mismatches
+  2 CADENCE   before 1 per 29.2 min   after 1 per 54.2 min
+  3 NEW TYPES 8/8 present, 1796 events (34.8% of the stream)
+```
+
+34.8% is exactly 8/23, so the new types are in proportion and nothing is crowding anything out.
+`tornado` runs about double the rest on a landlocked land — that is the kraken substitution, working.
+
+🚨 Assertion 2 is the one worth keeping. Before this run the "rarer" answer had been **in the code and
+not in force** since the day it was locked, because `DIS_CUTOVER` resolved to 2027-01-02 while its own
+comment claimed 2026-08-03. **A slot index is not something anyone can eyeball — print
+`new Date(idx*DIS_SLOT)`.**
