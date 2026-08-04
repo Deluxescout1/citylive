@@ -20970,6 +20970,77 @@ function drawPlaneCrash(g,cd,L,now){
       drawEmv(g, ((tx%WW)+WW)%WW, {w:9,lights:["#ff2828","#ffffff"],body:"#c81818",trim:"#e8c020"}, 1, 0, L, now); }
   }
 }
+// ============ THE ARC, MADE VISIBLE ============
+// 🔒 "warning phase: citizens evacuating, crowds streaming away from the threat" and "recovery: fire
+// crews, medics, cleanup, construction — all as visible on-screen agents. The city's return to normal
+// is something you can WATCH HAPPEN."
+// Without this the warning and the recovery are text in a ticker; the arc only exists on screen for
+// the four minutes of impact, which is the thing this whole phase is meant to fix.
+// ⚠ LIVE PASS ONLY. Everybody here is moving, and a runner redrawn twice a second is a slideshow.
+// ⚠ Everything is world-anchored and scripted from the disaster's own `seed` + the clock — no state,
+// so the three monitors agree about who is running where.
+function drawDisasterArc(g,L,now){
+  var A=curDisArc; if(!A) return;
+  var di=A.di, K=Math.max(1,KSP), day=L>0.5;
+  var cx=disX(di.x), half=Math.max(20,di.w);
+  if(cx<-half-200||cx>SW+half+200) return;
+  if(A.phase==="warn"){
+    // ---- THEY GET OUT. Streaming AWAY from the impact centre, and the further the warning runs the
+    // further they have got — so the crowd thins near the zone and thickens beyond it.
+    // 🔑 The stragglers are the point: a fixed fraction never leave, which is what makes the impact
+    // land on people rather than on an empty set.
+    var run=Math.min(1,A.f*1.25);
+    for(var i=0;i<26;i++){
+      var h=mixLi(i+di.seed,0x0FEE), side=(h&1)?1:-1;
+      var strag=((h>>>9)%100)<18;                       // …and some of them do not
+      var d0=Math.round(((h>>>3)%Math.max(1,half)));
+      var d1=strag?d0:Math.round(d0+run*(90+((h>>>13)%140)));
+      var px=cx+side*d1;
+      if(px<-6||px>SW+6) continue;
+      var frame=strag?-1:((Math.floor(now/110)+i)&3);
+      drawPerson(g,px|0,HORIZON-1,strag?"#5a5a64":["#c04a3a","#3a5ac0","#c0a03a","#4aa06a"][(h>>>5)&3],
+                 SKINC[(h>>>17)%SKINC.length],frame);
+    }
+    // the sirens themselves — a police car running the length of the threatened district
+    var sx=cx-half+Math.round(((now%9000)/9000)*half*2);
+    drawEmv(g,sx+WOFF,EMV_TYPES[0],1,2,L,now);
+    return;
+  }
+  if(A.phase==="ripple"||A.phase==="recover"){
+    // ---- AND THE CITY COMES BACK, WITH AGENTS DOING IT. Damage never blinks away: every stage of
+    // this is somebody on screen doing the work, and which agents are out depends on how far through
+    // the recovery you are.
+    var f=(A.phase==="ripple")?0:A.f;
+    // medics and fire first, then they thin out as the crews take over
+    var emN=Math.max(1,Math.round(4*(1-f*0.7)));
+    for(var e=0;e<emN;e++){
+      var eh=mixLi(e+di.seed,0x51AA);
+      var ex=cx-half+Math.round(((eh%1000)/1000)*half*2)+Math.round(Math.sin(now*0.0004+e)*14);
+      drawEmv(g,ex+WOFF,EMV_TYPES[1+(e%2)],((eh>>>3)&1)?1:-1,2+(e%2),L,now);
+    }
+    // crews on foot through the zone, in hi-vis
+    var cwN=Math.round(9*Math.min(1,0.3+f));
+    for(var w2=0;w2<cwN;w2++){
+      var wh=mixLi(w2+di.seed,0x77CC);
+      var wx2=cx-half+Math.round(((wh%1000)/1000)*half*2);
+      if(wx2<-4||wx2>SW+4) continue;
+      drawPerson(g,wx2|0,HORIZON-1,"#e8b32a",SKINC[(wh>>>11)%SKINC.length],(Math.floor(now/260)+w2)&3);
+    }
+    // …and scaffolding going up over the worst of it as the rebuild starts
+    if(f>0.35&&!di.ruin){
+      for(var sc=0;sc<4;sc++){
+        var sh2=mixLi(sc+di.seed,0x3ACC);
+        var sxx=cx-Math.round(half*0.7)+Math.round(((sh2%1000)/1000)*half*1.4);
+        if(sxx<0||sxx>=SW) continue;
+        var sH=Math.round((10+((sh2>>>7)%22))*K*Math.min(1,(f-0.35)/0.5));
+        if(sH<2) continue;
+        g.fillStyle=css(mixc(day?[176,150,96]:[34,30,22],biomeSkc(day),0.06));
+        for(var sy=0;sy<sH;sy+=Math.max(2,Math.round(3*K))) g.fillRect(sxx,HORIZON-sy,Math.round(9*K),1);
+        g.fillRect(sxx,HORIZON-sH,1,sH); g.fillRect(sxx+Math.round(9*K)-1,HORIZON-sH,1,sH);
+      }
+    }
+  }
+}
 function drawDisaster(g,cd,L,now){
   drawDisasterAtmosphere(g,cd,L,now);        // the sky itself reacts before any sprite is drawn
   // a general catastrophe glow over the whole block, so the emergency reads at any zoom (skip the veil threats)
@@ -45586,6 +45657,7 @@ function draw(g,pass){
   // ---- DISASTER overlay: the threat + the city's military/emergency response + alert HUD ----
   // (the destruction/rubble/rebuild of the buildings themselves is handled in drawLayer)
   if(curDis){ drawDisaster(g,curDis,L,now); drawDisasterHud(g,curDis,now); }
+  drawDisasterArc(g,L,now);        // …and the evacuation before it, and the crews long after
   drawMemorials(g,L,now,night);                              // the worst sites keep a marker for the rest of the life
   drawFuneral(g,L,now,night);                                // …and the city walks its dead through the street once
   drawHalfMast(g,L,now,night);                               // …and the city mourns a mayor who did not survive
