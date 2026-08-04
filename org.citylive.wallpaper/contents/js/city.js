@@ -3049,6 +3049,15 @@ function cityEvents(nd){
 }
 var curEvents=null;
 var curDis=null, curRebuilt=[], curRuins=[];   // active disaster (or null) + completed-rebuild zones + permanently-ruined zones, set each frame
+// ⚠⚠ THE LIFECYCLE SITS BESIDE `curDis`, IT DOES NOT REPLACE IT. `curDis` means exactly one thing —
+// "a disaster is STRIKING right now" — and it is read in 54 places, including everything Phase 8 hangs
+// off (the named dead, the toll, the emergency succession, the memorials, the chronicle). If it started
+// being non-null for a CAT-5's whole 29-minute arc instead of its 4-minute impact, every one of those
+// 54 sites would silently start treating a city under scaffolding as a city under attack — the ticker
+// would read "BREAKING - CAT-5" for half an hour.
+// 🔑 So the arc is a SEPARATE global and every consumer opts in. Nothing that reads `curDis` today
+// changes behaviour at all.
+var curDisArc=null;   // {di, tp, phase:"warn"|"impact"|"ripple"|"recover", f} — the whole arc, or null
 var curBills=null;   // Buffalo Bills gameday takeover state (or null) — set each frame in draw()
 var curBillsDress=false;   // is the whole city dressed in Bills gear right now? (gameday OR the Mafia's uniform mandate)
 var cityG=1, cityPhase="peak", growPop=1, cityApoc=0, apocVeil=0;   // maturity, phase, pop factor, apocalypse progress + ash-out veil
@@ -11847,6 +11856,40 @@ function ganonTicker(now){
           "OFFICIALS: WE HAVE NO PRECEDENT FOR THIS AND NO FURTHER GUIDANCE",
           "ALL NIGHT SERVICES SUSPENDED - CURFEW UNTIL DAWN"][k%4];
 }
+// 🔒 A BESPOKE WARNING PER DISASTER — his answer over a shared one. What is coming is identifiable
+// from the alert alone, which is the point: the tell and the words agree.
+var DIS_WARN_LINE={
+  asteroid:  "TRACKING STATION - OBJECTS ON A CLOSING TRAJECTORY, TAKE COVER",
+  volcano:   "THE MOUNTAIN IS SWELLING - EVACUATE THE VALLEY NOW",
+  zombie:    "DO NOT APPROACH THE INFECTED - LOCK YOUR DOORS",
+  alien:     "UNIDENTIFIED CRAFT DESCENDING - THIS IS NOT A DRILL",
+  kaiju:     "SOMETHING VERY LARGE IS INBOUND - CLEAR THE WATERFRONT",
+  tornado:   "TORNADO WARNING - GET BELOW GROUND, NOT BEHIND GLASS",
+  flood:     "FLOOD WARNING - THE WATER IS COMING, GO UP NOT OUT",
+  mech:      "HOSTILE WALKERS SIGHTED - MILITARY CORRIDOR, STAY CLEAR",
+  kraken:    "HARBOUR CLOSED - SOMETHING IS MOVING UNDER THE BOATS",
+  sandstorm: "DUST WALL APPROACHING - SEAL WINDOWS AND STAY INSIDE",
+  iceage:    "FLASH FREEZE WARNING - TEMPERATURES FALLING FAST",
+  rift:      "THE SKY IS WRONG ABOVE THE DISTRICT - DO NOT LOOK UP",
+  blackout:  "GRID INSTABILITY - ROLLING OUTAGES EXPECTED WITHIN THE HOUR",
+  smog:      "AIR QUALITY EMERGENCY - THE HAZE IS CLOSING IN",
+  planecrash:"AIRCRAFT IN DISTRESS OVERHEAD - CLEAR THE STREETS"
+};
+function disWarnLine(di){
+  return DIS_WARN_LINE[di.type] || ("EMERGENCY WARNING - "+(DIS_NAME[di.type]||"INCIDENT")+" IMMINENT");
+}
+// ⚠ AND THE RECOVERY LINE REPORTS WHAT IS ACTUALLY HAPPENING, not a countdown. It reads the phase and
+// the category off the live descriptor, so it can never claim a recovery that is not being drawn.
+function disRecoverLine(arc){
+  var n=DIS_NAME[arc.di.type]||"THE INCIDENT", cat="CAT-"+arc.di.intensity;
+  if(arc.phase==="ripple")
+    return arc.di.win ? ("THE "+n+" HAS PASSED - CASUALTIES BEING COUNTED")
+                      : ("THE "+n+" HAS PASSED - "+cat+" DAMAGE, DISTRICTS UNREACHABLE");
+  if(arc.f<0.45) return "RECOVERY UNDERWAY - CREWS AND MEDICS WORKING THE "+n+" ZONE";
+  if(arc.f<0.80) return "CLEARANCE CONTINUES - POWER AND WATER RETURNING BLOCK BY BLOCK";
+  return arc.di.ruin ? ("THE "+n+" ZONE WILL NOT BE REBUILT THIS GENERATION")
+                     : ("REBUILDING AFTER THE "+n+" - SCAFFOLDING UP ACROSS THE DISTRICT");
+}
 function tickerMsg(now){
   var mn=meteorNews(now); if(mn) return mn;                     // the incoming planet-killer dominates the news for ~2 days out
   if(cityPhase==="apoc") return "EMERGENCY BROADCAST - EVACUATE "+cityName+" NOW";
@@ -11865,9 +11908,19 @@ function tickerMsg(now){
         return "NAMED AMONG THE DEAD - "+dc.name+", "+dc.role+" - "+DIS_NAME[curDis.type];
     }
   }
+  // ---- THE ARC, NARRATED. 🔒 "the ticker narrates the whole arc from warning through recovery" — and
+  // it reads from real state, never a fabricated string: the phase, the category and the type all come
+  // off the same descriptor the renderer is drawing from.
+  // ⚠ The WARNING outranks an ordinary in-progress disaster (people need telling before it lands) but
+  // stays below an invasion and below the named dead, which are already ranked above this line.
+  if(curDisArc&&curDisArc.phase==="warn"&&!curDis)
+    return disWarnLine(curDisArc.di);
   if(curWar&&curWar.f>=0&&curWar.f<1) return "INVASION UNDERWAY - SHELTER IN PLACE";
   if(curWar&&curWar.f>=1&&!curWar.win) return "CURFEW IN EFFECT BY ORDER OF THE OCCUPATION";
   if(curDis) return "BREAKING - CAT-"+curDis.intensity+" "+DIS_NAME[curDis.type]+(curDis.type==="rift"?" - "+riftInvaderNames(curDis)+" SIGHTED":"")+" - SEEK SHELTER";
+  // …and the aftermath, once the impact is over and the crews are out
+  if(curDisArc&&!curDis&&(curDisArc.phase==="ripple"||curDisArc.phase==="recover"))
+    return disRecoverLine(curDisArc);
   if(curBills) return billsTicker(now);   // gameday takes over the news entirely — every ticker + news screen goes Bills (real safety broadcasts above still win)
   var rgm=regimeTicker(now); if(rgm && (Math.floor(now/12000))%4!==0) return rgm;   // THE ORDER dominates the news (3 of 4 slots) while the takeover is underway
   var pgm=plagueTicker(now); if(pgm && (Math.floor(now/12000))%4!==0) return pgm;   // THE PLAGUE dominates the news while the pandemic rages (mutually exclusive with the regime)
@@ -44129,6 +44182,7 @@ function draw(g,pass){
     wmood.pedFactor*=(1-0.72*ashHeavy);
   }
   curWar=(cityG>0.5)?warState(now):null;                     // is this the life the enemy comes?
+  curDisArc=disArcNow(now);           // where are we in a disaster's whole arc (warning → recovery)?
   curDis=disasterNow(now);            // is a disaster striking right now?
   if(!curDis) curDis=stormCrash(now);  // …and severe weather downs extra planes (Nick: crashes are worse in bad weather)
   if(curWar&&curWar.f>=0&&curWar.f<1) curDis=null;           // a war eclipses lesser troubles
