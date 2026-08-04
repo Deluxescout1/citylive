@@ -229,7 +229,7 @@ sufficient: the automated pass cannot see "invisible", and the sheets cannot cov
 
 ---
 
-# The capability matrix — 38 disasters x 28 lands
+# The capability matrix — 41 disasters x 28 lands
 
 **Generated, not written.** `desktop/qml-dis-matrix.qml` sets each biome up for real and asks
 `disExemption`, `DIS_SIG`, `disDestroys` and `disMinorEvent` what they actually say. Regenerate with:
@@ -256,8 +256,8 @@ almanac replays history through the same function. That was already true of the 
 trade for not showing a tornado inside a sealed cavern — but a real cost, not a free one.
 
 ```
-SIGNATURES (W=warn A=after): asteroid:WA volcano:WA zombie:WA alien:WA kaiju:WA tornado:WA flood:WA mech:WA kraken:WA sandstorm:WA iceage:WA rift:WA blackout:WA smog:WA planecrash:WA earthquake:WA hurricane:WA meltdown:WA dambreak:WA firestorm:WA sinkhole:WA riot:WA meteorswarm:WA tsunami:WA avalanche:WA hailstorm:WA gasblast:WA derailment:WA bridgefall:WA locusts:WA stampede:WA outbreak:WA solarflare:WA cyberattack:WA satfall:WA portalstorm:WA gatheredlight:WA armada:WA
-SIGNED 38/38   SUBSTITUTIONS 95
+SIGNATURES (W=warn A=after): asteroid:WA volcano:WA zombie:WA alien:WA kaiju:WA tornado:WA flood:WA mech:WA kraken:WA sandstorm:WA iceage:WA rift:WA blackout:WA smog:WA planecrash:WA earthquake:WA hurricane:WA meltdown:WA dambreak:WA firestorm:WA sinkhole:WA riot:WA meteorswarm:WA tsunami:WA avalanche:WA hailstorm:WA gasblast:WA derailment:WA bridgefall:WA locusts:WA stampede:WA outbreak:WA solarflare:WA cyberattack:WA satfall:WA portalstorm:WA gatheredlight:WA armada:WA duel:WA spirit:WA dragon:WA
+SIGNED 41/41   SUBSTITUTIONS 100
     alpine | ALPINE | ocean=Y | exempt=- | (all fifteen play here)
     forest | OLD FOREST | ocean=Y | exempt=- | (all fifteen play here)
     mesa | RED MESA | ocean=N | exempt=- | kraken->tornado, tsunami->flood
@@ -270,12 +270,12 @@ SIGNED 38/38   SUBSTITUTIONS 95
     sprawl | THE SPRAWL | ocean=Y | exempt=- | (all fifteen play here)
     hell | THE ASHLANDS | ocean=N | exempt=- | kraken->tornado, tsunami->flood, locusts->sandstorm
     heaven | THE EMPYREAN | ocean=N | exempt=heaven | volcano->asteroid, flood->tornado, kraken->tornado, sandstorm->tornado, earthquake->asteroid, dambreak->tornado, sinkhole->asteroid, tsunami->tornado, avalanche->tornado, bridgefall->gasblast, stampede->riot
-    dunes | THE DUNE SEA | ocean=N | exempt=- | kraken->tornado, dambreak->flood, tsunami->flood, avalanche->sandstorm, bridgefall->gasblast, locusts->sandstorm
+    dunes | THE DUNE SEA | ocean=N | exempt=- | kraken->tornado, dambreak->flood, tsunami->flood, avalanche->sandstorm, bridgefall->gasblast, locusts->sandstorm, spirit->sandstorm
     karst | THE KARST | ocean=N | exempt=- | kraken->tornado, tsunami->flood
     fjord | THE FJORD | ocean=Y | exempt=- | (all fifteen play here)
-    salt | THE SALT MIRROR | ocean=Y | exempt=- | avalanche->sandstorm, locusts->sandstorm
+    salt | THE SALT MIRROR | ocean=Y | exempt=- | avalanche->sandstorm, locusts->sandstorm, spirit->sandstorm
     dam | THE GREAT DAM | ocean=N | exempt=- | kraken->tornado, tsunami->flood
-    under | THE UNDERCITY | ocean=Y | exempt=roof | tornado->flood, sandstorm->smog, iceage->blackout, planecrash->blackout, hurricane->blackout, hailstorm->blackout, stampede->riot, solarflare->blackout, satfall->gasblast, gatheredlight->portalstorm, armada->mech
+    under | THE UNDERCITY | ocean=Y | exempt=roof | tornado->flood, sandstorm->smog, iceage->blackout, planecrash->blackout, hurricane->blackout, hailstorm->blackout, stampede->riot, solarflare->blackout, satfall->gasblast, gatheredlight->portalstorm, armada->mech, dragon->kaiju
     savanna | THE SAVANNA | ocean=N | exempt=- | kraken->tornado, tsunami->flood
     canyon | THE GORGE | ocean=N | exempt=- | kraken->tornado, tsunami->flood
 egg leaf | THE HIDDEN VILLAGE | ocean=N | exempt=- | kraken->tornado, tsunami->flood
@@ -283,12 +283,12 @@ egg core | THE CORE WORLD | ocean=N | exempt=- | kraken->tornado, dambreak->floo
 egg fire | THE CINDER THRONE | ocean=N | exempt=- | kraken->tornado, tsunami->flood
 egg air | THE HIGH TEMPLES | ocean=N | exempt=air | volcano->asteroid, flood->tornado, kraken->tornado, earthquake->asteroid, dambreak->tornado, firestorm->tornado, sinkhole->asteroid, tsunami->tornado, avalanche->sandstorm, bridgefall->gasblast
 egg falls | THE FALLS CITY | ocean=N | exempt=- | kraken->tornado, tsunami->flood
-egg orbit | SPACE CITY | ocean=N | exempt=orbit | volcano->asteroid, tornado->asteroid, flood->asteroid, kraken->asteroid, sandstorm->asteroid, iceage->asteroid, smog->blackout, planecrash->asteroid, earthquake->asteroid, hurricane->blackout, dambreak->asteroid, firestorm->blackout, sinkhole->asteroid, tsunami->asteroid, avalanche->asteroid, hailstorm->blackout, bridgefall->gasblast, locusts->asteroid, stampede->riot, solarflare->blackout, satfall->gasblast, gatheredlight->portalstorm, armada->mech
+egg orbit | SPACE CITY | ocean=N | exempt=orbit | volcano->asteroid, tornado->asteroid, flood->asteroid, kraken->asteroid, sandstorm->asteroid, iceage->asteroid, smog->blackout, planecrash->asteroid, earthquake->asteroid, hurricane->blackout, dambreak->asteroid, firestorm->blackout, sinkhole->asteroid, tsunami->asteroid, avalanche->asteroid, hailstorm->blackout, bridgefall->gasblast, locusts->asteroid, stampede->riot, solarflare->blackout, satfall->gasblast, gatheredlight->portalstorm, armada->mech, spirit->asteroid, dragon->kaiju
 egg plateau | THE SEALED HEIGHT | ocean=N | exempt=- | kraken->tornado, tsunami->flood
 egg rainv | THE HIDDEN RAIN | ocean=N | exempt=- | kraken->tornado, tsunami->flood
 ```
 
-## Lifecycle signatures — 38 of 38
+## Lifecycle signatures — 41 of 41
 
 `W` = a bespoke WARNING, `A` = a bespoke AFTERMATH. Everything unsigned still gets the generic arc
 (evacuation, medics, crews, scaffolding) — it is not missing, it is just not yet its own.

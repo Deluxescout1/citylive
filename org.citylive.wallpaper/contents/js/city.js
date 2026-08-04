@@ -11896,7 +11896,10 @@ var DIS_WARN_LINE={
   satfall:    "SOMETHING IS COMING DOWN AND WE KNOW WHAT IT IS - STAY INSIDE",
   portalstorm:"THE AIR IS OPENING - DO NOT GO THROUGH, AND DO NOT LET ANYTHING OUT",
   gatheredlight:"THE SKY IS COLLECTING - LOOK UP, THEN GET UNDERGROUND",
-  armada:     "AIRSHIPS ON THE HORIZON AND THEY ARE NOT OURS"
+  armada:     "AIRSHIPS ON THE HORIZON AND THEY ARE NOT OURS",
+  duel:       "TWO OF THEM ON THE ROOFTOPS - CLEAR EVERY BLOCK BETWEEN",
+  spirit:     "SOMETHING IS WALKING IN FROM THE TREELINE - DO NOT GET IN ITS WAY",
+  dragon:     "SOMETHING VERY LONG IS IN THE AIR - GET OFF THE STREET"
 };
 function disWarnLine(di){
   return DIS_WARN_LINE[di.type] || ("EMERGENCY WARNING - "+(DIS_NAME[di.type]||"INCIDENT")+" IMMINENT");
@@ -19419,7 +19422,9 @@ var DIS_TYPES_T3=["tsunami","avalanche","hailstorm",
                   "gasblast","derailment","bridgefall",
                   "locusts","stampede","outbreak",
                   "solarflare","cyberattack","satfall",
-                  "portalstorm","gatheredlight","armada"];
+                  // the homages: a portal storm, a gathering sphere of light, a sky full of airships,
+                  // an elemental duel, a walking forest spirit, and a serpentine dragon.
+                  "portalstorm","gatheredlight","armada","duel","spirit","dragon"];
 // 🔑🔑 ERAS, NOT A CHAIN OF CUTOVERS. Tier 2 needed one cutover and tier 3 needs another, and a third
 // `if` would have been the shape that eventually gets one of them backwards. The rule is one line: the
 // LAST era whose `from` this slot has reached. Adding tier 4 is one row.
@@ -19451,7 +19456,8 @@ var DIS_NAME={asteroid:"ASTEROID",volcano:"VOLCANO",zombie:"ZOMBIES",alien:"ALIE
   locusts:"LOCUST SWARM",stampede:"STAMPEDE",outbreak:"OUTBREAK",
   solarflare:"SOLAR FLARE",cyberattack:"CYBERATTACK",satfall:"SATELLITE FALL",
   // …and the three homages, named for what they ARE rather than for what they reference
-  portalstorm:"PORTAL STORM",gatheredlight:"THE GATHERED LIGHT",armada:"THE ARMADA"};
+  portalstorm:"PORTAL STORM",gatheredlight:"THE GATHERED LIGHT",armada:"THE ARMADA",
+  duel:"THE DUEL",spirit:"THE FOREST SPIRIT",dragon:"THE DRAGON"};
 // non-destructive threats skip the collapse→rubble→rebuild machinery: they veil or disrupt the city,
 // they do not level it.
 // ⚠ `riot` IS IN THIS SET, and it is the one judgement call among the eight. Civil unrest burns cars
@@ -19608,6 +19614,9 @@ function disExemptT2(type,B){
   if(type==="satfall" && roofed)             return {to:"gasblast",   why:"nothing falls through a roof"};
   if(type==="gatheredlight" && roofed)       return {to:"portalstorm",why:"no sky to gather in"};
   if(type==="armada" && roofed)              return {to:"mech",       why:"no sky to cross"};
+  if(type==="dragon" && roofed)              return {to:"kaiju",      why:"nothing that size flies in here"};
+  if(type==="spirit" && B && (B.orbit||B.mirror||B.dune))
+                                             return {to:"sandstorm",  why:"nothing here for it to walk out of"};
   return null;
 }
 function disExemptKey(B){
@@ -23453,6 +23462,86 @@ DIS_SIG.armada={
     var f=(A.phase==="ripple")?0:A.f, a=Math.max(0,1-f*1.05);
     sigDebris(g,cx,half*2.2,day,a,di.seed,[74,62,50],16);       // a downed one, being taken apart
     sigDrift(g,cx,half*1.4,day,a*0.5,day?[42,36,30]:[16,14,12],now);
+  }
+};
+// ---- the three newest homages, held to the same standard as the other thirty-eight ----
+DIS_SIG.duel={
+  // they arrive separately, from opposite ends, and the street clears between them
+  warn:function(g,di,A,L,now,cx,half,K,day){
+    var sep=Math.round((26+di.intensity*7)*K), top=HORIZON-Math.round((22+di.intensity*5)*K);
+    for(var s=-1;s<=1;s+=2){
+      var px=cx+s*Math.round(sep*(2.2-1.2*A.f));
+      if(px<-10||px>SW+10) continue;
+      drawPerson(g,px|0,top+Math.round(6*K),s>0?"#c0392b":"#2b6ec0",
+                 SKINC[(di.seed+(s>0?1:2))%SKINC.length],(Math.floor(now/220))&3);
+    }
+  },
+  after:function(g,di,A,L,now,cx,half,K,day){
+    var f=(A.phase==="ripple")?0:A.f, a=Math.max(0,1-f*1.1);
+    // 🔒 SCORCHED AND FROZEN IN THE SAME PLACE, which is the only aftermath this event could leave
+    var sep=Math.round((26+di.intensity*7)*K);
+    g.fillStyle="rgba(30,20,16,"+(0.70*a).toFixed(2)+")";
+    g.fillRect(cx-sep,HORIZON-Math.round(2*K),sep,Math.round(2*K)+1);
+    g.fillStyle="rgba(196,224,238,"+(0.60*a).toFixed(2)+")";
+    g.fillRect(cx,HORIZON-Math.round(2*K),sep,Math.round(2*K)+1);
+    sigDebris(g,cx,half*1.6,day,a,di.seed,[74,68,64],14);
+  }
+};
+DIS_SIG.spirit={
+  // the animals come out first, all of them, all going the same way
+  warn:function(g,di,A,L,now,cx,half,K,day){
+    for(var i=0;i<Math.round(10*A.f);i++){
+      var h=mixLi(i+di.seed,0xE201), side=(h&1)?1:-1;
+      var px=cx+side*Math.round(A.f*(60+((h>>>7)%180)));
+      if(px<-6||px>SW+6) continue;
+      g.fillStyle=day?"rgba(78,64,48,0.9)":"rgba(28,24,20,0.9)";
+      g.fillRect(px,HORIZON-Math.round(3*K),Math.round(4*K),Math.round(3*K));
+      g.fillRect(px+(side>0?Math.round(4*K):-Math.round(K)),HORIZON-Math.round(4*K),Math.round(2*K),Math.round(2*K));
+    }
+  },
+  after:function(g,di,A,L,now,cx,half,K,day){
+    var f=(A.phase==="ripple")?0:A.f;
+    // 🔑 IT LEAVES THINGS GROWING, not broken. Nothing else in the set has a benign aftermath, and
+    // that inversion is the entire character of the event.
+    var a=Math.min(1,f*1.4);
+    for(var i=0;i<18;i++){
+      var h=mixLi(i+di.seed,0xE202);
+      var px=cx+Math.round((((h%2000)/1000)-1)*half*1.8);
+      if(px<-4||px>SW+4) continue;
+      var hh=Math.round((2+((h>>>7)%7))*K*a);
+      if(hh<1) continue;
+      g.fillStyle=day?"rgba(74,132,70,0.85)":"rgba(24,48,30,0.85)";
+      g.fillRect(px,HORIZON-hh,Math.max(1,Math.round(K)),hh);
+      g.fillStyle=day?"rgba(122,186,104,0.8)":"rgba(38,72,44,0.8)";
+      g.fillRect(px-Math.round(K),HORIZON-hh-Math.round(K),Math.round(3*K),Math.round(2*K));
+    }
+  }
+};
+DIS_SIG.dragon={
+  // a shadow crossing the ground before there is anything in the sky to cast it
+  warn:function(g,di,A,L,now,cx,half,K,day){
+    if(!day) return;
+    var side=(di.seed&1)?1:-1;
+    var sx=cx-side*Math.round((1-A.f)*WW*0.20);
+    for(var q=0;q<Math.round(30*K);q++){
+      var qf=q/Math.round(30*K);
+      g.fillStyle="rgba(20,16,24,"+(0.30*A.f*(1-Math.abs(qf-0.5)*1.6)).toFixed(3)+")";
+      g.fillRect(sx+side*Math.round(q*3),HORIZON-Math.round(2*K),Math.round(3*K),Math.round(2*K)+1);
+    }
+  },
+  after:function(g,di,A,L,now,cx,half,K,day){
+    var f=(A.phase==="ripple")?0:A.f, a=Math.max(0,1-f*1.05);
+    // a burnt lane the length of its pass, and scale it shed
+    for(var s=0;s<Math.round(half*2.4);s++){
+      var px=cx+((di.seed&1)?1:-1)*s*2; if(px<0||px>=SW) continue;
+      var hsh=((px+WOFF)*2654435761)>>>0;
+      g.fillStyle="rgba(18,13,12,"+(0.62*a).toFixed(2)+")";
+      g.fillRect(px,HORIZON-Math.max(1,Math.round((2+(hsh%3))*K)),2,Math.round(3*K));
+      if((hsh>>>11)%23===0){
+        g.fillStyle="rgba(150,110,60,"+(0.8*a).toFixed(2)+")";
+        g.fillRect(px,HORIZON-Math.round(4*K),Math.round(2*K),Math.round(2*K));
+      }
+    }
   }
 };
 // ---------------- AND THE MOUNTAIN STAYS. -----------------------------------------------------------
@@ -43236,7 +43325,9 @@ var DEATH_LABEL={ninetails:"The Nine-Tailed Fox",meteors:"Meteor Storm",nuke:"Nu
   // a death with no label prints its raw key at the user, which is how "kaijuwar" nearly shipped.
   gammaray:"Gamma-Ray Burst",rogueplanet:"The Rogue Planet",crustcrack:"The Crust Cracks",
   oceansboil:"The Oceans Boil",greygoo:"Grey Goo",lastwinter:"The Last Winter",
-  skyfall:"The Sky Falls",timestop:"Everything Stops"};
+  skyfall:"The Sky Falls",timestop:"Everything Stops",
+  thecomet:"The Comet",thechange:"The Change",theburst:"The Burst",
+  thetitans:"The Titans",ragnarok:"Ragnarok"};
 var LANDMARK_LABEL={monorail:"Monorail",stadium:"Stadium",park:"City Park",casino:"Casino",seawall:"Seawall",
   university:"University",marina:"Marina",zoo:"City Zoo",observatory:"Observatory",grandcentral:"Grand Central"};
 var ERA_LABEL={cyber:"Cyberpunk",ancient:"Ancient",brutal:"Brutalist",solar:"Solarpunk",vaporwave:"Vaporwave",
@@ -44518,7 +44609,9 @@ var DEATHS_SPECIAL=["ninetails"];
 // STARTED before it keeps the original twelve; one that starts after can draw any of the twenty.
 // ⚠ Same rule as the disaster eras: the date must be in the FUTURE when it ships. The almanac replays
 // finished lives through `deathOf`, so moving it backwards rewrites what they are remembered as.
-var DEATHS_NEW=["gammaray","rogueplanet","crustcrack","oceansboil","greygoo","lastwinter","skyfall","timestop"];
+var DEATHS_NEW=["gammaray","rogueplanet","crustcrack","oceansboil","greygoo","lastwinter","skyfall","timestop",
+  // …and five that are homages. Same rule as everywhere else: recognisable in shape, never named.
+  "thecomet","thechange","theburst","thetitans","ragnarok"];
 var DEATHS_ALL=DEATHS.concat(DEATHS_NEW);
 var DEATH_ERA_MS=Date.UTC(2026,7,6,0,0,0);        // 2026-08-06
 function lifeStartMs(li){ return GROW_EPOCH - GROW_OFFSET_DAYS*86400000 - WORLD_SHIFT + li*GROW_CYCLE; }
@@ -44991,6 +45084,333 @@ APOC_X.timestop=function(g,ap,L,now){
     var mx=((hm%1000)/1000)*SW, my=Math.round(((hm>>>9)%1000)/1000*HORIZON*0.9);
     g.fillStyle="rgba(210,210,216,"+(0.5*ap).toFixed(2)+")";
     g.fillRect(mx,my,Math.max(1,Math.round(2*K)),Math.max(1,Math.round(K)));
+  }
+};
+
+// ================================================================================================
+// MORE HOMAGES — three disasters and five ends.
+// 🔒 THE RULE IS UNCHANGED AND IT IS NOT NEGOTIABLE HERE: unmistakable in SHAPE and BEHAVIOUR, never
+// in NAME. This repo already strips branding on principle — the ancient kingdom lost its and the fox
+// is filed as "kitsune folklore, not anybody's trademark". Someone who has seen the thing recognises
+// it in one glance; someone who has not sees a comet, a duel, a dragon, a spirit. Nothing here is
+// anyone's property, no character is depicted, and no name is used.
+// ⚠ TIMING: both era boundaries (disasters and deaths) are 2026-08-06 and it is the 4th, so extending
+// the lists TODAY rewrites nothing. After the 6th, a fourth era row is required instead.
+// ================================================================================================
+
+// ---------------- THE DUEL — two figures, and the roof they are standing on stops existing ---------
+DIS_T2.duel=function(g,cd,L,now){
+  var f=cd.f, i=cd.intensity, cx=disX(cd.x), K=Math.max(1,KSP), day=L>0.5;
+  if(f>=0.62) return;
+  var str=Math.min(1,f/0.12)*(f>0.46?Math.max(0,1-(f-0.46)/0.16):1);
+  if(str<=0.02) return;
+  // 🔑 THE ELEMENTS ARE THE READ, not the fighters. At this pixel scale two people on a rooftop are
+  // four pixels each; what carries it is the ARCS BETWEEN THEM — fire one way, water the other, and
+  // the ground under both of them tearing up.
+  var sep=Math.round((26+i*7)*K), top=HORIZON-Math.round((22+i*5)*K);
+  var beat=(now%1500)/1500;
+  for(var s=-1;s<=1;s+=2){
+    var px=cx+s*sep;
+    if(px<-20||px>SW+20) continue;
+    drawPerson(g,px|0,top+Math.round(6*K),s>0?"#c0392b":"#2b6ec0",SKINC[(cd.seed+(s>0?1:2))%SKINC.length],
+               (Math.floor(now/120))&3);
+    // the element each of them is throwing, arcing toward the middle
+    g.globalCompositeOperation="lighter";
+    for(var q=0;q<Math.round(sep*0.9);q++){
+      var qf=q/Math.max(1,Math.round(sep*0.9));
+      if(qf>((s>0)?beat:1-beat)+0.35) continue;
+      var ax=px-s*q, ay=top+Math.round(6*K)-Math.round(Math.sin(qf*Math.PI)*14*K);
+      var col=(s>0)?mixc([255,220,120],[220,40,10],qf):mixc([190,240,255],[40,110,220],qf);
+      // ⚠ THICK. At 2 world px the arcs were a scratch; the elements ARE this event and the two
+      // fighters are four pixels each, so the arcs have to carry the whole read.
+      g.fillStyle=rgba(col,(0.85*str*(1-qf*0.3)).toFixed(2));
+      g.fillRect(ax,ay,Math.max(1,Math.round(4*K)),Math.max(1,Math.round(4*K)));
+    }
+    g.globalCompositeOperation="source-over";
+    // …and the roof they are on is coming apart under them
+    g.fillStyle=day?"rgba(60,56,54,0.9)":"rgba(22,20,20,0.9)";
+    for(var d=0;d<4;d++){
+      var h=mixLi(d+cd.seed+(s>0?0:9),0xD901);
+      g.fillRect(px+Math.round((((h%1000)/1000)-0.5)*16*K),top+Math.round(7*K)+Math.round(((h>>>7)%5)*K),
+                 Math.round(3*K),Math.max(1,Math.round(K)));
+    }
+  }
+  // where the two meet: a standing shockwave that pushes the air both ways
+  g.globalCompositeOperation="lighter";
+  var r=Math.round((6+10*Math.abs(Math.sin(now*0.004)))*K*str);
+  for(var q2=r;q2>0;q2--){
+    g.fillStyle="rgba(255,255,255,"+(0.30*str*(1-q2/r)).toFixed(3)+")";
+    fillEllipse(g,cx,top+Math.round(2*K),q2,Math.max(1,Math.round(q2*0.7)));
+  }
+  g.globalCompositeOperation="source-over";
+};
+// ---------------- THE FOREST SPIRIT — the one that is not angry, and is worse for it -------------
+DIS_T2.spirit=function(g,cd,L,now){
+  var f=cd.f, i=cd.intensity, cx=disX(cd.x), K=Math.max(1,KSP), day=L>0.5;
+  if(f>=0.66) return;
+  var rise=Math.min(1,f/0.16), go=(f>0.48)?(f-0.48)/0.18:0;
+  var H=Math.round((40+i*14)*K*rise*(1-go*0.9));
+  if(H<4) return;
+  var W=Math.round(H*0.20), gy=HORIZON, top=gy-H;
+  // ⚠ IT WALKS, IT DOES NOT RAMPAGE. `drawKaiju` already owns violent — this one is tall, thin, slow
+  // and upright, and the difference in SILHOUETTE is the whole distinction between the two events.
+  var step=Math.sin(now*0.0011), sway=Math.round(step*3*K);
+  var body=day?[36,44,40]:[10,16,14];
+  g.fillStyle=css(body);
+  g.fillRect(cx-Math.round(W*0.5)+sway,top,W,H);
+  // legs, alternating, very long
+  for(var lg=-1;lg<=1;lg+=2){
+    var sw=Math.round(step*lg*7*K);
+    g.fillRect(cx+lg*Math.round(W*0.30)+sw,gy-Math.round(H*0.42),Math.max(1,Math.round(W*0.22)),Math.round(H*0.42));
+  }
+  // the head: small, and ANTLERED, which is the one shape nothing else on these maps has
+  var hy=top-Math.round(H*0.06);
+  g.fillRect(cx-Math.round(W*0.34)+sway,hy,Math.round(W*0.68),Math.round(H*0.10));
+  for(var a=0;a<5;a++){
+    var ax=cx+sway+Math.round((a-2)*W*0.30), ah=Math.round(H*(0.10+0.05*(2-Math.abs(a-2))));
+    g.fillRect(ax,hy-ah,Math.max(1,Math.round(K)),ah);
+    g.fillRect(ax-Math.round(K*(a<2?1:-1)),hy-ah,Math.round(2*K),Math.max(1,Math.round(K)));
+  }
+  // two calm lights for eyes, and everything it passes goes pale — it is not burning anything
+  g.globalCompositeOperation="lighter";
+  g.fillStyle="rgba(220,255,230,0.9)";
+  g.fillRect(cx-Math.round(W*0.22)+sway,hy+Math.round(H*0.03),Math.max(1,Math.round(K*1.4)),Math.max(1,Math.round(K*1.4)));
+  g.fillRect(cx+Math.round(W*0.10)+sway,hy+Math.round(H*0.03),Math.max(1,Math.round(K*1.4)),Math.max(1,Math.round(K*1.4)));
+  for(var q=0;q<Math.round(H*0.5);q++){
+    g.fillStyle="rgba(180,240,200,"+(0.05*rise*(1-q/(H*0.5))).toFixed(3)+")";
+    g.fillRect(cx-Math.round(W*2)+sway,top+q,Math.round(W*4),1);
+  }
+  g.globalCompositeOperation="source-over";
+};
+// ---------------- THE DRAGON — long, serpentine, and in the AIR, which no kaiju here is -----------
+DIS_T2.dragon=function(g,cd,L,now){
+  var f=cd.f, i=cd.intensity, cx=disX(cd.x), K=Math.max(1,KSP), day=L>0.5;
+  if(f>=0.64) return;
+  var pass=Math.min(1,f/0.42), side=(cd.seed&1)?1:-1;
+  var hx=cx-side*Math.round(WW*0.16)+side*Math.round(pass*WW*0.32);
+  var baseY=Math.round(HORIZON*0.30);
+  var segs=22+i*4, body=day?[54,32,58]:[22,12,26], belly=day?[168,120,64]:[70,48,28];
+  // 🔑 A LONG SINE, WHICH IS THE WHOLE SILHOUETTE. Everything else airborne on these maps is a short
+  // rigid shape; a serpent is a curve that the eye follows, and length is what makes it read.
+  for(var s=segs;s>=0;s--){
+    var sf=s/segs;
+    var sx=hx-side*Math.round(sf*(20+i*3)*K*2.2);
+    var sy=baseY+Math.round(Math.sin(now*0.0012+sf*4.2)*16*K);
+    if(sx<-40||sx>SW+40) continue;
+    var r=Math.max(1,Math.round((5+i*1.2)*K*(1-sf*0.72)));
+    g.fillStyle=css(body); fillEllipse(g,sx,sy,r,Math.max(1,Math.round(r*0.85)));
+    g.fillStyle=rgba(belly,0.85);
+    g.fillRect(sx-Math.round(r*0.5),sy+Math.round(r*0.4),Math.round(r),Math.max(1,Math.round(K)));
+    if(s%5===0){                                                   // fins along the spine
+      g.fillStyle=css(mixc(body,[200,140,80],0.4));
+      g.fillRect(sx,sy-r-Math.round(2*K),Math.max(1,Math.round(K)),Math.round(3*K));
+    }
+  }
+  // the head, horned, and what comes out of it
+  var hy=baseY+Math.round(Math.sin(now*0.0012)*16*K);
+  var hr=Math.round((7+i*1.6)*K);
+  g.fillStyle=css(body); fillEllipse(g,hx,hy,hr,Math.max(1,Math.round(hr*0.7)));
+  g.fillRect(hx+side*Math.round(hr*0.4),hy-Math.round(hr*1.5),Math.max(1,Math.round(K)),Math.round(hr));
+  g.fillRect(hx-side*Math.round(hr*0.1),hy-Math.round(hr*1.7),Math.max(1,Math.round(K)),Math.round(hr*1.2));
+  g.globalCompositeOperation="lighter";
+  g.fillStyle="rgba(255,190,60,0.95)";
+  g.fillRect(hx+side*Math.round(hr*0.5),hy-Math.round(hr*0.2),Math.max(1,Math.round(K*1.2)),Math.max(1,Math.round(K*1.2)));
+  if(f>0.18){                                                      // the breath, down onto the city
+    var bl=Math.round(HORIZON*0.55*Math.min(1,(f-0.18)/0.14));
+    for(var q=0;q<bl;q++){
+      var qf=q/bl, w2=Math.round((2+qf*16)*K);
+      g.fillStyle=rgba(mixc([255,240,170],[230,60,12],qf),(0.70*(1-qf*0.55)).toFixed(2));
+      g.fillRect(hx+side*Math.round(hr*0.8)+side*Math.round(qf*qf*20*K)-w2,hy+q,w2*2,1);
+    }
+  }
+  g.globalCompositeOperation="source-over";
+};
+
+// ================================================================================================
+// FIVE MORE ENDS, all homages, same rule.
+// ================================================================================================
+// THE COMET — it does not hit. It ARRIVES, and while it is overhead everything that burns, burns.
+APOC_X.thecomet=function(g,ap,L,now){
+  var K=Math.max(1,KSP);
+  var cx=Math.round(SW*(0.10+ap*0.85)), cy=Math.round(HORIZON*(0.24-ap*0.06));
+  var r=Math.round((6+ap*16)*K);
+  // the sky goes red first and stays — the comet is the CAUSE, the world burning is the event
+  var heat=Math.min(1,ap*1.4);
+  for(var q=0;q<HORIZON;q++){
+    var qf=q/HORIZON;
+    g.fillStyle=rgba(mixc([180,30,20],[255,150,60],qf),(0.55*heat*(1-qf*0.4)).toFixed(3));
+    g.fillRect(0,q,SW,1);
+  }
+  g.globalCompositeOperation="lighter";
+  for(var t=0;t<Math.round(90*K);t++){                             // the tail, long and back the way it came
+    var tf=t/Math.round(90*K);
+    g.fillStyle="rgba(255,200,120,"+(0.42*(1-tf)).toFixed(3)+")";
+    g.fillRect(cx-Math.round(t*2.2),cy-Math.round(t*0.5),Math.max(1,Math.round(2*K)),Math.max(1,Math.round(2*K*(1-tf*0.6))));
+  }
+  for(var q2=r*2;q2>0;q2--){
+    g.fillStyle="rgba(255,220,150,"+(0.30*(1-q2/(r*2))).toFixed(3)+")";
+    fillEllipse(g,cx,cy,q2,q2);
+  }
+  g.fillStyle="rgba(255,252,240,0.95)"; fillEllipse(g,cx,cy,r,r);
+  // …and the city burns underneath it, everywhere at once
+  for(var b=0;b<Math.round(60*heat);b++){
+    var h=((b*2654435761+17)>>>0);
+    var bx=((h%1000)/1000)*SW, bh=Math.round((3+((h>>>7)%12))*K);
+    g.fillStyle="rgba(255,130,40,"+(0.4+0.4*Math.abs(Math.sin(now*0.006+b))).toFixed(2)+")";
+    g.fillRect(bx,HORIZON-bh,Math.round(2*K),bh);
+  }
+  g.globalCompositeOperation="source-over";
+};
+// THE CHANGE — nothing is destroyed. Everything is REARRANGED, which is worse to look at.
+APOC_X.thechange=function(g,ap,L,now){
+  var K=Math.max(1,KSP);
+  // 🔑 THE HORROR IS ANATOMICAL, and at this scale that means SHAPES THAT ARE ALMOST RIGHT: too many
+  // limbs, joints in the wrong place, a wrong number of eyes. Not gore — proportion.
+  g.fillStyle="rgba(120,90,110,"+(0.30*ap).toFixed(2)+")"; g.fillRect(0,0,SW,SH);
+  var n=Math.round(30*ap);
+  for(var m=0;m<n;m++){
+    var h=((m*2654435761+23)>>>0);
+    var px=Math.round(((h%1000)/1000)*SW), gy=HORIZON-1;
+    var sc=(1+((h>>>7)%3))*K;
+    var flesh=mixc([206,152,140],[150,96,110],((h>>>11)%100)/100);
+    // a torso that is too tall, and limbs that do not agree about how many there should be
+    g.fillStyle=css(flesh);
+    g.fillRect(px,gy-Math.round(7*sc),Math.max(1,Math.round(1.6*sc)),Math.round(7*sc));
+    var limbs=2+((h>>>13)%4);
+    for(var l=0;l<limbs;l++){
+      var la=(l/limbs)*Math.PI*1.6-0.8;
+      var lx=px+Math.round(Math.cos(la)*3.4*sc), ly=gy-Math.round(5*sc)+Math.round(Math.sin(la)*3*sc);
+      g.fillRect(lx,ly,Math.max(1,Math.round(sc)),Math.max(1,Math.round(2.4*sc)));
+    }
+    // eyes, the wrong number of them, and none of them level
+    var eyes=1+((h>>>17)%4);
+    g.fillStyle="rgba(250,250,240,0.95)";
+    for(var e=0;e<eyes;e++)
+      g.fillRect(px+Math.round(((e*37)%5)-2),gy-Math.round((7+((e*13)%3))*sc),Math.max(1,Math.round(sc*0.8)),Math.max(1,Math.round(sc*0.8)));
+  }
+  // and the buildings start doing it too — frontages bulging where they should be flat
+  for(var b=0;b<Math.round(18*ap);b++){
+    var hb=((b*2654435761+41)>>>0);
+    var bx=Math.round(((hb%1000)/1000)*SW), by=HORIZON-Math.round(((hb>>>9)%Math.round(HORIZON*0.5)));
+    g.fillStyle="rgba(178,132,138,"+(0.55*ap).toFixed(2)+")";
+    fillEllipse(g,bx,by,Math.round((3+((hb>>>13)%6))*K),Math.round((2+((hb>>>17)%5))*K));
+  }
+};
+// THE BURST — light through the cracks, and then the world stops being one piece.
+APOC_X.theburst=function(g,ap,L,now){
+  var K=Math.max(1,KSP);
+  var lift=Math.max(0,(ap-0.55)/0.45);
+  // ⚠ IT IS SEEN FROM THE GROUND, which is the only camera this engine has. So the tell is not the
+  // planet coming apart — it is the LIGHT coming up through everything, and then the ground itself
+  // starting to leave.
+  g.globalCompositeOperation="lighter";
+  var n=Math.round(4+ap*10);
+  for(var c=0;c<n;c++){
+    var h=((c*2654435761+53)>>>0);
+    var cx=Math.round(((h%1000)/1000)*SW);
+    var w=Math.round((2+((h>>>7)%9))*K*Math.min(1,ap*1.6));
+    var hgt=Math.round(HORIZON*(0.30+((h>>>11)%40)/100*0.7)*Math.min(1,ap*1.5));
+    for(var q=0;q<hgt;q++){
+      var qf=q/Math.max(1,hgt);
+      g.fillStyle=rgba(mixc([255,255,235],[255,180,60],qf),(0.60*(1-qf)).toFixed(3));
+      g.fillRect(cx-Math.round(w*(1-qf*0.7)),HORIZON-q,Math.round(w*2*(1-qf*0.7)),1);
+    }
+  }
+  g.globalCompositeOperation="source-over";
+  if(lift>0){                                                       // and the ground goes
+    for(var s=0;s<10;s++){
+      var hs=((s*2654435761+59)>>>0);
+      var sx=Math.round(((hs%1000)/1000)*SW), sw=Math.round((14+((hs>>>7)%40))*K);
+      var up=Math.round(lift*lift*HORIZON*0.5*(0.4+((hs>>>11)%60)/100));
+      var tilt=Math.round(((hs%100)/100-0.5)*10*K*lift);
+      g.fillStyle=biomeSkc(L>0.5)?"rgba(0,0,0,0)":"rgba(0,0,0,0)";
+      g.fillStyle=(L>0.5)?"rgba(78,68,56,0.95)":"rgba(26,22,20,0.95)";
+      g.fillRect(sx-sw,HORIZON-up,sw*2,Math.round(9*K));
+      g.fillStyle=(L>0.5)?"rgba(120,106,86,0.9)":"rgba(44,38,34,0.9)";
+      g.fillRect(sx-sw+tilt,HORIZON-up,sw*2,Math.max(1,Math.round(2*K)));
+    }
+  }
+  g.fillStyle="rgba(255,240,210,"+(0.55*Math.max(0,(ap-0.75)/0.25)).toFixed(3)+")";
+  g.fillRect(0,0,SW,SH);                                            // and then it is all light
+};
+// THE TITANS — human-shaped, far too large, and they come over the wall.
+APOC_X.thetitans=function(g,ap,L,now){
+  var K=Math.max(1,KSP), day=L>0.5;
+  var n=Math.round(1+ap*5);
+  // 🔑 HUMAN-SHAPED IS THE ENTIRE POINT, and it is what separates this from `kaiju`. A beast is a
+  // silhouette you read as an animal; a person eighty feet tall is a silhouette you read as YOURSELF,
+  // and the proportions have to stay human for that to work — no tail, no snout, upright.
+  for(var t=0;t<n;t++){
+    var h=((t*2654435761+61)>>>0);
+    var walk=Math.min(1,Math.max(0,(ap-(t/n)*0.5)/0.35));
+    if(walk<=0) continue;
+    var px=Math.round(((h%1000)/1000)*SW*1.2-SW*0.1+Math.sin(now*0.0004+t)*10*K);
+    var H=Math.round((30+((h>>>7)%26))*K*walk);
+    var W=Math.round(H*0.26), gy=HORIZON, top=gy-H;
+    var skin=mixc([196,146,128],[150,104,96],((h>>>11)%100)/100);
+    var st=Math.sin(now*0.0016+t*2);
+    g.fillStyle=css(skin);
+    g.fillRect(px-Math.round(W*0.5),top+Math.round(H*0.16),W,Math.round(H*0.44));      // torso
+    g.fillRect(px-Math.round(W*0.30),top,Math.round(W*0.60),Math.round(H*0.16));       // head
+    for(var lg=-1;lg<=1;lg+=2){                                                        // legs, striding
+      g.fillRect(px+lg*Math.round(W*0.24)+Math.round(st*lg*5*K),gy-Math.round(H*0.42),
+                 Math.max(1,Math.round(W*0.26)),Math.round(H*0.42));
+      g.fillRect(px+lg*Math.round(W*0.62),top+Math.round(H*0.18),Math.max(1,Math.round(W*0.20)),Math.round(H*0.32));  // arms
+    }
+    // the face: a fixed, wrong smile, which is the detail everyone remembers
+    g.fillStyle="rgba(30,20,18,0.9)";
+    g.fillRect(px-Math.round(W*0.18),top+Math.round(H*0.06),Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
+    g.fillRect(px+Math.round(W*0.10),top+Math.round(H*0.06),Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
+    g.fillRect(px-Math.round(W*0.20),top+Math.round(H*0.11),Math.round(W*0.42),Math.max(1,Math.round(K)));
+    // steam off them, always
+    for(var q=0;q<Math.round(10*K);q++){
+      g.fillStyle="rgba("+(day?"228,222,218":"110,104,104")+","+(0.20*(1-q/(10*K))).toFixed(2)+")";
+      g.fillRect(px-Math.round(W*0.6),top-q,Math.round(W*1.2),1);
+    }
+  }
+};
+// RAGNAROK — the wolf takes the sun, and the water comes up with the serpent.
+APOC_X.ragnarok=function(g,ap,L,now){
+  var K=Math.max(1,KSP);
+  // the sun going into something. ⚠ drawn as an ECLIPSE that has teeth rather than as an animal in
+  // the sky: a wolf-shaped sprite at this scale is a smudge, a bite out of the sun is unmistakable.
+  var sx=Math.round(SW*0.34), sy=Math.round(HORIZON*0.22), r=Math.round(16*K);
+  g.fillStyle="rgba(14,10,18,"+(0.62*ap).toFixed(2)+")"; g.fillRect(0,0,SW,SH);
+  g.globalCompositeOperation="lighter";
+  for(var q=r*3;q>0;q--){
+    g.fillStyle="rgba(255,190,90,"+(0.22*(1-q/(r*3))*(1-ap*0.6)).toFixed(3)+")";
+    fillEllipse(g,sx,sy,q,q);
+  }
+  g.fillStyle="rgba(255,240,190,"+(1-ap*0.5).toFixed(2)+")"; fillEllipse(g,sx,sy,r,r);
+  g.globalCompositeOperation="source-over";
+  // the bite: a dark disc closing over it, with a jagged edge
+  var bite=Math.round(r*2*Math.min(1,ap*1.3));
+  g.fillStyle="rgba(10,8,12,0.98)";
+  fillEllipse(g,sx-r+bite,sy-Math.round(r*0.15),r,r);
+  for(var t=0;t<7;t++){
+    var ta=-1.2+t*0.4;
+    g.fillRect(sx-r+bite+Math.round(Math.cos(ta)*r*0.95),sy-Math.round(r*0.15)+Math.round(Math.sin(ta)*r*0.95),
+               Math.round(2*K),Math.round(3*K));
+  }
+  // and the sea comes up — the serpent is the RISE, not a sprite
+  var sea=(typeof SEA_Y==="number"&&SEA_Y>0&&SEA_Y<SH)?SEA_Y:HORIZON;
+  var rise=Math.round(HORIZON*0.34*ap);
+  g.fillStyle="rgba(14,26,34,0.90)"; g.fillRect(0,sea-rise,SW,rise+2);
+  for(var w=0;w<SW;w+=3){
+    var hw=((w+WOFF)*2654435761)>>>0;
+    g.fillStyle="rgba(150,190,200,"+(0.30*ap).toFixed(2)+")";
+    g.fillRect(w,sea-rise-((hw%Math.max(1,Math.round(4*K)))),3,1);
+  }
+  // one coil breaking the surface, far out — a curve, never a face
+  if(ap>0.35){
+    var coilA=Math.min(1,(ap-0.35)/0.4);
+    g.fillStyle="rgba(30,54,48,0.94)";
+    for(var c=0;c<Math.round(30*K);c++){
+      var cf=c/Math.round(30*K);
+      var cx2=Math.round(SW*0.72)+Math.round(Math.sin(cf*Math.PI*1.4+now*0.0006)*40*K);
+      var cy2=sea-rise-Math.round(Math.sin(cf*Math.PI)*26*K*coilA);
+      g.fillRect(cx2,cy2,Math.max(1,Math.round(3*K)),Math.max(1,Math.round(3*K)));
+    }
   }
 };
 
