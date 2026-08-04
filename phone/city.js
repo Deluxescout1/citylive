@@ -21317,6 +21317,66 @@ function drawDisasterArc(g,L,now){
   }
 }
 
+// ============ THE FOUR THINGS EVERY SIGNATURE NEEDS ============
+// Eleven more signatures were about to be written and most of them wanted the same four pictures:
+// something piled against the ground, wreckage scattered over it, a mark left on the buildings, and
+// something growing in the sky that you notice before you understand it. Written once here.
+// ⚠ ALL FOUR ARE HASHED OFF WORLD X, never screen x. A decoration keyed to the viewport slides across
+// the ground as the world scrolls and the three monitors disagree about where the debris fell.
+// ⚠ And all four take an `amt` that the caller RAMPS — that is what makes them arrive and leave rather
+// than switch on. A signature that pops is worse than no signature, because it draws the eye to the
+// exact frame the illusion breaks.
+function sigDrift(g,cx,w,day,amt,rgb,now){                    // material piled up against the ground
+  if(amt<=0.02) return;
+  var x0=Math.max(0,Math.round(cx-w)), x1=Math.min(SW,Math.round(cx+w)), K=Math.max(1,KSP);
+  for(var x=x0;x<x1;x+=2){
+    var d=Math.abs(x-cx)/w, fall=d>=1?0:(0.5+0.5*Math.cos(d*Math.PI));
+    var hsh=((x+WOFF)*2654435761)>>>0;
+    var h=Math.round((3+(hsh%6))*K*fall*amt);
+    if(h<1) continue;
+    g.fillStyle=rgba(rgb,0.62*amt);
+    g.fillRect(x,HORIZON-h,2,h+1);
+  }
+}
+function sigDebris(g,cx,w,day,amt,seed,rgb,n){                // wreckage strewn over the ground
+  if(amt<=0.02) return;
+  var K=Math.max(1,KSP);
+  for(var i=0;i<(n||16);i++){
+    var h=mixLi(i+seed,0x0DEB);
+    var px=cx+Math.round((((h%2000)/1000)-1)*w);
+    if(px<-6||px>SW+6) continue;
+    if(((h>>>19)%100)>=Math.round(amt*100)) continue;         // they are CLEARED one by one, not faded
+    var pw=Math.max(1,Math.round((2+((h>>>5)%5))*K)), ph=Math.max(1,Math.round((2+((h>>>9)%4))*K));
+    g.fillStyle=rgba(rgb,day?0.80:0.88);
+    g.fillRect(px,HORIZON-ph,pw,ph);
+    if((h>>>13)&1) g.fillRect(px+pw,HORIZON-1,Math.round(pw*1.6),1);   // …and half of them lie flat
+  }
+}
+function sigStain(g,cx,w,yTop,yBot,day,a){                    // a mark left ON the buildings, not the ground
+  if(a<=0.02) return;
+  var x0=Math.max(0,Math.round(cx-w)), x1=Math.min(SW,Math.round(cx+w));
+  var h=Math.max(1,Math.round(yBot-yTop));
+  for(var x=x0;x<x1;x+=3){
+    var d=Math.abs(x-cx)/w, fall=d>=1?0:(0.5+0.5*Math.cos(d*Math.PI));
+    if(fall<=0.03) continue;
+    var wob=(((x+WOFF)*2654435761)>>>0)%3;                    // a waterline is never dead level
+    g.fillStyle="rgba("+(day?"84,74,54":"22,20,16")+","+(a*fall).toFixed(3)+")";
+    g.fillRect(x,yTop+wob,3,h);
+  }
+}
+function sigSkyOmen(g,cx,day,f,rgb,now,seed){                 // something in the sky, growing
+  if(f<=0.02) return;
+  var K=Math.max(1,KSP), y=Math.round(HORIZON*(0.34-0.16*f));
+  var r=Math.max(1,Math.round((1+5*f)*K*0.5));
+  g.globalCompositeOperation="lighter";
+  for(var q=r*3;q>0;q--){
+    var qf=q/(r*3);
+    g.fillStyle=rgba(rgb,(0.30*f*(1-qf)*(1-qf)).toFixed(3));
+    g.fillRect(cx-q,y-Math.round(q*0.6),q*2,Math.max(1,Math.round(q*1.2)));
+  }
+  g.globalCompositeOperation="source-over";
+  g.fillStyle=rgba(rgb,Math.min(1,0.5+0.5*f)); g.fillRect(cx-r,y-r,r*2,r*2);
+}
 // ---------------- KAIJU — something is coming, and afterwards you can see where it walked ---------
 // 🔒 The third retrofit class: a CREATURE, and the only type in the set with both a disaster form and
 // an end-time form. That is why it was chosen — it is the one case where the lifecycle and the doom
@@ -21535,6 +21595,358 @@ DIS_SIG.smog={
         g.fillStyle="rgba(230,235,240,"+(0.6*left).toFixed(2)+")";
         g.fillRect(pw|0,HORIZON-3,1,1);
       }
+    }
+  }
+};
+// ============ THE OTHER ELEVEN ============
+// 🔒 "Depth first" — all of them to the lifecycle standard before any new ones are added. The three
+// built above proved the shape; these are that shape applied, each with the one picture that only
+// belongs to it. Kept deliberately tight: one strong read per phase beats four weak layers, and
+// eleven signatures' worth of layering is eleven signatures' worth of per-frame cost.
+// ⚠ Every `after` fades or CLEARS its mess over the recovery, because the arc's whole claim is that
+// the city comes back. A signature that leaves its aftermath at full strength at f=1 is a permanent
+// scar wearing a recovery's clothes, and only the volcano's cone is meant to be one of those.
+
+// ASTEROID — you see it coming, and it leaves a hole that stays hot.
+DIS_SIG.asteroid={
+  warn:function(g,di,A,L,now,cx,half,K,day){
+    sigSkyOmen(g,cx,day,A.f,[255,196,120],now,di.seed);
+    // and a smoke trail behind it, lengthening as it comes in
+    var y=Math.round(HORIZON*(0.34-0.16*A.f));
+    for(var q=0;q<Math.round(30*A.f);q++){
+      g.fillStyle="rgba("+(day?"200,196,190":"120,116,120")+","+(0.30*(1-q/30)*A.f).toFixed(2)+")";
+      g.fillRect(cx-Math.round(q*2.2),y-Math.round(q*1.4),Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
+    }
+  },
+  after:function(g,di,A,L,now,cx,half,K,day){
+    var f=(A.phase==="ripple")?0:A.f, heat=Math.max(0,1-f*1.6);
+    // the crater rim: a lip of thrown-up ground either side, cooling from within
+    var rw=Math.round(half*0.8);
+    g.fillStyle=day?"rgba(52,44,38,0.85)":"rgba(16,14,14,0.9)";
+    g.fillRect(cx-rw,HORIZON-Math.round(2*K),rw*2,Math.round(2*K)+1);
+    g.fillStyle=day?"rgba(120,108,92,0.7)":"rgba(48,44,44,0.7)";
+    g.fillRect(cx-rw-Math.round(3*K),HORIZON-Math.round(3*K),Math.round(5*K),Math.round(3*K));
+    g.fillRect(cx+rw-Math.round(2*K),HORIZON-Math.round(3*K),Math.round(5*K),Math.round(3*K));
+    if(heat>0.03){ g.globalCompositeOperation="lighter";
+      g.fillStyle=rgba(mixc([255,150,50],[170,30,20],1-heat),0.40*heat);
+      g.fillRect(cx-Math.round(rw*0.6),HORIZON-Math.round(2*K),Math.round(rw*1.2),Math.max(1,Math.round(K)));
+      g.globalCompositeOperation="source-over"; }
+    sigDebris(g,cx,half*1.8,day,Math.max(0,1-f),di.seed,[62,54,48],18);
+  }
+};
+// ZOMBIE — the first ones arrive before the crowd does, and the cleanup is pyres and fencing.
+DIS_SIG.zombie={
+  warn:function(g,di,A,L,now,cx,half,K,day){
+    var n=Math.round(2+5*A.f);
+    for(var i=0;i<n;i++){
+      var h=mixLi(i+di.seed,0x2B01), side=(h&1)?1:-1;
+      var px=cx+side*Math.round(half*(1.4-0.9*A.f))+Math.round(((h>>>7)%40)-20);
+      if(px<-4||px>SW+4) continue;
+      // shambling: the walk frame changes far slower than a person's, which is the whole tell
+      drawPerson(g,px|0,HORIZON-1,day?"#5d6a4a":"#2b3325",SKINC[(h>>>11)%SKINC.length],(Math.floor(now/520)+i)&3);
+    }
+  },
+  after:function(g,di,A,L,now,cx,half,K,day){
+    var f=(A.phase==="ripple")?0:A.f;
+    // containment fence, taken down as the recovery finishes
+    if(f<0.8){ var a=(1-f/0.8);
+      for(var x=Math.max(0,cx-half);x<Math.min(SW,cx+half);x+=Math.round(6*K)){
+        g.fillStyle="rgba("+(day?"150,150,156":"56,58,64")+","+(0.75*a).toFixed(2)+")";
+        g.fillRect(x,HORIZON-Math.round(7*K),Math.max(1,Math.round(K)),Math.round(7*K));
+        g.fillRect(x,HORIZON-Math.round(6*K),Math.round(6*K),Math.max(1,Math.round(K*0.6)));
+      } }
+    // and the pyres, which burn down rather than being cleared
+    var burn=Math.max(0,1-f*1.3);
+    if(burn>0.04) for(var p=0;p<3;p++){
+      var ph=mixLi(p+di.seed,0x2B02), px2=cx+Math.round((((ph%2000)/1000)-1)*half*0.8);
+      if(px2<-6||px2>SW+6) continue;
+      g.fillStyle="rgba(24,20,18,0.85)"; g.fillRect(px2-Math.round(3*K),HORIZON-Math.round(2*K),Math.round(6*K),Math.round(2*K));
+      g.globalCompositeOperation="lighter";
+      var fl=0.4+0.6*Math.abs(Math.sin(now*0.005+p*2.1));
+      g.fillStyle="rgba(255,140,40,"+(0.5*burn*fl).toFixed(2)+")";
+      g.fillRect(px2-Math.round(2*K),HORIZON-Math.round((4+2*fl)*K),Math.round(4*K),Math.round(4*K));
+      g.globalCompositeOperation="source-over";
+    }
+  }
+};
+// ALIEN — a light that holds still, and a ring burnt into the ground where it stood.
+DIS_SIG.alien={
+  warn:function(g,di,A,L,now,cx,half,K,day){
+    // it does not travel like an aircraft: it holds, then steps sideways. That is the whole tell.
+    var step=Math.floor(now/1800)%3-1;
+    sigSkyOmen(g,cx+step*Math.round(24*K),day,A.f,[120,255,190],now,di.seed);
+  },
+  after:function(g,di,A,L,now,cx,half,K,day){
+    var f=(A.phase==="ripple")?0:A.f, a=Math.max(0,1-f*0.9);
+    // the landing ring: scorched grass in a circle, which is the one shape nothing else here leaves
+    var rw=Math.round(half*0.9);
+    for(var s=-1;s<=1;s+=2){
+      g.fillStyle="rgba("+(day?"46,58,40":"14,20,14")+","+(0.78*a).toFixed(2)+")";
+      g.fillRect(cx+s*rw-Math.round(2*K),HORIZON-Math.round(2*K),Math.round(4*K),Math.round(2*K)+1);
+    }
+    g.fillStyle="rgba("+(day?"64,78,54":"18,26,18")+","+(0.42*a).toFixed(2)+")";
+    g.fillRect(cx-rw,HORIZON-Math.max(1,Math.round(K)),rw*2,Math.max(1,Math.round(K))+1);
+    // investigators in white, going over it
+    for(var i=0;i<3;i++){
+      var h=mixLi(i+di.seed,0x4110), px=cx+Math.round((((h%2000)/1000)-1)*rw);
+      if(px<-4||px>SW+4) continue;
+      drawPerson(g,px|0,HORIZON-1,"#e6ecef",SKINC[(h>>>11)%SKINC.length],(Math.floor(now/380)+i)&3);
+    }
+  }
+};
+// TORNADO — the wall cloud first, and afterwards a swathe you can trace across the ground.
+DIS_SIG.tornado={
+  warn:function(g,di,A,L,now,cx,half,K,day){
+    // the wall cloud: LOWER than the cloud deck and darker than it, which is what makes it read as
+    // the thing about to drop rather than as more weather
+    var wy=Math.round(HORIZON*0.30), wh=Math.round(HORIZON*0.10*(0.4+A.f));
+    var ww2=Math.round(half*3*(0.6+0.5*A.f));
+    for(var q=0;q<wh;q++){
+      var qf=q/wh, w2=Math.round(ww2*(1-qf*0.45));
+      var jit=(((q*2654435761)^di.seed)>>>0)%Math.max(1,Math.round(6*K));
+      g.fillStyle="rgba("+(day?"58,58,68":"14,14,20")+","+(0.44*A.f*(1-qf*0.5)).toFixed(3)+")";
+      g.fillRect(cx-w2+jit,wy+q,w2*2,1);
+    }
+    // and the first debris going UP, which is the only thing that distinguishes it from a squall
+    for(var d2=0;d2<Math.round(10*A.f);d2++){
+      var h=mixLi(d2+di.seed,0x7001);
+      var px=cx+Math.round((((h%2000)/1000)-1)*half*1.6);
+      var py=HORIZON-Math.round(((h>>>7)%40)*A.f)-2;
+      g.fillStyle=day?"rgba(70,62,54,0.7)":"rgba(140,136,140,0.5)";
+      g.fillRect(px,py,Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
+    }
+  },
+  after:function(g,di,A,L,now,cx,half,K,day){
+    var f=(A.phase==="ripple")?0:A.f, a=Math.max(0,1-f*1.15);
+    // THE SWATHE. A tornado's signature is that the damage is a NARROW TRACK with clean ground either
+    // side of it — not a circle. That, more than anything drawn during the impact, is what says it was
+    // a tornado and not a bomb.
+    var away=(di.seed&1)?1:-1;
+    for(var s=0;s<Math.round(half*1.6);s++){
+      var px=cx+away*s*2;
+      if(px<0||px>=SW) continue;
+      var wob=Math.round(Math.sin(s*0.16+di.seed)*3*K);
+      var hh=Math.max(1,Math.round((4+((((px+WOFF)*2654435761)>>>0)%5))*K));
+      g.fillStyle="rgba("+(day?"58,48,38":"14,12,12")+","+(0.55*a).toFixed(2)+")";
+      g.fillRect(px,HORIZON-hh+wob*0,2,hh+1);
+    }
+    // insulation and paper caught in whatever is still standing — the detail everyone recognises
+    sigDebris(g,cx,half*2.2,day,a,di.seed,[214,210,196],20);
+  }
+};
+// FLOOD — the water is up before it is in, and the mark it leaves is on the WALLS.
+DIS_SIG.flood={
+  warn:function(g,di,A,L,now,cx,half,K,day){
+    // sandbagging: a low wall going up along the front, course by course
+    var courses=Math.max(1,Math.round(3*A.f));
+    for(var x=Math.max(0,cx-half);x<Math.min(SW,cx+half);x+=Math.round(3*K)){
+      var hsh=((x+WOFF)*2654435761)>>>0;
+      for(var c=0;c<courses;c++){
+        g.fillStyle=(c&1)?"rgba(150,138,106,0.9)":"rgba(128,118,90,0.9)";
+        g.fillRect(x+((hsh>>>(c*3))%2),HORIZON-Math.round((c+1)*1.6*K),Math.round(3*K),Math.round(1.6*K));
+      }
+    }
+    for(var i=0;i<4;i++){
+      var h=mixLi(i+di.seed,0x5F01), px=cx+Math.round((((h%2000)/1000)-1)*half);
+      if(px<-4||px>SW+4) continue;
+      drawPerson(g,px|0,HORIZON-1,"#e8b32a",SKINC[(h>>>11)%SKINC.length],(Math.floor(now/240)+i)&3);
+    }
+  },
+  after:function(g,di,A,L,now,cx,half,K,day){
+    var f=(A.phase==="ripple")?0:A.f;
+    // 🔑 THE WATERLINE IS THE WHOLE THING. Everyone who has seen a flood recognises the stain long
+    // after the water is gone, and unlike the water it can be drawn without touching SEA_Y — which
+    // this project has a standing rule against moving (37 read sites).
+    var wl=HORIZON-Math.round(HORIZON*0.10*(0.5+0.1*di.intensity));
+    sigStain(g,cx,half*1.6,wl,wl+Math.round(2*K),day,0.55*Math.max(0,1-f*0.55));
+    // silt on the ground, shovelled away over the recovery
+    sigDrift(g,cx,half*1.5,day,Math.max(0,1-f*1.2),day?[112,98,72]:[38,34,26],now);
+  }
+};
+// MECH — it is deployed, not born, and it leaves hulks that have to be lifted out.
+DIS_SIG.mech={
+  warn:function(g,di,A,L,now,cx,half,K,day){
+    var n=Math.round(1+3*A.f);
+    for(var i=0;i<n;i++){
+      var h=mixLi(i+di.seed,0x3C01);
+      var px=cx+Math.round((((h%2000)/1000)-1)*half*1.5);
+      if(px<-8||px>SW+8) continue;
+      g.fillStyle=day?"#4a5058":"#20242c";                      // transports, squat and wide
+      g.fillRect(px-Math.round(5*K),HORIZON-Math.round(4*K),Math.round(10*K),Math.round(3*K));
+      g.fillStyle=day?"#2e333a":"#12151a";
+      g.fillRect(px-Math.round(4*K),HORIZON-Math.round(K),Math.round(2*K),Math.round(K)+1);
+      g.fillRect(px+Math.round(2*K),HORIZON-Math.round(K),Math.round(2*K),Math.round(K)+1);
+    }
+  },
+  after:function(g,di,A,L,now,cx,half,K,day){
+    var f=(A.phase==="ripple")?0:A.f, a=Math.max(0,1-f*1.1);
+    for(var i=0;i<3;i++){
+      var h=mixLi(i+di.seed,0x3C02), px=cx+Math.round((((h%2000)/1000)-1)*half);
+      if(px<-10||px>SW+10) continue;
+      if(((h>>>19)%100)>=Math.round(a*100)) continue;           // lifted out one at a time
+      // a hulk lies DOWN — a standing wreck reads as a machine still fighting
+      g.fillStyle=day?"rgba(58,62,68,0.92)":"rgba(20,22,28,0.94)";
+      g.fillRect(px-Math.round(7*K),HORIZON-Math.round(3*K),Math.round(14*K),Math.round(3*K));
+      g.fillStyle=day?"rgba(88,72,54,0.8)":"rgba(34,28,22,0.8)";   // rust already
+      g.fillRect(px-Math.round(7*K),HORIZON-Math.round(3*K),Math.round(14*K),Math.max(1,Math.round(K*0.6)));
+      g.fillStyle=day?"rgba(46,50,56,0.9)":"rgba(16,18,22,0.9)";   // a limb bent up out of the pile
+      g.fillRect(px+Math.round(5*K),HORIZON-Math.round(8*K),Math.round(2*K),Math.round(5*K));
+    }
+  }
+};
+// KRAKEN — the sea goes wrong first, and the wreckage comes ashore.
+DIS_SIG.kraken={
+  warn:function(g,di,A,L,now,cx,half,K,day){
+    if(typeof SEA_Y!=="number"||!(SEA_Y>0&&SEA_Y<SH)) return;
+    // the water DRAWS BACK — a pale band of exposed bed below the normal line
+    var back=Math.round(6*K*A.f);
+    g.fillStyle=day?"rgba(150,140,116,0.55)":"rgba(46,44,40,0.55)";
+    g.fillRect(0,SEA_Y,SW,back);
+    // and something breaks the surface, briefly, at a place that moves
+    var tx=cx+Math.round(Math.sin(now*0.0006)*40*K);
+    var up=Math.round((2+9*A.f)*K*Math.max(0,Math.sin(now*0.0016)));
+    if(up>1){
+      g.fillStyle=day?"rgba(52,68,64,0.9)":"rgba(16,26,26,0.92)";
+      g.fillRect(tx,SEA_Y-up,Math.max(1,Math.round(2*K)),up);
+      g.fillRect(tx-Math.round(K),SEA_Y-up,Math.round(4*K),Math.max(1,Math.round(K)));
+    }
+  },
+  after:function(g,di,A,L,now,cx,half,K,day){
+    var f=(A.phase==="ripple")?0:A.f, a=Math.max(0,1-f*1.1);
+    sigDebris(g,cx,half*2,day,a,di.seed,[96,74,50],14);          // hulls and spars up the beach
+    // one length of tentacle left behind, which is the only proof of what it was
+    if(a>0.35){
+      var tx=cx+Math.round(half*0.5);
+      g.fillStyle=day?"rgba(64,80,72,0.88)":"rgba(20,30,28,0.9)";
+      for(var s=0;s<Math.round(18*K);s++){
+        var w2=Math.max(1,Math.round((3-s*0.12)*K*0.5));
+        g.fillRect(tx+s*2,HORIZON-w2-Math.round(Math.sin(s*0.3)*2*K),2,w2+1);
+      }
+    }
+  }
+};
+// SANDSTORM — a wall on the horizon, and afterwards the town is half buried.
+DIS_SIG.sandstorm={
+  warn:function(g,di,A,L,now,cx,half,K,day){
+    // ⚠ It approaches from ONE SIDE and it is a WALL — a haze that thickens everywhere is smog, and
+    // the two already look too much alike at low intensity.
+    var side=(di.seed&1)?1:-1;
+    var edge=(side>0)?(SW-SW*A.f*0.85):(SW*A.f*0.85);
+    var h=Math.round(HORIZON*(0.34+0.30*A.f));
+    for(var x=0;x<SW;x+=2){
+      var beyond=(side>0)?(x>edge):(x<edge);
+      if(!beyond) continue;
+      var soft=Math.min(1,Math.abs(x-edge)/(40*K));
+      var hsh=((x+WOFF)*2654435761)>>>0;
+      g.fillStyle="rgba("+(day?"196,158,96":"70,58,38")+","+(0.50*soft).toFixed(3)+")";
+      g.fillRect(x,HORIZON-h-((hsh%Math.max(1,Math.round(8*K)))),2,h+Math.round(8*K));
+    }
+  },
+  after:function(g,di,A,L,now,cx,half,K,day){
+    var f=(A.phase==="ripple")?0:A.f;
+    sigDrift(g,cx,half*2.4,day,Math.max(0,1-f*1.05),day?[206,176,118]:[74,64,44],now);
+    for(var i=0;i<4;i++){                                        // and it is dug out by hand
+      var h=mixLi(i+di.seed,0x5A01), px=cx+Math.round((((h%2000)/1000)-1)*half*1.6);
+      if(px<-4||px>SW+4) continue;
+      drawPerson(g,px|0,HORIZON-1,"#e8b32a",SKINC[(h>>>11)%SKINC.length],(Math.floor(now/280)+i)&3);
+    }
+  }
+};
+// ICE AGE — frost arrives from the edges, and it goes as slush and dripping.
+DIS_SIG.iceage={
+  warn:function(g,di,A,L,now,cx,half,K,day){
+    // frost creeping IN from the frame edges rather than out from a centre — a cold snap has no
+    // epicentre, and drawing one at `cx` was the first thing that read wrong here
+    var reach=Math.round(SW*0.42*A.f);
+    for(var x=0;x<reach;x+=2){
+      var a=(1-x/Math.max(1,reach))*0.42*A.f;
+      g.fillStyle="rgba(206,228,246,"+a.toFixed(3)+")";
+      var hsh=((x+WOFF)*2654435761)>>>0, hh=Math.round((1+(hsh%3))*K*0.5);
+      g.fillRect(x,HORIZON-hh,2,hh+1);
+      g.fillRect(SW-x-2,HORIZON-hh,2,hh+1);
+    }
+  },
+  after:function(g,di,A,L,now,cx,half,K,day){
+    var f=(A.phase==="ripple")?0:A.f, left=Math.max(0,1-f*1.2);
+    sigDrift(g,cx,half*2.2,day,left,day?[218,232,244]:[96,110,128],now);
+    // meltwater running off, only while there is still something to melt
+    if(left>0.15) for(var i=0;i<10;i++){
+      var h=mixLi(i+di.seed,0x1C01), px=cx+Math.round((((h%2000)/1000)-1)*half*1.8);
+      if(px<-2||px>SW+2) continue;
+      var dy=Math.round(((now*0.02+i*37)%Math.max(1,Math.round(8*K))));
+      g.fillStyle="rgba(178,206,232,"+(0.55*left).toFixed(2)+")";
+      g.fillRect(px,HORIZON-Math.round(8*K)+dy,1,Math.max(1,Math.round(K)));
+    }
+  }
+};
+// RIFT — the air splits before anything comes through, and the seam does not fully close.
+DIS_SIG.rift={
+  warn:function(g,di,A,L,now,cx,half,K,day){
+    // a hairline, vertical, that grows — nothing else on these maps is a vertical line in the sky, so
+    // it needs no explanation and gets none
+    var hgt=Math.round(HORIZON*0.34*A.f), y0=Math.round(HORIZON*0.24);
+    g.globalCompositeOperation="lighter";
+    for(var q=0;q<hgt;q++){
+      var qf=q/Math.max(1,hgt);
+      var jit=((((q*2654435761)^di.seed)>>>0)%3)-1;
+      g.fillStyle="rgba(178,86,255,"+(0.62*A.f*(1-Math.abs(qf-0.5)*1.4)).toFixed(3)+")";
+      g.fillRect(cx+jit,y0+q,Math.max(1,Math.round(K*0.6)),1);
+    }
+    g.globalCompositeOperation="source-over";
+  },
+  after:function(g,di,A,L,now,cx,half,K,day){
+    var f=(A.phase==="ripple")?0:A.f;
+    // 🔒 It never closes completely. Landform scars persist for the life, and this is the closest thing
+    // the set has to a scar in the AIR — a seam that stops widening and then just stays, faint.
+    var resid=0.18+0.5*Math.max(0,1-f*1.3);
+    var hgt=Math.round(HORIZON*0.20*(0.35+0.65*Math.max(0,1-f))), y0=Math.round(HORIZON*0.30);
+    g.globalCompositeOperation="lighter";
+    for(var q=0;q<hgt;q++){
+      var qf=q/Math.max(1,hgt), jit=((((q*2654435761)^di.seed)>>>0)%3)-1;
+      g.fillStyle="rgba(178,86,255,"+(resid*(1-Math.abs(qf-0.5)*1.6)).toFixed(3)+")";
+      g.fillRect(cx+jit,y0+q,Math.max(1,Math.round(K*0.5)),1);
+    }
+    g.globalCompositeOperation="source-over";
+    // containment: a cordon under it, and people who are not emergency services
+    if(f<0.85) for(var i=0;i<3;i++){
+      var h=mixLi(i+di.seed,0x8801), px=cx+Math.round((((h%2000)/1000)-1)*half*0.8);
+      if(px<-4||px>SW+4) continue;
+      drawPerson(g,px|0,HORIZON-1,"#e6ecef",SKINC[(h>>>11)%SKINC.length],(Math.floor(now/420)+i)&3);
+    }
+  }
+};
+// PLANE CRASH — it comes down trailing, and the site is worked slowly and then gone.
+DIS_SIG.planecrash={
+  warn:function(g,di,A,L,now,cx,half,K,day){
+    // ⚠ Short and steep. `DIS_WARN` is a minute and an airliner in trouble is visible for most of it,
+    // but it must be clearly LOSING height across the phase or it reads as a scheduled flight.
+    var side=(di.seed&1)?1:-1;
+    var px=cx-side*Math.round((1-A.f)*SW*0.55);
+    var py=Math.round(HORIZON*(0.18+0.55*A.f));
+    if(px<-20||px>SW+20) return;
+    g.fillStyle=day?"#d8dce4":"#8a90a0";
+    g.fillRect(px,py,Math.round(6*K),Math.max(1,Math.round(K)));
+    g.fillRect(px+Math.round(2*K),py-Math.round(K),Math.round(2*K),Math.round(2*K));
+    for(var q=0;q<Math.round(26*A.f);q++){                       // the trail, thickening as it goes
+      var qf=q/26;
+      g.fillStyle="rgba("+(day?"70,66,64":"120,116,116")+","+(0.42*(1-qf)).toFixed(2)+")";
+      g.fillRect(px+side*Math.round(q*2.4),py-Math.round(q*0.9),Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
+    }
+  },
+  after:function(g,di,A,L,now,cx,half,K,day){
+    var f=(A.phase==="ripple")?0:A.f, a=Math.max(0,1-f*1.05);
+    // foam first, then the tarp, then it is a field with tape round it
+    if(a>0.6){ g.fillStyle="rgba(238,240,236,"+(0.55*(a-0.6)/0.4).toFixed(2)+")";
+      g.fillRect(cx-half,HORIZON-Math.round(2*K),half*2,Math.round(2*K)+1); }
+    sigDebris(g,cx,half*1.4,day,a,di.seed,[190,194,202],14);
+    if(a>0.15){                                                   // the tarp over what is under it
+      g.fillStyle="rgba("+(day?"56,72,96":"18,24,34")+","+(0.85*Math.min(1,a*1.4)).toFixed(2)+")";
+      g.fillRect(cx-Math.round(5*K),HORIZON-Math.round(2*K),Math.round(10*K),Math.round(2*K)+1);
+    }
+    for(var i=0;i<3;i++){
+      var h=mixLi(i+di.seed,0x9901), px=cx+Math.round((((h%2000)/1000)-1)*half);
+      if(px<-4||px>SW+4) continue;
+      drawPerson(g,px|0,HORIZON-1,"#e6ecef",SKINC[(h>>>11)%SKINC.length],(Math.floor(now/460)+i)&3);
     }
   }
 };
