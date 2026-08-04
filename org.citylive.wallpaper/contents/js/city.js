@@ -5320,6 +5320,89 @@ function riverAt(wx){
   return d>=riverW ? 0 : 1-(d/riverW);
 }
 function inRiver(wx){ return riverAt(wx)>0.34; }    // the wet part — nothing is built here
+// ============ THE WORLD RIVER — a channel that MEANDERS behind the road ============
+// 🔒 Nick, 2026-08-02 and confirmed 2026-08-03: the main channel moves BEHIND the road, it is a BEND
+// that enters and leaves rather than a strip, it is ~20 world px wide, and it CROSSES THE WHOLE WORLD.
+//
+// 🚨 THE DIAGNOSIS THIS REPLACES, re-measured: `drawRiver` lays 402 columns of water from y 363 to the
+// bottom of the frame and NOT ONE PIXEL REACHES THE SCREEN — the ground band is 78 wp and entirely
+// spoken for (far pavement 359→369, carriageway 369→412, promenade 412→437), so the deck that carries
+// the road over the channel covers the channel completely. The depth gradient, the glitter, the coped
+// embankment, the barges, the wharf crane and the riverside park have all been drawn and never seen.
+// ⚠ AND `inRiver`'S OWN COMMENT SAYS "nothing is built here" WHILE NOTHING ENFORCES IT — the helper has
+// two consumers in the engine and neither is the building layout. Measured: 3 of 44 near-layer
+// buildings stand in the channel, one of them dead centre. *A helper existing is not the helper being
+// used; a comment stating an intent is not a test that it was met.* Same fault as `landDamageAt`.
+//
+// 🔑🔑 THE MEANDER IS WHAT MAKES ALL THREE OF HIS ANSWERS POSSIBLE AT ONCE. A river crossing the whole
+// world, behind the road, without moving `HORIZON` looks impossible: the far pavement is TEN pixels,
+// and everything above `HORIZON` is where the city stands. The resolution is that the channel's centre
+// SWINGS in depth — far back where the city occludes it, and forward into the open where it does not.
+// That gives a river the width of the desktop, a bank that is never parallel, no derived constant
+// touched, and a city that only has to be set back where the water is actually in front of it.
+// ⚠ He chose "crosses the whole world" knowing his own brief warns that a full-width channel is the
+// ruled-line fault this project has hit eleven times. The amplitude below is the defence: the centre
+// travels 40 world px in depth, which is four times the channel's own half-width, so the two banks
+// can never read as parallel.
+var RIV_HALF=10;                                    // ~20 world px of water, as briefed
+function riverBendY(wx){                            // the channel's centre, in screen y, at a world x
+  var a=Math.sin(wx*0.0021+1.3)*0.58+Math.sin(wx*0.0047+0.4)*0.28+Math.sin(wx*0.0113+2.2)*0.14;
+  return HORIZON-Math.round(26+a*20);               // swings between ~HORIZON-46 and ~HORIZON-6
+}
+// Is the channel far enough forward here to be seen at all? Where it is not, the city stands in front
+// of it and there is nothing to set back.
+function riverOpenAt(wx){ return riverBendY(wx)>HORIZON-Math.round(RIV_HALF*1.9); }
+// 🔒 THE BANK IS NATURAL ON THE OPEN LANDS — his answer 4: mud, reeds, shingle, trees, city set back.
+// (A built quay belongs to the dense industrial lands and is not this first pass.)
+// ⚠ Drawn in the BACKDROP, BEFORE the city, so the buildings occlude it wherever it has swung back —
+// which is the whole mechanism. Nothing here is drawn over the road band, so no deck can bury it.
+function drawWorldRiver(g,L,now){
+  if(!hasRiver||cityG<0.06) return;
+  var day=L>0.5, K=Math.max(1,KSP);
+  var deep =mixc(day?[46,92,132]:[8,17,34], biomeSkc(day), 0.10);
+  var shal =mixc(day?[112,164,194]:[20,38,62], biomeSkc(day), 0.14);
+  var mud  =mixc(day?[122,104,78]:[20,17,14], biomeSkc(day), 0.08);
+  var shing=mixc(day?[168,158,136]:[26,26,26], biomeSkc(day), 0.10);
+  // ⚠ AND IT IS DRAWN IN RUNS. Per column this was ~6 fills x 776 = +8 ms on the backdrop even after
+  // the per-pixel gradient came out. The bend and its banks are smooth, so neighbouring columns share
+  // a profile; flush when it actually changes. FIFTH time in this session — it is not a coincidence,
+  // it is the default mistake of a per-column engine.
+  var sX=-1,sT=0,sB=0,sCT=0,sCB=0,sDT=0,sDH=0;
+  function flushRiv(x1){
+    if(sX<0||x1<=sX) { sX=-1; return; }
+    var w=x1-sX;
+    g.fillStyle=css(shal); g.fillRect(sX,sT,w,sB-sT+1);                // the shallows, bank to bank
+    g.fillStyle=css(mixc(deep,shal,0.35)); g.fillRect(sX,sCT,w,Math.max(1,sCB-sCT));
+    g.fillStyle=css(deep);  g.fillRect(sX,sDT,w,sDH);                  // and the deep channel itself
+    g.fillStyle=css(shing); g.fillRect(sX,sT-Math.max(1,Math.round(1.4*K)),w,Math.max(1,Math.round(1.4*K)));
+    g.fillStyle=css(mud);   g.fillRect(sX,sB+1,w,Math.max(1,Math.round(1.6*K)));
+    sX=-1;
+  }
+  for(var x=0;x<SW;x++){
+    var wx=x+WOFF, cyv=riverBendY(wx);
+    // the two banks are computed from DIFFERENT noise, so they are never parallel — the ruled-line
+    // defence his brief asks for, applied to the shape rather than to the colour
+    var wUp=RIV_HALF+Math.round(Math.sin(wx*0.0089+0.7)*2.6+Math.sin(wx*0.0203)*1.4);
+    var wDn=RIV_HALF+Math.round(Math.sin(wx*0.0071+2.9)*3.0+Math.sin(wx*0.0170+1.1)*1.5);
+    var top=cyv-wUp, bot=Math.min(HORIZON-1,cyv+wDn);
+    if(bot<=top){ flushRiv(x); continue; }
+    var cT=cyv-Math.round(wUp*0.42), cB=cyv+Math.round(wDn*0.42);
+    var dT=cyv-Math.round(wUp*0.18), dH=Math.max(1,Math.round((wUp+wDn)*0.18));
+    if(sX<0){ sX=x; sT=top; sB=bot; sCT=cT; sCB=cB; sDT=dT; sDH=dH; }
+    else if(top!==sT||bot!==sB||cT!==sCT||dT!==sDT){ flushRiv(x); sX=x; sT=top; sB=bot; sCT=cT; sCB=cB; sDT=dT; sDH=dH; }
+    // the current — glitter that DRIFTS, so it reads as moving water rather than a blue slab
+    if(((mixLi(Math.floor((wx+Math.floor(now*0.006))/Math.max(2,Math.round(2.4*K))),0x71E4))%100)<12){
+      g.fillStyle="rgba(255,255,255,0.28)";
+      g.fillRect(x,cyv+Math.round(Math.sin(wx*0.05)*wDn*0.4),Math.max(1,Math.round(1.6*K)),1);
+    }
+    // reeds where the bank is shallow
+    if(((mixLi(Math.floor(wx/Math.max(1,Math.round(3*K))),0x2EED))%100)<22){
+      g.fillStyle=css(mixc(day?[86,112,58]:[14,22,16],biomeSkc(day),0.08));
+      g.fillRect(x,bot-Math.round(1.2*K),1,Math.round(3.4*K));
+    }
+  }
+  flushRiv(SW);
+}
 var hasOcean=true;   // set per life in buildWorld — landlocked cities have no waterfront at all
 var subways=[];      // street-level subway entrances (generated per life)
 var skybridges=[];   // G1: lit tube bridges between adjacent transformed towers
@@ -44220,6 +44303,15 @@ function draw(g,pass){
   // pass-split test caught it immediately (test/pass-split.test.js: the two passes must not
   // double-paint), which is exactly what that test is for.
   if(pass===undefined) drawCascades(g,L,now,nd);     // classic single-canvas path only
+  // ⚠ THE RIVER GOES HERE, WHERE EVERY PATH REACHES IT. First cut put it inside the `pass==="bg"`
+  // early-return, so the split renderer drew it and the single-canvas one never did — and
+  // `pass-split.test.js` failed in the same minute with exactly that sentence. That test is the reason
+  // this class of mistake is a one-minute fix here instead of a bug report from a phone six weeks on.
+  // …and it is `"bg" || undefined`, not bare. Unqualified, "live" reached it too and the two canvases
+  // BOTH painted the river — which the very next assertion in the same test file caught. The two
+  // failures are the two halves of one rule: a backdrop feature must be drawn by every path that owns
+  // a backdrop, and by no other.
+  if(pass==="bg"||pass===undefined) drawWorldRiver(g,L,now);
   if(pass==="bg"){ if(cityG<0.985) drawTerrain(g,cityG,L,now,nd,"bg"); return; }
   // ⚠ THE CASCADES LEFT THE BACKDROP TOO — they are falling water, and at 0.5 fps a waterfall does
   // not fall, it flickers between two poses. They now draw in the live pass, AFTER the live
