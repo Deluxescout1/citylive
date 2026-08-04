@@ -96,11 +96,16 @@ Item {
         // of you and the frames agree, wrongly.
         // `disx=` pins it in ABSOLUTE world coordinates (0..1 of WW) instead. Use it whenever the
         // question involves more than one screen.
+        // `disphase=warn|impact|ripple|recover` + `disphf=0..1` drive the LIFECYCLE, which `disf=` does
+        // not and never did — `disf` is progress through the IMPACT only. Two thirds of each disaster's
+        // signature lives in warn and recover, and without this the harness renders neither.
         if (root.dis !== "")
             City.FORCEDIS = { type:root.dis, intensity:root.disI,
                               xf:(root.disX !== "" ? parseFloat(root.disX) : (root.woff + 380) / 2269),
                               w:40, seed:root.disSeed, f:root.disF,
-                              win:(root.disWin === "0" ? false : null) };
+                              win:(root.disWin === "0" ? false : null),
+                              phase:(arg("disphase","") !== "" ? arg("disphase","") : null),
+                              pf:parseFloat(arg("disphf","0.5")) };
         else City.FORCEDIS = null;
         // `dmgdbg=1` prints the resolved damage strip for THIS woff. The reach of an event onto a screen
         // that is not looking at it is the one thing a render cannot be read for.

@@ -19434,6 +19434,16 @@ function disPhaseOf(di,tp){
 // CAT-5's recovery runs 24 minutes — three slots on. Anything asking "is a disaster happening" must
 // look BACK, or every recovery would vanish the moment its slot ended.
 function disArcNow(now){
+  // ⚠⚠ THE HARNESS COULD NOT REACH THE ARC AT ALL, and the per-type signatures are two thirds ARC.
+  // `FORCEDIS` pins the IMPACT progress (`f` across DIS_DUR) and nothing else, so `curDisArc` went on
+  // reading the real wall clock — every forced render showed whatever phase the live sim happened to be
+  // in, which is usually none. So the warn and recover work would have been written, rendered, and
+  // judged against a frame that never contained it. That is the same class of hole `FORCEDIS.win`
+  // filled: a harness that cannot express the case cannot verify the feature that only fires there.
+  if(FORCEDIS&&FORCEDIS.phase){
+    var fd=disasterNow(now); if(!fd) return null;
+    return { di:fd, tp:0, phase:FORCEDIS.phase, f:(FORCEDIS.pf==null?0.5:FORCEDIS.pf) };
+  }
   var cur=Math.floor(now/DIS_SLOT);
   for(var back=0;back<=5;back++){
     var idx=cur-back, di=disasterInfo(idx); if(!di) continue;
@@ -20175,7 +20185,12 @@ function drawVolcanoDisaster(g,cd,L,now){
     cx=disX(cd.x);
     // the cone OUT-SCALES the skyline — that is the whole point of a mountain appearing in your city
     grow=Math.min(1,f/0.16);
-    coneH=Math.round((70+i*26)*grow*K*0.5); coneW=Math.round((46+i*18)*K*0.5);
+    // …and then it SLUMPS back down into the mound it will leave behind, over the same window the
+    // column is dying in. Geometry from `volcConeGeom` so the scar that takes over at f=0.86 is
+    // already exactly this size and the handover cannot be seen. See the note there.
+    var _slump=Math.max(0,Math.min(1,(f-0.62)/0.24));
+    var _cgD=volcConeGeom(i,K,_slump);
+    coneH=Math.round(_cgD.h*grow); coneW=_cgD.w;
     craterY=gy-coneH;
   }
   var blast=Math.min(1,Math.max(0,(f-0.14)/0.14));      // the main eruption ramps in
@@ -20207,7 +20222,13 @@ function drawVolcanoDisaster(g,cd,L,now){
   // ---- THE CONE: a stratovolcano, concave-sided, with strata and old flow channels ----
   // ⚠ SKIPPED ENTIRELY on the land's own mountain — that cone is real, it is drawn in the backdrop, and
   // painting a second one over it is what produced the brown substitute burying the green volcano.
-  var rock=day?[74,60,54]:[26,20,20], rock2=day?[52,41,38]:[17,13,14];
+  // ⚠ AND THE COLOUR HAS TO HAND OVER TOO, not just the size. With the slump alone the cone shrank
+  // smoothly and then changed from warm brown to near-black in a single step at f=0.86, which is the
+  // same visible seam in a different channel. Fresh cinder IS that dark, so the eruption cone walks to
+  // it over the same window rather than the scar arriving already there.
+  var _sl=ownMtn?0:Math.max(0,Math.min(1,(f-0.62)/0.24));
+  var rock=mixc(day?[74,60,54]:[26,20,20], day?[38,32,30]:[14,12,13], _sl);
+  var rock2=mixc(day?[52,41,38]:[17,13,14], day?[26,22,21]:[9,8,9], _sl);
   for(var y=0;ownMtn?false:(y<coneH);y++){
     var yn=y/coneH;
     // concave profile — a stratovolcano flares at the base rather than running straight
@@ -21153,11 +21174,28 @@ function drawPlaneCrash(g,cd,L,now){
 // ⚠ LIVE PASS ONLY. Everybody here is moving, and a runner redrawn twice a second is a slideshow.
 // ⚠ Everything is world-anchored and scripted from the disaster's own `seed` + the clock — no state,
 // so the three monitors agree about who is running where.
+// ============ EACH DISASTER GETS ITS OWN WARNING AND ITS OWN AFTERMATH ============
+// The arc below is the same for all fifteen types — people run, then medics, then crews, then
+// scaffolding — and that is right, because that IS what a city does whatever hit it. But a volcano
+// warns differently from a blackout, and a kaiju leaves something different behind than a smog
+// inversion does. Without a per-type layer the lifecycle is a uniform ceremony wrapped around fifteen
+// different events, which is the shape of "technically present, reads as generic".
+// 🔑 A TABLE, NOT A CHAIN OF `if(type===)`. Fifteen types are coming and eight more after them; the
+// gate for "does this type have a signature yet" has to be one lookup that answers honestly for the
+// ones that do not, rather than a growing branch that silently omits them.
+// ⚠ SIGNATURES MAY NOT CALL `r()` — same law as the rest of the lifecycle. Every one of these hashes
+// off `di.seed`, which is already drawn.
+var DIS_SIG={};
+function disSig(t,ph){ var s=DIS_SIG[t]; return (s&&s[ph])?s[ph]:null; }
 function drawDisasterArc(g,L,now){
   var A=curDisArc; if(!A) return;
   var di=A.di, K=Math.max(1,KSP), day=L>0.5;
   var cx=disX(di.x), half=Math.max(20,di.w);
   if(cx<-half-200||cx>SW+half+200) return;
+  // the type's own signature runs UNDER the generic agents — the crews and the crowd are the thing the
+  // eye should land on, and a plume drawn over the top of them buries the people this phase is about.
+  var sig=disSig(di.type,(A.phase==="warn")?"warn":((A.phase==="ripple"||A.phase==="recover")?"after":null));
+  if(sig) sig(g,di,A,L,now,cx,half,K,day);
   if(A.phase==="warn"){
     // ---- THEY GET OUT. Streaming AWAY from the impact centre, and the further the warning runs the
     // further they have got — so the crowd thins near the zone and thickens beyond it.
@@ -21215,6 +21253,166 @@ function drawDisasterArc(g,L,now){
     }
   }
 }
+
+// ---------------- AND THE MOUNTAIN STAYS. -----------------------------------------------------------
+// 🔒 His locked answer: landform scars PERSIST FOR THE LIFE. Nothing in the engine took that further
+// than a wash until now — `drawVolcanoDisaster` raises a cone on the nineteen lands with no mountain of
+// their own, and then at `f>=0.86` the whole function returns and the mountain that just destroyed a
+// district simply is not there any more. A volcano that leaves no volcano behind is the one disaster
+// whose entire subject is terrain, rendered as if it were weather.
+// 🔑 THE HISTORY QUERY ALREADY EXISTED. `volcanoErupted(now)` returns the most recent FINISHED eruption
+// of this life with its x, footprint and intensity, life-scoped and capped — written for the volcanic
+// biomes' collapsed summit, and it never gated on the biome. Nothing new is rolled here.
+// ⚠ NOT ON THE VOLCANIC LANDS. There the mountain is the land's own, is drawn in the backdrop, and has
+// its own staged collapse; a second cone beside it is exactly the cardboard-substitute fault this
+// commit exists to stop. Same exemption `drawVolcanoDisaster` already makes, for the same reason.
+// 🔑🔑 ONE OWNER FOR THE CONE'S SIZE, and the first version had two. The eruption raised a cone of
+// (70+26i) and the scar drew one of (34+11i) — 45% of it — so the mountain POPPED down to half its
+// height the instant the eruption stopped. Worse, `drawVolcanoDisaster` returns at f>=0.86 and
+// `volcanoErupted` only reports an eruption once f reaches 1, so for the ~34 seconds between them
+// NOTHING drew the cone at all: the mountain vanished from the skyline and then reappeared smaller.
+// This file already carries the rule, written for the volcanic lands' staged collapse — *the handover
+// has to be invisible*. It is the same handover and it wanted the same treatment.
+// `slump` 0..1 walks the erupting edifice down to the mound it settles into; both callers read it here,
+// so they cannot disagree about how big the mountain is at any instant.
+function volcConeGeom(i,K,slump){
+  var s=Math.max(0,Math.min(1,slump||0));
+  return { h:Math.round(((70+i*26)+((34+i*11)-(70+i*26))*s)*K*0.5),
+           w:Math.round(((46+i*18)+((40+i*15)-(46+i*18))*s)*K*0.5) };
+}
+function drawVolcanoScar(g,L,now){
+  if(!curBiome||curBiome.volcanic||curBiome.orbit||curBiome.k==="core") return;
+  if(cityPhase==="apoc") return;
+  var v=volcanoErupted(now), K=Math.max(1,KSP), day=L>0.5, gy=HORIZON;
+  // …and it also owns the TAIL of the eruption, the window `drawVolcanoDisaster` has already stopped
+  // drawing and history does not yet report. Without this branch the gap above is still there.
+  if(!v && curDis && curDis.type==="volcano" && (curDis.f||0)>=0.86)
+    v={x:curDis.x, w:curDis.w, i:curDis.intensity, since:0};
+  if(!v) return;
+  var cx=disX(v.x);
+  // ⚠ SMALLER THAN THE ERUPTION'S CONE, AND THAT IS NOT A CHEAT. What is left after a cinder cone
+  // stops erupting is a slumped, breached mound roughly half the height of the column-stage edifice —
+  // and the alternative here is worse than wrong, it is a mountain that appears at full size in a
+  // skyline you have been looking at all week. It also has to fit UNDER the towers rather than replace
+  // the land's own relief, which is why this is a scar and not a biome change.
+  var _cg=volcConeGeom(v.i,K,1), coneH=_cg.h, coneW=_cg.w;
+  if(cx+coneW<0||cx-coneW>SW) return;
+  // it WEATHERS. Fresh cinder is near-black and it greys as the life runs on, which is the only thing
+  // on screen that says how long ago this happened.
+  var ageK=Math.min(1,(v.since||0)/(DIS_SLOT*10));
+  var rock=mixc(day?[38,32,30]:[14,12,13], day?[104,98,94]:[34,34,40], ageK*0.55);
+  var rockD=mixc(rock,[0,0,0],0.35);
+  for(var y=0;y<coneH;y++){
+    var yn=y/coneH, ww=coneW*Math.pow(1-yn,0.58);
+    g.fillStyle=css(mixc(rock,rockD,0.20+0.5*yn));
+    g.fillRect((cx-ww)|0,(gy-y)|0,(ww*2)|0,1);
+    if(day&&y<coneH*0.92){                                     // one lit flank, so it is a form not a blob
+      g.fillStyle=css(mixc(rock,[255,238,214],0.13));
+      g.fillRect((cx-ww)|0,(gy-y)|0,Math.max(1,Math.round(ww*0.24)),1);
+    }
+  }
+  // the breached crater — a cinder cone almost always ends up with one side blown out, and a symmetric
+  // notch is the "one shape repeated" fault this project has now unpicked on four lands.
+  var crW=Math.round(coneW*0.34), side=(v.x&1)?1:-1;
+  g.fillStyle=css(mixc(rockD,[0,0,0],0.30));
+  g.fillRect((cx-crW*0.5)|0,(gy-coneH)|0,crW,Math.max(1,Math.round(2*K)));
+  g.fillRect((cx+side*Math.round(crW*0.4))|0,(gy-coneH)|0,Math.round(crW*0.5),Math.max(1,Math.round(4*K)));
+  // …and it still steams from the crater for a while afterwards, thinning as the life runs on
+  var st=Math.max(0,1-ageK*1.6);
+  if(st>0.03){
+    var sH=Math.round(9*K*st);
+    for(var q=0;q<sH;q+=Math.max(1,Math.round(2*K))){
+      var qf=q/Math.max(1,sH);
+      g.fillStyle="rgba("+(day?"222,220,216":"104,106,112")+","+(0.24*(1-qf)*st).toFixed(2)+")";
+      g.fillRect(cx+Math.round(Math.sin(now*0.0007+qf*2.6)*3.4*K*qf),(gy-coneH-q)|0,
+                 Math.max(1,Math.round(K*(1.4+qf*2.4))),Math.max(1,Math.round(K)));
+    }
+  }
+}
+// ---------------- VOLCANO — the ground tells you first, and it is still hot afterwards -------------
+// 🔒 The retrofit brief's first of three classes: destructive AND terrain-changing. It is also the one
+// that sweeps the substitute-cone question, because what this function does in `after` is decide what
+// the cone is for once the eruption stops.
+DIS_SIG.volcano={
+  // WARN — a volcano is the one disaster in the set that genuinely announces itself, and the tells are
+  // in the GROUND rather than in the sky: gas venting from fissures, and at night a glow in the cracks
+  // before anything has come out of them.
+  warn:function(g,di,A,L,now,cx,half,K,day){
+    var f=A.f, n=Math.round(4+8*f);
+    for(var i=0;i<n;i++){
+      var h=mixLi(i+di.seed,0x7E01);
+      var vx=cx+Math.round((((h%2000)/1000)-1)*half*0.9);
+      if(vx<-8||vx>SW+8) continue;
+      // the fissure itself: a short dark seam in the ground, glowing at night once the gas is up
+      g.fillStyle=day?"rgba(28,20,16,0.75)":"rgba(10,6,6,0.85)";
+      g.fillRect(vx,HORIZON-1,Math.max(2,Math.round(3*K+((h>>>5)%3))),Math.max(1,Math.round(K)));
+      if(!day){
+        g.globalCompositeOperation="lighter";
+        g.fillStyle="rgba(255,96,26,"+(0.10+0.30*f).toFixed(2)+")";
+        g.fillRect(vx-1,HORIZON-Math.round(2*K),Math.max(3,Math.round(5*K)),Math.round(2*K));
+        g.globalCompositeOperation="source-over";
+      }
+      // …and the gas going up out of it. Rises and widens; the whole point is that it is there BEFORE
+      // the eruption, so it has to be visible at f=0 and merely worse by f=1.
+      var jh=Math.round((5+((h>>>9)%9))*K*(0.35+0.9*f));
+      for(var q=0;q<jh;q+=Math.max(1,Math.round(1.5*K))){
+        var qf=q/Math.max(1,jh);
+        var drift=Math.round(Math.sin(now*0.0011+i*1.7+qf*2.2)*3*K*qf);
+        g.fillStyle="rgba("+(day?"216,212,206":"96,98,104")+","+(0.34*(1-qf)).toFixed(2)+")";
+        g.fillRect(vx+drift,HORIZON-q,Math.max(1,Math.round(K*(1+qf*2))),Math.max(1,Math.round(K)));
+      }
+    }
+  },
+  // AFTER — lava does not switch off, it COOLS, and that is the whole read. Orange through dull red to
+  // black crust over the recovery, with steam where it is still hot, and ash drifted up against
+  // whatever is standing. ⚠ The flows sit where the flanks were, not at the crater: `half` is the
+  // footprint the ruin machinery already used, so this covers exactly the ground that was destroyed.
+  after:function(g,di,A,L,now,cx,half,K,day){
+    var f=(A.phase==="ripple")?0:A.f;
+    var heat=Math.max(0,1-f*1.35);                    // gone by ~three quarters through the recovery
+    for(var i=0;i<14;i++){
+      var h=mixLi(i+di.seed,0x7E02);
+      var lx=cx+Math.round((((h%2000)/1000)-1)*half);
+      if(lx<-10||lx>SW+10) continue;
+      var lw=Math.max(2,Math.round((3+((h>>>7)%7))*K));
+      var lh=Math.max(1,Math.round((1+((h>>>11)%3))*K));
+      // the crust is there whether or not it is still hot — this is the permanent part
+      g.fillStyle=day?"rgba(30,26,26,0.88)":"rgba(12,10,11,0.92)";
+      g.fillRect(lx,HORIZON-lh,lw,lh+1);
+      if(heat>0.02){
+        // cracks in the crust, and they are BRIGHTEST at the start of recovery, not at the impact —
+        // a flow is at its most legible once the ash has stopped hiding it.
+        g.globalCompositeOperation="lighter";
+        var hot=mixc([255,148,40],[190,34,18],1-heat);
+        g.fillStyle=rgba(hot,(0.30+0.45*heat)*(day?0.65:1));
+        g.fillRect(lx+1,HORIZON-lh,Math.max(1,lw-2),Math.max(1,Math.round(K)));
+        g.globalCompositeOperation="source-over";
+        // steam off the hot rock
+        var sh2=Math.round((4+((h>>>15)%7))*K*heat);
+        for(var q=0;q<sh2;q+=Math.max(1,Math.round(2*K))){
+          var qf=q/Math.max(1,sh2);
+          g.fillStyle="rgba("+(day?"228,226,224":"118,120,126")+","+(0.26*(1-qf)*heat).toFixed(2)+")";
+          g.fillRect(lx+Math.round(Math.sin(now*0.0009+i+qf*3)*2.5*K*qf),HORIZON-lh-q,
+                     Math.max(1,Math.round(K*(1+qf*1.6))),Math.max(1,Math.round(K)));
+        }
+      }
+    }
+    // ---- ASH DRIFTS. They arrive with the eruption and are SWEPT AWAY over the recovery, which is
+    // the one part of this the crews on screen are visibly doing something about.
+    var drift=Math.max(0,1-f*1.1);
+    if(drift>0.03){
+      g.fillStyle=day?"rgba(188,184,178,"+(0.55*drift).toFixed(2)+")"
+                     :"rgba(74,76,82,"+(0.55*drift).toFixed(2)+")";
+      for(var d2=0;d2<Math.round(half*0.5);d2++){
+        var dx2=cx-half+d2*2;
+        if(dx2<0||dx2>=SW) continue;
+        var dh=Math.round((1+((((dx2+WOFF)*2654435761)>>>0)%3))*K*drift);
+        if(dh<1) continue;
+        g.fillRect(dx2,HORIZON-dh,2,dh);
+      }
+    }
+  }
+};
 function drawDisaster(g,cd,L,now){
   drawDisasterAtmosphere(g,cd,L,now);        // the sky itself reacts before any sprite is drawn
   // a general catastrophe glow over the whole block, so the emergency reads at any zoom (skip the veil threats)
@@ -45872,6 +46070,14 @@ function draw(g,pass){
 
   // ---- DISASTER overlay: the threat + the city's military/emergency response + alert HUD ----
   // (the destruction/rubble/rebuild of the buildings themselves is handled in drawLayer)
+  // ⚠⚠ THE SCAR GOES HERE, NOT IN THE BACKDROP, AND THE MEASUREMENT IS WHY. Called after
+  // `drawMountains` — where a permanent landform obviously belongs — the cone was drawn BEHIND the
+  // city while the eruption that made it draws in FRONT. A tight sample across f=0.82…0.89 showed the
+  // handover as a hard pop, and the cause was not the size at all: the geometry either side was 80 and
+  // 78 world px. It was the DEPTH. Same object, two layers, and the eye reads a layer change as a size
+  // change. It sits in the eruption's own layer now, which is also honest — this is a mountain that
+  // rose inside the city, not a range on the horizon.
+  drawVolcanoScar(g,L,now);        // a cone this life's eruption left behind, if there was one
   if(curDis){ drawDisaster(g,curDis,L,now); drawDisasterHud(g,curDis,now); }
   drawDisasterArc(g,L,now);        // …and the evacuation before it, and the crews long after
   drawMemorials(g,L,now,night);                              // the worst sites keep a marker for the rest of the life
