@@ -4178,7 +4178,12 @@ var EGG_BIOMES=[
     flora:{ kinds:["generic","grass","generic"], bloom:["#a0ffd0","#ffffff","#c0e0ff"] },
     // the void. k:0.96 — the highest in the game: no atmosphere means no atmospheric colour at all.
     sky:{ top:[4,5,10], bot:[10,12,22], k:0.96, haze:[18,22,38] } },
-  // ============ THE GREAT PLATEAU ============
+  // ============ THE SEALED HEIGHT ============
+  // ⚠ RENAMED. The shipped string was "THE GREAT PLATEAU" — the reference game's own place name, which
+  // breaks the homage rule stated in the comment a few lines below it. 🔑 A RULE WRITTEN NEXT TO THE
+  // LINE THAT BREAKS IT is the easiest kind to miss: the note reads as describing the code rather than
+  // indicting it. Nick's pick, and it survives the land becoming explicitly Ocarina-of-Time, because it
+  // names what the land IS rather than borrowing what it is FROM.
   // ⚠⚠ AN UNNAMED HOMAGE, EXACTLY LIKE THE HIDDEN VILLAGE. Nick asked for this one by a franchise
   // name; the rule established when the village was built is that the trademark NEVER appears in a
   // shipped string. Everything here is costume: a great flat-topped plateau with a ruined temple on
@@ -4188,7 +4193,7 @@ var EGG_BIOMES=[
   // WHAT FILLS THE FRAME: the plateau and the castle. A vast flat-topped mesa on one side of the
   // world and a castle silhouette on the other, with the field town between them — three distinct
   // masses at three distances, so the eye always has somewhere to go.
-  { k:"plateau",name:"THE GREAT PLATEAU", egg:1, amp:0.92, base:0.72, flat:0.95, steep:0.86, snow:true, water:"river", shrine:1,
+  { k:"plateau",name:"THE SEALED HEIGHT", egg:1, amp:0.92, base:0.72, flat:0.95, steep:0.86, snow:true, water:"river", shrine:1,
     far:[126,150,116],  near:[86,116,84],   cap:[214,228,186], ground:[112,148,96],
     // painted timber, thatch and cut stone — a storybook kingdom, deliberately high-saturation
     walls:[[214,102,72],[236,220,180],[150,110,74],[248,242,224],[92,132,168],[186,160,110],[212,84,96],[228,206,166]],
@@ -4371,6 +4376,16 @@ var curRainV=false;      // the second hidden village: concrete, canals and run-
 // ⚠ This is DELIBERATELY NARROWER than curVillage. The village removes its landmarks, its traffic and
 // its road as well, because it has replacements for all of them; air and fire do not, so they opt out
 // of the branding only. Conflating the two would strip the civic life out of lands that still want it.
+// 🔒 STRIP THE BRANDING, KEEP THE BUILDINGS — Nick's locked answer for the Hyrule land: "arenas/casino/
+// university still run, just not shouting brand names at a ruined kingdom."
+// ⚠⚠ `curNoBrands` CANNOT DELIVER THAT ON ITS OWN, which is why the answer sat unapplied: it is the
+// hidden village's ban and it takes the 40,000-seat bowl and the sports district WITH the signage,
+// because a village has neither. Flipping it on here would have removed the arena he explicitly said
+// should stay.
+// 🔑 So the two questions get two flags. `curNoBrands` keeps its exact meaning (no big-city FURNITURE
+// at all); `curNoAds` is the narrower one — no brand SIGNAGE — and every land that bans the furniture
+// obviously also bans the signage, so it is a superset and the villages are unaffected.
+var curNoAds=false;
 var curNoBrands=false;
 var flatsShelter=0;   // 0..1 — how hard the boats in the flooded flats are running for shelter (the storm surge drives it)
 // The screen-x span [lo,hi] the carved cliff occupies THIS frame, published by drawBiomeLandmark so
@@ -4873,6 +4888,7 @@ function buildWorld(li){
   // a world that is city everywhere, and a metropolis on a plateau — so their billboards and their
   // stadium belong. Only the three lands that are emphatically NOT modern cities opt out.
   curNoBrands = curVillage || curBiome.k==="air" || curBiome.k==="fire";
+  curNoAds    = curNoBrands || !!curBiome.shrine;      // …and the ancient kingdom keeps its arenas, loses the hoardings
   curNeon = !curVillage && (!!curBiome.neon || ((mixLi(li,374761393)%12)===0));
   // ⚠⚠ `water:null` DID NOT MEAN LANDLOCKED, AND NOTHING SAID SO. It falls through to `geo()<0.6`, so a
   // land that declares no water gets an OCEAN in 60% of its lives and none in the other 40% — with a
@@ -11898,7 +11914,7 @@ function drawStateScreen(g,sx,sy,sw,sh,now,L){
   g.globalCompositeOperation="lighter"; g.fillStyle="rgba(220,40,40,"+(0.10+0.10*(1-L)).toFixed(2)+")"; g.fillRect(sx,sy,sw,sh); g.globalCompositeOperation="source-over";   // screen glow
 }
 function drawNewsScreens(g,L,now,night){
-  if(curNoBrands) return;   // VILLAGE BAN: building-scale LED news screens
+  if(curNoAds) return;      // no building-scale LED news screens (village ban + the ancient kingdom)
 
   if(cityG<0.5) return;
   var msg=tickerMsg(now), emerg=newsEmergency();
@@ -12251,7 +12267,7 @@ function wrapNews(str, per){
 // read as scattered. Standing-tower predicate (mirrors drawLayer) so a screen never floats over an empty
 // plot; dies with its tower in the cataclysm. NONEWSTV suppresses it for the containment A/B guard.
 function drawJumbotrons(g,L,now,night){
-  if(curNoBrands) return;   // VILLAGE BAN: rooftop jumbotrons
+  if(curNoAds) return;      // no rooftop jumbotrons
 
   if(NONEWSTV || cityG<0.55) return;
   var sw=74, sh=50, placed=[], drawn=0, lastX=-999;
@@ -12911,7 +12927,7 @@ function corpNews(now){
   // been reached for the first time a sign turned up somewhere it did not belong.
   // The ticker itself stays: Nick's rule for these lands is that every system keeps running and the
   // ticker "speaks in-world". It has plenty else to say — weather, elections, the chronicle, the dead.
-  if(curNoBrands) return [];
+  if(curNoAds) return [];
   var C=curCorps||corpState(now); if(!C) return [];
   var out=[];
   for(var i=0;i<C.cos.length;i++){ var e=C.cos[i], nm=e.co.n;
@@ -14811,7 +14827,7 @@ function adMountAt(wx){
   return best;
 }
 function drawCorpAds(g,L,now,night){
-  if(curNoBrands) return;   // VILLAGE BAN: brand billboards — a hidden village has no MEGACORP hoardings
+  if(curNoAds) return;      // no brand billboards — no MEGACORP hoardings over a village or a ruined kingdom
 
   if(curBills){ drawBillsAds(g,L,now,night); return; }   // gameday: the boulevards go Bills
   if(nukeStruck()) return;
@@ -14874,7 +14890,7 @@ function drawCorpAds(g,L,now,night){
 // GAMEDAY street billboards: the same three hoardings, mounted exactly like the corp ads, but every
 // panel now roars for the Bills — royal-blue board, red rails, a rotating chant, glowing at night.
 function drawBillsAds(g,L,now,night){
-  if(curNoBrands) return;   // VILLAGE BAN: the same, in Bills livery
+  if(curNoAds) return;      // the same, in Bills livery
 
   if(nukeStruck()) return;
   var occupied=[];
@@ -22963,7 +22979,7 @@ function stratRuns(g,prof,y0,step,style){
   }
 }
 // ================================================================================================
-// THE GREAT PLATEAU — three masses at three distances
+// THE SEALED HEIGHT — three masses at three distances
 // ------------------------------------------------------------------------------------------------
 // ⚠ UNNAMED HOMAGE. See the biome row. Nothing here names anything; it is all costume.
 // WHAT FILLS THE FRAME: a vast flat-topped plateau on one side, a castle silhouette on the other, and
@@ -30550,7 +30566,7 @@ function drawSprawlAirTraffic(g,L,now,nd){
 // other land, and vertical brand towers up the side of an alpine chalet is not the goal.
 function drawSignageStacks(g,L,now,nd){
   if(curBiome.k!=="sprawl"||cityPhase==="apoc") return;
-  if(curNoBrands) return;                                 // the hidden-village ban applies here too
+  if(curNoAds) return;                                    // …and the signage ban applies here too
   if(cityG<0.34) return;                                  // nobody has built them yet
   var day=L>0.5, K=Math.max(1,KSP), gy=HORIZON;
   // the same roster the ticker, the corporate HQ marquee and the economy sim all read
