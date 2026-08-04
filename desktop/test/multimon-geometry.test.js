@@ -74,3 +74,44 @@ test('a single-display desktop is unchanged', () => {
   assert.strictEqual(solo.woff, 0);
   assert.strictEqual(solo.ww, solo.cw, 'world width equals the one screen');
 });
+
+// ---------------------------------------------------------------------------------------------
+// 🚨 MICAH REPORTED IT A SECOND TIME — *"can you make it so my smaller screen doesnt just show the
+// sky"* — and the tests above all still passed, because they lock the RENDERER's contract and the
+// bug had moved to the native layer. `main.js` creates one window per display, correctly sized; then
+// `wallpaper.attach()` called `MoveWindow(hwnd, 0, 0, virtualW, virtualH)` on every one of them and
+// resized them all back to the union. The per-display fix was undone in a different file.
+// 🔑 A test that locks one layer's contract says nothing about the layer underneath it. This locks
+// the native placement too, so the same bug cannot come back through the same door.
+const wallpaper = require('../wallpaper.js');
+
+test('attach places each window on ITS OWN display, never on the union', () => {
+  const virt = { x: 0, y: 0, width: 5760, height: 2160 };
+  const fourK = wallpaper.clientRectFor({ x: 0, y: 0, width: 3840, height: 2160 }, virt);
+  const hd    = wallpaper.clientRectFor({ x: 3840, y: 0, width: 1920, height: 1080 }, virt);
+
+  // the HD window must be 1080 tall — the whole bug is that it was 2160, so its ground landed a
+  // whole monitor below anything that panel can show
+  assert.strictEqual(hd.height, 1080, 'the small display must not be given the union height');
+  assert.strictEqual(hd.width, 1920);
+  assert.strictEqual(hd.x, 3840, 'and it must sit at its own x, not at the origin');
+  assert.strictEqual(fourK.height, 2160);
+  assert.notStrictEqual(hd.height, virt.height);
+});
+
+test('a display left of or above the primary gets a NON-negative client rect', () => {
+  // Windows puts the virtual-screen origin at the top-left of the bounding box, so a monitor placed
+  // to the left of the primary has a NEGATIVE x in screen coordinates. Child coordinates are relative
+  // to that origin, so the origin has to be subtracted or every such monitor is offset off-screen.
+  const virt = { x: -1920, y: -120, width: 5760, height: 2280 };
+  const left = wallpaper.clientRectFor({ x: -1920, y: -120, width: 1920, height: 1080 }, virt);
+  assert.strictEqual(left.x, 0);
+  assert.strictEqual(left.y, 0);
+  assert.strictEqual(left.height, 1080);
+});
+
+test('with no rect (a single display) it still covers the whole virtual screen', () => {
+  const virt = { x: 0, y: 0, width: 2560, height: 1440 };
+  const all = wallpaper.clientRectFor(null, virt);
+  assert.deepStrictEqual(all, { x: 0, y: 0, width: 2560, height: 1440 });
+});

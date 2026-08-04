@@ -81,12 +81,20 @@ const GWL_EXSTYLE = -20, GWL_STYLE = -16;
 const WS_EX_LAYERED = 0x80000, WS_EX_TRANSPARENT = 0x20, WS_EX_TOOLWINDOW = 0x80;
 const WS_EX_NOREDIRECTIONBITMAP = 0x00200000;
 const WS_CHILD = 0x40000000, WS_POPUP = 0x80000000;
+const SM_XVIRTUALSCREEN = 76, SM_YVIRTUALSCREEN = 77;
 const SM_CXVIRTUALSCREEN = 78, SM_CYVIRTUALSCREEN = 79;
 const SWP_NOSIZE_NOMOVE_NOACTIVATE = 0x1 | 0x2 | 0x10;
 const HWND_BOTTOM = 1n;
 
-let attachedHwnd = null;
-let savedStyles = null;   // original GWL_STYLE/GWL_EXSTYLE so detach can restore them
+// 🚨🚨 THESE WERE SINGLE GLOBALS AND THERE ARE NOW SEVERAL WINDOWS. `main.js` grew one wallpaper window
+// per display specifically to fix Micah's multi-monitor report, and the comment there says this module's
+// attach/detach/isStillAttached are "all per-window" — which was true of the CALLS and false of the STATE.
+// With one `savedStyles`, the second window to attach saved nothing and the first window to detach threw
+// the styles away for all of them; with one `attachedHwnd`, only the most recent attach was ever tracked.
+// A comment stating an intent is not a test that it was met — the fourth time this project has written
+// that down.
+const attached = new Map();   // hwnd(string) -> { style, ex }
+function hwndKey(h) { try { return String(h); } catch (e) { return null; } }
 
 // Win11 24H2+ "raised desktop": Progman carries WS_EX_NOREDIRECTIONBITMAP, the icons
 // (SHELLDLL_DefView) are a LAYERED child of Progman, and NO separate top-level wallpaper
@@ -96,28 +104,59 @@ function isRaisedDesktop(progman) {
   return (Number(u32.GetWindowLongPtr(progman, GWL_EXSTYLE)) & WS_EX_NOREDIRECTIONBITMAP) !== 0;
 }
 
+// WHERE DOES THIS WINDOW GO INSIDE ITS PARENT? — pure arithmetic, exported so it can be tested off
+// Windows. Child coords are relative to the parent's CLIENT ORIGIN, which for Progman and the WorkerW
+// host is the virtual screen's top-left — and that origin is NEGATIVE whenever a monitor sits left of
+// or above the primary, which is the common case for a second screen. No rect means "cover everything",
+// which is right for a single display and was catastrophically wrong for several.
+function clientRectFor(rect, virt) {
+  if (!rect || !(rect.width > 0) || !(rect.height > 0))
+    return { x: 0, y: 0, width: virt.width, height: virt.height };
+  return {
+    x: Math.round(rect.x - virt.x), y: Math.round(rect.y - virt.y),
+    width: Math.round(rect.width), height: Math.round(rect.height)
+  };
+}
+
 // Reparent `win` behind the desktop icons. Returns true on success.
-function attach(win) {
+// `rect` — OPTIONAL {x,y,width,height} in PHYSICAL pixels, in virtual-screen coordinates. Give it and
+// the window covers exactly that display; omit it and the window covers the whole virtual desktop.
+//
+// 🚨🚨 THIS IS THE BUG MICAH REPORTED TWICE. `main.js` carefully creates one window per display, sized
+// to that display's bounds, each carrying its own height and its own taskbar reserve — and then this
+// function called `MoveWindow(hwnd, 0, 0, virtualW, virtualH)` on every one of them, resizing them all
+// back to the full virtual desktop and stacking them at the same origin. The per-display fix was
+// undone, in a different file, one line after it was applied. So the window over his smaller monitor
+// had its ground computed for the FULL union height and put the horizon a whole panel below anything
+// that monitor can show: *"my smaller screen doesnt just show the sky"*.
+// 🔑 One union canvas assumes one bottom edge and one scale. Sizing the windows per display and then
+// moving them to the union is the same assumption, arriving by a different route.
+function attach(win, rect) {
   if (!available() || !win) return false;
   try {
     const hwnd = hwndOf(win);
+    const key = hwndKey(hwnd);
     const progman = u32.FindWindowA('Progman', null);
     if (!progman) return false;
-    // Remember the original styles once, so detach() can restore a normal window.
-    if (!savedStyles) {
-      savedStyles = {
+    // Remember THIS window's original styles, so detach() can restore a normal window. Per hwnd —
+    // see the note on `attached`.
+    if (key && !attached.has(key)) {
+      attached.set(key, {
         style: u32.GetWindowLongPtr(hwnd, GWL_STYLE),
         ex: u32.GetWindowLongPtr(hwnd, GWL_EXSTYLE)
-      };
+      });
     }
     const ok = isRaisedDesktop(progman) ? attachRaised(hwnd, progman) : attachClassic(hwnd, progman);
-    if (!ok) return false;
-    // Cover the whole virtual desktop (child coords are relative to the parent's client
-    // origin, which spans the virtual screen for both Progman and the WorkerW host).
-    const vw = u32.GetSystemMetrics(SM_CXVIRTUALSCREEN);
-    const vh = u32.GetSystemMetrics(SM_CYVIRTUALSCREEN);
-    u32.MoveWindow(hwnd, 0, 0, vw, vh, true);
-    attachedHwnd = hwnd;
+    if (!ok) { if (key) attached.delete(key); return false; }
+    // Child coords are relative to the parent's CLIENT ORIGIN, which is the virtual screen's top-left
+    // for both Progman and the WorkerW host — and on a multi-monitor desktop that origin can be
+    // NEGATIVE (a monitor placed left of or above the primary). So a display's physical rect has to
+    // have the virtual origin subtracted from it; using the raw rect would offset every extra monitor.
+    const place = clientRectFor(rect, {
+      x: u32.GetSystemMetrics(SM_XVIRTUALSCREEN), y: u32.GetSystemMetrics(SM_YVIRTUALSCREEN),
+      width: u32.GetSystemMetrics(SM_CXVIRTUALSCREEN), height: u32.GetSystemMetrics(SM_CYVIRTUALSCREEN)
+    });
+    u32.MoveWindow(hwnd, place.x, place.y, place.width, place.height, true);
     return true;
   } catch (e) {
     return false;
@@ -165,16 +204,17 @@ function detach(win) {
   if (!available() || !win) return false;
   try {
     const hwnd = hwndOf(win);
+    const key = hwndKey(hwnd);
     u32.SetParent(hwnd, null);
-    if (savedStyles) {
-      u32.SetWindowLongPtr(hwnd, GWL_STYLE, savedStyles.style);
-      u32.SetWindowLongPtr(hwnd, GWL_EXSTYLE, savedStyles.ex);
-      savedStyles = null;
+    const saved = key ? attached.get(key) : null;
+    if (saved) {
+      u32.SetWindowLongPtr(hwnd, GWL_STYLE, saved.style);
+      u32.SetWindowLongPtr(hwnd, GWL_EXSTYLE, saved.ex);
+      attached.delete(key);
     } else {
       const ex = Number(u32.GetWindowLongPtr(hwnd, GWL_EXSTYLE));
       u32.SetWindowLongPtr(hwnd, GWL_EXSTYLE, ex & ~(WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW));
     }
-    attachedHwnd = null;
     return true;
   } catch (e) {
     return false;
@@ -188,4 +228,4 @@ function isStillAttached(win) {
   try { return !!u32.GetParent(hwndOf(win)); } catch (e) { return false; }
 }
 
-module.exports = { available, attach, detach, isStillAttached };
+module.exports = { available, attach, detach, isStillAttached, clientRectFor };

@@ -197,6 +197,7 @@ function createWindow(opts) {
   // report, killing the renderer left the Control Center black AND took the city off the desktop —
   // and neither came back. A wallpaper that has silently stopped is the worse of the two, because it
   // is reparented behind the icons where there is nothing to click and no window to close.
+  if (wp && wpDisp) win._clDisplayId = wpDisp.id;   // the primary wallpaper window's own display
   const winArgs = (wp && wpDisp && wpUnion) ? { search: dispSearch(wpDisp, wpUnion) } : undefined;
   guardWindow(win, 'wallpaper', (w) => w.loadFile(path.join(__dirname, 'renderer', 'index.html'), winArgs));
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'), winArgs);
@@ -327,16 +328,17 @@ function spawnSiblingWallpapers(uni, primary) {
         contextIsolation: true, nodeIntegration: false, backgroundThrottling: false
       }
     });
+    w._clDisplayId = d.id;                 // so every re-attach lands on THIS display, not the union
     w.setMenuBarVisibility(false);
     // Same guard on every extra display — a sibling that dies leaves ONE monitor blank, which is
     // even harder to attribute than all of them going at once.
     guardWindow(w, 'wallpaper-sibling', (ww) => {
       ww.loadFile(path.join(__dirname, 'renderer', 'index.html'), { search: dispSearch(d, uni) });
-      ww.webContents.once('did-finish-load', () => { if (!ww.isDestroyed()) { try { wallpaper.attach(ww); } catch (e) {} } });
+      ww.webContents.once('did-finish-load', () => { if (!ww.isDestroyed()) { try { wpAttach(ww); } catch (e) {} } });
     });
     w.loadFile(path.join(__dirname, 'renderer', 'index.html'), { search: dispSearch(d, uni) });
     w.webContents.once('did-finish-load', () => {
-      if (!w.isDestroyed()) { try { wallpaper.attach(w); } catch (e) {} }
+      if (!w.isDestroyed()) { try { wpAttach(w); } catch (e) {} }
     });
     extraWins.push(w);
   }
@@ -348,8 +350,46 @@ function destroySiblingWallpapers() {
   extraWins = [];
 }
 
+// 🚨 EVERY ATTACH GOES THROUGH HERE, and the reason is Micah's report. `wallpaper.attach` used to
+// resize whatever it was given to the WHOLE VIRTUAL DESKTOP — so the per-display windows this file
+// creates were sized correctly and then immediately blown back up to the union, which is precisely the
+// bug the per-display windows exist to fix. It now takes the display's PHYSICAL rect, and the only way
+// to be sure every caller passes one is for there to be exactly one caller.
+// ⚠ `dipToScreenRect` is the conversion that matters: `d.bounds` is in DIP and MoveWindow wants
+// physical pixels. On a mixed-DPI desktop those are different numbers, which is the other half of what
+// went wrong on his machine.
+function wpAttach(w) {
+  if (!w || w.isDestroyed()) return false;
+  let rect = null;
+  try {
+    const scr = require('electron').screen;
+    const id = w._clDisplayId;
+    let d = null;
+    if (id != null) { for (const dd of scr.getAllDisplays()) if (dd.id === id) { d = dd; break; } }
+    if (!d) d = scr.getDisplayNearestPoint(w.getBounds());
+    if (d) rect = scr.dipToScreenRect(null, d.bounds);
+  } catch (e) { rect = null; }
+  // 🧪 TEST HOOK — `CITYLIVE_WP_TESTRECT="x,y,w,h"` (physical px) forces the placement.
+  // ⚠⚠ THIS EXISTS BECAUSE THE BUG IS UNREACHABLE OTHERWISE. The failure only appears on a
+  // multi-monitor desktop, and the WinTest VM is single-head — the QXL driver is installed but with no
+  // SPICE client attached the second head never comes up, so the case that broke for Micah cannot be
+  // reproduced there. With this, ONE monitor is enough to prove the thing that actually changed: that
+  // `attach` now puts the window where it is TOLD to, instead of stretching it over the whole virtual
+  // screen. Pass half the screen; if the city fills half the screen, the fix is real.
+  // 🔑 A harness that cannot express the case cannot verify the fix — the same reason `FORCEDIS.win`
+  // and `disphase=` had to be built before their features could be judged.
+  try {
+    const tr = process.env.CITYLIVE_WP_TESTRECT;
+    if (tr) {
+      const n = tr.split(',').map(Number);
+      if (n.length === 4 && n.every((v) => isFinite(v))) rect = { x: n[0], y: n[1], width: n[2], height: n[3] };
+    }
+  } catch (e) {}
+  try { return wallpaper.attach(w, rect); } catch (e) { return false; }
+}
+
 function attachOrFallback(w) {
-  if (!wallpaper.attach(w)) { onWallpaperFailed('attach'); return; }
+  if (!wpAttach(w)) { onWallpaperFailed('attach'); return; }
   wpFailStreak = 0;
   setTimeout(() => {
     if (!desktopWallpaper || win !== w || w.isDestroyed()) return;
@@ -363,7 +403,7 @@ function attachOrFallback(w) {
 // user's wallpaper and pop a dialog. Only falls back after the retries are exhausted.
 function attachWithRetry(w, triesLeft) {
   if (quitting || !desktopWallpaper || !w || w.isDestroyed() || win !== w) return;
-  if (wallpaper.attach(w)) {
+  if (wpAttach(w)) {
     setTimeout(() => {
       if (quitting || !desktopWallpaper || win !== w || w.isDestroyed()) return;
       if (wallpaper.isStillAttached(w)) return;                 // recovered
@@ -430,11 +470,11 @@ function startWallpaperWatch() {
     // was restarted. Re-attach them QUIETLY: a sibling that can't come back must not trip the
     // global give-up and take the working screens down with it.
     for (const w of extraWins) {
-      try { if (w && !w.isDestroyed() && !wallpaper.isStillAttached(w)) wallpaper.attach(w); } catch (e) {}
+      try { if (w && !w.isDestroyed() && !wallpaper.isStillAttached(w)) wpAttach(w); } catch (e) {}
     }
     if (!win || win.isDestroyed()) return;
     if (wallpaper.isStillAttached(win)) { wpFailStreak = 0; return; }
-    if (wallpaper.attach(win)) { wpFailStreak = 0; }
+    if (wpAttach(win)) { wpFailStreak = 0; }
     else if (++wpFailStreak >= 3) { onWallpaperFailed('watchdog'); }
   }, 4000);
 }
