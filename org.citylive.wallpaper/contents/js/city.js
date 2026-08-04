@@ -19651,6 +19651,17 @@ function landDamageAt(wx,ww){
 // three-tap blur covers exactly the same ground; it just stops having a straight edge in a meadow.
 var DMG_STEP=0, DMG_STRIP=null, DMG_ANY=0;
 function buildDamageStrip(){
+  // ⚠⚠ THE QUIET FRAME MUST COST NOTHING, and the first version of this charged it 129 `landDamageAt`
+  // calls to be told zero. Measured against the pre-sweep engine interleaved in one process, the CLEAN
+  // bg pass had moved by up to +2.7ms on the dunes — a land with no trees, which under the old code
+  // never called `landDamageAt` even once. The sweep is for the ~2% of frames where something is
+  // happening; charging the other 98% for it is how a feature that is invisible most of the time still
+  // ends up in a freeze report.
+  // 🔑 The four things below are the ONLY inputs `landDamageAt` has. If none of them is live, its
+  // answer is zero for every column on every screen, and there is nothing to sample.
+  if(cityPhase!=="apoc" && !curDis && !(curRuins&&curRuins.length) && !(curRebuilt&&curRebuilt.length)){
+    DMG_STRIP=null; DMG_ANY=0; DMG_STEP=0; return;
+  }
   var step=Math.max(4,Math.round(SW/128)), n=Math.ceil(SW/step)+1, raw=[], i;
   for(i=0;i<n;i++) raw.push(landDamageAt(i*step+WOFF,step));
   var out=[], mx=0, v;
@@ -19671,6 +19682,96 @@ function dmgAtScreen(sx){
   if(!DMG_STRIP||DMG_ANY<=0) return 0;
   var i=Math.round(sx/DMG_STEP), n=DMG_STRIP.length;
   return DMG_STRIP[i<0?0:(i>=n?n-1:i)]||0;
+}
+// ============ WHAT THE EVENT LEAVES ON THE LAND ITSELF ============
+// ONE treatment, called from every land's backdrop. The alternative is twenty-eight bespoke ideas of
+// what "damaged" looks like and twenty-eight places to get the gate wrong — and the record on this
+// project is that a sweep done that way reaches about two of them.
+// 🔒 Nick's locked rule, and the reason this is a WASH and not a geometry change: vegetation and
+// structures die, LANDFORM ONLY SCARS. So this darkens, de-greens and ashes over; it never moves a
+// silhouette. A land that has taken a CAT-5 is the same shape, burnt.
+// ⚡ RUN-BATCHED, because per-column fills across 776 columns on the backdrop pass is the regression
+// this project has now paid for six times. The strip is smooth, so the colour only actually CHANGES
+// every few columns — accumulate a run and flush when the quantised level moves.
+// 🔑🔑 A MOUNTAIN DOES NOT BURN, AND THE FIRST VERSION OF THIS PAINTED IT BLACK. One wash was applied
+// to the ground and to the relief alike, and the alpine and sea-cliff renders came back with the
+// headland gone near-black across the whole screen — which does not read as damage at all, it reads as
+// somebody turning the brightness down on the mountains. What actually happens to bare rock beside a
+// disaster is that it gets COATED: ash and pulverised dust, desaturated and slightly PALER, not
+// darker. So there are two treatments and the caller says which the surface deserves.
+//   BURN — vegetation, soil, grass, anything that was alive. Dark, brown, toward char.
+//   DUST — rock, ice, sand, concrete. Desaturating, ashen, and at day it LIGHTENS.
+var SCORCH_LV=8;                       // quantisation of the wash; the flush granularity, nothing more
+function scorchCol(day,lv,k,dust){
+  var c=dust?(day?"168,158,146":"46,48,56"):(day?"46,34,26":"6,6,9");
+  return "rgba("+c+","+(lv/SCORCH_LV*k).toFixed(3)+")";
+}
+function drawDamageScorch(g,yTop,yBot,day,mul,dust){
+  if(!DMG_STRIP||DMG_ANY<=0.03) return;
+  var y0=Math.round(yTop), y1=Math.round(yBot), h=y1-y0; if(h<=0) return;
+  var k=(mul==null?1:mul)*0.62, step=4, runX=0, runLv=-1, x, lv;
+  for(x=0;x<=SW;x+=step){
+    lv=(x<SW)?Math.round(dmgAtScreen(x)*SCORCH_LV):-1;         // -1 at the end forces the last flush
+    if(lv!==runLv){
+      if(runLv>0){ g.fillStyle=scorchCol(day,runLv,k,dust); g.fillRect(runX,y0,x-runX,h); }
+      runLv=lv; runX=x;
+    }
+  }
+  scorchAsh(g,y0,h,day);
+}
+// The same wash, but following a per-column HEIGHT PROFILE — the ridge arrays every landform land
+// already caches. A flat band here would put a scorch rectangle in the sky above the ridgeline, which
+// is the "printing error" failure the seam blur exists to avoid, in a different place.
+function drawDamageScorchH(g,hs,gy,day,mul,step,dust){
+  if(!DMG_STRIP||DMG_ANY<=0.03||!hs) return;
+  var k=(mul==null?1:mul)*0.62, st=step||2, x, lv, hh;
+  for(x=0;x<SW;x+=st){
+    lv=Math.round(dmgAtScreen(x)*SCORCH_LV); if(lv<=0) continue;
+    hh=hs[x]||0; if(hh<=0) continue;
+    g.fillStyle=scorchCol(day,lv,k,dust);
+    g.fillRect(x,(gy-hh)|0,st,hh|0);
+  }
+  // ⚠⚠ AND A FLAT TINT IS NOT DAMAGE. The A/B against a clean frame said it plainly: alpine's peaks
+  // went ashen and the read was "the light changed", not "something happened here". A uniform wash over
+  // a whole landform can only ever say that, because uniform is what LIGHT is. What says damage is
+  // GRAIN and IRREGULARITY — scorch patches with edges, in a scatter that does not repeat.
+  // 🪵 Hashed off WORLD x, never off screen x, or the scars slide across the rock as the viewport moves
+  // and the three monitors disagree about where the mountain burned. And hashed, not strided: a
+  // constant stride is an arithmetic progression, which this project has now had to unpick four times.
+  if(DMG_ANY<=0.34) return;
+  for(x=0;x<SW;x+=3){
+    lv=Math.round(dmgAtScreen(x)*SCORCH_LV); if(lv<4) continue;
+    hh=hs[x]||0; if(hh<6) continue;
+    var hsh=((x+WOFF)*2654435761)>>>0;
+    if((hsh%9)>=Math.max(1,lv-3)) continue;                        // heavier damage = more scars, not bigger ones
+    var sy=(gy-hh)+((hsh>>>7)%Math.max(1,hh-2)), sh=1+((hsh>>>17)%3);
+    g.fillStyle="rgba("+(day?"30,22,18":"4,4,6")+","+(0.20+0.045*lv).toFixed(2)+")";
+    g.fillRect(x,sy|0,2+((hsh>>>13)%4),sh);
+  }
+}
+// ⚠ TWO ARRAY CONVENTIONS, BECAUSE THE ENGINE HAS TWO. `mtsCache.h` stores HEIGHTS above the horizon;
+// `savCache`, `duneCache[b]` and `caveCache.ceil` store the TOP Y directly. Converting at each call
+// site is how a land quietly ends up scorched upside down, so the conversion lives here once.
+function drawDamageScorchY(g,ys,gy,day,mul,step,dust){
+  // ⚠ THE GUARD HAS TO BE HERE TOO, not only in the function this delegates to. Without it this
+  // allocates and fills a 776-element array on EVERY frame of every life, to hand it to a callee that
+  // immediately drops it — a per-frame cost on the two busiest lands, paid on the ~98% of frames when
+  // nothing has happened. A cheap function guarded downstream is not a guarded function.
+  if(!ys||!DMG_STRIP||DMG_ANY<=0.03) return;
+  var hs=new Array(SW);
+  for(var x=0;x<SW;x++) hs[x]=Math.max(0,gy-Math.round(ys[x]||gy));
+  drawDamageScorchH(g,hs,gy,day,mul,step,dust);
+}
+// Ash and bare earth showing through, and ONLY where it is genuinely heavy — a wash alone reads as a
+// dirty window, and what makes it read as burnt ground is the grain in it.
+function scorchAsh(g,y0,h,day){
+  if(DMG_ANY<=0.45||h<3) return;
+  g.fillStyle=day?"rgba(198,188,174,0.26)":"rgba(122,118,124,0.20)";
+  for(var x=0;x<SW;x+=3){
+    if(dmgAtScreen(x)<0.45) continue;
+    var hsh=((x+WOFF)*2654435761)>>>0; if((hsh%7)>1) continue;
+    g.fillRect(x,y0+((hsh>>>5)%h),1,1);
+  }
 }
 // ============ HAS THIS LAND ERUPTED YET, THIS LIFE? ============
 // Nick's volcano brief asks for TWO STATES, pre-eruption and post-eruption. He also chose that the
@@ -26062,6 +26163,9 @@ function drawSavanna(g,L,now,nd){
       g.fillRect(off,hy,SW,1);
     }
   }
+  // ---- and the escarpment takes the event. BURN, not dust: this is dry grass over the whole
+  // profile, and dry grass beside a disaster is the one surface in the set that genuinely blackens.
+  drawDamageScorchY(g,savCache,HORIZON,day,0.72,2);
 }
 
 // WHICH PREDATOR HUNTS ON WHICH LAND. Nick took all four groups: rock/mountain, water, forest/swamp,
@@ -29182,6 +29286,11 @@ function drawDunes(g,L,now,nd){
       }
     }
   }
+  // ---- and the dune field takes it. DUST, not burn: there is nothing on a sand sea to blacken, and
+  // what a blast actually does to it is throw it into the air and drop it back as a paler skin.
+  // ⚠ `duneCache[0]` is the NEAREST band — `depth` runs b/(BANDS-1) with 1 furthest, so index 0 is the
+  // one in front. Scarring a far band and leaving the near one clean is the inversion to watch for.
+  if(duneCache&&duneCache.length) drawDamageScorchY(g,duneCache[0],HORIZON,day,0.50,2,true);
 }
 
 // THE HABOOB — this land's weather set-piece, and the reason a dune sea can fill a frame at all.
@@ -38885,6 +38994,19 @@ function drawMountains(g,L,now,nd){
     }
     }
   }
+  // ---- AND THE RANGE ITSELF TAKES IT. Every land that still uses the shared height field arrives
+  // here — alpine, mesa, cliffs, plains, beach, swamp, volcano, arctic, sprawl, hell, heaven, fjord,
+  // salt and their variants — so one call scars the relief on all of them at once. Following the
+  // cached PROFILE rather than washing a flat band, because a rectangle of scorch in the sky above the
+  // ridgeline is the same printing-error failure the seam blur exists to avoid.
+  // ⚠ DUST, NOT BURN — see `scorchCol`. Every land that reaches this dispatcher has ROCK, ICE or SAND
+  // for relief; the vegetated ones (forest, the hidden village, the karst) all branched away at the
+  // top of this function and take their own treatment.
+  // ⚠ The FAR band takes about a third of what the near band does. Distance is the reason: the smoke
+  // and the ash are between you and it, and a far ridge marked as hard as the one in front of you flips
+  // the aerial perspective the whole readability pass was fought over.
+  drawDamageScorchH(g,mtsCache.h[1],gy,day,0.62,2,true);
+  drawDamageScorchH(g,mtsCache.h[0],gy,day,0.22,2,true);
 }
 // THE EXPEDITION: once per life a party attempts the tallest peak — a MULTI-DAY story you
 // follow each morning. Life-chapters (cy*9): ch2 basecamp rises · ch3 the lower route +
@@ -39841,6 +39963,24 @@ function drawTerrain(g,cg,L,now,nd,pass){
     g.globalAlpha=1;
     g.fillStyle=day?"rgba(122,96,58,0.7)":"rgba(84,70,48,0.7)"; g.fillRect(0,(gy+Math.round((SH-gy)*0.5))|0,SW,3); }  // dirt trail where the road will be
   if(BGp) drawBiomeGround(g,gy,day,now,wild);                    // and the land's own surface on top
+  // …and then the event burns it. This one call is the ground under ALL twenty-eight lands, which is
+  // why it goes here rather than into each land's own surface routine — `drawBiomeGround` is the last
+  // thing to touch the near band on every one of them.
+  // 🔑🔑 AND THIS IS ALSO WHERE THE ELEVEN BESPOKE LANDS GET REACHED, which is the whole reason the
+  // sweep is affordable at all. `drawMountains` dispatches the gorge, the dunes, the karst, the dam,
+  // the undercity, the savanna, the forest, the village cliff, the plateau, orbit and the core world to
+  // eleven private renderers with eleven different cache shapes — and every one of them runs BEFORE
+  // this function does. So a second band painted here, hugging the horizon, lands on top of whichever
+  // of them drew, without this code needing to know which one it was or how it stores its heights.
+  // ⚠ It is deliberately a SHALLOW band at the foot of the relief. Above that line the eleven lands
+  // disagree about what is rock and what is sky, and a wash that guesses wrong paints a rectangle in
+  // the air — the printing-error failure, which is the one thing worse here than doing nothing. At the
+  // horizon they all agree: there is ground there.
+  if(BGp){
+    drawDamageScorch(g,gy,SH,day,1);
+    if(!curBiome.orbit && curBiome.k!=="core")                     // no ground in orbit, and none on the core world
+      drawDamageScorch(g,gy-Math.round(HORIZON*0.10),gy,day,0.70);
+  }
   if(BGp && curVillage && !curRainV) drawVillageForest(g,gy,day,now);   // …and the forest that hides the village
   // ⚠ NOT ON THE RAIN VILLAGE. Nothing grows there — it is concrete to the horizon, and a treeline
   // behind it would put the leaf village's hillside on the wrong land.

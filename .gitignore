@@ -32,3 +32,6 @@ desktop/ci-win/
 .DS_Store
 Thumbs.db
 *.swp
+
+# the perf harness control engine — a full copy of city.js, regenerated on demand (see qml-perf-damage.qml)
+desktop/_ctl_city.js
