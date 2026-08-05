@@ -1062,7 +1062,7 @@ function drawDimDuo(g,L,now){
   var gy=HORIZON-1, open=Math.min(1,f/0.08)*(f>0.92?Math.max(0,(1-(f-0.92)/0.08)):1);
   // the GREEN portal: swirling iris, distinct from the violet rift
   if(open>0.02){ g.globalCompositeOperation="lighter";
-    for(var r=0;r<3;r++){ g.strokeStyle="rgba("+(90-r*20)+","+(230-r*40)+",70,"+(0.6*(1-r*0.28)*open).toFixed(3)+")"; g.lineWidth=1;
+    for(var r=0;r<5;r++){ g.strokeStyle="rgba("+(90-r*20)+","+(230-r*40)+",70,"+(0.6*(1-r*0.28)*open).toFixed(3)+")"; g.lineWidth=1;
       g.beginPath(); g.arc(px,gy-8,Math.max(0.5,(9-r*2)*open+Math.sin(now*0.03+r)),0,6.283); g.stroke(); }
     for(var sp2=0;sp2<8;sp2++){ var an2=now*0.025+sp2*0.785; g.fillStyle="rgba(150,255,110,"+(0.7*open)+")";
       g.fillRect((px+Math.cos(an2)*(11*open))|0,(gy-8+Math.sin(an2)*(8*open))|0,1,1); }
@@ -30279,6 +30279,7 @@ function drawVarrock(g,L,now,nd){
   // 📚 "Four yew trees grow inside the walls" — one of the few facts the wiki states about this city's
   // planting, and the same tree the market crowd has been selling logs from since Falador.
   drawRsYews(g,day,K,P,[VK_GE+0.055,VK_SQUARE-0.045,VK_MUSEUM+0.035,VK_EGATE-0.030]);
+  drawRsCourse(g,day,K,P);
 }
 // ---- A FORTIFIED GATE, and the wall that dies out either side ---------------------------------
 // 📚 "Fortified gates with guards protect all four entrances." ⚠ AND THAT IS ALL THE WALL THIS LAND
@@ -30684,6 +30685,7 @@ function drawArdougne(g,L,now,nd){
   x=rsX(AD_ZOO);    if(x>-HORIZON&&x<SW+HORIZON) drawAdZoo(g,x,day,K,P,tim,roofA);
   x=rsX(AD_CLOCK);  if(x>-HORIZON&&x<SW+HORIZON) drawAdClock(g,x,day,K,L,wall,wallD,wallL,roofA,roofB);
   x=rsX(AD_PORT);   if(x>-HORIZON&&x<SW+HORIZON) drawAdPort(g,x,day,K,P,tim);
+  drawRsCourse(g,day,K,P);
 }
 // ---- THE WALL. The one big object, and the whole reason this land works ------------------------
 // 🚨 IT IS A MASS, NOT A CURTAIN. A wall running the width of the world is the horizontal repetition
@@ -31778,7 +31780,54 @@ function rsTier(h){
 // ⚠ `tier` IS OPTIONAL AND THAT IS DELIBERATE. Adventurers are kitted; the market crowd and the
 // skillers are not — a bank stander in full rune is right, but a woodcutter in it is a joke the game
 // itself makes and not one worth drawing. Passing no tier keeps the old cloak palette.
-function drawRsFigure(g,x,gy,K,col,day,pose,facing,tier){
+// ---- STATUS. What a player is WEARING is the only biography this world gets to tell -------------
+// 🔑🔑 THE FLAIR IS KEYED ON A PLAYER ID, NEVER ON `x`. A cape derived from position would change
+// colour as its owner walked and vanish when he stopped — the sprawl land's motorbike rider had
+// exactly that fault ("the motorcycle person changes color whenever he drives by"), and this is the
+// same mistake one layer up. `pid` is a stable per-player hash the caller already holds.
+// 🔒 RARITY IS THE POINT, as with the tier ladder. A skill cape means somebody reached 99; a partyhat
+// means somebody was there in 2006. If everyone has one, nobody does.
+var RS_CAPE_C=["#c8a83a","#3a8ad0","#4ac85a","#c0403a","#a04ac0","#d08a30","#40b0a8","#c8c8d0"];
+var RS_PHAT_C=["#c83a3a","#3a5ec8","#e8d23a","#3aa84a","#c86ad8","#e8e4dc"];
+var RS_PET_C=["#8a6a4a","#c8c4b8","#5a5a62","#4a7a4a"];
+function drawRsFlair(g,x,yy,day,facing,pid){
+  if(pid==null) return;
+  var h=iceHash(pid^0x5eed);
+  if(h%9===0){                                        // the cape: hangs BEHIND him, trails at the hem
+    g.fillStyle=day?RS_CAPE_C[(h>>>5)%RS_CAPE_C.length]:"#2a2c36";
+    var bx=x+(facing>0?-2:2);
+    g.fillRect(bx,yy-2,1,4);
+    g.fillRect(bx+(facing>0?-1:1),yy,1,2);
+  }
+  if((h>>>11)%41===0){                                // the partyhat: the loudest two pixels on the land
+    g.fillStyle=day?RS_PHAT_C[(h>>>17)%RS_PHAT_C.length]:"#4a4a56";
+    g.fillRect(x-1,yy-5,4,1); g.fillRect(x,yy-6,2,1);
+  }
+}
+// a pet trotting one step behind — drawn by the CALLER at the follow position, because a pet that
+// overlaps its owner is a bag
+function drawRsPet(g,x,gy,day,pid,now){
+  if(pid==null) return;
+  var h=iceHash(pid^0x9a71);
+  if(h%11!==0) return;
+  var hop=(Math.sin(now/240+(h%10))>0)?1:0;
+  g.fillStyle=day?RS_PET_C[(h>>>7)%RS_PET_C.length]:"#20202a";
+  g.fillRect(x,gy-3-hop,4,2); g.fillRect(x+3,gy-4-hop,2,2); g.fillRect(x-1,gy-3-hop,1,1);
+  g.fillStyle=day?"rgba(28,24,22,0.8)":"rgba(8,8,14,0.85)";
+  g.fillRect(x,gy-1,1,1); g.fillRect(x+3,gy-1,1,1);
+}
+// ---- XP DROPS ----------------------------------------------------------------------------------
+// 🔒 Chosen over a corner HUD: the one piece of this game's interface that lives IN the world rather
+// than over it, so it costs the landscape nothing and puts no minimap on his wallpaper.
+// 🔑 IT RISES AND FADES. A static number is a label; a number that drifts up and thins out is a thing
+// that just HAPPENED, which is the entire information content of an XP drop.
+function drawXpDrop(g,x,gy,f,amt,night){
+  if(f<0||f>1) return;
+  var t=""+amt, w=t.length*4, a=1-f;
+  if(a<=0.06) return;
+  drawUiText(g,t,x-(w>>1),gy-12-Math.round(f*11),night?"rgba(240,232,170,"+a.toFixed(2)+")":"rgba(232,206,60,"+a.toFixed(2)+")",1);
+}
+function drawRsFigure(g,x,gy,K,col,day,pose,facing,tier,pid){
   // FEET LAND ON `gy`: drawPerson's shoes are the row at y+2, so it is seated two above the ground
   // line. Every caller here passes a ground line, not a baseline.
   var y=gy-2;
@@ -31799,6 +31848,7 @@ function drawRsFigure(g,x,gy,K,col,day,pose,facing,tier){
   // half the stride. On a STANDING figure the phase is chosen inside drawPerson from that person's
   // own position and palette, so there is no other way to know it.
   var yy=y-PERSON_LIFT;
+  drawRsFlair(g,x,yy,day,facing,pid);               // cape and phat go on BEFORE the weapon, behind him
   // the weapon takes the SAME metal, so kit reads as one set rather than as a person holding a
   // borrowed sword — and the lit shade goes on the blade so it is not a black stick at every tier
   g.fillStyle=tier?tier.c:(day?"#8a8a96":"#3a3e52");
@@ -32184,7 +32234,7 @@ function drawRsBankCrowd(g,L,now,nd,fx){
     // ⚠ THEY STAND, THEY DO NOT WANDER. Bank standing is the whole joke: people who logged in to
     // play a game and are instead standing perfectly still shouting prices. `drawPerson`'s standing
     // sentinel already shifts their weight, so they are still alive without going anywhere.
-    drawRsFigure(g,sx,gy,K,col,day,"stand",((h>>>9)&1)?1:-1);
+    drawRsFigure(g,sx,gy,K,col,day,"stand",((h>>>9)&1)?1:-1,null,h);
     // 🚨 A PROBABILITY IS NOT A LIMIT — THIRD TIME BUBBLES HAVE COLLIDED HERE. "A third of them talk"
     // put five bubbles up to 88px wide inside an 83px crowd, and they printed over each other into an
     // unreadable white slab. The gate at the Falador gatehouse had the same shape, and so did the pair
@@ -32256,13 +32306,23 @@ function rsSkillSpots(){
   }
 }
 // the props. Small, fixed-size, and each one is the ONLY thing that says which skill this is.
-function drawSkillProp(g,x,gy,kind,day,beat,now){
+// 🔑🔑 NOTHING YOU GATHER STAYS GATHERED. That is the actual minute-to-minute texture of playing this
+// game and the thing a static prop can never say: you chop the tree and it becomes a STUMP, you mine
+// the rock and the ore goes out of it, and then you stand there waiting. `cyc` is 0..1 through one
+// deplete-and-respawn, so a spot is gone for part of every cycle and the skiller beside it is visibly
+// waiting rather than swinging at something that never changes.
+function drawSkillProp(g,x,gy,kind,day,beat,now,cyc){
+  var gone=(cyc!=null && cyc>0.62);                   // …roughly a third of the time it is not there
   if(kind==="tree"){
-    g.fillStyle=day?"#5a4028":"#241a12"; g.fillRect(x-1,gy-9,3,9);
+    g.fillStyle=day?"#5a4028":"#241a12";
+    if(gone){ g.fillRect(x-2,gy-3,5,3); g.fillStyle=day?"#8a6a48":"#2e2418"; g.fillRect(x-2,gy-3,5,1); return; }  // the stump, cut face up
+    g.fillRect(x-1,gy-9,3,9);
     g.fillStyle=day?"#2e6a34":"#12241a"; g.fillRect(x-5,gy-15,11,6); g.fillRect(x-3,gy-18,7,3);
   } else if(kind==="rock"){
     g.fillStyle=day?"#7c7a84":"#2a2c36"; g.fillRect(x-4,gy-5,9,5); g.fillRect(x-2,gy-7,5,2);
-    g.fillStyle=day?"#a08a5c":"#3a3222"; g.fillRect(x-1,gy-4,2,2);          // the ore in the face
+    // the ore is the only thing that goes: a mined rock is the SAME rock with nothing in it
+    g.fillStyle=gone?(day?"#4a4850":"#1a1c24"):(day?"#a08a5c":"#3a3222");
+    g.fillRect(x-1,gy-4,2,2);
   } else if(kind==="fire"){
     var fl=beat?1:0;
     g.fillStyle=day?"#4a3422":"#1c1410"; g.fillRect(x-4,gy-2,9,2);          // the logs
@@ -32336,15 +32396,23 @@ function drawRsSkillers(g,L,now,nd,fx){
       var pool=[]; for(var q=0;q<RS_SKILLS.length;q++) if(RS_SKILLS[q].at===kind) pool.push(RS_SKILLS[q]);
       if(!pool.length) continue;
       var sk=pool[(h>>>11)%pool.length];
-      // the float goes out OVER the water, the other props sit beside him on the bank he is standing on
-      drawSkillProp(g,sx+(kind==="water"?face*5:5),gy,kind,day,((now/380)|0)&1,now);
+      // 🐟 AND THE FISHING SPOT MOVES. It is the game's oldest running joke, and "THE SPOT MOVED" was
+      // already in these players' mouths before there was a spot to move — the line existed and the
+      // behaviour did not. It hops along the bank on its own clock and he has to follow it.
+      var cyc=(((now+((h>>>3)%17000))%17000)/17000);
+      var hop=(kind==="water")?Math.round(Math.sin(((now+((h>>>5)%9000))/9000)*Math.PI*2)*7):0;
+      // the float goes out OVER the water, the other props sit beside him on the bank he stands on
+      drawSkillProp(g,sx+(kind==="water"?face*5+hop:5),gy,kind,day,((now/380)|0)&1,now,cyc);
       // the swing: the tool arm rises and falls on a beat. One pixel of movement against a static
       // prop is all it takes — the same trick the goblins' step and the mill's sails use.
       var swing=((now/380+p)|0)&1;
       var col=RS_PLAYER_C[(h>>>17)%RS_PLAYER_C.length];
-      drawRsFigure(g,sx,gy,K,col,day,"stand",face);
+      drawRsFigure(g,sx,gy,K,col,day,"stand",face,null,h);
       g.fillStyle=day?"#6a5a3a":"#241f14";
       g.fillRect(sx+(face>0?3:-3),gy-7-(swing?2:0),1,swing?4:3);          // the tool, mid-stroke
+      // the xp for it — only while the resource is actually THERE, because a man swinging at a stump
+      // earns nothing, and that is the joke the cycle is telling
+      if(cyc<0.62 && swing) drawXpDrop(g,sx,gy,((now%760)/760),8+((h>>>9)%54),night);
       // 🎆 A LEVEL-UP IS RARE AND BRIEF, which is what makes catching one worth something. Roughly
       // one skiller in four is mid-level-up at any moment, for about a second and a half.
       var lper=17000+((h>>>13)%13000);
@@ -32382,6 +32450,73 @@ function drawRsSkillers(g,L,now,nd,fx){
 // and 3, and a fight that straddles a bezel is one fight.
 var RS_SAY_FIGHT=["EASY","LURING IT","GET IT","LOW HP!","ALMOST","NICE HIT","RUN!","HELP",
                   "MINE!","BACK OFF","GOOD DROP?","ANY DROP?"];
+// ---- THE ROOFTOP AGILITY COURSE ----------------------------------------------------------------
+// 📚 Varrock and Ardougne both canonically have one. 🚨 THE FIRST CUT READ THE TOWN'S PLOTS — `near.blds`
+// publish `_roofX`/`_roofY` and `rsBehindRoof` reads them, so laying the course on those looked like
+// reuse rather than invention. MEASURED: `roofs=0`. Those fields are published by the hidden-village
+// routines and by `drawRsBuilding`, and on these lands nothing in `near.blds` carries them.
+// 🔑🔑 WHICH ALSO MEANS `rsBehindRoof` HAS ALWAYS FOUND NOTHING — its own comment says the real fix
+// was PLACEMENT ("an adventurer stands IN FRONT of the thing he is visiting"), and that is what has
+// been doing the work all along. A dependency nobody had ever probed.
+// 🔑 SO THE COURSE OWNS ITS OBSTACLES, which is also what it is in the game: not "any roof", but a
+// laid-out set of platforms you go round. Self-contained, no reliance on another system's internals,
+// and it can be seated where it reads instead of wherever the plots happened to land.
+function rsCourseFrac(){ return (curRs==="varrock")?VK_SQUARE-0.055:AD_MARKET-0.060; }
+function rsCourse(){
+  var f0=rsCourseFrac(), n=6, out=[];
+  for(var i=0;i<n;i++){
+    var h=iceHash(i*4441^((WORLD_SEED*2654435761)>>>0));
+    var wx=Math.round((f0+i*0.0165)*WW);
+    out.push({ wx:wx,
+               w:Math.round(HORIZON*(0.030+((h>>>5)%3)*0.006)),
+               top:rsStandY(wx,0.50)-Math.round(HORIZON*(0.075+((h>>>11)%4)*0.014)) });
+  }
+  return out;
+}
+function drawRsCourse(g,day,K,P){
+  if(curRs!=="varrock"&&curRs!=="ardougne") return;
+  var C=rsCourse();
+  for(var i=0;i<C.length;i++){
+    var sx=disX(C[i].wx); if(sx<-40||sx>SW+40) continue;
+    var w=C[i].w, top=C[i].top, base=rsStandY(C[i].wx,0.50);
+    // a pier of scaffold under each platform, so it is standing on the ground and not hovering
+    g.fillStyle=day?"#6a5a44":"#241c14";
+    g.fillRect(sx-1,top,2,base-top);
+    g.fillRect(sx-w+2,top+Math.round((base-top)*0.45),w*2-4,Math.max(1,Math.round(K*0.8)));
+    g.fillStyle=day?"#8a7454":"#2e2418";                     // the platform itself
+    g.fillRect(sx-w,top-Math.round(2*K),w*2,Math.round(2*K));
+    g.fillStyle=day?"#a89070":"#3a2e1e";
+    g.fillRect(sx-w,top-Math.round(2*K),w*2,Math.max(1,Math.round(K)));
+  }
+}
+// …and the runners, in the LIVE pass
+function drawRsAgility(g,L,now,nd,fx){
+  if(curRs!=="varrock"&&curRs!=="ardougne") return;
+  var day=L>0.5, K=Math.max(1,KSP), seedW=(WORLD_SEED*2654435761)>>>0;
+  var C=rsCourse(); if(C.length<2) return;
+  for(var r=0;r<4;r++){
+    var h=iceHash(r*8887^seedW);
+    var per=17000+((h>>>7)%11000);
+    var ph=((now+((h>>>11)%per))%per)/per;
+    var fi=ph*(C.length-1);
+    var i0=Math.max(0,Math.min(C.length-2,Math.floor(fi)));
+    var t=fi-i0, A=C[i0], B=C[i0+1];
+    var ax=disX(A.wx), bx=disX(B.wx);
+    var x=Math.round(ax+(bx-ax)*t);
+    // 🔑 THE LEAP IS THE WHOLE READ. A runner who slides linearly between platforms is on a zipwire;
+    // he has to ARC — up off one edge, down onto the next.
+    var arc=Math.round(Math.sin(t*Math.PI)*8);
+    var y=Math.round(A.top+(B.top-A.top)*t)-arc-Math.round(2*K);
+    if(x<-10||x>SW+10) continue;
+    var airborne=(t>0.16&&t<0.84);
+    drawRsFigure(g,x,y,K,RS_PLAYER_C[(h>>>17)%RS_PLAYER_C.length],day,airborne?"stand":"walk",
+                 (bx>=ax)?1:-1,rsTier(h^0x77c3),h);
+    if(airborne){                                            // dust off the edge he pushed from
+      g.fillStyle=day?"rgba(200,194,182,0.5)":"rgba(120,124,140,0.32)";
+      g.fillRect(ax,A.top-Math.round(2*K)-1,2,1);
+    }
+  }
+}
 function drawRsFoes(g,L,now,nd,fx){
   if(!curRs) return;
   var day=L>0.5, night=(L<=0.5), K=Math.max(1,KSP);
@@ -32467,6 +32602,8 @@ function drawRsFoes(g,L,now,nd,fx){
         // the one people actually remember — it is what training magic looked like for a hundred hours.
         if(dmg===0&&style===2) drawSplash(g,lx+2,lyTop+4,((now%600)/600));
         else drawHitsplat(g,lx+3,lyTop-1,dmg);
+        // …and the xp for it, drifting off the one who landed it
+        if(dmg>0&&!defender) drawXpDrop(g,px,gy,((now%600)/600),dmg*4,night);
       }
       if(((now/2900+i)|0)%3===0)
         drawSpeechBubble(g,px,gy-11-((i%3)*4),
@@ -32479,6 +32616,16 @@ function drawRsFoes(g,L,now,nd,fx){
     if(loses){
       drawRsFoe(g,sx,gy,f,day,0);                     // it is still standing, which is the whole point
       drawRsDrop(g,sx-6,gy,vh,day,dropN);
+      // 🪦 A GRAVESTONE, because a pile of items is what a MONSTER leaves and a player leaves a marker.
+      // It is the difference between "something died here" and "somebody died here", and it is the only
+      // mark on these lands that is about a person rather than about loot.
+      var gsx=sx-6, gsy=gy;
+      g.fillStyle=day?"#a8a49a":"#3a3a44";
+      g.fillRect(gsx-2,gsy-6,5,6);
+      for(var ga2=0;ga2<3;ga2++) g.fillRect(gsx-2+ga2,gsy-7-(ga2===1?1:0),1,1);   // the rounded top
+      g.fillStyle=day?"#6a6860":"#22222a";
+      g.fillRect(gsx-1,gsy-5,1,3); g.fillRect(gsx+1,gsy-5,1,3);                    // a cross cut into it
+      g.fillRect(gsx-1,gsy-4,3,1);
     } else {
       drawRsDrop(g,sx,gy,vh,day,dropN);
       // the victor stays a moment to pick it up, then leaves — the pile outlives him by a little
@@ -32545,7 +32692,8 @@ function drawRsPlayers(g,L,now,nd,fx){
       var walk=Math.min(1,t/0.30);
       var fromX=sx-Math.round(spread*(((vh>>>11)%2)?1:-1));
       var px=Math.round(fromX+(sx-fromX)*walk);
-      drawRsFigure(g,px,gy,K,col,day,walk<1?"walk":"stand",sx>fromX?1:-1,ptier);
+      drawRsFigure(g,px,gy,K,col,day,walk<1?"walk":"stand",sx>fromX?1:-1,ptier,vh);
+        drawRsPet(g,px-(sx>fromX?6:-6),gy,day,vh,now);
       if(walk>=1){
         // the quest giver: a still, drab figure that was already here. Adventurers move; the world does not.
         // ⚠ FIVE PIXELS, NOT `5*K` — the gap between two people is measured in people. At his KSP that
@@ -32568,8 +32716,8 @@ function drawRsPlayers(g,L,now,nd,fx){
       // are smaller than the people around it. At `7*K` and `1.4*K` the pair stood a body-width apart
       // over a heap of 3px boulders.
       var ox=6;
-      drawRsFigure(g,sx-ox,gy,K,col,day,"stand",1,ptier);
-      drawRsFigure(g,sx+ox,gy,K,RS_PLAYER_C[(vh>>>23)%RS_PLAYER_C.length],day,"stand",-1,rsTier((vh>>>11)^0x77f1));
+      drawRsFigure(g,sx-ox,gy,K,col,day,"stand",1,ptier,vh);
+      drawRsFigure(g,sx+ox,gy,K,RS_PLAYER_C[(vh>>>23)%RS_PLAYER_C.length],day,"stand",-1,rsTier((vh>>>11)^0x77f1),vh^0x3311);
       var items=3+((vh>>>25)%4);
       for(var it=0;it<items;it++){
         var ih=((it*40503)^vh)>>>0;
@@ -32590,7 +32738,9 @@ function drawRsPlayers(g,L,now,nd,fx){
       var span=HORIZON*1.2, dir=((vh>>>3)%2)?1:-1;
       var rx=Math.round(sx+dir*(t-0.5)*span);
       if(rx<-20||rx>SW+20) continue;
-      drawRsFigure(g,rx,rsStandY(wx+dir*(t-0.5)*span,d),K,col,day,"walk",dir,ptier);
+      var rgy=rsStandY(wx+dir*(t-0.5)*span,d);
+      drawRsFigure(g,rx,rgy,K,col,day,"walk",dir,ptier,vh);
+      drawRsPet(g,rx-dir*6,rgy,day,vh,now);
     } else {
       // ---- TELEPORTING SOMEWHERE: the effect's real job. He walks, he gets bored of walking, and he
       // goes the rest of the way instantly — which is exactly what the spell is for and exactly what
@@ -52783,6 +52933,7 @@ function draw(g,pass){
   drawLumbridgeLive(g,L,now,nd,fx);  // …and on the river meadow: the sails, the cattle, the goblins, the glitter
   drawFaladorLive(g,L,now,nd,fx);    // …and in the white city: the fountain, the forge and the flock
   drawArdougneLive(g,L,now,nd,fx);   // …the braziers west of the wall, and a clock telling the real time
+  drawRsAgility(g,L,now,nd,fx);      // …and above the street on two of them, the rooftop course
   drawRsNpcs(g,L,now,nd,fx);         // …on ALL FOUR: the knights, guards and monks who LIVE there
   drawRsFoes(g,L,now,nd,fx);         // …on ALL FOUR: what lives out there, and the fights over it
   drawRsSkillers(g,L,now,nd,fx);     // …the ones at a rock or a fire, grinding a level
