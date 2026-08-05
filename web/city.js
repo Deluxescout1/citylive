@@ -32154,7 +32154,8 @@ function drawRsFoes(g,L,now,nd,fx){
       var watchers=(f.sz?2:0)+(((vh>>>9)%3===0)?1:0);
       for(var wq=0;wq<watchers;wq++){
         var wh2=((vh>>>(wq*4+3))>>>0);
-        drawRsFigure(g,px-6-wq*5,gy,K,RS_PLAYER_C[wh2%RS_PLAYER_C.length],day,"stand",1);
+        // the crowd at a fight are adventurers too — untiered they read as townsfolk who wandered in
+        drawRsFigure(g,px-6-wq*5,gy,K,RS_PLAYER_C[wh2%RS_PLAYER_C.length],day,"stand",1,rsTier(wh2^0x31af));
       }
       // the health bar rides the LOSER, which is what makes "players can lose" legible without a word
       var lx=loses?px:sx, lyTop=gy-(loses?10:(f.h+7));
