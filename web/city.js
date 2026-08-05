@@ -29872,15 +29872,38 @@ function drawFaladorLive(g,L,now,nd,fx){
 // ⚠ …AND THE WHOLE THING IS DRIVEN IN WORLD X. The roof runners on the hidden village were indexed by
 // a SCREEN-space list and the same runner leapt in three different places on three monitors. That is
 // the fourth costume of this fault; it is not getting a fifth.
-var RS_PLAYER_C=[[196,58,52],[58,96,196],[212,168,52],[86,168,86],[168,86,196],[224,224,228],
-                 [58,168,168],[224,120,52],[124,124,132],[152,52,96]];
-// what they say while they are standing about. Short — a bubble wider than a shop is a UI element,
+// ⚠ HEX STRINGS, NOT RGB TRIPLES — `drawPerson` indexes its hair, its pants and a standing person's
+// own weight-shift phase out of `cloth.charCodeAt(…)`, so the palette an adventurer wears has to be
+// the same KIND of value every other citizen's is. (`pantsOf` checks for a leading `#` and falls
+// back to the colour unchanged, so a triple would have silently given every player black trousers.)
+var RS_PLAYER_C=["#c43a34","#3a60c4","#d4a834","#56a856","#a856c4","#e0e0e4",
+                 "#3aa8a8","#e07834","#7c7c84","#983460"];
+// What they say while they are standing about. Short — a bubble wider than a shop is a UI element,
 // not a person talking.
+//
+// 🔑 THESE ARE PLAYERS, NOT PEASANTS. Nick, 2026-08-05: *"the players for the OSRS maps must talk
+// about stuff normal players would talk about."* The first cut was in-world quest chatter — "ALMOST
+// DONE", "ON MY WAY" — which is what an NPC says. What an actual player says is half commerce and
+// half nonsense: prices per unit, congratulations on a level nobody asked about, world numbers, and
+// the two immortal ones — begging, and offering to trim your armour. That register is the single
+// cheapest thing that makes the land read as the GAME rather than as a medieval village, and it is
+// consistent with his decision to name the cities outright.
+// ⚠⚠ EVERY GLYPH HERE EXISTS IN `FONT`. It has 47: space ! % ' + , - . / 0-9 : ? A-Z — no dollar, no
+// brackets, no asterisk. `drawUiText` falls back to the SPACE glyph for anything else, so an unknown
+// character does not throw and does not even misalign; it renders as a hole at exactly the right
+// width and reads as a typo. That is how the missing `?` and `'` survived 509 scenes unnoticed. A new
+// string with a `(` in it would fail the same silent way, so the set is CHECKED, not assumed.
 var RS_QUEST_SAY=["ANY QUESTS LEFT?","NEED 3 MORE","GOT THE AMULET","WHERE'S THE COOK?","FIRST TRY!",
                   "IS IT SAFE DOWN THERE?","I NEED A ROPE","ALMOST DONE","TAKING THE LONG WAY",
-                  "WHO HAS SPARE ORE?","ON MY WAY","BE THERE IN A SEC"];
+                  "WHO HAS SPARE ORE?","ON MY WAY","BE THERE IN A SEC","MY CAT RAN OFF AGAIN",
+                  "LVL 3 SKILLER BTW","GRATS ON 99!","ANYONE DOING BARROWS?","W2 PARTY ROOM",
+                  "WORLD HOPPING, BRB","CAN I HAVE FREE STUFF","PLS GIVE 10GP","I'LL TRIM YOUR ARMOUR",
+                  "FREE ARMOUR TRIMMING","NICE BANK","LOL NOOB","PK?","ANY1 WANNA DUEL",
+                  "DROP PARTY AT W1","HOW DO I GET OUT","BUYING GF","JUST ONE MORE LEVEL"];
 var RS_TRADE_SAY=["TRADE?","ACCEPTED","2K FOR IT","NICE DOING BUSINESS","THAT'S FAIR","ADDING ONE MORE",
-                  "DEAL","THANKS!","GOT ANY MORE?","SOLD"];
+                  "DEAL","THANKS!","GOT ANY MORE?","SOLD","PRICE CHECK?","THAT'S A SCAM","DECLINED",
+                  "5K MIN, FINAL","300EA, BULK ONLY","SWAP FOR MY RUNE?","BUYING ALL YOURS",
+                  "SELLING YEW LOGS","NO LOWBALLS","1GP OFF? REALLY"];
 // where an adventurer stands about on each land: the named places, because that is where quests are.
 function rsHaunts(){
   switch(curRs){
@@ -29890,30 +29913,44 @@ function rsHaunts(){
 }
 // ⚠ ONE FIGURE, ONE ROUTINE, EVERY BEHAVIOUR. Two copies of "draw a little person" is how the two
 // halves of a trade end up different heights.
+// 🚨🚨 …AND THE ROUTINE IS `drawPerson`, THE WORLD'S OWN. Nick, 2026-08-05: *"they need to be the
+// size of everyone else in the world they are Giants right now."* This drew its OWN figure at
+// `8.2*K` tall by `3.0*K` wide with `K=max(1,KSP)` — so on his desktop, where KSP runs 2–3, an
+// adventurer stood 18–25px next to a 7px citizen, and got taller every time the screen got bigger.
+// 🔑🔑 **A PERSON IN THIS ENGINE IS A FIXED 7px AND IS NEVER SCALED BY RESOLUTION.** There is no `K`
+// anywhere in `drawPerson`. Any routine that draws its own human and multiplies by K is not slightly
+// off, it is off by a DIFFERENT amount on every machine — which is why this could not be fixed by
+// picking a smaller multiplier. It is the third costume of one fault: the mountain sprites read
+// `MSC` ("at Nick's KSP=3…"), then the animals ("at Nick's KSP=2 the animals ran at 1.7x while
+// people stayed at 1x"), now the adventurers.
+// 🔒 SO THERE IS NO SECOND KIND OF HUMAN HERE. An adventurer IS a citizen — same routine, same seven
+// pixels, same walk cycle, same weight-shift when standing about, same hats and bags — and what
+// makes him an adventurer is the bright cloak colour and the weapon on his back, two marks hung on
+// the pixels `drawPerson` just used. `K` stays in the signature only because the teleport still
+// takes it; it must never again touch the body.
 function drawRsFigure(g,x,gy,K,col,day,pose,facing){
-  var h=Math.max(6,Math.round(8.2*K)), w=Math.max(3,Math.round(3.0*K));
-  var body=day?col:mixc(col,[16,20,40],0.55);
-  var skin=day?[228,190,152]:[96,84,80];
-  g.fillStyle=css(body);
-  g.fillRect(x-(w>>1),gy-h+Math.round(2*K),w,h-Math.round(2*K));
-  g.fillStyle=css(skin);
-  g.fillRect(x-(w>>1)+(facing>0?Math.round(K*0.3):-Math.round(K*0.3))|0,gy-h,w,Math.round(2.2*K));
-  // legs: a stride when walking, together when standing. One pixel of difference and the eye reads
-  // motion — the same trick the goblins and the roof runners use.
-  g.fillStyle=day?"rgba(48,46,58,1)":"rgba(12,14,26,1)";
-  if(pose==="walk"){
-    g.fillRect(x-(w>>1)-Math.round(K*0.4),gy-Math.round(1.6*K),Math.max(1,Math.round(K)),Math.round(1.6*K));
-    g.fillRect(x+(w>>1)-Math.round(K*0.6),gy-Math.round(1.2*K),Math.max(1,Math.round(K)),Math.round(1.2*K));
-  } else {
-    g.fillRect(x-(w>>1),gy-Math.round(1.4*K),Math.max(1,Math.round(K)),Math.round(1.4*K));
-    g.fillRect(x+(w>>1)-Math.round(K),gy-Math.round(1.4*K),Math.max(1,Math.round(K)),Math.round(1.4*K));
-  }
-  // a weapon on the back for about half of them — the one mark that separates an adventurer from a
-  // townsperson at six pixels tall
-  if(pose!=="tele"){
-    g.fillStyle=day?"rgba(120,120,132,1)":"rgba(40,44,60,1)";
-    g.fillRect(x-(w>>1)-Math.round(K*0.8),gy-h+Math.round(K),Math.max(1,Math.round(K*0.7)),Math.round(3.4*K));
-  }
+  // FEET LAND ON `gy`: drawPerson's shoes are the row at y+2, so it is seated two above the ground
+  // line. Every caller here passes a ground line, not a baseline.
+  var y=gy-2;
+  // The walk frame comes from the clock and the position — never accumulated, so his three monitors
+  // agree on which leg is forward. `-1` is the STANDING sentinel: a standing person shifts their
+  // weight rather than freezing, which is the whole reason that sentinel exists.
+  var bob=(pose==="walk")?((Math.floor(FRAME_NOW/190)+(x>>1))&3):-1;
+  var skin=SKINC[(((x*2654435761)>>>0)+col.charCodeAt(3))%SKINC.length];
+  drawPerson(g,x,y,col,skin,bob);
+  if(pose==="tele") return;                        // still materialising — the kit arrives with him
+  // THE WEAPON ON THE BACK — the one mark that separates an adventurer from a townsperson at seven
+  // pixels tall, and it has to sit OUTSIDE the 4px body (drawPerson's arms already own x-1 and x+2).
+  // ⚠ IT STARTS AT THE SHOULDER ROW, NOT THE FACE ROW. drawPerson is four pixels wide at the
+  // shoulders and only TWO at the head, so a bar running up to face height has a 1px hole beside its
+  // top pixel and reads as a floating stick rather than as something he is carrying.
+  // 🔑 Hung off `PERSON_LIFT`, which drawPerson publishes precisely for this: on a walking figure the
+  // body rises a pixel on two frames of four, and a weapon that does not rise with it detaches for
+  // half the stride. On a STANDING figure the phase is chosen inside drawPerson from that person's
+  // own position and palette, so there is no other way to know it.
+  var yy=y-PERSON_LIFT;
+  g.fillStyle=day?"#8a8a96":"#3a3e52";
+  g.fillRect(x+(facing>0?-2:3),yy-2,1,4);
 }
 // THE TELEPORT. `f` 0..1 across the whole effect: a column of light that opens, a figure that fades
 // in inside it, and rings that fall away. ⚠ DRAWN WITH `lighter` LIKE EVERY OTHER GLOW IN THIS
@@ -29924,27 +29961,33 @@ function drawRsTeleport(g,x,gy,K,f,day,col){
   // things fix it and all three are about SIZE, not brightness: a column wide enough to contain the
   // figure, a bright disc on the ground where it lands, and rings that are wider than the column.
   // A 2px vertical streak at any alpha is a rendering artefact to the eye.
-  var h=Math.round(HORIZON*0.115);
+  // ⚠⚠ MEASURED IN PEOPLE, NOT IN `HORIZON` AND NOT IN `K`. This was `HORIZON*0.115` tall and `7*K`
+  // wide, which on his panels is a column of light around 115px high standing over a man who is
+  // SEVEN — the effect was sized for the giant it used to contain. An effect whose whole job is to
+  // say "a person arrived HERE" has to be scaled to the person, so `RS_PH` is the unit and the
+  // numbers below are multiples of a human: three tall, one wide, a disc two wide at his feet.
+  var RS_PH=7;
+  var h=RS_PH*3;
   var open=Math.min(1,f*2.6), fade=Math.max(0,1-Math.max(0,(f-0.55))*2.2);
   var a=Math.max(0,Math.min(1,open*fade));
   if(a<=0.02) return;
-  var w=Math.max(4,Math.round(7*K*open));
+  var w=Math.max(4,Math.round(RS_PH*open));
   g.globalCompositeOperation="lighter";
   g.fillStyle=day?"rgba(140,180,255,"+(0.40*a).toFixed(3)+")":"rgba(120,170,255,"+(0.60*a).toFixed(3)+")";
   g.fillRect(x-(w>>1),gy-h,w,h);
   g.fillStyle=day?"rgba(230,244,255,"+(0.55*a).toFixed(3)+")":"rgba(220,238,255,"+(0.75*a).toFixed(3)+")";
-  g.fillRect(x-Math.max(1,Math.round(K*1.2)),gy-h,Math.max(2,Math.round(2.4*K)),h);
+  g.fillRect(x-1,gy-h,2,h);
   // the landing disc: the mark that says the column has a FOOT and is standing on the ground
   var dw=Math.round(w*1.9);
   g.fillStyle=day?"rgba(200,226,255,"+(0.5*a).toFixed(3)+")":"rgba(180,214,255,"+(0.6*a).toFixed(3)+")";
-  g.fillRect(x-(dw>>1),gy-Math.max(1,Math.round(K)),dw,Math.max(1,Math.round(1.6*K)));
+  g.fillRect(x-(dw>>1),gy-1,dw,2);
   // three rings falling down the column, evenly spaced in PHASE but not in space, so it reads as
   // motion rather than as a ladder
   for(var r=0;r<3;r++){
     var rf=((f*2.2+r/3)%1);
     var ry=gy-h+rf*h, rw=Math.round(w*(1.0+rf*1.5));
     g.fillStyle="rgba(200,226,255,"+(0.55*a*(1-rf)).toFixed(3)+")";
-    g.fillRect(x-(rw>>1),ry|0,rw,Math.max(1,Math.round(1.3*K)));
+    g.fillRect(x-(rw>>1),ry|0,rw,1);
   }
   g.globalCompositeOperation="source-over";
 }
@@ -30012,32 +30055,41 @@ function drawRsPlayers(g,L,now,nd,fx){
       drawRsFigure(g,px,gy,K,col,day,walk<1?"walk":"stand",sx>fromX?1:-1);
       if(walk>=1){
         // the quest giver: a still, drab figure that was already here. Adventurers move; the world does not.
-        drawRsFigure(g,sx+Math.round(5*K),gy,K,[150,140,120],day,"stand",-1);
+        // ⚠ FIVE PIXELS, NOT `5*K` — the gap between two people is measured in people. At his KSP that
+        // put the quest giver 15px from a man 4px wide, i.e. across the street rather than in
+        // conversation with him. Everything hung on a figure below is in the same unit for the same reason.
+        drawRsFigure(g,sx+5,gy,K,"#968c78",day,"stand",-1);
         // ⚠ TWO BUBBLES OVERPRINTED AT THE GATE — two adventurers a few px apart, both talking, both
         // at the same height. The engine already has a lane allocator for BANNERS (`notifLane`) and
         // nothing equivalent for bubbles; the cheap version is enough here: stagger the height by slot
         // and let fewer of them talk at once, so a crowd murmurs rather than shouting in chorus.
         if(((now/2600+i)|0)%3===0)
-          drawSpeechBubble(g,px,gy-Math.round(9*K)-((i%3)*Math.round(4.5*K)),
+          drawSpeechBubble(g,px,gy-9-((i%3)*4),
                            RS_QUEST_SAY[((vh>>>19)+Math.floor(now/5200))%RS_QUEST_SAY.length],night);
       }
     } else if(kind<=6){
       // ---- TRADING: two players facing each other with the goods stacked between them. The PILE is
       // the recognisable part — not the pair, the heap of loose items on the ground between them.
-      var ox=Math.round(7*K);
+      // 🔑 SIX PIXELS APART, ITEMS ONE PIXEL EACH. Two traders stand an arm's length apart and the goods
+      // between them are single pixels, because the pile is only legible as a PILE if the things in it
+      // are smaller than the people around it. At `7*K` and `1.4*K` the pair stood a body-width apart
+      // over a heap of 3px boulders.
+      var ox=6;
       drawRsFigure(g,sx-ox,gy,K,col,day,"stand",1);
       drawRsFigure(g,sx+ox,gy,K,RS_PLAYER_C[(vh>>>23)%RS_PLAYER_C.length],day,"stand",-1);
       var items=3+((vh>>>25)%4);
       for(var it=0;it<items;it++){
         var ih=((it*40503)^vh)>>>0;
-        var ix=sx-Math.round(3*K)+((ih%Math.max(1,Math.round(6*K))));
-        var iy=gy-Math.round(K)-((ih>>>9)%Math.max(1,Math.round(2.4*K)));
-        var ic=[[212,180,60],[190,196,204],[120,196,120],[196,86,196]][(ih>>>13)%4];
-        g.fillStyle=day?css(ic):css(mixc(ic,[16,20,40],0.5));
-        g.fillRect(ix,iy,Math.max(1,Math.round(1.4*K)),Math.max(1,Math.round(1.4*K)));
+        var ix=sx-3+(ih%7);
+        var iy=gy-1-((ih>>>9)%3);
+        // gold, steel, a herb, a rune — pre-mixed for night rather than blended per pixel, because a
+        // single-pixel item is drawn seven times a frame and there is no colour maths worth doing for it
+        g.fillStyle=(day?["#d4b43c","#bec4cc","#78c478","#c456c4"]
+                        :["#726432","#676c7a","#446c50","#6a3576"])[(ih>>>13)%4];
+        g.fillRect(ix,iy,1,1);
       }
       if(((now/3100+i)|0)%3===1)
-        drawSpeechBubble(g,sx-ox,gy-Math.round(9*K)-((i%3)*Math.round(4.5*K)),
+        drawSpeechBubble(g,sx-ox,gy-9-((i%3)*4),
                          RS_TRADE_SAY[((vh>>>15)+Math.floor(now/6100))%RS_TRADE_SAY.length],night);
     } else {
       // ---- PASSING THROUGH: running the road, because most of the world is in transit. A player who
