@@ -29064,13 +29064,21 @@ function drawLumbridge(g,L,now,nd){
     var _pd=lumPaddock(), pw=_pd.w, pyF=_pd.f, pyB=_pd.b;
     g.fillStyle=day?"rgba(122,162,66,0.55)":"rgba(20,28,30,0.45)";
     g.fillRect(cwx-pw,pyB,pw*2,pyF-pyB);                            // the cropped grass inside it
+    // ⚠ THE FENCE WAS THE LOUDEST THING ON SCREEN 1. Nick: *"the paddock fence dominates screen 1."*
+    // It is BACKGROUND — the subject is the cattle inside it and the mill beyond — and it was drawn in
+    // full-strength timber at nearly a pixel and a half a post, so it out-shouted both. A fence states
+    // an enclosure; it does not need to be legible plank by plank to do that.
+    // 🔑 THINNED AND LIGHTENED TOWARD THE GRASS, and the posts spaced further apart. Same lesson as the
+    // ridge highlight on Ice Mountain: an unbroken hard line at full contrast is the outline of a
+    // cut-out, and a fence is nothing but hard lines.
+    var railC=day?mixc(woodC,P.grass,0.34):nite(mixc(woodC,P.grass,0.28),0.72);
     for(var rail=0;rail<2;rail++){
-      var ry2=rail?pyF:pyB, rh3=Math.round(HORIZON*(rail?0.030:0.020));
-      g.fillStyle=css(day?woodC:nite(woodC,0.7));
-      for(var fp=-pw;fp<=pw;fp+=Math.round(HORIZON*(rail?0.038:0.030)))
-        g.fillRect(cwx+fp,ry2-rh3,Math.max(1,Math.round(K*0.9)),rh3);
+      var ry2=rail?pyF:pyB, rh3=Math.round(HORIZON*(rail?0.024:0.016));
+      g.fillStyle=css(railC);
+      for(var fp=-pw;fp<=pw;fp+=Math.round(HORIZON*(rail?0.052:0.042)))
+        g.fillRect(cwx+fp,ry2-rh3,Math.max(1,Math.round(K*0.6)),rh3);
       for(var fr=0;fr<2;fr++)
-        g.fillRect(cwx-pw,ry2-Math.round(rh3*(fr?0.4:0.85)),pw*2,Math.max(1,Math.round(K*0.7)));
+        g.fillRect(cwx-pw,ry2-Math.round(rh3*(fr?0.4:0.85)),pw*2,Math.max(1,Math.round(K*0.45)));
     }
   }
   // ---- THE SHOPS east of the bridge: the general store, the axe shop and two market stalls.
@@ -29231,7 +29239,12 @@ function drawLumChurch(g,cx,day,K,stone,stoneL,stoneD,woodC,L){
   // ⚠ SEATED AT 0.44 AND SIZED AT 0.115 OF THE BAND, IT WAS A MODEL IN A FIELD. Everything on this
   // land was pitched at Hyrule's distances, where a castle carries the frame from far back; here the
   // named places are the ONLY content on two of the three monitors, so they come forward and grow.
-  var base=rsStandY(LB_CHURCH*WW,0.50);
+  // 🚨 AND IT WAS STILL HALF BEHIND THE TOWN AT 0.50. The band's usable field is d 0.10–0.58 because
+  // the town's roofs eat the bottom 40% — but "usable" is where a thing can be SEEN AT ALL, not where
+  // a LANDMARK belongs. A church is supposed to be the second thing you find on this land, and at 0.50
+  // you found its spire and nothing else. Landmarks go in the upper half of the usable band; only
+  // furniture belongs at its foot.
+  var base=rsStandY(LB_CHURCH*WW,0.34);
   var nw=Math.round(HORIZON*0.175), nh=Math.round(HORIZON*0.115);      // the nave
   var tw=Math.round(HORIZON*0.062), th=Math.round(HORIZON*0.250);      // the square tower
   var x0=cx-(nw>>1);
@@ -29415,8 +29428,24 @@ function drawLumTollGate(g,cx,day,K,stone,stoneL,stoneD,L){
   }
   g.fillStyle=css(day?stone:nite(stone,0.68));                    // the span over the road
   g.fillRect(cx-Math.round(gw*0.5)-tw,base-gh,gw+tw*2,Math.round(gh*0.22));
-  g.fillStyle=day?"rgba(38,34,30,0.9)":"rgba(8,8,14,0.92)";       // the dark opening
-  g.fillRect(cx-Math.round(gw*0.34),base-Math.round(gh*0.62),Math.round(gw*0.68),Math.round(gh*0.62));
+  // 🔑 AN ARCH, NOT A SQUARE HOLE. A rectangular opening in a stone wall is a DOORWAY; the round head
+  // is the single mark that makes it a gate you ride through, and every other opening on these four
+  // lands already has one — the castle, the party room, the mine, the wall. This was the last square
+  // one, which is exactly why it looked like a hole rather than a gate.
+  g.fillStyle=day?"rgba(38,34,30,0.9)":"rgba(8,8,14,0.92)";
+  var ow=Math.round(gw*0.68), ox=cx-Math.round(gw*0.34), oh=Math.round(gh*0.62);
+  var spring=Math.round(oh*0.62);                                 // the arch springs from here up
+  g.fillRect(ox,base-spring,ow,spring);
+  for(var a2=0;a2<Math.round(ow*0.5);a2++){
+    var aw3=Math.round(ow*Math.sqrt(Math.max(0,1-Math.pow(a2/(ow*0.5),2))));
+    g.fillRect(ox+((ow-aw3)>>1),base-spring-a2,aw3,1);
+  }
+  g.fillStyle=css(day?stoneL:nite(stoneL,0.66));                  // voussoirs around the head
+  for(var v2=0;v2<Math.round(ow*0.5);v2++){
+    var vw=Math.round(ow*Math.sqrt(Math.max(0,1-Math.pow(v2/(ow*0.5),2))));
+    g.fillRect(ox+((ow-vw)>>1)-Math.max(1,Math.round(K)),base-spring-v2,Math.max(1,Math.round(K)),1);
+    g.fillRect(ox+((ow-vw)>>1)+vw,base-spring-v2,Math.max(1,Math.round(K)),1);
+  }
 }
 // ---- THE SWAMP, THE CAVE AND THE GOBLIN CAMP -------------------------------------------------
 function drawLumSwamp(g,cx,day,K,now,L){
@@ -29432,6 +29461,7 @@ function drawLumSwamp(g,cx,day,K,now,L){
   // draws solids; column-major fill draws ground.
   var swTop=rsStandY(LB_SWAMP*WW,0.34), swDeep=day?[58,72,44]:mixc([58,72,44],[14,18,38],0.66);
   var swNear=day?[42,56,34]:mixc([42,56,34],[14,18,38],0.70);
+  g.fillStyle=css(swDeep);                                          // set ONCE for the whole span
   for(var sxx=-(w>>1);sxx<=(w>>1);sxx++){
     var SX=cx+sxx; if(SX<0||SX>=SW) continue;
     var e=Math.abs(sxx)/(w*0.5);                                    // 0 at the middle, 1 at the margins
@@ -29445,10 +29475,26 @@ function drawLumSwamp(g,cx,day,K,now,L){
     if(ty2>=HORIZON) continue;
     var a=Math.max(0,Math.min(1,(1-e)*1.35));                       // …and it fades out rather than stopping
     g.globalAlpha=a;
-    g.fillStyle=css(swDeep); g.fillRect(SX,ty2,1,HORIZON-ty2+1);
-    g.fillStyle=css(swNear); g.fillRect(SX,HORIZON-Math.round(HORIZON*0.05),1,Math.round(HORIZON*0.05)+1);
+    g.fillRect(SX,ty2,1,HORIZON-ty2+1);
     g.globalAlpha=1;
   }
+  // ⚡ THE SECOND COLOUR IS ITS OWN PASS. Both fills in this loop used CONSTANT colours and both were
+  // re-assigned on every one of ~SW columns — around 900 redundant `fillStyle` writes per repaint on
+  // the bg pass, for two values that never changed. This was the last of Lumbridge's open items and
+  // the THIRD instance of the run-batch fault: the road body cost +5.4ms and the castle ashlar +9ms
+  // before they were flushed on profile CHANGE rather than per column.
+  // 🔑 Two colours across one span is two passes, not one pass that keeps changing its mind.
+  g.fillStyle=css(swNear);
+  var nearH=Math.round(HORIZON*0.05);
+  for(var sxn=-(w>>1);sxn<=(w>>1);sxn++){
+    var SXN=cx+sxn; if(SXN<0||SXN>=SW) continue;
+    var en=Math.abs(sxn)/(w*0.5);
+    var wobn=Math.sin((SXN+WOFF)*0.055)*HORIZON*0.012+Math.sin((SXN+WOFF)*0.017+1.3)*HORIZON*0.020;
+    if(Math.round(swTop+wobn*1.6)>=HORIZON) continue;
+    g.globalAlpha=Math.max(0,Math.min(1,(1-en)*1.35));
+    g.fillRect(SXN,HORIZON-nearH,1,nearH+1);
+  }
+  g.globalAlpha=1;
   // horizontal water streaks: the mark that says WET. Long, thin, level — anything on a water surface
   // lies flat, and this is the cue the first two cuts of this feature had none of.
   for(var wk=0;wk<26;wk++){
