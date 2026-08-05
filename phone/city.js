@@ -30606,7 +30606,17 @@ function drawSkillProp(g,x,gy,kind,day,beat,now){
     g.fillStyle=day?"#c8c4b8":"#2e2e34"; g.fillRect(x-5,gy-6,11,6);
     g.fillStyle=day?"#e8e2d0":"#3a3a42"; g.fillRect(x-6,gy-8,13,2);
   } else if(kind==="water"){
-    g.fillStyle=day?"rgba(96,150,190,0.9)":"rgba(24,40,66,0.9)"; g.fillRect(x-7,gy-1,15,3);
+    // 🚨🚨 THIS USED TO DRAW ITS OWN PATCH OF WATER — a 15px blue bar under the fisherman's feet, in
+    // the middle of a grass field, while the actual River Lum ran a hundred pixels away. It was the
+    // only prop in this list that invented something the LAND ALREADY HAS, and inventing it is what
+    // put the fisherman nowhere near it. (The bubble over him read "THE SPOT MOVED", which was true.)
+    // 🔑 A PROP MAY ONLY CONJURE WHAT THE PLAYER BROUGHT WITH HIM. A fire, a rock he found, an anvil,
+    // an altar — those are objects at a location. Water is TERRAIN, and terrain is the land's to draw;
+    // the fisherman has to be taken to it rather than have a copy of it drawn under him.
+    // So all that is left here is what he actually adds: a float, sitting on water that is real.
+    g.fillStyle=day?"#e8e4dc":"#5a6472"; g.fillRect(x,gy-1,1,1);
+    g.fillStyle=day?"rgba(210,230,245,0.75)":"rgba(120,150,190,0.5)";
+    g.fillRect(x-2,gy,5,1);                                   // the ring it makes
   }
 }
 // 🎆 THE LEVEL-UP. In the game this is fireworks around your character and a line in the chatbox, and
@@ -30636,23 +30646,37 @@ function drawRsSkillers(g,L,now,nd,fx){
     for(var p=0;p<cnt;p++){
       var h=iceHash((si*31+p)*2654435761^seedW);
       var off=Math.round((((h%1000)/1000)-0.5)*HORIZON*0.16);
-      var wx=wx0+off, sx=wx-WOFF;
+      var wx=wx0+off, dpt=0.60+((h>>>21)%50)/1000, face=1;
+      // ⚠ A FISHERMAN IS SEATED BY THE WATER, NOT BY A FRACTION. Every other skill spot is a point on
+      // the land, so an anchor plus a scatter is the right way to place it — but the river is a
+      // CHANNEL that wanders in x as it comes toward us, and its position at this depth is a thing the
+      // land already knows. Scattering around 0.545 put him on the grass beside a puddle I had drawn
+      // for him. `lumRiverCX` answers where the water is at a given y; he stands on its bank facing it.
+      if(kind==="water"){
+        if(curRs!=="lumbridge") continue;                     // only this land draws a river of its own
+        var gy0=rsStandY(LB_RIVER*WW,dpt);
+        var side=((h>>>3)&1)?1:-1;
+        wx=lumRiverCX(gy0)+side*(lumRiverHalf(gy0)+2+((h>>>5)%3));
+        face=-side;                                           // …and he faces the water, not away from it
+      }
+      var sx=wx-WOFF;
       if(sx<-WW*0.5) sx+=WW; if(sx>WW*0.5) sx-=WW;
       if(sx<-24||sx>SW+24) continue;
-      var gy=rsStandY(wx,0.60+((h>>>21)%50)/1000);
+      var gy=rsStandY(wx,dpt);
       if(rsBehindRoof(sx,gy)) continue;
       // pick a skill that MATCHES this place — the prop and the name have to agree
       var pool=[]; for(var q=0;q<RS_SKILLS.length;q++) if(RS_SKILLS[q].at===kind) pool.push(RS_SKILLS[q]);
       if(!pool.length) continue;
       var sk=pool[(h>>>11)%pool.length];
-      drawSkillProp(g,sx+5,gy,kind,day,((now/380)|0)&1,now);
+      // the float goes out OVER the water, the other props sit beside him on the bank he is standing on
+      drawSkillProp(g,sx+(kind==="water"?face*5:5),gy,kind,day,((now/380)|0)&1,now);
       // the swing: the tool arm rises and falls on a beat. One pixel of movement against a static
       // prop is all it takes — the same trick the goblins' step and the mill's sails use.
       var swing=((now/380+p)|0)&1;
       var col=RS_PLAYER_C[(h>>>17)%RS_PLAYER_C.length];
-      drawRsFigure(g,sx,gy,K,col,day,"stand",1);
+      drawRsFigure(g,sx,gy,K,col,day,"stand",face);
       g.fillStyle=day?"#6a5a3a":"#241f14";
-      g.fillRect(sx+3,gy-7-(swing?2:0),1,swing?4:3);                      // the tool, mid-stroke
+      g.fillRect(sx+(face>0?3:-3),gy-7-(swing?2:0),1,swing?4:3);          // the tool, mid-stroke
       // 🎆 A LEVEL-UP IS RARE AND BRIEF, which is what makes catching one worth something. Roughly
       // one skiller in four is mid-level-up at any moment, for about a second and a half.
       var lper=17000+((h>>>13)%13000);
