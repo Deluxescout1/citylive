@@ -30299,6 +30299,94 @@ function drawRsDrop(g,x,gy,seed,day,n){
     g.fillRect(x-3+(ih%7),gy-1-((ih>>>9)%3),1,1);
   }
 }
+// ---- THE TOWN'S OWN PEOPLE ---------------------------------------------------------------------
+// Nick: *"make sure we are getting a bunch of things from OSRS like knights and guards and make sure
+// it makes sense for the town we are in."*
+//
+// 📚 THE POSTS ARE THE GAME'S, NOT MINE. Falador is the White Knights' city — the castle is "the
+// centre of Falador and base of the White Knights", who come in four ranks — and its GUARDS
+// canonically stand at the NORTH AND SOUTH GATES, which is where this land already has its two
+// gatehouses. So the guards did not need somewhere plausible invented for them; they needed to be put
+// where they already are. Lumbridge is a duke's castle with a chapel and a cow field, so it gets
+// castle guards, monks and a farmer instead.
+// 🔑 THE POINT OF THIS LAYER IS THAT THE TOWN HAS MOTION THAT IS NOT PLAYERS. Adventurers come and
+// go; the people who LIVE there stay, and that difference is most of what makes a place feel settled
+// rather than like a lobby.
+// ⚠ A DWARF IS `drawPerson`'s CHILD BUILD. It is one head shorter with no accessories, which is
+// exactly a dwarf at this scale — a fifth body routine would have been a fifth thing to keep in scale.
+function rsNpcPosts(){
+  switch(curRs){
+    case "falador": return [["knight",FA_CASTLE,3],["guard",FA_WGATE,2],["guard",FA_SGATE,2],
+                            ["dwarf",FA_MINE,3],["monk",FA_PARK,1],["smith",FA_SMITHY,1]];
+    default:        return [["guard",LB_CASTLE,3],["monk",LB_CHURCH,2],["farmer",LB_COWS,2],
+                            ["cook",LB_CASTLE,1],["fisher",LB_RIVER,1]];
+  }
+}
+function rsNpcCol(kind){
+  return kind==="knight"?"#dfe2e8":kind==="guard"?"#7a3a34":kind==="monk"?"#6a5236":
+         kind==="dwarf" ?"#8a6a3a":kind==="cook" ?"#e8e4dc":kind==="smith"?"#4a4038":"#6a7a4a";
+}
+function drawRsNpc(g,x,gy,kind,day,facing,bob){
+  var y=gy-2, col=rsNpcCol(kind);
+  var skin=SKINC[(((x*2654435761)>>>0)+kind.length)%SKINC.length];
+  drawPerson(g,x,y,col,skin,bob,(kind==="dwarf")?1:0);
+  var yy=y-PERSON_LIFT;
+  if(kind==="knight"){
+    g.fillStyle=day?"#b8bcc6":"#3a4050"; g.fillRect(x,yy-4,2,1);                        // the helm…
+    g.fillStyle=day?"#c8443a":"#4a1e1a"; g.fillRect(x+(facing>0?-1:2),yy-5,1,2);        // …and its plume
+    g.fillStyle=day?"#c8ccd6":"#40465a"; g.fillRect(x+(facing>0?3:-2),yy-2,1,4);        // a drawn sword
+  } else if(kind==="guard"){
+    g.fillStyle=day?"#6a6e78":"#22262e"; g.fillRect(x,yy-4,2,1);
+    g.fillStyle=day?"#8a8e98":"#2a2e38"; g.fillRect(x+(facing>0?3:-2),yy-5,1,7);        // a spear, held up
+  } else if(kind==="monk"){
+    g.fillStyle=day?"#5a4630":"#1c1610"; g.fillRect(x-1,yy-4,4,1);                      // the hood
+  } else if(kind==="cook"){
+    g.fillStyle=day?"#ffffff":"#4a4e56"; g.fillRect(x,yy-5,2,1);
+  } else if(kind==="smith"){
+    g.fillStyle=day?"#6a5a3a":"#241f14"; g.fillRect(x+(facing>0?3:-2),yy-3,1,3);        // the hammer
+  }
+}
+// ⚠ ONE PLACE ANSWERS "IS THIS SPOT GUARDED?", because two systems ask it: the guards stand here, and
+// a foe that wanders in gets attacked by them. If the fight used a different test from the posting,
+// guards would be swinging at monsters two hundred pixels from where they are standing.
+function rsGuardedNear(wx){
+  var posts=rsNpcPosts(), reach=HORIZON*0.30;
+  for(var i=0;i<posts.length;i++){
+    var k=posts[i][0]; if(k!=="guard"&&k!=="knight") continue;
+    var d=Math.abs(wx-posts[i][1]*WW);
+    if(d>WW*0.5) d=WW-d;                                   // the world wraps; the reach must too
+    if(d<reach) return k;
+  }
+  return null;
+}
+function drawRsNpcs(g,L,now,nd,fx){
+  if(!curRs) return;
+  var day=L>0.5, K=Math.max(1,KSP), posts=rsNpcPosts(), seedW=(WORLD_SEED*2654435761)>>>0;
+  for(var pi=0;pi<posts.length;pi++){
+    var kind=posts[pi][0], frac=posts[pi][1], cnt=posts[pi][2];
+    var wx0=Math.round(frac*WW);
+    for(var p=0;p<cnt;p++){
+      var h=iceHash((pi*67+p)*2654435761^seedW);
+      var off=Math.round((((h%1000)/1000)-0.5)*HORIZON*0.19);
+      // 🔑 MOST STAND THEIR POST; ONE IN THREE WALKS A BEAT BETWEEN. A wholly static guard is a
+      // bollard, and a wandering one is not on duty — the mix is what reads as a watch being kept.
+      var patrol=((h>>>7)%3===0), face=((h>>>9)&1)?1:-1, bob=-1;
+      if(patrol){
+        var per=13000+((h>>>11)%9000), pph=((now+((h>>>15)%per))%per)/per;
+        var sw=Math.sin(pph*Math.PI*2);
+        off+=Math.round(sw*HORIZON*0.055);
+        face=(Math.cos(pph*Math.PI*2)>0)?1:-1;
+        bob=(Math.abs(Math.cos(pph*Math.PI*2))>0.25)?((Math.floor(now/220)+p)&3):-1;
+      }
+      var wx=wx0+off, sx=wx-WOFF;
+      if(sx<-WW*0.5) sx+=WW; if(sx>WW*0.5) sx-=WW;
+      if(sx<-20||sx>SW+20) continue;
+      var gy=rsStandY(wx,0.585+((h>>>21)%45)/1000);
+      if(rsBehindRoof(sx,gy)) continue;
+      drawRsNpc(g,sx,gy,kind,day,face,bob);
+    }
+  }
+}
 // ---- THE MARKET CROWD --------------------------------------------------------------------------
 // Nick: *"I want players surronding banks trying to sell stuff."*
 //
@@ -30516,7 +30604,13 @@ function drawRsFoes(g,L,now,nd,fx){
       var px=sx-(f.sz?8:6);
       var hitT=Math.floor((now%2400)/600);            // four beats to a cycle; a blow lands on two
       var swing=(hitT===0||hitT===2);
-      drawRsFigure(g,px,gy,K,pcol,day,"stand",1);
+      // 🔑 THE TOWN DEFENDS ITSELF. A foe that wanders within reach of a gate or the castle is fought
+      // by whoever is posted there rather than by a passing adventurer — same fight, different hands.
+      // Reusing the encounter instead of writing a second one means the guards get hitsplats, health
+      // bars, the loser rule and the loot drop for nothing.
+      var defender=rsGuardedNear(wx);
+      if(defender) drawRsNpc(g,px,gy,defender,day,1,-1);
+      else drawRsFigure(g,px,gy,K,pcol,day,"stand",1);
       drawRsFoe(g,sx,gy,f,day,(swing&&!loses)?1:0);
       // bystanders — a fight pulls a crowd, and a big one pulls more
       var watchers=(f.sz?2:0)+(((vh>>>9)%3===0)?1:0);
@@ -30590,10 +30684,18 @@ function drawRsPlayers(g,L,now,nd,fx){
     // has already been measured wrong for exactly this kind of test.
     if(rsBehindRoof(sx,gy)) continue;
     var col=RS_PLAYER_C[(vh>>>17)%RS_PLAYER_C.length];
-    // ---- the visit's arc: teleport in, do the thing, teleport out
-    if(ph<0.10){ drawRsTeleport(g,sx,gy,K,ph/0.10,day,col); if(ph<0.055) continue; drawRsFigure(g,sx,gy,K,col,day,"tele",1); continue; }
-    if(ph>0.90){ drawRsTeleport(g,sx,gy,K,(ph-0.90)/0.10,day,col); if(ph>0.945) continue; drawRsFigure(g,sx,gy,K,col,day,"tele",1); continue; }
-    var t=(ph-0.10)/0.80;
+    // ---- THE SESSION: he logs in, he does the thing, he logs out ---------------------------------
+    // 🚨 A PLAYER'S APPEARANCE AND DISAPPEARANCE IS A LOGIN, NOT A TELEPORT. Nick, 2026-08-05: *"make
+    // sure the players only disappear and appear when they sign in."* This used to open and close
+    // every visit with a column of light, which reads as though the world's entire population is
+    // permanently teleporting in and out — and it is simply not what those two events are. Logging in
+    // has no effect at all in the game: you are not there, and then you are.
+    // 🔑 THE TELEPORT WAS NOT DELETED, IT WAS GIVEN ITS ACTUAL JOB. It is how somebody crosses the
+    // world MID-session, which is what a teleport is for, so the effect still earns its place and now
+    // means something specific when you see one. Two events that looked identical now look different
+    // because they ARE different.
+    if(ph<0.04||ph>0.96) continue;                       // not logged in yet · already logged out
+    var t=(ph-0.04)/0.92;
     if(kind<=3){
       // ---- QUESTING: walk to the haunt, then stand and talk to whoever is there
       var walk=Math.min(1,t/0.30);
@@ -30638,13 +30740,38 @@ function drawRsPlayers(g,L,now,nd,fx){
       if(((now/3100+i)|0)%3===1)
         drawSpeechBubble(g,sx-ox,gy-9-((i%3)*4),
                          RS_TRADE_SAY[((vh>>>15)+Math.floor(now/6100))%RS_TRADE_SAY.length],night);
-    } else {
+    } else if(kind<=8){
       // ---- PASSING THROUGH: running the road, because most of the world is in transit. A player who
       // only ever stands still is scenery.
       var span=HORIZON*1.2, dir=((vh>>>3)%2)?1:-1;
       var rx=Math.round(sx+dir*(t-0.5)*span);
       if(rx<-20||rx>SW+20) continue;
       drawRsFigure(g,rx,rsStandY(wx+dir*(t-0.5)*span,d),K,col,day,"walk",dir);
+    } else {
+      // ---- TELEPORTING SOMEWHERE: the effect's real job. He walks, he gets bored of walking, and he
+      // goes the rest of the way instantly — which is exactly what the spell is for and exactly what
+      // everybody actually does with it.
+      // 🔑 THE COLUMN IS AT THE ORIGIN, NOT THE DESTINATION. A teleport is a departure you watch and
+      // an arrival you miss; putting the effect at both ends is what made it read as a spawn.
+      var dir2=((vh>>>3)%2)?1:-1, leg=HORIZON*0.42;
+      var TP0=0.44, TP1=0.60;
+      if(t<TP0){                                            // walking to the spot he casts from
+        var wx3=wx+dir2*(t/TP0)*leg;
+        var rx3=Math.round(sx+dir2*(t/TP0)*leg);
+        if(rx3>-20&&rx3<SW+20) drawRsFigure(g,rx3,rsStandY(wx3,d),K,col,day,"walk",dir2);
+      } else if(t<TP1){                                     // the cast: he fades inside the column
+        var f2=(t-TP0)/(TP1-TP0);
+        var wx4=wx+dir2*leg, rx4=Math.round(sx+dir2*leg);
+        if(rx4>-20&&rx4<SW+20){
+          var gy4=rsStandY(wx4,d);
+          drawRsTeleport(g,rx4,gy4,K,f2,day,col);
+          if(f2<0.5) drawRsFigure(g,rx4,gy4,K,col,day,"stand",dir2);
+        }
+      } else {                                              // …and he is a long way off, already walking
+        var far=dir2*leg*3.1, tt=(t-TP1)/(1-TP1);
+        var wx5=wx+far+dir2*tt*leg, rx5=Math.round(sx+far+dir2*tt*leg);
+        if(rx5>-20&&rx5<SW+20) drawRsFigure(g,rx5,rsStandY(wx5,d),K,col,day,"walk",dir2);
+      }
     }
   }
 }
@@ -50436,6 +50563,7 @@ function draw(g,pass){
   drawHyruleLive(g,L,now,nd,fx);   // …and on the old kingdom: the ring, the eruption, and the dragon
   drawLumbridgeLive(g,L,now,nd,fx);  // …and on the river meadow: the sails, the cattle, the goblins, the glitter
   drawFaladorLive(g,L,now,nd,fx);    // …and in the white city: the fountain, the forge and the flock
+  drawRsNpcs(g,L,now,nd,fx);         // …on ALL FOUR: the knights, guards and monks who LIVE there
   drawRsFoes(g,L,now,nd,fx);         // …on ALL FOUR: what lives out there, and the fights over it
   drawRsSkillers(g,L,now,nd,fx);     // …the ones at a rock or a fire, grinding a level
   drawRsBankCrowd(g,L,now,nd,fx);    // …the market press, where the game's whole economy stood
