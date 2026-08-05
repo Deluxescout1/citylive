@@ -29395,6 +29395,11 @@ function drawLumSwamp(g,cx,day,K,now,L){
 // per-column band engine renders worst; it is the fault that killed THE TERRACES after eleven commits
 // and the one this whole set was warned about before it started. The walls appear as two GATEHOUSES
 // with stubs that die out within a few dozen world px of each gate.
+// 🎈 FA_PARTY — the Falador Party Room, which the wiki puts in the city's north-east corner. This
+// land runs west→east rather than being a map, so "north-east corner" cashes out as the far side of
+// the town, between the smithy and the south gate. ⚠ IT IS ALSO WHERE THE MASSACRE STARTS: the 2006
+// event began at a house party in Falador, so building the room now gives that finale its origin.
+var FA_PARTY=0.715;
 var FA_FARM=0.06, FA_WGATE=0.16, FA_PARK=0.26, FA_CASTLE=0.42, FA_SQUARE=0.56,
     FA_SMITHY=0.66, FA_SGATE=0.78, FA_MINE=0.87, FA_ICE=0.94;
 function faIceTop(wx){
@@ -29440,8 +29445,95 @@ function drawFalador(g,L,now,nd){
   x=rsX(FA_CASTLE); if(x>-HORIZON*1.2&&x<SW+HORIZON*1.2) drawFalCastle(g,x,day,K,L,white,whiteD,whiteS,slate,slateD);
   x=rsX(FA_SQUARE); if(x>-HORIZON&&x<SW+HORIZON) drawFalSquare(g,x,day,K,L,P,white,whiteD,slate,slateD);
   x=rsX(FA_SMITHY); if(x>-HORIZON&&x<SW+HORIZON) drawFalSmithy(g,x,day,K,L,P,white,whiteD,slate,slateD);
+  x=rsX(FA_PARTY);  if(x>-HORIZON&&x<SW+HORIZON) drawFalParty(g,x,day,K,L,P,white,whiteD,slate,slateD);
   x=rsX(FA_SGATE);  if(x>-HORIZON&&x<SW+HORIZON) drawFalGate(g,x,day,K,white,whiteD,whiteS,slate,slateD,FA_SGATE,-1);
   x=rsX(FA_MINE);   if(x>-HORIZON&&x<SW+HORIZON) drawFalMine(g,x,day,K,P);
+  drawFalYews(g,day,K,P);
+}
+// ---- YEW TREES, OUTSIDE THE WALLS --------------------------------------------------------------
+// 📚 Canonically outside Falador's walls, and the most-cut tree in the game — half the market crowd is
+// selling yew logs, so the trees they came from should be somewhere you can see.
+// 🔑 A YEW IS NOT A DARKER VERSION OF THE OTHER TREES. `rsTrees` draws the town's round, light,
+// well-behaved ones; these are broad, black-green and heavy, with a thick trunk and a flat spreading
+// crown, and the difference has to be in the SHAPE or it just reads as the same tree in shadow —
+// grain and silhouette, never colour.
+function drawFalYews(g,day,K,P){
+  var spots=[FA_WGATE-0.045,FA_WGATE-0.028,FA_SGATE+0.032,FA_SGATE+0.050];
+  var seedW=(WORLD_SEED*2654435761)>>>0;
+  for(var i=0;i<spots.length;i++){
+    var wx=Math.round(spots[i]*WW), sx=rsX(spots[i]);
+    if(sx<-40||sx>SW+40) continue;
+    var h=iceHash(i*7717^seedW);
+    var gy=rsStandY(wx,0.30+((h>>>5)%60)/1000);
+    var sc=0.86+((h>>>11)%40)/100;
+    var th=Math.round(HORIZON*0.052*sc), tw=Math.max(2,Math.round(HORIZON*0.011));
+    var cw=Math.round(HORIZON*0.086*sc), ch=Math.round(HORIZON*0.040*sc);
+    lumShadow(g,sx,gy,Math.round(cw*0.9),day);
+    g.fillStyle=day?"#4a3a26":"#1a1410";
+    g.fillRect(sx-(tw>>1),gy-th,tw,th);
+    // the crown: three flattened tiers, widest at the bottom — a yew spreads rather than points
+    g.fillStyle=day?"#1e4a2a":"#0a1a14";
+    for(var t=0;t<3;t++){
+      var w2=Math.round(cw*(1-t*0.26)), hh=Math.round(ch*0.5);
+      g.fillRect(sx-(w2>>1),gy-th-Math.round(ch*0.42)-t*hh,w2,hh+1);
+    }
+    g.fillStyle=day?"#2e6438":"#122a1e";                       // one lit face, west, like everything else
+    g.fillRect(sx-(cw>>1),gy-th-Math.round(ch*0.42),Math.max(1,Math.round(cw*0.22)),Math.round(ch*0.5));
+  }
+}
+// ---- THE FALADOR PARTY ROOM --------------------------------------------------------------------
+// 📚 "The city contains a Party Room in the northeastern corner", hosted by Party Pete, and it is
+// where drop parties happen — the balloons come down and the floor is covered in loot.
+// 🔑 THE BALLOONS ARE THE WHOLE MARK. A wide hall with a big roof is just another building on a land
+// made of wide halls with big roofs; a cluster of coloured dots floating above one roof is a party,
+// instantly, with no sign and no lettering. This is the same trick as the traders' pile and the
+// smithy's chimney: find the one object that names the place and make THAT the silhouette.
+function drawFalParty(g,cx,day,K,L,P,white,whiteD,slate,slateD){
+  var base=rsStandY(FA_PARTY*WW,0.52), night=(L<=0.5);
+  var w=Math.round(HORIZON*0.125), h=Math.round(HORIZON*0.078);
+  lumShadow(g,cx,base,Math.round(w*1.2),day);
+  g.fillStyle=css(white);  g.fillRect(cx-(w>>1),base-h,w,h);
+  g.fillStyle=css(whiteD); g.fillRect(cx+(w>>1)-Math.round(1.4*K),base-h,Math.round(1.4*K),h);
+  var rh=Math.round(w*0.42), ov=Math.round(2*K);
+  for(var r=0;r<rh;r++){
+    var w2=Math.max(1,Math.round((w+ov*2)*(1-r/rh)));
+    g.fillStyle=css((r%Math.max(2,Math.round(2*K))<Math.max(1,Math.round(K)))?slate:slateD);
+    g.fillRect(cx-((w+ov*2)>>1)+(((w+ov*2)-w2)>>1),base-h-1-r,w2,1);
+  }
+  // wide double doors, lit — a party room with a shut door is a warehouse
+  g.fillStyle=night?"rgba(255,206,110,0.92)":"rgba(38,32,28,0.9)";
+  g.fillRect(cx-Math.round(w*0.16),base-Math.round(h*0.62),Math.round(w*0.32),Math.round(h*0.62));
+  // bunting along the eaves, which is the second-cheapest party mark after the balloons
+  var bc=["#d84a3a","#e8c23a","#3a9ad8","#4ac85a"];
+  for(var b=0;b<Math.round(w/Math.max(3,Math.round(3.2*K)));b++){
+    g.fillStyle=bc[b%4];
+    g.fillRect(cx-(w>>1)+b*Math.max(3,Math.round(3.2*K)),base-h-Math.round(1.4*K),Math.max(1,Math.round(1.4*K)),Math.max(1,Math.round(1.6*K)));
+  }
+}
+// the balloons, in the LIVE pass — they bob, because a balloon that does not move is a dot
+function drawFalPartyBalloons(g,now,day){
+  var cx=rsX(FA_PARTY);
+  if(cx<-HORIZON||cx>SW+HORIZON) return;
+  // ⚠ ABOVE THE ROOF APEX, NOT ABOVE THE WALL TOP. The first cut floated them from `base-h`, which is
+  // where the WALLS stop — the roof rises another `w*0.42` above that, so every balloon hung inside
+  // the slate and read as decoration nailed to the tiles. A thing that floats has to clear the whole
+  // silhouette of what it floats over, not the part of it the variable happens to name.
+  var base=rsStandY(FA_PARTY*WW,0.52), h=Math.round(HORIZON*0.078);
+  var roofTop=h+Math.round(HORIZON*0.125*0.42);
+  var seedW=(WORLD_SEED*2654435761)>>>0;
+  var bc=day?["#d84a3a","#e8c23a","#3a9ad8","#4ac85a","#c86ad8"]
+            :["#5a2018","#6a5818","#18425e","#1e5a28","#5a2e64"];
+  for(var i=0;i<9;i++){
+    var hh=iceHash(i*3313^seedW);
+    var bx=cx+Math.round((((hh%1000)/1000)-0.5)*HORIZON*0.11);
+    var per=4200+((hh>>>9)%2600), pph=((now+((hh>>>13)%per))%per)/per;
+    var by=base-roofTop-Math.round(HORIZON*0.014)-Math.round(((hh>>>17)%100)/100*HORIZON*0.042)
+           -Math.round(Math.sin(pph*Math.PI*2)*2);
+    g.fillStyle=bc[(hh>>>21)%5];
+    g.fillRect(bx,by,2,3);
+    g.fillStyle=day?"rgba(60,56,52,0.7)":"rgba(120,130,150,0.35)";
+    g.fillRect(bx+1,by+3,1,2);                                  // the string
+  }
 }
 // ---- ICE MOUNTAIN ----------------------------------------------------------------------------
 function iceHash(n){ n=((n|0)*2654435761)>>>0; return (n^(n>>>15))>>>0; }
@@ -29861,6 +29953,21 @@ function drawFalSquare(g,cx,day,K,L,P,white,whiteD,slate,slateD){
   g.fillStyle=night?"rgba(255,196,96,0.9)":"rgba(34,30,28,0.9)";
   g.fillRect(ix-Math.round(2.2*K),base-Math.round(ih*0.5),Math.round(4.4*K),Math.round(ih*0.5));
   g.fillStyle=css(P.wood); g.fillRect(ix+(iw>>1),base-Math.round(ih*0.78),Math.round(2.4*K),Math.max(1,Math.round(K)));
+  // 📚 THE RISING SUN — Falador's pub, and one of Nick's "the named places do not read" complaints.
+  // 🔑 A HANGING BOARD IS A HANGING BOARD ON EVERY BUILDING; WHAT NAMES THIS ONE IS WHAT IS PAINTED ON
+  // IT. A half-disc with three rays over a horizon line is a rising sun at six pixels and needs no
+  // lettering — which matters, because a signboard wide enough to spell an inn's name would be wider
+  // than the inn. Shape before words, the rule the hidden villages set.
+  var sgw=Math.max(5,Math.round(5.5*K)), sgh=Math.max(4,Math.round(4.5*K));
+  var sgx=ix+(iw>>1)+Math.round(2.4*K), sgy=base-Math.round(ih*0.78);
+  g.fillStyle=day?"#2e2a26":"#12100e"; g.fillRect(sgx,sgy,sgw,sgh);
+  g.fillStyle=day?"#e8b83a":"#6a5420";
+  var sr=Math.max(2,Math.round(sgw*0.34));
+  for(var sy2=0;sy2<sr;sy2++){                                   // the half-disc, sitting on its line
+    var sww=Math.round(sr*2*Math.sqrt(Math.max(0,1-Math.pow(sy2/sr,2))));
+    g.fillRect(sgx+((sgw-sww)>>1),sgy+sgh-Math.round(sgh*0.3)-sy2,sww,1);
+  }
+  g.fillRect(sgx+1,sgy+sgh-Math.round(sgh*0.3),sgw-2,1);         // the horizon it rises from
   g.fillStyle=day?"rgba(122,94,62,1)":"rgba(24,22,30,1)";
   g.fillRect(ix+(iw>>1)+Math.round(2*K),base-Math.round(ih*0.80),Math.round(5*K),Math.round(4.4*K));
   g.fillStyle=day?"rgba(240,214,140,0.95)":"rgba(120,110,90,0.7)";   // a painted sun on the board
@@ -29966,6 +30073,7 @@ function drawFaladorLive(g,L,now,nd,fx){
   if(curRs!=="falador") return;
   var day=L>0.5, K=Math.max(1,KSP), seedW=(WORLD_SEED*2654435761)>>>0;
   function onX(f){ var x=Math.round(f*WW)-WOFF; if(x<-WW*0.5) x+=WW; if(x>WW*0.5) x-=WW; return x; }
+  drawFalPartyBalloons(g,now,day);   // over the party room, bobbing
   // ---- THE FOUNTAIN. A jet that rises and falls, and rings on the water under it.
   var px=onX(FA_PARK);
   if(px>-HORIZON*0.5&&px<SW+HORIZON*0.5){
