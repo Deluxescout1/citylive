@@ -47445,7 +47445,7 @@ function curPoliciesOf(now){
 // the almanac can NEVER disagree with what the city is showing. It NEVER touches near/mid/far or any
 // render global, so it is safe to call from the Electron Control Center and the KDE config page WITHOUT
 // a render. Population is a pure estimate from growth — cityPop() needs the built layout, which we avoid.
-var DEATH_LABEL={ninetails:"The Nine-Tailed Fox",meteors:"Meteor Storm",nuke:"Nuclear Strike",sunburst:"Solar Flare",ai:"AI Uprising",
+var DEATH_LABEL={massacre:"The Massacre",logout:"The Server Shutdown",wilderness:"The Wilderness",godwars:"The God Wars",banwave:"The Ban Wave",ninetails:"The Nine-Tailed Fox",meteors:"Meteor Storm",nuke:"Nuclear Strike",sunburst:"Solar Flare",ai:"AI Uprising",
   bh:"Black Hole",alienwar:"Alien War",frost:"Deep Freeze",kaiju:"Kaiju Attack",flood:"The Flood",
   kaijuwar:"Kaiju War",pollution:"The Great Smog",moonfall:"Moonfall",
   // the eight added 2026-08-04. ⚠ These strings reach the chronicle, the almanac and the doom clock —
@@ -48721,7 +48721,15 @@ var CFG_FINALE=null;   // config: pin which apocalypse ends EVERY life ("auto"/u
 // of every past life in the chronicle, including ones already written down. A land-triggered death
 // needs no slot in the pool: the pool keeps its twelve, and the leaf land answers before it is asked.
 // A nine-tailed fox is kitsune folklore, not anybody's trademark — the homage rule is untouched.
-var DEATHS_SPECIAL=["ninetails"];
+// 🔒 THE OSRS LANDS END THEIR OWN WAY. Nick, 2026-08-05: the Massacre can happen on any of the four,
+// and those lands get OSRS events ONLY — no meteor strike on Varrock, no kaiju over Lumbridge. Same
+// reasoning as the furniture bans already in this file: the register is the point, and one tonal
+// clash costs more than the variety buys.
+// ⚠ LIKE `ninetails`, NONE OF THESE GO IN `DEATHS`. That array is indexed `h % DEATHS.length`, so
+// appending to it re-maps every past life's fate in the chronicle — the trap this file has documented
+// since the fox. A land-triggered pool needs no slot in the global one.
+var RS_DEATHS=["massacre","logout","wilderness","godwars","banwave"];
+var DEATHS_SPECIAL=["ninetails","massacre","logout","wilderness","godwars","banwave"];
 // 🚨 THIS BLOCK HAS TO SIT HERE, NOT NEXT TO ITS RENDERERS. `var` hoists the NAME but not the
 // VALUE, so with the definitions down beside `drawApocalypse` the `CFG_FINALE` validator forty
 // lines below read `DEATHS_ALL` as undefined and would have thrown on any install that pins a
@@ -48745,6 +48753,9 @@ function lifeStartMs(li){ return GROW_EPOCH - GROW_OFFSET_DAYS*86400000 - WORLD_
 function deathsFor(li){ return lifeStartMs(li) < DEATH_ERA_MS ? DEATHS : DEATHS_ALL; }
 function deathOf(li){ if(CFG_FINALE) return CFG_FINALE;
   var lb=landOf(li); if(lb&&lb.b&&lb.b.k==="leaf") return "ninetails";
+  // 🔑 A SEPARATE HASH SALT, so which RuneScape ending a land gets is independent of everything else
+  // that hash already decides — reusing the death salt would have correlated the ending with the land.
+  if(lb&&lb.b&&lb.b.rs) return RS_DEATHS[mixLi(li,4409)%RS_DEATHS.length];
   var h=((li*2654435761+977)>>>0); h=(h^(h>>>15))>>>0;
   var pool=deathsFor(li); return pool[h%pool.length]; }
 var curDeath="meteors";
@@ -48861,7 +48872,7 @@ function polDark(b){
 // its case here + a per-building branch + its drawApoc* — no touching the ~48 scattered call sites.
 // apocPositional() = this death destroys the city by POSITION (a front / impacts), so cars/peds/etc.
 // die exactly as it reaches them, rather than fading out globally over the phase.
-function apocPositional(){ return curDeath==="nuke" || curDeath==="meteors" || curDeath==="ai" || curDeath==="bh" || curDeath==="kaiju" || curDeath==="kaijuwar" || curDeath==="ninetails"; }
+function apocPositional(){ return curDeath==="massacre" || curDeath==="banwave" || curDeath==="wilderness" || curDeath==="nuke" || curDeath==="meteors" || curDeath==="ai" || curDeath==="bh" || curDeath==="kaiju" || curDeath==="kaijuwar" || curDeath==="ninetails"; }
 function apocStruck(){ if(cityPhase!=="apoc") return false;
   if(curDeath==="nuke")    return apocMs>=NUKE_FALL_MS;                                  // the warhead has DETONATED
   if(curDeath==="meteors") return apocMs>=METEOR_SWARM_MS;                              // the small-meteor swarm has begun
@@ -48872,6 +48883,11 @@ function apocStruck(){ if(cityPhase!=="apoc") return false;
   if(curDeath==="frost")   return apocMs>=FROST_ONSET_MS;                              // the killing freeze has begun
   if(curDeath==="kaiju")   return apocMs>=KAIJU_ARRIVE_MS;                             // the beast has emerged & begun its rampage
   if(curDeath==="ninetails") return apocMs>=FOX_ARRIVE_MS;                             // …and the fox has finished rising
+  if(curDeath==="massacre")  return apocMs>=MASS_PARTY_MS;                             // the party has turned
+  if(curDeath==="logout")    return apocMs>=LOGOUT_WAIT_MS;                            // the first players have winked out
+  if(curDeath==="wilderness")return apocMs>=WILD_WAIT_MS;                              // the wild has crossed the boundary
+  if(curDeath==="godwars")   return apocMs>=GW_WAIT_MS;                                // the armies are in sight
+  if(curDeath==="banwave")   return apocMs>=BAN_WAIT_MS;                               // the sweep has begun
   if(curDeath==="flood")   return apocMs>=FLOOD_ONSET_MS;                              // the waters have started rising
   if(curDeath==="kaijuwar") return apocMs>=KW_ARRIVE_MS;                               // the titans have engaged
   if(curDeath==="pollution") return cityApoc>0.02;                                     // the inversion has settled in
@@ -48886,6 +48902,14 @@ function apocHit(x){ if(cityPhase!=="apoc") return false;
   if(curDeath==="frost")   return frostCl(x)>=0;                                        // the freeze has reached & frozen world-x
   if(curDeath==="kaiju")   return frontCollapse(x,kaijuFrontR())>=0;                    // the monster's rampage has reached world-x
   if(curDeath==="ninetails") return frontCollapse(x,foxFrontR())>=0;                     // the shockwave has reached world-x
+  // 🚨 THE OSRS ENDINGS DO NOT DEMOLISH, AND THAT IS THE POINT. `apocHit` is what collapses buildings,
+  // and none of these five knocks anything down: the massacre killed players and left Falador standing;
+  // the server shutting down harms nothing; a ban wave is paperwork; the wilderness CONSUMES ground
+  // rather than flattening it; and the God Wars fight THROUGH a city rather than levelling it. An
+  // intact skyline over empty streets is the whole horror of these, and it is free — it is the one
+  // thing that makes them read as different in kind from the other twenty-five.
+  if(curDeath==="massacre"||curDeath==="logout"||curDeath==="banwave"||curDeath==="godwars") return false;
+  if(curDeath==="wilderness") return false;
   if(curDeath==="flood")   return floodGroundHit(x);                                    // the water has risen above the ground here
   if(curDeath==="kaijuwar") return kwCl(x,NOWOVR!=null?NOWOVR:Date.now())>=0;           // trampled or caught in the melee
   if(curDeath==="pollution") return cityApoc>=0.92;                                     // nothing is DEMOLISHED until the very end (movers die via apocKill fade)
@@ -49541,6 +49565,269 @@ APOC_X.ragnarok=function(g,ap,L,now){
   }
 };
 
+// ================================================================================================
+// THE FALADOR MASSACRE — Falador's own end
+// ================================================================================================
+// 📚 6 JUNE 2006. Cursed You, the first player to 99 Construction, threw a house party; when he
+// expelled his guests, a bug in the Construction code left players who had been in his combat ring
+// still able to attack others OUTSIDE the house — anywhere in the world, not just the Wilderness.
+// Durial321 rampaged for about an hour, starting at Rimmington, then through FALADOR and on to
+// Edgeville, killing players wearing rares and looting a green partyhat off one of them. Jagex fixed
+// the bug, and the bans were permanent.
+//
+// 🔑🔑 TWO FACTS FROM THE RESEARCH CHANGED THE DESIGN, and I would have got both wrong from memory:
+//  ① IT WAS ONE PLAYER, not a riot. Everyone-kills-everyone is the obvious reading and it is wrong —
+//    what actually happened is a single figure walking through a city that could not fight back. That
+//    is both more faithful AND far more legible at seven pixels: one thing moving, a trail behind it.
+//  ② THE CITY SURVIVED. Falador was still standing at the end; only the people were gone. So this
+//    finale DOES NOT DEMOLISH — `apocHit` stays false and every building is untouched, which makes it
+//    the only end in the game where the skyline is intact and the streets are empty. That contrast is
+//    the whole horror of it and it costs nothing to draw.
+// 🔒 Nick's locked shape: it starts at ONE HOUSE and spreads outward both ways, and the item piles
+// stay where people fell. The Party Room was built two days before this and is exactly that house.
+var MASS_PARTY_MS=7000;        // the party, before it turns
+var MASS_WIPE_MS=115000;       // Durial's hour, compressed to the length of an ending
+// ⚠ THE ORIGIN IS PER-LAND NOW. Nick: *"this can also happen on any of the OSRS maps."* Falador has
+// the Party Room and the real event's party was a house party, so that is its origin; the other three
+// have no party room, and the honest equivalent is the place with the biggest crowd standing in it —
+// which is the market, which is already a per-land fact this file knows.
+function rsPartyFrac(){ return (curRs==="falador")?FA_PARTY:rsMarketFrac(); }
+function massOriginX(){ return Math.round(rsPartyFrac()*WW); }
+function massFrontR(){ return apocFrontR(MASS_PARTY_MS,MASS_WIPE_MS); }
+// how thoroughly world-x has been cleared: -1 before the killer reaches it, 0→1 after
+function massCollapse(x){
+  var d=nukeDist(x,massOriginX()), r=massFrontR();
+  return r>d ? Math.min(1,(r-d)/(WW*0.05)) : -1;
+}
+function drawApocMassacre(g,ap,L,now){
+  var day=L>0.5, K=Math.max(1,KSP), night=(L<=0.5);
+  var ox=massOriginX(), r=massFrontR();
+  var seedW=(WORLD_SEED*2654435761)>>>0;
+  // ---- THE PARTY, and the moment it stops being one -------------------------------------------
+  // ⚠ THE SKY NEVER CHANGES. Every other finale in this game curdles the light — that is how you know
+  // one is happening. This one must not: a massacre is not weather. The horror is that it is a
+  // perfectly ordinary afternoon in a city where everyone is dying, and tinting the sky would turn it
+  // into just another disaster.
+  var px=disX(ox);
+  if(curRs==="falador" && apocMs<MASS_PARTY_MS+9000 && px>-HORIZON && px<SW+HORIZON){
+    var pf=Math.max(0,Math.min(1,apocMs/MASS_PARTY_MS));
+    var pbase=rsStandY(ox,0.52);
+    // balloons still coming down over the party room, for as long as anybody is still enjoying it
+    if(apocMs<MASS_PARTY_MS){
+      for(var b=0;b<7;b++){
+        var bh=iceHash(b*4649^seedW);
+        var bx=px+Math.round((((bh%1000)/1000)-0.5)*HORIZON*0.10);
+        var by=pbase-Math.round(HORIZON*0.13)-Math.round(((bh>>>13)%100)/100*HORIZON*0.03)+Math.round(pf*HORIZON*0.05);
+        g.fillStyle=["#d84a3a","#e8c23a","#3a9ad8","#4ac85a","#c86ad8"][(bh>>>21)%5];
+        g.fillRect(bx,by,2,3);
+      }
+    }
+  }
+  // ---- THE KILLER. One figure, walking outward from the house, and he never stops -------------
+  // 🔑 HE IS THE ONLY THING MOVING IN A CITY THAT HAS STOPPED, which is what makes him findable on a
+  // 2269px world without a marker over his head. Two of him — the front spreads both ways from the
+  // house, which is Nick's shape and also what a crowd fleeing in both directions produces.
+  for(var side=0;side<2;side++){
+    var kwx=ox+(side?1:-1)*r;
+    var ksx=disX(kwx);
+    if(ksx<-30||ksx>SW+30) continue;
+    var kgy=rsStandY(kwx,0.60);
+    // ⚠ BLACK, AND THE ONLY BLACK FIGURE ON THE LAND. The tier ladder makes colour mean rank, so the
+    // killer is drawn in the one colour that reads as "not a rank" — and against Falador's white
+    // ashlar a black figure is visible from the next monitor.
+    drawRsFigure(g,ksx,kgy,K,"#141118",day,"walk",side?1:-1,{c:"#141118",l:"#3a3040"});
+    // 🎩 THE GREEN PARTYHAT. He looted one off somebody wearing rares, and it is the single most
+    // quoted object in the game's history. One green pixel on his head once he is past the square.
+    if(r>WW*0.10){
+      g.fillStyle=day?"#2ec84a":"#146a24";
+      g.fillRect(ksx-1,kgy-9,4,1); g.fillRect(ksx,kgy-10,2,1);
+    }
+  }
+  // ---- WHAT IS LEFT BEHIND. The piles stay, and they are the memorial ------------------------
+  // 🔑 A PURE FUNCTION OF WORLD X AND THE FRONT, so a pile that has appeared never moves, never
+  // flickers and is identical on all three monitors — and the city fills up with them as the hour
+  // runs, which is the only clock this ending has.
+  for(var i=0;i<170;i++){
+    var h=iceHash(i*7013^seedW);
+    var wx=(h%1000)/1000*WW;
+    var c=massCollapse(wx);
+    if(c<0) continue;
+    var sx=disX(wx);
+    if(sx<-12||sx>SW+12) continue;
+    var gy=rsStandY(wx,0.555+((h>>>17)%90)/1000);
+    drawRsDrop(g,sx,gy,h,day,2+((h>>>9)%4));
+    // one victim in twelve was wearing something worth killing them for
+    if((h>>>23)%12===0){ g.fillStyle=day?"#2ec84a":"#146a24"; g.fillRect(sx+((h>>>5)%3)-1,gy-1,1,1); }
+  }
+  // ---- AND THE ONES STILL RUNNING ------------------------------------------------------------
+  // ⚠ THEY RUN OUTWARD, AWAY FROM THE HOUSE, not at random. A crowd that scatters in all directions
+  // reads as confusion; a crowd all going the same way reads as flight, and flight is the thing that
+  // says there is something behind them worth running from.
+  var fleeing=Math.max(0,18-Math.round(r/(WW*0.04)));
+  for(var q=0;q<fleeing;q++){
+    var fh=iceHash(q*3559^(seedW>>>3));
+    var dirF=((fh>>>7)&1)?1:-1;
+    var lead=WW*0.02+((fh%1000)/1000)*WW*0.10;
+    var fwx=ox+dirF*(r+lead);
+    var fsx=disX(fwx);
+    if(fsx<-20||fsx>SW+20) continue;
+    var fgy=rsStandY(fwx,0.575+((fh>>>19)%60)/1000);
+    drawRsFigure(g,fsx,fgy,K,RS_PLAYER_C[(fh>>>11)%RS_PLAYER_C.length],day,"walk",dirF,rsTier(fh^0x2c1d));
+    if(((now/900+q)|0)%5===0)
+      drawSpeechBubble(g,fsx,fgy-10,RS_MASS_SAY[((fh>>>15)+Math.floor(now/2200))%RS_MASS_SAY.length],night);
+  }
+}
+var RS_MASS_SAY=["RUN","HE'S KILLING EVERYONE","LOG OUT!","NOT IN FALLY?","MY PHAT!","WHAT IS HAPPENING",
+                 "YOU CAN'T PK HERE","HELP","GET TO THE GATE","MODS!","I LOST EVERYTHING","IT'S A BUG"];
+// ---- THE SERVER SHUTS DOWN ---------------------------------------------------------------------
+// 🔑🔑 THE MOST RUNESCAPE ENDING THERE IS, and the only one in this whole game where the world does not
+// BURN — it LOGS OUT. Nothing is destroyed, nothing catches fire, the sky does not change: the players
+// wink out one at a time, the NPCs stop mid-step, the windows go dark building by building, and what
+// is left at the end is a perfectly intact landscape with nobody in it. Every other finale here is
+// something happening TO the city; this is the city simply ceasing to be attended.
+// ⚠ Its whole legibility rests on the lights, so they go out in a WAVE rather than at once — an
+// instant blackout reads as a power cut, and a wave reads as something walking through and closing up.
+var LOGOUT_WAIT_MS=5000, LOGOUT_WIPE_MS=95000;
+function logoutFrontR(){ return apocFrontR(LOGOUT_WAIT_MS,LOGOUT_WIPE_MS); }
+function logoutGone(x){ return frontCollapse(x,logoutFrontR())>=0; }
+function drawApocLogout(g,ap,L,now){
+  var day=L>0.5, K=Math.max(1,KSP), night=(L<=0.5), seedW=(WORLD_SEED*2654435761)>>>0;
+  var r=logoutFrontR();
+  // the ones not yet gone, still going about it; and the ones on the edge of the front, winking
+  for(var i=0;i<26;i++){
+    var h=iceHash(i*8623^seedW);
+    var wx=(h%1000)/1000*WW;
+    var d=nukeDist(wx,apocEpiX(NOWOVR!=null?NOWOVR:Date.now()));
+    var edge=(r-d)/(WW*0.03);
+    if(edge>1) continue;                                          // already logged out
+    var sx=disX(wx); if(sx<-20||sx>SW+20) continue;
+    var gy=rsStandY(wx,0.575+((h>>>17)%60)/1000);
+    if(edge>0){
+      // 🔑 THE WINK. Not a fade — a collapse to a bright line and then nothing, which is what the
+      // client actually does. A fade reads as a ghost; a line reads as a switch.
+      g.globalCompositeOperation="lighter";
+      g.fillStyle="rgba(220,235,255,"+(0.9*(1-edge)).toFixed(2)+")";
+      var lw=Math.max(1,Math.round(5*(1-edge)));
+      g.fillRect(sx-(lw>>1),gy-4,lw,1);
+      g.globalCompositeOperation="source-over";
+    } else {
+      drawRsFigure(g,sx,gy,K,RS_PLAYER_C[(h>>>11)%RS_PLAYER_C.length],day,"stand",((h>>>5)&1)?1:-1,rsTier(h^0x71bd));
+      if(((now/2600+i)|0)%7===0)
+        drawSpeechBubble(g,sx,gy-10,RS_LOGOUT_SAY[((h>>>19)+Math.floor(now/3100))%RS_LOGOUT_SAY.length],night);
+    }
+  }
+}
+var RS_LOGOUT_SAY=["SERVER GOING DOWN","LOGGING OUT","IS IT JUST ME?","SEE YOU TOMORROW","WHERE IS EVERYONE",
+                   "60 SECONDS","GG","IT WAS FUN","NOBODY LEFT","BYE"];
+// ---- THE WILDERNESS SPREADS --------------------------------------------------------------------
+// 🔑 THE LAND IS CONSUMED, NOT DESTROYED. The grass dies, the sky reddens, and a SKULL appears over
+// everyone still standing — which is the exact mark the game uses to say "you can be killed here",
+// so it is the whole event stated in three pixels per person.
+var WILD_WAIT_MS=4000, WILD_WIPE_MS=105000;
+function wildFrontR(){ return apocFrontR(WILD_WAIT_MS,WILD_WIPE_MS); }
+function wildTaken(x){ return frontCollapse(x,wildFrontR()); }
+function drawApocWild(g,ap,L,now){
+  var day=L>0.5, K=Math.max(1,KSP), night=(L<=0.5), seedW=(WORLD_SEED*2654435761)>>>0;
+  // the dead ground, per column, from the front outward — column-major, because this is GROUND
+  var dead=day?[104,74,58]:[26,18,18], deadL=day?[132,96,70]:[34,24,22];
+  for(var x=0;x<SW;x++){
+    var wx=x+WOFF, t=wildTaken(wx);
+    if(t<0) continue;
+    var fy=rsFieldY(wx);
+    g.globalAlpha=Math.min(0.92,0.35+t*0.6);
+    g.fillStyle=css(dead); g.fillRect(x,fy,1,HORIZON-fy+1);
+    g.fillStyle=css(deadL); g.fillRect(x,fy,1,Math.max(1,Math.round(K)));
+    g.globalAlpha=1;
+  }
+  // the sky goes red over the taken ground only, so the frontier is visible in the air as well
+  var rf=Math.min(1,wildFrontR()/(WW*0.5));
+  if(rf>0){ g.fillStyle="rgba(150,30,26,"+(0.30*rf).toFixed(3)+")"; g.fillRect(0,0,SW,HORIZON); }
+  // …and everyone still out there is skulled
+  for(var i=0;i<20;i++){
+    var h=iceHash(i*5347^seedW);
+    var wx2=(h%1000)/1000*WW, sx=disX(wx2);
+    if(sx<-20||sx>SW+20) continue;
+    var gy=rsStandY(wx2,0.575+((h>>>17)%60)/1000);
+    drawRsFigure(g,sx,gy,K,RS_PLAYER_C[(h>>>11)%RS_PLAYER_C.length],day,"stand",((h>>>5)&1)?1:-1,rsTier(h^0x5a2f));
+    if(wildTaken(wx2)>=0){
+      g.fillStyle=day?"#e8e4dc":"#9a9aa4";                        // the skull: two eyes and a jaw
+      g.fillRect(sx-1,gy-11,4,2); g.fillRect(sx,gy-9,2,1);
+      g.fillStyle=day?"#2a2622":"#12121a";
+      g.fillRect(sx-1,gy-11,1,1); g.fillRect(sx+2,gy-11,1,1);
+    }
+  }
+}
+// ---- THE GOD WARS ------------------------------------------------------------------------------
+// 🔑 THREE ARMIES, AND THE CITY IS BETWEEN THEM. The banners do the work: Saradomin blue-and-white,
+// Zamorak red-and-black, Bandos brown-and-green. At this scale an army is a colour and a row of poles,
+// and three colours converging is a war without a single legible soldier.
+var GW_WAIT_MS=6000, GW_CLOSE_MS=70000;
+var GW_SIDES=[{c:"#3a6ad0",b:"#e8eefc"},{c:"#c02a24",b:"#1a1216"},{c:"#7a6a34",b:"#4a6a30"}];
+function drawApocGodWars(g,ap,L,now){
+  var day=L>0.5, K=Math.max(1,KSP), seedW=(WORLD_SEED*2654435761)>>>0;
+  var t=Math.max(0,Math.min(1,(apocMs-GW_WAIT_MS)/GW_CLOSE_MS));
+  var cx0=apocEpiX(NOWOVR!=null?NOWOVR:Date.now());
+  for(var s=0;s<3;s++){
+    var side=GW_SIDES[s];
+    // they come from three directions and close on the middle
+    var from=(s===0?-1:(s===1?1:0));
+    var here=cx0+from*WW*0.42*(1-t)+(s===2?-WW*0.30*(1-t):0);
+    for(var m=0;m<9;m++){
+      var mh=iceHash((s*97+m)*3313^seedW);
+      var mwx=here+((mh%1000)/1000-0.5)*WW*0.055;
+      var msx=disX(mwx); if(msx<-16||msx>SW+16) continue;
+      var mgy=rsStandY(mwx,0.565+((mh>>>13)%70)/1000);
+      drawRsFigure(g,msx,mgy,K,side.c,day,((now/300+m)|0)%2?"walk":"stand",from>=0?-1:1,{c:side.c,l:side.b});
+      // the banner: a pole and a flash of the god's colour, and it is taller than anyone carrying it
+      if(m%3===0){
+        g.fillStyle=day?"#4a4038":"#16141a";
+        g.fillRect(msx+2,mgy-16,Math.max(1,Math.round(K*0.8)),12);
+        g.fillStyle=side.c; g.fillRect(msx+3,mgy-16,5,4);
+        g.fillStyle=side.b; g.fillRect(msx+3,mgy-15,5,1);
+      }
+    }
+  }
+}
+// ---- THE BAN WAVE ------------------------------------------------------------------------------
+// 🔑 THE FASTEST END IN THE GAME, and the joke is that it is administrative. No fire, no army, no
+// weather — a sweep crosses the world and everybody it touches is simply not there any more, mid-step.
+// ⚠ IT MUST NOT LOOK LIKE THE LOGOUT. That one is slow, orderly and goes dark; this is a hard white
+// front moving fast with nothing behind it, and it is over in a fraction of the time.
+var BAN_WAIT_MS=8000, BAN_WIPE_MS=26000;
+function banFrontR(){ return apocFrontR(BAN_WAIT_MS,BAN_WIPE_MS); }
+function drawApocBanWave(g,ap,L,now){
+  var day=L>0.5, K=Math.max(1,KSP), night=(L<=0.5), seedW=(WORLD_SEED*2654435761)>>>0;
+  var r=banFrontR(), epi=apocEpiX(NOWOVR!=null?NOWOVR:Date.now());
+  for(var i=0;i<30;i++){
+    var h=iceHash(i*9199^seedW);
+    var wx=(h%1000)/1000*WW;
+    var d=nukeDist(wx,epi), edge=(r-d)/(WW*0.018);
+    if(edge>1) continue;
+    var sx=disX(wx); if(sx<-20||sx>SW+20) continue;
+    var gy=rsStandY(wx,0.575+((h>>>17)%60)/1000);
+    if(edge>0){
+      g.globalCompositeOperation="lighter";
+      g.fillStyle="rgba(255,255,255,"+(0.95*(1-edge)).toFixed(2)+")";
+      g.fillRect(sx-2,gy-8,5,8);
+      g.globalCompositeOperation="source-over";
+    } else {
+      drawRsFigure(g,sx,gy,K,RS_PLAYER_C[(h>>>11)%RS_PLAYER_C.length],day,"stand",((h>>>5)&1)?1:-1,rsTier(h^0x1f77));
+      if(((now/1800+i)|0)%6===0)
+        drawSpeechBubble(g,sx,gy-10,RS_BAN_SAY[((h>>>19)+Math.floor(now/2400))%RS_BAN_SAY.length],night);
+    }
+  }
+  // the front itself: a hard bright edge, because an administrative action has no falloff
+  for(var sgn=0;sgn<2;sgn++){
+    var fx=disX(epi+(sgn?1:-1)*r);
+    if(fx<-4||fx>SW+4) continue;
+    g.globalCompositeOperation="lighter";
+    g.fillStyle="rgba(230,240,255,0.5)";
+    g.fillRect(fx-1,Math.round(HORIZON*0.30),2,HORIZON);
+    g.globalCompositeOperation="source-over";
+  }
+}
+var RS_BAN_SAY=["I DIDN'T BOT","APPEALING THIS","2 DAY BAN?","THAT'S NOT FAIR","MY MAIN","PERM?",
+                "I ONLY LEECHED","WASN'T ME","SEE YOU ON MY ALT","MODS ARE ONLINE"];
 function drawApocalypse(g,ap,L,now){
   if(curDeath==="nuke"){ drawApocNuke(g,ap,L,now); return; }
   if(curDeath==="meteors"){ drawApocMeteor(g,ap,L,now); return; }
@@ -49551,6 +49838,11 @@ function drawApocalypse(g,ap,L,now){
   if(curDeath==="frost"){ drawApocFrost(g,ap,L,now); return; }
   if(curDeath==="kaiju"){ drawApocKaiju(g,ap,L,now); return; }
   if(curDeath==="ninetails"){ drawApocFox(g,ap,L,now); return; }
+  if(curDeath==="massacre"){ drawApocMassacre(g,ap,L,now); return; }
+  if(curDeath==="logout"){ drawApocLogout(g,ap,L,now); return; }
+  if(curDeath==="wilderness"){ drawApocWild(g,ap,L,now); return; }
+  if(curDeath==="godwars"){ drawApocGodWars(g,ap,L,now); return; }
+  if(curDeath==="banwave"){ drawApocBanWave(g,ap,L,now); return; }
   if(curDeath==="flood"){ drawApocFlood(g,ap,L,now); return; }
   if(curDeath==="kaijuwar"){ drawApocKaijuWar(g,ap,L,now); return; }
   if(curDeath==="pollution"){ drawApocPollution(g,ap,L,now); return; }
