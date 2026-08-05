@@ -4298,7 +4298,21 @@ var EGG_BIOMES=[
     walls:[[240,240,236],[214,214,210],[248,248,246],[190,190,188],[228,228,226],[204,204,202],[244,244,242],[178,178,176]],
     fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:1}, big:["cattle"], small:["squirrel"], air:["crow","dove"] },
     flora:{ kinds:["generic","generic","windbent","grass"], bloom:["#ffffff","#f4c8d8","#e8e0f0"] },
-    sky:{ top:[132,180,224], bot:[206,226,238], k:0.32, haze:[208,228,240] } }
+    sky:{ top:[132,180,224], bot:[206,226,238], k:0.32, haze:[208,228,240] } },
+  // 🦠 ARDOUGNE — the city divided in two, and the best fit of the four for this engine: "divided in
+  // 2" cashes out directly as EXTREME VALUE CONTRAST, one of the three rules, with the plague wall as
+  // the ONE BIG OBJECT. Two of the three rules satisfied by the subject itself.
+  // ⚠ THE GRASS IS THE EAST'S GRASS. Everything west of the wall is drained from it at draw time by
+  // `adBlight`, so the biome row states the healthy land and the blight is a THING THAT HAPPENED TO
+  // IT — which is what it is. Two palettes in the row would have made the west a different country.
+  { k:"ardougne", name:"ARDOUGNE", egg:1, rs:"ardougne", amp:0.42, base:0.24, flat:0.66, steep:0.34, snow:false, water:"none",
+    far:[124,152,116], near:[92,124,86], cap:[214,222,226], ground:[100,146,74],
+    // warm sandstone and dark timber — the east's prosperity is in the WARMTH, which is exactly what
+    // the west loses when it drains toward grey
+    walls:[[222,208,180],[196,180,150],[236,224,198],[172,156,128],[210,196,168],[184,168,140],[228,216,190],[160,146,120]],
+    fauna:{ keep:{deer:1,rabbit:1,fox:1,boar:1}, big:["cattle"], small:["rat","squirrel"], air:["crow","gull"] },
+    flora:{ kinds:["generic","generic","broad","grass"], bloom:["#e8d8a0","#d8b8c8","#c8d8b0"] },
+    sky:{ top:[124,168,214], bot:[198,216,230], k:0.34, haze:[202,220,232] } }
 ];
 // ONE TRUTH ABOUT WHICH LAND THIS LIFE IS. Extracted from buildWorld because `setup` now has to know
 // the land BEFORE it can place HORIZON: the coastal lands put open water along the bottom of the
@@ -28685,6 +28699,17 @@ function lumBridgeY(){ return Math.round(rsFieldY(LB_RIVER*WW)+(HORIZON-rsFieldY
 // stayed where it was and the town would have built straight through the wall.
 function faCastleW(){ return Math.round(HORIZON*0.62); }
 function rsFoot(){
+  if(curRs==="ardougne"){
+    // the wall and the castle are the two things the town must never build in front of, and both
+    // widths come from the SAME source the drawing uses — the faCastleW lesson, applied up front
+    var awx=Math.round(AD_WALL*WW), aww=Math.round(adWallW()*1.9);   // wall + its stepped stubs
+    lmFoot.push([awx-(aww>>1)-8, awx+(aww>>1)+8]);
+    var acx=Math.round(AD_CASTLE*WW), acw=Math.round(HORIZON*0.52*1.08);
+    lmFoot.push([acx-(acw>>1)-10, acx+(acw>>1)+10]);
+    var amx=Math.round(AD_MARKET*WW), amw=Math.round(HORIZON*0.30);
+    lmFoot.push([amx-(amw>>1)-6, amx+(amw>>1)+6]);
+    return;
+  }
   if(curRs==="falador"){
     var fcw=Math.round(faCastleW()*1.08), fcx=Math.round(FA_CASTLE*WW);
     lmFoot.push([fcx-(fcw>>1)-10, fcx+(fcw>>1)+10]);
@@ -28716,6 +28741,26 @@ function lumCampX(){ return Math.round(LB_SWAMP*WW)+Math.round(HORIZON*0.62*0.22
 // the tracks and the trees. A city's own file then draws only its named places.
 // ⚠ Lumbridge's versions of these were the originals and every note earned on them is kept verbatim —
 // they are the reasons these functions have the shapes they do.
+// ---- ARDOUGNE'S DIVIDE -------------------------------------------------------------------------
+// 📚 West Ardougne is "sealed off by a wall and gates", quarantined under the Mourners; East Ardougne
+// is the prosperous half, its marketplace "the best place to find thieves in all of Gielinor". The
+// wall physically separates the thriving market quarter from the pestilent one — the game's own
+// sentence, and the whole design of this land.
+// 🔑🔑 THE BLIGHT IS A FUNCTION OF WORLD X, NOT A SECOND PALETTE. One drained palette for the west
+// would make it a different COUNTRY that happens to abut this one; a factor applied to the SAME
+// colours makes it the same country, sick — which is the actual proposition. It also means every
+// feature the shared kit draws (field, treeline, patches, tracks, trees) is blighted for free,
+// instead of each one needing to be told the land is divided.
+// ⚠ AND IT IS A RAMP, NOT A STEP. A hard edge at the wall would put the contrast on the wall itself,
+// where the wall's own silhouette is already doing that work; a short ramp just west of it means the
+// quarter gets sicker the further in you go, which reads as spreading rather than as painted.
+var AD_WALL=0.40;
+function adBlight(wx){
+  if(curRs!=="ardougne") return 0;
+  var d=(wx-AD_WALL*WW)/Math.max(1,WW*0.10);            // 0 at the wall, 1 a tenth of a world west
+  if(d>=0) return 0;                                     // east of the wall: untouched
+  return Math.max(0,Math.min(1,-d));
+}
 function rsPal(day,skc){
   function nite(c,k){ return mixc(c,[14,18,38],k); }
   // ⚠ THE NIGHT COLOUR IS A DARKENED VERSION OF THE SAME FLAT COLOUR, not a re-mixed one — the 2007
@@ -28736,6 +28781,13 @@ function rsPal(day,skc){
   P.water = day?[62,118,168] :nite([62,118,168],0.62);
   P.wood  = day?[112,80,52]  :nite([112,80,52],0.72);
   P.scorch= day?[92,74,50]:[18,16,14];
+  // 🦠 THE BLIGHT. Not a colour the west is painted, but the colour the east's own greens are DRAWN
+  // TOWARD — grey-brown, cold, and only slightly darker. 🔑 The contrast has to come from SATURATION,
+  // not from value: making the west simply darker reads as a shadow crossing the land, or as night
+  // falling on one side of it, and both are things that will actually happen there later.
+  P.blight = day?[112,110,92] :nite([112,110,92],0.74);
+  P.blightL= day?[136,132,112]:nite([136,132,112],0.72);
+  P.blightD= day?[86,84,70]   :nite([86,84,70],0.76);
   P.nite  = nite;
   return P;
 }
@@ -28755,13 +28807,21 @@ function rsDmg(x){
 function rsProfile(K){
   var RC=rsCache;
   if(!RC||RC.sw!==SW||RC.woff!==WOFF||RC.hz!==HORIZON||RC.k!==K||RC.rs!==curRs){
-    RC={ sw:SW, woff:WOFF, hz:HORIZON, k:K, rs:curRs, fy:[], far:[] };
+    RC={ sw:SW, woff:WOFF, hz:HORIZON, k:K, rs:curRs, fy:[], far:[], blight:null };
+    // 🔑 THE BLIGHT RIDES THE CACHE. It is a pure function of world x and the viewport, i.e. exactly
+    // what this cache exists to hold, and computing it here means the ardougne test is paid ONCE per
+    // viewport rather than per column per repaint. `null` on the other three cities, so their loops
+    // do one null check and nothing else — the alternative was thirty `curBiome.rs` tests in thirty
+    // hot loops, which is the trap `curRs` was introduced to avoid in the first place.
+    var bl=(curRs==="ardougne")?[]:null;
     for(var ci=0;ci<SW;ci++){
       var cw=ci+WOFF;
       RC.fy.push(rsFieldY(cw));
       var nf=Math.sin(cw*0.0035+0.4)*0.5+Math.sin(cw*0.0091+1.9)*0.3+Math.sin(cw*0.0187)*0.2;
       RC.far.push(Math.round(HORIZON*(0.34-nf*0.055)));
+      if(bl) bl.push(adBlight(cw));
     }
+    RC.blight=bl;
     rsCache=RC;
   }
   return RC;
@@ -28780,23 +28840,32 @@ function rsGroundBands(g,P,RC,day,K,behindField){
   if(behindField) behindField();
   // THE FIELD. Flat saturated green with a HARD top edge. No gradient across it, no haze: the whole
   // register depends on the grass being one colour you could name.
+  var BL=RC.blight;
   for(var x1=0;x1<SW;x1++){
     var fy1=RC.fy[x1], d1=rsDmg(x1);
-    g.fillStyle=css(mixc(P.grass,P.scorch,d1*0.80)); g.fillRect(x1,fy1,1,GY-fy1+1);
-    g.fillStyle=css(mixc(P.grassL,P.scorch,d1*0.85)); g.fillRect(x1,fy1,1,Math.max(1,Math.round(K*0.9)));
+    var gc=mixc(P.grass,P.scorch,d1*0.80), gl=mixc(P.grassL,P.scorch,d1*0.85);
+    // the quarantine, drawn into the ground itself: the grass goes grey and the lit edge goes with it
+    if(BL&&BL[x1]>0){ gc=mixc(gc,P.blight,BL[x1]*0.82); gl=mixc(gl,P.blightL,BL[x1]*0.82); }
+    g.fillStyle=css(gc); g.fillRect(x1,fy1,1,GY-fy1+1);
+    g.fillStyle=css(gl); g.fillRect(x1,fy1,1,Math.max(1,Math.round(K*0.9)));
   }
   // a darker near-band along the town's feet, so the field has a floor and the houses are not standing
   // on the same value they are seen against
   for(var x2=0;x2<SW;x2++){
-    g.fillStyle=css(mixc(P.grassD,P.scorch,rsDmg(x2)*0.8));
+    var nc=mixc(P.grassD,P.scorch,rsDmg(x2)*0.8);
+    if(BL&&BL[x2]>0) nc=mixc(nc,P.blightD,BL[x2]*0.82);
+    g.fillStyle=css(nc);
     g.fillRect(x2,GY-Math.round(HORIZON*0.055),1,Math.round(HORIZON*0.055)+1);
   }
+  var tlBase=day?mixc([58,102,44],P.far,0.30):P.nite([58,102,44],0.76);
   for(var tl=0;tl<SW;tl++){
     var twx2=tl+WOFF;
     var bump=Math.sin(twx2*0.09)*0.5+Math.sin(twx2*0.031+2.2)*0.32+Math.sin(twx2*0.013+0.7)*0.18;
     var tlh=Math.round(HORIZON*0.018*(1+bump));
     if(tlh<=0) continue;
-    g.fillStyle=day?css(mixc([58,102,44],P.far,0.30)):css(P.nite([58,102,44],0.76));
+    // ⚠ the treeline is the WOOD BEHIND THE TOWN, so a dying quarter has a dying wood behind it —
+    // leaving it green was the single loudest tell that the blight was paint rather than a condition
+    g.fillStyle=css((BL&&BL[tl]>0)?mixc(tlBase,P.blightD,BL[tl]*0.75):tlBase);
     g.fillRect(tl,RC.fy[tl]-tlh,1,tlh+1);
   }
 }
@@ -29716,6 +29785,431 @@ function drawIceMountain(g,day,K,P,skc){
     }
   }
 }
+// ================================================================================================
+// ARDOUGNE — THE CITY DIVIDED IN TWO
+// ================================================================================================
+// Nick described the fourth land as *"the Sick Place where the city is divided in 2"*. His locked
+// layout, west→east, and the real city's own geography — West Ardougne genuinely IS the western half:
+//   SCREEN 1  0.06 dead trees + the Underground Pass · 0.15 boarded houses · 0.25 the mourners' post
+//             0.32 the sealed west gate
+//   SCREEN 2  0.40 ██ THE WALL ██ · 0.54 THE MARKETPLACE · 0.66 ARDOUGNE CASTLE
+//   SCREEN 3  0.78 the zoo · 0.88 the clock tower · 0.96 the port to Brimhaven
+// 🔒 He chose "GRIM AND ACTIVE" for the west: mourners in numbers, braziers burning, a quarter under
+// control rather than an empty one. So the contrast is carried by COLOUR — the blight ramp — and the
+// west is populated, which is bleaker than emptiness and much harder to mistake for an unbuilt land.
+var AD_PASS=0.06, AD_SLUM=0.15, AD_MOURN=0.25, AD_WGATE=0.32,
+    AD_MARKET=0.54, AD_CASTLE=0.66, AD_ZOO=0.78, AD_CLOCK=0.88, AD_PORT=0.96;
+function adWallW(){ return Math.round(HORIZON*0.30); }      // one source: the wall and its keep-out
+function drawArdougne(g,L,now,nd){
+  var day=L>0.5, K=Math.max(1,KSP), skc=biomeSkc(day);
+  var P=rsPal(day,skc), nite=P.nite, RC=rsProfile(K);
+  var wall =day?[150,146,132]:nite([150,146,132],0.72);
+  var wallD=day?[108,104,94] :nite([108,104,94],0.76);
+  var wallL=day?[178,174,158]:nite([178,174,158],0.68);
+  var tim  =day?[88,70,56]   :nite([88,70,56],0.76);
+  var roofA=day?[104,88,72]  :nite([104,88,72],0.74);
+  var roofB=day?[74,62,50]   :nite([74,62,50],0.78);
+  rsGroundBands(g,P,RC,day,K,null);
+  rsPatches(g,P,day,K,20);
+  // the road runs the length of the city and THROUGH the wall — one road, both halves, because a
+  // divided city is one city
+  rsTrack(g,P,day,K,AD_PASS,0.46,AD_WGATE,0.54,2.0);
+  rsTrack(g,P,day,K,AD_WGATE,0.54,AD_MARKET,0.56,2.4);
+  rsTrack(g,P,day,K,AD_MARKET,0.56,AD_PORT,0.50,2.4);
+  rsTrees(g,P,day,K,24,[[AD_CASTLE*WW,HORIZON*0.34],[AD_MARKET*WW,HORIZON*0.22],[AD_WALL*WW,HORIZON*0.26]]);
+  var x;
+  x=rsX(AD_PASS);   if(x>-HORIZON&&x<SW+HORIZON) drawAdPass(g,x,day,K,P);
+  x=rsX(AD_SLUM);   if(x>-HORIZON&&x<SW+HORIZON) drawAdSlum(g,x,day,K,L,P,wall,wallD,tim,roofA,roofB);
+  x=rsX(AD_MOURN);  if(x>-HORIZON&&x<SW+HORIZON) drawAdMournPost(g,x,day,K,P,wall,wallD,tim);
+  x=rsX(AD_WGATE);  if(x>-HORIZON&&x<SW+HORIZON) drawAdWestGate(g,x,day,K,wall,wallD,wallL,tim);
+  x=rsX(AD_WALL);   if(x>-HORIZON*1.4&&x<SW+HORIZON*1.4) drawAdWall(g,x,day,K,wall,wallD,wallL);
+  x=rsX(AD_MARKET); if(x>-HORIZON&&x<SW+HORIZON) drawAdMarket(g,x,day,K,L,P,tim,roofA,roofB);
+  x=rsX(AD_CASTLE); if(x>-HORIZON*1.2&&x<SW+HORIZON*1.2) drawAdCastle(g,x,day,K,L,wall,wallD,wallL,roofA,roofB);
+  x=rsX(AD_ZOO);    if(x>-HORIZON&&x<SW+HORIZON) drawAdZoo(g,x,day,K,P,tim,roofA);
+  x=rsX(AD_CLOCK);  if(x>-HORIZON&&x<SW+HORIZON) drawAdClock(g,x,day,K,L,wall,wallD,wallL,roofA,roofB);
+  x=rsX(AD_PORT);   if(x>-HORIZON&&x<SW+HORIZON) drawAdPort(g,x,day,K,P,tim);
+}
+// ---- THE WALL. The one big object, and the whole reason this land works ------------------------
+// 🚨 IT IS A MASS, NOT A CURTAIN. A wall running the width of the world is the horizontal repetition
+// this engine renders worst — the exact fault that killed THE TERRACES after eleven commits and the
+// reason Falador's walled city was declined in favour of two gatehouses. So this is ONE tall block
+// with a sealed gate in it, and its wall stubs STEP DOWN to nothing either side: the eye reads a
+// barrier without ever being given a row of identical merlons to count.
+// 🔑 And it is DARK. Everything else on this land is warm sandstone or drained grey; the wall is the
+// only near-black mass in the frame, which is what makes it the object the whole land is composed
+// around rather than just the widest building.
+function drawAdWall(g,cx,day,K,wall,wallD,wallL){
+  var base=rsStandY(AD_WALL*WW,0.56), W=adWallW(), H=Math.round(HORIZON*0.34);
+  var topMargin=Math.round(HORIZON*0.045);
+  H=Math.min(H,base-topMargin-Math.round(HORIZON*0.05));     // the castle's lesson: clamp, never tune
+  var x0=cx-(W>>1);
+  lumShadow(g,cx,base,Math.round(W*1.15),day);
+  g.fillStyle=css(wallD); g.fillRect(x0,base-H,W,H);
+  g.fillStyle=css(wall);  g.fillRect(x0,base-H,Math.round(W*0.62),H);     // the lit face, off-centre
+  // courses, run-batched, two fillStyle sets whatever the size
+  var cStep=Math.max(3,Math.round(4*K));
+  g.fillStyle=css(mixc(wall,wallD,0.6));
+  for(var cy=base-H+cStep;cy<base;cy+=cStep) g.fillRect(x0,cy,W,1);
+  g.fillStyle=css(mixc(wallD,[20,20,24],0.4));
+  for(var cy2=base-H,row=0;cy2<base;cy2+=cStep,row++){
+    var jh=Math.min(cStep-1,base-cy2);
+    for(var jx=x0+((row&1)?Math.round(3*K):0);jx<x0+W;jx+=Math.max(4,Math.round(7*K))) g.fillRect(jx,cy2,1,jh);
+  }
+  // the merlons and the two towers that flank the gate
+  var st=Math.max(3,Math.round(4.6*K)), mw=Math.max(2,Math.round(2.4*K)), mh=Math.max(2,Math.round(2.6*K));
+  g.fillStyle=css(wall);
+  for(var m=x0;m<x0+W-mw;m+=st) g.fillRect(m,base-H-mh,mw,mh);
+  for(var t=0;t<2;t++){
+    var tw=Math.round(W*0.16), tx=x0+(t?W-tw:0), th=Math.round(H*1.16);
+    th=Math.min(th,base-topMargin);
+    g.fillStyle=css(wallD); g.fillRect(tx,base-th,tw,th);
+    g.fillStyle=css(wall);  g.fillRect(tx,base-th,Math.max(1,Math.round(K*1.4)),th);
+    g.fillStyle=css(wallL);
+    for(var m2=tx;m2<tx+tw-mw;m2+=st) g.fillRect(m2,base-th-mh,mw,mh);
+  }
+  // 🔒 THE GATE IS SHUT, AND THAT IS THE POINT. Every other gate in this set is an opening you can see
+  // through; this one is barred, because the quarantine is the subject. A gate you could walk through
+  // would say the two halves are merely adjacent.
+  var gw=Math.round(W*0.20), gh=Math.round(H*0.52), gx=cx-(gw>>1);
+  g.fillStyle=day?"rgba(30,28,30,0.95)":"rgba(6,6,10,0.96)";
+  g.fillRect(gx,base-gh,gw,gh);
+  for(var ga=0;ga<Math.round(gw*0.5);ga++){
+    var gaw=Math.round(gw*Math.sqrt(Math.max(0,1-Math.pow(ga/(gw*0.5),2))));
+    g.fillRect(gx+((gw-gaw)>>1),base-gh-ga,gaw,1);
+  }
+  g.fillStyle=css(tim3(day));                                  // the timbers barring it
+  for(var b=0;b<3;b++) g.fillRect(gx,base-gh+Math.round(gh*(0.24+b*0.24)),gw,Math.max(1,Math.round(1.6*K)));
+  // ⚠ THE STUBS DIE OUT. Three falling runs either side, each shorter and lower than the last, so the
+  // barrier reads as continuing into the distance instead of stopping at a cut edge.
+  for(var sd=0;sd<2;sd++){
+    var sgn=sd?1:-1;
+    for(var seg=0;seg<3;seg++){
+      var sh=Math.round(H*(0.46-seg*0.13)), sw=Math.round(HORIZON*(0.070-seg*0.017));
+      var sxx=cx+sgn*Math.round(W*0.5+HORIZON*(seg*0.072));
+      var xa=sgn>0?sxx:sxx-sw;
+      g.fillStyle=css(wallD); g.fillRect(xa,base-sh,sw,sh);
+      g.fillStyle=css(wall);  g.fillRect(xa,base-sh,sw,Math.max(1,Math.round(1.4*K)));
+      g.fillStyle=css(wall);
+      for(var m3=xa;m3<xa+sw-mw;m3+=st) g.fillRect(m3,base-sh-Math.round(2*K),mw,Math.round(2*K));
+    }
+  }
+}
+function tim3(day){ return day?[70,54,42]:[16,14,18]; }
+// ---- WEST: the Underground Pass, in a spoil mound under dead trees ------------------------------
+function drawAdPass(g,cx,day,K,P){
+  var base=rsStandY(AD_PASS*WW,0.50);
+  var w=Math.round(HORIZON*0.13), h=Math.round(HORIZON*0.055);
+  g.fillStyle=day?"#6a6458":"#181820";
+  for(var r=0;r<h;r++){ var w2=Math.round(w*(1-Math.pow(r/h,1.7))); g.fillRect(cx-(w2>>1),base-r,w2,1); }
+  g.fillStyle=day?"rgba(16,14,18,0.96)":"rgba(4,4,8,0.97)";     // the mouth: the darkest hole on the land
+  var mw=Math.round(w*0.30), mh=Math.round(h*0.78);
+  g.fillRect(cx-(mw>>1),base-mh,mw,mh);
+  for(var a=0;a<Math.round(mw*0.5);a++){
+    var aw=Math.round(mw*Math.sqrt(Math.max(0,1-Math.pow(a/(mw*0.5),2))));
+    g.fillRect(cx-(aw>>1),base-mh-a,aw,1);
+  }
+  // dead trees: bare forks, no crown. The one tree shape on this land with nothing on it.
+  for(var t=0;t<4;t++){
+    var tx=cx+Math.round((t-1.5)*HORIZON*0.055), th=Math.round(HORIZON*(0.045+((t*7)%3)*0.008));
+    var ty=rsStandY(AD_PASS*WW+(t-1.5)*HORIZON*0.055,0.36);
+    g.fillStyle=day?"#4e463a":"#141218";
+    g.fillRect(tx,ty-th,Math.max(1,Math.round(1.4*K)),th);
+    g.fillRect(tx-Math.round(3*K),ty-th+Math.round(2*K),Math.round(3*K),1);
+    g.fillRect(tx+Math.round(1.4*K),ty-th+Math.round(4*K),Math.round(3*K),1);
+  }
+}
+// ---- WEST: the boarded quarter -----------------------------------------------------------------
+// 🔑 THE BOARDS ARE THE MARK. A drained palette alone reads as bad weather; planks nailed across the
+// windows read as a quarantine, and they are three pixels each. The roofs sag — a straight ridge is
+// a maintained roof, and nothing here is maintained.
+function drawAdSlum(g,cx,day,K,L,P,wall,wallD,tim,roofA,roofB){
+  var seedW=(WORLD_SEED*2654435761)>>>0, night=(L<=0.5);
+  for(var i=0;i<6;i++){
+    var h2=iceHash(i*4451^seedW);
+    var off=Math.round((i-2.5)*HORIZON*0.058+(((h2%100)/100)-0.5)*HORIZON*0.012);
+    var bx=cx+off, base=rsStandY(AD_SLUM*WW+off,0.52+((h2>>>9)%40)/1000);
+    var w=Math.round(HORIZON*(0.042+((h2>>>5)%3)*0.006)), h=Math.round(HORIZON*(0.052+((h2>>>13)%4)*0.007));
+    lumShadow(g,bx,base,Math.round(w*1.1),day);
+    g.fillStyle=css(mixc(wall,[110,108,92],0.55)); g.fillRect(bx-(w>>1),base-h,w,h);
+    g.fillStyle=css(mixc(wallD,[86,84,70],0.5));   g.fillRect(bx+(w>>1)-Math.round(1.2*K),base-h,Math.round(1.2*K),h);
+    // the sagging roof: two runs at different pitches meeting off-centre
+    var rh=Math.round(w*0.40), sag=Math.round(1.6*K);
+    for(var r=0;r<rh;r++){
+      var rw=Math.max(1,Math.round((w+Math.round(3*K))*(1-r/rh)));
+      g.fillStyle=css((r%2)?roofA:roofB);
+      g.fillRect(bx-((w+Math.round(3*K))>>1)+(((w+Math.round(3*K))-rw)>>1)+Math.round(r*0.12),
+                 base-h-1-r+(r>rh*0.5?sag:0),rw,1);
+    }
+    // the windows, and the boards across them
+    var wy=base-Math.round(h*0.62), ww=Math.round(w*0.26);
+    g.fillStyle=night?"rgba(30,28,26,0.95)":"rgba(38,34,32,0.9)";
+    g.fillRect(bx-(ww>>1),wy,ww,Math.round(h*0.26));
+    g.fillStyle=css(tim);
+    g.fillRect(bx-(ww>>1)-Math.round(K),wy+Math.round(h*0.06),ww+Math.round(2*K),Math.max(1,Math.round(1.4*K)));
+    g.fillRect(bx-(ww>>1)-Math.round(K),wy+Math.round(h*0.17),ww+Math.round(2*K),Math.max(1,Math.round(1.4*K)));
+    // a chalked cross on about a third of the doors — the plague mark, and the whole story in 4px
+    if((h2>>>17)%3===0){
+      g.fillStyle=day?"rgba(228,224,214,0.85)":"rgba(150,150,160,0.6)";
+      var dx=bx-Math.round(w*0.30), dy=base-Math.round(h*0.30), s=Math.round(3*K);
+      for(var q=0;q<s;q++){ g.fillRect(dx+q,dy+q,1,1); g.fillRect(dx+q,dy+s-1-q,1,1); }
+    }
+  }
+}
+// ---- WEST: the mourners' post ------------------------------------------------------------------
+// 🔒 "GRIM AND ACTIVE" — this is the quarter under CONTROL, so the post is manned, barriered and lit.
+// The braziers are the only warm light west of the wall, which is what makes the west feel governed
+// rather than abandoned.
+function drawAdMournPost(g,cx,day,K,P,wall,wallD,tim){
+  var base=rsStandY(AD_MOURN*WW,0.54);
+  // the barrier across the road: trestles, not a wall
+  g.fillStyle=css(tim);
+  for(var b=0;b<3;b++){
+    var bx=cx+Math.round((b-1)*HORIZON*0.038);
+    g.fillRect(bx-Math.round(4*K),base-Math.round(4*K),Math.round(8*K),Math.max(1,Math.round(1.4*K)));
+    g.fillRect(bx-Math.round(3*K),base-Math.round(4*K),Math.max(1,Math.round(K)),Math.round(4*K));
+    g.fillRect(bx+Math.round(2*K),base-Math.round(4*K),Math.max(1,Math.round(K)),Math.round(4*K));
+  }
+  // the mourners' tent
+  var tw=Math.round(HORIZON*0.052), th=Math.round(HORIZON*0.040), tx=cx-Math.round(HORIZON*0.052);
+  g.fillStyle=day?"#4a4640":"#12121a";
+  for(var r=0;r<th;r++){ var w2=Math.round(tw*(r/th)); g.fillRect(tx-(w2>>1),base-th+r,w2,1); }
+  g.fillStyle=day?"rgba(20,18,20,0.9)":"rgba(6,6,10,0.94)";
+  g.fillRect(tx-Math.round(1.6*K),base-Math.round(th*0.5),Math.round(3.2*K),Math.round(th*0.5));
+}
+// the braziers burn in the LIVE pass — a fire that does not move is a bucket
+function drawAdBraziers(g,now,day,K){
+  var spots=[AD_MOURN-0.018,AD_MOURN+0.020,AD_WGATE-0.014,AD_SLUM+0.030];
+  for(var i=0;i<spots.length;i++){
+    var sx=rsX(spots[i]); if(sx<-20||sx>SW+20) continue;
+    var base=rsStandY(spots[i]*WW,0.545);
+    g.fillStyle=day?"#3a342c":"#12100e";
+    g.fillRect(sx-Math.round(2*K),base-Math.round(5*K),Math.round(4*K),Math.round(2*K));      // the bowl
+    g.fillRect(sx-Math.max(1,Math.round(K*0.6)),base-Math.round(4*K),Math.max(1,Math.round(1.2*K)),Math.round(4*K));
+    var fl=((now/220+i*3)|0)&1;
+    g.fillStyle="#e07a1e"; g.fillRect(sx-Math.round(1.4*K),base-Math.round(7.5*K)-fl,Math.round(3*K),Math.round(3*K));
+    g.fillStyle="#f6c83c"; g.fillRect(sx-Math.max(1,Math.round(K*0.6)),base-Math.round(9*K)-fl,Math.max(1,Math.round(1.2*K)),Math.round(2*K));
+  }
+}
+// ---- WEST: the sealed west gate ----------------------------------------------------------------
+function drawAdWestGate(g,cx,day,K,wall,wallD,wallL,tim){
+  var base=rsStandY(AD_WGATE*WW,0.54);
+  var tw=Math.round(HORIZON*0.044), th=Math.round(HORIZON*0.130), gap=Math.round(HORIZON*0.058);
+  lumShadow(g,cx,base,Math.round((gap+tw*2)*1.1),day);
+  g.fillStyle=css(wallD); g.fillRect(cx-(gap>>1),base-Math.round(th*0.72),gap,Math.round(th*0.72));
+  g.fillStyle=css(tim);
+  for(var b=0;b<3;b++) g.fillRect(cx-(gap>>1),base-Math.round(th*0.72)+Math.round(th*(0.16+b*0.18)),gap,Math.max(1,Math.round(1.4*K)));
+  for(var t=0;t<2;t++){
+    var tx=cx+(t?1:-1)*Math.round(gap*0.5)-(t?0:tw);
+    g.fillStyle=css(wallD); g.fillRect(tx,base-th,tw,th);
+    g.fillStyle=css(wall);  g.fillRect(tx,base-th,Math.max(1,Math.round(K)),th);
+    var st=Math.max(3,Math.round(3.6*K)), mw=Math.max(2,Math.round(1.8*K));
+    g.fillStyle=css(wallL);
+    for(var m=tx;m<tx+tw-mw;m+=st) g.fillRect(m,base-th-Math.round(2.2*K),mw,Math.round(2.2*K));
+  }
+}
+// ---- EAST: THE MARKETPLACE ---------------------------------------------------------------------
+// 📚 "The marketplace is its centerpiece, featuring stalls selling baked goods, silk, silver, fur,
+// spice and gems." 🔑 THE STRIPED AWNINGS ARE THE MARK — a row of coloured canopies is a market at
+// any size, and it is the only place on the land where saturated colour is allowed to riot. That is
+// deliberate: the east's prosperity has to be VISIBLE from the west's grey, and this is where it lives.
+function drawAdMarket(g,cx,day,K,L,P,tim,roofA,roofB){
+  var seedW=(WORLD_SEED*2654435761)>>>0;
+  var awn=day?["#c8503c","#3a7ac0","#d8a83a","#4aa05a","#a05ac0","#c87a3a"]
+             :["#4a1c14","#16304c","#544020","#1c3c22","#3c2048","#4c2c14"];
+  for(var i=0;i<7;i++){
+    var off=Math.round((i-3)*HORIZON*0.046);
+    var sx=cx+off, base=rsStandY(AD_MARKET*WW+off,0.545+((i%3)*0.012));
+    var w=Math.round(HORIZON*0.038), h=Math.round(HORIZON*0.030);
+    g.fillStyle=css(tim);                                         // the trestle and its posts
+    g.fillRect(sx-(w>>1),base-Math.round(2.6*K),w,Math.max(1,Math.round(1.4*K)));
+    g.fillRect(sx-(w>>1),base-Math.round(2.6*K),Math.max(1,Math.round(K)),Math.round(2.6*K));
+    g.fillRect(sx+(w>>1)-Math.round(K),base-Math.round(2.6*K),Math.max(1,Math.round(K)),Math.round(2.6*K));
+    g.fillRect(sx-(w>>1),base-h-Math.round(2*K),Math.max(1,Math.round(K)),h);
+    g.fillRect(sx+(w>>1)-Math.round(K),base-h-Math.round(2*K),Math.max(1,Math.round(K)),h);
+    // the awning: two colours in alternating bands, which is what says "market" and not "shed"
+    var ah=Math.max(2,Math.round(2.4*K));
+    for(var s=0;s<w;s+=Math.max(2,Math.round(2.6*K))){
+      g.fillStyle=awn[(i+ (s/Math.max(2,Math.round(2.6*K)))|0)%awn.length];
+      g.fillRect(sx-(w>>1)+s,base-h-Math.round(2*K)-ah,Math.min(Math.max(2,Math.round(2.6*K)),w-s),ah);
+    }
+    // the goods on the trestle — single pixels, the same vocabulary as the traders' pile
+    var gh=iceHash(i*911^seedW);
+    for(var q=0;q<4;q++){
+      g.fillStyle=(day?["#d4b43c","#bec4cc","#78c478","#c456c4"]:["#726432","#676c7a","#446c50","#6a3576"])[(gh>>>(q*3))%4];
+      g.fillRect(sx-(w>>1)+2+((gh>>>(q*5))%Math.max(1,w-4)),base-Math.round(3.6*K),1,1);
+    }
+  }
+}
+// ---- EAST: ARDOUGNE CASTLE ---------------------------------------------------------------------
+// ⚠ THIRD CASTLE, THIRD SHAPE. Lumbridge is WIDE, TAN and FLAT-TOPPED on a motte; Falador is TALL,
+// WHITE and POINTED on the flat. This one is neither: a SQUAT, BROAD sandstone keep with a deep
+// projecting gatehouse and dark timber roofs — horizontal where Falador is vertical, and warm where
+// Lumbridge is pale. "One shape repeated" is the fault the karst land was the third to teach, and
+// three castles in one set is exactly where it would come back.
+function drawAdCastle(g,cx,day,K,L,wall,wallD,wallL,roofA,roofB){
+  var base=rsStandY(AD_CASTLE*WW,0.56), night=(L<=0.5);
+  var W=Math.round(HORIZON*0.52), H=Math.round(HORIZON*0.24), x0=cx-(W>>1);
+  var topMargin=Math.round(HORIZON*0.045);
+  lumShadow(g,cx,base,Math.round(W*1.06),day);
+  var sand=day?[206,190,158]:mixc([206,190,158],[14,18,38],0.72);
+  var sandD=day?[168,152,124]:mixc([168,152,124],[14,18,38],0.76);
+  var sandL=day?[228,214,184]:mixc([228,214,184],[14,18,38],0.68);
+  g.fillStyle=css(sand);  g.fillRect(x0,base-H,W,H);
+  g.fillStyle=css(sandD); g.fillRect(x0+W-Math.round(2*K),base-H,Math.round(2*K),H);
+  // courses, run-batched
+  var cStep=Math.max(3,Math.round(3.6*K));
+  g.fillStyle=css(mixc(sand,sandD,0.55));
+  for(var cy=base-H+cStep;cy<base;cy+=cStep) g.fillRect(x0,cy,W,1);
+  var st=Math.max(3,Math.round(4.4*K)), mw=Math.max(2,Math.round(2.4*K)), mh=Math.max(2,Math.round(2.4*K));
+  g.fillStyle=css(sandL);
+  for(var m=x0;m<x0+W-mw;m+=st) g.fillRect(m,base-H-mh,mw,mh);
+  // the projecting gatehouse — the horizontal mass that makes this castle squat
+  var gw=Math.round(W*0.30), gx=cx-(gw>>1), gh2=Math.round(H*1.22);
+  gh2=Math.min(gh2,base-topMargin-Math.round(H*0.30));
+  g.fillStyle=css(sandL); g.fillRect(gx,base-gh2,gw,gh2);
+  g.fillStyle=css(sandD); g.fillRect(gx+gw-Math.round(1.6*K),base-gh2,Math.round(1.6*K),gh2);
+  g.fillStyle=css(mixc(sandL,sandD,0.5));
+  for(var cy3=base-gh2+cStep;cy3<base;cy3+=cStep) g.fillRect(gx,cy3,gw,1);
+  g.fillStyle=css(sandL);
+  for(var m2=gx;m2<gx+gw-mw;m2+=st) g.fillRect(m2,base-gh2-mh,mw,mh);
+  // dark timber roofs on the two flanking blocks — the warm-castle signature
+  for(var f=0;f<2;f++){
+    var fw=Math.round(W*0.26), fx=x0+(f?W-fw:0), fh=Math.round(H*0.42);
+    var ry=base-H-mh;
+    for(var r=0;r<fh;r++){
+      var rw=Math.max(1,Math.round((fw+Math.round(3*K))*(1-r/fh)));
+      g.fillStyle=css((r%Math.max(2,Math.round(2*K))<Math.max(1,Math.round(K)))?roofA:roofB);
+      g.fillRect(fx-Math.round(1.5*K)+(((fw+Math.round(3*K))-rw)>>1),ry-1-r,rw,1);
+    }
+  }
+  var aw=Math.round(gw*0.34), ax=cx-(aw>>1), ah2=Math.round(gh2*0.46);
+  g.fillStyle=day?"rgba(38,32,28,0.94)":"rgba(8,8,12,0.95)";
+  g.fillRect(ax,base-ah2,aw,ah2);
+  for(var a=0;a<Math.round(aw*0.5);a++){
+    var aww=Math.round(aw*Math.sqrt(Math.max(0,1-Math.pow(a/(aw*0.5),2))));
+    g.fillRect(ax+((aw-aww)>>1),base-ah2-a,aww,1);
+  }
+  g.fillStyle=night?"rgba(255,204,120,0.9)":"rgba(44,40,34,0.85)";
+  for(var wq=0;wq<5;wq++) g.fillRect(x0+Math.round(W*(0.10+wq*0.20)),base-Math.round(H*0.62),Math.max(2,Math.round(2*K)),Math.round(3.4*K));
+}
+// ---- EAST: the zoo -----------------------------------------------------------------------------
+// 🔑 THE FENCE RING IS THE MARK. A pen is the only structure whose meaning is what is INSIDE it, so
+// the enclosure is drawn open at the front and the animals are the content — anything else at this
+// scale is a paddock.
+function drawAdZoo(g,cx,day,K,P,tim,roofA){
+  var base=rsStandY(AD_ZOO*WW,0.50), w=Math.round(HORIZON*0.20);
+  g.fillStyle=css(tim);
+  for(var p=0;p<9;p++){
+    var px=cx-(w>>1)+Math.round(p*(w/8));
+    g.fillRect(px,base-Math.round(4.4*K),Math.max(1,Math.round(1.2*K)),Math.round(4.4*K));
+  }
+  g.fillRect(cx-(w>>1),base-Math.round(3.6*K),w,Math.max(1,Math.round(1.2*K)));
+  // the gatehouse arch over the entrance
+  var gw=Math.round(HORIZON*0.040);
+  g.fillStyle=css(mixc(P.stone,P.stoneD,0.3));
+  g.fillRect(cx-(gw>>1),base-Math.round(9*K),Math.max(1,Math.round(1.6*K)),Math.round(9*K));
+  g.fillRect(cx+(gw>>1)-Math.round(1.6*K),base-Math.round(9*K),Math.max(1,Math.round(1.6*K)),Math.round(9*K));
+  g.fillStyle=css(roofA); g.fillRect(cx-(gw>>1)-Math.round(K),base-Math.round(10.4*K),gw+Math.round(2*K),Math.round(1.8*K));
+}
+// ---- EAST: the clock tower ---------------------------------------------------------------------
+// 🔑 A CLOCK FACE IS UNMISTAKABLE AT SIX PIXELS, and this engine already knows the time — so the
+// hands are the REAL hands. It is the only named place on any of these lands that tells you something
+// true about the world outside the window.
+function drawAdClock(g,cx,day,K,L,wall,wallD,wallL,roofA,roofB){
+  var base=rsStandY(AD_CLOCK*WW,0.50);
+  var w=Math.round(HORIZON*0.052), h=Math.round(HORIZON*0.185);
+  h=Math.min(h,base-Math.round(HORIZON*0.05));
+  lumShadow(g,cx,base,Math.round(w*1.3),day);
+  var st2=day?[214,206,186]:mixc([214,206,186],[14,18,38],0.70);
+  var st2D=day?[172,164,146]:mixc([172,164,146],[14,18,38],0.74);
+  g.fillStyle=css(st2);  g.fillRect(cx-(w>>1),base-h,w,h);
+  g.fillStyle=css(st2D); g.fillRect(cx+(w>>1)-Math.round(1.4*K),base-h,Math.round(1.4*K),h);
+  var rh=Math.round(w*0.9);
+  for(var r=0;r<rh;r++){
+    var rw=Math.max(1,Math.round((w+Math.round(3*K))*(1-r/rh)));
+    g.fillStyle=css((r%2)?roofA:roofB);
+    g.fillRect(cx-((w+Math.round(3*K))>>1)+(((w+Math.round(3*K))-rw)>>1),base-h-1-r,rw,1);
+  }
+}
+// the hands move in the LIVE pass, on the real clock
+function drawAdClockFace(g,now,day,K){
+  var cx=rsX(AD_CLOCK); if(cx<-40||cx>SW+40) return;
+  var base=rsStandY(AD_CLOCK*WW,0.50);
+  var h=Math.min(Math.round(HORIZON*0.185),base-Math.round(HORIZON*0.05));
+  var fy=base-Math.round(h*0.80), rad=Math.max(3,Math.round(3.4*K));
+  g.fillStyle=day?"#f0ece0":"#2a2a34";
+  for(var dy=-rad;dy<=rad;dy++){
+    var dw=Math.round(Math.sqrt(Math.max(0,rad*rad-dy*dy)));
+    g.fillRect(cx-dw,fy+dy,dw*2+1,1);
+  }
+  var d=new Date(now), hr=d.getHours()%12, mn=d.getMinutes();
+  g.fillStyle=day?"#2a2620":"#8a8a98";
+  var ma=(mn/60)*Math.PI*2-Math.PI/2, ha=((hr+mn/60)/12)*Math.PI*2-Math.PI/2;
+  for(var s=0;s<rad;s++)      g.fillRect(Math.round(cx+Math.cos(ma)*s),Math.round(fy+Math.sin(ma)*s),1,1);
+  for(var s2=0;s2<rad*0.62;s2++) g.fillRect(Math.round(cx+Math.cos(ha)*s2),Math.round(fy+Math.sin(ha)*s2),1,1);
+}
+// ---- EAST: the port to Brimhaven ---------------------------------------------------------------
+// 🚨 A HARBOUR BASIN, NOT A POND. The first cut laid a flat blue rectangle in the middle of a green
+// field — the FISHERMAN'S PUDDLE all over again, a week-old lesson repeated within the hour: this land
+// has `water:"none"`, so any water on it is water I invented, and invented water floats.
+// 🔑 THE FIX IS TO MAKE IT ARTIFICIAL AND SAY SO. A city dock IS a hole lined with stone, so the basin
+// gets quay walls on three sides, mooring bollards and steps down — and then it is not a pond that
+// happens to be square, it is a thing people built, which is exactly what it is.
+// ⚠ AND IT COULD NOT BE A COASTLINE. The obvious alternative — sea running off the world's east end —
+// is wrong here because THE WORLD WRAPS: 0.96 runs into 0.00, so a coast at the "edge" would put the
+// open sea directly against the plague quarter's dead trees.
+function drawAdPort(g,cx,day,K,P,tim){
+  var base=rsStandY(AD_PORT*WW,0.44);                      // seated HIGH: the town's roofs eat d>0.58
+  var bw=Math.round(HORIZON*0.19), bh=Math.round(HORIZON*0.052);
+  var x0=cx-(bw>>1), y0=base-bh;
+  var stone=day?[178,170,152]:mixc([178,170,152],[14,18,38],0.72);
+  var stoneD=day?[136,128,112]:mixc([136,128,112],[14,18,38],0.76);
+  // 🚨 IT IS A TRAPEZOID, NOT A RECTANGLE. Drawn square with a ruled border it read as a framed
+  // BILLBOARD hanging in the field — the wheat's fault exactly ("a saturated rectangle with a ruled
+  // edge is a billboard"), and no amount of edging fixes a shape that is not lying down.
+  // 🔑 A FLAT SURFACE SEEN FROM HERE MUST NARROW WITH DISTANCE. The river already earns its depth this
+  // way (`lumRiverHalf` widens as it nears); the basin is drawn row by row, narrow at the back and
+  // wide at the front, and that one change is what puts it on the ground instead of against the sky.
+  var wCol=day?[52,96,138]:mixc([52,96,138],[10,18,36],0.72);
+  var wColL=day?[86,138,180]:mixc([86,138,180],[12,22,42],0.68);
+  for(var r=0;r<bh;r++){
+    var t=r/Math.max(1,bh-1);                                // 0 far edge → 1 near edge
+    var rw=Math.round(bw*(0.62+0.38*t));
+    var rx=cx-(rw>>1);
+    g.fillStyle=css(r<2?mixc(wCol,wColL,0.45):wCol);         // the far lip catches the light
+    g.fillRect(rx,y0+r,rw,1);
+    g.fillStyle=css(stoneD);                                 // quay walls, following the taper
+    g.fillRect(rx-Math.round(2*K),y0+r,Math.round(2*K),1);
+    g.fillRect(rx+rw,y0+r,Math.round(2*K),1);
+  }
+  g.fillStyle=css(wColL);                                    // two still highlights on the water
+  g.fillRect(cx-Math.round(bw*0.26),y0+Math.round(bh*0.34),Math.round(bw*0.20),1);
+  g.fillRect(cx+Math.round(bw*0.06),y0+Math.round(bh*0.66),Math.round(bw*0.18),1);
+  var farW=Math.round(bw*0.62), nearW=bw;
+  g.fillStyle=css(stone);                                    // the coping along the FAR quay only —
+  g.fillRect(cx-(farW>>1)-Math.round(2*K),y0-Math.round(1.4*K),farW+Math.round(4*K),Math.max(1,Math.round(1.4*K)));
+  for(var b=0;b<4;b++)                                       // …with its bollards, which give it scale
+    g.fillRect(cx-(farW>>1)+Math.round(farW*(0.10+b*0.27)),y0-Math.round(3.2*K),Math.max(1,Math.round(1.4*K)),Math.round(2*K));
+  // the near edge is a SLIPWAY, open to the grass — a basin closed on all four sides is a swimming pool
+  g.fillStyle=css(stoneD);
+  g.fillRect(cx-Math.round(nearW*0.16),y0+bh,Math.round(nearW*0.32),Math.max(1,Math.round(1.6*K)));
+  // the ship, moored against the near wall: hull, mast, yard and a furled sail. The MAST is what reads
+  // at this size, so it is the tallest thing here by a distance.
+  var hx=cx+Math.round(bw*0.10), hy=y0+Math.round(bh*0.72);
+  g.fillStyle=day?"#5a4632":"#141018";
+  g.fillRect(hx-Math.round(6*K),hy-Math.round(2.6*K),Math.round(12*K),Math.round(2.6*K));
+  g.fillRect(hx-Math.round(7*K),hy-Math.round(1.8*K),Math.round(1.4*K),Math.round(1.8*K));
+  g.fillRect(hx-Math.max(1,Math.round(K*0.6)),hy-Math.round(16*K),Math.max(1,Math.round(1.2*K)),Math.round(14*K));
+  g.fillRect(hx-Math.round(4*K),hy-Math.round(13*K),Math.round(8*K),Math.max(1,Math.round(K)));
+  g.fillStyle=day?"#d8d2c0":"#3a3a46";
+  g.fillRect(hx-Math.round(3*K),hy-Math.round(12.6*K),Math.round(6*K),Math.round(3*K));
+}
+function drawArdougneLive(g,L,now,nd,fx){
+  if(curRs!=="ardougne") return;
+  var day=L>0.5, K=Math.max(1,KSP);
+  drawAdBraziers(g,now,day,K);
+  drawAdClockFace(g,now,day,K);
+}
 // ---- THE WHITE KNIGHTS' CASTLE ---------------------------------------------------------------
 // ⚠ IT MUST NOT BE LUMBRIDGE'S CASTLE IN A PALER COLOUR. Two castles on two lands in one set is the
 // "one shape repeated" fault the karst land was the third to teach. So the shapes are deliberately
@@ -30201,6 +30695,7 @@ var RS_TRADE_SAY=["TRADE?","ACCEPTED","2K FOR IT","NICE DOING BUSINESS","THAT'S 
 function rsHaunts(){
   switch(curRs){
     case "falador":  return [FA_CASTLE,FA_SQUARE,FA_SMITHY,FA_PARK,FA_MINE,FA_WGATE,FA_SGATE];
+    case "ardougne": return [AD_MARKET,AD_CASTLE,AD_ZOO,AD_CLOCK,AD_PORT,AD_WALL,AD_WGATE];
     default:         return [LB_CASTLE,LB_SHOPS,LB_RIVER,LB_CHURCH,LB_SWAMP,LB_COWS,LB_GATE];
   }
 }
@@ -30424,6 +30919,11 @@ function drawRsDrop(g,x,gy,seed,day,n){
 // exactly a dwarf at this scale — a fifth body routine would have been a fifth thing to keep in scale.
 function rsNpcPosts(){
   switch(curRs){
+    // 📚 The Mourners are "an organized group" who "maintain control and enforce quarantine" — so
+    // they hold the west, and Ardougne's own guards hold the wall and the castle. The two forces
+    // face each other across it, which is the land's whole proposition stated in who stands where.
+    case "ardougne": return [["mourner",AD_MOURN,3],["mourner",AD_SLUM,2],["mourner",AD_WGATE,2],
+                             ["guard",AD_WALL,3],["knight",AD_CASTLE,2],["guard",AD_PORT,1]];
     case "falador": return [["knight",FA_CASTLE,3],["guard",FA_WGATE,2],["guard",FA_SGATE,2],
                             ["dwarf",FA_MINE,3],["monk",FA_PARK,1],["smith",FA_SMITHY,1]];
     default:        return [["guard",LB_CASTLE,3],["monk",LB_CHURCH,2],["farmer",LB_COWS,2],
@@ -30432,7 +30932,8 @@ function rsNpcPosts(){
 }
 function rsNpcCol(kind){
   return kind==="knight"?"#dfe2e8":kind==="guard"?"#7a3a34":kind==="monk"?"#6a5236":
-         kind==="dwarf" ?"#8a6a3a":kind==="cook" ?"#e8e4dc":kind==="smith"?"#4a4038":"#6a7a4a";
+         kind==="dwarf" ?"#8a6a3a":kind==="cook" ?"#e8e4dc":kind==="smith"?"#4a4038":
+         kind==="mourner"?"#3e3a34":"#6a7a4a";
 }
 function drawRsNpc(g,x,gy,kind,day,facing,bob){
   var y=gy-2, col=rsNpcCol(kind);
@@ -30452,6 +30953,12 @@ function drawRsNpc(g,x,gy,kind,day,facing,bob){
     g.fillStyle=day?"#ffffff":"#4a4e56"; g.fillRect(x,yy-5,2,1);
   } else if(kind==="smith"){
     g.fillStyle=day?"#6a5a3a":"#241f14"; g.fillRect(x+(facing>0?3:-2),yy-3,1,3);        // the hammer
+  } else if(kind==="mourner"){
+    // 🔑 THE MASK IS THE WHOLE COSTUME. A mourner in a dark robe is a monk in a dark robe; the pale
+    // beaked face over it is the one mark that says PLAGUE, and it is two pixels.
+    g.fillStyle=day?"#2a2622":"#0e0c10"; g.fillRect(x-1,yy-4,4,1);                      // the deep hood
+    g.fillStyle=day?"#c8c2ac":"#4a4a52"; g.fillRect(x,yy-3,2,1);                        // the mask…
+    g.fillStyle=day?"#8a8470":"#2e2e36"; g.fillRect(x+(facing>0?2:-1),yy-3,1,1);        // …and its beak
   }
 }
 // ⚠ ONE PLACE ANSWERS "IS THIS SPOT GUARDED?", because two systems ask it: the guards stand here, and
@@ -30521,6 +31028,7 @@ var RS_BANK_SAY=["SELLING YEW LOGS 300EA","BUYING FEATHERS 5EA","SELLING RUNE SC
 function rsMarketFrac(){
   switch(curRs){
     case "falador":  return FA_PARK;        // Falador Park, the other pre-GE marketplace
+    case "ardougne": return AD_MARKET;      // the marketplace IS the centrepiece here — no invention needed
     default:         return LB_SHOPS;       // Lumbridge has no bank of its own: the traders use the shops
   }
 }
@@ -30553,10 +31061,18 @@ function drawRsBankCrowd(g,L,now,nd,fx){
     // play a game and are instead standing perfectly still shouting prices. `drawPerson`'s standing
     // sentinel already shifts their weight, so they are still alive without going anywhere.
     drawRsFigure(g,sx,gy,K,col,day,"stand",((h>>>9)&1)?1:-1);
-    // 🔑 NOT EVERYONE AT ONCE. Fifteen bubbles in one place is an unreadable white slab; a third of
-    // them talking, staggered in height by row, reads as a crowd where everyone is shouting.
-    if(((now/2200+i*3)|0)%3===0){
-      drawSpeechBubble(g,sx,gy-10-(row?0:5)-((i%3)*4),
+    // 🚨 A PROBABILITY IS NOT A LIMIT — THIRD TIME BUBBLES HAVE COLLIDED HERE. "A third of them talk"
+    // put five bubbles up to 88px wide inside an 83px crowd, and they printed over each other into an
+    // unreadable white slab. The gate at the Falador gatehouse had the same shape, and so did the pair
+    // of traders; each time it was tuned rather than bounded, so it came back the moment the crowd got
+    // denser — which is a thing I did to it deliberately one commit ago.
+    // 🔑 SO THIS IS A ROTATING SLOT, NOT A ROLL: exactly TWO of them talk at any instant, chosen half
+    // the crowd apart so they are far apart in x too, and they hand off every couple of seconds. The
+    // count is now independent of how many people are standing here, which is the only version of this
+    // that survives someone making the crowd bigger.
+    var turn=((now/2400)|0)%n;
+    if(i===turn||i===(turn+((n/2)|0))%n){
+      drawSpeechBubble(g,sx,gy-10-(row?0:6),
                        RS_BANK_SAY[((h>>>19)+Math.floor(now/4700))%RS_BANK_SAY.length],night);
     }
   }
@@ -30584,6 +31100,9 @@ var RS_SKILLS=[
 function rsSkillSpots(){
   switch(curRs){
     case "falador": return [["rock",FA_MINE],["forge",FA_SMITHY],["tree",FA_PARK],["fire",FA_SQUARE]];
+    // ⚠ NO "water" SPOT: only Lumbridge draws a river of its own, and a fisherman without real water
+    // is the puddle bug. The port is a quay, not a fishing spot.
+    case "ardougne": return [["fire",AD_MOURN],["forge",AD_CASTLE],["tree",AD_ZOO],["altar",AD_CLOCK]];
     default:        return [["tree",0.105],["water",LB_RIVER],["altar",LB_CHURCH],["fire",LB_SHOPS],["rock",0.935]];
   }
 }
@@ -42873,6 +43392,7 @@ function drawMountains(g,L,now,nd){
   if(curBiome.shrine){ drawPlateau(g,L,now,nd); return; }               // …and here it is the plateau and the castle
   if(curBiome.rs==="lumbridge"){ drawLumbridge(g,L,now,nd); return; }   // …and on the OSRS lands, river meadow and a castle
   if(curBiome.rs==="falador"){ drawFalador(g,L,now,nd); return; }        // …downland, a white city and a snow peak
+  if(curBiome.rs==="ardougne"){ drawArdougne(g,L,now,nd); return; }      // …and a city cut in half by a quarantine wall
   if(!mts) return;
   var gy=HORIZON, day=L>0.5;
   var sunsetK=goldenK;   // sourced from the shared golden-hour global (identical law)
@@ -50695,6 +51215,7 @@ function draw(g,pass){
   drawHyruleLive(g,L,now,nd,fx);   // …and on the old kingdom: the ring, the eruption, and the dragon
   drawLumbridgeLive(g,L,now,nd,fx);  // …and on the river meadow: the sails, the cattle, the goblins, the glitter
   drawFaladorLive(g,L,now,nd,fx);    // …and in the white city: the fountain, the forge and the flock
+  drawArdougneLive(g,L,now,nd,fx);   // …the braziers west of the wall, and a clock telling the real time
   drawRsNpcs(g,L,now,nd,fx);         // …on ALL FOUR: the knights, guards and monks who LIVE there
   drawRsFoes(g,L,now,nd,fx);         // …on ALL FOUR: what lives out there, and the fights over it
   drawRsSkillers(g,L,now,nd,fx);     // …the ones at a rock or a fire, grinding a level
