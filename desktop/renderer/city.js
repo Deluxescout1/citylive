@@ -28679,9 +28679,14 @@ function lumBridgeY(){ return Math.round(rsFieldY(LB_RIVER*WW)+(HORIZON-rsFieldY
 // ---- the plots this land keeps clear, in world x. The castle and the church are the two things the
 // town must not build in front of; both are pushed here rather than trusted to the fractions being
 // eyeballed apart, which is exactly the mistake that put the leader's tower inside the stone faces.
+// 🔑 ONE SOURCE FOR THE CASTLE'S WIDTH. `drawFalCastle` sized itself from one constant and `rsFoot`
+// reserved ground from ANOTHER, a few per cent wider. Two numbers that must move together and live
+// two thousand lines apart is a drift waiting to happen — the moment the castle grew, its keep-out
+// stayed where it was and the town would have built straight through the wall.
+function faCastleW(){ return Math.round(HORIZON*0.62); }
 function rsFoot(){
   if(curRs==="falador"){
-    var fcw=Math.round(HORIZON*0.54), fcx=Math.round(FA_CASTLE*WW);
+    var fcw=Math.round(faCastleW()*1.08), fcx=Math.round(FA_CASTLE*WW);
     lmFoot.push([fcx-(fcw>>1)-10, fcx+(fcw>>1)+10]);
     var fpx=Math.round(FA_PARK*WW), fpw=Math.round(HORIZON*0.26);
     lmFoot.push([fpx-fpw-6, fpx+fpw+6]);
@@ -29627,7 +29632,11 @@ function drawIceMountain(g,day,K,P,skc){
 // and it stands on the flat, not on a mound.
 function drawFalCastle(g,cx,day,K,L,white,whiteD,whiteS,slate,slateD){
   var base=rsStandY(FA_CASTLE*WW,0.56);
-  var W=Math.round(HORIZON*0.50), H=Math.round(HORIZON*0.30), x0=cx-(W>>1);
+  // ⚠ SCALE WAS JUDGED AFTER THE TEXTURE WENT ON, NOT BEFORE. Nick called it flat AND too small in
+  // one breath, and those pull against each other: enlarging an untextured white slab just yields a
+  // bigger untextured white slab, and you cannot then tell which of the two faults is left. Courses
+  // and arrow slits first, re-render, then this.
+  var W=faCastleW(), H=Math.round(HORIZON*0.36), x0=cx-(W>>1);
   var night=(L<=0.5);
   lumShadow(g,cx,base,Math.round(W*1.05),day);
   function merlon(x,w,y){
@@ -29642,11 +29651,48 @@ function drawFalCastle(g,cx,day,K,L,white,whiteD,whiteS,slate,slateD){
       g.fillRect(x-Math.round(K)+(((w+Math.round(2*K))-w2)>>1),y-1-r,w2,1);
     }
   }
+  // ---- ASHLAR ----------------------------------------------------------------------------------
+  // Nick, 2026-08-05: the castle is *"flat and untextured — big unbroken white slabs"*. The curtain
+  // was ONE fillRect a hundred pixels on a side, and the towers were three more with a 1px edge each.
+  // 🔑 WHAT MAKES A WALL READ AS MASONRY AT THIS SCALE IS NOT A SECOND COLOUR, IT IS COURSES:
+  // horizontal lines a few pixels apart with the vertical joints STAGGERED between them, in a value
+  // so close to the wall that the eye reads texture rather than pattern. *Grain and silhouette, never
+  // colour* — the hidden-village rule, and it is the same reason the two rock values on Ice Mountain
+  // had to move closer together rather than further apart.
+  // 🔑 RUN-BATCHED FROM THE FIRST LINE, NOT AFTERWARDS. Castle ashlar has already cost +9ms on the bg
+  // pass once by setting `fillStyle` inside the loop, and Lumbridge's open item #4 is that same fault
+  // still standing. This sets it TWICE PER SURFACE — once for every course, once for every joint —
+  // however big the wall is.
+  var courseC=css(mixc(white,whiteD,0.55)), jointC=css(mixc(white,whiteS,0.42));
+  var cStep=Math.max(2,Math.round(3.4*K)), blk=Math.max(3,Math.round(5.5*K));
+  function ashlar(ax,ay,aw,ah){
+    if(aw<3||ah<3) return;
+    g.fillStyle=courseC;
+    for(var cy=ay+cStep;cy<ay+ah;cy+=cStep) g.fillRect(ax,cy,aw,1);
+    g.fillStyle=jointC;
+    for(var cy2=ay,row=0;cy2<ay+ah;cy2+=cStep,row++){
+      var jh=Math.min(cStep-1,ay+ah-cy2); if(jh<1) continue;
+      // every other course starts half a block over, which is what stops the joints lining up into
+      // vertical rules — a running bond, not a grid
+      for(var jx=ax+((row&1)?(blk>>1):0);jx<ax+aw;jx+=blk) g.fillRect(jx,cy2,1,jh);
+    }
+  }
   // the courtyard hall, drawn BEFORE the wall so only its roof clears the parapet
-  g.fillStyle=css(whiteD); g.fillRect(x0+Math.round(W*0.30),base-H-Math.round(H*0.34),Math.round(W*0.40),Math.round(H*0.5));
-  spire(x0+Math.round(W*0.30),Math.round(W*0.40),base-H-Math.round(H*0.34),Math.round(H*0.34));
+  var hx=x0+Math.round(W*0.30), hw2=Math.round(W*0.40), hy=base-H-Math.round(H*0.34);
+  g.fillStyle=css(whiteD); g.fillRect(hx,hy,hw2,Math.round(H*0.5));
+  ashlar(hx,hy,hw2,Math.round(H*0.5));
+  spire(hx,hw2,hy,Math.round(H*0.34));
   // the curtain
   g.fillStyle=css(white);  g.fillRect(x0,base-H,W,H);
+  ashlar(x0,base-H,W,H);
+  // ⚠ THE ARROW SLITS ARE THE ONLY SCALE CUE ON A BLANK FACE. Courses say "this is stone"; slits say
+  // "a person stands behind that". They stop short of the gatehouse rather than marching through it.
+  g.fillStyle=day?"rgba(52,54,62,0.80)":"rgba(10,12,20,0.85)";
+  var slitStep=Math.max(8,Math.round(W*0.085)), slitW=Math.max(1,Math.round(K*0.8));
+  for(var sl2=x0+slitStep;sl2<x0+W-slitStep*0.5;sl2+=slitStep){
+    if(Math.abs(sl2-cx)<Math.round(W*0.13)) continue;               // keep clear of the gate arch
+    g.fillRect(sl2,base-Math.round(H*0.64),slitW,Math.round(H*0.17));
+  }
   g.fillStyle=css(whiteS); g.fillRect(x0,base-Math.round(H*0.09),W,Math.round(H*0.09));
   merlon(x0,W,base-H);
   // the gatehouse: an arch with a PORTCULLIS in it — the grid is the mark that says this gate is manned
@@ -29662,10 +29708,24 @@ function drawFalCastle(g,cx,day,K,L,white,whiteD,whiteS,slate,slateD){
   for(var phz=0;phz<Math.round(gh*0.46);phz+=Math.max(2,Math.round(2.2*K))) g.fillRect(gx,base-gh+phz,gw,Math.max(1,Math.round(K*0.8)));
   // three towers: two flanking the gate, one keep tower taller than both and off-centre
   var TW=[[0.06,1.28],[0.94,1.28],[0.34,1.86]];
+  // 🚨 THE CASTLE COULD NEVER GROW UPWARD — IT WAS ALREADY TOUCHING THE TOP OF THE SCREEN. At the old
+  // size the keep tower's spire finished within a pixel or two of y=0, so "make it bigger" can only
+  // ever be answered in WIDTH. Widening it and leaving the height alone was not the conservative
+  // choice, it was the only available one; raising H by a fifth put the spire fifty pixels above the
+  // panel and simply cut the top off the landmark.
+  // 🔑 SO THIS IS A CLAMP, NOT A TUNED CONSTANT. A number picked to fit THIS screen is a number that
+  // is wrong on the other two — his panels are 2622, 1440 and 1080 tall — and it would have to be
+  // re-picked every time the castle, the field or the horizon moved. The rule is stated instead: the
+  // tallest point stays under the top edge, whatever the geometry underneath it does.
+  var topMargin=Math.round(HORIZON*0.045);
+  var maxTh=base-topMargin-Math.round(H*0.52)-Math.round(2.4*K);
   for(var t=0;t<3;t++){
-    var tw=Math.round(W*0.115), th=Math.round(H*TW[t][1]);
+    var tw=Math.round(W*0.115), th=Math.min(Math.round(H*TW[t][1]),maxTh);
     var tx=x0+Math.round(W*TW[t][0])-(tw>>1);
     g.fillStyle=css(white);  g.fillRect(tx,base-th,tw,th);
+    ashlar(tx,base-th,tw,th);
+    // the two edges go on AFTER the courses, so a round tower's dark and light sides survive the
+    // texture instead of being ruled through by it
     g.fillStyle=css(whiteD); g.fillRect(tx,base-th,Math.max(1,Math.round(K*1.2)),th);
     g.fillStyle=css(whiteS); g.fillRect(tx+tw-Math.max(1,Math.round(K*1.2)),base-th,Math.max(1,Math.round(K*1.2)),th);
     merlon(tx,tw,base-th);
