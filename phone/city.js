@@ -47019,6 +47019,110 @@ function drawPuddles(g,L,now){
 // terrain and the ground simply covered it. The wind farm survives there only because it is tall
 // enough to stand clear; crop strips are by definition at ground level and can never be. That is
 // the paint-order item this project has now hit on both sides: things buried by what comes later.
+// ================================================================================================
+// THE RIVER — the channel that moves BEHIND the road
+// ================================================================================================
+// 🚨 THE DIAGNOSIS, RE-MEASURED TODAY RATHER THAN TAKEN FROM THE BRIEF: `drawRiver` fills its channel
+// from `gy+4` to the bottom of the frame, and that whole band is the ROAD — far footway, carriageway,
+// promenade. At the crossing the bridge deck covers it in three materials. Everything that routine
+// builds — the depth gradient, the surface glitter, the coped embankment, the barges, the wharf
+// crane, the riverside park — has been drawn every frame on six lands and never once seen. Its own
+// comment reads "so it reads as moving water, not a blue slab".
+// ⚠ AND IT CANNOT BE FIXED FROM THE FRONT. The ground band is fully spoken for, and bridging only the
+// carriageway drops the far pavement's crowd into open water — the exact complaint that made the deck
+// full-width in the first place.
+// 🔒 SO THE MAIN CHANNEL MOVES INTO THE FIELD, where there is open ground and nothing to fight. The
+// street keeps a smaller cut and its bridge; this is the river you can actually look at.
+// 🔑🔑 AND `HORIZON` IS NOT TOUCHED. It has the many-readers problem `SEA_Y` does — the storm surge
+// found 37 read sites — and the answer there was the same as here: work out what can be DRAWN rather
+// than laid out. Nothing below moves a constant; it all paints inside the wedge that already exists.
+var PR_F0=0.10, PR_F1=0.90;                 // it ENTERS and LEAVES: a reach, not a band across the world
+// the channel's centre, in screen y, at a world x — or -1 outside its reach.
+// ⚠ A FULL-WIDTH CHANNEL BEHIND THE ROAD IS A HORIZONTAL BAND, i.e. the ruled-line fault this project
+// has now hit eleven times. So the centre WANDERS and the width BREATHES, and neither is a function of
+// screen x — both are world-anchored, or the river would swim as he drags the world across a bezel.
+function plainsRiverC(wx){
+  var f=((wx%WW)+WW)%WW/WW;
+  if(f<PR_F0||f>PR_F1) return null;
+  var t=(f-PR_F0)/(PR_F1-PR_F0);                       // 0 at the mouth it enters, 1 where it leaves
+  var K=Math.max(1,KSP);
+  // the bend: two out-of-phase sines, so the reach curves rather than snaking evenly
+  var wander=Math.sin(t*Math.PI*1.15+0.4)*7.5 + Math.sin(t*Math.PI*2.6+1.9)*2.6;
+  var cy=HORIZON-Math.round((24+wander)*K*0.5);
+  // it TAPERS AT BOTH ENDS — a river that starts at full width is a canal, and one that stops dead is
+  // a pond. The ends run away toward the horizon and out of the frame.
+  var taper=Math.min(1,Math.sin(Math.max(0,Math.min(1,t))*Math.PI)*1.6);
+  var half=Math.max(0,Math.round((2.2+3.4*taper+Math.sin(t*Math.PI*3.3)*0.5)*K));
+  if(half<=0) return null;
+  return {cy:cy, half:half, t:t};
+}
+function drawPlainsRiver(g,L,now,nd){
+  if(!curBiome||curBiome.k!=="plains"||cityPhase==="apoc") return;
+  if(!hasRiver) return;
+  var day=L>0.5, K=Math.max(1,KSP), skc=biomeSkc(day);
+  // 🔑 MIXED TOWARD THE SKY, like the far hills are. Water is a mirror before it is a colour, and at
+  // this distance most of what it holds is sky — a saturated blue strip in a wheat field is a ribbon.
+  var wDeep=day?mixc([58,98,138],skc,0.30):mixc([16,26,46],[10,12,24],0.4);
+  var wNear=day?mixc([86,132,172],skc,0.34):mixc([24,38,62],[10,12,24],0.35);
+  var mud  =day?[128,110,84]:mixc([128,110,84],[12,14,26],0.72);
+  var mudL =day?[152,134,104]:mixc([152,134,104],[12,14,26],0.70);
+  // ---- THE WATER, COLUMN-MAJOR. A river is GROUND, and row-major fill draws solids — the bayou's
+  // bog was a black pyramid until it was swept this way, and this is the same shape of thing.
+  var lastFill=null;
+  for(var sx=0;sx<SW;sx++){
+    var wx=sx+WOFF;
+    var c=plainsRiverC(wx);
+    if(!c) continue;
+    var top=c.cy-c.half, bot=c.cy+c.half;
+    // the far bank first: a lip of mud above the water, so the water is IN something
+    if(lastFill!=="mud"){ g.fillStyle=css(mud); lastFill="mud"; }
+    g.fillRect(sx,top-Math.max(1,Math.round(K*0.9)),1,Math.max(1,Math.round(K*0.9)));
+    if(lastFill!=="deep"){ g.fillStyle=css(wDeep); lastFill="deep"; }
+    g.fillRect(sx,top,1,bot-top+1);
+    // the near half is lighter — the far bank's shadow lies on the water, which is what gives a
+    // channel a FLOOR instead of a surface
+    if(lastFill!=="near"){ g.fillStyle=css(wNear); lastFill="near"; }
+    g.fillRect(sx,c.cy,1,bot-c.cy+1);
+    if(lastFill!=="mudL"){ g.fillStyle=css(mudL); lastFill="mudL"; }
+    g.fillRect(sx,bot+1,1,Math.max(1,Math.round(K*0.9)));
+  }
+  // ---- THE GLITTER. Sparse, hard-edged, and only on the near half, because that is where the light
+  // comes back at you. A soft highlight would be the one painterly mark on a flat-register land.
+  if(day){
+    var seedW=(WORLD_SEED*2654435761)>>>0;
+    g.fillStyle="rgba(238,248,255,0.72)";
+    for(var q=0;q<34;q++){
+      var qh=iceHash(q*6779^seedW);
+      var qper=2400+((qh>>>9)%2600), qph=((now+((qh>>>13)%qper))%qper)/qper;
+      if(qph>0.34) continue;                                  // each glint is brief, then gone
+      var qwx=Math.round(((qh%1000)/1000)*WW);
+      var qc=plainsRiverC(qwx); if(!qc) continue;
+      var qsx=qwx-WOFF; if(qsx<-WW*0.5) qsx+=WW; if(qsx>WW*0.5) qsx-=WW;
+      if(qsx<0||qsx>=SW) continue;
+      g.fillRect(qsx,qc.cy+1+((qh>>>19)%Math.max(1,qc.half)),Math.max(1,Math.round(1.6*K)),1);
+    }
+  }
+  // ---- THE NATURAL BANK. 🔒 Locked: the open lands get mud, reeds and shingle, not a built quay —
+  // a coped embankment belongs where the city is dense and industrial, and a prairie is neither.
+  var seedR=(WORLD_SEED*2246822519)>>>0;
+  for(var r=0;r<70;r++){
+    var rh=iceHash(r*3931^seedR);
+    var rwx=Math.round(((rh%1000)/1000)*WW);
+    var rc=plainsRiverC(rwx); if(!rc) continue;
+    var rsx=rwx-WOFF; if(rsx<-WW*0.5) rsx+=WW; if(rsx>WW*0.5) rsx-=WW;
+    if(rsx<-4||rsx>=SW) continue;
+    var far=((rh>>>7)&1);
+    var by=far?(rc.cy-rc.half-Math.round(K)):(rc.cy+rc.half+Math.round(K));
+    if(((rh>>>11)%3)===0){                                    // shingle: a pale stone on the mud
+      g.fillStyle=day?"rgba(196,186,164,0.85)":"rgba(48,50,60,0.7)";
+      g.fillRect(rsx,by,Math.max(1,Math.round(K*0.8)),Math.max(1,Math.round(K*0.8)));
+    } else {                                                   // reeds: the only VERTICAL marks here,
+      var rl=Math.round((2+((rh>>>17)%3))*K);                  // so the eye reads them as growing
+      g.fillStyle=day?"rgba(96,124,68,0.9)":"rgba(20,30,26,0.85)";
+      g.fillRect(rsx,by-(far?rl:0),Math.max(1,Math.round(K*0.7)),rl);
+    }
+  }
+}
 function drawPlainsWorked(g,L,now,nd){
   if(!curBiome||curBiome.k!=="plains"||cityPhase==="apoc") return;
   var day=L>0.5, K=Math.max(1,KSP), B=curBiome;
@@ -53146,6 +53250,7 @@ function draw(g,pass){
   // the wilderness the city grows out of (hills, grass, river, trees, the first cabin) — recedes as it matures
   if(cityG<0.985) drawTerrain(g,cityG,L,now,nd,(pass==="fg"||pass==="city"||pass==="live")?"fg":undefined);
   drawPlainsWorked(g,L,now,nd);   // the worked prairie, ON the ground the terrain just laid down
+  drawPlainsRiver(g,L,now,nd);    // …and the river cut through it, behind the road where it can be SEEN
   // the falls, at the live rate. `undefined` already drew them on the classic single-canvas path
   // further up, so this is the split-canvas half only — double-painting is what pass-split guards.
   if(pass==="fg"||pass==="city"||pass==="live") drawCascades(g,L,now,nd);
