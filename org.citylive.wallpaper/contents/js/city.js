@@ -14914,6 +14914,37 @@ var SPEECH_SCENES=[
   {c:'daily', b:["I SAW THE FIRST SWALLOW.","ALREADY?","OVER THE OLD MILL.","THEN IT IS COMING."]},
 ];
 // event banks — surfaced ONLY while their event is live (Nick: talk Order/Bills only around the takeover)
+// ---- WHAT PEOPLE SAY WHEN THEY CAN SEE IT COMING -----------------------------------------------
+// One bank per ending. ⚠ Every glyph checked against FONT (47 of them) — a `(` renders as a silent
+// space and reads as a typo, which is how the missing `?` survived 509 scenes.
+var APOC_SAY={
+  meteors:["LOOK UP.","THE WHOLE SKY IS FALLING.","IT'S BEAUTIFUL, ISN'T IT.","GET UNDER SOMETHING.","THEY SAID IT WOULD MISS."],
+  nuke:["HOW LONG DO WE HAVE?","DON'T LOOK AT THE FLASH.","I LOVE YOU. THAT'S ALL.","THE SIRENS STOPPED.","WHO DID IT? DOES IT MATTER."],
+  sunburst:["IT'S SO BRIGHT.","THE SHADE ISN'T HELPING.","MY SKIN HURTS.","IT'S NOT SETTING TONIGHT.","THE SUN IS WRONG."],
+  ai:["THE SCREENS ALL CHANGED.","IT STOPPED ASKING.","MY DOOR WON'T OPEN.","WE BUILT IT.","IT'S BEEN AWAKE FOR HOURS."],
+  bh:["EVERYTHING IS LEANING.","MY FEET ARE LIGHT.","DON'T LET GO OF ME.","THE STARS ARE MOVING.","UP IS WRONG NOW."],
+  alienwar:["THEY AREN'T EVEN AIMING AT US.","WE'RE IN THE MIDDLE OF IT.","WHOSE SIDE ARE WE ON?","IT ISN'T OUR WAR.","THEY DON'T SEE US AT ALL."],
+  frost:["I CAN'T FEEL MY HANDS.","THE PIPES WENT AN HOUR AGO.","STAY BY THE FIRE.","IT'S STILL DROPPING.","NOBODY'S COMING."],
+  kaiju:["THE GROUND IS SHAKING.","IT'S BIGGER THAN THE TOWERS.","RUN. JUST RUN.","IT CAME FROM THE WATER.","YOU CAN HEAR IT BREATHE."],
+  flood:["IT'S AT THE SECOND FLOOR.","GET TO THE ROOF.","THE BRIDGE IS GONE.","IT ISN'T STOPPING.","I CAN'T SWIM."],
+  kaijuwar:["THEY'RE FIGHTING OVER US.","THE BUILDINGS ARE IN THE WAY.","NOBODY WINS THIS.","GET AWAY FROM THE MIDDLE.","WE ARE THE GROUND THEY FIGHT ON."],
+  pollution:["I CAN'T BREATHE OUT HERE.","THE MASKS AREN'T ENOUGH.","IT TASTES LIKE METAL.","THE SKY HASN'T BEEN BLUE IN WEEKS.","WE DID THIS SLOWLY."],
+  moonfall:["IT'S SO CLOSE.","IT HAS A FACE.","THREE DAYS, THEY SAID.","YOU CAN SEE THE CRATERS.","IT FILLS THE WHOLE SKY."],
+  ninetails:["THE SEAL IS BREAKING.","NINE OF THEM. COUNT THEM.","THE ELDERS KNEW.","IT'S OLDER THAN THE VILLAGE.","GET THE CHILDREN OUT."],
+  gammaray:["EVERY RADIO IS DEAD.","THE AIR IS GLOWING.","IT CAME FROM SO FAR AWAY.","THERE'S NO SHELTER FROM IT.","WE NEVER SAW IT COMING."],
+  rogueplanet:["THERE'S A SECOND MOON.","IT WASN'T THERE LAST WEEK.","THE TIDES ARE WRONG.","IT'S GETTING BIGGER.","IT CAME FROM OUTSIDE."],
+  crustcrack:["THE STREET SPLIT OPEN.","IT'S GLOWING DOWN THERE.","THE WHOLE PLATE IS MOVING.","DON'T STAND ON THE CRACKS.","THE GROUND ISN'T GROUND."],
+  oceansboil:["THE SEA IS STEAMING.","THE FISH CAME UP DEAD.","YOU CAN'T GO NEAR THE WATER.","IT'S RAINING HOT.","THE HARBOUR IS EMPTY."],
+  greygoo:["IT'S EATING THE FENCE.","IT DOUBLES EVERY MINUTE.","DON'T LET IT TOUCH YOU.","IT WAS A MEDICAL TRIAL.","IT ONLY WANTS MORE OF ITSELF."],
+  lastwinter:["THE SUMMER NEVER CAME.","THE SEED STOCK IS GONE.","IT'S JULY.","THE RIVER FROZE SOLID.","NOTHING WILL GROW AGAIN."],
+  skyfall:["THE CLOUDS ARE TOO LOW.","SOMETHING IS COMING DOWN.","THE BIRDS ALL LEFT.","THE CEILING IS FALLING.","IT'S PRESSING ON US."],
+  timestop:["MY WATCH STOPPED.","EVERYONE ON THE STREET IS STILL.","HOW LONG HAVE WE BEEN HERE?","THE CLOCKS ALL AGREE NOW.","NOTHING IS MOVING BUT US."],
+  thecomet:["IT HAS A TAIL.","THEY'VE KNOWN FOR YEARS.","IT COMES EVERY THOUSAND YEARS.","THE OLD BOOKS DREW IT.","IT'S BRIGHTER THAN THE MOON."],
+  thechange:["PEOPLE ARE TURNING.","DON'T LET THEM TOUCH YOU.","MY BROTHER LOOKED AT ME WRONG.","IT SPREADS BY LOOKING.","HOW DO I KNOW YOU'RE STILL YOU?"],
+  theburst:["THE POWER SURGED EVERYWHERE.","EVERY LIGHT AT ONCE.","THE WIRES ARE SINGING.","IT'S BUILDING UP.","THE AIR FEELS CHARGED."],
+  thetitans:["THEY'RE COMING OVER THE WALL.","THE WALL WAS THE WHOLE PLAN.","THEY'VE BEEN WAITING.","GET BEHIND THE INNER GATE.","THE WALL WAS NEVER ENOUGH."],
+  ragnarok:["THE WOLF IS LOOSE.","THIS WAS ALWAYS WRITTEN.","THE GODS ARE FIGHTING TOO.","THE LONG WINTER CAME FIRST.","IT ENDS AND THEN IT BEGINS."]
+};
 var SPEECH_EVENT={
   // TONE. Nick's brief: under the regime, a plague or a disaster people are FRIGHTENED and quietly
   // dissenting — fear, rumour, guarded criticism, grief afterwards. Not apolitical, and not comic.
@@ -15241,6 +15272,12 @@ function drawSpeechBubbles(g, now, night){
       var ln=null;
       if(top.scene){ ln=top.scene.b[bt]; }
       else if(top.ev){ var EB=SPEECH_EVENT[top.ev]||[];
+        // 🔑 PEOPLE FACING A METEOR DO NOT SAY WHAT PEOPLE FACING A PLAGUE SAY. The finale bank held six
+        // lines about facing the end AT ALL — true of every ending and therefore specific to none, so
+        // twenty-five different apocalypses produced one identical conversation. The per-death bank
+        // replaces it when the world has an ending picked, and it is the cheapest, most human part of
+        // the whole sequence: the only place the city says what it can actually SEE coming.
+        if(top.ev==='finale'&&APOC_SAY[curDeath]) EB=APOC_SAY[curDeath];
         if(bt===0||bt===2) ln=EB[((h2>>>3)+bt)%EB.length];
         else if(bt===1) ln=SPEECH_REPLIES[(((b2.pid*13)^sslot)>>>0)%SPEECH_REPLIES.length];
         else ln=(top.ev==='finale')?EB[((h2>>>9)+3)%EB.length]:SPEECH_CLOSERS[(((b2.pid*17)^sslot)>>>0)%SPEECH_CLOSERS.length];
@@ -50051,7 +50088,87 @@ function drawApocBanWave(g,ap,L,now){
 }
 var RS_BAN_SAY=["I DIDN'T BOT","APPEALING THIS","2 DAY BAN?","THAT'S NOT FAIR","MY MAIN","PERM?",
                 "I ONLY LEECHED","WASN'T ME","SEE YOU ON MY ALT","MODS ARE ONLINE"];
+// ================================================================================================
+// THE APPROACH — what you can see coming, before it arrives
+// ================================================================================================
+// 🚨 ALL TWENTY-FIVE APPROACHES LOOKED IDENTICAL. The strike differs for every ending and always has;
+// the window BEFORE it — where the survivors gather and say their last words — was generic, so for the
+// whole length of the most dramatic thing that happens to this world you could not tell WHAT was
+// coming. That window is where the tension of an ending actually lives, and it was empty.
+// 🔒 Nick: "starts ambiguous, becomes obvious". So every mark ramps on `e=f*f` — barely there at first,
+// unmistakable by the end. Unease, then recognition, which is how dread actually behaves; a foreshadow
+// that announces itself at full strength is just an early strike.
+// ⚠ MOST OF THESE DRAW INTO THE SKY, and that is deliberate: the sky is the largest surface in the
+// frame. The Ganon arc's first false start tinted a land palette instead and rendered as almost
+// nothing — the lesson cost two attempts there and is free here.
+// ⚠ AND THE APPROACH MUST NOT DESTROY. Nothing here touches a building; it is all light, air and
+// portent. The strike owns the damage.
+var APOC_APPROACH_MS={meteors:9000,nuke:11000,sunburst:10000,ai:9000,bh:10000,alienwar:9000,frost:11000,
+  kaiju:8000,flood:10000,kaijuwar:8000,pollution:9000,moonfall:12000,ninetails:5200,gammaray:8000,
+  rogueplanet:12000,crustcrack:9000,oceansboil:10000,greygoo:9000,lastwinter:11000,skyfall:9000,
+  timestop:8000,thecomet:12000,thechange:10000,theburst:8000,thetitans:9000,ragnarok:11000};
+function apocApproachF(){
+  if(cityPhase!=="apoc") return -1;
+  if(typeof apocStruck==="function" && apocStruck()) return -1;      // it has landed: the strike owns the frame
+  var t=APOC_APPROACH_MS[curDeath]||9000;
+  return Math.max(0,Math.min(1,apocMs/t));
+}
+// small shared marks, so twenty-five signatures are twenty-five IDEAS rather than twenty-five loops
+function skyWash(g,c,a){ if(a<=0.004) return; g.fillStyle="rgba("+c+","+a.toFixed(3)+")"; g.fillRect(0,0,SW,HORIZON); }
+function skyStreaks(g,now,n,e,col,len,slope){
+  g.fillStyle=col;
+  for(var i=0;i<n;i++){
+    var h=iceHash(i*5431), per=1800+((h>>>7)%2200), ph=((now+((h>>>11)%per))%per)/per;
+    var x0=((h%1000)/1000)*SW, y0=ph*HORIZON*0.9;
+    for(var q=0;q<len;q++) g.fillRect(Math.round(x0+q*slope),Math.round(y0+q),1,1);
+  }
+}
+function groundGlow(g,c,a){ if(a<=0.004) return; g.fillStyle="rgba("+c+","+a.toFixed(3)+")"; g.fillRect(0,Math.round(HORIZON*0.72),SW,HORIZON-Math.round(HORIZON*0.72)); }
+var APOC_SIG={
+  // a few faint streaks, then the sky is full of them
+  meteors:function(g,f,e,L,now){ skyWash(g,"180,90,40",0.20*e); skyStreaks(g,now,Math.round(3+26*e),e,"rgba(255,200,140,"+(0.30+0.55*e).toFixed(2)+")",Math.round(2+6*e),0.5); },
+  // the sirens' light before the flash: the sky bleaches, and the horizon holds its breath
+  nuke:function(g,f,e,L,now){ skyWash(g,"230,220,190",0.16*e); if(e>0.45) skyWash(g,"255,240,210",0.20*(e-0.45)/0.55*(0.6+0.4*Math.sin(now/140))); },
+  sunburst:function(g,f,e,L,now){ skyWash(g,"255,230,150",0.30*e); groundGlow(g,"255,220,150",0.22*e); },
+  // screens first, then everything electric agrees with everything else
+  ai:function(g,f,e,L,now){ groundGlow(g,"120,255,190",0.10+0.30*e); if(((now/220)|0)%2===0) skyWash(g,"90,220,180",0.06*e); },
+  bh:function(g,f,e,L,now){ skyWash(g,"40,20,60",0.34*e); skyStreaks(g,now,Math.round(20*e),e,"rgba(190,150,255,"+(0.5*e).toFixed(2)+")",Math.round(3+7*e),-1.6); },
+  alienwar:function(g,f,e,L,now){ skyStreaks(g,now,Math.round(4+18*e),e,"rgba(150,255,210,"+(0.4+0.5*e).toFixed(2)+")",Math.round(2+5*e),2.4); skyWash(g,"60,140,110",0.12*e); },
+  frost:function(g,f,e,L,now){ skyWash(g,"170,215,255",0.26*e); groundGlow(g,"210,235,255",0.18*e); },
+  kaiju:function(g,f,e,L,now){ groundGlow(g,"40,30,26",0.22*e); if(((now/300)|0)%3===0) skyWash(g,"120,60,40",0.10*e); },
+  flood:function(g,f,e,L,now){ groundGlow(g,"60,120,180",0.14+0.34*e); skyWash(g,"90,120,150",0.14*e); },
+  kaijuwar:function(g,f,e,L,now){ groundGlow(g,"60,40,30",0.20*e); skyWash(g,"140,80,50",0.14*e); },
+  pollution:function(g,f,e,L,now){ skyWash(g,"120,110,70",0.34*e); groundGlow(g,"110,100,64",0.22*e); },
+  moonfall:function(g,f,e,L,now){ skyWash(g,"90,100,80",0.22*e); groundGlow(g,"120,130,100",0.14*e); },
+  ninetails:function(g,f,e,L,now){ skyWash(g,"200,60,30",0.28*e); groundGlow(g,"220,90,40",0.18*e); },
+  gammaray:function(g,f,e,L,now){ skyWash(g,"200,240,255",0.30*e*(0.7+0.3*Math.sin(now/90))); },
+  rogueplanet:function(g,f,e,L,now){ skyWash(g,"70,60,90",0.24*e);
+    var r=Math.round(HORIZON*(0.02+0.10*e)), cx=Math.round(SW*0.72), cy=Math.round(HORIZON*0.26);
+    g.fillStyle="rgba(120,100,130,"+(0.5+0.4*e).toFixed(2)+")";
+    for(var dy=-r;dy<=r;dy++){ var dw=Math.round(Math.sqrt(Math.max(0,r*r-dy*dy))); g.fillRect(cx-dw,cy+dy,dw*2+1,1); } },
+  crustcrack:function(g,f,e,L,now){ groundGlow(g,"255,120,40",0.10+0.34*e); skyWash(g,"120,60,40",0.12*e); },
+  oceansboil:function(g,f,e,L,now){ groundGlow(g,"220,220,230",0.14+0.30*e); skyWash(g,"190,200,210",0.20*e); },
+  greygoo:function(g,f,e,L,now){ groundGlow(g,"170,170,175",0.12+0.34*e); },
+  lastwinter:function(g,f,e,L,now){ skyWash(g,"200,215,235",0.30*e); groundGlow(g,"225,235,245",0.22*e); },
+  skyfall:function(g,f,e,L,now){ skyWash(g,"60,60,70",0.34*e); g.fillStyle="rgba(40,40,50,"+(0.5*e).toFixed(2)+")"; g.fillRect(0,0,SW,Math.round(HORIZON*(0.05+0.30*e))); },
+  timestop:function(g,f,e,L,now){ skyWash(g,"210,200,170",0.26*e); },
+  thecomet:function(g,f,e,L,now){ skyWash(g,"40,50,80",0.18*e);
+    var cx2=Math.round(SW*0.30), cy2=Math.round(HORIZON*0.22), tl=Math.round(HORIZON*(0.06+0.34*e));
+    g.fillStyle="rgba(220,235,255,"+(0.55+0.35*e).toFixed(2)+")";
+    for(var q2=0;q2<tl;q2++) g.fillRect(cx2+q2,cy2-Math.round(q2*0.32),1,1);
+    g.fillRect(cx2-1,cy2-1,3,3); },
+  thechange:function(g,f,e,L,now){ skyWash(g,"120,60,120",0.24*e); groundGlow(g,"140,70,130",0.16*e); },
+  theburst:function(g,f,e,L,now){ if(((now/110)|0)%2===0) skyWash(g,"255,250,200",0.10+0.26*e); groundGlow(g,"255,240,170",0.16*e); },
+  thetitans:function(g,f,e,L,now){ groundGlow(g,"50,40,34",0.24*e); skyWash(g,"110,90,70",0.16*e); },
+  ragnarok:function(g,f,e,L,now){ skyWash(g,"150,40,30",0.30*e); groundGlow(g,"180,70,30",0.20*e); }
+};
+function drawApocApproach(g,L,now){
+  var f=apocApproachF(); if(f<0) return;
+  var sig=APOC_SIG[curDeath]; if(!sig) return;
+  sig(g,f,f*f,L,now);                                        // e=f*f: ambiguous first, unmistakable late
+}
 function drawApocalypse(g,ap,L,now){
+  drawApocApproach(g,L,now);   // …and before any of them lands, what you can see coming
   if(curDeath==="nuke"){ drawApocNuke(g,ap,L,now); return; }
   if(curDeath==="meteors"){ drawApocMeteor(g,ap,L,now); return; }
   if(curDeath==="sunburst"){ drawApocSun(g,ap,L,now); return; }
