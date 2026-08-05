@@ -23946,15 +23946,35 @@ function drawVolcanoScar(g,L,now){
   // skyline you have been looking at all week. It also has to fit UNDER the towers rather than replace
   // the land's own relief, which is why this is a scar and not a biome change.
   var _cg=volcConeGeom(v.i,K,1), coneH=_cg.h, coneW=_cg.w;
+  // 🚨🚨 THE FLAT-REGISTER LANDS CANNOT CARRY A SMOOTH BLACK DOME. On the OSRS lands this rendered as
+  // an enormous near-black hill sitting on saturated green in front of the town — Nick called it out on
+  // Falador, and I checked before assuming: rendering the SAME clock on LUMBRIDGE puts the identical
+  // cone in the identical place. So it is not a Falador fault, it is a property of the whole
+  // flat-saturated FAMILY, and the gate is `curRs` — stated positively, once.
+  // 🔑 Every other land hides a solid inside rock, foliage or haze. These have flat colour and hard
+  // edges and nothing to hide it in, which is the same reason `dmgAtScreen` had to be interpolated
+  // here and nowhere else. So the scar is drawn in the LAND'S OWN vocabulary rather than softened:
+  // smaller, ashier, and FACETED — a stepped mound of flat values, because a smooth gradient is the
+  // one thing this register never does.
+  var flatReg=!!curRs;
+  if(flatReg){ coneH=Math.round(coneH*0.58); coneW=Math.round(coneW*0.66); }
   if(cx+coneW<0||cx-coneW>SW) return;
   // it WEATHERS. Fresh cinder is near-black and it greys as the life runs on, which is the only thing
   // on screen that says how long ago this happened.
   var ageK=Math.min(1,(v.since||0)/(DIS_SLOT*10));
   var rock=mixc(day?[38,32,30]:[14,12,13], day?[104,98,94]:[34,34,40], ageK*0.55);
+  // ash, not obsidian: near-black against this much green is a HOLE in the frame, not a hill
+  if(flatReg) rock=mixc(rock, day?[122,112,104]:[40,40,48], 0.46);
   var rockD=mixc(rock,[0,0,0],0.35);
+  var FACETS=7;
   for(var y=0;y<coneH;y++){
-    var yn=y/coneH, ww=coneW*Math.pow(1-yn,0.58);
-    g.fillStyle=css(mixc(rock,rockD,0.20+0.5*yn));
+    var yn=y/coneH;
+    // ⚠ THE FACETS QUANTISE THE WIDTH, NOT THE HEIGHT — stepping the height would just terrace it into
+    // a ziggurat. Stepping the width gives flat flanks meeting at hard angles, which is how every
+    // other solid on these lands is built.
+    var ynq=flatReg?(Math.floor(yn*FACETS)/FACETS):yn;
+    var ww=coneW*Math.pow(1-ynq,0.58);
+    g.fillStyle=css(mixc(rock,rockD,0.20+0.5*ynq));
     g.fillRect((cx-ww)|0,(gy-y)|0,(ww*2)|0,1);
     if(day&&y<coneH*0.92){                                     // one lit flank, so it is a form not a blob
       g.fillStyle=css(mixc(rock,[255,238,214],0.13));
@@ -30617,6 +30637,18 @@ function drawFalPark(g,cx,day,K,P,white,whiteD){
 // ---- THE SQUARE: the well and the inn ---------------------------------------------------------
 function drawFalSquare(g,cx,day,K,L,P,white,whiteD,slate,slateD){
   var base=rsStandY(FA_SQUARE*WW,0.52), night=(L<=0.5);
+  // 🔑 A SQUARE IS PAVED, AND THAT IS THE ENTIRE DIFFERENCE BETWEEN A SQUARE AND A FIELD WITH THINGS
+  // ON IT. The well and the inn were both standing on open grass, so "the square" was a name for a gap
+  // between two buildings. A flagged apron under them makes the ground itself the landmark — and it is
+  // drawn first, so everything else stands ON it.
+  var pvW=Math.round(HORIZON*0.30), pvH=Math.round(HORIZON*0.052);
+  var pav=day?[186,182,170]:mixc([186,182,170],[14,18,38],0.72);
+  var pavD=day?[160,156,144]:mixc([160,156,144],[14,18,38],0.75);
+  for(var pr=0;pr<pvH;pr++){
+    var t2=pr/Math.max(1,pvH-1), rw2=Math.round(pvW*(0.74+0.26*t2));
+    g.fillStyle=css(pr%Math.max(2,Math.round(3*K))<Math.max(1,Math.round(K))?pavD:pav);
+    g.fillRect(cx-(rw2>>1),base-pvH+pr,rw2,1);
+  }
   // the well: a stone ring, two posts and a little pitched roof over it
   var ww2=Math.round(HORIZON*0.034), wy=base;
   lumShadow(g,cx,wy,Math.round(ww2*1.6),day);
@@ -30626,6 +30658,19 @@ function drawFalSquare(g,cx,day,K,L,P,white,whiteD,slate,slateD){
   g.fillStyle=css(P.wood);
   g.fillRect(cx-(ww2>>1),wy-Math.round(HORIZON*0.055),Math.max(1,Math.round(K)),Math.round(HORIZON*0.035));
   g.fillRect(cx+(ww2>>1)-Math.round(K),wy-Math.round(HORIZON*0.055),Math.max(1,Math.round(K)),Math.round(HORIZON*0.035));
+  // 🔑 THE BUCKET IS WHAT MAKES A WELL A WELL. A stone ring under a little roof is a shrine, a
+  // wellhead, a planter or a cistern — the eye cannot choose between them. Hang a bucket on a rope
+  // off a winch and there is exactly one thing it can be, and it costs six pixels.
+  // (Same method as the Rising Sun's sign and Ardougne's balloons: find the one object that names the
+  // place and make THAT the mark, rather than making the building bigger and hoping.)
+  var wxw=Math.round(HORIZON*0.021);                              // the winch barrel across the posts
+  g.fillRect(cx-(ww2>>1),wy-Math.round(HORIZON*0.049),ww2,Math.max(1,Math.round(1.6*K)));
+  g.fillStyle=day?"rgba(60,48,36,0.9)":"rgba(12,12,18,0.9)";      // the rope…
+  g.fillRect(cx-Math.max(1,Math.round(K*0.5)),wy-Math.round(HORIZON*0.046),Math.max(1,Math.round(K*0.9)),Math.round(HORIZON*0.017));
+  g.fillStyle=css(P.wood);                                        // …and the bucket on the end of it
+  g.fillRect(cx-Math.round(1.8*K),wy-Math.round(HORIZON*0.030),Math.round(3.6*K),Math.round(2.6*K));
+  g.fillStyle=day?"rgba(52,42,32,0.85)":"rgba(10,10,16,0.9)";
+  g.fillRect(cx-Math.round(1.8*K),wy-Math.round(HORIZON*0.030),Math.round(3.6*K),Math.max(1,Math.round(K)));
   var rh=Math.round(HORIZON*0.016);
   for(var r=0;r<rh;r++){
     var w3=Math.max(1,Math.round((ww2+Math.round(4*K))*(1-r/rh)));
@@ -30800,6 +30845,22 @@ function drawFaladorLive(g,L,now,nd,fx){
     g.fillStyle="rgba(255,214,120,"+(0.5*beat).toFixed(3)+")";
     g.fillRect(fx2+Math.round(fw*0.28),sb-Math.round(sh*0.34),Math.round(fw*0.44),Math.round(sh*0.34));
     g.globalCompositeOperation="source-over";
+    // 🔑 SMOKE IS THE ONLY MARK THAT CARRIES ACROSS A SCREEN. The furnace glow and the anvil sparks are
+    // both real and both about four pixels tall, so at the distance you actually view this land from,
+    // the smithy was a white box with a slate roof like every other white box with a slate roof. A
+    // working forge SMOKES, the plume is twenty pixels above the roofline, and it MOVES — which is
+    // what makes it findable from the next monitor rather than only identifiable up close.
+    // ⚠ It thickens on the same beat the furnace brightens, so the two marks are one event.
+    var chx2=sx-Math.round(sw*0.34), chTop=sb-sh-Math.round(HORIZON*0.085);
+    for(var pf=0;pf<7;pf++){
+      var pph=((now/2600+pf/7)%1);
+      var py2=chTop-Math.round(pph*HORIZON*0.085);
+      var pw2=Math.max(1,Math.round((1.4+pph*3.2)*K));
+      var pa=(1-pph)*0.34*(0.6+0.4*beat);
+      if(pa<=0.02) continue;
+      g.fillStyle="rgba(198,196,190,"+pa.toFixed(3)+")";
+      g.fillRect(chx2-(pw2>>1)+Math.round(Math.sin(pph*3.1+pf)*2.2*K),py2,pw2,Math.max(1,Math.round(1.6*K)));
+    }
     // sparks off the anvil, on the hammer's beat
     for(var sp=0;sp<4;sp++){
       var spf=((now/620+sp/4)%1);
