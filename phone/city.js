@@ -30190,6 +30190,197 @@ function rsBehindRoof(sx,gy){
   }
   return false;
 }
+// ---- THE FOES ---------------------------------------------------------------------------------
+// Nick, 2026-08-05: *"add runescape foes to the game the the players can fight."*
+//
+// 🔒 HIS FOUR ANSWERS: an ICONIC roster with placement second · the full combat read, HITSPLATS AND
+// HEALTH BARS · loot drops, foes respawn, PLAYERS CAN LOSE, and bystanders drift over to watch ·
+// built ONCE for all four lands, so Varrock and Ardougne inherit fighting the day they exist.
+//
+// 🔑🔑 EVERY BODY HERE IS IN FIXED PIXELS AND NOT ONE OF THEM IS MULTIPLIED BY `K`. The adventurers
+// were 18–25px giants beside 7px citizens for exactly that reason, and the camp goblins had the same
+// fault in a milder costume — `1.8*K` by `3.6*K`, which lands near a person at Nick's KSP by luck and
+// drifts on any other panel. A world where the people are a fixed size and the monsters are not is a
+// world whose monsters change size when you drag it to another monitor.
+// ⚠ `h` IS THE BODY BOX, NOT THE CREATURE'S HEIGHT — the head and legs are drawn outside it. A person
+// is 7px overall, so a goblin at h:5 stands about chest-high to one, which is the point.
+var RS_FOES=[
+  // k · nm: what a bystander calls it · w,h: body box · c/d: lit and shadow · a: the accent that names it
+  // q: quadruped (stands low and long) · sz: 0 ordinary · 1 big · 2 huge
+  {k:"goblin",  nm:"GOBLIN",       w:4, h:4,  c:"#60843a", d:"#3e5626", a:"#7a9e46", q:0, sz:0},
+  {k:"rat",     nm:"GIANT RAT",    w:7, h:3,  c:"#7a6450", d:"#4c3e32", a:"#9a8068", q:1, sz:0},
+  {k:"chicken", nm:"CHICKEN",      w:3, h:3,  c:"#e8e4dc", d:"#b4b0a6", a:"#d04a3a", q:1, sz:0},
+  {k:"skeleton",nm:"SKELETON",     w:4, h:5,  c:"#e0dccc", d:"#a8a294", a:"#8e8a7e", q:0, sz:0},
+  {k:"zombie",  nm:"ZOMBIE",       w:4, h:5,  c:"#6a8060", d:"#44543e", a:"#8a6a58", q:0, sz:0},
+  {k:"imp",     nm:"IMP",          w:3, h:3,  c:"#b83c30", d:"#7a2620", a:"#e05a44", q:0, sz:0},
+  {k:"dwarf",   nm:"DWARF",        w:4, h:4,  c:"#8a6a3a", d:"#5c4626", a:"#c85a3a", q:0, sz:0},
+  {k:"scorpion",nm:"SCORPION",     w:7, h:3,  c:"#3e3a44", d:"#26242c", a:"#5c5666", q:1, sz:0},
+  {k:"icewarr", nm:"ICE WARRIOR",  w:5, h:6,  c:"#9cc0d8", d:"#6a8ca6", a:"#e2f0fa", q:0, sz:0},
+  {k:"wizard",  nm:"DARK WIZARD",  w:4, h:6,  c:"#2e2a3a", d:"#1a1824", a:"#9a4ad0", q:0, sz:0},
+  {k:"giant",   nm:"MOSS GIANT",   w:8, h:11, c:"#5c7040", d:"#3a4a2a", a:"#7e9456", q:0, sz:1},
+  {k:"dragon",  nm:"GREEN DRAGON", w:13,h:8,  c:"#3e7a44", d:"#265028", a:"#8ad04a", q:1, sz:2}
+];
+// ⚠ ONE ROUTINE FOR EVERY FOE, the same rule the adventurers are held to. Twelve creatures drawn in
+// twelve places is how two of them end up different heights, and how the thirteenth gets forgotten
+// when the palette changes.
+function drawRsFoe(g,x,gy,f,day,stagger){
+  var body=day?f.c:f.d, acc=day?f.a:f.d;
+  var lean=stagger?1:0;                              // knocked back a pixel on the frame it is hit
+  var w=f.w, h=f.h, X=x-(w>>1)+lean;
+  if(f.k==="dragon"){
+    g.fillStyle=body;
+    g.fillRect(X,gy-h,w,Math.round(h*0.55));         // the long body
+    g.fillRect(X+w-3,gy-h-4,3,5);                    // neck
+    g.fillRect(X+w-4,gy-h-7,5,3);                    // head
+    g.fillStyle=acc;
+    g.fillRect(X+2,gy-h-4,6,4);                      // the wing, the mark that says dragon
+    g.fillStyle=day?"#e8d24a":"#8a7a20";
+    g.fillRect(X+w-1,gy-h-6,1,1);                    // an eye
+    g.fillStyle=body;
+    g.fillRect(X-4,gy-h+2,4,2);                      // tail
+    for(var lg=0;lg<2;lg++) g.fillRect(X+2+lg*6,gy-3,2,3);
+    return;
+  }
+  if(f.q){                                          // quadrupeds stand LOW and LONG — the silhouette
+    g.fillStyle=body;                               // is the whole difference between a rat and a goblin
+    g.fillRect(X,gy-h,w,h);
+    g.fillStyle=acc;
+    g.fillRect(X+w-2,gy-h-1,3,2);                   // head end
+    g.fillStyle=body;
+    g.fillRect(X-3,gy-h+1,3,1);                     // tail / sting
+    if(f.k==="scorpion"){ g.fillStyle=acc; g.fillRect(X-3,gy-h-2,2,2); g.fillRect(X+w,gy-h,1,2); }
+    if(f.k==="chicken"){ g.fillStyle=acc; g.fillRect(X+w+1,gy-h,1,1); }
+    g.fillStyle=day?"rgba(30,28,26,0.85)":"rgba(8,10,16,0.9)";
+    g.fillRect(X+1,gy-1,1,1); g.fillRect(X+w-2,gy-1,1,1);
+    return;
+  }
+  // upright: legs, body, head — and one accent that names the species
+  g.fillStyle=body;
+  g.fillRect(X,gy-h,w,h);
+  g.fillStyle=acc;
+  g.fillRect(X+((w-3)>>1),gy-h-3,3,3);              // head
+  g.fillStyle=day?"rgba(28,26,24,0.85)":"rgba(8,10,16,0.9)";
+  g.fillRect(X+1,gy-2,1,2); g.fillRect(X+w-2,gy-2,1,2);
+  if(f.k==="skeleton"){ g.fillStyle=day?"rgba(120,116,104,0.9)":"rgba(40,42,48,0.9)";
+    for(var rb=1;rb<h;rb+=2) g.fillRect(X,gy-h+rb,w,1); }          // ribs
+  if(f.k==="wizard"){ g.fillStyle=acc; g.fillRect(X+((w-3)>>1)-1,gy-h-5,5,2); }   // the pointed hat
+  if(f.k==="icewarr"){ g.fillStyle=acc; g.fillRect(X-1,gy-h+1,1,3); }             // a shield
+  if(f.k==="giant"){ g.fillStyle=acc; g.fillRect(X+w,gy-h+2,2,6); }               // a club
+}
+// ---- HITSPLATS AND HEALTH BARS -----------------------------------------------------------------
+// 🔑 THE MOST RECOGNISABLE MARK IN THE GAME, and the reason the fighting reads as fighting rather
+// than as two sprites standing near each other. The splat is a filled box with the damage in it —
+// RED for a hit, BLUE for a zero — and the box is deliberately about as big as a torso, which is what
+// it is in the game too.
+// ⚠ Glyphs are 3 wide by 5 tall and advance 4, so a one-digit splat is 5x7 and a two-digit one is 9x7.
+// The number is generated as a STRING first and the box sized from it — a box sized from the number's
+// VALUE would be wrong for exactly the two-digit case that is rarest and therefore least tested.
+function drawHitsplat(g,x,y,dmg){
+  var s=""+dmg, w=s.length*4+1, h=7;
+  g.fillStyle=(dmg>0)?"rgba(150,20,16,0.95)":"rgba(24,60,150,0.95)";
+  g.fillRect(x-(w>>1),y-h,w,h);
+  drawUiText(g,s,x-(w>>1)+1,y-h+1,"#ffffff",1);
+}
+function drawHealthBar(g,x,y,frac){
+  var w=11, f=Math.max(0,Math.min(1,frac)), lit=Math.round(w*f);
+  g.fillStyle="rgba(10,12,16,0.75)"; g.fillRect(x-(w>>1)-1,y-1,w+2,4);
+  g.fillStyle="rgba(180,32,26,0.95)"; g.fillRect(x-(w>>1),y,w,2);
+  if(lit>0){ g.fillStyle="rgba(46,180,52,0.95)"; g.fillRect(x-(w>>1),y,lit,2); }
+}
+// ---- A DROPPED PILE ----------------------------------------------------------------------------
+// Deliberately the SAME vocabulary as the traders' pile: single-pixel items in the same four colours.
+// A death and a trade both end with goods on the ground, and using one mark for both is what makes
+// the second one legible the first time you see it.
+function drawRsDrop(g,x,gy,seed,day,n){
+  var cols=day?["#d4b43c","#bec4cc","#78c478","#c456c4"]:["#726432","#676c7a","#446c50","#6a3576"];
+  for(var it=0;it<n;it++){
+    var ih=((it*40503)^seed)>>>0;
+    g.fillStyle=cols[(ih>>>13)%4];
+    g.fillRect(x-3+(ih%7),gy-1-((ih>>>9)%3),1,1);
+  }
+}
+// ---- THE ENCOUNTERS ----------------------------------------------------------------------------
+// One slot = one clearing where something lives, gets fought, dies, drops its loot and comes back.
+// 🔒 SCRIPTED FROM THE CLOCK, NEVER ACCUMULATED, and driven in WORLD X — the same contract the
+// adventurers, the herd and the roof runners are held to. His three monitors are three independent
+// processes: a goblin on its last hit on screen 2 is on its last hit at that instant on screens 1
+// and 3, and a fight that straddles a bezel is one fight.
+var RS_SAY_FIGHT=["EASY","LURING IT","GET IT","LOW HP!","ALMOST","NICE HIT","RUN!","HELP",
+                  "MINE!","BACK OFF","GOOD DROP?","ANY DROP?"];
+function drawRsFoes(g,L,now,nd,fx){
+  if(!curRs) return;
+  var day=L>0.5, night=(L<=0.5), K=Math.max(1,KSP);
+  var seedW=(WORLD_SEED*2654435761)>>>0;
+  // fewer once the end has started, but never none — the joke of this world is that they keep going
+  var N=(cityPhase==="apoc")?4:11;
+  for(var i=0;i<N;i++){
+    var h=((i*2654435761)^(seedW>>>3))>>>0;
+    var per=34000+((h>>>3)%26000);                    // spawn → fight → death → respawn, ~34-60s
+    var cyc=Math.floor((now+((h>>>7)%per))/per);
+    var ph=((now+((h>>>7)%per))%per)/per;
+    // 🔑 RE-ROLLED EVERY CYCLE, so the same clearing is a rat this time and a dwarf the next. A slot
+    // that always holds the same creature is a piece of scenery, not a spawn.
+    var vh=((h^(cyc*2246822519))>>>0);
+    // ⚠ THE BIG ONES ARE RARE, AND THE RARITY IS A GATE ON THE POOL, NOT A ROW IN IT. Appending the
+    // dragon to the ordinary roster would have made it as common as a chicken; the egg lands taught
+    // that a pool's per-item odds are the pool TIMES its gate.
+    var pick=(vh>>>5)%100;
+    var fi=(pick<3)?11:((pick<9)?10:((vh>>>11)%10));
+    var f=RS_FOES[fi];
+    var wx=Math.round((((vh>>>13)%1000)/1000)*WW);
+    var dpt=0.575+((vh>>>23)%70)/1000;
+    var sx=Math.round(wx)-WOFF; if(sx<-WW*0.5) sx+=WW; if(sx>WW*0.5) sx-=WW;
+    if(sx<-40||sx>SW+40) continue;
+    var gy=rsStandY(wx,dpt);
+    if(rsBehindRoof(sx,gy)) continue;
+    // ⚠ THE PLAYER STANDS IN FRONT OF WHAT HE IS FIGHTING, for the same reason he stands in front of
+    // what he is visiting: the land's own buildings are not in `near.blds` and never will be, so
+    // paint order is settled by PLACEMENT, not by a second occlusion list.
+    var pcol=RS_PLAYER_C[(vh>>>17)%RS_PLAYER_C.length];
+    var loses=((vh>>>27)%5===0);                      // ⚠ ONE FIGHT IN FIVE THE PLAYER LOSES
+    if(ph<0.30){ drawRsFoe(g,sx,gy,f,day,0); continue; }          // alone, before anyone finds it
+    if(ph<0.80){
+      // ---- THE FIGHT
+      var ft=(ph-0.30)/0.50;                          // 0 at first blow → 1 at the last
+      var px=sx-(f.sz?8:6);
+      var hitT=Math.floor((now%2400)/600);            // four beats to a cycle; a blow lands on two
+      var swing=(hitT===0||hitT===2);
+      drawRsFigure(g,px,gy,K,pcol,day,"stand",1);
+      drawRsFoe(g,sx,gy,f,day,(swing&&!loses)?1:0);
+      // bystanders — a fight pulls a crowd, and a big one pulls more
+      var watchers=(f.sz?2:0)+(((vh>>>9)%3===0)?1:0);
+      for(var wq=0;wq<watchers;wq++){
+        var wh2=((vh>>>(wq*4+3))>>>0);
+        drawRsFigure(g,px-6-wq*5,gy,K,RS_PLAYER_C[wh2%RS_PLAYER_C.length],day,"stand",1);
+      }
+      // the health bar rides the LOSER, which is what makes "players can lose" legible without a word
+      var lx=loses?px:sx, lyTop=gy-(loses?10:(f.h+7));
+      drawHealthBar(g,lx,lyTop,1-ft);
+      // 🔑 A SPLAT IS AN EVENT, NOT A STATE — it appears on the beat the blow lands and is gone by the
+      // next. Drawn every frame it stops reading as an impact and becomes a label.
+      if(swing){
+        var dh=((vh>>>19)+hitT+((now/600)|0))>>>0;
+        var dmg=(dh%7===0)?0:(1+(dh%9));              // roughly one swing in seven is a miss
+        drawHitsplat(g,lx+3,lyTop-1,dmg);
+      }
+      if(((now/2900+i)|0)%3===0)
+        drawSpeechBubble(g,px,gy-11-((i%3)*4),
+                         RS_SAY_FIGHT[((vh>>>15)+Math.floor(now/4300))%RS_SAY_FIGHT.length],night);
+      continue;
+    }
+    // ---- THE AFTERMATH: whoever lost is on the floor, and their things are not
+    var af=(ph-0.80)/0.20;
+    var dropN=f.sz?(5+((vh>>>25)%4)):(2+((vh>>>25)%3));
+    if(loses){
+      drawRsFoe(g,sx,gy,f,day,0);                     // it is still standing, which is the whole point
+      drawRsDrop(g,sx-6,gy,vh,day,dropN);
+    } else {
+      drawRsDrop(g,sx,gy,vh,day,dropN);
+      // the victor stays a moment to pick it up, then leaves — the pile outlives him by a little
+      if(af<0.55) drawRsFigure(g,sx-6,gy,K,pcol,day,"stand",1);
+    }
+  }
+}
 function drawRsPlayers(g,L,now,nd,fx){
   if(!curRs) return;
   var day=L>0.5, K=Math.max(1,KSP), night=(L<=0.5);
@@ -30343,14 +30534,12 @@ function drawLumbridgeLive(g,L,now,nd,fx){
       var gwalk=Math.sin(gph*Math.PI*2)*HORIZON*0.045;
       var gx2=Math.round(gsx-HORIZON*0.03+((gh2%100)/100)*HORIZON*0.09+gwalk);
       var gyy=gy2-Math.round(((gh2>>>19)%100)/100*HORIZON*0.012);
-      var gW=Math.max(2,Math.round(1.8*K)), gH=Math.max(3,Math.round(3.6*K));
-      g.fillStyle=day?"rgba(96,132,58,1)":"rgba(28,44,30,1)";
-      g.fillRect(gx2,gyy-gH,gW,gH);
-      g.fillStyle=day?"rgba(120,158,70,1)":"rgba(38,58,38,1)";
-      g.fillRect(gx2-Math.round(K*0.4),gyy-gH-Math.round(1.6*K),gW+Math.round(K*0.8),Math.round(1.8*K));
-      // a step in the walk, so they are not gliding
-      if(Math.sin(gph*Math.PI*8)>0){ g.fillStyle=day?"rgba(70,100,44,1)":"rgba(20,32,22,1)";
-        g.fillRect(gx2,gyy-Math.round(K),gW,Math.max(1,Math.round(K))); }
+      // 🚨 THESE WERE THE FOURTH INSTANCE OF THE GIANTS FAULT. They were `1.8*K` wide by `3.6*K` tall,
+      // which lands near a person's size at Nick's KSP by luck and drifts on every other panel — the
+      // same error as the adventurers, the animals and the mountain sprites, just mild enough here to
+      // have gone unnoticed. They are the roster's goblin now: ONE routine, fixed pixels, and a camp
+      // goblin is the same creature as the one being fought out in the field.
+      drawRsFoe(g,gx2,gyy,RS_FOES[0],day,Math.sin(gph*Math.PI*8)>0?1:0);
     }
   }
   // ---- THE RIVER'S GLITTER, and it is the only specular thing on a land with no gloss anywhere else.
@@ -50076,6 +50265,7 @@ function draw(g,pass){
   drawHyruleLive(g,L,now,nd,fx);   // …and on the old kingdom: the ring, the eruption, and the dragon
   drawLumbridgeLive(g,L,now,nd,fx);  // …and on the river meadow: the sails, the cattle, the goblins, the glitter
   drawFaladorLive(g,L,now,nd,fx);    // …and in the white city: the fountain, the forge and the flock
+  drawRsFoes(g,L,now,nd,fx);         // …on ALL FOUR: what lives out there, and the fights over it
   drawRsPlayers(g,L,now,nd,fx);      // …and on ALL FOUR: the adventurers, last so they stand in front
   drawVillageCliffLive(g,L,now,nd,fx);  // …and on the hidden village, everything the WALL does: water
                                   // off the rim, mist at its foot, climbers on the stair, hawks on the
