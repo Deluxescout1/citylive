@@ -32451,70 +32451,125 @@ function drawRsSkillers(g,L,now,nd,fx){
 var RS_SAY_FIGHT=["EASY","LURING IT","GET IT","LOW HP!","ALMOST","NICE HIT","RUN!","HELP",
                   "MINE!","BACK OFF","GOOD DROP?","ANY DROP?"];
 // ---- THE ROOFTOP AGILITY COURSE ----------------------------------------------------------------
-// 📚 Varrock and Ardougne both canonically have one. 🚨 THE FIRST CUT READ THE TOWN'S PLOTS — `near.blds`
-// publish `_roofX`/`_roofY` and `rsBehindRoof` reads them, so laying the course on those looked like
-// reuse rather than invention. MEASURED: `roofs=0`. Those fields are published by the hidden-village
-// routines and by `drawRsBuilding`, and on these lands nothing in `near.blds` carries them.
-// 🔑🔑 WHICH ALSO MEANS `rsBehindRoof` HAS ALWAYS FOUND NOTHING — its own comment says the real fix
-// was PLACEMENT ("an adventurer stands IN FRONT of the thing he is visiting"), and that is what has
-// been doing the work all along. A dependency nobody had ever probed.
-// 🔑 SO THE COURSE OWNS ITS OBSTACLES, which is also what it is in the game: not "any roof", but a
-// laid-out set of platforms you go round. Self-contained, no reliance on another system's internals,
-// and it can be seated where it reads instead of wherever the plots happened to land.
-function rsCourseFrac(){ return (curRs==="varrock")?VK_SQUARE-0.055:AD_MARKET-0.060; }
+// 📚 THE REAL COURSE, IN ORDER: rough wall (climb up from the street) · CLOTHES LINE · gap · wall ·
+// gap · gap · gap · ledge · edge (jump down, lap complete). One lap is about seventy seconds.
+// 🚨 THE FIRST CUT WAS SCAFFOLD PLATFORMS ON POLES and read as builders' staging tangled with the
+// town — because that is what it was. The course is not a structure ADDED to the roofline; it IS the
+// roofline. So these are pitched ROOFS in the town's own tile colour at a raised level, and what
+// makes it a course is the stuff strung BETWEEN them.
+// 🔑🔑 THE CLOTHES LINE IS THE MARK. A row of rooftops is a row of rooftops; a rope slung between two
+// of them with washing pegged along it is unmistakably that course and nothing else in this engine
+// has one. It is also the obstacle everyone remembers, because it is the one you fail.
+function rsCourseFrac(){ return (curRs==="varrock")?VK_SQUARE-0.062:AD_MARKET-0.066; }
 function rsCourse(){
   var f0=rsCourseFrac(), n=6, out=[];
   for(var i=0;i<n;i++){
     var h=iceHash(i*4441^((WORLD_SEED*2654435761)>>>0));
-    var wx=Math.round((f0+i*0.0165)*WW);
-    out.push({ wx:wx,
-               w:Math.round(HORIZON*(0.030+((h>>>5)%3)*0.006)),
-               top:rsStandY(wx,0.50)-Math.round(HORIZON*(0.075+((h>>>11)%4)*0.014)) });
+    var wx=Math.round((f0+i*0.0175)*WW);
+    var bw=Math.round(HORIZON*(0.034+((h>>>5)%3)*0.007));
+    var top=rsStandY(wx,0.50)-Math.round(HORIZON*(0.088+((h>>>11)%4)*0.011));
+    out.push({wx:wx,w:bw,top:top,base:rsStandY(wx,0.50)});
   }
   return out;
 }
 function drawRsCourse(g,day,K,P){
   if(curRs!=="varrock"&&curRs!=="ardougne") return;
   var C=rsCourse();
+  var wall =day?[196,172,138]:mixc([196,172,138],[14,18,38],0.74);
+  var wallD=day?[152,130,100]:mixc([152,130,100],[14,18,38],0.78);
+  var roofA=day?[132,74,52] :mixc([132,74,52],[14,18,38],0.76);
+  var roofB=day?[94,52,38]  :mixc([94,52,38],[14,18,38],0.80);
   for(var i=0;i<C.length;i++){
-    var sx=disX(C[i].wx); if(sx<-40||sx>SW+40) continue;
-    var w=C[i].w, top=C[i].top, base=rsStandY(C[i].wx,0.50);
-    // a pier of scaffold under each platform, so it is standing on the ground and not hovering
-    g.fillStyle=day?"#6a5a44":"#241c14";
-    g.fillRect(sx-1,top,2,base-top);
-    g.fillRect(sx-w+2,top+Math.round((base-top)*0.45),w*2-4,Math.max(1,Math.round(K*0.8)));
-    g.fillStyle=day?"#8a7454":"#2e2418";                     // the platform itself
-    g.fillRect(sx-w,top-Math.round(2*K),w*2,Math.round(2*K));
-    g.fillStyle=day?"#a89070":"#3a2e1e";
-    g.fillRect(sx-w,top-Math.round(2*K),w*2,Math.max(1,Math.round(K)));
+    var c=C[i], sx=disX(c.wx);
+    if(sx<-50||sx>SW+50) continue;
+    // the building itself, standing on the ground — a roof with no house under it is a raft
+    g.fillStyle=css(wall);  g.fillRect(sx-c.w,c.top,c.w*2,c.base-c.top);
+    g.fillStyle=css(wallD); g.fillRect(sx+c.w-Math.round(1.4*K),c.top,Math.round(1.4*K),c.base-c.top);
+    var cStep=Math.max(3,Math.round(3.6*K));
+    g.fillStyle=css(mixc(wall,wallD,0.5));
+    for(var cy=c.top+cStep;cy<c.base;cy+=cStep) g.fillRect(sx-c.w,cy,c.w*2,1);
+    // …and its pitched roof, in the town's tiles, because this IS the town's roofline
+    var rh=Math.round(c.w*0.52), ov=Math.round(2*K);
+    for(var r=0;r<rh;r++){
+      var rw=Math.max(1,Math.round((c.w*2+ov*2)*(1-r/rh)));
+      g.fillStyle=css((r%Math.max(2,Math.round(2*K))<Math.max(1,Math.round(K)))?roofA:roofB);
+      g.fillRect(sx-c.w-ov+(((c.w*2+ov*2)-rw)>>1),c.top-1-r,rw,1);
+    }
+    c.ridge=c.top-rh;                                          // where a runner actually stands
+    // ---- THE ROUGH WALL at the start: the way up off the street
+    if(i===0){
+      g.fillStyle=css(wallD);
+      for(var lr=0;lr<Math.round((c.base-c.top)/Math.max(2,Math.round(3*K)));lr++)
+        g.fillRect(sx-c.w-Math.round(2*K),c.base-lr*Math.max(2,Math.round(3*K))-Math.round(2*K),Math.round(3*K),Math.max(1,Math.round(1.2*K)));
+    }
+    // ---- THE LEDGE on the second-to-last: a narrow shelf along the face
+    if(i===C.length-2){
+      g.fillStyle=css(wallD);
+      g.fillRect(sx-c.w,c.top+Math.round((c.base-c.top)*0.30),c.w*2,Math.max(1,Math.round(1.6*K)));
+    }
+  }
+  // ---- THE CLOTHES LINE between the first two roofs, with the washing pegged along it
+  if(C.length>1){
+    var a=C[0], b=C[1], ax=disX(a.wx), bx=disX(b.wx);
+    if(!(ax<-60&&bx<-60)&&!(ax>SW+60&&bx>SW+60)){
+      var ay=a.ridge, by=b.ridge;
+      g.fillStyle=day?"rgba(60,50,40,0.9)":"rgba(14,14,20,0.9)";
+      var span=bx-ax;
+      for(var q=0;q<=Math.abs(span);q++){
+        var t=q/Math.max(1,Math.abs(span)), px=Math.round(ax+span*t);
+        var sag=Math.round(Math.sin(t*Math.PI)*Math.round(2.4*K));   // a rope hangs; a taut one is a wire
+        g.fillRect(px,Math.round(ay+(by-ay)*t)+sag,1,1);
+      }
+      var wash=["#d8d2c8","#c85a5a","#5a7ac8","#d8c85a"];
+      for(var w2=0;w2<4;w2++){
+        var t2=0.18+w2*0.20, px2=Math.round(ax+span*t2);
+        var py2=Math.round(ay+(by-ay)*t2)+Math.round(Math.sin(t2*Math.PI)*Math.round(2.4*K));
+        g.fillStyle=day?wash[w2%4]:"#33343e";
+        g.fillRect(px2,py2+1,Math.round(2*K),Math.round(3*K));
+      }
+    }
   }
 }
-// …and the runners, in the LIVE pass
+// the runners: up the wall, across the line, over the gaps, off the edge
 function drawRsAgility(g,L,now,nd,fx){
   if(curRs!=="varrock"&&curRs!=="ardougne") return;
   var day=L>0.5, K=Math.max(1,KSP), seedW=(WORLD_SEED*2654435761)>>>0;
   var C=rsCourse(); if(C.length<2) return;
+  for(var ci=0;ci<C.length;ci++) C[ci].ridge=C[ci].top-Math.round(C[ci].w*0.52);
   for(var r=0;r<4;r++){
     var h=iceHash(r*8887^seedW);
-    var per=17000+((h>>>7)%11000);
+    var per=70000+((h>>>7)%9000);                    // 📚 a lap is about seventy seconds
     var ph=((now+((h>>>11)%per))%per)/per;
-    var fi=ph*(C.length-1);
-    var i0=Math.max(0,Math.min(C.length-2,Math.floor(fi)));
-    var t=fi-i0, A=C[i0], B=C[i0+1];
-    var ax=disX(A.wx), bx=disX(B.wx);
-    var x=Math.round(ax+(bx-ax)*t);
-    // 🔑 THE LEAP IS THE WHOLE READ. A runner who slides linearly between platforms is on a zipwire;
-    // he has to ARC — up off one edge, down onto the next.
-    var arc=Math.round(Math.sin(t*Math.PI)*8);
-    var y=Math.round(A.top+(B.top-A.top)*t)-arc-Math.round(2*K);
-    if(x<-10||x>SW+10) continue;
-    var airborne=(t>0.16&&t<0.84);
-    drawRsFigure(g,x,y,K,RS_PLAYER_C[(h>>>17)%RS_PLAYER_C.length],day,airborne?"stand":"walk",
-                 (bx>=ax)?1:-1,rsTier(h^0x77c3),h);
-    if(airborne){                                            // dust off the edge he pushed from
-      g.fillStyle=day?"rgba(200,194,182,0.5)":"rgba(120,124,140,0.32)";
-      g.fillRect(ax,A.top-Math.round(2*K)-1,2,1);
+    // the first eighth is the CLIMB up the rough wall, then the roofs, then the drop
+    var x,y,pose="walk",face=1;
+    if(ph<0.12){
+      var cf=ph/0.12, c0=C[0], sx0=disX(c0.wx);
+      x=sx0-c0.w-Math.round(2*K); y=Math.round(c0.base-(c0.base-c0.ridge)*cf);
+      pose="stand";                                  // hands on the wall, hauling up — not a walk cycle
+    } else {
+      var t=(ph-0.12)/0.88, fi=t*(C.length-1);
+      var i0=Math.max(0,Math.min(C.length-2,Math.floor(fi)));
+      var tt=fi-i0, A=C[i0], B=C[i0+1];
+      var ax=disX(A.wx), bx=disX(B.wx);
+      x=Math.round(ax+(bx-ax)*tt);
+      face=(bx>=ax)?1:-1;
+      // 🔑 THE FIRST SPAN IS THE CLOTHES LINE, NOT A JUMP. He walks it, arms out, sagging with the rope
+      // — a tightrope crossed by leaping would be a gap, and the line is the obstacle people remember.
+      if(i0===0){
+        y=Math.round(A.ridge+(B.ridge-A.ridge)*tt)+Math.round(Math.sin(tt*Math.PI)*Math.round(2.4*K))-2;
+        pose="stand";
+      } else {
+        var arc=Math.round(Math.sin(tt*Math.PI)*9);
+        y=Math.round(A.ridge+(B.ridge-A.ridge)*tt)-arc;
+        pose=(tt>0.18&&tt<0.82)?"stand":"walk";
+        if(tt>0.18&&tt<0.82){
+          g.fillStyle=day?"rgba(200,194,182,0.5)":"rgba(120,124,140,0.32)";
+          g.fillRect(ax,A.ridge-1,2,1);
+        }
+      }
     }
+    if(x<-10||x>SW+10) continue;
+    drawRsFigure(g,x,y,K,RS_PLAYER_C[(h>>>17)%RS_PLAYER_C.length],day,pose,face,rsTier(h^0x77c3),h);
   }
 }
 function drawRsFoes(g,L,now,nd,fx){
