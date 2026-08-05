@@ -15094,14 +15094,50 @@ function bubbleLine(a, b, slot){
   // before saying anything twice, rather than landing on the same line by chance every few minutes.
   return pickWalk(L, (a.pid*7)>>>0, slot);
 }
+// 🚨🚨 NO TWO BUBBLES MAY OVERPRINT — ANYWHERE IN THE GAME. Nick, 2026-08-05: *"make sure everyones
+// chat bubbles don't overlap."* This is the FOURTH time bubble collision has been reported, and the
+// first three were each fixed at the CALL SITE: stagger the pair of traders by slot, stagger the crowd
+// by row, rotate the market's talkers. Every one of those is a local tuning of how many bubbles are
+// likely to collide, and likelihood is not a guarantee — so each fix held until something nearby got
+// denser, and none of them could ever help the OTHER callers, which by now are five separate systems
+// (the 509-scene dialogue, adventurers, traders, fighters, skillers, the market crowd) that know
+// nothing about each other and all draw into the same strip of screen.
+// 🔑🔑 SO THE RULE MOVES INTO THE ROUTINE THEY ALL SHARE, and becomes a HARD one: a bubble takes a
+// lane, and a bubble that cannot find a free lane IS NOT DRAWN. Absent is strictly better than
+// illegible — an unreadable white slab costs you every line under it, not just the one that collided.
+var BUB_RECTS=[];
+function bubFree(x,y,w,h){
+  for(var i=0;i<BUB_RECTS.length;i++){
+    var r=BUB_RECTS[i];
+    if(x < r[0]+r[2] && x+w > r[0] && y < r[1]+r[3] && y+h > r[1]) return false;
+  }
+  return true;
+}
 function drawSpeechBubble(g, cx, topY, text, night){
   var w=textW(text); if(w+6>SW) return;                        // SOL: a caption wider than the screen can't be laid out
-  var x=(cx-(w>>1))|0, y=(topY-9)|0;
+  var x=(cx-(w>>1))|0, y0=(topY-9)|0;
   if(x<3)x=3; if(x+w+3>SW)x=SW-w-3;                            // keep the box fully on-screen
+  // ⚠ IT LOOKS FOR A LANE UPWARD, because the speaker is below and the sky is empty. Six lanes is
+  // plenty in practice and bounds the cost at six rectangle tests against a list that is only ever a
+  // few dozen long — this runs on the LIVE pass, so it may not become a search.
+  var y=y0, ok=false;
+  for(var t=0;t<6;t++){
+    var yy=y0-t*11;
+    if(yy<4) break;
+    if(bubFree(x-2,yy-2,w+4,9)){ y=yy; ok=true; break; }
+  }
+  if(!ok) return;                                              // no room: stay quiet this frame
+  BUB_RECTS.push([x-2,y-2,w+4,9]);
   var tailX=Math.max(x, Math.min(x+w-2, (cx-1)|0));            // clamp the tail to under the (clamped) box
   g.fillStyle=night?"rgba(18,22,32,0.92)":"rgba(248,249,255,0.94)";
   g.fillRect(x-2,y-2,w+4,9);
   g.fillRect(tailX,y+7,2,2);                                   // little downward tail
+  // …and when it had to move up, a leader down to whoever is actually talking, or the bubble belongs
+  // to nobody. A floating caption is worse than a missing one.
+  if(y<y0-2){
+    g.fillStyle=night?"rgba(18,22,32,0.55)":"rgba(248,249,255,0.6)";
+    g.fillRect(tailX,y+9,1,(y0-y)-2);
+  }
   drawUiText(g, text, x, y, night?"#dfe6f4":"#1a2030", 1);
 }
 // the pair's topic for a whole 4-beat scene: live events outrank relationships outrank smalltalk.
@@ -31085,18 +31121,29 @@ function rsNpcPosts(){
     // 📚 The Mourners are "an organized group" who "maintain control and enforce quarantine" — so
     // they hold the west, and Ardougne's own guards hold the wall and the castle. The two forces
     // face each other across it, which is the land's whole proposition stated in who stands where.
-    case "ardougne": return [["mourner",AD_MOURN,3],["mourner",AD_SLUM,2],["mourner",AD_WGATE,2],
-                             ["guard",AD_WALL,3],["knight",AD_CASTLE,2],["guard",AD_PORT,1]];
-    case "falador": return [["knight",FA_CASTLE,3],["guard",FA_WGATE,2],["guard",FA_SGATE,2],
-                            ["dwarf",FA_MINE,3],["monk",FA_PARK,1],["smith",FA_SMITHY,1]];
-    default:        return [["guard",LB_CASTLE,3],["monk",LB_CHURCH,2],["farmer",LB_COWS,2],
-                            ["cook",LB_CASTLE,1],["fisher",LB_RIVER,1]];
+    // ⚠ COUNTS RAISED AND MERCHANTS ADDED. Nick: *"where are the guards and NPC merchants and
+    // everything"* — and he was right twice over. They WERE rendering, just three or four on a land
+    // two thousand pixels wide, which reads as nobody; and I had built thirteen market stalls with
+    // NOBODY BEHIND THEM. A stall without a stallholder is a shelf.
+    // 🔑 The tuple takes an optional SPREAD and DEPTH, because a merchant is not scattered near a
+    // place, he is standing at his own stall — the market entry lines them along the stalls at the
+    // stalls' depth, while everyone else keeps the loose scatter that suits a post.
+    case "ardougne": return [["mourner",AD_MOURN,5],["mourner",AD_SLUM,4],["mourner",AD_WGATE,3],
+                             ["guard",AD_WALL,6],["knight",AD_CASTLE,5],["guard",AD_PORT,2],
+                             ["merchant",AD_MARKET,7,HORIZON*0.23,0.560],["guard",AD_ZOO,2],
+                             ["monk",AD_CHURCH,2],["guard",AD_CLOCK,2]];
+    case "falador": return [["knight",FA_CASTLE,5],["guard",FA_WGATE,3],["guard",FA_SGATE,3],
+                            ["dwarf",FA_MINE,5],["monk",FA_PARK,2],["smith",FA_SMITHY,2],
+                            ["merchant",FA_SQUARE,4,HORIZON*0.13,0.545],["guard",FA_PARTY,2]];
+    default:        return [["guard",LB_CASTLE,4],["monk",LB_CHURCH,3],["farmer",LB_COWS,3],
+                            ["cook",LB_CASTLE,2],["fisher",LB_RIVER,2],
+                            ["merchant",LB_SHOPS,4,HORIZON*0.13,0.545],["guard",LB_GATE,2]];
   }
 }
 function rsNpcCol(kind){
   return kind==="knight"?"#dfe2e8":kind==="guard"?"#7a3a34":kind==="monk"?"#6a5236":
          kind==="dwarf" ?"#8a6a3a":kind==="cook" ?"#e8e4dc":kind==="smith"?"#4a4038":
-         kind==="mourner"?"#3e3a34":"#6a7a4a";
+         kind==="mourner"?"#3e3a34":kind==="merchant"?"#8a5a3a":"#6a7a4a";
 }
 function drawRsNpc(g,x,gy,kind,day,facing,bob){
   var y=gy-2, col=rsNpcCol(kind);
@@ -31116,6 +31163,9 @@ function drawRsNpc(g,x,gy,kind,day,facing,bob){
     g.fillStyle=day?"#ffffff":"#4a4e56"; g.fillRect(x,yy-5,2,1);
   } else if(kind==="smith"){
     g.fillStyle=day?"#6a5a3a":"#241f14"; g.fillRect(x+(facing>0?3:-2),yy-3,1,3);        // the hammer
+  } else if(kind==="merchant"){
+    g.fillStyle=day?"#e0d8c4":"#3a3a44"; g.fillRect(x,yy,2,2);                          // the apron
+    g.fillStyle=day?"#6a4a2a":"#221a14"; g.fillRect(x-1,yy-4,4,1);                      // a flat cap
   } else if(kind==="mourner"){
     // 🔑 THE MASK IS THE WHOLE COSTUME. A mourner in a dark robe is a monk in a dark robe; the pale
     // beaked face over it is the one mark that says PLAGUE, and it is two pixels.
@@ -31142,13 +31192,20 @@ function drawRsNpcs(g,L,now,nd,fx){
   var day=L>0.5, K=Math.max(1,KSP), posts=rsNpcPosts(), seedW=(WORLD_SEED*2654435761)>>>0;
   for(var pi=0;pi<posts.length;pi++){
     var kind=posts[pi][0], frac=posts[pi][1], cnt=posts[pi][2];
+    var spread=(posts[pi][3]!==undefined)?posts[pi][3]:HORIZON*0.19;
+    var dpt0=(posts[pi][4]!==undefined)?posts[pi][4]:null;
     var wx0=Math.round(frac*WW);
     for(var p=0;p<cnt;p++){
       var h=iceHash((pi*67+p)*2654435761^seedW);
-      var off=Math.round((((h%1000)/1000)-0.5)*HORIZON*0.19);
+      // a merchant stands AT his stall, so he is spaced EVENLY along the row rather than scattered —
+      // the one NPC on these lands whose position is a property of a building, not of a place
+      var off=(kind==="merchant")
+        ? Math.round(((p+0.5)/cnt-0.5)*spread*2)
+        : Math.round((((h%1000)/1000)-0.5)*spread);
       // 🔑 MOST STAND THEIR POST; ONE IN THREE WALKS A BEAT BETWEEN. A wholly static guard is a
       // bollard, and a wandering one is not on duty — the mix is what reads as a watch being kept.
-      var patrol=((h>>>7)%3===0), face=((h>>>9)&1)?1:-1, bob=-1;
+      // ⚠ A MERCHANT NEVER PATROLS. He is minding a stall; a stallholder who wanders off is a shopper.
+      var patrol=(kind!=="merchant")&&((h>>>7)%3===0), face=((h>>>9)&1)?1:-1, bob=-1;
       if(patrol){
         var per=13000+((h>>>11)%9000), pph=((now+((h>>>15)%per))%per)/per;
         var sw=Math.sin(pph*Math.PI*2);
@@ -31159,7 +31216,7 @@ function drawRsNpcs(g,L,now,nd,fx){
       var wx=wx0+off, sx=wx-WOFF;
       if(sx<-WW*0.5) sx+=WW; if(sx>WW*0.5) sx-=WW;
       if(sx<-20||sx>SW+20) continue;
-      var gy=rsStandY(wx,0.585+((h>>>21)%45)/1000);
+      var gy=rsStandY(wx,dpt0!==null?dpt0:(0.585+((h>>>21)%45)/1000));
       if(rsBehindRoof(sx,gy)) continue;
       drawRsNpc(g,sx,gy,kind,day,face,bob);
     }
@@ -50877,6 +50934,7 @@ function draw(g,pass){
   apocDeferTick(apocRealNow);                    // did the PC sleep through a cataclysm? queue a replay if so
   now=apocEffNow(apocRealNow);                   // during a queued replay, warp `now` to that missed life so its end plays out
   FRAME_NOW=now;                                 // publish the settled clock for sprite helpers (see FRAME_NOW)
+  BUB_RECTS.length=0;                            // ⚠ the bubble lanes are per FRAME — see drawSpeechBubble
   var lifeI=lifeIndexOf(now); if(lifeI!==curLife) buildWorld(lifeI);   // REBIRTH: roll a brand-new city (masked by the ash veil)
   maybeFetchWeather();          // all monitors fetch on the same 10-min wall-clock window → identical weather
   maybeFetchAirq();             // and the same 30-min window for air quality (wildfire smoke)
