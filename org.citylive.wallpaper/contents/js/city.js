@@ -4236,6 +4236,69 @@ var EGG_BIOMES=[
     // ⚠ k:0.62 — over 0.5, so SKY_GAIN passes it through untouched. That is the point: this land's
     // identity IS its sky, a flat drained white-grey with no blue anywhere in it, at every hour.
     sky:{ top:[152,157,162], bot:[199,201,203], k:0.86, haze:[202,205,208] } }
+  ,
+  // ============ THE OSRS SET — four lands from one world ============
+  // Nick asked for four maps themed on cities from Old School RuneScape: LUMBRIDGE, FALADOR, VARROCK
+  // and ARDOUGNE (the plague wall). They go in EGG_BIOMES with the roll REWEIGHTED (see `eggOf`), not
+  // into a fifth array: every reference to EGG_BIOMES lives inside `eggOf`, and "every egg row is in
+  // EGG_BIOMES" is an invariant worth more than a tidier-looking separate set. `%12` -> `%8` on the
+  // gate holds each of the twelve lands at its old ~1 life in 96; egg lives as a whole go 8.3% -> 12.5%.
+  //
+  // ⚠⚠ NAMED OUTRIGHT, WHICH REVERSES THE HOMAGE RULE. Every previous homage here is unnamed — the
+  // hidden villages, the sealed height, the falls city — because the rule set when the leaf village
+  // was built says a trademark never appears in a shipped string. Nick was asked directly, with that
+  // history in front of him, and chose the real names for these four. His call, recorded here so the
+  // next reader does not "fix" it back. The earlier lands keep their unnamed titles.
+  //
+  // 🔒 HIS THREE LOCKED ANSWERS FOR THE WHOLE SET:
+  //   1. THE CITY IS RESTYLED MEDIEVAL — no towers, no glass, no cars. These lands set `curVillage`,
+  //      which already carries the ~25 bans that make a place not-a-metropolis (no cars, buses, trams,
+  //      ambulances, scooters, street plates, viaduct, monorail, machine sky, no plot ever redeveloping
+  //      into a tower). Only the ARCHITECTURE branches — `curRs` picks drawRsBuilding instead of the
+  //      hidden village's plaster drums. Every city system still runs, in costume.
+  //   2. THE LAYOUT IS HIS, west->east, one feature per world fraction (see drawLumbridge's header).
+  //   3. THE REGISTER IS 2007-FAITHFUL — flat saturated colour, hard edges, blocky silhouettes, and
+  //      deliberately unlike the other 28 lands. That is what makes it read as the game rather than as
+  //      a generic medieval map. The engine's day/night and weather still run over the top of it.
+  //
+  // ⚠ `water:"none"`, NOT `"river"`, AND IT IS NOT AN OVERSIGHT. The shared river machinery draws its
+  // channel in the ground band where the BRIDGE DECK covers it completely (measured: deck 362, channel
+  // 363->437) — on mesa, plains, plateau, swamp, leaf and rainv the water has never once been seen.
+  // A land whose identity is a castle beside a bridge over the River Lum cannot ship its river that
+  // way, so the Lum is drawn by the LAND, in the backdrop band, like Lake Hylia. `null` is not an
+  // option either: it means "roll for it" and puts an ocean here in 60% of lives.
+  { k:"lumbridge", name:"LUMBRIDGE", egg:1, rs:"lumbridge", amp:0.34, base:0.20, flat:0.72, steep:0.30, snow:false, water:"none",
+    far:[104,150,92],  near:[74,124,66],  cap:[150,190,110], ground:[92,146,72],
+    // lime-washed daub, cut sandstone and grey field stone under thatch and slate. No concrete, no glass.
+    walls:[[226,214,186],[198,182,150],[238,230,208],[172,154,124],[210,196,166],[186,168,138],[232,222,198],[160,142,114]],
+    fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:0}, big:["cattle"], small:["frog","squirrel"], air:["crow","dove"] },
+    flora:{ kinds:["generic","generic","willow","reeds"], bloom:["#f0e08a","#ffffff","#f4b8c8"] },
+    // ⚠ A FLAT, SATURATED, SLIGHTLY OVERCAST BLUE — the 2007 client's sky, which is brighter and less
+    // graded than this engine's default. k:0.30 keeps enough of the engine's own hour in it that dawn,
+    // dusk and storm still read.
+    sky:{ top:[122,176,226], bot:[196,222,238], k:0.30, haze:[200,224,238] } },
+  // ============ FALADOR ============
+  // 🔒 HIS LOCKED LAYOUT (2026-08-04): the farm 0.06 · the west gatehouse 0.16 · the park with its
+  // fountain and the mole hill 0.26 | THE WHITE KNIGHTS' CASTLE 0.42 · the square, well and inn 0.56 ·
+  // the smithy 0.66 | the south gatehouse 0.78 · the dwarven mine 0.87 · ICE MOUNTAIN 0.94.
+  //
+  // ⚠⚠ THE BIG OBJECT IS THE CASTLE, NOT THE WALL — and he was asked that directly, with the
+  // alternative (run the white curtain wall across the world, which is truer to the game) offered and
+  // declined. A long wall of repeating towers is precisely what this per-column band renderer draws
+  // worst: it is the fault that killed THE TERRACES after eleven commits, and it would run the entire
+  // width of all three monitors. The walls appear as GATEHOUSES with short stubs that die out.
+  //
+  // 🔑 AND THE LAND NEEDS A SECOND MASS. Lumbridge gets its value contrast from a black swamp; a white
+  // city on green downland has nothing dark and nothing tall, so ICE MOUNTAIN stands at the east end —
+  // snow above, dark rock and treeline below, the dwarven mine cut into its foot. White city, white
+  // peak, dark rock between them: the contrast rule satisfied by the geography rather than by paint.
+  { k:"falador", name:"FALADOR", egg:1, rs:"falador", amp:0.44, base:0.26, flat:0.62, steep:0.40, snow:true, water:"none",
+    far:[118,150,118], near:[86,118,84], cap:[224,232,236], ground:[104,140,86],
+    // white ashlar, lead and slate. The palest walls in the game, which is the whole point of the place.
+    walls:[[240,240,236],[214,214,210],[248,248,246],[190,190,188],[228,228,226],[204,204,202],[244,244,242],[178,178,176]],
+    fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:1}, big:["cattle"], small:["squirrel"], air:["crow","dove"] },
+    flora:{ kinds:["generic","generic","windbent","grass"], bloom:["#ffffff","#f4c8d8","#e8e0f0"] },
+    sky:{ top:[132,180,224], bot:[206,226,238], k:0.32, haze:[208,228,240] } }
 ];
 // ONE TRUTH ABOUT WHICH LAND THIS LIFE IS. Extracted from buildWorld because `setup` now has to know
 // the land BEFORE it can place HORIZON: the coastal lands put open water along the bottom of the
@@ -4368,7 +4431,14 @@ function eggOf(li){
     return null;
   }
   if(li===0) return null;                               // life 0 is always the alpine range it grew up under
-  if((mixLi(li,31337)%12)!==0) return null;              // ~1 life in 12 is an egg at all…
+  // ⚠ 12 -> 8 WHEN THE FOUR OSRS LANDS LANDED. This gate and the pick below MULTIPLY: the per-land
+  // frequency is 1/gate x 1/EGG_BIOMES.length, and it was 1/12 x 1/8 = 1 life in 96 each. Appending
+  // four rows without touching the gate would have quietly made all TWELVE lands rarer (1 in 144) —
+  // the new ones AND the eight that were already here. Moving the gate to 8 holds every land at its
+  // old 1 in 96 and spends the difference where it belongs: egg lives overall, 8.3% -> 12.5%.
+  // 🔑 A pool's per-item odds are not a property of the pool, they are a property of the pool TIMES
+  // its gate. Adding to one without the other silently reprices everything already in it.
+  if((mixLi(li,31337)%8)!==0) return null;               // ~1 life in 8 is an egg at all…
   return EGG_BIOMES[mixLi(li,911)%EGG_BIOMES.length];    // …and then which one, independently
 }
 var FORCEEGG=CFG_EGG;   // `egg:"leaf"` in config.local.json, or set directly by the render harness
@@ -4382,6 +4452,8 @@ var curNeon=false;   // this life's city wears the neon style (always in THE SPR
 // than re-testing `curBiome.k` in a dozen hot loops.
 var curVillage=false;
 var curRainV=false;      // the second hidden village: concrete, canals and run-off instead of plaster and forest
+var curLeafV=false;      // the FIRST hidden village specifically — the carved cliff, its forest, its landmarks
+var curRs=null;          // "lumbridge" | "falador" | "varrock" | "ardougne" — which OSRS city this life is, or null
 // DOES THIS LAND WEAR A MODERN CITY'S BRANDED FURNITURE? Stadiums with real team names, corporate
 // hoardings, rooftop jumbotrons, LED news screens, a voted zoning ceiling. On most lands the answer
 // is yes and that furniture is half of what makes the place feel inhabited. On the mythic lands it is
@@ -4931,8 +5003,22 @@ function buildWorld(li){
   // ambulances, scooters, street-name plates — and every one of them is right for the rain village too.
   // What differs is only the architecture and the civic set, so those two renderers branch on
   // `curRainV` and nothing else has to know there is a second one.
-  curVillage = (curBiome.k==="leaf"||curBiome.k==="rainv");
+  // ⚠⚠ AND THE OSRS LANDS SET IT TOO. Nick's locked answer for all four: restyled medieval, no
+  // towers. That is not a paint job — it is this exact list of bans (no cars, buses, trams,
+  // ambulances, scooters, street plates, viaduct, monorail, machine sky, no plot ever redeveloping
+  // into a tower), which is precisely what `curVillage` already means. Reusing it is the difference
+  // between one flag and thirty new `curBiome.rs` tests in thirty hot loops.
+  // 🔑 `curVillage` DOES NOT MEAN "the hidden village" — it means "this place is not a metropolis".
+  // The three lands that branch on it for ARCHITECTURE do so through curRainV/curRs; everything else
+  // only ever asks the general question.
+  curRs      = curBiome.rs || null;                       // which OSRS city this is, or null
+  curVillage = (curBiome.k==="leaf"||curBiome.k==="rainv"||!!curRs);
   curRainV   = (curBiome.k==="rainv");
+  // ⚠ THE LEAF LAND'S OWN FEATURES NEEDED A FLAG OF THEIR OWN. Six sites tested `curVillage &&
+  // !curRainV` and meant "the hidden village" — the carved cliff, its keep-out span, its forest, its
+  // landmarks. With a third and fourth village family answering `curVillage`, that idiom silently
+  // starts drawing a Naruto cliff face behind Lumbridge. Stated once, positively, here.
+  curLeafV   = (curBiome.k==="leaf");
   // ⚠ THE CORE WORLD AND THE FALLS CITY ARE NOT ON THIS LIST, on purpose. Both are genuinely CITIES —
   // a world that is city everywhere, and a metropolis on a plateau — so their billboards and their
   // stadium belong. Only the three lands that are emphatically NOT modern cities opt out.
@@ -5006,7 +5092,7 @@ function buildWorld(li){
   EDUB=schoolAt<0.46?0.012:0;                                  // early schooling → tech (space age) sooner (N8)
   POPK=(((li*2654435761+4441)>>>0)%1000)/1000;                 // relative bigness of this city (rush-jam factor)
   var mg=rng((seed+71)>>>0);
-  mtsCache=null; gorgeCache=null; duneCache=null; karstCache=null; damCache=null; caveCache=null; savCache=null; plateauCache=null;   // new life → new silhouette
+  mtsCache=null; gorgeCache=null; duneCache=null; karstCache=null; damCache=null; caveCache=null; savCache=null; plateauCache=null; rsCache=null;   // new life → new silhouette
   crossGen++; crossLaneCache=null;       // …and last life's road deaths do not carry into this one
   bioTrees=null;
   // The four height-field biomes build the same two ridges; the biome's amp/base scale them, and its
@@ -5030,7 +5116,7 @@ function buildWorld(li){
   // to preserve.
   var flatLife = (li!==0 && curBiome.k==="alpine" && mg()>=0.72);
   var relief = flatLife ? 0.34 : 1;                                // open country: present, but low
-  mts = (curBiome.k==="forest"||curBiome.k==="core"||curBiome.gorge||curBiome.dune||curBiome.tower||curBiome.steps||curBiome.roof||curBiome.herd||curBiome.orbit||curBiome.shrine) ? null : {far:[],near:[]};   // the core world has NO terrain at all; the gorge draws walls, not peaks
+  mts = (curBiome.k==="forest"||curBiome.k==="core"||curBiome.gorge||curBiome.dune||curBiome.tower||curBiome.steps||curBiome.roof||curBiome.herd||curBiome.orbit||curBiome.shrine||curBiome.rs) ? null : {far:[],near:[]};   // the core world has NO terrain at all; the gorge draws walls, not peaks — and the OSRS lands draw their own country
   if(mts){
     var MSC=KSP*Math.max(0.45,Math.min(1,WW/1300))*curBiome.amp*relief;   // small worlds get proportionate peaks
     var nF=6+((mg()*4)|0), nN=4+((mg()*4)|0), mi;
@@ -6049,7 +6135,17 @@ var FONT={
   '0':[7,5,5,5,7], '1':[2,6,2,2,7], '2':[7,1,7,4,7], '3':[7,1,7,1,7],
   '4':[5,5,7,1,1], '5':[7,4,7,1,7], '6':[7,4,7,5,7], '7':[7,1,2,4,4],
   '8':[7,5,7,5,7], '9':[7,5,7,1,7], '-':[0,0,7,0,0], '!':[2,2,2,0,2], '.':[0,0,0,0,2], ':':[0,2,0,2,0], ',':[0,0,0,2,4],
-  '%':[5,1,2,4,5], '/':[1,1,2,4,4], '+':[0,2,7,2,0]
+  '%':[5,1,2,4,5], '/':[1,1,2,4,4], '+':[0,2,7,2,0],
+  // 🚨 THE FONT HAD NO `?` AND NO APOSTROPHE, AND EVERY SPEECH BUBBLE IN THE GAME USES BOTH.
+  // `drawUiText` falls back to `FONT[' ']` for an unknown character, so it fails SILENTLY — the text
+  // lays out at the right width and simply has a hole in it. "WHY DO PIGEONS WALK?" has been rendering
+  // as "WHY DO PIGEONS WALK " since the dialogue system was written, across all 509 scenes, and the
+  // hole reads as a typo rather than as a missing glyph, which is why it survived a 500-scene overhaul.
+  // 🔑 FIXED AT THE FONT, NOT IN MY OWN NEW LINES. Rewriting the OSRS bubbles to dodge the gap would
+  // have "fixed" twelve strings and left every other question in the game broken — the half-a-fix
+  // pattern this project has now been bitten by three times (the sun anchor, the sky renderers).
+  // ⚠ The apostrophe sits on the TOP row so it reads as a raised mark; a mid-height dot is a comma.
+  '?':[7,1,3,0,2], "'":[2,2,0,0,0]
 };
 function textW(str){ return str.length*4-1; }                          // 3px glyph + 1px space
 function drawPixText(g,str,wx,y,col,alpha){                            // wx = WORLD x of the top-left
@@ -8122,10 +8218,126 @@ function drawVillageHouse(g,bx,b,L,now,dayLit,night){
   if(((s>>>27)%3)===0){ g.fillStyle=css(dayLit>0.12?[122,98,70]:[26,24,20]);
     g.fillRect(dx+dw+1,HORIZON-Math.round(2*K),Math.max(1,Math.round(2*K)),Math.round(2*K)); }
 }
+// ============ THE OSRS VERNACULAR — one kit, four cities ============
+// Every plot on LUMBRIDGE / FALADOR / VARROCK / ARDOUGNE is drawn by this. Written once, on the first
+// of the four, so the other three are palette and landmark work rather than a fourth architecture —
+// otherwise this is one land built four times.
+//
+// 🔑 THE REGISTER IS THE POINT (Nick's locked answer 3): 2007-faithful means FLAT SATURATED FILL and
+// HARD EDGES. No gradients, no aerial haze on the near band, at most three values per surface — the
+// lit face, the body, and the shadow side. Every other land in this engine is painterly and shades
+// across a form; this one deliberately does not, and that difference is most of what makes it read as
+// the game instead of as a generic medieval map.
+//
+// The recognisable silhouette is a BOX WITH A STEEP TRIANGLE ON TOP. Not a cottage, not a townhouse:
+// a plain rectangular body, a roof pitched about 45°, a chimney off one side, one door, small square
+// windows. Everything below is a variation on that and nothing departs from it.
+// ⚠ SIZE IS JUDGED FROM THE FULL FRAME, NOT A CROP — the hidden village's houses were measured 48/52
+// correct and were simply too small to see at his real geometry (KSP 2, HORIZON 411 of a 437 frame).
+// These are built off `K` for the same reason and hold roughly the drum's storey height.
+function rsPalette(){
+  // The four cities differ by what their walls are MADE of, which is the whole visual difference
+  // between them in the game: Lumbridge is grey field stone and lime daub, Falador white ashlar,
+  // Varrock dark timber and brown brick, Ardougne split — the east prosperous, the west drained.
+  switch(curRs){
+    case "falador":  return { wallA:[236,234,228], wallB:[212,210,204], tim:[112,96,78],  roofA:[92,104,126], roofB:[64,74,96]  };
+    case "varrock":  return { wallA:[206,186,152], wallB:[176,152,120], tim:[74,54,40],   roofA:[122,72,52],  roofB:[88,50,38]  };
+    case "ardougne": return { wallA:[214,202,176], wallB:[182,168,142], tim:[88,70,56],   roofA:[104,88,72],  roofB:[74,62,50]  };
+    default:         return { wallA:[228,220,198], wallB:[186,178,158], tim:[96,74,54],   roofA:[112,78,60],  roofB:[80,54,42]  };
+  }
+}
+function drawRsBuilding(g,bx,b,L,now,dayLit,night){
+  var K=Math.max(1,KSP), s=b.seed>>>0, P=rsPalette();
+  var day=dayLit>0.12;
+  var storeys=((s%9)===0)?3:(((s>>>3)%3)===0?2:1);              // mostly single-storey, a few halls
+  var sh=Math.round(11*K)+((s>>>9)%Math.max(1,Math.round(3*K)));
+  var bw=Math.min(b.w+Math.round(4*K), Math.round(16*K)+((s>>>5)%Math.max(1,Math.round(8*K))));
+  var bh=sh*storeys;
+  var dx=bx+((b.w-bw)>>1), top=HORIZON-bh;
+  // ---- WALLS. Two values: the body and a shadow strip down the east side. Flat, no shading across.
+  var stone=((s>>>17)%3)===0;                                    // a third are field stone, the rest daub
+  var wall=stone?mixc(P.wallB,[150,150,148],0.30):P.wallA;
+  var wearK=((s>>>13)%20)/100;
+  wall=mixc(wall,[130,120,100],wearK);
+  var wLit =day?mixc(wall,[255,248,224],0.16*dayLit):mixc(wall,[26,32,52],0.66);
+  var wDark=day?mixc(wall,[92,84,72],0.28)          :mixc(wall,[18,24,44],0.74);
+  g.fillStyle=css(wLit);  g.fillRect(dx,top,bw,bh);
+  g.fillStyle=css(wDark); g.fillRect(dx+bw-Math.max(1,Math.round(1.6*K)),top,Math.max(1,Math.round(1.6*K)),bh);
+  // ---- TIMBER FRAME on the daub houses: corner posts, a mid-rail per storey, one diagonal brace.
+  // This is the single cheapest mark that says "medieval" rather than "whitewashed anything", and it
+  // is drawn as HARD BLACK-BROWN BARS, not as a texture — at this scale a texture is just noise.
+  if(!stone){
+    var tim=day?P.tim:mixc(P.tim,[16,20,36],0.70), tw=Math.max(1,Math.round(1.2*K));
+    g.fillStyle=css(tim);
+    g.fillRect(dx,top,tw,bh); g.fillRect(dx+bw-tw-Math.max(1,Math.round(1.6*K)),top,tw,bh);
+    for(var st=1;st<storeys;st++) g.fillRect(dx,top+st*sh,bw,tw);
+    if(((s>>>19)%2)===0){                                        // a brace, on about half of them
+      var bxs=dx+Math.round(bw*0.30), bys=HORIZON-Math.round(sh*0.9);
+      for(var q=0;q<Math.round(sh*0.62);q++) g.fillRect(bxs+q,bys+q,tw,1);
+    }
+  } else {                                                       // …and the stone ones get coursing
+    g.fillStyle=day?"rgba(90,86,78,0.20)":"rgba(0,0,0,0.24)";
+    for(var cy=top+Math.round(4*K); cy<HORIZON-1; cy+=Math.round(4*K)) g.fillRect(dx,cy,bw-Math.round(1.6*K),1);
+  }
+  // ---- THE ROOF. A steep triangle, overhanging both eaves, in two flat courses. The pitch is what
+  // carries the silhouette across a whole street, so it is deliberately steeper than it is wide-ish:
+  // ~0.62 of the body width in rise. A shallow roof reads as a shed and the street stops being a town.
+  var ov=Math.max(1,Math.round(1.8*K)), rw=bw+ov*2, rh=Math.max(Math.round(5*K), Math.round(bw*0.62));
+  var thatch=((s>>>23)%4)===0;                                   // a quarter are thatched, the rest tiled
+  var rA=thatch?[186,158,92]:P.roofA, rB=thatch?[142,116,64]:P.roofB;
+  var ra=day?mixc(rA,[255,226,180],0.14*dayLit):mixc(rA,[20,26,46],0.68);
+  var rb=day?rB:mixc(rB,[16,22,42],0.72);
+  var rx0=dx-ov;
+  for(var rr=0;rr<rh;rr++){
+    var f=rr/rh, w2=Math.max(1,Math.round(rw*(1-f)));
+    g.fillStyle=css((rr%Math.max(2,Math.round(2*K))<Math.max(1,Math.round(K)))?ra:rb);
+    g.fillRect(rx0+((rw-w2)>>1),top-1-rr,w2,1);
+  }
+  // the eave line — one hard dark bar where roof meets wall. Without it the two fills merge and the
+  // roof stops being a separate object at a distance.
+  g.fillStyle=day?"rgba(48,38,30,0.55)":"rgba(0,0,0,0.5)";
+  g.fillRect(rx0,top-1,rw,Math.max(1,Math.round(K*0.7)));
+  // ⚠ PUBLISH THE DRAWN APEX, exactly as drawVillageHouse and drawRainTower do. Anything that has to
+  // know where the roofs actually are reads `_roofY`/`_roofX` — and `b.h` is NOT the answer (measured
+  // 53 against a drawn 91 on the village houses, because these routines derive their height from the
+  // SEED, not from the layout). Without this the players walk straight through the town's roofline.
+  b._roofY=top-1-rh; b._roofX=dx+(bw>>1);
+  // ---- CHIMNEY, off-centre, on most of them. Smoke is LIVE (drawRsLive) — a plume drawn in the
+  // backdrop pass steps rather than drifts.
+  if(((s>>>11)%4)!==0){
+    var chw=Math.max(2,Math.round(2.6*K)), chh=Math.round(rh*0.55)+Math.round(2*K);
+    var chx=dx+(((s>>>15)%2)?Math.round(bw*0.22):Math.round(bw*0.66));
+    g.fillStyle=css(day?mixc(P.wallB,[140,120,100],0.35):mixc(P.wallB,[16,20,38],0.74));
+    g.fillRect(chx,top-rh*0.5-chh|0,chw,chh);
+    g.fillStyle=day?"rgba(40,32,26,0.6)":"rgba(0,0,0,0.55)";
+    g.fillRect(chx-1,(top-rh*0.5-chh)|0,chw+2,Math.max(1,Math.round(K*0.8)));
+  }
+  // ---- DOOR + WINDOWS. Small, square, deeply dark by day and warm at night — the value contrast
+  // rule at sprite scale: on a pale wall the openings are the only near-black marks, and they are
+  // what tells you the box is a building at all.
+  var dw2=Math.max(2,Math.round(3.4*K)), dh2=Math.round(6.4*K);
+  var dxx=dx+Math.round(bw*(((s>>>21)%2)?0.20:0.62));
+  g.fillStyle=day?css(mixc(P.tim,[30,22,16],0.45)):"rgba(12,10,16,0.9)";
+  g.fillRect(dxx,HORIZON-dh2,dw2,dh2);
+  var lit=night>0.35 && ((s>>>7)%10)<7;                          // most houses are occupied after dark
+  for(var wsy=0;wsy<storeys;wsy++){
+    var wy=HORIZON-(wsy+1)*sh+Math.round(3.2*K), ww2=Math.max(2,Math.round(2.8*K));
+    for(var wi=0;wi<2;wi++){
+      var wxp=dx+Math.round(bw*(wi?0.68:0.24));
+      if(wsy===0&&Math.abs(wxp-dxx)<dw2+2) continue;             // no window through the door
+      g.fillStyle=lit?"rgba(255,196,96,0.92)":(day?"rgba(28,30,38,0.82)":"rgba(10,12,20,0.9)");
+      g.fillRect(wxp,wy,ww2,ww2);
+      g.fillStyle=day?"rgba(52,42,32,0.7)":"rgba(0,0,0,0.5)";    // a hard frame, 1px, all four sides
+      g.fillRect(wxp-1,wy-1,ww2+2,1); g.fillRect(wxp-1,wy+ww2,ww2+2,1);
+      g.fillRect(wxp-1,wy,1,ww2); g.fillRect(wxp+ww2,wy,1,ww2);
+    }
+  }
+}
 function drawHouse(g,bx,b,L,now,dayLit,night){
   // THE HIDDEN VILLAGE replaces the vernacular outright — see drawVillageHouse. It comes first
   // because on this land the "starter house" is not a stage the plot grows out of, it IS the
   // architecture: `bAge` is pinned above 1 in makeLayer so no plot here ever redevelops into a tower.
+  if(curRs){ drawRsBuilding(g,bx,b,L,now,dayLit,night); return; }   // …and the four OSRS cities have their own
   if(curRainV){ drawRainTower(g,bx,b,L,now,dayLit,night); return; }
   if(curVillage){ drawVillageHouse(g,bx,b,L,now,dayLit,night); return; }
   var era=cityEra.name, style="colonial";                                              // pick an architectural style for this house
@@ -12952,7 +13164,7 @@ function vlmFK(){ return Math.max(Math.max(1,KSP)*1.6, WW/438); }
 // plaza computed from a second copy of this arithmetic is a plaza that stops agreeing the first time
 // either copy is touched, which is how the tower ended up standing in the middle of the monument.
 function vlmRockSpan(){
-  if(!curVillage||curRainV) return null;
+  if(!curLeafV) return null;   // ⚠ was `!curVillage||curRainV` — a NEGATIVE definition of "the leaf land" that any third village family walks straight through
   var FK=vlmFK(), fw=Math.round(6.5*FK), pitch=fw+Math.round(3.4*FK);
   var panelW=Math.round(5*pitch+4*FK), cx=Math.round(VLM_ROCK*WW);
   return [cx-Math.round(panelW*0.5)-Math.round(2*FK), cx+Math.round(panelW*0.5)+Math.round(2*FK)];
@@ -12981,7 +13193,16 @@ function computeLmFoot(){ lmFoot.length=0;
   // ⚠ AND THE FIRST PROBE MISSED IT — I sampled `overLandmark` BEFORE calling draw(), and `lmFoot` is
   // rebuilt every frame, so it read empty and cleared the mechanism of suspicion. Per-frame state has
   // to be sampled AFTER the frame that builds it.
-  if(curVillage){
+  // ⚠ NOT ON THE OSRS LANDS — these are the LEAF/RAIN village fractions, and reserving them here would
+  // clear three bald strips through Lumbridge under nothing at all. Those lands push their own feet
+  // just below.
+  // 🚨 AND `rsFoot()` USED TO BE CALLED FROM `drawLumbridge`, WHICH IS THE BACKDROP PASS. `lmFoot` is
+  // CLEARED AND REBUILT EVERY FRAME and the backdrop repaints at ~0.5 fps, so the castle's and the
+  // church's reservations existed on roughly one frame in twenty and were missing from all the rest —
+  // and the plots are laid out against the list as it stands when the buildings draw. A reservation
+  // that is only present on some frames is not a reservation. It belongs here, with its siblings.
+  rsFoot();
+  if(curVillage&&!curRs){
     var vg=Math.round(VLM_GATES*WW),   va=Math.round(VLM_ACADEMY*WW), vt=Math.round(VLM_TRAINING*WW);
     lmFoot.push([vg-22,vg+22]);        // the great gates
     // ⚠ NO BLANKET RESERVATION IN FRONT OF THE FACES, DELIBERATELY. It is the obvious answer to "no
@@ -14110,6 +14331,21 @@ var SPEECH_CLOSERS=["ANYWAY - GOTTA RUN.","SEE YOU AROUND.","SAY HI TO THE FAMIL
   "I WILL LET YOU GO.","I WILL THINK ON IT.","LET ME KNOW HOW IT GOES.","TELL ME AFTER.","KEEP ME POSTED.","SEND MY BEST.","SEE YOU AT THE MARKET.","SEE YOU ON THE 8:02."];
 // AUTHORED 4-beat scenes — real little exchanges. o: optional visible outcome ("heart" | "storm")
 var SPEECH_SCENES=[
+  // ---- THE OSRS LANDS ONLY (see SCENE_REQ.quest). The townsfolk talk about the adventurers the way
+  // people talk about weather: constantly, and as if it were normal. Four beats each, same as every
+  // other scene here, so they cut in and out of the rotation without any special handling.
+  {c:'quest',   b:["ANOTHER ONE FELL IN THE WELL.","DID HE COME BACK UP?","THEY ALWAYS DO.","THAT'S THE WORRYING PART."]},
+  {c:'quest',   b:["THE COOK NEEDS AN EGG AGAIN.","AGAIN?","EVERY SINGLE BIRTHDAY.","NOBODY TEACH THAT MAN A LIST."]},
+  {c:'quest',   b:["THEY WENT DOWN THE MINE AT DAWN.","FOR ORE?","FOR GLORY, THEY SAID.","THEY CAME BACK WITH ORE."]},
+  {c:'quest',   b:["SOMEONE VANISHED MID-SENTENCE.","RUDE.","THEY DO THAT.","I WAS TELLING A STORY!"]},
+  {c:'quest',   b:["HE OFFERED ME A ROCK.","FOR WHAT?","MY ENTIRE STALL.","AND?","..."]},
+  {c:'quest',   b:["THE DRAGON'S BACK, THEY SAY.","WHICH ONE?","DOES IT MATTER?","...NO. NOT REALLY."]},
+  {c:'quest',   b:["I SOLD A MAN SIXTY SOUP BOWLS.","WHY SIXTY?","HE SAID HE'D NEED THEM.","BRAVE MAN."]},
+  {c:'quest',   b:["THEY'RE QUEUEING AT THE FURNACE.","ALL OF THEM?","EVERY MORNING.","AND NONE OF THEM SMITH."]},
+  {c:'quest',   b:["ONE ASKED ME FOR DIRECTIONS.","TO WHERE?","EVERYWHERE. AT ONCE.","AMBITIOUS."]},
+  {c:'quest',   b:["MY SHEEP KEEPS GETTING SHEARED.","BY WHOM?","STRANGERS. CONSTANTLY.","SHE'S FURIOUS."]},
+  {c:'quest',   b:["THEY TRADE IN THE STREET NOW.","IN THE STREET?","PILES OF IT. IN THE OPEN.","NOBODY EVEN LOOKS."]},
+  {c:'quest',   b:["A MAN JUST APPEARED IN MY GARDEN.","AND THEN?","APOLOGISED AND LEFT. UPWARDS.","STANDARD."]},
   {c:'humor',   b:["WHY DO PIGEONS WALK?","WHY?","FLYING'S TOO MAINSTREAM.","HA! GOOD ONE."]},
   {c:'humor',   b:["I GOT A CEILING JOB.","A CEILING JOB?","HIGHEST WORK IN TOWN.","OH NO. TERRIBLE."]},
   {c:'humor',   b:["MY DIET STARTS TODAY.","YOU SAID THAT YESTERDAY.","DIETS NEED WARMUPS.","MINE'S BEEN WARMING YEARS."]},
@@ -14788,7 +15024,11 @@ function pickWalk(arr,pairH,slot){ var n=arr&&arr.length; if(!n) return null; re
 var SCENES_BY_CAT=null, SCENE_CATS=null;
 // What a scene NEEDS to be usable, declared per CATEGORY rather than inferred from the category name —
 // so a reference bank can later have a spouses-only variant without the name doing two jobs.
-var SCENE_REQ={ romance:'spouses', drama:'spouses_soft', classclash:'klass', partyclash:'party' };
+// ⚠ `rsland` IS A LAND REQUIREMENT, NOT A RELATIONSHIP ONE — the first of its kind here. Nick asked
+// for players questing, trading and teleporting on all four OSRS lands, and the townsfolk talking
+// about it is half of what makes a place feel like that world. These scenes must NEVER fire on the
+// other 28 lands, so the eligible-set cache below has to key on the land as well.
+var SCENE_REQ={ romance:'spouses', drama:'spouses_soft', classclash:'klass', partyclash:'party', quest:'rsland' };
 function sceneBuckets(){
   if(SCENES_BY_CAT) return SCENES_BY_CAT;
   SCENES_BY_CAT={}; SCENE_CATS=[];
@@ -14809,7 +15049,10 @@ var SCENE_OK_CACHE=null;
 function scenesFor(spouses,clashK,clashP,soft){
   sceneBuckets();
   if(!SCENE_OK_CACHE) SCENE_OK_CACHE={};
-  var key=(spouses?1:0)|(clashK?2:0)|(clashP?4:0)|(soft?8:0), got=SCENE_OK_CACHE[key];
+  // 🚨 THE LAND IS PART OF THE KEY. `scenesFor` caches its answer, so without this bit the first land
+  // to build the set would hand its set to every land after it — quest chatter leaking onto the
+  // arctic, or (worse, because it is silent) the OSRS lands inheriting a set built before the flag.
+  var key=(spouses?1:0)|(clashK?2:0)|(clashP?4:0)|(soft?8:0)|(curRs?16:0), got=SCENE_OK_CACHE[key];
   if(got) return got;
   var out=[];
   for(var i=0;i<SCENE_CATS.length;i++){ var c=SCENE_CATS[i], r=SCENE_REQ[c];
@@ -14817,6 +15060,7 @@ function scenesFor(spouses,clashK,clashP,soft){
     if(r==='spouses_soft'&&!spouses&&!soft) continue;
     if(r==='klass'&&(!clashK||spouses)) continue;
     if(r==='party'&&(!clashP||spouses)) continue;
+    if(r==='rsland'&&!curRs) continue;                    // …and quests are only talked about where there are quests
     var bk=SCENES_BY_CAT[c];
     for(var j=0;j<bk.length;j++) out.push(bk[j]); }
   SCENE_OK_CACHE[key]=out;
@@ -18223,6 +18467,21 @@ function drawVillageCompound(g,X,spec,L,now){
     tile=day?[86,90,100]:[16,19,26];      tile2=day?[66,70,80]:[12,14,20];
     wood=day?[92,78,62]:[20,17,13];
   }
+  // ⚠⚠ AND A THIRD FAMILY: THE FOUR OSRS CITIES. This was the LEAK — `curVillage` is true on those
+  // lands, so a passed ballot was putting up the hidden village's warm plaster-and-terracotta compound
+  // in the middle of Lumbridge. Caught by `whodrew.js` naming `drawVillageCompound` on a Lumbridge
+  // frame, which is the third time that trap has found a system nobody would have thought to grep for.
+  // 🔑 THE FURNITURE LEAK IS NEVER ONE GATE. Closing `drawHouse` and `drawLandmarks` left `drawBuilds`
+  // open, exactly as closing the signage left the construction shell open on the leaf land. Enumerate
+  // the systems that draw ARCHITECTURE, not the ones that mention the land.
+  // The structure is right for all of them — a walled compound with halls behind a gate is as medieval
+  // as it is anything — so this stays a MATERIAL branch, per the note above.
+  if(curRs){
+    var _P=rsPalette();
+    plaster=day?_P.wallA:mixc(_P.wallA,[14,18,38],0.72); plaster2=day?_P.wallB:mixc(_P.wallB,[14,18,38],0.76);
+    tile=day?_P.roofA:mixc(_P.roofA,[14,18,38],0.70);    tile2=day?_P.roofB:mixc(_P.roofB,[14,18,38],0.74);
+    wood=day?_P.tim:mixc(_P.tim,[14,18,38],0.74);
+  }
   // the perimeter wall + its own little tiled coping — the thing that makes a compound a compound
   g.fillStyle=css(plaster2); g.fillRect(X-(w>>1),gy-wallH,w,wallH);
   g.fillStyle=css(tile2);    g.fillRect(X-(w>>1)-Math.round(K),gy-wallH-Math.round(1.4*K),w+Math.round(2*K),Math.round(1.6*K));
@@ -18265,7 +18524,23 @@ function drawVillageCompound(g,X,spec,L,now){
     g.fillStyle=day?"#b8912e":"#3a2e14";
     g.fillRect(X-Math.round(1.4*K),cy3-Math.round(6*K),Math.round(2.8*K),Math.round(3.4*K));
   } else if(F==="torii"){                                               // shrine: a red gate on the approach
+    // ⚠ …AND ON THE OSRS LANDS IT IS A LYCHGATE, not a torii. Same job (a marked threshold on the
+    // approach), same two posts and a beam, but a vermilion Shinto gate is the one mark in this whole
+    // routine that names a specific culture — the material branch above cannot launder that.
     var tw6=Math.round(9*K);
+    if(curRs){
+      var _LP=rsPalette(), lw=day?_LP.tim:mixc(_LP.tim,[14,18,38],0.74);
+      g.fillStyle=css(lw);
+      g.fillRect(X-(tw6>>1),gy-Math.round(10*K),Math.max(1,Math.round(1.6*K)),Math.round(10*K));
+      g.fillRect(X+(tw6>>1),gy-Math.round(10*K),Math.max(1,Math.round(1.6*K)),Math.round(10*K));
+      var lrh=Math.round(3.4*K);                                        // a little pitched roof over it
+      for(var lr=0;lr<lrh;lr++){
+        var lww=Math.round((tw6+Math.round(6*K))*(1-lr/lrh));
+        g.fillStyle=day?css(_LP.roofB):"rgba(18,20,32,1)";
+        g.fillRect(X-(lww>>1),gy-Math.round(10*K)-1-lr,lww,1);
+      }
+      return;
+    }
     g.fillStyle=day?"#c0392b":"#2a100c";
     g.fillRect(X-(tw6>>1),gy-Math.round(11*K),Math.max(1,Math.round(1.4*K)),Math.round(11*K));
     g.fillRect(X+(tw6>>1),gy-Math.round(11*K),Math.max(1,Math.round(1.4*K)),Math.round(11*K));
@@ -18759,6 +19034,12 @@ function drawVillageLandmarks(g,L,now,night,nd){
 }
 function drawLandmarks(g,L,now,night,nd){
   // VILLAGE: the metropolis civic set is replaced, not restyled — see drawVillageLandmarks.
+  // ⚠ THE OSRS LANDS OWN THEIR OWN LANDMARKS AND DRAW THEM WITH THE LAND. Their named places — the
+  // castle, the church, the mill, the toll gate — are not things the city builds and then loses; they
+  // are the PLACE, at every age and through the apocalypse, which is the same reasoning that exempted
+  // the leaf land's carved cliff from both civic gates. They are drawn in drawLumbridge et al, so this
+  // set has nothing to add and must not stamp a hospital and a fire station into a medieval town.
+  if(curRs) return;
   if(curRainV){ drawRainVillageLandmarks(g,L,now,night,nd); return; }   // concrete has its own institutions
   if(curVillage){ drawVillageLandmarks(g,L,now,night,nd); return; }
   // each landmark RISES bottom-up out of the ground while it's being built (clip reveal)
@@ -28330,6 +28611,1541 @@ function drawPlateau(g,L,now,nd){
 // right for sixteen of them and meaningless 400km up — in low orbit you cross the terminator every
 // ~45 minutes and see sixteen sunrises a day. So `orbitPhase` replaces `L` as this land's clock, and
 // it is derived from the shared wall-clock so all three monitors are on the same orbit.
+// ============================================================================================
+// LUMBRIDGE — the first of the four OSRS lands
+// ============================================================================================
+// 🔒 NICK'S LOCKED LAYOUT, west -> east, as world fractions. His three monitors cut the world at
+// 0-776 / 776-1629 / 1629-2269 wp, i.e. fractions 0-0.34 / 0.34-0.72 / 0.72-1.0, so this reads:
+//
+//   SCREEN 1   0.08 the windmill and its wheat  ·  0.20 the church and graveyard  ·  0.28 the cow field
+//   SCREEN 2   0.42 THE CASTLE  ·  0.545 the River Lum and the stone bridge  ·  0.62 the shops
+//   SCREEN 3   0.80 the toll gate  ·  0.90 the swamp, the goblin camp and the cave  ·  0.97 the stones
+//
+// ⚠ EVERY FRACTION IS A NAMED CONSTANT AND NOTHING RE-DERIVES ONE. This land has three features that
+// must agree about where the river is (the banks, the bridge, and the castle standing on its west
+// bank) and two that must agree about where the road is. The single most repeated fault in this
+// engine is a thing positioned off a formula that happens to agree today.
+//
+// 🔑 THE ONE BIG OBJECT IS THE CASTLE, and it is sized to be one: it stands about 0.42 of the way up
+// the backdrop band, roughly twice the height of the tallest thing the town will ever build. A land
+// fails to read when it has no single mass, and a castle drawn at rooftop height is not a castle, it
+// is a large house.
+var LB_MILL=0.08, LB_CHURCH=0.20, LB_COWS=0.28, LB_CASTLE=0.42, LB_RIVER=0.545, LB_SHOPS=0.62,
+    LB_GATE=0.80, LB_SWAMP=0.90, LB_CIRCLE=0.97;
+var rsCache=null;      // per-column field profile — static within a life, so it is built once
+// world fraction -> screen x, wrapped, so a feature near the seam is drawn from whichever side is near
+function rsX(f){ var x=Math.round(f*WW)-WOFF; if(x<-WW*0.5) x+=WW; if(x>WW*0.5) x-=WW; return x; }
+// THE FIELD'S FAR EDGE at a world x — the line where grass meets the far hills. Shared by all four
+// OSRS lands; only the AMPLITUDE differs, and that difference is most of what separates them at a
+// glance before a single building is drawn.
+// ⚠ LUMBRIDGE IS MUCH GENTLER THAN HYRULE'S FIELD. That land is open riding country and its field
+// rolls; Lumbridge is flat river meadow. Falador is the opposite end of the same dial — chalk
+// DOWNLAND, which is why its amplitude is nearly three times Lumbridge's.
+// 🔑 A land is its SHAPE before it is its colour, and this is the cheapest place to state the shape.
+function rsFieldAmp(){
+  switch(curRs){
+    case "falador":  return 0.082;    // rolling downland
+    case "varrock":  return 0.044;
+    case "ardougne": return 0.056;
+    default:         return 0.030;    // lumbridge — flat river meadow
+  }
+}
+function rsFieldY(wx){
+  var n=Math.sin(wx*0.0021)*0.55+Math.sin(wx*0.0057+1.3)*0.28+Math.sin(wx*0.0119+2.2)*0.17;
+  return Math.round(HORIZON*(0.46-n*rsFieldAmp()));
+}
+// WHERE SOMETHING STANDS. `d` is depth into the field: 0 at the far treeline, 1 at the town's feet.
+// 🔑 Anything that belongs on the field is seated with this and nothing else. The alternative — a
+// constant that happens to look right — is how a temple ends up floating off its own plateau.
+function rsStandY(wx,d){ var fy=rsFieldY(wx); return Math.round(fy+(HORIZON-fy)*d); }
+// THE RIVER LUM. Drawn BY THE LAND, in the backdrop band, and this is not a stylistic preference:
+// the shared `drawRiver` lays its channel in the GROUND band, where the bridge deck covers it
+// completely on every inland-river land (measured: deck 362, channel 363->437). Six lands draw a
+// river nobody has ever seen. A land whose identity is "a castle beside a bridge over the Lum"
+// cannot ship its river that way, so the biome row says `water:"none"` and the water is here.
+function lumRiverW(){ return Math.max(Math.round(HORIZON*0.085), Math.round(WW*0.016)); }
+// the channel winds as it comes toward us, so its centre is a function of DEPTH, not a straight line
+function lumRiverCX(y){
+  var fy=rsFieldY(LB_RIVER*WW), t=(y-fy)/Math.max(1,HORIZON-fy);
+  return Math.round(LB_RIVER*WW + Math.sin(t*2.1+0.6)*HORIZON*0.055 + Math.sin(t*5.3)*HORIZON*0.018);
+}
+// …and it widens as it nears us, because everything does. Perspective is the only depth cue a flat
+// register like this one gets to keep.
+function lumRiverHalf(y){
+  var fy=rsFieldY(LB_RIVER*WW), t=Math.max(0,Math.min(1,(y-fy)/Math.max(1,HORIZON-fy)));
+  return Math.max(1,Math.round(lumRiverW()*(0.34+0.66*t)*0.5));
+}
+function lumBridgeY(){ return Math.round(rsFieldY(LB_RIVER*WW)+(HORIZON-rsFieldY(LB_RIVER*WW))*0.60); }
+// ---- the plots this land keeps clear, in world x. The castle and the church are the two things the
+// town must not build in front of; both are pushed here rather than trusted to the fractions being
+// eyeballed apart, which is exactly the mistake that put the leader's tower inside the stone faces.
+function rsFoot(){
+  if(curRs==="falador"){
+    var fcw=Math.round(HORIZON*0.54), fcx=Math.round(FA_CASTLE*WW);
+    lmFoot.push([fcx-(fcw>>1)-10, fcx+(fcw>>1)+10]);
+    var fpx=Math.round(FA_PARK*WW), fpw=Math.round(HORIZON*0.26);
+    lmFoot.push([fpx-fpw-6, fpx+fpw+6]);
+    return;
+  }
+  if(curRs!=="lumbridge") return;
+  var cw=Math.round(HORIZON*0.62), cx=Math.round(LB_CASTLE*WW);
+  lmFoot.push([cx-(cw>>1)-10, cx+(cw>>1)+10]);
+  var hx=Math.round(LB_CHURCH*WW), hw=Math.round(HORIZON*0.16);
+  lmFoot.push([hx-(hw>>1)-6, hx+(hw>>1)+6]);
+}
+// ---- THE SHARED SEATS. Anything the LIVE pass also has to find lives here and nowhere else: the
+// mill's hub (the sails turn around it), the paddock (the cattle graze inside it) and the camp (the
+// goblins mill about it). 🔑 This land is the fifth in this engine to be told that a feature and its
+// motion must read ONE position — the roof runners indexed a screen-local roof list and leapt in
+// three different places on three monitors, and the herd was a conveyor for the same reason.
+function lumMillBase(){ return rsStandY(LB_MILL*WW,0.46); }
+function lumMillH(){ return Math.round(HORIZON*0.225); }
+function lumMillHubY(){ return lumMillBase()-lumMillH()-Math.round(1.7*Math.max(1,KSP)); }
+function lumPaddock(){ return { f:rsStandY(LB_COWS*WW,0.56), b:rsStandY(LB_COWS*WW,0.30), w:Math.round(HORIZON*0.34) }; }
+function lumCampY(){ return rsStandY(LB_SWAMP*WW,0.66); }
+function lumCampX(){ return Math.round(LB_SWAMP*WW)+Math.round(HORIZON*0.62*0.22); }
+// ============ THE SHARED OSRS GROUND — one kit, four cities ============
+// 🔑 WRITTEN ONCE, ON THE SECOND CITY, BECAUSE THE ALTERNATIVE IS ONE LAND BUILT FOUR TIMES. Everything
+// below is the part of an OSRS land that has nothing to do with WHICH city it is: the palette law, the
+// cached column profile, the damage read, the far hills, the field, the treeline, the meadow patches,
+// the tracks and the trees. A city's own file then draws only its named places.
+// ⚠ Lumbridge's versions of these were the originals and every note earned on them is kept verbatim —
+// they are the reasons these functions have the shapes they do.
+function rsPal(day,skc){
+  function nite(c,k){ return mixc(c,[14,18,38],k); }
+  // ⚠ THE NIGHT COLOUR IS A DARKENED VERSION OF THE SAME FLAT COLOUR, not a re-mixed one — the 2007
+  // client does not relight its world at dusk, it drops the whole thing toward blue-black. Copying that
+  // is what keeps these lands recognisable at 22:00 instead of turning them into every other night land.
+  var P={};
+  var falador=(curRs==="falador");
+  P.grass = day?(falador?[112,152,74]:[104,158,64]):nite(falador?[112,152,74]:[104,158,64],0.70);
+  P.grassD= day?(falador?[84,120,56] :[78,128,48]) :nite(falador?[84,120,56]:[78,128,48],0.72);
+  P.grassL= day?(falador?[146,180,96]:[132,182,84]):nite(falador?[146,180,96]:[132,182,84],0.68);
+  // ⚠ THE FAR HILLS WERE ONCE THE SAME VALUE AS THE FIELD and the horizon simply vanished — the land
+  // read as one green wall from the sky to the street. Fixed at source by mixing the distance band far
+  // toward the sky, which also puts real aerial perspective into a register with no other depth cue.
+  P.far   = day?mixc([132,176,112],skc,0.52):nite([116,158,96],0.80);
+  P.stone = day?[186,182,168]:nite([186,182,168],0.68);
+  P.stoneL= day?[214,210,196]:nite([214,210,196],0.64);
+  P.stoneD= day?[142,138,126]:nite([142,138,126],0.72);
+  P.water = day?[62,118,168] :nite([62,118,168],0.62);
+  P.wood  = day?[112,80,52]  :nite([112,80,52],0.72);
+  P.scorch= day?[92,74,50]:[18,16,14];
+  P.nite  = nite;
+  return P;
+}
+// ⚠ `dmgAtScreen` SNAPS TO THE NEAREST STRIP SAMPLE, and the strip is sampled every SW/128 px — so a
+// burnt field came out as a staircase of hard-edged rectangles. Every other land hides that inside rock
+// texture, foliage or haze; these are flat saturated fill with nothing to hide it in, so the steps are
+// the most visible thing in the frame. Interpolated here; the damage model itself is untouched.
+function rsDmg(x){
+  if(!DMG_STRIP||DMG_ANY<=0) return 0;
+  var f=x/DMG_STEP, i=Math.floor(f), t=f-i, n=DMG_STRIP.length;
+  var a=DMG_STRIP[i<0?0:(i>=n?n-1:i)]||0, b=DMG_STRIP[(i+1)<0?0:((i+1)>=n?n-1:(i+1))]||0;
+  return a+(b-a)*t;
+}
+// the per-column profile, cached: static within a life, and this is the BACKDROP pass, where
+// recomputing static geometry is paid for at every repaint. The Hyrule land measured +17.5 ms doing
+// exactly that before `plateauCache` was finally used.
+function rsProfile(K){
+  var RC=rsCache;
+  if(!RC||RC.sw!==SW||RC.woff!==WOFF||RC.hz!==HORIZON||RC.k!==K||RC.rs!==curRs){
+    RC={ sw:SW, woff:WOFF, hz:HORIZON, k:K, rs:curRs, fy:[], far:[] };
+    for(var ci=0;ci<SW;ci++){
+      var cw=ci+WOFF;
+      RC.fy.push(rsFieldY(cw));
+      var nf=Math.sin(cw*0.0035+0.4)*0.5+Math.sin(cw*0.0091+1.9)*0.3+Math.sin(cw*0.0187)*0.2;
+      RC.far.push(Math.round(HORIZON*(0.34-nf*0.055)));
+    }
+    rsCache=RC;
+  }
+  return RC;
+}
+// ---- FAR HILLS, FIELD, NEAR BAND and TREELINE, in one pass over the columns.
+// ⚠ WITHOUT THE TREELINE THE FIELD MEETS THE HILLS ON A DEAD STRAIGHT LINE across all three monitors,
+// which is the one edge in the frame nothing in nature would draw.
+function rsGroundBands(g,P,RC,day,K,behindField){
+  var GY=HORIZON;
+  g.fillStyle=css(P.far);
+  for(var x0=0;x0<SW;x0++) g.fillRect(x0,RC.far[x0],1,GY-RC.far[x0]+1);
+  // ⚠ ANYTHING THAT STANDS BEHIND THE MEADOW GOES HERE, not after. Falador's Ice Mountain rises out of
+  // the far distance and the field has to close over its foot; drawn afterwards it would sit ON the
+  // meadow like a cardboard cut-out, which is the same paint-order mistake the castle's courtyard
+  // buildings made on Lumbridge.
+  if(behindField) behindField();
+  // THE FIELD. Flat saturated green with a HARD top edge. No gradient across it, no haze: the whole
+  // register depends on the grass being one colour you could name.
+  for(var x1=0;x1<SW;x1++){
+    var fy1=RC.fy[x1], d1=rsDmg(x1);
+    g.fillStyle=css(mixc(P.grass,P.scorch,d1*0.80)); g.fillRect(x1,fy1,1,GY-fy1+1);
+    g.fillStyle=css(mixc(P.grassL,P.scorch,d1*0.85)); g.fillRect(x1,fy1,1,Math.max(1,Math.round(K*0.9)));
+  }
+  // a darker near-band along the town's feet, so the field has a floor and the houses are not standing
+  // on the same value they are seen against
+  for(var x2=0;x2<SW;x2++){
+    g.fillStyle=css(mixc(P.grassD,P.scorch,rsDmg(x2)*0.8));
+    g.fillRect(x2,GY-Math.round(HORIZON*0.055),1,Math.round(HORIZON*0.055)+1);
+  }
+  for(var tl=0;tl<SW;tl++){
+    var twx2=tl+WOFF;
+    var bump=Math.sin(twx2*0.09)*0.5+Math.sin(twx2*0.031+2.2)*0.32+Math.sin(twx2*0.013+0.7)*0.18;
+    var tlh=Math.round(HORIZON*0.018*(1+bump));
+    if(tlh<=0) continue;
+    g.fillStyle=day?css(mixc([58,102,44],P.far,0.30)):css(P.nite([58,102,44],0.76));
+    g.fillRect(tl,RC.fy[tl]-tlh,1,tlh+1);
+  }
+}
+// ---- THE GROUND PLANE. ⚠⚠ THE FIRST CUT OF THIS WAS A BILLIARD TABLE: one flat green from the
+// treeline to the town's feet, with every landmark apparently floating in front of it rather than
+// standing on it. A flat register does not get to skip the ground plane — it gets it from PATCHES,
+// PATHS and SHADOWS instead of from shading, and it needs all three.
+// 🔑 The first attempt was vertical dark bars meant to read as hedgerows and they read as FENCE POSTS
+// FLOATING IN MID-AIR, because a mark whose long axis is vertical cannot describe a horizontal
+// surface. Everything here runs ACROSS.
+function rsPatches(g,P,day,K,n){
+  var seedW=(WORLD_SEED*2654435761)>>>0;
+  for(var pt=0;pt<n;pt++){
+    var ph=((pt*2654435761)^seedW)>>>0;
+    var pwx=(ph%1000)/1000*WW, pd=0.12+((ph>>>11)%1000)/1000*0.50;
+    var psx=Math.round(pwx)-WOFF; if(psx<-WW*0.5) psx+=WW; if(psx>WW*0.5) psx-=WW;
+    var pw3=Math.round(HORIZON*0.12)+((ph>>>21)%Math.round(HORIZON*0.34));
+    if(psx+pw3<0||psx>SW) continue;
+    var pyy=rsStandY(pwx,pd), pht=Math.max(2,Math.round(HORIZON*0.012)+((ph>>>17)%Math.round(HORIZON*0.03)));
+    g.fillStyle=day?css(mixc(P.grass,((ph>>>7)%2)?P.grassD:P.grassL,0.24))
+                   :css(P.nite(((ph>>>7)%2)?[70,112,46]:[118,160,74],0.76));
+    g.fillRect(psx,pyy-pht,pw3,pht);
+  }
+}
+// A dirt path, world fraction f0 -> f1, sinking from depth d0 to d1. The strongest ground cue these
+// lands have: a path is a surface seen in perspective, so it states the plane everything stands on.
+// ⚠ SEATED AT d 0.62-0.70 THE FIRST ONES WERE INVISIBLE — that is BEHIND the town, whose roofs cover
+// the bottom ~40% of this band at any age past 0.3. THE USABLE FIELD IS d 0.10-0.58 and every feature
+// on every one of these lands is placed inside it. Same burial as the scree apron and the river.
+function rsTrack(g,P,day,K,f0,d0,f1,d1s,wdt){
+  var trackC=day?[178,152,110]:[42,38,36];
+  var x0t=Math.round(f0*WW), x1t=Math.round(f1*WW), steps=Math.max(8,Math.abs(x1t-x0t));
+  for(var i2=0;i2<=steps;i2++){
+    var t2=i2/steps, wxp=x0t+(x1t-x0t)*t2, dpt=d0+(d1s-d0)*t2;
+    var sxp=Math.round(wxp)-WOFF; if(sxp<-WW*0.5) sxp+=WW; if(sxp>WW*0.5) sxp-=WW;
+    if(sxp<-4||sxp>SW+4) continue;
+    var yy2=rsStandY(wxp,dpt)+Math.round(Math.sin(wxp*0.02)*K);
+    var ww3=Math.max(1,Math.round(wdt*K*(0.5+dpt)));
+    g.fillStyle=css(trackC); g.fillRect(sxp,yy2,1,ww3);
+    g.fillStyle=day?"rgba(140,116,80,0.5)":"rgba(0,0,0,0.3)"; g.fillRect(sxp,yy2+ww3,1,1);
+  }
+}
+// TREES. The cheapest thing on these lands that carries depth: one oak at four sizes at four depths
+// reads as distance immediately. `keepOut` is a list of [worldX, halfWidth] the wood must not enter.
+function rsTrees(g,P,day,K,n,keepOut){
+  var seedW=(WORLD_SEED*2654435761)>>>0;
+  for(var tr=0;tr<n;tr++){
+    var th3=((tr*2246822519)^(seedW>>>5))>>>0;
+    var twx=(th3%1000)/1000*WW, td=0.08+((th3>>>9)%1000)/1000*0.48;
+    var tsx=Math.round(twx)-WOFF; if(tsx<-WW*0.5) tsx+=WW; if(tsx>WW*0.5) tsx-=WW;
+    if(tsx<-30||tsx>SW+30) continue;
+    var blocked=false;
+    for(var ko=0;ko<keepOut.length;ko++) if(Math.abs(twx-keepOut[ko][0])<keepOut[ko][1]) blocked=true;
+    if(blocked) continue;
+    drawLumTree(g,tsx,rsStandY(twx,td),K,0.75+td*2.1,day,th3,P.grassD);
+  }
+}
+function drawLumbridge(g,L,now,nd){
+  var day=L>0.5, K=Math.max(1,KSP), skc=biomeSkc(day);
+  var P=rsPal(day,skc), nite=P.nite;
+  var grass=P.grass, grassD=P.grassD, grassL=P.grassL, farG=P.far;
+  var stone=P.stone, stoneL=P.stoneL, stoneD=P.stoneD, waterC=P.water, woodC=P.wood;
+  var GY=HORIZON, RC=rsProfile(K);
+  rsGroundBands(g,P,RC,day,K);
+  rsPatches(g,P,day,K,26);
+  rsTrack(g,P,day,K,LB_MILL,0.50,LB_CASTLE,0.56,2.2);          // the west road, into the town
+  rsTrack(g,P,day,K,LB_CASTLE,0.56,LB_GATE,0.52,2.2);          // …and on east to the toll gate
+  rsTrack(g,P,day,K,LB_CASTLE,0.56,LB_CASTLE-0.004,0.30,1.8);  // the spur up to the castle gate
+  rsTrees(g,P,day,K,34,[[LB_CASTLE*WW,HORIZON*0.34],[LB_RIVER*WW,HORIZON*0.10]]);
+  // ---- THE RIVER LUM, from the far treeline down to the town's feet.
+  var rvOn=(rsX(LB_RIVER)>-HORIZON&&rsX(LB_RIVER)<SW+HORIZON);
+  var fyR=rsFieldY(LB_RIVER*WW);
+  if(rvOn){
+    for(var ry=fyR;ry<=GY;ry++){
+      var rcx=lumRiverCX(ry), rhw=lumRiverHalf(ry);
+      for(var rwp=-1;rwp<=1;rwp++){
+        var RX=rcx-WOFF+rwp*WW; if(RX<-rhw-4||RX>SW+rhw+4) continue;
+        // banks first, then the water inside them — a river with no edge is a blue stripe
+        g.fillStyle=day?"rgba(150,138,104,0.85)":"rgba(30,32,44,0.85)";
+        g.fillRect(RX-rhw-Math.max(1,Math.round(K*0.9)),ry,rhw*2+Math.max(2,Math.round(K*1.8)),1);
+        var t=(ry-fyR)/Math.max(1,GY-fyR);
+        g.fillStyle=css(mixc(waterC,farG,(1-t)*0.34));          // the far end of the water recedes too
+        g.fillRect(RX-rhw,ry,rhw*2,1);
+      }
+    }
+  }
+  // ---- THE STONE BRIDGE. Three arches, a parapet, and the road running over it. This and the
+  // castle are the two things somebody has to recognise from across a room.
+  if(rvOn){
+    var by=lumBridgeY(), bcx=lumRiverCX(by), bhw=lumRiverHalf(by);
+    for(var bwp=-1;bwp<=1;bwp++){
+      var BX=bcx-WOFF+bwp*WW; if(BX<-HORIZON*0.4||BX>SW+HORIZON*0.4) continue;
+      var bW=bhw*2+Math.round(HORIZON*0.075), bH=Math.round(HORIZON*0.045);
+      var bx0=BX-(bW>>1), bTop=by-bH;
+      g.fillStyle=css(stone);  g.fillRect(bx0,bTop,bW,bH);
+      g.fillStyle=css(stoneL); g.fillRect(bx0,bTop,bW,Math.max(1,Math.round(K*1.2)));   // the parapet's cap
+      g.fillStyle=css(stoneD);
+      for(var ar=0;ar<3;ar++){                                   // three arches, cut UP into the deck
+        var aw=Math.round(bW*0.18), ax=bx0+Math.round(bW*(0.16+ar*0.29));
+        for(var av=0;av<Math.round(bH*0.55);av++){
+          var awd=Math.round(aw*Math.sqrt(Math.max(0,1-Math.pow(av/(bH*0.55),2))));
+          g.fillRect(ax+((aw-awd)>>1),by-av-1,awd,1);
+        }
+      }
+    }
+  }
+  // ---- THE CASTLE, on the west bank. Nick's one big object.
+  var ccx=rsX(LB_CASTLE);
+  if(ccx>-HORIZON&&ccx<SW+HORIZON) drawLumCastle(g,ccx,now,day,K,stone,stoneL,stoneD,skc,L);
+  // ---- THE CHURCH AND ITS GRAVEYARD
+  var chx=rsX(LB_CHURCH);
+  if(chx>-HORIZON*0.5&&chx<SW+HORIZON*0.5) drawLumChurch(g,chx,day,K,stone,stoneL,stoneD,woodC,L);
+  // ---- THE WINDMILL (tower only — the sails turn, so they are drawn in the live pass)
+  var mx0=rsX(LB_MILL);
+  if(mx0>-HORIZON*0.5&&mx0<SW+HORIZON*0.5) drawLumMill(g,mx0,day,K,stone,stoneL,stoneD,woodC,grassL,L);
+  // ---- THE COW FIELD: a post-and-rail paddock. The cattle themselves graze in the live pass.
+  var cwx=rsX(LB_COWS);
+  if(cwx>-HORIZON&&cwx<SW+HORIZON){
+    // ⚠ A FENCE DRAWN AT ONE DEPTH IS A LADDER LYING IN THE SKY — that is exactly how the first cut
+    // read. A paddock is an ENCLOSURE: it needs a back rail set further into the field than its front
+    // rail, and the ground between them shaded, or there is nothing for the cattle to be inside of.
+    var _pd=lumPaddock(), pw=_pd.w, pyF=_pd.f, pyB=_pd.b;
+    g.fillStyle=day?"rgba(122,162,66,0.55)":"rgba(20,28,30,0.45)";
+    g.fillRect(cwx-pw,pyB,pw*2,pyF-pyB);                            // the cropped grass inside it
+    for(var rail=0;rail<2;rail++){
+      var ry2=rail?pyF:pyB, rh3=Math.round(HORIZON*(rail?0.030:0.020));
+      g.fillStyle=css(day?woodC:nite(woodC,0.7));
+      for(var fp=-pw;fp<=pw;fp+=Math.round(HORIZON*(rail?0.038:0.030)))
+        g.fillRect(cwx+fp,ry2-rh3,Math.max(1,Math.round(K*0.9)),rh3);
+      for(var fr=0;fr<2;fr++)
+        g.fillRect(cwx-pw,ry2-Math.round(rh3*(fr?0.4:0.85)),pw*2,Math.max(1,Math.round(K*0.7)));
+    }
+  }
+  // ---- THE SHOPS east of the bridge: the general store, the axe shop and two market stalls.
+  var shx=rsX(LB_SHOPS);
+  if(shx>-HORIZON*0.6&&shx<SW+HORIZON*0.6) drawLumShops(g,shx,day,K,now,L,woodC,stone,stoneD);
+  // ---- THE TOLL GATE east of the town, where the road leaves for the desert. A stone arch with a
+  // gatehouse either side; beyond it the grass gives way to sand, which is the whole reason it is
+  // here — it is the edge of this land, stated in one object.
+  var tgx=rsX(LB_GATE);
+  if(tgx>-HORIZON&&tgx<SW+HORIZON) drawLumTollGate(g,tgx,day,K,stone,stoneL,stoneD,L);
+  // ---- THE SWAMP: dark, low and wet, with the cave mouth in the bank behind it and the goblin camp
+  // on its edge. This is the land's dark value — the rule says extreme value CONTRAST, and a land
+  // that is green everywhere has none.
+  var swx=rsX(LB_SWAMP);
+  if(swx>-HORIZON*1.4&&swx<SW+HORIZON*1.4) drawLumSwamp(g,swx,day,K,now,L);
+  // ---- THE STONE CIRCLE on its mound, far east
+  var stx=rsX(LB_CIRCLE);
+  if(stx>-HORIZON*0.4&&stx<SW+HORIZON*0.4){
+    // ⚠ AT HORIZON*0.055 THESE READ AS A GREY FENCE. A landmark on the far screen has to carry a
+    // whole monitor between the toll gate and the world's edge; the stones are now nearly three times
+    // the size and stand on a mound that lifts them clear of the meadow.
+    var sy=rsStandY(LB_CIRCLE*WW,0.44), sr=Math.round(HORIZON*0.135);
+    g.fillStyle=css(day?mixc(grassD,[92,88,70],0.35):nite([70,74,60],0.7));
+    g.fillRect(stx-sr-Math.round(4*K),sy-Math.round(3*K),(sr+Math.round(4*K))*2,Math.round(3*K)+1);
+    for(var sc=0;sc<5;sc++){
+      var sa=(sc/4)*Math.PI, sxp=stx+Math.round(Math.cos(sa)*sr);
+      // regularity broken three ways — height, width AND lean. Five identical slabs on an even pitch
+      // is the lattice fault; a stone circle is the one feature where that would be most obvious.
+      var sHash=((sc*2654435761)^((WORLD_SEED*2246822519)>>>0))>>>0;
+      var shh=Math.round(HORIZON*0.085)+((sHash>>>3)%Math.max(1,Math.round(HORIZON*0.055)));
+      var sww=Math.max(3,Math.round(3.8*K)+((sHash>>>11)%Math.max(1,Math.round(3*K))));
+      var slean=(((sHash>>>19)%3)-1);
+      lumShadow(g,sxp,sy,Math.round(sww*1.6),day);
+      g.fillStyle=css(day?[128,126,118]:nite([128,126,118],0.7));
+      for(var sv=0;sv<shh;sv++) g.fillRect(sxp-(sww>>1)+Math.round(slean*sv/shh),sy-sv,sww,1);
+      g.fillStyle=css(day?[152,150,142]:nite([152,150,142],0.66));
+      for(var sv2=0;sv2<shh;sv2++) g.fillRect(sxp-(sww>>1)+Math.round(slean*sv2/shh),sy-sv2,Math.max(1,Math.round(K*0.9)),1);
+    }
+  }
+}
+// ---- THE OAK, and the shadow every object on this land casts ---------------------------------
+// 🔑 A FLAT REGISTER STILL NEEDS CONTACT. With no shading to seat an object, the ONE mark that says
+// "standing on the ground" rather than "floating in front of it" is a hard shadow at its foot. Every
+// feature on this land calls this; the first cut had none and every landmark hovered.
+function lumShadow(g,cx,y,w,day){
+  g.fillStyle=day?"rgba(46,74,34,0.42)":"rgba(0,0,0,0.35)";
+  var K=Math.max(1,KSP);
+  g.fillRect(cx-(w>>1),y,w,Math.max(1,Math.round(1.6*K)));
+  g.fillStyle=day?"rgba(46,74,34,0.22)":"rgba(0,0,0,0.2)";
+  g.fillRect(cx-(w>>1)-Math.round(2*K),y+Math.max(1,Math.round(1.6*K)),w+Math.round(4*K),Math.max(1,Math.round(K)));
+}
+function drawLumTree(g,cx,gy,K,sc,day,h,grassD){
+  var th=Math.round(HORIZON*0.030*sc), cw=Math.round(HORIZON*0.030*sc);
+  var trunkW=Math.max(1,Math.round(1.4*K*sc));
+  lumShadow(g,cx,gy,Math.max(3,Math.round(cw*1.1)),day);
+  g.fillStyle=day?"rgba(88,62,40,1)":"rgba(16,16,24,1)";
+  g.fillRect(cx-(trunkW>>1),gy-th,trunkW,th);
+  // the canopy: two flat greens, the lighter one up and left, in stacked rows of differing width so
+  // the outline is lumpy rather than a circle. A circle reads as a lollipop, which is the shape that
+  // made the savanna's acacias look like clip art.
+  var dark =day?[46,88,38]:mixc([46,88,38],[14,18,38],0.72);
+  var light=day?[86,134,52]:mixc([86,134,52],[14,18,38],0.68);
+  var rows=Math.max(3,Math.round(cw*1.15));
+  for(var r=0;r<rows;r++){
+    var f=r/rows, bulge=Math.sin(f*Math.PI)*0.9+0.25;
+    var w2=Math.max(1,Math.round(cw*bulge*(1+(((h>>>(r%9))%5)-2)*0.05)));
+    g.fillStyle=css(f<0.55?light:dark);
+    g.fillRect(cx-(w2>>1)-Math.round((0.5-f)*K*sc),gy-th-rows+r,w2,1);
+  }
+}
+// ---- THE CASTLE ----------------------------------------------------------------------------
+// A square keep with four corner towers, a curtain wall and a gatehouse, all crenellated. Flat
+// values, hard edges, and the shape read almost entirely in silhouette: this is the object the land
+// is judged on from three feet away.
+function drawLumCastle(g,cx,now,day,K,stone,stoneL,stoneD,skc,L){
+  function nite(c,k){ return mixc(c,[14,18,38],k); }
+  var base=rsStandY(LB_CASTLE*WW,0.56);
+  var W=Math.round(HORIZON*0.58), H=Math.round(HORIZON*0.34);      // the curtain
+  var x0=cx-(W>>1);
+  var kw=Math.round(W*0.34), kh=Math.round(HORIZON*0.44);          // the keep, taller than the wall
+  // the motte: the whole thing stands on a low mound rather than on the flat, which is what puts it
+  // ABOVE the town instead of behind it. Two flat greens with a hard edge between — the mound is a
+  // SHAPE here, not a gradient, and it wants the same treatment as everything else on this land.
+  var mH=Math.round(HORIZON*0.075), mWb=Math.round(W*1.16);
+  lumShadow(g,cx,base+Math.round(2*K),Math.round(mWb*0.92),day);
+  for(var mv=0;mv<mH;mv++){
+    var mt=mv/mH, mw=Math.round(mWb*(1-Math.pow(mt,1.7)*0.30));
+    g.fillStyle=day?css(mixc([96,138,60],[124,168,74],mt>0.55?0.7:0)):css(nite([96,138,60],0.72));
+    g.fillRect(cx-(mw>>1),base-mv,mw,1);
+  }
+  base-=Math.round(mH*0.55);                                       // …and the castle stands ON it
+  function merlon(x,w,y){                                          // crenellation, drawn as real teeth
+    var mstep=Math.max(3,Math.round(4.4*K)), mw2=Math.max(2,Math.round(2.4*K)), mh=Math.max(2,Math.round(2.6*K));
+    g.fillStyle=css(day?stoneL:nite(stoneL,0.66));
+    for(var m=x;m<x+w-mw2;m+=mstep) g.fillRect(m,y-mh,mw2,mh);
+  }
+  // ---- THE COURTYARD, drawn BEFORE the wall so the wall overlaps its feet and only the roofs show
+  // over the parapet. ⚠ The first cut drew these last and they landed as two brown slabs stuck on the
+  // FRONT of the castle — paint order is the whole difference between "inside the walls" and "on
+  // them", and it cost nothing to get right except noticing.
+  for(var cb=0;cb<2;cb++){
+    var cbx=x0+Math.round(W*(cb?0.66:0.18)), cbw=Math.round(W*(cb?0.13:0.15));
+    var cbh=Math.round(H*0.42), cbt=base-H-Math.round(H*0.12);
+    g.fillStyle=css(day?mixc(stone,[150,140,124],0.4):nite([150,140,124],0.74));
+    g.fillRect(cbx,cbt,cbw,cbh);
+    var cbr=Math.round(cbw*0.5);
+    for(var cr=0;cr<cbr;cr++){
+      var cww=Math.max(1,Math.round((cbw+Math.round(2*K))*(1-cr/cbr)));
+      g.fillStyle=day?((cr%2)?"#5a4436":"#46362c"):css(nite([70,54,44],0.74));
+      g.fillRect(cbx-Math.round(K)+(((cbw+Math.round(2*K))-cww)>>1),cbt-1-cr,cww,1);
+    }
+  }
+  // ---- the curtain wall
+  g.fillStyle=css(day?stone:nite(stone,0.68));  g.fillRect(x0,base-H,W,H);
+  g.fillStyle=css(day?stoneD:nite(stoneD,0.72)); g.fillRect(x0,base-Math.round(H*0.10),W,Math.round(H*0.10));
+  merlon(x0,W,base-H);
+  // ---- the gatehouse: a dark arch in the middle of the wall, which is the mark that says CASTLE
+  var gw=Math.round(W*0.13), gh=Math.round(H*0.62), gx=cx-(gw>>1);
+  g.fillStyle=day?"rgba(38,34,30,0.92)":"rgba(8,8,14,0.94)";
+  g.fillRect(gx,base-gh,gw,gh);
+  for(var ga=0;ga<Math.round(gw*0.5);ga++){                        // round the arch head
+    var gaw=Math.round(gw*Math.sqrt(Math.max(0,1-Math.pow(ga/(gw*0.5),2))));
+    g.fillRect(gx+((gw-gaw)>>1),base-gh-ga,gaw,1);
+  }
+  // ---- four corner towers, square and flat-topped
+  var tw=Math.round(W*0.11), th=Math.round(H*1.24);
+  for(var t=0;t<4;t++){
+    var tx=x0+Math.round(W*[0,0.30,0.70,1][t])-(tw>>1);
+    g.fillStyle=css(day?stone:nite(stone,0.68));   g.fillRect(tx,base-th,tw,th);
+    g.fillStyle=css(day?stoneL:nite(stoneL,0.64)); g.fillRect(tx,base-th,Math.max(1,Math.round(K*1.1)),th);
+    g.fillStyle=css(day?stoneD:nite(stoneD,0.74)); g.fillRect(tx+tw-Math.max(1,Math.round(K*1.1)),base-th,Math.max(1,Math.round(K*1.1)),th);
+    merlon(tx,tw,base-th);
+    // arrow slits — near-black, and at this size they are most of what says "stone", not texture
+    g.fillStyle=day?"rgba(34,32,30,0.85)":"rgba(255,206,120,0.75)";
+    for(var sl=1;sl<=3;sl++) g.fillRect(tx+((tw-Math.max(1,Math.round(K)))>>1),base-Math.round(th*(0.24*sl+0.10)),Math.max(1,Math.round(K)),Math.round(3.4*K));
+  }
+  // ---- THE KEEP, standing above the wall
+  var kx=cx-(kw>>1), ktop=base-kh;
+  g.fillStyle=css(day?stone:nite(stone,0.68));   g.fillRect(kx,ktop,kw,kh);
+  g.fillStyle=css(day?stoneL:nite(stoneL,0.64)); g.fillRect(kx,ktop,Math.max(1,Math.round(K*1.4)),kh);
+  g.fillStyle=css(day?stoneD:nite(stoneD,0.74)); g.fillRect(kx+kw-Math.max(1,Math.round(K*1.4)),ktop,Math.max(1,Math.round(K*1.4)),kh);
+  merlon(kx,kw,ktop);
+  // the keep's windows: two rows, warm at night. A castle with no lit windows at 22:00 is a ruin.
+  var kLit=(L<=0.5);
+  for(var kr=0;kr<2;kr++) for(var kc=0;kc<3;kc++){
+    var wx2=kx+Math.round(kw*(0.18+kc*0.30)), wy2=ktop+Math.round(kh*(0.24+kr*0.30));
+    g.fillStyle=kLit?"rgba(255,198,104,0.9)":"rgba(40,38,40,0.8)";
+    g.fillRect(wx2,wy2,Math.max(2,Math.round(2.4*K)),Math.max(3,Math.round(3.6*K)));
+  }
+}
+// ---- THE CHURCH ----------------------------------------------------------------------------
+function drawLumChurch(g,cx,day,K,stone,stoneL,stoneD,woodC,L){
+  function nite(c,k){ return mixc(c,[14,18,38],k); }
+  // ⚠ SEATED AT 0.44 AND SIZED AT 0.115 OF THE BAND, IT WAS A MODEL IN A FIELD. Everything on this
+  // land was pitched at Hyrule's distances, where a castle carries the frame from far back; here the
+  // named places are the ONLY content on two of the three monitors, so they come forward and grow.
+  var base=rsStandY(LB_CHURCH*WW,0.50);
+  var nw=Math.round(HORIZON*0.175), nh=Math.round(HORIZON*0.115);      // the nave
+  var tw=Math.round(HORIZON*0.062), th=Math.round(HORIZON*0.250);      // the square tower
+  var x0=cx-(nw>>1);
+  lumShadow(g,cx,base,Math.round(nw*1.15),day);
+  g.fillStyle=css(day?stone:nite(stone,0.68)); g.fillRect(x0,base-nh,nw,nh);
+  // a steep slate roof on the nave
+  var rh=Math.round(nh*0.62);
+  for(var r=0;r<rh;r++){
+    var w2=Math.max(1,Math.round((nw+Math.round(2*K))*(1-r/rh)));
+    g.fillStyle=day?((r%2)?"#4c5468":"#3c4356"):css(nite([60,68,86],0.72));
+    g.fillRect(x0-Math.round(K)+(((nw+Math.round(2*K))-w2)>>1),base-nh-1-r,w2,1);
+  }
+  // the tower, with a crenellated top and a single tall lancet — the church reads from its TOWER
+  var tx=cx+Math.round(nw*0.34);
+  g.fillStyle=css(day?stone:nite(stone,0.68));   g.fillRect(tx,base-th,tw,th);
+  g.fillStyle=css(day?stoneL:nite(stoneL,0.64)); g.fillRect(tx,base-th,Math.max(1,Math.round(K)),th);
+  g.fillStyle=css(day?stoneD:nite(stoneD,0.74)); g.fillRect(tx+tw-Math.max(1,Math.round(K)),base-th,Math.max(1,Math.round(K)),th);
+  var mstep=Math.max(3,Math.round(3.4*K));
+  g.fillStyle=css(day?stoneL:nite(stoneL,0.66));
+  for(var m=tx;m<tx+tw-Math.round(1.6*K);m+=mstep) g.fillRect(m,base-th-Math.round(2.2*K),Math.max(1,Math.round(1.8*K)),Math.round(2.2*K));
+  g.fillStyle=(L<=0.5)?"rgba(255,204,120,0.85)":"rgba(36,34,38,0.85)";
+  g.fillRect(tx+Math.round(tw*0.34),base-Math.round(th*0.62),Math.max(1,Math.round(1.6*K)),Math.round(6*K));
+  // ---- THE GRAVEYARD, west of the church behind a low wall. Headstones are scattered THREE ways —
+  // position, height and lean — because a row of identical marks at one pitch is a picket fence.
+  var seedW=(WORLD_SEED*2654435761)>>>0, gy0=base-Math.round(2*K);
+  for(var s=0;s<11;s++){
+    var h=((s*2246822519)^seedW)>>>0;
+    var gx2=cx-Math.round(nw*0.62)-Math.round((h%100)/100*HORIZON*0.075);
+    var gh2=Math.round(HORIZON*0.012)+((h>>>9)%Math.max(1,Math.round(HORIZON*0.012)));
+    var gyy=gy0+Math.round(((h>>>15)%100)/100*HORIZON*0.030);
+    g.fillStyle=css(day?[168,166,158]:nite([168,166,158],0.70));
+    g.fillRect(gx2,gyy-gh2,Math.max(1,Math.round(1.4*K)),gh2);
+  }
+}
+// ---- THE WINDMILL (tower; the sails are live) -----------------------------------------------
+function drawLumMill(g,cx,day,K,stone,stoneL,stoneD,woodC,grassL,L){
+  function nite(c,k){ return mixc(c,[14,18,38],k); }
+  var base=lumMillBase();
+  var mh=lumMillH(), mw=Math.round(HORIZON*0.078);
+  lumShadow(g,cx,base,Math.round(mw*1.5),day);
+  // the tower TAPERS — a straight-sided cylinder reads as a silo, which is a different building
+  for(var v=0;v<mh;v++){
+    var w2=Math.round(mw*(1-0.30*(v/mh)));
+    g.fillStyle=css(day?stone:nite(stone,0.68));
+    g.fillRect(cx-(w2>>1),base-v,w2,1);
+    g.fillStyle=css(day?stoneL:nite(stoneL,0.64));
+    g.fillRect(cx-(w2>>1),base-v,Math.max(1,Math.round(K)),1);
+  }
+  // the cap
+  var cw=Math.round(mw*0.86);
+  g.fillStyle=css(day?[92,64,44]:nite([92,64,44],0.72));
+  g.fillRect(cx-(cw>>1),base-mh-Math.round(3.4*K),cw,Math.round(3.4*K));
+  // ---- THE WHEAT the mill exists for. ⚠ FIVE THIN BARS READ AS FLOATING YELLOW LINES — a crop is a
+  // BLOCK of ground with rows in it, not a set of rules on a lawn. Drawn as one filled field with a
+  // darker headland at its foot and a stubble texture inside it, which also gives the west end of the
+  // world its own patch of a colour that is not green.
+  // ⚠⚠ THIRD ATTEMPT AT THIS ONE FEATURE. A saturated yellow rectangle with a ruled edge on flat green
+  // is a BILLBOARD, at any size — the eye reads a hard four-sided boundary as a made object, not as a
+  // crop. What fixes it is the EDGE, not the fill: the top of a wheat field is ragged ears against the
+  // grass behind it, and the sides run out irregularly. Wider, shallower, and calmed toward the grass.
+  var fx0=cx-Math.round(HORIZON*0.34), fw2=Math.round(HORIZON*0.30);
+  var fyT=rsStandY((LB_MILL-0.055)*WW,0.36), fyB=rsStandY((LB_MILL-0.055)*WW,0.45);
+  var wheatC=day?[196,174,102]:nite([196,174,102],0.74);
+  for(var wx5=0;wx5<fw2;wx5++){
+    var wxw=fx0+wx5;
+    var rag=Math.round(Math.sin(wxw*0.7)*K*0.8+Math.sin(wxw*0.23+1.1)*K*1.1);
+    var wEnd=Math.min(1,Math.min(wx5,fw2-wx5)/Math.max(1,Math.round(6*K)));   // the ends run out, not stop
+    if(wEnd<0.35&&((wxw*2654435761)>>>0)%100<40) continue;
+    g.fillStyle=css(wheatC);
+    g.fillRect(wxw,fyT+rag,1,fyB-fyT-rag);
+  }
+  // ⚠ HORIZONTAL RULES INSIDE IT MADE IT A BILLBOARD. Standing corn is VERTICAL — the stalks are
+  // what say crop, and with only cross-rules the block read as a painted sign leaning in a field.
+  g.fillStyle=day?"rgba(168,140,66,0.5)":"rgba(0,0,0,0.28)";
+  for(var wc=0;wc<fw2;wc+=Math.max(2,Math.round(1.8*K))) g.fillRect(fx0+wc,fyT+Math.round(2*K),1,fyB-fyT-Math.round(2*K));
+  g.fillStyle=day?"rgba(228,204,126,0.7)":"rgba(60,60,70,0.3)";
+  for(var wc2=1;wc2<fw2;wc2+=Math.max(3,Math.round(4.4*K))) g.fillRect(fx0+wc2,fyT+Math.round(K),1,fyB-fyT-Math.round(K));
+  g.fillStyle=day?"rgba(140,116,58,0.8)":"rgba(0,0,0,0.35)";
+  g.fillRect(fx0,fyB-Math.max(1,Math.round(K)),fw2,Math.max(1,Math.round(K*1.4)));
+}
+// ---- THE SHOPS -------------------------------------------------------------------------------
+// The general store, the axe shop and the stalls that stand between them, on the east bank where the
+// road comes off the bridge. Three buildings and two stalls, seated in the open field ABOVE the
+// town's roofline so they are visible at every city age — the same band every other named place on
+// this land uses.
+// 🔒 NO LETTERING ANYWHERE. Signs are painted SHAPES — an axe, a barrel, a loaf. The land is named
+// outright in the biome row, which was Nick's explicit call, but that does not extend to putting shop
+// names on boards; and a 3x5 pixel font at this size would be mush regardless.
+function drawLumShops(g,cx,day,K,now,L,woodC,stone,stoneD){
+  function nite(c,k){ return mixc(c,[14,18,38],k); }
+  var P=rsPalette(), base=rsStandY(LB_SHOPS*WW,0.54), night=(L<=0.5);
+  var wall =day?P.wallA:nite(P.wallA,0.70), wallD=day?P.wallB:nite(P.wallB,0.74);
+  var roofA=day?P.roofA:nite(P.roofA,0.70), roofB=day?P.roofB:nite(P.roofB,0.74);
+  var tim  =day?P.tim:nite(P.tim,0.74);
+  // one shop: body, steep roof, an open front under a beam, and a hanging sign board
+  function shop(sx,w,h,sign){
+    lumShadow(g,sx,base,Math.round(w*1.2),day);
+    g.fillStyle=css(wall);  g.fillRect(sx-(w>>1),base-h,w,h);
+    g.fillStyle=css(wallD); g.fillRect(sx+(w>>1)-Math.round(1.4*K),base-h,Math.round(1.4*K),h);
+    g.fillStyle=css(tim);                                                // corner posts + a sill rail
+    g.fillRect(sx-(w>>1),base-h,Math.max(1,Math.round(1.2*K)),h);
+    g.fillRect(sx+(w>>1)-Math.max(1,Math.round(1.2*K)),base-h,Math.max(1,Math.round(1.2*K)),h);
+    var rh=Math.max(Math.round(4*K),Math.round(w*0.60)), ov=Math.round(1.8*K);
+    for(var r=0;r<rh;r++){
+      var w2=Math.max(1,Math.round((w+ov*2)*(1-r/rh)));
+      g.fillStyle=css((r%Math.max(2,Math.round(2*K))<Math.max(1,Math.round(K)))?roofA:roofB);
+      g.fillRect(sx-((w+ov*2)>>1)+(((w+ov*2)-w2)>>1),base-h-1-r,w2,1);
+    }
+    g.fillStyle=day?"rgba(48,38,30,0.55)":"rgba(0,0,0,0.5)";
+    g.fillRect(sx-((w+ov*2)>>1),base-h-1,w+ov*2,Math.max(1,Math.round(K*0.7)));
+    // the open front — a dark counter opening, which is what makes it a SHOP and not another house
+    var ow=Math.round(w*0.52), oh=Math.round(h*0.46);
+    g.fillStyle=night?"rgba(255,196,96,0.85)":"rgba(30,26,24,0.9)";
+    g.fillRect(sx-(ow>>1),base-oh,ow,oh);
+    g.fillStyle=css(tim); g.fillRect(sx-(ow>>1)-Math.round(K),base-oh-Math.round(1.2*K),ow+Math.round(2*K),Math.round(1.2*K));
+    // the hanging sign: a board on a bracket with a painted mark on it
+    var sgx=sx+(w>>1)+Math.round(2*K), sgy=base-Math.round(h*0.78);
+    g.fillStyle=css(tim); g.fillRect(sx+(w>>1),sgy,Math.round(2.4*K),Math.max(1,Math.round(K)));
+    var sgw=Math.round(5*K), sgh=Math.round(4.4*K);
+    g.fillStyle=day?"rgba(122,94,62,1)":"rgba(24,22,30,1)"; g.fillRect(sgx,sgy,sgw,sgh);
+    g.fillStyle=day?"rgba(226,214,186,0.9)":"rgba(120,116,110,0.7)";
+    if(sign==="axe"){                                                    // a head and a haft
+      g.fillRect(sgx+Math.round(sgw*0.44),sgy+Math.round(K),Math.max(1,Math.round(K)),sgh-Math.round(2*K));
+      g.fillRect(sgx+Math.round(sgw*0.18),sgy+Math.round(K),Math.round(sgw*0.32),Math.max(1,Math.round(1.4*K)));
+    } else if(sign==="barrel"){                                          // a barrel: two hoops
+      g.fillRect(sgx+Math.round(sgw*0.24),sgy+Math.round(K),Math.round(sgw*0.5),sgh-Math.round(2*K));
+      g.fillStyle=day?"rgba(122,94,62,1)":"rgba(24,22,30,1)";
+      g.fillRect(sgx+Math.round(sgw*0.24),sgy+Math.round(sgh*0.38),Math.round(sgw*0.5),Math.max(1,Math.round(K*0.6)));
+    } else {                                                             // a loaf
+      for(var lf=0;lf<Math.round(2.2*K);lf++)
+        g.fillRect(sgx+Math.round(sgw*0.2)+lf,sgy+Math.round(sgh*0.5)-lf,Math.round(sgw*0.6)-lf*2,1);
+    }
+  }
+  // ⚠ SPACED OFF EACH OTHER, NOT OFF A PITCH. Three shops on an even stride is the arithmetic-
+  // progression fault at building scale, and at three items it is very easy to see.
+  var gw=Math.round(HORIZON*0.115);                                      // the general store, the big one
+  shop(cx, gw, Math.round(HORIZON*0.105), "barrel");
+  shop(cx-Math.round(HORIZON*0.135), Math.round(HORIZON*0.078), Math.round(HORIZON*0.080), "loaf");
+  shop(cx+Math.round(HORIZON*0.115), Math.round(HORIZON*0.070), Math.round(HORIZON*0.086), "axe");
+  // ---- the two market stalls between them: a striped awning on four legs, with crates under it
+  for(var st=0;st<2;st++){
+    var sx2=cx+(st?Math.round(HORIZON*0.058):-Math.round(HORIZON*0.062));
+    var sw2=Math.round(HORIZON*0.048), sh2=Math.round(HORIZON*0.040);
+    g.fillStyle=css(tim);
+    g.fillRect(sx2-(sw2>>1),base-sh2,Math.max(1,Math.round(K)),sh2);
+    g.fillRect(sx2+(sw2>>1),base-sh2,Math.max(1,Math.round(K)),sh2);
+    var stripeA=day?[196,86,66]:nite([196,86,66],0.72), stripeB=day?[236,226,204]:nite([236,226,204],0.72);
+    for(var sc2=0;sc2<sw2;sc2++){
+      g.fillStyle=css(((sc2/Math.max(1,Math.round(2.6*K)))|0)%2?stripeA:stripeB);
+      g.fillRect(sx2-(sw2>>1)+sc2,base-sh2-Math.round(2*K),1,Math.round(2.4*K));
+    }
+    g.fillStyle=day?"rgba(140,108,70,1)":"rgba(26,24,30,1)";             // the trestle and its crates
+    g.fillRect(sx2-(sw2>>1),base-Math.round(sh2*0.42),sw2,Math.max(1,Math.round(1.4*K)));
+    g.fillRect(sx2-Math.round(K),base-Math.round(2.6*K),Math.round(2.6*K),Math.round(2.6*K));
+  }
+}
+// ---- THE TOLL GATE ---------------------------------------------------------------------------
+function drawLumTollGate(g,cx,day,K,stone,stoneL,stoneD,L){
+  function nite(c,k){ return mixc(c,[14,18,38],k); }
+  var base=rsStandY(LB_GATE*WW,0.62);
+  var gw=Math.round(HORIZON*0.155), gh=Math.round(HORIZON*0.190), tw=Math.round(HORIZON*0.046);
+  lumShadow(g,cx,base,Math.round(gw*1.6),day);
+  // the sand beyond it: the land ENDS here and says so
+  g.fillStyle=day?"rgba(214,186,124,0.85)":"rgba(40,38,42,0.7)";
+  // ⚠ SEATED AT d 0.72 IT WAS BEHIND THE TOWN AND NOBODY EVER SAW IT. Drawn across the open field
+  // instead, from the gate east, thinning as it goes — the land ENDS here and the ground says so
+  // before the buildings do.
+  for(var sx=cx;sx<cx+Math.round(HORIZON*1.1);sx++){
+    if(sx<0||sx>=SW) continue;
+    var t=Math.min(1,(sx-cx)/(HORIZON*0.75));
+    var syT=rsStandY((LB_GATE+0.02)*WW,0.24);
+    g.globalAlpha=Math.min(0.72,t*0.8); g.fillRect(sx,syT,1,HORIZON-syT);
+  }
+  g.globalAlpha=1;
+  for(var side=0;side<2;side++){                                  // two towers
+    var tx=cx+(side?1:-1)*Math.round(gw*0.5)-(side?0:tw);
+    g.fillStyle=css(day?stone:nite(stone,0.68));   g.fillRect(tx,base-gh,tw,gh);
+    g.fillStyle=css(day?stoneL:nite(stoneL,0.64)); g.fillRect(tx,base-gh,Math.max(1,Math.round(K)),gh);
+    g.fillStyle=css(day?stoneL:nite(stoneL,0.66));
+    for(var m=tx;m<tx+tw-2;m+=Math.max(3,Math.round(3.2*K))) g.fillRect(m,base-gh-Math.round(2*K),Math.max(1,Math.round(1.6*K)),Math.round(2*K));
+  }
+  g.fillStyle=css(day?stone:nite(stone,0.68));                    // the span over the road
+  g.fillRect(cx-Math.round(gw*0.5)-tw,base-gh,gw+tw*2,Math.round(gh*0.22));
+  g.fillStyle=day?"rgba(38,34,30,0.9)":"rgba(8,8,14,0.92)";       // the dark opening
+  g.fillRect(cx-Math.round(gw*0.34),base-Math.round(gh*0.62),Math.round(gw*0.68),Math.round(gh*0.62));
+}
+// ---- THE SWAMP, THE CAVE AND THE GOBLIN CAMP -------------------------------------------------
+function drawLumSwamp(g,cx,day,K,now,L){
+  function nite(c,k){ return mixc(c,[14,18,38],k); }
+  var w=Math.round(HORIZON*0.62), fy=rsFieldY(LB_SWAMP*WW);
+  var seedW=(WORLD_SEED*2654435761)>>>0;
+  // ---- THE BOG. ⚠⚠ THE FIRST CUT WAS A BLACK PYRAMID. It was filled as centred rows whose width grew
+  // with depth, which is the correct construction for a MASS seen from the side and exactly wrong for
+  // GROUND: a marsh is a horizontal expanse, so its silhouette is a wobbly top EDGE with everything
+  // below it filled, per column — the same model as the field itself. Built the other way it read as a
+  // dark mountain standing in the meadow, hard diagonal edges and all.
+  // 🔑 Ask what a feature IS — a surface or a solid — before choosing how to sweep it. Row-major fill
+  // draws solids; column-major fill draws ground.
+  var swTop=rsStandY(LB_SWAMP*WW,0.34), swDeep=day?[58,72,44]:mixc([58,72,44],[14,18,38],0.66);
+  var swNear=day?[42,56,34]:mixc([42,56,34],[14,18,38],0.70);
+  for(var sxx=-(w>>1);sxx<=(w>>1);sxx++){
+    var SX=cx+sxx; if(SX<0||SX>=SW) continue;
+    var e=Math.abs(sxx)/(w*0.5);                                    // 0 at the middle, 1 at the margins
+    // the edge is irregular and it FEATHERS — a bog has no boundary, it just gets wetter
+    var wob=Math.sin((SX+WOFF)*0.055)*HORIZON*0.012+Math.sin((SX+WOFF)*0.017+1.3)*HORIZON*0.020;
+    // ⚠ AND THE EDGE MUST NOT ARCH. Adding a `pow(e)` term to push the margins DOWN builds a dome,
+    // which is the pyramid fault again in gentler clothing — the middle became the highest point and
+    // the marsh read as a dark hill. Ground has a level edge; what makes it a marsh and not a rug is
+    // that it FEATHERS OUT (the alpha below), not that it is shaped.
+    var ty2=Math.round(swTop+wob*1.6);
+    if(ty2>=HORIZON) continue;
+    var a=Math.max(0,Math.min(1,(1-e)*1.35));                       // …and it fades out rather than stopping
+    g.globalAlpha=a;
+    g.fillStyle=css(swDeep); g.fillRect(SX,ty2,1,HORIZON-ty2+1);
+    g.fillStyle=css(swNear); g.fillRect(SX,HORIZON-Math.round(HORIZON*0.05),1,Math.round(HORIZON*0.05)+1);
+    g.globalAlpha=1;
+  }
+  // horizontal water streaks: the mark that says WET. Long, thin, level — anything on a water surface
+  // lies flat, and this is the cue the first two cuts of this feature had none of.
+  for(var wk=0;wk<26;wk++){
+    var wh4=((wk*40503+7)^(seedW>>>17))>>>0;
+    var wx4=cx-(w>>1)+((wh4%1000)/1000)*w;
+    var wy4=swTop+HORIZON*0.02+(((wh4>>>7)%1000)/1000)*(HORIZON-swTop-HORIZON*0.02);
+    var wl=Math.round(HORIZON*0.02)+((wh4>>>17)%Math.max(1,Math.round(HORIZON*0.05)));
+    g.fillStyle=day?"rgba(96,126,118,0.55)":"rgba(34,48,58,0.6)";
+    g.fillRect(wx4|0,wy4|0,wl,Math.max(1,Math.round(K*0.8)));
+  }
+  // reeds along the margin: short vertical strokes, and the ONLY vertical marks the bog gets, so the
+  // eye reads them as growing out of a surface rather than as more of the mass
+  for(var rd=0;rd<40;rd++){
+    var rh4=((rd*2654435761)^(seedW>>>13))>>>0;
+    var rx4=cx-(w>>1)+((rh4%1000)/1000)*w;
+    var ry4=swTop+HORIZON*0.02+(((rh4>>>9)%1000)/1000)*(HORIZON-swTop-HORIZON*0.02);
+    var rl=Math.round(HORIZON*0.010)+((rh4>>>19)%Math.max(1,Math.round(HORIZON*0.016)));
+    g.fillStyle=day?"rgba(110,124,64,0.9)":"rgba(24,32,26,0.9)";
+    g.fillRect(rx4|0,(ry4-rl)|0,Math.max(1,Math.round(K*0.7)),rl);
+  }
+  for(var p=0;p<9;p++){                                            // pools of standing water
+    var h=((p*2654435761)^seedW)>>>0;
+    var px=cx-(w>>1)*0.85+((h%1000)/1000)*w*0.85, py=swTop+HORIZON*0.03+((( h>>>11)%1000)/1000)*(HORIZON-swTop-HORIZON*0.03);
+    var pw2=Math.round(HORIZON*0.02)+((h>>>21)%Math.max(1,Math.round(HORIZON*0.03)));
+    g.fillStyle=day?"rgba(74,104,102,0.75)":"rgba(30,44,54,0.8)";
+    g.fillRect(px|0,py|0,pw2,Math.max(1,Math.round(K*1.2)));
+  }
+  // ---- dead trees: bare verticals with two stubs. Three-way irregular, per the rule.
+  for(var t2=0;t2<7;t2++){
+    var h2=((t2*2246822519)^(seedW>>>3))>>>0;
+    var tx=cx-(w>>1)+((h2%1000)/1000)*w;
+    var ty=swTop+HORIZON*0.02+(((h2>>>7)%1000)/1000)*(HORIZON-swTop-HORIZON*0.02);
+    var th2=Math.round(HORIZON*0.03)+((h2>>>17)%Math.max(1,Math.round(HORIZON*0.05)));
+    g.fillStyle=day?"rgba(48,44,34,0.9)":"rgba(10,12,18,0.92)";
+    // ⚠ TWO STUBS AT MATCHING HEIGHTS MAKE A CRUCIFIX, and a row of them reads as telephone poles.
+    // One limb, one side, at its own height per tree, and the trunk LEANS.
+    var lean=(((h2>>>23)%3)-1)*Math.round(K*0.8);
+    for(var tv2=0;tv2<th2;tv2++)
+      g.fillRect((tx+lean*tv2/th2)|0,(ty-tv2)|0,Math.max(1,Math.round(K*0.9)),1);
+    var lm=(((h2>>>25)%2)?1:-1), lmy=ty-th2*(0.55+((h2>>>27)%30)/100);
+    g.fillRect((tx+(lm>0?Math.round(K):-Math.round(2.6*K)))|0,lmy|0,Math.round(2.6*K),Math.max(1,Math.round(K*0.7)));
+  }
+  // ---- THE CAVE MOUTH in the bank behind the swamp: a black arch in a grey outcrop. Near-black is
+  // the darkest value on the land and it is spent HERE, on purpose.
+  var kx=cx-Math.round(w*0.36), ky=rsStandY(LB_SWAMP*WW,0.26);
+  var kw=Math.round(HORIZON*0.15), kh=Math.round(HORIZON*0.10);
+  g.fillStyle=day?"rgba(126,122,110,1)":"rgba(28,30,40,1)";
+  for(var rv=0;rv<kh;rv++){
+    var rw2=Math.round(kw*(1-Math.pow(rv/kh,1.8)*0.45));
+    g.fillRect(kx-(rw2>>1),ky-rv,rw2,1);
+  }
+  var mw2=Math.round(kw*0.34), mh2=Math.round(kh*0.62);
+  g.fillStyle="rgba(6,6,10,0.97)";
+  g.fillRect(kx-(mw2>>1),ky-mh2,mw2,mh2);
+  for(var ca=0;ca<Math.round(mw2*0.5);ca++){
+    var caw=Math.round(mw2*Math.sqrt(Math.max(0,1-Math.pow(ca/(mw2*0.5),2))));
+    g.fillRect(kx-(caw>>1),ky-mh2-ca,caw,1);
+  }
+  // ---- THE GOBLIN CAMP on the swamp's near edge: three hide tents and a fire ring. The goblins
+  // themselves move, so they are live.
+  var gx0=cx+Math.round(w*0.22), gy0=lumCampY();
+  for(var tt=0;tt<3;tt++){
+    var tx2=gx0+tt*Math.round(HORIZON*0.045)-Math.round(HORIZON*0.045);
+    var tW=Math.round(HORIZON*0.032), tH=Math.round(HORIZON*0.030);
+    g.fillStyle=day?"rgba(104,86,58,0.95)":"rgba(22,22,26,0.95)";
+    for(var tv=0;tv<tH;tv++){
+      var tww=Math.round(tW*(1-tv/tH));
+      g.fillRect(tx2-(tww>>1),gy0-tv,tww,1);
+    }
+  }
+}
+// ============ LUMBRIDGE, LIVE ============
+// ⚠ THE SPLIT IS NOT COSMETIC. The backdrop repaints at ~0.5 fps; anything that moves, turns or
+// glints drawn there STEPS between two poses rather than moving, and a stepping backdrop is what
+// reads as the whole wallpaper juddering. The mill's sails are the clearest case on this land — a
+// windmill that jumps 90 degrees twice a second is worse than one that does not turn at all.
+// 🔒 SCRIPTED FROM THE CLOCK, NEVER ACCUMULATED. Three monitors are three independent processes; a
+// sail angle stepped by a per-frame delta diverges between them within a minute, and his three
+// screens would show three different windmills.
+// ============================================================================================
+// FALADOR — the second of the four OSRS lands
+// ============================================================================================
+// 🔒 HIS LOCKED LAYOUT, west -> east:
+//   SCREEN 1   0.06 the farm  ·  0.16 the west gatehouse  ·  0.26 the park, its fountain and the mole hill
+//   SCREEN 2   0.42 THE WHITE KNIGHTS' CASTLE  ·  0.56 the square, the well and the inn  ·  0.66 the smithy
+//   SCREEN 3   0.78 the south gatehouse  ·  0.87 the dwarven mine  ·  0.94 ICE MOUNTAIN
+//
+// ⚠⚠ THE WALL IS NOT THE SUBJECT, AND THAT WAS A DECISION, NOT AN OMISSION. He was offered the walled
+// city — the curtain running the width of the world, which is how Falador actually reads in game — and
+// declined it. A repeating rank of identical towers across three monitors is the single thing this
+// per-column band engine renders worst; it is the fault that killed THE TERRACES after eleven commits
+// and the one this whole set was warned about before it started. The walls appear as two GATEHOUSES
+// with stubs that die out within a few dozen world px of each gate.
+var FA_FARM=0.06, FA_WGATE=0.16, FA_PARK=0.26, FA_CASTLE=0.42, FA_SQUARE=0.56,
+    FA_SMITHY=0.66, FA_SGATE=0.78, FA_MINE=0.87, FA_ICE=0.94;
+function faIceTop(wx){
+  // ICE MOUNTAIN's silhouette at a world x, or -1 off it. 🔑 THE LAND'S SECOND MASS, and the reason
+  // it exists: a white city on green downland has nothing dark and nothing tall in it, so the contrast
+  // rule is satisfied by GEOGRAPHY rather than by paint — snow above, dark rock below, the mine cut
+  // into its foot.
+  var d=(((wx-Math.round(FA_ICE*WW))%WW)+WW*1.5)%WW-WW*0.5;
+  var hw=Math.round(HORIZON*1.15);
+  var t=d/hw; if(Math.abs(t)>=1) return -1;
+  var at=Math.abs(t);
+  // a peak with one shoulder, so it is a mountain and not a cone. The shoulder is on the west side,
+  // toward the city, which is also where the mine has to be.
+  var prof=Math.pow(1-at,1.34)+Math.max(0,0.13-Math.abs(t+0.46))*1.5;
+  var rough=Math.sin(d*0.055)*0.012+Math.sin(d*0.13+1.2)*0.006;
+  var base=rsFieldY(wx)+Math.round(HORIZON*0.045);
+  return Math.round(base-HORIZON*0.50*Math.max(0,prof+rough));
+}
+function drawFalador(g,L,now,nd){
+  var day=L>0.5, K=Math.max(1,KSP), skc=biomeSkc(day);
+  var P=rsPal(day,skc), nite=P.nite;
+  var GY=HORIZON, RC=rsProfile(K);
+  var white =day?[238,238,234]:nite([238,238,234],0.66);
+  var whiteD=day?[198,200,202]:nite([198,200,202],0.72);
+  var whiteS=day?[164,168,174]:nite([164,168,174],0.76);
+  var slate =day?[92,104,126] :nite([92,104,126],0.70);
+  var slateD=day?[64,74,96]   :nite([64,74,96],0.74);
+  rsGroundBands(g,P,RC,day,K,function(){ drawIceMountain(g,day,K,P,skc); });
+  rsPatches(g,P,day,K,22);
+  // the road runs the width of the town, gate to gate, past the castle
+  rsTrack(g,P,day,K,FA_WGATE,0.52,FA_CASTLE,0.56,2.4);
+  rsTrack(g,P,day,K,FA_CASTLE,0.56,FA_SGATE,0.52,2.4);
+  rsTrack(g,P,day,K,FA_SGATE,0.52,FA_MINE,0.44,1.8);           // …and on to the mine, narrowing
+  rsTrack(g,P,day,K,FA_CASTLE,0.56,FA_CASTLE-0.003,0.28,1.8);  // the spur to the castle gate
+  // ⚠ THE WOOD KEEPS OFF THE WHITE. Trees in front of a white wall destroy the one silhouette this
+  // land has; the mountain's flanks get their own conifers below.
+  rsTrees(g,P,day,K,26,[[FA_CASTLE*WW,HORIZON*0.40],[FA_PARK*WW,HORIZON*0.20],
+                        [FA_SQUARE*WW,HORIZON*0.16],[FA_ICE*WW,HORIZON*0.90]]);
+  var x;
+  x=rsX(FA_FARM);   if(x>-HORIZON&&x<SW+HORIZON) drawFalFarm(g,x,day,K,P);
+  x=rsX(FA_WGATE);  if(x>-HORIZON&&x<SW+HORIZON) drawFalGate(g,x,day,K,white,whiteD,whiteS,slate,slateD,FA_WGATE,1);
+  x=rsX(FA_PARK);   if(x>-HORIZON&&x<SW+HORIZON) drawFalPark(g,x,day,K,P,white,whiteD);
+  x=rsX(FA_CASTLE); if(x>-HORIZON*1.2&&x<SW+HORIZON*1.2) drawFalCastle(g,x,day,K,L,white,whiteD,whiteS,slate,slateD);
+  x=rsX(FA_SQUARE); if(x>-HORIZON&&x<SW+HORIZON) drawFalSquare(g,x,day,K,L,P,white,whiteD,slate,slateD);
+  x=rsX(FA_SMITHY); if(x>-HORIZON&&x<SW+HORIZON) drawFalSmithy(g,x,day,K,L,P,white,whiteD,slate,slateD);
+  x=rsX(FA_SGATE);  if(x>-HORIZON&&x<SW+HORIZON) drawFalGate(g,x,day,K,white,whiteD,whiteS,slate,slateD,FA_SGATE,-1);
+  x=rsX(FA_MINE);   if(x>-HORIZON&&x<SW+HORIZON) drawFalMine(g,x,day,K,P);
+}
+// ---- ICE MOUNTAIN ----------------------------------------------------------------------------
+function drawIceMountain(g,day,K,P,skc){
+  var cx=rsX(FA_ICE), hw=Math.round(HORIZON*1.15);
+  if(cx<-hw-40||cx>SW+hw+40) return;
+  var rockA=day?[104,112,132]:mixc([104,112,132],[14,18,38],0.72);
+  var rockB=day?[86,92,114]  :mixc([86,92,114],[14,18,38],0.76);
+  var snow =day?[242,246,252]:mixc([242,246,252],[26,34,64],0.56);
+  var snowS=day?[204,216,234]:mixc([204,216,234],[22,28,56],0.62);
+  for(var sx=0;sx<SW;sx++){
+    var wx=sx+WOFF, ty=faIceTop(wx);
+    if(ty<0) continue;
+    var base=rsFieldY(wx)+Math.round(HORIZON*0.050);
+    if(ty>=base) continue;
+    // ⚠ THE SNOWLINE IS A HEIGHT, NOT A FRACTION OF THIS COLUMN. Taking it as a fraction of each
+    // column's own height puts snow on the foothills as well as the peak — the line then follows the
+    // silhouette instead of cutting across it, and the mountain stops having an altitude at all.
+    var snowLine=Math.round(HORIZON*0.30);
+    // two rock values split at the ridge: lit west face, shadowed east face. Flat, hard-edged.
+    var d=(((wx-Math.round(FA_ICE*WW))%WW)+WW*1.5)%WW-WW*0.5;
+    // ⚠ THE LIT/SHADOW SPLIT LANDED AS A HARD VERTICAL SEAM DOWN THE MIDDLE. Geometrically it is right
+    // — a peak lit from the west turns at its ridge — but with the two faces the same width and the
+    // two values far apart it reads as a join between two flat shapes, not as one lit form. The split
+    // is offset off the apex so the faces are unequal, the values are closer, and a few GULLIES cross
+    // it so the boundary is broken rather than ruled.
+    var gully=Math.sin(d*0.031)*HORIZON*0.020+Math.sin(d*0.011+2.2)*HORIZON*0.014;
+    var lit=(d<Math.round(HORIZON*0.14)+gully);
+    g.fillStyle=css(lit?rockA:rockB);
+    g.fillRect(sx,ty,1,base-ty+1);
+    if(ty<snowLine){
+      // and the snowline is nearly LEVEL: it is an altitude. A heavy scallop turned it into a curtain
+      // hanging on the mountain rather than a line the mountain rises through.
+      var capH=Math.min(base-ty, snowLine-ty+Math.round(Math.sin(wx*0.021)*2.2*K+Math.sin(wx*0.0074+1.1)*3*K));
+      if(capH>0){ g.fillStyle=css(lit?snow:snowS); g.fillRect(sx,ty,1,capH); }
+    }
+    g.fillStyle=day?"rgba(255,255,255,0.5)":"rgba(150,170,210,0.25)";   // a hard highlight on the ridge
+    g.fillRect(sx,ty,1,Math.max(1,Math.round(K*0.8)));
+  }
+  // conifers on the lower flanks — dark, spiky, and only BELOW the snowline, which is what makes the
+  // snowline visible as a fact about the mountain rather than a paint choice
+  var seedW=(WORLD_SEED*2654435761)>>>0;
+  for(var t=0;t<28;t++){
+    var h=((t*2654435761)^(seedW>>>9))>>>0;
+    var off=(((h%1000)/1000)-0.5)*hw*1.7;
+    var wx2=Math.round(FA_ICE*WW+off), sx2=rsX(FA_ICE)+Math.round(off);
+    if(sx2<-8||sx2>SW+8) continue;
+    var ty2=faIceTop(wx2); if(ty2<0) continue;
+    var gy2=ty2+Math.round(((h>>>11)%100)/100*(rsFieldY(wx2)-ty2)*0.85)+Math.round(4*K);
+    if(gy2<Math.round(HORIZON*0.33)) continue;                 // nothing grows above the snowline
+    var th=Math.round(HORIZON*0.022)+((h>>>19)%Math.max(1,Math.round(HORIZON*0.018)));
+    g.fillStyle=day?"rgba(38,64,44,1)":"rgba(10,16,26,1)";
+    for(var v=0;v<th;v++){
+      var w2=Math.max(1,Math.round((th-v)*0.55));
+      g.fillRect(sx2-(w2>>1),gy2-v,w2,1);
+    }
+  }
+}
+// ---- THE WHITE KNIGHTS' CASTLE ---------------------------------------------------------------
+// ⚠ IT MUST NOT BE LUMBRIDGE'S CASTLE IN A PALER COLOUR. Two castles on two lands in one set is the
+// "one shape repeated" fault the karst land was the third to teach. So the shapes are deliberately
+// opposed: Lumbridge is WIDE, TAN and FLAT-TOPPED, four square towers on a low motte. This one is
+// TALL, WHITE and POINTED — slim towers under steep slate spires, a gatehouse with a raised portcullis,
+// and it stands on the flat, not on a mound.
+function drawFalCastle(g,cx,day,K,L,white,whiteD,whiteS,slate,slateD){
+  var base=rsStandY(FA_CASTLE*WW,0.56);
+  var W=Math.round(HORIZON*0.50), H=Math.round(HORIZON*0.30), x0=cx-(W>>1);
+  var night=(L<=0.5);
+  lumShadow(g,cx,base,Math.round(W*1.05),day);
+  function merlon(x,w,y){
+    var st=Math.max(3,Math.round(4.2*K)), mw=Math.max(2,Math.round(2.2*K)), mh=Math.max(2,Math.round(2.4*K));
+    g.fillStyle=css(white);
+    for(var m=x;m<x+w-mw;m+=st) g.fillRect(m,y-mh,mw,mh);
+  }
+  function spire(x,w,y,h){                                     // the steep slate cone that says FALADOR
+    for(var r=0;r<h;r++){
+      var w2=Math.max(1,Math.round((w+Math.round(2*K))*(1-r/h)));
+      g.fillStyle=css((r%Math.max(2,Math.round(2*K))<Math.max(1,Math.round(K)))?slate:slateD);
+      g.fillRect(x-Math.round(K)+(((w+Math.round(2*K))-w2)>>1),y-1-r,w2,1);
+    }
+  }
+  // the courtyard hall, drawn BEFORE the wall so only its roof clears the parapet
+  g.fillStyle=css(whiteD); g.fillRect(x0+Math.round(W*0.30),base-H-Math.round(H*0.34),Math.round(W*0.40),Math.round(H*0.5));
+  spire(x0+Math.round(W*0.30),Math.round(W*0.40),base-H-Math.round(H*0.34),Math.round(H*0.34));
+  // the curtain
+  g.fillStyle=css(white);  g.fillRect(x0,base-H,W,H);
+  g.fillStyle=css(whiteS); g.fillRect(x0,base-Math.round(H*0.09),W,Math.round(H*0.09));
+  merlon(x0,W,base-H);
+  // the gatehouse: an arch with a PORTCULLIS in it — the grid is the mark that says this gate is manned
+  var gw=Math.round(W*0.15), gh=Math.round(H*0.66), gx=cx-(gw>>1);
+  g.fillStyle=day?"rgba(40,42,50,0.92)":"rgba(8,8,14,0.94)";
+  g.fillRect(gx,base-gh,gw,gh);
+  for(var ga=0;ga<Math.round(gw*0.5);ga++){
+    var gaw=Math.round(gw*Math.sqrt(Math.max(0,1-Math.pow(ga/(gw*0.5),2))));
+    g.fillRect(gx+((gw-gaw)>>1),base-gh-ga,gaw,1);
+  }
+  g.fillStyle=day?"rgba(150,152,158,0.85)":"rgba(70,74,86,0.7)";
+  for(var pv=0;pv<gw;pv+=Math.max(2,Math.round(2.2*K))) g.fillRect(gx+pv,base-gh,Math.max(1,Math.round(K*0.8)),Math.round(gh*0.46));
+  for(var phz=0;phz<Math.round(gh*0.46);phz+=Math.max(2,Math.round(2.2*K))) g.fillRect(gx,base-gh+phz,gw,Math.max(1,Math.round(K*0.8)));
+  // three towers: two flanking the gate, one keep tower taller than both and off-centre
+  var TW=[[0.06,1.28],[0.94,1.28],[0.34,1.86]];
+  for(var t=0;t<3;t++){
+    var tw=Math.round(W*0.115), th=Math.round(H*TW[t][1]);
+    var tx=x0+Math.round(W*TW[t][0])-(tw>>1);
+    g.fillStyle=css(white);  g.fillRect(tx,base-th,tw,th);
+    g.fillStyle=css(whiteD); g.fillRect(tx,base-th,Math.max(1,Math.round(K*1.2)),th);
+    g.fillStyle=css(whiteS); g.fillRect(tx+tw-Math.max(1,Math.round(K*1.2)),base-th,Math.max(1,Math.round(K*1.2)),th);
+    merlon(tx,tw,base-th);
+    spire(tx,tw,base-th-Math.round(2.4*K),Math.round(H*0.52));
+    g.fillStyle=night?"rgba(255,204,120,0.9)":"rgba(44,46,54,0.85)";
+    for(var sl=1;sl<=3;sl++)
+      g.fillRect(tx+((tw-Math.max(2,Math.round(2*K)))>>1),base-Math.round(th*(0.20*sl+0.14)),Math.max(2,Math.round(2*K)),Math.round(3.6*K));
+  }
+}
+// ---- A GATEHOUSE, and the wall stubs that die out either side ---------------------------------
+function drawFalGate(g,cx,day,K,white,whiteD,whiteS,slate,slateD,frac,dir){
+  var base=rsStandY(frac*WW,0.54);
+  var tw=Math.round(HORIZON*0.052), th=Math.round(HORIZON*0.155), gap=Math.round(HORIZON*0.075);
+  lumShadow(g,cx,base,Math.round((gap+tw*2)*1.1),day);
+  // ⚠ THE STUBS TAPER TO NOTHING. A wall that simply stops is a cut-off wall; one that steps down in
+  // three falling runs reads as a wall going away from you, and it stops the eye before it starts
+  // counting merlons — which is the exact moment horizontal repetition becomes visible.
+  for(var sd=0;sd<2;sd++){
+    var sgn=sd?1:-1, wx0=cx+sgn*Math.round(gap*0.5+tw);
+    for(var seg=0;seg<3;seg++){
+      var sh=Math.round(th*(0.52-seg*0.15)), sw=Math.round(HORIZON*(0.075-seg*0.018));
+      var sx=wx0+sgn*Math.round(HORIZON*(0.0+seg*0.078));
+      var xa=sgn>0?sx:sx-sw;
+      g.fillStyle=css(white);  g.fillRect(xa,base-sh,sw,sh);
+      g.fillStyle=css(whiteS); g.fillRect(xa,base-Math.round(sh*0.12),sw,Math.round(sh*0.12));
+      var st=Math.max(3,Math.round(4*K)), mw=Math.max(2,Math.round(2*K));
+      g.fillStyle=css(white);
+      for(var m=xa;m<xa+sw-mw;m+=st) g.fillRect(m,base-sh-Math.round(2*K),mw,Math.round(2*K));
+    }
+  }
+  for(var t2=0;t2<2;t2++){
+    var tx=cx+(t2?1:-1)*Math.round(gap*0.5)-(t2?0:tw);
+    g.fillStyle=css(white);  g.fillRect(tx,base-th,tw,th);
+    g.fillStyle=css(whiteD); g.fillRect(tx,base-th,Math.max(1,Math.round(K)),th);
+    g.fillStyle=css(whiteS); g.fillRect(tx+tw-Math.max(1,Math.round(K)),base-th,Math.max(1,Math.round(K)),th);
+    var st2=Math.max(3,Math.round(3.6*K)), mw2=Math.max(2,Math.round(1.8*K));
+    g.fillStyle=css(white);
+    for(var m2=tx;m2<tx+tw-mw2;m2+=st2) g.fillRect(m2,base-th-Math.round(2.2*K),mw2,Math.round(2.2*K));
+    var rh=Math.round(HORIZON*0.030);                          // each gate tower gets its own little spire
+    for(var r=0;r<rh;r++){
+      var w2=Math.max(1,Math.round((tw+Math.round(2*K))*(1-r/rh)));
+      g.fillStyle=css((r%2)?slate:slateD);
+      g.fillRect(tx-Math.round(K)+(((tw+Math.round(2*K))-w2)>>1),base-th-Math.round(2.2*K)-1-r,w2,1);
+    }
+  }
+  g.fillStyle=css(white);                                       // the span over the road
+  g.fillRect(cx-Math.round(gap*0.5)-tw,base-th,gap+tw*2,Math.round(th*0.20));
+  g.fillStyle=day?"rgba(40,42,50,0.9)":"rgba(8,8,14,0.92)";
+  g.fillRect(cx-Math.round(gap*0.38),base-Math.round(th*0.60),Math.round(gap*0.76),Math.round(th*0.60));
+}
+// ---- THE PARK: hedges, beds, the fountain and the mole hill ----------------------------------
+function drawFalPark(g,cx,day,K,P,white,whiteD){
+  var base=rsStandY(FA_PARK*WW,0.50), w=Math.round(HORIZON*0.26);
+  g.fillStyle=day?"rgba(126,170,78,0.55)":"rgba(22,32,30,0.45)";   // mown grass, a shade off the meadow
+  g.fillRect(cx-w,base-Math.round(HORIZON*0.075),w*2,Math.round(HORIZON*0.075));
+  // clipped hedges along the front — LOW and HORIZONTAL, so they describe the ground rather than
+  // standing on it (the fence-post lesson from Lumbridge, applied first time here)
+  // ⚠ CLIPPED HEDGES ARE THE ONE THING ON THIS LAND ALLOWED TO LOOK REGULAR, AND EVEN THEY CANNOT BE
+  // AN ARITHMETIC PROGRESSION. The first cut stepped one identical block every HORIZON*0.055 and read
+  // as a dashed line — the `(i*K+salt)%WW` lattice fault in topiary. Broken three ways (stride, length,
+  // height) while staying visibly a clipped hedge.
+  var hSeed=(WORLD_SEED*40503)>>>0;
+  for(var hx=-w,hi=0;hx<w;hi++){
+    var hh3=((hi*2246822519)^hSeed)>>>0;
+    var hw2=Math.round(HORIZON*0.030)+((hh3%Math.max(1,Math.round(HORIZON*0.030))));
+    var hht=Math.round(HORIZON*0.013)+((hh3>>>9)%Math.max(1,Math.round(HORIZON*0.008)));
+    g.fillStyle=day?"rgba(48,92,44,1)":"rgba(12,22,20,1)";
+    g.fillRect(cx+hx,base-hht,hw2,hht);
+    g.fillStyle=day?"rgba(78,126,58,1)":"rgba(18,30,26,1)";        // a lit top, so it is a solid not a bar
+    g.fillRect(cx+hx,base-hht,hw2,Math.max(1,Math.round(K*0.7)));
+    hx+=hw2+Math.round(HORIZON*0.006)+((hh3>>>17)%Math.max(1,Math.round(HORIZON*0.016)));
+  }
+  // flower beds: the only saturated non-green marks on this land, which is what makes a park read
+  var seedW=(WORLD_SEED*2654435761)>>>0, BC=[[228,86,96],[240,214,88],[204,120,208],[248,248,244]];
+  for(var b=0;b<18;b++){
+    var h=((b*2654435761)^(seedW>>>3))>>>0;
+    var bx=cx-w+((h%1000)/1000)*w*2, by=base-Math.round(HORIZON*0.020)-((h>>>11)%Math.round(HORIZON*0.045));
+    var c=BC[(h>>>19)%4];
+    g.fillStyle=day?css(c):css(mixc(c,[14,18,38],0.74));
+    g.fillRect(bx|0,by|0,Math.max(1,Math.round(1.6*K)),Math.max(1,Math.round(1.4*K)));
+  }
+  // the fountain: a stone basin on a plinth. The jet and its ripples are LIVE — a still fountain is
+  // an ornament, a moving one is the middle of a town.
+  var fy=base-Math.round(HORIZON*0.010), fw=Math.round(HORIZON*0.082);
+  lumShadow(g,cx,fy,Math.round(fw*1.15),day);
+  g.fillStyle=css(white);  g.fillRect(cx-(fw>>1),fy-Math.round(HORIZON*0.034),fw,Math.round(HORIZON*0.034));
+  g.fillStyle=css(whiteD); g.fillRect(cx-(fw>>1),fy-Math.round(HORIZON*0.034),fw,Math.max(1,Math.round(K*1.4)));
+  g.fillStyle=day?"rgba(96,158,200,0.9)":"rgba(30,52,86,0.9)";
+  g.fillRect(cx-(fw>>1)+Math.round(K),fy-Math.round(HORIZON*0.030),fw-Math.round(2*K),Math.max(1,Math.round(2.2*K)));
+  g.fillStyle=css(white);
+  g.fillRect(cx-Math.round(2*K),fy-Math.round(HORIZON*0.062),Math.round(4*K),Math.round(HORIZON*0.030));
+  // ---- THE MOLE HILL: fresh dark earth thrown up in the middle of a manicured park, with a hole in
+  // it. One dark mark on the tidiest thing on the land, which is the whole joke.
+  var mx=cx+Math.round(w*0.62), my=base-Math.round(HORIZON*0.004);
+  var mw=Math.round(HORIZON*0.070), mh=Math.round(HORIZON*0.032);
+  for(var v=0;v<mh;v++){
+    var mw2=Math.round(mw*(1-Math.pow(v/mh,1.6)*0.55));
+    g.fillStyle=day?"rgba(86,66,46,1)":"rgba(18,16,20,1)";
+    g.fillRect(mx-(mw2>>1),my-v,mw2,1);
+  }
+  g.fillStyle="rgba(8,8,10,0.95)";
+  g.fillRect(mx-Math.round(1.8*K),my-Math.round(mh*0.72),Math.round(3.6*K),Math.round(mh*0.55));
+}
+// ---- THE SQUARE: the well and the inn ---------------------------------------------------------
+function drawFalSquare(g,cx,day,K,L,P,white,whiteD,slate,slateD){
+  var base=rsStandY(FA_SQUARE*WW,0.52), night=(L<=0.5);
+  // the well: a stone ring, two posts and a little pitched roof over it
+  var ww2=Math.round(HORIZON*0.034), wy=base;
+  lumShadow(g,cx,wy,Math.round(ww2*1.6),day);
+  g.fillStyle=css(white);  g.fillRect(cx-(ww2>>1),wy-Math.round(HORIZON*0.020),ww2,Math.round(HORIZON*0.020));
+  g.fillStyle="rgba(10,10,14,0.9)";
+  g.fillRect(cx-(ww2>>1)+Math.round(K),wy-Math.round(HORIZON*0.020),ww2-Math.round(2*K),Math.max(1,Math.round(1.6*K)));
+  g.fillStyle=css(P.wood);
+  g.fillRect(cx-(ww2>>1),wy-Math.round(HORIZON*0.055),Math.max(1,Math.round(K)),Math.round(HORIZON*0.035));
+  g.fillRect(cx+(ww2>>1)-Math.round(K),wy-Math.round(HORIZON*0.055),Math.max(1,Math.round(K)),Math.round(HORIZON*0.035));
+  var rh=Math.round(HORIZON*0.016);
+  for(var r=0;r<rh;r++){
+    var w3=Math.max(1,Math.round((ww2+Math.round(4*K))*(1-r/rh)));
+    g.fillStyle=css((r%2)?slate:slateD);
+    g.fillRect(cx-((ww2+Math.round(4*K))>>1)+(((ww2+Math.round(4*K))-w3)>>1),wy-Math.round(HORIZON*0.055)-1-r,w3,1);
+  }
+  // the inn, east of the well: the biggest roof in the square, a lit doorway and a hanging sign
+  var ix=cx+Math.round(HORIZON*0.085), iw=Math.round(HORIZON*0.105), ih=Math.round(HORIZON*0.098);
+  lumShadow(g,ix,base,Math.round(iw*1.15),day);
+  g.fillStyle=css(white);  g.fillRect(ix-(iw>>1),base-ih,iw,ih);
+  g.fillStyle=css(whiteD); g.fillRect(ix+(iw>>1)-Math.round(1.4*K),base-ih,Math.round(1.4*K),ih);
+  var irh=Math.round(iw*0.58), ov=Math.round(1.8*K);
+  for(var r2=0;r2<irh;r2++){
+    var w4=Math.max(1,Math.round((iw+ov*2)*(1-r2/irh)));
+    g.fillStyle=css((r2%Math.max(2,Math.round(2*K))<Math.max(1,Math.round(K)))?slate:slateD);
+    g.fillRect(ix-((iw+ov*2)>>1)+(((iw+ov*2)-w4)>>1),base-ih-1-r2,w4,1);
+  }
+  g.fillStyle=night?"rgba(255,196,96,0.9)":"rgba(34,30,28,0.9)";
+  g.fillRect(ix-Math.round(2.2*K),base-Math.round(ih*0.5),Math.round(4.4*K),Math.round(ih*0.5));
+  g.fillStyle=css(P.wood); g.fillRect(ix+(iw>>1),base-Math.round(ih*0.78),Math.round(2.4*K),Math.max(1,Math.round(K)));
+  g.fillStyle=day?"rgba(122,94,62,1)":"rgba(24,22,30,1)";
+  g.fillRect(ix+(iw>>1)+Math.round(2*K),base-Math.round(ih*0.80),Math.round(5*K),Math.round(4.4*K));
+  g.fillStyle=day?"rgba(240,214,140,0.95)":"rgba(120,110,90,0.7)";   // a painted sun on the board
+  g.fillRect(ix+(iw>>1)+Math.round(3.4*K),base-Math.round(ih*0.80)+Math.round(1.4*K),Math.round(2.2*K),Math.round(2.2*K));
+}
+// ---- THE SMITHY -------------------------------------------------------------------------------
+function drawFalSmithy(g,cx,day,K,L,P,white,whiteD,slate,slateD){
+  var base=rsStandY(FA_SMITHY*WW,0.52);
+  var w=Math.round(HORIZON*0.098), h=Math.round(HORIZON*0.085);
+  lumShadow(g,cx,base,Math.round(w*1.2),day);
+  g.fillStyle=css(white);  g.fillRect(cx-(w>>1),base-h,w,h);
+  g.fillStyle=css(whiteD); g.fillRect(cx+(w>>1)-Math.round(1.4*K),base-h,Math.round(1.4*K),h);
+  var rh=Math.round(w*0.5), ov=Math.round(1.6*K);
+  for(var r=0;r<rh;r++){
+    var w2=Math.max(1,Math.round((w+ov*2)*(1-r/rh)));
+    g.fillStyle=css((r%2)?slate:slateD);
+    g.fillRect(cx-((w+ov*2)>>1)+(((w+ov*2)-w2)>>1),base-h-1-r,w2,1);
+  }
+  // the great chimney — the tallest thing in the town after the castle, and the reason you can find
+  // the smithy from another screen
+  var chw=Math.round(HORIZON*0.026), chh=Math.round(HORIZON*0.085);
+  var chx=cx-Math.round(w*0.34);
+  g.fillStyle=css(whiteD); g.fillRect(chx,base-h-chh,chw,chh+Math.round(h*0.4));
+  g.fillStyle=day?"rgba(58,54,52,0.8)":"rgba(10,10,16,0.9)";
+  g.fillRect(chx-Math.round(K),base-h-chh,chw+Math.round(2*K),Math.round(1.8*K));
+  // the open front. The FURNACE inside it is drawn live — a forge that does not flicker is a cupboard.
+  g.fillStyle="rgba(24,18,16,0.95)";
+  g.fillRect(cx-Math.round(w*0.22),base-Math.round(h*0.56),Math.round(w*0.44),Math.round(h*0.56));
+  g.fillStyle=css(P.wood);                                       // the anvil outside the door
+  g.fillRect(cx+Math.round(w*0.40),base-Math.round(3.4*K),Math.round(4*K),Math.round(1.6*K));
+  g.fillRect(cx+Math.round(w*0.40)+Math.round(1.2*K),base-Math.round(2*K),Math.round(1.6*K),Math.round(2*K));
+}
+// ---- THE DWARVEN MINE at the mountain's foot ---------------------------------------------------
+function drawFalMine(g,cx,day,K,P){
+  var base=rsStandY(FA_MINE*WW,0.44);
+  // the spoil heap: grey waste rock, which is also the only bare ground on this side of the land
+  var sw=Math.round(HORIZON*0.16), sh=Math.round(HORIZON*0.042);
+  for(var v=0;v<sh;v++){
+    var w2=Math.round(sw*(1-Math.pow(v/sh,1.5)*0.5));
+    g.fillStyle=day?"rgba(126,124,120,1)":"rgba(24,26,34,1)";
+    g.fillRect(cx-(w2>>1)+Math.round(sw*0.5),base-v,w2,1);
+  }
+  // the adit: a timbered mouth cut into the rock. Near-black, and on this land it is the DARKEST mark
+  // there is — the white city's opposite number.
+  var aw=Math.round(HORIZON*0.072), ah=Math.round(HORIZON*0.082);
+  var ax=cx-Math.round(HORIZON*0.05);
+  g.fillStyle=day?"rgba(96,98,104,1)":"rgba(20,22,30,1)";
+  for(var rv=0;rv<ah+Math.round(4*K);rv++){
+    var rw=Math.round((aw+Math.round(10*K))*(1-Math.pow(rv/(ah+Math.round(4*K)),1.7)*0.4));
+    g.fillRect(ax-(rw>>1),base-rv,rw,1);
+  }
+  g.fillStyle="rgba(6,6,10,0.97)";
+  g.fillRect(ax-(aw>>1),base-ah,aw,ah);
+  for(var ca=0;ca<Math.round(aw*0.5);ca++){
+    var caw=Math.round(aw*Math.sqrt(Math.max(0,1-Math.pow(ca/(aw*0.5),2))));
+    g.fillRect(ax-(caw>>1),base-ah-ca,caw,1);
+  }
+  g.fillStyle=css(P.wood);                                       // the timber frame around the mouth
+  g.fillRect(ax-(aw>>1)-Math.round(1.6*K),base-ah,Math.round(1.6*K),ah);
+  g.fillRect(ax+(aw>>1),base-ah,Math.round(1.6*K),ah);
+  g.fillRect(ax-(aw>>1)-Math.round(2.4*K),base-ah-Math.round(1.8*K),aw+Math.round(5*K),Math.round(1.8*K));
+  // rails running out of it toward the town, sleepers and all
+  g.fillStyle=day?"rgba(72,66,58,1)":"rgba(14,14,20,1)";
+  for(var sx=ax;sx>ax-Math.round(HORIZON*0.14);sx-=Math.max(3,Math.round(3.4*K)))
+    g.fillRect(sx,base+Math.round(K),Math.max(1,Math.round(2*K)),Math.max(1,Math.round(K*0.8)));
+  g.fillStyle=day?"rgba(150,146,138,1)":"rgba(40,42,50,1)";
+  g.fillRect(ax-Math.round(HORIZON*0.14),base,Math.round(HORIZON*0.14),Math.max(1,Math.round(K*0.6)));
+}
+// ---- THE FARM ---------------------------------------------------------------------------------
+function drawFalFarm(g,cx,day,K,P){
+  var pyF=rsStandY(FA_FARM*WW,0.54), pyB=rsStandY(FA_FARM*WW,0.30), pw=Math.round(HORIZON*0.24);
+  g.fillStyle=day?"rgba(122,162,66,0.5)":"rgba(20,28,30,0.45)";
+  g.fillRect(cx-pw,pyB,pw*2,pyF-pyB);
+  for(var rail=0;rail<2;rail++){
+    var ry=rail?pyF:pyB, rh=Math.round(HORIZON*(rail?0.028:0.018));
+    g.fillStyle=css(P.wood);
+    for(var fp=-pw;fp<=pw;fp+=Math.round(HORIZON*(rail?0.036:0.028)))
+      g.fillRect(cx+fp,ry-rh,Math.max(1,Math.round(K*0.9)),rh);
+    for(var fr=0;fr<2;fr++) g.fillRect(cx-pw,ry-Math.round(rh*(fr?0.4:0.85)),pw*2,Math.max(1,Math.round(K*0.7)));
+  }
+  // the barn: a big dark roof, the one non-white building on this land, which is what makes the farm
+  // read as OUTSIDE the town
+  var bx=cx-Math.round(pw*0.86), bw=Math.round(HORIZON*0.085), bh=Math.round(HORIZON*0.062);
+  var by=rsStandY((FA_FARM-0.018)*WW,0.44);
+  lumShadow(g,bx,by,Math.round(bw*1.15),day);
+  g.fillStyle=day?"rgba(148,104,72,1)":"rgba(26,22,26,1)";
+  g.fillRect(bx-(bw>>1),by-bh,bw,bh);
+  var rh2=Math.round(bw*0.52);
+  for(var r=0;r<rh2;r++){
+    var w2=Math.max(1,Math.round((bw+Math.round(3*K))*(1-r/rh2)));
+    g.fillStyle=day?((r%2)?"#5e4636":"#4a3628"):"rgba(14,12,18,1)";
+    g.fillRect(bx-((bw+Math.round(3*K))>>1)+(((bw+Math.round(3*K))-w2)>>1),by-bh-1-r,w2,1);
+  }
+  g.fillStyle="rgba(18,14,12,0.92)";
+  g.fillRect(bx-Math.round(bw*0.16),by-Math.round(bh*0.62),Math.round(bw*0.32),Math.round(bh*0.62));
+}
+// ============ FALADOR, LIVE ============
+// The fountain's jet, the forge's fire and the flock in the farm's pens. ⚠ ALL THREE ARE THINGS THAT
+// PULSE, and a pulse drawn in the ~0.5 fps backdrop does not pulse, it STEPS — which is what reads as
+// the whole wallpaper juddering. The forge is the clearest case: a fire that changes twice a second
+// is a lamp with a fault.
+function drawFaladorLive(g,L,now,nd,fx){
+  if(curRs!=="falador") return;
+  var day=L>0.5, K=Math.max(1,KSP), seedW=(WORLD_SEED*2654435761)>>>0;
+  function onX(f){ var x=Math.round(f*WW)-WOFF; if(x<-WW*0.5) x+=WW; if(x>WW*0.5) x-=WW; return x; }
+  // ---- THE FOUNTAIN. A jet that rises and falls, and rings on the water under it.
+  var px=onX(FA_PARK);
+  if(px>-HORIZON*0.5&&px<SW+HORIZON*0.5){
+    var base=rsStandY(FA_PARK*WW,0.50), fy=base-Math.round(HORIZON*0.010);
+    var jt=(now%2400)/2400, jh=Math.round(HORIZON*(0.026+0.012*Math.sin(jt*Math.PI*2)));
+    g.fillStyle=day?"rgba(226,242,255,0.9)":"rgba(150,186,224,0.75)";
+    g.fillRect(px-Math.max(1,Math.round(K*0.6)),fy-Math.round(HORIZON*0.062)-jh,Math.max(1,Math.round(1.2*K)),jh);
+    // the falling water, two arcs either side — drawn as short falling dashes, phase-offset
+    for(var dsh=0;dsh<5;dsh++){
+      var df=((now/900+dsh/5)%1);
+      var dx=Math.round(Math.sin((dsh/5)*Math.PI*2)*HORIZON*0.020);
+      var dy=fy-Math.round(HORIZON*0.062)-jh+df*(jh+Math.round(HORIZON*0.030));
+      g.fillStyle=day?"rgba(206,232,252,0.8)":"rgba(130,164,206,0.6)";
+      g.fillRect(px+dx,dy|0,Math.max(1,Math.round(K*0.7)),Math.max(1,Math.round(1.4*K)));
+    }
+    var rip=(now%1600)/1600;
+    g.fillStyle=day?"rgba(255,255,255,"+(0.5*(1-rip)).toFixed(2)+")":"rgba(170,200,235,"+(0.35*(1-rip)).toFixed(2)+")";
+    var rw=Math.round(HORIZON*0.016+rip*HORIZON*0.026);
+    g.fillRect(px-(rw>>1),fy-Math.round(HORIZON*0.028),rw,Math.max(1,Math.round(K*0.6)));
+  }
+  // ---- THE FORGE. The one warm light on a white-and-green land, and it BREATHES: a smith's fire
+  // brightens as it is worked, so the pulse is irregular rather than a sine.
+  var sx=onX(FA_SMITHY);
+  if(sx>-HORIZON*0.5&&sx<SW+HORIZON*0.5){
+    var sb=rsStandY(FA_SMITHY*WW,0.52), sw=Math.round(HORIZON*0.098), sh=Math.round(HORIZON*0.085);
+    var beat=0.55+0.45*Math.abs(Math.sin(now/430)*0.6+Math.sin(now/1170)*0.4);
+    var fw=Math.round(sw*0.44), fx2=sx-Math.round(sw*0.22);
+    g.globalCompositeOperation="lighter";
+    g.fillStyle="rgba(255,138,40,"+(0.42*beat).toFixed(3)+")";
+    g.fillRect(fx2,sb-Math.round(sh*0.50),fw,Math.round(sh*0.50));
+    g.fillStyle="rgba(255,214,120,"+(0.5*beat).toFixed(3)+")";
+    g.fillRect(fx2+Math.round(fw*0.28),sb-Math.round(sh*0.34),Math.round(fw*0.44),Math.round(sh*0.34));
+    g.globalCompositeOperation="source-over";
+    // sparks off the anvil, on the hammer's beat
+    for(var sp=0;sp<4;sp++){
+      var spf=((now/620+sp/4)%1);
+      if(spf>0.6) continue;
+      var ax=sx+Math.round(sw*0.40)+Math.round(2*K);
+      g.fillStyle="rgba(255,206,120,"+(0.9*(1-spf/0.6)).toFixed(2)+")";
+      g.fillRect(ax+Math.round(Math.cos(sp*2.1)*spf*6*K),
+                 sb-Math.round(3.4*K)-Math.round(Math.sin(sp*2.1+0.7)*spf*5*K)+Math.round(spf*spf*7*K),
+                 Math.max(1,Math.round(K*0.6)),Math.max(1,Math.round(K*0.6)));
+    }
+    // smoke from the great chimney, drifting on the real wind
+    var wind=Math.max(0.3,Math.min(2.4,((weather&&weather.wind)||8)/9));
+    var chx=sx-Math.round(sw*0.34)+Math.round(HORIZON*0.013), chy=sb-sh-Math.round(HORIZON*0.085);
+    for(var sm=0;sm<7;sm++){
+      var mf=((now/2600+sm/7)%1);
+      var my=chy-mf*HORIZON*0.10, mx=chx+mf*wind*HORIZON*0.05;
+      var mw=Math.round((1.4+mf*4)*K);
+      g.fillStyle="rgba(196,198,206,"+(0.30*(1-mf)).toFixed(2)+")";
+      g.fillRect(mx|0,my|0,mw,Math.max(1,Math.round(1.6*K)));
+    }
+  }
+  // ---- THE FLOCK in the farm's pens, grazing on their own hashes. Same law as Lumbridge's cattle:
+  // each animal walks a BEAT of its pen, never its whole width, or the flock is a conveyor.
+  var fx3=onX(FA_FARM);
+  if(fx3>-HORIZON&&fx3<SW+HORIZON){
+    var pyF=rsStandY(FA_FARM*WW,0.54), pyB=rsStandY(FA_FARM*WW,0.30), pw=Math.round(HORIZON*0.24);
+    for(var sheep=0;sheep<7;sheep++){
+      var h=((sheep*2654435761)^(seedW>>>5))>>>0;
+      var lane=pyB+Math.round(((h>>>7)%100)/100*(pyF-pyB-Math.round(4*K)));
+      var per=30000+((h>>>17)%20000), phs=((now+((h>>>3)%per))%per)/per;
+      var homeX=fx3-pw*0.9+((h%100)/100)*pw*1.8;
+      var bx=Math.round(homeX+Math.sin(phs*Math.PI*2)*pw*0.16);
+      var bw=Math.max(3,Math.round(3.8*K)), bh=Math.max(2,Math.round(2.6*K));
+      g.fillStyle=day?"rgba(242,240,234,1)":"rgba(44,46,58,1)";
+      g.fillRect(bx,lane-bh,bw,bh);
+      g.fillStyle=day?"rgba(48,44,42,1)":"rgba(18,20,30,1)";
+      g.fillRect(bx+(Math.sin(phs*Math.PI*2)>0?bw-Math.round(K):0),lane-bh,Math.max(1,Math.round(1.4*K)),Math.max(2,Math.round(1.8*K)));
+    }
+  }
+}
+// ============================================================================================
+// THE PLAYERS — teleports, quests, quest chatter and trades. All four OSRS lands.
+// ============================================================================================
+// Nick, 2026-08-04: *"make sure you add players teleporting and doing quests and talking about doing
+// quests and trading items in all of these maps."*
+//
+// 🔑 THIS IS THE LAYER THAT MAKES THEM READ AS THE GAME RATHER THAN AS MEDIEVAL TOWNS. The castle
+// says which city it is; the figure who appears in a column of light, stands about, trades a pile of
+// items with a stranger and vanishes mid-conversation says which WORLD it is. It is shared by all
+// four lands on purpose — the behaviours belong to the world, not to Falador.
+//
+// 🔒 SCRIPTED FROM THE CLOCK, NEVER ACCUMULATED. His three monitors are three independent processes.
+// Every player's slot, position, behaviour and phase is a pure function of (world seed, slot, now),
+// so a player mid-teleport on screen 2 is mid-teleport at the same instant on screens 1 and 3 — and a
+// player who walks across a bezel arrives on the other side in the right place.
+// ⚠ …AND THE WHOLE THING IS DRIVEN IN WORLD X. The roof runners on the hidden village were indexed by
+// a SCREEN-space list and the same runner leapt in three different places on three monitors. That is
+// the fourth costume of this fault; it is not getting a fifth.
+var RS_PLAYER_C=[[196,58,52],[58,96,196],[212,168,52],[86,168,86],[168,86,196],[224,224,228],
+                 [58,168,168],[224,120,52],[124,124,132],[152,52,96]];
+// what they say while they are standing about. Short — a bubble wider than a shop is a UI element,
+// not a person talking.
+var RS_QUEST_SAY=["ANY QUESTS LEFT?","NEED 3 MORE","GOT THE AMULET","WHERE'S THE COOK?","FIRST TRY!",
+                  "IS IT SAFE DOWN THERE?","I NEED A ROPE","ALMOST DONE","TAKING THE LONG WAY",
+                  "WHO HAS SPARE ORE?","ON MY WAY","BE THERE IN A SEC"];
+var RS_TRADE_SAY=["TRADE?","ACCEPTED","2K FOR IT","NICE DOING BUSINESS","THAT'S FAIR","ADDING ONE MORE",
+                  "DEAL","THANKS!","GOT ANY MORE?","SOLD"];
+// where an adventurer stands about on each land: the named places, because that is where quests are.
+function rsHaunts(){
+  switch(curRs){
+    case "falador":  return [FA_CASTLE,FA_SQUARE,FA_SMITHY,FA_PARK,FA_MINE,FA_WGATE,FA_SGATE];
+    default:         return [LB_CASTLE,LB_SHOPS,LB_RIVER,LB_CHURCH,LB_SWAMP,LB_COWS,LB_GATE];
+  }
+}
+// ⚠ ONE FIGURE, ONE ROUTINE, EVERY BEHAVIOUR. Two copies of "draw a little person" is how the two
+// halves of a trade end up different heights.
+function drawRsFigure(g,x,gy,K,col,day,pose,facing){
+  var h=Math.max(6,Math.round(8.2*K)), w=Math.max(3,Math.round(3.0*K));
+  var body=day?col:mixc(col,[16,20,40],0.55);
+  var skin=day?[228,190,152]:[96,84,80];
+  g.fillStyle=css(body);
+  g.fillRect(x-(w>>1),gy-h+Math.round(2*K),w,h-Math.round(2*K));
+  g.fillStyle=css(skin);
+  g.fillRect(x-(w>>1)+(facing>0?Math.round(K*0.3):-Math.round(K*0.3))|0,gy-h,w,Math.round(2.2*K));
+  // legs: a stride when walking, together when standing. One pixel of difference and the eye reads
+  // motion — the same trick the goblins and the roof runners use.
+  g.fillStyle=day?"rgba(48,46,58,1)":"rgba(12,14,26,1)";
+  if(pose==="walk"){
+    g.fillRect(x-(w>>1)-Math.round(K*0.4),gy-Math.round(1.6*K),Math.max(1,Math.round(K)),Math.round(1.6*K));
+    g.fillRect(x+(w>>1)-Math.round(K*0.6),gy-Math.round(1.2*K),Math.max(1,Math.round(K)),Math.round(1.2*K));
+  } else {
+    g.fillRect(x-(w>>1),gy-Math.round(1.4*K),Math.max(1,Math.round(K)),Math.round(1.4*K));
+    g.fillRect(x+(w>>1)-Math.round(K),gy-Math.round(1.4*K),Math.max(1,Math.round(K)),Math.round(1.4*K));
+  }
+  // a weapon on the back for about half of them — the one mark that separates an adventurer from a
+  // townsperson at six pixels tall
+  if(pose!=="tele"){
+    g.fillStyle=day?"rgba(120,120,132,1)":"rgba(40,44,60,1)";
+    g.fillRect(x-(w>>1)-Math.round(K*0.8),gy-h+Math.round(K),Math.max(1,Math.round(K*0.7)),Math.round(3.4*K));
+  }
+}
+// THE TELEPORT. `f` 0..1 across the whole effect: a column of light that opens, a figure that fades
+// in inside it, and rings that fall away. ⚠ DRAWN WITH `lighter` LIKE EVERY OTHER GLOW IN THIS
+// ENGINE, but only briefly — additive light on a bright saturated land goes to white paste fast,
+// which is the lesson THE EMPYREAN taught ("on a bright land, additive is for night").
+function drawRsTeleport(g,x,gy,K,f,day,col){
+  // ⚠⚠ THE FIRST CUT WAS A HAIRLINE AND READ AS A SCRATCH ON THE SCREEN, not as a teleport. Three
+  // things fix it and all three are about SIZE, not brightness: a column wide enough to contain the
+  // figure, a bright disc on the ground where it lands, and rings that are wider than the column.
+  // A 2px vertical streak at any alpha is a rendering artefact to the eye.
+  var h=Math.round(HORIZON*0.115);
+  var open=Math.min(1,f*2.6), fade=Math.max(0,1-Math.max(0,(f-0.55))*2.2);
+  var a=Math.max(0,Math.min(1,open*fade));
+  if(a<=0.02) return;
+  var w=Math.max(4,Math.round(7*K*open));
+  g.globalCompositeOperation="lighter";
+  g.fillStyle=day?"rgba(140,180,255,"+(0.40*a).toFixed(3)+")":"rgba(120,170,255,"+(0.60*a).toFixed(3)+")";
+  g.fillRect(x-(w>>1),gy-h,w,h);
+  g.fillStyle=day?"rgba(230,244,255,"+(0.55*a).toFixed(3)+")":"rgba(220,238,255,"+(0.75*a).toFixed(3)+")";
+  g.fillRect(x-Math.max(1,Math.round(K*1.2)),gy-h,Math.max(2,Math.round(2.4*K)),h);
+  // the landing disc: the mark that says the column has a FOOT and is standing on the ground
+  var dw=Math.round(w*1.9);
+  g.fillStyle=day?"rgba(200,226,255,"+(0.5*a).toFixed(3)+")":"rgba(180,214,255,"+(0.6*a).toFixed(3)+")";
+  g.fillRect(x-(dw>>1),gy-Math.max(1,Math.round(K)),dw,Math.max(1,Math.round(1.6*K)));
+  // three rings falling down the column, evenly spaced in PHASE but not in space, so it reads as
+  // motion rather than as a ladder
+  for(var r=0;r<3;r++){
+    var rf=((f*2.2+r/3)%1);
+    var ry=gy-h+rf*h, rw=Math.round(w*(1.0+rf*1.5));
+    g.fillStyle="rgba(200,226,255,"+(0.55*a*(1-rf)).toFixed(3)+")";
+    g.fillRect(x-(rw>>1),ry|0,rw,Math.max(1,Math.round(1.3*K)));
+  }
+  g.globalCompositeOperation="source-over";
+}
+// is this point hidden behind a town building? screen x, screen y of the figure's FEET.
+function rsBehindRoof(sx,gy){
+  var layers=[typeof near!=="undefined"?near:null, typeof mid!=="undefined"?mid:null];
+  for(var li=0;li<layers.length;li++){
+    var Ly=layers[li]; if(!Ly||!Ly.blds) continue;
+    for(var i=0;i<Ly.blds.length;i++){
+      var b=Ly.blds[i];
+      if(b._roofY===undefined) continue;
+      if(Math.abs(sx-b._roofX)>(b.w>>1)+2) continue;
+      if(gy<b._roofY) return true;                 // feet above the ridge = standing behind it
+    }
+  }
+  return false;
+}
+function drawRsPlayers(g,L,now,nd,fx){
+  if(!curRs) return;
+  var day=L>0.5, K=Math.max(1,KSP), night=(L<=0.5);
+  var seedW=(WORLD_SEED*2654435761)>>>0, H=rsHaunts();
+  // ⚠ FEWER AT NIGHT AND FEWER IN THE END TIMES, but never none: the joke of this world is that the
+  // adventurers keep questing through anything. During the apocalypse they are the last things moving.
+  var n=(cityPhase==="apoc")?5:(night?9:16);
+  for(var i=0;i<n;i++){
+    var h=((i*2654435761)^seedW)>>>0;
+    // each player lives at one haunt for a whole visit, then reappears at another
+    var per=52000+((h>>>3)%46000);                                 // one visit, ~52-98 s
+    var cyc=Math.floor((now+((h>>>7)%per))/per);
+    var ph=(((now+((h>>>7)%per))%per)/per);
+    var vh=((h^(cyc*2246822519))>>>0);
+    var haunt=H[vh%H.length];
+    var kind=(vh>>>5)%10;                                          // 0-3 quest · 4-6 trade · 7-9 passer-by
+    var spread=HORIZON*(0.10+((vh>>>9)%100)/900);
+    var wx=Math.round(haunt*WW+((((vh>>>13)%1000)/1000)-0.5)*spread*2);
+    // ⚠⚠ SEATED AT d 0.30-0.54 THEY STOOD ON THE ROOFS. The named places — the smithy, the inn, the
+    // castle — are seated at d 0.44-0.56, so a player higher up the field than the building he came to
+    // visit is BEHIND it, and the live pass paints over everything. `rsBehindRoof` catches the town's
+    // plots (they publish `_roofY`) but the LAND's own buildings are not in `near.blds` and never will
+    // be — they are backdrop, not plots.
+    // 🔑 So the fix is placement, not a second occlusion list: an adventurer stands IN FRONT OF the
+    // thing he is visiting, which is both correct paint order and what actually happens — the crowd is
+    // outside the shop door, never behind the shop.
+    var d=0.57+((vh>>>21)%100)/100*0.07;
+    var sx=Math.round(wx)-WOFF; if(sx<-WW*0.5) sx+=WW; if(sx>WW*0.5) sx-=WW;
+    if(sx<-40||sx>SW+40) continue;
+    var gy=rsStandY(wx,d);
+    // 🚨 AND THEY MUST NOT STAND ON THE ROOFS. These figures are seated in the FIELD — behind the town
+    // — but the live pass paints over everything, so a player whose feet land above a house's ridge
+    // was drawn sitting on its tiles. The land is a backdrop and the players are foreground; the two
+    // only agree if the foreground asks what is in front of it.
+    // 🔑 Asked of the PUBLISHED apex (`_roofY`), never of `b.h` — that is a tower's final height and
+    // has already been measured wrong for exactly this kind of test.
+    if(rsBehindRoof(sx,gy)) continue;
+    var col=RS_PLAYER_C[(vh>>>17)%RS_PLAYER_C.length];
+    // ---- the visit's arc: teleport in, do the thing, teleport out
+    if(ph<0.10){ drawRsTeleport(g,sx,gy,K,ph/0.10,day,col); if(ph<0.055) continue; drawRsFigure(g,sx,gy,K,col,day,"tele",1); continue; }
+    if(ph>0.90){ drawRsTeleport(g,sx,gy,K,(ph-0.90)/0.10,day,col); if(ph>0.945) continue; drawRsFigure(g,sx,gy,K,col,day,"tele",1); continue; }
+    var t=(ph-0.10)/0.80;
+    if(kind<=3){
+      // ---- QUESTING: walk to the haunt, then stand and talk to whoever is there
+      var walk=Math.min(1,t/0.30);
+      var fromX=sx-Math.round(spread*(((vh>>>11)%2)?1:-1));
+      var px=Math.round(fromX+(sx-fromX)*walk);
+      drawRsFigure(g,px,gy,K,col,day,walk<1?"walk":"stand",sx>fromX?1:-1);
+      if(walk>=1){
+        // the quest giver: a still, drab figure that was already here. Adventurers move; the world does not.
+        drawRsFigure(g,sx+Math.round(5*K),gy,K,[150,140,120],day,"stand",-1);
+        // ⚠ TWO BUBBLES OVERPRINTED AT THE GATE — two adventurers a few px apart, both talking, both
+        // at the same height. The engine already has a lane allocator for BANNERS (`notifLane`) and
+        // nothing equivalent for bubbles; the cheap version is enough here: stagger the height by slot
+        // and let fewer of them talk at once, so a crowd murmurs rather than shouting in chorus.
+        if(((now/2600+i)|0)%3===0)
+          drawSpeechBubble(g,px,gy-Math.round(9*K)-((i%3)*Math.round(4.5*K)),
+                           RS_QUEST_SAY[((vh>>>19)+Math.floor(now/5200))%RS_QUEST_SAY.length],night);
+      }
+    } else if(kind<=6){
+      // ---- TRADING: two players facing each other with the goods stacked between them. The PILE is
+      // the recognisable part — not the pair, the heap of loose items on the ground between them.
+      var ox=Math.round(7*K);
+      drawRsFigure(g,sx-ox,gy,K,col,day,"stand",1);
+      drawRsFigure(g,sx+ox,gy,K,RS_PLAYER_C[(vh>>>23)%RS_PLAYER_C.length],day,"stand",-1);
+      var items=3+((vh>>>25)%4);
+      for(var it=0;it<items;it++){
+        var ih=((it*40503)^vh)>>>0;
+        var ix=sx-Math.round(3*K)+((ih%Math.max(1,Math.round(6*K))));
+        var iy=gy-Math.round(K)-((ih>>>9)%Math.max(1,Math.round(2.4*K)));
+        var ic=[[212,180,60],[190,196,204],[120,196,120],[196,86,196]][(ih>>>13)%4];
+        g.fillStyle=day?css(ic):css(mixc(ic,[16,20,40],0.5));
+        g.fillRect(ix,iy,Math.max(1,Math.round(1.4*K)),Math.max(1,Math.round(1.4*K)));
+      }
+      if(((now/3100+i)|0)%3===1)
+        drawSpeechBubble(g,sx-ox,gy-Math.round(9*K)-((i%3)*Math.round(4.5*K)),
+                         RS_TRADE_SAY[((vh>>>15)+Math.floor(now/6100))%RS_TRADE_SAY.length],night);
+    } else {
+      // ---- PASSING THROUGH: running the road, because most of the world is in transit. A player who
+      // only ever stands still is scenery.
+      var span=HORIZON*1.2, dir=((vh>>>3)%2)?1:-1;
+      var rx=Math.round(sx+dir*(t-0.5)*span);
+      if(rx<-20||rx>SW+20) continue;
+      drawRsFigure(g,rx,rsStandY(wx+dir*(t-0.5)*span,d),K,col,day,"walk",dir);
+    }
+  }
+}
+function drawLumbridgeLive(g,L,now,nd,fx){
+  if(curRs!=="lumbridge") return;
+  var day=L>0.5, K=Math.max(1,KSP), seedW=(WORLD_SEED*2654435761)>>>0;
+  function onX(f){ var x=Math.round(f*WW)-WOFF; if(x<-WW*0.5) x+=WW; if(x>WW*0.5) x-=WW; return x; }
+  // ---- THE SAILS. Four, on a hub, turning about once every 9 seconds — and slower in still air,
+  // faster in wind, because the one thing a windmill is FOR is telling you what the weather is doing.
+  var mx=onX(LB_MILL);
+  if(mx>-HORIZON*0.4&&mx<SW+HORIZON*0.4){
+    var wind=Math.max(0.25,Math.min(2.2,((weather&&weather.wind)||8)/9));
+    var ang=(now/9000)*wind*Math.PI*2, hy=lumMillHubY(), sl=Math.round(HORIZON*0.085);
+    g.fillStyle=day?"rgba(64,46,32,1)":"rgba(12,14,24,1)";
+    for(var s2=0;s2<4;s2++){
+      var a2=ang+s2*Math.PI*0.5, ca=Math.cos(a2), sa=Math.sin(a2);
+      for(var t3=Math.round(2*K);t3<sl;t3++){
+        var px2=Math.round(mx+ca*t3), py2=Math.round(hy+sa*t3);
+        g.fillRect(px2,py2,Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
+        // the sail cloth: a wider blade on the outer half, so it is a sail and not a spoke
+        if(t3>sl*0.42) g.fillRect(Math.round(px2-sa*2*K),Math.round(py2+ca*2*K),Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
+      }
+    }
+    g.fillStyle=day?"rgba(40,30,22,1)":"rgba(8,10,18,1)";
+    g.fillRect(mx-Math.round(1.5*K),hy-Math.round(1.5*K),Math.round(3*K),Math.round(3*K));
+  }
+  // ---- THE CATTLE, grazing inside the paddock. Each animal is a hash: its own lane, its own pace,
+  // its own turn-round time — and it walks a BEAT of the field rather than the whole width, because a
+  // herd that crosses the enclosure end to end is a conveyor. (The savanna's herd was exactly that.)
+  var cx2=onX(LB_COWS), pd=lumPaddock();
+  if(cx2>-HORIZON&&cx2<SW+HORIZON){
+    for(var c2=0;c2<6;c2++){
+      var ch=((c2*2654435761)^seedW)>>>0;
+      var lane=pd.b+Math.round(((ch>>>7)%100)/100*(pd.f-pd.b-Math.round(4*K)));
+      var span=pd.w*(0.22+((ch>>>13)%100)/300);
+      var per=26000+((ch>>>17)%18000), ph2=((now+((ch>>>3)%per))%per)/per;
+      var sway=Math.sin(ph2*Math.PI*2), homeX=cx2-pd.w*0.5+((ch%100)/100)*pd.w;
+      var bx2=Math.round(homeX+sway*span*0.5);
+      var bw2=Math.max(3,Math.round(4.6*K)), bh2=Math.max(2,Math.round(2.8*K));
+      var head=(Math.sin(ph2*Math.PI*6+c2)>0.4);                     // head down, eating, most of the time
+      g.fillStyle=day?(((ch>>>21)%3)?"rgba(238,234,226,1)":"rgba(74,60,50,1)"):"rgba(40,42,54,1)";
+      g.fillRect(bx2,lane-bh2,bw2,bh2);
+      g.fillStyle=day?"rgba(58,46,38,1)":"rgba(20,22,32,1)";
+      g.fillRect(bx2+(sway>0?bw2-Math.round(K):0),lane-bh2-(head?0:Math.round(1.4*K)),Math.max(1,Math.round(1.6*K)),Math.max(2,Math.round(2*K)));
+      g.fillRect(bx2+Math.round(K*0.5),lane-Math.max(1,Math.round(K)),Math.max(1,Math.round(K*0.8)),Math.max(1,Math.round(K)));
+      g.fillRect(bx2+bw2-Math.round(1.4*K),lane-Math.max(1,Math.round(K)),Math.max(1,Math.round(K*0.8)),Math.max(1,Math.round(K)));
+    }
+  }
+  // ---- THE GOBLINS, around their camp on the swamp's edge. Small, green, and they never come far
+  // from the tents — the swamp is theirs and the meadow is the town's, and that boundary is most of
+  // what the camp is saying.
+  var gcx=lumCampX(), gsx=gcx-WOFF; if(gsx<-WW*0.5) gsx+=WW; if(gsx>WW*0.5) gsx-=WW;
+  if(gsx>-HORIZON*0.5&&gsx<SW+HORIZON*0.5){
+    var gy2=lumCampY();
+    for(var gb=0;gb<5;gb++){
+      var gh2=((gb*2246822519)^(seedW>>>7))>>>0;
+      var gper=14000+((gh2>>>5)%9000), gph=((now+((gh2>>>11)%gper))%gper)/gper;
+      var gwalk=Math.sin(gph*Math.PI*2)*HORIZON*0.045;
+      var gx2=Math.round(gsx-HORIZON*0.03+((gh2%100)/100)*HORIZON*0.09+gwalk);
+      var gyy=gy2-Math.round(((gh2>>>19)%100)/100*HORIZON*0.012);
+      var gW=Math.max(2,Math.round(1.8*K)), gH=Math.max(3,Math.round(3.6*K));
+      g.fillStyle=day?"rgba(96,132,58,1)":"rgba(28,44,30,1)";
+      g.fillRect(gx2,gyy-gH,gW,gH);
+      g.fillStyle=day?"rgba(120,158,70,1)":"rgba(38,58,38,1)";
+      g.fillRect(gx2-Math.round(K*0.4),gyy-gH-Math.round(1.6*K),gW+Math.round(K*0.8),Math.round(1.8*K));
+      // a step in the walk, so they are not gliding
+      if(Math.sin(gph*Math.PI*8)>0){ g.fillStyle=day?"rgba(70,100,44,1)":"rgba(20,32,22,1)";
+        g.fillRect(gx2,gyy-Math.round(K),gW,Math.max(1,Math.round(K))); }
+    }
+  }
+  // ---- THE RIVER'S GLITTER, and it is the only specular thing on a land with no gloss anywhere else.
+  // Kept sparse and hard-edged — a soft highlight would be the one painterly mark in the whole frame.
+  var fyR=rsFieldY(LB_RIVER*WW);
+  for(var q2=0;q2<22;q2++){
+    var qh=((q2*2654435761)^(seedW>>>11))>>>0;
+    var qy=fyR+((qh%1000)/1000)*(HORIZON-fyR);
+    var qper=2600+((qh>>>9)%2400), qph=((now+((qh>>>15)%qper))%qper)/qper;
+    if(qph>0.42) continue;                                           // each glint is brief, then gone
+    var qcx=lumRiverCX(qy), qhw=lumRiverHalf(qy);
+    var qx=Math.round(qcx-WOFF+(((qh>>>21)%200)/100-1)*qhw*0.8);
+    if(qx<-2||qx>SW+2) continue;
+    g.fillStyle=day?"rgba(232,244,255,0.85)":"rgba(150,180,215,0.5)";
+    g.fillRect(qx,Math.round(qy),Math.max(1,Math.round(1.6*K)),1);
+  }
+  // ---- THE CASTLE'S BANNERS. Two pennants on the keep, and they answer the same wind the sails do.
+  var ccx2=onX(LB_CASTLE);
+  if(ccx2>-HORIZON&&ccx2<SW+HORIZON){
+    var kw2=Math.round(HORIZON*0.58*0.34), kbase=rsStandY(LB_CASTLE*WW,0.56)-Math.round(HORIZON*0.075*0.55);
+    var ktop=kbase-Math.round(HORIZON*0.44)-Math.round(2.6*K);
+    for(var bn=0;bn<2;bn++){
+      var bxp=ccx2+(bn?1:-1)*Math.round(kw2*0.34);
+      var flap=Math.sin(now/620+bn*2.1)*0.5+0.5;
+      g.fillStyle=day?"rgba(58,44,34,1)":"rgba(10,12,20,1)";
+      g.fillRect(bxp,ktop-Math.round(7*K),Math.max(1,Math.round(K)),Math.round(7*K));
+      g.fillStyle=day?"rgba(186,58,50,1)":"rgba(72,26,26,1)";
+      var flw=Math.round((2.6+flap*2.2)*K);
+      g.fillRect(bxp+Math.round(K),ktop-Math.round(6.4*K),flw,Math.round(3*K));
+    }
+  }
+}
 function orbitPhase(now){ return ((now%5400000)/5400000); }   // one 90-minute orbit
 function drawOrbit(g,L,now,nd){
   var K=Math.max(1,KSP), ph=orbitPhase(now);
@@ -40046,7 +41862,7 @@ function drawVillageCliff(g,L,now,nd){
 // ⚠ It reads `mtsCache.h[1]` — the same rim the wall was drawn from — so nothing here can drift off
 // the cliff it belongs to, at any resolution or on any monitor.
 function drawVillageCliffLive(g,L,now,nd,fx){
-  if(!curVillage||curRainV) return;
+  if(!curLeafV) return;        // ⚠ was `!curVillage||curRainV` — see vlmRockSpan
   if(!mtsCache||!mtsCache.h||!mtsCache.h[1]) return;
   var gy=HORIZON, day=L>0.5, K=Math.max(1,KSP), W=Math.max(1,WW|0), hs=mtsCache.h[1];
   function rim(sx){ var i=sx<0?0:(sx>=SW?SW-1:sx); return hs[i]||0; }
@@ -40199,6 +42015,8 @@ function drawMountains(g,L,now,nd){
   if(curBiome.herd){ drawSavanna(g,L,now,nd); return; }                  // …and on a plain the ACACIA and the kopje are the relief
   if(curBiome.orbit){ drawOrbit(g,L,now,nd); return; }                  // …and in orbit the PLANET is the view
   if(curBiome.shrine){ drawPlateau(g,L,now,nd); return; }               // …and here it is the plateau and the castle
+  if(curBiome.rs==="lumbridge"){ drawLumbridge(g,L,now,nd); return; }   // …and on the OSRS lands, river meadow and a castle
+  if(curBiome.rs==="falador"){ drawFalador(g,L,now,nd); return; }        // …downland, a white city and a snow peak
   if(!mts) return;
   var gy=HORIZON, day=L>0.5;
   var sunsetK=goldenK;   // sourced from the shared golden-hour global (identical law)
@@ -42650,7 +44468,7 @@ function drawTerrain(g,cg,L,now,nd,pass){
     if(!curBiome.orbit && curBiome.k!=="core")                     // no ground in orbit, and none on the core world
       drawDamageScorch(g,gy-Math.round(HORIZON*0.10),gy,day,0.70);
   }
-  if(BGp && curVillage && !curRainV) drawVillageForest(g,gy,day,now);   // …and the forest that hides the village
+  if(BGp && curLeafV) drawVillageForest(g,gy,day,now);   // …and the forest that hides the village (LEAF ONLY — see curLeafV)
   // ⚠ NOT ON THE RAIN VILLAGE. Nothing grows there — it is concrete to the horizon, and a treeline
   // behind it would put the leaf village's hillside on the wrong land.
   // a river winding through, present early, culverted as the city grows
@@ -48019,6 +49837,9 @@ function draw(g,pass){
                                   // water life. The lake's FIXED things (the far town, the boom, the
                                   // jetties) stay in the backdrop — see drawDamShore.
   drawHyruleLive(g,L,now,nd,fx);   // …and on the old kingdom: the ring, the eruption, and the dragon
+  drawLumbridgeLive(g,L,now,nd,fx);  // …and on the river meadow: the sails, the cattle, the goblins, the glitter
+  drawFaladorLive(g,L,now,nd,fx);    // …and in the white city: the fountain, the forge and the flock
+  drawRsPlayers(g,L,now,nd,fx);      // …and on ALL FOUR: the adventurers, last so they stand in front
   drawVillageCliffLive(g,L,now,nd,fx);  // …and on the hidden village, everything the WALL does: water
                                   // off the rim, mist at its foot, climbers on the stair, hawks on the
                                   // updraft, the roost at dawn and dusk, lit chambers after dark
