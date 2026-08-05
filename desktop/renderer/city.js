@@ -19819,7 +19819,7 @@ function disTypesFor(idx){
 }
 var DIS_TYPES_LIVE=DIS_ERAS[DIS_ERAS.length-1].types;
 var DIS_TYPES_NEW3=DIS_TYPES_T3;   // what the engine can roll once every era is in
-var DIS_NAME={asteroid:"ASTEROID",volcano:"VOLCANO",zombie:"ZOMBIES",alien:"ALIENS",kaiju:"KAIJU",
+var DIS_NAME={randoms:"RANDOM EVENTS",droparty:"DROP PARTY",clanwar:"CLAN WAR",botswarm:"BOT SWARM",asteroid:"ASTEROID",volcano:"VOLCANO",zombie:"ZOMBIES",alien:"ALIENS",kaiju:"KAIJU",
   tornado:"TORNADO",flood:"FLOOD",mech:"MECH WAR",kraken:"KRAKEN",sandstorm:"SANDSTORM",iceage:"ICE AGE",rift:"RIFT",
   blackout:"BLACKOUT",smog:"SMOG",planecrash:"PLANE CRASH",
   // TIER 2
@@ -19841,6 +19841,9 @@ var DIS_NAME={asteroid:"ASTEROID",volcano:"VOLCANO",zombie:"ZOMBIES",alien:"ALIE
 // only two, which is worth something on its own — the non-destructive path is the one the lifecycle
 // exercises least.
 var DIS_NODESTROY={blackout:1,smog:1,riot:1,
+  // ⚠ THE FOUR OSRS EVENTS. A drop party, a clan fight, a bot farm and a genie do not level a
+  // district; through the collapse pipeline a party would flatten towers like a CAT-5 asteroid.
+  randoms:1, droparty:1, clanwar:1, botswarm:1,
   // ⚠ TIER 3's four. A hailstorm smashes glass, an outbreak is people, a cyberattack is screens and a
   // solar flare is the grid — none of them levels a district, and putting them through the collapse
   // pipeline would have a hailstorm flattening towers like a CAT-5 asteroid.
@@ -20024,6 +20027,19 @@ function disExemption(type,B){
 }
 function disExemption1(type,B){
   B=B||curBiome;
+  // 🔒 THE OSRS LANDS GET OSRS EVENTS ONLY. Nick, 2026-08-05. This runs FIRST and swallows every
+  // generic type, so a meteor never strikes Varrock and no kaiju wades through Lumbridge.
+  // 🔑 IT IS A SWAP, NOT AN ARRAY CHANGE. `disasterInfo` picks with `(r()*TYPES.length)|0`, so growing
+  // any type array re-maps every past slot in the chronicle. Riding the exemption mechanism — which
+  // exists precisely to rewrite a rolled type into a sensible one for a land — costs no history.
+  // ⚠ AND THE FOUR MUST BE FIXED POINTS. `disExemption` loops this up to three times following the
+  // chain; without the early return an OSRS type would be re-mapped to another OSRS type on every
+  // pass, and which event you got would depend on how many passes the loop happened to run.
+  if(B && B.rs){
+    if(isRsDis(type)) return null;
+    var rh=0; for(var ri=0;ri<type.length;ri++) rh=(rh*31+type.charCodeAt(ri))>>>0;
+    return {to:RS_DIS_TYPES[rh%RS_DIS_TYPES.length], why:"an OSRS world has its own kinds of trouble"};
+  }
   // ⚠ THE LAND TABLE IS CONSULTED FIRST, and the order is not cosmetic. With the landlocked-kraken
   // rule ahead of it the matrix reported SPACE CITY as sending `kraken->tornado` — a tornado, on a
   // space station, because the ocean rule matched and returned before the orbit table was ever read.
@@ -24098,6 +24114,209 @@ DIS_SIG.volcano={
     }
   }
 };
+// ================================================================================================
+// THE OSRS DISASTERS — four things that go wrong in a RuneScape world
+// ================================================================================================
+// 🔒 Nick, 2026-08-05: the OSRS lands get OSRS events ONLY — no meteor on Varrock, no kaiju over
+// Lumbridge — and all four are LIFECYCLE-SIGNED like the 41, with a build-up, a peak and an aftermath.
+// 🔑🔑 THEY ARE SWAPPED IN, NOT APPENDED. `disasterInfo` picks with `(r()*TYPES.length)|0`, so growing
+// any type array re-maps EVERY past slot in the chronicle — the trap this file has documented since
+// the tier-2 cutover. The existing EXEMPTION mechanism already rewrites a rolled type into another
+// one where it would be absurd on a land, which is exactly this problem solved once; these four ride
+// that instead of touching a single array length.
+// ⚠ NONE OF THEM DEMOLISH. They go in `DIS_NODESTROY` with the blackout and the riot: a drop party, a
+// clan fight, a bot farm and a genie do not level a district, and putting them through the collapse
+// pipeline would have a party flattening towers like a CAT-5 asteroid.
+// ⚠ THE ORDER IS THE FREQUENCY. The swap is `hash(typeName) % 4`, and across the 41 generic types
+// that hash does not land evenly — index 1 takes 16 of them and index 0 only 6. Measured, then
+// ordered so the SLOT that wins holds RANDOM EVENTS, because a random event is constant background
+// noise in the real game and a drop party is a rare good day. Left alphabetical it was the reverse.
+var RS_DIS_TYPES=["droparty","randoms","clanwar","botswarm"];
+function isRsDis(t){ return RS_DIS_TYPES.indexOf(t)>=0; }
+// the four random events, each a distinct silhouette — at seven pixels the shape is the whole joke
+function drawRandomEvent(g,x,gy,kind,day,now,i){
+  if(kind===0){                                                    // EVIL CHICKEN — white, red comb, furious
+    g.fillStyle=day?"#e8e4dc":"#4a4a52"; g.fillRect(x-2,gy-4,5,4);
+    g.fillStyle=day?"#d04a3a":"#5a1e18"; g.fillRect(x-1,gy-6,3,2); g.fillRect(x+3,gy-3,1,1);
+    g.fillStyle=day?"#2a2622":"#12121a"; g.fillRect(x-2,gy-1,1,1); g.fillRect(x+2,gy-1,1,1);
+  } else if(kind===1){                                             // GENIE — blue, floating, NO LEGS
+    var bob=Math.round(Math.sin(now/420+i)*1.5);
+    g.fillStyle=day?"#4a8ad8":"#182c4e"; g.fillRect(x-2,gy-9+bob,5,5);
+    g.fillStyle=day?"#7ab0e8":"#22406a"; g.fillRect(x-1,gy-12+bob,3,3);
+    g.fillStyle=day?"#c8a83a":"#4a3a12"; g.fillRect(x-1,gy-13+bob,3,1);   // the headband
+    g.fillStyle=day?"rgba(90,150,220,0.5)":"rgba(30,50,90,0.5)";
+    g.fillRect(x-1,gy-4+bob,3,3); g.fillRect(x,gy-1+bob,1,1);             // the smoke it stands on
+  } else if(kind===2){                                             // DRILL DEMON — red, big, shouting
+    g.fillStyle=day?"#b02a24":"#3a1010"; g.fillRect(x-3,gy-11,7,11);
+    g.fillStyle=day?"#e05a44":"#5a1a14"; g.fillRect(x-2,gy-14,5,3);
+    g.fillStyle=day?"#2a1210":"#100608"; g.fillRect(x-2,gy-13,1,1); g.fillRect(x+2,gy-13,1,1);
+    g.fillStyle=day?"#e8d24a":"#4a4218"; g.fillRect(x-4,gy-15,2,2); g.fillRect(x+3,gy-15,2,2);  // horns
+  } else if(kind===3){                                             // THE SWARM — a cloud of dots
+    g.fillStyle=day?"rgba(28,24,22,0.85)":"rgba(10,10,16,0.9)";
+    for(var s=0;s<11;s++){
+      var a=(s/11)*Math.PI*2+now/300, r=3+((s*7)%4);
+      g.fillRect(Math.round(x+Math.cos(a)*r),Math.round(gy-6+Math.sin(a)*r*0.7),1,1);
+    }
+  } else {                                                         // MYSTERIOUS OLD MAN — grey, hunched
+    drawPerson(g,x,gy-2,"#5a5a62",SKINC[3],-1,2);
+  }
+}
+// ---- RANDOM EVENTS ------------------------------------------------------------------------------
+// 🔑 THEY SPAWN BESIDE A PLAYER AND FOLLOW HIM, which is the entire experience of them: not a thing
+// that happens to the world, a thing that happens to YOU and will not go away. So each one is anchored
+// to a walking player and trails one step behind — the pairing is the feature, and a random event
+// standing on its own in a field is just an odd monster.
+function drawDisRandoms(g,cd,L,now){
+  var day=L>0.5, K=Math.max(1,KSP), night=(L<=0.5), seedW=(WORLD_SEED*2654435761)>>>0;
+  var f=cd.f, live=Math.max(0,Math.min(1,(f-0.08)/0.14))*(1-Math.max(0,(f-0.66)/0.22));
+  var n=Math.round(7*Math.max(0,live));
+  for(var i=0;i<n;i++){
+    var h=iceHash(i*6203^seedW^cd.seed);
+    var per=26000+((h>>>7)%14000), ph=((now+((h>>>11)%per))%per)/per;
+    var span=HORIZON*1.1, dir=((h>>>3)%2)?1:-1;
+    var wx0=(h%1000)/1000*WW;
+    var wx=wx0+dir*(ph-0.5)*span;
+    var sx=disX(wx); if(sx<-30||sx>SW+30) continue;
+    var gy=rsStandY(wx,0.575+((h>>>17)%60)/1000);
+    drawRsFigure(g,sx,gy,K,RS_PLAYER_C[(h>>>13)%RS_PLAYER_C.length],day,"walk",dir,rsTier(h^0x4d21));
+    drawRandomEvent(g,sx-dir*6,gy,(h>>>19)%5,day,now,i);           // …one step behind, always
+    if(((now/2400+i)|0)%4===0)
+      drawSpeechBubble(g,sx,gy-10,RS_RAND_SAY[((h>>>23)+Math.floor(now/3000))%RS_RAND_SAY.length],night);
+  }
+}
+var RS_RAND_SAY=["NOT AGAIN","GO AWAY","I'M BUSY","EVERY TIME","IT'S FOLLOWING ME","WHO SUMMONED THIS",
+                 "I JUST WANT TO FISH","DISMISS","LEAVE ME ALONE","WHY ME"];
+// ---- THE DROP PARTY ----------------------------------------------------------------------------
+// 🔒 "A scramble, but good-natured" — the one event in this whole game that is a GOOD day. Balloons
+// come down, the floor fills, and every player on the map runs at it.
+// 🔑 THE CONVERGENCE IS THE EVENT. A pile of loot on the ground is a pile of loot; forty people all
+// moving toward the same point is a party, and it reads from any distance because it is the only time
+// this world's crowd all goes the same way.
+function drawDisDropParty(g,cd,L,now){
+  var day=L>0.5, K=Math.max(1,KSP), night=(L<=0.5), seedW=(WORLD_SEED*2654435761)>>>0;
+  var ox=Math.round(rsPartyFrac()*WW), f=cd.f;
+  var gather=Math.max(0,Math.min(1,f/0.20));                       // warn: they come
+  var live=Math.max(0,Math.min(1,(f-0.18)/0.12));                  // impact: the drop
+  var fade=Math.max(0,Math.min(1,(f-0.70)/0.25));                  // ripple → recover: it thins out
+  var psx=disX(ox);
+  // the balloons coming down
+  if(live>0&&fade<1&&psx>-HORIZON&&psx<SW+HORIZON){
+    var base=rsStandY(ox,0.52);
+    for(var b=0;b<12;b++){
+      var bh=iceHash(b*4211^seedW^cd.seed);
+      var bf=(((now/3400)+(bh%1000)/1000)%1);
+      var bx=psx+Math.round((((bh>>>9)%1000)/1000-0.5)*HORIZON*0.22);
+      var by=base-Math.round(HORIZON*0.16)+Math.round(bf*HORIZON*0.15);
+      g.fillStyle=["#d84a3a","#e8c23a","#3a9ad8","#4ac85a","#c86ad8"][(bh>>>21)%5];
+      g.fillRect(bx,by,2,3);
+      g.fillStyle=day?"rgba(60,56,52,0.6)":"rgba(120,130,150,0.3)";
+      g.fillRect(bx+1,by+3,1,2);
+    }
+    // …and the floor filling up under them
+    for(var d=0;d<Math.round(26*live*(1-fade));d++){
+      var dh=iceHash(d*7549^seedW^cd.seed);
+      var dx=psx+Math.round((((dh%1000)/1000)-0.5)*HORIZON*0.26);
+      drawRsDrop(g,dx,rsStandY(ox,0.555+((dh>>>13)%70)/1000),dh,day,2+((dh>>>7)%3));
+    }
+  }
+  // everyone on the map, running at it
+  var runners=Math.round(20*Math.max(gather,live)*(1-fade*0.8));
+  for(var i=0;i<runners;i++){
+    var h=iceHash(i*3187^seedW^cd.seed);
+    var side=((h>>>5)&1)?1:-1;
+    var away=WW*0.02+((h%1000)/1000)*WW*0.16;
+    var t=Math.max(gather,live);
+    var wx=ox+side*away*(1-t*0.86);                                // …closing on the party as it runs
+    var sx=disX(wx); if(sx<-24||sx>SW+24) continue;
+    var gy=rsStandY(wx,0.575+((h>>>17)%60)/1000);
+    drawRsFigure(g,sx,gy,K,RS_PLAYER_C[(h>>>11)%RS_PLAYER_C.length],day,"walk",-side,rsTier(h^0x6b3d));
+    if(((now/1900+i)|0)%6===0)
+      drawSpeechBubble(g,sx,gy-10,RS_PARTY_SAY[((h>>>19)+Math.floor(now/2600))%RS_PARTY_SAY.length],night);
+  }
+}
+var RS_PARTY_SAY=["DROP PARTY!","W1 PARTY ROOM","FREE STUFF!","GOT A PHAT!","MOVE OVER","THANKS!",
+                  "BALLOONS DOWN","I GOT NOTHING","BEST DAY","LAG"];
+// ---- THE PK CLAN WAR ---------------------------------------------------------------------------
+// 🔒 "Rolling through the whole land" — one clan pushes the other back, so it crosses every screen
+// rather than sitting on one. 🔑 TWO COLOURS AND A MOVING BOUNDARY. At this scale a clan is a colour;
+// what makes it a WAR rather than a brawl is that the line between the colours MOVES, and what makes
+// it legible is that everything behind the line is piles.
+function drawDisClanWar(g,cd,L,now){
+  var day=L>0.5, K=Math.max(1,KSP), night=(L<=0.5), seedW=(WORLD_SEED*2654435761)>>>0;
+  var f=cd.f;
+  var push=Math.max(0,Math.min(1,(f-0.10)/0.60));                  // the front's march across the land
+  var frontWx=WW*0.14+push*WW*0.72;
+  var A={c:"#3a5ec8",l:"#7a9af0"}, B={c:"#c03028",l:"#e86a58"};    // the two clans
+  for(var s=0;s<2;s++){
+    var clan=s?B:A, sgn=s?1:-1;
+    for(var m=0;m<10;m++){
+      var mh=iceHash((s*211+m)*5171^seedW^cd.seed);
+      var lag=WW*0.008+((mh%1000)/1000)*WW*0.045;
+      var wx=frontWx+sgn*lag;
+      var sx=disX(wx); if(sx<-20||sx>SW+20) continue;
+      var gy=rsStandY(wx,0.565+((mh>>>13)%70)/1000);
+      drawRsFigure(g,sx,gy,K,clan.c,day,((now/280+m)|0)%2?"walk":"stand",-sgn,clan);
+      if(m===0&&((now/2200+s)|0)%3===0)
+        drawSpeechBubble(g,sx,gy-11,RS_CLAN_SAY[((mh>>>19)+Math.floor(now/2800))%RS_CLAN_SAY.length],night);
+    }
+  }
+  // the ground the war has already crossed, west of the front: piles, and they stay
+  for(var i=0;i<70;i++){
+    var h=iceHash(i*8117^seedW^cd.seed);
+    var wx2=WW*0.12+((h%1000)/1000)*(frontWx-WW*0.12);
+    if(wx2>=frontWx) continue;
+    var sx2=disX(wx2); if(sx2<-12||sx2>SW+12) continue;
+    drawRsDrop(g,sx2,rsStandY(wx2,0.555+((h>>>17)%80)/1000),h,day,2+((h>>>9)%3));
+  }
+}
+var RS_CLAN_SAY=["PILE HIM","BACK BACK","SPEC NOW","EAT UP","THEY'RE RUNNING","GET THE LOOT",
+                 "HOLD THE LINE","MOVE UP","WHO HAS FOOD","CALL IT"];
+// ---- THE BOT INVASION --------------------------------------------------------------------------
+// 🔑 LOCKSTEP IS THE WHOLE TELL. A crowd of players is a crowd; a crowd doing the IDENTICAL thing on
+// the IDENTICAL frame is obviously not people, and that is the only thing that has ever made a bot
+// farm recognisable at a glance. So they share one animation phase — no per-figure offset anywhere.
+// 🔒 AND IT ENDS IN A BAN WAVE. Nick's tie-in: a white sweep crosses and every one of them goes at
+// once — the same machinery as the world-ending ban wave, used here as an ENDING TO AN EVENT rather
+// than to a world, which is the joke told properly.
+function drawDisBotSwarm(g,cd,L,now){
+  var day=L>0.5, K=Math.max(1,KSP), night=(L<=0.5), seedW=(WORLD_SEED*2654435761)>>>0;
+  var f=cd.f, ox=cd.x;
+  var arrive=Math.max(0,Math.min(1,(f-0.06)/0.16));
+  var banF=Math.max(0,Math.min(1,(f-0.62)/0.16));                  // the sweep
+  var n=Math.round(16*arrive);
+  var beat=((now/620)|0)&1;                                        // ONE phase, shared by all of them
+  for(var i=0;i<n;i++){
+    var h=iceHash(i*4691^seedW^cd.seed);
+    var wx=ox+Math.round((((h%1000)/1000)-0.5)*HORIZON*0.42);
+    var sx=disX(wx); if(sx<-20||sx>SW+20) continue;
+    var gy=rsStandY(wx,0.575+((h>>>17)%50)/1000);
+    // the ban sweeps west→east: a bot is gone once the front has passed its x
+    var gone=(banF>0)&&((wx-(ox-HORIZON*0.24))/(HORIZON*0.50) < banF);
+    if(gone){
+      var ef=Math.max(0,Math.min(1,(banF-((wx-(ox-HORIZON*0.24))/(HORIZON*0.50)))*6));
+      if(ef<1){
+        g.globalCompositeOperation="lighter";
+        g.fillStyle="rgba(255,255,255,"+(0.9*(1-ef)).toFixed(2)+")";
+        g.fillRect(sx-2,gy-8,5,8);
+        g.globalCompositeOperation="source-over";
+      }
+      continue;
+    }
+    drawRsFigure(g,sx,gy,K,"#6a7a4a",day,beat?"walk":"stand",1,RS_TIERS[0]);   // all bronze, all identical
+    g.fillStyle=day?"#5a4028":"#241a12";                                        // the tree they are all at
+    if(i===0){ g.fillRect(sx+7,gy-9,3,9); g.fillStyle=day?"#2e6a34":"#12241a"; g.fillRect(sx+3,gy-15,11,6); }
+    if(beat){ g.fillStyle=day?"#6a5a3a":"#241f14"; g.fillRect(sx+3,gy-7,1,3); } // …swinging on the same frame
+  }
+  if(banF>0&&banF<1){
+    var fx=disX(ox-HORIZON*0.24+HORIZON*0.50*banF);
+    if(fx>-4&&fx<SW+4){
+      g.globalCompositeOperation="lighter";
+      g.fillStyle="rgba(230,240,255,0.55)";
+      g.fillRect(fx-1,Math.round(HORIZON*0.34),2,HORIZON);
+      g.globalCompositeOperation="source-over";
+    }
+  }
+}
 function drawDisaster(g,cd,L,now){
   drawDisasterAtmosphere(g,cd,L,now);        // the sky itself reacts before any sprite is drawn
   // a general catastrophe glow over the whole block, so the emergency reads at any zoom (skip the veil threats)
@@ -24110,6 +24329,10 @@ function drawDisaster(g,cd,L,now){
       var gc=GLOW[cd.type]||[255,95,45];
       g.fillStyle=rgba(gc,0.12+0.06*Math.sin(now*0.02)); g.fillRect((gx-cd.w)|0,HORIZON-46,(cd.w*2)|0,50);
       g.globalCompositeOperation="source-over"; } }
+  if(cd.type==="randoms") { drawDisRandoms(g,cd,L,now); return; }
+  if(cd.type==="droparty"){ drawDisDropParty(g,cd,L,now); return; }
+  if(cd.type==="clanwar") { drawDisClanWar(g,cd,L,now); return; }
+  if(cd.type==="botswarm"){ drawDisBotSwarm(g,cd,L,now); return; }
   if(cd.type==="asteroid") drawAsteroid(g,cd,L,now);
   else if(cd.type==="volcano") drawVolcanoDisaster(g,cd,L,now);
   else if(cd.type==="zombie") drawZombies(g,cd,L,now);
