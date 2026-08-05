@@ -32129,7 +32129,16 @@ function drawRsFoes(g,L,now,nd,fx){
       var ft=(ph-0.30)/0.50;                          // 0 at first blow → 1 at the last
       // 🔑 THE STYLE DECIDES THE SPACING FIRST. Melee closes; ranged and magic stand well back, which
       // is what a ranger and a mage actually do and what makes the three read apart at a distance.
-      var style=(vh>>>13)%3;                          // 0 melee · 1 ranged · 2 magic
+      // 🚨 THE DEFENDER HAS TO BE KNOWN BEFORE THE STYLE IS. `style` set the SPACING and `defender`
+      // suppressed the PROJECTILE, and they were decided in that order — so a town guard drawn onto a
+      // ranged slot stood nineteen pixels back and threw nothing, which reads as two figures ignoring
+      // each other while a health bar drains between them. Caught by rendering four frames 150ms apart
+      // and watching for a shot that never marched.
+      // 🔑 A GUARD IS ALWAYS MELEE. He carries a spear and he is defending a gate; the style roll is a
+      // property of the ADVENTURER, so it must not be consulted when there is no adventurer in the
+      // fight. One expression now decides both, in the order the facts arrive.
+      var defender=rsGuardedNear(wx);
+      var style=defender?0:((vh>>>13)%3);              // 0 melee · 1 ranged · 2 magic
       var tier=rsTier((vh>>>7)^0x9e37);
       var px=sx-((style===0)?(f.sz?8:6):(f.sz?22:19));
       var hitT=Math.floor((now%2400)/600);            // four beats to a cycle; a blow lands on two
@@ -32138,7 +32147,6 @@ function drawRsFoes(g,L,now,nd,fx){
       // by whoever is posted there rather than by a passing adventurer — same fight, different hands.
       // Reusing the encounter instead of writing a second one means the guards get hitsplats, health
       // bars, the loser rule and the loot drop for nothing.
-      var defender=rsGuardedNear(wx);
       if(defender) drawRsNpc(g,px,gy,defender,day,1,-1);
       else drawRsFigure(g,px,gy,K,pcol,day,"stand",1,tier);
       drawRsFoe(g,sx,gy,f,day,(swing&&!loses)?1:0);
