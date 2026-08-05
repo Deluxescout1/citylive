@@ -31460,7 +31460,35 @@ function rsHaunts(){
 // makes him an adventurer is the bright cloak colour and the weapon on his back, two marks hung on
 // the pixels `drawPerson` just used. `K` stays in the signature only because the teleport still
 // takes it; it must never again touch the body.
-function drawRsFigure(g,x,gy,K,col,day,pose,facing){
+// ---- THE TIER LADDER ---------------------------------------------------------------------------
+// 🔑🔑 THIS IS THE MOST RECOGNISABLE COLOUR CODE IN THE GAME, and it is the single best thing that can
+// happen to a seven-pixel figure: the metal IS the colour, so a player's whole progression is legible
+// at a glance with no text, no icon and no extra pixels. Bronze brown, iron dull grey, steel pale,
+// black, mithril blue, adamant green, rune cyan, dragon red — anybody who has played reads that
+// ladder instantly, and anybody who has not still sees eight distinct kinds of person.
+// ⚠ WEIGHTED, AND THE WEIGHTS ARE THE POINT. Nick chose "weighted by rarity" over an even spread
+// precisely so that seeing rune or dragon MEANS something. An even ladder would give more colour
+// variety on screen and destroy the only thing the ladder is for.
+var RS_TIERS=[
+  {k:"BRONZE", c:"#8a5a2a", l:"#b07a3c", w:22},
+  {k:"IRON",   c:"#63636b", l:"#87878f", w:20},
+  {k:"STEEL",  c:"#b0b0ba", l:"#d2d2dc", w:18},
+  {k:"BLACK",  c:"#2c2c34", l:"#4a4a56", w:14},
+  {k:"MITH",   c:"#4a5ec0", l:"#7286e0", w:11},
+  {k:"ADDY",   c:"#2e7a52", l:"#46a072", w:8},
+  {k:"RUNE",   c:"#38b0c2", l:"#68d8e6", w:5},
+  {k:"DRAGON", c:"#c03028", l:"#e05a48", w:2}
+];
+var RS_TIER_TOT=(function(){ var t=0; for(var i=0;i<RS_TIERS.length;i++) t+=RS_TIERS[i].w; return t; })();
+function rsTier(h){
+  var r=(h>>>0)%RS_TIER_TOT, a=0;
+  for(var i=0;i<RS_TIERS.length;i++){ a+=RS_TIERS[i].w; if(r<a) return RS_TIERS[i]; }
+  return RS_TIERS[0];
+}
+// ⚠ `tier` IS OPTIONAL AND THAT IS DELIBERATE. Adventurers are kitted; the market crowd and the
+// skillers are not — a bank stander in full rune is right, but a woodcutter in it is a joke the game
+// itself makes and not one worth drawing. Passing no tier keeps the old cloak palette.
+function drawRsFigure(g,x,gy,K,col,day,pose,facing,tier){
   // FEET LAND ON `gy`: drawPerson's shoes are the row at y+2, so it is seated two above the ground
   // line. Every caller here passes a ground line, not a baseline.
   var y=gy-2;
@@ -31469,8 +31497,8 @@ function drawRsFigure(g,x,gy,K,col,day,pose,facing){
   // weight rather than freezing, which is the whole reason that sentinel exists.
   var bob=(pose==="walk")?((Math.floor(FRAME_NOW/190)+(x>>1))&3):-1;
   var skin=SKINC[(((x*2654435761)>>>0)+col.charCodeAt(3))%SKINC.length];
-  drawPerson(g,x,y,col,skin,bob);
-  if(pose==="tele") return;                        // still materialising — the kit arrives with him
+  drawPerson(g,x,y,tier?tier.c:col,skin,bob);
+  if(pose==="tele") return;                        // mid-cast — the kit goes with him
   // THE WEAPON ON THE BACK — the one mark that separates an adventurer from a townsperson at seven
   // pixels tall, and it has to sit OUTSIDE the 4px body (drawPerson's arms already own x-1 and x+2).
   // ⚠ IT STARTS AT THE SHOULDER ROW, NOT THE FACE ROW. drawPerson is four pixels wide at the
@@ -31481,45 +31509,43 @@ function drawRsFigure(g,x,gy,K,col,day,pose,facing){
   // half the stride. On a STANDING figure the phase is chosen inside drawPerson from that person's
   // own position and palette, so there is no other way to know it.
   var yy=y-PERSON_LIFT;
-  g.fillStyle=day?"#8a8a96":"#3a3e52";
-  g.fillRect(x+(facing>0?-2:3),yy-2,1,4);
+  // the weapon takes the SAME metal, so kit reads as one set rather than as a person holding a
+  // borrowed sword — and the lit shade goes on the blade so it is not a black stick at every tier
+  g.fillStyle=tier?tier.c:(day?"#8a8a96":"#3a3e52");
+  var wxp=x+(facing>0?-2:3);
+  g.fillRect(wxp,yy-2,1,4);
+  if(tier&&day){ g.fillStyle=tier.l; g.fillRect(wxp,yy-2,1,2); }
 }
 // THE TELEPORT. `f` 0..1 across the whole effect: a column of light that opens, a figure that fades
 // in inside it, and rings that fall away. ⚠ DRAWN WITH `lighter` LIKE EVERY OTHER GLOW IN THIS
 // ENGINE, but only briefly — additive light on a bright saturated land goes to white paste fast,
 // which is the lesson THE EMPYREAN taught ("on a bright land, additive is for night").
 function drawRsTeleport(g,x,gy,K,f,day,col){
-  // ⚠⚠ THE FIRST CUT WAS A HAIRLINE AND READ AS A SCRATCH ON THE SCREEN, not as a teleport. Three
-  // things fix it and all three are about SIZE, not brightness: a column wide enough to contain the
-  // figure, a bright disc on the ground where it lands, and rings that are wider than the column.
-  // A 2px vertical streak at any alpha is a rendering artefact to the eye.
-  // ⚠⚠ MEASURED IN PEOPLE, NOT IN `HORIZON` AND NOT IN `K`. This was `HORIZON*0.115` tall and `7*K`
-  // wide, which on his panels is a column of light around 115px high standing over a man who is
-  // SEVEN — the effect was sized for the giant it used to contain. An effect whose whole job is to
-  // say "a person arrived HERE" has to be scaled to the person, so `RS_PH` is the unit and the
-  // numbers below are multiples of a human: three tall, one wide, a disc two wide at his feet.
-  var RS_PH=7;
-  var h=RS_PH*3;
-  var open=Math.min(1,f*2.6), fade=Math.max(0,1-Math.max(0,(f-0.55))*2.2);
-  var a=Math.max(0,Math.min(1,open*fade));
+  // 🔑 THE CLASSIC SPELLBOOK TELEPORT, which is not a column of light and never was. What everyone who
+  // has cast one remembers is RINGS: the caster crouches, bands of blue-white open around their feet
+  // and RISE past them, widening as they go, and by the time the last one clears the head there is
+  // nobody there. A vertical beam is what a summoning looks like; a rising ring is what leaving looks
+  // like, and the difference is the whole reason this reads as a teleport rather than as a spawn.
+  // ⚠ ADDITIVE, BUT BRIEFLY — on a bright saturated land additive light goes to white paste fast, which
+  // is the lesson THE EMPYREAN taught. The rings are gone inside a second.
+  var a=Math.max(0,Math.min(1,(f<0.15?f/0.15:1-(f-0.15)/0.85)*1.25));
   if(a<=0.02) return;
-  var w=Math.max(4,Math.round(RS_PH*open));
   g.globalCompositeOperation="lighter";
-  g.fillStyle=day?"rgba(140,180,255,"+(0.40*a).toFixed(3)+")":"rgba(120,170,255,"+(0.60*a).toFixed(3)+")";
-  g.fillRect(x-(w>>1),gy-h,w,h);
-  g.fillStyle=day?"rgba(230,244,255,"+(0.55*a).toFixed(3)+")":"rgba(220,238,255,"+(0.75*a).toFixed(3)+")";
-  g.fillRect(x-1,gy-h,2,h);
-  // the landing disc: the mark that says the column has a FOOT and is standing on the ground
-  var dw=Math.round(w*1.9);
-  g.fillStyle=day?"rgba(200,226,255,"+(0.5*a).toFixed(3)+")":"rgba(180,214,255,"+(0.6*a).toFixed(3)+")";
+  // the floor disc it opens from — the mark that says this is happening AT a place
+  var dw=Math.max(4,Math.round(11*(0.4+f*0.6)));
+  g.fillStyle=day?"rgba(150,196,255,"+(0.42*a).toFixed(3)+")":"rgba(130,180,255,"+(0.62*a).toFixed(3)+")";
   g.fillRect(x-(dw>>1),gy-1,dw,2);
-  // three rings falling down the column, evenly spaced in PHASE but not in space, so it reads as
-  // motion rather than as a ladder
-  for(var r=0;r<3;r++){
-    var rf=((f*2.2+r/3)%1);
-    var ry=gy-h+rf*h, rw=Math.round(w*(1.0+rf*1.5));
-    g.fillStyle="rgba(200,226,255,"+(0.55*a*(1-rf)).toFixed(3)+")";
-    g.fillRect(x-(rw>>1),ry|0,rw,1);
+  // FOUR RINGS RISING, evenly spaced in phase so one is always near the feet and one near the head
+  for(var r=0;r<4;r++){
+    var rf=((f*1.6+r/4)%1);
+    var ry=gy-Math.round(rf*13);
+    var rw=Math.max(2,Math.round(4+rf*9));
+    var ra=a*(1-Math.abs(rf-0.45)*1.2);
+    if(ra<=0.02) continue;
+    g.fillStyle=day?"rgba(198,226,255,"+(0.6*ra).toFixed(3)+")":"rgba(180,214,255,"+(0.75*ra).toFixed(3)+")";
+    g.fillRect(x-(rw>>1),ry,rw,1);
+    g.fillStyle=day?"rgba(255,255,255,"+(0.32*ra).toFixed(3)+")":"rgba(226,240,255,"+(0.4*ra).toFixed(3)+")";
+    g.fillRect(x-(rw>>1)+1,ry,rw-2,1);
   }
   g.globalCompositeOperation="source-over";
 }
@@ -31627,6 +31653,39 @@ function drawHitsplat(g,x,y,dmg){
   g.fillStyle=(dmg>0)?"rgba(150,20,16,0.95)":"rgba(24,60,150,0.95)";
   g.fillRect(x-(w>>1),y-h,w,h);
   drawUiText(g,s,x-(w>>1)+1,y-h+1,"#ffffff",1);
+}
+// ---- RANGED AND MAGIC ---------------------------------------------------------------------------
+// 🔑 A COMBAT STYLE IS LEGIBLE FROM WHERE SOMEBODY STANDS, not from what they are wearing. A melee
+// fighter is toe to toe; a ranger and a mage stand back and put something in the air. That gap is the
+// whole read — the projectile only confirms what the spacing already said.
+var RS_SPELL_C=[["#dfeeff","#a8ccff"],   // wind
+                ["#5aa0e0","#2a6ab0"],   // water
+                ["#7aa84a","#4a7030"],   // earth
+                ["#e08a2a","#b04a10"]];  // fire
+function drawArrow(g,x,y,dir){
+  g.fillStyle="#6a5a3a"; g.fillRect(x,y,3,1);
+  g.fillStyle="#c8c8d0"; g.fillRect(x+(dir>0?3:-1),y,1,1);     // the head
+}
+function drawBolt(g,x,y,cols,t){
+  g.fillStyle=cols[0]; g.fillRect(x,y,2,2);
+  g.fillStyle=cols[1]; g.fillRect(x-1,y,1,1); g.fillRect(x,y+2,1,1);
+  if(t>0.3){ g.fillStyle=cols[1]; g.fillRect(x-3,y+1,1,1); }   // a short tail, so it reads as moving
+}
+// 🔑 A SPLASH IS NOT A BLUE HITSPLAT. Everyone who trained magic the slow way knows the shape: a burst
+// of blue that opens AROUND the target rather than a number printed on it. Using the zero-splat for
+// this would have been technically true and completely unrecognisable.
+function drawSplash(g,x,y,f){
+  var r=Math.max(2,Math.round(2+f*5)), a=1-f;
+  if(a<=0.05) return;
+  g.globalCompositeOperation="lighter";
+  for(var i=0;i<8;i++){
+    var ang=(i/8)*Math.PI*2;
+    g.fillStyle="rgba(90,160,240,"+(0.8*a).toFixed(2)+")";
+    g.fillRect(Math.round(x+Math.cos(ang)*r),Math.round(y+Math.sin(ang)*r*0.7),1,1);
+  }
+  g.fillStyle="rgba(190,220,255,"+(0.7*a).toFixed(2)+")";
+  g.fillRect(x-1,y-1,2,2);
+  g.globalCompositeOperation="source-over";
 }
 function drawHealthBar(g,x,y,frac){
   var w=11, f=Math.max(0,Math.min(1,frac)), lit=Math.round(w*f);
@@ -31845,6 +31904,26 @@ function drawRsBankCrowd(g,L,now,nd,fx){
     // the crowd apart so they are far apart in x too, and they hand off every couple of seconds. The
     // count is now independent of how many people are standing here, which is the only version of this
     // that survives someone making the crowd bigger.
+    // 🔮 HIGH ALCHEMY, and it belongs HERE rather than anywhere else: alching is what people did with
+    // their off hand while standing at a bank, and it is where most magic levels in this game came
+    // from. One of the crowd is mid-cast at any time — a gold flash over an item, then the coins.
+    if(i===(((now/5200)|0)%n)){
+      var af2=((now%5200)/5200);
+      if(af2<0.22){
+        var ay=gy-9, ff=af2/0.22;
+        g.globalCompositeOperation="lighter";
+        g.fillStyle="rgba(255,206,80,"+(0.8*(1-ff)).toFixed(2)+")";
+        var ar=Math.max(2,Math.round(2+ff*5));
+        for(var q=0;q<8;q++){
+          var qa=(q/8)*Math.PI*2;
+          g.fillRect(Math.round(sx+Math.cos(qa)*ar),Math.round(ay+Math.sin(qa)*ar*0.7),1,1);
+        }
+        g.globalCompositeOperation="source-over";
+      } else if(af2<0.42){
+        g.fillStyle=day?"#d8b23a":"#6a5420";                     // …and the coins it turned into
+        for(var q2=0;q2<3;q2++) g.fillRect(sx-2+q2*2,gy-1,1,1);
+      }
+    }
     var turn=((now/2400)|0)%n;
     if(i===turn||i===(turn+((n/2)|0))%n){
       drawSpeechBubble(g,sx,gy-10-(row?0:6),
@@ -31870,7 +31949,10 @@ var RS_SKILLS=[
   {k:"FIREMAKING", at:"fire", say:["BURNING LOGS","LIGHT THE LINE","W2 LOG LINE"]},
   {k:"COOKING",    at:"fire", say:["BURNT ANOTHER","LOBS ON THE FIRE","STOP BURNING THEM"]},
   {k:"SMITHING",   at:"forge",say:["BRONZE BARS","SMELTING ALL DAY","ANVIL IS TAKEN"]},
-  {k:"PRAYER",     at:"altar",say:["BURYING BONES","BIG BONES","PRAYER IS EXPENSIVE"]}
+  {k:"PRAYER",     at:"altar",say:["BURYING BONES","BIG BONES","PRAYER IS EXPENSIVE"]},
+  // 📚 Enchanting is cast AT an altar, so it needs no new place — it shares the one Prayer already uses,
+  // which is also why the altar spots were worth having as a `kind` rather than as a Lumbridge special.
+  {k:"MAGIC",      at:"altar",say:["ENCHANTING SAPPHIRES","LVL 1 ENCHANT","OUT OF COSMICS","SPLASHING LATER"]}
 ];
 function rsSkillSpots(){
   switch(curRs){
@@ -31977,6 +32059,22 @@ function drawRsSkillers(g,L,now,nd,fx){
       // one skiller in four is mid-level-up at any moment, for about a second and a half.
       var lper=17000+((h>>>13)%13000);
       var lph=((now+((h>>>19)%lper))%lper)/lper;
+      // the enchant flash: a magic skiller at an altar throws light, which is the one thing that tells
+      // an enchanter apart from someone burying bones at the same stone
+      if(sk.k==="MAGIC"){
+        var ef=((now+((h>>>9)%2400))%2400)/2400;
+        if(ef<0.16){
+          var eff=ef/0.16;
+          g.globalCompositeOperation="lighter";
+          g.fillStyle="rgba(180,140,255,"+(0.75*(1-eff)).toFixed(2)+")";
+          var er=Math.max(2,Math.round(2+eff*6));
+          for(var eq=0;eq<9;eq++){
+            var ea=(eq/9)*Math.PI*2;
+            g.fillRect(Math.round(sx+5+Math.cos(ea)*er),Math.round(gy-4+Math.sin(ea)*er*0.7),1,1);
+          }
+          g.globalCompositeOperation="source-over";
+        }
+      }
       if(lph<0.09){
         drawLevelUp(g,sx,gy,lph/0.09,h);
         drawSpeechBubble(g,sx,gy-15,(((h>>>23)%7===0)?"99 ":"")+sk.k+" "+(2+((h>>>25)%97)),night);
@@ -32029,7 +32127,11 @@ function drawRsFoes(g,L,now,nd,fx){
     if(ph<0.80){
       // ---- THE FIGHT
       var ft=(ph-0.30)/0.50;                          // 0 at first blow → 1 at the last
-      var px=sx-(f.sz?8:6);
+      // 🔑 THE STYLE DECIDES THE SPACING FIRST. Melee closes; ranged and magic stand well back, which
+      // is what a ranger and a mage actually do and what makes the three read apart at a distance.
+      var style=(vh>>>13)%3;                          // 0 melee · 1 ranged · 2 magic
+      var tier=rsTier((vh>>>7)^0x9e37);
+      var px=sx-((style===0)?(f.sz?8:6):(f.sz?22:19));
       var hitT=Math.floor((now%2400)/600);            // four beats to a cycle; a blow lands on two
       var swing=(hitT===0||hitT===2);
       // 🔑 THE TOWN DEFENDS ITSELF. A foe that wanders within reach of a gate or the castle is fought
@@ -32038,7 +32140,7 @@ function drawRsFoes(g,L,now,nd,fx){
       // bars, the loser rule and the loot drop for nothing.
       var defender=rsGuardedNear(wx);
       if(defender) drawRsNpc(g,px,gy,defender,day,1,-1);
-      else drawRsFigure(g,px,gy,K,pcol,day,"stand",1);
+      else drawRsFigure(g,px,gy,K,pcol,day,"stand",1,tier);
       drawRsFoe(g,sx,gy,f,day,(swing&&!loses)?1:0);
       // bystanders — a fight pulls a crowd, and a big one pulls more
       var watchers=(f.sz?2:0)+(((vh>>>9)%3===0)?1:0);
@@ -32051,10 +32153,21 @@ function drawRsFoes(g,L,now,nd,fx){
       drawHealthBar(g,lx,lyTop,1-ft);
       // 🔑 A SPLAT IS AN EVENT, NOT A STATE — it appears on the beat the blow lands and is gone by the
       // next. Drawn every frame it stops reading as an impact and becomes a label.
+      // ---- the shot in the air. Its position is the phase WITHIN the beat, so it crosses the gap
+      // between blows rather than teleporting — one frame of a flight nobody would otherwise see.
+      if(style>0&&!defender){
+        var bf=((now%600)/600);
+        var bx=Math.round(px+ (sx-px)*bf), by=gy-Math.round(4+Math.sin(bf*Math.PI)*3);
+        if(style===1) drawArrow(g,bx,by,1);
+        else drawBolt(g,bx,by,RS_SPELL_C[(vh>>>23)%RS_SPELL_C.length],bf);
+      }
       if(swing){
         var dh=((vh>>>19)+hitT+((now/600)|0))>>>0;
         var dmg=(dh%7===0)?0:(1+(dh%9));              // roughly one swing in seven is a miss
-        drawHitsplat(g,lx+3,lyTop-1,dmg);
+        // ⚠ A MAGE'S MISS IS A SPLASH, NOT A ZERO. Same event, different vocabulary, and the splash is
+        // the one people actually remember — it is what training magic looked like for a hundred hours.
+        if(dmg===0&&style===2) drawSplash(g,lx+2,lyTop+4,((now%600)/600));
+        else drawHitsplat(g,lx+3,lyTop-1,dmg);
       }
       if(((now/2900+i)|0)%3===0)
         drawSpeechBubble(g,px,gy-11-((i%3)*4),
@@ -32070,7 +32183,7 @@ function drawRsFoes(g,L,now,nd,fx){
     } else {
       drawRsDrop(g,sx,gy,vh,day,dropN);
       // the victor stays a moment to pick it up, then leaves — the pile outlives him by a little
-      if(af<0.55) drawRsFigure(g,sx-6,gy,K,pcol,day,"stand",1);
+      if(af<0.55) drawRsFigure(g,sx-6,gy,K,pcol,day,"stand",1,rsTier((vh>>>7)^0x9e37));
     }
   }
 }
@@ -32112,6 +32225,10 @@ function drawRsPlayers(g,L,now,nd,fx){
     // has already been measured wrong for exactly this kind of test.
     if(rsBehindRoof(sx,gy)) continue;
     var col=RS_PLAYER_C[(vh>>>17)%RS_PLAYER_C.length];
+    // 🔒 KITTED. Adventurers are out in the world doing things that get you killed, so they wear the
+    // ladder; the market crowd and the skillers keep their cloaks, because a woodcutter in full rune
+    // is a joke the game makes about itself and not one worth drawing here.
+    var ptier=rsTier((vh>>>3)^0x5bd1);
     // ---- THE SESSION: he logs in, he does the thing, he logs out ---------------------------------
     // 🚨 A PLAYER'S APPEARANCE AND DISAPPEARANCE IS A LOGIN, NOT A TELEPORT. Nick, 2026-08-05: *"make
     // sure the players only disappear and appear when they sign in."* This used to open and close
@@ -32129,7 +32246,7 @@ function drawRsPlayers(g,L,now,nd,fx){
       var walk=Math.min(1,t/0.30);
       var fromX=sx-Math.round(spread*(((vh>>>11)%2)?1:-1));
       var px=Math.round(fromX+(sx-fromX)*walk);
-      drawRsFigure(g,px,gy,K,col,day,walk<1?"walk":"stand",sx>fromX?1:-1);
+      drawRsFigure(g,px,gy,K,col,day,walk<1?"walk":"stand",sx>fromX?1:-1,ptier);
       if(walk>=1){
         // the quest giver: a still, drab figure that was already here. Adventurers move; the world does not.
         // ⚠ FIVE PIXELS, NOT `5*K` — the gap between two people is measured in people. At his KSP that
@@ -32152,8 +32269,8 @@ function drawRsPlayers(g,L,now,nd,fx){
       // are smaller than the people around it. At `7*K` and `1.4*K` the pair stood a body-width apart
       // over a heap of 3px boulders.
       var ox=6;
-      drawRsFigure(g,sx-ox,gy,K,col,day,"stand",1);
-      drawRsFigure(g,sx+ox,gy,K,RS_PLAYER_C[(vh>>>23)%RS_PLAYER_C.length],day,"stand",-1);
+      drawRsFigure(g,sx-ox,gy,K,col,day,"stand",1,ptier);
+      drawRsFigure(g,sx+ox,gy,K,RS_PLAYER_C[(vh>>>23)%RS_PLAYER_C.length],day,"stand",-1,rsTier((vh>>>11)^0x77f1));
       var items=3+((vh>>>25)%4);
       for(var it=0;it<items;it++){
         var ih=((it*40503)^vh)>>>0;
@@ -32174,7 +32291,7 @@ function drawRsPlayers(g,L,now,nd,fx){
       var span=HORIZON*1.2, dir=((vh>>>3)%2)?1:-1;
       var rx=Math.round(sx+dir*(t-0.5)*span);
       if(rx<-20||rx>SW+20) continue;
-      drawRsFigure(g,rx,rsStandY(wx+dir*(t-0.5)*span,d),K,col,day,"walk",dir);
+      drawRsFigure(g,rx,rsStandY(wx+dir*(t-0.5)*span,d),K,col,day,"walk",dir,ptier);
     } else {
       // ---- TELEPORTING SOMEWHERE: the effect's real job. He walks, he gets bored of walking, and he
       // goes the rest of the way instantly — which is exactly what the spell is for and exactly what
@@ -32186,19 +32303,19 @@ function drawRsPlayers(g,L,now,nd,fx){
       if(t<TP0){                                            // walking to the spot he casts from
         var wx3=wx+dir2*(t/TP0)*leg;
         var rx3=Math.round(sx+dir2*(t/TP0)*leg);
-        if(rx3>-20&&rx3<SW+20) drawRsFigure(g,rx3,rsStandY(wx3,d),K,col,day,"walk",dir2);
+        if(rx3>-20&&rx3<SW+20) drawRsFigure(g,rx3,rsStandY(wx3,d),K,col,day,"walk",dir2,ptier);
       } else if(t<TP1){                                     // the cast: he fades inside the column
         var f2=(t-TP0)/(TP1-TP0);
         var wx4=wx+dir2*leg, rx4=Math.round(sx+dir2*leg);
         if(rx4>-20&&rx4<SW+20){
           var gy4=rsStandY(wx4,d);
           drawRsTeleport(g,rx4,gy4,K,f2,day,col);
-          if(f2<0.5) drawRsFigure(g,rx4,gy4,K,col,day,"stand",dir2);
+          if(f2<0.5) drawRsFigure(g,rx4,gy4,K,col,day,"stand",dir2,ptier);
         }
       } else {                                              // …and he is a long way off, already walking
         var far=dir2*leg*3.1, tt=(t-TP1)/(1-TP1);
         var wx5=wx+far+dir2*tt*leg, rx5=Math.round(sx+far+dir2*tt*leg);
-        if(rx5>-20&&rx5<SW+20) drawRsFigure(g,rx5,rsStandY(wx5,d),K,col,day,"walk",dir2);
+        if(rx5>-20&&rx5<SW+20) drawRsFigure(g,rx5,rsStandY(wx5,d),K,col,day,"walk",dir2,ptier);
       }
     }
   }
