@@ -29439,13 +29439,53 @@ function drawFalador(g,L,now,nd){
   x=rsX(FA_MINE);   if(x>-HORIZON&&x<SW+HORIZON) drawFalMine(g,x,day,K,P);
 }
 // ---- ICE MOUNTAIN ----------------------------------------------------------------------------
+function iceHash(n){ n=((n|0)*2654435761)>>>0; return (n^(n>>>15))>>>0; }
 function drawIceMountain(g,day,K,P,skc){
   var cx=rsX(FA_ICE), hw=Math.round(HORIZON*1.15);
   if(cx<-hw-40||cx>SW+hw+40) return;
+  // ⚠ THE TWO ROCK VALUES ARE CLOSER THAN THEY WERE. They were 18 apart per channel, which is a
+  // difference you read as two different MATERIALS rather than as one material at two angles to the
+  // sun. The form has to come from the shape of the boundary, not from the size of the step.
   var rockA=day?[104,112,132]:mixc([104,112,132],[14,18,38],0.72);
-  var rockB=day?[86,92,114]  :mixc([86,92,114],[14,18,38],0.76);
+  var rockB=day?[92, 99, 121]:mixc([92, 99, 121],[14,18,38],0.76);
+  var rockC=day?[74, 80, 100]:mixc([74, 80, 100],[10,14,32],0.78);   // gullies and crags: the third value
+  var scree=day?[118,124,142]:mixc([118,124,142],[16,20,40],0.70);
   var snow =day?[242,246,252]:mixc([242,246,252],[26,34,64],0.56);
   var snowS=day?[204,216,234]:mixc([204,216,234],[22,28,56],0.62);
+  var snowLine=Math.round(HORIZON*0.30);
+  var apexY=faIceTop(Math.round(FA_ICE*WW));
+  // ---- THE TERMINATOR -------------------------------------------------------------------------
+  // 🚨🚨 THE SEAM WAS VERTICAL BECAUSE THE PREDICATE THAT DREW IT WAS PER-COLUMN. `lit` was decided
+  // once per column from `d` alone and then used to fill that column's ENTIRE height with one colour,
+  // so the boundary between the two faces could only ever be a straight vertical line — one column is
+  // lit, the next is not.
+  // 🔑🔑 THE GULLY TERM WAS THEREFORE A NO-OP FOR ITS STATED PURPOSE. It was a function of `d` only,
+  // so it moved WHERE the single vertical seam fell; it could not break it, because there was nothing
+  // to break — a per-column predicate has no shape in y at all. *A comment stating an intent is not a
+  // test that it was met*, and this one was measured wrong twice: the offset off the apex WAS applied
+  // and did nothing visible, because it was fixing the wrong half of the expression.
+  // 🔑 So the terminator is now a LINE IN TWO DIMENSIONS: it starts just off the apex and leans as it
+  // descends, wandering with two out-of-phase sines IN Y. Each column is then filled as two runs —
+  // shadow above the crossing, lit below it — which is what puts a slanted, broken edge on a shape
+  // that is drawn one column at a time.
+  var termTop=Math.round(HORIZON*0.05), termSlope=0.66;
+  function termNoise(y){ return Math.sin(y*0.055)*HORIZON*0.022+Math.sin(y*0.021+2.1)*HORIZON*0.034; }
+  // ⚠ ONE FIXED-POINT CORRECTION, NOT A PER-PIXEL SEARCH. Solving `d = term(y)` exactly would mean
+  // evaluating the noise down every pixel of every column — SW×height sine pairs on the pass that
+  // repaints at ~0.5fps. One correction step puts the crossing within a pixel or two of true, and a
+  // wandering edge does not need to be exact, it needs to not be straight.
+  function crossY(d){
+    var y0=apexY+(d-termTop)/termSlope;
+    return apexY+(d-termTop-termNoise(y0))/termSlope;
+  }
+  // 🔑 RUN-BATCHED. The old loop set `fillStyle` three times per column — rock, snow, highlight —
+  // i.e. ~3×SW assignments for a shape whose colour changes a handful of times across the whole
+  // mountain. Same finding as the road body (+5.4ms) and the castle ashlar (+9ms): flush when the
+  // profile actually CHANGES.
+  var _fs=null;
+  function fs(s){ if(s!==_fs){ g.fillStyle=s; _fs=s; } }
+  var cRockA=css(rockA), cRockB=css(rockB), cSnow=css(snow), cSnowS=css(snowS);
+  var hiC=day?"rgba(255,255,255,0.5)":"rgba(150,170,210,0.25)";
   for(var sx=0;sx<SW;sx++){
     var wx=sx+WOFF, ty=faIceTop(wx);
     if(ty<0) continue;
@@ -29454,40 +29494,125 @@ function drawIceMountain(g,day,K,P,skc){
     // ⚠ THE SNOWLINE IS A HEIGHT, NOT A FRACTION OF THIS COLUMN. Taking it as a fraction of each
     // column's own height puts snow on the foothills as well as the peak — the line then follows the
     // silhouette instead of cutting across it, and the mountain stops having an altitude at all.
-    var snowLine=Math.round(HORIZON*0.30);
-    // two rock values split at the ridge: lit west face, shadowed east face. Flat, hard-edged.
     var d=(((wx-Math.round(FA_ICE*WW))%WW)+WW*1.5)%WW-WW*0.5;
-    // ⚠ THE LIT/SHADOW SPLIT LANDED AS A HARD VERTICAL SEAM DOWN THE MIDDLE. Geometrically it is right
-    // — a peak lit from the west turns at its ridge — but with the two faces the same width and the
-    // two values far apart it reads as a join between two flat shapes, not as one lit form. The split
-    // is offset off the apex so the faces are unequal, the values are closer, and a few GULLIES cross
-    // it so the boundary is broken rather than ruled.
-    var gully=Math.sin(d*0.031)*HORIZON*0.020+Math.sin(d*0.011+2.2)*HORIZON*0.014;
-    var lit=(d<Math.round(HORIZON*0.14)+gully);
-    g.fillStyle=css(lit?rockA:rockB);
-    g.fillRect(sx,ty,1,base-ty+1);
+    var yc=crossY(d);
+    // the shadow face runs from the silhouette down to the crossing; the lit face from there to the
+    // foot. Either run can be empty, which is what makes the far flanks a single value.
+    var yCut=Math.max(ty,Math.min(base+1,Math.round(yc)));
+    if(yCut>ty){ fs(cRockB); g.fillRect(sx,ty,1,yCut-ty); }
+    if(base+1>yCut){ fs(cRockA); g.fillRect(sx,yCut,1,base+1-yCut); }
     if(ty<snowLine){
       // and the snowline is nearly LEVEL: it is an altitude. A heavy scallop turned it into a curtain
       // hanging on the mountain rather than a line the mountain rises through.
-      var capH=Math.min(base-ty, snowLine-ty+Math.round(Math.sin(wx*0.021)*2.2*K+Math.sin(wx*0.0074+1.1)*3*K));
-      if(capH>0){ g.fillStyle=css(lit?snow:snowS); g.fillRect(sx,ty,1,capH); }
+      // 🔑🔑 THE EDGE IS THE FIX, NOT THE FILL — the wheat's lesson, third land running. A saturated
+      // shape with a ruled edge is a billboard, and adding a second white to the middle of it changes
+      // nothing. So the line is jittered PER COLUMN on top of the two sines, and near the margin it
+      // breaks outright: a band of columns either side of the line drop the snow on a hash, which is
+      // rock showing through at the edge of the cap rather than a curtain hem.
+      var hh=iceHash(wx);
+      var capH=Math.min(base-ty, snowLine-ty
+                 +Math.round(Math.sin(wx*0.021)*2.2*K+Math.sin(wx*0.0074+1.1)*3*K)
+                 +((hh>>>7)%Math.max(1,Math.round(2.2*K)))-Math.round(1.1*K));
+      // within a couple of pixels of the hem, half the columns simply have no snow
+      if(capH>0 && capH<Math.round(2.6*K) && (hh>>>13)%2===0) capH=0;
+      // 🚨🚨 AND THE CAP TAKES THE SAME TERMINATOR AS THE ROCK. The first cut chose ONE tone for the
+      // whole cap of a column — `yCut>ty+capH ? shadow : lit` — which is the identical per-column
+      // binary that made the rock's seam vertical, moved twenty pixels up into the snow. It drew a
+      // hard vertical edge from the summit down through the whole cap, and it looked so much like the
+      // original bug that it read as "the fix did not work" rather than "the fix is incomplete".
+      // 🔑 A FIX APPLIED ONLY WHERE THE BUG WAS REPORTED IS HALF A FIX — the sun-anchor rule. The
+      // terminator is a property of the MOUNTAIN, so every surface on it obeys the same line: guard
+      // the shape, not each material.
+      if(capH>0){
+        var capB=ty+capH, cCut=Math.max(ty,Math.min(capB,yCut));
+        if(cCut>ty){ fs(cSnowS); g.fillRect(sx,ty,1,cCut-ty); }
+        if(capB>cCut){ fs(cSnow); g.fillRect(sx,cCut,1,capB-cCut); }
+      }
     }
-    g.fillStyle=day?"rgba(255,255,255,0.5)":"rgba(150,170,210,0.25)";   // a hard highlight on the ridge
-    g.fillRect(sx,ty,1,Math.max(1,Math.round(K*0.8)));
+    // ⚠ THE RIDGE HIGHLIGHT USED TO RUN THE WHOLE SILHOUETTE. An unbroken 1px rule along the top edge
+    // of a flat shape is the outline of a cut-out; it is most of why this read as paper. It is kept
+    // only where the light actually is — the lit side — and broken on a hash.
+    if(d<termTop+HORIZON*0.10 && (iceHash(wx*7)>>>9)%5!==0){
+      fs(hiC); g.fillRect(sx,ty,1,Math.max(1,Math.round(K*0.8)));
+    }
   }
-  // conifers on the lower flanks — dark, spiky, and only BELOW the snowline, which is what makes the
-  // snowline visible as a fact about the mountain rather than a paint choice
+  // ---- GULLIES ---------------------------------------------------------------------------------
+  // The rock below the snowline was one flat field of a single value across a third of the screen.
+  // These are the cheapest thing that gives it a surface: dark seams running down the fall line,
+  // each starting under the ridge and dying out before the foot, none of them the same length.
+  // ⚠ NOT A CONSTANT STRIDE. `(i*K+salt)%WW` is an arithmetic progression, not a scatter — the
+  // acacias, the fungus, the shrine and the station spine all learned that. The offset is hashed.
+  // 🚨 TWO BUGS THE FIRST CUT OF THIS HAD, BOTH VISIBLE IN ONE FRAME AND NEITHER GUESSABLE:
+  // ① `faIceTop` RETURNS -1 OFF THE MOUNTAIN, AND -1 PASSES AN `ABOVE THE SILHOUETTE` TEST. The guard
+  //    was `if(gy3 < faIceTop(...)) continue`, so a gully that leaned past the edge compared its y
+  //    against -1, sailed through, and kept drawing into the SKY and across the green hills behind.
+  //    🔑 A sentinel is not a coordinate. Test for it before you compare with it.
+  // ② THEY WERE AS LONG AS A QUARTER OF THE SCREEN AND LEANED HARD, so they read as dark BARS lying
+  //    on the mountain — nearer to fallen trees than to erosion. A gully is a short seam in the fall
+  //    line; what makes it read is that there are several at slightly different angles, not that any
+  //    one of them is big.
+  // …and they crossed the snow cap, which is the same class of error as ①: a feature that belongs to
+  // the rock has to be told where the rock ENDS.
   var seedW=(WORLD_SEED*2654435761)>>>0;
-  for(var t=0;t<28;t++){
+  fs(css(rockC));
+  for(var gi=0;gi<14;gi++){
+    var gh2=iceHash(gi*7919^seedW);
+    var goff=((((gh2%2000)/2000)-0.5))*hw*1.75;
+    var gwx=Math.round(FA_ICE*WW+goff), gsx=rsX(FA_ICE)+Math.round(goff);
+    if(gsx<-6||gsx>SW+6) continue;
+    var gty=faIceTop(gwx); if(gty<0) continue;
+    var gbase=rsFieldY(gwx)+Math.round(HORIZON*0.050);
+    // start BELOW the snowline — a gully in the cap is a crack in the ice, which is a different thing
+    var gstart=Math.max(gty+Math.round(HORIZON*0.015),snowLine)+((gh2>>>9)%Math.max(1,Math.round(HORIZON*0.10)));
+    var glen=Math.round(HORIZON*0.025)+((gh2>>>15)%Math.max(1,Math.round(HORIZON*0.065)));
+    var gw3=Math.max(1,Math.round(K*0.7));
+    var lean=(((gh2>>>23)%100)/100-0.5)*0.22;                 // gullies fall, but not quite straight
+    for(var v3=0;v3<glen;v3++){
+      var gy3=gstart+v3; if(gy3>=gbase) break;
+      var gx3=gsx+Math.round(v3*lean);
+      if(gx3<0||gx3>=SW) continue;
+      var gTop=faIceTop(gx3+WOFF);
+      if(gTop<0||gy3<gTop||gy3<snowLine) continue;            // off the mountain, above it, or in the cap
+      g.fillRect(gx3,gy3,gw3,1);
+    }
+  }
+  // ---- THE SCREE APRON -------------------------------------------------------------------------
+  // A mountain that meets the grass on a clean line is pasted on. This is the loose stuff at the
+  // foot: a speckle in a LIGHTER rock value, densest at the bottom and thinning upward, so the
+  // boundary between mountain and downland is a gradient of debris rather than an edge.
+  fs(css(scree));
+  for(var sx4=0;sx4<SW;sx4++){
+    var wx4=sx4+WOFF, ty4=faIceTop(wx4); if(ty4<0) continue;
+    var base4=rsFieldY(wx4)+Math.round(HORIZON*0.050);
+    var apron=Math.round(HORIZON*0.075);
+    if(base4-ty4<apron) continue;
+    var h4=iceHash(wx4*31);
+    for(var s4=0;s4<3;s4++){
+      var up=((h4>>>(s4*5+3))%apron);
+      // thinning upward: a stone near the top of the apron needs a luckier roll than one at the foot
+      if(((h4>>>(s4*3+17))%100) > 62-Math.round(52*(up/apron))) continue;
+      g.fillRect(sx4,base4-up,1,1);
+    }
+  }
+  // ---- CONIFERS --------------------------------------------------------------------------------
+  // dark, spiky, and only BELOW the snowline, which is what makes the snowline visible as a fact
+  // about the mountain rather than a paint choice.
+  // 🔑 THEY ARE THE SCALE REFERENCE — one of the three rules every land that reads obeys — so there
+  // are more of them and they SHRINK WITH ALTITUDE. A stand of identical trees says nothing about how
+  // big the thing behind them is; trees that get smaller as they climb say the mountain is enormous.
+  fs(day?"rgba(38,64,44,1)":"rgba(10,16,26,1)");
+  for(var t=0;t<46;t++){
     var h=((t*2654435761)^(seedW>>>9))>>>0;
     var off=(((h%1000)/1000)-0.5)*hw*1.7;
     var wx2=Math.round(FA_ICE*WW+off), sx2=rsX(FA_ICE)+Math.round(off);
     if(sx2<-8||sx2>SW+8) continue;
     var ty2=faIceTop(wx2); if(ty2<0) continue;
-    var gy2=ty2+Math.round(((h>>>11)%100)/100*(rsFieldY(wx2)-ty2)*0.85)+Math.round(4*K);
-    if(gy2<Math.round(HORIZON*0.33)) continue;                 // nothing grows above the snowline
-    var th=Math.round(HORIZON*0.022)+((h>>>19)%Math.max(1,Math.round(HORIZON*0.018)));
-    g.fillStyle=day?"rgba(38,64,44,1)":"rgba(10,16,26,1)";
+    var fieldY2=rsFieldY(wx2);
+    var climb=((h>>>11)%100)/100;                               // 0 at the treeline foot → 1 high up
+    var gy2=ty2+Math.round((1-climb)*(fieldY2-ty2)*0.85)+Math.round(4*K);
+    if(gy2<Math.round(HORIZON*0.33)) continue;                   // nothing grows above the snowline
+    var shrink=0.45+0.55*(1-climb);
+    var th=Math.max(2,Math.round((HORIZON*0.020+((h>>>19)%Math.max(1,Math.round(HORIZON*0.016))))*shrink));
     for(var v=0;v<th;v++){
       var w2=Math.max(1,Math.round((th-v)*0.55));
       g.fillRect(sx2-(w2>>1),gy2-v,w2,1);
