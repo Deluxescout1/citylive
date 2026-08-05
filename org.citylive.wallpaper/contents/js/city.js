@@ -29388,22 +29388,52 @@ function drawLumbridge(g,L,now,nd){
     // ⚠ AT HORIZON*0.055 THESE READ AS A GREY FENCE. A landmark on the far screen has to carry a
     // whole monitor between the toll gate and the world's edge; the stones are now nearly three times
     // the size and stand on a mound that lifts them clear of the meadow.
+    // 🚨🚨 IT WAS A CIRCLE PROJECTED ONTO A LINE. The stones were placed with
+    //     `sa=(sc/4)*PI ; x = stx + cos(sa)*sr`
+    // and `sin(sa)` was NEVER USED — so every stone got the SAME y, and the "circle" rendered as six
+    // slabs standing in a straight row at one depth. It was also only HALF a ring (0→PI), so the near
+    // arc did not exist at all. Every note above it is about the stones' SIZE and their REGULARITY,
+    // both of which were fixed and neither of which was the problem: it never had a second axis.
+    // 🔑🔑 A RING LYING ON THE GROUND, SEEN FROM HERE, IS AN ELLIPSE. Its far stones sit HIGHER on the
+    // screen and read SMALLER; its near stones sit lower and read bigger. That is the same fact the
+    // Ardougne harbour needed (a flat surface must narrow with distance) and the same one the river
+    // already earns by widening as it nears — a shape lying flat has to be drawn lying flat.
+    // ⚠ AND THEY MUST BE PAINTED FAR-TO-NEAR. Without that the back of the ring draws over the front
+    // and the depth cue inverts, which looks worse than the straight line did.
     var sy=rsStandY(LB_CIRCLE*WW,0.44), sr=Math.round(HORIZON*0.135);
+    var SQUASH=0.30, N=9;
+    // the mound: an ELLIPSE under the ring, not a slab — it is the ground the circle stands on and it
+    // has to agree with the ring's own perspective or the stones look pasted onto a wall
     g.fillStyle=css(day?mixc(grassD,[92,88,70],0.35):nite([70,74,60],0.7));
-    g.fillRect(stx-sr-Math.round(4*K),sy-Math.round(3*K),(sr+Math.round(4*K))*2,Math.round(3*K)+1);
-    for(var sc=0;sc<5;sc++){
-      var sa=(sc/4)*Math.PI, sxp=stx+Math.round(Math.cos(sa)*sr);
-      // regularity broken three ways — height, width AND lean. Five identical slabs on an even pitch
-      // is the lattice fault; a stone circle is the one feature where that would be most obvious.
+    var mrY=Math.round(sr*SQUASH)+Math.round(3*K);
+    for(var my=-mrY;my<=mrY;my++){
+      var mw=Math.round((sr+Math.round(5*K))*Math.sqrt(Math.max(0,1-(my/mrY)*(my/mrY))));
+      g.fillRect(stx-mw,sy+my,mw*2,1);
+    }
+    // far-to-near: sort by the sine, descending
+    var order=[];
+    for(var oi=0;oi<N;oi++) order.push(oi);
+    order.sort(function(a,b){ return Math.sin((b/N)*Math.PI*2)-Math.sin((a/N)*Math.PI*2); });
+    for(var oq=0;oq<N;oq++){
+      var sc=order[oq];
+      var sa=(sc/N)*Math.PI*2;
+      var sxp=stx+Math.round(Math.cos(sa)*sr);
+      var syp=sy-Math.round(Math.sin(sa)*sr*SQUASH);
+      var depth=(1-Math.sin(sa))*0.5;                       // 0 at the back of the ring, 1 at the front
+      var dsc=0.70+0.58*depth;                              // …and the near stones are half again as big
+      // regularity still broken three ways — height, width AND lean — on top of the perspective
       var sHash=((sc*2654435761)^((WORLD_SEED*2246822519)>>>0))>>>0;
-      var shh=Math.round(HORIZON*0.085)+((sHash>>>3)%Math.max(1,Math.round(HORIZON*0.055)));
-      var sww=Math.max(3,Math.round(3.8*K)+((sHash>>>11)%Math.max(1,Math.round(3*K))));
+      var shh=Math.round((HORIZON*0.075+((sHash>>>3)%Math.max(1,Math.round(HORIZON*0.045))))*dsc);
+      var sww=Math.max(2,Math.round((3.4*K+((sHash>>>11)%Math.max(1,Math.round(2.6*K))))*dsc));
       var slean=(((sHash>>>19)%3)-1);
-      lumShadow(g,sxp,sy,Math.round(sww*1.6),day);
-      g.fillStyle=css(day?[128,126,118]:nite([128,126,118],0.7));
-      for(var sv=0;sv<shh;sv++) g.fillRect(sxp-(sww>>1)+Math.round(slean*sv/shh),sy-sv,sww,1);
-      g.fillStyle=css(day?[152,150,142]:nite([152,150,142],0.66));
-      for(var sv2=0;sv2<shh;sv2++) g.fillRect(sxp-(sww>>1)+Math.round(slean*sv2/shh),sy-sv2,Math.max(1,Math.round(K*0.9)),1);
+      lumShadow(g,sxp,syp,Math.round(sww*1.6),day);
+      // the far stones are also PALER — aerial perspective, the only depth cue this flat register keeps
+      var stoneC=day?mixc([128,126,118],P.far,0.34*(1-depth)):nite([128,126,118],0.7);
+      var stoneL=day?mixc([152,150,142],P.far,0.34*(1-depth)):nite([152,150,142],0.66);
+      g.fillStyle=css(stoneC);
+      for(var sv=0;sv<shh;sv++) g.fillRect(sxp-(sww>>1)+Math.round(slean*sv/shh),syp-sv,sww,1);
+      g.fillStyle=css(stoneL);
+      for(var sv2=0;sv2<shh;sv2++) g.fillRect(sxp-(sww>>1)+Math.round(slean*sv2/shh),syp-sv2,Math.max(1,Math.round(K*0.9)),1);
     }
   }
 }
