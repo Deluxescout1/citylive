@@ -4312,7 +4312,22 @@ var EGG_BIOMES=[
     walls:[[222,208,180],[196,180,150],[236,224,198],[172,156,128],[210,196,168],[184,168,140],[228,216,190],[160,146,120]],
     fauna:{ keep:{deer:1,rabbit:1,fox:1,boar:1}, big:["cattle"], small:["rat","squirrel"], air:["crow","gull"] },
     flora:{ kinds:["generic","generic","broad","grass"], bloom:["#e8d8a0","#d8b8c8","#c8d8b0"] },
-    sky:{ top:[124,168,214], bot:[198,216,230], k:0.34, haze:[202,220,232] } }
+    sky:{ top:[124,168,214], bot:[198,216,230], k:0.34, haze:[202,220,232] } },
+  // 🏛️ VARROCK — the fourth and last, and the one this per-column band engine renders WORST: a walled
+  // city of many similar buildings is the horizontal repetition that killed THE TERRACES after eleven
+  // commits. Everything about this land is arranged against that: three masses of clearly different
+  // SIZE on the three screens, walls that appear only as gatehouses with stubs stepping down, and any
+  // battlement wide enough to count broken with missing merlons.
+  // ⚠ THIS ROW BRINGS THE EGG POOL TO 12, which is what the `%8` gate was written for — every egg land
+  // returns to its intended 1 life in 96, from the 1-in-80 it has been running at with ten rows.
+  { k:"varrock", name:"VARROCK", egg:1, rs:"varrock", amp:0.30, base:0.22, flat:0.70, steep:0.28, snow:false, water:"none",
+    far:[120,140,108], near:[96,120,80], cap:[210,214,214], ground:[104,138,78],
+    // dark timber and brown brick — the warmest, dirtiest walls of the four, and the red-brown roofs
+    // are the one thing you can name this city by from the next monitor
+    walls:[[208,188,154],[178,154,122],[224,206,176],[152,132,104],[196,176,144],[168,146,116],[216,198,168],[140,122,96]],
+    fauna:{ keep:{deer:1,rabbit:1,fox:1,boar:1}, big:["cattle"], small:["rat"], air:["crow","pigeon"] },
+    flora:{ kinds:["generic","generic","broad","grass"], bloom:["#d8c890","#c8a8b8","#b8c8a0"] },
+    sky:{ top:[128,172,218], bot:[202,220,232], k:0.33, haze:[204,222,234] } }
 ];
 // ONE TRUTH ABOUT WHICH LAND THIS LIFE IS. Extracted from buildWorld because `setup` now has to know
 // the land BEFORE it can place HORIZON: the coastal lands put open water along the bottom of the
@@ -28755,6 +28770,19 @@ function lumBridgeY(){ return Math.round(rsFieldY(LB_RIVER*WW)+(HORIZON-rsFieldY
 // stayed where it was and the town would have built straight through the wall.
 function faCastleW(){ return Math.round(HORIZON*0.62); }
 function rsFoot(){
+  if(curRs==="varrock"){
+    // the three ranked masses keep their ground, and all three widths come from the SAME source the
+    // drawing uses — the faCastleW lesson, applied before it could bite
+    var g1=Math.round(VK_GE*WW), w1=Math.round(vkGeW()*1.06);
+    lmFoot.push([g1-(w1>>1)-10, g1+(w1>>1)+10]);
+    var p1=Math.round(VK_PALACE*WW), w2=Math.round(vkPalaceW()*1.08);
+    lmFoot.push([p1-(w2>>1)-10, p1+(w2>>1)+10]);
+    var c1=Math.round(VK_CHURCH*WW), w3=Math.round(vkChurchW()*2.2);
+    lmFoot.push([c1-(w3>>1)-8, c1+(w3>>1)+8]);
+    var s1=Math.round(VK_SQUARE*WW), w4=Math.round(HORIZON*0.36);
+    lmFoot.push([s1-(w4>>1)-6, s1+(w4>>1)+6]);
+    return;
+  }
   if(curRs==="ardougne"){
     // the wall and the castle are the two things the town must never build in front of, and both
     // widths come from the SAME source the drawing uses — the faCastleW lesson, applied up front
@@ -29650,8 +29678,13 @@ function drawFalador(g,L,now,nd){
 // well-behaved ones; these are broad, black-green and heavy, with a thick trunk and a flat spreading
 // crown, and the difference has to be in the SHAPE or it just reads as the same tree in shadow —
 // grain and silhouette, never colour.
+// 🔑 ONE YEW ROUTINE, TWO CITIES. Falador's yews stand outside its walls and Varrock's four stand
+// INSIDE them, but a yew is a yew — a second copy of this is how the two ended up different trees.
+// The caller supplies the world fractions; nothing else about it is per-land.
 function drawFalYews(g,day,K,P){
-  var spots=[FA_WGATE-0.045,FA_WGATE-0.028,FA_SGATE+0.032,FA_SGATE+0.050];
+  drawRsYews(g,day,K,P,[FA_WGATE-0.045,FA_WGATE-0.028,FA_SGATE+0.032,FA_SGATE+0.050]);
+}
+function drawRsYews(g,day,K,P,spots){
   var seedW=(WORLD_SEED*2654435761)>>>0;
   for(var i=0;i<spots.length;i++){
     var wx=Math.round(spots[i]*WW), sx=rsX(spots[i]);
@@ -29908,6 +29941,410 @@ function drawIceMountain(g,day,K,P,skc){
       g.fillRect(sx2-(w2>>1),gy2-v,w2,1);
     }
   }
+}
+// ================================================================================================
+// VARROCK — the fourth city, and the repetition trap
+// ================================================================================================
+// 🚨 THIS IS THE LAND THIS ENGINE RENDERS WORST. A walled city of many similar buildings is exactly
+// the horizontal repetition that killed THE TERRACES after eleven commits, and it is why Falador's
+// curtain wall was declined in favour of two gatehouses. Every decision below is arranged against it.
+// 🔒 HIS LOCKED ANSWERS: the ONE BIG OBJECT is THE GRAND EXCHANGE and it must be CLEARLY biggest —
+// palace second, church third. "One big object is a COMPARISON, not a size" is the lesson Ardougne's
+// wall taught by losing to its own castle, so the three are sized against each other on purpose and
+// the ordering is stated once, here, rather than left to three separate constants to agree by luck.
+var VK_WGATE=0.05, VK_WBANK=0.14, VK_GE=0.24, VK_SQUARE=0.40, VK_PALACE=0.55,
+    VK_MUSEUM=0.68, VK_CHURCH=0.76, VK_EBANK=0.84, VK_MINE=0.92, VK_EGATE=0.97;
+// 🔑 THE HIERARCHY, IN ONE PLACE. Screen 1 gets the GE, screen 2 the palace, screen 3 the church —
+// because every screen has to hold up alone (he sees three at once) — and their widths are derived
+// from one number so the ranking cannot drift when one of them is tuned.
+function vkGeW(){    return Math.round(HORIZON*0.84); }
+function vkPalaceW(){ return Math.round(vkGeW()*0.64); }
+function vkChurchW(){ return Math.round(vkGeW()*0.30); }
+function drawVarrock(g,L,now,nd){
+  var day=L>0.5, K=Math.max(1,KSP), skc=biomeSkc(day);
+  var P=rsPal(day,skc), nite=P.nite, RC=rsProfile(K);
+  var brick =day?[196,172,138]:nite([196,172,138],0.72);
+  var brickD=day?[152,130,100]:nite([152,130,100],0.76);
+  var brickL=day?[222,202,170]:nite([222,202,170],0.68);
+  var roofA =day?[132,74,52]  :nite([132,74,52],0.74);   // the red-brown roofs: this city's signature
+  var roofB =day?[94,52,38]   :nite([94,52,38],0.78);
+  var tim   =day?[74,54,40]   :nite([74,54,40],0.78);
+  rsGroundBands(g,P,RC,day,K,null);
+  rsPatches(g,P,day,K,18);
+  rsTrack(g,P,day,K,VK_WGATE,0.50,VK_SQUARE,0.56,2.4);
+  rsTrack(g,P,day,K,VK_SQUARE,0.56,VK_EGATE,0.50,2.4);
+  rsTrack(g,P,day,K,VK_SQUARE,0.56,VK_PALACE,0.30,1.8);      // the spur north to the palace
+  rsTrees(g,P,day,K,20,[[VK_GE*WW,HORIZON*0.46],[VK_PALACE*WW,HORIZON*0.34],[VK_SQUARE*WW,HORIZON*0.22]]);
+  var x;
+  x=rsX(VK_WGATE);  if(x>-HORIZON&&x<SW+HORIZON) drawVkGate(g,x,day,K,brick,brickD,brickL,roofA,roofB,VK_WGATE,1);
+  x=rsX(VK_WBANK);  if(x>-HORIZON&&x<SW+HORIZON) drawVkBank(g,x,day,K,L,brick,brickD,brickL,roofA,roofB,tim,1);
+  x=rsX(VK_GE);     if(x>-HORIZON*1.5&&x<SW+HORIZON*1.5) drawVkGE(g,x,day,K,L,P,brick,brickD,brickL,roofA,roofB,tim);
+  x=rsX(VK_SQUARE); if(x>-HORIZON&&x<SW+HORIZON) drawVkSquare(g,x,day,K,L,P,brick,brickD,tim,roofA,roofB);
+  x=rsX(VK_PALACE); if(x>-HORIZON*1.3&&x<SW+HORIZON*1.3) drawVkPalace(g,x,day,K,L,brick,brickD,brickL,roofA,roofB);
+  x=rsX(VK_MUSEUM); if(x>-HORIZON&&x<SW+HORIZON) drawVkMuseum(g,x,day,K,brick,brickD,brickL,roofA);
+  x=rsX(VK_CHURCH); if(x>-HORIZON*1.2&&x<SW+HORIZON*1.2) drawVkChurch(g,x,day,K,L,brick,brickD,brickL,roofA,roofB);
+  x=rsX(VK_EBANK);  if(x>-HORIZON&&x<SW+HORIZON) drawVkBank(g,x,day,K,L,brick,brickD,brickL,roofA,roofB,tim,0);
+  x=rsX(VK_MINE);   if(x>-HORIZON&&x<SW+HORIZON) drawVkMine(g,x,day,K,P);
+  x=rsX(VK_EGATE);  if(x>-HORIZON&&x<SW+HORIZON) drawVkGate(g,x,day,K,brick,brickD,brickL,roofA,roofB,VK_EGATE,-1);
+  // 📚 "Four yew trees grow inside the walls" — one of the few facts the wiki states about this city's
+  // planting, and the same tree the market crowd has been selling logs from since Falador.
+  drawRsYews(g,day,K,P,[VK_GE+0.055,VK_SQUARE-0.045,VK_MUSEUM+0.035,VK_EGATE-0.030]);
+}
+// ---- A FORTIFIED GATE, and the wall that dies out either side ---------------------------------
+// 📚 "Fortified gates with guards protect all four entrances." ⚠ AND THAT IS ALL THE WALL THIS LAND
+// GETS TO SHOW. The city genuinely is walled, but a curtain across the world is the fault this whole
+// land is built to avoid — so the wall exists as two gatehouses whose stubs step down to nothing,
+// which is how a viewer infers a circuit without ever being handed one to count.
+function drawVkGate(g,cx,day,K,brick,brickD,brickL,roofA,roofB,frac,dir){
+  var base=rsStandY(frac*WW,0.54);
+  var tw=Math.round(HORIZON*0.050), th=Math.round(HORIZON*0.150), gap=Math.round(HORIZON*0.066);
+  lumShadow(g,cx,base,Math.round((gap+tw*2)*1.1),day);
+  for(var sd=0;sd<2;sd++){
+    var sgn=sd?1:-1, wx0=cx+sgn*Math.round(gap*0.5+tw);
+    for(var seg=0;seg<3;seg++){
+      var sh=Math.round(th*(0.50-seg*0.14)), sw=Math.round(HORIZON*(0.072-seg*0.018));
+      var sx=wx0+sgn*Math.round(HORIZON*(seg*0.075)), xa=sgn>0?sx:sx-sw;
+      g.fillStyle=css(brickD); g.fillRect(xa,base-sh,sw,sh);
+      g.fillStyle=css(brick);  g.fillRect(xa,base-sh,sw,Math.max(1,Math.round(1.4*K)));
+      var st=Math.max(3,Math.round(4*K)), mw=Math.max(2,Math.round(2*K));
+      g.fillStyle=css(brickL);
+      for(var m=xa,mi=0;m<xa+sw-mw;m+=st,mi++){
+        if((iceHash(mi*3121^(seg*77))>>>4)%6===0) continue;      // a wall this old has gaps in its teeth
+        g.fillRect(m,base-sh-Math.round(2*K),mw,Math.round(2*K));
+      }
+    }
+  }
+  // the arch over the road, and the two towers
+  g.fillStyle=css(brickD); g.fillRect(cx-(gap>>1),base-Math.round(th*0.70),gap,Math.round(th*0.70));
+  g.fillStyle=day?"rgba(34,28,24,0.92)":"rgba(8,8,12,0.94)";
+  var ow=Math.round(gap*0.62), ox=cx-(ow>>1), spring=Math.round(th*0.34);
+  g.fillRect(ox,base-spring,ow,spring);
+  for(var a=0;a<Math.round(ow*0.5);a++){
+    var aw=Math.round(ow*Math.sqrt(Math.max(0,1-Math.pow(a/(ow*0.5),2))));
+    g.fillRect(ox+((ow-aw)>>1),base-spring-a,aw,1);
+  }
+  for(var t=0;t<2;t++){
+    var tx=cx+(t?1:-1)*Math.round(gap*0.5)-(t?0:tw);
+    g.fillStyle=css(brickD); g.fillRect(tx,base-th,tw,th);
+    g.fillStyle=css(brick);  g.fillRect(tx,base-th,Math.max(1,Math.round(1.2*K)),th);
+    var rh=Math.round(tw*0.9);                                    // a red pyramid cap, this city's mark
+    for(var r=0;r<rh;r++){
+      var rw=Math.max(1,Math.round((tw+Math.round(2*K))*(1-r/rh)));
+      g.fillStyle=css((r%2)?roofA:roofB);
+      g.fillRect(tx-Math.round(K)+(((tw+Math.round(2*K))-rw)>>1),base-th-1-r,rw,1);
+    }
+  }
+}
+// ---- THE BANKS. 📚 west is "a large bank", east is "a small, two-story bank" ------------------
+// 🔑 THE TWO ARE DELIBERATELY UNEQUAL, because the game says so and because two identical banks at
+// opposite ends of the same land is the repetition fault in miniature. The gold coin over the door is
+// what names them — the one object that says BANK and nothing else.
+function drawVkBank(g,cx,day,K,L,brick,brickD,brickL,roofA,roofB,tim,big){
+  var frac=big?VK_WBANK:VK_EBANK, night=(L<=0.5);
+  var base=rsStandY(frac*WW,0.52);
+  var w=Math.round(HORIZON*(big?0.150:0.082)), h=Math.round(HORIZON*(big?0.105:0.115));
+  lumShadow(g,cx,base,Math.round(w*1.15),day);
+  g.fillStyle=css(brick);  g.fillRect(cx-(w>>1),base-h,w,h);
+  g.fillStyle=css(brickD); g.fillRect(cx+(w>>1)-Math.round(1.6*K),base-h,Math.round(1.6*K),h);
+  var cStep=Math.max(3,Math.round(3.6*K));
+  g.fillStyle=css(mixc(brick,brickD,0.5));
+  for(var cy=base-h+cStep;cy<base;cy+=cStep) g.fillRect(cx-(w>>1),cy,w,1);
+  var rh=Math.round(w*(big?0.42:0.62)), ov=Math.round(2*K);
+  for(var r=0;r<rh;r++){
+    var rw=Math.max(1,Math.round((w+ov*2)*(1-r/rh)));
+    g.fillStyle=css((r%Math.max(2,Math.round(2*K))<Math.max(1,Math.round(K)))?roofA:roofB);
+    g.fillRect(cx-((w+ov*2)>>1)+(((w+ov*2)-rw)>>1),base-h-1-r,rw,1);
+  }
+  if(!big){                                                       // the east bank's second storey
+    g.fillStyle=css(mixc(brick,brickL,0.4));
+    g.fillRect(cx-(w>>1),base-Math.round(h*0.52),w,Math.max(1,Math.round(1.4*K)));
+  }
+  g.fillStyle=night?"rgba(255,200,110,0.9)":"rgba(36,30,26,0.9)";
+  g.fillRect(cx-Math.round(w*0.10),base-Math.round(h*0.46),Math.round(w*0.20),Math.round(h*0.46));
+  // 🪙 the coin on its board: gold, round, over the door. Six pixels and nothing else it could be.
+  var cr=Math.max(3,Math.round(3.2*K)), cyy=base-Math.round(h*0.70);
+  g.fillStyle=day?"#d8b23a":"#5c4c18";
+  for(var dy=-cr;dy<=cr;dy++){
+    var dw=Math.round(Math.sqrt(Math.max(0,cr*cr-dy*dy)));
+    g.fillRect(cx-dw,cyy+dy,dw*2+1,1);
+  }
+  g.fillStyle=day?"#f0d878":"#7a6828";
+  g.fillRect(cx-Math.round(cr*0.4),cyy-Math.round(cr*0.5),Math.max(1,Math.round(K)),Math.round(cr*0.6));
+}
+// ---- THE GRAND EXCHANGE. The one big object, and it must WIN --------------------------------
+// 📚 "The Grand Exchange sits northwest of the palace, serving as the massive trading hub." It is the
+// largest structure in the city and the one every player has stood in, so it is the land's subject.
+// 🔑 IT IS BUILT AS A COURTYARD SEEN FROM OUTSIDE: a long arcaded screen wall with a great arched
+// entrance in the middle and a tiered hall rising behind it. That shape does two jobs — it is
+// unmistakably one BUILDING rather than a terrace of many, and its arcade gives the eye a rhythm that
+// is broken by the entrance instead of running unbroken across the frame.
+function drawVkGE(g,cx,day,K,L,P,brick,brickD,brickL,roofA,roofB,tim){
+  var base=rsStandY(VK_GE*WW,0.56), night=(L<=0.5);
+  var W=vkGeW(), H=Math.round(HORIZON*0.30), x0=cx-(W>>1);
+  var topMargin=Math.round(HORIZON*0.045);
+  H=Math.min(H,base-topMargin-Math.round(HORIZON*0.12));
+  lumShadow(g,cx,base,Math.round(W*1.06),day);
+  // the hall behind, rising in two tiers so the mass has a top rather than a lid
+  // 🚨 CLAMP THE WHOLE STACK, NOT THE FIRST THING IN IT. `hh` was clamped and then a roof, a lantern
+  // tier and a second roof were piled ON TOP of the clamped value, so the tower ran off the top of the
+  // screen and the upper block appeared detached in the sky. This is the Falador castle's lesson
+  // exactly — "the tallest point stays under the top edge" — and it failed here because the tallest
+  // point is not the thing the clamp was applied to.
+  // 🔑 SOLVE FOR THE TOTAL. Everything above is a fixed proportion of `hh`, so the ceiling can be
+  // turned back into a limit on `hh` in one line rather than discovered by looking at a render.
+  var hw=Math.round(W*0.46);
+  var rhH0=Math.round(hw*0.34), rh20=Math.round(Math.round(hw*0.44)*0.5);
+  var headroom=base-topMargin-rhH0-rh20;
+  var hh=Math.min(Math.round(H*1.42), Math.max(Math.round(H*0.6), Math.floor(headroom/1.34)));
+  g.fillStyle=css(brickD); g.fillRect(cx-(hw>>1),base-hh,hw,hh);
+  g.fillStyle=css(brick);  g.fillRect(cx-(hw>>1),base-hh,Math.round(hw*0.58),hh);
+  // 🚨 A WIDE BLOCK ON A POINTED APEX HAS SKY UNDER ITS CORNERS, and that is what made the lantern
+  // look detached — not the clamp, which was a real bug but a different one. The tier's bottom edge
+  // sat exactly on the pyramid's tip, so geometrically it was touching and visually it was floating.
+  // 🔑 SO THE ROOF IS HIPPED, NOT PYRAMIDAL: it stops when it narrows to the lantern's width, leaving
+  // a flat RIDGE for the lantern to stand on. Which is also what a hall with a cupola actually has —
+  // the fix and the correct architecture are the same thing.
+  var tw2=Math.round(hw*0.44), th2=Math.round(hh*0.34);
+  var rhH=Math.round(hw*0.34), full=hw+Math.round(4*K), stopW=tw2+Math.round(2*K);
+  var rhUse=Math.max(1,Math.round(rhH*(1-stopW/full)));
+  for(var r0=0;r0<rhUse;r0++){
+    var rw0=Math.max(1,Math.round(full*(1-r0/rhH)));
+    g.fillStyle=css((r0%Math.max(2,Math.round(2*K))<Math.max(1,Math.round(K)))?roofA:roofB);
+    g.fillRect(cx-(full>>1)+((full-rw0)>>1),base-hh-1-r0,rw0,1);
+  }
+  g.fillStyle=css(roofB);                                        // the ridge itself
+  g.fillRect(cx-(stopW>>1),base-hh-rhUse,stopW,Math.max(1,Math.round(1.4*K)));
+  g.fillStyle=css(brick); g.fillRect(cx-(tw2>>1),base-hh-rhUse-th2,tw2,th2);
+  var rh2=Math.round(tw2*0.5);
+  for(var r1=0;r1<rh2;r1++){
+    var rw1=Math.max(1,Math.round((tw2+Math.round(3*K))*(1-r1/rh2)));
+    g.fillStyle=css((r1%2)?roofA:roofB);
+    g.fillRect(cx-((tw2+Math.round(3*K))>>1)+(((tw2+Math.round(3*K))-rw1)>>1),base-hh-rhUse-th2-1-r1,rw1,1);
+  }
+  // the screen wall across the front, with its arcade
+  g.fillStyle=css(brick);  g.fillRect(x0,base-H,W,H);
+  g.fillStyle=css(brickD); g.fillRect(x0,base-Math.round(H*0.10),W,Math.round(H*0.10));
+  var cStep=Math.max(3,Math.round(3.8*K));
+  g.fillStyle=css(mixc(brick,brickD,0.5));
+  for(var cy=base-H+cStep;cy<base;cy+=cStep) g.fillRect(x0,cy,W,1);
+  // ⚠ THE ARCADE IS THE REPETITION RISK AND ALSO THE ANSWER TO IT. Evenly spaced arches across 0.84 of
+  // the horizon is precisely a terrace; what saves it is that they are INTERRUPTED — the great arch
+  // takes the middle out, and the bays either side are unequal in number. The eye reads "arcade" and
+  // never gets a count.
+  var aw=Math.round(W*0.052), gap2=Math.round(W*0.070);
+  g.fillStyle=day?"rgba(40,32,26,0.88)":"rgba(8,8,12,0.92)";
+  for(var b=0;b<12;b++){
+    var bx=x0+Math.round(W*0.045)+b*gap2;
+    if(Math.abs(bx+(aw>>1)-cx)<Math.round(W*0.13)) continue;      // the great arch owns the centre
+    if(bx+aw>x0+W-Math.round(W*0.03)) break;
+    var ah=Math.round(H*0.44), spr=Math.round(ah*0.58);
+    g.fillRect(bx,base-spr-Math.round(H*0.10),aw,spr);
+    for(var a2=0;a2<Math.round(aw*0.5);a2++){
+      var aw2=Math.round(aw*Math.sqrt(Math.max(0,1-Math.pow(a2/(aw*0.5),2))));
+      g.fillRect(bx+((aw-aw2)>>1),base-spr-Math.round(H*0.10)-a2,aw2,1);
+    }
+  }
+  // THE GREAT ARCH — the way in, and the thing that makes this one building
+  var gw=Math.round(W*0.19), gx=cx-(gw>>1), gh=Math.round(H*0.74), gspr=Math.round(gh*0.56);
+  g.fillStyle=day?"rgba(28,22,18,0.94)":"rgba(6,6,10,0.95)";
+  g.fillRect(gx,base-gspr,gw,gspr);
+  for(var a3=0;a3<Math.round(gw*0.5);a3++){
+    var aw3=Math.round(gw*Math.sqrt(Math.max(0,1-Math.pow(a3/(gw*0.5),2))));
+    g.fillRect(gx+((gw-aw3)>>1),base-gspr-a3,aw3,1);
+  }
+  g.fillStyle=css(brickL);                                        // voussoirs, so the arch has weight
+  for(var v=0;v<Math.round(gw*0.5);v++){
+    var vw=Math.round(gw*Math.sqrt(Math.max(0,1-Math.pow(v/(gw*0.5),2))));
+    g.fillRect(gx+((gw-vw)>>1)-Math.max(1,Math.round(K)),base-gspr-v,Math.max(1,Math.round(K)),1);
+    g.fillRect(gx+((gw-vw)>>1)+vw,base-gspr-v,Math.max(1,Math.round(K)),1);
+  }
+  var st=Math.max(3,Math.round(4.6*K)), mw=Math.max(2,Math.round(2.4*K)), mh=Math.max(2,Math.round(2.4*K));
+  g.fillStyle=css(brickL);
+  for(var m=x0,mi=0;m<x0+W-mw;m+=st,mi++){
+    if((iceHash(mi*4441)>>>5)%8===0) continue;
+    g.fillRect(m,base-H-mh,mw,mh);
+  }
+}
+// ---- VARROCK SQUARE. 📚 "the commercial heart, hosting most of the city's shops" ---------------
+// 🔑 A SQUARE IS PAVED — the lesson Falador's square just taught. Without flagging it is a name for a
+// gap between buildings. The shops face onto it in a short irregular terrace, and the fountain is the
+// centrepiece, because a square needs a thing at its middle or it is a car park.
+function drawVkSquare(g,cx,day,K,L,P,brick,brickD,tim,roofA,roofB){
+  var base=rsStandY(VK_SQUARE*WW,0.54), night=(L<=0.5);
+  var pvW=Math.round(HORIZON*0.34), pvH=Math.round(HORIZON*0.056);
+  var pav=day?[182,170,152]:mixc([182,170,152],[14,18,38],0.72);
+  var pavD=day?[156,144,128]:mixc([156,144,128],[14,18,38],0.75);
+  for(var pr=0;pr<pvH;pr++){
+    var t2=pr/Math.max(1,pvH-1), rw2=Math.round(pvW*(0.72+0.28*t2));
+    g.fillStyle=css(pr%Math.max(2,Math.round(3*K))<Math.max(1,Math.round(K))?pavD:pav);
+    g.fillRect(cx-(rw2>>1),base-pvH+pr,rw2,1);
+  }
+  // ⚠ THE SHOPS ARE UNEQUAL ON PURPOSE. Five identical fronts is the terrace fault; these differ in
+  // width, height and roof pitch, and two of them are set back a pixel, which is enough.
+  for(var i=0;i<5;i++){
+    var h5=iceHash(i*2237^((WORLD_SEED*2654435761)>>>0));
+    var off=Math.round((i-2)*HORIZON*0.060);
+    var sx=cx+off, sb=rsStandY(VK_SQUARE*WW+off,0.500+((h5>>>7)%2)*0.014);
+    var w=Math.round(HORIZON*(0.046+((h5%3)*0.008))), h=Math.round(HORIZON*(0.062+((h5>>>5)%4)*0.010));
+    g.fillStyle=css(brick);  g.fillRect(sx-(w>>1),sb-h,w,h);
+    g.fillStyle=css(brickD); g.fillRect(sx+(w>>1)-Math.round(1.2*K),sb-h,Math.round(1.2*K),h);
+    g.fillStyle=css(tim);                                          // dark timber framing: Varrock's own
+    g.fillRect(sx-(w>>1),sb-Math.round(h*0.52),w,Math.max(1,Math.round(1.4*K)));
+    var rh=Math.round(w*(0.44+((h5>>>11)%3)*0.06)), ov=Math.round(1.8*K);
+    for(var r=0;r<rh;r++){
+      var rw=Math.max(1,Math.round((w+ov*2)*(1-r/rh)));
+      g.fillStyle=css((r%2)?roofA:roofB);
+      g.fillRect(sx-((w+ov*2)>>1)+(((w+ov*2)-rw)>>1),sb-h-1-r,rw,1);
+    }
+    g.fillStyle=night?"rgba(255,198,104,0.85)":"rgba(34,28,24,0.88)";
+    g.fillRect(sx-Math.round(w*0.12),sb-Math.round(h*0.36),Math.round(w*0.24),Math.round(h*0.36));
+  }
+}
+// ---- VARROCK PALACE. 📚 "dominates the north … queen's garden, library and barracks" ----------
+// ⚠ FOURTH CASTLE, FOURTH SHAPE, and by now that constraint is doing real work. Lumbridge is WIDE,
+// TAN and FLAT-TOPPED on a motte; Falador TALL, WHITE and POINTED on the flat; Ardougne SQUAT and
+// BROAD in sandstone with dark timber roofs. This one is the only palace of the four with ROUND
+// TOWERS under conical red roofs — a curve where the others are all corners, which is the one
+// difference that survives being seen from the next monitor.
+function drawVkPalace(g,cx,day,K,L,brick,brickD,brickL,roofA,roofB){
+  var base=rsStandY(VK_PALACE*WW,0.50), night=(L<=0.5);
+  var W=vkPalaceW(), H=Math.round(HORIZON*0.26), x0=cx-(W>>1);
+  var topMargin=Math.round(HORIZON*0.045);
+  lumShadow(g,cx,base,Math.round(W*1.05),day);
+  g.fillStyle=css(brick);  g.fillRect(x0,base-H,W,H);
+  g.fillStyle=css(brickD); g.fillRect(x0+W-Math.round(2*K),base-H,Math.round(2*K),H);
+  var cStep=Math.max(3,Math.round(3.6*K));
+  g.fillStyle=css(mixc(brick,brickD,0.5));
+  for(var cy=base-H+cStep;cy<base;cy+=cStep) g.fillRect(x0,cy,W,1);
+  var st=Math.max(3,Math.round(4.4*K)), mw=Math.max(2,Math.round(2.2*K)), mh=Math.max(2,Math.round(2.2*K));
+  g.fillStyle=css(brickL);
+  for(var m=x0,mi=0;m<x0+W-mw;m+=st,mi++){
+    if((iceHash(mi*5527)>>>4)%9===0) continue;
+    g.fillRect(m,base-H-mh,mw,mh);
+  }
+  // the great hall behind the curtain, with a steep red roof
+  var hw=Math.round(W*0.40), hh=Math.round(H*0.72);
+  g.fillStyle=css(brickD); g.fillRect(cx-(hw>>1),base-H-hh,hw,hh);
+  var rhH=Math.round(hw*0.58);
+  for(var r=0;r<rhH;r++){
+    var rw=Math.max(1,Math.round((hw+Math.round(4*K))*(1-r/rhH)));
+    g.fillStyle=css((r%Math.max(2,Math.round(2*K))<Math.max(1,Math.round(K)))?roofA:roofB);
+    g.fillRect(cx-((hw+Math.round(4*K))>>1)+(((hw+Math.round(4*K))-rw)>>1),base-H-hh-1-r,rw,1);
+  }
+  // 🔑 THE ROUND TOWERS. Drawn as stacked rows whose width barely changes, with the LIT edge only a
+  // third of the way in rather than at the rim — that offset is what makes a rectangle read as a
+  // cylinder, and it is the whole difference between this palace and the other three.
+  for(var t=0;t<2;t++){
+    var tw=Math.round(W*0.17), tx=x0+(t?W-tw:0), th=Math.round(H*1.30);
+    th=Math.min(th,base-topMargin-Math.round(tw*0.9));
+    g.fillStyle=css(brickD); g.fillRect(tx,base-th,tw,th);
+    g.fillStyle=css(brick);  g.fillRect(tx,base-th,Math.round(tw*0.62),th);
+    g.fillStyle=css(brickL); g.fillRect(tx+Math.round(tw*0.20),base-th,Math.max(1,Math.round(1.6*K)),th);
+    g.fillStyle=css(mixc(brick,brickD,0.5));
+    for(var cy2=base-th+cStep;cy2<base;cy2+=cStep) g.fillRect(tx,cy2,tw,1);
+    var crh=Math.round(tw*0.9);                                   // the conical cap
+    for(var r2=0;r2<crh;r2++){
+      var rw2=Math.max(1,Math.round((tw+Math.round(3*K))*(1-r2/crh)));
+      g.fillStyle=css((r2%Math.max(2,Math.round(2*K))<Math.max(1,Math.round(K)))?roofA:roofB);
+      g.fillRect(tx-Math.round(1.5*K)+(((tw+Math.round(3*K))-rw2)>>1),base-th-1-r2,rw2,1);
+    }
+    g.fillStyle=night?"rgba(255,204,120,0.9)":"rgba(40,34,28,0.85)";
+    for(var sl=1;sl<=3;sl++)
+      g.fillRect(tx+((tw-Math.max(2,Math.round(2*K)))>>1),base-Math.round(th*(0.20*sl+0.12)),Math.max(2,Math.round(2*K)),Math.round(3.2*K));
+  }
+  var gw=Math.round(W*0.16), gx=cx-(gw>>1), gh=Math.round(H*0.62);
+  g.fillStyle=day?"rgba(32,26,22,0.93)":"rgba(6,6,10,0.95)";
+  g.fillRect(gx,base-gh,gw,gh);
+  for(var a=0;a<Math.round(gw*0.5);a++){
+    var aw=Math.round(gw*Math.sqrt(Math.max(0,1-Math.pow(a/(gw*0.5),2))));
+    g.fillRect(gx+((gw-aw)>>1),base-gh-a,aw,1);
+  }
+}
+// ---- THE MUSEUM. 📚 "multiple floors of exhibits and a basement natural history section" -------
+// 🔑 A COLONNADE IS A SHAPE NONE OF THE FOUR LANDS HAS. Every other façade here is a wall with holes
+// in it; this is a row of free-standing columns under a pediment, and the sky between them is what
+// makes it read as classical rather than as another brick front with stripes painted on.
+function drawVkMuseum(g,cx,day,K,brick,brickD,brickL,roofA){
+  var base=rsStandY(VK_MUSEUM*WW,0.52);
+  var w=Math.round(HORIZON*0.150), h=Math.round(HORIZON*0.098);
+  lumShadow(g,cx,base,Math.round(w*1.15),day);
+  g.fillStyle=css(brickD); g.fillRect(cx-(w>>1),base-h,w,h);
+  g.fillStyle=css(brickL);
+  var cols=6, colW=Math.max(2,Math.round(2.6*K));
+  for(var c=0;c<cols;c++){
+    var cxp=cx-(w>>1)+Math.round(w*0.06)+Math.round(c*(w*0.88/(cols-1)))-(colW>>1);
+    g.fillRect(cxp,base-Math.round(h*0.82),colW,Math.round(h*0.82));
+  }
+  g.fillRect(cx-(w>>1),base-Math.round(h*0.90),w,Math.max(2,Math.round(2.2*K)));   // the entablature
+  var ph=Math.round(w*0.20);                                                        // and the pediment
+  for(var r=0;r<ph;r++){
+    var rw=Math.max(1,Math.round(w*(1-r/ph)));
+    g.fillStyle=css(r<2?brickL:brick);
+    g.fillRect(cx-(rw>>1),base-Math.round(h*0.90)-1-r,rw,1);
+  }
+  g.fillStyle=day?"rgba(30,26,22,0.9)":"rgba(8,8,12,0.92)";
+  g.fillRect(cx-Math.round(w*0.07),base-Math.round(h*0.44),Math.round(w*0.14),Math.round(h*0.44));
+}
+// ---- THE CHURCH. His pick for screen 3's mass, and it holds it by HEIGHT ----------------------
+// 🔑 THE THIRD MASS IS THE ONLY ONE THAT IS TALL RATHER THAN WIDE, which is what stops the three
+// screens reading as three versions of the same idea: the GE is bulk, the palace is bulk with towers,
+// and this is a needle. 📚 The church sits in the city's north-east with its altar.
+function drawVkChurch(g,cx,day,K,L,brick,brickD,brickL,roofA,roofB){
+  var base=rsStandY(VK_CHURCH*WW,0.52), night=(L<=0.5);
+  var W=vkChurchW(), navH=Math.round(HORIZON*0.115);
+  var st2 =day?[196,186,164]:mixc([196,186,164],[14,18,38],0.72);
+  var st2D=day?[154,146,128]:mixc([154,146,128],[14,18,38],0.76);
+  var st2L=day?[220,212,192]:mixc([220,212,192],[14,18,38],0.68);
+  lumShadow(g,cx,base,Math.round(W*1.5),day);
+  // the nave, low and long, so the tower has something to rise OUT of
+  var nw=Math.round(W*1.30), nx=cx+Math.round(W*0.30);
+  g.fillStyle=css(st2);  g.fillRect(nx-(nw>>1),base-navH,nw,navH);
+  g.fillStyle=css(st2D); g.fillRect(nx+(nw>>1)-Math.round(1.6*K),base-navH,Math.round(1.6*K),navH);
+  var nrh=Math.round(nw*0.20);
+  for(var r=0;r<nrh;r++){
+    var rw=Math.max(1,Math.round((nw+Math.round(3*K))*(1-r/nrh)));
+    g.fillStyle=css((r%2)?roofA:roofB);
+    g.fillRect(nx-((nw+Math.round(3*K))>>1)+(((nw+Math.round(3*K))-rw)>>1),base-navH-1-r,rw,1);
+  }
+  // the TOWER and its spire — the tallest thing on this land by a distance
+  var tw=Math.round(W*0.52), th=Math.round(HORIZON*0.30);
+  th=Math.min(th,base-Math.round(HORIZON*0.045)-Math.round(tw*1.9));
+  g.fillStyle=css(st2);  g.fillRect(cx-(tw>>1),base-th,tw,th);
+  g.fillStyle=css(st2D); g.fillRect(cx+(tw>>1)-Math.round(1.6*K),base-th,Math.round(1.6*K),th);
+  var cStep=Math.max(3,Math.round(3.6*K));
+  g.fillStyle=css(mixc(st2,st2D,0.55));
+  for(var cy=base-th+cStep;cy<base;cy+=cStep) g.fillRect(cx-(tw>>1),cy,tw,1);
+  // the belfry openings — two tall lancets, which is the mark that says TOWER and not chimney
+  g.fillStyle=day?"rgba(34,30,26,0.9)":"rgba(6,6,10,0.93)";
+  for(var lc=0;lc<2;lc++){
+    var lx=cx-Math.round(tw*0.24)+lc*Math.round(tw*0.30);
+    g.fillRect(lx,base-Math.round(th*0.86),Math.max(2,Math.round(2.2*K)),Math.round(th*0.20));
+  }
+  var st3=Math.max(3,Math.round(4*K)), mw=Math.max(2,Math.round(2*K));
+  g.fillStyle=css(st2L);
+  for(var m=cx-(tw>>1);m<cx+(tw>>1)-mw;m+=st3) g.fillRect(m,base-th-Math.round(2.2*K),mw,Math.round(2.2*K));
+  var sph=Math.round(tw*1.9);                                     // …and the spire, steep and plain
+  for(var r2=0;r2<sph;r2++){
+    var rw2=Math.max(1,Math.round((tw+Math.round(2*K))*Math.pow(1-r2/sph,0.86)));
+    g.fillStyle=css((r2%Math.max(2,Math.round(2*K))<Math.max(1,Math.round(K)))?roofA:roofB);
+    g.fillRect(cx-((tw+Math.round(2*K))>>1)+(((tw+Math.round(2*K))-rw2)>>1),base-th-Math.round(2.2*K)-1-r2,rw2,1);
+  }
+}
+// ---- THE MINE. 📚 "Varrock Mines operate in two locations southeast and southwest" -------------
+function drawVkMine(g,cx,day,K,P){
+  var base=rsStandY(VK_MINE*WW,0.46);
+  var w=Math.round(HORIZON*0.16), h=Math.round(HORIZON*0.070);
+  g.fillStyle=day?"#7a7266":"#1c1c24";
+  for(var r=0;r<h;r++){ var rw=Math.round(w*(1-Math.pow(r/h,1.6))); g.fillRect(cx-(rw>>1),base-r,rw,1); }
+  g.fillStyle=day?"rgba(18,16,18,0.95)":"rgba(4,4,8,0.96)";
+  var mw=Math.round(w*0.22), mh=Math.round(h*0.62);
+  g.fillRect(cx-(mw>>1),base-mh,mw,mh);
+  for(var a=0;a<Math.round(mw*0.5);a++){
+    var aw=Math.round(mw*Math.sqrt(Math.max(0,1-Math.pow(a/(mw*0.5),2))));
+    g.fillRect(cx-(aw>>1),base-mh-a,aw,1);
+  }
+  g.fillStyle=day?"#8a7a5c":"#2a2418";                            // spoil, and a couple of ore heaps
+  for(var s2=0;s2<3;s2++) g.fillRect(cx-Math.round(w*0.42)+s2*Math.round(w*0.34),base-Math.round(2*K),Math.round(w*0.16),Math.round(2*K));
 }
 // ================================================================================================
 // ARDOUGNE — THE CITY DIVIDED IN TWO
@@ -31002,6 +31439,7 @@ function rsHaunts(){
   switch(curRs){
     case "falador":  return [FA_CASTLE,FA_SQUARE,FA_SMITHY,FA_PARK,FA_MINE,FA_WGATE,FA_SGATE];
     case "ardougne": return [AD_MARKET,AD_CASTLE,AD_ZOO,AD_CLOCK,AD_PORT,AD_WALL,AD_WGATE];
+    case "varrock":  return [VK_GE,VK_SQUARE,VK_PALACE,VK_WBANK,VK_EBANK,VK_MINE,VK_CHURCH];
     default:         return [LB_CASTLE,LB_SHOPS,LB_RIVER,LB_CHURCH,LB_SWAMP,LB_COWS,LB_GATE];
   }
 }
@@ -31235,6 +31673,13 @@ function rsNpcPosts(){
     // 🔑 The tuple takes an optional SPREAD and DEPTH, because a merchant is not scattered near a
     // place, he is standing at his own stall — the market entry lines them along the stalls at the
     // stalls' depth, while everyone else keeps the loose scatter that suits a post.
+    // 📚 "Fortified gates with guards protect all four entrances", the palace holds "the barracks for
+    // the Varrock guards", and DARK WIZARDS roam the southern approach — the last of which needs no
+    // NPC at all, because they are already row 9 of the foe roster and will turn up on their own.
+    case "varrock":  return [["guard",VK_WGATE,3],["guard",VK_EGATE,3],["knight",VK_PALACE,5],
+                             ["guard",VK_PALACE,3],["merchant",VK_SQUARE,5,HORIZON*0.30,0.545],
+                             ["merchant",VK_GE,6,HORIZON*0.34,0.575],["monk",VK_CHURCH,3],
+                             ["guard",VK_WBANK,2],["guard",VK_EBANK,2],["dwarf",VK_MINE,3]];
     case "ardougne": return [["mourner",AD_MOURN,5],["mourner",AD_SLUM,4],["mourner",AD_WGATE,3],
                              ["guard",AD_WALL,6],["knight",AD_CASTLE,5],["guard",AD_PORT,2],
                              ["merchant",AD_MARKET,7,HORIZON*0.23,0.560],["guard",AD_ZOO,2],
@@ -31356,6 +31801,9 @@ function rsMarketFrac(){
   switch(curRs){
     case "falador":  return FA_PARK;        // Falador Park, the other pre-GE marketplace
     case "ardougne": return AD_MARKET;      // the marketplace IS the centrepiece here — no invention needed
+    // 📚 THE VARROCK WEST BANK — the FIRST bank in the game, and the canonical pre-Grand-Exchange
+    // market. This is the other half of the fact that put Falador's crowd in its park.
+    case "varrock":  return VK_WBANK;
     default:         return LB_SHOPS;       // Lumbridge has no bank of its own: the traders use the shops
   }
 }
@@ -31430,6 +31878,8 @@ function rsSkillSpots(){
     // ⚠ NO "water" SPOT: only Lumbridge draws a river of its own, and a fisherman without real water
     // is the puddle bug. The port is a quay, not a fishing spot.
     case "ardougne": return [["fire",AD_MOURN],["forge",AD_CASTLE],["tree",AD_ZOO],["altar",AD_CLOCK]];
+    // 📚 the west bank is "popular for smithing training" — the forge belongs beside it, not anywhere
+    case "varrock":  return [["forge",VK_WBANK],["rock",VK_MINE],["altar",VK_CHURCH],["tree",VK_MUSEUM],["fire",VK_SQUARE]];
     default:        return [["tree",0.105],["water",LB_RIVER],["altar",LB_CHURCH],["fire",LB_SHOPS],["rock",0.935]];
   }
 }
@@ -43720,6 +44170,7 @@ function drawMountains(g,L,now,nd){
   if(curBiome.rs==="lumbridge"){ drawLumbridge(g,L,now,nd); return; }   // …and on the OSRS lands, river meadow and a castle
   if(curBiome.rs==="falador"){ drawFalador(g,L,now,nd); return; }        // …downland, a white city and a snow peak
   if(curBiome.rs==="ardougne"){ drawArdougne(g,L,now,nd); return; }      // …and a city cut in half by a quarantine wall
+  if(curBiome.rs==="varrock"){ drawVarrock(g,L,now,nd); return; }        // …and the oldest, biggest, most crowded of the four
   if(!mts) return;
   var gy=HORIZON, day=L>0.5;
   var sunsetK=goldenK;   // sourced from the shared golden-hour global (identical law)
