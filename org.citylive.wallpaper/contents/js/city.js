@@ -30299,6 +30299,177 @@ function drawRsDrop(g,x,gy,seed,day,n){
     g.fillRect(x-3+(ih%7),gy-1-((ih>>>9)%3),1,1);
   }
 }
+// ---- THE MARKET CROWD --------------------------------------------------------------------------
+// Nick: *"I want players surronding banks trying to sell stuff."*
+//
+// 📚 RESEARCHED, NOT REMEMBERED. Two facts out of the wiki decided where this goes and what it says:
+//  ① **Before the Grand Exchange existed, the BANK WAS THE MARKET.** The Varrock west bank was the
+//    first bank in the game and "prior to the Grand Exchange, the bank was also a common market
+//    location, SIMILAR TO FALADOR PARK". So the crowd is not invented set-dressing dropped next to a
+//    building — it has a canonical home on a land that is already built, and Varrock gets the other
+//    one when that land exists. 🔑 A feature placed where the source material actually put it needs
+//    no explaining.
+//  ② **"BUYING GF" WAS BORN IN THIS EXACT CROWD** — players in the high-density trading spots
+//    offering gp for companionship, which became the game's most quoted line. It belongs here more
+//    than anywhere else on the land.
+// ⚠ THE CROWD IS THE FEATURE, NOT THE PEOPLE IN IT. What makes this read is DENSITY: a wall of
+// figures shoulder to shoulder, barely moving, all talking at once. Six evenly spaced players is a
+// queue; fourteen packed into two ragged rows is a market.
+var RS_BANK_SAY=["SELLING YEW LOGS 300EA","BUYING FEATHERS 5EA","SELLING RUNE SCIMMY","BUYING ALL LOBS",
+                 "SELLING PARTYHAT","BUYING GF","FREE ARMOUR TRIMMING","SELLING BOWSTRINGS",
+                 "BUYING IRON ORE 100EA","SELLING LOBS 200EA","RARES HERE","SWAPPING PHATS",
+                 "BUYING COAL BULK","SELLING BASS","PRICE CHECK?","BUYING ALL RUNES","SELLING ADDY BODY",
+                 "2M AND IT'S YOURS","NO LOWBALLS","TRIMMING 4 FREE","SELLING SHARKS 1K","BUYING NATS",
+                 "SELLING BONES","W1 DROP PARTY","ANYONE SELLING RUNE?","OVERPAYING FOR YEWS"];
+// where the market stands on each land — the game's own answer, not a convenient gap in the layout
+function rsMarketFrac(){
+  switch(curRs){
+    case "falador":  return FA_PARK;        // Falador Park, the other pre-GE marketplace
+    default:         return LB_SHOPS;       // Lumbridge has no bank of its own: the traders use the shops
+  }
+}
+function drawRsBankCrowd(g,L,now,nd,fx){
+  if(!curRs) return;
+  var day=L>0.5, night=(L<=0.5), K=Math.max(1,KSP);
+  var frac=rsMarketFrac(), seedW=(WORLD_SEED*2654435761)>>>0;
+  var mwx=Math.round(frac*WW), msx=mwx-WOFF;
+  if(msx<-WW*0.5) msx+=WW; if(msx>WW*0.5) msx-=WW;
+  // ⚠ TIGHT. At HORIZON*0.20 the fifteen of them stood ten pixels apart — which is a QUEUE, and the
+  // whole point of this crowd is that it is not one. Packed to roughly a body's width they overlap,
+  // and overlapping is what makes a group of figures read as a press of people rather than a row.
+  var spanW=Math.round(HORIZON*0.115);
+  if(msx<-spanW-40||msx>SW+spanW+40) return;
+  var n=(cityPhase==="apoc")?5:15;
+  for(var i=0;i<n;i++){
+    var h=((i*2654435761)^(seedW>>>5))>>>0;
+    // TWO RAGGED ROWS. One row is a queue at a counter; two rows at slightly different depths, with
+    // the near row overlapping the far one, is a press of people.
+    var row=(i%2);
+    var jitter=((h>>>7)%5)-2;
+    var offx=Math.round((((h%1000)/1000)-0.5)*spanW*2)+jitter;
+    var sx=msx+offx;
+    if(sx<-20||sx>SW+20) continue;
+    var dpt=row?0.615:0.575;
+    var gy=rsStandY(mwx+offx,dpt);
+    if(rsBehindRoof(sx,gy)) continue;
+    var col=RS_PLAYER_C[(h>>>17)%RS_PLAYER_C.length];
+    // ⚠ THEY STAND, THEY DO NOT WANDER. Bank standing is the whole joke: people who logged in to
+    // play a game and are instead standing perfectly still shouting prices. `drawPerson`'s standing
+    // sentinel already shifts their weight, so they are still alive without going anywhere.
+    drawRsFigure(g,sx,gy,K,col,day,"stand",((h>>>9)&1)?1:-1);
+    // 🔑 NOT EVERYONE AT ONCE. Fifteen bubbles in one place is an unreadable white slab; a third of
+    // them talking, staggered in height by row, reads as a crowd where everyone is shouting.
+    if(((now/2200+i*3)|0)%3===0){
+      drawSpeechBubble(g,sx,gy-10-(row?0:5)-((i%3)*4),
+                       RS_BANK_SAY[((h>>>19)+Math.floor(now/4700))%RS_BANK_SAY.length],night);
+    }
+  }
+}
+// ---- THE SKILLERS ------------------------------------------------------------------------------
+// Nick: *"I also want to be able to see people trying to level up their other skills as well."*
+//
+// 📚 The free-to-play skill set is Attack, Strength, Defence, Ranged, Prayer, Magic, Runecrafting,
+// Hitpoints, Crafting, Mining, Smithing, Fishing, Cooking, Firemaking and Woodcutting — Fletching is
+// members-only, which is exactly the kind of detail that would have been wrong if I had gone from
+// memory. Combat is already covered by the foes, so these are the GATHERING and MAKING skills, the
+// ones you can see somebody doing from across a field.
+// 🔑 A SKILL IS LEGIBLE FROM ITS PROP, NOT FROM ITS NAME. Nobody reads "woodcutting" off a figure;
+// they read it off the tree he is swinging at, the fire he is standing over, the anvil he is hitting.
+// So each skill is pinned to a PLACE that already exists on the land, and the prop is the mark.
+var RS_SKILLS=[
+  {k:"WOODCUTTING",at:"tree", say:["CHOPPING YEWS","WILLOWS ARE BETTER","MY AXE BROKE","LOGS ANYONE?"]},
+  {k:"MINING",     at:"rock", say:["MINING IRON","POWERMINING","ANY IRON LEFT?","NEED MORE COAL"]},
+  {k:"FISHING",    at:"water",say:["SHRIMP AGAIN","LOBS ALL DAY","THE SPOT MOVED","NET OR ROD?"]},
+  {k:"FIREMAKING", at:"fire", say:["BURNING LOGS","LIGHT THE LINE","W2 LOG LINE"]},
+  {k:"COOKING",    at:"fire", say:["BURNT ANOTHER","LOBS ON THE FIRE","STOP BURNING THEM"]},
+  {k:"SMITHING",   at:"forge",say:["BRONZE BARS","SMELTING ALL DAY","ANVIL IS TAKEN"]},
+  {k:"PRAYER",     at:"altar",say:["BURYING BONES","BIG BONES","PRAYER IS EXPENSIVE"]}
+];
+function rsSkillSpots(){
+  switch(curRs){
+    case "falador": return [["rock",FA_MINE],["forge",FA_SMITHY],["tree",FA_PARK],["fire",FA_SQUARE]];
+    default:        return [["tree",0.105],["water",LB_RIVER],["altar",LB_CHURCH],["fire",LB_SHOPS],["rock",0.935]];
+  }
+}
+// the props. Small, fixed-size, and each one is the ONLY thing that says which skill this is.
+function drawSkillProp(g,x,gy,kind,day,beat,now){
+  if(kind==="tree"){
+    g.fillStyle=day?"#5a4028":"#241a12"; g.fillRect(x-1,gy-9,3,9);
+    g.fillStyle=day?"#2e6a34":"#12241a"; g.fillRect(x-5,gy-15,11,6); g.fillRect(x-3,gy-18,7,3);
+  } else if(kind==="rock"){
+    g.fillStyle=day?"#7c7a84":"#2a2c36"; g.fillRect(x-4,gy-5,9,5); g.fillRect(x-2,gy-7,5,2);
+    g.fillStyle=day?"#a08a5c":"#3a3222"; g.fillRect(x-1,gy-4,2,2);          // the ore in the face
+  } else if(kind==="fire"){
+    var fl=beat?1:0;
+    g.fillStyle=day?"#4a3422":"#1c1410"; g.fillRect(x-4,gy-2,9,2);          // the logs
+    g.fillStyle="#e07a1e"; g.fillRect(x-2,gy-6-fl,5,5);
+    g.fillStyle="#f6c83c"; g.fillRect(x-1,gy-8-fl,3,3);
+  } else if(kind==="forge"){
+    g.fillStyle=day?"#3a3a42":"#16161c"; g.fillRect(x-4,gy-5,9,4); g.fillRect(x-1,gy-8,3,3);  // anvil
+  } else if(kind==="altar"){
+    g.fillStyle=day?"#c8c4b8":"#2e2e34"; g.fillRect(x-5,gy-6,11,6);
+    g.fillStyle=day?"#e8e2d0":"#3a3a42"; g.fillRect(x-6,gy-8,13,2);
+  } else if(kind==="water"){
+    g.fillStyle=day?"rgba(96,150,190,0.9)":"rgba(24,40,66,0.9)"; g.fillRect(x-7,gy-1,15,3);
+  }
+}
+// 🎆 THE LEVEL-UP. In the game this is fireworks around your character and a line in the chatbox, and
+// it is the single most satisfying thing in it — the whole reason anybody stands at a rock for six
+// hours. Sparks radiating from the head, then the number.
+// ⚠ SHORT STRINGS. The real message is "Congratulations, you just advanced a Woodcutting level" and
+// at four pixels a character that is a 200px banner over a 7px man. The bubble says what the player
+// would actually type, which is shorter and truer: the level, or somebody else's "GRATS".
+function drawLevelUp(g,x,gy,f,seed){
+  var cols=["#ffd23a","#ffffff","#ff8a3a","#8ae0ff"];
+  for(var s=0;s<9;s++){
+    var a=(s/9)*Math.PI*2+((seed>>>3)%10)/10;
+    var r=2+f*11+((seed>>>(s+1))%3);
+    g.fillStyle=cols[(seed>>>(s*2))%4];
+    g.fillRect(Math.round(x+Math.cos(a)*r),Math.round(gy-9+Math.sin(a)*r*0.7),1,1);
+  }
+}
+function drawRsSkillers(g,L,now,nd,fx){
+  if(!curRs) return;
+  var day=L>0.5, night=(L<=0.5), K=Math.max(1,KSP);
+  var spots=rsSkillSpots(), seedW=(WORLD_SEED*2654435761)>>>0;
+  for(var si=0;si<spots.length;si++){
+    var kind=spots[si][0], frac=spots[si][1];
+    var wx0=Math.round(frac*WW);
+    // two or three at a spot: a popular rock always has somebody else on it
+    var cnt=2+((iceHash(si*911^seedW)>>>5)%2);
+    for(var p=0;p<cnt;p++){
+      var h=iceHash((si*31+p)*2654435761^seedW);
+      var off=Math.round((((h%1000)/1000)-0.5)*HORIZON*0.16);
+      var wx=wx0+off, sx=wx-WOFF;
+      if(sx<-WW*0.5) sx+=WW; if(sx>WW*0.5) sx-=WW;
+      if(sx<-24||sx>SW+24) continue;
+      var gy=rsStandY(wx,0.60+((h>>>21)%50)/1000);
+      if(rsBehindRoof(sx,gy)) continue;
+      // pick a skill that MATCHES this place — the prop and the name have to agree
+      var pool=[]; for(var q=0;q<RS_SKILLS.length;q++) if(RS_SKILLS[q].at===kind) pool.push(RS_SKILLS[q]);
+      if(!pool.length) continue;
+      var sk=pool[(h>>>11)%pool.length];
+      drawSkillProp(g,sx+5,gy,kind,day,((now/380)|0)&1,now);
+      // the swing: the tool arm rises and falls on a beat. One pixel of movement against a static
+      // prop is all it takes — the same trick the goblins' step and the mill's sails use.
+      var swing=((now/380+p)|0)&1;
+      var col=RS_PLAYER_C[(h>>>17)%RS_PLAYER_C.length];
+      drawRsFigure(g,sx,gy,K,col,day,"stand",1);
+      g.fillStyle=day?"#6a5a3a":"#241f14";
+      g.fillRect(sx+3,gy-7-(swing?2:0),1,swing?4:3);                      // the tool, mid-stroke
+      // 🎆 A LEVEL-UP IS RARE AND BRIEF, which is what makes catching one worth something. Roughly
+      // one skiller in four is mid-level-up at any moment, for about a second and a half.
+      var lper=17000+((h>>>13)%13000);
+      var lph=((now+((h>>>19)%lper))%lper)/lper;
+      if(lph<0.09){
+        drawLevelUp(g,sx,gy,lph/0.09,h);
+        drawSpeechBubble(g,sx,gy-15,(((h>>>23)%7===0)?"99 ":"")+sk.k+" "+(2+((h>>>25)%97)),night);
+      } else if(((now/2700+si*2+p)|0)%4===0){
+        drawSpeechBubble(g,sx,gy-11-((p%2)*4),sk.say[((h>>>15)+Math.floor(now/5100))%sk.say.length],night);
+      }
+    }
+  }
+}
 // ---- THE ENCOUNTERS ----------------------------------------------------------------------------
 // One slot = one clearing where something lives, gets fought, dies, drops its loot and comes back.
 // 🔒 SCRIPTED FROM THE CLOCK, NEVER ACCUMULATED, and driven in WORLD X — the same contract the
@@ -50266,6 +50437,8 @@ function draw(g,pass){
   drawLumbridgeLive(g,L,now,nd,fx);  // …and on the river meadow: the sails, the cattle, the goblins, the glitter
   drawFaladorLive(g,L,now,nd,fx);    // …and in the white city: the fountain, the forge and the flock
   drawRsFoes(g,L,now,nd,fx);         // …on ALL FOUR: what lives out there, and the fights over it
+  drawRsSkillers(g,L,now,nd,fx);     // …the ones at a rock or a fire, grinding a level
+  drawRsBankCrowd(g,L,now,nd,fx);    // …the market press, where the game's whole economy stood
   drawRsPlayers(g,L,now,nd,fx);      // …and on ALL FOUR: the adventurers, last so they stand in front
   drawVillageCliffLive(g,L,now,nd,fx);  // …and on the hidden village, everything the WALL does: water
                                   // off the rim, mist at its foot, climbers on the stair, hawks on the
