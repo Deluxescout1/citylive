@@ -47244,24 +47244,78 @@ function drawPlainsWorked(g,L,now,nd){
              :(_sea.name==="summer")?[[92,140,64],[128,152,78],[76,124,58],[112,146,72],[150,168,96]]
              :(_sea.name==="autumn")?[[196,168,88],[214,186,104],[168,142,74],[204,176,96],[182,154,80]]
                                     :[[122,116,102],[140,134,118],[104,100,88],[132,126,110],[150,146,132]];
-    for(var band=0;band<4;band++){
-      var bf=band/4;                                        // 0 = nearest strip band, 1 = furthest
-      // ⚠ AND THEY HAVE TO BE WHERE THE EYE SEES LAND. At HORIZON-4..-16 they drew correctly and were
-      // invisible: that band is where the city stands and where the near ground already is. The
-      // readable prairie on this map is the wedge BETWEEN the street and the far hills, so the strips
-      // climb it — and climbing it is also what makes them recede, which is the only perspective a
-      // flat land can offer.
-      var by=Math.round(pgy-(7+band*7)*K);
-      var bh=Math.max(1,Math.round((5.0-band*0.9)*K));
-      var wx0=Math.floor(WOFF/40)*40;
-      for(var st=0;st<26;st++){
-        var swx=wx0+st*Math.round(40+((mixLi((st*7+band)>>>0,4211))%36));
-        var sw2=Math.round((22+((mixLi((st*13+band)>>>0,7717))%40))*(1-bf*0.45));
-        var sx5=swx-WOFF; if(sx5>SW+60) continue; if(sx5+sw2<-60) continue;
-        var SC2=STRIP[(mixLi((st*31+band)>>>0,9151))%STRIP.length];
-        g.fillStyle=css(mixc(day?SC2:[(SC2[0]*0.30)|0,(SC2[1]*0.32)|0,(SC2[2]*0.38)|0], hz2, 0.18+0.42*bf));
-        g.fillRect(Math.round(sx5),by,sw2,bh);
+    // 🚨🚨 THIS WAS FOUR ROWS OF LOOSE RECTANGLES FLOATING IN THE SKY. Nick: "wtf is going on with the
+    // background here — the green blocks look out of place, wtf are they supposed to be". They were
+    // the crop strips, drawn as `fillRect(sx, pgy-(7+band*7)*K, sw, bh)` — 26 detached bars on each of
+    // FOUR fixed heights, with GAPS between them and nothing behind the gaps. Three faults at once:
+    //   1. NO GROUND UNDER THEM. Everything above `HORIZON` is backdrop — sky and far hills — so each
+    //      bar was painted straight onto the sky. A field is a SURFACE; a field with sky showing
+    //      through it is a row of blocks.
+    //   2. FOUR FIXED HEIGHTS is four ruled lines, the fault this project has hit eleven times, and
+    //      the one the comment above was written to avoid.
+    //   3. THEY PAINTED OVER THE RIVER. `drawPlainsWorked` runs in the live pass and the river is
+    //      drawn in the backdrop, so the bars sat on top of the water — visible in his own screenshot.
+    // 🔑 A STRIP FIELD IS STRIPS SIDE BY SIDE, NOT BARS STACKED UP. Seen across a flat plain, strips of
+    // different crop read as slabs of colour ALONGSIDE one another, each running the whole depth of
+    // the field away from you. So the variation is in x and the field is continuous in y — which is
+    // also what makes it a surface instead of a set of objects.
+    // 🔑 Its far edge WANDERS (two out-of-phase sines) so the top of the farmland is not a ruled line
+    // either, and its near edge STOPS AT THE RIVER: fields lie beyond the water, the bank and its turf
+    // carry the ground from the water down to the street. Hills → farmland → river → bank → street.
+    // ⚠ FARMLAND ON BOTH SIDES OF THE WATER, not just beyond it. Clipping the field to end at the
+    // river's near bank left a five-pixel sliver of crop and a bare bank — but a prairie river has
+    // fields on both banks, and the ground between the water and the street is exactly where they are.
+    // So each column carries up to TWO runs: field, river, field, street.
+    var fieldTB=function(fwx){
+      var ft=pgy-Math.round((22+Math.sin(fwx*0.0125)*3.4+Math.sin(fwx*0.0301+1.3)*2.2)*K);
+      if(hasRiver&&typeof riverChan==="function"){
+        var rc=riverChan(fwx);
+        var rt=rc.top-Math.max(1,Math.round(1.4*K));        // above its far bank
+        var rb=rc.bot+Math.max(1,Math.round(1.8*K));        // and below its near one
+        return {t:ft, b:Math.min(pgy,rt), t2:Math.max(ft,rb), b2:pgy};
       }
+      return {t:ft, b:pgy, t2:0, b2:0};
+    };
+    var wx0=Math.floor(WOFF/40)*40, swx=wx0-80;
+    for(var st=0;st<48&&(swx-WOFF)<SW+40;st++){
+      var sw2=Math.round(14+((mixLi((st*13+7)>>>0,7717))%30));       // strips are not all one width
+      var x0=Math.max(0,swx-WOFF), x1=Math.min(SW,swx+sw2-WOFF);
+      var SC2=STRIP[(mixLi((st*31+3)>>>0,9151))%STRIP.length];
+      if(x1>x0){
+        var SCd=day?SC2:[(SC2[0]*0.30)|0,(SC2[1]*0.32)|0,(SC2[2]*0.38)|0];
+        var near=css(mixc(SCd,hz2,0.16)), far=css(mixc(SCd,hz2,0.52));   // the only perspective a flat land has
+        // ⚠ RUN-BATCHED. Per column this is two fills x 776 on the live canvas — the per-column
+        // mistake this engine makes by default, and which its own river notes have logged six times.
+        // The top and bottom move smoothly, so neighbours share a profile: flush when it changes.
+        var rs=-1,rt=0,rb=0,rt2=0,rb2=0;
+        var flushF=function(xe){
+          if(rs<0||xe<=rs) return;
+          var w=xe-rs;
+          if(rb>rt){ var md=rt+Math.round((rb-rt)*0.45);
+            g.fillStyle=far;  g.fillRect(rs,rt,w,md-rt);
+            g.fillStyle=near; g.fillRect(rs,md,w,rb-md); }
+          if(rb2>rt2){ g.fillStyle=near; g.fillRect(rs,rt2,w,rb2-rt2); }   // the near bank is not hazed
+          rs=-1;
+        };
+        for(var cx=x0;cx<=x1;cx++){
+          var fc=(cx<x1)?fieldTB(cx+WOFF):null;
+          if(fc&&(fc.b>fc.t||fc.b2>fc.t2)){
+            if(rs<0){ rs=cx; rt=fc.t; rb=fc.b; rt2=fc.t2; rb2=fc.b2; }
+            else if(fc.t!==rt||fc.b!==rb||fc.t2!==rt2||fc.b2!==rb2){
+              flushF(cx); rs=cx; rt=fc.t; rb=fc.b; rt2=fc.t2; rb2=fc.b2;
+            }
+          } else flushF(cx);
+        }
+        flushF(x1);
+        // the track between one strip and the next — what tells you they ARE strips
+        if(x0>0&&x0<SW){
+          var fe=fieldTB(x0+WOFF);
+          g.fillStyle=css(mixc(day?[86,80,62]:[18,16,14],hz2,0.34));
+          if(fe.b>fe.t)   g.fillRect(x0,fe.t,1,fe.b-fe.t);
+          if(fe.b2>fe.t2) g.fillRect(x0,fe.t2,1,fe.b2-fe.t2);
+        }
+      }
+      swx+=sw2;
     }
     // shelterbelts: a line of trees planted ACROSS the wind, which is why a prairie farm has them at
     // all. They are the only vertical thing between the elevators, so they carry the middle distance.
