@@ -47295,24 +47295,115 @@ function drawPlainsWorked(g,L,now,nd){
     // readable on a flat map". A train is the only object here whose LENGTH tells you how far away it
     // is — nothing else on a prairie gives the eye a ruler. It crosses the whole world, so it is a
     // pure function of the clock and every screen sees the same train in the same place.
+    // 🚨 IT WAS A ROW OF FLOATING BOXES — reported 2026-08-06 as "wtf is the box thing in the back",
+    // and it was THREE faults, not one:
+    //   1. the bodies ended at `trY` and the rail was drawn at `trY+1.6*K`, so every car hovered ~3wp
+    //      above its own track. A box hanging over a line is a box, not a wagon.
+    //   2. every car was the IDENTICAL rectangle — one shape repeated, the karst fault, and with no
+    //      wheels and no couplers there was nothing to say what the shape was.
+    //   3. all four colours mixed to haze at the same 0.26, so the consist had no value contrast and
+    //      the whole thing read as one dashed rule across the field.
+    //   4. and the locomotive was at `cq===0`, the LEFT end, while `trWx` advances — so it PUSHED the
+    //      train from behind for as long as this has existed.
+    // 🔑 PITCH REGULARITY IS CORRECT HERE AND MUST NOT BE BROKEN. A coupler is a fixed length; a train
+    // with a wandering gap is not a train. This is the one case where "regularity must break three
+    // ways" is answered by SHAPE and VALUE instead of by spacing — the profile varies (box, hopper,
+    // tanker, gondola, flatcar), the height varies with it, and the palette spans dark to pale.
     var trLen=Math.round(46+ (WORLD_SEED%9)*4);
     var trSpeed=0.0000085;
     var trWx=((now*trSpeed*WW)%(WW+trLen*3))-trLen*2;
-    var trY=pgy-Math.round(30*K);   // the freight runs along the far edge of the worked land
+    var trY=pgy-Math.round(30*K);   // THE RAILHEAD: every wheel sits on this line, nothing floats
+    var carW=Math.max(1,Math.round(1.7*K)), carStep=Math.max(2,Math.round(2*K));
+    var whH=Math.max(1,Math.round(K*0.5));            // the wheels, between the body and the rail
+    var deckY=trY-whH;                                 // where a car's floor actually is
+    // the consist. Value spread dark→pale is what stops a line of wagons reading as a fence.
+    // ⚠ WEIGHTED, NOT UNIFORM. Picked evenly, one car in seven was a flatcar and one in seven a
+    // gondola, and the consist came out as scattered posts with holes in it rather than a train — a
+    // real freight is mostly boxes and hoppers, with the low cars as the exception that proves it.
+    var TR_CARS=[
+      {p:0, h:2.5, c:[74,48,42]},      // boxcar, oxide red
+      {p:0, h:2.4, c:[158,156,150]},   // boxcar, weathered grey
+      {p:0, h:2.5, c:[96,74,58]},      // boxcar, brown
+      {p:1, h:2.2, c:[190,180,156]},   // grain hopper, pale
+      {p:1, h:2.1, c:[58,72,64]},      // hopper, dark green
+      {p:0, h:2.3, c:[62,66,74]},      // boxcar, dark slate
+      {p:2, h:1.8, c:[136,144,152]},   // tanker, low and light
+      {p:3, h:1.3, c:[46,52,58]},      // gondola, open and dark
+      {p:4, h:0.7, c:[96,92,84]}       // flatcar, almost nothing
+    ];
     for(var to=-1;to<=1;to++){
       var tsx=Math.round(trWx-WOFF+to*WW);
-      if(tsx+trLen*Math.round(2*K)<-8||tsx>SW+8) continue;
-      // the rail it runs on — one thin line, so the train is not floating
+      if(tsx+trLen*carStep<-8||tsx>SW+8) continue;
+      // the rail it runs on — one thin line AT the railhead, so the train stands ON it
       g.fillStyle=css(mixc(day?[122,118,110]:[34,34,40],hz2,0.34));
-      g.fillRect(Math.max(0,tsx-40),trY+Math.round(1.6*K),Math.min(SW,trLen*Math.round(2*K)+80),Math.max(1,Math.round(K*0.4)));
+      g.fillRect(Math.max(0,tsx-40),trY,Math.min(SW,trLen*carStep+80),Math.max(1,Math.round(K*0.4)));
+      var trkC=css(mixc(day?[38,36,38]:[14,14,18],hz2,0.30));   // wheels, couplers and shadow, one style
       for(var cq=0;cq<trLen;cq++){
-        var cxx=tsx+cq*Math.round(2*K);
-        if(cxx<-4||cxx>SW+4) continue;
+        var cxx=tsx+cq*carStep;
+        if(cxx<-6||cxx>SW+6) continue;
         var chh=mixLi((cq*7919+(WORLD_SEED|0))>>>0,8123);
-        var CC=(cq===0)?[40,44,52]:[[92,64,54],[70,84,96],[104,96,72],[58,70,60]][(chh>>>5)%4];
-        var cH=Math.round(((cq===0)?2.6:2.0)*K);
-        g.fillStyle=css(mixc(day?CC:[(CC[0]*0.34)|0,(CC[1]*0.36)|0,(CC[2]*0.42)|0],hz2,0.26));
-        g.fillRect(cxx,trY-cH,Math.max(1,Math.round(1.7*K)),cH);
+        // 🚂 THE LOCOMOTIVE LEADS. `trWx` grows, so the head of the train is the HIGHEST index.
+        var isLoco=(cq===trLen-1);
+        var T=isLoco?{p:5,h:2.9,c:[44,48,56]}:TR_CARS[(chh>>>5)%TR_CARS.length];
+        var cH=Math.max(1,Math.round(T.h*K));
+        var CC=day?T.c:[(T.c[0]*0.34)|0,(T.c[1]*0.36)|0,(T.c[2]*0.42)|0];
+        var bod=css(mixc(CC,hz2,0.26));
+        g.fillStyle=bod;
+        if(T.p===2){                                     // TANKER: a barrel on a frame, so it is round
+          g.fillRect(cxx,deckY-cH+1,carW,cH-1);
+          g.fillStyle=css(mixc(day?[(CC[0]*1.18)|0,(CC[1]*1.18)|0,(CC[2]*1.18)|0]:CC,hz2,0.26));
+          if(carW>2) g.fillRect(cxx+1,deckY-cH,carW-2,1);   // the crown of the barrel, inset
+        } else if(T.p===1){                              // HOPPER: a slab with its discharge gear in shadow
+          // ⚠ FIRST DRAWN AS A TAPER — full width at the top, inset at the bottom, which is what a
+          // hopper IS. On a car three pixels wide the inset is ONE pixel and it read as a MUSHROOM.
+          // A silhouette detail smaller than the object needs a value mark instead of a shape.
+          g.fillRect(cxx,deckY-cH,carW,cH);
+          g.fillStyle=trkC;
+          g.fillRect(cxx,deckY-Math.max(1,(K*0.5)|0),carW,Math.max(1,(K*0.5)|0));
+        } else if(T.p===3){                              // GONDOLA: open, so you see into it
+          g.fillRect(cxx,deckY-cH,carW,cH);
+          g.fillStyle=trkC;
+          if(carW>2) g.fillRect(cxx+1,deckY-cH,carW-2,1);  // the shadow inside an empty box
+        } else if(T.p===4){                              // FLATCAR: a deck and whatever is chained to it
+          g.fillRect(cxx,deckY-cH,carW,cH);
+          if(((chh>>>9)&3)===0){                            // a load, on some of them
+            g.fillStyle=css(mixc(day?[122,104,74]:[38,32,24],hz2,0.24));
+            g.fillRect(cxx,deckY-cH-Math.max(1,Math.round(K*0.9)),Math.max(1,carW-1),Math.max(1,Math.round(K*0.9)));
+          }
+        } else if(T.p===5){                              // THE LOCOMOTIVE: a cab, a lower nose, a stack
+          var noseW=Math.max(1,(carW/3)|0), cabW=Math.max(1,carW-noseW);
+          g.fillRect(cxx,deckY-cH,cabW,cH);                                    // the cab, full height
+          g.fillRect(cxx+cabW,deckY-Math.round(cH*0.62),noseW,Math.round(cH*0.62));  // the nose, lower
+          g.fillRect(cxx,deckY-cH-Math.max(1,(K*0.5)|0),Math.max(1,(K*0.5)|0),Math.max(1,(K*0.5)|0)); // stack
+          if(!day){                                                            // its headlight, at night
+            g.fillStyle="rgba(255,226,150,0.85)";
+            g.fillRect(cxx+carW,deckY-Math.round(cH*0.5),Math.max(1,(K*0.5)|0),Math.max(1,(K*0.4)|0));
+          }
+        } else {                                         // BOXCAR: the plain one, and the commonest
+          g.fillRect(cxx,deckY-cH,carW,cH);
+        }
+        // ⚠ THE RUNNING GEAR IS ONE DARK LINE, NOT TWO DOTS PER CAR. Drawn as a wheel at each end it
+        // came out a CHECKERBOARD — dark, gap, dark, gap the length of the train — and that alternation
+        // was louder than the wagons above it. At this distance the trucks are one shadow under the
+        // whole consist, which is also what a train actually looks like from a mile off.
+        g.fillStyle=trkC;
+        g.fillRect(cxx,deckY,carW,whH);
+        if(cq<trLen-1&&carStep>carW) g.fillRect(cxx+carW,deckY,carStep-carW,whH);   // the coupler, on the same line
+      }
+      // ---- ITS EXHAUST, trailing back over the consist. World-anchored on the clock like everything
+      // else here, so all three monitors see the same train making the same smoke in the same place.
+      // ⚠ KEPT SHORT AND CLOSE TO THE STACK ON PURPOSE. Drifting 22px back and 14px up, the puffs
+      // stopped reading as attached to anything and became pale dashes floating in the sky — which is
+      // THE BLUE LINES, whose lesson was that the fault is EXISTENCE, not contrast. A plume you can
+      // trace to a chimney is exhaust; the same pixels further away are litter.
+      var lox=tsx+(trLen-1)*carStep;
+      if(lox>-40&&lox<SW+40){
+        for(var pq=0;pq<4;pq++){
+          var ph=((now*0.00022+pq*0.25)%1);
+          var pw=Math.max(1,Math.round((0.8+ph*1.7)*K));
+          g.fillStyle="rgba("+(day?"196,196,192":"88,88,96")+","+(0.30*(1-ph)).toFixed(3)+")";
+          g.fillRect(Math.round(lox-ph*5*K),Math.round(deckY-Math.round(3.4*K)-ph*3.5*K),pw,Math.max(1,Math.round(K*0.6)));
+        }
       }
     }
 }
