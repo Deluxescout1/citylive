@@ -5598,7 +5598,20 @@ function drawWorldRiver(g,L,now){
       if(bBq<HORIZON-1){ g.fillStyle=css(bank); g.fillRect(sX,bBq,w,HORIZON-bBq); }
       g.fillStyle=css(qCope); g.fillRect(sX,sB+1,w,1);                 // the near coping, one line only
     } else {
-      g.fillStyle=css(shing); g.fillRect(sX,sT-Math.max(1,Math.round(1.4*K)),w,Math.max(1,Math.round(1.4*K)));
+      // 🚨 THE FAR BANK IS WHERE THE HILLS COME DOWN TO THE WATER, AND IT HAD NO SHORE.
+      // Nick: "fix/remove the random floating hills in this map". The hills were not floating — their
+      // FEET were being painted out. `ridgeFill` draws each ridge as a solid column all the way down to
+      // the ground line (correct: far things are laid down first and near things paint over them), and
+      // the channel then covered the bottom 40-odd rows of every ridge it crossed, leaving a summit
+      // sitting on a 3px PALE SHINGLE LINE with water under it. A pale line under a dark mass is the
+      // strongest "this object is floating" cue there is.
+      // 🔑 The cure is a SHORE, not a smaller river: the far bank now runs turf → shingle → waterline,
+      // in the land's own ground colour, so a ridge meets the water through ground of the same family
+      // instead of being cut off above it. Nothing moves; three fills replace one.
+      var shoreH=Math.max(2,Math.round(3.2*K));
+      g.fillStyle=css(bank);  g.fillRect(sX,sT-shoreH,w,shoreH);                        // the foot of the hills
+      g.fillStyle=css(shing); g.fillRect(sX,sT-Math.max(1,Math.round(1.2*K)),w,Math.max(1,Math.round(1.2*K)));  // shingle at the edge
+      g.fillStyle=css(mixc(shing,deep,0.55)); g.fillRect(sX,sT-1,w,1);                   // the waterline itself
       g.fillStyle=css(mud);   g.fillRect(sX,sB+1,w,Math.max(1,Math.round(1.6*K)));
       var bB=Math.min(HORIZON-1,sB+Math.round(1.6*K));         // the turf the city gave up, in one fill
       if(bB<HORIZON-1){ g.fillStyle=css(bank); g.fillRect(sX,bB,w,HORIZON-bB); }
