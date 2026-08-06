@@ -960,8 +960,19 @@ if (SS.preview) {
               rect: (() => { try { return scr.dipToScreenRect(null, d.workArea); } catch (e) { return d.workArea; } })()
             }));
             const surfaces = citySurfaces().map((s) => ({ displayId: s.displayId, hwnd: s.hwnd == null ? null : String(s.hwnd) }));
+            const report = { at: new Date().toISOString(), version: app.getVersion(),
+              surfaces: surfaces, guard: throttle.state(), occlusion: occlusion.describe(displays) };
+            const text = JSON.stringify(report, null, 2);
+            // ⚠ A FILE, NOT stdout. A packaged Electron app on Windows is a GUI-subsystem binary with
+            // no console attached, so `console.log` from the main process goes nowhere that can be
+            // captured — redirecting the launch command yields an empty file and reads exactly like
+            // "the probe never ran". The same reason applies on the machine this is really for: the
+            // Surface is not somewhere anyone will be watching a terminal.
+            const out = path.join(app.getPath('userData'), 'perf-probe.json');
+            try { fsx.writeFileSync(out, text, 'utf8'); console.log('[citylive] perf probe → ' + out); }
+            catch (err) { console.log('[citylive] perf probe could not be written: ' + err); }
             console.log('===== CITYLIVE PERF PROBE =====');
-            console.log(JSON.stringify({ surfaces: surfaces, guard: throttle.state(), occlusion: occlusion.describe(displays) }, null, 2));
+            console.log(text);
             console.log('===== END PERF PROBE =====');
           } catch (e) { console.log('[citylive] perf-probe failed: ' + e); }
         }, 6000);
