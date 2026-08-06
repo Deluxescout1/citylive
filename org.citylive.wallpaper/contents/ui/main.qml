@@ -234,7 +234,53 @@ WallpaperItem {
         interval: 1000; repeat: true; running: root.guardOn && root.visible
         onTriggered: root.covered = root.isCovered()
     }
+    // 🚨🚨 "SHOW DESKTOP" IS THE ONE WAY TO SEE A COVERED WALLPAPER, AND THE GUARD COULD NOT SEE IT.
+    // KWin's Show Desktop hides every window through the compositor WITHOUT minimising them, so every
+    // signal the window list offers — `IsMinimized`, `IsHidden`, the geometry — still says "covered".
+    // The single moment a person deliberately asks to LOOK AT THEIR WALLPAPER was therefore the one
+    // moment it sat frozen on a 30-second-old frame. Reported as "you left it frozen and not
+    // operational", and that is exactly what it looked like.
+    // 🔑 Nothing in the QML window model knows. KWin itself does, on DBus, so we ask it — and ONLY
+    // while covered, which is precisely when there is budget to spare: one cheap query every two
+    // seconds, none at all while the city is drawing. Show Desktop then un-freezes it within 2 s.
+    // ⚠ Fails SAFE: if the query errors or the tool is missing, `showingDesktop` stays false and the
+    // guard behaves exactly as it did before — never the other way round.
+    property bool showingDesktop: false
+    property bool sdReported: false
+    P5Support.DataSource {
+        id: sdProbe
+        engine: "executable"
+        connectedSources: []
+        onNewData: function (source, data) {
+            disconnectSource(source);
+            try {
+                var out = String(data["stdout"] || "").trim();
+                var was = root.showingDesktop;
+                root.showingDesktop = (out === "true");
+                if (was !== root.showingDesktop || !root.sdReported) {
+                    root.sdReported = true;
+                    console.log("CityLive guard: showingDesktop probe -> '" + out + "' exit=" + data["exit code"] +
+                                " stderr='" + String(data["stderr"] || "").trim().substring(0, 60) + "'");
+                }
+            } catch (e) { root.showingDesktop = false; console.log("CityLive guard: showingDesktop probe failed: " + e); }
+        }
+    }
+    Timer {
+        // ⚠⚠ `|| root.showingDesktop` IS LOad-BEARING — without it this oscillates. Polling only while
+        // covered, plus clearing the flag when the guard uncovers, is a FEEDBACK LOOP: the probe says
+        // "showing desktop" → covered goes false → the flag is cleared and the probe stops → the next
+        // poll sees the windows again → covered goes true → the probe restarts → … Measured, it
+        // flipped covered true/false every ~2 s, which is worse than the freeze it was fixing.
+        // Keeping the probe alive while the desktop is being shown means the flag is cleared by the
+        // PROBE saying false, which is the only thing that actually knows.
+        // The city still pays nothing in the normal case: no windows covering → neither condition
+        // holds → no polling at all.
+        interval: 2000; repeat: true
+        running: root.guardOn && root.visible && (root.covered || root.showingDesktop)
+        onTriggered: { try { sdProbe.connectSource("qdbus6 org.kde.KWin /KWin org.kde.KWin.showingDesktop"); } catch (e) {} }
+    }
     function isCovered() {
+        if (root.showingDesktop) return false;   // the user is looking at the desktop right now
         // ⚠ COMPARE AGAINST THE AVAILABLE RECT, NOT THE SCREEN. A *maximised* window covers the
         // screen MINUS the panels — the first version of this tested against the full screen rect
         // and so never fired even once: Brave maximised on the 4K measured 2327x1259 against a
@@ -256,13 +302,19 @@ WallpaperItem {
                 var dg = winModel.data(di, TaskManager.AbstractTasksModel.Geometry);
                 diag += " | " + String(winModel.data(di, Qt.DisplayRole)).substring(0, 14) + " " +
                         (dg ? (Math.round(dg.x) + "," + Math.round(dg.y) + " " + Math.round(dg.width) + "x" + Math.round(dg.height)) : "NO-GEOMETRY") +
-                        (winModel.data(di, TaskManager.AbstractTasksModel.IsMinimized) ? " min" : "");
+                        (winModel.data(di, TaskManager.AbstractTasksModel.IsMinimized) ? " min" : "") +
+                        (winModel.data(di, TaskManager.AbstractTasksModel.IsHidden) ? " hidden" : "");
             }
             console.log(diag);
         }
         for (var i = 0; i < winModel.count; i++) {
             var idx = winModel.index(i, 0);
             if (winModel.data(idx, TaskManager.AbstractTasksModel.IsMinimized)) continue;
+            // ⚠ `IsHidden` was TRIED FOR THIS AND IT IS NOT THE ANSWER — measured: pressing Show
+            // Desktop produced no transition, the role stays false. It is kept only because a window
+            // that genuinely reports hidden is not covering anything either. The Show Desktop case is
+            // handled by `showingDesktop` below, which had to be asked of KWin directly.
+            if (winModel.data(idx, TaskManager.AbstractTasksModel.IsHidden)) continue;
             var g = winModel.data(idx, TaskManager.AbstractTasksModel.Geometry);
             if (!g || g.width < 8 || g.height < 8) continue;
             // A couple of px of slack: a "maximised" window is often a hair short of the screen rect.
@@ -276,6 +328,8 @@ WallpaperItem {
     // the dt cap (see FRAME_MS) already absorbs the gap so nothing lurches on the first frame back.
     onCoveredChanged: {
         console.log("CityLive guard: covered=" + covered + " (screen at " + Math.round(Screen.virtualX) + ")");
+        // ⚠ DO NOT clear `showingDesktop` here. It was cleared here once and it made the guard
+        // oscillate — see the note on the probe timer. Only the probe may clear it.
         if (!covered) { bgcv.requestPaint(); cv.requestPaint(); }
     }
 
