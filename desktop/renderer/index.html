@@ -230,7 +230,11 @@
   var lastFg=0,lastBg=0,bgDirty=true,rafId=0;
   // ONE definition of the live-pass interval: the frame loop paces off it and the engine caps its
   // dt against it, so weather advances at the same real speed in every tier (see FRAME_MS).
-  function fgStepFor(q){ var fps=q==='performance'?8:(q==='balanced'?10:12); return 1000/fps; }
+  // ⚠ `performance` WAS 8 fps AGAINST `balanced`'s 10, WHICH IS NOT A TIER, IT IS A ROUNDING ERROR.
+  // The battery step-down therefore bought 20% and read as nothing changing. KDE's equivalent tier
+  // has always been 2 fps (500 ms); 5 fps is the deliberate middle — the city visibly calms down
+  // when the charger comes out without becoming the slideshow that reads as broken.
+  function fgStepFor(q){ var fps=q==='performance'?5:(q==='balanced'?10:12); return 1000/fps; }
   function frame(ts){
     rafId=requestAnimationFrame(frame);
     // ⚠⚠ `document.hidden` IS NEVER TRUE FOR A WALLPAPER, and that is why this guard had to be built.
@@ -291,6 +295,22 @@
       if(!rafId) rafId=requestAnimationFrame(frame);
     }
   }
+  function applyThrottle(s){
+    if(!s) return;
+    if('suspended' in s) setSuspended(s.suspended);
+    // A tier change is a discrete event (charger in/out, monitor plugged) — re-boot through the
+    // same path the quality dropdown uses so there is one code path, not two.
+    if(s.tier&&s.tier!==st.quality&&['spectacle','balanced','performance'].indexOf(s.tier)>=0){
+      st.quality=s.tier;
+      try{ document.getElementById('q').value=st.quality; }catch(e){}
+      boot(); hud();
+    }
+  }
+  // ⚠⚠ ASK FIRST. The guard makes its first decision before this page loads, so a listener alone
+  // never receives it — and because the guard remembers what it has "sent", it never repeats it.
+  // That is precisely how this shipped as a no-op the first time: the main process logged
+  // "SUSPENDED" while the renderer drew every frame, and an A/B measured the saving at zero.
+  try{ if(window.citylive&&window.citylive.getThrottle) window.citylive.getThrottle().then(applyThrottle).catch(function(){}); }catch(e){}
   try{
     if(window.citylive&&window.citylive.onThrottle){
       window.citylive.onThrottle(function(s){

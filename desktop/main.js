@@ -392,8 +392,13 @@ function armPerformanceGuard(why) {
     // An explicit tier from Settings is never overridden — see perf-policy.js.
     getUserQuality: () => { try { return store.readConfig(CONFIG_PATH).quality || null; } catch (e) { return null; } }
   });
-  if (!started) throttle.windowsChanged();
-  else if (why) console.log('[citylive] performance guard armed (' + why + ')');
+  // ⚠⚠ THIS TEST WAS INVERTED AND IT MADE EVERY RE-ARM A NO-OP. `throttle.start` returns true when
+  // the guard is ALREADY RUNNING, so `if (!started)` fired only when starting had FAILED — i.e.
+  // exactly when nothing could work — and the refresh path never ran in the case it exists for.
+  // Every caller after the first (wallpaper attach, mode toggle, Explorer-restart recovery) silently
+  // left the guard holding a stale window set with stale HWNDs.
+  if (started === 'already') throttle.windowsChanged();
+  if (why) console.log('[citylive] performance guard armed (' + why + ')');
 }
 
 // 🚨 EVERY ATTACH GOES THROUGH HERE, and the reason is Micah's report. `wallpaper.attach` used to
@@ -646,6 +651,12 @@ function registerConfigIpc() {
   ipcMain.handle('citylive:reset-config', () => { const def = writeUserConfig(store.DEFAULT_CONFIG); reloadCity(); return def; });
   ipcMain.handle('citylive:open-config-file', () => (CONFIG_PATH ? shell.openPath(CONFIG_PATH) : Promise.resolve('')));
   ipcMain.handle('citylive:get-version', () => app.getVersion());
+  // The render page asks for its own current suspend/tier state as soon as it is ready to act on it.
+  // See the note on `stateForWindow` — being told is racy, asking is not.
+  ipcMain.handle('citylive:get-throttle', (e) => {
+    try { return throttle.stateForWindow(BrowserWindow.fromWebContents(e.sender)); }
+    catch (err) { return { tier: null, suspended: false }; }
+  });
   ipcMain.handle('citylive:open-chronicle', () => { openControlCenter('chronicle'); return true; });
   ipcMain.handle('citylive:get-chronicle', () => chronicle.read(CHRONICLE_PATH));
   ipcMain.handle('citylive:chronicle-record', (e, snapshot) => chronicle.record(CHRONICLE_PATH, snapshot));
@@ -935,6 +946,26 @@ if (SS.preview) {
       // but the tier decision and the lock/sleep/battery signals work identically on Linux — and on
       // a laptop those are the ones that decide battery life, which no CPU percentage ever shows.
       try { armPerformanceGuard('startup'); } catch (e) { /* the guard must never stop the app booting */ }
+      // `--perf-probe`: dump everything the occlusion guard can see, once, a few seconds after the
+      // windows are up and attached — then keep running. One command on a Windows box answers
+      // whether the self-exclusion matched, whether the class filter is right for that build, and
+      // whether the work areas were converted to physical pixels correctly. See occlusion.js.
+      if (process.argv.includes('--perf-probe')) {
+        setTimeout(() => {
+          try {
+            const scr = require('electron').screen;
+            const displays = scr.getAllDisplays().map((d) => ({
+              id: d.id, scale: d.scaleFactor,
+              boundsDip: d.bounds, workAreaDip: d.workArea,
+              rect: (() => { try { return scr.dipToScreenRect(null, d.workArea); } catch (e) { return d.workArea; } })()
+            }));
+            const surfaces = citySurfaces().map((s) => ({ displayId: s.displayId, hwnd: s.hwnd == null ? null : String(s.hwnd) }));
+            console.log('===== CITYLIVE PERF PROBE =====');
+            console.log(JSON.stringify({ surfaces: surfaces, guard: throttle.state(), occlusion: occlusion.describe(displays) }, null, 2));
+            console.log('===== END PERF PROBE =====');
+          } catch (e) { console.log('[citylive] perf-probe failed: ' + e); }
+        }, 6000);
+      }
       if (SS.config || START_SETTINGS) openControlCenter();   // /c (screensaver Settings) or --settings shortcut
       // Monitors added/removed/rescaled while we're the wallpaper: rebuild ONE WINDOW PER DISPLAY at
       // the new geometry, so the one continuous city covers whatever is connected. (This comment said

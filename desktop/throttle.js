@@ -27,7 +27,10 @@
 const policy = require('./perf-policy');
 
 const POLL_VISIBLE_MS = 1500;   // drawing → a late "now covered" costs nothing
-const POLL_HIDDEN_MS = 400;     // suspended → a late "now visible" is a frozen wallpaper
+// ⚠ NOT 400 ms. The first version paired a 1 Hz → 0.2 Hz cut to the chronicle poll (for battery)
+// with a 2.5 Hz poll here — so the net number of wakeups while covered went UP, which is the exact
+// opposite of the point. One second is still faster than anyone perceives a wallpaper reveal.
+const POLL_HIDDEN_MS = 1000;    // suspended → a late "now visible" is a frozen wallpaper
 
 let cfg = null;
 let timer = null;
@@ -93,11 +96,23 @@ function evaluate() {
   if (!running) return;
   const t0 = Date.now();
   const wins = cfg.getWindows() || [];
-  if (!wins.length) return;
+  // ⚠⚠ AN EARLY RETURN HERE MUST STILL RESCHEDULE, OR THE GUARD DIES FOR THE SESSION. There are
+  // several ordinary moments with zero windows — the wallpaper-mode toggle destroys the old window
+  // before the replacement finishes loading, an Explorer restart takes the whole set with it,
+  // `handleWallpaperWindowLost` runs between them. A bare `return` there leaves the timer unarmed
+  // and nothing ever re-arms it: the guard stops evaluating permanently, silently, and the city goes
+  // back to full price behind every window for the rest of the session with no symptom to report.
+  if (!wins.length) { reschedule(); return; }
 
   // Locked or asleep suspends EVERYTHING regardless of what any window rect says — and it is the one
   // signal that works identically on Windows and Linux, which is why it is checked first.
-  const globalOff = powerState.locked || powerState.asleep;
+  // 🧪 TEST HOOK — `CITYLIVE_FORCE_SUSPEND=1` forces the suspended state. ⚠ THIS EXISTS BECAUSE THE
+  // SAVING IS OTHERWISE UNMEASURABLE OFF WINDOWS: occlusion detection is Windows-only, so on Linux
+  // there is no way to make the guard fire, and the whole design (cancel the rAF loop, keep a 30 s
+  // heartbeat) would ship with its benefit assumed rather than measured. Same reasoning as
+  // `CITYLIVE_WP_TESTRECT` — a harness that cannot express the case cannot verify the fix.
+  const forced = process.env.CITYLIVE_FORCE_SUSPEND === '1';
+  const globalOff = forced || powerState.locked || powerState.asleep;
 
   let covered = {};
   if (!globalOff && cfg.occlusion && cfg.occlusion.available()) {
@@ -145,7 +160,9 @@ function reschedule() {
 function start(opts) {
   cfg = Object.assign({ occlusion: null, perflog: null }, opts || {});
   if (!cfg.getWindows || !cfg.screen) return false;
-  if (running) return true;
+  // Three distinct answers, because the caller has to tell "started" from "already running" — see
+  // the note at the call site in main.js, where conflating them made every re-arm a no-op.
+  if (running) return 'already';
   running = true;
   lastCovered = {};
 
@@ -186,6 +203,25 @@ function settingsChanged() { recomputeTier('settings'); }
 
 function stop() { running = false; clearTimeout(timer); timer = null; }
 
+// 🚨🚨 THE RACE THAT MADE THE WHOLE GUARD A NO-OP, AND IT LOOKED LIKE IT WAS WORKING.
+// The guard evaluates as soon as it is armed, which is BEFORE the render page has loaded and
+// registered its `onThrottle` listener. The very first decision — the one that matters most, because
+// it is the one that says "this desktop is already covered, do not start drawing" — was therefore
+// sent to nobody. And because `lastCovered` had already recorded the state as sent, it was never
+// sent again: the renderer drew at full price forever while the main process logged "SUSPENDED".
+// The A/B that caught it measured 8.69% drawing against 8.71% suspended — a change worth nothing,
+// with a log line insisting it had worked.
+// 🔑 So the renderer ASKS, rather than waiting to be told. Ordering cannot be got wrong if the party
+// that needs the answer is the one requesting it, at the moment it is ready to use it.
+function stateForWindow(win) {
+  const tier = lastTier;
+  if (!win) return { tier: tier, suspended: false };
+  for (const e of cfg && cfg.getWindows ? (cfg.getWindows() || []) : []) {
+    if (e && e.win === win) return { tier: tier, suspended: !!lastCovered[e.displayId] };
+  }
+  return { tier: tier, suspended: false };
+}
+
 function state() {
   return {
     tier: lastTier,
@@ -197,4 +233,4 @@ function state() {
   };
 }
 
-module.exports = { start, stop, windowsChanged, settingsChanged, state, evaluateNow };
+module.exports = { start, stop, windowsChanged, settingsChanged, state, stateForWindow, evaluateNow };

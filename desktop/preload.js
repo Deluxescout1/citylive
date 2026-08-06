@@ -40,6 +40,10 @@ contextBridge.exposeInMainWorld('citylive', {
   // monitor's desktop becomes covered/revealed (or the machine locks/sleeps), and `{tier:string}`
   // when the quality tier changes on a discrete event such as unplugging the charger.
   onThrottle: (cb) => ipcRenderer.on('citylive:throttle', (_e, s) => cb(s)),
+  // ⚠ THE RENDERER MUST ASK, NOT JUST LISTEN. The guard's first decision is made before this page
+  // exists, so a listener alone misses it and the page draws at full price on a desktop the guard
+  // already knows is covered — with the main process logging "SUSPENDED" the whole time.
+  getThrottle: () => ipcRenderer.invoke('citylive:get-throttle'),
   onState: (cb) => ipcRenderer.on('citylive:state', (_e, s) => cb(s)),
   onUpdateStatus: (cb) => ipcRenderer.on('citylive:update-status', (_e, s) => cb(s)),
   onNavigate: (cb) => ipcRenderer.on('citylive:navigate', (_e, tab) => cb(tab))

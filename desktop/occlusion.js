@@ -63,7 +63,16 @@ function ensureBindings() {
       GetWindowRect: lib.func('bool __stdcall GetWindowRect(void *hwnd, _Out_ ClRect *r)'),
       GetWindowLongPtr: lib.func('intptr_t __stdcall GetWindowLongPtrW(void *hwnd, int index)'),
       GetClassNameA: lib.func('int __stdcall GetClassNameA(void *hwnd, _Out_ char *buf, int max)'),
-      GetShellWindow: lib.func('void* __stdcall GetShellWindow()')
+      GetShellWindow: lib.func('void* __stdcall GetShellWindow()'),
+      // 🔑 THE SELF-EXCLUSION, DONE THE ONE WAY THAT CANNOT QUIETLY FAIL. The city IS a full-screen
+      // window covering the desktop, so if the sweep does not recognise its own windows it concludes
+      // the desktop is covered and suspends the wallpaper permanently, at boot, on every machine.
+      // Matching by HWND value is the obvious approach and it is fragile in exactly the wrong
+      // direction: it depends on a koffi pointer and an Electron BigInt stringifying to the same
+      // decimal, and if they ever disagree the failure is total and silent. Asking Windows which
+      // PROCESS owns the window is exact, format-independent, and covers every window we own —
+      // wallpaper siblings, the Control Center, anything added later — without being told about them.
+      GetWindowThreadProcessId: lib.func('uint32_t __stdcall GetWindowThreadProcessId(void *hwnd, _Out_ uint32_t *pid)')
     };
     // Cloaking is how Windows hides a UWP app that is "running" but not on screen, and how it hides
     // every window on a virtual desktop you are not looking at. A cloaked window has a perfectly good
@@ -122,9 +131,20 @@ function covers(a, b, slack) {
 //
 // Enumeration is top-of-z-order first, and we stop as soon as every display is accounted for, so the
 // usual laptop case (one screen, one maximised window) costs a handful of syscalls.
+const pidBuf = Buffer.alloc(4);
+function ownerPid(hwnd) {
+  try { pidBuf.writeUInt32LE(0, 0); u32.GetWindowThreadProcessId(hwnd, pidBuf); return pidBuf.readUInt32LE(0); }
+  catch (e) { return -1; }
+}
+
 function coveredDisplays(displays, ownHwnds) {
   const out = {};
   if (!available() || !displays || !displays.length) return out;
+  // ⚠ FAIL OPEN, ALWAYS. If we cannot reliably tell our own windows apart from everyone else's, the
+  // only safe answer is "nothing is covered" — a wallpaper that is drawn when it did not need to be
+  // costs some CPU; a wallpaper that suspends itself forever is a black screen the user cannot fix.
+  if (typeof u32.GetWindowThreadProcessId !== 'function') return out;
+  const selfPid = process.pid;
   const own = {};
   if (ownHwnds) for (const h of ownHwnds) { if (h != null) own[String(h)] = 1; }
   let remaining = displays.length;
@@ -132,6 +152,9 @@ function coveredDisplays(displays, ownHwnds) {
   try {
     const cb = koffi.register((hwnd) => {
       try {
+        // Ours, by process — the reliable test. The HWND set is a secondary belt-and-braces check
+        // for any window that might somehow be owned elsewhere; neither is trusted alone.
+        if (ownerPid(hwnd) === selfPid) return true;
         if (own[String(koffi.address ? koffi.address(hwnd) : hwnd)]) return true;
         if (!u32.IsWindowVisible(hwnd)) return true;
         if (u32.IsIconic(hwnd)) return true;
@@ -155,4 +178,49 @@ function coveredDisplays(displays, ownHwnds) {
   return out;
 }
 
-module.exports = { available, coveredDisplays, covers };
+// ── THE DIAGNOSTIC ──────────────────────────────────────────────────────────────────────────────
+// 🔑 A HARNESS THAT CANNOT EXPRESS THE CASE CANNOT VERIFY THE FIX — the same reason
+// `CITYLIVE_WP_TESTRECT` exists. Everything this guard depends on is invisible from Linux: whether
+// the self-exclusion actually matches our own windows, whether the shell-class filter is catching
+// the right things on this Windows build, whether the DIP→physical conversion produced rectangles
+// that any real window could ever cover. Each could fail independently and each failure looks
+// identical from outside — a guard that simply never fires, or one that fires always.
+// So: one run, one dump, every input and every verdict. `--perf-probe` on the VM answers all of it
+// at once instead of guessing at a machine that cannot be attached to.
+function describe(displays) {
+  const report = { available: available(), selfPid: process.pid, displays: displays || [], windows: [] };
+  if (!report.available) { report.note = 'occlusion bindings unavailable (not Windows, or koffi failed to load)'; return report; }
+  const rect = {};
+  try {
+    const cb = koffi.register((hwnd) => {
+      try {
+        const w = {
+          cls: classOf(hwnd),
+          pid: ownerPid(hwnd),
+          visible: !!u32.IsWindowVisible(hwnd),
+          minimized: !!u32.IsIconic(hwnd),
+          cloaked: isCloaked(hwnd),
+          toolwindow: !!(Number(u32.GetWindowLongPtr(hwnd, GWL_EXSTYLE)) & WS_EX_TOOLWINDOW)
+        };
+        w.isOurs = (w.pid === report.selfPid);
+        w.shellClass = !!SHELL_CLASSES[w.cls];
+        if (u32.GetWindowRect(hwnd, rect)) w.rect = { l: rect.left, t: rect.top, r: rect.right, b: rect.bottom };
+        w.skippedBecause = w.isOurs ? 'ours' : !w.visible ? 'invisible' : w.minimized ? 'minimized'
+          : w.toolwindow ? 'toolwindow' : w.shellClass ? 'shell' : w.cloaked ? 'cloaked' : null;
+        if (!w.skippedBecause && w.rect) {
+          w.covers = (displays || []).filter((d) => covers(rect, d.rect)).map((d) => d.id);
+        }
+        // Only report windows big enough to matter, or ours — otherwise this is hundreds of rows.
+        const bigEnough = w.rect && (w.rect.r - w.rect.l) > 200 && (w.rect.b - w.rect.t) > 200;
+        if (bigEnough || w.isOurs) report.windows.push(w);
+        return true;
+      } catch (e) { return true; }
+    }, koffi.pointer(EnumProto));
+    try { u32.EnumWindows(cb, 0); } finally { koffi.unregister(cb); }
+  } catch (e) { report.error = String(e); }
+  report.verdict = coveredDisplays(displays, []);
+  report.ourWindowsSeen = report.windows.filter((w) => w.isOurs).length;
+  return report;
+}
+
+module.exports = { available, coveredDisplays, covers, describe };
