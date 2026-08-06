@@ -5516,18 +5516,60 @@ function riverBendY(wx){                            // the channel's centre, in 
 // Is the channel far enough forward here to be seen at all? Where it is not, the city stands in front
 // of it and there is nothing to set back.
 function riverOpenAt(wx){ return riverBendY(wx)>HORIZON-Math.round(RIV_HALF*1.9); }
+// 🔒 THE BANK, BY LAND — locked answer 4. A BUILT QUAY where the city is dense and industrial, the
+// natural bank of mud, reeds and shingle everywhere else. Keyed by biome, so anything not listed is
+// natural and a new land costs no new field.
+var RIV_QUAY={mesa:1, plateau:1, rainv:1};
+function riverLava(){ return !!(curBiome&&curBiome.k==="hell"); }
+function riverQuay(){ return !!(curBiome&&RIV_QUAY[curBiome.k])&&!riverLava(); }
+// 🔒 …and what works it: a tug and its barge against the quays, somebody's own boat on the open water.
+function riverTraffic(){ return riverLava()?null:(riverQuay()?"barge":"small"); }
+// 🔑🔑 ONE CHANNEL FORMULA, READ BY BOTH PASSES. The backdrop draws the water; the live pass draws
+// what moves on it. If each worked the banks out for itself they would drift apart the moment either
+// was tuned — and drifting apart is not hypothetical here: this land carried TWO complete river
+// implementations for three days, painting into the same band, because the second one was written
+// from a brief rather than from the engine.
+function riverChan(wx){
+  var cyv=riverBendY(wx);
+  // the two banks come from DIFFERENT noise, so they are never parallel — the ruled-line defence
+  var wUp=RIV_HALF+Math.round(Math.sin(wx*0.0089+0.7)*2.6+Math.sin(wx*0.0203)*1.4);
+  var wDn=RIV_HALF+Math.round(Math.sin(wx*0.0071+2.9)*3.0+Math.sin(wx*0.0170+1.1)*1.5);
+  return {cy:cyv, up:wUp, dn:wDn, top:cyv-wUp, bot:Math.min(HORIZON-1,cyv+wDn)};
+}
 // 🔒 THE BANK IS NATURAL ON THE OPEN LANDS — his answer 4: mud, reeds, shingle, trees, city set back.
 // (A built quay belongs to the dense industrial lands and is not this first pass.)
 // ⚠ Drawn in the BACKDROP, BEFORE the city, so the buildings occlude it wherever it has swung back —
 // which is the whole mechanism. Nothing here is drawn over the road band, so no deck can bury it.
 function drawWorldRiver(g,L,now){
   if(!hasRiver||cityG<0.06) return;
-  var day=L>0.5, K=Math.max(1,KSP);
-  var deep =mixc(day?[46,92,132]:[8,17,34], biomeSkc(day), 0.10);
-  var shal =mixc(day?[112,164,194]:[20,38,62], biomeSkc(day), 0.14);
-  var mud  =mixc(day?[122,104,78]:[20,17,14], biomeSkc(day), 0.08);
-  var shing=mixc(day?[168,158,136]:[26,26,26], biomeSkc(day), 0.10);
-  var bank =mixc(day?[104,132,74]:[14,22,18], biomeSkc(day), 0.10);
+  var day=L>0.5, K=Math.max(1,KSP), LAVA=riverLava(), QUAY=riverQuay();
+  var deep,shal,mud,shing,bank;
+  if(LAVA){
+    // 🌋 THE ASHLANDS' RIVER IS LAVA, which the old buried `drawRiver` always knew and nobody could
+    // ever see. It does NOT mix toward the sky the way water does — a molten channel is a light
+    // SOURCE, not a mirror, and that inversion is the whole difference between the two. Its banks are
+    // clinker rather than reeds, because nothing grows there.
+    deep =day?[176,52,16]:[150,38,10];
+    shal =day?[255,178,58]:[228,128,32];
+    mud  =mixc(day?[62,50,46]:[26,20,20], biomeSkc(day), 0.06);
+    shing=mixc(day?[92,74,64]:[34,28,26], biomeSkc(day), 0.06);
+    bank =mixc(day?[54,46,44]:[20,17,17], biomeSkc(day), 0.06);
+  } else if(QUAY){
+    // a worked river runs dirtier than an open one, and the wharf apron is stone, not turf
+    deep =mixc(day?[42,80,110]:[8,16,30], biomeSkc(day), 0.10);
+    shal =mixc(day?[98,140,166]:[18,34,56], biomeSkc(day), 0.14);
+    mud  =mixc(day?[86,80,74]:[18,17,18], biomeSkc(day), 0.08);   // the wall's tide mark
+    shing=mixc(day?[138,132,122]:[24,24,28], biomeSkc(day), 0.10); // its stone face
+    bank =mixc(day?[132,126,116]:[22,22,26], biomeSkc(day), 0.10); // the apron behind it
+  } else {
+    deep =mixc(day?[46,92,132]:[8,17,34], biomeSkc(day), 0.10);
+    shal =mixc(day?[112,164,194]:[20,38,62], biomeSkc(day), 0.14);
+    mud  =mixc(day?[122,104,78]:[20,17,14], biomeSkc(day), 0.08);
+    shing=mixc(day?[168,158,136]:[26,26,26], biomeSkc(day), 0.10);
+    bank =mixc(day?[104,132,74]:[14,22,18], biomeSkc(day), 0.10);
+  }
+  var qCope=mixc(day?[190,186,176]:[30,30,34], biomeSkc(day), 0.10);
+  var qWallH=Math.max(2,Math.round(2.4*K));
   // ⚠ AND IT IS DRAWN IN RUNS. Per column this was ~6 fills x 776 = +8 ms on the backdrop even after
   // the per-pixel gradient came out. The bend and its banks are smooth, so neighbouring columns share
   // a profile; flush when it actually changes. FIFTH time in this session — it is not a coincidence,
@@ -5539,31 +5581,71 @@ function drawWorldRiver(g,L,now){
     g.fillStyle=css(shal); g.fillRect(sX,sT,w,sB-sT+1);                // the shallows, bank to bank
     g.fillStyle=css(mixc(deep,shal,0.35)); g.fillRect(sX,sCT,w,Math.max(1,sCB-sCT));
     g.fillStyle=css(deep);  g.fillRect(sX,sDT,w,sDH);                  // and the deep channel itself
-    g.fillStyle=css(shing); g.fillRect(sX,sT-Math.max(1,Math.round(1.4*K)),w,Math.max(1,Math.round(1.4*K)));
-    g.fillStyle=css(mud);   g.fillRect(sX,sB+1,w,Math.max(1,Math.round(1.6*K)));
-    var bB=Math.min(HORIZON-1,sB+Math.round(1.6*K));           // the turf the city gave up, in one fill
-    if(bB<HORIZON-1){ g.fillStyle=css(bank); g.fillRect(sX,bB,w,HORIZON-bB); }
+    if(QUAY){
+      // ⚠ THE FACE WE CAN SEE IS THE FAR ONE. From this viewpoint the near bank presents its top edge
+      // and nothing else, while the far bank stands out of the water as a wall with the city behind
+      // it. A full embankment drawn on both would be two walls where the eye can only read one.
+      g.fillStyle=css(shing); g.fillRect(sX,sT-qWallH,w,qWallH);      // the stone face
+      g.fillStyle=css(mud);   g.fillRect(sX,sT-1,w,1);                 // its tide mark, at the water
+      g.fillStyle=css(qCope); g.fillRect(sX,sT-qWallH-1,w,1);          // and the coping along the top
+      g.fillStyle=css(bank);  g.fillRect(sX,sB+1,w,Math.max(1,Math.round(1.6*K)));
+      var bBq=Math.min(HORIZON-1,sB+Math.round(1.6*K));
+      if(bBq<HORIZON-1){ g.fillStyle=css(bank); g.fillRect(sX,bBq,w,HORIZON-bBq); }
+      g.fillStyle=css(qCope); g.fillRect(sX,sB+1,w,1);                 // the near coping, one line only
+    } else {
+      g.fillStyle=css(shing); g.fillRect(sX,sT-Math.max(1,Math.round(1.4*K)),w,Math.max(1,Math.round(1.4*K)));
+      g.fillStyle=css(mud);   g.fillRect(sX,sB+1,w,Math.max(1,Math.round(1.6*K)));
+      var bB=Math.min(HORIZON-1,sB+Math.round(1.6*K));         // the turf the city gave up, in one fill
+      if(bB<HORIZON-1){ g.fillStyle=css(bank); g.fillRect(sX,bB,w,HORIZON-bB); }
+    }
     sX=-1;
   }
   for(var x=0;x<SW;x++){
-    var wx=x+WOFF, cyv=riverBendY(wx);
-    // the two banks are computed from DIFFERENT noise, so they are never parallel — the ruled-line
-    // defence his brief asks for, applied to the shape rather than to the colour
-    var wUp=RIV_HALF+Math.round(Math.sin(wx*0.0089+0.7)*2.6+Math.sin(wx*0.0203)*1.4);
-    var wDn=RIV_HALF+Math.round(Math.sin(wx*0.0071+2.9)*3.0+Math.sin(wx*0.0170+1.1)*1.5);
-    var top=cyv-wUp, bot=Math.min(HORIZON-1,cyv+wDn);
+    // 🔑 the banks come from `riverChan`, the ONE formula the live pass reads too
+    var wx=x+WOFF, RC=riverChan(wx), cyv=RC.cy, wUp=RC.up, wDn=RC.dn, top=RC.top, bot=RC.bot;
     if(bot<=top){ flushRiv(x); continue; }
     var cT=cyv-Math.round(wUp*0.42), cB=cyv+Math.round(wDn*0.42);
     var dT=cyv-Math.round(wUp*0.18), dH=Math.max(1,Math.round((wUp+wDn)*0.18));
     if(sX<0){ sX=x; sT=top; sB=bot; sCT=cT; sCB=cB; sDT=dT; sDH=dH; }
     else if(top!==sT||bot!==sB||cT!==sCT||dT!==sDT){ flushRiv(x); sX=x; sT=top; sB=bot; sCT=cT; sCB=cB; sDT=dT; sDH=dH; }
-    // the current — glitter that DRIFTS, so it reads as moving water rather than a blue slab
+    // the current — glitter that DRIFTS, so it reads as moving water rather than a blue slab.
+    // 🌋 on lava it is EMBER, and it burns at night as well as by day: the surface makes its own light.
     if(((mixLi(Math.floor((wx+Math.floor(now*0.006))/Math.max(2,Math.round(2.4*K))),0x71E4))%100)<12){
-      g.fillStyle="rgba(255,255,255,0.28)";
+      g.fillStyle=LAVA?"rgba(255,214,120,0.85)":(day?"rgba(255,255,255,0.28)":"rgba(200,220,255,0.14)");
       g.fillRect(x,cyv+Math.round(Math.sin(wx*0.05)*wDn*0.4),Math.max(1,Math.round(1.6*K)),1);
     }
-    // reeds where the bank is shallow
-    if(((mixLi(Math.floor(wx/Math.max(1,Math.round(3*K))),0x2EED))%100)<22){
+    // ---- THE FURNITURE OF A WORKED QUAY. 🔒 Locked answer 4: mooring rings, steps, cranes and
+    // stacked cargo are what say a bank is worked. ⚠ ONCE PER CELL, NOT ONCE PER COLUMN — the bucketed
+    // hash needs a bucketed trigger, or every bollard is drawn a dozen times on top of itself:
+    // invisible in the frame and pure cost in the profile, which this function has already been
+    // caught doing once with its trees.
+    if(QUAY){
+      var qcell=Math.max(3,Math.round(11*K));
+      if((wx%qcell)===0){
+        var qh=mixLi(Math.floor(wx/qcell),0x9A11), qTop=top-qWallH-1, kind=qh%10;
+        if(kind<4){                                                        // a mooring bollard
+          g.fillStyle=css(mud);
+          g.fillRect(x,qTop-Math.max(1,Math.round(K*0.9)),Math.max(1,Math.round(K*0.7)),Math.max(1,Math.round(K*0.9)));
+        } else if(kind<6){                                                 // steps down into the water
+          g.fillStyle=css(qCope);
+          for(var sq2=0;sq2<3;sq2++)
+            g.fillRect(x+sq2,qTop+1+Math.round(sq2*qWallH/3),Math.max(1,Math.round(1.6*K)-sq2),Math.max(1,Math.round(qWallH/3)));
+        } else if(kind<9){                                                 // cargo, stacked and waiting
+          var CG=[[142,86,54],[70,96,116],[122,116,96]][(qh>>>7)%3];
+          g.fillStyle=css(mixc(day?CG:[(CG[0]*0.34)|0,(CG[1]*0.36)|0,(CG[2]*0.42)|0],biomeSkc(day),0.08));
+          for(var st2=0;st2<2+((qh>>>11)%2);st2++)
+            g.fillRect(x,qTop-Math.round((st2+1)*1.1*K),Math.round(1.8*K),Math.max(1,Math.round(1.1*K)));
+        } else {                                                           // a wharf crane over the water
+          var cmH=Math.round(6*K), jibL=Math.round(4.4*K);
+          g.fillStyle=css(mud);
+          g.fillRect(x,qTop-cmH,Math.max(1,Math.round(K*0.8)),cmH);                             // mast
+          g.fillRect(Math.max(0,x-jibL),qTop-cmH,jibL,Math.max(1,Math.round(K*0.6)));           // jib, out over the water
+          g.fillRect(Math.max(0,x-jibL+Math.round(K)),qTop-cmH,Math.max(1,Math.round(K*0.4)),Math.round(2.4*K)); // hook line
+        }
+      }
+    }
+    // reeds where the bank is shallow — ⚠ not on a wharf, and not on a lava bank: nothing grows there
+    if(!QUAY&&!LAVA&&((mixLi(Math.floor(wx/Math.max(1,Math.round(3*K))),0x2EED))%100)<22){
       g.fillStyle=css(mixc(day?[86,112,58]:[14,22,16],biomeSkc(day),0.08));
       g.fillRect(x,bot-Math.round(1.2*K),1,Math.round(3.4*K));
     }
@@ -5574,7 +5656,7 @@ function drawWorldRiver(g,L,now){
     // from 9.9 ms to 14.1: the SIXTH per-column regression of this session, added by the very commit
     // whose message was about the previous five. Knowing the shape of a mistake is not immunity to it;
     // the only defence that works is measuring after every change rather than after every feature.
-    if(((mixLi(Math.floor(wx/Math.max(1,Math.round(2*K))),0x3B01))%100)<26){
+    if(!QUAY&&!LAVA&&((mixLi(Math.floor(wx/Math.max(1,Math.round(2*K))),0x3B01))%100)<26){
       var scY=Math.min(HORIZON-2,bot+Math.round(1.6*K));
       g.fillStyle=css(mixc(day?[86,116,60]:[12,20,15],biomeSkc(day),0.08));
       g.fillRect(x,scY+Math.round(((mixLi(x,0x3B02)%5))*K*0.5),1,Math.max(1,Math.round(1.6*K)));
@@ -5583,7 +5665,7 @@ function drawWorldRiver(g,L,now){
     // column, so each tree was drawn eighteen times on top of itself — invisible in the frame, and pure
     // cost in the profile. A bucketed condition needs a bucketed trigger.
     var tcell=Math.max(2,Math.round(9*K));
-    if((wx%tcell)===0 && ((mixLi(Math.floor(wx/tcell),0x3B03))%100)<34){          // trees along the bank
+    if(!QUAY&&!LAVA&&(wx%tcell)===0 && ((mixLi(Math.floor(wx/tcell),0x3B03))%100)<34){   // trees along the bank
       var trh=Math.round((5+((mixLi(Math.floor(wx/tcell),0x3B04))%5))*K);
       var trY=Math.min(HORIZON-1,bot+Math.round(3*K));
       g.fillStyle=css(mixc(day?[74,58,38]:[12,10,9],biomeSkc(day),0.06));
@@ -5593,6 +5675,127 @@ function drawWorldRiver(g,L,now){
     }
   }
   flushRiv(SW);
+}
+// ================================================================================================
+// WHAT MOVES ON THE RIVER — the live half
+// ================================================================================================
+// ⚠⚠ THIS IS A SEPARATE FUNCTION FOR ONE REASON: `drawWorldRiver` is a BACKDROP feature and the
+// backdrop repaints every 2000 ms. A barge drawn there would advance twice a minute, which does not
+// read as slow, it reads as broken — the same finding that moved the cascades and the cable cars out
+// of the backdrop. Static water and its banks stay in `bg`; everything that travels lives here.
+// 🔑 BOTH HALVES READ `riverChan`, so the boat cannot drift off the water when the bend is tuned.
+function drawRiverLive(g,L,now,nd){
+  if(!hasRiver||cityG<0.06||cityPhase==="apoc") return;
+  var day=L>0.5, K=Math.max(1,KSP), LAVA=riverLava(), seedR=(WORLD_SEED*2246822519)>>>0;
+  // ---- THE CITY HANGING UPSIDE DOWN IN IT. 🔒 His answer, and the reason a river earns its band:
+  // it doubles the skyline without drawing one extra building.
+  // 🔑🔑 A REFLECTION MUST BE DARKER THAN THE WATER — five lands have been fixed for getting this
+  // wrong. By day what hangs in a river is a SILHOUETTE, not a highlight; only after dark does a lit
+  // window come back brighter than the surface, and then it is additive and rare.
+  // 🔑 VERTICAL, and unbroken at the head: a reflection is a column hanging straight down from what
+  // casts it, solid where it leaves the object and breaking up as it travels. Broken evenly all the
+  // way it is a scatter of specks, i.e. litter on the surface — the sprawl's flood learned that.
+  // ⚠ NOT ON LAVA. A molten channel is a light source; nothing hangs upside down in it.
+  if(!LAVA){
+    for(var rf=0;rf<16;rf++){
+      var fh=iceHash(rf*24593^seedR);
+      var fsx=(fh%Math.max(1,WW))-WOFF; if(fsx<-WW*0.5) fsx+=WW; if(fsx>WW*0.5) fsx-=WW;
+      if(fsx<0||fsx>=SW) continue;
+      var fwx=fsx+WOFF;
+      // ⚠ NO `riverOpenAt` GATE HERE, AND THAT WAS MEASURED, NOT ASSUMED. Gating the live half on it
+      // drew NOTHING on his primary: `riverOpenAt` is true for 0 of 776 columns at woff 0 — the reach
+      // that "comes into the open" is elsewhere in the world. It is also the wrong test: this pass
+      // runs BEFORE the buildings, so the skyline occludes what it should and the water still shows
+      // between the towers, which is the answer he gave today.
+      var FC=riverChan(fwx); if(FC.bot<=FC.top) continue;
+      var fDep=FC.bot-FC.top;
+      var fLen=Math.max(2,Math.round((0.35+((fh>>>5)%100)/100*0.60)*fDep));
+      var fW=Math.max(1,Math.round((0.7+((fh>>>25)%2)*0.6)*K));
+      var warm=(!day&&((fh>>>9)%5)===0);               // one lit window in five, and only after dark
+      if(warm) g.globalCompositeOperation="lighter";
+      for(var fq=0;fq<fLen;fq++){
+        var fy=FC.top+fq, ff=fq/fLen;
+        if(ff>0.24&&((((fsx*2654435761)^((fy*97)|0))>>>0)%10)<Math.round(2+ff*6)) continue;
+        var fwob=Math.round(Math.sin(now*0.0011+rf*1.7+fq*0.11)*(0.3+ff*1.9)*K);
+        g.fillStyle=warm?("rgba(255,198,112,"+(0.34*(1-ff*0.8)).toFixed(3)+")")
+                        :("rgba(10,14,24,"+((day?0.26:0.32)*(1-ff*0.74)).toFixed(3)+")");
+        g.fillRect(fsx+fwob,fy,fW,1);
+      }
+      if(warm) g.globalCompositeOperation="source-over";
+    }
+  }
+  // ---- WHAT WORKS IT. 🔒 Locked answer 3, BY LAND: a tug and its loaded barge where the city is
+  // dense and industrial, somebody's own boat on the open water. The brief sized the channel at ~20wp
+  // so this would fit in it.
+  var TRF=riverTraffic();
+  if(TRF){
+    var big=(TRF==="barge");
+    for(var bq=0;bq<(big?3:2);bq++){
+      var bh=iceHash(bq*9187^seedR);
+      // world-anchored on the clock, so all three monitors see the same boat in the same place
+      var bper=big?250000:165000, bdir=((bh>>>3)&1)?1:-1;
+      var bph=(((now/bper)+((bh>>>7)%1000)/1000)%1);
+      var bwx=Math.round((bdir>0?bph:1-bph)*WW);
+      var bsx=bwx-WOFF; if(bsx<-WW*0.5) bsx+=WW; if(bsx>WW*0.5) bsx-=WW;
+      var bL=Math.round((big?9:2.6)*K), bH=Math.max(1,Math.round((big?1.1:0.8)*K));
+      if(bsx<-bL-4||bsx>SW+4) continue;
+      var BC=riverChan(bwx); if(BC.bot<=BC.top) continue;
+      var by=BC.cy+Math.round(BC.dn*0.35);             // it rides the NEAR half, where the eye is
+      g.fillStyle=css(day?[54,58,66]:[18,20,28]);      // the hull
+      g.fillRect(bsx,by-bH,bL,bH);
+      if(big){
+        g.fillStyle=css(day?[104,96,80]:[30,28,26]);   // its load, heaped along the deck
+        for(var cg=0;cg<3;cg++)
+          g.fillRect(bsx+Math.round((1.2+cg*2.5)*K),by-bH-Math.max(1,Math.round(K*0.8)),Math.round(1.8*K),Math.max(1,Math.round(K*0.8)));
+        g.fillStyle=css(day?[178,176,170]:[42,44,52]); // the wheelhouse, on the tug at the back
+        g.fillRect(bsx+bL-Math.round(1.2*K),by-bH-Math.round(1.6*K),Math.max(1,Math.round(1.1*K)),Math.round(1.6*K));
+      } else {
+        // 📏 A PERSON IS A FIXED 7px AND IS NEVER SCALED BY K. `drawPerson` is the only body routine
+        // in this engine, and a boat drawing its own little figure is how four separate features
+        // ended up with people of four different sizes.
+        drawPerson(g,Math.round(bsx+bL*0.5),by-bH,"#3c4a5e",null,-1,0);
+      }
+      g.fillStyle="rgba(8,12,20,0.30)";                // ⚠ its reflection is DARKER than the water
+      g.fillRect(bsx,by,bL,Math.max(1,Math.round(K*0.7)));
+      g.fillStyle=day?"rgba(236,244,252,0.34)":"rgba(150,170,196,0.20)";   // and the wake behind it
+      g.fillRect(bdir>0?Math.max(0,bsx-Math.round(3*K)):bsx+bL,by-1,Math.round(3*K),1);
+    }
+  }
+  // ---- WHO IS AT THE WATER. 🔒 The other half of his answer. A bank with nobody on it is a diagram
+  // of a bank; the heron and the two people fishing are what make it a place. ⚠ Not on lava, and not
+  // in the dark — nobody stands about on a bank at 3am.
+  if(!LAVA&&day){
+    for(var pw=0;pw<7;pw++){
+      var ph=iceHash(pw*15413^seedR);
+      var psx=(ph%Math.max(1,WW))-WOFF; if(psx<-WW*0.5) psx+=WW; if(psx>WW*0.5) psx-=WW;
+      if(psx<-6||psx>=SW+6) continue;
+      var pwx=psx+WOFF;
+      var PC=riverChan(pwx); if(PC.bot<=PC.top) continue;
+      var pby=Math.min(HORIZON-1,PC.bot+Math.round(K*1.6)), who=(ph>>>11)%10;
+      if(who<3&&!riverQuay()){
+        // 🐦 A HERON, and it is the STILLNESS that identifies it. Not a person, so it is drawn here —
+        // one leg, a body, a neck and a beak, standing AT the water's edge, never back from it.
+        var hy=PC.bot;
+        g.fillStyle="rgba(206,208,206,0.92)";
+        g.fillRect(psx,hy-Math.round(1.4*K),Math.max(1,Math.round(K*0.5)),Math.round(1.4*K));
+        g.fillRect(psx-Math.round(K*0.4),hy-Math.round(2.6*K),Math.round(1.6*K),Math.round(1.2*K));
+        g.fillRect(psx+Math.round(K*0.6),hy-Math.round(3.6*K),Math.max(1,Math.round(K*0.4)),Math.round(1.1*K));
+        g.fillStyle="rgba(226,188,86,0.9)";
+        g.fillRect(psx+Math.round(K*0.9),hy-Math.round(3.6*K),Math.max(1,Math.round(K*0.7)),1);
+      } else if(who<7){
+        drawPerson(g,psx,pby,riverQuay()?"#5a4a3a":"#4a5a48",null,-1,0);   // an angler, or a docker
+        if(!riverQuay()){
+          g.fillStyle="rgba(58,50,42,0.85)";
+          for(var rq=0;rq<4;rq++) g.fillRect(psx+2+rq,pby-6-rq,1,1);  // 📏 the rod is off the FIXED 7px body, not off K
+        }
+      } else if(who<9){
+        drawPerson(g,psx,pby,"#8a4a6a",null,-1,1);                    // a child, down at the shingle
+      } else {
+        g.fillStyle="rgba(96,78,58,0.9)";                             // and somebody's dog
+        g.fillRect(psx,pby-2,3,2); g.fillRect(psx+3,pby-3,1,1);
+      }
+    }
+  }
 }
 var hasOcean=true;   // set per life in buildWorld — landlocked cities have no waterfront at all
 var subways=[];      // street-level subway entrances (generated per life)
@@ -47019,139 +47222,6 @@ function drawPuddles(g,L,now){
 // terrain and the ground simply covered it. The wind farm survives there only because it is tall
 // enough to stand clear; crop strips are by definition at ground level and can never be. That is
 // the paint-order item this project has now hit on both sides: things buried by what comes later.
-// ================================================================================================
-// THE RIVER — the channel that moves BEHIND the road
-// ================================================================================================
-// 🚨 THE DIAGNOSIS, RE-MEASURED TODAY RATHER THAN TAKEN FROM THE BRIEF: `drawRiver` fills its channel
-// from `gy+4` to the bottom of the frame, and that whole band is the ROAD — far footway, carriageway,
-// promenade. At the crossing the bridge deck covers it in three materials. Everything that routine
-// builds — the depth gradient, the surface glitter, the coped embankment, the barges, the wharf
-// crane, the riverside park — has been drawn every frame on six lands and never once seen. Its own
-// comment reads "so it reads as moving water, not a blue slab".
-// ⚠ AND IT CANNOT BE FIXED FROM THE FRONT. The ground band is fully spoken for, and bridging only the
-// carriageway drops the far pavement's crowd into open water — the exact complaint that made the deck
-// full-width in the first place.
-// 🔒 SO THE MAIN CHANNEL MOVES INTO THE FIELD, where there is open ground and nothing to fight. The
-// street keeps a smaller cut and its bridge; this is the river you can actually look at.
-// 🔑🔑 AND `HORIZON` IS NOT TOUCHED. It has the many-readers problem `SEA_Y` does — the storm surge
-// found 37 read sites — and the answer there was the same as here: work out what can be DRAWN rather
-// than laid out. Nothing below moves a constant; it all paints inside the wedge that already exists.
-// 🔑🔑 ONE ROUTINE, A TABLE PER LAND. Twelve lands run the identical invisible `drawRiver`; the only
-// thing that ever varied was colour. So the visible channel is ONE function with a per-land row —
-// copying the plains version eleven times is how the acacias ended up declared three ways and drawn
-// none, and how two castles become one shape repeated.
-// ⚠ `on` IS EXPLICIT, NOT INFERRED. A land is enabled when it has been LOOKED AT in a render, not
-// when `water:"river"` happens to be true — the lands with big landforms in this band (the gorge, the
-// karst, the sealed height) may have rock where the water would go, and enabling them unseen would be
-// the "fix applied where the symptom was reported" trap wearing a table.
-var RIVER_LAND={
-  plains:  {on:1, off:24, wide:1.00, bank:"natural"},
-  mesa:    {on:1, off:22, wide:0.92, bank:"natural"},
-  savanna: {on:1, off:26, wide:1.05, bank:"natural"},
-  hell:    {on:1, off:22, wide:0.88, bank:"natural", lava:1}
-};
-function riverLand(){ return (curBiome&&RIVER_LAND[curBiome.k])||null; }
-var PR_F0=0.10, PR_F1=0.90;                 // it ENTERS and LEAVES: a reach, not a band across the world
-// the channel's centre, in screen y, at a world x — or -1 outside its reach.
-// ⚠ A FULL-WIDTH CHANNEL BEHIND THE ROAD IS A HORIZONTAL BAND, i.e. the ruled-line fault this project
-// has now hit eleven times. So the centre WANDERS and the width BREATHES, and neither is a function of
-// screen x — both are world-anchored, or the river would swim as he drags the world across a bezel.
-function landRiverC(wx){
-  var RL=riverLand(); if(!RL) return null;
-  var f=((wx%WW)+WW)%WW/WW;
-  if(f<PR_F0||f>PR_F1) return null;
-  var t=(f-PR_F0)/(PR_F1-PR_F0);                       // 0 at the mouth it enters, 1 where it leaves
-  var K=Math.max(1,KSP);
-  // the bend: two out-of-phase sines, so the reach curves rather than snaking evenly
-  var wander=Math.sin(t*Math.PI*1.15+0.4)*7.5 + Math.sin(t*Math.PI*2.6+1.9)*2.6;
-  var cy=HORIZON-Math.round((RL.off+wander)*K*0.5);
-  // it TAPERS AT BOTH ENDS — a river that starts at full width is a canal, and one that stops dead is
-  // a pond. The ends run away toward the horizon and out of the frame.
-  var taper=Math.min(1,Math.sin(Math.max(0,Math.min(1,t))*Math.PI)*1.6);
-  var half=Math.max(0,Math.round((2.2+3.4*taper+Math.sin(t*Math.PI*3.3)*0.5)*K*RL.wide));
-  if(half<=0) return null;
-  return {cy:cy, half:half, t:t};
-}
-function drawLandRiver(g,L,now,nd){
-  var RL=riverLand(); if(!RL||cityPhase==="apoc"||!hasRiver) return;
-  var day=L>0.5, K=Math.max(1,KSP), skc=biomeSkc(day);
-  // 🔑 MIXED TOWARD THE SKY, like the far hills are. Water is a mirror before it is a colour, and at
-  // this distance most of what it holds is sky — a saturated blue strip in a wheat field is a ribbon.
-  // 🌋 THE ASHLANDS' RIVER IS LAVA, which `drawRiver` already knew and nobody could see. A molten
-  // channel does NOT mix toward the sky — it is a light SOURCE, not a mirror, and that inversion is
-  // the whole difference between the two.
-  var wDeep,wNear,mud,mudL;
-  if(RL.lava){
-    wDeep=day?[176,52,16]:[140,34,10];
-    wNear=day?[255,178,58]:[214,120,30];
-    mud  =day?[62,50,46]:mixc([62,50,46],[10,10,16],0.6);
-    mudL =day?[92,74,64]:mixc([92,74,64],[10,10,16],0.6);
-  } else {
-    wDeep=day?mixc([58,98,138],skc,0.30):mixc([16,26,46],[10,12,24],0.4);
-    wNear=day?mixc([86,132,172],skc,0.34):mixc([24,38,62],[10,12,24],0.35);
-    mud  =day?[128,110,84]:mixc([128,110,84],[12,14,26],0.72);
-    mudL =day?[152,134,104]:mixc([152,134,104],[12,14,26],0.70);
-  }
-  // ---- THE WATER, COLUMN-MAJOR. A river is GROUND, and row-major fill draws solids — the bayou's
-  // bog was a black pyramid until it was swept this way, and this is the same shape of thing.
-  var lastFill=null;
-  for(var sx=0;sx<SW;sx++){
-    var wx=sx+WOFF;
-    var c=landRiverC(wx);
-    if(!c) continue;
-    var top=c.cy-c.half, bot=c.cy+c.half;
-    // the far bank first: a lip of mud above the water, so the water is IN something
-    if(lastFill!=="mud"){ g.fillStyle=css(mud); lastFill="mud"; }
-    g.fillRect(sx,top-Math.max(1,Math.round(K*0.9)),1,Math.max(1,Math.round(K*0.9)));
-    if(lastFill!=="deep"){ g.fillStyle=css(wDeep); lastFill="deep"; }
-    g.fillRect(sx,top,1,bot-top+1);
-    // the near half is lighter — the far bank's shadow lies on the water, which is what gives a
-    // channel a FLOOR instead of a surface
-    if(lastFill!=="near"){ g.fillStyle=css(wNear); lastFill="near"; }
-    g.fillRect(sx,c.cy,1,bot-c.cy+1);
-    if(lastFill!=="mudL"){ g.fillStyle=css(mudL); lastFill="mudL"; }
-    g.fillRect(sx,bot+1,1,Math.max(1,Math.round(K*0.9)));
-  }
-  // ---- THE GLITTER. Sparse, hard-edged, and only on the near half, because that is where the light
-  // comes back at you. A soft highlight would be the one painterly mark on a flat-register land.
-  if(day||RL.lava){
-    var seedW=(WORLD_SEED*2654435761)>>>0;
-    g.fillStyle=RL.lava?"rgba(255,214,120,0.85)":"rgba(238,248,255,0.72)";
-    for(var q=0;q<34;q++){
-      var qh=iceHash(q*6779^seedW);
-      var qper=2400+((qh>>>9)%2600), qph=((now+((qh>>>13)%qper))%qper)/qper;
-      if(qph>0.34) continue;                                  // each glint is brief, then gone
-      var qwx=Math.round(((qh%1000)/1000)*WW);
-      var qc=landRiverC(qwx); if(!qc) continue;
-      var qsx=qwx-WOFF; if(qsx<-WW*0.5) qsx+=WW; if(qsx>WW*0.5) qsx-=WW;
-      if(qsx<0||qsx>=SW) continue;
-      g.fillRect(qsx,qc.cy+1+((qh>>>19)%Math.max(1,qc.half)),Math.max(1,Math.round(1.6*K)),1);
-    }
-  }
-  // ---- THE NATURAL BANK. 🔒 Locked: the open lands get mud, reeds and shingle, not a built quay —
-  // a coped embankment belongs where the city is dense and industrial, and a prairie is neither.
-  var seedR=(WORLD_SEED*2246822519)>>>0;
-  for(var r=0;r<70;r++){
-    var rh=iceHash(r*3931^seedR);
-    var rwx=Math.round(((rh%1000)/1000)*WW);
-    var rc=landRiverC(rwx); if(!rc) continue;
-    var rsx=rwx-WOFF; if(rsx<-WW*0.5) rsx+=WW; if(rsx>WW*0.5) rsx-=WW;
-    if(rsx<-4||rsx>=SW) continue;
-    var far=((rh>>>7)&1);
-    var by=far?(rc.cy-rc.half-Math.round(K)):(rc.cy+rc.half+Math.round(K));
-    if(RL.lava){                                              // clinker, not reeds — nothing grows here
-      g.fillStyle=day?"rgba(38,32,30,0.9)":"rgba(14,12,14,0.85)";
-      g.fillRect(rsx,by,Math.max(1,Math.round(K*0.9)),Math.max(1,Math.round(K*0.9)));
-    } else if(((rh>>>11)%3)===0){                             // shingle: a pale stone on the mud
-      g.fillStyle=day?"rgba(196,186,164,0.85)":"rgba(48,50,60,0.7)";
-      g.fillRect(rsx,by,Math.max(1,Math.round(K*0.8)),Math.max(1,Math.round(K*0.8)));
-    } else {                                                   // reeds: the only VERTICAL marks here,
-      var rl=Math.round((2+((rh>>>17)%3))*K);                  // so the eye reads them as growing
-      g.fillStyle=day?"rgba(96,124,68,0.9)":"rgba(20,30,26,0.85)";
-      g.fillRect(rsx,by-(far?rl:0),Math.max(1,Math.round(K*0.7)),rl);
-    }
-  }
-}
 function drawPlainsWorked(g,L,now,nd){
   if(!curBiome||curBiome.k!=="plains"||cityPhase==="apoc") return;
   var day=L>0.5, K=Math.max(1,KSP), B=curBiome;
@@ -53217,6 +53287,8 @@ function draw(g,pass){
   // ⚠ Z-ORDER IS WHY THEY GO HERE AND NOT LATER. This point is above the entire backdrop canvas
   // (mountains, terrain) but above nothing else yet, so a cable car still passes IN FRONT of the
   // ridge it is strung across and BEHIND every building — exactly where it sat before.
+  drawRiverLive(g,L,now,nd);      // the barges, the reflections and the people on the bank — the river's
+                                  // moving half (its water and banks are drawn in the backdrop pass)
   drawPlainsSky(g,L,now,nd,fx);   // on a plain the SKY is the scenery — towers, curtains, a far butte
   drawVolcanoLive(g,L,now,nd);    // …and if it is a volcano, the steam, glow and plume — the moving part
                                   // (its static surface is drawn in the backdrop pass, see drawVolcanoSurface)
@@ -53385,7 +53457,6 @@ function draw(g,pass){
   // the wilderness the city grows out of (hills, grass, river, trees, the first cabin) — recedes as it matures
   if(cityG<0.985) drawTerrain(g,cityG,L,now,nd,(pass==="fg"||pass==="city"||pass==="live")?"fg":undefined);
   drawPlainsWorked(g,L,now,nd);   // the worked prairie, ON the ground the terrain just laid down
-  drawLandRiver(g,L,now,nd);    // …and the river cut through it, behind the road where it can be SEEN
   // the falls, at the live rate. `undefined` already drew them on the classic single-canvas path
   // further up, so this is the split-canvas half only — double-painting is what pass-split guards.
   if(pass==="fg"||pass==="city"||pass==="live") drawCascades(g,L,now,nd);
