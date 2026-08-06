@@ -3,6 +3,7 @@ import QtQuick.Window
 import QtQuick.LocalStorage
 import org.kde.plasma.plasmoid
 import org.kde.taskmanager as TaskManager
+import org.kde.plasma.plasma5support as P5Support   // one-shot hardware probe; see detectHardware()
 import "../js/city.js" as City
 import "../js/localcfg.js" as Local   // per-machine personal settings (birthdays/location/cycle); committed EMPTY, filled by install.sh from config.local.json
 
@@ -19,10 +20,80 @@ WallpaperItem {
     //   spectacle 83ms = 12fps · balanced 125ms = 8fps · performance 500ms = 2fps (battery)
     // The comment here used to claim performance was 8fps; it has always been 500ms. Config
     // override, else auto by total canvas load.
+    // 🚨 THE AUTO RULE WAS SCREEN AREA ALONE, AND ON A LAPTOP IT IS INVERTED. Area was standing in
+    // for "how much machine is there", and the correlation runs the wrong way at the bottom of the
+    // market: a cheap laptop has a SMALL screen, fell through to `spectacle`, and so ran the most
+    // expensive tier we ship on the weakest hardware we ship to — while a 4K desktop with 28 threads
+    // got the cheap one. `hwCap` is what the CPU and RAM can actually afford.
+    // 🔑 IT IS A CAP, NOT A REPLACEMENT. Area still decides; the machine can only pull the tier DOWN.
+    // Nick's three-monitor desktop is the surface this project is judged on and its look is settled
+    // (8 fps + coarse texels, chosen explicitly and confirmed) — a rule that re-derived his tier from
+    // scratch could change it to fix a laptop nobody is looking at. 28 threads and 64 GB cap at
+    // `spectacle`, which is no cap at all, so his machine resolves exactly as it does today.
+    // ⚠ AND IF WE CANNOT TELL, WE DO NOT GUESS. `hwCap` defaults to "spectacle" (no cap), so a
+    // sandbox that hides /proc leaves behaviour byte-identical to before this change.
+    readonly property var tierOrder: ({ spectacle: 0, balanced: 1, performance: 2 })
+    property string hwCap: "spectacle"
+    function cheaper(a, b) {
+        return (tierOrder[a] === undefined ? 0 : tierOrder[a]) >= (tierOrder[b] === undefined ? 0 : tierOrder[b]) ? a : b;
+    }
     readonly property string quality: {
         if (configuration && configuration.quality) return configuration.quality;
-        return (width * height > 2200000) ? "balanced" : "spectacle";
+        var byScreen = (width * height > 2200000) ? "balanced" : "spectacle";
+        return cheaper(byScreen, hwCap);
     }
+    // Read the machine's own numbers once, at boot.
+    // ⚠⚠ THE OBVIOUS ROUTE DOES NOT WORK, AND IT FAILS SILENTLY. The first version of this read
+    // /proc/cpuinfo and /proc/meminfo through QML's XMLHttpRequest, which is the documented way to
+    // read a local file from QML. Qt DISABLES file:// GET by default ("Set QML_XHR_ALLOW_FILE_READ
+    // to 1 to enable this feature") — so it returned empty, `cores` came out 0, the guard fell
+    // through to its safe default of "no cap", and the whole feature was dead code that logged
+    // nothing and changed nothing. It would have shipped looking exactly like a working cap.
+    // 🔑 Measured, not assumed: a standalone qml6 probe printed `cores=0 memMB=0` before this file
+    // was ever installed. The Plasma executable DataSource below printed `28 / 64057`.
+    // ⚠ THRESHOLDS MIRROR desktop/perf-policy.js DELIBERATELY. Two shells disagreeing about what a
+    // machine can afford is how the same laptop ends up smooth in one and stuttering in the other.
+    P5Support.DataSource {
+        id: hwProbe
+        engine: "executable"
+        connectedSources: []
+        onNewData: function (source, data) {
+            disconnectSource(source);                     // one shot — never leave a shell connected
+            try {
+                var out = String(data["stdout"] || "").trim().split("\n");
+                var cores = parseInt(out[0], 10), memMB = parseInt(out[1], 10);
+                if (!(cores > 0) || !(memMB > 0)) return;  // could not tell → no cap, behave as before
+                // ⚠ MEASURED, NOT GUESSED — and moved once already because the first guess was wrong.
+                // On a Surface-class laptop (i5-1035G7, 8 logical cores, 7.5 GB, HiDPI) with the
+                // desktop genuinely visible: balanced (8 fps) cost 78.7% of one core = 9.84% of the
+                // WHOLE CPU, and performance (2 fps) cost 23.8% = 2.98%. The earlier thresholds gave
+                // that machine `balanced` — fixing the inverted tier and still shipping a wallpaper
+                // that ate a tenth of the machine, forever, on exactly the hardware this is for.
+                // Nick's desktop (28 cores, 64 GB) is unaffected: it still caps at `spectacle`,
+                // i.e. not at all. Keep in step with desktop/perf-policy.js.
+                // ⚠ RELAXED BACK once the real cost driver was found. These were briefly tightened to
+                // force a laptop down to `performance` (2 fps), which fixed the CPU number by
+                // destroying the thing the wallpaper is for — Nick, immediately: "the whole CityLive
+                // wallpaper isn't moving… it needs to run like it SHOULD look, and have all the same
+                // features". He was right. The laptop was expensive because it was rendering at full
+                // device resolution (see `texelBuf` above), not because 8 fps is unaffordable: with
+                // that fixed it runs the SAME tier as his 4K at 4.01% of total CPU.
+                // 🔑 Buy the frames back by drawing fewer PIXELS, never by drawing fewer FRAMES.
+                if (cores >= 12 && memMB >= 15000) root.hwCap = "spectacle";
+                else if (cores >= 4 && memMB >= 7000) root.hwCap = "balanced";
+                else root.hwCap = "performance";
+                console.log("CityLive hardware: " + cores + " cores, " + memMB + " MB -> tier cap " + root.hwCap);
+            } catch (e) { /* no cap */ }
+        }
+    }
+    function detectHardware() {
+        try { hwProbe.connectSource("nproc; awk '/MemTotal/{print int($2/1024)}' /proc/meminfo"); }
+        catch (e) { /* no cap — the wallpaper must never fail to start over a performance hint */ }
+    }
+    // The probe is asynchronous, so the first `setup()` may already have run with the uncapped tier.
+    // Re-boot when the answer actually lowers it, rather than waiting for the 6 s settle pass — this
+    // fires at most once per session, and only on a machine that needed capping in the first place.
+    onHwCapChanged: if (hwCap !== "spectacle") bootTimer.restart()
     // DEVICE px per world/canvas pixel. Keep the original wide pxk3 composition in every quality
     // tier; performance comes from retained layers and scheduling, never by zooming the city in.
     readonly property int pxk: 3
@@ -90,7 +161,22 @@ WallpaperItem {
         var q = (width * dpr) / pxk;
         return Math.abs(q - Math.round(q)) > 0.001;
     }
-    readonly property real texelBuf: (dpr > 1 || fractionalTexel) ? 1 : pxk
+    // 🚨🚨 `dpr > 1 ||` WAS STILL HERE, IN FRONT OF THE TEST THAT REPLACED IT. Everything above this
+    // line argues that dpr is a PROXY and the arithmetic is the real trigger — and then the code ORs
+    // the proxy back in, so on every HiDPI screen the arithmetic never gets a say and the canvas is
+    // pinned to full device resolution. That is the most expensive thing this wallpaper can do, forced
+    // on precisely the machines least able to afford it: a laptop panel at dpr 2 rendered
+    // 3342x2232 = 7.5 MP every frame, where the correct answer for that screen is 1114x744 = 0.83 MP,
+    // NINE TIMES fewer pixels — and its upscale is an exact 3.0000, so it never needed fine texels at
+    // all. Measured on that laptop at 8 fps: 8.17% of TOTAL CPU with the proxy, 4.01% without it.
+    // 🔑 The arithmetic is the whole rule. A screen that would be fractionally stretched pays for fine
+    // texels; a screen that scales by a whole number keeps the cheap ones and pays nothing.
+    // ⚠ Nick's three monitors are UNAFFECTED — 4654/3 and 2560/3 are both fractional, so they keep the
+    // fine texels they have today, and 1920/3 is exact, so it keeps the coarse ones it has today.
+    // ⚠ THIS IS THE RESOLUTION KNOB, AND `pxk` IS NOT. Changing `pxk` moves the world size and `zoom`
+    // compensates, leaving the canvas the same — measured, pxk 3/5/6 all cost within 3% of each other.
+    // Only `texelBuf` actually changes how many pixels get painted.
+    readonly property real texelBuf: fractionalTexel ? 1 : pxk
     readonly property int zoom: Math.max(1, Math.round(pxk * dpr / texelBuf))
     // total width (logical px) of the whole desktop the city spans. If unset in config,
     // auto-detect by summing every screen's width (works for a single laptop screen or
@@ -128,6 +214,14 @@ WallpaperItem {
     // plasmashell, which KWin trusts. It yields nothing when run standalone; test it in place.
     readonly property bool guardOn: !configuration || configuration.pauseWhenCovered === undefined || configuration.pauseWhenCovered
     property bool covered: false
+    // 🚨 DIAGNOSTIC, AND IT IS NOT OPTIONAL. This guard's entire failure mode is being perfectly
+    // silent: it reports nothing, throws nothing, and simply never fires, which is indistinguishable
+    // from "nothing was covering the screen". The Windows port of the same idea shipped in exactly
+    // that state and an A/B measured its saving at zero while the log said SUSPENDED. So the KDE side
+    // says, ONCE per session, what the window list actually gave it — because "the model is empty on
+    // Wayland" and "the desktop genuinely wasn't covered" produce identical behaviour and only one of
+    // them is a bug.
+    property bool guardReported: false
     TaskManager.TasksModel {
         id: winModel
         groupMode: TaskManager.TasksModel.GroupDisabled
@@ -140,7 +234,53 @@ WallpaperItem {
         interval: 1000; repeat: true; running: root.guardOn && root.visible
         onTriggered: root.covered = root.isCovered()
     }
+    // 🚨🚨 "SHOW DESKTOP" IS THE ONE WAY TO SEE A COVERED WALLPAPER, AND THE GUARD COULD NOT SEE IT.
+    // KWin's Show Desktop hides every window through the compositor WITHOUT minimising them, so every
+    // signal the window list offers — `IsMinimized`, `IsHidden`, the geometry — still says "covered".
+    // The single moment a person deliberately asks to LOOK AT THEIR WALLPAPER was therefore the one
+    // moment it sat frozen on a 30-second-old frame. Reported as "you left it frozen and not
+    // operational", and that is exactly what it looked like.
+    // 🔑 Nothing in the QML window model knows. KWin itself does, on DBus, so we ask it — and ONLY
+    // while covered, which is precisely when there is budget to spare: one cheap query every two
+    // seconds, none at all while the city is drawing. Show Desktop then un-freezes it within 2 s.
+    // ⚠ Fails SAFE: if the query errors or the tool is missing, `showingDesktop` stays false and the
+    // guard behaves exactly as it did before — never the other way round.
+    property bool showingDesktop: false
+    property bool sdReported: false
+    P5Support.DataSource {
+        id: sdProbe
+        engine: "executable"
+        connectedSources: []
+        onNewData: function (source, data) {
+            disconnectSource(source);
+            try {
+                var out = String(data["stdout"] || "").trim();
+                var was = root.showingDesktop;
+                root.showingDesktop = (out === "true");
+                if (was !== root.showingDesktop || !root.sdReported) {
+                    root.sdReported = true;
+                    console.log("CityLive guard: showingDesktop probe -> '" + out + "' exit=" + data["exit code"] +
+                                " stderr='" + String(data["stderr"] || "").trim().substring(0, 60) + "'");
+                }
+            } catch (e) { root.showingDesktop = false; console.log("CityLive guard: showingDesktop probe failed: " + e); }
+        }
+    }
+    Timer {
+        // ⚠⚠ `|| root.showingDesktop` IS LOad-BEARING — without it this oscillates. Polling only while
+        // covered, plus clearing the flag when the guard uncovers, is a FEEDBACK LOOP: the probe says
+        // "showing desktop" → covered goes false → the flag is cleared and the probe stops → the next
+        // poll sees the windows again → covered goes true → the probe restarts → … Measured, it
+        // flipped covered true/false every ~2 s, which is worse than the freeze it was fixing.
+        // Keeping the probe alive while the desktop is being shown means the flag is cleared by the
+        // PROBE saying false, which is the only thing that actually knows.
+        // The city still pays nothing in the normal case: no windows covering → neither condition
+        // holds → no polling at all.
+        interval: 2000; repeat: true
+        running: root.guardOn && root.visible && (root.covered || root.showingDesktop)
+        onTriggered: { try { sdProbe.connectSource("qdbus6 org.kde.KWin /KWin org.kde.KWin.showingDesktop"); } catch (e) {} }
+    }
     function isCovered() {
+        if (root.showingDesktop) return false;   // the user is looking at the desktop right now
         // ⚠ COMPARE AGAINST THE AVAILABLE RECT, NOT THE SCREEN. A *maximised* window covers the
         // screen MINUS the panels — the first version of this tested against the full screen rect
         // and so never fired even once: Brave maximised on the 4K measured 2327x1259 against a
@@ -153,9 +293,28 @@ WallpaperItem {
             var r = Plasmoid.availableScreenRect;
             if (r && r.width > 8 && r.height > 8) { sx += r.x; sy += r.y; sw = r.width; sh = r.height; }
         } catch (e) { /* unreachable → fall back to the whole screen */ }
+        if (!root.guardReported) {
+            root.guardReported = true;
+            var diag = "CityLive guard: screen=" + Math.round(sx) + "," + Math.round(sy) + " " +
+                       Math.round(sw) + "x" + Math.round(sh) + " windows=" + winModel.count;
+            for (var d = 0; d < winModel.count && d < 8; d++) {
+                var di = winModel.index(d, 0);
+                var dg = winModel.data(di, TaskManager.AbstractTasksModel.Geometry);
+                diag += " | " + String(winModel.data(di, Qt.DisplayRole)).substring(0, 14) + " " +
+                        (dg ? (Math.round(dg.x) + "," + Math.round(dg.y) + " " + Math.round(dg.width) + "x" + Math.round(dg.height)) : "NO-GEOMETRY") +
+                        (winModel.data(di, TaskManager.AbstractTasksModel.IsMinimized) ? " min" : "") +
+                        (winModel.data(di, TaskManager.AbstractTasksModel.IsHidden) ? " hidden" : "");
+            }
+            console.log(diag);
+        }
         for (var i = 0; i < winModel.count; i++) {
             var idx = winModel.index(i, 0);
             if (winModel.data(idx, TaskManager.AbstractTasksModel.IsMinimized)) continue;
+            // ⚠ `IsHidden` was TRIED FOR THIS AND IT IS NOT THE ANSWER — measured: pressing Show
+            // Desktop produced no transition, the role stays false. It is kept only because a window
+            // that genuinely reports hidden is not covering anything either. The Show Desktop case is
+            // handled by `showingDesktop` below, which had to be asked of KWin directly.
+            if (winModel.data(idx, TaskManager.AbstractTasksModel.IsHidden)) continue;
             var g = winModel.data(idx, TaskManager.AbstractTasksModel.Geometry);
             if (!g || g.width < 8 || g.height < 8) continue;
             // A couple of px of slack: a "maximised" window is often a hair short of the screen rect.
@@ -167,7 +326,12 @@ WallpaperItem {
     // Coming back has to be instant — a revealed desktop must not sit on a stale frame waiting for
     // the next tick. The engine is clock-driven, so the city simply resumes at the correct moment;
     // the dt cap (see FRAME_MS) already absorbs the gap so nothing lurches on the first frame back.
-    onCoveredChanged: if (!covered) { bgcv.requestPaint(); cv.requestPaint(); }
+    onCoveredChanged: {
+        console.log("CityLive guard: covered=" + covered + " (screen at " + Math.round(Screen.virtualX) + ")");
+        // ⚠ DO NOT clear `showingDesktop` here. It was cleared here once and it made the guard
+        // oscillate — see the note on the probe timer. Only the probe may clear it.
+        if (!covered) { bgcv.requestPaint(); cv.requestPaint(); }
+    }
 
     Rectangle { anchors.fill: parent; color: "black" }
 
@@ -260,9 +424,22 @@ WallpaperItem {
     // win: don't raise it further without re-measuring with tools/perf-ab.sh. 10fps was 62.2%.
     // (Weather no longer changes speed when this does — see MOTION_RATE in city.js.)
     readonly property int frameMs: quality === "performance" ? 500 : (quality === "balanced" ? 125 : 83)
+    // ⚠⚠ COVERED IS A HEARTBEAT, NOT A HALT — AND STOPPING THESE TIMERS OUTRIGHT WAS A REAL BUG.
+    // Every piece of city state the chronicle and the notifier read (`curDis`, `cityPhase`,
+    // `curMayor`, `curRegime`, `curPlague`…) is assigned INSIDE `City.draw()` — see city.js ~53057.
+    // `chronicleSnapshot` is a pure probe of those globals, which is exactly why it is safe to call
+    // and exactly why it is worthless if nothing is writing them. So while a window covered this
+    // screen, the chronicle timer below went on running at full speed, reading state frozen at the
+    // moment of covering, and the city's history simply stopped being recorded — silently, for as
+    // long as anything was maximised, which on a laptop is most of the day. Nobody would ever see
+    // that fail; they would just find holes in the chronicle.
+    // 🔑 One frame every 30 s instead of eight a second is 0.4% of the drawing cost — nothing, against
+    // the 43.1% → 10.6% this guard is worth — and it keeps the history, the notifications and the
+    // canvas contents alive. A reveal then uncovers a city at most 30 s stale instead of hours.
+    readonly property int heartbeatMs: 30000
     Timer {
-        interval: root.frameMs
-        running: root.visible && !root.covered      // nothing to draw for while a window covers this screen
+        interval: root.covered ? root.heartbeatMs : root.frameMs
+        running: root.visible
         repeat: true
         onTriggered: cv.requestPaint()
     }
@@ -270,14 +447,19 @@ WallpaperItem {
     // The backdrop only has to keep up with the sun, the weather and the seasons, so it repaints
     // about once a second instead of twelve times. This is where the saving actually comes from.
     Timer {
-        interval: root.quality === "performance" ? 4000 : (root.quality === "balanced" ? 2000 : 1000)
-        running: root.visible && !root.covered
+        interval: root.covered ? root.heartbeatMs
+                               : (root.quality === "performance" ? 4000 : (root.quality === "balanced" ? 2000 : 1000))
+        running: root.visible
         repeat: true
         onTriggered: bgcv.requestPaint()
     }
 
+    // ⚠ WAS ONE SECOND. Nothing it reports can change faster than a disaster stage — minutes, not
+    // seconds — and on a laptop a timer wakeup costs battery whether or not it costs measurable CPU.
+    // Three screens at 1 Hz is three wakeups a second, forever, to notice something that happens a
+    // few times an hour.
     Timer {
-        interval: 1000; running: root.visible; repeat: true
+        interval: 5000; running: root.visible; repeat: true
         onTriggered: {
             try {
                 var w = City.chronicleSnapshot(Date.now());
@@ -384,7 +566,7 @@ WallpaperItem {
     // one-shot SETTLE pass: 6s after bring-up, re-run setup + repaint — shakes out any
     // transient geometry/scale state from login/output reconfiguration (stripe insurance)
     Timer { id: settleTimer; interval: 6000; running: true; onTriggered: { root.boot(); bgcv.requestPaint(); cv.requestPaint() } }
-    Component.onCompleted: bootTimer.restart()
+    Component.onCompleted: { root.detectHardware(); bootTimer.restart() }
     onSceneChanged: bootTimer.restart()
     // location changed in the config dialog → re-boot with the new place (weather/sun/stars/architecture)
     Connections {

@@ -3093,6 +3093,22 @@ var FRAME_MS=83;
 // behaviour (83 * 50/83 = 50), which is why the desktop, web and phone builds are untouched by
 // this; only KDE's 200 ms "balanced" tier changes, and it changes to match them.
 var MOTION_RATE=50/83;
+// ⏱️ ONE PACE FOR EVERY PIECE OF MOVING OR ROTATING TEXT IN THE CITY.
+// 🚨🚨 A FIX APPLIED ONLY WHERE THE BUG WAS REPORTED IS HALF A FIX — SECOND TIME IN ONE DAY. Nick said
+// the dialogue was "WAAAAAAAY too fast"; I slowed the speech bubbles, and he came straight back with
+// "you didn't correct the text speed, some of them are still shooting off rapid fire." Right: the
+// bubbles are ONE text surface out of six, and each had its own hand-tuned number in a different
+// function — ticker scroll 14 px/s · ticker copy every 9 s · news screens 20 px/s · jumbotron crawl
+// 20 px/s · billboard brands every 18 s · regime slogans every 2.6 s. Six numbers, six places, no
+// relationship between them, so "slow the text down" could not be done once. Now it can.
+// ⚠⚠ AND IT MUST BE APPLIED BY HAND, NOT BY REGEX. My first attempt substituted every
+// `Math.floor(now/9000)` in the file and caught FOUR SETS OF WINDOW LIGHTS, a neon colour cycle and a
+// Bills slot — unrelated features that merely happen to share the literal 9000. A magic number is not
+// an identifier. Only the six sites below are text.
+// Micah, independently: "the text overhead the citizens… changes too fast and distracts me… it's too
+// loud." Two users, same complaint.
+var TEXT_PACE=0.55;                                  // <1 = calmer. 0.55 ≈ 1.8x slower than shipped.
+function textRot(ms){ return Math.max(1, ms/TEXT_PACE); }   // a rotation period, slowed
 // This frame's effective clock, published for the sprite helpers that are called from a hundred
 // places and can't reasonably all be given a `now` argument (drawPerson's idle sway). Set once at
 // the top of draw(), and NOWOVR-aware like everything else, so harnesses and the freeze replay
@@ -12415,12 +12431,12 @@ function tickerMsg(now){
   // into chronicles/life-N.md), and every entry it produced for a disaster read "BREAKING - CAT-5
   // KAIJU - SEEK SHELTER". A life's history was a list of weather warnings with nobody in it.
   // A dead mayor outranks the event that killed them, and a named citizen outranks the category.
-  if(curMayor&&curMayor.emergency&&curMayor.deadName&&(Math.floor(now/9000))%3===0)
+  if(curMayor&&curMayor.emergency&&curMayor.deadName&&(Math.floor(now/textRot(9000)))%3===0)
     return "MAYOR "+curMayor.deadName+" IS DEAD - "+curMayor.winName+" SWORN IN";
   if(curDis){
     var nrc=namedDeadRevealed(curDis);
-    if(nrc>0&&(Math.floor(now/9000))%2===0){
-      var dc=namedDeadAt(curDis,(Math.floor(now/9000))%nrc);
+    if(nrc>0&&(Math.floor(now/textRot(9000)))%2===0){
+      var dc=namedDeadAt(curDis,(Math.floor(now/textRot(9000)))%nrc);
       if(dc&&!dc.mayor)
         return "NAMED AMONG THE DEAD - "+dc.name+", "+dc.role+" - "+DIS_NAME[curDis.type];
     }
@@ -12569,7 +12585,7 @@ function drawTicker(g,L,now,night){
     g.fillStyle=L>0.5?"#3a3f4a":"#141821"; g.fillRect(X,y+7,2,HORIZON-y-7); g.fillRect(X+bw-2,y+7,2,HORIZON-y-7);
     g.fillStyle=L>0.5?"#23262e":"#0a0b10"; g.fillRect(X-1,y-1,bw+2,9);
     g.save(); g.beginPath(); g.rect(X,y,bw,7); g.clip();
-    var msg=tickerMsg(now), tw2=(msg.length*4-1)+30, off=(now*0.014)%tw2;
+    var msg=tickerMsg(now), tw2=(msg.length*4-1)+30, off=(now*0.014*TEXT_PACE)%tw2;
     drawUiText(g,msg,(X+bw-off)|0,y+1,night>0.5?"#ffb347":"#e8862a",1);
     drawUiText(g,msg,(X+bw-off+tw2)|0,y+1,night>0.5?"#ffb347":"#e8862a",1);
     g.restore();
@@ -12600,7 +12616,7 @@ function drawStateScreen(g,sx,sy,sw,sh,now,L){
   g.fillStyle="#241610"; g.fillRect(px+1,py+4,1,1); g.fillRect(px+3,py+4,1,1);          // hard eyes
   g.fillStyle="#3a2a1e"; g.fillRect(px+1,py+3,4,1);                                     // stern brow
   g.fillStyle="#7a1018"; g.fillRect(px,py+7,5,1);                                       // collar
-  var sl=ORDER_SLOGANS[(Math.floor(now/2600))%ORDER_SLOGANS.length];                    // rotating slogan (right)
+  var sl=ORDER_SLOGANS[(Math.floor(now/textRot(2600)))%ORDER_SLOGANS.length];                    // rotating slogan (right)
   drawUiText(g,sl.substr(0,Math.max(1,((sw-11)/4)|0)),px+8,sy+7,"#ffe0d0",1);
   g.globalCompositeOperation="lighter"; g.fillStyle="rgba(220,40,40,"+(0.10+0.10*(1-L)).toFixed(2)+")"; g.fillRect(sx,sy,sw,sh); g.globalCompositeOperation="source-over";   // screen glow
 }
@@ -12629,7 +12645,7 @@ function drawNewsScreens(g,L,now,night){
     drawUiText(g,hdr.substr(0,Math.max(1,(sw2/4)|0)),sx+1,sy,emerg?"#ffd2c4":"#bfe8ff",1);
     if((Math.floor(now/500))&1){ g.fillStyle=emerg?"#ff3b3b":"#ff5555"; g.fillRect(sx+sw2-3,sy+1,2,2); }   // blinking LIVE dot
     g.save(); g.beginPath(); g.rect(sx+1,sy+5,sw2-2,sh2-6); g.clip();                             // scrolling news line, clipped
-    var tw2=(msg.length*4-1)+24, off=((now*0.02)+b.seed*7)%tw2, tcol=emerg?"#ff9a78":(night>0.5?"#7fe0ff":"#9ad4ff");
+    var tw2=(msg.length*4-1)+24, off=((now*0.02*TEXT_PACE)+b.seed*7)%tw2, tcol=emerg?"#ff9a78":(night>0.5?"#7fe0ff":"#9ad4ff");
     drawUiText(g,msg,(sx+sw2-1-off)|0,sy+6,tcol,1);
     drawUiText(g,msg,(sx+sw2-1-off+tw2)|0,sy+6,tcol,1);
     g.restore();
@@ -12926,7 +12942,7 @@ function drawJumbotron(g,rx,ry,sw,sh,roofY,now,L,seed){
   var cyb=ry+sh-4, r2=econReport(now), tcol=r2.boom?"#7dff9e":r2.bust?"#ff7d7d":"#ffd27d";
   g.fillStyle="#05070c"; g.fillRect(rx,cyb,sw,4);
   g.save(); g.beginPath(); g.rect(rx+1,cyb,sw-2,4); g.clip();
-  var crawl=marketCrawl(now), cwid=(crawl.length*4-1)+16, coff=((now*0.02)+rx*3)%cwid;
+  var crawl=marketCrawl(now), cwid=(crawl.length*4-1)+16, coff=((now*0.02*TEXT_PACE)+rx*3)%cwid;
   drawUiText(g,crawl,(rx+sw-1-coff)|0,cyb,tcol,1);
   drawUiText(g,crawl,(rx+sw-1-coff+cwid)|0,cyb,tcol,1);
   g.restore();
@@ -15287,7 +15303,14 @@ function bubbleCat(a, b, slot){
 // jokes were the ones you could never finish. (It was never the city's SPEED: `now` here is the wall
 // clock, so a 1-hour life and a 3-day life already held bubbles for the same real seconds. The fault
 // was that the flat hold was tuned for a short line.)
-function readMs(t){ return Math.max(2600, Math.min(7000, 1500 + t.length*105)); }
+// HOW LONG A LINE STAYS UP. ⚠ SLOWED DELIBERATELY (Nick: "the text and the Dialogue is moving WAAAAAAAY
+// too fast… it is so distracting and you can't even read it"). A wallpaper is read out of the corner of
+// the eye, by someone doing something else — it is not a screen you are watching, so "long enough to
+// read if you are staring at it" is far too quick. The old floor was 2.6 s, which is about the time it
+// takes to NOTICE a bubble, let alone read it; a line now holds for at least 4.5 s and a long one for
+// up to 12 s. Roughly 1.7x, and the pauses between scenes grew more than the scenes did (see
+// `sceneCycle`), so the street is quieter as well as slower.
+function readMs(t){ return Math.max(4500, Math.min(12000, 2600 + t.length*170)); }
 // ⚠ WALK THE SPACE, DON'T SAMPLE IT. `pool[(h>>>8)%pool.length]` picks at random per (pair, slot), so
 // with 500 scenes a given PAIR can draw the same one twice in a few minutes while hundreds go unused —
 // and a repeat from the same two people is far more noticeable than a repeat from strangers. Stepping
@@ -15470,10 +15493,21 @@ function drawSpeechBubbles(g, now, night){
   // what makes the street feel continuously alive without anyone talking faster.
   // ⚠ The phase MUST come from the pair's ids alone — never from `sx` or the array index, or two
   // monitors disagree about who is mid-sentence at a screen seam. Same rule as everything else here.
-  var sceneCycle=apocFinal?9000:34000;
+  // ⚠⚠ THE CYCLE MUST OUTLAST THE SCRIPT OR THE LAST BEAT IS NEVER SEEN. Four beats at the new
+  // `readMs` ceiling is 48 s, so a 34 s cycle would silently drop the closing line of every long
+  // conversation — the beat search below simply finds no beat and the pair goes quiet. 60 s leaves
+  // real SILENCE after even the longest scene, which is the point: the complaint was not only that
+  // lines went by too fast, it was that the street never shuts up.
+  // ⚠ The finale runs its beats at 0.56x (urgent, clipped speech), so its four beats now span up to
+  // 26.9 s — a 14 s cycle would drop the last words of the world, which is the one line that must
+  // never be cut. Checked arithmetically, not by eye.
+  var sceneCycle=apocFinal?28000:60000;
   var shown=0, taken=[], cand=[];
-  var gate=apocFinal?2:4;                                        // urgent final words remain exceptional
-  var maxBub=apocFinal?2:4;
+  // ⚠ FEWER PAIRS, FEWER BUBBLES. Four simultaneous conversations turning over every 34 s is what made
+  // this "distracting" — no single line was the problem, the density was. One in six pairs now talks
+  // (was one in four) and at most two bubbles share the screen (was four).
+  var gate=apocFinal?2:6;                                        // urgent final words remain exceptional
+  var maxBub=apocFinal?2:2;
   for(var i=0;i<arr.length-1;i++){ var a=arr[i], b=arr[i+1];
     if(Math.abs(a.sx-b.sx)>8 || Math.abs(a.y-b.y)>3) continue;    // co-located (adjacency bucket, not float equality)
     var ph=(((a.pid*2654435761)^(b.pid*1597334677))>>>0)%sceneCycle;
@@ -15635,7 +15669,7 @@ function drawCorpAds(g,L,now,night){
     var pool=[]; for(var lj=0;lj<live.length;lj++) pool.push(live[lj].co);
     for(var aj=0;aj<AD_LIB.length;aj++) pool.push(AD_LIB[aj]);
     if(!pool.length) continue;
-    var co=pool[((i*7+((now/18000)|0))%pool.length+pool.length)%pool.length], brand=co.c;
+    var co=pool[((i*7+((now/textRot(18000))|0))%pool.length+pool.length)%pool.length], brand=co.c;
     // A real billboard has a landscape face, heavy frame, separated logo and two-line campaign—not
     // one long 11px strip. Cap the width so it still belongs to the pixel city rather than becoming UI.
     var pad=3, pw=Math.max(58,Math.min(86,20+Math.max(textW(co.n),textW(co.g)))), ph=19;
@@ -24245,7 +24279,18 @@ function drawVolcanoScar(g,L,now){
   // here and nowhere else. So the scar is drawn in the LAND'S OWN vocabulary rather than softened:
   // smaller, ashier, and FACETED — a stepped mound of flat values, because a smooth gradient is the
   // one thing this register never does.
-  var flatReg=!!curRs;
+  // 🚨🚨 …AND THE GATE WAS THE NAME, NOT THE NATURE — SO IT WAS HALF A FIX. This read `!!curRs`,
+  // i.e. "the OSRS lands", because that is where Nick happened to see it. He then saw the identical
+  // near-black dome on THE OPEN PLAINS: amp 0.46, steep 0.0 — a land with no tall rock anywhere,
+  // which is exactly the property the note above is describing and exactly what `curRs` was standing
+  // in for. Naming the family instead of measuring it left every other low-relief land broken:
+  // plains, savanna, beach, swamp, salt, dunes, sprawl, dam.
+  // 🔑 RELIEF is the thing that decides whether a big solid reads as a hill or as a hole punched in
+  // the frame. A land with real rock (alpine 1.3, karst 0.88/0.94, fjord, cliffs, volcano) hides it;
+  // a flat one cannot. So ask the land how much relief it has, and let the volcano's OWN land keep
+  // the full dramatic cone it is supposed to have.
+  var _rel=curBiome||{};
+  var flatReg=!!curRs || ((_rel.amp||0)<0.5 && (_rel.steep||0)<0.45);
   if(flatReg){ coneH=Math.round(coneH*0.58); coneW=Math.round(coneW*0.66); }
   if(cx+coneW<0||cx-coneW>SW) return;
   // it WEATHERS. Fresh cinder is near-black and it greys as the life runs on, which is the only thing
@@ -53864,6 +53909,19 @@ function draw(g,pass){
   if(!nukeFull()) drawStreetSigns(g,L,now);
   if(cityG>0.45) drawCorpAds(g,L,now,night);
   if(pass==="city") return;
+  // 🚨🚨 THE SCAR IS A LANDFORM AND IT WAS SWALLOWING THE STREET. It used to be called down with the
+  // disaster overlay, ~200 lines below — AFTER the pavement, the traffic, the crowd and the named
+  // citizens — so a cinder cone the width of a city block was painted straight over the people
+  // walking in front of it. Nick, with a screenshot: "make sure the people walk in front of the
+  // building".
+  // 🔑 IT KEEPS ITS LAYER, IT ONLY CHANGES ITS PLACE IN IT. The note further down is right and still
+  // applies: called from the BACKDROP the cone sits behind the city while the eruption that made it
+  // draws in front, and the handover reads as a hard pop — measured at f=0.82…0.89, where the
+  // geometry either side was 80 vs 78 world px and only the DEPTH changed. So it stays in this
+  // live-pass layer, at the very top of it: still in front of the buildings it rose between, now
+  // behind every moving thing on the street. Same depth as before relative to the city, opposite
+  // relative to the people — which is the only part that was ever wrong.
+  drawVolcanoScar(g,L,now);        // a cone this life's eruption left behind, if there was one
   drawMonorailService(g,L,now);                         // voted top tram: live, world-continuous across screens
   // Stations, riders, and trains stay in the fast live layer: nothing structural covers them and
   // the train does not inherit the deliberately slow city-cache cadence.
@@ -54483,14 +54541,13 @@ function draw(g,pass){
 
   // ---- DISASTER overlay: the threat + the city's military/emergency response + alert HUD ----
   // (the destruction/rubble/rebuild of the buildings themselves is handled in drawLayer)
-  // ⚠⚠ THE SCAR GOES HERE, NOT IN THE BACKDROP, AND THE MEASUREMENT IS WHY. Called after
-  // `drawMountains` — where a permanent landform obviously belongs — the cone was drawn BEHIND the
-  // city while the eruption that made it draws in FRONT. A tight sample across f=0.82…0.89 showed the
-  // handover as a hard pop, and the cause was not the size at all: the geometry either side was 80 and
-  // 78 world px. It was the DEPTH. Same object, two layers, and the eye reads a layer change as a size
-  // change. It sits in the eruption's own layer now, which is also honest — this is a mountain that
-  // rose inside the city, not a range on the horizon.
-  drawVolcanoScar(g,L,now);        // a cone this life's eruption left behind, if there was one
+  // ⚠⚠ THE SCAR IS NOT DRAWN HERE ANY MORE — IT MOVED TO THE TOP OF THIS SAME PASS (search
+  // `drawVolcanoScar`, just after `if(pass==="city") return;`). The reasoning that put it in this
+  // layer still holds and is repeated there: called from the BACKDROP the cone sits behind the city
+  // while the eruption that made it draws in FRONT, and the handover reads as a hard pop — measured
+  // across f=0.82…0.89, where the geometry either side was 80 vs 78 world px and only the DEPTH
+  // changed. What was wrong was its position WITHIN this layer: down here it painted over the
+  // pavement, the traffic and every pedestrian in front of it.
   if(curDis){ drawDisaster(g,curDis,L,now); drawDisasterHud(g,curDis,now); }
   drawDisasterArc(g,L,now);        // …and the evacuation before it, and the crews long after
   drawMemorials(g,L,now,night);                              // the worst sites keep a marker for the rest of the life

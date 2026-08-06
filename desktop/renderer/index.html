@@ -108,8 +108,17 @@
   // reference so a multi-monitor union canvas scales to ONE monitor, not the whole desktop.
   var ENV={}; try{ if(window.citylive&&window.citylive.envJSON) ENV=JSON.parse(window.citylive.envJSON)||{}; }catch(e){}
   var CFG0=(typeof window!=='undefined'&&window.CITYLIVE_CFG)||{};
-  var savedQuality=['spectacle','balanced','performance'].indexOf(CFG0.quality)>=0?CFG0.quality:'spectacle';
-  var st={ era:null, hour:null, age:null, quality:savedQuality, paused:false };
+  // 🚨 THE DEFAULT USED TO BE `spectacle` UNCONDITIONALLY — the most expensive tier we ship, chosen
+  // with no knowledge of the machine at all. `ENV.autoQuality` is the performance guard's decision
+  // (cores, RAM, screen, battery, monitor count; see perf-policy.js) and it arrives before the first
+  // frame. An explicit tier saved in Settings still wins: the guard caps a machine, it never
+  // countermands a human.
+  var autoQuality=['spectacle','balanced','performance'].indexOf(ENV.autoQuality)>=0?ENV.autoQuality:'spectacle';
+  var savedQuality=['spectacle','balanced','performance'].indexOf(CFG0.quality)>=0?CFG0.quality:autoQuality;
+  // `suspended` — this monitor's desktop is completely covered, or the machine is locked/asleep.
+  // Nothing is drawn while it is true. This is the single biggest performance lever the app has:
+  // on KDE the equivalent guard took the wallpaper from 43.1% of a core to 10.6%.
+  var st={ era:null, hour:null, age:null, quality:savedQuality, paused:false, suspended:false };
   document.getElementById('q').value=st.quality;
   // config era name → session override index (the control bar can still change it live)
   try{ if(CFG0.era&&CFG0.era!=='auto'){ var _ci=ERAS.findIndex(function(e){return e.name===CFG0.era;}); if(_ci>=0) st.era=_ci; } }catch(e){}
@@ -218,13 +227,23 @@
   fillEras(); boot(); hud(); updateChronicle();
   // Two-layer, drift-aware renderer: the expensive sky/terrain backdrop updates slowly;
   // motion stays smooth at the selected tier. requestAnimationFrame also yields when hidden.
-  var lastFg=0,lastBg=0,bgDirty=true;
+  var lastFg=0,lastBg=0,bgDirty=true,rafId=0;
   // ONE definition of the live-pass interval: the frame loop paces off it and the engine caps its
   // dt against it, so weather advances at the same real speed in every tier (see FRAME_MS).
-  function fgStepFor(q){ var fps=q==='performance'?8:(q==='balanced'?10:12); return 1000/fps; }
+  // ⚠ `performance` WAS 8 fps AGAINST `balanced`'s 10, WHICH IS NOT A TIER, IT IS A ROUNDING ERROR.
+  // The battery step-down therefore bought 20% and read as nothing changing. KDE's equivalent tier
+  // has always been 2 fps (500 ms); 5 fps is the deliberate middle — the city visibly calms down
+  // when the charger comes out without becoming the slideshow that reads as broken.
+  function fgStepFor(q){ var fps=q==='performance'?5:(q==='balanced'?10:12); return 1000/fps; }
   function frame(ts){
-    requestAnimationFrame(frame);
-    if(st.paused||document.hidden) return;
+    rafId=requestAnimationFrame(frame);
+    // ⚠⚠ `document.hidden` IS NEVER TRUE FOR A WALLPAPER, and that is why this guard had to be built.
+    // The window is reparented into Progman/WorkerW, where Chromium considers it permanently visible,
+    // never minimised, never occluded — and `backgroundThrottling:false` switches off the only
+    // throttling Chromium would have applied anyway. So the city was drawn at full price behind every
+    // maximised window, every game and every video, forever. `st.suspended` is the answer Win32 gives
+    // when we ask the question Chromium cannot.
+    if(st.paused||st.suspended||document.hidden) return;
     var fgStep=fgStepFor(st.quality);
     if(ts-lastFg<fgStep) return;
     try{
@@ -237,8 +256,85 @@
       draw(g,'live'); lastFg=ts;
     }catch(e){ reportRenderError(e); lastFg=ts; }
   }
-  requestAnimationFrame(frame);
-  setInterval(updateChronicle,1000);
+  rafId=requestAnimationFrame(frame);
+
+  // ── THE PERFORMANCE GUARD'S HALF OF THE CONVERSATION ──────────────────────────────────────────
+  // ⚠ STOP THE rAF LOOP, DO NOT MERELY RETURN FROM IT. A callback that returns immediately still
+  // costs the renderer a scheduled frame at display rate forever, and keeps its compositor awake —
+  // on a laptop that is a wakeup every 16 ms for a screen nobody can see. Cancelling lets the whole
+  // renderer go idle, which is the difference between "cheap" and "nothing at all".
+  // ⚠ AND REPAINT THE INSTANT IT COMES BACK. The city is a pure function of the wall clock, so it
+  // resumes at the right moment on its own — but the canvas still holds a frame from whenever it
+  // was suspended, so the first thing a reveal must do is draw, not wait out a frame interval.
+  // ⚠⚠ A SUSPENDED CITY IS NOT A STOPPED CITY, AND GETTING THAT WRONG LOSES THE CHRONICLE.
+  // Every piece of city state the chronicle and the notifier read — `curDis`, `cityPhase`,
+  // `curMayor`, `curRegime`, `curPlague` — is assigned INSIDE `draw()` (city.js ~53057). They are
+  // described as "pure, stateless probes", and they are: they read globals that only `draw` ever
+  // writes. So a guard that simply stops drawing also stops the city's history being recorded and
+  // every notification being raised, for as long as a window covers the desktop — which on a laptop
+  // is most of the day. Nobody would see that fail; they would just find the chronicle had holes.
+  // 🔑 So suspension is a HEARTBEAT, not a halt: one frame every 30 s instead of ~600. That is 0.3%
+  // of the drawing cost — indistinguishable from zero against the numbers this guard is chasing —
+  // and it keeps the chronicle, the notifier and the canvas contents alive. It also means a reveal
+  // uncovers a city that is at most 30 s stale rather than hours.
+  var HEARTBEAT_MS=30000, beat=null;
+  function heartbeat(){
+    if(!st.suspended) return;
+    try{ applyOverrides(); draw(bg,'bg'); draw(g,'live'); }catch(e){ reportRenderError(e); }
+  }
+  function setSuspended(on){
+    on=!!on;
+    if(st.suspended===on) return;
+    st.suspended=on;
+    if(on){
+      if(rafId) cancelAnimationFrame(rafId); rafId=0;
+      clearInterval(beat); beat=setInterval(heartbeat,HEARTBEAT_MS);
+    } else {
+      clearInterval(beat); beat=null;
+      bgDirty=true; lastFg=0; lastBg=0;
+      if(!rafId) rafId=requestAnimationFrame(frame);
+    }
+  }
+  function applyThrottle(s){
+    if(!s) return;
+    if('suspended' in s) setSuspended(s.suspended);
+    // A tier change is a discrete event (charger in/out, monitor plugged) — re-boot through the
+    // same path the quality dropdown uses so there is one code path, not two.
+    if(s.tier&&s.tier!==st.quality&&['spectacle','balanced','performance'].indexOf(s.tier)>=0){
+      st.quality=s.tier;
+      try{ document.getElementById('q').value=st.quality; }catch(e){}
+      boot(); hud();
+    }
+  }
+  // ⚠⚠ ASK FIRST. The guard makes its first decision before this page loads, so a listener alone
+  // never receives it — and because the guard remembers what it has "sent", it never repeats it.
+  // That is precisely how this shipped as a no-op the first time: the main process logged
+  // "SUSPENDED" while the renderer drew every frame, and an A/B measured the saving at zero.
+  try{ if(window.citylive&&window.citylive.getThrottle) window.citylive.getThrottle().then(applyThrottle).catch(function(){}); }catch(e){}
+  try{
+    if(window.citylive&&window.citylive.onThrottle){
+      window.citylive.onThrottle(function(s){
+        if(!s) return;
+        if('suspended' in s) setSuspended(s.suspended);
+        // A tier change is a discrete event (charger in/out, monitor plugged) — re-boot through the
+        // same path the quality dropdown uses so there is one code path, not two.
+        if(s.tier&&s.tier!==st.quality&&['spectacle','balanced','performance'].indexOf(s.tier)>=0){
+          st.quality=s.tier;
+          try{ document.getElementById('q').value=st.quality; }catch(e){}
+          boot(); hud();
+        }
+      });
+    }
+  }catch(e){}
+
+  // ⚠ THE CHRONICLE POLL RAN EVERY SECOND, FOREVER, ON EVERY WALLPAPER WINDOW. It reads engine state
+  // and touches the DOM; at one hertz on a multi-monitor desktop that is a wakeup per second per
+  // screen for a line of text that changes a few times an hour. On a laptop, timer wakeups cost
+  // battery whether or not they cost measurable CPU. Five seconds is still far faster than anything
+  // it reports can change, and it stops entirely while the desktop is covered.
+  // Runs suspended too — the heartbeat above keeps the state it reads fresh, and a city whose
+  // history stops being written the moment a browser is maximised is a broken city, not a cheap one.
+  setInterval(updateChronicle,5000);
   // keep the screen awake if displayed as a kiosk (best effort)
   if(navigator.wakeLock) navigator.wakeLock.request('screen').catch(function(){});
   document.addEventListener('visibilitychange',function(){ if(!document.hidden&&navigator.wakeLock) navigator.wakeLock.request('screen').catch(function(){}); });

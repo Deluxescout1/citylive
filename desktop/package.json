@@ -50,6 +50,10 @@
       "geocode.js",
       "screensaver.js",
       "wallpaper.js",
+      "throttle.js",
+      "occlusion.js",
+      "perf-policy.js",
+      "perflog.js",
       "renderer/**/*",
       "build/icon.png"
     ],

@@ -228,4 +228,7 @@ function isStillAttached(win) {
   try { return !!u32.GetParent(hwndOf(win)); } catch (e) { return false; }
 }
 
-module.exports = { available, attach, detach, isStillAttached, clientRectFor };
+// `hwndOf` is exported so the occlusion guard can exclude our OWN wallpaper windows from the sweep.
+// Without that the city is a full-screen window covering the desktop and would occlude itself, and
+// the guard would suspend it permanently the moment it was switched on.
+module.exports = { available, attach, detach, isStillAttached, clientRectFor, hwndOf };

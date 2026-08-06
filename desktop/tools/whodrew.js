@@ -64,8 +64,16 @@ const canvas = new Proxy({}, {
     if (p === 'getImageData') return () => ({ data: [] });
     if (p === 'canvas') return { width: 776, height: 437 };
     if (p === 'fillRect') return (x, y, w, h) => {
-      // ⚠ big background fills would drown the output — anything over 60px a side is terrain/sky
-      if (!(w > 0 && h > 0 && w < 60 && h < 60)) return;
+      // ⚠ big background fills would drown the output — anything over 60px a side is terrain/sky.
+      // 🚨 …AND THAT BLIND SPOT HAS NOW COST TIME TWICE. It hid the plains field (mid-size bars) and
+      // then a 214px cinder cone sitting over the middle of the city — both "too big for detail, too
+      // small for background", both invisible to this tool, both found only after hand-editing the
+      // filter. `big=1` inverts it (keep the large class, drop the specks) and `cap=` moves the
+      // threshold. A tool that cannot see the thing you are looking for should say so by being
+      // adjustable, not by returning a confident empty answer.
+      const CAP = opt.cap !== undefined ? Number(opt.cap) : 60;
+      if (opt.big) { if (!(w > 0 && h > 0) || (w < 3 && h < 12)) return; }
+      else if (!(w > 0 && h > 0 && w < CAP && h < CAP)) return;
       if (!(x < X1 && x + w > X0 && y < Y1 && y + h > Y0)) return;
       const st = new Error().stack.split('\n').slice(2, 7)
         .map((s) => (s.match(/at (\S+) \(city\.js:(\d+)/) || [, '?', '?']).slice(1).join(':'))
