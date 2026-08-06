@@ -91,6 +91,9 @@ function sanitizeConfig(raw) {
   // Render quality override: only these three exact strings survive; absent lets the
   // engine pick its own default (currently "spectacle").
   if (cfg.quality === 'spectacle' || cfg.quality === 'balanced' || cfg.quality === 'performance') out.quality = cfg.quality;
+  // Performance telemetry (perflog.js). Off unless explicitly turned on — this is a diagnostic for a
+  // machine we cannot sit in front of, not something a normal install should ever be writing.
+  if (cfg.perfLog === true) out.perfLog = true;
   if (typeof cfg.showStatus === 'boolean') out.showStatus = cfg.showStatus;
   if (typeof cfg.notifications === 'boolean') out.notifications = cfg.notifications;   // desktop notifications for major city events (default on)
 

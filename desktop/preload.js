@@ -36,6 +36,10 @@ contextBridge.exposeInMainWorld('citylive', {
   screensaver: (action) => ipcRenderer.invoke('citylive:screensaver', action), // 'enable'|'disable'|'preview'|'status'
   refreshWallpaper: () => ipcRenderer.invoke('citylive:refresh-wallpaper'),
   checkUpdates: () => ipcRenderer.invoke('citylive:check-updates'),
+  // The performance guard talks to the render page through here: `{suspended:bool}` when this
+  // monitor's desktop becomes covered/revealed (or the machine locks/sleeps), and `{tier:string}`
+  // when the quality tier changes on a discrete event such as unplugging the charger.
+  onThrottle: (cb) => ipcRenderer.on('citylive:throttle', (_e, s) => cb(s)),
   onState: (cb) => ipcRenderer.on('citylive:state', (_e, s) => cb(s)),
   onUpdateStatus: (cb) => ipcRenderer.on('citylive:update-status', (_e, s) => cb(s)),
   onNavigate: (cb) => ipcRenderer.on('citylive:navigate', (_e, tab) => cb(tab))

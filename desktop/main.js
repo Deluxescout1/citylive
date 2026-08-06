@@ -9,6 +9,13 @@ const store = require('./config-store');
 const chronicle = require('./chronicle-store');
 const screensaver = require('./screensaver');
 const wallpaper = require('./wallpaper');
+// ── The performance guard (see throttle.js). Three signals the Windows build ignored entirely until
+// now: is this monitor's desktop actually visible, is the machine on battery/locked, and how much
+// machine is there at all. On KDE the occlusion half of this was worth 43.1% of a core → 10.6%.
+const throttle = require('./throttle');
+const occlusion = require('./occlusion');
+const perfPolicy = require('./perf-policy');
+const perflog = require('./perflog');
 
 // Windows may launch us as a screensaver (.scr) with /s, /c or /p. Detect that up front;
 // it changes how the window is created and whether we take the single-instance lock.
@@ -239,6 +246,11 @@ function createWindow(opts) {
       if (recovering) attachWithRetry(win, 5);
       else attachOrFallback(win);
       try { spawnSiblingWallpapers(wpUnion, wpDisp); } catch (e) {}
+      // ⚠ ARM AFTER THE REPARENT, NOT BEFORE. The guard skips our own windows by HWND, and the
+      // sweep must see the handles of the windows that are actually on the desktop now — arming
+      // against a window that is about to be replaced leaves a stale handle in the exclusion set
+      // and the city occludes itself.
+      try { armPerformanceGuard('wallpaper attached'); } catch (e) { /* never let the guard stop the wallpaper */ }
     });
   }
 
@@ -348,6 +360,40 @@ function destroySiblingWallpapers() {
     try { if (w && !w.isDestroyed()) { try { wallpaper.detach(w); } catch (e) {} w.destroy(); } } catch (e) {}
   }
   extraWins = [];
+}
+
+// ── EVERY DRAWING SURFACE, AND WHICH MONITOR IT IS ON ────────────────────────────────────────────
+// The performance guard suspends per DISPLAY, so it needs the mapping the rest of this file already
+// keeps in `_clDisplayId`. It also needs each window's HWND, so the sweep can skip our own windows:
+// a wallpaper is a full-screen window covering the desktop, so without that exclusion the city
+// occludes itself and the guard suspends it forever the moment it is switched on.
+function citySurfaces() {
+  const out = [];
+  const add = (w) => {
+    if (!w || w.isDestroyed()) return;
+    let hwnd = null;
+    try { if (wallpaper.available()) hwnd = wallpaper.hwndOf(w); } catch (e) { hwnd = null; }
+    out.push({ win: w, displayId: (w._clDisplayId != null ? w._clDisplayId : 'primary'), hwnd: hwnd });
+  };
+  add(win);
+  for (const w of extraWins) add(w);
+  return out;
+}
+
+// Start (or restart) the guard. Safe to call repeatedly — `throttle.start` is idempotent and
+// `windowsChanged` is the cheap path for "same guard, new set of windows".
+function armPerformanceGuard(why) {
+  const started = throttle.start({
+    screen: require('electron').screen,
+    powerMonitor: require('electron').powerMonitor,
+    occlusion: occlusion,
+    perflog: perflog.currentPath() ? perflog : null,
+    getWindows: citySurfaces,
+    // An explicit tier from Settings is never overridden — see perf-policy.js.
+    getUserQuality: () => { try { return store.readConfig(CONFIG_PATH).quality || null; } catch (e) { return null; } }
+  });
+  if (!started) throttle.windowsChanged();
+  else if (why) console.log('[citylive] performance guard armed (' + why + ')');
 }
 
 // 🚨 EVERY ATTACH GOES THROUGH HERE, and the reason is Micah's report. `wallpaper.attach` used to
@@ -596,7 +642,7 @@ function registerConfigIpc() {
   ipcMain.handle('citylive:get-config', () => store.readConfig(CONFIG_PATH));
   // The Control Center saves; persist then reload the city so the change takes effect —
   // the wallpaper stays attached behind the icons the whole time.
-  ipcMain.handle('citylive:save-config', (e, cfg) => { const clean = writeUserConfig(cfg); reloadCity(); return clean; });
+  ipcMain.handle('citylive:save-config', (e, cfg) => { const clean = writeUserConfig(cfg); try { throttle.settingsChanged(); } catch (err) {} reloadCity(); return clean; });
   ipcMain.handle('citylive:reset-config', () => { const def = writeUserConfig(store.DEFAULT_CONFIG); reloadCity(); return def; });
   ipcMain.handle('citylive:open-config-file', () => (CONFIG_PATH ? shell.openPath(CONFIG_PATH) : Promise.resolve('')));
   ipcMain.handle('citylive:get-version', () => app.getVersion());
@@ -634,12 +680,38 @@ function registerConfigIpc() {
         const bottomGap = (d.bounds.y + d.bounds.height) - (d.workArea.y + d.workArea.height);
         if (bottomGap > taskbarPx) taskbarPx = bottomGap;   // bottom taskbars only
       }
+      // 🔑 THE TIER TRAVELS WITH THE ENVIRONMENT, NOT AS A LATER MESSAGE. The renderer used to
+      // default to `spectacle` and only ever learn better from a config value the user had set by
+      // hand — so on a machine that cannot afford it, the very first thing that happened was the
+      // most expensive tier we ship, and nothing arrived later to say otherwise. The guard's
+      // decision is computed here, before the page's first frame, exactly like the config is.
+      let autoTier = null;
+      try {
+        const os = require('os');
+        let pixels = 0;
+        for (const d of scr.getAllDisplays()) {
+          const p = d.bounds.width * d.bounds.height * (d.scaleFactor || 1) * (d.scaleFactor || 1);
+          if (p > pixels) pixels = p;
+        }
+        let onBattery = false;
+        try { onBattery = require('electron').powerMonitor.isOnBatteryPower(); } catch (err) {}
+        autoTier = perfPolicy.decide({
+          cores: (os.cpus() || []).length || 1,
+          memMB: Math.round(os.totalmem() / 1048576),
+          pixels: pixels,
+          displayCount: scr.getAllDisplays().length,
+          onBattery: onBattery,
+          userChoice: (store.readConfig(CONFIG_PATH) || {}).quality || null
+        });
+      } catch (err) { autoTier = null; }
       e.returnValue = JSON.stringify({
         wallpaper: desktopWallpaper,
         taskbarPx: taskbarPx,
         primaryW: prim.bounds.width,
         primaryScale: prim.scaleFactor || 1,
-        displayCount: scr.getAllDisplays().length
+        displayCount: scr.getAllDisplays().length,
+        autoQuality: autoTier ? autoTier.tier : null,
+        autoQualityReason: autoTier ? autoTier.reason : null
       });
     } catch (err) { e.returnValue = JSON.stringify({}); }
   });
@@ -841,6 +913,12 @@ if (SS.preview) {
       // remains an explicit ON request. One code path (setDesktopWallpaper) creates the
       // window, arms the watchdog and builds the menus; otherwise a normal window.
       const bootCfg = store.readConfig(CONFIG_PATH);
+      // Telemetry, if asked for. Started BEFORE the windows so the log covers boot — the first
+      // paint of the backdrop is one of the two known hitches and it is invisible to a logger that
+      // starts afterwards.
+      if (perflog.enabled(process.argv, process.env, bootCfg)) {
+        perflog.start(app, { getState: () => { try { return throttle.state(); } catch (e) { return {}; } } });
+      }
       wallpaperPref = ('wallpaper' in bootCfg) ? bootCfg.wallpaper : null;
       const wantWp = wallpaper.available() && wallpaperPref !== false &&
         (START_WALLPAPER || wallpaperPref === true ||
@@ -853,6 +931,10 @@ if (SS.preview) {
         createWindow();
         rebuildMenu();
       }
+      // Arm the guard on EVERY path, not just the Windows wallpaper one. Occlusion is Windows-only,
+      // but the tier decision and the lock/sleep/battery signals work identically on Linux — and on
+      // a laptop those are the ones that decide battery life, which no CPU percentage ever shows.
+      try { armPerformanceGuard('startup'); } catch (e) { /* the guard must never stop the app booting */ }
       if (SS.config || START_SETTINGS) openControlCenter();   // /c (screensaver Settings) or --settings shortcut
       // Monitors added/removed/rescaled while we're the wallpaper: rebuild ONE WINDOW PER DISPLAY at
       // the new geometry, so the one continuous city covers whatever is connected. (This comment said
@@ -862,7 +944,13 @@ if (SS.preview) {
       const onDisplayChange = () => {
         if (!desktopWallpaper) return;
         clearTimeout(displayDebounce);
-        displayDebounce = setTimeout(() => { if (desktopWallpaper && !quitting) setDesktopWallpaper(true); }, 2000);
+        displayDebounce = setTimeout(() => {
+          if (desktopWallpaper && !quitting) setDesktopWallpaper(true);
+          // A monitor arriving or leaving changes both the window set (stale HWNDs in the guard's
+          // own-window exclusion) and the tier (every extra screen is another full canvas painted
+          // every frame). Both have to be recomputed or the guard silently degrades.
+          try { throttle.windowsChanged(); } catch (e) {}
+        }, 2000);
       };
       try {
         const scr = require('electron').screen;

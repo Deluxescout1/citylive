@@ -3,6 +3,7 @@ import QtQuick.Window
 import QtQuick.LocalStorage
 import org.kde.plasma.plasmoid
 import org.kde.taskmanager as TaskManager
+import org.kde.plasma.plasma5support as P5Support   // one-shot hardware probe; see detectHardware()
 import "../js/city.js" as City
 import "../js/localcfg.js" as Local   // per-machine personal settings (birthdays/location/cycle); committed EMPTY, filled by install.sh from config.local.json
 
@@ -19,10 +20,64 @@ WallpaperItem {
     //   spectacle 83ms = 12fps · balanced 125ms = 8fps · performance 500ms = 2fps (battery)
     // The comment here used to claim performance was 8fps; it has always been 500ms. Config
     // override, else auto by total canvas load.
+    // 🚨 THE AUTO RULE WAS SCREEN AREA ALONE, AND ON A LAPTOP IT IS INVERTED. Area was standing in
+    // for "how much machine is there", and the correlation runs the wrong way at the bottom of the
+    // market: a cheap laptop has a SMALL screen, fell through to `spectacle`, and so ran the most
+    // expensive tier we ship on the weakest hardware we ship to — while a 4K desktop with 28 threads
+    // got the cheap one. `hwCap` is what the CPU and RAM can actually afford.
+    // 🔑 IT IS A CAP, NOT A REPLACEMENT. Area still decides; the machine can only pull the tier DOWN.
+    // Nick's three-monitor desktop is the surface this project is judged on and its look is settled
+    // (8 fps + coarse texels, chosen explicitly and confirmed) — a rule that re-derived his tier from
+    // scratch could change it to fix a laptop nobody is looking at. 28 threads and 64 GB cap at
+    // `spectacle`, which is no cap at all, so his machine resolves exactly as it does today.
+    // ⚠ AND IF WE CANNOT TELL, WE DO NOT GUESS. `hwCap` defaults to "spectacle" (no cap), so a
+    // sandbox that hides /proc leaves behaviour byte-identical to before this change.
+    readonly property var tierOrder: ({ spectacle: 0, balanced: 1, performance: 2 })
+    property string hwCap: "spectacle"
+    function cheaper(a, b) {
+        return (tierOrder[a] === undefined ? 0 : tierOrder[a]) >= (tierOrder[b] === undefined ? 0 : tierOrder[b]) ? a : b;
+    }
     readonly property string quality: {
         if (configuration && configuration.quality) return configuration.quality;
-        return (width * height > 2200000) ? "balanced" : "spectacle";
+        var byScreen = (width * height > 2200000) ? "balanced" : "spectacle";
+        return cheaper(byScreen, hwCap);
     }
+    // Read the machine's own numbers once, at boot.
+    // ⚠⚠ THE OBVIOUS ROUTE DOES NOT WORK, AND IT FAILS SILENTLY. The first version of this read
+    // /proc/cpuinfo and /proc/meminfo through QML's XMLHttpRequest, which is the documented way to
+    // read a local file from QML. Qt DISABLES file:// GET by default ("Set QML_XHR_ALLOW_FILE_READ
+    // to 1 to enable this feature") — so it returned empty, `cores` came out 0, the guard fell
+    // through to its safe default of "no cap", and the whole feature was dead code that logged
+    // nothing and changed nothing. It would have shipped looking exactly like a working cap.
+    // 🔑 Measured, not assumed: a standalone qml6 probe printed `cores=0 memMB=0` before this file
+    // was ever installed. The Plasma executable DataSource below printed `28 / 64057`.
+    // ⚠ THRESHOLDS MIRROR desktop/perf-policy.js DELIBERATELY. Two shells disagreeing about what a
+    // machine can afford is how the same laptop ends up smooth in one and stuttering in the other.
+    P5Support.DataSource {
+        id: hwProbe
+        engine: "executable"
+        connectedSources: []
+        onNewData: function (source, data) {
+            disconnectSource(source);                     // one shot — never leave a shell connected
+            try {
+                var out = String(data["stdout"] || "").trim().split("\n");
+                var cores = parseInt(out[0], 10), memMB = parseInt(out[1], 10);
+                if (!(cores > 0) || !(memMB > 0)) return;  // could not tell → no cap, behave as before
+                if (cores >= 8 && memMB >= 15000) root.hwCap = "spectacle";
+                else if (cores >= 4 && memMB >= 7000) root.hwCap = "balanced";
+                else root.hwCap = "performance";
+                console.log("CityLive hardware: " + cores + " cores, " + memMB + " MB -> tier cap " + root.hwCap);
+            } catch (e) { /* no cap */ }
+        }
+    }
+    function detectHardware() {
+        try { hwProbe.connectSource("nproc; awk '/MemTotal/{print int($2/1024)}' /proc/meminfo"); }
+        catch (e) { /* no cap — the wallpaper must never fail to start over a performance hint */ }
+    }
+    // The probe is asynchronous, so the first `setup()` may already have run with the uncapped tier.
+    // Re-boot when the answer actually lowers it, rather than waiting for the 6 s settle pass — this
+    // fires at most once per session, and only on a machine that needed capping in the first place.
+    onHwCapChanged: if (hwCap !== "spectacle") bootTimer.restart()
     // DEVICE px per world/canvas pixel. Keep the original wide pxk3 composition in every quality
     // tier; performance comes from retained layers and scheduling, never by zooming the city in.
     readonly property int pxk: 3
@@ -260,9 +315,22 @@ WallpaperItem {
     // win: don't raise it further without re-measuring with tools/perf-ab.sh. 10fps was 62.2%.
     // (Weather no longer changes speed when this does — see MOTION_RATE in city.js.)
     readonly property int frameMs: quality === "performance" ? 500 : (quality === "balanced" ? 125 : 83)
+    // ⚠⚠ COVERED IS A HEARTBEAT, NOT A HALT — AND STOPPING THESE TIMERS OUTRIGHT WAS A REAL BUG.
+    // Every piece of city state the chronicle and the notifier read (`curDis`, `cityPhase`,
+    // `curMayor`, `curRegime`, `curPlague`…) is assigned INSIDE `City.draw()` — see city.js ~53057.
+    // `chronicleSnapshot` is a pure probe of those globals, which is exactly why it is safe to call
+    // and exactly why it is worthless if nothing is writing them. So while a window covered this
+    // screen, the chronicle timer below went on running at full speed, reading state frozen at the
+    // moment of covering, and the city's history simply stopped being recorded — silently, for as
+    // long as anything was maximised, which on a laptop is most of the day. Nobody would ever see
+    // that fail; they would just find holes in the chronicle.
+    // 🔑 One frame every 30 s instead of eight a second is 0.4% of the drawing cost — nothing, against
+    // the 43.1% → 10.6% this guard is worth — and it keeps the history, the notifications and the
+    // canvas contents alive. A reveal then uncovers a city at most 30 s stale instead of hours.
+    readonly property int heartbeatMs: 30000
     Timer {
-        interval: root.frameMs
-        running: root.visible && !root.covered      // nothing to draw for while a window covers this screen
+        interval: root.covered ? root.heartbeatMs : root.frameMs
+        running: root.visible
         repeat: true
         onTriggered: cv.requestPaint()
     }
@@ -270,14 +338,19 @@ WallpaperItem {
     // The backdrop only has to keep up with the sun, the weather and the seasons, so it repaints
     // about once a second instead of twelve times. This is where the saving actually comes from.
     Timer {
-        interval: root.quality === "performance" ? 4000 : (root.quality === "balanced" ? 2000 : 1000)
-        running: root.visible && !root.covered
+        interval: root.covered ? root.heartbeatMs
+                               : (root.quality === "performance" ? 4000 : (root.quality === "balanced" ? 2000 : 1000))
+        running: root.visible
         repeat: true
         onTriggered: bgcv.requestPaint()
     }
 
+    // ⚠ WAS ONE SECOND. Nothing it reports can change faster than a disaster stage — minutes, not
+    // seconds — and on a laptop a timer wakeup costs battery whether or not it costs measurable CPU.
+    // Three screens at 1 Hz is three wakeups a second, forever, to notice something that happens a
+    // few times an hour.
     Timer {
-        interval: 1000; running: root.visible; repeat: true
+        interval: 5000; running: root.visible; repeat: true
         onTriggered: {
             try {
                 var w = City.chronicleSnapshot(Date.now());
@@ -384,7 +457,7 @@ WallpaperItem {
     // one-shot SETTLE pass: 6s after bring-up, re-run setup + repaint — shakes out any
     // transient geometry/scale state from login/output reconfiguration (stripe insurance)
     Timer { id: settleTimer; interval: 6000; running: true; onTriggered: { root.boot(); bgcv.requestPaint(); cv.requestPaint() } }
-    Component.onCompleted: bootTimer.restart()
+    Component.onCompleted: { root.detectHardware(); bootTimer.restart() }
     onSceneChanged: bootTimer.restart()
     // location changed in the config dialog → re-boot with the new place (weather/sun/stars/architecture)
     Connections {
