@@ -49,8 +49,16 @@ function cheaper(a, b) { return name(Math.max(idx(a), idx(b))); }
 // events). It is not done here because the first frames of a life are legitimately slow — the cold
 // P_sim fold and the first backdrop paint — so a naive measurement downgrades every machine, and that
 // trap needs verifying across several machines before it can be trusted more than these numbers.
+// ⚠ THE BALANCED THRESHOLD WAS RELAXED BACK once the real cost driver was found. It was briefly
+// tightened to force a laptop onto `performance` (2 fps) — which fixed the CPU number by destroying
+// the thing the wallpaper is for. Nick, immediately: "the whole CityLive wallpaper isn't moving… it
+// needs to run like it SHOULD look, and have all the same features." The laptop was expensive because
+// it rendered at full device resolution, not because 8 fps is unaffordable; with that fixed it runs
+// the same tier as a 4K desktop at 4.01% of total CPU.
+// 🔑 BUY THE FRAMES BACK BY DRAWING FEWER PIXELS, NEVER BY DRAWING FEWER FRAMES. A performance guard
+// that reaches its number by making the product worse has not solved the problem, it has renamed it.
 const NEEDS_FOR_SPECTACLE = { cores: 12, memMB: 15000 };  // a real desktop
-const NEEDS_FOR_BALANCED  = { cores: 8,  memMB: 15000 };  // a decent machine, not an ultrabook
+const NEEDS_FOR_BALANCED  = { cores: 4,  memMB: 7000 };   // an ordinary laptop can afford 8 fps
 
 // What the hardware alone can afford, ignoring the screen.
 function hardwareCap(m) {

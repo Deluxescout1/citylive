@@ -71,8 +71,16 @@ WallpaperItem {
                 // that ate a tenth of the machine, forever, on exactly the hardware this is for.
                 // Nick's desktop (28 cores, 64 GB) is unaffected: it still caps at `spectacle`,
                 // i.e. not at all. Keep in step with desktop/perf-policy.js.
+                // ⚠ RELAXED BACK once the real cost driver was found. These were briefly tightened to
+                // force a laptop down to `performance` (2 fps), which fixed the CPU number by
+                // destroying the thing the wallpaper is for — Nick, immediately: "the whole CityLive
+                // wallpaper isn't moving… it needs to run like it SHOULD look, and have all the same
+                // features". He was right. The laptop was expensive because it was rendering at full
+                // device resolution (see `texelBuf` above), not because 8 fps is unaffordable: with
+                // that fixed it runs the SAME tier as his 4K at 4.01% of total CPU.
+                // 🔑 Buy the frames back by drawing fewer PIXELS, never by drawing fewer FRAMES.
                 if (cores >= 12 && memMB >= 15000) root.hwCap = "spectacle";
-                else if (cores >= 8 && memMB >= 15000) root.hwCap = "balanced";
+                else if (cores >= 4 && memMB >= 7000) root.hwCap = "balanced";
                 else root.hwCap = "performance";
                 console.log("CityLive hardware: " + cores + " cores, " + memMB + " MB -> tier cap " + root.hwCap);
             } catch (e) { /* no cap */ }
@@ -153,7 +161,22 @@ WallpaperItem {
         var q = (width * dpr) / pxk;
         return Math.abs(q - Math.round(q)) > 0.001;
     }
-    readonly property real texelBuf: (dpr > 1 || fractionalTexel) ? 1 : pxk
+    // 🚨🚨 `dpr > 1 ||` WAS STILL HERE, IN FRONT OF THE TEST THAT REPLACED IT. Everything above this
+    // line argues that dpr is a PROXY and the arithmetic is the real trigger — and then the code ORs
+    // the proxy back in, so on every HiDPI screen the arithmetic never gets a say and the canvas is
+    // pinned to full device resolution. That is the most expensive thing this wallpaper can do, forced
+    // on precisely the machines least able to afford it: a laptop panel at dpr 2 rendered
+    // 3342x2232 = 7.5 MP every frame, where the correct answer for that screen is 1114x744 = 0.83 MP,
+    // NINE TIMES fewer pixels — and its upscale is an exact 3.0000, so it never needed fine texels at
+    // all. Measured on that laptop at 8 fps: 8.17% of TOTAL CPU with the proxy, 4.01% without it.
+    // 🔑 The arithmetic is the whole rule. A screen that would be fractionally stretched pays for fine
+    // texels; a screen that scales by a whole number keeps the cheap ones and pays nothing.
+    // ⚠ Nick's three monitors are UNAFFECTED — 4654/3 and 2560/3 are both fractional, so they keep the
+    // fine texels they have today, and 1920/3 is exact, so it keeps the coarse ones it has today.
+    // ⚠ THIS IS THE RESOLUTION KNOB, AND `pxk` IS NOT. Changing `pxk` moves the world size and `zoom`
+    // compensates, leaving the canvas the same — measured, pxk 3/5/6 all cost within 3% of each other.
+    // Only `texelBuf` actually changes how many pixels get painted.
+    readonly property real texelBuf: fractionalTexel ? 1 : pxk
     readonly property int zoom: Math.max(1, Math.round(pxk * dpr / texelBuf))
     // total width (logical px) of the whole desktop the city spans. If unset in config,
     // auto-detect by summing every screen's width (works for a single laptop screen or

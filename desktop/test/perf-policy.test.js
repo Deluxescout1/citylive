@@ -24,20 +24,23 @@ test('THE INVERSION: a small-screened weak laptop no longer gets the most expens
   assert.strictEqual(policy.screenTier(SURFACE.pixels), 'spectacle', 'precondition: area alone still says spectacle');
   const d = policy.decide(SURFACE);
   assert.notStrictEqual(d.tier, 'spectacle', 'a 4-core/8GB laptop must never resolve to spectacle');
-  assert.strictEqual(d.tier, 'performance');
+  assert.strictEqual(d.tier, 'balanced');
   assert.strictEqual(d.reason, 'hardware');
 });
 
-test('the measured Surface-class laptop lands on the tier that actually fits in the budget', () => {
-  // The real machine, measured with the desktop visible and the guard confirmed not suspending:
-  //   balanced    (8 fps)  9.84% of TOTAL CPU — nearly 2x the 5% budget
-  //   performance (2 fps)  2.98% — passes
-  // An i5-1035G7 reports EIGHT logical cores, which is exactly why a naive core count is not enough
-  // on its own and the RAM test carries the decision here.
+test('a laptop still gets a MOVING city — the cap must not reach for the 2 fps tier', () => {
+  // 🚨 THIS IS THE REGRESSION THIS TEST EXISTS TO PREVENT, and it was shipped once. The thresholds
+  // were tightened so a Surface-class laptop resolved to `performance` — 2 fps — which fixed the CPU
+  // number by destroying the product. Nick, immediately: "the whole CityLive wallpaper isn't moving…
+  // it needs to run like it SHOULD look, and have all the same features."
+  // 🔑 Buy the frames back by drawing fewer PIXELS, never by drawing fewer FRAMES. `performance` is a
+  // floor for machines that genuinely cannot do better, not a lever to reach for.
   const ULTRABOOK = { cores: 8, memMB: 7522, pixels: 1671 * 1114 * 4, displayCount: 1 };
-  assert.strictEqual(policy.hardwareCap(ULTRABOOK), 'performance',
-    '8 logical cores is not a capable machine when it is a 15W part with 7.5 GB');
-  assert.strictEqual(policy.decide(ULTRABOOK).tier, 'performance');
+  assert.strictEqual(policy.decide(ULTRABOOK).tier, 'balanced',
+    'an ordinary laptop must keep a moving city');
+  assert.strictEqual(policy.decide(SURFACE).tier, 'balanced');
+  // Only genuinely incapable hardware may drop to the slowest tier.
+  assert.strictEqual(policy.decide({ cores: 2, memMB: 3800, pixels: 1366 * 768, displayCount: 1 }).tier, 'performance');
 });
 
 test("the cap never pulls a strong machine down — Nick's desktop resolves exactly as before", () => {
