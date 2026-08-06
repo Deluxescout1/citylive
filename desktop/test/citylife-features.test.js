@@ -240,17 +240,22 @@ test('the elevated train cannot cover important landmarks or information surface
 test('dialogue holds long enough to read, staggers per pair, and stays bounded', () => {
   const source = fs.readFileSync(ENGINE, 'utf8');
   const speech = source.slice(source.indexOf('function drawSpeechBubbles'), source.indexOf('function peopleMarketBeat'));
-  // the hold is a function of line length, with a readable floor and a sane cap
-  assert.match(source, /function readMs\(t\)\{ return Math\.max\(2600, Math\.min\(7000, 1500 \+ t\.length\*105\)\); \}/);
+  // The hold is a function of line length, with a readable floor and a sane cap.
+  // ⚠ SLOWED 2026-08-06 — this used to pin the exact literal `Math.max(2600, ...)`, which meant the
+  // test asserted the very pace Nick then rejected twice ("WAAAAAAAY too fast", "should be much
+  // slower and not as distracting"). Pinning an exact tuning literal turns a JUDGEMENT into a
+  // regression: the numbers are allowed to move, the SHAPE is not. dialogue-pace.test.js owns the
+  // judgement (floors, ceilings, silence, density) and reads the live values out of the engine.
+  assert.match(source, /function readMs\(t\)\{ return Math\.max\(\d+, Math\.min\(\d+, \d+ \+ t\.length\*\d+\)\); \}/);
   // the whole four-line script is resolved BEFORE it is timed (a beat's length depends on its line)
   assert.match(speech, /script\.push/);
   assert.match(speech, /readMs\(script\[bt2\]\)/);
   // every pair runs on its own phase, derived from the pair's ids alone (three monitors must agree)
   assert.match(speech, /a\.pid\*2654435761/);
-  assert.match(speech, /sceneCycle=apocFinal\?9000:34000/);
-  // busier, but still bounded
-  assert.match(speech, /gate=apocFinal\?2:4/);
-  assert.match(speech, /maxBub=apocFinal\?2:4/);
+  assert.match(speech, /sceneCycle=apocFinal\?\d+:\d+/);
+  // still bounded — the exact density is dialogue-pace.test.js's business, not this test's
+  assert.match(speech, /gate=apocFinal\?\d+:\d+/);
+  assert.match(speech, /maxBub=apocFinal\?\d+:\d+/);
   assert.match(speech, /shown<maxBub/);
 });
 

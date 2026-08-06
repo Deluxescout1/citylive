@@ -15287,7 +15287,14 @@ function bubbleCat(a, b, slot){
 // jokes were the ones you could never finish. (It was never the city's SPEED: `now` here is the wall
 // clock, so a 1-hour life and a 3-day life already held bubbles for the same real seconds. The fault
 // was that the flat hold was tuned for a short line.)
-function readMs(t){ return Math.max(2600, Math.min(7000, 1500 + t.length*105)); }
+// HOW LONG A LINE STAYS UP. ⚠ SLOWED DELIBERATELY (Nick: "the text and the Dialogue is moving WAAAAAAAY
+// too fast… it is so distracting and you can't even read it"). A wallpaper is read out of the corner of
+// the eye, by someone doing something else — it is not a screen you are watching, so "long enough to
+// read if you are staring at it" is far too quick. The old floor was 2.6 s, which is about the time it
+// takes to NOTICE a bubble, let alone read it; a line now holds for at least 4.5 s and a long one for
+// up to 12 s. Roughly 1.7x, and the pauses between scenes grew more than the scenes did (see
+// `sceneCycle`), so the street is quieter as well as slower.
+function readMs(t){ return Math.max(4500, Math.min(12000, 2600 + t.length*170)); }
 // ⚠ WALK THE SPACE, DON'T SAMPLE IT. `pool[(h>>>8)%pool.length]` picks at random per (pair, slot), so
 // with 500 scenes a given PAIR can draw the same one twice in a few minutes while hundreds go unused —
 // and a repeat from the same two people is far more noticeable than a repeat from strangers. Stepping
@@ -15470,10 +15477,21 @@ function drawSpeechBubbles(g, now, night){
   // what makes the street feel continuously alive without anyone talking faster.
   // ⚠ The phase MUST come from the pair's ids alone — never from `sx` or the array index, or two
   // monitors disagree about who is mid-sentence at a screen seam. Same rule as everything else here.
-  var sceneCycle=apocFinal?9000:34000;
+  // ⚠⚠ THE CYCLE MUST OUTLAST THE SCRIPT OR THE LAST BEAT IS NEVER SEEN. Four beats at the new
+  // `readMs` ceiling is 48 s, so a 34 s cycle would silently drop the closing line of every long
+  // conversation — the beat search below simply finds no beat and the pair goes quiet. 60 s leaves
+  // real SILENCE after even the longest scene, which is the point: the complaint was not only that
+  // lines went by too fast, it was that the street never shuts up.
+  // ⚠ The finale runs its beats at 0.56x (urgent, clipped speech), so its four beats now span up to
+  // 26.9 s — a 14 s cycle would drop the last words of the world, which is the one line that must
+  // never be cut. Checked arithmetically, not by eye.
+  var sceneCycle=apocFinal?28000:60000;
   var shown=0, taken=[], cand=[];
-  var gate=apocFinal?2:4;                                        // urgent final words remain exceptional
-  var maxBub=apocFinal?2:4;
+  // ⚠ FEWER PAIRS, FEWER BUBBLES. Four simultaneous conversations turning over every 34 s is what made
+  // this "distracting" — no single line was the problem, the density was. One in six pairs now talks
+  // (was one in four) and at most two bubbles share the screen (was four).
+  var gate=apocFinal?2:6;                                        // urgent final words remain exceptional
+  var maxBub=apocFinal?2:2;
   for(var i=0;i<arr.length-1;i++){ var a=arr[i], b=arr[i+1];
     if(Math.abs(a.sx-b.sx)>8 || Math.abs(a.y-b.y)>3) continue;    // co-located (adjacency bucket, not float equality)
     var ph=(((a.pid*2654435761)^(b.pid*1597334677))>>>0)%sceneCycle;
@@ -24245,7 +24263,18 @@ function drawVolcanoScar(g,L,now){
   // here and nowhere else. So the scar is drawn in the LAND'S OWN vocabulary rather than softened:
   // smaller, ashier, and FACETED — a stepped mound of flat values, because a smooth gradient is the
   // one thing this register never does.
-  var flatReg=!!curRs;
+  // 🚨🚨 …AND THE GATE WAS THE NAME, NOT THE NATURE — SO IT WAS HALF A FIX. This read `!!curRs`,
+  // i.e. "the OSRS lands", because that is where Nick happened to see it. He then saw the identical
+  // near-black dome on THE OPEN PLAINS: amp 0.46, steep 0.0 — a land with no tall rock anywhere,
+  // which is exactly the property the note above is describing and exactly what `curRs` was standing
+  // in for. Naming the family instead of measuring it left every other low-relief land broken:
+  // plains, savanna, beach, swamp, salt, dunes, sprawl, dam.
+  // 🔑 RELIEF is the thing that decides whether a big solid reads as a hill or as a hole punched in
+  // the frame. A land with real rock (alpine 1.3, karst 0.88/0.94, fjord, cliffs, volcano) hides it;
+  // a flat one cannot. So ask the land how much relief it has, and let the volcano's OWN land keep
+  // the full dramatic cone it is supposed to have.
+  var _rel=curBiome||{};
+  var flatReg=!!curRs || ((_rel.amp||0)<0.5 && (_rel.steep||0)<0.45);
   if(flatReg){ coneH=Math.round(coneH*0.58); coneW=Math.round(coneW*0.66); }
   if(cx+coneW<0||cx-coneW>SW) return;
   // it WEATHERS. Fresh cinder is near-black and it greys as the life runs on, which is the only thing
