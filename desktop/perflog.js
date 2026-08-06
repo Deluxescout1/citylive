@@ -11,20 +11,25 @@
 // same reason `CITYLIVE_WP_TESTRECT` exists: a harness that cannot express the case cannot verify the
 // fix, and a machine we cannot sit in front of cannot be measured by sitting in front of it.
 //
-// ⚠⚠ WHAT `percentCPUUsage` ACTUALLY MEANS — MEASURED, BECAUSE THE OBVIOUS READING IS WRONG.
-// Electron's docs and most of the internet describe it as a percentage of ONE core. On this build
-// (Electron 33.4.11, Linux) it is NOT: measured against /proc over the same window, the app reported
-// 0.27 while /proc said 7.55% of one core on a 28-core box — 7.55/28 = 0.27. It is already a
-// percentage of the WHOLE CPU. Had that gone unchecked, dividing by the core count "to be safe" would
-// have made a Surface read 4x worse than reality, and taking it at face value as one-core would have
-// made it read 4x better. Both wrong, in opposite directions, and neither visible without a second
-// opinion.
-// 🔑 SO EVERY SAMPLE CARRIES A SECOND OPINION. `raw` is exactly what Electron said, `cores` is the
-// divisor in play, and `mainCpuPct` is the main process's cost computed independently from Node's own
-// `process.cpuUsage()` (microseconds of CPU, unambiguous, cross-platform). The reader can then check
-// the raw number against a known-good one ON THE MACHINE THAT PRODUCED IT, rather than trusting a
-// semantics guess made on a different OS. This matters because the finding above is a LINUX finding
-// and the target is Windows.
+// ⚠⚠⚠ `percentCPUUsage` MEANS DIFFERENT THINGS ON DIFFERENT PLATFORMS. THIS IS MEASURED, TWICE, AND
+// IT CAUGHT ME OUT IN BOTH DIRECTIONS. Same Electron (33.4.11), same code, same field:
+//   · LINUX  — it is a percentage of ALL CORES. Against /proc over the same window the app reported
+//     0.27 while /proc said 7.55% of one core on a 28-core box: 7.55/28 = 0.27. Exact.
+//   · WINDOWS — it is a percentage of ONE CORE. Against `Get-Counter '\Process(CityLive*)\% Processor
+//     Time'` over the same window, the app reported 6.22 and the counter 6.99 (ratio 0.89); read as
+//     all-cores it would have implied 3.50, a ratio of 1.78. Not close.
+// So there is NO single correct interpretation to bake in, and any comment claiming one — including
+// the earlier version of this one, which asserted the Linux answer — is wrong half the time. Getting
+// it backwards on Windows inflates the number by the core count: it turned a 2-core VM's real ~3.1%
+// of total CPU into a reported "5.36%", which is the difference between passing and failing the
+// agreed budget.
+// 🔑 SO THIS FILE RECORDS, IT DOES NOT INTERPRET. `raw` is exactly what Electron said, `cores` and
+// `platform` are what it has to be read against, and `mainPct` is an independent figure from Node's
+// own `process.cpuUsage()` (microseconds of CPU — no percentage convention to get wrong).
+// ⚠ `mainPct` alone is NOT enough to calibrate: the main process is nearly idle, so its values sit at
+// the quantisation floor and the ratio is noise. It said 0.76 on Windows, which points the wrong way.
+// **Calibrate against a whole-app figure from the OS itself** — `Get-Counter` on Windows, `/proc` on
+// Linux — over a simultaneous window, which is what `tools/surface-report.js` does.
 //
 // Off unless asked for: `--perflog`, `CITYLIVE_PERFLOG=1`, or config `perfLog: true`.
 
@@ -138,6 +143,7 @@ function sample(app) {
     t: Math.round((Date.now() - started) / 1000),
     at: new Date().toISOString(),
     cores: cores,
+    platform: process.platform,   // ← REQUIRED to read `rawSum`; see the header. Not decoration.
     // 🔑 RAW, PLUS THE MEANS TO CHECK IT. `rawSum` is Electron's number summed over every process.
     // On Linux/Electron 33 that is already % of the whole CPU, verified against /proc. `mainPct` is
     // the same quantity for the main process alone, computed from process.cpuUsage() — so
