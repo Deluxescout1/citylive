@@ -53893,6 +53893,19 @@ function draw(g,pass){
   if(!nukeFull()) drawStreetSigns(g,L,now);
   if(cityG>0.45) drawCorpAds(g,L,now,night);
   if(pass==="city") return;
+  // 🚨🚨 THE SCAR IS A LANDFORM AND IT WAS SWALLOWING THE STREET. It used to be called down with the
+  // disaster overlay, ~200 lines below — AFTER the pavement, the traffic, the crowd and the named
+  // citizens — so a cinder cone the width of a city block was painted straight over the people
+  // walking in front of it. Nick, with a screenshot: "make sure the people walk in front of the
+  // building".
+  // 🔑 IT KEEPS ITS LAYER, IT ONLY CHANGES ITS PLACE IN IT. The note further down is right and still
+  // applies: called from the BACKDROP the cone sits behind the city while the eruption that made it
+  // draws in front, and the handover reads as a hard pop — measured at f=0.82…0.89, where the
+  // geometry either side was 80 vs 78 world px and only the DEPTH changed. So it stays in this
+  // live-pass layer, at the very top of it: still in front of the buildings it rose between, now
+  // behind every moving thing on the street. Same depth as before relative to the city, opposite
+  // relative to the people — which is the only part that was ever wrong.
+  drawVolcanoScar(g,L,now);        // a cone this life's eruption left behind, if there was one
   drawMonorailService(g,L,now);                         // voted top tram: live, world-continuous across screens
   // Stations, riders, and trains stay in the fast live layer: nothing structural covers them and
   // the train does not inherit the deliberately slow city-cache cadence.
@@ -54512,14 +54525,13 @@ function draw(g,pass){
 
   // ---- DISASTER overlay: the threat + the city's military/emergency response + alert HUD ----
   // (the destruction/rubble/rebuild of the buildings themselves is handled in drawLayer)
-  // ⚠⚠ THE SCAR GOES HERE, NOT IN THE BACKDROP, AND THE MEASUREMENT IS WHY. Called after
-  // `drawMountains` — where a permanent landform obviously belongs — the cone was drawn BEHIND the
-  // city while the eruption that made it draws in FRONT. A tight sample across f=0.82…0.89 showed the
-  // handover as a hard pop, and the cause was not the size at all: the geometry either side was 80 and
-  // 78 world px. It was the DEPTH. Same object, two layers, and the eye reads a layer change as a size
-  // change. It sits in the eruption's own layer now, which is also honest — this is a mountain that
-  // rose inside the city, not a range on the horizon.
-  drawVolcanoScar(g,L,now);        // a cone this life's eruption left behind, if there was one
+  // ⚠⚠ THE SCAR IS NOT DRAWN HERE ANY MORE — IT MOVED TO THE TOP OF THIS SAME PASS (search
+  // `drawVolcanoScar`, just after `if(pass==="city") return;`). The reasoning that put it in this
+  // layer still holds and is repeated there: called from the BACKDROP the cone sits behind the city
+  // while the eruption that made it draws in FRONT, and the handover reads as a hard pop — measured
+  // across f=0.82…0.89, where the geometry either side was 80 vs 78 world px and only the DEPTH
+  // changed. What was wrong was its position WITHIN this layer: down here it painted over the
+  // pavement, the traffic and every pedestrian in front of it.
   if(curDis){ drawDisaster(g,curDis,L,now); drawDisasterHud(g,curDis,now); }
   drawDisasterArc(g,L,now);        // …and the evacuation before it, and the crews long after
   drawMemorials(g,L,now,night);                              // the worst sites keep a marker for the rest of the life
