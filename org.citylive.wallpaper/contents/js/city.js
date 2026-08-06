@@ -47331,12 +47331,27 @@ function drawPlainsWorked(g,L,now,nd){
       {p:3, h:1.3, c:[46,52,58]},      // gondola, open and dark
       {p:4, h:0.7, c:[96,92,84]}       // flatcar, almost nothing
     ];
+    // ---- THE PERMANENT WAY, AND IT IS PERMANENT.
+    // 🚨 THE TRACK USED TO ARRIVE WITH THE TRAIN. The rail was drawn inside the consist loop as
+    // `fillRect(tsx-40, …, trLen*carStep+80)` — forty pixels of track either side of the wagons and
+    // nothing beyond, SLIDING ALONG WITH THEM. Nick: "the freight train tracks just appear?? it looks
+    // really weird flying by". A railway is infrastructure: it is there when no train is, it is there
+    // at both edges of the frame, and it does not move.
+    // 🔑 A ruled line across the whole frame is this project's eleven-times fault — but a railway IS a
+    // ruled line, and the fix is not to break it, it is to give it a BODY: a ballast bed under the
+    // rail and sleepers across it, so the eye reads a track rather than a drawn rule. Regular sleeper
+    // pitch is correct for the same reason regular car pitch is.
+    var ballY=trY+Math.max(1,Math.round(K*0.4));
+    g.fillStyle=css(mixc(day?[158,148,132]:[40,38,38],hz2,0.30));           // the ballast bed
+    g.fillRect(0,ballY,SW,Math.max(1,Math.round(K*1.1)));
+    g.fillStyle=css(mixc(day?[96,90,82]:[24,24,28],hz2,0.30));              // the sleepers across it
+    var slp=Math.max(3,Math.round(2.2*K));
+    for(var sl=0;sl<SW;sl+=slp) g.fillRect(sl,ballY,Math.max(1,Math.round(K*0.7)),Math.max(1,Math.round(K*1.1)));
+    g.fillStyle=css(mixc(day?[142,138,132]:[46,46,52],hz2,0.28));           // and the rail on top of them
+    g.fillRect(0,trY,SW,Math.max(1,Math.round(K*0.4)));
     for(var to=-1;to<=1;to++){
       var tsx=Math.round(trWx-WOFF+to*WW);
       if(tsx+trLen*carStep<-8||tsx>SW+8) continue;
-      // the rail it runs on — one thin line AT the railhead, so the train stands ON it
-      g.fillStyle=css(mixc(day?[122,118,110]:[34,34,40],hz2,0.34));
-      g.fillRect(Math.max(0,tsx-40),trY,Math.min(SW,trLen*carStep+80),Math.max(1,Math.round(K*0.4)));
       var trkC=css(mixc(day?[38,36,38]:[14,14,18],hz2,0.30));   // wheels, couplers and shadow, one style
       for(var cq=0;cq<trLen;cq++){
         var cxx=tsx+cq*carStep;
