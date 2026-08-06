@@ -28,11 +28,29 @@ function name(i) { return TIERS[Math.max(0, Math.min(TIERS.length - 1, i))]; }
 // "Cheaper wins" — the whole policy is a max() over independent opinions about cost.
 function cheaper(a, b) { return name(Math.max(idx(a), idx(b))); }
 
-// ── The thresholds. Calibration lives HERE, in one place, on purpose: every one of these numbers is a
-// guess until it has been measured on a real low-end laptop, and the follow-up work is expected to be
-// "change these three lines", not "find where this decision is made".
-const NEEDS_FOR_SPECTACLE = { cores: 8, memMB: 15000 };   // 16 GB machines report ~15.7 GB
-const NEEDS_FOR_BALANCED  = { cores: 4, memMB: 7000 };    // 8 GB machines report ~7.8 GB
+// ── The thresholds. Calibration lives HERE, in one place, on purpose — and these are no longer
+// guesses: they were moved after measuring a real Surface-class laptop (i5-1035G7, 8 logical cores,
+// 7.5 GB, HiDPI panel), with the desktop genuinely visible and the guard confirmed not suspending:
+//     balanced    (8 fps)   78.7% of one core  =  9.84% of TOTAL CPU   ← nearly 2x over budget
+//     performance (2 fps)   23.8% of one core  =  2.98% of TOTAL CPU   ← passes
+// The first version of these thresholds gave that machine `balanced`, i.e. it "fixed" the inverted
+// tier and still shipped a wallpaper costing a tenth of the whole CPU, continuously, on the exact
+// class of machine this work exists for.
+//
+// ⚠ FRAME RATE IS THE ONLY LEVER THAT WORKS. Canvas size was the obvious alternative — spend pixels
+// instead of smoothness — and it was measured and it does NOTHING: pxk 3, 5 and 6 cost 77.7%, 78.4%
+// and 80.1% on that laptop, because the engine holds the world size constant and compensates with
+// zoom, so the canvas never actually shrinks. Do not re-propose it without re-measuring.
+//
+// ⚠⚠ AND THESE ARE STILL A PROXY, WHICH IS THE ORIGINAL SIN OF THE RULE THEY REPLACED. Cores and RAM
+// predict CPU cost about as honestly as screen area did — an 8-core 16 GB ultrabook will pass the
+// `balanced` test here and may well be as slow as the machine above. The principled fix is a ONE-TIME
+// calibration at first boot (time some real frames, pick a tier, cache it, re-decide only on discrete
+// events). It is not done here because the first frames of a life are legitimately slow — the cold
+// P_sim fold and the first backdrop paint — so a naive measurement downgrades every machine, and that
+// trap needs verifying across several machines before it can be trusted more than these numbers.
+const NEEDS_FOR_SPECTACLE = { cores: 12, memMB: 15000 };  // a real desktop
+const NEEDS_FOR_BALANCED  = { cores: 8,  memMB: 15000 };  // a decent machine, not an ultrabook
 
 // What the hardware alone can afford, ignoring the screen.
 function hardwareCap(m) {

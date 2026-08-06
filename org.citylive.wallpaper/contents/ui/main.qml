@@ -63,8 +63,16 @@ WallpaperItem {
                 var out = String(data["stdout"] || "").trim().split("\n");
                 var cores = parseInt(out[0], 10), memMB = parseInt(out[1], 10);
                 if (!(cores > 0) || !(memMB > 0)) return;  // could not tell → no cap, behave as before
-                if (cores >= 8 && memMB >= 15000) root.hwCap = "spectacle";
-                else if (cores >= 4 && memMB >= 7000) root.hwCap = "balanced";
+                // ⚠ MEASURED, NOT GUESSED — and moved once already because the first guess was wrong.
+                // On a Surface-class laptop (i5-1035G7, 8 logical cores, 7.5 GB, HiDPI) with the
+                // desktop genuinely visible: balanced (8 fps) cost 78.7% of one core = 9.84% of the
+                // WHOLE CPU, and performance (2 fps) cost 23.8% = 2.98%. The earlier thresholds gave
+                // that machine `balanced` — fixing the inverted tier and still shipping a wallpaper
+                // that ate a tenth of the machine, forever, on exactly the hardware this is for.
+                // Nick's desktop (28 cores, 64 GB) is unaffected: it still caps at `spectacle`,
+                // i.e. not at all. Keep in step with desktop/perf-policy.js.
+                if (cores >= 12 && memMB >= 15000) root.hwCap = "spectacle";
+                else if (cores >= 8 && memMB >= 15000) root.hwCap = "balanced";
                 else root.hwCap = "performance";
                 console.log("CityLive hardware: " + cores + " cores, " + memMB + " MB -> tier cap " + root.hwCap);
             } catch (e) { /* no cap */ }
@@ -183,6 +191,14 @@ WallpaperItem {
     // plasmashell, which KWin trusts. It yields nothing when run standalone; test it in place.
     readonly property bool guardOn: !configuration || configuration.pauseWhenCovered === undefined || configuration.pauseWhenCovered
     property bool covered: false
+    // 🚨 DIAGNOSTIC, AND IT IS NOT OPTIONAL. This guard's entire failure mode is being perfectly
+    // silent: it reports nothing, throws nothing, and simply never fires, which is indistinguishable
+    // from "nothing was covering the screen". The Windows port of the same idea shipped in exactly
+    // that state and an A/B measured its saving at zero while the log said SUSPENDED. So the KDE side
+    // says, ONCE per session, what the window list actually gave it — because "the model is empty on
+    // Wayland" and "the desktop genuinely wasn't covered" produce identical behaviour and only one of
+    // them is a bug.
+    property bool guardReported: false
     TaskManager.TasksModel {
         id: winModel
         groupMode: TaskManager.TasksModel.GroupDisabled
@@ -208,6 +224,19 @@ WallpaperItem {
             var r = Plasmoid.availableScreenRect;
             if (r && r.width > 8 && r.height > 8) { sx += r.x; sy += r.y; sw = r.width; sh = r.height; }
         } catch (e) { /* unreachable → fall back to the whole screen */ }
+        if (!root.guardReported) {
+            root.guardReported = true;
+            var diag = "CityLive guard: screen=" + Math.round(sx) + "," + Math.round(sy) + " " +
+                       Math.round(sw) + "x" + Math.round(sh) + " windows=" + winModel.count;
+            for (var d = 0; d < winModel.count && d < 8; d++) {
+                var di = winModel.index(d, 0);
+                var dg = winModel.data(di, TaskManager.AbstractTasksModel.Geometry);
+                diag += " | " + String(winModel.data(di, Qt.DisplayRole)).substring(0, 14) + " " +
+                        (dg ? (Math.round(dg.x) + "," + Math.round(dg.y) + " " + Math.round(dg.width) + "x" + Math.round(dg.height)) : "NO-GEOMETRY") +
+                        (winModel.data(di, TaskManager.AbstractTasksModel.IsMinimized) ? " min" : "");
+            }
+            console.log(diag);
+        }
         for (var i = 0; i < winModel.count; i++) {
             var idx = winModel.index(i, 0);
             if (winModel.data(idx, TaskManager.AbstractTasksModel.IsMinimized)) continue;
@@ -222,7 +251,10 @@ WallpaperItem {
     // Coming back has to be instant — a revealed desktop must not sit on a stale frame waiting for
     // the next tick. The engine is clock-driven, so the city simply resumes at the correct moment;
     // the dt cap (see FRAME_MS) already absorbs the gap so nothing lurches on the first frame back.
-    onCoveredChanged: if (!covered) { bgcv.requestPaint(); cv.requestPaint(); }
+    onCoveredChanged: {
+        console.log("CityLive guard: covered=" + covered + " (screen at " + Math.round(Screen.virtualX) + ")");
+        if (!covered) { bgcv.requestPaint(); cv.requestPaint(); }
+    }
 
     Rectangle { anchors.fill: parent; color: "black" }
 
