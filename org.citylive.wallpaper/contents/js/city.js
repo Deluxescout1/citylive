@@ -5520,7 +5520,12 @@ function riverOpenAt(wx){ return riverBendY(wx)>HORIZON-Math.round(RIV_HALF*1.9)
 // natural bank of mud, reeds and shingle everywhere else. Keyed by biome, so anything not listed is
 // natural and a new land costs no new field.
 var RIV_QUAY={mesa:1, plateau:1, rainv:1};
-function riverLava(){ return !!(curBiome&&curBiome.k==="hell"); }
+// ⚠ THE TEST IS THE LAND'S NATURE, NOT ITS NAME. Written as `k==="hell"` it fixed the Ashlands and
+// left THE CINDER THRONE — a volcanic land under a red sky — running a bright blue river with green
+// reeds on its banks, which is the same fault with a different key. Guard the PROPERTY, not the
+// instance: `molten` is the Ashlands, `volcanic` is the Cinder Throne, and the sea lands that carry
+// `volcanic` never reach here because `hasRiver` is false on them.
+function riverLava(){ return !!(curBiome&&(curBiome.molten||curBiome.volcanic)); }
 function riverQuay(){ return !!(curBiome&&RIV_QUAY[curBiome.k])&&!riverLava(); }
 // 🔒 …and what works it: a tug and its barge against the quays, somebody's own boat on the open water.
 function riverTraffic(){ return riverLava()?null:(riverQuay()?"barge":"small"); }
