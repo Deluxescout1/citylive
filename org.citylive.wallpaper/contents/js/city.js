@@ -50899,27 +50899,305 @@ APOC_X.risen=function(g,ap,L,now){
   groundGlow(g,"52,50,44",0.24*ap);
 };
 
+// ---- THE SICKNESS ITSELF. Nick: "all the citizens start throwing up and collapsing with this plague
+// in the streets", spreading "person to person, outward from a source".
+// 🔑 A FRONT, NOT A GLOBAL TIMER — that is what makes it read as CONTAGION rather than as everyone
+// being poisoned at once. It leaves one place and crosses the world, and a citizen's illness begins
+// when it reaches THEM. Each person carries their own resistance, so a street does not fall in step.
+// ⚠ Driven by `cityApoc`, never `now`: three monitors must agree on who is sick and who is already
+// down, and they never talk to each other.
+var PLAGUE_ONSET=0.05;
+function plagueFrontR(){ return Math.max(0,(cityApoc-PLAGUE_ONSET)/(0.88-PLAGUE_ONSET))*(WW*0.62); }
+// -1 = untouched · 0..1 = how far through the illness they are · >=1 = dead
+function plagueInf(wx,salt){
+  var d=nukeDist(wx, apocEpiX(NOWOVR!=null?NOWOVR:Date.now())), r=plagueFrontR();
+  if(r<=d) return -1;
+  var h=((salt*2654435761)>>>0)/4294967296;              // this person's own resistance
+  return Math.max(0,((r-d)/(WW*0.26) - h*0.42)/0.62);
+}
 // THE RED SICKNESS. One big object: the PALL over everything, and the pyres burning under it.
-APOC_X.plague=function(g,ap,L,now){
-  var K=Math.max(1,KSP);
-  for(var y=0;y<HORIZON;y+=4){
-    var t=y/HORIZON;
-    g.fillStyle=rgba(mixc([120,26,32],[186,96,72],t),(0.30+0.42*ap).toFixed(3));
-    g.fillRect(0,y,SW,4);
-  }
-  // the pyres — world-anchored so all three screens burn the same ones
-  var np=Math.round(2+ap*7);
-  for(var p=0;p<np;p++){
-    var h=((p*40503+911)>>>0), wx=wrapW(((h%1000)/1000)*WW), X=disX(wx);
-    if(X<-30||X>SW+30) continue;
-    var hgt=Math.round((10+((h>>>9)%16))*K*(0.4+0.6*ap));
-    for(var q=0;q<hgt;q++){
-      var wob=Math.round(Math.sin((now/300)+q*0.4+p)*q*0.10);
-      g.fillStyle="rgba("+(60-((q*40/hgt)|0))+","+(56-((q*40/hgt)|0))+","+(58-((q*38/hgt)|0))+","+(0.44*(1-q/hgt)).toFixed(2)+")";
-      g.fillRect((X+wob-2)|0,HORIZON-1-q,Math.max(2,Math.round(4*K*(1-q/hgt*0.5))),1);
+// ---- A BODY ON THE GROUND, DRAWN PROPERLY. Nick: "when they are laying down they need to look
+// better." The old one was a 4px bar with a dot — the same fault as the horde-of-rectangles: it does
+// not read as a person. A prone figure needs a person's LENGTH and three separable parts, so the eye
+// gets head · torso · legs instead of a smear. Four attitudes, hashed, so no two rows look alike.
+// ⚠ Still ~7px, the fixed size of a person in this engine — laid down, not scaled.
+function drawProne(g,X,y,cloth,skin,h,day){
+  var dir=(h&1)?1:-1, att=(h>>>3)%4;
+  var cm=mixc(hex2rgb(cloth),[0,0,0],day?0.28:0.48);
+  var sm=mixc(hex2rgb(skin), [0,0,0],day?0.20:0.44);
+  g.fillStyle=css(mixc(cm,[0,0,0],0.20));
+  g.fillRect((X-dir*3)|0, y,   2, 1);                         // legs, trailing
+  if(att===3) g.fillRect((X-dir*4)|0, y-1, 1, 1);             // …one knee up
+  g.fillStyle=css(cm);
+  g.fillRect((X-dir*1)|0, y-1, 3, 2);                         // torso
+  if(att===0){ g.fillRect((X+dir*1)|0, y,   2, 1); }          // arm flung forward
+  else if(att===1){ g.fillRect((X-dir*1)|0, y-2, 1, 1); }     // arm up by the head
+  else if(att===2){ g.fillRect((X+dir*1)|0, y-2, 2, 1); }     // both arms out
+  g.fillStyle=css(sm);
+  g.fillRect((X+dir*3)|0, y-1, 1, 1);                         // head
+  if(att===1) g.fillRect((X+dir*2)|0, y-2, 1, 1);             // …turned to one side
+}
+// ---- THE TRAFFIC DIES TOO. Nick: "make cars crash when they get sick", and he wanted ALL FOUR
+// kinds — off onto the kerb, into each other, into the street furniture, and simply stopped dead in
+// the lane. Each wreck is hashed to one of them and then STAYS: a wreck is permanent, it is not an
+// animation, so the road silently fills with them over the arc.
+function plagueWreck(i){
+  var h=((i*2654435761+31337)>>>0); h=(h^(h>>>13))>>>0;
+  var h2=((h*40503+1013904223)>>>0);
+  return { home:((h%100000)/100000)*WW, kind:(h2>>>3)%4, lane:((h2>>>7)%100)/100,
+           at:0.10+((h>>>7)%100)/100*0.62, dir:(h2&1)?1:-1, h:h, h2:h2 };
+}
+function drawApocPlagueWrecks(g,ap,L,now){
+  var day=(L>0.5), N=Math.round(4+ap*18);
+  for(var i=0;i<N;i++){
+    var w=plagueWreck(i);
+    if(ap<w.at) continue;
+    var X=disX(wrapW(w.home)); if(X<-24||X>SW+24) continue;
+    var ly=ROAD_Y+2+Math.round(w.lane*Math.max(1,(ROAD_BOT-ROAD_Y)-5));
+    var col=PEDC[(w.h>>>11)%PEDC.length];
+    var kerb=(w.kind===0), pole=(w.kind===2);
+    var wy = kerb ? (ROAD_Y-2) : ly;                            // mounted the pavement
+    var tilt= kerb?1:0;
+    function carAt(cx,cy,c,crush){
+      g.fillStyle=css(mixc(hex2rgb(c),[0,0,0],day?0.18:0.42));
+      g.fillRect(cx|0,cy|0,12-crush,3);                          // body, shortened where it hit
+      g.fillStyle=css(mixc(hex2rgb(c),[255,255,255],0.18));
+      g.fillRect((cx+3)|0,(cy-2)|0,6-crush,2);                   // roof
+      g.fillStyle="rgba(24,24,26,0.9)";
+      g.fillRect((cx+1)|0,(cy+3)|0,2,1); g.fillRect((cx+8-crush)|0,(cy+3)|0,2,1);   // wheels
+      g.fillStyle="rgba(30,28,26,0.55)";                         // crumple
+      g.fillRect((cx+10-crush)|0,cy|0,2,3);
     }
-    g.fillStyle="rgba(230,120,50,"+(0.75).toFixed(2)+")";
-    g.fillRect((X-2)|0,HORIZON-3,Math.round(4*K),3);
+    carAt(X,wy-tilt,col,kerb?2:0);
+    if(w.kind===1){ carAt(X+9,wy+1,PEDC[(w.h2>>>13)%PEDC.length],3); }   // …into the back of another
+    if(pole){ g.fillStyle="rgba(60,60,66,0.95)"; g.fillRect((X+13)|0,(wy-8)|0,1,11); }  // the pole it found
+    // smoke, and what is on the road under it
+    var sh=Math.round(4+((w.h>>>17)%7));
+    for(var q=0;q<sh;q++){
+      g.fillStyle="rgba("+(70-q*4)+","+(68-q*4)+","+(66-q*4)+","+(0.30*(1-q/sh)).toFixed(2)+")";
+      g.fillRect((X+5+Math.round(Math.sin(now/420+i+q*0.5)*q*0.3))|0,(wy-4-q)|0,2,1);
+    }
+    if(goreK()>0){
+      g.fillStyle="rgba("+(day?140:94)+",14,18,0.70)";
+      g.fillRect((X-2)|0,(wy+4)|0,7,1);
+    }
+  }
+}
+// ---- THE STREET POPULATION FOR THE PLAGUE. Its own people, so their positions are ours to freeze.
+// Each one walks normally until the front reaches WHERE THEY LIVE, then stops there and sickens: no
+// walker anchor is involved at any point, so a body stays exactly where it fell for the rest of the
+// life, on all three monitors.
+function plagueVictim(i){
+  var h=((i*2654435761+9973)>>>0); h=(h^(h>>>13))>>>0;
+  var h2=((h*40503+1013904223)>>>0);
+  return { home:((h%100000)/100000)*WW, dir:(h2&1)?1:-1, travel:12+((h2>>>3)%40),
+           zone:((h2>>>7)%3), q:((h2>>>11)%100)/100, res:((h2>>>17)%100)/100,
+           // Nick: they wander INTO the street, and more of them as it goes on. The count grows
+           // by itself because more people are infected each moment — this is just who staggers.
+           roadward:((h2>>>21)%100)<52,
+           hitAt:0.04+((h2>>>25)%100)/100*0.34,          // …and how long after that a vehicle finds them
+           h:h, h2:h2 };
+}
+// the ap at which the front arrives at a given world x — invertible because the front is linear in ap
+function plagueArrivalAp(wx){
+  var d=nukeDist(wx, apocEpiX(NOWOVR!=null?NOWOVR:Date.now()));
+  return PLAGUE_ONSET + (d/(WW*0.62))*(0.88-PLAGUE_ONSET);
+}
+// ⚠⚠ TWO PASSES, AND THE SPLIT IS THE WHOLE POINT. Nick: "make sure the people on the ground walk
+// over the blood on the ground… some of them are clipping through it." Drawing a victim's pool and
+// their body in one loop puts the blood ON TOP of everything the engine already drew — the living
+// crowd, the traffic — so pedestrians appeared to be UNDER the pools and figures cut through each
+// other. It is exactly the correction he had to make once before for the disaster blood.
+// 🔑 A POOL IS PART OF THE ROAD SURFACE. The ground pass runs with the asphalt, before a single car
+// or pedestrian; the figures run late, on top. Both walk the SAME victim list with the SAME position
+// maths (plagueVictimAt), so the pool and the body can never disagree about where somebody is.
+function plagueVictimAt(i,ap,now){
+  var v=plagueVictim(i);
+  var aInf=plagueArrivalAp(v.home)+v.res*0.06;
+  if(ap<aInf) return null;                                   // still well: the normal crowd draws them
+  var walked=Math.min(ap,aInf);
+  var X=disX(wrapW(v.home+v.dir*v.travel*walked));
+  if(X<-30||X>SW+34) return null;
+  var fy = v.zone===0 ? (HORIZON-1+Math.round(v.q*Math.max(0,WALK_F-2)))
+         : v.zone===1 ? (ROAD_Y+2+Math.round(v.q*Math.max(1,(ROAD_BOT-ROAD_Y)-3)))
+         :              (ROAD_BOT+3+Math.round(v.q*Math.max(0,WALK_N-3)));
+  if(v.roadward){
+    var drift=Math.min(1,(ap-aInf)/0.10);
+    var roadY=ROAD_Y+2+Math.round(v.q*Math.max(1,(ROAD_BOT-ROAD_Y)-4));
+    fy=Math.round(fy+(roadY-fy)*drift);
+  }
+  var hit=(v.roadward && ap>=aInf+v.hitAt), since=hit?(ap-(aInf+v.hitAt)):0;
+  return { v:v, X:X, fy:fy, pg:(ap-aInf)/0.30, hit:hit, since:since,
+           fling: hit ? v.dir*Math.round(6+18*Math.min(1,since/0.05)) : 0,
+           cloth:PEDC[(v.h>>>5)%PEDC.length], skin:SKINC[(v.h>>>9)%SKINC.length] };
+}
+// ---- PASS 1: everything liquid. Runs with the road surface.
+function drawApocPlagueGround(g,L,now){
+  if(cityPhase!=="apoc"||curDeath!=="plague") return;
+  if(goreK()<=0) return;
+  var ap=cityApoc, day=(L>0.5), N=Math.round(150+ap*260);
+  for(var i=0;i<N;i++){
+    var S=plagueVictimAt(i,ap,now); if(!S) continue;
+    var X=S.X, fy=S.fy;
+    if(S.hit){
+      var smx=Math.min(X,X+S.fling), smw=Math.abs(S.fling)+4;
+      g.fillStyle="rgba("+(day?150:100)+",14,18,0.78)"; g.fillRect(smx|0,fy,smw,1);
+      g.fillStyle="rgba("+(day?116:76)+",10,14,0.52)";  g.fillRect((smx-1)|0,fy+1,smw+2,1);
+      continue;
+    }
+    if(S.pg<0.42){
+      var spread=Math.round(4+8*Math.min(1,S.pg/0.42));
+      g.fillStyle="rgba("+(day?152:104)+",14,18,0.86)"; g.fillRect((X-(spread>>1))|0,fy,spread,1);
+      g.fillStyle="rgba("+(day?118:78)+",10,14,0.60)";  g.fillRect((X-(spread>>1)-1)|0,fy+1,spread+2,1);
+    } else if(S.pg<0.72){
+      g.fillStyle="rgba("+(day?150:102)+",14,18,0.88)"; g.fillRect((X-6)|0,fy,13,1);
+      g.fillStyle="rgba("+(day?116:76)+",10,14,0.62)";  g.fillRect((X-7)|0,fy+1,15,1);
+    } else {
+      g.fillStyle="rgba("+(day?146:98)+",14,18,0.82)";  g.fillRect((X-8)|0,fy,17,1);
+      g.fillStyle="rgba("+(day?112:74)+",10,14,0.56)";  g.fillRect((X-9)|0,fy+1,19,1);
+    }
+  }
+}
+// ---- PASS 2: the people. Runs late, over the traffic and the crowd.
+function drawApocPlagueStreet(g,ap,L,now){
+  var day=(L>0.5), N=Math.round(150+ap*260);
+  for(var i=0;i<N;i++){
+    var v0=plagueVictim(i);
+    var aInf=plagueArrivalAp(v0.home)+v0.res*0.06;
+    if(ap<aInf){                                             // still well — an ordinary person, walking
+      var wx0=disX(wrapW(v0.home+v0.dir*v0.travel*ap));
+      if(wx0<-8||wx0>SW+8) continue;
+      var fy0 = v0.zone===0 ? (HORIZON-1+Math.round(v0.q*Math.max(0,WALK_F-2)))
+              : v0.zone===1 ? (ROAD_Y+2+Math.round(v0.q*Math.max(1,(ROAD_BOT-ROAD_Y)-3)))
+              :               (ROAD_BOT+3+Math.round(v0.q*Math.max(0,WALK_N-3)));
+      drawPerson(g, wx0, fy0, PEDC[(v0.h>>>5)%PEDC.length], SKINC[(v0.h>>>9)%SKINC.length], ((now/520+i*0.4)|0)&3);
+      continue;
+    }
+    var S=plagueVictimAt(i,ap,now); if(!S) continue;
+    var X=S.X, fy=S.fy, sickSk=css(mixc(hex2rgb(S.skin),[126,146,74],0.72));
+    if(S.hit){
+      if(S.since<0.035){                                     // the burst, only at the moment of impact
+        for(var bq=0;bq<7;bq++){
+          var bh=((S.v.h2*31+bq*2654435761)>>>0);
+          g.fillStyle="rgba(206,28,26,"+(0.95-S.since/0.035*0.8).toFixed(2)+")";
+          g.fillRect((X+S.v.dir*((bh>>>5)%9))|0,(fy-((bh>>>11)%6))|0,2,1);
+        }
+      }
+      drawProne(g, X+S.fling, fy, S.cloth, S.skin, S.v.h, day);
+      continue;
+    }
+    if(S.pg<0.42){
+      var heave=(((now/430+i*1.7)|0)%2===0);
+      drawPerson(g, X, fy, css(mixc(hex2rgb(S.cloth),[0,0,0],day?0.12:0.38)), sickSk, heave?-1:((now/900+i*0.4)|0)&3);
+      if(heave){
+        var vd=(i&1)?1:-1;
+        g.fillStyle="rgba(196,26,26,0.98)";
+        g.fillRect((X+vd*2)|0,(fy-4)|0,2,2);
+        g.fillRect((X+vd*4)|0,(fy-2)|0,2,2);
+        g.fillStyle="rgba(150,14,16,0.92)";
+        g.fillRect((X+vd*3)|0,(fy-3)|0,2,1);
+      }
+    } else if(S.pg<0.72){
+      g.fillStyle=css(mixc(hex2rgb(S.cloth),[0,0,0],day?0.20:0.44));
+      g.fillRect((X-2)|0,fy-2,4,2);
+      g.fillStyle=sickSk; g.fillRect((X+2)|0,fy-3,1,1);
+    } else {
+      drawProne(g, X, fy, S.cloth, css(mixc(hex2rgb(S.skin),[110,126,66],0.55)), S.v.h, day);
+    }
+  }
+}
+APOC_X.plague=function(g,ap,L,now){
+  var K=Math.max(1,KSP), day=(L>0.5);
+  drawApocPlagueStreet(g,ap,L,now);   // the people, first — the pyres and the sheets go over them
+  drawApocPlagueWrecks(g,ap,L,now);   // …and the traffic that never made it home
+  // ---- A. THE MIASMA. Nick: "the sky doesn't need to be red" — a yellow-green haze LOW over the
+  // city instead, because the air is the disease. ⚠ Weighted to the bottom of the sky rather than
+  // washed flat across it: a uniform tint is what LIGHT looks like, and this has to look like
+  // something lying on the streets.
+  var mi=Math.min(1,ap*1.2);
+  // ⚠ IT HUGS THE HORIZON. Spread from 0.34 of the sky it behaved like a filter over the whole
+  // frame; confined to the bottom it reads as something LYING on the city, which is the idea.
+  for(var y=Math.round(HORIZON*0.56);y<HORIZON;y++){
+    var mt=(y-HORIZON*0.56)/Math.max(1,HORIZON*0.44);
+    // ⚠ 0.30 DYED THE WHOLE BACKDROP LURID GREEN — the same fault Nick caught on RISEN ("too
+    // green… everything should look dead not hazy"). A miasma is a thin veil you notice at the
+    // horizon, not a filter over the land. Halved, and pulled toward a dirty olive-grey.
+    g.fillStyle="rgba(146,150,96,"+(0.03+0.24*mt*mt*mi).toFixed(3)+")";
+    g.fillRect(0,y,SW,1);
+  }
+  // ⚠⚠ THE DRIFTING BANKS ARE GONE, AND THEY ARE NOT COMING BACK IN THIS FORM. They were 2px-wide
+  // VERTICAL rects laid across the whole width with a moving offset — so they read as "small lines
+  // crawling everywhere", which is exactly what Nick saw. This is the THIRD time in one session I
+  // have built an atmospheric effect out of per-column vertical strips and got hatching instead of
+  // haze: hard smoke bars, then vertical static, now this.
+  // 🔑 THE RULE, WRITTEN DOWN SO IT STOPS HAPPENING: an atmosphere is a HORIZONTAL wash whose EDGE
+  // varies. Never a column loop with a per-column height, and never with a drift added to it — that
+  // combination cannot produce anything but crawling lines.
+  // ---- B. THE PYRES. Bodies stacked and burning, because there is no one left to bury them.
+  var np=Math.round(1+ap*8);
+  for(var pI=0;pI<np;pI++){
+    var h=((pI*40503+911)>>>0), wx=wrapW(((h%1000)/1000)*WW), X=disX(wx);
+    if(X<-30||X>SW+30) continue;
+    var stackN=2+((h>>>5)%4);
+    for(var sN=0;sN<stackN;sN++){                              // the stack itself, under the flame
+      var sh=((h*31+sN*2654435761)>>>0);
+      g.fillStyle=css(mixc(hex2rgb(PEDC[(sh>>>5)%PEDC.length]),[26,18,14],0.62));
+      g.fillRect((X-3+((sh>>>11)%3)-1)|0, HORIZON-2-sN, 6, 1);
+    }
+    var hgt=Math.round((9+((h>>>9)%14))*K*(0.4+0.6*ap));
+    for(var q=0;q<hgt;q++){                                    // smoke column
+      var wob=Math.round(Math.sin((now/300)+q*0.4+pI)*q*0.10);
+      var sm=(q*46/Math.max(1,hgt))|0;
+      g.fillStyle="rgba("+(62-sm)+","+(60-sm)+","+(56-sm)+","+(0.42*(1-q/hgt)).toFixed(2)+")";
+      g.fillRect((X+wob-2)|0,HORIZON-3-sN-q,Math.max(2,Math.round(4*K*(1-q/hgt*0.5))),1);
+    }
+    var fl=((now/160+pI)|0)&1;                                  // the fire
+    g.fillStyle=fl?"rgba(240,150,50,0.92)":"rgba(214,110,36,0.92)";
+    g.fillRect((X-2)|0,HORIZON-3-stackN,Math.round(4*K),3);
+    g.globalCompositeOperation="lighter";
+    g.fillStyle="rgba(255,160,60,"+(0.16+0.06*fl).toFixed(2)+")";
+    fillEllipse(g,X,HORIZON-4-stackN,Math.round(9*K),Math.round(7*K));
+    g.globalCompositeOperation="source-over";
+  }
+  // ---- C. THE SHEETED ROWS. Laid out on the pavement, in a line, covered. This is the one that
+  // says somebody was still ORGANISED when these died — which is why it stops as the arc goes on.
+  var rows=Math.round(2+ap*5);
+  for(var rI=0;rI<rows;rI++){
+    var rh=((rI*2654435761+4801)>>>0), rwx=wrapW(((rh%1000)/1000)*WW), rX=disX(rwx);
+    if(rX<-40||rX>SW+40) continue;
+    var cnt=3+((rh>>>7)%6), ry=(((rh>>>11)%2)?HORIZON-1:ROAD_BOT+4);
+    for(var cI=0;cI<cnt;cI++){
+      var cx=rX+cI*5;
+      if(cx<-6||cx>SW+6) continue;
+      g.fillStyle=day?"rgba(214,212,202,0.92)":"rgba(150,150,144,0.92)";
+      g.fillRect(cx|0,ry-1,4,2);                                 // the sheet
+      g.fillStyle=day?"rgba(178,176,168,0.9)":"rgba(120,120,116,0.9)";
+      g.fillRect(cx|0,ry-1,4,1);
+    }
+  }
+  // ---- D. THE COLLECTORS, and the medics. Nick: medics "who also fall", same arc as the holdouts.
+  // They work the street early, they get sick, and then there is nobody doing this any more.
+  var crewN=6;
+  for(var wI=0;wI<crewN;wI++){
+    var wh=((wI*40503+2207)>>>0); wh=(wh^(wh>>>13))>>>0;
+    var wwx=wrapW(((wh%100000)/100000)*WW + Math.sin(now/5200+wI)*22), wX=disX(wwx);
+    if(wX<-12||wX>SW+12) continue;
+    var wfy=(((wh>>>9)%2)?HORIZON-1:ROAD_BOT+4);
+    // each one falls at their own moment — a response does not end all at once
+    var fallAt=0.30+((wh>>>15)%100)/100*0.46;
+    if(ap>=fallAt){
+      g.fillStyle="rgba(150,150,142,0.9)"; g.fillRect((wX-2)|0,wfy-1,4,2);   // …and they end up under a sheet too
+      continue;
+    }
+    var mbob=((now/540 + wI*0.6)|0)&3;
+    drawPerson(g, wX, wfy, day?"#c9ccd2":"#8f939a", "#d8cbb8", mbob);        // pale protective clothing
+    g.fillStyle=day?"#f2f0ea":"#c8c6c0";
+    g.fillRect(wX|0,(wfy-mbob-5)|0,2,1);                                     // the mask
+    // the body they are moving
+    if((wh>>>21)%2){
+      g.fillStyle="rgba(160,158,150,0.9)";
+      g.fillRect((wX+3)|0,wfy-1,5,2);
+    }
   }
 };
 
@@ -51589,7 +51867,10 @@ var APOC_MARK={
   // ---- THE THIRD TIER. The existing twenty-five are overwhelmingly COSMIC — a wrong sky, a cold
   // ground, a thing in the distance — and almost nobody dies where you can see it. These twelve are
   // the other register: they kill people in the street, at arm's length, and the mark says so.
-  risen:{m:"torn",spray:1.00}, plague:{m:"bleed",spray:0.80}, swarm:{m:"torn",spray:0.95},
+  // ⚠ plague is 0.30, NOT 0.80: arterial THROW is a WOUND, and this one kills by sickness.
+  // Enough for a haemorrhagic end, not a bloodbath. (And a trailing // comment inside a
+  // single-line object literal eats the entries after it — which is how this line got broken.)
+  risen:{m:"torn",spray:1.00}, plague:{m:"bleed",spray:0.30}, swarm:{m:"torn",spray:0.95},
   bloodmoon:{m:"torn",spray:1.00}, acidrain:{m:"dissolve",spray:0.55}, thepit:{m:"crush",spray:0.80},
   glassrain:{m:"torn",spray:0.90}, thescream:{m:"bleed",spray:0.85}, crimsontide:{m:"drown",spray:0.45},
   warmachine:{m:"beam",spray:0.75}, thefamine:{m:"wither",spray:0.12}, thehollow:{m:"dissolve",spray:0.35}
@@ -54917,6 +55198,7 @@ function draw(g,pass){
   // whole blood layer was invisible for twenty-five endings. Same position in the frame, same reason:
   // the pools are part of the road surface and the survivors run over them.
   drawApocBloodField(g,L,now);      // the wide stain first…
+  drawApocPlagueGround(g,L,now);    // …and the plague's pools, so the living walk OVER them
   drawApocFallenGround(g,L,now);   // …then the individual pools on top of it
   if(curDis){
     drawCasualtyGround(g,curDis,L,now);
@@ -55322,6 +55604,17 @@ function draw(g,pass){
           drawPerson(g, psx, pdy0, "#5a564e", pd.sk, pbb);              // drab, dust-caked clothes
           g.fillStyle="#e8e4da"; g.fillRect(psx|0,(pdy0-pbb-3)|0,2,1); }  // breathing mask
         continue; }
+      else if(curDeath==="plague"){
+        // 🚨🚨 THE ENGINE'S PEDESTRIANS CANNOT BE USED AS PLAGUE VICTIMS, and two failed passes are
+        // why. A walker has NO stable world anchor: `pd.x` does not exist (a live probe on the running
+        // wallpaper printed `pdx=NULL` — the `||pwx` fallback hid it), and `pd.x0` is only the start of
+        // a track that advances every block. So anything drawn at a walker's position KEEPS MOVING —
+        // which is exactly what Nick saw twice: bodies sliding off and "everyone is disappearing".
+        // 🔑 So the living just LEAVE as the front reaches them, and the sick, the vomiting and the
+        // dead are drawn from a population of this ending's OWN, in drawApocPlagueStreet, where the
+        // positions are mine and can be frozen. Same shape as the RISEN horde, for the same reason.
+        if(plagueInf(pwx,i+7717)>=0) continue;
+      }
       else if(cityApoc>0.08){
         // 🚨🚨 THIS ARM NEVER KILLED ANYBODY. Every hand-written death above ends a victim with
         // `continue` — that is what "gone" means here — and the generic arm only ever set
