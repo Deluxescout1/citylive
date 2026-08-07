@@ -49794,6 +49794,13 @@ function polDark(b){
 // apocPositional() = this death destroys the city by POSITION (a front / impacts), so cars/peds/etc.
 // die exactly as it reaches them, rather than fading out globally over the phase.
 function apocPositional(){ return curDeath==="massacre" || curDeath==="banwave" || curDeath==="wilderness" || curDeath==="nuke" || curDeath==="meteors" || curDeath==="ai" || curDeath==="bh" || curDeath==="kaiju" || curDeath==="kaijuwar" || curDeath==="ninetails"; }
+// ⚠ DECLARED ABOVE `apocStruck`, NOT BESIDE THE RENDERERS IT DESCRIBES, and for the reason this file
+// already records once: `var` hoists the NAME but not the VALUE, so a table defined below its reader
+// is `undefined` to anything that runs at load time — which is exactly how the `CFG_FINALE` validator
+// came to read `undefined.indexOf` and crash only for users who pinned a finale in config.
+var APOC_STRIKE_AP={moonfall:0.86,gammaray:0.10,rogueplanet:0.30,crustcrack:0.20,oceansboil:0.45,
+  greygoo:0.25,lastwinter:0.40,skyfall:0.25,timestop:0.18,thecomet:0.55,thechange:0.35,theburst:0.55,
+  thetitans:0.40,ragnarok:0.35};
 function apocStruck(){ if(cityPhase!=="apoc") return false;
   if(curDeath==="nuke")    return apocMs>=NUKE_FALL_MS;                                  // the warhead has DETONATED
   if(curDeath==="meteors") return apocMs>=METEOR_SWARM_MS;                              // the small-meteor swarm has begun
@@ -49812,6 +49819,19 @@ function apocStruck(){ if(cityPhase!=="apoc") return false;
   if(curDeath==="flood")   return apocMs>=FLOOD_ONSET_MS;                              // the waters have started rising
   if(curDeath==="kaijuwar") return apocMs>=KW_ARRIVE_MS;                               // the titans have engaged
   if(curDeath==="pollution") return cityApoc>0.02;                                     // the inversion has settled in
+  // 🚨🚨 FOURTEEN OF THE THIRTY-ONE ENDINGS NEVER STRUCK. Everything above is a hand-written case, and
+  // moonfall plus all thirteen of the `APOC_X` endings were simply never given one — so `apocStruck()`
+  // returned false for the ENTIRE apocalypse on nearly half the set. Two visible consequences, both of
+  // which read as "that ending is a bit flat" rather than as a bug:
+  //   · `apocApproachF()` bails once it has struck, so on these fourteen the APPROACH signature — the
+  //     omen, the thing you are supposed to see coming — never handed over and ran the whole way down.
+  //   · `apocFinal` (city.js, the final-words window) stayed TRUE for the whole end of the world, so
+  //     the survivors were still gathering for last words long after there was anything to gather for.
+  // 🔑 A TABLE, NOT FOURTEEN MORE LINES — and the numbers are each renderer's OWN threshold where it
+  // had one (gammaray's burnt sky at 0.10, rogueplanet 0.30, oceansboil 0.45, theburst 0.55, ragnarok
+  // 0.35, moonfall's impactK at 0.86); the rest scale continuously and get the point where the ending
+  // stops being a wrong sky and starts being something happening to the city.
+  if(APOC_STRIKE_AP[curDeath]!=null) return cityApoc>=APOC_STRIKE_AP[curDeath];
   return false; }
 function apocHit(x){ if(cityPhase!=="apoc") return false;
   if(curDeath==="nuke")    return nukeFrontR() >= nukeDist(x,nukeGZX(NOWOVR!=null?NOWOVR:Date.now()));   // the heat-wave front reached world-x
@@ -50876,8 +50896,16 @@ function apocMark(){ return APOC_MARK[curDeath] || {m:"crush",spray:0.60}; }
 // different order of magnitude or the spectacle is a lie. Scaled off WORLD width, not screen width —
 // 🚨 `SW` IS A CLIP BOUND AND IS NEVER A DISTANCE (this phase's most expensive lesson, four events
 // deep). Off a 2269 px world that is ~230 dead, ~80 of them on any one monitor.
+// 🚨 NOT EVERY ENDING LEAVES A BODY, and the engine already says so one screen down: "the server
+// shutting down harms nothing; a ban wave is paperwork". The first pass gave `logout` and `banwave`
+// corpses in the street because they were in the mark table like everything else — blood for two
+// endings whose documented point is that nobody dies. `timestop` joins them: those people are not
+// dead, they are STOPPED, and a body lying in the road says the opposite.
+// 🔑 "More bloody" is a brief about the ends that kill, not a licence to contradict the ones that don't.
+var APOC_BODILESS={logout:1,banwave:1,timestop:1};
 function apocVictimCount(){
   var GK=goreK(); if(GK<=0) return 0;
+  if(APOC_BODILESS[curDeath]) return 0;
   return Math.round(WW*0.102*(0.45+0.55*GK));
 }
 // ⚠ BUILT ONCE PER LIFE, NOT PER FRAME. The laptop work left ~18 ms of JS in a live frame against a
@@ -50943,7 +50971,12 @@ function drawApocFallenGround(g,L,now){
     // at every zoom — this project's most common failure (correct code, too small to see). It needs a
     // readable HUMAN silhouette, and it stretches AWAY from the epicentre, because that is what cast it.
     if(M.m==="shadow"){
-      var ex=disX(apocEpiX(now)), away=(X>=ex)?1:-1;
+      // 🚨 WORLD X, NEVER SCREEN X — the fifth instance in this phase, and the one place here it could
+      // bite. `disX()` wraps into SCREEN space, and his third monitor is 640 wide, not 776: comparing
+      // two wrapped screen values would let the same body throw its shadow LEFT on one monitor and
+      // RIGHT on another. The signed wrap-aware world delta is monitor-independent by construction.
+      var dw=v.x-apocEpiX(now); if(dw>WW*0.5) dw-=WW; if(dw<-WW*0.5) dw+=WW;
+      var away=(dw>=0)?1:-1;
       var len=4+((v.seed>>>6)%4);
       g.fillStyle="rgba(14,11,10,"+(0.78*GK).toFixed(3)+")";
       g.fillRect((X-1)|0, Y-2, 2, 2);                            // head + shoulders, still upright in the flash
@@ -50987,7 +51020,11 @@ function drawApocFallen(g,L,now){
     var cloth=PEDC[((n*7+v.seed)>>>0)%PEDC.length], skin=SKINC[(n*5)%SKINC.length];
     var dir=(v.kind&1)?1:-1;
     // per-mark palette: how the dead READ. A frozen street and a burnt one must not share a colour.
-    var cm=hex2rgb(cloth), sm=hex2rgb(skin), dk=day?0.25:0.55, sk=day?0.20:0.55;
+    // ⚠ THE NIGHT FIGURES ARE LOWER THAN THE CROWD'S (0.55 → 0.40). The living get darkened hard at
+    // night because they are background; the dead are the SUBJECT here, and at 0.55 on top of a blood
+    // mix that is already dark they came back as a smear on a dark street. Value contrast is the rule
+    // this project keeps relearning — a night render is not a dimmer day render.
+    var cm=hex2rgb(cloth), sm=hex2rgb(skin), dk=day?0.25:0.40, sk=day?0.20:0.42;
     // ⚠ BLOOD FIRST, MARK SECOND, AND THE ORDER IS THE WHOLE POINT. Bloodying them last washed every
     // ending into the same red-brown: a frozen street, a boiled one and a dissolved one came back
     // INDISTINGUISHABLE on the contact sheet, which defeats having a mark vocabulary at all. Without
