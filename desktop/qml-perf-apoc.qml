@@ -13,7 +13,17 @@ import "_ctl_city.js" as Ctl
 // regression that shows up in live is the one that would actually be felt. The laptop sits at ~6.3%
 // of total CPU against a 5% bar, so this is not a free budget.
 //
-// ⚠ `_ctl_city.js` IS NOT COMMITTED (gitignored) — regenerate before running:
+// 🚨🔑 THREE ROUNDS x 16 FRAMES IS BELOW THIS BENCH'S OWN NOISE FLOOR. Two back-to-back runs of the
+// identical pair reported kaiju at -0.89 ms and then +0.54 ms — a sign flip on code that had not
+// changed between them. At 8 x 24 the endings that genuinely did not change (nuke, massacre) settle
+// to within +/-0.3 ms, and that is the floor: a delta under ~0.3 ms here is NOT a result. This is the
+// same lesson as the plasmashell reading that came back 0.67% / 19.3% / 88.9% for one config —
+// interleaving controls for DRIFT, it does not control for SAMPLE SIZE, and only the second one was
+// ever fixed here. Do not lower these two numbers to make the harness quicker.
+//
+// ⚠ `_ctl_city.js` IS NOT COMMITTED (gitignored) — regenerate before running. For "what did the whole
+// blood layer cost", that is e208963; for "what did THIS change cost", it is the commit you started
+// from — and only a control that HAS the ending can time it:
 //   git show e208963:org.citylive.wallpaper/contents/js/city.js > desktop/_ctl_city.js
 // Run: QT_ASSUME_STDERR_HAS_CONSOLE=1 QT_QPA_PLATFORM=offscreen qml6 desktop/qml-perf-apoc.qml
 //
@@ -32,7 +42,7 @@ Item {
             var CYC = 604800000, EPOCH = 1783972450746;
             // marks with very different costs: crush (piles+spray), torn (limbs), shadow (no bodies),
             // drown, and an OSRS one that leaves the city standing.
-            var deaths = ["kaiju","frost","nuke","flood","massacre"];
+            var deaths = ["thepit","kaiju","nuke","massacre"];
             var acc = {};
             function key(e,d){ return e+"|"+d; }
 
@@ -52,7 +62,7 @@ Item {
                 C.draw(g, "bg"); C.draw(g, "live");        // build caches — not what we are timing
                 // ⚠ TIME THE LIVE PASS ON ITS OWN CLOCK. A timer that spans two things measures
                 // neither — that mistake invented a +2..+4ms regression here once already.
-                var tl = Date.now(), NL = 16;
+                var tl = Date.now(), NL = 24;
                 for (var kl = 0; kl < NL; kl++) {
                     C.NOWOVR = C.CLOCK = d.getTime() + kl*140;
                     C.draw(g, "live");
@@ -62,7 +72,7 @@ Item {
                 acc[lk].ms += Date.now() - tl; acc[lk].n += NL;
             }
 
-            for (var r = 0; r < 3; r++)
+            for (var r = 0; r < 8; r++)
                 for (var j = 0; j < deaths.length; j++)
                     for (var h = 0; h < 2; h++) {
                         var hour = h ? 23 : 13;
@@ -70,7 +80,7 @@ Item {
                         one(Ctl, "ctl", deaths[j], hour);
                     }
 
-            var out = "APOCPERF  ms per LIVE frame during the apocalypse   (ctl = e208963, before the blood layer)";
+            var out = "APOCPERF  ms per LIVE frame during the apocalypse   (ctl = HEAD c7e70e7, before the pit rebuild + tramway guard)";
             for (var m = 0; m < deaths.length; m++) {
                 var D = deaths[m];
                 var a = acc[key("new", D)], b = acc[key("ctl", D)];

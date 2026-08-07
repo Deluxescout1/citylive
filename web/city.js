@@ -15910,14 +15910,42 @@ function railFrac(){
 }
 function onRailed(wx){ var rf=railFrac(); return rf>0.001 && wrapW(wx)<WW*rf; }
 function tramLaneY(t){ return ROAD_Y+TRAM_BASE[t?1:0]; }  // the reservation's two tracks, not traffic lanes
+// 🚨🚨 THE PERMANENT WAY OUTLIVED ALL 43 APOCALYPSES. `drawTramway` gated on `railFrac()` and on
+// nothing else, so every ending levelled the city around a set of polished rails, sleepers, kerbs,
+// poles and contact wire that were never once touched. THE TRAM ITSELF WAS ALREADY GUARDED —
+// `if(tram && !nukeHit(tram.x) …) drawTram(…)` — and so is the viaduct, per call, in six places. The
+// track all of it runs on was the one piece nobody thought to ask, and it took THE PIT to show it:
+// a bottomless chasm with the catenary sailing straight over the middle of it.
+// 🔑 GUARD THE BLOCK, NOT EACH CALL. The routine already clips to the spans the track gang has
+// reached, so the demolition folds into that SAME clip and all ~20 rects inside obey at once. The
+// per-call habit is exactly how the crosswalks came to carry `if(nukeHit(xw.x)) continue` while the
+// lane dividers painted eight lines above them carry nothing.
+// 🔑 Run-batched: a scan at a 3px step emitting RUNS, not a test per rect.
+function railSpans(){
+  var rf=railFrac(); if(rf<=0.001) return null;
+  var out=[], live=(cityPhase!=="apoc"), step=3;
+  for(var w=-1;w<=1;w++){
+    var a=Math.max(0,-WOFF+w*WW), b=Math.min(SW,(rf>=1?WW:WW*rf)-WOFF+w*WW);
+    if(b<=a) continue;
+    if(live){ out.push(a|0,(b-a)|0); continue; }
+    var run=-1;
+    for(var sx=a; sx<=b; sx+=step){
+      var up = sx<b && !apocHit(wrapW(sx+WOFF));
+      if(up){ if(run<0) run=sx; }
+      else if(run>=0){ var e=Math.min(b,sx); if(e>run) out.push(run|0,(e-run)|0); run=-1; }
+    }
+    if(run>=0 && b>run) out.push(run|0,(b-run)|0);
+  }
+  return out;
+}
 // The permanent way: sleepers, two rails, and the catenary its poles carry. World-anchored, so the
 // sleeper pitch and the pole spacing line up across all three bezels.
 function drawTramway(g,L,now){
   var rf=railFrac(); if(rf<=0.001) return;
+  var SP=railSpans(); if(!SP||!SP.length) return;            // built nowhere, or demolished everywhere
   var day=L>0.5, K=Math.max(1,KSP);
-  g.save(); g.beginPath();                                   // …only where the gang has actually reached
-  if(rf>=1) g.rect(0,ROAD_Y,SW,ROAD_H);
-  else for(var w=-1;w<=1;w++){ var a=Math.max(0,-WOFF+w*WW), b=Math.min(SW,WW*rf-WOFF+w*WW); if(b>a) g.rect(a|0,ROAD_Y,(b-a)|0,ROAD_H); }
+  g.save(); g.beginPath();                                   // …only where the gang reached AND the end times have not
+  for(var si=0;si<SP.length;si+=2) g.rect(SP[si],ROAD_Y,SP[si+1],ROAD_H);
   g.clip();
   // ⚠ THE FIRST VERSION READ AS MORE LANE DASHES. I broke the rail's polished crown into segments
   // out of respect for the bayou's rule (*a loop over x with no break in it is a rule*) — and in a
@@ -15964,9 +15992,8 @@ function drawTramway(g,L,now){
   // stub of wire drawTram used to carry around with it, which moved with the vehicle and so could
   // never read as infrastructure.
   var poleGap=Math.max(18,Math.round(26*K));
-  g.save(); g.beginPath();
-  if(rf>=1) g.rect(0,HORIZON-Math.round(16*K),SW,GROUND+4);
-  else for(var w2=-1;w2<=1;w2++){ var a2=Math.max(0,-WOFF+w2*WW), b2=Math.min(SW,WW*rf-WOFF+w2*WW); if(b2>a2) g.rect(a2|0,HORIZON-Math.round(16*K),(b2-a2)|0,GROUND+4); }
+  g.save(); g.beginPath();                                   // the overhead obeys the same spans as the track below it
+  for(var s2i=0;s2i<SP.length;s2i+=2) g.rect(SP[s2i],HORIZON-Math.round(16*K),SP[s2i+1],GROUND+4);
   g.clip();
   var wireY=tramLaneY(0)-Math.round(4.5*K), wireY2=tramLaneY(1)-Math.round(4.5*K);
   g.fillStyle=day?"rgba(74,80,94,0.55)":"rgba(120,130,150,0.35)";
@@ -15983,6 +16010,7 @@ function drawTramway(g,L,now){
 // rail section swinging in, a works train behind, and the pole crew following it up.
 function drawTrackGang(g,L,now){
   var rf=railFrac(); if(rf<=0.001||rf>=1) return;
+  if(cityPhase==="apoc" && apocHit(wrapW(WW*rf))) return;    // the works train and its crew are not exempt either
   var day=L>0.5, K=Math.max(1,KSP), fx2=disX(WW*rf);
   if(fx2<-30*K||fx2>SW+20*K) return;
   var ey=tramLaneY(0), y=ey+Math.round(K*0.6);
@@ -51796,6 +51824,50 @@ function drawApocAcidGround(g,L,now){
       g.fillStyle="rgba(150,176,58,0.55)";                      // the rim still fizzing
       g.fillRect(x,hy-1,1,1);
     }
+    // ---- 🚨 AND THE PAVEMENTS, WHICH THE ACID USED TO WALK STRAIGHT PAST. Nick: "make sure it also
+    // hits and breaks the sidewalk too." Every rect above is pinned between ROAD_Y and ROAD_BOT, so
+    // the carriageway rotted through while the kerb-to-kerb concrete either side of it stayed showroom
+    // clean — and the giveaway was already in this same function: the DEAD use all three zones
+    // (`gv.zone` 0/1/2 covers far pavement, road and near promenade), so people were dissolving into
+    // pools on a pavement the same acid had not marked.
+    // 🔑 A SURFACE IS NOT A LANE. The band was doing double duty as "where the acid is" and "where the
+    // asphalt is"; those are different questions and only the second one has a ROAD_Y in it.
+    // 🎨 CONCRETE DOES NOT ROT LIKE ASPHALT. It goes at the SLAB JOINTS first — which drawSidewalk
+    // already lays down on an 8px world pitch — then spalls pale flakes off the slab faces, then
+    // punches through to a dark sub-base. Sharing the road's look would have made three surfaces read
+    // as one puddle.
+    var hs=((hh*2654435761)>>>0); hs=(hs^(hs>>>11))>>>0;
+    for(var bi=0;bi<2;bi++){
+      var by = bi ? ROAD_BOT : HORIZON, bh = bi ? WALK_N : WALK_F;
+      if(bh<2) continue;
+      var jointed = ((((wx)%8)+8)%8)===0;                       // the slab joints, world-keyed like the pavement's own
+      var bs = bi ? (hs>>>3) : hs;
+      // 1. THE JOINTS GO FIRST — acid runs into them and widens them before it touches a slab face.
+      if(jointed && eat>0.06){
+        g.fillStyle="rgba(150,176,58,"+(0.30+0.45*eat).toFixed(3)+")";
+        g.fillRect(x,by+1,1,Math.max(1,Math.round(bh*Math.min(1,eat*1.5))-1));
+      }
+      // 2. SPALLING — the slab face lifts in pale flakes before it fails.
+      if(eat>0.14 && ((bs>>>5)%100) < 26+44*eat){
+        g.fillStyle="rgba(206,206,190,"+(0.26+0.30*eat).toFixed(3)+")";
+        g.fillRect(x,by+1+((bs>>>9)%Math.max(1,bh-2)),1,1);
+      }
+      // 3. STANDING ACID in the low spots, shallower than on the road's camber
+      if(eat>0.10 && ((bs>>>13)%100) < 24+46*eat){
+        g.fillStyle="rgba(168,196,64,"+(0.30+0.44*eat).toFixed(3)+")";
+        g.fillRect(x,by+1+((bs>>>17)%Math.max(1,bh-2)),1,1+Math.round(eat*2));
+      }
+      // 4. THROUGH TO THE SUB-BASE. Later than the road (0.40 vs 0.28) — a pavement slab is thicker
+      //    than a wearing course, and staggering the two keeps the street from failing all at once.
+      if(eat>0.40 && ((bs>>>21)%100) < (eat-0.40)/0.60*52){
+        var bd=1+Math.round((eat-0.40)/0.60*Math.max(1,bh-2));
+        var byy=by+1+((bs>>>25)%Math.max(1,bh-2));
+        g.fillStyle="rgba(12,12,11,0.92)";
+        g.fillRect(x,byy,1,Math.min(bd,by+bh-byy));
+        g.fillStyle="rgba(150,176,58,0.5)";                     // still fizzing at the rim
+        g.fillRect(x,byy-1,1,1);
+      }
+    }
   }
 }
 APOC_X.acidrain=function(g,ap,L,now){
@@ -51914,25 +51986,140 @@ APOC_X.acidrain=function(g,ap,L,now){
 };
 
 // THE PIT. One big object: a single colossal chasm. Value contrast is the whole trick — pure black.
+// 🚨🚨 IT WAS A HOLE PUNCHED IN THE PICTURE, NOT A CHASM — and it was TWO DIFFERENT WIDTHS.
+// The first pass derived its own `halfW = WW*0.30*min(1,ap*1.25)` while the demolition ran on
+// `apocSweepR()` (WW*0.62 at ap=0.92). Nothing forced them to agree and they never did: early on a
+// 440wp hole yawned under an INTACT skyline with traffic flowing and a crowd standing on the rim,
+// and late on the front levelled twice as far as the hole you could see. **TWO INDEPENDENTLY-DERIVED
+// SIZES FOR ONE OBJECT IS HOW A CHASM COMES TO SWALLOW NOTHING.**
+// 🔑 The cure is not to copy the number across — it is to stop having a second one. `apocHit` is
+// true exactly where `nukeDist(wx,epi) < apocSweepR()`, so the chasm is drawn FROM THAT SAME
+// DISTANCE. The hole and the demolition are now the same set by construction, wrap included, and
+// there is no longer a place where one can drift from the other.
+// 🎨 AND IT NEEDED TO BE A VOLUME. `d=(1-t²)*GROUND*1.5` put the floor BELOW THE SCREEN across most
+// of the width, so there was no floor, no far wall and no third dimension — the "parabola" you
+// actually saw was its near-linear flanks, i.e. a black trapezoid. Depth is capped to keep the floor
+// ON SCREEN, and what makes it read as a hole in the ground is the lit FAR WALL against the near
+// lip's silhouette, carrying horizontal STRATA — the scale reference this ending had none of.
+// ⚡ Run-batched by quantised depth: the profile is smooth, so adjacent columns share a rect and
+// ~700 per-column fills collapse to a few dozen. (The old version also re-hashed inside the loop.)
 APOC_X.thepit=function(g,ap,L,now){
-  var K=Math.max(1,KSP);
+  var K=Math.max(1,KSP), day=L>0.5;
   skyWash(g,"48,36,32",0.26*ap); groundGlow(g,"30,20,18",0.30*ap);
-  var cWx=(typeof apocEpiX==="function")?apocEpiX(now):Math.round(WW*0.5);
-  var halfW=Math.round(WW*0.30*Math.min(1,ap*1.25));
-  for(var off=-WW;off<=WW;off+=WW){
-    var cx=(cWx-WOFF+off)|0;
-    var x0=cx-halfW, x1=cx+halfW;
-    if(x1<-8||x0>SW+8) continue;
-    for(var x=Math.max(0,x0); x<Math.min(SW,x1); x++){
-      var t=Math.abs(x-cx)/Math.max(1,halfW);
-      var d=Math.round((1-t*t)*GROUND*1.5);                     // deepest at the middle
-      if(d<=0) continue;
-      g.fillStyle="rgb(6,5,6)";
-      g.fillRect(x,HORIZON-1,1,d);
-      var hh=(((x+WOFF)*2654435761)>>>0);
-      if((hh%7)===0){ g.fillStyle="rgba(180,64,20,"+(0.30+0.4*(1-t)).toFixed(2)+")"; g.fillRect(x,HORIZON-2+d,1,1); }  // heat far down
+  var R=(typeof apocSweepR==="function")?apocSweepR():0; if(R<=0) return;   // before the front, there is no pit
+  var epi=(typeof apocEpiX==="function")?apocEpiX(now):Math.round(WW*0.5);
+  var TOP0=HORIZON-1;
+  var DMAX=Math.max(6,Math.min(Math.round(GROUND*0.88), SH-TOP0-Math.round(3*K)));  // depth scale, from the UNJITTERED rim
+  // ⚡ THE DEPTH QUANTUM IS THE RUN COUNT, AND THE RUN COUNT IS THE COST. At K the profile stepped
+  // every pixel of depth — ~70 runs x ~20 rects. The rim jitter is already +/-3K, so a quantum of
+  // 2.5K is well under the noise the eye is being given anyway and halves the runs for free.
+  var QD=Math.max(2,Math.round(K*2.5));
+  // 🎨 EXTREME VALUE CONTRAST. The first wall was rgb(104,80,66) — the same VALUE as the plains dirt
+  // it was cut into, so it read as a brown mesa sitting on the land instead of as rock in a hole.
+  var lit=day?[68,52,43]:[30,24,21], base=day?[16,11,10]:[8,6,6];
+  // ---- ONE PASS over the columns, flushing a run whenever the quantised profile changes.
+  var runX=-1, runD=-1, x, wx, dist, prof, dq;
+  for(x=0;x<=SW;x++){
+    dq=-1;
+    if(x<SW){
+      wx=wrapW(x+WOFF); dist=nukeDist(wx,epi);
+      if(dist<R){ prof=1-(dist/R)*(dist/R); dq=Math.max(QD,Math.round(DMAX*prof/QD)*QD); }
     }
-    g.fillStyle="rgba(30,22,20,0.9)"; g.fillRect(Math.max(0,x0),HORIZON-2,Math.min(SW,x1)-Math.max(0,x0),2);
+    if(dq===runD){ continue; }
+    if(runD>0){
+      var w=x-runX, hh=((runX+WOFF)*2654435761)>>>0;
+      // 🪨 THE RIM UNDULATES. Dead flat, the chasm read as a black rectangle with a textured top
+      // edge however much detail went inside it. ⚠ IT ONLY EVER RISES — dropping the rim would open a
+      // strip of intact road ABOVE the void, which is the floating-pit bug wearing a different hat.
+      var TOP=TOP0-((hh>>>7)%Math.max(2,Math.round(K*3)));
+      // 🚨 THE VOID RUNS TO THE BOTTOM OF THE FRAME. The first rebuild stopped it at TOP+depth and
+      // left the intact road showing UNDERNEATH the chasm, so the hole floated in front of the
+      // street it had supposedly swallowed. Down-screen is TOWARD the viewer in this projection:
+      // there is no near bank left to stand on, and the near lip is below the camera.
+      g.fillStyle="rgb(6,5,6)";
+      g.fillRect(runX,TOP,w,SH-TOP);
+      // THE FAR WALL — the only lit surface, and the reason the black reads as depth rather than as
+      // a shape cut out of the frame. Its LOWER EDGE dips with the profile, so the boundary between
+      // lit rock and void is one long arc: the "one big object" is that arc, not the black.
+      var wallH=Math.max(2,Math.round(runD*0.34));
+      g.fillStyle="rgb("+lit[0]+","+lit[1]+","+lit[2]+")";
+      g.fillRect(runX,TOP,w,Math.max(1,Math.round(wallH*0.30)));
+      g.fillStyle="rgb("+Math.round((lit[0]+base[0])/2)+","+Math.round((lit[1]+base[1])/2)+","+Math.round((lit[2]+base[2])/2)+")";
+      g.fillRect(runX,TOP+Math.round(wallH*0.30),w,Math.max(1,Math.round(wallH*0.34)));
+      g.fillStyle="rgb("+base[0]+","+base[1]+","+base[2]+")";
+      g.fillRect(runX,TOP+Math.round(wallH*0.64),w,Math.max(1,wallH-Math.round(wallH*0.64)));
+      // STRATA — courses down the wall, pitch COMPRESSING with depth so the wall recedes. This is the
+      // scale reference the ending had none of: a dozen readable courses say the hole is enormous,
+      // which a uniform black field cannot however big you make it.
+      // 🪵 AND THEY BREAK THREE WAYS — dropped segments, a jittered pitch and a varying alpha. A full
+      // -width horizontal at a fixed pitch is an arithmetic progression, and it read as a striped ramp.
+      var sy=TOP+Math.max(2,Math.round(K)), sp=Math.max(2,Math.round(K*2.2)), sn=0;
+      while(sy<TOP+wallH && sn<10){
+        var sh2=((hh+sn*2246822519)>>>0);
+        if((sh2%9)!==0){                                                    // 1: courses drop out
+          g.fillStyle=(sn&1)?"rgba(0,0,0,"+(0.22+(sh2%5)*0.05).toFixed(2)+")"   // 3: alpha varies
+                            :"rgba(210,186,168,"+((day?0.10:0.05)+(sh2%4)*0.02).toFixed(2)+")";
+          g.fillRect(runX,sy|0,w,1);
+        }
+        sn++; sp=Math.max(1,sp-Math.max(1,Math.round(K*0.18))+((sh2>>>4)%3)-1);  // 2: pitch jitters
+        sy+=sp;
+      }
+      // WHAT IS BURNING FAR DOWN. Not a floor — you cannot see the bottom of this — just the glow
+      // off it, brightest where the chasm is deepest.
+      var gy=SH-Math.max(2,Math.round(K*3));
+      g.fillStyle="rgba(178,62,20,"+(0.06+0.26*(runD/DMAX)).toFixed(2)+")";
+      g.fillRect(runX,gy,w,SH-gy);
+      if((hh%5)===0){ g.fillStyle="rgba(236,140,44,"+(0.18+0.30*(runD/DMAX)).toFixed(2)+")";
+        g.fillRect(runX,gy+Math.max(1,Math.round(K)),Math.max(1,Math.round(w*0.5)),Math.max(1,Math.round(K))); }
+      // THE BROKEN RIM. A chasm edge is never a clean line; this is what stops the flanks reading as
+      // the two straight diagonals they were, and it is the ground in CROSS-SECTION — the one cue
+      // that says you are looking over an edge rather than at a shape painted on the ground.
+      g.fillStyle=day?"rgba(150,140,126,0.95)":"rgba(60,58,54,0.95)";       // the broken slab, lit on top
+      g.fillRect(runX,TOP-Math.max(1,Math.round(K)),w,Math.max(1,Math.round(K*0.7)));
+      g.fillStyle=day?"rgba(38,28,25,0.95)":"rgba(16,12,11,0.95)";
+      g.fillRect(runX,TOP,w,Math.max(1,Math.round(K*0.6)));                 // and its shadowed underside
+      if((hh%3)!==0) g.fillRect(runX,TOP-Math.max(2,Math.round(K*1.8)),Math.max(1,Math.round(w*0.6)),Math.max(1,Math.round(K*0.9)));
+    }
+    runX=x; runD=dq;
+  }
+  // ---- AND WHAT IS FALLING INTO IT. 🔑🔑 THE THIRD RULE — SCALE REFERENCES — WAS THE ONE THIS
+  // ENDING NEVER MET. A black field is the same picture whether it is ten feet across or ten miles;
+  // what makes it enormous is a 7px human body a long way down it, and then another below that.
+  // It is also where the ending's kill finally became visible: `apocMark().m` is "crush", the dead
+  // were being laid out flat on `HORIZON-1` — the rim of a hole that is no longer ground — and the
+  // whole point of a pit is that things go INTO it.
+  // 🔑 SCRIPTED FROM POSITION, NEVER SIMULATED: fall progress is how far the front has moved past
+  // them, so all three monitors agree and a frame can be rendered at any moment on its own.
+  // ⚠ A PERSON IS A FIXED 7px AND `drawPerson` IS THE ONLY BODY ROUTINE — they do not shrink with
+  // depth, because in this projection down-screen is not away.
+  var Vp=(typeof apocVictims==="function")?apocVictims(now):null;
+  if(Vp && (typeof goreK!=="function" || goreK()>0)){
+    var GKp=(typeof goreK==="function")?goreK():1, span=WW*0.18;
+    for(var vi=0;vi<Vp.length;vi++){
+      var v=Vp[vi], dv=nukeDist(v.x,epi);
+      if(dv>=R) continue;                                                  // the front has not reached them yet
+      // 🪵 …AND THEY DO NOT ALL GO OVER AT ONCE. Fall progress straight off the front's distance is a
+      // function of x alone, so the bodies lined up along a clean diagonal CHAIN — the arithmetic
+      // -progression trap in a new costume. Each gets their own moment of losing the edge and their
+      // own rate of falling, which with the existing sideways drift breaks it the three ways.
+      var vh0=(v.seed>>>0);
+      var fp=((R-dv)/span - 0.30*(((vh0>>>9)%100)/100)) * (0.72+0.62*(((vh0>>>15)%100)/100));
+      if(fp<=0||fp>=1) continue;                                           // not yet, or gone below the frame
+      var VX=disX(v.x); if(VX<-12||VX>SW+12) continue;
+      var vh=(v.seed>>>0), drift=((vh%5)-2);                               // they do not fall straight
+      var fy=TOP0+Math.round(fp*fp*(SH-TOP0))+Math.max(1,Math.round(K));   // accelerating, not linear
+      if(fy>SH) continue;
+      var cl=PEDC[((vi*7+vh)>>>0)%PEDC.length], sk=SKINC[(vi*5)%SKINC.length];
+      var fade=1-fp*0.55;                                                  // the dark takes them
+      g.globalAlpha=Math.max(0.12,fade*GKp);
+      drawPerson(g,(VX+drift*fp*3)|0,fy,(typeof hexDark==="function")?hexDark(cl,0.35*fp):cl,sk,(vh&1)?1:-1);
+      g.fillStyle=(typeof hexDark==="function")?hexDark(sk,0.2):sk;        // arms out — nobody falls to attention
+      g.fillRect((VX+drift*fp*3-3)|0,(fy-5)|0,1,1); g.fillRect((VX+drift*fp*3+3)|0,(fy-4)|0,1,1);
+      g.globalAlpha=1;
+      // the slab of road that went with them, so it is not only bodies in the air
+      if((vh%4)===0){ g.fillStyle="rgba(84,80,76,"+(0.75*fade).toFixed(2)+")";
+        g.fillRect((VX+drift*2-2)|0,(fy+Math.round(6*K))|0,Math.max(2,Math.round(K*3)),Math.max(1,Math.round(K*1.2))); }
+    }
   }
 };
 
@@ -52596,6 +52783,15 @@ function apocVictims(now){
 var APOC_SWEEP={thepit:0.26,thehollow:0.30,crimsontide:0.34,warmachine:0.28,acidrain:0.24,glassrain:0.20,swarm:0.20};
 function apocSweepR(){ var s=APOC_SWEEP[curDeath]; if(s==null) return -1;
   return Math.max(0,(cityApoc-s)/Math.max(0.01,0.92-s))*(WW*0.62); }
+// 🕳️ THE ONE ENDING WHERE THE DEAD HAVE NO GROUND. Every other finale lays its casualties along
+// `HORIZON-1`; THE PIT takes the ground away, so a body inside the chasm must be drawn FALLING (in
+// `APOC_X.thepit`) and must not also be laid out flat on a rim that no longer exists.
+// 🔑 Asked once at the top of each victim loop — not inside the ~14 per-mark branches within them.
+function apocInPit(wx){
+  if(curDeath!=="thepit"||cityPhase!=="apoc") return false;
+  var R=apocSweepR(); if(R<=0) return false;
+  return nukeDist(wx,apocEpiX(NOWOVR!=null?NOWOVR:Date.now()))<R;
+}
 var APOC_FRONTED={nuke:1,meteors:1,sunburst:1,ai:1,bh:1,alienwar:1,frost:1,kaiju:1,ninetails:1,flood:1,kaijuwar:1,
   thepit:1,thehollow:1,crimsontide:1,warmachine:1,acidrain:1,glassrain:1,swarm:1};
 function apocVictimDown(V,ap){
@@ -52617,6 +52813,7 @@ function drawApocFallenGround(g,L,now){
   var ap=cityApoc, V=apocVictims(now), day=L>0.5, Y=HORIZON-1;
   for(var n=0;n<V.length;n++){
     var v=V[n]; if(!apocVictimDown(v,ap)) continue;
+    if(apocInPit(v.x)) continue;                                 // THE PIT: no ground to lie on — APOC_X.thepit draws them falling
     var X=disX(v.x); if(X<-12||X>SW+12) continue;              // cull to this monitor and its wrap
     // ---- VAPORISED. There is no body and no blood; there is the shadow of a person burnt into the
     // ground where they were standing. ⚠ The first pass drew this as a 6x1 rect and it was invisible
@@ -52696,6 +52893,7 @@ function drawApocBloodField(g,L,now){
     var a=0;
     if(sx<SW){
       var wx=wrapW(sx+WOFF), d=bins[((wx/APOC_BLOOD_BIN)|0)%nb];
+      if(apocInPit(wx)) d=0;                                   // THE PIT: a stain needs a floor to lie on
       // only counts where those victims have actually fallen — the stain spreads as the killing does
       var reach=apocPositional()&&APOC_FRONTED[curDeath] ? (apocHit(wx)?1:0) : Math.min(1,ap/0.5);
       a=Math.min(0.46, d*0.055*M.spray*GK*reach);
@@ -52719,6 +52917,7 @@ function drawApocFallen(g,L,now){
   var ap=cityApoc, V=apocVictims(now), day=L>0.5, Y=HORIZON-1;
   for(var n=0;n<V.length;n++){
     var v=V[n]; if(!apocVictimDown(v,ap)) continue;
+    if(apocInPit(v.x)) continue;                                 // THE PIT: no ground to lie on — APOC_X.thepit draws them falling
     var X=disX(v.x); if(X<-12||X>SW+12) continue;
     // ⚠ `>>>0`, NOT `|0`. `v.seed` is an unsigned 32-bit hash, and `|0` reinterprets anything above
     // 2^31 as NEGATIVE — `PEDC[-7]` is `undefined` and `hex2rgb(undefined)` throws on `.substr`. It
@@ -52795,6 +52994,7 @@ function drawApocMourners(g,L,now){
     var v=V[n];
     if(!v.pile) continue;                                          // only at the piles
     if(!apocVictimDown(v,ap)) continue;
+    if(apocInPit(v.x)) continue;                                   // …and nobody stands over a pile that fell into the chasm
     // a mourner arrives a little AFTER the dying stops here, not during it
     var h=((v.seed*2246822519)>>>0);
     if((h%100)>=42) continue;                                      // not every pile draws one

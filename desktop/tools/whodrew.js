@@ -53,6 +53,11 @@ ctx.applyConfig({ lat: 41.5243, lon: -72.0759 });
 // his real primary geometry, at zoom 1 (world px == canvas px, so the numbers printed are WORLD px)
 ctx.setup('neon', { cw: 776, ch: 437, woff: woff, ww: 2269, pxk: 3, zoom: 1, taskbarWp: 17, quality: 'balanced', frameMs: 125 });
 ctx.FORCEAGE = age; ctx.NOWOVR = ctx.CLOCK = now;
+// THE FINALE. Without these the tool can only ever attribute a pixel in a LIVING city, so every
+// apocalypse renderer is unattributable — which is how "what is that pale line in the pit?" became
+// a guess. Same two hooks the QML harness uses. `apocms=` is REAL ms on the cataclysm's own clock.
+if (opt.death) ctx.FORCEDEATH = opt.death;
+if (opt.apocms !== undefined) ctx.FORCEAPOCMS = Number(opt.apocms);
 
 const seen = new Map();
 let style = '#000', pass = '';
