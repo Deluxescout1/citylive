@@ -288,6 +288,11 @@ function hexA(hex,a){ var h=hex.charAt(0)==="#"?hex.substr(1):hex; return "rgba(
 function css(c){ return "rgb("+c[0]+","+c[1]+","+c[2]+")"; }
 function rgba(c,a){ return "rgba("+c[0]+","+c[1]+","+c[2]+","+a+")"; }
 function hex2rgb(h){ return [parseInt(h.substr(1,2),16),parseInt(h.substr(3,2),16),parseInt(h.substr(5,2),16)]; }
+// …and back again. `drawPerson` reads `cloth.charCodeAt(1)` and hands it to `pantsOf`, so anything
+// that tints a PERSON has to stay in 7-char hex — an "rgb(…)" string does not crash, it silently
+// hashes to something else and picks the wrong trousers.
+function hexDark(h,t){ var c=mixc(hex2rgb(h),[0,0,0],t);
+  return "#"+(((1<<24)+(c[0]<<16)+(c[1]<<8)+c[2])|0).toString(16).slice(1); }
 function wrapW(x){ x%=WW; return x<0?x+WW:x; }
 
 // ---- DISTRICTS: distinct neighbourhoods, each with its own architecture + palette ----
@@ -51003,6 +51008,51 @@ function drawApocFallenGround(g,L,now){
     }
   }
 }
+// ---- BLOOD IN THE LANDSCAPE DAMAGE. The scorch strip already runs through the apocalypse
+// (`buildDamageStrip` keeps itself alive on `cityPhase==="apoc"`), and Nick asked for the ruin itself
+// to read as a massacre rather than as a burn. So the ground takes a wash wherever the dead are
+// DENSE — not one pool per body, which is the layer above, but the stain a hundred of them leave.
+// ⚠ RUN-BATCHED, and deliberately. Per-column detail is a choice this engine has paid for before: the
+// wash is emitted as spans and flushed only when the profile CHANGES, so a wide even stretch is one
+// fillRect rather than 128 of them. The laptop sits at ~6.3% against a 5% bar.
+var APOC_BLOOD_BIN=24;                       // world px per density bucket
+var _apocBloodId=-1, _apocBloodBins=null;
+function apocBloodBins(now){
+  var id=nukeDetId(now);
+  if(_apocBloodId===id && _apocBloodBins) return _apocBloodBins;
+  var nb=Math.ceil(WW/APOC_BLOOD_BIN), bins=new Array(nb), i;
+  for(i=0;i<nb;i++) bins[i]=0;
+  var V=apocVictims(now);
+  for(i=0;i<V.length;i++){
+    var b=((V[i].x/APOC_BLOOD_BIN)|0)%nb;
+    bins[b]+=1+(V[i].pile||0)*0.8;
+  }
+  _apocBloodId=id; _apocBloodBins=bins; return bins;
+}
+function drawApocBloodField(g,L,now){
+  if(cityPhase!=="apoc") return;
+  var GK=goreK(); if(GK<=0) return;
+  var M=apocMark(); if(M.spray<=0) return;                    // the bloodless ends stain nothing
+  var ap=cityApoc, bins=apocBloodBins(now), nb=bins.length;
+  var step=8, Y=HORIZON-1, day=L>0.5;
+  var runStart=-1, runA=-1;
+  for(var sx=0; sx<=SW; sx+=step){
+    var a=0;
+    if(sx<SW){
+      var wx=wrapW(sx+WOFF), d=bins[((wx/APOC_BLOOD_BIN)|0)%nb];
+      // only counts where those victims have actually fallen — the stain spreads as the killing does
+      var reach=apocPositional()&&APOC_FRONTED[curDeath] ? (apocHit(wx)?1:0) : Math.min(1,ap/0.5);
+      a=Math.min(0.46, d*0.055*M.spray*GK*reach);
+      a=(a*1000|0)/1000;                                       // quantise so equal spans batch
+    }
+    if(a!==runA){
+      if(runA>0.012) { g.fillStyle="rgba("+(day?104:74)+",12,16,"+runA.toFixed(3)+")"; g.fillRect(runStart,Y-1,sx-runStart,3); }
+      runStart=sx; runA=a;
+    }
+  }
+  if(runA>0.012){ g.fillStyle="rgba("+(day?104:74)+",12,16,"+runA.toFixed(3)+")"; g.fillRect(runStart,Y-1,SW-runStart,3); }
+}
+
 // ---- THE BODIES. Drawn late, on top: a body is a solid object lying in the street and a survivor
 // walking past should not erase it.
 function drawApocFallen(g,L,now){
@@ -51069,6 +51119,36 @@ function drawApocFallen(g,L,now){
         g.fillRect(qx, qy, 1, 1);                                 // and what it is lying in
       }
     }
+  }
+}
+// ---- AND THE ONES STILL STANDING. Nick asked that the survivors react to the dead rather than walk
+// past clean ground. They gather at the PILES — the places a crowd died together — and they only
+// exist once there is something to gather over, so nobody mourns a street that has not been hit yet.
+// ⚠ `drawPerson` IS THE ONLY BODY ROUTINE IN THIS ENGINE and a person is a FIXED 7px, never scaled by
+// KSP. Both rules have been broken here before; the whole figure is drawn by that one call.
+// ⚠ `bob=-1` is the sentinel for "standing about" — a literal 0 pins them into one frozen pose, which
+// is the exact fault Nick reported as "there are still people still standing there it looks bad af".
+function drawApocMourners(g,L,now){
+  if(cityPhase!=="apoc") return;
+  if(goreK()<=0) return;                                          // no dead to stand over
+  if(APOC_BODILESS[curDeath]) return;
+  var ap=cityApoc, V=apocVictims(now);
+  for(var n=0;n<V.length;n++){
+    var v=V[n];
+    if(!v.pile) continue;                                          // only at the piles
+    if(!apocVictimDown(v,ap)) continue;
+    // a mourner arrives a little AFTER the dying stops here, not during it
+    var h=((v.seed*2246822519)>>>0);
+    if((h%100)>=42) continue;                                      // not every pile draws one
+    var X=disX(v.x)+(((h>>>7)%7)-3); if(X<-8||X>SW+8) continue;
+    // ⚠ THEY MUST BE DARKENED IN HEX, NOT IN rgba(). `drawPerson` reads `cloth.charCodeAt(1)` and
+    // `pantsOf(cloth)` — it wants a 7-char hex string and an "rgb(…)" would quietly poison both. And
+    // they DO need darkening: drawn after the apocalypse's sky wash they receive none of it, so a
+    // bright green shirt stood out of a burning city like a sticker. The living should read as living,
+    // not as lit by a different sun.
+    var mk=(L>0.5)?0.34:0.50;
+    var cloth=hexDark(PEDC[(h>>>11)%PEDC.length],mk), skin=hexDark(SKINC[(h>>>17)%SKINC.length],mk*0.7);
+    drawPerson(g, X, HORIZON-1, cloth, skin, -1, (h>>>23)%3===0?2:0);   // sometimes an elder
   }
 }
 function drawApocalypse(g,ap,L,now){
@@ -54105,7 +54185,8 @@ function draw(g,pass){
   // below, because `curDis` is ALWAYS null during the apocalypse — that guard is exactly why the
   // whole blood layer was invisible for twenty-five endings. Same position in the frame, same reason:
   // the pools are part of the road surface and the survivors run over them.
-  drawApocFallenGround(g,L,now);
+  drawApocBloodField(g,L,now);      // the wide stain first…
+  drawApocFallenGround(g,L,now);   // …then the individual pools on top of it
   if(curDis){
     drawCasualtyGround(g,curDis,L,now);
     // ⚠ THE GUTTER GOES HERE, WITH THE STAINS, and for the reason the stains were moved here in the
@@ -54820,6 +54901,7 @@ function draw(g,pass){
   // …and the dead it left. LAST, for the reason `drawCasualties` carries the same note: a body is a
   // solid object lying in the street and nothing should paint over it.
   if(cityApoc>0) drawApocFallen(g,L,now);
+  if(cityApoc>0) drawApocMourners(g,L,now);   // …and the survivors standing over them
   if(cityApoc>0 && curSpace>0.4) drawEvacuation(g,cityApoc,now);   // the space-age payoff: evacuation ships launch during the endtimes
   if(cityApoc>0) drawApocMoon(g,now,nd,L);      // the Moon's end-events ride ON TOP of the doom sky (portent/shatter/colony-fall)
 
