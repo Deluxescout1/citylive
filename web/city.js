@@ -49674,9 +49674,29 @@ var DEATHS_NEW=["gammaray","rogueplanet","crustcrack","oceansboil","greygoo","la
   // …and five that are homages. Same rule as everywhere else: recognisable in shape, never named.
   "thecomet","thechange","theburst","thetitans","ragnarok"];
 var DEATHS_ALL=DEATHS.concat(DEATHS_NEW);
+// ---- THE THIRD TIER. Twelve more, and every one of them kills people where you can see it. ----
+// 🚨🚨 THIS COULD NOT BE APPENDED TO `DEATHS_NEW`, and the reason is the whole shape of this commit.
+// `deathOf` picks with `h % deathsFor(li).length`, so growing a list RE-MAPS THE MODULUS and silently
+// rewrites what every past life is remembered as dying from — the trap this file documents twice
+// already. The existing cure is a wall-clock boundary… and `DEATH_ERA_MS` (2026-08-06) IS NOW IN THE
+// PAST, so the free-extension window that let the homages in without a new row has CLOSED. A life that
+// started yesterday has already been rendered and the almanac replays it through this same function.
+// 🔑 SO: a third row, dated AHEAD of shipping. Lives started before 08-06 keep the original twelve;
+// 08-06 → 08-10 keep the twenty-five they were written with; only lives beginning after 08-10 can draw
+// the full thirty-seven. ⚠ Same rule as every era in this engine — the boundary must be in the FUTURE
+// when it ships, and moving it backwards later rewrites history.
+// 🔑 It is reviewable IMMEDIATELY regardless: `death=` on the harness and `finale` in config both
+// bypass the roll entirely, so the date gates the lottery, never the work.
+var DEATHS_V3=["risen","plague","swarm","bloodmoon","acidrain","thepit","glassrain","thescream",
+  "crimsontide","warmachine","thefamine","thehollow"];
+var DEATHS_ALL3=DEATHS_ALL.concat(DEATHS_V3);
 var DEATH_ERA_MS=Date.UTC(2026,7,6,0,0,0);        // 2026-08-06
+var DEATH_ERA3_MS=Date.UTC(2026,7,10,0,0,0);      // 2026-08-10 — ahead of ship, deliberately
 function lifeStartMs(li){ return GROW_EPOCH - GROW_OFFSET_DAYS*86400000 - WORLD_SHIFT + li*GROW_CYCLE; }
-function deathsFor(li){ return lifeStartMs(li) < DEATH_ERA_MS ? DEATHS : DEATHS_ALL; }
+function deathsFor(li){ var t=lifeStartMs(li);
+  if(t < DEATH_ERA_MS)  return DEATHS;
+  if(t < DEATH_ERA3_MS) return DEATHS_ALL;
+  return DEATHS_ALL3; }
 function deathOf(li){ if(CFG_FINALE) return CFG_FINALE;
   var lb=landOf(li); if(lb&&lb.b&&lb.b.k==="leaf") return "ninetails";
   // 🔑 A SEPARATE HASH SALT, so which RuneScape ending a land gets is independent of everything else
@@ -49685,7 +49705,12 @@ function deathOf(li){ if(CFG_FINALE) return CFG_FINALE;
   var h=((li*2654435761+977)>>>0); h=(h^(h>>>15))>>>0;
   var pool=deathsFor(li); return pool[h%pool.length]; }
 var curDeath="meteors";
-if(CFG.finale&&CFG.finale!=="auto"&&(DEATHS_ALL.indexOf(CFG.finale)>=0||DEATHS_SPECIAL.indexOf(CFG.finale)>=0)) CFG_FINALE=CFG.finale;
+// ⚠ `DEATHS_ALL3`, NOT `DEATHS_ALL` — this validator is the ONLY thing standing between a config key
+// and the renderer, so a new tier that is not listed here is a finale the user can set, save, and
+// never see. It fails silently and looks exactly like the feature being broken: a config that parses
+// is not a config that applies. The whole point of the era row is that the DATE gates the lottery and
+// nothing gates a deliberate pin.
+if(CFG.finale&&CFG.finale!=="auto"&&(DEATHS_ALL3.indexOf(CFG.finale)>=0||DEATHS_SPECIAL.indexOf(CFG.finale)>=0)) CFG_FINALE=CFG.finale;
 var FORCEDEATH=null;   // test hook: "meteors"|"nuke"|"sunburst"|"ai" (own line — QML namespace writable)
 var FORCEAPOCMS=null;  // test hook: play the finale at a chosen ms on its own clock, in ONE frame
 // ---- THE NUKE CLOCK: the strike plays out in REAL SECONDS, not over the ~7.5-hour apoc phase. apocMs
@@ -49805,7 +49830,17 @@ function apocPositional(){ return curDeath==="massacre" || curDeath==="banwave" 
 // came to read `undefined.indexOf` and crash only for users who pinned a finale in config.
 var APOC_STRIKE_AP={moonfall:0.86,gammaray:0.10,rogueplanet:0.30,crustcrack:0.20,oceansboil:0.45,
   greygoo:0.25,lastwinter:0.40,skyfall:0.25,timestop:0.18,thecomet:0.55,thechange:0.35,theburst:0.55,
-  thetitans:0.40,ragnarok:0.35};
+  thetitans:0.40,ragnarok:0.35,
+  risen:0.22,plague:0.30,swarm:0.20,bloodmoon:0.40,acidrain:0.24,thepit:0.26,
+  glassrain:0.20,thescream:0.14,crimsontide:0.34,warmachine:0.28,thefamine:0.45,thehollow:0.30};
+// 🚨 AND `apocFull` HAD THE SAME HOLE ONE LEVEL DOWN — it too is a hand-written case per death,
+// and it returned false forever for every ending `apocStruck` was missing. "Is the ENTIRE city
+// gone" is what the late-stage gates read, so on those the city was never fully finished off.
+var APOC_FULL_AP={moonfall:0.97,gammaray:0.62,rogueplanet:0.88,crustcrack:0.80,oceansboil:0.86,
+  greygoo:0.78,lastwinter:0.90,skyfall:0.82,timestop:0.70,thecomet:0.92,thechange:0.84,theburst:0.88,
+  thetitans:0.90,ragnarok:0.90,
+  risen:0.86,plague:0.88,swarm:0.80,bloodmoon:0.90,acidrain:0.84,thepit:0.88,
+  glassrain:0.82,thescream:0.76,crimsontide:0.90,warmachine:0.86,thefamine:0.94,thehollow:0.88};
 function apocStruck(){ if(cityPhase!=="apoc") return false;
   if(curDeath==="nuke")    return apocMs>=NUKE_FALL_MS;                                  // the warhead has DETONATED
   if(curDeath==="meteors") return apocMs>=METEOR_SWARM_MS;                              // the small-meteor swarm has begun
@@ -49859,6 +49894,7 @@ function apocHit(x){ if(cityPhase!=="apoc") return false;
   if(curDeath==="flood")   return floodGroundHit(x);                                    // the water has risen above the ground here
   if(curDeath==="kaijuwar") return kwCl(x,NOWOVR!=null?NOWOVR:Date.now())>=0;           // trampled or caught in the melee
   if(curDeath==="pollution") return cityApoc>=0.92;                                     // nothing is DEMOLISHED until the very end (movers die via apocKill fade)
+  if(APOC_SWEEP[curDeath]!=null) return frontCollapse(x,apocSweepR())>=0;              // the six new ends that genuinely level the city
   return false; }
 function apocFull(){ if(cityPhase!=="apoc") return false;
   if(curDeath==="nuke")    return nukeFrontR() >= WW*0.5;                               // the front has swept the ENTIRE city (≈5s)
@@ -49873,6 +49909,8 @@ function apocFull(){ if(cityPhase!=="apoc") return false;
   if(curDeath==="flood")   return floodLevel() >= floodMax()*0.95;                      // the water has risen over the whole skyline
   if(curDeath==="kaijuwar") return kwT1()>=1 && kwClashR()>=WW*KW_SAFE*0.98;             // trample complete + the melee has wrecked downtown
   if(curDeath==="pollution") return cityApoc>=0.92;                                     // the air is gone
+  if(APOC_SWEEP[curDeath]!=null) return apocSweepR() >= WW*0.5;                        // its front has swept everything
+  if(APOC_FULL_AP[curDeath]!=null) return cityApoc>=APOC_FULL_AP[curDeath];
   return false; }
 // SUNBURST global heat: burn-progress at deterministic key k (a building seed, or a world-x for entities).
 // Unlike a spatial front, there is no ground zero — the whole earth bakes at once, only staggered so it
@@ -50512,6 +50550,316 @@ APOC_X.ragnarok=function(g,ap,L,now){
 };
 
 // ================================================================================================
+// THE THIRD TIER — TWELVE ENDS THAT KILL PEOPLE WHERE YOU CAN SEE IT.
+// ================================================================================================
+// The twenty-five before these are overwhelmingly COSMIC: a wrong sky, a cold ground, a thing in the
+// distance. They are ends of the WORLD. These are ends of the PEOPLE — close range, at arm's length,
+// and each one is built around ONE BIG OBJECT with hard value contrast, because that is the only
+// thing this renderer has ever reliably read at 776x437.
+// ⚠ Each pairs with a mark in APOC_MARK, an omen in APOC_SIG, and rows in APOC_APPROACH_MS,
+// APOC_STRIKE_AP and APOC_FULL_AP. A renderer with no strike row never hands over from its approach.
+
+// THE DEAD WALK. The one big object is the TIDE — a horizon-wide press of figures, not a monster.
+APOC_X.risen=function(g,ap,L,now){
+  var K=Math.max(1,KSP);
+  g.fillStyle="rgba(28,34,26,"+(0.50*ap).toFixed(2)+")"; g.fillRect(0,0,SW,HORIZON);
+  // ⚠ FIRST PASS WAS A ROW OF SPECKS — 18 figures 4px tall on a 776px frame, correct code and
+  // invisible, this project's most common failure. A TIDE has to overlap itself to read as one.
+  var gy=HORIZON-1, n=Math.round(70+ap*260), adv=Math.min(1,ap*1.4);
+  g.fillStyle="rgba(18,24,18,"+(0.62*adv).toFixed(2)+")";      // the mass behind them, so the front rank has something to be in front OF
+  g.fillRect(0,gy-Math.round(7*Math.max(1,KSP)),SW,Math.round(7*Math.max(1,KSP)));
+  for(var i=0;i<n;i++){
+    var h=((i*2654435761+4409)>>>0); h^=h>>>13;
+    // 🔑 WORLD x, so the horde is ONE horde across three monitors rather than three of them
+    var wx=wrapW(((h%100000)/100000)*WW + (now*0.006)%WW), X=disX(wx);
+    if(X<-6||X>SW+6) continue;
+    var lean=((h>>>7)%3)-1, dy=((h>>>11)%3), K2=Math.max(1,KSP);
+    // 🚨 GRAIN AND SILHOUETTE, NEVER COLOUR. The first horde was mid-olive and rendered on OPEN
+    // PLAINS — a green crowd on a green field, invisible at full frame and perfectly clear when
+    // magnified, which is how it survived a review. A test land hides a feature exactly the way a
+    // test age does (the forest spirit, one land over). These are near-black silhouettes now, so
+    // they read against grass, snow, sand or asphalt alike.
+    var rot=mixc([40,46,36],[18,22,17],((h>>>17)%100)/100);
+    g.fillStyle=rgba(rot,(0.55+0.35*adv).toFixed(2));
+    g.fillRect((X+lean)|0, gy-Math.round(7*K2)-dy, Math.round(2*K2), Math.round(4*K2));   // body
+    g.fillRect((X+lean)|0, gy-Math.round(3*K2)-dy, Math.round(2*K2), Math.round(3*K2));   // legs, stiff
+    g.fillStyle=rgba(mixc(rot,[128,130,112],0.30),"0.92");
+    g.fillRect((X+lean)|0, gy-Math.round(9*K2)-dy, Math.round(2*K2), Math.round(2*K2));   // head
+    g.fillStyle="rgba(120,16,18,"+(0.5*adv).toFixed(2)+")";
+    g.fillRect((X+lean-1)|0, gy-6-dy, 1, 1);                      // what is on them
+  }
+  groundGlow(g,"40,50,36",0.24*ap);
+};
+
+// THE RED SICKNESS. One big object: the PALL over everything, and the pyres burning under it.
+APOC_X.plague=function(g,ap,L,now){
+  var K=Math.max(1,KSP);
+  for(var y=0;y<HORIZON;y+=4){
+    var t=y/HORIZON;
+    g.fillStyle=rgba(mixc([120,26,32],[186,96,72],t),(0.30+0.42*ap).toFixed(3));
+    g.fillRect(0,y,SW,4);
+  }
+  // the pyres — world-anchored so all three screens burn the same ones
+  var np=Math.round(2+ap*7);
+  for(var p=0;p<np;p++){
+    var h=((p*40503+911)>>>0), wx=wrapW(((h%1000)/1000)*WW), X=disX(wx);
+    if(X<-30||X>SW+30) continue;
+    var hgt=Math.round((10+((h>>>9)%16))*K*(0.4+0.6*ap));
+    for(var q=0;q<hgt;q++){
+      var wob=Math.round(Math.sin((now/300)+q*0.4+p)*q*0.10);
+      g.fillStyle="rgba("+(60-((q*40/hgt)|0))+","+(56-((q*40/hgt)|0))+","+(58-((q*38/hgt)|0))+","+(0.44*(1-q/hgt)).toFixed(2)+")";
+      g.fillRect((X+wob-2)|0,HORIZON-1-q,Math.max(2,Math.round(4*K*(1-q/hgt*0.5))),1);
+    }
+    g.fillStyle="rgba(230,120,50,"+(0.75).toFixed(2)+")";
+    g.fillRect((X-2)|0,HORIZON-3,Math.round(4*K),3);
+  }
+};
+
+// THE SWARM. One big object: a single enormous CLOUD that descends and eats the frame.
+APOC_X.swarm=function(g,ap,L,now){
+  var K=Math.max(1,KSP);
+  var top=Math.round(-HORIZON*0.3+ap*HORIZON*1.25);
+  g.fillStyle="rgba(46,40,24,"+(0.72*Math.min(1,ap*1.5)).toFixed(2)+")";
+  g.fillRect(0,0,SW,Math.max(0,top));
+  // the boiling underside — the edge is what makes it a swarm rather than a smear
+  for(var x=0;x<SW;x+=2){
+    var hh=(((x+WOFF)*2654435761)>>>0);
+    var e=Math.round(Math.sin((x+WOFF)*0.08+now/220)*4*K)+((hh%Math.max(1,Math.round(5*K))));
+    g.fillStyle="rgba(38,32,18,0.82)";
+    g.fillRect(x,Math.max(0,top),2,Math.max(0,e));
+  }
+  // individuals, only near the edge, or it reads as fog
+  var n=Math.round(40+ap*150);
+  for(var i=0;i<n;i++){
+    var h=((i*2654435761+77)>>>0); h^=h>>>11;
+    var x2=((h%1000)/1000)*SW, y2=top+((h>>>9)%Math.max(1,Math.round(HORIZON*0.30)))-Math.round(HORIZON*0.06);
+    if(y2<0||y2>HORIZON) continue;
+    g.fillStyle="rgba(26,22,12,"+(0.5+0.4*((h>>>19)%100)/100).toFixed(2)+")";
+    g.fillRect(x2|0,y2|0,1,1);
+  }
+};
+
+// THE BLOOD MOON. One big object, and it is enormous: a red moon low over the roofs.
+APOC_X.bloodmoon=function(g,ap,L,now){
+  var K=Math.max(1,KSP);
+  skyWash(g,"90,10,14",0.30+0.34*ap);
+  var mR=Math.round((26+ap*74)*K);
+  var mWx=(typeof apocEpiX==="function")?apocEpiX(now):Math.round(WW*0.5);
+  var my=Math.round(HORIZON*0.34);
+  for(var off=-WW;off<=WW;off+=WW){
+    var mx=(mWx-WOFF+off)|0; if(mx+mR<-8||mx-mR>SW+8) continue;
+    g.globalCompositeOperation="lighter";
+    g.fillStyle="rgba(150,20,18,0.14)"; fillEllipse(g,mx,my,mR*1.5,mR*1.5);
+    g.globalCompositeOperation="source-over";
+    g.fillStyle="rgb("+(150+((30*ap)|0))+",26,24)"; fillEllipse(g,mx,my,mR,mR);
+    var cr=rng(0x8100D00D);
+    for(var k=0;k<12;k++){
+      var ca=cr()*6.283, cd=Math.sqrt(cr())*mR*0.86;
+      g.fillStyle="rgba(104,14,14,0.55)";
+      fillEllipse(g,mx+Math.cos(ca)*cd,my+Math.sin(ca)*cd,Math.max(1,mR*0.07),Math.max(1,mR*0.07));
+    }
+  }
+  groundGlow(g,"140,24,24",0.30*ap);
+};
+
+// ACID RAIN. One big object: the sheets themselves, and a skyline that is visibly SAGGING.
+APOC_X.acidrain=function(g,ap,L,now){
+  var K=Math.max(1,KSP);
+  skyWash(g,"126,146,44",0.24+0.34*ap);
+  var n=Math.round(70+ap*220);
+  for(var i=0;i<n;i++){
+    var h=((i*2654435761+313)>>>0); h^=h>>>13;
+    var per=520+((h>>>7)%700), ph=((now+((h>>>11)%per))%per)/per;
+    var x=((h%1000)/1000)*SW, y=ph*HORIZON;
+    var ln=Math.round(4+((h>>>17)%6));
+    g.fillStyle="rgba(206,232,96,"+(0.30+0.40*ap).toFixed(2)+")";
+    g.fillRect(x|0,y|0,1,ln);
+  }
+  // where it lands: a hissing pale line that eats into the ground
+  g.fillStyle="rgba(196,224,90,"+(0.34*ap).toFixed(2)+")";
+  g.fillRect(0,HORIZON-2,SW,2);
+  groundGlow(g,"120,140,40",0.30*ap);
+};
+
+// THE PIT. One big object: a single colossal chasm. Value contrast is the whole trick — pure black.
+APOC_X.thepit=function(g,ap,L,now){
+  var K=Math.max(1,KSP);
+  skyWash(g,"48,36,32",0.26*ap); groundGlow(g,"30,20,18",0.30*ap);
+  var cWx=(typeof apocEpiX==="function")?apocEpiX(now):Math.round(WW*0.5);
+  var halfW=Math.round(WW*0.30*Math.min(1,ap*1.25));
+  for(var off=-WW;off<=WW;off+=WW){
+    var cx=(cWx-WOFF+off)|0;
+    var x0=cx-halfW, x1=cx+halfW;
+    if(x1<-8||x0>SW+8) continue;
+    for(var x=Math.max(0,x0); x<Math.min(SW,x1); x++){
+      var t=Math.abs(x-cx)/Math.max(1,halfW);
+      var d=Math.round((1-t*t)*GROUND*1.5);                     // deepest at the middle
+      if(d<=0) continue;
+      g.fillStyle="rgb(6,5,6)";
+      g.fillRect(x,HORIZON-1,1,d);
+      var hh=(((x+WOFF)*2654435761)>>>0);
+      if((hh%7)===0){ g.fillStyle="rgba(180,64,20,"+(0.30+0.4*(1-t)).toFixed(2)+")"; g.fillRect(x,HORIZON-2+d,1,1); }  // heat far down
+    }
+    g.fillStyle="rgba(30,22,20,0.9)"; g.fillRect(Math.max(0,x0),HORIZON-2,Math.min(SW,x1)-Math.max(0,x0),2);
+  }
+};
+
+// GLASS RAIN. One big object: the falling sheet; the ground becomes a field of shards.
+APOC_X.glassrain=function(g,ap,L,now){
+  var K=Math.max(1,KSP);
+  skyWash(g,"186,206,226",0.34+0.40*ap);
+  var n=Math.round(150+ap*420);
+  for(var i=0;i<n;i++){
+    var h=((i*2654435761+887)>>>0); h^=h>>>13;
+    var per=380+((h>>>7)%520), ph=((now+((h>>>11)%per))%per)/per;
+    var x=((h%1000)/1000)*SW, y=ph*HORIZON, ln=Math.round(3+((h>>>17)%7));
+    g.fillStyle="rgba(244,252,255,"+(0.62+0.34*ap).toFixed(2)+")";
+    var tw=Math.max(1,Math.round(1.4*K));
+    for(var q=0;q<ln;q++) g.fillRect(Math.round(x+q*0.2),(y+q)|0,tw,1);
+  }
+  // the drift on the ground — glittering, and it is not snow: hard specular points, not a soft mat
+  for(var x2=0;x2<SW;x2+=1){
+    var hh=(((x2+WOFF)*40503)>>>0);
+    if((hh%3)) continue;
+    var d=Math.round((1+(hh>>>5)%3)*ap);
+    if(d<=0) continue;
+    g.fillStyle=((hh>>>9)%5===0)?"rgba(255,255,255,0.9)":"rgba(196,214,228,0.7)";
+    g.fillRect(x2,HORIZON-1-d,1,d);
+  }
+};
+
+// THE SCREAM. One big object: expanding rings. Nothing is drawn ON anything — the air is the event.
+APOC_X.thescream=function(g,ap,L,now){
+  var K=Math.max(1,KSP);
+  var pulse=0.5+0.5*Math.sin(now/70);
+  skyWash(g,"216,206,220",0.12+0.30*ap*pulse);
+  var cWx=(typeof apocEpiX==="function")?apocEpiX(now):Math.round(WW*0.5);
+  var cy=Math.round(HORIZON*0.42);
+  for(var off=-WW;off<=WW;off+=WW){
+    var cx=(cWx-WOFF+off)|0;
+    if(cx<-SW*2||cx>SW*3) continue;
+    for(var r=0;r<10;r++){
+      var per=1400, ph=((now+r*140)%per)/per;
+      var rad=Math.round(ph*SW*1.1*(0.5+ap));
+      if(rad<4) continue;
+      g.strokeStyle="rgba(255,252,255,"+((0.88*(1-ph))*(0.45+0.55*ap)).toFixed(3)+")";
+      g.lineWidth=Math.max(1,Math.round(4*K*(1-ph)));
+      g.beginPath(); g.arc(cx,cy,rad,0,6.283); g.stroke();
+    }
+  }
+  g.lineWidth=1;
+};
+
+// THE CRIMSON TIDE. One big object: the sea, and it is the wrong colour.
+APOC_X.crimsontide=function(g,ap,L,now){
+  var K=Math.max(1,KSP);
+  skyWash(g,"96,26,30",0.24*ap);
+  var sea=(typeof SEA_Y==="number"&&SEA_Y>0&&SEA_Y<SH)?SEA_Y:HORIZON;
+  var rise=Math.round(HORIZON*0.42*Math.min(1,ap*1.15));
+  g.fillStyle="rgba(96,10,14,0.93)"; g.fillRect(0,sea-rise,SW,rise+GROUND);
+  for(var w=0;w<SW;w+=2){
+    var hw=(((w+WOFF)*2654435761)>>>0);
+    var crest=(hw%Math.max(1,Math.round(4*K)));
+    g.fillStyle="rgba(178,44,42,"+(0.42+0.3*ap).toFixed(2)+")";
+    g.fillRect(w,sea-rise-crest,2,1);
+    if((hw>>>7)%11===0){ g.fillStyle="rgba(226,150,150,0.45)"; g.fillRect(w,sea-rise-crest-1,2,1); }   // foam, and it is pink
+  }
+  groundGlow(g,"120,18,20",0.26*ap);
+};
+
+// THE WAR MACHINE. One big object: walkers, taller than the skyline, methodical rather than angry.
+APOC_X.warmachine=function(g,ap,L,now){
+  var K=Math.max(1,KSP);
+  skyWash(g,"72,76,84",0.34*ap);
+  var nW=5;
+  for(var i=0;i<nW;i++){
+    var h=((i*40503+5501)>>>0);
+    var wx=wrapW(((h%1000)/1000)*WW + (now*0.004)%WW), X=disX(wx);
+    var hgt=Math.round((74+((h>>>9)%34))*K*(0.62+0.38*ap));   // taller than the skyline, which is the point
+    if(X<-hgt||X>SW+hgt) continue;
+    var gy=HORIZON-1, bodyY=gy-hgt;
+    // legs — two, jointed, striding out of phase
+    for(var lg=0;lg<2;lg++){
+      var swing=Math.sin(now/420+i+lg*3.14)*hgt*0.16;
+      g.strokeStyle="rgba(40,44,50,0.95)"; g.lineWidth=Math.max(2,Math.round(2.4*K));
+      g.beginPath(); g.moveTo(X,bodyY+hgt*0.42);
+      g.lineTo(X+swing*0.6, bodyY+hgt*0.72); g.lineTo(X+swing, gy); g.stroke();
+    }
+    // hull
+    g.fillStyle="rgb(52,56,64)";
+    g.fillRect((X-Math.round(7*K))|0, bodyY|0, Math.round(14*K), Math.round(hgt*0.44));
+    g.fillStyle="rgb(34,38,44)";
+    g.fillRect((X-Math.round(7*K))|0, (bodyY+hgt*0.30)|0, Math.round(14*K), Math.round(3*K));
+    // the eye, and the beam it is using
+    var ex=X, ey=bodyY+Math.round(hgt*0.12);
+    g.fillStyle=((now/220|0)%2)?"rgba(255,120,60,0.95)":"rgba(255,180,80,0.95)";
+    g.fillRect((ex-Math.round(2*K))|0,ey|0,Math.round(4*K),Math.round(2*K));
+    if(ap>0.34){
+      g.globalCompositeOperation="lighter";
+      g.fillStyle="rgba(255,150,70,"+(0.30+0.35*Math.min(1,(ap-0.34)*3)).toFixed(2)+")";
+      var bw=Math.max(1,Math.round(2*K));
+      g.fillRect((ex-bw)|0, ey, bw*2, gy-ey);
+      g.globalCompositeOperation="source-over";
+    }
+  }
+  g.lineWidth=1;
+};
+
+// THE FAMINE. The slowest end here, and the only one with no violence in it at all. One big object:
+// the LAND — bare, grey, and wrong. ⚠ A MOUNTAIN DOES NOT BURN and a starving land does not scorch:
+// this is desaturation and dust, which is the note the damage sweep already carries.
+APOC_X.thefamine=function(g,ap,L,now){
+  var K=Math.max(1,KSP);
+  skyWash(g,"178,168,138",0.34+0.40*ap);
+  // the ground bleaches. ⚠ A FLAT TINT IS NOT DAMAGE — the stubble below is what says starved;
+  // this wash only takes the colour out, which is the note the damage sweep already carries.
+  g.fillStyle="rgba(166,156,124,"+(0.48+0.40*ap).toFixed(2)+")";
+  g.fillRect(0,HORIZON-2,SW,GROUND+2);
+  // dust lifting off it — low, moving, and thin
+  var n=Math.round(20+ap*80);
+  for(var i=0;i<n;i++){
+    var h=((i*2654435761+2207)>>>0); h^=h>>>13;
+    var per=2600+((h>>>7)%2600), ph=((now+((h>>>11)%per))%per)/per;
+    var x=wrapW(((h%1000)/1000)*WW + ph*380), X=disX(x);
+    if(X<-4||X>SW+4) continue;
+    var y=HORIZON-2-Math.round(((h>>>17)%Math.max(1,Math.round(14*K)))*(0.4+0.6*ap));
+    g.fillStyle="rgba(186,176,146,"+(0.16+0.24*ap).toFixed(2)+")";
+    g.fillRect(X|0,y,Math.round(2+((h>>>21)%3)),1);
+  }
+  // and the fields go to stubble — short, dead verticals rather than a flat tint
+  for(var x2=0;x2<SW;x2+=3){
+    var hh=(((x2+WOFF)*40503)>>>0);
+    if((hh%4)) continue;
+    g.fillStyle="rgba(128,118,88,"+(0.34*ap).toFixed(2)+")";
+    g.fillRect(x2,HORIZON-1-Math.round(1+(hh>>>9)%2),1,Math.round(1+(hh>>>9)%2));
+  }
+};
+
+// THE HOLLOW. One big object: an absence. A spreading nothing that takes the city column by column,
+// leaving a hard edge — the contrast IS the horror, so it is drawn as pure void, never as a shadow.
+APOC_X.thehollow=function(g,ap,L,now){
+  var K=Math.max(1,KSP);
+  skyWash(g,"30,32,40",0.30*ap);
+  var cWx=(typeof apocEpiX==="function")?apocEpiX(now):Math.round(WW*0.5);
+  var reach=WW*0.52*Math.min(1,ap*1.2);
+  for(var off=-WW;off<=WW;off+=WW){
+    var cx=(cWx-WOFF+off)|0;
+    var x0=Math.max(0,cx-Math.round(reach)), x1=Math.min(SW,cx+Math.round(reach));
+    if(x1<=x0) continue;
+    for(var x=x0;x<x1;x++){
+      var t=Math.abs(x-cx)/Math.max(1,reach);
+      var hh=(((x+WOFF)*2654435761)>>>0);
+      // a ragged edge: near the front it takes some columns and not others
+      if(t>0.86 && (hh%100)<((t-0.86)/0.14*100)) continue;
+      var solid=Math.min(1,(1-t)*2.2);
+      g.fillStyle="rgba(4,4,7,"+(0.94*solid).toFixed(3)+")";
+      g.fillRect(x,0,1,HORIZON+GROUND);
+    }
+  }
+};
+
+
+// ================================================================================================
 // THE FALADOR MASSACRE — Falador's own end
 // ================================================================================================
 // 📚 6 JUNE 2006. Cursed You, the first player to 99 Construction, threw a house party; when he
@@ -50792,7 +51140,13 @@ var RS_BAN_SAY=["I DIDN'T BOT","APPEALING THIS","2 DAY BAN?","THAT'S NOT FAIR","
 var APOC_APPROACH_MS={meteors:9000,nuke:11000,sunburst:10000,ai:9000,bh:10000,alienwar:9000,frost:11000,
   kaiju:8000,flood:10000,kaijuwar:8000,pollution:9000,moonfall:12000,ninetails:5200,gammaray:8000,
   rogueplanet:12000,crustcrack:9000,oceansboil:10000,greygoo:9000,lastwinter:11000,skyfall:9000,
-  timestop:8000,thecomet:12000,thechange:10000,theburst:8000,thetitans:9000,ragnarok:11000};
+  timestop:8000,thecomet:12000,thechange:10000,theburst:8000,thetitans:9000,ragnarok:11000,
+  // the third tier. The close-range ends get SHORT approaches on purpose: a swarm on the horizon
+  // is a warning, a swarm in the street is not, and the dread of the cosmic ones is the waiting.
+  risen:9000,plague:12000,swarm:8000,bloodmoon:13000,acidrain:10000,thepit:7000,
+  glassrain:8000,thescream:6000,crimsontide:11000,warmachine:10000,thefamine:14000,thehollow:11000,
+  // the OSRS five, which had no row at all and silently took the ||9000 default
+  massacre:7000,logout:6000,wilderness:9000,godwars:11000,banwave:5000};
 function apocApproachF(){
   if(cityPhase!=="apoc") return -1;
   if(typeof apocStruck==="function" && apocStruck()) return -1;      // it has landed: the strike owns the frame
@@ -50846,7 +51200,37 @@ var APOC_SIG={
   thechange:function(g,f,e,L,now){ skyWash(g,"120,60,120",0.24*e); groundGlow(g,"140,70,130",0.16*e); },
   theburst:function(g,f,e,L,now){ if(((now/110)|0)%2===0) skyWash(g,"255,250,200",0.10+0.26*e); groundGlow(g,"255,240,170",0.16*e); },
   thetitans:function(g,f,e,L,now){ groundGlow(g,"50,40,34",0.24*e); skyWash(g,"110,90,70",0.16*e); },
-  ragnarok:function(g,f,e,L,now){ skyWash(g,"150,40,30",0.30*e); groundGlow(g,"180,70,30",0.20*e); }
+  ragnarok:function(g,f,e,L,now){ skyWash(g,"150,40,30",0.30*e); groundGlow(g,"180,70,30",0.20*e); },
+  // ---- THE THIRD TIER'S OMENS. ⚠ THE APPROACH DRAWS INTO THE SKY AND MUST NOT DESTROY — it is the
+  // thing you see coming, and the strike owns the frame afterwards. Every one of these is a wash, a
+  // glow or marks in the air; not one of them touches a building or a person.
+  risen:function(g,f,e,L,now){ skyWash(g,"70,84,62",0.26*e); groundGlow(g,"52,64,46",0.30*e); },
+  plague:function(g,f,e,L,now){ skyWash(g,"150,54,58",0.24*e); groundGlow(g,"120,40,44",0.20*e); },
+  swarm:function(g,f,e,L,now){ skyWash(g,"96,84,50",0.30*e);
+    skyStreaks(g,now,Math.round(6+40*e),e,"rgba(38,32,20,"+(0.35+0.45*e).toFixed(2)+")",2,0.9); },
+  bloodmoon:function(g,f,e,L,now){ skyWash(g,"120,16,20",0.34*e); groundGlow(g,"140,26,26",0.22*e); },
+  acidrain:function(g,f,e,L,now){ skyWash(g,"150,170,60",0.26*e);
+    skyStreaks(g,now,Math.round(8+34*e),e,"rgba(200,225,90,"+(0.30+0.40*e).toFixed(2)+")",Math.round(3+5*e),0.2); },
+  thepit:function(g,f,e,L,now){ groundGlow(g,"20,14,12",0.42*e); skyWash(g,"60,44,38",0.18*e); },
+  glassrain:function(g,f,e,L,now){ skyWash(g,"190,210,225",0.22*e);
+    skyStreaks(g,now,Math.round(10+44*e),e,"rgba(236,248,255,"+(0.34+0.46*e).toFixed(2)+")",Math.round(2+5*e),0.15); },
+  thescream:function(g,f,e,L,now){ skyWash(g,"210,200,215",0.14+0.30*e*(0.55+0.45*Math.sin(now/90))); },
+  crimsontide:function(g,f,e,L,now){ skyWash(g,"110,30,34",0.22*e); groundGlow(g,"150,26,30",0.34*e); },
+  warmachine:function(g,f,e,L,now){ skyWash(g,"84,88,96",0.28*e); groundGlow(g,"60,64,72",0.22*e); },
+  thefamine:function(g,f,e,L,now){ skyWash(g,"150,140,110",0.26*e); groundGlow(g,"128,118,92",0.30*e); },
+  thehollow:function(g,f,e,L,now){ skyWash(g,"40,44,52",0.30*e); groundGlow(g,"28,30,36",0.26*e); },
+  // ---- AND THE FIVE THAT NEVER HAD ONE. A matrix over every ending found these empty: the OSRS five
+  // fell through to no omen at all and a bare `||9000` duration, so on those lands the end arrived
+  // with nothing before it. They are the only endings where the approach is the ONLY warning, because
+  // (deliberately) they never demolish anything — there is no collapsing skyline to tell you.
+  // ⚠ `apocFull` stays false for all five ON PURPOSE and is not an omission: it means "the ENTIRE city
+  // is gone", these five leave it standing, and it gates things like train service that are genuinely
+  // still intact. An empty cell in a matrix is a question, not automatically a defect.
+  massacre:function(g,f,e,L,now){ skyWash(g,"200,150,60",0.14*e); groundGlow(g,"150,90,30",0.10*e); },   // the party's warm light, before it turns
+  logout:function(g,f,e,L,now){ if(((now/90)|0)%3===0) skyWash(g,"180,200,220",0.10+0.22*e); },          // the world stutters
+  wilderness:function(g,f,e,L,now){ skyWash(g,"110,40,40",0.22*e); groundGlow(g,"80,26,26",0.24*e); },   // the boundary bleeds inward
+  godwars:function(g,f,e,L,now){ skyWash(g,"120,130,160",0.24*e); groundGlow(g,"70,78,100",0.16*e); },   // a cold divide over everything
+  banwave:function(g,f,e,L,now){ var b=((now/120)|0)%2; skyWash(g,b?"220,60,60":"180,40,40",0.10+0.20*e); }  // a sweep, ticking
 };
 function drawApocApproach(g,L,now){
   var f=apocApproachF(); if(f<0) return;
@@ -50893,7 +51277,14 @@ var APOC_MARK={
   // ---- unmade: dissolved, converted, taken ----
   greygoo:{m:"dissolve",spray:0.30}, thechange:{m:"dissolve",spray:0.25}, banwave:{m:"dissolve",spray:0},
   ai:{m:"beam",spray:0.45}, alienwar:{m:"beam",spray:0.70},
-  bh:{m:"drain",spray:0.40}, timestop:{m:"drain",spray:0}, logout:{m:"drain",spray:0}
+  bh:{m:"drain",spray:0.40}, timestop:{m:"drain",spray:0}, logout:{m:"drain",spray:0},
+  // ---- THE THIRD TIER. The existing twenty-five are overwhelmingly COSMIC — a wrong sky, a cold
+  // ground, a thing in the distance — and almost nobody dies where you can see it. These twelve are
+  // the other register: they kill people in the street, at arm's length, and the mark says so.
+  risen:{m:"torn",spray:1.00}, plague:{m:"bleed",spray:0.80}, swarm:{m:"torn",spray:0.95},
+  bloodmoon:{m:"torn",spray:1.00}, acidrain:{m:"dissolve",spray:0.55}, thepit:{m:"crush",spray:0.80},
+  glassrain:{m:"torn",spray:0.90}, thescream:{m:"bleed",spray:0.85}, crimsontide:{m:"drown",spray:0.45},
+  warmachine:{m:"beam",spray:0.75}, thefamine:{m:"wither",spray:0.12}, thehollow:{m:"dissolve",spray:0.35}
 };
 function apocMark(){ return APOC_MARK[curDeath] || {m:"crush",spray:0.60}; }
 
@@ -50950,7 +51341,20 @@ function apocVictims(now){
 // 🔑 A PREDICATE THAT ANSWERS A DIFFERENT QUESTION IS NOT A CHEAPER VERSION OF THE ONE YOU WANT.
 // `apocHit` means "is this world-x DEMOLISHED", not "is anyone here dead". So the front is consulted
 // only for the ends that actually have one, and the rest fall to the arc.
-var APOC_FRONTED={nuke:1,meteors:1,sunburst:1,ai:1,bh:1,alienwar:1,frost:1,kaiju:1,ninetails:1,flood:1,kaijuwar:1};
+// 🚨 AN ENDING THAT DOES NOT TOUCH THE CITY READS AS WEATHER. The first render of the twelve came
+// back with the skyline intact and traffic flowing under a coloured sky — which is the exact
+// criticism of the thirteen before them. Six of these DO destroy, so they get a sweeping front
+// like the nuke and the kaiju: `apocHit` collapses buildings and kills movers as it passes, and
+// the dead fall along it, so the line of bodies is the shape of the thing again.
+// ⚠ The other six (risen · plague · bloodmoon · thescream · thefamine) leave the buildings
+// standing ON PURPOSE — same reasoning as the OSRS five, where an intact skyline over dead
+// streets is the whole horror. Their spectacle is the bodies, not the rubble.
+// 🔑 ONE LAW, not six: from its strike point the front crosses the world by ap=0.92.
+var APOC_SWEEP={thepit:0.26,thehollow:0.30,crimsontide:0.34,warmachine:0.28,acidrain:0.24,glassrain:0.20,swarm:0.20};
+function apocSweepR(){ var s=APOC_SWEEP[curDeath]; if(s==null) return -1;
+  return Math.max(0,(cityApoc-s)/Math.max(0.01,0.92-s))*(WW*0.62); }
+var APOC_FRONTED={nuke:1,meteors:1,sunburst:1,ai:1,bh:1,alienwar:1,frost:1,kaiju:1,ninetails:1,flood:1,kaijuwar:1,
+  thepit:1,thehollow:1,crimsontide:1,warmachine:1,acidrain:1,glassrain:1,swarm:1};
 function apocVictimDown(V,ap){
   if(APOC_FRONTED[curDeath]) return apocHit(V.x);   // the line of bodies IS the shape of the thing
   return ap>=V.dieF;                                 // no front: they fall across the arc
@@ -51092,6 +51496,8 @@ function drawApocFallen(g,L,now){
     else if(M.m==="drain"){ cm=mixc(cm,[60,58,72],0.55);   sm=mixc(sm,[68,64,78],0.58); }
     else if(M.m==="choke"){ cm=mixc(cm,[92,104,84],0.50);  sm=mixc(sm,[120,132,104],0.58); }
     else if(M.m==="drown"){ cm=mixc(cm,[70,92,110],0.50);  sm=mixc(sm,[110,132,148],0.55); }
+    else if(M.m==="bleed"){ cm=mixc(cm,[142,18,22],0.66);  sm=mixc(sm,[168,40,38],0.72); }     // bled out — the body IS the stain
+    else if(M.m==="wither"){ cm=mixc(cm,[112,104,84],0.62); sm=mixc(sm,[134,126,100],0.70); }  // starved: no blood, just less of them
     var pileN=v.pile||0;
     // ---- A PILE: bodies on top of one another, each one shorter and darker than the one below, so
     // it reads as depth rather than as a wider single body.
