@@ -7603,7 +7603,7 @@ function drawRegime(g,L,now,night){
   drawCurfewChase(g,L,now);      // a curfew-runner caught in a searchlight (restrained)
   // (flags/banners are drawn per-layer via drawLayerRegime for correct depth; here = the plaza overlay)
   drawLeaderStatue(g,L,now);     // …erected first (stage 4), then looming, then toppled
-  drawRegimeRally(g,L,now);      // the mandatory rally massed before the statue
+  if(civicLifeOn()) drawRegimeRally(g,L,now);      // the mandatory rally massed before the statue
   drawResistance(g,L,now);       // …and, near the end, the graffiti/tags of the resistance
   drawUprising(g,L,now);           // the protests & riots against the takeover — put down, or they win
   drawLiberation(g,L,now);
@@ -49975,6 +49975,14 @@ function meteorCollapse(x,now){
 function nukeStruck(){ return apocStruck(); }
 function nukeHit(x){ return apocHit(x); }
 function nukeFull(){ return apocFull(); }
+// 🚨🚨 `!nukeFull()` IS NOT "THE WORLD IS ENDING" — IT IS "THE ENTIRE CITY IS ALREADY GONE".
+// Every public gathering in this engine was gated on it, so a farmers' market, a street parade, a
+// protest march, a food festival and the rooftop parties all carried on through the apocalypse until
+// the last building fell. Nick spotted it instantly on the swarm: a bright, healthy crowd standing in
+// a stripped, insect-eaten city — "this group who is not effected".
+// 🔑 Structures may survive an ending (signs, benches, the ferry). A CROWD OF HEALTHY PEOPLE HOLDING
+// AN EVENT may not. This is the predicate for anything where people have gathered on purpose.
+function civicLifeOn(){ return cityPhase!=="apoc" && !nukeFull(); }
 
 // ---- the SMALL-METEOR SWARM: a sparse, scattered set of little strikes that pepper the city while the
 //      big planet-killer falls — each takes out a building or two + leaves a small fire/crater. NOT full
@@ -51202,26 +51210,179 @@ APOC_X.plague=function(g,ap,L,now){
 };
 
 // THE SWARM. One big object: a single enormous CLOUD that descends and eats the frame.
-APOC_X.swarm=function(g,ap,L,now){
-  var K=Math.max(1,KSP);
-  var top=Math.round(-HORIZON*0.3+ap*HORIZON*1.25);
-  g.fillStyle="rgba(46,40,24,"+(0.72*Math.min(1,ap*1.5)).toFixed(2)+")";
-  g.fillRect(0,0,SW,Math.max(0,top));
-  // the boiling underside — the edge is what makes it a swarm rather than a smear
-  for(var x=0;x<SW;x+=2){
-    var hh=(((x+WOFF)*2654435761)>>>0);
-    var e=Math.round(Math.sin((x+WOFF)*0.08+now/220)*4*K)+((hh%Math.max(1,Math.round(5*K))));
-    g.fillStyle="rgba(38,32,18,0.82)";
-    g.fillRect(x,Math.max(0,top),2,Math.max(0,e));
+// ================= THE SWARM — flesh-eating insects, one vast cloud sweeping through ============
+// Nick's spec: flesh-eating · they strip people to bone where they stand, swarm and drag them down,
+// tear them apart · victims run and get CAUGHT · it eats all vegetation, the animals, and pits the
+// buildings · and it moves as ONE VAST CLOUD sweeping through — dark under it, clear behind.
+// 🔑 THE CLOUD RIDES THE FRONT THAT ALREADY EXISTS. `apocSweepR()` is the radius that kills, so the
+// mass is drawn FROM it rather than beside it — the dark is always exactly over the part of the city
+// that is being eaten, and the two can never drift apart.
+// ⚠ SMOOTH EDGES ONLY. The density varies with distance from the front and the underside is a summed
+// sine — never a per-column random height with a drift, which is the hatching fault I hit three times
+// in one session on smoke, static and the plague miasma.
+function swarmDensityAt(wx){
+  var d=nukeDist(wx, apocEpiX(NOWOVR!=null?NOWOVR:Date.now())), r=apocSweepR();
+  if(r<=0) return 0;
+  var past=r-d;                                   // >0 once the front has gone by here
+  if(past<0) return Math.max(0,1+past/(WW*0.05)); // just ahead of it: thickening
+  return Math.max(0.18,1-past/(WW*0.40));         // behind: thinning, never quite clear
+}
+function swarmVictim(i){
+  var h=((i*2654435761+55501)>>>0); h=(h^(h>>>13))>>>0;
+  var h2=((h*40503+1013904223)>>>0);
+  return { home:((h%100000)/100000)*WW, dir:(h2&1)?1:-1, travel:30+((h2>>>3)%90),
+           zone:((h2>>>7)%3), q:((h2>>>11)%100)/100, res:((h2>>>17)%100)/100,
+           beast:((h2>>>23)%100)<16,               // some of them are livestock, not people
+           h:h, h2:h2 };
+}
+// when does the front reach a given world x — linear in ap, so invertible
+function swarmArrivalAp(wx){
+  var d=nukeDist(wx, apocEpiX(NOWOVR!=null?NOWOVR:Date.now()));
+  var s0=APOC_SWEEP.swarm;
+  return s0 + (d/(WW*0.62))*(0.92-s0);
+}
+function swarmVictimAt(i,ap){
+  var v=swarmVictim(i), aHit=swarmArrivalAp(v.home)+v.res*0.03;
+  var walked=Math.min(ap,aHit);
+  var X=disX(wrapW(v.home + v.dir*v.travel*walked*(ap<aHit?1.6:1)));   // they RUN, right up until it lands
+  if(X<-10||X>SW+10) return null;
+  var fy = v.zone===0 ? (HORIZON-1+Math.round(v.q*Math.max(0,WALK_F-2)))
+         : v.zone===1 ? (ROAD_Y+2+Math.round(v.q*Math.max(1,(ROAD_BOT-ROAD_Y)-3)))
+         :              (ROAD_BOT+3+Math.round(v.q*Math.max(0,WALK_N-3)));
+  return { v:v, X:X, fy:fy, aHit:aHit, pg:(ap-aHit)/0.16 };            // 0..1: caught → dragged → bone
+}
+// ---- the liquid half, drawn with the road so the living run over it
+function drawApocSwarmGround(g,L,now){
+  if(cityPhase!=="apoc"||curDeath!=="swarm"||goreK()<=0) return;
+  var ap=cityApoc, day=(L>0.5), N=Math.round(120+ap*220);
+  for(var i=0;i<N;i++){
+    var S=swarmVictimAt(i,ap); if(!S||S.pg<0) continue;
+    var w=Math.round(5+10*Math.min(1,S.pg));
+    g.fillStyle="rgba("+(day?150:100)+",14,18,"+(0.84*Math.min(1,S.pg*3)).toFixed(2)+")";
+    g.fillRect((S.X-(w>>1))|0,S.fy,w,1);
+    g.fillStyle="rgba("+(day?116:76)+",10,14,"+(0.58*Math.min(1,S.pg*3)).toFixed(2)+")";
+    g.fillRect((S.X-(w>>1)-1)|0,S.fy+1,w+2,1);
   }
-  // individuals, only near the edge, or it reads as fog
-  var n=Math.round(40+ap*150);
-  for(var i=0;i<n;i++){
-    var h=((i*2654435761+77)>>>0); h^=h>>>11;
-    var x2=((h%1000)/1000)*SW, y2=top+((h>>>9)%Math.max(1,Math.round(HORIZON*0.30)))-Math.round(HORIZON*0.06);
-    if(y2<0||y2>HORIZON) continue;
-    g.fillStyle="rgba(26,22,12,"+(0.5+0.4*((h>>>19)%100)/100).toFixed(2)+")";
-    g.fillRect(x2|0,y2|0,1,1);
+}
+APOC_X.swarm=function(g,ap,L,now){
+  var day=(L>0.5);
+  // ---- A. IT ARRIVES FROM A LONG WAY OFF. Nick: "have it start from really far away and get closer
+  // as it gets bigger." So the cloud is a BODY with a position and a size, not a full-width band that
+  // is simply there: it begins as a small dark smudge sitting on the horizon at the epicentre, and it
+  // swells and RISES as it closes, until it is overhead and the sky is gone.
+  // 🔑 Its size is driven by `apocSweepR()` — the same radius that does the killing — so what you can
+  // see coming and what is actually eating the city are the same object. They cannot drift apart.
+  // ⚠ Everything here falls off SMOOTHLY from the centre. No per-column heights: that is the hatching
+  // fault this file has now recorded four times.
+  var epiSx=disX(apocEpiX(NOWOVR!=null?NOWOVR:Date.now()));
+  var R=8+apocSweepR()*1.15;                                   // grows as it comes on
+  var grow=Math.min(1,R/(SW*0.9));
+  var cy=Math.round(HORIZON*0.80 - grow*HORIZON*0.52);         // sits on the horizon, then rises to fill the sky
+  var vext=Math.round(HORIZON*(0.045+0.62*grow));              // …and deepens
+  for(var off=-WW;off<=WW;off+=WW){
+    var cx=epiSx+off;
+    if(cx+R<-8||cx-R>SW+8) continue;
+    for(var x=Math.max(0,Math.round(cx-R)); x<Math.min(SW,Math.round(cx+R)); x+=2){
+      var t=Math.abs(x-cx)/Math.max(1,R);
+      var dn=Math.max(0,1-t*t);                                 // dense in the middle, feathered at the rim
+      if(dn<=0.02) continue;
+      // ⚠ ONE SINE IS A WAVE, NOT A SWARM. A single harmonic gave a clean rolling edge that reads
+      // as a smooth hill; the regularity has to break more than one way, so three harmonics at
+      // unrelated frequencies — still smooth, so no hatching, but no longer obviously periodic.
+      var half=Math.round(vext*dn*(0.60+0.20*Math.sin(x*0.017)+0.13*Math.sin(x*0.043+1.7)+0.09*Math.sin(x*0.101+4.1)));
+      var top=Math.max(0,cy-half), bot=Math.min(HORIZON,cy+half*0.65);
+      if(bot<=top) continue;
+      g.fillStyle="rgba(40,34,20,"+(0.60*dn).toFixed(3)+")";
+      g.fillRect(x,top,2,bot-top);
+    }
+  }
+  // ---- the insects themselves. ⚠ A SMOOTH WASH READS AS SMOKE — he said so — and a swarm is
+  // COUNTLESS BODIES, so the mass is grained through with them and a few outriders run ahead of it.
+  var nI=Math.round(500+ap*1400);
+  for(var q=0;q<nI;q++){
+    var hI=((q*2654435761+61)>>>0); hI=(hI^(hI>>>11))>>>0;
+    var ang=((hI%1000)/1000)*6.283, rad=Math.sqrt(((hI>>>9)%1000)/1000)*R*1.12;
+    var ix=epiSx+Math.cos(ang)*rad, iy=cy+Math.sin(ang)*rad*(vext/Math.max(1,R))*1.5;
+    ix=((ix%WW)+WW)%WW; if(ix>SW+6) ix-=WW;
+    if(ix<-6||ix>SW+6||iy<0||iy>HORIZON) continue;
+    ix+=Math.round(Math.sin(now/240+q*0.7)*2); iy+=Math.round(Math.cos(now/300+q)*2);
+    g.fillStyle=((hI>>>19)%3===0)?"rgba(14,11,5,0.94)":"rgba(30,25,12,0.76)";
+    g.fillRect(ix|0,iy|0,1,1);
+    if(((hI>>>17)%7)===0) g.fillRect((ix+1)|0,iy|0,1,1);        // a pair of wings
+  }
+  // ---- B. WHAT IT LEAVES: the land eaten bare, and the facades pitted.
+  var strip=Math.max(0,Math.min(1,(ap-APOC_SWEEP.swarm)/0.30));
+  if(strip>0){
+    // 🚨 NO RECTANGLE. Nick: "it is the box that indicates the spread of this — I just want to see the
+    // bugs, not the square it brings behind it." Filling every column inside the front radius draws a
+    // region with HARD VERTICAL EDGES at the front, and a moving hard-edged region is a visible box
+    // crawling across the city. It is the same family as the hatching fault: a per-column loop over a
+    // boundary produces the boundary, not the thing.
+    // 🔑 So there is no wash at all — only scattered bare patches, and each one FADES IN with how long
+    // the swarm has been over it. A boundary you cannot see cannot look like a box.
+    for(var gx=0;gx<SW;gx+=2){
+      var gwx=wrapW(gx+WOFF);
+      var past=apocSweepR()-nukeDist(gwx,apocEpiX(NOWOVR!=null?NOWOVR:Date.now()));
+      if(past<=0) continue;
+      var eaten=Math.min(1,past/(WW*0.16));                    // no hard edge: it comes on gradually
+      var gh=((gwx*2654435761)>>>0);
+      if(((gh>>>13)%100)/100 > eaten*strip) continue;          // …and only some columns ever go bare
+      g.fillStyle="rgba(104,86,58,"+(0.55*eaten*strip).toFixed(3)+")";
+      g.fillRect(gx,HORIZON-2,2,Math.max(1,ROAD_Y-(HORIZON-2)));
+      if((gh%5)===0){ g.fillStyle="rgba(72,58,36,"+(0.5*eaten*strip).toFixed(2)+")"; g.fillRect(gx,HORIZON-3-((gh>>>7)%3),2,2); }
+    }
+    var pb=standingNear(WOFF+SW*0.5, SW*0.75, 24);
+    for(var bI=0;bI<pb.length;bI++){
+      var B=pb[bI], bX=disX(B.x); if(bX<-20||bX>SW+20) continue;
+      if(nukeDist(B.x,apocEpiX(NOWOVR!=null?NOWOVR:Date.now()))>apocSweepR()) continue;
+      var bh2=((B.x*40503+13)>>>0), pits=Math.round(B.w*1.2*strip);
+      for(var pq=0;pq<pits;pq++){
+        var ph2=((bh2*31+pq*2654435761)>>>0);
+        var px2=bX+((ph2>>>5)%Math.max(1,B.w)), py2=Math.max(0,HORIZON-1-((ph2>>>11)%Math.max(1,B.h)));
+        g.fillStyle="rgba(30,24,14,"+(0.55*strip).toFixed(2)+")";
+        g.fillRect(px2|0,py2|0,1+((ph2>>>19)%2),1);
+      }
+    }
+  }
+  // ---- C. THE PEOPLE. They run, they are caught, they are dragged down, and then there is bone.
+  var N=Math.round(120+ap*220);
+  for(var i=0;i<N;i++){
+    var S=swarmVictimAt(i,ap); if(!S) continue;
+    var cloth=PEDC[(S.v.h>>>5)%PEDC.length], skin=SKINC[(S.v.h>>>9)%SKINC.length];
+    if(S.pg<0){
+      if(S.v.beast){ g.fillStyle=css(mixc(hex2rgb("#8a7a5e"),[0,0,0],day?0.14:0.40));   // livestock, still alive
+        g.fillRect((S.X-3)|0,S.fy-3,6,3); g.fillRect((S.X-3)|0,S.fy-1,1,2); g.fillRect((S.X+2)|0,S.fy-1,1,2); }
+      else drawPerson(g, S.X, S.fy, cloth, skin, ((now/300+i*0.4)|0)&3);   // running hard
+      continue;
+    }
+    if(S.pg<0.42){
+      // CAUGHT — a writhing mass over them, and blood coming out of it
+      if(!S.v.beast) drawPerson(g, S.X, S.fy, cloth, skin, -1);
+      else { g.fillStyle=css(mixc(hex2rgb("#8a7a5e"),[0,0,0],0.4)); g.fillRect((S.X-3)|0,S.fy-3,6,3); }
+      var mass=Math.round(3+5*S.pg/0.42);
+      for(var mq=0;mq<mass*3;mq++){
+        var mh=((S.v.h2*31+mq*2654435761)>>>0);
+        g.fillStyle=((mh>>>21)%5===0)?"rgba(178,22,22,0.9)":"rgba(28,22,10,0.88)";
+        g.fillRect((S.X-3+((mh>>>5)%7))|0,(S.fy-6+((mh>>>11)%7))|0,1,1);
+      }
+    } else if(S.pg<0.78){
+      // DRAGGED DOWN — under the mass, on the ground
+      g.fillStyle="rgba(26,20,10,0.9)";
+      g.fillRect((S.X-4)|0,S.fy-2,9,3);
+      for(var mq2=0;mq2<8;mq2++){
+        var mh2=((S.v.h2*17+mq2*40503)>>>0);
+        g.fillStyle=((mh2>>>19)%4===0)?"rgba(186,26,24,0.92)":"rgba(20,16,8,0.9)";
+        g.fillRect((S.X-4+((mh2>>>5)%9))|0,(S.fy-3+((mh2>>>11)%4))|0,1,1);
+      }
+    } else {
+      // STRIPPED TO BONE, where they stood. Clothes, a ribcage, a skull.
+      g.fillStyle=css(mixc(hex2rgb(cloth),[0,0,0],day?0.34:0.52));
+      g.fillRect((S.X-3)|0,S.fy-1,3,1);                                   // what is left of the clothes
+      g.fillStyle=day?"rgba(226,222,206,0.95)":"rgba(168,166,156,0.95)";
+      g.fillRect((S.X-1)|0,S.fy-1,3,1);                                   // ribs
+      g.fillRect((S.X)|0,S.fy-2,1,1);
+      g.fillRect((S.X+3)|0,S.fy-1,1,1);                                   // skull
+    }
   }
 };
 
@@ -54978,10 +55139,10 @@ function draw(g,pass){
   // railway therefore reads as routed behind important places instead of masking their entrances,
   // signs, animals, scoreboards, or breaking-news text.
   // window washers riding suspended platforms down the facades (daytime)
-  if(cityG>0.5 && !nukeFull()){ drawWashers(g,mid,L,now); drawWashers(g,near,L,now); }
+  if(cityG>0.5 && civicLifeOn()){ drawWashers(g,mid,L,now); drawWashers(g,near,L,now); }
   // space-age retrofits: holo rings, uplink beams, the space elevator
   if(curSpace>0.12 && !nukeFull()) drawSpaceRetrofit(g,L,now,night);
-  if(cityG>0.6 && !nukeFull()) drawRoofParties(g,L,now,nd,hol);   // weekend rooftops come alive
+  if(cityG>0.6 && civicLifeOn()) drawRoofParties(g,L,now,nd,hol);   // weekend rooftops come alive
 
   // cables (need built rooftops to string between)
   if(cityG>0.55){ g.strokeStyle=L>0.5?"rgba(20,20,28,0.55)":"rgba(5,5,10,0.8)"; g.beginPath();
@@ -55199,6 +55360,7 @@ function draw(g,pass){
   // the pools are part of the road surface and the survivors run over them.
   drawApocBloodField(g,L,now);      // the wide stain first…
   drawApocPlagueGround(g,L,now);    // …and the plague's pools, so the living walk OVER them
+  drawApocSwarmGround(g,L,now);     // …and the swarm's, for the same reason
   drawApocFallenGround(g,L,now);   // …then the individual pools on top of it
   if(curDis){
     drawCasualtyGround(g,curDis,L,now);
@@ -55751,9 +55913,9 @@ function draw(g,pass){
   drawSideShows(g,L,now,nd);
   drawLighthouse(g,L,now,fx);
   if(!nukeFull()) drawFishingFleet(g,L,now,nd);   // fishermen + boats + gulls — gone once the wave sweeps the harbour
-  drawNightMarket(g,L,now,nd);
+  if(civicLifeOn()) drawNightMarket(g,L,now,nd);
   drawPerformers(g,L,now,nd);
-  drawFestivals(g,L,now,nd);
+  if(civicLifeOn()) drawFestivals(g,L,now,nd);
   drawAftermath(g,L,now,nd);
   drawPets2(g,L,now,nd);
   drawSportsDay(g,L,now,nd);
@@ -55901,7 +56063,7 @@ function draw(g,pass){
   }
 
   // ---- calendar events (special days) — need a town to hold them ----
-  if(curEvents && cityG>0.45 && !nukeFull()){
+  if(curEvents && cityG>0.45 && civicLifeOn()){          // ⚠ nobody holds a farmers' market during the end of the world
     if(curEvents.movie)    drawMovie(g,L,now,night);      // outdoor cinema in the plaza
     if(curEvents.market)   drawMarket(g,L,now);           // weekend farmers' market stalls
     if(curEvents.marathon) drawMarathon(g,L,now);         // a river of runners
@@ -55946,7 +56108,7 @@ function draw(g,pass){
   // run, then make it decide for itself whether to draw.
   drawGanonWash(g,L,now);                                    // …and the takeover's own shadow over the whole frame
   drawPlague(g,L,now,night);                                 // …or THE PLAGUE's field hospitals + ambulances (mutually exclusive with the regime)
-  drawFestival(g,L,now,night);                               // …or THE FESTIVAL's great wheel + fairgrounds (mutually exclusive with war/regime/plague)
+  if(civicLifeOn()) drawFestival(g,L,now,night);             // …or THE FESTIVAL's great wheel + fairgrounds (mutually exclusive with war/regime/plague)
   drawFootballTossers(g,L,now);                              // Bills days: people playing catch with a football in the street
 
   // ---- THE GRAND CATACLYSM ends the city's life every ~month, then it's reborn as wilderness ----
