@@ -51387,26 +51387,234 @@ APOC_X.swarm=function(g,ap,L,now){
 };
 
 // THE BLOOD MOON. One big object, and it is enormous: a red moon low over the roofs.
-APOC_X.bloodmoon=function(g,ap,L,now){
-  var K=Math.max(1,KSP);
-  skyWash(g,"90,10,14",0.30+0.34*ap);
-  var mR=Math.round((26+ap*74)*K);
-  var mWx=(typeof apocEpiX==="function")?apocEpiX(now):Math.round(WW*0.5);
-  var my=Math.round(HORIZON*0.34);
-  for(var off=-WW;off<=WW;off+=WW){
-    var mx=(mWx-WOFF+off)|0; if(mx+mR<-8||mx-mR>SW+8) continue;
-    g.globalCompositeOperation="lighter";
-    g.fillStyle="rgba(150,20,18,0.14)"; fillEllipse(g,mx,my,mR*1.5,mR*1.5);
-    g.globalCompositeOperation="source-over";
-    g.fillStyle="rgb("+(150+((30*ap)|0))+",26,24)"; fillEllipse(g,mx,my,mR,mR);
-    var cr=rng(0x8100D00D);
-    for(var k=0;k<12;k++){
-      var ca=cr()*6.283, cd=Math.sqrt(cr())*mR*0.86;
-      g.fillStyle="rgba(104,14,14,0.55)";
-      fillEllipse(g,mx+Math.cos(ca)*cd,my+Math.sin(ca)*cd,Math.max(1,mR*0.07),Math.max(1,mR*0.07));
+// ================= THE BLOOD MOON — the city turns on itself ==================================
+// Nick's spec: it drives everyone to KILL EACH OTHER — no monster, no invader, the horror is that it
+// is them. The moon bleeds, grows through the arc, pulses like a heartbeat, and eclipses the day into
+// a false night. The city itself STANDS: nothing collapses, and that is the point — a perfectly
+// ordinary skyline over a massacre.
+// 🔑 THE TURNING IS CAUSED BY SOMETHING YOU CAN SEE. Nick: "I can't tell WHY it's happening" — the
+// moon was up there and people were separately dying, with nothing joining the two. So the moonlight
+// leaves the moon as a WAVE and crosses the city, and a citizen turns when it reaches THEM. Cause and
+// effect are now in the same frame, and the line of the turned IS the shape of the light.
+function moonWaveR(){ return Math.max(0,(cityApoc-0.10)/0.60)*(WW*0.62); }
+function moonTurnAp(wx){
+  var d=nukeDist(wx, apocEpiX(NOWOVR!=null?NOWOVR:Date.now()));
+  return 0.10 + (d/(WW*0.62))*0.60;
+}
+function moonMob(i){
+  var h=((i*2654435761+77003)>>>0); h=(h^(h>>>13))>>>0;
+  var h2=((h*40503+1013904223)>>>0);
+  var home=((h%100000)/100000)*WW;
+  var turn=moonTurnAp(home)+((h>>>7)%100)/100*0.05;
+  return { home:home, dir:(h2&1)?1:-1, travel:20+((h2>>>3)%60),
+           zone:((h2>>>7)%3), q:((h2>>>11)%100)/100,
+           turnAt:turn,                                   // when this one turns on the others
+           killAt:turn+0.04+((h2>>>17)%100)/100*0.20,      // …and takes somebody down
+           dieAt: turn+0.16+((h2>>>23)%100)/100*0.46,      // …before somebody takes THEM down
+           h:h, h2:h2 };
+}
+function moonMobAt(i,ap){
+  var m=moonMob(i);
+  var walked=Math.min(ap,m.turnAt);                        // they stop wandering once it takes them
+  var X=disX(wrapW(m.home+m.dir*m.travel*walked));
+  if(X<-10||X>SW+10) return null;
+  var fy = m.zone===0 ? (HORIZON-1+Math.round(m.q*Math.max(0,WALK_F-2)))
+         : m.zone===1 ? (ROAD_Y+2+Math.round(m.q*Math.max(1,(ROAD_BOT-ROAD_Y)-3)))
+         :              (ROAD_BOT+3+Math.round(m.q*Math.max(0,WALK_N-3)));
+  return { m:m, X:X, fy:fy };
+}
+// the blood goes down with the road, so the living fight and run OVER it
+function drawApocMoonGround(g,L,now){
+  if(cityPhase!=="apoc"||curDeath!=="bloodmoon"||goreK()<=0) return;
+  var ap=cityApoc, day=(L>0.5), N=Math.round(130+ap*230);
+  for(var i=0;i<N;i++){
+    var S=moonMobAt(i,ap); if(!S) continue;
+    if(ap>=S.m.killAt){                                    // the one they killed
+      var w=Math.round(7+6*Math.min(1,(ap-S.m.killAt)/0.2));
+      g.fillStyle="rgba("+(day?150:100)+",14,18,0.82)";
+      g.fillRect((S.X+S.m.dir*3-(w>>1))|0,S.fy,w,1);
+    }
+    if(ap>=S.m.dieAt){                                     // …and then them
+      g.fillStyle="rgba("+(day?146:98)+",14,18,0.80)";
+      g.fillRect((S.X-5)|0,S.fy,11,1);
+      g.fillStyle="rgba("+(day?112:74)+",10,14,0.54)";
+      g.fillRect((S.X-6)|0,S.fy+1,13,1);
     }
   }
-  groundGlow(g,"140,24,24",0.30*ap);
+}
+APOC_X.bloodmoon=function(g,ap,L,now){
+  var K=Math.max(1,KSP), day=(L>0.5);
+  // 🚨🚨 SOMETHING UPSTREAM LEAVES THE CANVAS IN "lighter", AND THIS ENDING IS WHERE IT SHOWS.
+  // Removing the halo also removed its `source-over` restore — and the whole frame immediately
+  // saturated to flat red, because every wash after it was ADDING instead of blending. Measured:
+  // sky and buildings both came back (154,15,18), i.e. the wash colour at full strength, and
+  // identical with gore=off, which ruled out every blood layer.
+  // 🔑 An accidental restore was holding a bug shut. This ending leans on full-frame washes more
+  // than any other, so it states the mode it needs instead of inheriting whatever was left.
+  g.globalCompositeOperation="source-over";
+  // ---- A. FALSE NIGHT. The day dies as it rises, and what is left is lit only by the moon.
+  var night=Math.min(1,ap*1.5);
+  // ⚠ THE FALSE NIGHT IS A DIMMER, NOT A DYE. At 0.62 with the red pass on top the whole frame
+  // became one flat red soup and the city lost every colour of its own — the same fault as the
+  // green haze on RISEN, one hue over. The moon should LIGHT the city, not replace it.
+  g.fillStyle="rgba(10,6,10,"+(0.40*night).toFixed(3)+")";
+  g.fillRect(0,0,SW,HORIZON+GROUND);
+  // ---- B. THE HEARTBEAT. One slow pulse drives the moon's size AND the light on the city, so the
+  // whole scene breathes together rather than the moon throbbing on its own in a static frame.
+  var beat=0.5+0.5*Math.sin(now/760);
+  var swell=1+0.045*beat;
+  // ---- C. THE MOON: grows through the arc, from an ordinary moon to half the sky.
+  var mR=Math.round((7+ap*ap*(SH*0.52))*swell);
+  var redness=Math.min(1,ap*1.8);
+  var mWx=(typeof apocEpiX==="function")?apocEpiX(now):Math.round(WW*0.5);
+  var my=Math.round(HORIZON*0.36 - ap*HORIZON*0.06);
+  for(var off=-WW;off<=WW;off+=WW){
+    var mx=(mWx-WOFF+off)|0; if(mx+mR<-8||mx-mR>SW+8) continue;
+    // ⚠ NO HALO. An additive disc at 1.7x the radius draws a hard-edged RING around the moon and
+    // Nick called it exactly: "remove the ring that makes it look like a solar flare." The moon lights
+    // the city through the wash further down; it does not need a corona.
+    var mr=Math.round(176-40*redness+16*beat), mg=Math.round(120-96*redness), mb=Math.round(112-92*redness);
+    g.fillStyle="rgb("+mr+","+mg+","+mb+")";
+    fillEllipse(g,mx,my,mR,mR);
+    var cr=rng(0x8100D00D);                                   // craters
+    for(var k=0;k<14;k++){
+      var ca=cr()*6.283, cd=Math.sqrt(cr())*mR*0.86;
+      g.fillStyle="rgba("+Math.round(mr*0.72)+","+Math.round(mg*0.6)+","+Math.round(mb*0.6)+",0.55)";
+      fillEllipse(g,mx+Math.cos(ca)*cd,my+Math.sin(ca)*cd,Math.max(1,mR*0.075),Math.max(1,mR*0.075));
+    }
+    // ---- D. IT BLEEDS. Discrete runs from the lower rim, tapering as they fall — a handful of
+    // objects, deliberately NOT a per-column loop, which is what turns an effect into hatching.
+    if(ap>0.12){
+      var runs=7+((mR/9)|0);
+      for(var d=0;d<runs;d++){
+        var dh=((d*2654435761+9)>>>0);
+        var dx2=mx+Math.round((((dh%1000)/1000)*2-1)*mR*0.82);
+        var dy0=my+Math.round(Math.sqrt(Math.max(0,mR*mR-Math.pow(dx2-mx,2))))-1;
+        var dlen=Math.round((mR*0.35+((dh>>>9)%Math.max(1,Math.round(mR*0.9))))*Math.min(1,(ap-0.12)*2.4));
+        // ⚠ ALL ONE WIDTH READS AS A COMB. Blood runs are not evenly weighted — a few heavy ones,
+        // several thin, and the lengths already vary, so vary the weight too.
+        // ⚠ GOOP, NOT DRIPS. Nick: "have the blood also goop down from the moon." A thin tapering
+        // line reads as a scratch; blood running off something is THICK, it holds its width, it
+        // BULGES where it gathers, and it hangs in a heavy bead before it falls.
+        var dw=Math.max(2,Math.round(mR*(0.055+((dh>>>19)%100)/100*0.075)));
+        for(var q2=0;q2<dlen;q2++){
+          var tq=q2/Math.max(1,dlen);
+          var bulge=1+0.55*Math.sin(q2*0.34+((dh>>>7)%7));      // it gathers and thins as it runs
+          var wq=Math.max(2,Math.round(dw*(1-tq*0.28)*bulge));
+          g.fillStyle="rgba("+Math.round(168-34*tq)+",11,13,"+((0.94-0.30*tq)).toFixed(3)+")";
+          g.fillRect((dx2-(wq>>1))|0,(dy0+q2)|0,wq,1);
+        }
+        var bead=Math.max(2,Math.round(dw*1.5));               // the heavy bead hanging off the end
+        g.fillStyle="rgba(158,11,13,0.95)";
+        fillEllipse(g,dx2,dy0+dlen,bead,Math.round(bead*1.25));
+        if(((dh>>>23)%3)===0){                                  // …and one that has already let go
+          var fall=dlen+Math.round(mR*0.28+((now/9+dh)%Math.max(1,mR*0.5)));
+          g.fillStyle="rgba(152,11,13,0.85)";
+          fillEllipse(g,dx2,dy0+fall,Math.max(1,bead*0.7),Math.max(1,bead*0.9));
+        }
+      }
+    }
+  }
+  // the red it casts over everything, breathing with the beat
+  // ⚠ MEASURED, NOT GUESSED. At 0.05+0.13*ap this pass alone took the sky from (102,106,133) to
+  // (154,15,18) — the wash colour at full strength, i.e. the city was GONE and only the tint was
+  // left. Proven by rendering with the line removed and sampling both. The moon LIGHTS the city;
+  // the city has to survive the lighting.
+  // 🚨🚨 `Math.round`, AND IT IS NOT COSMETIC. `150+30*redness` yields a FRACTIONAL channel like
+  // 178.5, which makes the whole rgba() string INVALID — and an invalid fillStyle is SILENTLY
+  // IGNORED by canvas, leaving the PREVIOUS style in place. The previous style here was opaque,
+  // so this full-frame pass painted flat opaque red and the entire city vanished under it.
+  // 🔑 THE ALPHA WAS NEVER BEING READ, which is why setting it to literally 0 changed nothing and
+  // cost several rounds of looking in the wrong place. Bisecting the renderer with early returns
+  // found it in three renders after guesswork found nothing.
+  // ⚠ It only appeared now because `redness` is `min(1, ap*1.8)`: at ap>=0.56 it clamps to exactly
+  // 1 and 150+30 is an integer, so every earlier frame I checked happened to be VALID.
+  g.fillStyle="rgba("+Math.round(150+30*redness)+",18,20,"+((0.05+0.12*ap)*(0.82+0.18*beat)).toFixed(3)+")";
+  g.fillRect(0,0,SW,HORIZON+GROUND);
+  // ---- E. AND THE CITY TURNS ON ITSELF.
+  // ---- THE WAVE ITSELF, so you can watch it cross. A smooth radial falloff, full height — a band
+  // of light, not a column loop with per-column heights.
+  var wr=moonWaveR();
+  if(wr>0){
+    for(var wx2=0;wx2<SW;wx2+=2){
+      // ⚠ A THIN EDGE, NOT A CURTAIN. At a WW*0.05 band and 0.20 alpha this covered most of the
+      // screen full-height and drowned the entire frame red — the city vanished. The wave is meant to
+      // be the LEADING EDGE of the light passing over, so it is narrow, weak, and does not reach the
+      // ground where all the detail is.
+      var dw2=Math.abs(nukeDist(wrapW(wx2+WOFF),apocEpiX(NOWOVR!=null?NOWOVR:Date.now()))-wr);
+      if(dw2>WW*0.018) continue;
+      var wa=(1-dw2/(WW*0.018));
+      g.fillStyle="rgba(250,90,70,"+(0.11*wa*wa*(0.7+0.3*beat)).toFixed(3)+")";
+      g.fillRect(wx2,0,2,HORIZON);
+    }
+  }
+  // ---- MOBS. Nick: "mobs, not pairs." Two figures side by side never reads as an attack at 7px; a
+  // ring of five hunched over one person does, immediately.
+  var gangs=Math.round(3+ap*12);
+  for(var gI=0;gI<gangs;gI++){
+    var gh3=((gI*2654435761+2299)>>>0); gh3=(gh3^(gh3>>>13))>>>0;
+    var gwx=((gh3%100000)/100000)*WW;
+    var gAt=moonTurnAp(gwx)+0.04+((gh3>>>7)%100)/100*0.16;
+    if(ap<gAt) continue;
+    var gX=disX(wrapW(gwx)); if(gX<-20||gX>SW+20) continue;
+    var gz=(gh3>>>11)%3, gq=((gh3>>>17)%100)/100;
+    var gfy = gz===0 ? (HORIZON-1+Math.round(gq*Math.max(0,WALK_F-2)))
+            : gz===1 ? (ROAD_Y+2+Math.round(gq*Math.max(1,(ROAD_BOT-ROAD_Y)-3)))
+            :          (ROAD_BOT+3+Math.round(gq*Math.max(0,WALK_N-3)));
+    var done=(ap>gAt+0.10);
+    g.fillStyle="rgba("+(day?152:104)+",14,18,0.88)";          // what is under them
+    g.fillRect((gX-7)|0,gfy,15,1);
+    drawProne(g, gX, gfy, PEDC[(gh3>>>19)%PEDC.length], SKINC[(gh3>>>23)%SKINC.length], gh3, day);
+    var size=4+((gh3>>>5)%3);
+    for(var aI=0;aI<size;aI++){
+      var ah=((gh3*31+aI*40503)>>>0);
+      var ax=gX+((aI%2)?1:-1)*(2+((ah>>>5)%5)), ay=gfy-((ah>>>9)%2);
+      if(ax<-6||ax>SW+6) continue;
+      var acl=css(mixc(hex2rgb(PEDC[(ah>>>11)%PEDC.length]),[80,10,12],0.40));
+      var ask=css(mixc(hex2rgb(SKINC[(ah>>>15)%SKINC.length]),[186,60,50],0.45));
+      drawPerson(g, ax, ay, acl, ask, -1);
+      g.fillStyle="rgba(255,40,32,0.98)"; g.fillRect(ax|0,(ay-6)|0,2,1);          // eyes
+      if(!done){
+        g.fillStyle=((ah>>>17)%2)?"rgba(120,116,110,0.95)":"rgba(96,70,44,0.95)"; // weapons, raised
+        g.fillRect(ax|0,(ay-9-(((now/200+aI)|0)&1))|0,1,3);
+        g.fillStyle="rgba(214,30,28,0.9)";
+        g.fillRect((gX+((ah>>>21)%7)-3)|0,(gfy-3-((ah>>>23)%4))|0,1,1);           // spray off the middle
+      }
+    }
+  }
+  var N=Math.round(130+ap*230);
+  for(var i=0;i<N;i++){
+    var S=moonMobAt(i,ap); if(!S) continue;
+    var m=S.m, X=S.X, fy=S.fy;
+    var cloth=PEDC[(m.h>>>5)%PEDC.length], skin=SKINC[(m.h>>>9)%SKINC.length];
+    if(ap>=m.dieAt){ drawProne(g, X, fy, cloth, skin, m.h, day); continue; }   // they got theirs
+    if(ap<m.turnAt){                                          // not yet — an ordinary person
+      drawPerson(g, X, fy, cloth, skin, ((now/520+i*0.4)|0)&3);
+      continue;
+    }
+    // TURNED. ⚠ THE EYES ARE THE WHOLE TELL. At 7px you cannot read a facial expression or a stance,
+    // but two red pixels at head height separate the turned from the untouched instantly — and the
+    // count of them visibly grows behind the wave, which is the story.
+    var lit=css(mixc(hex2rgb(skin),[186,60,50],0.45));
+    var bob=((now/700+i*0.3)|0)&3;
+    if(ap<m.killAt){
+      drawPerson(g, X, fy, css(mixc(hex2rgb(cloth),[80,10,12],0.35)), lit, bob);
+    } else {
+      drawProne(g, X+m.dir*3, fy, PEDC[(m.h2>>>5)%PEDC.length], SKINC[(m.h2>>>9)%SKINC.length], m.h2, day);
+      drawPerson(g, X, fy, css(mixc(hex2rgb(cloth),[80,10,12],0.42)), lit, bob);
+      g.fillStyle="rgba(150,14,16,0.85)"; g.fillRect(X|0,fy-4,2,1);
+    }
+    // ---- A WEAPON, RAISED. A pose says what a colour cannot: something held above the head.
+    var wpn=(m.h2>>>13)%3;
+    g.fillStyle=wpn===0?"rgba(120,116,110,0.95)":(wpn===1?"rgba(96,70,44,0.95)":"rgba(150,150,158,0.95)");
+    var swing=((now/240+i)|0)&1;
+    if(swing) g.fillRect((X+m.dir*2)|0,(fy-9)|0,1,3);          // up
+    else      g.fillRect((X+m.dir*3)|0,(fy-6)|0,3,1);          // …and through
+    // ---- THE EYES ----
+    g.fillStyle="rgba(255,40,32,0.98)";
+    g.fillRect((X)|0,(fy-6-(bob===1||bob===3?1:0))|0,2,1);
+  }
+
 };
 
 // ACID RAIN. One big object: the sheets themselves, and a skyline that is visibly SAGGING.
@@ -55361,6 +55569,7 @@ function draw(g,pass){
   drawApocBloodField(g,L,now);      // the wide stain first…
   drawApocPlagueGround(g,L,now);    // …and the plague's pools, so the living walk OVER them
   drawApocSwarmGround(g,L,now);     // …and the swarm's, for the same reason
+  drawApocMoonGround(g,L,now);      // …and the blood moon's massacre
   drawApocFallenGround(g,L,now);   // …then the individual pools on top of it
   if(curDis){
     drawCasualtyGround(g,curDis,L,now);
@@ -55737,7 +55946,7 @@ function draw(g,pass){
       else if(curDeath==="frost"){                               // deep freeze: flee the cold, then freeze SOLID (an ice-blue statue) where the freeze catches them
         var frp=frostCl(pwx);
         if(frp>=0){ var vsx7=pwx-WOFF; if(vsx7>SW+4&&vsx7-WW>-4)vsx7-=WW; if(vsx7<-4&&vsx7+WW<SW+4)vsx7+=WW;
-          if(vsx7>-3&&vsx7<SW+3){ g.fillStyle="rgba("+(150+80*frp)+","+(190+50*frp)+",255,"+(0.5+0.5*Math.min(1,frp))+")"; g.fillRect(vsx7|0,HORIZON-4,2,4); }   // frozen where they stood
+          if(vsx7>-3&&vsx7<SW+3){ g.fillStyle="rgba("+Math.round(150+80*frp)+","+Math.round(190+50*frp)+",255,"+(0.5+0.5*Math.min(1,frp)).toFixed(3)+")";   /* ⚠ Math.round: a FRACTIONAL channel makes the rgba() string invalid, canvas silently ignores the assignment, and the fill inherits the PREVIOUS style — so these frozen figures were drawn in whatever colour happened to be left over. Same bug as the blood moon's wash. */ g.fillRect(vsx7|0,HORIZON-4,2,4); }   // frozen where they stood
           continue; }
         fleeing=true; pwx=wrapW(pwx + pd.dir*(now%4000)*0.038); }
       else if(curDeath==="ninetails"){                           // the fox: run from the shockwave, and be gone when it arrives
