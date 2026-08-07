@@ -51714,22 +51714,149 @@ APOC_X.bloodmoon=function(g,ap,L,now){
 };
 
 // ACID RAIN. One big object: the sheets themselves, and a skyline that is visibly SAGGING.
-APOC_X.acidrain=function(g,ap,L,now){
-  var K=Math.max(1,KSP);
-  skyWash(g,"126,146,44",0.24+0.34*ap);
-  var n=Math.round(70+ap*220);
-  for(var i=0;i<n;i++){
-    var h=((i*2654435761+313)>>>0); h^=h>>>13;
-    var per=520+((h>>>7)%700), ph=((now+((h>>>11)%per))%per)/per;
-    var x=((h%1000)/1000)*SW, y=ph*HORIZON;
-    var ln=Math.round(4+((h>>>17)%6));
-    g.fillStyle="rgba(206,232,96,"+(0.30+0.40*ap).toFixed(2)+")";
-    g.fillRect(x|0,y|0,1,ln);
+// ================= ACID RAIN — nothing remains =================================================
+// Nick's spec: it starts small and picks up · people run for cover and are caught in the open · they
+// claw and collapse and DISSOLVE where they stand · the bodies keep dissolving after death · the rain
+// POOLS and eats HOLES in the road · facades pit and streak · metal corrodes · the vegetation goes
+// first · "nothing should remain with this one."
+// 🔑 EVERYTHING here is keyed to `eat`, one number: how long the acid has been working on a given
+// world x. The rain, the pools, the holes, the corrosion and the bodies all read from it, so the
+// whole frame decays together instead of five effects running on five clocks.
+function acidEatAt(wx){
+  var d=nukeDist(wx, apocEpiX(NOWOVR!=null?NOWOVR:Date.now())), r=apocSweepR();
+  if(r<=d) return 0;
+  return Math.min(1,(r-d)/(WW*0.34));
+}
+function acidVictim(i){
+  var h=((i*2654435761+40961)>>>0); h=(h^(h>>>13))>>>0;
+  var h2=((h*40503+1013904223)>>>0);
+  return { home:((h%100000)/100000)*WW, dir:(h2&1)?1:-1, travel:26+((h2>>>3)%70),
+           zone:((h2>>>7)%3), q:((h2>>>11)%100)/100, res:((h2>>>17)%100)/100,
+           cover:((h2>>>21)%100)<38,               // some make it to a doorway; most do not
+           h:h, h2:h2 };
+}
+function acidArrivalAp(wx){
+  var d=nukeDist(wx, apocEpiX(NOWOVR!=null?NOWOVR:Date.now()));
+  return APOC_SWEEP.acidrain + (d/(WW*0.62))*(0.92-APOC_SWEEP.acidrain);
+}
+function drawApocAcidGround(g,L,now){
+  if(cityPhase!=="apoc"||curDeath!=="acidrain") return;
+  var day=(L>0.5);
+  // ---- POOLS AND HOLES. The acid gathers on the asphalt and then eats through it.
+  for(var x=0;x<SW;x+=1){
+    var wx=wrapW(x+WOFF), eat=acidEatAt(wx);
+    if(eat<=0.02) continue;
+    var hh=((wx*2654435761)>>>0);
+    // standing acid — bright, sickly, gathering in the camber
+    if(((hh>>>5)%100) < 40+55*eat){
+      var pd=1+Math.round(eat*5);
+      g.fillStyle="rgba(168,196,64,"+(0.38+0.50*eat).toFixed(3)+")";
+      g.fillRect(x,ROAD_Y+2+((hh>>>9)%Math.max(1,(ROAD_BOT-ROAD_Y)-4)),1,pd);
+    }
+    // …and then it is through. A hole is DARK — the value drop is what reads, not the colour.
+    if(eat>0.28 && ((hh>>>13)%100) < (eat-0.28)/0.72*58){
+      var hd=1+Math.round((eat-0.28)/0.72*7);
+      var hy=ROAD_Y+2+((hh>>>17)%Math.max(1,(ROAD_BOT-ROAD_Y)-5));
+      g.fillStyle="rgba(14,14,12,0.92)";
+      g.fillRect(x,hy,1,hd);
+      g.fillStyle="rgba(150,176,58,0.55)";                      // the rim still fizzing
+      g.fillRect(x,hy-1,1,1);
+    }
   }
-  // where it lands: a hissing pale line that eats into the ground
-  g.fillStyle="rgba(196,224,90,"+(0.34*ap).toFixed(2)+")";
-  g.fillRect(0,HORIZON-2,SW,2);
-  groundGlow(g,"120,140,40",0.30*ap);
+}
+APOC_X.acidrain=function(g,ap,L,now){
+  var K=Math.max(1,KSP), day=(L>0.5);
+  var build=Math.max(0,Math.min(1,(ap-0.06)/0.44));             // drizzle → downpour
+  skyWash(g,"120,140,52",(0.10+0.30*build).toFixed(3)*1);
+  // ---- A. THE RAIN. ⚠ Uniform streaks read as a screen effect; real rain has DEPTH — near drops are
+  // long, bright and fast, far ones are short, faint and slow, and there are far more of the latter.
+  var n=Math.round(90+build*1500);   // ⚠ sparse long strokes read as falling STICKS; rain is many, fine, and overlapping
+  for(var i=0;i<n;i++){
+    var h=((i*2654435761+313)>>>0); h=(h^(h>>>13))>>>0;
+    var depth=((h>>>19)%100)/100;                                // 0 = far, 1 = right in front of you
+    var per=700-420*depth, ph=((now+((h>>>11)%per))%per)/per;
+    var x=((h%1000)/1000)*SW, y=ph*HORIZON;
+    var ln=Math.round(2+depth*7+build*3), sl=0.22+0.10*depth;
+    g.fillStyle="rgba("+Math.round(180+50*depth)+","+Math.round(205+45*depth)+",70,"+(0.10+0.40*depth).toFixed(3)+")";
+    for(var q=0;q<ln;q++) g.fillRect(Math.round(x+q*sl),(y+q)|0,1,1);
+    if(depth>0.55 && y+ln>HORIZON-3){                            // it splashes where it lands
+      g.fillStyle="rgba(200,224,90,0.75)";
+      g.fillRect(Math.round(x-1),HORIZON-2,3,1);
+      g.fillRect(Math.round(x-2),HORIZON-3,1,1); g.fillRect(Math.round(x+2),HORIZON-3,1,1);
+    }
+  }
+  // ---- B. THE VEGETATION GOES FIRST, then the facades pit and streak, then metal corrodes.
+  var vb=standingNear(WOFF+SW*0.8, SW*0.8, 24);
+  for(var x2=0;x2<SW;x2+=2){
+    var wx2=wrapW(x2+WOFF), eat2=acidEatAt(wx2);
+    if(eat2<=0) continue;
+    g.fillStyle="rgba(96,82,44,"+(0.55*Math.min(1,eat2*2.2)).toFixed(3)+")";   // the green dies early
+    g.fillRect(x2,HORIZON-2,2,Math.max(1,ROAD_Y-(HORIZON-2)));
+  }
+  for(var bI=0;bI<vb.length;bI++){
+    var B=vb[bI], bX=disX(B.x); if(bX<-20||bX>SW+20) continue;
+    var eatB=acidEatAt(B.x); if(eatB<=0) continue;
+    var bh=((B.x*40503+77)>>>0), bTop=Math.max(0,HORIZON-1-B.h);
+    var runs=Math.round(B.w*0.7*eatB);
+    for(var rq=0;rq<runs;rq++){                                  // streaks running down the walls
+      var rh=((bh*31+rq*2654435761)>>>0);
+      var rx=bX+((rh>>>5)%Math.max(1,B.w)), ry=bTop+((rh>>>11)%Math.max(1,Math.round(B.h*0.6)));
+      var rl=Math.round((3+((rh>>>17)%12))*eatB);
+      for(var sv=0;sv<rl;sv++){
+        if(ry+sv>=HORIZON-1) break;
+        g.fillStyle="rgba(126,140,52,"+((0.50-0.34*sv/Math.max(1,rl))*eatB).toFixed(3)+")";
+        g.fillRect(rx|0,(ry+sv)|0,1,1);
+      }
+      if((rh>>>21)%4===0){ g.fillStyle="rgba(18,20,14,"+(0.6*eatB).toFixed(2)+")"; g.fillRect(rx|0,ry|0,1+((rh>>>23)%2),1); }  // eaten through
+    }
+    if(eatB>0.3){                                                // metal corroding: rails and poles go orange
+      g.fillStyle="rgba(150,84,30,"+(0.42*(eatB-0.3)/0.7).toFixed(3)+")";
+      g.fillRect(bX|0,HORIZON-2,Math.max(2,B.w),1);
+    }
+  }
+  // ---- C. THE PEOPLE. Run for cover, caught in the open, clawing, and then gone entirely.
+  var N=Math.round(120+ap*220);
+  for(var i2=0;i2<N;i2++){
+    var v=acidVictim(i2);
+    var aHit=acidArrivalAp(v.home)+v.res*0.04;
+    var walked=Math.min(ap,aHit);
+    var X=disX(wrapW(v.home+v.dir*v.travel*walked*(ap<aHit?2.0:1)));   // they RUN for it
+    if(X<-10||X>SW+10) continue;
+    var fy = v.zone===0 ? (HORIZON-1+Math.round(v.q*Math.max(0,WALK_F-2)))
+           : v.zone===1 ? (ROAD_Y+2+Math.round(v.q*Math.max(1,(ROAD_BOT-ROAD_Y)-3)))
+           :              (ROAD_BOT+3+Math.round(v.q*Math.max(0,WALK_N-3)));
+    var cloth=PEDC[(v.h>>>5)%PEDC.length], skin=SKINC[(v.h>>>9)%SKINC.length];
+    if(ap<aHit){
+      var close=Math.max(0,Math.min(1,1-(aHit-ap)/0.10));
+      drawPerson(g, X, fy, cloth, skin, ((now/(420-300*close)+i2*0.4)|0)&3);   // sprinting for a doorway
+      continue;
+    }
+    var d2=(ap-aHit)/(v.cover?0.34:0.20);                        // under cover it takes longer. Only longer.
+    if(d2>=1) continue;                                          // 🔑 NOTHING REMAINS. Not even a stain.
+    var dissolve=d2;
+    if(dissolve<0.34){
+      // CLAWING — hands to the face, staggering, still upright
+      var sk2=css(mixc(hex2rgb(skin),[150,168,70],0.35+dissolve));
+      drawPerson(g, X, fy, css(mixc(hex2rgb(cloth),[120,138,54],0.30+dissolve*0.5)), sk2, -1);
+      g.fillStyle=sk2; g.fillRect((X-2)|0,(fy-6)|0,1,1); g.fillRect((X+2)|0,(fy-6)|0,1,1);   // hands up
+      g.fillStyle="rgba(196,220,84,0.75)";
+      g.fillRect((X-1)|0,(fy-8)|0,3,1);                          // it is on them
+    } else if(dissolve<0.70){
+      // GOING DOWN — coming apart from the top, so they SHRINK rather than fade
+      var hgt=Math.max(1,Math.round(6*(1-(dissolve-0.34)/0.36)));
+      g.fillStyle=css(mixc(hex2rgb(cloth),[126,142,58],0.55));
+      g.fillRect((X-1)|0,(fy-hgt)|0,2,hgt);
+      g.fillStyle="rgba(178,202,72,0.70)";
+      g.fillRect((X-2)|0,fy,5,1);                                // what is running off them
+    } else {
+      // ALMOST NOTHING: the clothes, and a fizzing patch, both going
+      var last=1-(dissolve-0.70)/0.30;
+      g.fillStyle="rgba(120,134,56,"+(0.70*last).toFixed(3)+")";
+      g.fillRect((X-2)|0,fy-1,4,1);
+      g.fillStyle="rgba(190,214,80,"+(0.55*last).toFixed(3)+")";
+      g.fillRect((X-3)|0,fy,7,1);
+    }
+  }
 };
 
 // THE PIT. One big object: a single colossal chasm. Value contrast is the whole trick — pure black.
@@ -55666,6 +55793,7 @@ function draw(g,pass){
   drawApocPlagueGround(g,L,now);    // …and the plague's pools, so the living walk OVER them
   drawApocSwarmGround(g,L,now);     // …and the swarm's, for the same reason
   drawApocMoonGround(g,L,now);      // …and the blood moon's massacre
+  drawApocAcidGround(g,L,now);      // …and the acid standing on the road, and the holes it ate
   drawApocFallenGround(g,L,now);   // …then the individual pools on top of it
   if(curDis){
     drawCasualtyGround(g,curDis,L,now);
