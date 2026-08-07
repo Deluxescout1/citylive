@@ -15921,16 +15921,35 @@ function tramLaneY(t){ return ROAD_Y+TRAM_BASE[t?1:0]; }  // the reservation's t
 // per-call habit is exactly how the crosswalks came to carry `if(nukeHit(xw.x)) continue` while the
 // lane dividers painted eight lines above them carry nothing.
 // 🔑 Run-batched: a scan at a 3px step emitting RUNS, not a test per rect.
+// 🚨🔑🔑 GUARD THE LAND'S NATURE, NOT ITS NAME — and here, THE ENDING'S nature. The first version
+// asked `apocHit`, which is a STEP: the instant the front passed, a mile of permanent way blinked out
+// of existence. Right for a nuke, wrong for acid — Nick: *"the rail lines and roads just kind of
+// disappear instead of looking like it is getting chewed away by the rain."* A corrosive ending has to
+// CONSUME its way through the street, so it gets a 0..1 progress instead of a boolean, the track keeps
+// drawing while it is being eaten, and it only stops existing once the acid is actually through it.
+var APOC_CORRODE={acidrain:1};                 // ends that EAT the street rather than demolish it
+function apocCorroding(){ return cityPhase==="apoc" && APOC_CORRODE[curDeath]===1; }
+// 0 = untouched · 1 = gone. Anything between is track that is still there and visibly rotting.
+function apocEatF(wx){
+  if(cityPhase!=="apoc") return 0;
+  if(apocCorroding()) return Math.min(1,acidEatAt(wx)/0.82);
+  return apocHit(wx)?1:0;
+}
+// ⚡ NULL DURING A NORMAL LIFE, ON PURPOSE. This runs on the live frame of every land for the whole of
+// a life and the apocalypse is 0.01% of it, so outside the end times the routine returns null and
+// `railClip` falls through to the ORIGINAL construction — no scan, no array, no allocation. The first
+// version built a spans array unconditionally; timing it only under `FORCEAPOCMS` could never have seen
+// that, which is the same blind spot that let a laptop regression ship.
 function railSpans(){
+  if(cityPhase!=="apoc") return null;
   var rf=railFrac(); if(rf<=0.001) return null;
-  var out=[], live=(cityPhase!=="apoc"), step=3;
+  var out=[], step=3;
   for(var w=-1;w<=1;w++){
     var a=Math.max(0,-WOFF+w*WW), b=Math.min(SW,(rf>=1?WW:WW*rf)-WOFF+w*WW);
     if(b<=a) continue;
-    if(live){ out.push(a|0,(b-a)|0); continue; }
     var run=-1;
     for(var sx=a; sx<=b; sx+=step){
-      var up = sx<b && !apocHit(wrapW(sx+WOFF));
+      var up = sx<b && apocEatF(wrapW(sx+WOFF))<1;      // still there, however far gone
       if(up){ if(run<0) run=sx; }
       else if(run>=0){ var e=Math.min(b,sx); if(e>run) out.push(run|0,(e-run)|0); run=-1; }
     }
@@ -15938,15 +15957,60 @@ function railSpans(){
   }
   return out;
 }
+// One clip for both bands: the demolition-aware spans when the world is ending, the plain
+// construction-progress rects when it is not.
+function railClip(g,y,h,SP,rf){
+  g.beginPath();
+  if(SP){ for(var i=0;i<SP.length;i+=2) g.rect(SP[i],y,SP[i+1],h); }
+  else if(rf>=1) g.rect(0,y,SW,h);
+  else for(var w=-1;w<=1;w++){ var a=Math.max(0,-WOFF+w*WW), b=Math.min(SW,WW*rf-WOFF+w*WW); if(b>a) g.rect(a|0,y,(b-a)|0,h); }
+  g.clip();
+}
+// WHAT THE ACID DOES TO A RAILWAY ON ITS WAY THROUGH IT: the steel dulls and goes sickly, the head of
+// each rail pits until the line is broken, the sleepers rot out from under it and the contact wire
+// parts and hangs. Drawn OVER the finished permanent way so it reads as damage to a real object.
+function drawTramwayCorrosion(g,L,now){
+  if(!apocCorroding()) return;
+  var rf=railFrac(); if(rf<=0.001) return;
+  var day=L>0.5, K=Math.max(1,KSP);
+  var r1a=tramLaneY(0), r1b=tramLaneY(1), wY=r1a-Math.round(4.5*K), wY2=r1b-Math.round(4.5*K);
+  for(var x=0;x<SW;x++){
+    var wx=wrapW(x+WOFF); if(wx>=WW*rf && rf<1) continue;
+    var e=apocEatF(wx); if(e<=0.02||e>=1) continue;
+    var hh=((wx*2654435761)>>>0); hh=(hh^(hh>>>15))>>>0; hh=((hh*2246822519)>>>0); hh=(hh^(hh>>>13))>>>0;
+    for(var t=0;t<2;t++){
+      var ry=t?r1b:r1a, r1=ry+Math.max(1,Math.round(K*0.5)), r2=r1+Math.max(2,Math.round(TRAM_GAUGE*K));
+      // the polished crown goes dull and sickly first
+      g.fillStyle="rgba(150,168,58,"+(0.30+0.45*e).toFixed(3)+")";
+      g.fillRect(x,r1,1,Math.max(1,Math.round(K*0.5))); g.fillRect(x,r2,1,Math.max(1,Math.round(K*0.5)));
+      // …then it is pitted through, and the line is BROKEN — which is what says "eaten", not "gone"
+      if(((hh>>>(t?7:3))%100) < e*72){
+        g.fillStyle="rgba(16,14,12,0.92)";
+        g.fillRect(x,r1-1,1,Math.max(2,Math.round(K*1.2))); g.fillRect(x,r2-1,1,Math.max(2,Math.round(K*1.2)));
+      }
+      // and the sleepers rot out from under the gauge
+      if(e>0.35 && ((hh>>>(t?17:13))%100) < (e-0.35)/0.65*54){
+        g.fillStyle="rgba(30,24,16,0.75)"; g.fillRect(x,r1,1,Math.max(1,r2-r1));
+      }
+    }
+    // THE CONTACT WIRE PARTS AND HANGS — a wire that simply vanished was the loudest half of this.
+    if(e>0.28 && ((hh>>>21)%100) < (e-0.28)/0.72*66){
+      g.fillStyle=day?"rgba(58,62,72,0.85)":"rgba(96,104,124,0.5)";
+      var sag=Math.round(((hh>>>25)%Math.max(2,Math.round(K*4))));
+      g.fillRect(x,wY+sag,1,1); g.fillRect(x,wY2+sag,1,1);          // the parted ends, sagging
+      g.fillStyle="rgba(0,0,0,0.55)";
+      g.fillRect(x,wY,1,1); g.fillRect(x,wY2,1,1);                  // …and the gap they left
+    }
+  }
+}
 // The permanent way: sleepers, two rails, and the catenary its poles carry. World-anchored, so the
 // sleeper pitch and the pole spacing line up across all three bezels.
 function drawTramway(g,L,now){
   var rf=railFrac(); if(rf<=0.001) return;
-  var SP=railSpans(); if(!SP||!SP.length) return;            // built nowhere, or demolished everywhere
+  var SP=railSpans(); if(SP&&!SP.length) return;              // in the end times: eaten away everywhere
   var day=L>0.5, K=Math.max(1,KSP);
-  g.save(); g.beginPath();                                   // …only where the gang reached AND the end times have not
-  for(var si=0;si<SP.length;si+=2) g.rect(SP[si],ROAD_Y,SP[si+1],ROAD_H);
-  g.clip();
+  g.save();                                                   // …only where the gang reached AND the end times have not
+  railClip(g,ROAD_Y,ROAD_H,SP,rf);
   // ⚠ THE FIRST VERSION READ AS MORE LANE DASHES. I broke the rail's polished crown into segments
   // out of respect for the bayou's rule (*a loop over x with no break in it is a rule*) — and in a
   // band that already carries four dashed lane dividers, a broken 2px line at a 3px pitch is
@@ -15992,9 +16056,8 @@ function drawTramway(g,L,now){
   // stub of wire drawTram used to carry around with it, which moved with the vehicle and so could
   // never read as infrastructure.
   var poleGap=Math.max(18,Math.round(26*K));
-  g.save(); g.beginPath();                                   // the overhead obeys the same spans as the track below it
-  for(var s2i=0;s2i<SP.length;s2i+=2) g.rect(SP[s2i],HORIZON-Math.round(16*K),SP[s2i+1],GROUND+4);
-  g.clip();
+  g.save();                                                  // the overhead obeys the same spans as the track below it
+  railClip(g,HORIZON-Math.round(16*K),GROUND+4,SP,rf);
   var wireY=tramLaneY(0)-Math.round(4.5*K), wireY2=tramLaneY(1)-Math.round(4.5*K);
   g.fillStyle=day?"rgba(74,80,94,0.55)":"rgba(120,130,150,0.35)";
   g.fillRect(0,wireY,SW,1); g.fillRect(0,wireY2,SW,1);                            // the two contact wires
@@ -51838,7 +51901,12 @@ function drawApocAcidGround(g,L,now){
     // as one puddle.
     var hs=((hh*2654435761)>>>0); hs=(hs^(hs>>>11))>>>0;
     for(var bi=0;bi<2;bi++){
-      var by = bi ? ROAD_BOT : HORIZON, bh = bi ? WALK_N : WALK_F;
+      // ⚠ THE NEAR PROMENADE IS NOT `WALK_N` DEEP. It is drawn as
+      // `drawSidewalk(g,ROAD_BOT,WALK_N_BOT-ROAD_BOT,…)`, and `WALK_N_BOT` is the WATERLINE on a
+      // coastal land and the FRAME everywhere else — so on the plains it runs to the bottom of the
+      // screen while `WALK_N` is 4*k. Eating only `WALK_N` of it left most of the promenade pristine.
+      var by = bi ? ROAD_BOT : HORIZON;
+      var bh = bi ? Math.max(0,Math.min(SH,WALK_N_BOT)-ROAD_BOT) : WALK_F;
       if(bh<2) continue;
       var jointed = ((((wx)%8)+8)%8)===0;                       // the slab joints, world-keyed like the pavement's own
       var bs = bi ? (hs>>>3) : hs;
@@ -52041,7 +52109,15 @@ APOC_X.thepit=function(g,ap,L,now){
       // THE FAR WALL — the only lit surface, and the reason the black reads as depth rather than as
       // a shape cut out of the frame. Its LOWER EDGE dips with the profile, so the boundary between
       // lit rock and void is one long arc: the "one big object" is that arc, not the black.
-      var wallH=Math.max(2,Math.round(runD*0.34));
+      // 🚨🖥️ THE THIRD MONITOR SAW A BLACK BOX. The void correctly runs to SH everywhere inside the
+      // chasm (down-screen is toward the viewer, so a shallow edge is still no ground at all) — which
+      // means DEPTH IS EXPRESSED ONLY BY THE WALL. At `runD*0.34` the outermost columns got a 2px wall,
+      // and woff=1629 sees ONLY those: epi 578 / R 503 puts just 61 columns of the chasm's outer edge
+      // on that screen, and the whole ending rendered there as a black rectangle.
+      // 🔑 A profile that vanishes at the edge is invisible on the monitor that only HAS the edge.
+      // The wall keeps a third of its height at the rim so every screen gets a banded rock face.
+      var pr=Math.min(1,runD/DMAX);
+      var wallH=Math.max(3,Math.round(DMAX*0.34*(0.35+0.65*pr)));
       g.fillStyle="rgb("+lit[0]+","+lit[1]+","+lit[2]+")";
       g.fillRect(runX,TOP,w,Math.max(1,Math.round(wallH*0.30)));
       g.fillStyle="rgb("+Math.round((lit[0]+base[0])/2)+","+Math.round((lit[1]+base[1])/2)+","+Math.round((lit[2]+base[2])/2)+")";
@@ -52067,9 +52143,9 @@ APOC_X.thepit=function(g,ap,L,now){
       // WHAT IS BURNING FAR DOWN. Not a floor — you cannot see the bottom of this — just the glow
       // off it, brightest where the chasm is deepest.
       var gy=SH-Math.max(2,Math.round(K*3));
-      g.fillStyle="rgba(178,62,20,"+(0.06+0.26*(runD/DMAX)).toFixed(2)+")";
+      g.fillStyle="rgba(178,62,20,"+(0.06+0.26*pr).toFixed(2)+")";
       g.fillRect(runX,gy,w,SH-gy);
-      if((hh%5)===0){ g.fillStyle="rgba(236,140,44,"+(0.18+0.30*(runD/DMAX)).toFixed(2)+")";
+      if((hh%5)===0){ g.fillStyle="rgba(236,140,44,"+(0.18+0.30*pr).toFixed(2)+")";
         g.fillRect(runX,gy+Math.max(1,Math.round(K)),Math.max(1,Math.round(w*0.5)),Math.max(1,Math.round(K))); }
       // THE BROKEN RIM. A chasm edge is never a clean line; this is what stops the flanks reading as
       // the two straight diagonals they were, and it is the ground in CROSS-SECTION — the one cue
@@ -55997,6 +56073,7 @@ function draw(g,pass){
   // set INTO the carriageway and the markings are painted over the top of them — which is both the
   // real order of works and the one that keeps every line that was already there.
   drawTramway(g,L,now);
+  drawTramwayCorrosion(g,L,now);          // …and what the acid is doing to it on its way through
   drawTrackGang(g,L,now);
   // lane markings + crosswalks — only once the city has proper paved multi-lane roads
   if(!curVillage && paintFrac>0){
@@ -56027,7 +56104,10 @@ function draw(g,pass){
   g.fillRect(0,ROAD_Y+RESV_TOP-2,SW,1); g.fillRect(0,ROAD_Y+RESV_BOT+1,SW,1);
   for(i=0;i<crosswalks.length;i++){ var xw=crosswalks[i], xwx=xw.x-WOFF;
     if(!cwInst(xw)) continue;
-    if(nukeHit(xw.x)) continue;                          // the road markings are gone in the blast zone
+    // ⚠ A STEP HERE IS THE SAME COMPLAINT ONE LAYER DOWN: under a corrosive ending the paint is EATEN,
+    // so it thins out rather than blinking off with the front.
+    var xwE=apocEatF(xw.x); if(xwE>=1) continue;         // the road markings are gone in the blast zone
+    g.globalAlpha=Math.min(1,paintFrac*4)*(1-xwE);
     for(var wrp=-1;wrp<=1;wrp++){ var CX=xwx+wrp*WW; if(CX<-8||CX>SW+8) continue;
       g.fillStyle=L>0.5?"rgba(238,241,248,0.9)":"rgba(206,212,228,0.72)";
       for(var zb=ROAD_Y+1; zb<ROAD_BOT; zb+=2) g.fillRect((CX-4)|0, zb, 9, 1); } }
