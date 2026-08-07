@@ -8751,6 +8751,12 @@ function drawLayer(g,layer,L,now,fx,hol,haze){
         var kwc=kwCl(b.x,now);
         if(kwc>=0){ drawApocBuilding(g,b,bx,kwc,L,now); continue; }
         // else: the battle hasn't touched this block yet — it stands (and watches)
+      } else if(curDeath==="glassrain"){                        // GLASS RAIN: the tops shear off, the stumps stand
+        // 🔑 Nick's call: PARTIAL. Falling glass does not level a tower — it takes the upper floors and
+        // leaves the rest standing with every window gone. `keep = h*(1-cl*0.92)`, so capping cl at
+        // 0.45 keeps ~59% of the height: a skyline CUT DOWN rather than erased, over an impaled street.
+        var gT=((((b.seed||bi)*2654435761)>>>0)/4294967296)*0.7;
+        if(cityApoc>gT){ drawApocBuilding(g,b,bx,Math.min(0.45,(cityApoc-gT)/0.22),L,now); continue; }
       } else if(curDeath==="pollution"){                         // POLLUTION: NOTHING is demolished — the city stands and suffocates.
         // fall through to the normal draw; polDark() kills the lights and the pall greys it out
       } else {                                                  // other cataclysms: the whole skyline dies row by row
@@ -15930,8 +15936,21 @@ function tramLaneY(t){ return ROAD_Y+TRAM_BASE[t?1:0]; }  // the reservation's t
 var APOC_CORRODE={acidrain:1};                 // ends that EAT the street rather than demolish it
 function apocCorroding(){ return cityPhase==="apoc" && APOC_CORRODE[curDeath]===1; }
 // 0 = untouched · 1 = gone. Anything between is track that is still there and visibly rotting.
+// 🚨🔑🔑 A THIRD ANSWER TO "WHAT HAPPENS TO THE STREET". `apocHit` had been doing duty as all of
+// "demolished", "eaten" and "swept clean", and the third one is wrong for GLASS RAIN — Nick: *"the
+// train tracks just disappeared, it should stick INTO the tracks."* Falling glass does not rip up a
+// steel rail or delete a car; it shatters over them and leaves everything where it was, studded.
+// So the endings now answer THREE different questions, not one:
+//   • demolished  (nuke, kaiju, the pit)  → the street furniture ceases to exist
+//   • corroded    (acid rain)             → it is consumed over time, 0..1
+//   • spared      (glass rain)            → it stays, and the ending DECORATES it
+// ⚠ Being spared is NOT the same as the front being harmless: the front still kills, and the buildings
+// still lose their upper floors. It only means nothing is deleted from the road surface.
+var APOC_SPARES_STREET={glassrain:1};
+function apocSparesStreet(){ return cityPhase==="apoc" && APOC_SPARES_STREET[curDeath]===1; }
 function apocEatF(wx){
   if(cityPhase!=="apoc") return 0;
+  if(apocSparesStreet()) return 0;                    // it is all still there — see APOC_SPARES_STREET
   if(apocCorroding()) return Math.min(1,acidEatAt(wx)/0.82);
   return apocHit(wx)?1:0;
 }
@@ -52248,6 +52267,30 @@ function drawApocGlassGround(g,L,now){
     }
     runX=x; runD=dq;
   }
+  // 🚶 THE PAVEMENTS. Glass falls on the whole street, not just the carriageway — the acid pass had to
+  // be taught this exact lesson two commits ago (`a surface is not a lane`), and this renderer had the
+  // identical hole: everything above is bounded by ROAD_Y/ROAD_BOT.
+  for(var px2=0;px2<SW;px2+=2){
+    var pwx=wrapW(px2+WOFF), pd=nukeDist(pwx,epi); if(!(R>0&&pd<R)) continue;
+    var pf=Math.min(1,(R-pd)/(WW*0.30));
+    var p2=((pwx*2654435761)>>>0); p2=(p2^(p2>>>15))>>>0; p2=((p2*40503)>>>0); p2=(p2^(p2>>>11))>>>0;
+    for(var pb=0;pb<2;pb++){
+      var pby = pb?ROAD_BOT:HORIZON;
+      var pbh = pb?Math.max(0,Math.min(SH,WALK_N_BOT)-ROAD_BOT):WALK_F;
+      if(pbh<2) continue;
+      var pyy=pby+((p2>>>(pb?7:3))%Math.max(1,pbh));
+      if(((p2>>>(pb?13:9))%100) < 26*pf){
+        g.fillStyle=((p2>>>17)%4===0)?"rgba(255,255,255,"+(0.5+0.4*pf).toFixed(2)+")"
+                                     :(day?"rgba(168,190,214,0.62)":"rgba(64,80,102,0.58)");
+        g.fillRect(px2,pyy,1,1);
+      }
+      if(pf>0.4 && ((p2>>>21)%100) < 5*pf){                       // and a few standing in the concrete
+        var pl=4+((p2>>>25)%6);
+        g.fillStyle=day?"rgba(238,250,255,0.8)":"rgba(160,182,214,0.6)";
+        for(var pq=0;pq<pl;pq++) g.fillRect(px2,(pyy-pq)|0,1,1);
+      }
+    }
+  }
   // ⚠ SPECULAR POINTS AND STANDING SHARDS ARE NOT THE DRIFT — they are the reason it reads as GLASS
   // and not as snow, so they are hashed per world-x rather than batched.
   for(var sx=0;sx<SW;sx+=2){
@@ -52255,19 +52298,32 @@ function drawApocGlassGround(g,L,now){
     var f2=Math.min(1,(R-d2)/(WW*0.30));
     var h2=((wx2*2654435761)>>>0); h2=(h2^(h2>>>15))>>>0; h2=((h2*2246822519)>>>0); h2=(h2^(h2>>>13))>>>0;
     var yy=top+((h2>>>5)%Math.max(1,bot-top));
-    if(((h2>>>9)%100) < 62*f2){                                          // hard specular glints
+    if(((h2>>>9)%100) < 30*f2){                                          // hard specular glints
       g.fillStyle="rgba(255,255,255,"+(0.55+0.40*f2).toFixed(2)+")";
       g.fillRect(sx,yy,1,1);
     }
     // …and the dull chips between them. The GAPS are what make it glass: a field with no dark in it
     // is a field of snow however bright the highlights are.
-    if(((h2>>>13)%100) < 48*f2){
+    if(((h2>>>13)%100) < 22*f2){
       g.fillStyle=day?"rgba(150,172,196,0.66)":"rgba(58,72,94,0.62)";
       g.fillRect(sx,top+((h2>>>19)%Math.max(1,bot-top)),Math.max(1,Math.round(K*0.7)),1);
     }
+    // 🛤️ AND INTO THE PERMANENT WAY. Nick: *"it should stick into the tracks."* The reservation is a
+    // hard surface between two kerbs, so glass that lands on it stands in the sleeper gaps and jams
+    // against the rail webs rather than lying flat — which is also what proves the track SURVIVED
+    // rather than being clipped away.
+    if(((h2>>>11)%100) < 11*f2){
+      for(var tk=0;tk<2;tk++){
+        var ry=tramLaneY(tk)+Math.max(1,Math.round(K*0.5));
+        var tl2=2+((h2>>>(tk?23:27))%4);
+        g.fillStyle=day?"rgba(228,242,255,0.80)":"rgba(150,172,204,0.62)";
+        for(var tq=0;tq<tl2;tq++) g.fillRect((sx+Math.round(tq*0.3))|0,(ry-tq)|0,1,1);
+        g.fillStyle="rgba(0,0,0,0.5)"; g.fillRect(sx,ry,1,1);      // where it went in
+      }
+    }
     // 📏 SHARDS STANDING UPRIGHT IN THE ROAD — the scale reference. They are TALLER THAN A PERSON
     // (7px), which is the only thing that says this is not gravel.
-    if(f2>0.28 && ((h2>>>17)%100) < 26*f2){
+    if(f2>0.28 && ((h2>>>17)%100) < 11*f2){
       // 📏 FIXED PIXELS, NOT `K`. These exist to be read against a body, and `drawPerson` is a FIXED
       // 7px at every zoom — a shard scaled by KSP would tower over a person on one monitor and be lost
       // beside them on another, which destroys the one comparison it is here to make. 9–19px: always
@@ -52281,6 +52337,62 @@ function drawApocGlassGround(g,L,now){
     }
   }
 }
+// THE WRECKS. Nick's call: the cars STAY, wrecked and studded with glass, and some crashed into each
+// other — the same correction as the tracks, one object along.
+// 🔑🔑 A DETERMINISTIC POPULATION, NOT THE MOVING TRAFFIC FROZEN. A live car's world-x is a function of
+// the clock, so "stop it where the front caught it" is a simulation — it would need state, it would not
+// survive a single-frame render, and three monitors would disagree about where the wreck ended up.
+// These are scripted from a per-life hash exactly like `apocVictims`, and the traffic simply stops
+// being drawn behind the front: it BECAME these.
+var GLASSCAR=["#ff5a5a","#4aa8ff","#ffe05a","#eef2ff","#ff7ad0","#6affc0","#c58cff","#ff9a3c","#3a4658","#8a939f"];
+var _gwKey=null,_gwVal=null;
+function apocGlassWrecks(now){
+  var id=(typeof nukeDetId==="function")?nukeDetId(now):0;
+  if(_gwKey===id&&_gwVal) return _gwVal;                          // cached per life, like the victims
+  var out=[],N=46;
+  for(var i=0;i<N;i++){
+    var h=((i*2654435761+7717)>>>0); h=(h^(h>>>13))>>>0;
+    var h2=((h*40503+2246822519)>>>0); h2=(h2^(h2>>>11))>>>0;
+    out.push({ x:((h>>>3)%WW), lane:(h2%LANE.length), slew:(((h2>>>5)%3)-1),
+               col:GLASSCAR[((h2>>>7)%GLASSCAR.length)],
+               kind:(((h2>>>9)%7)===0)?"van":((((h2>>>9)%11)===0)?"taxi":"car"),
+               pile:(((h2>>>13)%100)<34), seed:h2 });
+  }
+  _gwKey=id; _gwVal=out; return out;
+}
+function drawApocGlassWrecks(g,L,now){
+  if(cityPhase!=="apoc"||curDeath!=="glassrain") return;
+  var W=apocGlassWrecks(now), day=L>0.5;
+  for(var i=0;i<W.length;i++){
+    var w=W[i]; if(!apocHit(w.x)) continue;                       // only behind the front
+    var X=disX(w.x); if(X<-20||X>SW+20) continue;
+    var ly=HORIZON+LANE[w.lane].o+w.slew, dir=LANE[w.lane].d;
+    drawCar(g,X|0,ly,w.col,dir,L,w.kind);
+    // …and its partner, slewed into it. This is the pileup: two bodies at slightly different heights
+    // with debris between them reads as a collision without needing a rotation this renderer has not got.
+    if(w.pile){
+      var px=X+(dir>0?-7:7)-((w.seed>>>17)%3);
+      drawCar(g,px|0,(ly+((w.seed>>>19)&1?1:-1))|0,GLASSCAR[((w.seed>>>21)%GLASSCAR.length)],-dir,L,"car");
+      g.fillStyle=day?"rgba(60,58,62,0.8)":"rgba(28,28,34,0.8)";  // the debris thrown between them
+      for(var dq=0;dq<4;dq++) g.fillRect((px+(dir>0?5:-5)+((w.seed>>>(dq+3))%3))|0,(ly+1+(dq&1))|0,1,1);
+    }
+    // THE WINDOWS ARE GONE — a dark band where the glazing was. The value drop is what reads as "wrecked".
+    g.fillStyle="rgba(12,12,16,0.85)";
+    g.fillRect((X-2)|0,(ly-3)|0,5,1);
+    // …and what came through the roof, still in it
+    var ns=1+((w.seed>>>23)%3);
+    for(var q=0;q<ns;q++){
+      var sxo=((w.seed>>>(q*3+5))%5)-2, sl=3+((w.seed>>>(q*4+7))%5);
+      g.fillStyle=day?"rgba(232,246,255,0.85)":"rgba(154,176,208,0.66)";
+      for(var qq=0;qq<sl;qq++) g.fillRect((X+sxo+Math.round(qq*0.25))|0,(ly-4-qq)|0,1,1);
+      g.fillStyle="rgba(0,0,0,0.5)"; g.fillRect((X+sxo)|0,(ly-3)|0,1,1);        // where it went in
+    }
+    if(((w.seed>>>27)%100)<48){                                    // and whoever was driving
+      g.fillStyle="rgba("+(day?150:96)+",14,18,0.7)";
+      g.fillRect((X-1)|0,(ly-2)|0,2,1); g.fillRect((X-2)|0,(ly+2)|0,4,1);
+    }
+  }
+}
 // GLASS RAIN. One big object: the sheet coming down — and the sky it comes out of has to be DARK.
 // 🎨 THE FIRST VERSION READ AS SNOWFALL. Three reasons, all fixable: it washed the sky PALE
 // (`186,206,226`) so white shards had nothing to contrast against — **on a bright sky, bright IS
@@ -52291,19 +52403,40 @@ function drawApocGlassGround(g,L,now){
 // monitors, in lockstep, with the seams cutting through it. World-anchored now, like everything else.
 APOC_X.glassrain=function(g,ap,L,now){
   var K=Math.max(1,KSP), day=L>0.5;
+  drawApocGlassWrecks(g,L,now);                             // the stopped traffic, before the falling glass
   skyWash(g,"16,22,34",0.34+0.54*ap);                       // a leaden sky, so the edges can scream
   var n=Math.round(90+ap*260);
   for(var i=0;i<n;i++){
     var h=((i*2654435761+887)>>>0); h=(h^(h>>>13))>>>0;
     var per=380+((h>>>7)%520), ph=((now+((h>>>11)%per))%per)/per;
     var wx=((h>>>3)%WW), X=disX(wx); if(X<-8||X>SW+8) continue;   // WORLD-anchored: the storm spans the bezels
-    var y=ph*(HORIZON+8), ln=Math.round((4+((h>>>17)%9))*K*0.6);
+    // 🚨 THEY HAVE TO REACH THE GROUND. `y=ph*(HORIZON+8)` ended every shard's fall just under the far
+    // kerb — ABOVE the road, above the pavements, above everything it was supposed to hit — so the
+    // glass appeared to evaporate in mid-air and the drift below it looked like it had simply been
+    // there all along. Nick: *"make sure the ones landing on the ground are actually sticking."*
+    // Each shard now falls to its OWN landing point somewhere across the street and stops there.
+    var landY=HORIZON+((h>>>19)%Math.max(1,SH-HORIZON));
+    var y=ph*landY, ln=Math.round((4+((h>>>17)%9))*K*0.6);
     var lean=0.18+((h>>>23)%5)*0.06;                        // it comes down at an angle, and not all at one
     // A SPLINTER: one bright leading edge with a dimmer body behind it. 1px wide — glass is thin.
     g.fillStyle="rgba(226,244,255,"+(0.30+0.30*ap).toFixed(2)+")";
     for(var q=0;q<ln;q++) g.fillRect((X+q*lean)|0,(y-q)|0,1,1);
     g.fillStyle="rgba(255,255,255,"+(0.72+0.26*ap).toFixed(2)+")";
     g.fillRect((X+ln*lean)|0,(y-ln)|0,1,Math.max(1,Math.round(K*0.5)));
+    // AND THE MOMENT IT LANDS: a burst at the point of impact, and then it is standing there. This is
+    // the join between the falling population and the drift — without it they were two unrelated
+    // features that happened to share a colour.
+    if(ph>0.90){
+      var im=(ph-0.90)/0.10, IXs=(X+ln*lean)|0;
+      g.fillStyle="rgba(255,255,255,"+(0.85*(1-im)).toFixed(2)+")";
+      for(var bq=0;bq<4;bq++){                                    // chips kicking out sideways
+        var bo=1+bq+Math.round(im*4);
+        g.fillRect((IXs-bo)|0,(landY-Math.round(im*bq))|0,1,1);
+        g.fillRect((IXs+bo)|0,(landY-Math.round(im*bq))|0,1,1);
+      }
+      g.fillStyle=day?"rgba(232,246,255,0.9)":"rgba(156,178,210,0.7)"; // …and the stub left standing in it
+      for(var sq2=0;sq2<3;sq2++) g.fillRect(IXs,(landY-sq2)|0,1,1);
+    }
   }
   // 🔑 THE ONE BIG OBJECT: whole PANES, tumbling. A curtain of splinters is a texture; what makes this
   // an event is a sheet of glass the size of a building coming down end over end, and it doubles as
@@ -52884,7 +53017,7 @@ var APOC_MARK={
   // single-line object literal eats the entries after it — which is how this line got broken.)
   risen:{m:"torn",spray:1.00}, plague:{m:"bleed",spray:0.30}, swarm:{m:"torn",spray:0.95},
   bloodmoon:{m:"torn",spray:1.00}, acidrain:{m:"dissolve",spray:0.55}, thepit:{m:"crush",spray:0.80},
-  glassrain:{m:"torn",spray:0.90}, thescream:{m:"bleed",spray:0.85}, crimsontide:{m:"drown",spray:0.45},
+  glassrain:{m:"impaled",spray:0.90}, thescream:{m:"bleed",spray:0.85}, crimsontide:{m:"drown",spray:0.45},
   warmachine:{m:"beam",spray:0.75}, thefamine:{m:"wither",spray:0.12}, thehollow:{m:"dissolve",spray:0.35}
 };
 function apocMark(){ return APOC_MARK[curDeath] || {m:"crush",spray:0.60}; }
@@ -53097,6 +53230,42 @@ function drawApocFallen(g,L,now){
   for(var n=0;n<V.length;n++){
     var v=V[n]; if(!apocVictimDown(v,ap)) continue;
     if(apocInPit(v.x)) continue;                                 // THE PIT: no ground to lie on — APOC_X.thepit draws them falling
+    // ---- 🪟 IMPALED. Nick's call: A MIX, WEIGHTED TO PINNED. A shard comes through them and holds
+    // them up, so the street fills with people still standing, each on a spike of glass — and roughly
+    // every third is knocked flat with the shard still in them, because a row of identical upright
+    // posts reads as a fence, not a massacre. The one mark whose dead are NOT lying on the ground.
+    if(M.m==="impaled"){
+      var ih=(v.seed>>>0), IX=disX(v.x); if(IX<-12||IX>SW+12) continue;
+      // 🪵 THEY WERE NOT ALL STANDING ON ONE LINE. Every other mark lays its dead flat on `HORIZON-1`
+      // and gets away with it, because a heap on a single row still reads as a heap. Stand them UP on
+      // that row and it becomes a picket fence — 50 identical uprights at identical height. So the
+      // impaled are spread across the street they were actually crossing: far pavement, carriageway,
+      // near promenade, weighted by where people are.
+      var zn=(ih>>>21)%10;
+      var IY = zn<3 ? (HORIZON-1+((ih>>>24)%Math.max(1,WALK_F)))
+             : zn<8 ? (ROAD_Y+2+((ih>>>24)%Math.max(1,(ROAD_BOT-ROAD_Y)-3)))
+             :        (ROAD_BOT+2+((ih>>>24)%Math.max(1,Math.min(SH,WALK_N_BOT)-ROAD_BOT-2)));
+      var icl=PEDC[((n*7+ih)>>>0)%PEDC.length], isk=SKINC[(n*5)%SKINC.length];
+      var pinned=((ih>>>6)%100)<70;                              // ~70/30, the mix he asked for
+      var shl=6+((ih>>>9)%7), tilt=((((ih>>>13)%5)-2)*0.18);
+      var bl=day?"rgba(150,14,18,":"rgba(96,10,14,";
+      if(pinned){
+        drawPerson(g,IX,IY,icl,isk,((ih>>>3)&1)?1:-1);          // still on their feet — a FIXED 7px
+        g.fillStyle=day?"rgba(236,248,255,0.88)":"rgba(158,180,212,0.70)";
+        for(var iq=0;iq<shl;iq++) g.fillRect((IX+Math.round(tilt*iq))|0,(IY-4-iq)|0,1,1); // out through the shoulder
+        g.fillStyle=day?"rgba(150,172,200,0.75)":"rgba(96,116,148,0.6)";
+        g.fillRect(IX|0,(IY-3)|0,1,2);                                                     // the length still in them
+        g.fillStyle=bl+"0.74)";
+        for(var ir=0;ir<3+((ih>>>17)%4);ir++) g.fillRect(IX|0,(IY-2+ir)|0,1,1);            // running down the body
+        g.fillStyle=bl+"0.66)"; g.fillRect((IX-2)|0,IY,5,1);                               // …pooling at their feet
+      } else {
+        drawPerson(g,IX,IY,hexDark(icl,0.25),isk,((ih>>>3)&1)?1:-1);
+        g.fillStyle=bl+"0.66)"; g.fillRect((IX-3)|0,IY,7,1);
+        g.fillStyle=day?"rgba(226,240,252,0.82)":"rgba(150,172,204,0.64)";
+        for(var iq2=0;iq2<shl;iq2++) g.fillRect((IX+Math.round(iq2*0.7))|0,(IY-1-Math.round(iq2*0.5))|0,1,1);
+      }
+      continue;
+    }
     var X=disX(v.x); if(X<-12||X>SW+12) continue;
     // ⚠ `>>>0`, NOT `|0`. `v.seed` is an unsigned 32-bit hash, and `|0` reinterprets anything above
     // 2^31 as NEGATIVE — `PEDC[-7]` is `undefined` and `hex2rgb(undefined)` throws on `.substr`. It
@@ -54700,6 +54869,39 @@ function drawApocFlood(g,ap,L,now){
 function drawApocBuilding(g,b,bx,cl,L,now,bdir){
   var gy=HORIZON, keep=Math.max(3,Math.round(b.h*(1-cl*0.92)));
   var top=gy-keep, wob=(cl<0.7)?((Math.floor(now/90)+bx)&1):0;
+  // 🪟 GLASS RAIN SHEARS, IT DOES NOT BURN. The generic path chars and ignites, and a black smoking
+  // stump is the wrong story for a tower whose windows were knocked out by falling glass. Nick's call
+  // was PARTIAL — the top floors go and the rest stands, so this draws a concrete stump with every
+  // pane gone, a jagged shear line, and glass still hanging in the frames. No fire, no smoke.
+  if(curDeath==="glassrain"){
+    var dayG=L>0.5, KG=Math.max(1,KSP);
+    g.fillStyle=dayG?"#4a5058":"#191d25";                        // the carcass, lit flat
+    g.fillRect(bx,top,b.w,keep);
+    g.fillStyle=dayG?"rgba(255,255,255,0.10)":"rgba(150,170,200,0.07)";
+    g.fillRect(bx,top,Math.max(1,Math.round(KG*0.6)),keep);      // one lit corner so it is not a slab
+    // EVERY PANE GONE — dark holes, and no lights on at night, which is the whole tell
+    for(var wy=top+3; wy<gy-2; wy+=4){
+      for(var wx2=bx+2; wx2<bx+b.w-1; wx2+=3){
+        var wh2=(((wx2*73+wy*179+(b.seed||0))>>>0)^0x9e37)>>>0;
+        g.fillStyle="rgba(8,9,13,0.88)"; g.fillRect(wx2,wy,2,2);
+        if((wh2%7)===0){ g.fillStyle=dayG?"rgba(214,236,252,0.5)":"rgba(120,146,182,0.4)";
+          g.fillRect(wx2,wy,2,1); }                              // a few panes still half in the frame
+      }
+    }
+    // THE SHEAR — a broken edge, not a ruled one, with the glass that is still on it catching light
+    for(var sxg=0;sxg<b.w;sxg++){
+      var sh3=(((bx+sxg)*2654435761)>>>0); sh3=(sh3^(sh3>>>13))>>>0;
+      var jag=(sh3%Math.max(2,Math.round(3*KG)));
+      g.fillStyle=dayG?"#5c636c":"#232833"; g.fillRect(bx+sxg,top,1,jag);
+      if((sh3>>>7)%5===0){ g.fillStyle=dayG?"rgba(238,250,255,0.8)":"rgba(150,176,210,0.6)";
+        g.fillRect(bx+sxg,top+jag-1,1,1); }
+      if((sh3>>>11)%9===0){ g.fillStyle="rgba(0,0,0,0.5)"; g.fillRect(bx+sxg,top+jag,1,1); }
+    }
+    // and what came off it, piled at the base
+    g.fillStyle=dayG?"rgba(176,196,216,0.6)":"rgba(64,78,100,0.55)";
+    g.fillRect(bx-1,gy-Math.max(1,Math.round(KG*1.2)),b.w+2,Math.max(1,Math.round(KG*1.2)));
+    return;
+  }
   if(curDeath==="ai"){                                          // ASSIMILATED into an AI factory, then strip-mined to a dead husk (its material harvested skyward as the planet's resources are drained)
     var Ha=b.h, Wa=b.w;
     var keepA=Math.max(2,Math.round(Ha*(1-cl*0.86)));           // dismantled from the top down as it's harvested
