@@ -51392,11 +51392,14 @@ APOC_X.swarm=function(g,ap,L,now){
 // is them. The moon bleeds, grows through the arc, pulses like a heartbeat, and eclipses the day into
 // a false night. The city itself STANDS: nothing collapses, and that is the point — a perfectly
 // ordinary skyline over a massacre.
-// 🔑 THE TURNING IS CAUSED BY SOMETHING YOU CAN SEE. Nick: "I can't tell WHY it's happening" — the
-// moon was up there and people were separately dying, with nothing joining the two. So the moonlight
-// leaves the moon as a WAVE and crosses the city, and a citizen turns when it reaches THEM. Cause and
-// effect are now in the same frame, and the line of the turned IS the shape of the light.
+// 🔑 THE CAUSE IS ON THE GROUND, AND IT IS PHYSICAL. Nick: "make it drip and form puddles and that's
+// where this starts killing people." So the chain is now visible end to end — the moon bleeds, the
+// drops fall all the way down, they pool where they land, the pool SPREADS, and a citizen turns when
+// the blood reaches their feet. Nothing abstract: no invisible wave, no radius nobody can see. What
+// kills them is the thing running down the sky.
+// ⚠ Same linear form as before so timing is unchanged, but it now means "how far the pool has crept".
 function moonWaveR(){ return Math.max(0,(cityApoc-0.10)/0.60)*(WW*0.62); }
+function moonPoolR(){ return moonWaveR(); }
 function moonTurnAp(wx){
   var d=nukeDist(wx, apocEpiX(NOWOVR!=null?NOWOVR:Date.now()));
   return 0.10 + (d/(WW*0.62))*0.60;
@@ -51496,21 +51499,50 @@ APOC_X.bloodmoon=function(g,ap,L,now){
         // ⚠ GOOP, NOT DRIPS. Nick: "have the blood also goop down from the moon." A thin tapering
         // line reads as a scratch; blood running off something is THICK, it holds its width, it
         // BULGES where it gathers, and it hangs in a heavy bead before it falls.
-        var dw=Math.max(2,Math.round(mR*(0.055+((dh>>>19)%100)/100*0.075)));
+        // ⚠ A CHAIN OF ROUND BLOBS IS NOT A DRIP. The first goop used a big periodic sine on the
+        // width, which reads as bubbles on a string. Real liquid running off something is WIDEST
+        // where it leaves the surface, thins steadily as it stretches, wobbles only slightly, and
+        // gathers into ONE swollen teardrop at the leading edge before it lets go.
+        var dw=Math.max(2,Math.round(mR*(0.050+((dh>>>19)%100)/100*0.060)));
         for(var q2=0;q2<dlen;q2++){
           var tq=q2/Math.max(1,dlen);
-          var bulge=1+0.55*Math.sin(q2*0.34+((dh>>>7)%7));      // it gathers and thins as it runs
-          var wq=Math.max(2,Math.round(dw*(1-tq*0.28)*bulge));
-          g.fillStyle="rgba("+Math.round(168-34*tq)+",11,13,"+((0.94-0.30*tq)).toFixed(3)+")";
+          var taper=1-0.55*tq*tq;                                // thins as it stretches, not evenly
+          var wob=1+0.10*Math.sin(q2*0.21+((dh>>>7)%7));         // barely — liquid is not corrugated
+          var wq=Math.max(1,Math.round(dw*taper*wob));
+          g.fillStyle="rgba("+Math.round(172-30*tq)+",11,13,"+(0.95-0.22*tq).toFixed(3)+")";
           g.fillRect((dx2-(wq>>1))|0,(dy0+q2)|0,wq,1);
+          if(q2>2 && q2<dlen-2 && wq>2){                         // a lit edge down one side gives it body
+            g.fillStyle="rgba(212,40,38,"+(0.30-0.16*tq).toFixed(3)+")";
+            g.fillRect((dx2-(wq>>1))|0,(dy0+q2)|0,1,1);
+          }
         }
-        var bead=Math.max(2,Math.round(dw*1.5));               // the heavy bead hanging off the end
-        g.fillStyle="rgba(158,11,13,0.95)";
-        fillEllipse(g,dx2,dy0+dlen,bead,Math.round(bead*1.25));
-        if(((dh>>>23)%3)===0){                                  // …and one that has already let go
-          var fall=dlen+Math.round(mR*0.28+((now/9+dh)%Math.max(1,mR*0.5)));
-          g.fillStyle="rgba(152,11,13,0.85)";
-          fillEllipse(g,dx2,dy0+fall,Math.max(1,bead*0.7),Math.max(1,bead*0.9));
+        // the swollen head, stretched vertically as it hangs — a teardrop, not a ball
+        var bead=Math.max(2,Math.round(dw*1.15));
+        for(var bq=0;bq<Math.round(bead*1.9);bq++){
+          var bt=bq/Math.max(1,Math.round(bead*1.9));
+          var bwq=Math.max(1,Math.round(bead*(0.45+0.55*Math.sin(bt*3.1))));
+          g.fillStyle="rgba(162,11,13,0.96)";
+          g.fillRect((dx2-(bwq>>1))|0,(dy0+dlen+bq)|0,bwq,1);
+        }
+        // …and the ones that have already let go, stretching as they accelerate away
+        // …and the ones that have let go fall ALL THE WAY DOWN, to where they pool. The drop has to
+        // arrive somewhere or the puddle below it has no cause.
+        var groundY=HORIZON-1, span=Math.max(1,groundY-(dy0+dlen));
+        for(var fq=0;fq<2;fq++){
+          if(((dh>>>(21+fq*3))%3)!==0) continue;
+          var per=Math.max(600,span*7);
+          var ft=(((now)+((dh>>>5)%per)+fq*per*0.5)%per)/per;
+          var fy2=dy0+dlen+Math.round(ft*ft*span);
+          if(fy2>groundY) continue;
+          var fw=Math.max(1,Math.round(bead*0.62*(1-ft*0.30)));
+          var fh2=Math.max(2,Math.round(bead*(0.8+ft*2.2)));      // elongates as it accelerates
+          g.fillStyle="rgba(156,11,13,"+(0.92-0.18*ft).toFixed(2)+")";
+          g.fillRect((dx2-(fw>>1))|0,fy2|0,fw,fh2);
+          if(ft>0.93){                                            // the moment it hits: a small crown
+            g.fillStyle="rgba(196,24,22,0.85)";
+            g.fillRect((dx2-3)|0,groundY-1,7,1);
+            g.fillRect((dx2-5)|0,groundY-2,1,1); g.fillRect((dx2+5)|0,groundY-2,1,1);
+          }
         }
       }
     }
@@ -51532,21 +51564,73 @@ APOC_X.bloodmoon=function(g,ap,L,now){
   g.fillStyle="rgba("+Math.round(150+30*redness)+",18,20,"+((0.05+0.12*ap)*(0.82+0.18*beat)).toFixed(3)+")";
   g.fillRect(0,0,SW,HORIZON+GROUND);
   // ---- E. AND THE CITY TURNS ON ITSELF.
-  // ---- THE WAVE ITSELF, so you can watch it cross. A smooth radial falloff, full height — a band
-  // of light, not a column loop with per-column heights.
-  var wr=moonWaveR();
-  if(wr>0){
-    for(var wx2=0;wx2<SW;wx2+=2){
-      // ⚠ A THIN EDGE, NOT A CURTAIN. At a WW*0.05 band and 0.20 alpha this covered most of the
-      // screen full-height and drowned the entire frame red — the city vanished. The wave is meant to
-      // be the LEADING EDGE of the light passing over, so it is narrow, weak, and does not reach the
-      // ground where all the detail is.
-      var dw2=Math.abs(nukeDist(wrapW(wx2+WOFF),apocEpiX(NOWOVR!=null?NOWOVR:Date.now()))-wr);
-      if(dw2>WW*0.018) continue;
-      var wa=(1-dw2/(WW*0.018));
-      g.fillStyle="rgba(250,90,70,"+(0.11*wa*wa*(0.7+0.3*beat)).toFixed(3)+")";
-      g.fillRect(wx2,0,2,HORIZON);
+  // ---- THE POOL. What lands, spreads. ⚠ NO HARD EDGE — a filled region between two radii draws a
+  // BOX crawling across the city, which is exactly what Nick rejected on the swarm. The rim fades and
+  // is broken per column by a hash, so the boundary is felt rather than seen.
+  var pr=moonPoolR();
+  if(pr>0 && goreK()>0){
+    var epiW=apocEpiX(NOWOVR!=null?NOWOVR:Date.now());
+    for(var px3=0;px3<SW;px3+=1){
+      var d3=nukeDist(wrapW(px3+WOFF),epiW);
+      if(d3>pr) continue;
+      var edge=1-Math.max(0,(d3-(pr-WW*0.06))/(WW*0.06));        // fades out over the last stretch
+      var ph3=(((px3+WOFF)*2654435761)>>>0);
+      if(edge<1 && ((ph3>>>7)%100)/100 > edge) continue;          // …and breaks up rather than stopping
+      var deep=Math.min(1,(pr-d3)/(WW*0.22));                     // deeper the longer it has been there
+      // ⚠ A UNIFORM 2px LINE IS A STRIPE, NOT A PUDDLE. Blood pools unevenly — thicker where it has
+      // been longest, gathering in dips. Small per-column variation is right HERE (a thin horizontal
+      // pool at the ground line), where it would be the hatching fault in a full-height column loop.
+      var pd3=1+Math.round(deep*3)+((ph3>>>19)%2);
+      g.fillStyle="rgba("+(day?128:86)+",12,16,"+(0.30+0.52*deep).toFixed(3)+")";
+      g.fillRect(px3,HORIZON-1-((ph3>>>21)%2),1,pd3);
+      if(((ph3>>>13)%9)===0){                                     // it runs into the gutter and the road
+        g.fillStyle="rgba("+(day?104:70)+",10,14,0.55)";
+        g.fillRect(px3,HORIZON+1,1,1+((ph3>>>17)%3));
+      }
     }
+  }
+  // ---- THE JUMPERS. Nick: "and jumping from buildings." They go up before the wave reaches them and
+  // they go over as it arrives — which is the point: some of them choose it rather than turn.
+  // ⚠ THROUGH `standingNear`, so nobody ever leaps off a building that is not standing yet. Hanging a
+  // figure off a hashed x with no existence check is THE BLUE-LINES BUG, five instances deep here.
+  var jb=standingNear(WOFF+SW*0.5, SW*0.8, 22);
+  for(var jI=0;jI<jb.length;jI++){
+    var JB=jb[jI], jh=((JB.x*40503+7717)>>>0); jh=(jh^(jh>>>13))>>>0;
+    if((jh%100)>=46) continue;                                  // not every roof
+    var jX=disX(JB.x+((jh>>>5)%Math.max(1,JB.w))); if(jX<-8||jX>SW+8) continue;
+    var roofY=Math.max(0,HORIZON-1-JB.h);
+    var jAt=moonTurnAp(JB.x)+((jh>>>9)%100)/100*0.10;           // as the light gets to their building
+    var jcl=PEDC[(jh>>>11)%PEDC.length], jsk=SKINC[(jh>>>15)%SKINC.length];
+    if(ap<jAt-0.06) continue;                                   // not up there yet
+    if(ap<jAt){
+      drawPerson(g, jX, roofY, jcl, jsk, -1);                   // standing on the edge
+      continue;
+    }
+    var fallT=(ap-jAt)/0.05;
+    if(fallT<1){
+      // FALLING — accelerating, and the figure stretches as it goes
+      var fy3=Math.round(roofY+(HORIZON-1-roofY)*fallT*fallT);
+      g.fillStyle=css(mixc(hex2rgb(jcl),[0,0,0],day?0.18:0.42));
+      g.fillRect((jX-1)|0,(fy3-4)|0,2,4);
+      g.fillStyle=css(mixc(hex2rgb(jsk),[0,0,0],day?0.14:0.40));
+      g.fillRect((jX-1)|0,(fy3-6)|0,2,2);
+      g.fillStyle="rgba(240,240,245,0.20)";                     // the air going past
+      g.fillRect((jX-1)|0,(fy3-10)|0,2,3);
+      continue;
+    }
+    // LANDED. A wide splat, and what is left of them, and it stays.
+    if(goreK()>0){
+      g.fillStyle="rgba("+(day?154:104)+",14,18,0.90)";
+      g.fillRect((jX-8)|0,HORIZON-1,17,1);
+      g.fillStyle="rgba("+(day?120:80)+",10,14,0.62)";
+      g.fillRect((jX-11)|0,HORIZON,23,1);
+      for(var sq3=0;sq3<6;sq3++){                                // thrown clear on impact
+        var s3=((jh*31+sq3*2654435761)>>>0);
+        g.fillStyle="rgba(178,20,20,0.8)";
+        g.fillRect((jX-9+((s3>>>5)%19))|0,(HORIZON-2-((s3>>>11)%3))|0,1,1);
+      }
+    }
+    drawProne(g, jX, HORIZON-1, jcl, jsk, jh, day);
   }
   // ---- MOBS. Nick: "mobs, not pairs." Two figures side by side never reads as an attack at 7px; a
   // ring of five hunched over one person does, immediately.
@@ -51588,8 +51672,20 @@ APOC_X.bloodmoon=function(g,ap,L,now){
     var m=S.m, X=S.X, fy=S.fy;
     var cloth=PEDC[(m.h>>>5)%PEDC.length], skin=SKINC[(m.h>>>9)%SKINC.length];
     if(ap>=m.dieAt){ drawProne(g, X, fy, cloth, skin, m.h, day); continue; }   // they got theirs
-    if(ap<m.turnAt){                                          // not yet — an ordinary person
-      drawPerson(g, X, fy, cloth, skin, ((now/520+i*0.4)|0)&3);
+    if(ap<m.turnAt){
+      // ---- NOT YET. But they can see what is coming, so they RUN. Nick: "have people start running
+      // and panicking in the streets." The closer the wave is to them, the harder they go — a fast
+      // gait, and away from the light rather than along the pavement.
+      var dToWave=nukeDist(wrapW(m.home),apocEpiX(NOWOVR!=null?NOWOVR:Date.now()))-moonWaveR();
+      var panic=Math.max(0,Math.min(1,1-dToWave/(WW*0.20)));
+      if(panic>0){
+        var away=(((m.home-apocEpiX(NOWOVR!=null?NOWOVR:Date.now()))%WW+WW*1.5)%WW-WW*0.5)>=0?1:-1;
+        var fleeX=X+away*Math.round(panic*14);
+        if(fleeX>=-8&&fleeX<=SW+8)
+          drawPerson(g, fleeX, fy, cloth, skin, ((now/(150-90*panic)+i*0.4)|0)&3);   // legs going
+      } else {
+        drawPerson(g, X, fy, cloth, skin, ((now/520+i*0.4)|0)&3);
+      }
       continue;
     }
     // TURNED. ⚠ THE EYES ARE THE WHOLE TELL. At 7px you cannot read a facial expression or a stance,
