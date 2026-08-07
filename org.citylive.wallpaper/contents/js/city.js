@@ -51302,7 +51302,9 @@ var APOC_BODILESS={logout:1,banwave:1,timestop:1};
 function apocVictimCount(){
   var GK=goreK(); if(GK<=0) return 0;
   if(APOC_BODILESS[curDeath]) return 0;
-  return Math.round(WW*0.102*(0.45+0.55*GK));
+  // ⚠ 0.102 -> 0.068 of WW. At 230 world-wide the ground line was a continuous carpet anyway; the
+  // READ comes from the piles, which got bigger to compensate. Straight perf, no visible loss.
+  return Math.round(WW*0.068*(0.45+0.55*GK));
 }
 // ⚠ BUILT ONCE PER LIFE, NOT PER FRAME. The laptop work left ~18 ms of JS in a live frame against a
 // 5% CPU bar, so a 230-iteration hash loop every frame is not free. Cached on the detonation id, the
@@ -51321,8 +51323,14 @@ function apocVictims(now){
       kind: (h>>>7)%3,                           // which way they fell
       // A PILE is where a crowd died together — a doorway, a stair, a choke point. Nick asked for
       // mass casualty, and mass casualty is not 230 evenly spaced singles: it is clusters.
-      pile: ((h2>>>3)%100)<17 ? 2+((h2>>>9)%4) : 0,
+      pile: ((h2>>>3)%100)<21 ? 2+((h2>>>9)%5) : 0,
       sp:   ((h2>>>17)%1000)/1000,               // per-victim spray angle/length roll
+      // ⚠ PRECOMPUTED, NOT HASHED PER FRAME. These four were being derived inside the draw loop,
+      // ~80 on-screen victims x every live frame. The list is already cached per life; anything
+      // that does not change with the clock belongs in here.
+      pw:   1+((h2>>>5)%3),                       // pool half-width
+      pr:   1+((h2>>>11)%2),                      // pool rows
+      dir:  (h2&1)?1:-1,
       seed: h2
     };
   }
@@ -51397,12 +51405,21 @@ function drawApocFallenGround(g,L,now){
       }
       continue;
     }
-    var pooled=1+(v.pile?v.pile*0.7:0);                          // a pile bleeds like a pile
-    bloodMark(g,X|0,Y,(v.seed>>>1),2.0*pooled*(0.6+M.spray*0.8),0.12,L);
+    // ⚠ NOT `bloodMark` HERE, AND THIS IS A MEASUREMENT NOT A PREFERENCE. That routine loops
+    // `size*K*0.5` rows and hashes inside each one — right for the handful of dead a DISASTER
+    // leaves, and it was costing +5.74 ms of live frame at ~80 on-screen victims (kaiju, timed
+    // interleaved against e208963 in one process). A pool is three rects; the pile is what carries
+    // the read, not the per-row noise.
+    var pooled=1+(v.pile?v.pile*0.8:0);                          // a pile bleeds like a pile
+    var pw=Math.round(v.pw*pooled*(0.7+M.spray*0.9)), pa=(0.60*M.spray*GK);
+    g.fillStyle="rgba("+(day?146:96)+",14,18,"+pa.toFixed(3)+")";
+    g.fillRect((X-pw)|0, Y, pw*2, 1);
+    if(v.pr>1||v.pile){ g.fillStyle="rgba("+(day?128:82)+",12,16,"+(pa*0.72).toFixed(3)+")";
+      g.fillRect((X-pw-1)|0, Y-1, pw*2+2, 1); }
     // ---- ARTERIAL THROW. A directional streak away from the body, which is what separates a killing
     // from a stain. Hashed direction so all three monitors throw it the same way.
     if(M.spray>0.4){
-      var dir=(v.seed&1)?1:-1, len=Math.round((3+v.sp*7)*M.spray*Math.max(1,KSP));
+      var dir=v.dir, len=Math.min(9,Math.round((3+v.sp*7)*M.spray*Math.max(1,KSP)));
       var br=Math.round(148-24*v.sp), a=(0.50*M.spray*GK);
       for(var s=0;s<len;s++){
         var w=Math.max(1,Math.round((len-s)/len*2));
