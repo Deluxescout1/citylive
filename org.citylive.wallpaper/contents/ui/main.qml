@@ -506,12 +506,36 @@ WallpaperItem {
         // dialog. worldRestartAt > 0 means the user clicked one of those buttons; applied
         // every boot so re-clicking (a fresh timestamp) fires again.
         try {
-            if (configuration && configuration.finale !== undefined) {
+            // 🚨🚨 THE DIALOG'S UNSET VALUE IS THE STRING "auto", NOT undefined AND NOT "" — and
+            // "auto" means CLEAR THE PIN. So on every boot this ran `applyConfig({finale:"auto"})`
+            // ONE STEP AFTER localcfg.js had set the pin, and nulled it; `curDeath` then fell through
+            // `FORCEDEATH || CFG_FINALE || "nuke"` to the nuke. A finale pinned in config.local.json
+            // had therefore NEVER worked, and every attempt to review a specific ending played the
+            // nuke instead.
+            // 🔑 PROVEN FROM THE RUNNING WALLPAPER, NOT FROM READING: two journal lines, in order —
+            //     applyConfig in: finale=risen → out: CFG_FINALE=risen
+            //     applyConfig in: finale=auto  → out: CFG_FINALE=null
+            // I guessed the empty string first and was wrong; the instrument settled it in one pass.
+            // The location block twelve lines up already guards exactly this ("999 = unset, so a fresh
+            // install never overrides the bake"). "auto" IS that sentinel for the finale — treating it
+            // as an instruction to clear is what made the default destructive.
+            if (configuration && configuration.finale !== undefined && configuration.finale !== ""
+                && configuration.finale !== "auto") {
                 City.applyConfig({ finale: configuration.finale });
             }
             if (configuration && configuration.worldRestartAt > 0) {
                 City.applyConfig({ worldRestartAt: configuration.worldRestartAt, worldRestartMode: configuration.worldRestartMode });
             }
+            // …and THEN the dev pin, last, so it wins. ⚠ THE GUARD ABOVE IS NOT ENOUGH ON ITS OWN:
+            // this desktop has FOUR wallpaper containments and one of them carries a real, non-default
+            // `finale=meteors` in plasma-org.kde.plasma.desktop-appletsrc. Without this, three monitors
+            // would render the pinned ending and the fourth would render something else — the
+            // multi-monitor disagreement this project has already been bitten by twice.
+            // Re-applying ONLY the finale keeps every other precedence rule intact (the dialog still
+            // beats config.local.json for location, exactly as documented above), and it is a no-op for
+            // everyone else: localcfg.js ships EMPTY in the public repo.
+            try { if (Local && Local.CONFIG && Local.CONFIG.finale)
+                      City.applyConfig({ finale: Local.CONFIG.finale }); } catch (e) { /* no local pin */ }
         } catch (e) { /* invalid/unset → keep the current finale/world state */ }
         // LIVE FLIGHTS on/off from the config dialog (real aircraft overlay). Applied every boot.
         try {

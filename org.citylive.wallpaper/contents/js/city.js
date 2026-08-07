@@ -130,7 +130,21 @@ function applyConfig(cfg){ if(!cfg) return;
   if(cfg.lat!=null||cfg.lon!=null) REGION=regionOf(LAT,LON);   // re-derive the architectural region for the new place
   if(cfg.cycle!=null) GROW_CYCLE=cycleMs(cfg.cycle);
   if(cfg.disasters!=null) DIS_PROB=DIS_PROB_BASE*disMul(cfg.disasters);
-  if(cfg.finale!==undefined) CFG_FINALE=(cfg.finale&&cfg.finale!=="auto"&&DEATHS.indexOf(cfg.finale)>=0)?cfg.finale:null;
+  // 🚨🚨 THIS VALIDATED AGAINST `DEATHS` — THE ORIGINAL TWELVE. Every ending added since (the
+  // thirteen of tier 2, the twelve of tier 3, and all six land-locked ones) was silently REJECTED
+  // here and CFG_FINALE set to null, so pinning one in config.local.json looked exactly like the
+  // feature not existing. This is the RUNTIME path the KDE wallpaper actually takes; the load-time
+  // validator further down had the same bug against DEATHS_ALL and was fixed separately.
+  // 🔑 A FIX APPLIED ONLY WHERE THE BUG WAS REPORTED IS HALF A FIX — two validators, one question.
+  // ⚠ AND THE SAME GUARD IN THE ENGINE, because a host is not the only caller and this must not
+  // depend on every one of them getting it right: an EMPTY finale means "not set" and leaves the
+  // pin alone; "auto" is the explicit clear.
+  if(cfg.finale!==undefined&&cfg.finale!=="") CFG_FINALE=(cfg.finale&&cfg.finale!=="auto"&&
+    (DEATHS_ALL3.indexOf(cfg.finale)>=0||DEATHS_SPECIAL.indexOf(cfg.finale)>=0))?cfg.finale:null;
+  // ►► REVIEW HOOK. `demoApocSec` plays the finale LIVE on a repeating N-second loop instead of
+  // once at the end of a week-long life, so an ending can actually be WATCHED and judged. Paired
+  // with `finale`, which picks which one. Off (0) unless set — no default install is affected.
+  if(cfg.demoApocSec!=null) DEMO_APOC_SEC=+cfg.demoApocSec||0;
   if(cfg.worldRestartAt!==undefined) WORLD_SHIFT=worldShiftFrom(+cfg.worldRestartAt||0, cfg.worldRestartMode);
   // AFTER cycle and WORLD_SHIFT: the alignment is a phase against the finished grid, so anything
   // lifeIndexOf() adds must already be settled or the hour lands wrong.
@@ -50560,35 +50574,329 @@ APOC_X.ragnarok=function(g,ap,L,now){
 // APOC_STRIKE_AP and APOC_FULL_AP. A renderer with no strike row never hands over from its approach.
 
 // THE DEAD WALK. The one big object is the TIDE — a horizon-wide press of figures, not a monster.
+// ---- THE DEAD WALK. Rebuilt to Nick's spec, 2026-08-07, after two passes he rejected:
+// "In the streets, hunting people" · "visible kills happening" · "blood on the buildings and streets"
+// · "piles of bodies everywhere" · "gore on the zombies themselves" · "make sure they are not going
+// in all the same direction" · and the sky was "too flat and uniform".
+// 🚨 THE TWO FAULTS THAT MADE THE EARLIER PASSES FAIL, so they are not repeated:
+//   · the horde was a ROW ALONG THE HORIZON. People in this city stand in TWO bands — the far walk
+//     and the near walk (`pedFeetY`) — so anything meant to be "in the streets" has to live in both,
+//     at scattered depth, or it reads as a fence.
+//   · every zombie moved `+ (now*0.005)`, i.e. ALL ONE WAY. A crowd that shares a direction is a
+//     parade. Each one now carries its own direction, speed and distance.
+// 🔑 `ap` DRIVES THE MOVEMENT, NOT `now` — so a zombie freezes exactly where it made its kill, on
+// every monitor and on any life length, and the demo loop and a real week-long life agree.
+function risenZombie(i){
+  var h=((i*2654435761+4409)>>>0); h=(h^(h>>>13))>>>0;
+  var h2=((h*40503+1013904223)>>>0);
+  return { home:  ((h%100000)/100000)*WW,
+           dir:   (h2&1)?1:-1,                       // ⚠ its OWN direction — not the horde's
+           travel:34+((h2>>>3)%130),                 // how far it gets across the whole arc
+           // Nick: "make the zombies take over both sides of the road, AND the road itself".
+           // Three zones, not two: the far walk, the ASPHALT, and the near walk. They own all of it.
+           zone:  ((h2>>>11)%3),                      // 0 far walk · 1 the road · 2 near walk
+           q:     ((h2>>>17)%100)/100,               // depth within that band
+           // spread across the WHOLE arc, so at any given moment a good number are mid-kill
+           // rather than the whole horde already hunched and feeding.
+           killAt:0.06+((h>>>7)%100)/100*0.80,
+           kill2: 0.10+((h>>>17)%100)/100*0.84,       // and many of them take a second victim
+           h:h, h2:h2 };
+}
+// ---- THE HOLDOUTS. Nick: "survivors who try to shoot the zombies but get overwhelmed."
+// A firing position is a STORY, not a decoration, so each one carries its whole arc in a hash: who is
+// on it, how long they hold, the heap of dropped zombies that grows in front of them while they do,
+// and the moment it goes under. `ap` drives all of it — never `now` — so the same position falls at
+// the same instant on all three monitors, and a 90-second demo loop and a week-long life agree.
+function risenHoldout(j){
+  var h=((j*2654435761+60611)>>>0); h=(h^(h>>>13))>>>0;
+  var h2=((h*40503+1013904223)>>>0);
+  return { wx:   ((h%100000)/100000)*WW,
+           crew: 2+((h2>>>3)%3),                       // two to four of them
+           zone: ((h2>>>7)%2)?0:2,                     // they hold a kerb, not the middle of the road
+           q:    ((h2>>>11)%100)/100,
+           face: (h2&1)?1:-1,                          // which way the line is pointing
+           fall: 0.34+((h>>>7)%100)/100*0.50,          // when the position is finally overrun
+           h:h, h2:h2 };
+}
 APOC_X.risen=function(g,ap,L,now){
-  var K=Math.max(1,KSP);
-  g.fillStyle="rgba(28,34,26,"+(0.50*ap).toFixed(2)+")"; g.fillRect(0,0,SW,HORIZON);
-  // ⚠ FIRST PASS WAS A ROW OF SPECKS — 18 figures 4px tall on a 776px frame, correct code and
-  // invisible, this project's most common failure. A TIDE has to overlap itself to read as one.
-  var gy=HORIZON-1, n=Math.round(70+ap*260), adv=Math.min(1,ap*1.4);
-  g.fillStyle="rgba(18,24,18,"+(0.62*adv).toFixed(2)+")";      // the mass behind them, so the front rank has something to be in front OF
-  g.fillRect(0,gy-Math.round(7*Math.max(1,KSP)),SW,Math.round(7*Math.max(1,KSP)));
-  for(var i=0;i<n;i++){
-    var h=((i*2654435761+4409)>>>0); h^=h>>>13;
-    // 🔑 WORLD x, so the horde is ONE horde across three monitors rather than three of them
-    var wx=wrapW(((h%100000)/100000)*WW + (now*0.006)%WW), X=disX(wx);
-    if(X<-6||X>SW+6) continue;
-    var lean=((h>>>7)%3)-1, dy=((h>>>11)%3), K2=Math.max(1,KSP);
-    // 🚨 GRAIN AND SILHOUETTE, NEVER COLOUR. The first horde was mid-olive and rendered on OPEN
-    // PLAINS — a green crowd on a green field, invisible at full frame and perfectly clear when
-    // magnified, which is how it survived a review. A test land hides a feature exactly the way a
-    // test age does (the forest spirit, one land over). These are near-black silhouettes now, so
-    // they read against grass, snow, sand or asphalt alike.
-    var rot=mixc([40,46,36],[18,22,17],((h>>>17)%100)/100);
-    g.fillStyle=rgba(rot,(0.55+0.35*adv).toFixed(2));
-    g.fillRect((X+lean)|0, gy-Math.round(7*K2)-dy, Math.round(2*K2), Math.round(4*K2));   // body
-    g.fillRect((X+lean)|0, gy-Math.round(3*K2)-dy, Math.round(2*K2), Math.round(3*K2));   // legs, stiff
-    g.fillStyle=rgba(mixc(rot,[128,130,112],0.30),"0.92");
-    g.fillRect((X+lean)|0, gy-Math.round(9*K2)-dy, Math.round(2*K2), Math.round(2*K2));   // head
-    g.fillStyle="rgba(120,16,18,"+(0.5*adv).toFixed(2)+")";
-    g.fillRect((X+lean-1)|0, gy-6-dy, 1, 1);                      // what is on them
+  var adv=Math.min(1,ap*1.4), day=(L>0.5);
+  // ================= A. THE SKY — layered, because one flat tint was the complaint ==============
+  for(var y=0;y<HORIZON;y+=3){                                   // 1. base: sick green-grey, darker up top
+    var t=y/HORIZON;
+    // ⚠ NOT GREEN AT THE END. The first pass ran to a yellow-green at the horizon and by the late
+    // arc the whole frame was a green haze — Nick: "everything should look dead not hazy." A dead
+    // world is DESATURATED, not tinted, so the ramp runs to ash grey and the late arc DRAINS colour.
+    g.fillStyle=rgba(mixc([30,32,30],[104,100,88],t),(0.34+0.30*ap).toFixed(3));
+    g.fillRect(0,y,SW,3);
   }
-  groundGlow(g,"40,50,36",0.24*ap);
+  // 2. SMOKE BANKS. Two failed attempts are encoded here, because both were the SAME mistake in
+  // opposite directions: solid fillRects gave hard grey BARS across the sky, and then hashing the
+  // thickness per column gave vertical STREAKS like static. Smoke is a horizontal mass with a soft,
+  // slowly-varying edge — so the top edge is two summed sines (smooth, no per-column noise) and the
+  // thickness is CONSTANT within a band. The variation belongs in the edge, never in the thickness.
+  for(var b=0;b<4;b++){
+    var by=Math.round(HORIZON*(0.15+0.175*b));
+    var drift=(now*(0.007+0.005*b));
+    var thk=Math.round(HORIZON*(0.030+0.012*((b*7919)%3)));
+    var amp=HORIZON*0.030;
+    for(var pass=0;pass<3;pass++){
+      g.fillStyle="rgba("+(34+pass*7)+","+(34+pass*7)+","+(32+pass*6)+","+(0.11+0.06*ap).toFixed(3)+")";
+      for(var sx2=0;sx2<SW;sx2+=2){
+        var wxs=sx2+WOFF+drift+pass*29;
+        var top=Math.round(by + Math.sin(wxs*0.0075+b*1.7)*amp + Math.sin(wxs*0.019+b)*amp*0.45 + pass*2);
+        if(top<-thk||top>HORIZON) continue;
+        g.fillRect(sx2,Math.max(0,top),2,thk);
+      }
+    }
+  }
+  g.globalCompositeOperation="lighter";                          // 3. the city burning, lighting the underside
+  for(var fy=0;fy<Math.round(HORIZON*0.22);fy++){
+    var ff=1-fy/Math.max(1,Math.round(HORIZON*0.22));
+    g.fillStyle="rgba(150,52,20,"+(0.16*ff*adv).toFixed(3)+")";
+    g.fillRect(0,HORIZON-fy,SW,1);
+  }
+  g.globalCompositeOperation="source-over";
+  for(var k=0;k<14;k++){                                         // 4. carrion birds, circling — the sky MOVES
+    var kh=((k*40503+991)>>>0);
+    var cxk=((kh%1000)/1000)*SW, cyk=HORIZON*(0.12+((kh>>>9)%50)/160);
+    var rr=8+((kh>>>5)%22), sp=2600+((kh>>>13)%3400);
+    var an=(now/sp+k)*6.283;
+    var bx=Math.round(cxk+Math.cos(an)*rr), byy=Math.round(cyk+Math.sin(an)*rr*0.45);
+    g.fillStyle="rgba(18,18,16,0.80)";
+    var flap=((now/220+k)|0)&1;
+    g.fillRect(bx,byy,1,1); g.fillRect(bx-1,byy-flap,1,1); g.fillRect(bx+1,byy-flap,1,1);
+  }
+  // ============ B. BLOOD ON THE BUILDINGS — sprayed up the facades, not just the ground ==========
+  // ⚠ THROUGH `standingNear`, WHICH HOISTS THE THREE CULLS (site · landmark · not-born-yet). Hanging
+  // decoration off a hashed x with no existence check is THE BLUE-LINES BUG, and it has been found
+  // five times in this engine. Anything on a facade goes through here.
+  var walls=standingNear(WOFF+SW*0.5, SW*0.75, 26);
+  for(var wI=0;wI<walls.length;wI++){
+    var wb=walls[wI], wh=((wb.x*2654435761)>>>0);
+    if((wh%100)>=82) continue;                                    // most walls, now — Nick: "it should look drenched"
+    var wX=disX(wb.x); if(wX<-20||wX>SW+20) continue;
+    var wn=2+((wh>>>7)%5);
+    for(var wq=0;wq<wn;wq++){
+      var wh2=((wh*31+wq*2654435761)>>>0);
+      var sx=wX+((wh2%Math.max(1,wb.w))|0), sy=HORIZON-1-((wh2>>>9)%Math.max(2,Math.round(wb.h*0.42)));
+      var slen=2+((wh2>>>15)%5);
+      g.fillStyle="rgba("+(day?128:88)+",12,16,"+(0.62*adv).toFixed(3)+")";
+      g.fillRect(sx|0,sy|0,1+((wh2>>>19)%2),slen);                // the spray, thrown up the wall
+      g.fillStyle="rgba("+(day?96:64)+",10,14,"+(0.46*adv).toFixed(3)+")";
+      g.fillRect(sx|0,(sy+slen)|0,1,2+((wh2>>>21)%4));            // …and the run down from it
+    }
+  }
+  // ============ B2. THE CITY ROTS RATHER THAN FALLS ============================================
+  // Nick: "the buildings fall more too decay than anything else." That is the right instinct and it
+  // is what separates this ending from the six that level the city: nothing here knocks a building
+  // down (risen is deliberately NOT in APOC_SWEEP, so `apocHit` stays false and nothing collapses).
+  // What a plague of the dead leaves is a skyline still standing and visibly ROTTING — dead windows,
+  // stains bleeding down the facades, and growth taking the base back.
+  // ⚠ Through `standingNear` again, for the same reason: no decoration hangs off an unchecked x.
+  var rot0=Math.max(0,Math.min(1,(ap-0.06)/0.44));   // sooner and harder — it was not reading at all
+  if(rot0>0){
+    var dbl=standingNear(WOFF+SW*0.5, SW*0.75, 26);
+    for(var dI=0;dI<dbl.length;dI++){
+      var db=dbl[dI], dX=disX(db.x); if(dX<-24||dX>SW+24) continue;
+      var dh=((db.x*40503+7717)>>>0);
+      var bTop=Math.max(0,HORIZON-1-db.h);
+      // dead windows: the lights are out and the glass is gone, in irregular patches
+      for(var wq2=0;wq2<Math.round(db.w*0.9);wq2++){
+        var wh3=((dh*31+wq2*2654435761)>>>0);
+        if(((wh3%100)/100) > rot0*1.6) continue;          // far more dead windows
+        var wx3=dX+((wh3>>>5)%Math.max(1,db.w));
+        var wy3=bTop+((wh3>>>11)%Math.max(1,db.h));
+        if(wy3>=HORIZON-1) continue;
+        g.fillStyle="rgba(8,9,9,"+(0.88*rot0).toFixed(3)+")";
+        g.fillRect(wx3|0,wy3|0,1+((wh3>>>19)%3),1+((wh3>>>23)%2));
+      }
+      // stains bleeding DOWN from the openings — vertical, uneven, the mark of years not minutes
+      var sn=3+((dh>>>7)%6);
+      for(var sq=0;sq<sn;sq++){
+        var sh2=((dh*17+sq*40503)>>>0);
+        var stx=dX+((sh2%Math.max(1,db.w))|0);
+        var sty=bTop+((sh2>>>9)%Math.max(1,Math.round(db.h*0.5)));
+        var slen2=Math.round((6+((sh2>>>15)%18))*rot0);
+        for(var sv=0;sv<slen2;sv++){
+          if(sty+sv>=HORIZON-1) break;
+          g.fillStyle="rgba(26,26,22,"+((0.66-0.44*sv/Math.max(1,slen2))*rot0).toFixed(3)+")";
+          g.fillRect(stx|0,(sty+sv)|0,1,1);
+        }
+      }
+      // and the ground takes the base back
+      var gw=Math.max(3,Math.round(db.w*1.6*rot0));
+      for(var gq=0;gq<gw;gq++){
+        var gh2=((dh*13+gq*2654435761)>>>0);
+        if((gh2%3)) continue;
+        var gx=dX+((gh2>>>5)%Math.max(1,db.w));
+        var gy3=HORIZON-2-((gh2>>>11)%Math.max(1,Math.round(4+8*rot0)));
+        g.fillStyle="rgba(40,52,34,"+(0.68*rot0).toFixed(3)+")";
+        g.fillRect(gx|0,gy3|0,1,HORIZON-1-gy3);
+      }
+    }
+  }
+  // ============ B3. AND THE ROAD ITSELF IS DRENCHED ============================================
+  // Smears and drag-trails across the asphalt, world-anchored so the three monitors agree. Drawn as
+  // spans rather than per pixel — the road is 776 px of frame and this runs every live frame.
+  var smear=Math.round(14+ap*44);
+  for(var mI=0;mI<smear;mI++){
+    var mh=((mI*2654435761+3313)>>>0); mh=(mh^(mh>>>13))>>>0;
+    if(ap < 0.04+((mh>>>3)%100)/100*0.5) continue;
+    var mwx=((mh%100000)/100000)*WW, mX=disX(mwx);
+    if(mX<-40||mX>SW+40) continue;
+    var mlen=6+((mh>>>7)%26), my2=ROAD_Y+2+((mh>>>13)%Math.max(1,(ROAD_BOT-ROAD_Y)-2));
+    g.fillStyle="rgba("+(L>0.5?128:86)+",12,16,"+(0.40+0.22*ap).toFixed(3)+")";
+    g.fillRect(mX|0,my2|0,mlen,1);
+    if((mh>>>21)%2){ g.fillStyle="rgba("+(L>0.5?104:70)+",10,14,"+(0.30+0.18*ap).toFixed(3)+")";
+      g.fillRect((mX+((mh>>>17)%Math.max(1,mlen)))|0,(my2+1)|0,Math.max(2,mlen>>1),1); }
+  }
+  // ================= C. THE HORDE, IN THE STREETS, HUNTING =====================================
+  var n=Math.round(190+ap*430);   // three zones to fill — a takeover, not a scattering
+  for(var i=0;i<n;i++){
+    var z=risenZombie(i);
+    var t2=Math.min(ap,z.killAt);                                  // frozen at the kill
+    var wx=wrapW(z.home + z.dir*z.travel*t2), X=disX(wx);
+    if(X<-10||X>SW+10) continue;
+    var fy2 = z.zone===0 ? (HORIZON-1+Math.round(z.q*Math.max(0,WALK_F-2)))
+            : z.zone===1 ? (ROAD_Y+2+Math.round(z.q*Math.max(1,(ROAD_BOT-ROAD_Y)-3)))   // ON the asphalt
+            :              (ROAD_BOT+3+Math.round(z.q*Math.max(0,WALK_N-3)));
+    // ---- GREEN, so they read as ZOMBIES. Nick, plainly: "make the zombies green so they look like
+    // zombies." The flesh carries it and the clothing does not: rags stay DARK and near-neutral so
+    // the silhouette still separates from the ground, and the green sits inside it as skin.
+    // ⚠ THIS IS THE EXACT TRAP THAT KILLED THE FIRST HORDE, APPROACHED FROM THE OTHER SIDE — an
+    // olive crowd on an olive field vanished. The cure is not "avoid green", it is CONTRAST: a
+    // sickly yellow-green flesh is lighter and warmer than any grass this engine draws, and it is
+    // framed by dark rags, so it reads on plains, snow, sand and asphalt alike.
+    // ⚠ And the skin is barely darkened — darkening it is what made it grey mush last time.
+    var rot=["#2f3230","#3a352c","#26292a","#403a30","#33302b"][(z.h>>>7)%5];   // dark rags
+    var skn=["#8fb066","#7da35c","#9cbe72","#86a95f","#a3c47d"][(z.h>>>11)%5];  // sick green flesh
+    var dk=day?0.46:0.58;
+    var cloth=hexDark(rot,dk), skin=hexDark(skn,day?0.08:0.30);
+    // ⚠ THE KILL WINDOW WAS 0.04 OF THE ARC — about two seconds of a ninety-second loop, so
+    // almost every zombie was already hunched and feeding whenever you looked. Nick: "more
+    // visible killing". Widened, and a second victim gives a fresh burst later in the arc.
+    var k2=(z.kill2>z.killAt+0.12)?z.kill2:0;
+    var killing=(ap>=z.killAt-0.13 && ap<z.killAt) || (k2 && ap>=k2-0.11 && ap<k2);
+    var feeding=(ap>=z.killAt) && !killing;
+    if(feeding){
+      // ---- THE KILL, AFTERWARD: hunched over a body, still at it. The victim stays on the ground.
+      g.fillStyle="rgba("+(day?150:104)+",14,18,0.80)";
+      g.fillRect((X-3)|0, fy2, 7, 1);                              // the pool they are kneeling in
+      var vc=PEDC[(z.h2>>>5)%PEDC.length];
+      g.fillStyle=css(mixc(mixc(hex2rgb(vc),[96,12,16],0.5),[0,0,0],day?0.25:0.45));
+      g.fillRect((X+1)|0, fy2-1, 4, 1);                            // the body, flat
+      g.fillRect((X+5)|0, fy2-1, 1, 1);
+      drawPerson(g, X-1, fy2-1, cloth, skin, -1, 0);               // hunched over it (one lower)
+    } else {
+      drawPerson(g, X, fy2, cloth, skin, ((now/620 + i*0.37)|0)&3, 0);   // shambling — a slow, uneven cycle
+      if(killing){
+        // ---- THE KILL ITSELF: it has hold of someone, and the blood goes UP.
+        var vc2=PEDC[(z.h2>>>5)%PEDC.length];
+        drawPerson(g, X+z.dir*3, fy2, vc2, SKINC[(z.h2>>>9)%SKINC.length], (now/90|0)&3, 0);
+        for(var sp2=0;sp2<5;sp2++){
+          g.fillStyle="rgba(170,18,20,"+(0.85-sp2*0.14).toFixed(2)+")";
+          g.fillRect((X+z.dir*(2+sp2))|0, fy2-4-((sp2*1.3)|0), 1, 1);
+        }
+      }
+    }
+    // ---- GORE ON THE ZOMBIE ITSELF: what it is wearing, and what it drips.
+    if((z.h2>>>23)%3!==0){
+      g.fillStyle="rgba(132,14,16,"+(0.62*adv).toFixed(2)+")";
+      g.fillRect(X|0, fy2-4, 2, 1);
+      if((z.h2>>>27)%2) g.fillRect((X+1)|0, fy2-2, 1, 2);          // running down
+    }
+  }
+  // ============ C2. THE HOLDOUTS — they shoot, they hold, and then they don't =================
+  for(var jH=0;jH<9;jH++){
+    var H=risenHoldout(jH);
+    var hX=disX(H.wx); if(hX<-30||hX>SW+30) continue;
+    var hfy = H.zone===0 ? (HORIZON-1+Math.round(H.q*Math.max(0,WALK_F-2)))
+                         : (ROAD_BOT+3+Math.round(H.q*Math.max(0,WALK_N-3)));
+    var live=(ap<H.fall), prog=Math.max(0,Math.min(1,ap/Math.max(0.01,H.fall)));
+    // ---- the heap they have already dropped, growing in front of the line the whole time they hold
+    var dropped=Math.round((3+((H.h2>>>13)%5))*prog*(live?1:1));
+    for(var dq=0;dq<dropped;dq++){
+      var dhh=((H.h*31+dq*2654435761)>>>0);
+      var ddx=hX+H.face*(4+((dhh>>>5)%14)), ddy=hfy-((dhh>>>11)%2);
+      if(ddx<-4||ddx>SW+4) continue;
+      g.fillStyle="rgba("+(day?142:96)+",14,18,0.66)";
+      g.fillRect((ddx-2)|0, ddy, 5, 1);
+      g.fillStyle=css(mixc(hex2rgb("#8fb066"),[0,0,0],day?0.44:0.60));   // a dropped zombie, still green
+      g.fillRect((ddx-2)|0, ddy-1, 4, 1);
+      g.fillStyle=css(mixc(hex2rgb("#2f3230"),[0,0,0],day?0.30:0.50));
+      g.fillRect((ddx+2)|0, ddy-1, 1, 1);
+    }
+    for(var cq=0;cq<H.crew;cq++){
+      var ch=((H.h2*17+cq*40503)>>>0);
+      var cx=hX-H.face*(cq*3+((ch>>>5)%2)), cy=hfy-((ch>>>9)%2);
+      if(cx<-6||cx>SW+6) continue;
+      // ⚠ each member falls at his OWN moment, before the position does — a line does not die at once
+      var mine=H.fall*(0.55+0.45*(((ch>>>13)%100)/100));
+      if(ap>=mine){
+        // he is down. Body + pool, and it stays.
+        g.fillStyle="rgba("+(day?146:98)+",14,18,0.74)";
+        g.fillRect((cx-2)|0, cy, 5, 1);
+        g.fillStyle=css(mixc(mixc(hex2rgb("#4a4e58"),[96,12,16],0.42),[0,0,0],day?0.26:0.46));
+        g.fillRect((cx-2)|0, cy-1, 4, 1);
+        continue;
+      }
+      drawPerson(g, cx, cy, hexDark("#4a4e58",day?0.18:0.42), hexDark("#c8a184",day?0.10:0.38), -1, 0);
+      // ---- THE MUZZLE FLASH. Staggered per shooter so the line crackles instead of volley-firing,
+      // and it quickens as they get desperate.
+      var rate=Math.max(90,300-220*prog);
+      if((((now/rate)|0)+cq*2+jH)%3===0){
+        g.globalCompositeOperation="lighter";
+        g.fillStyle="rgba(255,226,150,0.95)";
+        g.fillRect((cx+H.face*3)|0, cy-4, 2, 1);                              // the flash
+        g.fillStyle="rgba(255,206,120,0.42)";
+        g.fillRect((cx+H.face*5)|0, cy-4, Math.round(4+((now>>>4)%5)), 1);    // and the round going out
+        g.globalCompositeOperation="source-over";
+      }
+    }
+    // ---- OVERWHELMED: once it falls, the dead close over the position.
+    if(!live){
+      var over=Math.min(1,(ap-H.fall)/0.18);
+      var swarmN=Math.round(3+((H.h>>>19)%4)+5*over);
+      for(var sq2=0;sq2<swarmN;sq2++){
+        var sh3=((H.h*13+sq2*2654435761)>>>0);
+        var sxq=hX+H.face*(((sh3>>>5)%12)-4)+(((sh3>>>15)%5)-2);
+        if(sxq<-6||sxq>SW+6) continue;
+        drawPerson(g, sxq, hfy-((sh3>>>11)%2),
+                   hexDark(["#2f3230","#3a352c","#26292a"][(sh3>>>7)%3], day?0.46:0.58),
+                   hexDark(["#8fb066","#7da35c","#9cbe72"][(sh3>>>9)%3], day?0.08:0.30),
+                   -1, 0);
+      }
+    }
+  }
+  // ================= D. PILES OF BODIES, AT BOTH DEPTHS, EVERYWHERE ============================
+  var pn=Math.round(95+ap*250);
+  for(var pI=0;pI<pn;pI++){
+    var ph=((pI*2654435761+8821)>>>0); ph=(ph^(ph>>>13))>>>0;
+    if(ap < 0.05+((ph>>>3)%100)/100*0.55) continue;                // they accumulate as it goes on
+    var pwx=((ph%100000)/100000)*WW, pX=disX(pwx);
+    if(pX<-8||pX>SW+8) continue;
+    var pzone=((ph>>>11)%3), pq=((ph>>>17)%100)/100;   // the dead fall where they were — all three zones
+    var pfy=pzone===0 ? (HORIZON-1+Math.round(pq*Math.max(0,WALK_F-2)))
+          : pzone===1 ? (ROAD_Y+2+Math.round(pq*Math.max(1,(ROAD_BOT-ROAD_Y)-3)))
+          :             (ROAD_BOT+3+Math.round(pq*Math.max(0,WALK_N-3)));
+    var stack=((ph>>>7)%100)<34 ? 1+((ph>>>9)%3) : 0;              // some are heaps
+    g.fillStyle="rgba("+(day?146:98)+",14,18,0.72)";
+    g.fillRect((pX-2-stack)|0, pfy, 5+stack*2, 1);
+    for(var st=0;st<=stack;st++){
+      var pc=PEDC[((ph>>>(5+st*3))>>>0)%PEDC.length];
+      g.fillStyle=css(mixc(mixc(hex2rgb(pc),[96,12,16],0.45),[0,0,0],(day?0.26:0.46)+st*0.05));
+      g.fillRect((pX-2+(st?((ph>>>(11+st))%3)-1:0))|0, pfy-1-st, 4, 1);
+      g.fillStyle=css(mixc(hex2rgb(SKINC[(ph>>>(13+st))%SKINC.length]),[0,0,0],(day?0.3:0.5)+st*0.05));
+      g.fillRect((pX+2+(st?((ph>>>(11+st))%3)-1:0))|0, pfy-1-st, 1, 1);
+    }
+  }
+  // …and the whole frame loses its colour as it ends, rather than gaining a tint.
+  // ⚠ A PALE VEIL IS HAZE, WHICH IS THE THING HE SAID NOT TO DO. Canvas has no desaturate, so the
+  // colour has to be pulled out with an overlay — and a LIGHT grey milks the frame while a DARK
+  // one drains it. Same operation, opposite reading: this one goes toward dead, not toward fog.
+  g.fillStyle="rgba(58,56,52,"+(0.26*Math.max(0,(ap-0.45)/0.55)).toFixed(3)+")";
+  g.fillRect(0,0,SW,HORIZON+GROUND);
+  groundGlow(g,"52,50,44",0.24*ap);
 };
 
 // THE RED SICKNESS. One big object: the PALL over everything, and the pyres burning under it.
@@ -53690,7 +53998,7 @@ function draw(g,pass){
   // end-times renderer is a TIMELINE. This pins it.
   if(FORCEAPOCMS!=null){ cityPhase="apoc"; cityG=1; apocMs=FORCEAPOCMS; cityApoc=Math.min(1,apocMs/(APOC_BAND*GROW_CYCLE)); }
   if(DEMO_APOC_SEC>0){ cityPhase="apoc"; cityG=1; curSpace=1;   // TEST: play the apocalypse live on a short repeating loop
-    apocMs=Date.now()%(DEMO_APOC_SEC*1000); cityApoc=Math.min(1,apocMs/(DEMO_APOC_SEC*1000)); curDeath=FORCEDEATH||"nuke"; }
+    apocMs=Date.now()%(DEMO_APOC_SEC*1000); cityApoc=Math.min(1,apocMs/(DEMO_APOC_SEC*1000)); curDeath=FORCEDEATH||CFG_FINALE||"nuke"; }   // ⚠ CFG_FINALE too — demo mode ignored the pinned ending and always played the nuke
   blastMs = (curDeath==="nuke") ? Math.max(0, apocMs-NUKE_FALL_MS) : apocMs;   // ms since DETONATION — 0 while the warhead is still falling, so nothing dies until impact
   apocKill = (cityPhase!=="apoc") ? cityApoc                                                 // the "everything stops/empties" clock:
     : (curDeath==="nuke")    ? Math.min(1,blastMs/4000)                                       //   nuke: within ~4s of impact
@@ -55014,7 +55322,36 @@ function draw(g,pass){
           drawPerson(g, psx, pdy0, "#5a564e", pd.sk, pbb);              // drab, dust-caked clothes
           g.fillStyle="#e8e4da"; g.fillRect(psx|0,(pdy0-pbb-3)|0,2,1); }  // breathing mask
         continue; }
-      else if(cityApoc>0.08){ fleeing=true;                      // any other (future) endtimes: EVERYONE runs
+      else if(cityApoc>0.08){
+        // 🚨🚨 THIS ARM NEVER KILLED ANYBODY. Every hand-written death above ends a victim with
+        // `continue` — that is what "gone" means here — and the generic arm only ever set
+        // `fleeing=true`. So on ALL TWENTY-FIVE endings that have no branch of their own (the whole
+        // of tier 2, all twelve of tier 3), the street stayed FULL OF LIVING PEOPLE running around
+        // forever while the sky changed colour. That single missing `continue` is most of why the
+        // newer endings read as weather rather than as the end of the world — the city never emptied.
+        // 🔑 It costs one predicate, because the machinery already exists: the ends with a real front
+        // kill exactly where `apocHit` has passed (so the line of dead is the shape of the thing), and
+        // the rest stagger across the arc on a per-person hash so they do not all wink out together.
+        var _ah=((i*2654435761+1013904223)>>>0)/4294967296;
+        if(APOC_FRONTED[curDeath] ? apocHit(pwx) : (apocKill > 0.06 + _ah*0.80)){
+          // 🚨 THEY FALL — THEY DO NOT EVAPORATE. The first version of this arm just `continue`d,
+          // which is how the hand-written deaths above end a victim, and Nick caught it at once:
+          // "people are disappearing when they are running, they either need to die, or run off
+          // screen and escape." A runner blinking out mid-stride reads as a rendering fault, not a
+          // death. The body is drawn where they fell, and it stays.
+          var _dsx=pwx-WOFF; if(_dsx>SW+4&&_dsx-WW>-4)_dsx-=WW; if(_dsx<-4&&_dsx+WW<SW+4)_dsx+=WW;
+          if(_dsx>-4&&_dsx<SW+4 && goreK()>0){
+            var _dfy=pedFeetY(pd), _dday=(L>0.5);
+            g.fillStyle="rgba("+(_dday?146:98)+",14,18,"+(0.72*goreK()).toFixed(2)+")";
+            g.fillRect((_dsx-2)|0,_dfy,5,1);
+            g.fillStyle=css(mixc(mixc(hex2rgb(pd.c||"#3a3a44"),[96,12,16],0.45),[0,0,0],_dday?0.26:0.46));
+            g.fillRect((_dsx-2)|0,_dfy-1,4,1);
+            g.fillStyle=css(mixc(hex2rgb(pd.sk||SKINC[0]),[0,0,0],_dday?0.30:0.50));
+            g.fillRect((_dsx+2)|0,_dfy-1,1,1);
+          }
+          continue;
+        }
+        fleeing=true;
         pwx=wrapW(pwx + pd.dir*(now%4000)*0.03); } }
     else if(curWar&&curWar.f>=0.2&&curWar.f<1){ var wdx=pwx-curWar.x; if(wdx>WW/2)wdx-=WW; if(wdx<-WW/2)wdx+=WW;
       if(Math.abs(wdx)<110){ fleeing=true; pwx=wrapW(pwx+(wdx>=0?1:-1)*(now%4000)*0.03); } }
