@@ -51742,6 +51742,35 @@ function acidArrivalAp(wx){
 function drawApocAcidGround(g,L,now){
   if(cityPhase!=="apoc"||curDeath!=="acidrain") return;
   var day=(L>0.5);
+  // ---- WHAT IS LEFT OF THE PEOPLE. Nick: "the people should dissolve into piles of blood." So they
+  // do not vanish after all — what the acid leaves is a pool that GROWS as they come apart and then
+  // stays for the rest of the life.
+  // ⚠ Drawn here, with the road surface, not with the figures: a pool is part of the ground and the
+  // survivors have to run OVER it. Same split as the plague, and the same correction he already made
+  // once — "some of them are clipping through it".
+  if(goreK()>0){
+    var apG=cityApoc, NG=Math.round(120+apG*220);
+    for(var gi=0;gi<NG;gi++){
+      var gv=acidVictim(gi);
+      var gHit=acidArrivalAp(gv.home)+gv.res*0.04;
+      if(apG<gHit) continue;
+      var gX=disX(wrapW(gv.home+gv.dir*gv.travel*gHit));
+      if(gX<-12||gX>SW+12) continue;
+      var gfy = gv.zone===0 ? (HORIZON-1+Math.round(gv.q*Math.max(0,WALK_F-2)))
+              : gv.zone===1 ? (ROAD_Y+2+Math.round(gv.q*Math.max(1,(ROAD_BOT-ROAD_Y)-3)))
+              :               (ROAD_BOT+3+Math.round(gv.q*Math.max(0,WALK_N-3)));
+      var gd=Math.min(1,(apG-gHit)/(gv.cover?0.34:0.20));
+      var gw=Math.round(3+9*gd);                                  // it spreads as they come apart
+      g.fillStyle="rgba("+(day?148:100)+",14,18,"+(0.55+0.35*gd).toFixed(3)+")";
+      g.fillRect((gX-(gw>>1))|0,gfy,gw,1+Math.round(gd*2));
+      g.fillStyle="rgba("+(day?112:74)+",10,14,"+(0.40+0.25*gd).toFixed(3)+")";
+      g.fillRect((gX-(gw>>1)-2)|0,gfy+1+Math.round(gd*2),gw+4,1);
+      if(gd>0.55){                                                // …thinned at the rim by the acid
+        g.fillStyle="rgba(168,182,64,"+(0.30*gd).toFixed(3)+")";
+        g.fillRect((gX-(gw>>1)-2)|0,gfy-1,gw+4,1);
+      }
+    }
+  }
   // ---- POOLS AND HOLES. The acid gathers on the asphalt and then eats through it.
   for(var x=0;x<SW;x+=1){
     var wx=wrapW(x+WOFF), eat=acidEatAt(wx);
@@ -51848,7 +51877,16 @@ APOC_X.acidrain=function(g,ap,L,now){
       continue;
     }
     var d2=(ap-aHit)/(v.cover?0.34:0.20);                        // under cover it takes longer. Only longer.
-    if(d2>=1) continue;                                          // 🔑 NOTHING REMAINS. Not even a stain.
+    if(d2>=1){
+      // 🔑 WHAT REMAINS IS A PILE. The heap on top of the pool the ground pass laid down — darker and
+      // wetter in the middle, so it reads as matter rather than as a flat stain.
+      var pw=5+((v.h>>>7)%4);
+      g.fillStyle="rgba("+(day?128:86)+",12,16,0.92)";
+      g.fillRect((X-(pw>>1))|0,fy-1,pw,1);
+      g.fillStyle="rgba("+(day?96:64)+",9,12,0.95)";
+      g.fillRect((X-1)|0,fy-2,2+((v.h>>>11)%2),1);
+      continue;
+    }
     var dissolve=d2;
     if(dissolve<0.34){
       // CLAWING — hands to the face, staggering, still upright
