@@ -50828,6 +50828,212 @@ function drawApocApproach(g,L,now){
   var sig=APOC_SIG[curDeath]; if(!sig) return;
   sig(g,f,f*f,L,now);                                        // e=f*f: ambiguous first, unmistakable late
 }
+
+// ================================================================================================
+// THE FALLEN — what the END TIMES leave in the streets.
+// ================================================================================================
+// 🚨🚨 THE ENTIRE BLOOD LAYER WAS SWITCHED OFF DURING THE APOCALYPSE, and only a survey found it.
+// Every casualty and gore renderer in this engine is keyed on the disaster object `curDis`, and
+// `curDis` is set to null the moment `cityPhase==="apoc"` (the guard one screen up from here). So
+// `drawCasualties`, `drawCasualtyGround`, `drawGoreGutter`, `drawGoreShadows`, `drawGoreCarried` and
+// `drawRecoveryCrews` ALL went dark at exactly the moment the world ended. Twenty-five endings, and
+// an ordinary house fire was bloodier than any of them.
+// ⚠⚠ AND IT CANNOT BE FIXED BY LEAVING `curDis` SET. That global gates roughly fifty places' worth of
+// civic machinery — evacuations, ambulances, recovery crews, the "REBUILDING IN 4:12" counter — and
+// running those through the end of the world is precisely the `curDisArc` bug this project already
+// paid for once. So the end times get their OWN victim model. It shares the drawing vocabulary
+// (`bloodMark`, the three-rect body) and shares nothing else.
+// 🔑 SCRIPTED FROM A HASH, NEVER SIMULATED. A body that falls must fall at the same world x, at the
+// same moment, on all three monitors — they are three independent processes that never talk.
+
+// HOW THE DEAD READ, per ending. Nick asked for further than the disasters go, so this is a mark
+// vocabulary rather than one body sprite: the same street should look different after a freeze than
+// after a beam. `spray` is arterial throw (0 = none, for the ends that leave no liquid at all).
+var APOC_MARK={
+  // ---- burned / charred ----
+  meteors:{m:"burn",spray:0.55}, sunburst:{m:"burn",spray:0.30}, theburst:{m:"burn",spray:0.25},
+  ragnarok:{m:"burn",spray:0.60}, skyfall:{m:"burn",spray:0.65}, thecomet:{m:"burn",spray:0.55},
+  // ---- vaporised: no body at all, only the shadow it was standing in ----
+  nuke:{m:"shadow",spray:0}, gammaray:{m:"shadow",spray:0},
+  // ---- frozen ----
+  frost:{m:"freeze",spray:0.10}, lastwinter:{m:"freeze",spray:0.08},
+  // ---- crushed under weight ----
+  moonfall:{m:"crush",spray:0.85}, rogueplanet:{m:"crush",spray:0.75}, crustcrack:{m:"crush",spray:0.70},
+  kaiju:{m:"crush",spray:0.90}, kaijuwar:{m:"crush",spray:0.95}, thetitans:{m:"crush",spray:0.90},
+  // ---- torn apart ----
+  ninetails:{m:"torn",spray:1.00}, wilderness:{m:"torn",spray:1.00}, godwars:{m:"torn",spray:0.95},
+  massacre:{m:"torn",spray:1.00},
+  // ---- scalded / drowned / choked ----
+  oceansboil:{m:"boil",spray:0.35}, flood:{m:"drown",spray:0.15}, pollution:{m:"choke",spray:0.20},
+  // ---- unmade: dissolved, converted, taken ----
+  greygoo:{m:"dissolve",spray:0.30}, thechange:{m:"dissolve",spray:0.25}, banwave:{m:"dissolve",spray:0},
+  ai:{m:"beam",spray:0.45}, alienwar:{m:"beam",spray:0.70},
+  bh:{m:"drain",spray:0.40}, timestop:{m:"drain",spray:0}, logout:{m:"drain",spray:0}
+};
+function apocMark(){ return APOC_MARK[curDeath] || {m:"crush",spray:0.60}; }
+
+// HOW MANY. A disaster caps at 44 dead; this is the end of a city, and the number has to read as a
+// different order of magnitude or the spectacle is a lie. Scaled off WORLD width, not screen width —
+// 🚨 `SW` IS A CLIP BOUND AND IS NEVER A DISTANCE (this phase's most expensive lesson, four events
+// deep). Off a 2269 px world that is ~230 dead, ~80 of them on any one monitor.
+function apocVictimCount(){
+  var GK=goreK(); if(GK<=0) return 0;
+  return Math.round(WW*0.102*(0.45+0.55*GK));
+}
+// ⚠ BUILT ONCE PER LIFE, NOT PER FRAME. The laptop work left ~18 ms of JS in a live frame against a
+// 5% CPU bar, so a 230-iteration hash loop every frame is not free. Cached on the detonation id, the
+// same key the rest of the finale hangs off.
+var _apocVicId=-1, _apocVicN=-1, _apocVic=null;
+function apocVictims(now){
+  var id=nukeDetId(now), N=apocVictimCount();
+  if(_apocVicId===id && _apocVicN===N && _apocVic) return _apocVic;
+  var arr=new Array(N);
+  for(var n=0;n<N;n++){
+    var h=((n*2654435761+((id*7919)|0))>>>0); h=(h^(h>>>13))>>>0;
+    var h2=((h*40503+1013904223)>>>0);
+    arr[n]={
+      x:    wrapW((h%100000)/100000*WW),
+      dieF: 0.06+((h>>>11)%1000)/1000*0.52,     // spread across the arc, not all in one frame
+      kind: (h>>>7)%3,                           // which way they fell
+      // A PILE is where a crowd died together — a doorway, a stair, a choke point. Nick asked for
+      // mass casualty, and mass casualty is not 230 evenly spaced singles: it is clusters.
+      pile: ((h2>>>3)%100)<17 ? 2+((h2>>>9)%4) : 0,
+      sp:   ((h2>>>17)%1000)/1000,               // per-victim spray angle/length roll
+      seed: h2
+    };
+  }
+  _apocVicId=id; _apocVicN=N; _apocVic=arr; return arr;
+}
+// HAS VICTIM n FALLEN YET? For the endings that kill BY POSITION the answer is already in the engine —
+// `apocHit(x)` is the wavefront every building and car already dies to — so the dead appear as the
+// front sweeps the city rather than fading up globally. That is free spectacle: the line of bodies
+// IS the shape of the thing that killed them.
+// 🚨🚨 DO NOT ASK `apocPositional()` THIS QUESTION, AND DO NOT ASK `apocHit` EITHER WITHOUT CHECKING.
+// The first version keyed the dead off `apocHit(V.x)` for every positional death, and five endings
+// rendered a living city with no bodies at all — because `apocHit` returns **false by design** for
+// massacre, wilderness, banwave, godwars and logout. Those five DELIBERATELY demolish nothing (an
+// intact skyline over empty streets is their whole horror), so the demolition predicate says "no" and
+// my casualty layer read that as "nobody has died" — in THE MASSACRE, of all of them.
+// 🔑 A PREDICATE THAT ANSWERS A DIFFERENT QUESTION IS NOT A CHEAPER VERSION OF THE ONE YOU WANT.
+// `apocHit` means "is this world-x DEMOLISHED", not "is anyone here dead". So the front is consulted
+// only for the ends that actually have one, and the rest fall to the arc.
+var APOC_FRONTED={nuke:1,meteors:1,sunburst:1,ai:1,bh:1,alienwar:1,frost:1,kaiju:1,ninetails:1,flood:1,kaijuwar:1};
+function apocVictimDown(V,ap){
+  if(APOC_FRONTED[curDeath]) return apocHit(V.x);   // the line of bodies IS the shape of the thing
+  return ap>=V.dieF;                                 // no front: they fall across the arc
+}
+// 🔒 THE BODIES STAY. Nick's call: no recovery crews come, nothing is carried away, nothing is
+// cleared. A disaster's dead vanish when a crew reaches them (`crewReach`) because the city survives
+// to tidy up. Here the city does not survive, so the street keeps what fell on it for the rest of
+// the life — which is also what makes the aftermath read as a massacre rather than as weather.
+
+// ---- THE GROUND HALF: pools, arterial throw, drag trails. Drawn WITH THE ROAD SURFACE, before a
+// single car or pedestrian, so the survivors run over it and the traffic tracks it down the lane —
+// the correction Nick already had to make once for the disaster blood.
+function drawApocFallenGround(g,L,now){
+  if(cityPhase!=="apoc") return;
+  var GK=goreK(); if(GK<=0) return;
+  var M=apocMark(); if(M.spray<=0 && M.m!=="shadow") return;
+  var ap=cityApoc, V=apocVictims(now), day=L>0.5, Y=HORIZON-1;
+  for(var n=0;n<V.length;n++){
+    var v=V[n]; if(!apocVictimDown(v,ap)) continue;
+    var X=disX(v.x); if(X<-12||X>SW+12) continue;              // cull to this monitor and its wrap
+    // ---- VAPORISED. There is no body and no blood; there is the shadow of a person burnt into the
+    // ground where they were standing. ⚠ The first pass drew this as a 6x1 rect and it was invisible
+    // at every zoom — this project's most common failure (correct code, too small to see). It needs a
+    // readable HUMAN silhouette, and it stretches AWAY from the epicentre, because that is what cast it.
+    if(M.m==="shadow"){
+      var ex=disX(apocEpiX(now)), away=(X>=ex)?1:-1;
+      var len=4+((v.seed>>>6)%4);
+      g.fillStyle="rgba(14,11,10,"+(0.78*GK).toFixed(3)+")";
+      g.fillRect((X-1)|0, Y-2, 2, 2);                            // head + shoulders, still upright in the flash
+      g.fillRect((X-1)|0, Y, 2, 1);                              // the stance
+      for(var s2=0;s2<len;s2++){                                  // …and the shadow thrown along the ground
+        g.fillStyle="rgba(14,11,10,"+((0.66-0.52*(s2/len))*GK).toFixed(3)+")";
+        g.fillRect((X+away*(1+s2))|0, Y, 1, 1);
+        if(s2<2) g.fillRect((X+away*(1+s2))|0, Y-1, 1, 1);
+      }
+      continue;
+    }
+    var pooled=1+(v.pile?v.pile*0.7:0);                          // a pile bleeds like a pile
+    bloodMark(g,X|0,Y,(v.seed>>>1),2.0*pooled*(0.6+M.spray*0.8),0.12,L);
+    // ---- ARTERIAL THROW. A directional streak away from the body, which is what separates a killing
+    // from a stain. Hashed direction so all three monitors throw it the same way.
+    if(M.spray>0.4){
+      var dir=(v.seed&1)?1:-1, len=Math.round((3+v.sp*7)*M.spray*Math.max(1,KSP));
+      var br=Math.round(148-24*v.sp), a=(0.50*M.spray*GK);
+      for(var s=0;s<len;s++){
+        var w=Math.max(1,Math.round((len-s)/len*2));
+        g.fillStyle="rgba("+br+",16,20,"+(a*(1-s/len)).toFixed(3)+")";
+        g.fillRect((X+dir*(2+s))|0, Y-((s*v.sp*0.6)|0), w, 1);
+      }
+    }
+  }
+}
+// ---- THE BODIES. Drawn late, on top: a body is a solid object lying in the street and a survivor
+// walking past should not erase it.
+function drawApocFallen(g,L,now){
+  if(cityPhase!=="apoc") return;
+  var GK=goreK(); if(GK<=0) return;
+  var M=apocMark();
+  if(M.m==="shadow") return;                                    // nothing left to draw — the ground half is the whole mark
+  var ap=cityApoc, V=apocVictims(now), day=L>0.5, Y=HORIZON-1;
+  for(var n=0;n<V.length;n++){
+    var v=V[n]; if(!apocVictimDown(v,ap)) continue;
+    var X=disX(v.x); if(X<-12||X>SW+12) continue;
+    // ⚠ `>>>0`, NOT `|0`. `v.seed` is an unsigned 32-bit hash, and `|0` reinterprets anything above
+    // 2^31 as NEGATIVE — `PEDC[-7]` is `undefined` and `hex2rgb(undefined)` throws on `.substr`. It
+    // took out the whole frame, from a colour lookup.
+    var cloth=PEDC[((n*7+v.seed)>>>0)%PEDC.length], skin=SKINC[(n*5)%SKINC.length];
+    var dir=(v.kind&1)?1:-1;
+    // per-mark palette: how the dead READ. A frozen street and a burnt one must not share a colour.
+    var cm=hex2rgb(cloth), sm=hex2rgb(skin), dk=day?0.25:0.55, sk=day?0.20:0.55;
+    // ⚠ BLOOD FIRST, MARK SECOND, AND THE ORDER IS THE WHOLE POINT. Bloodying them last washed every
+    // ending into the same red-brown: a frozen street, a boiled one and a dissolved one came back
+    // INDISTINGUISHABLE on the contact sheet, which defeats having a mark vocabulary at all. Without
+    // the blood at all they render in their original cyan/pink/teal clothing and read as confetti.
+    // So: bloody the clothing, then let the mark paint over the top of it.
+    if(M.spray>0){
+      var bl=Math.min(0.50,0.16+M.spray*0.34);
+      cm=mixc(cm,[96,12,16],bl); sm=mixc(sm,[104,16,18],bl*0.85);
+    }
+    if(M.m==="burn"){      cm=mixc(cm,[26,20,18],0.82); sm=mixc(sm,[30,22,18],0.86); }
+    else if(M.m==="freeze"){ cm=mixc(cm,[186,212,232],0.74); sm=mixc(sm,[200,220,238],0.80); }  // rimed pale; a frozen body is not a bloody one
+    else if(M.m==="boil"){  cm=mixc(cm,[206,96,74],0.62);  sm=mixc(sm,[224,116,90],0.74); }     // scalded, not merely bloodied
+    else if(M.m==="dissolve"){ cm=mixc(cm,[122,126,118],0.74); sm=mixc(sm,[128,132,122],0.78); } // half unmade
+    else if(M.m==="beam"){  cm=mixc(cm,[70,60,90],0.58);   sm=mixc(sm,[80,68,96],0.62); }
+    else if(M.m==="drain"){ cm=mixc(cm,[60,58,72],0.55);   sm=mixc(sm,[68,64,78],0.58); }
+    else if(M.m==="choke"){ cm=mixc(cm,[92,104,84],0.50);  sm=mixc(sm,[120,132,104],0.58); }
+    else if(M.m==="drown"){ cm=mixc(cm,[70,92,110],0.50);  sm=mixc(sm,[110,132,148],0.55); }
+    var pileN=v.pile||0;
+    // ---- A PILE: bodies on top of one another, each one shorter and darker than the one below, so
+    // it reads as depth rather than as a wider single body.
+    for(var p=0;p<=pileN;p++){
+      var py=Y-p, pd=(p&1)?-dir:dir, jx=p?(((v.seed>>>(3+p))%3)-1):0;
+      g.fillStyle=css(mixc(cm,[0,0,0],dk+p*0.06));
+      g.fillRect((X-2+jx)|0, py-1, 4, 1);                        // torso, flat on the ground
+      g.fillStyle=css(mixc(sm,[0,0,0],sk+p*0.06));
+      g.fillRect((X+pd*3+jx)|0, py-1, 1, 1);                     // the head, fallen to one side
+      g.fillStyle=css(mixc(cm,[0,0,0],dk+0.15+p*0.06));
+      g.fillRect((X-pd*2+jx)|0, py, 2, 1);                       // legs
+    }
+    // ---- TORN APART. Nick asked to go further than the disasters do, and this is where: the parts
+    // do not lie where the body lies. Scaled by goreK() like everything else, so `restrained` reads
+    // as a bad day and `off` still means off.
+    if(M.m==="torn" && GK>0.5){
+      var parts=2+((v.seed>>>5)%3);
+      for(var q=0;q<parts;q++){
+        var qh=((v.seed*31+q*2654435761)>>>0), qd=((qh%2)?1:-1), qo=3+(qh>>>4)%9;
+        var qx=(X+qd*qo)|0, qy=Y-((qh>>>11)%2);
+        if(qx<-4||qx>SW+4) continue;
+        g.fillStyle=css(mixc(cm,[0,0,0],dk+0.10));
+        g.fillRect(qx, qy-1, 1+((qh>>>7)%2), 1);                 // a limb, thrown clear
+        g.fillStyle="rgba(132,14,18,"+(0.62*GK).toFixed(3)+")";
+        g.fillRect(qx, qy, 1, 1);                                 // and what it is lying in
+      }
+    }
+  }
+}
 function drawApocalypse(g,ap,L,now){
   drawApocApproach(g,L,now);   // …and before any of them lands, what you can see coming
   if(curDeath==="nuke"){ drawApocNuke(g,ap,L,now); return; }
@@ -53858,6 +54064,11 @@ function draw(g,pass){
   // single car or pedestrian — so the traffic and the crowd pass over the top of it, and the tyres
   // track it along the lanes. The bodies still draw late, in `drawCasualties`.
   drawOldStains(g,L,now);                      // …and everything the last hour left on the road
+  // ⚠ AND THE SAME FOR THE END OF THE WORLD. This needs its own line rather than joining the block
+  // below, because `curDis` is ALWAYS null during the apocalypse — that guard is exactly why the
+  // whole blood layer was invisible for twenty-five endings. Same position in the frame, same reason:
+  // the pools are part of the road surface and the survivors run over them.
+  drawApocFallenGround(g,L,now);
   if(curDis){
     drawCasualtyGround(g,curDis,L,now);
     // ⚠ THE GUTTER GOES HERE, WITH THE STAINS, and for the reason the stains were moved here in the
@@ -54569,6 +54780,9 @@ function draw(g,pass){
 
   // ---- THE GRAND CATACLYSM ends the city's life every ~month, then it's reborn as wilderness ----
   if(cityApoc>0) drawApocalypse(g,cityApoc,L,now);
+  // …and the dead it left. LAST, for the reason `drawCasualties` carries the same note: a body is a
+  // solid object lying in the street and nothing should paint over it.
+  if(cityApoc>0) drawApocFallen(g,L,now);
   if(cityApoc>0 && curSpace>0.4) drawEvacuation(g,cityApoc,now);   // the space-age payoff: evacuation ships launch during the endtimes
   if(cityApoc>0) drawApocMoon(g,now,nd,L);      // the Moon's end-events ride ON TOP of the doom sky (portent/shatter/colony-fall)
 
