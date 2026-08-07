@@ -52200,26 +52200,129 @@ APOC_X.thepit=function(g,ap,L,now){
 };
 
 // GLASS RAIN. One big object: the falling sheet; the ground becomes a field of shards.
-APOC_X.glassrain=function(g,ap,L,now){
-  var K=Math.max(1,KSP);
-  skyWash(g,"186,206,226",0.34+0.40*ap);
-  var n=Math.round(150+ap*420);
-  for(var i=0;i<n;i++){
-    var h=((i*2654435761+887)>>>0); h^=h>>>13;
-    var per=380+((h>>>7)%520), ph=((now+((h>>>11)%per))%per)/per;
-    var x=((h%1000)/1000)*SW, y=ph*HORIZON, ln=Math.round(3+((h>>>17)%7));
-    g.fillStyle="rgba(244,252,255,"+(0.62+0.34*ap).toFixed(2)+")";
-    var tw=Math.max(1,Math.round(1.4*K));
-    for(var q=0;q<ln;q++) g.fillRect(Math.round(x+q*0.2),(y+q)|0,tw,1);
+// THE GLASS ON THE GROUND. Drawn WITH THE ROAD SURFACE — the drift is part of the street and the
+// survivors run through it, the same split the acid pools and the plague already use.
+// 🚨 THE OLD "FIELD OF SHARDS" WAS 1–3px TALL, DRAWN AT `HORIZON-1-d` — i.e. ABOVE the horizon, on the
+// far grass, never once on the road the comment promised it. It was correct code, invisible.
+function drawApocGlassGround(g,L,now){
+  if(cityPhase!=="apoc"||curDeath!=="glassrain") return;
+  var ap=cityApoc, day=L>0.5, K=Math.max(1,KSP);
+  var R=(typeof apocSweepR==="function")?apocSweepR():0;
+  var epi=(typeof apocEpiX==="function")?apocEpiX(now):Math.round(WW*0.5);
+  // 🚨 THE DRIFT BANKS AGAINST THE KERBS, IT DOES NOT POOL AT THE BOTTOM OF THE SCREEN. The first
+  // pass laid it at `min(SH,max(ROAD_BOT,WALK_N_BOT))` — and inland `WALK_N_BOT` IS `SH`, so a
+  // street ankle-deep in broken glass rendered as a 3px line along the very bottom edge of the
+  // frame. Same family as the old version drawing the "field of shards" above the horizon: the
+  // number named a surface it had never been checked against.
+  var top=ROAD_Y, bot=Math.min(SH,Math.max(ROAD_BOT+1,WALK_N_BOT));
+  // ⚡ RUN-BATCHED BY QUANTISED DEPTH — the drift is smooth, so neighbouring columns share a rect.
+  var runX=-1, runD=-1, x, dq;
+  for(x=0;x<=SW;x++){
+    dq=-1;
+    if(x<SW){
+      var wx=wrapW(x+WOFF), d=nukeDist(wx,epi);
+      if(R>0&&d<R){
+        var f=Math.min(1,(R-d)/(WW*0.30));
+        var hh=((wx*2654435761)>>>0); hh=(hh^(hh>>>13))>>>0;
+        dq=Math.max(1,Math.round(f*(2+((hh>>>7)%3))*K));
+      }
+    }
+    if(dq===runD) continue;
+    if(runD>0){
+      var w=x-runX, kd=Math.max(1,Math.round(runD*0.8));
+      // banked against BOTH kerbs — that is where swept glass ends up, and it frames the carriageway
+      for(var kb=0;kb<2;kb++){
+        var ky=kb?(ROAD_BOT-kd):ROAD_Y;
+        g.fillStyle=day?"rgba(184,204,224,0.60)":"rgba(72,86,108,0.52)"; // the mass of it, dulled
+        g.fillRect(runX,ky,w,kd);
+        g.fillStyle=day?"rgba(240,250,255,0.82)":"rgba(148,168,198,0.58)";
+        g.fillRect(runX,kb?ky:(ky+kd-Math.max(1,Math.round(K*0.5))),w,Math.max(1,Math.round(K*0.5)));
+      }
+      // 🎨 NO WASH ACROSS THE CARRIAGEWAY. A uniform pale film over the road is SNOW — it was the
+      // single thing still making this read as a winter storm. Broken glass is high-frequency and
+      // high-contrast: bright chips with DARK ROAD showing between them. The scatter below does it,
+      // so all that belongs here is the shadow the drift throws off each bank.
+      g.fillStyle="rgba(0,0,0,0.22)";
+      g.fillRect(runX,ROAD_Y+kd,w,Math.max(1,Math.round(K*0.6)));
+      g.fillRect(runX,ROAD_BOT-kd-Math.max(1,Math.round(K*0.6)),w,Math.max(1,Math.round(K*0.6)));
+    }
+    runX=x; runD=dq;
   }
-  // the drift on the ground — glittering, and it is not snow: hard specular points, not a soft mat
-  for(var x2=0;x2<SW;x2+=1){
-    var hh=(((x2+WOFF)*40503)>>>0);
-    if((hh%3)) continue;
-    var d=Math.round((1+(hh>>>5)%3)*ap);
-    if(d<=0) continue;
-    g.fillStyle=((hh>>>9)%5===0)?"rgba(255,255,255,0.9)":"rgba(196,214,228,0.7)";
-    g.fillRect(x2,HORIZON-1-d,1,d);
+  // ⚠ SPECULAR POINTS AND STANDING SHARDS ARE NOT THE DRIFT — they are the reason it reads as GLASS
+  // and not as snow, so they are hashed per world-x rather than batched.
+  for(var sx=0;sx<SW;sx+=2){
+    var wx2=wrapW(sx+WOFF), d2=nukeDist(wx2,epi); if(!(R>0&&d2<R)) continue;
+    var f2=Math.min(1,(R-d2)/(WW*0.30));
+    var h2=((wx2*2654435761)>>>0); h2=(h2^(h2>>>15))>>>0; h2=((h2*2246822519)>>>0); h2=(h2^(h2>>>13))>>>0;
+    var yy=top+((h2>>>5)%Math.max(1,bot-top));
+    if(((h2>>>9)%100) < 62*f2){                                          // hard specular glints
+      g.fillStyle="rgba(255,255,255,"+(0.55+0.40*f2).toFixed(2)+")";
+      g.fillRect(sx,yy,1,1);
+    }
+    // …and the dull chips between them. The GAPS are what make it glass: a field with no dark in it
+    // is a field of snow however bright the highlights are.
+    if(((h2>>>13)%100) < 48*f2){
+      g.fillStyle=day?"rgba(150,172,196,0.66)":"rgba(58,72,94,0.62)";
+      g.fillRect(sx,top+((h2>>>19)%Math.max(1,bot-top)),Math.max(1,Math.round(K*0.7)),1);
+    }
+    // 📏 SHARDS STANDING UPRIGHT IN THE ROAD — the scale reference. They are TALLER THAN A PERSON
+    // (7px), which is the only thing that says this is not gravel.
+    if(f2>0.28 && ((h2>>>17)%100) < 26*f2){
+      // 📏 FIXED PIXELS, NOT `K`. These exist to be read against a body, and `drawPerson` is a FIXED
+      // 7px at every zoom — a shard scaled by KSP would tower over a person on one monitor and be lost
+      // beside them on another, which destroys the one comparison it is here to make. 9–19px: always
+      // taller than a person, never taller than the street.
+      var sh=Math.round((9+((h2>>>21)%11))*(0.55+0.45*f2));
+      var lean=((((h2>>>25)%5)-2)*0.16);                                 // …and they do not all lean one way
+      g.fillStyle=day?"rgba(206,224,242,0.72)":"rgba(96,116,146,0.62)";
+      for(var q2=0;q2<sh;q2++) g.fillRect((sx+Math.round(lean*q2))|0,(yy-q2)|0,2,1);
+      g.fillStyle=day?"rgba(255,255,255,0.92)":"rgba(186,206,236,0.7)";  // the lit edge down one side
+      for(var q3=0;q3<sh;q3++) g.fillRect((sx+Math.round(lean*q3))|0,(yy-q3)|0,1,1);
+    }
+  }
+}
+// GLASS RAIN. One big object: the sheet coming down — and the sky it comes out of has to be DARK.
+// 🎨 THE FIRST VERSION READ AS SNOWFALL. Three reasons, all fixable: it washed the sky PALE
+// (`186,206,226`) so white shards had nothing to contrast against — **on a bright sky, bright IS
+// invisible**; the shards were `1.4*K` wide and 3–9 long, i.e. fat rounded blobs rather than thin
+// angular splinters; and nothing ever landed. Glass is the highest-contrast thing in this whole
+// project and it was being drawn as weather.
+// 🚨🖥️ AND IT WAS PINNED TO THE SCREEN: `x=((h%1000)/1000)*SW` put the SAME storm on all three
+// monitors, in lockstep, with the seams cutting through it. World-anchored now, like everything else.
+APOC_X.glassrain=function(g,ap,L,now){
+  var K=Math.max(1,KSP), day=L>0.5;
+  skyWash(g,"16,22,34",0.34+0.54*ap);                       // a leaden sky, so the edges can scream
+  var n=Math.round(90+ap*260);
+  for(var i=0;i<n;i++){
+    var h=((i*2654435761+887)>>>0); h=(h^(h>>>13))>>>0;
+    var per=380+((h>>>7)%520), ph=((now+((h>>>11)%per))%per)/per;
+    var wx=((h>>>3)%WW), X=disX(wx); if(X<-8||X>SW+8) continue;   // WORLD-anchored: the storm spans the bezels
+    var y=ph*(HORIZON+8), ln=Math.round((4+((h>>>17)%9))*K*0.6);
+    var lean=0.18+((h>>>23)%5)*0.06;                        // it comes down at an angle, and not all at one
+    // A SPLINTER: one bright leading edge with a dimmer body behind it. 1px wide — glass is thin.
+    g.fillStyle="rgba(226,244,255,"+(0.30+0.30*ap).toFixed(2)+")";
+    for(var q=0;q<ln;q++) g.fillRect((X+q*lean)|0,(y-q)|0,1,1);
+    g.fillStyle="rgba(255,255,255,"+(0.72+0.26*ap).toFixed(2)+")";
+    g.fillRect((X+ln*lean)|0,(y-ln)|0,1,Math.max(1,Math.round(K*0.5)));
+  }
+  // 🔑 THE ONE BIG OBJECT: whole PANES, tumbling. A curtain of splinters is a texture; what makes this
+  // an event is a sheet of glass the size of a building coming down end over end, and it doubles as
+  // the scale reference in the air the way the standing shards are the one on the ground.
+  var np=3+Math.round(ap*5);
+  for(var pi=0;pi<np;pi++){
+    var ph2=((pi*2654435761+4409)>>>0); ph2=(ph2^(ph2>>>13))>>>0;
+    var pper=2600+((ph2>>>7)%2200), pf=((now+((ph2>>>11)%pper))%pper)/pper;
+    var pwx=((ph2>>>3)%WW), PX=disX(pwx); if(PX<-60||PX>SW+60) continue;
+    var PY=pf*(HORIZON+20);
+    var spin=(now/260+pi)%2;                                 // end over end: wide, then edge-on
+    var pw=Math.max(2,Math.round((6+((ph2>>>17)%10))*K*Math.abs(1-spin)));
+    var phh=Math.round((10+((ph2>>>21)%12))*K);
+    g.fillStyle=day?"rgba(206,230,250,0.30)":"rgba(120,150,190,0.26)";   // the pane's face, near-transparent
+    g.fillRect((PX-(pw>>1))|0,(PY-phh)|0,pw,phh);
+    g.fillStyle="rgba(255,255,255,0.88)";                                // …and the edges, which are what you see
+    g.fillRect((PX-(pw>>1))|0,(PY-phh)|0,Math.max(1,Math.round(K*0.5)),phh);
+    g.fillRect((PX+(pw>>1))|0,(PY-phh)|0,Math.max(1,Math.round(K*0.5)),phh);
+    g.fillRect((PX-(pw>>1))|0,(PY-phh)|0,pw,Math.max(1,Math.round(K*0.5)));
   }
 };
 
@@ -56128,6 +56231,7 @@ function draw(g,pass){
   drawApocSwarmGround(g,L,now);     // …and the swarm's, for the same reason
   drawApocMoonGround(g,L,now);      // …and the blood moon's massacre
   drawApocAcidGround(g,L,now);      // …and the acid standing on the road, and the holes it ate
+  drawApocGlassGround(g,L,now);     // …and the glass drifting on it, which the survivors run through
   drawApocFallenGround(g,L,now);   // …then the individual pools on top of it
   if(curDis){
     drawCasualtyGround(g,curDis,L,now);

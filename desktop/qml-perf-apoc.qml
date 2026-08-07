@@ -27,9 +27,11 @@ import "_ctl_city.js" as Ctl
 //   git show e208963:org.citylive.wallpaper/contents/js/city.js > desktop/_ctl_city.js
 // Run: QT_ASSUME_STDERR_HAS_CONSOLE=1 QT_QPA_PLATFORM=offscreen qml6 desktop/qml-perf-apoc.qml
 //
-// ⚠ THE CONTROL CANNOT RENDER THE TWELVE NEW ENDINGS — they do not exist in it. So the deaths timed
-// here are ones BOTH engines have (kaiju, frost, nuke, flood, massacre): that isolates the cost of the
-// blood layer, which is the thing every ending now pays, rather than the cost of new artwork.
+// ⚠ WHICH DEATHS TO LIST DEPENDS ON THE QUESTION, and the list gets edited per run — do not read it as
+// fixed. Against the e208963 control it must be endings BOTH engines have (kaiju, frost, nuke, flood,
+// massacre), because that control predates the twelve and isolates the blood layer every ending pays.
+// Against a recent control it should be the ending you just changed PLUS one or two you did NOT touch —
+// those are the reading of the noise floor for that run, and without them a delta means nothing.
 Item {
     width: 1552; height: 874
     Canvas {
@@ -40,9 +42,8 @@ Item {
             if (done) return; done = true;
             var g = getContext("2d");
             var CYC = 604800000, EPOCH = 1783972450746;
-            // marks with very different costs: crush (piles+spray), torn (limbs), shadow (no bodies),
-            // drown, and an OSRS one that leaves the city standing.
-            var deaths = ["thepit","kaiju","nuke","massacre"];
+            // the ending under review first, then UNCHANGED ones as the noise reading for this run.
+            var deaths = ["glassrain","thepit","nuke"];
             var acc = {};
             function key(e,d){ return e+"|"+d; }
 
@@ -80,7 +81,7 @@ Item {
                         one(Ctl, "ctl", deaths[j], hour);
                     }
 
-            var out = "APOCPERF  ms per LIVE frame during the apocalypse   (ctl = HEAD c7e70e7, before the pit rebuild + tramway guard)";
+            var out = "APOCPERF  ms per LIVE frame during the apocalypse   (ctl = the commit this branch started this run from)";
             for (var m = 0; m < deaths.length; m++) {
                 var D = deaths[m];
                 var a = acc[key("new", D)], b = acc[key("ctl", D)];
