@@ -51746,7 +51746,12 @@ function drawApocAcidGround(g,L,now){
   for(var x=0;x<SW;x+=1){
     var wx=wrapW(x+WOFF), eat=acidEatAt(wx);
     if(eat<=0.02) continue;
-    var hh=((wx*2654435761)>>>0);
+    // 🚨 AVALANCHE THE BITS BEFORE TAKING A MODULO. `(wx*K)>>>9 % N` over CONSECUTIVE x is an
+    // arithmetic progression, so the puddle y crept by a fixed step per column and drew a DIAGONAL
+    // LINE across the road — Nick: "the puddle is a weird diagonal line." This engine has the rule
+    // written down for scatter already ((i*K+salt)%WW is a progression, not a scatter); it applies
+    // to a per-COLUMN hash just as hard.
+    var hh=((wx*2654435761)>>>0); hh=(hh^(hh>>>15))>>>0; hh=((hh*2246822519)>>>0); hh=(hh^(hh>>>13))>>>0;
     // standing acid — bright, sickly, gathering in the camber
     if(((hh>>>5)%100) < 40+55*eat){
       var pd=1+Math.round(eat*5);
@@ -51774,15 +51779,26 @@ APOC_X.acidrain=function(g,ap,L,now){
   for(var i=0;i<n;i++){
     var h=((i*2654435761+313)>>>0); h=(h^(h>>>13))>>>0;
     var depth=((h>>>19)%100)/100;                                // 0 = far, 1 = right in front of you
+    // ⚠ IT MUST FALL PAST THE HORIZON. `y = ph*HORIZON` stopped every drop at the skyline, so the
+    // road, the pavements and everyone standing on them got NO rain at all — Nick: "people in the
+    // middle of the road don't seem to get hit with the rain." The frame is HORIZON+GROUND tall and
+    // the rain falls through all of it.
     var per=700-420*depth, ph=((now+((h>>>11)%per))%per)/per;
-    var x=((h%1000)/1000)*SW, y=ph*HORIZON;
+    var fall=HORIZON+GROUND;
+    var x=((h%1000)/1000)*SW, y=ph*fall;
     var ln=Math.round(2+depth*7+build*3), sl=0.22+0.10*depth;
     g.fillStyle="rgba("+Math.round(180+50*depth)+","+Math.round(205+45*depth)+",70,"+(0.10+0.40*depth).toFixed(3)+")";
     for(var q=0;q<ln;q++) g.fillRect(Math.round(x+q*sl),(y+q)|0,1,1);
-    if(depth>0.55 && y+ln>HORIZON-3){                            // it splashes where it lands
-      g.fillStyle="rgba(200,224,90,0.75)";
-      g.fillRect(Math.round(x-1),HORIZON-2,3,1);
-      g.fillRect(Math.round(x-2),HORIZON-3,1,1); g.fillRect(Math.round(x+2),HORIZON-3,1,1);
+    // …and it splashes wherever it lands — on the verge, on the asphalt, on the near pavement.
+    if(depth>0.5){
+      var land = (((h>>>23)%3)===0) ? HORIZON-1
+               : (((h>>>23)%3)===1) ? ROAD_Y+2+((h>>>7)%Math.max(1,(ROAD_BOT-ROAD_Y)-3))
+               :                      ROAD_BOT+3+((h>>>7)%Math.max(1,WALK_N-2));
+      if(y+ln>land-2 && y+ln<land+3){
+        g.fillStyle="rgba(200,224,90,0.80)";
+        g.fillRect(Math.round(x-1),land-1,3,1);
+        g.fillRect(Math.round(x-2),land-2,1,1); g.fillRect(Math.round(x+2),land-2,1,1);
+      }
     }
   }
   // ---- B. THE VEGETATION GOES FIRST, then the facades pit and streak, then metal corrodes.
