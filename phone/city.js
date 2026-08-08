@@ -23494,25 +23494,46 @@ DIS_T2.armada=function(g,cd,L,now){
 // EARTHQUAKE — the ground moves, and it is the only event here whose subject is the FRAME itself.
 DIS_T2.earthquake=function(g,cd,L,now){
   var f=cd.f, i=cd.intensity, cx=disX(cd.x), K=Math.max(1,KSP), day=L>0.5;
-  if(f>=0.62) return;
+  // 🚨🚨 `if(f>=0.62) return;` DELETED THE FISSURE. The shaking is an event and rightly ends, but the
+  // ground it TORE OPEN was thrown away with it — at 62% of the impact the crack simply stopped being
+  // drawn and the street was whole again, with recovery crews arriving to a district with nothing
+  // wrong. 🔑 THE THIRD CLASS OF THIS BUG ON THIS BRANCH (railway · viaduct · traffic, and now the
+  // ground itself): *when something vanishes, look for a clip or an early return, not for a missing
+  // renderer.* The shaking fades; the rupture stays for the whole arc, because that is what a
+  // rupture is.
   var shake=Math.min(1,f/0.10)*(f>0.42?Math.max(0,1-(f-0.42)/0.20):1);
-  if(shake<=0.01) return;
+  var open=Math.min(1,f/0.10);                       // how far the ground has TORN — it never closes
+  if(open<=0.01) return;
   var w=Math.round((cd.w*2.6+70+i*40)*0.5);
   // 🔑 THE FISSURE IS THE READ, not the shaking. Everything else on these maps can rattle; only an
   // earthquake OPENS the ground, and a crack that runs across the district with jagged edges says it
   // in one glance and keeps saying it after the shaking stops.
-  var gap=Math.round((3+i*2.4)*K*shake);          // was (1+0.9i): a 9px crack behind a city is nothing
+  var gap=Math.round((3+i*2.4)*K*open);           // was (1+0.9i): a 9px crack behind a city is nothing
+  // 🚨🔑🔑 A SURFACE IS NOT A LANE, AND THIS IS THE FOURTH RENDERER ON THIS BRANCH TO GET IT WRONG.
+  // The rupture existed on exactly ONE row — `HORIZON`, the far ground line — so an earthquake that
+  // is supposed to have torn the district open left the carriageway, the near pavement and the far
+  // pavement perfectly intact, with traffic driving over a street that had just split. The acid rain
+  // and the glass drift both had this identically. The ground is FOUR surfaces here, and a fault
+  // does not care which one it runs through; it steps as it crosses them, which is also what a real
+  // rupture does when it meets a kerb.
+  var SURF=[HORIZON, ROAD_Y, ROAD_BOT, Math.min(SH-1,WALK_N_BOT-1)];
   for(var x=Math.max(0,cx-w);x<Math.min(SW,cx+w);x+=2){
     var d=Math.abs(x-cx)/w, fall=d>=1?0:(0.5+0.5*Math.cos(d*Math.PI));
     if(fall<=0.04) continue;
     var hsh=((x+WOFF)*2654435761)>>>0;
     var gw=Math.max(1,Math.round(gap*fall*(0.5+((hsh%100)/100))));
-    var dy=Math.round(((hsh>>>7)%3)-1);
-    g.fillStyle="rgba(8,7,8,"+(0.90*fall).toFixed(2)+")";
-    g.fillRect(x,HORIZON-Math.round(gw*0.5)+dy,2,gw+1);
-    if((hsh>>>13)%5===0){                                          // slabs tipped up along the edge
-      g.fillStyle=day?"rgba(96,88,78,0.85)":"rgba(34,32,32,0.85)";
-      g.fillRect(x,HORIZON-gw-Math.round(2*K)+dy,Math.round(3*K),Math.round(2*K));
+    for(var sfi=0; sfi<SURF.length; sfi++){
+      var sy4=SURF[sfi]; if(sy4<=0||sy4>=SH) continue;
+      // each surface tears a little differently, and the offset walks so the fault reads as ONE
+      // continuous break running toward the viewer rather than four unrelated cracks in a row
+      var dy=Math.round(((hsh>>>(7+sfi*3))%3)-1)+Math.round(Math.sin((x+WOFF)*0.05+sfi)*1.2);
+      var gw2=Math.max(1,Math.round(gw*(sfi===0?1:0.72+0.10*sfi)));
+      g.fillStyle="rgba(8,7,8,"+(0.90*fall).toFixed(2)+")";
+      g.fillRect(x,sy4-Math.round(gw2*0.5)+dy,2,gw2+1);
+      if(((hsh>>>13)+sfi)%5===0){                                  // slabs tipped up along the edge
+        g.fillStyle=day?"rgba(96,88,78,0.85)":"rgba(34,32,32,0.85)";
+        g.fillRect(x,sy4-gw2-Math.round(2*K)+dy,Math.round(3*K),Math.round(2*K));
+      }
     }
   }
   // dust shaken off everything standing — this is what makes it read as violent rather than as a ditch
