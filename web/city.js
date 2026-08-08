@@ -16577,6 +16577,63 @@ function apocParts(now){
   }
   _apocPartsId=id; _apocParts=arr; return arr;
 }
+// 🚗 WRECKS THAT STAY PUT. 🔒 Nick: *"make sure the cars destroyed stay on the road and the dead
+// bodies stay there too things keep disappearing."* He is describing the movers: traffic and
+// pedestrians FADE OUT on `apocKill` as the end closes in, so a street full of cars simply dissolved
+// and left bare tarmac behind the front. Nothing was destroyed — it was deleted.
+// 🔑🔑 A DETERMINISTIC POPULATION, NOT THE LIVE TRAFFIC FROZEN. A moving car's x is a function of the
+// clock, so "leave it where the front caught it" needs state it cannot have: it could not survive a
+// single-frame render and the three monitors would each strand it somewhere different. Hashed per
+// life, cached like `apocParts`, and once the front has passed a wreck it is there for good.
+var _apocWreckId=-1, _apocWrecks=null;
+function apocWrecks(now){
+  var id=nukeDetId(now);
+  if(_apocWreckId===id && _apocWrecks) return _apocWrecks;
+  var N=Math.round(WW*0.045), arr=new Array(N);
+  for(var i=0;i<N;i++){
+    var h=((i*2654435761+2207)>>>0); h=(h^(h>>>13))>>>0; h=((h*40503)>>>0); h=(h^(h>>>11))>>>0;
+    var zn=(h>>>17)%10;
+    arr[i]={ x:(h%WW),
+      y: zn<7 ? (ROAD_Y+2+((h>>>21)%Math.max(1,(ROAD_BOT-ROAD_Y)-4)))       // the carriageway
+              : (tramLaneY(((h>>>23)&1)?1:0)-1),                            // …and some across the rails
+      w:7+((h>>>5)%5), burn:(((h>>>9)%3)===0), tip:(((h>>>15)%5)===0), h:h };
+  }
+  _apocWreckId=id; _apocWrecks=arr; return arr;
+}
+function drawApocWrecks(g,L,now){
+  if(cityPhase!=="apoc"||!apocStruck()) return;
+  var m=apocElevMode(); if(m==="spare") return;
+  var day=L>0.5, W=apocWrecks(now), GK=goreK();
+  for(var i=0;i<W.length;i++){
+    var w=W[i];
+    if(!apocHit(w.x)) continue;                                  // it is wrecked once the front reaches it
+    var X=disX(w.x); if(X<-14||X>SW+14) continue;
+    if(apocInPit(w.x)) continue;
+    var bh=w.h, hgt=w.tip?4:3;
+    g.fillStyle=day?"rgb(46,40,42)":"rgb(24,20,23)";             // burnt-out shell, crumpled
+    g.fillRect(X|0,(w.y-hgt)|0,w.w,hgt);
+    g.fillStyle=day?"rgb(70,62,64)":"rgb(38,32,36)";
+    g.fillRect(X|0,(w.y-hgt)|0,w.w,1);
+    g.fillStyle=day?"rgb(18,15,17)":"rgb(9,8,10)";               // where the glass was
+    g.fillRect((X+2)|0,(w.y-hgt+1)|0,Math.max(1,w.w-4),1);
+    if(w.tip){ g.fillStyle=day?"rgb(46,40,42)":"rgb(24,20,23)";  // …and some of them are on their roof
+      g.fillRect((X+w.w-2)|0,(w.y-hgt-2)|0,2,3); }
+    g.fillStyle="rgba(0,0,0,0.35)"; g.fillRect((X-1)|0,w.y|0,w.w+2,1);       // it sits ON the road
+    if(w.burn){                                                   // still alight
+      g.globalCompositeOperation="lighter";
+      g.fillStyle=((Math.floor(now/160)+i)&1)?"rgba(255,150,60,0.7)":"rgba(255,200,110,0.55)";
+      g.fillRect((X+((bh>>>7)%Math.max(1,w.w)))|0,(w.y-hgt-1)|0,1,2);
+      g.globalCompositeOperation="source-over";
+      g.fillStyle=day?"rgba(40,38,42,0.34)":"rgba(20,19,24,0.36)";
+      for(var sm=0;sm<3;sm++) g.fillRect((X+2+sm)|0,(w.y-hgt-3-sm*2)|0,2,2);
+    }
+    if(GK>0 && ((bh>>>19)%3)===0){                                // and whoever was in it
+      g.fillStyle=(day?"rgba(150,14,18,":"rgba(96,10,14,")+(0.7*GK).toFixed(2)+")";
+      g.fillRect((X-2)|0,w.y|0,w.w+4,1);
+      drawPerson(g,(X-2)|0,w.y|0,hexDark(PEDC[(bh>>>11)%PEDC.length],0.34),SKINC[(bh>>>13)%SKINC.length],((bh>>>3)&1)?1:-1);
+    }
+  }
+}
 function drawApocParts(g,L,now){
   if(cityPhase!=="apoc") return;
   var GK=goreK(); if(GK<=0) return;
@@ -54802,6 +54859,7 @@ function drawApocalypse(g,ap,L,now){
   drawApocDustWall(g,ap,L,now);      // the front crosses the city as ONE thing, over what it has passed
   drawApocSky(g,ap,L,now);           // …and what is up there to be shot down
   drawApocResistance(g,ap,L,now);
+  drawApocWrecks(g,L,now);           // …and the traffic the front caught, which STAYS
   drawApocParts(g,L,now);            // the pieces, over the ruin and under the near field
   drawApocNearField(g,ap,L,now);     // …and last, because it is between the viewer and all of it
 }
