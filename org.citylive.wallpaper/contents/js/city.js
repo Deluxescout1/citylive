@@ -16341,7 +16341,7 @@ function drawElevWreck(g,L,now,p0,built,span,hA,salt,slabA,slabB){
     if(wx>built) continue;
     var sx=wx-WOFF; if(sx<-span||sx>SW+span) continue;
     if(!apocElevGone(wx,hA)) continue;
-    if(apocInPit(wrapW(wx))) continue;                              // THE PIT: there is no ground for it to lie on
+    if(apocNoGround(wrapW(wx))) continue;                              // THE PIT / THE HOLLOW: there is no ground for it to lie on
     var h=((wrapW(wx)*2654435761+(salt||5501))>>>0); h=(h^(h>>>13))>>>0; h=((h*2246822519)>>>0); h=(h^(h>>>15))>>>0;
     if((h%100)<34) continue;                                        // this one pulverised, or came down somewhere else
     var hw=Math.max(4,Math.round(span*0.16)+((h>>>3)%5));           // a heap well inside the stride — see above
@@ -16428,7 +16428,7 @@ function drawElevTrainWreck(g,L,now,ty){
   if(!apocStruck()) return;
   var hA=elevDeckH(), wxw=elevWreckX(now);
   if(!apocElevGone(wxw,hA)) return;                                  // it has not come down yet
-  if(apocInPit(wrapW(wxw))) return;
+  if(apocNoGround(wrapW(wxw))) return;
   var X=disX(wxw); if(X<-46||X>SW+46) return;
   var day=L>0.5, GK=goreK(), Y=HORIZON;
   var h=((wxw*2654435761+9137)>>>0); h=(h^(h>>>13))>>>0;
@@ -16608,7 +16608,7 @@ function drawApocWrecks(g,L,now){
     var w=W[i];
     if(!apocHit(w.x)) continue;                                  // it is wrecked once the front reaches it
     var X=disX(w.x); if(X<-14||X>SW+14) continue;
-    if(apocInPit(w.x)) continue;
+    if(apocNoGround(w.x)) continue;
     var bh=w.h, hgt=w.tip?4:3;
     g.fillStyle=day?"rgb(46,40,42)":"rgb(24,20,23)";             // burnt-out shell, crumpled
     g.fillRect(X|0,(w.y-hgt)|0,w.w,hgt);
@@ -16672,7 +16672,7 @@ function drawApocParts(g,L,now){
     if(ap<p.when) continue;                                            // they appear as the killing reaches them
     var X=disX(p.x); if(X<-4||X>SW+4) continue;                        // cull BEFORE any further work
     if(fronted && !apocHit(p.x)) continue;                             // the field IS the shape of the thing
-    if(apocInPit(p.x)) continue;
+    if(apocNoGround(p.x)) continue;
     var h=p.h, Y=p.y;
     if(p.body){                                                        // a whole one, face down where they fell
       drawPerson(g,X|0,Y|0,hexDark(PEDC[(h>>>5)%PEDC.length],0.30),SKINC[(h>>>9)%SKINC.length],((h>>>11)&1)?1:-1);
@@ -53816,6 +53816,14 @@ function drawApocDustWall(g,ap,L,now){
         hq=Math.max(2,Math.round(hgt*(1+roll)));
         hq=Math.round(hq/3)*3;
         aq=Math.round((0.18+0.34*face*settle)*100)/100;      // thin where it has settled, thick at the face
+        // 🕳️ THE HOLLOW EATS THE DUST TOO. `drawApocalypse` calls this AFTER `drawApocalypseBody`,
+        // so without this the wall paints straight over the void — measured on the ap=0.70 render as
+        // a grey band lying on top of a black one, which says the dust survived the thing that
+        // unmade the city. It is the ONE ordering this ending cannot express from inside its own
+        // renderer. ⚠ `hollowF` returns 0 for all 42 other endings, so this multiply is a no-op
+        // everywhere else and the wall is untouched — the point of gating on the ending's NATURE.
+        var hv=(typeof hollowF==="function")?hollowF(wx,now):0;
+        if(hv>0){ aq=Math.round(aq*(1-hv)*100)/100; if(aq<=0.02){ hq=-999; aq=-1; } }
       }
     }
     if(hq===runH&&aq===runA) continue;
@@ -54114,28 +54122,195 @@ APOC_X.thefamine=function(g,ap,L,now){
   }
 };
 
-// THE HOLLOW. One big object: an absence. A spreading nothing that takes the city column by column,
-// leaving a hard edge — the contrast IS the horror, so it is drawn as pure void, never as a shadow.
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+// THE HOLLOW — the last of the five stubs, and it had all four of this family's standing faults.
+//
+// 🚨🚨 "A SECOND NUMBER FOR ONE OBJECT", FOR THE FOURTH TIME IN FOUR STUBS. It spread on its own
+// `reach = WW*0.52*min(1,ap*1.2)` while the demolition runs on `apocSweepR()`, which is −1 until
+// ap≥0.30. MEASURED on his right screen (woff=1629, 640 wp): at ap=0.10 the void was already
+// 284 of 640 columns at 0.94 alpha — 44% of the monitor was an opaque black rectangle standing over
+// a city that was still intact and sunlit, twenty per cent of the arc before its own front existed.
+// The cure is the one THE PIT and THE CRIMSON TIDE and THE WAR MACHINE all needed: there is no
+// second number. `hollowF` is `apocSweepR() − nukeDist(wx,epi)` — the expression `frontCollapse`
+// already tests — so the absence cannot drift from the demolition because they are one value.
+//
+// 🔑🔑 IT LED THE FRONT; IT HAS TO TRAIL IT. Nick's loudest note on this whole family is *"we need
+// to make it look DEVISTATING"*, and the answer to it was the four collapse kinds and the rolling
+// dust wall — which every APOC_SWEEP ending gets for free. A hollow that arrives FIRST paints over
+// all of it, so the one ending that ought to be the most final was the only one that showed the
+// least. So the order is DEVASTATION, THEN ABSENCE: the front collapses the city exactly as it does
+// everywhere else, the dust wall rolls over it, and only `HOLLOW_LAG` world px BEHIND the front does
+// the unmaking start. Nothing shared is switched off, which is also why another sweep ending stays a
+// valid perf control for this change.
+//
+// 🕳️ AND IT IS NOT THE PIT. That one takes the GROUND away and is pure black; this one takes the
+// CONTENT away — rubble, road, ground texture, the dead, the sky's own gradient — and what is left
+// is not darkness but a flat dead nothing with no detail in it at all. Against a busy ruin,
+// featurelessness is the signal. ⚠ The failure mode to watch is the dust wall's v1: a pale veil over
+// everything reads as FOG, and fog obscures where this must REMOVE. What keeps them apart is that
+// things at the edge are visibly INCOMPLETE, and that the edge is ragged rather than soft.
+//
+// 📏 RULE 3, the one THE PIT had to learn: a featureless field is the same picture at ten feet or
+// ten miles. The horizon trace is left standing in the void for exactly that reason — one line that
+// says where the ground was, so the emptiness has a size.
+var HOLLOW_LAG=68, HOLLOW_SPAN=132;      // world px: how far behind the front it starts, and over what distance it completes
+// 0 = untouched, 1 = wholly unmade. ⚠ WORLD px throughout — `SW` is a clip bound and is never a
+// distance, the mistake this branch has now paid for four times (frost, thescream, the monorail beam).
+function hollowF(wx,now){
+  if(curDeath!=="thehollow"||cityPhase!=="apoc") return 0;
+  var R=apocSweepR(); if(R<=0) return 0;
+  var lead=R-nukeDist(wx,apocEpiX(now));
+  if(lead<=HOLLOW_LAG) return 0;
+  return Math.min(1,(lead-HOLLOW_LAG)/HOLLOW_SPAN);
+}
+// 🚨 THE BODIES NEEDED THE SAME EXCLUSION THE PIT'S DID, AND FOR THE SAME REASON ONE LEVEL ALONG.
+// `drawApocalypse` runs at 58841 and `drawApocFallen`/`drawApocMourners` at 58844/58845 — AFTER it —
+// so inside a wholly-hollowed column the dead would be laid out on top of a blank field, floating on
+// a street that is no longer there.
+function hollowGone(wx){ return hollowF(wx,NOWOVR!=null?NOWOVR:Date.now())>=0.86; }
 APOC_X.thehollow=function(g,ap,L,now){
-  var K=Math.max(1,KSP);
-  skyWash(g,"30,32,40",0.30*ap);
-  var cWx=(typeof apocEpiX==="function")?apocEpiX(now):Math.round(WW*0.5);
-  var reach=WW*0.52*Math.min(1,ap*1.2);
-  for(var off=-WW;off<=WW;off+=WW){
-    var cx=(cWx-WOFF+off)|0;
-    var x0=Math.max(0,cx-Math.round(reach)), x1=Math.min(SW,cx+Math.round(reach));
-    if(x1<=x0) continue;
-    for(var x=x0;x<x1;x++){
-      var t=Math.abs(x-cx)/Math.max(1,reach);
-      var hh=(((x+WOFF)*2654435761)>>>0);
-      // a ragged edge: near the front it takes some columns and not others
-      if(t>0.86 && (hh%100)<((t-0.86)/0.14*100)) continue;
-      var solid=Math.min(1,(1-t)*2.2);
-      g.fillStyle="rgba(4,4,7,"+(0.94*solid).toFixed(3)+")";
-      g.fillRect(x,0,1,HORIZON+GROUND);
+  var day=L>0.5, R=apocSweepR();
+  var epi=(typeof apocEpiX==="function")?apocEpiX(now):Math.round(WW*0.5);
+  // ── BEFORE THE FRONT: the absence GATHERING. ⚠ The approach signature's contract is explicit —
+  // it draws into the sky and must not destroy — and the war machine proved what happens when a
+  // renderer simply returns until the strike: 28% of the arc (25 seconds of his 90-second loop) is a
+  // sky wash and then the thing EXISTS, already out at the front. Nick: *"there is nothing going on
+  // at all."* So this runs from ap=0, and what it does is drain the world's colour toward ground
+  // zero without taking anything: the value goes out first, then the things do.
+  if(R<=0){
+    var gth=Math.min(1,ap/Math.max(0.01,APOC_SWEEP.thehollow));
+    skyWash(g,day?"150,152,158":"22,24,30",0.30*gth*gth);
+    return;
+  }
+  // ── THE VOID ITSELF, run-batched on a QUANTISED f.
+  // ⚡🪵 GLASS RAIN'S LESSON, APPLIED BEFORE IT COULD BITE: the drift there hashed its depth PER
+  // COLUMN, so the batcher faithfully emitted 1–3px runs forever and every edge in it stepped — and
+  // *a batcher's run length is a MEASUREMENT of how smooth its input is*. The ragged bite is binned
+  // to ~22 wp and f is quantised to 1/20 for the same reason. The old code emitted one full-height
+  // fillRect PER COLUMN — 284 of them at ap=0.10 alone, and ~640 at full reach, every live frame.
+  // 🪵🚨 THE EDGE HAD TO STAY RAGGED AFTER `f` SATURATES, AND THE FIRST VERSION DID NOT.
+  // Jittering `f` alone is a ragged edge only while `f` is still climbing; the moment the interior
+  // reaches 1 every column clamps to the same value and the top of the void becomes A RULED
+  // HORIZONTAL LINE across all 640 px — measured on the ap=0.70 and 0.95 renders, where it is the
+  // most obvious thing in the frame. This project's own metric for "lines" is longest unbroken run,
+  // and that edge was the whole width. So the RELIEF is a second, f-independent term: a permanent
+  // per-bin height carried by a world-binned hash, which survives saturation because it never had an
+  // `f` in it. (Same shape as the glass-rain bank: bin the hash, keep the runs long, break the line.)
+  var STEP=2, runX=-1, runF=-2, runR=-999, x, fq, rq;
+  for(x=0;x<=SW;x+=STEP){
+    fq=-1; rq=-999;
+    if(x<SW){
+      var wx=wrapW(x+WOFF), f=hollowF(wx,now);
+      if(f>0){
+        var hb=((((wx/22)|0)*2654435761)>>>0); hb=(hb^(hb>>>13))>>>0;
+        f=Math.max(0,Math.min(1,f+(((hb%100)/100)-0.5)*0.26));   // the edge is EATEN, not cut
+        fq=Math.round(f*20)/20;
+        var rb=((((wx/34)|0)*2246822519+911)>>>0); rb=(rb^(rb>>>13))>>>0;
+        rq=Math.round((((rb%100)/100)-0.5)*0.30*HORIZON/4)*4;    // quantised to 4px so runs batch
+      }
+    }
+    if(fq===runF&&rq===runR) continue;
+    if(runF>0) hollowColumns(g,runX,x-runX,runF,day,runR);
+    runX=x; runF=fq; runR=rq;
+  }
+  hollowHusks(g,now,day);
+};
+// 🏢📏 THE HUSKS — what is left standing IN the nothing, and the interior's only scale reference.
+// 🔑 RULE 3, THE ONE THIS FAMILY KEEPS MISSING (THE PIT paid for it first): a black field is the same
+// picture at ten feet or ten miles. His right screen is 640 wp and `apocSweepR` has crossed all of it
+// by ap≈0.44, so SIXTY PER CENT OF THE ARC is interior with no front in it — and without these it is
+// two flat bands that do not change again until the life ends.
+// They are the last of the towers, drained to a silhouette, standing waist-deep; each is taken at its
+// own hashed moment, so the interior keeps LOSING something for the rest of the arc instead of
+// arriving already finished. ⚠ World-binned and world-anchored: the glass storm fell in screen space
+// on all three monitors in lockstep and that is the mistake this branch has now paid for four times.
+// 🚨🚨 AND THE FIRST VERSION OF THEM WAS INVISIBLE FOR THE WHOLE INTERIOR — A DIRECT PROBE FOUND IT,
+// THE CONTACT SHEET DID NOT. Each husk was taken when `f` passed its hashed threshold, and `f` is
+// the UNMAKING, which saturates to 1 within ~200 wp of the front. Counted: 6 rects at ap=0.35 and
+// then ZERO at 0.50, 0.70 and 0.95 — every one of them gone before the interior it exists to furnish
+// even begins. 🔑 The threshold has to ride the thing that is still moving, and after the front has
+// crossed his screen the only thing still moving is the ARC. `cityApoc`, not `f`.
+// 🔑 THE SAME MISTAKE THE FADE-OUTS MADE: keying a slow feature to a fast-saturating quantity is how
+// a thing ends up drawn, correct, and never once on screen — this project's most common failure and
+// still not its most obvious. `f` now only says WHERE a husk may stand; `ap` says when it is taken.
+function hollowHusks(g,now,day){
+  var BIN=26, w0=Math.floor(WOFF/BIN)*BIN, wEnd=WOFF+SW, ap=cityApoc;
+  for(var wb=w0; wb<=wEnd; wb+=BIN){
+    var wx=wrapW(wb);
+    var f=hollowF(wx,now); if(f<=0.02) continue;                // WHERE: only in ground already unmade
+    var h=((((wx/BIN)|0)*2654435761+5171)>>>0); h=(h^(h>>>13))>>>0;
+    if((h%100)>=55) continue;                                   // a bit over half the bins carry one
+    // 🚨🔑 …AND ABOUT A FIFTH ARE NEVER TAKEN, WHICH MATTERS MORE THAN THE ARC DOES.
+    // `cityApoc` caps at 1 and STAYS there for the whole remainder of the life — on his week-long
+    // cycle the arc is ninety seconds and the aftermath is DAYS. So the frame that a real install
+    // actually shows is the one after everything has happened, and with every husk taken that frame
+    // was a black mass under a dead sky with nothing standing in it at all. The survivors are the
+    // permanent scale reference, and they are the reason the end state is a place rather than a band.
+    var gone=(((h>>>17)%100)<21) ? 2 : (0.52+((h>>>7)%46)/100); // WHEN: its own moment — or never
+    if(ap>=gone) continue;
+    var fade=Math.min(1,(gone-ap)/0.14);                        // it thins out rather than switching off
+    var e=f*f*(3-2*f), top=Math.max(2,Math.round(HORIZON-e*HORIZON*HOLLOW_RISE));
+    var hh=Math.round(HORIZON*(0.14+((h>>>13)%30)/100));        // how far it stands above the level
+    var ww=2+((h>>>19)%5);
+    var sx=(wb-WOFF+((h>>>23)%(BIN-ww)))|0; if(sx<-ww||sx>SW) continue;
+    // 🕳️🚨 DRAWN SOLID, THESE WERE JUST BUILDINGS. A clean black rectangle with a lit edge is the
+    // silhouette of an intact tower, and a row of them against a sky is a SKYLINE — the render came
+    // back looking like an ordinary city at dusk, which is this family's oldest failure wearing the
+    // one ending that should be furthest from it. What the word means is that the inside is gone, so
+    // the husk is drawn in SEGMENTS WITH SKY THROUGH IT: it is a shell, and you can see that it is
+    // empty. 🔑 The gaps are not decoration, they are the entire difference between a husk and a
+    // building — the same lesson the glass drift taught about the dark road between the chips.
+    var segs=2+((h>>>5)%3), seg=Math.max(2,Math.round(hh/(segs*2-1))), sy=top-hh, si;
+    for(si=0; si<segs*2-1; si++){
+      var syy=sy+si*seg; if(syy>=top) break;
+      var sh2=Math.min(seg,top-syy);
+      if(si%2===1 && ((h>>>(9+si))&3)!==0) continue;            // the hollow interior, showing through
+      g.fillStyle=(day?"rgba(14,14,19,":"rgba(5,5,9,")+(0.90*fade).toFixed(2)+")";
+      g.fillRect(sx,syy,ww,sh2);
+      g.fillStyle=(day?"rgba(120,122,130,":"rgba(38,40,48,")+(0.34*fade).toFixed(2)+")";
+      g.fillRect(sx,syy,1,sh2);                                 // one lit edge, so it is masonry and not a hole
     }
   }
-};
+}
+// 🚨🚨 V1 OF THIS WAS FOG, AND IT WAS THE DUST WALL'S OWN V1 MISTAKE ONE ENDING ALONG — I had the
+// warning written down in `drawApocDustWall` twelve hundred lines away and reproduced it anyway.
+// A veil over the FULL COLUMN (`fillRect(x0,0,w,SH)` at 0.93) meant that once the front had crossed
+// his 640 wp screen — which it does well before mid-arc, because `apocSweepR` reaches WW*0.62 —
+// every frame from ap≈0.5 onward was a flat pale wash with the dust crown faintly behind it.
+// MEASURED, not eyeballed: the last three quarters of the arc had no readable content at all.
+// 🔑🔑 THE FAULT WAS GEOMETRIC, NOT TONAL. A vertical boundary is the only edge such a void has, and
+// a vertical boundary LEAVES THE SCREEN. Darkening it or thinning it would have traded white fog for
+// grey fog. What fixes it is giving the void a HORIZONTAL edge that is present everywhere in the
+// interior at once: it fills from the ground UP, so the boundary is a level rather than a line, it
+// is on screen for the whole arc, and THE SKY IS NEVER TAKEN.
+// 🏢 That also hands the ending its scale reference for free — the tallest towers stand waist-deep
+// in the nothing instead of being painted over, which is both the more frightening picture and the
+// literal meaning of the word. ⚠ Fills to `SH`, NOT `HORIZON+GROUND`: those are equal only on an
+// INLAND land, and where there is open water `HORIZON = SEA_Y − GROUND`, so the old expression
+// stopped the void at the waterline and left the sea showing under it — THE PIT's v2 bug exactly.
+var HOLLOW_RISE=0.62;                     // of HORIZON: how far above the street the nothing climbs by f=1
+function hollowColumns(g,x0,w,f,day,relief){
+  var e=f*f*(3-2*f);                                             // ease: it accelerates as it takes hold
+  var top=Math.max(2,Math.round(HORIZON-e*HORIZON*HOLLOW_RISE-(relief||0)*e));
+  var a=Math.min(0.96,f*2.6);                                    // opaque quickly — this is absence, not shade
+  g.fillStyle=(day?"rgba(9,9,13,":"rgba(3,3,6,")+a.toFixed(2)+")";
+  g.fillRect(x0,top,w,SH-top);
+  // 📏 THE LIP. A hard black mass against a pale sky is a silhouette with no surface; one pale row
+  // along its top edge says the nothing has a near side and gives the level a readable position.
+  // ⚠ Kept to the ending's own drained palette, never a colour — the value is the whole vocabulary.
+  g.fillStyle=(day?"rgba(150,152,158,":"rgba(46,48,56,")+(0.42*f).toFixed(2)+")";
+  g.fillRect(x0,top,w,1);
+  // ── AND THE SKY OVER IT DRAINS. Per COLUMN, not per frame: `skyWash` is full-width, and using it
+  // here would flatten the sky over the intact city too — an ending reaching a hundred world px past
+  // its own front, which is the class of bug this whole file keeps paying for. Above the nothing the
+  // colour is gone; a few columns away it is an ordinary afternoon, and that contrast is the point.
+  // ⚠ 0.40 WAS NOT ENOUGH AND THE RENDER SAID SO: at ap=0.95 the sky over a wholly unmade city was
+  // still recognisably a blue afternoon, so the frame read as an ordinary dark skyline at dusk —
+  // *"an ending that does not touch the city reads as weather"*, arriving by the back door in the one
+  // ending that had touched all of it. The drain has to go far enough that the sky is DEAD.
+  if(top>2){ g.fillStyle=(day?"rgba(150,151,155,":"rgba(16,17,22,")+(0.78*f).toFixed(2)+")";
+    g.fillRect(x0,0,w,top); }
+}
 
 
 // ================================================================================================
@@ -54497,7 +54672,12 @@ var APOC_SIG={
   crimsontide:function(g,f,e,L,now){ skyWash(g,"110,30,34",0.22*e); groundGlow(g,"150,26,30",0.34*e); },
   warmachine:function(g,f,e,L,now){ skyWash(g,"84,88,96",0.28*e); groundGlow(g,"60,64,72",0.22*e); },
   thefamine:function(g,f,e,L,now){ skyWash(g,"150,140,110",0.26*e); groundGlow(g,"128,118,92",0.30*e); },
-  thehollow:function(g,f,e,L,now){ skyWash(g,"40,44,52",0.30*e); groundGlow(g,"28,30,36",0.26*e); },
+  // 🎨 THE VALUE GOES OUT BEFORE THE THINGS DO — the same vocabulary the strike then finishes, so the
+  // omen and the ending are one idea. A DARKENING wash (the old "40,44,52") is every other ending's
+  // omen and says storm; what this one has to say is that the world is being drained, which by day is
+  // a flattening toward dead grey and by night is the last colour leaving an already-dark sky.
+  thehollow:function(g,f,e,L,now){ var dy=L>0.5;
+    skyWash(g,dy?"150,152,158":"22,24,30",0.30*e); groundGlow(g,dy?"140,142,146":"18,20,24",0.24*e); },
   // ---- AND THE FIVE THAT NEVER HAD ONE. A matrix over every ending found these empty: the OSRS five
   // fell through to no omen at all and a bare `||9000` duration, so on those lands the end arrived
   // with nothing before it. They are the only endings where the approach is the ONLY warning, because
@@ -54652,6 +54832,15 @@ function apocInPit(wx){
   var R=apocSweepR(); if(R<=0) return false;
   return nukeDist(wx,apocEpiX(NOWOVR!=null?NOWOVR:Date.now()))<R;
 }
+// 🔑🔑 …AND THEN THERE WERE TWO, WHICH IS THE MOMENT TO STOP ASKING FOR ONE OF THEM BY NAME.
+// THE HOLLOW unmakes the street the same way THE PIT removes it: a body inside either has nothing to
+// lie on. Nine call sites asked `apocInPit` directly — bodies, stains, wrecks, pedestrians, mourners
+// — and adding a second `||` to each of them is precisely how the tramway came to be the one piece
+// of the railway nobody guarded, and how `drawTrainLine` ended up asking the same boolean in nine
+// separate loops. So the QUESTION gets a name and the sites ask the question, not the ending:
+// *is there any ground here for this to rest on?* A third ending that takes the ground away edits
+// this function and nothing else.
+function apocNoGround(wx){ return apocInPit(wx)||hollowGone(wx); }
 var APOC_FRONTED={nuke:1,meteors:1,sunburst:1,ai:1,bh:1,alienwar:1,frost:1,kaiju:1,ninetails:1,flood:1,kaijuwar:1,
   thepit:1,thehollow:1,crimsontide:1,warmachine:1,acidrain:1,glassrain:1,swarm:1};
 function apocVictimDown(V,ap){
@@ -54673,7 +54862,7 @@ function drawApocFallenGround(g,L,now){
   var ap=cityApoc, V=apocVictims(now), day=L>0.5, Y=HORIZON-1;
   for(var n=0;n<V.length;n++){
     var v=V[n]; if(!apocVictimDown(v,ap)) continue;
-    if(apocInPit(v.x)) continue;                                 // THE PIT: no ground to lie on — APOC_X.thepit draws them falling
+    if(apocNoGround(v.x)) continue;                                 // no ground to lie on (pit: drawn falling by APOC_X.thepit; hollow: unmade)
     var X=disX(v.x); if(X<-12||X>SW+12) continue;              // cull to this monitor and its wrap
     // ---- VAPORISED. There is no body and no blood; there is the shadow of a person burnt into the
     // ground where they were standing. ⚠ The first pass drew this as a 6x1 rect and it was invisible
@@ -54753,7 +54942,7 @@ function drawApocBloodField(g,L,now){
     var a=0;
     if(sx<SW){
       var wx=wrapW(sx+WOFF), d=bins[((wx/APOC_BLOOD_BIN)|0)%nb];
-      if(apocInPit(wx)) d=0;                                   // THE PIT: a stain needs a floor to lie on
+      if(apocNoGround(wx)) d=0;                                   // a stain needs a floor to lie on
       // only counts where those victims have actually fallen — the stain spreads as the killing does
       var reach=apocPositional()&&APOC_FRONTED[curDeath] ? (apocHit(wx)?1:0) : Math.min(1,ap/0.5);
       a=Math.min(0.46, d*0.055*M.spray*GK*reach);
@@ -54777,7 +54966,7 @@ function drawApocFallen(g,L,now){
   var ap=cityApoc, V=apocVictims(now), day=L>0.5, Y=HORIZON-1;
   for(var n=0;n<V.length;n++){
     var v=V[n]; if(!apocVictimDown(v,ap)) continue;
-    if(apocInPit(v.x)) continue;                                 // THE PIT: no ground to lie on — APOC_X.thepit draws them falling
+    if(apocNoGround(v.x)) continue;                                 // no ground to lie on (pit: drawn falling by APOC_X.thepit; hollow: unmade)
     // ---- 🪟 IMPALED. Nick's call: A MIX, WEIGHTED TO PINNED. A shard comes through them and holds
     // them up, so the street fills with people still standing, each on a spike of glass — and roughly
     // every third is knocked flat with the shard still in them, because a row of identical upright
@@ -54891,7 +55080,7 @@ function drawApocMourners(g,L,now){
     var v=V[n];
     if(!v.pile) continue;                                          // only at the piles
     if(!apocVictimDown(v,ap)) continue;
-    if(apocInPit(v.x)) continue;                                   // …and nobody stands over a pile that fell into the chasm
+    if(apocNoGround(v.x)) continue;                                   // …and nobody stands over a pile that has no ground under it
     // a mourner arrives a little AFTER the dying stops here, not during it
     var h=((v.seed*2246822519)>>>0);
     if((h%100)>=42) continue;                                      // not every pile draws one

@@ -49,7 +49,13 @@ ctx.NOFETCH = true;
 // ⚠ egg lands live in EGG_BIOMES and are unreachable via FORCEBIOME — they need FORCEEGG.
 if (opt.egg) { ctx.FORCEEGG = opt.egg; ctx.FORCEBIOME = null; } else if (opt.land) ctx.FORCEBIOME = opt.land;
 ctx.FORCEVARIANT = opt.variant !== undefined ? Number(opt.variant) : 0;
-ctx.applyConfig({ lat: 41.5243, lon: -72.0759 });
+// 📌 `apocepi=` — AIM GROUND ZERO, the same key `config.local.json` and the QML harness both carry.
+// Without it the epicentre is hashed per life, so a probe aimed at a screen box lands somewhere else
+// entirely and attributes whatever happened to be there. The harness gained this knob and the tool
+// did not, which makes the two disagree about the one thing an apocalypse probe is asking about.
+ctx.applyConfig(opt.apocepi !== undefined
+  ? { lat: 41.5243, lon: -72.0759, apocEpi: Number(opt.apocepi) }
+  : { lat: 41.5243, lon: -72.0759 });
 // his real primary geometry, at zoom 1 (world px == canvas px, so the numbers printed are WORLD px)
 ctx.setup('neon', { cw: 776, ch: 437, woff: woff, ww: 2269, pxk: 3, zoom: 1, taskbarWp: 17, quality: 'balanced', frameMs: 125 });
 ctx.FORCEAGE = age; ctx.NOWOVR = ctx.CLOCK = now;
