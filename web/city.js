@@ -16142,9 +16142,18 @@ function apocElevCl(wx,hAbove){
   // (drawTramwayIce does, and the next one will too) would be told it is drowning before the waters
   // have come. A structure at ground level gets the GROUND's question, which is also what `apocHit`
   // asks, so at hAbove≈0 the two agree exactly and the flood exemption stops applying at all.
-  if(curDeath==="flood")   return hAbove<=2
-    ? (floodGroundHit(wx) ? Math.min(1,Math.max(0,floodLevel()-2)/12) : -1)
-    : floodCl(hAbove);                                                       // ⚠ NOT floodGroundHit — see above
+  // ⚠ `APOC_DROWNS`, NOT `curDeath==="flood"` — RAGNAROK drowns too, and a name test here would have
+  // left the viaduct and the monorail standing dry over a world going under. That is the tramway's
+  // fault (guarded where the bug was reported, nowhere else) and this is the fourth place it fits.
+  // 🌊🔥 Ragnarok also BURNS, so up here it takes whichever has reached the deck first: the sea closes
+  // over a structure that is low enough, and Surtr's front folds one that is not.
+  if(APOC_DROWNS[curDeath]){
+    var wcl=hAbove<=2
+      ? (floodGroundHit(wx) ? Math.min(1,Math.max(0,floodLevel()-2)/12) : -1)
+      : floodCl(hAbove);                                                     // ⚠ NOT floodGroundHit — see above
+    if(curDeath!=="ragnarok") return wcl;
+    return Math.max(wcl, frontCollapse(wx,apocSweepR()));
+  }
   if(curDeath==="kaijuwar") return kwCl(wx,now);
   if(curDeath==="pollution") return cityApoc>=0.92 ? Math.min(1,(cityApoc-0.92)/0.06) : -1;
   if(APOC_SWEEP[curDeath]!=null) return frontCollapse(wx,apocSweepR());
@@ -50766,6 +50775,14 @@ function apocHit(x){ if(cityPhase!=="apoc") return false;
   if(curDeath==="flood")   return floodGroundHit(x);                                    // the water has risen above the ground here
   if(curDeath==="kaijuwar") return kwCl(x,NOWOVR!=null?NOWOVR:Date.now())>=0;           // trampled or caught in the melee
   if(curDeath==="pollution") return cityApoc>=0.92;                                     // nothing is DEMOLISHED until the very end (movers die via apocKill fade)
+  // 🚨🚨 RAGNAROK DEMOLISHED NOTHING. It had no branch here and no `APOC_SWEEP` row, so THE END OF THE
+  // WORLD fell through to `return false` and the skyline stood intact through all of it — people died
+  // and not one building came down. *An ending that does not touch the city reads as weather*, in the
+  // one ending that is definitionally the end of everything.
+  // 🔑 It ends TWICE, and that is the ending, not a complication: Surtr's fire takes the city from the
+  // epicentre outward (the `APOC_SWEEP` row) and Jörmungandr's sea closes over what is left. Both are
+  // read from the expressions their own renderers draw, so neither can drift from what you can see.
+  if(curDeath==="ragnarok") return floodGroundHit(x) || frontCollapse(x,apocSweepR())>=0;
   if(APOC_SWEEP[curDeath]!=null) return frontCollapse(x,apocSweepR())>=0;              // the six new ends that genuinely level the city
   return false; }
 function apocFull(){ if(cityPhase!=="apoc") return false;
@@ -50814,7 +50831,21 @@ function kaijuFrontR(){ return apocFrontR(KAIJU_ARRIVE_MS,KAIJU_WIPE_MS); }   //
 function foxFrontR(){ return apocFrontR(FOX_ARRIVE_MS,FOX_WIPE_MS); }         // the fox's shockwave, spreading from where it stands
 // THE FLOOD — the rising waterline in world-px above HORIZON (0 until the waters come, then climbs to swallow the skyline)
 function floodMax(){ return HORIZON*0.92; }
-function floodLevel(){ return Math.max(0,Math.min(1,(apocMs-FLOOD_ONSET_MS)/FLOOD_RISE_MS)) * floodMax(); }
+// 🌊 WHICH ENDINGS PUT THE SEA OVER THE CITY. Gated on the ending's NATURE, not its name — the lesson
+// `APOC_CORRODE` had to teach after the acid ate a road the glass was supposed to spare. RAGNAROK
+// drowns the world as surely as `flood` does (Jörmungandr rises and the land goes under), and adding
+// `||curDeath==="ragnarok"` to each of the four places that ask would be the tramway all over again.
+var APOC_DROWNS={flood:1,ragnarok:1};
+// 🔑🔑 ONE WATER LEVEL, so `floodCl`, `floodGroundHit` and the elevated dispatch all answer for either
+// ending without a second number. The drawn surface reads this too — a waterline painted on `ap`
+// while the drowning ran on `floodCl` is THE CRIMSON TIDE's bug exactly, and this ending has both a
+// sea and a fire front, which is the most room for two numbers to drift any of them has had.
+// ⚠ Ragnarok's own curve: it starts at its strike (0.35) and takes the city by the end, whereas the
+// flood is a slow onset over its whole arc. Same units, same accessor, different shape.
+function floodLevel(){
+  if(APOC_DROWNS[curDeath] && curDeath==="ragnarok")
+    return (cityPhase!=="apoc") ? 0 : Math.max(0,Math.min(1,(cityApoc-0.35)/0.55)) * floodMax();
+  return Math.max(0,Math.min(1,(apocMs-FLOOD_ONSET_MS)/FLOOD_RISE_MS)) * floodMax(); }
 // a building of height h topples/washes away as the water nears its top; -1 until then, 0→1 collapsing (tall towers hold out longest)
 function floodCl(h){ var w=floodLevel(); return (w >= h*0.7) ? Math.min(1,(w - h*0.7)/(h*0.35+10)) : -1; }
 // has the water risen above the ground at world-x yet? (low-lying spots go under first) — governs movers & parks
@@ -51475,19 +51506,53 @@ APOC_X.thetitans=function(g,ap,L,now){
 // RAGNAROK — the wolf takes the sun, and the water comes up with the serpent.
 APOC_X.ragnarok=function(g,ap,L,now){
   var K=Math.max(1,KSP);
+  // ── ❄️ FIMBULWINTER. "THE LONG WINTER CAME FIRST." — the ending's own dialogue, and nothing in the
+  // renderer had ever honoured it. 🚨 The strike is at 0.35, so THIRTY-ONE SECONDS of his 90-second
+  // loop is pre-strike, and all of it was a red sky wash: the war machine's hole exactly, where the
+  // first third is a tint and then the end simply EXISTS. Three winters and no summer between them —
+  // the cold comes first, the fire comes after, and the sky is BLUE before it is ever red.
+  // ⚠ It draws into the air only. Nothing here destroys: the approach's contract, kept.
+  var fim=Math.max(0,Math.min(1,(0.35-ap)/0.35));
+  if(fim>0){
+    // ⚠ 0.34/0.20 AND 90 FLAKES WAS INVISIBLE AT FULL FRAME — correct code, too small to see, this
+    // project's most common failure. A third of the arc is this; it has to actually BE a winter.
+    g.fillStyle="rgba(96,124,158,"+(0.60*fim).toFixed(3)+")"; g.fillRect(0,0,SW,SH);
+    g.fillStyle="rgba(214,228,242,"+(0.52*fim).toFixed(3)+")"; g.fillRect(0,HORIZON-2,SW,GROUND+2);
+    // snow, WORLD-anchored — the glass storm fell in screen space on all three monitors in lockstep
+    // and that is the mistake this tier has just finished paying for thirteen times over.
+    for(var fs=0;fs<Math.round(240*fim);fs++){
+      var fh2=((fs*2654435761+83)>>>0); fh2=(fh2^(fh2>>>13))>>>0;
+      var fx3=apocScatterX(fh2)+Math.round(Math.sin(now*0.0009+fs)*9*K);
+      if(fx3<-3||fx3>SW+3) continue;
+      var fy3=(((fh2>>>9)%1000)/1000*HORIZON+(now*0.026)%HORIZON)%HORIZON;
+      g.fillStyle="rgba(238,244,252,"+(0.55+0.35*fim).toFixed(2)+")";
+      g.fillRect(fx3|0,fy3|0,Math.max(1,Math.round(1.4*K)),Math.max(1,Math.round(1.4*K)));
+    }
+  }
   // the sun going into something. ⚠ drawn as an ECLIPSE that has teeth rather than as an animal in
   // the sky: a wolf-shaped sprite at this scale is a smudge, a bite out of the sun is unmistakable.
   var sx=Math.round(apocSkyX(0.34,now)), sy=Math.round(HORIZON*0.22), r=Math.round(16*K);   // 🌍 one sun, one place
-  g.fillStyle="rgba(14,10,18,"+(0.62*ap).toFixed(2)+")"; g.fillRect(0,0,SW,SH);
+  // ⚠ 0.62·ap OVER THE WHOLE FRAME TOOK THE SECOND HALF TO NEAR-BLACK — measured on the arc sheet:
+  // from ap 0.6 on there was nothing to see but a grey dust crown. Surtr BURNS the world; he does not
+  // switch the lights off. Capped, and the sea and fire below now supply the light instead.
+  g.fillStyle="rgba(14,10,18,"+(0.40*Math.min(1,ap*1.2)).toFixed(2)+")"; g.fillRect(0,0,SW,SH);
   g.globalCompositeOperation="lighter";
-  for(var q=r*3;q>0;q--){
+  for(var q=Math.round(r*1.7);q>0;q--){
     g.fillStyle="rgba(255,190,90,"+(0.22*(1-q/(r*3))*(1-ap*0.6)).toFixed(3)+")";
     fillEllipse(g,sx,sy,q,q);
   }
   g.fillStyle="rgba(255,240,190,"+(1-ap*0.5).toFixed(2)+")"; fillEllipse(g,sx,sy,r,r);
   g.globalCompositeOperation="source-over";
   // the bite: a dark disc closing over it, with a jagged edge
-  var bite=Math.round(r*2*Math.min(1,ap*1.3));
+  // 🚨 THE WOLF HAD FINISHED EATING BEFORE THE ENDING BEGAN. `ap*1.3` closed the disc by ap≈0.19,
+  // so at 0.15 — sixteen seconds into his ninety-second loop — the sun was already wholly black and
+  // the next fifth of the arc had nothing left to show. It closes AT the strike now (0.35), which is
+  // the moment the ending actually starts.
+  // …AND IT IS A TRANSIT, WHICH IS WORSE THAN THE TIMING WAS. The dark disc slides from `sx-r` to
+  // `sx+r`, so total coverage happens at the MIDPOINT and the sun comes back out the other side —
+  // at ap=1.0 the wolf has finished eating and spat it out. Clamped at the midpoint: it closes over
+  // the sun and STAYS closed, which is the only version of this myth that ends.
+  var bite=Math.round(r*Math.max(0,Math.min(1,(ap-0.06)/0.29)));
   g.fillStyle="rgba(10,8,12,0.98)";
   fillEllipse(g,sx-r+bite,sy-Math.round(r*0.15),r,r);
   for(var t=0;t<7;t++){
@@ -51495,16 +51560,28 @@ APOC_X.ragnarok=function(g,ap,L,now){
     g.fillRect(sx-r+bite+Math.round(Math.cos(ta)*r*0.95),sy-Math.round(r*0.15)+Math.round(Math.sin(ta)*r*0.95),
                Math.round(2*K),Math.round(3*K));
   }
-  // and the sea comes up — the serpent is the RISE, not a sprite
+  // ── THE SEA. 🚨🔑🔑 IT WAS DRAWN ON `HORIZON*0.34*ap` AND NOTHING DROWNED ON IT. Now that ragnarok
+  // actually ends the world, the surface you can see and the water `apocHit`/`floodCl` consult are
+  // THE SAME NUMBER — `floodLevel()`, in the same units the flood ending uses. That is the whole cure
+  // for "a second number for one object", and this ending had the most room for it of any: a sea AND
+  // a fire front, each capable of quietly disagreeing with what it destroys.
+  // ⚠ `SEA_Y` FALLS BACK TO `HORIZON` INLAND, and his pin is `plains` — so the case he will actually
+  // watch is the one where the water starts AT the street, not out at a coastline. Both are rendered.
   var sea=(typeof SEA_Y==="number"&&SEA_Y>0&&SEA_Y<SH)?SEA_Y:HORIZON;
-  var rise=Math.round(HORIZON*0.34*ap);
-  g.fillStyle="rgba(14,26,34,0.90)"; g.fillRect(0,sea-rise,SW,rise+2);
-  for(var w=0;w<SW;w+=3){
-    var hw=((w+WOFF)*2654435761)>>>0;
-    g.fillStyle="rgba(150,190,200,"+(0.30*ap).toFixed(2)+")";
-    g.fillRect(w,sea-rise-((hw%Math.max(1,Math.round(4*K)))),3,1);
+  var wl=floodLevel(), rise=Math.round(wl*Math.max(1,KSP));
+  if(rise>0){
+    g.fillStyle="rgba(26,44,58,0.88)"; g.fillRect(0,sea-rise,SW,Math.max(2,SH-(sea-rise)));
+    // 🪵 THE SURFACE IS A WAVELENGTH, NOT A HASH — a hashed swell builds BATTLEMENTS (the crimson
+    // tide's lesson). Two sines of WORLD x, which are also cross-monitor-identical for free.
+    for(var w=0;w<SW;w+=2){
+      var wwx=wrapW(w+WOFF);
+      var sw2=Math.sin(wwx*0.031+now*0.0011)*1.6+Math.sin(wwx*0.084-now*0.0007)*1.1;
+      g.fillStyle="rgba(150,190,200,"+(0.16+0.22*Math.min(1,ap)).toFixed(2)+")";
+      g.fillRect(w,(sea-rise+Math.round(sw2))|0,2,1);
+    }
   }
-  // one coil breaking the surface, far out — a curve, never a face
+  // ── JÖRMUNGANDR. A curve breaking the surface, never a face. World-anchored, sized in K because it
+  // is read against the buildings it is rising past.
   if(ap>0.35){
     var coilA=Math.min(1,(ap-0.35)/0.4);
     g.fillStyle="rgba(30,54,48,0.94)";
@@ -51513,6 +51590,27 @@ APOC_X.ragnarok=function(g,ap,L,now){
       var cx2=Math.round(apocSkyX(0.72,now))+Math.round(Math.sin(cf*Math.PI*1.4+now*0.0006)*40*K);   // 🌍 one coil
       var cy2=sea-rise-Math.round(Math.sin(cf*Math.PI)*26*K*coilA);
       g.fillRect(cx2,cy2,Math.max(1,Math.round(3*K)),Math.max(1,Math.round(3*K)));
+    }
+  }
+  // ── 🌱 "IT ENDS AND THEN IT BEGINS." — the ending's own last line, and the reason this one is not
+  // like the other forty-two. 🔑🔑 `cityApoc` CAPS AT 1 AND THE AFTERMATH RUNS FOR **DAYS** on his week
+  // cycle, so the frame a real install actually shows is the one after everything has happened — and
+  // for every other ending that frame is ruin. Here the water goes still, the light comes back, and
+  // ONE GREEN THING stands out of a drowned world. It is world-anchored so all three monitors agree
+  // on where it is, and it is the only scale reference left once the city is under.
+  if(ap>0.90){
+    var rb=Math.min(1,(ap-0.90)/0.10);
+    g.fillStyle="rgba(196,214,224,"+(0.16*rb).toFixed(3)+")"; g.fillRect(0,0,SW,sea-rise);  // the sky clearing
+    var gx=Math.round(apocSkyX(0.52,now)), gy2=sea-rise;
+    if(gx>-20&&gx<SW+20){
+      var th=Math.round((10+6*rb)*K);
+      g.fillStyle="rgba(58,86,52,"+(0.92*rb).toFixed(2)+")";
+      g.fillRect(gx,gy2-th,Math.max(1,Math.round(K)),th);                       // the shoot
+      for(var lf=0;lf<3;lf++){                                                   // …and it has leaves
+        var ly=gy2-th+Math.round(th*(0.22+lf*0.24)), dir2=(lf&1)?1:-1;
+        g.fillStyle="rgba(74,108,62,"+(0.90*rb).toFixed(2)+")";
+        g.fillRect(gx+(dir2>0?1:-Math.round(3*K)),ly,Math.round(3*K),Math.max(1,Math.round(K)));
+      }
     }
   }
 };
@@ -53740,7 +53838,10 @@ APOC_X.warmachine=function(g,ap,L,now){
 // next ending with something in the air would have started from nothing — this engine has six of them
 // already. The table says WHAT they are shooting at so the tracers can be aimed at the right thing
 // rather than fired vaguely upward, which is the only version that reads as a fight.
-var RESIST_AT={warmachine:"walkers", alienwar:"ships", kaijuwar:"titans", thetitans:"titans",
+// 🗡️ "THE GODS ARE FIGHTING TOO." — the ending's own dialogue, written long before there was a
+// resistance layer to honour it. They aim at the serpent, which is a real object at a known world x;
+// a tracer with nothing at the end of it is a firework, not a fight.
+var RESIST_AT={warmachine:"walkers", alienwar:"ships", kaijuwar:"titans", thetitans:"titans", ragnarok:"serpent",
                skyfall:"debris", kaiju:"kaiju"};
 function resistOn(){ return cityPhase==="apoc" && RESIST_AT[curDeath]!=null && apocStruck(); }
 // Where a gun position is, in WORLD px — never screen px, or the three monitors each grow their own
@@ -54040,7 +54141,17 @@ function drawApocResistance(g,ap,L,now){
     // 🎯 AIMED AT WHAT THIS ENDING ACTUALLY PUT UP THERE. A tracer going straight up reads as a
     // firework; a tracer LEANING toward the thing is what makes it a fight.
     var aim=RESIST_AT[curDeath], tgtX, tgtY;
-    if(aim==="walkers"||aim==="titans"||aim==="kaiju"){
+    // 🐍 THE SERPENT IS LOW, AND THAT IS WHY IT NEEDS ITS OWN CASE. Every other target here is in the
+    // SKY, so an unhandled `aim` falls to the steep branch and the gods spend Ragnarok shooting
+    // upward at a thing lying on the water — *a vertical tracer is a firework, not a fight*, arriving
+    // by the back door of a table lookup that silently defaults. Aimed at the coil's real world x,
+    // and at the real waterline, both read from the same expressions that draw them.
+    if(aim==="serpent"){
+      var scx=apocSkyX(0.72,now);
+      var sea2=(typeof SEA_Y==="number"&&SEA_Y>0&&SEA_Y<SH)?SEA_Y:HORIZON;
+      tgtX=scx+((h>>>23)%7)-3;
+      tgtY=sea2-Math.round(floodLevel()*Math.max(1,KSP))-Math.round(HORIZON*0.07);
+    } else if(aim==="walkers"||aim==="titans"||aim==="kaiju"){
       var toE=((epi-P.x)%WW+WW*1.5)%WW-WW*0.5;                              // lean toward the epicentre
       tgtX=fx2+(toE>=0?1:-1)*Math.round(HORIZON*0.16); tgtY=gy-Math.round(HORIZON*0.30);
     } else {                                                                // ships / falling debris: steeper
@@ -54742,7 +54853,9 @@ var APOC_SIG={
   thechange:function(g,f,e,L,now){ skyWash(g,"120,60,120",0.24*e); groundGlow(g,"140,70,130",0.16*e); },
   theburst:function(g,f,e,L,now){ if(((now/110)|0)%2===0) skyWash(g,"255,250,200",0.10+0.26*e); groundGlow(g,"255,240,170",0.16*e); },
   thetitans:function(g,f,e,L,now){ groundGlow(g,"50,40,34",0.24*e); skyWash(g,"110,90,70",0.16*e); },
-  ragnarok:function(g,f,e,L,now){ skyWash(g,"150,40,30",0.30*e); groundGlow(g,"180,70,30",0.20*e); },
+  // ❄️ THE OMEN IS COLD, NOT RED. Fimbulwinter comes before the fire, and a red sky here promised the
+  // wrong ending for the whole approach — then the strike delivers the cold one. Blue first.
+  ragnarok:function(g,f,e,L,now){ skyWash(g,"104,132,166",0.30*e); groundGlow(g,"140,164,190",0.20*e); },
   // ---- THE THIRD TIER'S OMENS. ⚠ THE APPROACH DRAWS INTO THE SKY AND MUST NOT DESTROY — it is the
   // thing you see coming, and the strike owns the frame afterwards. Every one of these is a wash, a
   // glow or marks in the air; not one of them touches a building or a person.
@@ -54908,7 +55021,10 @@ function apocVictims(now){
 // standing ON PURPOSE — same reasoning as the OSRS five, where an intact skyline over dead
 // streets is the whole horror. Their spectacle is the bodies, not the rubble.
 // 🔑 ONE LAW, not six: from its strike point the front crosses the world by ap=0.92.
-var APOC_SWEEP={thepit:0.26,thehollow:0.30,crimsontide:0.34,warmachine:0.28,acidrain:0.24,glassrain:0.20,swarm:0.20};
+// ⚠ EVERY ROW HERE MIRRORS `APOC_STRIKE_AP` EXACTLY — checked all seven before adding the eighth,
+// because `apocSweepR` reads THIS table as the strike point while `apocStruck` reads that one, and a
+// disagreement would hand the ending two different moments of its own beginning. ragnarok = 0.35.
+var APOC_SWEEP={thepit:0.26,thehollow:0.30,crimsontide:0.34,warmachine:0.28,acidrain:0.24,glassrain:0.20,swarm:0.20,ragnarok:0.35};
 function apocSweepR(){ var s=APOC_SWEEP[curDeath]; if(s==null) return -1;
   return Math.max(0,(cityApoc-s)/Math.max(0.01,0.92-s))*(WW*0.62); }
 // 🕳️ THE ONE ENDING WHERE THE DEAD HAVE NO GROUND. Every other finale lays its casualties along
@@ -54930,7 +55046,7 @@ function apocInPit(wx){
 // this function and nothing else.
 function apocNoGround(wx){ return apocInPit(wx)||hollowGone(wx); }
 var APOC_FRONTED={nuke:1,meteors:1,sunburst:1,ai:1,bh:1,alienwar:1,frost:1,kaiju:1,ninetails:1,flood:1,kaijuwar:1,
-  thepit:1,thehollow:1,crimsontide:1,warmachine:1,acidrain:1,glassrain:1,swarm:1};
+  thepit:1,thehollow:1,crimsontide:1,warmachine:1,acidrain:1,glassrain:1,swarm:1,ragnarok:1};
 function apocVictimDown(V,ap){
   if(APOC_FRONTED[curDeath]) return apocHit(V.x);   // the line of bodies IS the shape of the thing
   return ap>=V.dieF;                                 // no front: they fall across the arc
