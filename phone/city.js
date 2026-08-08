@@ -16639,6 +16639,13 @@ function drawApocParts(g,L,now){
   var GK=goreK(); if(GK<=0) return;
   if(APOC_BODILESS[curDeath]) return;
   var M=apocMark(); if(M.spray<=0) return;
+  // 🎨🚨 IT IGNORED `M.spray` AND BLED EVERY ENDING THE SAME. THE FAMINE came back running with blood —
+  // its mark is `wither` at spray 0.12, i.e. starvation, the one death here with none in it. That is
+  // *BLOOD FIRST, MARK SECOND* a second time: bleeding uniformly washed frozen, boiled and dissolved
+  // into one red-brown mush on the contact sheet last time, and this layer had reintroduced it across
+  // all 43. The mark's own spray now scales every drop the field draws.
+  GK*=Math.min(1,M.spray/0.85);
+  if(GK<=0.02) return;
   var day=L>0.5, ap=cityApoc, bl=day?"rgba(150,14,18,":"rgba(96,10,14,";
   var P=apocParts(now), fronted=APOC_FRONTED[curDeath];
   // 🩸 UP THE WALLS. 🔒 His call — blood only ever on the floor is the giveaway that it is a texture
@@ -54031,29 +54038,79 @@ function wmSpray(g,x,gy,h,day,GK){
 // the LAND — bare, grey, and wrong. ⚠ A MOUNTAIN DOES NOT BURN and a starving land does not scorch:
 // this is desaturation and dust, which is the note the damage sweep already carries.
 APOC_X.thefamine=function(g,ap,L,now){
-  var K=Math.max(1,KSP);
-  skyWash(g,"178,168,138",0.34+0.40*ap);
-  // the ground bleaches. ⚠ A FLAT TINT IS NOT DAMAGE — the stubble below is what says starved;
-  // this wash only takes the colour out, which is the note the damage sweep already carries.
-  g.fillStyle="rgba(166,156,124,"+(0.48+0.40*ap).toFixed(2)+")";
-  g.fillRect(0,HORIZON-2,SW,GROUND+2);
-  // dust lifting off it — low, moving, and thin
-  var n=Math.round(20+ap*80);
+  var K=Math.max(1,KSP), day=L>0.5, GK=goreK();
+  skyWash(g,"178,168,138",0.30+0.36*ap);
+  // 🚨 IT WAS A FULL-WIDTH FLAT TINT, under a comment saying *a flat tint is not damage*. One
+  // `fillRect(0,HORIZON-2,SW,GROUND+2)` bleached the entire ground evenly — the bayou's rule in its
+  // limit case, and the very thing the comment above it warned against. A starved land is PATCHY:
+  // it goes first where it was thinnest. ⚡ Run-batched by quantised bleach.
+  var runX=-1, runQ=-1, x, q;
+  for(x=0;x<=SW;x++){
+    q=-1;
+    if(x<SW){
+      var wx=wrapW(x+WOFF);
+      var hh=((((wx/13)|0)*2654435761)>>>0); hh=(hh^(hh>>>13))>>>0;
+      q=Math.round((0.30+0.44*ap)*(0.55+((hh%100)/100)*0.75)*100)/100;
+    }
+    if(q===runQ) continue;
+    if(runQ>0){ g.fillStyle="rgba(166,156,124,"+runQ+")"; g.fillRect(runX,HORIZON-2,x-runX,GROUND+2); }
+    runX=x; runQ=q;
+  }
+  // THE GROUND CRACKS OPEN. Dark fissures are the one mark that reads as *dry* rather than as a
+  // colour change, and they are what a bleach wash can never say on its own.
+  if(ap>0.18){
+    g.fillStyle=day?"rgba(74,66,50,0.55)":"rgba(30,26,20,0.6)";
+    for(var c=0;c<Math.round(WW*0.02);c++){
+      var ch=((c*2654435761+881)>>>0); ch=(ch^(ch>>>13))>>>0;
+      var CX=disX(ch%WW); if(CX<-6||CX>SW+6) continue;
+      var cl2=2+((ch>>>7)%Math.max(2,Math.round(7*ap))), cy2=HORIZON+((ch>>>11)%Math.max(1,GROUND-2));
+      for(var cq=0;cq<cl2;cq++) g.fillRect((CX+cq)|0,(cy2+Math.round(Math.sin(cq*0.9+c)*1.2))|0,1,1);
+    }
+  }
+  // 🪵 THE DUST WAS A CONVEYOR — every mote carried the same `ph*380`, so the whole field slid
+  // sideways in lockstep at one speed forever. The savanna's herd again. Each has its own drift now.
+  var n=Math.round(18+ap*70);
   for(var i=0;i<n;i++){
-    var h=((i*2654435761+2207)>>>0); h^=h>>>13;
+    var h=((i*2654435761+2207)>>>0); h=(h^(h>>>13))>>>0;
     var per=2600+((h>>>7)%2600), ph=((now+((h>>>11)%per))%per)/per;
-    var x=wrapW(((h%1000)/1000)*WW + ph*380), X=disX(x);
+    var spd=180+((h>>>19)%420);
+    var xd=wrapW(((h%1000)/1000)*WW + ph*spd), X=disX(xd);
     if(X<-4||X>SW+4) continue;
     var y=HORIZON-2-Math.round(((h>>>17)%Math.max(1,Math.round(14*K)))*(0.4+0.6*ap));
-    g.fillStyle="rgba(186,176,146,"+(0.16+0.24*ap).toFixed(2)+")";
+    g.fillStyle="rgba(186,176,146,"+(0.14+0.22*ap).toFixed(2)+")";
     g.fillRect(X|0,y,Math.round(2+((h>>>21)%3)),1);
   }
-  // and the fields go to stubble — short, dead verticals rather than a flat tint
-  for(var x2=0;x2<SW;x2+=3){
-    var hh=(((x2+WOFF)*40503)>>>0);
-    if((hh%4)) continue;
+  for(var x2=0;x2<SW;x2+=3){                                   // the fields go to stubble
+    var hs=(((x2+WOFF)*40503)>>>0);
+    if((hs%4)) continue;
     g.fillStyle="rgba(128,118,88,"+(0.34*ap).toFixed(2)+")";
-    g.fillRect(x2,HORIZON-1-Math.round(1+(hh>>>9)%2),1,Math.round(1+(hh>>>9)%2));
+    g.fillRect(x2,HORIZON-1-Math.round(1+(hs>>>9)%2),1,Math.round(1+(hs>>>9)%2));
+  }
+  // ═══ AND THE PEOPLE, WHICH IS THE WHOLE ENDING ═══
+  // 🚨🔑 A FAMINE THAT ONLY BLEACHES THE GROUND IS A DROUGHT PHOTOGRAPH. This is one of the six that
+  // leave the buildings standing ON PURPOSE, and for those *the spectacle is the people* — the rule
+  // that had to be learnt for `risen` and the massacre and was never applied here. Nothing is
+  // demolished; what changes is that a queue forms, gets longer, stops moving, and then is bodies.
+  // ⚠ `wither`, spray 0.12 — starvation is the one ending that must NOT bleed. Blood here would be
+  // the same mistake as bleeding the burnt: BLOOD FIRST, MARK SECOND, and this mark has no blood in it.
+  var qn=Math.round(WW*0.055);
+  for(var pI=0;pI<qn;pI++){
+    var ph2=((pI*2654435761+7043)>>>0); ph2=(ph2^(ph2>>>13))>>>0; ph2=((ph2*40503)>>>0);
+    var pwx=(ph2%WW), PX=disX(pwx); if(PX<-6||PX>SW+6) continue;
+    var down=ap>(0.20+((ph2>>>7)%1000)/1000*0.62);              // when this one stopped getting up
+    var PY=HORIZON-1+((ph2>>>11)%Math.max(1,WALK_F));
+    var cloth=PEDC[(ph2>>>15)%PEDC.length], skin=SKINC[(ph2>>>19)%SKINC.length];
+    if(down){
+      // 🪵 NOT ALL ON ONE ROW — a heap on a single line is a fence, the impaled's finding. They are
+      // where they sat down: against a wall, in the queue, at the kerb.
+      drawPerson(g,PX|0,PY|0,hexDark(cloth,0.42),hexDark(skin,0.30),((ph2>>>3)&1)?1:-1);
+      g.fillStyle=day?"rgba(96,88,70,0.42)":"rgba(40,36,28,0.45)";
+      g.fillRect((PX-2)|0,PY|0,5,1);                            // dust drifted up against them
+    } else {
+      drawPerson(g,PX|0,PY|0,hexDark(cloth,0.18),skin,-1);      // still standing, not moving
+      if(((ph2>>>23)%5)===0){ g.fillStyle=day?"rgba(150,140,110,0.5)":"rgba(70,64,50,0.5)";
+        g.fillRect((PX-1)|0,(PY-8)|0,3,1); }                    // an empty bowl held up
+    }
   }
 };
 
