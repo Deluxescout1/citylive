@@ -16042,7 +16042,13 @@ function apocEatF(wx){
   // 🔑 One table, read from one place: `ELEV_MODE` is the ENDING'S nature, not a fact about height.
   var m=apocElevMode();
   if(m==="freeze"||m==="flood") return 0;
-  return apocHit(wx)?1:0;
+  // 🚨🚨 A DESTROYED RAILWAY IS NOT AN ABSENT ONE, and I shipped absent. Nick: *"THE RAILROAD TRACKS
+  // WOULD ALL BE THERE BUT ONLY DESTROYED FROM THE DAMAGE BEING DONE."* Returning 1 here made
+  // `railSpans` clip the permanent way out of existence wherever the front had passed — which is the
+  // very *"it just kind of disappears"* the acid pass was raised to fix, still in force for every
+  // DEMOLISHING ending. Steel does not evaporate: it buckles, tears off its sleepers and stays.
+  // 🔑 Capped below 1 so nothing downstream can delete it, and `drawTramwayWreck` draws what happened.
+  return apocHit(wx)?0.94:0;
 }
 // ⚡ NULL DURING A NORMAL LIFE, ON PURPOSE. This runs on the live frame of every land for the whole of
 // a life and the apocalypse is 0.01% of it, so outside the end times the routine returns null and
@@ -16337,6 +16343,18 @@ function drawElevWreck(g,L,now,p0,built,span,hA,salt,slabA,slabB){
     var hw=Math.max(4,Math.round(span*0.16)+((h>>>3)%5));           // a heap well inside the stride — see above
     g.fillStyle=day?"rgba(148,140,158,0.26)":"rgba(64,60,78,0.24)";
     g.fillRect((sx-hw)|0,(Y-1)|0,hw*2,2);                           // the dust bed it all settled into
+    // 🚨🚨 AND WHAT CAME DOWN IS THE DECK ITSELF, lying where it fell — not a tidy heap beside the
+    // pier. Same correction as the street track one storey down: a 40 wp span of deck with rails on it
+    // does not become gravel, it lands as a SECTION, bent, with the rails still riding it. This is the
+    // piece that makes the ruined line still read as a LINE running through the wreckage.
+    var dkL=day?"#3a3346":"#151220", dkS=day?"#4c4458":"#1d1928";
+    for(var dq2=0; dq2<span; dq2+=2){
+      var bend=Math.round(Math.sin((wx+dq2)*0.21)*1.6)+((((h>>>(dq2%11))%3))-1);
+      g.fillStyle=(dq2&2)?dkL:dkS;
+      g.fillRect((sx-(span>>1)+dq2)|0,(Y-3+bend)|0,2,3);              // the deck section, buckled
+      if((dq2%6)===0){ g.fillStyle=day?"#6a6272":"#2a2734";
+        g.fillRect((sx-(span>>1)+dq2)|0,(Y-4+bend)|0,2,1); }          // the rails still on it
+    }
     // 🚨🔑 RULE 1 — ONE BIG OBJECT. The first pass was five 3-6px chips lying flat, and `whodrew`
     // confirmed they were all being drawn exactly as written: correct code, invisible feature, this
     // project's most common failure and not its most obvious. What comes down here is a SPAN — forty
@@ -16488,6 +16506,99 @@ function drawTramwayCorrosion(g,L,now){
 // instead of a dark one. Sibling of drawTramwayCorrosion, and the reason `apocEatF` now returns 0 for
 // a freeze rather than 1 — the track has to still be there for anything to be drawn ON it.
 // ⚡ Same shape as the corrosion pass: one column loop, only during one ending, only where the track is.
+// WHAT A DEMOLITION DOES TO TRACK IT IS NOT ALLOWED TO DELETE. The rails buckle out of line, sleepers
+// are thrown clear, ballast is scattered, and the whole thing kinks — but it is still recognisably a
+// railway lying in the ruin, which is the point. Sibling of drawTramwayCorrosion / drawTramwayIce.
+function drawTramwayWreck(g,L,now){
+  if(apocElevMode()!=="demolish") return;
+  var rf=railFrac(); if(rf<=0.001) return;
+  var day=L>0.5, K=Math.max(1,KSP);
+  var r1a=tramLaneY(0), r1b=tramLaneY(1);
+  // ⚡ 2px step, and `apocHit` — which is not cheap — hoisted to one test per 8px rather than per column.
+  var lastB=-99999, lastHit=false;
+  for(var x=0;x<SW;x+=2){
+    var wx=wrapW(x+WOFF); if(wx>=WW*rf && rf<1) continue;
+    var bkt=(wx>>3);
+    if(bkt!==lastB){ lastB=bkt; lastHit=apocHit(wx); }
+    if(!lastHit) continue;
+    var hh=((wx*2654435761+313)>>>0); hh=(hh^(hh>>>15))>>>0; hh=((hh*2246822519)>>>0); hh=(hh^(hh>>>13))>>>0;
+    var kink=Math.round(Math.sin(wx*0.15)*1.8)+(((hh%3)-1));         // the line no longer runs straight
+    for(var t=0;t<2;t++){
+      var ry=(t?r1b:r1a)+kink, r1=ry+Math.max(1,Math.round(K*0.5)), r2=r1+Math.max(2,Math.round(TRAM_GAUGE*K));
+      g.fillStyle=day?"rgba(92,80,72,0.92)":"rgba(44,38,34,0.92)";     // rail, dulled and out of line
+      g.fillRect(x,r1,1,Math.max(1,Math.round(K*0.5)));
+      g.fillRect(x,r2,1,Math.max(1,Math.round(K*0.5)));
+      if(((hh>>>(t?7:3))%100)<26){                                     // torn clear of its sleepers, lifted
+        g.fillStyle=day?"rgba(120,106,94,0.9)":"rgba(58,50,44,0.9)";
+        g.fillRect(x,(r1-1-((hh>>>11)%3))|0,1,1);
+      }
+    }
+    if((hh>>>17)%100<34){ g.fillStyle=day?"rgba(64,56,48,0.8)":"rgba(30,26,22,0.8)";   // sleepers thrown clear
+      g.fillRect(x,(r1a+kink+((hh>>>21)%5)-2)|0,2,1); }
+  }
+}
+// 🩸 BODIES AND PIECES OF THEM, EVERYWHERE. Nick: *"MAKE SURE THERE ARE BODIES AND BODY PARTS
+// EVERYWHERE."* The victim list is capped at ~154 world-wide for perf (it was cut from 230 during the
+// laptop work) and every one of those costs a `drawPerson` plus blood. 🔑 SO THE VOLUME DOES NOT COME
+// FROM MORE VICTIMS — IT COMES FROM WHAT IS LEFT OF THEM: pieces are 1-2 px marks, so hundreds cost
+// less than a dozen more bodies, and a field of scattered parts and spatter reads as far worse than
+// the same number of tidy corpses. Hashed per life, world-anchored, never simulated.
+// ⚡ BUILT ONCE PER LIFE, NOT PER FRAME — the same law `apocVictims` obeys, and for the same reason.
+// The first version hashed and placed ~680 marks on EVERY frame and measured +1.6 ms of live frame
+// against a control at +0.06. The positions never change within a life; only whether they have been
+// reached yet does. 🔑 Re-deriving per-mark constants on a list that could be cached is the exact
+// mistake the laptop pass found in `bloodMark`.
+var _apocPartsId=-1, _apocParts=null;
+function apocParts(now){
+  var id=nukeDetId(now);
+  if(_apocPartsId===id && _apocParts) return _apocParts;
+  var N=Math.round(WW*0.30), arr=new Array(N);
+  for(var i=0;i<N;i++){
+    var h=((i*2654435761+9931)>>>0); h=(h^(h>>>13))>>>0; h=((h*40503)>>>0); h=(h^(h>>>11))>>>0;
+    var zn=(h>>>17)%10;
+    arr[i]={
+      x:(h%WW),
+      y: zn<4 ? (HORIZON-1+((h>>>21)%Math.max(1,WALK_F)))
+       : zn<8 ? (ROAD_Y+2+((h>>>21)%Math.max(1,(ROAD_BOT-ROAD_Y)-3)))
+       :        (ROAD_BOT+2+((h>>>21)%Math.max(1,Math.min(SH,WALK_N_BOT)-ROAD_BOT-2))),
+      when:0.05+((h>>>7)%1000)/1000*0.55,
+      kind:(h>>>3)%5, h:h };
+  }
+  _apocPartsId=id; _apocParts=arr; return arr;
+}
+function drawApocParts(g,L,now){
+  if(cityPhase!=="apoc") return;
+  var GK=goreK(); if(GK<=0) return;
+  if(APOC_BODILESS[curDeath]) return;
+  var M=apocMark(); if(M.spray<=0) return;
+  var day=L>0.5, ap=cityApoc, bl=day?"rgba(150,14,18,":"rgba(96,10,14,";
+  var P=apocParts(now), fronted=APOC_FRONTED[curDeath];
+  for(var i=0;i<P.length;i++){
+    var p=P[i];
+    if(ap<p.when) continue;                                            // they appear as the killing reaches them
+    var X=disX(p.x); if(X<-4||X>SW+4) continue;                        // cull BEFORE any further work
+    if(fronted && !apocHit(p.x)) continue;                             // the field IS the shape of the thing
+    if(apocInPit(p.x)) continue;
+    var h=p.h, Y=p.y;
+    if(p.kind===0){                                                    // a limb, still clothed
+      g.fillStyle=hexDark(PEDC[(h>>>5)%PEDC.length],0.30);
+      g.fillRect(X|0,Y|0,1+((h>>>9)&1),1);
+      g.fillStyle=bl+(0.7*GK).toFixed(2)+")"; g.fillRect((X-1)|0,(Y+1)|0,3,1);
+    } else if(p.kind===1){                                             // a spatter trail
+      g.fillStyle=bl+(0.55*GK).toFixed(2)+")";
+      var ln=2+((h>>>9)%4), dr=((h>>>13)&1)?1:-1;
+      for(var q=0;q<ln;q++) g.fillRect((X+dr*q)|0,(Y-((q>>1)&1))|0,1,1);
+    } else if(p.kind===2){                                             // a pool, gone tacky
+      g.fillStyle=bl+(0.62*GK).toFixed(2)+")"; g.fillRect((X-2)|0,Y|0,5,1);
+    } else if(p.kind===3){                                             // a piece, and skin is the giveaway
+      g.fillStyle=SKINC[(h>>>5)%SKINC.length]; g.fillRect(X|0,Y|0,1,1);
+      g.fillStyle=bl+(0.75*GK).toFixed(2)+")"; g.fillRect(X|0,(Y+1)|0,2,1);
+    } else {                                                           // a drag mark away from something
+      g.fillStyle=bl+(0.34*GK).toFixed(2)+")";
+      g.fillRect(X|0,Y|0,3+((h>>>9)%5),1);
+    }
+  }
+}
 function drawTramwayIce(g,L,now){
   if(apocElevMode()!=="freeze") return;
   var rf=railFrac(); if(rf<=0.001) return;
@@ -53426,6 +53537,55 @@ function drawWarMachineWreck(g,X,gy,hgt,hullW,day,t,h){
   for(var sm=0;sm<5;sm++){ var sh5=((h>>>(sm*4))^(sm*19349663))>>>0;
     g.fillRect((cx-4+((sh5%9)))|0,(cy-(bh>>1)-4-sm*3)|0,2+((sh5>>>5)%3),2); }
 }
+// ✈️ THINGS IN THE SKY, AND THINGS BEING SHOT OUT OF IT. Nick: *"ALSO HAVE THINGS BEING SHOT OUT OF
+// THE SKY."* The resistance was firing at ground targets — the walkers — so nothing ever fell. An
+// ending that puts machines on the ground put them there from SOMETHING, and that something is what
+// the guns can actually reach.
+// 🔑 A DETERMINISTIC FLEET, hashed per life: each craft's track, and whether and WHEN it is hit, are
+// pure functions of (its index, the life) — so it falls at the same moment on all three monitors and
+// a single-frame render shows the same sky the wallpaper does. Nothing here is simulated.
+var SKY_N=7;
+function skyCraft(i,now,ap){
+  var h=((i*2654435761+((nukeDetId(now)*7919)|0)+61)>>>0); h=(h^(h>>>13))>>>0; h=((h*40503)>>>0); h=(h^(h>>>15))>>>0;
+  var per=9000+((h>>>7)%11000), ph=((now+((h>>>11)%per))%per)/per;
+  var dir=((h>>>3)&1)?1:-1;
+  var wx=wrapW(dir>0 ? ph*WW : (1-ph)*WW);
+  var y=Math.round(HORIZON*(0.10+((h>>>17)%34)/100));
+  // shot down? — a fraction of them, each at its own point along its own run
+  var hitAt=0.30+((h>>>21)%45)/100;
+  var doomed=(((h>>>25)%100)<46) && ap>0.12;
+  var fall=(doomed && ph>hitAt) ? Math.min(1,(ph-hitAt)/0.16) : 0;
+  return { wx:wx, y:y, dir:dir, fall:fall, h:h, gone:(fall>=1) };
+}
+function drawApocSky(g,ap,L,now){
+  if(!resistOn()) return;
+  var day=L>0.5, gy=HORIZON-1;
+  for(var i=0;i<SKY_N;i++){
+    var C=skyCraft(i,now,ap); if(C.gone) continue;
+    var X=disX(C.wx); if(X<-20||X>SW+20) continue;
+    // once hit it drops on an arc, nose down, trailing smoke and fire
+    var fy=C.y+Math.round(C.fall*C.fall*(gy-C.y)), tilt=C.fall;
+    var w=6+((C.h>>>9)%5), hgt=Math.max(2,Math.round(w*0.34));
+    g.fillStyle=day?"rgb(48,52,60)":"rgb(26,29,36)";
+    g.fillRect((X-(w>>1))|0,fy|0,w,hgt);
+    g.fillStyle=day?"rgb(70,76,86)":"rgb(38,42,52)";
+    g.fillRect((X-(w>>1))|0,fy|0,w,1);
+    g.fillStyle=day?"rgb(34,37,44)":"rgb(18,20,26)";                       // wing/rotor bar
+    g.fillRect((X-w)|0,(fy+Math.round(hgt*0.5)+Math.round(tilt*2))|0,w*2,1);
+    if(!C.fall && ((Math.floor(now/300)+i)&1)){ g.fillStyle="#ff4040"; g.fillRect(X|0,(fy-1)|0,1,1); }   // nav strobe
+    if(C.fall>0){
+      g.globalCompositeOperation="lighter";                                // it is burning as it comes down
+      g.fillStyle="rgba(255,150,70,"+(0.5+0.4*C.fall).toFixed(2)+")";
+      g.fillRect((X-(w>>1)-1)|0,fy|0,2,hgt);
+      g.globalCompositeOperation="source-over";
+      g.fillStyle=day?"rgba(48,44,48,0.45)":"rgba(26,24,28,0.5)";          // the smoke trail back up its arc
+      for(var t2=1;t2<10;t2++){
+        var ty2=fy-Math.round((fy-C.y)*(t2/10));
+        g.fillRect((X-C.dir*t2*2)|0,ty2|0,2,2);
+      }
+    }
+  }
+}
 // THE FIGHT ITSELF. Positions on the ground, muzzle flash, tracers going UP at whatever this ending
 // put in the air, and the position itself dying when the front reaches it.
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
@@ -53585,6 +53745,14 @@ function drawApocResistance(g,ap,L,now){
       tgtX=fx2+(toE>=0?1:-1)*Math.round(HORIZON*0.16); tgtY=gy-Math.round(HORIZON*0.30);
     } else {                                                                // ships / falling debris: steeper
       tgtX=fx2+(((h>>>23)%2)?1:-1)*Math.round(HORIZON*0.07); tgtY=gy-Math.round(HORIZON*0.46);
+    }
+    // 🎯 …AND IF THERE IS SOMETHING ACTUALLY UP THERE, AIM AT IT. Tracers converging on a real craft
+    // is the whole difference between "they are firing" and "they are firing AT that".
+    var CT=skyCraft((k+Math.floor(now/1700))%SKY_N,now,ap);
+    var cX=disX(CT.wx);
+    if(!CT.gone && cX>-30 && cX<SW+30 && Math.abs(cX-fx2)<Math.round(SW*0.55)){
+      tgtX=cX+((h>>>27)%5)-2;
+      tgtY=CT.y+Math.round(CT.fall*CT.fall*(gy-CT.y))+((h>>>29)%3);
     }
     g.fillStyle="rgba(255,196,110,0.62)";
     segRect(g,fx2,fy2,tgtX,tgtY,1);
@@ -54463,7 +54631,9 @@ function drawApocMourners(g,L,now){
 function drawApocalypse(g,ap,L,now){
   drawApocalypseBody(g,ap,L,now);
   drawApocDustWall(g,ap,L,now);      // the front crosses the city as ONE thing, over what it has passed
+  drawApocSky(g,ap,L,now);           // …and what is up there to be shot down
   drawApocResistance(g,ap,L,now);
+  drawApocParts(g,L,now);            // the pieces, over the ruin and under the near field
   drawApocNearField(g,ap,L,now);     // …and last, because it is between the viewer and all of it
 }
 function drawApocalypseBody(g,ap,L,now){
@@ -57562,6 +57732,7 @@ function draw(g,pass){
   // real order of works and the one that keeps every line that was already there.
   drawTramway(g,L,now);
   drawTramwayCorrosion(g,L,now);          // …and what the acid is doing to it on its way through
+  drawTramwayWreck(g,L,now);              // …or what a demolition did, without deleting it
   drawTramwayIce(g,L,now);                // …or the freeze, now that a freeze no longer deletes it
   drawTrackGang(g,L,now);
   // lane markings + crosswalks — only once the city has proper paved multi-lane roads
