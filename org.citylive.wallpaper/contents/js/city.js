@@ -53007,26 +53007,99 @@ APOC_X.glassrain=function(g,ap,L,now){
   }
 };
 
-// THE SCREAM. One big object: expanding rings. Nothing is drawn ON anything — the air is the event.
+// THE SCREAM. One big object: expanding pressure rings — but the air being the event is exactly what
+// made this read as WEATHER. It is one of the six that leave the buildings standing ON PURPOSE
+// (an intact skyline over dead streets is the horror), and "leaves the buildings standing" is not
+// "changes nothing": a pressure wave that kills everyone in a city puts every pane of glass in that
+// city on the pavement. The wave now has to CROSS something for you to see it move.
+//
+// 🚨🚨 `rad = ph*SW*1.1` — **SW IS A CLIP BOUND AND IS NEVER A DISTANCE.** The centre was carefully
+// world-anchored (`cWx-WOFF+off`, wrapped three ways) and then the RADIUS was a fraction of the
+// screen, so his 776 / 853 / 640 px monitors each ran a different-sized copy of the same wave: three
+// rings, three speeds, disagreeing at every bezel. Phase 9 found this four times and wrote it down
+// twice; it is the single easiest bug to reintroduce in this engine because the centre looks right.
+// Radius is world px now, and `SCREAM_R` is the one place it is decided.
+var SCREAM_PER=1500;                                    // one pulse every 1.5s
+function screamR(k,now,ap){                             // ring k's radius in WORLD px, and how fresh it is
+  var ph=((now+k*(SCREAM_PER/7))%SCREAM_PER)/SCREAM_PER;
+  return { r: ph*WW*0.34*(0.55+0.75*ap), ph: ph };
+}
 APOC_X.thescream=function(g,ap,L,now){
-  var K=Math.max(1,KSP);
+  var K=Math.max(1,KSP), day=L>0.5;
   var pulse=0.5+0.5*Math.sin(now/70);
-  skyWash(g,"216,206,220",0.12+0.30*ap*pulse);
+  skyWash(g,"216,206,220",0.10+0.26*ap*pulse);
   var cWx=(typeof apocEpiX==="function")?apocEpiX(now):Math.round(WW*0.5);
-  var cy=Math.round(HORIZON*0.42);
-  for(var off=-WW;off<=WW;off+=WW){
-    var cx=(cWx-WOFF+off)|0;
-    if(cx<-SW*2||cx>SW*3) continue;
-    for(var r=0;r<10;r++){
-      var per=1400, ph=((now+r*140)%per)/per;
-      var rad=Math.round(ph*SW*1.1*(0.5+ap));
-      if(rad<4) continue;
-      g.strokeStyle="rgba(255,252,255,"+((0.88*(1-ph))*(0.45+0.55*ap)).toFixed(3)+")";
-      g.lineWidth=Math.max(1,Math.round(4*K*(1-ph)));
-      g.beginPath(); g.arc(cx,cy,rad,0,6.283); g.stroke();
+  // 🔑 IT COMES OUT OF THE WORLD, NOT OUT OF THE SKY. Centred at HORIZON*0.42 the rings floated in
+  // empty air with nothing to be measured against — RULE 3 again, the same thing the pit was missing.
+  // Sprung from the ground line they sweep ACROSS the city, and the city is the scale reference.
+  var cy=HORIZON-Math.round(GROUND*0.35);
+  for(var r=0;r<7;r++){
+    var S=screamR(r,now,ap); if(S.r<6) continue;
+    var a=(0.85*(1-S.ph))*(0.40+0.60*ap); if(a<0.02) continue;
+    // 🎨 PIXEL RINGS, NOT A STROKED ARC. `g.arc` + a 8px `lineWidth` drew a soft antialiased hoop into
+    // a frame where every other mark is a hard-edged fillRect — it read as a lens artefact rather than
+    // as part of the world. Emitted as spans down the arc: cheap, hard-edged, and it can be CLIPPED to
+    // the sky, which a stroke cannot.
+    var th=Math.max(1,Math.round(3*K*(1-S.ph)));
+    g.fillStyle="rgba(255,252,255,"+a.toFixed(3)+")";
+    for(var off=-WW;off<=WW;off+=WW){
+      var cx=(cWx-WOFF+off)|0;
+      var R=Math.round(S.r);
+      if(cx+R<-2||cx-R>SW+2) continue;
+      // 🪵 STEPPING Y AND PLOTTING X LEAVES A DOTTED ARC. Near the crown the circle is almost
+      // horizontal, so one row of y is many columns of x and the ring came out dense at the sides and
+      // beaded at the top — the same discontinuity the folded viaduct deck had, for the same reason.
+      // Walk every row and emit the RUN between this row's x and the last one's. (Same cure, third
+      // time this session: connect the steps, do not plot the samples.)
+      // ⚡ y is clipped to the visible band first — R reaches ~1000 world px late in the arc and
+      // iterating all of it, three world copies deep, would be 20k rows a frame for nothing.
+      var y0=Math.max(-R,-cy), prevD=null;
+      for(var yy=y0; yy<=0; yy++){
+        var py=cy+yy; if(py<0) continue;
+        var dxr=Math.round(Math.sqrt(Math.max(0,R*R-yy*yy)));
+        if(prevD===null) prevD=dxr;
+        var span=Math.max(th,dxr-prevD+1);
+        if(cx+prevD>-2 && cx+prevD<SW+2) g.fillRect((cx+prevD)|0,py,span,th);
+        if(cx-dxr>-2-span && cx-dxr<SW+2)  g.fillRect((cx-dxr)|0,py,span,th);
+        prevD=dxr;
+      }
+      // ⚠ THERE WAS A `fillRect(cx-R, cy, 2*R, th)` HERE — "where it crosses the ground line" — and it
+      // was a bright horizontal rule the full width of the frame, one commit after I took exactly that
+      // shape out of the glass-rain drift. A ring HAS no chord; its widest point is the two ends of the
+      // arc above, which already land on this row.
     }
   }
-  g.lineWidth=1;
+  // 🪟 AND WHAT IT DOES ON THE WAY THROUGH. The freshest front is the one doing the killing, so its
+  // radius is where the panes are going. Every window in that band blows out — drawn as DARK holes,
+  // because a lit window is the brightest thing on a night facade and taking it away is the loudest
+  // change available without knocking the building down.
+  // 🚨 `standingNear` — NOT a hashed x. This is a decoration ON A FACADE, which is the blue-lines
+  // class, fifth instance; it hoists drawLayer's three culls (site · landmark · not-born-yet) so a
+  // pane can never appear on a building that is not there.
+  var F=screamR(0,now,ap); var fr=F.r;
+  if(fr>10 && ap>0.05){
+    for(var sgn=-1; sgn<=1; sgn+=2){
+      var bw=wrapW(cWx+sgn*fr), hit=standingNear(bw,Math.max(12,Math.round(WW*0.03)),8);
+      for(var q=0;q<hit.length;q++){
+        var b=hit[q].b, bx=hit[q].bx, hh=((b.seed*2654435761)>>>0); hh=(hh^(hh>>>13))>>>0;
+        var top=HORIZON-b.h;
+        g.fillStyle=day?"rgba(18,16,24,0.72)":"rgba(6,5,10,0.85)";
+        for(var wy=top+3; wy<HORIZON-2; wy+=4){
+          for(var wxp=bx+2; wxp<bx+b.w-2; wxp+=3){
+            var wh=(((wxp*73856093)^(wy*19349663)^hh)>>>0);
+            if((wh%100) < 34) continue;                                // not every pane, and not in rows
+            g.fillRect(wxp,wy,2,2);
+          }
+        }
+        // dust sheeting off the parapet — the one thing that says the building was SHAKEN
+        g.fillStyle=day?"rgba(196,188,178,0.34)":"rgba(120,114,110,0.26)";
+        for(var dq=0; dq<Math.max(2,b.w>>2); dq++){
+          var dh=((hh>>>(dq%17))^(dq*2654435761))>>>0;
+          g.fillRect((bx+(dh%Math.max(1,b.w)))|0,(top+1+((dh>>>9)%6))|0,1,1+((dh>>>13)%3));
+        }
+      }
+    }
+  }
 };
 
 // THE CRIMSON TIDE. One big object: the sea, and it is the wrong colour.
