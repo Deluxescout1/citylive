@@ -90,7 +90,18 @@ Item {
                     var hit = City.apocHit(xi), cl = City.apocElevCl(xi);
                     checks++; if (hit) hits++;
                     modeSeen[City.apocElevMode()] = 1;
-                    if (dk === "flood") continue;                 // documented exemption — see the header
+                    // ⚠ THE GROUND-LEVEL PATH IS SWEPT TOO, AND IT IS NOT EXEMPT. `floodCl(0)` reduces
+                    // to `w >= 0` — true from the first frame — so anything standing ON the ground
+                    // (drawTramwayIce) would be told it was drowning before the waters came. At
+                    // hAbove<=2 apocElevCl asks the GROUND's question, which is apocHit's own, so here
+                    // the flood must agree EXACTLY and gets no exemption.
+                    var cl0 = City.apocElevCl(xi, 0);
+                    checks++;
+                    if ((cl0 >= 0) !== hit) {
+                        fails++;
+                        if (failEx.length < 12) failEx.push("GROUND " + dk + " ms=" + Math.round(msSweep[mi]) + " x=" + xi + " hit=" + hit + " cl0=" + cl0.toFixed(3));
+                    }
+                    if (dk === "flood") continue;                 // documented exemption — DECK height only
                     if ((cl >= 0) !== hit) {
                         fails++;
                         if (failEx.length < 12) failEx.push(dk + " ms=" + Math.round(msSweep[mi]) + " x=" + xi + " hit=" + hit + " cl=" + cl.toFixed(3));

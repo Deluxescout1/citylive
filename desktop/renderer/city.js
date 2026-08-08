@@ -16113,7 +16113,14 @@ function apocElevCl(wx,hAbove){
   // horror, and an intact RAILWAY over them is part of it. They get emptiness instead (ELEV_EMPTY).
   if(curDeath==="massacre"||curDeath==="logout"||curDeath==="banwave"||curDeath==="godwars") return -1;
   if(curDeath==="wilderness") return -1;
-  if(curDeath==="flood")   return floodCl(hAbove);                          // ⚠ NOT floodGroundHit — see above
+  // ⚠⚠ AND `floodCl(0)` IS TRUE FROM THE FIRST FRAME OF THE LIFE. Its test is `w >= h*0.7`, which at
+  // ground level degenerates to `w >= 0` — so any caller asking about something standing ON the ground
+  // (drawTramwayIce does, and the next one will too) would be told it is drowning before the waters
+  // have come. A structure at ground level gets the GROUND's question, which is also what `apocHit`
+  // asks, so at hAbove≈0 the two agree exactly and the flood exemption stops applying at all.
+  if(curDeath==="flood")   return hAbove<=2
+    ? (floodGroundHit(wx) ? Math.min(1,Math.max(0,floodLevel()-2)/12) : -1)
+    : floodCl(hAbove);                                                       // ⚠ NOT floodGroundHit — see above
   if(curDeath==="kaijuwar") return kwCl(wx,now);
   if(curDeath==="pollution") return cityApoc>=0.92 ? Math.min(1,(cityApoc-0.92)/0.06) : -1;
   if(APOC_SWEEP[curDeath]!=null) return frontCollapse(wx,apocSweepR());
