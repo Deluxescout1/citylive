@@ -53676,24 +53676,48 @@ function drawApocNearField(g,ap,L,now){
     else { g.fillStyle=day?"rgba(96,90,88,0.5)":"rgba(150,144,140,0.28)";
       g.fillRect((X+dx)|0,y|0,1,1); }
   }
-  // ── BIG DEBRIS THROUGH THE FOREGROUND. Few, large, fast, and dark — they are close, so they are
-  // nearly silhouettes and they do not need detail.
-  var nb=1+Math.round(2*inten);
+  // ── DEBRIS THROWN BY THE DESTRUCTION.
+  // 🚨🚨 THE FIRST VERSION FELL OUT OF NOTHING. Nick, on his screen: *"THOSE BLACK BOXES ARE FALLING
+  // OUT OF NOTHING WHAT ARE THEY?"* — and he was exactly right: they spawned at `y=-sz` and fell
+  // straight down the frame, so masonry was materialising in clear sky above the horizon with no
+  // source anywhere. This is THE BLUE LINES again in its purest form: a decoration hung off a hash
+  // with no existence check, seventh instance. A falling object needs somewhere to have come FROM.
+  // 🔑 BALLISTIC, FROM THE FRONT. Each chunk is launched out of the collapse itself — from a world-x
+  // on the demolition front, at ground level — arcs up and out, and comes down. It is visible only
+  // while it is in the air, so it always has a source you can see, and the arc reads as "thrown"
+  // rather than "raining". Deterministic per (index, life): same arc on all three monitors.
+  var R2=(typeof apocSweepR==="function")?apocSweepR():-1;
+  var epi2=(typeof apocEpiX==="function")?apocEpiX(now):Math.round(WW*0.5);
+  var nb=2+Math.round(3*inten);
   for(var b2=0;b2<nb;b2++){
     var bh=((b2*40503+((nukeDetId(now)*7919)|0))>>>0); bh=(bh^(bh>>>15))>>>0;
-    var bper=3200+((bh>>>7)%2600), bph=((now+((bh>>>11)%bper))%bper)/bper;
-    var bwx=((bh>>>3)%WW), BX=disX(bwx);
-    var sz=Math.round((7+((bh>>>19)%9))*K);
-    if(BX<-sz*3||BX>SW+sz*3) continue;
-    var by=-sz+bph*(SH+sz*2), bxo=Math.round((bph-0.5)*sz*3*(((bh>>>23)&1)?1:-1));
-    var spin=Math.floor(now/110+b2)%2;
-    g.fillStyle=day?"rgba(30,26,32,0.92)":"rgba(12,10,15,0.94)";
-    g.fillRect((BX+bxo)|0,by|0,spin?sz:Math.round(sz*0.72),spin?Math.round(sz*0.72):sz);
-    g.fillStyle=day?"rgba(70,62,72,0.9)":"rgba(34,29,38,0.9)";       // one lit face so it is not a hole
-    g.fillRect((BX+bxo)|0,by|0,spin?sz:Math.round(sz*0.72),Math.max(1,Math.round(sz*0.16)));
-    // the dust it drags
-    g.fillStyle=day?"rgba(120,112,112,0.20)":"rgba(60,54,60,0.18)";
-    g.fillRect((BX+bxo)|0,(by-sz)|0,Math.max(2,Math.round(sz*0.5)),sz);
+    var bper=2400+((bh>>>7)%2200), bph=((now+((bh>>>11)%bper))%bper)/bper;
+    if(bph>=1) continue;
+    // launched from the front if there is one, otherwise from a hashed point in the ruin
+    var lwx=(R2>0) ? wrapW(epi2+(((bh>>>3)&1)?1:-1)*R2*(0.55+((bh>>>13)%40)/100))
+                   : ((bh>>>3)%WW);
+    var LX=disX(lwx);
+    var sz=Math.round((5+((bh>>>19)%7))*K);
+    var rng=(30+((bh>>>23)%70))*K, dir=((bh>>>25)&1)?1:-1;
+    var apex=(70+((bh>>>27)%60))*K;
+    var X2=LX+dir*rng*bph;
+    // a parabola: up fast, over, and down past the ground line toward the viewer
+    var Y2=HORIZON-2-Math.round(apex*4*bph*(1-bph)) + Math.round(bph*bph*(SH-HORIZON)*0.55);
+    if(X2<-sz*2||X2>SW+sz*2) continue;
+    var spin=Math.floor(now/90+b2)%3;
+    // 🎨 NOT A SQUARE. A plain filled rect in the sky is a BOX, which is what he saw; a chunk of
+    // building is an irregular silhouette with a lit face and a corner missing.
+    var w2=spin===1?sz:Math.round(sz*0.7), h2=spin===1?Math.round(sz*0.68):sz;
+    g.fillStyle=day?"rgba(34,29,36,0.94)":"rgba(14,12,17,0.95)";
+    g.fillRect(X2|0,Y2|0,w2,h2);
+    g.fillRect((X2+(spin===2?-2:w2))|0,(Y2+Math.round(h2*0.3))|0,2,Math.max(1,Math.round(h2*0.4)));   // a broken corner
+    g.fillStyle=day?"rgba(96,86,96,0.92)":"rgba(48,42,54,0.9)";
+    g.fillRect(X2|0,Y2|0,w2,Math.max(1,Math.round(h2*0.22)));                                          // the lit face
+    g.fillStyle=day?"rgba(60,52,60,0.5)":"rgba(28,24,32,0.5)";
+    g.fillRect((X2+1)|0,(Y2+Math.round(h2*0.55))|0,Math.max(1,w2-2),1);                                // a floor slab edge
+    // the dust it sheds, trailing BACK along the arc it came from
+    g.fillStyle=day?"rgba(140,130,130,0.22)":"rgba(64,58,64,0.20)";
+    for(var td=1;td<4;td++) g.fillRect((X2-dir*td*3)|0,(Y2-td)|0,2,2);
   }
 }
 // ⚠⚠ `drawApocResistance`, NOT `drawResistance` — THE NAME WAS ALREADY TAKEN, by the REGIME's
