@@ -51504,6 +51504,96 @@ APOC_X.thetitans=function(g,ap,L,now){
   }
 };
 // RAGNAROK — the wolf takes the sun, and the water comes up with the serpent.
+// 🔥 HOW BRIGHTLY SURTR'S FIRE LIGHTS WORLD-X. One law, read by the glow, the flame, the reflections
+// and the steam alike, so none of them can disagree about where the fire is. ⚠ The glow reaches AHEAD
+// of the flame — you see a burning city before the burning reaches you, and that lead is what stops
+// the front reading as a hard edge sliding across the frame.
+function ragFireAt(wx,now,R){
+  if(R<=0) return 0;
+  var lead=R-nukeDist(wx,apocEpiX(now));
+  if(lead< -WW*0.05) return 0;
+  if(lead<0) return (1+lead/(WW*0.05))*0.55;
+  return Math.max(0.16,1-lead/(WW*0.24));                      // behind the front it burns down to embers
+}
+// 🪵 WHAT IS FLOATING ON IT. An empty sea has no surface and no scale — it is a painted band. Debris
+// is what makes water read as water, and it is also the only thing that says what the water just took.
+// 🔑 Scripted from a hash off world x, never simulated, so three monitors agree; and it BOBS on the
+// same swell the surface is drawn with, so it sits ON the water rather than through it.
+function ragFlotsam(g,surfY,now,ap,FR){
+  var day=false, n=Math.round(WW*0.09), GK=(typeof goreK==="function")?goreK():1;
+  for(var i=0;i<n;i++){
+    var h=((i*2654435761+9173)>>>0); h=(h^(h>>>13))>>>0;
+    var wx=(h%1000)/1000*WW;
+    var X=disX(wx); if(X<-8||X>SW+8) continue;
+    var drift=((now*0.0000045*((h>>>7)%5+2))%1)*40-20;          // a slow set, not a conveyor: each its own rate
+    X=Math.round(X+drift); if(X<-8||X>SW+8) continue;
+    var sy=(surfY+Math.round(Math.sin(wx*0.031+now*0.0011)*1.6+Math.sin(wx*0.084-now*0.0007)*1.1))|0;
+    var kind=(h>>>11)%10, fq=ragFireAt(wrapW(wx),now,FR);
+    if(kind<4){                                                  // timber and roof wreckage, lying flat
+      var wdt=2+((h>>>15)%5);
+      g.fillStyle="rgba(46,38,30,0.92)"; g.fillRect(X,sy-1,wdt,2);
+      g.fillStyle="rgba("+(120+Math.round(90*fq))+","+(104+Math.round(30*fq))+",84,0.7)"; g.fillRect(X,sy-1,wdt,1);
+    } else if(kind<7){                                            // a spar or a pole, half under
+      g.fillStyle="rgba(40,34,28,0.9)"; g.fillRect(X,sy-2,2,3);
+    } else if(kind<9 && GK>0){                                    // 🔒 and the dead, face down
+      g.fillStyle="rgba(52,44,52,"+(0.88*GK).toFixed(2)+")"; g.fillRect(X,sy-1,4,2);
+      g.fillStyle="rgba(196,168,140,"+(0.72*GK).toFixed(2)+")"; g.fillRect(X+((h>>>19)&1?3:-1),sy-1,1,1);
+    } else {                                                      // a slick of burning fuel
+      if(fq>0.05){ g.fillStyle="rgba(255,150,50,"+(0.36*fq).toFixed(2)+")"; g.fillRect(X,sy-1,3+((h>>>21)%4),1); }
+    }
+  }
+}
+// ♨️ WHERE THE FIRE MEETS THE SEA. The two halves of this ending ignored each other completely — a
+// burning front and a rising ocean occupying the same world with no interaction at all, which is the
+// single most obviously wrong thing a physical reading would catch. Steam only exists where BOTH are.
+function ragSteam(g,surfY,now,FR){
+  if(FR<=0) return;
+  for(var x=0;x<SW;x+=3){
+    var wx=wrapW(x+WOFF), fq=ragFireAt(wx,now,FR);
+    if(fq<0.25) continue;
+    // ⚠ 0.16·HORIZON OF NEAR-WHITE READ AS A MOUNTAIN, not as steam — it was the biggest, palest
+    // shape in the frame. Steam off a waterline is LOW and thin; what makes it steam is that you can
+    // see through it.
+    var hgt=Math.round(HORIZON*0.07*fq*(0.6+0.4*Math.sin(wx*0.05+now*0.0016)));
+    for(var q=0;q<hgt;q+=2){
+      var t=q/Math.max(1,hgt);
+      g.fillStyle="rgba(216,222,226,"+(0.16*fq*(1-t)).toFixed(3)+")";
+      g.fillRect(x+Math.round(Math.sin(now*0.0012+q*0.3+wx*0.02)*2),surfY-q,3,2);
+    }
+  }
+}
+// 🏃 PEOPLE AHEAD OF THE WATER. 🔒 His ask, and the one that makes it an event rather than a landscape:
+// the street between the fire and the sea has people running, and the water behind them has heads in
+// it. ⚠ `drawPerson` is a FIXED 7px and needs a 7-CHAR HEX (it reads `cloth.charCodeAt(1)`), so an
+// "rgb(...)" string does not crash — it silently hashes wrong and picks the wrong trousers.
+function ragDrowning(g,surfY,rise,now,ap,FR){
+  if(cityPhase!=="apoc") return;
+  var GK=(typeof goreK==="function")?goreK():1, gy=HORIZON-1;
+  var n=Math.round(WW*0.05);
+  for(var i=0;i<n;i++){
+    var h=((i*2654435761+4421)>>>0); h=(h^(h>>>13))>>>0;
+    var wx=(h%1000)/1000*WW, X=disX(wx); if(X<-10||X>SW+10) continue;
+    var fq=ragFireAt(wrapW(wx),now,FR);
+    var cloth=hexDark(PEDC[(h>>>5)%PEDC.length],0.30), skin=SKINC[(h>>>9)%SKINC.length];
+    var under=(rise>0)&&(gy>surfY+1);
+    if(under){
+      // in the water: a head and an arm, and only sometimes — most are already gone
+      if(((h>>>17)%3)!==0) continue;
+      var sy=(surfY+Math.round(Math.sin(wx*0.031+now*0.0011)*1.6))|0;
+      var bob=Math.round(Math.sin(now*0.003+i)*1);
+      g.fillStyle="rgba("+(160+Math.round(60*fq))+",140,120,"+(0.9*GK).toFixed(2)+")";
+      g.fillRect(X,sy-1+bob,1,1);                                        // the head
+      if(((h>>>21)&1)) g.fillRect(X+((h>>>23)&1?1:-1),sy-2+bob,1,1);      // an arm up
+    } else {
+      // still on the ground: running AWAY from the fire, which is a direction, not a hash
+      var toF=((epiXOf(now)-wx)%WW+WW*1.5)%WW-WW*0.5;
+      var dir=(toF>=0)?-1:1;
+      var run=Math.round(((now*0.012+i*37)%40)-20);
+      drawPerson(g,(X+run*0)|0,gy,cloth,skin,dir);
+    }
+  }
+}
+function epiXOf(now){ return (typeof apocEpiX==="function")?apocEpiX(now):Math.round(WW*0.5); }
 APOC_X.ragnarok=function(g,ap,L,now){
   var K=Math.max(1,KSP);
   // ── ❄️ FIMBULWINTER. "THE LONG WINTER CAME FIRST." — the ending's own dialogue, and nothing in the
@@ -51569,17 +51659,85 @@ APOC_X.ragnarok=function(g,ap,L,now){
   // watch is the one where the water starts AT the street, not out at a coastline. Both are rendered.
   var sea=(typeof SEA_Y==="number"&&SEA_Y>0&&SEA_Y<SH)?SEA_Y:HORIZON;
   var wl=floodLevel(), rise=Math.round(wl*Math.max(1,KSP));
-  if(rise>0){
-    g.fillStyle="rgba(26,44,58,0.88)"; g.fillRect(0,sea-rise,SW,Math.max(2,SH-(sea-rise)));
-    // 🪵 THE SURFACE IS A WAVELENGTH, NOT A HASH — a hashed swell builds BATTLEMENTS (the crimson
-    // tide's lesson). Two sines of WORLD x, which are also cross-monitor-identical for free.
-    for(var w=0;w<SW;w+=2){
-      var wwx=wrapW(w+WOFF);
-      var sw2=Math.sin(wwx*0.031+now*0.0011)*1.6+Math.sin(wwx*0.084-now*0.0007)*1.1;
-      g.fillStyle="rgba(150,190,200,"+(0.16+0.22*Math.min(1,ap)).toFixed(2)+")";
-      g.fillRect(w,(sea-rise+Math.round(sw2))|0,2,1);
+  var FR=apocSweepR(), epiR=(typeof apocEpiX==="function")?apocEpiX(now):Math.round(WW*0.5);
+  var surfY=sea-rise;
+  function ragSwell(wwx){ return Math.sin(wwx*0.031+now*0.0011)*1.6+Math.sin(wwx*0.084-now*0.0007)*1.1; }
+  // ══════════════════════════════════════════════════════════════════════════════════════════════
+  // 🔥 SURTR'S FIRE, AND THE LIGHT IT THROWS — the answer to "the light and the darkness look fake".
+  // 🔒 Nick, watching it live, called the water, the fire, the destruction AND the light all fake, and
+  // asked for realism arrived at through BEHAVIOUR rather than faked. The behaviour that matters most
+  // here is the one the renderer never had: **FIRE IS A LIGHT SOURCE.** Capping the global darkening
+  // made the frame less black; it did not make it LIT. A catastrophe is lit BY the catastrophe —
+  // warm near the front, cold far from it — and that gradient alone is most of what reads as real.
+  // 🔑 Read from `apocSweepR() − nukeDist`, the same expression the demolition runs on, so the light
+  // can never fall where the fire is not. ⚡ Run-batched on a quantised value, sampled every 2 px.
+  if(FR>0){
+    var runX3=-1, runQ=-2, x3, q3;
+    for(x3=0;x3<=SW;x3+=2){
+      q3=-1;
+      // ⚠ 1/12 STEPS PUT TWELVE VISIBLE BANDS ACROSS THE FRAME, and with a full-height flat fill
+      // behind them the glow rendered as a hard-edged ORANGE RECTANGLE — the thing a wash must never
+      // be. Fine steps, and the light falls off vertically as well, because a glow has no border.
+      if(x3<SW) q3=Math.round(ragFireAt(wrapW(x3+WOFF),now,FR)*48)/48;
+      if(q3===runQ) continue;
+      if(runQ>0){
+        var wd=x3-runX3, gb;
+        // the sky over the fire — strongest just above the skyline where the smoke catches it, and
+        // fading to nothing at the top of the frame. Horizontal rows: no vertical edges to alias.
+        for(gb=0; gb<8; gb++){
+          var gt=gb/8, gy3=Math.round(HORIZON*(0.10+gt*0.90));
+          g.fillStyle="rgba("+(210+Math.round(45*gt))+","+(88+Math.round(58*gt))+",26,"+(0.075*runQ*(0.25+gt)).toFixed(4)+")";
+          g.fillRect(runX3,gy3,wd,Math.ceil(HORIZON*0.90/8)+1);
+        }
+        // and the flame itself, low and along the ground line — this is the fuel, not the glow
+        var fh3=Math.round(HORIZON*0.10*runQ);
+        if(fh3>0){
+          g.fillStyle="rgba(255,180,60,"+(0.55*runQ).toFixed(3)+")";
+          g.fillRect(runX3,HORIZON-fh3,wd,fh3);
+          g.fillStyle="rgba(255,238,190,"+(0.42*runQ).toFixed(3)+")";
+          g.fillRect(runX3,HORIZON-Math.round(fh3*0.34),wd,Math.max(1,Math.round(fh3*0.34)));
+        }
+      }
+      runX3=x3; runQ=q3;
     }
   }
+  if(rise>0){
+    // ══════════════════════════════════════════════════════════════════════════════════════════
+    // 🌊 THE SEA. 🎨🔑🔑 DEPTH IS EXPRESSED AS **VALUE**, NOT AS SHAPE — an opaque body of water is a
+    // LANDSLIDE (the crimson tide's most expensive finding). What says liquid is seeing what is UNDER
+    // it, and seeing it worse the deeper it gets. One flat 0.88 fill was a dark slab with a ripple
+    // drawn on it, which is exactly what Nick called fake.
+    // ⚠ Horizontal rows, so the continuous alpha ramp costs nothing in the vertical-lines class —
+    // that bug beats on hard VERTICAL edges, and there are none here.
+    var deep=Math.max(6,Math.round(HORIZON*0.34));
+    for(var wy=surfY; wy<SH; wy++){
+      var dfrac=Math.min(1,(wy-surfY)/deep);
+      g.fillStyle="rgba(20,38,52,"+(0.34+0.56*dfrac).toFixed(3)+")";
+      g.fillRect(0,wy,SW,1);
+    }
+    // ── THE SURFACE, and what is ON it. 🪵 A swell is a WAVELENGTH, not a hash — a hashed swell
+    // builds BATTLEMENTS. Two sines of WORLD x, cross-monitor-identical for free.
+    // 🪞 REFLECTIONS. The single biggest realism lever available here, and the one rule I have broken
+    // before: **a reflection is DIMMER THAN ITS SOURCE**, and it is BROKEN UP — a continuous vertical
+    // streak on moving water is a ruled line (the glass-drift lesson), so it is dashed by the swell.
+    for(var w=0;w<SW;w+=2){
+      var wwx=wrapW(w+WOFF), sw2=ragSwell(wwx), sy3=(surfY+Math.round(sw2))|0;
+      var fq=ragFireAt(wwx,now,FR);
+      if(fq>0.02){
+        var rl=Math.round(HORIZON*0.20*fq);
+        for(var rr=0;rr<rl;rr+=2){                                  // dashed, and fading with depth
+          if((((wwx*7+rr*13+((now/240)|0))>>>0)%5)<2) continue;      // the surface breaking it up
+          g.fillStyle="rgba(196,96,28,"+(0.34*fq*(1-rr/Math.max(1,rl))).toFixed(3)+")";
+          g.fillRect(w,sy3+rr,2,1);
+        }
+      }
+      g.fillStyle="rgba(150,190,200,"+(0.16+0.22*Math.min(1,ap)).toFixed(2)+")";
+      g.fillRect(w,sy3,2,1);
+    }
+    ragFlotsam(g,surfY,now,ap,FR);
+    ragSteam(g,surfY,now,FR);
+  }
+  ragDrowning(g,surfY,rise,now,ap,FR);
   // ── JÖRMUNGANDR. A curve breaking the surface, never a face. World-anchored, sized in K because it
   // is read against the buildings it is rising past.
   if(ap>0.35){
