@@ -129,6 +129,9 @@ function disMul(v){ return v==="rare"?0.42 : v==="frequent"?2 : 1; }
 // `var CFG_APOC_EPI=null` would execute after the assignment and wipe it. *`var` hoists the NAME, not
 // the VALUE* — the trap that left the CFG_FINALE validator reading `undefined.indexOf`, and that cost
 // a whole frame to `PEDC[-7]` earlier this branch.
+var APOC_DBG=0;                    // config `apocDebug`: tint each falling/floating apocalypse layer a
+                                   // distinct bright colour so a screenshot identifies the renderer
+                                   // outright. 🔑 Beats another round of me guessing from the code.
 var CFG_APOC_EPI=null;             // config `apocEpi`: pin ground zero to 0..1 of the world (null = roll it)
 function applyConfig(cfg){ if(!cfg) return;
   if(cfg.gore==="off"||cfg.gore==="restrained"||cfg.gore==="full") CFG_GORE=cfg.gore;
@@ -168,6 +171,7 @@ function applyConfig(cfg){ if(!cfg) return;
   // Nick: *"put it on my right screen so I can see what is going on."* This is the live-desktop
   // equivalent of the harness's `disx=`, which exists for exactly the same reason.
   if(cfg.apocEpi!=null&&cfg.apocEpi!=="") CFG_APOC_EPI=Math.max(0,Math.min(1,+cfg.apocEpi));
+  if(cfg.apocDebug!=null) APOC_DBG=cfg.apocDebug?1:0;
   // ⚠ AN EXACT DATE OUTRANKS AN HOUR. Both can be present in a config — the hour picker is older and
   // stays in the file — and if both were applied the last one written would win by accident. The more
   // specific answer is the one the user gave most recently and it is the one that wins, always.
@@ -16555,13 +16559,20 @@ function apocParts(now){
   var N=Math.round(WW*0.30), arr=new Array(N);
   for(var i=0;i<N;i++){
     var h=((i*2654435761+9931)>>>0); h=(h^(h>>>13))>>>0; h=((h*40503)>>>0); h=(h^(h>>>11))>>>0;
-    var zn=(h>>>17)%10;
+    // 🔒 HIS CALL: MORE DEAD ON THE RAILS AND ON THE SIDEWALK. The zones are weighted for it — the
+    // tram reservation and both pavements now take 12 of 16 draws, because that is where people
+    // actually were: waiting, walking, or trying to cross the tracks. The carriageway keeps the rest.
+    // 🔑 And roughly one in five is a WHOLE BODY rather than a piece. A field of only fragments reads
+    // as texture; it is the recognisable human shape among them that makes the fragments land.
+    var zn=(h>>>17)%16, yv;
+    if(zn<5)       yv=HORIZON-1+((h>>>21)%Math.max(1,WALK_F));                                   // far pavement
+    else if(zn<9)  yv=ROAD_BOT+2+((h>>>21)%Math.max(1,Math.min(SH,WALK_N_BOT)-ROAD_BOT-2));      // near promenade
+    else if(zn<12) yv=tramLaneY(((h>>>23)&1)?1:0)+((h>>>25)%3);                                  // ON THE RAILS
+    else           yv=ROAD_Y+2+((h>>>21)%Math.max(1,(ROAD_BOT-ROAD_Y)-3));                       // carriageway
     arr[i]={
-      x:(h%WW),
-      y: zn<4 ? (HORIZON-1+((h>>>21)%Math.max(1,WALK_F)))
-       : zn<8 ? (ROAD_Y+2+((h>>>21)%Math.max(1,(ROAD_BOT-ROAD_Y)-3)))
-       :        (ROAD_BOT+2+((h>>>21)%Math.max(1,Math.min(SH,WALK_N_BOT)-ROAD_BOT-2))),
+      x:(h%WW), y:yv,
       when:0.05+((h>>>7)%1000)/1000*0.55,
+      body:(((h>>>15)%5)===0),
       kind:(h>>>3)%5, h:h };
   }
   _apocPartsId=id; _apocParts=arr; return arr;
@@ -16580,6 +16591,12 @@ function drawApocParts(g,L,now){
     if(fronted && !apocHit(p.x)) continue;                             // the field IS the shape of the thing
     if(apocInPit(p.x)) continue;
     var h=p.h, Y=p.y;
+    if(p.body){                                                        // a whole one, face down where they fell
+      drawPerson(g,X|0,Y|0,hexDark(PEDC[(h>>>5)%PEDC.length],0.30),SKINC[(h>>>9)%SKINC.length],((h>>>11)&1)?1:-1);
+      g.fillStyle=bl+(0.70*GK).toFixed(2)+")"; g.fillRect((X-3)|0,Y|0,7,1);
+      g.fillStyle=bl+(0.45*GK).toFixed(2)+")"; g.fillRect((X-1)|0,(Y-3)|0,2,1);
+      continue;
+    }
     if(p.kind===0){                                                    // a limb, still clothed
       g.fillStyle=hexDark(PEDC[(h>>>5)%PEDC.length],0.30);
       g.fillRect(X|0,Y|0,1+((h>>>9)&1),1);
@@ -53533,7 +53550,7 @@ function drawWarMachineWreck(g,X,gy,hgt,hullW,day,t,h){
     g.fillRect(fx|0,fy|0,1,1+((fh>>>13)%2));
     g.globalCompositeOperation="source-over";
   }
-  g.fillStyle=day?"rgba(40,40,46,0.30)":"rgba(20,20,26,0.34)";
+  g.fillStyle=APOC_DBG?"#ff0000":(day?"rgba(40,40,46,0.30)":"rgba(20,20,26,0.34)");   // DBG red = WRECK SMOKE
   for(var sm=0;sm<5;sm++){ var sh5=((h>>>(sm*4))^(sm*19349663))>>>0;
     g.fillRect((cx-4+((sh5%9)))|0,(cy-(bh>>1)-4-sm*3)|0,2+((sh5>>>5)%3),2); }
 }
@@ -53566,7 +53583,7 @@ function drawApocSky(g,ap,L,now){
     // once hit it drops on an arc, nose down, trailing smoke and fire
     var fy=C.y+Math.round(C.fall*C.fall*(gy-C.y)), tilt=C.fall;
     var w=6+((C.h>>>9)%5), hgt=Math.max(2,Math.round(w*0.34));
-    g.fillStyle=day?"rgb(48,52,60)":"rgb(26,29,36)";
+    g.fillStyle=APOC_DBG?"#ff00ff":(day?"rgb(48,52,60)":"rgb(26,29,36)");   // DBG magenta = SKY CRAFT
     g.fillRect((X-(w>>1))|0,fy|0,w,hgt);
     g.fillStyle=day?"rgb(70,76,86)":"rgb(38,42,52)";
     g.fillRect((X-(w>>1))|0,fy|0,w,1);
@@ -53673,7 +53690,7 @@ function drawApocNearField(g,ap,L,now){
     if(((h>>>17)%9)===0){ g.globalCompositeOperation="lighter";      // an ember, still hot
       g.fillStyle="rgba(255,150,70,"+(0.65*(1-ph)).toFixed(2)+")";
       g.fillRect((X+dx)|0,y|0,1,1); g.globalCompositeOperation="source-over"; }
-    else { g.fillStyle=day?"rgba(96,90,88,0.5)":"rgba(150,144,140,0.28)";
+    else { g.fillStyle=APOC_DBG?"#00ffff":(day?"rgba(96,90,88,0.5)":"rgba(150,144,140,0.28)");   // DBG cyan = ASH
       g.fillRect((X+dx)|0,y|0,1,1); }
   }
   // ── DEBRIS THROWN BY THE DESTRUCTION.
@@ -53708,7 +53725,7 @@ function drawApocNearField(g,ap,L,now){
     // 🎨 NOT A SQUARE. A plain filled rect in the sky is a BOX, which is what he saw; a chunk of
     // building is an irregular silhouette with a lit face and a corner missing.
     var w2=spin===1?sz:Math.round(sz*0.7), h2=spin===1?Math.round(sz*0.68):sz;
-    g.fillStyle=day?"rgba(34,29,36,0.94)":"rgba(14,12,17,0.95)";
+    g.fillStyle=APOC_DBG?"#00ff44":(day?"rgba(34,29,36,0.94)":"rgba(14,12,17,0.95)");   // DBG green = THROWN DEBRIS
     g.fillRect(X2|0,Y2|0,w2,h2);
     g.fillRect((X2+(spin===2?-2:w2))|0,(Y2+Math.round(h2*0.3))|0,2,Math.max(1,Math.round(h2*0.4)));   // a broken corner
     g.fillStyle=day?"rgba(96,86,96,0.92)":"rgba(48,42,54,0.9)";
@@ -56487,7 +56504,7 @@ function drawApocBuilding(g,b,bx,cl,L,now,bdir){
     var cph=((now*0.28+chh%900)%900)/900;
     if(cph>0.98) continue;
     var cw3=1+((chh>>>5)%3), cx3=bx-2+((chh%Math.max(1,b.w+4)));
-    g.fillStyle=day2?"rgba(46,38,48,0.9)":"rgba(24,19,28,0.9)";
+    g.fillStyle=APOC_DBG?"#ffee00":(day2?"rgba(46,38,48,0.9)":"rgba(24,19,28,0.9)");   // DBG yellow = BUILDING CHUNKS
     g.fillRect(cx3|0,(gy-b.h+cph*b.h*1.05)|0,cw3,cw3+1);
   }
   // ── AND WHAT IS LEFT: 🔒 his call, a jagged burning ruin that KEEPS burning.
@@ -56504,7 +56521,7 @@ function drawApocBuilding(g,b,bx,cl,L,now,bdir){
   if(b.w>12) drawFlame(g,bx+(b.w>>2),(gy-Math.max(ruinH,3)+2)|0,Math.min(10,b.w>>1),5,now,(b.seed|0)+41,0.55);
   g.globalCompositeOperation="lighter";
   for(var sm2=0;sm2<3;sm2++){ var smt=((now*0.03+sm2*160+b.seed)%120);
-    g.fillStyle="rgba(50,46,52,"+(0.5*(1-smt/120))+")";
+    g.fillStyle=APOC_DBG?"#ff8800":("rgba(50,46,52,"+(0.5*(1-smt/120))+")");   // DBG orange = BUILDING SMOKE
     g.fillRect((bx+(b.w>>1)-2+Math.sin(now*0.002+sm2)*3)|0,(gy-ruinH-6-smt*0.5)|0,3,3); }
   g.globalCompositeOperation="source-over";
   g.fillStyle="rgba(60,56,60,"+(0.3+0.3*cl)+")"; g.fillRect(bx-2,gy-3,b.w+4,3);   // dust at the base
