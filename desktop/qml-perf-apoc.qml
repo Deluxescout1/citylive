@@ -43,6 +43,12 @@ Item {
             var g = getContext("2d");
             var CYC = 604800000, EPOCH = 1783972450746;
             // the ending under review first, then UNCHANGED ones as the noise reading for this run.
+            // ⚠⚠ SET THE FIRST ENTRY TO WHATEVER YOU ARE ACTUALLY REVIEWING. It is left pointing at
+            // the last one benched (thehollow, 2026-08-08), and a stale name here does not fail — it
+            // quietly benches a finished ending against itself and reports a convincing ~0.0 delta.
+            // 🔑 `logout` is the only TRUE control: it is not an APOC_SWEEP ending, so it shares none
+            // of the collapse/dust-wall machinery. Keep a sweep ending (thepit) as the second reading
+            // when the change touches anything shared.
             var deaths = ["thehollow","logout","thepit"];   // the one under review FIRST, then UNCHANGED ones as this run's noise reading
             var acc = {};
             function key(e,d){ return e+"|"+d; }
