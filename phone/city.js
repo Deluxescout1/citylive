@@ -133,6 +133,14 @@ var APOC_DBG=0;                    // config `apocDebug`: tint each falling/floa
                                    // distinct bright colour so a screenshot identifies the renderer
                                    // outright. 🔑 Beats another round of me guessing from the code.
 var CFG_APOC_EPI=null;             // config `apocEpi`: pin ground zero to 0..1 of the world (null = roll it)
+// ⚠⚠ THESE THREE LIVE **ABOVE** `applyConfig` FOR THE SAME REASON `CFG_APOC_EPI` DOES, and it is not
+// a style choice. The other `CFG_*` sit 50,000 lines down beside their renderers, which works only
+// because they are assigned at TOP LEVEL after their own `var`. These are assigned INSIDE
+// `applyConfig`, so a `var` declaration further down the file would run AFTERWARDS and reset them to
+// undefined — *`var` hoists the NAME, not the VALUE*, which this branch has now paid for four times.
+var CFG_DIS_TYPE=null;             // config `disaster`: pin WHICH disaster fires (null = the lottery)
+var DEMO_DIS_SEC=0;                // config `demoDisSec`: >0 plays a disaster LIVE on a repeating N-second loop
+var CFG_DIS_EPI=null;              // config `disEpi`: pin where it strikes, 0..1 of the world
 function applyConfig(cfg){ if(!cfg) return;
   if(cfg.gore==="off"||cfg.gore==="restrained"||cfg.gore==="full") CFG_GORE=cfg.gore;
   if(cfg.birthdays!=null) BIRTHDAYS=cfg.birthdays;
@@ -155,6 +163,17 @@ function applyConfig(cfg){ if(!cfg) return;
   // once at the end of a week-long life, so an ending can actually be WATCHED and judged. Paired
   // with `finale`, which picks which one. Off (0) unless set — no default install is affected.
   if(cfg.demoApocSec!=null) DEMO_APOC_SEC=+cfg.demoApocSec||0;
+  // ►► THE SAME REVIEW HOOK FOR DISASTERS, WHICH HAD NONE. `finale`+`demoApocSec`+`apocEpi` let an
+  // ENDING be pinned, looped and aimed; the disasters — 23 types that fire every seven minutes at a
+  // hashed position — had only `cfg.disasters`, a PROBABILITY MULTIPLIER. So the only way to review
+  // one on the real wallpaper was to wait for the lottery to pick it and land it on the right screen,
+  // which is the same "wait several demo loops and every miss looks like the feature is broken" trap
+  // `apocEpi` was built to kill. `FORCEDIS` existed for the harness and was never reachable from a
+  // config. ⚠ All three are OFF unless set, so no default install changes.
+  if(cfg.disaster!==undefined) CFG_DIS_TYPE=(cfg.disaster&&cfg.disaster!=="auto"&&
+    DIS_TYPES_ALL.indexOf(cfg.disaster)>=0)?cfg.disaster:null;
+  if(cfg.demoDisSec!=null) DEMO_DIS_SEC=+cfg.demoDisSec||0;
+  if(cfg.disEpi!=null) CFG_DIS_EPI=Math.max(0,Math.min(1,+cfg.disEpi));
   if(cfg.worldRestartAt!==undefined) WORLD_SHIFT=worldShiftFrom(+cfg.worldRestartAt||0, cfg.worldRestartMode);
   // AFTER cycle and WORLD_SHIFT: the alignment is a phase against the finished grid, so anything
   // lifeIndexOf() adds must already be settled or the hour lands wrong.
@@ -21060,6 +21079,20 @@ function disArcNow(now){
   if(FORCEDIS&&FORCEDIS.phase){
     var fd=disasterNow(now); if(!fd) return null;
     return { di:fd, tp:0, phase:FORCEDIS.phase, f:(FORCEDIS.pf==null?0.5:FORCEDIS.pf) };
+  }
+  // ►► THE DEMO LOOP. Plays ONE disaster over and over on its own real-seconds clock so the whole
+  // lifecycle — warn → build → strike → aftermath → rebuild — can be watched instead of waited for.
+  // 🔑 It runs the REAL `disPhaseOf` over a synthetic `tp`, so what you review is the actual arc the
+  // engine plays and not a second implementation of it. `disasterInfo`'s roll is bypassed entirely,
+  // which is the whole point: type and position are pinned, everything else is the live code path.
+  if(DEMO_DIS_SEC>0){
+    var per=DEMO_DIS_SEC*1000, loop=Math.floor(now/per), tpd=(now%per)/per*DIS_DUR;
+    var dEpi=(CFG_DIS_EPI!=null)?CFG_DIS_EPI:0.5;
+    var dType=CFG_DIS_TYPE||DIS_TYPES_ALL[loop%DIS_TYPES_ALL.length];   // unpinned → cycle them, one per loop
+    var dd={type:dType,intensity:0.85,x:Math.round(dEpi*WW),w:38,seed:(loop*2654435761)>>>0,idx:-1};
+    var php=disPhaseOf(dd,tpd);
+    if(php&&php.phase!=="pre"&&php.phase!=="done") return {di:dd,tp:tpd,phase:php.phase,f:php.f};
+    return null;
   }
   var cur=Math.floor(now/DIS_SLOT);
   for(var back=0;back<=5;back++){
