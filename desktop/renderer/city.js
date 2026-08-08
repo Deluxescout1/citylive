@@ -53485,36 +53485,37 @@ APOC_X.warmachine=function(g,ap,L,now){
     var tb=Math.floor(now/900);                              // a fresh set of kills roughly every 0.9s
     // ① THE SAW ARM — close in, at body height, sweeping the street.
     var sawA=Math.sin(now/260+i*2.2), sawX=X+side*Math.round(hgt*0.30*(0.55+0.45*sawA));
+    var sawY=(((tb>>>1)&1)?tramLaneY((tb&1)?1:0)+1:gy);                   // it works the rails as well as the verge
     g.fillStyle=day?"rgb(46,50,58)":"rgb(26,29,35)";
-    segRect(g,X+side*Math.round(hullW*0.6),shY,sawX,gy-Math.round(hgt*0.06),Math.max(2,Math.round(hgt*0.03)));
+    segRect(g,X+side*Math.round(hullW*0.6),shY,sawX,sawY-Math.round(hgt*0.06),Math.max(2,Math.round(hgt*0.03)));
     g.fillStyle=((now/90|0)&1)?"rgba(210,220,235,0.95)":"rgba(150,160,180,0.9)";
-    g.fillRect((sawX-Math.round(hgt*0.05))|0,(gy-Math.round(hgt*0.08))|0,Math.max(3,Math.round(hgt*0.10)),Math.max(2,Math.round(hgt*0.025)));  // the blade, spinning
+    g.fillRect((sawX-Math.round(hgt*0.05))|0,(sawY-Math.round(hgt*0.08))|0,Math.max(3,Math.round(hgt*0.10)),Math.max(2,Math.round(hgt*0.025)));  // the blade, spinning
     if(GK>0){
       // …and what it leaves. A saw does not lay bodies down tidily: it sprays along its sweep.
       g.fillStyle=(day?"rgba(150,14,18,":"rgba(96,10,14,")+(0.8*GK).toFixed(2)+")";
-      g.fillRect((sawX-Math.round(hgt*0.16))|0,(gy-1)|0,Math.max(4,Math.round(hgt*0.32)),2);
+      g.fillRect((sawX-Math.round(hgt*0.16))|0,(sawY-1)|0,Math.max(4,Math.round(hgt*0.32)),2);
       for(var sq=0;sq<7;sq++){
         var sh4=(((tb*2654435761)^(i*40503)^(sq*19349663))>>>0);
         var sx4=sawX-Math.round(hgt*0.18)+((sh4%Math.max(2,Math.round(hgt*0.36))));
-        var sy4=gy-1-((sh4>>>7)%Math.max(2,Math.round(hgt*0.13)));
+        var sy4=sawY-1-((sh4>>>7)%Math.max(2,Math.round(hgt*0.13)));
         g.fillRect(sx4|0,sy4|0,1+((sh4>>>13)&1),1);                       // pieces, thrown along the arc
       }
       var vh=((tb*2654435761)^(i*7919))>>>0;
-      if((vh%100)<70) wmKill(g,(sawX-side*Math.round(hgt*0.12))|0,gy,"saw",vh,day,GK);
+      if((vh%100)<70) wmKill(g,(sawX-side*Math.round(hgt*0.12))|0,sawY,"saw",vh,day,GK);
     }
     // ② THE LASER — ranged, tracking across the crowd ahead of it, and it FRIES.
     if(ap>strike){
+      var lh=((tb*40503)^(i*2654435761))>>>0, lty=wmTargetY(lh);
       var tx=X+side*Math.round(hgt*0.55+hgt*0.25*Math.sin(now/700+i));
       g.globalCompositeOperation="lighter";
       g.fillStyle="rgba(255,150,70,"+(0.26+0.30*Math.min(1,(ap-strike)*3)).toFixed(2)+")";
-      segRect(g,ex,ey,tx,gy,Math.max(1,Math.round(2*K)));
+      segRect(g,ex,ey,tx,lty,Math.max(1,Math.round(2*K)));
       g.fillStyle="rgba(255,220,160,0.55)";
-      g.fillRect((tx-Math.round(hgt*0.06))|0,(gy-2)|0,Math.max(3,Math.round(hgt*0.12)),3);
+      g.fillRect((tx-Math.round(hgt*0.06))|0,(lty-2)|0,Math.max(3,Math.round(hgt*0.12)),3);
       g.globalCompositeOperation="source-over";
       g.fillStyle=day?"rgba(24,18,14,0.72)":"rgba(10,7,5,0.8)";          // the ground it has burned
-      g.fillRect((tx-Math.round(hgt*0.08))|0,(gy-1)|0,Math.max(4,Math.round(hgt*0.16)),2);
-      var lh=((tb*40503)^(i*2654435761))>>>0;
-      if(GK>0 && (lh%100)<62) wmKill(g,tx|0,gy,"burn",lh,day,GK);
+      g.fillRect((tx-Math.round(hgt*0.08))|0,(lty-1)|0,Math.max(4,Math.round(hgt*0.16)),2);
+      if(GK>0 && (lh%100)<62) wmKill(g,tx|0,lty,"burn",lh,day,GK);
     }
     // ═══ ④ IT PICKS THINGS UP AND THROWS THEM. 🔒 His call, all four targets: buildings, people,
     // the gun positions shooting at it, and anything else within reach — rubble, a length of the
@@ -53528,7 +53529,7 @@ APOC_X.warmachine=function(g,ap,L,now){
       var tk=(th>>>5)%4;                                    // 0 building · 1 crowd · 2 gun position · 3 rubble
       var srcX=X+side*Math.round(hgt*0.24), srcY=bodyY+Math.round(hgt*0.34);
       var reach=Math.round(hgt*0.7)+((th>>>9)%Math.max(1,Math.round(hgt*1.5)));
-      var tgtX=X+side*reach, tgtY=(tk===0)?(gy-Math.round(HORIZON*0.16+((th>>>17)%30))):(gy-1);
+      var tgtX=X+side*reach, tgtY=(tk===0)?(gy-Math.round(HORIZON*0.16+((th>>>17)%30))):wmTargetY(th);
       if(thp<0.30){
         // …the reach-down and the grab, so the throw has a beginning
         var gu=thp/0.30, ax=X+side*Math.round(hgt*(0.20+0.14*gu)), ay=gy-Math.round(hgt*0.10*gu);
@@ -53572,8 +53573,9 @@ APOC_X.warmachine=function(g,ap,L,now){
       for(var tr=0;tr<3;tr++){
         var th4=(((tb*19349663)^(i*73856093)^(tr*2654435761))>>>0);
         var tX=X+side*(Math.round(hgt*0.20)+(th4%Math.max(2,Math.round(hgt*0.7))));
-        segRect(g,gX,gY,tX,gy-2,1);                                       // tracers down into the street
-        if(GK>0 && ((th4>>>9)%100)<44) wmKill(g,tX|0,gy,"shot",th4,day,GK);
+        var tY4=wmTargetY(th4);
+        segRect(g,gX,gY,tX,tY4-2,1);                                      // tracers down into the street
+        if(GK>0 && ((th4>>>9)%100)<44) wmKill(g,tX|0,tY4,"shot",th4,day,GK);
       }
     }
   }
@@ -53905,6 +53907,19 @@ function drawApocResistance(g,ap,L,now){
 // A PERSON BEING KILLED BY THE MACHINE, in whichever way it did it. Fixed 7px like every other body
 // in this engine — a victim exists to be READ AGAINST the thing standing over them, and scaling them
 // by KSP would destroy exactly that comparison on the monitor that changes it.
+// 🔒 THEY HAVE TO REACH ACROSS THE STREET. Nick: *"make sure you see them attacking the rails and the
+// people on the other sidewalk."* Every weapon fired at `HORIZON-1` — the far ground line the machine
+// is standing on — so it was working over the one strip under its own feet while the tram rails, the
+// carriageway and BOTH pavements, which is where the people actually are, went untouched.
+// 🔑 Weighted the same way the bodies are: rails and pavements take 12 of 16, because that is where
+// anyone was standing. Each shot picks its own surface, so a machine visibly works the whole street.
+function wmTargetY(h){
+  var z=(h>>>19)%16;
+  if(z<4)  return HORIZON-1+((h>>>23)%Math.max(1,WALK_F));                                  // the far pavement
+  if(z<9)  return tramLaneY(((h>>>25)&1)?1:0)+((h>>>27)%3);                                  // THE RAILS
+  if(z<12) return ROAD_Y+2+((h>>>23)%Math.max(1,(ROAD_BOT-ROAD_Y)-3));                       // the carriageway
+  return ROAD_BOT+2+((h>>>23)%Math.max(1,Math.min(SH,WALK_N_BOT)-ROAD_BOT-2));                // the other pavement
+}
 function wmKill(g,x,gy,kind,h,day,GK){
   if(x<-8||x>SW+8) return;
   var bl=(day?"rgba(150,14,18,":"rgba(96,10,14,");
