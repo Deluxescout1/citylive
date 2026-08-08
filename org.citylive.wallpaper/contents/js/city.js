@@ -9121,20 +9121,33 @@ function drawTrainLine(g,L,now,fx,part){
   var built=WW*twf, bEnd=Math.min(SW,built-WOFF);             // how much of the line reaches this screen
   var ty=(HORIZON-Math.round(GROUND*1.1))|0;
   var night=1-L;
-  var p0=Math.floor(WOFF/40)*40, blasted=nukeStruck();       // the nuke blows the viaduct apart span by span
+  var p0=Math.floor(WOFF/ELEV_SPAN)*ELEV_SPAN;
+  // ⚡🔑 ONE RESOLUTION PER PIER FOR THE WHOLE ROUTINE — this replaces `blasted=nukeStruck()` and the
+  // nine separate `nukeHit(...)` tests that hung off it. Null outside the end times, so a normal life
+  // pays for nothing; ~21 entries during one, which is the whole cost of the feature per frame.
+  // See the elevated-lines block beside `railClip` for why a boolean was the wrong shape.
+  var dropMax=Math.max(4,Math.round((HORIZON-ty)*0.62)), eMode=apocElevMode(), EB=null;
+  if(eMode){ EB={}; for(var ew=p0; ew<WOFF+SW+ELEV_SPAN; ew+=ELEV_SPAN) EB[ew]=elevState(ew,elevDeckH(),dropMax); }
   if(part!=="service"){
   g.fillStyle=L>0.5?"#3a3346":"#12101c";
-  for(var wx=p0; wx<WOFF+SW+40; wx+=40){ if(wx>built||(blasted&&nukeHit(wx))) continue; var sx=wx-WOFF;
+  for(var wx=p0; wx<WOFF+SW+ELEV_SPAN; wx+=ELEV_SPAN){ if(wx>built) continue; var sx=wx-WOFF;
+    var ep=EB?EB[wx]:null;
+    if(ep&&ep.gone){
+      // 🔑🔑 THE PIERS ARE THE LAST THING STANDING, and that is not a stylistic preference. A row of
+      // broken stumps marching away down the line is the only thing left in the frame that says how
+      // long this railway was and how far the collapse ran — RULE 3, scale references, which is the
+      // rule THE PIT was missing too. Deleting the pier with its span left a clean empty sky that
+      // could have been anything.
+      var stubH=Math.max(2,Math.round((HORIZON-ty-3)*(0.20+((ep.h>>>17)%26)/100)));
+      g.fillStyle=L>0.5?"#332d3e":"#0f0d18"; g.fillRect(sx-1+(ep.lean>0?1:0), HORIZON-stubH, 3, stubH);
+      g.fillStyle=L>0.5?"#5a5266":"#221e2e"; g.fillRect(sx-1+((ep.h>>>23)&1), HORIZON-stubH, 2, 1);   // the jagged break, catching the light
+      g.fillStyle=L>0.5?"#3a3346":"#12101c"; continue; }
     g.fillRect(sx-1, ty+3, 3, HORIZON-ty-3);
     g.fillStyle=L>0.5?"#4c4458":"#191624"; g.fillRect(sx-2, ty+3, 5, 1);      // pillar cap
+    if(ep&&ep.f>0.30){ g.fillStyle=L>0.5?"#241f2e":"#08060e"; g.fillRect(sx-2, ty+4, 5, 1); }   // the bearing has cracked open under the deck
     g.fillStyle=L>0.5?"#3a3346":"#12101c"; }
   if(bEnd>0){
-    if(blasted){                                                             // BLASTED DECK — only the spans the wave hasn't reached survive
-      for(var dsx=((-WOFF%4)+4)%4; dsx<bEnd; dsx+=4){ if(nukeHit(dsx+WOFF)) continue;
-        g.fillStyle=L>0.5?"#4a4356":"#171522"; g.fillRect(dsx|0,ty,4,3);
-        g.fillStyle=L>0.5?"rgba(255,255,255,0.14)":"rgba(160,175,205,0.10)"; g.fillRect(dsx|0,ty,4,1);
-        g.fillStyle=L>0.5?"#2a2636":"#0d0b16"; g.fillRect(dsx|0,ty+3,4,1); }
-    } else {
+    {
       // ⚠⚠ THIS WAS THREE RULES ACROSS THE ENTIRE WORLD — deck, edge light and underside, one
       // full-screen fillRect each, and the contact wire below made a fourth. Not even loops with no
       // break in them: single rects spanning the whole frame, at roofline height. That is the bayou's
@@ -9149,24 +9162,35 @@ function drawTrainLine(g,L,now,fx,part){
       // day and weathering differently, and a joint sits over every pier. Measured: the deck body was
       // covering 95% of the frame width in a single flat tone, which is the whole of what is left of
       // the rule once the wire and the underside have been broken up.
-      var dkA=L>0.5?[74,67,86]:[23,21,34];
-      for(var dsp=p0; dsp<WOFF+SW+40; dsp+=40){
+      var dkA=L>0.5?[74,67,86]:[23,21,34], dkU=L>0.5?"#2a2636":"#0d0b16";
+      for(var dsp=p0; dsp<WOFF+SW+ELEV_SPAN; dsp+=ELEV_SPAN){
         if(dsp>built) continue;
-        var dx=dsp-WOFF, dw=40;
+        var ed=EB?EB[dsp]:null; if(ed&&ed.gone) continue;                // the span is in the street now — see drawElevWreck
+        var dx=dsp-WOFF, dw=ELEV_SPAN;
         if(dx<0){ dw+=dx; dx=0; }                                        // clip to the same [0,bEnd) the single rect covered
         if(dx>=bEnd||dw<=0) continue;
         if(dx+dw>bEnd) dw=bEnd-dx;
         var dh2=((dsp*2654435761)>>>0), dv=1+(((dh2%5)-2)*0.045);        // ±9% panel to panel
-        g.fillStyle=css([Math.min(255,Math.round(dkA[0]*dv)),Math.min(255,Math.round(dkA[1]*dv)),Math.min(255,Math.round(dkA[2]*dv))]);
-        g.fillRect(dx|0, ty, dw|0, 3);
+        var dcol=css([Math.min(255,Math.round(dkA[0]*dv)),Math.min(255,Math.round(dkA[1]*dv)),Math.min(255,Math.round(dkA[2]*dv))]);
+        if(ed&&ed.sag>0){ drawElevFolded(g,dx,dw,ty,ed,dcol,dkU,L>0.5?"#6d6478":"#2c2838",L>0.5); continue; }
+        g.fillStyle=dcol; g.fillRect(dx|0, ty, dw|0, 3);
+        // ⚠⚠ THE UNDERSIDE WAS `fillRect(0,ty+3,bEnd,1)` — ONE FULL-WIDTH RECT, which is the sixth
+        // rule this function has now given up, and here it was worse than a rule: it ruled a dead
+        // straight dark line clean across every gap and every folded span, so the deck could break
+        // all it liked and a 1px shadow of it still spanned the hole. Per span, with the deck.
+        g.fillStyle=dkU; g.fillRect(dx|0, ty+3, dw|0, 1);
         if(dx>0){ g.fillStyle=L>0.5?"#332e3e":"#0e0c16"; g.fillRect(dx|0, ty, 1, 3); }   // the joint over the pier
+        // ⚠ AND THE MARK ON A DECK THAT HAS NOT MOVED. The two modes that never fold — spared and,
+        // for most of its life, corroding — only ever take this branch, so leaving the mark to the
+        // folded path alone rendered them as an untouched railway with the sky falling around it.
+        if(ed&&ed.mode&&ed.mk>0.02) for(var mq=0;mq<dw;mq+=2) elevMark(g,dx+mq,ty,ed.mode,ed.mk,ed.h,L>0.5);
       }
-      g.fillStyle=L>0.5?"#2a2636":"#0d0b16"; g.fillRect(0,ty+3,bEnd|0,1);
       // THE ARCHES. One shallow soffit per span, springing pier to pier. Run-length emitted (a rect
       // per depth step, not per column) — the same discipline the gorge strata needed at 10.4x.
       var arcC=L>0.5?"#413a4e":"#141220", arcD=L>0.5?"#332d3e":"#0f0d18";
-      for(var av=p0; av<WOFF+SW+40; av+=40){
+      for(var av=p0; av<WOFF+SW+ELEV_SPAN; av+=ELEV_SPAN){
         if(av>built) continue;
+        var ea=EB?EB[av]:null; if(ea&&(ea.gone||ea.f>0.30)) continue;   // the soffit is the first thing to come away
         var ax0=av-WOFF+2, ax1=ax0+36; if(ax1<-2||ax0>SW+2) continue;   // between this pier and the next
         var aRise=4, aRun=0;
         for(var ac=0; ac<=18; ac++){                                    // half-span; mirrored, so 18 steps cover 36px
@@ -9181,8 +9205,9 @@ function drawTrainLine(g,L,now,fx,part){
       }
       // The edge light stops being a uniform wash: a deck catches the sky in patches, and the patches
       // are what tell you it is a surface at an angle rather than a printed line.
-      for(var el=p0; el<WOFF+SW+40; el+=40){
+      for(var el=p0; el<WOFF+SW+ELEV_SPAN; el+=ELEV_SPAN){
         if(el>built) continue;
+        var ee=EB?EB[el]:null; if(ee&&(ee.gone||ee.f>0.20)) continue;   // a deck catching the sky is a deck that is still flat
         var ex=el-WOFF, eh=((el*2654435761)>>>0);
         var elen=14+(eh%20), eoff=(eh>>>7)%12;
         g.fillStyle=L>0.5?"rgba(255,255,255,"+(0.10+((eh>>>3)%9)/100).toFixed(2)+")":"rgba(160,175,205,0.10)";
@@ -9194,30 +9219,48 @@ function drawTrainLine(g,L,now,fx,part){
   // and a perfectly even one reads as dither, not as lamps. Real ones cluster at the piers and the
   // stations and skip whole stretches where nothing needs lighting.
   if(night>0.5 && bEnd>0){ g.fillStyle=rgba([120,200,255],0.5*night);
-    for(var lx=(-WOFF%8+8)%8; lx<bEnd; lx+=8){ if(blasted&&nukeHit(lx+WOFF)) continue;
+    for(var lx=(-WOFF%8+8)%8; lx<bEnd; lx+=8){
+      var elt=EB?EB[Math.floor((lx+WOFF)/ELEV_SPAN)*ELEV_SPAN]:null;
+      if(elt&&elt.f>0){ continue; }                                      // the power went with the span; a lit deck over a fold reads as undamaged
       var lh=(((lx+WOFF)*2654435761)>>>0);
       if((lh%5)===0) continue;                                           // a lamp out, or nothing worth lighting
       g.fillRect((lx+((lh>>>9)%3)-1)|0,ty-1,1,1); } }
   // overhead catenary: a contact wire the train's pantograph rides, on registration arms
   var cwY=ty-12;
   if(bEnd>0){
-    g.fillStyle=L>0.5?"#5a5560":"#20202c";
-    for(var cwm=p0; cwm<WOFF+SW+40; cwm+=40){ if(cwm>built||(blasted&&nukeHit(cwm))) continue; var cmx=cwm-WOFF;
-      g.fillRect(cmx-1,cwY-3,1,4);                                       // registration arm above the wire
-      g.fillRect(cmx-2,cwY-3,3,1); }
-    g.fillStyle=L>0.5?"rgba(180,190,210,0.6)":"rgba(150,165,195,0.42)";
-    if(blasted){ for(var wsx=((-WOFF%4)+4)%4; wsx<bEnd; wsx+=4){ if(nukeHit(wsx+WOFF)) continue; g.fillRect(wsx|0,cwY,4,1); } }
-    else {
+    for(var cwm=p0; cwm<WOFF+SW+ELEV_SPAN; cwm+=ELEV_SPAN){ if(cwm>built) continue;
+      var ec=EB?EB[cwm]:null; if(ec&&ec.gone) continue; var cmx=cwm-WOFF;
+      g.fillStyle=L>0.5?"#5a5560":"#20202c";
+      if(ec&&ec.f>0.45){ g.fillRect(cmx-1,cwY-2,1,3); g.fillRect(cmx-2+(ec.lean>0?1:0),cwY-2,2,1); }   // the arm is bent right over
+      else { g.fillRect(cmx-1,cwY-3,1,4);                                // registration arm above the wire
+             g.fillRect(cmx-2,cwY-3,3,1); } }
+    {
       // THE WIRE SAGS. It was `fillRect(0,cwY,bEnd,1)` — one dead-straight line the full width of the
       // frame, the fourth rule in this function. A contact wire hangs in a catenary between its
       // registration arms; a single pixel of droop at mid-span is the whole difference between a
       // railway and a ruled line, and it costs a handful of rects on the BACKDROP pass.
-      for(var cs=p0; cs<WOFF+SW+40; cs+=40){
+      for(var cs=p0; cs<WOFF+SW+ELEV_SPAN; cs+=ELEV_SPAN){
         if(cs>built) continue;
-        var cx0=cs-WOFF; if(cx0>SW+2||cx0+40<-2) continue;
+        var ew2=EB?EB[cs]:null; if(ew2&&ew2.gone) continue;
+        var cx0=cs-WOFF; if(cx0>SW+2||cx0+ELEV_SPAN<-2) continue;
+        if(ew2&&ew2.f>0.28){
+          // 🔑 THE WIRE PARTS AND HANGS. A contact wire that simply stopped existing was the loudest
+          // half of this on the ground (the acid pass) and it is louder again up here, where the wire
+          // is the only thing ABOVE the deck and therefore the first thing the eye checks. It breaks
+          // at mid-span and both ends fall away from the break, still hanging off their own arms.
+          var pf=Math.min(1,(ew2.f-0.28)/0.5), pl=Math.max(1,Math.round((ELEV_SPAN*0.42)*(1-pf*0.55)));
+          g.fillStyle=L>0.5?"rgba(180,190,210,0.55)":"rgba(150,165,195,0.38)";
+          for(var pq=0;pq<pl;pq++){
+            var pdr=Math.round(pf*pf*(pq/pl)*(pq/pl)*16);                // it hangs, so the droop runs away at the free end
+            g.fillRect((cx0+pq)|0,(cwY+pdr)|0,1,1);
+            g.fillRect((cx0+ELEV_SPAN-1-pq)|0,(cwY+pdr)|0,1,1);
+          }
+          continue;
+        }
+        g.fillStyle=L>0.5?"rgba(180,190,210,0.6)":"rgba(150,165,195,0.42)";
         for(var cq=0; cq<4; cq++){                                       // 4 pieces per span is enough to read as a curve
           var cu=(cq+0.5)/4, csag=(cu<0.5?cu:1-cu)*2;                    // 0 at the arms, 1 at mid-span
-          g.fillRect((cx0+cq*10)|0, (cwY+Math.round(csag))|0, 10, 1);
+          g.fillRect((cx0+cq*10)|0, (cwY+Math.round(csag)+(ew2?ew2.sag:0))|0, 10, 1);
         }
       }
     }
@@ -9232,36 +9275,55 @@ function drawTrainLine(g,L,now,fx,part){
   }
   if(part==="base") return;
   // the train itself — service begins once the line is complete
-  var tr=(twf>=1 && (apocPositional() ? !apocFull() : apocKill<0.3))?trainNow(now):null;   // service runs until the wave/barrage takes the whole line (positional deaths break it per-span too)
+  // 🚨 A TRAIN WITH LIT WINDOWS AND SILHOUETTED PASSENGERS RAN A FULL TIMETABLE THROUGH THE MASSACRE.
+  // The old gate stopped service only once the ENTIRE line was gone (`apocFull`), which the five
+  // non-demolishing endings never reach at all — and on every other ending it kept the service running
+  // right up to the last surviving span, gliding over folded deck. Service ends when the ending starts
+  // acting on the world; what is left of the set is the wreck at the break.
+  var tr=(twf>=1 && !apocElevEmpty() && (apocPositional() ? !apocFull() : apocKill<0.3))?trainNow(now):null;
   var trC=(tr&&tr.stopped)?(tr.x+tr.dir*36):null;               // a train is AT a platform (riders board)
   // ELEVATED STATIONS: platform + canopy + stair shaft + line signs + waiting riders
   for(var st2=0; st2<TRSTOPS.length; st2++){ var wxs=Math.round(TRSTOPS[st2]*WW);
-    if(wxs>built || (blasted&&nukeHit(wxs))) continue;          // a station opens when the line reaches it — and is blasted away with the viaduct
+    if(wxs>built) continue;                                     // a station opens when the line reaches it
+    // 🔑 A STATION IS PART OF THE SPAN IT STANDS ON, not a separate question. It used to put the
+    // demolition its own boolean and blink out on its own schedule, so a platform could vanish off a
+    // deck that was still there — and far more often ride a folded one perfectly level, canopy square,
+    // name board lit, three passengers waiting for the 8:14 with the railway bent in half beneath them.
+    var est=eMode?elevState(Math.floor(wxs/ELEV_SPAN)*ELEV_SPAN,elevDeckH(),dropMax):null;
+    if(est&&est.gone) continue;                                 // it went into the street with its span
+    var esf=est?est.f:0, esg=est?est.sag:0, eEmpty=apocElevEmpty(), eLit=(esf<=0.02&&!eEmpty);
     var due=(tr && Math.abs(tr.x-wxs)<260 && ((tr.dir>0)===(tr.x<wxs)));           // a train is closing on this platform
     for(var sw2=-1;sw2<=1;sw2++){ var SXs=(wxs-WOFF+sw2*WW)|0; if(SXs<-14||SXs>SW+14) continue;
-      g.fillStyle=L>0.5?"#5a5266":"#1d1a2a"; g.fillRect(SXs-8,ty-1,17,1);          // platform slab
-      g.fillStyle=L>0.5?"#c9a94e":"#584a24"; for(var wd2=SXs-8;wd2<SXs+9;wd2+=2) g.fillRect(wd2,ty-2,1,1);   // tactile warning strip along the edge
-      g.fillStyle=L>0.5?"#6a6276":"#242032"; g.fillRect(SXs-7,ty-6,15,1);          // canopy
-      g.fillStyle=L>0.5?"#7a7288":"#2e2a42"; for(var rb2=SXs-6;rb2<SXs+8;rb2+=3) g.fillRect(rb2,ty-7,1,1);   // ribbed canopy spine
-      g.fillStyle=L>0.5?"#4a4356":"#171522"; g.fillRect(SXs-7,ty-5,1,4); g.fillRect(SXs+7,ty-5,1,4);   // canopy posts
-      g.fillStyle=L>0.5?"#3a3346":"#12101c"; g.fillRect(SXs+9,ty,2,HORIZON-ty);    // stair shaft down to the street
-      g.fillStyle=L>0.5?"#8a8296":"#3a3648"; for(var stp=ty+2; stp<HORIZON-1; stp+=3) g.fillRect(SXs+9,stp,2,1);   // steps
-      g.fillStyle=L>0.5?"#6a6478":"#262236"; g.fillRect(SXs+12,ty+1,1,HORIZON-ty-2);   // stair handrail
-      for(var lc2=0;lc2<3;lc2++){ g.fillStyle=TRLINE[(st2+lc2)%TRLINE.length]; g.fillRect(SXs-6+lc2*2,ty-8,1,1); } // lines-served signs
-      g.fillStyle=L<0.6?"#ffd98a":"#d9dde8"; g.fillRect(SXs+1,ty-9,6,2);           // the lit station name board over the canopy
-      g.fillStyle="rgba(30,28,40,0.85)"; g.fillRect(SXs+2,ty-9,1,1); g.fillRect(SXs+4,ty-9,1,1); g.fillRect(SXs+6,ty-9,1,1);   // lettering
-      if(due && (Math.floor(now/350)&1)){ g.fillStyle="#ffb23a"; g.fillRect(SXs+1,ty-11,1,1); }   // NEXT TRAIN blinker as one closes in
-      if(L<0.6){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,235,180,0.16)";
-        g.fillRect(SXs-8,ty-5,17,4); g.fillStyle="rgba(255,220,150,0.22)"; g.fillRect(SXs,ty-10,8,4);
+      var tyS=ty+esg;                                                             // it rides its own span down
+      g.fillStyle=L>0.5?"#5a5266":"#1d1a2a"; g.fillRect(SXs-8,tyS-1,17,1);         // platform slab
+      if(esf<=0.42){ g.fillStyle=L>0.5?"#c9a94e":"#584a24"; for(var wd2=SXs-8;wd2<SXs+9;wd2+=2) g.fillRect(wd2,tyS-2,1,1); }   // tactile warning strip along the edge
+      // the canopy loses its panels long before it loses its posts — a light roof is the first thing off
+      g.fillStyle=L>0.5?"#6a6276":"#242032";
+      if(esf<=0.02) g.fillRect(SXs-7,tyS-6,15,1);                                 // canopy
+      else if(esf<0.78){ for(var cp2=0;cp2<15;cp2++){ if((((est.h>>>(cp2%13))^(cp2*7))%100) < esf*82) continue; g.fillRect(SXs-7+cp2,tyS-6,1,1); } }
+      if(esf<=0.02){ g.fillStyle=L>0.5?"#7a7288":"#2e2a42"; for(var rb2=SXs-6;rb2<SXs+8;rb2+=3) g.fillRect(rb2,tyS-7,1,1); }   // ribbed canopy spine
+      g.fillStyle=L>0.5?"#4a4356":"#171522"; g.fillRect(SXs-7,tyS-5,1,4); if(esf<0.60) g.fillRect(SXs+7,tyS-5,1,4);   // canopy posts
+      g.fillStyle=L>0.5?"#3a3346":"#12101c"; g.fillRect(SXs+9,tyS,2,Math.max(1,HORIZON-tyS));    // stair shaft down to the street
+      g.fillStyle=L>0.5?"#8a8296":"#3a3648"; for(var stp=tyS+2; stp<HORIZON-1; stp+=3) g.fillRect(SXs+9,stp,2,1);   // steps
+      g.fillStyle=L>0.5?"#6a6478":"#262236"; g.fillRect(SXs+12,tyS+1,1,Math.max(1,HORIZON-tyS-2));   // stair handrail
+      if(esf<=0.02) for(var lc2=0;lc2<3;lc2++){ g.fillStyle=TRLINE[(st2+lc2)%TRLINE.length]; g.fillRect(SXs-6+lc2*2,tyS-8,1,1); } // lines-served signs
+      // 🔑 THE NAME BOARD IS THE ONLY LIT THING UP HERE, so it is also the loudest thing that can lie.
+      // A glowing sign over a folded deck says "in service" harder than the fold says otherwise.
+      g.fillStyle=eLit?(L<0.6?"#ffd98a":"#d9dde8"):(L>0.5?"#6a6478":"#232030");
+      g.fillRect(SXs+1,tyS-9,6,2);                                                // the station name board over the canopy
+      g.fillStyle="rgba(30,28,40,0.85)"; g.fillRect(SXs+2,tyS-9,1,1); g.fillRect(SXs+4,tyS-9,1,1); g.fillRect(SXs+6,tyS-9,1,1);   // lettering
+      if(due && eLit && (Math.floor(now/350)&1)){ g.fillStyle="#ffb23a"; g.fillRect(SXs+1,tyS-11,1,1); }   // NEXT TRAIN blinker as one closes in
+      if(L<0.6 && eLit){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,235,180,0.16)";
+        g.fillRect(SXs-8,tyS-5,17,4); g.fillStyle="rgba(255,220,150,0.22)"; g.fillRect(SXs,tyS-10,8,4);
         g.globalCompositeOperation="source-over"; }   // platform + name-board lighting
-      g.fillStyle=L>0.5?"#6a5238":"#1a1510"; g.fillRect(SXs+2,ty-3,4,1); g.fillRect(SXs+2,ty-2,1,1); g.fillRect(SXs+5,ty-2,1,1);   // platform bench
-      if(trC===null || Math.abs((trC-WOFF+sw2*WW)-SXs)>12){                        // riders wait — unless they're boarding
+      g.fillStyle=L>0.5?"#6a5238":"#1a1510"; g.fillRect(SXs+2,tyS-3,4,1); g.fillRect(SXs+2,tyS-2,1,1); g.fillRect(SXs+5,tyS-2,1,1);   // platform bench
+      if(!eEmpty && (trC===null || Math.abs((trC-WOFF+sw2*WW)-SXs)>12)){          // riders wait — unless they're boarding, or there is nothing left to wait for
         var nw=1+((Math.floor(now/8000)+st2)%3);
         for(var rw=0;rw<nw;rw++){ var rxp=SXs-6+rw*3+((st2*7+rw*13)%2);
           var wcheck=(((Math.floor(now/700)+st2*3+rw*5)%9)===0)?1:0;               // a glance at the watch now and then
-          drawPerson(g,rxp,ty-4,PEDC[(st2*5+rw)%PEDC.length],SKINC[(st2+rw)%SKINC.length],-1);
-          if(wcheck){ g.fillStyle=SKINC[(st2+rw)%SKINC.length]; g.fillRect(rxp-1,ty-7,1,1); } }
-        drawSeated(g,SXs+3,ty-5,PEDC[(st2*3+1)%PEDC.length],SKINC[(st2*2+1)%SKINC.length]);   // and one waits on the bench
+          drawPerson(g,rxp,tyS-4,PEDC[(st2*5+rw)%PEDC.length],SKINC[(st2+rw)%SKINC.length],-1);
+          if(wcheck){ g.fillStyle=SKINC[(st2+rw)%SKINC.length]; g.fillRect(rxp-1,tyS-7,1,1); } }
+        drawSeated(g,SXs+3,tyS-5,PEDC[(st2*3+1)%PEDC.length],SKINC[(st2*2+1)%SKINC.length]);   // and one waits on the bench
       }
     } }
   if(tr){ var carLen=15, gap=2, unit=carLen+gap, ncar=Math.max(2,Math.floor(tr.len/unit));
@@ -9318,6 +9380,12 @@ function drawTrainLine(g,L,now,fx,part){
         g.globalCompositeOperation="source-over"; }
     }
   }
+  // LAST, AND ON THE GROUND: what the collapse left lying in the open, and the set that came down
+  // with it. Drawn after the structure so a slab is in front of the pier stub it fell off, and on
+  // the service pass so nothing in the backdrop paints over it.
+  if(eMode){ drawElevWreck(g,L,now,p0,built,ELEV_SPAN,elevDeckH(),5501,
+                           L>0.5?"#332d3e":"#100e18", L>0.5?"#4a4356":"#191624");
+             drawElevTrainWreck(g,L,now,ty); }
 }
 
 // ---- helicopter: on a schedule it flies in, lands on a rooftop helipad, sits, departs ----
@@ -15952,6 +16020,14 @@ function apocEatF(wx){
   if(cityPhase!=="apoc") return 0;
   if(apocSparesStreet()) return 0;                    // it is all still there — see APOC_SPARES_STREET
   if(apocCorroding()) return Math.min(1,acidEatAt(wx)/0.82);
+  // 🚨🔑 ICE AND WATER DO NOT REMOVE A RAILWAY EITHER, and this fell out of doing the elevated lines:
+  // the deck 86 px up got six answers to "what happens to it" and the rails on the ground still had
+  // three, so a deep freeze and a flood both DELETED the permanent way — the same "it just kind of
+  // disappears" the acid pass was raised to fix, still in force for two more endings. Frozen track
+  // is track under ice and drowned track is track under water; both are still there.
+  // 🔑 One table, read from one place: `ELEV_MODE` is the ENDING'S nature, not a fact about height.
+  var m=apocElevMode();
+  if(m==="freeze"||m==="flood") return 0;
   return apocHit(wx)?1:0;
 }
 // ⚡ NULL DURING A NORMAL LIFE, ON PURPOSE. This runs on the live frame of every land for the whole of
@@ -15984,6 +16060,370 @@ function railClip(g,y,h,SP,rf){
   else if(rf>=1) g.rect(0,y,SW,h);
   else for(var w=-1;w<=1;w++){ var a=Math.max(0,-WOFF+w*WW), b=Math.min(SW,WW*rf-WOFF+w*WW); if(b>a) g.rect(a|0,y,(b-a)|0,h); }
   g.clip();
+}
+
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+// THE ELEVATED LINES IN THE END TIMES — the el-train viaduct, its stations, and the voted monorail
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+// 🚨🚨 THE SAME HOLE AS THE PERMANENT WAY, ONE STOREY UP — AND THE MONORAIL HAD NO GUARD AT ALL.
+// `drawTrainLine` knew exactly ONE thing about the apocalypse: `blasted && nukeHit(wx)`, a boolean
+// STEP, asked separately in NINE loops (pillars · blasted deck · deck spans · arches · edge light ·
+// deck lights · catenary masts · contact wire · stations). So every ending that levels anything
+// deleted the viaduct span by span: the deck stopped at a clean square butt in mid-air, the last
+// pier stood untouched beside it, the catenary marched on over the gap, and there was nothing at
+// all on the ground underneath. Nick: *"through out them the elevated train lines have just slowly
+// disappeared. Can we have them break according to the disaster."*
+// And `drawMonorail` — a full-width elevated beam on pylons — carried NO apocalypse test whatever,
+// so it sailed intact over all 43 endings. 🔑 A FIX APPLIED ONLY WHERE THE BUG WAS REPORTED IS HALF
+// A FIX: the tramway pass fixed the rails on the ground and never once looked up.
+// 🔑🔑 A STRUCTURE DOES NOT STOP EXISTING, IT FAILS. A step is the right answer for nothing in the
+// air. A deck forty world-px up is held by piers, carries rails and a contact wire, and when what
+// holds it goes, the span SAGS, then FOLDS, then drops — the wire parts and hangs, the rails dangle
+// off the broken end, and what came down is still lying in the open underneath afterwards.
+// 🔑 GUARD THE BLOCK, NOT EACH CALL — which here means more than one clip: every loop in the routine
+// reads ONE per-pier state resolved ONCE per frame, because nine independent tests is exactly how
+// the deck, the arches, the wire and the lights came to disagree about which spans still existed.
+var ELEV_SPAN=40;                                  // pier pitch, world px — the deck's unit of failure
+function elevDeckH(){ return Math.round(GROUND*1.1); }   // the viaduct deck's height above the ground line
+// 🔑🔑 THE PROGRESS WAS ALREADY THERE AND NOBODY READ IT. Every branch below mirrors `apocHit`'s —
+// but `apocHit` throws away the 0..1 each of them computes and hands back a boolean. This is that
+// same dispatch returning the NUMBER, which is why `apocElevCl(x)>=0` is exactly `apocHit(x)` for
+// every ending but the flood. That is an invariant, not a hope: `desktop/qml-elev-invariant.qml`
+// checks it across all 43 endings so this cannot rot into the hand-written-case-per-death hole that
+// left `apocStruck` 14 of 31 short and `apocFull` the identical one a level down.
+// ⚠ THE FLOOD DIVERGES ON PURPOSE, and it is the reason this takes a height at all: `apocHit` asks
+// `floodGroundHit`, "is the GROUND here under water". A deck 86 world px in the air is not, and for
+// a long time after the street has gone. It drowns on `floodCl(h)` — the same law the towers beside
+// it drown on — so the monorail, riding 34 px higher again, is the last thing above the water.
+function apocElevCl(wx,hAbove){
+  if(cityPhase!=="apoc") return -1;
+  var now=NOWOVR!=null?NOWOVR:Date.now();
+  if(hAbove==null) hAbove=elevDeckH();
+  if(curDeath==="nuke"){ var fr=nukeFrontR(), d=nukeDist(wx,nukeGZX(now));
+    return fr>=d ? Math.min(1,(fr-d)/(WW*0.075)) : -1; }                    // `>=`, to match apocHit exactly
+  if(curDeath==="meteors") return meteorCollapse(wx,now).cl;
+  if(curDeath==="sunburst") return sunCl(wx);
+  if(curDeath==="ai")      return frontCollapse(wx,aiFrontR());
+  if(curDeath==="bh")      return frontCollapse(wx,bhFrontR());
+  if(curDeath==="alienwar") return alienCl(wx);
+  if(curDeath==="frost")   return frostCl(wx);
+  if(curDeath==="kaiju")   return frontCollapse(wx,kaijuFrontR());
+  if(curDeath==="ninetails") return frontCollapse(wx,foxFrontR());
+  // The five that demolish nothing on purpose — an intact skyline over dead streets is their whole
+  // horror, and an intact RAILWAY over them is part of it. They get emptiness instead (ELEV_EMPTY).
+  if(curDeath==="massacre"||curDeath==="logout"||curDeath==="banwave"||curDeath==="godwars") return -1;
+  if(curDeath==="wilderness") return -1;
+  if(curDeath==="flood")   return floodCl(hAbove);                          // ⚠ NOT floodGroundHit — see above
+  if(curDeath==="kaijuwar") return kwCl(wx,now);
+  if(curDeath==="pollution") return cityApoc>=0.92 ? Math.min(1,(cityApoc-0.92)/0.06) : -1;
+  if(APOC_SWEEP[curDeath]!=null) return frontCollapse(wx,apocSweepR());
+  return -1;
+}
+// HOW an elevated line fails, by the ENDING'S NATURE and never by its name — the street's three
+// answers were already one short of the truth up here, and glass is the proof: falling glass leaves
+// a road alone (APOC_SPARES_STREET) but a contact wire and an open deck are exactly what it shatters
+// over. So the elevated structures answer six questions, not three.
+//   demolish → the pier buckles, the span folds into a V and drops into the open below
+//   corrode  → the acid eats the steel; it is consumed 0..1 and only gone once it is through
+//   spare    → nothing is deleted; the ending DECORATES it (glass studs the deck, wire and rails)
+//   freeze   → ice sheathes the deck until it is too heavy, then it SNAPS brittle at mid-span
+//   flood    → it drowns. It does not fall; the water simply closes over it, piers last
+//   (none)   → it stands, untouched and EMPTY — see ELEV_EMPTY
+var ELEV_MODE={acidrain:"corrode", glassrain:"spare", frost:"freeze", flood:"flood"};
+function apocElevMode(){ if(cityPhase!=="apoc") return null; return ELEV_MODE[curDeath]||"demolish"; }
+// 🚨 "BROKEN" AND "ABSENT" ARE DIFFERENT WORDS, and having only the second one was the whole
+// complaint. Two modes ever delete anything: a demolition that has run all the way through, and
+// acid that is all the way through the steel. Ice leaves a snapped, cased wreck standing; water
+// leaves it under the surface; glass leaves it studded. Nothing else may ever return true here.
+function apocElevGone(wx,hAbove){
+  var m=apocElevMode(); if(!m) return false;
+  if(m==="corrode") return acidEatAt(wrapW(wx))/0.82 >= 1;
+  if(m!=="demolish") return false;
+  return apocElevCl(wx,hAbove) >= 1;
+}
+// 0 = sound · 0<f<1 = standing and visibly failing · 1 = gone. The two modes that never delete are
+// clamped short of 1 here as well as in apocElevGone, so a single `f>=1` test anywhere downstream
+// can never quietly delete an iced or drowned span.
+function apocElevF(wx,hAbove){
+  var m=apocElevMode(); if(!m) return 0;
+  if(m==="spare") return 0;
+  if(m==="corrode") return Math.min(1,acidEatAt(wrapW(wx))/0.82);
+  var cl=apocElevCl(wx,hAbove); if(cl<0) return 0;
+  if(m==="freeze") return Math.min(0.90,cl);        // cased and snapped, never removed
+  if(m==="flood")  return Math.min(0.85,cl);        // it drowns; it does not fall
+  return cl;
+}
+// THE FIVE THAT LEAVE THE STRUCTURE STANDING STILL STOP THE RAILWAY. A train with lit windows and
+// silhouetted passengers running a full timetable through a massacre was the loudest thing left
+// after the buildings stopped falling — and riders were still waiting on the platforms for it.
+// 🔑 An ending that demolishes nothing is not an ending that changes nothing.
+function apocElevEmpty(){ return cityPhase==="apoc" && apocStruck(); }
+// The per-pier failure state, resolved ONCE and read by every loop in drawTrainLine.
+// `sag` is how far this span's mid-point has dropped; the fold is a V, not a curve, because a
+// failed span hinges at its piers and folds — it does not hang like a wire.
+function elevState(wx,hAbove,dropMax){
+  var f0=apocElevF(wx,hAbove), h=((wrapW(wx)*2654435761)>>>0); h=(h^(h>>>13))>>>0;
+  var m=apocElevMode(), sag=0;
+  // 🪵 A BROAD, SLOW ENDING FAILS EVERY SPAN AT THE SAME INSTANT, and identical failure IS regularity
+  // however varied the shapes are underneath it. The acid came back as a sawtooth across the entire
+  // frame for exactly this reason: the eat depth barely changes over 776 px, so every span reached
+  // the same `f` on the same frame and adopted the same droop. A front hides it (the spans fail in
+  // order); a wash does not. Each span carries its own ±0.11 of weakness, so they go one at a time.
+  // ⚠ VISUAL ONLY — `gone` still comes from the unjittered predicate, so the debris on the ground and
+  // the hole in the sky can never disagree about which span is missing.
+  var f=Math.max(0,Math.min(1, f0 + ((((h>>>29)%9)-4)*0.028)));
+  if(f>0.18){ var sf=Math.min(1,(f-0.18)/0.74);      // nothing moves until the bearing actually lets go
+    sag=Math.round(dropMax*sf*sf*(0.62+((h>>>7)%9)/24)); }   // …then it accelerates, and not two alike
+  // 🚨 NOT EVERY ENDING BENDS THE DECK, and the first matrix render is what said so. The flood came
+  // back as a SAWTOOTH OF FOLDED DECK STANDING OUT OF THE SEA: rising water does not fold a viaduct,
+  // it closes over one. And ice is brittle — it snaps at a bearing, it does not droop like hot steel.
+  // 🔑 The shared vocabulary was doing the work of all six modes and two of them wanted a different
+  // verb, which is only visible once all six are on one sheet.
+  if(m==="flood") sag=0;                             // it drowns level; the water is what changes, not the deck
+  else if(m==="freeze") sag=Math.round(sag*0.30);    // a brittle break with a small step, not a sag
+  return { f:f, gone:apocElevGone(wx,hAbove), sag:sag,
+           lean:(f<0.52?0:(((h>>>11)&1)?1:-1)),      // which way the pier goes when it buckles
+           // 🪵 THREE SPANS FOLDING IDENTICALLY IS A SAWTOOTH, NOT A COLLAPSE. Every span dipping to
+           // its own mid-point put an inverted V over every pier and a V under every span, evenly, all
+           // the way down the line — a decorative zigzag, and the failure this project keeps meeting
+           // (*regularity must break three ways*). So a span either sags between two bearings that
+           // held, or ONE end tore free and the whole thing hangs off the other; and the sagging kind
+           // does not dip at its middle.
+           kind:((h>>>19)%3),                        // 0 = sags in a V · 1 = hangs from the left pier · 2 = from the right
+           lowU:0.30+((h>>>21)%41)/100,              // …and the low point of a V is not the mid-point
+           // how much of the span has torn out and fallen — the gap between the two hanging halves
+           tear:(m==="freeze"
+                 ? (f<0.50?0:Math.min(0.22,((f-0.50)/0.40)*0.22))     // a clean break, not a hole torn out
+                 : (f<0.58?0:Math.min(0.62,((f-0.58)/0.34)*(0.34+((h>>>25)%29)/100)))),
+           mode:m, h:h,
+           // ⚠ THE SKIN NEEDS ITS OWN INTENSITY. `f` is "how far gone", and for a SPARED ending it is
+           // pinned at 0 by design — so keying the glass studs off it drew exactly none of them, an
+           // ending whose entire treatment is decoration rendering as untouched. The mark runs on the
+           // ending's progress; the failure runs on `f`; they are not the same number.
+           mk:(m==="spare" ? Math.max(0,Math.min(1,apocElevCl(wx,hAbove))) : f) };
+}
+// WHAT THE ENDING LEAVES ON THE SURFACE OF THE THING IT IS BREAKING. The shared vocabulary answers
+// *how a span fails*; this answers *what it looks like while it is failing*, and without it the
+// first matrix render came back with frost, acid and glass all wearing the demolition's face.
+// 🎨 BLOOD FIRST, MARK SECOND — the same ordering the corpses needed. The structure is drawn in its
+// own material, and the ending's mark goes ON it; tinting the deck itself washed every mode back
+// into one grey.
+// Called per column with a stride, from both the flat and the folded deck paths, so a mark sits on
+// the surface wherever that surface has ended up.
+function elevMark(g,x,y,mode,f,h,day,span){
+  if(!mode||f<=0.02) return;
+  var q=(((x*2654435761)^h)>>>0);
+  if(mode==="freeze"){
+    // ICE SHEATHES IT FIRST, and ice is the one mark here that ADDS material rather than removing it.
+    g.fillStyle=day?"rgba(214,236,255,"+(0.30+0.5*f).toFixed(2)+")":"rgba(150,186,224,"+(0.24+0.4*f).toFixed(2)+")";
+    g.fillRect(x|0,(y-1)|0,1,1);
+    if((q%7)===0){ var ic=1+((q>>>5)%Math.max(1,Math.round(3*f)));       // icicles hanging off the soffit
+      g.fillStyle=day?"rgba(198,226,250,0.8)":"rgba(128,164,204,0.6)";
+      g.fillRect(x|0,(y+4)|0,1,ic); }
+    return;
+  }
+  if(mode==="corrode"){
+    // 🔑 THE STEEL DULLS AND GOES SICKLY, THEN IT PITS THROUGH. Exactly what the permanent way needed
+    // on the ground — *the rail lines and roads just kind of disappear instead of looking like it is
+    // getting chewed away by the rain* — and the deck 86 px above it had none of it.
+    g.fillStyle="rgba(150,168,58,"+(0.22+0.42*f).toFixed(2)+")"; g.fillRect(x|0,y|0,1,1);
+    if(((q>>>3)%100) < f*58){ g.fillStyle="rgba(14,12,10,0.9)"; g.fillRect(x|0,y|0,1,3); }   // eaten right through
+    return;
+  }
+  if(mode==="spare"){
+    // GLASS DOES NOT TAKE THE RAILWAY DOWN, IT STUDS IT. 🔒 His call for the street, and a deck with
+    // an open top and a wire over it is more of a glass-catcher than the road ever was.
+    if(((q>>>7)%9)===0){ g.fillStyle=day?"rgba(238,250,255,0.85)":"rgba(168,190,222,0.62)";
+      g.fillRect(x|0,(y-1)|0,1,1+(((q>>>11)&1)?1:0)); }
+    return;
+  }
+}
+// A DECK THAT HAS FOLDED. Emitted as sub-rects down each side of the V rather than one rect per
+// column: the same run discipline the gorge strata and the arch soffits needed, and at eight pieces
+// a 40 px span already reads as two straight limbs meeting at a low point.
+function drawElevFolded(g,dx,dw,ty,st,body,dark,torn,day){
+  if(dw<=0) return;
+  var sag=st.sag, kind=st.kind||0, tear=st.tear||0, lean=st.lean, p=(st.lowU==null?0.5:st.lowU);
+  torn=torn||dark;
+  // 🚨🔑 A FOLD MUST BE CONNECTED OR IT IS NOT A FOLD. The first version emitted eight 5px pieces at
+  // eight different heights and the render showed exactly that: slabs of deck hanging in mid-air at
+  // the span's own spacing with clear sky between them — a dotted line, not a collapse. A failing
+  // span is ONE member bent at the middle. So the drop is walked per column and RUN-BATCHED (flushed
+  // when the height changes — the arch soffit's discipline), and every step carries a riser that
+  // closes the gap it just opened. ⚡ ~2·sag rects for a folded span, and only while it is folding.
+  // 🚨🔑🔑 AND THEN IT TEARS. A continuous V still read as a zigzag, because two spans dropping away
+  // from a shared pier leave a peak over it as sharp as the valley under them — a sawtooth ridge
+  // drawn along the skyline, evenly, span after span. It is also wrong: a deck bent that far does not
+  // stay in one piece. It breaks, and the two halves hang down from the piers that still hold them
+  // with daylight between. The gap is what makes it read as torn rather than drawn.
+  var prev=-999, runX=dx, run=0, a, b;
+  for(var i=0;i<=dw;i++){
+    var u=i/dw, dy=-999, miss=false;
+    if(i<dw){
+      miss = kind===1 ? (u > 1-tear) : kind===2 ? (u < tear) : (Math.abs(u-p) < tear*0.5);
+      if(!miss) dy = kind===1 ? Math.round(sag*u)                     // torn free at the far pier, hanging from the near one
+                   : kind===2 ? Math.round(sag*(1-u))                 // …and its mirror
+                   : Math.round(sag*(u<p ? u/p : (1-u)/(1-p)));       // both bearings held; it sags to an off-centre low point
+    }
+    if(dy===prev && dy!==-999){ run++; continue; }
+    if(run>0){ g.fillStyle=body; g.fillRect(runX|0,(ty+prev)|0,run,3);
+               g.fillStyle=dark; g.fillRect(runX|0,(ty+prev+3)|0,run,1); }
+    if(dy!==-999 && prev!==-999){                                     // the riser bridging two heights
+      a=Math.min(prev,dy); b=Math.max(prev,dy);
+      g.fillStyle=body; g.fillRect((dx+i)|0,(ty+a)|0,1,(b-a)+3);
+    }
+    // the torn end itself — bare reinforcement, brighter than the deck, at whichever side of the gap
+    if(dy===-999 && prev!==-999){ g.fillStyle=torn; g.fillRect((dx+i-1)|0,(ty+prev)|0,1,4); }
+    if(dy!==-999 && prev===-999 && i>0){ g.fillStyle=torn; g.fillRect((dx+i)|0,(ty+dy)|0,1,4); }
+    runX=dx+i; run=(dy===-999)?0:1; prev=dy;
+  }
+  // the ending's own mark, following the deck down wherever it has gone
+  if(st.mode&&st.mk>0.02) for(var mi=0;mi<dw;mi+=2){
+    var mu=mi/dw;
+    var mmiss = kind===1 ? (mu > 1-tear) : kind===2 ? (mu < tear) : (Math.abs(mu-p) < tear*0.5);
+    if(mmiss) continue;
+    var mdy = kind===1 ? Math.round(sag*mu) : kind===2 ? Math.round(sag*(1-mu))
+            : Math.round(sag*(mu<p ? mu/p : (1-mu)/(1-p)));
+    elevMark(g,dx+mi,ty+mdy,st.mode,st.mk,st.h,day);
+  }
+  // the fracture, at whichever bearing actually let go
+  g.fillStyle=dark;
+  if(kind!==1) g.fillRect(dx|0,ty|0,1,Math.max(1,Math.min(sag,6)));
+  if(kind!==2) g.fillRect((dx+dw-1)|0,ty|0,1,Math.max(1,Math.min(sag,6)));
+  if(lean){ g.fillRect((dx+(lean>0?dw-2:1))|0,(ty+sag)|0,1,2); }
+}
+// WHAT CAME DOWN IS STILL THERE. 🔒 His call: the span falls to the street and STAYS, and the dead
+// can be under it. ⚠ NOT INTO THE CARRIAGEWAY — *a surface is not a lane*, which this project has
+// now got wrong twice in two renderers in one day. The piers foot at HORIZON, so HORIZON is the
+// ground this structure stands on and HORIZON is where its deck lands; the road band is a different
+// surface the viaduct never crossed and has no business being buried under.
+// 🪤 STRIDE MUST EXCEED WIDTH — the kaiju's footprints became one continuous bar for exactly this
+// reason. The piers are 40 world px apart, so a heap is 12-20 wide and one span in three leaves
+// nothing worth drawing, or a line of collapse turns into a kerb.
+// ⚙ Takes the span pitch and the height rather than assuming the viaduct's, so the monorail — 34 px
+// higher, on a 64 px pitch — drops its beam through the SAME routine. `salt` keeps the two structures'
+// debris from hashing identically where they cross.
+function drawElevWreck(g,L,now,p0,built,span,hA,salt,slabA,slabB){
+  var m=apocElevMode(); if(m!=="demolish"&&m!=="corrode") return;    // only the two modes that delete anything leave debris
+  var day=L>0.5, GK=goreK(), Y=HORIZON;
+  for(var wx=p0; wx<WOFF+SW+span; wx+=span){
+    if(wx>built) continue;
+    var sx=wx-WOFF; if(sx<-span||sx>SW+span) continue;
+    if(!apocElevGone(wx,hA)) continue;
+    if(apocInPit(wrapW(wx))) continue;                              // THE PIT: there is no ground for it to lie on
+    var h=((wrapW(wx)*2654435761+(salt||5501))>>>0); h=(h^(h>>>13))>>>0; h=((h*2246822519)>>>0); h=(h^(h>>>15))>>>0;
+    if((h%100)<34) continue;                                        // this one pulverised, or came down somewhere else
+    var hw=Math.max(4,Math.round(span*0.16)+((h>>>3)%5));           // a heap well inside the stride — see above
+    g.fillStyle=day?"rgba(148,140,158,0.26)":"rgba(64,60,78,0.24)";
+    g.fillRect((sx-hw)|0,(Y-1)|0,hw*2,2);                           // the dust bed it all settled into
+    // 🚨🔑 RULE 1 — ONE BIG OBJECT. The first pass was five 3-6px chips lying flat, and `whodrew`
+    // confirmed they were all being drawn exactly as written: correct code, invisible feature, this
+    // project's most common failure and not its most obvious. What comes down here is a SPAN — forty
+    // world px of concrete deck — so the heap is led by one unmistakable canted SLAB, propped at one
+    // end on the rubble of its own pier, and the chips are what surrounds it rather than all of it.
+    // ⚠ Its height is chosen against a body: `drawPerson` is a fixed 7px, so a 5-7px slab standing
+    // beside one is read instantly as "that is bigger than a person" — RULE 3 doing the work.
+    var slw=Math.max(7,Math.round(span*0.28)+((h>>>3)%4)), sdir=((h>>>5)&1)?1:-1;
+    var slh=4+((h>>>7)%3), slx=sx-((slw>>1))+(((h>>>9)%5)-2);
+    for(var sq=0; sq<slw; sq++){                                    // a flat plate lying at an angle: it steps once every few px
+      var rise=Math.round((sq/slw)*slh);
+      var cy2=Y-1-(sdir>0?rise:(slh-rise));
+      g.fillStyle=slabB; g.fillRect((slx+sq)|0,cy2|0,1,Math.max(2,Y-cy2));
+      g.fillStyle=day?"#6a6276":"#2a2636"; g.fillRect((slx+sq)|0,cy2|0,1,1);   // the top face catching the light
+    }
+    g.fillStyle=slabA; g.fillRect((slx-1)|0,(Y-2)|0,slw+2,2);        // …and what it is propped on
+    for(var sl=0; sl<2+((h>>>11)%3); sl++){                         // the smaller broken pieces around it
+      var sh2=((h>>>(13+sl*3))>>>0);
+      var sw3=2+(sh2%5), st3=1+((sh2>>>4)%3), sox=(sh2>>>8)%Math.max(1,(hw*2-sw3)), soy=((sh2>>>13)%2);
+      g.fillStyle=(sl&1)?slabA:slabB;
+      g.fillRect((sx-hw+sox)|0,(Y-st3-soy)|0,sw3,st3);
+      if(st3>1){ g.fillStyle=day?"#5a5266":"#221e2e"; g.fillRect((sx-hw+sox)|0,(Y-st3-soy)|0,sw3,1); }   // the broken face catching the light
+    }
+    // A LENGTH OF RAIL, TWISTED OUT OF THE WRECKAGE — the one piece that says railway rather than
+    // building. Steel bends where concrete breaks, so it is the only thing here that is not straight.
+    var rl=4+((h>>>19)%5), rdir=((h>>>23)&1)?1:-1, rx=sx+rdir*(2+((h>>>25)%5)), ryy=Y-2;
+    g.fillStyle=day?"#6a6272":"#2a2734";
+    for(var rq=0;rq<rl;rq++){ g.fillRect((rx+rdir*rq)|0,(ryy-Math.round(rq*0.7)+((rq>rl*0.6)?1:0))|0,1,1); }
+    // AND THE PEOPLE WHO WERE UNDERNEATH IT. Not the mark of the ending — the mark of the SPAN.
+    if(GK>0 && (h>>>29)%3===0){
+      var bx2=sx-hw+((h>>>11)%Math.max(1,hw*2-4)), bcl=PEDC[(h>>>17)%PEDC.length], bsk=SKINC[(h>>>21)%SKINC.length];
+      drawPerson(g,bx2|0,(Y-1)|0,hexDark(bcl,0.35),bsk,((h>>>27)&1)?1:-1);   // a FIXED 7px — never scaled by KSP
+      g.fillStyle=(day?"rgba(150,14,18,":"rgba(96,10,14,")+(0.62*GK).toFixed(2)+")";
+      g.fillRect((bx2-3)|0,(Y-1)|0,7,1);
+      g.fillStyle=(sl&1)?slabA:slabB; g.fillRect((bx2-1)|0,(Y-3)|0,4,2);     // …with a slab of it across them
+    }
+  }
+}
+// 🔒 HIS CALL: THE TRAIN DERAILS AT THE BREAK.
+// 🔑🔑 AND IT IS A DETERMINISTIC POPULATION, NOT THE LIVE SERVICE FROZEN. A running train's x is a
+// function of the clock, so "leave it where the front caught it" needs state it cannot have: it
+// could not survive a single-frame render, and the three monitors would each put the wreck in a
+// different place and disagree across the bezels. Exactly the lesson the crashed cars needed one
+// commit ago, and the reason `apocVictims` is hashed per life rather than simulated.
+// The set comes down where the ending FIRST reached the line — the epicentre for anything with one,
+// a per-life hash for the ends that have no direction.
+function elevWreckX(now){
+  var h=((nukeDetId(now)*2654435761+7717)>>>0); h=(h^(h>>>15))>>>0; h=((h*2246822519)>>>0); h=(h^(h>>>13))>>>0;
+  // 🚨🔑 TWO OR THREE SPANS OUT, AND NEITHER NUMBER IS ARBITRARY. At ±3 spans the first version put
+  // the wreck 120 world px from the epicentre, which is still standing long after the collapse there
+  // is finished, so the set "that came down at the break" did not appear until the front had widened
+  // four times over. At ±1 it was worse in a way no reasoning would have caught and only a render
+  // did: THE KAIJU IS STANDING ON THE EPICENTRE. Two probes proved the wreck was being drawn — 62
+  // rects, in the right place, every frame — and the monster's leg is 60 px of solid dark green over
+  // exactly that spot, so it had never once been visible. 🔑 A feature can be drawn, correct, and
+  // occluded by the very thing that caused it.
+  // 80-120 wp clears the creature and is still deep inside the fully-collapsed core (which reaches
+  // 170 wp behind the front) from the moment the front is ~290 wp out.
+  // ⚠ SNAP FIRST, THEN STEP WHOLE SPANS. Snapping `base+off` to the pier grid quietly ate up to half
+  // a span of the offset — the one thing the offset exists to guarantee.
+  var base=apocPositional() ? apocEpiX(now) : Math.round(WW*((h%1000)/1000));
+  var off=(3+((h>>>11)&1))*(((h>>>7)&1)?1:-1)*ELEV_SPAN;
+  return wrapW(Math.round(base/ELEV_SPAN)*ELEV_SPAN + off);
+}
+function drawElevTrainWreck(g,L,now,ty){
+  var m=apocElevMode(); if(m!=="demolish"&&m!=="corrode") return;
+  if(!apocStruck()) return;
+  var hA=elevDeckH(), wxw=elevWreckX(now);
+  if(!apocElevGone(wxw,hA)) return;                                  // it has not come down yet
+  if(apocInPit(wrapW(wxw))) return;
+  var X=disX(wxw); if(X<-46||X>SW+46) return;
+  var day=L>0.5, GK=goreK(), Y=HORIZON;
+  var h=((wxw*2654435761+9137)>>>0); h=(h^(h>>>13))>>>0;
+  var body=day?"#8e97a8":"#454b5a", dark=day?"#2a2e3a":"#12141d";
+  var lc=TRLINE[((h>>>5)%TRLINE.length)];
+  // TWO CARS DOWN IN THE OPEN, crumpled and on their sides — 15 px long lying flat is 5 px tall.
+  for(var c=0;c<2;c++){
+    var cw2=13+((h>>>(c*5))%4), cx=(X-16+c*(cw2+3)+((((h>>>(c*7))%5))-2))|0, cy=(Y-5)|0;
+    g.fillStyle=body; g.fillRect(cx,cy,cw2,5);
+    g.fillStyle=lc;   g.fillRect(cx,cy+((c&1)?3:1),cw2,1);            // the line's colour band, still readable on a wreck
+    g.fillStyle=dark; g.fillRect(cx,cy+5,cw2,1);
+    // the roof caved and the glass all out: dark holes where the windows were
+    g.fillStyle=day?"#1b1e26":"#0b0d13";
+    for(var wq=1;wq<cw2-1;wq+=3) g.fillRect(cx+wq,cy+2,2,2);
+    g.fillStyle=day?"#5a6272":"#232836";
+    g.fillRect(cx+(((h>>>(11+c))%Math.max(1,cw2-4))|0),cy-1,3,1);     // buckled roof rib standing proud
+  }
+  // AND ONE STILL ON THE EDGE, NOSE OVER THE VOID — the piece that makes it a fall and not a scrapyard.
+  // It hangs off whichever side still has deck under it; if both spans went, the whole set is down.
+  var lft=!apocElevGone(wrapW(wxw-ELEV_SPAN),hA), rgt=!apocElevGone(wrapW(wxw+ELEV_SPAN),hA);
+  if(lft||rgt){
+    var hd=lft?1:-1, exs=lft?(X-1):(X+1);
+    g.fillStyle=body;
+    for(var q=0;q<13;q++){                                            // a staircase down from the broken end reads as a tilt
+      var qx=(exs+hd*Math.round(q*0.62))|0, qy=(ty+2+Math.round(q*0.86))|0;
+      if(qy>Y-2) break;
+      g.fillRect(qx,qy,3,2);
+      if(q===12||qy>Y-6){ g.fillStyle=day?"#fff4c0":"#8a7c48"; g.fillRect(qx,qy,1,1); g.fillStyle=body; }   // the headlight, pointing at the ground
+    }
+    g.fillStyle=lc; g.fillRect((exs+hd)|0,(ty+3)|0,2,1);
+  }
+  if(GK>0){                                                           // and the people who were on it
+    for(var pz=0; pz<2+((h>>>19)%2); pz++){
+      var px3=(X-12+((h>>>(21+pz*2))%25))|0, pcl=PEDC[((h>>>(9+pz))>>>0)%PEDC.length];
+      drawPerson(g,px3,(Y-1)|0,hexDark(pcl,0.35),SKINC[((h>>>(13+pz))>>>0)%SKINC.length],((h>>>(3+pz))&1)?1:-1);
+      g.fillStyle=(day?"rgba(150,14,18,":"rgba(96,10,14,")+(0.6*GK).toFixed(2)+")"; g.fillRect((px3-3)|0,(Y-1)|0,7,1);
+    }
+  }
 }
 // WHAT THE ACID DOES TO A RAILWAY ON ITS WAY THROUGH IT: the steel dulls and goes sickly, the head of
 // each rail pits until the line is broken, the sleepers rot out from under it and the contact wire
@@ -16019,6 +16459,36 @@ function drawTramwayCorrosion(g,L,now){
       g.fillRect(x,wY+sag,1,1); g.fillRect(x,wY2+sag,1,1);          // the parted ends, sagging
       g.fillStyle="rgba(0,0,0,0.55)";
       g.fillRect(x,wY,1,1); g.fillRect(x,wY2,1,1);                  // …and the gap they left
+    }
+  }
+}
+// WHAT THE FREEZE DOES TO A RAILWAY IT IS NOT ALLOWED TO DELETE: the polished crown ices over, the
+// gauge fills with drift between the sleepers, and the contact wire loads up until it is a white line
+// instead of a dark one. Sibling of drawTramwayCorrosion, and the reason `apocEatF` now returns 0 for
+// a freeze rather than 1 — the track has to still be there for anything to be drawn ON it.
+// ⚡ Same shape as the corrosion pass: one column loop, only during one ending, only where the track is.
+function drawTramwayIce(g,L,now){
+  if(apocElevMode()!=="freeze") return;
+  var rf=railFrac(); if(rf<=0.001) return;
+  var day=L>0.5, K=Math.max(1,KSP);
+  var r1a=tramLaneY(0), r1b=tramLaneY(1), wY=r1a-Math.round(4.5*K), wY2=r1b-Math.round(4.5*K);
+  for(var x=0;x<SW;x++){
+    var wx=wrapW(x+WOFF); if(wx>=WW*rf && rf<1) continue;
+    var cl=apocElevCl(wx,0); if(cl<0) continue;                    // ⚠ height 0: this track is ON the ground
+    var e=Math.min(1,cl);
+    var hh=((wx*2654435761+77)>>>0); hh=(hh^(hh>>>15))>>>0; hh=((hh*2246822519)>>>0); hh=(hh^(hh>>>13))>>>0;
+    for(var t=0;t<2;t++){
+      var ry=t?r1b:r1a, r1=ry+Math.max(1,Math.round(K*0.5)), r2=r1+Math.max(2,Math.round(TRAM_GAUGE*K));
+      g.fillStyle=(day?"rgba(216,238,255,":"rgba(150,186,224,")+(0.26+0.5*e).toFixed(3)+")";
+      g.fillRect(x,r1,1,Math.max(1,Math.round(K*0.5))); g.fillRect(x,r2,1,Math.max(1,Math.round(K*0.5)));
+      if(e>0.4 && ((hh>>>(t?7:3))%100) < (e-0.4)/0.6*70){          // drift filling the gauge, burying the sleepers
+        g.fillStyle=(day?"rgba(228,244,255,":"rgba(164,196,228,")+(0.5*e).toFixed(3)+")";
+        g.fillRect(x,r1,1,Math.max(1,r2-r1));
+      }
+    }
+    if(e>0.3 && ((hh>>>21)%100) < (e-0.3)/0.7*74){                 // the wire loads with ice until it reads white
+      g.fillStyle=day?"rgba(226,242,255,0.8)":"rgba(158,190,222,0.55)";
+      g.fillRect(x,wY,1,1); g.fillRect(x,wY2,1,1);
     }
   }
 }
@@ -49486,16 +49956,44 @@ function drawMonorail(g,L,now,cb,part){
   if(curVillage) return;   // VILLAGE BAN: an elevated concrete viaduct straight through the village
 
   var gy=HORIZON, ry=gy-(Math.round(GROUND*1.1)+34)-((cb.seed||0)%4), spacing=64, prog=(cb.prog==null?1:cb.prog);
-  var beamEnd=Math.round(SW*prog);                                                            // under construction: the line extends left→right
+  // 🚨🔑🔑 `beamEnd = SW*prog` WAS SCREEN SPACE. *SW is a clip bound and is never a distance* — the
+  // pylons two lines below are world-anchored and the beam they carry was not, so a monorail under
+  // construction laid its railhead, its crane, its swinging girder and its welding flash at the same
+  // FRACTION of every monitor: three railheads on one line, three cranes, and the beam stopping dead
+  // in mid-air twice over. Found while guarding this routine, not by looking for it.
+  var builtW=WW*prog, beamEnd=Math.round(Math.max(0,Math.min(SW,builtW-WOFF)));
   var pylonEnd=Math.min(SW,beamEnd+(prog<1?spacing:0));                                        // supports are erected a span AHEAD of the laid beam
   var startW=Math.floor((WOFF-spacing)/spacing)*spacing;
+  // 🚨🚨 THE MONORAIL HAD NO APOCALYPSE TEST AT ALL and rode intact over all 43 endings — a sleek
+  // white beam on clean pylons above a city that had been levelled underneath it. `drawMonorailService`
+  // stopped the TRAIN on `nukeStruck()` and nobody ever asked about the thing it ran on. It fails on
+  // the same six modes as the viaduct, at its OWN height: riding 34 px higher makes it the last thing
+  // above the water in the flood, and that falls out of the geometry rather than out of a table.
+  var mH=gy-ry, mMode=apocElevMode(), mDrop=Math.max(4,Math.round(mH*0.55));
   if(part!=="service"){
   for(var wx=startW; wx<WOFF+SW+spacing; wx+=spacing){ var sx=(wx-WOFF)|0; if(sx>pylonEnd+2) continue;   // world-anchored pylons
+    var mp=mMode?elevState(wx,mH,mDrop):null;
+    if(mp&&mp.gone){                                                                          // a snapped pylon, not an absence
+      var msH=Math.max(2,Math.round((gy-ry-3)*(0.16+((mp.h>>>17)%24)/100)));
+      g.fillStyle=L>0.5?"#6a7078":"#161a21"; g.fillRect(sx+(mp.lean>0?1:0),gy-msH,2,msH);
+      g.fillStyle=L>0.5?"#aab0b8":"#2c323a"; g.fillRect(sx,gy-msH,2,1); continue; }
     g.fillStyle=L>0.5?"#8a9099":"#20252e"; g.fillRect(sx,ry+3,2,gy-(ry+3)); g.fillRect(sx-2,ry+1,6,2); }
-  g.fillStyle=L>0.5?"#9aa0a8":"#252b34"; g.fillRect(0,ry,beamEnd,3);                          // the beam
-  g.fillStyle=L>0.5?"#c0c6cc":"#39414c"; g.fillRect(0,ry,beamEnd,1);                          // rail highlight
-  if(prog<1){                                                                                 // UNDER CONSTRUCTION — a railhead crane lays the beam
-    var hx=Math.min(SW-2,beamEnd);
+  // ⚠ THE BEAM WAS TWO FULL-WIDTH RECTS — the same shape of rule the viaduct's deck and underside
+  // both were, and the reason nothing could ever happen to a PART of it. Drawn span to span now.
+  for(var mb=startW; mb<WOFF+SW+spacing; mb+=spacing){
+    var mx=mb-WOFF, mw=spacing;
+    if(mx<0){ mw+=mx; mx=0; }
+    if(mx>=beamEnd||mw<=0) continue;
+    if(mx+mw>beamEnd) mw=beamEnd-mx;
+    var ms=mMode?elevState(mb,mH,mDrop):null;
+    if(ms&&ms.gone) continue;
+    if(ms&&ms.sag>0){ drawElevFolded(g,mx,mw,ry,ms,L>0.5?"#9aa0a8":"#252b34",L>0.5?"#767c84":"#171c23",L>0.5?"#c8ced6":"#3e4650",L>0.5); continue; }
+    g.fillStyle=L>0.5?"#9aa0a8":"#252b34"; g.fillRect(mx|0,ry,mw|0,3);                       // the beam
+    g.fillStyle=L>0.5?"#c0c6cc":"#39414c"; g.fillRect(mx|0,ry,mw|0,1);                       // rail highlight
+  }
+  if(prog<1 && !mMode){                                                                       // UNDER CONSTRUCTION — a railhead crane lays the beam
+    var hxw=builtW-WOFF; if(hxw<-20||hxw>SW+4) return;                                        // …and the railhead is on ONE screen, not all of them
+    var hx=hxw|0;
     g.fillStyle=L>0.5?"#e0a83a":"#7a6320"; g.fillRect(hx,ry-18,3,gy-(ry-18));                 // crane mast at the railhead (tall, hi-vis)
     g.fillRect(hx-13,ry-18,16,2);                                                             // jib reaching back over the finished beam
     g.fillRect(hx+2,ry-18,4,1);                                                               // counter-jib
@@ -49512,7 +50010,10 @@ function drawMonorail(g,L,now,cb,part){
   }
   }
   if(part==="base") return;
-  if(prog<1) return;
+  // what its beam left on the ground, through the viaduct's own routine at the monorail's pitch
+  if(mMode) drawElevWreck(g,L,now,startW,builtW,spacing,mH,8821,
+                          L>0.5?"#454b53":"#12161c", L>0.5?"#666c74":"#1e232a");
+  if(prog<1||apocElevEmpty()) return;                                                        // nothing runs over a broken beam
   // World-space travel makes one continuous monorail cross monitor boundaries. The old SW-based
   // position restarted a different train on every screen and visibly jumped at every seam.
   var trainW=42, route=WW+trainW+90, mwx=((now*0.05)%route)-trainW-50, tx=mwx-WOFF;
@@ -49521,7 +50022,10 @@ function drawMonorail(g,L,now,cb,part){
 function drawMonorailService(g,L,now){
   if(curVillage) return;   // VILLAGE BAN: the monorail train that rides it
 
-  if(!curBuilds||nukeStruck()) return;
+  // ⚠ THIS USED TO BAIL ON `nukeStruck()`, which is now exactly wrong: the service pass is where the
+  // fallen beam is drawn, and refusing to run it once the ending had struck would delete the wreckage
+  // along with the train. The train stops inside, on `apocElevEmpty()`.
+  if(!curBuilds) return;
   for(var i=0;i<curBuilds.length;i++) if(curBuilds[i].t==="monorail"&&curBuilds[i].bp!=="cons")
     drawMonorail(g,L,now,curBuilds[i],"service");
 }
@@ -56392,6 +56896,7 @@ function draw(g,pass){
   // real order of works and the one that keeps every line that was already there.
   drawTramway(g,L,now);
   drawTramwayCorrosion(g,L,now);          // …and what the acid is doing to it on its way through
+  drawTramwayIce(g,L,now);                // …or the freeze, now that a freeze no longer deletes it
   drawTrackGang(g,L,now);
   // lane markings + crosswalks — only once the city has proper paved multi-lane roads
   if(!curVillage && paintFrac>0){
