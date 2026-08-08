@@ -43,7 +43,7 @@ Item {
             var g = getContext("2d");
             var CYC = 604800000, EPOCH = 1783972450746;
             // the ending under review first, then UNCHANGED ones as the noise reading for this run.
-            var deaths = ["warmachine","logout","thepit"];   // the one under review FIRST, then UNCHANGED ones as this run's noise reading
+            var deaths = ["thehollow","logout","thepit"];   // the one under review FIRST, then UNCHANGED ones as this run's noise reading
             var acc = {};
             function key(e,d){ return e+"|"+d; }
 
@@ -78,7 +78,7 @@ Item {
             // a 1.03 ms spread, so a real +0.5 was unreadable. At 18 they settled and the change under
             // test came back +0.10. 🔑 Interleaving controls for DRIFT, not for SAMPLE SIZE — when the
             // unchanged endings disagree by more than ~0.3, raise this rather than believing the delta.
-            for (var r = 0; r < 8; r++)
+            for (var r = 0; r < 18; r++)
                 for (var j = 0; j < deaths.length; j++)
                     for (var h = 0; h < 2; h++) {
                         var hour = h ? 23 : 13;

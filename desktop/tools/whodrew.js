@@ -57,7 +57,15 @@ ctx.applyConfig(opt.apocepi !== undefined
   ? { lat: 41.5243, lon: -72.0759, apocEpi: Number(opt.apocepi) }
   : { lat: 41.5243, lon: -72.0759 });
 // his real primary geometry, at zoom 1 (world px == canvas px, so the numbers printed are WORLD px)
-ctx.setup('neon', { cw: 776, ch: 437, woff: woff, ww: 2269, pxk: 3, zoom: 1, taskbarWp: 17, quality: 'balanced', frameMs: 125 });
+// 🚨🔑🔑 `cw=`/`ch=` — AND THE Y COORDINATE IS THE WHOLE REASON. This was pinned to 776x437, so a box
+// read off a render of any OTHER screen was probed against different rows: `HORIZON = SH - GROUND`,
+// so a 360-tall frame and a 437-tall frame do not share a horizon, a road band or a skyline. Passing
+// a y measured on his 640x360 right screen into a 437-tall probe silently asks about a different part
+// of the world and answers confidently — it returned "nothing drew here" for a blob that is plainly
+// in the picture. ⚠ x was always fine (zoom 1, same woff), which is exactly what made it convincing.
+const cw = opt.cw !== undefined ? Number(opt.cw) : 776;
+const ch = opt.ch !== undefined ? Number(opt.ch) : 437;
+ctx.setup('neon', { cw: cw, ch: ch, woff: woff, ww: 2269, pxk: 3, zoom: 1, taskbarWp: 17, quality: 'balanced', frameMs: 125 });
 ctx.FORCEAGE = age; ctx.NOWOVR = ctx.CLOCK = now;
 // THE FINALE. Without these the tool can only ever attribute a pixel in a LIVING city, so every
 // apocalypse renderer is unattributable — which is how "what is that pale line in the pit?" became
@@ -73,7 +81,7 @@ const canvas = new Proxy({}, {
     if (p === 'measureText') return (s) => ({ width: String(s || '').length * 4 });
     if (p === 'createLinearGradient' || p === 'createRadialGradient' || p === 'createPattern') return () => ({ addColorStop() {} });
     if (p === 'getImageData') return () => ({ data: [] });
-    if (p === 'canvas') return { width: 776, height: 437 };
+    if (p === 'canvas') return { width: cw, height: ch };
     if (p === 'fillRect') return (x, y, w, h) => {
       // ⚠ big background fills would drown the output — anything over 60px a side is terrain/sky.
       // 🚨 …AND THAT BLIND SPOT HAS NOW COST TIME TWICE. It hid the plains field (mid-size bars) and
