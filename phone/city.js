@@ -50873,6 +50873,36 @@ function meteorHitAt(x){ var arr=meteorImpacts(), best=null;
 // ---- the renderers. A table, not eight more `if(curDeath===...)` lines in the dispatch. ----
 var APOC_X={};
 
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+// 🌍🚨🚨 WORLD-ANCHORING FOR THIS WHOLE TIER — TWELVE OF THESE THIRTEEN ENDINGS WERE SCREEN-SPACE.
+// Not one instance: the standing state of the tier. `((h%1000)/1000)*SW` puts a thing at a fraction
+// of THE VIEWPORT, so on his three monitors — which are one continuous window onto one 2269 px world
+// (DP-3 0–776 · DP-4 776–1629 · HDMI-A-3 1629–2269) — every screen draws its own private copy of the
+// same scatter, in lockstep, with the bezels cutting through it.
+// 📏 MEASURED, not argued: two OVERLAPPING viewports (woff 0 vs 200) at a pinned `clock=`, comparing
+// only the 576 px of world they SHARE. `skyfall` disagreed with itself on 47.26% of those pixels
+// against a world-anchored control ending reading 6.83% on the same land at the same moment — and
+// that 6.83% is the land's own traffic and pedestrians, which is why the control is not optional.
+// 🔑 IT IS INVISIBLE ON ANY SINGLE SCREEN, which is exactly how a whole tier of endings kept it.
+// 🔑 `SW` IS A CLIP BOUND AND IS NEVER A DISTANCE — the branch has now paid for this in the frost,
+// thescream, the monorail beam and the glass storm. What is legitimately `SW` is a full-frame wash or
+// a gradient row: those are about the VIEWPORT and are horizontally uniform, so they agree anyway.
+// ⚠ THE PRECEDENT WAS ALREADY IN THE FILE: the sun is `Math.round(df*WW-WOFF)` with a cull, and has
+// been for as long as there has been a sun. Nothing here needed inventing.
+// ---- ONE LAW, not twelve hand-edits: hash → a WORLD x → this screen, wrap-aware. The caller culls.
+function apocScatterX(h){ return disX(((h>>>0)%1000)/1000*WW); }
+// …and for a thing that is ONE object rather than a scatter (a planet, a comet, the sun going out).
+// 🚨🔑 IT IS ANCHORED TO GROUND ZERO, NOT TO AN ABSOLUTE WORLD FRACTION, and the first version was
+// the latter — which put the comet at world 1577 while the apocalypse happened at 1949, i.e. off the
+// side of the very screen `apocEpi` exists to aim it at. **Every effect keys off `apocEpiX` so that
+// one config key aims the whole apocalypse**; a sky object that ignores it is the one thing in the
+// frame pointing somewhere else. `frac` 0..1 now spans ±0.3·WW about the epicentre, so 0.5 is
+// directly overhead and a comet running 0.10→0.95 crosses the sky above the place that is ending.
+function apocSkyX(frac,now){
+  var e=(typeof apocEpiX==="function")?apocEpiX(now!=null?now:(NOWOVR!=null?NOWOVR:Date.now())):Math.round(WW*0.5);
+  return disX(wrapW(e+(frac-0.5)*WW*0.6));
+}
+
 // GAMMA-RAY BURST — the fastest end in the set. One instant, and then a sky that is simply wrong.
 APOC_X.gammaray=function(g,ap,L,now){
   var K=Math.max(1,KSP);
@@ -50903,7 +50933,9 @@ APOC_X.gammaray=function(g,ap,L,now){
 APOC_X.rogueplanet=function(g,ap,L,now){
   var K=Math.max(1,KSP);
   var r=Math.round((10+ap*ap*230)*K);
-  var cx=Math.round(SW*0.62), cy=Math.round(HORIZON*0.30-ap*HORIZON*0.10);
+  // 🌍 A PLANET HANGS OVER ONE PLACE. At `SW*0.62` there were three of it, one per monitor. The sun
+  // has been `Math.round(df*WW-WOFF)` with a cull for as long as there has been a sun — same law.
+  var cx=Math.round(apocSkyX(0.62,now)), cy=Math.round(HORIZON*0.30-ap*HORIZON*0.10);
   // it eclipses. The light on the whole frame goes as it comes, which is the only way a thing in the
   // sky can affect a city that is drawn separately from it.
   var dark=Math.min(0.72,ap*0.9);
@@ -50940,7 +50972,7 @@ APOC_X.crustcrack=function(g,ap,L,now){
     var h=((c*2654435761+7)>>>0);
     var t0=(c/n)*0.5;
     var lf=Math.min(1,Math.max(0,(ap-t0)/0.30)); if(lf<=0) continue;
-    var cx=Math.round(((h%1000)/1000)*SW);
+    var cx=Math.round(apocScatterX(h)); if(cx<-40||cx>SW+40) continue;   // 🌍 world-anchored
     var w=Math.round((4+((h>>>7)%14))*K*lf);
     // the fissure, and the light in it. ⚠ It gets WIDER, never longer — a crack that grows sideways
     // reads as the ground failing; one that grows lengthways reads as a drawn line.
@@ -50984,7 +51016,7 @@ APOC_X.oceansboil=function(g,ap,L,now){
   // …and it is BOILING, not fog: bubbles bursting along the waterline
   for(var b=0;b<Math.round(50*ap);b++){
     var hb=((b*2654435761+13)>>>0);
-    var bx=((hb%1000)/1000)*SW;
+    var bx=apocScatterX(hb); if(bx<-4||bx>SW+4) continue;     // 🌍 world-anchored
     var ph=((now*0.004+b*7)%1);
     g.fillStyle="rgba(255,255,255,"+(0.7*(1-ph)).toFixed(2)+")";
     g.fillRect(bx,sea-Math.round(ph*22*K),Math.round((1+(hb>>>9)%3)*K),Math.max(1,Math.round(K)));
@@ -50998,30 +51030,49 @@ APOC_X.oceansboil=function(g,ap,L,now){
 // GREY GOO — it does not burn or crush. It DISASSEMBLES, and what it leaves is featureless.
 APOC_X.greygoo=function(g,ap,L,now){
   var K=Math.max(1,KSP);
-  var side=1, front=Math.round(-SW*0.15+ap*SW*1.4);
+  // 🌍🚨 A FRONT IS A DISTANCE, AND `SW` IS NEVER ONE. `-SW*0.15+ap*SW*1.4` swept each monitor
+  // separately, so the goo consumed all three screens simultaneously and independently — and on his
+  // 640 wp screen it crossed in a third of the time it took on the 853 wp one. It advances RADIALLY
+  // from ground zero now, the same law `apocSweepR` and every other front here uses, which makes it
+  // cross-monitor correct by construction rather than by a second number kept in step.
+  var gooEpi=(typeof apocEpiX==="function")?apocEpiX(now):Math.round(WW*0.5);
+  var gooR=Math.max(0,(ap-0.06)/0.86)*(WW*0.62);      // full world by ap~0.92, the same law as apocSweepR
   // 🔑 THE READ IS THE ABSENCE OF DETAIL. Everything behind the front becomes ONE smooth grey with no
   // windows, no edges and no silhouette — which on a map made entirely of small bright detail is the
   // most disturbing thing that can happen to it. Nothing else in the set removes information.
   var goo=L>0.5?[150,150,154]:[62,62,68];
+  var gh=HORIZON+Math.round(GROUND*0.6);
+  // the consumed region — run-batched over the columns THIS screen has, so a monitor that holds none
+  // of it costs one comparison per column and draws nothing.
   g.fillStyle=css(goo);
-  g.fillRect(0,0,Math.max(0,Math.min(SW,front)),HORIZON+Math.round(GROUND*0.6));
-  // the front itself is a fine boiling edge, not a straight one
-  if(front>-20&&front<SW+20){
+  var runX=-1, x, inside;
+  for(x=0;x<=SW;x++){
+    inside=(x<SW)&&(nukeDist(wrapW(x+WOFF),gooEpi)<gooR);
+    if(inside){ if(runX<0) runX=x; }
+    else if(runX>=0){ g.fillRect(runX,0,x-runX,gh); runX=-1; }
+  }
+  if(gooR<=0) return;
+  // 🔑 A RADIAL FRONT HAS **TWO** EDGES, and the screen-space version only ever had one — the goo ate
+  // the world from the left and the right-hand boundary did not exist. Both are drawn, and each is a
+  // fine boiling edge rather than a straight one.
+  for(var sgn=-1;sgn<=1;sgn+=2){
+    var front=Math.round(disX(wrapW(gooEpi+sgn*gooR)));
+    if(front<-20||front>SW+20) continue;
     for(var q=0;q<Math.round(HORIZON*0.9);q+=2){
       var wob=Math.round(Math.sin(now*0.006+q*0.19)*4*K)+((((q*2654435761)>>>0)%5)-2);
       g.fillStyle=css(goo);
       g.fillRect(front+wob-Math.round(3*K),q,Math.round(6*K),2);
       g.fillStyle=L>0.5?"rgba(200,200,206,0.7)":"rgba(110,110,120,0.7)";
-      g.fillRect(front+wob+Math.round(3*K),q,Math.max(1,Math.round(K)),2);
+      g.fillRect(front+wob+sgn*Math.round(3*K),q,Math.max(1,Math.round(K)),2);
     }
-  }
-  // and a haze of it in the air ahead — the part that gets to you before the wall does
-  for(var m=0;m<Math.round(70*Math.min(1,ap*2));m++){
-    var hm=((m*2654435761+29)>>>0);
-    var mx=front+Math.round(((hm%1000)/1000)*90*K);
-    if(mx<0||mx>SW) continue;
-    g.fillStyle=rgba(goo,0.5);
-    g.fillRect(mx,Math.round(((hm>>>9)%1000)/1000*HORIZON),Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
+    // and a haze of it in the air AHEAD of that edge — the part that gets to you before the wall does
+    for(var m=0;m<Math.round(35*Math.min(1,ap*2));m++){
+      var hm=((m*2654435761+29+(sgn>0?7:0))>>>0);
+      var mx=front+sgn*Math.round(((hm%1000)/1000)*90*K);
+      if(mx<0||mx>SW) continue;
+      g.fillStyle=rgba(goo,0.5);
+      g.fillRect(mx,Math.round(((hm>>>9)%1000)/1000*HORIZON),Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
+    }
   }
 };
 
@@ -51042,7 +51093,8 @@ APOC_X.lastwinter=function(g,ap,L,now){
   // snow falling the whole time, thickening
   for(var f2=0;f2<Math.round(120*ap);f2++){
     var hf=((f2*2654435761+5)>>>0);
-    var fx2=((hf%1000)/1000)*SW+Math.round(Math.sin(now*0.0008+f2)*10*K);
+    var fx2=apocScatterX(hf)+Math.round(Math.sin(now*0.0008+f2)*10*K);
+    if(fx2<-4||fx2>SW+4) continue;                            // 🌍 the glass storm's bug exactly: snow fell identically on all three
     var fy=((((hf>>>9)%1000)/1000)*HORIZON+(now*0.03)%HORIZON)%HORIZON;
     g.fillStyle="rgba(240,246,252,0.8)";
     g.fillRect(fx2,fy,Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
@@ -51057,12 +51109,19 @@ APOC_X.skyfall=function(g,ap,L,now){
   var skc=biomeSkc(L>0.5);
   // 🔑 SHEETS, NOT PIECES. The horror is that it comes down in ONE PLANE — big flat slabs of sky
   // detaching and sliding, with black behind them. Small falling fragments would just be debris.
-  var n=7;
+  // ⚠ THE COUNT SCALES WITH THE WORLD. Tiling WW into the original 7 made each sheet 324 wp — a
+  // third of a monitor each, so his screen held two of them and the frame was a black wall with one
+  // seam. Seven was authored against ONE viewport; the world is ~3 viewports wide.
+  var n=Math.max(7,Math.round(WW/92));
   for(var s=0;s<n;s++){
     var h=((s*2654435761+11)>>>0);
     var t0=(s/n)*0.45;
     var lf=Math.min(1,Math.max(0,(ap-t0)/0.42)); if(lf<=0) continue;
-    var x0=Math.round((s/n)*SW-SW*0.06), w=Math.round(SW/n*1.25);
+    // 🌍 THE SHEETS TILE THE WORLD, NOT THE VIEWPORT. At `(s/n)*SW` all seven detached across every
+    // monitor at once, so the sky came down three times over in lockstep with a seam at each bezel —
+    // and this ending's whole idea is that it comes down in ONE PLANE.
+    var sw2=WW/n, x0=Math.round(disX(s*sw2)-sw2*0.06), w=Math.round(sw2*1.25);
+    if(x0>SW+40||x0+w<-40) continue;
     var top=Math.round(-HORIZON*0.1+lf*HORIZON*1.15);
     var hh=Math.round(HORIZON*0.42);
     var tilt=Math.round(((h%100)/100-0.5)*10*K*lf);
@@ -51086,17 +51145,30 @@ APOC_X.timestop=function(g,ap,L,now){
   g.globalCompositeOperation="saturation";
   g.fillRect(0,0,SW,SH);
   g.globalCompositeOperation="source-over";
-  // the light drains from the edges inward — a vignette that closes
-  var vig=Math.round(SW*0.42*ap);
-  for(var q=0;q<vig;q++){
-    var a=(0.85*ap*(1-q/Math.max(1,vig)));
-    g.fillStyle="rgba(6,6,9,"+a.toFixed(3)+")";
-    g.fillRect(q,0,1,SH); g.fillRect(SW-q-1,0,1,SH);
+  // 🚨🖥️ THE LIGHT DRAINS INWARD — AND "INWARD" WAS THE SCREEN'S EDGES, WHICH IS THE FROST BUG.
+  // A vignette closing from `q=0` and `q=SW-1` puts a dark band at BOTH SIDES OF EVERY MONITOR, so
+  // across his three it read as four vertical shadows standing in the middle of the world at each
+  // bezel — the same fault that made the frost creep in from the screen edges. The dark closes on
+  // GROUND ZERO now: the world contracts to the one place it is ending, which is also the better
+  // picture. Run-batched on a quantised alpha; a screen with no darkness on it draws nothing.
+  var tsEpi=(typeof apocEpiX==="function")?apocEpiX(now):Math.round(WW*0.5);
+  var lit=Math.max(1,(1-ap*0.88)*WW*0.55);                 // the radius still lit, closing on the epicentre
+  var runX2=-1, runA2=-1, x2, aq2;
+  for(x2=0;x2<=SW;x2++){
+    aq2=-1;
+    if(x2<SW){
+      var d2=nukeDist(wrapW(x2+WOFF),tsEpi);
+      if(d2>lit) aq2=Math.round(Math.min(0.85,0.85*ap*Math.min(1,(d2-lit)/(WW*0.10)))*20)/20;
+    }
+    if(aq2===runA2) continue;
+    if(runA2>0){ g.fillStyle="rgba(6,6,9,"+runA2.toFixed(3)+")"; g.fillRect(runX2,0,x2-runX2,SH); }
+    runX2=x2; runA2=aq2;
   }
   // …and a few things hanging in the air that should have landed
   for(var m=0;m<Math.round(26*ap);m++){
     var hm=((m*2654435761+31)>>>0);
-    var mx=((hm%1000)/1000)*SW, my=Math.round(((hm>>>9)%1000)/1000*HORIZON*0.9);
+    var mx=apocScatterX(hm), my=Math.round(((hm>>>9)%1000)/1000*HORIZON*0.9);
+    if(mx<-4||mx>SW+4) continue;                              // 🌍 world-anchored
     g.fillStyle="rgba(210,210,216,"+(0.5*ap).toFixed(2)+")";
     g.fillRect(mx,my,Math.max(1,Math.round(2*K)),Math.max(1,Math.round(K)));
   }
@@ -51247,7 +51319,10 @@ DIS_T2.dragon=function(g,cd,L,now){
 // THE COMET — it does not hit. It ARRIVES, and while it is overhead everything that burns, burns.
 APOC_X.thecomet=function(g,ap,L,now){
   var K=Math.max(1,KSP);
-  var cx=Math.round(SW*(0.10+ap*0.85)), cy=Math.round(HORIZON*(0.24-ap*0.06));
+  // 🌍 IT CROSSES THE WORLD, NOT THE VIEWPORT — three comets, each crossing its own screen, arriving
+  // at three different times. ⚠ The CENTRE looking right is why this class keeps coming back: check
+  // the path, the radius and the speed, never just the origin (thescream's `rad = ph*SW*1.1`).
+  var cx=Math.round(apocSkyX(0.10+ap*0.85,now)), cy=Math.round(HORIZON*(0.24-ap*0.06));
   var r=Math.round((6+ap*16)*K);
   // the sky goes red first and stays — the comet is the CAUSE, the world burning is the event
   var heat=Math.min(1,ap*1.4);
@@ -51270,7 +51345,8 @@ APOC_X.thecomet=function(g,ap,L,now){
   // …and the city burns underneath it, everywhere at once
   for(var b=0;b<Math.round(60*heat);b++){
     var h=((b*2654435761+17)>>>0);
-    var bx=((h%1000)/1000)*SW, bh=Math.round((3+((h>>>7)%12))*K);
+    var bx=apocScatterX(h), bh=Math.round((3+((h>>>7)%12))*K);
+    if(bx<-6||bx>SW+6) continue;                              // 🌍 world-anchored
     g.fillStyle="rgba(255,130,40,"+(0.4+0.4*Math.abs(Math.sin(now*0.006+b))).toFixed(2)+")";
     g.fillRect(bx,HORIZON-bh,Math.round(2*K),bh);
   }
@@ -51285,7 +51361,8 @@ APOC_X.thechange=function(g,ap,L,now){
   var n=Math.round(30*ap);
   for(var m=0;m<n;m++){
     var h=((m*2654435761+23)>>>0);
-    var px=Math.round(((h%1000)/1000)*SW), gy=HORIZON-1;
+    var px=Math.round(apocScatterX(h)), gy=HORIZON-1;
+    if(px<-20||px>SW+20) continue;                            // 🌍 world-anchored
     var sc=(1+((h>>>7)%3))*K;
     var flesh=mixc([206,152,140],[150,96,110],((h>>>11)%100)/100);
     // a torso that is too tall, and limbs that do not agree about how many there should be
@@ -51306,7 +51383,8 @@ APOC_X.thechange=function(g,ap,L,now){
   // and the buildings start doing it too — frontages bulging where they should be flat
   for(var b=0;b<Math.round(18*ap);b++){
     var hb=((b*2654435761+41)>>>0);
-    var bx=Math.round(((hb%1000)/1000)*SW), by=HORIZON-Math.round(((hb>>>9)%Math.round(HORIZON*0.5)));
+    var bx=Math.round(apocScatterX(hb)), by=HORIZON-Math.round(((hb>>>9)%Math.round(HORIZON*0.5)));
+    if(bx<-14||bx>SW+14) continue;                            // 🌍 world-anchored
     g.fillStyle="rgba(178,132,138,"+(0.55*ap).toFixed(2)+")";
     fillEllipse(g,bx,by,Math.round((3+((hb>>>13)%6))*K),Math.round((2+((hb>>>17)%5))*K));
   }
@@ -51322,7 +51400,7 @@ APOC_X.theburst=function(g,ap,L,now){
   var n=Math.round(4+ap*10);
   for(var c=0;c<n;c++){
     var h=((c*2654435761+53)>>>0);
-    var cx=Math.round(((h%1000)/1000)*SW);
+    var cx=Math.round(apocScatterX(h)); if(cx<-30||cx>SW+30) continue;   // 🌍 world-anchored
     var w=Math.round((2+((h>>>7)%9))*K*Math.min(1,ap*1.6));
     var hgt=Math.round(HORIZON*(0.30+((h>>>11)%40)/100*0.7)*Math.min(1,ap*1.5));
     for(var q=0;q<hgt;q++){
@@ -51335,7 +51413,8 @@ APOC_X.theburst=function(g,ap,L,now){
   if(lift>0){                                                       // and the ground goes
     for(var s=0;s<10;s++){
       var hs=((s*2654435761+59)>>>0);
-      var sx=Math.round(((hs%1000)/1000)*SW), sw=Math.round((14+((hs>>>7)%40))*K);
+      var sx=Math.round(apocScatterX(hs)), sw=Math.round((14+((hs>>>7)%40))*K);
+      if(sx<-sw*2||sx>SW+sw*2) continue;                      // 🌍 world-anchored
       var up=Math.round(lift*lift*HORIZON*0.5*(0.4+((hs>>>11)%60)/100));
       var tilt=Math.round(((hs%100)/100-0.5)*10*K*lift);
       g.fillStyle=biomeSkc(L>0.5)?"rgba(0,0,0,0)":"rgba(0,0,0,0)";
@@ -51359,8 +51438,17 @@ APOC_X.thetitans=function(g,ap,L,now){
     var h=((t*2654435761+61)>>>0);
     var walk=Math.min(1,Math.max(0,(ap-(t/n)*0.5)/0.35));
     if(walk<=0) continue;
-    var px=Math.round(((h%1000)/1000)*SW*1.2-SW*0.1+Math.sin(now*0.0004+t)*10*K);
+    var px=Math.round(apocScatterX(h)+Math.sin(now*0.0004+t)*10*K);
+    // ⚠ THE HEIGHT KEEPS ITS `K`, AND I TOOK IT OUT ONCE BEFORE PUTTING IT BACK. The rule I reached
+    // for — "building heights never touch KSP", learnt on the war machine's walkers — IS NOT TRUE OF
+    // THIS ENGINE: `megaH=(150+idx*24)*KSP*0.85` and the skyline layers are pitched off `14*KSP`,
+    // and the setup comment says outright that building masses scale by KSP. Removing it made the
+    // titan HALF the towers on his screen, which the render showed at once.
+    // 🔑 The rule that survives is the general one — a thing whose job is to be COMPARED must be in
+    // the units of what it is compared WITH. Here that unit is KSP, because buildings use it; it is
+    // `drawPerson`'s fixed 7px that is the exception, not the buildings.
     var H=Math.round((30+((h>>>7)%26))*K*walk);
+    if(px<-60||px>SW+60) continue;
     var W=Math.round(H*0.26), gy=HORIZON, top=gy-H;
     var skin=mixc([196,146,128],[150,104,96],((h>>>11)%100)/100);
     var st=Math.sin(now*0.0016+t*2);
@@ -51389,7 +51477,7 @@ APOC_X.ragnarok=function(g,ap,L,now){
   var K=Math.max(1,KSP);
   // the sun going into something. ⚠ drawn as an ECLIPSE that has teeth rather than as an animal in
   // the sky: a wolf-shaped sprite at this scale is a smudge, a bite out of the sun is unmistakable.
-  var sx=Math.round(SW*0.34), sy=Math.round(HORIZON*0.22), r=Math.round(16*K);
+  var sx=Math.round(apocSkyX(0.34,now)), sy=Math.round(HORIZON*0.22), r=Math.round(16*K);   // 🌍 one sun, one place
   g.fillStyle="rgba(14,10,18,"+(0.62*ap).toFixed(2)+")"; g.fillRect(0,0,SW,SH);
   g.globalCompositeOperation="lighter";
   for(var q=r*3;q>0;q--){
@@ -51422,7 +51510,7 @@ APOC_X.ragnarok=function(g,ap,L,now){
     g.fillStyle="rgba(30,54,48,0.94)";
     for(var c=0;c<Math.round(30*K);c++){
       var cf=c/Math.round(30*K);
-      var cx2=Math.round(SW*0.72)+Math.round(Math.sin(cf*Math.PI*1.4+now*0.0006)*40*K);
+      var cx2=Math.round(apocSkyX(0.72,now))+Math.round(Math.sin(cf*Math.PI*1.4+now*0.0006)*40*K);   // 🌍 one coil
       var cy2=sea-rise-Math.round(Math.sin(cf*Math.PI)*26*K*coilA);
       g.fillRect(cx2,cy2,Math.max(1,Math.round(3*K)),Math.max(1,Math.round(3*K)));
     }
