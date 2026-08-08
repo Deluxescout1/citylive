@@ -53428,6 +53428,114 @@ function drawWarMachineWreck(g,X,gy,hgt,hullW,day,t,h){
 }
 // THE FIGHT ITSELF. Positions on the ground, muzzle flash, tracers going UP at whatever this ending
 // put in the air, and the position itself dying when the front reaches it.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// THE ROLLING DUST WALL — 🔒 his pick, and the biggest single lever this ending family has
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// A city being destroyed does not look like a set of buildings each failing on its own; it looks like
+// ONE THING crossing it. That is the whole difference between "basic" and "devastating", and it is
+// what the sweep endings were missing — the destruction was legible per building and connected by
+// nothing. A boiling wall of dust and pulverised concrete advances with the front, swallows what it
+// passes, and leaves a filthy haze behind that never quite clears.
+// 🚨 WORLD-ANCHORED FROM THE FRONT ITSELF (`apocSweepR() - nukeDist`), so it is the same wall on all
+// three monitors AND it cannot drift from the demolition the way the crimson tide's water did.
+// ⚡ Run-batched over columns by quantised height; a column's height is a function of world-x, so it
+// costs one profile per frame, not one per building.
+function drawApocDustWall(g,ap,L,now){
+  if(cityPhase!=="apoc") return;
+  var R=(typeof apocSweepR==="function")?apocSweepR():-1; if(R<=0) return;
+  var epi=(typeof apocEpiX==="function")?apocEpiX(now):Math.round(WW*0.5);
+  var day=L>0.5, gy=HORIZON;
+  // 🚨🚨 FIRST VERSION WAS FOG, NOT DUST. Height ran to 0.92·HORIZON across the ENTIRE swept region at
+  // 0.62 alpha, so by mid-arc a flat grey veil covered the whole frame and the city vanished behind
+  // it — less devastating than before, because you could no longer see what was being destroyed.
+  // 🔑🔑 THE WALL IS A BAND AT THE FRONT. What is behind it is HAZE, thin and low; the drama is the
+  // face, and the face is only a few tens of world px deep. A destruction you cannot see through is
+  // just a curtain.
+  // 🪵 And its top was two clean sines — a cartoon hill. Dust has no wavelength: a high-frequency
+  // roll plus a hashed lump per bucket, so the crown is billowed and irregular.
+  var lead=WW*0.030;
+  // ⚡ SAMPLED EVERY 2px, NOT EVERY COLUMN. Two `Math.sin` per column over 776 columns was measured at
+  // ~+0.7 ms of live frame against a non-sweep control — the whole cost of this layer sat in the
+  // profile loop, not in the drawing. The height is already quantised to 3px and run-batched, so a
+  // 2px sample is bit-identical in almost every run and invisible in the rest.
+  var STEP=2;
+  var runX=-1, runH=-999, runA=-1, x, hq, aq;
+  for(x=0;x<=SW;x+=STEP){
+    hq=-999; aq=-1;
+    if(x<SW){
+      var wx=wrapW(x+WOFF), reach=R-nukeDist(wx,epi);
+      if(reach>-lead){
+        var face=Math.max(0,Math.min(1,(reach+lead)/(lead*2)));
+        var behind=Math.max(0,reach-lead);
+        var settle=1/(1+behind/(WW*0.055));                  // it collapses into haze fast behind the face
+        var hh=((((wx/11)|0)*2654435761)>>>0); hh=(hh^(hh>>>13))>>>0;
+        var roll=Math.sin(wx*0.088+now*0.0021)*0.11
+                +Math.sin(wx*0.029-now*0.0011)*0.13
+                +(((hh%100)/100)-0.5)*0.13;                  // the lump that stops it being a curve (0.20 spiked it)
+        var hgt=gy*(0.09+0.46*face*face)*(0.26+0.74*settle);
+        hq=Math.max(2,Math.round(hgt*(1+roll)));
+        hq=Math.round(hq/3)*3;
+        aq=Math.round((0.18+0.34*face*settle)*100)/100;      // thin where it has settled, thick at the face
+      }
+    }
+    if(hq===runH&&aq===runA) continue;
+    if(runH>-999){
+      var w=x-runX, top=gy-runH;
+      // 🎨 VALUE, NOT COLOUR — dust is the same grey as a dead city, so it has to be LIGHTER than the
+      // ruin by day and DARKER than the sky at night, defined against what is behind it.
+      g.fillStyle=(day?"rgba(158,150,145,":"rgba(40,36,40,")+runA+")";
+      g.fillRect(runX,top,w,runH);
+      g.fillStyle=(day?"rgba(196,188,180,":"rgba(64,58,62,")+Math.min(0.85,runA+0.22).toFixed(2)+")";
+      g.fillRect(runX,top,w,Math.max(1,Math.round(runH*0.13)));            // the lit crown of the roll
+      g.fillStyle=(day?"rgba(88,80,80,":"rgba(14,12,16,")+Math.min(0.8,runA+0.14).toFixed(2)+")";
+      g.fillRect(runX,gy-Math.round(runH*0.20),w,Math.round(runH*0.20));   // the heavy base, dragging
+    }
+    runX=x; runH=hq; runA=aq;
+  }
+}
+// ═══ THE NEAR FIELD — 🔒 his call: big debris past the camera, ash and embers, and a jolt ═══
+// 🔑 THE ONE LAYER THAT PUTS THE VIEWER INSIDE IT. Everything else in this engine happens out in the
+// city, which is a view from a hill; a chunk of masonry tumbling through the foreground — far bigger
+// than any building because it is far closer — says the destruction is where YOU are. It is also a
+// scale reference in the only direction the frame did not have one.
+function drawApocNearField(g,ap,L,now){
+  if(cityPhase!=="apoc"||!apocStruck()) return;
+  var day=L>0.5, K=Math.max(1,KSP), inten=Math.min(1,ap*1.6);
+  // ── ASH AND EMBERS, everywhere, once it has started.
+  var n=Math.round(26*inten);
+  for(var i=0;i<n;i++){
+    var h=((i*2654435761+7717)>>>0); h=(h^(h>>>13))>>>0;
+    var per=2600+((h>>>7)%3400), ph=((now+((h>>>11)%per))%per)/per;
+    // ⚠ WORLD-ANCHORED. Screen-space fall is how the glass storm came to drop the identical shards on
+    // all three monitors in lockstep with the bezels cutting through it.
+    var wx=((h>>>3)%WW), X=disX(wx); if(X<-4||X>SW+4) continue;
+    var y=ph*SH, dx=Math.sin(now*0.0009+i)*3;
+    if(((h>>>17)%9)===0){ g.globalCompositeOperation="lighter";      // an ember, still hot
+      g.fillStyle="rgba(255,150,70,"+(0.65*(1-ph)).toFixed(2)+")";
+      g.fillRect((X+dx)|0,y|0,1,1); g.globalCompositeOperation="source-over"; }
+    else { g.fillStyle=day?"rgba(96,90,88,0.5)":"rgba(150,144,140,0.28)";
+      g.fillRect((X+dx)|0,y|0,1,1); }
+  }
+  // ── BIG DEBRIS THROUGH THE FOREGROUND. Few, large, fast, and dark — they are close, so they are
+  // nearly silhouettes and they do not need detail.
+  var nb=1+Math.round(2*inten);
+  for(var b2=0;b2<nb;b2++){
+    var bh=((b2*40503+((nukeDetId(now)*7919)|0))>>>0); bh=(bh^(bh>>>15))>>>0;
+    var bper=3200+((bh>>>7)%2600), bph=((now+((bh>>>11)%bper))%bper)/bper;
+    var bwx=((bh>>>3)%WW), BX=disX(bwx);
+    var sz=Math.round((7+((bh>>>19)%9))*K);
+    if(BX<-sz*3||BX>SW+sz*3) continue;
+    var by=-sz+bph*(SH+sz*2), bxo=Math.round((bph-0.5)*sz*3*(((bh>>>23)&1)?1:-1));
+    var spin=Math.floor(now/110+b2)%2;
+    g.fillStyle=day?"rgba(30,26,32,0.92)":"rgba(12,10,15,0.94)";
+    g.fillRect((BX+bxo)|0,by|0,spin?sz:Math.round(sz*0.72),spin?Math.round(sz*0.72):sz);
+    g.fillStyle=day?"rgba(70,62,72,0.9)":"rgba(34,29,38,0.9)";       // one lit face so it is not a hole
+    g.fillRect((BX+bxo)|0,by|0,spin?sz:Math.round(sz*0.72),Math.max(1,Math.round(sz*0.16)));
+    // the dust it drags
+    g.fillStyle=day?"rgba(120,112,112,0.20)":"rgba(60,54,60,0.18)";
+    g.fillRect((BX+bxo)|0,(by-sz)|0,Math.max(2,Math.round(sz*0.5)),sz);
+  }
+}
 // ⚠⚠ `drawApocResistance`, NOT `drawResistance` — THE NAME WAS ALREADY TAKEN, by the REGIME's
 // "resistance rising" (spray-tags and X'd-out emblems, `drawResistance(g,L,now)`) 46,000 lines up.
 // A second top-level declaration silently REPLACES the first, so this would have deleted that feature
@@ -54354,7 +54462,9 @@ function drawApocMourners(g,L,now){
 // table (`RESIST_AT`) and drawn in ONE place, after whatever the ending drew.
 function drawApocalypse(g,ap,L,now){
   drawApocalypseBody(g,ap,L,now);
+  drawApocDustWall(g,ap,L,now);      // the front crosses the city as ONE thing, over what it has passed
   drawApocResistance(g,ap,L,now);
+  drawApocNearField(g,ap,L,now);     // …and last, because it is between the viewer and all of it
 }
 function drawApocalypseBody(g,ap,L,now){
   drawApocApproach(g,L,now);   // …and before any of them lands, what you can see coming
@@ -56112,24 +56222,98 @@ function drawApocBuilding(g,b,bx,cl,L,now,bdir){
         g.fillStyle=(fd&1)?"#39414a":"#2b3138"; g.fillRect(fdx|0,(waterY-1+Math.sin(now*0.005+fd)*1)|0,3,2); } }
     return;
   }
-  g.fillStyle="#1b1620"; g.fillRect(bx+wob,top,b.w,keep);       // the dying husk
-  for(var nx=bx; nx<bx+b.w; nx+=2){ var nh=1+((nx*13+b.seed)%4);           // jagged broken crown
-    g.fillStyle="#120e18"; g.fillRect(nx+wob,top-nh,2,nh); }
-  for(var cr=0;cr<3;cr++){ var cx2=bx+2+((b.seed>>cr)%Math.max(1,b.w-4));  // cracks running down the face
-    g.fillStyle="rgba(0,0,0,0.55)"; g.fillRect(cx2,top+2+cr*3,1,Math.max(2,keep>>1)); }
-  g.globalCompositeOperation="source-over";                     // fire along the break line — shared licking-flame idiom
-  drawFlame(g,bx+(b.w>>1),top+1,Math.min(22,b.w),8,now,(b.seed|0)+7,0.8);
-  if(b.w>12) drawFlame(g,bx+(b.w>>2),top+2,Math.min(10,b.w>>1),5,now,(b.seed|0)+41,0.55);
+  // ═══════════════════════════════════════════════════════════════════════════════════════════
+  // THE GENERIC COLLAPSE — used by every APOC_SWEEP ending (warmachine, thepit, crimsontide,
+  // thehollow, swarm, acidrain…), which is most of them.
+  // 🚨🚨 IT WAS `keep = b.h*(1-cl*0.92)` AND NOTHING ELSE: THE TOWER GOT SHORTER. A husk was drawn at
+  // the new height with a jagged crown, some fire and some smoke — so a city being levelled read as a
+  // city being *lowered*, evenly, everywhere, at one rate. Nick: *"it feels too basic and not that
+  // disstructive we need to make it look DEVISTATING."* The nuke and the meteors had a bespoke
+  // blown-apart path all along and everything else shared this.
+  // 🔒 HIS CALL: ALL FOUR WAYS TO DIE, so it is hashed per building — and mixed kinds are what stop a
+  // skyline failing in unison, which is the regularity trap this project keeps paying for.
+  //   0 TOPPLE   — it goes over sideways, lands across the street, and lies there
+  //   1 PANCAKE  — floors drop into each other and it blows a debris ring out at the base
+  //   2 SHEAR    — the top third goes first and separately, leaving a jagged part-standing hulk
+  //   …and chunks tear off and fall on all of them, so something is always in the air near it.
+  var kind=((b.seed*2654435761)>>>0); kind=(kind^(kind>>>13))>>>0;
+  var CK=kind%3, day2=L>0.5;
+  var ruinH=Math.max(3,Math.round(b.h*(0.16+((kind>>>7)%18)/100)));   // what is left standing at the end
+  var body=day2?"#241d29":"#150f1b", bodyD=day2?"#171220":"#0d0912";
+  if(CK===0){
+    // ── TOPPLE. The one where buildings interact: it falls toward its lean side and what it lands on
+    // is the STREET and its neighbour, so the carcass lies across the frame instead of stacking on its
+    // own footprint. The long diagonal is the biggest silhouette change available here.
+    var tdir=((kind>>>11)&1)?1:-1, fall=Math.min(1,cl/0.86);
+    var ang=fall*fall*1.42;                                          // slow start, then it goes
+    var sinA=Math.sin(ang), cosA=Math.cos(ang);
+    var segs=Math.max(3,Math.round(b.h/6));
+    for(var t2=0;t2<segs;t2++){
+      var fr=t2/segs, up=b.h*fr;
+      var px2=bx+(b.w>>1)+tdir*Math.round(up*sinA), py2=gy-Math.round(up*cosA);
+      var brk=(fr>0.55&&fall>0.5)?Math.round((fr-0.55)*b.h*0.5*fall):0;   // it breaks its own back on the way
+      g.fillStyle=(t2&1)?body:bodyD;
+      g.fillRect((px2-(b.w>>1)+tdir*brk)|0,(py2-Math.ceil(b.h/segs))|0,b.w,Math.ceil(b.h/segs)+1);
+    }
+    if(fall>=1){                                                     // …and it stays down, lying there
+      g.fillStyle=bodyD;
+      g.fillRect((bx+(b.w>>1))|0,(gy-Math.max(2,b.w>>1))|0,tdir*Math.round(b.h*0.9)||1,Math.max(2,b.w>>1));
+    }
+  } else if(CK===1){
+    // ── PANCAKE. Floors drop INTO each other — the height falls faster than the mass does, so it
+    // squats before it disappears, and the debris goes sideways at the base rather than up.
+    var sq=Math.min(1,cl/0.9), keepP=Math.max(ruinH,Math.round(b.h*(1-sq*0.88)));
+    var topP=gy-keepP, fl=Math.max(3,Math.round(b.h/7));
+    for(var f2=0;f2<Math.ceil(keepP/fl);f2++){
+      g.fillStyle=(f2&1)?body:bodyD;
+      g.fillRect((bx-Math.round(f2*sq*1.4))|0,(topP+f2*fl)|0,b.w+Math.round(f2*sq*2.8),fl);   // floors spreading as they land
+    }
+    if(sq>0.15){                                                     // the ring of debris punched out sideways
+      var ring=Math.round(b.w*0.5+b.h*0.55*sq);
+      g.fillStyle=day2?"rgba(120,110,120,0.34)":"rgba(56,52,62,0.32)";
+      g.fillRect((bx-(ring>>1))|0,(gy-Math.max(2,Math.round(6*sq)))|0,b.w+ring,Math.max(2,Math.round(7*sq)));
+    }
+  } else {
+    // ── SHEAR. The top third leaves first and on its own, so for a while there is a piece of building
+    // in the air BESIDE the building — which is what makes a skyline read as ruined rather than short.
+    var cut=Math.round(b.h*0.62), st=Math.min(1,cl/0.55), rest=Math.min(1,Math.max(0,(cl-0.5)/0.45));
+    var keepS=Math.max(ruinH,Math.round(cut+(b.h-cut)*(1-st)-(cut-ruinH)*rest));
+    g.fillStyle=body; g.fillRect(bx+wob,(gy-keepS)|0,b.w,keepS);
+    for(var ex2=gy-keepS+3; ex2<gy-2; ex2+=5){                        // exposed floor slabs down the open face
+      g.fillStyle=bodyD; g.fillRect((bx+wob)|0,ex2|0,b.w,1); }
+    if(st<1){                                                        // the sheared top, falling away
+      var topH=Math.round((b.h-cut)*0.9), fx3=bx+Math.round(st*b.w*0.7), fy3=gy-b.h+Math.round(st*st*b.h*1.1);
+      g.fillStyle=bodyD; g.fillRect(fx3|0,fy3|0,b.w,topH);
+      g.fillStyle=body;  g.fillRect(fx3|0,fy3|0,b.w,2);
+    }
+  }
+  // ── CHUNKS TEARING OFF, on all three — there is always something in the air beside it.
+  for(var ch2=0;ch2<4;ch2++){
+    var chh=((kind>>>(ch2*3+2))^(ch2*40503))>>>0;
+    var cph=((now*0.28+chh%900)%900)/900;
+    if(cph>0.98) continue;
+    var cw3=1+((chh>>>5)%3), cx3=bx-2+((chh%Math.max(1,b.w+4)));
+    g.fillStyle=day2?"rgba(46,38,48,0.9)":"rgba(24,19,28,0.9)";
+    g.fillRect(cx3|0,(gy-b.h+cph*b.h*1.05)|0,cw3,cw3+1);
+  }
+  // ── AND WHAT IS LEFT: 🔒 his call, a jagged burning ruin that KEEPS burning.
+  if(cl>=0.86){
+    g.fillStyle=bodyD;
+    for(var rb3=0;rb3<b.w;rb3+=2){
+      var rh4=Math.max(2,Math.round(ruinH*(0.35+(((kind>>>(rb3%13))%100)/100)*0.65)));
+      g.fillRect((bx+rb3)|0,(gy-rh4)|0,2,rh4);                        // a broken, uneven crown — not a flat stump
+    }
+    for(var ef=gy-ruinH+2; ef<gy-1; ef+=4){                           // floors still readable in the wreck
+      g.fillStyle=day2?"rgba(70,60,74,0.5)":"rgba(38,32,44,0.5)"; g.fillRect(bx|0,ef|0,b.w,1); }
+  }
+  drawFlame(g,bx+(b.w>>1),(gy-Math.max(ruinH,3))|0,Math.min(22,b.w),8,now,(b.seed|0)+7,0.8);
+  if(b.w>12) drawFlame(g,bx+(b.w>>2),(gy-Math.max(ruinH,3)+2)|0,Math.min(10,b.w>>1),5,now,(b.seed|0)+41,0.55);
   g.globalCompositeOperation="lighter";
-  for(var sm2=0;sm2<3;sm2++){ var smt=((now*0.03+sm2*160+b.seed)%120);                       // smoke columns
+  for(var sm2=0;sm2<3;sm2++){ var smt=((now*0.03+sm2*160+b.seed)%120);
     g.fillStyle="rgba(50,46,52,"+(0.5*(1-smt/120))+")";
-    g.fillRect((bx+(b.w>>1)-2+Math.sin(now*0.002+sm2)*3)|0,(top-6-smt*0.5)|0,3,3); }
+    g.fillRect((bx+(b.w>>1)-2+Math.sin(now*0.002+sm2)*3)|0,(gy-ruinH-6-smt*0.5)|0,3,3); }
   g.globalCompositeOperation="source-over";
-  for(var db=0;db<3;db++){ var dph=((now*0.25+db*333+b.seed)%700)/700;     // debris raining off
-    g.fillStyle="rgba(40,34,40,0.8)"; g.fillRect((bx+((b.seed>>db)%b.w))|0,(top+dph*keep)|0,1,2); }
   g.fillStyle="rgba(60,56,60,"+(0.3+0.3*cl)+")"; g.fillRect(bx-2,gy-3,b.w+4,3);   // dust at the base
-  if(cl>=1){ g.fillStyle="#17131c"; for(var rb2=0;rb2<b.w;rb2+=2){          // …down to a rubble mound
-    var rh3=2+((rb2*7+b.seed)%4); g.fillRect(bx+rb2,gy-rh3,2,rh3); } }
 }
 // shared doom banner
 function drawDoomHud(g,ap,now,early,late){
