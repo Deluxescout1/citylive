@@ -53228,22 +53228,45 @@ function segRect(g,x0,y0,x1,y1,t){
 //    object. Their position is derived FROM the front, so they are always standing on the edge of
 //    what is being levelled, and the beam goes where they are walking.
 APOC_X.warmachine=function(g,ap,L,now){
-  var K=Math.max(1,KSP), day=L>0.5;
+  var K=Math.max(1,KSP), day=L>0.5, GK=goreK();
   skyWash(g,"72,76,84",0.34*ap);
-  var R=(typeof apocSweepR==="function")?apocSweepR():-1; if(R<0) return;
   var epi=(typeof apocEpiX==="function")?apocEpiX(now):Math.round(WW*0.5);
+  var strike=APOC_SWEEP.warmachine;
+  // 🚨🚨 THEY DID NOT ARRIVE, THEY SWITCHED ON. `apocSweepR()` is -1 until cityApoc reaches 0.28, and
+  // this routine opened by returning on that — so for the first 28% of the arc (25 SECONDS of a
+  // 90-second demo loop) the entire ending was a grey sky wash and a ground glow, and then five
+  // machines existed, already standing at the front. Nick, watching it live: *"I am not sure what I
+  // am watching there is nothing going on at all."*
+  // 🔑 THE APPROACH SIGNATURE IS TWO THIRDS OF AN ENDING AND IT WAS RENDERING A TINT. They march in
+  // from beyond the horizon now: far out, small, and closing — so the quiet part is dread rather than
+  // dead air, and the front does not begin until they are standing on it.
+  var R=(typeof apocSweepR==="function")?apocSweepR():-1;
+  var marching=(R<0), march=marching?Math.max(0,Math.min(1,cityApoc/Math.max(0.01,strike))):1;
   var nW=5;
   for(var i=0;i<nW;i++){
     var h=((i*40503+5501)>>>0); h=(h^(h>>>13))>>>0;
     var side=((h>>>3)&1)?1:-1, lag=((h%100)/100)*WW*0.09;
-    var wx=wrapW(epi+side*Math.max(0,R-lag)), X=disX(wx);
-    // ⚠ WORLD PX, NOT `K` PX — measured against HORIZON, which is what the towers are measured against.
+    // 🚨 NOT ALL OF THEM ADVANCE, OR THE SCREEN EMPTIES. Tying every machine to the front meant they
+    // all walked off the edge once `R` outgrew the viewport — on his 640 wp right-hand screen that is
+    // about a third of the way in, and the remaining two thirds of every 90-second loop was flat ruin
+    // with nothing moving in it. The SAME complaint as the dead approach, at the other end of the arc.
+    // 🔑 An occupation is not a wave: some machines follow the front and some STAY in what has already
+    // been levelled, finishing it. Two of five hold near the epicentre, which is also where the wreck
+    // and the bodies are, so the quiet half of the arc still has the story in it.
+    var garrison=(((h>>>5)%5)<2);
+    var dist=marching ? (WW*0.62)*(1-march)+lag*march
+           : garrison ? Math.min(R, WW*0.05+((h%100)/100)*WW*0.06)
+           : Math.max(0,R-lag);
+    var wx=wrapW(epi+side*dist), X=disX(wx);
     var hgt=Math.round(HORIZON*(0.26+((h>>>9)%15)/100));
+    // ⚠ AND THEY ARE SMALLER WHEN THEY ARE FURTHER AWAY. Marching in at full height would read as
+    // teleporting closer, not as approaching — and it is the one cue that costs nothing.
+    if(marching) hgt=Math.round(hgt*(0.42+0.58*march));
     if(X<-hgt||X>SW+hgt) continue;
     var gy=HORIZON-1, bodyY=gy-hgt, hullW=Math.max(6,Math.round(hgt*0.19));
     var gait=Math.sin(now/(330+((h>>>17)%190))+i*1.7);
-    // LEGS — two, jointed, out of phase, and drawn as pixels. `strokeStyle`+`lineTo` put two smooth
-    // antialiased diagonals into a frame where every other mark is a hard-edged rect.
+    var downed=wmDowned(i,now);
+    if(downed>0){ drawWarMachineWreck(g,X,gy,hgt,hullW,day,downed,h); continue; }
     for(var lg=0;lg<2;lg++){
       var sw2=(lg?gait:-gait)*hgt*0.17;
       var hipY=bodyY+Math.round(hgt*0.42), kneeY=bodyY+Math.round(hgt*0.72);
@@ -53252,39 +53275,255 @@ APOC_X.warmachine=function(g,ap,L,now){
       segRect(g,X,hipY,kneeX,kneeY,Math.max(2,Math.round(hgt*0.035)));
       segRect(g,kneeX,kneeY,footX,gy,Math.max(1,Math.round(hgt*0.028)));
       g.fillStyle=day?"rgb(28,31,36)":"rgb(14,16,20)";
-      g.fillRect((footX-Math.round(hgt*0.05))|0,(gy-1)|0,Math.max(2,Math.round(hgt*0.10)),2);   // the foot, planted
+      g.fillRect((footX-Math.round(hgt*0.05))|0,(gy-1)|0,Math.max(2,Math.round(hgt*0.10)),2);
+      // 🦶 STOMPING. 🔒 his call, one of four. The planted foot leaves a print, and when it comes down
+      // on the street it leaves it in somebody. Keyed to the gait so it lands when the foot does.
+      if(!marching && GK>0 && ((lg?gait:-gait)>0.86)){
+        g.fillStyle=(day?"rgba(150,14,18,":"rgba(96,10,14,")+(0.72*GK).toFixed(2)+")";
+        g.fillRect((footX-Math.round(hgt*0.07))|0,(gy-1)|0,Math.max(3,Math.round(hgt*0.14)),2);
+        for(var sp=0;sp<4;sp++){ var sh3=((h>>>(sp*3+2))^(lg*7919))>>>0;
+          g.fillRect((footX+((sh3%Math.max(2,Math.round(hgt*0.3)))-Math.round(hgt*0.15)))|0,(gy-1-((sh3>>>5)%3))|0,1,1); }
+      }
     }
-    // HULL. 🎨 IT WAS ONE FLAT RECTANGLE and read as a black box hanging over the city — RULE 1 says
-    // the one big object has to be READABLE as an object, and a slab is not. A silhouette is what
-    // makes a machine: the body tapers, a cowl hoods the eye, and the legs hang off shoulders that
-    // stand proud of the hull. Six rects, and it stops being a box.
     var bH=Math.round(hgt*0.44), shY=bodyY+Math.round(bH*0.62);
     var hull=day?"rgb(52,56,64)":"rgb(30,33,39)", hullD=day?"rgb(34,38,44)":"rgb(19,21,26)";
     g.fillStyle=hull;
-    g.fillRect((X-hullW)|0, (bodyY+Math.round(bH*0.16))|0, hullW*2, Math.round(bH*0.84));      // the body
-    g.fillRect((X-Math.round(hullW*0.62))|0, bodyY|0, Math.round(hullW*1.24), Math.round(bH*0.22));  // the narrower head
+    g.fillRect((X-hullW)|0, (bodyY+Math.round(bH*0.16))|0, hullW*2, Math.round(bH*0.84));
+    g.fillRect((X-Math.round(hullW*0.62))|0, bodyY|0, Math.round(hullW*1.24), Math.round(bH*0.22));
     g.fillStyle=hullD;
-    g.fillRect((X-Math.round(hullW*0.78))|0, (bodyY+Math.round(bH*0.20))|0, Math.round(hullW*1.56), Math.max(2,Math.round(hgt*0.035)));  // the cowl hooding the eye
-    g.fillRect((X-hullW-Math.round(hullW*0.30))|0, shY|0, Math.round(hullW*0.34), Math.max(2,Math.round(hgt*0.06)));   // shoulders the legs hang from
+    g.fillRect((X-Math.round(hullW*0.78))|0, (bodyY+Math.round(bH*0.20))|0, Math.round(hullW*1.56), Math.max(2,Math.round(hgt*0.035)));
+    g.fillRect((X-hullW-Math.round(hullW*0.30))|0, shY|0, Math.round(hullW*0.34), Math.max(2,Math.round(hgt*0.06)));
     g.fillRect((X+hullW)|0, shY|0, Math.round(hullW*0.34), Math.max(2,Math.round(hgt*0.06)));
     g.fillStyle=day?"rgba(255,255,255,0.09)":"rgba(150,168,200,0.07)";
-    g.fillRect((X-hullW)|0, (bodyY+Math.round(bH*0.16))|0, Math.max(1,Math.round(hgt*0.02)), Math.round(bH*0.84));   // one lit edge, so it is not a slab
-    // THE EYE, AND THE BEAM — aimed along the direction of travel at the ground it is clearing, not
-    // straight down at its own feet.
+    g.fillRect((X-hullW)|0, (bodyY+Math.round(bH*0.16))|0, Math.max(1,Math.round(hgt*0.02)), Math.round(bH*0.84));
     var ex=X, ey=bodyY+Math.round(hgt*0.12);
     g.fillStyle=((now/220|0)%2)?"rgba(255,120,60,0.95)":"rgba(255,180,80,0.95)";
     g.fillRect((ex-Math.max(1,Math.round(hgt*0.03)))|0,ey|0,Math.max(2,Math.round(hgt*0.06)),Math.max(1,Math.round(hgt*0.03)));
-    if(ap>APOC_SWEEP.warmachine){
-      var tx=X+side*Math.round(hgt*0.55);                       // it fires where it is going
+    if(marching) continue;                                   // it does not open fire until it is here
+    // ═══ THE FOUR WEAPONS. 🔒 his call: all of them. ═══
+    // 🔑🔑 THE PEOPLE THEY KILL ARE SCRIPTED FROM A HASH, NOT SIMULATED. A machine's world-x is a pure
+    // function of the clock, so its victims are hashed off (that x, a time bucket) — which means the
+    // three monitors draw the same deaths in the same places, and a single-frame render shows the same
+    // thing the live wallpaper does. The same law `apocVictims` and the crashed cars already obey.
+    var tb=Math.floor(now/900);                              // a fresh set of kills roughly every 0.9s
+    // ① THE SAW ARM — close in, at body height, sweeping the street.
+    var sawA=Math.sin(now/260+i*2.2), sawX=X+side*Math.round(hgt*0.30*(0.55+0.45*sawA));
+    g.fillStyle=day?"rgb(46,50,58)":"rgb(26,29,35)";
+    segRect(g,X+side*Math.round(hullW*0.6),shY,sawX,gy-Math.round(hgt*0.06),Math.max(2,Math.round(hgt*0.03)));
+    g.fillStyle=((now/90|0)&1)?"rgba(210,220,235,0.95)":"rgba(150,160,180,0.9)";
+    g.fillRect((sawX-Math.round(hgt*0.05))|0,(gy-Math.round(hgt*0.08))|0,Math.max(3,Math.round(hgt*0.10)),Math.max(2,Math.round(hgt*0.025)));  // the blade, spinning
+    if(GK>0){
+      // …and what it leaves. A saw does not lay bodies down tidily: it sprays along its sweep.
+      g.fillStyle=(day?"rgba(150,14,18,":"rgba(96,10,14,")+(0.8*GK).toFixed(2)+")";
+      g.fillRect((sawX-Math.round(hgt*0.16))|0,(gy-1)|0,Math.max(4,Math.round(hgt*0.32)),2);
+      for(var sq=0;sq<7;sq++){
+        var sh4=(((tb*2654435761)^(i*40503)^(sq*19349663))>>>0);
+        var sx4=sawX-Math.round(hgt*0.18)+((sh4%Math.max(2,Math.round(hgt*0.36))));
+        var sy4=gy-1-((sh4>>>7)%Math.max(2,Math.round(hgt*0.13)));
+        g.fillRect(sx4|0,sy4|0,1+((sh4>>>13)&1),1);                       // pieces, thrown along the arc
+      }
+      var vh=((tb*2654435761)^(i*7919))>>>0;
+      if((vh%100)<70) wmKill(g,(sawX-side*Math.round(hgt*0.12))|0,gy,"saw",vh,day,GK);
+    }
+    // ② THE LASER — ranged, tracking across the crowd ahead of it, and it FRIES.
+    if(ap>strike){
+      var tx=X+side*Math.round(hgt*0.55+hgt*0.25*Math.sin(now/700+i));
       g.globalCompositeOperation="lighter";
-      g.fillStyle="rgba(255,150,70,"+(0.26+0.30*Math.min(1,(ap-APOC_SWEEP.warmachine)*3)).toFixed(2)+")";
+      g.fillStyle="rgba(255,150,70,"+(0.26+0.30*Math.min(1,(ap-strike)*3)).toFixed(2)+")";
       segRect(g,ex,ey,tx,gy,Math.max(1,Math.round(2*K)));
-      g.fillStyle="rgba(255,220,160,0.5)";
-      g.fillRect((tx-Math.round(hgt*0.06))|0,(gy-2)|0,Math.max(3,Math.round(hgt*0.12)),3);   // the impact on the ground
+      g.fillStyle="rgba(255,220,160,0.55)";
+      g.fillRect((tx-Math.round(hgt*0.06))|0,(gy-2)|0,Math.max(3,Math.round(hgt*0.12)),3);
       g.globalCompositeOperation="source-over";
+      g.fillStyle=day?"rgba(24,18,14,0.72)":"rgba(10,7,5,0.8)";          // the ground it has burned
+      g.fillRect((tx-Math.round(hgt*0.08))|0,(gy-1)|0,Math.max(4,Math.round(hgt*0.16)),2);
+      var lh=((tb*40503)^(i*2654435761))>>>0;
+      if(GK>0 && (lh%100)<62) wmKill(g,tx|0,gy,"burn",lh,day,GK);
+    }
+    // ③ HULL GUNS — many small hits at once, a spray of bodies rather than one dramatic kill.
+    if(((now/140|0)+i)%3===0){
+      var gX=X+side*Math.round(hullW*0.9), gY=shY+Math.round(bH*0.10);
+      g.fillStyle="rgba(255,214,140,0.9)"; g.fillRect(gX|0,gY|0,Math.max(2,Math.round(hgt*0.04)),2);   // muzzle flash
+      g.fillStyle="rgba(255,196,110,0.55)";
+      for(var tr=0;tr<3;tr++){
+        var th4=(((tb*19349663)^(i*73856093)^(tr*2654435761))>>>0);
+        var tX=X+side*(Math.round(hgt*0.20)+(th4%Math.max(2,Math.round(hgt*0.7))));
+        segRect(g,gX,gY,tX,gy-2,1);                                       // tracers down into the street
+        if(GK>0 && ((th4>>>9)%100)<44) wmKill(g,tX|0,gy,"shot",th4,day,GK);
+      }
     }
   }
 };
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// THE RESISTANCE — 🔒 his call: a SHARED system with a per-ending table, and they can bring one down
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// Nick: *"there also needs to be a resistence and they will attemp to shoot down things in the air."*
+// 🔑 BUILT ONCE, ENABLED PER ENDING. The alternative was a bespoke fight inside `warmachine`, and the
+// next ending with something in the air would have started from nothing — this engine has six of them
+// already. The table says WHAT they are shooting at so the tracers can be aimed at the right thing
+// rather than fired vaguely upward, which is the only version that reads as a fight.
+var RESIST_AT={warmachine:"walkers", alienwar:"ships", kaijuwar:"titans", thetitans:"titans",
+               skyfall:"debris", kaiju:"kaiju"};
+function resistOn(){ return cityPhase==="apoc" && RESIST_AT[curDeath]!=null && apocStruck(); }
+// Where a gun position is, in WORLD px — never screen px, or the three monitors each grow their own
+// army. Spread over the world and hashed per life so they are not evenly spaced.
+var RESIST_N=11;
+function resistPos(k,now){
+  var h=((k*2654435761+((nukeDetId(now)*7919)|0))>>>0); h=(h^(h>>>13))>>>0;
+  return { x: wrapW((h%100000)/100000*WW), h:h };
+}
+// 🔒 …AND THEY CAN WIN, ONCE. A fight nobody can win is a cutscene; the wreck is also the biggest
+// scale reference the frame gets, which is THE PIT's rule 3 arriving by a different route.
+// ⚠ Hashed per LIFE, so it is the same machine on all three monitors and it survives a single-frame
+// render. Nothing here is simulated.
+function wmDowned(i,now){
+  if(!resistOn()) return 0;
+  var h=((nukeDetId(now)*2654435761+4457)>>>0); h=(h^(h>>>15))>>>0;
+  if((h%2)!==0) return 0;                              // not every life
+  if(((h>>>7)%5)!==i) return 0;                        // …and this is the one that got hit
+  var at=0.44+((h>>>11)%26)/100;
+  if(cityApoc<at) return 0;
+  return Math.min(1,(cityApoc-at)/0.10);               // 0 → 1: toppling, then down for good
+}
+// A FALLEN WALKER. It lands across the street and stays there burning — the one thing in this ending
+// that says the people underneath it managed something.
+function drawWarMachineWreck(g,X,gy,hgt,hullW,day,t,h){
+  var lay=Math.min(1,t*1.6), ang=lay*1.15;                       // it goes over in about a tenth of the arc
+  var cx=X+Math.round(Math.sin(ang)*hgt*0.42), cy=gy-Math.round(Math.cos(ang)*hgt*0.30);
+  var hull=day?"rgb(44,48,56)":"rgb(25,28,34)", hullD=day?"rgb(28,31,37)":"rgb(15,17,21)";
+  // 🦿 THE LEGS STICK UP, and that is the whole silhouette. Folded under the hull they were invisible
+  // behind it and the wreck read as a black BOX sitting on the road — indistinguishable from a burnt
+  // building, which is the one thing it must not look like. A felled walker keeps its legs in the air:
+  // two bent limbs over the hull is what says "this thing was standing a moment ago".
+  g.fillStyle=hullD;
+  var lt=Math.max(2,Math.round(hgt*0.035));
+  var kx1=cx-Math.round(hgt*0.30), ky1=cy-Math.round(hgt*0.26);
+  segRect(g,cx-Math.round(hgt*0.06),cy,kx1,ky1,lt);                       // thigh, up and back
+  segRect(g,kx1,ky1,kx1-Math.round(hgt*0.16),cy-Math.round(hgt*0.05),Math.max(1,lt-1));   // shin, folded down again
+  var kx2=cx-Math.round(hgt*0.14), ky2=cy-Math.round(hgt*0.34);
+  segRect(g,cx,cy,kx2,ky2,lt);
+  segRect(g,kx2,ky2,cx-Math.round(hgt*0.34),ky2+Math.round(hgt*0.12),Math.max(1,lt-1));
+  g.fillStyle=day?"rgb(20,22,27)":"rgb(11,12,16)";
+  g.fillRect((kx1-Math.round(hgt*0.19))|0,(cy-Math.round(hgt*0.06))|0,Math.max(2,Math.round(hgt*0.06)),2);   // a foot, pointing at the sky
+  // the hull, on its side
+  var bw=Math.round(hgt*0.40), bh=Math.round(hullW*1.5);
+  g.fillStyle=hull; g.fillRect((cx-(bw>>1))|0,(cy-(bh>>1))|0,bw,bh);
+  g.fillStyle=hullD; g.fillRect((cx-(bw>>1))|0,(cy-(bh>>1))|0,bw,Math.max(2,Math.round(hgt*0.03)));
+  g.fillStyle=day?"rgba(255,255,255,0.08)":"rgba(150,168,200,0.06)";
+  g.fillRect((cx-(bw>>1))|0,(cy-(bh>>1))|0,bw,1);
+  // the eye, dead
+  g.fillStyle=day?"rgb(60,30,22)":"rgb(36,18,14)";
+  g.fillRect((cx+(bw>>1)-Math.round(hgt*0.06))|0,cy|0,Math.max(2,Math.round(hgt*0.05)),2);
+  // burning, and the smoke off it — the fire is what makes a dark shape on dark ground read at all
+  for(var f=0;f<6;f++){
+    var fh=((h>>>(f*3+1))^(f*40503))>>>0;
+    var fx=cx-(bw>>1)+(fh%Math.max(2,bw)), fy=cy-(bh>>1)-((fh>>>7)%4);
+    g.globalCompositeOperation="lighter";
+    g.fillStyle=((fh>>>11)&1)?"rgba(255,150,60,0.75)":"rgba(255,206,120,0.6)";
+    g.fillRect(fx|0,fy|0,1,1+((fh>>>13)%2));
+    g.globalCompositeOperation="source-over";
+  }
+  g.fillStyle=day?"rgba(40,40,46,0.30)":"rgba(20,20,26,0.34)";
+  for(var sm=0;sm<5;sm++){ var sh5=((h>>>(sm*4))^(sm*19349663))>>>0;
+    g.fillRect((cx-4+((sh5%9)))|0,(cy-(bh>>1)-4-sm*3)|0,2+((sh5>>>5)%3),2); }
+}
+// THE FIGHT ITSELF. Positions on the ground, muzzle flash, tracers going UP at whatever this ending
+// put in the air, and the position itself dying when the front reaches it.
+// ⚠⚠ `drawApocResistance`, NOT `drawResistance` — THE NAME WAS ALREADY TAKEN, by the REGIME's
+// "resistance rising" (spray-tags and X'd-out emblems, `drawResistance(g,L,now)`) 46,000 lines up.
+// A second top-level declaration silently REPLACES the first, so this would have deleted that feature
+// outright AND been called from its call site with three arguments — receiving `L` as `ap` and `now`
+// as `L`. Caught by `desktop/test/no-shadowed-functions.test.js`, which exists for exactly this and
+// has now earned itself twice. 🔑 grep the name before you declare it in a 58,000-line file.
+function drawApocResistance(g,ap,L,now){
+  if(!resistOn()) return;
+  var day=L>0.5, GK=goreK(), gy=HORIZON-1;
+  var epi=(typeof apocEpiX==="function")?apocEpiX(now):Math.round(WW*0.5);
+  var tb=Math.floor(now/220);
+  for(var k=0;k<RESIST_N;k++){
+    var P=resistPos(k,now), X=disX(P.x); if(X<-14||X>SW+14) continue;
+    var h=P.h;
+    // 🚨 OVERRUN POSITIONS ARE DEAD ONES, not absent ones. Deleting them when the front passed would
+    // have been the viaduct's bug again: a thing that stops existing rather than a thing that ends.
+    var gone=(typeof apocHit==="function")&&apocHit(P.x);
+    // sandbags — a low emplacement, world-anchored
+    g.fillStyle=gone?(day?"rgb(72,66,54)":"rgb(30,27,22)"):(day?"rgb(104,96,74)":"rgb(44,40,31)");
+    g.fillRect((X-5)|0,(gy-2)|0,11,3);
+    g.fillStyle=gone?(day?"rgb(58,52,42)":"rgb(24,21,17)"):(day?"rgb(86,78,60)":"rgb(35,32,25)");
+    g.fillRect((X-5)|0,(gy-3)|0,4,1); g.fillRect((X+2)|0,(gy-3)|0,4,1);
+    if(gone){
+      if(GK>0){                                                     // they died at their post
+        for(var d2=0;d2<2;d2++){ var dh=((h>>>(d2*5+3))>>>0);
+          drawPerson(g,(X-3+d2*5)|0,(gy-1)|0,hexDark(PEDC[dh%PEDC.length],0.34),SKINC[(dh>>>7)%SKINC.length],(dh&1)?1:-1);
+          g.fillStyle=(day?"rgba(150,14,18,":"rgba(96,10,14,")+(0.6*GK).toFixed(2)+")";
+          g.fillRect((X-6+d2*5)|0,(gy-1)|0,7,1); }
+      }
+      continue;
+    }
+    // the crew — ⚠ FIXED 7px, like every body in this engine
+    var nc=2+((h>>>17)%2);
+    for(var c=0;c<nc;c++){
+      var ch=((h>>>(c*4+5))>>>0);
+      drawPerson(g,(X-4+c*4)|0,(gy-3)|0,PEDC[ch%PEDC.length],SKINC[(ch>>>7)%SKINC.length],((tb+c)&1)?1:-1);
+    }
+    // FIRING. Not every position every frame, or eleven of them strobe in unison.
+    if(((tb+k)%3)!==0) continue;
+    var fx2=X+((h>>>19)%5)-2, fy2=gy-6;
+    g.fillStyle="rgba(255,226,150,0.95)"; g.fillRect(fx2|0,fy2|0,1,2);       // muzzle flash
+    // 🎯 AIMED AT WHAT THIS ENDING ACTUALLY PUT UP THERE. A tracer going straight up reads as a
+    // firework; a tracer LEANING toward the thing is what makes it a fight.
+    var aim=RESIST_AT[curDeath], tgtX, tgtY;
+    if(aim==="walkers"||aim==="titans"||aim==="kaiju"){
+      var toE=((epi-P.x)%WW+WW*1.5)%WW-WW*0.5;                              // lean toward the epicentre
+      tgtX=fx2+(toE>=0?1:-1)*Math.round(HORIZON*0.16); tgtY=gy-Math.round(HORIZON*0.30);
+    } else {                                                                // ships / falling debris: steeper
+      tgtX=fx2+(((h>>>23)%2)?1:-1)*Math.round(HORIZON*0.07); tgtY=gy-Math.round(HORIZON*0.46);
+    }
+    g.fillStyle="rgba(255,196,110,0.62)";
+    segRect(g,fx2,fy2,tgtX,tgtY,1);
+    if(((h>>>25)%4)===0){                                                   // a heavier launch now and then
+      g.fillStyle="rgba(255,238,196,0.85)";
+      segRect(g,fx2,fy2,tgtX,tgtY,2);
+      g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,170,80,0.5)";
+      g.fillRect(tgtX|0,tgtY|0,3,3); g.globalCompositeOperation="source-over";
+    }
+  }
+}
+// A PERSON BEING KILLED BY THE MACHINE, in whichever way it did it. Fixed 7px like every other body
+// in this engine — a victim exists to be READ AGAINST the thing standing over them, and scaling them
+// by KSP would destroy exactly that comparison on the monitor that changes it.
+function wmKill(g,x,gy,kind,h,day,GK){
+  if(x<-8||x>SW+8) return;
+  var bl=(day?"rgba(150,14,18,":"rgba(96,10,14,");
+  var cloth=PEDC[(h>>>3)%PEDC.length], skin=SKINC[(h>>>7)%SKINC.length];
+  if(kind==="burn"){
+    // FRIED: the body is a charred silhouette, and there is very little blood — that is what burning
+    // means. 🎨 BLOOD FIRST, MARK SECOND is why this branch exists at all: bleeding a burnt corpse
+    // washed frozen, boiled and dissolved into one red-brown mush on the contact sheet last time.
+    drawPerson(g,x,gy-1,"#161014",  "#2a1c18", ((h>>>5)&1)?1:-1);
+    g.fillStyle="rgba(255,140,60,"+(0.35+0.3*((h>>>11)%3)/3).toFixed(2)+")";
+    g.fillRect(x|0,(gy-6)|0,1,2);                                          // still alight
+    g.fillStyle=day?"rgba(28,22,18,0.6)":"rgba(12,9,7,0.7)";
+    g.fillRect((x-3)|0,(gy-1)|0,7,1);                                      // scorched, not pooled
+    return;
+  }
+  if(kind==="saw"){
+    // CHOPPED: not laid out, taken apart. The torso goes one way and the rest does not follow.
+    drawPerson(g,x,gy-1,hexDark(cloth,0.30),skin,((h>>>5)&1)?1:-1);
+    g.fillStyle=bl+(0.85*GK).toFixed(2)+")";
+    g.fillRect((x-4)|0,(gy-1)|0,9,1);
+    g.fillRect((x-1)|0,(gy-5)|0,3,1);                                      // the cut itself, across them
+    var dir=((h>>>13)&1)?1:-1;
+    g.fillStyle=hexDark(cloth,0.30);
+    g.fillRect((x+dir*4)|0,(gy-2)|0,2,2);                                  // a piece of them, over there
+    g.fillStyle=bl+(0.7*GK).toFixed(2)+")";
+    for(var q=1;q<=4;q++) g.fillRect((x+dir*(2+q))|0,(gy-1-((h>>>(q+3))%2))|0,1,1);   // the spray between
+    return;
+  }
+  drawPerson(g,x,gy-1,hexDark(cloth,0.22),skin,((h>>>5)&1)?1:-1);          // SHOT
+  g.fillStyle=bl+(0.66*GK).toFixed(2)+")";
+  g.fillRect((x-3)|0,(gy-1)|0,7,1);
+  g.fillRect(x|0,(gy-4)|0,1,2);
+}
 
 // THE FAMINE. The slowest end here, and the only one with no violence in it at all. One big object:
 // the LAND — bare, grey, and wrong. ⚠ A MOUNTAIN DOES NOT BURN and a starving land does not scorch:
@@ -54108,7 +54347,16 @@ function drawApocMourners(g,L,now){
     drawPerson(g, X, HORIZON-1, cloth, skin, -1, (h>>>23)%3===0?2:0);   // sometimes an elder
   }
 }
+// 🔑 ONE CALL SITE, NOT NINETEEN. `drawApocalypseBody` is a chain of `if(…){ …; return; }` — one per
+// ending — so hanging drawResistance off the endings that need it would have meant editing six of
+// those lines and missing the seventh, which is precisely the per-call habit that let the viaduct's
+// deck, arches, wire and lights disagree about what still existed. The resistance is decided by ONE
+// table (`RESIST_AT`) and drawn in ONE place, after whatever the ending drew.
 function drawApocalypse(g,ap,L,now){
+  drawApocalypseBody(g,ap,L,now);
+  drawApocResistance(g,ap,L,now);
+}
+function drawApocalypseBody(g,ap,L,now){
   drawApocApproach(g,L,now);   // …and before any of them lands, what you can see coming
   if(curDeath==="nuke"){ drawApocNuke(g,ap,L,now); return; }
   if(curDeath==="meteors"){ drawApocMeteor(g,ap,L,now); return; }

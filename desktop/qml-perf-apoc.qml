@@ -43,7 +43,7 @@ Item {
             var g = getContext("2d");
             var CYC = 604800000, EPOCH = 1783972450746;
             // the ending under review first, then UNCHANGED ones as the noise reading for this run.
-            var deaths = ["warmachine","crimsontide","thescream","logout","thepit"];   // the one under review FIRST, then UNCHANGED ones as this run's noise reading
+            var deaths = ["warmachine","logout","thepit"];   // the one under review FIRST, then UNCHANGED ones as this run's noise reading
             var acc = {};
             function key(e,d){ return e+"|"+d; }
 

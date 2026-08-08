@@ -68,7 +68,12 @@ Item {
         // only at a particular moment in the real timeline and cannot be forced into being.
         if (root.clockAt !== "") root.t0 = parseFloat(root.clockAt);
         City.NOWOVR = City.CLOCK = root.t0;
-        City.applyConfig({ lat: 41.5243, lon: -72.0759 });
+        // 📌 `apocepi=` MATCHES WHAT HIS DESKTOP IS ACTUALLY DOING. config.local.json can pin ground zero
+        // (see `apocEpi` in applyConfig) and the harness could not, so a review render and the live
+        // wallpaper were aiming the apocalypse at different places and could not be compared.
+        City.applyConfig(arg("apocepi","") !== ""
+            ? { lat: 41.5243, lon: -72.0759, apocEpi: parseFloat(arg("apocepi","0")) }
+            : { lat: 41.5243, lon: -72.0759 });
         City.setup('neon', { cw: root.cw, ch: root.ch, woff: root.woff, ww: 2269, pxk: root.pxk, zoom: root.zoom,
                              taskbarWp: 17, quality: 'balanced', frameMs: 125 });
         City.CFG_GORE = arg("gore","full");
