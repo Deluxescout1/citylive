@@ -50659,7 +50659,14 @@ function bhFrontR(){ return apocFrontR(BH_FORM_MS,BH_WIPE_MS); }     // the blac
 // the black hole's on-screen position — a singularity hanging in the sky above the epicentre (everything is sucked UP toward it)
 function bhPos(now){ var sx=apocEpiX(now)-WOFF; if(sx>SW+600&&sx-WW>-600)sx-=WW; if(sx<-600&&sx+WW<SW+600)sx+=WW; return {sx:sx, sy:Math.round(HORIZON*0.24)}; }
 // collapse progress 0..1 for a world-x under a nuke-style front (how far past the front it is), or -1 if the front hasn't reached it
-function frontCollapse(x,frontR){ var d=nukeDist(x,apocEpiX(NOWOVR!=null?NOWOVR:Date.now())); return frontR>d ? Math.min(1,(frontR-d)/(WW*0.075)) : -1; }
+// ⏳ THE RAMP IS 0.075 → 0.115 OF THE WORLD. 🔒 Nick: the collapses *"fall too fast"*. At 0.075 a
+// tower went from untouched to finished while the front travelled 170 wp — about a quarter of one of
+// his monitors — so the whole visible skyline resolved in a couple of seconds of a 90-second loop and
+// the destruction was over long before the ending was. 0.115 gives it 261 wp to happen in.
+// ⚠ SHARED: this widens the collapse window for every fronted ending, which is the intent (the
+// generic collapse serves ten of them) — but it means `logout`, which is not an APOC_SWEEP ending,
+// is the ONLY valid perf control for this change.
+function frontCollapse(x,frontR){ var d=nukeDist(x,apocEpiX(NOWOVR!=null?NOWOVR:Date.now())); return frontR>d ? Math.min(1,(frontR-d)/(WW*0.115)) : -1; }
 // ---- KAIJU WAR helpers (all pure functions of the clock + per-life hash) ----
 function kwWinner(now){ var h=((nukeDetId(now)*40503+9257)>>>0); h=(h^(h>>>13))>>>0; return h%2; }   // 0 = the reptile (beams) · 1 = the ape (fists)
 function kwBX(now){ return apocEpiX(now); }                          // the battleground (per-life epicenter)
@@ -50844,7 +50851,14 @@ var APOC_DROWNS={flood:1,ragnarok:1};
 // flood is a slow onset over its whole arc. Same units, same accessor, different shape.
 function floodLevel(){
   if(APOC_DROWNS[curDeath] && curDeath==="ragnarok")
-    return (cityPhase!=="apoc") ? 0 : Math.max(0,Math.min(1,(cityApoc-0.35)/0.55)) * floodMax();
+    // 🚨🔑🔑 THE SEA ARRIVED AT THE SAME MOMENT AS THE FIRE AND PUT IT OUT BEFORE IT COULD BE SEEN.
+    // `floodMax()` is HORIZON*0.92 ≈ 275 px, and `floodGroundHit` trips at a threshold of 2–10 — so a
+    // curve starting at the fire's own strike (0.35) had the whole ground registering as FLOODED by
+    // ap≈0.37, and `ragFireAt`'s extinguish then zeroed every flame in the world. MEASURED: at ap 0.43
+    // the frame had no fire in it at all. 🔑 A UNIT I NEVER CHECKED — "the water has started rising"
+    // and "the ground here is underwater" are separated by less than 4% of the arc at this scale.
+    // Fire burns FIRST and the sea comes for it after: 0.52, so 0.35→0.52 is Surtr's alone.
+    return (cityPhase!=="apoc") ? 0 : Math.max(0,Math.min(1,(cityApoc-0.52)/0.43)) * floodMax();
   return Math.max(0,Math.min(1,(apocMs-FLOOD_ONSET_MS)/FLOOD_RISE_MS)) * floodMax(); }
 // a building of height h topples/washes away as the water nears its top; -1 until then, 0→1 collapsing (tall towers hold out longest)
 function floodCl(h){ var w=floodLevel(); return (w >= h*0.7) ? Math.min(1,(w - h*0.7)/(h*0.35+10)) : -1; }
@@ -51508,12 +51522,68 @@ APOC_X.thetitans=function(g,ap,L,now){
 // and the steam alike, so none of them can disagree about where the fire is. ⚠ The glow reaches AHEAD
 // of the flame — you see a burning city before the burning reaches you, and that lead is what stops
 // the front reading as a hard edge sliding across the frame.
+// 🔒 HIS CALL: **bright at the front, smouldering behind, and the sea puts it out.** That is the
+// physically true version and it is also the one that keeps the back half of the arc alive, because
+// the burned zone stays lit by its own embers instead of going flat dark the moment the front leaves
+// his 640 wp screen — which it does by ap≈0.6.
+// 🌊🔥 THE SEA EXTINGUISHES IT, and that single line is what makes the two halves one event: fire
+// takes the city, water takes the fire. Without it the world burned merrily on under ten feet of
+// ocean, which is the kind of thing a physical reading catches instantly and a contact sheet never.
 function ragFireAt(wx,now,R){
   if(R<=0) return 0;
   var lead=R-nukeDist(wx,apocEpiX(now));
-  if(lead< -WW*0.05) return 0;
-  if(lead<0) return (1+lead/(WW*0.05))*0.55;
-  return Math.max(0.16,1-lead/(WW*0.24));                      // behind the front it burns down to embers
+  if(lead< -WW*0.06) return 0;
+  var f;
+  if(lead<0) f=(1+lead/(WW*0.06))*0.62;                        // the glow runs ahead of the flame
+  else f=Math.max(0.30,1-lead/(WW*0.30));                      // …and behind it, down to a smoulder
+  // 🌊 …and the sea takes it, PROGRESSIVELY — a fire does not switch off the instant the tide touches
+  // it, it drowns as the water deepens. A cliff-edge predicate here is what made the extinguish so
+  // total that it was indistinguishable from "the fire never drew". Depth, not a boolean.
+  if(typeof floodLevel==="function"){
+    var wl2=floodLevel();
+    if(wl2>1){
+      var dep=Math.min(1,wl2/Math.max(4,HORIZON*0.12));
+      f*=Math.max(0.04,1-dep);
+    }
+  }
+  return f;
+}
+// 🔥 STANDING FIRES IN THE BURNED ZONE — 🔒 his call, "bright at the front, embers behind", and the
+// thing that actually keeps the back half of the arc alive. `apocSweepR` clears his 640 wp screen by
+// ap≈0.6, so without these the last 40% of every loop is an unlit flat field: the war machine's
+// second dead half, in a different ending. These are scattered, individually hashed fires burning
+// down at their own rates, so the zone keeps CHANGING rather than sitting at one dim tone.
+// ⚠ World-anchored and scripted from a hash — never simulated, so all three monitors agree.
+// 🌊 And the sea takes them: `ragFireAt` already returns ~0 on drowned ground, so a fire simply stops
+// existing when the water reaches it, which is the interaction the two halves were missing.
+function ragSmoulder(g,now,ap,FR){
+  if(FR<=0) return;
+  var n=Math.round(WW*0.07);
+  for(var i=0;i<n;i++){
+    var h=((i*2654435761+6607)>>>0); h=(h^(h>>>13))>>>0;
+    var wx=(h%1000)/1000*WW;
+    var fq=ragFireAt(wrapW(wx),now,FR); if(fq<=0.05) continue;
+    var X=disX(wx); if(X<-6||X>SW+6) continue;
+    if((h>>>7)%100 >= 46) continue;                               // not every block is still alight
+    // each fire has its own flicker phase and its own size — a field of identically-pulsing flames
+    // is a string of fairy lights, which is the regularity trap this project keeps paying for.
+    var fl=0.62+0.38*Math.sin(now*0.0042+((h>>>11)%628)/100);
+    var fh=Math.max(2,Math.round((3+((h>>>13)%7))*Math.max(1,KSP)*fq*fl));
+    var fw=Math.max(1,Math.round((1+((h>>>17)%3))*Math.max(1,KSP)));
+    var by=HORIZON-1-((h>>>19)%Math.max(1,Math.round(HORIZON*0.16)));   // some up in the wreckage
+    g.globalCompositeOperation="lighter";
+    g.fillStyle="rgba(255,132,36,"+(0.50*fq).toFixed(3)+")";
+    g.fillRect(X|0,(by-fh)|0,fw,fh);
+    g.fillStyle="rgba(255,226,168,"+(0.46*fq*fl).toFixed(3)+")";
+    g.fillRect(X|0,(by-Math.round(fh*0.34))|0,fw,Math.max(1,Math.round(fh*0.34)));
+    // embers going up off it, on their own slow rise
+    for(var e=0;e<3;e++){
+      var ep=((now*0.00022*(1+((h>>>(21+e))%3))+e*0.33)%1);
+      g.fillStyle="rgba(255,170,70,"+(0.55*fq*(1-ep)).toFixed(3)+")";
+      g.fillRect((X+((h>>>(23+e))%5)-2)|0,(by-fh-Math.round(ep*HORIZON*0.22))|0,1,1);
+    }
+    g.globalCompositeOperation="source-over";
+  }
 }
 // 🪵 WHAT IS FLOATING ON IT. An empty sea has no surface and no scale — it is a painted band. Debris
 // is what makes water read as water, and it is also the only thing that says what the water just took.
@@ -51684,13 +51754,22 @@ APOC_X.ragnarok=function(g,ap,L,now){
         var wd=x3-runX3, gb;
         // the sky over the fire — strongest just above the skyline where the smoke catches it, and
         // fading to nothing at the top of the frame. Horizontal rows: no vertical edges to alias.
-        for(gb=0; gb<8; gb++){
-          var gt=gb/8, gy3=Math.round(HORIZON*(0.10+gt*0.90));
-          g.fillStyle="rgba("+(210+Math.round(45*gt))+","+(88+Math.round(58*gt))+",26,"+(0.075*runQ*(0.25+gt)).toFixed(4)+")";
-          g.fillRect(runX3,gy3,wd,Math.ceil(HORIZON*0.90/8)+1);
+        // 🔒 HIS CALL: PUSH IT HARD — the whole frame should feel firelit. ⚠ The guard against this
+        // becoming an orange filter is VALUE, not less colour: the band is genuinely bright near the
+        // ground and genuinely dark at the top of the sky, so what reads is the CONTRAST rather than
+        // the hue. 14 rows instead of 8 and roughly 3x the weight; still horizontal rows, so there
+        // are no vertical edges for the resampler to beat on.
+        for(gb=0; gb<14; gb++){
+          var gt=gb/14, gy3=Math.round(HORIZON*(0.04+gt*0.96));
+          g.fillStyle="rgba("+(214+Math.round(41*gt))+","+(84+Math.round(72*gt))+","+(24+Math.round(20*gt))+","+(0.145*runQ*(0.18+gt*1.15)).toFixed(4)+")";
+          g.fillRect(runX3,gy3,wd,Math.ceil(HORIZON*0.96/14)+1);
         }
+        // …and it lands on the GROUND too, not only in the sky. Firelight that stops at the horizon
+        // is a painted backdrop; what says "the city is burning" is the street being lit by it.
+        g.fillStyle="rgba(255,138,42,"+(0.22*runQ).toFixed(3)+")";
+        g.fillRect(runX3,HORIZON,wd,GROUND);
         // and the flame itself, low and along the ground line — this is the fuel, not the glow
-        var fh3=Math.round(HORIZON*0.10*runQ);
+        var fh3=Math.round(HORIZON*0.13*runQ);
         if(fh3>0){
           g.fillStyle="rgba(255,180,60,"+(0.55*runQ).toFixed(3)+")";
           g.fillRect(runX3,HORIZON-fh3,wd,fh3);
@@ -51737,6 +51816,7 @@ APOC_X.ragnarok=function(g,ap,L,now){
     ragFlotsam(g,surfY,now,ap,FR);
     ragSteam(g,surfY,now,FR);
   }
+  ragSmoulder(g,now,ap,FR);
   ragDrowning(g,surfY,rise,now,ap,FR);
   // ── JÖRMUNGANDR. A curve breaking the surface, never a face. World-anchored, sized in K because it
   // is read against the buildings it is rising past.
@@ -54146,7 +54226,7 @@ function drawApocDustWall(g,ap,L,now){
   // profile loop, not in the drawing. The height is already quantised to 3px and run-batched, so a
   // 2px sample is bit-identical in almost every run and invisible in the rest.
   var STEP=2;
-  var runX=-1, runH=-999, runA=-1, x, hq, aq;
+  var runX=-1, runH=-999, runA=-1, runWet=false, x, hq, aq;
   for(x=0;x<=SW;x+=STEP){
     hq=-999; aq=-1;
     if(x<SW){
@@ -54173,9 +54253,29 @@ function drawApocDustWall(g,ap,L,now){
         if(hv>0){ aq=Math.round(aq*(1-hv)*100)/100; if(aq<=0.02){ hq=-999; aq=-1; } }
       }
     }
-    if(hq===runH&&aq===runA) continue;
+    // 🌊♨️ 🔒 HIS CALL: THE WALL BECOMES STEAM OVER WATER AND STAYS DUST OVER DRY LAND. Dust does not
+    // rise off a sea, and on ragnarok this layer was rendering as two enormous pale PEAKS standing in
+    // the middle of a flood — the biggest, palest shape in the frame and physically nonsense.
+    // 🔑 ONE WALL, TWO BEHAVIOURS, decided per column by the same `floodGroundHit` the demolition and
+    // the movers already ask. Steam is cooler, thinner and TALLER for its weight (it rises; dust
+    // rolls), and you can see through it — that is what separates it from a white mountain.
+    // ⚠ Costs one predicate per 2px sample and is a NO-OP for every ending that does not drown, so
+    // the other forty-one are untouched: `APOC_DROWNS` gates it, not a name.
+    var wet=false;
+    if(x<SW && APOC_DROWNS[curDeath] && hq>-999 && typeof floodGroundHit==="function")
+      wet=floodGroundHit(wrapW(x+WOFF));
+    if(wet){ hq=Math.round(hq*1.22/3)*3; aq=Math.round(aq*0.62*100)/100; }
+    if(hq===runH&&aq===runA&&wet===runWet) continue;
     if(runH>-999){
       var w=x-runX, top=gy-runH;
+      if(runWet){
+        // steam: pale, cold, translucent, and it fades UPWARD instead of having a lit crown
+        g.fillStyle=(day?"rgba(206,214,220,":"rgba(84,92,102,")+runA+")";
+        g.fillRect(runX,top,w,runH);
+        g.fillStyle=(day?"rgba(232,238,244,":"rgba(112,120,132,")+Math.min(0.55,runA+0.10).toFixed(2)+")";
+        g.fillRect(runX,top,w,Math.max(1,Math.round(runH*0.22)));
+        runX=x; runH=hq; runA=aq; runWet=wet; continue;
+      }
       // 🎨 VALUE, NOT COLOUR — dust is the same grey as a dead city, so it has to be LIGHTER than the
       // ruin by day and DARKER than the sky at night, defined against what is behind it.
       g.fillStyle=(day?"rgba(158,150,145,":"rgba(40,36,40,")+runA+")";
@@ -54185,7 +54285,7 @@ function drawApocDustWall(g,ap,L,now){
       g.fillStyle=(day?"rgba(88,80,80,":"rgba(14,12,16,")+Math.min(0.8,runA+0.14).toFixed(2)+")";
       g.fillRect(runX,gy-Math.round(runH*0.20),w,Math.round(runH*0.20));   // the heavy base, dragging
     }
-    runX=x; runH=hq; runA=aq;
+    runX=x; runH=hq; runA=aq; runWet=wet;
   }
 }
 // ═══ THE NEAR FIELD — 🔒 his call: big debris past the camera, ash and embers, and a jolt ═══
@@ -57243,6 +57343,27 @@ function drawApocBuilding(g,b,bx,cl,L,now,bdir){
   //   …and chunks tear off and fall on all of them, so something is always in the air near it.
   var kind=((b.seed*2654435761)>>>0); kind=(kind^(kind>>>13))>>>0;
   var CK=kind%3, day2=L>0.5;
+  // ══════════════════════════════════════════════════════════════════════════════════════════════
+  // ⏳🔒 MASS. Nick, watching it live: the buildings *"fall too fast / all at once"* — and he is right
+  // by construction. `frontCollapse` is a pure function of world-x, so **every tower at the same x
+  // has the same `cl` on the same frame**: the skyline failed in perfect lockstep with the front, at
+  // one uniform rate, with no tower ever hesitating and none taking longer than its neighbour. That
+  // is the regularity trap this project keeps paying for, in the most visible layer it has.
+  // 🔑 THE FIX BELONGS HERE, NOT IN `frontCollapse` — that function is also asked about movers, the
+  // ground and the elevated deck, and giving IT a per-building term would be meaningless (it has no
+  // building) and would desynchronise the things that are *meant* to agree.
+  //  ① A HESITATION, hashed per building: it is struck, it stands for a moment, and then it goes.
+  //  ② ITS OWN DURATION — a heavy tower takes longer to come down than a low block, so the delay
+  //     scales with height and the whole thing is normalised back to 0..1 over what remains.
+  //  ③ AND IT ACCELERATES. A linear collapse is a lift descending; mass falls on a curve, slow at
+  //     first and then all at once. `t*t` is the difference between "the shape changed" and "it FELL".
+  if(cl>0&&cl<1){
+    var hz=0.10+((kind>>>21)%26)/100;                          // 0.10..0.35 of the ramp spent hesitating
+    hz*=0.75+0.55*Math.min(1,b.h/90);                          // …and the taller it is, the longer it holds
+    hz=Math.min(0.62,hz);
+    var t2=(cl-hz)/Math.max(0.05,1-hz);
+    cl=t2<=0 ? 0.0001 : Math.min(1,t2*t2);
+  }
   var ruinH=Math.max(3,Math.round(b.h*(0.16+((kind>>>7)%18)/100)));   // what is left standing at the end
   var body=day2?"#241d29":"#150f1b", bodyD=day2?"#171220":"#0d0912";
   if(CK===0){
