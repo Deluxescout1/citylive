@@ -73,6 +73,11 @@ Item {
                 acc[lk].ms += Date.now() - tl; acc[lk].n += NL;
             }
 
+            // ⚠ 8 ROUNDS IS THE FLOOR ONLY ON AN IDLE BOX. Measured 2026-08-07 on a machine that had
+            // been rendering all session: at 8 the endings that had NOT changed read -0.61 and +0.42,
+            // a 1.03 ms spread, so a real +0.5 was unreadable. At 18 they settled and the change under
+            // test came back +0.10. 🔑 Interleaving controls for DRIFT, not for SAMPLE SIZE — when the
+            // unchanged endings disagree by more than ~0.3, raise this rather than believing the delta.
             for (var r = 0; r < 8; r++)
                 for (var j = 0; j < deaths.length; j++)
                     for (var h = 0; h < 2; h++) {

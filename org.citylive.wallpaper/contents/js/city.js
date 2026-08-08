@@ -52753,8 +52753,23 @@ function drawApocGlassGround(g,L,now){
       var wx=wrapW(x+WOFF), d=nukeDist(wx,epi);
       if(R>0&&d<R){
         var f=Math.min(1,(R-d)/(WW*0.30));
-        var hh=((wx*2654435761)>>>0); hh=(hh^(hh>>>13))>>>0;
-        dq=Math.max(1,Math.round(f*(2+((hh>>>7)%3))*K));
+        // 🚨🔑🔑 THE DEPTH WAS HASHED PER COLUMN, AND THAT — NOT THE `y` ARITHMETIC — IS WHY THIS DREW
+        // LINES. Nick: *"random moving lines on the ground… I don't want them there."* I attributed the
+        // rects correctly last session (the bank, not the shards) and then read the symptom as "the y
+        // walks with the run". It does, but only because `dq` changed at almost EVERY column: a fresh
+        // hash per x meant the run-batcher emitted 1-3px runs forever, so both banked edges, their
+        // highlights and their shadows stepped every couple of pixels, all the way across the road.
+        // 🔑🔑 RUN-BATCHING IS NOT A SMOOTHING PASS. It faithfully emitted what it was given, and what
+        // it was given was noise — a batcher's run length is a MEASUREMENT of how smooth its input is,
+        // and 1-3px runs were the bug reporting itself in a form nobody read.
+        // A drift bank is deep here and shallow there over a WAVELENGTH, so the hash is binned to ~22
+        // world px. The runs become 20-90px, the edge is flat per stretch, and it reads as a bank.
+        var hh=(((((wx/22)|0)*2654435761)>>>0)); hh=(hh^(hh>>>13))>>>0;
+        // ⚠ AND THE FLOOR OF 1 WAS ITSELF A RULE. `Math.max(1,…)` guaranteed at least a 1px band at
+        // every column inside the swept radius — so however smooth or broken the depth became, a
+        // continuous line was still drawn edge to edge by construction, and it faded out by stopping
+        // dead at `R` rather than by running out. Some stretches are bare: it is drift, not a kerb.
+        dq = (((hh>>>11)%100)<18) ? 0 : Math.round(f*(2+((hh>>>7)%3))*K);
       }
     }
     if(dq===runD) continue;
@@ -52765,8 +52780,18 @@ function drawApocGlassGround(g,L,now){
         var ky=kb?(ROAD_BOT-kd):ROAD_Y;
         g.fillStyle=day?"rgba(184,204,224,0.60)":"rgba(72,86,108,0.52)"; // the mass of it, dulled
         g.fillRect(runX,ky,w,kd);
+        // 🎨🔑 AND THE BRIGHT EDGE IS BROKEN, because a continuous 1px highlight along a flat bank is
+        // a RULED LINE — the same limit case this file already retired twice (the deck underside, the
+        // contact wire). Flattening the runs without this would have traded a stepped line for a
+        // straight one. Glass catches the light in glints; the dark gaps are what say glass.
+        var ey=kb?ky:(ky+kd-Math.max(1,Math.round(K*0.5))), eh=Math.max(1,Math.round(K*0.5));
         g.fillStyle=day?"rgba(240,250,255,0.82)":"rgba(148,168,198,0.58)";
-        g.fillRect(runX,kb?ky:(ky+kd-Math.max(1,Math.round(K*0.5))),w,Math.max(1,Math.round(K*0.5)));
+        for(var gx=0; gx<w; gx++){
+          var gh=((((runX+gx+WOFF)*2654435761)>>>0)^(kb*7919))>>>0; gh=(gh^(gh>>>13))>>>0;
+          if((gh%100)<46) continue;                                    // …so it glints rather than rules
+          var gl=1+(gh>>>7)%3; if(gx+gl>w) gl=w-gx;
+          g.fillRect(runX+gx,ey,gl,eh); gx+=gl;
+        }
       }
       // 🎨 NO WASH ACROSS THE CARRIAGEWAY. A uniform pale film over the road is SNOW — it was the
       // single thing still making this read as a winter storm. Broken glass is high-frequency and
