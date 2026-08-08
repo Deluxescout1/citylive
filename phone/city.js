@@ -56612,13 +56612,27 @@ function drawApocBuilding(g,b,bx,cl,L,now,bdir){
     }
   }
   // ── CHUNKS TEARING OFF, on all three — there is always something in the air beside it.
-  for(var ch2=0;ch2<4;ch2++){
-    var chh=((kind>>>(ch2*3+2))^(ch2*40503))>>>0;
-    var cph=((now*0.28+chh%900)%900)/900;
-    if(cph>0.98) continue;
-    var cw3=1+((chh>>>5)%3), cx3=bx-2+((chh%Math.max(1,b.w+4)));
-    g.fillStyle=APOC_DBG?"#ffee00":(day2?"rgba(46,38,48,0.9)":"rgba(24,19,28,0.9)");   // DBG yellow = BUILDING CHUNKS
-    g.fillRect(cx3|0,(gy-b.h+cph*b.h*1.05)|0,cw3,cw3+1);
+  // 🚨🚨 THESE WERE THE BLACK BOXES FALLING OUT OF NOTHING. Reported twice; I guessed the near-field
+  // debris the first time and was wrong. They spawned at `gy - b.h` — the building's ORIGINAL height —
+  // so once it had collapsed to a stump they went on raining from where its roof USED to be: dark
+  // squares dropping out of clear sky above a ruin, with the thing that shed them long gone. And they
+  // kept going at cl>=1, forever, over a building that had finished falling.
+  // 🔑 A CHUNK COMES OFF WHAT IS ACTUALLY STILL THERE. They fall from the CURRENT top and only while
+  // the building is actively coming down. (And on his screen a 3px world chunk is ~9px of panel — the
+  // reason they read so much bigger than the code suggests.)
+  if(cl>0.02 && cl<0.97){
+    var curH=Math.max(ruinH,Math.round(b.h*(1-cl*0.92)));
+    for(var ch2=0;ch2<4;ch2++){
+      var chh=((kind>>>(ch2*3+2))^(ch2*40503))>>>0;
+      var cph=((now*0.28+chh%900)%900)/900;
+      if(cph>0.98) continue;
+      var cw3=1+((chh>>>5)%3), cx3=bx-2+((chh%Math.max(1,b.w+4)));
+      var cy4=gy-curH+cph*curH;                                    // from its own roofline to the ground
+      g.fillStyle=day2?"rgba(46,38,48,0.9)":"rgba(24,19,28,0.9)";
+      g.fillRect(cx3|0,cy4|0,cw3,cw3+1);
+      g.fillStyle=day2?"rgba(96,86,96,0.85)":"rgba(52,45,58,0.8)";  // a lit face, so it is masonry not a hole
+      g.fillRect(cx3|0,cy4|0,cw3,1);
+    }
   }
   // ── AND WHAT IS LEFT: 🔒 his call, a jagged burning ruin that KEEPS burning.
   if(cl>=0.86){
