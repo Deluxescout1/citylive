@@ -53103,18 +53103,71 @@ APOC_X.thescream=function(g,ap,L,now){
 };
 
 // THE CRIMSON TIDE. One big object: the sea, and it is the wrong colour.
+//
+// 🚨🚨 IT HAD THE PIT'S BUG, EXACTLY. The water's height ran on `HORIZON*0.42*min(1,ap*1.15)` while
+// the demolition ran on `apocSweepR()` — **two independently-derived sizes for one object**, the
+// finding that cost most in THE PIT and it was sitting one renderer away the whole time. So the tide
+// stood at a uniform height across a world where buildings fell in a RADIAL pattern from an epicentre
+// the water knew nothing about: towers collapsing on dry land, and towers standing in blood.
+// 🔑 THE CURE IS NOT TO COPY THE NUMBER ACROSS — IT IS TO STOP HAVING A SECOND ONE. The surge's depth
+// at world-x is a function of `apocSweepR() - distance from the epicentre`, which is the very
+// expression `frontCollapse` tests, so water arrives at a building on exactly the frame it collapses.
+// One number, and they cannot drift apart because there is nothing to drift from.
+// 🌊 It also stops being a flat sea and becomes what a surge actually is: deep where it came from,
+// thinning to nothing at the front, and the front is where the foam and the wreckage are.
 APOC_X.crimsontide=function(g,ap,L,now){
-  var K=Math.max(1,KSP);
+  var K=Math.max(1,KSP), day=L>0.5;
   skyWash(g,"96,26,30",0.24*ap);
   var sea=(typeof SEA_Y==="number"&&SEA_Y>0&&SEA_Y<SH)?SEA_Y:HORIZON;
-  var rise=Math.round(HORIZON*0.42*Math.min(1,ap*1.15));
-  g.fillStyle="rgba(96,10,14,0.93)"; g.fillRect(0,sea-rise,SW,rise+GROUND);
-  for(var w=0;w<SW;w+=2){
-    var hw=(((w+WOFF)*2654435761)>>>0);
-    var crest=(hw%Math.max(1,Math.round(4*K)));
-    g.fillStyle="rgba(178,44,42,"+(0.42+0.3*ap).toFixed(2)+")";
-    g.fillRect(w,sea-rise-crest,2,1);
-    if((hw>>>7)%11===0){ g.fillStyle="rgba(226,150,150,0.45)"; g.fillRect(w,sea-rise-crest-1,2,1); }   // foam, and it is pink
+  var R=(typeof apocSweepR==="function")?apocSweepR():-1; if(R<0) return;
+  var epi=(typeof apocEpiX==="function")?apocEpiX(now):Math.round(WW*0.5);
+  var maxRise=Math.round(HORIZON*0.46), build=WW*0.22;
+  // ⚡ RUN-BATCHED BY QUANTISED DEPTH — and it retires a full-width `fillRect(0,sea-rise,SW,…)`, which
+  // was a rule in the bayou's sense: one rect spanning the frame at a single height.
+  var runX=-1, runH=-999, x, hq;
+  for(x=0;x<=SW;x++){
+    hq=-999;
+    if(x<SW){
+      var wx=wrapW(x+WOFF), reach=R-nukeDist(wx,epi);
+      if(reach>0){
+        // 🪵 A HASHED SWELL BUILT BATTLEMENTS. Quantised ±2K per bucket gave the surface a crenellated
+        // top edge — it read as a castle wall, not as water. A swell is SMOOTH and has a wavelength:
+        // two sines of world-x, so it undulates, and being a pure function of world-x it is identical
+        // across every monitor without needing to be hashed at all.
+        var swell=Math.round(Math.sin(wx*0.055)*1.5*K + Math.sin(wx*0.017+1.3)*2.2*K);
+        hq=Math.max(1,Math.round(maxRise*Math.min(1,reach/build))+swell);
+      }
+    }
+    if(hq===runH) continue;
+    if(runH>-999){
+      var w=x-runX, top=sea-runH;
+      // 🚨🎨 IT WAS AN OPAQUE RED WALL. At 0.93 alpha the surge hid everything behind it completely and
+      // read as a LANDSLIDE of red — a solid mound with a hard edge, not a body of liquid. What says
+      // water is that you can still see what is under it, worse the deeper it gets. So the body is
+      // translucent and a second, darker pass sits lower down: the drowned city ghosts through near
+      // the surface and is gone in the depths, which is depth expressed as VALUE rather than as shape.
+      g.fillStyle="rgba(96,10,14,0.72)"; g.fillRect(runX,top,w,runH+GROUND);
+      g.fillStyle="rgba(52,4,7,0.62)";                                  // the deep, where nothing shows
+      g.fillRect(runX,top+Math.round(runH*0.45),w,Math.round(runH*0.55)+GROUND);
+      g.fillStyle="rgba(188,52,48,"+(0.5+0.3*ap).toFixed(2)+")"; g.fillRect(runX,top,w,Math.max(1,Math.round(K*0.5)));
+      // 🩸 A REFLECTION MUST BE DARKER THAN THE WATER — the standing rule, and the thing that stops the
+      // surface reading as a drawn line: a band just under the crest, dimmer than it.
+      g.fillStyle="rgba(70,8,11,0.45)"; g.fillRect(runX,top+Math.max(1,Math.round(K)),w,Math.max(1,Math.round(K*1.2)));
+    }
+    runX=x; runH=hq;
+  }
+  // THE FRONT. Everything that makes a surge read as moving is within a few px of its leading edge:
+  // the foam, the debris it is pushing, and the fact that it is CLIMBING something.
+  for(var sgn=-1;sgn<=1;sgn+=2){
+    var fx2=disX(wrapW(epi+sgn*R)); if(fx2<-8||fx2>SW+8) continue;
+    var fh=Math.max(2,Math.round(maxRise*0.10));
+    for(var fq=0;fq<fh;fq++){
+      var fw=((((fq*2654435761)^(R|0))>>>0)%3)+1;
+      g.fillStyle="rgba(226,150,150,"+(0.5-0.3*(fq/fh)).toFixed(2)+")";
+      g.fillRect((fx2-sgn*fq)|0,(sea-fq)|0,fw,1);                       // foam curling back off the crest
+    }
+    g.fillStyle="rgba(150,20,24,0.8)";
+    g.fillRect((fx2-(sgn>0?0:2))|0,(sea-1)|0,3,2);
   }
   groundGlow(g,"120,18,20",0.26*ap);
 };
