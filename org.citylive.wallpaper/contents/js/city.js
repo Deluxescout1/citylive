@@ -53172,42 +53172,99 @@ APOC_X.crimsontide=function(g,ap,L,now){
   groundGlow(g,"120,18,20",0.26*ap);
 };
 
+// A THICK LINE SEGMENT AS PIXELS. The engine had no such helper, which is why anything wanting a
+// diagonal — the walkers' legs, their beam — reached for `strokeStyle`/`lineTo` and put a smooth
+// antialiased stroke into a frame where every other mark is a hard-edged fillRect. Steps along the
+// LONGER axis so the result is continuous rather than beaded (the arc's lesson, and the folded deck's
+// before it), and emits `t`-wide squares so the line has body.
+function segRect(g,x0,y0,x1,y1,t){
+  // ⚡ STEP BY THE THICKNESS, NOT BY THE PIXEL. Every step already emits a `t`-wide square, so a 1px
+  // walk drew each one t times over — measured at +0.35 ms of live frame for five walkers' legs and
+  // beams, against an unchanged-ending floor of ±0.15 that run. Stepping ~0.6·t keeps the squares
+  // overlapping (so the line stays solid) and emits a fraction of the rects.
+  var dx=x1-x0, dy=y1-y0;
+  var n=Math.max(1,Math.round(Math.max(Math.abs(dx),Math.abs(dy))/Math.max(1,t*0.6)));
+  var ht=t>>1;
+  for(var i=0;i<=n;i++){
+    var u=i/n;
+    g.fillRect(((x0+dx*u)-ht)|0, ((y0+dy*u)-ht)|0, t, t);
+  }
+}
 // THE WAR MACHINE. One big object: walkers, taller than the skyline, methodical rather than angry.
+//
+// 🚨🚨 THREE FAULTS, AND ALL THREE ARE ONES THIS PROJECT HAS WRITTEN DOWN BEFORE.
+// ① `hgt = (74+…)*K` — **SCALED BY `KSP`, AND THE SKYLINE IT EXISTS TO DWARF IS NOT.** Building
+//    heights never touch KSP; KSP runs 0.55–2.2 depending on the screen, so the walker stood at 1.2×
+//    the towers on one monitor and 3× on another. The comment says "taller than the skyline, which is
+//    the point" — and the point was the one thing that changed per display. Identical finding to the
+//    glass-rain standing shards and to `drawPerson` being a fixed 7px: **anything whose job is to be
+//    COMPARED with something else must be measured in the same units as that something else.**
+// ② **THEY WERE A CONVEYOR.** Five hashed positions plus one shared `(now*0.004)%WW` drift: the
+//    formation was rigid, every machine moving in lockstep at one speed forever. The savanna's herd
+//    again. Each has its own gait, its own lag, and its own side now.
+// ③ **THEY WERE NOWHERE NEAR THE DESTRUCTION.** The demolition runs on `apocSweepR()` — a front out
+//    of the epicentre — and the walkers drifted on an unrelated clock, firing a beam straight down at
+//    the ground directly beneath themselves. So the city fell down over there while the machines shot
+//    empty road over here. Same family as THE PIT and THE CRIMSON TIDE: a second number for one
+//    object. Their position is derived FROM the front, so they are always standing on the edge of
+//    what is being levelled, and the beam goes where they are walking.
 APOC_X.warmachine=function(g,ap,L,now){
-  var K=Math.max(1,KSP);
+  var K=Math.max(1,KSP), day=L>0.5;
   skyWash(g,"72,76,84",0.34*ap);
+  var R=(typeof apocSweepR==="function")?apocSweepR():-1; if(R<0) return;
+  var epi=(typeof apocEpiX==="function")?apocEpiX(now):Math.round(WW*0.5);
   var nW=5;
   for(var i=0;i<nW;i++){
-    var h=((i*40503+5501)>>>0);
-    var wx=wrapW(((h%1000)/1000)*WW + (now*0.004)%WW), X=disX(wx);
-    var hgt=Math.round((74+((h>>>9)%34))*K*(0.62+0.38*ap));   // taller than the skyline, which is the point
+    var h=((i*40503+5501)>>>0); h=(h^(h>>>13))>>>0;
+    var side=((h>>>3)&1)?1:-1, lag=((h%100)/100)*WW*0.09;
+    var wx=wrapW(epi+side*Math.max(0,R-lag)), X=disX(wx);
+    // ⚠ WORLD PX, NOT `K` PX — measured against HORIZON, which is what the towers are measured against.
+    var hgt=Math.round(HORIZON*(0.26+((h>>>9)%15)/100));
     if(X<-hgt||X>SW+hgt) continue;
-    var gy=HORIZON-1, bodyY=gy-hgt;
-    // legs — two, jointed, striding out of phase
+    var gy=HORIZON-1, bodyY=gy-hgt, hullW=Math.max(6,Math.round(hgt*0.19));
+    var gait=Math.sin(now/(330+((h>>>17)%190))+i*1.7);
+    // LEGS — two, jointed, out of phase, and drawn as pixels. `strokeStyle`+`lineTo` put two smooth
+    // antialiased diagonals into a frame where every other mark is a hard-edged rect.
     for(var lg=0;lg<2;lg++){
-      var swing=Math.sin(now/420+i+lg*3.14)*hgt*0.16;
-      g.strokeStyle="rgba(40,44,50,0.95)"; g.lineWidth=Math.max(2,Math.round(2.4*K));
-      g.beginPath(); g.moveTo(X,bodyY+hgt*0.42);
-      g.lineTo(X+swing*0.6, bodyY+hgt*0.72); g.lineTo(X+swing, gy); g.stroke();
+      var sw2=(lg?gait:-gait)*hgt*0.17;
+      var hipY=bodyY+Math.round(hgt*0.42), kneeY=bodyY+Math.round(hgt*0.72);
+      var kneeX=X+sw2*0.6, footX=X+sw2;
+      g.fillStyle=day?"rgb(40,44,50)":"rgb(22,25,30)";
+      segRect(g,X,hipY,kneeX,kneeY,Math.max(2,Math.round(hgt*0.035)));
+      segRect(g,kneeX,kneeY,footX,gy,Math.max(1,Math.round(hgt*0.028)));
+      g.fillStyle=day?"rgb(28,31,36)":"rgb(14,16,20)";
+      g.fillRect((footX-Math.round(hgt*0.05))|0,(gy-1)|0,Math.max(2,Math.round(hgt*0.10)),2);   // the foot, planted
     }
-    // hull
-    g.fillStyle="rgb(52,56,64)";
-    g.fillRect((X-Math.round(7*K))|0, bodyY|0, Math.round(14*K), Math.round(hgt*0.44));
-    g.fillStyle="rgb(34,38,44)";
-    g.fillRect((X-Math.round(7*K))|0, (bodyY+hgt*0.30)|0, Math.round(14*K), Math.round(3*K));
-    // the eye, and the beam it is using
+    // HULL. 🎨 IT WAS ONE FLAT RECTANGLE and read as a black box hanging over the city — RULE 1 says
+    // the one big object has to be READABLE as an object, and a slab is not. A silhouette is what
+    // makes a machine: the body tapers, a cowl hoods the eye, and the legs hang off shoulders that
+    // stand proud of the hull. Six rects, and it stops being a box.
+    var bH=Math.round(hgt*0.44), shY=bodyY+Math.round(bH*0.62);
+    var hull=day?"rgb(52,56,64)":"rgb(30,33,39)", hullD=day?"rgb(34,38,44)":"rgb(19,21,26)";
+    g.fillStyle=hull;
+    g.fillRect((X-hullW)|0, (bodyY+Math.round(bH*0.16))|0, hullW*2, Math.round(bH*0.84));      // the body
+    g.fillRect((X-Math.round(hullW*0.62))|0, bodyY|0, Math.round(hullW*1.24), Math.round(bH*0.22));  // the narrower head
+    g.fillStyle=hullD;
+    g.fillRect((X-Math.round(hullW*0.78))|0, (bodyY+Math.round(bH*0.20))|0, Math.round(hullW*1.56), Math.max(2,Math.round(hgt*0.035)));  // the cowl hooding the eye
+    g.fillRect((X-hullW-Math.round(hullW*0.30))|0, shY|0, Math.round(hullW*0.34), Math.max(2,Math.round(hgt*0.06)));   // shoulders the legs hang from
+    g.fillRect((X+hullW)|0, shY|0, Math.round(hullW*0.34), Math.max(2,Math.round(hgt*0.06)));
+    g.fillStyle=day?"rgba(255,255,255,0.09)":"rgba(150,168,200,0.07)";
+    g.fillRect((X-hullW)|0, (bodyY+Math.round(bH*0.16))|0, Math.max(1,Math.round(hgt*0.02)), Math.round(bH*0.84));   // one lit edge, so it is not a slab
+    // THE EYE, AND THE BEAM — aimed along the direction of travel at the ground it is clearing, not
+    // straight down at its own feet.
     var ex=X, ey=bodyY+Math.round(hgt*0.12);
     g.fillStyle=((now/220|0)%2)?"rgba(255,120,60,0.95)":"rgba(255,180,80,0.95)";
-    g.fillRect((ex-Math.round(2*K))|0,ey|0,Math.round(4*K),Math.round(2*K));
-    if(ap>0.34){
+    g.fillRect((ex-Math.max(1,Math.round(hgt*0.03)))|0,ey|0,Math.max(2,Math.round(hgt*0.06)),Math.max(1,Math.round(hgt*0.03)));
+    if(ap>APOC_SWEEP.warmachine){
+      var tx=X+side*Math.round(hgt*0.55);                       // it fires where it is going
       g.globalCompositeOperation="lighter";
-      g.fillStyle="rgba(255,150,70,"+(0.30+0.35*Math.min(1,(ap-0.34)*3)).toFixed(2)+")";
-      var bw=Math.max(1,Math.round(2*K));
-      g.fillRect((ex-bw)|0, ey, bw*2, gy-ey);
+      g.fillStyle="rgba(255,150,70,"+(0.26+0.30*Math.min(1,(ap-APOC_SWEEP.warmachine)*3)).toFixed(2)+")";
+      segRect(g,ex,ey,tx,gy,Math.max(1,Math.round(2*K)));
+      g.fillStyle="rgba(255,220,160,0.5)";
+      g.fillRect((tx-Math.round(hgt*0.06))|0,(gy-2)|0,Math.max(3,Math.round(hgt*0.12)),3);   // the impact on the ground
       g.globalCompositeOperation="source-over";
     }
   }
-  g.lineWidth=1;
 };
 
 // THE FAMINE. The slowest end here, and the only one with no violence in it at all. One big object:
