@@ -16556,7 +16556,7 @@ var _apocPartsId=-1, _apocParts=null;
 function apocParts(now){
   var id=nukeDetId(now);
   if(_apocPartsId===id && _apocParts) return _apocParts;
-  var N=Math.round(WW*0.30), arr=new Array(N);
+  var N=Math.round(WW*0.52), arr=new Array(N);   // 🔒 "simply more of everything" — cached, so density is cheap
   for(var i=0;i<N;i++){
     var h=((i*2654435761+9931)>>>0); h=(h^(h>>>13))>>>0; h=((h*40503)>>>0); h=(h^(h>>>11))>>>0;
     // 🔒 HIS CALL: MORE DEAD ON THE RAILS AND ON THE SIDEWALK. The zones are weighted for it — the
@@ -16584,6 +16584,25 @@ function drawApocParts(g,L,now){
   var M=apocMark(); if(M.spray<=0) return;
   var day=L>0.5, ap=cityApoc, bl=day?"rgba(150,14,18,":"rgba(96,10,14,";
   var P=apocParts(now), fronted=APOC_FRONTED[curDeath];
+  // 🩸 UP THE WALLS. 🔒 His call — blood only ever on the floor is the giveaway that it is a texture
+  // rather than something that happened to people. ⚠ `standingNear`, NOT a hashed x: this is a
+  // decoration ON A FACADE, the blue-lines class, and it must not land on a building that is not there.
+  if(cityApoc>0.15){
+    var epiB=(typeof apocEpiX==="function")?apocEpiX(now):Math.round(WW*0.5);
+    var wallSet=standingNear(epiB,Math.round(WW*0.30),9);
+    for(var wq=0;wq<wallSet.length;wq++){
+      var wb=wallSet[wq].b, wbx=wallSet[wq].bx, wh2=((wb.seed*2654435761)>>>0); wh2=(wh2^(wh2>>>13))>>>0;
+      if(fronted && !apocHit(wb.x)) continue;
+      var wn=2+(wh2%4);
+      for(var ws=0;ws<wn;ws++){
+        var sh6=((wh2>>>(ws*4))>>>0);
+        var sx6=wbx+(sh6%Math.max(1,wb.w)), sy6=HORIZON-2-((sh6>>>7)%Math.max(2,Math.round(wb.h*0.34)));
+        g.fillStyle=bl+((0.42+0.2*((sh6>>>11)%3)/3)*GK).toFixed(2)+")";
+        g.fillRect(sx6|0,sy6|0,1+((sh6>>>13)%3),1);
+        for(var rq=1;rq<2+((sh6>>>15)%4);rq++) g.fillRect(sx6|0,(sy6+rq)|0,1,1);   // and it runs down
+      }
+    }
+  }
   for(var i=0;i<P.length;i++){
     var p=P[i];
     if(ap<p.when) continue;                                            // they appear as the killing reaches them
@@ -16613,6 +16632,13 @@ function drawApocParts(g,L,now){
     } else {                                                           // a drag mark away from something
       g.fillStyle=bl+(0.34*GK).toFixed(2)+")";
       g.fillRect(X|0,Y|0,3+((h>>>9)%5),1);
+    }
+    // 🩸 SOAKED, NOT SPOTTED. 🔒 His call. Separate marks read as confetti however many you draw; what
+    // says a street ran with it is CONNECTED area — so the heaviest spots bleed outward into a patch
+    // that touches its neighbours, and the ground stops being dotted and starts being wet.
+    if(((h>>>25)%100)<26){
+      g.fillStyle=bl+((0.30+0.22*Math.min(1,(ap-p.when)*3))*GK).toFixed(2)+")";
+      g.fillRect((X-4-((h>>>27)%5))|0,Y|0,10+((h>>>29)%9),1+((h>>>19)&1));
     }
   }
 }
@@ -53382,16 +53408,39 @@ APOC_X.warmachine=function(g,ap,L,now){
     // been levelled, finishing it. Two of five hold near the epicentre, which is also where the wreck
     // and the bodies are, so the quiet half of the arc still has the story in it.
     var garrison=(((h>>>5)%5)<2);
-    var dist=marching ? (WW*0.62)*(1-march)+lag*march
+    var dist=marching ? lag+WW*0.05
            : garrison ? Math.min(R, WW*0.05+((h%100)/100)*WW*0.06)
            : Math.max(0,R-lag);
     var wx=wrapW(epi+side*dist), X=disX(wx);
     var hgt=Math.round(HORIZON*(0.26+((h>>>9)%15)/100));
-    // ⚠ AND THEY ARE SMALLER WHEN THEY ARE FURTHER AWAY. Marching in at full height would read as
-    // teleporting closer, not as approaching — and it is the one cue that costs nothing.
-    if(marching) hgt=Math.round(hgt*(0.42+0.58*march));
     if(X<-hgt||X>SW+hgt) continue;
-    var gy=HORIZON-1, bodyY=gy-hgt, hullW=Math.max(6,Math.round(hgt*0.19));
+    // 🔒 THEY COME FROM THE SKY AND DEPLOY. Nick: *"MAKE THESE THINGS COME FROM THE SKY AND DEPLOY."*
+    // The craft already up there (added as targets for the resistance) ARE the delivery — so the two
+    // features feed each other instead of sitting side by side, and the approach is a drop rather than
+    // a march. 🔑 AND SHOOTING THE CARRIER DOWN KILLS WHAT IT WAS CARRYING: if this walker's craft has
+    // been hit before the release point, the walker never arrives at all. That is the resistance
+    // mattering in the only way that really counts.
+    var lift=0;
+    if(marching){
+      var CR=skyCraft(i,now,ap);
+      var rel=0.30+((h>>>15)%34)/100;                       // when this one is cut loose
+      if(march<rel) continue;                                // still aboard
+      if(CR.gone && CR.h%2===0) continue;                    // its carrier was shot down with it inside
+      var dT=Math.min(1,(march-rel)/0.26);
+      lift=Math.round((1-dT)*Math.max(20,HORIZON-CR.y));
+      if(dT<1){                                              // retro flare under it on the way down
+        g.globalCompositeOperation="lighter";
+        g.fillStyle="rgba(255,170,80,"+(0.5*(1-dT)).toFixed(2)+")";
+        g.fillRect((X-2)|0,(HORIZON-1-lift+Math.round(hgt*0.1))|0,4,Math.round(hgt*0.12));
+        g.globalCompositeOperation="source-over";
+      } else {                                               // it has just landed: dust ring + a crush mark
+        g.fillStyle=day?"rgba(150,142,140,0.42)":"rgba(60,56,60,0.4)";
+        g.fillRect((X-Math.round(hgt*0.45))|0,(HORIZON-3)|0,Math.round(hgt*0.9),3);
+        if(GK>0){ g.fillStyle=(day?"rgba(150,14,18,":"rgba(96,10,14,")+(0.7*GK).toFixed(2)+")";
+          g.fillRect((X-Math.round(hgt*0.10))|0,(HORIZON-2)|0,Math.max(3,Math.round(hgt*0.20)),2); }
+      }
+    }
+    var gy=HORIZON-1-lift, bodyY=gy-hgt, hullW=Math.max(6,Math.round(hgt*0.19));
     var gait=Math.sin(now/(330+((h>>>17)%190))+i*1.7);
     var downed=wmDowned(i,now);
     if(downed>0){ drawWarMachineWreck(g,X,gy,hgt,hullW,day,downed,h); continue; }
@@ -53466,6 +53515,54 @@ APOC_X.warmachine=function(g,ap,L,now){
       g.fillRect((tx-Math.round(hgt*0.08))|0,(gy-1)|0,Math.max(4,Math.round(hgt*0.16)),2);
       var lh=((tb*40503)^(i*2654435761))>>>0;
       if(GK>0 && (lh%100)<62) wmKill(g,tx|0,gy,"burn",lh,day,GK);
+    }
+    // ═══ ④ IT PICKS THINGS UP AND THROWS THEM. 🔒 His call, all four targets: buildings, people,
+    // the gun positions shooting at it, and anything else within reach — rubble, a length of the
+    // wrecked tram, a slab off the viaduct. 🔑 A machine that only shoots is a turret; one that
+    // reaches down, takes hold of something and hurls it is a THING WITH INTENT, and that is most of
+    // the difference between a set-piece and a monster.
+    // Deterministic per (walker, throw cycle) — never simulated, so three monitors throw the same car.
+    var thb=Math.floor(now/2400), thp=(now%2400)/2400;
+    var th=(((thb*2654435761)^(i*40503)^0x51ed)>>>0); th=(th^(th>>>13))>>>0; th=((th*2246822519)>>>0);
+    if((th%100)<64){
+      var tk=(th>>>5)%4;                                    // 0 building · 1 crowd · 2 gun position · 3 rubble
+      var srcX=X+side*Math.round(hgt*0.24), srcY=bodyY+Math.round(hgt*0.34);
+      var reach=Math.round(hgt*0.7)+((th>>>9)%Math.max(1,Math.round(hgt*1.5)));
+      var tgtX=X+side*reach, tgtY=(tk===0)?(gy-Math.round(HORIZON*0.16+((th>>>17)%30))):(gy-1);
+      if(thp<0.30){
+        // …the reach-down and the grab, so the throw has a beginning
+        var gu=thp/0.30, ax=X+side*Math.round(hgt*(0.20+0.14*gu)), ay=gy-Math.round(hgt*0.10*gu);
+        g.fillStyle=day?"rgb(46,50,58)":"rgb(26,29,35)";
+        segRect(g,X+side*Math.round(hullW*0.6),shY,ax,ay,Math.max(2,Math.round(hgt*0.028)));
+        g.fillStyle=day?"rgb(120,58,52)":"rgb(64,30,28)";
+        g.fillRect((ax-3)|0,(ay-2)|0,7,3);                                     // the car, held
+      } else if(thp<0.72){
+        var u=(thp-0.30)/0.42;
+        var ox=srcX+(tgtX-srcX)*u, oy=srcY+(tgtY-srcY)*u-Math.round(hgt*0.42*4*u*(1-u));
+        var carc=(tk===3)?(day?"rgb(72,66,74)":"rgb(34,30,38)"):(day?"rgb(150,60,54)":"rgb(78,32,30)");
+        var tumble=Math.floor(now/70)%2;
+        g.fillStyle=carc; g.fillRect(ox|0,oy|0,tumble?9:5,tumble?4:7);         // tumbling end over end
+        g.fillStyle=day?"rgba(210,220,235,0.7)":"rgba(120,140,170,0.5)";
+        g.fillRect(ox|0,oy|0,tumble?9:5,1);                                    // glass/roof catching light
+        g.fillStyle=day?"rgba(130,120,118,0.24)":"rgba(60,54,60,0.22)";
+        for(var tq=1;tq<4;tq++) g.fillRect((ox-side*tq*4)|0,(oy-tq)|0,2,2);    // the dust off it
+      } else {
+        var ip=(thp-0.72)/0.28;                                                // IMPACT
+        g.fillStyle=day?"rgba(120,110,112,"+(0.5*(1-ip)).toFixed(2)+")":"rgba(56,50,58,"+(0.5*(1-ip)).toFixed(2)+")";
+        g.fillRect((tgtX-Math.round(10*(0.4+ip)))|0,(tgtY-4)|0,Math.round(20*(0.4+ip)),6);
+        g.fillStyle=day?"rgb(60,26,24)":"rgb(32,14,13)";
+        g.fillRect((tgtX-4)|0,(tgtY-2)|0,9,3);                                 // the wreck of it, where it hit
+        for(var dq3=0;dq3<6;dq3++){ var dh3=((th>>>(dq3*3))>>>0);
+          g.fillStyle=day?"rgba(40,34,40,0.85)":"rgba(20,17,22,0.85)";
+          g.fillRect((tgtX-8+(dh3%17))|0,(tgtY-2-((dh3>>>5)%Math.max(2,Math.round(10*ip))))|0,1,2); }
+        if(GK>0 && (tk===1||tk===2)){                                          // …and what it landed on
+          g.fillStyle=(day?"rgba(150,14,18,":"rgba(96,10,14,")+(0.85*GK).toFixed(2)+")";
+          g.fillRect((tgtX-9)|0,(tgtY)|0,19,1);
+          for(var bq=0;bq<5;bq++){ var bh3=((th>>>(bq*4+2))>>>0);
+            g.fillRect((tgtX-10+(bh3%21))|0,(tgtY-((bh3>>>6)%4))|0,1,1); }     // thrown clear
+          wmKill(g,(tgtX+((th>>>21)%9)-4)|0,tgtY,"saw",th,day,GK);
+        }
+      }
     }
     // ③ HULL GUNS — many small hits at once, a spray of bodies rather than one dramatic kill.
     if(((now/140|0)+i)%3===0){
@@ -53840,6 +53937,22 @@ function wmKill(g,x,gy,kind,h,day,GK){
   g.fillStyle=bl+(0.66*GK).toFixed(2)+")";
   g.fillRect((x-3)|0,(gy-1)|0,7,1);
   g.fillRect(x|0,(gy-4)|0,1,2);
+  wmSpray(g,x,gy,h,day,GK);
+}
+// 🩸 IT SPRAYS. 🔒 His call — *"fresh kills should spray hard"*. A pool that simply appears under a
+// body is the death being TIDIED UP; arterial thrown several body-lengths is the death happening.
+// Cheap: one direction, one arc, thinning as it goes.
+function wmSpray(g,x,gy,h,day,GK){
+  if(GK<=0) return;
+  var dir=((h>>>7)&1)?1:-1, n=5+((h>>>9)%6);
+  var bl=(day?"rgba(150,14,18,":"rgba(96,10,14,");
+  for(var q=0;q<n;q++){
+    var u=q/n;
+    g.fillStyle=bl+((0.8-0.55*u)*GK).toFixed(2)+")";
+    g.fillRect((x+dir*(2+q*2))|0,(gy-1-Math.round(4*u*(1-u)*3))|0,1+((h>>>(q+3))&1),1);
+  }
+  g.fillStyle=bl+(0.5*GK).toFixed(2)+")";
+  g.fillRect((x+dir*(2+n*2))|0,(gy-1)|0,3,1);                              // where it landed
 }
 
 // THE FAMINE. The slowest end here, and the only one with no violence in it at all. One big object:
