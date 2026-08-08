@@ -123,6 +123,13 @@ function cycleMs(v){
 // Disaster frequency: a calm→chaos setting. Multiplies the per-slot firing chance only —
 // the slot grid itself stays fixed, so timing determinism and cross-screen sync are untouched.
 function disMul(v){ return v==="rare"?0.42 : v==="frequent"?2 : 1; }
+// 🚨 DECLARED *ABOVE* `applyConfig`, DELIBERATELY. `CFG_FINALE` and friends live 50,000 lines down
+// beside the renderers that read them, which works only because they are assigned at top level after
+// their own `var`. This one is assigned INSIDE applyConfig — so if its declaration sat down there,
+// `var CFG_APOC_EPI=null` would execute after the assignment and wipe it. *`var` hoists the NAME, not
+// the VALUE* — the trap that left the CFG_FINALE validator reading `undefined.indexOf`, and that cost
+// a whole frame to `PEDC[-7]` earlier this branch.
+var CFG_APOC_EPI=null;             // config `apocEpi`: pin ground zero to 0..1 of the world (null = roll it)
 function applyConfig(cfg){ if(!cfg) return;
   if(cfg.gore==="off"||cfg.gore==="restrained"||cfg.gore==="full") CFG_GORE=cfg.gore;
   if(cfg.birthdays!=null) BIRTHDAYS=cfg.birthdays;
@@ -154,6 +161,13 @@ function applyConfig(cfg){ if(!cfg) return;
   // route drifted the 20:00 rollover to 17:12 on KDE.
   if(cfg.apocHour!=null) APOC_HOUR=cfg.apocHour;
   if(cfg.apocAt!=null) APOC_AT_MS=(+cfg.apocAt>0)?+cfg.apocAt:0;
+  // 📌 AIM THE APOCALYPSE AT A SCREEN. 0..1 of the world; unset = the normal per-life roll.
+  // Ground zero is hashed anywhere across the whole 2269 px world, and a 3-monitor desktop only shows
+  // ~28% of it per screen — so reviewing an ending on ONE monitor means waiting several demo loops for
+  // the epicentre to happen to land there, and the loops that miss look like the feature is broken.
+  // Nick: *"put it on my right screen so I can see what is going on."* This is the live-desktop
+  // equivalent of the harness's `disx=`, which exists for exactly the same reason.
+  if(cfg.apocEpi!=null&&cfg.apocEpi!=="") CFG_APOC_EPI=Math.max(0,Math.min(1,+cfg.apocEpi));
   // ⚠ AN EXACT DATE OUTRANKS AN HOUR. Both can be present in a config — the hour picker is older and
   // stays in the file — and if both were applied the last one written would win by accident. The more
   // specific answer is the one the user gave most recently and it is the one that wins, always.
@@ -50401,7 +50415,12 @@ var KW_SAFE=0.12;                  // fraction of WW around the battleground the
 // one-by-one → grey corrosion → dead grey. Nothing is ever demolished; the city suffocates.
 var DEMO_APOC_SEC=0;                // ►► TEST HOOK: >0 plays the apocalypse LIVE on a repeating N-second loop (0=off, normal 1-week life)
 function nukeDetId(now){ return DEMO_APOC_SEC>0 ? Math.floor(now/(DEMO_APOC_SEC*1000)) : lifeIndexOf(now); }   // a fresh id per detonation (per life normally; per demo-loop in demo mode)
-function nukeGZX(now){ var h=((nukeDetId(now)*2654435761+13)>>>0); h=(h^(h>>>15))>>>0; return Math.round(WW*(0.10+0.80*(h/4294967296))); }  // GROUND ZERO — random per drop, anywhere across the whole world; every effect keys off this
+// GROUND ZERO — random per drop, anywhere across the whole world; EVERY effect keys off this, which
+// is why pinning it here aims the entire apocalypse (front, victims, surge, walkers, the lot) rather
+// than needing a knob per renderer. See `apocEpi` in applyConfig.
+function nukeGZX(now){
+  if(CFG_APOC_EPI!=null) return Math.round(WW*CFG_APOC_EPI);
+  var h=((nukeDetId(now)*2654435761+13)>>>0); h=(h^(h>>>15))>>>0; return Math.round(WW*(0.10+0.80*(h/4294967296))); }
 function nukeFrontR(){ return (blastMs/NUKE_WIPE_MS)*(WW*0.62); }   // radius (world px) the heat wave has raced out from ground zero (only after impact)
 function nukeDist(x,gz){ var d=((x-gz)%WW+WW*1.5)%WW-WW*0.5; return Math.abs(d); }   // shortest wrap distance from ground zero
 // EPICENTRE — the single point every POSITIONAL death radiates from (nuke ground-zero, AI core, black-hole singularity). Random per life.
