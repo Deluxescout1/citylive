@@ -52285,7 +52285,7 @@ function drawApocGlassGround(g,L,now){
         g.fillRect(px2,pyy,1,1);
       }
       if(pf>0.4 && ((p2>>>21)%100) < 5*pf){                       // and a few standing in the concrete
-        var pl=4+((p2>>>25)%6);
+        var pl=3+((p2>>>25)%4);
         g.fillStyle=day?"rgba(238,250,255,0.8)":"rgba(160,182,214,0.6)";
         for(var pq=0;pq<pl;pq++) g.fillRect(px2,(pyy-pq)|0,1,1);
       }
@@ -52328,10 +52328,15 @@ function drawApocGlassGround(g,L,now){
       // 7px at every zoom — a shard scaled by KSP would tower over a person on one monitor and be lost
       // beside them on another, which destroys the one comparison it is here to make. 9–19px: always
       // taller than a person, never taller than the street.
-      var sh=Math.round((9+((h2>>>21)%11))*(0.55+0.45*f2));
-      var lean=((((h2>>>25)%5)-2)*0.16);                                 // …and they do not all lean one way
+      // 🚨🔑 A TALL THING WITH A LEAN ON IT IS A LINE, NOT A SHARD. At 9–19px with a ±0.32 lean, drawn
+      // 2px wide, these ran ~6px across as they rose and read as diagonal streaks lying on the road —
+      // Nick: *"random moving lines on the ground… I don't want them there."* Compact and near-upright
+      // reads as glass standing in the tarmac; long and raked reads as a mark drawn over it.
+      var sh=Math.round((6+((h2>>>21)%6))*(0.6+0.4*f2));
+      var lean=((((h2>>>25)%3)-1)*0.06);                                 // …and they do not all lean one way
       g.fillStyle=day?"rgba(206,224,242,0.72)":"rgba(96,116,146,0.62)";
-      for(var q2=0;q2<sh;q2++) g.fillRect((sx+Math.round(lean*q2))|0,(yy-q2)|0,2,1);
+      for(var q2=0;q2<sh;q2++) g.fillRect((sx+Math.round(lean*q2))|0,(yy-q2)|0,1,1);
+      g.fillRect(sx-1,yy,3,1);                                            // a wider base: it is planted, not drawn
       g.fillStyle=day?"rgba(255,255,255,0.92)":"rgba(186,206,236,0.7)";  // the lit edge down one side
       for(var q3=0;q3<sh;q3++) g.fillRect((sx+Math.round(lean*q3))|0,(yy-q3)|0,1,1);
     }
@@ -52410,12 +52415,19 @@ APOC_X.glassrain=function(g,ap,L,now){
     var h=((i*2654435761+887)>>>0); h=(h^(h>>>13))>>>0;
     var per=380+((h>>>7)%520), ph=((now+((h>>>11)%per))%per)/per;
     var wx=((h>>>3)%WW), X=disX(wx); if(X<-8||X>SW+8) continue;   // WORLD-anchored: the storm spans the bezels
-    // 🚨 THEY HAVE TO REACH THE GROUND. `y=ph*(HORIZON+8)` ended every shard's fall just under the far
-    // kerb — ABOVE the road, above the pavements, above everything it was supposed to hit — so the
-    // glass appeared to evaporate in mid-air and the drift below it looked like it had simply been
-    // there all along. Nick: *"make sure the ones landing on the ground are actually sticking."*
-    // Each shard now falls to its OWN landing point somewhere across the street and stops there.
-    var landY=HORIZON+((h>>>19)%Math.max(1,SH-HORIZON));
+    // 🚨🚨 THE FALL STOPS AT THE GROUND LINE. Two mistakes in a row here, and the second was mine
+    // fixing the first. Originally the fall ended at `HORIZON+8` and the glass evaporated in mid-air;
+    // I then let each shard fall to its own point ACROSS THE STREET — and Nick, watching it live:
+    // *"we have random moving lines on the ground… I don't want them there."*
+    // 🔑🔑 BELOW THE HORIZON, DOWN-SCREEN IS TOWARD THE VIEWER, NOT DOWNWARD. The road band is the
+    // ground plane seen at an angle, so a streak travelling down it is not falling — it is SLIDING
+    // ALONG THE GROUND, which is exactly what he saw. Anything that moves down the screen inside that
+    // band has to be understood as moving toward the camera. (Same projection fact the pit turns on:
+    // there is no near bank left to stand on.)
+    // So the fall lives entirely in the sky and terminates ON the ground line. The landing still reads
+    // — the burst and the stub are drawn there — and the street's glass is the drift and the standing
+    // shards, which are static and world-anchored and therefore never sweep across anything.
+    var landY=HORIZON-1+((h>>>19)%2);
     var y=ph*landY, ln=Math.round((4+((h>>>17)%9))*K*0.6);
     var lean=0.18+((h>>>23)%5)*0.06;                        // it comes down at an angle, and not all at one
     // A SPLINTER: one bright leading edge with a dimmer body behind it. 1px wide — glass is thin.
@@ -53262,7 +53274,8 @@ function drawApocFallen(g,L,now){
         drawPerson(g,IX,IY,hexDark(icl,0.25),isk,((ih>>>3)&1)?1:-1);
         g.fillStyle=bl+"0.66)"; g.fillRect((IX-3)|0,IY,7,1);
         g.fillStyle=day?"rgba(226,240,252,0.82)":"rgba(150,172,204,0.64)";
-        for(var iq2=0;iq2<shl;iq2++) g.fillRect((IX+Math.round(iq2*0.7))|0,(IY-1-Math.round(iq2*0.5))|0,1,1);
+        var shf=Math.min(shl,5);                                        // short: a shard IN them, not a line ACROSS the road
+        for(var iq2=0;iq2<shf;iq2++) g.fillRect((IX+Math.round(iq2*0.5))|0,(IY-1-Math.round(iq2*0.6))|0,1,1);
       }
       continue;
     }
