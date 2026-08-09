@@ -50992,6 +50992,17 @@ var APOC_X={};
 // belongs in front of the dust. One table and one call site, like `RESIST_AT` — not a re-ordering that
 // every other sweep ending would have to survive.
 var APOC_X_FRONT={};
+// 🔒🚨🔑🔑 …AND A THIRD FOR WHAT AN ENDING DRAWS *BEHIND THE CITY*. Nick: "lets also have them start
+// walking in from the background, and approach the city instead of appearing in the city immediately."
+// The whole apocalypse layer runs LATE — after the buildings, the traffic and the people — so anything
+// it draws is painted over the city by construction, and a wall of giants "in the distance" was still
+// standing in front of every tower. No amount of size or haze fixes that: it is a FRAME-ORDER fact,
+// not a look. ⚠ MEASURED before building on it, because this engine's paint-order beliefs have been
+// wrong before: the `bg` pass RETURNS after the still terrain, so the buildings are drawn in `live`
+// — which means a live-pass layer CAN be put behind them. It could not if they lived in `bg`.
+// 🔑 The precedent is right there: `WILD_LAYER="back"` draws the animals before a single building so
+// the skyline occludes them. This is the same move for the end of the world.
+var APOC_X_BACK={};
 
 // ════════════════════════════════════════════════════════════════════════════════════════════════
 // 🌍🚨🚨 WORLD-ANCHORING FOR THIS WHOLE TIER — TWELVE OF THESE THIRTEEN ENDINGS WERE SCREEN-SPACE.
@@ -51566,7 +51577,10 @@ APOC_X.theburst=function(g,ap,L,now){
 // ⚠ Heights keep `*K`: building heights in this engine DO scale by KSP, and a titan whose entire
 // purpose is to be read against the skyline must be in the skyline's units. I removed that once
 // today and had to put it back.
-function titanWall(g,ap,L,now,rkA,rkB){
+// `side` is WHICH SIDE OF THE CITY this pass is painting: "back" runs before a single building and
+// draws only the ranks still out beyond the skyline; "front" runs in the apocalypse layer and draws
+// only the ranks that have stepped over it. One rank is in exactly one of them at any moment.
+function titanWall(g,ap,L,now,rkA,rkB,side){
   var K=Math.max(1,KSP), day=L>0.5;
   // 0 → far horizon, 1 → on top of the city. Eased so the last stretch closes fast, which is what
   // makes an approach frightening rather than a steady zoom.
@@ -51596,8 +51610,26 @@ function titanWall(g,ap,L,now,rkA,rkB){
   // ⚠ Draw order is still FAR → NEAR so the near ones overdraw the far ones — hence the DESCENDING
   // loop. Getting this backwards does not crash, it just quietly flattens the wall.
   var RANKS=3;                                          // …and the count is a variable now, not a `2`
+  // 🔒 THE STAGGERED CROSSING, and 🔑 THE LAST RANK NEVER CROSSES. His pick, and it is the thing that
+  // makes the Rumbling feel endless rather than like a set number of monsters that arrive and are then
+  // all here: the near rank steps over the city first, the middle one follows, and the far rank is
+  // STILL COMING when the world ends. A wall you can see the end of is a crowd.
+  var CROSS=[0.18,0.42,99];                             // `near` at which each rank steps over the city
   for(var rk=rkB; rk>=rkA; rk--){
     var depth=(RANKS>1)?rk/(RANKS-1):0;                 // 0 = nearest, 1 = furthest
+    // …so a rank draws in exactly one pass, and switching sides IS the moment it arrives.
+    var over=near>(CROSS[rk]!=null?CROSS[rk]:99);
+    if((side==="back")===over) continue;
+    // 🔑🔑 EACH RANK HAS ITS OWN ARRIVAL, AND THE ATMOSPHERE MUST TRACK *THAT*, NOT THE WALL'S.
+    // First cut keyed haze and the setback to the global `near`, so the near rank stepped over the
+    // city — in front of every building, close enough to kill you — while still painted 49% washed
+    // toward the sky and with its feet 26 wp above the ground it was standing on. A thing that has
+    // ARRIVED cannot still be rendered as distant. `t` is this rank's own 0→1 approach, reaching 1
+    // exactly at its crossing, which also makes the hand-over CONTINUOUS: the setback decays to zero
+    // at the same instant the rank changes pass, so nothing jumps.
+    // ⚠ The far rank's divisor is >1 on purpose — it never reaches 1, never loses its haze and never
+    // puts its feet down, because it never arrives. That is the whole point of it.
+    var t=Math.min(1,near/(CROSS[rk]<1?CROSS[rk]:1.6));
     // 🚨🚨🚨 THE RANKS ARE DEPTHS OF ONE WALL, NOT THREE SEPARATE ARRIVALS — and measured on the old
     // law the wall was not a wall at all. Rank 0 was pinned at EXACTLY `HORIZON*0.62` = 175 px at every
     // ap from 0.05 to 1.00, because the growth term beneath the floor could never reach it: it topped
@@ -51652,7 +51684,18 @@ function titanWall(g,ap,L,now,rkA,rkB){
     // 🪵 THE GROUND PLANE WAS INVERTED. The comment read "the near ranks stand slightly lower in frame"
     // and the arithmetic SUBTRACTED, so the nearest rank stood 6 wp — ≈18 px on his panel — FURTHER BACK
     // than the furthest one. Below the horizon is toward the viewer: a nearer rank stands LOWER.
-    var baseY=gy+Math.round(HORIZON*0.015*(1-depth));
+    // 🔒🚨 …AND THEY START OUT ON THE FAR TERRAIN, NOT ON THE CITY'S OWN GROUND LINE. That was the
+    // other half of "appearing in the city immediately": `baseY` was HORIZON at every ap, so even a
+    // correctly-hazed, correctly-sized wall had its FEET planted on the same line as the buildings —
+    // it could only ever be a thing standing in the city, never a thing walking toward it.
+    // 🔑 On this projection the camera is above the street, so GROUND FURTHER AWAY IS HIGHER IN FRAME.
+    // Setting the feet back lifts them; the buildings then cover the legs and only heads and shoulders
+    // clear the skyline, which is exactly the shot this ending wanted. The setback decays to zero as
+    // the wall closes, so the feet come DOWN through the city and end past the street.
+    // ⚠ Only legible because of the back pass — set the feet back without it and they float in mid-air
+    // in FRONT of the towers, which is worse than where this started.
+    var setb=Math.round(HORIZON*0.20*(1-t)*(0.45+0.55*depth));
+    var baseY=gy+Math.round(HORIZON*0.015*(1-depth)*near)-setb;
     // 🌫️ …AND THE WALL WAS SEE-THROUGH. At `0.12+0.44·depth·(1-rn/2)` the near rank sat at 0.12 haze and
     // the mountains, the sea and the dust bank all read straight through its legs — the one thing a mass
     // must not do. Haze is DISTANCE now and nothing else: the far rank dissolves into the steam, the near
@@ -51668,7 +51711,7 @@ function titanWall(g,ap,L,now,rkA,rkB){
     // was correctly sized for "miles off" was PAINTED as if it were on top of you, and read as close.
     // `(1-near)^1.6` dominates early and vanishes late: 0.62 veil at ap 0.15 → 0.15 by ap 0.70 → 0.04
     // at the end, when it should be crisp, opaque and in your face.
-    var haze=Math.min(0.78,0.04+0.34*depth+0.62*Math.pow(1-near,1.6));
+    var haze=Math.min(0.78,0.04+0.34*depth+0.62*Math.pow(1-t,1.6));
     // 🎨🚨🔑🔑 DISTANCE IS A COLOUR, NOT AN ALPHA. Drawn at `1-haze` OVER the city, the far ranks did not
     // recede — they went TRANSPARENT, and hard-edged buildings, the mountains and the sea read straight
     // through them. Atmosphere does not make a body see-through; it washes it toward the SKY. So the
@@ -51752,7 +51795,7 @@ APOC_X.thetitans=function(g,ap,L,now){
   var near=Math.min(1,Math.max(0,ap/0.86)); near=Math.pow(near,1.9);
   var epi=(typeof apocEpiX==="function")?apocEpiX(now):Math.round(WW*0.5);
   var gy=HORIZON;
-  titanWall(g,ap,L,now,1,2);          // everything BEHIND the front rank — so it sits behind the front's dust
+  titanWall(g,ap,L,now,1,2,"front");  // the crossed ranks behind the near one — so they sit behind its dust
   // ── THE STEAM. It is not decoration: it is what says HEAT, and it is what the far ranks dissolve
   // into so a repeating row stops reading as a repeating row.
   var sn=Math.round(70*near);
@@ -51820,7 +51863,11 @@ APOC_X.thetitans=function(g,ap,L,now){
 // …and the rank that is ON the front line is drawn AFTER the dust, so the dust reads as being behind it
 // rather than smeared across it. This is the only thing that separates the three ranks into three depths.
 // 🔑 Rank 0 BY NAME, not a literal that happens to be the last index today.
-APOC_X_FRONT.thetitans=function(g,ap,L,now){ titanWall(g,ap,L,now,0,0); };
+APOC_X_FRONT.thetitans=function(g,ap,L,now){ titanWall(g,ap,L,now,0,0,"front"); };
+// …and the whole wall while it is still out beyond the skyline. Every rank is offered to BOTH passes;
+// `side` and the crossing schedule decide which one actually draws it, so no rank can be dropped by a
+// range that disagrees with a threshold — the two passes partition the ranks by construction.
+APOC_X_BACK.thetitans=function(g,ap,L,now){ titanWall(g,ap,L,now,0,2,"back"); };
 // A COLOSSAL, drawn as muscle rather than as a person. 🔒 his call: skinless, exposed striation,
 // endless steam. 🎨 At this pixel scale detail is mud, so what carries it is the SILHOUETTE plus two
 // or three value steps — dark meat, a lit edge where the light catches the fibre, and the steam.
@@ -58891,6 +58938,11 @@ function draw(g,pass){
   drawLandPredators(g,L,now,nd,fx);   // every other land's hunter, same hashed clock
   WILD_LAYER="front";
 
+  // 💀 …AND WHAT IS COMING FOR IT, WHICH IS STILL OUT PAST THE SKYLINE. Before a single building, for
+  // exactly the reason the wildlife above is: so the city OCCLUDES it. This is the only place in the
+  // frame where an apocalypse can be behind something. ⚠ Guarded on the table, so the other 42 endings
+  // never enter it — same shape as the front pass in `drawApocalypse`.
+  if(cityApoc>0&&APOC_X_BACK[curDeath]) APOC_X_BACK[curDeath](g,cityApoc,L,now);
   drawLayer(g,far,L,now,fx,hol,0.42);
   if(curRegime&&curRegime.active) drawLayerRegime(g,far,L,now,night);   // THE ORDER drapes the far skyline
   // dystopian smog band (only once there's a city to be smoggy) — one gradient, magenta→teal, feathered at both ends
