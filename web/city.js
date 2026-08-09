@@ -51562,7 +51562,12 @@ APOC_X.thetitans=function(g,ap,L,now){
   var K=Math.max(1,KSP), day=L>0.5;
   // 0 → far horizon, 1 → on top of the city. Eased so the last stretch closes fast, which is what
   // makes an approach frightening rather than a steady zoom.
-  var near=Math.min(1,Math.max(0,ap/0.86)); near=near*near*(3-2*near);
+  // 🔒 "they are allowed to be seen in the distance for a while before they get here." A smoothstep
+  // crushes the early range — at ap 0.12 it returned 0.05 and the wall was a smudge nobody could see,
+  // so the whole first quarter was empty. A gentler power curve instead: they resolve on the horizon
+  // almost at once, hold there as a distant band for a long while, and only close fast at the end.
+  var near=Math.min(1,Math.max(0,ap/0.86)); near=Math.pow(near,1.9);
+  var farSeen=Math.min(1,Math.max(0,ap/0.10));            // the far rank is legible from the very start
   var epi=(typeof apocEpiX==="function")?apocEpiX(now):Math.round(WW*0.5);
   var gy=HORIZON;
   // ── THE RANKS. Far to near, so the near ones overdraw the far ones and the wall reads as deep.
@@ -51570,10 +51575,20 @@ APOC_X.thetitans=function(g,ap,L,now){
   for(var rk=0; rk<3; rk++){
     var depth=1-rk/2;                                   // 1 = furthest
     // each rank has its own arrival: the far wall is visible almost at once, the near one arrives late
-    var rn=Math.min(1,Math.max(0,(near-rk*0.24)/0.72)); if(rn<=0) continue;
+    var rn=Math.min(1,Math.max(0,(near-rk*0.24)/0.72));
+    if(rk===0) rn=Math.max(rn,0.10*farSeen);              // …and it never drops below "visible"
+    if(rn<=0) continue;
     // scale: a speck on the horizon to something taller than the tallest tower
     var sc=(0.06+0.94*rn)*(0.42+0.58*(1-depth));
     var H=Math.max(2,Math.round(HORIZON*1.30*sc*K/Math.max(1,K)));   // ⚠ in world px like the buildings
+    // 🚨🔑 "SEEN IN THE DISTANCE" MEANS SEEN *OVER THE CITY*. Measured: the far rank topped out around
+    // 24 px against a skyline running 100–200, so the distant wall was drawn perfectly correctly and
+    // was **entirely behind the buildings** — the first quarter of the arc looked empty because the
+    // thing approaching was shorter than what stood in front of it. Correct code, invisible feature,
+    // and the size was the tell. A colossal clears the skyline even when it is miles away; that is
+    // the whole reason it is frightening. So the far rank gets a FLOOR measured against the horizon
+    // rather than against its own distance.
+    if(rk===0) H=Math.max(H,Math.round(HORIZON*0.62));
     // ⚠ MEASURED FROM THE RENDER: at `H*0.30` wide on a `W2*1.55` step they packed into a WALL OF
     // MEAT with no sky between them and read as red COLUMNS, not bodies. A silhouette needs ground
     // (or sky) around it to be a silhouette at all. Narrower, and spaced so daylight shows between
@@ -51581,7 +51596,7 @@ APOC_X.thetitans=function(g,ap,L,now){
     var W2=Math.max(1,Math.round(H*0.21));
     var step=Math.max(W2+2,Math.round(W2*2.35));
     var baseY=gy-Math.round(HORIZON*0.02*(1-depth));    // the near ranks stand slightly lower in frame
-    var haze=0.16+0.52*depth*(1-rn*0.5);                // distance haze — the far wall is IN the steam
+    var haze=0.12+0.44*depth*(1-rn*0.5);                // distance haze — the far wall is IN the steam
     // world-anchored: the wall spans the world, not the viewport, so three monitors see one wall
     var wStart=Math.floor((WOFF-step)/step)*step;
     for(var wx=wStart; wx<WOFF+SW+step; wx+=step){
@@ -51605,6 +51620,41 @@ APOC_X.thetitans=function(g,ap,L,now){
     var sw=Math.round((3+((hs>>>17)%9))*K*(0.5+near));
     g.fillStyle="rgba("+(day?"228,228,230":"120,124,132")+","+(0.26*(1-sp)*near).toFixed(3)+")";
     g.fillRect(sx|0,sy|0,sw,Math.max(1,Math.round(2*K)));
+  }
+  // ── 🔥 THEY BURN THE WORLD AS THEY WALK. 🔒 his ask. Everything the wall has already crossed is
+  // alight: a band of flame along the ground behind the front, and scattered fires burning down
+  // behind that. 🔑 Read from `apocSweepR()` — the same front the demolition runs on — so the fire
+  // cannot appear anywhere the titans have not been, and it uses the SAME `ragFireAt`/`ragSmoulder`
+  // law ragnarok does rather than a second fire implementation that could drift from it.
+  if(typeof apocSweepR==="function"){
+    var FR2=apocSweepR();
+    if(FR2>0){
+      var rX=-1, rQ=-2, xf, qf2;
+      for(xf=0; xf<=SW; xf+=2){
+        qf2=-1;
+        if(xf<SW) qf2=Math.round(ragFireAt(wrapW(xf+WOFF),now,FR2)*40)/40;
+        if(qf2===rQ) continue;
+        if(rQ>0){
+          var wdf=xf-rX;
+          for(var gq=0; gq<10; gq++){                       // firelight up into the sky, horizontal rows
+            var gtq=gq/10;
+            g.fillStyle="rgba("+(212+Math.round(40*gtq))+","+(86+Math.round(66*gtq))+",26,"+(0.10*rQ*(0.2+gtq)).toFixed(4)+")";
+            g.fillRect(rX,Math.round(HORIZON*(0.20+gtq*0.80)),wdf,Math.ceil(HORIZON*0.8/10)+1);
+          }
+          g.fillStyle="rgba(255,140,44,"+(0.20*rQ).toFixed(3)+")";
+          g.fillRect(rX,HORIZON,wdf,GROUND);                // …and onto the street
+          var fhq=Math.round(HORIZON*0.11*rQ);
+          if(fhq>0){
+            g.fillStyle="rgba(255,176,58,"+(0.55*rQ).toFixed(3)+")";
+            g.fillRect(rX,HORIZON-fhq,wdf,fhq);
+            g.fillStyle="rgba(255,236,186,"+(0.40*rQ).toFixed(3)+")";
+            g.fillRect(rX,HORIZON-Math.round(fhq*0.32),wdf,Math.max(1,Math.round(fhq*0.32)));
+          }
+        }
+        rX=xf; rQ=qf2;
+      }
+      ragSmoulder(g,now,ap,FR2);                            // standing fires burning down behind them
+    }
   }
   // ── STOMPED. 🔒 his call: crushed underfoot AND swept in between. The sweep is the APOC_SWEEP row;
   // this is the other half — where a foot came down, the ground is a crater of pancaked rubble.
@@ -51685,7 +51735,11 @@ function ragFireAt(wx,now,R){
   // 🌊 …and the sea takes it, PROGRESSIVELY — a fire does not switch off the instant the tide touches
   // it, it drowns as the water deepens. A cliff-edge predicate here is what made the extinguish so
   // total that it was indistinguishable from "the fire never drew". Depth, not a boolean.
-  if(typeof floodLevel==="function"){
+  // ⚠ ONLY ENDINGS THAT ACTUALLY DROWN GET THE EXTINGUISH. `floodLevel()` computes a curve for ANY
+  // ending (it reads `apocMs`, not a name), so calling it unguarded would have quietly damped THE
+  // TITANS' fires with water that does not exist in that ending. Gated on `APOC_DROWNS`, like
+  // everything else that asks about the sea.
+  if(APOC_DROWNS[curDeath] && typeof floodLevel==="function"){
     var wl2=floodLevel();
     if(wl2>1){
       var dep=Math.min(1,wl2/Math.max(4,HORIZON*0.12));
