@@ -51609,14 +51609,24 @@ function titanWall(g,ap,L,now,rkA,rkB,side){
   // ranks be appended at the far end without touching anything that already works.
   // ⚠ Draw order is still FAR → NEAR so the near ones overdraw the far ones — hence the DESCENDING
   // loop. Getting this backwards does not crash, it just quietly flattens the wall.
-  var RANKS=3;                                          // …and the count is a variable now, not a `2`
+  // 🔒 THE WALL DEEPENS AS IT CLOSES — 3 ranks on the horizon, 6 by the end. His pick: the mass should
+  // gain DEPTH rather than only size, so more of it resolves out of the murk behind as it arrives.
+  // 🚨🔑🔑 `depth` MUST NOT BE DIVIDED BY THE *CURRENT* COUNT. The obvious `rk/(RANKS-1)` re-scales
+  // every existing rank the instant a new one appears: rank 1 would jump from depth 0.5 to 0.2 and
+  // change its size, its haze AND its ground position in one frame, three ranks would visibly shuffle,
+  // and it would happen three times an ending. The denominator is the MAXIMUM, fixed, so a rank's depth
+  // is a property OF THAT RANK for the whole arc and growth only ever adds new ones behind.
+  // ⚠ That flattens the spread while few ranks exist, so `dsc` widens to compensate (0.28 → 0.50).
+  var MAXR=6;
+  var RANKS=3+(near>0.20?1:0)+(near>0.45?1:0)+(near>0.75?1:0);
+  if(rkB>RANKS-1) rkB=RANKS-1;                          // ranks that have not resolved yet do not draw
   // 🔒 THE STAGGERED CROSSING, and 🔑 THE LAST RANK NEVER CROSSES. His pick, and it is the thing that
   // makes the Rumbling feel endless rather than like a set number of monsters that arrive and are then
   // all here: the near rank steps over the city first, the middle one follows, and the far rank is
   // STILL COMING when the world ends. A wall you can see the end of is a crowd.
   var CROSS=[0.18,0.42,99];                             // `near` at which each rank steps over the city
   for(var rk=rkB; rk>=rkA; rk--){
-    var depth=(RANKS>1)?rk/(RANKS-1):0;                 // 0 = nearest, 1 = furthest
+    var depth=rk/(MAXR-1);                              // 0 = nearest, 1 = furthest — FIXED denominator
     // …so a rank draws in exactly one pass, and switching sides IS the moment it arrives.
     var over=near>(CROSS[rk]!=null?CROSS[rk]:99);
     if((side==="back")===over) continue;
@@ -51629,7 +51639,7 @@ function titanWall(g,ap,L,now,rkA,rkB,side){
     // at the same instant the rank changes pass, so nothing jumps.
     // ⚠ The far rank's divisor is >1 on purpose — it never reaches 1, never loses its haze and never
     // puts its feet down, because it never arrives. That is the whole point of it.
-    var t=Math.min(1,near/(CROSS[rk]<1?CROSS[rk]:1.6));
+    var t=Math.min(1,near/(CROSS[rk]<1?CROSS[rk]:(1.6+1.4*depth)));
     // 🚨🚨🚨 THE RANKS ARE DEPTHS OF ONE WALL, NOT THREE SEPARATE ARRIVALS — and measured on the old
     // law the wall was not a wall at all. Rank 0 was pinned at EXACTLY `HORIZON*0.62` = 175 px at every
     // ap from 0.05 to 1.00, because the growth term beneath the floor could never reach it: it topped
@@ -51644,7 +51654,7 @@ function titanWall(g,ap,L,now,rkA,rkB,side){
     // Foreshortening, derived from depth rather than a three-entry table, so adding ranks needs no
     // new numbers. ⚠ The spread is DELIBERATELY narrow (1.00 → 0.72): his locked spec is "TALLER THAN
     // EVERY BUILDING", and a far rank scaled to 0.55 drops under a 100–125 wp skyline and vanishes.
-    var dsc=1-0.28*depth;
+    var dsc=1-0.50*depth;
     // 📏🚨🔑🔑 THE BASE IS "CLEARS THE TALLEST THING IN THE CITY", AND IT IS IN KSP UNITS.
     // MEASURED on a clean render of his right screen: ordinary buildings run 100–125 wp and the
     // tallest structures — billboards, the tram line — reach 195–215 wp. So the wall's floor is
@@ -51680,7 +51690,15 @@ function titanWall(g,ap,L,now,rkA,rkB,side){
     // comes back. ⚠ Arms reach ±0.66·W, so at this step neighbours OVERLAP — that is the point of a
     // mass, and it is also exactly the failure mode this renderer is worst at. Judged on a render
     // against a looser alternative before shipping, not on the arithmetic.
-    var step=Math.max(W2+2,Math.round(W2*1.60));
+    // 🔒 SPLIT DENSITY. His original spec was a SOLID WALL and 1.10 delivered exactly that — but
+    // only where it works. A rank that crosses the city is drawn at full detail with arms reaching
+    // ±0.66·W, and at 1.10 those arms overlap two neighbours and the bodies merge into one curtain.
+    // The ranks that NEVER cross are flat silhouettes with no arms at all, so nothing collides and
+    // packing them is free — and a distant mass SHOULD be denser than a near one, because that is
+    // what depth does to spacing. 🔑 Keyed to the rank's IDENTITY, not to whether it has crossed
+    // YET: keying it to `over` would change `step` at the crossing, and `step` is what the position
+    // hash is built from, so the whole rank would re-shuffle on the frame it arrived.
+    var step=Math.max(W2+2,Math.round(W2*(rk<=1?1.60:1.10)));
     // 🪵 THE GROUND PLANE WAS INVERTED. The comment read "the near ranks stand slightly lower in frame"
     // and the arithmetic SUBTRACTED, so the nearest rank stood 6 wp — ≈18 px on his panel — FURTHER BACK
     // than the furthest one. Below the horizon is toward the viewer: a nearer rank stands LOWER.
@@ -51802,7 +51820,7 @@ APOC_X.thetitans=function(g,ap,L,now){
   var near=Math.min(1,Math.max(0,ap/0.86)); near=Math.pow(near,1.9);
   var epi=(typeof apocEpiX==="function")?apocEpiX(now):Math.round(WW*0.5);
   var gy=HORIZON;
-  titanWall(g,ap,L,now,1,2,"front");  // the crossed ranks behind the near one — so they sit behind its dust
+  titanWall(g,ap,L,now,1,5,"front");  // the crossed ranks behind the near one — so they sit behind its dust
   // ── THE STEAM. It is not decoration: it is what says HEAT, and it is what the far ranks dissolve
   // into so a repeating row stops reading as a repeating row.
   var sn=Math.round(70*near);
@@ -51874,7 +51892,7 @@ APOC_X_FRONT.thetitans=function(g,ap,L,now){ titanWall(g,ap,L,now,0,0,"front"); 
 // …and the whole wall while it is still out beyond the skyline. Every rank is offered to BOTH passes;
 // `side` and the crossing schedule decide which one actually draws it, so no rank can be dropped by a
 // range that disagrees with a threshold — the two passes partition the ranks by construction.
-APOC_X_BACK.thetitans=function(g,ap,L,now){ titanWall(g,ap,L,now,0,2,"back"); };
+APOC_X_BACK.thetitans=function(g,ap,L,now){ titanWall(g,ap,L,now,0,5,"back"); };
 // A COLOSSAL, drawn as muscle rather than as a person. 🔒 his call: skinless, exposed striation,
 // endless steam. 🎨 At this pixel scale detail is mud, so what carries it is the SILHOUETTE plus two
 // or three value steps — dark meat, a lit edge where the light catches the fibre, and the steam.
