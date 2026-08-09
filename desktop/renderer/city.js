@@ -51603,7 +51603,16 @@ function titanWall(g,ap,L,now,rkA,rkB){
     // them together: the wall recedes to the horizon at every moment, and the whole of it walks in.
     var dsc=(rk===0)?0.55:(rk===1?0.76:1.0);            // foreshortening — the near rank is always biggest
     var rn=near;
-    var H=Math.max(2,Math.round(TU*(0.55+1.05*near)*dsc));
+    // 🔒🚨 THE APPROACH WAS FRONT-LOADED AND THE DISTANCE PHASE WAS NEARLY ABSENT. Measured on the arc:
+    // `near=(ap/0.86)^1.9` returns 0.037 at ap 0.15, so under `0.55+1.05*near` THE CONSTANT SUPPLIED 96%
+    // OF THE HEIGHT AND THE GROWTH 4% — the wall opened at 147 wp, already 41% of sky-to-horizon, and the
+    // first 35% of the ending bought only 26% of the growth. 🔑 That is the same shape as the bug 072bffa
+    // killed one commit earlier ("a floor the growth can never reach is not a floor, it is the VALUE"):
+    // a large constant with a small term on top is a CONSTANT, whatever the term is called.
+    // 🔒 Nick's line this is built to honour: "they are allowed to be seen in the distance for a while
+    // before they get here" — and the Rumbling's whole horror is that you watch it come.
+    // Weight moved out of the constant and into the growth: 147→63 at ap 0.15, still 400 at the end.
+    var H=Math.max(2,Math.round(TU*(0.20+1.40*near)*dsc));
     // 🚨🔑 "SEEN IN THE DISTANCE" MEANS SEEN *OVER THE CITY* — the finding the old floor existed for is
     // kept, because it is right: a colossal clears the skyline even when it is miles away, and that is
     // the whole reason it is frightening. It is now bought by the DEPTH ORDERING rather than by a clamp.
