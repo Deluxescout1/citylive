@@ -51652,6 +51652,40 @@ function ragSmoulder(g,now,ap,FR){
     g.globalCompositeOperation="source-over";
   }
 }
+// 🩸🌊 THE DEAD, FLOATING. 🔒 Nick: *"if this is supposed to be flooding make sure the bodies float in
+// the water."* 🔑🔑 THESE ARE THE **REAL VICTIMS** — the same `apocVictims` list every other renderer
+// uses, at their own world positions — and not a second decorative population sprinkled on the
+// surface. That distinction is the whole point: the dead who died where the front passed are the ones
+// that come up when the water reaches them, so the bodies in the sea agree with the bodies on the
+// ground, with the blood field, and with the toll in the ticker. A separate hashed sprinkle would
+// have looked the same in one frame and disagreed with everything the moment you looked twice.
+// ⚠ `apocNoGround` now excludes these same victims from the ground pass, so each body is drawn
+// exactly once — floating here, or lying on the street there, never both.
+function ragFloatDead(g,surfY,now,ap){
+  var GK=(typeof goreK==="function")?goreK():1; if(GK<=0) return;
+  var V=apocVictims(now), day=false;
+  for(var n=0;n<V.length;n++){
+    var v=V[n];
+    if(!apocVictimDown(v,ap)) continue;                       // not dead yet
+    if(!floodGroundHit(wrapW(v.x))) continue;                 // the water has not reached them
+    var X=disX(v.x); if(X<-8||X>SW+8) continue;
+    // they ride the same swell the surface is drawn from, so they sit ON the water, not through it
+    var sy=(surfY+Math.round(Math.sin(v.x*0.031+now*0.0011)*1.6+Math.sin(v.x*0.084-now*0.0007)*1.1))|0;
+    var bob=Math.round(Math.sin(now*0.0022+(v.seed%628)/100)*1);
+    var yy=sy+bob;
+    // 🪵 FACE DOWN AND SPREAD, not a 7px upright person — a floating body is a horizontal silhouette,
+    // and standing one up on the surface is the picket-fence mistake the impaled taught me.
+    g.fillStyle="rgba(44,38,44,"+(0.90*GK).toFixed(2)+")";
+    g.fillRect(X-2,yy,5,2);                                          // the back, awash
+    g.fillStyle="rgba(178,150,126,"+(0.80*GK).toFixed(2)+")";
+    g.fillRect(X+((v.seed>>>3)&1?3:-3),yy,1,1);                      // the head
+    if(((v.seed>>>5)&1)) g.fillRect(X+((v.seed>>>7)&1?2:-2),yy-1,1,1); // an arm out of the water
+    if(((v.seed>>>9)%4)===0){                                         // and a slick around some of them
+      g.fillStyle="rgba(96,26,30,"+(0.34*GK).toFixed(2)+")";
+      g.fillRect(X-3,yy+1,7,1);
+    }
+  }
+}
 // 🪵 WHAT IS FLOATING ON IT. An empty sea has no surface and no scale — it is a painted band. Debris
 // is what makes water read as water, and it is also the only thing that says what the water just took.
 // 🔑 Scripted from a hash off world x, never simulated, so three monitors agree; and it BOBS on the
@@ -51881,6 +51915,7 @@ APOC_X.ragnarok=function(g,ap,L,now){
       g.fillRect(w,sy3,2,1);
     }
     ragFlotsam(g,surfY,now,ap,FR);
+    ragFloatDead(g,surfY,now,ap);
     ragSteam(g,surfY,now,FR);
   }
   ragSmoulder(g,now,ap,FR);
@@ -55369,7 +55404,18 @@ function apocInPit(wx){
 // separate loops. So the QUESTION gets a name and the sites ask the question, not the ending:
 // *is there any ground here for this to rest on?* A third ending that takes the ground away edits
 // this function and nothing else.
-function apocNoGround(wx){ return apocInPit(wx)||hollowGone(wx); }
+// 🌊 …AND DROWNED GROUND IS THE THIRD CASE, which is exactly why this predicate exists rather than a
+// list of ending names. 🔒 Nick: *"if this is supposed to be flooding make sure the bodies float in
+// the water."* They were not floating — they were being painted flat on `HORIZON-1` ON TOP OF THE
+// SEA, because `drawApocalypse` draws the water at 58841 and `drawApocFallen` lays the dead out at
+// 58844, AFTER it. So every corpse sat at the old street height on the surface of a flood.
+// 🔑 A body on ground that is under water has no ground to lie on, in precisely the sense THE PIT and
+// THE HOLLOW already meant — one more `||` here and all nine call sites are correct at once. The
+// ending then draws them FLOATING, at the waterline, in `ragFloatDead`.
+function apocNoGround(wx){
+  return apocInPit(wx)||hollowGone(wx)||
+         (APOC_DROWNS[curDeath] && cityPhase==="apoc" && typeof floodGroundHit==="function" && floodGroundHit(wx));
+}
 var APOC_FRONTED={nuke:1,meteors:1,sunburst:1,ai:1,bh:1,alienwar:1,frost:1,kaiju:1,ninetails:1,flood:1,kaijuwar:1,
   thepit:1,thehollow:1,crimsontide:1,warmachine:1,acidrain:1,glassrain:1,swarm:1,ragnarok:1};
 function apocVictimDown(V,ap){
