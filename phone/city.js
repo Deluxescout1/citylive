@@ -51540,50 +51540,129 @@ APOC_X.theburst=function(g,ap,L,now){
   g.fillRect(0,0,SW,SH);                                            // and then it is all light
 };
 // THE TITANS — human-shaped, far too large, and they come over the wall.
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+// THE TITANS — THE RUMBLING. 🔒 Nick: *"make the titans look like the rumbling like from AOT"*, and
+// *"have them approach from the background and get bigger and bigger."* His locked shape: a SOLID
+// WALL of them in ranks receding to the horizon · TALLER THAN EVERY BUILDING · the city both STOMPED
+// underfoot and SWEPT in between · full colossal look — skinless, exposed muscle, endless steam.
+//
+// 🔑🔑 THE APPROACH IS THE ENDING. Everything here is driven by one value — how near the wall is —
+// and it runs the WHOLE arc, from specks on the horizon to legs that do not fit in the frame. That
+// solves the fault every one of these stubs has had (the first third being a sky tint) without a
+// separate "approach" layer at all: the thing you see coming IS the thing that arrives.
+// 🚨 HORIZONTAL REPETITION IS WHAT THIS RENDERER DOES WORST — it killed THE TERRACES after eleven
+// commits, and a wall of identical giants is the purest form of it. Broken FOUR ways, because three
+// was not enough the last time: ranks at different DEPTHS (each with its own scale and haze), a
+// hashed HEIGHT per titan, a hashed PHASE per stride so they are not in step, and steam that is
+// thickest in the far ranks so the repetition dissolves into it rather than tiling.
+// ⚠ Heights keep `*K`: building heights in this engine DO scale by KSP, and a titan whose entire
+// purpose is to be read against the skyline must be in the skyline's units. I removed that once
+// today and had to put it back.
 APOC_X.thetitans=function(g,ap,L,now){
   var K=Math.max(1,KSP), day=L>0.5;
-  var n=Math.round(1+ap*5);
-  // 🔑 HUMAN-SHAPED IS THE ENTIRE POINT, and it is what separates this from `kaiju`. A beast is a
-  // silhouette you read as an animal; a person eighty feet tall is a silhouette you read as YOURSELF,
-  // and the proportions have to stay human for that to work — no tail, no snout, upright.
-  for(var t=0;t<n;t++){
-    var h=((t*2654435761+61)>>>0);
-    var walk=Math.min(1,Math.max(0,(ap-(t/n)*0.5)/0.35));
-    if(walk<=0) continue;
-    var px=Math.round(apocScatterX(h)+Math.sin(now*0.0004+t)*10*K);
-    // ⚠ THE HEIGHT KEEPS ITS `K`, AND I TOOK IT OUT ONCE BEFORE PUTTING IT BACK. The rule I reached
-    // for — "building heights never touch KSP", learnt on the war machine's walkers — IS NOT TRUE OF
-    // THIS ENGINE: `megaH=(150+idx*24)*KSP*0.85` and the skyline layers are pitched off `14*KSP`,
-    // and the setup comment says outright that building masses scale by KSP. Removing it made the
-    // titan HALF the towers on his screen, which the render showed at once.
-    // 🔑 The rule that survives is the general one — a thing whose job is to be COMPARED must be in
-    // the units of what it is compared WITH. Here that unit is KSP, because buildings use it; it is
-    // `drawPerson`'s fixed 7px that is the exception, not the buildings.
-    var H=Math.round((30+((h>>>7)%26))*K*walk);
-    if(px<-60||px>SW+60) continue;
-    var W=Math.round(H*0.26), gy=HORIZON, top=gy-H;
-    var skin=mixc([196,146,128],[150,104,96],((h>>>11)%100)/100);
-    var st=Math.sin(now*0.0016+t*2);
-    g.fillStyle=css(skin);
-    g.fillRect(px-Math.round(W*0.5),top+Math.round(H*0.16),W,Math.round(H*0.44));      // torso
-    g.fillRect(px-Math.round(W*0.30),top,Math.round(W*0.60),Math.round(H*0.16));       // head
-    for(var lg=-1;lg<=1;lg+=2){                                                        // legs, striding
-      g.fillRect(px+lg*Math.round(W*0.24)+Math.round(st*lg*5*K),gy-Math.round(H*0.42),
-                 Math.max(1,Math.round(W*0.26)),Math.round(H*0.42));
-      g.fillRect(px+lg*Math.round(W*0.62),top+Math.round(H*0.18),Math.max(1,Math.round(W*0.20)),Math.round(H*0.32));  // arms
+  // 0 → far horizon, 1 → on top of the city. Eased so the last stretch closes fast, which is what
+  // makes an approach frightening rather than a steady zoom.
+  var near=Math.min(1,Math.max(0,ap/0.86)); near=near*near*(3-2*near);
+  var epi=(typeof apocEpiX==="function")?apocEpiX(now):Math.round(WW*0.5);
+  var gy=HORIZON;
+  // ── THE RANKS. Far to near, so the near ones overdraw the far ones and the wall reads as deep.
+  // Rank 0 is the endless mass behind; rank 2 is what is about to step on you.
+  for(var rk=0; rk<3; rk++){
+    var depth=1-rk/2;                                   // 1 = furthest
+    // each rank has its own arrival: the far wall is visible almost at once, the near one arrives late
+    var rn=Math.min(1,Math.max(0,(near-rk*0.24)/0.72)); if(rn<=0) continue;
+    // scale: a speck on the horizon to something taller than the tallest tower
+    var sc=(0.06+0.94*rn)*(0.42+0.58*(1-depth));
+    var H=Math.max(2,Math.round(HORIZON*1.30*sc*K/Math.max(1,K)));   // ⚠ in world px like the buildings
+    // ⚠ MEASURED FROM THE RENDER: at `H*0.30` wide on a `W2*1.55` step they packed into a WALL OF
+    // MEAT with no sky between them and read as red COLUMNS, not bodies. A silhouette needs ground
+    // (or sky) around it to be a silhouette at all. Narrower, and spaced so daylight shows between
+    // every pair — the gaps are what make it a crowd rather than a texture.
+    var W2=Math.max(1,Math.round(H*0.21));
+    var step=Math.max(W2+2,Math.round(W2*2.35));
+    var baseY=gy-Math.round(HORIZON*0.02*(1-depth));    // the near ranks stand slightly lower in frame
+    var haze=0.16+0.52*depth*(1-rn*0.5);                // distance haze — the far wall is IN the steam
+    // world-anchored: the wall spans the world, not the viewport, so three monitors see one wall
+    var wStart=Math.floor((WOFF-step)/step)*step;
+    for(var wx=wStart; wx<WOFF+SW+step; wx+=step){
+      var h=((((wx/step)|0)*2654435761+rk*7919)>>>0); h=(h^(h>>>13))>>>0;
+      var X=Math.round(wx-WOFF+((h>>>3)%5)-2); if(X<-W2*2||X>SW+W2*2) continue;
+      var hv=0.82+((h>>>7)%36)/100;                     // ① height varies per titan
+      var Hh=Math.round(H*hv), top=baseY-Hh;
+      var ph=((h>>>11)%628)/100;                        // ② and so does the stride phase
+      var st=Math.sin(now*0.0016+ph);
+      titanBody(g,X,top,Math.round(W2*hv),Hh,st,haze,day,K);
     }
-    // the face: a fixed, wrong smile, which is the detail everyone remembers
-    g.fillStyle="rgba(30,20,18,0.9)";
-    g.fillRect(px-Math.round(W*0.18),top+Math.round(H*0.06),Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
-    g.fillRect(px+Math.round(W*0.10),top+Math.round(H*0.06),Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
-    g.fillRect(px-Math.round(W*0.20),top+Math.round(H*0.11),Math.round(W*0.42),Math.max(1,Math.round(K)));
-    // steam off them, always
-    for(var q=0;q<Math.round(10*K);q++){
-      g.fillStyle="rgba("+(day?"228,222,218":"110,104,104")+","+(0.20*(1-q/(10*K))).toFixed(2)+")";
-      g.fillRect(px-Math.round(W*0.6),top-q,Math.round(W*1.2),1);
+  }
+  // ── THE STEAM. It is not decoration: it is what says HEAT, and it is what the far ranks dissolve
+  // into so a repeating row stops reading as a repeating row.
+  var sn=Math.round(70*near);
+  for(var s2=0;s2<sn;s2++){
+    var hs=((s2*2654435761+331)>>>0); hs=(hs^(hs>>>13))>>>0;
+    var sx=apocScatterX(hs); if(sx<-8||sx>SW+8) continue;
+    var sp=((now*0.00011*(1+((hs>>>7)%4))+((hs>>>11)%100)/100)%1);
+    var sy=gy-Math.round(sp*HORIZON*1.15);
+    var sw=Math.round((3+((hs>>>17)%9))*K*(0.5+near));
+    g.fillStyle="rgba("+(day?"228,228,230":"120,124,132")+","+(0.26*(1-sp)*near).toFixed(3)+")";
+    g.fillRect(sx|0,sy|0,sw,Math.max(1,Math.round(2*K)));
+  }
+  // ── STOMPED. 🔒 his call: crushed underfoot AND swept in between. The sweep is the APOC_SWEEP row;
+  // this is the other half — where a foot came down, the ground is a crater of pancaked rubble.
+  if(near>0.35 && typeof apocSweepR==="function"){
+    var R=apocSweepR();
+    if(R>0) for(var fp=0; fp<26; fp++){
+      var hf=((fp*2654435761+9901)>>>0); hf=(hf^(hf>>>13))>>>0;
+      var fwx=wrapW(epi+((((hf%2000)/1000)-1)*R));
+      if(nukeDist(fwx,epi)>R) continue;
+      var FX=disX(fwx); if(FX<-30||FX>SW+30) continue;
+      var fwd=Math.round((10+((hf>>>7)%16))*K);
+      g.fillStyle=day?"rgba(38,32,30,0.80)":"rgba(16,14,14,0.85)";
+      g.fillRect((FX-fwd)|0,(gy-Math.round(2*K))|0,fwd*2,Math.round(3*K));   // the print itself
+      g.fillStyle=day?"rgba(84,74,68,0.70)":"rgba(34,30,30,0.75)";
+      g.fillRect((FX-fwd)|0,(gy-Math.round(4*K))|0,fwd*2,Math.max(1,Math.round(K)));  // rubble pushed up at the rim
     }
   }
 };
+// A COLOSSAL, drawn as muscle rather than as a person. 🔒 his call: skinless, exposed striation,
+// endless steam. 🎨 At this pixel scale detail is mud, so what carries it is the SILHOUETTE plus two
+// or three value steps — dark meat, a lit edge where the light catches the fibre, and the steam.
+// ⚠ NOT `drawPerson` and no `PEDC` clothing: these have no clothes and no skin, and drawPerson is a
+// fixed 7px by design — the whole point of a titan is that it is not.
+function titanBody(g,X,top,W,H,st,haze,day,K){
+  if(H<3) { g.fillStyle="rgba(58,30,30,"+(0.5*(1-haze)).toFixed(2)+")"; g.fillRect(X,top,Math.max(1,W),H); return; }
+  var a=(1-haze).toFixed(3);
+  var meat=day?"rgba(104,42,40,":"rgba(46,20,22,";
+  var lit =day?"rgba(158,74,62,":"rgba(74,34,34,";
+  var dark=day?"rgba(62,24,26,":"rgba(26,11,13,";
+  var hh=Math.max(1,Math.round(H*0.13));                       // head
+  var tor=Math.round(H*0.42), leg=H-hh-tor;
+  g.fillStyle=meat+a+")";
+  g.fillRect(X-Math.round(W*0.5),top+hh,W,tor);                              // torso
+  g.fillRect(X-Math.round(W*0.26),top,Math.round(W*0.52),hh);                // head
+  // 🦵 THE GAP BETWEEN THE LEGS IS THE READ. Without a clear void between them the lower half is one
+  // block and the whole thing is a pillar; with it, the shape is unmistakably a walking figure even
+  // at eight pixels wide. So the legs are narrow and set wide, and the stride swings them further.
+  var lw=Math.max(1,Math.round(W*0.26));
+  g.fillRect((X-Math.round(W*0.46)+Math.round(st*W*0.30))|0,top+hh+tor,lw,leg);   // legs, striding
+  g.fillRect((X+Math.round(W*0.20)-Math.round(st*W*0.30))|0,top+hh+tor,lw,leg);
+  g.fillRect((X-Math.round(W*0.66))|0,top+hh+Math.round(tor*0.10),Math.max(1,Math.round(W*0.20)),Math.round(tor*0.72)); // arms
+  g.fillRect((X+Math.round(W*0.46))|0,top+hh+Math.round(tor*0.10),Math.max(1,Math.round(W*0.20)),Math.round(tor*0.72));
+  // the lit edge — one column down the leading side is what makes it read as a BODY and not a slab
+  g.fillStyle=lit+a+")";
+  g.fillRect(X-Math.round(W*0.5),top+hh,Math.max(1,Math.round(W*0.14)),tor);
+  g.fillRect(X-Math.round(W*0.26),top,Math.max(1,Math.round(W*0.14)),hh);
+  // muscle striation: a few dark bands across the torso, never a regular stripe pattern
+  if(tor>5){
+    g.fillStyle=dark+a+")";
+    for(var m=0;m<3;m++){
+      var my=top+hh+Math.round(tor*(0.22+m*0.24));
+      g.fillRect(X-Math.round(W*0.5)+((m&1)?1:0),my,W-((m&1)?2:1),Math.max(1,Math.round(H*0.012)));
+    }
+    // the exposed jaw — the one piece of "face" that reads at this size
+    g.fillStyle=dark+a+")";
+    g.fillRect(X-Math.round(W*0.20),top+Math.round(hh*0.62),Math.round(W*0.40),Math.max(1,Math.round(hh*0.20)));
+  }
+}
 // RAGNAROK — the wolf takes the sun, and the water comes up with the serpent.
 // 🔥 HOW BRIGHTLY SURTR'S FIRE LIGHTS WORLD-X. One law, read by the glow, the flame, the reflections
 // and the steam alike, so none of them can disagree about where the fire is. ⚠ The glow reaches AHEAD
@@ -55384,7 +55463,7 @@ function apocVictims(now){
 // ⚠ EVERY ROW HERE MIRRORS `APOC_STRIKE_AP` EXACTLY — checked all seven before adding the eighth,
 // because `apocSweepR` reads THIS table as the strike point while `apocStruck` reads that one, and a
 // disagreement would hand the ending two different moments of its own beginning. ragnarok = 0.35.
-var APOC_SWEEP={thepit:0.26,thehollow:0.30,crimsontide:0.34,warmachine:0.28,acidrain:0.24,glassrain:0.20,swarm:0.20,ragnarok:0.35};
+var APOC_SWEEP={thepit:0.26,thehollow:0.30,crimsontide:0.34,warmachine:0.28,acidrain:0.24,glassrain:0.20,swarm:0.20,ragnarok:0.35,thetitans:0.40};
 function apocSweepR(){ var s=APOC_SWEEP[curDeath]; if(s==null) return -1;
   return Math.max(0,(cityApoc-s)/Math.max(0.01,0.92-s))*(WW*0.62); }
 // 🕳️ THE ONE ENDING WHERE THE DEAD HAVE NO GROUND. Every other finale lays its casualties along
@@ -55417,7 +55496,7 @@ function apocNoGround(wx){
          (APOC_DROWNS[curDeath] && cityPhase==="apoc" && typeof floodGroundHit==="function" && floodGroundHit(wx));
 }
 var APOC_FRONTED={nuke:1,meteors:1,sunburst:1,ai:1,bh:1,alienwar:1,frost:1,kaiju:1,ninetails:1,flood:1,kaijuwar:1,
-  thepit:1,thehollow:1,crimsontide:1,warmachine:1,acidrain:1,glassrain:1,swarm:1,ragnarok:1};
+  thepit:1,thehollow:1,crimsontide:1,warmachine:1,acidrain:1,glassrain:1,swarm:1,ragnarok:1,thetitans:1};
 function apocVictimDown(V,ap){
   if(APOC_FRONTED[curDeath]) return apocHit(V.x);   // the line of bodies IS the shape of the thing
   return ap>=V.dieF;                                 // no front: they fall across the arc
