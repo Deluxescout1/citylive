@@ -51619,6 +51619,31 @@ APOC_X.thetitans=function(g,ap,L,now){
         var fxp=X+plant*Math.round(Wv*0.36);
         var land=1-Math.abs(st);                                    // 1 at the moment of contact
         var fint=(0.35+0.65*land)*(1-haze);
+        // 💧♨️ 🔒 "if they have to walk through water it should start boiling as they walk through it."
+        // A body that sets stone alight does not merely splash. Where the foot comes down in water the
+        // answer is not fire at all — it is BOILING: the flame is replaced by a column of steam, the
+        // surface erupts, and what was going to be an orange flash becomes a white one.
+        // 🔑 Asked of the same predicates everything else uses — the land's own waterline, or a flood
+        // if this ending has one — so it is right on a coastal map and right under a rising sea,
+        // without either case being special-cased by name.
+        var inWater=(typeof SEA_FRONT==="number"&&SEA_FRONT>0&&baseY>=SEA_Y-2) ||
+                    (APOC_DROWNS[curDeath]&&typeof floodGroundHit==="function"&&floodGroundHit(wrapW(wx)));
+        if(inWater){
+          g.globalCompositeOperation="source-over";
+          var stH=Math.max(3,Math.round(Hh*0.30*(0.5+0.5*land)));
+          for(var bq=0;bq<stH;bq+=2){                               // the steam column, thinning upward
+            var bt=bq/stH;
+            g.fillStyle="rgba(238,242,246,"+(0.42*(1-bt)*(1-haze)).toFixed(3)+")";
+            g.fillRect((fxp-Math.round(Wv*(0.30+0.34*bt)))|0,(baseY-bq)|0,Math.max(2,Math.round(Wv*(0.60+0.68*bt))),2);
+          }
+          g.fillStyle="rgba(255,255,255,"+(0.55*land*(1-haze)).toFixed(3)+")";
+          g.fillRect((fxp-Math.round(Wv*0.5))|0,(baseY-1)|0,Math.max(2,Wv),2);   // the surface erupting
+          for(var bb=0;bb<5;bb++){                                   // bubbles breaking around the leg
+            var bh3=((((wx/step)|0)*2654435761+bb*7919)>>>0);
+            g.fillStyle="rgba(226,236,242,"+(0.5*(1-haze)).toFixed(2)+")";
+            g.fillRect((fxp+((bh3%(Wv*2||2))-Wv))|0,(baseY+((bh3>>>7)%3))|0,1,1);
+          }
+        } else {
         var fhh=Math.max(2,Math.round(Hh*0.10*fint));
         g.globalCompositeOperation="lighter";
         g.fillStyle="rgba(255,148,44,"+(0.60*fint).toFixed(3)+")";
@@ -51629,6 +51654,7 @@ APOC_X.thetitans=function(g,ap,L,now){
         g.fillStyle="rgba(255,120,36,"+(0.30*fint*land).toFixed(3)+")";
         g.fillRect((fxp-Wv)|0,baseY|0,Math.max(2,Wv*2),Math.max(1,Math.round(GROUND*0.55)));
         g.globalCompositeOperation="source-over";
+        }
         // and the burning print it leaves behind
         g.fillStyle="rgba(46,26,22,"+(0.70*(1-haze)).toFixed(2)+")";
         g.fillRect((fxp-Math.round(Wv*0.36))|0,(baseY-Math.round(1*K))|0,Math.max(2,Math.round(Wv*0.72)),Math.max(1,Math.round(2*K)));
@@ -51704,8 +51730,20 @@ APOC_X.thetitans=function(g,ap,L,now){
 // or three value steps — dark meat, a lit edge where the light catches the fibre, and the steam.
 // ⚠ NOT `drawPerson` and no `PEDC` clothing: these have no clothes and no skin, and drawPerson is a
 // fixed 7px by design — the whole point of a titan is that it is not.
+// 🔒 "make them walk more realistically." The legs swung and NOTHING ELSE MOVED — no rise and fall, no
+// counter-swinging arms, no lean — which is exactly what makes a figure read as a puppet with hinged
+// legs rather than as a body carrying its own weight. Three things fix it, and they are the three a
+// walk cycle actually has:
+//  ① THE BODY RISES AND FALLS. A walker is TALLEST when its legs are together and drops as they
+//     spread. That vertical bob is most of what sells weight, and it costs one offset.
+//  ② THE ARMS COUNTER-SWING. Left arm forward with the right leg. Get this backwards (or omit it)
+//     and the gait looks wrong even when you cannot say why.
+//  ③ IT LEANS INTO THE STRIDE, because something that size is falling forward and catching itself.
 function titanBody(g,X,top,W,H,st,haze,day,K){
   if(H<3) { g.fillStyle="rgba(58,30,30,"+(0.5*(1-haze)).toFixed(2)+")"; g.fillRect(X,top,Math.max(1,W),H); return; }
+  var bob=Math.round(H*0.022*Math.abs(st));      // ① lowest at full stride, tallest mid-step
+  top+=bob;
+  var lean=Math.round(W*0.10*st);                // ③ the torso leads the legs
   var a=(1-haze).toFixed(3);
   var meat=day?"rgba(104,42,40,":"rgba(46,20,22,";
   var lit =day?"rgba(158,74,62,":"rgba(74,34,34,";
@@ -51713,20 +51751,22 @@ function titanBody(g,X,top,W,H,st,haze,day,K){
   var hh=Math.max(1,Math.round(H*0.13));                       // head
   var tor=Math.round(H*0.42), leg=H-hh-tor;
   g.fillStyle=meat+a+")";
-  g.fillRect(X-Math.round(W*0.5),top+hh,W,tor);                              // torso
-  g.fillRect(X-Math.round(W*0.26),top,Math.round(W*0.52),hh);                // head
+  g.fillRect(X-Math.round(W*0.5)+lean,top+hh,W,tor);                         // torso
+  g.fillRect(X-Math.round(W*0.26)+lean,top,Math.round(W*0.52),hh);           // head
   // 🦵 THE GAP BETWEEN THE LEGS IS THE READ. Without a clear void between them the lower half is one
   // block and the whole thing is a pillar; with it, the shape is unmistakably a walking figure even
   // at eight pixels wide. So the legs are narrow and set wide, and the stride swings them further.
   var lw=Math.max(1,Math.round(W*0.26));
   g.fillRect((X-Math.round(W*0.46)+Math.round(st*W*0.30))|0,top+hh+tor,lw,leg);   // legs, striding
   g.fillRect((X+Math.round(W*0.20)-Math.round(st*W*0.30))|0,top+hh+tor,lw,leg);
-  g.fillRect((X-Math.round(W*0.66))|0,top+hh+Math.round(tor*0.10),Math.max(1,Math.round(W*0.20)),Math.round(tor*0.72)); // arms
-  g.fillRect((X+Math.round(W*0.46))|0,top+hh+Math.round(tor*0.10),Math.max(1,Math.round(W*0.20)),Math.round(tor*0.72));
+  // ② arms counter-swing: each opposes the leg on its own side
+  var aw=Math.max(1,Math.round(W*0.20)), asw=Math.round(W*0.16*st);
+  g.fillRect((X-Math.round(W*0.66)+lean-asw)|0,top+hh+Math.round(tor*0.10),aw,Math.round(tor*0.72));
+  g.fillRect((X+Math.round(W*0.46)+lean+asw)|0,top+hh+Math.round(tor*0.10),aw,Math.round(tor*0.72));
   // the lit edge — one column down the leading side is what makes it read as a BODY and not a slab
   g.fillStyle=lit+a+")";
-  g.fillRect(X-Math.round(W*0.5),top+hh,Math.max(1,Math.round(W*0.14)),tor);
-  g.fillRect(X-Math.round(W*0.26),top,Math.max(1,Math.round(W*0.14)),hh);
+  g.fillRect(X-Math.round(W*0.5)+lean,top+hh,Math.max(1,Math.round(W*0.14)),tor);
+  g.fillRect(X-Math.round(W*0.26)+lean,top,Math.max(1,Math.round(W*0.14)),hh);
   // muscle striation: a few dark bands across the torso, never a regular stripe pattern
   if(tor>5){
     g.fillStyle=dark+a+")";
