@@ -51607,6 +51607,32 @@ APOC_X.thetitans=function(g,ap,L,now){
       var ph=((h>>>11)%628)/100;                        // ② and so does the stride phase
       var st=Math.sin(now*0.0016+ph);
       titanBody(g,X,top,Math.round(W2*hv),Hh,st,haze,day,K);
+      // 🔥👣 FIRE AT EVERY FOOTFALL. 🔒 Nick: *"where is the fire they are causing with each step"* —
+      // and he was right that a band behind the front is not that. A front is a LINE; a footstep is a
+      // PLACE, and what he is describing is the city catching where each one comes down. The planted
+      // foot is the one at the back of the stride, so `st` tells us which and where; the fire is put
+      // at that exact ground point and burns hardest the instant it lands, then dies back.
+      // ⚠ Near ranks only — the far wall is miles off and its fires belong to the horizon, not here.
+      if(rk>=1 && Hh>10){
+        var Wv=Math.round(W2*hv);
+        var plant=(st>=0)?-1:1;                                     // the trailing leg is the planted one
+        var fxp=X+plant*Math.round(Wv*0.36);
+        var land=1-Math.abs(st);                                    // 1 at the moment of contact
+        var fint=(0.35+0.65*land)*(1-haze);
+        var fhh=Math.max(2,Math.round(Hh*0.10*fint));
+        g.globalCompositeOperation="lighter";
+        g.fillStyle="rgba(255,148,44,"+(0.60*fint).toFixed(3)+")";
+        g.fillRect((fxp-Math.round(Wv*0.34))|0,(baseY-fhh)|0,Math.max(2,Math.round(Wv*0.68)),fhh);
+        g.fillStyle="rgba(255,232,178,"+(0.50*fint*land).toFixed(3)+")";
+        g.fillRect((fxp-Math.round(Wv*0.20))|0,(baseY-Math.round(fhh*0.45))|0,Math.max(1,Math.round(Wv*0.40)),Math.max(1,Math.round(fhh*0.45)));
+        // the flash thrown onto the ground around the impact — this is what makes it read as IGNITION
+        g.fillStyle="rgba(255,120,36,"+(0.30*fint*land).toFixed(3)+")";
+        g.fillRect((fxp-Wv)|0,baseY|0,Math.max(2,Wv*2),Math.max(1,Math.round(GROUND*0.55)));
+        g.globalCompositeOperation="source-over";
+        // and the burning print it leaves behind
+        g.fillStyle="rgba(46,26,22,"+(0.70*(1-haze)).toFixed(2)+")";
+        g.fillRect((fxp-Math.round(Wv*0.36))|0,(baseY-Math.round(1*K))|0,Math.max(2,Math.round(Wv*0.72)),Math.max(1,Math.round(2*K)));
+      }
     }
   }
   // ── THE STEAM. It is not decoration: it is what says HEAT, and it is what the far ranks dissolve
