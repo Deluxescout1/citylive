@@ -21308,6 +21308,19 @@ function disasterNow(now){
     if(FORCEDIS.win!=null) d.win=FORCEDIS.win;
     if(FORCEDIS.ruin!=null) d.ruin=FORCEDIS.ruin;
     d.f=FORCEDIS.f; d.tp=d.f*DIS_DUR; return d; }
+  // 🚨🚨 THE DEMO LOOP WENT INTO `disArcNow` AND THAT IS NOT WHERE `curDis` COMES FROM. `disArcNow`
+  // drives `curDisArc` — the lifecycle SIGNATURE — while **every disaster renderer keys on `curDis`,
+  // which is set from HERE** (`curDis=disasterNow(now)`). So the pin resolved a perfectly good arc
+  // that nothing drew: I verified the loop with a probe against the wrong function and reported it
+  // working. 🔑 **`curDis` and `curDisArc` ARE TWO GLOBALS AND A NEW FEATURE MUST BE TAUGHT TO BOTH**
+  // — the same split that let the city run evacuations through the end of the world.
+  if(DEMO_DIS_SEC>0){
+    var per2=DEMO_DIS_SEC*1000, lp=Math.floor(now/per2), fd2=(now%per2)/per2;
+    var ty=CFG_DIS_TYPE||DIS_TYPES_ALL[lp%DIS_TYPES_ALL.length];
+    var ex=(CFG_DIS_EPI!=null)?CFG_DIS_EPI:0.5;
+    return { idx:-1, type:ty, intensity:0.85, t0:0, x:Math.round(ex*WW), w:38,
+             seed:((lp*2654435761)>>>0)%100000, win:1, ruin:0, open:1, f:fd2, tp:fd2*DIS_DUR };
+  }
   var idx=Math.floor(now/DIS_SLOT), di=disasterInfo(idx);
   if(!di) return null;
   var tp=now-idx*DIS_SLOT-di.t0;
