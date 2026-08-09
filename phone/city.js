@@ -50984,6 +50984,14 @@ function meteorHitAt(x){ var arr=meteorImpacts(), best=null;
 
 // ---- the renderers. A table, not eight more `if(curDeath===...)` lines in the dispatch. ----
 var APOC_X={};
+// 🔑 …AND A SECOND TABLE FOR WHAT AN ENDING DRAWS IN *FRONT* OF THE DUST WALL. `drawApocalypse` runs
+// the ending, then the rolling dust front over it — right for a city, because the dust is between the
+// viewer and what it has passed. It is wrong for an ending whose subject is itself at several DEPTHS:
+// THE TITANS came back with one pale band cutting every rank at the same screen height, which flattened
+// three ranks into one plane and washed the legs of the whole wall. The near rank is AT the front, so it
+// belongs in front of the dust. One table and one call site, like `RESIST_AT` — not a re-ordering that
+// every other sweep ending would have to survive.
+var APOC_X_FRONT={};
 
 // ════════════════════════════════════════════════════════════════════════════════════════════════
 // 🌍🚨🚨 WORLD-ANCHORING FOR THIS WHOLE TIER — TWELVE OF THESE THIRTEEN ENDINGS WERE SCREEN-SPACE.
@@ -51558,7 +51566,7 @@ APOC_X.theburst=function(g,ap,L,now){
 // ⚠ Heights keep `*K`: building heights in this engine DO scale by KSP, and a titan whose entire
 // purpose is to be read against the skyline must be in the skyline's units. I removed that once
 // today and had to put it back.
-APOC_X.thetitans=function(g,ap,L,now){
+function titanWall(g,ap,L,now,rkA,rkB){
   var K=Math.max(1,KSP), day=L>0.5;
   // 0 → far horizon, 1 → on top of the city. Eased so the last stretch closes fast, which is what
   // makes an approach frightening rather than a steady zoom.
@@ -51580,7 +51588,7 @@ APOC_X.thetitans=function(g,ap,L,now){
   var gy=HORIZON;
   // ── THE RANKS. Far to near, so the near ones overdraw the far ones and the wall reads as deep.
   // Rank 0 is the endless mass behind; rank 2 is what is about to step on you.
-  for(var rk=0; rk<3; rk++){
+  for(var rk=rkA; rk<=rkB; rk++){
     var depth=1-rk/2;                                   // 1 = furthest
     // 🚨🚨🚨 THE RANKS ARE DEPTHS OF ONE WALL, NOT THREE SEPARATE ARRIVALS — and measured on the old
     // law the wall was not a wall at all. Rank 0 was pinned at EXACTLY `HORIZON*0.62` = 175 px at every
@@ -51692,6 +51700,13 @@ APOC_X.thetitans=function(g,ap,L,now){
       }
     }
   }
+}
+APOC_X.thetitans=function(g,ap,L,now){
+  var K=Math.max(1,KSP), day=L>0.5;
+  var near=Math.min(1,Math.max(0,ap/0.86)); near=Math.pow(near,1.9);
+  var epi=(typeof apocEpiX==="function")?apocEpiX(now):Math.round(WW*0.5);
+  var gy=HORIZON;
+  titanWall(g,ap,L,now,0,1);          // the far and middle ranks — still behind the front, so behind its dust
   // ── THE STEAM. It is not decoration: it is what says HEAT, and it is what the far ranks dissolve
   // into so a repeating row stops reading as a repeating row.
   var sn=Math.round(70*near);
@@ -51756,6 +51771,9 @@ APOC_X.thetitans=function(g,ap,L,now){
     }
   }
 };
+// …and the rank that is ON the front line is drawn AFTER the dust, so the dust reads as being behind it
+// rather than smeared across it. This is the only thing that separates the three ranks into three depths.
+APOC_X_FRONT.thetitans=function(g,ap,L,now){ titanWall(g,ap,L,now,2,2); };
 // A COLOSSAL, drawn as muscle rather than as a person. 🔒 his call: skinless, exposed striation,
 // endless steam. 🎨 At this pixel scale detail is mud, so what carries it is the SILHOUETTE plus two
 // or three value steps — dark meat, a lit edge where the light catches the fibre, and the steam.
@@ -55915,6 +55933,7 @@ function drawApocMourners(g,L,now){
 function drawApocalypse(g,ap,L,now){
   drawApocalypseBody(g,ap,L,now);
   drawApocDustWall(g,ap,L,now);      // the front crosses the city as ONE thing, over what it has passed
+  if(APOC_X_FRONT[curDeath]) APOC_X_FRONT[curDeath](g,ap,L,now);   // …and what the ending puts IN FRONT of it
   drawApocSky(g,ap,L,now);           // …and what is up there to be shot down
   drawApocResistance(g,ap,L,now);
   drawApocWrecks(g,L,now);           // …and the traffic the front caught, which STAYS
