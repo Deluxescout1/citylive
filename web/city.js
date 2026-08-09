@@ -51586,10 +51586,18 @@ function titanWall(g,ap,L,now,rkA,rkB){
   var TU=Math.round(125*Math.max(1,KSP));                 // one titan unit — a tall tower, in tower units
   var epi=(typeof apocEpiX==="function")?apocEpiX(now):Math.round(WW*0.5);
   var gy=HORIZON;
-  // ── THE RANKS. Far to near, so the near ones overdraw the far ones and the wall reads as deep.
-  // Rank 0 is the endless mass behind; rank 2 is what is about to step on you.
-  for(var rk=rkA; rk<=rkB; rk++){
-    var depth=1-rk/2;                                   // 1 = furthest
+  // ── THE RANKS. 🔑🔑 RANK 0 IS THE NEAREST — the one about to step on you — and higher indices go
+  // BACK into the haze. It used to be the other way round, and that inversion was a trap with a fuse
+  // on it: `APOC_X_FRONT.thetitans` called `titanWall(…,2,2)` where the literal `2` MEANT "the front",
+  // and it would have silently stopped meaning that the first time the rank count changed. Nick has
+  // asked for ranks that resolve out of the murk as the wall closes, so the count IS about to change.
+  // Numbering from the front makes "the front" a NAME (rank 0) instead of a coincidence, and lets new
+  // ranks be appended at the far end without touching anything that already works.
+  // ⚠ Draw order is still FAR → NEAR so the near ones overdraw the far ones — hence the DESCENDING
+  // loop. Getting this backwards does not crash, it just quietly flattens the wall.
+  var RANKS=3;                                          // …and the count is a variable now, not a `2`
+  for(var rk=rkB; rk>=rkA; rk--){
+    var depth=(RANKS>1)?rk/(RANKS-1):0;                 // 0 = nearest, 1 = furthest
     // 🚨🚨🚨 THE RANKS ARE DEPTHS OF ONE WALL, NOT THREE SEPARATE ARRIVALS — and measured on the old
     // law the wall was not a wall at all. Rank 0 was pinned at EXACTLY `HORIZON*0.62` = 175 px at every
     // ap from 0.05 to 1.00, because the growth term beneath the floor could never reach it: it topped
@@ -51601,31 +51609,46 @@ function titanWall(g,ap,L,now,rkA,rkB){
     // in the distance", and it bought that by deleting the approach it was sitting inside.
     // Now all three ranks exist from the first frame, sized by DEPTH, with ONE growth term moving all of
     // them together: the wall recedes to the horizon at every moment, and the whole of it walks in.
-    var dsc=(rk===0)?0.55:(rk===1?0.76:1.0);            // foreshortening — the near rank is always biggest
-    var rn=near;
-    // 🔒🚨 THE APPROACH WAS FRONT-LOADED AND THE DISTANCE PHASE WAS NEARLY ABSENT. Measured on the arc:
-    // `near=(ap/0.86)^1.9` returns 0.037 at ap 0.15, so under `0.55+1.05*near` THE CONSTANT SUPPLIED 96%
-    // OF THE HEIGHT AND THE GROWTH 4% — the wall opened at 147 wp, already 41% of sky-to-horizon, and the
-    // first 35% of the ending bought only 26% of the growth. 🔑 That is the same shape as the bug 072bffa
-    // killed one commit earlier ("a floor the growth can never reach is not a floor, it is the VALUE"):
-    // a large constant with a small term on top is a CONSTANT, whatever the term is called.
-    // 🔒 Nick's line this is built to honour: "they are allowed to be seen in the distance for a while
-    // before they get here" — and the Rumbling's whole horror is that you watch it come.
-    // Weight moved out of the constant and into the growth: 147→63 at ap 0.15, still 400 at the end.
-    var H=Math.max(2,Math.round(TU*(0.20+1.40*near)*dsc));
-    // 🚨🔑 "SEEN IN THE DISTANCE" MEANS SEEN *OVER THE CITY* — the finding the old floor existed for is
-    // kept, because it is right: a colossal clears the skyline even when it is miles away, and that is
-    // the whole reason it is frightening. It is now bought by the DEPTH ORDERING rather than by a clamp.
-    // Rank 2 opens at 0.72·TU and stands over the skyline from the first frame; the far rank is ALLOWED
-    // to be partly behind the towers, because that is what distance looks like.
-    // ⚠ Re-measure with the rank table after touching any of these three numbers: every rank must be
-    // monotonic in ap, and at least two of them must exist before ap 0.30.
-    // ⚠ MEASURED FROM THE RENDER: at `H*0.30` wide on a `W2*1.55` step they packed into a WALL OF
-    // MEAT with no sky between them and read as red COLUMNS, not bodies. A silhouette needs ground
-    // (or sky) around it to be a silhouette at all. Narrower, and spaced so daylight shows between
-    // every pair — the gaps are what make it a crowd rather than a texture.
+    // Foreshortening, derived from depth rather than a three-entry table, so adding ranks needs no
+    // new numbers. ⚠ The spread is DELIBERATELY narrow (1.00 → 0.72): his locked spec is "TALLER THAN
+    // EVERY BUILDING", and a far rank scaled to 0.55 drops under a 100–125 wp skyline and vanishes.
+    var dsc=1-0.28*depth;
+    // 📏🚨🔑🔑 THE BASE IS "CLEARS THE TALLEST THING IN THE CITY", AND IT IS IN KSP UNITS.
+    // MEASURED on a clean render of his right screen: ordinary buildings run 100–125 wp and the
+    // tallest structures — billboards, the tram line — reach 195–215 wp. So the wall's floor is
+    // 0.88·TU ≈ 220 wp at KSP=2, which clears all of it. That is the same physical height the old
+    // `HORIZON*0.62` produced on THIS monitor, but HORIZON is per-screen (282/359/402 across his
+    // three outputs) while TU is not — the old spelling made the wall 30% taller on his left monitor
+    // than his right, for the same city. 🔑 A thing that must be COMPARED with buildings belongs in
+    // the buildings' units.
+    // 🔒 THE FLOOR IS THE BASE, NOT A CLAMP — which is what makes this different from the bug 072bffa
+    // killed. `max(growth, floor)` lets the floor EAT the growth and become the value; `floor +
+    // growth` cannot, because every bit of `near` still moves the height. Both the earlier spellings
+    // were wrong in opposite directions: `HORIZON*0.62` as a clamp deleted the approach, and my own
+    // `0.20+1.40*near` deleted the "taller than every building" it was there to buy.
+    // 🚨 MY OWN ERROR, LOGGED: `017ecea`'s message claims "at 63 wp they do NOT vanish behind the
+    // skyline — rendered at ap 0.15 and they stand among and above the towers." That is WRONG. The
+    // skyline is 100–125 wp; 63 is under it. The render did not disprove it, it just happened to look
+    // at a stretch of the right screen where the towers are short. 🔑 A render is only evidence about
+    // the thing it actually contains.
+    // ⚠ 0.88 was measured to clear the BILLBOARDS (195–215 wp) and that was the wrong target: they are
+    // outliers, and requiring the wall to top them from frame one put 96% of the height back in the
+    // constant — the same trap, a third spelling. 0.72·TU = 180 wp clears the ORDINARY skyline
+    // (100–125 wp) with room, and lets the tallest masts poke into the wall early, which is a scale
+    // reference rather than a fault. The wall passes everything by ap ~0.35 and ends at 480.
+    var H=Math.max(2,Math.round(TU*(0.72+1.20*near)*dsc));
+    // ⚠ Re-measure with the rank table after touching either number: every rank must be monotonic in
+    // ap, and every rank must clear 125 wp — the ordinary skyline — from the very first frame.
     var W2=Math.max(1,Math.round(H*0.21));
-    var step=Math.max(W2+2,Math.round(W2*2.35));
+    // 🔒🚨 SHOULDER TO SHOULDER. Nick, choosing between a spaced crowd and a packed mass: "pack them
+    // — shoulder to shoulder like the Rumbling." His ORIGINAL spec said SOLID WALL and a later fix
+    // walked away from it: at `H*0.30` wide they had packed into a wall of meat that read as red
+    // COLUMNS, and the cure applied was to widen the STEP as well as narrow the body — which fixed
+    // the mush by deleting the wall. The body is still narrow (0.21·H, not 0.30); only the spacing
+    // comes back. ⚠ Arms reach ±0.66·W, so at this step neighbours OVERLAP — that is the point of a
+    // mass, and it is also exactly the failure mode this renderer is worst at. Judged on a render
+    // against a looser alternative before shipping, not on the arithmetic.
+    var step=Math.max(W2+2,Math.round(W2*1.60));
     // 🪵 THE GROUND PLANE WAS INVERTED. The comment read "the near ranks stand slightly lower in frame"
     // and the arithmetic SUBTRACTED, so the nearest rank stood 6 wp — ≈18 px on his panel — FURTHER BACK
     // than the furthest one. Below the horizon is toward the viewer: a nearer rank stands LOWER.
@@ -51634,7 +51657,18 @@ function titanWall(g,ap,L,now,rkA,rkB){
     // the mountains, the sea and the dust bank all read straight through its legs — the one thing a mass
     // must not do. Haze is DISTANCE now and nothing else: the far rank dissolves into the steam, the near
     // rank is very nearly opaque, and the whole wall is hazier while it is still a long way off.
-    var haze=Math.min(0.60,0.04+0.40*depth+0.14*(1-near));
+    // 🔒🚨🔑🔑 …AND NOW HAZE IS WHAT CARRIES THE APPROACH, BECAUSE HEIGHT CANNOT.
+    // Nick's two locked lines pull against each other: "TALLER THAN EVERY BUILDING" forces a large
+    // base, and "seen in the distance for a while" wants them small early — so the usable height range
+    // is only about 2.7x and NONE of it is available at the start. Three commits in a row tried to buy
+    // the approach with size and each one broke the other requirement. The way out is that SIZE IS NOT
+    // WHAT MAKES A THING LOOK FAR AWAY — air does. His own pick, given the choice: carry it with depth
+    // cues, ranks resolving, and detail arriving.
+    // ⚠ The old term gave the near rank haze 0.17 at ap 0.15 — nearly full saturation — so a wall that
+    // was correctly sized for "miles off" was PAINTED as if it were on top of you, and read as close.
+    // `(1-near)^1.6` dominates early and vanishes late: 0.62 veil at ap 0.15 → 0.15 by ap 0.70 → 0.04
+    // at the end, when it should be crisp, opaque and in your face.
+    var haze=Math.min(0.78,0.04+0.34*depth+0.62*Math.pow(1-near,1.6));
     // 🎨🚨🔑🔑 DISTANCE IS A COLOUR, NOT AN ALPHA. Drawn at `1-haze` OVER the city, the far ranks did not
     // recede — they went TRANSPARENT, and hard-edged buildings, the mountains and the sea read straight
     // through them. Atmosphere does not make a body see-through; it washes it toward the SKY. So the
@@ -51661,7 +51695,10 @@ function titanWall(g,ap,L,now,rkA,rkB){
       // ⚠ Near ranks only — the far wall is miles off and its fires belong to the horizon, not here.
       // ⚠ The near ranks now exist from the first frame, so this needs its own "has it arrived" test —
       // without one the city caught fire under giants still miles away. `near` is that test, not the rank.
-      if(rk>=1 && Hh>10 && near>0.08){
+      // ⚠ FLIPPED WITH THE RE-INDEXING: this was `rk>=1`, which meant "the two NEAREST ranks" under
+      // the old far-to-near numbering and would now mean the two FURTHEST — putting the footfall
+      // fires on the horizon and none under the wall in front of you. Same two ranks, new spelling.
+      if(rk<=1 && Hh>10 && near>0.08){
         var Wv=Math.round(W2*hv);
         var plant=(st>=0)?-1:1;                                     // the trailing leg is the planted one
         var fxp=X+plant*Math.round(Wv*0.36);
@@ -51715,7 +51752,7 @@ APOC_X.thetitans=function(g,ap,L,now){
   var near=Math.min(1,Math.max(0,ap/0.86)); near=Math.pow(near,1.9);
   var epi=(typeof apocEpiX==="function")?apocEpiX(now):Math.round(WW*0.5);
   var gy=HORIZON;
-  titanWall(g,ap,L,now,0,1);          // the far and middle ranks — still behind the front, so behind its dust
+  titanWall(g,ap,L,now,1,2);          // everything BEHIND the front rank — so it sits behind the front's dust
   // ── THE STEAM. It is not decoration: it is what says HEAT, and it is what the far ranks dissolve
   // into so a repeating row stops reading as a repeating row.
   var sn=Math.round(70*near);
@@ -51782,7 +51819,8 @@ APOC_X.thetitans=function(g,ap,L,now){
 };
 // …and the rank that is ON the front line is drawn AFTER the dust, so the dust reads as being behind it
 // rather than smeared across it. This is the only thing that separates the three ranks into three depths.
-APOC_X_FRONT.thetitans=function(g,ap,L,now){ titanWall(g,ap,L,now,2,2); };
+// 🔑 Rank 0 BY NAME, not a literal that happens to be the last index today.
+APOC_X_FRONT.thetitans=function(g,ap,L,now){ titanWall(g,ap,L,now,0,0); };
 // A COLOSSAL, drawn as muscle rather than as a person. 🔒 his call: skinless, exposed striation,
 // endless steam. 🎨 At this pixel scale detail is mud, so what carries it is the SILHOUETTE plus two
 // or three value steps — dark meat, a lit edge where the light catches the fibre, and the steam.
