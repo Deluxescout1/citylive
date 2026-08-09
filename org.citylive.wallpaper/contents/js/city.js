@@ -51567,36 +51567,65 @@ APOC_X.thetitans=function(g,ap,L,now){
   // so the whole first quarter was empty. A gentler power curve instead: they resolve on the horizon
   // almost at once, hold there as a distant band for a long while, and only close fast at the end.
   var near=Math.min(1,Math.max(0,ap/0.86)); near=Math.pow(near,1.9);
-  var farSeen=Math.min(1,Math.max(0,ap/0.10));            // the far rank is legible from the very start
+  // 📏🚨🔑🔑 THE WALL'S HEIGHT IS IN THE BUILDINGS' UNITS, NOT THE FRAME'S. It was `HORIZON*…`, and
+  // HORIZON is a PER-SCREEN quantity: his three outputs measure 282 / 359 / 402 world px, while `KSP` —
+  // the scale every building height is built from — is 2 on all three. So the same wall stood 30% taller
+  // on his left monitor than on his right, and a titan straddling a bezel was two different heights on
+  // either side of it. The x was world-anchored in the very first commit; the HEIGHT never was, and the
+  // `*K/Math.max(1,K)` that was carefully put back to fix exactly this cancels to 1 and does nothing.
+  // 🔑 The rule that keeps coming back: a thing whose whole job is to be COMPARED with something must be
+  // in that something's units. Here that is KSP — the same conclusion the second tier's titan reached.
+  var TU=Math.round(125*Math.max(1,KSP));                 // one titan unit — a tall tower, in tower units
   var epi=(typeof apocEpiX==="function")?apocEpiX(now):Math.round(WW*0.5);
   var gy=HORIZON;
   // ── THE RANKS. Far to near, so the near ones overdraw the far ones and the wall reads as deep.
   // Rank 0 is the endless mass behind; rank 2 is what is about to step on you.
   for(var rk=0; rk<3; rk++){
     var depth=1-rk/2;                                   // 1 = furthest
-    // each rank has its own arrival: the far wall is visible almost at once, the near one arrives late
-    var rn=Math.min(1,Math.max(0,(near-rk*0.24)/0.72));
-    if(rk===0) rn=Math.max(rn,0.10*farSeen);              // …and it never drops below "visible"
-    if(rn<=0) continue;
-    // scale: a speck on the horizon to something taller than the tallest tower
-    var sc=(0.06+0.94*rn)*(0.42+0.58*(1-depth));
-    var H=Math.max(2,Math.round(HORIZON*1.30*sc*K/Math.max(1,K)));   // ⚠ in world px like the buildings
-    // 🚨🔑 "SEEN IN THE DISTANCE" MEANS SEEN *OVER THE CITY*. Measured: the far rank topped out around
-    // 24 px against a skyline running 100–200, so the distant wall was drawn perfectly correctly and
-    // was **entirely behind the buildings** — the first quarter of the arc looked empty because the
-    // thing approaching was shorter than what stood in front of it. Correct code, invisible feature,
-    // and the size was the tell. A colossal clears the skyline even when it is miles away; that is
-    // the whole reason it is frightening. So the far rank gets a FLOOR measured against the horizon
-    // rather than against its own distance.
-    if(rk===0) H=Math.max(H,Math.round(HORIZON*0.62));
+    // 🚨🚨🚨 THE RANKS ARE DEPTHS OF ONE WALL, NOT THREE SEPARATE ARRIVALS — and measured on the old
+    // law the wall was not a wall at all. Rank 0 was pinned at EXACTLY `HORIZON*0.62` = 175 px at every
+    // ap from 0.05 to 1.00, because the growth term beneath the floor could never reach it: it topped
+    // out at 154 and would have needed rn>1.15, which is unreachable. Ranks 1 and 2 did not exist until
+    // ap 0.50 and ap 0.62. So for the first SIXTY PERCENT of the ending the wall was ONE ROW OF IDENTICAL
+    // FIGURES AT ONE FIXED HEIGHT THAT NEVER GREW — which is exactly why it read as copies rather than as
+    // a mass, and why ap 0.15 and ap 0.30 came back as the same picture.
+    // 🔑🔑 A FLOOR THE GROWTH CAN NEVER REACH IS NOT A FLOOR, IT IS THE VALUE. It was added to fix "seen
+    // in the distance", and it bought that by deleting the approach it was sitting inside.
+    // Now all three ranks exist from the first frame, sized by DEPTH, with ONE growth term moving all of
+    // them together: the wall recedes to the horizon at every moment, and the whole of it walks in.
+    var dsc=(rk===0)?0.55:(rk===1?0.76:1.0);            // foreshortening — the near rank is always biggest
+    var rn=near;
+    var H=Math.max(2,Math.round(TU*(0.55+1.05*near)*dsc));
+    // 🚨🔑 "SEEN IN THE DISTANCE" MEANS SEEN *OVER THE CITY* — the finding the old floor existed for is
+    // kept, because it is right: a colossal clears the skyline even when it is miles away, and that is
+    // the whole reason it is frightening. It is now bought by the DEPTH ORDERING rather than by a clamp.
+    // Rank 2 opens at 0.72·TU and stands over the skyline from the first frame; the far rank is ALLOWED
+    // to be partly behind the towers, because that is what distance looks like.
+    // ⚠ Re-measure with the rank table after touching any of these three numbers: every rank must be
+    // monotonic in ap, and at least two of them must exist before ap 0.30.
     // ⚠ MEASURED FROM THE RENDER: at `H*0.30` wide on a `W2*1.55` step they packed into a WALL OF
     // MEAT with no sky between them and read as red COLUMNS, not bodies. A silhouette needs ground
     // (or sky) around it to be a silhouette at all. Narrower, and spaced so daylight shows between
     // every pair — the gaps are what make it a crowd rather than a texture.
     var W2=Math.max(1,Math.round(H*0.21));
     var step=Math.max(W2+2,Math.round(W2*2.35));
-    var baseY=gy-Math.round(HORIZON*0.02*(1-depth));    // the near ranks stand slightly lower in frame
-    var haze=0.12+0.44*depth*(1-rn*0.5);                // distance haze — the far wall is IN the steam
+    // 🪵 THE GROUND PLANE WAS INVERTED. The comment read "the near ranks stand slightly lower in frame"
+    // and the arithmetic SUBTRACTED, so the nearest rank stood 6 wp — ≈18 px on his panel — FURTHER BACK
+    // than the furthest one. Below the horizon is toward the viewer: a nearer rank stands LOWER.
+    var baseY=gy+Math.round(HORIZON*0.015*(1-depth));
+    // 🌫️ …AND THE WALL WAS SEE-THROUGH. At `0.12+0.44·depth·(1-rn/2)` the near rank sat at 0.12 haze and
+    // the mountains, the sea and the dust bank all read straight through its legs — the one thing a mass
+    // must not do. Haze is DISTANCE now and nothing else: the far rank dissolves into the steam, the near
+    // rank is very nearly opaque, and the whole wall is hazier while it is still a long way off.
+    var haze=Math.min(0.60,0.04+0.40*depth+0.14*(1-near));
+    // 🎨🚨🔑🔑 DISTANCE IS A COLOUR, NOT AN ALPHA. Drawn at `1-haze` OVER the city, the far ranks did not
+    // recede — they went TRANSPARENT, and hard-edged buildings, the mountains and the sea read straight
+    // through them. Atmosphere does not make a body see-through; it washes it toward the SKY. So the
+    // palette is mixed toward the sky and every rank is drawn OPAQUE, which is also the only way a wall
+    // reads as one mass rather than as overlapping ghosts.
+    // ⚡ Mixed once per RANK, not per titan — this was building three colour strings for every figure in
+    // the wall, every frame, and the mix is constant along a rank by construction.
+    var P=titanPal(haze,day);
     // world-anchored: the wall spans the world, not the viewport, so three monitors see one wall
     var wStart=Math.floor((WOFF-step)/step)*step;
     for(var wx=wStart; wx<WOFF+SW+step; wx+=step){
@@ -51606,14 +51635,16 @@ APOC_X.thetitans=function(g,ap,L,now){
       var Hh=Math.round(H*hv), top=baseY-Hh;
       var ph=((h>>>11)%628)/100;                        // ② and so does the stride phase
       var st=Math.sin(now*0.0016+ph);
-      titanBody(g,X,top,Math.round(W2*hv),Hh,st,haze,day,K);
+      titanBody(g,X,top,Math.round(W2*hv),Hh,st,P,K);
       // 🔥👣 FIRE AT EVERY FOOTFALL. 🔒 Nick: *"where is the fire they are causing with each step"* —
       // and he was right that a band behind the front is not that. A front is a LINE; a footstep is a
       // PLACE, and what he is describing is the city catching where each one comes down. The planted
       // foot is the one at the back of the stride, so `st` tells us which and where; the fire is put
       // at that exact ground point and burns hardest the instant it lands, then dies back.
       // ⚠ Near ranks only — the far wall is miles off and its fires belong to the horizon, not here.
-      if(rk>=1 && Hh>10){
+      // ⚠ The near ranks now exist from the first frame, so this needs its own "has it arrived" test —
+      // without one the city caught fire under giants still miles away. `near` is that test, not the rank.
+      if(rk>=1 && Hh>10 && near>0.08){
         var Wv=Math.round(W2*hv);
         var plant=(st>=0)?-1:1;                                     // the trailing leg is the planted one
         var fxp=X+plant*Math.round(Wv*0.36);
@@ -51739,18 +51770,25 @@ APOC_X.thetitans=function(g,ap,L,now){
 //  ② THE ARMS COUNTER-SWING. Left arm forward with the right leg. Get this backwards (or omit it)
 //     and the gait looks wrong even when you cannot say why.
 //  ③ IT LEANS INTO THE STRIDE, because something that size is falling forward and catching itself.
-function titanBody(g,X,top,W,H,st,haze,day,K){
-  if(H<3) { g.fillStyle="rgba(58,30,30,"+(0.5*(1-haze)).toFixed(2)+")"; g.fillRect(X,top,Math.max(1,W),H); return; }
+// THE WALL'S PALETTE, mixed toward the sky by distance and returned OPAQUE. One object per rank.
+function titanPal(haze,day){
+  var sky=day?[176,198,222]:[26,32,46];
+  var m=mixc(day?[104,42,40]:[46,20,22],sky,haze);
+  var l=mixc(day?[158,74,62]:[74,34,34],sky,haze);
+  var d=mixc(day?[62,24,26]:[26,11,13],sky,haze);
+  return { meat:"rgb("+m[0]+","+m[1]+","+m[2]+")",
+           lit :"rgb("+l[0]+","+l[1]+","+l[2]+")",
+           dark:"rgb("+d[0]+","+d[1]+","+d[2]+")" };
+}
+function titanBody(g,X,top,W,H,st,P,K){
+  if(H<3) { g.fillStyle=P.dark; g.fillRect(X,top,Math.max(1,W),H); return; }
   var bob=Math.round(H*0.022*Math.abs(st));      // ① lowest at full stride, tallest mid-step
   top+=bob;
   var lean=Math.round(W*0.10*st);                // ③ the torso leads the legs
-  var a=(1-haze).toFixed(3);
-  var meat=day?"rgba(104,42,40,":"rgba(46,20,22,";
-  var lit =day?"rgba(158,74,62,":"rgba(74,34,34,";
-  var dark=day?"rgba(62,24,26,":"rgba(26,11,13,";
+  var meat=P.meat, lit=P.lit, dark=P.dark;
   var hh=Math.max(1,Math.round(H*0.13));                       // head
   var tor=Math.round(H*0.42), leg=H-hh-tor;
-  g.fillStyle=meat+a+")";
+  g.fillStyle=meat;
   g.fillRect(X-Math.round(W*0.5)+lean,top+hh,W,tor);                         // torso
   g.fillRect(X-Math.round(W*0.26)+lean,top,Math.round(W*0.52),hh);           // head
   // 🦵 THE GAP BETWEEN THE LEGS IS THE READ. Without a clear void between them the lower half is one
@@ -51764,18 +51802,18 @@ function titanBody(g,X,top,W,H,st,haze,day,K){
   g.fillRect((X-Math.round(W*0.66)+lean-asw)|0,top+hh+Math.round(tor*0.10),aw,Math.round(tor*0.72));
   g.fillRect((X+Math.round(W*0.46)+lean+asw)|0,top+hh+Math.round(tor*0.10),aw,Math.round(tor*0.72));
   // the lit edge — one column down the leading side is what makes it read as a BODY and not a slab
-  g.fillStyle=lit+a+")";
+  g.fillStyle=lit;
   g.fillRect(X-Math.round(W*0.5)+lean,top+hh,Math.max(1,Math.round(W*0.14)),tor);
   g.fillRect(X-Math.round(W*0.26)+lean,top,Math.max(1,Math.round(W*0.14)),hh);
   // muscle striation: a few dark bands across the torso, never a regular stripe pattern
   if(tor>5){
-    g.fillStyle=dark+a+")";
+    g.fillStyle=dark;
     for(var m=0;m<3;m++){
       var my=top+hh+Math.round(tor*(0.22+m*0.24));
       g.fillRect(X-Math.round(W*0.5)+((m&1)?1:0),my,W-((m&1)?2:1),Math.max(1,Math.round(H*0.012)));
     }
     // the exposed jaw — the one piece of "face" that reads at this size
-    g.fillStyle=dark+a+")";
+    g.fillStyle=dark;
     g.fillRect(X-Math.round(W*0.20),top+Math.round(hh*0.62),Math.round(W*0.40),Math.max(1,Math.round(hh*0.20)));
   }
 }
