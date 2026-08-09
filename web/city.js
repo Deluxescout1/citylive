@@ -51729,7 +51729,14 @@ function titanWall(g,ap,L,now,rkA,rkB,side){
       var Hh=Math.round(H*hv), top=baseY-Hh;
       var ph=((h>>>11)%628)/100;                        // ② and so does the stride phase
       var st=Math.sin(now*0.0016+ph);
-      titanBody(g,X,top,Math.round(W2*hv),Hh,st,P,K);
+      // 🔒⚡ DETAIL RESOLVES AS THEY CLOSE — his pick, and the perf budget in the same expression.
+      // Two gates, and it takes the LOWER: a rank's DEPTH caps what it can ever show (the back of the
+      // wall is never more than a silhouette, however late it is), and its own arrival `t` decides how
+      // much of that cap it has earned yet. ⚠ Keyed to `t`, not `near`, for the same reason haze is:
+      // a rank that has stepped over the city is close, and must show surface immediately.
+      var lod=Math.min(rk===0?2:(rk===1?1:0), t>0.55?2:(t>0.22?1:0));
+      if(Hh<26) lod=0;                                   // …and nothing small enough to be mud earns detail
+      titanBody(g,X,top,Math.round(W2*hv),Hh,st,P,K,lod,now,h);
       // 🔥👣 FIRE AT EVERY FOOTFALL. 🔒 Nick: *"where is the fire they are causing with each step"* —
       // and he was right that a band behind the front is not that. A front is a LINE; a footstep is a
       // PLACE, and what he is describing is the city catching where each one comes down. The planted
@@ -51888,45 +51895,121 @@ function titanPal(haze,day){
   var m=mixc(day?[104,42,40]:[46,20,22],sky,haze);
   var l=mixc(day?[158,74,62]:[74,34,34],sky,haze);
   var d=mixc(day?[62,24,26]:[26,11,13],sky,haze);
+  // 🎨 A FOURTH STEP, AND IT IS WHAT MAKES MEAT READ AS MEAT. Three values give a lit edge, a body and
+  // a shadow — enough for a silhouette, not enough for a SURFACE. Muscle needs a tone that is brighter
+  // than the body but not the rim light, or every raised mass has to be drawn with the highlight and
+  // the whole figure goes chalky. ⚠ Mixed toward the sky like the rest: a value step that ignores haze
+  // stays saturated as the body recedes and the far ranks get a bright speckle they should not have.
+  var i=mixc(day?[132,56,48]:[60,26,28],sky,haze);
   return { meat:"rgb("+m[0]+","+m[1]+","+m[2]+")",
+           mid :"rgb("+i[0]+","+i[1]+","+i[2]+")",
            lit :"rgb("+l[0]+","+l[1]+","+l[2]+")",
            dark:"rgb("+d[0]+","+d[1]+","+d[2]+")" };
 }
-function titanBody(g,X,top,W,H,st,P,K){
+// 🔒🚨 THE BODY, REBUILT. Nick: the ending is "not in depth enough or as realistic" — and the audit
+// against his own locked spec said the same thing in his words: "full colossal look, SKINLESS, EXPOSED
+// MUSCLE, endless steam" was the one line of it that had never really been built. What was here drew
+// SIX AXIS-ALIGNED RECTANGLES and called three FULL-WIDTH BARS across the torso "muscle striation".
+// 🎨🔑🔑 A FULL-WIDTH BAR IS A STRIPE ON A BARREL, NOT A MUSCLE. Muscle reads because it is BOUNDED —
+// it starts and stops inside the silhouette, it is roughly symmetric about a centre line, and it
+// interrupts. Bands that run edge to edge say "this object is banded"; that is a cask, a mummy, a
+// stack of tyres. Every mark here is INSET and PAIRED about the sternum for that reason.
+// 🔑 The other half is that the SILHOUETTE was a rectangle. A body is wide at the shoulders, tucks at
+// the waist and flares at the hips, and at this pixel scale that outline does more work than any
+// interior detail — it is what reads at 40 px and still reads at 400.
+//
+// ⚡ `lod` IS BOTH THE DISTANCE CUE AND THE PERF BUDGET, WHICH IS WHY THEY ARE ONE CHANGE. His pick was
+// "detail resolves as they close", and that is also exactly how this stays affordable with the wall
+// packed at 1.60 and ranks about to multiply: 0 = a solid silhouette for anything far or small,
+// 1 = + limbs, rim light and the pectoral mass, 2 = + striation, deltoid caps, jaw and venting steam.
+// Real distance works this way round anyway — you do not lose a body's OUTLINE at range, you lose its
+// SURFACE — so buying frames here costs nothing that should have been visible.
+function titanBody(g,X,top,W,H,st,P,K,lod,now,hsh){
   if(H<3) { g.fillStyle=P.dark; g.fillRect(X,top,Math.max(1,W),H); return; }
+  if(lod==null) lod=2;
   var bob=Math.round(H*0.022*Math.abs(st));      // ① lowest at full stride, tallest mid-step
   top+=bob;
   var lean=Math.round(W*0.10*st);                // ③ the torso leads the legs
-  var meat=P.meat, lit=P.lit, dark=P.dark;
+  var meat=P.meat, lit=P.lit, dark=P.dark, mid=P.mid||P.lit;
   var hh=Math.max(1,Math.round(H*0.13));                       // head
   var tor=Math.round(H*0.42), leg=H-hh-tor;
+  var tY=top+hh, cx=X+lean;                                    // torso top, and the body's centre line
+  // ── THE SILHOUETTE. Four bands: traps/delts, chest, the waist tuck, then the hips. Drawn as bands
+  // rather than one rect so the OUTLINE carries the read even at lod 0, where there is nothing else.
+  var bw=[1.10,1.00,0.86,0.94], by=[0,0.24,0.54,0.80,1.00];
   g.fillStyle=meat;
-  g.fillRect(X-Math.round(W*0.5)+lean,top+hh,W,tor);                         // torso
-  g.fillRect(X-Math.round(W*0.26)+lean,top,Math.round(W*0.52),hh);           // head
+  for(var b=0;b<4;b++){
+    var w2=Math.max(1,Math.round(W*bw[b])), y0=tY+Math.round(tor*by[b]), y1=tY+Math.round(tor*by[b+1]);
+    g.fillRect((cx-(w2>>1))|0,y0|0,w2,Math.max(1,y1-y0));
+  }
+  g.fillRect((cx-Math.round(W*0.26))|0,top|0,Math.max(1,Math.round(W*0.52)),hh);           // head
   // 🦵 THE GAP BETWEEN THE LEGS IS THE READ. Without a clear void between them the lower half is one
   // block and the whole thing is a pillar; with it, the shape is unmistakably a walking figure even
   // at eight pixels wide. So the legs are narrow and set wide, and the stride swings them further.
-  var lw=Math.max(1,Math.round(W*0.26));
-  g.fillRect((X-Math.round(W*0.46)+Math.round(st*W*0.30))|0,top+hh+tor,lw,leg);   // legs, striding
-  g.fillRect((X+Math.round(W*0.20)-Math.round(st*W*0.30))|0,top+hh+tor,lw,leg);
+  // ⚠ Now TAPERED — thigh into calf. A leg of constant width is a stilt, and a wall on stilts was a
+  // fair description of what this looked like from across the room.
+  var lw=Math.max(1,Math.round(W*0.30)), cw=Math.max(1,Math.round(W*0.21));
+  var sw=Math.round(st*W*0.30), thY=tY+tor, kneeY=thY+Math.round(leg*0.52);
+  var lxA=(X-Math.round(W*0.46)+sw)|0, lxB=(X+Math.round(W*0.20)-sw)|0;
+  g.fillRect(lxA,thY|0,lw,Math.max(1,kneeY-thY));                                    // thighs
+  g.fillRect(lxB,thY|0,lw,Math.max(1,kneeY-thY));
+  g.fillRect((lxA+((lw-cw)>>1))|0,kneeY|0,cw,Math.max(1,thY+leg-kneeY));             // …into calves
+  g.fillRect((lxB+((lw-cw)>>1))|0,kneeY|0,cw,Math.max(1,thY+leg-kneeY));
+  if(lod<1) return;                                            // far/small: the outline is the whole read
   // ② arms counter-swing: each opposes the leg on its own side
   var aw=Math.max(1,Math.round(W*0.20)), asw=Math.round(W*0.16*st);
-  g.fillRect((X-Math.round(W*0.66)+lean-asw)|0,top+hh+Math.round(tor*0.10),aw,Math.round(tor*0.72));
-  g.fillRect((X+Math.round(W*0.46)+lean+asw)|0,top+hh+Math.round(tor*0.10),aw,Math.round(tor*0.72));
+  g.fillRect((cx-Math.round(W*0.66)-asw)|0,(tY+Math.round(tor*0.10))|0,aw,Math.round(tor*0.72));
+  g.fillRect((cx+Math.round(W*0.46)+asw)|0,(tY+Math.round(tor*0.10))|0,aw,Math.round(tor*0.72));
   // the lit edge — one column down the leading side is what makes it read as a BODY and not a slab
   g.fillStyle=lit;
-  g.fillRect(X-Math.round(W*0.5)+lean,top+hh,Math.max(1,Math.round(W*0.14)),tor);
-  g.fillRect(X-Math.round(W*0.26)+lean,top,Math.max(1,Math.round(W*0.14)),hh);
-  // muscle striation: a few dark bands across the torso, never a regular stripe pattern
-  if(tor>5){
-    g.fillStyle=dark;
-    for(var m=0;m<3;m++){
-      var my=top+hh+Math.round(tor*(0.22+m*0.24));
-      g.fillRect(X-Math.round(W*0.5)+((m&1)?1:0),my,W-((m&1)?2:1),Math.max(1,Math.round(H*0.012)));
+  g.fillRect((cx-Math.round(W*0.55))|0,tY|0,Math.max(1,Math.round(W*0.12)),Math.round(tor*0.86));
+  g.fillRect((cx-Math.round(W*0.26))|0,top|0,Math.max(1,Math.round(W*0.12)),hh);
+  // …and a shadow down the trailing side, so the torso turns instead of being lit and then flat
+  g.fillStyle=dark;
+  g.fillRect((cx+Math.round(W*0.40))|0,tY|0,Math.max(1,Math.round(W*0.10)),Math.round(tor*0.86));
+  if(W<5||tor<8) return;
+  // ── THE PECTORAL MASS. Two blocks either side of the sternum — the single most legible piece of
+  // anatomy at this size, because it is the one that makes the chest read as TWO things.
+  var pw=Math.max(1,Math.round(W*0.40)), ph=Math.max(1,Math.round(tor*0.22));
+  g.fillStyle=mid;
+  g.fillRect((cx-Math.round(W*0.46))|0,(tY+Math.round(tor*0.16))|0,pw,ph);
+  g.fillRect((cx+Math.round(W*0.06))|0,(tY+Math.round(tor*0.16))|0,pw,ph);
+  g.fillStyle=dark;
+  g.fillRect(cx|0,(tY+Math.round(tor*0.16))|0,Math.max(1,Math.round(W*0.06)),Math.round(tor*0.30));  // sternum
+  if(lod<2) return;
+  // ── THE STRIATION. 🔑 INSET AND PAIRED, never edge to edge. Ribs on both flanks with the lengths
+  // stepping down the ribcage, and a short column of abdominal segments on the centre line. The
+  // asymmetric jitter is hashed per titan so the wall is not one shape repeated.
+  g.fillStyle=dark;
+  var rt=Math.max(1,Math.round(H*0.010));
+  for(var r2=0;r2<3;r2++){
+    var ry=tY+Math.round(tor*(0.46+r2*0.13)), rl=Math.round(W*(0.30-r2*0.05));
+    if(rl<1) break;
+    g.fillRect((cx-Math.round(W*0.42))|0,ry|0,rl,rt);                       // left flank
+    g.fillRect((cx+Math.round(W*0.42)-rl)|0,(ry+((hsh>>>(r2+3))&1))|0,rl,rt);  // right, half a pixel out of step
+  }
+  for(var a2=0;a2<3;a2++){
+    var ay=tY+Math.round(tor*(0.62+a2*0.11));
+    g.fillRect((cx-Math.round(W*0.11))|0,ay|0,Math.max(1,Math.round(W*0.22)),rt);
+  }
+  // the exposed jaw — the one piece of "face" that reads at this size
+  g.fillRect((cx-Math.round(W*0.20))|0,(top+Math.round(hh*0.62))|0,Math.round(W*0.40),Math.max(1,Math.round(hh*0.20)));
+  // ── 🔥♨️ AND THE STEAM COMES OFF THE BODY. 🔒 "endless steam" was in his spec from the first day and
+  // what existed was a GLOBAL scatter of `70*near` puffs across the whole frame — 2 of them during the
+  // approach, belonging to nobody. Steam that does not rise off a specific body is weather. Each titan
+  // now vents from its own shoulder line, hashed so no two are in phase, and that is what says the
+  // thing is HOT rather than merely red.
+  if(now!=null&&W>=6){
+    for(var v=0;v<4;v++){
+      var vh=((hsh+v*2654435761)>>>0); vh=(vh^(vh>>>13))>>>0;
+      var vph=((now*0.00022+((vh>>>7)%100)/100)%1);
+      var va=0.34*(1-vph);
+      if(va<0.02) continue;
+      var vw=Math.max(1,Math.round(W*(0.18+0.40*vph)));
+      var vx=cx+((vh%Math.max(1,W))-(W>>1)), vy=tY-Math.round(vph*H*0.34);
+      g.fillStyle="rgba(238,242,246,"+va.toFixed(3)+")";
+      g.fillRect((vx-(vw>>1))|0,vy|0,vw,Math.max(1,Math.round(H*0.014)));
     }
-    // the exposed jaw — the one piece of "face" that reads at this size
-    g.fillStyle=dark;
-    g.fillRect(X-Math.round(W*0.20),top+Math.round(hh*0.62),Math.round(W*0.40),Math.max(1,Math.round(hh*0.20)));
   }
 }
 // RAGNAROK — the wolf takes the sun, and the water comes up with the serpent.
