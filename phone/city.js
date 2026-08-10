@@ -7703,7 +7703,16 @@ function townBarUpdate(now){
     var dt=apocAtOf(now)-now, fate=(DEATH_LABEL[curDeath]||curDeath||"CATACLYSM").toUpperCase();
     return {text:fate+" "+fmtCountdown(dt), urgent:dt<10*60000};
   }
-  if(cg.phase==="apoc") return {text:(DEATH_LABEL[curDeath]||curDeath||"CATACLYSM").toUpperCase()+" NOW",urgent:true};
+  // 🚨🔑🔑 READ THE GLOBAL, NOT A SECOND DERIVATION OF IT. `cityPhase` is assigned from `cg.phase`
+  // once a frame and then OVERRIDDEN by the harness (`FORCEAPOCMS`) and by the demo loop
+  // (`DEMO_APOC_SEC`); re-deriving `cityGrowth(now).phase` here quietly bypassed both. So with the
+  // end-times review loop running — an apocalypse on screen every 90 seconds — this bar asked the
+  // life clock, was told the city was still growing, and never once named the ending. Nick, watching
+  // it: "I am not sure what this endtime is supposed to be." The engine knew. It had `DEATH_LABEL`
+  // and a line to print it, and it was reading a stale answer to the question.
+  // 🔑 THE SAME SPLIT AS `curDis` / `curDisArc`: two globals holding one fact, and a feature taught to
+  // only one of them. When a value has an override path, the OVERRIDDEN one is the only true one.
+  if(cityPhase==="apoc"||cg.phase==="apoc") return {text:(DEATH_LABEL[curDeath]||curDeath||"CATACLYSM").toUpperCase()+" NOW",urgent:true};
   return null;
 }
 // THE DIAGNOSTIC STAMP. `"debugStamp": true` in config.local.json, off by default.
@@ -7738,7 +7747,12 @@ function drawDebugStamp(g,now,nd){
   // overlap them. `sev:-1` keeps it last no matter what else is happening — a diagnostic outranks
   // nothing.
   DEBUGROWS = [
+    // ⚠ THE ENDING IS NAMED HERE TOO. The stamp said "APOC" and stopped, which tells you the phase and
+    // not the event — and during the review loop the phase is a constant. Reviewing 37 endings without
+    // the name on screen means identifying each one by eye from its first seconds, which is precisely
+    // the thing under review.
     "LIFE "+li+"  AGE "+(cityG!=null?cityG.toFixed(3):"?")+"  "+String(cityPhase||"?").toUpperCase()
+      +(cityPhase==="apoc"?" "+String(curDeath||"?").toUpperCase():"")
       +"  -  DIS "+dis.toUpperCase()+(curEgg?"  -  EGG":""),
     "SCR "+SW+"x"+SH+"  WOFF "+WOFF+"  Z"+ZOOM+" K"+KSP+"  -  WORLD "+WW+"  HZ "+HORIZON+"  SF "+SEA_FRONT
       +"  -  NEON "+(curNeon?"ON":"OFF")+"  VLG "+(curVillage?"ON":"OFF")
@@ -49743,7 +49757,20 @@ var DEATH_LABEL={massacre:"The Massacre",logout:"The Server Shutdown",wilderness
   oceansboil:"The Oceans Boil",greygoo:"Grey Goo",lastwinter:"The Last Winter",
   skyfall:"The Sky Falls",timestop:"Everything Stops",
   thecomet:"The Comet",thechange:"The Change",theburst:"The Burst",
-  thetitans:"The Titans",ragnarok:"Ragnarok"};
+  thetitans:"The Titans",ragnarok:"Ragnarok",
+  // 🚨🔑🔑 THE TWELVE OF END TIMES — BLOOD, AND THEY SHIPPED IN v4.0.0 WITH NO LABELS AT ALL. The
+  // warning four lines above this ("a death with no label prints its raw key at the user, which is how
+  // `kaijuwar` nearly shipped") was written, and then twelve endings went out underneath it doing
+  // exactly that. Nick, watching the review loop: "I am not sure what this endtime is supposed to be"
+  // — and when the bar was finally fixed to name it, it named it GLASSRAIN. 12 of the 37 in the cycle
+  // were unlabelled, and they are the newest twelve, i.e. the whole headline feature of the release.
+  // ⚠ These reach the CHRONICLE and the ALMANAC too, so every past life that died one of these deaths
+  // has been recorded under a raw key. 🔑 A WARNING COMMENT IS NOT A TEST — this one named its own
+  // failure mode precisely and still did not prevent the next twelve instances of it.
+  risen:"The Risen",plague:"The Plague",swarm:"The Swarm",bloodmoon:"The Blood Moon",
+  acidrain:"Acid Rain",thepit:"The Pit",glassrain:"Glass Rain",thescream:"The Scream",
+  crimsontide:"The Crimson Tide",warmachine:"The War Machine",thefamine:"The Famine",
+  thehollow:"The Hollow"};
 var LANDMARK_LABEL={monorail:"Monorail",stadium:"Stadium",park:"City Park",casino:"Casino",seawall:"Seawall",
   university:"University",marina:"Marina",zoo:"City Zoo",observatory:"Observatory",grandcentral:"Grand Central"};
 var ERA_LABEL={cyber:"Cyberpunk",ancient:"Ancient",brutal:"Brutalist",solar:"Solarpunk",vaporwave:"Vaporwave",
