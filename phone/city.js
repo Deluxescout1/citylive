@@ -43456,6 +43456,73 @@ function drawVolcanoLive(g,L,now,nd){
 //
 // Real weather still wins: the sky is drawn by the normal sky stack and shows between the towers, so a
 // clear June afternoon here is a clear June afternoon.
+// 🌆🚨 THE CORE WORLD RENDERED THE SAME PICTURE EVERY LIFE. `landform-relief.js` over 12 lives:
+// 333 / 333 / 333 — SPREAD ZERO. Nothing else in the game scores that. It is also a TEXTURE rather
+// than a place: four hazed bands of near-identical towers, one grey-blue register end to end, no ONE
+// BIG OBJECT and no SCALE REFERENCE — i.e. HORIZONTAL REPETITION, the thing this renderer does worst
+// and the fault that killed THE TERRACES after eleven commits.
+// 🔒 Nick's pick, over a colossal supertower / depth-layering / industrial machinery: A CANYON CUT
+// THROUGH THE MEGACITY. Something you look INTO rather than at.
+// 🔑🔑 AND IT CROSSES THE WHOLE WORLD ON PURPOSE. A canyon placed at one spot is the beach headland's
+// mistake waiting to happen — ONE MONITOR IS ~28% OF THE WORLD, so a local feature is invisible on two
+// screens out of three. A rift that runs the full width is seen from every 776px window; what varies
+// per life is its DEPTH, its WIDTH and how it wanders, not whether you can see it.
+var coreCanCache=null;
+function drawCoreCanyon(g,L,now,skc,day){
+  var gy=HORIZON, K=Math.max(1,KSP), li=lifeIndexOf(now);
+  var h0=((li*2654435761+31337)>>>0); h0=(h0^(h0>>>13))>>>0;
+  if(!coreCanCache||coreCanCache.li!==li||coreCanCache.sw!==SW||coreCanCache.woff!==WOFF){
+    var depth=Math.round(gy*(0.34+((h0>>>5)%26)/100));      // how far down it cuts
+    var wide=0.30+((h0>>>11)%34)/100;                        // how much of the frame it opens up
+    var rim=new Array(SW);
+    for(var x=0;x<SW;x++){
+      var wx=x+WOFF;
+      // ⚠ broken THREE ways — a slow meander, a non-harmonic second, and a hashed per-column notch.
+      var m1=Math.sin(wx*0.0016+((h0>>>3)%628)/100)*0.34;
+      var m2=Math.sin(wx*0.0071+((h0>>>9)%628)/100)*0.13;
+      var hh=(((wx*2654435761+li*7919)>>>0)); var m3=(((hh>>>13)%100)/100-0.5)*0.06;
+      rim[x]=Math.max(4,Math.round(depth*(0.55+0.45*(m1+m2+m3)+0.30)));
+    }
+    coreCanCache={ li:li, sw:SW, woff:WOFF, depth:depth, wide:wide, rim:rim };
+  }
+  var C=coreCanCache;
+  // 🎨 THE DARK. His first contrast answer: near-black between the towers so the field has HOLES in it
+  // instead of being a solid wall. This is the only genuinely dark mass the land has ever had.
+  var deep=day?[14,15,22]:[6,6,10];
+  for(var x2=0;x2<SW;x2++){
+    var d2=C.rim[x2];
+    g.fillStyle="rgb("+deep[0]+","+deep[1]+","+deep[2]+")";
+    g.fillRect(x2,(gy-d2)|0,1,d2);
+  }
+  // the FAR WALL — what gives the trench a far side, and therefore a width rather than a stripe
+  var fwc=css(mixc(day?[46,48,62]:[18,19,28],skc,0.10));
+  for(var x4=0;x4<SW;x4++){
+    var d4=C.rim[x4], wallH=Math.max(1,Math.round(d4*C.wide));
+    g.fillStyle=fwc;
+    g.fillRect(x4,(gy-d4)|0,1,wallH);
+  }
+  // 🔥🚨 …AND THE LIGHT COMING UP OUT OF IT — ON THE FAR WALL, WHICH IS THE PART YOU CAN SEE.
+  // First cut put the glow on the trench FLOOR, which is physically where it belongs and visually
+  // useless: the two NEAR tower bands draw after this and cover the floor completely, so the one
+  // feature that was supposed to make this a CORE world rendered zero visible pixels.
+  // 🔑 THE CANYON YOU CAN SEE IS THE FAR WALL. Light bouncing UP it is what says something is burning
+  // down there, and it silhouettes the near towers against warmth instead of against sky — which is
+  // the whole point of glow-from-below on a land lit from above like every other.
+  var gl=day?0.34:0.78;
+  for(var x3=0;x3<SW;x3++){
+    var d3=C.rim[x3], wallH2=Math.max(1,Math.round(d3*C.wide)), base=gy-d3+wallH2;
+    for(var q=0;q<wallH2;q+=Math.max(1,Math.round(1*K))){
+      var t=q/wallH2;                                    // 0 at the wall's foot, 1 at its lip
+      var a=0.62*Math.pow(1-t,1.8)*gl;
+      if(a<0.015) continue;
+      g.fillStyle="rgba(255,"+(112+Math.round(78*t))+","+(34+Math.round(46*t))+","+a.toFixed(3)+")";
+      g.fillRect(x3,(base-1-q)|0,1,Math.max(1,Math.round(1*K)));
+    }
+    // the hot line at the very bottom of what is visible — the brightest thing on the land
+    g.fillStyle="rgba(255,214,150,"+(0.55*gl).toFixed(3)+")";
+    g.fillRect(x3,(base-1)|0,1,Math.max(1,Math.round(1*K)));
+  }
+}
 function drawCoreWorld(g,L,now,nd){
   var gy=HORIZON, day=L>0.5, K=Math.max(1,KSP), skc=biomeSkc(day);
   var B=curBiome, up=Math.max(0.18,Math.min(1,cityG));      // how far the build has gone VERTICALLY
@@ -43474,6 +43541,9 @@ function drawCoreWorld(g,L,now,nd){
   // and signs too far away to read, and the tallest structures fade into haze rather than loom.
   var neon=["#4be0d0","#f04a8a","#ffe14a","#7c6cff","#4bff9a","#ff7a3c"];
   for(var bi=0;bi<bands.length;bi++){
+    // …and the rift opens after the two FAR bands, so the distant city is its far side and the two
+    // NEAR bands draw in front of it as the near rim. The trench is framed by the land itself.
+    if(bi===2) drawCoreCanyon(g,L,now,skc,day);
     if(bi===2) drawCoreDome(g,L,now,Math.max(Math.max(1,KSP)*1.7, gy/80));   // half the city behind it, half in front
     var bd=bands[bi];
     var base=mixc(day?B.near:[10,12,18], skc, bd.d);
