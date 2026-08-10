@@ -52295,11 +52295,24 @@ APOC_X.rogueplanet=function(g,ap,L,now){
   g.fillStyle="rgba(10,8,16,"+dark.toFixed(3)+")"; g.fillRect(0,0,SW,SH);
   var body=mixc([96,74,58],[36,26,24],0.3);
   g.fillStyle=css(body); fillEllipse(g,cx,cy,r,r);
+  // ⚡🚨 STEPPED, AND IT HAD TO BE. This is `r*0.16` NESTED FULL ELLIPSES, and once the planet was
+  // allowed to grow that became 77 of them at a 480px radius — 129,980 fills at the climax and a frame
+  // of 167,974, three and a half times the land at rest. 🔑 A LOOP WHOSE COUNT IS DERIVED FROM A SIZE
+  // BECOMES A PERF BUG THE MOMENT SOMETHING ELSE MAKES THAT SIZE BIGGER, and nothing warns you: the
+  // change that broke this was `r`, twenty lines away, in a commit about composition. Fixed count now,
+  // so the crescent costs the same whatever the planet does.
+  // ⚡🚨 ONE ELLIPSE, NOT `r*0.16` OF THEM. This was a stack of nested full ellipses making a soft rim
+  // gradient, and once the planet was allowed to grow it became 77 of them at a 480px radius — 129,980
+  // fills at the climax, a frame of 167,974, three and a half times the land at rest.
+  // 🔑🔑 A LOOP WHOSE COUNT IS DERIVED FROM A SIZE BECOMES A PERF BUG THE MOMENT SOMETHING ELSE MAKES
+  // THAT SIZE BIGGER — and nothing warns you, because the change that broke it was `r`, twenty lines
+  // away, in a commit about composition. Measure after every change that touches a dimension.
+  // ⚠ Stepping the loop to a fixed 12 fixed the cost and put a visible STAIRCASE on the limb — the
+  // banding artefact this session has now produced four different ways. A crescent does not need a
+  // gradient: one bright disc, clipped by the body drawn over it, is a clean hard rim and one draw.
   g.globalCompositeOperation="lighter";
-  for(var q=0;q<Math.round(r*0.16);q++){
-    g.fillStyle="rgba(255,214,170,"+(0.30*(1-q/Math.max(1,r*0.16))).toFixed(3)+")";
-    fillEllipse(g,cx-Math.round(r*0.06),cy-Math.round(r*0.05),r-q,r-q);
-  }
+  g.fillStyle="rgba(255,214,170,0.34)";
+  fillEllipse(g,cx-Math.round(r*0.06),cy-Math.round(r*0.05),r,r);
   g.globalCompositeOperation="source-over";
   g.fillStyle=css(body); fillEllipse(g,cx,cy,Math.round(r*0.94),Math.round(r*0.94));
   // 🚨🔑🔑 THE BANDS WERE DRAWN AND THEN PAINTED OVER. They used to run BEFORE the crescent, and the
