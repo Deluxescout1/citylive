@@ -55084,6 +55084,70 @@ APOC_X.thescream=function(g,ap,L,now){
   // empty air with nothing to be measured against — RULE 3 again, the same thing the pit was missing.
   // Sprung from the ground line they sweep ACROSS the city, and the city is the scale reference.
   var cy=HORIZON-Math.round(GROUND*0.35);
+  // ── 🗣️🔒🚨 THE SCREAMER — THE THING DOING IT. Nick, watching this ending play: "I see the screen but
+  // there is nothing screaming." He was right, and it was not that the rings had failed to draw: there
+  // was no SOURCE. Rings expanding out of an empty patch of air read as an effect applied to the frame,
+  // and an effect is not an event. His call, over making it destroy like the sweep endings and over
+  // simply brightening the rings: give it something you can point at.
+  // 🔑 A head is the one silhouette that cannot be mistaken for weather, and this land's whole failure
+  // mode this session has been things reading as weather.
+  // ⚠ NINETAILS' TWO LESSONS APPLY DIRECTLY. "Too big to be big" — it is capped at half the sky so the
+  // city stays readable underneath it, because a giant only reads as giant next to something. And the
+  // silhouette IS the recognition, so it is drawn as one unbroken near-black mass, never a stack of
+  // parts. It rises with `ap`: at the strike it is a skull on the horizon, by the end it owns the sky.
+  var sx=(cWx-WOFF)|0, sK=Math.max(1,K);
+  var shw=Math.round((26+40*ap)*sK);                       // half-width of the skull
+  var shh=Math.round(shw*2.15);
+  var chin=cy+Math.round(shh*0.06), stop=chin-shh;
+  // ⚠ TALLER THAN IT IS WIDE, and that ratio is the whole difference between a scream and a snout.
+  // First cut had `mouthH=shh*0.30, mouthW=shw*0.44` — with shh at 2.15x shw that is a lozenge lying on
+  // its side, and it read as a muzzle on a mask rather than a mouth open as far as it will go.
+  var mouthY=chin-Math.round(shh*0.28), mouthH=Math.round(shh*0.34), mouthW=Math.round(shw*0.27);
+  // 🔑 AND THE RINGS NOW LEAVE THE MOUTH, not the ground line. That is the entire point of the change:
+  // the old origin was chosen so the rings had the city to be measured against, and the mouth keeps
+  // that (it sits just above the skyline) while giving them a cause.
+  if(shw>2&&sx+shw>-6&&sx-shw<SW+6) cy=mouthY;
+  if(shw>2&&sx+shw>-6&&sx-shw<SW+6){
+    g.fillStyle="rgba(11,9,15,0.96)";
+    for(var sy=0;sy<shh;sy++){
+      var t2=sy/shh;                                       // 0 at the crown, 1 at the chin
+      // an egg, widest a little above the middle, narrowing to a jaw — one profile, no seams
+      var prof=Math.sin(Math.PI*Math.pow(Math.min(1,t2*0.94+0.03),0.82));
+      var rw=Math.max(1,Math.round(shw*(0.26+0.74*prof)));
+      g.fillRect(sx-rw,(stop+sy)|0,rw*2,1);
+    }
+    // the throat behind it, so the head is attached to something and does not float
+    for(var ny=0;ny<Math.round(shh*0.55);ny++){
+      var nw=Math.max(1,Math.round(shw*(0.52+0.30*(ny/Math.max(1,shh*0.55)))));
+      g.fillRect(sx-nw,(chin+ny)|0,nw*2,1);
+    }
+    // 🕳️ THE MOUTH IS A HOLE, NOT A SHAPE. Cut back to the light behind it and rimmed, so it reads as
+    // an opening rather than a dark mark painted on a dark head — the same reason the wrecked towers
+    // bite back to sky instead of to a colour.
+    // ⚠ THE INTERIOR IS BLACK. The first cut filled it at 0.30 white, which made the mouth the LIGHTEST
+    // thing on the head — so it read as a solid plate stuck to the face instead of an opening. A hole
+    // is dark, and it is the RIM that carries the light, because that is the edge the sound leaves past.
+    for(var my=0;my<mouthH;my++){
+      var mt=(my+0.5)/mouthH, mw=Math.max(1,Math.round(mouthW*Math.sin(Math.PI*Math.pow(mt,0.85))));
+      var ma=(0.55+0.45*pulse)*(0.35+0.65*ap), yy3=(mouthY-Math.round(mouthH*0.5)+my)|0;
+      g.fillStyle="rgba(0,0,0,0.93)";
+      g.fillRect(sx-mw,yy3,mw*2,1);
+      g.fillStyle="rgba(255,244,252,"+(ma*0.90).toFixed(3)+")";
+      g.fillRect(sx-mw,yy3,Math.max(1,Math.round(sK)),1);
+      g.fillRect(sx+mw-Math.max(1,Math.round(sK)),yy3,Math.max(1,Math.round(sK)),1);
+    }
+    // two hollows for eyes — PITS, not points. A pit is a skull; a point is a face, and a face at this
+    // size stops being dreadful and starts being a character. Tapered rather than rectangular for the
+    // same reason the mouth is: a hard rectangle on a curved mass reads as painted-on hardware.
+    var eyY=stop+Math.round(shh*0.38), eyO=Math.round(shw*0.42), eyW=Math.max(1,Math.round(shw*0.20));
+    var eyH=Math.max(2,Math.round(shh*0.14));
+    g.fillStyle="rgba(0,0,0,0.88)";
+    for(var ey=0;ey<eyH;ey++){
+      var ew=Math.max(1,Math.round(eyW*Math.sin(Math.PI*Math.pow((ey+0.5)/eyH,0.75))));
+      g.fillRect(sx-eyO-ew,eyY+ey,ew*2,1);
+      g.fillRect(sx+eyO-ew,eyY+ey,ew*2,1);
+    }
+  }
   for(var r=0;r<7;r++){
     var S=screamR(r,now,ap); if(S.r<6) continue;
     var a=(0.85*(1-S.ph))*(0.40+0.60*ap); if(a<0.02) continue;
