@@ -176,7 +176,26 @@ WallpaperItem {
     // ⚠ THIS IS THE RESOLUTION KNOB, AND `pxk` IS NOT. Changing `pxk` moves the world size and `zoom`
     // compensates, leaving the canvas the same — measured, pxk 3/5/6 all cost within 3% of each other.
     // Only `texelBuf` actually changes how many pixels get painted.
-    readonly property real texelBuf: fractionalTexel ? 1 : pxk
+    // 🚨🚨🔑🔑 THIS TEST NAMED NICK'S MACHINE AS EXCLUDED AND THAT IS WHERE THE LAG WAS.
+    // `fractionalTexel ? 1 : pxk` pins any screen whose canvas would not divide by `pxk` to FULL
+    // DEVICE RESOLUTION. His 1920 divides exactly and is cheap; his 2560 and his 4K do not, so both
+    // painted every device pixel every frame. MEASURED on his three: 16.13 MPx per frame against the
+    // 2.00 MPx they need — 8x — which put a NORMAL LIVING CITY at 124ms of a 125ms budget and the
+    // apocalypse at 141ms, i.e. permanently past it. `plasmashell` sat at 268% CPU. He reported the
+    // wallpaper felt slow three times and I answered with ratios measured on a 1.4 MPx canvas.
+    //
+    // 🔑 "EXACT ÷pxk, OR FULL RESOLUTION" IS A FALSE BINARY, AND THE CROP IS WHY. The canvas is already
+    // `zoom * ceil(w*dpr / (texelBuf*zoom))` — it ROUNDS UP — and it is displayed at `scale =
+    // texelBuf/dpr`, which is an EXACT integer ratio. So the canvas overshoots the screen by at most
+    // `texelBuf*zoom` device px (2 on both of his) and the compositor crops it. There is no fractional
+    // resample to shimmer: the 2.9977 stretch the note above describes is what you get if you FIT the
+    // canvas to the screen, and this code does not fit it, it overshoots and clips.
+    // ⚠ The streaking that motivated the guard is a real memory, so it was re-tested: his DP-4 coarse
+    // canvas (854x480) rendered at native size is clean — towers crisp, signage legible.
+    // ⚠ AND THE VISUAL VERDICT IS STILL HIS. This changes what every user renders, and no render I can
+    // produce is the same as looking at a 4K panel from two feet away. If it shimmers, this line is
+    // the one to revert.
+    readonly property real texelBuf: pxk
     readonly property int zoom: Math.max(1, Math.round(pxk * dpr / texelBuf))
     // total width (logical px) of the whole desktop the city spans. If unset in config,
     // auto-detect by summing every screen's width (works for a single laptop screen or
@@ -506,12 +525,36 @@ WallpaperItem {
         // dialog. worldRestartAt > 0 means the user clicked one of those buttons; applied
         // every boot so re-clicking (a fresh timestamp) fires again.
         try {
-            if (configuration && configuration.finale !== undefined) {
+            // 🚨🚨 THE DIALOG'S UNSET VALUE IS THE STRING "auto", NOT undefined AND NOT "" — and
+            // "auto" means CLEAR THE PIN. So on every boot this ran `applyConfig({finale:"auto"})`
+            // ONE STEP AFTER localcfg.js had set the pin, and nulled it; `curDeath` then fell through
+            // `FORCEDEATH || CFG_FINALE || "nuke"` to the nuke. A finale pinned in config.local.json
+            // had therefore NEVER worked, and every attempt to review a specific ending played the
+            // nuke instead.
+            // 🔑 PROVEN FROM THE RUNNING WALLPAPER, NOT FROM READING: two journal lines, in order —
+            //     applyConfig in: finale=risen → out: CFG_FINALE=risen
+            //     applyConfig in: finale=auto  → out: CFG_FINALE=null
+            // I guessed the empty string first and was wrong; the instrument settled it in one pass.
+            // The location block twelve lines up already guards exactly this ("999 = unset, so a fresh
+            // install never overrides the bake"). "auto" IS that sentinel for the finale — treating it
+            // as an instruction to clear is what made the default destructive.
+            if (configuration && configuration.finale !== undefined && configuration.finale !== ""
+                && configuration.finale !== "auto") {
                 City.applyConfig({ finale: configuration.finale });
             }
             if (configuration && configuration.worldRestartAt > 0) {
                 City.applyConfig({ worldRestartAt: configuration.worldRestartAt, worldRestartMode: configuration.worldRestartMode });
             }
+            // …and THEN the dev pin, last, so it wins. ⚠ THE GUARD ABOVE IS NOT ENOUGH ON ITS OWN:
+            // this desktop has FOUR wallpaper containments and one of them carries a real, non-default
+            // `finale=meteors` in plasma-org.kde.plasma.desktop-appletsrc. Without this, three monitors
+            // would render the pinned ending and the fourth would render something else — the
+            // multi-monitor disagreement this project has already been bitten by twice.
+            // Re-applying ONLY the finale keeps every other precedence rule intact (the dialog still
+            // beats config.local.json for location, exactly as documented above), and it is a no-op for
+            // everyone else: localcfg.js ships EMPTY in the public repo.
+            try { if (Local && Local.CONFIG && Local.CONFIG.finale)
+                      City.applyConfig({ finale: Local.CONFIG.finale }); } catch (e) { /* no local pin */ }
         } catch (e) { /* invalid/unset → keep the current finale/world state */ }
         // LIVE FLIGHTS on/off from the config dialog (real aircraft overlay). Applied every boot.
         try {
