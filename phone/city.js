@@ -52210,9 +52210,82 @@ function gammaViolence(g,ap,now,K,gy,sx,sy,epi,burnt,late){
 }
 
 // A ROGUE PLANET — it does not hit. It passes, and that is worse: it takes the air and the sea with it.
+// ── 🌬️🌊 IT TAKES THE AIR AND THE SEA WITH IT. The renderer's own header has said so since the day it
+// was written and nothing in it ever did: the planet hung there, the frame dimmed, and the city sat
+// underneath completely undisturbed. 🔑 THE PREMISE WAS IN A COMMENT AND NOWHERE ELSE — which is this
+// project's most reliable place to find unbuilt features.
+// 🔑🔑 AND IT IS THE ONLY ENDING IN THE SET WHERE THINGS FALL **UP**. Every other one drops rubble,
+// bodies and ash downward; this one lifts the world off its own surface toward something in the sky.
+// That is the whole identity of the ending and it is free once the direction is inverted.
+function rogueStrip(g,ap,now,K,cx,cy,r){
+  var lift=Math.max(0,Math.min(1,(ap-0.30)/0.58));
+  if(lift<=0) return;
+  var gy=HORIZON;
+  // the atmosphere going first: streaks peeling off the ground and curving into the planet
+  g.globalCompositeOperation="lighter";
+  for(var i=0;i<Math.round(70*lift);i++){
+    var h=((i*2654435761+6151)>>>0); h=(h^(h>>>13))>>>0;
+    var per=2200+((h>>>7)%2600);
+    var t=(((now+((h>>>13)%per))%per)/per);
+    var ox=((h>>>3)%Math.max(1,WW))-WOFF;
+    if(ox<-60||ox>SW+60) continue;
+    var oy=gy-((h>>>17)%Math.round(gy*0.35));
+    var te=t*t;                                            // accelerating away — gravity losing
+    var px=Math.round(ox+(cx-ox)*te), py=Math.round(oy+(cy-oy)*te);
+    var a=0.42*(1-t)*lift;
+    if(a<0.02) continue;
+    var ln=Math.max(1,Math.round((2+((h>>>21)%4))*K*(0.4+t)));
+    g.fillStyle="rgba(198,214,255,"+a.toFixed(3)+")";
+    g.fillRect(px,py,Math.max(1,Math.round(K*0.8)),ln);
+  }
+  g.globalCompositeOperation="source-over";
+  // …and then the solid things follow: debris, cars, and people torn off the street upward
+  for(var j=0;j<Math.round(26*lift);j++){
+    var h2=((j*2654435761+9931)>>>0); h2=(h2^(h2>>>13))>>>0;
+    var per2=3000+((h2>>>9)%3400);
+    var t2=(((now+((h2>>>15)%per2))%per2)/per2);
+    var ox2=((h2>>>5)%Math.max(1,WW))-WOFF;
+    if(ox2<-20||ox2>SW+20) continue;
+    var te2=t2*t2;
+    var px2=Math.round(ox2+(cx-ox2)*te2*0.55), py2=Math.round((gy-2)+(cy-(gy-2))*te2*0.72);
+    if(py2<-10) continue;
+    var spin=Math.round(Math.sin(t2*9+j)*K*1.4);
+    var kind=(h2>>>23)%3;
+    if(kind===0){                                          // a person, taken feet-first
+      var mk=0.40+0.18*t2;
+      drawPerson(g,px2+spin,py2,hexDark(PEDC[(h2>>>11)%PEDC.length],mk),hexDark(SKINC[(h2>>>19)%SKINC.length],mk*0.75),(h2&1)?1:-1,0);
+    } else if(kind===1){                                   // a car, tumbling
+      var cw2=Math.max(2,Math.round(4.5*K)), chh=Math.max(1,Math.round(2*K));
+      g.fillStyle="rgba(40,36,40,0.92)";
+      g.fillRect(px2-(cw2>>1)+spin,py2-chh,cw2,chh);
+    } else {                                               // a slab of roadway or roof
+      var sw2=Math.max(2,Math.round((3+((h2>>>25)%5))*K));
+      g.fillStyle="rgba(52,46,46,0.92)";
+      g.fillRect(px2-(sw2>>1)+spin,py2-Math.max(1,Math.round(1.4*K)),sw2,Math.max(1,Math.round(1.4*K)));
+    }
+  }
+  // the sea, if there is one, standing UP in a column toward it — drawn, never by moving SEA_Y
+  if(typeof SEA_Y==="number"&&SEA_Y>0&&SEA_Y<SH&&SEA_FRONT>0){
+    var pull=Math.round((SEA_Y-cy)*0.42*lift);
+    g.globalCompositeOperation="lighter";
+    for(var w=0;w<Math.round(46*lift);w++){
+      var h3=((w*2654435761+2287)>>>0); h3=(h3^(h3>>>13))>>>0;
+      var wx3=((h3>>>5)%Math.max(1,SW));
+      var t3=(((now*0.0004+((h3>>>11)%1000)/1000)%1));
+      var wy=Math.round(SEA_Y-t3*pull);
+      g.fillStyle="rgba(168,210,238,"+(0.5*(1-t3)*lift).toFixed(3)+")";
+      g.fillRect(wx3,wy,Math.max(1,Math.round(K*0.9)),Math.max(2,Math.round(5*K*(0.3+t3))));
+    }
+    g.globalCompositeOperation="source-over";
+  }
+}
 APOC_X.rogueplanet=function(g,ap,L,now){
   var K=Math.max(1,KSP);
-  var r=Math.round((10+ap*ap*230)*K);
+  // ⚠ CAPPED. `(10+ap*ap*230)*K` reaches a 480px radius on a 776px screen, so the last third of the
+  // arc was a flat brown field with no city in it — and a planet that fills the frame stops reading as
+  // a planet, exactly as the ninetails fox did at `gy*0.92`. A giant only reads as a giant next to
+  // something, so it is held to a size that always leaves the skyline underneath it.
+  var r=Math.min(Math.round(SW*0.62),Math.round((10+ap*ap*230)*K));
   // 🌍 A PLANET HANGS OVER ONE PLACE. At `SW*0.62` there were three of it, one per monitor. The sun
   // has been `Math.round(df*WW-WOFF)` with a cull for as long as there has been a sun — same law.
   var cx=Math.round(apocSkyX(0.62,now)), cy=Math.round(HORIZON*0.30-ap*HORIZON*0.10);
@@ -52222,13 +52295,6 @@ APOC_X.rogueplanet=function(g,ap,L,now){
   g.fillStyle="rgba(10,8,16,"+dark.toFixed(3)+")"; g.fillRect(0,0,SW,SH);
   var body=mixc([96,74,58],[36,26,24],0.3);
   g.fillStyle=css(body); fillEllipse(g,cx,cy,r,r);
-  // banded, and lit only along the limb that faces our sun — a flat disc is a hole, not a world
-  for(var b=0;b<10;b++){
-    var by=cy-r+Math.round((b+0.5)*(r*2/10));
-    var hw=Math.round(Math.sqrt(Math.max(0,r*r-(by-cy)*(by-cy))));
-    g.fillStyle=rgba(mixc(body,(b&1)?[128,102,78]:[64,48,42],0.55),0.55);
-    g.fillRect(cx-hw,by,hw*2,Math.max(1,Math.round(r*0.12)));
-  }
   g.globalCompositeOperation="lighter";
   for(var q=0;q<Math.round(r*0.16);q++){
     g.fillStyle="rgba(255,214,170,"+(0.30*(1-q/Math.max(1,r*0.16))).toFixed(3)+")";
@@ -52236,6 +52302,28 @@ APOC_X.rogueplanet=function(g,ap,L,now){
   }
   g.globalCompositeOperation="source-over";
   g.fillStyle=css(body); fillEllipse(g,cx,cy,Math.round(r*0.94),Math.round(r*0.94));
+  // 🚨🔑🔑 THE BANDS WERE DRAWN AND THEN PAINTED OVER. They used to run BEFORE the crescent, and the
+  // 0.94 disc that clips the crescent down to a limb wiped every one of them — leaving a flat brown
+  // circle with a bright edge, under a comment reading "a flat disc is a hole, not a world". The
+  // comment was right and the draw order made it false. Moved AFTER the clip, which is the only place
+  // they can survive. 🔑 SAME FAULT AS THE TRENCH-FLOOR GLOW AND THE TREMOR UNDER THE DUST: on this
+  // project the question is almost never "did I draw it", it is "what draws after it".
+  // ⚠ Banding is also what makes the SIZE readable — a featureless disc has no scale at all, which is
+  // why this one could grow to fill the frame without ever feeling like it was getting closer.
+  for(var b=0;b<14;b++){
+    var by=cy-r+Math.round((b+0.5)*(r*2/14));
+    var hw=Math.round(Math.sqrt(Math.max(0,r*r*0.884-(by-cy)*(by-cy))));
+    if(hw<1) continue;
+    g.fillStyle=rgba(mixc(body,(b&1)?[132,106,80]:[58,42,38],0.62),0.72);
+    g.fillRect(cx-hw,by,hw*2,Math.max(1,Math.round(r*0.085)));
+  }
+  // a storm the size of a continent, so the bands are not just stripes
+  var stx=cx-Math.round(r*0.34), sty=cy+Math.round(r*0.18);
+  g.fillStyle=rgba(mixc(body,[168,120,86],0.55),0.75);
+  fillEllipse(g,stx,sty,Math.round(r*0.26),Math.round(r*0.15));
+  g.fillStyle=rgba(mixc(body,[42,28,26],0.5),0.6);
+  fillEllipse(g,stx,sty,Math.round(r*0.13),Math.round(r*0.07));
+  rogueStrip(g,ap,now,K,cx,cy,r);
   // and the tide comes with it — drawn, never by moving SEA_Y
   if(typeof SEA_Y==="number"&&SEA_Y>0&&SEA_Y<SH&&ap>0.3){
     var rise=Math.round(HORIZON*0.30*(ap-0.3)/0.7);
