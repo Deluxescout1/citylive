@@ -51486,6 +51486,14 @@ function apocStruck(){ if(cityPhase!=="apoc") return false;
   // stops being a wrong sky and starts being something happening to the city.
   if(APOC_STRIKE_AP[curDeath]!=null) return cityApoc>=APOC_STRIKE_AP[curDeath];
   return false; }
+// 🔒 THE ENDINGS THAT LEAVE THE BUILDINGS STANDING, ON PURPOSE. The OSRS five (a massacre killed
+// players and left Falador standing; a server shutdown harms nothing; a ban wave is paperwork; the
+// Wilderness consumes ground rather than flattening it; the God Wars fight THROUGH a city) and five of
+// the blood twelve whose spectacle is the BODIES, not the rubble. An intact skyline over dead streets
+// is the one thing that makes these read as different in kind from the other thirty-three.
+// ⚠ This table exists so that "does not demolish" is a STATEMENT rather than a silence — see apocHit.
+var APOC_NO_DEMOLISH={massacre:1,logout:1,wilderness:1,godwars:1,banwave:1,
+  risen:1,plague:1,bloodmoon:1,thescream:1,thefamine:1};
 function apocHit(x){ if(cityPhase!=="apoc") return false;
   if(curDeath==="nuke")    return nukeFrontR() >= nukeDist(x,nukeGZX(NOWOVR!=null?NOWOVR:Date.now()));   // the heat-wave front reached world-x
   if(curDeath==="meteors") return meteorCollapse(x, NOWOVR!=null?NOWOVR:Date.now()).cl>=0;   // a small strike OR the big impact's front has reached it
@@ -51516,6 +51524,38 @@ function apocHit(x){ if(cityPhase!=="apoc") return false;
   // read from the expressions their own renderers draw, so neither can drift from what you can see.
   if(curDeath==="ragnarok") return floodGroundHit(x) || frontCollapse(x,apocSweepR())>=0;
   if(APOC_SWEEP[curDeath]!=null) return frontCollapse(x,apocSweepR())>=0;              // the six new ends that genuinely level the city
+  // 🚨🚨🔑🔑 AND THE RAGNAROK HOLE WAS NEVER ONE HOLE — IT WAS THIRTEEN, AND ONLY ONE GOT PLUGGED.
+  // Audited all 43 by asking whether `apocHit` EVER returns true across the whole arc and the whole
+  // world: 22 never demolish anything. Ten of those are deliberate and documented above (the OSRS
+  // five, plus risen · plague · bloodmoon · thescream · thefamine — an intact skyline over dead
+  // streets is their whole horror). The other TWELVE are the ragnarok bug, twelve more times:
+  //   moonfall gammaray rogueplanet crustcrack oceansboil greygoo
+  //   lastwinter skyfall timestop thecomet thechange theburst
+  // Every one has a renderer and a row in `APOC_STRIKE_AP`, and not one had a branch here — so the
+  // world ended, the sky changed colour, the people died, and not a single building came down. Nick,
+  // watching crustcrack: "this one does not look that great at all."
+  // 🔑 DERIVED, NOT HAND-LISTED — and derived from the two tables the ending ALREADY fills in, so a
+  // future ending gets this for free and cannot fall through the gap again. `APOC_STRIKE_AP` is when
+  // it starts being something happening to the city; `APOC_FULL_AP` is when it is total. Between them
+  // a front crosses the world from the epicentre, which is the same shape every other branch here
+  // uses. 🚨 The bug was never that ragnarok was special. It was that the fix was applied where the
+  // bug was REPORTED instead of to the class — the sun-anchor rule, at the scale of a whole feature.
+  // 🚨🔑🔑 …AND THE FALLBACK IMMEDIATELY BROKE THE TEN THAT DO NOT DEMOLISH ON PURPOSE, because
+  // `APOC_STRIKE_AP` is not a destruction table — it is when the APPROACH hands over to the event, and
+  // thescream, thefamine, risen, plague and bloodmoon all legitimately have rows in it. Caught by
+  // re-running the audit, which is the only reason it did not ship.
+  // 🔑🔑 THE REAL LESSON IS WHY THE ORIGINAL BUG WAS POSSIBLE: "this ending does not demolish" was
+  // recorded by HAVING NO BRANCH — which is indistinguishable from having FORGOTTEN one. Absence is
+  // not a decision, and it cannot be reviewed, tested or grepped. Twelve endings shipped inert inside
+  // that ambiguity. The intent is now a table you can read, and the fallback below is safe because
+  // anything not in it that reaches this line genuinely has no destruction path yet.
+  if(APOC_NO_DEMOLISH[curDeath]) return false;
+  if(APOC_STRIKE_AP[curDeath]!=null){
+    var s0=APOC_STRIKE_AP[curDeath], s1=(APOC_FULL_AP[curDeath]!=null?APOC_FULL_AP[curDeath]:0.95);
+    if(cityApoc<s0) return false;
+    var fr=Math.max(0,(cityApoc-s0)/Math.max(0.01,s1-s0))*(WW*0.62);
+    return frontCollapse(x,fr)>=0;
+  }
   return false; }
 function apocFull(){ if(cityPhase!=="apoc") return false;
   if(curDeath==="nuke")    return nukeFrontR() >= WW*0.5;                               // the front has swept the ENTIRE city (≈5s)
