@@ -51901,6 +51901,15 @@ APOC_X.gammaray=function(g,ap,L,now){
     // 🔒 His four calls: bleach it white-hot · ONE colossal column, not ten thin rays · violet and
     // magenta · hard full-frame flashes are welcome.
     var colX=sx, colHW=Math.round(SW*(0.055+0.05*burnt));
+    // ⚠ THE GLARE HAS TO FOLLOW WHERE THE BEAM IS POINTING. Centred on the SOURCE while the beam
+    // pivoted away from it, the frame grew a second bright vertical column that nothing was casting —
+    // two beams, one of them imaginary. The bleach is the light ON THE CITY, so it belongs at the
+    // contact point, not under the emitter. Computed here so one number drives the glare, the beam and
+    // the scar; three expressions of one aim is how they drift apart.
+    var frB=Math.max(0,(ap-0.10)/0.52)*(WW*0.62);              // ⚠ the SAME radius apocHit burns to
+    var conW=epi+Math.sin(now*0.00035)*frB*0.92;
+    var conX=Math.round(conW)-WOFF;
+    var glareX=Math.round(colX*0.28+conX*0.72);                // weighted to the contact, the source still counts
     // the sky: deep magenta at the edges, hot violet toward the column — a gradient ACROSS, not just down
     for(var q=0;q<gy;q++){
       var qf=q/gy;
@@ -51921,7 +51930,7 @@ APOC_X.gammaray=function(g,ap,L,now){
     for(var x3=0;x3<=SW;x3++){
       var aq=-1;
       if(x3<SW){
-        var dn=Math.abs(x3-colX)/Math.max(1,SW*0.52);
+        var dn=Math.abs(x3-glareX)/Math.max(1,SW*0.52);
         var bl=Math.max(0,1-dn); bl=bl*bl;
         aq=Math.round(Math.min(0.80,0.80*bl*burnt)*40);
       }
@@ -51942,7 +51951,7 @@ APOC_X.gammaray=function(g,ap,L,now){
     for(var x4=0;x4<=SW;x4++){
       var aq2=-1;
       if(x4<SW){
-        var dn2=Math.abs(x4-colX)/Math.max(1,SW*0.52);
+        var dn2=Math.abs(x4-glareX)/Math.max(1,SW*0.52);
         aq2=Math.round(Math.min(0.88,0.88*Math.max(0,(dn2-0.16)/0.84))*40*burnt);
       }
       if(aq2!==sA){
@@ -51958,17 +51967,27 @@ APOC_X.gammaray=function(g,ap,L,now){
     // ── 🔆 THE COLUMN. One beam, hard-edged, white at the core and violet at its walls, with the air
     // striating inside it. 🔑 The old ten thin rays were scratches; a thing you can point at has to have
     // a WIDTH, and the width is what makes the city inside it disappear.
+    // 🔒 AND IT SWEEPS. His call: "let's have the big beam move around and destroy things and scar the
+    // ground." So the source stays put and the beam PIVOTS from it — the ground contact point rakes
+    // back and forth across everything the burst has already reached, which turns a standing column
+    // into something being aimed. 🔑 A weapon that does not move is a monument.
+    // ⚠ The sweep is driven by the SHARED clock and world coordinates, never by screen x, so all three
+    // monitors see one beam in one place rather than three beams each doing their own thing — the
+    // failure the sky lanes shipped with this morning.
     g.globalCompositeOperation="lighter";
     for(var cy2=0;cy2<SH;cy2++){
-      var cf=cy2/SH, hw2=Math.round(colHW*(0.82+cf*0.42));
-      var edge=0.34*burnt*(1-cf*0.18);
+      var cf=cy2/SH;
+      var cx3=Math.round(colX+(conX-colX)*cf);                  // pivoting: source at the top, contact below
+      var hw2=Math.round(colHW*(0.30+cf*0.85));
+      var edge=0.34*burnt*(1-cf*0.10);
       g.fillStyle="rgba(232,150,255,"+edge.toFixed(3)+")";
-      g.fillRect(colX-hw2,cy2,hw2*2,1);
-      var core=Math.round(hw2*(0.38+0.10*Math.sin(now*0.004+cy2*0.05)));
-      g.fillStyle="rgba(255,250,255,"+(0.68*burnt*(1-cf*0.12)).toFixed(3)+")";
-      g.fillRect(colX-core,cy2,core*2,1);
+      g.fillRect(cx3-hw2,cy2,hw2*2,1);
+      var core=Math.round(hw2*(0.40+0.10*Math.sin(now*0.004+cy2*0.05)));
+      g.fillStyle="rgba(255,250,255,"+(0.72*burnt*(1-cf*0.08)).toFixed(3)+")";
+      g.fillRect(cx3-core,cy2,core*2,1);
     }
     g.globalCompositeOperation="source-over";
+    gammaScar(g,ap,now,K,gy,epi,frB,conX,burnt,late);
     // ── ⚡ THE RAYS. Long hard wedges out of the source: the light has a DIRECTION, which is the whole
     // difference between an event and a tint. Additive, and they sweep slowly so the frame is not dead.
     g.globalCompositeOperation="lighter";
@@ -52049,6 +52068,57 @@ APOC_X.gammaray=function(g,ap,L,now){
 // which deletes them silently: the traffic thinned out and nothing was ever seen to DIE.
 // 🔑 A KILL NEEDS A MOMENT. Removing the thing is bookkeeping; the flash, the flame and the fall are
 // the event. That is the same note as the buildings that vanished into stumps without being seen to go.
+// ── 🔥🩸 THE TRACK IT BURNS. His third ask, and the one that makes the sweep mean something: the beam
+// leaves the ground GLASSED behind it. 🔑 THE SCAR IS DRAWN FROM `frB`, WHICH IS THE SAME RADIUS
+// `apocHit` DESTROYS TO — so what looks burned and what IS burned are one number, and they cannot drift
+// apart the way `APOC_SWEEP` and `APOC_STRIKE_AP` once did, or the doomsday clock and the doomsday.
+// The ground is blackest at the epicentre (burned longest) and molten right where the beam is standing.
+function gammaScar(g,ap,now,K,gy,epi,frB,conX,burnt,late){
+  if(frB<=2) return;
+  var band=Math.max(4,SH-gy), top=gy-Math.round(2*K), dep=Math.round(band*0.34);
+  var sX=-1,sA=-1;
+  for(var x=0;x<=SW;x++){
+    var aq=-1;
+    if(x<SW){
+      var d=Math.abs((((x+WOFF-epi)%WW+WW*1.5)%WW)-WW*0.5);
+      if(d<=frB) aq=Math.round(Math.min(1,0.34+0.55*(1-d/Math.max(1,frB)))*30*burnt);
+    }
+    if(aq!==sA){
+      if(sA>0&&sX>=0&&x>sX){ g.fillStyle="rgba(14,6,14,"+(sA/30).toFixed(3)+")"; g.fillRect(sX,top,x-sX,dep); }
+      sA=aq; sX=x;
+    }
+  }
+  // cracks in the glass, still glowing — hashed in WORLD space so the crazing is the same on every screen
+  g.globalCompositeOperation="lighter";
+  for(var c=0;c<Math.round(46*burnt);c++){
+    var ch=((c*2654435761+3391)>>>0); ch=(ch^(ch>>>13))>>>0;
+    var cwx=epi+((((ch>>>3)%2000)/1000)-1)*frB;
+    var CX=Math.round(cwx)-WOFF;
+    if(CX<-6||CX>SW+6) continue;
+    var cl=Math.max(2,Math.round((2+((ch>>>9)%6))*K));
+    var cy4=top+((ch>>>13)%Math.max(1,dep));
+    var near=Math.max(0,1-Math.abs(CX-conX)/Math.max(1,SW*0.22));   // hottest under the beam
+    g.fillStyle="rgba(255,"+(90+Math.round(120*near))+",40,"+(0.30+0.55*near).toFixed(3)+")";
+    g.fillRect(CX,cy4,cl,Math.max(1,Math.round(K*0.7)));
+  }
+  // and where it is standing right now: molten ground, and the air above it boiling
+  if(conX>-40&&conX<SW+40){
+    var hwB=Math.round(14*K);
+    for(var q=0;q<dep;q++){
+      var qf=q/Math.max(1,dep);
+      g.fillStyle="rgba(255,"+(220-Math.round(120*qf))+","+(190-Math.round(150*qf))+","+(0.75*(1-qf)).toFixed(3)+")";
+      g.fillRect(conX-Math.round(hwB*(1-qf*0.5)),top+q,Math.round(hwB*2*(1-qf*0.5)),1);
+    }
+    for(var s=0;s<14;s++){                                   // debris thrown up out of the cut
+      var sh=((s*2654435761+((Math.floor(now/90)*7919)|0))>>>0); sh=(sh^(sh>>>13))>>>0;
+      var sxq=conX+(((sh>>>5)%(hwB*4))-hwB*2);
+      var syq=top-((sh>>>11)%Math.round(26*K));
+      g.fillStyle="rgba(255,200,150,"+(0.5+0.4*Math.sin(now*0.01+s)).toFixed(2)+")";
+      g.fillRect(sxq,syq,Math.max(1,Math.round(K*0.8)),Math.max(1,Math.round(K*0.8)));
+    }
+  }
+  g.globalCompositeOperation="source-over";
+}
 function gammaViolence(g,ap,now,K,gy,sx,sy,epi,burnt,late){
   // the burst PULSES rather than shining steadily — a steady light is a lamp, a pulsing one is a weapon
   var beat=(now%2600)/2600, puls=Math.pow(Math.max(0,1-Math.abs(beat-0.12)/0.12),2);
@@ -52115,15 +52185,17 @@ function gammaViolence(g,ap,now,K,gy,sx,sy,epi,burnt,late){
       var zx=((zh>>>5)%Math.max(1,WW))-WOFF;
       if(zx<-20||zx>SW+20) continue;
       var zy=gy-Math.round(((zh>>>11)%Math.max(1,Math.round(gy*0.5))));
-      var px2=zx, py2=sy;
-      var steps=Math.max(6,Math.round(14*K));
+      // ⚠ A BOLT IS A LINE, NOT A STAIRCASE. Drawing the bounding box between consecutive points made
+      // each segment a filled BLOCK, so the arc came out as a flight of stairs across the sky — the
+      // beaded-ray fault a third time, in its blocky form. Stepped one row at a time with the jitter
+      // applied to x only, which is also how lightning actually looks in pixel art.
+      var steps=Math.max(8,Math.abs(zy-sy)), bw=Math.max(1,Math.round(K));
       for(var st2=0;st2<steps;st2++){
         var tz=st2/steps;
-        var nx=Math.round(sx+(zx-sx)*tz+(((zh>>>(st2&15))%9)-4)*K*0.8);
+        var nx=Math.round(sx+(zx-sx)*tz+(((zh>>>(st2&15))%7)-3)*K*0.7);
         var ny=Math.round(sy+(zy-sy)*tz);
-        g.fillStyle="rgba(220,240,255,"+(0.55*puls*(1-tz*0.4)).toFixed(3)+")";
-        g.fillRect(Math.min(px2,nx),Math.min(py2,ny),Math.max(1,Math.abs(nx-px2)),Math.max(1,Math.abs(ny-py2)));
-        px2=nx; py2=ny;
+        g.fillStyle="rgba(220,240,255,"+(0.60*puls*(1-tz*0.35)).toFixed(3)+")";
+        g.fillRect(nx,ny,bw,Math.max(1,Math.ceil(Math.abs(zy-sy)/steps)));
       }
     }
     g.globalCompositeOperation="source-over";
