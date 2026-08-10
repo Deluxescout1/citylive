@@ -24,11 +24,14 @@ Item {
             var CYC = 604800000, EPOCH = 1783972450746;
             City.GROW_CYCLE = CYC; City.NOFETCH = true; City.FORCEEGG = null; City.FORCEDIS = null;
             // his three, in world-x order, plus the harness default for comparison
+            // his REAL canvases, before and after the texelBuf fix — derived from
+            // kscreen (1920@1, 2560@1, 2327@1.65→dpr2) through main.qml's own arithmetic
             var screens = [
-                { n:"harness default", w:1552, h:874,  woff:1629 },
-                { n:"HDMI-A-3 1080p",  w:1920, h:1080, woff:1629 },
-                { n:"DP-4  1440p",     w:2560, h:1440, woff:776  },
-                { n:"DP-3  2160p",     w:3840, h:2160, woff:0    }
+                { n:"HDMI-A-3  (coarse, unchanged)", w:640,  h:360,  woff:1629 },
+                { n:"DP-4  NOW  full-res",           w:2562, h:1440, woff:776  },
+                { n:"DP-4  FIXED coarse",            w:854,  h:480,  woff:776  },
+                { n:"DP-3  NOW  full-res",           w:4656, h:2622, woff:0    },
+                { n:"DP-3  FIXED coarse",            w:1552, h:874,  woff:0    }
             ];
             function run(s, death, ms) {
                 City.FORCEBIOME = "plains"; City.FORCEVARIANT = 0;
@@ -55,14 +58,12 @@ Item {
                     apoc += run(s, "thetitans", Math.round(0.70*0.02*CYC));
                 }
                 norm /= 2; apoc /= 2;
-                if (i > 0) { sumN += norm; sumA += apoc; }
+                if (s.n.indexOf("NOW") >= 0 || s.n.indexOf("unchanged") >= 0) { sumN += norm; sumA += apoc; }
                 out += "  " + s.n + "  " + (s.w*s.h/1e6).toFixed(1) + "MPx"
                      + "   normal=" + norm.toFixed(1) + "ms   titans=" + apoc.toFixed(1) + "ms\n";
             }
-            out += "  ---- his three screens together: normal=" + sumN.toFixed(0)
-                 + "ms  titans=" + sumA.toFixed(0) + "ms  per 125ms budget ----\n";
-            out += "  ---- i.e. " + (100*sumN/125).toFixed(0) + "% / " + (100*sumA/125).toFixed(0)
-                 + "% of ONE core, continuously ----";
+            out += "  ---- NOW  (all three): normal=" + sumN.toFixed(0) + "ms  titans=" + sumA.toFixed(0)
+                 + "ms  = " + (100*sumN/125).toFixed(0) + "% / " + (100*sumA/125).toFixed(0) + "% of a 125ms budget ----";
             console.warn(out);
             Qt.callLater(Qt.quit);
         }

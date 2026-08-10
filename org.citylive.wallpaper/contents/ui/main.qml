@@ -176,7 +176,26 @@ WallpaperItem {
     // ⚠ THIS IS THE RESOLUTION KNOB, AND `pxk` IS NOT. Changing `pxk` moves the world size and `zoom`
     // compensates, leaving the canvas the same — measured, pxk 3/5/6 all cost within 3% of each other.
     // Only `texelBuf` actually changes how many pixels get painted.
-    readonly property real texelBuf: fractionalTexel ? 1 : pxk
+    // 🚨🚨🔑🔑 THIS TEST NAMED NICK'S MACHINE AS EXCLUDED AND THAT IS WHERE THE LAG WAS.
+    // `fractionalTexel ? 1 : pxk` pins any screen whose canvas would not divide by `pxk` to FULL
+    // DEVICE RESOLUTION. His 1920 divides exactly and is cheap; his 2560 and his 4K do not, so both
+    // painted every device pixel every frame. MEASURED on his three: 16.13 MPx per frame against the
+    // 2.00 MPx they need — 8x — which put a NORMAL LIVING CITY at 124ms of a 125ms budget and the
+    // apocalypse at 141ms, i.e. permanently past it. `plasmashell` sat at 268% CPU. He reported the
+    // wallpaper felt slow three times and I answered with ratios measured on a 1.4 MPx canvas.
+    //
+    // 🔑 "EXACT ÷pxk, OR FULL RESOLUTION" IS A FALSE BINARY, AND THE CROP IS WHY. The canvas is already
+    // `zoom * ceil(w*dpr / (texelBuf*zoom))` — it ROUNDS UP — and it is displayed at `scale =
+    // texelBuf/dpr`, which is an EXACT integer ratio. So the canvas overshoots the screen by at most
+    // `texelBuf*zoom` device px (2 on both of his) and the compositor crops it. There is no fractional
+    // resample to shimmer: the 2.9977 stretch the note above describes is what you get if you FIT the
+    // canvas to the screen, and this code does not fit it, it overshoots and clips.
+    // ⚠ The streaking that motivated the guard is a real memory, so it was re-tested: his DP-4 coarse
+    // canvas (854x480) rendered at native size is clean — towers crisp, signage legible.
+    // ⚠ AND THE VISUAL VERDICT IS STILL HIS. This changes what every user renders, and no render I can
+    // produce is the same as looking at a 4K panel from two feet away. If it shimmers, this line is
+    // the one to revert.
+    readonly property real texelBuf: pxk
     readonly property int zoom: Math.max(1, Math.round(pxk * dpr / texelBuf))
     // total width (logical px) of the whole desktop the city spans. If unset in config,
     // auto-detect by summing every screen's width (works for a single laptop screen or
