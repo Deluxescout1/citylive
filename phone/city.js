@@ -51040,6 +51040,70 @@ var TITAN_SIGHT_A=0.30;   // …and the share of the whole approach that happens
 // ONE number for the whole walk, 0 = first speck, 1 = standing over you. Everything the wall draws is
 // a function of this and nothing reads `cityApoc` directly any more — which is what lets the same code
 // serve a day and a half of dread and a ninety-second review loop without knowing which it is in.
+// 🔑 ONE LAW FOR WHERE THE WALL'S FEET ARE, because two things need it now: the wall itself, and the
+// burned ground it leaves behind. This file already records what happens when an ending keeps two
+// copies of its own geometry — `apocSweepR` and `apocStruck` reading different tables would "hand the
+// ending two different moments of its own beginning". A fire line that disagrees with the legs
+// standing in it is the same fault, and it is visible from across the room.
+function titanSetb(t,depth){ return Math.round(HORIZON*0.46*(1-t)*(0.75+0.25*depth)); }
+// 🔥🌍 THEY BURN THE WORLD ON THE WAY HERE. 🔒 Nick: "make sure these also destroy the world and set
+// the backround of the world on fire as they walk over it."
+// 🔑 THE SWEEP ALREADY BURNS THE CITY AND THAT WAS NEVER THE WHOLE WORLD. `apocSweepR` runs along the
+// street: buildings, traffic, people. Everything BEHIND the skyline — the far terrain the wall crosses
+// to get here — was untouched, so a horde that had walked over half a continent arrived across
+// pristine green hills. Now that they come out of the BACKGROUND, that ground is the most visible
+// thing they have already destroyed.
+// 🔑 The geometry is free and exactly right: they walk TOWARD the viewer, so the land they have
+// CROSSED is the land ABOVE their feet in frame, and their feet come down as they approach — the
+// scorched band grows from a strip on the horizon to the whole backdrop with no extra clock.
+// ⚠ Drawn in the BACK pass, before a single building, so the city stands in front of the ruin rather
+// than the ruin being painted over the city.
+function titanScorch(g,A,L,now){
+  if(cityPhase!=="apoc") return;                       // nothing burns on a day the world survives
+  var near=Math.pow(Math.min(1,Math.max(0,A)),1.9);
+  if(near<0.04) return;
+  var K=Math.max(1,KSP), day=L>0.5;
+  var t=Math.min(1,near/0.355);
+  var feetY=HORIZON-titanSetb(t,0);                    // the front rank's ground line = the burn edge
+  var reach=Math.round(HORIZON*0.55*Math.min(1,0.25+near));
+  var str=Math.min(1,near*2.4), stepY=Math.max(2,Math.round(3*K));
+  // ── THE BURNED GROUND. Ash gets DEEPER further back, where it has been burning longest — the
+  // opposite of the flame, which only lives at the edge. Two opposing gradients over one band is what
+  // stops it reading as a grey rectangle.
+  for(var i=0;i<reach;i+=stepY){
+    var f=i/reach, a2=(0.10+0.62*f)*str;
+    if(a2<=0.01) continue;
+    g.fillStyle=(day?"rgba(34,27,24,":"rgba(16,13,12,")+Math.min(0.82,a2).toFixed(3)+")";
+    g.fillRect(0,(feetY-i)|0,SW,stepY);
+  }
+  // ── THE BURN EDGE, on the line their feet are on. Hashed in runs so it is a broken fire front and
+  // not a ruled line. ⚠ world-anchored (`WOFF`) — three monitors show ONE fire, not three that each
+  // restart at their own left edge.
+  var segW=Math.max(3,Math.round(7*K));
+  for(var x=0;x<SW;x+=segW){
+    var h=(((x+WOFF)*2654435761)>>>0); h=(h^(h>>>13))>>>0;
+    if((h>>>5&7)<2) continue;
+    var fl=0.55+0.45*Math.sin(now*0.006+((h>>>11)%628)/100);
+    var fh=Math.max(1,Math.round((2+((h>>>7)%4))*K*fl*str));
+    g.globalCompositeOperation="lighter";
+    g.fillStyle="rgba(255,138,40,"+(0.50*str*fl).toFixed(3)+")";
+    g.fillRect(x|0,(feetY-fh)|0,segW,fh);
+    g.fillStyle="rgba(255,224,168,"+(0.34*str*fl).toFixed(3)+")";
+    g.fillRect(x|0,(feetY-Math.round(fh*0.4))|0,segW,Math.max(1,Math.round(fh*0.4)));
+    g.globalCompositeOperation="source-over";
+  }
+  // ── AND THE SMOKE OFF IT, which is what makes a horizon read as RUINED rather than merely dark.
+  var sn2=Math.round(16*str);
+  for(var q=0;q<sn2;q++){
+    var hs=((q*2654435761+4471)>>>0); hs=(hs^(hs>>>13))>>>0;
+    var sx=((hs+((WOFF*2654435761)>>>0))%Math.max(1,SW))|0;
+    var sp=((now*0.00009*(1+((hs>>>7)%3))+((hs>>>13)%100)/100)%1);
+    var sy=feetY-Math.round(sp*reach*1.25);
+    var sw2=Math.round((5+((hs>>>17)%11))*K*(0.5+sp));
+    g.fillStyle=(day?"rgba(96,88,82,":"rgba(44,40,38,")+(0.30*(1-sp)*str).toFixed(3)+")";
+    g.fillRect((sx-(sw2>>1))|0,sy|0,sw2,Math.max(1,Math.round(2*K)));
+  }
+}
 function titanApproach(){
   if(curDeath!=="thetitans") return -1;
   // ⚠🚨 ONE MAPPING IN EVERY MODE, INCLUDING THE REVIEW LOOP. The first cut let demo/harness treat the
@@ -51782,7 +51846,7 @@ function titanWall(g,ap,L,now,rkA,rkB,side){
     // small titans legible AND it is what can hide them completely; occlusion cuts both ways.
     // ⚠ The depth weighting flattened too (0.45+0.55·depth → 0.75+0.25·depth): at the old spread the
     // far ranks needed 2.2x the near rank's setback, which at this magnitude puts them in the sky.
-    var setb=Math.round(HORIZON*0.46*(1-t)*(0.75+0.25*depth));
+    var setb=titanSetb(t,depth);
     var baseY=gy+Math.round(HORIZON*0.015*(1-depth)*near)-setb;
     // 🌫️ …AND THE WALL WAS SEE-THROUGH. At `0.12+0.44·depth·(1-rn/2)` the near rank sat at 0.12 haze and
     // the mountains, the sea and the dust bank all read straight through its legs — the one thing a mass
@@ -52067,7 +52131,7 @@ APOC_X_FRONT.thetitans=function(g,ap,L,now){ titanWall(g,titanApproach(),L,now,0
 // …and the whole wall while it is still out beyond the skyline. Every rank is offered to BOTH passes;
 // `side` and the crossing schedule decide which one actually draws it, so no rank can be dropped by a
 // range that disagrees with a threshold — the two passes partition the ranks by construction.
-APOC_X_BACK.thetitans=function(g,ap,L,now){ titanWall(g,ap,L,now,0,5,"back"); };
+APOC_X_BACK.thetitans=function(g,ap,L,now){ titanScorch(g,ap,L,now); titanWall(g,ap,L,now,0,5,"back"); };  // the ruin first, then the wall standing in it
 // A COLOSSAL, drawn as muscle rather than as a person. 🔒 his call: skinless, exposed striation,
 // endless steam. 🎨 At this pixel scale detail is mud, so what carries it is the SILHOUETTE plus two
 // or three value steps — dark meat, a lit edge where the light catches the fibre, and the steam.
