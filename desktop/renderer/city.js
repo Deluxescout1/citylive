@@ -3120,7 +3120,12 @@ var curDis=null, curRebuilt=[], curRuins=[];   // active disaster (or null) + co
 var curDisArc=null;   // {di, tp, phase:"warn"|"impact"|"ripple"|"recover", f} — the whole arc, or null
 var curBills=null;   // Buffalo Bills gameday takeover state (or null) — set each frame in draw()
 var curBillsDress=false;   // is the whole city dressed in Bills gear right now? (gameday OR the Mafia's uniform mandate)
-var cityG=1, cityPhase="peak", growPop=1, cityApoc=0, apocVeil=0;   // maturity, phase, pop factor, apocalypse progress + ash-out veil
+var cityG=1, cityPhase="peak", growPop=1, cityApoc=0, apocVeil=0;
+// 🚨🔑🔑 THE LIFE CLOCK, 0..1 THROUGH THE LIFE — `cityGrowth` has always computed it as `cy` and has
+// never published it, so anything wanting "how far through its life is this city" reached for `cityG`
+// and got a GROWTH fraction that SATURATES AT 1.0 AT cy 0.78 and stays there for the whole adult life.
+// That is not a clock and it cost a shipped bug: see `titanApproach`.
+var cityCy=0;   // maturity, phase, pop factor, apocalypse progress + ash-out veil
 var curSpace=0;   // SPACE AGE 0..1 — the mature metropolis' final evolution before the endtimes
 var lpK=0;        // LIGHT POLLUTION 0..1 — how far the city's glow drowns the dark sky (Milky Way/Andromeda wash-out)
 var wmood={};     // per-frame weather mood (wet/snow/cold/hot/harsh + pedFactor/speedK) — GLOBAL so building/prop draw fns can read it (set in draw())
@@ -51350,7 +51355,19 @@ var APOC_X_BACK={};
 // Behind the buildings, being smaller than a tower is not a bug — it is what distance IS.
 // ⚠ Supersedes "TALLER THAN EVERY BUILDING" from `ad8fb3f`. He asked for the opposite, knowing what
 // he was looking at; the old rule existed to stop them vanishing, and occlusion now does that job.
-var TITAN_SIGHT_G=0.80;   // the growth fraction at which they first appear on the horizon
+// 🚨🚨 THIS WAS `cityG > 0.80` AND IT PUT THEM ON THE HORIZON PERMANENTLY. Nick, twice: "I still see
+// the rumbling on the screen." `cityG` is a GROWTH fraction, not a clock — `cityGrowth` saturates it to
+// 1.0 the moment the city stops growing (life fraction 0.78) and it STAYS 1.0 for the entire adult
+// life. So "the last stretch before the end" evaluated TRUE for most of every life, and a horde meant
+// to appear for a day and a half was parked on the skyline forever.
+// 🔑🔑 A VALUE THAT STOPS CHANGING CANNOT MEASURE TIME. The right quantity is `cy`, which `cityGrowth`
+// has always had and never published; it is now `cityCy`, and it is the same 0..1 the apocalypse band
+// itself is cut from (`APOC_AT` = 0.98), so the sighting and the ending cannot disagree about when the
+// life ends. 0.86 → the last ~12% of a life, about twenty hours of a week-long one.
+// ⚠ MEASURED, not assumed: a live probe of his exact installed config returned cityG 1.0000, phase
+// "peak", curDeath "thetitans", titanApproach 0.30 — full sighting strength on a city nowhere near
+// dying. One probe of the running config; I should have run it the first time he said it.
+var TITAN_SIGHT_G=0.86;   // the LIFE FRACTION at which they first appear on the horizon
 var TITAN_SIGHT_A=0.30;   // …and the share of the whole approach that happens BEFORE the apocalypse
 // ONE number for the whole walk, 0 = first speck, 1 = standing over you. Everything the wall draws is
 // a function of this and nothing reads `cityApoc` directly any more — which is what lets the same code
@@ -51452,7 +51469,7 @@ function titanApproach(){
   // the other: the city levelled before the thing levelling it arrived.
   // 🔑 A REVIEW MODE THAT BEHAVES DIFFERENTLY FROM THE REAL THING IS NOT A REVIEW MODE.
   if(cityPhase==="apoc") return TITAN_SIGHT_A+(1-TITAN_SIGHT_A)*cityApoc;
-  var s=(cityG-TITAN_SIGHT_G)/Math.max(0.001,APOC_AT-TITAN_SIGHT_G);
+  var s=(cityCy-TITAN_SIGHT_G)/Math.max(0.001,APOC_AT-TITAN_SIGHT_G);
   return s>0 ? TITAN_SIGHT_A*Math.min(1,s) : -1;
 }
 
@@ -58989,7 +59006,7 @@ function draw(g,pass){
   wmood.speedK    = wmood.hot?0.68 : (wmood.wet||wmood.snow||wmood.cold)?1.32 : 1;   // hurry in bad weather, dawdle in heat
   // WHERE IN ITS LIFE IS THE CITY? — computed up here so the apoc state (esp. the fast nuke clock) is
   // fresh BEFORE anything downstream reacts to it (traffic suppression, crowds, movers this same frame).
-  var cg=cityGrowth(now); cityG=cg.g; cityPhase=cg.phase;
+  var cg=cityGrowth(now); cityG=cg.g; cityPhase=cg.phase; cityCy=(cg.cy!=null?cg.cy:0);
   cityEra=cityEraOf(now);                                    // which architectural age is this life rebuilt in?
   curSpace = spaceLevelOf(now);   // the space age dawns in the city's final days (pure f(clock); university hastens it — see spaceLevelOf)
   cityApoc=(cityPhase==="apoc")?cg.apoc:0;                   // the grand cataclysm progress (0..1)
