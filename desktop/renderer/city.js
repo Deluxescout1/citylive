@@ -43543,10 +43543,20 @@ function drawCoreCanyon(g,L,now,skc,day){
     for(var x=0;x<SW;x++){
       var wx=x+WOFF;
       // ⚠ broken THREE ways — a slow meander, a non-harmonic second, and a hashed per-column notch.
+      // 🚨🚨🔑🔑 …AND THE THIRD WAY WAS THE WRONG WAY FOR THIS MATERIAL, WHICH COST THE WHOLE LAND ITS
+      // READ. Nick, on the finished thing on his own monitors: "I am not sure what I am looking at…
+      // like what end time is this." He was seeing the rift as the titans' DUST WALL rolling in. A
+      // per-column hashed notch is a 1px-noisy edge, and a 1px-noisy edge is the signature of dust,
+      // smoke and foliage in every pixel renderer alive — it is not the signature of ROCK. Rock breaks
+      // in slabs, so its edge is smooth at the small scale and wanders at the large one. `m3` is now
+      // a twentieth of what it was: enough that the lip is not a drawn curve, far too little to fizz.
+      // 🔑 "REGULARITY MUST BREAK THREE WAYS" IS A RULE ABOUT QUANTITY THAT SAYS NOTHING ABOUT KIND —
+      // this edge obeyed it and still told the eye the wrong material. Ask what the third way MEANS.
       var m1=Math.sin(wx*0.0016+((h0>>>3)%628)/100)*0.34;
       var m2=Math.sin(wx*0.0071+((h0>>>9)%628)/100)*0.13;
-      var hh=(((wx*2654435761+li*7919)>>>0)); var m3=(((hh>>>13)%100)/100-0.5)*0.06;
-      rim[x]=Math.max(4,Math.round(depth*(0.55+0.45*(m1+m2+m3)+0.30)));
+      var m2b=Math.sin(wx*0.0271+((h0>>>15)%628)/100)*0.035;   // a third WAVE, so the break stays threefold
+      var hh=(((wx*2654435761+li*7919)>>>0)); var m3=(((hh>>>13)%100)/100-0.5)*0.003;
+      rim[x]=Math.max(4,Math.round(depth*(0.55+0.45*(m1+m2+m2b+m3)+0.30)));
     }
     // 🔒 ERAS — "same city, different decades, recognisably one place". His call over "radically
     // different", so this moves the LIGHT and the CONDITION and leaves the bones alone: a life is
@@ -43574,6 +43584,26 @@ function drawCoreCanyon(g,L,now,skc,day){
     var d4=C.rim[x4], wallH=Math.max(1,Math.round(d4*C.wide));
     g.fillStyle=fwc;
     g.fillRect(x4,(gy-d4)|0,1,wallH);
+  }
+  // ── ✨ THE LIP CATCHING THE SKY. One lit line along the very top of the cut, and it is doing more
+  // work than its two lines suggest: a horizontal surface bright enough to separate from what is
+  // behind it is how pixel art says GROUND, and it is the single thing a dust front can never have.
+  // Brighter by day, because daylight is when this land was being misread as weather.
+  g.fillStyle=css(mixc(skc,[255,255,255],day?0.30:0.10));
+  for(var x6=0;x6<SW;x6++) g.fillRect(x6,(gy-C.rim[x6])|0,1,Math.max(1,Math.round(K*0.8)));
+  // ── 🪨 STRATA, and they are the other half of why he read this as weather. A flat unbroken face of
+  // one value has no material: haze is exactly that, and so is a dust front. Sedimentary banding is
+  // the cheapest signal in pixel art for ROCK, and because each band FOLLOWS the rim contour it also
+  // states that the surface recedes — a dust wall's bands would be vertical and drifting, not level.
+  var fwBase=day?[46,48,62]:[18,19,28];
+  for(var sq=0;sq<3;sq++){
+    var sf=0.22+sq*0.26, sv=(sq&1)?0.13:-0.11;
+    g.fillStyle=css(mixc(fwBase,sv>0?[255,255,255]:[0,0,0],Math.abs(sv)));
+    for(var x5=0;x5<SW;x5++){
+      var d5=C.rim[x5], wallH5=Math.max(1,Math.round(d5*C.wide));
+      if(wallH5<6) continue;
+      g.fillRect(x5,((gy-d5)+Math.round(wallH5*sf))|0,1,Math.max(1,Math.round(wallH5*0.10)));
+    }
   }
   // 🔥🚨 …AND THE LIGHT COMING UP OUT OF IT — ON THE FAR WALL, WHICH IS THE PART YOU CAN SEE.
   // First cut put the glow on the trench FLOOR, which is physically where it belongs and visually
@@ -43696,6 +43726,14 @@ function drawCoreCanyon(g,L,now,skc,day){
       }
     }
   }
+  // 🧗❌ A NEAR RIM WAS TRIED HERE AND DELETED — recording it so it is not tried a third time.
+  // The idea was sound (you know a hole is a hole because you can see the lip in front of it) and it
+  // cannot work in this projection: EVERY band in this engine stands on `gy`, so depth is carried by
+  // haze and height alone and there is no vertical room below the horizon for a near edge. Measured:
+  // the rim drew from `gy-nh` to `gy` and the diff showed changes stopping dead at world y 295 while
+  // the rim ran to 359 — bands 2 and 3 repaint that strip immediately after. 🔑 THE SAME OCCLUSION
+  // THAT ATE THE TRENCH-FLOOR GLOW, in the same function, found the same way. What fixed the read
+  // instead was material, not geometry: a SMOOTH rim edge and strata. See the cache block above.
 }
 function drawCoreWorld(g,L,now,nd){
   var gy=HORIZON, day=L>0.5, K=Math.max(1,KSP), skc=biomeSkc(day);
