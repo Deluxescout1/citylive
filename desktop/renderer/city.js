@@ -50778,7 +50778,25 @@ function polDark(b){
 // its case here + a per-building branch + its drawApoc* — no touching the ~48 scattered call sites.
 // apocPositional() = this death destroys the city by POSITION (a front / impacts), so cars/peds/etc.
 // die exactly as it reaches them, rather than fading out globally over the phase.
-function apocPositional(){ return curDeath==="massacre" || curDeath==="banwave" || curDeath==="wilderness" || curDeath==="nuke" || curDeath==="meteors" || curDeath==="ai" || curDeath==="bh" || curDeath==="kaiju" || curDeath==="kaijuwar" || curDeath==="ninetails"; }
+// 🚨🚨🔑🔑 …AND IT WAS A HAND-WRITTEN LIST WITH NINE ENDINGS MISSING FROM IT — THE THIRD TIME THIS
+// EXACT HOLE HAS BEEN FOUND IN THIS FILE. `apocStruck` had it, `apocFull` had it one level down (both
+// noted beside `APOC_SWEEP`), and this is the same mistake a third time: **every ending in `APOC_SWEEP`
+// destroys the city with a FRONT, which is the definition of positional, and not one of the nine was
+// listed here** — thepit, thehollow, crimsontide, warmachine, acidrain, glassrain, swarm, ragnarok and
+// thetitans. What that cost: this predicate gates the trains, the buses, the cars, the pedestrians and
+// the pubs, so on all nine the city was emptied UNIFORMLY on a global clock instead of dying where the
+// front actually was. In THE TITANS that meant traffic thinning out everywhere at once while the wall
+// was still on the horizon, and nothing at all fleeing ahead of it.
+// 🔑 THE CURE IS TO DERIVE IT, NOT TO ADD NINE MORE NAMES. A list that must be edited every time an
+// ending is added will be wrong again the next time; membership of `APOC_SWEEP` IS the answer.
+// ⚠ Checked before widening it, because a predicate that answers the wrong question is worse than the
+// bug: `apocHit` already ends with `if(APOC_SWEEP[curDeath]!=null) return frontCollapse(…)` and
+// `apocFull` with `apocSweepR() >= WW*0.5`, so the per-position machinery these nine now opt into
+// genuinely exists and works. Without that, "positional" would have meant traffic running forever.
+// ⚠ `APOC_SWEEP` is declared ~5000 lines BELOW this, and that is safe only because this is a function
+// body evaluated at draw time — `apocHit` above already reads the same table from above it. It would
+// NOT be safe at load time; see the `CFG_FINALE` validator crash noted beside the table.
+function apocPositional(){ return APOC_SWEEP[curDeath]!=null || curDeath==="massacre" || curDeath==="banwave" || curDeath==="wilderness" || curDeath==="nuke" || curDeath==="meteors" || curDeath==="ai" || curDeath==="bh" || curDeath==="kaiju" || curDeath==="kaijuwar" || curDeath==="ninetails"; }
 // ⚠ DECLARED ABOVE `apocStruck`, NOT BESIDE THE RENDERERS IT DESCRIBES, and for the reason this file
 // already records once: `var` hoists the NAME but not the VALUE, so a table defined below its reader
 // is `undefined` to anything that runs at load time — which is exactly how the `CFG_FINALE` validator
@@ -51811,6 +51829,36 @@ function titanWall(g,ap,L,now,rkA,rkB,side){
         // and the burning print it leaves behind
         g.fillStyle="rgba(46,26,22,"+(0.70*(1-haze)).toFixed(2)+")";
         g.fillRect((fxp-Math.round(Wv*0.36))|0,(baseY-Math.round(1*K))|0,Math.max(2,Math.round(Wv*0.72)),Math.max(1,Math.round(2*K)));
+        // ── 🏢💥 WHAT THE FOOT DID TO WHAT WAS UNDER IT. 🔒 His pick: "pancake straight down, then
+        // dust" — they do not KICK buildings, they walk over them, and the tell is a column of dust
+        // punched up out of the footprint with debris thrown out sideways at the base. That reads in
+        // one frame, which matters: a toppling tower needs several and this repaints at 12fps.
+        // ⚠ Rides the SAME `land` term as the fire, so the crush, the flash and the print are all one
+        // event. A dust plume on its own clock would drift out of step with the foot that caused it
+        // and read as smoke that happens to be nearby.
+        if(lod>=1&&land>0.42){
+          var cint=(land-0.42)/0.58, dch=Math.round(Hh*0.42*cint);
+          // ⚡ Stepped at 5·K, not 2·K. 🔑 NICK'S RULE: buy frames back with PIXELS, never with frames.
+          // A dust column is a soft, low-contrast thing with no edge anyone can locate, so a coarser
+          // slice is invisible in it — unlike dropping the crush on the second rank, which would have
+          // been visible immediately as half the wall stomping on nothing. Measured: 1.90 → 1.77.
+          for(var dq=0;dq<dch;dq+=Math.max(3,Math.round(5*K))){    // the column, thinning and fading upward
+            var dt2=dq/Math.max(1,dch);
+            g.fillStyle="rgba(150,138,126,"+(0.40*(1-dt2)*(1-haze)*cint).toFixed(3)+")";
+            g.fillRect((fxp-Math.round(Wv*(0.30+0.62*dt2)))|0,(baseY-dq)|0,
+                       Math.max(2,Math.round(Wv*(0.60+1.24*dt2))),Math.max(2,Math.round(2*K)));
+          }
+          // …and the masonry it threw. Hashed off the footfall's own position so it is the same
+          // scatter for the same step on every monitor — scripted, never simulated.
+          for(var dbg=0;dbg<7;dbg++){
+            var dh2=((((fxp*2654435761)>>>0)+dbg*40503)>>>0); dh2=(dh2^(dh2>>>13))>>>0;
+            var dsp=((dh2%100)/100), darc=Math.sin(dsp*3.14159)*cint;
+            var ddx=Math.round((dsp*2-1)*Wv*2.1), ddy=Math.round(darc*Hh*0.16);
+            var dsz=Math.max(1,Math.round((1+((dh2>>>9)%3))*K));
+            g.fillStyle="rgba(74,64,58,"+(0.80*cint).toFixed(2)+")";
+            g.fillRect((fxp+ddx)|0,(baseY-ddy)|0,dsz,dsz);
+          }
+        }
       }
     }
   }
@@ -51882,6 +51930,17 @@ APOC_X.thetitans=function(g,ap,L,now){
       g.fillRect((FX-fwd)|0,(gy-Math.round(2*K))|0,fwd*2,Math.round(3*K));   // the print itself
       g.fillStyle=day?"rgba(84,74,68,0.70)":"rgba(34,30,30,0.75)";
       g.fillRect((FX-fwd)|0,(gy-Math.round(4*K))|0,fwd*2,Math.max(1,Math.round(K)));  // rubble pushed up at the rim
+      // 🩸 …AND WHAT WAS STANDING THERE. 🔒 his pick: the craters get remains, not clean rubble. A
+      // footprint full of tidy grey masonry is a demolition; the city was FULL when the foot came
+      // down. ⚠ Scaled by `goreK()` like every other mark in this engine, so `gore:"off"` removes it
+      // and `"restrained"` thins it — this is the one thing that must never be drawn unconditionally.
+      var gk=goreK();
+      if(gk>0) for(var gp=0; gp<Math.round(5*gk); gp++){
+        var hg=((hf+gp*2654435761)>>>0); hg=(hg^(hg>>>13))>>>0;
+        var gx=FX-fwd+((hg%Math.max(1,fwd*2))|0), gw=Math.max(1,Math.round((1+(hg>>>9)%3)*K));
+        g.fillStyle=(hg>>>5&3)?"rgba(122,16,18,"+(0.80*gk).toFixed(2)+")":"rgba(78,8,10,"+(0.85*gk).toFixed(2)+")";
+        g.fillRect(gx|0,(gy-Math.round(2*K)+((hg>>>11)%Math.max(1,Math.round(3*K))))|0,gw,Math.max(1,Math.round(K)));
+      }
     }
   }
 };
@@ -58415,6 +58474,15 @@ function draw(g,pass){
                                                        : Math.min(1,0.34+(apocMs-FOX_ARRIVE_MS)/FOX_WIPE_MS))     //   …then the shockwave takes the valley
     : (curDeath==="flood") ? (apocMs<FLOOD_ONSET_MS ? Math.min(0.3,apocMs/FLOOD_ONSET_MS*0.3)   //   flood: people run for high ground as the waters rise…
                                                     : Math.min(1,0.3+(apocMs-FLOOD_ONSET_MS)/9000))   //   …then the sea drowns the city
+    // 🔒🚨 THE TITANS HAD NO ROW HERE AND FELL THROUGH TO `cityApoc` — so the city began emptying at
+    // ap 0.00, when the wall was still specks on the horizon and nobody could possibly know. Panic
+    // before there is anything to panic about, and it drained the streets across the whole arc that
+    // was supposed to show a city living its last ordinary morning. 🔑 Pinned to `APOC_SWEEP.thetitans`
+    // (0.40) — the same 0.40 the front and the demolition read — so the dread and the killing cannot
+    // disagree about when the wall arrives. They watch it come for a long time, and THEN it walks over
+    // them; 0.92 is the ap at which a front has crossed the world, which is where the /0.52 comes from.
+    : (curDeath==="thetitans") ? (cityApoc<0.40 ? Math.min(0.34,cityApoc/0.40*0.34)          //   the Rumbling: they watch it come, and run…
+                                                : Math.min(1,0.34+(cityApoc-0.40)/0.52))     //   …then the wall walks over the city
     : (curDeath==="kaijuwar") ? (apocMs<KW_ARRIVE_MS ? Math.min(0.3,apocMs/KW_ARRIVE_MS*0.3)   //   kaiju war: terror as the two titans rise…
                                                      : Math.min(1,0.3+(apocMs-KW_ARRIVE_MS)/(KW_APPROACH_MS+KW_CLASH_MS)))   //   …then the battle empties the city as it spreads
     : cityApoc;                                                                               //   (any future non-positional death — incl. pollution's slow fade)
