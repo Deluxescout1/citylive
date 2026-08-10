@@ -201,12 +201,15 @@ function applyConfig(cfg){ if(!cfg) return;
   // `apocAtOf`, which is what the Doomsday Clock DISPLAYS. So setting a doomsday shifted which LIFE
   // you were in — a different fate, a different city name — and moved the ending by exactly zero.
   // The one number the feature exists to control was the one number it did not touch.
-  // 🔑 …and it was off by a whole phase besides: `alignMsForTs` aligns the START of a life to the
-  // chosen timestamp, but a user setting "my city dies at 8pm Friday" means the CATACLYSM lands then,
-  // which is `cy = APOC_AT` (0.98), not `cy = 0`. Both errors had to go for the feature to work at all.
-  GROW_ALIGN = APOC_AT_MS>0
-    ? ((((alignMsForTs(APOC_AT_MS, GROW_CYCLE) - APOC_AT*GROW_CYCLE) % GROW_CYCLE) + GROW_CYCLE) % GROW_CYCLE)
-    : alignMsFor(APOC_HOUR, GROW_CYCLE);
+  // ⚠🚨 I ALSO SHIFTED THIS BY A PHASE AND THE TEST SUITE CAUGHT IT — three tests, all of them right.
+  // The feature is `worldRestartAt`: the chosen instant is when the world is REBORN, which means the
+  // cataclysm plays in the ~2% of the life BEFORE it. I read Micah's "set it to die today" as "cy =
+  // APOC_AT lands here" and moved the alignment by 0.98 of a cycle, which broke the life boundary the
+  // feature is actually defined by. 🔑 THE PLUMBING WAS THE WHOLE BUG; the phase was never wrong.
+  // 🔑🔑 AND THE TESTS ARE THE REASON I KNOW. Three assertions written by someone who had thought
+  // harder about this than I had at 4am, and my first instinct on seeing them fail was that they
+  // encoded the old broken behaviour. They did not — they encoded the DEFINITION.
+  GROW_ALIGN = APOC_AT_MS>0 ? alignMsForTs(APOC_AT_MS, GROW_CYCLE) : alignMsFor(APOC_HOUR, GROW_CYCLE);
   if(cfg.finaleDemo!==undefined) FINALE_DEMO=(+cfg.finaleDemo>0)?+cfg.finaleDemo:null;   // seconds for a full apocalypse loop
   if(cfg.era!==undefined){ FORCEERA=null;
     if(cfg.era && cfg.era!=="auto"){ for(var ei=0;ei<ERAS.length;ei++){ if(ERAS[ei].name===cfg.era){ FORCEERA=ei; break; } } } }
