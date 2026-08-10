@@ -51868,6 +51868,7 @@ APOC_X.thetitans=function(g,ap,L,now){
   var near=Math.min(1,Math.max(0,ap/0.86)); near=Math.pow(near,1.9);
   var epi=(typeof apocEpiX==="function")?apocEpiX(now):Math.round(WW*0.5);
   var gy=HORIZON;
+  titanTremor(g,ap,L,now);            // …and what the ground is already doing about it
   titanWall(g,ap,L,now,1,5,"front");  // the crossed ranks behind the near one — so they sit behind its dust
   // ── THE STEAM. It is not decoration: it is what says HEAT, and it is what the far ranks dissolve
   // into so a repeating row stops reading as a repeating row.
@@ -51946,6 +51947,44 @@ APOC_X.thetitans=function(g,ap,L,now){
 };
 // …and the rank that is ON the front line is drawn AFTER the dust, so the dust reads as being behind it
 // rather than smeared across it. This is the only thing that separates the three ranks into three depths.
+// 🌍 THE GROUND KNOWS THEY ARE COMING BEFORE YOU CAN SEE WHAT IT MEANS.
+// 🔒 Nick picked "ground shake + debris rising" as one of the things carrying the approach.
+// 🚨🖥️ AND SCREEN SHAKE IS NOT SHIPPABLE HERE, WHICH IS A FACT ABOUT THE SHELL, NOT A PREFERENCE.
+// `contents/ui/main.qml` composites TWO canvases — `"bg"` at ~2fps under `"live"` at 12fps — and the
+// still terrain, the road and the sky live in `bg`. A transform jolt moves the buildings against a
+// STATIC road and horizon and tears at every building base, six times out of every seven frames.
+// 🔑 ANY WHOLE-FRAME EFFECT MUST BE CHECKED AGAINST THE TWO-CANVAS SHELL FIRST. This is the same
+// finding that stopped it being shipped with the near field, and it has not changed.
+// 🔑🔑 SO THE WORLD REACTS IN CONTENT SPACE INSTEAD: nothing moves the camera, things move IN it.
+// Dust jumps off the ground, grit hops on the road, and both pulse on the wall's own stride clock —
+// `now*0.0016` is the same term every titan's gait is built from, so the ground answers the FOOTFALLS
+// rather than shivering to a rhythm of its own. A tremor that is out of step with the legs causing it
+// reads as a rendering fault, which is worse than no tremor at all.
+function titanTremor(g,ap,L,now){
+  var near=Math.min(1,Math.max(0,ap/0.86)); near=Math.pow(near,1.9);
+  if(near<0.06) return;                                  // still too far for the ground to care
+  var K=Math.max(1,KSP), day=L>0.5;
+  var beat=Math.abs(Math.sin(now*0.0016));               // the stride, shared with the wall
+  var hit=Math.pow(1-beat,2.2);                          // …sharpened, so it is a STRIKE not a sway
+  var amp=Math.min(1,near*1.25)*hit;
+  if(amp<0.04) return;
+  var gyT=HORIZON, n=Math.round(30*Math.min(1,near*1.4));
+  for(var i=0;i<n;i++){
+    var h=((i*2654435761+7717)>>>0); h=(h^(h>>>13))>>>0;
+    var x=(h%Math.max(1,SW))|0;
+    // dust jumping OFF the ground line — a low, wide puff, brightest at the instant of the strike
+    var pw=Math.max(2,Math.round((3+((h>>>7)%7))*K*(0.6+0.7*amp)));
+    var ph2=Math.max(1,Math.round((1+((h>>>11)%3))*K));
+    g.fillStyle=(day?"rgba(168,156,142,":"rgba(74,70,66,")+(0.34*amp).toFixed(3)+")";
+    g.fillRect((x-(pw>>1))|0,(gyT-ph2-Math.round(amp*3*K))|0,pw,ph2);
+    // …and grit hopping on the road, which is the piece that says the SURFACE is being hammered
+    if((h>>>17&3)===0){
+      var by=Math.round(amp*4*K*(0.5+((h>>>19)%50)/100));
+      g.fillStyle=day?"rgba(52,46,42,0.75)":"rgba(24,22,20,0.80)";
+      g.fillRect(x|0,(ROAD_Y-by)|0,Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
+    }
+  }
+}
 // 🔑 Rank 0 BY NAME, not a literal that happens to be the last index today.
 APOC_X_FRONT.thetitans=function(g,ap,L,now){ titanWall(g,ap,L,now,0,0,"front"); };
 // …and the whole wall while it is still out beyond the skyline. Every rank is offered to BOTH passes;
