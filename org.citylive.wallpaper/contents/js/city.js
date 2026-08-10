@@ -43604,10 +43604,20 @@ function drawCoreCanyon(g,L,now,skc,day){
   // ── 🏭 WHAT IS BURNING DOWN THERE. 🔒 He rejected "the emptiness is the point": the rift is
   // INHABITED. Flare stacks and vents along the foot of the visible wall EXPLAIN the glow instead of
   // leaving it as an effect — light with a cause reads as a place, light without one reads as a filter.
-  var flareN=Math.round(SW/90)+1;
+  // 🚨🚨🔑🔑 PLACED IN WORLD PX, NOT SCREEN PX. Every inhabitant of this rift used to hash off its own
+  // loop index and the life, then take `% SW` — no WOFF term anywhere. The RIM above is world-anchored
+  // (`wx=x+WOFF`), so the trench wandered across the world correctly while the things living in it were
+  // pinned to screen coordinates: MEASURED, flares/wall-towers/bridges came back at byte-identical
+  // screen x for woff 0, 776 AND 1629. All three of his monitors showed one layout repeated, on the
+  // land whose original fault was that every life looked the same. 🔑 THE SAME RULE AS THE PACK ICE:
+  // a feature is world-anchored only if the thing it is measured against is, and `% SW` is a promise
+  // that it is not. Count scales with WW so the per-screen density is unchanged.
+  var flareN=Math.round(WW/90)+1;
   for(var fq=0;fq<flareN;fq++){
     var fh2=((fq*2654435761+((C.li*7919)>>>0))>>>0); fh2=(fh2^(fh2>>>13))>>>0;
-    var fx=((fh2>>>3)%Math.max(1,SW))|0, dF=C.rim[fx];
+    var fwx=((fh2>>>3)%Math.max(1,WW))|0, fx=fwx-WOFF;
+    if(fx<0||fx>=SW) continue;
+    var dF=C.rim[fx];
     if(dF<8) continue;
     var fbase=gy-dF+Math.max(1,Math.round(dF*C.wide));
     var fhh=Math.max(2,Math.round((3+((fh2>>>9)%6))*K));
@@ -43620,10 +43630,12 @@ function drawCoreCanyon(g,L,now,skc,day){
   // ── 🏙️ THE CITY CONTINUES DOWN THE WALLS. Lit windows descending into the dark — the thing that
   // says people live in the cut rather than beside it. ⚠ Drawn on the FAR wall only: the near wall is
   // the underside of the rim and faces away from us, so windows there would be lit through rock.
-  var wtN=Math.round(SW/26)+2;
+  var wtN=Math.round(WW/26)+2;                                  // world count; ~SW/26 of them land here
   for(var wq=0;wq<wtN;wq++){
     var wh2=((wq*2654435761+((C.li*40503)>>>0))>>>0); wh2=(wh2^(wh2>>>13))>>>0;
-    var wx6=((wh2>>>5)%Math.max(1,SW))|0, dW=C.rim[wx6];
+    var wwx=((wh2>>>5)%Math.max(1,WW))|0, wx6=wwx-WOFF;         // WORLD px → this screen
+    if(wx6<0||wx6>=SW) continue;
+    var dW=C.rim[wx6];
     if(dW<10) continue;
     var wallTop=gy-dW, wallBot=wallTop+Math.max(1,Math.round(dW*C.wide));
     var tw=Math.max(1,Math.round((1+((wh2>>>11)%3))*K));
@@ -43639,11 +43651,16 @@ function drawCoreCanyon(g,L,now,skc,day){
   // ── 🌉 AND THE BRIDGES. 🔑 The scale reference this land has never had: a span is a KNOWN size, so
   // everything around it acquires one. They also tie the two sides into ONE city instead of two edges
   // facing each other across a hole.
-  var brN=2+((h0>>>17)%3);
+  // ⚠ COUNT scales to the world, LENGTH does not. A span is a real object of a real size — that is the
+  // entire reason it works as a scale reference — so `bw` stays a fraction of ONE screen. Only how many
+  // exist scales with how wide the world is, which keeps ~2–4 of them on any given monitor while making
+  // them DIFFERENT ones on each. The per-column clip below already handles a bridge crossing a seam.
+  var brN=Math.round((2+((h0>>>17)%3))*Math.max(1,WW/Math.max(1,SW)));
   for(var bq=0;bq<brN;bq++){
     var bh2=((bq*2654435761+((C.li*31337)>>>0))>>>0); bh2=(bh2^(bh2>>>13))>>>0;
-    var bx0=((bh2>>>3)%Math.max(1,SW))|0;
+    var bx0=(((bh2>>>3)%Math.max(1,WW))|0)-WOFF;
     var bw=Math.round(SW*(0.18+((bh2>>>9)%26)/100));
+    if(bx0+bw<0||bx0>=SW) continue;
     var bfrac=0.18+((bh2>>>13)%50)/100;                 // how far down the wall it crosses
     var by=0;
     g.fillStyle=day?"rgba(22,23,30,0.92)":"rgba(10,10,15,0.94)";
@@ -43798,9 +43815,14 @@ function drawCoreWorld(g,L,now,nd){
     var ly=Math.round(gy*(0.10+lf*0.66));
     var dir=(ln&1)?1:-1, near=1-lf;
     var spd=(0.06+near*0.16), gapx=Math.round((26+ln*9)*K);
-    for(var cx=0;cx<SW+gapx;cx+=gapx){
+    // 🚨 AND THE SKY LANES RAN IN SCREEN SPACE TOO — the loudest version of the same bug, because this
+    // one MOVES. `px` was `cx+off` with no WOFF, so all three monitors flew identical craft at identical
+    // screen x in perfect formation, and a plane leaving DP-3 never arrived on DP-4. Stepping the lane
+    // across the WORLD and converting to screen makes the three panels one continuous sky, which is the
+    // whole reason this project scripts everything from a hash instead of simulating it.
+    for(var cx=0;cx<WW+gapx;cx+=gapx){
       var off=((now*spd+ln*400)%gapx);
-      var px=dir>0?(cx+off):(SW-cx-off);
+      var px=(dir>0?(cx+off):(WW-cx-off))-WOFF;
       if(px<-4||px>SW+4) continue;
       var cw=Math.max(1,Math.round((1.2+near*1.6)*K));
       g.fillStyle=day?"rgba(48,54,72,"+(0.35+0.4*near).toFixed(2)+")":"rgba(20,22,30,0.8)";
