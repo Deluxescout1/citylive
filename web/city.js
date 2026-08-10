@@ -52210,6 +52210,224 @@ function gammaViolence(g,ap,now,K,gy,sx,sy,epi,burnt,late){
 }
 
 // A ROGUE PLANET — it does not hit. It passes, and that is worse: it takes the air and the sea with it.
+// ══ 🪐🔬 THE ROGUE PLANET, REBUILT ON WHAT ACTUALLY HAPPENS ═════════════════════════════════════════
+// Nick: "I feel like we would burn into a crisp if Jupiter got that close — we would be in its gas
+// rings at some point, it wouldn't crash into us like we have it now. Do the research."
+// He was right on both counts, and the ending was staging the one outcome physics forbids.
+// 🔑🔑 A GAS GIANT NEVER REACHES THE GROUND. Earth crosses its ROCHE LIMIT first — the distance inside
+// which tidal force exceeds the body's own gravity — and is pulled apart into a debris stream that
+// cannot re-accrete, so it becomes part of the ring system. No impact. No crater. Everything that
+// kills us happens BEFORE contact, and in a fixed order:
+//   1. MAGNETIC FIELDS TOUCH FIRST — violent thunderstorms and enormous auroras, while the planet is
+//      still just a light in the sky. The only beautiful stage, and the earliest warning.
+//   2. TIDES STOP BEING TIDES — oceans become moving walls of planetary energy; shallow seas empty
+//      out completely and come back.
+//   3. THE CRUST FLEXES — global earthquakes, volcanic systems forced open by the stress.
+//   4. THE AIR LEAKS AWAY — the atmosphere thins and streams off into space. Sky drains toward black
+//      and the stars come out in daylight.
+//   5. WE PASS THROUGH THE RINGS, then graze the outer atmosphere and BURN, then the Roche limit
+//      takes the crust and the fragments are flung out.
+// 🔒 His call: all three endings in sequence, all four stages, and rings we end up inside.
+// ⚠ ONE HELPER FOR THE WHOLE TIMELINE. Each stage is a ramp over its own span of `ap`, so the ending
+// is a script rather than eight independent effects that happen to overlap — the thing crustcrack
+// and gammaray each lacked, and the reason they read as filters instead of events.
+function rogueRamp(ap,a,b){ return Math.max(0,Math.min(1,(ap-a)/Math.max(0.001,b-a))); }
+function rogueStages(ap){
+  return {
+    aur:   rogueRamp(ap,0.12,0.30)*(1-rogueRamp(ap,0.70,0.92)),   // fades as the air that carries it goes
+    tide:  rogueRamp(ap,0.26,0.48),
+    quake: rogueRamp(ap,0.36,0.58),
+    air:   rogueRamp(ap,0.46,0.78),
+    rings: rogueRamp(ap,0.40,0.68),
+    inring:rogueRamp(ap,0.64,0.86),
+    burn:  rogueRamp(ap,0.76,0.92),
+    roche: rogueRamp(ap,0.86,1.00)
+  };
+}
+// ── 🌌 1. THE AURORAS AND THE STORMS. Curtains hanging in the upper sky, world-anchored, with the
+// lightning that comes with a magnetosphere being torn about. ⚠ CURTAINS, NOT BANDS — gammaray's
+// "aurora" was nine full-width horizontal bars and read as a test pattern. An aurora hangs in folds.
+function rogueAurora(g,k,now,gy,K){
+  if(k<=0.01) return;
+  g.globalCompositeOperation="lighter";
+  for(var c=0;c<9;c++){
+    var h=((c*2654435761+4813)>>>0); h=(h^(h>>>13))>>>0;
+    var baseW=((h>>>3)%Math.max(1,WW))-WOFF;
+    var wob=Math.sin(now*0.0004+c*1.7)*22*K;
+    var cxw=Math.round(baseW+wob);
+    if(cxw<-90||cxw>SW+90) continue;
+    var top=Math.round(gy*0.04), hgt=Math.round(gy*(0.34+((h>>>9)%30)/100));
+    var wide=Math.round((10+((h>>>15)%16))*K);
+    for(var y=0;y<hgt;y+=Math.max(1,Math.round(K))){
+      var ty=y/hgt;
+      var sway=Math.round(Math.sin(now*0.0011+c*2.1+ty*5.2)*wide*0.55);
+      var a=0.30*k*Math.pow(1-ty,0.7)*(0.55+0.45*Math.sin(now*0.002+c+ty*3));
+      if(a<0.012) continue;
+      var gr=Math.round(180+60*ty);
+      g.fillStyle="rgba("+Math.round(90+70*(1-ty))+","+gr+","+Math.round(150+70*ty)+","+a.toFixed(3)+")";
+      g.fillRect(cxw+sway,top+y,Math.max(1,Math.round(wide*(1-ty*0.5))),Math.max(1,Math.round(K)));
+    }
+  }
+  g.globalCompositeOperation="source-over";
+  // …and the storms underneath it
+  var beat=Math.floor(now/700), lh=((beat*2654435761)>>>0); lh=(lh^(lh>>>13))>>>0;
+  if((lh%5)===0){
+    var lx=((lh>>>7)%Math.max(1,WW))-WOFF;
+    if(lx>-30&&lx<SW+30){
+      var ly=Math.round(gy*0.62), bx=lx, by=Math.round(gy*0.10);
+      g.globalCompositeOperation="lighter";
+      g.fillStyle="rgba(226,238,255,"+(0.75*k).toFixed(2)+")";
+      var st=Math.max(6,ly-by);
+      for(var s=0;s<st;s++){
+        var tt=s/st, nx=Math.round(bx+(lx-bx)*tt+(((lh>>>(s&15))%7)-3)*K);
+        g.fillRect(nx,by+s,Math.max(1,Math.round(K)),1);
+      }
+      g.fillStyle="rgba(200,220,255,"+(0.10*k).toFixed(3)+")"; g.fillRect(0,0,SW,SH);
+      g.globalCompositeOperation="source-over";
+    }
+  }
+}
+// ── 🌊 2. THE TIDE THAT IS NOT A TIDE. The shallow water empties out completely, then comes back as a
+// wall. ⚠ DRAWN, NEVER BY MOVING `SEA_Y` — the marina, the boats, the reflections and the foam all
+// read that global, so animating it drags half the land along behind.
+function rogueTide(g,k,now,gy,K){
+  if(k<=0.01) return;
+  if(!(typeof SEA_Y==="number"&&SEA_Y>0&&SEA_Y<SH&&SEA_FRONT>0)) return;
+  var swing=Math.sin(now*0.00022)*k;                    // out, then back, over minutes
+  if(swing<0){                                          // the sea has gone: wet ground where it was
+    var bare=Math.round(-swing*(SH-SEA_Y)*0.9);
+    g.fillStyle="rgba(58,54,48,0.85)"; g.fillRect(0,SEA_Y,SW,bare);
+    g.fillStyle="rgba(96,92,84,0.5)"; g.fillRect(0,SEA_Y+bare-Math.max(1,Math.round(K)),SW,Math.max(1,Math.round(K)));
+  } else {                                              // …and the wall coming back
+    var wall=Math.round(swing*(SEA_Y-gy)*1.15);
+    for(var y=0;y<wall;y+=Math.max(1,Math.round(K))){
+      var ty=y/Math.max(1,wall);
+      g.fillStyle="rgba("+Math.round(26+30*ty)+","+Math.round(48+46*ty)+","+Math.round(72+52*ty)+","+(0.92-0.15*ty).toFixed(3)+")";
+      g.fillRect(0,SEA_Y-y,SW,Math.max(1,Math.round(K)));
+    }
+    g.fillStyle="rgba(226,240,248,0.9)";                // foam along its crest
+    for(var fx=0;fx<SW;fx+=Math.max(2,Math.round(3*K))){
+      var fy=SEA_Y-wall+Math.round(Math.sin((fx+WOFF)*0.05+now*0.004)*2*K);
+      g.fillRect(fx,fy,Math.max(1,Math.round(2*K)),Math.max(1,Math.round(K)));
+    }
+  }
+}
+// ── 🌋 3. THE CRUST FLEXES. Fissures open in the ground and dust jumps off everything. The engine
+// cannot shake the camera, so the shaking is expressed as things the ground DOES, which is the same
+// choice the tremor made.
+function rogueQuake(g,k,now,gy,K){
+  if(k<=0.01) return;
+  var band=Math.max(4,SH-gy);
+  for(var i=0;i<Math.round(16*k);i++){
+    var h=((i*2654435761+7043)>>>0); h=(h^(h>>>13))>>>0;
+    var fx=((h>>>5)%Math.max(1,WW))-WOFF;
+    if(fx<-20||fx>SW+20) continue;
+    var fw=Math.max(1,Math.round((1+((h>>>11)%3))*K)), fh=Math.round(band*(0.12+((h>>>15)%40)/100)*k);
+    g.fillStyle="rgba(12,8,8,0.92)";
+    g.fillRect(fx,gy+Math.round(band*0.10),fw,fh);
+    g.globalCompositeOperation="lighter";              // magma in the deeper ones
+    g.fillStyle="rgba(255,130,50,"+(0.5*k*(0.6+0.4*Math.sin(now*0.005+i))).toFixed(3)+")";
+    g.fillRect(fx,gy+Math.round(band*0.10)+Math.round(fh*0.5),fw,Math.max(1,Math.round(fh*0.5)));
+    g.globalCompositeOperation="source-over";
+  }
+  for(var d=0;d<Math.round(20*k);d++){                  // dust shaken off the skyline
+    var dh=((d*2654435761+1613)>>>0); dh=(dh^(dh>>>13))>>>0;
+    var dx=((dh>>>7)%Math.max(1,WW))-WOFF;
+    if(dx<0||dx>=SW) continue;
+    var dy=gy-((dh>>>13)%Math.round(gy*0.55));
+    var t=((now*0.0009+((dh>>>19)%100)/100)%1);
+    g.fillStyle="rgba(168,158,146,"+(0.28*k*(1-t)).toFixed(3)+")";
+    g.fillRect(dx,dy+Math.round(t*30*K),Math.max(1,Math.round(1.6*K)),Math.max(1,Math.round(1.6*K)));
+  }
+}
+// ── 🌑 4. THE AIR GOES. Sky drains toward black and the stars come out in daylight — the single
+// clearest way to say "there is no atmosphere left" without a caption.
+function rogueAirLoss(g,k,now,gy,K){
+  if(k<=0.01) return;
+  g.fillStyle="rgba(4,4,10,"+(0.80*k).toFixed(3)+")";
+  g.fillRect(0,0,SW,gy+2);
+  g.globalCompositeOperation="lighter";
+  for(var s=0;s<Math.round(130*k);s++){
+    var h=((s*2654435761+5471)>>>0); h=(h^(h>>>13))>>>0;
+    var sx=((h>>>5)%Math.max(1,WW))-WOFF;
+    if(sx<0||sx>=SW) continue;
+    var sy=((h>>>13)%Math.max(1,Math.round(gy*0.92)));
+    var tw=0.55+0.45*Math.sin(now*0.003+s);
+    g.fillStyle="rgba(255,255,246,"+(0.85*k*tw).toFixed(3)+")";
+    g.fillRect(sx,sy,Math.max(1,Math.round(K*0.7)),Math.max(1,Math.round(K*0.7)));
+  }
+  g.globalCompositeOperation="source-over";
+}
+// ── 💍 5. THE RINGS, AND THEN WE ARE INSIDE THEM. Hard bands cutting across the sky, and once we
+// cross into the plane the rocks stop being scenery and start arriving.
+function rogueRings(g,k,inring,now,cx,cy,r,K){
+  if(k<=0.01) return;
+  var tilt=0.16;
+  for(var b=0;b<7;b++){
+    var rr=Math.round(r*(1.35+b*0.17)), gap=(b===3);
+    var a=(gap?0.06:0.22)*k;
+    for(var x=-rr;x<=rr;x+=Math.max(1,Math.round(K))){
+      var yy=Math.round(cy+tilt*x+Math.sqrt(Math.max(0,rr*rr-x*x))*0.06);
+      var px=cx+x;
+      if(px<-4||px>SW+4) continue;
+      g.fillStyle="rgba(214,196,168,"+a.toFixed(3)+")";
+      g.fillRect(px,yy,Math.max(1,Math.round(K)),Math.max(1,Math.round((1.4+b*0.4)*K)));
+    }
+  }
+  if(inring<=0.01) return;
+  // …the rocks, now that we are among them: streaking over and coming down
+  for(var i=0;i<Math.round(30*inring);i++){
+    var h=((i*2654435761+8677)>>>0); h=(h^(h>>>13))>>>0;
+    var per=1600+((h>>>7)%1800);
+    var t=(((now+((h>>>13)%per))%per)/per);
+    var x0=((h>>>3)%Math.max(1,WW))-WOFF;
+    var px2=Math.round(x0+t*260*K*(((h>>>17)&1)?1:-1));
+    var py2=Math.round(t*t*HORIZON*1.1);
+    if(px2<-30||px2>SW+30||py2>HORIZON+8) continue;
+    var ln=Math.max(2,Math.round((3+((h>>>21)%6))*K));
+    g.globalCompositeOperation="lighter";
+    g.fillStyle="rgba(255,206,150,"+(0.75*(1-t*0.4)).toFixed(3)+")";
+    g.fillRect(px2,py2,ln,Math.max(1,Math.round(K)));
+    g.globalCompositeOperation="source-over";
+  }
+}
+// ── 🔥 6. THE GRAZE. We enter its outer atmosphere and the sky becomes fire.
+function rogueBurn(g,k,now,gy,K){
+  if(k<=0.01) return;
+  g.globalCompositeOperation="lighter";
+  for(var y=0;y<gy;y+=Math.max(1,Math.round(K))){
+    var ty=y/gy, a=0.55*k*Math.pow(ty,0.7)*(0.75+0.25*Math.sin(now*0.006+y*0.05));
+    if(a<0.02) continue;
+    g.fillStyle="rgba(255,"+Math.round(120+80*(1-ty))+","+Math.round(40+30*(1-ty))+","+a.toFixed(3)+")";
+    g.fillRect(0,y,SW,Math.max(1,Math.round(K)));
+  }
+  g.globalCompositeOperation="source-over";
+}
+// ── 💥 7. THE ROCHE LIMIT. The ground itself peels upward and leaves. This is the ending: not an
+// impact, a DISASSEMBLY.
+function rogueRoche(g,k,now,cx,cy,gy,K){
+  if(k<=0.01) return;
+  var band=Math.max(4,SH-gy);
+  g.fillStyle="rgba(6,4,8,"+(0.55*k).toFixed(3)+")"; g.fillRect(0,gy,SW,band+2);
+  for(var i=0;i<Math.round(80*k);i++){
+    var h=((i*2654435761+2957)>>>0); h=(h^(h>>>13))>>>0;
+    var per=2600+((h>>>7)%2400);
+    var t=(((now+((h>>>13)%per))%per)/per);
+    var x0=((h>>>3)%Math.max(1,WW))-WOFF;
+    var te=t*t;
+    var px=Math.round(x0+(cx-x0)*te*0.8), py=Math.round((gy+band*0.4)+(cy-(gy+band*0.4))*te*0.85);
+    if(px<-30||px>SW+30) continue;
+    var sz=Math.max(1,Math.round((1.4+((h>>>19)%5))*K*(1-t*0.4)));
+    g.fillStyle="rgba("+Math.round(70-30*t)+","+Math.round(58-24*t)+","+Math.round(54-22*t)+",0.95)";
+    g.fillRect(px,py,sz,sz);
+    if(((h>>>23)%4)===0){                                 // some of it still glowing from the burn
+      g.globalCompositeOperation="lighter";
+      g.fillStyle="rgba(255,150,70,"+(0.5*(1-t)).toFixed(3)+")";
+      g.fillRect(px,py,sz,Math.max(1,Math.round(K*0.6)));
+      g.globalCompositeOperation="source-over";
+    }
+  }
+}
 // ── 🌬️🌊 IT TAKES THE AIR AND THE SEA WITH IT. The renderer's own header has said so since the day it
 // was written and nothing in it ever did: the planet hung there, the frame dimmed, and the city sat
 // underneath completely undisturbed. 🔑 THE PREMISE WAS IN A COMMENT AND NOWHERE ELSE — which is this
@@ -52336,7 +52554,17 @@ APOC_X.rogueplanet=function(g,ap,L,now){
   fillEllipse(g,stx,sty,Math.round(r*0.26),Math.round(r*0.15));
   g.fillStyle=rgba(mixc(body,[42,28,26],0.5),0.6);
   fillEllipse(g,stx,sty,Math.round(r*0.13),Math.round(r*0.07));
+  // ── 🔬 THE TIMELINE, in the order the physics gives. Rings behind the planet is wrong (it is in
+  // front of us), so they draw after it; everything that happens to the CITY draws after both.
+  var ST=rogueStages(ap), gyR=HORIZON;
+  rogueRings(g,ST.rings,ST.inring,now,cx,cy,r,K);
+  rogueAurora(g,ST.aur,now,gyR,K);
+  rogueAirLoss(g,ST.air,now,gyR,K);
+  rogueTide(g,ST.tide,now,gyR,K);
+  rogueQuake(g,ST.quake,now,gyR,K);
   rogueStrip(g,ap,now,K,cx,cy,r);
+  rogueBurn(g,ST.burn,now,gyR,K);
+  rogueRoche(g,ST.roche,now,cx,cy,gyR,K);
   // and the tide comes with it — drawn, never by moving SEA_Y
   if(typeof SEA_Y==="number"&&SEA_Y>0&&SEA_Y<SH&&ap>0.3){
     var rise=Math.round(HORIZON*0.30*(ap-0.3)/0.7);
