@@ -51923,11 +51923,86 @@ APOC_X.rogueplanet=function(g,ap,L,now){
   }
 };
 
+// ── 🌋 THE CHASM — the thing the ending is named after, drawn where it can be seen.
+// It opens across the STREET BAND (HORIZON..SH), the ~78 world px of foreground the city actually
+// stands in, because `drawApocalypse` paints over everything and this is the one ending whose event
+// happens at your feet. Composition rules carried in from the canyon, which is the other hole this
+// project draws: a hole is DARK and its RIM carries the light · the lip is smooth at the small scale
+// and wanders at the large one, because a 1px-noisy edge is dust and this is rock · what makes depth
+// readable is the FAR wall, since the near one faces away from us.
+// ⚠ WORLD-ANCHORED and it crosses the whole world, so all three monitors get a piece of it — the
+// beach headland's lesson. What varies per life is where it is widest, not whether you can see it.
+function crustChasm(g,ap,L,now,K){
+  var day=L>0.5, gy=HORIZON, band=Math.max(8,SH-gy);
+  var epi=(typeof apocEpiX==="function")?apocEpiX(now):Math.round(WW*0.5);
+  var op=Math.max(0,Math.min(1,(ap-0.14)/0.62));           // how far open, 0 until it starts
+  if(op<=0) return;
+  var h0=((lifeIndexOf(now)*2654435761+9176)>>>0); h0=(h0^(h0>>>13))>>>0;
+  // the near lip sits low in the band and the far lip higher, so you are looking ACROSS the gap and
+  // down into it. Both wander in WORLD space so the two sides never look like parallel rules.
+  var maxOpen=band*0.86;
+  for(var x=0;x<SW;x++){
+    var wx=x+WOFF;
+    var d=((wx-epi)%WW+WW*1.5)%WW-WW*0.5;                   // wrapped distance from the epicentre
+    var fall=Math.max(0,1-Math.abs(d)/(WW*0.46));           // widest at the epicentre, tapering away
+    var w1=Math.sin(wx*0.0021+((h0>>>3)%628)/100)*0.20;
+    var w2=Math.sin(wx*0.0083+((h0>>>9)%628)/100)*0.09;
+    var openH=Math.round(maxOpen*op*Math.pow(fall,0.75)*(0.72+w1+w2));
+    if(openH<2) continue;
+    var farY=gy+Math.round(band*0.16-openH*0.10);           // the far lip, high in the band
+    var nearY=Math.min(SH-1,farY+openH);                    // the near lip, low and closer to us
+    // the void itself, and it is genuinely dark — everything that says DEEP is the light in it
+    g.fillStyle=day?"rgba(9,6,7,0.97)":"rgba(4,3,4,0.98)";
+    g.fillRect(x,farY,1,openH);
+    // the FAR wall, lit from below by what is down there. Near the lip it is almost black; toward the
+    // bottom it takes the magma. This gradient is the only thing that makes a black slot read as depth.
+    var wallH=Math.round(openH*0.62);
+    for(var q=0;q<wallH;q+=Math.max(1,Math.round(K))){
+      var t=q/Math.max(1,wallH), a=0.86*Math.pow(t,1.5);
+      if(a<0.02) continue;
+      g.fillStyle="rgba("+(90+Math.round(165*t))+","+(18+Math.round(96*t))+","+(10+Math.round(28*t))+","+a.toFixed(3)+")";
+      g.fillRect(x,farY+q,1,Math.max(1,Math.round(K)));
+    }
+    // molten at the bottom, pulsing — the brightest thing in the frame, and the reason for the glow
+    var mH=Math.max(1,Math.round(openH*0.16));
+    var pl=0.72+0.28*Math.sin(now*0.003+wx*0.02);
+    g.fillStyle="rgba(255,"+(150+Math.round(70*pl))+","+(40+Math.round(50*pl))+","+(0.92*pl).toFixed(3)+")";
+    g.fillRect(x,nearY-mH,1,mH);
+    // the lips: a lit edge on the far side (it faces us and the sky), a hard dark edge on the near
+    g.fillStyle=day?"rgba(196,182,170,0.85)":"rgba(120,110,108,0.75)";
+    g.fillRect(x,farY-Math.max(1,Math.round(K*0.7)),1,Math.max(1,Math.round(K*0.7)));
+    g.fillStyle=day?"rgba(26,20,20,0.95)":"rgba(12,9,10,0.96)";
+    g.fillRect(x,nearY,1,Math.max(1,Math.round(K*0.9)));
+  }
+  // …and the heat it throws UP onto the city, which is what stops the chasm being a hole in a photo
+  // and makes it a light source standing in the same world as the buildings. Same lesson as the rift.
+  g.globalCompositeOperation="lighter";
+  var upH=Math.round(gy*0.34*op);
+  for(var qu=0;qu<upH;qu+=Math.max(2,Math.round(2*K))){
+    var tu=qu/Math.max(1,upH), au=0.26*Math.pow(1-tu,2.0)*op;
+    if(au<0.012) continue;
+    g.fillStyle="rgba(255,116,44,"+au.toFixed(3)+")";
+    g.fillRect(0,gy-qu,SW,Math.max(2,Math.round(2*K)));
+  }
+  g.globalCompositeOperation="source-over";
+}
 // THE CRUST CRACKS — the terrain version of the end. It opens, and what is underneath comes up.
 APOC_X.crustcrack=function(g,ap,L,now){
   var K=Math.max(1,KSP);
   var n=Math.round(2+ap*7);
-  g.fillStyle="rgba(18,8,6,"+(0.30*ap).toFixed(2)+")"; g.fillRect(0,0,SW,SH);
+  // 🚨🔒 REWORKED 2026-08-10. Nick, watching it: "this one does not look that great at all — let's
+  // rework this entirely." Three faults, and the third is why the other two did not matter:
+  //   1. THE FISSURES WERE AT `HORIZON`. `drawApocalypse` runs AFTER the whole city, so this ending
+  //      could always have drawn anywhere it liked — the horizon was a choice, not a constraint, and
+  //      it put the one event of the ending at the base of the distant skyline instead of in the
+  //      street, where the eye is and where the road, the cars and the people are.
+  //   2. THEY WERE TINY — `w` topped out around 36px on a 776px screen, for THE CRUST CRACKING.
+  //   3. IT COULD NOT DEMOLISH ANYTHING (see `apocHit`), so no matter what got drawn, the city stood.
+  // 🔑 THE WASHES WERE DOING ALL THE WORK, AND THAT IS THE DIAGNOSIS THIS CODEBASE ALREADY WROTE DOWN:
+  // "an ending that does not touch the city reads as WEATHER." Two full-frame tints over an untouched
+  // city IS weather. They are cut right back; the light now comes OUT OF THE HOLE.
+  g.fillStyle="rgba(18,8,6,"+(0.16*ap).toFixed(2)+")"; g.fillRect(0,0,SW,SH);
+  crustChasm(g,ap,L,now,K);
   for(var c=0;c<n;c++){
     var h=((c*2654435761+7)>>>0);
     var t0=(c/n)*0.5;
