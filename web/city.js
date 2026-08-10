@@ -43633,35 +43633,75 @@ function drawCoreCanyon(g,L,now,skc,day){
   // is not a nudge: it is 2.3x the day figure, and the glow reaches UP out of the trench to wash the
   // towers standing on the rim, which is the part that makes a light source own a frame rather than
   // merely appear in it.
-  var gl=day?0.34:1.85;
-  for(var x3=0;x3<SW;x3++){
-    var d3=C.rim[x3], wallH2=Math.max(1,Math.round(d3*C.wide)), base=gy-d3+wallH2;
-    for(var q=0;q<wallH2;q+=Math.max(1,Math.round(1*K))){
-      var t=q/wallH2;                                    // 0 at the wall's foot, 1 at its lip
-      var a=0.62*Math.pow(1-t,1.8)*gl;
-      if(a<0.015) continue;
-      g.fillStyle="rgba(255,"+(112+Math.round(78*t))+","+(34+Math.round(46*t))+","+a.toFixed(3)+")";
-      g.fillRect(x3,(base-1-q)|0,1,Math.max(1,Math.round(1*K)));
+  // ⚡🚨🔑🔑 RUN-BATCHED, AND IT PAID FOR THE WHOLE TOWER REWORK. Measured before touching it: this
+  // function was emitting **45,624 fillRects a frame** (73,294 at night) against 4,217 for the entire
+  // four-band tower field — 56% of everything the land draws, spent on a gradient. The cause was one
+  // 1px-wide rect per column per gradient step, which is the per-column-detail trap this project has
+  // now hit in four different renderers. 🔑 PER-COLUMN DETAIL IS A CHOICE: FLUSH WHEN THE PROFILE
+  // CHANGES, not when the column does. Quantising the gradient (24 steps of hue, 200 of alpha) makes
+  // neighbouring columns share a style, so a run extends until the rim contour actually moves — and
+  // the rim is SMOOTH now that the dust-notch is gone, so the runs are long. Same picture, a fraction
+  // of the calls, and the budget it frees is what buys the modelled towers at no net cost.
+  var gl=day?0.34:1.85, stepQ=Math.max(1,Math.round(1*K)), maxW=0;
+  for(var xm=0;xm<SW;xm++){ var wm=Math.max(1,Math.round(C.rim[xm]*C.wide)); if(wm>maxW) maxW=wm; }
+  for(var q=0;q<maxW;q+=stepQ){
+    var runX=-1, runSty=null, runY=0;
+    for(var x3=0;x3<=SW;x3++){
+      var sty=null, yy=0;
+      if(x3<SW){
+        var d3=C.rim[x3], wallH2=Math.max(1,Math.round(d3*C.wide));
+        if(q<wallH2){
+          var t=q/wallH2;                                // 0 at the wall's foot, 1 at its lip
+          var a=0.62*Math.pow(1-t,1.8)*gl;
+          if(a>=0.015){
+            var tq=Math.round(t*24)/24;
+            sty="rgba(255,"+(112+Math.round(78*tq))+","+(34+Math.round(46*tq))+","+(Math.round(a*200)/200).toFixed(3)+")";
+            yy=(gy-d3+wallH2-1-q)|0;
+          }
+        }
+      }
+      if(sty!==runSty||yy!==runY){
+        if(runSty!==null&&runX>=0&&x3>runX){ g.fillStyle=runSty; g.fillRect(runX,runY,x3-runX,stepQ); }
+        runSty=sty; runX=x3; runY=yy;
+      }
     }
-    // the hot line at the very bottom of what is visible — the brightest thing on the land
-    g.fillStyle="rgba(255,214,150,"+(0.55*gl).toFixed(3)+")";
-    g.fillRect(x3,(base-1)|0,1,Math.max(1,Math.round(1*K)));
+  }
+  // the hot line at the very bottom of what is visible — the brightest thing on the land
+  g.fillStyle="rgba(255,214,150,"+(0.55*gl).toFixed(3)+")";
+  var hrX=-1, hrY=0;
+  for(var x7=0;x7<=SW;x7++){
+    var hy=x7<SW?((gy-C.rim[x7]+Math.max(1,Math.round(C.rim[x7]*C.wide))-1)|0):-99999;
+    if(hy!==hrY){ if(hrX>=0&&x7>hrX) g.fillRect(hrX,hrY,x7-hrX,Math.max(1,Math.round(1*K))); hrX=x7; hrY=hy; }
   }
   // ── 🌌 …AND AT NIGHT IT THROWS LIGHT UP ONTO THE CITY. Without this the rift is a bright BAND with
   // a dark city above it — two separate pictures. Light that spills onto its surroundings is what ties
   // them into one, and it is why a fire at night reads as a fire and not as an orange rectangle.
+  // ⚡ …and the same treatment for the spill, which was the most expensive loop on the land at night.
+  // ⚠ NOTE THE COMPOSITE MODE: it was being set and unset TWICE PER RECT, tens of thousands of times a
+  // frame, to draw a pass that is entirely `lighter` from start to finish. It is now set once around
+  // the whole pass. A state change on this canvas is not cheaper than the fill it wraps.
   if(!day){
-    for(var xu=0;xu<SW;xu++){
-      var dU=C.rim[xu], upH=Math.round(dU*0.9);
-      for(var qu=0;qu<upH;qu+=Math.max(2,Math.round(2*K))){
-        var tu=qu/Math.max(1,upH), au=0.30*Math.pow(1-tu,2.2);
-        if(au<0.012) continue;
-        g.globalCompositeOperation="lighter";
-        g.fillStyle="rgba(255,126,52,"+au.toFixed(3)+")";
-        g.fillRect(xu,(gy-dU-qu)|0,1,Math.max(1,Math.round(2*K)));
-        g.globalCompositeOperation="source-over";
+    var stepU=Math.max(2,Math.round(2*K)), maxU=0;
+    for(var xv=0;xv<SW;xv++){ var uu=Math.round(C.rim[xv]*0.9); if(uu>maxU) maxU=uu; }
+    g.globalCompositeOperation="lighter";
+    for(var qu=0;qu<maxU;qu+=stepU){
+      var uX=-1, uSty=null, uY=0;
+      for(var xu=0;xu<=SW;xu++){
+        var s2=null, y2=0;
+        if(xu<SW){
+          var dU=C.rim[xu], upH=Math.round(dU*0.9);
+          if(qu<upH){
+            var tu=qu/Math.max(1,upH), au=0.30*Math.pow(1-tu,2.2);
+            if(au>=0.012){ s2="rgba(255,126,52,"+(Math.round(au*200)/200).toFixed(3)+")"; y2=(gy-dU-qu)|0; }
+          }
+        }
+        if(s2!==uSty||y2!==uY){
+          if(uSty!==null&&uX>=0&&xu>uX){ g.fillStyle=uSty; g.fillRect(uX,uY,xu-uX,Math.max(1,Math.round(2*K))); }
+          uSty=s2; uX=xu; uY=y2;
+        }
       }
     }
+    g.globalCompositeOperation="source-over";
   }
   // ── 🏭 WHAT IS BURNING DOWN THERE. 🔒 He rejected "the emptiness is the point": the rift is
   // INHABITED. Flare stacks and vents along the foot of the visible wall EXPLAIN the glow instead of
@@ -43792,7 +43832,13 @@ function drawCoreWorld(g,L,now,nd){
     // or the depth range this land spent a whole commit buying is spent again on a colour cast
     base=mixc(base,ERAT,ERAB*(1-bd.d*0.72));
     if(EO.cond===2) base=mixc(base,[94,86,74],0.20*(1-bd.d*0.5));   // soot, over the whole face
-    var faceC=css(base), sideC=css(mixc(base,[0,0,0],0.22)), topC=css(mixc(base,[255,255,255],0.10));
+    // 🎨 THE VALUE SPLIT IS THE MODELLING. It was face / face-22%-black / face+10%-white — three values
+    // so close together that a tower read as one flat swatch with a pinstripe. A box becomes a MASS the
+    // moment its planes disagree about how much light they get, and that is free: it is the same three
+    // fills with wider numbers. The near ranks get the widest split; the far ones stay compressed,
+    // because contrast is also distance and blowing it out at the back would flatten the depth range.
+    var vsp=1-bd.d*0.62;
+    var faceC=css(base), sideC=css(mixc(base,[0,0,0],0.22+0.24*vsp)), topC=css(mixc(base,[255,255,255],0.10+0.16*vsp));
     var step=Math.max(4,Math.round(bd.step*K*condDens));
     for(var x=-step;x<SW+step;x+=step){
       var h=(((x+((WOFF*3)|0))*2654435761+bi*7919)>>>0);
@@ -43818,9 +43864,35 @@ function drawCoreWorld(g,L,now,nd){
       }
       if(th<6*K) continue;
       var tx=x+Math.round(((h>>>13)%40)/40*step*0.3), ty=gy-th;
-      g.fillStyle=faceC; g.fillRect(tx,ty,tw,gy-ty+2);
-      g.fillStyle=sideC; g.fillRect(tx+tw-Math.max(1,Math.round(tw*0.22)),ty,Math.max(1,Math.round(tw*0.22)),gy-ty+2);
-      g.fillStyle=topC;  g.fillRect(tx,ty,tw,Math.max(1,Math.round(K)));
+      // 🏗️🔒🚨 A MODELLED MASS, NOT A BOX. Nick: "everything needs to be more realistic and not look so
+      // blocky", and when asked which kind of blocky he picked the SHAPES over the pixel grain — flat
+      // rectangles with one colour and a few window lines. He is right that finer pixels would not have
+      // fixed it: a box at any resolution is still a box.
+      // A tower is now 1–3 STACKED VOLUMES, each one narrower than the one below, each with its own lit
+      // face, shadow flank and lit ledge on top. That single change does most of the work, because a
+      // setback is a horizontal plane catching sky — the same trick as the canyon's lip line, and the
+      // cheapest thing in pixel art that says "this object has a top and a front".
+      // ⚠ 1 IS A VALID SEGMENT COUNT AND IT MATTERS. If every tower stepped, stepping would become the
+      // new flatness; the plain slabs are the rests, exactly as `crown 4 = flat` is for the roofline.
+      // ⚡ COST: 3 fills becomes 3–9, about +3 per tower and ~+450 a frame across the field. That is
+      // spent out of the ~33,000 a frame the canyon's run-batching just gave back, so the land ends up
+      // far cheaper than it started. Detail from smarter drawing, not more of it — his constraint.
+      var segs=1+((h>>>21)%3), yCur=ty, segBot=0;
+      for(var sg=0;sg<segs;sg++){
+        var last=(sg===segs-1);
+        segBot=last?(gy+2):Math.min(gy+2,yCur+Math.max(2,Math.round(th*(0.20+((h>>>(4+sg*5))%28)/100))));
+        var inset=(segs>1)?Math.round(tw*0.17*(segs-1-sg)/(segs-1)):0;
+        var sxL=tx+inset, sW=Math.max(2,tw-inset*2), sH=segBot-yCur;
+        if(sH<1){ yCur=segBot; continue; }
+        g.fillStyle=faceC; g.fillRect(sxL,yCur,sW,sH);
+        g.fillStyle=sideC; g.fillRect(sxL+sW-Math.max(1,Math.round(sW*0.26)),yCur,Math.max(1,Math.round(sW*0.26)),sH);
+        // the ledge: overhangs a touch on both sides, which is what makes it read as a slab resting on
+        // the volume below rather than as a line drawn across a continuous wall
+        g.fillStyle=topC;
+        g.fillRect(sxL-Math.max(1,Math.round(K*0.5)),yCur,sW+Math.max(2,Math.round(K)),Math.max(1,Math.round(K)));
+        yCur=segBot;
+        if(yCur>=gy+2) break;
+      }
       // ---- CROWNS. Every roofline used to be a flat rectangle, so a skyline of hundreds of towers
       // had no rhythm at all — the eye read one serrated bar. Five crown types, chosen off the
       // tower's own hash, cost a few rects each and are most of what makes a skyline legible.
@@ -43864,10 +43936,21 @@ function drawCoreWorld(g,L,now,nd){
       }                                                         // crown 4 = flat, so the rhythm has rests
       // SETBACKS — a stack of levels rather than one extrusion, which is what says "built on top of
       // itself for millennia" instead of "office block".
-      var lv=2+((h>>>17)%3);
-      for(var s=1;s<lv;s++){
-        var sy=ty+Math.round((th/lv)*s);
-        g.fillStyle=topC; g.fillRect(tx-Math.round(K),sy,tw+Math.round(2*K),Math.max(1,Math.round(K)));
+      // 🏗️ THE OLD FAKE SETBACKS ARE GONE. They were a lit line ruled across an unbroken wall at even
+      // fractions of the height — a drawing OF a setback rather than a setback, and now that the mass
+      // actually steps they fought it. Their budget buys ROOFTOP GEAR instead, on the near ranks only:
+      // a tank, a stair head, a vent stack. 🔑 It is the small stuff on top that tells you how big the
+      // thing under it is — the missing SCALE REFERENCE, at four fills, on the towers close enough to
+      // resolve it. Gated at bd.d<0.45 and one tower in two, or the skyline grows a texture of clutter.
+      if(bd.d<0.45&&!wrecked&&((h>>>11)&1)){
+        var gxo=tx+Math.round(tw*0.16+((h>>>23)%Math.max(1,Math.round(tw*0.4)))), gw=Math.max(1,Math.round(tw*0.22));
+        var gh=Math.max(1,Math.round((1.6+((h>>>27)%3))*K));
+        g.fillStyle=sideC; g.fillRect(gxo,ty-gh,gw,gh);                       // a tank or a stair head
+        g.fillStyle=topC;  g.fillRect(gxo,ty-gh,gw,Math.max(1,Math.round(K*0.6)));
+        if(((h>>>13)%3)===0){                                                  // …and sometimes a vent stack
+          g.fillStyle=sideC;
+          g.fillRect(gxo+gw+Math.max(1,Math.round(K)),ty-Math.round(gh*1.7),Math.max(1,Math.round(K*0.8)),Math.round(gh*1.7));
+        }
       }
       // WINDOWS, in horizontal runs, and more of them lit the further the week has gone.
       var wq=Math.max(3,Math.round(3.4*K));
