@@ -51976,8 +51976,100 @@ APOC_X.gammaray=function(g,ap,L,now){
       g.globalCompositeOperation="source-over";
     }
   }
+  if(burnt>0) gammaViolence(g,ap,now,K,gy,sx,sy,epi,burnt,late);
   if(flash>0.01){ g.fillStyle="rgba(255,255,255,"+flash.toFixed(3)+")"; g.fillRect(0,0,SW,SH); }
 };
+// ── 💥✈️🔥🔒 "MAKE IT MORE DEADLY AND VIOLENT — THIS SHOULD BE SHOOTING EVERYTHING OUT OF THE SKY TOO,
+// THIS SHOULD ALSO BE FRYING CARS AS THEY DRIVE. IT NEEDS TO LOOK BADASS."
+// 🚨 NEITHER OF THE TWO SYSTEMS THAT COULD HAVE DONE THIS COVERED IT. `drawApocSky` already draws craft
+// taking a hit and falling nose-down trailing fire — but it is gated on `resistOn()`, and `RESIST_AT`
+// lists seven endings that gammaray is not one of, because that system is the CITY SHOOTING BACK and a
+// gamma-ray burst is not something you can shoot at. And cars were merely being culled by `nukeHit`,
+// which deletes them silently: the traffic thinned out and nothing was ever seen to DIE.
+// 🔑 A KILL NEEDS A MOMENT. Removing the thing is bookkeeping; the flash, the flame and the fall are
+// the event. That is the same note as the buildings that vanished into stumps without being seen to go.
+function gammaViolence(g,ap,now,K,gy,sx,sy,epi,burnt,late){
+  // the burst PULSES rather than shining steadily — a steady light is a lamp, a pulsing one is a weapon
+  var beat=(now%2600)/2600, puls=Math.pow(Math.max(0,1-Math.abs(beat-0.12)/0.12),2);
+  // ── ✈️ SHOT OUT OF THE SKY. Everything airborne, hashed and world-anchored, flying level until the
+  // burst reaches it and then coming down in flames.
+  for(var k=0;k<16;k++){
+    var kh=((k*2654435761+1777)>>>0); kh=(kh^(kh>>>13))>>>0;
+    var dirk=((kh>>>15)&1)?1:-1;
+    var wxk=(((kh>>>3)%WW)+dirk*now*(0.009+((kh>>>19)%40)/9000))%WW;
+    if(wxk<0) wxk+=WW;
+    var X=Math.round(wxk)-WOFF;
+    if(X<-30||X>SW+30) continue;
+    var ky=Math.round(gy*(0.10+((kh>>>9)%56)/100*0.52));
+    var hitAt=0.12+((kh>>>21)%46)/100*0.42;
+    var w=Math.max(2,Math.round((2.6+((kh>>>25)%4))*K)), hh=Math.max(1,Math.round(w*0.36));
+    if(ap<hitAt){                                            // still flying, and does not know
+      g.fillStyle="rgba(40,44,56,0.9)";
+      g.fillRect(X-(w>>1),ky,w,hh);
+      continue;
+    }
+    var f=Math.min(1.35,(ap-hitAt)/0.22);                    // the fall, accelerating
+    var fy=ky+Math.round(f*f*(gy-ky));
+    if(fy>gy+2) continue;                                     // it has hit the ground; the wrecks own it now
+    var tl=Math.round(f*3*K);
+    g.fillStyle="rgba(30,26,28,0.92)";
+    g.fillRect(X-(w>>1),fy+tl,w,hh);                          // tumbling, nose down
+    g.globalCompositeOperation="lighter";
+    for(var s2=0;s2<Math.round(9*K);s2++){                    // the flame it trails
+      var sf=s2/Math.max(1,Math.round(9*K));
+      g.fillStyle="rgba(255,"+(150-Math.round(80*sf))+",50,"+(0.55*(1-sf)*Math.min(1,f*2)).toFixed(3)+")";
+      g.fillRect(X-(w>>1)-Math.round(dirk*s2*0.7),fy+tl-Math.round(s2*0.5),Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
+    }
+    g.globalCompositeOperation="source-over";
+  }
+  // ── 🚗🔥 FRIED WHERE THEY DRIVE. A flare on the road at the burning edge, then husks behind it.
+  var fr=Math.max(0,(ap-0.10)/0.52)*(WW*0.62);
+  var band=Math.max(4,SH-gy);
+  for(var c=0;c<22;c++){
+    var ch=((c*2654435761+5099)>>>0); ch=(ch^(ch>>>13))>>>0;
+    var cwx=(ch>>>5)%WW, cd=Math.abs(((cwx-epi)%WW+WW*1.5)%WW-WW*0.5);
+    if(cd>fr) continue;                                       // the light has not reached this one yet
+    var CX=cwx-WOFF; if(CX<-12||CX>SW+12) continue;
+    var cy=gy+Math.round(band*(0.22+((ch>>>11)%60)/100*0.6));
+    var fresh=Math.max(0,1-(fr-cd)/(WW*0.07));                // right at the edge = just caught
+    var cw3=Math.max(2,Math.round(4*K)), chh=Math.max(1,Math.round(1.8*K));
+    g.fillStyle="rgba(24,20,22,0.95)";                        // the husk
+    g.fillRect(CX-(cw3>>1),cy-chh,cw3,chh);
+    g.globalCompositeOperation="lighter";
+    var fa=(0.30+0.60*fresh)*(0.55+0.45*Math.sin(now*0.006+c));
+    g.fillStyle="rgba(255,"+(120+Math.round(90*fresh))+",40,"+fa.toFixed(3)+")";
+    g.fillRect(CX-(cw3>>1),cy-chh-Math.round(2*K*fresh),cw3,Math.max(1,Math.round((1+2*fresh)*K)));
+    if(fresh>0.5){                                            // the moment it goes up
+      g.fillStyle="rgba(255,246,214,"+(0.7*fresh).toFixed(2)+")";
+      g.fillRect(CX-cw3,cy-chh-Math.round(4*K),cw3*2,Math.max(1,Math.round(K)));
+    }
+    g.globalCompositeOperation="source-over";
+  }
+  // ── ⚡ THE AIR ITSELF BREAKS DOWN. Ionisation arcs off the tallest things, on the pulse — this is the
+  // "badass" in the brief, and it is also the only thing in the ending that is genuinely fast.
+  if(puls>0.05){
+    g.globalCompositeOperation="lighter";
+    for(var z=0;z<7;z++){
+      var zh=((z*2654435761+((Math.floor(now/2600)*7919)|0))>>>0); zh=(zh^(zh>>>13))>>>0;
+      var zx=((zh>>>5)%Math.max(1,WW))-WOFF;
+      if(zx<-20||zx>SW+20) continue;
+      var zy=gy-Math.round(((zh>>>11)%Math.max(1,Math.round(gy*0.5))));
+      var px2=zx, py2=sy;
+      var steps=Math.max(6,Math.round(14*K));
+      for(var st2=0;st2<steps;st2++){
+        var tz=st2/steps;
+        var nx=Math.round(sx+(zx-sx)*tz+(((zh>>>(st2&15))%9)-4)*K*0.8);
+        var ny=Math.round(sy+(zy-sy)*tz);
+        g.fillStyle="rgba(220,240,255,"+(0.55*puls*(1-tz*0.4)).toFixed(3)+")";
+        g.fillRect(Math.min(px2,nx),Math.min(py2,ny),Math.max(1,Math.abs(nx-px2)),Math.max(1,Math.abs(ny-py2)));
+        px2=nx; py2=ny;
+      }
+    }
+    g.globalCompositeOperation="source-over";
+    g.fillStyle="rgba(226,240,255,"+(0.16*puls*burnt).toFixed(3)+")";   // …and the frame takes the hit
+    g.fillRect(0,0,SW,SH);
+  }
+}
 
 // A ROGUE PLANET — it does not hit. It passes, and that is worse: it takes the air and the sea with it.
 APOC_X.rogueplanet=function(g,ap,L,now){
