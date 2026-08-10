@@ -194,7 +194,19 @@ function applyConfig(cfg){ if(!cfg) return;
   // ⚠ AN EXACT DATE OUTRANKS AN HOUR. Both can be present in a config — the hour picker is older and
   // stays in the file — and if both were applied the last one written would win by accident. The more
   // specific answer is the one the user gave most recently and it is the one that wins, always.
-  GROW_ALIGN = APOC_AT_MS>0 ? alignMsForTs(APOC_AT_MS, GROW_CYCLE) : alignMsFor(APOC_HOUR, GROW_CYCLE);
+  // 🚨🚨🔒 MICAH SET THE DATE HIS CITY WOULD DIE AND IT DID NOT DIE. "my city is still alive / i set
+  // it to die today / lmao". He was right, and `apocAt` has never once done what it says.
+  // 🔑🔑 `GROW_ALIGN` WAS READ IN EXACTLY ONE PLACE — `lifeIndexOf`. It was NOT read by `cityGrowth`,
+  // which computes `cy` and therefore decides WHEN THE APOCALYPSE ACTUALLY PLAYS, and NOT by
+  // `apocAtOf`, which is what the Doomsday Clock DISPLAYS. So setting a doomsday shifted which LIFE
+  // you were in — a different fate, a different city name — and moved the ending by exactly zero.
+  // The one number the feature exists to control was the one number it did not touch.
+  // 🔑 …and it was off by a whole phase besides: `alignMsForTs` aligns the START of a life to the
+  // chosen timestamp, but a user setting "my city dies at 8pm Friday" means the CATACLYSM lands then,
+  // which is `cy = APOC_AT` (0.98), not `cy = 0`. Both errors had to go for the feature to work at all.
+  GROW_ALIGN = APOC_AT_MS>0
+    ? ((((alignMsForTs(APOC_AT_MS, GROW_CYCLE) - APOC_AT*GROW_CYCLE) % GROW_CYCLE) + GROW_CYCLE) % GROW_CYCLE)
+    : alignMsFor(APOC_HOUR, GROW_CYCLE);
   if(cfg.finaleDemo!==undefined) FINALE_DEMO=(+cfg.finaleDemo>0)?+cfg.finaleDemo:null;   // seconds for a full apocalypse loop
   if(cfg.era!==undefined){ FORCEERA=null;
     if(cfg.era && cfg.era!=="auto"){ for(var ei=0;ei<ERAS.length;ei++){ if(ERAS[ei].name===cfg.era){ FORCEERA=ei; break; } } } }
@@ -6503,7 +6515,10 @@ var HUD_MANDATE={ monorail:["M","#c05ad0"], seawall:["S","#4aa0e0"], stadium:["T
 // takes over once it hits. Time is REAL wall-clock, so it's right whether a life is a week or (test mode)
 // an hour. apocAtOf() derives the strike time from the SAME formula cityGrowth uses (cy APOC_AT = "apoc").
 function apocAtOf(now){
-  var basis=now-GROW_EPOCH+GROW_OFFSET_DAYS*86400000+WORLD_SHIFT;
+  // ⚠ SAME GATED ALIGNMENT AS `cityGrowth`. The clock and the cataclysm must be derived from ONE
+  // expression or the countdown lies — which is the more insulting half of Micah's bug: it did not
+  // merely fail to end his city, it told him a time and then ignored it.
+  var basis=now-GROW_EPOCH+GROW_OFFSET_DAYS*86400000+WORLD_SHIFT-((APOC_AT_MS>0)?GROW_ALIGN:0);
   var m=((basis%GROW_CYCLE)+GROW_CYCLE)%GROW_CYCLE;   // ms elapsed in the current life
   var at=(now-m)+APOC_AT*GROW_CYCLE;                     // APOC_AT = the cy where cityGrowth flips to "apoc"
   if(now>=at) at+=GROW_CYCLE;                          // already erupting → point at the NEXT life's end
@@ -26308,7 +26323,12 @@ function cityGrowth(now){
     var dcy=0.78+(((now/(FINALE_DEMO*1000))%1)*0.22);
     return { g:1, phase:"apoc", apoc:(dcy-0.78)/0.22, cy:dcy };
   }
-  var cy=((((now-GROW_EPOCH+GROW_OFFSET_DAYS*86400000+WORLD_SHIFT)%GROW_CYCLE)+GROW_CYCLE)%GROW_CYCLE)/GROW_CYCLE;   // 0..1 through the life
+  // ⚠ `PA` IS THE PHASE ALIGNMENT AND IT IS ZERO UNLESS AN ABSOLUTE `apocAt` IS SET. Nick's call:
+  // anyone who has NOT chosen a doomsday must see no change whatsoever from this fix, so the
+  // subtraction is gated rather than applied unconditionally. `apocHour` has the same latent fault and
+  // is deliberately left alone tonight — one bug, one fix, no surprises for users who set neither.
+  var PA=(APOC_AT_MS>0)?GROW_ALIGN:0;
+  var cy=((((now-GROW_EPOCH+GROW_OFFSET_DAYS*86400000+WORLD_SHIFT-PA)%GROW_CYCLE)+GROW_CYCLE)%GROW_CYCLE)/GROW_CYCLE;   // 0..1 through the life
   if(cy<0.78) return {g:cy/0.78, phase:"grow", apoc:0, cy:cy};                // wilderness → metropolis
   if(cy<APOC_AT) return {g:1, phase:"peak", apoc:0, cy:cy};                   // the thriving metropolis
   return {g:1, phase:"apoc", apoc:(cy-APOC_AT)/APOC_BAND, cy:cy};             // the cataclysm, then wraps to wilderness
