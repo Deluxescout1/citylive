@@ -57695,16 +57695,32 @@ function drawApocFallenGround(g,L,now){
       // bite. `disX()` wraps into SCREEN space, and his third monitor is 640 wide, not 776: comparing
       // two wrapped screen values would let the same body throw its shadow LEFT on one monitor and
       // RIGHT on another. The signed wrap-aware world delta is monitor-independent by construction.
+      // 🔒 "THIS SHOULD BURN THE PEOPLE INTO THE ROAD." It already did — 1,056 fills a frame, measured —
+      // and you could not see one of them. 🚨🔑🔑 THE MARKS WERE IN RAW PIXELS: `fillRect(X-1,Y-2,2,2)`
+      // with no `KSP` anywhere, so on his 3x screens a burned human was TWO DEVICE PIXELS. The comment
+      // directly above records the first version being "invisible at every zoom" and the fix being a
+      // readable silhouette — it was made bigger in shape and still left unscaled, so it stayed
+      // invisible for the same reason it was invisible before. **THIS PROJECT'S MOST COMMON FAILURE IS
+      // CORRECT CODE TOO SMALL TO SEE, AND THE SECOND MOST COMMON IS FIXING IT WITHOUT SCALING IT.**
+      // ⚠ AND THEY WERE ALL ON THE PAVEMENT LINE. He asked for the ROAD: a third stay on the kerb, the
+      // rest are printed out across the carriageway where the traffic was, which is also where the eye
+      // already is.
       var dw=v.x-apocEpiX(now); if(dw>WW*0.5) dw-=WW; if(dw<-WW*0.5) dw+=WW;
       var away=(dw>=0)?1:-1;
-      var len=4+((v.seed>>>6)%4);
-      g.fillStyle="rgba(14,11,10,"+(0.78*GK).toFixed(3)+")";
-      g.fillRect((X-1)|0, Y-2, 2, 2);                            // head + shoulders, still upright in the flash
-      g.fillRect((X-1)|0, Y, 2, 1);                              // the stance
-      for(var s2=0;s2<len;s2++){                                  // …and the shadow thrown along the ground
-        g.fillStyle="rgba(14,11,10,"+((0.66-0.52*(s2/len))*GK).toFixed(3)+")";
-        g.fillRect((X+away*(1+s2))|0, Y, 1, 1);
-        if(s2<2) g.fillRect((X+away*(1+s2))|0, Y-1, 1, 1);
+      var KS=Math.max(1,Math.round(Math.max(1,KSP)*0.9));
+      var lane=((v.seed>>>9)%3);
+      var YY=(lane===0)?Y:(HORIZON+Math.round((SH-HORIZON)*(0.26+0.26*lane)));
+      g.fillStyle="rgba(9,7,8,"+(0.86*GK).toFixed(3)+")";
+      g.fillRect((X-KS)|0,(YY-4*KS)|0,KS*2,KS*2);                 // head, still upright when the light took it
+      g.fillRect((X-KS)|0,(YY-2*KS)|0,KS*2,KS*2);                 // shoulders and body
+      g.fillRect((X-KS)|0,YY|0,KS,KS);                            // …and the stance, feet apart
+      g.fillRect(X|0,YY|0,KS,KS);
+      var len=(5+((v.seed>>>6)%6))*KS;                            // the shadow thrown along the ground
+      for(var s2=0;s2<len;s2++){
+        var tf=s2/len;
+        g.fillStyle="rgba(9,7,8,"+((0.74-0.62*tf)*GK).toFixed(3)+")";
+        var hgt=Math.max(1,Math.round(KS*(1.8-1.3*tf)));
+        g.fillRect((X+away*(KS+s2))|0,(YY-hgt+KS)|0,1,hgt);
       }
       continue;
     }
