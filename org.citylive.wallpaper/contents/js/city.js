@@ -43472,8 +43472,14 @@ function drawCoreCanyon(g,L,now,skc,day){
   var gy=HORIZON, K=Math.max(1,KSP), li=lifeIndexOf(now);
   var h0=((li*2654435761+31337)>>>0); h0=(h0^(h0>>>13))>>>0;
   if(!coreCanCache||coreCanCache.li!==li||coreCanCache.sw!==SW||coreCanCache.woff!==WOFF){
-    var depth=Math.round(gy*(0.34+((h0>>>5)%26)/100));      // how far down it cuts
-    var wide=0.30+((h0>>>11)%34)/100;                        // how much of the frame it opens up
+    // 🔒 "DEEPER AND NARROWER — A KNIFE CUT", judged on the pinned desktop. Not a valley the city is
+    // built down into: a wound. Depth up (0.34–0.60 → 0.48–0.82 of sky-to-horizon) and the visible far
+    // wall down (0.30–0.64 → 0.13–0.29), so you look into a SLOT rather than across a basin.
+    // 🔒 …and the rift is also his FIRST variety fix, because it is the ONE BIG OBJECT: vary it and the
+    // whole frame re-composes for the least code. The ranges below are deliberately WIDE — this land
+    // scored a relief spread of ZERO over 12 lives, so timid variation would not have fixed anything.
+    var depth=Math.round(gy*(0.48+((h0>>>5)%35)/100));      // how far down it cuts
+    var wide=0.13+((h0>>>11)%17)/100;                        // how much of the far wall you can see
     var rim=new Array(SW);
     for(var x=0;x<SW;x++){
       var wx=x+WOFF;
@@ -43521,6 +43527,66 @@ function drawCoreCanyon(g,L,now,skc,day){
     // the hot line at the very bottom of what is visible — the brightest thing on the land
     g.fillStyle="rgba(255,214,150,"+(0.55*gl).toFixed(3)+")";
     g.fillRect(x3,(base-1)|0,1,Math.max(1,Math.round(1*K)));
+  }
+  // ── 🏭 WHAT IS BURNING DOWN THERE. 🔒 He rejected "the emptiness is the point": the rift is
+  // INHABITED. Flare stacks and vents along the foot of the visible wall EXPLAIN the glow instead of
+  // leaving it as an effect — light with a cause reads as a place, light without one reads as a filter.
+  var flareN=Math.round(SW/90)+1;
+  for(var fq=0;fq<flareN;fq++){
+    var fh2=((fq*2654435761+((C.li*7919)>>>0))>>>0); fh2=(fh2^(fh2>>>13))>>>0;
+    var fx=((fh2>>>3)%Math.max(1,SW))|0, dF=C.rim[fx];
+    if(dF<8) continue;
+    var fbase=gy-dF+Math.max(1,Math.round(dF*C.wide));
+    var fhh=Math.max(2,Math.round((3+((fh2>>>9)%6))*K));
+    g.fillStyle=day?"rgba(28,26,32,0.95)":"rgba(12,11,16,0.95)";
+    g.fillRect((fx-Math.max(1,Math.round(K)))|0,(fbase-fhh)|0,Math.max(1,Math.round(2*K)),fhh);
+    var flick=0.55+0.45*Math.sin(now*0.004+((fh2>>>15)%628)/100);
+    g.fillStyle="rgba(255,168,64,"+(0.85*flick).toFixed(3)+")";
+    g.fillRect((fx-Math.max(1,Math.round(K)))|0,(fbase-fhh-Math.round(2*K))|0,Math.max(1,Math.round(2*K)),Math.max(1,Math.round(2*K)));
+  }
+  // ── 🏙️ THE CITY CONTINUES DOWN THE WALLS. Lit windows descending into the dark — the thing that
+  // says people live in the cut rather than beside it. ⚠ Drawn on the FAR wall only: the near wall is
+  // the underside of the rim and faces away from us, so windows there would be lit through rock.
+  var wtN=Math.round(SW/26)+2;
+  for(var wq=0;wq<wtN;wq++){
+    var wh2=((wq*2654435761+((C.li*40503)>>>0))>>>0); wh2=(wh2^(wh2>>>13))>>>0;
+    var wx6=((wh2>>>5)%Math.max(1,SW))|0, dW=C.rim[wx6];
+    if(dW<10) continue;
+    var wallTop=gy-dW, wallBot=wallTop+Math.max(1,Math.round(dW*C.wide));
+    var tw=Math.max(1,Math.round((1+((wh2>>>11)%3))*K));
+    var th=Math.max(2,Math.round((wallBot-wallTop)*(0.35+((wh2>>>13)%55)/100)));
+    g.fillStyle=css(mixc(day?[30,32,44]:[13,14,22],skc,0.06));
+    g.fillRect(wx6|0,wallTop|0,tw,th);
+    for(var wy=2;wy<th-1;wy+=Math.max(2,Math.round(3*K))){
+      if(((wh2>>>(wy&15))&3)===0) continue;
+      g.fillStyle=day?"rgba(255,228,150,0.50)":"rgba(255,232,168,0.92)";
+      g.fillRect(wx6|0,(wallTop+wy)|0,Math.max(1,tw>>1),Math.max(1,Math.round(K)));
+    }
+  }
+  // ── 🌉 AND THE BRIDGES. 🔑 The scale reference this land has never had: a span is a KNOWN size, so
+  // everything around it acquires one. They also tie the two sides into ONE city instead of two edges
+  // facing each other across a hole.
+  var brN=2+((h0>>>17)%3);
+  for(var bq=0;bq<brN;bq++){
+    var bh2=((bq*2654435761+((C.li*31337)>>>0))>>>0); bh2=(bh2^(bh2>>>13))>>>0;
+    var bx0=((bh2>>>3)%Math.max(1,SW))|0;
+    var bw=Math.round(SW*(0.18+((bh2>>>9)%26)/100));
+    var bfrac=0.18+((bh2>>>13)%50)/100;                 // how far down the wall it crosses
+    var by=0;
+    g.fillStyle=day?"rgba(22,23,30,0.92)":"rgba(10,10,15,0.94)";
+    for(var bx=bx0;bx<bx0+bw;bx++){
+      if(bx<0||bx>=SW) continue;
+      var dB=C.rim[bx];
+      if(dB<8) continue;
+      by=gy-dB+Math.round(dB*C.wide*bfrac);
+      g.fillRect(bx|0,by|0,1,Math.max(1,Math.round(1.6*K)));
+      // …and the traffic on it, which is what makes the span read as USED
+      if(((bx+((bh2>>>7)%97))%Math.max(3,Math.round(9*K)))===0){
+        g.fillStyle=(bx&1)?"rgba(255,236,196,0.95)":"rgba(255,120,110,0.95)";
+        g.fillRect(bx|0,(by-Math.max(1,Math.round(K)))|0,Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
+        g.fillStyle=day?"rgba(22,23,30,0.92)":"rgba(10,10,15,0.94)";
+      }
+    }
   }
 }
 function drawCoreWorld(g,L,now,nd){
