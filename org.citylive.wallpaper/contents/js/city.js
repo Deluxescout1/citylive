@@ -4446,9 +4446,22 @@ function landOf(li){
   // ⚠ AND THE PIN OUTRANKS THE EGG ROLL. Guarding this with `&& !eg` let the rare worlds break
   // through — a 40-life pinned run still produced the Core World, the Hidden Village, Space City and
   // the Great Plateau. For a REVIEW pin that is useless: the whole point is that every life is the
-  // same map, so `land` suppresses the egg entirely. (An egg can still be pinned deliberately with
-  // `"egg":"leaf"`, which is a separate switch.)
-  if(CFG_LAND!=null){
+  // same map, so `land` suppresses the egg ROLL entirely.
+  // 🚨🚨🔑🔑 AND THE PARENTHETICAL THAT USED TO END THAT SENTENCE WAS A LIE THE CODE TOLD FOR A DAY.
+  // It read "(An egg can still be pinned deliberately with `"egg":"leaf"`, which is a separate
+  // switch.)" — it could not. `eggOf` honours FORCEEGG and hands the egg back, and then this block
+  // threw it away unconditionally, because it could not tell a DELIBERATE egg from a ROLLED one.
+  // THE CORE WORLD was pinned for its map pass on 08-09 with `"egg":"core"` while a stale
+  // `"land":"plains"` sat six lines above it in the same file, and all three monitors showed PLAINS
+  // for every life of the pass. The land under review never once reached the screen it was being
+  // reviewed on. 🔑 THE SAME SHAPE AS `apocAt`: the switch LOOKED wired up, the config LOOKED
+  // obeyed — one key silently outranked the other and nothing said so.
+  // The guard is on FORCEEGG, not on `eg`, because that is the only thing that distinguishes the
+  // two cases: FORCEEGG set means a human named this land, and a named land outranks a named biome.
+  // ⚠ `var FORCEEGG` is hoisted (declared ~130 lines below), so during initial evaluation it reads
+  // `undefined` and this guard falls through to LAND — deliberately the safe side: the failure it
+  // was written to stop was a random egg breaking through a land pin.
+  if(CFG_LAND!=null && FORCEEGG==null){
     eg=null; curEgg=false;
     for(var pl=0;pl<BIOMES.length;pl++) if(BIOMES[pl].k===CFG_LAND){
       b=variantOf(li, BIOMES[pl]);
