@@ -52065,6 +52065,57 @@ function crustChasm(g,ap,L,now,K){
     var ny2=(xn<SW&&openA[xn]>=2)?nearA[xn]:-99999;
     if(ny2!==nY2){ if(nY2!==-99999&&nX>=0&&xn>nX) g.fillRect(nX,nY2,xn-nX,lipB); nX=xn; nY2=ny2; }
   }
+  // ── 💧🔒 AND IF THERE IS WATER, IT ALL GOES IN. His ask, and it is the right one — a chasm opening
+  // through a coast should empty the sea into itself.
+  // ⚠ DRAWN, NEVER BY MOVING `SEA_Y`. Moonfall's tide had to learn the same thing: the waterline is
+  // read by the marina, the reflections, the boats, the beach foam and the harbour, so animating the
+  // global would drag half the land along behind it.
+  // 🔑 WATER MEETING MAGMA IS STEAM, AND THE STEAM IS THE BIGGER PICTURE. The fall itself is local to
+  // the coast; a white column standing a whole screen high is what the OTHER TWO MONITORS see, and on
+  // a 2269px world an event only one screen can see has happened to a third of the audience.
+  // ⚠ Both kinds of water: `SEA_FRONT` (a band along the bottom on coastal lands, waterline `SEA_Y`)
+  // and `inSea(wx)` (open sea at the world's seams). `seaW` IS AN X COORDINATE, NOT A FLAG.
+  var seaOn=(typeof SEA_Y==="number"&&SEA_Y>0&&SEA_Y<SH&&SEA_FRONT>0), anyWet=false;
+  if(seaOn||seaW>0){
+    var wob=(now*0.02)%16, strK=Math.max(2,Math.round(K*2));
+    for(var xs=0;xs<SW;xs++){
+      if(openA[xs]<4) continue;
+      var wxs=xs+WOFF;
+      if(!(seaOn||inSea(wxs))) continue;
+      var wTop=seaOn?Math.max(farA[xs],Math.min(SEA_Y,SH-2)):farA[xs];
+      var wBot=Math.min(SH,nearA[xs]);
+      if(wBot-wTop<3) continue;
+      anyWet=true;
+      g.fillStyle="rgba(148,188,212,0.52)";                  // the sheet going over
+      g.fillRect(xs,wTop,1,wBot-wTop);
+      var st=((xs*7+Math.round(wob))%16);                    // …broken into strands, or it is a pane of glass
+      if(st<5){ g.fillStyle="rgba(228,243,251,0.85)"; g.fillRect(xs,wTop+st*2,1,strK); }
+      g.fillStyle="rgba(242,251,255,0.90)";                  // foam right at the lip
+      g.fillRect(xs,wTop-Math.max(1,Math.round(K)),1,Math.max(1,Math.round(K*1.2)));
+    }
+  }
+  if(anyWet){
+    var sEpi=Math.round(epi)-WOFF, sBase=seaOn?SEA_Y:gy;
+    for(var sp=0;sp<28;sp++){
+      var s4=((sp*2654435761+4242)>>>0); s4=(s4^(s4>>>13))>>>0;
+      var life=((now*0.00022+((s4>>>5)%1000)/1000)%1);       // scripted from a hash, like everything else
+      var sy4=sBase-Math.round(life*gy*1.15);
+      var sx4=sEpi+Math.round(((((s4>>>9)%1000)/1000)-0.5)*SW*0.95)+Math.round(Math.sin(life*5+sp)*9*K);
+      if(sx4<-40||sx4>SW+40) continue;
+      var sr=Math.round((5+((s4>>>15)%10))*K*(0.45+life*1.6));
+      var sa=0.40*(1-life)*(1-life*0.35);
+      if(sa<0.02) continue;
+      // 🚨 ELLIPSES, AND MORE THAN ONE PER PUFF. The first cut drew each puff as a `fillRect` and the
+      // sky filled with pale BOXES — which is the exact "can we fix these floating squares" complaint
+      // he raised about the sky lanes, reintroduced by me an hour after fixing it. A hard-edged
+      // rectangle is the one shape steam cannot be. 🔑 The rule was not "sky lanes were wrong", it was
+      // "a soft thing drawn as a rectangle reads as a sprite"; I applied the instance, not the rule.
+      g.fillStyle="rgba(236,243,248,"+sa.toFixed(3)+")";
+      fillEllipse(g,sx4,sy4,sr,Math.max(1,Math.round(sr*0.74)));
+      fillEllipse(g,sx4+Math.round(sr*0.58),sy4-Math.round(sr*0.32),Math.max(1,Math.round(sr*0.62)),Math.max(1,Math.round(sr*0.46)));
+      fillEllipse(g,sx4-Math.round(sr*0.52),sy4+Math.round(sr*0.18),Math.max(1,Math.round(sr*0.54)),Math.max(1,Math.round(sr*0.40)));
+    }
+  }
   // …and the heat it throws UP onto the city, which is what stops the chasm being a hole in a photo
   // and makes it a light source standing in the same world as the buildings. Same lesson as the rift.
   g.globalCompositeOperation="lighter";
