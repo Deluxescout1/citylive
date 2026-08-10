@@ -43489,12 +43489,21 @@ function drawCoreCanyon(g,L,now,skc,day){
       var hh=(((wx*2654435761+li*7919)>>>0)); var m3=(((hh>>>13)%100)/100-0.5)*0.06;
       rim[x]=Math.max(4,Math.round(depth*(0.55+0.45*(m1+m2+m3)+0.30)));
     }
-    coreCanCache={ li:li, sw:SW, woff:WOFF, depth:depth, wide:wide, rim:rim };
+    // 🔒 ERAS — "same city, different decades, recognisably one place". His call over "radically
+    // different", so this moves the LIGHT and the CONDITION and leaves the bones alone: a life is
+    // steel-cold, sodium-warm or sick-green, and separately is thriving, overbuilt or soot-stained.
+    // 🔑 Two INDEPENDENT hashes, not one. Keyed off the same bits, palette and decay would be locked
+    // together and there would be three lives, not nine — the zero-spread fault in a smaller costume.
+    var era=(h0>>>19)%3, cond=(h0>>>25)%3;
+    coreCanCache={ li:li, sw:SW, woff:WOFF, depth:depth, wide:wide, rim:rim, era:era, cond:cond };
   }
   var C=coreCanCache;
   // 🎨 THE DARK. His first contrast answer: near-black between the towers so the field has HOLES in it
   // instead of being a solid wall. This is the only genuinely dark mass the land has ever had.
-  var deep=day?[14,15,22]:[6,6,10];
+  // …and the era tints the ROCK the city is cut into, which is the one surface big enough to carry a
+  // palette shift without the city stopping being itself.
+  var ERA=[[14,15,22],[20,16,14],[12,20,16]][C.era||0];          // steel · sodium · sick green
+  var deep=day?ERA:[Math.round(ERA[0]*0.45),Math.round(ERA[1]*0.45),Math.round(ERA[2]*0.45)];
   for(var x2=0;x2<SW;x2++){
     var d2=C.rim[x2];
     g.fillStyle="rgb("+deep[0]+","+deep[1]+","+deep[2]+")";
@@ -43514,7 +43523,14 @@ function drawCoreCanyon(g,L,now,skc,day){
   // 🔑 THE CANYON YOU CAN SEE IS THE FAR WALL. Light bouncing UP it is what says something is burning
   // down there, and it silhouettes the near towers against warmth instead of against sky — which is
   // the whole point of glow-from-below on a land lit from above like every other.
-  var gl=day?0.34:0.78;
+  // 🔒🚨 AT NIGHT THE RIFT MUST DOMINATE, AND IT DID NOT. Rendered at 01:00 and the land is beautiful
+  // — a field of lit windows and neon — but the windows OUT-SHINE the cut, which is the opposite of
+  // what he asked for. 🔑 A thing does not dominate by being bright; it dominates by being brighter
+  // THAN ITS SURROUNDINGS, and this land grows its own competition after dark. So the night multiplier
+  // is not a nudge: it is 2.3x the day figure, and the glow reaches UP out of the trench to wash the
+  // towers standing on the rim, which is the part that makes a light source own a frame rather than
+  // merely appear in it.
+  var gl=day?0.34:1.85;
   for(var x3=0;x3<SW;x3++){
     var d3=C.rim[x3], wallH2=Math.max(1,Math.round(d3*C.wide)), base=gy-d3+wallH2;
     for(var q=0;q<wallH2;q+=Math.max(1,Math.round(1*K))){
@@ -43527,6 +43543,22 @@ function drawCoreCanyon(g,L,now,skc,day){
     // the hot line at the very bottom of what is visible — the brightest thing on the land
     g.fillStyle="rgba(255,214,150,"+(0.55*gl).toFixed(3)+")";
     g.fillRect(x3,(base-1)|0,1,Math.max(1,Math.round(1*K)));
+  }
+  // ── 🌌 …AND AT NIGHT IT THROWS LIGHT UP ONTO THE CITY. Without this the rift is a bright BAND with
+  // a dark city above it — two separate pictures. Light that spills onto its surroundings is what ties
+  // them into one, and it is why a fire at night reads as a fire and not as an orange rectangle.
+  if(!day){
+    for(var xu=0;xu<SW;xu++){
+      var dU=C.rim[xu], upH=Math.round(dU*0.9);
+      for(var qu=0;qu<upH;qu+=Math.max(2,Math.round(2*K))){
+        var tu=qu/Math.max(1,upH), au=0.30*Math.pow(1-tu,2.2);
+        if(au<0.012) continue;
+        g.globalCompositeOperation="lighter";
+        g.fillStyle="rgba(255,126,52,"+au.toFixed(3)+")";
+        g.fillRect(xu,(gy-dU-qu)|0,1,Math.max(1,Math.round(2*K)));
+        g.globalCompositeOperation="source-over";
+      }
+    }
   }
   // ── 🏭 WHAT IS BURNING DOWN THERE. 🔒 He rejected "the emptiness is the point": the rift is
   // INHABITED. Flare stacks and vents along the foot of the visible wall EXPLAIN the glow instead of
