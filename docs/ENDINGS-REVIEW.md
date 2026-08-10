@@ -43,7 +43,7 @@ then pin the next. Order below is his own `_order` string.
 | 10 | `kaijuwar` | Kaiju War | no | — | ⬜ | |
 | 11 | `pollution` | The Great Smog | no | — | ⬜ | |
 | 12 | `moonfall` | Moonfall | strike @0.86 | — | ⬜ | |
-| 13 | `gammaray` | Gamma-Ray Burst | strike @0.1 | — | ⬜ | |
+| 13 | `gammaray` | Gamma-Ray Burst | strike @0.1 | — | 🔧 | Reworked 2026-08-10: pivoting beam that sweeps and glasses the ground; bleach+shade replacing the flat wash; aircraft shot down, traffic fried, ionisation arcs, hard pulse flashes; people burned into the road (KSP-scaled at last). |
 | 14 | `rogueplanet` | The Rogue Planet | strike @0.3 | — | ⬜ | |
 | 15 | `crustcrack` | The Crust Cracks | strike @0.2 | — | ⬜ | |
 | 16 | `oceansboil` | The Oceans Boil | strike @0.45 | — | ⬜ | |
