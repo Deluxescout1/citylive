@@ -51868,8 +51868,7 @@ APOC_X.thetitans=function(g,ap,L,now){
   var near=Math.min(1,Math.max(0,ap/0.86)); near=Math.pow(near,1.9);
   var epi=(typeof apocEpiX==="function")?apocEpiX(now):Math.round(WW*0.5);
   var gy=HORIZON;
-  titanTremor(g,ap,L,now);            // …and what the ground is already doing about it
-  titanWall(g,ap,L,now,1,5,"front");  // the crossed ranks behind the near one — so they sit behind its dust
+            // …and what the ground is already doing about it  titanWall(g,ap,L,now,1,5,"front");  // the crossed ranks behind the near one — so they sit behind its dust
   // ── THE STEAM. It is not decoration: it is what says HEAT, and it is what the far ranks dissolve
   // into so a repeating row stops reading as a repeating row.
   var sn=Math.round(70*near);
@@ -51986,7 +51985,18 @@ function titanTremor(g,ap,L,now){
   }
 }
 // 🔑 Rank 0 BY NAME, not a literal that happens to be the last index today.
-APOC_X_FRONT.thetitans=function(g,ap,L,now){ titanWall(g,ap,L,now,0,0,"front"); };
+// ⚠🚨 THE TREMOR RIDES *HERE*, AFTER THE DUST WALL — AND THE FIRST PLACEMENT LOST 76% OF IT.
+// It was called from the BODY pass, which `drawApocalypse` runs BEFORE `drawApocDustWall`, so the
+// rolling front painted straight over ground-level dust sitting in the same 350–368 wp band.
+// MEASURED, same clock, ON vs OFF on the FINAL frame: 460 surviving px from the body pass against
+// 1944 from here — three quarters of it was being buried.
+// 🔑🔑 A LAYER TEST THAT PROVES THE FILLS *HAPPEN* DOES NOT PROVE THEY ARE *VISIBLE*. My A/B was
+// honest — it diffed two complete frames — and it still could not tell me the effect was being
+// four-fifths erased, because a survivor and an untouched pixel look identical. The question
+// "how much of it lives?" needs a SECOND placement to compare against, not a bigger diff.
+// 🔑 Exactly what `d7bb62c` found one commit family earlier: the dust wall is between the viewer
+// and everything drawn before it. Anything meant to be seen at ground level belongs after it.
+APOC_X_FRONT.thetitans=function(g,ap,L,now){ titanTremor(g,ap,L,now); titanWall(g,ap,L,now,0,0,"front"); };
 // …and the whole wall while it is still out beyond the skyline. Every rank is offered to BOTH passes;
 // `side` and the crossing schedule decide which one actually draws it, so no rank can be dropped by a
 // range that disagrees with a threshold — the two passes partition the ranks by construction.
