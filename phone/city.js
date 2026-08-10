@@ -52147,6 +52147,63 @@ function crustChasm(g,ap,L,now,K){
   crustTippers(g,ap,now,K,epi,gy,band,farA,nearA,openA,day);
   crustFallers(g,ap,now,K,epi,op,gy,band);
 }
+// ── 🩹🔒 THE SCAR THE LAST WORLD LEFT. His pick: crustcrack should have consequences you see days
+// later, not just for the ninety seconds it plays. If the PREVIOUS civilization on this land died of
+// THE CRUST CRACKS, the new one is built around the healed canyon — settled, weathered grey instead of
+// black, still faintly warm at the bottom after a lifetime, and BRIDGED, because a city that grows back
+// next to a hole builds across it. 🔑 THE ONE THING THAT MAKES A RUIN READ AS OLD IS THAT SOMETHING
+// USES IT: an unbridged seam is a fresh wound no matter how grey it is painted.
+// ⚠ The epicentre is re-derived for life-1 EXACTLY as `nukeGZX` derives it — same constants, same hash
+// — so the scar lands where the chasm actually was. Any drift here and the city would be built around
+// a hole that never happened, which is the class of bug the doomsday clock had.
+function drawCrustScar(g,L,now){
+  var li=(typeof curLife==="number")?curLife:0;
+  if(li<=0||typeof deathOf!=="function") return;
+  if(deathOf(li-1)!=="crustcrack") return;
+  var day=L>0.5, K=Math.max(1,KSP), gy=HORIZON;
+  var ex;
+  if(typeof CFG_APOC_EPI!=="undefined"&&CFG_APOC_EPI!=null) ex=Math.round(WW*CFG_APOC_EPI);
+  else { var hg=(((li-1)*2654435761+13)>>>0); hg=(hg^(hg>>>15))>>>0; ex=Math.round(WW*(0.10+0.80*(hg/4294967296))); }
+  var sx=ex-WOFF, hs=((li*2654435761+6607)>>>0); hs=(hs^(hs>>>13))>>>0;
+  // ⚠ SIZED UP AFTER THE FIRST RENDER. At half these numbers it was a dark slot the sidewalk crowd
+  // stood on top of — present, and not legible as a canyon. A scar the new city was built AROUND has
+  // to be big enough that the city is visibly arranged around it.
+  var hw=Math.round((30+((hs>>>3)%22))*K);
+  if(sx+hw*2<-8||sx-hw*2>SW+8) return;
+  var top=gy-Math.round(5*K), dep=Math.round((16+((hs>>>9)%12))*K);
+  for(var x=sx-hw;x<=sx+hw;x++){
+    if(x<0||x>=SW) continue;
+    var t=Math.abs(x-sx)/Math.max(1,hw);
+    var d2=Math.round(dep*Math.pow(1-t*t,0.6));
+    if(d2<1) continue;
+    g.fillStyle=day?"rgba(28,24,26,0.94)":"rgba(10,9,11,0.95)";       // the seam
+    g.fillRect(x,top,1,d2);
+    g.fillStyle=day?"rgba(150,142,132,0.85)":"rgba(74,70,68,0.8)";    // weathered lip, not fresh rock
+    g.fillRect(x,top-Math.max(1,Math.round(K*0.6)),1,Math.max(1,Math.round(K*0.6)));
+    if(!day&&t<0.55){                                                  // still warm down there, a life later
+      g.globalCompositeOperation="lighter";
+      g.fillStyle="rgba(255,120,50,"+(0.16*(1-t)).toFixed(3)+")";
+      g.fillRect(x,top+d2-Math.max(1,Math.round(K)),1,Math.max(1,Math.round(K)));
+      g.globalCompositeOperation="source-over";
+    }
+  }
+  // …and the bridge the new city put across it
+  var bd=top-Math.round(1.6*K), bwid=hw*2+Math.round(6*K);
+  g.fillStyle=day?"rgba(96,90,86,0.95)":"rgba(38,36,38,0.95)";
+  g.fillRect(sx-hw-Math.round(3*K),bd,bwid,Math.max(1,Math.round(1.4*K)));
+  g.fillStyle=day?"rgba(168,160,150,0.9)":"rgba(72,70,74,0.9)";
+  g.fillRect(sx-hw-Math.round(3*K),bd,bwid,Math.max(1,Math.round(K*0.5)));
+  for(var p=-1;p<=1;p+=2){                                             // two piers down into the seam
+    var pxx=sx+p*Math.round(hw*0.55);
+    g.fillStyle=day?"rgba(78,74,72,0.9)":"rgba(30,29,32,0.9)";
+    g.fillRect(pxx,bd,Math.max(1,Math.round(K)),Math.round(dep*0.72));
+  }
+  for(var rl=0;rl<3;rl++){                                             // railings, so it reads as built
+    var rx=sx-hw+Math.round((rl+0.5)*(hw*2/3));
+    g.fillStyle=day?"rgba(140,134,126,0.75)":"rgba(60,58,62,0.7)";
+    g.fillRect(rx,bd-Math.round(1.4*K),Math.max(1,Math.round(K*0.5)),Math.round(1.4*K));
+  }
+}
 // ── ⚡🔒 THE FRACTURE THAT RUNS AHEAD OF IT. His first pick. Until now the chasm simply FADED UP where
 // it was going to be, which is why it read as an effect: nothing caused it and nothing announced it.
 // A crack racing out along the street ahead of the opening gives the ending a direction, a speed and a
@@ -60473,6 +60530,7 @@ function draw(g,pass){
   // the wilderness the city grows out of (hills, grass, river, trees, the first cabin) — recedes as it matures
   if(cityG<0.985) drawTerrain(g,cityG,L,now,nd,(pass==="fg"||pass==="city"||pass==="live")?"fg":undefined);
   drawPlainsWorked(g,L,now,nd);   // the worked prairie, ON the ground the terrain just laid down
+  drawCrustScar(g,L,now);         // …and the healed canyon, if the LAST civilization died of crustcrack
   // the falls, at the live rate. `undefined` already drew them on the classic single-canvas path
   // further up, so this is the split-canvas half only — double-painting is what pass-split guards.
   if(pass==="fg"||pass==="city"||pass==="live") drawCascades(g,L,now,nd);
