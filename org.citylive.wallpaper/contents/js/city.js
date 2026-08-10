@@ -37381,6 +37381,152 @@ function drawKarst(g,L,now,nd){
 // Four bands recede toward the horizon, each paler than the last, because a sand sea has no landmarks
 // to give you distance — the only depth cue available is aerial perspective.
 var duneCache=null;
+// 🏖️🚨 THE CORAL COAST HAD NO LANDFORM AT ALL, AND IT WAS MEASURED BEFORE IT WAS TOUCHED.
+// `desktop/tools/landform-relief.js` over 12 lives, px above the horizon: beach 32/86/86 against
+// mesa 212, alpine 283, forest 398. 🔑🔑 ITS MAX EQUALS ITS MEDIAN — unlike alpine, where a 28% flat
+// variant made one render lie about the land, there is no good life here to hide behind. The city
+// out-heights the ground on every single life, the top 55% of the frame is empty sky, and the land
+// fails all three rules at once: no ONE BIG OBJECT, no VALUE CONTRAST, no SCALE REFERENCE.
+// 🔒 Nick's pick, given headland / sky-drama / offshore structures / all-three: THE HEADLAND. The land
+// itself has to carry it.
+// 🔑 So this is a dispatch off `drawMountains` exactly like the gorge, the dunes and the karst — "the
+// gorge IS the range here" — because a coast's relief is not a ridge line either. `amp:0.15` stays
+// what it is; raising it would have made a hilly land that happens to be wet, and stopped it being a
+// beach at all.
+// ⚠ WORLD-ANCHORED and per-LIFE, not per-screen: which end it stands at, how tall, and how it steps
+// down to the sand are all hashed off `lifeIndexOf`, so his three monitors see one headland and a life
+// that has it on the left keeps it there all week.
+var headCache=null;
+function drawCoralHeadland(g,L,now,nd){
+  var day=L>0.5, B=curBiome, K=Math.max(1,KSP), skc=biomeSkc(day);
+  var li=lifeIndexOf(now);
+  var h0=((li*2654435761+7717)>>>0); h0=(h0^(h0>>>13))>>>0;
+  if(!headCache||headCache.li!==li||headCache.sw!==SW||headCache.woff!==WOFF){
+    var atLeft=(h0&1)===0;
+    var span=Math.round(WW*(0.17+((h0>>>9)%11)/100));      // 17–27% of the world
+    var x0=atLeft?0:WW-span;
+    var peak=Math.round(HORIZON*(0.58+((h0>>>5)%32)/100)); // 0.58–0.90 of sky-to-horizon
+    var prof=new Array(span);
+    for(var i=0;i<span;i++){
+      // u = 0 at the SEAWARD end, 1 where it dies into the beach. A headland is tallest where the land
+      // ends and steps down toward the sand — the opposite of a hill, which peaks in its middle.
+      var u=atLeft?(1-i/span):(i/span);
+      var hgt=Math.pow(Math.max(0,1-u),1.35);
+      // ⚠ THREE WAYS OF BREAKING THE REGULARITY, because two has never been enough in this engine:
+      // a slow shoulder, a mid ripple at a non-harmonic frequency, and a hashed per-column notch.
+      var wx=x0+i;
+      var n1=Math.sin(wx*0.0031+((h0>>>3)%628)/100)*0.10;
+      var n2=Math.sin(wx*0.0107+((h0>>>7)%628)/100)*0.045;
+      var hh=(((wx*2654435761+li*7919)>>>0)^0);
+      var n3=(((hh>>>11)%100)/100-0.5)*0.03;
+      prof[i]=Math.max(0,Math.round(peak*(hgt+n1*hgt+n2*hgt+n3)));
+    }
+    // …and the sea stacks it has been leaving behind as it erodes. THE scale reference this land
+    // never had: something small, hard-edged and man-height-ish standing in open water.
+    // 🚨🚨 A HEADLAND AT ONE END OF THE WORLD IS INVISIBLE ON TWO OF HIS THREE MONITORS. Rendered all
+    // three screens of one life: WOFF 0 got a mass filling the dead sky, WOFF 776 and 1629 were byte
+    // -for-byte the land I had just called broken. 🔑 ONE MONITOR IS ~28% OF THE WORLD — the same fault
+    // as an unaimed apocalypse epicentre, and the reason `apocEpi` exists at all. A land feature has to
+    // be composed for a 776px WINDOW ONTO a 2269px world, not for the world.
+    // 🔒 So his "at one end" is honoured — that is the BIG one — and the coast is made a BAY: a lesser
+    // headland at the far end, and a chain of stacks and islets across the open middle, so no screen
+    // is ever looking at nothing. A bay is also just what a coast IS between two headlands.
+    var span2=Math.round(span*(0.45+((h0>>>19)%25)/100));
+    var x2=atLeft?WW-span2:0;
+    var peak2=Math.round(peak*(0.42+((h0>>>23)%22)/100));
+    var prof2=new Array(span2);
+    for(var j=0;j<span2;j++){
+      var u2=atLeft?(j/span2):(1-j/span2);
+      var wx3=x2+j;
+      var n4=Math.sin(wx3*0.0043+((h0>>>11)%628)/100)*0.12;
+      prof2[j]=Math.max(0,Math.round(peak2*(Math.pow(Math.max(0,1-u2),1.5)*(1+n4))));
+    }
+    // 🚨 …AND THE MIDDLE SCREEN IS HIS PRIMARY, so stacks alone were not enough: with a headland at
+    // each end, DP-4 still opened onto the same empty sky the whole overhaul exists to fix. A bay has
+    // an ISLAND in it — wide, low, and far enough out to sit in haze — which fills the middle third
+    // without pretending to be more cliff. 🔑 Composed for the WINDOW, not the world: whatever 776px
+    // slice a screen lands on must contain something.
+    var isW=Math.round(WW*(0.16+((h0>>>21)%10)/100));
+    var isX=Math.round(WW*0.5-isW/2+(((h0>>>17)%17)-8)*WW*0.006);
+    var isH=Math.round(peak*(0.30+((h0>>>25)%18)/100));
+    var isProf=new Array(isW);
+    for(var m=0;m<isW;m++){
+      var mu=m/isW, wx5=isX+m;
+      // a low island reads by its SHOULDERS, so both ends fall away and the crest wanders
+      var shape=Math.pow(Math.sin(Math.PI*mu),0.72);
+      var nn=Math.sin(wx5*0.0064+((h0>>>13)%628)/100)*0.16+Math.sin(wx5*0.0181)*0.07;
+      isProf[m]=Math.max(0,Math.round(isH*shape*(1+nn)));
+    }
+    // …and the stacks between them
+    var stacks=[];
+    var sn=5+((h0>>>15)%4);
+    for(var q=0;q<sn;q++){
+      var hq=((h0+q*40503)>>>0); hq=(hq^(hq>>>13))>>>0;
+      // spread across the WHOLE world, biased away from the two headlands so they read as sea stacks
+      // standing in open water rather than rubble at the foot of the cliff
+      var frac=0.10+0.80*(q+0.5)/sn+((hq>>>5)%9)/100-0.045;
+      stacks.push({ x: Math.round(WW*frac),
+                    h: Math.round(peak*(0.18+((hq>>>9)%30)/100)),
+                    w: Math.max(2,Math.round((3+((hq>>>13)%6))*K)) });
+    }
+    headCache={ li:li, sw:SW, woff:WOFF, atLeft:atLeft, x0:x0, span:span, peak:peak, prof:prof, stacks:stacks, x2:x2, span2:span2, peak2:peak2, prof2:prof2, isX:isX, isW:isW, isH:isH, isProf:isProf };
+  }
+  var HC=headCache, gy=HORIZON;
+  // 🎨 VALUE CONTRAST IS THE POINT. This land is pale sky over pale sand over pale sea, all in one
+  // register; the headland is the first genuinely DARK mass it has ever had. Rock is mixed toward the
+  // sky by distance like every other backdrop, but from a much darker base than the sand it sits on.
+  var rock=day?[86,74,66]:[26,24,28], rockLit=day?[150,132,112]:[44,42,48], rockDark=day?[52,44,40]:[14,13,16];
+  var fc=css(mixc(rock,skc,0.22)), fl=css(mixc(rockLit,skc,0.20)), fd=css(mixc(rockDark,skc,0.16));
+  for(var i2=0;i2<HC.span;i2+=1){
+    var wx2=HC.x0+i2, X=disX(wrapW(wx2));
+    if(X<-2||X>SW+2) continue;
+    var hgt2=HC.prof[i2];
+    if(hgt2<=0) continue;
+    g.fillStyle=fc; g.fillRect(X|0,(gy-hgt2)|0,1,hgt2);
+    // the lit crown — one band at the top, on the seaward side, so the mass turns
+    g.fillStyle=fl; g.fillRect(X|0,(gy-hgt2)|0,1,Math.max(1,Math.round(hgt2*0.06)));
+    // ── THE STRATA. Horizontal bedding, which is what says ROCK rather than "a dark hill", and the
+    // second source of value contrast. Anchored to WORLD Y so the bands are level across the whole
+    // mass — bedding planes that follow the surface read as stripes painted on a lump.
+    if(hgt2>10*K){
+      for(var b2=1;b2<=4;b2++){
+        var by2=gy-Math.round(HC.peak*(b2*0.19));
+        if(by2>gy-hgt2 && by2<gy){ g.fillStyle=fd; g.fillRect(X|0,by2|0,1,Math.max(1,Math.round(1.6*K))); }
+      }
+    }
+  }
+  // 🌫️ THE ISLAND, drawn FIRST and hazed hardest — it is the furthest thing out there, and distance
+  // on this engine is a COLOUR, not an alpha (the titans' lesson, in a land that needed it too).
+  var ic=css(mixc(rock,skc,0.52)), il=css(mixc(rockLit,skc,0.50));
+  for(var m2=0;m2<HC.isW;m2++){
+    var IX=disX(wrapW(HC.isX+m2));
+    if(IX<-2||IX>SW+2) continue;
+    var ih=HC.isProf[m2];
+    if(ih<=0) continue;
+    g.fillStyle=ic; g.fillRect(IX|0,(gy-ih)|0,1,ih);
+    g.fillStyle=il; g.fillRect(IX|0,(gy-ih)|0,1,Math.max(1,Math.round(ih*0.08)));
+  }
+  // the lesser headland closing the other side of the bay — same law, smaller numbers
+  for(var i3=0;i3<HC.span2;i3++){
+    var wx4=HC.x2+i3, X2=disX(wrapW(wx4));
+    if(X2<-2||X2>SW+2) continue;
+    var hgt3=HC.prof2[i3];
+    if(hgt3<=0) continue;
+    g.fillStyle=fc; g.fillRect(X2|0,(gy-hgt3)|0,1,hgt3);
+    g.fillStyle=fl; g.fillRect(X2|0,(gy-hgt3)|0,1,Math.max(1,Math.round(hgt3*0.05)));
+    if(hgt3>10*K) for(var b3=1;b3<=3;b3++){
+      var by3=gy-Math.round(HC.peak2*(b3*0.24));
+      if(by3>gy-hgt3&&by3<gy){ g.fillStyle=fd; g.fillRect(X2|0,by3|0,1,Math.max(1,Math.round(1.6*K))); }
+    }
+  }
+  // the stacks, standing in the open water between them
+  for(var q3=0;q3<HC.stacks.length;q3++){
+    var st2=HC.stacks[q3], SX=disX(wrapW(st2.x));
+    if(SX<-20||SX>SW+20) continue;
+    g.fillStyle=fc; g.fillRect((SX-(st2.w>>1))|0,(gy-st2.h)|0,st2.w,st2.h);
+    g.fillStyle=fl; g.fillRect((SX-(st2.w>>1))|0,(gy-st2.h)|0,Math.max(1,st2.w>>2),Math.max(1,Math.round(st2.h*0.5)));
+  }
+}
 function drawDunes(g,L,now,nd){
   var day=L>0.5, B=curBiome, K=Math.max(1,KSP), skc=biomeSkc(day);
   var litK=Math.max(0,Math.min(1,(L-0.34)*2.4));
@@ -45958,6 +46104,7 @@ function drawVillageCliffLive(g,L,now,nd,fx){
 }
 function drawMountains(g,L,now,nd){
   if(curBiome.k==="leaf"){ drawVillageCliff(g,L,now,nd); return; }      // …and here the range is a WALL with faces cut into it
+  if(curBiome.k==="beach"){ drawCoralHeadland(g,L,now,nd); return; }    // …and on the coast the HEADLAND is the range
   if(curBiome.k==="forest"){ drawForestBackdrop(g,L,now,nd); return; }   // the forest is the range here
   if(curBiome.k==="core"){ drawCoreWorld(g,L,now,nd); return; }         // …and on the core world the CITY is
   if(curBiome.gorge){ drawGorge(g,L,now,nd); return; }                 // the gorge IS the range here — walls, not peaks
