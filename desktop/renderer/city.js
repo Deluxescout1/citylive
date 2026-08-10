@@ -43938,29 +43938,52 @@ function drawCoreWorld(g,L,now,nd){
   // SKY LANES. Streams of small lit craft at several heights, each running one way, the nearer lanes
   // faster and brighter. This is the other half of what identifies the place, and it opens more lanes
   // as the week goes on — traffic is part of how the city grows here.
+  // 🚨🔒 "CAN WE FIX THESE FLOATING SQUARES AND MAKE THEM LOOK NICER" — Nick, with a screenshot of his
+  // left monitor. They are these craft, and every complaint in that phrase was earned:
+  //   · SQUARE — the body was `fillRect(px,ly,cw*2,cw)`, a 2:1 block up to 11x6px. Nothing at that
+  //     distance is that thick. A distant aircraft is a SLIVER, and a sliver is what says "far away
+  //     and moving" where a block says "sprite".
+  //   · FLOATING — every craft in a lane sat on exactly the same `ly` and exactly `gapx` apart, so a
+  //     lane was a dotted rule ruled across the sky. 🪵 `(i*K+salt)` IS AN ARITHMETIC PROGRESSION, NOT
+  //     A SCATTER — the savanna's herd-conveyor finding, in the air this time.
+  //   · MUDDY — one grey for every lane, so the far ones did not recede. DISTANCE IS A COLOUR: they
+  //     now mix toward the sky they are seen through, which is the titans' and the beach island's rule.
+  // Also thinned out: `gapx` more than doubles. There were ~75 on screen at once, which is not traffic,
+  // it is wallpaper — and the extra rects per craft are paid for by drawing half as many of them.
   var lanes=2+Math.round(up*3);
   for(var ln=0;ln<lanes;ln++){
     var lf=(ln+1)/(lanes+1);
-    var ly=Math.round(gy*(0.10+lf*0.66));
+    var lyB=Math.round(gy*(0.10+lf*0.66));
     var dir=(ln&1)?1:-1, near=1-lf;
-    var spd=(0.06+near*0.16), gapx=Math.round((26+ln*9)*K);
+    var spd=(0.06+near*0.16), gapx=Math.round((58+ln*21)*K);
+    var bodyL=Math.max(2,Math.round((2.4+near*3.6)*K));      // long and thin, not blocky
+    var bodyH=Math.max(1,Math.round((0.45+near*0.75)*K));
+    var craftC=css(mixc(day?[36,42,58]:[13,14,21], skc, 0.60*lf));   // far lanes sink into the sky
+    var finH=Math.max(1,Math.round(bodyH*0.9)), nudge=Math.max(1,Math.round(K*0.5));
     // 🚨 AND THE SKY LANES RAN IN SCREEN SPACE TOO — the loudest version of the same bug, because this
     // one MOVES. `px` was `cx+off` with no WOFF, so all three monitors flew identical craft at identical
     // screen x in perfect formation, and a plane leaving DP-3 never arrived on DP-4. Stepping the lane
     // across the WORLD and converting to screen makes the three panels one continuous sky, which is the
     // whole reason this project scripts everything from a hash instead of simulating it.
     for(var cx=0;cx<WW+gapx;cx+=gapx){
+      // ⚠ HASHED OFF THE SLOT AND THE LANE, in WORLD space — so the scatter is the same scatter on all
+      // three monitors and a craft keeps its own jitter as it crosses a bezel.
+      var ch=(((cx*2654435761)^(ln*40503))>>>0); ch=(ch^(ch>>>13))>>>0;
+      var jit=(((ch%1000)/1000)-0.5)*gapx*0.62;              // break the ruled spacing
       var off=((now*spd+ln*400)%gapx);
-      var px=(dir>0?(cx+off):(WW-cx-off))-WOFF;
-      if(px<-4||px>SW+4) continue;
-      var cw=Math.max(1,Math.round((1.2+near*1.6)*K));
-      g.fillStyle=day?"rgba(48,54,72,"+(0.35+0.4*near).toFixed(2)+")":"rgba(20,22,30,0.8)";
-      g.fillRect(px,ly,cw*2,cw);
-      g.globalCompositeOperation="lighter";                  // headlight ahead, tail-light behind
-      g.fillStyle=day?"rgba(255,246,214,"+(0.25*near).toFixed(2)+")":"rgba(255,240,200,"+(0.55+0.35*near).toFixed(2)+")";
-      g.fillRect(px+(dir>0?cw*2:-cw),ly,cw,cw);
-      g.fillStyle="rgba(255,70,60,"+(day?0.16:0.45)+")";
-      g.fillRect(px+(dir>0?-cw:cw*2),ly,cw,cw);
+      var px=Math.round((dir>0?(cx+off+jit):(WW-cx-off+jit)))-WOFF;
+      if(px<-bodyL*2||px>SW+bodyL*2) continue;
+      var ly=lyB+(((ch>>>7)%5)-2);                           // …and the lane is not a wire either
+      var nose=dir>0?(px+bodyL):(px-1);
+      g.fillStyle=craftC;
+      g.fillRect(px,ly,bodyL,bodyH);                          // the fuselage
+      g.fillRect(nose,ly,1,Math.max(1,bodyH-1));              // a nose, so it has a direction
+      g.fillRect(px+(dir>0?0:bodyL-nudge),ly-finH,nudge,finH); // and a tail fin, so it has an attitude
+      g.globalCompositeOperation="lighter";                   // headlight ahead, tail-light behind
+      g.fillStyle=day?"rgba(255,246,214,"+(0.22*near).toFixed(2)+")":"rgba(255,240,200,"+(0.55+0.35*near).toFixed(2)+")";
+      g.fillRect(nose,ly,nudge,Math.max(1,bodyH-1));
+      g.fillStyle="rgba(255,70,60,"+(day?0.14:0.42)+")";
+      g.fillRect(px+(dir>0?-nudge:bodyL),ly,nudge,Math.max(1,bodyH-1));
       g.globalCompositeOperation="source-over";
     }
   }
