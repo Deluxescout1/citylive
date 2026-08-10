@@ -51021,6 +51021,37 @@ var APOC_X_FRONT={};
 // 🔑 The precedent is right there: `WILD_LAYER="back"` draws the animals before a single building so
 // the skyline occludes them. This is the same move for the end of the world.
 var APOC_X_BACK={};
+// 🔒🚨🔑🔑 THEY ARE ON THE HORIZON BEFORE THE WORLD STARTS ENDING. Nick: "make them start off really
+// small in the distance and then they get bigger… what if we had them show up in the distance earlier
+// in the cycle and they slowly approach."
+// THE APOCALYPSE IS ONLY THE LAST 2% OF A LIFE (`APOC_BAND`) — about three hours of a week — so
+// "earlier in the cycle" cannot be bought inside it. It has to come from BEFORE, and it can: 🔑
+// `curDeath = FORCEDEATH || deathOf(lifeI)` is assigned EVERY FRAME from the life index, so a city
+// fated to die to the Rumbling KNOWS THAT FOR ITS WHOLE LIFE. Nothing had ever read it before the end.
+// So on such a life they resolve out of the far haze in its last stretch and simply keep walking: you
+// watch them for a day and a half of city time before anything catches fire.
+// 🔑 …AND THIS IS ONLY SAFE BECAUSE OF THE BACK PASS. Specks 15 wp tall were exactly what `169c53a`
+// had to fix, when a wall shorter than the skyline was drawn IN FRONT of it and read as invisible.
+// Behind the buildings, being smaller than a tower is not a bug — it is what distance IS.
+// ⚠ Supersedes "TALLER THAN EVERY BUILDING" from `ad8fb3f`. He asked for the opposite, knowing what
+// he was looking at; the old rule existed to stop them vanishing, and occlusion now does that job.
+var TITAN_SIGHT_G=0.80;   // the growth fraction at which they first appear on the horizon
+var TITAN_SIGHT_A=0.30;   // …and the share of the whole approach that happens BEFORE the apocalypse
+// ONE number for the whole walk, 0 = first speck, 1 = standing over you. Everything the wall draws is
+// a function of this and nothing reads `cityApoc` directly any more — which is what lets the same code
+// serve a day and a half of dread and a ninety-second review loop without knowing which it is in.
+function titanApproach(){
+  if(curDeath!=="thetitans") return -1;
+  // ⚠🚨 ONE MAPPING IN EVERY MODE, INCLUDING THE REVIEW LOOP. The first cut let demo/harness treat the
+  // loop as the whole approach so the speck phase was visible in 90s — and that silently DE-SYNCED the
+  // crossing from the demolition, because `apocSweepR` reads `cityApoc` in every mode. The sweep would
+  // have opened at ap 0.40 while the wall stepped over the city at ap 0.61 in one mode and ap 0.14 in
+  // the other: the city levelled before the thing levelling it arrived.
+  // 🔑 A REVIEW MODE THAT BEHAVES DIFFERENTLY FROM THE REAL THING IS NOT A REVIEW MODE.
+  if(cityPhase==="apoc") return TITAN_SIGHT_A+(1-TITAN_SIGHT_A)*cityApoc;
+  var s=(cityG-TITAN_SIGHT_G)/Math.max(0.001,APOC_AT-TITAN_SIGHT_G);
+  return s>0 ? TITAN_SIGHT_A*Math.min(1,s) : -1;
+}
 
 // ════════════════════════════════════════════════════════════════════════════════════════════════
 // 🌍🚨🚨 WORLD-ANCHORING FOR THIS WHOLE TIER — TWELVE OF THESE THIRTEEN ENDINGS WERE SCREEN-SPACE.
@@ -51606,7 +51637,10 @@ function titanWall(g,ap,L,now,rkA,rkB,side){
   // crushes the early range — at ap 0.12 it returned 0.05 and the wall was a smudge nobody could see,
   // so the whole first quarter was empty. A gentler power curve instead: they resolve on the horizon
   // almost at once, hold there as a distant band for a long while, and only close fast at the end.
-  var near=Math.min(1,Math.max(0,ap/0.86)); near=Math.pow(near,1.9);
+  // `ap` IS NOW THE WHOLE-APPROACH VALUE from `titanApproach()`, not `cityApoc` — 0 is the first speck
+  // on the horizon, 1 is standing over the street. The ^1.9 is what makes it a LONG slow closing rather
+  // than a steady zoom: half the approach is spent in the first fifth of the size.
+  var near=Math.pow(Math.min(1,Math.max(0,ap)),1.9);
   // 📏🚨🔑🔑 THE WALL'S HEIGHT IS IN THE BUILDINGS' UNITS, NOT THE FRAME'S. It was `HORIZON*…`, and
   // HORIZON is a PER-SCREEN quantity: his three outputs measure 282 / 359 / 402 world px, while `KSP` —
   // the scale every building height is built from — is 2 on all three. So the same wall stood 30% taller
@@ -51642,7 +51676,14 @@ function titanWall(g,ap,L,now,rkA,rkB,side){
   // makes the Rumbling feel endless rather than like a set number of monsters that arrive and are then
   // all here: the near rank steps over the city first, the middle one follows, and the far rank is
   // STILL COMING when the world ends. A wall you can see the end of is a crowd.
-  var CROSS=[0.18,0.42,99];                             // `near` at which each rank steps over the city
+  // ⚠ RE-TIMED FOR THE LONGER SPAN. These are thresholds on `near`, and `near` now covers the whole
+  // walk including the pre-apocalypse sighting — so the old 0.18/0.42 would have had rank 0 stepping
+  // over the city at ap 0.07, seven percent into the apocalypse. 0.39/0.66 put the crossings back
+  // where they belong: rank 0 just after the sweep opens, rank 1 around two thirds through.
+  // 🔑 PINNED TO THE SWEEP: `APOC_SWEEP.thetitans`=0.40 maps through the approach to A=0.58 → near=0.355,
+  // so the near rank steps over the city on the same frame the demolition front opens. Re-derive if
+  // either moves — the wall arriving after the city is already flat is the failure this guards.
+  var CROSS=[0.355,0.556,99];                           // `near` at which each rank steps over the city
   for(var rk=rkB; rk>=rkA; rk--){
     var depth=rk/(MAXR-1);                              // 0 = nearest, 1 = furthest — FIXED denominator
     // …so a rank draws in exactly one pass, and switching sides IS the moment it arrives.
@@ -51696,7 +51737,10 @@ function titanWall(g,ap,L,now,rkA,rkB,side){
     // constant — the same trap, a third spelling. 0.72·TU = 180 wp clears the ORDINARY skyline
     // (100–125 wp) with room, and lets the tallest masts poke into the wall early, which is a scale
     // reference rather than a fault. The wall passes everything by ap ~0.35 and ends at 480.
-    var H=Math.max(2,Math.round(TU*(0.72+1.20*near)*dsc));
+    // 🔒 START AS SPECKS. 0.72·TU opened at 180 wp — over the skyline from the first frame, which was
+    // the OLD requirement and is not what he wants now. 0.06·TU is 15 wp: a smudge on the horizon,
+    // legible only because the city occludes everything below it. Range is now 32x, not 2.7x.
+    var H=Math.max(2,Math.round(TU*(0.06+1.90*near)*dsc));
     // ⚠ Re-measure with the rank table after touching either number: every rank must be monotonic in
     // ap, and every rank must clear 125 wp — the ordinary skyline — from the very first frame.
     var W2=Math.max(1,Math.round(H*0.21));
@@ -51730,7 +51774,15 @@ function titanWall(g,ap,L,now,rkA,rkB,side){
     // the wall closes, so the feet come DOWN through the city and end past the street.
     // ⚠ Only legible because of the back pass — set the feet back without it and they float in mid-air
     // in FRONT of the towers, which is worse than where this started.
-    var setb=Math.round(HORIZON*0.20*(1-t)*(0.45+0.55*depth));
+    // 🚨 MEASURED, NOT GUESSED: A 15 wp SPECK NEEDS ITS FEET 110 wp BACK TO BE SEEN AT ALL.
+    // Behind the city, a titan is visible only if `setback + height` clears the skyline — the towers
+    // run 100–125 wp, so the smaller it is the FURTHER BACK its ground must sit. At the old 0.20 the
+    // first render of the sighting came back with an empty horizon: 32 wp of setback against a 110 wp
+    // requirement, so every speck was filed neatly behind a building. 🔑 The back pass is what makes
+    // small titans legible AND it is what can hide them completely; occlusion cuts both ways.
+    // ⚠ The depth weighting flattened too (0.45+0.55·depth → 0.75+0.25·depth): at the old spread the
+    // far ranks needed 2.2x the near rank's setback, which at this magnitude puts them in the sky.
+    var setb=Math.round(HORIZON*0.46*(1-t)*(0.75+0.25*depth));
     var baseY=gy+Math.round(HORIZON*0.015*(1-depth)*near)-setb;
     // 🌫️ …AND THE WALL WAS SEE-THROUGH. At `0.12+0.44·depth·(1-rn/2)` the near rank sat at 0.12 haze and
     // the mountains, the sea and the dust bank all read straight through its legs — the one thing a mass
@@ -51784,7 +51836,9 @@ function titanWall(g,ap,L,now,rkA,rkB,side){
       // ⚠ FLIPPED WITH THE RE-INDEXING: this was `rk>=1`, which meant "the two NEAREST ranks" under
       // the old far-to-near numbering and would now mean the two FURTHEST — putting the footfall
       // fires on the horizon and none under the wall in front of you. Same two ranks, new spelling.
-      if(rk<=1 && Hh>10 && near>0.08){
+      // ⚠ `cityPhase` GATE ADDED WITH THE SIGHTING: `near>0.08` is reached during the pre-apocalypse
+      // walk, so without it the city caught fire under giants on a day it was not going to end.
+      if(rk<=1 && Hh>10 && near>0.08 && cityPhase==="apoc"){
         var Wv=Math.round(W2*hv);
         var plant=(st>=0)?-1:1;                                     // the trailing leg is the planted one
         var fxp=X+plant*Math.round(Wv*0.36);
@@ -51868,7 +51922,19 @@ APOC_X.thetitans=function(g,ap,L,now){
   var near=Math.min(1,Math.max(0,ap/0.86)); near=Math.pow(near,1.9);
   var epi=(typeof apocEpiX==="function")?apocEpiX(now):Math.round(WW*0.5);
   var gy=HORIZON;
-            // …and what the ground is already doing about it  titanWall(g,ap,L,now,1,5,"front");  // the crossed ranks behind the near one — so they sit behind its dust
+  // 🚨🚨 THIS CALL WAS COMMENTED OUT FOR TWO COMMITS AND A WHOLE RANK VANISHED MID-ARC.
+  // A `sed` that moved the tremor matched the head of this line and left its TRAILING COMMENT behind;
+  // the next edit closed the blank line up and welded the comment onto this statement. From `ce66f28`
+  // to here, the moment rank 1 crossed it stopped drawing in the BACK pass (correctly — it had
+  // crossed) and never drew in the FRONT pass (because this line was text), so it simply disappeared.
+  // 🔑🔑 THE PARTITION IS ONLY SOUND IF BOTH HALVES OF IT EXECUTE. "The two passes partition the ranks
+  // by construction" is a statement about the CODE; a commented-out call satisfies it vacuously.
+  // 🔑 And my grep-by-name check passed the whole time — it counted `titanTremor`, the thing I had
+  // just moved, and never asserted that the thing I moved it AWAY FROM was still live. VERIFY WHAT
+  // THE EDIT COULD HAVE BROKEN, NOT WHAT IT WAS MEANT TO CHANGE.
+  var A=titanApproach();
+  titanTremor(g,A,L,now);             // …and what the ground is already doing about it
+  titanWall(g,A,L,now,1,5,"front");   // the crossed ranks behind the near one — so they sit behind its dust
   // ── THE STEAM. It is not decoration: it is what says HEAT, and it is what the far ranks dissolve
   // into so a repeating row stops reading as a repeating row.
   var sn=Math.round(70*near);
@@ -51959,8 +52025,9 @@ APOC_X.thetitans=function(g,ap,L,now){
 // `now*0.0016` is the same term every titan's gait is built from, so the ground answers the FOOTFALLS
 // rather than shivering to a rhythm of its own. A tremor that is out of step with the legs causing it
 // reads as a rendering fault, which is worse than no tremor at all.
-function titanTremor(g,ap,L,now){
-  var near=Math.min(1,Math.max(0,ap/0.86)); near=Math.pow(near,1.9);
+function titanTremor(g,ap,L,now){   // `ap` is the whole-approach value from titanApproach()
+  if(cityPhase!=="apoc") return;      // the ground does not shake while they are still days away
+  var near=Math.pow(Math.min(1,Math.max(0,ap)),1.9);
   if(near<0.06) return;                                  // still too far for the ground to care
   var K=Math.max(1,KSP), day=L>0.5;
   var beat=Math.abs(Math.sin(now*0.0016));               // the stride, shared with the wall
@@ -51996,7 +52063,7 @@ function titanTremor(g,ap,L,now){
 // "how much of it lives?" needs a SECOND placement to compare against, not a bigger diff.
 // 🔑 Exactly what `d7bb62c` found one commit family earlier: the dust wall is between the viewer
 // and everything drawn before it. Anything meant to be seen at ground level belongs after it.
-APOC_X_FRONT.thetitans=function(g,ap,L,now){ titanTremor(g,ap,L,now); titanWall(g,ap,L,now,0,0,"front"); };
+APOC_X_FRONT.thetitans=function(g,ap,L,now){ titanWall(g,titanApproach(),L,now,0,0,"front"); };
 // …and the whole wall while it is still out beyond the skyline. Every rank is offered to BOTH passes;
 // `side` and the crossing schedule decide which one actually draws it, so no rank can be dropped by a
 // range that disagrees with a threshold — the two passes partition the ranks by construction.
@@ -52126,16 +52193,42 @@ function titanBody(g,X,top,W,H,st,P,K,lod,now,hsh){
   // now vents from its own shoulder line, hashed so no two are in phase, and that is what says the
   // thing is HOT rather than merely red.
   if(now!=null&&W>=6){
-    for(var v=0;v<4;v++){
+    // 🔒 "make the steam better." What was here was FOUR FLAT BARS that widened as they rose — a
+    // reasonable first pass and not steam. Three things were missing, and they are the three things
+    // that make a plume read as vapour rather than as rectangles:
+    // ① IT BILLOWS. A puff is not one bar, it is a small stack whose rows disagree — width jittered per
+    //    row off the same hash, so the outline is lumpy instead of a clean trapezoid.
+    // ② IT LEANS. Rising gas gets pushed sideways, and the drift GROWS with height because the longer
+    //    it has been rising the longer the wind has had it. A vertical column reads as a jet.
+    // ③ IT DIES BY THINNING, NOT BY FADING. Alpha alone leaves a full-size ghost; real steam gets
+    //    ragged and breaks up, so the top of the rise drops rows rather than just going transparent.
+    // ⚠ Still hashed off `hsh` and `now` only — scripted, never simulated, or the three monitors drift.
+    var wnd=(typeof weather==="object"&&weather&&+weather.wind)||8;
+    var vN=6;
+    for(var v=0;v<vN;v++){
       var vh=((hsh+v*2654435761)>>>0); vh=(vh^(vh>>>13))>>>0;
-      var vph=((now*0.00022+((vh>>>7)%100)/100)%1);
-      var va=0.34*(1-vph);
+      var vsp=0.6+((vh>>>3)%70)/100;                       // each vent rises at its own rate
+      var vph=((now*0.00019*vsp+((vh>>>7)%100)/100)%1);
+      var va=0.40*Math.pow(1-vph,1.35);                    // ③ …and thins as it goes
       if(va<0.02) continue;
-      var vw=Math.max(1,Math.round(W*(0.18+0.40*vph)));
-      var vx=cx+((vh%Math.max(1,W))-(W>>1)), vy=tY-Math.round(vph*H*0.34);
-      g.fillStyle="rgba(238,242,246,"+va.toFixed(3)+")";
-      g.fillRect((vx-(vw>>1))|0,vy|0,vw,Math.max(1,Math.round(H*0.014)));
+      var lean=Math.round(vph*vph*W*0.55*(0.35+wnd/26));   // ② drift accumulates with height
+      var vx=cx+((vh%Math.max(1,W))-(W>>1))+lean;
+      var vy=tY-Math.round(vph*H*0.46);
+      var rows=Math.max(1,Math.round((1-vph)*3))+1;        // ③ the plume loses rows near the top
+      for(var vr=0;vr<rows;vr++){
+        var jr=((vh>>>(vr+5))&7)/7;                        // ① per-row width jitter = a lumpy edge
+        var vw=Math.max(1,Math.round(W*(0.16+0.62*vph)*(0.62+0.55*jr)));
+        var vo=Math.round((jr-0.5)*W*0.20);
+        g.fillStyle="rgba(238,242,246,"+(va*(1-vr*0.22)).toFixed(3)+")";
+        g.fillRect((vx+vo-(vw>>1))|0,(vy-vr*Math.max(1,Math.round(H*0.013)))|0,vw,Math.max(1,Math.round(H*0.012)));
+      }
     }
+    // …and the sheet of it that hangs around the shoulders, which is what says the whole body is venting
+    // rather than four particular spots on it. One wide, very faint band — cheap, and it ties the vents
+    // together into one mass instead of leaving them as separate plumes.
+    var shA=0.13*(0.6+0.4*Math.abs(Math.sin(now*0.0007+(hsh&255))));
+    g.fillStyle="rgba(232,238,242,"+shA.toFixed(3)+")";
+    g.fillRect((cx-Math.round(W*0.72))|0,(tY-Math.round(H*0.05))|0,Math.max(2,Math.round(W*1.44)),Math.max(1,Math.round(H*0.05)));
   }
 }
 // RAGNAROK — the wolf takes the sun, and the water comes up with the serpent.
@@ -59160,7 +59253,12 @@ function draw(g,pass){
   // exactly the reason the wildlife above is: so the city OCCLUDES it. This is the only place in the
   // frame where an apocalypse can be behind something. ⚠ Guarded on the table, so the other 42 endings
   // never enter it — same shape as the front pass in `drawApocalypse`.
-  if(cityApoc>0&&APOC_X_BACK[curDeath]) APOC_X_BACK[curDeath](g,cityApoc,L,now);
+  // ⚠🚨 NOT `cityApoc>0` — THAT GATE IS EXACTLY WHAT HID THE WHOLE SIGHTING. During it the apocalypse
+  // has not begun and `cityApoc` IS 0, so the first three renders of the new phase came back with an
+  // empty horizon and I went looking at sizes and setbacks for a fault that was in the gate.
+  // 🔑 The TABLE decides whether an ending has a back pass; the ENDING decides whether it wants to draw.
+  if(APOC_X_BACK[curDeath]){ var _bA=(curDeath==="thetitans")?titanApproach():(cityApoc>0?cityApoc:-1);
+    if(_bA>0) APOC_X_BACK[curDeath](g,_bA,L,now); }
   drawLayer(g,far,L,now,fx,hol,0.42);
   if(curRegime&&curRegime.active) drawLayerRegime(g,far,L,now,night);   // THE ORDER drapes the far skyline
   // dystopian smog band (only once there's a city to be smoggy) — one gradient, magenta→teal, feathered at both ends
