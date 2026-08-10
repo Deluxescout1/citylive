@@ -51950,7 +51950,16 @@ function crustOpenAt(wx,ap,now){
   if(op<=0) return 0;
   var epi=(typeof apocEpiX==="function")?apocEpiX(now):Math.round(WW*0.5);
   var d=((wx-epi)%WW+WW*1.5)%WW-WW*0.5;
-  var fall=Math.max(0,1-Math.abs(d)/(WW*0.46));
+  // 🚨🔑🔑 IT PROPAGATES. The first version tapered by distance from the epicentre but had NO EDGE —
+  // every column in the world opened at once, just narrower further out. Which meant there was no
+  // front, and therefore nothing for the fracture to run ahead OF: measured, `crustFracture` drew ZERO
+  // fills at every point on the arc, because by the time it was asked the ground was already open
+  // across the whole screen. 🔑 A TAPER IS NOT A FRONT. The taper says how deep; only a RADIUS says
+  // how far, and an ending without a "how far" cannot travel, cannot arrive, and cannot be outrun.
+  var R=op*(WW*0.55);
+  var ad=Math.abs(d);
+  if(ad>R) return 0;
+  var fall=Math.pow(Math.max(0,1-ad/Math.max(1,R)),0.80);
   if(fall<=0) return 0;
   // ⚡ the life hash is per FRAME, not per column. Called straight, `lifeIndexOf` made this 1.72us a
   // call — 776 columns of chasm plus a call for every body, wreck and particle that asks
@@ -52127,7 +52136,84 @@ function crustChasm(g,ap,L,now,K){
     g.fillRect(0,gy-qu,SW,Math.max(2,Math.round(2*K)));
   }
   g.globalCompositeOperation="source-over";
+  crustFracture(g,ap,now,K,epi,gy,band,openA,day);
+  crustTippers(g,ap,now,K,epi,gy,band,farA,nearA,openA,day);
   crustFallers(g,ap,now,K,epi,op,gy,band);
+}
+// ── ⚡🔒 THE FRACTURE THAT RUNS AHEAD OF IT. His first pick. Until now the chasm simply FADED UP where
+// it was going to be, which is why it read as an effect: nothing caused it and nothing announced it.
+// A crack racing out along the street ahead of the opening gives the ending a direction, a speed and a
+// moment of warning — and it is the cheapest of the three, because it draws only where the ground is
+// still whole. 🔑 It is deliberately AHEAD of the opening front, never level with it: a fracture that
+// arrives with the hole is decoration, one that arrives first is a threat.
+function crustFracture(g,ap,now,K,epi,gy,band,openA,day){
+  // ⚠ DERIVED FROM THE OPENING'S OWN RADIUS, not from `ap` independently — the two used to be separate
+  // expressions of the same journey, which is how a fracture ends up arriving after the hole it is
+  // supposed to warn you about. It runs at 1.5x the opening plus a fixed lead, so there is always
+  // visible cracked ground beyond the edge.
+  var opF=Math.max(0,Math.min(1,(ap-0.14)/0.62));
+  var fr=Math.min(WW*0.5,opF*(WW*0.55)*1.5+WW*0.05);
+  if(fr<=0) return;
+  var y0=gy+Math.round(band*0.16), th=Math.max(1,Math.round(K*0.9));
+  var hf=((lifeIndexOf(now)*2654435761+5521)>>>0); hf=(hf^(hf>>>13))>>>0;
+  g.fillStyle=day?"rgba(24,16,14,0.92)":"rgba(10,7,7,0.94)";
+  for(var x=0;x<SW;x++){
+    if(openA[x]>=2) continue;                                  // already open here — the crack's job is done
+    var wx=x+WOFF, d=((wx-epi)%WW+WW*1.5)%WW-WW*0.5, ad=Math.abs(d);
+    if(ad>fr) continue;
+    var edge=1-Math.min(1,(fr-ad)/(WW*0.10));                  // youngest right at the tip
+    var hh=(((wx*2654435761+hf)>>>0)); hh=(hh^(hh>>>13))>>>0;
+    var jit=Math.round((((hh>>>7)%9)-4)*K*0.42);               // jagged, not ruled — it is a tear
+    g.fillRect(x,y0+jit,1,th+((hh>>>3)&1));
+    if(((hh>>>11)%23)===0){                                    // forks, because a fracture branches
+      var fl=Math.round((2+((hh>>>15)%5))*K), dir=((hh>>>19)&1)?1:-1;
+      for(var f=0;f<fl;f++) g.fillRect(x+f,(y0+jit+dir*f)|0,1,th);
+    }
+    if(edge>0.35&&((hh>>>17)%5)===0){                          // dust jumping off the fresh tip
+      g.fillStyle="rgba("+(day?"196,182,166":"120,110,102")+","+(0.42*edge).toFixed(2)+")";
+      g.fillRect(x,(y0+jit-Math.round((1+((hh>>>21)%3))*K))|0,Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
+      g.fillStyle=day?"rgba(24,16,14,0.92)":"rgba(10,7,7,0.94)";
+    }
+  }
+}
+// ── 🏢🔒 AND THE BUILDINGS GO OVER. His second pick, and the right diagnosis: things were VANISHING
+// (apocHit turns them to stumps) but nothing was ever seen to FALL, which is what the eye is waiting
+// for at the edge of a hole. Each tipper is a slab that leans further as its own cycle runs, then goes
+// past vertical and drops out of sight. 🔑 Drawn HERE rather than in the tower renderer so it works on
+// every land — the chasm is not a Core World feature and neither is a building falling into it.
+// ⚠ The lean is a SHEAR (each row offset a little more), not a rotation: this canvas has no cheap
+// rotate, and a sheared stack of rows is what a toppling mass looks like in pixel art anyway.
+function crustTippers(g,ap,now,K,epi,gy,band,farA,nearA,openA,day){
+  if(ap<0.20) return;
+  var N=Math.round(9*Math.min(1,(ap-0.18)/0.5));
+  for(var i=0;i<N;i++){
+    var th2=((i*2654435761+3313)>>>0); th2=(th2^(th2>>>13))>>>0;
+    var twx=epi+((((th2>>>3)%2000)/1000)-1)*(WW*0.40);
+    var tx=Math.round(twx)-WOFF;
+    if(tx<-40||tx>SW+40) continue;
+    var per=5200+((th2>>>9)%4200);
+    var t=(((now+((th2>>>15)%per))%per)/per);
+    if(t>0.86) continue;                                       // gone; the gap before it repeats is the rest
+    var lean=Math.pow(t,1.7);                                  // slow, then all at once
+    var side=((th2>>>21)&1)?1:-1;
+    var bw=Math.max(2,Math.round((4+((th2>>>11)%7))*K));
+    var bh=Math.max(4,Math.round((14+((th2>>>17)%26))*K));
+    var col=Math.max(0,Math.min(SW-1,tx));
+    var baseY=(openA[col]>=2?farA[col]:gy+Math.round(band*0.16))+Math.round(lean*band*0.9);
+    var faceD=day?"rgba(38,32,34,0.95)":"rgba(16,13,16,0.96)";
+    var edgeD=day?"rgba(96,86,84,0.85)":"rgba(52,46,50,0.8)";
+    for(var r=0;r<bh;r++){
+      var up=bh-r, off=Math.round(side*lean*up*1.15);          // the shear
+      var yy=baseY-up;
+      if(yy<-4||yy>SH+4) continue;
+      g.fillStyle=(r===0)?edgeD:faceD;
+      g.fillRect(tx+off,yy,bw,1);
+      if((up%Math.max(2,Math.round(4*K)))===0&&lean<0.5){      // its windows, going out as it goes over
+        g.fillStyle="rgba(255,214,152,"+(0.5*(1-lean*2)).toFixed(2)+")";
+        g.fillRect(tx+off+1,yy,Math.max(1,bw-2),1);
+      }
+    }
+  }
 }
 // ── 🧍🚗🧱 …AND EVERYTHING GOES IN. 🔒 His brief: "everyone and everything falls into it." Without
 // this the chasm is a hole the city politely stands around; the falling is what makes it eat.
@@ -52137,6 +52223,28 @@ function crustChasm(g,ap,L,now,K){
 // blob, and never scaled by KSP. That rule has been broken four times on this project.
 function crustFallers(g,ap,now,K,epi,op,gy,band){
   if(op<=0.02) return;
+  // ── 🏃🔒 THEY RUN FIRST. His third pick, and the sharpest note of the three: as built, people only
+  // ever FELL, so the city read as already dead rather than as dying. These are on the ground that is
+  // still whole, sprinting AWAY from the crack — outward from the epicentre on both sides, which is
+  // also the only direction that makes the epicentre legible without drawing anything at it.
+  // ⚠ They run on `apocNoGround` land only, so a runner is never drawn over the hole; the moment the
+  // ground under one goes, they stop being a runner and the fallers take over. Same predicate, so the
+  // two populations can never both claim the same patch of street.
+  var RN=Math.round(26*Math.min(1,ap/0.7));
+  for(var r0=0;r0<RN;r0++){
+    var rh=((r0*2654435761+8821)>>>0); rh=(rh^(rh>>>13))>>>0;
+    var side=((rh>>>3)&1)?1:-1;
+    var per0=3400+((rh>>>7)%3000);
+    var tt=(((now+((rh>>>13)%per0))%per0)/per0);
+    var startD=(WW*0.05)+((rh>>>17)%Math.max(1,Math.round(WW*0.30)));
+    var rwx=epi+side*(startD+tt*WW*0.16);                   // outbound, gaining on nothing
+    var rx=Math.round(rwx)-WOFF;
+    if(rx<-8||rx>SW+8) continue;
+    if(apocNoGround(Math.round(rwx))) continue;             // the ground took them; the fallers have them now
+    var mk2=0.34+0.10*Math.sin(tt*24+r0);                   // bobbing, because a runner is not a slide
+    drawPerson(g,rx,gy+Math.round(band*0.16)-1,
+      hexDark(PEDC[(rh>>>19)%PEDC.length],mk2),hexDark(SKINC[(rh>>>23)%SKINC.length],mk2*0.75),side,0);
+  }
   var N=Math.round(30*op), spread=WW*0.44;
   var CARC=["#c8503c","#3c6cc8","#d8c04c","#4cb87c","#b8b8c0","#8c5cc8"];
   for(var i=0;i<N;i++){
