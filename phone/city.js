@@ -51486,14 +51486,19 @@ function apocStruck(){ if(cityPhase!=="apoc") return false;
   // stops being a wrong sky and starts being something happening to the city.
   if(APOC_STRIKE_AP[curDeath]!=null) return cityApoc>=APOC_STRIKE_AP[curDeath];
   return false; }
-// 🔒 THE ENDINGS THAT LEAVE THE BUILDINGS STANDING, ON PURPOSE. The OSRS five (a massacre killed
-// players and left Falador standing; a server shutdown harms nothing; a ban wave is paperwork; the
-// Wilderness consumes ground rather than flattening it; the God Wars fight THROUGH a city) and five of
-// the blood twelve whose spectacle is the BODIES, not the rubble. An intact skyline over dead streets
-// is the one thing that makes these read as different in kind from the other thirty-three.
-// ⚠ This table exists so that "does not demolish" is a STATEMENT rather than a silence — see apocHit.
-var APOC_NO_DEMOLISH={massacre:1,logout:1,wilderness:1,godwars:1,banwave:1,
-  risen:1,plague:1,bloodmoon:1,thescream:1,thefamine:1};
+// 🔒🔄 2026-08-10 — REVERSED ON NICK'S CALL: "make sure these only end when the whole world gets
+// destroyed." There used to be ten endings here that deliberately left the buildings standing — the
+// OSRS five (a massacre killed players and left Falador standing; a server shutdown harms nothing; a
+// ban wave is paperwork; the Wilderness consumes ground rather than flattening it; the God Wars fight
+// THROUGH a city) plus five of the blood twelve whose spectacle was the BODIES rather than the rubble.
+// The argument for them was real and is recorded here because it may be wanted back: an intact skyline
+// over dead streets was the one thing that made those ten read as different IN KIND from the other
+// thirty-three, and it was free. He was shown that argument and chose total destruction anyway, so all
+// 43 now level the world before their arc ends.
+// ⚠ The five OSRS ends had no `APOC_STRIKE_AP` row at all — they were expressed purely as `return
+// false` in apocHit — so they get late thresholds below: the massacre or the shutdown still owns most
+// of the arc, and the city goes at the end of it rather than throughout.
+var APOC_LATE_FALL={massacre:1,logout:1,wilderness:1,godwars:1,banwave:1};
 function apocHit(x){ if(cityPhase!=="apoc") return false;
   if(curDeath==="nuke")    return nukeFrontR() >= nukeDist(x,nukeGZX(NOWOVR!=null?NOWOVR:Date.now()));   // the heat-wave front reached world-x
   if(curDeath==="meteors") return meteorCollapse(x, NOWOVR!=null?NOWOVR:Date.now()).cl>=0;   // a small strike OR the big impact's front has reached it
@@ -51510,8 +51515,7 @@ function apocHit(x){ if(cityPhase!=="apoc") return false;
   // rather than flattening it; and the God Wars fight THROUGH a city rather than levelling it. An
   // intact skyline over empty streets is the whole horror of these, and it is free — it is the one
   // thing that makes them read as different in kind from the other twenty-five.
-  if(curDeath==="massacre"||curDeath==="logout"||curDeath==="banwave"||curDeath==="godwars") return false;
-  if(curDeath==="wilderness") return false;
+  // (the five `return false` lines that used to sit here are gone — see APOC_LATE_FALL)
   if(curDeath==="flood")   return floodGroundHit(x);                                    // the water has risen above the ground here
   if(curDeath==="kaijuwar") return kwCl(x,NOWOVR!=null?NOWOVR:Date.now())>=0;           // trampled or caught in the melee
   if(curDeath==="pollution") return cityApoc>=0.92;                                     // nothing is DEMOLISHED until the very end (movers die via apocKill fade)
@@ -51549,9 +51553,12 @@ function apocHit(x){ if(cityPhase!=="apoc") return false;
   // not a decision, and it cannot be reviewed, tested or grepped. Twelve endings shipped inert inside
   // that ambiguity. The intent is now a table you can read, and the fallback below is safe because
   // anything not in it that reaches this line genuinely has no destruction path yet.
-  if(APOC_NO_DEMOLISH[curDeath]) return false;
-  if(APOC_STRIKE_AP[curDeath]!=null){
-    var s0=APOC_STRIKE_AP[curDeath], s1=(APOC_FULL_AP[curDeath]!=null?APOC_FULL_AP[curDeath]:0.95);
+  // 🔒 EVERY ENDING FINISHES THE JOB. The late-fall five have no strike row of their own, so they take
+  // one here rather than in the table: their own event owns the arc and the city goes at the end of it.
+  {
+    var s0=(APOC_STRIKE_AP[curDeath]!=null)?APOC_STRIKE_AP[curDeath]:(APOC_LATE_FALL[curDeath]?0.55:null);
+    if(s0==null) return false;
+    var s1=(APOC_FULL_AP[curDeath]!=null?APOC_FULL_AP[curDeath]:(APOC_LATE_FALL[curDeath]?0.95:0.95));
     if(cityApoc<s0) return false;
     var fr=Math.max(0,(cityApoc-s0)/Math.max(0.01,s1-s0))*(WW*0.62);
     return frontCollapse(x,fr)>=0;
