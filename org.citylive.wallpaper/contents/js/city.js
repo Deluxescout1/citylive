@@ -51871,27 +51871,110 @@ function apocSkyX(frac,now){
 }
 
 // GAMMA-RAY BURST — the fastest end in the set. One instant, and then a sky that is simply wrong.
+// 🚨🔒 REWORKED 2026-08-10. Nick: "lets rework this one and make it more realistic and look better,
+// because I also have no idea what is going on." He could not read it because there was nothing to
+// read. What it was: a white flash over by ap 0.12, a flat violet gradient full by 0.28, and NINE
+// FULL-WIDTH HORIZONTAL BARS labelled an aurora — after which nothing developed for the remaining 70%
+// of the arc, which is why two frames half a minute apart came back identical.
+// 🔑🔑 IT HAD NO SOURCE AND NO DIRECTION, so it was a filter over the city rather than something
+// happening to it. The same diagnosis as thescream ("nothing is screaming") and crustcrack — this
+// project's endings fail in exactly one way and it is always this one.
+// 🔑 WHAT A GAMMA-RAY BURST ACTUALLY IS, and what makes it drawable: a point somewhere out there, and
+// then EVERY SURFACE FACING IT IS BURNED. So the ending is SHADOWS — hard-edged, all thrown the same
+// way, radiating from one spot. That is also, conveniently, the largest value contrast this land has
+// ever been given, and the engine already agrees with the premise: gammaray's death mark is
+// `{m:"shadow"}`, the same as the nuke's, because both leave people printed on the pavement.
 APOC_X.gammaray=function(g,ap,L,now){
-  var K=Math.max(1,KSP);
-  // 🔑 THE FLASH IS ALMOST ALL OF IT, and it is over in the first eighth. Everything after is the
-  // AFTERMATH of a light — a stripped, ionised sky that will not go back. An end that takes its time
-  // is every other end here; this one's whole character is that there was no time.
+  var K=Math.max(1,KSP), gy=HORIZON;
+  var epi=(typeof apocEpiX==="function")?apocEpiX(now):Math.round(WW*0.5);
+  var sx=Math.round(epi)-WOFF, sy=Math.round(gy*0.08);           // the source, world-anchored and high
   var flash=Math.max(0,1-Math.abs(ap-0.06)/0.06);
   var burnt=Math.min(1,Math.max(0,(ap-0.10)/0.18));
+  var late=Math.min(1,Math.max(0,(ap-0.26)/0.62));               // …and it KEEPS developing, unlike before
   if(burnt>0){
-    for(var q=0;q<HORIZON;q++){
-      var qf=q/HORIZON;
-      g.fillStyle=rgba(mixc([176,90,220],[240,160,90],qf),(0.55*burnt*(1-qf*0.35)).toFixed(3));
+    // the ionised sky, hottest toward the source rather than flat across the frame
+    for(var q=0;q<gy;q++){
+      var qf=q/gy;
+      var t=mixc([168,86,220],[236,158,92],qf);
+      g.fillStyle=rgba(mixc(t,[60,20,90],0.35*late),(0.50*burnt*(1-qf*0.30)).toFixed(3));
       g.fillRect(0,q,SW,1);
     }
-    // the air itself glowing in bands — an aurora with no poles and no shape
+    // ── ⚡ THE RAYS. Long hard wedges out of the source: the light has a DIRECTION, which is the whole
+    // difference between an event and a tint. Additive, and they sweep slowly so the frame is not dead.
     g.globalCompositeOperation="lighter";
-    for(var b=0;b<9;b++){
-      var by=Math.round(HORIZON*(0.05+b*0.09)), sw=Math.round(Math.sin(now*0.0004+b)*14*K);
-      g.fillStyle="rgba(190,255,210,"+(0.10*burnt).toFixed(3)+")";
-      g.fillRect(sw,by,SW,Math.max(1,Math.round(2*K)));
+    // ⚠ CONTINUOUS, NOT SAMPLED. The first cut stepped 3K along each ray and drew a rect one K tall,
+    // which leaves a GAP between every mark — the rays came out as dotted spokes, and a dotted line is
+    // the one thing light is not. Same discontinuity as the beaded scream ring and the folded viaduct
+    // deck: 🔑 CONNECT THE STEPS, DO NOT PLOT THE SAMPLES. Step and height are now the same number.
+    var rays=10, stp=Math.max(1,Math.round(K));
+    for(var r=0;r<rays;r++){
+      var a0=(r/rays)*Math.PI*2+now*0.00006, ca=Math.cos(a0), sa2=Math.sin(a0);
+      var len=Math.round(Math.max(SW,gy)*1.4);
+      for(var s=0;s<len;s+=stp){
+        var px=Math.round(sx+ca*s), py=Math.round(sy+sa2*s);
+        if(py<-4||py>gy+4||px<-40||px>SW+40) continue;
+        var fw=Math.max(1,Math.round((0.8+s/len*6.0)*K));
+        var aa=0.22*burnt*(1-s/len);
+        if(aa<0.012) continue;
+        g.fillStyle="rgba(214,238,255,"+aa.toFixed(3)+")";
+        g.fillRect(px-(fw>>1),py,fw,stp);
+      }
     }
+    // the source itself — small, and the brightest thing that has ever been on this land
+    var cr=Math.max(2,Math.round((3+5*burnt)*K));
+    for(var h2=cr*4;h2>0;h2-=Math.max(1,Math.round(K))){
+      g.fillStyle="rgba(190,226,255,"+(0.20*burnt*(1-h2/(cr*4))).toFixed(3)+")";
+      fillEllipse(g,sx,sy,h2,h2);
+    }
+    g.fillStyle="rgba(255,255,255,"+(0.95*burnt).toFixed(2)+")";
+    fillEllipse(g,sx,sy,cr,cr);
     g.globalCompositeOperation="source-over";
+    // ── 🌑 AND THE SHADOWS IT THROWS. Every column of ground gets light or dark depending on whether
+    // something between it and the source is in the way — hashed per column, so the pattern is a city's
+    // worth of hard-edged shadow wedges all leaning the SAME way, away from one point. This is the part
+    // that says "burned", and it is why the ending needed a source before it could look like anything.
+    // ⚠ WEDGES, NOT NOISE. Hashed PER COLUMN this came out as a one-pixel picket fence across the whole
+    // street — high-frequency stripe that reads as a rendering artefact, not as shadow. A shadow is
+    // CAST BY SOMETHING, so it is as wide as the thing casting it: the world is bucketed into slabs
+    // tens of pixels across, each either lit or in shade, and the slab EDGES are what sell it.
+    // 🔑 The fault and the cure are the sky lanes' again — the answer is never per-column detail.
+    var gb=SH-gy, sdX=-1, sdOn=false, slab=Math.max(6,Math.round(22*K));
+    for(var x2=0;x2<=SW;x2++){
+      var on=false;
+      if(x2<SW){
+        var wx2=x2+WOFF, bkt=Math.floor(wx2/slab);
+        var hsh=((bkt*2654435761+919)>>>0); hsh=(hsh^(hsh>>>13))>>>0;
+        var dxs=Math.abs(wx2-epi);
+        on=((hsh>>>7)%100)<(30+30*Math.min(1,dxs/(WW*0.42)));   // more of it in shade further from under the source
+      }
+      if(on!==sdOn){
+        if(sdOn&&sdX>=0&&x2>sdX){
+          g.fillStyle="rgba(28,10,44,"+(0.46*burnt*(0.6+0.4*late)).toFixed(3)+")";
+          g.fillRect(sdX,gy,x2-sdX,gb+2);
+        }
+        sdOn=on; sdX=x2;
+      }
+    }
+    if(sdOn&&sdX>=0&&sdX<SW){                                    // ⚠ and the final run, which the loop above used to drop
+      g.fillStyle="rgba(28,10,44,"+(0.46*burnt*(0.6+0.4*late)).toFixed(3)+")";
+      g.fillRect(sdX,gy,SW-sdX,gb+2);
+    }
+    // ── 🔥 CHAR. What is left after the light: the ground and everything on it darkens toward soot as
+    // the arc runs, so the last third is not the same picture as the first third.
+    if(late>0){
+      g.fillStyle="rgba(22,14,20,"+(0.34*late).toFixed(3)+")";
+      g.fillRect(0,gy-Math.round(4*K),SW,SH-gy+Math.round(4*K));
+      g.globalCompositeOperation="lighter";                       // …and it is still glowing where it burned
+      for(var e2=0;e2<Math.round(30*late);e2++){
+        var eh=((e2*2654435761+771)>>>0); eh=(eh^(eh>>>13))>>>0;
+        var ex2=((eh>>>5)%Math.max(1,WW))-WOFF;
+        if(ex2<0||ex2>=SW) continue;
+        var ey=gy+((eh>>>11)%Math.max(1,SH-gy));
+        g.fillStyle="rgba(255,140,70,"+(0.30*late*(0.5+0.5*Math.sin(now*0.004+e2))).toFixed(3)+")";
+        g.fillRect(ex2,ey,Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
+      }
+      g.globalCompositeOperation="source-over";
+    }
   }
   if(flash>0.01){ g.fillStyle="rgba(255,255,255,"+flash.toFixed(3)+")"; g.fillRect(0,0,SW,SH); }
 };
