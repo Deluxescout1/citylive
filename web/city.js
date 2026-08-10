@@ -43799,6 +43799,23 @@ function drawCoreWorld(g,L,now,nd){
       var tw=Math.round(step*(0.62+((h%100)/100)*0.30));
       // height: the band's reach, this tower's own roll, and the week's vertical build
       var th=Math.round(gy*bd.h*(0.30+((h>>>7)%100)/100*0.70)*(0.34+0.66*up)*condHt);
+      // 🚨🔒🔑🔑 THE BACKDROP CITY TAKES THE APOCALYPSE TOO. Nick, watching an ending play out on the
+      // Core World: "if this is also the cyberpunk world then the buildings in the background also
+      // need to break and collapse." They never did. `drawCoreWorld` contained not one reference to
+      // `cityPhase`, `cityApoc` or `curDeath` — because on this land the four tower bands ARE THE
+      // LAND (dispatched off `drawMountains`), and the apocalypse only ever demolished the CITY layer.
+      // So on the one map where the backdrop IS the city, the world ended and nine tenths of what you
+      // can see stood untouched with its lights on and its sky lanes still running.
+      // 🔑 THE PREDICATE IS DERIVED, NEVER HAND-LISTED. `apocHit(worldX)` is the same function the
+      // real buildings ask, so all 43 endings reach the backdrop the moment they reach the street —
+      // and the ones that deliberately do NOT demolish (the OSRS five, thescream, the plagues) leave
+      // it standing, for free, because that judgement already lives in `apocHit`. Hand-listing the
+      // destroyers here would have been a second table to drift from the first.
+      var wxT=x+WOFF, wrecked=(cityPhase==="apoc")&&apocHit(wxT), wh3=0;
+      if(wrecked){
+        wh3=((wxT*2246822519+bi*668265263)>>>0); wh3=(wh3^(wh3>>>15))>>>0;
+        th=Math.round(th*(0.14+((wh3>>>3)%44)/100));    // snapped off somewhere down its own length
+      }
       if(th<6*K) continue;
       var tx=x+Math.round(((h>>>13)%40)/40*step*0.3), ty=gy-th;
       g.fillStyle=faceC; g.fillRect(tx,ty,tw,gy-ty+2);
@@ -43807,7 +43824,25 @@ function drawCoreWorld(g,L,now,nd){
       // ---- CROWNS. Every roofline used to be a flat rectangle, so a skyline of hundreds of towers
       // had no rhythm at all — the eye read one serrated bar. Five crown types, chosen off the
       // tower's own hash, cost a few rects each and are most of what makes a skyline legible.
-      var crown=(h>>>25)%5;
+      // 💥 A WRECK HAS NO CROWN — the crown is the part that snapped off. It gets a ragged break
+      // instead: a few uneven bites out of the top course, so the silhouette reads as TORN rather than
+      // as a shorter building. Height alone would just look like a smaller tower standing there fine.
+      var crown=wrecked?-1:(h>>>25)%5;
+      if(wrecked){
+        var bw2=Math.max(1,Math.round(tw/3));
+        for(var bk=0;bk<3;bk++){
+          var bd2=Math.round(((wh3>>>(5+bk*4))%5)*K*0.9);
+          if(bd2<=0) continue;
+          g.fillStyle=css(mixc(skc,base,0.10));                 // bitten back to sky, not to a colour
+          g.fillRect(tx+bk*bw2,ty,bw2,bd2);
+        }
+        // dust still coming off the break — a collapse is a process, and a clean stump reads as a ruin
+        // that has been there for years rather than one that happened ninety seconds ago
+        if(cityApoc<0.92){
+          g.fillStyle="rgba("+(day?"188,180,170":"96,90,86")+",0.30)";
+          g.fillRect(tx-Math.round(K),ty-Math.round(3*K),tw+Math.round(2*K),Math.round(3*K));
+        }
+      }
       if(crown===0){                                            // a mast with a strobe
         g.fillStyle=sideC;
         g.fillRect(tx+(tw>>1),ty-Math.round(7*K),Math.max(1,Math.round(K)),Math.round(7*K));
@@ -43839,16 +43874,20 @@ function drawCoreWorld(g,L,now,nd){
       for(var wy=ty+wq;wy<gy-wq;wy+=wq){
         // 🔒 THE CONDITION IS MOSTLY THIS LINE. "A million lit windows" is the land's main light source
         // after dark, so how many of them are ON is what thriving and half-abandoned actually look like.
-        if((((wy*31+x)>>>0)%100) > Math.min(96,(24+56*up)*condLit)) continue;
+        // 🔌 THE POWER GOES WITH THE BUILDING. A wreck keeps a handful of openings and they are not
+        // windows any more — they burn. A stump still lit in neat rows is the tell that the damage is
+        // a costume over an undamaged tower.
+        if((((wy*31+x)>>>0)%100) > Math.min(96,(24+56*up)*condLit*(wrecked?0.16:1))) continue;
         var wlit=day?0:lit;
-        g.fillStyle=day?"rgba("+ERAW[0]+","+ERAW[1]+","+ERAW[2]+","+(0.30*(1-bd.d)).toFixed(2)+")"
+        g.fillStyle=wrecked?("rgba(255,"+(120+((wy*7+x)&31))+",48,"+(day?0.55:0.85)+")")
+                   :day?"rgba("+ERAW[0]+","+ERAW[1]+","+ERAW[2]+","+(0.30*(1-bd.d)).toFixed(2)+")"
                        :"rgba("+ERAW[0]+","+ERAW[1]+","+ERAW[2]+","+(0.16+0.5*wlit*(1-bd.d)).toFixed(2)+")";
         g.fillRect(tx+Math.round(K),wy,tw-Math.round(2*K),Math.max(1,Math.round(K)));
       }
       // ---- NEON. At this scale the cyberpunk is not readable signage, it is a million lights too far
       // away to resolve: coloured edge-strips up the near towers and a sign band on some faces.
       // Gated to the two nearest bands — colour in the haze would destroy the depth just bought.
-      if(bd.d<0.45){
+      if(bd.d<0.45&&!wrecked){                                   // signage does not outlive the building
         var nc=neon[(h>>>19)%neon.length];
         // ⚠ DAYTIME NEON WAS 0.16 AND INVISIBLE. Nick chose "full cyberpunk" for this land, and a
         // cyberpunk city that only exists after dark is a night skin, not an identity — the same
@@ -43875,7 +43914,7 @@ function drawCoreWorld(g,L,now,nd){
       }
       // ---- SKY-BRIDGES between neighbouring towers. This is what sells the SCALE: it puts something
       // in the gaps, so the towers read as one connected structure rather than as separate objects.
-      if(bd.d<0.62&&((h>>>29)%3)===0){
+      if(bd.d<0.62&&((h>>>29)%3)===0&&!wrecked){                 // and neither do the sky-bridges off it
         var byy=ty+Math.round(th*(0.30+((h>>>5)%50)/100));
         if(byy<gy-Math.round(6*K)){
           g.fillStyle=sideC; g.fillRect(tx+tw,byy,step,Math.max(1,Math.round(1.6*K)));
