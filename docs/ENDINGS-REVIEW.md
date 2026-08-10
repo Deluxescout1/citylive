@@ -44,7 +44,7 @@ then pin the next. Order below is his own `_order` string.
 | 11 | `pollution` | The Great Smog | no | — | ⬜ | |
 | 12 | `moonfall` | Moonfall | strike @0.86 | — | ⬜ | |
 | 13 | `gammaray` | Gamma-Ray Burst | strike @0.1 | — | 🔧 | Reworked 2026-08-10: pivoting beam that sweeps and glasses the ground; bleach+shade replacing the flat wash; aircraft shot down, traffic fried, ionisation arcs, hard pulse flashes; people burned into the road (KSP-scaled at last). |
-| 14 | `rogueplanet` | The Rogue Planet | strike @0.3 | — | ⬜ | |
+| 14 | `rogueplanet` | The Rogue Planet | strike @0.3 | — | 🔧 | Rebuilt 2026-08-10 on real physics: no impact is possible (Roche limit). Staged timeline — auroras+superstorms, tides as walls, crustal quakes+volcanism, air leaking to space with daytime stars, rings we pass into, graze-burn, then the crust peels away. Banded surface no longer painted over; planet size capped. |
 | 15 | `crustcrack` | The Crust Cracks | strike @0.2 | — | 🔧 | Reworked 2026-08-10: chasm moved from the horizon to the street band, propagating front with a fracture running ahead, buildings tip in, people flee then fall, water pours in and returns as steam, consumes the world, healed+bridged scar in later lives. ⚠ the scar still reads weakly — needs another pass. |
 | 16 | `oceansboil` | The Oceans Boil | strike @0.45 | — | ⬜ | |
 | 17 | `greygoo` | Grey Goo | strike @0.25 | — | ⬜ | |
