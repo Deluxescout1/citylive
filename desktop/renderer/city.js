@@ -51162,6 +51162,20 @@ var KW_SAFE=0.12;                  // fraction of WW around the battleground the
 // timeline (cityApoc 0..1 across ~7.5h in weekly mode): veil settles → district lights die
 // one-by-one → grey corrosion → dead grey. Nothing is ever demolished; the city suffocates.
 var DEMO_APOC_SEC=0;                // ►► TEST HOOK: >0 plays the apocalypse LIVE on a repeating N-second loop (0=off, normal 1-week life)
+// ►► THE DEMO LOOP'S ROSTER — built the same way `verify-endings.js` builds its own, as the UNION of
+// every table that holds an ending, because no single table is the list. Land-locked ends are dropped:
+// they need a specific egg and would otherwise play on a map with no stage for them. Lazy, because
+// `APOC_X` is populated after this line and a roster read at load time would be short.
+var APOC_CYCLE=null;
+function apocCycleList(){
+  if(APOC_CYCLE) return APOC_CYCLE;
+  var out=[], seen={}, srcs=[DEATHS,Object.keys(APOC_STRIKE_AP||{}),Object.keys(APOC_X||{}),Object.keys(APOC_SWEEP||{})];
+  for(var i=0;i<srcs.length;i++) for(var j=0;j<srcs[i].length;j++){
+    var k=srcs[i][j];
+    if(k&&!seen[k]&&DEATHS_SPECIAL.indexOf(k)<0){ seen[k]=1; out.push(k); }
+  }
+  APOC_CYCLE=out; return out;
+}
 function nukeDetId(now){ return DEMO_APOC_SEC>0 ? Math.floor(now/(DEMO_APOC_SEC*1000)) : lifeIndexOf(now); }   // a fresh id per detonation (per life normally; per demo-loop in demo mode)
 // GROUND ZERO — random per drop, anywhere across the whole world; EVERY effect keys off this, which
 // is why pinning it here aims the entire apocalypse (front, victims, surge, walkers, the lot) rather
@@ -59151,7 +59165,21 @@ function draw(g,pass){
   // end-times renderer is a TIMELINE. This pins it.
   if(FORCEAPOCMS!=null){ cityPhase="apoc"; cityG=1; apocMs=FORCEAPOCMS; cityApoc=Math.min(1,apocMs/(APOC_BAND*GROW_CYCLE)); }
   if(DEMO_APOC_SEC>0){ cityPhase="apoc"; cityG=1; curSpace=1;   // TEST: play the apocalypse live on a short repeating loop
-    apocMs=Date.now()%(DEMO_APOC_SEC*1000); cityApoc=Math.min(1,apocMs/(DEMO_APOC_SEC*1000)); curDeath=FORCEDEATH||CFG_FINALE||"nuke"; }   // ⚠ CFG_FINALE too — demo mode ignored the pinned ending and always played the nuke
+    // 🚨🔒 …AND WITH NO `finale` PINNED IT PLAYED THE NUKE. FOREVER. Nick: "I am not seeing the end
+    // times at all." He was not: the review loop was switched off for the map pass, and switching it
+    // back on would have shown him ONE of the 43 on repeat, with the only way to the other 42 being to
+    // ask for a config edit and a reinstall between each. The DISASTER loop eleven thousand lines up
+    // has always cycled its roster one per loop; this one never learned to.
+    // 🔑🔑 THE ROSTER IS A UNION, NOT A TABLE. `DEATHS` holds only the ORIGINAL TWELVE — everything
+    // added since deliberately stayed out of it, because appending re-maps `h % DEATHS.length` and
+    // rewrites the fate of every life already lived (the ninetails finding). Reading `DEATHS` alone is
+    // exactly how verify-endings.js first reported "✅ ALL 12" while checking a quarter of the game.
+    // ⚠ `DEATHS_SPECIAL` is excluded because those are LAND-LOCKED — the five OSRS ends need their own
+    // egg and ninetails needs `leaf`, so cycling them on an arbitrary map shows an ending with its
+    // stage missing.
+    apocMs=Date.now()%(DEMO_APOC_SEC*1000); cityApoc=Math.min(1,apocMs/(DEMO_APOC_SEC*1000));
+    var acl=apocCycleList();
+    curDeath=FORCEDEATH||CFG_FINALE||(acl.length?acl[nukeDetId(now)%acl.length]:"nuke"); }   // ⚠ CFG_FINALE too — demo mode ignored the pinned ending and always played the nuke
   blastMs = (curDeath==="nuke") ? Math.max(0, apocMs-NUKE_FALL_MS) : apocMs;   // ms since DETONATION — 0 while the warhead is still falling, so nothing dies until impact
   apocKill = (cityPhase!=="apoc") ? cityApoc                                                 // the "everything stops/empties" clock:
     : (curDeath==="nuke")    ? Math.min(1,blastMs/4000)                                       //   nuke: within ~4s of impact
