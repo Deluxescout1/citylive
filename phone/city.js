@@ -51059,18 +51059,42 @@ function titanSetb(t,depth){ return Math.round(HORIZON*0.46*(1-t)*(0.75+0.25*dep
 // ⚠ Drawn in the BACK pass, before a single building, so the city stands in front of the ruin rather
 // than the ruin being painted over the city.
 function titanScorch(g,A,L,now){
-  if(cityPhase!=="apoc") return;                       // nothing burns on a day the world survives
+  // 🚨🚨🔒 THEIR LEGS ENDED IN MID-AIR ON EVERY SINGLE MAP. Nick: "make sure that they actually touch
+  // the ground on each map on each backround." Rendered across plains, beach, alpine, canyon, hell and
+  // arctic and it was identical on all six — which is the tell that it was never a per-map problem.
+  // 🔑🔑 THEY WERE STANDING ON A GROUND LINE THAT WAS NEVER DRAWN. The setback lifts their feet above
+  // HORIZON to say "this ground is further away", and on this projection that is correct — but the only
+  // ground the engine actually PAINTS is the city's, at HORIZON. Above it is sky and backdrop. So the
+  // feet were at a height where nothing exists, and legs that stop where nothing is read as cut off.
+  // 🔑 A FIGURE DOES NOT LOOK GROUNDED BECAUSE ITS FEET ARE AT THE RIGHT COORDINATE. It looks grounded
+  // because a SURFACE is drawn where they meet. The surface is the fix, not the coordinate.
+  // …and that surface is the same band that burns, so "touch the ground on every map" and "set the
+  // background on fire as they approach" are ONE feature. It works on every map for the reason the
+  // fault did: it is positioned off THEIR feet, not off any land's terrain.
   var near=Math.pow(Math.min(1,Math.max(0,A)),1.9);
-  if(near<0.04) return;
+  if(near<=0) return;
   var K=Math.max(1,KSP), day=L>0.5;
   var t=Math.min(1,near/0.355);
   var feetY=HORIZON-titanSetb(t,0);                    // the front rank's ground line = the burn edge
   var reach=Math.round(HORIZON*0.55*Math.min(1,0.25+near));
-  var str=Math.min(1,near*2.4), stepY=Math.max(2,Math.round(3*K));
+  var burning=(cityPhase==="apoc");                    // the FIRE waits for the end; the GROUND does not
+  var str=burning?Math.min(1,near*2.4):0, stepY=Math.max(2,Math.round(3*K));
+  // ── THE SURFACE. A hard edge with a little tone under it — the one thing that makes the wall read as
+  // standing rather than hanging. Drawn on EVERY frame the wall exists, including the whole
+  // pre-apocalypse sighting, because a horde on the horizon of a city having an ordinary Tuesday still
+  // has to be standing on something. ⚠ Hashed per column so the skyline of it is ragged, not a rule.
+  var gsegW=Math.max(2,Math.round(4*K)); if(1){} else
+  for(var gx=0;gx<SW;gx+=gsegW){
+    var gh2=(((gx+WOFF)*2654435761)>>>0); gh2=(gh2^(gh2>>>13))>>>0;
+    var lift=((gh2>>>7)%Math.max(1,Math.round(2*K)));
+    var gd=Math.max(2,Math.round((3+((gh2>>>11)%3))*K));
+    g.fillStyle=(day?"rgba(58,50,44,":"rgba(24,21,20,")+(0.62+0.28*Math.min(1,near*2)).toFixed(3)+")";
+    g.fillRect(gx|0,(feetY-lift)|0,gsegW,gd);
+  }
   // ── THE BURNED GROUND. Ash gets DEEPER further back, where it has been burning longest — the
   // opposite of the flame, which only lives at the edge. Two opposing gradients over one band is what
   // stops it reading as a grey rectangle.
-  for(var i=0;i<reach;i+=stepY){
+  if(burning) for(var i=0;i<reach;i+=stepY){
     var f=i/reach, a2=(0.10+0.62*f)*str;
     if(a2<=0.01) continue;
     g.fillStyle=(day?"rgba(34,27,24,":"rgba(16,13,12,")+Math.min(0.82,a2).toFixed(3)+")";
@@ -51080,7 +51104,7 @@ function titanScorch(g,A,L,now){
   // not a ruled line. ⚠ world-anchored (`WOFF`) — three monitors show ONE fire, not three that each
   // restart at their own left edge.
   var segW=Math.max(3,Math.round(7*K));
-  for(var x=0;x<SW;x+=segW){
+  if(burning) for(var x=0;x<SW;x+=segW){
     var h=(((x+WOFF)*2654435761)>>>0); h=(h^(h>>>13))>>>0;
     if((h>>>5&7)<2) continue;
     var fl=0.55+0.45*Math.sin(now*0.006+((h>>>11)%628)/100);
@@ -51093,7 +51117,7 @@ function titanScorch(g,A,L,now){
     g.globalCompositeOperation="source-over";
   }
   // ── AND THE SMOKE OFF IT, which is what makes a horizon read as RUINED rather than merely dark.
-  var sn2=Math.round(16*str);
+  var sn2=Math.round(16*str);   // (str is 0 before the end, so no smoke on a living world)
   for(var q=0;q<sn2;q++){
     var hs=((q*2654435761+4471)>>>0); hs=(hs^(hs>>>13))>>>0;
     var sx=((hs+((WOFF*2654435761)>>>0))%Math.max(1,SW))|0;
@@ -51804,7 +51828,10 @@ function titanWall(g,ap,L,now,rkA,rkB,side){
     // 🔒 START AS SPECKS. 0.72·TU opened at 180 wp — over the skyline from the first frame, which was
     // the OLD requirement and is not what he wants now. 0.06·TU is 15 wp: a smudge on the horizon,
     // legible only because the city occludes everything below it. Range is now 32x, not 2.7x.
-    var H=Math.max(2,Math.round(TU*(0.06+1.90*near)*dsc));
+    // 🔒 "start off smaller and they get so much bigger". 0.035·TU is NINE world px — a mark on the
+    // horizon — and 2.60·TU is 650, half again the height of the whole frame, so at the climax the
+    // legs alone do not fit in it. A 74x range; it was 32x, and 2.7x three commits ago.
+    var H=Math.max(2,Math.round(TU*(0.035+2.60*near)*dsc));
     // ⚠ Re-measure with the rank table after touching either number: every rank must be monotonic in
     // ap, and every rank must clear 125 wp — the ordinary skyline — from the very first frame.
     var W2=Math.max(1,Math.round(H*0.21));
