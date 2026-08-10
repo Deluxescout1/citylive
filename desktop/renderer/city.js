@@ -43508,6 +43508,24 @@ function drawVolcanoLive(g,L,now,nd){
 // mistake waiting to happen — ONE MONITOR IS ~28% OF THE WORLD, so a local feature is invisible on two
 // screens out of three. A rift that runs the full width is seen from every 776px window; what varies
 // per life is its DEPTH, its WIDTH and how it wanders, not whether you can see it.
+// 🔒🚨🔑🔑 THE ERA AND THE CONDITION — HIS VARIETY ANSWERS, AND THE CONDITION HALF NEVER DREW A PIXEL.
+// Both were rolled inside `drawCoreCanyon`'s cache. `era` tinted exactly one surface, the near-black
+// trench rock: steel rgb(14,15,22) · sodium rgb(20,16,14) · green rgb(12,20,16) — a ~6/255 difference
+// on the DARKEST mass in the frame, i.e. a palette answer you cannot see. And `cond` was rolled,
+// stored, and read by NOTHING: `grep "C\.cond"` returned one hit and it was the write. The comment
+// beside it argued at length that two independent hashes were needed "or there would be three lives,
+// not nine". There were three. 🔑 A HASH WITH THREE OUTCOMES IS NOT VARIETY UNTIL SOMETHING LARGE
+// READS IT — and the largest surfaces on this land are the tower faces and the lit windows, not the
+// rock. ⚠ It also could not have worked where it sat: the canyon cache is built at band 2 of 4, so the
+// two FAR bands have already drawn by then. Rolled here instead, once per life, so the trench and the
+// city agree and every band can ask before it paints.
+var coreEraCache=null;
+function coreEraOf(li){
+  if(coreEraCache&&coreEraCache.li===li) return coreEraCache;
+  var eh=((li*2654435761+31337)>>>0); eh=(eh^(eh>>>13))>>>0;   // ⚠ same h0 the canyon uses, so era is unchanged
+  coreEraCache={ li:li, era:(eh>>>19)%3, cond:(eh>>>25)%3 };
+  return coreEraCache;
+}
 var coreCanCache=null;
 function drawCoreCanyon(g,L,now,skc,day){
   var gy=HORIZON, K=Math.max(1,KSP), li=lifeIndexOf(now);
@@ -43690,6 +43708,20 @@ function drawCoreWorld(g,L,now,nd){
   // value range, not a count of layers. The far rank is now almost sky and the near rank is nearly
   // black, which is what makes a city recede for miles instead of standing on one plane.
   var bands=[{d:0.90,h:1.00,step:11},{d:0.66,h:0.82,step:14},{d:0.38,h:0.64,step:18},{d:0.06,h:0.46,step:24}];
+  // 🔒 ERA + CONDITION, now read by the things big enough to carry them. ERA moves the LIGHT — the
+  // tower faces and the window colour — because "cold steel · warm sodium · sickly green" is a claim
+  // about what the city is lit BY, and a city's light is its faces and its windows.
+  var EO=coreEraOf(lifeIndexOf(now));
+  var ERAT=[[122,152,214],[255,178,98],[132,214,150]][EO.era];      // steel · sodium · sick green
+  var ERAB=[0.17,0.21,0.15][EO.era];                                 // how hard it bites the faces
+  var ERAW=[[208,228,255],[255,208,142],[198,246,192]][EO.era];      // …and the windows wear it too
+  // CONDITION is the other axis, deliberately on an independent hash so there are nine lives and not
+  // three: THRIVING (lit up, well kept) · OVERBUILT (packed tighter and reaching higher) · SOOT-STAINED
+  // AND HALF-ABANDONED (dark windows, dead signage, grime over everything).
+  var condLit=[1.20,1.00,0.46][EO.cond];    // how much of the city has its lights on
+  var condDens=[1.00,0.74,1.00][EO.cond];   // overbuilt packs the towers tighter
+  var condHt=[1.00,1.17,0.95][EO.cond];     // …and reaches higher with them
+  var condNeon=[1.18,1.00,0.38][EO.cond];   // signage is the first thing to go unmaintained
   // FULL CYBERPUNK (Nick's call). ⚠ THE SPRAWL IS ALSO CYBERPUNK, so this had to differ by something
   // other than palette or we would ship the same land twice. The distinction is SCALE and FRAMING:
   // the Sprawl is street-level noir you stand in — wet asphalt, steam, holograms over your head —
@@ -43704,13 +43736,17 @@ function drawCoreWorld(g,L,now,nd){
     var bd=bands[bi];
     var base=mixc(day?B.near:[10,12,18], skc, bd.d);
     if(!day) base=mixc(base,[6,8,20],0.35*(1-bd.d));          // near ranks sink toward black at night
+    // the era, strongest on the near ranks — the far ones are mostly haze and must stay mostly sky,
+    // or the depth range this land spent a whole commit buying is spent again on a colour cast
+    base=mixc(base,ERAT,ERAB*(1-bd.d*0.72));
+    if(EO.cond===2) base=mixc(base,[94,86,74],0.20*(1-bd.d*0.5));   // soot, over the whole face
     var faceC=css(base), sideC=css(mixc(base,[0,0,0],0.22)), topC=css(mixc(base,[255,255,255],0.10));
-    var step=Math.max(4,Math.round(bd.step*K));
+    var step=Math.max(4,Math.round(bd.step*K*condDens));
     for(var x=-step;x<SW+step;x+=step){
       var h=(((x+((WOFF*3)|0))*2654435761+bi*7919)>>>0);
       var tw=Math.round(step*(0.62+((h%100)/100)*0.30));
       // height: the band's reach, this tower's own roll, and the week's vertical build
-      var th=Math.round(gy*bd.h*(0.30+((h>>>7)%100)/100*0.70)*(0.34+0.66*up));
+      var th=Math.round(gy*bd.h*(0.30+((h>>>7)%100)/100*0.70)*(0.34+0.66*up)*condHt);
       if(th<6*K) continue;
       var tx=x+Math.round(((h>>>13)%40)/40*step*0.3), ty=gy-th;
       g.fillStyle=faceC; g.fillRect(tx,ty,tw,gy-ty+2);
@@ -43749,10 +43785,12 @@ function drawCoreWorld(g,L,now,nd){
       // WINDOWS, in horizontal runs, and more of them lit the further the week has gone.
       var wq=Math.max(3,Math.round(3.4*K));
       for(var wy=ty+wq;wy<gy-wq;wy+=wq){
-        if((((wy*31+x)>>>0)%100) > 24+56*up) continue;
+        // 🔒 THE CONDITION IS MOSTLY THIS LINE. "A million lit windows" is the land's main light source
+        // after dark, so how many of them are ON is what thriving and half-abandoned actually look like.
+        if((((wy*31+x)>>>0)%100) > Math.min(96,(24+56*up)*condLit)) continue;
         var wlit=day?0:lit;
-        g.fillStyle=day?"rgba(180,196,224,"+(0.30*(1-bd.d)).toFixed(2)+")"
-                       :"rgba(255,214,152,"+(0.16+0.5*wlit*(1-bd.d)).toFixed(2)+")";
+        g.fillStyle=day?"rgba("+ERAW[0]+","+ERAW[1]+","+ERAW[2]+","+(0.30*(1-bd.d)).toFixed(2)+")"
+                       :"rgba("+ERAW[0]+","+ERAW[1]+","+ERAW[2]+","+(0.16+0.5*wlit*(1-bd.d)).toFixed(2)+")";
         g.fillRect(tx+Math.round(K),wy,tw-Math.round(2*K),Math.max(1,Math.round(K)));
       }
       // ---- NEON. At this scale the cyberpunk is not readable signage, it is a million lights too far
@@ -43764,7 +43802,7 @@ function drawCoreWorld(g,L,now,nd){
         // cyberpunk city that only exists after dark is a night skin, not an identity — the same
         // point the Sprawl brief makes ("must read cyberpunk at NOON"). Signage is bright enough to
         // compete with daylight in a real megacity; that is why it is switched on.
-        var na=day?0.34:0.55;
+        var na=(day?0.34:0.55)*condNeon;   // dead signage is what a half-abandoned megacity looks like
         g.globalCompositeOperation="lighter";
         g.fillStyle=nc; g.globalAlpha=na*(1-bd.d);
         g.fillRect(tx,ty,Math.max(1,Math.round(K*0.8)),th);                 // an edge strip up one corner
