@@ -51932,6 +51932,39 @@ APOC_X.rogueplanet=function(g,ap,L,now){
 // readable is the FAR wall, since the near one faces away from us.
 // ⚠ WORLD-ANCHORED and it crosses the whole world, so all three monitors get a piece of it — the
 // beach headland's lesson. What varies per life is where it is widest, not whether you can see it.
+// 🕳️ HOW FAR OPEN IS THE GROUND AT THIS WORLD X — THE ONE PLACE THAT DECIDES. Nick, with a screenshot
+// of the finished chasm: "make sure everyone and everything falls." They were not: pedestrians stood
+// ON the void and the road ran along the bottom of it, because the chasm draws inside
+// `drawApocalypse` and several layers paint AFTER it — the fallen, the stains they lie in, the
+// mourners, the wrecks, the debris.
+// 🔑🔑 AND THE ENGINE ALREADY HAD THE ANSWER: `apocNoGround(wx)` — asked at NINE call sites by every
+// one of those layers, and already unioning THE PIT, THE HOLLOW and the flood. The fix is one row in
+// that union, not a new mechanism. My first attempt was a screen-space array published by the
+// renderer, which is a second source of truth for a question that already had one.
+// ⚠ AND THE GEOMETRY LIVES HERE, NOT IN THE RENDERER, so the predicate and the picture cannot drift.
+// That drift is the exact fault `APOC_SWEEP` vs `APOC_STRIKE_AP` had to be checked row-by-row for,
+// and the one that let the doomsday clock display a time the city then ignored.
+var crustHC={t:null,h:0};
+function crustOpenAt(wx,ap,now){
+  var op=Math.max(0,Math.min(1,(ap-0.14)/0.62));
+  if(op<=0) return 0;
+  var epi=(typeof apocEpiX==="function")?apocEpiX(now):Math.round(WW*0.5);
+  var d=((wx-epi)%WW+WW*1.5)%WW-WW*0.5;
+  var fall=Math.max(0,1-Math.abs(d)/(WW*0.46));
+  if(fall<=0) return 0;
+  // ⚡ the life hash is per FRAME, not per column. Called straight, `lifeIndexOf` made this 1.72us a
+  // call — 776 columns of chasm plus a call for every body, wreck and particle that asks
+  // `apocNoGround`, which is ~1.3ms a frame to re-derive one number that cannot change within a frame.
+  if(crustHC.t!==now){ var hh=((lifeIndexOf(now)*2654435761+9176)>>>0); crustHC={t:now,h:(hh^(hh>>>13))>>>0}; }
+  var hc=crustHC.h;
+  var v1=Math.sin(wx*0.0021+((hc>>>3)%628)/100)*0.20;
+  var v2=Math.sin(wx*0.0083+((hc>>>9)%628)/100)*0.09;
+  return Math.round((Math.max(8,SH-HORIZON)*0.86)*op*Math.pow(fall,0.75)*(0.72+v1+v2));
+}
+function crustGone(wx){
+  if(curDeath!=="crustcrack"||cityPhase!=="apoc") return false;
+  return crustOpenAt(wx,cityApoc,NOWOVR!=null?NOWOVR:Date.now())>=2;
+}
 function crustChasm(g,ap,L,now,K){
   var day=L>0.5, gy=HORIZON, band=Math.max(8,SH-gy);
   var epi=(typeof apocEpiX==="function")?apocEpiX(now):Math.round(WW*0.5);
@@ -51955,11 +51988,16 @@ function crustChasm(g,ap,L,now,K){
     var d=((wx-epi)%WW+WW*1.5)%WW-WW*0.5;                   // wrapped distance from the epicentre
     var fall=Math.max(0,1-Math.abs(d)/(WW*0.46));           // widest at the epicentre, tapering away
     var w1=Math.sin(wx*0.0021+((h0>>>3)%628)/100)*0.20;
-    var w2=Math.sin(wx*0.0083+((h0>>>9)%628)/100)*0.09;
-    var openBase=Math.round(maxOpen*op*Math.pow(fall,0.75)*(0.72+w1+w2));
+    var openBase=crustOpenAt(wx,ap,now);        // ⚠ ONE SOURCE — see crustOpenAt above
     if(openBase<2&&consume<=0) continue;
     var rise=Math.round(gy*0.66*consume*Math.pow(fall,0.55)*(0.80+w1*0.9));
-    var nearY=Math.min(SH-1,gy+Math.round(band*0.16)+openBase);
+    // …AND IT TAKES THE NEAR SIDE TOO. The near lip used to stop inside the band, which left the road
+    // and its traffic running along the bottom of the frame in front of a hole that had eaten the rest
+    // of the world — the single thing that most said "this is a picture of a hole" rather than "the
+    // ground is going". Once it is properly open the near ground goes with it, down past the frame.
+    var nearY=gy+Math.round(band*0.16)+openBase;
+    if(consume>0) nearY=Math.round(nearY+(SH+4-nearY)*Math.min(1,consume/0.45));
+    nearY=Math.min(SH+4,nearY);
     var farY=Math.max(2,gy+Math.round(band*0.16-openBase*0.10)-rise);   // climbs into the city
     farA[x]=farY; nearA[x]=nearY; openA[x]=nearY-farY;
     if(openA[x]>maxWall) maxWall=openA[x];
@@ -51970,6 +52008,7 @@ function crustChasm(g,ap,L,now,K){
   // when the most is happening. 🔑 THE SAME FAULT AS THE CANYON GLOW, IN CODE WRITTEN AN HOUR AFTER
   // FIXING THE CANYON GLOW. Per-column detail is a choice; flush when the PROFILE changes, not when
   // the column does. Knowing the rule is not the same as recognising the shape of it in new code.
+
   var stepQ=Math.max(1,Math.round(K));
   g.fillStyle=day?"rgba(9,6,7,0.97)":"rgba(4,3,4,0.98)";
   var vX=-1,vY=0,vH=0;
@@ -52006,7 +52045,9 @@ function crustChasm(g,ap,L,now,K){
       h3=Math.max(1,Math.round(openA[xm2]*0.16));
       var pl=0.72+0.28*Math.sin(now*0.003+(xm2+WOFF)*0.02);
       s3="rgba(255,"+(150+Math.round(70*pl))+","+(40+Math.round(50*pl))+","+(0.92*pl).toFixed(3)+")";
-      y3=nearA[xm2]-h3;
+      y3=Math.min(SH-h3,nearA[xm2]-h3);   // ⚠ clamped: once the near lip drops past the frame the
+                                          // molten floor must stay visible, or the hole loses its bottom
+
     }
     if(s3!==mSty||y3!==mY||h3!==mHH){ if(mSty!==null&&mX>=0&&xm2>mX){ g.fillStyle=mSty; g.fillRect(mX,mY,xm2-mX,mHH); } mSty=s3; mX=xm2; mY=y3; mHH=h3; }
   }
@@ -57083,7 +57124,7 @@ function apocInPit(wx){
 // THE HOLLOW already meant — one more `||` here and all nine call sites are correct at once. The
 // ending then draws them FLOATING, at the waterline, in `ragFloatDead`.
 function apocNoGround(wx){
-  return apocInPit(wx)||hollowGone(wx)||
+  return apocInPit(wx)||hollowGone(wx)||crustGone(wx)||
          (APOC_DROWNS[curDeath] && cityPhase==="apoc" && typeof floodGroundHit==="function" && floodGroundHit(wx));
 }
 var APOC_FRONTED={nuke:1,meteors:1,sunburst:1,ai:1,bh:1,alienwar:1,frost:1,kaiju:1,ninetails:1,flood:1,kaijuwar:1,
