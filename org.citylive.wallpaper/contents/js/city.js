@@ -51892,13 +51892,83 @@ APOC_X.gammaray=function(g,ap,L,now){
   var burnt=Math.min(1,Math.max(0,(ap-0.10)/0.18));
   var late=Math.min(1,Math.max(0,(ap-0.26)/0.62));               // …and it KEEPS developing, unlike before
   if(burnt>0){
-    // the ionised sky, hottest toward the source rather than flat across the frame
+    // 🔒 SECOND REWORK, 2026-08-10. Rendered at full size the first one was FLAT MAUVE: sky, rift and
+    // city all landed on one value and nearly one hue, so a land whose entire brief is EXTREME VALUE
+    // CONTRAST had none anywhere. 🔑🔑 A TRANSLUCENT WASH OVER EVERYTHING CANNOT CREATE CONTRAST — it
+    // is definitionally the opposite, it drags every value toward one number. The cure is not a better
+    // wash, it is to stop washing: the burst now BLEACHES what faces it and leaves everything else in
+    // deep magenta shadow, so the frame is split into two populations instead of averaged into one.
+    // 🔒 His four calls: bleach it white-hot · ONE colossal column, not ten thin rays · violet and
+    // magenta · hard full-frame flashes are welcome.
+    var colX=sx, colHW=Math.round(SW*(0.055+0.05*burnt));
+    // the sky: deep magenta at the edges, hot violet toward the column — a gradient ACROSS, not just down
     for(var q=0;q<gy;q++){
       var qf=q/gy;
-      var t=mixc([168,86,220],[236,158,92],qf);
-      g.fillStyle=rgba(mixc(t,[60,20,90],0.35*late),(0.50*burnt*(1-qf*0.30)).toFixed(3));
+      var t=mixc([214,120,255],[120,30,140],qf);
+      // ⚠ CUT FROM 0.62 TO 0.28. I raised this wash in the same edit that added the bleach on top of
+      // it, so the two fought and the frame landed uniformly pale pink — the exact flatness the rework
+      // existed to remove, arrived at from the opposite direction. 🔑 A WASH AND A BLEACH ARE THE SAME
+      // TOOL: adding both means adding twice. The wash now only tints; the bleach and the shade do the
+      // work, because they VARY across the frame and a wash by definition does not.
+      g.fillStyle=rgba(mixc(t,[46,8,58],0.45*late),(0.28*burnt*(1-qf*0.22)).toFixed(3));
       g.fillRect(0,q,SW,1);
     }
+    // ── ☀️ THE BLEACH AND THE SHADOW, run-batched by quantised alpha. Everything near the column is
+    // burned toward white; everything far from it sinks into magenta dark. This one pass is most of
+    // what the picture now IS.
+    var bX=-1,bA=-1;
+    g.globalCompositeOperation="lighter";
+    for(var x3=0;x3<=SW;x3++){
+      var aq=-1;
+      if(x3<SW){
+        var dn=Math.abs(x3-colX)/Math.max(1,SW*0.52);
+        var bl=Math.max(0,1-dn); bl=bl*bl;
+        aq=Math.round(Math.min(0.80,0.80*bl*burnt)*40);
+      }
+      if(aq!==bA){
+        if(bA>0&&bX>=0&&x3>bX){
+          // ⚠ WEIGHTED TO THE SKY. Applied flat over the full frame height this bleached the CITY out
+          // too — by mid-arc there was nothing in the picture but white, which is not "white-hot", it
+          // is "empty". A blown highlight still has a subject in front of it: the sky takes the full
+          // burn and the ground takes a third of it, so the city survives as a dark shape against it.
+          g.fillStyle="rgba(255,244,255,"+(bA/40).toFixed(3)+")"; g.fillRect(bX,0,x3-bX,gy);
+          g.fillStyle="rgba(255,244,255,"+((bA/40)*0.34).toFixed(3)+")"; g.fillRect(bX,gy,x3-bX,SH-gy);
+        }
+        bA=aq; bX=x3;
+      }
+    }
+    g.globalCompositeOperation="source-over";
+    var sX=-1,sA=-1;
+    for(var x4=0;x4<=SW;x4++){
+      var aq2=-1;
+      if(x4<SW){
+        var dn2=Math.abs(x4-colX)/Math.max(1,SW*0.52);
+        aq2=Math.round(Math.min(0.88,0.88*Math.max(0,(dn2-0.16)/0.84))*40*burnt);
+      }
+      if(aq2!==sA){
+        if(sA>0&&sX>=0&&x4>sX){
+          // …and the shade is weighted the OTHER way: light on the sky, heavy on the ground, so the
+          // city sinks into deep magenta exactly where the sky is blowing out behind it.
+          g.fillStyle="rgba(30,4,40,"+((sA/40)*0.72).toFixed(3)+")"; g.fillRect(sX,0,x4-sX,gy);
+          g.fillStyle="rgba(28,3,38,"+(sA/40).toFixed(3)+")"; g.fillRect(sX,gy,x4-sX,SH-gy);
+        }
+        sA=aq2; sX=x4;
+      }
+    }
+    // ── 🔆 THE COLUMN. One beam, hard-edged, white at the core and violet at its walls, with the air
+    // striating inside it. 🔑 The old ten thin rays were scratches; a thing you can point at has to have
+    // a WIDTH, and the width is what makes the city inside it disappear.
+    g.globalCompositeOperation="lighter";
+    for(var cy2=0;cy2<SH;cy2++){
+      var cf=cy2/SH, hw2=Math.round(colHW*(0.82+cf*0.42));
+      var edge=0.34*burnt*(1-cf*0.18);
+      g.fillStyle="rgba(232,150,255,"+edge.toFixed(3)+")";
+      g.fillRect(colX-hw2,cy2,hw2*2,1);
+      var core=Math.round(hw2*(0.38+0.10*Math.sin(now*0.004+cy2*0.05)));
+      g.fillStyle="rgba(255,250,255,"+(0.68*burnt*(1-cf*0.12)).toFixed(3)+")";
+      g.fillRect(colX-core,cy2,core*2,1);
+    }
+    g.globalCompositeOperation="source-over";
     // ── ⚡ THE RAYS. Long hard wedges out of the source: the light has a DIRECTION, which is the whole
     // difference between an event and a tint. Additive, and they sweep slowly so the frame is not dead.
     g.globalCompositeOperation="lighter";
@@ -51906,20 +51976,11 @@ APOC_X.gammaray=function(g,ap,L,now){
     // which leaves a GAP between every mark — the rays came out as dotted spokes, and a dotted line is
     // the one thing light is not. Same discontinuity as the beaded scream ring and the folded viaduct
     // deck: 🔑 CONNECT THE STEPS, DO NOT PLOT THE SAMPLES. Step and height are now the same number.
-    var rays=10, stp=Math.max(1,Math.round(K));
-    for(var r=0;r<rays;r++){
-      var a0=(r/rays)*Math.PI*2+now*0.00006, ca=Math.cos(a0), sa2=Math.sin(a0);
-      var len=Math.round(Math.max(SW,gy)*1.4);
-      for(var s=0;s<len;s+=stp){
-        var px=Math.round(sx+ca*s), py=Math.round(sy+sa2*s);
-        if(py<-4||py>gy+4||px<-40||px>SW+40) continue;
-        var fw=Math.max(1,Math.round((0.8+s/len*6.0)*K));
-        var aa=0.22*burnt*(1-s/len);
-        if(aa<0.012) continue;
-        g.fillStyle="rgba(214,238,255,"+aa.toFixed(3)+")";
-        g.fillRect(px-(fw>>1),py,fw,stp);
-      }
-    }
+    // 🗑️ THE TEN THIN RAYS ARE GONE. At full size they read as pale SCRATCHES across the sky, and two
+    // of them were visibly beaded where the step outran the mark. The column replaces all of them: one
+    // wide hard thing beats ten faint ones, which is the same conclusion the rift, the screamer and the
+    // chasm each arrived at separately. A fan of thin lines is what you draw when you have not decided
+    // what the object is.
     // the source itself — small, and the brightest thing that has ever been on this land
     var cr=Math.max(2,Math.round((3+5*burnt)*K));
     for(var h2=cr*4;h2>0;h2-=Math.max(1,Math.round(K))){
@@ -52066,8 +52127,13 @@ function gammaViolence(g,ap,now,K,gy,sx,sy,epi,burnt,late){
       }
     }
     g.globalCompositeOperation="source-over";
-    g.fillStyle="rgba(226,240,255,"+(0.16*puls*burnt).toFixed(3)+")";   // …and the frame takes the hit
+    // 🔒 HARD FLASHES, his call. The frame goes to near-white on the beat rather than brightening
+    // politely — a pulse you can feel is the difference between a light source and a weapon, and he was
+    // asked explicitly whether a wallpaper should be allowed to do this.
+    g.globalCompositeOperation="lighter";
+    g.fillStyle="rgba(255,238,255,"+(0.62*puls*burnt).toFixed(3)+")";
     g.fillRect(0,0,SW,SH);
+    g.globalCompositeOperation="source-over";
   }
 }
 
