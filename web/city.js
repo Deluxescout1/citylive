@@ -51940,39 +51940,89 @@ function crustChasm(g,ap,L,now,K){
   var h0=((lifeIndexOf(now)*2654435761+9176)>>>0); h0=(h0^(h0>>>13))>>>0;
   // the near lip sits low in the band and the far lip higher, so you are looking ACROSS the gap and
   // down into it. Both wander in WORLD space so the two sides never look like parallel rules.
+  // 🔒 "EVERYONE AND EVERYTHING FALLS INTO IT AND IT ENDS UP CONSUMING THE WORLD" — his brief once the
+  // chasm read. So the opening has TWO phases. First it widens across the street band (`op`). Then,
+  // from ap 0.68, it EATS UPWARD (`consume`): the far lip climbs out of the foreground and up the
+  // frame, swallowing the skyline from the bottom, until near the epicentre there is no city left
+  // above it — just the far wall and the light at the bottom. 🔑 A hole that stops growing is scenery;
+  // the second phase is what makes it an ending.
+  var consume=Math.max(0,Math.min(1,(ap-0.68)/0.32));
   var maxOpen=band*0.86;
+  var farA=new Array(SW), nearA=new Array(SW), openA=new Array(SW), maxWall=0;
+  for(var xi=0;xi<SW;xi++){ farA[xi]=0; nearA[xi]=0; openA[xi]=0; }
   for(var x=0;x<SW;x++){
     var wx=x+WOFF;
     var d=((wx-epi)%WW+WW*1.5)%WW-WW*0.5;                   // wrapped distance from the epicentre
     var fall=Math.max(0,1-Math.abs(d)/(WW*0.46));           // widest at the epicentre, tapering away
     var w1=Math.sin(wx*0.0021+((h0>>>3)%628)/100)*0.20;
     var w2=Math.sin(wx*0.0083+((h0>>>9)%628)/100)*0.09;
-    var openH=Math.round(maxOpen*op*Math.pow(fall,0.75)*(0.72+w1+w2));
-    if(openH<2) continue;
-    var farY=gy+Math.round(band*0.16-openH*0.10);           // the far lip, high in the band
-    var nearY=Math.min(SH-1,farY+openH);                    // the near lip, low and closer to us
-    // the void itself, and it is genuinely dark — everything that says DEEP is the light in it
-    g.fillStyle=day?"rgba(9,6,7,0.97)":"rgba(4,3,4,0.98)";
-    g.fillRect(x,farY,1,openH);
-    // the FAR wall, lit from below by what is down there. Near the lip it is almost black; toward the
-    // bottom it takes the magma. This gradient is the only thing that makes a black slot read as depth.
-    var wallH=Math.round(openH*0.62);
-    for(var q=0;q<wallH;q+=Math.max(1,Math.round(K))){
-      var t=q/Math.max(1,wallH), a=0.86*Math.pow(t,1.5);
-      if(a<0.02) continue;
-      g.fillStyle="rgba("+(90+Math.round(165*t))+","+(18+Math.round(96*t))+","+(10+Math.round(28*t))+","+a.toFixed(3)+")";
-      g.fillRect(x,farY+q,1,Math.max(1,Math.round(K)));
+    var openBase=Math.round(maxOpen*op*Math.pow(fall,0.75)*(0.72+w1+w2));
+    if(openBase<2&&consume<=0) continue;
+    var rise=Math.round(gy*0.66*consume*Math.pow(fall,0.55)*(0.80+w1*0.9));
+    var nearY=Math.min(SH-1,gy+Math.round(band*0.16)+openBase);
+    var farY=Math.max(2,gy+Math.round(band*0.16-openBase*0.10)-rise);   // climbs into the city
+    farA[x]=farY; nearA[x]=nearY; openA[x]=nearY-farY;
+    if(openA[x]>maxWall) maxWall=openA[x];
+  }
+  // ⚡🚨 GEOMETRY FIRST, THEN PASSES — because the obvious way round is the trap this land has already
+  // paid for twice. Written per-column, the far wall's gradient cost 96,172 fills at the climax and
+  // took the frame to 134,598: worse than the whole land was before today's work, and worst exactly
+  // when the most is happening. 🔑 THE SAME FAULT AS THE CANYON GLOW, IN CODE WRITTEN AN HOUR AFTER
+  // FIXING THE CANYON GLOW. Per-column detail is a choice; flush when the PROFILE changes, not when
+  // the column does. Knowing the rule is not the same as recognising the shape of it in new code.
+  var stepQ=Math.max(1,Math.round(K));
+  g.fillStyle=day?"rgba(9,6,7,0.97)":"rgba(4,3,4,0.98)";
+  var vX=-1,vY=0,vH=0;
+  for(var xv=0;xv<=SW;xv++){
+    var oy=(xv<SW&&openA[xv]>=2)?farA[xv]:-99999, oh=(xv<SW&&openA[xv]>=2)?openA[xv]:0;
+    if(oy!==vY||oh!==vH){ if(vY!==-99999&&vX>=0&&xv>vX&&vH>0) g.fillRect(vX,vY,xv-vX,vH); vX=xv; vY=oy; vH=oh; }
+  }
+  // the FAR wall, lit from below by what is down there — near the lip almost black, taking the magma
+  // toward the bottom. This gradient is the only thing that makes a black slot read as DEPTH.
+  var wallMax=Math.round(maxWall*0.62);
+  for(var q=0;q<wallMax;q+=stepQ){
+    var rX=-1,rSty=null,rY=0;
+    for(var xw=0;xw<=SW;xw++){
+      var sty=null,yy=0;
+      if(xw<SW&&openA[xw]>=2){
+        var wallH=Math.round(openA[xw]*0.62);
+        if(q<wallH){
+          var t=q/Math.max(1,wallH), a=0.86*Math.pow(t,1.5);
+          if(a>=0.02){
+            var tq=Math.round(t*20)/20;
+            sty="rgba("+(90+Math.round(165*tq))+","+(18+Math.round(96*tq))+","+(10+Math.round(28*tq))+","+(Math.round(a*160)/160).toFixed(3)+")";
+            yy=farA[xw]+q;
+          }
+        }
+      }
+      if(sty!==rSty||yy!==rY){ if(rSty!==null&&rX>=0&&xw>rX){ g.fillStyle=rSty; g.fillRect(rX,rY,xw-rX,stepQ); } rSty=sty; rX=xw; rY=yy; }
     }
-    // molten at the bottom, pulsing — the brightest thing in the frame, and the reason for the glow
-    var mH=Math.max(1,Math.round(openH*0.16));
-    var pl=0.72+0.28*Math.sin(now*0.003+wx*0.02);
-    g.fillStyle="rgba(255,"+(150+Math.round(70*pl))+","+(40+Math.round(50*pl))+","+(0.92*pl).toFixed(3)+")";
-    g.fillRect(x,nearY-mH,1,mH);
-    // the lips: a lit edge on the far side (it faces us and the sky), a hard dark edge on the near
-    g.fillStyle=day?"rgba(196,182,170,0.85)":"rgba(120,110,108,0.75)";
-    g.fillRect(x,farY-Math.max(1,Math.round(K*0.7)),1,Math.max(1,Math.round(K*0.7)));
-    g.fillStyle=day?"rgba(26,20,20,0.95)":"rgba(12,9,10,0.96)";
-    g.fillRect(x,nearY,1,Math.max(1,Math.round(K*0.9)));
+  }
+  // molten at the bottom, pulsing — the brightest thing in the frame and the reason for all the glow
+  var mX=-1,mSty=null,mY=0,mHH=0;
+  for(var xm2=0;xm2<=SW;xm2++){
+    var s3=null,y3=0,h3=0;
+    if(xm2<SW&&openA[xm2]>=2){
+      h3=Math.max(1,Math.round(openA[xm2]*0.16));
+      var pl=0.72+0.28*Math.sin(now*0.003+(xm2+WOFF)*0.02);
+      s3="rgba(255,"+(150+Math.round(70*pl))+","+(40+Math.round(50*pl))+","+(0.92*pl).toFixed(3)+")";
+      y3=nearA[xm2]-h3;
+    }
+    if(s3!==mSty||y3!==mY||h3!==mHH){ if(mSty!==null&&mX>=0&&xm2>mX){ g.fillStyle=mSty; g.fillRect(mX,mY,xm2-mX,mHH); } mSty=s3; mX=xm2; mY=y3; mHH=h3; }
+  }
+  // the lips: a lit edge on the far side (it faces us and the sky), a hard dark one on the near
+  var lipT=Math.max(1,Math.round(K*0.7)), lipB=Math.max(1,Math.round(K*0.9));
+  g.fillStyle=day?"rgba(196,182,170,0.85)":"rgba(120,110,108,0.75)";
+  var fX=-1,fY2=0;
+  for(var xf=0;xf<=SW;xf++){
+    var fy2=(xf<SW&&openA[xf]>=2)?(farA[xf]-lipT):-99999;
+    if(fy2!==fY2){ if(fY2!==-99999&&fX>=0&&xf>fX) g.fillRect(fX,fY2,xf-fX,lipT); fX=xf; fY2=fy2; }
+  }
+  g.fillStyle=day?"rgba(26,20,20,0.95)":"rgba(12,9,10,0.96)";
+  var nX=-1,nY2=0;
+  for(var xn=0;xn<=SW;xn++){
+    var ny2=(xn<SW&&openA[xn]>=2)?nearA[xn]:-99999;
+    if(ny2!==nY2){ if(nY2!==-99999&&nX>=0&&xn>nX) g.fillRect(nX,nY2,xn-nX,lipB); nX=xn; nY2=ny2; }
   }
   // …and the heat it throws UP onto the city, which is what stops the chasm being a hole in a photo
   // and makes it a light source standing in the same world as the buildings. Same lesson as the rift.
@@ -51985,6 +52035,53 @@ function crustChasm(g,ap,L,now,K){
     g.fillRect(0,gy-qu,SW,Math.max(2,Math.round(2*K)));
   }
   g.globalCompositeOperation="source-over";
+  crustFallers(g,ap,now,K,epi,op,gy,band);
+}
+// ── 🧍🚗🧱 …AND EVERYTHING GOES IN. 🔒 His brief: "everyone and everything falls into it." Without
+// this the chasm is a hole the city politely stands around; the falling is what makes it eat.
+// 🔑 SCRIPTED FROM A HASH, NEVER SIMULATED — three monitors must agree without talking to each other,
+// so a faller's whole life is a pure function of its index and the clock. No state, no spawn list.
+// ⚠ A PERSON IS `drawPerson` AND A FIXED 7px, falling or not — the one body routine, never a bespoke
+// blob, and never scaled by KSP. That rule has been broken four times on this project.
+function crustFallers(g,ap,now,K,epi,op,gy,band){
+  if(op<=0.02) return;
+  var N=Math.round(30*op), spread=WW*0.44;
+  var CARC=["#c8503c","#3c6cc8","#d8c04c","#4cb87c","#b8b8c0","#8c5cc8"];
+  for(var i=0;i<N;i++){
+    var fh=((i*2654435761+7717)>>>0); fh=(fh^(fh>>>13))>>>0;
+    var fwx=epi+((((fh>>>3)%2000)/1000)-1)*spread;          // clustered on the epicentre, world-anchored
+    var fx=Math.round(fwx)-WOFF;
+    if(fx<-10||fx>SW+10) continue;
+    var per=2400+((fh>>>9)%2600);
+    var t=(((now+((fh>>>15)%per))%per)/per);                 // 0..1 through its own fall, forever
+    // it drops from the near lip and accelerates — the only place gravity appears in this engine is
+    // as t*t, because a linear fall reads as a lift descending
+    var top=gy+Math.round(band*0.10), drop=Math.round((band*0.95+gy*0.5*ap)*t*t);
+    var fy=top+drop;
+    if(fy>SH+6) continue;
+    var a=Math.max(0,1-Math.pow(t,2.6));                     // swallowed by the dark on the way down
+    if(a<0.06) continue;
+    var kind=(fh>>>21)%5;
+    g.globalAlpha=a;
+    if(kind<=1){                                             // a person, tumbling
+      var mk=0.42+0.22*t;
+      drawPerson(g,fx,fy,hexDark(PEDC[(fh>>>11)%PEDC.length],mk),hexDark(SKINC[(fh>>>17)%SKINC.length],mk*0.75),(fh&1)?1:-1,0);
+    } else if(kind===2){                                     // a car, nose-down
+      var cw2=Math.max(2,Math.round(5*K)), chh=Math.max(1,Math.round(2.4*K));
+      g.fillStyle=CARC[(fh>>>19)%CARC.length];
+      g.fillRect(fx-(cw2>>1),fy-chh,cw2,chh);
+      g.fillStyle="rgba(20,16,18,0.55)";
+      g.fillRect(fx-(cw2>>1),fy-chh,cw2,Math.max(1,Math.round(K*0.7)));
+    } else {                                                 // a slab of road or wall, turning over
+      var sw2=Math.max(2,Math.round((3+((fh>>>23)%5))*K)), sh2=Math.max(1,Math.round(1.6*K));
+      var tilt=Math.round(Math.sin(t*7.0+((fh>>>25)%628)/100)*K);
+      g.fillStyle="rgba(58,50,48,0.95)";
+      g.fillRect(fx-(sw2>>1),fy-sh2+tilt,sw2,sh2);
+      g.fillStyle="rgba(150,140,132,0.65)";
+      g.fillRect(fx-(sw2>>1),fy-sh2+tilt,sw2,Math.max(1,Math.round(K*0.5)));
+    }
+    g.globalAlpha=1;
+  }
 }
 // THE CRUST CRACKS — the terrain version of the end. It opens, and what is underneath comes up.
 APOC_X.crustcrack=function(g,ap,L,now){
