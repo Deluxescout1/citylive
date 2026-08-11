@@ -49,13 +49,13 @@ Item {
             // 🔑 `logout` is the only TRUE control: it is not an APOC_SWEEP ending, so it shares none
             // of the collapse/dust-wall machinery. Keep a sweep ending (thepit) as the second reading
             // when the change touches anything shared.
-            var deaths = ["thehollow","logout","thepit"];   // the one under review FIRST, then UNCHANGED ones as this run's noise reading
+            var deaths = ["greygoo","logout","thepit"];   // the one under review FIRST, then UNCHANGED ones as this run's noise reading
             var acc = {};
             function key(e,d){ return e+"|"+d; }
 
             function one(C, eng, death, hour) {
                 C.GROW_CYCLE = CYC; C.NOFETCH = true; C.FORCEEGG = null;
-                C.FORCEBIOME = "plains"; C.FORCEVARIANT = 0;
+                C.FORCEBIOME = "plains"; C.FORCEVARIANT = 0; C.CFG_APOC_EPI = 0.25;
                 C.FORCEDIS = null;
                 C.FORCEDEATH = death;
                 C.FORCEAPOCMS = 5000000;          // mid-arc: the dead are down and the layer is at full load

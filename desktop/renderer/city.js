@@ -53201,6 +53201,176 @@ function gooLife(g,ap,now,K,gsurf,gh,L,goo,epi,R){
     }
   }
 }
+// ── 🌱 GREY GOO, THE FIRST ACT: ONE GRAIN, AND IT DOUBLES. 🔒 His call (2026-08-11): it begins as a
+// single 2px speck with a ring drawn round it so you can find it, sitting on the LAB that made it —
+// and the lab is the first thing it eats.
+// 🚨 THIS ACT EXISTS BECAUSE THE ENDING HAD NO FIRST ACT. `APOC_STRIKE_AP.greygoo` is 0.25 — the file
+// already says the city is not touched before then — and the old renderer contradicted its own table
+// by throwing up a hill at ap 0.06, so the first minutes were either a blank frame or an unexplained
+// dune. 🔑 THE HOUSE FAILURE MODE IS "NO SOURCE, NO DIRECTION ⇒ IT DECORATES THE FRAME INSTEAD OF
+// HAPPENING TO IT": the lab is the source, the colony crawling out of it is the direction.
+// 🚨 SCRIPTED FROM A HASH, NEVER SIMULATED. `N = 2^gen`, and every grain's position and birth
+// generation are derived from its INDEX — so the three monitors draw the same colony without a shared
+// state to keep in step, exactly as the rest of this file does it.
+// 📏 THE GRAIN IS IN PERSON UNITS, NOT KSP. It is read against a person (`drawPerson`'s fixed 7px) and
+// a fence rail, never against a tower — and the surviving rule is that a thing to be COMPARED must be
+// in the units of what it is compared WITH. It only starts scaling by K once it is building-sized.
+// 🔑 THE HEAP IS THE HISTOGRAM. The pile the grains make is filled from a per-column COUNT of them, so
+// the silhouette is literally made of the units — connect the steps, never plot the samples.
+function gooSeed(g,t,now,K,L,goo,epi,gh){
+  if(t<=0) return;
+  var fade=(t>1)?Math.max(0,1-(t-1)*2.2):1; if(fade<=0) return;   // hands over to the mass, does not vanish
+  var esx=Math.round(disX(epi));
+  if(esx<-260*K||esx>SW+260*K) return;                            // ground zero is on another monitor
+  var day=L>0.5, gooC=css(goo), base=HORIZON-1;
+  var gooDark=day?"rgba(70,74,86,0.7)":"rgba(16,18,26,0.7)";       // the shadow a grain casts on the one under it
+  var gen=Math.floor(Math.min(1,t)*9), N=1<<gen;                  // 1 · 2 · 4 · … · 512
+  g.globalAlpha=fade;
+  // ── 🏢 THE LAB IT CAME OUT OF. One lit strip in a blank slab, a crack across it, and it goes first —
+  // the building is the SCALE REFERENCE the speck is read against, and then the proof it is not safe.
+  var lw=Math.round(30*K), lh=Math.round(20*K), lx=esx-Math.round(lw*0.5), ly=base-lh;
+  var labGone=Math.min(1,Math.max(0,(t-0.30)/0.45));
+  var lyy=ly+Math.round(lh*labGone);
+  if(lyy<base){
+    // ⚠ A DARK RECTANGLE IS NOT A BUILDING. The first pass drew the lab as a plain slab and it read as
+    // a billboard pasted over the street — and a source you cannot identify is no source at all, which
+    // is the whole reason this thing is here.
+    g.fillStyle=day?"rgba(56,60,70,0.97)":"rgba(22,25,34,0.97)";
+    g.fillRect(lx,lyy,lw,base-lyy);
+    g.fillStyle=day?"rgba(88,94,108,0.95)":"rgba(40,45,58,0.95)";
+    g.fillRect(lx,lyy,lw,Math.max(1,Math.round(K)));                        // the parapet
+    g.fillRect(lx,lyy,Math.max(1,Math.round(K)),base-lyy);                  // and the corner pilasters
+    g.fillRect(lx+lw-Math.round(K),lyy,Math.max(1,Math.round(K)),base-lyy);
+    for(var wr=0;wr<3;wr++){                                                // dark window bands, blinds down
+      var wy=ly+Math.round((6+wr*5)*K);
+      if(wy<lyy||wy>base-Math.round(2*K)) continue;
+      g.fillStyle=day?"rgba(30,34,44,0.9)":"rgba(12,14,20,0.9)";
+      g.fillRect(lx+Math.round(3*K),wy,lw-Math.round(6*K),Math.max(1,Math.round(1.6*K)));
+    }
+    var dy=base-Math.round(6*K);
+    if(dy>lyy){                                                             // the door, and the stripe beside it
+      g.fillStyle=day?"rgba(26,29,38,0.95)":"rgba(10,12,17,0.95)";
+      g.fillRect(lx+Math.round(lw*0.5)-Math.round(2*K),dy,Math.round(4*K),Math.round(6*K));
+      g.fillStyle="rgba(224,176,40,0.85)";
+      g.fillRect(lx+Math.round(2*K),base-Math.round(2*K),Math.round(4*K),Math.max(1,Math.round(K*0.8)));
+    }
+    if(ly+Math.round(2*K)>=lyy){                                            // the one lit strip, while it lasts
+      g.fillStyle=(t<0.12)?"rgba(198,236,255,0.95)":"rgba(255,168,60,0.95)"; // it goes to alarm amber
+      g.fillRect(lx+Math.round(3*K),ly+Math.round(2*K),lw-Math.round(6*K),Math.max(1,Math.round(1.4*K)));
+    }
+    if(t>0.06&&lyy<ly+Math.round(10*K)){                                    // the breach
+      g.fillStyle=gooC;
+      for(var cr=0;cr<Math.round(8*K);cr++)
+        g.fillRect(lx+Math.round(lw*0.62)+((cr*7)%3)-1,ly+Math.round(3*K)+cr,Math.max(1,Math.round(K*0.7)),1);
+    }
+  }
+  // ── ⭕ THE RING. It contracts on the speck like a callout tightening, so a 2px thing on a 776px
+  // screen can be FOUND. It is a cordon, not chrome: hazard amber, dashed, and it stops once the
+  // colony is big enough to see on its own — a marker that outstays the thing it marks is furniture.
+  if(gen<=5){
+    var ph=(now%2400)/2400, rr=Math.round((30-21*ph)*K), ry=base-Math.round(3*K);
+    var rdot=Math.max(2,Math.round(1.6*K));
+    g.fillStyle="rgba(255,186,58,"+(0.35+0.55*(1-ph)).toFixed(2)+")";
+    for(var d2=0;d2<16;d2++){
+      if(d2%2) continue;
+      var aa=d2/16*6.28318;
+      g.fillRect(esx+Math.round(Math.cos(aa)*rr)-1,ry+Math.round(Math.sin(aa)*rr*0.42),rdot,rdot);
+    }
+    // ⚠ AND A TICK ABOVE IT. The ring alone was a scatter of amber dots on a busy street; the eye needs
+    // ONE hard vertical to land on, and a 2px speck cannot supply it. This is the callout, not the goo.
+    g.fillStyle="rgba(255,206,96,"+(0.5+0.4*(1-ph)).toFixed(2)+")";
+    g.fillRect(esx,base-Math.round((13+4*(1-ph))*K),Math.max(1,Math.round(K*0.8)),Math.round(8*K));
+    g.fillStyle="rgba(255,232,168,0.9)";
+    g.fillRect(esx-Math.round(K),base-Math.round((13+4*(1-ph))*K),Math.round(3*K),Math.max(1,Math.round(K*0.8)));
+  }
+  // ── 🦠 THE COLONY. Per-column counts first, then ONE connected profile drawn from them.
+  var gs=Math.max(2,Math.round(0.8*K));                            // 2 px at his KSP — a fist, next to a 7px person
+  var cnt=new Array(SW), ci;
+  for(ci=0;ci<SW;ci++) cnt[ci]=0;
+  var gxs=new Array(N), gys=new Array(N), gzs=new Array(N), ng=0;
+  for(var i=0;i<N;i++){
+    var hg=((i*2654435761+4523)>>>0); hg=(hg^(hg>>>13))>>>0;
+    var gi=(i<1)?0:Math.floor(Math.log(i+1)/Math.LN2);             // the generation it was born into
+    var spread=(0.8+gi*gi*0.62)*K;                                 // each doubling reaches further out
+    var ang=((hg>>>5)%1000)/1000*6.28318;
+    var rad=spread*(0.35+((hg>>>15)%65)/100);
+    var px=esx+Math.round(Math.cos(ang)*rad);
+    var py=base-Math.round(Math.abs(Math.sin(ang))*rad*0.30)-Math.round(((hg>>>23)%3));
+    if(px<0||px>=SW) continue;
+    // 🔑 THE UNIT GROWS ONCE THE UNITS ARE TOUCHING. A grain is a grain until there are enough of them
+    // to be a clump, and then the clump is the unit — his own arc: speck, speck, speck, then something
+    // the size of a car. It is the same 2px machine underneath; what changed is how many are stuck to it.
+    var gsz=gs*((gi<5)?1:(gi<7)?2:3);
+    cnt[px]+=gsz; gxs[ng]=px; gys[ng]=py; gzs[ng]=gsz; ng++;
+  }
+  // the heap: its top in each column IS that column's grain mass. ⚠ SPREAD THREE COLUMNS WIDE FIRST —
+  // one bin per column is a bar chart, and it drew the colony as a picket of vertical spikes; a grain
+  // sitting on a heap holds up its neighbours too.
+  var top=new Array(SW), hx;
+  for(hx=0;hx<SW;hx++) top[hx]=-1;
+  for(hx=0;hx<SW;hx++){
+    if(cnt[hx]<=0) continue;
+    var rise=Math.min(Math.round(30*K),Math.round(cnt[hx]*0.85));
+    for(var sp=-2;sp<=2;sp++){
+      var tx=hx+sp*gs; if(tx<0||tx>=SW) continue;
+      var ty=base-Math.round(rise*(1-Math.abs(sp)*0.28));
+      if(top[tx]<0||ty<top[tx]) top[tx]=ty;
+    }
+  }
+  // ⚠ A HEAP DOES NOT REACH THE BOTTOM OF THE FRAME. Filling to `gh` like the full mass does turned a
+  // knee-high pile into a grey slab standing over the road and the rails — it read as a wall, not a
+  // pile. It spills toward the viewer in proportion to its own height instead.
+  var hr=-1, hy=0;
+  for(hx=0;hx<=SW;hx++){
+    var ht=(hx<SW)?top[hx]:-1;
+    if(ht!==hy){
+      if(hy>=0&&hr>=0&&hx>hr){
+        g.fillStyle=gooC;
+        g.fillRect(hr,hy,hx-hr,Math.min(gh,base+Math.round((base-hy)*1.5))-hy);
+      }
+      hy=ht; hr=hx;
+    }
+  }
+  // and the individual machines on top of it — the brightest thing in their neighbourhood, because a
+  // 2px object on a 776px screen reads by VALUE or it does not read at all.
+  for(var q2=0;q2<ng;q2++){
+    var qz=gzs[q2], qy=Math.min(gys[q2],(top[gxs[q2]]>=0?top[gxs[q2]]:base)-Math.round(qz*0.5));
+    g.fillStyle=gooDark; g.fillRect(gxs[q2],qy+qz,qz,Math.max(1,Math.round(qz*0.5)));
+    g.fillStyle=gooC; g.fillRect(gxs[q2],qy,qz,qz);
+    g.fillStyle=day?"rgba(248,252,255,0.95)":"rgba(158,186,222,0.9)";
+    g.fillRect(gxs[q2],qy,qz,Math.max(1,Math.round(qz*0.45)));
+  }
+  // ── 🩸 AND IT REACHES THE FIRST PEOPLE. `IT'S EATING THE FENCE` is this ending's own dialogue, and
+  // this is that line: the cordon rail going grey, and the ones who stood behind it going with it.
+  if(gen>=5){
+    var lim=Math.round(20*K+gen*6*K);
+    g.fillStyle=day?"rgba(150,156,168,0.85)":"rgba(58,64,80,0.85)";
+    for(var fx=esx-lim;fx<esx+lim;fx+=Math.round(6*K)){
+      if(fx<0||fx>=SW) continue;
+      var conv=(cnt[fx]>0)||(Math.abs(fx-esx)<lim*0.55);
+      g.fillStyle=conv?gooC:(day?"rgba(150,156,168,0.85)":"rgba(58,64,80,0.85)");
+      g.fillRect(fx,base-Math.round(5*K),Math.max(1,Math.round(K)),Math.round(5*K));
+      g.fillRect(fx,base-Math.round(5*K),Math.round(6*K),Math.max(1,Math.round(K)));
+    }
+    for(var v2=0;v2<7;v2++){
+      var vh2=((v2*2654435761+911)>>>0); vh2=(vh2^(vh2>>>13))>>>0;
+      var vx2=esx+Math.round((((vh2>>>5)%200)/100-1)*lim);
+      if(vx2<2||vx2>=SW-2) continue;
+      var eatn=Math.max(0,Math.min(1,(t-0.55-((vh2>>>17)%30)/100)*4));
+      if(eatn>=1) continue;
+      g.globalAlpha=fade*(1-eatn*0.5);
+      drawPerson(g,vx2,base,hexDark(PEDC[(vh2>>>11)%PEDC.length],0.32),
+                 hexDark(SKINC[(vh2>>>19)%SKINC.length],0.24),(vh2&1)?1:-1,0);
+      g.globalAlpha=fade;
+      if(eatn>0){
+        g.fillStyle=gooC; g.fillRect(vx2-Math.round(2*K),base-Math.round(7*eatn),Math.round(4*K),Math.round(7*eatn));
+        g.fillStyle="rgba(150,16,22,0.8)";
+        g.fillRect(vx2-Math.round(2*K),base-Math.round(7*eatn),Math.round(4*K),Math.max(1,Math.round(K*0.8)));
+      }
+    }
+  }
+  g.globalAlpha=1;
+}
 APOC_X.greygoo=function(g,ap,L,now){
   var K=Math.max(1,KSP);
   // 🌍🚨 A FRONT IS A DISTANCE, AND `SW` IS NEVER ONE. `-SW*0.15+ap*SW*1.4` swept each monitor
@@ -53209,14 +53379,20 @@ APOC_X.greygoo=function(g,ap,L,now){
   // from ground zero now, the same law `apocSweepR` and every other front here uses, which makes it
   // cross-monitor correct by construction rather than by a second number kept in step.
   var gooEpi=(typeof apocEpiX==="function")?apocEpiX(now):Math.round(WW*0.5);
-  var gooR=Math.max(0,(ap-0.06)/0.86)*(WW*0.62);      // full world by ap~0.92, the same law as apocSweepR
+  // 🚨🔑 ONE EXPRESSION, NOT A FOURTH NUMBER. The drawn front was `(ap-0.06)/0.86` while `apocHit`
+  // collapsed buildings on `(ap-0.25)/(0.78-0.25)` — two laws for one boundary, so the goo stood over
+  // blocks it had not eaten for a third of the arc. It now reads the SAME expression, derived from the
+  // two tables the ending already fills in, and what looks eaten and what IS eaten cannot drift.
+  var s0=APOC_STRIKE_AP.greygoo, s1=APOC_FULL_AP.greygoo;
+  var gooR=Math.max(0,(ap-s0)/Math.max(0.01,s1-s0))*(WW*0.62);
+  gooSeed(g,ap/s0,now,K,L,L>0.5?[146,152,164]:[54,60,76],gooEpi,HORIZON+Math.round(GROUND*0.6));
   // 🔑 THE READ IS THE ABSENCE OF DETAIL. Everything behind the front becomes ONE smooth grey with no
   // windows, no edges and no silhouette — which on a map made entirely of small bright detail is the
   // most disturbing thing that can happen to it. Nothing else in the set removes information.
   // 🔒 CHROME, not sludge. His call: it is a SWARM OF MACHINES, so the palette goes cold and blue-grey
   // and the surface carries hard specular glints. A warm matte grey reads as mud or ash — both of which
   // this map already has — and neither says "manufactured".
-  var goo=L>0.5?[146,152,164]:[54,60,76];
+  var goo=L>0.5?[146,152,164]:[54,60,76], gooDay=L>0.5;
   var gh=HORIZON+Math.round(GROUND*0.6);
   // the consumed region — run-batched over the columns THIS screen has, so a monitor that holds none
   // of it costs one comparison per column and draws nothing.
@@ -53228,14 +53404,47 @@ APOC_X.greygoo=function(g,ap,L,now){
   // 🔑 THE HORROR IS WATCHING DETAIL BE DESTROYED, NOT STARING AT WHERE IT USED TO BE. So the goo is
   // now a MASS standing where the city stood — piled highest over ground zero where it has eaten most,
   // sagging toward the edges — with the sky still above it and the skyline still readable beyond.
+  // 🔒 AND THE SKYLINE STAYS TO THE LAST FRAME — his call, asked directly: "everything" stops at the
+  // top of the mass. The last towers above it are what the loss is felt against.
+  // ⏫🚨 IT USED TO FLATLINE. The height was a function of DISTANCE ALONE, so once the front had passed
+  // a column that column never changed again — ap 0.70 and ap 0.92 were the same picture and the last
+  // third of the ending was a still frame. It now keeps CLIMBING after the front has finished crossing,
+  // which is also the only thing left for it to do once there is no more ground to take.
+  // ⚠ AND IT MUST BE LOW AND WIDE WHEN IT IS YOUNG. `deep^0.6` over a small radius is a SPIRE — the
+  // first frames of the mass came out as a rock needle taller than the towers beside it, which is the
+  // one shape a spreading colony cannot make. Height is gated on how far it has spread, so it grows
+  // out of the heap the seed act leaves rather than erupting through it.
+  var young=Math.min(1,0.30+gooR/(WW*0.22));
+  var climb=0.44+0.56*Math.min(1,Math.max(0,(ap-s0)/Math.max(0.01,1-s0)));
   var gsurf=new Array(SW), gxi;
   for(gxi=0;gxi<SW;gxi++) gsurf[gxi]=-1;
   for(gxi=0;gxi<SW;gxi++){
     var wxg=wrapW(gxi+WOFF), dg=nukeDist(wxg,gooEpi);
     if(dg>=gooR) continue;
     var deep=1-dg/Math.max(1,gooR);                       // 1 over ground zero, 0 at the front
-    var lump=Math.sin(wxg*0.017+now*0.0004)*0.10+Math.sin(wxg*0.061)*0.05;
-    gsurf[gxi]=Math.round(HORIZON-HORIZON*(0.10+0.46*Math.pow(deep,0.6)+lump));
+    gsurf[gxi]=Math.round(HORIZON-HORIZON*climb*young*(0.14+0.56*Math.pow(deep,0.6)));
+  }
+  // ── 🪨🔑 AND THE EDGE IS MADE OF UNITS. The old profile was two sine terms, and a smooth curve is a
+  // SAND DUNE — a material with no parts. This is a swarm that has eaten cars, buses and houses, so the
+  // surface is broken by CLUMPS at those sizes, each raising the profile across its own span.
+  // ⚠ NOT 1px NOISE — a 1px-noisy edge is dust, smoke or foliage, and never a mass. The clumps are
+  // hashed in WORLD space (so all three monitors agree on where they are) and written INTO the profile
+  // rather than drawn over it, so the silhouette stays one connected line instead of a staircase.
+  if(gooR>0){
+    var nCl=Math.round(WW/24);
+    for(var c=0;c<nCl;c++){
+      var ch=((c*2654435761+8191)>>>0); ch=(ch^(ch>>>13))>>>0;
+      var cwx=(ch>>>5)%WW;
+      if(nukeDist(cwx,gooEpi)>=gooR) continue;
+      var crad=Math.round((3+((ch>>>13)%10))*K), csx=Math.round(disX(cwx));
+      if(csx+crad<0||csx-crad>=SW) continue;
+      var crise=Math.round(crad*(0.55+((ch>>>19)%50)/100));
+      for(var cx=Math.max(0,csx-crad);cx<Math.min(SW,csx+crad+1);cx++){
+        if(gsurf[cx]<0) continue;
+        var u=(cx-csx)/crad, cap=gsurf[cx]-Math.round(crise*(1-u*u));
+        if(cap<gsurf[cx]) gsurf[cx]=cap;
+      }
+    }
   }
   var runX=-1, x, runY=0;
   for(x=0;x<=SW;x++){
@@ -53246,10 +53455,65 @@ APOC_X.greygoo=function(g,ap,L,now){
     }
   }
   if(gooR<=0) return;
+  // ── 🦠 AND THE MASS IS MADE OF UNITS TOO, not just its edge. Clusters of grain with a DARK socket
+  // under each one: the contrast has to come from something that VARIES across the frame, and a lit
+  // cap over its own shadow does that per-clump. A uniform speckle over a flat fill is a wash by
+  // another name and drags every value toward one number.
+  // ⚠ AND THEY BUNCH AT THE SURFACE. Scattered evenly through the depth they read as confetti falling
+  // down a flat wall; a swarm is DENSE where it is working and quiet underneath, so the depth is biased
+  // hard toward the top few units of the mass.
+  for(var cg=0;cg<88;cg++){
+    var kh=((cg*2654435761+((Math.floor(now/900)*104729)|0))>>>0); kh=(kh^(kh>>>13))>>>0;
+    var kx=((kh>>>5)%Math.max(1,SW));
+    if(gsurf[kx]<0) continue;
+    var kdep=gh-gsurf[kx], kbias=((kh>>>11)%1000)/1000;
+    var ky=gsurf[kx]+Math.round(kbias*kbias*kbias*kdep);
+    var ksz=Math.max(1,Math.round((0.6+((kh>>>21)%2)*0.7)*K));
+    for(var kn=0;kn<4;kn++){
+      var kox=kx+((((kh>>>(3*kn))%5)-2)*ksz), koy=ky+((((kh>>>(3*kn+7))%3)-1)*ksz);
+      if(kox<0||kox>=SW||gsurf[kox]<0||koy<gsurf[kox]||koy>gh) continue;
+      g.fillStyle=gooDay?"rgba(74,78,90,0.55)":"rgba(18,20,28,0.6)";                 // the socket it sits in
+      g.fillRect(kox,koy+Math.round(ksz*0.7),ksz,Math.max(1,Math.round(ksz*0.6)));
+      g.fillStyle=gooDay?"rgba(196,202,214,0.8)":"rgba(84,92,112,0.7)";
+      g.fillRect(kox,koy,ksz,Math.max(1,Math.round(ksz*0.8)));
+    }
+  }
+  // ── 🕳️ AND THE INSIDE IS NOT ONE VALUE. Once the mass owns most of the frame there is nothing left
+  // to read it against, and a single flat grey over half a screen is the same failure as a wash.
+  // ⚠ CREASES WERE THE WRONG ANSWER — hashed seams running down from the surface drew pale worms and
+  // read as drips on a wall. What a mass actually needs is VOLUME: a lit crust that follows the top
+  // wherever it undulates, and shadow gathering at the foot of it. Both track the surface, so the
+  // contrast varies with the SHAPE across the frame rather than being a layer laid over all of it.
+  // ⚡ ONE PASS, NOT TWO. Crust and foot both key off the SAME runs of equal `gsurf`, so finding
+  // those runs twice was pure duplicate work in the live pass.
+  var crust=Math.round(5*K), foot=Math.round(10*K), cr0=-1, crY=0, crx;
+  for(crx=0;crx<=SW;crx++){
+    var cy=(crx<SW)?gsurf[crx]:-1;
+    if(cy!==crY){
+      if(crY>=0&&cr0>=0&&crx>cr0){
+        g.fillStyle=gooDay?"rgba(196,204,220,0.5)":"rgba(92,102,124,0.45)";
+        g.fillRect(cr0,crY,crx-cr0,crust);
+        // ⚠ AND THE RIM IS BROKEN, NOT A LINE. An unbroken white edge along the top of a grey mound is
+        // a SNOWDRIFT — this map already has snow and ash, and the one thing this ending owns is that
+        // it is manufactured. Broken into hard facets it reads as light catching metal instead.
+        if(((((cr0*2654435761)>>>0)>>>7)%5)<3){
+          g.fillStyle=gooDay?"rgba(228,238,252,0.5)":"rgba(126,144,176,0.5)";
+          g.fillRect(cr0,crY,crx-cr0,Math.max(1,Math.round(K)));
+        }
+        g.fillStyle=gooDay?"rgba(96,100,114,0.30)":"rgba(16,18,26,0.35)";
+        g.fillRect(cr0,crY+crust,crx-cr0,Math.round(4*K));          // the shade directly under the crust
+        g.fillStyle=gooDay?"rgba(78,82,96,0.28)":"rgba(12,14,20,0.34)";
+        g.fillRect(cr0,gh-foot,crx-cr0,foot);                       // shadow gathering at the foot
+      }
+      crY=cy; cr0=crx;
+    }
+  }
   // ── 🦠 AND IT SEETHES. A flat fill is paint; this is a hundred billion machines copying themselves,
   // so the surface crawls. Grain hashed in WORLD space and stepped by time so it boils rather than
   // sliding — a texture that slides reads as one object moving, and this is not one object.
-  for(var t=0;t<220;t++){
+  // ⚡ 220 → 150: the clusters above now carry the "made of parts" read, and this layer only has to
+  // keep it MOVING. Total marks per frame land where they were before the clusters were added.
+  for(var t=0;t<150;t++){
     var th=((t*2654435761+((Math.floor(now/140)*7919)|0))>>>0); th=(th^(th>>>13))>>>0;
     var tx=((th>>>5)%Math.max(1,SW));
     if(gsurf[tx]<0) continue;
@@ -53289,20 +53553,29 @@ APOC_X.greygoo=function(g,ap,L,now){
   for(var sgn=-1;sgn<=1;sgn+=2){
     var front=Math.round(disX(wrapW(gooEpi+sgn*gooR)));
     if(front<-20||front>SW+20) continue;
-    for(var q=0;q<Math.round(HORIZON*0.9);q+=2){
+    // 🚨 THE HIGHLIGHT WAS NOT GATED. The body fill was clipped to the mass's height band and the
+    // bright edge beside it was not, so it ran the full `HORIZON*0.9` from y=0 and drew a wobbling
+    // white ribbon down through EMPTY SKY — two of them, one per edge, hanging over an untouched city
+    // for the first quarter of the arc. It was the most conspicuous thing in the frame at ap 0.08 and
+    // it was not an object at all. 🔑 ONE `edgeTop` now feeds both, read off the same climbing law the
+    // surface uses, so the edge cannot outgrow the mass it is the edge OF.
+    var edgeTop=Math.round(HORIZON-HORIZON*climb*young*0.16);
+    for(var q=edgeTop;q<gh;q+=2){
       var wob=Math.round(Math.sin(now*0.006+q*0.19)*4*K)+((((q*2654435761)>>>0)%5)-2);
       g.fillStyle=css(goo);
-      if(q>=Math.max(0,HORIZON-HORIZON*0.62)) g.fillRect(front+wob-Math.round(3*K),q,Math.round(6*K),2);
+      g.fillRect(front+wob-Math.round(3*K),q,Math.round(6*K),2);
       g.fillStyle=L>0.5?"rgba(200,200,206,0.7)":"rgba(110,110,120,0.7)";
       g.fillRect(front+wob+sgn*Math.round(3*K),q,Math.max(1,Math.round(K)),2);
     }
-    // and a haze of it in the air AHEAD of that edge — the part that gets to you before the wall does
+    // and a haze of it in the air AHEAD of that edge — the part that gets to you before the wall does.
+    // ⚠ It hangs just ABOVE the edge, not over the whole sky: airborne grain that reaches the top of
+    // the frame is weather, and the one thing this ending must not read as is weather.
     for(var m=0;m<Math.round(35*Math.min(1,ap*2));m++){
       var hm=((m*2654435761+29+(sgn>0?7:0))>>>0);
       var mx=front+sgn*Math.round(((hm%1000)/1000)*90*K);
       if(mx<0||mx>SW) continue;
       g.fillStyle=rgba(goo,0.5);
-      g.fillRect(mx,Math.round(((hm>>>9)%1000)/1000*HORIZON),Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
+      g.fillRect(mx,edgeTop-Math.round(((hm>>>9)%1000)/1000*34*K),Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
     }
   }
 };
