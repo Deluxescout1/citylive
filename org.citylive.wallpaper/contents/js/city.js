@@ -53302,24 +53302,92 @@ APOC_X.skyfall=function(g,ap,L,now){
   // third of a monitor each, so his screen held two of them and the frame was a black wall with one
   // seam. Seven was authored against ONE viewport; the world is ~3 viewports wide.
   var n=Math.max(7,Math.round(WW/92));
+  // ── 🌌 WHAT IS BEHIND THE SKY. Drawn FIRST and once, so the void is a real space the sheets peel
+  // away from rather than a black rectangle behind each one. 🔑 THE IDEA OF THIS ENDING IS THAT THE
+  // SKY WAS A SURFACE — and the only way that lands is if what is revealed is unmistakably SPACE.
+  // Flat black is just an absence; stars are a place, and a place is far worse.
+  var vd=Math.min(1,Math.max(0,(ap-0.04)/0.30));
+  if(vd>0){
+    g.fillStyle="rgba(3,3,7,"+(0.97*vd).toFixed(3)+")"; g.fillRect(0,0,SW,HORIZON+2);
+    for(var st=0;st<Math.round(150*vd);st++){
+      var sh2=((st*2654435761+9187)>>>0); sh2=(sh2^(sh2>>>13))>>>0;
+      var stx=((sh2>>>5)%Math.max(1,WW))-WOFF;
+      if(stx<0||stx>=SW) continue;
+      var sty=((sh2>>>13)%Math.max(1,HORIZON));
+      var tw2=0.55+0.45*Math.sin(now*0.0025+st);
+      g.fillStyle="rgba(255,255,248,"+(0.9*vd*tw2).toFixed(3)+")";
+      g.fillRect(stx,sty,Math.max(1,Math.round(K*0.7)),Math.max(1,Math.round(K*0.7)));
+    }
+  }
   for(var s=0;s<n;s++){
-    var h=((s*2654435761+11)>>>0);
-    var t0=(s/n)*0.45;
-    var lf=Math.min(1,Math.max(0,(ap-t0)/0.42)); if(lf<=0) continue;
+    var h=((s*2654435761+11)>>>0); h=(h^(h>>>13))>>>0;
+    // 🚨🔑🔑 THE DETACH TIME WAS `(s/n)*0.45` — LINEAR IN `s`, so every neighbouring sheet lagged its
+    // neighbour by the same constant and their leading edges formed a PERFECT STAIRCASE across the
+    // sky. Mid-arc the frame was a black field with a flight of white stairs in it. That is the
+    // arithmetic-progression fault again — the savanna's conveyor, the sky lanes' dotted rule, and now
+    // the sky itself. 🔑 A STAGGER IS NOT A SCATTER: if the offset between neighbours is constant, the
+    // eye reads the RULE, never the objects. Hashed per sheet, and the fall accelerates, because a
+    // sheet descending at a constant rate is a lift.
+    var t0=((h>>>7)%1000)/1000*0.42;
+    var lin=Math.min(1,Math.max(0,(ap-t0)/0.42)); if(lin<=0) continue;
+    var lf=lin*lin;
     // 🌍 THE SHEETS TILE THE WORLD, NOT THE VIEWPORT. At `(s/n)*SW` all seven detached across every
     // monitor at once, so the sky came down three times over in lockstep with a seam at each bezel —
     // and this ending's whole idea is that it comes down in ONE PLANE.
     var sw2=WW/n, x0=Math.round(disX(s*sw2)-sw2*0.06), w=Math.round(sw2*1.25);
     if(x0>SW+40||x0+w<-40) continue;
-    var top=Math.round(-HORIZON*0.1+lf*HORIZON*1.15);
+    var top=Math.round(-HORIZON*0.1+lf*HORIZON*1.35);
     var hh=Math.round(HORIZON*0.42);
+    // ⚠ IT TUMBLES. A slab that stays axis-aligned all the way down is a lift car; a real plate tips
+    // as it goes, so the sheet is SHEARED row by row and the shear grows with the fall. Same technique
+    // as the buildings tipping into the chasm — this canvas has no cheap rotate, and a sheared stack
+    // is what a falling plate looks like in pixel art anyway.
     var tilt=Math.round(((h%100)/100-0.5)*10*K*lf);
-    g.fillStyle="rgba(4,4,8,0.96)";                                  // the black behind it
-    g.fillRect(x0,0,w,Math.max(0,top));
-    g.fillStyle=rgba(skc,0.95);                                      // the sheet itself
-    g.fillRect(x0+tilt,top,w,hh);
-    g.fillStyle="rgba(255,255,255,0.35)";                            // a lit edge, so it reads as a plate
-    g.fillRect(x0+tilt,top,w,Math.max(1,Math.round(K)));
+    var shear=(((h>>>17)%100)/100-0.5)*2.4*lin;
+    // the crack that runs along its top edge BEFORE it goes — the tell that the sky is about to fail
+    if(lin<0.16){
+      g.fillStyle="rgba(255,255,255,"+(0.8*(1-lin/0.16)).toFixed(3)+")";
+      for(var cx4=0;cx4<w;cx4+=Math.max(2,Math.round(2*K))){
+        var cj=(((h>>>(cx4&15))%5)-2)*Math.round(K*0.8);
+        g.fillRect(x0+cx4,top+cj,Math.max(1,Math.round(K)),Math.max(1,Math.round(K*0.8)));
+      }
+    }
+    for(var ry=0;ry<hh;ry+=Math.max(1,Math.round(K))){
+      var off=Math.round(shear*ry);
+      var yy3=top+ry;
+      if(yy3<-4||yy3>SH+4) continue;
+      g.fillStyle=rgba(skc,0.95);
+      g.fillRect(x0+tilt+off,yy3,w,Math.max(1,Math.round(K)));
+      if(ry===0){                                                    // the lit edge, so it reads as a plate
+        g.fillStyle="rgba(255,255,255,0.42)";
+        g.fillRect(x0+tilt+off,yy3,w,Math.max(1,Math.round(K)));
+      }
+    }
+  }
+  // ── 🫁 AND THEN THE CONSEQUENCE. Every sheet is down by ap~0.6 and the old version simply stopped
+  // there: forty per cent of the arc with nothing developing, which is exactly the fault gammaray had.
+  // 🔑 IF THE SKY IS GONE YOU ARE IN VACUUM — so the rest of the arc is EXPOSURE. The air vents upward
+  // into the hole where the sky was, frost takes everything it leaves behind, and the lights go out.
+  var expo=Math.min(1,Math.max(0,(ap-0.52)/0.44));
+  if(expo>0){
+    g.globalCompositeOperation="lighter";
+    for(var v2=0;v2<Math.round(60*expo);v2++){                       // the atmosphere leaving
+      var vh2=((v2*2654435761+3833)>>>0); vh2=(vh2^(vh2>>>13))>>>0;
+      var vx2=((vh2>>>5)%Math.max(1,WW))-WOFF;
+      if(vx2<0||vx2>=SW) continue;
+      var vt=((now*0.0007+((vh2>>>11)%100)/100)%1);
+      var vy2=Math.round(HORIZON-vt*HORIZON*1.05);
+      g.fillStyle="rgba(180,206,236,"+(0.34*(1-vt)*expo).toFixed(3)+")";
+      g.fillRect(vx2,vy2,Math.max(1,Math.round(K*0.8)),Math.max(2,Math.round(6*K*vt)));
+    }
+    g.globalCompositeOperation="source-over";
+    g.fillStyle="rgba(196,222,244,"+(0.38*expo).toFixed(3)+")";      // frost over everything left
+    g.fillRect(0,HORIZON-Math.round(8*K),SW,SH-HORIZON+Math.round(8*K));
+    // ⚠ 0.44 BLACK OVER THE WHOLE FRAME ATE THE STREET TOO — the void behind the sky is already near-black,
+    // so a second blackout on top left nothing to look at. Vacuum is not the same as darkness: the read is
+    // FROST and the air leaving, not an absence of light.
+    g.fillStyle="rgba(2,3,8,"+(0.16*expo).toFixed(3)+")";            // …and the lights going out
+    g.fillRect(0,0,SW,SH);
   }
 };
 
