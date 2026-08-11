@@ -60207,16 +60207,26 @@ function bhDark(ap){ return Math.min(0.97,0.10+0.88*Math.min(1,ap/0.55)); }
 // asymptotic — many values of `t` land in the last stretch — which crowds everything into a shimmering
 // pile-up at the horizon instead of letting it vanish neatly. That crowd IS the dilation, it costs one
 // expression, and it is the only place in the set where the physics does the composition for you.
-function bhPath(t,gx,gy,hx,hy,wind,K){
+// 🌀🔒 AND IT SHEARS INTO THE DISK — his fourth answer, and the one still missing. Nothing falls into a
+// black hole and arrives at the middle: it has angular momentum it cannot shed, so it is wound out into
+// the accretion plane and JOINS the ring. Everything was converging on the centre point, which is the one
+// place matter never reaches — the city was flying into a target instead of becoming part of the object.
+// 🔑 The path's endpoint is a point ON THE RING, flattened to the disk's plane, and the winding angle
+// carries it round as it arrives — so the last of the city is visibly orbiting rather than swallowed.
+function bhPath(t,gx,gy,hx,hy,wind,K,R){
   var u=t*t*(3-2*t);                                 // the climb accelerates as the pull grows…
   var e=1-Math.exp(-3.1*u);                          // …then never quite arrives
-  var swirl=(1-e)*(1-e)*36*K;                        // wide arc low down, tight near the hole
-  var a=wind+e*6.4;
-  return {x:gx+(hx-gx)*e+Math.cos(a)*swirl, y:gy+(hy-gy)*e+Math.sin(a)*swirl*0.5, e:e};
+  var phi=wind+e*7.2;                                // and winds as it comes
+  // ⚠ AND NOT ALL AT ONE RADIUS, or they queue up on a single line and the disk reads as a SHELF. Each
+  // object settles at its own orbit, derived from its own winding angle so it stays scripted.
+  var ring=(R||40)*(1.06+0.46*(0.5+0.5*Math.sin(wind*13.7)));
+  var tx=hx+Math.cos(phi)*ring, ty=hy+Math.sin(phi)*ring*0.34;   // the disk's plane, seen near edge-on
+  var swirl=(1-e)*(1-e)*30*K;                        // wide arc low down, tight as it nears the plane
+  return {x:gx+(tx-gx)*e+Math.cos(phi*1.7)*swirl, y:gy+(ty-gy)*e+Math.sin(phi*1.7)*swirl*0.5, e:e};
 }
 function bhStream(g,ap,L,now,G){
   var K=Math.max(1,KSP), day=L>0.5;
-  var hx=G.sx, hy=G.sy;
+  var hx=G.sx, hy=G.sy, R=Math.max(3,G.R);
   // 🚨🔒 "THINGS SHOULD START GETTING THROWN IN MUCH SOONER." He is right and the fault was one law doing
   // two jobs: everything was gated on `bhFrontR`, which is 0 until `BH_FORM_AP` (0.18) — thirty-six
   // minutes of a growing hole and an untouched street.
@@ -60243,7 +60253,7 @@ function bhStream(g,ap,L,now,G){
       var t=Math.min(1,((now+((bh2>>>17)%per))%per)/per);
       var wind=((bh2>>>5)%628)/100, gx=bx0+(B.w>>1), gy=base-Math.round(B.h*0.25);
       for(var q=1;q<=10;q++){
-        var P=bhPath(t*(q/10),gx,gy,hx,hy,wind,K);
+        var P=bhPath(t*(q/10),gx,gy,hx,hy,wind,K,R);
         var w2=Math.max(1,Math.round(B.w*(1-P.e)*(1-P.e*0.5)));
         var h2=Math.max(1,Math.round(B.h*0.16*(1-P.e)));
         g.fillStyle=day?"rgba(58,62,76,"+(0.9-0.5*P.e).toFixed(2)+")":"rgba(24,26,36,"+(0.9-0.5*P.e).toFixed(2)+")";
@@ -60262,7 +60272,7 @@ function bhStream(g,ap,L,now,G){
     var per2=5200+((h>>>11)%4200);
     var t2=Math.min(1,((now+((h>>>19)%per2))%per2)/per2);
     var wind2=((h>>>7)%628)/100;
-    var P2=bhPath(t2,sx,base,hx,hy,wind2,K);
+    var P2=bhPath(t2,sx,base,hx,hy,wind2,K,R);
     if(P2.x<-8||P2.x>SW+8) continue;
     if(P2.e<0.22){
       drawPerson(g,Math.round(P2.x),Math.round(P2.y),hexDark(PEDC[(h>>>13)%PEDC.length],0.18),
@@ -60270,7 +60280,7 @@ function bhStream(g,ap,L,now,G){
     } else {
       var tl=Math.max(2,Math.round(9*(1-P2.e)));
       for(var q2=0;q2<tl;q2++){
-        var Pq=bhPath(Math.max(0,t2-q2*0.018),sx,base,hx,hy,wind2,K);
+        var Pq=bhPath(Math.max(0,t2-q2*0.018),sx,base,hx,hy,wind2,K,R);
         var a2=(1-P2.e)*(1-q2/tl)*0.9; if(a2<=0.04) continue;
         g.fillStyle=(q2===0)?"rgba(255,214,168,"+a2.toFixed(2)+")"
                             :"rgba("+(day?196:120)+","+(day?150:96)+","+(day?150:104)+","+a2.toFixed(2)+")";
@@ -60320,7 +60330,7 @@ function bhStream(g,ap,L,now,G){
       }
       var tr=Math.min(1,(road-(1-frac))/0.22);
       if(tr<=0.01) continue;
-      var Pr=bhPath(tr,rsx+(rw>>1),base,hx,hy,((hr>>>9)%628)/100,K);
+      var Pr=bhPath(tr,rsx+(rw>>1),base,hx,hy,((hr>>>9)%628)/100,K,R);
       if(Pr.x<-rw||Pr.x>SW+rw) continue;
       var rw2=Math.max(1,Math.round(rw*(1-Pr.e*0.75)));
       var rh2=Math.max(1,Math.round((2+3*(1-Pr.e))*K));
@@ -60340,7 +60350,7 @@ function bhStream(g,ap,L,now,G){
     if(nukeDist(wrapW(dx3+WOFF),epi)>=reach) continue;
     var per3=4000+((hd>>>9)%5000);
     var t3=Math.min(1,((now+((hd>>>21)%per3))%per3)/per3);
-    var P3=bhPath(t3,dx3,base-((hd>>>15)%6),hx,hy,((hd>>>3)%628)/100,K);
+    var P3=bhPath(t3,dx3,base-((hd>>>15)%6),hx,hy,((hd>>>3)%628)/100,K,R);
     if(P3.x<-6||P3.x>SW+6) continue;
     var sz=Math.max(1,Math.round((1+((hd>>>25)%3))*K*(1-P3.e*0.8)));
     g.fillStyle=day?"rgba(70,74,88,"+(0.85-0.5*P3.e).toFixed(2)+")":"rgba(30,33,44,"+(0.85-0.5*P3.e).toFixed(2)+")";
@@ -60390,9 +60400,12 @@ function drawApocBlackHole(g,ap,L,now){
     // every seam brighter still. Sixteen layers at a third of the alpha is the same total light with no
     // edge in it.
     g.globalCompositeOperation="lighter";
-    for(var bl=16;bl>=1;bl--){
-      g.fillStyle="rgba("+(58+7*bl)+","+(32+4*bl)+",14,0.017)";
-      fillEllipse(g,sx,sy,R*(1.30+bl*0.145),R*(1.05+bl*0.118));
+    // ⚡ TEN, NOT SIXTEEN. These are large additive ellipse fills and they are the most expensive thing
+    // in the ending; ten at a proportionally higher alpha is the same light and still has no visible
+    // banding (the fault was five, not sixteen).
+    for(var bl=10;bl>=1;bl--){
+      g.fillStyle="rgba("+(58+11*bl)+","+(32+7*bl)+",14,0.027)";
+      fillEllipse(g,sx,sy,R*(1.30+bl*0.232),R*(1.05+bl*0.189));
     }
     g.globalCompositeOperation="source-over";
     bhHalo(g,sx,sy,R,spin,1.0,false);                           // the far half, arcing over the top
