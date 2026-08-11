@@ -49,7 +49,7 @@ Item {
             // 🔑 `logout` is the only TRUE control: it is not an APOC_SWEEP ending, so it shares none
             // of the collapse/dust-wall machinery. Keep a sweep ending (thepit) as the second reading
             // when the change touches anything shared.
-            var deaths = ["greygoo","logout","thepit"];   // the one under review FIRST, then UNCHANGED ones as this run's noise reading
+            var deaths = ["bh","logout","thepit"];   // the one under review FIRST, then UNCHANGED ones as this run's noise reading
             var acc = {};
             function key(e,d){ return e+"|"+d; }
 
@@ -58,7 +58,7 @@ Item {
                 C.FORCEBIOME = "plains"; C.FORCEVARIANT = 0; C.CFG_APOC_EPI = 0.25;
                 C.FORCEDIS = null;
                 C.FORCEDEATH = death;
-                C.FORCEAPOCMS = 5000000;          // mid-arc: the dead are down and the layer is at full load
+                C.FORCEAPOCMS = 7257600;          // mid-arc: the dead are down and the layer is at full load
                 var d = new Date(EPOCH + 62*CYC + Math.round(0.38*CYC));
                 d.setHours(hour, 10, 0, 0);
                 C.NOWOVR = C.CLOCK = d.getTime();
