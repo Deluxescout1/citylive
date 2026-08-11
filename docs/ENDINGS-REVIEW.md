@@ -23,7 +23,7 @@ then pin the next. Order below is his own `_order` string.
 | 7 | `glassrain` | Glass Rain | sweep @0.2 | — | ⬜ | |
 | 8 | `thescream` | The Scream | strike @0.14 | — | ⬜ | |
 | 9 | `crimsontide` | The Crimson Tide | sweep @0.34 | — | ⬜ | |
-| 10 | `warmachine` | The War Machine | sweep @0.28 | — | ⬜ | |
+| 10 | `warmachine` | The War Machine | sweep @0.28 | — | 🔧 | Partly fixed 2026-08-10: the comment claimed "two of five hold near the epicentre" and the hash gave exactly ONE, seeded on the index so it was the same one forever — which is why the epicentre monitor emptied in the back half. Now exactly two, rotating per life. ⚠ STILL OPEN: the walkers read as thin scaffolding, not machines — the silhouette needs a hull. |
 | 11 | `thefamine` | The Famine | strike @0.45 | — | ⬜ | |
 | 12 | `thehollow` | The Hollow | sweep @0.3 | — | ⬜ | |
 

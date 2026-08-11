@@ -56885,7 +56885,16 @@ APOC_X.warmachine=function(g,ap,L,now){
     // 🔑 An occupation is not a wave: some machines follow the front and some STAY in what has already
     // been levelled, finishing it. Two of five hold near the epicentre, which is also where the wreck
     // and the bodies are, so the quiet half of the arc still has the story in it.
-    var garrison=(((h>>>5)%5)<2);
+    // 🚨🔑🔑 THE COMMENT ABOVE SAYS "TWO OF FIVE HOLD NEAR THE EPICENTRE". IT WAS ONE.
+    // `(((h>>>5)%5)<2)` is a ~40% chance per machine, hoped to land on two — and hashed off the INDEX
+    // alone, so it is not even a per-life roll: the same single machine garrisons on every life, on
+    // every screen, forever. Counted it: 1 of 5. Which is why the epicentre monitor empties in the back
+    // half of the arc — the exact complaint ("there is nothing going on at all") this block was written
+    // to fix, half-fixed by a constant nobody checked.
+    // 🔑 IF THE DESIGN SAYS TWO, COUNT TO TWO. A probability is not a quantity, and a comment asserting
+    // a quantity that the code merely hopes for is the same class of untruth as the doomsday clock
+    // showing a time the city ignored. Rotating by life so it is a different two each time.
+    var garrison=(((i+lifeIndexOf(now))%nW)<2);
     var dist=marching ? lag+WW*0.05
            : garrison ? Math.min(R, WW*0.05+((h%100)/100)*WW*0.06)
            : Math.max(0,R-lag);
