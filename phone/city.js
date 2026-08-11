@@ -53371,6 +53371,67 @@ function gooSeed(g,t,now,K,L,goo,epi,gh){
   }
   g.globalAlpha=1;
 }
+// ── 🩸 AND THE GROUND OUTSIDE IT IS SCORED WITH DRAG TRAILS. 🔒 His call. Nobody walks into this: it
+// takes them where they stand and pulls them in, so what is left on the pavement is a SMEAR pointing at
+// the front, and every one of them points the same way — toward ground zero. That convergence is the
+// thing a scatter of pools can never say, and it is free: the direction is the sign of the wrap-offset
+// to the epicentre, which every other effect here already computes.
+// 📏 ALL THREE GROUND BANDS, and the NEAR PROMENADE especially — the sidewalk closest to the viewer is
+// where his eye actually is, and an effect that stops at the far kerb is happening to somebody else.
+// ⚠ `goreK()` OR IT IS NOT A SETTING. `gore:off` has to turn ALL of it off; the file already records
+// what happens when four of six code paths ignore it.
+// 🌍 Hashed in WORLD space with a screen cull — never `%SW`, which would print the same trails on all
+// three monitors and slide them under the wallpaper as the world scrolls.
+function gooTrails(g,ap,now,K,L,epi,R){
+  // ⚠ AND IT RUNS DURING THE SEED ACT TOO. Gated on `R>2` it only started once the mass existed, so
+  // the colony ate the cordon and the people behind it and left the pavement spotless. With R at 0
+  // the band below is just "within reach of ground zero", which is exactly the colony.
+  var GK=goreK(); if(GK<=0) return;
+  var day=L>0.5, n=Math.round(WW/15);
+  // …and they ARRIVE over the arc rather than all at once — a pavement already scored with two
+  // hundred drag marks in the first minute is a crime scene, not something happening.
+  var due=Math.min(100,6+ap*150);
+  var farTop=HORIZON+1, farBot=HORIZON+Math.max(1,WALK_F);
+  var nearTop=ROAD_BOT+1, nearBot=ROAD_BOT+Math.max(1,WALK_N);
+  for(var i=0;i<n;i++){
+    var h=((i*2654435761+21929)>>>0); h=(h^(h>>>13))>>>0;
+    var wx=(h>>>5)%WW, off=((wx-epi)%WW+WW*1.5)%WW-WW*0.5, d=Math.abs(off);
+    // the band that is being taken RIGHT NOW: just outside the front, plus what it has already crossed
+    // ⚠ A BAND AT THE FRONT, NOT EVERYWHERE IT HAS BEEN. Drawn across the whole consumed region they
+    // came out as a solid red scribble buried INSIDE the mass — ground that has been eaten is under
+    // the goo and has nothing left on it. The carnage travels with the edge: a little way inside it,
+    // where they are being taken now, and well outside it, where they got as far as they got.
+    if(d>R+70*K||d<R-26*K) continue;
+    if(((h>>>7)%100)>=due) continue;
+    var sx=Math.round(disX(wx)); if(sx<-40||sx>SW+40) continue;
+    var dir=(off>0)?-1:1;                                       // toward ground zero, always
+    var zone=(h>>>11)%3;                                        // far walk · road · near promenade
+    var gy=(zone===0)?(farTop+((h>>>15)%Math.max(1,farBot-farTop)))
+          :(zone===1)?(farBot+((h>>>15)%Math.max(1,ROAD_BOT-farBot)))
+          :           (nearTop+((h>>>15)%Math.max(1,nearBot-nearTop)));
+    var len=Math.round((7+((h>>>19)%22))*K);
+    var bl="rgba("+(day?150:112)+",16,22,";
+    // ⚡ FOUR TAPERED SEGMENTS, NOT `len` SINGLE PIXELS. A smear drawn a pixel at a time cost up to 87
+    // fills each and came out DOTTED — and a drag mark is one continuous thing or it is a dotted line.
+    var seg=Math.max(1,Math.round(len/4));
+    for(var q=0;q<4;q++){
+      var f=q/4;                                                // thickest where they were, faded where they went
+      var tx=sx+dir*(q*seg), tw=(dir>0)?seg:-seg;
+      var tx0=Math.min(tx,tx+tw);
+      if(tx0+seg<0||tx0>=SW) continue;
+      g.fillStyle=bl+((0.62-0.44*f)*GK).toFixed(3)+")";
+      g.fillRect(tx0,gy+(q&1),seg,Math.max(1,Math.round(K*(1-f*0.5))));
+    }
+    // the heel marks either side of it — a body dragged flat, not a thing rolled
+    if(((h>>>23)%3)===0){
+      g.fillStyle=bl+(0.5*GK).toFixed(2)+")";
+      g.fillRect(sx-dir*Math.round(K),gy-Math.round(K),Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
+      g.fillRect(sx-dir*Math.round(2*K),gy+Math.round(K),Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
+    }
+    // and where the pull started, what is left of them
+    if(((h>>>27)%4)===0) bloodMark(g,sx-dir*Math.round(2*K),gy,(h>>>3),2+((h>>>29)%3),Math.min(1,ap*0.8),L);
+  }
+}
 APOC_X.greygoo=function(g,ap,L,now){
   var K=Math.max(1,KSP);
   // 🌍🚨 A FRONT IS A DISTANCE, AND `SW` IS NEVER ONE. `-SW*0.15+ap*SW*1.4` swept each monitor
@@ -53388,7 +53449,7 @@ APOC_X.greygoo=function(g,ap,L,now){
   // error — absence presenting itself as a decision, one more time.
   var s0=APOC_STRIKE_AP.greygoo||0.25, s1=APOC_FULL_AP.greygoo||0.78;
   var gooR=Math.max(0,(ap-s0)/Math.max(0.01,s1-s0))*(WW*0.62);
-  gooSeed(g,ap/s0,now,K,L,L>0.5?[146,152,164]:[54,60,76],gooEpi,HORIZON+Math.round(GROUND*0.6));
+  gooSeed(g,ap/s0,now,K,L,L>0.5?[146,152,164]:[54,60,76],gooEpi,SH);
   // 🔑 THE READ IS THE ABSENCE OF DETAIL. Everything behind the front becomes ONE smooth grey with no
   // windows, no edges and no silhouette — which on a map made entirely of small bright detail is the
   // most disturbing thing that can happen to it. Nothing else in the set removes information.
@@ -53396,7 +53457,13 @@ APOC_X.greygoo=function(g,ap,L,now){
   // and the surface carries hard specular glints. A warm matte grey reads as mud or ash — both of which
   // this map already has — and neither says "manufactured".
   var goo=L>0.5?[146,152,164]:[54,60,76], gooDay=L>0.5;
-  var gh=HORIZON+Math.round(GROUND*0.6);
+  // 🚨🔑 IT STOPPED IN THE MIDDLE OF THE ROAD. `HORIZON+GROUND*0.6` left the NEAR PROMENADE — the
+  // sidewalk between the traffic and the viewer, where the pedestrians closest to you walk — as a
+  // clean strip along the bottom of every frame, with people strolling along it under a world that
+  // had ended. 🔒 His call. It fills to `SH`, which is also the house rule THE HOLLOW records: those
+  // are equal only on an INLAND land, and where there is open water `HORIZON = SEA_Y − GROUND`, so
+  // `HORIZON+GROUND` stops at the waterline and leaves the sea showing underneath.
+  var gh=SH;
   // the consumed region — run-batched over the columns THIS screen has, so a monitor that holds none
   // of it costs one comparison per column and draws nothing.
   // 🚨🔑🔑 IT WAS EATING THE SKY. `fillRect(runX, 0, …, gh)` starts at y=0, so everything behind the
@@ -53536,6 +53603,7 @@ APOC_X.greygoo=function(g,ap,L,now){
     g.fillStyle=L>0.5?"rgba(238,246,255,0.85)":"rgba(150,178,214,0.75)";
     g.fillRect(glx,gly,Math.max(1,Math.round(K)),Math.max(1,Math.round(K*0.7)));
   }
+  gooTrails(g,ap,now,K,L,gooEpi,gooR);
   gooLife(g,ap,now,K,gsurf,gh,L,goo,gooEpi,gooR);
   // ── 🖐️ TENDRILS. Fingers of it climbing whatever is still standing just beyond the front — the part
   // that says the city is being TAKEN rather than merely covered over.
