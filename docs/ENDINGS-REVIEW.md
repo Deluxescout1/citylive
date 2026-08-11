@@ -46,7 +46,7 @@ then pin the next. Order below is his own `_order` string.
 | 13 | `gammaray` | Gamma-Ray Burst | strike @0.1 | — | 🔧 | Reworked 2026-08-10: pivoting beam that sweeps and glasses the ground; bleach+shade replacing the flat wash; aircraft shot down, traffic fried, ionisation arcs, hard pulse flashes; people burned into the road (KSP-scaled at last). |
 | 14 | `rogueplanet` | The Rogue Planet | strike @0.3 | — | 🔧 | Rebuilt 2026-08-10 on real physics: no impact is possible (Roche limit). Staged timeline — auroras+superstorms, tides as walls, crustal quakes+volcanism, air leaking to space with daytime stars, rings we pass into, graze-burn, then the crust peels away. Banded surface no longer painted over; planet size capped. |
 | 15 | `crustcrack` | The Crust Cracks | strike @0.2 | — | 🔧 | Reworked 2026-08-10: chasm moved from the horizon to the street band, propagating front with a fracture running ahead, buildings tip in, people flee then fall, water pours in and returns as steam, consumes the world, healed+bridged scar in later lives. ⚠ the scar still reads weakly — needs another pass. |
-| 16 | `oceansboil` | The Oceans Boil | strike @0.45 | — | ⬜ | |
+| 16 | `oceansboil` | The Oceans Boil | strike @0.45 | — | 🔧 | Reworked 2026-08-10: was a solid full-width white wall at 0.86 alpha climbing the frame, so everything went uniformly white and the city could never be seen disappearing into it. Now billowing steam columns with GAPS you glimpse the city through, violent geysers off the waterline, superheated water, and the final opacity held back to the very end. |
 | 17 | `greygoo` | Grey Goo | strike @0.25 | — | ⬜ | |
 | 18 | `lastwinter` | The Last Winter | strike @0.4 | — | ⬜ | |
 | 19 | `skyfall` | The Sky Falls | strike @0.25 | — | ⬜ | |

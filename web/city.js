@@ -53043,14 +53043,54 @@ APOC_X.crustcrack=function(g,ap,L,now){
 APOC_X.oceansboil=function(g,ap,L,now){
   var K=Math.max(1,KSP);
   var sea=(typeof SEA_Y==="number"&&SEA_Y>0&&SEA_Y<SH)?SEA_Y:HORIZON;
-  // the steam front: a wall of white that rises out of the sea and takes the frame
-  var h=Math.round(SH*ap*1.15);
-  for(var q=0;q<h;q++){
-    var qf=q/Math.max(1,h);
-    var wob=((((q*2654435761)>>>0)%3)-1)*Math.round(K);
-    g.fillStyle="rgba("+(L>0.5?"236,238,240":"150,156,164")+","+(0.86*(1-qf*0.30)).toFixed(3)+")";
-    g.fillRect(wob,sea-q,SW,1);
+  // 🚨🔑🔑 IT WAS A SOLID WALL OF WHITE. `fillRect(wob, sea-q, SW, 1)` at 0.86 alpha, full width, one
+  // row at a time — so the frame went uniformly white and stayed there, and the `wob` jitter did
+  // nothing at all because the rect spans the whole screen either way. The comment eight lines down
+  // says the only thing worth watching is "the city disappearing INTO it", and an opaque wall is
+  // precisely what makes that impossible to watch. 🔑 STEAM IS VOLUME, NOT COVERAGE: it billows in
+  // columns with gaps between them, and the gaps are the entire point — they are what you glimpse the
+  // city through while it goes. The same lesson as the greygoo eating the sky, in white.
+  var top=Math.round(SH*ap*1.15);
+  for(var c=0;c<64;c++){
+    var ch2=((c*2654435761+7481)>>>0); ch2=(ch2^(ch2>>>13))>>>0;
+    var cwx=((ch2>>>3)%Math.max(1,WW))-WOFF;
+    if(cwx<-70||cwx>SW+70) continue;
+    var rise=((now*0.00016+((ch2>>>11)%1000)/1000)%1);
+    var cy3=Math.round(sea-rise*top);
+    if(cy3<-40) continue;
+    var rr=Math.round((7+((ch2>>>17)%16))*K*(0.45+rise*1.5));
+    var a=0.52*(1-rise*0.55)*Math.min(1,ap*1.8);
+    if(a<0.02) continue;
+    var col=(L>0.5)?"236,238,240":"150,156,164";
+    g.fillStyle="rgba("+col+","+a.toFixed(3)+")";
+    fillEllipse(g,cwx,cy3,rr,Math.max(1,Math.round(rr*0.78)));
+    fillEllipse(g,cwx+Math.round(rr*0.62),cy3-Math.round(rr*0.34),Math.max(1,Math.round(rr*0.6)),Math.max(1,Math.round(rr*0.46)));
+    fillEllipse(g,cwx-Math.round(rr*0.58),cy3+Math.round(rr*0.2),Math.max(1,Math.round(rr*0.52)),Math.max(1,Math.round(rr*0.4)));
   }
+  // ── 🌋 AND THE SEA IS BOILING, VIOLENTLY. Geysers going up out of it — the thing that says the water
+  // is being flashed to steam rather than a fog rolling in off it.
+  for(var gz=0;gz<Math.round(14*Math.min(1,ap*2));gz++){
+    var gh2=((gz*2654435761+2213)>>>0); gh2=(gh2^(gh2>>>13))>>>0;
+    var gx=((gh2>>>5)%Math.max(1,WW))-WOFF;
+    if(gx<-20||gx>SW+20) continue;
+    var per=1400+((gh2>>>11)%1600);
+    var gt=(((now+((gh2>>>17)%per))%per)/per);
+    var gHt=Math.round((30+((gh2>>>21)%50))*K*Math.sin(Math.PI*gt));
+    if(gHt<2) continue;
+    var gw=Math.max(2,Math.round((2+((gh2>>>25)%3))*K));
+    g.fillStyle="rgba(255,255,255,"+(0.85*(1-gt*0.4)).toFixed(3)+")";
+    g.fillRect(gx-(gw>>1),sea-gHt,gw,gHt);
+    g.fillStyle="rgba(255,246,232,0.9)";
+    fillEllipse(g,gx,sea-gHt,Math.round(gw*1.6),Math.round(gw*1.2));
+  }
+  // the waterline itself, superheated — it should not look like cold sea under all that steam
+  g.globalCompositeOperation="lighter";
+  for(var wl=0;wl<SW;wl+=Math.max(1,Math.round(K))){
+    var wa=0.20+0.18*Math.sin((wl+WOFF)*0.06+now*0.006);
+    g.fillStyle="rgba(255,196,150,"+(wa*Math.min(1,ap*2)).toFixed(3)+")";
+    g.fillRect(wl,sea-Math.round(2*K),Math.max(1,Math.round(K)),Math.round(3*K));
+  }
+  g.globalCompositeOperation="source-over";
   // …and it is BOILING, not fog: bubbles bursting along the waterline
   for(var b=0;b<Math.round(50*ap);b++){
     var hb=((b*2654435761+13)>>>0);
@@ -53062,7 +53102,9 @@ APOC_X.oceansboil=function(g,ap,L,now){
   // ⚠ the air going opaque is the END of this, not the middle of it. At a flat 0.5*ap the city was
   // already gone by the time the steam front had climbed it, which throws away the only thing worth
   // watching — the city disappearing INTO it.
-  g.fillStyle="rgba(210,200,190,"+(0.55*Math.max(0,(ap-0.45)/0.55)).toFixed(3)+")"; g.fillRect(0,0,SW,SH);
+  // ⚠ AND THE FINAL OPACITY IS HELD BACK. At 0.55 it closed over the frame while the steam still had
+  // work to do; the city vanishing is the payoff, so the air only truly goes opaque at the very end.
+  g.fillStyle="rgba(210,200,190,"+(0.42*Math.max(0,(ap-0.62)/0.38)).toFixed(3)+")"; g.fillRect(0,0,SW,SH);
 };
 
 // GREY GOO — it does not burn or crush. It DISASSEMBLES, and what it leaves is featureless.
