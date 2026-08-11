@@ -10,6 +10,16 @@ then pin the next. Order below is his own `_order` string.
 
 ⬜ not yet reviewed · 🔧 fixed this pass · ✅ he has signed it off
 
+> 🚨 **THIS LEDGER HAS GONE STALE TWICE.** Ticks fail silently, so the counts here are not evidence on
+> their own. **AUDIT METHOD (2026-08-11):** count `🔒` LOCKED CALLS inside each renderer's own span —
+> a locked call is only ever written down after Nick has judged that ending, so it is the one signal
+> that survives a missed tick. `git log -G <key>` does NOT work: `ai` matches "rain" and "detail",
+> `nuke` matches the shared `nukeDist`/`nukeGZX` helpers, and both come back with 30–100 false hits.
+>
+> **RESULT: 43 endings · 17 have had at least one judged pass · 26 never have.** Nine rows below were
+> marked ⬜ while carrying locked calls, and are corrected. `thechange` is ticked 🔧 but has NO locked
+> call and only 67 lines — it got a colour fix, not a judged pass, and belongs with the 26.
+
 ## THE BLOOD TWELVE (v4.0.0 — newest, least reviewed)
 
 | # | key | name | destroys? | egg needed | status | notes |
@@ -21,11 +31,11 @@ then pin the next. Order below is his own `_order` string.
 | 5 | `acidrain` | Acid Rain | sweep @0.24 | — | ⬜ | |
 | 6 | `thepit` | The Pit | sweep @0.26 | — | ⬜ | |
 | 7 | `glassrain` | Glass Rain | sweep @0.2 | — | ⬜ | |
-| 8 | `thescream` | The Scream | strike @0.14 | — | ⬜ | |
+| 8 | `thescream` | The Scream | strike @0.14 | — | 🔧 | Ledger audit 2026-08-11: this row said UNREVIEWED and its renderer carries 1 locked call (🔒), so it has been through at least one judged pass. Tick was never applied. |
 | 9 | `crimsontide` | The Crimson Tide | sweep @0.34 | — | ⬜ | |
 | 10 | `warmachine` | The War Machine | sweep @0.28 | — | 🔧 | Partly fixed 2026-08-10: the comment claimed "two of five hold near the epicentre" and the hash gave exactly ONE, seeded on the index so it was the same one forever — which is why the epicentre monitor emptied in the back half. Now exactly two, rotating per life. Hull rebuilt: legs were hgt*0.035 (4px on a 120px machine) under a hull only 19% of height — two thirds spindly strut by area. Hull to 26% and deeper, legs more than doubled, knee blocks and hip pivots, lit top plate / dark belly / shoulder pauldrons, and a small sensor head so the rest reads big. |
-| 11 | `thefamine` | The Famine | strike @0.45 | — | ⬜ | |
-| 12 | `thehollow` | The Hollow | sweep @0.3 | — | ⬜ | |
+| 11 | `thefamine` | The Famine | strike @0.45 | — | 🔧 | Ledger audit 2026-08-11: this row said UNREVIEWED and its renderer carries 1 locked call (🔒), so it has been through at least one judged pass. Tick was never applied. |
+| 12 | `thehollow` | The Hollow | sweep @0.3 | — | 🔧 | Ledger audit 2026-08-11: this row said UNREVIEWED and its renderer carries 1 locked call (🔒), so it has been through at least one judged pass. Tick was never applied. |
 
 ## THE TWENTY-FIVE (older cataclysms)
 
@@ -53,20 +63,20 @@ then pin the next. Order below is his own `_order` string.
 | 20 | `timestop` | Everything Stops | strike @0.18 | — | 🔧 | Reworked 2026-08-10: its own comment conceded it CANNOT freeze the movers, so EVERYTHING STOPS was a desaturation + vignette over a city still walking. It cannot stop what the engine moves, but it can ADD things already stopped — people caught mid-stride, cars dead in the road, debris that never came down — and stillness only reads AGAINST motion, so the traffic behind them is the contrast, not the obstacle. Nothing here depends on `now` for position. |
 | 21 | `thecomet` | The Comet | strike @0.55 | — | ⬜ | |
 | 22 | `thechange` | The Change | strike @0.35 | — | 🔧 | Reworked 2026-08-10: the wrong-anatomy creatures were drawn in pale flesh two shades off the buildings behind them, so the wrongness never registered. Darker, redder, hard dark outline down the torso — the silhouette has to win before the proportions can be read. |
-| 23 | `theburst` | The Burst | strike @0.55 | — | ⬜ | |
-| 24 | `thetitans` | The Titans | sweep @0.4 | — | ⬜ | |
-| 25 | `ragnarok` | Ragnarok | sweep @0.35 | — | ⬜ | |
+| 23 | `theburst` | The Burst | strike @0.55 | — | 🔧 | Ledger audit 2026-08-11: this row said UNREVIEWED and its renderer carries 15 locked calls (🔒), so it has been through at least one judged pass. Tick was never applied. |
+| 24 | `thetitans` | The Titans | sweep @0.4 | — | 🔧 | Ledger audit 2026-08-11: this row said UNREVIEWED and its renderer carries 14 locked calls (🔒), so it has been through at least one judged pass. Tick was never applied. |
+| 25 | `ragnarok` | Ragnarok | sweep @0.35 | — | 🔧 | Ledger audit 2026-08-11: this row said UNREVIEWED and its renderer carries 2 locked calls (🔒), so it has been through at least one judged pass. Tick was never applied. |
 
 ## LAND-LOCKED (need their own egg pinned)
 
 | # | key | name | destroys? | egg needed | status | notes |
 |---|---|---|---|---|---|---|
-| 1 | `massacre` | The Massacre | no | falador | ⬜ | |
+| 1 | `massacre` | The Massacre | no | falador | 🔧 | Ledger audit 2026-08-11: this row said UNREVIEWED and its renderer carries 1 locked call (🔒), so it has been through at least one judged pass. Tick was never applied. |
 | 2 | `logout` | The Server Shutdown | no | varrock | ⬜ | |
 | 3 | `wilderness` | The Wilderness | no | ardougne | ⬜ | |
 | 4 | `godwars` | The God Wars | no | lumbridge | ⬜ | |
-| 5 | `banwave` | The Ban Wave | no | falador | ⬜ | |
-| 6 | `ninetails` | The Nine-Tailed Fox | no | leaf | ⬜ | |
+| 5 | `banwave` | The Ban Wave | no | falador | 🔧 | Ledger audit 2026-08-11: this row said UNREVIEWED and its renderer carries 1 locked call (🔒), so it has been through at least one judged pass. Tick was never applied. |
+| 6 | `ninetails` | The Nine-Tailed Fox | no | leaf | 🔧 | Ledger audit 2026-08-11: this row said UNREVIEWED and its renderer carries 3 locked calls (🔒), so it has been through at least one judged pass. Tick was never applied. |
 
 ## Fixed globally on 2026-08-10, affects every row
 - **The backdrop city now collapses** (`f0e666f`) — on city-backdrop lands the tower bands are LAND,
