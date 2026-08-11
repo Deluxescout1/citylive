@@ -51395,7 +51395,15 @@ function bhGeo(ap,now){
   var d=((apocEpiX(now)-WOFF-SW*0.5)%WW+WW*1.5)%WW-WW*0.5;
   var par=Math.max(-1,Math.min(1,d/(WW*0.42)));
   var sx=Math.round(SW*0.5+par*SW*0.40);
-  return {sx:sx, sy:Math.round(HORIZON*0.42), R:Math.max(3,R), grow:grow};
+  // ☁️🔒 "THIS SHOULD COME FROM THE SKY AND NOT THE MIDDLE OF THE MAP." It sat at `HORIZON*0.42` with a
+  // radius reaching `HORIZON*0.50`, so as it grew it swallowed the middle of the frame and read as a
+  // hole punched in the CITY rather than an object hanging over it.
+  // 🔑 ANCHOR ITS LOWER LIMB, NOT ITS CENTRE. The bottom edge is held high in the sky and the hole grows
+  // UPWARD out of the top of the frame, which is also how a thing that size would actually read — you
+  // never see all of it, and the part you cannot see is what makes it enormous. The city keeps its own
+  // half of the frame, so there is something left to watch being taken.
+  var sy=Math.round(HORIZON*0.58-R*0.72);
+  return {sx:sx, sy:sy, R:Math.max(3,R), grow:grow};
 }
 function bhPos(now){ var G=bhGeo(cityApoc,now); return {sx:G.sx, sy:G.sy}; }
 // collapse progress 0..1 for a world-x under a nuke-style front (how far past the front it is), or -1 if the front hasn't reached it
@@ -60182,8 +60190,15 @@ function bhDark(ap){ return Math.min(0.97,0.10+0.88*Math.min(1,ap/0.55)); }
 // is the spaghettification, and it is what makes what is taken read as a BODY rather than a particle.
 // 🌍 Hashed in WORLD space with a screen cull; every position comes from an index and `now`, never from
 // state, so the three monitors show the same objects on the same paths.
+// ⏳🔒 TIME DILATION, HIS CALL — and it is a property of the PATH, not a separate effect. To anyone
+// watching from outside, infalling matter never actually crosses the horizon: it accelerates, then
+// appears to slow, and finally hangs at the edge for ever, reddening as it goes. So the climb is
+// asymptotic — many values of `t` land in the last stretch — which crowds everything into a shimmering
+// pile-up at the horizon instead of letting it vanish neatly. That crowd IS the dilation, it costs one
+// expression, and it is the only place in the set where the physics does the composition for you.
 function bhPath(t,gx,gy,hx,hy,wind,K){
-  var e=t*t*(3-2*t);                                 // the climb accelerates as the pull grows
+  var u=t*t*(3-2*t);                                 // the climb accelerates as the pull grows…
+  var e=1-Math.exp(-3.1*u);                          // …then never quite arrives
   var swirl=(1-e)*(1-e)*36*K;                        // wide arc low down, tight near the hole
   var a=wind+e*6.4;
   return {x:gx+(hx-gx)*e+Math.cos(a)*swirl, y:gy+(hy-gy)*e+Math.sin(a)*swirl*0.5, e:e};
@@ -60341,10 +60356,14 @@ function drawApocBlackHole(g,ap,L,now){
     // amber and dim. That asymmetry is what stops a ring from reading as a drawn circle.
     // ── 💡 THE BLOOM. Additive, and it is the only full-frame-ish light in the ending — a disk this
     // bright has to spill, or it reads as a sticker.
+    // ⚠ FIVE STEPS AT 0.05 IS NOT A GLOW, IT IS FIVE RINGS. The bloom banded visibly across the sky as
+    // concentric arcs — a gradient built from too few layers reads as contour lines, and additive makes
+    // every seam brighter still. Sixteen layers at a third of the alpha is the same total light with no
+    // edge in it.
     g.globalCompositeOperation="lighter";
-    for(var bl=5;bl>=1;bl--){
-      g.fillStyle="rgba("+(60+22*bl)+","+(34+14*bl)+",14,0.05)";
-      fillEllipse(g,sx,sy,R*(1.5+bl*0.42),R*(1.2+bl*0.34));
+    for(var bl=16;bl>=1;bl--){
+      g.fillStyle="rgba("+(58+7*bl)+","+(32+4*bl)+",14,0.017)";
+      fillEllipse(g,sx,sy,R*(1.30+bl*0.145),R*(1.05+bl*0.118));
     }
     g.globalCompositeOperation="source-over";
     bhHalo(g,sx,sy,R,spin,1.0,false);                           // the far half, arcing over the top
