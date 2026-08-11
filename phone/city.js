@@ -60191,7 +60191,15 @@ function bhPath(t,gx,gy,hx,hy,wind,K){
 function bhStream(g,ap,L,now,G){
   var K=Math.max(1,KSP), day=L>0.5;
   var hx=G.sx, hy=G.sy;
-  var pull=bhFrontR(); if(pull<=0) return;
+  // 🚨🔒 "THINGS SHOULD START GETTING THROWN IN MUCH SOONER." He is right and the fault was one law doing
+  // two jobs: everything was gated on `bhFrontR`, which is 0 until `BH_FORM_AP` (0.18) — thirty-six
+  // minutes of a growing hole and an untouched street.
+  // 🔑 TIDAL REACH IS NOT THE HORIZON. What tears a LOOSE thing off the ground reaches far beyond the
+  // radius that swallows a city block, and it arrives long before it. Small things go first, from almost
+  // the moment the thing exists; a tower has to wait for the front that actually takes its footing.
+  var pull=bhFrontR();                                  // anchored things: the front that demolishes
+  var reach=Math.max(0,(ap-0.03)/0.28)*(WW*0.62);       // loose things: earlier, and much wider
+  if(reach<=0) return;
   var base=HORIZON-1, epi=apocEpiX(now);
   // ── 🏢 THE BUILDINGS, and they are the REAL ones from `near.blds`. A tower inside the pull tears from
   // its footing and is drawn out along its path, its own width thinning as it climbs.
@@ -60224,7 +60232,7 @@ function bhStream(g,ap,L,now,G){
   for(var i=0;i<Math.round(WW/11);i++){
     var h=((i*2654435761+7331)>>>0); h=(h^(h>>>13))>>>0;
     var sx=apocScatterX(h>>>5); if(sx<0||sx>=SW) continue;
-    if(nukeDist(wrapW(sx+WOFF),epi)>=pull) continue;
+    if(nukeDist(wrapW(sx+WOFF),epi)>=reach) continue;
     var per2=5200+((h>>>11)%4200);
     var t2=Math.min(1,((now+((h>>>19)%per2))%per2)/per2);
     var wind2=((h>>>7)%628)/100;
@@ -60245,11 +60253,47 @@ function bhStream(g,ap,L,now,G){
       }
     }
   }
+  // ── 🛣️🔒 AND FINALLY THE GROUND ITSELF. His call: "even the road should fly in eventually." It is the
+  // last thing to go and the most disturbing, because every other ending leaves the street — the ground
+  // is the one surface the whole map is measured against, and a world with no floor left is the only
+  // honest end state for a thing that takes EVERYTHING.
+  // 🔑 IT PEELS FROM GROUND ZERO OUTWARD, slab by slab, and each slab's launch is DERIVED from how far it
+  // is from the epicentre — so the void spreads as one front instead of the road dissolving at random.
+  // ⚠ What is left behind is not dark road, it is NOTHING: the frame below the tear is the same void the
+  // sky has become, because there is no ground under it any more.
+  var road=Math.min(1,Math.max(0,(ap-0.46)/0.40));
+  if(road>0){
+    var nR=Math.round(WW/13), maxD=WW*0.62;
+    for(var r=0;r<nR;r++){
+      var hr=((r*2654435761+5171)>>>0); hr=(hr^(hr>>>13))>>>0;
+      var rwx=(hr>>>5)%WW, rd=nukeDist(rwx,epi);
+      var frac=1-Math.min(1,rd/maxD);
+      if(road<(1-frac)) continue;                        // this slab has not torn loose yet
+      var rsx=Math.round(disX(rwx)); if(rsx<-60||rsx>SW+60) continue;
+      var rw=Math.max(3,Math.round((10+((hr>>>17)%22))*K));
+      // the void it left — no ground, all the way down
+      g.fillStyle="rgba(3,3,9,0.96)";
+      g.fillRect(rsx,HORIZON-Math.round(K),rw,SH-HORIZON+Math.round(K));
+      var tr=Math.min(1,(road-(1-frac))/0.22);
+      if(tr<=0.01) continue;
+      var Pr=bhPath(tr,rsx+(rw>>1),base,hx,hy,((hr>>>9)%628)/100,K);
+      if(Pr.x<-rw||Pr.x>SW+rw) continue;
+      var rw2=Math.max(1,Math.round(rw*(1-Pr.e*0.75)));
+      var rh2=Math.max(1,Math.round((2+3*(1-Pr.e))*K));
+      var tilt=Math.round(Pr.e*rh2*2.2);
+      g.fillStyle=day?"rgba(52,54,62,"+(0.92-0.45*Pr.e).toFixed(2)+")":"rgba(22,24,30,"+(0.92-0.45*Pr.e).toFixed(2)+")";
+      g.fillRect(Math.round(Pr.x-rw2*0.5),Math.round(Pr.y-rh2*0.5)+tilt,rw2,rh2);
+      g.fillStyle="rgba(236,236,240,"+(0.55*(1-Pr.e)).toFixed(2)+")";   // the lane marking, still on it
+      g.fillRect(Math.round(Pr.x-rw2*0.3),Math.round(Pr.y-rh2*0.5)+tilt,Math.max(1,Math.round(rw2*0.35)),Math.max(1,Math.round(K*0.6)));
+      g.fillStyle="rgba(255,198,140,"+(0.4*(1-Pr.e)).toFixed(2)+")";    // the disk catching its edge
+      g.fillRect(Math.round(Pr.x-rw2*0.5),Math.round(Pr.y-rh2*0.5)+tilt,rw2,Math.max(1,Math.round(K*0.5)));
+    }
+  }
   // ── 🧱 AND THE LOOSE WORLD WITH THEM — cars, rubble and signage torn off and streaming up.
   for(var d3=0;d3<Math.round(WW/16);d3++){
     var hd=((d3*2654435761+4409)>>>0); hd=(hd^(hd>>>13))>>>0;
     var dx3=apocScatterX(hd>>>5); if(dx3<0||dx3>=SW) continue;
-    if(nukeDist(wrapW(dx3+WOFF),epi)>=pull) continue;
+    if(nukeDist(wrapW(dx3+WOFF),epi)>=reach) continue;
     var per3=4000+((hd>>>9)%5000);
     var t3=Math.min(1,((now+((hd>>>21)%per3))%per3)/per3);
     var P3=bhPath(t3,dx3,base-((hd>>>15)%6),hx,hy,((hd>>>3)%628)/100,K);
