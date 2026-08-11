@@ -51302,8 +51302,15 @@ var SUN_EXPLODE_MS=30000;          // at ~30s the swollen sun DETONATES → blin
 var AI_WAKE_MS=3000;               // the factories power on for ~3s (core lights, drones launch, sky glitches) before the takeover spreads — city still alive
 var AI_WIPE_MS=10000;              // the assimilation front then sweeps the WHOLE city in ~10s, converting every building into a machine-factory & harvesting it
 // ---- BLACK HOLE: a singularity forms in the sky, its pull reaches out and streams the whole city into the void ----
-var BH_FORM_MS=3200;               // the hole forms & the accretion disk spins up for ~3.2s before its tidal pull reaches the ground
-var BH_WIPE_MS=11000;              // the pull-radius then grows to swallow the WHOLE city in ~11s (nearest structures sucked in first)
+// ☄️🚨🚨 IT WAS A FOURTEEN-SECOND ENDING INSIDE A 201-MINUTE ARC. `BH_FORM_MS` 3200 and `BH_WIPE_MS`
+// 11000 are milliseconds on `apocMs`, which runs 0 → APOC_BAND*GROW_CYCLE ≈ 12,096,000 — so the hole
+// formed by ap 0.0003, the city was gone by ap 0.0012, and the remaining 99.9% of the ending was ONE
+// STATIC FRAME. Rendered at 30s, ap 0.20 and ap 0.60 it is pixel-identical: a dark rectangle with a
+// 40px ring in the corner. 🔑 Every ending in the older tier is authored in real seconds like this;
+// this one is now on the ARC, and the two numbers below are the only clock it has.
+var BH_FORM_AP=0.18;               // Gargantua has formed and its tidal reach touches the ground
+var BH_FULL_AP=0.88;               // …and by here it has drawn the whole world in
+var BH_FORM_MS=3200, BH_WIPE_MS=11000;   // ⚠ kept only for the replay/demo path that still speaks ms
 // ---- ALIEN WAR: two alien fleets battle overhead; Earth is caught in the crossfire — stray beam strikes & falling wreckage rake the city apart ----
 var WAR_ONSET_MS=3000;             // the fleets arrive & open fire for ~3s (battle overhead) before the crossfire starts hitting the ground — city still alive
 var WAR_STAGGER_MS=8000;           // the chaotic crossfire then rakes across the WHOLE city over ~8s (scattered strikes, not a clean front)
@@ -51362,9 +51369,25 @@ function apocEpiX(now){ return nukeGZX(now); }
 // a front radius (world px) that starts growing waitMs into the apoc and crosses the city over wipeMs — shared by nuke-style sweeps (AI assimilation, black-hole pull)
 function apocFrontR(waitMs,wipeMs){ return (Math.max(0,apocMs-waitMs)/wipeMs)*(WW*0.62); }
 function aiFrontR(){ return apocFrontR(AI_WAKE_MS,AI_WIPE_MS); }     // the AI assimilation front
-function bhFrontR(){ return apocFrontR(BH_FORM_MS,BH_WIPE_MS); }     // the black-hole pull radius
+// the pull radius, on the arc — ONE expression, read by the renderer AND by `apocHit`, so what looks
+// taken and what IS taken cannot drift apart (the two-laws-for-one-boundary lesson from the grey goo)
+function bhFrontR(){ return Math.max(0,(cityApoc-BH_FORM_AP)/Math.max(0.01,BH_FULL_AP-BH_FORM_AP))*(WW*0.62); }
 // the black hole's on-screen position — a singularity hanging in the sky above the epicentre (everything is sucked UP toward it)
-function bhPos(now){ var sx=apocEpiX(now)-WOFF; if(sx>SW+600&&sx-WW>-600)sx-=WW; if(sx<-600&&sx+WW<SW+600)sx+=WW; return {sx:sx, sy:Math.round(HORIZON*0.24)}; }
+// ── ⚫ GARGANTUA. 🔒 His call: COLOSSAL, the Interstellar shot — it fills the sky, the accretion disk
+// arcs over the top and back under the bottom through its own lens, and the city is a thin strip of
+// detail underneath. The old one was a 40px disk parked in a corner; ONE BIG OBJECT is rule one and a
+// black hole is the easiest subject in the whole set to obey it with.
+// 🌍 It hangs over GROUND ZERO, not at an absolute world fraction — the comet learned that the hard way.
+// 🔑 ONE SOURCE OF TRUTH, read by the renderer AND by the lens, so the warp cannot drift from the object
+// that is supposed to be causing it. Depends on `ap` only, never on `now`: the backdrop canvas repaints
+// every 4s and the live one every frame, and a lens keyed to `now` would tear them apart.
+function bhGeo(ap,now){
+  var grow=Math.min(1,Math.max(0,(ap-0.02)/0.60));
+  var R=Math.round(HORIZON*(0.06+0.44*Math.pow(grow,0.7)));
+  var sx=apocEpiX(now)-WOFF; if(sx>SW+900&&sx-WW>-900)sx-=WW; if(sx<-900&&sx+WW<SW+900)sx+=WW;
+  return {sx:sx, sy:Math.round(HORIZON*0.42), R:Math.max(3,R), grow:grow};
+}
+function bhPos(now){ var G=bhGeo(cityApoc,now); return {sx:G.sx, sy:G.sy}; }
 // collapse progress 0..1 for a world-x under a nuke-style front (how far past the front it is), or -1 if the front hasn't reached it
 // ⏳ THE RAMP IS 0.075 → 0.115 OF THE WORLD. 🔒 Nick: the collapses *"fall too fast"*. At 0.075 a
 // tower went from untouched to finished while the front travelled 170 wp — about a quarter of one of
@@ -51459,7 +51482,7 @@ function apocStruck(){ if(cityPhase!=="apoc") return false;
   if(curDeath==="meteors") return apocMs>=METEOR_SWARM_MS;                              // the small-meteor swarm has begun
   if(curDeath==="sunburst") return apocMs>=SUN_IGNITE_MS;                               // the sun's glare has IGNITED the ground
   if(curDeath==="ai")      return apocMs>=AI_WAKE_MS;                                   // the AI factories have booted & the takeover is spreading
-  if(curDeath==="bh")      return apocMs>=BH_FORM_MS;                                   // the singularity has formed & its pull has reached the ground
+  if(curDeath==="bh")      return cityApoc>=BH_FORM_AP;                                 // the singularity has formed & its pull has reached the ground
   if(curDeath==="alienwar") return apocMs>=WAR_ONSET_MS;                               // the crossfire has started raining on the city
   if(curDeath==="frost")   return apocMs>=FROST_ONSET_MS;                              // the killing freeze has begun
   if(curDeath==="kaiju")   return apocMs>=KAIJU_ARRIVE_MS;                             // the beast has emerged & begun its rampage
@@ -60096,55 +60119,155 @@ function drawApocAI(g,ap,L,now){
                      : "PLANET ENSLAVED";
   drawDoomHud(g,ap,now,msg,"CIVILIZATION DELETED");
 }
-// BLACK HOLE: a singularity forms in the sky, its accretion disk blazes, and its growing pull streams the whole city up into the void.
-// Timeline on the real-time apocMs clock (form ~3.2s → pull-radius swallows the city ~11s → a static dark void).
+// BLACK HOLE — GARGANTUA. A singularity forms over ground zero, its accretion disk blazes, and its
+// growing pull streams the whole city up into the void.
+// ⏱️ Timeline on the ARC (`BH_FORM_AP` / `BH_FULL_AP`), NOT on the 14-second stopwatch it used to run on.
+// ── 🌀🚨🚨 THE LENS IS NOT HERE, AND THE REASON IS WORTH MORE THAN THE CODE WAS.
+// His brief was that EVERY PIXEL gets warped. I measured a per-pixel radial resample first — 272 ms for
+// one 1552x874 canvas (6 ms to read, 0 to write, 266 in the JS loop over 1.36 M pixels), ~3.2 s across
+// his three screens — and correctly rejected it. Then I measured a STRIP warp built on
+// `getImageData`/`putImageData`: 4 ms, on the production FramebufferObject target, and built the whole
+// ending on that number.
+// 🚨🔑🔑 `putImageData` IS A SILENT NO-OP IN QML's Canvas. It reads back real pixels and writes nothing,
+// throws nothing, and returns nothing to check. My 4 ms was a real read plus a fake write. I then spent
+// four renders debugging "why is the warp invisible" — instrumenting the guards, splitting the two
+// passes, moving the sky darkening between canvases — when the answer was that the write never happened.
+// 🔑 I TIMED IT TWICE AND NEVER ONCE LOOKED AT THE OUTPUT. A four-line probe (fill a red block, read it,
+// write it somewhere else, save the PNG) settled it instantly. **A PROBE THAT ONLY MEASURES DURATION
+// CANNOT TELL A WORKING WRITE FROM A DISCARDED ONE** — its pass and its blind look identical.
+// ✅ WHAT DOES WORK, MEASURED THE SAME WAY: `drawImage(<Canvas>, sx,sy,sw,sh, dx,dy,dw,dh)` — it draws,
+// and it SCALES, which is strictly better than the translate-only warp I thought I had. It needs a
+// SECOND canvas as the source, so the world would have to render into an offscreen canvas that a visible
+// one then warps in strips. That is a change to `main.qml`'s two-canvas composition, which all 43
+// endings and the whole perf budget sit on — Nick's call, not a side effect of a black hole.
+function bhDark(ap){ return Math.min(0.97,0.10+0.88*Math.min(1,ap/0.55)); }
 function drawApocBlackHole(g,ap,L,now){
-  var formP=Math.min(1,apocMs/BH_FORM_MS);                    // singularity formation
-  var frontR=bhFrontR(), prog=Math.min(1,frontR/(WW*0.5));   // how much of the city has been pulled in
-  var bp=bhPos(now), sx=bp.sx, sy=bp.sy, spin=now*0.006;
+  var K=Math.max(1,KSP);
+  var G=bhGeo(ap,now), sx=G.sx, sy=G.sy, R=G.R;
+  var frontR=bhFrontR(), prog=Math.min(1,frontR/(WW*0.5));
+  var spin=now*0.00035;
+  var onScreen=(sx>-R*4&&sx<SW+R*4);
 
-  // ===== LONG AFTERMATH (hours): a STATIC void — near-black warped sky, cold stars, the quiet dim hole, empty ground =====
-  if(apocMs>BH_FORM_MS+BH_WIPE_MS+1500){
-    g.fillStyle="rgba(3,2,9,0.97)"; g.fillRect(0,0,SW,HORIZON);
-    for(var stp=0;stp<40;stp++){ var sh0=((stp*2654435761)>>>0); g.fillStyle="rgba(180,190,220,"+(0.2+0.2*((sh0>>>3)&1))+")"; g.fillRect(sh0%SW,(sh0>>>9)%HORIZON,1,1); }
-    g.globalCompositeOperation="lighter"; g.fillStyle="rgba(60,40,110,0.28)"; fillEllipse(g,sx,sy,26,24); g.globalCompositeOperation="source-over";   // residual halo (FIXED size)
-    g.fillStyle="#000"; fillEllipse(g,sx,sy,15,15);                                             // the black disk remains
-    g.fillStyle="rgba(4,3,10,0.95)"; g.fillRect(0,HORIZON,SW,SH-HORIZON);                       // empty dark ground
-    drawDoomHud(g,ap,now,cityName+" CONSUMED",cityName+" CONSUMED");
-    return;
+  // ===== THE SKY GOES. Daylight is being eaten, so the blue drains toward black and the stars behind
+  // it come through — the one sky in the set that gets DEEPER rather than dirtier.
+  // ⚠ THE SKY GOES, THE GROUND ONLY LOSES ITS COLOUR. A full-frame wash at 0.97 over `HORIZON+GROUND`
+  // took the whole picture to one value and left nothing to watch being destroyed — a translucent layer
+  // over everything cannot create contrast, it is definitionally the opposite.
+  var dark=bhDark(ap);
+  g.fillStyle="rgba(4,3,12,"+dark.toFixed(3)+")"; g.fillRect(0,0,SW,HORIZON);
+  g.fillStyle="rgba(6,5,14,"+(0.40*dark).toFixed(3)+")"; g.fillRect(0,HORIZON,SW,SH-HORIZON);
+  // 🌍 stars hashed in WORLD space with a screen cull — `st%SW` printed the same constellation on all
+  // three of his monitors, the tier-wide bug, still live in this renderer until now.
+  g.globalCompositeOperation="lighter";
+  for(var st=0;st<Math.round(dark*90);st++){
+    var sh=((st*2654435761+7717)>>>0); sh=(sh^(sh>>>13))>>>0;
+    var stx=apocScatterX(sh>>>5); if(stx<0||stx>=SW) continue;
+    var sty=(sh>>>13)%Math.max(1,HORIZON);
+    g.fillStyle="rgba(198,206,236,"+(0.5*dark*(0.55+0.45*Math.sin(now*0.0022+st))).toFixed(3)+")";
+    g.fillRect(stx,sty,1,1);
+  }
+  g.globalCompositeOperation="source-over";
+
+  if(onScreen){
+    // ===== 🔥 THE ACCRETION DISK, BEHIND. The Interstellar shape: the far side of the disk is lifted by
+    // the hole's own lens and arcs OVER the top, so you see the underside of a ring that is physically
+    // edge-on. Drawn as three pieces — the arc over the top, the flat edge-on band, and (after the
+    // sphere) the near arc passing under the bottom.
+    // 🎨 Doppler: the side rotating toward us is blue-white and blinding, the receding side is deep
+    // amber and dim. That asymmetry is what stops a ring from reading as a drawn circle.
+    // ── 💡 THE BLOOM. Additive, and it is the only full-frame-ish light in the ending — a disk this
+    // bright has to spill, or it reads as a sticker.
+    g.globalCompositeOperation="lighter";
+    for(var bl=5;bl>=1;bl--){
+      g.fillStyle="rgba("+(60+22*bl)+","+(34+14*bl)+",14,0.05)";
+      fillEllipse(g,sx,sy,R*(1.5+bl*0.42),R*(1.2+bl*0.34));
+    }
+    g.globalCompositeOperation="source-over";
+    bhHalo(g,sx,sy,R,spin,1.0,false);                           // the far half, arcing over the top
+    bhBand(g,sx,sy,R,spin,0.9,false);                           // the far arm of the edge-on band
+    // ===== ⚫ THE EVENT HORIZON. Pure black, and nothing is ever drawn over it except the near arc.
+    g.fillStyle="#000"; fillEllipse(g,sx,sy,R,R);
+    // ===== ✨ THE PHOTON RING — the hard bright line where light orbits. The single brightest thing in
+    // the frame, and the thing that makes the black read as a HOLE rather than a hole in the canvas.
+    var pn=Math.max(48,Math.round(R*4));
+    for(var pr=0;pr<pn;pr++){
+      var pa=(pr/pn)*Math.PI*2;
+      var dop=0.45+0.55*(0.5+0.5*Math.cos(pa));
+      g.fillStyle="rgba(255,"+((238-60*(1-dop))|0)+","+((214-120*(1-dop))|0)+","+(0.55+0.45*dop).toFixed(2)+")";
+      g.fillRect((sx+Math.cos(pa)*(R+1))|0,(sy+Math.sin(pa)*(R+1))|0,Math.max(1,Math.round(K*0.7)),Math.max(1,Math.round(K*0.7)));
+    }
+    bhHalo(g,sx,sy,R,spin,1.0,true);                            // and back under the bottom, in FRONT
+    bhBand(g,sx,sy,R,spin,1.0,true);                            // …and the near arm, crossing the sphere
   }
 
-  // ===== sky darkens & warps as the hole swallows the daylight; stars emerge =====
-  var skyA=Math.min(0.95,0.2+0.72*Math.max(formP*0.5,prog));
-  g.fillStyle="rgba(6,4,16,"+skyA+")"; g.fillRect(0,0,SW,HORIZON);
-  g.globalCompositeOperation="lighter";
-  for(var st2=0;st2<Math.round(skyA*44);st2++){ var s2=((st2*2654435761)>>>0); g.fillStyle="rgba(170,180,215,"+(0.3*skyA)+")"; g.fillRect(s2%SW,(s2>>>9)%HORIZON,1,1); }
-
-  // ===== gravitational LENSING halo — concentric distortion rings (drawn only, never a pixel read) =====
-  var Rd=8+formP*16+prog*10;                                                                    // the hole/disk scale (bounded)
-  for(var lr=4;lr>=1;lr--){ var rr=Rd*(1.5+lr*0.65); g.fillStyle="rgba(60,80,165,"+(0.035+0.015*lr)+")"; fillEllipse(g,sx,sy,rr,rr*0.9); }
-
-  // ===== the ACCRETION DISK — a blazing tilted ring of superheated matter spiralling in (Doppler-brightened on one side) =====
-  for(var adk=0; adk<44; adk++){ var aa=(adk/44)*Math.PI*2+spin, hot=(Math.sin(aa)+1)*0.5;
-    g.fillStyle="rgba(255,"+((140+80*hot)|0)+","+((40+60*hot)|0)+","+(0.5+0.4*hot)+")"; g.fillRect((sx+Math.cos(aa)*Rd*2.1)|0,(sy+Math.sin(aa)*Rd*0.66)|0,2,2); }
-  for(var ad2=0; ad2<30; ad2++){ var aa2=(ad2/30)*Math.PI*2-spin*1.5; g.fillStyle="rgba(180,210,255,0.7)"; g.fillRect((sx+Math.cos(aa2)*Rd*1.35)|0,(sy+Math.sin(aa2)*Rd*0.46)|0,1,1); }
-  g.globalCompositeOperation="source-over";
-
-  // ===== the singularity — a pure black disk ringed by a bright photon sphere =====
-  g.fillStyle="#000"; fillEllipse(g,sx,sy,Rd,Rd);
-  g.globalCompositeOperation="lighter";
-  for(var pr=0; pr<30; pr++){ var pa=(pr/30)*Math.PI*2; g.fillStyle="rgba(220,180,255,0.8)"; g.fillRect((sx+Math.cos(pa)*(Rd+1.5))|0,(sy+Math.sin(pa)*(Rd+1.5))|0,1,1); }
-
-  // ===== everything is dragged in — debris/dust/light spiralling toward the hole =====
-  if(apocStruck()){ for(var pt=0; pt<Math.round(14+prog*30); pt++){ var ph=((pt*2654435761+3)>>>0);
-      var life=((now*0.05+pt*37+ph)%100)/100, ang=(ph%628)/100+life*7, rad=(1-life)*(Rd*2+((ph%100)/100)*SW*0.5);
-      var pxp=sx+Math.cos(ang)*rad, pyp=sy+Math.sin(ang)*rad*0.8;
-      if(pxp<-3||pxp>SW+3) continue;
-      g.fillStyle=(pt&1)?"rgba(200,170,255,"+(0.6*(1-life))+")":"rgba(255,150,90,"+(0.6*(1-life))+")"; g.fillRect(pxp|0,pyp|0,1+((ph>>4)&1),1); } }
-  g.globalCompositeOperation="source-over";
-
-  var msg=(formP<1)?"SINGULARITY FORMING":(prog<1)?"EVENT HORIZON EXPANDING - "+Math.round(prog*100)+" PCT":cityName+" CONSUMED";
+  var msg=(ap<BH_FORM_AP)?"SINGULARITY FORMING"
+         :(prog<1)?"EVENT HORIZON EXPANDING - "+Math.round(prog*100)+" PCT":cityName+" CONSUMED";
   drawDoomHud(g,ap,now,msg,cityName+" CONSUMED");
+}
+// ── 🔥 THE DISK. ⚠ FIRST CUT WAS A ROPE: a 1px trail scattered along a circle with a 5% wobble, which
+// read as an orange noodle looping round the sphere, and the lens then bent it into a wandering line.
+// A disk is an ANNULUS — filled between two radii — and the wobble is what made it look hand-drawn.
+// 🔒 The Interstellar silhouette is two rings sharing one outer radius: a HALO standing vertically
+// (the far side of the disk, its light bent up over the top and back under the bottom) crossed by a
+// flat EDGE-ON BAND (the near and far sides seen in the disk's own plane). A bar through a circle.
+// 🎨 DOPPLER IS WHAT SELLS IT: the side rotating toward us is blue-white and blinding, the receding
+// side is deep amber and half as bright. Symmetrical brightness reads as a drawn ring every time.
+function bhHalo(g,cx,cy,R,spin,bright,front){
+  // ⚠ SAMPLING AN ANNULUS ONE SQUARE AT A TIME WOVE A BASKET. Stepping in radius AND angle laid the
+  // marks on a polar grid, and a polar grid at these radii is a visible moiré — it read as woven cane,
+  // not as light. 🔑 CONCENTRIC FILLED ELLIPSES, LARGEST FIRST: each one covers the last, so ten fills
+  // give a solid band with a real radial profile for a tenth of the marks and none of the pattern.
+  var r0=R*1.18, r1=R*1.46, N=10;
+  g.save();
+  g.beginPath();                                          // the far half arcs over the top, the near half under
+  if(front) g.rect(0,cy,SW,SH-cy); else g.rect(0,0,SW,cy+1);
+  g.clip();
+  for(var i=0;i<N;i++){
+    var e=i/(N-1), rr=r1+(r0-r1)*e;
+    var prof=1-Math.abs(e-0.45)*1.7;                       // brightest through the middle of the band
+    if(prof<=0.02) continue;
+    var a=(0.72*prof*bright);
+    g.fillStyle="rgba(255,"+((172+56*prof)|0)+","+((70+120*prof)|0)+","+a.toFixed(2)+")";
+    fillEllipse(g,cx,cy,rr,rr*0.98);
+  }
+  // 🎨 DOPPLER. The approaching arm is redrawn blue-white over the top, clipped to its own side — an
+  // asymmetry a symmetric ring can never have, and the single thing that stops it reading as drawn.
+  g.beginPath(); g.rect(0,0,cx,SH); g.clip();
+  for(var j=0;j<N;j++){
+    var e2=j/(N-1), r2=r1+(r0-r1)*e2;
+    var p2=1-Math.abs(e2-0.45)*1.7; if(p2<=0.02) continue;
+    g.fillStyle="rgba("+((236+19*p2)|0)+","+((240+15*p2)|0)+",255,"+(0.55*p2*bright).toFixed(2)+")";
+    fillEllipse(g,cx,cy,r2,r2*0.98);
+  }
+  g.restore();
+  // and the sky it is NOT covering has to come back — the inner fill of the smallest ellipse
+  g.save();
+  g.beginPath(); if(front) g.rect(0,cy,SW,SH-cy); else g.rect(0,0,SW,cy+1); g.clip();
+  g.fillStyle="rgba(4,3,12,0.99)"; fillEllipse(g,cx,cy,r0,r0*0.98);
+  g.restore();
+}
+// the edge-on band: the disk seen in its own plane, stretched far out to either side and pinched thin
+function bhBand(g,cx,cy,R,spin,bright,front){
+  // ⚠ IT WAS A PLANK. At reach 3R with a linear taper the arms crossed the whole screen at near-constant
+  // brightness and read as a beam laid over the picture. An accretion arm seen edge-on is brightest where
+  // it leaves the sphere and gone by its own outer edge, so the falloff is squared and the reach is
+  // tighter — it now belongs to the hole instead of to the frame.
+  var reach=Math.round(R*2.3), thick=Math.max(2,Math.round(R*0.12));
+  for(var q=-reach;q<=reach;q+=1){
+    var f=Math.abs(q)/Math.max(1,reach);
+    if(front){ if(f>0.58) continue; }                     // the near arm crosses the sphere
+    else if(f<0.52) continue;                             // the far arm is hidden behind it
+    var th=Math.max(1,Math.round(thick*(1-f*0.72)));
+    var yy=cy+Math.round(Math.sin(q*0.006+spin*2)*R*0.02);
+    var dop=(q<0)?1.0:0.40;
+    var a=(0.26+0.62*dop)*(1-f)*(1-f)*bright;
+    g.fillStyle="rgba(255,"+((150+100*dop)|0)+","+((44+168*dop)|0)+","+a.toFixed(2)+")";
+    g.fillRect((cx+q)|0,(yy-th*0.5)|0,1,th);
+    if(dop>0.8&&((q*2654435761)>>>0)%4===0){              // the blue-white core of the approaching arm
+      g.fillStyle="rgba(238,246,255,"+(0.7*(1-f)*bright).toFixed(2)+")";
+      g.fillRect((cx+q)|0,(yy-th*0.22)|0,1,Math.max(1,Math.round(th*0.45)));
+    }
+  }
 }
 // ALIEN WAR: two alien fleets battle overhead; Earth is collateral — stray beams & burning wreckage rake the city apart.
 // Timeline on the real-time apocMs clock (fleets engage ~3s → crossfire rakes the city ~8s → devastated wasteland).
@@ -61380,8 +61503,8 @@ function draw(g,pass){
                                                       : Math.min(1,0.35+(apocMs-SUN_IGNITE_MS)/2500))  //   …then the ground ignites and everything perishes fast
     : (curDeath==="ai") ? (apocMs<AI_WAKE_MS ? Math.min(0.25,apocMs/AI_WAKE_MS*0.25)          //   ai: panic as the factories boot…
                                              : Math.min(1,0.25+(apocMs-AI_WAKE_MS)/AI_WIPE_MS))    //   …then the assimilation front empties it as it spreads
-    : (curDeath==="bh") ? (apocMs<BH_FORM_MS ? Math.min(0.25,apocMs/BH_FORM_MS*0.25)           //   black hole: dread as the singularity forms…
-                                             : Math.min(1,0.25+(apocMs-BH_FORM_MS)/BH_WIPE_MS))    //   …then the pull drags the city in as it grows
+    : (curDeath==="bh") ? (cityApoc<BH_FORM_AP ? Math.min(0.25,cityApoc/BH_FORM_AP*0.25)        //   black hole: dread as the singularity forms…
+                                             : Math.min(1,0.25+(cityApoc-BH_FORM_AP)/(BH_FULL_AP-BH_FORM_AP)))  //   …then the pull drags the city in as it grows
     : (curDeath==="alienwar") ? (apocMs<WAR_ONSET_MS ? Math.min(0.3,apocMs/WAR_ONSET_MS*0.3)   //   alien war: panic as the fleets open fire overhead…
                                                      : Math.min(1,0.3+(apocMs-WAR_ONSET_MS)/6000))    //   …then the crossfire empties the city
     : (curDeath==="frost") ? (apocMs<FROST_ONSET_MS ? Math.min(0.3,apocMs/FROST_ONSET_MS*0.3)   //   deep freeze: people flee the plummeting cold…

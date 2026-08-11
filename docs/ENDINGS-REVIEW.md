@@ -45,7 +45,7 @@ then pin the next. Order below is his own `_order` string.
 | 2 | `nuke` | Nuclear Strike | no | — | ⬜ | |
 | 3 | `sunburst` | Solar Flare | no | — | ⬜ | |
 | 4 | `ai` | AI Uprising | no | — | ⬜ | |
-| 5 | `bh` | Black Hole | no | — | ⬜ | |
+| 5 | `bh` | Black Hole | no | — | 🔧 | Rebuilt 2026-08-11 (his brief: Interstellar's Gargantua, spaghettify everything, every pixel affected). 🚨 It was a FOURTEEN-SECOND ending inside a 201-minute arc — `BH_FORM_MS` 3200 + `BH_WIPE_MS` 11000 are ms on `apocMs`, so the city was gone by ap 0.0012 and rendered at 30s / ap 0.20 / ap 0.60 the frame is pixel-identical: three hours twenty of one static dark rectangle with a 40px ring in the corner. Now on the arc (`BH_FORM_AP` 0.18 / `BH_FULL_AP` 0.88), and `bhFrontR` reads the same expression `apocHit` collapses buildings with. Gargantua is colossal and hangs over ground zero: solid annulus halo arcing over the top and back under the bottom, edge-on arms, photon ring, and a real Doppler gradient (blue-white approaching / amber receding). Stars world-anchored (were `%SW`). Sky goes to black, ground only desaturates. ⚠ REMAINING: no spaghettification yet — see the note in the renderer. `putImageData` is a SILENT NO-OP in QML Canvas, so the strip-warp lens I measured at 4 ms never wrote anything; `drawImage(<Canvas>,…)` does work and scales, but needs a second canvas in `main.qml`. |
 | 6 | `alienwar` | Alien War | no | — | ⬜ | |
 | 7 | `frost` | Deep Freeze | no | — | ⬜ | |
 | 8 | `kaiju` | Kaiju Attack | no | — | ⬜ | |
