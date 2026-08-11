@@ -4,8 +4,8 @@ import "../org.citylive.wallpaper/contents/js/city.js" as City
 // pinned onto it so the whole thing is visible. Judge a slow arc on a contact sheet.
 Item { id: root; width: 1552; height: 874
   property var shots: [
-    { n:"nk-ap10", ms: 1209600 }, { n:"nk-ap40", ms: 4838400 },
-    { n:"nk-ap70", ms: 8467200 }, { n:"nk-ap95", ms:11491200 }
+    { n:"mt-ap10", ms: 1209600 }, { n:"mt-ap40", ms: 4838400 },
+    { n:"mt-ap70", ms: 8467200 }, { n:"mt-ap95", ms:11491200 }
   ]
   property int idx: 0
   property int warm: 0
@@ -15,7 +15,7 @@ Item { id: root; width: 1552; height: 874
     var S=root.shots[root.idx], CYC=604800000, EPOCH=1783972450746;
     City.GROW_CYCLE=CYC; City.NOFETCH=true;
     City.FORCEBIOME=null; City.FORCEVARIANT=null; City.FORCEEGG="core";
-    City.FORCEDIS=null; City.FORCEDEATH="nuke";
+    City.FORCEDIS=null; City.FORCEDEATH="meteors";
     City.CFG_APOC_EPI=0.859;                       // world 567 — on the left monitor
     City.FORCEAPOCMS=S.ms;
     var d=new Date(EPOCH+44*CYC+Math.round(0.90*CYC)); d.setHours(8,1,0,0);

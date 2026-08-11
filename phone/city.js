@@ -59279,10 +59279,69 @@ function nukeAfter(g,ap,L,now){
     g.fillRect(0,base-Math.round(K),SW,Math.round(3*K));                 // ash silting over the street
   }
 }
+// ── ☄️ THE METEOR STORM'S MIDDLE — ITS OWN PHYSICS, NOT THE NUKE'S. 🔒 His call: every ending's phases
+// come from what that event actually does, because the specificity is the whole point of having 43.
+// A nuke burns a city and leaves fallout. A planet-killer does something different and much worse: it
+// throws a mass of molten rock back OUT of the crater, which re-enters all over the world and sets it
+// alight — and then the dust it lofted blots the sun for years. So the last and longest phase is not ash
+// settling, it is an IMPACT WINTER: a brown-black sky, a dead cold light, and snow that is not snow.
+// 🔑 EJECTA IS THE PHASE NOTHING ELSE IN THE SET HAS. Fire coming DOWN from above, long after the impact,
+// with the strike already over — the sky itself is the weapon for the second time.
+function meteorAfter(g,ap,L,now){
+  if(!apocStruck()) return;
+  var K=Math.max(1,KSP), day=L>0.5, base=HORIZON-1;
+  var ej=Math.max(0,Math.min(1,(ap-0.32)/0.22));        // EJECTA RE-ENTRY   0.32 → 0.54
+  var fr=Math.max(0,Math.min(1,(ap-0.38)/0.24));        // GLOBAL FIRESTORM  0.38 → 0.62
+  var wi=Math.max(0,Math.min(1,(ap-0.56)/0.34));        // IMPACT WINTER     0.56 → 0.90
+  var frFade=Math.max(0,1-Math.max(0,(ap-0.64)/0.26));  // the fires starve as the sky closes
+  // ── ☄️ EJECTA. Molten rock thrown clear of the crater, re-entering everywhere at once. It falls at an
+  // angle, it glows, and it arrives long after the thing that threw it.
+  if(ej>0&&wi<0.9){
+    g.globalCompositeOperation="lighter";
+    for(var i=0;i<Math.round(WW/7*ej*(1-wi*0.7));i++){
+      var h=((i*2654435761+6151)>>>0); h=(h^(h>>>13))>>>0;
+      var x=apocScatterX(h>>>5); if(x<0||x>=SW) continue;
+      var t=((now*0.22+((h>>>13)%1000))%1000)/1000;
+      var y=Math.round(t*base), ln=Math.round((5+((h>>>19)%9))*K);
+      g.fillStyle="rgba(255,"+((150+80*(1-t))|0)+",70,"+(0.75*ej).toFixed(2)+")";
+      for(var q=0;q<ln;q++) g.fillRect(x-Math.round(q*0.45),y-q,Math.max(1,Math.round(K*0.7)),Math.max(1,Math.round(K)));
+    }
+    g.globalCompositeOperation="source-over";
+  }
+  // ── 🔥 and where it lands the world burns — everywhere, not just where the big one hit
+  if(fr>0&&frFade>0){
+    for(var f2=0;f2<Math.round(WW/8);f2++){
+      var hf=((f2*2654435761+2731)>>>0); hf=(hf^(hf>>>13))>>>0;
+      var fx=apocScatterX(hf>>>5); if(fx<0||fx>=SW) continue;
+      var hgt=Math.round((3+((hf>>>11)%10))*K*fr*frFade*(0.55+0.45*Math.sin(now*0.005+f2)));
+      if(hgt<1) continue;
+      g.globalCompositeOperation="lighter";
+      g.fillStyle="rgba(255,"+((110+70*((f2*7)%10)/10)|0)+",44,"+(0.45*fr*frFade).toFixed(2)+")";
+      g.fillRect(fx,base-hgt,Math.max(1,Math.round(K)),hgt);
+      g.globalCompositeOperation="source-over";
+    }
+  }
+  // ── 🌑 IMPACT WINTER. The dust closes over and stays: a brown-black sky, the light going dead and cold,
+  // and a fall of ash and frozen soot that never stops. This is the ending's lasting frame and it is the
+  // OPPOSITE of the nuke's — that one settles into pale grey, this one shuts the lights off.
+  if(wi>0){
+    g.fillStyle="rgba(38,30,26,"+(0.72*wi).toFixed(2)+")"; g.fillRect(0,0,SW,HORIZON);
+    g.fillStyle="rgba(22,20,22,"+(0.46*wi).toFixed(2)+")"; g.fillRect(0,HORIZON,SW,SH-HORIZON);
+    for(var w2=0;w2<Math.round(90*wi);w2++){
+      var hw=((w2*2654435761+9137)>>>0); hw=(hw^(hw>>>13))>>>0;
+      var wx2=apocScatterX(hw>>>5); if(wx2<0||wx2>=SW) continue;
+      var wy=((((hw>>>13)%1000)/1000)*HORIZON+(now*0.02)%HORIZON)%HORIZON;
+      g.fillStyle="rgba(170,164,158,"+(0.36*wi).toFixed(2)+")";
+      g.fillRect(wx2,wy,Math.max(1,Math.round(K*0.7)),Math.max(1,Math.round(K*0.7)));
+    }
+    g.fillStyle="rgba(96,92,90,"+(0.40*wi).toFixed(2)+")";
+    g.fillRect(0,base-Math.round(K),SW,Math.round(4*K));                  // soot drifting over the street
+  }
+}
 function drawApocalypseBody(g,ap,L,now){
   drawApocApproach(g,L,now);   // …and before any of them lands, what you can see coming
   if(curDeath==="nuke"){ drawApocNuke(g,ap,L,now); nukeAfter(g,ap,L,now); return; }
-  if(curDeath==="meteors"){ drawApocMeteor(g,ap,L,now); return; }
+  if(curDeath==="meteors"){ drawApocMeteor(g,ap,L,now); meteorAfter(g,ap,L,now); return; }
   if(curDeath==="sunburst"){ drawApocSun(g,ap,L,now); return; }
   if(curDeath==="ai"){ drawApocAI(g,ap,L,now); return; }
   if(curDeath==="bh"){ drawApocBlackHole(g,ap,L,now); return; }
