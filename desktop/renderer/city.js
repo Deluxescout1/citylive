@@ -56927,7 +56927,13 @@ APOC_X.warmachine=function(g,ap,L,now){
           g.fillRect((X-Math.round(hgt*0.10))|0,(HORIZON-2)|0,Math.max(3,Math.round(hgt*0.20)),2); }
       }
     }
-    var gy=HORIZON-1-lift, bodyY=gy-hgt, hullW=Math.max(6,Math.round(hgt*0.19));
+    // 🔒🚨 THE SILHOUETTE HAD NO HULL. Rendered after the garrison fix, both machines were on screen,
+    // firing, and read as thin dark SCAFFOLDING — a crane, not a war machine. The numbers say why: legs
+    // `hgt*0.035` thick, which is FOUR PIXELS on a 120px machine, holding up a hull only 19% of the
+    // height. It was two thirds spindly strut by area. 🔑 A MACHINE READS AS A MACHINE BY MASS AND BY
+    // JOINTS — the mass tells you it is heavy and the joints tell you it is built. Hull up to 26% and
+    // deeper, legs more than doubled, and knees that are actual blocks.
+    var gy=HORIZON-1-lift, bodyY=gy-hgt, hullW=Math.max(8,Math.round(hgt*0.26));
     var gait=Math.sin(now/(330+((h>>>17)%190))+i*1.7);
     var downed=wmDowned(i,now);
     if(downed>0){ drawWarMachineWreck(g,X,gy,hgt,hullW,day,downed,h); continue; }
@@ -56935,11 +56941,22 @@ APOC_X.warmachine=function(g,ap,L,now){
       var sw2=(lg?gait:-gait)*hgt*0.17;
       var hipY=bodyY+Math.round(hgt*0.42), kneeY=bodyY+Math.round(hgt*0.72);
       var kneeX=X+sw2*0.6, footX=X+sw2;
+      // ⚠ THIGH THICKER THAN SHIN, and a KNEE BLOCK where they meet. A limb of constant width is a
+      // stick; a limb that tapers and has a joint in it is a leg. The knee is the single cheapest mark
+      // that says "engineered" — three rects and the whole thing stops being scaffolding.
       g.fillStyle=day?"rgb(40,44,50)":"rgb(22,25,30)";
-      segRect(g,X,hipY,kneeX,kneeY,Math.max(2,Math.round(hgt*0.035)));
-      segRect(g,kneeX,kneeY,footX,gy,Math.max(1,Math.round(hgt*0.028)));
+      segRect(g,X,hipY,kneeX,kneeY,Math.max(3,Math.round(hgt*0.085)));
+      segRect(g,kneeX,kneeY,footX,gy,Math.max(2,Math.round(hgt*0.060)));
+      var kw=Math.max(3,Math.round(hgt*0.10));
+      g.fillStyle=day?"rgb(56,60,68)":"rgb(31,34,41)";                       // the knee, lit on top
+      g.fillRect((kneeX-kw*0.5)|0,(kneeY-kw*0.5)|0,kw,kw);
+      g.fillStyle=day?"rgb(26,29,34)":"rgb(13,15,19)";                       // …and dark underneath it
+      g.fillRect((kneeX-kw*0.5)|0,(kneeY+kw*0.2)|0,kw,Math.max(1,Math.round(kw*0.3)));
+      // the hip pivot, so the leg is attached to something rather than growing out of the hull
+      g.fillStyle=day?"rgb(46,50,58)":"rgb(26,29,35)";
+      g.fillRect((X-Math.round(hgt*0.05))|0,(hipY-Math.round(hgt*0.04))|0,Math.max(3,Math.round(hgt*0.10)),Math.max(3,Math.round(hgt*0.08)));
       g.fillStyle=day?"rgb(28,31,36)":"rgb(14,16,20)";
-      g.fillRect((footX-Math.round(hgt*0.05))|0,(gy-1)|0,Math.max(2,Math.round(hgt*0.10)),2);
+      g.fillRect((footX-Math.round(hgt*0.08))|0,(gy-2)|0,Math.max(3,Math.round(hgt*0.16)),3);
       // 🦶 STOMPING. 🔒 his call, one of four. The planted foot leaves a print, and when it comes down
       // on the street it leaves it in somebody. Keyed to the gait so it lands when the foot does.
       if(!marching && GK>0 && ((lg?gait:-gait)>0.86)){
@@ -56949,7 +56966,7 @@ APOC_X.warmachine=function(g,ap,L,now){
           g.fillRect((footX+((sh3%Math.max(2,Math.round(hgt*0.3)))-Math.round(hgt*0.15)))|0,(gy-1-((sh3>>>5)%3))|0,1,1); }
       }
     }
-    var bH=Math.round(hgt*0.44), shY=bodyY+Math.round(bH*0.62);
+    var bH=Math.round(hgt*0.52), shY=bodyY+Math.round(bH*0.62);
     var hull=day?"rgb(52,56,64)":"rgb(30,33,39)", hullD=day?"rgb(34,38,44)":"rgb(19,21,26)";
     g.fillStyle=hull;
     g.fillRect((X-hullW)|0, (bodyY+Math.round(bH*0.16))|0, hullW*2, Math.round(bH*0.84));
@@ -56960,6 +56977,27 @@ APOC_X.warmachine=function(g,ap,L,now){
     g.fillRect((X+hullW)|0, shY|0, Math.round(hullW*0.34), Math.max(2,Math.round(hgt*0.06)));
     g.fillStyle=day?"rgba(255,255,255,0.09)":"rgba(150,168,200,0.07)";
     g.fillRect((X-hullW)|0, (bodyY+Math.round(bH*0.16))|0, Math.max(1,Math.round(hgt*0.02)), Math.round(bH*0.84));
+    // 🏗️ AND THE PLANES DISAGREE. The hull was one flat tone, which is the same fault the towers had —
+    // a box becomes a MASS the moment its top, its face and its underside are lit differently. Top
+    // plate catching sky, deep shadow along the belly, and a shoulder pauldron either side so the
+    // silhouette has shoulders instead of corners.
+    g.fillStyle=day?"rgb(84,90,102)":"rgb(46,50,60)";                        // top plate, lit
+    g.fillRect((X-hullW)|0,(bodyY+Math.round(bH*0.16))|0,hullW*2,Math.max(2,Math.round(hgt*0.030)));
+    g.fillStyle=day?"rgb(20,22,27)":"rgb(10,11,15)";                         // belly, darkest thing on it
+    g.fillRect((X-hullW)|0,(bodyY+Math.round(bH*0.86))|0,hullW*2,Math.max(2,Math.round(hgt*0.035)));
+    var pw=Math.max(3,Math.round(hullW*0.52)), ph=Math.max(3,Math.round(bH*0.30));
+    g.fillStyle=day?"rgb(62,67,77)":"rgb(35,38,46)";                         // shoulders
+    g.fillRect((X-hullW-pw)|0,(bodyY+Math.round(bH*0.22))|0,pw,ph);
+    g.fillRect((X+hullW)|0,(bodyY+Math.round(bH*0.22))|0,pw,ph);
+    g.fillStyle=day?"rgb(96,102,114)":"rgb(52,57,68)";
+    g.fillRect((X-hullW-pw)|0,(bodyY+Math.round(bH*0.22))|0,pw,Math.max(1,Math.round(hgt*0.022)));
+    g.fillRect((X+hullW)|0,(bodyY+Math.round(bH*0.22))|0,pw,Math.max(1,Math.round(hgt*0.022)));
+    // a sensor head, small and set forward — the smallest part, which is what makes the rest read big
+    var hw3=Math.max(2,Math.round(hullW*0.44));
+    g.fillStyle=day?"rgb(44,48,56)":"rgb(24,27,33)";
+    g.fillRect((X+side*Math.round(hullW*0.30)-hw3*0.5)|0,(bodyY-Math.round(bH*0.16))|0,hw3,Math.max(2,Math.round(bH*0.20)));
+    g.fillStyle=((now/300|0)%2)?"rgba(255,70,60,0.95)":"rgba(190,40,34,0.9)";
+    g.fillRect((X+side*Math.round(hullW*0.30)-Math.max(1,Math.round(hgt*0.012)))|0,(bodyY-Math.round(bH*0.10))|0,Math.max(2,Math.round(hgt*0.024)),Math.max(1,Math.round(hgt*0.018)));
     var ex=X, ey=bodyY+Math.round(hgt*0.12);
     g.fillStyle=((now/220|0)%2)?"rgba(255,120,60,0.95)":"rgba(255,180,80,0.95)";
     g.fillRect((ex-Math.max(1,Math.round(hgt*0.03)))|0,ey|0,Math.max(2,Math.round(hgt*0.06)),Math.max(1,Math.round(hgt*0.03)));

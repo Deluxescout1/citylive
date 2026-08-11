@@ -23,7 +23,7 @@ then pin the next. Order below is his own `_order` string.
 | 7 | `glassrain` | Glass Rain | sweep @0.2 | — | ⬜ | |
 | 8 | `thescream` | The Scream | strike @0.14 | — | ⬜ | |
 | 9 | `crimsontide` | The Crimson Tide | sweep @0.34 | — | ⬜ | |
-| 10 | `warmachine` | The War Machine | sweep @0.28 | — | 🔧 | Partly fixed 2026-08-10: the comment claimed "two of five hold near the epicentre" and the hash gave exactly ONE, seeded on the index so it was the same one forever — which is why the epicentre monitor emptied in the back half. Now exactly two, rotating per life. ⚠ STILL OPEN: the walkers read as thin scaffolding, not machines — the silhouette needs a hull. |
+| 10 | `warmachine` | The War Machine | sweep @0.28 | — | 🔧 | Partly fixed 2026-08-10: the comment claimed "two of five hold near the epicentre" and the hash gave exactly ONE, seeded on the index so it was the same one forever — which is why the epicentre monitor emptied in the back half. Now exactly two, rotating per life. Hull rebuilt: legs were hgt*0.035 (4px on a 120px machine) under a hull only 19% of height — two thirds spindly strut by area. Hull to 26% and deeper, legs more than doubled, knee blocks and hip pivots, lit top plate / dark belly / shoulder pauldrons, and a small sensor head so the rest reads big. |
 | 11 | `thefamine` | The Famine | strike @0.45 | — | ⬜ | |
 | 12 | `thehollow` | The Hollow | sweep @0.3 | — | ⬜ | |
 
