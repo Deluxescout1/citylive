@@ -60224,6 +60224,68 @@ function bhPath(t,gx,gy,hx,hy,wind,K,R){
   var swirl=(1-e)*(1-e)*30*K;                        // wide arc low down, tight as it nears the plane
   return {x:gx+(tx-gx)*e+Math.cos(phi*1.7)*swirl, y:gy+(ty-gy)*e+Math.sin(phi*1.7)*swirl*0.5, e:e};
 }
+// ── ☀️🔒 THE SUN GETS EATEN, AND IT HAPPENS EARLY, WHILE THE HOLE IS STILL DISTANT. His call, and it is
+// the best thing the approach could possibly have: for the first third of the arc the hole is a small
+// bright knot in the sky and there is nothing to fear — until you notice the SUN is being pulled out of
+// shape. It is the one object in the frame everybody already knows the shape of, so any distortion of it
+// is legible instantly, and it explains the dying daylight instead of the sky just fading on a timer.
+// 🔑 It draws its own sun rather than leaning on `drawSky`'s: the darkening in this pass covers that one,
+// and a sun that is being destroyed cannot be the same sprite as a sun that is fine.
+// 🌍 Position from `sunPos()`, which is world-anchored, so the three monitors agree on where it is.
+function bhSun(g,ap,L,now,G){
+  var eat=Math.min(1,Math.max(0,(ap-0.02)/0.34));            // gone by ap ~0.36
+  if(eat>=1) return;
+  var K=Math.max(1,KSP), SP=sunPos();
+  var sx0=SP.x, sy0=SP.y;
+  if(sx0<-160||sx0>SW+160) return;
+  var r0=Math.max(2,Math.round(7*K));
+  // it is drawn out along the line to the hole: a teardrop, then a comma, then a thread
+  var dx=G.sx-sx0, dy=G.sy-sy0, dl=Math.max(1,Math.sqrt(dx*dx+dy*dy));
+  var ux=dx/dl, uy=dy/dl;
+  var pull=eat*eat, span=Math.round(dl*0.55*pull);
+  var rr=Math.max(1,Math.round(r0*(1-eat*0.78)));
+  g.globalCompositeOperation="lighter";
+  // the stream leaving it, thinning all the way to the hole
+  for(var q=0;q<=span;q+=Math.max(1,Math.round(K))){
+    var f=q/Math.max(1,span);
+    var w=Math.max(1,Math.round(rr*(1-f)*0.9));
+    var a=(0.55*(1-f)*(0.35+0.65*eat)).toFixed(3);
+    g.fillStyle="rgba(255,"+((214-70*f)|0)+","+((150-90*f)|0)+","+a+")";
+    g.fillRect(Math.round(sx0+ux*q-w*0.5),Math.round(sy0+uy*q-w*0.5),w,Math.max(1,Math.round(w*0.7)));
+  }
+  // and the disc itself, shrinking and reddening as it goes
+  g.fillStyle="rgba(255,"+((236-90*eat)|0)+","+((186-150*eat)|0)+","+(0.9-0.35*eat).toFixed(2)+")";
+  fillEllipse(g,sx0,sy0,rr,Math.max(1,Math.round(rr*(1-eat*0.35))));
+  g.globalCompositeOperation="source-over";
+}
+// ── 🛰️🔒 AND NOT EVERYTHING FALLS IN. His call: some things ORBIT. A black hole is not a drain — most of
+// what it captures spends a long time going round before it goes down, and a frame where every object is
+// on its way in reads as suction rather than as gravity. These are the pieces that made it: torn slabs
+// and specks circling the disk plane, ahead of the mass that is still climbing.
+// 🔑 Drawn in TWO halves — the far side before the sphere so the hole occludes it, the near side after —
+// which is the cheapest possible depth cue and the thing that makes them read as going AROUND it.
+function bhOrbit(g,ap,L,now,G,far){
+  var K=Math.max(1,KSP), day=L>0.5;
+  var n=Math.round(26*Math.min(1,Math.max(0,(ap-0.14)/0.30)));
+  if(n<=0) return;
+  var R=Math.max(3,G.R);
+  for(var i=0;i<n;i++){
+    var h=((i*2654435761+9791)>>>0); h=(h^(h>>>13))>>>0;
+    var rad=R*(1.10+((h>>>5)%60)/100);                       // its own orbit
+    var spd=0.00022+((h>>>11)%40)/1000000;
+    var a=((h>>>17)%628)/100+now*spd*(1+((h>>>23)&1?0.4:0));
+    var sn=Math.sin(a);
+    if((sn<0)!==far) continue;                               // upper half of the ellipse = the far side
+    var px=G.sx+Math.cos(a)*rad, py=G.sy+sn*rad*0.34;
+    if(px<-20||px>SW+20) continue;
+    var w=Math.max(1,Math.round((2+((h>>>27)%5))*K)), hgt=Math.max(1,Math.round(w*0.45));
+    var lit=0.5+0.5*Math.cos(a);                             // catching the disk on the approaching side
+    g.fillStyle=day?"rgba(74,78,92,"+(far?0.55:0.9)+")":"rgba(30,33,44,"+(far?0.5:0.85)+")";
+    g.fillRect(Math.round(px-w*0.5),Math.round(py-hgt*0.5),w,hgt);
+    g.fillStyle="rgba(255,"+((198-40*(1-lit))|0)+","+((140-90*(1-lit))|0)+","+(0.30+0.45*lit).toFixed(2)+")";
+    g.fillRect(Math.round(px-w*0.5),Math.round(py-hgt*0.5),w,Math.max(1,Math.round(K*0.5)));
+  }
+}
 function bhStream(g,ap,L,now,G){
   var K=Math.max(1,KSP), day=L>0.5;
   var hx=G.sx, hy=G.sy, R=Math.max(3,G.R);
@@ -60408,6 +60470,7 @@ function drawApocBlackHole(g,ap,L,now){
       fillEllipse(g,sx,sy,R*(1.30+bl*0.232),R*(1.05+bl*0.189));
     }
     g.globalCompositeOperation="source-over";
+    bhOrbit(g,ap,L,now,G,true);
     bhHalo(g,sx,sy,R,spin,1.0,false);                           // the far half, arcing over the top
     bhBand(g,sx,sy,R,spin,0.9,false);                           // the far arm of the edge-on band
     // ===== ⚫ THE EVENT HORIZON. Pure black, and nothing is ever drawn over it except the near arc.
@@ -60432,6 +60495,8 @@ function drawApocBlackHole(g,ap,L,now){
     bhBand(g,sx,sy,R,spin,1.0,true);                            // …and the near arm, crossing the sphere
   }
 
+  bhOrbit(g,ap,L,now,G,false);
+  bhSun(g,ap,L,now,G);
   bhStream(g,ap,L,now,G);
   var msg=(ap<BH_FORM_AP)?"SINGULARITY FORMING"
          :(prog<1)?"EVENT HORIZON EXPANDING - "+Math.round(prog*100)+" PCT":cityName+" CONSUMED";
