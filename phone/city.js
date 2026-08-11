@@ -53121,10 +53121,13 @@ function gooLife(g,ap,now,K,gsurf,gh,L,goo,epi,R){
   var take=Math.max(0,1-Math.max(0,(ap-0.24)/0.32));         // 1 early, gone by ~0.56
   var conv=Math.max(0,Math.min(1,(ap-0.48)/0.34));           // rises late
   var gooC=css(goo), day=L>0.5;
-  for(var i=0;i<40;i++){
+  // 🌍🚨 AND THE DEAD WERE SCREEN-SPACE TOO. `((h>>>5)%SW)` put the same forty people at the same forty
+  // screen positions on all three monitors — the tier-wide bug this file already fixed once, still live
+  // inside this ending's own life layer. `apocScatterX` is the one law: hash the WORLD, cull to screen.
+  for(var i=0;i<Math.round(WW/19);i++){
     var h=((i*2654435761+7717)>>>0); h=(h^(h>>>13))>>>0;
-    var sx=((h>>>5)%Math.max(1,SW));
-    if(gsurf[sx]<0) continue;
+    var sx=apocScatterX(h>>>5);
+    if(sx<0||sx>=SW||gsurf[sx]<0) continue;
     var surf=gsurf[sx], depth=(gh-surf);
     var wx=wrapW(sx+WOFF), d=nukeDist(wx,epi);
     var atFront=(d>R*0.72);                                   // near the boundary
@@ -53145,13 +53148,20 @@ function gooLife(g,ap,now,K,gsurf,gh,L,goo,epi,R){
       // ── CONVERTED. They get back up as featureless grey and walk on with the front. No face, no
       // colour, the same material as the mass — the most disturbing thing in the ending and the
       // cheapest, because it is a person-shaped silhouette in the goo's own palette.
-      var cx2=sx+Math.round(Math.sin(now*0.0007+i)*10*K);
-      var cy2=surf+Math.round(depth*0.05);
+      // 🚶 AND THEY WALK THE RIDGE, OUTWARD. 🔒 His call for an event in the second half: the converted
+      // do not stand around, they move with the front — a line of grey figures crossing the top of the
+      // mass, away from where they died. 🌍 The drift is computed in WORLD space and then screened, so
+      // they cross the bezels instead of each monitor running its own private parade.
+      var cwx=wrapW(wx+(d>0?1:-1)*Math.round(((now*0.0055+i*137)%240)*K*0.25));
+      var cx2=Math.round(disX(cwx));
+      if(cx2<0||cx2>=SW||gsurf[cx2]<0) continue;
+      var cy2=gsurf[cx2]+Math.round(K);
+      var gait=(Math.floor(now/220)+i)&1;
       g.fillStyle=gooC;
       g.fillRect(cx2-Math.round(K),cy2-Math.round(6*K),Math.round(2*K),Math.round(3*K));   // head+torso
       g.fillRect(cx2-Math.round(K),cy2-Math.round(3*K),Math.round(2*K),Math.round(3*K));
-      g.fillRect(cx2-Math.round(K),cy2-Math.round(K),Math.max(1,Math.round(K)),Math.round(K)); // legs
-      g.fillRect(cx2,cy2-Math.round(K),Math.max(1,Math.round(K)),Math.round(K));
+      g.fillRect(cx2-Math.round(K),cy2-Math.round(K),Math.max(1,Math.round(K)),Math.round(K+(gait?K*0.6:0))); // legs, striding
+      g.fillRect(cx2,cy2-Math.round(K),Math.max(1,Math.round(K)),Math.round(K+(gait?0:K*0.6)));
       g.fillStyle=day?"rgba(232,240,252,0.7)":"rgba(140,166,200,0.6)";
       g.fillRect(cx2-Math.round(K),cy2-Math.round(6*K),Math.round(2*K),Math.max(1,Math.round(K*0.6)));
     } else {
@@ -53167,37 +53177,43 @@ function gooLife(g,ap,now,K,gsurf,gh,L,goo,epi,R){
       g.fillRect(sx-Math.round(2*K),dy-Math.max(1,Math.round(K)),Math.round(4*K),Math.max(1,Math.round(K)));
     }
   }
-  // ── 🏢 AND THE BUILDINGS GO TWO WAYS, per their own hash. Some are HOLLOWED — bitten through, the
-  // silhouette going ragged — and then drop into the mass; the rest are ABSORBED standing, losing
-  // detail from the bottom up until they are featureless columns that melt into it.
-  for(var b=0;b<14;b++){
-    var bh=((b*2654435761+3319)>>>0); bh=(bh^(bh>>>13))>>>0;
-    var bx=((bh>>>5)%Math.max(1,SW));
-    if(gsurf[bx]<0) continue;
-    var bsurf=gsurf[bx];
-    var bw=Math.max(2,Math.round((5+((bh>>>11)%9))*K));
-    var bhh=Math.round((14+((bh>>>15)%34))*K);
-    var per=6000+((bh>>>19)%5000);
-    var bt=(((now+((bh>>>23)%per))%per)/per);
-    if(bt>0.9) continue;
-    if((bh>>>27)&1){
-      // hollowed, then it falls
-      var lean=Math.round(Math.pow(bt,2.4)*bw*2.2)*(((bh>>>29)&1)?1:-1);
-      var top=bsurf-bhh+Math.round(Math.pow(bt,2.2)*bhh*0.9);
-      g.fillStyle=day?"rgba(74,78,88,0.95)":"rgba(30,33,42,0.95)";
-      for(var ry=0;ry<bhh;ry+=Math.max(1,Math.round(K))){
-        var up=bhh-ry, off=Math.round(lean*(up/bhh));
-        var yy2=top+ry; if(yy2>bsurf) break;
-        if((((bh>>>(ry&15))+ry)%7)===0) continue;              // the bites taken out of it
-        g.fillRect(bx+off,yy2,bw,Math.max(1,Math.round(K)));
+  // ── 🏢 AND THE TOWERS GO UNDER ONE AT A TIME, WHERE YOU CAN WATCH IT. 🔒 His call: the second half
+  // needed things HAPPENING, not a level rising. A building at the front leans, its lower floors lose
+  // their detail to the grey, and it slides in — and because the list is the REAL skyline the one that
+  // goes is the one that was standing there.
+  // 🚨 THE OLD LOOP WAS SCREEN-SPACE. `((h>>>5)%SW)` invented 14 buildings at screen positions, so all
+  // three monitors dropped the same fourteen slabs in the same places and not one of them stood where a
+  // building stood. `%SW` is a promise a thing is NOT world-anchored, and this file has a section on it.
+  if(near&&near.blds){
+    var taken=0;
+    for(var b=0;b<near.blds.length&&taken<10;b++){
+      var B=near.blds[b];
+      if(B.type==="park"||!B.h) continue;
+      var bx=Math.round(disX(B.x));                            // ⚡ screen cull before the world maths
+      if(bx+B.w<0||bx>=SW) continue;
+      if(B.bAge!==undefined && typeof bandOf==="function" && cityG-B.bAge<=bandOf(B)) continue;
+      var bwx=wrapW(Math.round(B.x+B.w*0.5)), bd=nukeDist(bwx,epi);
+      // the band being taken RIGHT NOW — behind it they are ghosts, ahead of it the city still draws them
+      if(bd>=R||R-bd>WW*0.055) continue;
+      taken++;
+      var col=Math.max(0,Math.min(SW-1,bx+(B.w>>1)));
+      if(gsurf[col]<0) continue;
+      var t2=Math.min(1,(R-bd)/Math.max(1,WW*0.055));          // 0 just caught, 1 about to be ghost
+      var lean=Math.round(Math.pow(t2,2.2)*B.w*0.5)*(((b*2654435761)>>>0)&1?1:-1);
+      var top=Math.round(HORIZON-B.h+Math.pow(t2,1.7)*B.h*0.9);
+      var bw2=Math.min(B.w,SW-Math.max(0,bx));
+      for(var ry=top;ry<gsurf[col];ry+=Math.max(1,Math.round(K))){
+        var up=(gsurf[col]-ry)/Math.max(1,gsurf[col]-top), ox=Math.round(lean*up);
+        // the bites: it is being disassembled on the way down, not demolished
+        if((((ry*2654435761)>>>0)>>>9)%9===0) continue;
+        g.fillStyle=day?"rgba(38,42,54,0.95)":"rgba(14,16,22,0.95)";
+        g.fillRect(Math.max(0,bx)+ox,ry,bw2,Math.max(1,Math.round(K)));
       }
-    } else {
-      // absorbed standing, smoothed from the bottom up
-      var eaten=Math.round(bt*bhh);
-      g.fillStyle=day?"rgba(96,100,112,0.92)":"rgba(40,44,56,0.92)";
-      g.fillRect(bx,bsurf-bhh,bw,Math.max(1,bhh-eaten));
+      // the waterline where it is being converted — the brightest thing on the building
       g.fillStyle=gooC;
-      g.fillRect(bx-Math.max(1,Math.round(K*0.5)),bsurf-eaten,bw+Math.round(K),Math.max(1,eaten));
+      g.fillRect(Math.max(0,bx)-Math.round(K),gsurf[col]-Math.round(2*K),bw2+Math.round(2*K),Math.round(3*K));
+      g.fillStyle=day?"rgba(190,208,240,0.75)":"rgba(108,128,164,0.65)";
+      g.fillRect(Math.max(0,bx)-Math.round(K),gsurf[col]-Math.round(2*K),bw2+Math.round(2*K),Math.max(1,Math.round(K)));
     }
   }
 }
@@ -53223,7 +53239,7 @@ function gooSeed(g,t,now,K,L,goo,epi,gh){
   var esx=Math.round(disX(epi));
   if(esx<-260*K||esx>SW+260*K) return;                            // ground zero is on another monitor
   var day=L>0.5, gooC=css(goo), base=HORIZON-1;
-  var gooDark=day?"rgba(70,74,86,0.7)":"rgba(16,18,26,0.7)";       // the shadow a grain casts on the one under it
+  var gooDark=day?"rgba(8,9,14,0.72)":"rgba(2,2,4,0.72)";           // the shadow a grain casts on the one under it
   var gen=Math.floor(Math.min(1,t)*9), N=1<<gen;                  // 1 · 2 · 4 · … · 512
   g.globalAlpha=fade;
   // ── 🏢 THE LAB IT CAME OUT OF. One lit strip in a blank slab, a crack across it, and it goes first —
@@ -53432,6 +53448,81 @@ function gooTrails(g,ap,now,K,L,epi,R){
     if(((h>>>27)%4)===0) bloodMark(g,sx-dir*Math.round(2*K),gy,(h>>>3),2+((h>>>29)%3),Math.min(1,ap*0.8),L);
   }
 }
+// ── 🏙️ THE CITY IS STILL IN THERE. 🔒 His third call: once the mass owns the frame there is nothing to
+// look at and nothing left to lose, because what it ate stopped existing the moment it was covered. The
+// eaten skyline stays readable as ghosts UNDER the surface — dissolving, not deleted — so the interior
+// is a record of the city rather than a blank field, and the thing you are watching disappear is still
+// visibly the thing that was there.
+// 🚨🔑 THESE ARE THE REAL BUILDINGS, `near.blds`, in world coordinates. The old absorbed-buildings loop
+// invented 14 of them at `((h>>>5)%SW)` — SCREEN space, the signature this file has a whole section on:
+// all three of his monitors drew the same fourteen slabs at the same screen positions, and none of them
+// stood where a building actually stood. Reading the real list fixes the anchoring AND the lie in one
+// move, and it costs nothing because the list is already built.
+// ⚠ `bAge`/`bandOf` GUARD: a building that has not been constructed yet must not have a ghost. The city
+// layer already skips those, and a ghost of one would be a memory of something that never existed.
+function gooGhosts(g,K,L,goo,epi,R,gsurf,gh,now){
+  if(!near||!near.blds) return;
+  var day=L>0.5;
+  // ⚡ CULL TO THE SCREEN FIRST. The list spans the whole 2269 px world and this runs in the LIVE pass;
+  // asking "has the front reached it" before "is it even on this monitor" did the expensive half of the
+  // work for the ~70% of the world that is on someone else's screen.
+  // ⚡ AND ONLY THE ONES WORTH REMEMBERING. Every shed and kiosk got a ghost, which cost a large
+  // translucent fill each and read as gravel; the skyline is what you are meant to miss.
+  var ghMin=Math.round(18*K);
+  for(var i=0;i<near.blds.length;i++){
+    var B=near.blds[i];
+    if(B.type==="park"||!B.h||B.h<ghMin) continue;
+    var bx=Math.round(disX(B.x));
+    if(bx+B.w<0||bx>=SW) continue;
+    if(B.bAge!==undefined && typeof bandOf==="function" && cityG-B.bAge<=bandOf(B)) continue;
+    var bwx=wrapW(Math.round(B.x+B.w*0.5)), bd=nukeDist(bwx,epi);
+    if(bd>=R) continue;                                       // the front has not reached it — the city still draws it
+    var col=Math.max(0,Math.min(SW-1,bx+(B.w>>1)));
+    if(gsurf[col]<0) continue;
+    // how long it has been under: 0 just swallowed, 1 long gone. It never reaches zero opacity — the
+    // record of the city IS the point, and a ghost that fades out entirely is the blank field again.
+    // ⚠ AND THEY DO NOT ALL DISSOLVE AT THE SAME RATE OR THEY ARE A ROW OF CRATES. Each keeps its own
+    // clock, and they keep most of their HEIGHT — a skyline sunk in the grey is a skyline; the same
+    // skyline flattened to a line of low boxes is rubble, which is a different ending.
+    var rate=0.55+((i*2654435761)>>>0)%90/100;
+    var age=Math.min(1,(R-bd)/Math.max(1,WW*0.30*rate));
+    // ⚠ A GHOST ENDS AT ITS OWN FOOT, NOT AT THE BOTTOM OF THE FRAME. Filled to `gh` they became pale
+    // bands running the full depth of the mass — evenly spaced, all the same height, a barcode. What
+    // makes them read as the CITY is that each one keeps its own top and its own base: a silhouette
+    // suspended in the grey at the height it actually stood.
+    var top=HORIZON-Math.round(B.h*(1-age*0.34));
+    var bot=HORIZON+Math.round(GROUND*0.18*(1-age*0.5));
+    if(top<gsurf[col]+1) top=gsurf[col]+1;                    // it cannot show above the surface
+    if(top>=bot||top>=gh) continue;
+    var x0=Math.max(0,bx), w0=Math.min(B.w,SW-x0);
+    if(w0<=0) continue;
+    // ⚡🔑 OPAQUE, NOT ALPHA. These are big rectangles and there are twenty of them, and a large
+    // TRANSLUCENT fill costs per-pixel blending where a solid one does not — measured at +1.15 ms on
+    // the live frame, which is 7%. The background under a ghost is the flat mass and nothing else (they
+    // are drawn straight after its fill), so mixing the colour here by hand gives the identical picture
+    // for the price of an opaque blit. 🔑 The rule generalises: when you KNOW what is behind a large
+    // alpha fill, mix it yourself.
+    var vary=((i*2654435761)>>>0)%7/100;
+    var gcol=day?[104,118,146]:[48,56,76];
+    var body=css(mixc(goo,gcol,Math.min(1,0.42-0.20*age+vary)));
+    g.fillStyle=body;
+    g.fillRect(x0,top,w0,bot-top);
+    // a lit corner and lintel while it is fresh, so it reads as a solid still standing in there
+    if(age<0.75){
+      var lit=css(mixc(goo,day?[158,176,210]:[74,88,116],Math.min(1,0.30-0.24*age+0.42-0.20*age)));
+      g.fillStyle=lit;
+      g.fillRect(x0,top,Math.max(1,Math.round(K)),bot-top);
+      g.fillRect(x0,top,w0,Math.max(1,Math.round(K)));
+      // ⚠ AND IT NEEDS FLOORS OR IT IS A BOX. A pale rectangle suspended in grey is a crate; a few
+      // faint floor lines and it is unmistakably a building, which is the entire point of keeping it.
+      var flStep=Math.max(Math.round(7*K),Math.round((bot-top)/6));   // ⚡ at most six, however tall it is
+      var flc=css(mixc(goo,day?[150,168,204]:[68,80,106],Math.min(1,0.30+0.42-0.34*age)));
+      g.fillStyle=flc;
+      for(var fl=top+Math.round(6*K);fl<bot-Math.round(2*K);fl+=flStep)
+        g.fillRect(x0+Math.round(K),fl,Math.max(1,w0-Math.round(2*K)),Math.max(1,Math.round(K*0.6)));
+    }
+  }
+}
 APOC_X.greygoo=function(g,ap,L,now){
   var K=Math.max(1,KSP);
   // 🌍🚨 A FRONT IS A DISTANCE, AND `SW` IS NEVER ONE. `-SW*0.15+ap*SW*1.4` swept each monitor
@@ -53449,14 +53540,22 @@ APOC_X.greygoo=function(g,ap,L,now){
   // error — absence presenting itself as a decision, one more time.
   var s0=APOC_STRIKE_AP.greygoo||0.25, s1=APOC_FULL_AP.greygoo||0.78;
   var gooR=Math.max(0,(ap-s0)/Math.max(0.01,s1-s0))*(WW*0.62);
-  gooSeed(g,ap/s0,now,K,L,L>0.5?[146,152,164]:[54,60,76],gooEpi,SH);
+  gooSeed(g,ap/s0,now,K,L,L>0.5?[52,57,70]:[20,23,32],gooEpi,SH);
   // 🔑 THE READ IS THE ABSENCE OF DETAIL. Everything behind the front becomes ONE smooth grey with no
   // windows, no edges and no silhouette — which on a map made entirely of small bright detail is the
   // most disturbing thing that can happen to it. Nothing else in the set removes information.
   // 🔒 CHROME, not sludge. His call: it is a SWARM OF MACHINES, so the palette goes cold and blue-grey
   // and the surface carries hard specular glints. A warm matte grey reads as mud or ash — both of which
   // this map already has — and neither says "manufactured".
-  var goo=L>0.5?[146,152,164]:[54,60,76], gooDay=L>0.5;
+  // 🎨🚨🔒 IT WENT DARK. His call, judging the A/B: old and new were "kinda the same" from ap 0.5 on,
+  // and measured that is exactly right — the two frames are near-identical. The fault was never the
+  // silhouette, it was VALUE: `[146,152,164]` is the same value as the pale city and the pale sky, so
+  // a mass covering half the frame had nothing to read against. **EXTREME VALUE CONTRAST** is rule two
+  // and this broke it. The dusk render was the best frame anything produced all session for one
+  // reason — there the mass was dark against a bright sky. It is dark in daylight now too.
+  // ⚠ CHROME IS STILL THE BRIEF: gunmetal, cold and blue, with the light living entirely in the crust
+  // and the glints. A dark MATTE grey would just be the ash this map already has.
+  var goo=L>0.5?[52,57,70]:[20,23,32], gooDay=L>0.5;
   // 🚨🔑 IT STOPPED IN THE MIDDLE OF THE ROAD. `HORIZON+GROUND*0.6` left the NEAR PROMENADE — the
   // sidewalk between the traffic and the viewer, where the pedestrians closest to you walk — as a
   // clean strip along the bottom of every frame, with people strolling along it under a world that
@@ -53525,6 +53624,7 @@ APOC_X.greygoo=function(g,ap,L,now){
     }
   }
   if(gooR<=0) return;
+  gooGhosts(g,K,L,goo,gooEpi,gooR,gsurf,gh,now);
   // ── 🦠 AND THE MASS IS MADE OF UNITS TOO, not just its edge. Clusters of grain with a DARK socket
   // under each one: the contrast has to come from something that VARIES across the frame, and a lit
   // cap over its own shadow does that per-clump. A uniform speckle over a flat fill is a wash by
@@ -53542,9 +53642,9 @@ APOC_X.greygoo=function(g,ap,L,now){
     for(var kn=0;kn<4;kn++){
       var kox=kx+((((kh>>>(3*kn))%5)-2)*ksz), koy=ky+((((kh>>>(3*kn+7))%3)-1)*ksz);
       if(kox<0||kox>=SW||gsurf[kox]<0||koy<gsurf[kox]||koy>gh) continue;
-      g.fillStyle=gooDay?"rgba(74,78,90,0.55)":"rgba(18,20,28,0.6)";                 // the socket it sits in
+      g.fillStyle=gooDay?"rgba(10,11,16,0.6)":"rgba(4,5,8,0.62)";                     // the socket it sits in
       g.fillRect(kox,koy+Math.round(ksz*0.7),ksz,Math.max(1,Math.round(ksz*0.6)));
-      g.fillStyle=gooDay?"rgba(196,202,214,0.8)":"rgba(84,92,112,0.7)";
+      g.fillStyle=gooDay?"rgba(126,140,168,0.8)":"rgba(70,80,102,0.75)";
       g.fillRect(kox,koy,ksz,Math.max(1,Math.round(ksz*0.8)));
     }
   }
@@ -53557,22 +53657,40 @@ APOC_X.greygoo=function(g,ap,L,now){
   // ⚡ ONE PASS, NOT TWO. Crust and foot both key off the SAME runs of equal `gsurf`, so finding
   // those runs twice was pure duplicate work in the live pass.
   var crust=Math.round(5*K), foot=Math.round(10*K), cr0=-1, crY=0, crx;
+  var CRUSTC=[], RIMC=[], pqi;
+  for(pqi=0;pqi<8;pqi++){
+    var pf=pqi/7;
+    CRUSTC.push(gooDay?"rgba(112,126,156,"+(0.42+0.30*pf).toFixed(2)+")":"rgba(64,74,96,"+(0.36+0.26*pf).toFixed(2)+")");
+    RIMC.push(gooDay?"rgba(214,230,255,"+(0.34+0.46*pf).toFixed(2)+")":"rgba(120,140,176,"+(0.30+0.36*pf).toFixed(2)+")");
+  }
   for(crx=0;crx<=SW;crx++){
     var cy=(crx<SW)?gsurf[crx]:-1;
     if(cy!==crY){
       if(crY>=0&&cr0>=0&&crx>cr0){
-        g.fillStyle=gooDay?"rgba(196,204,220,0.5)":"rgba(92,102,124,0.45)";
+        // ── 🌊 THE REPLICATION WAVE. 🔒 His call: the second half needed an EVENT, not a rising level.
+        // Bands of fresh copying travel OUTWARD from ground zero and brighten the crust as they pass, so
+        // the mass is visibly working rather than sitting there. 🔑 It is a function of world distance and
+        // `now` only — no state, no simulation — so the wave crosses the three monitors as ONE wave
+        // instead of three that agree by luck.
+        // ⚡🔑 QUANTISED AND CACHED. The clumped profile changes value at nearly every column, so this
+        // loop runs a few hundred times a frame — and building two `rgba(...)+toFixed()` strings per
+        // run was ~1400 string allocations per frame. Measured: most of this pass's cost was here, not
+        // in the drawing. Eight steps is indistinguishable on a 2px crust and builds eight strings.
+        var pw2=nukeDist(wrapW(cr0+WOFF),gooEpi);
+        var pulse=0.5+0.5*Math.sin(pw2*0.055-now*0.0021);
+        var pq=(pulse*pulse*7.999)|0;
+        g.fillStyle=CRUSTC[pq];
         g.fillRect(cr0,crY,crx-cr0,crust);
         // ⚠ AND THE RIM IS BROKEN, NOT A LINE. An unbroken white edge along the top of a grey mound is
         // a SNOWDRIFT — this map already has snow and ash, and the one thing this ending owns is that
         // it is manufactured. Broken into hard facets it reads as light catching metal instead.
         if(((((cr0*2654435761)>>>0)>>>7)%5)<3){
-          g.fillStyle=gooDay?"rgba(228,238,252,0.5)":"rgba(126,144,176,0.5)";
+          g.fillStyle=RIMC[pq];
           g.fillRect(cr0,crY,crx-cr0,Math.max(1,Math.round(K)));
         }
-        g.fillStyle=gooDay?"rgba(96,100,114,0.30)":"rgba(16,18,26,0.35)";
+        g.fillStyle=gooDay?"rgba(6,7,11,0.34)":"rgba(2,2,4,0.36)";
         g.fillRect(cr0,crY+crust,crx-cr0,Math.round(4*K));          // the shade directly under the crust
-        g.fillStyle=gooDay?"rgba(78,82,96,0.28)":"rgba(12,14,20,0.34)";
+        g.fillStyle=gooDay?"rgba(4,5,8,0.34)":"rgba(1,1,2,0.38)";
         g.fillRect(cr0,gh-foot,crx-cr0,foot);                       // shadow gathering at the foot
       }
       crY=cy; cr0=crx;
@@ -53588,8 +53706,8 @@ APOC_X.greygoo=function(g,ap,L,now){
     var tx=((th>>>5)%Math.max(1,SW));
     if(gsurf[tx]<0) continue;
     var ty=gsurf[tx]+((th>>>13)%Math.max(1,gh-gsurf[tx]));
-    g.fillStyle=(th&1)?(L>0.5?"rgba(178,178,184,0.55)":"rgba(86,86,94,0.55)")
-                      :(L>0.5?"rgba(120,120,126,0.5)":"rgba(40,40,46,0.5)");
+    g.fillStyle=(th&1)?(L>0.5?"rgba(104,116,142,0.5)":"rgba(52,60,78,0.5)")
+                      :(L>0.5?"rgba(20,22,30,0.45)":"rgba(8,9,13,0.5)");
     g.fillRect(tx,ty,Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
   }
   // ── ✨ THE GLINTS. What separates a swarm of machines from a mudslide: hard specular points crawling
