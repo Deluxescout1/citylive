@@ -53434,6 +53434,50 @@ APOC_X.skyfall=function(g,ap,L,now){
 };
 
 // EVERYTHING STOPS — the strange one. Nothing is destroyed and that is the point.
+// ── ⏸️🔒 THINGS THAT HAVE STOPPED. The renderer's own comment concedes the whole problem: "people and
+// traffic are drawn from the clock by other functions and this renderer CANNOT FREEZE THEM" — so an
+// ending named EVERYTHING STOPS was a desaturation and a vignette over a city that carried on walking.
+// 🔑🔑 IT CANNOT STOP WHAT THE ENGINE IS MOVING, BUT IT CAN ADD THINGS THAT ARE ALREADY STOPPED — and
+// stillness only reads AGAINST motion, so the moving traffic behind them is not the obstacle, it is
+// the contrast that makes the frozen ones legible. More of them every second until nothing is left
+// that still moves.
+// ⚠ NOTHING HERE MAY DEPEND ON `now` FOR ITS POSITION. That is the entire point: a frozen figure that
+// drifts by a pixel is not frozen. Positions are hashed and fixed; only the COUNT advances with `ap`.
+function timestopFrozen(g,ap,now,K){
+  if(ap<=0.02) return;
+  var gy=HORIZON, gone=Math.min(1,ap*1.25);
+  for(var i=0;i<Math.round(52*gone);i++){
+    var h=((i*2654435761+6421)>>>0); h=(h^(h>>>13))>>>0;
+    var wx=((h>>>3)%Math.max(1,WW));
+    var X=wx-WOFF;
+    if(X<-14||X>SW+14) continue;
+    var kind=(h>>>21)%6;
+    if(kind<=3){
+      // a person, caught mid-stride and left there. Pale and desaturated — the colour has gone out of
+      // them as well as the movement, which is what separates them from the crowd still walking.
+      var mk=0.62;
+      drawPerson(g,X,gy-1,hexDark(PEDC[(h>>>11)%PEDC.length],mk),hexDark(SKINC[(h>>>17)%SKINC.length],mk*0.8),(h&1)?1:-1,0);
+      g.fillStyle="rgba(226,232,240,0.42)";                  // the hard rim that says "held"
+      g.fillRect(X-Math.round(K),gy-Math.round(7*K),Math.max(1,Math.round(K*0.6)),Math.round(7*K));
+    } else if(kind===4){
+      // a vehicle stopped dead in the road, with its own frozen spray still in the air behind it
+      var cw2=Math.max(2,Math.round(5*K)), chh=Math.max(1,Math.round(2.2*K));
+      var cy2=gy+Math.round((SH-gy)*(0.28+((h>>>13)%40)/100*0.5));
+      g.fillStyle="rgba(96,98,108,0.95)";
+      g.fillRect(X-(cw2>>1),cy2-chh,cw2,chh);
+      g.fillStyle="rgba(214,222,232,0.5)";
+      g.fillRect(X-(cw2>>1),cy2-chh,cw2,Math.max(1,Math.round(K*0.6)));
+    } else {
+      // and the things that were in the air when it happened and simply never came down
+      var dy=gy-((h>>>13)%Math.round(gy*0.62));
+      var sz=Math.max(1,Math.round((1+((h>>>19)%3))*K));
+      g.fillStyle="rgba(206,212,222,0.85)";
+      g.fillRect(X,dy,sz,sz);
+      g.fillStyle="rgba(255,255,255,0.30)";
+      g.fillRect(X,dy,sz,Math.max(1,Math.round(K*0.5)));
+    }
+  }
+}
 APOC_X.timestop=function(g,ap,L,now){
   var K=Math.max(1,KSP);
   // 🔑 COLOUR IS THE ONLY THING THAT CAN BE TAKEN AWAY HERE. People and traffic are drawn from the
@@ -53444,6 +53488,7 @@ APOC_X.timestop=function(g,ap,L,now){
   g.globalCompositeOperation="saturation";
   g.fillRect(0,0,SW,SH);
   g.globalCompositeOperation="source-over";
+  timestopFrozen(g,ap,now,K);
   // 🚨🖥️ THE LIGHT DRAINS INWARD — AND "INWARD" WAS THE SCREEN'S EDGES, WHICH IS THE FROST BUG.
   // A vignette closing from `q=0` and `q=SW-1` puts a dark band at BOTH SIDES OF EVERY MONITOR, so
   // across his three it read as four vertical shadows standing in the middle of the world at each
@@ -53663,8 +53708,14 @@ APOC_X.thechange=function(g,ap,L,now){
     var px=Math.round(apocScatterX(h)), gy=HORIZON-1;
     if(px<-20||px>SW+20) continue;                            // 🌍 world-anchored
     var sc=(1+((h>>>7)%3))*K;
-    var flesh=mixc([206,152,140],[150,96,110],((h>>>11)%100)/100);
+    // ⚠ PALE FLESH ON A PALE CITY SHOWED NOTHING. The anatomy is the whole idea of this ending and it
+    // was being drawn in a tone two shades off the buildings behind it, so the wrongness never
+    // registered — the silhouette has to win before the proportions can be read. Darker, redder, and
+    // with a hard dark outline down the torso so the shape separates from whatever it stands against.
+    var flesh=mixc([172,104,102],[104,52,72],((h>>>11)%100)/100);
     // a torso that is too tall, and limbs that do not agree about how many there should be
+    g.fillStyle="rgba(24,10,18,0.85)";
+    g.fillRect(px-Math.max(1,Math.round(sc*0.4)),gy-Math.round(7*sc),Math.max(1,Math.round(2.4*sc)),Math.round(7*sc));
     g.fillStyle=css(flesh);
     g.fillRect(px,gy-Math.round(7*sc),Math.max(1,Math.round(1.6*sc)),Math.round(7*sc));
     var limbs=2+((h>>>13)%4);

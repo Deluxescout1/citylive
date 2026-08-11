@@ -50,9 +50,9 @@ then pin the next. Order below is his own `_order` string.
 | 17 | `greygoo` | Grey Goo | strike @0.25 | — | 🔧 | Reworked 2026-08-10: was filling from y=0 and eating the SKY, so four fifths of the frame was blank. Now a chrome mass standing where the city stood, seething surface + specular glints, tendrils climbing what still stands; three human fates across the arc (taken screaming -> dissolved in place -> converted and walking with it); buildings both hollowed-then-falling and absorbed standing; spray 0.30 -> 0.88. |
 | 18 | `lastwinter` | The Last Winter | strike @0.4 | — | ⬜ | |
 | 19 | `skyfall` | The Sky Falls | strike @0.25 | — | 🔧 | Reworked 2026-08-10: detach time was LINEAR in the sheet index so leading edges formed a perfect staircase. Hashed stagger + accelerating fall + per-row shear so plates tumble; the void behind is now a STARFIELD; cracks run along a sheet before it goes; late EXPOSURE phase (air venting, frost, lights out) because everything was down by ap 0.6 and nothing developed after. |
-| 20 | `timestop` | Everything Stops | strike @0.18 | — | ⬜ | |
+| 20 | `timestop` | Everything Stops | strike @0.18 | — | 🔧 | Reworked 2026-08-10: its own comment conceded it CANNOT freeze the movers, so EVERYTHING STOPS was a desaturation + vignette over a city still walking. It cannot stop what the engine moves, but it can ADD things already stopped — people caught mid-stride, cars dead in the road, debris that never came down — and stillness only reads AGAINST motion, so the traffic behind them is the contrast, not the obstacle. Nothing here depends on `now` for position. |
 | 21 | `thecomet` | The Comet | strike @0.55 | — | ⬜ | |
-| 22 | `thechange` | The Change | strike @0.35 | — | ⬜ | |
+| 22 | `thechange` | The Change | strike @0.35 | — | 🔧 | Reworked 2026-08-10: the wrong-anatomy creatures were drawn in pale flesh two shades off the buildings behind them, so the wrongness never registered. Darker, redder, hard dark outline down the torso — the silhouette has to win before the proportions can be read. |
 | 23 | `theburst` | The Burst | strike @0.55 | — | ⬜ | |
 | 24 | `thetitans` | The Titans | sweep @0.4 | — | ⬜ | |
 | 25 | `ragnarok` | Ragnarok | sweep @0.35 | — | ⬜ | |
