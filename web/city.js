@@ -51384,7 +51384,17 @@ function bhFrontR(){ return Math.max(0,(cityApoc-BH_FORM_AP)/Math.max(0.01,BH_FU
 function bhGeo(ap,now){
   var grow=Math.min(1,Math.max(0,(ap-0.02)/0.60));
   var R=Math.round(HORIZON*(0.06+0.44*Math.pow(grow,0.7)));
-  var sx=apocEpiX(now)-WOFF; if(sx>SW+900&&sx-WW>-900)sx-=WW; if(sx<-900&&sx+WW<SW+900)sx+=WW;
+  // 🔭🔒 HIS CALL, and his screenshot is the argument: the HUD read `APOC BH · SINGULARITY FORMING`
+  // while his screen showed an ordinary night city, because ground zero was on another monitor and a
+  // sky object anchored to it is simply ABSENT from the other two. One monitor is ~28% of the world, so
+  // that is the normal case, not the edge case.
+  // 🔑 A THING THIS SIZE IS ASTRONOMICAL, AND AN ASTRONOMICAL OBJECT IS VISIBLE FROM EVERYWHERE. It is
+  // the same hole seen from three windows: its apparent position shifts with how far this screen is
+  // from ground zero (so it is still ABOUT the epicentre, and the screen holding it sees it dead centre)
+  // but it never leaves the frame. The moon in this engine has always worked this way.
+  var d=((apocEpiX(now)-WOFF-SW*0.5)%WW+WW*1.5)%WW-WW*0.5;
+  var par=Math.max(-1,Math.min(1,d/(WW*0.42)));
+  var sx=Math.round(SW*0.5+par*SW*0.40);
   return {sx:sx, sy:Math.round(HORIZON*0.42), R:Math.max(3,R), grow:grow};
 }
 function bhPos(now){ var G=bhGeo(cityApoc,now); return {sx:G.sx, sy:G.sy}; }
@@ -60161,12 +60171,102 @@ function drawApocAI(g,ap,L,now){
 // one then warps in strips. That is a change to `main.qml`'s two-canvas composition, which all 43
 // endings and the whole perf budget sit on — Nick's call, not a side effect of a black hole.
 function bhDark(ap){ return Math.min(0.97,0.10+0.88*Math.min(1,ap/0.55)); }
+// ── 🌪️🔒 EVERYTHING GOES UP. His call: buildings and people flying into it. Nothing here warps the
+// frame — each object is DRAWN along its own path to the hole, so it costs a few hundred marks instead
+// of a pixel pass, and it works on the two-canvas composition exactly as it stands.
+// 🔑 A FALL INTO A BLACK HOLE IS NOT A STRAIGHT LINE. Matter keeps its angular momentum, so it spirals:
+// the path winds as it climbs, tightening near the horizon, and joins the disk's rotation rather than
+// arriving head-on. A radial streak reads as rain going the wrong way; a spiral reads as gravity.
+// 🔑 AND IT STRETCHES ON THE WAY. Tidal force is the DIFFERENCE in pull across a body, so the leading
+// end accelerates away from the trailing end and the thing is drawn out into a thread of specks. That
+// is the spaghettification, and it is what makes what is taken read as a BODY rather than a particle.
+// 🌍 Hashed in WORLD space with a screen cull; every position comes from an index and `now`, never from
+// state, so the three monitors show the same objects on the same paths.
+function bhPath(t,gx,gy,hx,hy,wind,K){
+  var e=t*t*(3-2*t);                                 // the climb accelerates as the pull grows
+  var swirl=(1-e)*(1-e)*36*K;                        // wide arc low down, tight near the hole
+  var a=wind+e*6.4;
+  return {x:gx+(hx-gx)*e+Math.cos(a)*swirl, y:gy+(hy-gy)*e+Math.sin(a)*swirl*0.5, e:e};
+}
+function bhStream(g,ap,L,now,G){
+  var K=Math.max(1,KSP), day=L>0.5;
+  var hx=G.sx, hy=G.sy;
+  var pull=bhFrontR(); if(pull<=0) return;
+  var base=HORIZON-1, epi=apocEpiX(now);
+  // ── 🏢 THE BUILDINGS, and they are the REAL ones from `near.blds`. A tower inside the pull tears from
+  // its footing and is drawn out along its path, its own width thinning as it climbs.
+  if(near&&near.blds){
+    var taken=0;
+    for(var b=0;b<near.blds.length&&taken<14;b++){
+      var B=near.blds[b];
+      if(B.type==="park"||!B.h) continue;
+      var bx0=Math.round(disX(B.x)); if(bx0+B.w<-40||bx0>SW+40) continue;
+      if(B.bAge!==undefined && typeof bandOf==="function" && cityG-B.bAge<=bandOf(B)) continue;
+      if(nukeDist(wrapW(Math.round(B.x+B.w*0.5)),epi)>=pull) continue;
+      taken++;
+      var bh2=((b*2654435761+1013)>>>0); bh2=(bh2^(bh2>>>13))>>>0;
+      var per=9000+((bh2>>>7)%7000);
+      var t=Math.min(1,((now+((bh2>>>17)%per))%per)/per);
+      var wind=((bh2>>>5)%628)/100, gx=bx0+(B.w>>1), gy=base-Math.round(B.h*0.25);
+      for(var q=1;q<=10;q++){
+        var P=bhPath(t*(q/10),gx,gy,hx,hy,wind,K);
+        var w2=Math.max(1,Math.round(B.w*(1-P.e)*(1-P.e*0.5)));
+        var h2=Math.max(1,Math.round(B.h*0.16*(1-P.e)));
+        g.fillStyle=day?"rgba(58,62,76,"+(0.9-0.5*P.e).toFixed(2)+")":"rgba(24,26,36,"+(0.9-0.5*P.e).toFixed(2)+")";
+        g.fillRect(Math.round(P.x-w2*0.5),Math.round(P.y-h2*0.5),w2,h2);
+        if(q===10){ g.fillStyle="rgba(255,206,150,"+(0.5*(1-P.e)+0.2).toFixed(2)+")";
+          g.fillRect(Math.round(P.x-w2*0.5),Math.round(P.y-h2*0.5),w2,Math.max(1,Math.round(K))); }
+      }
+    }
+  }
+  // ── 🚶 AND THE PEOPLE. Recognisable while they are still low — `drawPerson` at its fixed 7px, the one
+  // body routine — then drawn out into a thread of specks as the tide takes them apart.
+  for(var i=0;i<Math.round(WW/11);i++){
+    var h=((i*2654435761+7331)>>>0); h=(h^(h>>>13))>>>0;
+    var sx=apocScatterX(h>>>5); if(sx<0||sx>=SW) continue;
+    if(nukeDist(wrapW(sx+WOFF),epi)>=pull) continue;
+    var per2=5200+((h>>>11)%4200);
+    var t2=Math.min(1,((now+((h>>>19)%per2))%per2)/per2);
+    var wind2=((h>>>7)%628)/100;
+    var P2=bhPath(t2,sx,base,hx,hy,wind2,K);
+    if(P2.x<-8||P2.x>SW+8) continue;
+    if(P2.e<0.22){
+      drawPerson(g,Math.round(P2.x),Math.round(P2.y),hexDark(PEDC[(h>>>13)%PEDC.length],0.18),
+                 hexDark(SKINC[(h>>>23)%SKINC.length],0.12),(h&1)?1:-1,0);
+    } else {
+      var tl=Math.max(2,Math.round(9*(1-P2.e)));
+      for(var q2=0;q2<tl;q2++){
+        var Pq=bhPath(Math.max(0,t2-q2*0.018),sx,base,hx,hy,wind2,K);
+        var a2=(1-P2.e)*(1-q2/tl)*0.9; if(a2<=0.04) continue;
+        g.fillStyle=(q2===0)?"rgba(255,214,168,"+a2.toFixed(2)+")"
+                            :"rgba("+(day?196:120)+","+(day?150:96)+","+(day?150:104)+","+a2.toFixed(2)+")";
+        var ps=Math.max(1,Math.round(K*(1-P2.e)));
+        g.fillRect(Math.round(Pq.x),Math.round(Pq.y),ps,ps);
+      }
+    }
+  }
+  // ── 🧱 AND THE LOOSE WORLD WITH THEM — cars, rubble and signage torn off and streaming up.
+  for(var d3=0;d3<Math.round(WW/16);d3++){
+    var hd=((d3*2654435761+4409)>>>0); hd=(hd^(hd>>>13))>>>0;
+    var dx3=apocScatterX(hd>>>5); if(dx3<0||dx3>=SW) continue;
+    if(nukeDist(wrapW(dx3+WOFF),epi)>=pull) continue;
+    var per3=4000+((hd>>>9)%5000);
+    var t3=Math.min(1,((now+((hd>>>21)%per3))%per3)/per3);
+    var P3=bhPath(t3,dx3,base-((hd>>>15)%6),hx,hy,((hd>>>3)%628)/100,K);
+    if(P3.x<-6||P3.x>SW+6) continue;
+    var sz=Math.max(1,Math.round((1+((hd>>>25)%3))*K*(1-P3.e*0.8)));
+    g.fillStyle=day?"rgba(70,74,88,"+(0.85-0.5*P3.e).toFixed(2)+")":"rgba(30,33,44,"+(0.85-0.5*P3.e).toFixed(2)+")";
+    g.fillRect(Math.round(P3.x),Math.round(P3.y),sz,sz);
+    g.fillStyle="rgba(255,198,140,"+(0.35*(1-P3.e)).toFixed(2)+")";
+    g.fillRect(Math.round(P3.x),Math.round(P3.y),sz,Math.max(1,Math.round(K*0.5)));
+  }
+}
 function drawApocBlackHole(g,ap,L,now){
   var K=Math.max(1,KSP);
   var G=bhGeo(ap,now), sx=G.sx, sy=G.sy, R=G.R;
   var frontR=bhFrontR(), prog=Math.min(1,frontR/(WW*0.5));
   var spin=now*0.00035;
-  var onScreen=(sx>-R*4&&sx<SW+R*4);
+  var onScreen=true;   // ⚠ never culled now — see bhGeo: it is on every monitor by construction
 
   // ===== THE SKY GOES. Daylight is being eaten, so the blue drains toward black and the stars behind
   // it come through — the one sky in the set that gets DEEPER rather than dirtier.
@@ -60220,6 +60320,7 @@ function drawApocBlackHole(g,ap,L,now){
     bhBand(g,sx,sy,R,spin,1.0,true);                            // …and the near arm, crossing the sphere
   }
 
+  bhStream(g,ap,L,now,G);
   var msg=(ap<BH_FORM_AP)?"SINGULARITY FORMING"
          :(prog<1)?"EVENT HORIZON EXPANDING - "+Math.round(prog*100)+" PCT":cityName+" CONSUMED";
   drawDoomHud(g,ap,now,msg,cityName+" CONSUMED");
@@ -62059,7 +62160,15 @@ function draw(g,pass){
     var CX0=cx|0, CY0=c.y|0, CW0=c.w|0, CH0=c.h|0;
     g.fillStyle=rgba(cc0,cloudA*c.d);
     if(c.t===1){                                                                    // cumulus: layered cotton body + rounded lobes
-      g.fillRect(CX0,CY0,CW0,CH0);
+      // 🚨🔒 HIS REPORT: "random flying things that look like trash cans". They are these — and he is
+      // right, because the body was a HARD RECTANGLE with lobes stuck on the top edge. A box with bumps
+      // is a bin; a cloud has no straight vertical sides and no square corners. `whodrew.js` attributed
+      // them in one run (fillEllipse < draw:62063) — colour-sample, then attribute, never guess.
+      // 🔑 The ends are rounded off and the body inset, so the silhouette is convex everywhere.
+      var CIN=Math.max(1,(CW0*0.12)|0);
+      g.fillRect(CX0+CIN,CY0,CW0-CIN*2,CH0);
+      fillEllipse(g,CX0+CIN,CY0+(CH0>>1),CIN+1,Math.max(1,(CH0*0.5)|0));
+      fillEllipse(g,CX0+CW0-CIN,CY0+(CH0>>1),CIN+1,Math.max(1,(CH0*0.5)|0));
       fillEllipse(g,CX0+(CW0*0.14|0),CY0+1,Math.max(2,(CW0*0.16)|0),3);
       fillEllipse(g,CX0+(CW0*0.34|0),CY0-1,Math.max(2,(CW0*0.22)|0),5);
       fillEllipse(g,CX0+(CW0*0.57|0),CY0-3,Math.max(3,(CW0*0.25)|0),7);              // billowing sunlit crown
@@ -62068,7 +62177,7 @@ function draw(g,pass){
       g.fillStyle=rgba([255,255,255],cloudA*c.d*0.5);
       fillEllipse(g,CX0+(CW0*0.53|0),CY0-5,Math.max(2,(CW0*0.15)|0),3);              // soft top-light
       g.fillStyle=rgba(mixc(cc0,[40,50,80],0.5),cloudA*c.d*0.5);
-      g.fillRect(CX0+1,CY0+CH0-1,CW0-2,1);                                          // flat shaded base
+      g.fillRect(CX0+CIN+1,CY0+CH0-1,CW0-CIN*2-2,1);                                // shaded base, inset with the body
       if(sunsetK>0.3){ g.fillStyle=rgba([255,205,160],0.35*sunsetK*c.d);            // sunlit underside
         g.fillRect((cx+2)|0,(c.y+c.h-1)|0,(c.w*0.8)|0,1); }
     } else if(c.t===0){                                                             // wisp: two offset rects + a soft feather
