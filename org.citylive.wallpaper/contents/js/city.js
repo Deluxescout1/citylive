@@ -53082,14 +53082,57 @@ APOC_X.greygoo=function(g,ap,L,now){
   var gh=HORIZON+Math.round(GROUND*0.6);
   // the consumed region — run-batched over the columns THIS screen has, so a monitor that holds none
   // of it costs one comparison per column and draws nothing.
-  g.fillStyle=css(goo);
-  var runX=-1, x, inside;
+  // 🚨🔑🔑 IT WAS EATING THE SKY. `fillRect(runX, 0, …, gh)` starts at y=0, so everything behind the
+  // front — sky included — became one flat grey field, and by mid-arc four fifths of the frame was a
+  // featureless rectangle. The comment above is right that ABSENCE OF DETAIL is the read, and that is
+  // exactly why it has to be absence of the CITY: a grey sky is not information being removed, it is a
+  // blank canvas, and there is nothing left to feel the loss against.
+  // 🔑 THE HORROR IS WATCHING DETAIL BE DESTROYED, NOT STARING AT WHERE IT USED TO BE. So the goo is
+  // now a MASS standing where the city stood — piled highest over ground zero where it has eaten most,
+  // sagging toward the edges — with the sky still above it and the skyline still readable beyond.
+  var gsurf=new Array(SW), gxi;
+  for(gxi=0;gxi<SW;gxi++) gsurf[gxi]=-1;
+  for(gxi=0;gxi<SW;gxi++){
+    var wxg=wrapW(gxi+WOFF), dg=nukeDist(wxg,gooEpi);
+    if(dg>=gooR) continue;
+    var deep=1-dg/Math.max(1,gooR);                       // 1 over ground zero, 0 at the front
+    var lump=Math.sin(wxg*0.017+now*0.0004)*0.10+Math.sin(wxg*0.061)*0.05;
+    gsurf[gxi]=Math.round(HORIZON-HORIZON*(0.10+0.46*Math.pow(deep,0.6)+lump));
+  }
+  var runX=-1, x, runY=0;
   for(x=0;x<=SW;x++){
-    inside=(x<SW)&&(nukeDist(wrapW(x+WOFF),gooEpi)<gooR);
-    if(inside){ if(runX<0) runX=x; }
-    else if(runX>=0){ g.fillRect(runX,0,x-runX,gh); runX=-1; }
+    var yy=(x<SW)?gsurf[x]:-1;
+    if(yy!==runY){
+      if(runY>=0&&runX>=0&&x>runX){ g.fillStyle=css(goo); g.fillRect(runX,runY,x-runX,gh-runY); }
+      runY=yy; runX=x;
+    }
   }
   if(gooR<=0) return;
+  // ── 🦠 AND IT SEETHES. A flat fill is paint; this is a hundred billion machines copying themselves,
+  // so the surface crawls. Grain hashed in WORLD space and stepped by time so it boils rather than
+  // sliding — a texture that slides reads as one object moving, and this is not one object.
+  for(var t=0;t<220;t++){
+    var th=((t*2654435761+((Math.floor(now/140)*7919)|0))>>>0); th=(th^(th>>>13))>>>0;
+    var tx=((th>>>5)%Math.max(1,SW));
+    if(gsurf[tx]<0) continue;
+    var ty=gsurf[tx]+((th>>>13)%Math.max(1,gh-gsurf[tx]));
+    g.fillStyle=(th&1)?(L>0.5?"rgba(178,178,184,0.55)":"rgba(86,86,94,0.55)")
+                      :(L>0.5?"rgba(120,120,126,0.5)":"rgba(40,40,46,0.5)");
+    g.fillRect(tx,ty,Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
+  }
+  // ── 🖐️ TENDRILS. Fingers of it climbing whatever is still standing just beyond the front — the part
+  // that says the city is being TAKEN rather than merely covered over.
+  for(var v=0;v<26;v++){
+    var vh=((v*2654435761+5657)>>>0); vh=(vh^(vh>>>13))>>>0;
+    var vx=((vh>>>5)%Math.max(1,SW));
+    if(gsurf[vx]<0) continue;
+    var reach=Math.round((6+((vh>>>11)%22))*K*(0.5+0.5*Math.sin(now*0.0016+v)));
+    var vw=Math.max(1,Math.round((1+((vh>>>17)%2))*K));
+    g.fillStyle=css(goo);
+    g.fillRect(vx,gsurf[vx]-reach,vw,reach);
+    g.fillStyle=L>0.5?"rgba(198,198,204,0.6)":"rgba(104,104,114,0.6)";
+    g.fillRect(vx,gsurf[vx]-reach,vw,Math.max(1,Math.round(K)));
+  }
   // 🔑 A RADIAL FRONT HAS **TWO** EDGES, and the screen-space version only ever had one — the goo ate
   // the world from the left and the right-hand boundary did not exist. Both are drawn, and each is a
   // fine boiling edge rather than a straight one.
@@ -53099,7 +53142,7 @@ APOC_X.greygoo=function(g,ap,L,now){
     for(var q=0;q<Math.round(HORIZON*0.9);q+=2){
       var wob=Math.round(Math.sin(now*0.006+q*0.19)*4*K)+((((q*2654435761)>>>0)%5)-2);
       g.fillStyle=css(goo);
-      g.fillRect(front+wob-Math.round(3*K),q,Math.round(6*K),2);
+      if(q>=Math.max(0,HORIZON-HORIZON*0.62)) g.fillRect(front+wob-Math.round(3*K),q,Math.round(6*K),2);
       g.fillStyle=L>0.5?"rgba(200,200,206,0.7)":"rgba(110,110,120,0.7)";
       g.fillRect(front+wob+sgn*Math.round(3*K),q,Math.max(1,Math.round(K)),2);
     }
