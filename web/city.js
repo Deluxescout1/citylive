@@ -59199,9 +59199,89 @@ function drawApocalypse(g,ap,L,now){
   drawApocParts(g,L,now);            // the pieces, over the ruin and under the near field
   drawApocNearField(g,ap,L,now);     // …and last, because it is between the viewer and all of it
 }
+// ── ☢️ THE NUKE'S MIDDLE. 🔒 His call for the re-timed tier: staged phases, an aftermath that DEVELOPS,
+// and events that recur. Re-timing gave these endings a LENGTH; it did not give them anything to do with
+// it — rendered across the arc the nuke's ap 0.70 and ap 0.95 came back near-identical, which is the same
+// frozen-frame fault one level up.
+// 🔑 A NUCLEAR AFTERMATH IS THE EASIEST IN THE SET TO STAGE, because the real one has named phases that
+// each look different: the firestorm draws its own wind, the cloud climbs and shears over, black rain
+// falls out of it, and then ash settles for as long as you care to watch. Nothing here is a wash — each
+// phase owns a different band of the frame, so the picture changes rather than the tint.
+function nukeAfter(g,ap,L,now){
+  if(!apocStruck()) return;
+  var K=Math.max(1,KSP), day=L>0.5, base=HORIZON-1;
+  var f=Math.max(0,Math.min(1,(ap-0.30)/0.22));      // FIRESTORM      0.30 → 0.52
+  var c=Math.max(0,Math.min(1,(ap-0.34)/0.26));      // THE COLUMN     0.34 → 0.60
+  var r=Math.max(0,Math.min(1,(ap-0.52)/0.24));      // BLACK RAIN     0.52 → 0.76
+  var a2=Math.max(0,Math.min(1,(ap-0.70)/0.30));     // ASH            0.70 → 1.00
+  var fade=Math.max(0,1-Math.max(0,(ap-0.62)/0.30));
+  // ── 🔥 the firestorm: fires spread along the ground, then burn out. World-anchored with a screen cull.
+  if(f>0&&fade>0){
+    for(var i=0;i<Math.round(WW/9);i++){
+      var h=((i*2654435761+3301)>>>0); h=(h^(h>>>13))>>>0;
+      var x=apocScatterX(h>>>5); if(x<0||x>=SW) continue;
+      if(!apocHit(wrapW(x+WOFF))) continue;
+      var ph=((now*0.004+i*13)%10)/10;
+      var hgt=Math.round((3+((h>>>11)%9))*K*f*fade*(0.6+0.4*Math.sin(now*0.006+i)));
+      if(hgt<1) continue;
+      g.globalCompositeOperation="lighter";
+      g.fillStyle="rgba(255,"+((120+90*ph)|0)+",40,"+(0.5*f*fade).toFixed(2)+")";
+      g.fillRect(x,base-hgt,Math.max(1,Math.round(K)),hgt);
+      g.fillStyle="rgba(255,236,170,"+(0.4*f*fade).toFixed(2)+")";
+      g.fillRect(x,base-Math.round(hgt*0.35),Math.max(1,Math.round(K)),Math.max(1,Math.round(hgt*0.35)));
+      g.globalCompositeOperation="source-over";
+    }
+  }
+  // ── 🍄 the column climbs and then SHEARS OVER at the tropopause — the shape everybody knows, and it is
+  // the one thing that says how long ago the strike was.
+  if(c>0){
+    var gz=Math.round(disX(apocEpiX(now)));
+    if(gz>-260&&gz<SW+260){
+      var top=Math.round(base-HORIZON*0.86*c);
+      var stemW=Math.round(9*K*(0.6+0.5*c));
+      for(var y=base;y>top;y-=Math.max(1,Math.round(K))){
+        var u=(base-y)/Math.max(1,base-top);
+        var lean=Math.round(u*u*46*K*c);                       // sheared downwind as it rises
+        var w=Math.round(stemW*(1-u*0.35)+u*u*54*K*c);         // …and spreading into the cap
+        g.fillStyle=day?"rgba(86,72,66,"+(0.34*fade+0.18).toFixed(2)+")":"rgba(40,34,32,"+(0.34*fade+0.2).toFixed(2)+")";
+        g.fillRect(gz+lean-(w>>1),y,w,Math.max(1,Math.round(K)));
+        if(u>0.72){                                            // the cap's lit underside, still glowing
+          g.fillStyle="rgba(255,150,70,"+(0.18*fade).toFixed(2)+")";
+          g.fillRect(gz+lean-(w>>1),y,w,Math.max(1,Math.round(K*0.5)));
+        }
+      }
+    }
+  }
+  // ── 🌧️ BLACK RAIN — fallout coming back down. It is the phase people actually remember, and it is the
+  // only rain in the set that stains what it lands on.
+  if(r>0){
+    for(var q=0;q<Math.round(WW/5*r);q++){
+      var hr=((q*2654435761+8807)>>>0); hr=(hr^(hr>>>13))>>>0;
+      var rx=apocScatterX(hr>>>5); if(rx<0||rx>=SW) continue;
+      var ry=((((hr>>>13)%1000)/1000)*HORIZON+(now*0.10)%HORIZON)%HORIZON;
+      g.fillStyle="rgba(26,22,20,"+(0.5*r).toFixed(2)+")";
+      g.fillRect(rx,ry,Math.max(1,Math.round(K*0.6)),Math.round(4*K));
+    }
+    g.fillStyle="rgba(24,20,18,"+(0.22*r).toFixed(2)+")"; g.fillRect(0,base-Math.round(2*K),SW,SH-base+Math.round(2*K));
+  }
+  // ── 🌫️ AND THEN ASH, for as long as you care to watch: the sky goes to a dead flat grey and the ground
+  // silts up. This is the lasting frame, and it is the phase the ending never had.
+  if(a2>0){
+    g.fillStyle="rgba(118,112,106,"+(0.30*a2).toFixed(2)+")"; g.fillRect(0,0,SW,HORIZON);
+    for(var s2=0;s2<Math.round(60*a2);s2++){
+      var hs=((s2*2654435761+4133)>>>0); hs=(hs^(hs>>>13))>>>0;
+      var sx2=apocScatterX(hs>>>5); if(sx2<0||sx2>=SW) continue;
+      var sy2=((((hs>>>13)%1000)/1000)*HORIZON+(now*0.012)%HORIZON)%HORIZON;
+      g.fillStyle="rgba(196,190,182,"+(0.32*a2).toFixed(2)+")";
+      g.fillRect(sx2,sy2,Math.max(1,Math.round(K*0.7)),Math.max(1,Math.round(K*0.7)));
+    }
+    g.fillStyle="rgba(150,144,136,"+(0.42*a2).toFixed(2)+")";
+    g.fillRect(0,base-Math.round(K),SW,Math.round(3*K));                 // ash silting over the street
+  }
+}
 function drawApocalypseBody(g,ap,L,now){
   drawApocApproach(g,L,now);   // …and before any of them lands, what you can see coming
-  if(curDeath==="nuke"){ drawApocNuke(g,ap,L,now); return; }
+  if(curDeath==="nuke"){ drawApocNuke(g,ap,L,now); nukeAfter(g,ap,L,now); return; }
   if(curDeath==="meteors"){ drawApocMeteor(g,ap,L,now); return; }
   if(curDeath==="sunburst"){ drawApocSun(g,ap,L,now); return; }
   if(curDeath==="ai"){ drawApocAI(g,ap,L,now); return; }
