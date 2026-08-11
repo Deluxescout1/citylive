@@ -58870,8 +58870,19 @@ function gooBuried(wx){
   var R=gooFrontR(); if(R<=0) return false;
   return nukeDist(wx,apocEpiX(NOWOVR!=null?NOWOVR:Date.now()))<R;
 }
+// 🚨 THE SAME LESSON, TWICE IN ONE DAY. The black hole tears the ROAD away, and the victim layer went on
+// laying bodies, stains and wrecks along a street that is no longer there — floating over a void exactly
+// as they floated inside the grey goo. `apocNoGround` is the one predicate for "is there ground here",
+// and its comment has always said a further ending that takes the ground away edits this and nothing
+// else. 🔑 The road front is the same expression `bhStream` peels slabs on, so what is drawn gone and
+// what is treated as gone cannot disagree.
+function bhVoid(wx){
+  if(curDeath!=="bh"||cityPhase!=="apoc") return false;
+  var road=Math.min(1,Math.max(0,(cityApoc-0.46)/0.40)); if(road<=0) return false;
+  return nukeDist(wx,apocEpiX(NOWOVR!=null?NOWOVR:Date.now()))<road*(WW*0.62);
+}
 function apocNoGround(wx){
-  return apocInPit(wx)||hollowGone(wx)||crustGone(wx)||gooBuried(wx)||
+  return apocInPit(wx)||hollowGone(wx)||crustGone(wx)||gooBuried(wx)||bhVoid(wx)||
          (APOC_DROWNS[curDeath] && cityPhase==="apoc" && typeof floodGroundHit==="function" && floodGroundHit(wx));
 }
 var APOC_FRONTED={nuke:1,meteors:1,sunburst:1,ai:1,bh:1,alienwar:1,frost:1,kaiju:1,ninetails:1,flood:1,kaijuwar:1,
@@ -60286,9 +60297,27 @@ function bhStream(g,ap,L,now,G){
       if(road<(1-frac)) continue;                        // this slab has not torn loose yet
       var rsx=Math.round(disX(rwx)); if(rsx<-60||rsx>SW+60) continue;
       var rw=Math.max(3,Math.round((10+((hr>>>17)%22))*K));
-      // the void it left — no ground, all the way down
-      g.fillStyle="rgba(3,3,9,0.96)";
-      g.fillRect(rsx,HORIZON-Math.round(K),rw,SH-HORIZON+Math.round(K));
+      // ── 🕳️ THE VOID IT LEFT. ⚠ IT WAS ONE `fillRect` PER SLAB and read as a row of black letterboxes
+      // cut in the road — his word was "blocky", and a rectangle is exactly what tarmac does NOT do when
+      // it tears. 🔑 The tear is walked in CHUNKS with a hashed top edge, so the rim is ragged and each
+      // slab breaks at a different height; a lit lip along it catches the disk and gives the hole a
+      // thickness instead of an outline. Chunked rather than per-column: a staircase of ~10 steps reads
+      // as broken ground and costs a twentieth of the marks.
+      var step=Math.max(2,Math.round(3*K));
+      for(var cx4=rsx;cx4<rsx+rw;cx4+=step){
+        if(cx4<-step||cx4>=SW) continue;
+        var ch4=((cx4*2654435761+r*7919)>>>0); ch4=(ch4^(ch4>>>13))>>>0;
+        var edge=Math.round(HORIZON-K+((ch4>>>5)%Math.max(1,Math.round(5*K)))-Math.round(2*K));
+        var cw4=Math.min(step,rsx+rw-cx4);
+        g.fillStyle="rgba(3,3,9,0.96)";
+        g.fillRect(cx4,edge,cw4,SH-edge);
+        g.fillStyle=day?"rgba(96,92,88,0.75)":"rgba(46,44,42,0.75)";      // the broken lip, seen edge-on
+        g.fillRect(cx4,edge,cw4,Math.max(1,Math.round(K*0.7)));
+        if(((ch4>>>17)&3)===0){                                            // reinforcement left hanging in it
+          g.fillStyle="rgba(140,120,96,0.6)";
+          g.fillRect(cx4+((ch4>>>21)%Math.max(1,cw4)),edge,Math.max(1,Math.round(K*0.5)),Math.round(3*K));
+        }
+      }
       var tr=Math.min(1,(road-(1-frac))/0.22);
       if(tr<=0.01) continue;
       var Pr=bhPath(tr,rsx+(rw>>1),base,hx,hy,((hr>>>9)%628)/100,K);
@@ -60372,12 +60401,19 @@ function drawApocBlackHole(g,ap,L,now){
     g.fillStyle="#000"; fillEllipse(g,sx,sy,R,R);
     // ===== ✨ THE PHOTON RING — the hard bright line where light orbits. The single brightest thing in
     // the frame, and the thing that makes the black read as a HOLE rather than a hole in the canvas.
-    var pn=Math.max(48,Math.round(R*4));
-    for(var pr=0;pr<pn;pr++){
-      var pa=(pr/pn)*Math.PI*2;
-      var dop=0.45+0.55*(0.5+0.5*Math.cos(pa));
-      g.fillStyle="rgba(255,"+((238-60*(1-dop))|0)+","+((214-120*(1-dop))|0)+","+(0.55+0.45*dop).toFixed(2)+")";
-      g.fillRect((sx+Math.cos(pa)*(R+1))|0,(sy+Math.sin(pa)*(R+1))|0,Math.max(1,Math.round(K*0.7)),Math.max(1,Math.round(K*0.7)));
+    // ⚠ THE PHOTON RING IS A HAIRLINE, and it is what makes the black read as a HOLE rather than as a
+    // gap in the canvas. Drawn by columns like the halo so it is continuous instead of a dotted orbit.
+    var pr0=R+Math.max(1,Math.round(K*0.5));
+    var px0=Math.max(0,Math.floor(sx-pr0)), px1=Math.min(SW-1,Math.ceil(sx+pr0));
+    for(var pxx=px0;pxx<=px1;pxx++){
+      var pdx=pxx-sx, pv=pr0*pr0-pdx*pdx; if(pv<=0) continue;
+      var poff=Math.sqrt(pv);
+      var pd=0.5-0.5*(pdx/pr0); pd=pd*pd*(3-2*pd);
+      var pa2=(0.5+0.45*pd);
+      g.fillStyle="rgba(255,"+((228-40*(1-pd))|0)+","+((196-110*(1-pd))|0)+","+pa2.toFixed(2)+")";
+      var pth=Math.max(1,Math.round(K*0.8));
+      g.fillRect(pxx,Math.round(sy-poff)-pth,1,pth);
+      g.fillRect(pxx,Math.round(sy+poff),1,pth);
     }
     bhHalo(g,sx,sy,R,spin,1.0,true);                            // and back under the bottom, in FRONT
     bhBand(g,sx,sy,R,spin,1.0,true);                            // …and the near arm, crossing the sphere
@@ -60396,39 +60432,51 @@ function drawApocBlackHole(g,ap,L,now){
 // flat EDGE-ON BAND (the near and far sides seen in the disk's own plane). A bar through a circle.
 // 🎨 DOPPLER IS WHAT SELLS IT: the side rotating toward us is blue-white and blinding, the receding
 // side is deep amber and half as bright. Symmetrical brightness reads as a drawn ring every time.
+// ── 🔥 THE HALO, DRAWN BY COLUMNS. 🔒 "Can we make it more realistic, it looks weird."
+// 🚨🔑 THE HARD SEAM WAS THE WHOLE PROBLEM. Doppler was a STEP — `(q<0)?1.0:0.40` on the band and a
+// rectangular clip at `x<cx` on the halo — so a straight vertical line ran down the middle of the
+// object, white on one side and amber on the other. Nothing in nature has that edge; it read as two
+// half-rings pasted together. Brightness now varies SMOOTHLY with the column, which for a disk seen
+// nearly edge-on is also the physically right axis: the approaching and receding arms are left and
+// right, so the gradient runs horizontally and peaks at the limbs.
+// 🚨🔑 AND AN EVEN ANNULUS IS AN ECLIPSE, NOT AN ACCRETION DISK. Real lensing makes the far side arc
+// over the top as a THIN band while the arms at the sides stay thick and bright — the thickness is what
+// says "a flat disk seen edge-on and bent" instead of "a glowing ring". The top run is squeezed and the
+// side lobes are left fat.
+// ⚡ Two fills per column beats sampling a polar grid: no basket weave (the first version wove one), a
+// smooth gradient for free, and per-column control of both thickness and colour.
 function bhHalo(g,cx,cy,R,spin,bright,front){
-  // ⚠ SAMPLING AN ANNULUS ONE SQUARE AT A TIME WOVE A BASKET. Stepping in radius AND angle laid the
-  // marks on a polar grid, and a polar grid at these radii is a visible moiré — it read as woven cane,
-  // not as light. 🔑 CONCENTRIC FILLED ELLIPSES, LARGEST FIRST: each one covers the last, so ten fills
-  // give a solid band with a real radial profile for a tenth of the marks and none of the pattern.
-  var r0=R*1.18, r1=R*1.46, N=10;
-  g.save();
-  g.beginPath();                                          // the far half arcs over the top, the near half under
-  if(front) g.rect(0,cy,SW,SH-cy); else g.rect(0,0,SW,cy+1);
-  g.clip();
-  for(var i=0;i<N;i++){
-    var e=i/(N-1), rr=r1+(r0-r1)*e;
-    var prof=1-Math.abs(e-0.45)*1.7;                       // brightest through the middle of the band
-    if(prof<=0.02) continue;
-    var a=(0.72*prof*bright);
-    g.fillStyle="rgba(255,"+((172+56*prof)|0)+","+((70+120*prof)|0)+","+a.toFixed(2)+")";
-    fillEllipse(g,cx,cy,rr,rr*0.98);
+  var r1=R*1.46, r0=R*1.17, asp=0.98;
+  var x0=Math.max(0,Math.floor(cx-r1)), x1=Math.min(SW-1,Math.ceil(cx+r1));
+  for(var x=x0;x<=x1;x++){
+    var dx=x-cx, q=dx/r1;
+    if(q<-1||q>1) continue;
+    var o2=r1*r1-dx*dx; if(o2<=0) continue;
+    var outer=Math.sqrt(o2)*asp;
+    var i2=r0*r0-dx*dx, inner=(i2>0)?Math.sqrt(i2)*asp:0;
+    // 🎨 smooth Doppler: brightest on the approaching limb, falling all the way round to the receding one
+    var dop=0.5-0.5*q;                       // 1 at the left limb → 0 at the right
+    dop=dop*dop*(3-2*dop);
+    var lit=0.30+0.66*dop;
+    var gg=(150+100*dop)|0, bb=(46+186*dop)|0;
+    var rr=(255-((1-dop)*22))|0;
+    var top=cy-outer, tHi=outer-inner;
+    if(tHi<0.6) continue;
+    if(front){
+      // the near arm passes UNDER the sphere: fat, and the brightest thing in the frame
+      g.fillStyle="rgba("+rr+","+gg+","+bb+","+(lit*bright).toFixed(3)+")";
+      g.fillRect(x,Math.round(cy+inner),1,Math.max(1,Math.round(tHi)));
+      if(dop>0.62){ g.fillStyle="rgba(244,250,255,"+(0.5*(dop-0.62)/0.38*bright).toFixed(3)+")";
+        g.fillRect(x,Math.round(cy+inner),1,Math.max(1,Math.round(tHi*0.45))); }
+    } else {
+      // the far side, lifted over the top by the hole's own lens — a THIN band, not a fat ring
+      var sq=Math.max(1,Math.round(tHi*(0.30+0.45*Math.abs(q))));
+      g.fillStyle="rgba("+rr+","+gg+","+bb+","+(lit*0.92*bright).toFixed(3)+")";
+      g.fillRect(x,Math.round(top+(tHi-sq)),1,sq);
+      if(dop>0.62){ g.fillStyle="rgba(244,250,255,"+(0.42*(dop-0.62)/0.38*bright).toFixed(3)+")";
+        g.fillRect(x,Math.round(top+(tHi-sq)),1,Math.max(1,Math.round(sq*0.5))); }
+    }
   }
-  // 🎨 DOPPLER. The approaching arm is redrawn blue-white over the top, clipped to its own side — an
-  // asymmetry a symmetric ring can never have, and the single thing that stops it reading as drawn.
-  g.beginPath(); g.rect(0,0,cx,SH); g.clip();
-  for(var j=0;j<N;j++){
-    var e2=j/(N-1), r2=r1+(r0-r1)*e2;
-    var p2=1-Math.abs(e2-0.45)*1.7; if(p2<=0.02) continue;
-    g.fillStyle="rgba("+((236+19*p2)|0)+","+((240+15*p2)|0)+",255,"+(0.55*p2*bright).toFixed(2)+")";
-    fillEllipse(g,cx,cy,r2,r2*0.98);
-  }
-  g.restore();
-  // and the sky it is NOT covering has to come back — the inner fill of the smallest ellipse
-  g.save();
-  g.beginPath(); if(front) g.rect(0,cy,SW,SH-cy); else g.rect(0,0,SW,cy+1); g.clip();
-  g.fillStyle="rgba(4,3,12,0.99)"; fillEllipse(g,cx,cy,r0,r0*0.98);
-  g.restore();
 }
 // the edge-on band: the disk seen in its own plane, stretched far out to either side and pinched thin
 function bhBand(g,cx,cy,R,spin,bright,front){
@@ -60443,7 +60491,7 @@ function bhBand(g,cx,cy,R,spin,bright,front){
     else if(f<0.52) continue;                             // the far arm is hidden behind it
     var th=Math.max(1,Math.round(thick*(1-f*0.72)));
     var yy=cy+Math.round(Math.sin(q*0.006+spin*2)*R*0.02);
-    var dop=(q<0)?1.0:0.40;
+    var dop=0.5-0.5*Math.max(-1,Math.min(1,q/reach)); dop=dop*dop*(3-2*dop);   // smooth, never a step
     var a=(0.26+0.62*dop)*(1-f)*(1-f)*bright;
     g.fillStyle="rgba(255,"+((150+100*dop)|0)+","+((44+168*dop)|0)+","+a.toFixed(2)+")";
     g.fillRect((cx+q)|0,(yy-th*0.5)|0,1,th);
