@@ -3,10 +3,9 @@ import "../org.citylive.wallpaper/contents/js/city.js" as City
 // GROUND ZERO ON ANOTHER MONITOR — the common case. Plus the core world's own baseline, no apocalypse.
 Item { id: root; width: 1552; height: 874
   property var shots: [
-    { n:"core-baseline", ms:null,    epi:0.25  },
-    { n:"goo-off-ap40",  ms:4838400, epi:0.859 },
-    { n:"goo-off-ap70",  ms:8467200, epi:0.859 },
-    { n:"goo-off-ap92",  ms:11128320,epi:0.859 }
+    { n:"off-seed-ap05", ms: 604800, epi:0.859 },
+    { n:"off-seed-ap14", ms:1693440, epi:0.859 },
+    { n:"off-seed-ap22", ms:2661120, epi:0.859 }
   ]
   property int idx: 0
   property int warm: 0

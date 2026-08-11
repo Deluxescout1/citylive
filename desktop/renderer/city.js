@@ -53383,7 +53383,10 @@ APOC_X.greygoo=function(g,ap,L,now){
   // collapsed buildings on `(ap-0.25)/(0.78-0.25)` — two laws for one boundary, so the goo stood over
   // blocks it had not eaten for a third of the arc. It now reads the SAME expression, derived from the
   // two tables the ending already fills in, and what looks eaten and what IS eaten cannot drift.
-  var s0=APOC_STRIKE_AP.greygoo, s1=APOC_FULL_AP.greygoo;
+  // ⚠ AND IT DEFAULTS RATHER THAN GOING `NaN`. Claiming derivation from a table means the day someone
+  // edits that table out, `s0` is undefined, `gooR` is NaN and this ending draws NOTHING with no
+  // error — absence presenting itself as a decision, one more time.
+  var s0=APOC_STRIKE_AP.greygoo||0.25, s1=APOC_FULL_AP.greygoo||0.78;
   var gooR=Math.max(0,(ap-s0)/Math.max(0.01,s1-s0))*(WW*0.62);
   gooSeed(g,ap/s0,now,K,L,L>0.5?[146,152,164]:[54,60,76],gooEpi,HORIZON+Math.round(GROUND*0.6));
   // 🔑 THE READ IS THE ABSENCE OF DETAIL. Everything behind the front becomes ONE smooth grey with no
