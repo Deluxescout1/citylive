@@ -53066,6 +53066,99 @@ APOC_X.oceansboil=function(g,ap,L,now){
 };
 
 // GREY GOO — it does not burn or crush. It DISASSEMBLES, and what it leaves is featureless.
+// ── 🩸🦠🔒 WHAT IT DOES TO THE PEOPLE AND THE BUILDINGS. His brief: more violent, more bloody, and all
+// three human fates across the arc. The old ending did nothing to anyone — the front advanced, the
+// grey arrived, and the city was simply gone behind it with no moment of anyone dying in it.
+// 🔑 THE THREE FATES ARE A TIMELINE, NOT A MENU: TAKEN (early, at the front, still fighting) →
+// DISSOLVED (mid, as it thickens and there is no fighting left) → CONVERTED (late, they get back up as
+// grey figures and walk on WITH it). That progression is the ending's whole argument, and it costs
+// nothing beyond choosing by `ap` — the same script-not-soup lesson the rogue planet's stages taught.
+// ⚠ `drawPerson` for every body, at the fixed 7px, however they die.
+function gooLife(g,ap,now,K,gsurf,gh,L,goo,epi,R){
+  if(R<=2) return;
+  var take=Math.max(0,1-Math.max(0,(ap-0.24)/0.32));         // 1 early, gone by ~0.56
+  var conv=Math.max(0,Math.min(1,(ap-0.48)/0.34));           // rises late
+  var gooC=css(goo), day=L>0.5;
+  for(var i=0;i<40;i++){
+    var h=((i*2654435761+7717)>>>0); h=(h^(h>>>13))>>>0;
+    var sx=((h>>>5)%Math.max(1,SW));
+    if(gsurf[sx]<0) continue;
+    var surf=gsurf[sx], depth=(gh-surf);
+    var wx=wrapW(sx+WOFF), d=nukeDist(wx,epi);
+    var atFront=(d>R*0.72);                                   // near the boundary
+    var mk=0.42, cloth=hexDark(PEDC[(h>>>11)%PEDC.length],mk), skin=hexDark(SKINC[(h>>>17)%SKINC.length],mk*0.75);
+    if(atFront&&take>0.05&&((h>>>21)%3)!==0){
+      // ── TAKEN FROM THE FEET UP, STILL SCREAMING. The line is at their knees, then their chest; the
+      // arms stay up above it until they go under. Blood where flesh is being converted.
+      var bob=((now*0.004+i)%1);
+      var sink=Math.round(depth*0.06+bob*depth*0.10);
+      var py=surf+sink;
+      drawPerson(g,sx,py,cloth,skin,(h&1)?1:-1,0);
+      g.fillStyle=gooC; g.fillRect(sx-Math.round(2*K),py-Math.round(2*K),Math.round(4*K),Math.round(3*K));
+      g.fillStyle="rgba(150,16,22,"+(0.75).toFixed(2)+")";     // the boundary, where it is eating them
+      g.fillRect(sx-Math.round(2*K),py-Math.round(2*K),Math.round(4*K),Math.max(1,Math.round(K*0.8)));
+      g.fillStyle=day?"rgba(206,214,226,0.8)":"rgba(120,140,168,0.7)";
+      g.fillRect(sx-Math.round(K),py-Math.round(5*K),Math.max(1,Math.round(K)),Math.round(2*K));  // an arm, up
+    } else if(conv>0.05&&((h>>>23)%5)===0){
+      // ── CONVERTED. They get back up as featureless grey and walk on with the front. No face, no
+      // colour, the same material as the mass — the most disturbing thing in the ending and the
+      // cheapest, because it is a person-shaped silhouette in the goo's own palette.
+      var cx2=sx+Math.round(Math.sin(now*0.0007+i)*10*K);
+      var cy2=surf+Math.round(depth*0.05);
+      g.fillStyle=gooC;
+      g.fillRect(cx2-Math.round(K),cy2-Math.round(6*K),Math.round(2*K),Math.round(3*K));   // head+torso
+      g.fillRect(cx2-Math.round(K),cy2-Math.round(3*K),Math.round(2*K),Math.round(3*K));
+      g.fillRect(cx2-Math.round(K),cy2-Math.round(K),Math.max(1,Math.round(K)),Math.round(K)); // legs
+      g.fillRect(cx2,cy2-Math.round(K),Math.max(1,Math.round(K)),Math.round(K));
+      g.fillStyle=day?"rgba(232,240,252,0.7)":"rgba(140,166,200,0.6)";
+      g.fillRect(cx2-Math.round(K),cy2-Math.round(6*K),Math.round(2*K),Math.max(1,Math.round(K*0.6)));
+    } else {
+      // ── DISSOLVING IN PLACE. Losing shape from the bottom, a red stain under them, then nothing.
+      var dt=((now*0.0009+((h>>>7)%100)/100)%1);
+      var dy=surf+Math.round(depth*0.04);
+      if(dt<0.62){
+        g.globalAlpha=Math.max(0,1-dt/0.62);
+        drawPerson(g,sx,dy,cloth,skin,(h&1)?1:-1,0);
+        g.globalAlpha=1;
+      }
+      g.fillStyle="rgba(138,14,20,"+(0.65*(1-dt)).toFixed(3)+")";
+      g.fillRect(sx-Math.round(2*K),dy-Math.max(1,Math.round(K)),Math.round(4*K),Math.max(1,Math.round(K)));
+    }
+  }
+  // ── 🏢 AND THE BUILDINGS GO TWO WAYS, per their own hash. Some are HOLLOWED — bitten through, the
+  // silhouette going ragged — and then drop into the mass; the rest are ABSORBED standing, losing
+  // detail from the bottom up until they are featureless columns that melt into it.
+  for(var b=0;b<14;b++){
+    var bh=((b*2654435761+3319)>>>0); bh=(bh^(bh>>>13))>>>0;
+    var bx=((bh>>>5)%Math.max(1,SW));
+    if(gsurf[bx]<0) continue;
+    var bsurf=gsurf[bx];
+    var bw=Math.max(2,Math.round((5+((bh>>>11)%9))*K));
+    var bhh=Math.round((14+((bh>>>15)%34))*K);
+    var per=6000+((bh>>>19)%5000);
+    var bt=(((now+((bh>>>23)%per))%per)/per);
+    if(bt>0.9) continue;
+    if((bh>>>27)&1){
+      // hollowed, then it falls
+      var lean=Math.round(Math.pow(bt,2.4)*bw*2.2)*(((bh>>>29)&1)?1:-1);
+      var top=bsurf-bhh+Math.round(Math.pow(bt,2.2)*bhh*0.9);
+      g.fillStyle=day?"rgba(74,78,88,0.95)":"rgba(30,33,42,0.95)";
+      for(var ry=0;ry<bhh;ry+=Math.max(1,Math.round(K))){
+        var up=bhh-ry, off=Math.round(lean*(up/bhh));
+        var yy2=top+ry; if(yy2>bsurf) break;
+        if((((bh>>>(ry&15))+ry)%7)===0) continue;              // the bites taken out of it
+        g.fillRect(bx+off,yy2,bw,Math.max(1,Math.round(K)));
+      }
+    } else {
+      // absorbed standing, smoothed from the bottom up
+      var eaten=Math.round(bt*bhh);
+      g.fillStyle=day?"rgba(96,100,112,0.92)":"rgba(40,44,56,0.92)";
+      g.fillRect(bx,bsurf-bhh,bw,Math.max(1,bhh-eaten));
+      g.fillStyle=gooC;
+      g.fillRect(bx-Math.max(1,Math.round(K*0.5)),bsurf-eaten,bw+Math.round(K),Math.max(1,eaten));
+    }
+  }
+}
 APOC_X.greygoo=function(g,ap,L,now){
   var K=Math.max(1,KSP);
   // 🌍🚨 A FRONT IS A DISTANCE, AND `SW` IS NEVER ONE. `-SW*0.15+ap*SW*1.4` swept each monitor
@@ -53078,7 +53171,10 @@ APOC_X.greygoo=function(g,ap,L,now){
   // 🔑 THE READ IS THE ABSENCE OF DETAIL. Everything behind the front becomes ONE smooth grey with no
   // windows, no edges and no silhouette — which on a map made entirely of small bright detail is the
   // most disturbing thing that can happen to it. Nothing else in the set removes information.
-  var goo=L>0.5?[150,150,154]:[62,62,68];
+  // 🔒 CHROME, not sludge. His call: it is a SWARM OF MACHINES, so the palette goes cold and blue-grey
+  // and the surface carries hard specular glints. A warm matte grey reads as mud or ash — both of which
+  // this map already has — and neither says "manufactured".
+  var goo=L>0.5?[146,152,164]:[54,60,76];
   var gh=HORIZON+Math.round(GROUND*0.6);
   // the consumed region — run-batched over the columns THIS screen has, so a monitor that holds none
   // of it costs one comparison per column and draws nothing.
@@ -53120,6 +53216,18 @@ APOC_X.greygoo=function(g,ap,L,now){
                       :(L>0.5?"rgba(120,120,126,0.5)":"rgba(40,40,46,0.5)");
     g.fillRect(tx,ty,Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
   }
+  // ── ✨ THE GLINTS. What separates a swarm of machines from a mudslide: hard specular points crawling
+  // over the surface, catching the sky. They are stepped by time rather than slid, so the highlight
+  // pops on and off like a facet turning, which no natural material does.
+  for(var gl=0;gl<Math.round(90*Math.min(1,ap*2));gl++){
+    var glh=((gl*2654435761+((Math.floor(now/110)*40503)|0))>>>0); glh=(glh^(glh>>>13))>>>0;
+    var glx=((glh>>>5)%Math.max(1,SW));
+    if(gsurf[glx]<0) continue;
+    var gly=gsurf[glx]+((glh>>>13)%Math.max(1,Math.round((gh-gsurf[glx])*0.55)));
+    g.fillStyle=L>0.5?"rgba(238,246,255,0.85)":"rgba(150,178,214,0.75)";
+    g.fillRect(glx,gly,Math.max(1,Math.round(K)),Math.max(1,Math.round(K*0.7)));
+  }
+  gooLife(g,ap,now,K,gsurf,gh,L,goo,gooEpi,gooR);
   // ── 🖐️ TENDRILS. Fingers of it climbing whatever is still standing just beyond the front — the part
   // that says the city is being TAKEN rather than merely covered over.
   for(var v=0;v<26;v++){
@@ -57914,7 +58022,7 @@ var APOC_MARK={
   // ---- scalded / drowned / choked ----
   oceansboil:{m:"boil",spray:0.35}, flood:{m:"drown",spray:0.15}, pollution:{m:"choke",spray:0.20},
   // ---- unmade: dissolved, converted, taken ----
-  greygoo:{m:"dissolve",spray:0.30}, thechange:{m:"dissolve",spray:0.25}, banwave:{m:"dissolve",spray:0},
+  greygoo:{m:"dissolve",spray:0.88}, thechange:{m:"dissolve",spray:0.25}, banwave:{m:"dissolve",spray:0},
   ai:{m:"beam",spray:0.45}, alienwar:{m:"beam",spray:0.70},
   bh:{m:"drain",spray:0.40}, timestop:{m:"drain",spray:0}, logout:{m:"drain",spray:0},
   // ---- THE THIRD TIER. The existing twenty-five are overwhelmingly COSMIC — a wrong sky, a cold
