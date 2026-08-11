@@ -53562,7 +53562,7 @@ APOC_X.greygoo=function(g,ap,L,now){
   // edits that table out, `s0` is undefined, `gooR` is NaN and this ending draws NOTHING with no
   // error — absence presenting itself as a decision, one more time.
   var s0=APOC_STRIKE_AP.greygoo||0.25, s1=APOC_FULL_AP.greygoo||0.78;
-  var gooR=Math.max(0,(ap-s0)/Math.max(0.01,s1-s0))*(WW*0.62);
+  var gooR=gooFrontR();
   gooSeed(g,ap/s0,now,K,L,L>0.5?[52,57,70]:[20,23,32],gooEpi,SH);
   // 🔑 THE READ IS THE ABSENCE OF DETAIL. Everything behind the front becomes ONE smooth grey with no
   // windows, no edges and no silhouette — which on a map made entirely of small bright detail is the
@@ -58832,8 +58832,28 @@ function apocInPit(wx){
 // 🔑 A body on ground that is under water has no ground to lie on, in precisely the sense THE PIT and
 // THE HOLLOW already meant — one more `||` here and all nine call sites are correct at once. The
 // ending then draws them FLOATING, at the waterline, in `ragFloatDead`.
+// the goo front, as ONE expression — the renderer draws to it and `apocNoGround` buries to it, so a
+// body cannot be lying on ground the mass has already taken.
+function gooFrontR(){
+  if(curDeath!=="greygoo"||cityPhase!=="apoc") return 0;
+  var s0=APOC_STRIKE_AP.greygoo||0.25, s1=APOC_FULL_AP.greygoo||0.78;
+  return Math.max(0,(cityApoc-s0)/Math.max(0.01,s1-s0))*(WW*0.62);
+}
+// 🚨🔒 HIS REPORT: "I am just seeing floating half people." He was right, and it was mine: I made the
+// mass fill to `SH` so it reaches the near pavement, and the general victim layer went on drawing the
+// dead at the old street line — which is now INSIDE the goo. Bodies, stains, wrecks and mourners all
+// floating in the middle of a grey wall.
+// 🔑 THE FILE ALREADY SAID WHERE THIS GOES: *"a third ending that takes the ground away edits this
+// function and nothing else."* THE PIT removes the street, THE HOLLOW unmakes it, a flood drowns it —
+// and the goo BURIES it. One more `||` and all nine call sites are correct at once. ⚠ The goo draws
+// its OWN dead at the mass surface in `gooLife`; those are meant to be there, and this does not touch
+// them — what it suppresses is the layer that thinks the street is still where it was.
+function gooBuried(wx){
+  var R=gooFrontR(); if(R<=0) return false;
+  return nukeDist(wx,apocEpiX(NOWOVR!=null?NOWOVR:Date.now()))<R;
+}
 function apocNoGround(wx){
-  return apocInPit(wx)||hollowGone(wx)||crustGone(wx)||
+  return apocInPit(wx)||hollowGone(wx)||crustGone(wx)||gooBuried(wx)||
          (APOC_DROWNS[curDeath] && cityPhase==="apoc" && typeof floodGroundHit==="function" && floodGroundHit(wx));
 }
 var APOC_FRONTED={nuke:1,meteors:1,sunburst:1,ai:1,bh:1,alienwar:1,frost:1,kaiju:1,ninetails:1,flood:1,kaijuwar:1,
