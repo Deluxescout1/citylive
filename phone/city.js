@@ -51495,6 +51495,35 @@ var APOC_FULL_AP={moonfall:0.97,gammaray:0.62,rogueplanet:0.88,crustcrack:0.80,o
   thetitans:0.90,ragnarok:0.90,
   risen:0.86,plague:0.88,swarm:0.80,bloodmoon:0.90,acidrain:0.84,thepit:0.88,
   glassrain:0.82,thescream:0.76,crimsontide:0.90,warmachine:0.86,thefamine:0.94,thehollow:0.88};
+// ⏱️🚨🚨🚨 NINE OF THE TWELVE ORIGINAL ENDINGS WERE A TEN-TO-THIRTY SECOND EVENT INSIDE A 201-MINUTE ARC.
+// `apocMs` runs 0 → `APOC_BAND*GROW_CYCLE` ≈ 12,096,000, and this tier's constants are authored in real
+// seconds — `NUKE_WIPE_MS` 6000, `KAIJU_WIPE_MS` 11000, `SUN_EXPLODE_MS` 30000. So the nuke is over eight
+// seconds in and the remaining THREE HOURS AND TWENTY MINUTES is one frozen frame. Rendered at 30 s, ap
+// 0.20 and ap 0.60 the black hole came back pixel-identical, and it is the same story for the other
+// eight. These are the classics — the nuke, the meteor storm, the kaiju — and they are the most-watched
+// endings in the set.
+// 🔑🔑 ONE REMAP FIXES ALL OF THEM. Rather than rewriting dozens of constants and every site that reads
+// them, the ending's own authored timeline is STRETCHED ACROSS THE ARC: `apocMs` becomes `cityApoc` times
+// that ending's full authored span, so every phase boundary it already contains still fires, in the same
+// order and the same proportions, just over three hours instead of ten seconds. Nothing downstream needs
+// to know. 🔒 His call: re-time the whole tier first, then give each one a middle.
+// ⚠ THE SPAN IS THE ENDING'S OWN LAST BEAT plus its tail — derived from the constants it already declares,
+// never a fourth number invented here, so an ending that re-times itself later cannot silently disagree.
+// ⚠ `bh` is NOT in this table: it was rebuilt onto the arc directly (`BH_FORM_AP`/`BH_FULL_AP`) and
+// remapping it again would square the stretch.
+function apocSpanMs(){
+  switch(curDeath){
+    case "nuke":     return NUKE_FALL_MS+NUKE_WIPE_MS+4000;
+    case "meteors":  return METEOR_IMPACT_MS+METEOR_WIPE_MS+6000;
+    case "sunburst": return SUN_EXPLODE_MS+6000;
+    case "ai":       return AI_WAKE_MS+AI_WIPE_MS+5000;
+    case "alienwar": return WAR_ONSET_MS+WAR_STAGGER_MS+WAR_HIT_MS+5000;
+    case "frost":    return FROST_ONSET_MS+FROST_STAGGER_MS+FROST_FREEZE_MS+5000;
+    case "kaiju":    return KAIJU_ARRIVE_MS+KAIJU_WIPE_MS+5000;
+    case "kaijuwar": return (typeof KW_ARRIVE_MS!=="undefined"?KW_ARRIVE_MS:4500)+16000;
+  }
+  return 0;
+}
 function apocStruck(){ if(cityPhase!=="apoc") return false;
   if(curDeath==="nuke")    return apocMs>=NUKE_FALL_MS;                                  // the warhead has DETONATED
   if(curDeath==="meteors") return apocMs>=METEOR_SWARM_MS;                              // the small-meteor swarm has begun
@@ -61804,6 +61833,8 @@ function draw(g,pass){
     apocMs=Date.now()%(DEMO_APOC_SEC*1000); cityApoc=Math.min(1,apocMs/(DEMO_APOC_SEC*1000));
     var acl=apocCycleList();
     curDeath=FORCEDEATH||CFG_FINALE||(acl.length?acl[nukeDetId(now)%acl.length]:"nuke"); }   // ⚠ CFG_FINALE too — demo mode ignored the pinned ending and always played the nuke
+  var _span=apocSpanMs();
+  if(_span>0 && cityPhase==="apoc") apocMs=Math.round(cityApoc*_span);
   blastMs = (curDeath==="nuke") ? Math.max(0, apocMs-NUKE_FALL_MS) : apocMs;   // ms since DETONATION — 0 while the warhead is still falling, so nothing dies until impact
   apocKill = (cityPhase!=="apoc") ? cityApoc                                                 // the "everything stops/empties" clock:
     : (curDeath==="nuke")    ? Math.min(1,blastMs/4000)                                       //   nuke: within ~4s of impact
