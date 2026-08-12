@@ -59475,6 +59475,74 @@ function kaijuBody(g,ap,L,now){
     g.globalCompositeOperation="source-over";
   }
 }
+// ── 🛩️🔒 WHAT THE OTHER MONITORS SEE. *"Again I am not seeing anything on this one."* — and he was right
+// twice over: the beast stands at ONE point in the world, so on the two screens that do not hold ground
+// zero the ending was a normal city with some blood in it. One monitor is ~28% of the world, so that is
+// the usual case, not the exception.
+// 🔒 HIS CALL, AND IT IS THE HARDER ONE: do NOT put the creature on all three screens the way Gargantua
+// is — *a creature standing in three places is a lie the black hole could get away with and this cannot.*
+// What travels instead is THE FIGHT: you see it the way you would from across a city — small and hazy on
+// the horizon in the right direction, its smoke going up, and the military streaming toward it.
+// 🔑 THE DIRECTION IS THE POINT. Every element here points the same way — the smoke, the jets, the tracer,
+// the people running the other way — so even a screen that never shows the monster tells you exactly
+// where it is and that it is losing you the city.
+function kaijuFar(g,ap,L,now){
+  if(cityPhase!=="apoc"||curDeath!=="kaiju") return;
+  var K=Math.max(1,KSP), day=L>0.5, base=HORIZON-1;
+  var epi=apocEpiX(now), sx=Math.round(disX(epi));
+  var near0=(sx>-40&&sx<SW+40);
+  var dir=(sx<0)?-1:1;                                    // which way it is, from this screen
+  var edge=(dir<0)?Math.round(SW*0.06):Math.round(SW*0.94);
+  var on=Math.min(1,Math.max(0,(ap-0.16)/0.20));
+  if(on<=0) return;
+  if(!near0){
+    // ── 🌋 its smoke, going up off the horizon exactly where it is standing
+    var col=Math.round(HORIZON*0.62*on);
+    for(var y=0;y<col;y+=Math.max(1,Math.round(K))){
+      var u=y/Math.max(1,col);
+      var w=Math.round((7+u*30)*K), wob=Math.round(Math.sin(now*0.0006+u*5)*8*K*u);
+      g.fillStyle=day?"rgba(58,52,50,"+(0.42*(1-u*0.55)*on).toFixed(2)+")":"rgba(26,24,24,"+(0.5*(1-u*0.55)*on).toFixed(2)+")";
+      g.fillRect(edge+wob-(w>>1),base-y,w,Math.max(1,Math.round(K)));
+    }
+    // ── 🦖 and the beast itself, FAR: small, hazy, unmistakably the same shape, standing in its smoke
+    var fh=Math.round(HORIZON*0.20*on), fw=Math.round(fh*0.30);
+    var fa=(0.42*on).toFixed(2);
+    g.fillStyle=day?"rgba(34,44,38,"+fa+")":"rgba(14,20,18,"+fa+")";
+    g.fillRect(edge-(fw>>1),base-fh,fw,fh);                                   // torso+legs
+    g.fillRect(edge-(fw>>1)-Math.round(fw*0.9),base-Math.round(fh*0.30),Math.round(fw*1.1),Math.round(fh*0.16));  // tail
+    g.fillRect(edge+Math.round(fw*0.15),base-Math.round(fh*1.16),Math.round(fw*0.62),Math.round(fh*0.18));        // head
+    g.fillStyle="rgba(255,214,120,"+(0.5*on).toFixed(2)+")";
+    g.fillRect(edge+Math.round(fw*0.34),base-Math.round(fh*1.11),Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
+  }
+  // ── ✈️ THE CITY FIGHTS BACK AND LOSES. Jets running in toward it and tracer arcing the same way — the
+  // military response is what gives the thing scale on a screen where you cannot see it at all.
+  for(var j=0;j<Math.round(7*on);j++){
+    var hj=((j*2654435761+5501)>>>0); hj=(hj^(hj>>>13))>>>0;
+    var speed=0.05+((hj>>>7)%40)/1000;
+    var t=((now*speed+((hj>>>13)%1000))%1000)/1000;
+    var jx=(dir<0)? Math.round(SW-(t*SW*1.3)) : Math.round(t*SW*1.3-SW*0.15);
+    var jy=Math.round(HORIZON*(0.10+((hj>>>19)%40)/100*0.5));
+    if(jx<-10||jx>SW+10) continue;
+    g.fillStyle=day?"rgba(52,56,64,0.95)":"rgba(24,26,32,0.95)";
+    g.fillRect(jx,jy,Math.round(4*K),Math.max(1,Math.round(K)));
+    g.fillRect(jx+Math.round(dir*1.5*K),jy-Math.round(K),Math.max(1,Math.round(K)),Math.round(2*K));
+    g.globalCompositeOperation="lighter";
+    g.fillStyle="rgba(255,190,120,0.55)";
+    g.fillRect(jx-Math.round(dir*3*K),jy,Math.round(3*K),Math.max(1,Math.round(K*0.7)));   // contrail/afterburner
+    g.globalCompositeOperation="source-over";
+  }
+  for(var tr=0;tr<Math.round(16*on);tr++){
+    var ht=((tr*2654435761+7717)>>>0); ht=(ht^(ht>>>13))>>>0;
+    var tt=((now*0.35+((ht>>>11)%1000))%1000)/1000;
+    var tx=(dir<0)? Math.round(SW*(1-tt)) : Math.round(SW*tt);
+    var ty=Math.round(base-HORIZON*(0.12+0.42*tt)-((ht>>>17)%20));
+    if(tx<0||tx>=SW) continue;
+    g.globalCompositeOperation="lighter";
+    g.fillStyle="rgba(255,206,120,"+(0.7*(1-tt)).toFixed(2)+")";
+    g.fillRect(tx,ty,Math.round(3*K),Math.max(1,Math.round(K*0.8)));
+    g.globalCompositeOperation="source-over";
+  }
+}
 function drawApocalypseBody(g,ap,L,now){
   drawApocApproach(g,L,now);   // …and before any of them lands, what you can see coming
   if(curDeath==="nuke"){ drawApocNuke(g,ap,L,now); nukeAfter(g,ap,L,now); return; }
@@ -59484,7 +59552,7 @@ function drawApocalypseBody(g,ap,L,now){
   if(curDeath==="bh"){ drawApocBlackHole(g,ap,L,now); return; }
   if(curDeath==="alienwar"){ drawApocAlienWar(g,ap,L,now); return; }
   if(curDeath==="frost"){ drawApocFrost(g,ap,L,now); return; }
-  if(curDeath==="kaiju"){ drawApocKaiju(g,ap,L,now); kaijuBody(g,ap,L,now); kaijuAfter(g,ap,L,now); return; }
+  if(curDeath==="kaiju"){ drawApocKaiju(g,ap,L,now); kaijuFar(g,ap,L,now); kaijuBody(g,ap,L,now); kaijuAfter(g,ap,L,now); return; }
   if(curDeath==="ninetails"){ drawApocFox(g,ap,L,now); return; }
   if(curDeath==="massacre"){ drawApocMassacre(g,ap,L,now); return; }
   if(curDeath==="logout"){ drawApocLogout(g,ap,L,now); return; }
