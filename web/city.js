@@ -59404,6 +59404,77 @@ function kaijuAfter(g,ap,L,now){
     }
   }
 }
+// ── 🦖🔒 THE BEAST ITSELF. His report: *"I have no idea what this endtime event is supposed to be."* He
+// was right — measured, it was a plain dark-green vertical BAR the same height as the towers beside it,
+// with a beam entering from off-frame. It read as a green skyscraper with a searchlight on it.
+// 🔑 THE SILHOUETTE HAS TO WIN BEFORE ANYTHING ELSE. A kaiju is recognised by SHAPE at any size: heavy
+// tail, hunched back with dorsal fins, thick legs, small arms, big jaw. None of that existed, so no
+// amount of colour or effect could have saved it — the same lesson `thechange` learned when its
+// wrong-anatomy creatures were drawn two shades off the buildings behind them.
+// 🔒 TWICE THE TALLEST TOWER, his call — the skyline is what tells you how big it is, so it has to be
+// measured against the REAL tallest building rather than a fraction of the frame.
+function kaijuBody(g,ap,L,now){
+  if(cityPhase!=="apoc"||curDeath!=="kaiju") return;
+  var K=Math.max(1,KSP), day=L>0.5;
+  var epi=apocEpiX(now), sx=Math.round(disX(epi));
+  var tall=0;
+  if(near&&near.blds) for(var i=0;i<near.blds.length;i++){ var B=near.blds[i]; if(B.h>tall) tall=B.h; }
+  if(tall<=0) tall=Math.round(HORIZON*0.34);
+  var H=Math.round(tall*2.0*Math.min(1,Math.max(0.25,ap/0.30)));     // it rises into its full height
+  if(sx<-H*2||sx>SW+H*2) return;
+  var base=HORIZON-1, W=Math.round(H*0.30);
+  var sway=Math.round(Math.sin(now*0.0009)*H*0.02);
+  var cx=sx+sway, dark=day?[26,38,30]:[10,16,14], lit=day?[58,86,66]:[24,38,30];
+  function box(x,y,w,h,c){ g.fillStyle=css(c); g.fillRect(Math.round(x),Math.round(y),Math.max(1,Math.round(w)),Math.max(1,Math.round(h))); }
+  // ── the tail: heavy, low, sweeping back and away — it is half the animal's length and it is what
+  // stops the silhouette reading as a biped standing upright like a man.
+  var tdir=(((nukeDetId(now)*2654435761)>>>0)&1)?1:-1;
+  for(var t=0;t<14;t++){
+    var u=t/14, tx=cx-tdir*(W*0.5+u*H*0.95), ty=base-H*0.26*(1-u)*(1-u)-H*0.02;
+    box(tx-W*0.16,ty,W*(0.34-0.22*u),H*(0.10-0.06*u),dark);
+  }
+  // ── legs, thick and apart, and the body hunched forward over them
+  var stride=Math.round(Math.sin(now*0.0016)*W*0.30);
+  box(cx-W*0.46+stride,base-H*0.40,W*0.34,H*0.40,dark);
+  box(cx+W*0.12-stride,base-H*0.40,W*0.34,H*0.40,dark);
+  box(cx-W*0.50,base-H*0.78,W*1.00,H*0.42,dark);                      // torso
+  box(cx-W*0.34,base-H*0.80,W*0.66,H*0.16,lit);                       // lit chest plate, so it is not a blob
+  // ── the neck and head, thrown forward — the jaw is the readable end
+  var hx=cx+tdir*W*0.42;
+  box(cx+tdir*W*0.05,base-H*0.96,W*0.34,H*0.22,dark);                 // neck
+  box(hx-W*0.10,base-H*1.06,W*0.46,H*0.15,dark);                      // skull
+  box(hx+tdir*W*0.16,base-H*1.02,W*0.30,H*0.07,dark);                 // jaw, jutting
+  g.fillStyle="rgba(255,214,120,0.95)";
+  g.fillRect(Math.round(hx+tdir*W*0.02),Math.round(base-H*1.03),Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));  // eye
+  // ── ⚡ THE DORSAL FINS. The one detail that names the animal, and they are also where the light is:
+  // they charge before it breathes, which is the tell that the beam is coming.
+  var charge=Math.max(0,Math.min(1,Math.sin(now*0.0011)*1.4));
+  for(var f=0;f<7;f++){
+    var fu=f/7, fx=cx-tdir*(W*0.10+fu*W*0.95), fy=base-H*(0.80-fu*0.16);
+    var fh=H*(0.10-0.05*fu);
+    box(fx-W*0.07,fy-fh,W*0.15,fh,dark);
+    if(charge>0.05){
+      g.globalCompositeOperation="lighter";
+      g.fillStyle="rgba(140,230,255,"+(0.8*charge*(1-fu*0.5)).toFixed(2)+")";
+      g.fillRect(Math.round(fx-W*0.07),Math.round(fy-fh),Math.max(1,Math.round(W*0.15)),Math.max(1,Math.round(fh*0.5)));
+      g.globalCompositeOperation="source-over";
+    }
+  }
+  // ── 🔥 AND THE BREATH COMES OUT OF THE JAW. The old beam entered the frame from nowhere, so nothing
+  // connected it to whatever was firing it — an attack with no visible source is a lens flare.
+  if(charge>0.72){
+    var bx0=hx+tdir*W*0.44, by0=base-H*1.00;
+    g.globalCompositeOperation="lighter";
+    for(var q=0;q<Math.round(SW*0.6);q+=Math.max(1,Math.round(K))){
+      var bx=bx0+tdir*q, by=by0+Math.round(q*0.16);
+      if(bx<-4||bx>SW+4||by>base) continue;
+      var w2=Math.max(1,Math.round((5-q/(SW*0.18))*K));
+      g.fillStyle="rgba(190,245,255,"+(0.85*(charge-0.72)/0.28).toFixed(2)+")";
+      g.fillRect(bx,by-w2,Math.max(1,Math.round(K*1.4)),w2*2);
+    }
+    g.globalCompositeOperation="source-over";
+  }
+}
 function drawApocalypseBody(g,ap,L,now){
   drawApocApproach(g,L,now);   // …and before any of them lands, what you can see coming
   if(curDeath==="nuke"){ drawApocNuke(g,ap,L,now); nukeAfter(g,ap,L,now); return; }
@@ -59413,7 +59484,7 @@ function drawApocalypseBody(g,ap,L,now){
   if(curDeath==="bh"){ drawApocBlackHole(g,ap,L,now); return; }
   if(curDeath==="alienwar"){ drawApocAlienWar(g,ap,L,now); return; }
   if(curDeath==="frost"){ drawApocFrost(g,ap,L,now); return; }
-  if(curDeath==="kaiju"){ drawApocKaiju(g,ap,L,now); kaijuAfter(g,ap,L,now); return; }
+  if(curDeath==="kaiju"){ drawApocKaiju(g,ap,L,now); kaijuBody(g,ap,L,now); kaijuAfter(g,ap,L,now); return; }
   if(curDeath==="ninetails"){ drawApocFox(g,ap,L,now); return; }
   if(curDeath==="massacre"){ drawApocMassacre(g,ap,L,now); return; }
   if(curDeath==="logout"){ drawApocLogout(g,ap,L,now); return; }
