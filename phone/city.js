@@ -60508,11 +60508,35 @@ function bhStream(g,ap,L,now,G){
       drawPerson(g,Math.round(P2.x),Math.round(P2.y),hexDark(PEDC[(h>>>13)%PEDC.length],0.18),
                  hexDark(SKINC[(h>>>23)%SKINC.length],0.12),(h&1)?1:-1,0);
     } else {
+      // ── 🩸🔒 AND THEY COME APART. His call. Spaghettification is not a clean disappearance — the tidal
+      // gradient pulls harder on the leading end than the trailing one until the body simply parts, and
+      // what leaves is arterial. 🔑 THE BLOOD GOES WHERE THE TEARING IS: heaviest right at the moment the
+      // thread starts (`e` just past the point they stop reading as a person) and thinning to nothing as
+      // what is left is drawn out — so the gore marks the EVENT, not the whole journey.
+      // ⚠ `goreK()` or it is not a setting.
+      var GK=goreK();
+      if(GK>0){
+        var tear=Math.max(0,1-Math.abs(P2.e-0.34)/0.30);          // peaks where the body parts
+        if(tear>0.02){
+          var bw=Math.max(1,Math.round(K*(1+tear)));
+          g.fillStyle="rgba(168,18,24,"+(0.85*tear*GK).toFixed(2)+")";
+          g.fillRect(Math.round(P2.x-bw*0.5),Math.round(P2.y-bw*0.5),bw,bw);
+          // the spray, thrown along the path behind them — it is being pulled in too
+          for(var sq=1;sq<=4;sq++){
+            var Ps=bhPath(Math.max(0,t2-sq*0.030),sx,base,hx,hy,wind2,K,R);
+            var sa=(0.7*tear*(1-sq/5)*GK);
+            if(sa<=0.05) continue;
+            g.fillStyle="rgba("+(150+18*sq)+","+(14+6*sq)+",20,"+sa.toFixed(2)+")";
+            g.fillRect(Math.round(Ps.x),Math.round(Ps.y),Math.max(1,Math.round(K*0.8)),Math.max(1,Math.round(K*0.8)));
+          }
+        }
+      }
       var tl=Math.max(2,Math.round(9*(1-P2.e)));
       for(var q2=0;q2<tl;q2++){
         var Pq=bhPath(Math.max(0,t2-q2*0.018),sx,base,hx,hy,wind2,K,R);
         var a2=(1-P2.e)*(1-q2/tl)*0.9; if(a2<=0.04) continue;
         g.fillStyle=(q2===0)?"rgba(255,214,168,"+a2.toFixed(2)+")"
+                   :(q2<3&&goreK()>0)?"rgba(158,20,26,"+(a2*0.9).toFixed(2)+")"      // the near end is still bleeding
                             :"rgba("+(day?196:120)+","+(day?150:96)+","+(day?150:104)+","+a2.toFixed(2)+")";
         var ps=Math.max(1,Math.round(K*(1-P2.e)));
         g.fillRect(Math.round(Pq.x),Math.round(Pq.y),ps,ps);
