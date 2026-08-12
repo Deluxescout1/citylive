@@ -59623,7 +59623,47 @@ function kaijuAfter(g,ap,L,now){
 // and THE FINS ARE PLACED ON THE SPINE ITSELF rather than on their own straight line — the previous cut
 // walked them down a linear ramp while the tail fell away quadratically, so half of them hung in open
 // sky behind the animal like a second creature.
-function kaijuShape(g,cx,base,H,face,day,a,detail,now){
+// ── 🦴 LIMBS THAT ARE ATTACHED TO SOMETHING. 🔒 His call, 2026-08-12: *"make sure their limbs move
+// correctly for their body."* They did not: every limb on both creatures was an axis-aligned rectangle
+// that TRANSLATED. A leg slid sideways as a whole block, foot and all; the ape's punching arm swapped
+// representation entirely, from a hanging vertical bar to a horizontal one. Nothing pivoted, so nothing
+// stayed joined to the shoulder or hip it was supposed to hang off.
+// 🔑 A limb is a chain: a ROOT that does not move, a joint, and an end that travels an arc. Two segments
+// is enough at this pixel size — a general IK solver would be a lot of code to draw four legs with.
+// 🪵 Drawn as connected runs, mark never smaller than the step, for the same reason the kaiju's tail had
+// to be rebuilt: a plotted sample chain is a staircase.
+function kwSeg(g,x0,y0,x1,y1,w0,w1,c,K){
+  var n=Math.max(2,Math.round(Math.max(Math.abs(x1-x0),Math.abs(y1-y0))/Math.max(1,K)));
+  g.fillStyle=c;
+  for(var i=0;i<=n;i++){ var u=i/n, w=Math.max(K,w0+(w1-w0)*u);
+    g.fillRect(Math.round(x0+(x1-x0)*u-w*0.5),Math.round(y0+(y1-y0)*u-w*0.5),Math.max(1,Math.round(w)),Math.max(1,Math.round(w))); }
+}
+function kwLimb(g,x0,y0,x1,y1,bend,w0,w1,c,K){
+  var dx=x1-x0, dy=y1-y0, L=Math.max(1,Math.sqrt(dx*dx+dy*dy));
+  var jx=(x0+x1)*0.5-(dy/L)*bend, jy=(y0+y1)*0.5+(dx/L)*bend;     // the joint, offset off the straight line
+  kwSeg(g,x0,y0,jx,jy,w0,(w0+w1)*0.5,c,K);
+  kwSeg(g,jx,jy,x1,y1,(w0+w1)*0.5,w1,c,K);
+}
+// ── 👣 A PLANTED FOOT IS STATIONARY IN THE WORLD, which is the whole difference between walking and
+// moonwalking. `gait` is a phase derived by the CALLER from the animal's WORLD x over one stride length,
+// never from `now` and never from its screen x — a clock gives a gait unrelated to how fast the body is
+// actually moving, and a screen x gives all three monitors a different leg phase for the same animal.
+// ⚡ SPACING, not easing: the foot is DOWN for most of the cycle and crosses fast. At 12fps a smoothly
+// eased arc reads mushy; a hold-then-cross reads like weight. Same lesson as the punch.
+var KW_PLANT=0.64;
+function kwFoot(gait,off,stride){
+  var u=((gait+off)%1+1)%1;
+  // ⚠ THE AMPLITUDE IS `PLANT × stride`, NOT `stride`. Derived: local x must fall at exactly body speed
+  // while the foot is down, so d(local)/d(worldX) = -1. With `gait = worldX/stride`, travelling the FULL
+  // stride within the plant window gives -1/PLANT = -1.56 — the foot slides backwards at 0.56× body
+  // speed, which is a moonwalk with extra steps. Over one cycle the body advances `stride`; the foot is
+  // down for `PLANT` of it, so it may only travel `PLANT*stride` while planted, and the swing returns it.
+  var A=KW_PLANT*stride;
+  if(u<KW_PLANT) return {x:A*0.5-(u/KW_PLANT)*A, lift:0};               // planted: world-stationary, exactly
+  var v=(u-KW_PLANT)/(1-KW_PLANT);
+  return {x:-A*0.5+v*A, lift:Math.sin(v*Math.PI)*stride*0.42};          // and it crosses fast, in the air
+}
+function kaijuShape(g,cx,base,H,face,day,a,detail,now,gait){
   var K=Math.max(1,KSP);
   // 🎨 THE VALUE STRUCTURE IS THE FIX, NOT THE OUTLINE. What shipped was ONE fill (`#1b2a1c`) for torso,
   // head, legs and tail against a mid-dark sky, so the shape had no near side, no far side and no ground
@@ -59636,14 +59676,19 @@ function kaijuShape(g,cx,base,H,face,day,a,detail,now){
   // ── 🐉 THE TAIL as one curve: it leaves the hip, dips toward the street under its own weight, and the
   // tip lifts. A tail that runs straight into the ground is a ramp, which is what the last one read as.
   function tailPt(u){ return { x: hipX-face*(H*0.12+u*H*1.00),
-                               y: hipY+H*0.30*Math.sin(u*Math.PI*0.82)+Math.sin(now*0.0011+u*3.2)*H*0.03*u,
+                               // 🔑 the tail COUNTERBALANCES the stride — same phase as the legs, opposite
+                               // sign — instead of swaying on a clock of its own with no relation to them.
+                               y: hipY+H*0.30*Math.sin(u*Math.PI*0.82)-Math.sin(((gait==null)?now*0.00016:gait)*6.283)*H*0.045*u,
                                t: H*(0.130-0.104*u) }; }
   for(var t=39;t>=0;t--){ var u=t/39, P=tailPt(u);
     bx(P.x-P.t*0.5,P.y-P.t*0.5,P.t,P.t*1.05,u<0.45?mid:dark); }
-  // ── the far leg first, in the deepest value, so the near one reads in front of it
-  var stride=Math.sin(now*0.0016)*H*0.075;
-  bx(cx-H*0.145+stride,hipY,H*0.115,base-hipY,dark);
-  bx(cx-H*0.175+stride,base-H*0.035,H*0.175,H*0.035,dark);                          // its foot, flat on the street
+  // ── the legs: a chain from a hip that does not move to a foot that plants. `gait` comes from the
+  // animal's world position, so a planted foot is genuinely stationary on the ground it is standing on.
+  var strideL=H*0.42, gt=(gait==null)?(now*0.00016):gait;
+  var fFar=kwFoot(gt,0.5,strideL), fNear=kwFoot(gt,0.0,strideL);
+  var hipFar=cx-H*0.085, hipNear=cx+H*0.085;
+  kwLimb(g,hipFar,hipY,hipFar+fFar.x,base-H*0.02-fFar.lift,-face*H*0.05,H*0.125,H*0.085,C(dark),K);
+  bx(hipFar+fFar.x-H*0.085,base-H*0.035-fFar.lift,H*0.175,H*0.035,dark);            // its foot, flat on the street
   // ── the torso: broad at the hip, arched forward to a narrower shoulder.
   // ⚡ RUN-BATCHED — the bands are accumulated and flushed only when the rounded profile actually
   // CHANGES. Per-row detail is a choice, and it is the one five other renderers had to be taught.
@@ -59658,10 +59703,10 @@ function kaijuShape(g,cx,base,H,face,day,a,detail,now){
   }
   if(run>=0){ var h2=Math.round(hipY)-run+1; bx(cx+rO-rH,run,rH*2,h2,rC);
     bx(cx+rO+face*rH-(face>0?Math.max(1,K*1.4):0),run,Math.max(1,K*1.4),h2,rim,0.8); }
-  // ── the near leg, over the torso, and clear of the far one so the gap between them reads
-  bx(cx+H*0.030-stride,hipY,H*0.115,base-hipY,mid);
-  bx(cx+H*0.000-stride,base-H*0.035,H*0.175,H*0.035,dark);
-  bx(cx+H*0.030-stride,hipY,Math.max(1,K*1.4),base-hipY,rim,0.55);                   // light down the near shin
+  // ── the near leg, over the torso, knee bending forward the way a bird's does
+  kwLimb(g,hipNear,hipY,hipNear+fNear.x,base-H*0.02-fNear.lift,-face*H*0.05,H*0.125,H*0.085,C(mid),K);
+  bx(hipNear+fNear.x-H*0.085,base-H*0.035-fNear.lift,H*0.175,H*0.035,dark);
+  kwSeg(g,hipNear+face*H*0.05,hipY,hipNear+fNear.x+face*H*0.03,base-H*0.06-fNear.lift,Math.max(1,K*1.4),Math.max(1,K),C(rim,0.5),K);
   // ── 🔑 THE NECK IS A CHAIN, NOT A GAP. The old head was a detached horizontal bar floating above a
   // torso block in the same flat green — the other half of "two of them": nothing joined them, so they
   // read as two objects at two different depths.
@@ -59676,9 +59721,10 @@ function kaijuShape(g,cx,base,H,face,day,a,detail,now){
   bx(hx0+(face>0?hw-Math.max(1,K*1.4):0),hy,Math.max(1,K*1.4),hh,rim,0.85);           // rim down the muzzle
   g.fillStyle="rgba(255,196,86,"+(0.95*a).toFixed(2)+")";
   g.fillRect(Math.round(hx0+(face>0?hw*0.62:hw*0.26)),Math.round(hy+hh*0.22),Math.max(1,Math.round(K*1.4)),Math.max(1,Math.round(K*1.4)));
-  // ── the small forelimb, held up at the chest. It is what stops the torso reading as a tree trunk.
-  bx(shX+face*H*0.06,Y(0.60),H*0.045,H*0.115,dark);
-  bx(shX+face*H*0.06,Y(0.60),H*0.075,H*0.040,mid);
+  // ── the small forelimb, a chain off the shoulder so it swings with the body rather than riding on it
+  var fw=Math.sin(((gait==null)?now*0.00016:gait)*6.283+1.6)*H*0.035;
+  kwLimb(g,shX+face*H*0.03,Y(0.62),shX+face*H*0.11+fw,Y(0.50),face*H*0.03,H*0.050,H*0.032,C(dark),K);
+  bx(shX+face*H*0.09+fw,Y(0.52),H*0.055,H*0.030,mid);
   // ── ⚡ THE DORSAL FINS: the one detail that NAMES the animal, and where the light lives. Placed ON the
   // back and then ON the tail curve, so they follow the animal instead of floating off behind it. They
   // charge before it breathes, which telegraphs the beam instead of it arriving out of nowhere.
@@ -59716,7 +59762,7 @@ function kaijuBody(g,ap,L,now){
   var H=Math.round(tall*2.0*rise*(1-leave*0.62));
   if(H<2||sx<-H*2||sx>SW+H*2) return;
   var a=1-leave*0.35;
-  var r=kaijuShape(g,sx,base,H,face,day,a,true,now);
+  var r=kaijuShape(g,sx,base,H,face,day,a,true,now,wx/Math.max(1,H*0.42));   // 🔑 gait from WORLD x — from `sx` it would differ on every monitor
   // ── 🌫️ IT IS STANDING IN ITS OWN WRECKAGE. Dust boiling up around the legs, which is also what stops
   // the silhouette looking pasted onto the street: the ground it is on is coming apart.
   g.globalCompositeOperation="lighter";
@@ -59843,7 +59889,7 @@ function kaijuFar(g,ap,L,now){
   var away=Math.min(1,offD/(WW*0.42));
   var hand=Math.min(1,Math.max(0,(offD-edgeGap)/(SW*0.55)));
   var HF=Math.round(tallF*2.0*(0.86-0.24*away)*Math.min(1,apocMs/KAIJU_ARRIVE_MS));
-  if(HF>6&&hand>0.02) kaijuShape(g,edge,base,HF,kaijuDir(),day,(0.94-0.10*away)*hand,false,now);
+  if(HF>6&&hand>0.02) kaijuShape(g,edge,base,HF,kaijuDir(),day,(0.94-0.10*away)*hand,false,now,wx/Math.max(1,HF*0.42));
   // ── …and the haze it is standing in, laid over the animal so it sits BEHIND the air rather than in
   // front of the buildings. A bank along the horizon in one direction only, so the frame has a side.
   for(var hb=0;hb<Math.round(HORIZON*0.34);hb+=Math.max(1,Math.round(K))){
@@ -60346,21 +60392,27 @@ function drawApocMoonfall(g,ap,L,now){
 // PROPORTION — a huge shoulder mass, a small head sunk between it, and arms long enough to reach the
 // ground — so those are drawn first and the mass is hung off them.
 // 🎨 Same value law as the reptile: dark belly, mid flank, lit shoulder, one hard rim down the front.
-function kwApeShape(g,cx,base,H,face,day,a,now,act){
+function kwApeShape(g,cx,base,H,face,day,a,now,act,gait){
   var K=Math.max(1,KSP);
   var dark=day?[20,14,10]:[9,7,6], mid=day?[46,33,24]:[20,15,12], lit=day?[86,64,46]:[36,27,21], rim=day?[198,168,132]:[104,86,66];
   function C(c,al){ return "rgba("+c[0]+","+c[1]+","+c[2]+","+((al==null?1:al)*a).toFixed(2)+")"; }
   function bx(x,y,w,h,c,al){ g.fillStyle=C(c,al); g.fillRect(Math.round(x),Math.round(y),Math.max(1,Math.round(w)),Math.max(1,Math.round(h))); }
   var Y=function(f){ return base-H*f; };
   var hipY=Y(0.30), shY=Y(0.74), swing=Math.sin(now*0.0018)*H*0.05;
-  // ── the far arm first, behind the mass: long, hanging, knuckles on the ground
-  bx(cx-face*H*0.30,Y(0.70),H*0.115,H*0.62,dark);
-  bx(cx-face*H*0.34,base-H*0.05,H*0.19,H*0.05,dark);                       // its knuckles
+  // ── 🦍 IT IS A KNUCKLE-WALKER, NOT A BIPED. Give something this shape a two-legged stride and it reads
+  // as a man in a suit: the weight goes onto the ARMS first and the legs swing through underneath. Its
+  // planted knuckle is the anchor of the whole gait.
+  var strideA=H*0.30, gtA=(gait==null)?(now*0.00014):gait;
+  var kn=kwFoot(gtA,0.0,strideA);                                          // the anchoring knuckle
+  var lgF=kwFoot(gtA,0.42,strideA), lgN=kwFoot(gtA,0.78,strideA);          // ⚠ SAME stride the gait was derived from, or these are not planted either
+  var shBackX=cx-face*H*0.24, shBackY=Y(0.70);
+  kwLimb(g,shBackX,shBackY,shBackX+kn.x,base-H*0.035-kn.lift,face*H*0.07,H*0.115,H*0.090,C(dark),K);
+  bx(shBackX+kn.x-H*0.095,base-H*0.05-kn.lift,H*0.19,H*0.05,dark);         // knuckles down on the street
   // ── the legs: short and thick, well inside the shoulders — that contrast is most of the read
-  bx(cx-H*0.135,hipY,H*0.125,base-hipY,dark);
-  bx(cx+H*0.015,hipY,H*0.125,base-hipY,mid);
-  bx(cx-H*0.165,base-H*0.045,H*0.19,H*0.045,dark);
-  bx(cx+H*0.000,base-H*0.045,H*0.19,H*0.045,dark);
+  kwLimb(g,cx-H*0.075,hipY,cx-H*0.075+lgF.x,base-H*0.02-lgF.lift,-face*H*0.035,H*0.125,H*0.095,C(dark),K);
+  bx(cx-H*0.075+lgF.x-H*0.095,base-H*0.045-lgF.lift,H*0.19,H*0.045,dark);
+  kwLimb(g,cx+H*0.075,hipY,cx+H*0.075+lgN.x,base-H*0.02-lgN.lift,-face*H*0.035,H*0.125,H*0.095,C(mid),K);
+  bx(cx+H*0.075+lgN.x-H*0.095,base-H*0.045-lgN.lift,H*0.19,H*0.045,dark);
   // ── the torso: enormous at the shoulder, tapering to the hip. ⚡ run-batched, flushed on profile change
   var span=Math.max(1,hipY-shY), run=-1,rH=-1,rC=null;
   for(var y=Math.round(shY);y<=Math.round(hipY);y++){
@@ -60393,21 +60445,21 @@ function kwApeShape(g,cx,base,H,face,day,a,now,act){
   g.fillRect(Math.round(cx+face*(H*0.02+hw*0.10)),Math.round(hy+H*0.018),Math.max(1,Math.round(K*1.2)),Math.max(1,Math.round(K*1.2)));
   // ── and the near arm, over everything: this is the one that hits things. `act` is the swing phase —
   // negative while it winds up and pulls back, 1 at full extension on the snap frame.
-  var reach=act||0;
-  if(reach>0.15){
-    var armLen=H*(0.20+0.50*reach), ax0=(face>0)?cx+H*0.13:cx-H*0.13-armLen;
-    bx(ax0,Y(0.70),armLen,H*0.135,mid);                                     // the arm, out straight
-    bx((face>0)?ax0+armLen-H*0.11:ax0,Y(0.705),H*0.11,H*0.145,dark);        // the fist at the end of it
-    bx(ax0,Y(0.70),armLen,Math.max(1,K*1.4),rim,0.5);
-  } else {
-    var pull=Math.max(0,-reach);                                            // wound back behind the shoulder
-    bx(cx+face*(H*0.26-pull*H*0.18)+swing*(1-pull),Y(0.72-pull*0.03),H*0.125,H*0.60,mid);
-    bx(cx+face*(H*0.24-pull*H*0.18)+swing*(1-pull),base-H*0.05,H*0.21,H*0.05,dark);
-    bx(cx+face*(H*0.26-pull*H*0.18)+swing*(1-pull),Y(0.72),Math.max(1,K*1.4),H*0.60,rim,0.55);
-  }
+  // 🔑 THE HAND TRAVELS AN ARC AND THE SEGMENTS KEEP THEIR LENGTH. The previous cut SWAPPED
+  // REPRESENTATION at `reach>0.15` — a hanging vertical bar became a horizontal one — so the arm
+  // teleported through the swing instead of throwing it. One shoulder, one elbow, one hand on a circle.
+  var reach=Math.max(-0.35,Math.min(1,act||0));
+  var idle=(act==null||act===0)?swing/Math.max(1,H*0.05)*0.10:0;            // it never freezes solid between blows
+  var sA=(reach+0.35)/1.35;
+  var ang=1.78+(-0.06-1.78)*sA+idle;                                        // hanging back-and-down → straight out front
+  var shX2=cx+face*H*0.20, shY2=Y(0.70), armLen=H*0.62;
+  var hxp=shX2+face*Math.cos(ang)*armLen, hyp=shY2+Math.sin(ang)*armLen;
+  kwLimb(g,shX2,shY2,hxp,hyp,-face*H*0.11*(1-sA*0.6),H*0.125,H*0.095,C(mid),K);
+  bx(hxp-H*0.06,hyp-H*0.06,H*0.12,H*0.13,dark);                            // the fist
+  kwSeg(g,shX2,shY2,hxp,hyp,Math.max(1,K*1.4),Math.max(1,K),C(rim,0.5),K);
   return {cx:cx, headY:hy, headX:cx+face*H*0.08, W:H*0.30, top:base-H};
 }
-function drawTitan(g,sx,gy,H,kind,facing,pose,now,tp,act){
+function drawTitan(g,sx,gy,H,kind,facing,pose,now,tp,act,gait){
   // 🔑 ONE ANIMAL, ONE ROUTINE, TWICE OVER. The reptile in this fight and the one in the kaiju ending are
   // the same creature, so it is the same `kaijuShape`; the ape has its own, and neither is hand-drawn a
   // second time inside this renderer — a second copy of a creature is how a frame ends up holding two of
@@ -60417,9 +60469,9 @@ function drawTitan(g,sx,gy,H,kind,facing,pose,now,tp,act){
     var lean0=(pose===2)?-facing*Math.round(H*0.08):(pose===3)?facing*Math.round(H*0.06):0;
     var lunge=Math.round(facing*(act||0)*H*0.17);                       // it puts its weight behind the blow
     var cx0=Math.round(sx+lean0+lunge+((pose===4)?facing*Math.round(tp*H*0.22):0));
-    if(kind===0){ kaijuShape(g,cx0,gy-1,H0,facing,true,1,pose!==4,now);
+    if(kind===0){ kaijuShape(g,cx0,gy-1,H0,facing,true,1,pose!==4,now,gait);
       return {cx:cx0, headY:gy-Math.round(H0*0.80), headX:cx0+facing*Math.round(H0*0.30), W:Math.round(H0*0.30), top:gy-H0}; }
-    return kwApeShape(g,cx0,gy-1,H0,facing,true,1,now,act||0);
+    return kwApeShape(g,cx0,gy-1,H0,facing,true,1,now,act||0,gait);
   }
   // (legacy fallback below — only reachable if `kaijuShape` is somehow absent)
   var W=Math.round(H*(kind?0.34:0.26));
@@ -60557,8 +60609,9 @@ function drawApocKaijuWar(g,ap,L,now){
   xA+=knockA; xB+=knockB;
   if(decided){ if(loser===0){ poseA=4; poseB=5; } else { poseB=4; poseA=5; } }
   var tA=null, tB=null;
-  if(xA>-260&&xA<SW+260) tA=drawTitan(g,xA,gy,H,0, 1,poseA,now,(decided&&loser===0)?tD:0,actA);
-  if(xB>-260&&xB<SW+260) tB=drawTitan(g,xB,gy,H,1,-1,poseB,now,(decided&&loser===1)?tD:0,actB);
+  var gtA=kwTitanX(now,0)/Math.max(1,H*0.42), gtB=kwTitanX(now,1)/Math.max(1,H*0.30);   // 🔑 gait off each titan's WORLD x
+  if(xA>-260&&xA<SW+260) tA=drawTitan(g,xA,gy,H,0, 1,poseA,now,(decided&&loser===0)?tD:0,actA,gtA);
+  if(xB>-260&&xB<SW+260) tB=drawTitan(g,xB,gy,H,1,-1,poseB,now,(decided&&loser===1)?tD:0,actB,gtB);
   // ── 💥 AND THE HIT ITSELF, on the snap frame ONLY. Spread over a second this is a glow; confined to
   // one frame it is force. Flash at the point of contact, dust off the ground under it, and debris.
   if(land&&tA&&tB){
