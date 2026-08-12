@@ -59338,6 +59338,72 @@ function meteorAfter(g,ap,L,now){
     g.fillRect(0,base-Math.round(K),SW,Math.round(4*K));                  // soot drifting over the street
   }
 }
+// ── 🦖 THE KAIJU'S MIDDLE — ITS OWN PHYSICS. A kaiju is not a blast and not a climate event: it is an
+// ANIMAL, and the thing that makes its aftermath unlike anything else in the set is that IT LEAVES. The
+// nuke's aftermath is chemistry and the meteor's is climate; this one's is that the cause of it walked
+// away and is still out there, getting smaller on the horizon, while the city it stepped through burns.
+// 🔑 WHAT IT LEAVES BEHIND IS A TRAIL, NOT A CRATER. Footprints crushed into the ground in a LINE, each
+// one a pit deep enough to swallow a building, filling with broken main-water and burning gas — you can
+// read the direction it went off the ground itself, which no other ending can do.
+function kaijuAfter(g,ap,L,now){
+  if(!apocStruck()) return;
+  var K=Math.max(1,KSP), day=L>0.5, base=HORIZON-1;
+  var epi=apocEpiX(now);
+  var tr=Math.max(0,Math.min(1,(ap-0.30)/0.20));      // THE TRAIL      0.30 → 0.50
+  var bu=Math.max(0,Math.min(1,(ap-0.36)/0.26));      // THE WRECK BURNS 0.36 → 0.62
+  var go=Math.max(0,Math.min(1,(ap-0.52)/0.30));      // IT LEAVES      0.52 → 0.82
+  var st=Math.max(0,Math.min(1,(ap-0.70)/0.30));      // AND IT IS QUIET 0.70 → 1.00
+  var burnFade=Math.max(0,1-Math.max(0,(ap-0.66)/0.28));
+  // ── 🦶 THE TRAIL. Footprints in a line, spaced like a stride, walking away from ground zero.
+  if(tr>0){
+    var dir=(((nukeDetId(now)*2654435761)>>>0)&1)?1:-1;
+    for(var i=0;i<14;i++){
+      var wx=wrapW(Math.round(epi+dir*i*Math.round(58*K)));
+      var fx=Math.round(disX(wx)); if(fx<-90||fx>SW+90) continue;
+      var born=i/14;
+      if(tr<born*0.9) continue;                        // the trail is laid down as it walks
+      var fw=Math.round((30+((i*37)%12))*K), fd=Math.round(9*K);
+      g.fillStyle="rgba(6,6,10,0.95)";                 // the pit, deep enough to swallow a building
+      g.fillRect(fx-(fw>>1),base-Math.round(K),fw,fd);
+      g.fillStyle=day?"rgba(78,74,70,0.9)":"rgba(34,32,32,0.9)";
+      g.fillRect(fx-(fw>>1),base-Math.round(K),fw,Math.max(1,Math.round(K*1.2)));   // the crushed rim
+      if(bu>0&&burnFade>0&&(i%2)===0){                 // gas main alight in the bottom of it
+        g.globalCompositeOperation="lighter";
+        var fh=Math.round((4+((i*13)%7))*K*bu*burnFade*(0.6+0.4*Math.sin(now*0.006+i)));
+        g.fillStyle="rgba(255,150,54,"+(0.65*bu*burnFade).toFixed(2)+")";
+        g.fillRect(fx-Math.round(3*K),base-fh,Math.round(6*K),fh);
+        g.globalCompositeOperation="source-over";
+      }
+    }
+  }
+  // ── 🌊 IT LEAVES. The whole point: the thing that did this is still alive and it is getting SMALLER,
+  // walking out of the world it wrecked. Nothing else in the set has a cause that survives its own ending.
+  if(go>0&&go<1.0){
+    var away=go, far=Math.round(disX(wrapW(Math.round(epi+(((nukeDetId(now)*2654435761)>>>0)&1?1:-1)*(160+away*700)*K*0.4))));
+    if(far>-120&&far<SW+120){
+      var hgt=Math.round(HORIZON*0.34*(1-away*0.72)), wdt=Math.max(2,Math.round(hgt*0.34));
+      var a3=(0.55*(1-away*0.55)).toFixed(2);
+      g.fillStyle=day?"rgba(30,34,38,"+a3+")":"rgba(12,14,18,"+a3+")";
+      g.fillRect(far-(wdt>>1),base-hgt,wdt,hgt);                                  // body
+      g.fillRect(far-Math.round(wdt*0.9),base-Math.round(hgt*0.92),Math.round(wdt*1.8),Math.max(1,Math.round(hgt*0.16)));  // shoulders
+      g.fillRect(far-Math.round(wdt*0.3),base-Math.round(hgt*1.14),Math.round(wdt*0.6),Math.round(hgt*0.16));              // head
+      g.fillStyle="rgba(255,120,60,"+(0.5*(1-away)).toFixed(2)+")";
+      g.fillRect(far-Math.round(wdt*0.2),base-Math.round(hgt*1.10),Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));   // one eye, still lit
+    }
+  }
+  // ── 🌫️ AND THEN IT IS QUIET. Dust settling over a wreck nobody is coming back to, and the fires going
+  // out one at a time. No winter, no fallout — an animal did this and then it went home.
+  if(st>0){
+    g.fillStyle="rgba(92,86,80,"+(0.24*st).toFixed(2)+")"; g.fillRect(0,0,SW,HORIZON);
+    for(var d2=0;d2<Math.round(50*st);d2++){
+      var hd=((d2*2654435761+7411)>>>0); hd=(hd^(hd>>>13))>>>0;
+      var dx2=apocScatterX(hd>>>5); if(dx2<0||dx2>=SW) continue;
+      var dy2=((((hd>>>13)%1000)/1000)*HORIZON+(now*0.008)%HORIZON)%HORIZON;
+      g.fillStyle="rgba(150,144,136,"+(0.26*st).toFixed(2)+")";
+      g.fillRect(dx2,dy2,Math.max(1,Math.round(K*0.6)),Math.max(1,Math.round(K*0.6)));
+    }
+  }
+}
 function drawApocalypseBody(g,ap,L,now){
   drawApocApproach(g,L,now);   // …and before any of them lands, what you can see coming
   if(curDeath==="nuke"){ drawApocNuke(g,ap,L,now); nukeAfter(g,ap,L,now); return; }
@@ -59347,7 +59413,7 @@ function drawApocalypseBody(g,ap,L,now){
   if(curDeath==="bh"){ drawApocBlackHole(g,ap,L,now); return; }
   if(curDeath==="alienwar"){ drawApocAlienWar(g,ap,L,now); return; }
   if(curDeath==="frost"){ drawApocFrost(g,ap,L,now); return; }
-  if(curDeath==="kaiju"){ drawApocKaiju(g,ap,L,now); return; }
+  if(curDeath==="kaiju"){ drawApocKaiju(g,ap,L,now); kaijuAfter(g,ap,L,now); return; }
   if(curDeath==="ninetails"){ drawApocFox(g,ap,L,now); return; }
   if(curDeath==="massacre"){ drawApocMassacre(g,ap,L,now); return; }
   if(curDeath==="logout"){ drawApocLogout(g,ap,L,now); return; }
