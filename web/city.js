@@ -51876,7 +51876,18 @@ function floodCl(h,wx){
     if(ov>0){ var wh=floodWaveH(0)*(0.55+0.45*ov); if(wh>=h*0.85) return Math.min(1,ov*1.4); } }
   return (w >= h*0.7) ? Math.min(1,(w - h*0.7)/(h*0.35+10)) : -1; }
 // has the water risen above the ground at world-x yet? (low-lying spots go under first) — governs movers & parks
-function floodGroundHit(x){ return floodWaveOver(x)>0 || floodLevel() > (2 + ((((x|0)*2654435761)>>>0)%8)); }
+// 🚨🚨 "WHERE ARE THE PEOPLE?" — HERE. This returned TRUE FOR THE WHOLE WORLD the instant the global
+// level cleared its 2–10px threshold, and the crowd branch culls anyone it is true for, so every person
+// alive was deleted in one frame — including everybody on the DRY side of a wave that had not reached
+// them yet. Rendered, the streets ahead of the wall were empty while the city still stood in them.
+// A global level cannot answer a question about a PLACE: the ground at x is underwater once the wave has
+// BEEN here, and not one second before.
+function floodArrived(wx){ var a=((wx*floodWaveDir())%WW+WW)%WW; return floodWavePos(0)>=a; }
+// the ap at which the first wave reaches world-x — so a person can be given a moment of their own
+function floodArrivalAp(wx){ var a=((wx*floodWaveDir())%WW+WW)%WW; return floodWaveAt(0)+(a/(WW*1.12))*FL_WCROSS; }
+function floodGroundHit(x){
+  if(floodWaveOver(x)>0) return true;
+  return floodArrived(x) && floodLevel() > (2 + ((((x|0)*2654435761)>>>0)%8)); }
 function meteorFrontR(){ return Math.max(0,(apocMs-METEOR_IMPACT_MS)/METEOR_WIPE_MS)*(WW*0.62); }   // radius the massive impact's fiery blast has raced out (only after it lands)
 // how far into collapse world-x is under the meteor apocalypse — {cl:0..1 progress, bd:debris dir}; cl<0 = not hit yet.
 // Unifies the two destroyers: the ONE massive impact's radial front (the main leveler) + the scattered SMALL strikes.
@@ -62220,14 +62231,18 @@ function drawApocFlood(g,ap,L,now){
   // world, a moment its strength runs out, and a depth it ends up at. Before that it is at the surface
   // swimming; after it, it is face-down in the water and it drifts one way and never comes back.
   // ⚠ NOTHING OSCILLATES. That was the note about the bouncing crate, and a sine on a corpse is worse.
-  if(base>0){
-    var pop=Math.round(46*Math.min(1,base*2.2));   // ⚠ 120 at 8 world px each came back as confetti — fewer and bigger reads as a body, and a body is the point
+  {
+    var pop=90;                                    // ⚠ 46 was too few to populate a sea; at this size they read as bodies rather than confetti
     for(var pi=0;pi<pop;pi++){
       var hp=((pi*2654435761+6421)>>>0); hp=(hp^(hp>>>13))>>>0;
+      var home=((hp>>>5)%Math.max(1,WW));
+      if(!floodArrived(home)) continue;                                          // 🔑 the wave has not reached this one — they are still in the street, alive, drawn by the crowd
       var drift=((hp>>>27)&1)?1:-1;
-      var pwx2=wrapW(((hp>>>5)%Math.max(1,WW))+drift*(now*0.0022*(0.4+((hp>>>21)%40)/40)));
+      var pwx2=wrapW(home+drift*(now*0.0022*(0.4+((hp>>>21)%40)/40)));
       var psx=disX(pwx2); if(psx<-8||psx>SW+8) continue;
-      var giveUp=FL_W0+0.04+((hp>>>11)%100)/100*0.34;                            // when this one stops swimming
+      // 🔑 each gets a moment of its own, measured from when the water reached IT — so the drowning
+      // travels across the world with the wave instead of the whole population giving up on one clock.
+      var giveUp=floodArrivalAp(home)+0.015+((hp>>>11)%100)/100*0.16;
       var swim=cityApoc<giveUp;
       if(swim){
         if(waterY<0||waterY>SH) continue;
@@ -63085,8 +63100,12 @@ function draw(g,pass){
                                                      : Math.min(1,0.28+(apocMs-KAIJU_ARRIVE_MS)/KAIJU_WIPE_MS))   //   …then the rampage empties the city
     : (curDeath==="ninetails") ? (apocMs<FOX_ARRIVE_MS ? Math.min(0.34,apocMs/FOX_ARRIVE_MS*0.34)   //   the fox: they watch it RISE before they run…
                                                        : Math.min(1,0.34+(apocMs-FOX_ARRIVE_MS)/FOX_WIPE_MS))     //   …then the shockwave takes the valley
-    : (curDeath==="flood") ? (apocMs<FLOOD_ONSET_MS ? Math.min(0.3,apocMs/FLOOD_ONSET_MS*0.3)   //   flood: people run for high ground as the waters rise…
-                                                    : Math.min(1,0.3+(apocMs-FLOOD_ONSET_MS)/9000))   //   …then the sea drowns the city
+    // 🚨 "WHERE ARE THE PEOPLE?" — THE SECOND GLOBAL CULL WAS HERE. `apocKill` is the "how empty is the
+    //   city" clock, and on flood it ran off `apocMs` alone: by the time the wall was a third of the way
+    //   across the world it had already emptied 60% of every street in it, including the streets the
+    //   water would not reach for another two minutes. The wave is the only thing that empties anything,
+    //   so the number it empties is simply how much of the world the wave has crossed.
+    : (curDeath==="flood") ? Math.max(0.06,Math.min(1,floodWavePos(0)/(WW*1.02)))
     // 🔒🚨 THE TITANS HAD NO ROW HERE AND FELL THROUGH TO `cityApoc` — so the city began emptying at
     // ap 0.00, when the wall was still specks on the horizon and nobody could possibly know. Panic
     // before there is anything to panic about, and it drained the streets across the whole arc that
@@ -64419,7 +64438,10 @@ function draw(g,pass){
         if(floodGroundHit(pwx)){ var vsx8=pwx-WOFF; if(vsx8>SW+4&&vsx8-WW>-4)vsx8-=WW; if(vsx8<-4&&vsx8+WW<SW+4)vsx8+=WW;
           if(vsx8>-3&&vsx8<SW+3){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(120,170,210,0.6)"; g.fillRect(vsx8|0,(HORIZON-floodLevel())|0,2,2); g.globalCompositeOperation="source-over"; }   // a splash at the waterline
           continue; }                                            // swept under → gone
-        fleeing=true; pwx=wrapW(pwx + pd.dir*(now%4000)*0.04); }
+        // ⚠ they run the way the WATER is going, not whichever way they happened to be walking. A crowd
+        // scattering on its own headings is a crowd that has not noticed; one street all moving the same
+        // way, ahead of the wall, is what panic looks like from across a city.
+        fleeing=true; pwx=wrapW(pwx + floodWaveDir()*(now%4000)*0.05); }
       else if(curDeath==="kaijuwar"){                            // kaiju war: flee whichever titan is closer; gone once the battle reaches them
         if(kwCl(pwx,now)>=0){ continue; }                        // trampled / caught in the melee → gone
         var tA=kwTitanX(now,0), tB=kwTitanX(now,1);

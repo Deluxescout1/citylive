@@ -11,8 +11,8 @@ Item { id: root; width: 1100; height: 260
       try {
         stage = "typeof-setup:" + (typeof City.setup);
         City.GROW_CYCLE = 604800000; City.NOFETCH = true;
-        City.FORCEEGG = "core"; City.FORCEDEATH = "moonfall"; City.CFG_APOC_EPI = 0.53;
-        City.FORCEAPOCMS = 6048000; City.NOWOVR = City.CLOCK = 1786000000000;
+        City.FORCEEGG = "core"; City.FORCEDEATH = "flood"; City.CFG_APOC_EPI = 0.53;
+        City.FORCEAPOCMS = 4200000; City.NOWOVR = City.CLOCK = 1786000000000;
         stage = "setup";
         City.setup('city',{cw:600,ch:260,woff:776,ww:2269,pxk:2,zoom:2,taskbarWp:22,quality:'balanced',frameMs:125});
         stage = "draw";
