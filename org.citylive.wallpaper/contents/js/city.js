@@ -51425,24 +51425,44 @@ function frontCollapse(x,frontR){ var d=nukeDist(x,apocEpiX(NOWOVR!=null?NOWOVR:
 function kwWinner(now){ var h=((nukeDetId(now)*40503+9257)>>>0); h=(h^(h>>>13))>>>0; return h%2; }   // 0 = the reptile (beams) · 1 = the ape (fists)
 function kwBX(now){ return apocEpiX(now); }                          // the battleground (per-life epicenter)
 function kwT1(){ return Math.max(0,Math.min(1,(apocMs-KW_ARRIVE_MS)/KW_APPROACH_MS)); }   // approach progress 0..1
-// each titan's world-x: rises at its edge, advances to the battleground, then drifts with the melee beats
+// ── 🦎🦍🔒 THE FIGHT TRAVELS. 🔒 His call, 2026-08-12. Two titans meeting at a fixed battleground is a
+// rumble happening somewhere off to the side on two monitors out of three; a fight that is SHOVED across
+// the world puts itself on all of them, and the flattened strip afterwards is a record of where it went.
+function kwDir(now){ return kwBX(now)<WW*0.5?1:-1; }        // ⚠ derived, so they always brawl INTO the city
+function kwFightX(now){
+  var bx=kwBX(now), tc=apocMs-KW_ARRIVE_MS-KW_APPROACH_MS;
+  if(tc<=0) return bx;
+  var u=Math.min(1,tc/KW_CLASH_MS);
+  var shove=Math.sin(u*10.5)*WW*0.05;                        // driven back, then driving forward again
+  return wrapW(bx+kwDir(now)*u*WW*0.60+shove);
+}
+// each titan's world-x: rises at its own edge of the world, closes on the battleground, then stays
+// locked to the moving brawl a body's width from the other one
 function kwTitanX(now,side){
-  var bx=kwBX(now), t1=kwT1(), gap=WW*0.025*(side?1:-1);
-  var x=bx+(side?1:-1)*WW*0.5*(1-t1)+gap*t1;
-  var tc=apocMs-KW_ARRIVE_MS-KW_APPROACH_MS;
-  if(tc>0){ var cyc=Math.floor(tc/3000), dh=((cyc*2654435761+nukeDetId(now)*7+side)>>>0);
-    x+=(((dh>>>4)%9)-4)*WW*0.008; }
-  return ((x%WW)+WW)%WW;
+  var t1=kwT1(), gap=WW*0.030*(side?1:-1);
+  if(t1<1) return wrapW(kwBX(now)+(side?1:-1)*WW*0.5*(1-t1)+gap*t1);
+  return wrapW(kwFightX(now)+gap);
 }
 function kwClashR(){ var tc=apocMs-KW_ARRIVE_MS-KW_APPROACH_MS;      // melee collateral radius, grows over the clash
   return tc<=0?0:Math.min(WW*KW_SAFE, WW*0.02+(tc/KW_CLASH_MS)*WW*(KW_SAFE-0.02)); }
 // collapse progress 0..1 for world-x under the war (or -1): trampled inward during the approach
 // (outskirts first), wrecked outward by the growing melee radius (downtown last)
+// 🚨 AND THE COLLATERAL WAS INVERTED. `KW_SAFE` SPARED a twelfth of the world around the battleground —
+// so the one place two hundred-metre animals were wrestling each other through was the one place nothing
+// broke, and the frames came back with intact towers and a walking crowd between their feet. What they
+// fight over is destroyed BECAUSE they fought over it.
+// 🪤 …and measured ALONG the drag of the fight, never as a wrap distance from a point, or the far side of
+// the world counts as untouched again once the brawl passes the halfway mark.
+function kwAlong(x,now){ var e=kwBX(now), a=(((x-e)*kwDir(now))%WW+WW)%WW; return a>WW*0.965?a-WW:a; }
 function kwCl(x,now){
-  var d=nukeDist(x,kwBX(now)), t1=kwT1(), cl=-1;
-  var titanD=WW*0.5*(1-t1);
-  if(t1>0 && d>=Math.max(titanD,WW*KW_SAFE)) cl=Math.min(1,(d-Math.max(titanD,WW*KW_SAFE))/(WW*0.075)+0.15);
-  var cr=kwClashR(); if(cr>0 && d<cr) cl=Math.max(cl,Math.min(1,(cr-d)/(WW*0.05)));
+  var t1=kwT1(), cl=-1;
+  var d=nukeDist(x,kwBX(now)), titanD=WW*0.5*(1-t1);                       // the approach: outskirts trampled as they close
+  if(t1>0 && d>=titanD) cl=Math.min(1,(d-titanD)/(WW*0.09)+0.15);
+  var tc=apocMs-KW_ARRIVE_MS-KW_APPROACH_MS;
+  if(tc>0){                                                                // the brawl: everything it has been dragged over
+    var u=Math.min(1,tc/KW_CLASH_MS), reach=u*WW*0.60+WW*0.055, a=kwAlong(x,now);
+    if(a<=reach) cl=Math.max(cl,Math.min(1,(reach-a)/(WW*0.05)));
+  }
   return cl;
 }
 // ---- POLLUTION helpers: per-life hashed district death order; per-building stagger ----
@@ -51660,7 +51680,7 @@ function apocFull(){ if(cityPhase!=="apoc") return false;
   if(curDeath==="kaiju")   return kaijuWalkProg()>=1;                                   // it has walked the whole world and there is nothing left standing behind it
   if(curDeath==="ninetails") return foxFrontR() >= WW*0.5;
   if(curDeath==="flood")   return floodLevel() >= floodMax()*0.95;                      // the water has risen over the whole skyline
-  if(curDeath==="kaijuwar") return kwT1()>=1 && kwClashR()>=WW*KW_SAFE*0.98;             // trample complete + the melee has wrecked downtown
+  if(curDeath==="kaijuwar") return kwT1()>=1 && (apocMs-KW_ARRIVE_MS-KW_APPROACH_MS)>=KW_CLASH_MS;   // trample complete + the brawl has been dragged the length of the world
   if(curDeath==="pollution") return cityApoc>=0.92;                                     // the air is gone
   if(APOC_SWEEP[curDeath]!=null) return apocSweepR() >= WW*0.5;                        // its front has swept everything
   if(APOC_FULL_AP[curDeath]!=null) return cityApoc>=APOC_FULL_AP[curDeath];
@@ -60320,7 +60340,77 @@ function drawApocMoonfall(g,ap,L,now){
         :cityName+" IS UNDER THE MOON";
   drawDoomHud(g,ap,now,msg,"THE MOON CAME DOWN");
 }
+// ── 🦍 THE GREAT APE. 🔒 His call: reptile vs ape, and *"a completely different shape so you can tell
+// instantly who is winning."* At the old size the ape was a plain filled rectangle with a pale circle on
+// top — measured, no arms, no legs, no shoulder line: a domino. Everything that makes an ape read is the
+// PROPORTION — a huge shoulder mass, a small head sunk between it, and arms long enough to reach the
+// ground — so those are drawn first and the mass is hung off them.
+// 🎨 Same value law as the reptile: dark belly, mid flank, lit shoulder, one hard rim down the front.
+function kwApeShape(g,cx,base,H,face,day,a,now){
+  var K=Math.max(1,KSP);
+  var dark=day?[20,14,10]:[9,7,6], mid=day?[46,33,24]:[20,15,12], lit=day?[86,64,46]:[36,27,21], rim=day?[198,168,132]:[104,86,66];
+  function C(c,al){ return "rgba("+c[0]+","+c[1]+","+c[2]+","+((al==null?1:al)*a).toFixed(2)+")"; }
+  function bx(x,y,w,h,c,al){ g.fillStyle=C(c,al); g.fillRect(Math.round(x),Math.round(y),Math.max(1,Math.round(w)),Math.max(1,Math.round(h))); }
+  var Y=function(f){ return base-H*f; };
+  var hipY=Y(0.30), shY=Y(0.74), swing=Math.sin(now*0.0018)*H*0.05;
+  // ── the far arm first, behind the mass: long, hanging, knuckles on the ground
+  bx(cx-face*H*0.30,Y(0.70),H*0.115,H*0.62,dark);
+  bx(cx-face*H*0.34,base-H*0.05,H*0.19,H*0.05,dark);                       // its knuckles
+  // ── the legs: short and thick, well inside the shoulders — that contrast is most of the read
+  bx(cx-H*0.135,hipY,H*0.125,base-hipY,dark);
+  bx(cx+H*0.015,hipY,H*0.125,base-hipY,mid);
+  bx(cx-H*0.165,base-H*0.045,H*0.19,H*0.045,dark);
+  bx(cx+H*0.000,base-H*0.045,H*0.19,H*0.045,dark);
+  // ── the torso: enormous at the shoulder, tapering to the hip. ⚡ run-batched, flushed on profile change
+  var span=Math.max(1,hipY-shY), run=-1,rH=-1,rC=null;
+  for(var y=Math.round(shY);y<=Math.round(hipY);y++){
+    var v=(y-shY)/span;
+    var half=Math.round(H*(0.30-0.09*v*v));
+    var c=(v<0.20)?lit:((v<0.66)?mid:dark);
+    if(half!==rH||c!==rC){
+      if(run>=0){ bx(cx-rH,run,rH*2,y-run,rC); bx(cx+face*rH-(face>0?Math.max(1,K*1.4):0),run,Math.max(1,K*1.4),y-run,rim,0.7); }
+      run=y; rH=half; rC=c; }
+  }
+  if(run>=0){ var h2=Math.round(hipY)-run+1; bx(cx-rH,run,rH*2,h2,rC);
+    bx(cx+face*rH-(face>0?Math.max(1,K*1.4):0),run,Math.max(1,K*1.4),h2,rim,0.7); }
+  // the shoulder hump — stepped, not a flat plank. One long lit bar across the top read as a table.
+  bx(cx-H*0.25,Y(0.755),H*0.50,H*0.055,lit);
+  bx(cx-H*0.20,Y(0.785),H*0.40,H*0.045,lit);
+  bx(cx-H*0.13,Y(0.808),H*0.26,H*0.035,lit);
+  // ── fur: vertical strokes down the mass, hashed so it is not a comb
+  for(var f2=0;f2<26;f2++){
+    var fh=((f2*2654435761+709)>>>0); fh=(fh^(fh>>>13))>>>0;
+    var fx=cx-H*0.28+((fh>>>5)%1000)/1000*H*0.56;
+    var fy=Y(0.72)+((fh>>>15)%1000)/1000*H*0.36;
+    bx(fx,fy,Math.max(1,K),H*(0.03+((fh>>>25)%4)/100),dark,0.55);
+  }
+  // ── the head: SMALL, sunk between the shoulders. A big head makes a big animal look like a person.
+  var hy=Y(0.825), hw=H*0.145;   // ⚠ sunk INTO the hump, not floating above it — a detached head is the two-of-them fault in miniature
+  bx(cx+face*H*0.02-hw*0.5,hy,hw,H*0.10,mid);
+  bx(cx+face*H*0.02-hw*0.5,hy-H*0.018,hw,H*0.022,dark);                    // the brow
+  bx(cx+face*(H*0.02+hw*0.16)-hw*0.5,hy+H*0.045,hw*0.62,H*0.038,lit);      // the muzzle
+  g.fillStyle="rgba(255,214,150,"+(0.95*a).toFixed(2)+")";
+  g.fillRect(Math.round(cx+face*(H*0.02+hw*0.10)),Math.round(hy+H*0.018),Math.max(1,Math.round(K*1.2)),Math.max(1,Math.round(K*1.2)));
+  // ── and the near arm, over everything, swinging: this is the one that hits things
+  bx(cx+face*H*0.26+swing,Y(0.72),H*0.125,H*0.60,mid);
+  bx(cx+face*H*0.24+swing,base-H*0.05,H*0.21,H*0.05,dark);
+  bx(cx+face*H*0.26+swing,Y(0.72),Math.max(1,K*1.4),H*0.60,rim,0.55);
+  return {cx:cx, headY:hy, headX:cx+face*H*0.08, W:H*0.30, top:base-H};
+}
 function drawTitan(g,sx,gy,H,kind,facing,pose,now,tp){
+  // 🔑 ONE ANIMAL, ONE ROUTINE, TWICE OVER. The reptile in this fight and the one in the kaiju ending are
+  // the same creature, so it is the same `kaijuShape`; the ape has its own, and neither is hand-drawn a
+  // second time inside this renderer — a second copy of a creature is how a frame ends up holding two of
+  // it, which this set has already been taught twice.
+  if(typeof kaijuShape==="function"){
+    var sink0=(pose===4)?Math.round(H*0.55*tp):0, H0=Math.max(4,H-sink0);
+    var lean0=(pose===2)?-facing*Math.round(H*0.08):(pose===3)?facing*Math.round(H*0.06):0;
+    var cx0=Math.round(sx+lean0+((pose===4)?facing*Math.round(tp*H*0.22):0));
+    if(kind===0){ kaijuShape(g,cx0,gy-1,H0,facing,true,1,pose!==4,now);
+      return {cx:cx0, headY:gy-Math.round(H0*0.80), headX:cx0+facing*Math.round(H0*0.30), W:Math.round(H0*0.30), top:gy-H0}; }
+    return kwApeShape(g,cx0,gy-1,H0,facing,true,1,now);
+  }
+  // (legacy fallback below — only reachable if `kaijuShape` is somehow absent)
   var W=Math.round(H*(kind?0.34:0.26));
   var lean=(pose===2)?-facing*Math.round(W*0.28):(pose===3)?facing*Math.round(W*0.22):0;
   var sink=(pose===4)?Math.round(H*0.55*tp):0, tilt=(pose===4)?Math.round(tp*W*0.7):0;
@@ -60420,7 +60510,13 @@ function drawApocKaijuWar(g,ap,L,now){
   g.fillStyle="rgba(70,50,44,"+(0.10+0.40*prog)+")"; g.fillRect(0,0,SW,gy);
 
   // ===== THE TWO TITANS =====
-  var H=Math.round(gy*(0.24+0.20*arriveP));
+  // 🔒 TWICE THE TALLEST TOWER, the same rule the kaiju is built to — measured against the real skyline
+  // rather than a fraction of the frame. At `gy*(0.24+0.20)` they topped out at 124 world px, which is
+  // mid-rise height: two animals the size of office blocks, wrestling behind the office blocks.
+  var _tallKW=0;
+  if(near&&near.blds) for(var _bi=0;_bi<near.blds.length;_bi++){ if(near.blds[_bi].h>_tallKW) _tallKW=near.blds[_bi].h; }
+  if(_tallKW<=0) _tallKW=Math.round(gy*0.34);
+  var H=Math.round(_tallKW*2.0*(0.55+0.45*arriveP));
   var beat=(tc>0&&!decided)?Math.floor(tc/3000)%3:-1;                                    // 0 reptile attacks · 1 ape attacks · 2 grapple
   var poseA=0, poseB=0;                                                                  // A = reptile(kind 0, faces right) · B = ape(kind 1, faces left)
   if(tc>0&&!decided){ poseA=(beat===0)?1:(beat===1)?2:3; poseB=(beat===1)?1:(beat===0)?2:3; }
@@ -60436,7 +60532,9 @@ function drawApocKaijuWar(g,ap,L,now){
       g.globalCompositeOperation="lighter";
       g.fillStyle="rgba("+Math.round(180-br*0.15)+",245,255,"+(0.85*(1-br/span))+")"; g.fillRect(bxp|0,my|0,2,4);
       g.globalCompositeOperation="source-over"; }
-    if(tB){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(220,255,255,0.7)"; fillEllipse(g,tB.cx,my+2,7,9); g.globalCompositeOperation="source-over"; } }
+    if(tB){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(220,255,255,0.7)"; fillEllipse(g,tB.cx,my+2,Math.max(7,H*0.040),Math.max(9,H*0.048));
+      g.fillStyle="rgba(255,255,244,0.9)"; fillEllipse(g,tB.cx,my+2,Math.max(3,H*0.016),Math.max(4,H*0.020));   // a hard core inside it, or the flash is a fog ball
+      g.globalCompositeOperation="source-over"; } }   // ⚠ scaled off H — a fixed 7px flash on a 300px animal is a laser pointer, and 0.09H swallowed its head
   // impact flashes + shockwave ring on the grapple beat
   if(beat===2&&tA&&tB){ var gph=(tc%3000)/3000, rr2=gph*Math.abs(xB-xA)*0.9+8;
     g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,220,170,"+(0.30*(1-gph))+")";
