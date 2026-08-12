@@ -85,11 +85,16 @@ ssh -i ~/.ssh/vm_key admin@<ip>
 vim desktop/package.json                       # bump "version"
 git commit -am "vX.Y.Z"
 git tag -a vX.Y.Z -m "vX.Y.Z — <what shipped, in his voice>"
-git push && git push --tags
+git push                                       # the branch/main
+git push origin vX.Y.Z                         # ⚠ THE TAG BY NAME — never `--tags`
 
 gh run list --workflow "Build CityLive desktop apps" --limit 1   # ← CONFIRM IT FIRED
 gh release list --limit 3                                        # ← CONFIRM IT PUBLISHED
 ```
+
+> 🚨 **NEVER `git push --tags`.** It pushes every local tag, including ones that were never meant to
+> leave this machine, and it is how a tag reached the remote with no build behind it. Push the one tag
+> BY NAME so exactly one release can fire.
 
 > ⚠ A release reads **`Draft` for ~30 s as a normal intermediate state** — the action uploads first
 > and a final step flips it live. Don't diagnose a draft until the **release job itself** is
