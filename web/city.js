@@ -3868,12 +3868,21 @@ var BIOME_VARIANTS={
       flora:{ kinds:["fern","snag","fern","log","snag"], bloom:["#d8e0e8","#b0c0c8","#ffffff"] },
       fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:0}, big:["elk","bear","wolf"], small:["squirrel"], air:["owl","raven"] },
       sky:{ top:[110,134,158], bot:[186,198,206], k:0.26, haze:[196,206,210] } },
+    // 🎨🚨 EVERY COLOUR IN THIS VARIANT WAS THE SAME HUE. Measured across six forest lives, the two that
+    // rolled THE GOLDEN WOOD sat at a top-strip hue of 89-93 degrees while every other variant sat at
+    // 132-142 — canopy, trunks, ground, haze AND THE SKY'S LOWER BAND were all yellow-olive, so nothing
+    // in the frame could separate from anything else and it read as camouflage fabric. It is the only
+    // metric that split the good lives from the bad: saturation and shadow AREA were the same in both
+    // (this land has MORE shadow than the mesa), so the fault was never value or density. It was hue.
+    // 🔑 What makes an autumn wood beautiful is a GOLD canopy against a BLUE sky. Keep the gold — that
+    // is the variant's whole identity — and take the yellow out of the sky, the haze and the shadows,
+    // which is where it was doing damage rather than work.
     { name:"THE GOLDEN WOOD", // autumn birch and aspen: white boles, gold crowns, warm low light
-      far:[186,158,86],  near:[152,120,58],  cap:[228,204,132], ground:[152,126,72],
+      far:[186,158,86],  near:[78,58,30],  cap:[228,204,132], ground:[104,84,48],
       walls:[[226,220,206],[198,190,174],[240,236,224],[178,166,146],[212,204,188],[190,182,166],[234,228,212],[166,156,138]],
       flora:{ kinds:["generic","fern","log","generic","fern"], bloom:["#e8b44a","#d88a3a","#ffe0a0"] },
       fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:0}, big:["elk","bear","boar"], small:["squirrel"], air:["owl","raven"] },
-      sky:{ top:[132,168,208], bot:[236,214,168], k:0.24, haze:[238,220,176] } } ],
+      sky:{ top:[132,168,208], bot:[178,198,222], k:0.24, haze:[206,214,224] } } ],   // ⚠ a WARM haze is what merged the whole frame — the sky behind an autumn canopy is still blue
 
   mesa:[ {},
     { name:"THE WHITE BADLANDS", // pale clay, finely banded, almost nothing growing on it
