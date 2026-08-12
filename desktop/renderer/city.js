@@ -51831,8 +51831,20 @@ var FL_WGAP=0.215;     // …and another one every fifth of the arc after it
 var FL_WCROSS=0.075;   // how much of the arc a wave takes to cross the whole world
 function floodWaveAt(k){ return FL_W0+k*FL_WGAP; }
 function floodWaveCount(){ return 4; }
-// how far wave k has travelled out of ground zero, in world px (<0 = it has not broken yet)
-function floodWaveR(k){ var t=(cityApoc-floodWaveAt(k))/FL_WCROSS; return t<0?-1:t*(WW*0.62); }
+// 🔒 IT COMES IN FROM OFF SCREEN. His call, 2026-08-12. The first cut radiated the wave OUT of ground
+// zero in both directions, and ground zero is a point in the middle of the world — so on the monitor
+// holding it the wave was BORN in the middle of the frame and split outwards, which is not what a wave
+// does and not what you can see coming. It is one wall now, travelling one way.
+// ⚠ AND THERE IS NO "OFF SCREEN" IN WORLD TERMS — his three monitors tile the ENTIRE 2269px world, so
+// there is nowhere outside them for a wave to start. The one place that reads as off-screen on every
+// screen at once is THE WORLD SEAM: it is the left edge of DP-3 and the right edge of HDMI-A-3, and it
+// is also where `inSea` puts the open coast, so the water arrives from the water.
+var FL_BAND=0.21;       // ⚠ the depth of the wall, as a fraction of the world. At 0.055 (125 world px, a sixth of a monitor) it swept past as a dark PILLAR — a mountain of water has to be wider than it is tall, and this is ~480 world px against a 333px crest.
+function floodWaveDir(){ return 1; }                                  // from the seam, inland across the world
+// how far wave k has travelled from the seam, in world px (<0 = it has not broken yet)
+function floodWavePos(k){ var t=(cityApoc-floodWaveAt(k))/FL_WCROSS; return t<0?-1:t*(WW*1.12); }
+// the leading edge in world x, or -1 once it has left the far side
+function floodWaveEdge(k){ var P=floodWavePos(k); return (P<0||P>WW*1.10)?-1:wrapW(P); }
 // its height in world px — the first is the killer, the ones after are big but never that big again
 function floodWaveH(k){ return HORIZON*(k===0?1.18:0.74-k*0.06); }
 // 🔑 THE STILL LEVEL, ON THE ARC. The first wave puts a third of it in at once as it passes, and the
@@ -51843,12 +51855,15 @@ function floodBaseF(){
   var c=Math.max(0,Math.min(1,(ap-(FL_W0+FL_WCROSS))/(0.88-FL_W0-FL_WCROSS)));
   return Math.min(1,0.36*s+0.64*c);
 }
-// is a wave passing over world-x RIGHT NOW? (used for the kill, and for the local surge on top of the level)
+// is a wave passing over world-x RIGHT NOW? (drives the kill and the local surge)
+// ⚠ measured ALONG the direction of travel from the seam, not as a wrap distance from a point — the same
+// reason `kaijuAlong` exists: a shortest-wrap test lets the far side of the world be "ahead of it" again.
 function floodWaveOver(wx){
+  var a=((wx*floodWaveDir())%WW+WW)%WW;
   for(var k=0;k<floodWaveCount();k++){
-    var R=floodWaveR(k); if(R<0) continue;
-    var d=nukeDist(wx,apocEpiX(NOWOVR!=null?NOWOVR:Date.now()));
-    if(d<=R && d>=R-WW*0.14) return 1-(R-d)/(WW*0.14);
+    var P=floodWavePos(k); if(P<0) continue;
+    var back=P-a;
+    if(back>=0&&back<=WW*FL_BAND) return 1-back/(WW*FL_BAND);
   }
   return 0;
 }
@@ -62242,41 +62257,32 @@ function drawApocFlood(g,ap,L,now){
       }
     }
   }
-  // ── 🌊🌊 AND THE WAVE. Taller than anything the city has, world-anchored at `gz ± floodWaveR(k)`, so
-  // each monitor watches it come. A steep dark face, a crest that overhangs it, white water tearing off
-  // the top, and the flat back of it trailing away — you can see which way it is going from any frame.
+  // ── 🌊🌊 AND THE WAVE. 🔑 DRAWN PER SCREEN COLUMN, from that column's own distance behind the leading
+  // edge measured along the direction of travel. The first cut walked an offset index out from the edge
+  // and multiplied it by a side sign, and the crest and the face came out on OPPOSITE sides of the mass —
+  // a wall that was tallest at its back. There is no sign to get wrong here: a column either has the wave
+  // over it or it does not, and how far behind the face it is says how tall the water is.
   for(var k=0;k<floodWaveCount();k++){
-    var R=floodWaveR(k); if(R<0||R>WW*0.62) continue;
-    var WH=floodWaveH(k), fade=Math.max(0,Math.min(1,R/(WW*0.06)));
-    for(var side=-1;side<=1;side+=2){
-      var wwx=wrapW(gz+side*R), wsx=disX(wwx);
-      if(wsx<-SW*0.7||wsx>SW*1.7) continue;
-      // ⚠ IT IS A WALL, NOT A PLATEAU. The first cut trailed 64 steps — over 500 world px of full-height
-      // water behind each face — so on a screen sitting between the two faces the pair met and the whole
-      // frame became one slab with a notch where they failed to touch. A wave is a moving EDGE: the body
-      // falls away to the still level within its own width, and what is behind it is just the sea.
-      for(var wo=0;wo<=26;wo++){
-        var wxp=Math.round(wsx-side*wo*Math.round(4*K)); if(wxp<-24||wxp>SW+24) continue;
-        var wh4=((wo*2654435761+457)>>>0); wh4=(wh4^(wh4>>>13))>>>0;
-        var back=wo/26;
-        var hgt=Math.round((w+(WH-w)*(1-back)*(1-back)+((wh4>>>7)%13)*K*(1-back))*fade);   // …down to the still level, not to zero
-        // ⚠ A WALL OF WATER THAT HEIGHT IS OPAQUE. At 0.55–0.90 you could read the skyline straight
-        // through it, which makes it a tint rather than a mass — the wash fault again, on the one object
-        // the whole ending is named after.
-        var d2=Math.min(1,0.97-0.34*back);
-        g.fillStyle="rgba("+Math.round(12+18*back)+","+Math.round(36+30*back)+","+Math.round(58+36*back)+","+d2.toFixed(2)+")";
-        g.fillRect(wxp,gy-hgt,Math.round(5*K),hgt+GROUND);
-        if(wo<3){                                                                 // the face: steep, dark, and it leans over
-          g.fillStyle="rgba(10,26,44,0.95)";
-          g.fillRect(wxp+Math.round(side*3*K),gy-hgt,Math.round(4*K),hgt+GROUND);
-        }
-        if(back<0.40){                                                            // white water tearing off the crest
-          g.globalCompositeOperation="lighter";
-          var foam=Math.round((3+((wh4>>>15)%9))*K*(1-back/0.40));
-          g.fillStyle="rgba(232,246,252,"+(0.82*(1-back/0.40)*fade).toFixed(2)+")";
-          g.fillRect(wxp,gy-hgt-foam,Math.round(5*K),foam+Math.round(3*K));
-          g.globalCompositeOperation="source-over";
-        }
+    var P=floodWavePos(k); if(P<0||P>WW*1.10) continue;
+    var WH=floodWaveH(k), fade=Math.max(0,Math.min(1,P/(WW*0.05)));
+    var stepC=Math.max(1,Math.round(K));
+    for(var cx2=0;cx2<SW;cx2+=stepC){
+      var wxc=wrapW(cx2+WOFF), ac=((wxc*floodWaveDir())%WW+WW)%WW;
+      var back=(P-ac)/(WW*FL_BAND);
+      if(back<0||back>1) continue;
+      var hc=((wxc*2654435761)>>>0); hc=(hc^(hc>>>13))>>>0;
+      var hgt=Math.round((w+(WH-w)*(1-back)*(1-back)+((hc>>>7)%13)*K*(1-back))*fade);   // tallest at the face
+      if(hgt<1) continue;
+      var d2=Math.min(1,0.99-0.26*back);
+      g.fillStyle="rgba("+Math.round(8+14*back)+","+Math.round(26+26*back)+","+Math.round(44+32*back)+","+d2.toFixed(2)+")";
+      g.fillRect(cx2,gy-hgt,stepC,hgt+GROUND);
+      if(back<0.06){ g.fillStyle="rgba(6,18,32,0.98)"; g.fillRect(cx2,gy-hgt,stepC,hgt+GROUND); }   // the face: steep and near-black
+      if(back<0.34){                                                       // white water tearing off the crest
+        g.globalCompositeOperation="lighter";
+        var fo=Math.round((4+((hc>>>15)%10))*K*(1-back/0.34));
+        g.fillStyle="rgba(232,246,252,"+(0.85*(1-back/0.34)*fade).toFixed(2)+")";
+        g.fillRect(cx2,gy-hgt-fo,stepC,fo+Math.round(3*K));
+        g.globalCompositeOperation="source-over";
       }
     }
   }
