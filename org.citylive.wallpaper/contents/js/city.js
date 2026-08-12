@@ -60346,7 +60346,7 @@ function drawApocMoonfall(g,ap,L,now){
 // PROPORTION — a huge shoulder mass, a small head sunk between it, and arms long enough to reach the
 // ground — so those are drawn first and the mass is hung off them.
 // 🎨 Same value law as the reptile: dark belly, mid flank, lit shoulder, one hard rim down the front.
-function kwApeShape(g,cx,base,H,face,day,a,now){
+function kwApeShape(g,cx,base,H,face,day,a,now,act){
   var K=Math.max(1,KSP);
   var dark=day?[20,14,10]:[9,7,6], mid=day?[46,33,24]:[20,15,12], lit=day?[86,64,46]:[36,27,21], rim=day?[198,168,132]:[104,86,66];
   function C(c,al){ return "rgba("+c[0]+","+c[1]+","+c[2]+","+((al==null?1:al)*a).toFixed(2)+")"; }
@@ -60391,13 +60391,23 @@ function kwApeShape(g,cx,base,H,face,day,a,now){
   bx(cx+face*(H*0.02+hw*0.16)-hw*0.5,hy+H*0.045,hw*0.62,H*0.038,lit);      // the muzzle
   g.fillStyle="rgba(255,214,150,"+(0.95*a).toFixed(2)+")";
   g.fillRect(Math.round(cx+face*(H*0.02+hw*0.10)),Math.round(hy+H*0.018),Math.max(1,Math.round(K*1.2)),Math.max(1,Math.round(K*1.2)));
-  // ── and the near arm, over everything, swinging: this is the one that hits things
-  bx(cx+face*H*0.26+swing,Y(0.72),H*0.125,H*0.60,mid);
-  bx(cx+face*H*0.24+swing,base-H*0.05,H*0.21,H*0.05,dark);
-  bx(cx+face*H*0.26+swing,Y(0.72),Math.max(1,K*1.4),H*0.60,rim,0.55);
+  // ── and the near arm, over everything: this is the one that hits things. `act` is the swing phase —
+  // negative while it winds up and pulls back, 1 at full extension on the snap frame.
+  var reach=act||0;
+  if(reach>0.15){
+    var armLen=H*(0.20+0.50*reach), ax0=(face>0)?cx+H*0.13:cx-H*0.13-armLen;
+    bx(ax0,Y(0.70),armLen,H*0.135,mid);                                     // the arm, out straight
+    bx((face>0)?ax0+armLen-H*0.11:ax0,Y(0.705),H*0.11,H*0.145,dark);        // the fist at the end of it
+    bx(ax0,Y(0.70),armLen,Math.max(1,K*1.4),rim,0.5);
+  } else {
+    var pull=Math.max(0,-reach);                                            // wound back behind the shoulder
+    bx(cx+face*(H*0.26-pull*H*0.18)+swing*(1-pull),Y(0.72-pull*0.03),H*0.125,H*0.60,mid);
+    bx(cx+face*(H*0.24-pull*H*0.18)+swing*(1-pull),base-H*0.05,H*0.21,H*0.05,dark);
+    bx(cx+face*(H*0.26-pull*H*0.18)+swing*(1-pull),Y(0.72),Math.max(1,K*1.4),H*0.60,rim,0.55);
+  }
   return {cx:cx, headY:hy, headX:cx+face*H*0.08, W:H*0.30, top:base-H};
 }
-function drawTitan(g,sx,gy,H,kind,facing,pose,now,tp){
+function drawTitan(g,sx,gy,H,kind,facing,pose,now,tp,act){
   // 🔑 ONE ANIMAL, ONE ROUTINE, TWICE OVER. The reptile in this fight and the one in the kaiju ending are
   // the same creature, so it is the same `kaijuShape`; the ape has its own, and neither is hand-drawn a
   // second time inside this renderer — a second copy of a creature is how a frame ends up holding two of
@@ -60405,10 +60415,11 @@ function drawTitan(g,sx,gy,H,kind,facing,pose,now,tp){
   if(typeof kaijuShape==="function"){
     var sink0=(pose===4)?Math.round(H*0.55*tp):0, H0=Math.max(4,H-sink0);
     var lean0=(pose===2)?-facing*Math.round(H*0.08):(pose===3)?facing*Math.round(H*0.06):0;
-    var cx0=Math.round(sx+lean0+((pose===4)?facing*Math.round(tp*H*0.22):0));
+    var lunge=Math.round(facing*(act||0)*H*0.17);                       // it puts its weight behind the blow
+    var cx0=Math.round(sx+lean0+lunge+((pose===4)?facing*Math.round(tp*H*0.22):0));
     if(kind===0){ kaijuShape(g,cx0,gy-1,H0,facing,true,1,pose!==4,now);
       return {cx:cx0, headY:gy-Math.round(H0*0.80), headX:cx0+facing*Math.round(H0*0.30), W:Math.round(H0*0.30), top:gy-H0}; }
-    return kwApeShape(g,cx0,gy-1,H0,facing,true,1,now);
+    return kwApeShape(g,cx0,gy-1,H0,facing,true,1,now,act||0);
   }
   // (legacy fallback below — only reachable if `kaijuShape` is somehow absent)
   var W=Math.round(H*(kind?0.34:0.26));
@@ -60517,16 +60528,57 @@ function drawApocKaijuWar(g,ap,L,now){
   if(near&&near.blds) for(var _bi=0;_bi<near.blds.length;_bi++){ if(near.blds[_bi].h>_tallKW) _tallKW=near.blds[_bi].h; }
   if(_tallKW<=0) _tallKW=Math.round(gy*0.34);
   var H=Math.round(_tallKW*2.0*(0.55+0.45*arriveP));
-  var beat=(tc>0&&!decided)?Math.floor(tc/3000)%3:-1;                                    // 0 reptile attacks · 1 ape attacks · 2 grapple
+  // ── 🥊🔒 THE FIGHT HAS A PHASE NOW, NOT A HELD POSE. 🔒 His note: *"it looks a little chunky and
+  // slow."* It was — `beat = floor(tc/3000)%3` with an INTEGER pose handed to the draw routine, so each
+  // titan held one rigid stance for three full seconds and then teleported to the next. A three-state
+  // slideshow at a third of a hertz.
+  // 🔑 AND AT 12 FPS YOU CANNOT BUY SPEED WITH FRAMES — you buy it with SPACING. A blow that eases into
+  // place reads slow at any frame rate; one that holds a wind-up and then crosses its whole travel in a
+  // single frame reads fast even at eight. So: slow anticipation, one-frame snap, long recoil.
+  var KW_BEAT=1200, KW_HIT=0.58;                                                        // a blow every 1.2s, landing 58% through it
+  var beatI=(tc>0&&!decided)?Math.floor(tc/KW_BEAT):-1;
+  var beatP=(tc>0&&!decided)?((tc%KW_BEAT)/KW_BEAT):0;                                  // 0..1 within this blow
+  var beat=(beatI>=0)?beatI%3:-1;                                                       // 0 reptile attacks · 1 ape attacks · 2 grapple
+  // the swing curve: pull BACK while winding up (negative), full extension at the snap, then settle
+  var ext=(beatP<KW_HIT) ? -0.30*Math.pow(beatP/KW_HIT,2.2)
+        : (beatP<KW_HIT+0.05) ? 1
+        : Math.max(0,1-(beatP-KW_HIT-0.05)/(1-KW_HIT-0.05));
+  var land=(beatP>=KW_HIT&&beatP<KW_HIT+0.09)?1:0;                                      // the one window where a hit exists
+  var shove=(beatP>=KW_HIT)?Math.max(0,1-(beatP-KW_HIT)/0.34):0;                        // …and how hard the struck one is still reeling
   var poseA=0, poseB=0;                                                                  // A = reptile(kind 0, faces right) · B = ape(kind 1, faces left)
   if(tc>0&&!decided){ poseA=(beat===0)?1:(beat===1)?2:3; poseB=(beat===1)?1:(beat===0)?2:3; }
+  // 🔑 THE SINGLE BIGGEST ONE: BEING HIT HAS TO MOVE YOU. Two animals that trade blows and both stay
+  // exactly where they were are two animals posing near each other. The struck one is knocked back most
+  // of a body width on the snap frame and walks it off over the recoil.
+  var actA=(beat===0&&!decided)?ext:0, actB=(beat===1&&!decided)?ext:0;
+  var knockA=(beat===1&&!decided)?-shove*H*0.34:0;                                      // reptile struck by the ape
+  var knockB=(beat===0&&!decided)?shove*H*0.34:0;                                       // ape struck by the beam
+  if(beat===2&&!decided){ var gr=Math.sin(beatP*6.283)*H*0.10; knockA-=gr; knockB-=gr; actA=actB=0.25; }   // the grapple: locked, both sliding
+  xA+=knockA; xB+=knockB;
   if(decided){ if(loser===0){ poseA=4; poseB=5; } else { poseB=4; poseA=5; } }
   var tA=null, tB=null;
-  if(xA>-260&&xA<SW+260) tA=drawTitan(g,xA,gy,H,0, 1,poseA,now,(decided&&loser===0)?tD:0);
-  if(xB>-260&&xB<SW+260) tB=drawTitan(g,xB,gy,H,1,-1,poseB,now,(decided&&loser===1)?tD:0);
+  if(xA>-260&&xA<SW+260) tA=drawTitan(g,xA,gy,H,0, 1,poseA,now,(decided&&loser===0)?tD:0,actA);
+  if(xB>-260&&xB<SW+260) tB=drawTitan(g,xB,gy,H,1,-1,poseB,now,(decided&&loser===1)?tD:0,actB);
+  // ── 💥 AND THE HIT ITSELF, on the snap frame ONLY. Spread over a second this is a glow; confined to
+  // one frame it is force. Flash at the point of contact, dust off the ground under it, and debris.
+  if(land&&tA&&tB){
+    var ctX=Math.round((xA+xB)*0.5), ctY=gy-Math.round(H*(beat===0?0.74:0.62));
+    g.globalCompositeOperation="lighter";
+    g.fillStyle="rgba(255,246,214,0.92)"; fillEllipse(g,ctX,ctY,H*0.075,H*0.075);
+    g.fillStyle="rgba(255,180,90,0.55)";  fillEllipse(g,ctX,ctY,H*0.15,H*0.13);
+    g.globalCompositeOperation="source-over";
+    for(var sp2=0;sp2<16;sp2++){                                                        // debris thrown off the contact
+      var sh4=((sp2*2654435761+8377)>>>0); sh4=(sh4^(sh4>>>13))>>>0;
+      var sa=((sh4%1000)/1000)*6.283, sr=H*0.10+((sh4>>>9)%100)/100*H*0.20;
+      g.fillStyle="rgba(226,206,178,0.9)";
+      g.fillRect(Math.round(ctX+Math.cos(sa)*sr),Math.round(ctY+Math.sin(sa)*sr*0.7),Math.max(1,Math.round(KSP*2)),Math.max(1,Math.round(KSP*2)));
+    }
+    g.fillStyle="rgba(150,130,108,0.55)";                                               // and the ground jumping under them
+    g.fillRect(Math.round(ctX-H*0.42),gy-Math.round(KSP*3),Math.round(H*0.84),Math.round(KSP*4));
+  }
 
   // reptile's atomic breath rakes AT THE APE during its attack beat (and the killing blow)
-  if(tA&&(poseA===1||(decided&&winner===0&&tD<0.7))&&((Math.floor(now/280))%2===0)){
+  if(tA&&((beat===0&&!decided&&beatP>KW_HIT-0.16&&beatP<KW_HIT+0.14)||(decided&&winner===0&&tD<0.7))){   // ⚠ fires ACROSS the snap instead of strobing on a clock of its own, so the beam IS the blow
     var mx=tA.headX, my=tA.headY+2, tx=(tB?tB.cx:xB), span=Math.max(8,Math.abs(tx-mx))|0;
     for(var br=0;br<span;br+=2){ var bxp=mx+(tx>mx?br:-br); if(bxp<-2||bxp>SW+2) continue;
       g.globalCompositeOperation="lighter";
