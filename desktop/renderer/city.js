@@ -8825,8 +8825,8 @@ function drawLayer(g,layer,L,now,fx,hol,haze){
         var frc=frostCl(b.seed!=null?b.seed:bi);
         if(frc>=0){ drawApocBuilding(g,b,bx,frc,L,now); continue; }
         // else: not frozen yet — it still stands as the blizzard closes in
-      } else if(curDeath==="kaiju"){                             // KAIJU: the monster's rampage reaches each building in turn and smashes it flat
-        var kcl=frontCollapse(b.x,kaijuFrontR());
+      } else if(curDeath==="kaiju"){                             // KAIJU: it walks the city and every block it passes over goes down behind it
+        var kcl=kaijuCrushed(b.x);
         if(kcl>=0){ drawApocBuilding(g,b,bx,kcl,L,now); continue; }
         // else: the beast hasn't reached this block — it still stands as the rampage advances
       } else if(curDeath==="flood"){                             // THE FLOOD: the rising sea covers each block; tall towers hold out, then topple & wash away
@@ -16200,7 +16200,7 @@ function apocElevCl(wx,hAbove){
   if(curDeath==="bh")      return frontCollapse(wx,bhFrontR());
   if(curDeath==="alienwar") return alienCl(wx);
   if(curDeath==="frost")   return frostCl(wx);
-  if(curDeath==="kaiju")   return frontCollapse(wx,kaijuFrontR());
+  if(curDeath==="kaiju")   return kaijuCrushed(wx);
   if(curDeath==="ninetails") return frontCollapse(wx,foxFrontR());
   // The five that demolish nothing on purpose — an intact skyline over dead streets is their whole
   // horror, and an intact RAILWAY over them is part of it. They get emptiness instead (ELEV_EMPTY).
@@ -20336,7 +20336,7 @@ function drawLandmarks(g,L,now,night,nd){
     else if(curDeath==="bh"){ var bcL=frontCollapse(cxw,bhFrontR()); cl=(bcL>=0?bcL:0); bd=0; }   // torn from its base & streamed into the hole
     else if(curDeath==="alienwar"){ var wcL=alienCl(cxw); cl=(wcL>=0?wcL:0); bd=0; }   // beam-struck & blasted into wreckage
     else if(curDeath==="frost"){ var frL2=frostCl(cxw); cl=(frL2>=0?frL2:0); bd=0; }   // frozen over & buried
-    else if(curDeath==="kaiju"){ var kcL=frontCollapse(cxw,kaijuFrontR()); cl=(kcL>=0?kcL:0); bd=0; }   // stomped flat
+    else if(curDeath==="kaiju"){ var kcL=kaijuCrushed(cxw); cl=(kcL>=0?kcL:0); bd=0; }   // stomped flat as it walked over
     else if(curDeath==="ninetails"){ var fcL=frontCollapse(cxw,foxFrontR()); cl=(fcL>=0?fcL:0); bd=0; }  // levelled by the shockwave
     else if(curDeath==="kaijuwar"){ var kwL=kwCl(cxw,now); cl=(kwL>=0?kwL:0); bd=0; }   // trampled by a titan or caught in the melee
     else { cl=Math.min(1,(frL-nukeDist(cxw,gzL))/(WW*0.09)); var sd=((cxw-gzL)%WW+WW*1.5)%WW-WW*0.5; bd=(sd>=0)?1:-1; }
@@ -51577,7 +51577,7 @@ function apocHit(x){ if(cityPhase!=="apoc") return false;
   if(curDeath==="bh")      return frontCollapse(x,bhFrontR())>=0;                       // the pull reached world-x → sucked in
   if(curDeath==="alienwar") return alienCl(x)>=0;                                       // a stray beam/wreckage strike has raked world-x
   if(curDeath==="frost")   return frostCl(x)>=0;                                        // the freeze has reached & frozen world-x
-  if(curDeath==="kaiju")   return frontCollapse(x,kaijuFrontR())>=0;                    // the monster's rampage has reached world-x
+  if(curDeath==="kaiju")   return kaijuCrushed(x)>=0;                                   // the beast has walked over world-x
   if(curDeath==="ninetails") return frontCollapse(x,foxFrontR())>=0;                     // the shockwave has reached world-x
   // 🚨 THE OSRS ENDINGS DO NOT DEMOLISH, AND THAT IS THE POINT. `apocHit` is what collapses buildings,
   // and none of these five knocks anything down: the massacre killed players and left Falador standing;
@@ -51642,7 +51642,7 @@ function apocFull(){ if(cityPhase!=="apoc") return false;
   if(curDeath==="bh")      return bhFrontR() >= WW*0.5;                                 // the pull has swallowed the whole city
   if(curDeath==="alienwar") return apocMs >= WAR_ONSET_MS+WAR_STAGGER_MS+WAR_HIT_MS;   // the crossfire has raked the whole city (~12.4s)
   if(curDeath==="frost")   return apocMs >= FROST_ONSET_MS+FROST_STAGGER_MS+FROST_FREEZE_MS;   // the whole city is frozen & buried (~13s)
-  if(curDeath==="kaiju")   return kaijuFrontR() >= WW*0.5;                              // the rampage has flattened the whole city
+  if(curDeath==="kaiju")   return kaijuWalkProg()>=1;                                   // it has walked the whole world and there is nothing left standing behind it
   if(curDeath==="ninetails") return foxFrontR() >= WW*0.5;
   if(curDeath==="flood")   return floodLevel() >= floodMax()*0.95;                      // the water has risen over the whole skyline
   if(curDeath==="kaijuwar") return kwT1()>=1 && kwClashR()>=WW*KW_SAFE*0.98;             // trample complete + the melee has wrecked downtown
@@ -51676,7 +51676,41 @@ function frostCl(k){
   var t=apocMs-FROST_ONSET_MS-stag; if(t<0) return -1;
   return Math.min(1,t/FROST_FREEZE_MS);
 }
-function kaijuFrontR(){ return apocFrontR(KAIJU_ARRIVE_MS,KAIJU_WIPE_MS); }   // the monster's advancing swath of destruction
+// ── 🦖🚶🔒 IT WALKS, AND WHAT IT WALKS OVER IS WHAT DIES. 🔒 His call, 2026-08-12: *"can we have this be
+// like in a movie where the big monster comes in and destroys everything."* It could not be, because the
+// damage model was THE NUKE'S: `frontCollapse(b.x, kaijuFrontR())` grew a SYMMETRIC radius out of a
+// STATIC epicentre, so blocks fell on both sides of the animal at the same instant and not one of them
+// fell because the creature touched it. That is the house failure mode word for word — no source, no
+// direction, so it decorated the frame instead of happening to it. Silhouette work on top of a nuke
+// radius would have shipped and he would have said it still looks the same, and he would have been right.
+// 🔑 ONE PREDICATE, NOT SIX FORMULAE. `kaijuCrushed` is the only thing in the engine that says what is
+// wrecked; the buildings, the street furniture, the civics, `apocHit`, `apocFull` and the crowd all read
+// it. Six hand-written copies of a collapse rule is exactly how the viaduct's deck, arches, wire and
+// lights came to disagree about what still existed.
+// 🔑 AND WALKING IS WHAT PUTS IT ON ALL THREE MONITORS — without touching the locked call that it must
+// never stand in three places at once. It is in ONE place at any instant; that place just crosses
+// DP-3 → DP-4 → HDMI-A-3 over the rampage, so every screen gets it coming, then on top of them, then
+// leaving. A creature that travels is not a creature that has been cloned.
+var KAIJU_REACH=0.045;      // how far AHEAD of itself it wrecks (fraction of WW) — the arms, the tail, the shove of it
+var KAIJU_FALLOFF=0.075;    // …and how far BEHIND the foot a block takes to go all the way down
+// ⚠ DERIVED, NEVER HAND-SET: it walks INTO the city from wherever it came ashore. Hand-picking a
+// direction is how a landfall pinned to the right-hand screen would have walked straight out of the
+// world in two seconds and shown him less than the static one did.
+function kaijuDir(){ return apocEpiX(NOWOVR!=null?NOWOVR:Date.now()) < WW*0.5 ? 1 : -1; }
+function kaijuWalkProg(){ return Math.max(0,Math.min(1,(apocMs-KAIJU_ARRIVE_MS)/KAIJU_WIPE_MS)); }
+function kaijuWalkX(now){ return wrapW(apocEpiX(now)+kaijuDir()*kaijuWalkProg()*WW*0.95); }   // where the animal actually IS, this frame
+// How far along the walk a world-x lies, 0…WW, measured from landfall in the direction of travel.
+// ⚠ NOT a shortest-wrap distance. `nukeDist`-style wrapping would call a block "ahead of it" again once
+// the beast passed the half-world mark, and the city it had already flattened would stand back up.
+// ⚠ The last 3.5% reads as NEGATIVE on purpose — that is the strip it came ashore through, which is
+// wrecked at landfall rather than three hours later when the walk wraps around to it.
+function kaijuAlong(wx){ var e=apocEpiX(NOWOVR!=null?NOWOVR:Date.now());
+  var a=((((wx-e)*kaijuDir())%WW)+WW)%WW; return a>WW*0.965 ? a-WW : a; }
+function kaijuCrushed(wx){
+  if(apocMs<KAIJU_ARRIVE_MS*0.7) return -1;                                  // still coming up out of the water — the city is whole
+  var walked=kaijuWalkProg()*WW*0.95+WW*KAIJU_REACH, a=kaijuAlong(wx);
+  return a<=walked ? Math.min(1,(walked-a)/(WW*KAIJU_FALLOFF)) : -1;         // ahead of it: untouched. behind it: going down.
+}
 function foxFrontR(){ return apocFrontR(FOX_ARRIVE_MS,FOX_WIPE_MS); }         // the fox's shockwave, spreading from where it stands
 // THE FLOOD — the rising waterline in world-px above HORIZON (0 until the waters come, then climbs to swallow the skyline)
 function floodMax(){ return HORIZON*0.92; }
@@ -59354,14 +59388,17 @@ function kaijuAfter(g,ap,L,now){
   var go=Math.max(0,Math.min(1,(ap-0.52)/0.30));      // IT LEAVES      0.52 → 0.82
   var st=Math.max(0,Math.min(1,(ap-0.70)/0.30));      // AND IT IS QUIET 0.70 → 1.00
   var burnFade=Math.max(0,1-Math.max(0,(ap-0.66)/0.28));
-  // ── 🦶 THE TRAIL. Footprints in a line, spaced like a stride, walking away from ground zero.
+  // ── 🦶 THE TRAIL. Footprints in a line, spaced like a stride, laid down along the path it ACTUALLY
+  // walked. ⚠ The direction used to be its own coin-flip off the life hash, so on half the lives the
+  // trail marched off the opposite way from the animal that made it — two features deciding the same
+  // fact separately is how the sun-anchor bug got its own memory note. `kaijuDir()` is the one answer.
   if(tr>0){
-    var dir=(((nukeDetId(now)*2654435761)>>>0)&1)?1:-1;
-    for(var i=0;i<14;i++){
+    var dir=kaijuDir(), NF=26;
+    for(var i=0;i<NF;i++){
       var wx=wrapW(Math.round(epi+dir*i*Math.round(58*K)));
       var fx=Math.round(disX(wx)); if(fx<-90||fx>SW+90) continue;
-      var born=i/14;
-      if(tr<born*0.9) continue;                        // the trail is laid down as it walks
+      var born=i/NF;
+      if(kaijuWalkProg()<born*0.95) continue;          // …and each one appears only once it has got that far
       var fw=Math.round((30+((i*37)%12))*K), fd=Math.round(9*K);
       g.fillStyle="rgba(6,6,10,0.95)";                 // the pit, deep enough to swallow a building
       g.fillRect(fx-(fw>>1),base-Math.round(K),fw,fd);
@@ -59376,21 +59413,12 @@ function kaijuAfter(g,ap,L,now){
       }
     }
   }
-  // ── 🌊 IT LEAVES. The whole point: the thing that did this is still alive and it is getting SMALLER,
-  // walking out of the world it wrecked. Nothing else in the set has a cause that survives its own ending.
-  if(go>0&&go<1.0){
-    var away=go, far=Math.round(disX(wrapW(Math.round(epi+(((nukeDetId(now)*2654435761)>>>0)&1?1:-1)*(160+away*700)*K*0.4))));
-    if(far>-120&&far<SW+120){
-      var hgt=Math.round(HORIZON*0.34*(1-away*0.72)), wdt=Math.max(2,Math.round(hgt*0.34));
-      var a3=(0.55*(1-away*0.55)).toFixed(2);
-      g.fillStyle=day?"rgba(30,34,38,"+a3+")":"rgba(12,14,18,"+a3+")";
-      g.fillRect(far-(wdt>>1),base-hgt,wdt,hgt);                                  // body
-      g.fillRect(far-Math.round(wdt*0.9),base-Math.round(hgt*0.92),Math.round(wdt*1.8),Math.max(1,Math.round(hgt*0.16)));  // shoulders
-      g.fillRect(far-Math.round(wdt*0.3),base-Math.round(hgt*1.14),Math.round(wdt*0.6),Math.round(hgt*0.16));              // head
-      g.fillStyle="rgba(255,120,60,"+(0.5*(1-away)).toFixed(2)+")";
-      g.fillRect(far-Math.round(wdt*0.2),base-Math.round(hgt*1.10),Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));   // one eye, still lit
-    }
-  }
+  // ── 🌊 IT LEAVES — 🚨 AND THAT IS `kaijuBody`'S JOB NOW, NOT THIS ONE'S. There used to be a THIRD
+  // hand-drawn creature right here: a box-body-plus-shoulders-plus-head departing silhouette, on top of
+  // the two that were already fighting for the same patch of horizon. It is the same fault the ending
+  // shipped with — a renderer kept alive next to the one that replaced it — so the departure is now a
+  // shrinking `rise`/`leave` term on the ONE animal, walking back into the water it came out of, and
+  // there is exactly one routine in the engine that knows what this thing looks like.
   // ── 🌫️ AND THEN IT IS QUIET. Dust settling over a wreck nobody is coming back to, and the fires going
   // out one at a time. No winter, no fallout — an animal did this and then it went home.
   if(st>0){
@@ -59413,133 +59441,276 @@ function kaijuAfter(g,ap,L,now){
 // wrong-anatomy creatures were drawn two shades off the buildings behind them.
 // 🔒 TWICE THE TALLEST TOWER, his call — the skyline is what tells you how big it is, so it has to be
 // measured against the REAL tallest building rather than a fraction of the frame.
+// ── 🦖 ONE ANIMAL, ONE ROUTINE, AND EVERY PART OF IT HUNG OFF A SPINE. The near view and the far view
+// are the SAME silhouette at two sizes, because two hand-drawn creatures is exactly how this frame came
+// to hold, in his words, *"2 of them behind each other."*
+// 🔑 THE POSE IS WHY THE HEAD IS VISIBLE. At a locked TWICE THE TALLEST TOWER, an upright animal puts its
+// head above the top of the frame permanently — measured, and on his 282px-high screen you saw a green
+// column with the face cropped off, which is the same green-bar report for the third time. So it stands
+// HUNCHED, like the animal it is: the back arches at 0.72H, the head is thrown FORWARD at 0.82H, and the
+// full two-tower height is spent on length and mass instead of on sky. It still dwarfs the skyline; you
+// can also see its face.
+// 🪵 EVERY LIMB IS A CONNECTED RUN, NEVER PLOTTED SAMPLES. The tail is 40 overlapping segments along one
+// curve (mark never smaller than the step), the neck is a chain that physically joins skull to shoulder,
+// and THE FINS ARE PLACED ON THE SPINE ITSELF rather than on their own straight line — the previous cut
+// walked them down a linear ramp while the tail fell away quadratically, so half of them hung in open
+// sky behind the animal like a second creature.
+function kaijuShape(g,cx,base,H,face,day,a,detail,now){
+  var K=Math.max(1,KSP);
+  // 🎨 THE VALUE STRUCTURE IS THE FIX, NOT THE OUTLINE. What shipped was ONE fill (`#1b2a1c`) for torso,
+  // head, legs and tail against a mid-dark sky, so the shape had no near side, no far side and no ground
+  // plane and the eye read it as a slab. A wash cannot create contrast; what varies ACROSS it can.
+  var dark=day?[13,21,16]:[6,10,9], mid=day?[28,42,32]:[13,20,16], lit=day?[58,88,64]:[26,41,31], rim=day?[176,220,174]:[96,152,124];
+  function C(c,al){ return "rgba("+c[0]+","+c[1]+","+c[2]+","+((al==null?1:al)*a).toFixed(2)+")"; }
+  function bx(x,y,w,h,c,al){ g.fillStyle=C(c,al); g.fillRect(Math.round(x),Math.round(y),Math.max(1,Math.round(w)),Math.max(1,Math.round(h))); }
+  var Y=function(f){ return base-H*f; };                       // heights are fractions of H, measured up off the street
+  var hipY=Y(0.36), shY=Y(0.72), hipX=cx-face*H*0.03, shX=cx+face*H*0.06;
+  // ── 🐉 THE TAIL as one curve: it leaves the hip, dips toward the street under its own weight, and the
+  // tip lifts. A tail that runs straight into the ground is a ramp, which is what the last one read as.
+  function tailPt(u){ return { x: hipX-face*(H*0.12+u*H*1.00),
+                               y: hipY+H*0.30*Math.sin(u*Math.PI*0.82)+Math.sin(now*0.0011+u*3.2)*H*0.03*u,
+                               t: H*(0.130-0.104*u) }; }
+  for(var t=39;t>=0;t--){ var u=t/39, P=tailPt(u);
+    bx(P.x-P.t*0.5,P.y-P.t*0.5,P.t,P.t*1.05,u<0.45?mid:dark); }
+  // ── the far leg first, in the deepest value, so the near one reads in front of it
+  var stride=Math.sin(now*0.0016)*H*0.075;
+  bx(cx-H*0.145+stride,hipY,H*0.115,base-hipY,dark);
+  bx(cx-H*0.175+stride,base-H*0.035,H*0.175,H*0.035,dark);                          // its foot, flat on the street
+  // ── the torso: broad at the hip, arched forward to a narrower shoulder.
+  // ⚡ RUN-BATCHED — the bands are accumulated and flushed only when the rounded profile actually
+  // CHANGES. Per-row detail is a choice, and it is the one five other renderers had to be taught.
+  var span=Math.max(1,hipY-shY), run=-1,rH=-1,rO=-1,rC=null;
+  for(var y=Math.round(shY);y<=Math.round(hipY);y++){
+    var v=(y-shY)/span;                                                              // 0 at the shoulder → 1 at the hip
+    var half=Math.round(H*(0.125+0.045*v)), off=Math.round((shX-cx)+((hipX-shX)*v*v));
+    var c=(v<0.24)?lit:((v<0.68)?mid:dark);
+    if(half!==rH||off!==rO||c!==rC){
+      if(run>=0){ bx(cx+rO-rH,run,rH*2,y-run,rC); bx(cx+rO+face*rH-(face>0?Math.max(1,K*1.4):0),run,Math.max(1,K*1.4),y-run,rim,0.8); }
+      run=y; rH=half; rO=off; rC=c; }
+  }
+  if(run>=0){ var h2=Math.round(hipY)-run+1; bx(cx+rO-rH,run,rH*2,h2,rC);
+    bx(cx+rO+face*rH-(face>0?Math.max(1,K*1.4):0),run,Math.max(1,K*1.4),h2,rim,0.8); }
+  // ── the near leg, over the torso, and clear of the far one so the gap between them reads
+  bx(cx+H*0.030-stride,hipY,H*0.115,base-hipY,mid);
+  bx(cx+H*0.000-stride,base-H*0.035,H*0.175,H*0.035,dark);
+  bx(cx+H*0.030-stride,hipY,Math.max(1,K*1.4),base-hipY,rim,0.55);                   // light down the near shin
+  // ── 🔑 THE NECK IS A CHAIN, NOT A GAP. The old head was a detached horizontal bar floating above a
+  // torso block in the same flat green — the other half of "two of them": nothing joined them, so they
+  // read as two objects at two different depths.
+  var nx0=shX+face*H*0.02, ny0=Y(0.70), nx1=cx+face*H*0.19, ny1=Y(0.79);
+  for(var n=0;n<=10;n++){ var un=n/10;
+    bx(nx0+(nx1-nx0)*un-H*0.043,ny0+(ny1-ny0)*un,H*0.086,H*0.030,un<0.45?mid:lit); }
+  // ── the skull and the open jaw — the readable end of the animal, thrown forward off the neck
+  var hw=H*0.21, hh=H*0.105, hx0=(face>0)?nx1-H*0.03:nx1-hw+H*0.03, hy=Y(0.815);
+  bx(hx0,hy,hw,hh,mid);                                                              // skull
+  bx(hx0+(face>0?hw*0.30:0),hy+hh*0.92,hw*0.70,hh*0.46,dark);                         // lower jaw, hanging open
+  bx(hx0+(face>0?hw*0.26:hw*0.04),hy-hh*0.26,hw*0.40,hh*0.28,lit);                    // brow ridge, catching the light
+  bx(hx0+(face>0?hw-Math.max(1,K*1.4):0),hy,Math.max(1,K*1.4),hh,rim,0.85);           // rim down the muzzle
+  g.fillStyle="rgba(255,196,86,"+(0.95*a).toFixed(2)+")";
+  g.fillRect(Math.round(hx0+(face>0?hw*0.62:hw*0.26)),Math.round(hy+hh*0.22),Math.max(1,Math.round(K*1.4)),Math.max(1,Math.round(K*1.4)));
+  // ── the small forelimb, held up at the chest. It is what stops the torso reading as a tree trunk.
+  bx(shX+face*H*0.06,Y(0.60),H*0.045,H*0.115,dark);
+  bx(shX+face*H*0.06,Y(0.60),H*0.075,H*0.040,mid);
+  // ── ⚡ THE DORSAL FINS: the one detail that NAMES the animal, and where the light lives. Placed ON the
+  // back and then ON the tail curve, so they follow the animal instead of floating off behind it. They
+  // charge before it breathes, which telegraphs the beam instead of it arriving out of nowhere.
+  var charge=detail?Math.max(0,Math.min(1,Math.sin(now*0.0011)*1.4)):0;
+  for(var f=0;f<13;f++){
+    var vf=f/12, fx,fy,fh;
+    if(vf<0.26){ var vb=vf/0.26;                                                     // along the arched back
+      fx=shX+(hipX-shX)*vb; fy=shY+(hipY-shY)*vb*vb; fh=H*(0.115-0.030*vb); }
+    else { var Pt=tailPt((vf-0.26)/0.74*0.80); fx=Pt.x; fy=Pt.y-Pt.t*0.45; fh=Math.max(H*0.018,Pt.t*0.85); }
+    bx(fx-H*0.028,fy-fh,H*0.056,fh,lit);
+    if(charge>0.05){ g.globalCompositeOperation="lighter";
+      g.fillStyle="rgba(140,232,255,"+(0.85*charge*(1-vf*0.45)*a).toFixed(2)+")";
+      g.fillRect(Math.round(fx-H*0.028),Math.round(fy-fh),Math.max(1,Math.round(H*0.056)),Math.max(1,Math.round(fh*0.55)));
+      g.globalCompositeOperation="source-over"; }
+  }
+  return {charge:charge, mouthX:hx0+(face>0?hw:0), mouthY:hy+hh*0.9, W:H*0.30};
+}
+// ── 🦖🔒 THE BEAST ITSELF, WALKING. His report on the static one: *"I have no idea what this endtime
+// event is supposed to be"*, then, on the rebuild: *"it looks like there is 2 of them behind each other."*
+// Both were exactly right, and the second had a one-line cause: `drawApocKaiju` was still drawing the OLD
+// bar-and-searchlight beast at the epicentre while this function drew the real one on top of it. The
+// commit that added a proper silhouette never deleted the thing it replaced, so the ending shipped with
+// two monsters in it, in the same green, one behind the other.
+// 🔒 TWICE THE TALLEST TOWER, his call — measured against the REAL tallest building rather than a
+// fraction of the frame, because the skyline is the only thing on screen that says how big it is.
 function kaijuBody(g,ap,L,now){
   if(cityPhase!=="apoc"||curDeath!=="kaiju") return;
-  var K=Math.max(1,KSP), day=L>0.5;
-  var epi=apocEpiX(now), sx=Math.round(disX(epi));
+  var K=Math.max(1,KSP), day=L>0.5, base=HORIZON-1;
+  var wx=kaijuWalkX(now), sx=Math.round(disX(wx)), face=kaijuDir();
   var tall=0;
   if(near&&near.blds) for(var i=0;i<near.blds.length;i++){ var B=near.blds[i]; if(B.h>tall) tall=B.h; }
   if(tall<=0) tall=Math.round(HORIZON*0.34);
-  var H=Math.round(tall*2.0*Math.min(1,Math.max(0.25,ap/0.30)));     // it rises into its full height
-  if(sx<-H*2||sx>SW+H*2) return;
-  var base=HORIZON-1, W=Math.round(H*0.30);
-  var sway=Math.round(Math.sin(now*0.0009)*H*0.02);
-  var cx=sx+sway, dark=day?[26,38,30]:[10,16,14], lit=day?[58,86,66]:[24,38,30];
-  function box(x,y,w,h,c){ g.fillStyle=css(c); g.fillRect(Math.round(x),Math.round(y),Math.max(1,Math.round(w)),Math.max(1,Math.round(h))); }
-  // ── the tail: heavy, low, sweeping back and away — it is half the animal's length and it is what
-  // stops the silhouette reading as a biped standing upright like a man.
-  var tdir=(((nukeDetId(now)*2654435761)>>>0)&1)?1:-1;
-  for(var t=0;t<14;t++){
-    var u=t/14, tx=cx-tdir*(W*0.5+u*H*0.95), ty=base-H*0.26*(1-u)*(1-u)-H*0.02;
-    box(tx-W*0.16,ty,W*(0.34-0.22*u),H*(0.10-0.06*u),dark);
-  }
-  // ── legs, thick and apart, and the body hunched forward over them
-  var stride=Math.round(Math.sin(now*0.0016)*W*0.30);
-  box(cx-W*0.46+stride,base-H*0.40,W*0.34,H*0.40,dark);
-  box(cx+W*0.12-stride,base-H*0.40,W*0.34,H*0.40,dark);
-  box(cx-W*0.50,base-H*0.78,W*1.00,H*0.42,dark);                      // torso
-  box(cx-W*0.34,base-H*0.80,W*0.66,H*0.16,lit);                       // lit chest plate, so it is not a blob
-  // ── the neck and head, thrown forward — the jaw is the readable end
-  var hx=cx+tdir*W*0.42;
-  box(cx+tdir*W*0.05,base-H*0.96,W*0.34,H*0.22,dark);                 // neck
-  box(hx-W*0.10,base-H*1.06,W*0.46,H*0.15,dark);                      // skull
-  box(hx+tdir*W*0.16,base-H*1.02,W*0.30,H*0.07,dark);                 // jaw, jutting
-  g.fillStyle="rgba(255,214,120,0.95)";
-  g.fillRect(Math.round(hx+tdir*W*0.02),Math.round(base-H*1.03),Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));  // eye
-  // ── ⚡ THE DORSAL FINS. The one detail that names the animal, and they are also where the light is:
-  // they charge before it breathes, which is the tell that the beam is coming.
-  var charge=Math.max(0,Math.min(1,Math.sin(now*0.0011)*1.4));
-  for(var f=0;f<7;f++){
-    var fu=f/7, fx=cx-tdir*(W*0.10+fu*W*0.95), fy=base-H*(0.80-fu*0.16);
-    var fh=H*(0.10-0.05*fu);
-    box(fx-W*0.07,fy-fh,W*0.15,fh,dark);
-    if(charge>0.05){
-      g.globalCompositeOperation="lighter";
-      g.fillStyle="rgba(140,230,255,"+(0.8*charge*(1-fu*0.5)).toFixed(2)+")";
-      g.fillRect(Math.round(fx-W*0.07),Math.round(fy-fh),Math.max(1,Math.round(W*0.15)),Math.max(1,Math.round(fh*0.5)));
-      g.globalCompositeOperation="source-over";
-    }
-  }
-  // ── 🔥 AND THE BREATH COMES OUT OF THE JAW. The old beam entered the frame from nowhere, so nothing
-  // connected it to whatever was firing it — an attack with no visible source is a lens flare.
-  if(charge>0.72){
-    var bx0=hx+tdir*W*0.44, by0=base-H*1.00;
+  var rise=Math.min(1,Math.max(0.22,apocMs/KAIJU_ARRIVE_MS));                    // it comes up out of the water to full height
+  var leave=Math.max(0,Math.min(1,(apocMs-(KAIJU_ARRIVE_MS+KAIJU_WIPE_MS))/4200));   // …and wades back into it when there is nothing left
+  var H=Math.round(tall*2.0*rise*(1-leave*0.62));
+  if(H<2||sx<-H*2||sx>SW+H*2) return;
+  var a=1-leave*0.35;
+  var r=kaijuShape(g,sx,base,H,face,day,a,true,now);
+  // ── 🌫️ IT IS STANDING IN ITS OWN WRECKAGE. Dust boiling up around the legs, which is also what stops
+  // the silhouette looking pasted onto the street: the ground it is on is coming apart.
+  g.globalCompositeOperation="lighter";
+  for(var d=0;d<12;d++){ var dh=((d*2654435761+911)>>>0); dh=(dh^(dh>>>13))>>>0;
+    var dp=((now*0.02+d*83)%100)/100, dx=sx+((dh%1000)/1000*2-1)*r.W*2.2;
+    if(dx<-20||dx>SW+20) continue;
+    g.fillStyle="rgba(158,132,110,"+(0.30*(1-dp)*a).toFixed(2)+")";
+    g.fillRect(Math.round(dx),Math.round(base-dp*H*0.30),Math.max(1,Math.round(4*K)),Math.max(1,Math.round(5*K))); }
+  g.globalCompositeOperation="source-over";
+  // ── 🦶 THE FOOTFALL. Each time the stride bottoms out, the street under it detonates — this is the beat
+  // that makes it WALK rather than hover, and it lands on the block it is actually standing on.
+  var step=Math.sin(now*0.0016);
+  if(step<-0.90){
+    var fk=(-step-0.90)/0.10;
+    g.fillStyle="rgba(28,22,18,"+(0.75*fk*a).toFixed(2)+")";
+    g.fillRect(Math.round(sx-r.W*1.1),base-Math.round(2*K),Math.round(r.W*2.2),Math.round(3*K));
     g.globalCompositeOperation="lighter";
-    for(var q=0;q<Math.round(SW*0.6);q+=Math.max(1,Math.round(K))){
-      var bx=bx0+tdir*q, by=by0+Math.round(q*0.16);
-      if(bx<-4||bx>SW+4||by>base) continue;
-      var w2=Math.max(1,Math.round((5-q/(SW*0.18))*K));
-      g.fillStyle="rgba(190,245,255,"+(0.85*(charge-0.72)/0.28).toFixed(2)+")";
-      g.fillRect(bx,by-w2,Math.max(1,Math.round(K*1.4)),w2*2);
-    }
+    for(var q=0;q<10;q++){ var qh=((q*40503+17)>>>0);
+      g.fillStyle="rgba(190,168,140,"+(0.5*fk*a).toFixed(2)+")";
+      g.fillRect(Math.round(sx+((qh%200)/200*2-1)*r.W*1.6),Math.round(base-fk*H*0.10-((qh>>>7)%9)),Math.max(1,Math.round(3*K)),Math.max(1,Math.round(3*K))); }
     g.globalCompositeOperation="source-over";
   }
+  // ── 🔥 AND THE BREATH COMES OUT OF THE JAW. The old beam entered frame from nowhere: an attack with no
+  // visible source is a lens flare. It fires FORWARD along the walk, into the city it has not reached yet.
+  if(r.charge>0.72&&leave<0.5){
+    var bx0=r.mouthX, by0=r.mouthY, aa=(0.9*(r.charge-0.72)/0.28*a);
+    g.globalCompositeOperation="lighter";
+    for(var q2=0;q2<Math.round(SW*0.75);q2+=Math.max(1,Math.round(K))){
+      var bxp=bx0+face*q2, byp=by0+q2*0.30;
+      if(bxp<-4||bxp>SW+4||byp>base) continue;
+      var w2=Math.max(1,Math.round((6-q2/(SW*0.16))*K));
+      g.fillStyle="rgba(198,247,255,"+aa.toFixed(2)+")";
+      g.fillRect(Math.round(bxp),Math.round(byp-w2),Math.max(1,Math.round(K*1.5)),w2*2);
+    }
+    var ix=bx0+face*((base-by0)/0.30), iy=base;
+    if(ix>-30&&ix<SW+30){ g.fillStyle="rgba(255,255,238,"+aa.toFixed(2)+")"; fillEllipse(g,ix,iy-2*K,10*K,6*K);
+      g.fillStyle="rgba(150,246,255,"+(aa*0.7).toFixed(2)+")"; fillEllipse(g,ix,iy-2*K,17*K,10*K); }
+    g.globalCompositeOperation="source-over";
+    if(ix>-30&&ix<SW+30){ g.fillStyle="rgba(16,10,8,0.75)"; g.fillRect(Math.round(ix-13*K),base-Math.round(K),Math.round(26*K),Math.round(2*K)); }
+  }
 }
-// ── 🛩️🔒 WHAT THE OTHER MONITORS SEE. *"Again I am not seeing anything on this one."* — and he was right
-// twice over: the beast stands at ONE point in the world, so on the two screens that do not hold ground
-// zero the ending was a normal city with some blood in it. One monitor is ~28% of the world, so that is
-// the usual case, not the exception.
-// 🔒 HIS CALL, AND IT IS THE HARDER ONE: do NOT put the creature on all three screens the way Gargantua
-// is — *a creature standing in three places is a lie the black hole could get away with and this cannot.*
-// What travels instead is THE FIGHT: you see it the way you would from across a city — small and hazy on
-// the horizon in the right direction, its smoke going up, and the military streaming toward it.
-// 🔑 THE DIRECTION IS THE POINT. Every element here points the same way — the smoke, the jets, the tracer,
-// the people running the other way — so even a screen that never shows the monster tells you exactly
-// where it is and that it is losing you the city.
+// ── 🛩️🔒 WHAT THE OTHER MONITORS SEE. *"Again I am not seeing anything on this one"*, and then *"I have
+// only seen this on the right screen."* One monitor is ~28% of the world, so a creature standing at one
+// point is invisible on two screens out of three — that is the usual case, not the exception.
+// 🔒 HIS CALL, AND IT IS THE HARDER ONE: do NOT clone the creature onto all three screens the way
+// Gargantua is — *a creature standing in three places is a lie the black hole could get away with and
+// this cannot.* Walking is what honours that and still fills every screen: it is in ONE place at a time,
+// and that place crosses all three over the rampage.
+// 🔑 SO THIS IS THE OTHER TWO THIRDS OF THE STORY, NOT A CONSOLATION PRIZE: before it arrives you get it
+// COMING — its smoke over the rooftops in the right direction, the jets streaming that way, the tracer
+// arcing the same way — and after it has gone you get the flat, burning quarter of the world it left.
+// ⚠ THE LAST VERSION OF THIS RENDERED FINE AND WAS STILL INVISIBLE. A 0.42-alpha rgba(58,52,50) column
+// over bright grey buildings is a wash, and a silhouette at HORIZON*0.20 is a smudge — measured, the
+// sky moved 137,125,141 → 76,80,98 across the whole arc and he still saw nothing. It is not enough for
+// the code to run. Hard values, and the same animal at a size the skyline has to make room for.
 function kaijuFar(g,ap,L,now){
   if(cityPhase!=="apoc"||curDeath!=="kaiju") return;
   var K=Math.max(1,KSP), day=L>0.5, base=HORIZON-1;
-  var epi=apocEpiX(now), sx=Math.round(disX(epi));
-  var near0=(sx>-40&&sx<SW+40);
-  var dir=(sx<0)?-1:1;                                    // which way it is, from this screen
-  var edge=(dir<0)?Math.round(SW*0.06):Math.round(SW*0.94);
-  var on=Math.min(1,Math.max(0,(ap-0.16)/0.20));
+  var wx=kaijuWalkX(now), sx=disX(wx);
+  // ⚠⚠ THE HANDOVER BOUND IS DERIVED FROM THE ANIMAL, NOT FROM THE SCREEN. A hard `SW*0.25` cutoff was
+  // wrong twice over: the far silhouette blinked out at 45% alpha instead of 0 (the fade never reached
+  // its own bound), and it blinked out a screen-quarter BEFORE the real one had a single pixel in frame,
+  // leaving seconds of column-and-fire with no creature anywhere. Both bounds come off the same `H` that
+  // `kaijuBody` draws with — one source for the fact, the way `kaijuAlong` is the one source for what
+  // has been walked over. It leads with its head (0.40H forward) and it exits tail-last (1.15H behind).
+  var tallF=0;
+  if(near&&near.blds) for(var i2=0;i2<near.blds.length;i2++){ if(near.blds[i2].h>tallF) tallF=near.blds[i2].h; }
+  if(tallF<=0) tallF=Math.round(HORIZON*0.34);
+  var riseF=Math.min(1,Math.max(0.22,apocMs/KAIJU_ARRIVE_MS));
+  var leaveF=Math.max(0,Math.min(1,(apocMs-(KAIJU_ARRIVE_MS+KAIJU_WIPE_MS))/4200));
+  var HN=Math.round(tallF*2.0*riseF*(1-leaveF*0.62));       // the REAL animal's height — the same number kaijuBody uses
+  var lead=HN*0.40, trail=HN*1.15;
+  if(sx>-lead&&sx<SW+trail) return;                         // it has pixels on this screen — kaijuBody owns it, and nothing else may draw it
+  var dir=(sx<0)?-1:1;                                      // which way it is, from here
+  var edge=(dir<0)?Math.round(SW*0.07):Math.round(SW*0.93);
+  // ⚠ HAS THIS SCREEN BEEN WALKED OVER? 🚨 The first cut asked `dir===kaijuDir()`, which is a shortest-
+  // wrap comparison wearing a different hat — exactly the trap `kaijuAlong` exists to avoid, and it was
+  // left standing here. The walk ends at `epi+0.95WW`, which WRAPS back to world 114, so at the end of
+  // the arc the right-hand screen computed dir=-1 against kaijuDir=+1, decided the monster was still
+  // coming, and scrambled jets and tracer at it for the whole aftermath — over a quarter of the world it
+  // had already flattened. Ask the predicate that already knows.
+  var gone=kaijuCrushed(wrapW(WOFF+SW*0.5))>=0;
+  var on=Math.min(1,Math.max(0,apocMs/(KAIJU_ARRIVE_MS*0.8)));
   if(on<=0) return;
-  if(!near0){
-    // ── 🌋 its smoke, going up off the horizon exactly where it is standing
-    var col=Math.round(HORIZON*0.62*on);
-    for(var y=0;y<col;y+=Math.max(1,Math.round(K))){
-      var u=y/Math.max(1,col);
-      var w=Math.round((7+u*30)*K), wob=Math.round(Math.sin(now*0.0006+u*5)*8*K*u);
-      g.fillStyle=day?"rgba(58,52,50,"+(0.42*(1-u*0.55)*on).toFixed(2)+")":"rgba(26,24,24,"+(0.5*(1-u*0.55)*on).toFixed(2)+")";
-      g.fillRect(edge+wob-(w>>1),base-y,w,Math.max(1,Math.round(K)));
-    }
-    // ── 🦖 and the beast itself, FAR: small, hazy, unmistakably the same shape, standing in its smoke
-    var fh=Math.round(HORIZON*0.20*on), fw=Math.round(fh*0.30);
-    var fa=(0.42*on).toFixed(2);
-    g.fillStyle=day?"rgba(34,44,38,"+fa+")":"rgba(14,20,18,"+fa+")";
-    g.fillRect(edge-(fw>>1),base-fh,fw,fh);                                   // torso+legs
-    g.fillRect(edge-(fw>>1)-Math.round(fw*0.9),base-Math.round(fh*0.30),Math.round(fw*1.1),Math.round(fh*0.16));  // tail
-    g.fillRect(edge+Math.round(fw*0.15),base-Math.round(fh*1.16),Math.round(fw*0.62),Math.round(fh*0.18));        // head
-    g.fillStyle="rgba(255,214,120,"+(0.5*on).toFixed(2)+")";
-    g.fillRect(edge+Math.round(fw*0.34),base-Math.round(fh*1.11),Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
+  // ── 🌋 ITS SMOKE, going up off the horizon exactly where it is standing. ⚠ THE LAST TWO ATTEMPTS AT
+  // THIS RENDERED PERFECTLY AND WERE STILL INVISIBLE. A translucent column laid over the sky is a WASH —
+  // it drags a quarter of the frame toward one number and reads as weather, or worse as a stray shadow
+  // wedge, which is exactly what a 1px-widening stack of rows at 0.4 alpha looks like. Contrast has to
+  // come from what VARIES across the frame: a near-opaque black core at the base, a ragged edge, and
+  // fire under it. One wide hard thing beats ten faint ones.
+  var col=Math.round(HORIZON*1.02*on);
+  for(var y=0;y<col;y+=Math.max(1,Math.round(K))){
+    var u=y/Math.max(1,col);
+    var nh=((y*2654435761+3313)>>>0); nh=(nh^(nh>>>13))>>>0;
+    var w=Math.round((16+u*46+((nh>>>9)%13)*u*2.2)*K);                       // ragged, not a clean wedge
+    var wob=Math.round((Math.sin(now*0.0005+u*4.2)*13+Math.sin(now*0.0011+u*9)*5)*K*u);
+    var al=(0.94-0.60*u*u)*on;
+    g.fillStyle=day?"rgba(31,26,25,"+al.toFixed(2)+")":"rgba(11,9,10,"+al.toFixed(2)+")";
+    g.fillRect(edge+wob-(w>>1),base-y,w,Math.max(1,Math.round(K)));
+    if(u<0.30){ g.globalCompositeOperation="lighter";                        // lit from underneath by what is burning
+      g.fillStyle="rgba(255,132,44,"+(0.42*(1-u/0.30)*on).toFixed(2)+")";
+      g.fillRect(edge+wob-(w>>2),base-y,w>>1,Math.max(1,Math.round(K)));
+      g.globalCompositeOperation="source-over"; }
   }
-  // ── ✈️ THE CITY FIGHTS BACK AND LOSES. Jets running in toward it and tracer arcing the same way — the
-  // military response is what gives the thing scale on a screen where you cannot see it at all.
-  for(var j=0;j<Math.round(7*on);j++){
+  // ── the fire itself, over the rooftops in that direction — the quarter of the world it has been through
+  g.globalCompositeOperation="lighter";
+  for(var fg=0;fg<9;fg++){ var fh2=((fg*40503+61)>>>0); fh2=(fh2^(fh2>>>11))>>>0;
+    var fx2=edge-dir*Math.round(((fh2%100)/100)*SW*0.22), fl=((now*0.004+fg*29)%100)/100;
+    g.fillStyle="rgba(255,146,58,"+(0.30*(0.4+0.6*Math.sin(now*0.005+fg))*on).toFixed(2)+")";
+    g.fillRect(fx2,Math.round(base-8*K-fl*22*K),Math.round(9*K),Math.round(9*K)); }
+  g.globalCompositeOperation="source-over";
+  // ── 🦖 AND THE ANIMAL, over the rooftops. The SAME silhouette routine as the near view at a smaller
+  // size — never a second hand-drawn creature, which is how one frame came to hold two of them.
+  // ⚠ DISTANCE IS COLOUR, NOT ALPHA. Drawing it at 0.5 alpha made it a green ghost you could see the
+  // skyline through; an animal is opaque no matter how far away it is. It goes down nearly solid, in a
+  // value pushed toward the haze, and only the SIZE says how far off it is.
+  // ⚠ AND IT HANDS OVER WITHOUT A POP. The far silhouette is a cheat — a flat projection has no
+  // perspective, so "far away" is drawn as "smaller, at the edge". Left hard-switched, the moment the
+  // real animal walked into frame the cheat would vanish and the true one appear a screen-width away in
+  // the same instant, which reads as teleporting. So it FADES TO ZERO exactly at the bound the early
+  // return uses — one number, not two that nearly agree — and then the actual creature walks in from
+  // off-frame under its own power. Never both at once: that is two of them again.
+  var offD=Math.abs(sx<0?sx:sx-SW), edgeGap=(sx<0)?lead:trail;
+  var away=Math.min(1,offD/(WW*0.42));
+  var hand=Math.min(1,Math.max(0,(offD-edgeGap)/(SW*0.55)));
+  var HF=Math.round(tallF*2.0*(0.86-0.24*away)*Math.min(1,apocMs/KAIJU_ARRIVE_MS));
+  if(HF>6&&hand>0.02) kaijuShape(g,edge,base,HF,kaijuDir(),day,(0.94-0.10*away)*hand,false,now);
+  // ── …and the haze it is standing in, laid over the animal so it sits BEHIND the air rather than in
+  // front of the buildings. A bank along the horizon in one direction only, so the frame has a side.
+  for(var hb=0;hb<Math.round(HORIZON*0.34);hb+=Math.max(1,Math.round(K))){
+    var hu=hb/Math.max(1,HORIZON*0.34);
+    var hw2=Math.round(SW*0.30*(1-hu*0.45));
+    g.fillStyle=day?"rgba(150,136,126,"+(0.30*(1-hu)*on).toFixed(2)+")":"rgba(40,38,42,"+(0.34*(1-hu)*on).toFixed(2)+")";
+    g.fillRect(dir<0?0:SW-hw2,base-hb,hw2,Math.max(1,Math.round(K)));
+  }
+  // ── ✈️ THE CITY THROWS EVERYTHING AT IT AND LOSES. Jets running that way and tracer arcing the same
+  // way. 🔑 THE DIRECTION IS THE POINT: every element here points at the animal, so a screen that cannot
+  // see it still tells you exactly where it is and that it is coming.
+  if(!gone) for(var j=0;j<7;j++){
     var hj=((j*2654435761+5501)>>>0); hj=(hj^(hj>>>13))>>>0;
     var speed=0.05+((hj>>>7)%40)/1000;
     var t=((now*speed+((hj>>>13)%1000))%1000)/1000;
-    var jx=(dir<0)? Math.round(SW-(t*SW*1.3)) : Math.round(t*SW*1.3-SW*0.15);
+    var jx=(dir<0)?Math.round(SW-(t*SW*1.3)):Math.round(t*SW*1.3-SW*0.15);
     var jy=Math.round(HORIZON*(0.10+((hj>>>19)%40)/100*0.5));
     if(jx<-10||jx>SW+10) continue;
-    g.fillStyle=day?"rgba(52,56,64,0.95)":"rgba(24,26,32,0.95)";
-    g.fillRect(jx,jy,Math.round(4*K),Math.max(1,Math.round(K)));
-    g.fillRect(jx+Math.round(dir*1.5*K),jy-Math.round(K),Math.max(1,Math.round(K)),Math.round(2*K));
+    g.fillStyle=day?"rgba(38,42,50,0.95)":"rgba(18,20,26,0.95)";
+    g.fillRect(jx,jy,Math.round(5*K),Math.max(1,Math.round(K*1.2)));
+    g.fillRect(jx+Math.round(dir*2*K),jy-Math.round(K),Math.max(1,Math.round(K)),Math.round(2*K));
     g.globalCompositeOperation="lighter";
-    g.fillStyle="rgba(255,190,120,0.55)";
-    g.fillRect(jx-Math.round(dir*3*K),jy,Math.round(3*K),Math.max(1,Math.round(K*0.7)));   // contrail/afterburner
+    g.fillStyle="rgba(255,190,120,0.6)";
+    g.fillRect(jx-Math.round(dir*4*K),jy,Math.round(4*K),Math.max(1,Math.round(K*0.8)));
     g.globalCompositeOperation="source-over";
   }
-  for(var tr=0;tr<Math.round(16*on);tr++){
+  if(!gone) for(var tr=0;tr<16;tr++){
     var ht=((tr*2654435761+7717)>>>0); ht=(ht^(ht>>>13))>>>0;
     var tt=((now*0.35+((ht>>>11)%1000))%1000)/1000;
-    var tx=(dir<0)? Math.round(SW*(1-tt)) : Math.round(SW*tt);
+    var tx=(dir<0)?Math.round(SW*(1-tt)):Math.round(SW*tt);
     var ty=Math.round(base-HORIZON*(0.12+0.42*tt)-((ht>>>17)%20));
     if(tx<0||tx>=SW) continue;
     g.globalCompositeOperation="lighter";
-    g.fillStyle="rgba(255,206,120,"+(0.7*(1-tt)).toFixed(2)+")";
-    g.fillRect(tx,ty,Math.round(3*K),Math.max(1,Math.round(K*0.8)));
+    g.fillStyle="rgba(255,206,120,"+(0.8*(1-tt)).toFixed(2)+")";
+    g.fillRect(tx,ty,Math.round(4*K),Math.max(1,Math.round(K)));
     g.globalCompositeOperation="source-over";
   }
 }
@@ -61341,80 +61512,83 @@ function drawApocFox(g,ap,L,now){
         : (prog<0.9 ? cityName+" IS BEING LEVELLED" : cityName+" IS GONE");
   drawDoomHud(g,ap,now,msg,"NINE TAILS ABOVE THE TREELINE");
 }
+// ── ☁️ THE WORLD THE ANIMAL IS WALKING THROUGH — the dust it kicks up, the sea it came out of, the
+// army that cannot stop it, and the HUD. 🚨 EVERYTHING THAT DRAWS THE CREATURE ITSELF WAS DELETED FROM
+// HERE. This function used to draw a whole second beast — a bar-shaped body at `gy*(0.30+0.24)` with a
+// staircase tail, cyan spine dots and its own beam — at the same epicentre `kaijuBody` draws the real
+// one. Both ran, every frame, and he saw it immediately: *"it looks like there is 2 of them behind each
+// other."* A renderer that was REPLACED has to be removed in the same commit, or it just moves behind
+// the new one and waits to be reported as a mystery.
 function drawApocKaiju(g,ap,L,now){
-  var arriveP=Math.min(1,apocMs/KAIJU_ARRIVE_MS);
-  var frontR=kaijuFrontR(), prog=Math.min(1,frontR/(WW*0.5));
-  var epiX=apocEpiX(now), sx=epiX-WOFF, gy=HORIZON;
-  if(sx>SW+900&&sx-WW>-900)sx-=WW; if(sx<-900&&sx+WW<SW+900)sx+=WW;
+  var K=Math.max(1,KSP), day=L>0.5, arriveP=Math.min(1,apocMs/KAIJU_ARRIVE_MS), prog=kaijuWalkProg(), gy=HORIZON;
+  var wxK=kaijuWalkX(now), sx=Math.round(disX(wxK));
+  var late=Math.max(0,Math.min(1,(apocMs-(KAIJU_ARRIVE_MS+KAIJU_WIPE_MS))/5000));
 
-  // ===== LONG AFTERMATH (hours): a STATIC flattened city under a dust-choked sky, the beast departing =====
-  if(apocMs>KAIJU_ARRIVE_MS+KAIJU_WIPE_MS+1500){
-    g.fillStyle="rgba(58,44,42,0.55)"; g.fillRect(0,0,SW,gy);
-    g.globalCompositeOperation="lighter"; for(var sm=0;sm<6;sm++){ var smx=((sm*2654435761)>>>0)%SW; g.fillStyle="rgba(90,70,60,0.10)"; g.fillRect(smx-20,(gy*0.3)|0,40,(gy*0.7)|0); } g.globalCompositeOperation="source-over";
-    var dmx=sx+130, H2=Math.round(gy*0.2);                                                                          // the monster small, on the horizon, moving on
-    g.fillStyle="#141a14"; g.fillRect((dmx-4)|0,gy-H2,8,H2); g.fillRect((dmx-2)|0,gy-H2-3,6,4);
-    g.fillStyle="rgba(6,4,5,0.88)"; g.fillRect(0,gy,SW,SH-gy);
-    drawDoomHud(g,ap,now,cityName+" IN RUINS","THE MONSTER MOVES ON");
-    return;
-  }
-
-  g.fillStyle="rgba(70,50,44,"+(0.12+0.42*prog)+")"; g.fillRect(0,0,SW,gy);                                          // dust-choked sky
-  g.globalCompositeOperation="lighter";                                                                             // dust boiling along the flattened swath
-  for(var dc2=0;dc2<14;dc2++){ var dhx=((dc2*2654435761)>>>0), dsx=sx+((dhx%1000)/1000*2-1)*frontR;
-    if(dsx<-20||dsx>SW+20) continue; var dph=((now*0.02+dc2*70)%100)/100;
-    g.fillStyle="rgba(150,120,100,"+(0.16*(1-dph))+")"; g.fillRect((dsx-4)|0,(gy-6-dph*30)|0,8,6); }
-  g.globalCompositeOperation="source-over";
-
-  // ===== THE BEAST — a towering silhouette straddling the epicentre, thrashing =====
-  var H=Math.round(gy*(0.30+0.24*arriveP)), top=gy-H, W=Math.round(H*0.30);
-  var sway=Math.round(Math.sin(now*0.003)*3), X0=(sx-W/2+sway)|0, breathDir=(Math.floor(now/1100)&1)?1:-1;
-  var cxB=X0+(W>>1);
-  g.globalCompositeOperation="lighter"; g.fillStyle="rgba(120,70,170,0.09)"; fillEllipse(g,cxB,top+H*0.5,W*0.9,H*0.6); g.globalCompositeOperation="source-over";   // soft backlight so the beast reads against the sky
-  var neckY=top+Math.round(H*0.22), hipY=gy-Math.round(H*0.32);
-  g.fillStyle="#1b2a1c";
-  // hunched torso — narrow shoulders tapering to a broad hip (draw as stacked rows)
-  for(var by2=neckY; by2<hipY; by2++){ var tf2=(by2-neckY)/Math.max(1,hipY-neckY), tw=Math.round(W*(0.5+0.5*tf2)); g.fillRect(cxB-(tw>>1),by2,tw,1); }
-  g.fillRect(cxB-2,top+Math.round(H*0.1),4,Math.round(H*0.14));                                // neck
-  var hd=Math.round(W*0.62), hy=top+Math.round(H*0.06);                                        // head juts forward the way it breathes
-  g.fillRect((breathDir<0?cxB-2-hd:cxB-2)|0,hy,hd,Math.round(H*0.11)); g.fillRect((breathDir<0?cxB-2-hd:cxB+hd-4)|0,hy+1,3,Math.round(H*0.07));   // + snout
-  var legW=Math.round(W*0.26);
-  g.fillRect(cxB-Math.round(W*0.36),hipY,legW,gy-hipY); g.fillRect(cxB+Math.round(W*0.36)-legW,hipY,legW,gy-hipY);   // two straddling legs
-  g.fillRect((breathDir<0?cxB-Math.round(W*0.5)-2:cxB+Math.round(W*0.5)-1)|0,neckY+3,3,Math.round(H*0.24));          // the forward arm/claw
-  for(var tl=0;tl<Math.round(H*0.5);tl++){ var txp=cxB+(breathDir<0?Math.round(W*0.4)+tl:-Math.round(W*0.4)-tl), typ=hipY+2+Math.round(Math.sin(tl*0.28)*4)+Math.round(tl*0.25); g.fillStyle="#142115"; g.fillRect(txp|0,Math.min(gy-1,typ)|0,2,3); }   // a long sweeping tail
+  // ── dust-choked sky. It thickens as the animal crosses, then THINS again once it has gone — the
+  // aftermath is not one frozen frame, it is the air clearing over something that is not coming back.
+  var murk=0.12+0.44*prog-0.20*late;
+  g.fillStyle="rgba(70,50,44,"+murk.toFixed(3)+")"; g.fillRect(0,0,SW,gy);
+  // dust boiling off the swath it has already walked, world-anchored so all three screens agree
   g.globalCompositeOperation="lighter";
-  for(var sp=0;sp<hipY-neckY;sp+=3){ var fw=1+((sp/3)&1); g.fillStyle="rgba(150,235,255,0.85)"; g.fillRect((cxB-(fw>>1))|0,(neckY+sp)|0,fw,2); }   // glowing dorsal fins down the spine
-  g.fillStyle="rgba(90,225,255,0.55)"; g.fillRect(cxB-Math.round(W*0.5),top,1,H); g.fillStyle="rgba(255,90,200,0.55)"; g.fillRect(cxB+Math.round(W*0.5),top,1,H);   // rim light
-  g.fillStyle="rgba(255,70,50,1)"; g.fillRect((breathDir<0?cxB-hd+1:cxB+hd-4)|0,(hy+1)|0,2,2);   // baleful eye on the head
-  g.globalCompositeOperation="source-over";
-  // ATOMIC BREATH — a searing beam lances DOWN from the maw and RAKES THE STREET, vaporizing the crowd
-  if(apocMs>KAIJU_ARRIVE_MS*0.6 && (Math.floor(now/900))%2===0){
-    var mouthX=(breathDir<0?cxB-hd:cxB+hd), mouthY=hy+2, sweep=Math.sin(now*0.004)*W*1.7, impX=cxB+sweep, impY=gy;
-    g.globalCompositeOperation="lighter";
-    var steps=Math.max(3,Math.round(Math.hypot(impX-mouthX,impY-mouthY)/2));
-    for(var bs=0;bs<=steps;bs++){ var bt=bs/steps, bx3=mouthX+(impX-mouthX)*bt, by3=mouthY+(impY-mouthY)*bt;
-      g.fillStyle="rgba(170,248,255,"+(0.88-0.22*bt).toFixed(2)+")"; g.fillRect((bx3-1)|0,by3|0,3,3);
-      g.fillStyle="rgba(242,255,255,0.9)"; g.fillRect(bx3|0,by3|0,1,2); }
-    g.fillStyle="rgba(255,255,244,0.9)"; fillEllipse(g,impX,impY-2,8,5);                        // ground-impact blaze
-    g.fillStyle="rgba(140,245,255,0.65)"; fillEllipse(g,impX,impY-2,14,9);
-    g.globalCompositeOperation="source-over";
-    g.fillStyle="rgba(18,12,10,0.7)"; g.fillRect((impX-11)|0,gy-1,22,2);                        // scorched street
-    for(var vp=0;vp<4;vp++){ var vpx=impX+(vp-1.5)*6, vt=((now+vp*130)%700)/700;               // people at the impact flashing to ash
-      if(vt<0.5){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,242,214,"+(1-vt*2).toFixed(2)+")";
-        g.fillRect(vpx|0,(gy-4+((vt*4)|0))|0,2,Math.max(1,4-((vt*4)|0))); g.globalCompositeOperation="source-over"; } }
+  for(var dc2=0;dc2<16;dc2++){
+    var dhx=((dc2*2654435761+29)>>>0); dhx=(dhx^(dhx>>>13))>>>0;
+    var alongD=(dhx%1000)/1000*kaijuWalkProg()*WW*0.95;
+    var dsx=Math.round(disX(wrapW(apocEpiX(now)+kaijuDir()*alongD)));
+    if(dsx<-20||dsx>SW+20) continue;
+    var dph=((now*0.02+dc2*70)%100)/100;
+    g.fillStyle="rgba(150,120,100,"+(0.22*(1-dph)*(1-late*0.7)).toFixed(2)+")";
+    g.fillRect(dsx-Math.round(4*K),Math.round(gy-6*K-dph*34*K),Math.round(8*K),Math.round(6*K));
   }
-  g.fillStyle="rgba(120,100,86,0.4)"; g.fillRect(cxB-W,gy-3,W*2,3);                             // stomp dust at its feet
-  // BREAKING THROUGH — as it rises, the earth (or the sea) erupts around it
-  if(arriveP<1){ var isSea=hasOcean&&inSea(epiX); g.globalCompositeOperation="lighter";
-    for(var eb=0;eb<11;eb++){ var ebh=((eb*40503+7)>>>0), ebt=((now*0.02+eb*37)%100)/100, ebx=cxB+((ebh%200)/200*2-1)*W;
-      g.fillStyle=(isSea?"rgba(150,212,255,":"rgba(150,112,82,")+(0.42*(1-ebt)).toFixed(2)+")"; g.fillRect(ebx|0,(gy-ebt*42)|0,3,4); }
-    g.globalCompositeOperation="source-over"; }
-  // THE CITY FIGHTS BACK — tanks, jets, troops throw everything at the beast
+  g.globalCompositeOperation="source-over";
+
+  // ── 💥 THE CONTACT. 🚨 Without this the ending was a monster standing NEXT TO a city that had already
+  // decided to fall over: flat ground on one side, intact skyline on the other, and a clean seam between
+  // them that nothing was doing. `drawApocDustWall` cannot help here — it bails on `apocSweepR()<=0` and
+  // kaiju is not a sweep ending — so the front gets its own wall, one band deep, riding on the animal.
+  // 🪵 Billowed off a hash per bucket, never a sine: a wavelength in a dust crown is a sand dune.
+  if(prog>0&&prog<1){
+    var fsx=sx+kaijuDir()*Math.round(HORIZON*0.10);
+    for(var b2=-22;b2<=22;b2++){
+      var bxp=fsx+b2*Math.round(4*K); if(bxp<-30||bxp>SW+30) continue;
+      var bh2=((b2*2654435761+577)>>>0); bh2=(bh2^(bh2>>>13))>>>0;
+      var fall=1-Math.abs(b2)/23;
+      var hgt=Math.round(HORIZON*(0.10+0.30*fall)*(0.72+0.28*Math.sin(now*0.003+b2*0.9))+((bh2>>>7)%11)*K);
+      g.fillStyle=day?"rgba(126,110,98,"+(0.62*fall+0.18).toFixed(2)+")":"rgba(44,40,40,"+(0.66*fall+0.18).toFixed(2)+")";
+      g.fillRect(bxp,gy-hgt,Math.round(5*K),hgt);
+    }
+    // …and the pieces of the block it is standing on, thrown clear of it
+    for(var ch=0;ch<14;ch++){ var chh=((ch*40503+131)>>>0); chh=(chh^(chh>>>9))>>>0;
+      var ct=((now*0.0016+ch*0.137)%1);
+      var cxp=fsx-kaijuDir()*Math.round((ct*120+((chh>>>5)%40))*K);
+      var cyp=gy-Math.round((Math.sin(ct*Math.PI)*HORIZON*0.34)+((chh>>>11)%9));
+      if(cxp<-20||cxp>SW+20) continue;
+      g.fillStyle=day?"rgba(84,74,68,0.95)":"rgba(34,30,30,0.95)";
+      g.fillRect(cxp,cyp,Math.round((2+((chh>>>17)%3))*K),Math.round((2+((chh>>>19)%3))*K)); }
+  }
+
+  // ── 🌊 IT COMES OUT OF THE WATER. The sea (or the ground) erupts around it while it rises, at the
+  // point it actually made landfall rather than wherever it has walked to since.
+  if(arriveP<1){
+    var epiK=apocEpiX(now), esx=Math.round(disX(epiK)), isSea=hasOcean&&inSea(epiK);
+    if(esx>-140&&esx<SW+140){
+      g.globalCompositeOperation="lighter";
+      for(var eb=0;eb<14;eb++){ var ebh=((eb*40503+7)>>>0), ebt=((now*0.02+eb*37)%100)/100;
+        var ebx=esx+((ebh%200)/200*2-1)*Math.round(60*K);
+        g.fillStyle=(isSea?"rgba(150,212,255,":"rgba(150,112,82,")+(0.48*(1-ebt)).toFixed(2)+")";
+        g.fillRect(Math.round(ebx),Math.round(gy-ebt*46*K),Math.round(3*K),Math.round(5*K)); }
+      g.globalCompositeOperation="source-over";
+    }
+  }
+
+  // ── THE CITY FIGHTS BACK AND LOSES. Aimed at where the animal IS, so the response travels with it.
   if(apocMs<KAIJU_ARRIVE_MS+KAIJU_WIPE_MS){
     var milF=0.12+0.34*Math.min(1,apocMs/(KAIJU_ARRIVE_MS+KAIJU_WIPE_MS));
-    drawMilitaryResponse(g,{f:milF,x:epiX,intensity:5,w:Math.round(H*0.3),seed:0x4B41},L,now);
+    drawMilitaryResponse(g,{f:milF,x:wxK,intensity:5,w:Math.round(HORIZON*0.3),seed:0x4B41},L,now);
   }
 
-  var msg=(apocMs<KAIJU_ARRIVE_MS)?"IT RISES FROM THE DEEP":(prog<1)?"KAIJU RAMPAGE - "+Math.round(prog*100)+" PCT":cityName+" IN RUINS";
+  var msg=(apocMs<KAIJU_ARRIVE_MS)?"SOMETHING IS COMING ASHORE"
+         :(prog<1)?"KAIJU RAMPAGE - "+Math.round(prog*100)+" PCT"
+         :(late<0.85)?"IT IS WADING BACK OUT":cityName+" IN RUINS";
   drawDoomHud(g,ap,now,msg,"THE MONSTER MOVES ON");
 }
 // THE FLOOD: the sea rises and drowns the city. Draws the rising body of water (overlay) that swallows the skyline.
@@ -63543,10 +63717,12 @@ function draw(g,pass){
         var gzF=apocEpiX(now), dF=nukeDist(pwx,gzF), frF=foxFrontR();
         if(frF>=dF){ continue; }
         fleeing=true; pwx=wrapW(pwx + pd.dir*(now%4000)*0.052); }  // they run harder than they do from anything else
-      else if(curDeath==="kaiju"){                               // kaiju: flee the rampage, then get stomped/swept when the beast reaches them
-        var gzK=apocEpiX(now), dK=nukeDist(pwx,gzK), frK=kaijuFrontR();
-        if(frK>=dK){ continue; }                                 // the rampage reached them → gone
-        fleeing=true; var awayK=((((pwx-gzK)%WW+WW*1.5)%WW)-WW*0.5)>=0?1:-1; pwx=wrapW(pwx+awayK*(now%4000)*0.045); }   // run from the monster
+      else if(curDeath==="kaiju"){                               // kaiju: run AHEAD of it, in front of the walk, until it catches you
+        if(kaijuCrushed(pwx)>=0){ continue; }                    // it has walked over them → gone
+        // ⚠ they run the way it is GOING, not radially away from a point. A crowd fleeing outward from a
+        // static epicentre is what a bomb produces; a crowd running ahead of a walking animal is what
+        // this is, and it is the same direction every person on the screen, which is what reads as panic.
+        fleeing=true; pwx=wrapW(pwx+kaijuDir()*(now%4000)*0.045); }
       else if(curDeath==="flood"){                               // flood: run for high ground, then be swept away when the water reaches them
         if(floodGroundHit(pwx)){ var vsx8=pwx-WOFF; if(vsx8>SW+4&&vsx8-WW>-4)vsx8-=WW; if(vsx8<-4&&vsx8+WW<SW+4)vsx8+=WW;
           if(vsx8>-3&&vsx8<SW+3){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(120,170,210,0.6)"; g.fillRect(vsx8|0,(HORIZON-floodLevel())|0,2,2); g.globalCompositeOperation="source-over"; }   // a splash at the waterline
