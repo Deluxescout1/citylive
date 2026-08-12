@@ -8835,7 +8835,7 @@ function drawLayer(g,layer,L,now,fx,hol,haze){
         // else: the beast hasn't reached this block — it still stands as the rampage advances
       } else if(curDeath==="flood"){                             // THE FLOOD: the rising sea covers each block; tall towers hold out, then topple & wash away
         if(floodLevel() >= b.h+6) continue;                      // fully drowned — the water covers it (drawn by the flood overlay); skip
-        var flc=floodCl(b.h);
+        var flc=floodCl(b.h,b.x);
         if(flc>=0){ drawApocBuilding(g,b,bx,flc,L,now); continue; }   // undermined → tilting & breaking into the water
         // else: still standing, its base swallowed by the rising water (fall through to normal draw)
       } else if(curDeath==="kaijuwar"){                          // KAIJU WAR: trampled on the approach, wrecked in the melee — collateral of the titans' battle
@@ -51528,6 +51528,13 @@ function apocSpanMs(){
     case "frost":    return FROST_ONSET_MS+FROST_STAGGER_MS+FROST_FREEZE_MS+5000;
     case "kaiju":    return KAIJU_ARRIVE_MS+KAIJU_WIPE_MS+5000;
     case "kaijuwar": return (typeof KW_ARRIVE_MS!=="undefined"?KW_ARRIVE_MS:4500)+16000;
+    // 🚨 A NINTH ONE WAS MISSING FROM THIS TABLE THE WHOLE TIME. `flood` reads `apocMs` against
+    // `FLOOD_ONSET_MS` 3000 and `FLOOD_RISE_MS` 13000, so the city was completely submerged 1.3
+    // THOUSANDTHS of the way into the arc and the remaining three hours nineteen was one static frame —
+    // measured, 370 pixels of 1.49 million differ between ap 0.05 and ap 0.90. The re-timing pass fixed
+    // eight endings and this is a ninth that needed it; a fix applied only where the bug was REPORTED
+    // is half a fix, and the class is "every ending whose constants are authored in real seconds".
+    case "flood":    return FLOOD_ONSET_MS+FLOOD_RISE_MS+5000;
   }
   return 0;
 }
@@ -51812,11 +51819,49 @@ function floodLevel(){
     // and "the ground here is underwater" are separated by less than 4% of the arc at this scale.
     // Fire burns FIRST and the sea comes for it after: 0.52, so 0.35→0.52 is Surtr's alone.
     return (cityPhase!=="apoc") ? 0 : Math.max(0,Math.min(1,(cityApoc-0.52)/0.43)) * floodMax();
-  return Math.max(0,Math.min(1,(apocMs-FLOOD_ONSET_MS)/FLOOD_RISE_MS)) * floodMax(); }
+  return floodBaseF() * floodMax(); }
+// ── 🌊🔒 MILLER'S PLANET. 🔒 His call, 2026-08-12: *"like that one planet on Interstellar where a big
+// wave comes and fucks everything up"*, and they KEEP COMING. A flat waterline is the worst subject this
+// renderer has — horizontal repetition is precisely what it renders worst — so the water is not the
+// subject at all: the WAVE is, and a wave has a source, a direction and a size you can measure against
+// the towers it is taller than. Each one leaves ground zero and crosses the world, so DP-3, DP-4 and
+// HDMI-A-3 each watch a mountain of water come for them in turn, and then the next one builds.
+var FL_W0=0.30;        // the first wave lands here…
+var FL_WGAP=0.215;     // …and another one every fifth of the arc after it
+var FL_WCROSS=0.075;   // how much of the arc a wave takes to cross the whole world
+function floodWaveAt(k){ return FL_W0+k*FL_WGAP; }
+function floodWaveCount(){ return 4; }
+// how far wave k has travelled out of ground zero, in world px (<0 = it has not broken yet)
+function floodWaveR(k){ var t=(cityApoc-floodWaveAt(k))/FL_WCROSS; return t<0?-1:t*(WW*0.62); }
+// its height in world px — the first is the killer, the ones after are big but never that big again
+function floodWaveH(k){ return HORIZON*(k===0?1.18:0.74-k*0.06); }
+// 🔑 THE STILL LEVEL, ON THE ARC. The first wave puts a third of it in at once as it passes, and the
+// rest climbs floor by floor for the next half of the world's life.
+function floodBaseF(){
+  var ap=cityApoc; if(ap<FL_W0) return 0;
+  var s=Math.max(0,Math.min(1,(ap-FL_W0)/FL_WCROSS));
+  var c=Math.max(0,Math.min(1,(ap-(FL_W0+FL_WCROSS))/(0.88-FL_W0-FL_WCROSS)));
+  return Math.min(1,0.36*s+0.64*c);
+}
+// is a wave passing over world-x RIGHT NOW? (used for the kill, and for the local surge on top of the level)
+function floodWaveOver(wx){
+  for(var k=0;k<floodWaveCount();k++){
+    var R=floodWaveR(k); if(R<0) continue;
+    var d=nukeDist(wx,apocEpiX(NOWOVR!=null?NOWOVR:Date.now()));
+    if(d<=R && d>=R-WW*0.14) return 1-(R-d)/(WW*0.14);
+  }
+  return 0;
+}
 // a building of height h topples/washes away as the water nears its top; -1 until then, 0→1 collapsing (tall towers hold out longest)
-function floodCl(h){ var w=floodLevel(); return (w >= h*0.7) ? Math.min(1,(w - h*0.7)/(h*0.35+10)) : -1; }
+function floodCl(h,wx){
+  var w=floodLevel();
+  // 🌊 a wave takes what it is TALLER THAN as it goes over, which is why the low city is gone in one
+  // pass and the towers stand out of the water for the rest of the arc.
+  if(wx!=null){ var ov=floodWaveOver(wx);
+    if(ov>0){ var wh=floodWaveH(0)*(0.55+0.45*ov); if(wh>=h*0.85) return Math.min(1,ov*1.4); } }
+  return (w >= h*0.7) ? Math.min(1,(w - h*0.7)/(h*0.35+10)) : -1; }
 // has the water risen above the ground at world-x yet? (low-lying spots go under first) — governs movers & parks
-function floodGroundHit(x){ return floodLevel() > (2 + ((((x|0)*2654435761)>>>0)%8)); }
+function floodGroundHit(x){ return floodWaveOver(x)>0 || floodLevel() > (2 + ((((x|0)*2654435761)>>>0)%8)); }
 function meteorFrontR(){ return Math.max(0,(apocMs-METEOR_IMPACT_MS)/METEOR_WIPE_MS)*(WW*0.62); }   // radius the massive impact's fiery blast has raced out (only after it lands)
 // how far into collapse world-x is under the meteor apocalypse — {cl:0..1 progress, bd:debris dir}; cl<0 = not hit yet.
 // Unifies the two destroyers: the ONE massive impact's radial front (the main leveler) + the scattered SMALL strikes.
@@ -62057,25 +62102,198 @@ function drawApocKaiju(g,ap,L,now){
   drawDoomHud(g,ap,now,msg,"THE MONSTER MOVES ON");
 }
 // THE FLOOD: the sea rises and drowns the city. Draws the rising body of water (overlay) that swallows the skyline.
-function drawApocFlood(g,ap,L,now){
-  var w=floodLevel(), gy=HORIZON, waterY=gy-w;
-  var riseP=Math.min(1,Math.max(0,apocMs-FLOOD_ONSET_MS)/FLOOD_RISE_MS);
-  g.fillStyle="rgba(40,52,66,"+(0.1+0.34*riseP)+")"; g.fillRect(0,0,SW,gy);                     // storm-dark deluge sky
-  if(riseP<1){ for(var rn=0;rn<90;rn++){ var rnh=((rn*2654435761+1)>>>0); g.fillStyle="rgba(180,200,220,0.28)"; g.fillRect(rnh%SW,(((rnh>>>9)+now*0.4)%gy)|0,1,3); } }   // driving rain
-
-  if(w>0){
-    for(var yy=waterY; yy<SH; yy+=3){ var dep=(yy-waterY)/Math.max(1,SH-waterY);               // the rising body of water (darker deep)
-      g.fillStyle="rgba("+Math.round(26+18*(1-dep))+","+Math.round(58+40*(1-dep))+","+Math.round(88+50*(1-dep))+","+(0.74+0.2*dep)+")"; g.fillRect(0,yy|0,SW,3); }
-    g.globalCompositeOperation="lighter";                                                       // wave shimmer on the surface
-    for(var wv=0;wv<SW;wv+=2){ var wh=Math.sin(wv*0.15+now*0.006)*1.2+Math.sin(wv*0.05-now*0.004); g.fillStyle="rgba(160,210,240,0.35)"; g.fillRect(wv,(waterY+wh)|0,2,1); }
-    g.globalCompositeOperation="source-over";
-    for(var db=0;db<Math.round(6+riseP*16);db++){ var dbh=((db*2654435761+5)>>>0), dbx=((dbh%SW)+now*0.01*((dbh&1)?1:-1)+SW*2)%SW;   // floating debris
-      g.fillStyle=(db&1)?"#3a2f2a":"#2f3a42"; g.fillRect(dbx|0,(waterY+Math.sin(dbx*0.1+now*0.005)*1.4)|0,3+((dbh>>3)%3),2); }
+// ── 🌊🔒 THE FLOOD — MILLER'S PLANET. 🔒 His call: a wave like Interstellar's, and they keep coming; the
+// people try to swim and drown; the drowned drift through it *"like a fishtank almost."*
+// 🚨 WHAT WAS HERE WAS A BLUE FILTER. A translucent slab over the whole frame with the entire city still
+// legible through it at every depth — and a wash cannot create contrast, it drags every value in the
+// picture toward one number. Measured, the drowned frame was one flat blue field. So the water now has
+// DEPTH: it clears in the near field and closes over everything toward the horizon, and what reads
+// against it is what is drifting in it.
+// 🚨 AND EVERY MOVING THING IN IT WAS SCREEN-SPACE. The rain was `rnh%SW` and the debris `dbh%SW`, so all
+// three monitors ran their own private weather — `% SW` is a promise a thing is NOT world-anchored.
+// 🚨 *"whatever this is needs to stop bouncing"* — the floating debris was `Math.sin(dbx*0.1+now*0.005)`,
+// a crate hovering on a sine in mid-water. Nothing in here oscillates now: things drift one way, or sink.
+// ── 🌊🔒 THE ONE ON THE HORIZON. `APOC_X_BACK` is the only place a live-pass layer can draw BEHIND the
+// buildings, and a wave still out at sea has to be behind them or it is not out at sea. It grows out of
+// the horizon over the tenth of the arc before it lands — the line that is not the horizon — with a
+// hashed crest and foam already tearing off the top, so the city stands silhouetted against the thing
+// about to remove it. 🪵 Two frequencies plus a per-column hash, never one sine: a sine edge is a dune.
+APOC_X_BACK.flood=function(g,ap,L,now){
+  if(curDeath!=="flood") return;
+  var K=Math.max(1,KSP), gy=HORIZON, w=floodLevel();
+  for(var kn=0;kn<floodWaveCount();kn++){
+    var ahead=floodWaveAt(kn)-ap;
+    if(ahead<=0||ahead>0.11) continue;
+    var grow=Math.pow(1-ahead/0.11,1.6);
+    var top=Math.round(gy-w-floodWaveH(kn)*0.86*grow);
+    var stepH=Math.max(1,Math.round(K));
+    for(var x=0;x<SW;x+=stepH){
+      var hx2=(((x+WOFF)*2654435761)>>>0); hx2=(hx2^(hx2>>>13))>>>0;
+      var crest=top+Math.round((((hx2>>>9)%9)-4)*K*grow)
+                   +Math.round(Math.sin((x+WOFF)*0.011)*6*K*grow)
+                   +Math.round(Math.sin((x+WOFF)*0.037+1.7)*3*K*grow);
+      var hgt=Math.round(gy-w-crest);
+      if(hgt<1) continue;
+      g.fillStyle="rgba(16,34,54,"+(0.55+0.42*grow).toFixed(2)+")";
+      g.fillRect(x,crest,stepH,hgt);
+      g.fillStyle="rgba(226,240,250,"+(0.55*grow).toFixed(2)+")";
+      g.fillRect(x,crest,stepH,Math.max(1,Math.round(K*1.4)));
+    }
   }
-  var msg=(w<HORIZON*0.28)?"THE WATERS ARE RISING":(riseP<1)?"THE FLOOD - "+Math.round(riseP*100)+" PCT":cityName+" IS UNDER WATER";
+};
+function drawApocFlood(g,ap,L,now){
+  var K=Math.max(1,KSP), gy=HORIZON, w=floodLevel(), waterY=gy-w, day=L>0.5;
+  var gz=apocEpiX(now), base=floodBaseF();
+  // ── 🌩️ the sky. World-anchored rain, and it gets worse before the first wave, not after.
+  var storm=Math.max(0,Math.min(1,ap/0.26));
+  g.fillStyle="rgba(34,44,58,"+(0.10+0.44*storm).toFixed(3)+")"; g.fillRect(0,0,SW,gy);
+  if(ap<0.86){
+    for(var rn=0;rn<120;rn++){
+      var rh=((rn*2654435761+1)>>>0); rh=(rh^(rh>>>13))>>>0;
+      var rx=((rh>>>5)%Math.max(1,WW))-WOFF; if(rx<-4||rx>SW+4) continue;
+      var ry=(((rh>>>11)%Math.max(1,gy))+now*0.55*(0.7+((rh>>>19)%40)/100))%gy;
+      g.fillStyle="rgba(180,200,220,"+(0.30*storm).toFixed(2)+")";
+      g.fillRect(Math.round(rx),Math.round(ry),Math.max(1,Math.round(K*0.7)),Math.round(3*K));
+    }
+  }
+  // ── 🏖️ THE DRAWBACK. The sea goes OUT first — the tell that everyone in the story walks toward. Only
+  // where there is a coast to go out from; on a landlocked map the beat is the STILLNESS instead.
+  var drawb=Math.max(0,Math.min(1,(ap-0.10)/0.14))*Math.max(0,1-Math.max(0,ap-0.26)/0.05);
+  if(drawb>0&&hasOcean&&SEA_FRONT>0){
+    var bareH=Math.round(drawb*GROUND*0.9);
+    g.fillStyle=day?"rgba(92,84,70,0.92)":"rgba(38,36,32,0.92)";
+    g.fillRect(0,Math.round(SEA_Y),SW,bareH);                                   // exposed bed
+    for(var pd2=0;pd2<40;pd2++){ var ph=((pd2*2654435761+77)>>>0); ph=(ph^(ph>>>13))>>>0;
+      var px2=((ph>>>5)%Math.max(1,WW))-WOFF; if(px2<0||px2>=SW) continue;
+      g.fillStyle="rgba(60,80,96,0.75)";                                        // pools left in it
+      g.fillRect(Math.round(px2),Math.round(SEA_Y+((ph>>>13)%Math.max(1,bareH))),Math.round((3+((ph>>>17)%6))*K),Math.max(1,Math.round(K)));
+    }
+  }
+  // ── 💧 THE WATER, WITH DEPTH. Near the viewer it is clear enough to see what is in it; toward the
+  // horizon it closes up entirely. That gradient is the contrast — not a uniform slab.
+  if(w>0){
+    var top=Math.max(-4,Math.round(waterY)), stepW=Math.max(2,Math.round(K*1.5));
+    for(var yy=top; yy<SH; yy+=stepW){
+      var dep=(yy-waterY)/Math.max(1,SH-waterY);                                 // 0 at the surface … 1 in the near field
+      var far=Math.max(0,Math.min(1,1-(yy)/Math.max(1,gy)));                     // 1 at the horizon … 0 at the street
+      var al=0.42+0.57*Math.pow(far,1.5);                                        // …so the near field stays readable and the deep closes over completely
+      g.fillStyle="rgba("+Math.round(16+26*dep)+","+Math.round(44+40*dep)+","+Math.round(70+44*dep)+","+al.toFixed(3)+")";
+      g.fillRect(0,yy,SW,stepW);
+    }
+    // ☀️ shafts of light coming down through it — world-anchored, and the only bright thing under here
+    g.globalCompositeOperation="lighter";
+    for(var sh2=0;sh2<9;sh2++){
+      var sh3=((sh2*2654435761+313)>>>0); sh3=(sh3^(sh3>>>13))>>>0;
+      var sx3=((sh3>>>5)%Math.max(1,WW))-WOFF; if(sx3<-40||sx3>SW+40) continue;
+      var swd=Math.round((7+((sh3>>>13)%11))*K);
+      g.fillStyle="rgba(150,200,230,0.055)";
+      g.fillRect(Math.round(sx3),Math.round(waterY),swd,SH-Math.round(waterY));
+    }
+    g.globalCompositeOperation="source-over";
+    // 🐟 …and the surface seen from below, from underneath the frame's own waterline
+    if(waterY>-4&&waterY<SH){ g.fillStyle="rgba(196,224,240,0.5)"; g.fillRect(0,Math.round(waterY),SW,Math.max(1,Math.round(K)));
+      g.globalCompositeOperation="lighter";
+      for(var sf=0;sf<SW;sf+=Math.max(2,Math.round(K*3))){
+        var sfh=(((sf+WOFF)*2654435761)>>>0)%5;
+        g.fillStyle="rgba(180,220,244,0.22)";
+        g.fillRect(sf,Math.round(waterY-sfh*K*0.4),Math.max(1,Math.round(K*2)),Math.max(1,Math.round(K)));
+      }
+      g.globalCompositeOperation="source-over"; }
+  }
+  // ── 🏊 THEY TRY. 🔒 His call: *"people should try and swim but they eventually drown… drowned and
+  // floating throughout this like a fishtank almost."* One hashed population: each has a place in the
+  // world, a moment its strength runs out, and a depth it ends up at. Before that it is at the surface
+  // swimming; after it, it is face-down in the water and it drifts one way and never comes back.
+  // ⚠ NOTHING OSCILLATES. That was the note about the bouncing crate, and a sine on a corpse is worse.
+  if(base>0){
+    var pop=Math.round(46*Math.min(1,base*2.2));   // ⚠ 120 at 8 world px each came back as confetti — fewer and bigger reads as a body, and a body is the point
+    for(var pi=0;pi<pop;pi++){
+      var hp=((pi*2654435761+6421)>>>0); hp=(hp^(hp>>>13))>>>0;
+      var drift=((hp>>>27)&1)?1:-1;
+      var pwx2=wrapW(((hp>>>5)%Math.max(1,WW))+drift*(now*0.0022*(0.4+((hp>>>21)%40)/40)));
+      var psx=disX(pwx2); if(psx<-8||psx>SW+8) continue;
+      var giveUp=FL_W0+0.04+((hp>>>11)%100)/100*0.34;                            // when this one stops swimming
+      var swim=cityApoc<giveUp;
+      if(swim){
+        if(waterY<0||waterY>SH) continue;
+        var stroke=(Math.floor(now*0.006+pi)&1);                                 // arm up / arm down — a stroke, not a bob
+        g.fillStyle="rgba(226,196,168,0.95)";
+        g.fillRect(Math.round(psx),Math.round(waterY-K),Math.max(1,Math.round(2*K)),Math.max(1,Math.round(2*K)));   // head above the surface
+        g.fillStyle=day?"rgba(40,54,72,0.9)":"rgba(20,28,40,0.9)";
+        g.fillRect(Math.round(psx+(stroke?2*K:-2*K)),Math.round(waterY-(stroke?2.4*K:0.4*K)),Math.max(1,Math.round(2*K)),Math.max(1,Math.round(K)));
+        g.globalCompositeOperation="lighter";                                     // the white water they are making
+        g.fillStyle="rgba(220,240,250,0.35)";
+        g.fillRect(Math.round(psx-2*K),Math.round(waterY),Math.max(1,Math.round(6*K)),Math.max(1,Math.round(K)));
+        g.globalCompositeOperation="source-over";
+      } else {
+        var sank=Math.min(1,(cityApoc-giveUp)/0.16);                              // it goes down, and it stays down
+        var pdep=waterY+sank*(SH-waterY)*(0.20+((hp>>>17)%70)/100*0.65);
+        if(pdep<waterY||pdep>SH+4) continue;
+        var vis=Math.max(0,Math.min(1,(pdep/Math.max(1,gy))));                    // the deep swallows the far ones
+        var aB=(0.34+0.62*vis).toFixed(2), fl2=((hp>>>23)&1)?1:-1;
+        // face-down and slightly splayed: head, shoulders, trunk, then the legs trailing. Drawn dark
+        // against the water rather than pale, so it reads as a shape and not as a speck of light.
+        g.fillStyle=day?"rgba(30,40,56,"+aB+")":"rgba(16,22,34,"+aB+")";
+        g.fillRect(Math.round(psx+2*K),Math.round(pdep),Math.max(1,Math.round(5*K)),Math.max(1,Math.round(2.4*K)));      // trunk
+        g.fillRect(Math.round(psx+7*K),Math.round(pdep+0.6*K),Math.max(1,Math.round(4*K)),Math.max(1,Math.round(1.2*K)));  // legs
+        g.fillRect(Math.round(psx+2*K),Math.round(pdep+fl2*2.2*K),Math.max(1,Math.round(3.4*K)),Math.max(1,Math.round(K)));// one arm out
+        g.fillStyle="rgba(196,166,142,"+aB+")";
+        g.fillRect(Math.round(psx),Math.round(pdep+0.2*K),Math.max(1,Math.round(2.6*K)),Math.max(1,Math.round(2.2*K)));    // the head
+      }
+    }
+  }
+  // ── 🌊🌊 AND THE WAVE. Taller than anything the city has, world-anchored at `gz ± floodWaveR(k)`, so
+  // each monitor watches it come. A steep dark face, a crest that overhangs it, white water tearing off
+  // the top, and the flat back of it trailing away — you can see which way it is going from any frame.
+  for(var k=0;k<floodWaveCount();k++){
+    var R=floodWaveR(k); if(R<0||R>WW*0.62) continue;
+    var WH=floodWaveH(k), fade=Math.max(0,Math.min(1,R/(WW*0.06)));
+    for(var side=-1;side<=1;side+=2){
+      var wwx=wrapW(gz+side*R), wsx=disX(wwx);
+      if(wsx<-SW*0.7||wsx>SW*1.7) continue;
+      // ⚠ IT IS A WALL, NOT A PLATEAU. The first cut trailed 64 steps — over 500 world px of full-height
+      // water behind each face — so on a screen sitting between the two faces the pair met and the whole
+      // frame became one slab with a notch where they failed to touch. A wave is a moving EDGE: the body
+      // falls away to the still level within its own width, and what is behind it is just the sea.
+      for(var wo=0;wo<=26;wo++){
+        var wxp=Math.round(wsx-side*wo*Math.round(4*K)); if(wxp<-24||wxp>SW+24) continue;
+        var wh4=((wo*2654435761+457)>>>0); wh4=(wh4^(wh4>>>13))>>>0;
+        var back=wo/26;
+        var hgt=Math.round((w+(WH-w)*(1-back)*(1-back)+((wh4>>>7)%13)*K*(1-back))*fade);   // …down to the still level, not to zero
+        // ⚠ A WALL OF WATER THAT HEIGHT IS OPAQUE. At 0.55–0.90 you could read the skyline straight
+        // through it, which makes it a tint rather than a mass — the wash fault again, on the one object
+        // the whole ending is named after.
+        var d2=Math.min(1,0.97-0.34*back);
+        g.fillStyle="rgba("+Math.round(12+18*back)+","+Math.round(36+30*back)+","+Math.round(58+36*back)+","+d2.toFixed(2)+")";
+        g.fillRect(wxp,gy-hgt,Math.round(5*K),hgt+GROUND);
+        if(wo<3){                                                                 // the face: steep, dark, and it leans over
+          g.fillStyle="rgba(10,26,44,0.95)";
+          g.fillRect(wxp+Math.round(side*3*K),gy-hgt,Math.round(4*K),hgt+GROUND);
+        }
+        if(back<0.40){                                                            // white water tearing off the crest
+          g.globalCompositeOperation="lighter";
+          var foam=Math.round((3+((wh4>>>15)%9))*K*(1-back/0.40));
+          g.fillStyle="rgba(232,246,252,"+(0.82*(1-back/0.40)*fade).toFixed(2)+")";
+          g.fillRect(wxp,gy-hgt-foam,Math.round(5*K),foam+Math.round(3*K));
+          g.globalCompositeOperation="source-over";
+        }
+      }
+    }
+  }
+  // ── 🌫️ THE ONE THAT HAS NOT BROKEN YET IS DRAWN BEHIND THE CITY, not here — see `APOC_X_BACK.flood`.
+  // A flat translucent band across the full width of the FRONT layer was a blue rectangle sitting on top
+  // of the skyline: no crest, no distance, and standing in front of towers it is still miles behind.
+  // Same lesson the moon needed, and the same one place in the frame that can fix it.
+  var nextW=-1;
+  for(var kq=0;kq<floodWaveCount();kq++){ var d3=floodWaveAt(kq)-cityApoc; if(d3>0&&(nextW<0||d3<nextW)) nextW=d3; }
+  var msg=(ap<0.10)?"THE STORM IS NOT STOPPING"
+        :(ap<0.26)?"THE SEA HAS GONE OUT"
+        :(ap<FL_W0)?"SOMETHING IS COMING IN FROM THE COAST"
+        :(floodWaveOver(wrapW(WOFF+SW*0.5))>0)?"THE WAVE"
+        :(nextW>0&&nextW<0.10)?"ANOTHER ONE IS BUILDING"
+        :(base<0.98)?"THE WATER IS STILL RISING":cityName+" IS UNDER THE SEA";
   drawDoomHud(g,ap,now,msg,cityName+" DROWNED");
 }
-// a single building dying in the cataclysm: shaking, cracking, burning, collapsing to rubble
 function drawApocBuilding(g,b,bx,cl,L,now,bdir){
   var gy=HORIZON, keep=Math.max(3,Math.round(b.h*(1-cl*0.92)));
   var top=gy-keep, wob=(cl<0.7)?((Math.floor(now/90)+bx)&1):0;
