@@ -4,7 +4,7 @@ import "../org.citylive.wallpaper/contents/js/city.js" as City
 // 0.859 (world 1949) which is on the RIGHT screen. This is the "I am not seeing anything" case.
 Item { id: root; width: 1706; height: 874
   property var shots: [
-    { n:"mf-ap15", ms: 1814400 }, { n:"mf-ap32", ms: 3870720 }, { n:"mf-ap50", ms: 6048000 }, { n:"mf-ap68", ms: 8225280 }, { n:"mf-ap80", ms: 9676800 }, { n:"mf-ap88", ms:10644480 }, { n:"mf-ap92", ms:11128320 }, { n:"mf-ap98", ms:11854080 }
+    { n:"M-b905", ms: 10946880 }, { n:"M-b915", ms: 11067840 }, { n:"M-b928", ms: 11225088 }, { n:"M-b945", ms: 11430720 }, { n:"M-b970", ms: 11733120 }
   ]
   property int idx: 0
   property int warm: 0

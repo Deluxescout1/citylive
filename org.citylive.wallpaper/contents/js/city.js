@@ -51771,9 +51771,18 @@ function moonDmgLUT(){
   }
   _mfLut=lut; return lut;
 }
+// 🌍🔒 …AND THEN IT BLOWS UP THE WORLD. 🔒 His call, 2026-08-12: *"make sure after it hits it actually
+// blows up the world."* It did already, in the ledger sense — everything was flat by 0.93 — but it did
+// it POSITIONLESSLY: one ramp, no x in it, so the entire world sagged in the same frame and no screen
+// ever saw anything ARRIVE. That is the same fault the pre-fragment version had, surviving into the one
+// moment it matters most. The blast is a FRONT: it leaves ground zero and crosses the world, and each
+// monitor watches it come. `frontCollapse` already expresses exactly this and is what the nuke and the
+// AI sweep read, so there is no new law here — just the right one.
+var MF_BLAST_AP=0.052;   // how much of the arc the front takes to cross the whole world
+function moonBlastR(){ return Math.max(0,(cityApoc-MF_CORE_AP)/MF_BLAST_AP)*(WW*0.62); }
 function moonCrushed(wx){
   var ap=cityApoc;
-  if(ap>=MF_CORE_AP) return Math.min(1,(ap-MF_CORE_AP)/0.030);            // the core lands and takes everything left
+  if(ap>=MF_CORE_AP) return frontCollapse(wx,moonBlastR());               // the core lands and the blast goes out from it
   if(ap<MF_RAIN_AP) return -1;
   var lut=moonDmgLUT(), n=lut.length;
   var t=lut[Math.floor(wrapW(wx)/WW*n)%n];
@@ -60075,6 +60084,91 @@ function drawApocMoonfall(g,ap,L,now){
     if(flash>0){ g.globalCompositeOperation="lighter";
       g.fillStyle="rgba(255,242,214,"+(flash*flash).toFixed(3)+")"; g.fillRect(0,0,SW,SH);
       g.globalCompositeOperation="source-over"; }
+    // ── 🔥 THE SKY CATCHES FIRE. This is how an impact this size actually kills a planet: what it throws
+    // up comes back down through the atmosphere everywhere at once and cooks it. It is also the only
+    // beat that can reach a monitor the front has not got to yet — the far screens go red before
+    // anything physical arrives, which is the direction rule again.
+    var burnSky=Math.max(0,Math.min(1,post/0.10))*Math.max(0,1-Math.max(0,post-0.34)/0.46);
+    if(burnSky>0){ var bstep=Math.max(2,Math.round(K*3));
+      for(var by=0;by<HORIZON;by+=bstep){ var bu=by/HORIZON;
+        g.globalCompositeOperation="lighter";
+        g.fillStyle="rgba("+Math.round(190+50*bu)+","+Math.round(40+56*bu)+",22,"+(0.46*burnSky*(0.35+0.65*bu)).toFixed(3)+")";
+        g.fillRect(0,by,SW,bstep); g.globalCompositeOperation="source-over"; }
+      // …and the ejecta coming back down through it, everywhere, for the rest of the world's life
+      for(var re=0;re<Math.round(70*burnSky);re++){
+        var rh2=((re*2654435761+4021)>>>0); rh2=(rh2^(rh2>>>13))>>>0;
+        var rx2=((rh2>>>5)%Math.max(1,WW))-WOFF; if(rx2<-6||rx2>SW+6) continue;
+        var rt=((now*0.0012*(0.6+((rh2>>>19)%60)/60)+((rh2>>>11)%1000)/1000)%1);
+        var ry3=rt*HORIZON, rl=Math.round((5+((rh2>>>23)%7))*K);
+        g.globalCompositeOperation="lighter";
+        g.fillStyle="rgba(255,"+Math.round(150+80*(1-rt))+",70,"+(0.8*(1-rt*0.5)*burnSky).toFixed(2)+")";
+        g.fillRect(Math.round(rx2),Math.round(ry3),Math.max(1,Math.round(K)),rl);
+        g.globalCompositeOperation="source-over";
+      }
+    }
+    // ── 🪨 THE EJECTA. Blocks of the crust and of the moon thrown clear on ballistic arcs, out past the
+    // edge of the screen and down onto whatever the front has not reached yet. World-anchored, scripted
+    // off a hash, so all three monitors agree about where every one of them went.
+    for(var ej=0;ej<34;ej++){
+      var eh=((ej*2654435761+1811)>>>0); eh=(eh^(eh>>>13))>>>0;
+      var eDir=(eh&1)?1:-1, eRange=WW*(0.10+((eh>>>7)%50)/100*0.42), eT0=((eh>>>13)%40)/400;
+      var eu=(post-eT0)/0.30; if(eu<0) continue;
+      var eLand=Math.min(1,eu);
+      var ewx=wrapW(gz+eDir*eRange*eLand), esx2=disX(ewx);
+      if(esx2<-30||esx2>SW+30) continue;
+      if(eu<1){
+        var eyy=gy-Math.sin(eLand*3.14159)*(HORIZON*(0.35+((eh>>>17)%50)/100*0.6));
+        var esz=Math.max(1,Math.round((2+((eh>>>21)%4))*K));
+        g.fillStyle="rgba(38,30,28,0.95)"; g.fillRect(Math.round(esx2),Math.round(eyy),esz,esz);
+        g.globalCompositeOperation="lighter";                                  // the fire it drags behind it
+        for(var et=1;et<=5;et++){
+          var eb=eLand-et*0.012; if(eb<0) break;
+          var ebx=disX(wrapW(gz+eDir*eRange*eb)), eby=gy-Math.sin(eb*3.14159)*(HORIZON*(0.35+((eh>>>17)%50)/100*0.6));
+          g.fillStyle="rgba(255,"+(170-et*18)+",60,"+(0.6*(1-et/5)).toFixed(2)+")";
+          g.fillRect(Math.round(ebx),Math.round(eby),Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
+        }
+        g.globalCompositeOperation="source-over";
+      } else {
+        var eage=(eu-1)*0.30/Math.max(1e-9,apMs);                              // where it came down, and it is still burning
+        g.globalCompositeOperation="lighter";
+        var efd=Math.max(0,1-(eu-1)/2.2);
+        g.fillStyle="rgba(255,140,44,"+(0.55*efd).toFixed(2)+")";
+        g.fillRect(Math.round(esx2-3*K),Math.round(gy-Math.round((7+((eh>>>9)%10))*K*efd)),Math.round(6*K),Math.round((7+((eh>>>9)%10))*K*efd));
+        g.globalCompositeOperation="source-over";
+      }
+    }
+    // ── 💨 AND THE FRONT ITSELF, leaving ground zero and crossing the world. 🔑 This is the thing he was
+    // missing: something that ARRIVES. It is world-anchored at `gz ± moonBlastR()`, so DP-3 watches it
+    // come, then DP-4, then HDMI-A-3, and everything behind it is already down because `moonCrushed`
+    // reads the same radius.
+    var bR=moonBlastR();
+    if(bR>0&&bR<WW*0.62){
+      for(var side=-1;side<=1;side+=2){
+        var bwx=wrapW(gz+side*bR), bsx=disX(bwx);
+        if(bsx<-SW*0.6||bsx>SW*1.6) continue;
+        // ⚠ IT TRAILS BEHIND THE FRONT, IT DOES NOT STRADDLE IT. The first cut ran `bo` from -30 to +30
+        // around the front position, so half the wall stood AHEAD of its own leading edge — over city
+        // that `moonCrushed` still says is intact — and it read as a symmetrical mound parked on the
+        // screen rather than as something sweeping through. The face is at the front; the mass is behind.
+        for(var bo=0;bo<=58;bo++){
+          var bxp=Math.round(bsx-side*bo*Math.round(5*K)); if(bxp<-30||bxp>SW+30) continue;
+          var bh3=((bo*2654435761+911)>>>0); bh3=(bh3^(bh3>>>13))>>>0;
+          var bfall=Math.max(0,1-bo/59), lead=(bo<=1)?1:0;
+          var bhgt=Math.round(HORIZON*(0.30+0.62*bfall)+((bh3>>>7)%17)*K*bfall);
+          g.fillStyle="rgba(46,34,30,"+(0.55+0.40*bfall).toFixed(2)+")";
+          g.fillRect(bxp,gy-bhgt,Math.round(6*K),bhgt+GROUND);
+          if(bfall>0.35){ g.globalCompositeOperation="lighter";                // the fire in its face
+            g.fillStyle="rgba(255,"+Math.round(96+90*bfall)+",40,"+(0.50*bfall*(0.6+0.4*Math.sin(now*0.006+bo*0.30))).toFixed(2)+")";   // ⚠ bo*0.30, not bo: at a radian per column the fire alternated column to column and the wall read as a picket fence
+            g.fillRect(bxp,gy-Math.round(bhgt*0.55),Math.round(6*K),Math.round(bhgt*0.55));
+            g.globalCompositeOperation="source-over"; }
+          // the leading edge, white-hot. ⚠ 3·K wide on a 5·K step left GAPS, so the rim came out as three
+          // separate light beams standing in front of the wall. One contiguous run, or it is not an edge.
+          if(lead){ g.globalCompositeOperation="lighter";
+            g.fillStyle="rgba(255,238,190,0.7)"; g.fillRect(bxp,gy-bhgt,Math.round(5*K)+1,bhgt+GROUND);
+            g.globalCompositeOperation="source-over"; }
+        }
+      }
+    }
     // ── 🪨 THE MOONROCK IS STILL THERE, buried in what it hit: a horizon of broken rock where the city
     // was, cooling from split-open orange to dead grey over the rest of the arc. The cause survives its
     // own ending, which is the thing this set almost never does.
