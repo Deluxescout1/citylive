@@ -345,7 +345,14 @@ var VERSION = "2.0.2";  // the build the user is running — surfaced in the Alm
 var FORCELAYOUT = null;   // test hook: pin every building's window layout (grid/ribbon/band/punch/corp) — verify per-layout render
 var FORCECROWN = null;    // test hook: pin every building's crown/roof (gable/hip/saltbox/mansard/deco/…) — verify per-roof render
 var FORCEUSE = null;      // test hook: pin every building's functional type (hospital/theater/hotel/bank/cafe/pharmacy) — verify drawUse
-function nowDate(){ return CLOCK ? new Date(CLOCK) : new Date(); }
+// 🚨 IT TOOK NO ARGUMENT AND FIVE CALLERS WERE PASSING ONE. `notifySnapshot`, `chronicleSnapshot`'s
+// bills and event keys, and `dayPhase` all call `nowDate(now)`; every one of them was silently handed
+// the WALL CLOCK instead. Harmless on most days and not on this one: with a real partial solar eclipse
+// in the sky today, `notifySnapshot` pinned to 22 July returned `sky:solar:2026-8-12` and the release
+// gate went red on a test that has nothing to do with the release. It fails identically at the shipped
+// v4.0.0 tag, so it is a latent date-dependency that would block EVERY release on an eclipse day.
+// ⚠ The no-argument call is unchanged in behaviour — 29 of the 34 callers use it that way.
+function nowDate(t){ return new Date(t!=null?t:(CLOCK||Date.now())); }
 
 function rng(seed){ var a=seed>>>0; return function(){ a|=0; a=a+0x6D2B79F5|0; var t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
 function lerp(a,b,t){ return a+(b-a)*t; }
