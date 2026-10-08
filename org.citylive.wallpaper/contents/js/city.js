@@ -4685,7 +4685,6 @@ function cwInst(cw){ return cityG >= 0.38+((cw.seed%997)/997)*0.2; }      // cro
 // places would work exactly until somebody edited one of them.
 // ⚠ `hour` is passed in because `rhythm` is a LOCAL of draw(), not a global — and the size has to be
 // derived in ONE place, since both call sites must agree on the group down to the last person.
-function K0_1(){ return Math.max(1,Math.round(Math.max(1,KSP))); }
 function cwGroup(cw,cyc,hour){
   var rr=rng((cw.seed+cyc*7919)>>>0);
   // 1–3 per cycle was the original, and it is what a crossing looks like at 3 a.m., not at 1 p.m.:
@@ -27998,6 +27997,19 @@ var plateauCache=null;
 // of it means one screen carrying the whole world. So the layout is chosen from that, per screen,
 // with no cross-screen communication and nothing screen-ANCHORED — the regions keep their world
 // positions either way, and only which ones are BUILT changes.
+// 🚨🔴 UNBUILT, NOT DEAD — DO NOT DELETE AS DEAD CODE. Audit 2026-08-13: neither of these two functions
+// has a single caller anywhere in the repo, and the concept was grepped rather than the name — no other
+// identifier implements per-life secondary-region rotation either. So the answer Nick asked for above is
+// WRITTEN DOWN AND NOT WIRED: on a one-monitor machine `hyruleSolo()` would be true and nothing consults
+// it, so a solo screen still builds the full geography and gets exactly the "ten regions in 776 px,
+// 70 px each, unreadable" mush this note says it must not. His three-head desktop is `SW/WW ≈ 0.28` and
+// never takes the branch, which is why it has never once been visible to the person reviewing it — but
+// the whole Windows build is the case it was written for.
+// ⚠ Six genuinely dead functions were deleted in that same audit and these two were deliberately kept:
+// deleting them would erase the only record of a decision he made, and leave the gap indistinguishable
+// from "nobody ever thought about single monitors" — absence is not a decision. Wiring it is a FEATURE
+// build, not a bug fix: it needs the region list split into "core" and "secondary" and his call on which
+// ones share the rotating slot, so it is his to schedule, not mine to guess.
 function hyruleSolo(){ return (SW/Math.max(1,WW))>0.55; }
 // On a single screen the whole geography would be ten regions in 776 px — 70 px each, unreadable. So
 // a solo screen builds the castle core always, and rotates ONE secondary region through the same
@@ -28108,10 +28120,6 @@ function ganonRise(now){
 function hyDread(now){
   var u=(typeof deathUnrest==="function")?deathUnrest(now):0;
   return Math.max(u,ganonRise(now));
-}
-function ganonStage(now){
-  var r=ganonRise(now);
-  return r<=0.02?0:(r<0.42?1:(r<0.76?2:3));   // 1 the light goes wrong · 2 a rider on the field · 3 over the castle
 }
 function deathUnrest(now){
   if(FORCEDIS) return (FORCEDIS.type==="volcano")?Math.max(0,Math.min(1,(FORCEDIS.f||0)/0.45)):0;
@@ -36094,14 +36102,6 @@ function drawUndercityGlow(g,L,now,nd){
 //   · SCALE REFERENCES BUILT IN. Lamp posts on the crest and the town at the foot tell the eye how
 //     big it is — the thing whose absence made the terraces unreadable.
 var damCache=null;
-function damBayAt(wx,W){
-  // spillway bays, world-anchored so all three monitors agree on where they are
-  var pitch=Math.max(40,Math.round(84*Math.max(1,KSP)));
-  var half=Math.max(9,Math.round(16*Math.max(1,KSP)));
-  var c=Math.round((Math.floor(wx/pitch)+0.5)*pitch);
-  var d=Math.abs(wx-c);
-  return { inb:d<half, u:(wx-c)/half, idx:Math.floor(wx/pitch), c:c, half:half };
-}
 // ⚠⚠ ONE SOURCE FOR THE WATERLINE. The reservoir is painted in the BACKDROP pass (drawGreatDam, via
 // drawMountains) but everything on it that MOVES has to be painted in the live pass — main.qml's bg
 // timer is 1000/2000/4000 ms against the live canvas's 83/125/500 ms, so a ferry drawn in the backdrop
@@ -51571,6 +51571,27 @@ function apocSpanMs(){
     // eight endings and this is a ninth that needed it; a fix applied only where the bug was REPORTED
     // is half a fix, and the class is "every ending whose constants are authored in real seconds".
     case "flood":    return FLOOD_ONSET_MS+FLOOD_RISE_MS+5000;
+    // 🚨🚨 AND IT WAS STILL A HALF-FIX — SIX MORE, AUDITED 2026-08-13. The note three lines up says the
+    // class is "every ending whose constants are authored in real seconds", and then six endings that
+    // are authored in exactly that way were left out of the table it was written above. They were missed
+    // because they are not part of "the twelve": five are the OSRS land-triggered pool (`RS_DEATHS`) and
+    // the sixth is the fox, and both of those were deliberately kept OUT of `DEATHS` — so every audit
+    // that walked `DEATHS` to find real-second endings walked straight past all six. Derived instead of
+    // hand-listed: an ending belongs here if its renderer reads `apocMs` against its own `_MS` constants.
+    //   ninetails  14.2 s → done at cityApoc 0.0012 — EIGHT AND A HALF SECONDS, then 3 h 21 m frozen
+    //   banwave    34 s   → 0.0028      logout      100 s → 0.0083
+    //   godwars    76 s   → 0.0063      wilderness  109 s → 0.0090
+    //   massacre  122 s   → 0.0101 — the longest of them is over inside the first 1% of the arc
+    // ⚠ Checked before remapping, because this is the one thing that would make it wrong: every `apocMs`
+    // read in all six is a progress FRACTION normalised against the ending's own constants
+    // (`apocFrontR(wait,wipe)`, `apocMs/FOX_ARRIVE_MS`, `(apocMs-GW_WAIT_MS)/GW_CLOSE_MS`), never an
+    // animation RATE. A rate would have been slowed 100× by the stretch; a fraction just spreads out.
+    case "ninetails":  return FOX_ARRIVE_MS+FOX_WIPE_MS+5000;
+    case "massacre":   return MASS_PARTY_MS+MASS_WIPE_MS+5000;
+    case "logout":     return LOGOUT_WAIT_MS+LOGOUT_WIPE_MS+5000;
+    case "wilderness": return WILD_WAIT_MS+WILD_WIPE_MS+5000;
+    case "godwars":    return GW_WAIT_MS+GW_CLOSE_MS+5000;
+    case "banwave":    return BAN_WAIT_MS+BAN_WIPE_MS+5000;
   }
   return 0;
 }
@@ -51880,7 +51901,6 @@ function floodWaveDir(){ return 1; }                                  // from th
 // how far wave k has travelled from the seam, in world px (<0 = it has not broken yet)
 function floodWavePos(k){ var t=(cityApoc-floodWaveAt(k))/FL_WCROSS; return t<0?-1:t*(WW*1.12); }
 // the leading edge in world x, or -1 once it has left the far side
-function floodWaveEdge(k){ var P=floodWavePos(k); return (P<0||P>WW*1.10)?-1:wrapW(P); }
 // its height in world px — the first is the killer, the ones after are big but never that big again
 function floodWaveH(k){ return HORIZON*(k===0?1.18:0.74-k*0.06); }
 // 🔑 THE STILL LEVEL, ON THE ARC. The first wave puts a third of it in at once as it passes, and the
@@ -56178,13 +56198,6 @@ APOC_X.plague=function(g,ap,L,now){
 // ⚠ SMOOTH EDGES ONLY. The density varies with distance from the front and the underside is a summed
 // sine — never a per-column random height with a drift, which is the hatching fault I hit three times
 // in one session on smoke, static and the plague miasma.
-function swarmDensityAt(wx){
-  var d=nukeDist(wx, apocEpiX(NOWOVR!=null?NOWOVR:Date.now())), r=apocSweepR();
-  if(r<=0) return 0;
-  var past=r-d;                                   // >0 once the front has gone by here
-  if(past<0) return Math.max(0,1+past/(WW*0.05)); // just ahead of it: thickening
-  return Math.max(0.18,1-past/(WW*0.40));         // behind: thinning, never quite clear
-}
 function swarmVictim(i){
   var h=((i*2654435761+55501)>>>0); h=(h^(h>>>13))>>>0;
   var h2=((h*40503+1013904223)>>>0);
@@ -58681,7 +58694,6 @@ var RS_MASS_SAY=["RUN","HE'S KILLING EVERYONE","LOG OUT!","NOT IN FALLY?","MY PH
 // instant blackout reads as a power cut, and a wave reads as something walking through and closing up.
 var LOGOUT_WAIT_MS=5000, LOGOUT_WIPE_MS=95000;
 function logoutFrontR(){ return apocFrontR(LOGOUT_WAIT_MS,LOGOUT_WIPE_MS); }
-function logoutGone(x){ return frontCollapse(x,logoutFrontR())>=0; }
 function drawApocLogout(g,ap,L,now){
   var day=L>0.5, K=Math.max(1,KSP), night=(L<=0.5), seedW=(WORLD_SEED*2654435761)>>>0;
   var r=logoutFrontR();
@@ -58845,10 +58857,40 @@ var APOC_APPROACH_MS={meteors:9000,nuke:11000,sunburst:10000,ai:9000,bh:10000,al
   glassrain:8000,thescream:6000,crimsontide:11000,warmachine:10000,thefamine:14000,thehollow:11000,
   // the OSRS five, which had no row at all and silently took the ||9000 default
   massacre:7000,logout:6000,wilderness:9000,godwars:11000,banwave:5000};
+// ⏱️🚨 THE OMEN SNAPPED ON IN NINE SECONDS AND THEN HELD FOR TWENTY MINUTES. Same class as the
+// `apocSpanMs()` re-timing, one level down, found by the same audit (2026-08-13). `apocMs/t` is only a
+// fraction if `apocMs` has been remapped onto the arc — and for the 26 arc-native endings it has NOT
+// (their `apocSpanMs()` is 0, so `apocMs` runs raw to 12,096,000). `gammaray` strikes at `cityApoc`
+// 0.10, i.e. twenty minutes in, and `apocMs/8000` reaches 1 after eight REAL SECONDS: the approach
+// signature — the thing you are supposed to see coming — was at full intensity for the entire wait.
+// An omen that does not build is not an omen, it is a state.
+// 🔑 DERIVED, NOT HAND-LISTED: an arc-native ending already declares where it strikes (`APOC_STRIKE_AP`,
+// and `bh` keeps its own `BH_FORM_AP` because it was rebuilt onto the arc directly). The approach is
+// expressed against THAT, so it cannot drift from the moment it hands over to.
+// ⚠ AND THE TABLE STAYS LIVE FOR ALL 43. Simply running the omen 0→1 across the whole pre-strike window
+// would have made `APOC_APPROACH_MS` dead for 26 of them — "absence is not a decision" in a new place —
+// and would have thrown away what it encodes: *"the close-range ends get SHORT approaches on purpose: a
+// swarm on the horizon is a warning, a swarm in the street is not."* So the window is that ending's own
+// approach constant as a FRACTION OF THE TABLE'S OWN MAXIMUM, which keeps the authored contrast between
+// a long cosmic dread and a short close-range one without inventing a number.
+var _apMaxMs=0;
+function apocApproachMaxMs(){
+  if(_apMaxMs>0) return _apMaxMs;
+  for(var ak in APOC_APPROACH_MS) if(APOC_APPROACH_MS[ak]>_apMaxMs) _apMaxMs=APOC_APPROACH_MS[ak];
+  return _apMaxMs||9000;
+}
 function apocApproachF(){
   if(cityPhase!=="apoc") return -1;
   if(typeof apocStruck==="function" && apocStruck()) return -1;      // it has landed: the strike owns the frame
   var t=APOC_APPROACH_MS[curDeath]||9000;
+  if(apocSpanMs()===0){                                              // arc-native: `apocMs` is raw ms, not a fraction
+    var sAp=(APOC_STRIKE_AP[curDeath]!=null)?APOC_STRIKE_AP[curDeath]
+           :((curDeath==="bh"&&typeof BH_FORM_AP!=="undefined")?BH_FORM_AP:null);
+    if(sAp!=null){
+      var win=Math.max(0.002,sAp*(t/apocApproachMaxMs()));
+      return Math.max(0,Math.min(1,cityApoc/win));
+    }
+  }
   return Math.max(0,Math.min(1,apocMs/t));
 }
 // small shared marks, so twenty-five signatures are twenty-five IDEAS rather than twenty-five loops

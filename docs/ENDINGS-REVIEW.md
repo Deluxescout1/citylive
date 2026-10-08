@@ -20,6 +20,27 @@ then pin the next. Order below is his own `_order` string.
 > marked ⬜ while carrying locked calls, and are corrected. `thechange` is ticked 🔧 but has NO locked
 > call and only 67 lines — it got a colour fix, not a judged pass, and belongs with the 26.
 
+> ⏱️🚨 **AUDIT 2026-08-13 — THE RE-TIMING WAS A HALF-FIX FOR A THIRD TIME.** The `flood` row below
+> records this class: an ending whose constants are authored in real seconds and which is not in
+> `apocSpanMs()` is over in its first seconds, because `draw()` only remaps when the span is non-zero.
+> **Six more were in exactly that state and are now fixed** — `massacre` · `logout` · `wilderness` ·
+> `godwars` · `banwave` · `ninetails`. Their whole arcs completed inside the first **1%** of the
+> 201-minute apocalypse (the fox's in 14.2 seconds), leaving 3 h 20 m of frozen frame.
+>
+> 🔑 **WHY THREE AUDITS MISSED THEM: they are not in `DEATHS`.** Five are the OSRS land-triggered pool
+> and the sixth is the fox, both deliberately kept out of that array so appending cannot re-map past
+> lives' fates — so every sweep that walked `DEATHS` looking for real-second endings walked straight
+> past all six. **Rendered A/B on `falador` at ap 0.05 / 0.45 / 0.85: before the fix the ground is
+> covered in blood and corpses and THE ARMIES CAUSING IT ARE NOT IN THE FRAME** — the deaths are
+> driven by `cityApoc` and kept going, while the fight that explains them had ended in the first 76
+> seconds. That is the house failure mode exactly: *no source, no direction ⇒ it decorates the frame
+> instead of happening to it.* Gated now by `desktop/test/apoc-span-retime.test.js`, which derives the
+> offenders from the pools rather than naming them, and which was verified to fail on all six when the
+> fix is removed. Full method in [`docs/AUDIT-2026-08-13.md`](AUDIT-2026-08-13.md).
+>
+> ⚠ **These six still have no MIDDLE** — the remap gives them the arc, not new phases. They now belong
+> with the tier his standing call covers: re-time first, then give each one a middle.
+
 ## THE BLOOD TWELVE (v4.0.0 — newest, least reviewed)
 
 | # | key | name | destroys? | egg needed | status | notes |
