@@ -14,9 +14,18 @@ scar.
 | Running `./install.sh` locally | only the machine you ran it on |
 | A **tag** `vX.Y.Z` pushed to the remote | ✅ this is the release — CI builds installers and publishes |
 
-Feature commits **never** carry a version. A release is a separate one-line commit that bumps
-`desktop/package.json`, then an annotated tag whose message summarises what shipped. `git tag` reads
-as the changelog.
+Feature commits **never** carry a version. A release is a separate commit that bumps **BOTH**
+`desktop/package.json` **and** `org.citylive.wallpaper/metadata.json`, then an annotated tag whose
+message summarises what shipped. `git tag` reads as the changelog.
+
+> 🚨 **TWO VERSIONS, ONE RELEASE — AND LEAVING THE SECOND OUT BROKE EVERY UPDATE FOR THREE MONTHS.**
+> `desktop/package.json` is what the Electron/Windows build reports. `org.citylive.wallpaper/
+> metadata.json` is what the **KDE plugin** reports, and it is the string the `citylive-update`
+> auto-updater compares the downloaded tarball against. From the v2.0.0 "THE PEOPLE" bump onward this
+> file was never touched again, so every 3.x and 4.0.0 tarball self-reported `2.0.2`, the updater
+> rejected it as a mismatch, and **every install for three months was a manual `./install.sh`.** The
+> bump step below used to name only `package.json` — the procedure itself was the bug. It names both
+> now.
 
 > ⚠ **A TAG ON THE REMOTE IS NOT A RELEASE.** `v3.24.0`'s tag reached the remote and no build ever
 > fired — no run, no installer, no release. GitHub's "latest" stayed on the previous version and the
@@ -82,7 +91,8 @@ ssh -i ~/.ssh/vm_key admin@<ip>
 
 ```bash
 # both legs green, on main
-vim desktop/package.json                       # bump "version"
+vim desktop/package.json                       # bump "version"        (Electron / Windows build)
+vim org.citylive.wallpaper/metadata.json       # ⚠ bump "Version" TOO  (KDE plugin — THIS IS WHAT THE UPDATER READS)
 git commit -am "vX.Y.Z"
 git tag -a vX.Y.Z -m "vX.Y.Z — <what shipped, in his voice>"
 git push                                       # the branch/main

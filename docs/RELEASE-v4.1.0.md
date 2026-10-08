@@ -1,9 +1,10 @@
 # v4.1.0 — THE END TIMES GET THEIR MIDDLES
 
-**Status: PREPARED, NOT CUT.** Leg 1 is green. Leg 2 has not run. No version bump, no tag — see
-"What is left" at the bottom. `docs/RELEASING.md` is the procedure; this file is the payload.
+**Status: CUT — v4.1.0.** Both release legs are green (KDE on Nick's desktop; Windows on the CI-built
+installer). Version bumped in `desktop/package.json` **and** `org.citylive.wallpaper/metadata.json`;
+tag `v4.1.0`. `docs/RELEASING.md` is the procedure; this file is the payload.
 
-69 commits since `v4.0.0`. The theme: v4.0.0 shipped 43 endings, and then he watched them.
+75 commits since `v4.0.0`. The theme: v4.0.0 shipped 43 endings, and then he watched them.
 
 ---
 
@@ -43,14 +44,43 @@ same bug, found in four different endings:
   hue. Gold canopy against a blue sky now.
 - **`nowDate`** — took no argument while five callers passed it one. Found by the release gate.
 
-## What is left before this can be cut
+## And the 2026-08-13 audit
 
-1. **Leg 2 (Windows).** `WinTest` is defined but shut off, and the leg needs the **CI-built**
-   installer, not a local build.
-2. **Credentials.** `git push` has no stored credentials and `gh` is not logged in, so nothing can be
-   pushed, no workflow can be triggered or watched, and no release can be confirmed published.
-3. Then, and only then: merge to `main`, bump `desktop/package.json` to 4.1.0, tag `v4.1.0`, push the
-   tag **by name**, and confirm both the run fired and the release published.
+The whole-project sweep that turned this engine's recurring fault classes into predicates. Two of its
+findings are timing faults of the same shape as the flood's, and one is a calendar fault nobody was
+looking for:
+
+- **Six endings finished inside the first 1% of the apocalypse.** `massacre · logout · wilderness ·
+  godwars · banwave · ninetails` are authored in real seconds and were never added to `apocSpanMs()`,
+  so each completed in its opening seconds — the fox's in 14.2 — and left **3 h 20 m of one frozen
+  frame**. They were missed by three audits because they are not in `DEATHS` (five are the OSRS
+  land-triggered pool, the sixth the fox). Re-timed from each ending's own constants, gated by a test
+  that derives the offenders from the pools rather than naming them.
+- **The omen that never built.** `apocApproachF()` reached full intensity in eight *real* seconds and
+  then held for twenty minutes on the 26 arc-native endings — a warning you cannot see coming is a
+  state, not an omen. The window is now each ending's own approach constant expressed against its own
+  strike point, so the authored contrast between a long cosmic dread and a short close-range one
+  survives.
+- **The life boundary drifted when the clocks moved.** The rollover grid was anchored to a fixed
+  absolute epoch, so after the DST fall-back a life chosen to roll at `00:00` rolled at `23:00`. The
+  grid is read in local wall-clock terms now, and only for those who actually chose an hour.
+- Six dead functions deleted, two (`hyruleSolo`/`hyruleRotate`) deliberately kept and marked as an
+  *unbuilt* single-monitor feature rather than mistaken for dead code.
+
+## How it was cut
+
+1. **Leg 1 (KDE)** — `./install.sh` on Nick's desktop: installed `city.js` byte-identical to the
+   canonical engine, personal config baked in, journal clean.
+2. **Leg 2 (Windows)** — the **CI-built** installer (not a local build) on a real Windows machine: the
+   packaged `app.asar` verified byte-identical to the CI artifact, the engine inside it identical to
+   the canonical one, then launched and rendering (processes alive in the console session, live CPU).
+3. **Triggers are real now.** `gh` is authenticated and pushes are wired to a credential helper. CI
+   run `37780461018` built this branch before the merge, and both legs were taken green off it.
+
+⚠ **Both versions were bumped this time** — `package.json` *and* the KDE plugin's `metadata.json`.
+That second file is the one `citylive-update` compares the downloaded tarball against, and its absence
+from the procedure is why **every update since v2.0.0 was rejected and every install was manual**.
+`docs/RELEASING.md` now names both files, with the scar written next to the step.
 
 ## Known-open, deliberately shipped as-is
 
