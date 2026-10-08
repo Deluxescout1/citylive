@@ -41,6 +41,15 @@ const CYCLES = ['1h', '12h', '1d', '3d', '1w', '2w', '3w', '1mo'];
 // Every other cycle can and must land on the chosen hour itself.
 const HOURLY = new Set(['1h']);
 
+// 🔑 THE WALK HAS TO CROSS A DST TRANSITION BY CONSTRUCTION, NOT BY LUCK. The alignment was anchored
+// to a fixed absolute epoch, so after the clocks fall back the boundary instants read one hour early
+// (a 2w @0 life rolled over at 23:00). On 2026-08-13 the suite was green because the `Date.now()` walk
+// from then happened to contain no transition; it went red months later when the same walk started
+// crossing the US fall-back. A harness that only catches this by luck is exactly what this project
+// refuses, so every (hour, cycle) is walked twice: once from the real clock, and once from a FIXED
+// window that contains the 2026-11-01 fall-back whatever today's date is.
+const US_FALL_BACK_2026 = Date.UTC(2026, 10, 1, 6, 0, 0);   // 2026-11-01 02:00 EDT = 06:00Z — the fall-back
+
 // Walk the clock forward and collect the local times at which lifeIndexOf() steps.
 function boundaries(c, from, span, want) {
   const step = 60000;
@@ -58,14 +67,20 @@ test('every cycle rolls the city over at the chosen hour', () => {
     for (const cyc of CYCLES) {
       const c = loadEngine();
       c.applyConfig({ cycle: cyc, apocHour: hour });
-      const hits = boundaries(c, Date.now(), c.GROW_CYCLE * 2 + 60000, 2);
-      assert.ok(hits.length >= 1, `${cyc} @${hour}: no life boundary found in two full cycles`);
-      for (const at of hits) {
-        assert.strictEqual(at.getMinutes(), 0, `${cyc} @${hour}: rolled over at :${at.getMinutes()}, not on the hour`);
-        if (!HOURLY.has(cyc)) {
-          // A 12h life rolls twice a day; the chosen hour and its opposite are both correct.
-          const ok = cyc === '12h' ? (at.getHours() % 12) === (hour % 12) : at.getHours() === hour;
-          assert.ok(ok, `${cyc} @${hour}: rolled over at ${at.getHours()}:00, not ${hour}:00`);
+      // The second start is offset by 30 s so it never lands exactly on a boundary (which would record
+      // the NEXT minute-step). One cycle before the transition, so a two-cycle walk spans it.
+      const froms = [Date.now(), US_FALL_BACK_2026 - c.GROW_CYCLE - 30000];
+      for (const from of froms) {
+        const over = from === froms[1] ? ' across the DST fall-back' : '';
+        const hits = boundaries(c, from, c.GROW_CYCLE * 2 + 86400000, 2);
+        assert.ok(hits.length >= 1, `${cyc} @${hour}${over}: no life boundary found in two full cycles`);
+        for (const at of hits) {
+          assert.strictEqual(at.getMinutes(), 0, `${cyc} @${hour}${over}: rolled over at :${at.getMinutes()}, not on the hour`);
+          if (!HOURLY.has(cyc)) {
+            // A 12h life rolls twice a day; the chosen hour and its opposite are both correct.
+            const ok = cyc === '12h' ? (at.getHours() % 12) === (hour % 12) : at.getHours() === hour;
+            assert.ok(ok, `${cyc} @${hour}${over}: rolled over at ${at.getHours()}:00, not ${hour}:00`);
+          }
         }
       }
     }

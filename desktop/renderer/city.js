@@ -210,6 +210,9 @@ function applyConfig(cfg){ if(!cfg) return;
   // harder about this than I had at 4am, and my first instinct on seeing them fail was that they
   // encoded the old broken behaviour. They did not — they encoded the DEFINITION.
   GROW_ALIGN = APOC_AT_MS>0 ? alignMsForTs(APOC_AT_MS, GROW_CYCLE) : alignMsFor(APOC_HOUR, GROW_CYCLE);
+  // The anchor's UTC offset, cached: the wall-clock grid in lifeIndexOf() is the anchored phase plus
+  // the difference between the offset at `now` and the offset here, and this half of it never moves.
+  GROW_ALIGN_OFF = offMs(GROW_EPOCH+GROW_ALIGN);
   if(cfg.finaleDemo!==undefined) FINALE_DEMO=(+cfg.finaleDemo>0)?+cfg.finaleDemo:null;   // seconds for a full apocalypse loop
   if(cfg.era!==undefined){ FORCEERA=null;
     if(cfg.era && cfg.era!=="auto"){ for(var ei=0;ei<ERAS.length;ei++){ if(ERAS[ei].name===cfg.era){ FORCEERA=ei; break; } } } }
@@ -5082,7 +5085,7 @@ function setup(scene,opts){
 // button could never do. That is why this is an ALIGNMENT and not a trigger.
 // Only meaningful when the cycle divides a day (1h/12h/1d); on a 1-week life the boundary already lands
 // wherever the epoch put it, and `GROW_ALIGN` is simply 0.
-var GROW_ALIGN=0, APOC_HOUR=-1;   // APOC_HOUR is remembered so a later partial applyConfig can re-derive the phase
+var GROW_ALIGN=0, GROW_ALIGN_OFF=0, APOC_HOUR=-1;   // APOC_HOUR is remembered so a later partial applyConfig can re-derive the phase (GROW_ALIGN_OFF caches the anchor's UTC offset — see lifeIndexOf)
 // ⚠⚠ …AND THE EXACT DAY, NOT JUST THE HOUR. Micah: *"Is there a way to put a 'planned date of
 // apocalypse' on there?"* — the settings offered only a clock hour, so on a week-long life you could
 // say 10 AM but not WHICH 10 AM.
@@ -5125,7 +5128,25 @@ function alignMsFor(hour, cyc){
   var probe=new Date(GROW_EPOCH); probe.setHours(hour,0,0,0);
   return ((probe.getTime()-GROW_EPOCH+GROW_OFFSET_DAYS*86400000+WORLD_SHIFT)%cyc+cyc)%cyc;
 }
-function lifeIndexOf(now){ return Math.floor((now-GROW_EPOCH+GROW_OFFSET_DAYS*86400000+WORLD_SHIFT-GROW_ALIGN)/GROW_CYCLE); }
+// ⏱️🚨 THE GRID WAS FIXED IN ABSOLUTE MS, SO THE CLOCKS COULD MOVE OUT FROM UNDER IT. `probe` is one
+// absolute instant, so the boundary at `probe + k*GROW_CYCLE` is pinned in absolute ms — and after a
+// DST fall-back that same instant reads one hour earlier locally: a life the user chose to roll at
+// 00:00 rolled over at 23:00. (First caught 2026-10-08, when the apoc-hour suite's `Date.now()` walk
+// began to cross the 2026-11-01 fall-back; it had been green on Aug 13 only because that walk then
+// contained no transition.) The grid is therefore read in LOCAL WALL-CLOCK terms: the anchored phase
+// plus the difference between the UTC offset at `now` and at the anchor. That difference is ZERO until
+// a transition and is exactly the DST delta after one, so a machine with no DST is untouched.
+// ⚠ GATED to the hour picker. A user who chose neither an hour nor a date keeps the identical absolute
+// grid they always had; a user who picked an exact date keeps it pinned to that exact instant (an
+// instant is unambiguous and needs no wall-clock reading). One bug, one fix — the same rule the
+// `apocHour`/`apocAt` gating above already follows.
+function offMs(t){ return -new Date(t).getTimezoneOffset()*60000; }
+function lifeIndexOf(now){
+  var w=now+GROW_OFFSET_DAYS*86400000+WORLD_SHIFT;          // the world clock
+  var base=w-(GROW_EPOCH+GROW_ALIGN);
+  if(APOC_HOUR>=0&&APOC_AT_MS<=0) base+=offMs(w)-GROW_ALIGN_OFF;
+  return Math.floor(base/GROW_CYCLE);
+}
 var curLife=null;
 function buildWorld(li){
   curLife=li;
