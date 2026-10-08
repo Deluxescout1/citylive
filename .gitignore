@@ -21,6 +21,9 @@ dist/
 desktop/*.png
 desktop/*.ppm
 desktop/ci-win/
+# session scratch: one-off render harnesses and probe scripts that are evidence, not product.
+# They are kept on disk (the audit/release docs cite them) but never shipped or committed.
+.scratch/
 *.AppImage
 *.deb
 *.dmg
