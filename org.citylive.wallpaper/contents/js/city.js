@@ -210,6 +210,9 @@ function applyConfig(cfg){ if(!cfg) return;
   // harder about this than I had at 4am, and my first instinct on seeing them fail was that they
   // encoded the old broken behaviour. They did not — they encoded the DEFINITION.
   GROW_ALIGN = APOC_AT_MS>0 ? alignMsForTs(APOC_AT_MS, GROW_CYCLE) : alignMsFor(APOC_HOUR, GROW_CYCLE);
+  // The anchor's UTC offset, cached: the wall-clock grid in lifeIndexOf() is the anchored phase plus
+  // the difference between the offset at `now` and the offset here, and this half of it never moves.
+  GROW_ALIGN_OFF = offMs(GROW_EPOCH+GROW_ALIGN);
   if(cfg.finaleDemo!==undefined) FINALE_DEMO=(+cfg.finaleDemo>0)?+cfg.finaleDemo:null;   // seconds for a full apocalypse loop
   if(cfg.era!==undefined){ FORCEERA=null;
     if(cfg.era && cfg.era!=="auto"){ for(var ei=0;ei<ERAS.length;ei++){ if(ERAS[ei].name===cfg.era){ FORCEERA=ei; break; } } } }
@@ -345,7 +348,14 @@ var VERSION = "2.0.2";  // the build the user is running — surfaced in the Alm
 var FORCELAYOUT = null;   // test hook: pin every building's window layout (grid/ribbon/band/punch/corp) — verify per-layout render
 var FORCECROWN = null;    // test hook: pin every building's crown/roof (gable/hip/saltbox/mansard/deco/…) — verify per-roof render
 var FORCEUSE = null;      // test hook: pin every building's functional type (hospital/theater/hotel/bank/cafe/pharmacy) — verify drawUse
-function nowDate(){ return CLOCK ? new Date(CLOCK) : new Date(); }
+// 🚨 IT TOOK NO ARGUMENT AND FIVE CALLERS WERE PASSING ONE. `notifySnapshot`, `chronicleSnapshot`'s
+// bills and event keys, and `dayPhase` all call `nowDate(now)`; every one of them was silently handed
+// the WALL CLOCK instead. Harmless on most days and not on this one: with a real partial solar eclipse
+// in the sky today, `notifySnapshot` pinned to 22 July returned `sky:solar:2026-8-12` and the release
+// gate went red on a test that has nothing to do with the release. It fails identically at the shipped
+// v4.0.0 tag, so it is a latent date-dependency that would block EVERY release on an eclipse day.
+// ⚠ The no-argument call is unchanged in behaviour — 29 of the 34 callers use it that way.
+function nowDate(t){ return new Date(t!=null?t:(CLOCK||Date.now())); }
 
 function rng(seed){ var a=seed>>>0; return function(){ a|=0; a=a+0x6D2B79F5|0; var t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
 function lerp(a,b,t){ return a+(b-a)*t; }
@@ -3868,12 +3878,21 @@ var BIOME_VARIANTS={
       flora:{ kinds:["fern","snag","fern","log","snag"], bloom:["#d8e0e8","#b0c0c8","#ffffff"] },
       fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:0}, big:["elk","bear","wolf"], small:["squirrel"], air:["owl","raven"] },
       sky:{ top:[110,134,158], bot:[186,198,206], k:0.26, haze:[196,206,210] } },
+    // 🎨🚨 EVERY COLOUR IN THIS VARIANT WAS THE SAME HUE. Measured across six forest lives, the two that
+    // rolled THE GOLDEN WOOD sat at a top-strip hue of 89-93 degrees while every other variant sat at
+    // 132-142 — canopy, trunks, ground, haze AND THE SKY'S LOWER BAND were all yellow-olive, so nothing
+    // in the frame could separate from anything else and it read as camouflage fabric. It is the only
+    // metric that split the good lives from the bad: saturation and shadow AREA were the same in both
+    // (this land has MORE shadow than the mesa), so the fault was never value or density. It was hue.
+    // 🔑 What makes an autumn wood beautiful is a GOLD canopy against a BLUE sky. Keep the gold — that
+    // is the variant's whole identity — and take the yellow out of the sky, the haze and the shadows,
+    // which is where it was doing damage rather than work.
     { name:"THE GOLDEN WOOD", // autumn birch and aspen: white boles, gold crowns, warm low light
-      far:[186,158,86],  near:[152,120,58],  cap:[228,204,132], ground:[152,126,72],
+      far:[186,158,86],  near:[78,58,30],  cap:[228,204,132], ground:[104,84,48],
       walls:[[226,220,206],[198,190,174],[240,236,224],[178,166,146],[212,204,188],[190,182,166],[234,228,212],[166,156,138]],
       flora:{ kinds:["generic","fern","log","generic","fern"], bloom:["#e8b44a","#d88a3a","#ffe0a0"] },
       fauna:{ keep:{deer:1,rabbit:1,fox:1,goat:0}, big:["elk","bear","boar"], small:["squirrel"], air:["owl","raven"] },
-      sky:{ top:[132,168,208], bot:[236,214,168], k:0.24, haze:[238,220,176] } } ],
+      sky:{ top:[132,168,208], bot:[178,198,222], k:0.24, haze:[206,214,224] } } ],   // ⚠ a WARM haze is what merged the whole frame — the sky behind an autumn canopy is still blue
 
   mesa:[ {},
     { name:"THE WHITE BADLANDS", // pale clay, finely banded, almost nothing growing on it
@@ -4446,9 +4465,22 @@ function landOf(li){
   // ⚠ AND THE PIN OUTRANKS THE EGG ROLL. Guarding this with `&& !eg` let the rare worlds break
   // through — a 40-life pinned run still produced the Core World, the Hidden Village, Space City and
   // the Great Plateau. For a REVIEW pin that is useless: the whole point is that every life is the
-  // same map, so `land` suppresses the egg entirely. (An egg can still be pinned deliberately with
-  // `"egg":"leaf"`, which is a separate switch.)
-  if(CFG_LAND!=null){
+  // same map, so `land` suppresses the egg ROLL entirely.
+  // 🚨🚨🔑🔑 AND THE PARENTHETICAL THAT USED TO END THAT SENTENCE WAS A LIE THE CODE TOLD FOR A DAY.
+  // It read "(An egg can still be pinned deliberately with `"egg":"leaf"`, which is a separate
+  // switch.)" — it could not. `eggOf` honours FORCEEGG and hands the egg back, and then this block
+  // threw it away unconditionally, because it could not tell a DELIBERATE egg from a ROLLED one.
+  // THE CORE WORLD was pinned for its map pass on 08-09 with `"egg":"core"` while a stale
+  // `"land":"plains"` sat six lines above it in the same file, and all three monitors showed PLAINS
+  // for every life of the pass. The land under review never once reached the screen it was being
+  // reviewed on. 🔑 THE SAME SHAPE AS `apocAt`: the switch LOOKED wired up, the config LOOKED
+  // obeyed — one key silently outranked the other and nothing said so.
+  // The guard is on FORCEEGG, not on `eg`, because that is the only thing that distinguishes the
+  // two cases: FORCEEGG set means a human named this land, and a named land outranks a named biome.
+  // ⚠ `var FORCEEGG` is hoisted (declared ~130 lines below), so during initial evaluation it reads
+  // `undefined` and this guard falls through to LAND — deliberately the safe side: the failure it
+  // was written to stop was a random egg breaking through a land pin.
+  if(CFG_LAND!=null && FORCEEGG==null){
     eg=null; curEgg=false;
     for(var pl=0;pl<BIOMES.length;pl++) if(BIOMES[pl].k===CFG_LAND){
       b=variantOf(li, BIOMES[pl]);
@@ -4656,7 +4688,6 @@ function cwInst(cw){ return cityG >= 0.38+((cw.seed%997)/997)*0.2; }      // cro
 // places would work exactly until somebody edited one of them.
 // ⚠ `hour` is passed in because `rhythm` is a LOCAL of draw(), not a global — and the size has to be
 // derived in ONE place, since both call sites must agree on the group down to the last person.
-function K0_1(){ return Math.max(1,Math.round(Math.max(1,KSP))); }
 function cwGroup(cw,cyc,hour){
   var rr=rng((cw.seed+cyc*7919)>>>0);
   // 1–3 per cycle was the original, and it is what a crossing looks like at 3 a.m., not at 1 p.m.:
@@ -5054,7 +5085,7 @@ function setup(scene,opts){
 // button could never do. That is why this is an ALIGNMENT and not a trigger.
 // Only meaningful when the cycle divides a day (1h/12h/1d); on a 1-week life the boundary already lands
 // wherever the epoch put it, and `GROW_ALIGN` is simply 0.
-var GROW_ALIGN=0, APOC_HOUR=-1;   // APOC_HOUR is remembered so a later partial applyConfig can re-derive the phase
+var GROW_ALIGN=0, GROW_ALIGN_OFF=0, APOC_HOUR=-1;   // APOC_HOUR is remembered so a later partial applyConfig can re-derive the phase (GROW_ALIGN_OFF caches the anchor's UTC offset — see lifeIndexOf)
 // ⚠⚠ …AND THE EXACT DAY, NOT JUST THE HOUR. Micah: *"Is there a way to put a 'planned date of
 // apocalypse' on there?"* — the settings offered only a clock hour, so on a week-long life you could
 // say 10 AM but not WHICH 10 AM.
@@ -5097,7 +5128,25 @@ function alignMsFor(hour, cyc){
   var probe=new Date(GROW_EPOCH); probe.setHours(hour,0,0,0);
   return ((probe.getTime()-GROW_EPOCH+GROW_OFFSET_DAYS*86400000+WORLD_SHIFT)%cyc+cyc)%cyc;
 }
-function lifeIndexOf(now){ return Math.floor((now-GROW_EPOCH+GROW_OFFSET_DAYS*86400000+WORLD_SHIFT-GROW_ALIGN)/GROW_CYCLE); }
+// ⏱️🚨 THE GRID WAS FIXED IN ABSOLUTE MS, SO THE CLOCKS COULD MOVE OUT FROM UNDER IT. `probe` is one
+// absolute instant, so the boundary at `probe + k*GROW_CYCLE` is pinned in absolute ms — and after a
+// DST fall-back that same instant reads one hour earlier locally: a life the user chose to roll at
+// 00:00 rolled over at 23:00. (First caught 2026-10-08, when the apoc-hour suite's `Date.now()` walk
+// began to cross the 2026-11-01 fall-back; it had been green on Aug 13 only because that walk then
+// contained no transition.) The grid is therefore read in LOCAL WALL-CLOCK terms: the anchored phase
+// plus the difference between the UTC offset at `now` and at the anchor. That difference is ZERO until
+// a transition and is exactly the DST delta after one, so a machine with no DST is untouched.
+// ⚠ GATED to the hour picker. A user who chose neither an hour nor a date keeps the identical absolute
+// grid they always had; a user who picked an exact date keeps it pinned to that exact instant (an
+// instant is unambiguous and needs no wall-clock reading). One bug, one fix — the same rule the
+// `apocHour`/`apocAt` gating above already follows.
+function offMs(t){ return -new Date(t).getTimezoneOffset()*60000; }
+function lifeIndexOf(now){
+  var w=now+GROW_OFFSET_DAYS*86400000+WORLD_SHIFT;          // the world clock
+  var base=w-(GROW_EPOCH+GROW_ALIGN);
+  if(APOC_HOUR>=0&&APOC_AT_MS<=0) base+=offMs(w)-GROW_ALIGN_OFF;
+  return Math.floor(base/GROW_CYCLE);
+}
 var curLife=null;
 function buildWorld(li){
   curLife=li;
@@ -7690,7 +7739,16 @@ function townBarUpdate(now){
     var dt=apocAtOf(now)-now, fate=(DEATH_LABEL[curDeath]||curDeath||"CATACLYSM").toUpperCase();
     return {text:fate+" "+fmtCountdown(dt), urgent:dt<10*60000};
   }
-  if(cg.phase==="apoc") return {text:(DEATH_LABEL[curDeath]||curDeath||"CATACLYSM").toUpperCase()+" NOW",urgent:true};
+  // 🚨🔑🔑 READ THE GLOBAL, NOT A SECOND DERIVATION OF IT. `cityPhase` is assigned from `cg.phase`
+  // once a frame and then OVERRIDDEN by the harness (`FORCEAPOCMS`) and by the demo loop
+  // (`DEMO_APOC_SEC`); re-deriving `cityGrowth(now).phase` here quietly bypassed both. So with the
+  // end-times review loop running — an apocalypse on screen every 90 seconds — this bar asked the
+  // life clock, was told the city was still growing, and never once named the ending. Nick, watching
+  // it: "I am not sure what this endtime is supposed to be." The engine knew. It had `DEATH_LABEL`
+  // and a line to print it, and it was reading a stale answer to the question.
+  // 🔑 THE SAME SPLIT AS `curDis` / `curDisArc`: two globals holding one fact, and a feature taught to
+  // only one of them. When a value has an override path, the OVERRIDDEN one is the only true one.
+  if(cityPhase==="apoc"||cg.phase==="apoc") return {text:(DEATH_LABEL[curDeath]||curDeath||"CATACLYSM").toUpperCase()+" NOW",urgent:true};
   return null;
 }
 // THE DIAGNOSTIC STAMP. `"debugStamp": true` in config.local.json, off by default.
@@ -7725,7 +7783,12 @@ function drawDebugStamp(g,now,nd){
   // overlap them. `sev:-1` keeps it last no matter what else is happening — a diagnostic outranks
   // nothing.
   DEBUGROWS = [
+    // ⚠ THE ENDING IS NAMED HERE TOO. The stamp said "APOC" and stopped, which tells you the phase and
+    // not the event — and during the review loop the phase is a constant. Reviewing 37 endings without
+    // the name on screen means identifying each one by eye from its first seconds, which is precisely
+    // the thing under review.
     "LIFE "+li+"  AGE "+(cityG!=null?cityG.toFixed(3):"?")+"  "+String(cityPhase||"?").toUpperCase()
+      +(cityPhase==="apoc"?" "+String(curDeath||"?").toUpperCase():"")
       +"  -  DIS "+dis.toUpperCase()+(curEgg?"  -  EGG":""),
     "SCR "+SW+"x"+SH+"  WOFF "+WOFF+"  Z"+ZOOM+" K"+KSP+"  -  WORLD "+WW+"  HZ "+HORIZON+"  SF "+SEA_FRONT
       +"  -  NEON "+(curNeon?"ON":"OFF")+"  VLG "+(curVillage?"ON":"OFF")
@@ -8798,13 +8861,17 @@ function drawLayer(g,layer,L,now,fx,hol,haze){
         var frc=frostCl(b.seed!=null?b.seed:bi);
         if(frc>=0){ drawApocBuilding(g,b,bx,frc,L,now); continue; }
         // else: not frozen yet — it still stands as the blizzard closes in
-      } else if(curDeath==="kaiju"){                             // KAIJU: the monster's rampage reaches each building in turn and smashes it flat
-        var kcl=frontCollapse(b.x,kaijuFrontR());
+      } else if(curDeath==="moonfall"){                          // MOONFALL: the fragments take districts one at a time, then the core takes the rest
+        var mcl=moonCrushed(b.x);
+        if(mcl>=0){ drawApocBuilding(g,b,bx,mcl,L,now); continue; }
+        // else: nothing has come down on this block yet — it stands, under a sky it cannot survive
+      } else if(curDeath==="kaiju"){                             // KAIJU: it walks the city and every block it passes over goes down behind it
+        var kcl=kaijuCrushed(b.x);
         if(kcl>=0){ drawApocBuilding(g,b,bx,kcl,L,now); continue; }
         // else: the beast hasn't reached this block — it still stands as the rampage advances
       } else if(curDeath==="flood"){                             // THE FLOOD: the rising sea covers each block; tall towers hold out, then topple & wash away
         if(floodLevel() >= b.h+6) continue;                      // fully drowned — the water covers it (drawn by the flood overlay); skip
-        var flc=floodCl(b.h);
+        var flc=floodCl(b.h,b.x);
         if(flc>=0){ drawApocBuilding(g,b,bx,flc,L,now); continue; }   // undermined → tilting & breaking into the water
         // else: still standing, its base swallowed by the rising water (fall through to normal draw)
       } else if(curDeath==="kaijuwar"){                          // KAIJU WAR: trampled on the approach, wrecked in the melee — collateral of the titans' battle
@@ -16173,7 +16240,8 @@ function apocElevCl(wx,hAbove){
   if(curDeath==="bh")      return frontCollapse(wx,bhFrontR());
   if(curDeath==="alienwar") return alienCl(wx);
   if(curDeath==="frost")   return frostCl(wx);
-  if(curDeath==="kaiju")   return frontCollapse(wx,kaijuFrontR());
+  if(curDeath==="kaiju")   return kaijuCrushed(wx);
+  if(curDeath==="moonfall") return moonCrushed(wx);
   if(curDeath==="ninetails") return frontCollapse(wx,foxFrontR());
   // The five that demolish nothing on purpose — an intact skyline over dead streets is their whole
   // horror, and an intact RAILWAY over them is part of it. They get emptiness instead (ELEV_EMPTY).
@@ -20309,7 +20377,8 @@ function drawLandmarks(g,L,now,night,nd){
     else if(curDeath==="bh"){ var bcL=frontCollapse(cxw,bhFrontR()); cl=(bcL>=0?bcL:0); bd=0; }   // torn from its base & streamed into the hole
     else if(curDeath==="alienwar"){ var wcL=alienCl(cxw); cl=(wcL>=0?wcL:0); bd=0; }   // beam-struck & blasted into wreckage
     else if(curDeath==="frost"){ var frL2=frostCl(cxw); cl=(frL2>=0?frL2:0); bd=0; }   // frozen over & buried
-    else if(curDeath==="kaiju"){ var kcL=frontCollapse(cxw,kaijuFrontR()); cl=(kcL>=0?kcL:0); bd=0; }   // stomped flat
+    else if(curDeath==="kaiju"){ var kcL=kaijuCrushed(cxw); cl=(kcL>=0?kcL:0); bd=0; }   // stomped flat as it walked over
+    else if(curDeath==="moonfall"){ var mcL=moonCrushed(cxw); cl=(mcL>=0?mcL:0); bd=0; }   // taken by a fragment, or by the core
     else if(curDeath==="ninetails"){ var fcL=frontCollapse(cxw,foxFrontR()); cl=(fcL>=0?fcL:0); bd=0; }  // levelled by the shockwave
     else if(curDeath==="kaijuwar"){ var kwL=kwCl(cxw,now); cl=(kwL>=0?kwL:0); bd=0; }   // trampled by a titan or caught in the melee
     else { cl=Math.min(1,(frL-nukeDist(cxw,gzL))/(WW*0.09)); var sd=((cxw-gzL)%WW+WW*1.5)%WW-WW*0.5; bd=(sd>=0)?1:-1; }
@@ -27949,6 +28018,19 @@ var plateauCache=null;
 // of it means one screen carrying the whole world. So the layout is chosen from that, per screen,
 // with no cross-screen communication and nothing screen-ANCHORED — the regions keep their world
 // positions either way, and only which ones are BUILT changes.
+// 🚨🔴 UNBUILT, NOT DEAD — DO NOT DELETE AS DEAD CODE. Audit 2026-08-13: neither of these two functions
+// has a single caller anywhere in the repo, and the concept was grepped rather than the name — no other
+// identifier implements per-life secondary-region rotation either. So the answer Nick asked for above is
+// WRITTEN DOWN AND NOT WIRED: on a one-monitor machine `hyruleSolo()` would be true and nothing consults
+// it, so a solo screen still builds the full geography and gets exactly the "ten regions in 776 px,
+// 70 px each, unreadable" mush this note says it must not. His three-head desktop is `SW/WW ≈ 0.28` and
+// never takes the branch, which is why it has never once been visible to the person reviewing it — but
+// the whole Windows build is the case it was written for.
+// ⚠ Six genuinely dead functions were deleted in that same audit and these two were deliberately kept:
+// deleting them would erase the only record of a decision he made, and leave the gap indistinguishable
+// from "nobody ever thought about single monitors" — absence is not a decision. Wiring it is a FEATURE
+// build, not a bug fix: it needs the region list split into "core" and "secondary" and his call on which
+// ones share the rotating slot, so it is his to schedule, not mine to guess.
 function hyruleSolo(){ return (SW/Math.max(1,WW))>0.55; }
 // On a single screen the whole geography would be ten regions in 776 px — 70 px each, unreadable. So
 // a solo screen builds the castle core always, and rotates ONE secondary region through the same
@@ -28059,10 +28141,6 @@ function ganonRise(now){
 function hyDread(now){
   var u=(typeof deathUnrest==="function")?deathUnrest(now):0;
   return Math.max(u,ganonRise(now));
-}
-function ganonStage(now){
-  var r=ganonRise(now);
-  return r<=0.02?0:(r<0.42?1:(r<0.76?2:3));   // 1 the light goes wrong · 2 a rider on the field · 3 over the castle
 }
 function deathUnrest(now){
   if(FORCEDIS) return (FORCEDIS.type==="volcano")?Math.max(0,Math.min(1,(FORCEDIS.f||0)/0.45)):0;
@@ -36045,14 +36123,6 @@ function drawUndercityGlow(g,L,now,nd){
 //   · SCALE REFERENCES BUILT IN. Lamp posts on the crest and the town at the foot tell the eye how
 //     big it is — the thing whose absence made the terraces unreadable.
 var damCache=null;
-function damBayAt(wx,W){
-  // spillway bays, world-anchored so all three monitors agree on where they are
-  var pitch=Math.max(40,Math.round(84*Math.max(1,KSP)));
-  var half=Math.max(9,Math.round(16*Math.max(1,KSP)));
-  var c=Math.round((Math.floor(wx/pitch)+0.5)*pitch);
-  var d=Math.abs(wx-c);
-  return { inb:d<half, u:(wx-c)/half, idx:Math.floor(wx/pitch), c:c, half:half };
-}
 // ⚠⚠ ONE SOURCE FOR THE WATERLINE. The reservoir is painted in the BACKDROP pass (drawGreatDam, via
 // drawMountains) but everything on it that MOVES has to be painted in the live pass — main.qml's bg
 // timer is 1000/2000/4000 ms against the live canvas's 83/125/500 ms, so a ferry drawn in the backdrop
@@ -43495,6 +43565,24 @@ function drawVolcanoLive(g,L,now,nd){
 // mistake waiting to happen — ONE MONITOR IS ~28% OF THE WORLD, so a local feature is invisible on two
 // screens out of three. A rift that runs the full width is seen from every 776px window; what varies
 // per life is its DEPTH, its WIDTH and how it wanders, not whether you can see it.
+// 🔒🚨🔑🔑 THE ERA AND THE CONDITION — HIS VARIETY ANSWERS, AND THE CONDITION HALF NEVER DREW A PIXEL.
+// Both were rolled inside `drawCoreCanyon`'s cache. `era` tinted exactly one surface, the near-black
+// trench rock: steel rgb(14,15,22) · sodium rgb(20,16,14) · green rgb(12,20,16) — a ~6/255 difference
+// on the DARKEST mass in the frame, i.e. a palette answer you cannot see. And `cond` was rolled,
+// stored, and read by NOTHING: `grep "C\.cond"` returned one hit and it was the write. The comment
+// beside it argued at length that two independent hashes were needed "or there would be three lives,
+// not nine". There were three. 🔑 A HASH WITH THREE OUTCOMES IS NOT VARIETY UNTIL SOMETHING LARGE
+// READS IT — and the largest surfaces on this land are the tower faces and the lit windows, not the
+// rock. ⚠ It also could not have worked where it sat: the canyon cache is built at band 2 of 4, so the
+// two FAR bands have already drawn by then. Rolled here instead, once per life, so the trench and the
+// city agree and every band can ask before it paints.
+var coreEraCache=null;
+function coreEraOf(li){
+  if(coreEraCache&&coreEraCache.li===li) return coreEraCache;
+  var eh=((li*2654435761+31337)>>>0); eh=(eh^(eh>>>13))>>>0;   // ⚠ same h0 the canyon uses, so era is unchanged
+  coreEraCache={ li:li, era:(eh>>>19)%3, cond:(eh>>>25)%3 };
+  return coreEraCache;
+}
 var coreCanCache=null;
 function drawCoreCanyon(g,L,now,skc,day){
   var gy=HORIZON, K=Math.max(1,KSP), li=lifeIndexOf(now);
@@ -43512,10 +43600,20 @@ function drawCoreCanyon(g,L,now,skc,day){
     for(var x=0;x<SW;x++){
       var wx=x+WOFF;
       // ⚠ broken THREE ways — a slow meander, a non-harmonic second, and a hashed per-column notch.
+      // 🚨🚨🔑🔑 …AND THE THIRD WAY WAS THE WRONG WAY FOR THIS MATERIAL, WHICH COST THE WHOLE LAND ITS
+      // READ. Nick, on the finished thing on his own monitors: "I am not sure what I am looking at…
+      // like what end time is this." He was seeing the rift as the titans' DUST WALL rolling in. A
+      // per-column hashed notch is a 1px-noisy edge, and a 1px-noisy edge is the signature of dust,
+      // smoke and foliage in every pixel renderer alive — it is not the signature of ROCK. Rock breaks
+      // in slabs, so its edge is smooth at the small scale and wanders at the large one. `m3` is now
+      // a twentieth of what it was: enough that the lip is not a drawn curve, far too little to fizz.
+      // 🔑 "REGULARITY MUST BREAK THREE WAYS" IS A RULE ABOUT QUANTITY THAT SAYS NOTHING ABOUT KIND —
+      // this edge obeyed it and still told the eye the wrong material. Ask what the third way MEANS.
       var m1=Math.sin(wx*0.0016+((h0>>>3)%628)/100)*0.34;
       var m2=Math.sin(wx*0.0071+((h0>>>9)%628)/100)*0.13;
-      var hh=(((wx*2654435761+li*7919)>>>0)); var m3=(((hh>>>13)%100)/100-0.5)*0.06;
-      rim[x]=Math.max(4,Math.round(depth*(0.55+0.45*(m1+m2+m3)+0.30)));
+      var m2b=Math.sin(wx*0.0271+((h0>>>15)%628)/100)*0.035;   // a third WAVE, so the break stays threefold
+      var hh=(((wx*2654435761+li*7919)>>>0)); var m3=(((hh>>>13)%100)/100-0.5)*0.003;
+      rim[x]=Math.max(4,Math.round(depth*(0.55+0.45*(m1+m2+m2b+m3)+0.30)));
     }
     // 🔒 ERAS — "same city, different decades, recognisably one place". His call over "radically
     // different", so this moves the LIGHT and the CONDITION and leaves the bones alone: a life is
@@ -43544,6 +43642,26 @@ function drawCoreCanyon(g,L,now,skc,day){
     g.fillStyle=fwc;
     g.fillRect(x4,(gy-d4)|0,1,wallH);
   }
+  // ── ✨ THE LIP CATCHING THE SKY. One lit line along the very top of the cut, and it is doing more
+  // work than its two lines suggest: a horizontal surface bright enough to separate from what is
+  // behind it is how pixel art says GROUND, and it is the single thing a dust front can never have.
+  // Brighter by day, because daylight is when this land was being misread as weather.
+  g.fillStyle=css(mixc(skc,[255,255,255],day?0.30:0.10));
+  for(var x6=0;x6<SW;x6++) g.fillRect(x6,(gy-C.rim[x6])|0,1,Math.max(1,Math.round(K*0.8)));
+  // ── 🪨 STRATA, and they are the other half of why he read this as weather. A flat unbroken face of
+  // one value has no material: haze is exactly that, and so is a dust front. Sedimentary banding is
+  // the cheapest signal in pixel art for ROCK, and because each band FOLLOWS the rim contour it also
+  // states that the surface recedes — a dust wall's bands would be vertical and drifting, not level.
+  var fwBase=day?[46,48,62]:[18,19,28];
+  for(var sq=0;sq<3;sq++){
+    var sf=0.22+sq*0.26, sv=(sq&1)?0.13:-0.11;
+    g.fillStyle=css(mixc(fwBase,sv>0?[255,255,255]:[0,0,0],Math.abs(sv)));
+    for(var x5=0;x5<SW;x5++){
+      var d5=C.rim[x5], wallH5=Math.max(1,Math.round(d5*C.wide));
+      if(wallH5<6) continue;
+      g.fillRect(x5,((gy-d5)+Math.round(wallH5*sf))|0,1,Math.max(1,Math.round(wallH5*0.10)));
+    }
+  }
   // 🔥🚨 …AND THE LIGHT COMING UP OUT OF IT — ON THE FAR WALL, WHICH IS THE PART YOU CAN SEE.
   // First cut put the glow on the trench FLOOR, which is physically where it belongs and visually
   // useless: the two NEAR tower bands draw after this and cover the floor completely, so the one
@@ -43558,43 +43676,93 @@ function drawCoreCanyon(g,L,now,skc,day){
   // is not a nudge: it is 2.3x the day figure, and the glow reaches UP out of the trench to wash the
   // towers standing on the rim, which is the part that makes a light source own a frame rather than
   // merely appear in it.
-  var gl=day?0.34:1.85;
-  for(var x3=0;x3<SW;x3++){
-    var d3=C.rim[x3], wallH2=Math.max(1,Math.round(d3*C.wide)), base=gy-d3+wallH2;
-    for(var q=0;q<wallH2;q+=Math.max(1,Math.round(1*K))){
-      var t=q/wallH2;                                    // 0 at the wall's foot, 1 at its lip
-      var a=0.62*Math.pow(1-t,1.8)*gl;
-      if(a<0.015) continue;
-      g.fillStyle="rgba(255,"+(112+Math.round(78*t))+","+(34+Math.round(46*t))+","+a.toFixed(3)+")";
-      g.fillRect(x3,(base-1-q)|0,1,Math.max(1,Math.round(1*K)));
+  // ⚡🚨🔑🔑 RUN-BATCHED, AND IT PAID FOR THE WHOLE TOWER REWORK. Measured before touching it: this
+  // function was emitting **45,624 fillRects a frame** (73,294 at night) against 4,217 for the entire
+  // four-band tower field — 56% of everything the land draws, spent on a gradient. The cause was one
+  // 1px-wide rect per column per gradient step, which is the per-column-detail trap this project has
+  // now hit in four different renderers. 🔑 PER-COLUMN DETAIL IS A CHOICE: FLUSH WHEN THE PROFILE
+  // CHANGES, not when the column does. Quantising the gradient (24 steps of hue, 200 of alpha) makes
+  // neighbouring columns share a style, so a run extends until the rim contour actually moves — and
+  // the rim is SMOOTH now that the dust-notch is gone, so the runs are long. Same picture, a fraction
+  // of the calls, and the budget it frees is what buys the modelled towers at no net cost.
+  var gl=day?0.34:1.85, stepQ=Math.max(1,Math.round(1*K)), maxW=0;
+  for(var xm=0;xm<SW;xm++){ var wm=Math.max(1,Math.round(C.rim[xm]*C.wide)); if(wm>maxW) maxW=wm; }
+  for(var q=0;q<maxW;q+=stepQ){
+    var runX=-1, runSty=null, runY=0;
+    for(var x3=0;x3<=SW;x3++){
+      var sty=null, yy=0;
+      if(x3<SW){
+        var d3=C.rim[x3], wallH2=Math.max(1,Math.round(d3*C.wide));
+        if(q<wallH2){
+          var t=q/wallH2;                                // 0 at the wall's foot, 1 at its lip
+          var a=0.62*Math.pow(1-t,1.8)*gl;
+          if(a>=0.015){
+            var tq=Math.round(t*24)/24;
+            sty="rgba(255,"+(112+Math.round(78*tq))+","+(34+Math.round(46*tq))+","+(Math.round(a*200)/200).toFixed(3)+")";
+            yy=(gy-d3+wallH2-1-q)|0;
+          }
+        }
+      }
+      if(sty!==runSty||yy!==runY){
+        if(runSty!==null&&runX>=0&&x3>runX){ g.fillStyle=runSty; g.fillRect(runX,runY,x3-runX,stepQ); }
+        runSty=sty; runX=x3; runY=yy;
+      }
     }
-    // the hot line at the very bottom of what is visible — the brightest thing on the land
-    g.fillStyle="rgba(255,214,150,"+(0.55*gl).toFixed(3)+")";
-    g.fillRect(x3,(base-1)|0,1,Math.max(1,Math.round(1*K)));
+  }
+  // the hot line at the very bottom of what is visible — the brightest thing on the land
+  g.fillStyle="rgba(255,214,150,"+(0.55*gl).toFixed(3)+")";
+  var hrX=-1, hrY=0;
+  for(var x7=0;x7<=SW;x7++){
+    var hy=x7<SW?((gy-C.rim[x7]+Math.max(1,Math.round(C.rim[x7]*C.wide))-1)|0):-99999;
+    if(hy!==hrY){ if(hrX>=0&&x7>hrX) g.fillRect(hrX,hrY,x7-hrX,Math.max(1,Math.round(1*K))); hrX=x7; hrY=hy; }
   }
   // ── 🌌 …AND AT NIGHT IT THROWS LIGHT UP ONTO THE CITY. Without this the rift is a bright BAND with
   // a dark city above it — two separate pictures. Light that spills onto its surroundings is what ties
   // them into one, and it is why a fire at night reads as a fire and not as an orange rectangle.
+  // ⚡ …and the same treatment for the spill, which was the most expensive loop on the land at night.
+  // ⚠ NOTE THE COMPOSITE MODE: it was being set and unset TWICE PER RECT, tens of thousands of times a
+  // frame, to draw a pass that is entirely `lighter` from start to finish. It is now set once around
+  // the whole pass. A state change on this canvas is not cheaper than the fill it wraps.
   if(!day){
-    for(var xu=0;xu<SW;xu++){
-      var dU=C.rim[xu], upH=Math.round(dU*0.9);
-      for(var qu=0;qu<upH;qu+=Math.max(2,Math.round(2*K))){
-        var tu=qu/Math.max(1,upH), au=0.30*Math.pow(1-tu,2.2);
-        if(au<0.012) continue;
-        g.globalCompositeOperation="lighter";
-        g.fillStyle="rgba(255,126,52,"+au.toFixed(3)+")";
-        g.fillRect(xu,(gy-dU-qu)|0,1,Math.max(1,Math.round(2*K)));
-        g.globalCompositeOperation="source-over";
+    var stepU=Math.max(2,Math.round(2*K)), maxU=0;
+    for(var xv=0;xv<SW;xv++){ var uu=Math.round(C.rim[xv]*0.9); if(uu>maxU) maxU=uu; }
+    g.globalCompositeOperation="lighter";
+    for(var qu=0;qu<maxU;qu+=stepU){
+      var uX=-1, uSty=null, uY=0;
+      for(var xu=0;xu<=SW;xu++){
+        var s2=null, y2=0;
+        if(xu<SW){
+          var dU=C.rim[xu], upH=Math.round(dU*0.9);
+          if(qu<upH){
+            var tu=qu/Math.max(1,upH), au=0.30*Math.pow(1-tu,2.2);
+            if(au>=0.012){ s2="rgba(255,126,52,"+(Math.round(au*200)/200).toFixed(3)+")"; y2=(gy-dU-qu)|0; }
+          }
+        }
+        if(s2!==uSty||y2!==uY){
+          if(uSty!==null&&uX>=0&&xu>uX){ g.fillStyle=uSty; g.fillRect(uX,uY,xu-uX,Math.max(1,Math.round(2*K))); }
+          uSty=s2; uX=xu; uY=y2;
+        }
       }
     }
+    g.globalCompositeOperation="source-over";
   }
   // ── 🏭 WHAT IS BURNING DOWN THERE. 🔒 He rejected "the emptiness is the point": the rift is
   // INHABITED. Flare stacks and vents along the foot of the visible wall EXPLAIN the glow instead of
   // leaving it as an effect — light with a cause reads as a place, light without one reads as a filter.
-  var flareN=Math.round(SW/90)+1;
+  // 🚨🚨🔑🔑 PLACED IN WORLD PX, NOT SCREEN PX. Every inhabitant of this rift used to hash off its own
+  // loop index and the life, then take `% SW` — no WOFF term anywhere. The RIM above is world-anchored
+  // (`wx=x+WOFF`), so the trench wandered across the world correctly while the things living in it were
+  // pinned to screen coordinates: MEASURED, flares/wall-towers/bridges came back at byte-identical
+  // screen x for woff 0, 776 AND 1629. All three of his monitors showed one layout repeated, on the
+  // land whose original fault was that every life looked the same. 🔑 THE SAME RULE AS THE PACK ICE:
+  // a feature is world-anchored only if the thing it is measured against is, and `% SW` is a promise
+  // that it is not. Count scales with WW so the per-screen density is unchanged.
+  var flareN=Math.round(WW/90)+1;
   for(var fq=0;fq<flareN;fq++){
     var fh2=((fq*2654435761+((C.li*7919)>>>0))>>>0); fh2=(fh2^(fh2>>>13))>>>0;
-    var fx=((fh2>>>3)%Math.max(1,SW))|0, dF=C.rim[fx];
+    var fwx=((fh2>>>3)%Math.max(1,WW))|0, fx=fwx-WOFF;
+    if(fx<0||fx>=SW) continue;
+    var dF=C.rim[fx];
     if(dF<8) continue;
     var fbase=gy-dF+Math.max(1,Math.round(dF*C.wide));
     var fhh=Math.max(2,Math.round((3+((fh2>>>9)%6))*K));
@@ -43607,10 +43775,12 @@ function drawCoreCanyon(g,L,now,skc,day){
   // ── 🏙️ THE CITY CONTINUES DOWN THE WALLS. Lit windows descending into the dark — the thing that
   // says people live in the cut rather than beside it. ⚠ Drawn on the FAR wall only: the near wall is
   // the underside of the rim and faces away from us, so windows there would be lit through rock.
-  var wtN=Math.round(SW/26)+2;
+  var wtN=Math.round(WW/26)+2;                                  // world count; ~SW/26 of them land here
   for(var wq=0;wq<wtN;wq++){
     var wh2=((wq*2654435761+((C.li*40503)>>>0))>>>0); wh2=(wh2^(wh2>>>13))>>>0;
-    var wx6=((wh2>>>5)%Math.max(1,SW))|0, dW=C.rim[wx6];
+    var wwx=((wh2>>>5)%Math.max(1,WW))|0, wx6=wwx-WOFF;         // WORLD px → this screen
+    if(wx6<0||wx6>=SW) continue;
+    var dW=C.rim[wx6];
     if(dW<10) continue;
     var wallTop=gy-dW, wallBot=wallTop+Math.max(1,Math.round(dW*C.wide));
     var tw=Math.max(1,Math.round((1+((wh2>>>11)%3))*K));
@@ -43626,11 +43796,16 @@ function drawCoreCanyon(g,L,now,skc,day){
   // ── 🌉 AND THE BRIDGES. 🔑 The scale reference this land has never had: a span is a KNOWN size, so
   // everything around it acquires one. They also tie the two sides into ONE city instead of two edges
   // facing each other across a hole.
-  var brN=2+((h0>>>17)%3);
+  // ⚠ COUNT scales to the world, LENGTH does not. A span is a real object of a real size — that is the
+  // entire reason it works as a scale reference — so `bw` stays a fraction of ONE screen. Only how many
+  // exist scales with how wide the world is, which keeps ~2–4 of them on any given monitor while making
+  // them DIFFERENT ones on each. The per-column clip below already handles a bridge crossing a seam.
+  var brN=Math.round((2+((h0>>>17)%3))*Math.max(1,WW/Math.max(1,SW)));
   for(var bq=0;bq<brN;bq++){
     var bh2=((bq*2654435761+((C.li*31337)>>>0))>>>0); bh2=(bh2^(bh2>>>13))>>>0;
-    var bx0=((bh2>>>3)%Math.max(1,SW))|0;
+    var bx0=(((bh2>>>3)%Math.max(1,WW))|0)-WOFF;
     var bw=Math.round(SW*(0.18+((bh2>>>9)%26)/100));
+    if(bx0+bw<0||bx0>=SW) continue;
     var bfrac=0.18+((bh2>>>13)%50)/100;                 // how far down the wall it crosses
     var by=0;
     g.fillStyle=day?"rgba(22,23,30,0.92)":"rgba(10,10,15,0.94)";
@@ -43648,6 +43823,14 @@ function drawCoreCanyon(g,L,now,skc,day){
       }
     }
   }
+  // 🧗❌ A NEAR RIM WAS TRIED HERE AND DELETED — recording it so it is not tried a third time.
+  // The idea was sound (you know a hole is a hole because you can see the lip in front of it) and it
+  // cannot work in this projection: EVERY band in this engine stands on `gy`, so depth is carried by
+  // haze and height alone and there is no vertical room below the horizon for a near edge. Measured:
+  // the rim drew from `gy-nh` to `gy` and the diff showed changes stopping dead at world y 295 while
+  // the rim ran to 359 — bands 2 and 3 repaint that strip immediately after. 🔑 THE SAME OCCLUSION
+  // THAT ATE THE TRENCH-FLOOR GLOW, in the same function, found the same way. What fixed the read
+  // instead was material, not geometry: a SMOOTH rim edge and strata. See the cache block above.
 }
 function drawCoreWorld(g,L,now,nd){
   var gy=HORIZON, day=L>0.5, K=Math.max(1,KSP), skc=biomeSkc(day);
@@ -43660,6 +43843,20 @@ function drawCoreWorld(g,L,now,nd){
   // value range, not a count of layers. The far rank is now almost sky and the near rank is nearly
   // black, which is what makes a city recede for miles instead of standing on one plane.
   var bands=[{d:0.90,h:1.00,step:11},{d:0.66,h:0.82,step:14},{d:0.38,h:0.64,step:18},{d:0.06,h:0.46,step:24}];
+  // 🔒 ERA + CONDITION, now read by the things big enough to carry them. ERA moves the LIGHT — the
+  // tower faces and the window colour — because "cold steel · warm sodium · sickly green" is a claim
+  // about what the city is lit BY, and a city's light is its faces and its windows.
+  var EO=coreEraOf(lifeIndexOf(now));
+  var ERAT=[[122,152,214],[255,178,98],[132,214,150]][EO.era];      // steel · sodium · sick green
+  var ERAB=[0.17,0.21,0.15][EO.era];                                 // how hard it bites the faces
+  var ERAW=[[208,228,255],[255,208,142],[198,246,192]][EO.era];      // …and the windows wear it too
+  // CONDITION is the other axis, deliberately on an independent hash so there are nine lives and not
+  // three: THRIVING (lit up, well kept) · OVERBUILT (packed tighter and reaching higher) · SOOT-STAINED
+  // AND HALF-ABANDONED (dark windows, dead signage, grime over everything).
+  var condLit=[1.20,1.00,0.46][EO.cond];    // how much of the city has its lights on
+  var condDens=[1.00,0.74,1.00][EO.cond];   // overbuilt packs the towers tighter
+  var condHt=[1.00,1.17,0.95][EO.cond];     // …and reaches higher with them
+  var condNeon=[1.18,1.00,0.38][EO.cond];   // signage is the first thing to go unmaintained
   // FULL CYBERPUNK (Nick's call). ⚠ THE SPRAWL IS ALSO CYBERPUNK, so this had to differ by something
   // other than palette or we would ship the same land twice. The distinction is SCALE and FRAMING:
   // the Sprawl is street-level noir you stand in — wet asphalt, steam, holograms over your head —
@@ -43674,22 +43871,93 @@ function drawCoreWorld(g,L,now,nd){
     var bd=bands[bi];
     var base=mixc(day?B.near:[10,12,18], skc, bd.d);
     if(!day) base=mixc(base,[6,8,20],0.35*(1-bd.d));          // near ranks sink toward black at night
-    var faceC=css(base), sideC=css(mixc(base,[0,0,0],0.22)), topC=css(mixc(base,[255,255,255],0.10));
-    var step=Math.max(4,Math.round(bd.step*K));
+    // the era, strongest on the near ranks — the far ones are mostly haze and must stay mostly sky,
+    // or the depth range this land spent a whole commit buying is spent again on a colour cast
+    base=mixc(base,ERAT,ERAB*(1-bd.d*0.72));
+    if(EO.cond===2) base=mixc(base,[94,86,74],0.20*(1-bd.d*0.5));   // soot, over the whole face
+    // 🎨 THE VALUE SPLIT IS THE MODELLING. It was face / face-22%-black / face+10%-white — three values
+    // so close together that a tower read as one flat swatch with a pinstripe. A box becomes a MASS the
+    // moment its planes disagree about how much light they get, and that is free: it is the same three
+    // fills with wider numbers. The near ranks get the widest split; the far ones stay compressed,
+    // because contrast is also distance and blowing it out at the back would flatten the depth range.
+    var vsp=1-bd.d*0.62;
+    var faceC=css(base), sideC=css(mixc(base,[0,0,0],0.22+0.24*vsp)), topC=css(mixc(base,[255,255,255],0.10+0.16*vsp));
+    var step=Math.max(4,Math.round(bd.step*K*condDens));
     for(var x=-step;x<SW+step;x+=step){
       var h=(((x+((WOFF*3)|0))*2654435761+bi*7919)>>>0);
       var tw=Math.round(step*(0.62+((h%100)/100)*0.30));
       // height: the band's reach, this tower's own roll, and the week's vertical build
-      var th=Math.round(gy*bd.h*(0.30+((h>>>7)%100)/100*0.70)*(0.34+0.66*up));
+      var th=Math.round(gy*bd.h*(0.30+((h>>>7)%100)/100*0.70)*(0.34+0.66*up)*condHt);
+      // 🚨🔒🔑🔑 THE BACKDROP CITY TAKES THE APOCALYPSE TOO. Nick, watching an ending play out on the
+      // Core World: "if this is also the cyberpunk world then the buildings in the background also
+      // need to break and collapse." They never did. `drawCoreWorld` contained not one reference to
+      // `cityPhase`, `cityApoc` or `curDeath` — because on this land the four tower bands ARE THE
+      // LAND (dispatched off `drawMountains`), and the apocalypse only ever demolished the CITY layer.
+      // So on the one map where the backdrop IS the city, the world ended and nine tenths of what you
+      // can see stood untouched with its lights on and its sky lanes still running.
+      // 🔑 THE PREDICATE IS DERIVED, NEVER HAND-LISTED. `apocHit(worldX)` is the same function the
+      // real buildings ask, so all 43 endings reach the backdrop the moment they reach the street —
+      // and the ones that deliberately do NOT demolish (the OSRS five, thescream, the plagues) leave
+      // it standing, for free, because that judgement already lives in `apocHit`. Hand-listing the
+      // destroyers here would have been a second table to drift from the first.
+      var wxT=x+WOFF, wrecked=(cityPhase==="apoc")&&apocHit(wxT), wh3=0;
+      if(wrecked){
+        wh3=((wxT*2246822519+bi*668265263)>>>0); wh3=(wh3^(wh3>>>15))>>>0;
+        th=Math.round(th*(0.14+((wh3>>>3)%44)/100));    // snapped off somewhere down its own length
+      }
       if(th<6*K) continue;
       var tx=x+Math.round(((h>>>13)%40)/40*step*0.3), ty=gy-th;
-      g.fillStyle=faceC; g.fillRect(tx,ty,tw,gy-ty+2);
-      g.fillStyle=sideC; g.fillRect(tx+tw-Math.max(1,Math.round(tw*0.22)),ty,Math.max(1,Math.round(tw*0.22)),gy-ty+2);
-      g.fillStyle=topC;  g.fillRect(tx,ty,tw,Math.max(1,Math.round(K)));
+      // 🏗️🔒🚨 A MODELLED MASS, NOT A BOX. Nick: "everything needs to be more realistic and not look so
+      // blocky", and when asked which kind of blocky he picked the SHAPES over the pixel grain — flat
+      // rectangles with one colour and a few window lines. He is right that finer pixels would not have
+      // fixed it: a box at any resolution is still a box.
+      // A tower is now 1–3 STACKED VOLUMES, each one narrower than the one below, each with its own lit
+      // face, shadow flank and lit ledge on top. That single change does most of the work, because a
+      // setback is a horizontal plane catching sky — the same trick as the canyon's lip line, and the
+      // cheapest thing in pixel art that says "this object has a top and a front".
+      // ⚠ 1 IS A VALID SEGMENT COUNT AND IT MATTERS. If every tower stepped, stepping would become the
+      // new flatness; the plain slabs are the rests, exactly as `crown 4 = flat` is for the roofline.
+      // ⚡ COST: 3 fills becomes 3–9, about +3 per tower and ~+450 a frame across the field. That is
+      // spent out of the ~33,000 a frame the canyon's run-batching just gave back, so the land ends up
+      // far cheaper than it started. Detail from smarter drawing, not more of it — his constraint.
+      var segs=1+((h>>>21)%3), yCur=ty, segBot=0;
+      for(var sg=0;sg<segs;sg++){
+        var last=(sg===segs-1);
+        segBot=last?(gy+2):Math.min(gy+2,yCur+Math.max(2,Math.round(th*(0.20+((h>>>(4+sg*5))%28)/100))));
+        var inset=(segs>1)?Math.round(tw*0.17*(segs-1-sg)/(segs-1)):0;
+        var sxL=tx+inset, sW=Math.max(2,tw-inset*2), sH=segBot-yCur;
+        if(sH<1){ yCur=segBot; continue; }
+        g.fillStyle=faceC; g.fillRect(sxL,yCur,sW,sH);
+        g.fillStyle=sideC; g.fillRect(sxL+sW-Math.max(1,Math.round(sW*0.26)),yCur,Math.max(1,Math.round(sW*0.26)),sH);
+        // the ledge: overhangs a touch on both sides, which is what makes it read as a slab resting on
+        // the volume below rather than as a line drawn across a continuous wall
+        g.fillStyle=topC;
+        g.fillRect(sxL-Math.max(1,Math.round(K*0.5)),yCur,sW+Math.max(2,Math.round(K)),Math.max(1,Math.round(K)));
+        yCur=segBot;
+        if(yCur>=gy+2) break;
+      }
       // ---- CROWNS. Every roofline used to be a flat rectangle, so a skyline of hundreds of towers
       // had no rhythm at all — the eye read one serrated bar. Five crown types, chosen off the
       // tower's own hash, cost a few rects each and are most of what makes a skyline legible.
-      var crown=(h>>>25)%5;
+      // 💥 A WRECK HAS NO CROWN — the crown is the part that snapped off. It gets a ragged break
+      // instead: a few uneven bites out of the top course, so the silhouette reads as TORN rather than
+      // as a shorter building. Height alone would just look like a smaller tower standing there fine.
+      var crown=wrecked?-1:(h>>>25)%5;
+      if(wrecked){
+        var bw2=Math.max(1,Math.round(tw/3));
+        for(var bk=0;bk<3;bk++){
+          var bd2=Math.round(((wh3>>>(5+bk*4))%5)*K*0.9);
+          if(bd2<=0) continue;
+          g.fillStyle=css(mixc(skc,base,0.10));                 // bitten back to sky, not to a colour
+          g.fillRect(tx+bk*bw2,ty,bw2,bd2);
+        }
+        // dust still coming off the break — a collapse is a process, and a clean stump reads as a ruin
+        // that has been there for years rather than one that happened ninety seconds ago
+        if(cityApoc<0.92){
+          g.fillStyle="rgba("+(day?"188,180,170":"96,90,86")+",0.30)";
+          g.fillRect(tx-Math.round(K),ty-Math.round(3*K),tw+Math.round(2*K),Math.round(3*K));
+        }
+      }
       if(crown===0){                                            // a mast with a strobe
         g.fillStyle=sideC;
         g.fillRect(tx+(tw>>1),ty-Math.round(7*K),Math.max(1,Math.round(K)),Math.round(7*K));
@@ -43711,30 +43979,47 @@ function drawCoreWorld(g,L,now,nd){
       }                                                         // crown 4 = flat, so the rhythm has rests
       // SETBACKS — a stack of levels rather than one extrusion, which is what says "built on top of
       // itself for millennia" instead of "office block".
-      var lv=2+((h>>>17)%3);
-      for(var s=1;s<lv;s++){
-        var sy=ty+Math.round((th/lv)*s);
-        g.fillStyle=topC; g.fillRect(tx-Math.round(K),sy,tw+Math.round(2*K),Math.max(1,Math.round(K)));
+      // 🏗️ THE OLD FAKE SETBACKS ARE GONE. They were a lit line ruled across an unbroken wall at even
+      // fractions of the height — a drawing OF a setback rather than a setback, and now that the mass
+      // actually steps they fought it. Their budget buys ROOFTOP GEAR instead, on the near ranks only:
+      // a tank, a stair head, a vent stack. 🔑 It is the small stuff on top that tells you how big the
+      // thing under it is — the missing SCALE REFERENCE, at four fills, on the towers close enough to
+      // resolve it. Gated at bd.d<0.45 and one tower in two, or the skyline grows a texture of clutter.
+      if(bd.d<0.45&&!wrecked&&((h>>>11)&1)){
+        var gxo=tx+Math.round(tw*0.16+((h>>>23)%Math.max(1,Math.round(tw*0.4)))), gw=Math.max(1,Math.round(tw*0.22));
+        var gh=Math.max(1,Math.round((1.6+((h>>>27)%3))*K));
+        g.fillStyle=sideC; g.fillRect(gxo,ty-gh,gw,gh);                       // a tank or a stair head
+        g.fillStyle=topC;  g.fillRect(gxo,ty-gh,gw,Math.max(1,Math.round(K*0.6)));
+        if(((h>>>13)%3)===0){                                                  // …and sometimes a vent stack
+          g.fillStyle=sideC;
+          g.fillRect(gxo+gw+Math.max(1,Math.round(K)),ty-Math.round(gh*1.7),Math.max(1,Math.round(K*0.8)),Math.round(gh*1.7));
+        }
       }
       // WINDOWS, in horizontal runs, and more of them lit the further the week has gone.
       var wq=Math.max(3,Math.round(3.4*K));
       for(var wy=ty+wq;wy<gy-wq;wy+=wq){
-        if((((wy*31+x)>>>0)%100) > 24+56*up) continue;
+        // 🔒 THE CONDITION IS MOSTLY THIS LINE. "A million lit windows" is the land's main light source
+        // after dark, so how many of them are ON is what thriving and half-abandoned actually look like.
+        // 🔌 THE POWER GOES WITH THE BUILDING. A wreck keeps a handful of openings and they are not
+        // windows any more — they burn. A stump still lit in neat rows is the tell that the damage is
+        // a costume over an undamaged tower.
+        if((((wy*31+x)>>>0)%100) > Math.min(96,(24+56*up)*condLit*(wrecked?0.16:1))) continue;
         var wlit=day?0:lit;
-        g.fillStyle=day?"rgba(180,196,224,"+(0.30*(1-bd.d)).toFixed(2)+")"
-                       :"rgba(255,214,152,"+(0.16+0.5*wlit*(1-bd.d)).toFixed(2)+")";
+        g.fillStyle=wrecked?("rgba(255,"+(120+((wy*7+x)&31))+",48,"+(day?0.55:0.85)+")")
+                   :day?"rgba("+ERAW[0]+","+ERAW[1]+","+ERAW[2]+","+(0.30*(1-bd.d)).toFixed(2)+")"
+                       :"rgba("+ERAW[0]+","+ERAW[1]+","+ERAW[2]+","+(0.16+0.5*wlit*(1-bd.d)).toFixed(2)+")";
         g.fillRect(tx+Math.round(K),wy,tw-Math.round(2*K),Math.max(1,Math.round(K)));
       }
       // ---- NEON. At this scale the cyberpunk is not readable signage, it is a million lights too far
       // away to resolve: coloured edge-strips up the near towers and a sign band on some faces.
       // Gated to the two nearest bands — colour in the haze would destroy the depth just bought.
-      if(bd.d<0.45){
+      if(bd.d<0.45&&!wrecked){                                   // signage does not outlive the building
         var nc=neon[(h>>>19)%neon.length];
         // ⚠ DAYTIME NEON WAS 0.16 AND INVISIBLE. Nick chose "full cyberpunk" for this land, and a
         // cyberpunk city that only exists after dark is a night skin, not an identity — the same
         // point the Sprawl brief makes ("must read cyberpunk at NOON"). Signage is bright enough to
         // compete with daylight in a real megacity; that is why it is switched on.
-        var na=day?0.34:0.55;
+        var na=(day?0.34:0.55)*condNeon;   // dead signage is what a half-abandoned megacity looks like
         g.globalCompositeOperation="lighter";
         g.fillStyle=nc; g.globalAlpha=na*(1-bd.d);
         g.fillRect(tx,ty,Math.max(1,Math.round(K*0.8)),th);                 // an edge strip up one corner
@@ -43755,7 +44040,7 @@ function drawCoreWorld(g,L,now,nd){
       }
       // ---- SKY-BRIDGES between neighbouring towers. This is what sells the SCALE: it puts something
       // in the gaps, so the towers read as one connected structure rather than as separate objects.
-      if(bd.d<0.62&&((h>>>29)%3)===0){
+      if(bd.d<0.62&&((h>>>29)%3)===0&&!wrecked){                 // and neither do the sky-bridges off it
         var byy=ty+Math.round(th*(0.30+((h>>>5)%50)/100));
         if(byy<gy-Math.round(6*K)){
           g.fillStyle=sideC; g.fillRect(tx+tw,byy,step,Math.max(1,Math.round(1.6*K)));
@@ -43779,24 +44064,52 @@ function drawCoreWorld(g,L,now,nd){
   // SKY LANES. Streams of small lit craft at several heights, each running one way, the nearer lanes
   // faster and brighter. This is the other half of what identifies the place, and it opens more lanes
   // as the week goes on — traffic is part of how the city grows here.
+  // 🚨🔒 "CAN WE FIX THESE FLOATING SQUARES AND MAKE THEM LOOK NICER" — Nick, with a screenshot of his
+  // left monitor. They are these craft, and every complaint in that phrase was earned:
+  //   · SQUARE — the body was `fillRect(px,ly,cw*2,cw)`, a 2:1 block up to 11x6px. Nothing at that
+  //     distance is that thick. A distant aircraft is a SLIVER, and a sliver is what says "far away
+  //     and moving" where a block says "sprite".
+  //   · FLOATING — every craft in a lane sat on exactly the same `ly` and exactly `gapx` apart, so a
+  //     lane was a dotted rule ruled across the sky. 🪵 `(i*K+salt)` IS AN ARITHMETIC PROGRESSION, NOT
+  //     A SCATTER — the savanna's herd-conveyor finding, in the air this time.
+  //   · MUDDY — one grey for every lane, so the far ones did not recede. DISTANCE IS A COLOUR: they
+  //     now mix toward the sky they are seen through, which is the titans' and the beach island's rule.
+  // Also thinned out: `gapx` more than doubles. There were ~75 on screen at once, which is not traffic,
+  // it is wallpaper — and the extra rects per craft are paid for by drawing half as many of them.
   var lanes=2+Math.round(up*3);
   for(var ln=0;ln<lanes;ln++){
     var lf=(ln+1)/(lanes+1);
-    var ly=Math.round(gy*(0.10+lf*0.66));
+    var lyB=Math.round(gy*(0.10+lf*0.66));
     var dir=(ln&1)?1:-1, near=1-lf;
-    var spd=(0.06+near*0.16), gapx=Math.round((26+ln*9)*K);
-    for(var cx=0;cx<SW+gapx;cx+=gapx){
+    var spd=(0.06+near*0.16), gapx=Math.round((58+ln*21)*K);
+    var bodyL=Math.max(2,Math.round((2.4+near*3.6)*K));      // long and thin, not blocky
+    var bodyH=Math.max(1,Math.round((0.45+near*0.75)*K));
+    var craftC=css(mixc(day?[36,42,58]:[13,14,21], skc, 0.60*lf));   // far lanes sink into the sky
+    var finH=Math.max(1,Math.round(bodyH*0.9)), nudge=Math.max(1,Math.round(K*0.5));
+    // 🚨 AND THE SKY LANES RAN IN SCREEN SPACE TOO — the loudest version of the same bug, because this
+    // one MOVES. `px` was `cx+off` with no WOFF, so all three monitors flew identical craft at identical
+    // screen x in perfect formation, and a plane leaving DP-3 never arrived on DP-4. Stepping the lane
+    // across the WORLD and converting to screen makes the three panels one continuous sky, which is the
+    // whole reason this project scripts everything from a hash instead of simulating it.
+    for(var cx=0;cx<WW+gapx;cx+=gapx){
+      // ⚠ HASHED OFF THE SLOT AND THE LANE, in WORLD space — so the scatter is the same scatter on all
+      // three monitors and a craft keeps its own jitter as it crosses a bezel.
+      var ch=(((cx*2654435761)^(ln*40503))>>>0); ch=(ch^(ch>>>13))>>>0;
+      var jit=(((ch%1000)/1000)-0.5)*gapx*0.62;              // break the ruled spacing
       var off=((now*spd+ln*400)%gapx);
-      var px=dir>0?(cx+off):(SW-cx-off);
-      if(px<-4||px>SW+4) continue;
-      var cw=Math.max(1,Math.round((1.2+near*1.6)*K));
-      g.fillStyle=day?"rgba(48,54,72,"+(0.35+0.4*near).toFixed(2)+")":"rgba(20,22,30,0.8)";
-      g.fillRect(px,ly,cw*2,cw);
-      g.globalCompositeOperation="lighter";                  // headlight ahead, tail-light behind
-      g.fillStyle=day?"rgba(255,246,214,"+(0.25*near).toFixed(2)+")":"rgba(255,240,200,"+(0.55+0.35*near).toFixed(2)+")";
-      g.fillRect(px+(dir>0?cw*2:-cw),ly,cw,cw);
-      g.fillStyle="rgba(255,70,60,"+(day?0.16:0.45)+")";
-      g.fillRect(px+(dir>0?-cw:cw*2),ly,cw,cw);
+      var px=Math.round((dir>0?(cx+off+jit):(WW-cx-off+jit)))-WOFF;
+      if(px<-bodyL*2||px>SW+bodyL*2) continue;
+      var ly=lyB+(((ch>>>7)%5)-2);                           // …and the lane is not a wire either
+      var nose=dir>0?(px+bodyL):(px-1);
+      g.fillStyle=craftC;
+      g.fillRect(px,ly,bodyL,bodyH);                          // the fuselage
+      g.fillRect(nose,ly,1,Math.max(1,bodyH-1));              // a nose, so it has a direction
+      g.fillRect(px+(dir>0?0:bodyL-nudge),ly-finH,nudge,finH); // and a tail fin, so it has an attitude
+      g.globalCompositeOperation="lighter";                   // headlight ahead, tail-light behind
+      g.fillStyle=day?"rgba(255,246,214,"+(0.22*near).toFixed(2)+")":"rgba(255,240,200,"+(0.55+0.35*near).toFixed(2)+")";
+      g.fillRect(nose,ly,nudge,Math.max(1,bodyH-1));
+      g.fillStyle="rgba(255,70,60,"+(day?0.14:0.42)+")";
+      g.fillRect(px+(dir>0?-nudge:bodyL),ly,nudge,Math.max(1,bodyH-1));
       g.globalCompositeOperation="source-over";
     }
   }
@@ -49632,7 +49945,20 @@ var DEATH_LABEL={massacre:"The Massacre",logout:"The Server Shutdown",wilderness
   oceansboil:"The Oceans Boil",greygoo:"Grey Goo",lastwinter:"The Last Winter",
   skyfall:"The Sky Falls",timestop:"Everything Stops",
   thecomet:"The Comet",thechange:"The Change",theburst:"The Burst",
-  thetitans:"The Titans",ragnarok:"Ragnarok"};
+  thetitans:"The Titans",ragnarok:"Ragnarok",
+  // 🚨🔑🔑 THE TWELVE OF END TIMES — BLOOD, AND THEY SHIPPED IN v4.0.0 WITH NO LABELS AT ALL. The
+  // warning four lines above this ("a death with no label prints its raw key at the user, which is how
+  // `kaijuwar` nearly shipped") was written, and then twelve endings went out underneath it doing
+  // exactly that. Nick, watching the review loop: "I am not sure what this endtime is supposed to be"
+  // — and when the bar was finally fixed to name it, it named it GLASSRAIN. 12 of the 37 in the cycle
+  // were unlabelled, and they are the newest twelve, i.e. the whole headline feature of the release.
+  // ⚠ These reach the CHRONICLE and the ALMANAC too, so every past life that died one of these deaths
+  // has been recorded under a raw key. 🔑 A WARNING COMMENT IS NOT A TEST — this one named its own
+  // failure mode precisely and still did not prevent the next twelve instances of it.
+  risen:"The Risen",plague:"The Plague",swarm:"The Swarm",bloodmoon:"The Blood Moon",
+  acidrain:"Acid Rain",thepit:"The Pit",glassrain:"Glass Rain",thescream:"The Scream",
+  crimsontide:"The Crimson Tide",warmachine:"The War Machine",thefamine:"The Famine",
+  thehollow:"The Hollow"};
 var LANDMARK_LABEL={monorail:"Monorail",stadium:"Stadium",park:"City Park",casino:"Casino",seawall:"Seawall",
   university:"University",marina:"Marina",zoo:"City Zoo",observatory:"Observatory",grandcentral:"Grand Central"};
 var ERA_LABEL={cyber:"Cyberpunk",ancient:"Ancient",brutal:"Brutalist",solar:"Solarpunk",vaporwave:"Vaporwave",
@@ -51019,8 +51345,15 @@ var SUN_EXPLODE_MS=30000;          // at ~30s the swollen sun DETONATES → blin
 var AI_WAKE_MS=3000;               // the factories power on for ~3s (core lights, drones launch, sky glitches) before the takeover spreads — city still alive
 var AI_WIPE_MS=10000;              // the assimilation front then sweeps the WHOLE city in ~10s, converting every building into a machine-factory & harvesting it
 // ---- BLACK HOLE: a singularity forms in the sky, its pull reaches out and streams the whole city into the void ----
-var BH_FORM_MS=3200;               // the hole forms & the accretion disk spins up for ~3.2s before its tidal pull reaches the ground
-var BH_WIPE_MS=11000;              // the pull-radius then grows to swallow the WHOLE city in ~11s (nearest structures sucked in first)
+// ☄️🚨🚨 IT WAS A FOURTEEN-SECOND ENDING INSIDE A 201-MINUTE ARC. `BH_FORM_MS` 3200 and `BH_WIPE_MS`
+// 11000 are milliseconds on `apocMs`, which runs 0 → APOC_BAND*GROW_CYCLE ≈ 12,096,000 — so the hole
+// formed by ap 0.0003, the city was gone by ap 0.0012, and the remaining 99.9% of the ending was ONE
+// STATIC FRAME. Rendered at 30s, ap 0.20 and ap 0.60 it is pixel-identical: a dark rectangle with a
+// 40px ring in the corner. 🔑 Every ending in the older tier is authored in real seconds like this;
+// this one is now on the ARC, and the two numbers below are the only clock it has.
+var BH_FORM_AP=0.18;               // Gargantua has formed and its tidal reach touches the ground
+var BH_FULL_AP=0.88;               // …and by here it has drawn the whole world in
+var BH_FORM_MS=3200, BH_WIPE_MS=11000;   // ⚠ kept only for the replay/demo path that still speaks ms
 // ---- ALIEN WAR: two alien fleets battle overhead; Earth is caught in the crossfire — stray beam strikes & falling wreckage rake the city apart ----
 var WAR_ONSET_MS=3000;             // the fleets arrive & open fire for ~3s (battle overhead) before the crossfire starts hitting the ground — city still alive
 var WAR_STAGGER_MS=8000;           // the chaotic crossfire then rakes across the WHOLE city over ~8s (scattered strikes, not a clean front)
@@ -51051,6 +51384,20 @@ var KW_SAFE=0.12;                  // fraction of WW around the battleground the
 // timeline (cityApoc 0..1 across ~7.5h in weekly mode): veil settles → district lights die
 // one-by-one → grey corrosion → dead grey. Nothing is ever demolished; the city suffocates.
 var DEMO_APOC_SEC=0;                // ►► TEST HOOK: >0 plays the apocalypse LIVE on a repeating N-second loop (0=off, normal 1-week life)
+// ►► THE DEMO LOOP'S ROSTER — built the same way `verify-endings.js` builds its own, as the UNION of
+// every table that holds an ending, because no single table is the list. Land-locked ends are dropped:
+// they need a specific egg and would otherwise play on a map with no stage for them. Lazy, because
+// `APOC_X` is populated after this line and a roster read at load time would be short.
+var APOC_CYCLE=null;
+function apocCycleList(){
+  if(APOC_CYCLE) return APOC_CYCLE;
+  var out=[], seen={}, srcs=[DEATHS,Object.keys(APOC_STRIKE_AP||{}),Object.keys(APOC_X||{}),Object.keys(APOC_SWEEP||{})];
+  for(var i=0;i<srcs.length;i++) for(var j=0;j<srcs[i].length;j++){
+    var k=srcs[i][j];
+    if(k&&!seen[k]&&DEATHS_SPECIAL.indexOf(k)<0){ seen[k]=1; out.push(k); }
+  }
+  APOC_CYCLE=out; return out;
+}
 function nukeDetId(now){ return DEMO_APOC_SEC>0 ? Math.floor(now/(DEMO_APOC_SEC*1000)) : lifeIndexOf(now); }   // a fresh id per detonation (per life normally; per demo-loop in demo mode)
 // GROUND ZERO — random per drop, anywhere across the whole world; EVERY effect keys off this, which
 // is why pinning it here aims the entire apocalypse (front, victims, surge, walkers, the lot) rather
@@ -51065,9 +51412,43 @@ function apocEpiX(now){ return nukeGZX(now); }
 // a front radius (world px) that starts growing waitMs into the apoc and crosses the city over wipeMs — shared by nuke-style sweeps (AI assimilation, black-hole pull)
 function apocFrontR(waitMs,wipeMs){ return (Math.max(0,apocMs-waitMs)/wipeMs)*(WW*0.62); }
 function aiFrontR(){ return apocFrontR(AI_WAKE_MS,AI_WIPE_MS); }     // the AI assimilation front
-function bhFrontR(){ return apocFrontR(BH_FORM_MS,BH_WIPE_MS); }     // the black-hole pull radius
+// the pull radius, on the arc — ONE expression, read by the renderer AND by `apocHit`, so what looks
+// taken and what IS taken cannot drift apart (the two-laws-for-one-boundary lesson from the grey goo)
+function bhFrontR(){ return Math.max(0,(cityApoc-BH_FORM_AP)/Math.max(0.01,BH_FULL_AP-BH_FORM_AP))*(WW*0.62); }
 // the black hole's on-screen position — a singularity hanging in the sky above the epicentre (everything is sucked UP toward it)
-function bhPos(now){ var sx=apocEpiX(now)-WOFF; if(sx>SW+600&&sx-WW>-600)sx-=WW; if(sx<-600&&sx+WW<SW+600)sx+=WW; return {sx:sx, sy:Math.round(HORIZON*0.24)}; }
+// ── ⚫ GARGANTUA. 🔒 His call: COLOSSAL, the Interstellar shot — it fills the sky, the accretion disk
+// arcs over the top and back under the bottom through its own lens, and the city is a thin strip of
+// detail underneath. The old one was a 40px disk parked in a corner; ONE BIG OBJECT is rule one and a
+// black hole is the easiest subject in the whole set to obey it with.
+// 🌍 It hangs over GROUND ZERO, not at an absolute world fraction — the comet learned that the hard way.
+// 🔑 ONE SOURCE OF TRUTH, read by the renderer AND by the lens, so the warp cannot drift from the object
+// that is supposed to be causing it. Depends on `ap` only, never on `now`: the backdrop canvas repaints
+// every 4s and the live one every frame, and a lens keyed to `now` would tear them apart.
+function bhGeo(ap,now){
+  var grow=Math.min(1,Math.max(0,(ap-0.02)/0.60));
+  var R=Math.round(HORIZON*(0.06+0.44*Math.pow(grow,0.7)));
+  // 🔭🔒 HIS CALL, and his screenshot is the argument: the HUD read `APOC BH · SINGULARITY FORMING`
+  // while his screen showed an ordinary night city, because ground zero was on another monitor and a
+  // sky object anchored to it is simply ABSENT from the other two. One monitor is ~28% of the world, so
+  // that is the normal case, not the edge case.
+  // 🔑 A THING THIS SIZE IS ASTRONOMICAL, AND AN ASTRONOMICAL OBJECT IS VISIBLE FROM EVERYWHERE. It is
+  // the same hole seen from three windows: its apparent position shifts with how far this screen is
+  // from ground zero (so it is still ABOUT the epicentre, and the screen holding it sees it dead centre)
+  // but it never leaves the frame. The moon in this engine has always worked this way.
+  var d=((apocEpiX(now)-WOFF-SW*0.5)%WW+WW*1.5)%WW-WW*0.5;
+  var par=Math.max(-1,Math.min(1,d/(WW*0.42)));
+  var sx=Math.round(SW*0.5+par*SW*0.40);
+  // ☁️🔒 "THIS SHOULD COME FROM THE SKY AND NOT THE MIDDLE OF THE MAP." It sat at `HORIZON*0.42` with a
+  // radius reaching `HORIZON*0.50`, so as it grew it swallowed the middle of the frame and read as a
+  // hole punched in the CITY rather than an object hanging over it.
+  // 🔑 ANCHOR ITS LOWER LIMB, NOT ITS CENTRE. The bottom edge is held high in the sky and the hole grows
+  // UPWARD out of the top of the frame, which is also how a thing that size would actually read — you
+  // never see all of it, and the part you cannot see is what makes it enormous. The city keeps its own
+  // half of the frame, so there is something left to watch being taken.
+  var sy=Math.round(HORIZON*0.58-R*0.72);
+  return {sx:sx, sy:sy, R:Math.max(3,R), grow:grow};
+}
+function bhPos(now){ var G=bhGeo(cityApoc,now); return {sx:G.sx, sy:G.sy}; }
 // collapse progress 0..1 for a world-x under a nuke-style front (how far past the front it is), or -1 if the front hasn't reached it
 // ⏳ THE RAMP IS 0.075 → 0.115 OF THE WORLD. 🔒 Nick: the collapses *"fall too fast"*. At 0.075 a
 // tower went from untouched to finished while the front travelled 170 wp — about a quarter of one of
@@ -51081,24 +51462,44 @@ function frontCollapse(x,frontR){ var d=nukeDist(x,apocEpiX(NOWOVR!=null?NOWOVR:
 function kwWinner(now){ var h=((nukeDetId(now)*40503+9257)>>>0); h=(h^(h>>>13))>>>0; return h%2; }   // 0 = the reptile (beams) · 1 = the ape (fists)
 function kwBX(now){ return apocEpiX(now); }                          // the battleground (per-life epicenter)
 function kwT1(){ return Math.max(0,Math.min(1,(apocMs-KW_ARRIVE_MS)/KW_APPROACH_MS)); }   // approach progress 0..1
-// each titan's world-x: rises at its edge, advances to the battleground, then drifts with the melee beats
+// ── 🦎🦍🔒 THE FIGHT TRAVELS. 🔒 His call, 2026-08-12. Two titans meeting at a fixed battleground is a
+// rumble happening somewhere off to the side on two monitors out of three; a fight that is SHOVED across
+// the world puts itself on all of them, and the flattened strip afterwards is a record of where it went.
+function kwDir(now){ return kwBX(now)<WW*0.5?1:-1; }        // ⚠ derived, so they always brawl INTO the city
+function kwFightX(now){
+  var bx=kwBX(now), tc=apocMs-KW_ARRIVE_MS-KW_APPROACH_MS;
+  if(tc<=0) return bx;
+  var u=Math.min(1,tc/KW_CLASH_MS);
+  var shove=Math.sin(u*10.5)*WW*0.05;                        // driven back, then driving forward again
+  return wrapW(bx+kwDir(now)*u*WW*0.60+shove);
+}
+// each titan's world-x: rises at its own edge of the world, closes on the battleground, then stays
+// locked to the moving brawl a body's width from the other one
 function kwTitanX(now,side){
-  var bx=kwBX(now), t1=kwT1(), gap=WW*0.025*(side?1:-1);
-  var x=bx+(side?1:-1)*WW*0.5*(1-t1)+gap*t1;
-  var tc=apocMs-KW_ARRIVE_MS-KW_APPROACH_MS;
-  if(tc>0){ var cyc=Math.floor(tc/3000), dh=((cyc*2654435761+nukeDetId(now)*7+side)>>>0);
-    x+=(((dh>>>4)%9)-4)*WW*0.008; }
-  return ((x%WW)+WW)%WW;
+  var t1=kwT1(), gap=WW*0.030*(side?1:-1);
+  if(t1<1) return wrapW(kwBX(now)+(side?1:-1)*WW*0.5*(1-t1)+gap*t1);
+  return wrapW(kwFightX(now)+gap);
 }
 function kwClashR(){ var tc=apocMs-KW_ARRIVE_MS-KW_APPROACH_MS;      // melee collateral radius, grows over the clash
   return tc<=0?0:Math.min(WW*KW_SAFE, WW*0.02+(tc/KW_CLASH_MS)*WW*(KW_SAFE-0.02)); }
 // collapse progress 0..1 for world-x under the war (or -1): trampled inward during the approach
 // (outskirts first), wrecked outward by the growing melee radius (downtown last)
+// 🚨 AND THE COLLATERAL WAS INVERTED. `KW_SAFE` SPARED a twelfth of the world around the battleground —
+// so the one place two hundred-metre animals were wrestling each other through was the one place nothing
+// broke, and the frames came back with intact towers and a walking crowd between their feet. What they
+// fight over is destroyed BECAUSE they fought over it.
+// 🪤 …and measured ALONG the drag of the fight, never as a wrap distance from a point, or the far side of
+// the world counts as untouched again once the brawl passes the halfway mark.
+function kwAlong(x,now){ var e=kwBX(now), a=(((x-e)*kwDir(now))%WW+WW)%WW; return a>WW*0.965?a-WW:a; }
 function kwCl(x,now){
-  var d=nukeDist(x,kwBX(now)), t1=kwT1(), cl=-1;
-  var titanD=WW*0.5*(1-t1);
-  if(t1>0 && d>=Math.max(titanD,WW*KW_SAFE)) cl=Math.min(1,(d-Math.max(titanD,WW*KW_SAFE))/(WW*0.075)+0.15);
-  var cr=kwClashR(); if(cr>0 && d<cr) cl=Math.max(cl,Math.min(1,(cr-d)/(WW*0.05)));
+  var t1=kwT1(), cl=-1;
+  var d=nukeDist(x,kwBX(now)), titanD=WW*0.5*(1-t1);                       // the approach: outskirts trampled as they close
+  if(t1>0 && d>=titanD) cl=Math.min(1,(d-titanD)/(WW*0.09)+0.15);
+  var tc=apocMs-KW_ARRIVE_MS-KW_APPROACH_MS;
+  if(tc>0){                                                                // the brawl: everything it has been dragged over
+    var u=Math.min(1,tc/KW_CLASH_MS), reach=u*WW*0.60+WW*0.055, a=kwAlong(x,now);
+    if(a<=reach) cl=Math.max(cl,Math.min(1,(reach-a)/(WW*0.05)));
+  }
   return cl;
 }
 // ---- POLLUTION helpers: per-life hashed district death order; per-building stagger ----
@@ -51144,7 +51545,8 @@ function apocPositional(){ return APOC_SWEEP[curDeath]!=null || curDeath==="mass
 // already records once: `var` hoists the NAME but not the VALUE, so a table defined below its reader
 // is `undefined` to anything that runs at load time — which is exactly how the `CFG_FINALE` validator
 // came to read `undefined.indexOf` and crash only for users who pinned a finale in config.
-var APOC_STRIKE_AP={moonfall:0.86,gammaray:0.10,rogueplanet:0.30,crustcrack:0.20,oceansboil:0.45,
+var APOC_STRIKE_AP={moonfall:0.46,   // ⚠ was 0.86 — "struck" is when the FRAGMENTS start arriving, not when the core lands
+  gammaray:0.10,rogueplanet:0.30,crustcrack:0.20,oceansboil:0.45,
   greygoo:0.25,lastwinter:0.40,skyfall:0.25,timestop:0.18,thecomet:0.55,thechange:0.35,theburst:0.55,
   thetitans:0.40,ragnarok:0.35,
   risen:0.22,plague:0.30,swarm:0.20,bloodmoon:0.40,acidrain:0.24,thepit:0.26,
@@ -51157,12 +51559,69 @@ var APOC_FULL_AP={moonfall:0.97,gammaray:0.62,rogueplanet:0.88,crustcrack:0.80,o
   thetitans:0.90,ragnarok:0.90,
   risen:0.86,plague:0.88,swarm:0.80,bloodmoon:0.90,acidrain:0.84,thepit:0.88,
   glassrain:0.82,thescream:0.76,crimsontide:0.90,warmachine:0.86,thefamine:0.94,thehollow:0.88};
+// ⏱️🚨🚨🚨 NINE OF THE TWELVE ORIGINAL ENDINGS WERE A TEN-TO-THIRTY SECOND EVENT INSIDE A 201-MINUTE ARC.
+// `apocMs` runs 0 → `APOC_BAND*GROW_CYCLE` ≈ 12,096,000, and this tier's constants are authored in real
+// seconds — `NUKE_WIPE_MS` 6000, `KAIJU_WIPE_MS` 11000, `SUN_EXPLODE_MS` 30000. So the nuke is over eight
+// seconds in and the remaining THREE HOURS AND TWENTY MINUTES is one frozen frame. Rendered at 30 s, ap
+// 0.20 and ap 0.60 the black hole came back pixel-identical, and it is the same story for the other
+// eight. These are the classics — the nuke, the meteor storm, the kaiju — and they are the most-watched
+// endings in the set.
+// 🔑🔑 ONE REMAP FIXES ALL OF THEM. Rather than rewriting dozens of constants and every site that reads
+// them, the ending's own authored timeline is STRETCHED ACROSS THE ARC: `apocMs` becomes `cityApoc` times
+// that ending's full authored span, so every phase boundary it already contains still fires, in the same
+// order and the same proportions, just over three hours instead of ten seconds. Nothing downstream needs
+// to know. 🔒 His call: re-time the whole tier first, then give each one a middle.
+// ⚠ THE SPAN IS THE ENDING'S OWN LAST BEAT plus its tail — derived from the constants it already declares,
+// never a fourth number invented here, so an ending that re-times itself later cannot silently disagree.
+// ⚠ `bh` is NOT in this table: it was rebuilt onto the arc directly (`BH_FORM_AP`/`BH_FULL_AP`) and
+// remapping it again would square the stretch.
+function apocSpanMs(){
+  switch(curDeath){
+    case "nuke":     return NUKE_FALL_MS+NUKE_WIPE_MS+4000;
+    case "meteors":  return METEOR_IMPACT_MS+METEOR_WIPE_MS+6000;
+    case "sunburst": return SUN_EXPLODE_MS+6000;
+    case "ai":       return AI_WAKE_MS+AI_WIPE_MS+5000;
+    case "alienwar": return WAR_ONSET_MS+WAR_STAGGER_MS+WAR_HIT_MS+5000;
+    case "frost":    return FROST_ONSET_MS+FROST_STAGGER_MS+FROST_FREEZE_MS+5000;
+    case "kaiju":    return KAIJU_ARRIVE_MS+KAIJU_WIPE_MS+5000;
+    case "kaijuwar": return (typeof KW_ARRIVE_MS!=="undefined"?KW_ARRIVE_MS:4500)+16000;
+    // 🚨 A NINTH ONE WAS MISSING FROM THIS TABLE THE WHOLE TIME. `flood` reads `apocMs` against
+    // `FLOOD_ONSET_MS` 3000 and `FLOOD_RISE_MS` 13000, so the city was completely submerged 1.3
+    // THOUSANDTHS of the way into the arc and the remaining three hours nineteen was one static frame —
+    // measured, 370 pixels of 1.49 million differ between ap 0.05 and ap 0.90. The re-timing pass fixed
+    // eight endings and this is a ninth that needed it; a fix applied only where the bug was REPORTED
+    // is half a fix, and the class is "every ending whose constants are authored in real seconds".
+    case "flood":    return FLOOD_ONSET_MS+FLOOD_RISE_MS+5000;
+    // 🚨🚨 AND IT WAS STILL A HALF-FIX — SIX MORE, AUDITED 2026-08-13. The note three lines up says the
+    // class is "every ending whose constants are authored in real seconds", and then six endings that
+    // are authored in exactly that way were left out of the table it was written above. They were missed
+    // because they are not part of "the twelve": five are the OSRS land-triggered pool (`RS_DEATHS`) and
+    // the sixth is the fox, and both of those were deliberately kept OUT of `DEATHS` — so every audit
+    // that walked `DEATHS` to find real-second endings walked straight past all six. Derived instead of
+    // hand-listed: an ending belongs here if its renderer reads `apocMs` against its own `_MS` constants.
+    //   ninetails  14.2 s → done at cityApoc 0.0012 — EIGHT AND A HALF SECONDS, then 3 h 21 m frozen
+    //   banwave    34 s   → 0.0028      logout      100 s → 0.0083
+    //   godwars    76 s   → 0.0063      wilderness  109 s → 0.0090
+    //   massacre  122 s   → 0.0101 — the longest of them is over inside the first 1% of the arc
+    // ⚠ Checked before remapping, because this is the one thing that would make it wrong: every `apocMs`
+    // read in all six is a progress FRACTION normalised against the ending's own constants
+    // (`apocFrontR(wait,wipe)`, `apocMs/FOX_ARRIVE_MS`, `(apocMs-GW_WAIT_MS)/GW_CLOSE_MS`), never an
+    // animation RATE. A rate would have been slowed 100× by the stretch; a fraction just spreads out.
+    case "ninetails":  return FOX_ARRIVE_MS+FOX_WIPE_MS+5000;
+    case "massacre":   return MASS_PARTY_MS+MASS_WIPE_MS+5000;
+    case "logout":     return LOGOUT_WAIT_MS+LOGOUT_WIPE_MS+5000;
+    case "wilderness": return WILD_WAIT_MS+WILD_WIPE_MS+5000;
+    case "godwars":    return GW_WAIT_MS+GW_CLOSE_MS+5000;
+    case "banwave":    return BAN_WAIT_MS+BAN_WIPE_MS+5000;
+  }
+  return 0;
+}
 function apocStruck(){ if(cityPhase!=="apoc") return false;
   if(curDeath==="nuke")    return apocMs>=NUKE_FALL_MS;                                  // the warhead has DETONATED
   if(curDeath==="meteors") return apocMs>=METEOR_SWARM_MS;                              // the small-meteor swarm has begun
   if(curDeath==="sunburst") return apocMs>=SUN_IGNITE_MS;                               // the sun's glare has IGNITED the ground
   if(curDeath==="ai")      return apocMs>=AI_WAKE_MS;                                   // the AI factories have booted & the takeover is spreading
-  if(curDeath==="bh")      return apocMs>=BH_FORM_MS;                                   // the singularity has formed & its pull has reached the ground
+  if(curDeath==="bh")      return cityApoc>=BH_FORM_AP;                                 // the singularity has formed & its pull has reached the ground
   if(curDeath==="alienwar") return apocMs>=WAR_ONSET_MS;                               // the crossfire has started raining on the city
   if(curDeath==="frost")   return apocMs>=FROST_ONSET_MS;                              // the killing freeze has begun
   if(curDeath==="kaiju")   return apocMs>=KAIJU_ARRIVE_MS;                             // the beast has emerged & begun its rampage
@@ -51189,6 +51648,19 @@ function apocStruck(){ if(cityPhase!=="apoc") return false;
   // stops being a wrong sky and starts being something happening to the city.
   if(APOC_STRIKE_AP[curDeath]!=null) return cityApoc>=APOC_STRIKE_AP[curDeath];
   return false; }
+// 🔒🔄 2026-08-10 — REVERSED ON NICK'S CALL: "make sure these only end when the whole world gets
+// destroyed." There used to be ten endings here that deliberately left the buildings standing — the
+// OSRS five (a massacre killed players and left Falador standing; a server shutdown harms nothing; a
+// ban wave is paperwork; the Wilderness consumes ground rather than flattening it; the God Wars fight
+// THROUGH a city) plus five of the blood twelve whose spectacle was the BODIES rather than the rubble.
+// The argument for them was real and is recorded here because it may be wanted back: an intact skyline
+// over dead streets was the one thing that made those ten read as different IN KIND from the other
+// thirty-three, and it was free. He was shown that argument and chose total destruction anyway, so all
+// 43 now level the world before their arc ends.
+// ⚠ The five OSRS ends had no `APOC_STRIKE_AP` row at all — they were expressed purely as `return
+// false` in apocHit — so they get late thresholds below: the massacre or the shutdown still owns most
+// of the arc, and the city goes at the end of it rather than throughout.
+var APOC_LATE_FALL={massacre:1,logout:1,wilderness:1,godwars:1,banwave:1};
 function apocHit(x){ if(cityPhase!=="apoc") return false;
   if(curDeath==="nuke")    return nukeFrontR() >= nukeDist(x,nukeGZX(NOWOVR!=null?NOWOVR:Date.now()));   // the heat-wave front reached world-x
   if(curDeath==="meteors") return meteorCollapse(x, NOWOVR!=null?NOWOVR:Date.now()).cl>=0;   // a small strike OR the big impact's front has reached it
@@ -51197,7 +51669,8 @@ function apocHit(x){ if(cityPhase!=="apoc") return false;
   if(curDeath==="bh")      return frontCollapse(x,bhFrontR())>=0;                       // the pull reached world-x → sucked in
   if(curDeath==="alienwar") return alienCl(x)>=0;                                       // a stray beam/wreckage strike has raked world-x
   if(curDeath==="frost")   return frostCl(x)>=0;                                        // the freeze has reached & frozen world-x
-  if(curDeath==="kaiju")   return frontCollapse(x,kaijuFrontR())>=0;                    // the monster's rampage has reached world-x
+  if(curDeath==="kaiju")   return kaijuCrushed(x)>=0;                                   // the beast has walked over world-x
+  if(curDeath==="moonfall") return moonCrushed(x)>=0;                                  // a fragment came down here (or the core has landed)
   if(curDeath==="ninetails") return frontCollapse(x,foxFrontR())>=0;                     // the shockwave has reached world-x
   // 🚨 THE OSRS ENDINGS DO NOT DEMOLISH, AND THAT IS THE POINT. `apocHit` is what collapses buildings,
   // and none of these five knocks anything down: the massacre killed players and left Falador standing;
@@ -51205,8 +51678,7 @@ function apocHit(x){ if(cityPhase!=="apoc") return false;
   // rather than flattening it; and the God Wars fight THROUGH a city rather than levelling it. An
   // intact skyline over empty streets is the whole horror of these, and it is free — it is the one
   // thing that makes them read as different in kind from the other twenty-five.
-  if(curDeath==="massacre"||curDeath==="logout"||curDeath==="banwave"||curDeath==="godwars") return false;
-  if(curDeath==="wilderness") return false;
+  // (the five `return false` lines that used to sit here are gone — see APOC_LATE_FALL)
   if(curDeath==="flood")   return floodGroundHit(x);                                    // the water has risen above the ground here
   if(curDeath==="kaijuwar") return kwCl(x,NOWOVR!=null?NOWOVR:Date.now())>=0;           // trampled or caught in the melee
   if(curDeath==="pollution") return cityApoc>=0.92;                                     // nothing is DEMOLISHED until the very end (movers die via apocKill fade)
@@ -51219,6 +51691,41 @@ function apocHit(x){ if(cityPhase!=="apoc") return false;
   // read from the expressions their own renderers draw, so neither can drift from what you can see.
   if(curDeath==="ragnarok") return floodGroundHit(x) || frontCollapse(x,apocSweepR())>=0;
   if(APOC_SWEEP[curDeath]!=null) return frontCollapse(x,apocSweepR())>=0;              // the six new ends that genuinely level the city
+  // 🚨🚨🔑🔑 AND THE RAGNAROK HOLE WAS NEVER ONE HOLE — IT WAS THIRTEEN, AND ONLY ONE GOT PLUGGED.
+  // Audited all 43 by asking whether `apocHit` EVER returns true across the whole arc and the whole
+  // world: 22 never demolish anything. Ten of those are deliberate and documented above (the OSRS
+  // five, plus risen · plague · bloodmoon · thescream · thefamine — an intact skyline over dead
+  // streets is their whole horror). The other TWELVE are the ragnarok bug, twelve more times:
+  //   moonfall gammaray rogueplanet crustcrack oceansboil greygoo
+  //   lastwinter skyfall timestop thecomet thechange theburst
+  // Every one has a renderer and a row in `APOC_STRIKE_AP`, and not one had a branch here — so the
+  // world ended, the sky changed colour, the people died, and not a single building came down. Nick,
+  // watching crustcrack: "this one does not look that great at all."
+  // 🔑 DERIVED, NOT HAND-LISTED — and derived from the two tables the ending ALREADY fills in, so a
+  // future ending gets this for free and cannot fall through the gap again. `APOC_STRIKE_AP` is when
+  // it starts being something happening to the city; `APOC_FULL_AP` is when it is total. Between them
+  // a front crosses the world from the epicentre, which is the same shape every other branch here
+  // uses. 🚨 The bug was never that ragnarok was special. It was that the fix was applied where the
+  // bug was REPORTED instead of to the class — the sun-anchor rule, at the scale of a whole feature.
+  // 🚨🔑🔑 …AND THE FALLBACK IMMEDIATELY BROKE THE TEN THAT DO NOT DEMOLISH ON PURPOSE, because
+  // `APOC_STRIKE_AP` is not a destruction table — it is when the APPROACH hands over to the event, and
+  // thescream, thefamine, risen, plague and bloodmoon all legitimately have rows in it. Caught by
+  // re-running the audit, which is the only reason it did not ship.
+  // 🔑🔑 THE REAL LESSON IS WHY THE ORIGINAL BUG WAS POSSIBLE: "this ending does not demolish" was
+  // recorded by HAVING NO BRANCH — which is indistinguishable from having FORGOTTEN one. Absence is
+  // not a decision, and it cannot be reviewed, tested or grepped. Twelve endings shipped inert inside
+  // that ambiguity. The intent is now a table you can read, and the fallback below is safe because
+  // anything not in it that reaches this line genuinely has no destruction path yet.
+  // 🔒 EVERY ENDING FINISHES THE JOB. The late-fall five have no strike row of their own, so they take
+  // one here rather than in the table: their own event owns the arc and the city goes at the end of it.
+  {
+    var s0=(APOC_STRIKE_AP[curDeath]!=null)?APOC_STRIKE_AP[curDeath]:(APOC_LATE_FALL[curDeath]?0.55:null);
+    if(s0==null) return false;
+    var s1=(APOC_FULL_AP[curDeath]!=null?APOC_FULL_AP[curDeath]:(APOC_LATE_FALL[curDeath]?0.95:0.95));
+    if(cityApoc<s0) return false;
+    var fr=Math.max(0,(cityApoc-s0)/Math.max(0.01,s1-s0))*(WW*0.62);
+    return frontCollapse(x,fr)>=0;
+  }
   return false; }
 function apocFull(){ if(cityPhase!=="apoc") return false;
   if(curDeath==="nuke")    return nukeFrontR() >= WW*0.5;                               // the front has swept the ENTIRE city (≈5s)
@@ -51228,10 +51735,10 @@ function apocFull(){ if(cityPhase!=="apoc") return false;
   if(curDeath==="bh")      return bhFrontR() >= WW*0.5;                                 // the pull has swallowed the whole city
   if(curDeath==="alienwar") return apocMs >= WAR_ONSET_MS+WAR_STAGGER_MS+WAR_HIT_MS;   // the crossfire has raked the whole city (~12.4s)
   if(curDeath==="frost")   return apocMs >= FROST_ONSET_MS+FROST_STAGGER_MS+FROST_FREEZE_MS;   // the whole city is frozen & buried (~13s)
-  if(curDeath==="kaiju")   return kaijuFrontR() >= WW*0.5;                              // the rampage has flattened the whole city
+  if(curDeath==="kaiju")   return kaijuWalkProg()>=1;                                   // it has walked the whole world and there is nothing left standing behind it
   if(curDeath==="ninetails") return foxFrontR() >= WW*0.5;
   if(curDeath==="flood")   return floodLevel() >= floodMax()*0.95;                      // the water has risen over the whole skyline
-  if(curDeath==="kaijuwar") return kwT1()>=1 && kwClashR()>=WW*KW_SAFE*0.98;             // trample complete + the melee has wrecked downtown
+  if(curDeath==="kaijuwar") return kwT1()>=1 && (apocMs-KW_ARRIVE_MS-KW_APPROACH_MS)>=KW_CLASH_MS;   // trample complete + the brawl has been dragged the length of the world
   if(curDeath==="pollution") return cityApoc>=0.92;                                     // the air is gone
   if(APOC_SWEEP[curDeath]!=null) return apocSweepR() >= WW*0.5;                        // its front has swept everything
   if(APOC_FULL_AP[curDeath]!=null) return cityApoc>=APOC_FULL_AP[curDeath];
@@ -51262,7 +51769,110 @@ function frostCl(k){
   var t=apocMs-FROST_ONSET_MS-stag; if(t<0) return -1;
   return Math.min(1,t/FROST_FREEZE_MS);
 }
-function kaijuFrontR(){ return apocFrontR(KAIJU_ARRIVE_MS,KAIJU_WIPE_MS); }   // the monster's advancing swath of destruction
+// ── 🦖🚶🔒 IT WALKS, AND WHAT IT WALKS OVER IS WHAT DIES. 🔒 His call, 2026-08-12: *"can we have this be
+// like in a movie where the big monster comes in and destroys everything."* It could not be, because the
+// damage model was THE NUKE'S: `frontCollapse(b.x, kaijuFrontR())` grew a SYMMETRIC radius out of a
+// STATIC epicentre, so blocks fell on both sides of the animal at the same instant and not one of them
+// fell because the creature touched it. That is the house failure mode word for word — no source, no
+// direction, so it decorated the frame instead of happening to it. Silhouette work on top of a nuke
+// radius would have shipped and he would have said it still looks the same, and he would have been right.
+// 🔑 ONE PREDICATE, NOT SIX FORMULAE. `kaijuCrushed` is the only thing in the engine that says what is
+// wrecked; the buildings, the street furniture, the civics, `apocHit`, `apocFull` and the crowd all read
+// it. Six hand-written copies of a collapse rule is exactly how the viaduct's deck, arches, wire and
+// lights came to disagree about what still existed.
+// 🔑 AND WALKING IS WHAT PUTS IT ON ALL THREE MONITORS — without touching the locked call that it must
+// never stand in three places at once. It is in ONE place at any instant; that place just crosses
+// DP-3 → DP-4 → HDMI-A-3 over the rampage, so every screen gets it coming, then on top of them, then
+// leaving. A creature that travels is not a creature that has been cloned.
+var KAIJU_REACH=0.045;      // how far AHEAD of itself it wrecks (fraction of WW) — the arms, the tail, the shove of it
+var KAIJU_FALLOFF=0.075;    // …and how far BEHIND the foot a block takes to go all the way down
+// ⚠ DERIVED, NEVER HAND-SET: it walks INTO the city from wherever it came ashore. Hand-picking a
+// direction is how a landfall pinned to the right-hand screen would have walked straight out of the
+// world in two seconds and shown him less than the static one did.
+function kaijuDir(){ return apocEpiX(NOWOVR!=null?NOWOVR:Date.now()) < WW*0.5 ? 1 : -1; }
+function kaijuWalkProg(){ return Math.max(0,Math.min(1,(apocMs-KAIJU_ARRIVE_MS)/KAIJU_WIPE_MS)); }
+function kaijuWalkX(now){ return wrapW(apocEpiX(now)+kaijuDir()*kaijuWalkProg()*WW*0.95); }   // where the animal actually IS, this frame
+// How far along the walk a world-x lies, 0…WW, measured from landfall in the direction of travel.
+// ⚠ NOT a shortest-wrap distance. `nukeDist`-style wrapping would call a block "ahead of it" again once
+// the beast passed the half-world mark, and the city it had already flattened would stand back up.
+// ⚠ The last 3.5% reads as NEGATIVE on purpose — that is the strip it came ashore through, which is
+// wrecked at landfall rather than three hours later when the walk wraps around to it.
+function kaijuAlong(wx){ var e=apocEpiX(NOWOVR!=null?NOWOVR:Date.now());
+  var a=((((wx-e)*kaijuDir())%WW)+WW)%WW; return a>WW*0.965 ? a-WW : a; }
+function kaijuCrushed(wx){
+  if(apocMs<KAIJU_ARRIVE_MS*0.7) return -1;                                  // still coming up out of the water — the city is whole
+  var walked=kaijuWalkProg()*WW*0.95+WW*KAIJU_REACH, a=kaijuAlong(wx);
+  return a<=walked ? Math.min(1,(walked-a)/(WW*KAIJU_FALLOFF)) : -1;         // ahead of it: untouched. behind it: going down.
+}
+// ── 🌑🔒 MOONFALL — THE PIECES ARRIVE BEFORE THE MOON DOES. 🔒 His call, 2026-08-12: it breaks up on the
+// way in and the fragments rain on the city ahead of the core. That is not decoration — it is the only
+// thing that gives the middle of this arc a SOURCE and a DIRECTION, and the reason it needed one is
+// measured: at ap 0.20, 0.55 and 0.80 the frames came back as an ordinary city with ordinary traffic
+// under a growing disc, and the ending did not begin until 0.86.
+// 🚨 THE DAMAGE HAD NO POSITION IN IT AT ALL. Moonfall's only rule was `APOC_STRIKE_AP.moonfall = 0.86`
+// — one arc threshold, no x — so every building in the world fell in the same frame no matter where
+// anything landed. A fragment that flashes and craters while the tower beside it stands is the house
+// failure mode wearing a light show. So the fragments feed ONE predicate and every consumer reads it.
+// ⚠ `meteorImpacts()` LOOKED LIKE THE OBVIOUS REUSE AND IS NOT: it schedules `t` in REAL MS against
+// `METEOR_SWARM_MS`/`METEOR_IMPACT_MS`, and moonfall is not in `apocSpanMs()` — it runs on raw
+// `cityApoc`. Calling it would have crushed the whole swarm into the first fraction of a percent of the
+// arc, the exact bug the re-timing pass existed to fix. The schedule below is derived from `ap`.
+// `drawMeteorCrater(g,sx,R,ageMs)` IS generic, and that one is reused as-is.
+var MF_LOOK_AP=0.10;    // the light starts to go wrong
+var MF_TIDE_AP=0.18;    // its pull reaches the ground — loose things start to lift, the sea heaps up
+var MF_QUAKE_AP=0.26;   // …and the crust answers
+var MF_BREAK_AP=0.38;   // the face cracks
+var MF_RAIN_AP=0.46;    // pieces shear off and start arriving
+var MF_CORE_AP=0.90;    // the core lands
+var _mfId=null,_mfArr=null,_mfLut=null;
+function moonFrags(){
+  var id=nukeDetId(NOWOVR!=null?NOWOVR:Date.now());
+  if(id===_mfId&&_mfArr) return _mfArr;
+  var n=Math.max(9,Math.round(WW/95)), arr=[], gz=apocEpiX(NOWOVR!=null?NOWOVR:Date.now());
+  for(var i=0;i<n;i++){
+    var h=((id*2654435761+i*374761393+8191)>>>0); h=(h^(h>>>13))>>>0;
+    var u=i/Math.max(1,n-1);                                              // 🔑 they arrive in order and they CLOSE IN:
+    var spread=1-u*0.62;                                                  //    the early ones fall anywhere, the last
+    var x=Math.round(wrapW(gz+(((h%10000)/10000)*2-1)*WW*0.5*spread));    //    ones fall near where the core will land
+    var apT=MF_RAIN_AP+u*(MF_CORE_AP-0.03-MF_RAIN_AP)+(((h>>>10)%100)/100-0.5)*0.02;
+    var big=(((h>>>21)%4)===0);
+    arr.push({x:x, ap:apT, r:(big?19:11)+((h>>>16)%7), big:big, seed:h});
+  }
+  _mfId=id; _mfArr=arr; _mfLut=null; return arr;
+}
+// 🔑 A BUCKET TABLE, NOT A SCAN PER CALL. `apocHit` is asked about every building, every piece of street
+// furniture, every civic and every person in the crowd — thousands of times a frame — so walking two
+// dozen fragments inside it would be the per-call choice the run-batching note keeps catching. One pass
+// per life fills a table of "the ap at which this 8px slice of the world goes down"; O(1) after that.
+function moonDmgLUT(){
+  moonFrags();
+  if(_mfLut) return _mfLut;
+  var n=Math.max(32,Math.round(WW/8)), lut=new Array(n), i;
+  for(i=0;i<n;i++) lut[i]=Infinity;
+  var arr=_mfArr;
+  for(var f=0;f<arr.length;f++){
+    var F=arr[f], kill=F.r*2.4, i0=Math.floor((F.x-kill)/WW*n), i1=Math.ceil((F.x+kill)/WW*n);
+    for(i=i0;i<=i1;i++){ var j=((i%n)+n)%n; if(F.ap<lut[j]) lut[j]=F.ap; }
+  }
+  _mfLut=lut; return lut;
+}
+// 🌍🔒 …AND THEN IT BLOWS UP THE WORLD. 🔒 His call, 2026-08-12: *"make sure after it hits it actually
+// blows up the world."* It did already, in the ledger sense — everything was flat by 0.93 — but it did
+// it POSITIONLESSLY: one ramp, no x in it, so the entire world sagged in the same frame and no screen
+// ever saw anything ARRIVE. That is the same fault the pre-fragment version had, surviving into the one
+// moment it matters most. The blast is a FRONT: it leaves ground zero and crosses the world, and each
+// monitor watches it come. `frontCollapse` already expresses exactly this and is what the nuke and the
+// AI sweep read, so there is no new law here — just the right one.
+var MF_BLAST_AP=0.052;   // how much of the arc the front takes to cross the whole world
+function moonBlastR(){ return Math.max(0,(cityApoc-MF_CORE_AP)/MF_BLAST_AP)*(WW*0.62); }
+function moonCrushed(wx){
+  var ap=cityApoc;
+  if(ap>=MF_CORE_AP) return frontCollapse(wx,moonBlastR());               // the core lands and the blast goes out from it
+  if(ap<MF_RAIN_AP) return -1;
+  var lut=moonDmgLUT(), n=lut.length;
+  var t=lut[Math.floor(wrapW(wx)/WW*n)%n];
+  return ap<t ? -1 : Math.min(1,(ap-t)/0.035);
+}
 function foxFrontR(){ return apocFrontR(FOX_ARRIVE_MS,FOX_WIPE_MS); }         // the fox's shockwave, spreading from where it stands
 // THE FLOOD — the rising waterline in world-px above HORIZON (0 until the waters come, then climbs to swallow the skyline)
 function floodMax(){ return HORIZON*0.92; }
@@ -51287,11 +51897,74 @@ function floodLevel(){
     // and "the ground here is underwater" are separated by less than 4% of the arc at this scale.
     // Fire burns FIRST and the sea comes for it after: 0.52, so 0.35→0.52 is Surtr's alone.
     return (cityPhase!=="apoc") ? 0 : Math.max(0,Math.min(1,(cityApoc-0.52)/0.43)) * floodMax();
-  return Math.max(0,Math.min(1,(apocMs-FLOOD_ONSET_MS)/FLOOD_RISE_MS)) * floodMax(); }
+  return floodBaseF() * floodMax(); }
+// ── 🌊🔒 MILLER'S PLANET. 🔒 His call, 2026-08-12: *"like that one planet on Interstellar where a big
+// wave comes and fucks everything up"*, and they KEEP COMING. A flat waterline is the worst subject this
+// renderer has — horizontal repetition is precisely what it renders worst — so the water is not the
+// subject at all: the WAVE is, and a wave has a source, a direction and a size you can measure against
+// the towers it is taller than. Each one leaves ground zero and crosses the world, so DP-3, DP-4 and
+// HDMI-A-3 each watch a mountain of water come for them in turn, and then the next one builds.
+var FL_W0=0.30;        // the first wave lands here…
+var FL_WGAP=0.215;     // …and another one every fifth of the arc after it
+var FL_WCROSS=0.075;   // how much of the arc a wave takes to cross the whole world
+function floodWaveAt(k){ return FL_W0+k*FL_WGAP; }
+function floodWaveCount(){ return 4; }
+// 🔒 IT COMES IN FROM OFF SCREEN. His call, 2026-08-12. The first cut radiated the wave OUT of ground
+// zero in both directions, and ground zero is a point in the middle of the world — so on the monitor
+// holding it the wave was BORN in the middle of the frame and split outwards, which is not what a wave
+// does and not what you can see coming. It is one wall now, travelling one way.
+// ⚠ AND THERE IS NO "OFF SCREEN" IN WORLD TERMS — his three monitors tile the ENTIRE 2269px world, so
+// there is nowhere outside them for a wave to start. The one place that reads as off-screen on every
+// screen at once is THE WORLD SEAM: it is the left edge of DP-3 and the right edge of HDMI-A-3, and it
+// is also where `inSea` puts the open coast, so the water arrives from the water.
+var FL_BAND=0.21;       // ⚠ the depth of the wall, as a fraction of the world. At 0.055 (125 world px, a sixth of a monitor) it swept past as a dark PILLAR — a mountain of water has to be wider than it is tall, and this is ~480 world px against a 333px crest.
+function floodWaveDir(){ return 1; }                                  // from the seam, inland across the world
+// how far wave k has travelled from the seam, in world px (<0 = it has not broken yet)
+function floodWavePos(k){ var t=(cityApoc-floodWaveAt(k))/FL_WCROSS; return t<0?-1:t*(WW*1.12); }
+// the leading edge in world x, or -1 once it has left the far side
+// its height in world px — the first is the killer, the ones after are big but never that big again
+function floodWaveH(k){ return HORIZON*(k===0?1.18:0.74-k*0.06); }
+// 🔑 THE STILL LEVEL, ON THE ARC. The first wave puts a third of it in at once as it passes, and the
+// rest climbs floor by floor for the next half of the world's life.
+function floodBaseF(){
+  var ap=cityApoc; if(ap<FL_W0) return 0;
+  var s=Math.max(0,Math.min(1,(ap-FL_W0)/FL_WCROSS));
+  var c=Math.max(0,Math.min(1,(ap-(FL_W0+FL_WCROSS))/(0.88-FL_W0-FL_WCROSS)));
+  return Math.min(1,0.36*s+0.64*c);
+}
+// is a wave passing over world-x RIGHT NOW? (drives the kill and the local surge)
+// ⚠ measured ALONG the direction of travel from the seam, not as a wrap distance from a point — the same
+// reason `kaijuAlong` exists: a shortest-wrap test lets the far side of the world be "ahead of it" again.
+function floodWaveOver(wx){
+  var a=((wx*floodWaveDir())%WW+WW)%WW;
+  for(var k=0;k<floodWaveCount();k++){
+    var P=floodWavePos(k); if(P<0) continue;
+    var back=P-a;
+    if(back>=0&&back<=WW*FL_BAND) return 1-back/(WW*FL_BAND);
+  }
+  return 0;
+}
 // a building of height h topples/washes away as the water nears its top; -1 until then, 0→1 collapsing (tall towers hold out longest)
-function floodCl(h){ var w=floodLevel(); return (w >= h*0.7) ? Math.min(1,(w - h*0.7)/(h*0.35+10)) : -1; }
+function floodCl(h,wx){
+  var w=floodLevel();
+  // 🌊 a wave takes what it is TALLER THAN as it goes over, which is why the low city is gone in one
+  // pass and the towers stand out of the water for the rest of the arc.
+  if(wx!=null){ var ov=floodWaveOver(wx);
+    if(ov>0){ var wh=floodWaveH(0)*(0.55+0.45*ov); if(wh>=h*0.85) return Math.min(1,ov*1.4); } }
+  return (w >= h*0.7) ? Math.min(1,(w - h*0.7)/(h*0.35+10)) : -1; }
 // has the water risen above the ground at world-x yet? (low-lying spots go under first) — governs movers & parks
-function floodGroundHit(x){ return floodLevel() > (2 + ((((x|0)*2654435761)>>>0)%8)); }
+// 🚨🚨 "WHERE ARE THE PEOPLE?" — HERE. This returned TRUE FOR THE WHOLE WORLD the instant the global
+// level cleared its 2–10px threshold, and the crowd branch culls anyone it is true for, so every person
+// alive was deleted in one frame — including everybody on the DRY side of a wave that had not reached
+// them yet. Rendered, the streets ahead of the wall were empty while the city still stood in them.
+// A global level cannot answer a question about a PLACE: the ground at x is underwater once the wave has
+// BEEN here, and not one second before.
+function floodArrived(wx){ var a=((wx*floodWaveDir())%WW+WW)%WW; return floodWavePos(0)>=a; }
+// the ap at which the first wave reaches world-x — so a person can be given a moment of their own
+function floodArrivalAp(wx){ var a=((wx*floodWaveDir())%WW+WW)%WW; return floodWaveAt(0)+(a/(WW*1.12))*FL_WCROSS; }
+function floodGroundHit(x){
+  if(floodWaveOver(x)>0) return true;
+  return floodArrived(x) && floodLevel() > (2 + ((((x|0)*2654435761)>>>0)%8)); }
 function meteorFrontR(){ return Math.max(0,(apocMs-METEOR_IMPACT_MS)/METEOR_WIPE_MS)*(WW*0.62); }   // radius the massive impact's fiery blast has raced out (only after it lands)
 // how far into collapse world-x is under the meteor apocalypse — {cl:0..1 progress, bd:debris dir}; cl<0 = not hit yet.
 // Unifies the two destroyers: the ONE massive impact's radial front (the main leveler) + the scattered SMALL strikes.
@@ -51527,35 +52200,639 @@ function apocSkyX(frac,now){
 }
 
 // GAMMA-RAY BURST — the fastest end in the set. One instant, and then a sky that is simply wrong.
+// 🚨🔒 REWORKED 2026-08-10. Nick: "lets rework this one and make it more realistic and look better,
+// because I also have no idea what is going on." He could not read it because there was nothing to
+// read. What it was: a white flash over by ap 0.12, a flat violet gradient full by 0.28, and NINE
+// FULL-WIDTH HORIZONTAL BARS labelled an aurora — after which nothing developed for the remaining 70%
+// of the arc, which is why two frames half a minute apart came back identical.
+// 🔑🔑 IT HAD NO SOURCE AND NO DIRECTION, so it was a filter over the city rather than something
+// happening to it. The same diagnosis as thescream ("nothing is screaming") and crustcrack — this
+// project's endings fail in exactly one way and it is always this one.
+// 🔑 WHAT A GAMMA-RAY BURST ACTUALLY IS, and what makes it drawable: a point somewhere out there, and
+// then EVERY SURFACE FACING IT IS BURNED. So the ending is SHADOWS — hard-edged, all thrown the same
+// way, radiating from one spot. That is also, conveniently, the largest value contrast this land has
+// ever been given, and the engine already agrees with the premise: gammaray's death mark is
+// `{m:"shadow"}`, the same as the nuke's, because both leave people printed on the pavement.
 APOC_X.gammaray=function(g,ap,L,now){
-  var K=Math.max(1,KSP);
-  // 🔑 THE FLASH IS ALMOST ALL OF IT, and it is over in the first eighth. Everything after is the
-  // AFTERMATH of a light — a stripped, ionised sky that will not go back. An end that takes its time
-  // is every other end here; this one's whole character is that there was no time.
+  var K=Math.max(1,KSP), gy=HORIZON;
+  var epi=(typeof apocEpiX==="function")?apocEpiX(now):Math.round(WW*0.5);
+  var sx=Math.round(epi)-WOFF, sy=Math.round(gy*0.08);           // the source, world-anchored and high
   var flash=Math.max(0,1-Math.abs(ap-0.06)/0.06);
   var burnt=Math.min(1,Math.max(0,(ap-0.10)/0.18));
+  var late=Math.min(1,Math.max(0,(ap-0.26)/0.62));               // …and it KEEPS developing, unlike before
   if(burnt>0){
-    for(var q=0;q<HORIZON;q++){
-      var qf=q/HORIZON;
-      g.fillStyle=rgba(mixc([176,90,220],[240,160,90],qf),(0.55*burnt*(1-qf*0.35)).toFixed(3));
+    // 🔒 SECOND REWORK, 2026-08-10. Rendered at full size the first one was FLAT MAUVE: sky, rift and
+    // city all landed on one value and nearly one hue, so a land whose entire brief is EXTREME VALUE
+    // CONTRAST had none anywhere. 🔑🔑 A TRANSLUCENT WASH OVER EVERYTHING CANNOT CREATE CONTRAST — it
+    // is definitionally the opposite, it drags every value toward one number. The cure is not a better
+    // wash, it is to stop washing: the burst now BLEACHES what faces it and leaves everything else in
+    // deep magenta shadow, so the frame is split into two populations instead of averaged into one.
+    // 🔒 His four calls: bleach it white-hot · ONE colossal column, not ten thin rays · violet and
+    // magenta · hard full-frame flashes are welcome.
+    var colX=sx, colHW=Math.round(SW*(0.055+0.05*burnt));
+    // ⚠ THE GLARE HAS TO FOLLOW WHERE THE BEAM IS POINTING. Centred on the SOURCE while the beam
+    // pivoted away from it, the frame grew a second bright vertical column that nothing was casting —
+    // two beams, one of them imaginary. The bleach is the light ON THE CITY, so it belongs at the
+    // contact point, not under the emitter. Computed here so one number drives the glare, the beam and
+    // the scar; three expressions of one aim is how they drift apart.
+    var frB=Math.max(0,(ap-0.10)/0.52)*(WW*0.62);              // ⚠ the SAME radius apocHit burns to
+    var conW=epi+Math.sin(now*0.00035)*frB*0.92;
+    var conX=Math.round(conW)-WOFF;
+    var glareX=Math.round(colX*0.28+conX*0.72);                // weighted to the contact, the source still counts
+    // the sky: deep magenta at the edges, hot violet toward the column — a gradient ACROSS, not just down
+    for(var q=0;q<gy;q++){
+      var qf=q/gy;
+      var t=mixc([214,120,255],[120,30,140],qf);
+      // ⚠ CUT FROM 0.62 TO 0.28. I raised this wash in the same edit that added the bleach on top of
+      // it, so the two fought and the frame landed uniformly pale pink — the exact flatness the rework
+      // existed to remove, arrived at from the opposite direction. 🔑 A WASH AND A BLEACH ARE THE SAME
+      // TOOL: adding both means adding twice. The wash now only tints; the bleach and the shade do the
+      // work, because they VARY across the frame and a wash by definition does not.
+      g.fillStyle=rgba(mixc(t,[46,8,58],0.45*late),(0.28*burnt*(1-qf*0.22)).toFixed(3));
       g.fillRect(0,q,SW,1);
     }
-    // the air itself glowing in bands — an aurora with no poles and no shape
+    // ── ☀️ THE BLEACH AND THE SHADOW, run-batched by quantised alpha. Everything near the column is
+    // burned toward white; everything far from it sinks into magenta dark. This one pass is most of
+    // what the picture now IS.
+    var bX=-1,bA=-1;
     g.globalCompositeOperation="lighter";
-    for(var b=0;b<9;b++){
-      var by=Math.round(HORIZON*(0.05+b*0.09)), sw=Math.round(Math.sin(now*0.0004+b)*14*K);
-      g.fillStyle="rgba(190,255,210,"+(0.10*burnt).toFixed(3)+")";
-      g.fillRect(sw,by,SW,Math.max(1,Math.round(2*K)));
+    for(var x3=0;x3<=SW;x3++){
+      var aq=-1;
+      if(x3<SW){
+        var dn=Math.abs(x3-glareX)/Math.max(1,SW*0.52);
+        var bl=Math.max(0,1-dn); bl=bl*bl;
+        aq=Math.round(Math.min(0.80,0.80*bl*burnt)*40);
+      }
+      if(aq!==bA){
+        if(bA>0&&bX>=0&&x3>bX){
+          // ⚠ WEIGHTED TO THE SKY. Applied flat over the full frame height this bleached the CITY out
+          // too — by mid-arc there was nothing in the picture but white, which is not "white-hot", it
+          // is "empty". A blown highlight still has a subject in front of it: the sky takes the full
+          // burn and the ground takes a third of it, so the city survives as a dark shape against it.
+          g.fillStyle="rgba(255,244,255,"+(bA/40).toFixed(3)+")"; g.fillRect(bX,0,x3-bX,gy);
+          g.fillStyle="rgba(255,244,255,"+((bA/40)*0.34).toFixed(3)+")"; g.fillRect(bX,gy,x3-bX,SH-gy);
+        }
+        bA=aq; bX=x3;
+      }
+    }
+    g.globalCompositeOperation="source-over";
+    var sX=-1,sA=-1;
+    for(var x4=0;x4<=SW;x4++){
+      var aq2=-1;
+      if(x4<SW){
+        var dn2=Math.abs(x4-glareX)/Math.max(1,SW*0.52);
+        aq2=Math.round(Math.min(0.88,0.88*Math.max(0,(dn2-0.16)/0.84))*40*burnt);
+      }
+      if(aq2!==sA){
+        if(sA>0&&sX>=0&&x4>sX){
+          // …and the shade is weighted the OTHER way: light on the sky, heavy on the ground, so the
+          // city sinks into deep magenta exactly where the sky is blowing out behind it.
+          g.fillStyle="rgba(30,4,40,"+((sA/40)*0.72).toFixed(3)+")"; g.fillRect(sX,0,x4-sX,gy);
+          g.fillStyle="rgba(28,3,38,"+(sA/40).toFixed(3)+")"; g.fillRect(sX,gy,x4-sX,SH-gy);
+        }
+        sA=aq2; sX=x4;
+      }
+    }
+    // ── 🔆 THE COLUMN. One beam, hard-edged, white at the core and violet at its walls, with the air
+    // striating inside it. 🔑 The old ten thin rays were scratches; a thing you can point at has to have
+    // a WIDTH, and the width is what makes the city inside it disappear.
+    // 🔒 AND IT SWEEPS. His call: "let's have the big beam move around and destroy things and scar the
+    // ground." So the source stays put and the beam PIVOTS from it — the ground contact point rakes
+    // back and forth across everything the burst has already reached, which turns a standing column
+    // into something being aimed. 🔑 A weapon that does not move is a monument.
+    // ⚠ The sweep is driven by the SHARED clock and world coordinates, never by screen x, so all three
+    // monitors see one beam in one place rather than three beams each doing their own thing — the
+    // failure the sky lanes shipped with this morning.
+    g.globalCompositeOperation="lighter";
+    for(var cy2=0;cy2<SH;cy2++){
+      var cf=cy2/SH;
+      var cx3=Math.round(colX+(conX-colX)*cf);                  // pivoting: source at the top, contact below
+      var hw2=Math.round(colHW*(0.30+cf*0.85));
+      var edge=0.34*burnt*(1-cf*0.10);
+      g.fillStyle="rgba(232,150,255,"+edge.toFixed(3)+")";
+      g.fillRect(cx3-hw2,cy2,hw2*2,1);
+      var core=Math.round(hw2*(0.40+0.10*Math.sin(now*0.004+cy2*0.05)));
+      g.fillStyle="rgba(255,250,255,"+(0.72*burnt*(1-cf*0.08)).toFixed(3)+")";
+      g.fillRect(cx3-core,cy2,core*2,1);
+    }
+    g.globalCompositeOperation="source-over";
+    gammaScar(g,ap,now,K,gy,epi,frB,conX,burnt,late);
+    // ── ⚡ THE RAYS. Long hard wedges out of the source: the light has a DIRECTION, which is the whole
+    // difference between an event and a tint. Additive, and they sweep slowly so the frame is not dead.
+    g.globalCompositeOperation="lighter";
+    // ⚠ CONTINUOUS, NOT SAMPLED. The first cut stepped 3K along each ray and drew a rect one K tall,
+    // which leaves a GAP between every mark — the rays came out as dotted spokes, and a dotted line is
+    // the one thing light is not. Same discontinuity as the beaded scream ring and the folded viaduct
+    // deck: 🔑 CONNECT THE STEPS, DO NOT PLOT THE SAMPLES. Step and height are now the same number.
+    // 🗑️ THE TEN THIN RAYS ARE GONE. At full size they read as pale SCRATCHES across the sky, and two
+    // of them were visibly beaded where the step outran the mark. The column replaces all of them: one
+    // wide hard thing beats ten faint ones, which is the same conclusion the rift, the screamer and the
+    // chasm each arrived at separately. A fan of thin lines is what you draw when you have not decided
+    // what the object is.
+    // the source itself — small, and the brightest thing that has ever been on this land
+    var cr=Math.max(2,Math.round((3+5*burnt)*K));
+    for(var h2=cr*4;h2>0;h2-=Math.max(1,Math.round(K))){
+      g.fillStyle="rgba(190,226,255,"+(0.20*burnt*(1-h2/(cr*4))).toFixed(3)+")";
+      fillEllipse(g,sx,sy,h2,h2);
+    }
+    g.fillStyle="rgba(255,255,255,"+(0.95*burnt).toFixed(2)+")";
+    fillEllipse(g,sx,sy,cr,cr);
+    g.globalCompositeOperation="source-over";
+    // ── 🌑 AND THE SHADOWS IT THROWS. Every column of ground gets light or dark depending on whether
+    // something between it and the source is in the way — hashed per column, so the pattern is a city's
+    // worth of hard-edged shadow wedges all leaning the SAME way, away from one point. This is the part
+    // that says "burned", and it is why the ending needed a source before it could look like anything.
+    // ⚠ WEDGES, NOT NOISE. Hashed PER COLUMN this came out as a one-pixel picket fence across the whole
+    // street — high-frequency stripe that reads as a rendering artefact, not as shadow. A shadow is
+    // CAST BY SOMETHING, so it is as wide as the thing casting it: the world is bucketed into slabs
+    // tens of pixels across, each either lit or in shade, and the slab EDGES are what sell it.
+    // 🔑 The fault and the cure are the sky lanes' again — the answer is never per-column detail.
+    var gb=SH-gy, sdX=-1, sdOn=false, slab=Math.max(6,Math.round(22*K));
+    for(var x2=0;x2<=SW;x2++){
+      var on=false;
+      if(x2<SW){
+        var wx2=x2+WOFF, bkt=Math.floor(wx2/slab);
+        var hsh=((bkt*2654435761+919)>>>0); hsh=(hsh^(hsh>>>13))>>>0;
+        var dxs=Math.abs(wx2-epi);
+        on=((hsh>>>7)%100)<(30+30*Math.min(1,dxs/(WW*0.42)));   // more of it in shade further from under the source
+      }
+      if(on!==sdOn){
+        if(sdOn&&sdX>=0&&x2>sdX){
+          g.fillStyle="rgba(28,10,44,"+(0.46*burnt*(0.6+0.4*late)).toFixed(3)+")";
+          g.fillRect(sdX,gy,x2-sdX,gb+2);
+        }
+        sdOn=on; sdX=x2;
+      }
+    }
+    if(sdOn&&sdX>=0&&sdX<SW){                                    // ⚠ and the final run, which the loop above used to drop
+      g.fillStyle="rgba(28,10,44,"+(0.46*burnt*(0.6+0.4*late)).toFixed(3)+")";
+      g.fillRect(sdX,gy,SW-sdX,gb+2);
+    }
+    // ── 🔥 CHAR. What is left after the light: the ground and everything on it darkens toward soot as
+    // the arc runs, so the last third is not the same picture as the first third.
+    if(late>0){
+      g.fillStyle="rgba(22,14,20,"+(0.34*late).toFixed(3)+")";
+      g.fillRect(0,gy-Math.round(4*K),SW,SH-gy+Math.round(4*K));
+      g.globalCompositeOperation="lighter";                       // …and it is still glowing where it burned
+      for(var e2=0;e2<Math.round(30*late);e2++){
+        var eh=((e2*2654435761+771)>>>0); eh=(eh^(eh>>>13))>>>0;
+        var ex2=((eh>>>5)%Math.max(1,WW))-WOFF;
+        if(ex2<0||ex2>=SW) continue;
+        var ey=gy+((eh>>>11)%Math.max(1,SH-gy));
+        g.fillStyle="rgba(255,140,70,"+(0.30*late*(0.5+0.5*Math.sin(now*0.004+e2))).toFixed(3)+")";
+        g.fillRect(ex2,ey,Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
+      }
+      g.globalCompositeOperation="source-over";
+    }
+  }
+  if(burnt>0) gammaViolence(g,ap,now,K,gy,sx,sy,epi,burnt,late);
+  if(flash>0.01){ g.fillStyle="rgba(255,255,255,"+flash.toFixed(3)+")"; g.fillRect(0,0,SW,SH); }
+};
+// ── 💥✈️🔥🔒 "MAKE IT MORE DEADLY AND VIOLENT — THIS SHOULD BE SHOOTING EVERYTHING OUT OF THE SKY TOO,
+// THIS SHOULD ALSO BE FRYING CARS AS THEY DRIVE. IT NEEDS TO LOOK BADASS."
+// 🚨 NEITHER OF THE TWO SYSTEMS THAT COULD HAVE DONE THIS COVERED IT. `drawApocSky` already draws craft
+// taking a hit and falling nose-down trailing fire — but it is gated on `resistOn()`, and `RESIST_AT`
+// lists seven endings that gammaray is not one of, because that system is the CITY SHOOTING BACK and a
+// gamma-ray burst is not something you can shoot at. And cars were merely being culled by `nukeHit`,
+// which deletes them silently: the traffic thinned out and nothing was ever seen to DIE.
+// 🔑 A KILL NEEDS A MOMENT. Removing the thing is bookkeeping; the flash, the flame and the fall are
+// the event. That is the same note as the buildings that vanished into stumps without being seen to go.
+// ── 🔥🩸 THE TRACK IT BURNS. His third ask, and the one that makes the sweep mean something: the beam
+// leaves the ground GLASSED behind it. 🔑 THE SCAR IS DRAWN FROM `frB`, WHICH IS THE SAME RADIUS
+// `apocHit` DESTROYS TO — so what looks burned and what IS burned are one number, and they cannot drift
+// apart the way `APOC_SWEEP` and `APOC_STRIKE_AP` once did, or the doomsday clock and the doomsday.
+// The ground is blackest at the epicentre (burned longest) and molten right where the beam is standing.
+function gammaScar(g,ap,now,K,gy,epi,frB,conX,burnt,late){
+  if(frB<=2) return;
+  var band=Math.max(4,SH-gy), top=gy-Math.round(2*K), dep=Math.round(band*0.34);
+  var sX=-1,sA=-1;
+  for(var x=0;x<=SW;x++){
+    var aq=-1;
+    if(x<SW){
+      var d=Math.abs((((x+WOFF-epi)%WW+WW*1.5)%WW)-WW*0.5);
+      if(d<=frB) aq=Math.round(Math.min(1,0.34+0.55*(1-d/Math.max(1,frB)))*30*burnt);
+    }
+    if(aq!==sA){
+      if(sA>0&&sX>=0&&x>sX){ g.fillStyle="rgba(14,6,14,"+(sA/30).toFixed(3)+")"; g.fillRect(sX,top,x-sX,dep); }
+      sA=aq; sX=x;
+    }
+  }
+  // cracks in the glass, still glowing — hashed in WORLD space so the crazing is the same on every screen
+  g.globalCompositeOperation="lighter";
+  for(var c=0;c<Math.round(46*burnt);c++){
+    var ch=((c*2654435761+3391)>>>0); ch=(ch^(ch>>>13))>>>0;
+    var cwx=epi+((((ch>>>3)%2000)/1000)-1)*frB;
+    var CX=Math.round(cwx)-WOFF;
+    if(CX<-6||CX>SW+6) continue;
+    var cl=Math.max(2,Math.round((2+((ch>>>9)%6))*K));
+    var cy4=top+((ch>>>13)%Math.max(1,dep));
+    var near=Math.max(0,1-Math.abs(CX-conX)/Math.max(1,SW*0.22));   // hottest under the beam
+    g.fillStyle="rgba(255,"+(90+Math.round(120*near))+",40,"+(0.30+0.55*near).toFixed(3)+")";
+    g.fillRect(CX,cy4,cl,Math.max(1,Math.round(K*0.7)));
+  }
+  // and where it is standing right now: molten ground, and the air above it boiling
+  if(conX>-40&&conX<SW+40){
+    var hwB=Math.round(14*K);
+    for(var q=0;q<dep;q++){
+      var qf=q/Math.max(1,dep);
+      g.fillStyle="rgba(255,"+(220-Math.round(120*qf))+","+(190-Math.round(150*qf))+","+(0.75*(1-qf)).toFixed(3)+")";
+      g.fillRect(conX-Math.round(hwB*(1-qf*0.5)),top+q,Math.round(hwB*2*(1-qf*0.5)),1);
+    }
+    for(var s=0;s<14;s++){                                   // debris thrown up out of the cut
+      var sh=((s*2654435761+((Math.floor(now/90)*7919)|0))>>>0); sh=(sh^(sh>>>13))>>>0;
+      var sxq=conX+(((sh>>>5)%(hwB*4))-hwB*2);
+      var syq=top-((sh>>>11)%Math.round(26*K));
+      g.fillStyle="rgba(255,200,150,"+(0.5+0.4*Math.sin(now*0.01+s)).toFixed(2)+")";
+      g.fillRect(sxq,syq,Math.max(1,Math.round(K*0.8)),Math.max(1,Math.round(K*0.8)));
+    }
+  }
+  g.globalCompositeOperation="source-over";
+}
+function gammaViolence(g,ap,now,K,gy,sx,sy,epi,burnt,late){
+  // the burst PULSES rather than shining steadily — a steady light is a lamp, a pulsing one is a weapon
+  var beat=(now%2600)/2600, puls=Math.pow(Math.max(0,1-Math.abs(beat-0.12)/0.12),2);
+  // ── ✈️ SHOT OUT OF THE SKY. Everything airborne, hashed and world-anchored, flying level until the
+  // burst reaches it and then coming down in flames.
+  for(var k=0;k<16;k++){
+    var kh=((k*2654435761+1777)>>>0); kh=(kh^(kh>>>13))>>>0;
+    var dirk=((kh>>>15)&1)?1:-1;
+    var wxk=(((kh>>>3)%WW)+dirk*now*(0.009+((kh>>>19)%40)/9000))%WW;
+    if(wxk<0) wxk+=WW;
+    var X=Math.round(wxk)-WOFF;
+    if(X<-30||X>SW+30) continue;
+    var ky=Math.round(gy*(0.10+((kh>>>9)%56)/100*0.52));
+    var hitAt=0.12+((kh>>>21)%46)/100*0.42;
+    var w=Math.max(2,Math.round((2.6+((kh>>>25)%4))*K)), hh=Math.max(1,Math.round(w*0.36));
+    if(ap<hitAt){                                            // still flying, and does not know
+      g.fillStyle="rgba(40,44,56,0.9)";
+      g.fillRect(X-(w>>1),ky,w,hh);
+      continue;
+    }
+    var f=Math.min(1.35,(ap-hitAt)/0.22);                    // the fall, accelerating
+    var fy=ky+Math.round(f*f*(gy-ky));
+    if(fy>gy+2) continue;                                     // it has hit the ground; the wrecks own it now
+    var tl=Math.round(f*3*K);
+    g.fillStyle="rgba(30,26,28,0.92)";
+    g.fillRect(X-(w>>1),fy+tl,w,hh);                          // tumbling, nose down
+    g.globalCompositeOperation="lighter";
+    for(var s2=0;s2<Math.round(9*K);s2++){                    // the flame it trails
+      var sf=s2/Math.max(1,Math.round(9*K));
+      g.fillStyle="rgba(255,"+(150-Math.round(80*sf))+",50,"+(0.55*(1-sf)*Math.min(1,f*2)).toFixed(3)+")";
+      g.fillRect(X-(w>>1)-Math.round(dirk*s2*0.7),fy+tl-Math.round(s2*0.5),Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
     }
     g.globalCompositeOperation="source-over";
   }
-  if(flash>0.01){ g.fillStyle="rgba(255,255,255,"+flash.toFixed(3)+")"; g.fillRect(0,0,SW,SH); }
-};
+  // ── 🚗🔥 FRIED WHERE THEY DRIVE. A flare on the road at the burning edge, then husks behind it.
+  var fr=Math.max(0,(ap-0.10)/0.52)*(WW*0.62);
+  var band=Math.max(4,SH-gy);
+  for(var c=0;c<22;c++){
+    var ch=((c*2654435761+5099)>>>0); ch=(ch^(ch>>>13))>>>0;
+    var cwx=(ch>>>5)%WW, cd=Math.abs(((cwx-epi)%WW+WW*1.5)%WW-WW*0.5);
+    if(cd>fr) continue;                                       // the light has not reached this one yet
+    var CX=cwx-WOFF; if(CX<-12||CX>SW+12) continue;
+    var cy=gy+Math.round(band*(0.22+((ch>>>11)%60)/100*0.6));
+    var fresh=Math.max(0,1-(fr-cd)/(WW*0.07));                // right at the edge = just caught
+    var cw3=Math.max(2,Math.round(4*K)), chh=Math.max(1,Math.round(1.8*K));
+    g.fillStyle="rgba(24,20,22,0.95)";                        // the husk
+    g.fillRect(CX-(cw3>>1),cy-chh,cw3,chh);
+    g.globalCompositeOperation="lighter";
+    var fa=(0.30+0.60*fresh)*(0.55+0.45*Math.sin(now*0.006+c));
+    g.fillStyle="rgba(255,"+(120+Math.round(90*fresh))+",40,"+fa.toFixed(3)+")";
+    g.fillRect(CX-(cw3>>1),cy-chh-Math.round(2*K*fresh),cw3,Math.max(1,Math.round((1+2*fresh)*K)));
+    if(fresh>0.5){                                            // the moment it goes up
+      g.fillStyle="rgba(255,246,214,"+(0.7*fresh).toFixed(2)+")";
+      g.fillRect(CX-cw3,cy-chh-Math.round(4*K),cw3*2,Math.max(1,Math.round(K)));
+    }
+    g.globalCompositeOperation="source-over";
+  }
+  // ── ⚡ THE AIR ITSELF BREAKS DOWN. Ionisation arcs off the tallest things, on the pulse — this is the
+  // "badass" in the brief, and it is also the only thing in the ending that is genuinely fast.
+  if(puls>0.05){
+    g.globalCompositeOperation="lighter";
+    for(var z=0;z<7;z++){
+      var zh=((z*2654435761+((Math.floor(now/2600)*7919)|0))>>>0); zh=(zh^(zh>>>13))>>>0;
+      var zx=((zh>>>5)%Math.max(1,WW))-WOFF;
+      if(zx<-20||zx>SW+20) continue;
+      var zy=gy-Math.round(((zh>>>11)%Math.max(1,Math.round(gy*0.5))));
+      // ⚠ A BOLT IS A LINE, NOT A STAIRCASE. Drawing the bounding box between consecutive points made
+      // each segment a filled BLOCK, so the arc came out as a flight of stairs across the sky — the
+      // beaded-ray fault a third time, in its blocky form. Stepped one row at a time with the jitter
+      // applied to x only, which is also how lightning actually looks in pixel art.
+      var steps=Math.max(8,Math.abs(zy-sy)), bw=Math.max(1,Math.round(K));
+      for(var st2=0;st2<steps;st2++){
+        var tz=st2/steps;
+        var nx=Math.round(sx+(zx-sx)*tz+(((zh>>>(st2&15))%7)-3)*K*0.7);
+        var ny=Math.round(sy+(zy-sy)*tz);
+        g.fillStyle="rgba(220,240,255,"+(0.60*puls*(1-tz*0.35)).toFixed(3)+")";
+        g.fillRect(nx,ny,bw,Math.max(1,Math.ceil(Math.abs(zy-sy)/steps)));
+      }
+    }
+    g.globalCompositeOperation="source-over";
+    // 🔒 HARD FLASHES, his call. The frame goes to near-white on the beat rather than brightening
+    // politely — a pulse you can feel is the difference between a light source and a weapon, and he was
+    // asked explicitly whether a wallpaper should be allowed to do this.
+    g.globalCompositeOperation="lighter";
+    g.fillStyle="rgba(255,238,255,"+(0.62*puls*burnt).toFixed(3)+")";
+    g.fillRect(0,0,SW,SH);
+    g.globalCompositeOperation="source-over";
+  }
+}
 
 // A ROGUE PLANET — it does not hit. It passes, and that is worse: it takes the air and the sea with it.
+// ══ 🪐🔬 THE ROGUE PLANET, REBUILT ON WHAT ACTUALLY HAPPENS ═════════════════════════════════════════
+// Nick: "I feel like we would burn into a crisp if Jupiter got that close — we would be in its gas
+// rings at some point, it wouldn't crash into us like we have it now. Do the research."
+// He was right on both counts, and the ending was staging the one outcome physics forbids.
+// 🔑🔑 A GAS GIANT NEVER REACHES THE GROUND. Earth crosses its ROCHE LIMIT first — the distance inside
+// which tidal force exceeds the body's own gravity — and is pulled apart into a debris stream that
+// cannot re-accrete, so it becomes part of the ring system. No impact. No crater. Everything that
+// kills us happens BEFORE contact, and in a fixed order:
+//   1. MAGNETIC FIELDS TOUCH FIRST — violent thunderstorms and enormous auroras, while the planet is
+//      still just a light in the sky. The only beautiful stage, and the earliest warning.
+//   2. TIDES STOP BEING TIDES — oceans become moving walls of planetary energy; shallow seas empty
+//      out completely and come back.
+//   3. THE CRUST FLEXES — global earthquakes, volcanic systems forced open by the stress.
+//   4. THE AIR LEAKS AWAY — the atmosphere thins and streams off into space. Sky drains toward black
+//      and the stars come out in daylight.
+//   5. WE PASS THROUGH THE RINGS, then graze the outer atmosphere and BURN, then the Roche limit
+//      takes the crust and the fragments are flung out.
+// 🔒 His call: all three endings in sequence, all four stages, and rings we end up inside.
+// ⚠ ONE HELPER FOR THE WHOLE TIMELINE. Each stage is a ramp over its own span of `ap`, so the ending
+// is a script rather than eight independent effects that happen to overlap — the thing crustcrack
+// and gammaray each lacked, and the reason they read as filters instead of events.
+function rogueRamp(ap,a,b){ return Math.max(0,Math.min(1,(ap-a)/Math.max(0.001,b-a))); }
+function rogueStages(ap){
+  return {
+    aur:   rogueRamp(ap,0.12,0.30)*(1-rogueRamp(ap,0.70,0.92)),   // fades as the air that carries it goes
+    tide:  rogueRamp(ap,0.26,0.48),
+    quake: rogueRamp(ap,0.36,0.58),
+    air:   rogueRamp(ap,0.46,0.78),
+    rings: rogueRamp(ap,0.40,0.68),
+    inring:rogueRamp(ap,0.64,0.86),
+    burn:  rogueRamp(ap,0.76,0.92),
+    roche: rogueRamp(ap,0.86,1.00)
+  };
+}
+// ── 🌌 1. THE AURORAS AND THE STORMS. Curtains hanging in the upper sky, world-anchored, with the
+// lightning that comes with a magnetosphere being torn about. ⚠ CURTAINS, NOT BANDS — gammaray's
+// "aurora" was nine full-width horizontal bars and read as a test pattern. An aurora hangs in folds.
+function rogueAurora(g,k,now,gy,K){
+  if(k<=0.01) return;
+  g.globalCompositeOperation="lighter";
+  for(var c=0;c<9;c++){
+    var h=((c*2654435761+4813)>>>0); h=(h^(h>>>13))>>>0;
+    var baseW=((h>>>3)%Math.max(1,WW))-WOFF;
+    var wob=Math.sin(now*0.0004+c*1.7)*22*K;
+    var cxw=Math.round(baseW+wob);
+    if(cxw<-90||cxw>SW+90) continue;
+    var top=Math.round(gy*0.04), hgt=Math.round(gy*(0.34+((h>>>9)%30)/100));
+    var wide=Math.round((10+((h>>>15)%16))*K);
+    for(var y=0;y<hgt;y+=Math.max(1,Math.round(K))){
+      var ty=y/hgt;
+      var sway=Math.round(Math.sin(now*0.0011+c*2.1+ty*5.2)*wide*0.55);
+      var a=0.30*k*Math.pow(1-ty,0.7)*(0.55+0.45*Math.sin(now*0.002+c+ty*3));
+      if(a<0.012) continue;
+      var gr=Math.round(180+60*ty);
+      g.fillStyle="rgba("+Math.round(90+70*(1-ty))+","+gr+","+Math.round(150+70*ty)+","+a.toFixed(3)+")";
+      g.fillRect(cxw+sway,top+y,Math.max(1,Math.round(wide*(1-ty*0.5))),Math.max(1,Math.round(K)));
+    }
+  }
+  g.globalCompositeOperation="source-over";
+  // …and the storms underneath it
+  var beat=Math.floor(now/700), lh=((beat*2654435761)>>>0); lh=(lh^(lh>>>13))>>>0;
+  if((lh%5)===0){
+    var lx=((lh>>>7)%Math.max(1,WW))-WOFF;
+    if(lx>-30&&lx<SW+30){
+      var ly=Math.round(gy*0.62), bx=lx, by=Math.round(gy*0.10);
+      g.globalCompositeOperation="lighter";
+      g.fillStyle="rgba(226,238,255,"+(0.75*k).toFixed(2)+")";
+      var st=Math.max(6,ly-by);
+      for(var s=0;s<st;s++){
+        var tt=s/st, nx=Math.round(bx+(lx-bx)*tt+(((lh>>>(s&15))%7)-3)*K);
+        g.fillRect(nx,by+s,Math.max(1,Math.round(K)),1);
+      }
+      g.fillStyle="rgba(200,220,255,"+(0.10*k).toFixed(3)+")"; g.fillRect(0,0,SW,SH);
+      g.globalCompositeOperation="source-over";
+    }
+  }
+}
+// ── 🌊 2. THE TIDE THAT IS NOT A TIDE. The shallow water empties out completely, then comes back as a
+// wall. ⚠ DRAWN, NEVER BY MOVING `SEA_Y` — the marina, the boats, the reflections and the foam all
+// read that global, so animating it drags half the land along behind.
+function rogueTide(g,k,now,gy,K){
+  if(k<=0.01) return;
+  if(!(typeof SEA_Y==="number"&&SEA_Y>0&&SEA_Y<SH&&SEA_FRONT>0)) return;
+  var swing=Math.sin(now*0.00022)*k;                    // out, then back, over minutes
+  if(swing<0){                                          // the sea has gone: wet ground where it was
+    var bare=Math.round(-swing*(SH-SEA_Y)*0.9);
+    g.fillStyle="rgba(58,54,48,0.85)"; g.fillRect(0,SEA_Y,SW,bare);
+    g.fillStyle="rgba(96,92,84,0.5)"; g.fillRect(0,SEA_Y+bare-Math.max(1,Math.round(K)),SW,Math.max(1,Math.round(K)));
+  } else {                                              // …and the wall coming back
+    var wall=Math.round(swing*(SEA_Y-gy)*1.15);
+    for(var y=0;y<wall;y+=Math.max(1,Math.round(K))){
+      var ty=y/Math.max(1,wall);
+      g.fillStyle="rgba("+Math.round(26+30*ty)+","+Math.round(48+46*ty)+","+Math.round(72+52*ty)+","+(0.92-0.15*ty).toFixed(3)+")";
+      g.fillRect(0,SEA_Y-y,SW,Math.max(1,Math.round(K)));
+    }
+    g.fillStyle="rgba(226,240,248,0.9)";                // foam along its crest
+    for(var fx=0;fx<SW;fx+=Math.max(2,Math.round(3*K))){
+      var fy=SEA_Y-wall+Math.round(Math.sin((fx+WOFF)*0.05+now*0.004)*2*K);
+      g.fillRect(fx,fy,Math.max(1,Math.round(2*K)),Math.max(1,Math.round(K)));
+    }
+  }
+}
+// ── 🌋 3. THE CRUST FLEXES. Fissures open in the ground and dust jumps off everything. The engine
+// cannot shake the camera, so the shaking is expressed as things the ground DOES, which is the same
+// choice the tremor made.
+function rogueQuake(g,k,now,gy,K){
+  if(k<=0.01) return;
+  var band=Math.max(4,SH-gy);
+  for(var i=0;i<Math.round(16*k);i++){
+    var h=((i*2654435761+7043)>>>0); h=(h^(h>>>13))>>>0;
+    var fx=((h>>>5)%Math.max(1,WW))-WOFF;
+    if(fx<-20||fx>SW+20) continue;
+    var fw=Math.max(1,Math.round((1+((h>>>11)%3))*K)), fh=Math.round(band*(0.12+((h>>>15)%40)/100)*k);
+    g.fillStyle="rgba(12,8,8,0.92)";
+    g.fillRect(fx,gy+Math.round(band*0.10),fw,fh);
+    g.globalCompositeOperation="lighter";              // magma in the deeper ones
+    g.fillStyle="rgba(255,130,50,"+(0.5*k*(0.6+0.4*Math.sin(now*0.005+i))).toFixed(3)+")";
+    g.fillRect(fx,gy+Math.round(band*0.10)+Math.round(fh*0.5),fw,Math.max(1,Math.round(fh*0.5)));
+    g.globalCompositeOperation="source-over";
+  }
+  for(var d=0;d<Math.round(20*k);d++){                  // dust shaken off the skyline
+    var dh=((d*2654435761+1613)>>>0); dh=(dh^(dh>>>13))>>>0;
+    var dx=((dh>>>7)%Math.max(1,WW))-WOFF;
+    if(dx<0||dx>=SW) continue;
+    var dy=gy-((dh>>>13)%Math.round(gy*0.55));
+    var t=((now*0.0009+((dh>>>19)%100)/100)%1);
+    g.fillStyle="rgba(168,158,146,"+(0.28*k*(1-t)).toFixed(3)+")";
+    g.fillRect(dx,dy+Math.round(t*30*K),Math.max(1,Math.round(1.6*K)),Math.max(1,Math.round(1.6*K)));
+  }
+}
+// ── 🌑 4. THE AIR GOES. Sky drains toward black and the stars come out in daylight — the single
+// clearest way to say "there is no atmosphere left" without a caption.
+function rogueAirLoss(g,k,now,gy,K){
+  if(k<=0.01) return;
+  g.fillStyle="rgba(4,4,10,"+(0.80*k).toFixed(3)+")";
+  g.fillRect(0,0,SW,gy+2);
+  g.globalCompositeOperation="lighter";
+  for(var s=0;s<Math.round(130*k);s++){
+    var h=((s*2654435761+5471)>>>0); h=(h^(h>>>13))>>>0;
+    var sx=((h>>>5)%Math.max(1,WW))-WOFF;
+    if(sx<0||sx>=SW) continue;
+    var sy=((h>>>13)%Math.max(1,Math.round(gy*0.92)));
+    var tw=0.55+0.45*Math.sin(now*0.003+s);
+    g.fillStyle="rgba(255,255,246,"+(0.85*k*tw).toFixed(3)+")";
+    g.fillRect(sx,sy,Math.max(1,Math.round(K*0.7)),Math.max(1,Math.round(K*0.7)));
+  }
+  g.globalCompositeOperation="source-over";
+}
+// ── 💍 5. THE RINGS, AND THEN WE ARE INSIDE THEM. Hard bands cutting across the sky, and once we
+// cross into the plane the rocks stop being scenery and start arriving.
+function rogueRings(g,k,inring,now,cx,cy,r,K){
+  if(k<=0.01) return;
+  var tilt=0.16;
+  for(var b=0;b<7;b++){
+    var rr=Math.round(r*(1.35+b*0.17)), gap=(b===3);
+    var a=(gap?0.06:0.22)*k;
+    for(var x=-rr;x<=rr;x+=Math.max(1,Math.round(K))){
+      var yy=Math.round(cy+tilt*x+Math.sqrt(Math.max(0,rr*rr-x*x))*0.06);
+      var px=cx+x;
+      if(px<-4||px>SW+4) continue;
+      g.fillStyle="rgba(214,196,168,"+a.toFixed(3)+")";
+      g.fillRect(px,yy,Math.max(1,Math.round(K)),Math.max(1,Math.round((1.4+b*0.4)*K)));
+    }
+  }
+  if(inring<=0.01) return;
+  // …the rocks, now that we are among them: streaking over and coming down
+  for(var i=0;i<Math.round(30*inring);i++){
+    var h=((i*2654435761+8677)>>>0); h=(h^(h>>>13))>>>0;
+    var per=1600+((h>>>7)%1800);
+    var t=(((now+((h>>>13)%per))%per)/per);
+    var x0=((h>>>3)%Math.max(1,WW))-WOFF;
+    var px2=Math.round(x0+t*260*K*(((h>>>17)&1)?1:-1));
+    var py2=Math.round(t*t*HORIZON*1.1);
+    if(px2<-30||px2>SW+30||py2>HORIZON+8) continue;
+    var ln=Math.max(2,Math.round((3+((h>>>21)%6))*K));
+    g.globalCompositeOperation="lighter";
+    g.fillStyle="rgba(255,206,150,"+(0.75*(1-t*0.4)).toFixed(3)+")";
+    g.fillRect(px2,py2,ln,Math.max(1,Math.round(K)));
+    g.globalCompositeOperation="source-over";
+  }
+}
+// ── 🔥 6. THE GRAZE. We enter its outer atmosphere and the sky becomes fire.
+function rogueBurn(g,k,now,gy,K){
+  if(k<=0.01) return;
+  g.globalCompositeOperation="lighter";
+  for(var y=0;y<gy;y+=Math.max(1,Math.round(K))){
+    var ty=y/gy, a=0.55*k*Math.pow(ty,0.7)*(0.75+0.25*Math.sin(now*0.006+y*0.05));
+    if(a<0.02) continue;
+    g.fillStyle="rgba(255,"+Math.round(120+80*(1-ty))+","+Math.round(40+30*(1-ty))+","+a.toFixed(3)+")";
+    g.fillRect(0,y,SW,Math.max(1,Math.round(K)));
+  }
+  g.globalCompositeOperation="source-over";
+}
+// ── 💥 7. THE ROCHE LIMIT. The ground itself peels upward and leaves. This is the ending: not an
+// impact, a DISASSEMBLY.
+function rogueRoche(g,k,now,cx,cy,gy,K){
+  if(k<=0.01) return;
+  var band=Math.max(4,SH-gy);
+  g.fillStyle="rgba(6,4,8,"+(0.55*k).toFixed(3)+")"; g.fillRect(0,gy,SW,band+2);
+  for(var i=0;i<Math.round(80*k);i++){
+    var h=((i*2654435761+2957)>>>0); h=(h^(h>>>13))>>>0;
+    var per=2600+((h>>>7)%2400);
+    var t=(((now+((h>>>13)%per))%per)/per);
+    var x0=((h>>>3)%Math.max(1,WW))-WOFF;
+    var te=t*t;
+    var px=Math.round(x0+(cx-x0)*te*0.8), py=Math.round((gy+band*0.4)+(cy-(gy+band*0.4))*te*0.85);
+    if(px<-30||px>SW+30) continue;
+    var sz=Math.max(1,Math.round((1.4+((h>>>19)%5))*K*(1-t*0.4)));
+    g.fillStyle="rgba("+Math.round(70-30*t)+","+Math.round(58-24*t)+","+Math.round(54-22*t)+",0.95)";
+    g.fillRect(px,py,sz,sz);
+    if(((h>>>23)%4)===0){                                 // some of it still glowing from the burn
+      g.globalCompositeOperation="lighter";
+      g.fillStyle="rgba(255,150,70,"+(0.5*(1-t)).toFixed(3)+")";
+      g.fillRect(px,py,sz,Math.max(1,Math.round(K*0.6)));
+      g.globalCompositeOperation="source-over";
+    }
+  }
+}
+// ── 🌬️🌊 IT TAKES THE AIR AND THE SEA WITH IT. The renderer's own header has said so since the day it
+// was written and nothing in it ever did: the planet hung there, the frame dimmed, and the city sat
+// underneath completely undisturbed. 🔑 THE PREMISE WAS IN A COMMENT AND NOWHERE ELSE — which is this
+// project's most reliable place to find unbuilt features.
+// 🔑🔑 AND IT IS THE ONLY ENDING IN THE SET WHERE THINGS FALL **UP**. Every other one drops rubble,
+// bodies and ash downward; this one lifts the world off its own surface toward something in the sky.
+// That is the whole identity of the ending and it is free once the direction is inverted.
+function rogueStrip(g,ap,now,K,cx,cy,r){
+  var lift=Math.max(0,Math.min(1,(ap-0.30)/0.58));
+  if(lift<=0) return;
+  var gy=HORIZON;
+  // the atmosphere going first: streaks peeling off the ground and curving into the planet
+  g.globalCompositeOperation="lighter";
+  for(var i=0;i<Math.round(70*lift);i++){
+    var h=((i*2654435761+6151)>>>0); h=(h^(h>>>13))>>>0;
+    var per=2200+((h>>>7)%2600);
+    var t=(((now+((h>>>13)%per))%per)/per);
+    var ox=((h>>>3)%Math.max(1,WW))-WOFF;
+    if(ox<-60||ox>SW+60) continue;
+    var oy=gy-((h>>>17)%Math.round(gy*0.35));
+    var te=t*t;                                            // accelerating away — gravity losing
+    var px=Math.round(ox+(cx-ox)*te), py=Math.round(oy+(cy-oy)*te);
+    var a=0.42*(1-t)*lift;
+    if(a<0.02) continue;
+    var ln=Math.max(1,Math.round((2+((h>>>21)%4))*K*(0.4+t)));
+    g.fillStyle="rgba(198,214,255,"+a.toFixed(3)+")";
+    g.fillRect(px,py,Math.max(1,Math.round(K*0.8)),ln);
+  }
+  g.globalCompositeOperation="source-over";
+  // …and then the solid things follow: debris, cars, and people torn off the street upward
+  for(var j=0;j<Math.round(26*lift);j++){
+    var h2=((j*2654435761+9931)>>>0); h2=(h2^(h2>>>13))>>>0;
+    var per2=3000+((h2>>>9)%3400);
+    var t2=(((now+((h2>>>15)%per2))%per2)/per2);
+    var ox2=((h2>>>5)%Math.max(1,WW))-WOFF;
+    if(ox2<-20||ox2>SW+20) continue;
+    var te2=t2*t2;
+    var px2=Math.round(ox2+(cx-ox2)*te2*0.55), py2=Math.round((gy-2)+(cy-(gy-2))*te2*0.72);
+    if(py2<-10) continue;
+    var spin=Math.round(Math.sin(t2*9+j)*K*1.4);
+    var kind=(h2>>>23)%3;
+    if(kind===0){                                          // a person, taken feet-first
+      var mk=0.40+0.18*t2;
+      drawPerson(g,px2+spin,py2,hexDark(PEDC[(h2>>>11)%PEDC.length],mk),hexDark(SKINC[(h2>>>19)%SKINC.length],mk*0.75),(h2&1)?1:-1,0);
+    } else if(kind===1){                                   // a car, tumbling
+      var cw2=Math.max(2,Math.round(4.5*K)), chh=Math.max(1,Math.round(2*K));
+      g.fillStyle="rgba(40,36,40,0.92)";
+      g.fillRect(px2-(cw2>>1)+spin,py2-chh,cw2,chh);
+    } else {                                               // a slab of roadway or roof
+      var sw2=Math.max(2,Math.round((3+((h2>>>25)%5))*K));
+      g.fillStyle="rgba(52,46,46,0.92)";
+      g.fillRect(px2-(sw2>>1)+spin,py2-Math.max(1,Math.round(1.4*K)),sw2,Math.max(1,Math.round(1.4*K)));
+    }
+  }
+  // the sea, if there is one, standing UP in a column toward it — drawn, never by moving SEA_Y
+  if(typeof SEA_Y==="number"&&SEA_Y>0&&SEA_Y<SH&&SEA_FRONT>0){
+    var pull=Math.round((SEA_Y-cy)*0.42*lift);
+    g.globalCompositeOperation="lighter";
+    for(var w=0;w<Math.round(46*lift);w++){
+      var h3=((w*2654435761+2287)>>>0); h3=(h3^(h3>>>13))>>>0;
+      var wx3=((h3>>>5)%Math.max(1,SW));
+      var t3=(((now*0.0004+((h3>>>11)%1000)/1000)%1));
+      var wy=Math.round(SEA_Y-t3*pull);
+      g.fillStyle="rgba(168,210,238,"+(0.5*(1-t3)*lift).toFixed(3)+")";
+      g.fillRect(wx3,wy,Math.max(1,Math.round(K*0.9)),Math.max(2,Math.round(5*K*(0.3+t3))));
+    }
+    g.globalCompositeOperation="source-over";
+  }
+}
 APOC_X.rogueplanet=function(g,ap,L,now){
   var K=Math.max(1,KSP);
-  var r=Math.round((10+ap*ap*230)*K);
+  // ⚠ CAPPED. `(10+ap*ap*230)*K` reaches a 480px radius on a 776px screen, so the last third of the
+  // arc was a flat brown field with no city in it — and a planet that fills the frame stops reading as
+  // a planet, exactly as the ninetails fox did at `gy*0.92`. A giant only reads as a giant next to
+  // something, so it is held to a size that always leaves the skyline underneath it.
+  var r=Math.min(Math.round(SW*0.62),Math.round((10+ap*ap*230)*K));
   // 🌍 A PLANET HANGS OVER ONE PLACE. At `SW*0.62` there were three of it, one per monitor. The sun
   // has been `Math.round(df*WW-WOFF)` with a cull for as long as there has been a sun — same law.
   var cx=Math.round(apocSkyX(0.62,now)), cy=Math.round(HORIZON*0.30-ap*HORIZON*0.10);
@@ -51565,20 +52842,58 @@ APOC_X.rogueplanet=function(g,ap,L,now){
   g.fillStyle="rgba(10,8,16,"+dark.toFixed(3)+")"; g.fillRect(0,0,SW,SH);
   var body=mixc([96,74,58],[36,26,24],0.3);
   g.fillStyle=css(body); fillEllipse(g,cx,cy,r,r);
-  // banded, and lit only along the limb that faces our sun — a flat disc is a hole, not a world
-  for(var b=0;b<10;b++){
-    var by=cy-r+Math.round((b+0.5)*(r*2/10));
-    var hw=Math.round(Math.sqrt(Math.max(0,r*r-(by-cy)*(by-cy))));
-    g.fillStyle=rgba(mixc(body,(b&1)?[128,102,78]:[64,48,42],0.55),0.55);
-    g.fillRect(cx-hw,by,hw*2,Math.max(1,Math.round(r*0.12)));
-  }
+  // ⚡🚨 STEPPED, AND IT HAD TO BE. This is `r*0.16` NESTED FULL ELLIPSES, and once the planet was
+  // allowed to grow that became 77 of them at a 480px radius — 129,980 fills at the climax and a frame
+  // of 167,974, three and a half times the land at rest. 🔑 A LOOP WHOSE COUNT IS DERIVED FROM A SIZE
+  // BECOMES A PERF BUG THE MOMENT SOMETHING ELSE MAKES THAT SIZE BIGGER, and nothing warns you: the
+  // change that broke this was `r`, twenty lines away, in a commit about composition. Fixed count now,
+  // so the crescent costs the same whatever the planet does.
+  // ⚡🚨 ONE ELLIPSE, NOT `r*0.16` OF THEM. This was a stack of nested full ellipses making a soft rim
+  // gradient, and once the planet was allowed to grow it became 77 of them at a 480px radius — 129,980
+  // fills at the climax, a frame of 167,974, three and a half times the land at rest.
+  // 🔑🔑 A LOOP WHOSE COUNT IS DERIVED FROM A SIZE BECOMES A PERF BUG THE MOMENT SOMETHING ELSE MAKES
+  // THAT SIZE BIGGER — and nothing warns you, because the change that broke it was `r`, twenty lines
+  // away, in a commit about composition. Measure after every change that touches a dimension.
+  // ⚠ Stepping the loop to a fixed 12 fixed the cost and put a visible STAIRCASE on the limb — the
+  // banding artefact this session has now produced four different ways. A crescent does not need a
+  // gradient: one bright disc, clipped by the body drawn over it, is a clean hard rim and one draw.
   g.globalCompositeOperation="lighter";
-  for(var q=0;q<Math.round(r*0.16);q++){
-    g.fillStyle="rgba(255,214,170,"+(0.30*(1-q/Math.max(1,r*0.16))).toFixed(3)+")";
-    fillEllipse(g,cx-Math.round(r*0.06),cy-Math.round(r*0.05),r-q,r-q);
-  }
+  g.fillStyle="rgba(255,214,170,0.34)";
+  fillEllipse(g,cx-Math.round(r*0.06),cy-Math.round(r*0.05),r,r);
   g.globalCompositeOperation="source-over";
   g.fillStyle=css(body); fillEllipse(g,cx,cy,Math.round(r*0.94),Math.round(r*0.94));
+  // 🚨🔑🔑 THE BANDS WERE DRAWN AND THEN PAINTED OVER. They used to run BEFORE the crescent, and the
+  // 0.94 disc that clips the crescent down to a limb wiped every one of them — leaving a flat brown
+  // circle with a bright edge, under a comment reading "a flat disc is a hole, not a world". The
+  // comment was right and the draw order made it false. Moved AFTER the clip, which is the only place
+  // they can survive. 🔑 SAME FAULT AS THE TRENCH-FLOOR GLOW AND THE TREMOR UNDER THE DUST: on this
+  // project the question is almost never "did I draw it", it is "what draws after it".
+  // ⚠ Banding is also what makes the SIZE readable — a featureless disc has no scale at all, which is
+  // why this one could grow to fill the frame without ever feeling like it was getting closer.
+  for(var b=0;b<14;b++){
+    var by=cy-r+Math.round((b+0.5)*(r*2/14));
+    var hw=Math.round(Math.sqrt(Math.max(0,r*r*0.884-(by-cy)*(by-cy))));
+    if(hw<1) continue;
+    g.fillStyle=rgba(mixc(body,(b&1)?[132,106,80]:[58,42,38],0.62),0.72);
+    g.fillRect(cx-hw,by,hw*2,Math.max(1,Math.round(r*0.085)));
+  }
+  // a storm the size of a continent, so the bands are not just stripes
+  var stx=cx-Math.round(r*0.34), sty=cy+Math.round(r*0.18);
+  g.fillStyle=rgba(mixc(body,[168,120,86],0.55),0.75);
+  fillEllipse(g,stx,sty,Math.round(r*0.26),Math.round(r*0.15));
+  g.fillStyle=rgba(mixc(body,[42,28,26],0.5),0.6);
+  fillEllipse(g,stx,sty,Math.round(r*0.13),Math.round(r*0.07));
+  // ── 🔬 THE TIMELINE, in the order the physics gives. Rings behind the planet is wrong (it is in
+  // front of us), so they draw after it; everything that happens to the CITY draws after both.
+  var ST=rogueStages(ap), gyR=HORIZON;
+  rogueRings(g,ST.rings,ST.inring,now,cx,cy,r,K);
+  rogueAurora(g,ST.aur,now,gyR,K);
+  rogueAirLoss(g,ST.air,now,gyR,K);
+  rogueTide(g,ST.tide,now,gyR,K);
+  rogueQuake(g,ST.quake,now,gyR,K);
+  rogueStrip(g,ap,now,K,cx,cy,r);
+  rogueBurn(g,ST.burn,now,gyR,K);
+  rogueRoche(g,ST.roche,now,cx,cy,gyR,K);
   // and the tide comes with it — drawn, never by moving SEA_Y
   if(typeof SEA_Y==="number"&&SEA_Y>0&&SEA_Y<SH&&ap>0.3){
     var rise=Math.round(HORIZON*0.30*(ap-0.3)/0.7);
@@ -51586,11 +52901,440 @@ APOC_X.rogueplanet=function(g,ap,L,now){
   }
 };
 
+// ── 🌋 THE CHASM — the thing the ending is named after, drawn where it can be seen.
+// It opens across the STREET BAND (HORIZON..SH), the ~78 world px of foreground the city actually
+// stands in, because `drawApocalypse` paints over everything and this is the one ending whose event
+// happens at your feet. Composition rules carried in from the canyon, which is the other hole this
+// project draws: a hole is DARK and its RIM carries the light · the lip is smooth at the small scale
+// and wanders at the large one, because a 1px-noisy edge is dust and this is rock · what makes depth
+// readable is the FAR wall, since the near one faces away from us.
+// ⚠ WORLD-ANCHORED and it crosses the whole world, so all three monitors get a piece of it — the
+// beach headland's lesson. What varies per life is where it is widest, not whether you can see it.
+// 🕳️ HOW FAR OPEN IS THE GROUND AT THIS WORLD X — THE ONE PLACE THAT DECIDES. Nick, with a screenshot
+// of the finished chasm: "make sure everyone and everything falls." They were not: pedestrians stood
+// ON the void and the road ran along the bottom of it, because the chasm draws inside
+// `drawApocalypse` and several layers paint AFTER it — the fallen, the stains they lie in, the
+// mourners, the wrecks, the debris.
+// 🔑🔑 AND THE ENGINE ALREADY HAD THE ANSWER: `apocNoGround(wx)` — asked at NINE call sites by every
+// one of those layers, and already unioning THE PIT, THE HOLLOW and the flood. The fix is one row in
+// that union, not a new mechanism. My first attempt was a screen-space array published by the
+// renderer, which is a second source of truth for a question that already had one.
+// ⚠ AND THE GEOMETRY LIVES HERE, NOT IN THE RENDERER, so the predicate and the picture cannot drift.
+// That drift is the exact fault `APOC_SWEEP` vs `APOC_STRIKE_AP` had to be checked row-by-row for,
+// and the one that let the doomsday clock display a time the city then ignored.
+var crustHC={t:null,h:0};
+function crustOpenAt(wx,ap,now){
+  var op=Math.max(0,Math.min(1,(ap-0.14)/0.62));
+  if(op<=0) return 0;
+  var epi=(typeof apocEpiX==="function")?apocEpiX(now):Math.round(WW*0.5);
+  var d=((wx-epi)%WW+WW*1.5)%WW-WW*0.5;
+  // 🚨🔑🔑 IT PROPAGATES. The first version tapered by distance from the epicentre but had NO EDGE —
+  // every column in the world opened at once, just narrower further out. Which meant there was no
+  // front, and therefore nothing for the fracture to run ahead OF: measured, `crustFracture` drew ZERO
+  // fills at every point on the arc, because by the time it was asked the ground was already open
+  // across the whole screen. 🔑 A TAPER IS NOT A FRONT. The taper says how deep; only a RADIUS says
+  // how far, and an ending without a "how far" cannot travel, cannot arrive, and cannot be outrun.
+  var R=op*(WW*0.55);
+  var ad=Math.abs(d);
+  if(ad>R) return 0;
+  var fall=Math.pow(Math.max(0,1-ad/Math.max(1,R)),0.80);
+  if(fall<=0) return 0;
+  // ⚡ the life hash is per FRAME, not per column. Called straight, `lifeIndexOf` made this 1.72us a
+  // call — 776 columns of chasm plus a call for every body, wreck and particle that asks
+  // `apocNoGround`, which is ~1.3ms a frame to re-derive one number that cannot change within a frame.
+  if(crustHC.t!==now){ var hh=((lifeIndexOf(now)*2654435761+9176)>>>0); crustHC={t:now,h:(hh^(hh>>>13))>>>0}; }
+  var hc=crustHC.h;
+  var v1=Math.sin(wx*0.0021+((hc>>>3)%628)/100)*0.20;
+  var v2=Math.sin(wx*0.0083+((hc>>>9)%628)/100)*0.09;
+  return Math.round((Math.max(8,SH-HORIZON)*0.86)*op*Math.pow(fall,0.75)*(0.72+v1+v2));
+}
+function crustGone(wx){
+  if(curDeath!=="crustcrack"||cityPhase!=="apoc") return false;
+  return crustOpenAt(wx,cityApoc,NOWOVR!=null?NOWOVR:Date.now())>=2;
+}
+function crustChasm(g,ap,L,now,K){
+  var day=L>0.5, gy=HORIZON, band=Math.max(8,SH-gy);
+  var epi=(typeof apocEpiX==="function")?apocEpiX(now):Math.round(WW*0.5);
+  var op=Math.max(0,Math.min(1,(ap-0.14)/0.62));           // how far open, 0 until it starts
+  if(op<=0) return;
+  var h0=((lifeIndexOf(now)*2654435761+9176)>>>0); h0=(h0^(h0>>>13))>>>0;
+  // the near lip sits low in the band and the far lip higher, so you are looking ACROSS the gap and
+  // down into it. Both wander in WORLD space so the two sides never look like parallel rules.
+  // 🔒 "EVERYONE AND EVERYTHING FALLS INTO IT AND IT ENDS UP CONSUMING THE WORLD" — his brief once the
+  // chasm read. So the opening has TWO phases. First it widens across the street band (`op`). Then,
+  // from ap 0.68, it EATS UPWARD (`consume`): the far lip climbs out of the foreground and up the
+  // frame, swallowing the skyline from the bottom, until near the epicentre there is no city left
+  // above it — just the far wall and the light at the bottom. 🔑 A hole that stops growing is scenery;
+  // the second phase is what makes it an ending.
+  var consume=Math.max(0,Math.min(1,(ap-0.68)/0.32));
+  var maxOpen=band*0.86;
+  var farA=new Array(SW), nearA=new Array(SW), openA=new Array(SW), maxWall=0;
+  for(var xi=0;xi<SW;xi++){ farA[xi]=0; nearA[xi]=0; openA[xi]=0; }
+  for(var x=0;x<SW;x++){
+    var wx=x+WOFF;
+    var d=((wx-epi)%WW+WW*1.5)%WW-WW*0.5;                   // wrapped distance from the epicentre
+    var fall=Math.max(0,1-Math.abs(d)/(WW*0.46));           // widest at the epicentre, tapering away
+    var w1=Math.sin(wx*0.0021+((h0>>>3)%628)/100)*0.20;
+    var openBase=crustOpenAt(wx,ap,now);        // ⚠ ONE SOURCE — see crustOpenAt above
+    if(openBase<2&&consume<=0) continue;
+    var rise=Math.round(gy*0.66*consume*Math.pow(fall,0.55)*(0.80+w1*0.9));
+    // …AND IT TAKES THE NEAR SIDE TOO. The near lip used to stop inside the band, which left the road
+    // and its traffic running along the bottom of the frame in front of a hole that had eaten the rest
+    // of the world — the single thing that most said "this is a picture of a hole" rather than "the
+    // ground is going". Once it is properly open the near ground goes with it, down past the frame.
+    var nearY=gy+Math.round(band*0.16)+openBase;
+    if(consume>0) nearY=Math.round(nearY+(SH+4-nearY)*Math.min(1,consume/0.45));
+    nearY=Math.min(SH+4,nearY);
+    var farY=Math.max(2,gy+Math.round(band*0.16-openBase*0.10)-rise);   // climbs into the city
+    farA[x]=farY; nearA[x]=nearY; openA[x]=nearY-farY;
+    if(openA[x]>maxWall) maxWall=openA[x];
+  }
+  // ⚡🚨 GEOMETRY FIRST, THEN PASSES — because the obvious way round is the trap this land has already
+  // paid for twice. Written per-column, the far wall's gradient cost 96,172 fills at the climax and
+  // took the frame to 134,598: worse than the whole land was before today's work, and worst exactly
+  // when the most is happening. 🔑 THE SAME FAULT AS THE CANYON GLOW, IN CODE WRITTEN AN HOUR AFTER
+  // FIXING THE CANYON GLOW. Per-column detail is a choice; flush when the PROFILE changes, not when
+  // the column does. Knowing the rule is not the same as recognising the shape of it in new code.
+
+  var stepQ=Math.max(1,Math.round(K));
+  g.fillStyle=day?"rgba(9,6,7,0.97)":"rgba(4,3,4,0.98)";
+  var vX=-1,vY=0,vH=0;
+  for(var xv=0;xv<=SW;xv++){
+    var oy=(xv<SW&&openA[xv]>=2)?farA[xv]:-99999, oh=(xv<SW&&openA[xv]>=2)?openA[xv]:0;
+    if(oy!==vY||oh!==vH){ if(vY!==-99999&&vX>=0&&xv>vX&&vH>0) g.fillRect(vX,vY,xv-vX,vH); vX=xv; vY=oy; vH=oh; }
+  }
+  // the FAR wall, lit from below by what is down there — near the lip almost black, taking the magma
+  // toward the bottom. This gradient is the only thing that makes a black slot read as DEPTH.
+  var wallMax=Math.round(maxWall*0.62);
+  for(var q=0;q<wallMax;q+=stepQ){
+    var rX=-1,rSty=null,rY=0;
+    for(var xw=0;xw<=SW;xw++){
+      var sty=null,yy=0;
+      if(xw<SW&&openA[xw]>=2){
+        var wallH=Math.round(openA[xw]*0.62);
+        if(q<wallH){
+          var t=q/Math.max(1,wallH), a=0.86*Math.pow(t,1.5);
+          if(a>=0.02){
+            var tq=Math.round(t*20)/20;
+            sty="rgba("+(90+Math.round(165*tq))+","+(18+Math.round(96*tq))+","+(10+Math.round(28*tq))+","+(Math.round(a*160)/160).toFixed(3)+")";
+            yy=farA[xw]+q;
+          }
+        }
+      }
+      if(sty!==rSty||yy!==rY){ if(rSty!==null&&rX>=0&&xw>rX){ g.fillStyle=rSty; g.fillRect(rX,rY,xw-rX,stepQ); } rSty=sty; rX=xw; rY=yy; }
+    }
+  }
+  // molten at the bottom, pulsing — the brightest thing in the frame and the reason for all the glow
+  var mX=-1,mSty=null,mY=0,mHH=0;
+  for(var xm2=0;xm2<=SW;xm2++){
+    var s3=null,y3=0,h3=0;
+    if(xm2<SW&&openA[xm2]>=2){
+      h3=Math.max(1,Math.round(openA[xm2]*0.16));
+      var pl=0.72+0.28*Math.sin(now*0.003+(xm2+WOFF)*0.02);
+      s3="rgba(255,"+(150+Math.round(70*pl))+","+(40+Math.round(50*pl))+","+(0.92*pl).toFixed(3)+")";
+      y3=Math.min(SH-h3,nearA[xm2]-h3);   // ⚠ clamped: once the near lip drops past the frame the
+                                          // molten floor must stay visible, or the hole loses its bottom
+
+    }
+    if(s3!==mSty||y3!==mY||h3!==mHH){ if(mSty!==null&&mX>=0&&xm2>mX){ g.fillStyle=mSty; g.fillRect(mX,mY,xm2-mX,mHH); } mSty=s3; mX=xm2; mY=y3; mHH=h3; }
+  }
+  // the lips: a lit edge on the far side (it faces us and the sky), a hard dark one on the near
+  var lipT=Math.max(1,Math.round(K*0.7)), lipB=Math.max(1,Math.round(K*0.9));
+  g.fillStyle=day?"rgba(196,182,170,0.85)":"rgba(120,110,108,0.75)";
+  var fX=-1,fY2=0;
+  for(var xf=0;xf<=SW;xf++){
+    var fy2=(xf<SW&&openA[xf]>=2)?(farA[xf]-lipT):-99999;
+    if(fy2!==fY2){ if(fY2!==-99999&&fX>=0&&xf>fX) g.fillRect(fX,fY2,xf-fX,lipT); fX=xf; fY2=fy2; }
+  }
+  g.fillStyle=day?"rgba(26,20,20,0.95)":"rgba(12,9,10,0.96)";
+  var nX=-1,nY2=0;
+  for(var xn=0;xn<=SW;xn++){
+    var ny2=(xn<SW&&openA[xn]>=2)?nearA[xn]:-99999;
+    if(ny2!==nY2){ if(nY2!==-99999&&nX>=0&&xn>nX) g.fillRect(nX,nY2,xn-nX,lipB); nX=xn; nY2=ny2; }
+  }
+  // ── 💧🔒 AND IF THERE IS WATER, IT ALL GOES IN. His ask, and it is the right one — a chasm opening
+  // through a coast should empty the sea into itself.
+  // ⚠ DRAWN, NEVER BY MOVING `SEA_Y`. Moonfall's tide had to learn the same thing: the waterline is
+  // read by the marina, the reflections, the boats, the beach foam and the harbour, so animating the
+  // global would drag half the land along behind it.
+  // 🔑 WATER MEETING MAGMA IS STEAM, AND THE STEAM IS THE BIGGER PICTURE. The fall itself is local to
+  // the coast; a white column standing a whole screen high is what the OTHER TWO MONITORS see, and on
+  // a 2269px world an event only one screen can see has happened to a third of the audience.
+  // ⚠ Both kinds of water: `SEA_FRONT` (a band along the bottom on coastal lands, waterline `SEA_Y`)
+  // and `inSea(wx)` (open sea at the world's seams). `seaW` IS AN X COORDINATE, NOT A FLAG.
+  var seaOn=(typeof SEA_Y==="number"&&SEA_Y>0&&SEA_Y<SH&&SEA_FRONT>0), anyWet=false;
+  if(seaOn||seaW>0){
+    var wob=(now*0.02)%16, strK=Math.max(2,Math.round(K*2));
+    for(var xs=0;xs<SW;xs++){
+      if(openA[xs]<4) continue;
+      var wxs=xs+WOFF;
+      if(!(seaOn||inSea(wxs))) continue;
+      var wTop=seaOn?Math.max(farA[xs],Math.min(SEA_Y,SH-2)):farA[xs];
+      var wBot=Math.min(SH,nearA[xs]);
+      if(wBot-wTop<3) continue;
+      anyWet=true;
+      g.fillStyle="rgba(148,188,212,0.52)";                  // the sheet going over
+      g.fillRect(xs,wTop,1,wBot-wTop);
+      var st=((xs*7+Math.round(wob))%16);                    // …broken into strands, or it is a pane of glass
+      if(st<5){ g.fillStyle="rgba(228,243,251,0.85)"; g.fillRect(xs,wTop+st*2,1,strK); }
+      g.fillStyle="rgba(242,251,255,0.90)";                  // foam right at the lip
+      g.fillRect(xs,wTop-Math.max(1,Math.round(K)),1,Math.max(1,Math.round(K*1.2)));
+    }
+  }
+  if(anyWet){
+    var sEpi=Math.round(epi)-WOFF, sBase=seaOn?SEA_Y:gy;
+    for(var sp=0;sp<28;sp++){
+      var s4=((sp*2654435761+4242)>>>0); s4=(s4^(s4>>>13))>>>0;
+      var life=((now*0.00022+((s4>>>5)%1000)/1000)%1);       // scripted from a hash, like everything else
+      var sy4=sBase-Math.round(life*gy*1.15);
+      var sx4=sEpi+Math.round(((((s4>>>9)%1000)/1000)-0.5)*SW*0.95)+Math.round(Math.sin(life*5+sp)*9*K);
+      if(sx4<-40||sx4>SW+40) continue;
+      var sr=Math.round((5+((s4>>>15)%10))*K*(0.45+life*1.6));
+      var sa=0.40*(1-life)*(1-life*0.35);
+      if(sa<0.02) continue;
+      // 🚨 ELLIPSES, AND MORE THAN ONE PER PUFF. The first cut drew each puff as a `fillRect` and the
+      // sky filled with pale BOXES — which is the exact "can we fix these floating squares" complaint
+      // he raised about the sky lanes, reintroduced by me an hour after fixing it. A hard-edged
+      // rectangle is the one shape steam cannot be. 🔑 The rule was not "sky lanes were wrong", it was
+      // "a soft thing drawn as a rectangle reads as a sprite"; I applied the instance, not the rule.
+      g.fillStyle="rgba(236,243,248,"+sa.toFixed(3)+")";
+      fillEllipse(g,sx4,sy4,sr,Math.max(1,Math.round(sr*0.74)));
+      fillEllipse(g,sx4+Math.round(sr*0.58),sy4-Math.round(sr*0.32),Math.max(1,Math.round(sr*0.62)),Math.max(1,Math.round(sr*0.46)));
+      fillEllipse(g,sx4-Math.round(sr*0.52),sy4+Math.round(sr*0.18),Math.max(1,Math.round(sr*0.54)),Math.max(1,Math.round(sr*0.40)));
+    }
+  }
+  // …and the heat it throws UP onto the city, which is what stops the chasm being a hole in a photo
+  // and makes it a light source standing in the same world as the buildings. Same lesson as the rift.
+  g.globalCompositeOperation="lighter";
+  var upH=Math.round(gy*0.34*op);
+  for(var qu=0;qu<upH;qu+=Math.max(2,Math.round(2*K))){
+    var tu=qu/Math.max(1,upH), au=0.26*Math.pow(1-tu,2.0)*op;
+    if(au<0.012) continue;
+    g.fillStyle="rgba(255,116,44,"+au.toFixed(3)+")";
+    g.fillRect(0,gy-qu,SW,Math.max(2,Math.round(2*K)));
+  }
+  g.globalCompositeOperation="source-over";
+  crustFracture(g,ap,now,K,epi,gy,band,openA,day);
+  crustTippers(g,ap,now,K,epi,gy,band,farA,nearA,openA,day);
+  crustFallers(g,ap,now,K,epi,op,gy,band);
+}
+// ── 🩹🔒 THE SCAR THE LAST WORLD LEFT. His pick: crustcrack should have consequences you see days
+// later, not just for the ninety seconds it plays. If the PREVIOUS civilization on this land died of
+// THE CRUST CRACKS, the new one is built around the healed canyon — settled, weathered grey instead of
+// black, still faintly warm at the bottom after a lifetime, and BRIDGED, because a city that grows back
+// next to a hole builds across it. 🔑 THE ONE THING THAT MAKES A RUIN READ AS OLD IS THAT SOMETHING
+// USES IT: an unbridged seam is a fresh wound no matter how grey it is painted.
+// ⚠ The epicentre is re-derived for life-1 EXACTLY as `nukeGZX` derives it — same constants, same hash
+// — so the scar lands where the chasm actually was. Any drift here and the city would be built around
+// a hole that never happened, which is the class of bug the doomsday clock had.
+function drawCrustScar(g,L,now){
+  var li=(typeof curLife==="number")?curLife:0;
+  if(li<=0||typeof deathOf!=="function") return;
+  if(deathOf(li-1)!=="crustcrack") return;
+  var day=L>0.5, K=Math.max(1,KSP), gy=HORIZON;
+  var ex;
+  if(typeof CFG_APOC_EPI!=="undefined"&&CFG_APOC_EPI!=null) ex=Math.round(WW*CFG_APOC_EPI);
+  else { var hg=(((li-1)*2654435761+13)>>>0); hg=(hg^(hg>>>15))>>>0; ex=Math.round(WW*(0.10+0.80*(hg/4294967296))); }
+  var sx=ex-WOFF, hs=((li*2654435761+6607)>>>0); hs=(hs^(hs>>>13))>>>0;
+  // ⚠ SIZED UP AFTER THE FIRST RENDER. At half these numbers it was a dark slot the sidewalk crowd
+  // stood on top of — present, and not legible as a canyon. A scar the new city was built AROUND has
+  // to be big enough that the city is visibly arranged around it.
+  var hw=Math.round((30+((hs>>>3)%22))*K);
+  if(sx+hw*2<-8||sx-hw*2>SW+8) return;
+  var top=gy-Math.round(5*K), dep=Math.round((16+((hs>>>9)%12))*K);
+  for(var x=sx-hw;x<=sx+hw;x++){
+    if(x<0||x>=SW) continue;
+    var t=Math.abs(x-sx)/Math.max(1,hw);
+    var d2=Math.round(dep*Math.pow(1-t*t,0.6));
+    if(d2<1) continue;
+    g.fillStyle=day?"rgba(28,24,26,0.94)":"rgba(10,9,11,0.95)";       // the seam
+    g.fillRect(x,top,1,d2);
+    g.fillStyle=day?"rgba(150,142,132,0.85)":"rgba(74,70,68,0.8)";    // weathered lip, not fresh rock
+    g.fillRect(x,top-Math.max(1,Math.round(K*0.6)),1,Math.max(1,Math.round(K*0.6)));
+    if(!day&&t<0.55){                                                  // still warm down there, a life later
+      g.globalCompositeOperation="lighter";
+      g.fillStyle="rgba(255,120,50,"+(0.16*(1-t)).toFixed(3)+")";
+      g.fillRect(x,top+d2-Math.max(1,Math.round(K)),1,Math.max(1,Math.round(K)));
+      g.globalCompositeOperation="source-over";
+    }
+  }
+  // …and the bridge the new city put across it
+  var bd=top-Math.round(1.6*K), bwid=hw*2+Math.round(6*K);
+  g.fillStyle=day?"rgba(96,90,86,0.95)":"rgba(38,36,38,0.95)";
+  g.fillRect(sx-hw-Math.round(3*K),bd,bwid,Math.max(1,Math.round(1.4*K)));
+  g.fillStyle=day?"rgba(168,160,150,0.9)":"rgba(72,70,74,0.9)";
+  g.fillRect(sx-hw-Math.round(3*K),bd,bwid,Math.max(1,Math.round(K*0.5)));
+  for(var p=-1;p<=1;p+=2){                                             // two piers down into the seam
+    var pxx=sx+p*Math.round(hw*0.55);
+    g.fillStyle=day?"rgba(78,74,72,0.9)":"rgba(30,29,32,0.9)";
+    g.fillRect(pxx,bd,Math.max(1,Math.round(K)),Math.round(dep*0.72));
+  }
+  for(var rl=0;rl<3;rl++){                                             // railings, so it reads as built
+    var rx=sx-hw+Math.round((rl+0.5)*(hw*2/3));
+    g.fillStyle=day?"rgba(140,134,126,0.75)":"rgba(60,58,62,0.7)";
+    g.fillRect(rx,bd-Math.round(1.4*K),Math.max(1,Math.round(K*0.5)),Math.round(1.4*K));
+  }
+}
+// ── ⚡🔒 THE FRACTURE THAT RUNS AHEAD OF IT. His first pick. Until now the chasm simply FADED UP where
+// it was going to be, which is why it read as an effect: nothing caused it and nothing announced it.
+// A crack racing out along the street ahead of the opening gives the ending a direction, a speed and a
+// moment of warning — and it is the cheapest of the three, because it draws only where the ground is
+// still whole. 🔑 It is deliberately AHEAD of the opening front, never level with it: a fracture that
+// arrives with the hole is decoration, one that arrives first is a threat.
+function crustFracture(g,ap,now,K,epi,gy,band,openA,day){
+  // ⚠ DERIVED FROM THE OPENING'S OWN RADIUS, not from `ap` independently — the two used to be separate
+  // expressions of the same journey, which is how a fracture ends up arriving after the hole it is
+  // supposed to warn you about. It runs at 1.5x the opening plus a fixed lead, so there is always
+  // visible cracked ground beyond the edge.
+  var opF=Math.max(0,Math.min(1,(ap-0.14)/0.62));
+  var fr=Math.min(WW*0.5,opF*(WW*0.55)*1.5+WW*0.05);
+  if(fr<=0) return;
+  var y0=gy+Math.round(band*0.16), th=Math.max(1,Math.round(K*0.9));
+  var hf=((lifeIndexOf(now)*2654435761+5521)>>>0); hf=(hf^(hf>>>13))>>>0;
+  g.fillStyle=day?"rgba(24,16,14,0.92)":"rgba(10,7,7,0.94)";
+  for(var x=0;x<SW;x++){
+    if(openA[x]>=2) continue;                                  // already open here — the crack's job is done
+    var wx=x+WOFF, d=((wx-epi)%WW+WW*1.5)%WW-WW*0.5, ad=Math.abs(d);
+    if(ad>fr) continue;
+    var edge=1-Math.min(1,(fr-ad)/(WW*0.10));                  // youngest right at the tip
+    var hh=(((wx*2654435761+hf)>>>0)); hh=(hh^(hh>>>13))>>>0;
+    var jit=Math.round((((hh>>>7)%9)-4)*K*0.42);               // jagged, not ruled — it is a tear
+    g.fillRect(x,y0+jit,1,th+((hh>>>3)&1));
+    if(((hh>>>11)%23)===0){                                    // forks, because a fracture branches
+      var fl=Math.round((2+((hh>>>15)%5))*K), dir=((hh>>>19)&1)?1:-1;
+      for(var f=0;f<fl;f++) g.fillRect(x+f,(y0+jit+dir*f)|0,1,th);
+    }
+    if(edge>0.35&&((hh>>>17)%5)===0){                          // dust jumping off the fresh tip
+      g.fillStyle="rgba("+(day?"196,182,166":"120,110,102")+","+(0.42*edge).toFixed(2)+")";
+      g.fillRect(x,(y0+jit-Math.round((1+((hh>>>21)%3))*K))|0,Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
+      g.fillStyle=day?"rgba(24,16,14,0.92)":"rgba(10,7,7,0.94)";
+    }
+  }
+}
+// ── 🏢🔒 AND THE BUILDINGS GO OVER. His second pick, and the right diagnosis: things were VANISHING
+// (apocHit turns them to stumps) but nothing was ever seen to FALL, which is what the eye is waiting
+// for at the edge of a hole. Each tipper is a slab that leans further as its own cycle runs, then goes
+// past vertical and drops out of sight. 🔑 Drawn HERE rather than in the tower renderer so it works on
+// every land — the chasm is not a Core World feature and neither is a building falling into it.
+// ⚠ The lean is a SHEAR (each row offset a little more), not a rotation: this canvas has no cheap
+// rotate, and a sheared stack of rows is what a toppling mass looks like in pixel art anyway.
+function crustTippers(g,ap,now,K,epi,gy,band,farA,nearA,openA,day){
+  if(ap<0.20) return;
+  var N=Math.round(9*Math.min(1,(ap-0.18)/0.5));
+  for(var i=0;i<N;i++){
+    var th2=((i*2654435761+3313)>>>0); th2=(th2^(th2>>>13))>>>0;
+    var twx=epi+((((th2>>>3)%2000)/1000)-1)*(WW*0.40);
+    var tx=Math.round(twx)-WOFF;
+    if(tx<-40||tx>SW+40) continue;
+    var per=5200+((th2>>>9)%4200);
+    var t=(((now+((th2>>>15)%per))%per)/per);
+    if(t>0.86) continue;                                       // gone; the gap before it repeats is the rest
+    var lean=Math.pow(t,1.7);                                  // slow, then all at once
+    var side=((th2>>>21)&1)?1:-1;
+    var bw=Math.max(2,Math.round((4+((th2>>>11)%7))*K));
+    var bh=Math.max(4,Math.round((14+((th2>>>17)%26))*K));
+    var col=Math.max(0,Math.min(SW-1,tx));
+    var baseY=(openA[col]>=2?farA[col]:gy+Math.round(band*0.16))+Math.round(lean*band*0.9);
+    var faceD=day?"rgba(38,32,34,0.95)":"rgba(16,13,16,0.96)";
+    var edgeD=day?"rgba(96,86,84,0.85)":"rgba(52,46,50,0.8)";
+    for(var r=0;r<bh;r++){
+      var up=bh-r, off=Math.round(side*lean*up*1.15);          // the shear
+      var yy=baseY-up;
+      if(yy<-4||yy>SH+4) continue;
+      g.fillStyle=(r===0)?edgeD:faceD;
+      g.fillRect(tx+off,yy,bw,1);
+      if((up%Math.max(2,Math.round(4*K)))===0&&lean<0.5){      // its windows, going out as it goes over
+        g.fillStyle="rgba(255,214,152,"+(0.5*(1-lean*2)).toFixed(2)+")";
+        g.fillRect(tx+off+1,yy,Math.max(1,bw-2),1);
+      }
+    }
+  }
+}
+// ── 🧍🚗🧱 …AND EVERYTHING GOES IN. 🔒 His brief: "everyone and everything falls into it." Without
+// this the chasm is a hole the city politely stands around; the falling is what makes it eat.
+// 🔑 SCRIPTED FROM A HASH, NEVER SIMULATED — three monitors must agree without talking to each other,
+// so a faller's whole life is a pure function of its index and the clock. No state, no spawn list.
+// ⚠ A PERSON IS `drawPerson` AND A FIXED 7px, falling or not — the one body routine, never a bespoke
+// blob, and never scaled by KSP. That rule has been broken four times on this project.
+function crustFallers(g,ap,now,K,epi,op,gy,band){
+  if(op<=0.02) return;
+  // ── 🏃🔒 THEY RUN FIRST. His third pick, and the sharpest note of the three: as built, people only
+  // ever FELL, so the city read as already dead rather than as dying. These are on the ground that is
+  // still whole, sprinting AWAY from the crack — outward from the epicentre on both sides, which is
+  // also the only direction that makes the epicentre legible without drawing anything at it.
+  // ⚠ They run on `apocNoGround` land only, so a runner is never drawn over the hole; the moment the
+  // ground under one goes, they stop being a runner and the fallers take over. Same predicate, so the
+  // two populations can never both claim the same patch of street.
+  var RN=Math.round(26*Math.min(1,ap/0.7));
+  for(var r0=0;r0<RN;r0++){
+    var rh=((r0*2654435761+8821)>>>0); rh=(rh^(rh>>>13))>>>0;
+    var side=((rh>>>3)&1)?1:-1;
+    var per0=3400+((rh>>>7)%3000);
+    var tt=(((now+((rh>>>13)%per0))%per0)/per0);
+    var startD=(WW*0.05)+((rh>>>17)%Math.max(1,Math.round(WW*0.30)));
+    var rwx=epi+side*(startD+tt*WW*0.16);                   // outbound, gaining on nothing
+    var rx=Math.round(rwx)-WOFF;
+    if(rx<-8||rx>SW+8) continue;
+    if(apocNoGround(Math.round(rwx))) continue;             // the ground took them; the fallers have them now
+    var mk2=0.34+0.10*Math.sin(tt*24+r0);                   // bobbing, because a runner is not a slide
+    drawPerson(g,rx,gy+Math.round(band*0.16)-1,
+      hexDark(PEDC[(rh>>>19)%PEDC.length],mk2),hexDark(SKINC[(rh>>>23)%SKINC.length],mk2*0.75),side,0);
+  }
+  var N=Math.round(30*op), spread=WW*0.44;
+  var CARC=["#c8503c","#3c6cc8","#d8c04c","#4cb87c","#b8b8c0","#8c5cc8"];
+  for(var i=0;i<N;i++){
+    var fh=((i*2654435761+7717)>>>0); fh=(fh^(fh>>>13))>>>0;
+    var fwx=epi+((((fh>>>3)%2000)/1000)-1)*spread;          // clustered on the epicentre, world-anchored
+    var fx=Math.round(fwx)-WOFF;
+    if(fx<-10||fx>SW+10) continue;
+    var per=2400+((fh>>>9)%2600);
+    var t=(((now+((fh>>>15)%per))%per)/per);                 // 0..1 through its own fall, forever
+    // it drops from the near lip and accelerates — the only place gravity appears in this engine is
+    // as t*t, because a linear fall reads as a lift descending
+    var top=gy+Math.round(band*0.10), drop=Math.round((band*0.95+gy*0.5*ap)*t*t);
+    var fy=top+drop;
+    if(fy>SH+6) continue;
+    var a=Math.max(0,1-Math.pow(t,2.6));                     // swallowed by the dark on the way down
+    if(a<0.06) continue;
+    var kind=(fh>>>21)%5;
+    g.globalAlpha=a;
+    if(kind<=1){                                             // a person, tumbling
+      var mk=0.42+0.22*t;
+      drawPerson(g,fx,fy,hexDark(PEDC[(fh>>>11)%PEDC.length],mk),hexDark(SKINC[(fh>>>17)%SKINC.length],mk*0.75),(fh&1)?1:-1,0);
+    } else if(kind===2){                                     // a car, nose-down
+      var cw2=Math.max(2,Math.round(5*K)), chh=Math.max(1,Math.round(2.4*K));
+      g.fillStyle=CARC[(fh>>>19)%CARC.length];
+      g.fillRect(fx-(cw2>>1),fy-chh,cw2,chh);
+      g.fillStyle="rgba(20,16,18,0.55)";
+      g.fillRect(fx-(cw2>>1),fy-chh,cw2,Math.max(1,Math.round(K*0.7)));
+    } else {                                                 // a slab of road or wall, turning over
+      var sw2=Math.max(2,Math.round((3+((fh>>>23)%5))*K)), sh2=Math.max(1,Math.round(1.6*K));
+      var tilt=Math.round(Math.sin(t*7.0+((fh>>>25)%628)/100)*K);
+      g.fillStyle="rgba(58,50,48,0.95)";
+      g.fillRect(fx-(sw2>>1),fy-sh2+tilt,sw2,sh2);
+      g.fillStyle="rgba(150,140,132,0.65)";
+      g.fillRect(fx-(sw2>>1),fy-sh2+tilt,sw2,Math.max(1,Math.round(K*0.5)));
+    }
+    g.globalAlpha=1;
+  }
+}
 // THE CRUST CRACKS — the terrain version of the end. It opens, and what is underneath comes up.
 APOC_X.crustcrack=function(g,ap,L,now){
   var K=Math.max(1,KSP);
   var n=Math.round(2+ap*7);
-  g.fillStyle="rgba(18,8,6,"+(0.30*ap).toFixed(2)+")"; g.fillRect(0,0,SW,SH);
+  // 🚨🔒 REWORKED 2026-08-10. Nick, watching it: "this one does not look that great at all — let's
+  // rework this entirely." Three faults, and the third is why the other two did not matter:
+  //   1. THE FISSURES WERE AT `HORIZON`. `drawApocalypse` runs AFTER the whole city, so this ending
+  //      could always have drawn anywhere it liked — the horizon was a choice, not a constraint, and
+  //      it put the one event of the ending at the base of the distant skyline instead of in the
+  //      street, where the eye is and where the road, the cars and the people are.
+  //   2. THEY WERE TINY — `w` topped out around 36px on a 776px screen, for THE CRUST CRACKING.
+  //   3. IT COULD NOT DEMOLISH ANYTHING (see `apocHit`), so no matter what got drawn, the city stood.
+  // 🔑 THE WASHES WERE DOING ALL THE WORK, AND THAT IS THE DIAGNOSIS THIS CODEBASE ALREADY WROTE DOWN:
+  // "an ending that does not touch the city reads as WEATHER." Two full-frame tints over an untouched
+  // city IS weather. They are cut right back; the light now comes OUT OF THE HOLE.
+  g.fillStyle="rgba(18,8,6,"+(0.16*ap).toFixed(2)+")"; g.fillRect(0,0,SW,SH);
+  crustChasm(g,ap,L,now,K);
   for(var c=0;c<n;c++){
     var h=((c*2654435761+7)>>>0);
     var t0=(c/n)*0.5;
@@ -51628,14 +53372,54 @@ APOC_X.crustcrack=function(g,ap,L,now){
 APOC_X.oceansboil=function(g,ap,L,now){
   var K=Math.max(1,KSP);
   var sea=(typeof SEA_Y==="number"&&SEA_Y>0&&SEA_Y<SH)?SEA_Y:HORIZON;
-  // the steam front: a wall of white that rises out of the sea and takes the frame
-  var h=Math.round(SH*ap*1.15);
-  for(var q=0;q<h;q++){
-    var qf=q/Math.max(1,h);
-    var wob=((((q*2654435761)>>>0)%3)-1)*Math.round(K);
-    g.fillStyle="rgba("+(L>0.5?"236,238,240":"150,156,164")+","+(0.86*(1-qf*0.30)).toFixed(3)+")";
-    g.fillRect(wob,sea-q,SW,1);
+  // 🚨🔑🔑 IT WAS A SOLID WALL OF WHITE. `fillRect(wob, sea-q, SW, 1)` at 0.86 alpha, full width, one
+  // row at a time — so the frame went uniformly white and stayed there, and the `wob` jitter did
+  // nothing at all because the rect spans the whole screen either way. The comment eight lines down
+  // says the only thing worth watching is "the city disappearing INTO it", and an opaque wall is
+  // precisely what makes that impossible to watch. 🔑 STEAM IS VOLUME, NOT COVERAGE: it billows in
+  // columns with gaps between them, and the gaps are the entire point — they are what you glimpse the
+  // city through while it goes. The same lesson as the greygoo eating the sky, in white.
+  var top=Math.round(SH*ap*1.15);
+  for(var c=0;c<64;c++){
+    var ch2=((c*2654435761+7481)>>>0); ch2=(ch2^(ch2>>>13))>>>0;
+    var cwx=((ch2>>>3)%Math.max(1,WW))-WOFF;
+    if(cwx<-70||cwx>SW+70) continue;
+    var rise=((now*0.00016+((ch2>>>11)%1000)/1000)%1);
+    var cy3=Math.round(sea-rise*top);
+    if(cy3<-40) continue;
+    var rr=Math.round((7+((ch2>>>17)%16))*K*(0.45+rise*1.5));
+    var a=0.52*(1-rise*0.55)*Math.min(1,ap*1.8);
+    if(a<0.02) continue;
+    var col=(L>0.5)?"236,238,240":"150,156,164";
+    g.fillStyle="rgba("+col+","+a.toFixed(3)+")";
+    fillEllipse(g,cwx,cy3,rr,Math.max(1,Math.round(rr*0.78)));
+    fillEllipse(g,cwx+Math.round(rr*0.62),cy3-Math.round(rr*0.34),Math.max(1,Math.round(rr*0.6)),Math.max(1,Math.round(rr*0.46)));
+    fillEllipse(g,cwx-Math.round(rr*0.58),cy3+Math.round(rr*0.2),Math.max(1,Math.round(rr*0.52)),Math.max(1,Math.round(rr*0.4)));
   }
+  // ── 🌋 AND THE SEA IS BOILING, VIOLENTLY. Geysers going up out of it — the thing that says the water
+  // is being flashed to steam rather than a fog rolling in off it.
+  for(var gz=0;gz<Math.round(14*Math.min(1,ap*2));gz++){
+    var gh2=((gz*2654435761+2213)>>>0); gh2=(gh2^(gh2>>>13))>>>0;
+    var gx=((gh2>>>5)%Math.max(1,WW))-WOFF;
+    if(gx<-20||gx>SW+20) continue;
+    var per=1400+((gh2>>>11)%1600);
+    var gt=(((now+((gh2>>>17)%per))%per)/per);
+    var gHt=Math.round((30+((gh2>>>21)%50))*K*Math.sin(Math.PI*gt));
+    if(gHt<2) continue;
+    var gw=Math.max(2,Math.round((2+((gh2>>>25)%3))*K));
+    g.fillStyle="rgba(255,255,255,"+(0.85*(1-gt*0.4)).toFixed(3)+")";
+    g.fillRect(gx-(gw>>1),sea-gHt,gw,gHt);
+    g.fillStyle="rgba(255,246,232,0.9)";
+    fillEllipse(g,gx,sea-gHt,Math.round(gw*1.6),Math.round(gw*1.2));
+  }
+  // the waterline itself, superheated — it should not look like cold sea under all that steam
+  g.globalCompositeOperation="lighter";
+  for(var wl=0;wl<SW;wl+=Math.max(1,Math.round(K))){
+    var wa=0.20+0.18*Math.sin((wl+WOFF)*0.06+now*0.006);
+    g.fillStyle="rgba(255,196,150,"+(wa*Math.min(1,ap*2)).toFixed(3)+")";
+    g.fillRect(wl,sea-Math.round(2*K),Math.max(1,Math.round(K)),Math.round(3*K));
+  }
+  g.globalCompositeOperation="source-over";
   // …and it is BOILING, not fog: bubbles bursting along the waterline
   for(var b=0;b<Math.round(50*ap);b++){
     var hb=((b*2654435761+13)>>>0);
@@ -51647,10 +53431,427 @@ APOC_X.oceansboil=function(g,ap,L,now){
   // ⚠ the air going opaque is the END of this, not the middle of it. At a flat 0.5*ap the city was
   // already gone by the time the steam front had climbed it, which throws away the only thing worth
   // watching — the city disappearing INTO it.
-  g.fillStyle="rgba(210,200,190,"+(0.55*Math.max(0,(ap-0.45)/0.55)).toFixed(3)+")"; g.fillRect(0,0,SW,SH);
+  // ⚠ AND THE FINAL OPACITY IS HELD BACK. At 0.55 it closed over the frame while the steam still had
+  // work to do; the city vanishing is the payoff, so the air only truly goes opaque at the very end.
+  g.fillStyle="rgba(210,200,190,"+(0.42*Math.max(0,(ap-0.62)/0.38)).toFixed(3)+")"; g.fillRect(0,0,SW,SH);
 };
 
 // GREY GOO — it does not burn or crush. It DISASSEMBLES, and what it leaves is featureless.
+// ── 🩸🦠🔒 WHAT IT DOES TO THE PEOPLE AND THE BUILDINGS. His brief: more violent, more bloody, and all
+// three human fates across the arc. The old ending did nothing to anyone — the front advanced, the
+// grey arrived, and the city was simply gone behind it with no moment of anyone dying in it.
+// 🔑 THE THREE FATES ARE A TIMELINE, NOT A MENU: TAKEN (early, at the front, still fighting) →
+// DISSOLVED (mid, as it thickens and there is no fighting left) → CONVERTED (late, they get back up as
+// grey figures and walk on WITH it). That progression is the ending's whole argument, and it costs
+// nothing beyond choosing by `ap` — the same script-not-soup lesson the rogue planet's stages taught.
+// ⚠ `drawPerson` for every body, at the fixed 7px, however they die.
+function gooLife(g,ap,now,K,gsurf,gh,L,goo,epi,R){
+  if(R<=2) return;
+  var take=Math.max(0,1-Math.max(0,(ap-0.24)/0.32));         // 1 early, gone by ~0.56
+  var conv=Math.max(0,Math.min(1,(ap-0.48)/0.34));           // rises late
+  var gooC=css(goo), day=L>0.5;
+  // 🌍🚨 AND THE DEAD WERE SCREEN-SPACE TOO. `((h>>>5)%SW)` put the same forty people at the same forty
+  // screen positions on all three monitors — the tier-wide bug this file already fixed once, still live
+  // inside this ending's own life layer. `apocScatterX` is the one law: hash the WORLD, cull to screen.
+  for(var i=0;i<Math.round(WW/19);i++){
+    var h=((i*2654435761+7717)>>>0); h=(h^(h>>>13))>>>0;
+    var sx=apocScatterX(h>>>5);
+    if(sx<0||sx>=SW||gsurf[sx]<0) continue;
+    var surf=gsurf[sx], depth=(gh-surf);
+    var wx=wrapW(sx+WOFF), d=nukeDist(wx,epi);
+    var atFront=(d>R*0.72);                                   // near the boundary
+    var mk=0.42, cloth=hexDark(PEDC[(h>>>11)%PEDC.length],mk), skin=hexDark(SKINC[(h>>>17)%SKINC.length],mk*0.75);
+    if(atFront&&take>0.05&&((h>>>21)%3)!==0){
+      // ── TAKEN FROM THE FEET UP, STILL SCREAMING. The line is at their knees, then their chest; the
+      // arms stay up above it until they go under. Blood where flesh is being converted.
+      var bob=((now*0.004+i)%1);
+      var sink=Math.round(depth*0.06+bob*depth*0.10);
+      var py=surf+sink;
+      drawPerson(g,sx,py,cloth,skin,(h&1)?1:-1,0);
+      g.fillStyle=gooC; g.fillRect(sx-Math.round(2*K),py-Math.round(2*K),Math.round(4*K),Math.round(3*K));
+      g.fillStyle="rgba(150,16,22,"+(0.75).toFixed(2)+")";     // the boundary, where it is eating them
+      g.fillRect(sx-Math.round(2*K),py-Math.round(2*K),Math.round(4*K),Math.max(1,Math.round(K*0.8)));
+      g.fillStyle=day?"rgba(206,214,226,0.8)":"rgba(120,140,168,0.7)";
+      g.fillRect(sx-Math.round(K),py-Math.round(5*K),Math.max(1,Math.round(K)),Math.round(2*K));  // an arm, up
+    } else if(conv>0.05&&((h>>>23)%5)===0){
+      // ── CONVERTED. They get back up as featureless grey and walk on with the front. No face, no
+      // colour, the same material as the mass — the most disturbing thing in the ending and the
+      // cheapest, because it is a person-shaped silhouette in the goo's own palette.
+      // 🚶 AND THEY WALK THE RIDGE, OUTWARD. 🔒 His call for an event in the second half: the converted
+      // do not stand around, they move with the front — a line of grey figures crossing the top of the
+      // mass, away from where they died. 🌍 The drift is computed in WORLD space and then screened, so
+      // they cross the bezels instead of each monitor running its own private parade.
+      var cwx=wrapW(wx+(d>0?1:-1)*Math.round(((now*0.0055+i*137)%240)*K*0.25));
+      var cx2=Math.round(disX(cwx));
+      if(cx2<0||cx2>=SW||gsurf[cx2]<0) continue;
+      var cy2=gsurf[cx2]+Math.round(K);
+      var gait=(Math.floor(now/220)+i)&1;
+      g.fillStyle=gooC;
+      g.fillRect(cx2-Math.round(K),cy2-Math.round(6*K),Math.round(2*K),Math.round(3*K));   // head+torso
+      g.fillRect(cx2-Math.round(K),cy2-Math.round(3*K),Math.round(2*K),Math.round(3*K));
+      g.fillRect(cx2-Math.round(K),cy2-Math.round(K),Math.max(1,Math.round(K)),Math.round(K+(gait?K*0.6:0))); // legs, striding
+      g.fillRect(cx2,cy2-Math.round(K),Math.max(1,Math.round(K)),Math.round(K+(gait?0:K*0.6)));
+      g.fillStyle=day?"rgba(232,240,252,0.7)":"rgba(140,166,200,0.6)";
+      g.fillRect(cx2-Math.round(K),cy2-Math.round(6*K),Math.round(2*K),Math.max(1,Math.round(K*0.6)));
+    } else {
+      // ── DISSOLVING IN PLACE. Losing shape from the bottom, a red stain under them, then nothing.
+      var dt=((now*0.0009+((h>>>7)%100)/100)%1);
+      var dy=surf+Math.round(depth*0.04);
+      if(dt<0.62){
+        g.globalAlpha=Math.max(0,1-dt/0.62);
+        drawPerson(g,sx,dy,cloth,skin,(h&1)?1:-1,0);
+        g.globalAlpha=1;
+      }
+      g.fillStyle="rgba(138,14,20,"+(0.65*(1-dt)).toFixed(3)+")";
+      g.fillRect(sx-Math.round(2*K),dy-Math.max(1,Math.round(K)),Math.round(4*K),Math.max(1,Math.round(K)));
+    }
+  }
+  // ── 🏢 AND THE TOWERS GO UNDER ONE AT A TIME, WHERE YOU CAN WATCH IT. 🔒 His call: the second half
+  // needed things HAPPENING, not a level rising. A building at the front leans, its lower floors lose
+  // their detail to the grey, and it slides in — and because the list is the REAL skyline the one that
+  // goes is the one that was standing there.
+  // 🚨 THE OLD LOOP WAS SCREEN-SPACE. `((h>>>5)%SW)` invented 14 buildings at screen positions, so all
+  // three monitors dropped the same fourteen slabs in the same places and not one of them stood where a
+  // building stood. `%SW` is a promise a thing is NOT world-anchored, and this file has a section on it.
+  if(near&&near.blds){
+    var taken=0;
+    for(var b=0;b<near.blds.length&&taken<10;b++){
+      var B=near.blds[b];
+      if(B.type==="park"||!B.h) continue;
+      var bx=Math.round(disX(B.x));                            // ⚡ screen cull before the world maths
+      if(bx+B.w<0||bx>=SW) continue;
+      if(B.bAge!==undefined && typeof bandOf==="function" && cityG-B.bAge<=bandOf(B)) continue;
+      var bwx=wrapW(Math.round(B.x+B.w*0.5)), bd=nukeDist(bwx,epi);
+      // the band being taken RIGHT NOW — behind it they are ghosts, ahead of it the city still draws them
+      if(bd>=R||R-bd>WW*0.055) continue;
+      taken++;
+      var col=Math.max(0,Math.min(SW-1,bx+(B.w>>1)));
+      if(gsurf[col]<0) continue;
+      var t2=Math.min(1,(R-bd)/Math.max(1,WW*0.055));          // 0 just caught, 1 about to be ghost
+      var lean=Math.round(Math.pow(t2,2.2)*B.w*0.5)*(((b*2654435761)>>>0)&1?1:-1);
+      var top=Math.round(HORIZON-B.h+Math.pow(t2,1.7)*B.h*0.9);
+      var bw2=Math.min(B.w,SW-Math.max(0,bx));
+      for(var ry=top;ry<gsurf[col];ry+=Math.max(1,Math.round(K))){
+        var up=(gsurf[col]-ry)/Math.max(1,gsurf[col]-top), ox=Math.round(lean*up);
+        // the bites: it is being disassembled on the way down, not demolished
+        if((((ry*2654435761)>>>0)>>>9)%9===0) continue;
+        g.fillStyle=day?"rgba(38,42,54,0.95)":"rgba(14,16,22,0.95)";
+        g.fillRect(Math.max(0,bx)+ox,ry,bw2,Math.max(1,Math.round(K)));
+      }
+      // the waterline where it is being converted — the brightest thing on the building
+      g.fillStyle=gooC;
+      g.fillRect(Math.max(0,bx)-Math.round(K),gsurf[col]-Math.round(2*K),bw2+Math.round(2*K),Math.round(3*K));
+      g.fillStyle=day?"rgba(190,208,240,0.75)":"rgba(108,128,164,0.65)";
+      g.fillRect(Math.max(0,bx)-Math.round(K),gsurf[col]-Math.round(2*K),bw2+Math.round(2*K),Math.max(1,Math.round(K)));
+    }
+  }
+}
+// ── 🌱 GREY GOO, THE FIRST ACT: ONE GRAIN, AND IT DOUBLES. 🔒 His call (2026-08-11): it begins as a
+// single 2px speck with a ring drawn round it so you can find it, sitting on the LAB that made it —
+// and the lab is the first thing it eats.
+// 🚨 THIS ACT EXISTS BECAUSE THE ENDING HAD NO FIRST ACT. `APOC_STRIKE_AP.greygoo` is 0.25 — the file
+// already says the city is not touched before then — and the old renderer contradicted its own table
+// by throwing up a hill at ap 0.06, so the first minutes were either a blank frame or an unexplained
+// dune. 🔑 THE HOUSE FAILURE MODE IS "NO SOURCE, NO DIRECTION ⇒ IT DECORATES THE FRAME INSTEAD OF
+// HAPPENING TO IT": the lab is the source, the colony crawling out of it is the direction.
+// 🚨 SCRIPTED FROM A HASH, NEVER SIMULATED. `N = 2^gen`, and every grain's position and birth
+// generation are derived from its INDEX — so the three monitors draw the same colony without a shared
+// state to keep in step, exactly as the rest of this file does it.
+// 📏 THE GRAIN IS IN PERSON UNITS, NOT KSP. It is read against a person (`drawPerson`'s fixed 7px) and
+// a fence rail, never against a tower — and the surviving rule is that a thing to be COMPARED must be
+// in the units of what it is compared WITH. It only starts scaling by K once it is building-sized.
+// 🔑 THE HEAP IS THE HISTOGRAM. The pile the grains make is filled from a per-column COUNT of them, so
+// the silhouette is literally made of the units — connect the steps, never plot the samples.
+function gooSeed(g,t,now,K,L,goo,epi,gh){
+  if(t<=0) return;
+  var fade=(t>1)?Math.max(0,1-(t-1)*2.2):1; if(fade<=0) return;   // hands over to the mass, does not vanish
+  var esx=Math.round(disX(epi));
+  if(esx<-260*K||esx>SW+260*K) return;                            // ground zero is on another monitor
+  var day=L>0.5, gooC=css(goo), base=HORIZON-1;
+  var gooDark=day?"rgba(8,9,14,0.72)":"rgba(2,2,4,0.72)";           // the shadow a grain casts on the one under it
+  var gen=Math.floor(Math.min(1,t)*9), N=1<<gen;                  // 1 · 2 · 4 · … · 512
+  g.globalAlpha=fade;
+  // ── 🏢 THE LAB IT CAME OUT OF. One lit strip in a blank slab, a crack across it, and it goes first —
+  // the building is the SCALE REFERENCE the speck is read against, and then the proof it is not safe.
+  var lw=Math.round(30*K), lh=Math.round(20*K), lx=esx-Math.round(lw*0.5), ly=base-lh;
+  var labGone=Math.min(1,Math.max(0,(t-0.30)/0.45));
+  var lyy=ly+Math.round(lh*labGone);
+  if(lyy<base){
+    // ⚠ A DARK RECTANGLE IS NOT A BUILDING. The first pass drew the lab as a plain slab and it read as
+    // a billboard pasted over the street — and a source you cannot identify is no source at all, which
+    // is the whole reason this thing is here.
+    g.fillStyle=day?"rgba(56,60,70,0.97)":"rgba(22,25,34,0.97)";
+    g.fillRect(lx,lyy,lw,base-lyy);
+    g.fillStyle=day?"rgba(88,94,108,0.95)":"rgba(40,45,58,0.95)";
+    g.fillRect(lx,lyy,lw,Math.max(1,Math.round(K)));                        // the parapet
+    g.fillRect(lx,lyy,Math.max(1,Math.round(K)),base-lyy);                  // and the corner pilasters
+    g.fillRect(lx+lw-Math.round(K),lyy,Math.max(1,Math.round(K)),base-lyy);
+    for(var wr=0;wr<3;wr++){                                                // dark window bands, blinds down
+      var wy=ly+Math.round((6+wr*5)*K);
+      if(wy<lyy||wy>base-Math.round(2*K)) continue;
+      g.fillStyle=day?"rgba(30,34,44,0.9)":"rgba(12,14,20,0.9)";
+      g.fillRect(lx+Math.round(3*K),wy,lw-Math.round(6*K),Math.max(1,Math.round(1.6*K)));
+    }
+    var dy=base-Math.round(6*K);
+    if(dy>lyy){                                                             // the door, and the stripe beside it
+      g.fillStyle=day?"rgba(26,29,38,0.95)":"rgba(10,12,17,0.95)";
+      g.fillRect(lx+Math.round(lw*0.5)-Math.round(2*K),dy,Math.round(4*K),Math.round(6*K));
+      g.fillStyle="rgba(224,176,40,0.85)";
+      g.fillRect(lx+Math.round(2*K),base-Math.round(2*K),Math.round(4*K),Math.max(1,Math.round(K*0.8)));
+    }
+    if(ly+Math.round(2*K)>=lyy){                                            // the one lit strip, while it lasts
+      g.fillStyle=(t<0.12)?"rgba(198,236,255,0.95)":"rgba(255,168,60,0.95)"; // it goes to alarm amber
+      g.fillRect(lx+Math.round(3*K),ly+Math.round(2*K),lw-Math.round(6*K),Math.max(1,Math.round(1.4*K)));
+    }
+    if(t>0.06&&lyy<ly+Math.round(10*K)){                                    // the breach
+      g.fillStyle=gooC;
+      for(var cr=0;cr<Math.round(8*K);cr++)
+        g.fillRect(lx+Math.round(lw*0.62)+((cr*7)%3)-1,ly+Math.round(3*K)+cr,Math.max(1,Math.round(K*0.7)),1);
+    }
+  }
+  // ── ⭕ THE RING. It contracts on the speck like a callout tightening, so a 2px thing on a 776px
+  // screen can be FOUND. It is a cordon, not chrome: hazard amber, dashed, and it stops once the
+  // colony is big enough to see on its own — a marker that outstays the thing it marks is furniture.
+  if(gen<=5){
+    var ph=(now%2400)/2400, rr=Math.round((30-21*ph)*K), ry=base-Math.round(3*K);
+    var rdot=Math.max(2,Math.round(1.6*K));
+    g.fillStyle="rgba(255,186,58,"+(0.35+0.55*(1-ph)).toFixed(2)+")";
+    for(var d2=0;d2<16;d2++){
+      if(d2%2) continue;
+      var aa=d2/16*6.28318;
+      g.fillRect(esx+Math.round(Math.cos(aa)*rr)-1,ry+Math.round(Math.sin(aa)*rr*0.42),rdot,rdot);
+    }
+    // ⚠ AND A TICK ABOVE IT. The ring alone was a scatter of amber dots on a busy street; the eye needs
+    // ONE hard vertical to land on, and a 2px speck cannot supply it. This is the callout, not the goo.
+    g.fillStyle="rgba(255,206,96,"+(0.5+0.4*(1-ph)).toFixed(2)+")";
+    g.fillRect(esx,base-Math.round((13+4*(1-ph))*K),Math.max(1,Math.round(K*0.8)),Math.round(8*K));
+    g.fillStyle="rgba(255,232,168,0.9)";
+    g.fillRect(esx-Math.round(K),base-Math.round((13+4*(1-ph))*K),Math.round(3*K),Math.max(1,Math.round(K*0.8)));
+  }
+  // ── 🦠 THE COLONY. Per-column counts first, then ONE connected profile drawn from them.
+  var gs=Math.max(2,Math.round(0.8*K));                            // 2 px at his KSP — a fist, next to a 7px person
+  var cnt=new Array(SW), ci;
+  for(ci=0;ci<SW;ci++) cnt[ci]=0;
+  var gxs=new Array(N), gys=new Array(N), gzs=new Array(N), ng=0;
+  for(var i=0;i<N;i++){
+    var hg=((i*2654435761+4523)>>>0); hg=(hg^(hg>>>13))>>>0;
+    var gi=(i<1)?0:Math.floor(Math.log(i+1)/Math.LN2);             // the generation it was born into
+    var spread=(0.8+gi*gi*0.62)*K;                                 // each doubling reaches further out
+    var ang=((hg>>>5)%1000)/1000*6.28318;
+    var rad=spread*(0.35+((hg>>>15)%65)/100);
+    var px=esx+Math.round(Math.cos(ang)*rad);
+    var py=base-Math.round(Math.abs(Math.sin(ang))*rad*0.30)-Math.round(((hg>>>23)%3));
+    if(px<0||px>=SW) continue;
+    // 🔑 THE UNIT GROWS ONCE THE UNITS ARE TOUCHING. A grain is a grain until there are enough of them
+    // to be a clump, and then the clump is the unit — his own arc: speck, speck, speck, then something
+    // the size of a car. It is the same 2px machine underneath; what changed is how many are stuck to it.
+    var gsz=gs*((gi<5)?1:(gi<7)?2:3);
+    cnt[px]+=gsz; gxs[ng]=px; gys[ng]=py; gzs[ng]=gsz; ng++;
+  }
+  // the heap: its top in each column IS that column's grain mass. ⚠ SPREAD THREE COLUMNS WIDE FIRST —
+  // one bin per column is a bar chart, and it drew the colony as a picket of vertical spikes; a grain
+  // sitting on a heap holds up its neighbours too.
+  var top=new Array(SW), hx;
+  for(hx=0;hx<SW;hx++) top[hx]=-1;
+  for(hx=0;hx<SW;hx++){
+    if(cnt[hx]<=0) continue;
+    var rise=Math.min(Math.round(30*K),Math.round(cnt[hx]*0.85));
+    for(var sp=-2;sp<=2;sp++){
+      var tx=hx+sp*gs; if(tx<0||tx>=SW) continue;
+      var ty=base-Math.round(rise*(1-Math.abs(sp)*0.28));
+      if(top[tx]<0||ty<top[tx]) top[tx]=ty;
+    }
+  }
+  // ⚠ A HEAP DOES NOT REACH THE BOTTOM OF THE FRAME. Filling to `gh` like the full mass does turned a
+  // knee-high pile into a grey slab standing over the road and the rails — it read as a wall, not a
+  // pile. It spills toward the viewer in proportion to its own height instead.
+  var hr=-1, hy=0;
+  for(hx=0;hx<=SW;hx++){
+    var ht=(hx<SW)?top[hx]:-1;
+    if(ht!==hy){
+      if(hy>=0&&hr>=0&&hx>hr){
+        g.fillStyle=gooC;
+        g.fillRect(hr,hy,hx-hr,Math.min(gh,base+Math.round((base-hy)*1.5))-hy);
+      }
+      hy=ht; hr=hx;
+    }
+  }
+  // and the individual machines on top of it — the brightest thing in their neighbourhood, because a
+  // 2px object on a 776px screen reads by VALUE or it does not read at all.
+  for(var q2=0;q2<ng;q2++){
+    var qz=gzs[q2], qy=Math.min(gys[q2],(top[gxs[q2]]>=0?top[gxs[q2]]:base)-Math.round(qz*0.5));
+    g.fillStyle=gooDark; g.fillRect(gxs[q2],qy+qz,qz,Math.max(1,Math.round(qz*0.5)));
+    g.fillStyle=gooC; g.fillRect(gxs[q2],qy,qz,qz);
+    g.fillStyle=day?"rgba(248,252,255,0.95)":"rgba(158,186,222,0.9)";
+    g.fillRect(gxs[q2],qy,qz,Math.max(1,Math.round(qz*0.45)));
+  }
+  // ── 🩸 AND IT REACHES THE FIRST PEOPLE. `IT'S EATING THE FENCE` is this ending's own dialogue, and
+  // this is that line: the cordon rail going grey, and the ones who stood behind it going with it.
+  if(gen>=5){
+    var lim=Math.round(20*K+gen*6*K);
+    g.fillStyle=day?"rgba(150,156,168,0.85)":"rgba(58,64,80,0.85)";
+    for(var fx=esx-lim;fx<esx+lim;fx+=Math.round(6*K)){
+      if(fx<0||fx>=SW) continue;
+      var conv=(cnt[fx]>0)||(Math.abs(fx-esx)<lim*0.55);
+      g.fillStyle=conv?gooC:(day?"rgba(150,156,168,0.85)":"rgba(58,64,80,0.85)");
+      g.fillRect(fx,base-Math.round(5*K),Math.max(1,Math.round(K)),Math.round(5*K));
+      g.fillRect(fx,base-Math.round(5*K),Math.round(6*K),Math.max(1,Math.round(K)));
+    }
+    for(var v2=0;v2<7;v2++){
+      var vh2=((v2*2654435761+911)>>>0); vh2=(vh2^(vh2>>>13))>>>0;
+      var vx2=esx+Math.round((((vh2>>>5)%200)/100-1)*lim);
+      if(vx2<2||vx2>=SW-2) continue;
+      var eatn=Math.max(0,Math.min(1,(t-0.55-((vh2>>>17)%30)/100)*4));
+      if(eatn>=1) continue;
+      g.globalAlpha=fade*(1-eatn*0.5);
+      drawPerson(g,vx2,base,hexDark(PEDC[(vh2>>>11)%PEDC.length],0.32),
+                 hexDark(SKINC[(vh2>>>19)%SKINC.length],0.24),(vh2&1)?1:-1,0);
+      g.globalAlpha=fade;
+      if(eatn>0){
+        g.fillStyle=gooC; g.fillRect(vx2-Math.round(2*K),base-Math.round(7*eatn),Math.round(4*K),Math.round(7*eatn));
+        g.fillStyle="rgba(150,16,22,0.8)";
+        g.fillRect(vx2-Math.round(2*K),base-Math.round(7*eatn),Math.round(4*K),Math.max(1,Math.round(K*0.8)));
+      }
+    }
+  }
+  g.globalAlpha=1;
+}
+// ── 🩸 AND THE GROUND OUTSIDE IT IS SCORED WITH DRAG TRAILS. 🔒 His call. Nobody walks into this: it
+// takes them where they stand and pulls them in, so what is left on the pavement is a SMEAR pointing at
+// the front, and every one of them points the same way — toward ground zero. That convergence is the
+// thing a scatter of pools can never say, and it is free: the direction is the sign of the wrap-offset
+// to the epicentre, which every other effect here already computes.
+// 📏 ALL THREE GROUND BANDS, and the NEAR PROMENADE especially — the sidewalk closest to the viewer is
+// where his eye actually is, and an effect that stops at the far kerb is happening to somebody else.
+// ⚠ `goreK()` OR IT IS NOT A SETTING. `gore:off` has to turn ALL of it off; the file already records
+// what happens when four of six code paths ignore it.
+// 🌍 Hashed in WORLD space with a screen cull — never `%SW`, which would print the same trails on all
+// three monitors and slide them under the wallpaper as the world scrolls.
+function gooTrails(g,ap,now,K,L,epi,R){
+  // ⚠ AND IT RUNS DURING THE SEED ACT TOO. Gated on `R>2` it only started once the mass existed, so
+  // the colony ate the cordon and the people behind it and left the pavement spotless. With R at 0
+  // the band below is just "within reach of ground zero", which is exactly the colony.
+  var GK=goreK(); if(GK<=0) return;
+  var day=L>0.5, n=Math.round(WW/15);
+  // …and they ARRIVE over the arc rather than all at once — a pavement already scored with two
+  // hundred drag marks in the first minute is a crime scene, not something happening.
+  var due=Math.min(100,6+ap*150);
+  var farTop=HORIZON+1, farBot=HORIZON+Math.max(1,WALK_F);
+  var nearTop=ROAD_BOT+1, nearBot=ROAD_BOT+Math.max(1,WALK_N);
+  for(var i=0;i<n;i++){
+    var h=((i*2654435761+21929)>>>0); h=(h^(h>>>13))>>>0;
+    var wx=(h>>>5)%WW, off=((wx-epi)%WW+WW*1.5)%WW-WW*0.5, d=Math.abs(off);
+    // the band that is being taken RIGHT NOW: just outside the front, plus what it has already crossed
+    // ⚠ A BAND AT THE FRONT, NOT EVERYWHERE IT HAS BEEN. Drawn across the whole consumed region they
+    // came out as a solid red scribble buried INSIDE the mass — ground that has been eaten is under
+    // the goo and has nothing left on it. The carnage travels with the edge: a little way inside it,
+    // where they are being taken now, and well outside it, where they got as far as they got.
+    if(d>R+70*K||d<R-26*K) continue;
+    if(((h>>>7)%100)>=due) continue;
+    var sx=Math.round(disX(wx)); if(sx<-40||sx>SW+40) continue;
+    var dir=(off>0)?-1:1;                                       // toward ground zero, always
+    var zone=(h>>>11)%3;                                        // far walk · road · near promenade
+    var gy=(zone===0)?(farTop+((h>>>15)%Math.max(1,farBot-farTop)))
+          :(zone===1)?(farBot+((h>>>15)%Math.max(1,ROAD_BOT-farBot)))
+          :           (nearTop+((h>>>15)%Math.max(1,nearBot-nearTop)));
+    var len=Math.round((7+((h>>>19)%22))*K);
+    var bl="rgba("+(day?150:112)+",16,22,";
+    // ⚡ FOUR TAPERED SEGMENTS, NOT `len` SINGLE PIXELS. A smear drawn a pixel at a time cost up to 87
+    // fills each and came out DOTTED — and a drag mark is one continuous thing or it is a dotted line.
+    var seg=Math.max(1,Math.round(len/4));
+    for(var q=0;q<4;q++){
+      var f=q/4;                                                // thickest where they were, faded where they went
+      var tx=sx+dir*(q*seg), tw=(dir>0)?seg:-seg;
+      var tx0=Math.min(tx,tx+tw);
+      if(tx0+seg<0||tx0>=SW) continue;
+      g.fillStyle=bl+((0.62-0.44*f)*GK).toFixed(3)+")";
+      g.fillRect(tx0,gy+(q&1),seg,Math.max(1,Math.round(K*(1-f*0.5))));
+    }
+    // the heel marks either side of it — a body dragged flat, not a thing rolled
+    if(((h>>>23)%3)===0){
+      g.fillStyle=bl+(0.5*GK).toFixed(2)+")";
+      g.fillRect(sx-dir*Math.round(K),gy-Math.round(K),Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
+      g.fillRect(sx-dir*Math.round(2*K),gy+Math.round(K),Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
+    }
+    // and where the pull started, what is left of them
+    if(((h>>>27)%4)===0) bloodMark(g,sx-dir*Math.round(2*K),gy,(h>>>3),2+((h>>>29)%3),Math.min(1,ap*0.8),L);
+  }
+}
+// ── 🏙️ THE CITY IS STILL IN THERE. 🔒 His third call: once the mass owns the frame there is nothing to
+// look at and nothing left to lose, because what it ate stopped existing the moment it was covered. The
+// eaten skyline stays readable as ghosts UNDER the surface — dissolving, not deleted — so the interior
+// is a record of the city rather than a blank field, and the thing you are watching disappear is still
+// visibly the thing that was there.
+// 🚨🔑 THESE ARE THE REAL BUILDINGS, `near.blds`, in world coordinates. The old absorbed-buildings loop
+// invented 14 of them at `((h>>>5)%SW)` — SCREEN space, the signature this file has a whole section on:
+// all three of his monitors drew the same fourteen slabs at the same screen positions, and none of them
+// stood where a building actually stood. Reading the real list fixes the anchoring AND the lie in one
+// move, and it costs nothing because the list is already built.
+// ⚠ `bAge`/`bandOf` GUARD: a building that has not been constructed yet must not have a ghost. The city
+// layer already skips those, and a ghost of one would be a memory of something that never existed.
+function gooGhosts(g,K,L,goo,epi,R,gsurf,gh,now){
+  if(!near||!near.blds) return;
+  var day=L>0.5;
+  // ⚡ CULL TO THE SCREEN FIRST. The list spans the whole 2269 px world and this runs in the LIVE pass;
+  // asking "has the front reached it" before "is it even on this monitor" did the expensive half of the
+  // work for the ~70% of the world that is on someone else's screen.
+  // ⚡ AND ONLY THE ONES WORTH REMEMBERING. Every shed and kiosk got a ghost, which cost a large
+  // translucent fill each and read as gravel; the skyline is what you are meant to miss.
+  var ghMin=Math.round(18*K);
+  for(var i=0;i<near.blds.length;i++){
+    var B=near.blds[i];
+    if(B.type==="park"||!B.h||B.h<ghMin) continue;
+    var bx=Math.round(disX(B.x));
+    if(bx+B.w<0||bx>=SW) continue;
+    if(B.bAge!==undefined && typeof bandOf==="function" && cityG-B.bAge<=bandOf(B)) continue;
+    var bwx=wrapW(Math.round(B.x+B.w*0.5)), bd=nukeDist(bwx,epi);
+    if(bd>=R) continue;                                       // the front has not reached it — the city still draws it
+    var col=Math.max(0,Math.min(SW-1,bx+(B.w>>1)));
+    if(gsurf[col]<0) continue;
+    // how long it has been under: 0 just swallowed, 1 long gone. It never reaches zero opacity — the
+    // record of the city IS the point, and a ghost that fades out entirely is the blank field again.
+    // ⚠ AND THEY DO NOT ALL DISSOLVE AT THE SAME RATE OR THEY ARE A ROW OF CRATES. Each keeps its own
+    // clock, and they keep most of their HEIGHT — a skyline sunk in the grey is a skyline; the same
+    // skyline flattened to a line of low boxes is rubble, which is a different ending.
+    var rate=0.55+((i*2654435761)>>>0)%90/100;
+    var age=Math.min(1,(R-bd)/Math.max(1,WW*0.30*rate));
+    // ⚠ A GHOST ENDS AT ITS OWN FOOT, NOT AT THE BOTTOM OF THE FRAME. Filled to `gh` they became pale
+    // bands running the full depth of the mass — evenly spaced, all the same height, a barcode. What
+    // makes them read as the CITY is that each one keeps its own top and its own base: a silhouette
+    // suspended in the grey at the height it actually stood.
+    var top=HORIZON-Math.round(B.h*(1-age*0.34));
+    var bot=HORIZON+Math.round(GROUND*0.18*(1-age*0.5));
+    if(top<gsurf[col]+1) top=gsurf[col]+1;                    // it cannot show above the surface
+    if(top>=bot||top>=gh) continue;
+    var x0=Math.max(0,bx), w0=Math.min(B.w,SW-x0);
+    if(w0<=0) continue;
+    // ⚡🔑 OPAQUE, NOT ALPHA. These are big rectangles and there are twenty of them, and a large
+    // TRANSLUCENT fill costs per-pixel blending where a solid one does not — measured at +1.15 ms on
+    // the live frame, which is 7%. The background under a ghost is the flat mass and nothing else (they
+    // are drawn straight after its fill), so mixing the colour here by hand gives the identical picture
+    // for the price of an opaque blit. 🔑 The rule generalises: when you KNOW what is behind a large
+    // alpha fill, mix it yourself.
+    var vary=((i*2654435761)>>>0)%7/100;
+    var gcol=day?[104,118,146]:[48,56,76];
+    var body=css(mixc(goo,gcol,Math.min(1,0.42-0.20*age+vary)));
+    g.fillStyle=body;
+    g.fillRect(x0,top,w0,bot-top);
+    // a lit corner and lintel while it is fresh, so it reads as a solid still standing in there
+    if(age<0.75){
+      var lit=css(mixc(goo,day?[158,176,210]:[74,88,116],Math.min(1,0.30-0.24*age+0.42-0.20*age)));
+      g.fillStyle=lit;
+      g.fillRect(x0,top,Math.max(1,Math.round(K)),bot-top);
+      g.fillRect(x0,top,w0,Math.max(1,Math.round(K)));
+      // ⚠ AND IT NEEDS FLOORS OR IT IS A BOX. A pale rectangle suspended in grey is a crate; a few
+      // faint floor lines and it is unmistakably a building, which is the entire point of keeping it.
+      var flStep=Math.max(Math.round(7*K),Math.round((bot-top)/6));   // ⚡ at most six, however tall it is
+      var flc=css(mixc(goo,day?[150,168,204]:[68,80,106],Math.min(1,0.30+0.42-0.34*age)));
+      g.fillStyle=flc;
+      for(var fl=top+Math.round(6*K);fl<bot-Math.round(2*K);fl+=flStep)
+        g.fillRect(x0+Math.round(K),fl,Math.max(1,w0-Math.round(2*K)),Math.max(1,Math.round(K*0.6)));
+    }
+  }
+}
 APOC_X.greygoo=function(g,ap,L,now){
   var K=Math.max(1,KSP);
   // 🌍🚨 A FRONT IS A DISTANCE, AND `SW` IS NEVER ONE. `-SW*0.15+ap*SW*1.4` swept each monitor
@@ -51659,42 +53860,240 @@ APOC_X.greygoo=function(g,ap,L,now){
   // from ground zero now, the same law `apocSweepR` and every other front here uses, which makes it
   // cross-monitor correct by construction rather than by a second number kept in step.
   var gooEpi=(typeof apocEpiX==="function")?apocEpiX(now):Math.round(WW*0.5);
-  var gooR=Math.max(0,(ap-0.06)/0.86)*(WW*0.62);      // full world by ap~0.92, the same law as apocSweepR
+  // 🚨🔑 ONE EXPRESSION, NOT A FOURTH NUMBER. The drawn front was `(ap-0.06)/0.86` while `apocHit`
+  // collapsed buildings on `(ap-0.25)/(0.78-0.25)` — two laws for one boundary, so the goo stood over
+  // blocks it had not eaten for a third of the arc. It now reads the SAME expression, derived from the
+  // two tables the ending already fills in, and what looks eaten and what IS eaten cannot drift.
+  // ⚠ AND IT DEFAULTS RATHER THAN GOING `NaN`. Claiming derivation from a table means the day someone
+  // edits that table out, `s0` is undefined, `gooR` is NaN and this ending draws NOTHING with no
+  // error — absence presenting itself as a decision, one more time.
+  var s0=APOC_STRIKE_AP.greygoo||0.25, s1=APOC_FULL_AP.greygoo||0.78;
+  var gooR=gooFrontR();
+  gooSeed(g,ap/s0,now,K,L,L>0.5?[52,57,70]:[20,23,32],gooEpi,SH);
   // 🔑 THE READ IS THE ABSENCE OF DETAIL. Everything behind the front becomes ONE smooth grey with no
   // windows, no edges and no silhouette — which on a map made entirely of small bright detail is the
   // most disturbing thing that can happen to it. Nothing else in the set removes information.
-  var goo=L>0.5?[150,150,154]:[62,62,68];
-  var gh=HORIZON+Math.round(GROUND*0.6);
+  // 🔒 CHROME, not sludge. His call: it is a SWARM OF MACHINES, so the palette goes cold and blue-grey
+  // and the surface carries hard specular glints. A warm matte grey reads as mud or ash — both of which
+  // this map already has — and neither says "manufactured".
+  // 🎨🚨🔒 IT WENT DARK. His call, judging the A/B: old and new were "kinda the same" from ap 0.5 on,
+  // and measured that is exactly right — the two frames are near-identical. The fault was never the
+  // silhouette, it was VALUE: `[146,152,164]` is the same value as the pale city and the pale sky, so
+  // a mass covering half the frame had nothing to read against. **EXTREME VALUE CONTRAST** is rule two
+  // and this broke it. The dusk render was the best frame anything produced all session for one
+  // reason — there the mass was dark against a bright sky. It is dark in daylight now too.
+  // ⚠ CHROME IS STILL THE BRIEF: gunmetal, cold and blue, with the light living entirely in the crust
+  // and the glints. A dark MATTE grey would just be the ash this map already has.
+  var goo=L>0.5?[52,57,70]:[20,23,32], gooDay=L>0.5;
+  // 🚨🔑 IT STOPPED IN THE MIDDLE OF THE ROAD. `HORIZON+GROUND*0.6` left the NEAR PROMENADE — the
+  // sidewalk between the traffic and the viewer, where the pedestrians closest to you walk — as a
+  // clean strip along the bottom of every frame, with people strolling along it under a world that
+  // had ended. 🔒 His call. It fills to `SH`, which is also the house rule THE HOLLOW records: those
+  // are equal only on an INLAND land, and where there is open water `HORIZON = SEA_Y − GROUND`, so
+  // `HORIZON+GROUND` stops at the waterline and leaves the sea showing underneath.
+  var gh=SH;
   // the consumed region — run-batched over the columns THIS screen has, so a monitor that holds none
   // of it costs one comparison per column and draws nothing.
-  g.fillStyle=css(goo);
-  var runX=-1, x, inside;
+  // 🚨🔑🔑 IT WAS EATING THE SKY. `fillRect(runX, 0, …, gh)` starts at y=0, so everything behind the
+  // front — sky included — became one flat grey field, and by mid-arc four fifths of the frame was a
+  // featureless rectangle. The comment above is right that ABSENCE OF DETAIL is the read, and that is
+  // exactly why it has to be absence of the CITY: a grey sky is not information being removed, it is a
+  // blank canvas, and there is nothing left to feel the loss against.
+  // 🔑 THE HORROR IS WATCHING DETAIL BE DESTROYED, NOT STARING AT WHERE IT USED TO BE. So the goo is
+  // now a MASS standing where the city stood — piled highest over ground zero where it has eaten most,
+  // sagging toward the edges — with the sky still above it and the skyline still readable beyond.
+  // 🔒 AND THE SKYLINE STAYS TO THE LAST FRAME — his call, asked directly: "everything" stops at the
+  // top of the mass. The last towers above it are what the loss is felt against.
+  // ⏫🚨 IT USED TO FLATLINE. The height was a function of DISTANCE ALONE, so once the front had passed
+  // a column that column never changed again — ap 0.70 and ap 0.92 were the same picture and the last
+  // third of the ending was a still frame. It now keeps CLIMBING after the front has finished crossing,
+  // which is also the only thing left for it to do once there is no more ground to take.
+  // ⚠ AND IT MUST BE LOW AND WIDE WHEN IT IS YOUNG. `deep^0.6` over a small radius is a SPIRE — the
+  // first frames of the mass came out as a rock needle taller than the towers beside it, which is the
+  // one shape a spreading colony cannot make. Height is gated on how far it has spread, so it grows
+  // out of the heap the seed act leaves rather than erupting through it.
+  var young=Math.min(1,0.30+gooR/(WW*0.22));
+  var climb=0.44+0.56*Math.min(1,Math.max(0,(ap-s0)/Math.max(0.01,1-s0)));
+  var gsurf=new Array(SW), gxi;
+  for(gxi=0;gxi<SW;gxi++) gsurf[gxi]=-1;
+  for(gxi=0;gxi<SW;gxi++){
+    var wxg=wrapW(gxi+WOFF), dg=nukeDist(wxg,gooEpi);
+    if(dg>=gooR) continue;
+    var deep=1-dg/Math.max(1,gooR);                       // 1 over ground zero, 0 at the front
+    gsurf[gxi]=Math.round(HORIZON-HORIZON*climb*young*(0.14+0.56*Math.pow(deep,0.6)));
+  }
+  // ── 🪨🔑 AND THE EDGE IS MADE OF UNITS. The old profile was two sine terms, and a smooth curve is a
+  // SAND DUNE — a material with no parts. This is a swarm that has eaten cars, buses and houses, so the
+  // surface is broken by CLUMPS at those sizes, each raising the profile across its own span.
+  // ⚠ NOT 1px NOISE — a 1px-noisy edge is dust, smoke or foliage, and never a mass. The clumps are
+  // hashed in WORLD space (so all three monitors agree on where they are) and written INTO the profile
+  // rather than drawn over it, so the silhouette stays one connected line instead of a staircase.
+  if(gooR>0){
+    var nCl=Math.round(WW/24);
+    for(var c=0;c<nCl;c++){
+      var ch=((c*2654435761+8191)>>>0); ch=(ch^(ch>>>13))>>>0;
+      var cwx=(ch>>>5)%WW;
+      if(nukeDist(cwx,gooEpi)>=gooR) continue;
+      var crad=Math.round((3+((ch>>>13)%10))*K), csx=Math.round(disX(cwx));
+      if(csx+crad<0||csx-crad>=SW) continue;
+      var crise=Math.round(crad*(0.55+((ch>>>19)%50)/100));
+      for(var cx=Math.max(0,csx-crad);cx<Math.min(SW,csx+crad+1);cx++){
+        if(gsurf[cx]<0) continue;
+        var u=(cx-csx)/crad, cap=gsurf[cx]-Math.round(crise*(1-u*u));
+        if(cap<gsurf[cx]) gsurf[cx]=cap;
+      }
+    }
+  }
+  var runX=-1, x, runY=0;
   for(x=0;x<=SW;x++){
-    inside=(x<SW)&&(nukeDist(wrapW(x+WOFF),gooEpi)<gooR);
-    if(inside){ if(runX<0) runX=x; }
-    else if(runX>=0){ g.fillRect(runX,0,x-runX,gh); runX=-1; }
+    var yy=(x<SW)?gsurf[x]:-1;
+    if(yy!==runY){
+      if(runY>=0&&runX>=0&&x>runX){ g.fillStyle=css(goo); g.fillRect(runX,runY,x-runX,gh-runY); }
+      runY=yy; runX=x;
+    }
   }
   if(gooR<=0) return;
+  gooGhosts(g,K,L,goo,gooEpi,gooR,gsurf,gh,now);
+  // ── 🦠 AND THE MASS IS MADE OF UNITS TOO, not just its edge. Clusters of grain with a DARK socket
+  // under each one: the contrast has to come from something that VARIES across the frame, and a lit
+  // cap over its own shadow does that per-clump. A uniform speckle over a flat fill is a wash by
+  // another name and drags every value toward one number.
+  // ⚠ AND THEY BUNCH AT THE SURFACE. Scattered evenly through the depth they read as confetti falling
+  // down a flat wall; a swarm is DENSE where it is working and quiet underneath, so the depth is biased
+  // hard toward the top few units of the mass.
+  for(var cg=0;cg<88;cg++){
+    var kh=((cg*2654435761+((Math.floor(now/900)*104729)|0))>>>0); kh=(kh^(kh>>>13))>>>0;
+    var kx=((kh>>>5)%Math.max(1,SW));
+    if(gsurf[kx]<0) continue;
+    var kdep=gh-gsurf[kx], kbias=((kh>>>11)%1000)/1000;
+    var ky=gsurf[kx]+Math.round(kbias*kbias*kbias*kdep);
+    var ksz=Math.max(1,Math.round((0.6+((kh>>>21)%2)*0.7)*K));
+    for(var kn=0;kn<4;kn++){
+      var kox=kx+((((kh>>>(3*kn))%5)-2)*ksz), koy=ky+((((kh>>>(3*kn+7))%3)-1)*ksz);
+      if(kox<0||kox>=SW||gsurf[kox]<0||koy<gsurf[kox]||koy>gh) continue;
+      g.fillStyle=gooDay?"rgba(10,11,16,0.6)":"rgba(4,5,8,0.62)";                     // the socket it sits in
+      g.fillRect(kox,koy+Math.round(ksz*0.7),ksz,Math.max(1,Math.round(ksz*0.6)));
+      g.fillStyle=gooDay?"rgba(126,140,168,0.8)":"rgba(70,80,102,0.75)";
+      g.fillRect(kox,koy,ksz,Math.max(1,Math.round(ksz*0.8)));
+    }
+  }
+  // ── 🕳️ AND THE INSIDE IS NOT ONE VALUE. Once the mass owns most of the frame there is nothing left
+  // to read it against, and a single flat grey over half a screen is the same failure as a wash.
+  // ⚠ CREASES WERE THE WRONG ANSWER — hashed seams running down from the surface drew pale worms and
+  // read as drips on a wall. What a mass actually needs is VOLUME: a lit crust that follows the top
+  // wherever it undulates, and shadow gathering at the foot of it. Both track the surface, so the
+  // contrast varies with the SHAPE across the frame rather than being a layer laid over all of it.
+  // ⚡ ONE PASS, NOT TWO. Crust and foot both key off the SAME runs of equal `gsurf`, so finding
+  // those runs twice was pure duplicate work in the live pass.
+  var crust=Math.round(5*K), foot=Math.round(10*K), cr0=-1, crY=0, crx;
+  var CRUSTC=[], RIMC=[], pqi;
+  for(pqi=0;pqi<8;pqi++){
+    var pf=pqi/7;
+    CRUSTC.push(gooDay?"rgba(112,126,156,"+(0.42+0.30*pf).toFixed(2)+")":"rgba(64,74,96,"+(0.36+0.26*pf).toFixed(2)+")");
+    RIMC.push(gooDay?"rgba(214,230,255,"+(0.34+0.46*pf).toFixed(2)+")":"rgba(120,140,176,"+(0.30+0.36*pf).toFixed(2)+")");
+  }
+  for(crx=0;crx<=SW;crx++){
+    var cy=(crx<SW)?gsurf[crx]:-1;
+    if(cy!==crY){
+      if(crY>=0&&cr0>=0&&crx>cr0){
+        // ── 🌊 THE REPLICATION WAVE. 🔒 His call: the second half needed an EVENT, not a rising level.
+        // Bands of fresh copying travel OUTWARD from ground zero and brighten the crust as they pass, so
+        // the mass is visibly working rather than sitting there. 🔑 It is a function of world distance and
+        // `now` only — no state, no simulation — so the wave crosses the three monitors as ONE wave
+        // instead of three that agree by luck.
+        // ⚡🔑 QUANTISED AND CACHED. The clumped profile changes value at nearly every column, so this
+        // loop runs a few hundred times a frame — and building two `rgba(...)+toFixed()` strings per
+        // run was ~1400 string allocations per frame. Measured: most of this pass's cost was here, not
+        // in the drawing. Eight steps is indistinguishable on a 2px crust and builds eight strings.
+        var pw2=nukeDist(wrapW(cr0+WOFF),gooEpi);
+        var pulse=0.5+0.5*Math.sin(pw2*0.055-now*0.0021);
+        var pq=(pulse*pulse*7.999)|0;
+        g.fillStyle=CRUSTC[pq];
+        g.fillRect(cr0,crY,crx-cr0,crust);
+        // ⚠ AND THE RIM IS BROKEN, NOT A LINE. An unbroken white edge along the top of a grey mound is
+        // a SNOWDRIFT — this map already has snow and ash, and the one thing this ending owns is that
+        // it is manufactured. Broken into hard facets it reads as light catching metal instead.
+        if(((((cr0*2654435761)>>>0)>>>7)%5)<3){
+          g.fillStyle=RIMC[pq];
+          g.fillRect(cr0,crY,crx-cr0,Math.max(1,Math.round(K)));
+        }
+        g.fillStyle=gooDay?"rgba(6,7,11,0.34)":"rgba(2,2,4,0.36)";
+        g.fillRect(cr0,crY+crust,crx-cr0,Math.round(4*K));          // the shade directly under the crust
+        g.fillStyle=gooDay?"rgba(4,5,8,0.34)":"rgba(1,1,2,0.38)";
+        g.fillRect(cr0,gh-foot,crx-cr0,foot);                       // shadow gathering at the foot
+      }
+      crY=cy; cr0=crx;
+    }
+  }
+  // ── 🦠 AND IT SEETHES. A flat fill is paint; this is a hundred billion machines copying themselves,
+  // so the surface crawls. Grain hashed in WORLD space and stepped by time so it boils rather than
+  // sliding — a texture that slides reads as one object moving, and this is not one object.
+  // ⚡ 220 → 150: the clusters above now carry the "made of parts" read, and this layer only has to
+  // keep it MOVING. Total marks per frame land where they were before the clusters were added.
+  for(var t=0;t<150;t++){
+    var th=((t*2654435761+((Math.floor(now/140)*7919)|0))>>>0); th=(th^(th>>>13))>>>0;
+    var tx=((th>>>5)%Math.max(1,SW));
+    if(gsurf[tx]<0) continue;
+    var ty=gsurf[tx]+((th>>>13)%Math.max(1,gh-gsurf[tx]));
+    g.fillStyle=(th&1)?(L>0.5?"rgba(104,116,142,0.5)":"rgba(52,60,78,0.5)")
+                      :(L>0.5?"rgba(20,22,30,0.45)":"rgba(8,9,13,0.5)");
+    g.fillRect(tx,ty,Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
+  }
+  // ── ✨ THE GLINTS. What separates a swarm of machines from a mudslide: hard specular points crawling
+  // over the surface, catching the sky. They are stepped by time rather than slid, so the highlight
+  // pops on and off like a facet turning, which no natural material does.
+  for(var gl=0;gl<Math.round(90*Math.min(1,ap*2));gl++){
+    var glh=((gl*2654435761+((Math.floor(now/110)*40503)|0))>>>0); glh=(glh^(glh>>>13))>>>0;
+    var glx=((glh>>>5)%Math.max(1,SW));
+    if(gsurf[glx]<0) continue;
+    var gly=gsurf[glx]+((glh>>>13)%Math.max(1,Math.round((gh-gsurf[glx])*0.55)));
+    g.fillStyle=L>0.5?"rgba(238,246,255,0.85)":"rgba(150,178,214,0.75)";
+    g.fillRect(glx,gly,Math.max(1,Math.round(K)),Math.max(1,Math.round(K*0.7)));
+  }
+  gooTrails(g,ap,now,K,L,gooEpi,gooR);
+  gooLife(g,ap,now,K,gsurf,gh,L,goo,gooEpi,gooR);
+  // ── 🖐️ TENDRILS. Fingers of it climbing whatever is still standing just beyond the front — the part
+  // that says the city is being TAKEN rather than merely covered over.
+  for(var v=0;v<26;v++){
+    var vh=((v*2654435761+5657)>>>0); vh=(vh^(vh>>>13))>>>0;
+    var vx=((vh>>>5)%Math.max(1,SW));
+    if(gsurf[vx]<0) continue;
+    var reach=Math.round((6+((vh>>>11)%22))*K*(0.5+0.5*Math.sin(now*0.0016+v)));
+    var vw=Math.max(1,Math.round((1+((vh>>>17)%2))*K));
+    g.fillStyle=css(goo);
+    g.fillRect(vx,gsurf[vx]-reach,vw,reach);
+    g.fillStyle=L>0.5?"rgba(198,198,204,0.6)":"rgba(104,104,114,0.6)";
+    g.fillRect(vx,gsurf[vx]-reach,vw,Math.max(1,Math.round(K)));
+  }
   // 🔑 A RADIAL FRONT HAS **TWO** EDGES, and the screen-space version only ever had one — the goo ate
   // the world from the left and the right-hand boundary did not exist. Both are drawn, and each is a
   // fine boiling edge rather than a straight one.
   for(var sgn=-1;sgn<=1;sgn+=2){
     var front=Math.round(disX(wrapW(gooEpi+sgn*gooR)));
     if(front<-20||front>SW+20) continue;
-    for(var q=0;q<Math.round(HORIZON*0.9);q+=2){
+    // 🚨 THE HIGHLIGHT WAS NOT GATED. The body fill was clipped to the mass's height band and the
+    // bright edge beside it was not, so it ran the full `HORIZON*0.9` from y=0 and drew a wobbling
+    // white ribbon down through EMPTY SKY — two of them, one per edge, hanging over an untouched city
+    // for the first quarter of the arc. It was the most conspicuous thing in the frame at ap 0.08 and
+    // it was not an object at all. 🔑 ONE `edgeTop` now feeds both, read off the same climbing law the
+    // surface uses, so the edge cannot outgrow the mass it is the edge OF.
+    var edgeTop=Math.round(HORIZON-HORIZON*climb*young*0.16);
+    for(var q=edgeTop;q<gh;q+=2){
       var wob=Math.round(Math.sin(now*0.006+q*0.19)*4*K)+((((q*2654435761)>>>0)%5)-2);
       g.fillStyle=css(goo);
       g.fillRect(front+wob-Math.round(3*K),q,Math.round(6*K),2);
       g.fillStyle=L>0.5?"rgba(200,200,206,0.7)":"rgba(110,110,120,0.7)";
       g.fillRect(front+wob+sgn*Math.round(3*K),q,Math.max(1,Math.round(K)),2);
     }
-    // and a haze of it in the air AHEAD of that edge — the part that gets to you before the wall does
+    // and a haze of it in the air AHEAD of that edge — the part that gets to you before the wall does.
+    // ⚠ It hangs just ABOVE the edge, not over the whole sky: airborne grain that reaches the top of
+    // the frame is weather, and the one thing this ending must not read as is weather.
     for(var m=0;m<Math.round(35*Math.min(1,ap*2));m++){
       var hm=((m*2654435761+29+(sgn>0?7:0))>>>0);
       var mx=front+sgn*Math.round(((hm%1000)/1000)*90*K);
       if(mx<0||mx>SW) continue;
       g.fillStyle=rgba(goo,0.5);
-      g.fillRect(mx,Math.round(((hm>>>9)%1000)/1000*HORIZON),Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
+      g.fillRect(mx,edgeTop-Math.round(((hm>>>9)%1000)/1000*34*K),Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
     }
   }
 };
@@ -51736,28 +54135,140 @@ APOC_X.skyfall=function(g,ap,L,now){
   // third of a monitor each, so his screen held two of them and the frame was a black wall with one
   // seam. Seven was authored against ONE viewport; the world is ~3 viewports wide.
   var n=Math.max(7,Math.round(WW/92));
+  // ── 🌌 WHAT IS BEHIND THE SKY. Drawn FIRST and once, so the void is a real space the sheets peel
+  // away from rather than a black rectangle behind each one. 🔑 THE IDEA OF THIS ENDING IS THAT THE
+  // SKY WAS A SURFACE — and the only way that lands is if what is revealed is unmistakably SPACE.
+  // Flat black is just an absence; stars are a place, and a place is far worse.
+  var vd=Math.min(1,Math.max(0,(ap-0.04)/0.30));
+  if(vd>0){
+    g.fillStyle="rgba(3,3,7,"+(0.97*vd).toFixed(3)+")"; g.fillRect(0,0,SW,HORIZON+2);
+    for(var st=0;st<Math.round(150*vd);st++){
+      var sh2=((st*2654435761+9187)>>>0); sh2=(sh2^(sh2>>>13))>>>0;
+      var stx=((sh2>>>5)%Math.max(1,WW))-WOFF;
+      if(stx<0||stx>=SW) continue;
+      var sty=((sh2>>>13)%Math.max(1,HORIZON));
+      var tw2=0.55+0.45*Math.sin(now*0.0025+st);
+      g.fillStyle="rgba(255,255,248,"+(0.9*vd*tw2).toFixed(3)+")";
+      g.fillRect(stx,sty,Math.max(1,Math.round(K*0.7)),Math.max(1,Math.round(K*0.7)));
+    }
+  }
   for(var s=0;s<n;s++){
-    var h=((s*2654435761+11)>>>0);
-    var t0=(s/n)*0.45;
-    var lf=Math.min(1,Math.max(0,(ap-t0)/0.42)); if(lf<=0) continue;
+    var h=((s*2654435761+11)>>>0); h=(h^(h>>>13))>>>0;
+    // 🚨🔑🔑 THE DETACH TIME WAS `(s/n)*0.45` — LINEAR IN `s`, so every neighbouring sheet lagged its
+    // neighbour by the same constant and their leading edges formed a PERFECT STAIRCASE across the
+    // sky. Mid-arc the frame was a black field with a flight of white stairs in it. That is the
+    // arithmetic-progression fault again — the savanna's conveyor, the sky lanes' dotted rule, and now
+    // the sky itself. 🔑 A STAGGER IS NOT A SCATTER: if the offset between neighbours is constant, the
+    // eye reads the RULE, never the objects. Hashed per sheet, and the fall accelerates, because a
+    // sheet descending at a constant rate is a lift.
+    var t0=((h>>>7)%1000)/1000*0.42;
+    var lin=Math.min(1,Math.max(0,(ap-t0)/0.42)); if(lin<=0) continue;
+    var lf=lin*lin;
     // 🌍 THE SHEETS TILE THE WORLD, NOT THE VIEWPORT. At `(s/n)*SW` all seven detached across every
     // monitor at once, so the sky came down three times over in lockstep with a seam at each bezel —
     // and this ending's whole idea is that it comes down in ONE PLANE.
     var sw2=WW/n, x0=Math.round(disX(s*sw2)-sw2*0.06), w=Math.round(sw2*1.25);
     if(x0>SW+40||x0+w<-40) continue;
-    var top=Math.round(-HORIZON*0.1+lf*HORIZON*1.15);
+    var top=Math.round(-HORIZON*0.1+lf*HORIZON*1.35);
     var hh=Math.round(HORIZON*0.42);
+    // ⚠ IT TUMBLES. A slab that stays axis-aligned all the way down is a lift car; a real plate tips
+    // as it goes, so the sheet is SHEARED row by row and the shear grows with the fall. Same technique
+    // as the buildings tipping into the chasm — this canvas has no cheap rotate, and a sheared stack
+    // is what a falling plate looks like in pixel art anyway.
     var tilt=Math.round(((h%100)/100-0.5)*10*K*lf);
-    g.fillStyle="rgba(4,4,8,0.96)";                                  // the black behind it
-    g.fillRect(x0,0,w,Math.max(0,top));
-    g.fillStyle=rgba(skc,0.95);                                      // the sheet itself
-    g.fillRect(x0+tilt,top,w,hh);
-    g.fillStyle="rgba(255,255,255,0.35)";                            // a lit edge, so it reads as a plate
-    g.fillRect(x0+tilt,top,w,Math.max(1,Math.round(K)));
+    var shear=(((h>>>17)%100)/100-0.5)*2.4*lin;
+    // the crack that runs along its top edge BEFORE it goes — the tell that the sky is about to fail
+    if(lin<0.16){
+      g.fillStyle="rgba(255,255,255,"+(0.8*(1-lin/0.16)).toFixed(3)+")";
+      for(var cx4=0;cx4<w;cx4+=Math.max(2,Math.round(2*K))){
+        var cj=(((h>>>(cx4&15))%5)-2)*Math.round(K*0.8);
+        g.fillRect(x0+cx4,top+cj,Math.max(1,Math.round(K)),Math.max(1,Math.round(K*0.8)));
+      }
+    }
+    for(var ry=0;ry<hh;ry+=Math.max(1,Math.round(K))){
+      var off=Math.round(shear*ry);
+      var yy3=top+ry;
+      if(yy3<-4||yy3>SH+4) continue;
+      g.fillStyle=rgba(skc,0.95);
+      g.fillRect(x0+tilt+off,yy3,w,Math.max(1,Math.round(K)));
+      if(ry===0){                                                    // the lit edge, so it reads as a plate
+        g.fillStyle="rgba(255,255,255,0.42)";
+        g.fillRect(x0+tilt+off,yy3,w,Math.max(1,Math.round(K)));
+      }
+    }
+  }
+  // ── 🫁 AND THEN THE CONSEQUENCE. Every sheet is down by ap~0.6 and the old version simply stopped
+  // there: forty per cent of the arc with nothing developing, which is exactly the fault gammaray had.
+  // 🔑 IF THE SKY IS GONE YOU ARE IN VACUUM — so the rest of the arc is EXPOSURE. The air vents upward
+  // into the hole where the sky was, frost takes everything it leaves behind, and the lights go out.
+  var expo=Math.min(1,Math.max(0,(ap-0.52)/0.44));
+  if(expo>0){
+    g.globalCompositeOperation="lighter";
+    for(var v2=0;v2<Math.round(60*expo);v2++){                       // the atmosphere leaving
+      var vh2=((v2*2654435761+3833)>>>0); vh2=(vh2^(vh2>>>13))>>>0;
+      var vx2=((vh2>>>5)%Math.max(1,WW))-WOFF;
+      if(vx2<0||vx2>=SW) continue;
+      var vt=((now*0.0007+((vh2>>>11)%100)/100)%1);
+      var vy2=Math.round(HORIZON-vt*HORIZON*1.05);
+      g.fillStyle="rgba(180,206,236,"+(0.34*(1-vt)*expo).toFixed(3)+")";
+      g.fillRect(vx2,vy2,Math.max(1,Math.round(K*0.8)),Math.max(2,Math.round(6*K*vt)));
+    }
+    g.globalCompositeOperation="source-over";
+    g.fillStyle="rgba(196,222,244,"+(0.38*expo).toFixed(3)+")";      // frost over everything left
+    g.fillRect(0,HORIZON-Math.round(8*K),SW,SH-HORIZON+Math.round(8*K));
+    // ⚠ 0.44 BLACK OVER THE WHOLE FRAME ATE THE STREET TOO — the void behind the sky is already near-black,
+    // so a second blackout on top left nothing to look at. Vacuum is not the same as darkness: the read is
+    // FROST and the air leaving, not an absence of light.
+    g.fillStyle="rgba(2,3,8,"+(0.16*expo).toFixed(3)+")";            // …and the lights going out
+    g.fillRect(0,0,SW,SH);
   }
 };
 
 // EVERYTHING STOPS — the strange one. Nothing is destroyed and that is the point.
+// ── ⏸️🔒 THINGS THAT HAVE STOPPED. The renderer's own comment concedes the whole problem: "people and
+// traffic are drawn from the clock by other functions and this renderer CANNOT FREEZE THEM" — so an
+// ending named EVERYTHING STOPS was a desaturation and a vignette over a city that carried on walking.
+// 🔑🔑 IT CANNOT STOP WHAT THE ENGINE IS MOVING, BUT IT CAN ADD THINGS THAT ARE ALREADY STOPPED — and
+// stillness only reads AGAINST motion, so the moving traffic behind them is not the obstacle, it is
+// the contrast that makes the frozen ones legible. More of them every second until nothing is left
+// that still moves.
+// ⚠ NOTHING HERE MAY DEPEND ON `now` FOR ITS POSITION. That is the entire point: a frozen figure that
+// drifts by a pixel is not frozen. Positions are hashed and fixed; only the COUNT advances with `ap`.
+function timestopFrozen(g,ap,now,K){
+  if(ap<=0.02) return;
+  var gy=HORIZON, gone=Math.min(1,ap*1.25);
+  for(var i=0;i<Math.round(52*gone);i++){
+    var h=((i*2654435761+6421)>>>0); h=(h^(h>>>13))>>>0;
+    var wx=((h>>>3)%Math.max(1,WW));
+    var X=wx-WOFF;
+    if(X<-14||X>SW+14) continue;
+    var kind=(h>>>21)%6;
+    if(kind<=3){
+      // a person, caught mid-stride and left there. Pale and desaturated — the colour has gone out of
+      // them as well as the movement, which is what separates them from the crowd still walking.
+      var mk=0.62;
+      drawPerson(g,X,gy-1,hexDark(PEDC[(h>>>11)%PEDC.length],mk),hexDark(SKINC[(h>>>17)%SKINC.length],mk*0.8),(h&1)?1:-1,0);
+      g.fillStyle="rgba(226,232,240,0.42)";                  // the hard rim that says "held"
+      g.fillRect(X-Math.round(K),gy-Math.round(7*K),Math.max(1,Math.round(K*0.6)),Math.round(7*K));
+    } else if(kind===4){
+      // a vehicle stopped dead in the road, with its own frozen spray still in the air behind it
+      var cw2=Math.max(2,Math.round(5*K)), chh=Math.max(1,Math.round(2.2*K));
+      var cy2=gy+Math.round((SH-gy)*(0.28+((h>>>13)%40)/100*0.5));
+      g.fillStyle="rgba(96,98,108,0.95)";
+      g.fillRect(X-(cw2>>1),cy2-chh,cw2,chh);
+      g.fillStyle="rgba(214,222,232,0.5)";
+      g.fillRect(X-(cw2>>1),cy2-chh,cw2,Math.max(1,Math.round(K*0.6)));
+    } else {
+      // and the things that were in the air when it happened and simply never came down
+      var dy=gy-((h>>>13)%Math.round(gy*0.62));
+      var sz=Math.max(1,Math.round((1+((h>>>19)%3))*K));
+      g.fillStyle="rgba(206,212,222,0.85)";
+      g.fillRect(X,dy,sz,sz);
+      g.fillStyle="rgba(255,255,255,0.30)";
+      g.fillRect(X,dy,sz,Math.max(1,Math.round(K*0.5)));
+    }
+  }
+}
 APOC_X.timestop=function(g,ap,L,now){
   var K=Math.max(1,KSP);
   // 🔑 COLOUR IS THE ONLY THING THAT CAN BE TAKEN AWAY HERE. People and traffic are drawn from the
@@ -51768,6 +54279,7 @@ APOC_X.timestop=function(g,ap,L,now){
   g.globalCompositeOperation="saturation";
   g.fillRect(0,0,SW,SH);
   g.globalCompositeOperation="source-over";
+  timestopFrozen(g,ap,now,K);
   // 🚨🖥️ THE LIGHT DRAINS INWARD — AND "INWARD" WAS THE SCREEN'S EDGES, WHICH IS THE FROST BUG.
   // A vignette closing from `q=0` and `q=SW-1` puts a dark band at BOTH SIDES OF EVERY MONITOR, so
   // across his three it read as four vertical shadows standing in the middle of the world at each
@@ -51987,8 +54499,14 @@ APOC_X.thechange=function(g,ap,L,now){
     var px=Math.round(apocScatterX(h)), gy=HORIZON-1;
     if(px<-20||px>SW+20) continue;                            // 🌍 world-anchored
     var sc=(1+((h>>>7)%3))*K;
-    var flesh=mixc([206,152,140],[150,96,110],((h>>>11)%100)/100);
+    // ⚠ PALE FLESH ON A PALE CITY SHOWED NOTHING. The anatomy is the whole idea of this ending and it
+    // was being drawn in a tone two shades off the buildings behind it, so the wrongness never
+    // registered — the silhouette has to win before the proportions can be read. Darker, redder, and
+    // with a hard dark outline down the torso so the shape separates from whatever it stands against.
+    var flesh=mixc([172,104,102],[104,52,72],((h>>>11)%100)/100);
     // a torso that is too tall, and limbs that do not agree about how many there should be
+    g.fillStyle="rgba(24,10,18,0.85)";
+    g.fillRect(px-Math.max(1,Math.round(sc*0.4)),gy-Math.round(7*sc),Math.max(1,Math.round(2.4*sc)),Math.round(7*sc));
     g.fillStyle=css(flesh);
     g.fillRect(px,gy-Math.round(7*sc),Math.max(1,Math.round(1.6*sc)),Math.round(7*sc));
     var limbs=2+((h>>>13)%4);
@@ -53701,13 +56219,6 @@ APOC_X.plague=function(g,ap,L,now){
 // ⚠ SMOOTH EDGES ONLY. The density varies with distance from the front and the underside is a summed
 // sine — never a per-column random height with a drift, which is the hatching fault I hit three times
 // in one session on smoke, static and the plague miasma.
-function swarmDensityAt(wx){
-  var d=nukeDist(wx, apocEpiX(NOWOVR!=null?NOWOVR:Date.now())), r=apocSweepR();
-  if(r<=0) return 0;
-  var past=r-d;                                   // >0 once the front has gone by here
-  if(past<0) return Math.max(0,1+past/(WW*0.05)); // just ahead of it: thickening
-  return Math.max(0.18,1-past/(WW*0.40));         // behind: thinning, never quite clear
-}
 function swarmVictim(i){
   var h=((i*2654435761+55501)>>>0); h=(h^(h>>>13))>>>0;
   var h2=((h*40503+1013904223)>>>0);
@@ -54893,6 +57404,70 @@ APOC_X.thescream=function(g,ap,L,now){
   // empty air with nothing to be measured against — RULE 3 again, the same thing the pit was missing.
   // Sprung from the ground line they sweep ACROSS the city, and the city is the scale reference.
   var cy=HORIZON-Math.round(GROUND*0.35);
+  // ── 🗣️🔒🚨 THE SCREAMER — THE THING DOING IT. Nick, watching this ending play: "I see the screen but
+  // there is nothing screaming." He was right, and it was not that the rings had failed to draw: there
+  // was no SOURCE. Rings expanding out of an empty patch of air read as an effect applied to the frame,
+  // and an effect is not an event. His call, over making it destroy like the sweep endings and over
+  // simply brightening the rings: give it something you can point at.
+  // 🔑 A head is the one silhouette that cannot be mistaken for weather, and this land's whole failure
+  // mode this session has been things reading as weather.
+  // ⚠ NINETAILS' TWO LESSONS APPLY DIRECTLY. "Too big to be big" — it is capped at half the sky so the
+  // city stays readable underneath it, because a giant only reads as giant next to something. And the
+  // silhouette IS the recognition, so it is drawn as one unbroken near-black mass, never a stack of
+  // parts. It rises with `ap`: at the strike it is a skull on the horizon, by the end it owns the sky.
+  var sx=(cWx-WOFF)|0, sK=Math.max(1,K);
+  var shw=Math.round((26+40*ap)*sK);                       // half-width of the skull
+  var shh=Math.round(shw*2.15);
+  var chin=cy+Math.round(shh*0.06), stop=chin-shh;
+  // ⚠ TALLER THAN IT IS WIDE, and that ratio is the whole difference between a scream and a snout.
+  // First cut had `mouthH=shh*0.30, mouthW=shw*0.44` — with shh at 2.15x shw that is a lozenge lying on
+  // its side, and it read as a muzzle on a mask rather than a mouth open as far as it will go.
+  var mouthY=chin-Math.round(shh*0.28), mouthH=Math.round(shh*0.34), mouthW=Math.round(shw*0.27);
+  // 🔑 AND THE RINGS NOW LEAVE THE MOUTH, not the ground line. That is the entire point of the change:
+  // the old origin was chosen so the rings had the city to be measured against, and the mouth keeps
+  // that (it sits just above the skyline) while giving them a cause.
+  if(shw>2&&sx+shw>-6&&sx-shw<SW+6) cy=mouthY;
+  if(shw>2&&sx+shw>-6&&sx-shw<SW+6){
+    g.fillStyle="rgba(11,9,15,0.96)";
+    for(var sy=0;sy<shh;sy++){
+      var t2=sy/shh;                                       // 0 at the crown, 1 at the chin
+      // an egg, widest a little above the middle, narrowing to a jaw — one profile, no seams
+      var prof=Math.sin(Math.PI*Math.pow(Math.min(1,t2*0.94+0.03),0.82));
+      var rw=Math.max(1,Math.round(shw*(0.26+0.74*prof)));
+      g.fillRect(sx-rw,(stop+sy)|0,rw*2,1);
+    }
+    // the throat behind it, so the head is attached to something and does not float
+    for(var ny=0;ny<Math.round(shh*0.55);ny++){
+      var nw=Math.max(1,Math.round(shw*(0.52+0.30*(ny/Math.max(1,shh*0.55)))));
+      g.fillRect(sx-nw,(chin+ny)|0,nw*2,1);
+    }
+    // 🕳️ THE MOUTH IS A HOLE, NOT A SHAPE. Cut back to the light behind it and rimmed, so it reads as
+    // an opening rather than a dark mark painted on a dark head — the same reason the wrecked towers
+    // bite back to sky instead of to a colour.
+    // ⚠ THE INTERIOR IS BLACK. The first cut filled it at 0.30 white, which made the mouth the LIGHTEST
+    // thing on the head — so it read as a solid plate stuck to the face instead of an opening. A hole
+    // is dark, and it is the RIM that carries the light, because that is the edge the sound leaves past.
+    for(var my=0;my<mouthH;my++){
+      var mt=(my+0.5)/mouthH, mw=Math.max(1,Math.round(mouthW*Math.sin(Math.PI*Math.pow(mt,0.85))));
+      var ma=(0.55+0.45*pulse)*(0.35+0.65*ap), yy3=(mouthY-Math.round(mouthH*0.5)+my)|0;
+      g.fillStyle="rgba(0,0,0,0.93)";
+      g.fillRect(sx-mw,yy3,mw*2,1);
+      g.fillStyle="rgba(255,244,252,"+(ma*0.90).toFixed(3)+")";
+      g.fillRect(sx-mw,yy3,Math.max(1,Math.round(sK)),1);
+      g.fillRect(sx+mw-Math.max(1,Math.round(sK)),yy3,Math.max(1,Math.round(sK)),1);
+    }
+    // two hollows for eyes — PITS, not points. A pit is a skull; a point is a face, and a face at this
+    // size stops being dreadful and starts being a character. Tapered rather than rectangular for the
+    // same reason the mouth is: a hard rectangle on a curved mass reads as painted-on hardware.
+    var eyY=stop+Math.round(shh*0.38), eyO=Math.round(shw*0.42), eyW=Math.max(1,Math.round(shw*0.20));
+    var eyH=Math.max(2,Math.round(shh*0.14));
+    g.fillStyle="rgba(0,0,0,0.88)";
+    for(var ey=0;ey<eyH;ey++){
+      var ew=Math.max(1,Math.round(eyW*Math.sin(Math.PI*Math.pow((ey+0.5)/eyH,0.75))));
+      g.fillRect(sx-eyO-ew,eyY+ey,ew*2,1);
+      g.fillRect(sx+eyO-ew,eyY+ey,ew*2,1);
+    }
+  }
   for(var r=0;r<7;r++){
     var S=screamR(r,now,ap); if(S.r<6) continue;
     var a=(0.85*(1-S.ph))*(0.40+0.60*ap); if(a<0.02) continue;
@@ -55094,7 +57669,16 @@ APOC_X.warmachine=function(g,ap,L,now){
     // 🔑 An occupation is not a wave: some machines follow the front and some STAY in what has already
     // been levelled, finishing it. Two of five hold near the epicentre, which is also where the wreck
     // and the bodies are, so the quiet half of the arc still has the story in it.
-    var garrison=(((h>>>5)%5)<2);
+    // 🚨🔑🔑 THE COMMENT ABOVE SAYS "TWO OF FIVE HOLD NEAR THE EPICENTRE". IT WAS ONE.
+    // `(((h>>>5)%5)<2)` is a ~40% chance per machine, hoped to land on two — and hashed off the INDEX
+    // alone, so it is not even a per-life roll: the same single machine garrisons on every life, on
+    // every screen, forever. Counted it: 1 of 5. Which is why the epicentre monitor empties in the back
+    // half of the arc — the exact complaint ("there is nothing going on at all") this block was written
+    // to fix, half-fixed by a constant nobody checked.
+    // 🔑 IF THE DESIGN SAYS TWO, COUNT TO TWO. A probability is not a quantity, and a comment asserting
+    // a quantity that the code merely hopes for is the same class of untruth as the doomsday clock
+    // showing a time the city ignored. Rotating by life so it is a different two each time.
+    var garrison=(((i+lifeIndexOf(now))%nW)<2);
     var dist=marching ? lag+WW*0.05
            : garrison ? Math.min(R, WW*0.05+((h%100)/100)*WW*0.06)
            : Math.max(0,R-lag);
@@ -55127,7 +57711,13 @@ APOC_X.warmachine=function(g,ap,L,now){
           g.fillRect((X-Math.round(hgt*0.10))|0,(HORIZON-2)|0,Math.max(3,Math.round(hgt*0.20)),2); }
       }
     }
-    var gy=HORIZON-1-lift, bodyY=gy-hgt, hullW=Math.max(6,Math.round(hgt*0.19));
+    // 🔒🚨 THE SILHOUETTE HAD NO HULL. Rendered after the garrison fix, both machines were on screen,
+    // firing, and read as thin dark SCAFFOLDING — a crane, not a war machine. The numbers say why: legs
+    // `hgt*0.035` thick, which is FOUR PIXELS on a 120px machine, holding up a hull only 19% of the
+    // height. It was two thirds spindly strut by area. 🔑 A MACHINE READS AS A MACHINE BY MASS AND BY
+    // JOINTS — the mass tells you it is heavy and the joints tell you it is built. Hull up to 26% and
+    // deeper, legs more than doubled, and knees that are actual blocks.
+    var gy=HORIZON-1-lift, bodyY=gy-hgt, hullW=Math.max(8,Math.round(hgt*0.26));
     var gait=Math.sin(now/(330+((h>>>17)%190))+i*1.7);
     var downed=wmDowned(i,now);
     if(downed>0){ drawWarMachineWreck(g,X,gy,hgt,hullW,day,downed,h); continue; }
@@ -55135,11 +57725,22 @@ APOC_X.warmachine=function(g,ap,L,now){
       var sw2=(lg?gait:-gait)*hgt*0.17;
       var hipY=bodyY+Math.round(hgt*0.42), kneeY=bodyY+Math.round(hgt*0.72);
       var kneeX=X+sw2*0.6, footX=X+sw2;
+      // ⚠ THIGH THICKER THAN SHIN, and a KNEE BLOCK where they meet. A limb of constant width is a
+      // stick; a limb that tapers and has a joint in it is a leg. The knee is the single cheapest mark
+      // that says "engineered" — three rects and the whole thing stops being scaffolding.
       g.fillStyle=day?"rgb(40,44,50)":"rgb(22,25,30)";
-      segRect(g,X,hipY,kneeX,kneeY,Math.max(2,Math.round(hgt*0.035)));
-      segRect(g,kneeX,kneeY,footX,gy,Math.max(1,Math.round(hgt*0.028)));
+      segRect(g,X,hipY,kneeX,kneeY,Math.max(3,Math.round(hgt*0.085)));
+      segRect(g,kneeX,kneeY,footX,gy,Math.max(2,Math.round(hgt*0.060)));
+      var kw=Math.max(3,Math.round(hgt*0.10));
+      g.fillStyle=day?"rgb(56,60,68)":"rgb(31,34,41)";                       // the knee, lit on top
+      g.fillRect((kneeX-kw*0.5)|0,(kneeY-kw*0.5)|0,kw,kw);
+      g.fillStyle=day?"rgb(26,29,34)":"rgb(13,15,19)";                       // …and dark underneath it
+      g.fillRect((kneeX-kw*0.5)|0,(kneeY+kw*0.2)|0,kw,Math.max(1,Math.round(kw*0.3)));
+      // the hip pivot, so the leg is attached to something rather than growing out of the hull
+      g.fillStyle=day?"rgb(46,50,58)":"rgb(26,29,35)";
+      g.fillRect((X-Math.round(hgt*0.05))|0,(hipY-Math.round(hgt*0.04))|0,Math.max(3,Math.round(hgt*0.10)),Math.max(3,Math.round(hgt*0.08)));
       g.fillStyle=day?"rgb(28,31,36)":"rgb(14,16,20)";
-      g.fillRect((footX-Math.round(hgt*0.05))|0,(gy-1)|0,Math.max(2,Math.round(hgt*0.10)),2);
+      g.fillRect((footX-Math.round(hgt*0.08))|0,(gy-2)|0,Math.max(3,Math.round(hgt*0.16)),3);
       // 🦶 STOMPING. 🔒 his call, one of four. The planted foot leaves a print, and when it comes down
       // on the street it leaves it in somebody. Keyed to the gait so it lands when the foot does.
       if(!marching && GK>0 && ((lg?gait:-gait)>0.86)){
@@ -55149,7 +57750,7 @@ APOC_X.warmachine=function(g,ap,L,now){
           g.fillRect((footX+((sh3%Math.max(2,Math.round(hgt*0.3)))-Math.round(hgt*0.15)))|0,(gy-1-((sh3>>>5)%3))|0,1,1); }
       }
     }
-    var bH=Math.round(hgt*0.44), shY=bodyY+Math.round(bH*0.62);
+    var bH=Math.round(hgt*0.52), shY=bodyY+Math.round(bH*0.62);
     var hull=day?"rgb(52,56,64)":"rgb(30,33,39)", hullD=day?"rgb(34,38,44)":"rgb(19,21,26)";
     g.fillStyle=hull;
     g.fillRect((X-hullW)|0, (bodyY+Math.round(bH*0.16))|0, hullW*2, Math.round(bH*0.84));
@@ -55160,6 +57761,27 @@ APOC_X.warmachine=function(g,ap,L,now){
     g.fillRect((X+hullW)|0, shY|0, Math.round(hullW*0.34), Math.max(2,Math.round(hgt*0.06)));
     g.fillStyle=day?"rgba(255,255,255,0.09)":"rgba(150,168,200,0.07)";
     g.fillRect((X-hullW)|0, (bodyY+Math.round(bH*0.16))|0, Math.max(1,Math.round(hgt*0.02)), Math.round(bH*0.84));
+    // 🏗️ AND THE PLANES DISAGREE. The hull was one flat tone, which is the same fault the towers had —
+    // a box becomes a MASS the moment its top, its face and its underside are lit differently. Top
+    // plate catching sky, deep shadow along the belly, and a shoulder pauldron either side so the
+    // silhouette has shoulders instead of corners.
+    g.fillStyle=day?"rgb(84,90,102)":"rgb(46,50,60)";                        // top plate, lit
+    g.fillRect((X-hullW)|0,(bodyY+Math.round(bH*0.16))|0,hullW*2,Math.max(2,Math.round(hgt*0.030)));
+    g.fillStyle=day?"rgb(20,22,27)":"rgb(10,11,15)";                         // belly, darkest thing on it
+    g.fillRect((X-hullW)|0,(bodyY+Math.round(bH*0.86))|0,hullW*2,Math.max(2,Math.round(hgt*0.035)));
+    var pw=Math.max(3,Math.round(hullW*0.52)), ph=Math.max(3,Math.round(bH*0.30));
+    g.fillStyle=day?"rgb(62,67,77)":"rgb(35,38,46)";                         // shoulders
+    g.fillRect((X-hullW-pw)|0,(bodyY+Math.round(bH*0.22))|0,pw,ph);
+    g.fillRect((X+hullW)|0,(bodyY+Math.round(bH*0.22))|0,pw,ph);
+    g.fillStyle=day?"rgb(96,102,114)":"rgb(52,57,68)";
+    g.fillRect((X-hullW-pw)|0,(bodyY+Math.round(bH*0.22))|0,pw,Math.max(1,Math.round(hgt*0.022)));
+    g.fillRect((X+hullW)|0,(bodyY+Math.round(bH*0.22))|0,pw,Math.max(1,Math.round(hgt*0.022)));
+    // a sensor head, small and set forward — the smallest part, which is what makes the rest read big
+    var hw3=Math.max(2,Math.round(hullW*0.44));
+    g.fillStyle=day?"rgb(44,48,56)":"rgb(24,27,33)";
+    g.fillRect((X+side*Math.round(hullW*0.30)-hw3*0.5)|0,(bodyY-Math.round(bH*0.16))|0,hw3,Math.max(2,Math.round(bH*0.20)));
+    g.fillStyle=((now/300|0)%2)?"rgba(255,70,60,0.95)":"rgba(190,40,34,0.9)";
+    g.fillRect((X+side*Math.round(hullW*0.30)-Math.max(1,Math.round(hgt*0.012)))|0,(bodyY-Math.round(bH*0.10))|0,Math.max(2,Math.round(hgt*0.024)),Math.max(1,Math.round(hgt*0.018)));
     var ex=X, ey=bodyY+Math.round(hgt*0.12);
     g.fillStyle=((now/220|0)%2)?"rgba(255,120,60,0.95)":"rgba(255,180,80,0.95)";
     g.fillRect((ex-Math.max(1,Math.round(hgt*0.03)))|0,ey|0,Math.max(2,Math.round(hgt*0.06)),Math.max(1,Math.round(hgt*0.03)));
@@ -56093,7 +58715,6 @@ var RS_MASS_SAY=["RUN","HE'S KILLING EVERYONE","LOG OUT!","NOT IN FALLY?","MY PH
 // instant blackout reads as a power cut, and a wave reads as something walking through and closing up.
 var LOGOUT_WAIT_MS=5000, LOGOUT_WIPE_MS=95000;
 function logoutFrontR(){ return apocFrontR(LOGOUT_WAIT_MS,LOGOUT_WIPE_MS); }
-function logoutGone(x){ return frontCollapse(x,logoutFrontR())>=0; }
 function drawApocLogout(g,ap,L,now){
   var day=L>0.5, K=Math.max(1,KSP), night=(L<=0.5), seedW=(WORLD_SEED*2654435761)>>>0;
   var r=logoutFrontR();
@@ -56257,10 +58878,40 @@ var APOC_APPROACH_MS={meteors:9000,nuke:11000,sunburst:10000,ai:9000,bh:10000,al
   glassrain:8000,thescream:6000,crimsontide:11000,warmachine:10000,thefamine:14000,thehollow:11000,
   // the OSRS five, which had no row at all and silently took the ||9000 default
   massacre:7000,logout:6000,wilderness:9000,godwars:11000,banwave:5000};
+// ⏱️🚨 THE OMEN SNAPPED ON IN NINE SECONDS AND THEN HELD FOR TWENTY MINUTES. Same class as the
+// `apocSpanMs()` re-timing, one level down, found by the same audit (2026-08-13). `apocMs/t` is only a
+// fraction if `apocMs` has been remapped onto the arc — and for the 26 arc-native endings it has NOT
+// (their `apocSpanMs()` is 0, so `apocMs` runs raw to 12,096,000). `gammaray` strikes at `cityApoc`
+// 0.10, i.e. twenty minutes in, and `apocMs/8000` reaches 1 after eight REAL SECONDS: the approach
+// signature — the thing you are supposed to see coming — was at full intensity for the entire wait.
+// An omen that does not build is not an omen, it is a state.
+// 🔑 DERIVED, NOT HAND-LISTED: an arc-native ending already declares where it strikes (`APOC_STRIKE_AP`,
+// and `bh` keeps its own `BH_FORM_AP` because it was rebuilt onto the arc directly). The approach is
+// expressed against THAT, so it cannot drift from the moment it hands over to.
+// ⚠ AND THE TABLE STAYS LIVE FOR ALL 43. Simply running the omen 0→1 across the whole pre-strike window
+// would have made `APOC_APPROACH_MS` dead for 26 of them — "absence is not a decision" in a new place —
+// and would have thrown away what it encodes: *"the close-range ends get SHORT approaches on purpose: a
+// swarm on the horizon is a warning, a swarm in the street is not."* So the window is that ending's own
+// approach constant as a FRACTION OF THE TABLE'S OWN MAXIMUM, which keeps the authored contrast between
+// a long cosmic dread and a short close-range one without inventing a number.
+var _apMaxMs=0;
+function apocApproachMaxMs(){
+  if(_apMaxMs>0) return _apMaxMs;
+  for(var ak in APOC_APPROACH_MS) if(APOC_APPROACH_MS[ak]>_apMaxMs) _apMaxMs=APOC_APPROACH_MS[ak];
+  return _apMaxMs||9000;
+}
 function apocApproachF(){
   if(cityPhase!=="apoc") return -1;
   if(typeof apocStruck==="function" && apocStruck()) return -1;      // it has landed: the strike owns the frame
   var t=APOC_APPROACH_MS[curDeath]||9000;
+  if(apocSpanMs()===0){                                              // arc-native: `apocMs` is raw ms, not a fraction
+    var sAp=(APOC_STRIKE_AP[curDeath]!=null)?APOC_STRIKE_AP[curDeath]
+           :((curDeath==="bh"&&typeof BH_FORM_AP!=="undefined")?BH_FORM_AP:null);
+    if(sAp!=null){
+      var win=Math.max(0.002,sAp*(t/apocApproachMaxMs()));
+      return Math.max(0,Math.min(1,cityApoc/win));
+    }
+  }
   return Math.max(0,Math.min(1,apocMs/t));
 }
 // small shared marks, so twenty-five signatures are twenty-five IDEAS rather than twenty-five loops
@@ -56392,7 +59043,7 @@ var APOC_MARK={
   // ---- scalded / drowned / choked ----
   oceansboil:{m:"boil",spray:0.35}, flood:{m:"drown",spray:0.15}, pollution:{m:"choke",spray:0.20},
   // ---- unmade: dissolved, converted, taken ----
-  greygoo:{m:"dissolve",spray:0.30}, thechange:{m:"dissolve",spray:0.25}, banwave:{m:"dissolve",spray:0},
+  greygoo:{m:"dissolve",spray:0.88}, thechange:{m:"dissolve",spray:0.25}, banwave:{m:"dissolve",spray:0},
   ai:{m:"beam",spray:0.45}, alienwar:{m:"beam",spray:0.70},
   bh:{m:"drain",spray:0.40}, timestop:{m:"drain",spray:0}, logout:{m:"drain",spray:0},
   // ---- THE THIRD TIER. The existing twenty-five are overwhelmingly COSMIC — a wrong sky, a cold
@@ -56509,8 +59160,39 @@ function apocInPit(wx){
 // 🔑 A body on ground that is under water has no ground to lie on, in precisely the sense THE PIT and
 // THE HOLLOW already meant — one more `||` here and all nine call sites are correct at once. The
 // ending then draws them FLOATING, at the waterline, in `ragFloatDead`.
+// the goo front, as ONE expression — the renderer draws to it and `apocNoGround` buries to it, so a
+// body cannot be lying on ground the mass has already taken.
+function gooFrontR(){
+  if(curDeath!=="greygoo"||cityPhase!=="apoc") return 0;
+  var s0=APOC_STRIKE_AP.greygoo||0.25, s1=APOC_FULL_AP.greygoo||0.78;
+  return Math.max(0,(cityApoc-s0)/Math.max(0.01,s1-s0))*(WW*0.62);
+}
+// 🚨🔒 HIS REPORT: "I am just seeing floating half people." He was right, and it was mine: I made the
+// mass fill to `SH` so it reaches the near pavement, and the general victim layer went on drawing the
+// dead at the old street line — which is now INSIDE the goo. Bodies, stains, wrecks and mourners all
+// floating in the middle of a grey wall.
+// 🔑 THE FILE ALREADY SAID WHERE THIS GOES: *"a third ending that takes the ground away edits this
+// function and nothing else."* THE PIT removes the street, THE HOLLOW unmakes it, a flood drowns it —
+// and the goo BURIES it. One more `||` and all nine call sites are correct at once. ⚠ The goo draws
+// its OWN dead at the mass surface in `gooLife`; those are meant to be there, and this does not touch
+// them — what it suppresses is the layer that thinks the street is still where it was.
+function gooBuried(wx){
+  var R=gooFrontR(); if(R<=0) return false;
+  return nukeDist(wx,apocEpiX(NOWOVR!=null?NOWOVR:Date.now()))<R;
+}
+// 🚨 THE SAME LESSON, TWICE IN ONE DAY. The black hole tears the ROAD away, and the victim layer went on
+// laying bodies, stains and wrecks along a street that is no longer there — floating over a void exactly
+// as they floated inside the grey goo. `apocNoGround` is the one predicate for "is there ground here",
+// and its comment has always said a further ending that takes the ground away edits this and nothing
+// else. 🔑 The road front is the same expression `bhStream` peels slabs on, so what is drawn gone and
+// what is treated as gone cannot disagree.
+function bhVoid(wx){
+  if(curDeath!=="bh"||cityPhase!=="apoc") return false;
+  var road=Math.min(1,Math.max(0,(cityApoc-0.46)/0.40)); if(road<=0) return false;
+  return nukeDist(wx,apocEpiX(NOWOVR!=null?NOWOVR:Date.now()))<road*(WW*0.62);
+}
 function apocNoGround(wx){
-  return apocInPit(wx)||hollowGone(wx)||
+  return apocInPit(wx)||hollowGone(wx)||crustGone(wx)||gooBuried(wx)||bhVoid(wx)||
          (APOC_DROWNS[curDeath] && cityPhase==="apoc" && typeof floodGroundHit==="function" && floodGroundHit(wx));
 }
 var APOC_FRONTED={nuke:1,meteors:1,sunburst:1,ai:1,bh:1,alienwar:1,frost:1,kaiju:1,ninetails:1,flood:1,kaijuwar:1,
@@ -56545,16 +59227,32 @@ function drawApocFallenGround(g,L,now){
       // bite. `disX()` wraps into SCREEN space, and his third monitor is 640 wide, not 776: comparing
       // two wrapped screen values would let the same body throw its shadow LEFT on one monitor and
       // RIGHT on another. The signed wrap-aware world delta is monitor-independent by construction.
+      // 🔒 "THIS SHOULD BURN THE PEOPLE INTO THE ROAD." It already did — 1,056 fills a frame, measured —
+      // and you could not see one of them. 🚨🔑🔑 THE MARKS WERE IN RAW PIXELS: `fillRect(X-1,Y-2,2,2)`
+      // with no `KSP` anywhere, so on his 3x screens a burned human was TWO DEVICE PIXELS. The comment
+      // directly above records the first version being "invisible at every zoom" and the fix being a
+      // readable silhouette — it was made bigger in shape and still left unscaled, so it stayed
+      // invisible for the same reason it was invisible before. **THIS PROJECT'S MOST COMMON FAILURE IS
+      // CORRECT CODE TOO SMALL TO SEE, AND THE SECOND MOST COMMON IS FIXING IT WITHOUT SCALING IT.**
+      // ⚠ AND THEY WERE ALL ON THE PAVEMENT LINE. He asked for the ROAD: a third stay on the kerb, the
+      // rest are printed out across the carriageway where the traffic was, which is also where the eye
+      // already is.
       var dw=v.x-apocEpiX(now); if(dw>WW*0.5) dw-=WW; if(dw<-WW*0.5) dw+=WW;
       var away=(dw>=0)?1:-1;
-      var len=4+((v.seed>>>6)%4);
-      g.fillStyle="rgba(14,11,10,"+(0.78*GK).toFixed(3)+")";
-      g.fillRect((X-1)|0, Y-2, 2, 2);                            // head + shoulders, still upright in the flash
-      g.fillRect((X-1)|0, Y, 2, 1);                              // the stance
-      for(var s2=0;s2<len;s2++){                                  // …and the shadow thrown along the ground
-        g.fillStyle="rgba(14,11,10,"+((0.66-0.52*(s2/len))*GK).toFixed(3)+")";
-        g.fillRect((X+away*(1+s2))|0, Y, 1, 1);
-        if(s2<2) g.fillRect((X+away*(1+s2))|0, Y-1, 1, 1);
+      var KS=Math.max(1,Math.round(Math.max(1,KSP)*0.9));
+      var lane=((v.seed>>>9)%3);
+      var YY=(lane===0)?Y:(HORIZON+Math.round((SH-HORIZON)*(0.26+0.26*lane)));
+      g.fillStyle="rgba(9,7,8,"+(0.86*GK).toFixed(3)+")";
+      g.fillRect((X-KS)|0,(YY-4*KS)|0,KS*2,KS*2);                 // head, still upright when the light took it
+      g.fillRect((X-KS)|0,(YY-2*KS)|0,KS*2,KS*2);                 // shoulders and body
+      g.fillRect((X-KS)|0,YY|0,KS,KS);                            // …and the stance, feet apart
+      g.fillRect(X|0,YY|0,KS,KS);
+      var len=(5+((v.seed>>>6)%6))*KS;                            // the shadow thrown along the ground
+      for(var s2=0;s2<len;s2++){
+        var tf=s2/len;
+        g.fillStyle="rgba(9,7,8,"+((0.74-0.62*tf)*GK).toFixed(3)+")";
+        var hgt=Math.max(1,Math.round(KS*(1.8-1.3*tf)));
+        g.fillRect((X+away*(KS+s2))|0,(YY-hgt+KS)|0,1,hgt);
       }
       continue;
     }
@@ -56782,16 +59480,543 @@ function drawApocalypse(g,ap,L,now){
   drawApocParts(g,L,now);            // the pieces, over the ruin and under the near field
   drawApocNearField(g,ap,L,now);     // …and last, because it is between the viewer and all of it
 }
+// ── ☢️ THE NUKE'S MIDDLE. 🔒 His call for the re-timed tier: staged phases, an aftermath that DEVELOPS,
+// and events that recur. Re-timing gave these endings a LENGTH; it did not give them anything to do with
+// it — rendered across the arc the nuke's ap 0.70 and ap 0.95 came back near-identical, which is the same
+// frozen-frame fault one level up.
+// 🔑 A NUCLEAR AFTERMATH IS THE EASIEST IN THE SET TO STAGE, because the real one has named phases that
+// each look different: the firestorm draws its own wind, the cloud climbs and shears over, black rain
+// falls out of it, and then ash settles for as long as you care to watch. Nothing here is a wash — each
+// phase owns a different band of the frame, so the picture changes rather than the tint.
+function nukeAfter(g,ap,L,now){
+  if(!apocStruck()) return;
+  var K=Math.max(1,KSP), day=L>0.5, base=HORIZON-1;
+  var f=Math.max(0,Math.min(1,(ap-0.30)/0.22));      // FIRESTORM      0.30 → 0.52
+  var c=Math.max(0,Math.min(1,(ap-0.34)/0.26));      // THE COLUMN     0.34 → 0.60
+  var r=Math.max(0,Math.min(1,(ap-0.52)/0.24));      // BLACK RAIN     0.52 → 0.76
+  var a2=Math.max(0,Math.min(1,(ap-0.70)/0.30));     // ASH            0.70 → 1.00
+  var fade=Math.max(0,1-Math.max(0,(ap-0.62)/0.30));
+  // ── 🔥 the firestorm: fires spread along the ground, then burn out. World-anchored with a screen cull.
+  if(f>0&&fade>0){
+    for(var i=0;i<Math.round(WW/9);i++){
+      var h=((i*2654435761+3301)>>>0); h=(h^(h>>>13))>>>0;
+      var x=apocScatterX(h>>>5); if(x<0||x>=SW) continue;
+      if(!apocHit(wrapW(x+WOFF))) continue;
+      var ph=((now*0.004+i*13)%10)/10;
+      var hgt=Math.round((3+((h>>>11)%9))*K*f*fade*(0.6+0.4*Math.sin(now*0.006+i)));
+      if(hgt<1) continue;
+      g.globalCompositeOperation="lighter";
+      g.fillStyle="rgba(255,"+((120+90*ph)|0)+",40,"+(0.5*f*fade).toFixed(2)+")";
+      g.fillRect(x,base-hgt,Math.max(1,Math.round(K)),hgt);
+      g.fillStyle="rgba(255,236,170,"+(0.4*f*fade).toFixed(2)+")";
+      g.fillRect(x,base-Math.round(hgt*0.35),Math.max(1,Math.round(K)),Math.max(1,Math.round(hgt*0.35)));
+      g.globalCompositeOperation="source-over";
+    }
+  }
+  // ── 🍄 the column climbs and then SHEARS OVER at the tropopause — the shape everybody knows, and it is
+  // the one thing that says how long ago the strike was.
+  if(c>0){
+    var gz=Math.round(disX(apocEpiX(now)));
+    if(gz>-260&&gz<SW+260){
+      var top=Math.round(base-HORIZON*0.86*c);
+      var stemW=Math.round(9*K*(0.6+0.5*c));
+      for(var y=base;y>top;y-=Math.max(1,Math.round(K))){
+        var u=(base-y)/Math.max(1,base-top);
+        var lean=Math.round(u*u*46*K*c);                       // sheared downwind as it rises
+        var w=Math.round(stemW*(1-u*0.35)+u*u*54*K*c);         // …and spreading into the cap
+        g.fillStyle=day?"rgba(86,72,66,"+(0.34*fade+0.18).toFixed(2)+")":"rgba(40,34,32,"+(0.34*fade+0.2).toFixed(2)+")";
+        g.fillRect(gz+lean-(w>>1),y,w,Math.max(1,Math.round(K)));
+        if(u>0.72){                                            // the cap's lit underside, still glowing
+          g.fillStyle="rgba(255,150,70,"+(0.18*fade).toFixed(2)+")";
+          g.fillRect(gz+lean-(w>>1),y,w,Math.max(1,Math.round(K*0.5)));
+        }
+      }
+    }
+  }
+  // ── 🌧️ BLACK RAIN — fallout coming back down. It is the phase people actually remember, and it is the
+  // only rain in the set that stains what it lands on.
+  if(r>0){
+    for(var q=0;q<Math.round(WW/5*r);q++){
+      var hr=((q*2654435761+8807)>>>0); hr=(hr^(hr>>>13))>>>0;
+      var rx=apocScatterX(hr>>>5); if(rx<0||rx>=SW) continue;
+      var ry=((((hr>>>13)%1000)/1000)*HORIZON+(now*0.10)%HORIZON)%HORIZON;
+      g.fillStyle="rgba(26,22,20,"+(0.5*r).toFixed(2)+")";
+      g.fillRect(rx,ry,Math.max(1,Math.round(K*0.6)),Math.round(4*K));
+    }
+    g.fillStyle="rgba(24,20,18,"+(0.22*r).toFixed(2)+")"; g.fillRect(0,base-Math.round(2*K),SW,SH-base+Math.round(2*K));
+  }
+  // ── 🌫️ AND THEN ASH, for as long as you care to watch: the sky goes to a dead flat grey and the ground
+  // silts up. This is the lasting frame, and it is the phase the ending never had.
+  if(a2>0){
+    g.fillStyle="rgba(118,112,106,"+(0.30*a2).toFixed(2)+")"; g.fillRect(0,0,SW,HORIZON);
+    for(var s2=0;s2<Math.round(60*a2);s2++){
+      var hs=((s2*2654435761+4133)>>>0); hs=(hs^(hs>>>13))>>>0;
+      var sx2=apocScatterX(hs>>>5); if(sx2<0||sx2>=SW) continue;
+      var sy2=((((hs>>>13)%1000)/1000)*HORIZON+(now*0.012)%HORIZON)%HORIZON;
+      g.fillStyle="rgba(196,190,182,"+(0.32*a2).toFixed(2)+")";
+      g.fillRect(sx2,sy2,Math.max(1,Math.round(K*0.7)),Math.max(1,Math.round(K*0.7)));
+    }
+    g.fillStyle="rgba(150,144,136,"+(0.42*a2).toFixed(2)+")";
+    g.fillRect(0,base-Math.round(K),SW,Math.round(3*K));                 // ash silting over the street
+  }
+}
+// ── ☄️ THE METEOR STORM'S MIDDLE — ITS OWN PHYSICS, NOT THE NUKE'S. 🔒 His call: every ending's phases
+// come from what that event actually does, because the specificity is the whole point of having 43.
+// A nuke burns a city and leaves fallout. A planet-killer does something different and much worse: it
+// throws a mass of molten rock back OUT of the crater, which re-enters all over the world and sets it
+// alight — and then the dust it lofted blots the sun for years. So the last and longest phase is not ash
+// settling, it is an IMPACT WINTER: a brown-black sky, a dead cold light, and snow that is not snow.
+// 🔑 EJECTA IS THE PHASE NOTHING ELSE IN THE SET HAS. Fire coming DOWN from above, long after the impact,
+// with the strike already over — the sky itself is the weapon for the second time.
+function meteorAfter(g,ap,L,now){
+  if(!apocStruck()) return;
+  var K=Math.max(1,KSP), day=L>0.5, base=HORIZON-1;
+  var ej=Math.max(0,Math.min(1,(ap-0.32)/0.22));        // EJECTA RE-ENTRY   0.32 → 0.54
+  var fr=Math.max(0,Math.min(1,(ap-0.38)/0.24));        // GLOBAL FIRESTORM  0.38 → 0.62
+  var wi=Math.max(0,Math.min(1,(ap-0.56)/0.34));        // IMPACT WINTER     0.56 → 0.90
+  var frFade=Math.max(0,1-Math.max(0,(ap-0.64)/0.26));  // the fires starve as the sky closes
+  // ── ☄️ EJECTA. Molten rock thrown clear of the crater, re-entering everywhere at once. It falls at an
+  // angle, it glows, and it arrives long after the thing that threw it.
+  if(ej>0&&wi<0.9){
+    g.globalCompositeOperation="lighter";
+    for(var i=0;i<Math.round(WW/7*ej*(1-wi*0.7));i++){
+      var h=((i*2654435761+6151)>>>0); h=(h^(h>>>13))>>>0;
+      var x=apocScatterX(h>>>5); if(x<0||x>=SW) continue;
+      var t=((now*0.22+((h>>>13)%1000))%1000)/1000;
+      var y=Math.round(t*base), ln=Math.round((5+((h>>>19)%9))*K);
+      g.fillStyle="rgba(255,"+((150+80*(1-t))|0)+",70,"+(0.75*ej).toFixed(2)+")";
+      for(var q=0;q<ln;q++) g.fillRect(x-Math.round(q*0.45),y-q,Math.max(1,Math.round(K*0.7)),Math.max(1,Math.round(K)));
+    }
+    g.globalCompositeOperation="source-over";
+  }
+  // ── 🔥 and where it lands the world burns — everywhere, not just where the big one hit
+  if(fr>0&&frFade>0){
+    for(var f2=0;f2<Math.round(WW/8);f2++){
+      var hf=((f2*2654435761+2731)>>>0); hf=(hf^(hf>>>13))>>>0;
+      var fx=apocScatterX(hf>>>5); if(fx<0||fx>=SW) continue;
+      var hgt=Math.round((3+((hf>>>11)%10))*K*fr*frFade*(0.55+0.45*Math.sin(now*0.005+f2)));
+      if(hgt<1) continue;
+      g.globalCompositeOperation="lighter";
+      g.fillStyle="rgba(255,"+((110+70*((f2*7)%10)/10)|0)+",44,"+(0.45*fr*frFade).toFixed(2)+")";
+      g.fillRect(fx,base-hgt,Math.max(1,Math.round(K)),hgt);
+      g.globalCompositeOperation="source-over";
+    }
+  }
+  // ── 🌑 IMPACT WINTER. The dust closes over and stays: a brown-black sky, the light going dead and cold,
+  // and a fall of ash and frozen soot that never stops. This is the ending's lasting frame and it is the
+  // OPPOSITE of the nuke's — that one settles into pale grey, this one shuts the lights off.
+  if(wi>0){
+    g.fillStyle="rgba(38,30,26,"+(0.72*wi).toFixed(2)+")"; g.fillRect(0,0,SW,HORIZON);
+    g.fillStyle="rgba(22,20,22,"+(0.46*wi).toFixed(2)+")"; g.fillRect(0,HORIZON,SW,SH-HORIZON);
+    for(var w2=0;w2<Math.round(90*wi);w2++){
+      var hw=((w2*2654435761+9137)>>>0); hw=(hw^(hw>>>13))>>>0;
+      var wx2=apocScatterX(hw>>>5); if(wx2<0||wx2>=SW) continue;
+      var wy=((((hw>>>13)%1000)/1000)*HORIZON+(now*0.02)%HORIZON)%HORIZON;
+      g.fillStyle="rgba(170,164,158,"+(0.36*wi).toFixed(2)+")";
+      g.fillRect(wx2,wy,Math.max(1,Math.round(K*0.7)),Math.max(1,Math.round(K*0.7)));
+    }
+    g.fillStyle="rgba(96,92,90,"+(0.40*wi).toFixed(2)+")";
+    g.fillRect(0,base-Math.round(K),SW,Math.round(4*K));                  // soot drifting over the street
+  }
+}
+// ── 🦖 THE KAIJU'S MIDDLE — ITS OWN PHYSICS. A kaiju is not a blast and not a climate event: it is an
+// ANIMAL, and the thing that makes its aftermath unlike anything else in the set is that IT LEAVES. The
+// nuke's aftermath is chemistry and the meteor's is climate; this one's is that the cause of it walked
+// away and is still out there, getting smaller on the horizon, while the city it stepped through burns.
+// 🔑 WHAT IT LEAVES BEHIND IS A TRAIL, NOT A CRATER. Footprints crushed into the ground in a LINE, each
+// one a pit deep enough to swallow a building, filling with broken main-water and burning gas — you can
+// read the direction it went off the ground itself, which no other ending can do.
+function kaijuAfter(g,ap,L,now){
+  if(!apocStruck()) return;
+  var K=Math.max(1,KSP), day=L>0.5, base=HORIZON-1;
+  var epi=apocEpiX(now);
+  var tr=Math.max(0,Math.min(1,(ap-0.30)/0.20));      // THE TRAIL      0.30 → 0.50
+  var bu=Math.max(0,Math.min(1,(ap-0.36)/0.26));      // THE WRECK BURNS 0.36 → 0.62
+  var go=Math.max(0,Math.min(1,(ap-0.52)/0.30));      // IT LEAVES      0.52 → 0.82
+  var st=Math.max(0,Math.min(1,(ap-0.70)/0.30));      // AND IT IS QUIET 0.70 → 1.00
+  var burnFade=Math.max(0,1-Math.max(0,(ap-0.66)/0.28));
+  // ── 🦶 THE TRAIL. Footprints in a line, spaced like a stride, laid down along the path it ACTUALLY
+  // walked. ⚠ The direction used to be its own coin-flip off the life hash, so on half the lives the
+  // trail marched off the opposite way from the animal that made it — two features deciding the same
+  // fact separately is how the sun-anchor bug got its own memory note. `kaijuDir()` is the one answer.
+  if(tr>0){
+    var dir=kaijuDir(), NF=26;
+    for(var i=0;i<NF;i++){
+      var wx=wrapW(Math.round(epi+dir*i*Math.round(58*K)));
+      var fx=Math.round(disX(wx)); if(fx<-90||fx>SW+90) continue;
+      var born=i/NF;
+      if(kaijuWalkProg()<born*0.95) continue;          // …and each one appears only once it has got that far
+      var fw=Math.round((30+((i*37)%12))*K), fd=Math.round(9*K);
+      g.fillStyle="rgba(6,6,10,0.95)";                 // the pit, deep enough to swallow a building
+      g.fillRect(fx-(fw>>1),base-Math.round(K),fw,fd);
+      g.fillStyle=day?"rgba(78,74,70,0.9)":"rgba(34,32,32,0.9)";
+      g.fillRect(fx-(fw>>1),base-Math.round(K),fw,Math.max(1,Math.round(K*1.2)));   // the crushed rim
+      if(bu>0&&burnFade>0&&(i%2)===0){                 // gas main alight in the bottom of it
+        g.globalCompositeOperation="lighter";
+        var fh=Math.round((4+((i*13)%7))*K*bu*burnFade*(0.6+0.4*Math.sin(now*0.006+i)));
+        g.fillStyle="rgba(255,150,54,"+(0.65*bu*burnFade).toFixed(2)+")";
+        g.fillRect(fx-Math.round(3*K),base-fh,Math.round(6*K),fh);
+        g.globalCompositeOperation="source-over";
+      }
+    }
+  }
+  // ── 🌊 IT LEAVES — 🚨 AND THAT IS `kaijuBody`'S JOB NOW, NOT THIS ONE'S. There used to be a THIRD
+  // hand-drawn creature right here: a box-body-plus-shoulders-plus-head departing silhouette, on top of
+  // the two that were already fighting for the same patch of horizon. It is the same fault the ending
+  // shipped with — a renderer kept alive next to the one that replaced it — so the departure is now a
+  // shrinking `rise`/`leave` term on the ONE animal, walking back into the water it came out of, and
+  // there is exactly one routine in the engine that knows what this thing looks like.
+  // ── 🌫️ AND THEN IT IS QUIET. Dust settling over a wreck nobody is coming back to, and the fires going
+  // out one at a time. No winter, no fallout — an animal did this and then it went home.
+  if(st>0){
+    g.fillStyle="rgba(92,86,80,"+(0.24*st).toFixed(2)+")"; g.fillRect(0,0,SW,HORIZON);
+    for(var d2=0;d2<Math.round(50*st);d2++){
+      var hd=((d2*2654435761+7411)>>>0); hd=(hd^(hd>>>13))>>>0;
+      var dx2=apocScatterX(hd>>>5); if(dx2<0||dx2>=SW) continue;
+      var dy2=((((hd>>>13)%1000)/1000)*HORIZON+(now*0.008)%HORIZON)%HORIZON;
+      g.fillStyle="rgba(150,144,136,"+(0.26*st).toFixed(2)+")";
+      g.fillRect(dx2,dy2,Math.max(1,Math.round(K*0.6)),Math.max(1,Math.round(K*0.6)));
+    }
+  }
+}
+// ── 🦖🔒 THE BEAST ITSELF. His report: *"I have no idea what this endtime event is supposed to be."* He
+// was right — measured, it was a plain dark-green vertical BAR the same height as the towers beside it,
+// with a beam entering from off-frame. It read as a green skyscraper with a searchlight on it.
+// 🔑 THE SILHOUETTE HAS TO WIN BEFORE ANYTHING ELSE. A kaiju is recognised by SHAPE at any size: heavy
+// tail, hunched back with dorsal fins, thick legs, small arms, big jaw. None of that existed, so no
+// amount of colour or effect could have saved it — the same lesson `thechange` learned when its
+// wrong-anatomy creatures were drawn two shades off the buildings behind them.
+// 🔒 TWICE THE TALLEST TOWER, his call — the skyline is what tells you how big it is, so it has to be
+// measured against the REAL tallest building rather than a fraction of the frame.
+// ── 🦖 ONE ANIMAL, ONE ROUTINE, AND EVERY PART OF IT HUNG OFF A SPINE. The near view and the far view
+// are the SAME silhouette at two sizes, because two hand-drawn creatures is exactly how this frame came
+// to hold, in his words, *"2 of them behind each other."*
+// 🔑 THE POSE IS WHY THE HEAD IS VISIBLE. At a locked TWICE THE TALLEST TOWER, an upright animal puts its
+// head above the top of the frame permanently — measured, and on his 282px-high screen you saw a green
+// column with the face cropped off, which is the same green-bar report for the third time. So it stands
+// HUNCHED, like the animal it is: the back arches at 0.72H, the head is thrown FORWARD at 0.82H, and the
+// full two-tower height is spent on length and mass instead of on sky. It still dwarfs the skyline; you
+// can also see its face.
+// 🪵 EVERY LIMB IS A CONNECTED RUN, NEVER PLOTTED SAMPLES. The tail is 40 overlapping segments along one
+// curve (mark never smaller than the step), the neck is a chain that physically joins skull to shoulder,
+// and THE FINS ARE PLACED ON THE SPINE ITSELF rather than on their own straight line — the previous cut
+// walked them down a linear ramp while the tail fell away quadratically, so half of them hung in open
+// sky behind the animal like a second creature.
+// ── 🦴 LIMBS THAT ARE ATTACHED TO SOMETHING. 🔒 His call, 2026-08-12: *"make sure their limbs move
+// correctly for their body."* They did not: every limb on both creatures was an axis-aligned rectangle
+// that TRANSLATED. A leg slid sideways as a whole block, foot and all; the ape's punching arm swapped
+// representation entirely, from a hanging vertical bar to a horizontal one. Nothing pivoted, so nothing
+// stayed joined to the shoulder or hip it was supposed to hang off.
+// 🔑 A limb is a chain: a ROOT that does not move, a joint, and an end that travels an arc. Two segments
+// is enough at this pixel size — a general IK solver would be a lot of code to draw four legs with.
+// 🪵 Drawn as connected runs, mark never smaller than the step, for the same reason the kaiju's tail had
+// to be rebuilt: a plotted sample chain is a staircase.
+function kwSeg(g,x0,y0,x1,y1,w0,w1,c,K){
+  var n=Math.max(2,Math.round(Math.max(Math.abs(x1-x0),Math.abs(y1-y0))/Math.max(1,K)));
+  g.fillStyle=c;
+  for(var i=0;i<=n;i++){ var u=i/n, w=Math.max(K,w0+(w1-w0)*u);
+    g.fillRect(Math.round(x0+(x1-x0)*u-w*0.5),Math.round(y0+(y1-y0)*u-w*0.5),Math.max(1,Math.round(w)),Math.max(1,Math.round(w))); }
+}
+function kwLimb(g,x0,y0,x1,y1,bend,w0,w1,c,K){
+  var dx=x1-x0, dy=y1-y0, L=Math.max(1,Math.sqrt(dx*dx+dy*dy));
+  var jx=(x0+x1)*0.5-(dy/L)*bend, jy=(y0+y1)*0.5+(dx/L)*bend;     // the joint, offset off the straight line
+  kwSeg(g,x0,y0,jx,jy,w0,(w0+w1)*0.5,c,K);
+  kwSeg(g,jx,jy,x1,y1,(w0+w1)*0.5,w1,c,K);
+}
+// ── 👣 A PLANTED FOOT IS STATIONARY IN THE WORLD, which is the whole difference between walking and
+// moonwalking. `gait` is a phase derived by the CALLER from the animal's WORLD x over one stride length,
+// never from `now` and never from its screen x — a clock gives a gait unrelated to how fast the body is
+// actually moving, and a screen x gives all three monitors a different leg phase for the same animal.
+// ⚡ SPACING, not easing: the foot is DOWN for most of the cycle and crosses fast. At 12fps a smoothly
+// eased arc reads mushy; a hold-then-cross reads like weight. Same lesson as the punch.
+var KW_PLANT=0.64;
+function kwFoot(gait,off,stride){
+  var u=((gait+off)%1+1)%1;
+  // ⚠ THE AMPLITUDE IS `PLANT × stride`, NOT `stride`. Derived: local x must fall at exactly body speed
+  // while the foot is down, so d(local)/d(worldX) = -1. With `gait = worldX/stride`, travelling the FULL
+  // stride within the plant window gives -1/PLANT = -1.56 — the foot slides backwards at 0.56× body
+  // speed, which is a moonwalk with extra steps. Over one cycle the body advances `stride`; the foot is
+  // down for `PLANT` of it, so it may only travel `PLANT*stride` while planted, and the swing returns it.
+  var A=KW_PLANT*stride;
+  if(u<KW_PLANT) return {x:A*0.5-(u/KW_PLANT)*A, lift:0};               // planted: world-stationary, exactly
+  var v=(u-KW_PLANT)/(1-KW_PLANT);
+  return {x:-A*0.5+v*A, lift:Math.sin(v*Math.PI)*stride*0.42};          // and it crosses fast, in the air
+}
+function kaijuShape(g,cx,base,H,face,day,a,detail,now,gait){
+  var K=Math.max(1,KSP);
+  // 🎨 THE VALUE STRUCTURE IS THE FIX, NOT THE OUTLINE. What shipped was ONE fill (`#1b2a1c`) for torso,
+  // head, legs and tail against a mid-dark sky, so the shape had no near side, no far side and no ground
+  // plane and the eye read it as a slab. A wash cannot create contrast; what varies ACROSS it can.
+  var dark=day?[13,21,16]:[6,10,9], mid=day?[28,42,32]:[13,20,16], lit=day?[58,88,64]:[26,41,31], rim=day?[176,220,174]:[96,152,124];
+  function C(c,al){ return "rgba("+c[0]+","+c[1]+","+c[2]+","+((al==null?1:al)*a).toFixed(2)+")"; }
+  function bx(x,y,w,h,c,al){ g.fillStyle=C(c,al); g.fillRect(Math.round(x),Math.round(y),Math.max(1,Math.round(w)),Math.max(1,Math.round(h))); }
+  var Y=function(f){ return base-H*f; };                       // heights are fractions of H, measured up off the street
+  var hipY=Y(0.36), shY=Y(0.72), hipX=cx-face*H*0.03, shX=cx+face*H*0.06;
+  // ── 🐉 THE TAIL as one curve: it leaves the hip, dips toward the street under its own weight, and the
+  // tip lifts. A tail that runs straight into the ground is a ramp, which is what the last one read as.
+  function tailPt(u){ return { x: hipX-face*(H*0.12+u*H*1.00),
+                               // 🔑 the tail COUNTERBALANCES the stride — same phase as the legs, opposite
+                               // sign — instead of swaying on a clock of its own with no relation to them.
+                               y: hipY+H*0.30*Math.sin(u*Math.PI*0.82)-Math.sin(((gait==null)?now*0.00016:gait)*6.283)*H*0.045*u,
+                               t: H*(0.130-0.104*u) }; }
+  for(var t=39;t>=0;t--){ var u=t/39, P=tailPt(u);
+    bx(P.x-P.t*0.5,P.y-P.t*0.5,P.t,P.t*1.05,u<0.45?mid:dark); }
+  // ── the legs: a chain from a hip that does not move to a foot that plants. `gait` comes from the
+  // animal's world position, so a planted foot is genuinely stationary on the ground it is standing on.
+  var strideL=H*0.42, gt=(gait==null)?(now*0.00016):gait;
+  var fFar=kwFoot(gt,0.5,strideL), fNear=kwFoot(gt,0.0,strideL);
+  var hipFar=cx-H*0.085, hipNear=cx+H*0.085;
+  kwLimb(g,hipFar,hipY,hipFar+fFar.x,base-H*0.02-fFar.lift,-face*H*0.05,H*0.125,H*0.085,C(dark),K);
+  bx(hipFar+fFar.x-H*0.085,base-H*0.035-fFar.lift,H*0.175,H*0.035,dark);            // its foot, flat on the street
+  // ── the torso: broad at the hip, arched forward to a narrower shoulder.
+  // ⚡ RUN-BATCHED — the bands are accumulated and flushed only when the rounded profile actually
+  // CHANGES. Per-row detail is a choice, and it is the one five other renderers had to be taught.
+  var span=Math.max(1,hipY-shY), run=-1,rH=-1,rO=-1,rC=null;
+  for(var y=Math.round(shY);y<=Math.round(hipY);y++){
+    var v=(y-shY)/span;                                                              // 0 at the shoulder → 1 at the hip
+    var half=Math.round(H*(0.125+0.045*v)), off=Math.round((shX-cx)+((hipX-shX)*v*v));
+    var c=(v<0.24)?lit:((v<0.68)?mid:dark);
+    if(half!==rH||off!==rO||c!==rC){
+      if(run>=0){ bx(cx+rO-rH,run,rH*2,y-run,rC); bx(cx+rO+face*rH-(face>0?Math.max(1,K*1.4):0),run,Math.max(1,K*1.4),y-run,rim,0.8); }
+      run=y; rH=half; rO=off; rC=c; }
+  }
+  if(run>=0){ var h2=Math.round(hipY)-run+1; bx(cx+rO-rH,run,rH*2,h2,rC);
+    bx(cx+rO+face*rH-(face>0?Math.max(1,K*1.4):0),run,Math.max(1,K*1.4),h2,rim,0.8); }
+  // ── the near leg, over the torso, knee bending forward the way a bird's does
+  kwLimb(g,hipNear,hipY,hipNear+fNear.x,base-H*0.02-fNear.lift,-face*H*0.05,H*0.125,H*0.085,C(mid),K);
+  bx(hipNear+fNear.x-H*0.085,base-H*0.035-fNear.lift,H*0.175,H*0.035,dark);
+  kwSeg(g,hipNear+face*H*0.05,hipY,hipNear+fNear.x+face*H*0.03,base-H*0.06-fNear.lift,Math.max(1,K*1.4),Math.max(1,K),C(rim,0.5),K);
+  // ── 🔑 THE NECK IS A CHAIN, NOT A GAP. The old head was a detached horizontal bar floating above a
+  // torso block in the same flat green — the other half of "two of them": nothing joined them, so they
+  // read as two objects at two different depths.
+  var nx0=shX+face*H*0.02, ny0=Y(0.70), nx1=cx+face*H*0.19, ny1=Y(0.79);
+  for(var n=0;n<=10;n++){ var un=n/10;
+    bx(nx0+(nx1-nx0)*un-H*0.043,ny0+(ny1-ny0)*un,H*0.086,H*0.030,un<0.45?mid:lit); }
+  // ── the skull and the open jaw — the readable end of the animal, thrown forward off the neck
+  var hw=H*0.21, hh=H*0.105, hx0=(face>0)?nx1-H*0.03:nx1-hw+H*0.03, hy=Y(0.815);
+  bx(hx0,hy,hw,hh,mid);                                                              // skull
+  bx(hx0+(face>0?hw*0.30:0),hy+hh*0.92,hw*0.70,hh*0.46,dark);                         // lower jaw, hanging open
+  bx(hx0+(face>0?hw*0.26:hw*0.04),hy-hh*0.26,hw*0.40,hh*0.28,lit);                    // brow ridge, catching the light
+  bx(hx0+(face>0?hw-Math.max(1,K*1.4):0),hy,Math.max(1,K*1.4),hh,rim,0.85);           // rim down the muzzle
+  g.fillStyle="rgba(255,196,86,"+(0.95*a).toFixed(2)+")";
+  g.fillRect(Math.round(hx0+(face>0?hw*0.62:hw*0.26)),Math.round(hy+hh*0.22),Math.max(1,Math.round(K*1.4)),Math.max(1,Math.round(K*1.4)));
+  // ── the small forelimb, a chain off the shoulder so it swings with the body rather than riding on it
+  var fw=Math.sin(((gait==null)?now*0.00016:gait)*6.283+1.6)*H*0.035;
+  kwLimb(g,shX+face*H*0.03,Y(0.62),shX+face*H*0.11+fw,Y(0.50),face*H*0.03,H*0.050,H*0.032,C(dark),K);
+  bx(shX+face*H*0.09+fw,Y(0.52),H*0.055,H*0.030,mid);
+  // ── ⚡ THE DORSAL FINS: the one detail that NAMES the animal, and where the light lives. Placed ON the
+  // back and then ON the tail curve, so they follow the animal instead of floating off behind it. They
+  // charge before it breathes, which telegraphs the beam instead of it arriving out of nowhere.
+  var charge=detail?Math.max(0,Math.min(1,Math.sin(now*0.0011)*1.4)):0;
+  for(var f=0;f<13;f++){
+    var vf=f/12, fx,fy,fh;
+    if(vf<0.26){ var vb=vf/0.26;                                                     // along the arched back
+      fx=shX+(hipX-shX)*vb; fy=shY+(hipY-shY)*vb*vb; fh=H*(0.115-0.030*vb); }
+    else { var Pt=tailPt((vf-0.26)/0.74*0.80); fx=Pt.x; fy=Pt.y-Pt.t*0.45; fh=Math.max(H*0.018,Pt.t*0.85); }
+    bx(fx-H*0.028,fy-fh,H*0.056,fh,lit);
+    if(charge>0.05){ g.globalCompositeOperation="lighter";
+      g.fillStyle="rgba(140,232,255,"+(0.85*charge*(1-vf*0.45)*a).toFixed(2)+")";
+      g.fillRect(Math.round(fx-H*0.028),Math.round(fy-fh),Math.max(1,Math.round(H*0.056)),Math.max(1,Math.round(fh*0.55)));
+      g.globalCompositeOperation="source-over"; }
+  }
+  return {charge:charge, mouthX:hx0+(face>0?hw:0), mouthY:hy+hh*0.9, W:H*0.30};
+}
+// ── 🦖🔒 THE BEAST ITSELF, WALKING. His report on the static one: *"I have no idea what this endtime
+// event is supposed to be"*, then, on the rebuild: *"it looks like there is 2 of them behind each other."*
+// Both were exactly right, and the second had a one-line cause: `drawApocKaiju` was still drawing the OLD
+// bar-and-searchlight beast at the epicentre while this function drew the real one on top of it. The
+// commit that added a proper silhouette never deleted the thing it replaced, so the ending shipped with
+// two monsters in it, in the same green, one behind the other.
+// 🔒 TWICE THE TALLEST TOWER, his call — measured against the REAL tallest building rather than a
+// fraction of the frame, because the skyline is the only thing on screen that says how big it is.
+function kaijuBody(g,ap,L,now){
+  if(cityPhase!=="apoc"||curDeath!=="kaiju") return;
+  var K=Math.max(1,KSP), day=L>0.5, base=HORIZON-1;
+  var wx=kaijuWalkX(now), sx=Math.round(disX(wx)), face=kaijuDir();
+  var tall=0;
+  if(near&&near.blds) for(var i=0;i<near.blds.length;i++){ var B=near.blds[i]; if(B.h>tall) tall=B.h; }
+  if(tall<=0) tall=Math.round(HORIZON*0.34);
+  var rise=Math.min(1,Math.max(0.22,apocMs/KAIJU_ARRIVE_MS));                    // it comes up out of the water to full height
+  var leave=Math.max(0,Math.min(1,(apocMs-(KAIJU_ARRIVE_MS+KAIJU_WIPE_MS))/4200));   // …and wades back into it when there is nothing left
+  var H=Math.round(tall*2.0*rise*(1-leave*0.62));
+  if(H<2||sx<-H*2||sx>SW+H*2) return;
+  var a=1-leave*0.35;
+  var r=kaijuShape(g,sx,base,H,face,day,a,true,now,wx/Math.max(1,H*0.42));   // 🔑 gait from WORLD x — from `sx` it would differ on every monitor
+  // ── 🌫️ IT IS STANDING IN ITS OWN WRECKAGE. Dust boiling up around the legs, which is also what stops
+  // the silhouette looking pasted onto the street: the ground it is on is coming apart.
+  g.globalCompositeOperation="lighter";
+  for(var d=0;d<12;d++){ var dh=((d*2654435761+911)>>>0); dh=(dh^(dh>>>13))>>>0;
+    var dp=((now*0.02+d*83)%100)/100, dx=sx+((dh%1000)/1000*2-1)*r.W*2.2;
+    if(dx<-20||dx>SW+20) continue;
+    g.fillStyle="rgba(158,132,110,"+(0.30*(1-dp)*a).toFixed(2)+")";
+    g.fillRect(Math.round(dx),Math.round(base-dp*H*0.30),Math.max(1,Math.round(4*K)),Math.max(1,Math.round(5*K))); }
+  g.globalCompositeOperation="source-over";
+  // ── 🦶 THE FOOTFALL. Each time the stride bottoms out, the street under it detonates — this is the beat
+  // that makes it WALK rather than hover, and it lands on the block it is actually standing on.
+  var step=Math.sin(now*0.0016);
+  if(step<-0.90){
+    var fk=(-step-0.90)/0.10;
+    g.fillStyle="rgba(28,22,18,"+(0.75*fk*a).toFixed(2)+")";
+    g.fillRect(Math.round(sx-r.W*1.1),base-Math.round(2*K),Math.round(r.W*2.2),Math.round(3*K));
+    g.globalCompositeOperation="lighter";
+    for(var q=0;q<10;q++){ var qh=((q*40503+17)>>>0);
+      g.fillStyle="rgba(190,168,140,"+(0.5*fk*a).toFixed(2)+")";
+      g.fillRect(Math.round(sx+((qh%200)/200*2-1)*r.W*1.6),Math.round(base-fk*H*0.10-((qh>>>7)%9)),Math.max(1,Math.round(3*K)),Math.max(1,Math.round(3*K))); }
+    g.globalCompositeOperation="source-over";
+  }
+  // ── 🔥 AND THE BREATH COMES OUT OF THE JAW. The old beam entered frame from nowhere: an attack with no
+  // visible source is a lens flare. It fires FORWARD along the walk, into the city it has not reached yet.
+  if(r.charge>0.72&&leave<0.5){
+    var bx0=r.mouthX, by0=r.mouthY, aa=(0.9*(r.charge-0.72)/0.28*a);
+    g.globalCompositeOperation="lighter";
+    for(var q2=0;q2<Math.round(SW*0.75);q2+=Math.max(1,Math.round(K))){
+      var bxp=bx0+face*q2, byp=by0+q2*0.30;
+      if(bxp<-4||bxp>SW+4||byp>base) continue;
+      var w2=Math.max(1,Math.round((6-q2/(SW*0.16))*K));
+      g.fillStyle="rgba(198,247,255,"+aa.toFixed(2)+")";
+      g.fillRect(Math.round(bxp),Math.round(byp-w2),Math.max(1,Math.round(K*1.5)),w2*2);
+    }
+    var ix=bx0+face*((base-by0)/0.30), iy=base;
+    if(ix>-30&&ix<SW+30){ g.fillStyle="rgba(255,255,238,"+aa.toFixed(2)+")"; fillEllipse(g,ix,iy-2*K,10*K,6*K);
+      g.fillStyle="rgba(150,246,255,"+(aa*0.7).toFixed(2)+")"; fillEllipse(g,ix,iy-2*K,17*K,10*K); }
+    g.globalCompositeOperation="source-over";
+    if(ix>-30&&ix<SW+30){ g.fillStyle="rgba(16,10,8,0.75)"; g.fillRect(Math.round(ix-13*K),base-Math.round(K),Math.round(26*K),Math.round(2*K)); }
+  }
+}
+// ── 🛩️🔒 WHAT THE OTHER MONITORS SEE. *"Again I am not seeing anything on this one"*, and then *"I have
+// only seen this on the right screen."* One monitor is ~28% of the world, so a creature standing at one
+// point is invisible on two screens out of three — that is the usual case, not the exception.
+// 🔒 HIS CALL, AND IT IS THE HARDER ONE: do NOT clone the creature onto all three screens the way
+// Gargantua is — *a creature standing in three places is a lie the black hole could get away with and
+// this cannot.* Walking is what honours that and still fills every screen: it is in ONE place at a time,
+// and that place crosses all three over the rampage.
+// 🔑 SO THIS IS THE OTHER TWO THIRDS OF THE STORY, NOT A CONSOLATION PRIZE: before it arrives you get it
+// COMING — its smoke over the rooftops in the right direction, the jets streaming that way, the tracer
+// arcing the same way — and after it has gone you get the flat, burning quarter of the world it left.
+// ⚠ THE LAST VERSION OF THIS RENDERED FINE AND WAS STILL INVISIBLE. A 0.42-alpha rgba(58,52,50) column
+// over bright grey buildings is a wash, and a silhouette at HORIZON*0.20 is a smudge — measured, the
+// sky moved 137,125,141 → 76,80,98 across the whole arc and he still saw nothing. It is not enough for
+// the code to run. Hard values, and the same animal at a size the skyline has to make room for.
+function kaijuFar(g,ap,L,now){
+  if(cityPhase!=="apoc"||curDeath!=="kaiju") return;
+  var K=Math.max(1,KSP), day=L>0.5, base=HORIZON-1;
+  var wx=kaijuWalkX(now), sx=disX(wx);
+  // ⚠⚠ THE HANDOVER BOUND IS DERIVED FROM THE ANIMAL, NOT FROM THE SCREEN. A hard `SW*0.25` cutoff was
+  // wrong twice over: the far silhouette blinked out at 45% alpha instead of 0 (the fade never reached
+  // its own bound), and it blinked out a screen-quarter BEFORE the real one had a single pixel in frame,
+  // leaving seconds of column-and-fire with no creature anywhere. Both bounds come off the same `H` that
+  // `kaijuBody` draws with — one source for the fact, the way `kaijuAlong` is the one source for what
+  // has been walked over. It leads with its head (0.40H forward) and it exits tail-last (1.15H behind).
+  var tallF=0;
+  if(near&&near.blds) for(var i2=0;i2<near.blds.length;i2++){ if(near.blds[i2].h>tallF) tallF=near.blds[i2].h; }
+  if(tallF<=0) tallF=Math.round(HORIZON*0.34);
+  var riseF=Math.min(1,Math.max(0.22,apocMs/KAIJU_ARRIVE_MS));
+  var leaveF=Math.max(0,Math.min(1,(apocMs-(KAIJU_ARRIVE_MS+KAIJU_WIPE_MS))/4200));
+  var HN=Math.round(tallF*2.0*riseF*(1-leaveF*0.62));       // the REAL animal's height — the same number kaijuBody uses
+  var lead=HN*0.40, trail=HN*1.15;
+  if(sx>-lead&&sx<SW+trail) return;                         // it has pixels on this screen — kaijuBody owns it, and nothing else may draw it
+  var dir=(sx<0)?-1:1;                                      // which way it is, from here
+  var edge=(dir<0)?Math.round(SW*0.07):Math.round(SW*0.93);
+  // ⚠ HAS THIS SCREEN BEEN WALKED OVER? 🚨 The first cut asked `dir===kaijuDir()`, which is a shortest-
+  // wrap comparison wearing a different hat — exactly the trap `kaijuAlong` exists to avoid, and it was
+  // left standing here. The walk ends at `epi+0.95WW`, which WRAPS back to world 114, so at the end of
+  // the arc the right-hand screen computed dir=-1 against kaijuDir=+1, decided the monster was still
+  // coming, and scrambled jets and tracer at it for the whole aftermath — over a quarter of the world it
+  // had already flattened. Ask the predicate that already knows.
+  var gone=kaijuCrushed(wrapW(WOFF+SW*0.5))>=0;
+  var on=Math.min(1,Math.max(0,apocMs/(KAIJU_ARRIVE_MS*0.8)));
+  if(on<=0) return;
+  // ── 🌋 ITS SMOKE, going up off the horizon exactly where it is standing. ⚠ THE LAST TWO ATTEMPTS AT
+  // THIS RENDERED PERFECTLY AND WERE STILL INVISIBLE. A translucent column laid over the sky is a WASH —
+  // it drags a quarter of the frame toward one number and reads as weather, or worse as a stray shadow
+  // wedge, which is exactly what a 1px-widening stack of rows at 0.4 alpha looks like. Contrast has to
+  // come from what VARIES across the frame: a near-opaque black core at the base, a ragged edge, and
+  // fire under it. One wide hard thing beats ten faint ones.
+  var col=Math.round(HORIZON*1.02*on);
+  for(var y=0;y<col;y+=Math.max(1,Math.round(K))){
+    var u=y/Math.max(1,col);
+    var nh=((y*2654435761+3313)>>>0); nh=(nh^(nh>>>13))>>>0;
+    var w=Math.round((16+u*46+((nh>>>9)%13)*u*2.2)*K);                       // ragged, not a clean wedge
+    var wob=Math.round((Math.sin(now*0.0005+u*4.2)*13+Math.sin(now*0.0011+u*9)*5)*K*u);
+    var al=(0.94-0.60*u*u)*on;
+    g.fillStyle=day?"rgba(31,26,25,"+al.toFixed(2)+")":"rgba(11,9,10,"+al.toFixed(2)+")";
+    g.fillRect(edge+wob-(w>>1),base-y,w,Math.max(1,Math.round(K)));
+    if(u<0.30){ g.globalCompositeOperation="lighter";                        // lit from underneath by what is burning
+      g.fillStyle="rgba(255,132,44,"+(0.42*(1-u/0.30)*on).toFixed(2)+")";
+      g.fillRect(edge+wob-(w>>2),base-y,w>>1,Math.max(1,Math.round(K)));
+      g.globalCompositeOperation="source-over"; }
+  }
+  // ── the fire itself, over the rooftops in that direction — the quarter of the world it has been through
+  g.globalCompositeOperation="lighter";
+  for(var fg=0;fg<9;fg++){ var fh2=((fg*40503+61)>>>0); fh2=(fh2^(fh2>>>11))>>>0;
+    var fx2=edge-dir*Math.round(((fh2%100)/100)*SW*0.22), fl=((now*0.004+fg*29)%100)/100;
+    g.fillStyle="rgba(255,146,58,"+(0.30*(0.4+0.6*Math.sin(now*0.005+fg))*on).toFixed(2)+")";
+    g.fillRect(fx2,Math.round(base-8*K-fl*22*K),Math.round(9*K),Math.round(9*K)); }
+  g.globalCompositeOperation="source-over";
+  // ── 🦖 AND THE ANIMAL, over the rooftops. The SAME silhouette routine as the near view at a smaller
+  // size — never a second hand-drawn creature, which is how one frame came to hold two of them.
+  // ⚠ DISTANCE IS COLOUR, NOT ALPHA. Drawing it at 0.5 alpha made it a green ghost you could see the
+  // skyline through; an animal is opaque no matter how far away it is. It goes down nearly solid, in a
+  // value pushed toward the haze, and only the SIZE says how far off it is.
+  // ⚠ AND IT HANDS OVER WITHOUT A POP. The far silhouette is a cheat — a flat projection has no
+  // perspective, so "far away" is drawn as "smaller, at the edge". Left hard-switched, the moment the
+  // real animal walked into frame the cheat would vanish and the true one appear a screen-width away in
+  // the same instant, which reads as teleporting. So it FADES TO ZERO exactly at the bound the early
+  // return uses — one number, not two that nearly agree — and then the actual creature walks in from
+  // off-frame under its own power. Never both at once: that is two of them again.
+  var offD=Math.abs(sx<0?sx:sx-SW), edgeGap=(sx<0)?lead:trail;
+  var away=Math.min(1,offD/(WW*0.42));
+  var hand=Math.min(1,Math.max(0,(offD-edgeGap)/(SW*0.55)));
+  var HF=Math.round(tallF*2.0*(0.86-0.24*away)*Math.min(1,apocMs/KAIJU_ARRIVE_MS));
+  if(HF>6&&hand>0.02) kaijuShape(g,edge,base,HF,kaijuDir(),day,(0.94-0.10*away)*hand,false,now,wx/Math.max(1,HF*0.42));
+  // ── …and the haze it is standing in, laid over the animal so it sits BEHIND the air rather than in
+  // front of the buildings. A bank along the horizon in one direction only, so the frame has a side.
+  for(var hb=0;hb<Math.round(HORIZON*0.34);hb+=Math.max(1,Math.round(K))){
+    var hu=hb/Math.max(1,HORIZON*0.34);
+    var hw2=Math.round(SW*0.30*(1-hu*0.45));
+    g.fillStyle=day?"rgba(150,136,126,"+(0.30*(1-hu)*on).toFixed(2)+")":"rgba(40,38,42,"+(0.34*(1-hu)*on).toFixed(2)+")";
+    g.fillRect(dir<0?0:SW-hw2,base-hb,hw2,Math.max(1,Math.round(K)));
+  }
+  // ── ✈️ THE CITY THROWS EVERYTHING AT IT AND LOSES. Jets running that way and tracer arcing the same
+  // way. 🔑 THE DIRECTION IS THE POINT: every element here points at the animal, so a screen that cannot
+  // see it still tells you exactly where it is and that it is coming.
+  if(!gone) for(var j=0;j<7;j++){
+    var hj=((j*2654435761+5501)>>>0); hj=(hj^(hj>>>13))>>>0;
+    var speed=0.05+((hj>>>7)%40)/1000;
+    var t=((now*speed+((hj>>>13)%1000))%1000)/1000;
+    var jx=(dir<0)?Math.round(SW-(t*SW*1.3)):Math.round(t*SW*1.3-SW*0.15);
+    var jy=Math.round(HORIZON*(0.10+((hj>>>19)%40)/100*0.5));
+    if(jx<-10||jx>SW+10) continue;
+    g.fillStyle=day?"rgba(38,42,50,0.95)":"rgba(18,20,26,0.95)";
+    g.fillRect(jx,jy,Math.round(5*K),Math.max(1,Math.round(K*1.2)));
+    g.fillRect(jx+Math.round(dir*2*K),jy-Math.round(K),Math.max(1,Math.round(K)),Math.round(2*K));
+    g.globalCompositeOperation="lighter";
+    g.fillStyle="rgba(255,190,120,0.6)";
+    g.fillRect(jx-Math.round(dir*4*K),jy,Math.round(4*K),Math.max(1,Math.round(K*0.8)));
+    g.globalCompositeOperation="source-over";
+  }
+  if(!gone) for(var tr=0;tr<16;tr++){
+    var ht=((tr*2654435761+7717)>>>0); ht=(ht^(ht>>>13))>>>0;
+    var tt=((now*0.35+((ht>>>11)%1000))%1000)/1000;
+    var tx=(dir<0)?Math.round(SW*(1-tt)):Math.round(SW*tt);
+    var ty=Math.round(base-HORIZON*(0.12+0.42*tt)-((ht>>>17)%20));
+    if(tx<0||tx>=SW) continue;
+    g.globalCompositeOperation="lighter";
+    g.fillStyle="rgba(255,206,120,"+(0.8*(1-tt)).toFixed(2)+")";
+    g.fillRect(tx,ty,Math.round(4*K),Math.max(1,Math.round(K)));
+    g.globalCompositeOperation="source-over";
+  }
+}
 function drawApocalypseBody(g,ap,L,now){
   drawApocApproach(g,L,now);   // …and before any of them lands, what you can see coming
-  if(curDeath==="nuke"){ drawApocNuke(g,ap,L,now); return; }
-  if(curDeath==="meteors"){ drawApocMeteor(g,ap,L,now); return; }
+  if(curDeath==="nuke"){ drawApocNuke(g,ap,L,now); nukeAfter(g,ap,L,now); return; }
+  if(curDeath==="meteors"){ drawApocMeteor(g,ap,L,now); meteorAfter(g,ap,L,now); return; }
   if(curDeath==="sunburst"){ drawApocSun(g,ap,L,now); return; }
   if(curDeath==="ai"){ drawApocAI(g,ap,L,now); return; }
   if(curDeath==="bh"){ drawApocBlackHole(g,ap,L,now); return; }
   if(curDeath==="alienwar"){ drawApocAlienWar(g,ap,L,now); return; }
   if(curDeath==="frost"){ drawApocFrost(g,ap,L,now); return; }
-  if(curDeath==="kaiju"){ drawApocKaiju(g,ap,L,now); return; }
+  if(curDeath==="kaiju"){ drawApocKaiju(g,ap,L,now); kaijuFar(g,ap,L,now); kaijuBody(g,ap,L,now); kaijuAfter(g,ap,L,now); return; }
   if(curDeath==="ninetails"){ drawApocFox(g,ap,L,now); return; }
   if(curDeath==="massacre"){ drawApocMassacre(g,ap,L,now); return; }
   if(curDeath==="logout"){ drawApocLogout(g,ap,L,now); return; }
@@ -56805,54 +60030,529 @@ function drawApocalypseBody(g,ap,L,now){
   if(APOC_X[curDeath]){ APOC_X[curDeath](g,ap,L,now); return; }   // the eight added later — a table, not eight lines
 }
 // ---- MOONFALL (Majora's Mask): the Moon grows ENORMOUS, its carved face leering, and plunges into the city. ----
-function drawApocMoonfall(g,ap,L,now){
-  function fillCircle(gg,x,y,r,c){ gg.fillStyle=c; fillEllipse(gg,x,y,Math.max(1,r),Math.max(1,r)); }
-  function mixByte(a,b,t){ return Math.round(a+(b-a)*t); }
-  // Nick: EVERYTHING stays normal (sky + city + the Moon's colour) through the WHOLE descent — the world only
-  // curdles at the very end as the Moon strikes. impactK is 0 for the fall, ramping 0→1 over the final moments.
-  var impactK=Math.max(0,Math.min(1,(ap-0.86)/0.14));
-  if(impactK>0){                                                                   // the sky curdles green-black → hellish orange ONLY as it hits
-    var SKB=[[18,26,20],[40,30,24],[86,42,26],[150,66,30],[210,120,50]], segN=SKB.length-1;
-    for(var yy=0;yy<HORIZON;yy+=6){ var tt=yy/HORIZON*segN, si=Math.min(segN-1,tt|0), tf=tt-si, ca=SKB[si], cb=SKB[si+1];
-      g.fillStyle="rgba("+((ca[0]+(cb[0]-ca[0])*tf)|0)+","+((ca[1]+(cb[1]-ca[1])*tf)|0)+","+((ca[2]+(cb[2]-ca[2])*tf)|0)+","+((0.55+0.4*ap)*impactK).toFixed(3)+")"; g.fillRect(0,yy,SW,6); }
-  }
-  var mR=Math.round(7 + ap*ap*(SH*0.62)), tint=impactK, pulse=1+0.02*Math.sin(now*0.006);   // pallid grey the whole way down; reddens only at impact
-  var mcy=Math.round(-mR*0.35 + ap*ap*(HORIZON*0.55 + mR*0.5));                     // grows huge + descends toward the city
-  var base=[mixByte(214,150,tint), mixByte(210,120,tint), mixByte(196,80,tint)];
-  // ONE Moon — anchored to the impact epicentre in WORLD space, so every monitor renders the SAME single Moon.
-  // (The old screen-centred position drew one per screen → three moons across a multi-monitor desktop.)
-  var mWx=(typeof apocEpiX==="function")?apocEpiX(now):Math.round(WW*0.5);
+// ── 🌕🔒 THE MOON, AND IT IS BEHIND THE CITY. 🚨 It used to be drawn in the apocalypse layer like every
+// other ending, and that layer paints AFTER the buildings — so the largest object in the game stood in
+// front of every tower it was supposed to be looming beyond, and there was nothing in frame to measure
+// it against. `APOC_X_BACK` is the one place a live-pass layer can go behind the skyline (the precedent
+// is `WILD_LAYER="back"`), and it fires immediately before `drawLayer(g,far,…)`. The towers occlude it
+// now, which is the whole SCALE REFERENCE rule: a thing is only colossal beside something you know.
+// 🎨 AND IT IS PIXEL ART NOW, NOT A STICKER. What was there was `fillEllipse` plus `beginPath`/`stroke`
+// with `lineCap="round"` — smooth antialiased curves and a flat cream disc over a hard-pixel city, with
+// the face PAINTED on in brown strokes. It read as an emoji taped to the sky. The disc is shaded in
+// value bands off a light vector, and every feature is CUT IN SHADOW with a lit lip on the sun side, so
+// the face is carved into the rock rather than drawn on it.
+// ⚠ The sky darkens HERE, BEFORE the moon goes down, and never after. A wash over the finished frame
+// would drag the brightest object in the game back to everything else's value and undo the one contrast
+// this ending has.
+var _mfPal=null,_mfPalK=-1;
+function moonPal(red){
+  var k=Math.round(red*8);
+  if(_mfPal&&_mfPalK===k) return _mfPal;
+  var base=[[24,24,30],[54,52,56],[96,92,92],[142,138,132],[190,186,176],[234,230,216]];
+  var hot=[[40,16,14],[92,34,22],[150,60,28],[198,96,40],[232,140,60],[255,196,110]];
+  var t=k/8, out=[];
+  for(var i=0;i<base.length;i++) out.push("rgb("+Math.round(base[i][0]+(hot[i][0]-base[i][0])*t)+","+
+    Math.round(base[i][1]+(hot[i][1]-base[i][1])*t)+","+Math.round(base[i][2]+(hot[i][2]-base[i][2])*t)+")");
+  _mfPal=out; _mfPalK=k; return out;
+}
+APOC_X_BACK.moonfall=function(g,ap,L,now){
+  var K=Math.max(1,KSP), red=Math.max(0,Math.min(1,(ap-0.72)/0.22));
+  // 🪵 walked as a CONNECTED RUN — a sloping bar plotted as samples is the staircase the kaiju's tail had
+  // to be rebuilt out of. ⚠ Declared as a var, NOT as a `function` inside the block that uses it: this
+  // engine is not node, and a block-scoped function declaration is not worth finding out about twice.
+  var slab=function(x0,y0,x1,y1,th,dkC,liC,lipY){
+    var n2=Math.max(2,Math.round(Math.max(Math.abs(x1-x0),Math.abs(y1-y0))/Math.max(1,K)));
+    for(var q=0;q<=n2;q++){ var u2=q/n2, sx2=x0+(x1-x0)*u2, sy2=y0+(y1-y0)*u2;
+      g.fillStyle=dkC; g.fillRect(Math.round(sx2-th*0.5),Math.round(sy2-th*0.5),Math.max(1,Math.round(th)),Math.max(1,Math.round(th)));
+      g.fillStyle=liC; g.fillRect(Math.round(sx2-th*0.5),Math.round(sy2-th*0.5-lipY),Math.max(1,Math.round(th)),lipY); }
+  };
+  // ── the sky goes wrong long before anything falls: the light drains from the top down, so the city
+  // stays lit and begins to silhouette against it.
+  var dk=Math.max(0,Math.min(1,(ap-MF_LOOK_AP)/0.50));
+  if(dk>0){ var st=Math.max(2,Math.round(K*3));
+    for(var y=0;y<HORIZON;y+=st){ var u=y/HORIZON;
+      g.fillStyle="rgba("+Math.round(10+26*red)+","+Math.round(9+8*red)+","+Math.round(16-4*red)+","+(dk*(0.74-0.44*u)).toFixed(3)+")";
+      g.fillRect(0,y,SW,st); } }
+  // 🚨 AND IT LEAVES THE SKY WHEN IT LANDS. Rendered at ap 0.98 the moon was still hanging at full size
+  // overhead WHILE its own wreckage filled the bottom of the frame — the same object in two places at
+  // once, which is the exact fault the kaiju shipped with, in a different costume. The sky keeps its
+  // darkness (that does not come back), but the body is gone: it is on the ground now.
+  if(ap>=MF_CORE_AP) return;
+  var P=moonPal(red);
+  var mR=Math.round(8+Math.pow(ap,1.8)*(SH*0.95));
+  var mcy=Math.round(HORIZON*0.24+Math.pow(ap,1.8)*(HORIZON*0.55)-mR*0.12);
+  var mWx=apocEpiX(now), lxv=0.52, lyv=-0.60, step=Math.max(2,Math.round(K*2)), NB=9;   // ⚠ was 6, and six bands across a sky-filling disc read as vertical STRIPES rather than as a sphere
   for(var off=-WW;off<=WW;off+=WW){
-    var mcx=(mWx-WOFF+off)|0; if(mcx+mR<-8||mcx-mR>SW+8) continue;
-    g.globalCompositeOperation="lighter"; g.fillStyle="rgba("+base[0]+","+base[1]+","+base[2]+",0.10)"; g.fillRect((mcx-mR-8)|0,(mcy-mR-8)|0,2*mR+16,2*mR+16); g.globalCompositeOperation="source-over";  // halo
-    fillCircle(g, mcx, mcy, mR*pulse, "rgb("+base[0]+","+base[1]+","+base[2]+")");
-    var cr=rng(0x4D4F4F4E);                                                         // pocked craters
-    for(var k=0;k<14;k++){ var caa=cr()*6.283, crd=Math.sqrt(cr())*mR*0.9, kx=mcx+Math.cos(caa)*crd, ky=mcy+Math.sin(caa)*crd, ksz=Math.max(1,mR*(0.04+cr()*0.06));
-      fillCircle(g,kx,ky,ksz,"rgba("+(base[0]-30)+","+(base[1]-34)+","+(base[2]-30)+",0.5)"); }
-    // ---- THE CARVED FACE (Majora's Mask): dark carved features on the pale Moon; the eyes only BURN at impact ----
-    if(ap>0.12 && mR>14){ var fa=Math.min(1,(ap-0.12)*2.2), ex=mR*0.42, ey=mcy-mR*0.16, es=mR*0.26;
-      var dark="rgba(46,20,16,"+(0.85*fa)+")", glow=(Math.floor(now/300)%2?"rgba(255,150,40,":"rgba(255,90,30,");
-      g.strokeStyle=dark; g.lineWidth=Math.max(2,mR*0.06); g.lineCap="round";
-      g.beginPath(); g.moveTo(mcx-ex-es*0.6, ey-es*0.9); g.lineTo(mcx-es*0.2, ey-es*0.2); g.stroke();
-      g.beginPath(); g.moveTo(mcx+ex+es*0.6, ey-es*0.9); g.lineTo(mcx+es*0.2, ey-es*0.2); g.stroke();
-      for(var e=0;e<2;e++){ var sgn=e?1:-1, exc=mcx+sgn*ex;
-        g.fillStyle=dark; g.beginPath(); g.moveTo(exc-sgn*es*0.9, ey-es*0.2); g.lineTo(exc+sgn*es*0.9, ey+es*0.1); g.lineTo(exc-sgn*es*0.2, ey+es*0.7); g.closePath(); g.fill();
-        if(impactK>0){ g.globalCompositeOperation="lighter"; g.fillStyle=glow+(0.9*fa*impactK)+")"; fillCircle(g,exc,ey+es*0.15,es*0.32*pulse,glow+(0.9*fa*impactK)+")"); g.globalCompositeOperation="source-over"; } }   // eyes ignite at impact
-      g.fillStyle=dark; g.beginPath(); g.moveTo(mcx,ey+es*0.4); g.lineTo(mcx-es*0.35,mcy+mR*0.18); g.lineTo(mcx+es*0.35,mcy+mR*0.18); g.closePath(); g.fill();   // nose
-      var mw=mR*0.86, my=mcy+mR*0.42, mh=mR*0.26;
-      g.fillStyle=dark; g.fillRect((mcx-mw*0.5)|0,(my-mh*0.5)|0,(mw)|0,(mh)|0);       // gritted mouth
-      g.fillStyle="rgba(220,206,180,"+(0.9*fa)+")"; var tn=7, tw=mw/tn;
-      for(var t=0;t<tn;t++){ g.fillRect((mcx-mw*0.5+t*tw+1)|0,(my-mh*0.5+1)|0,(tw-1.5)|0,(mh*0.42)|0); g.fillRect((mcx-mw*0.5+t*tw+1)|0,(my+mh*0.08)|0,(tw-1.5)|0,(mh*0.42)|0); }
+    var mcx=Math.round(mWx-WOFF+off); if(mcx+mR<-8||mcx-mR>SW+8) continue;
+    // ── the body, shaded in value bands off a light vector. ⚡ Six bands a row, rows stepped by 2·K, and
+    // the palette strings built ONCE per frame — the grey-goo pass proved a per-run rgba string in a loop
+    // this size costs more than the drawing does.
+    for(var dy=-mR;dy<=mR;dy+=step){
+      var ny=dy/mR, hw=Math.sqrt(Math.max(0,1-ny*ny))*mR;
+      if(hw<1) continue;
+      var ry=mcy+dy; if(ry<-step||ry>SH) continue;
+      for(var b=0;b<NB;b++){
+        var xa=-hw+(2*hw)*b/NB, xb=-hw+(2*hw)*(b+1)/NB, xm=(xa+xb)*0.5/mR;
+        var nz=Math.sqrt(Math.max(0,1-xm*xm-ny*ny));
+        var lam=Math.max(0,Math.min(1,(xm*lxv+ny*lyv+nz*0.62)*1.15));
+        g.fillStyle=P[Math.max(0,Math.min(5,Math.round(lam*5)))];
+        g.fillRect(Math.round(mcx+xa),ry,Math.max(1,Math.round(xb-xa)+1),step);
+      }
+    }
+    if(mR<10) continue;
+    // ── craters cut in: a darker floor with a LIT rim on the sun side. A flat dark blob is a smudge; the
+    // rim is the only thing that says the surface has depth.
+    for(var c=0;c<18;c++){
+      var ch=((c*2654435761+40503)>>>0); ch=(ch^(ch>>>13))>>>0;
+      var caa=((ch%1000)/1000)*6.283, crd=Math.sqrt(((ch>>>11)%1000)/1000)*0.86;
+      var cxr=Math.cos(caa)*crd, cyr=Math.sin(caa)*crd, csz=mR*(0.045+((ch>>>21)%60)/1000);
+      var ccx=mcx+cxr*mR, ccy=mcy+cyr*mR;
+      var lamc=Math.max(0,Math.min(1,(cxr*lxv+cyr*lyv+0.5)*1.15)), vi=Math.max(0,Math.min(5,Math.round(lamc*5)));
+      for(var cy2=-csz;cy2<=csz;cy2+=Math.max(1,Math.round(K))){
+        var cw=Math.sqrt(Math.max(0,csz*csz-cy2*cy2));
+        if(cw<1) continue;
+        g.fillStyle=P[Math.max(0,vi-2)];
+        g.fillRect(Math.round(ccx-cw),Math.round(ccy+cy2),Math.max(1,Math.round(cw*2)),Math.max(1,Math.round(K)));
+      }
+      g.fillStyle=P[Math.min(5,vi+1)];
+      g.fillRect(Math.round(ccx-csz*0.9),Math.round(ccy-csz),Math.max(1,Math.round(csz*1.8)),Math.max(1,Math.round(K*1.2)));
+    }
+    // ── 🎭 THE CARVED FACE. Every feature is a SHADOW with a lit lip on the light side — carved, not painted.
+    var fa=Math.min(1,Math.max(0,(ap-0.10)*2.4));
+    if(fa>0&&mR>16){
+      var dkC=P[0], liC=P[4], lipY=Math.max(1,Math.round(K));
+      var ex=mR*0.40, ey=mcy-mR*0.20, es=mR*0.24;
+      slab(mcx-ex-es*0.85,ey-es*0.95,mcx-es*0.15,ey-es*0.12,mR*0.075,dkC,liC,lipY);   // brows, angled down to the centre
+      slab(mcx+ex+es*0.85,ey-es*0.95,mcx+es*0.15,ey-es*0.12,mR*0.075,dkC,liC,lipY);
+      for(var e=0;e<2;e++){                                                            // the eyes: sunken wedges
+        var sg=e?1:-1, exc=mcx+sg*ex, rows=Math.max(2,Math.round(es*1.5/Math.max(1,K)));
+        for(var w=0;w<rows;w++){
+          var uw=w/rows, wy=ey-es*0.10+uw*es*0.80, ww=es*(0.95-uw*0.75);
+          g.fillStyle=dkC; g.fillRect(Math.round(exc-ww*0.5),Math.round(wy),Math.max(1,Math.round(ww)),Math.max(1,Math.round(K)));
+        }
+        g.fillStyle=liC; g.fillRect(Math.round(exc-es*0.55),Math.round(ey-es*0.10-lipY),Math.max(1,Math.round(es*1.1)),lipY);
+      }
+      var nrows=Math.max(2,Math.round(mR*0.26/Math.max(1,K)));
+      for(var nn=0;nn<nrows;nn++){                                                     // the nose
+        var un=nn/nrows, nw=mR*0.11*un;
+        g.fillStyle=dkC; g.fillRect(Math.round(mcx-nw),Math.round(ey+es*0.55+un*mR*0.26),Math.max(1,Math.round(nw*2)),Math.max(1,Math.round(K)));
+      }
+      // ── the gritted mouth. ⚠ A straight bar of even teeth read as a GRILLE — at ap 0.68 it sat on the
+      // horizon looking like a billboard bolted to the face. It curves with the surface now, the teeth
+      // are uneven, and the gum line is the darkest value on the moon so the mouth reads as an opening.
+      var mw=mR*0.90, my=mcy+mR*0.48, mh=mR*0.20, tn=11, tw=mw/tn;
+      for(var t2=0;t2<tn;t2++){
+        var ut=(t2+0.5)/tn*2-1, sag=Math.round(mh*0.55*(1-ut*ut));           // the corners ride up, the middle drops
+        var tx0=Math.round(mcx-mw*0.5+t2*tw), ty0=Math.round(my-mh*0.5+sag);
+        g.fillStyle=dkC; g.fillRect(tx0,ty0,Math.max(1,Math.round(tw)),Math.max(1,Math.round(mh)));
+        var th2=((t2*2654435761+733)>>>0)%3;
+        g.fillStyle=P[3];                                                     // the teeth, uneven, inset from the gum
+        g.fillRect(tx0+Math.max(1,Math.round(K)),ty0+Math.max(1,Math.round(K)),Math.max(1,Math.round(tw-K*2)),Math.max(1,Math.round(mh*(0.30+th2*0.05))));
+        g.fillRect(tx0+Math.max(1,Math.round(K)),ty0+Math.round(mh*0.58),Math.max(1,Math.round(tw-K*2)),Math.max(1,Math.round(mh*(0.28+((th2+1)%3)*0.05))));
+        g.fillStyle=liC; g.fillRect(tx0,ty0-lipY,Math.max(1,Math.round(tw)),lipY); }
+      // ── 🔥 THE EYES LIGHT LAST, held back to the final stretch so there is one thing left to change in
+      // a phase that would otherwise just be "bigger".
+      var burn=Math.max(0,Math.min(1,(ap-0.70)/0.22));
+      if(burn>0){ g.globalCompositeOperation="lighter";
+        for(var e2=0;e2<2;e2++){ var sg2=e2?1:-1;
+          g.fillStyle="rgba(255,"+Math.round(120+90*Math.sin(now*0.004))+",40,"+(0.85*burn).toFixed(2)+")";
+          g.fillRect(Math.round(mcx+sg2*ex-es*0.42),Math.round(ey+es*0.05),Math.max(1,Math.round(es*0.84)),Math.max(1,Math.round(es*0.42))); }
+        g.globalCompositeOperation="source-over"; }
+    }
+    // ── 💥 AND IT COMES APART. The seams open across the face from `MF_BREAK_AP` and light gets out of
+    // them as the core heats: the cracks are where the pieces in front of you came from.
+    var brk=Math.max(0,Math.min(1,(ap-MF_BREAK_AP)/0.34));
+    if(brk>0&&mR>16){
+      for(var ck=0;ck<7;ck++){
+        var kh=((ck*2654435761+9931)>>>0); kh=(kh^(kh>>>13))>>>0;
+        var a0=((kh%1000)/1000)*6.283, len=mR*(0.7+((kh>>>9)%50)/100)*brk;
+        var px=mcx+Math.cos(a0)*mR*0.9, py=mcy+Math.sin(a0)*mR*0.9;
+        var dxk=-Math.cos(a0), dyk=-Math.sin(a0), segs=Math.max(3,Math.round(len/Math.max(1,K)));   // 🪵 step K, mark ≥K: at K*3 these came back as a dotted line of separate squares — beads, the house fault
+        for(var q2=0;q2<segs;q2++){
+          var u3=q2/segs, jit=Math.sin(u3*9+ck)*mR*0.05;
+          var sxk=px+dxk*len*u3-dyk*jit, syk=py+dyk*len*u3+dxk*jit;
+          var wk=Math.max(1,Math.round(K*(2.4-1.4*u3)));
+          g.fillStyle=P[0]; g.fillRect(Math.round(sxk),Math.round(syk),wk,wk);
+          if(brk>0.45){ g.globalCompositeOperation="lighter";
+            g.fillStyle="rgba(255,140,50,"+(0.55*(brk-0.45)/0.55*(1-u3)).toFixed(2)+")";
+            g.fillRect(Math.round(sxk),Math.round(syk),wk,Math.max(1,Math.round(wk*0.6)));
+            g.globalCompositeOperation="source-over"; }
+        }
+      }
     }
   }
-  // impact: the Moon meets the city — a searing white-out
-  if(ap>0.9){ var f=(ap-0.9)/0.1; g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,240,210,"+(f*f)+")"; g.fillRect(0,0,SW,HORIZON+GROUND); g.globalCompositeOperation="source-over"; }
+};
+// ── 🌑🔒 MOONFALL, THE FRONT LAYER: what is HAPPENING to the city while that thing comes down. 🔒 His
+// call, 2026-08-12, reversing an earlier one of his own quoted in this renderer's old body — *"EVERYTHING
+// stays normal through the WHOLE descent"*. Measured, that instruction WAS the fault: at ap 0.20, 0.55
+// and 0.80 the frames came back as an ordinary city with ordinary traffic under a cartoon disc, and the
+// ending did not begin until 0.86. The dread is still slow. It is no longer empty.
+// ⚠ NOTHING HERE PAINTS OVER THE WHOLE FRAME. The moon is drawn behind the skyline and the sky was
+// darkened before it went down; a full-frame wash in this layer would drag the brightest object in the
+// game back to everything else's value and undo the one contrast the ending has.
+// ── 🪨 one facet-run of the buried moon: a lit cap where it catches the sky, the face itself, and the
+// foot in shadow where it is driven into the ground. A single flat fill from crown to frame-bottom is a
+// stripe; the value has to change DOWN the rock as well as across it.
+function mfSlabRun(g,PW,x,top,w,v,gy,K){
+  if(w<=0) return;
+  g.fillStyle=PW[v];               g.fillRect(x,top,w,SH-top);
+  g.fillStyle=PW[Math.max(0,v-2)]; g.fillRect(x,Math.round(gy+(SH-gy)*0.18),w,SH-Math.round(gy+(SH-gy)*0.18));
+  g.fillStyle=PW[Math.min(5,v+1)]; g.fillRect(x,top,w,Math.max(1,Math.round(K*1.6)));
+  g.fillStyle=PW[Math.max(0,v-1)]; g.fillRect(x,Math.round(gy-(gy-top)*0.30),w,Math.max(1,Math.round(K)));
 }
-// ---- KAIJU WAR: two titans battle EACH OTHER; the city is collateral. A different victor each life. ----
-// drawTitan: shared silhouette painter. kind 0 = the reptile (dorsal fins, cyan rim, atomic breath),
-// kind 1 = the ape (broad shoulders, long arms, amber rim, fists). pose: 0 advance · 1 attack ·
-// 2 stagger · 3 grapple-lean · 4 topple(prog via tp) · 5 victor roar. facing: +1 faces right.
-function drawTitan(g,sx,gy,H,kind,facing,pose,now,tp){
+function drawApocMoonfall(g,ap,L,now){
+  var K=Math.max(1,KSP), day=L>0.5, gy=HORIZON, gz=apocEpiX(now);
+  // 🔑 ap-per-real-ms, DERIVED. A fragment streak and a crater dig should look the same however long the
+  // arc is, and the arc is 201 minutes normally and 90 seconds under `demoApocSec` — so a lead written as
+  // a fraction of `ap` would crawl for two minutes on the real clock. This is the conversion.
+  var apMs=(typeof DEMO_APOC_SEC!=="undefined"&&DEMO_APOC_SEC>0)?1/(DEMO_APOC_SEC*1000):1/(APOC_BAND*GROW_CYCLE);
+  var pull=Math.max(0,Math.min(1,(ap-MF_TIDE_AP)/0.46));
+  var quake=Math.max(0,Math.min(1,(ap-MF_QUAKE_AP)/0.44));
+  var core=Math.max(0,Math.min(1,(ap-0.845)/(MF_CORE_AP-0.845)));
+  var post=Math.max(0,Math.min(1,(ap-MF_CORE_AP)/0.10));
+
+  // ── 🌊 THE PULL. 🔑 A tide is the obvious way to show a mass overhead and it is ALSO the branch that
+  // never executes: the endtimes notes already carry one of those — `titanWall`'s `inWater`, unrun to
+  // this day because no land ever put water at its base. So the sea is the BONUS, and the beat that
+  // always runs is loose things leaving the ground: grit, paper, sheet metal, drifting UP off the street.
+  if(pull>0&&post<=0){
+    if(hasOcean&&SEA_FRONT>0){
+      var heap=Math.round(pull*GROUND*0.30);
+      for(var wx2=0;wx2<SW;wx2+=Math.max(1,Math.round(K*2))){
+        var hump=Math.sin((wx2+WOFF-gz)/Math.max(1,WW)*3.14159)*heap;
+        if(hump<=0) continue;
+        g.fillStyle="rgba(38,66,96,0.55)";
+        g.fillRect(wx2,Math.round(SEA_Y-hump),Math.max(1,Math.round(K*2)),Math.max(1,Math.round(hump)));
+      }
+    }
+    for(var i=0;i<Math.round(46*pull);i++){
+      var h=((i*2654435761+5237)>>>0); h=(h^(h>>>13))>>>0;
+      var lx2=((h>>>5)%Math.max(1,WW))-WOFF; if(lx2<-8||lx2>SW+8) continue;
+      var t=((now*0.00022*(0.5+((h>>>17)%50)/50)+((h>>>11)%1000)/1000)%1);
+      var ly2=gy+GROUND*0.4-t*(gy*0.55+((h>>>19)%40))*pull;         // it rises, and it does not come back
+      var sz=Math.max(1,Math.round(K*(1+((h>>>23)%2))));
+      g.fillStyle=day?"rgba(148,140,128,"+(0.72*(1-t*0.5)).toFixed(2)+")":"rgba(74,70,66,"+(0.72*(1-t*0.5)).toFixed(2)+")";
+      g.fillRect(Math.round(lx2),Math.round(ly2),sz,sz);
+    }
+  }
+  // ── 🌎 AND THE CRUST ANSWERS. Reused wholesale from the rogue planet, which is the same physical cause
+  // — a mass close enough to knead the ground — and already solves fissures plus dust shaken off the
+  // skyline. A second private copy of it is how two renderers come to disagree about the same event.
+  if(quake>0&&post<=0&&typeof rogueQuake==="function") rogueQuake(g,quake*0.85,now,gy,K);
+
+  // ── ☄️ THE PIECES. Each one streaks in, flashes, and leaves a crater — and because they feed
+  // `moonCrushed`, the buildings around it are already coming down by the time the dust clears.
+  var frags=moonFrags(), lead=1200*apMs;
+  for(var f=0;f<frags.length;f++){
+    var F=frags[f], dAp=ap-F.ap, sx=F.x-WOFF;
+    if(sx>SW+80&&sx-WW>-80)sx-=WW; if(sx<-80&&sx+WW<SW+80)sx+=WW;
+    if(sx<-80||sx>SW+80||dAp<-lead) continue;
+    if(dAp<0){                                                      // still coming in
+      var q=1+dAp/lead, hx=sx-(1-q)*Math.round(70*K), hy=gy*q*q;
+      g.globalCompositeOperation="lighter";
+      for(var tr=0;tr<12;tr++){
+        var tx=hx-tr*Math.round(4*K), ty=hy-tr*Math.round(5.2*K); if(ty<0) continue;
+        g.fillStyle="rgba(255,"+(190-tr*10)+","+(80-tr*4)+","+(0.85*(1-tr/12)*q).toFixed(2)+")";
+        g.fillRect(Math.round(tx),Math.round(ty),Math.max(1,Math.round(K*(tr<3?2:1))),Math.max(1,Math.round(K*(tr<3?2:1))));
+      }
+      g.fillStyle="rgba(255,246,212,"+(0.95*q).toFixed(2)+")";
+      g.fillRect(Math.round(hx),Math.round(hy),Math.max(1,Math.round(K*2)),Math.max(1,Math.round(K*2)));
+      g.globalCompositeOperation="source-over";
+      continue;
+    }
+    var ageMs=dAp/apMs;
+    if(ageMs<520){                                                  // the flash, and the block going up with it
+      var fa2=1-ageMs/520, fr=(F.big?22:14)*(0.5+ageMs/520)*K;
+      g.globalCompositeOperation="lighter";
+      g.fillStyle="rgba(150,54,14,"+(0.55*fa2).toFixed(2)+")"; fillEllipse(g,sx,gy-fr*0.5,fr*1.1,fr);
+      g.fillStyle="rgba(255,156,52,"+(0.88*fa2).toFixed(2)+")"; fillEllipse(g,sx,gy-fr*0.5,fr*0.68,fr*0.66);
+      g.fillStyle="rgba(255,246,196,"+(0.96*fa2).toFixed(2)+")"; fillEllipse(g,sx,gy-fr*0.5,fr*0.33,fr*0.31);
+      g.globalCompositeOperation="source-over";
+    }
+    if(post<=0) drawMeteorCrater(g,sx,F.r*0.8*K,ageMs);             // 🔑 reused as-is — the one part of the meteor storm that is not bound to its own clock
+  }
+
+  // ── 🌑 THE CORE: what is left once it has shed its skin. Smaller, denser and burning, arriving where
+  // the fragments have been closing in. ⚠ It MUST come down smaller than the whole moon, or the impact
+  // frame is a cream disc with no city left on screen to destroy — which is exactly what ap 0.97 was.
+  var csx=gz-WOFF; if(csx>SW+600&&csx-WW>-600)csx-=WW; if(csx<-600&&csx+WW<SW+600)csx+=WW;
+  if(core>0&&post<=0){
+    var cR=Math.round(HORIZON*(0.10+0.26*core)), ccy=Math.round(-cR+core*core*(gy+cR*0.6));
+    g.globalCompositeOperation="lighter";
+    g.fillStyle="rgba(255,120,40,"+(0.30*core).toFixed(2)+")"; fillEllipse(g,csx,ccy,cR*2.6,cR*2.6);
+    for(var tl=1;tl<=16;tl++){ var tf=tl/16;
+      g.fillStyle="rgba(255,"+((176-tl*7)|0)+","+((70-tl*3)|0)+","+(0.55*(1-tf)*core).toFixed(2)+")";
+      fillEllipse(g,csx,ccy-tf*(cR*5.5),Math.max(1,cR*(1-tf)*0.9),Math.max(1,cR*(1-tf)*0.9)); }
+    g.globalCompositeOperation="source-over";
+    var PC=moonPal(1);
+    for(var dy2=-cR;dy2<=cR;dy2+=Math.max(1,Math.round(K))){        // the rock inside the fire — still the same body
+      var nyc=dy2/cR, hwc=Math.sqrt(Math.max(0,1-nyc*nyc))*cR; if(hwc<1) continue;
+      for(var bb=0;bb<5;bb++){ var xa2=-hwc+(2*hwc)*bb/5, xb2=-hwc+(2*hwc)*(bb+1)/5, xmc=(xa2+xb2)*0.5/cR;
+        var lamc2=Math.max(0,Math.min(1,(xmc*0.5-nyc*0.6+Math.sqrt(Math.max(0,1-xmc*xmc-nyc*nyc))*0.6)*1.2));
+        g.fillStyle=PC[Math.max(0,Math.min(5,Math.round(lamc2*5)))];
+        g.fillRect(Math.round(csx+xa2),Math.round(ccy+dy2),Math.max(1,Math.round(xb2-xa2)+1),Math.max(1,Math.round(K))); } }
+  }
+  // ── 💥 CONTACT, AND WHAT IT LEAVES. 🚨 The old ending stopped at a white rectangle: `ap>0.9` faded
+  // `rgba(255,240,210)` over the frame and that was the entire impact AND the entire aftermath, with
+  // `APOC_FULL_AP` sitting at 0.97. A flash is not an event, and it is certainly not a middle.
+  if(post>0){
+    var flash=Math.max(0,1-post/0.16);
+    if(flash>0){ g.globalCompositeOperation="lighter";
+      g.fillStyle="rgba(255,242,214,"+(flash*flash).toFixed(3)+")"; g.fillRect(0,0,SW,SH);
+      g.globalCompositeOperation="source-over"; }
+    // ── 🔥 THE SKY CATCHES FIRE. This is how an impact this size actually kills a planet: what it throws
+    // up comes back down through the atmosphere everywhere at once and cooks it. It is also the only
+    // beat that can reach a monitor the front has not got to yet — the far screens go red before
+    // anything physical arrives, which is the direction rule again.
+    var burnSky=Math.max(0,Math.min(1,post/0.10))*Math.max(0,1-Math.max(0,post-0.34)/0.46);
+    if(burnSky>0){ var bstep=Math.max(2,Math.round(K*3));
+      for(var by=0;by<HORIZON;by+=bstep){ var bu=by/HORIZON;
+        g.globalCompositeOperation="lighter";
+        g.fillStyle="rgba("+Math.round(190+50*bu)+","+Math.round(40+56*bu)+",22,"+(0.46*burnSky*(0.35+0.65*bu)).toFixed(3)+")";
+        g.fillRect(0,by,SW,bstep); g.globalCompositeOperation="source-over"; }
+      // …and the ejecta coming back down through it, everywhere, for the rest of the world's life
+      for(var re=0;re<Math.round(70*burnSky);re++){
+        var rh2=((re*2654435761+4021)>>>0); rh2=(rh2^(rh2>>>13))>>>0;
+        var rx2=((rh2>>>5)%Math.max(1,WW))-WOFF; if(rx2<-6||rx2>SW+6) continue;
+        var rt=((now*0.0012*(0.6+((rh2>>>19)%60)/60)+((rh2>>>11)%1000)/1000)%1);
+        var ry3=rt*HORIZON, rl=Math.round((5+((rh2>>>23)%7))*K);
+        g.globalCompositeOperation="lighter";
+        g.fillStyle="rgba(255,"+Math.round(150+80*(1-rt))+",70,"+(0.8*(1-rt*0.5)*burnSky).toFixed(2)+")";
+        g.fillRect(Math.round(rx2),Math.round(ry3),Math.max(1,Math.round(K)),rl);
+        g.globalCompositeOperation="source-over";
+      }
+    }
+    // ── 🪨 THE EJECTA. Blocks of the crust and of the moon thrown clear on ballistic arcs, out past the
+    // edge of the screen and down onto whatever the front has not reached yet. World-anchored, scripted
+    // off a hash, so all three monitors agree about where every one of them went.
+    for(var ej=0;ej<34;ej++){
+      var eh=((ej*2654435761+1811)>>>0); eh=(eh^(eh>>>13))>>>0;
+      var eDir=(eh&1)?1:-1, eRange=WW*(0.10+((eh>>>7)%50)/100*0.42), eT0=((eh>>>13)%40)/400;
+      var eu=(post-eT0)/0.30; if(eu<0) continue;
+      var eLand=Math.min(1,eu);
+      var ewx=wrapW(gz+eDir*eRange*eLand), esx2=disX(ewx);
+      if(esx2<-30||esx2>SW+30) continue;
+      if(eu<1){
+        var eyy=gy-Math.sin(eLand*3.14159)*(HORIZON*(0.35+((eh>>>17)%50)/100*0.6));
+        var esz=Math.max(1,Math.round((2+((eh>>>21)%4))*K));
+        g.fillStyle="rgba(38,30,28,0.95)"; g.fillRect(Math.round(esx2),Math.round(eyy),esz,esz);
+        g.globalCompositeOperation="lighter";                                  // the fire it drags behind it
+        for(var et=1;et<=5;et++){
+          var eb=eLand-et*0.012; if(eb<0) break;
+          var ebx=disX(wrapW(gz+eDir*eRange*eb)), eby=gy-Math.sin(eb*3.14159)*(HORIZON*(0.35+((eh>>>17)%50)/100*0.6));
+          g.fillStyle="rgba(255,"+(170-et*18)+",60,"+(0.6*(1-et/5)).toFixed(2)+")";
+          g.fillRect(Math.round(ebx),Math.round(eby),Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
+        }
+        g.globalCompositeOperation="source-over";
+      } else {
+        var eage=(eu-1)*0.30/Math.max(1e-9,apMs);                              // where it came down, and it is still burning
+        g.globalCompositeOperation="lighter";
+        var efd=Math.max(0,1-(eu-1)/2.2);
+        g.fillStyle="rgba(255,140,44,"+(0.55*efd).toFixed(2)+")";
+        g.fillRect(Math.round(esx2-3*K),Math.round(gy-Math.round((7+((eh>>>9)%10))*K*efd)),Math.round(6*K),Math.round((7+((eh>>>9)%10))*K*efd));
+        g.globalCompositeOperation="source-over";
+      }
+    }
+    // ── 💨 AND THE FRONT ITSELF, leaving ground zero and crossing the world. 🔑 This is the thing he was
+    // missing: something that ARRIVES. It is world-anchored at `gz ± moonBlastR()`, so DP-3 watches it
+    // come, then DP-4, then HDMI-A-3, and everything behind it is already down because `moonCrushed`
+    // reads the same radius.
+    var bR=moonBlastR();
+    if(bR>0&&bR<WW*0.62){
+      for(var side=-1;side<=1;side+=2){
+        var bwx=wrapW(gz+side*bR), bsx=disX(bwx);
+        if(bsx<-SW*0.6||bsx>SW*1.6) continue;
+        // ⚠ IT TRAILS BEHIND THE FRONT, IT DOES NOT STRADDLE IT. The first cut ran `bo` from -30 to +30
+        // around the front position, so half the wall stood AHEAD of its own leading edge — over city
+        // that `moonCrushed` still says is intact — and it read as a symmetrical mound parked on the
+        // screen rather than as something sweeping through. The face is at the front; the mass is behind.
+        for(var bo=0;bo<=58;bo++){
+          var bxp=Math.round(bsx-side*bo*Math.round(5*K)); if(bxp<-30||bxp>SW+30) continue;
+          var bh3=((bo*2654435761+911)>>>0); bh3=(bh3^(bh3>>>13))>>>0;
+          var bfall=Math.max(0,1-bo/59), lead=(bo<=1)?1:0;
+          var bhgt=Math.round(HORIZON*(0.30+0.62*bfall)+((bh3>>>7)%17)*K*bfall);
+          g.fillStyle="rgba(46,34,30,"+(0.55+0.40*bfall).toFixed(2)+")";
+          g.fillRect(bxp,gy-bhgt,Math.round(6*K),bhgt+GROUND);
+          if(bfall>0.35){ g.globalCompositeOperation="lighter";                // the fire in its face
+            g.fillStyle="rgba(255,"+Math.round(96+90*bfall)+",40,"+(0.50*bfall*(0.6+0.4*Math.sin(now*0.006+bo*0.30))).toFixed(2)+")";   // ⚠ bo*0.30, not bo: at a radian per column the fire alternated column to column and the wall read as a picket fence
+            g.fillRect(bxp,gy-Math.round(bhgt*0.55),Math.round(6*K),Math.round(bhgt*0.55));
+            g.globalCompositeOperation="source-over"; }
+          // the leading edge, white-hot. ⚠ 3·K wide on a 5·K step left GAPS, so the rim came out as three
+          // separate light beams standing in front of the wall. One contiguous run, or it is not an edge.
+          if(lead){ g.globalCompositeOperation="lighter";
+            g.fillStyle="rgba(255,238,190,0.7)"; g.fillRect(bxp,gy-bhgt,Math.round(5*K)+1,bhgt+GROUND);
+            g.globalCompositeOperation="source-over"; }
+        }
+      }
+    }
+    // ── 🪨 THE MOONROCK IS STILL THERE, buried in what it hit: a horizon of broken rock where the city
+    // was, cooling from split-open orange to dead grey over the rest of the arc. The cause survives its
+    // own ending, which is the thing this set almost never does.
+    // 🪨 IT IS ROCK, AND ROCK IS FACETED. First cut drew it as a smooth shaded dome in the pale end of
+    // the moon's own palette, and at ap 0.98 the bottom two thirds of the frame came back as a cream
+    // hill with bodies lying on it — a sand dune. The house rule is the other way round: a smoothly
+    // curved or 1px-noisy edge is dust, smoke or foliage and NEVER stone. So the crown is a run of big
+    // straight-edged FACETS with hard value steps between them, each one flat, split by dark fault lines
+    // with the heat still in them.
+    // ⚠ AND IT HAS TO FIT IN THE FRAME. First cut ran the crown to 1.20·HORIZON across 1.5× its own
+    // radius, so every facet's top came out ABOVE the top of the screen and the whole picture became
+    // full-height flat bars — vertical stripes, no silhouette, and no ruined city either side of it.
+    // A mass only reads as huge if you can see where it ENDS.
+    var wallR=Math.round(HORIZON*(0.28+0.30*Math.min(1,post/0.35)));
+    var HW=wallR*2.2, NF=13, cool=Math.max(0,1-Math.max(0,(post-0.22))/0.62);
+    var PW=moonPal(Math.min(1,cool*1.1));
+    var vtx=[], vv=[];
+    for(var v=0;v<=NF;v++){                                   // the crown's vertices: a dome, then broken
+      var uv=v/NF*2-1, vh2=((v*2654435761+4813)>>>0); vh2=(vh2^(vh2>>>13))>>>0;
+      vtx.push(Math.sqrt(Math.max(0,1-uv*uv))*wallR*(0.80+((vh2>>>7)%34)/100));
+      vv.push(1+((vh2>>>17)%3));                              // each facet keeps ONE flat value
+    }
+    var run0=-1, runTop=-1, runV=-1;
+    for(var px=0;px<SW;px+=Math.max(1,Math.round(K))){
+      var rel=(px-csx)/HW;
+      if(rel<-1||rel>1){ if(run0>=0){ mfSlabRun(g,PW,run0,runTop,px-run0,runV,gy,K); run0=-1; } continue; }
+      var fpos=(rel+1)/2*NF, fi=Math.min(NF-1,Math.max(0,Math.floor(fpos))), ft=fpos-fi;
+      var top=Math.round(gy-(vtx[fi]+(vtx[fi+1]-vtx[fi])*ft));
+      var lamv=Math.max(0,Math.min(4,vv[fi]+(rel>0.15?1:(rel<-0.35?-1:0))-1));   // ⚠ capped at 4 and pulled a step down: at the top of this palette it is bone, not stone. Light still comes from one side.
+      if(top!==runTop||lamv!==runV){
+        if(run0>=0) mfSlabRun(g,PW,run0,runTop,px-run0,runV,gy,K);
+        run0=px; runTop=top; runV=lamv;
+      }
+    }
+    if(run0>=0) mfSlabRun(g,PW,run0,runTop,SW-run0,runV,gy,K);
+    // ── the fault lines between facets. ⚠ Drawn as plumb verticals they read as a row of POLES standing
+    // in front of the mass rather than as splits inside it. Each one LEANS with its facet and stops short
+    // of the bottom, which is what a fracture through a tilted block does.
+    for(var fl=1;fl<NF;fl++){
+      var fx3=Math.round(csx-HW+(2*HW)*fl/NF), fy3=Math.round(gy-vtx[fl]);
+      if(fx3<-30||fx3>SW+30) continue;
+      var lh=((fl*2654435761+337)>>>0); lh=(lh^(lh>>>13))>>>0;
+      var lean=(((lh>>>7)%100)/100-0.5)*HW*0.10, botY=Math.round(gy+(SH-gy)*(0.30+((lh>>>15)%40)/100));
+      var segsF=Math.max(3,Math.round((botY-fy3)/Math.max(1,K)));
+      for(var q3=0;q3<=segsF;q3++){
+        var uq=q3/segsF, sxf=Math.round(fx3+lean*uq), syf=Math.round(fy3+(botY-fy3)*uq);
+        var wf=Math.max(1,Math.round(K*(1.6-0.7*uq)));
+        g.fillStyle=PW[0]; g.fillRect(sxf,syf,wf,Math.max(1,Math.round(K)));
+        if(cool>0.03&&uq<0.7){ g.globalCompositeOperation="lighter";
+          g.fillStyle="rgba(255,"+Math.round(96+80*cool)+",38,"+(0.5*cool*(1-uq/0.7)).toFixed(2)+")";
+          g.fillRect(sxf,syf,wf,Math.max(1,Math.round(K)));
+          g.globalCompositeOperation="source-over"; }
+      }
+    }
+    for(var rb=0;rb<26;rb++){                                  // and the blocks it shed, lying where they stopped
+      var rh=((rb*2654435761+2273)>>>0); rh=(rh^(rh>>>13))>>>0;
+      var rx=csx+(((rh%1000)/1000)*2-1)*HW*1.45;
+      if(rx<-20||rx>SW+20) continue;
+      var rw=Math.round((5+((rh>>>9)%13))*K), rhh=Math.round((4+((rh>>>15)%9))*K);
+      g.fillStyle=PW[1+((rh>>>21)%2)];
+      g.fillRect(Math.round(rx),Math.round(gy+GROUND*0.25-rhh),rw,rhh);
+      g.fillStyle=PW[0]; g.fillRect(Math.round(rx),Math.round(gy+GROUND*0.25-Math.max(1,K)),rw,Math.max(1,Math.round(K)));
+    }
+    for(var du=0;du<Math.round(60*Math.min(1,post*2));du++){        // and the dust it threw up, coming down for hours
+      var dh2=((du*2654435761+7717)>>>0); dh2=(dh2^(dh2>>>13))>>>0;
+      var dx3=((dh2>>>5)%Math.max(1,WW))-WOFF; if(dx3<0||dx3>=SW) continue;
+      var dt=((now*0.00016+((dh2>>>13)%1000)/1000)%1);
+      g.fillStyle="rgba(150,142,132,"+(0.30*(1-dt)*Math.min(1,post*2)).toFixed(2)+")";
+      g.fillRect(Math.round(dx3),Math.round(dt*gy),Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
+    }
+  }
+  var msg=(ap<MF_TIDE_AP)?"THE MOON IS CLOSER THAN IT WAS"
+        :(ap<MF_QUAKE_AP)?"THE TIDE WILL NOT GO OUT"
+        :(ap<MF_BREAK_AP)?"EVERY FAULT IN THE WORLD IS MOVING"
+        :(ap<MF_RAIN_AP)?"IT IS COMING APART"
+        :(ap<0.845)?"IMPACTS - "+Math.round((ap-MF_RAIN_AP)/(0.845-MF_RAIN_AP)*100)+" PCT"
+        :(ap<MF_CORE_AP)?"THE CORE IS COMING DOWN"
+        :cityName+" IS UNDER THE MOON";
+  drawDoomHud(g,ap,now,msg,"THE MOON CAME DOWN");
+}
+// ── 🦍 THE GREAT APE. 🔒 His call: reptile vs ape, and *"a completely different shape so you can tell
+// instantly who is winning."* At the old size the ape was a plain filled rectangle with a pale circle on
+// top — measured, no arms, no legs, no shoulder line: a domino. Everything that makes an ape read is the
+// PROPORTION — a huge shoulder mass, a small head sunk between it, and arms long enough to reach the
+// ground — so those are drawn first and the mass is hung off them.
+// 🎨 Same value law as the reptile: dark belly, mid flank, lit shoulder, one hard rim down the front.
+function kwApeShape(g,cx,base,H,face,day,a,now,act,gait){
+  var K=Math.max(1,KSP);
+  var dark=day?[20,14,10]:[9,7,6], mid=day?[46,33,24]:[20,15,12], lit=day?[86,64,46]:[36,27,21], rim=day?[198,168,132]:[104,86,66];
+  function C(c,al){ return "rgba("+c[0]+","+c[1]+","+c[2]+","+((al==null?1:al)*a).toFixed(2)+")"; }
+  function bx(x,y,w,h,c,al){ g.fillStyle=C(c,al); g.fillRect(Math.round(x),Math.round(y),Math.max(1,Math.round(w)),Math.max(1,Math.round(h))); }
+  var Y=function(f){ return base-H*f; };
+  var hipY=Y(0.30), shY=Y(0.74), swing=Math.sin(now*0.0018)*H*0.05;
+  // ── 🦍 IT IS A KNUCKLE-WALKER, NOT A BIPED. Give something this shape a two-legged stride and it reads
+  // as a man in a suit: the weight goes onto the ARMS first and the legs swing through underneath. Its
+  // planted knuckle is the anchor of the whole gait.
+  var strideA=H*0.30, gtA=(gait==null)?(now*0.00014):gait;
+  var kn=kwFoot(gtA,0.0,strideA);                                          // the anchoring knuckle
+  var lgF=kwFoot(gtA,0.42,strideA), lgN=kwFoot(gtA,0.78,strideA);          // ⚠ SAME stride the gait was derived from, or these are not planted either
+  var shBackX=cx-face*H*0.24, shBackY=Y(0.70);
+  kwLimb(g,shBackX,shBackY,shBackX+kn.x,base-H*0.035-kn.lift,face*H*0.07,H*0.115,H*0.090,C(dark),K);
+  bx(shBackX+kn.x-H*0.095,base-H*0.05-kn.lift,H*0.19,H*0.05,dark);         // knuckles down on the street
+  // ── the legs: short and thick, well inside the shoulders — that contrast is most of the read
+  kwLimb(g,cx-H*0.075,hipY,cx-H*0.075+lgF.x,base-H*0.02-lgF.lift,-face*H*0.035,H*0.125,H*0.095,C(dark),K);
+  bx(cx-H*0.075+lgF.x-H*0.095,base-H*0.045-lgF.lift,H*0.19,H*0.045,dark);
+  kwLimb(g,cx+H*0.075,hipY,cx+H*0.075+lgN.x,base-H*0.02-lgN.lift,-face*H*0.035,H*0.125,H*0.095,C(mid),K);
+  bx(cx+H*0.075+lgN.x-H*0.095,base-H*0.045-lgN.lift,H*0.19,H*0.045,dark);
+  // ── the torso: enormous at the shoulder, tapering to the hip. ⚡ run-batched, flushed on profile change
+  var span=Math.max(1,hipY-shY), run=-1,rH=-1,rC=null;
+  for(var y=Math.round(shY);y<=Math.round(hipY);y++){
+    var v=(y-shY)/span;
+    var half=Math.round(H*(0.30-0.09*v*v));
+    var c=(v<0.20)?lit:((v<0.66)?mid:dark);
+    if(half!==rH||c!==rC){
+      if(run>=0){ bx(cx-rH,run,rH*2,y-run,rC); bx(cx+face*rH-(face>0?Math.max(1,K*1.4):0),run,Math.max(1,K*1.4),y-run,rim,0.7); }
+      run=y; rH=half; rC=c; }
+  }
+  if(run>=0){ var h2=Math.round(hipY)-run+1; bx(cx-rH,run,rH*2,h2,rC);
+    bx(cx+face*rH-(face>0?Math.max(1,K*1.4):0),run,Math.max(1,K*1.4),h2,rim,0.7); }
+  // the shoulder hump — stepped, not a flat plank. One long lit bar across the top read as a table.
+  bx(cx-H*0.25,Y(0.755),H*0.50,H*0.055,lit);
+  bx(cx-H*0.20,Y(0.785),H*0.40,H*0.045,lit);
+  bx(cx-H*0.13,Y(0.808),H*0.26,H*0.035,lit);
+  // ── fur: vertical strokes down the mass, hashed so it is not a comb
+  for(var f2=0;f2<26;f2++){
+    var fh=((f2*2654435761+709)>>>0); fh=(fh^(fh>>>13))>>>0;
+    var fx=cx-H*0.28+((fh>>>5)%1000)/1000*H*0.56;
+    var fy=Y(0.72)+((fh>>>15)%1000)/1000*H*0.36;
+    bx(fx,fy,Math.max(1,K),H*(0.03+((fh>>>25)%4)/100),dark,0.55);
+  }
+  // ── the head: SMALL, sunk between the shoulders. A big head makes a big animal look like a person.
+  var hy=Y(0.825), hw=H*0.145;   // ⚠ sunk INTO the hump, not floating above it — a detached head is the two-of-them fault in miniature
+  bx(cx+face*H*0.02-hw*0.5,hy,hw,H*0.10,mid);
+  bx(cx+face*H*0.02-hw*0.5,hy-H*0.018,hw,H*0.022,dark);                    // the brow
+  bx(cx+face*(H*0.02+hw*0.16)-hw*0.5,hy+H*0.045,hw*0.62,H*0.038,lit);      // the muzzle
+  g.fillStyle="rgba(255,214,150,"+(0.95*a).toFixed(2)+")";
+  g.fillRect(Math.round(cx+face*(H*0.02+hw*0.10)),Math.round(hy+H*0.018),Math.max(1,Math.round(K*1.2)),Math.max(1,Math.round(K*1.2)));
+  // ── and the near arm, over everything: this is the one that hits things. `act` is the swing phase —
+  // negative while it winds up and pulls back, 1 at full extension on the snap frame.
+  // 🔑 THE HAND TRAVELS AN ARC AND THE SEGMENTS KEEP THEIR LENGTH. The previous cut SWAPPED
+  // REPRESENTATION at `reach>0.15` — a hanging vertical bar became a horizontal one — so the arm
+  // teleported through the swing instead of throwing it. One shoulder, one elbow, one hand on a circle.
+  var reach=Math.max(-0.35,Math.min(1,act||0));
+  var idle=(act==null||act===0)?swing/Math.max(1,H*0.05)*0.10:0;            // it never freezes solid between blows
+  var sA=(reach+0.35)/1.35;
+  var ang=1.78+(-0.06-1.78)*sA+idle;                                        // hanging back-and-down → straight out front
+  var shX2=cx+face*H*0.20, shY2=Y(0.70), armLen=H*0.62;
+  var hxp=shX2+face*Math.cos(ang)*armLen, hyp=shY2+Math.sin(ang)*armLen;
+  kwLimb(g,shX2,shY2,hxp,hyp,-face*H*0.11*(1-sA*0.6),H*0.125,H*0.095,C(mid),K);
+  bx(hxp-H*0.06,hyp-H*0.06,H*0.12,H*0.13,dark);                            // the fist
+  kwSeg(g,shX2,shY2,hxp,hyp,Math.max(1,K*1.4),Math.max(1,K),C(rim,0.5),K);
+  return {cx:cx, headY:hy, headX:cx+face*H*0.08, W:H*0.30, top:base-H};
+}
+function drawTitan(g,sx,gy,H,kind,facing,pose,now,tp,act,gait){
+  // 🔑 ONE ANIMAL, ONE ROUTINE, TWICE OVER. The reptile in this fight and the one in the kaiju ending are
+  // the same creature, so it is the same `kaijuShape`; the ape has its own, and neither is hand-drawn a
+  // second time inside this renderer — a second copy of a creature is how a frame ends up holding two of
+  // it, which this set has already been taught twice.
+  if(typeof kaijuShape==="function"){
+    var sink0=(pose===4)?Math.round(H*0.55*tp):0, H0=Math.max(4,H-sink0);
+    var lean0=(pose===2)?-facing*Math.round(H*0.08):(pose===3)?facing*Math.round(H*0.06):0;
+    var lunge=Math.round(facing*(act||0)*H*0.17);                       // it puts its weight behind the blow
+    var cx0=Math.round(sx+lean0+lunge+((pose===4)?facing*Math.round(tp*H*0.22):0));
+    if(kind===0){ kaijuShape(g,cx0,gy-1,H0,facing,true,1,pose!==4,now,gait);
+      return {cx:cx0, headY:gy-Math.round(H0*0.80), headX:cx0+facing*Math.round(H0*0.30), W:Math.round(H0*0.30), top:gy-H0}; }
+    return kwApeShape(g,cx0,gy-1,H0,facing,true,1,now,act||0,gait);
+  }
+  // (legacy fallback below — only reachable if `kaijuShape` is somehow absent)
   var W=Math.round(H*(kind?0.34:0.26));
   var lean=(pose===2)?-facing*Math.round(W*0.28):(pose===3)?facing*Math.round(W*0.22):0;
   var sink=(pose===4)?Math.round(H*0.55*tp):0, tilt=(pose===4)?Math.round(tp*W*0.7):0;
@@ -56952,23 +60652,73 @@ function drawApocKaijuWar(g,ap,L,now){
   g.fillStyle="rgba(70,50,44,"+(0.10+0.40*prog)+")"; g.fillRect(0,0,SW,gy);
 
   // ===== THE TWO TITANS =====
-  var H=Math.round(gy*(0.24+0.20*arriveP));
-  var beat=(tc>0&&!decided)?Math.floor(tc/3000)%3:-1;                                    // 0 reptile attacks · 1 ape attacks · 2 grapple
+  // 🔒 TWICE THE TALLEST TOWER, the same rule the kaiju is built to — measured against the real skyline
+  // rather than a fraction of the frame. At `gy*(0.24+0.20)` they topped out at 124 world px, which is
+  // mid-rise height: two animals the size of office blocks, wrestling behind the office blocks.
+  var _tallKW=0;
+  if(near&&near.blds) for(var _bi=0;_bi<near.blds.length;_bi++){ if(near.blds[_bi].h>_tallKW) _tallKW=near.blds[_bi].h; }
+  if(_tallKW<=0) _tallKW=Math.round(gy*0.34);
+  var H=Math.round(_tallKW*2.0*(0.55+0.45*arriveP));
+  // ── 🥊🔒 THE FIGHT HAS A PHASE NOW, NOT A HELD POSE. 🔒 His note: *"it looks a little chunky and
+  // slow."* It was — `beat = floor(tc/3000)%3` with an INTEGER pose handed to the draw routine, so each
+  // titan held one rigid stance for three full seconds and then teleported to the next. A three-state
+  // slideshow at a third of a hertz.
+  // 🔑 AND AT 12 FPS YOU CANNOT BUY SPEED WITH FRAMES — you buy it with SPACING. A blow that eases into
+  // place reads slow at any frame rate; one that holds a wind-up and then crosses its whole travel in a
+  // single frame reads fast even at eight. So: slow anticipation, one-frame snap, long recoil.
+  var KW_BEAT=1200, KW_HIT=0.58;                                                        // a blow every 1.2s, landing 58% through it
+  var beatI=(tc>0&&!decided)?Math.floor(tc/KW_BEAT):-1;
+  var beatP=(tc>0&&!decided)?((tc%KW_BEAT)/KW_BEAT):0;                                  // 0..1 within this blow
+  var beat=(beatI>=0)?beatI%3:-1;                                                       // 0 reptile attacks · 1 ape attacks · 2 grapple
+  // the swing curve: pull BACK while winding up (negative), full extension at the snap, then settle
+  var ext=(beatP<KW_HIT) ? -0.30*Math.pow(beatP/KW_HIT,2.2)
+        : (beatP<KW_HIT+0.05) ? 1
+        : Math.max(0,1-(beatP-KW_HIT-0.05)/(1-KW_HIT-0.05));
+  var land=(beatP>=KW_HIT&&beatP<KW_HIT+0.09)?1:0;                                      // the one window where a hit exists
+  var shove=(beatP>=KW_HIT)?Math.max(0,1-(beatP-KW_HIT)/0.34):0;                        // …and how hard the struck one is still reeling
   var poseA=0, poseB=0;                                                                  // A = reptile(kind 0, faces right) · B = ape(kind 1, faces left)
   if(tc>0&&!decided){ poseA=(beat===0)?1:(beat===1)?2:3; poseB=(beat===1)?1:(beat===0)?2:3; }
+  // 🔑 THE SINGLE BIGGEST ONE: BEING HIT HAS TO MOVE YOU. Two animals that trade blows and both stay
+  // exactly where they were are two animals posing near each other. The struck one is knocked back most
+  // of a body width on the snap frame and walks it off over the recoil.
+  var actA=(beat===0&&!decided)?ext:0, actB=(beat===1&&!decided)?ext:0;
+  var knockA=(beat===1&&!decided)?-shove*H*0.34:0;                                      // reptile struck by the ape
+  var knockB=(beat===0&&!decided)?shove*H*0.34:0;                                       // ape struck by the beam
+  if(beat===2&&!decided){ var gr=Math.sin(beatP*6.283)*H*0.10; knockA-=gr; knockB-=gr; actA=actB=0.25; }   // the grapple: locked, both sliding
+  xA+=knockA; xB+=knockB;
   if(decided){ if(loser===0){ poseA=4; poseB=5; } else { poseB=4; poseA=5; } }
   var tA=null, tB=null;
-  if(xA>-260&&xA<SW+260) tA=drawTitan(g,xA,gy,H,0, 1,poseA,now,(decided&&loser===0)?tD:0);
-  if(xB>-260&&xB<SW+260) tB=drawTitan(g,xB,gy,H,1,-1,poseB,now,(decided&&loser===1)?tD:0);
+  var gtA=kwTitanX(now,0)/Math.max(1,H*0.42), gtB=kwTitanX(now,1)/Math.max(1,H*0.30);   // 🔑 gait off each titan's WORLD x
+  if(xA>-260&&xA<SW+260) tA=drawTitan(g,xA,gy,H,0, 1,poseA,now,(decided&&loser===0)?tD:0,actA,gtA);
+  if(xB>-260&&xB<SW+260) tB=drawTitan(g,xB,gy,H,1,-1,poseB,now,(decided&&loser===1)?tD:0,actB,gtB);
+  // ── 💥 AND THE HIT ITSELF, on the snap frame ONLY. Spread over a second this is a glow; confined to
+  // one frame it is force. Flash at the point of contact, dust off the ground under it, and debris.
+  if(land&&tA&&tB){
+    var ctX=Math.round((xA+xB)*0.5), ctY=gy-Math.round(H*(beat===0?0.74:0.62));
+    g.globalCompositeOperation="lighter";
+    g.fillStyle="rgba(255,246,214,0.92)"; fillEllipse(g,ctX,ctY,H*0.075,H*0.075);
+    g.fillStyle="rgba(255,180,90,0.55)";  fillEllipse(g,ctX,ctY,H*0.15,H*0.13);
+    g.globalCompositeOperation="source-over";
+    for(var sp2=0;sp2<16;sp2++){                                                        // debris thrown off the contact
+      var sh4=((sp2*2654435761+8377)>>>0); sh4=(sh4^(sh4>>>13))>>>0;
+      var sa=((sh4%1000)/1000)*6.283, sr=H*0.10+((sh4>>>9)%100)/100*H*0.20;
+      g.fillStyle="rgba(226,206,178,0.9)";
+      g.fillRect(Math.round(ctX+Math.cos(sa)*sr),Math.round(ctY+Math.sin(sa)*sr*0.7),Math.max(1,Math.round(KSP*2)),Math.max(1,Math.round(KSP*2)));
+    }
+    g.fillStyle="rgba(150,130,108,0.55)";                                               // and the ground jumping under them
+    g.fillRect(Math.round(ctX-H*0.42),gy-Math.round(KSP*3),Math.round(H*0.84),Math.round(KSP*4));
+  }
 
   // reptile's atomic breath rakes AT THE APE during its attack beat (and the killing blow)
-  if(tA&&(poseA===1||(decided&&winner===0&&tD<0.7))&&((Math.floor(now/280))%2===0)){
+  if(tA&&((beat===0&&!decided&&beatP>KW_HIT-0.16&&beatP<KW_HIT+0.14)||(decided&&winner===0&&tD<0.7))){   // ⚠ fires ACROSS the snap instead of strobing on a clock of its own, so the beam IS the blow
     var mx=tA.headX, my=tA.headY+2, tx=(tB?tB.cx:xB), span=Math.max(8,Math.abs(tx-mx))|0;
     for(var br=0;br<span;br+=2){ var bxp=mx+(tx>mx?br:-br); if(bxp<-2||bxp>SW+2) continue;
       g.globalCompositeOperation="lighter";
       g.fillStyle="rgba("+Math.round(180-br*0.15)+",245,255,"+(0.85*(1-br/span))+")"; g.fillRect(bxp|0,my|0,2,4);
       g.globalCompositeOperation="source-over"; }
-    if(tB){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(220,255,255,0.7)"; fillEllipse(g,tB.cx,my+2,7,9); g.globalCompositeOperation="source-over"; } }
+    if(tB){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(220,255,255,0.7)"; fillEllipse(g,tB.cx,my+2,Math.max(7,H*0.040),Math.max(9,H*0.048));
+      g.fillStyle="rgba(255,255,244,0.9)"; fillEllipse(g,tB.cx,my+2,Math.max(3,H*0.016),Math.max(4,H*0.020));   // a hard core inside it, or the flash is a fog ball
+      g.globalCompositeOperation="source-over"; } }   // ⚠ scaled off H — a fixed 7px flash on a 300px animal is a laser pointer, and 0.09H swallowed its head
   // impact flashes + shockwave ring on the grapple beat
   if(beat===2&&tA&&tB){ var gph=(tc%3000)/3000, rr2=gph*Math.abs(xB-xA)*0.9+8;
     g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,220,170,"+(0.30*(1-gph))+")";
@@ -57780,55 +61530,440 @@ function drawApocAI(g,ap,L,now){
                      : "PLANET ENSLAVED";
   drawDoomHud(g,ap,now,msg,"CIVILIZATION DELETED");
 }
-// BLACK HOLE: a singularity forms in the sky, its accretion disk blazes, and its growing pull streams the whole city up into the void.
-// Timeline on the real-time apocMs clock (form ~3.2s → pull-radius swallows the city ~11s → a static dark void).
+// BLACK HOLE — GARGANTUA. A singularity forms over ground zero, its accretion disk blazes, and its
+// growing pull streams the whole city up into the void.
+// ⏱️ Timeline on the ARC (`BH_FORM_AP` / `BH_FULL_AP`), NOT on the 14-second stopwatch it used to run on.
+// ── 🌀🚨🚨 THE LENS IS NOT HERE, AND THE REASON IS WORTH MORE THAN THE CODE WAS.
+// His brief was that EVERY PIXEL gets warped. I measured a per-pixel radial resample first — 272 ms for
+// one 1552x874 canvas (6 ms to read, 0 to write, 266 in the JS loop over 1.36 M pixels), ~3.2 s across
+// his three screens — and correctly rejected it. Then I measured a STRIP warp built on
+// `getImageData`/`putImageData`: 4 ms, on the production FramebufferObject target, and built the whole
+// ending on that number.
+// 🚨🔑🔑 `putImageData` IS A SILENT NO-OP IN QML's Canvas. It reads back real pixels and writes nothing,
+// throws nothing, and returns nothing to check. My 4 ms was a real read plus a fake write. I then spent
+// four renders debugging "why is the warp invisible" — instrumenting the guards, splitting the two
+// passes, moving the sky darkening between canvases — when the answer was that the write never happened.
+// 🔑 I TIMED IT TWICE AND NEVER ONCE LOOKED AT THE OUTPUT. A four-line probe (fill a red block, read it,
+// write it somewhere else, save the PNG) settled it instantly. **A PROBE THAT ONLY MEASURES DURATION
+// CANNOT TELL A WORKING WRITE FROM A DISCARDED ONE** — its pass and its blind look identical.
+// ✅ WHAT DOES WORK, MEASURED THE SAME WAY: `drawImage(<Canvas>, sx,sy,sw,sh, dx,dy,dw,dh)` — it draws,
+// and it SCALES, which is strictly better than the translate-only warp I thought I had. It needs a
+// SECOND canvas as the source, so the world would have to render into an offscreen canvas that a visible
+// one then warps in strips. That is a change to `main.qml`'s two-canvas composition, which all 43
+// endings and the whole perf budget sit on — Nick's call, not a side effect of a black hole.
+function bhDark(ap){ return Math.min(0.97,0.10+0.88*Math.min(1,ap/0.55)); }
+// ── 🌪️🔒 EVERYTHING GOES UP. His call: buildings and people flying into it. Nothing here warps the
+// frame — each object is DRAWN along its own path to the hole, so it costs a few hundred marks instead
+// of a pixel pass, and it works on the two-canvas composition exactly as it stands.
+// 🔑 A FALL INTO A BLACK HOLE IS NOT A STRAIGHT LINE. Matter keeps its angular momentum, so it spirals:
+// the path winds as it climbs, tightening near the horizon, and joins the disk's rotation rather than
+// arriving head-on. A radial streak reads as rain going the wrong way; a spiral reads as gravity.
+// 🔑 AND IT STRETCHES ON THE WAY. Tidal force is the DIFFERENCE in pull across a body, so the leading
+// end accelerates away from the trailing end and the thing is drawn out into a thread of specks. That
+// is the spaghettification, and it is what makes what is taken read as a BODY rather than a particle.
+// 🌍 Hashed in WORLD space with a screen cull; every position comes from an index and `now`, never from
+// state, so the three monitors show the same objects on the same paths.
+// ⏳🔒 TIME DILATION, HIS CALL — and it is a property of the PATH, not a separate effect. To anyone
+// watching from outside, infalling matter never actually crosses the horizon: it accelerates, then
+// appears to slow, and finally hangs at the edge for ever, reddening as it goes. So the climb is
+// asymptotic — many values of `t` land in the last stretch — which crowds everything into a shimmering
+// pile-up at the horizon instead of letting it vanish neatly. That crowd IS the dilation, it costs one
+// expression, and it is the only place in the set where the physics does the composition for you.
+// 🌀🔒 AND IT SHEARS INTO THE DISK — his fourth answer, and the one still missing. Nothing falls into a
+// black hole and arrives at the middle: it has angular momentum it cannot shed, so it is wound out into
+// the accretion plane and JOINS the ring. Everything was converging on the centre point, which is the one
+// place matter never reaches — the city was flying into a target instead of becoming part of the object.
+// 🔑 The path's endpoint is a point ON THE RING, flattened to the disk's plane, and the winding angle
+// carries it round as it arrives — so the last of the city is visibly orbiting rather than swallowed.
+function bhPath(t,gx,gy,hx,hy,wind,K,R){
+  var u=t*t*(3-2*t);                                 // the climb accelerates as the pull grows…
+  var e=1-Math.exp(-3.1*u);                          // …then never quite arrives
+  var phi=wind+e*7.2;                                // and winds as it comes
+  // ⚠ AND NOT ALL AT ONE RADIUS, or they queue up on a single line and the disk reads as a SHELF. Each
+  // object settles at its own orbit, derived from its own winding angle so it stays scripted.
+  var ring=(R||40)*(1.06+0.46*(0.5+0.5*Math.sin(wind*13.7)));
+  var tx=hx+Math.cos(phi)*ring, ty=hy+Math.sin(phi)*ring*0.34;   // the disk's plane, seen near edge-on
+  var swirl=(1-e)*(1-e)*30*K;                        // wide arc low down, tight as it nears the plane
+  return {x:gx+(tx-gx)*e+Math.cos(phi*1.7)*swirl, y:gy+(ty-gy)*e+Math.sin(phi*1.7)*swirl*0.5, e:e};
+}
+// ── ☀️🔒 THE SUN GETS EATEN, AND IT HAPPENS EARLY, WHILE THE HOLE IS STILL DISTANT. His call, and it is
+// the best thing the approach could possibly have: for the first third of the arc the hole is a small
+// bright knot in the sky and there is nothing to fear — until you notice the SUN is being pulled out of
+// shape. It is the one object in the frame everybody already knows the shape of, so any distortion of it
+// is legible instantly, and it explains the dying daylight instead of the sky just fading on a timer.
+// 🔑 It draws its own sun rather than leaning on `drawSky`'s: the darkening in this pass covers that one,
+// and a sun that is being destroyed cannot be the same sprite as a sun that is fine.
+// 🌍 Position from `sunPos()`, which is world-anchored, so the three monitors agree on where it is.
+function bhSun(g,ap,L,now,G){
+  var eat=Math.min(1,Math.max(0,(ap-0.02)/0.34));            // gone by ap ~0.36
+  if(eat>=1) return;
+  var K=Math.max(1,KSP), SP=sunPos();
+  var sx0=SP.x, sy0=SP.y;
+  if(sx0<-160||sx0>SW+160) return;
+  var r0=Math.max(2,Math.round(7*K));
+  // it is drawn out along the line to the hole: a teardrop, then a comma, then a thread
+  var dx=G.sx-sx0, dy=G.sy-sy0, dl=Math.max(1,Math.sqrt(dx*dx+dy*dy));
+  var ux=dx/dl, uy=dy/dl;
+  var pull=eat*eat, span=Math.round(dl*0.55*pull);
+  var rr=Math.max(1,Math.round(r0*(1-eat*0.78)));
+  g.globalCompositeOperation="lighter";
+  // the stream leaving it, thinning all the way to the hole
+  for(var q=0;q<=span;q+=Math.max(1,Math.round(K))){
+    var f=q/Math.max(1,span);
+    var w=Math.max(1,Math.round(rr*(1-f)*0.9));
+    var a=(0.55*(1-f)*(0.35+0.65*eat)).toFixed(3);
+    g.fillStyle="rgba(255,"+((214-70*f)|0)+","+((150-90*f)|0)+","+a+")";
+    g.fillRect(Math.round(sx0+ux*q-w*0.5),Math.round(sy0+uy*q-w*0.5),w,Math.max(1,Math.round(w*0.7)));
+  }
+  // and the disc itself, shrinking and reddening as it goes
+  g.fillStyle="rgba(255,"+((236-90*eat)|0)+","+((186-150*eat)|0)+","+(0.9-0.35*eat).toFixed(2)+")";
+  fillEllipse(g,sx0,sy0,rr,Math.max(1,Math.round(rr*(1-eat*0.35))));
+  g.globalCompositeOperation="source-over";
+}
+// ── 🛰️🔒 AND NOT EVERYTHING FALLS IN. His call: some things ORBIT. A black hole is not a drain — most of
+// what it captures spends a long time going round before it goes down, and a frame where every object is
+// on its way in reads as suction rather than as gravity. These are the pieces that made it: torn slabs
+// and specks circling the disk plane, ahead of the mass that is still climbing.
+// 🔑 Drawn in TWO halves — the far side before the sphere so the hole occludes it, the near side after —
+// which is the cheapest possible depth cue and the thing that makes them read as going AROUND it.
+function bhOrbit(g,ap,L,now,G,far){
+  var K=Math.max(1,KSP), day=L>0.5;
+  var n=Math.round(26*Math.min(1,Math.max(0,(ap-0.14)/0.30)));
+  if(n<=0) return;
+  var R=Math.max(3,G.R);
+  for(var i=0;i<n;i++){
+    var h=((i*2654435761+9791)>>>0); h=(h^(h>>>13))>>>0;
+    var rad=R*(1.10+((h>>>5)%60)/100);                       // its own orbit
+    var spd=0.00022+((h>>>11)%40)/1000000;
+    var a=((h>>>17)%628)/100+now*spd*(1+((h>>>23)&1?0.4:0));
+    var sn=Math.sin(a);
+    if((sn<0)!==far) continue;                               // upper half of the ellipse = the far side
+    var px=G.sx+Math.cos(a)*rad, py=G.sy+sn*rad*0.34;
+    if(px<-20||px>SW+20) continue;
+    var w=Math.max(1,Math.round((2+((h>>>27)%5))*K)), hgt=Math.max(1,Math.round(w*0.45));
+    var lit=0.5+0.5*Math.cos(a);                             // catching the disk on the approaching side
+    g.fillStyle=day?"rgba(74,78,92,"+(far?0.55:0.9)+")":"rgba(30,33,44,"+(far?0.5:0.85)+")";
+    g.fillRect(Math.round(px-w*0.5),Math.round(py-hgt*0.5),w,hgt);
+    g.fillStyle="rgba(255,"+((198-40*(1-lit))|0)+","+((140-90*(1-lit))|0)+","+(0.30+0.45*lit).toFixed(2)+")";
+    g.fillRect(Math.round(px-w*0.5),Math.round(py-hgt*0.5),w,Math.max(1,Math.round(K*0.5)));
+  }
+}
+function bhStream(g,ap,L,now,G){
+  var K=Math.max(1,KSP), day=L>0.5;
+  var hx=G.sx, hy=G.sy, R=Math.max(3,G.R);
+  // 🚨🔒 "THINGS SHOULD START GETTING THROWN IN MUCH SOONER." He is right and the fault was one law doing
+  // two jobs: everything was gated on `bhFrontR`, which is 0 until `BH_FORM_AP` (0.18) — thirty-six
+  // minutes of a growing hole and an untouched street.
+  // 🔑 TIDAL REACH IS NOT THE HORIZON. What tears a LOOSE thing off the ground reaches far beyond the
+  // radius that swallows a city block, and it arrives long before it. Small things go first, from almost
+  // the moment the thing exists; a tower has to wait for the front that actually takes its footing.
+  var pull=bhFrontR();                                  // anchored things: the front that demolishes
+  var reach=Math.max(0,(ap-0.03)/0.28)*(WW*0.62);       // loose things: earlier, and much wider
+  if(reach<=0) return;
+  var base=HORIZON-1, epi=apocEpiX(now);
+  // ── 🏢 THE BUILDINGS, and they are the REAL ones from `near.blds`. A tower inside the pull tears from
+  // its footing and is drawn out along its path, its own width thinning as it climbs.
+  if(near&&near.blds){
+    var taken=0;
+    for(var b=0;b<near.blds.length&&taken<14;b++){
+      var B=near.blds[b];
+      if(B.type==="park"||!B.h) continue;
+      var bx0=Math.round(disX(B.x)); if(bx0+B.w<-40||bx0>SW+40) continue;
+      if(B.bAge!==undefined && typeof bandOf==="function" && cityG-B.bAge<=bandOf(B)) continue;
+      if(nukeDist(wrapW(Math.round(B.x+B.w*0.5)),epi)>=pull) continue;
+      taken++;
+      var bh2=((b*2654435761+1013)>>>0); bh2=(bh2^(bh2>>>13))>>>0;
+      var per=9000+((bh2>>>7)%7000);
+      var t=Math.min(1,((now+((bh2>>>17)%per))%per)/per);
+      var wind=((bh2>>>5)%628)/100, gx=bx0+(B.w>>1), gy=base-Math.round(B.h*0.25);
+      for(var q=1;q<=10;q++){
+        var P=bhPath(t*(q/10),gx,gy,hx,hy,wind,K,R);
+        var w2=Math.max(1,Math.round(B.w*(1-P.e)*(1-P.e*0.5)));
+        var h2=Math.max(1,Math.round(B.h*0.16*(1-P.e)));
+        g.fillStyle=day?"rgba(58,62,76,"+(0.9-0.5*P.e).toFixed(2)+")":"rgba(24,26,36,"+(0.9-0.5*P.e).toFixed(2)+")";
+        g.fillRect(Math.round(P.x-w2*0.5),Math.round(P.y-h2*0.5),w2,h2);
+        if(q===10){ g.fillStyle="rgba(255,206,150,"+(0.5*(1-P.e)+0.2).toFixed(2)+")";
+          g.fillRect(Math.round(P.x-w2*0.5),Math.round(P.y-h2*0.5),w2,Math.max(1,Math.round(K))); }
+      }
+    }
+  }
+  // ── 🚶 AND THE PEOPLE. Recognisable while they are still low — `drawPerson` at its fixed 7px, the one
+  // body routine — then drawn out into a thread of specks as the tide takes them apart.
+  for(var i=0;i<Math.round(WW/11);i++){
+    var h=((i*2654435761+7331)>>>0); h=(h^(h>>>13))>>>0;
+    var sx=apocScatterX(h>>>5); if(sx<0||sx>=SW) continue;
+    if(nukeDist(wrapW(sx+WOFF),epi)>=reach) continue;
+    var per2=5200+((h>>>11)%4200);
+    var t2=Math.min(1,((now+((h>>>19)%per2))%per2)/per2);
+    var wind2=((h>>>7)%628)/100;
+    var P2=bhPath(t2,sx,base,hx,hy,wind2,K,R);
+    if(P2.x<-8||P2.x>SW+8) continue;
+    if(P2.e<0.22){
+      drawPerson(g,Math.round(P2.x),Math.round(P2.y),hexDark(PEDC[(h>>>13)%PEDC.length],0.18),
+                 hexDark(SKINC[(h>>>23)%SKINC.length],0.12),(h&1)?1:-1,0);
+    } else {
+      // ── 🩸🔒 AND THEY COME APART. His call. Spaghettification is not a clean disappearance — the tidal
+      // gradient pulls harder on the leading end than the trailing one until the body simply parts, and
+      // what leaves is arterial. 🔑 THE BLOOD GOES WHERE THE TEARING IS: heaviest right at the moment the
+      // thread starts (`e` just past the point they stop reading as a person) and thinning to nothing as
+      // what is left is drawn out — so the gore marks the EVENT, not the whole journey.
+      // ⚠ `goreK()` or it is not a setting.
+      var GK=goreK();
+      if(GK>0){
+        var tear=Math.max(0,1-Math.abs(P2.e-0.34)/0.30);          // peaks where the body parts
+        if(tear>0.02){
+          var bw=Math.max(1,Math.round(K*(1+tear)));
+          g.fillStyle="rgba(168,18,24,"+(0.85*tear*GK).toFixed(2)+")";
+          g.fillRect(Math.round(P2.x-bw*0.5),Math.round(P2.y-bw*0.5),bw,bw);
+          // the spray, thrown along the path behind them — it is being pulled in too
+          for(var sq=1;sq<=4;sq++){
+            var Ps=bhPath(Math.max(0,t2-sq*0.030),sx,base,hx,hy,wind2,K,R);
+            var sa=(0.7*tear*(1-sq/5)*GK);
+            if(sa<=0.05) continue;
+            g.fillStyle="rgba("+(150+18*sq)+","+(14+6*sq)+",20,"+sa.toFixed(2)+")";
+            g.fillRect(Math.round(Ps.x),Math.round(Ps.y),Math.max(1,Math.round(K*0.8)),Math.max(1,Math.round(K*0.8)));
+          }
+        }
+      }
+      var tl=Math.max(2,Math.round(9*(1-P2.e)));
+      for(var q2=0;q2<tl;q2++){
+        var Pq=bhPath(Math.max(0,t2-q2*0.018),sx,base,hx,hy,wind2,K,R);
+        var a2=(1-P2.e)*(1-q2/tl)*0.9; if(a2<=0.04) continue;
+        g.fillStyle=(q2===0)?"rgba(255,214,168,"+a2.toFixed(2)+")"
+                   :(q2<3&&goreK()>0)?"rgba(158,20,26,"+(a2*0.9).toFixed(2)+")"      // the near end is still bleeding
+                            :"rgba("+(day?196:120)+","+(day?150:96)+","+(day?150:104)+","+a2.toFixed(2)+")";
+        var ps=Math.max(1,Math.round(K*(1-P2.e)));
+        g.fillRect(Math.round(Pq.x),Math.round(Pq.y),ps,ps);
+      }
+    }
+  }
+  // ── 🛣️🔒 AND FINALLY THE GROUND ITSELF. His call: "even the road should fly in eventually." It is the
+  // last thing to go and the most disturbing, because every other ending leaves the street — the ground
+  // is the one surface the whole map is measured against, and a world with no floor left is the only
+  // honest end state for a thing that takes EVERYTHING.
+  // 🔑 IT PEELS FROM GROUND ZERO OUTWARD, slab by slab, and each slab's launch is DERIVED from how far it
+  // is from the epicentre — so the void spreads as one front instead of the road dissolving at random.
+  // ⚠ What is left behind is not dark road, it is NOTHING: the frame below the tear is the same void the
+  // sky has become, because there is no ground under it any more.
+  var road=Math.min(1,Math.max(0,(ap-0.46)/0.40));
+  if(road>0){
+    var nR=Math.round(WW/13), maxD=WW*0.62;
+    for(var r=0;r<nR;r++){
+      var hr=((r*2654435761+5171)>>>0); hr=(hr^(hr>>>13))>>>0;
+      var rwx=(hr>>>5)%WW, rd=nukeDist(rwx,epi);
+      var frac=1-Math.min(1,rd/maxD);
+      if(road<(1-frac)) continue;                        // this slab has not torn loose yet
+      var rsx=Math.round(disX(rwx)); if(rsx<-60||rsx>SW+60) continue;
+      var rw=Math.max(3,Math.round((10+((hr>>>17)%22))*K));
+      // ── 🕳️ THE VOID IT LEFT. ⚠ IT WAS ONE `fillRect` PER SLAB and read as a row of black letterboxes
+      // cut in the road — his word was "blocky", and a rectangle is exactly what tarmac does NOT do when
+      // it tears. 🔑 The tear is walked in CHUNKS with a hashed top edge, so the rim is ragged and each
+      // slab breaks at a different height; a lit lip along it catches the disk and gives the hole a
+      // thickness instead of an outline. Chunked rather than per-column: a staircase of ~10 steps reads
+      // as broken ground and costs a twentieth of the marks.
+      var step=Math.max(2,Math.round(3*K));
+      for(var cx4=rsx;cx4<rsx+rw;cx4+=step){
+        if(cx4<-step||cx4>=SW) continue;
+        var ch4=((cx4*2654435761+r*7919)>>>0); ch4=(ch4^(ch4>>>13))>>>0;
+        var edge=Math.round(HORIZON-K+((ch4>>>5)%Math.max(1,Math.round(5*K)))-Math.round(2*K));
+        var cw4=Math.min(step,rsx+rw-cx4);
+        g.fillStyle="rgba(3,3,9,0.96)";
+        g.fillRect(cx4,edge,cw4,SH-edge);
+        g.fillStyle=day?"rgba(96,92,88,0.75)":"rgba(46,44,42,0.75)";      // the broken lip, seen edge-on
+        g.fillRect(cx4,edge,cw4,Math.max(1,Math.round(K*0.7)));
+        if(((ch4>>>17)&3)===0){                                            // reinforcement left hanging in it
+          g.fillStyle="rgba(140,120,96,0.6)";
+          g.fillRect(cx4+((ch4>>>21)%Math.max(1,cw4)),edge,Math.max(1,Math.round(K*0.5)),Math.round(3*K));
+        }
+      }
+      var tr=Math.min(1,(road-(1-frac))/0.22);
+      if(tr<=0.01) continue;
+      var Pr=bhPath(tr,rsx+(rw>>1),base,hx,hy,((hr>>>9)%628)/100,K,R);
+      if(Pr.x<-rw||Pr.x>SW+rw) continue;
+      var rw2=Math.max(1,Math.round(rw*(1-Pr.e*0.75)));
+      var rh2=Math.max(1,Math.round((2+3*(1-Pr.e))*K));
+      var tilt=Math.round(Pr.e*rh2*2.2);
+      g.fillStyle=day?"rgba(52,54,62,"+(0.92-0.45*Pr.e).toFixed(2)+")":"rgba(22,24,30,"+(0.92-0.45*Pr.e).toFixed(2)+")";
+      g.fillRect(Math.round(Pr.x-rw2*0.5),Math.round(Pr.y-rh2*0.5)+tilt,rw2,rh2);
+      g.fillStyle="rgba(236,236,240,"+(0.55*(1-Pr.e)).toFixed(2)+")";   // the lane marking, still on it
+      g.fillRect(Math.round(Pr.x-rw2*0.3),Math.round(Pr.y-rh2*0.5)+tilt,Math.max(1,Math.round(rw2*0.35)),Math.max(1,Math.round(K*0.6)));
+      g.fillStyle="rgba(255,198,140,"+(0.4*(1-Pr.e)).toFixed(2)+")";    // the disk catching its edge
+      g.fillRect(Math.round(Pr.x-rw2*0.5),Math.round(Pr.y-rh2*0.5)+tilt,rw2,Math.max(1,Math.round(K*0.5)));
+    }
+  }
+  // ── 🧱 AND THE LOOSE WORLD WITH THEM — cars, rubble and signage torn off and streaming up.
+  for(var d3=0;d3<Math.round(WW/16);d3++){
+    var hd=((d3*2654435761+4409)>>>0); hd=(hd^(hd>>>13))>>>0;
+    var dx3=apocScatterX(hd>>>5); if(dx3<0||dx3>=SW) continue;
+    if(nukeDist(wrapW(dx3+WOFF),epi)>=reach) continue;
+    var per3=4000+((hd>>>9)%5000);
+    var t3=Math.min(1,((now+((hd>>>21)%per3))%per3)/per3);
+    var P3=bhPath(t3,dx3,base-((hd>>>15)%6),hx,hy,((hd>>>3)%628)/100,K,R);
+    if(P3.x<-6||P3.x>SW+6) continue;
+    var sz=Math.max(1,Math.round((1+((hd>>>25)%3))*K*(1-P3.e*0.8)));
+    g.fillStyle=day?"rgba(70,74,88,"+(0.85-0.5*P3.e).toFixed(2)+")":"rgba(30,33,44,"+(0.85-0.5*P3.e).toFixed(2)+")";
+    g.fillRect(Math.round(P3.x),Math.round(P3.y),sz,sz);
+    g.fillStyle="rgba(255,198,140,"+(0.35*(1-P3.e)).toFixed(2)+")";
+    g.fillRect(Math.round(P3.x),Math.round(P3.y),sz,Math.max(1,Math.round(K*0.5)));
+  }
+}
 function drawApocBlackHole(g,ap,L,now){
-  var formP=Math.min(1,apocMs/BH_FORM_MS);                    // singularity formation
-  var frontR=bhFrontR(), prog=Math.min(1,frontR/(WW*0.5));   // how much of the city has been pulled in
-  var bp=bhPos(now), sx=bp.sx, sy=bp.sy, spin=now*0.006;
+  var K=Math.max(1,KSP);
+  var G=bhGeo(ap,now), sx=G.sx, sy=G.sy, R=G.R;
+  var frontR=bhFrontR(), prog=Math.min(1,frontR/(WW*0.5));
+  var spin=now*0.00035;
+  var onScreen=true;   // ⚠ never culled now — see bhGeo: it is on every monitor by construction
 
-  // ===== LONG AFTERMATH (hours): a STATIC void — near-black warped sky, cold stars, the quiet dim hole, empty ground =====
-  if(apocMs>BH_FORM_MS+BH_WIPE_MS+1500){
-    g.fillStyle="rgba(3,2,9,0.97)"; g.fillRect(0,0,SW,HORIZON);
-    for(var stp=0;stp<40;stp++){ var sh0=((stp*2654435761)>>>0); g.fillStyle="rgba(180,190,220,"+(0.2+0.2*((sh0>>>3)&1))+")"; g.fillRect(sh0%SW,(sh0>>>9)%HORIZON,1,1); }
-    g.globalCompositeOperation="lighter"; g.fillStyle="rgba(60,40,110,0.28)"; fillEllipse(g,sx,sy,26,24); g.globalCompositeOperation="source-over";   // residual halo (FIXED size)
-    g.fillStyle="#000"; fillEllipse(g,sx,sy,15,15);                                             // the black disk remains
-    g.fillStyle="rgba(4,3,10,0.95)"; g.fillRect(0,HORIZON,SW,SH-HORIZON);                       // empty dark ground
-    drawDoomHud(g,ap,now,cityName+" CONSUMED",cityName+" CONSUMED");
-    return;
+  // ===== THE SKY GOES. Daylight is being eaten, so the blue drains toward black and the stars behind
+  // it come through — the one sky in the set that gets DEEPER rather than dirtier.
+  // ⚠ THE SKY GOES, THE GROUND ONLY LOSES ITS COLOUR. A full-frame wash at 0.97 over `HORIZON+GROUND`
+  // took the whole picture to one value and left nothing to watch being destroyed — a translucent layer
+  // over everything cannot create contrast, it is definitionally the opposite.
+  var dark=bhDark(ap);
+  g.fillStyle="rgba(4,3,12,"+dark.toFixed(3)+")"; g.fillRect(0,0,SW,HORIZON);
+  g.fillStyle="rgba(6,5,14,"+(0.40*dark).toFixed(3)+")"; g.fillRect(0,HORIZON,SW,SH-HORIZON);
+  // 🌍 stars hashed in WORLD space with a screen cull — `st%SW` printed the same constellation on all
+  // three of his monitors, the tier-wide bug, still live in this renderer until now.
+  g.globalCompositeOperation="lighter";
+  for(var st=0;st<Math.round(dark*90);st++){
+    var sh=((st*2654435761+7717)>>>0); sh=(sh^(sh>>>13))>>>0;
+    var stx=apocScatterX(sh>>>5); if(stx<0||stx>=SW) continue;
+    var sty=(sh>>>13)%Math.max(1,HORIZON);
+    g.fillStyle="rgba(198,206,236,"+(0.5*dark*(0.55+0.45*Math.sin(now*0.0022+st))).toFixed(3)+")";
+    g.fillRect(stx,sty,1,1);
+  }
+  g.globalCompositeOperation="source-over";
+
+  if(onScreen){
+    // ===== 🔥 THE ACCRETION DISK, BEHIND. The Interstellar shape: the far side of the disk is lifted by
+    // the hole's own lens and arcs OVER the top, so you see the underside of a ring that is physically
+    // edge-on. Drawn as three pieces — the arc over the top, the flat edge-on band, and (after the
+    // sphere) the near arc passing under the bottom.
+    // 🎨 Doppler: the side rotating toward us is blue-white and blinding, the receding side is deep
+    // amber and dim. That asymmetry is what stops a ring from reading as a drawn circle.
+    // ── 💡 THE BLOOM. Additive, and it is the only full-frame-ish light in the ending — a disk this
+    // bright has to spill, or it reads as a sticker.
+    // ⚠ FIVE STEPS AT 0.05 IS NOT A GLOW, IT IS FIVE RINGS. The bloom banded visibly across the sky as
+    // concentric arcs — a gradient built from too few layers reads as contour lines, and additive makes
+    // every seam brighter still. Sixteen layers at a third of the alpha is the same total light with no
+    // edge in it.
+    g.globalCompositeOperation="lighter";
+    // ⚡ TEN, NOT SIXTEEN. These are large additive ellipse fills and they are the most expensive thing
+    // in the ending; ten at a proportionally higher alpha is the same light and still has no visible
+    // banding (the fault was five, not sixteen).
+    for(var bl=10;bl>=1;bl--){
+      g.fillStyle="rgba("+(58+11*bl)+","+(32+7*bl)+",14,0.027)";
+      fillEllipse(g,sx,sy,R*(1.30+bl*0.232),R*(1.05+bl*0.189));
+    }
+    g.globalCompositeOperation="source-over";
+    bhOrbit(g,ap,L,now,G,true);
+    bhHalo(g,sx,sy,R,spin,1.0,false);                           // the far half, arcing over the top
+    bhBand(g,sx,sy,R,spin,0.9,false);                           // the far arm of the edge-on band
+    // ===== ⚫ THE EVENT HORIZON. Pure black, and nothing is ever drawn over it except the near arc.
+    g.fillStyle="#000"; fillEllipse(g,sx,sy,R,R);
+    // ===== ✨ THE PHOTON RING — the hard bright line where light orbits. The single brightest thing in
+    // the frame, and the thing that makes the black read as a HOLE rather than a hole in the canvas.
+    // ⚠ THE PHOTON RING IS A HAIRLINE, and it is what makes the black read as a HOLE rather than as a
+    // gap in the canvas. Drawn by columns like the halo so it is continuous instead of a dotted orbit.
+    var pr0=R+Math.max(1,Math.round(K*0.5));
+    var px0=Math.max(0,Math.floor(sx-pr0)), px1=Math.min(SW-1,Math.ceil(sx+pr0));
+    for(var pxx=px0;pxx<=px1;pxx++){
+      var pdx=pxx-sx, pv=pr0*pr0-pdx*pdx; if(pv<=0) continue;
+      var poff=Math.sqrt(pv);
+      var pd=0.5-0.5*(pdx/pr0); pd=pd*pd*(3-2*pd);
+      var pa2=(0.5+0.45*pd);
+      g.fillStyle="rgba(255,"+((228-40*(1-pd))|0)+","+((196-110*(1-pd))|0)+","+pa2.toFixed(2)+")";
+      var pth=Math.max(1,Math.round(K*0.8));
+      g.fillRect(pxx,Math.round(sy-poff)-pth,1,pth);
+      g.fillRect(pxx,Math.round(sy+poff),1,pth);
+    }
+    bhHalo(g,sx,sy,R,spin,1.0,true);                            // and back under the bottom, in FRONT
+    bhBand(g,sx,sy,R,spin,1.0,true);                            // …and the near arm, crossing the sphere
   }
 
-  // ===== sky darkens & warps as the hole swallows the daylight; stars emerge =====
-  var skyA=Math.min(0.95,0.2+0.72*Math.max(formP*0.5,prog));
-  g.fillStyle="rgba(6,4,16,"+skyA+")"; g.fillRect(0,0,SW,HORIZON);
-  g.globalCompositeOperation="lighter";
-  for(var st2=0;st2<Math.round(skyA*44);st2++){ var s2=((st2*2654435761)>>>0); g.fillStyle="rgba(170,180,215,"+(0.3*skyA)+")"; g.fillRect(s2%SW,(s2>>>9)%HORIZON,1,1); }
-
-  // ===== gravitational LENSING halo — concentric distortion rings (drawn only, never a pixel read) =====
-  var Rd=8+formP*16+prog*10;                                                                    // the hole/disk scale (bounded)
-  for(var lr=4;lr>=1;lr--){ var rr=Rd*(1.5+lr*0.65); g.fillStyle="rgba(60,80,165,"+(0.035+0.015*lr)+")"; fillEllipse(g,sx,sy,rr,rr*0.9); }
-
-  // ===== the ACCRETION DISK — a blazing tilted ring of superheated matter spiralling in (Doppler-brightened on one side) =====
-  for(var adk=0; adk<44; adk++){ var aa=(adk/44)*Math.PI*2+spin, hot=(Math.sin(aa)+1)*0.5;
-    g.fillStyle="rgba(255,"+((140+80*hot)|0)+","+((40+60*hot)|0)+","+(0.5+0.4*hot)+")"; g.fillRect((sx+Math.cos(aa)*Rd*2.1)|0,(sy+Math.sin(aa)*Rd*0.66)|0,2,2); }
-  for(var ad2=0; ad2<30; ad2++){ var aa2=(ad2/30)*Math.PI*2-spin*1.5; g.fillStyle="rgba(180,210,255,0.7)"; g.fillRect((sx+Math.cos(aa2)*Rd*1.35)|0,(sy+Math.sin(aa2)*Rd*0.46)|0,1,1); }
-  g.globalCompositeOperation="source-over";
-
-  // ===== the singularity — a pure black disk ringed by a bright photon sphere =====
-  g.fillStyle="#000"; fillEllipse(g,sx,sy,Rd,Rd);
-  g.globalCompositeOperation="lighter";
-  for(var pr=0; pr<30; pr++){ var pa=(pr/30)*Math.PI*2; g.fillStyle="rgba(220,180,255,0.8)"; g.fillRect((sx+Math.cos(pa)*(Rd+1.5))|0,(sy+Math.sin(pa)*(Rd+1.5))|0,1,1); }
-
-  // ===== everything is dragged in — debris/dust/light spiralling toward the hole =====
-  if(apocStruck()){ for(var pt=0; pt<Math.round(14+prog*30); pt++){ var ph=((pt*2654435761+3)>>>0);
-      var life=((now*0.05+pt*37+ph)%100)/100, ang=(ph%628)/100+life*7, rad=(1-life)*(Rd*2+((ph%100)/100)*SW*0.5);
-      var pxp=sx+Math.cos(ang)*rad, pyp=sy+Math.sin(ang)*rad*0.8;
-      if(pxp<-3||pxp>SW+3) continue;
-      g.fillStyle=(pt&1)?"rgba(200,170,255,"+(0.6*(1-life))+")":"rgba(255,150,90,"+(0.6*(1-life))+")"; g.fillRect(pxp|0,pyp|0,1+((ph>>4)&1),1); } }
-  g.globalCompositeOperation="source-over";
-
-  var msg=(formP<1)?"SINGULARITY FORMING":(prog<1)?"EVENT HORIZON EXPANDING - "+Math.round(prog*100)+" PCT":cityName+" CONSUMED";
+  bhOrbit(g,ap,L,now,G,false);
+  bhSun(g,ap,L,now,G);
+  bhStream(g,ap,L,now,G);
+  var msg=(ap<BH_FORM_AP)?"SINGULARITY FORMING"
+         :(prog<1)?"EVENT HORIZON EXPANDING - "+Math.round(prog*100)+" PCT":cityName+" CONSUMED";
   drawDoomHud(g,ap,now,msg,cityName+" CONSUMED");
+}
+// ── 🔥 THE DISK. ⚠ FIRST CUT WAS A ROPE: a 1px trail scattered along a circle with a 5% wobble, which
+// read as an orange noodle looping round the sphere, and the lens then bent it into a wandering line.
+// A disk is an ANNULUS — filled between two radii — and the wobble is what made it look hand-drawn.
+// 🔒 The Interstellar silhouette is two rings sharing one outer radius: a HALO standing vertically
+// (the far side of the disk, its light bent up over the top and back under the bottom) crossed by a
+// flat EDGE-ON BAND (the near and far sides seen in the disk's own plane). A bar through a circle.
+// 🎨 DOPPLER IS WHAT SELLS IT: the side rotating toward us is blue-white and blinding, the receding
+// side is deep amber and half as bright. Symmetrical brightness reads as a drawn ring every time.
+// ── 🔥 THE HALO, DRAWN BY COLUMNS. 🔒 "Can we make it more realistic, it looks weird."
+// 🚨🔑 THE HARD SEAM WAS THE WHOLE PROBLEM. Doppler was a STEP — `(q<0)?1.0:0.40` on the band and a
+// rectangular clip at `x<cx` on the halo — so a straight vertical line ran down the middle of the
+// object, white on one side and amber on the other. Nothing in nature has that edge; it read as two
+// half-rings pasted together. Brightness now varies SMOOTHLY with the column, which for a disk seen
+// nearly edge-on is also the physically right axis: the approaching and receding arms are left and
+// right, so the gradient runs horizontally and peaks at the limbs.
+// 🚨🔑 AND AN EVEN ANNULUS IS AN ECLIPSE, NOT AN ACCRETION DISK. Real lensing makes the far side arc
+// over the top as a THIN band while the arms at the sides stay thick and bright — the thickness is what
+// says "a flat disk seen edge-on and bent" instead of "a glowing ring". The top run is squeezed and the
+// side lobes are left fat.
+// ⚡ Two fills per column beats sampling a polar grid: no basket weave (the first version wove one), a
+// smooth gradient for free, and per-column control of both thickness and colour.
+function bhHalo(g,cx,cy,R,spin,bright,front){
+  var r1=R*1.46, r0=R*1.17, asp=0.98;
+  var x0=Math.max(0,Math.floor(cx-r1)), x1=Math.min(SW-1,Math.ceil(cx+r1));
+  for(var x=x0;x<=x1;x++){
+    var dx=x-cx, q=dx/r1;
+    if(q<-1||q>1) continue;
+    var o2=r1*r1-dx*dx; if(o2<=0) continue;
+    var outer=Math.sqrt(o2)*asp;
+    var i2=r0*r0-dx*dx, inner=(i2>0)?Math.sqrt(i2)*asp:0;
+    // 🎨 smooth Doppler: brightest on the approaching limb, falling all the way round to the receding one
+    var dop=0.5-0.5*q;                       // 1 at the left limb → 0 at the right
+    dop=dop*dop*(3-2*dop);
+    var lit=0.30+0.66*dop;
+    var gg=(150+100*dop)|0, bb=(46+186*dop)|0;
+    var rr=(255-((1-dop)*22))|0;
+    var top=cy-outer, tHi=outer-inner;
+    if(tHi<0.6) continue;
+    if(front){
+      // the near arm passes UNDER the sphere: fat, and the brightest thing in the frame
+      g.fillStyle="rgba("+rr+","+gg+","+bb+","+(lit*bright).toFixed(3)+")";
+      g.fillRect(x,Math.round(cy+inner),1,Math.max(1,Math.round(tHi)));
+      if(dop>0.62){ g.fillStyle="rgba(244,250,255,"+(0.5*(dop-0.62)/0.38*bright).toFixed(3)+")";
+        g.fillRect(x,Math.round(cy+inner),1,Math.max(1,Math.round(tHi*0.45))); }
+    } else {
+      // the far side, lifted over the top by the hole's own lens — a THIN band, not a fat ring
+      var sq=Math.max(1,Math.round(tHi*(0.30+0.45*Math.abs(q))));
+      g.fillStyle="rgba("+rr+","+gg+","+bb+","+(lit*0.92*bright).toFixed(3)+")";
+      g.fillRect(x,Math.round(top+(tHi-sq)),1,sq);
+      if(dop>0.62){ g.fillStyle="rgba(244,250,255,"+(0.42*(dop-0.62)/0.38*bright).toFixed(3)+")";
+        g.fillRect(x,Math.round(top+(tHi-sq)),1,Math.max(1,Math.round(sq*0.5))); }
+    }
+  }
+}
+// the edge-on band: the disk seen in its own plane, stretched far out to either side and pinched thin
+function bhBand(g,cx,cy,R,spin,bright,front){
+  // ⚠ IT WAS A PLANK. At reach 3R with a linear taper the arms crossed the whole screen at near-constant
+  // brightness and read as a beam laid over the picture. An accretion arm seen edge-on is brightest where
+  // it leaves the sphere and gone by its own outer edge, so the falloff is squared and the reach is
+  // tighter — it now belongs to the hole instead of to the frame.
+  var reach=Math.round(R*2.3), thick=Math.max(2,Math.round(R*0.12));
+  for(var q=-reach;q<=reach;q+=1){
+    var f=Math.abs(q)/Math.max(1,reach);
+    if(front){ if(f>0.58) continue; }                     // the near arm crosses the sphere
+    else if(f<0.52) continue;                             // the far arm is hidden behind it
+    var th=Math.max(1,Math.round(thick*(1-f*0.72)));
+    var yy=cy+Math.round(Math.sin(q*0.006+spin*2)*R*0.02);
+    var dop=0.5-0.5*Math.max(-1,Math.min(1,q/reach)); dop=dop*dop*(3-2*dop);   // smooth, never a step
+    var a=(0.26+0.62*dop)*(1-f)*(1-f)*bright;
+    g.fillStyle="rgba(255,"+((150+100*dop)|0)+","+((44+168*dop)|0)+","+a.toFixed(2)+")";
+    g.fillRect((cx+q)|0,(yy-th*0.5)|0,1,th);
+    if(dop>0.8&&((q*2654435761)>>>0)%4===0){              // the blue-white core of the approaching arm
+      g.fillStyle="rgba(238,246,255,"+(0.7*(1-f)*bright).toFixed(2)+")";
+      g.fillRect((cx+q)|0,(yy-th*0.22)|0,1,Math.max(1,Math.round(th*0.45)));
+    }
+  }
 }
 // ALIEN WAR: two alien fleets battle overhead; Earth is collateral — stray beams & burning wreckage rake the city apart.
 // Timeline on the real-time apocMs clock (fleets engage ~3s → crossfire rakes the city ~8s → devastated wasteland).
@@ -58195,102 +62330,273 @@ function drawApocFox(g,ap,L,now){
         : (prog<0.9 ? cityName+" IS BEING LEVELLED" : cityName+" IS GONE");
   drawDoomHud(g,ap,now,msg,"NINE TAILS ABOVE THE TREELINE");
 }
+// ── ☁️ THE WORLD THE ANIMAL IS WALKING THROUGH — the dust it kicks up, the sea it came out of, the
+// army that cannot stop it, and the HUD. 🚨 EVERYTHING THAT DRAWS THE CREATURE ITSELF WAS DELETED FROM
+// HERE. This function used to draw a whole second beast — a bar-shaped body at `gy*(0.30+0.24)` with a
+// staircase tail, cyan spine dots and its own beam — at the same epicentre `kaijuBody` draws the real
+// one. Both ran, every frame, and he saw it immediately: *"it looks like there is 2 of them behind each
+// other."* A renderer that was REPLACED has to be removed in the same commit, or it just moves behind
+// the new one and waits to be reported as a mystery.
 function drawApocKaiju(g,ap,L,now){
-  var arriveP=Math.min(1,apocMs/KAIJU_ARRIVE_MS);
-  var frontR=kaijuFrontR(), prog=Math.min(1,frontR/(WW*0.5));
-  var epiX=apocEpiX(now), sx=epiX-WOFF, gy=HORIZON;
-  if(sx>SW+900&&sx-WW>-900)sx-=WW; if(sx<-900&&sx+WW<SW+900)sx+=WW;
+  var K=Math.max(1,KSP), day=L>0.5, arriveP=Math.min(1,apocMs/KAIJU_ARRIVE_MS), prog=kaijuWalkProg(), gy=HORIZON;
+  var wxK=kaijuWalkX(now), sx=Math.round(disX(wxK));
+  var late=Math.max(0,Math.min(1,(apocMs-(KAIJU_ARRIVE_MS+KAIJU_WIPE_MS))/5000));
 
-  // ===== LONG AFTERMATH (hours): a STATIC flattened city under a dust-choked sky, the beast departing =====
-  if(apocMs>KAIJU_ARRIVE_MS+KAIJU_WIPE_MS+1500){
-    g.fillStyle="rgba(58,44,42,0.55)"; g.fillRect(0,0,SW,gy);
-    g.globalCompositeOperation="lighter"; for(var sm=0;sm<6;sm++){ var smx=((sm*2654435761)>>>0)%SW; g.fillStyle="rgba(90,70,60,0.10)"; g.fillRect(smx-20,(gy*0.3)|0,40,(gy*0.7)|0); } g.globalCompositeOperation="source-over";
-    var dmx=sx+130, H2=Math.round(gy*0.2);                                                                          // the monster small, on the horizon, moving on
-    g.fillStyle="#141a14"; g.fillRect((dmx-4)|0,gy-H2,8,H2); g.fillRect((dmx-2)|0,gy-H2-3,6,4);
-    g.fillStyle="rgba(6,4,5,0.88)"; g.fillRect(0,gy,SW,SH-gy);
-    drawDoomHud(g,ap,now,cityName+" IN RUINS","THE MONSTER MOVES ON");
-    return;
-  }
-
-  g.fillStyle="rgba(70,50,44,"+(0.12+0.42*prog)+")"; g.fillRect(0,0,SW,gy);                                          // dust-choked sky
-  g.globalCompositeOperation="lighter";                                                                             // dust boiling along the flattened swath
-  for(var dc2=0;dc2<14;dc2++){ var dhx=((dc2*2654435761)>>>0), dsx=sx+((dhx%1000)/1000*2-1)*frontR;
-    if(dsx<-20||dsx>SW+20) continue; var dph=((now*0.02+dc2*70)%100)/100;
-    g.fillStyle="rgba(150,120,100,"+(0.16*(1-dph))+")"; g.fillRect((dsx-4)|0,(gy-6-dph*30)|0,8,6); }
-  g.globalCompositeOperation="source-over";
-
-  // ===== THE BEAST — a towering silhouette straddling the epicentre, thrashing =====
-  var H=Math.round(gy*(0.30+0.24*arriveP)), top=gy-H, W=Math.round(H*0.30);
-  var sway=Math.round(Math.sin(now*0.003)*3), X0=(sx-W/2+sway)|0, breathDir=(Math.floor(now/1100)&1)?1:-1;
-  var cxB=X0+(W>>1);
-  g.globalCompositeOperation="lighter"; g.fillStyle="rgba(120,70,170,0.09)"; fillEllipse(g,cxB,top+H*0.5,W*0.9,H*0.6); g.globalCompositeOperation="source-over";   // soft backlight so the beast reads against the sky
-  var neckY=top+Math.round(H*0.22), hipY=gy-Math.round(H*0.32);
-  g.fillStyle="#1b2a1c";
-  // hunched torso — narrow shoulders tapering to a broad hip (draw as stacked rows)
-  for(var by2=neckY; by2<hipY; by2++){ var tf2=(by2-neckY)/Math.max(1,hipY-neckY), tw=Math.round(W*(0.5+0.5*tf2)); g.fillRect(cxB-(tw>>1),by2,tw,1); }
-  g.fillRect(cxB-2,top+Math.round(H*0.1),4,Math.round(H*0.14));                                // neck
-  var hd=Math.round(W*0.62), hy=top+Math.round(H*0.06);                                        // head juts forward the way it breathes
-  g.fillRect((breathDir<0?cxB-2-hd:cxB-2)|0,hy,hd,Math.round(H*0.11)); g.fillRect((breathDir<0?cxB-2-hd:cxB+hd-4)|0,hy+1,3,Math.round(H*0.07));   // + snout
-  var legW=Math.round(W*0.26);
-  g.fillRect(cxB-Math.round(W*0.36),hipY,legW,gy-hipY); g.fillRect(cxB+Math.round(W*0.36)-legW,hipY,legW,gy-hipY);   // two straddling legs
-  g.fillRect((breathDir<0?cxB-Math.round(W*0.5)-2:cxB+Math.round(W*0.5)-1)|0,neckY+3,3,Math.round(H*0.24));          // the forward arm/claw
-  for(var tl=0;tl<Math.round(H*0.5);tl++){ var txp=cxB+(breathDir<0?Math.round(W*0.4)+tl:-Math.round(W*0.4)-tl), typ=hipY+2+Math.round(Math.sin(tl*0.28)*4)+Math.round(tl*0.25); g.fillStyle="#142115"; g.fillRect(txp|0,Math.min(gy-1,typ)|0,2,3); }   // a long sweeping tail
+  // ── dust-choked sky. It thickens as the animal crosses, then THINS again once it has gone — the
+  // aftermath is not one frozen frame, it is the air clearing over something that is not coming back.
+  var murk=0.12+0.44*prog-0.20*late;
+  g.fillStyle="rgba(70,50,44,"+murk.toFixed(3)+")"; g.fillRect(0,0,SW,gy);
+  // dust boiling off the swath it has already walked, world-anchored so all three screens agree
   g.globalCompositeOperation="lighter";
-  for(var sp=0;sp<hipY-neckY;sp+=3){ var fw=1+((sp/3)&1); g.fillStyle="rgba(150,235,255,0.85)"; g.fillRect((cxB-(fw>>1))|0,(neckY+sp)|0,fw,2); }   // glowing dorsal fins down the spine
-  g.fillStyle="rgba(90,225,255,0.55)"; g.fillRect(cxB-Math.round(W*0.5),top,1,H); g.fillStyle="rgba(255,90,200,0.55)"; g.fillRect(cxB+Math.round(W*0.5),top,1,H);   // rim light
-  g.fillStyle="rgba(255,70,50,1)"; g.fillRect((breathDir<0?cxB-hd+1:cxB+hd-4)|0,(hy+1)|0,2,2);   // baleful eye on the head
-  g.globalCompositeOperation="source-over";
-  // ATOMIC BREATH — a searing beam lances DOWN from the maw and RAKES THE STREET, vaporizing the crowd
-  if(apocMs>KAIJU_ARRIVE_MS*0.6 && (Math.floor(now/900))%2===0){
-    var mouthX=(breathDir<0?cxB-hd:cxB+hd), mouthY=hy+2, sweep=Math.sin(now*0.004)*W*1.7, impX=cxB+sweep, impY=gy;
-    g.globalCompositeOperation="lighter";
-    var steps=Math.max(3,Math.round(Math.hypot(impX-mouthX,impY-mouthY)/2));
-    for(var bs=0;bs<=steps;bs++){ var bt=bs/steps, bx3=mouthX+(impX-mouthX)*bt, by3=mouthY+(impY-mouthY)*bt;
-      g.fillStyle="rgba(170,248,255,"+(0.88-0.22*bt).toFixed(2)+")"; g.fillRect((bx3-1)|0,by3|0,3,3);
-      g.fillStyle="rgba(242,255,255,0.9)"; g.fillRect(bx3|0,by3|0,1,2); }
-    g.fillStyle="rgba(255,255,244,0.9)"; fillEllipse(g,impX,impY-2,8,5);                        // ground-impact blaze
-    g.fillStyle="rgba(140,245,255,0.65)"; fillEllipse(g,impX,impY-2,14,9);
-    g.globalCompositeOperation="source-over";
-    g.fillStyle="rgba(18,12,10,0.7)"; g.fillRect((impX-11)|0,gy-1,22,2);                        // scorched street
-    for(var vp=0;vp<4;vp++){ var vpx=impX+(vp-1.5)*6, vt=((now+vp*130)%700)/700;               // people at the impact flashing to ash
-      if(vt<0.5){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,242,214,"+(1-vt*2).toFixed(2)+")";
-        g.fillRect(vpx|0,(gy-4+((vt*4)|0))|0,2,Math.max(1,4-((vt*4)|0))); g.globalCompositeOperation="source-over"; } }
+  for(var dc2=0;dc2<16;dc2++){
+    var dhx=((dc2*2654435761+29)>>>0); dhx=(dhx^(dhx>>>13))>>>0;
+    var alongD=(dhx%1000)/1000*kaijuWalkProg()*WW*0.95;
+    var dsx=Math.round(disX(wrapW(apocEpiX(now)+kaijuDir()*alongD)));
+    if(dsx<-20||dsx>SW+20) continue;
+    var dph=((now*0.02+dc2*70)%100)/100;
+    g.fillStyle="rgba(150,120,100,"+(0.22*(1-dph)*(1-late*0.7)).toFixed(2)+")";
+    g.fillRect(dsx-Math.round(4*K),Math.round(gy-6*K-dph*34*K),Math.round(8*K),Math.round(6*K));
   }
-  g.fillStyle="rgba(120,100,86,0.4)"; g.fillRect(cxB-W,gy-3,W*2,3);                             // stomp dust at its feet
-  // BREAKING THROUGH — as it rises, the earth (or the sea) erupts around it
-  if(arriveP<1){ var isSea=hasOcean&&inSea(epiX); g.globalCompositeOperation="lighter";
-    for(var eb=0;eb<11;eb++){ var ebh=((eb*40503+7)>>>0), ebt=((now*0.02+eb*37)%100)/100, ebx=cxB+((ebh%200)/200*2-1)*W;
-      g.fillStyle=(isSea?"rgba(150,212,255,":"rgba(150,112,82,")+(0.42*(1-ebt)).toFixed(2)+")"; g.fillRect(ebx|0,(gy-ebt*42)|0,3,4); }
-    g.globalCompositeOperation="source-over"; }
-  // THE CITY FIGHTS BACK — tanks, jets, troops throw everything at the beast
+  g.globalCompositeOperation="source-over";
+
+  // ── 💥 THE CONTACT. 🚨 Without this the ending was a monster standing NEXT TO a city that had already
+  // decided to fall over: flat ground on one side, intact skyline on the other, and a clean seam between
+  // them that nothing was doing. `drawApocDustWall` cannot help here — it bails on `apocSweepR()<=0` and
+  // kaiju is not a sweep ending — so the front gets its own wall, one band deep, riding on the animal.
+  // 🪵 Billowed off a hash per bucket, never a sine: a wavelength in a dust crown is a sand dune.
+  if(prog>0&&prog<1){
+    var fsx=sx+kaijuDir()*Math.round(HORIZON*0.10);
+    for(var b2=-22;b2<=22;b2++){
+      var bxp=fsx+b2*Math.round(4*K); if(bxp<-30||bxp>SW+30) continue;
+      var bh2=((b2*2654435761+577)>>>0); bh2=(bh2^(bh2>>>13))>>>0;
+      var fall=1-Math.abs(b2)/23;
+      var hgt=Math.round(HORIZON*(0.10+0.30*fall)*(0.72+0.28*Math.sin(now*0.003+b2*0.9))+((bh2>>>7)%11)*K);
+      g.fillStyle=day?"rgba(126,110,98,"+(0.62*fall+0.18).toFixed(2)+")":"rgba(44,40,40,"+(0.66*fall+0.18).toFixed(2)+")";
+      g.fillRect(bxp,gy-hgt,Math.round(5*K),hgt);
+    }
+    // …and the pieces of the block it is standing on, thrown clear of it
+    for(var ch=0;ch<14;ch++){ var chh=((ch*40503+131)>>>0); chh=(chh^(chh>>>9))>>>0;
+      var ct=((now*0.0016+ch*0.137)%1);
+      var cxp=fsx-kaijuDir()*Math.round((ct*120+((chh>>>5)%40))*K);
+      var cyp=gy-Math.round((Math.sin(ct*Math.PI)*HORIZON*0.34)+((chh>>>11)%9));
+      if(cxp<-20||cxp>SW+20) continue;
+      g.fillStyle=day?"rgba(84,74,68,0.95)":"rgba(34,30,30,0.95)";
+      g.fillRect(cxp,cyp,Math.round((2+((chh>>>17)%3))*K),Math.round((2+((chh>>>19)%3))*K)); }
+  }
+
+  // ── 🌊 IT COMES OUT OF THE WATER. The sea (or the ground) erupts around it while it rises, at the
+  // point it actually made landfall rather than wherever it has walked to since.
+  if(arriveP<1){
+    var epiK=apocEpiX(now), esx=Math.round(disX(epiK)), isSea=hasOcean&&inSea(epiK);
+    if(esx>-140&&esx<SW+140){
+      g.globalCompositeOperation="lighter";
+      for(var eb=0;eb<14;eb++){ var ebh=((eb*40503+7)>>>0), ebt=((now*0.02+eb*37)%100)/100;
+        var ebx=esx+((ebh%200)/200*2-1)*Math.round(60*K);
+        g.fillStyle=(isSea?"rgba(150,212,255,":"rgba(150,112,82,")+(0.48*(1-ebt)).toFixed(2)+")";
+        g.fillRect(Math.round(ebx),Math.round(gy-ebt*46*K),Math.round(3*K),Math.round(5*K)); }
+      g.globalCompositeOperation="source-over";
+    }
+  }
+
+  // ── THE CITY FIGHTS BACK AND LOSES. Aimed at where the animal IS, so the response travels with it.
   if(apocMs<KAIJU_ARRIVE_MS+KAIJU_WIPE_MS){
     var milF=0.12+0.34*Math.min(1,apocMs/(KAIJU_ARRIVE_MS+KAIJU_WIPE_MS));
-    drawMilitaryResponse(g,{f:milF,x:epiX,intensity:5,w:Math.round(H*0.3),seed:0x4B41},L,now);
+    drawMilitaryResponse(g,{f:milF,x:wxK,intensity:5,w:Math.round(HORIZON*0.3),seed:0x4B41},L,now);
   }
 
-  var msg=(apocMs<KAIJU_ARRIVE_MS)?"IT RISES FROM THE DEEP":(prog<1)?"KAIJU RAMPAGE - "+Math.round(prog*100)+" PCT":cityName+" IN RUINS";
+  var msg=(apocMs<KAIJU_ARRIVE_MS)?"SOMETHING IS COMING ASHORE"
+         :(prog<1)?"KAIJU RAMPAGE - "+Math.round(prog*100)+" PCT"
+         :(late<0.85)?"IT IS WADING BACK OUT":cityName+" IN RUINS";
   drawDoomHud(g,ap,now,msg,"THE MONSTER MOVES ON");
 }
 // THE FLOOD: the sea rises and drowns the city. Draws the rising body of water (overlay) that swallows the skyline.
-function drawApocFlood(g,ap,L,now){
-  var w=floodLevel(), gy=HORIZON, waterY=gy-w;
-  var riseP=Math.min(1,Math.max(0,apocMs-FLOOD_ONSET_MS)/FLOOD_RISE_MS);
-  g.fillStyle="rgba(40,52,66,"+(0.1+0.34*riseP)+")"; g.fillRect(0,0,SW,gy);                     // storm-dark deluge sky
-  if(riseP<1){ for(var rn=0;rn<90;rn++){ var rnh=((rn*2654435761+1)>>>0); g.fillStyle="rgba(180,200,220,0.28)"; g.fillRect(rnh%SW,(((rnh>>>9)+now*0.4)%gy)|0,1,3); } }   // driving rain
-
-  if(w>0){
-    for(var yy=waterY; yy<SH; yy+=3){ var dep=(yy-waterY)/Math.max(1,SH-waterY);               // the rising body of water (darker deep)
-      g.fillStyle="rgba("+Math.round(26+18*(1-dep))+","+Math.round(58+40*(1-dep))+","+Math.round(88+50*(1-dep))+","+(0.74+0.2*dep)+")"; g.fillRect(0,yy|0,SW,3); }
-    g.globalCompositeOperation="lighter";                                                       // wave shimmer on the surface
-    for(var wv=0;wv<SW;wv+=2){ var wh=Math.sin(wv*0.15+now*0.006)*1.2+Math.sin(wv*0.05-now*0.004); g.fillStyle="rgba(160,210,240,0.35)"; g.fillRect(wv,(waterY+wh)|0,2,1); }
-    g.globalCompositeOperation="source-over";
-    for(var db=0;db<Math.round(6+riseP*16);db++){ var dbh=((db*2654435761+5)>>>0), dbx=((dbh%SW)+now*0.01*((dbh&1)?1:-1)+SW*2)%SW;   // floating debris
-      g.fillStyle=(db&1)?"#3a2f2a":"#2f3a42"; g.fillRect(dbx|0,(waterY+Math.sin(dbx*0.1+now*0.005)*1.4)|0,3+((dbh>>3)%3),2); }
+// ── 🌊🔒 THE FLOOD — MILLER'S PLANET. 🔒 His call: a wave like Interstellar's, and they keep coming; the
+// people try to swim and drown; the drowned drift through it *"like a fishtank almost."*
+// 🚨 WHAT WAS HERE WAS A BLUE FILTER. A translucent slab over the whole frame with the entire city still
+// legible through it at every depth — and a wash cannot create contrast, it drags every value in the
+// picture toward one number. Measured, the drowned frame was one flat blue field. So the water now has
+// DEPTH: it clears in the near field and closes over everything toward the horizon, and what reads
+// against it is what is drifting in it.
+// 🚨 AND EVERY MOVING THING IN IT WAS SCREEN-SPACE. The rain was `rnh%SW` and the debris `dbh%SW`, so all
+// three monitors ran their own private weather — `% SW` is a promise a thing is NOT world-anchored.
+// 🚨 *"whatever this is needs to stop bouncing"* — the floating debris was `Math.sin(dbx*0.1+now*0.005)`,
+// a crate hovering on a sine in mid-water. Nothing in here oscillates now: things drift one way, or sink.
+// ── 🌊🔒 THE ONE ON THE HORIZON. `APOC_X_BACK` is the only place a live-pass layer can draw BEHIND the
+// buildings, and a wave still out at sea has to be behind them or it is not out at sea. It grows out of
+// the horizon over the tenth of the arc before it lands — the line that is not the horizon — with a
+// hashed crest and foam already tearing off the top, so the city stands silhouetted against the thing
+// about to remove it. 🪵 Two frequencies plus a per-column hash, never one sine: a sine edge is a dune.
+APOC_X_BACK.flood=function(g,ap,L,now){
+  if(curDeath!=="flood") return;
+  var K=Math.max(1,KSP), gy=HORIZON, w=floodLevel();
+  for(var kn=0;kn<floodWaveCount();kn++){
+    var ahead=floodWaveAt(kn)-ap;
+    if(ahead<=0||ahead>0.11) continue;
+    var grow=Math.pow(1-ahead/0.11,1.6);
+    var top=Math.round(gy-w-floodWaveH(kn)*0.86*grow);
+    var stepH=Math.max(1,Math.round(K));
+    for(var x=0;x<SW;x+=stepH){
+      var hx2=(((x+WOFF)*2654435761)>>>0); hx2=(hx2^(hx2>>>13))>>>0;
+      var crest=top+Math.round((((hx2>>>9)%9)-4)*K*grow)
+                   +Math.round(Math.sin((x+WOFF)*0.011)*6*K*grow)
+                   +Math.round(Math.sin((x+WOFF)*0.037+1.7)*3*K*grow);
+      var hgt=Math.round(gy-w-crest);
+      if(hgt<1) continue;
+      g.fillStyle="rgba(16,34,54,"+(0.55+0.42*grow).toFixed(2)+")";
+      g.fillRect(x,crest,stepH,hgt);
+      g.fillStyle="rgba(226,240,250,"+(0.55*grow).toFixed(2)+")";
+      g.fillRect(x,crest,stepH,Math.max(1,Math.round(K*1.4)));
+    }
   }
-  var msg=(w<HORIZON*0.28)?"THE WATERS ARE RISING":(riseP<1)?"THE FLOOD - "+Math.round(riseP*100)+" PCT":cityName+" IS UNDER WATER";
+};
+function drawApocFlood(g,ap,L,now){
+  var K=Math.max(1,KSP), gy=HORIZON, w=floodLevel(), waterY=gy-w, day=L>0.5;
+  var gz=apocEpiX(now), base=floodBaseF();
+  // ── 🌩️ the sky. World-anchored rain, and it gets worse before the first wave, not after.
+  var storm=Math.max(0,Math.min(1,ap/0.26));
+  g.fillStyle="rgba(34,44,58,"+(0.10+0.44*storm).toFixed(3)+")"; g.fillRect(0,0,SW,gy);
+  if(ap<0.86){
+    for(var rn=0;rn<120;rn++){
+      var rh=((rn*2654435761+1)>>>0); rh=(rh^(rh>>>13))>>>0;
+      var rx=((rh>>>5)%Math.max(1,WW))-WOFF; if(rx<-4||rx>SW+4) continue;
+      var ry=(((rh>>>11)%Math.max(1,gy))+now*0.55*(0.7+((rh>>>19)%40)/100))%gy;
+      g.fillStyle="rgba(180,200,220,"+(0.30*storm).toFixed(2)+")";
+      g.fillRect(Math.round(rx),Math.round(ry),Math.max(1,Math.round(K*0.7)),Math.round(3*K));
+    }
+  }
+  // ── 🏖️ THE DRAWBACK. The sea goes OUT first — the tell that everyone in the story walks toward. Only
+  // where there is a coast to go out from; on a landlocked map the beat is the STILLNESS instead.
+  var drawb=Math.max(0,Math.min(1,(ap-0.10)/0.14))*Math.max(0,1-Math.max(0,ap-0.26)/0.05);
+  if(drawb>0&&hasOcean&&SEA_FRONT>0){
+    var bareH=Math.round(drawb*GROUND*0.9);
+    g.fillStyle=day?"rgba(92,84,70,0.92)":"rgba(38,36,32,0.92)";
+    g.fillRect(0,Math.round(SEA_Y),SW,bareH);                                   // exposed bed
+    for(var pd2=0;pd2<40;pd2++){ var ph=((pd2*2654435761+77)>>>0); ph=(ph^(ph>>>13))>>>0;
+      var px2=((ph>>>5)%Math.max(1,WW))-WOFF; if(px2<0||px2>=SW) continue;
+      g.fillStyle="rgba(60,80,96,0.75)";                                        // pools left in it
+      g.fillRect(Math.round(px2),Math.round(SEA_Y+((ph>>>13)%Math.max(1,bareH))),Math.round((3+((ph>>>17)%6))*K),Math.max(1,Math.round(K)));
+    }
+  }
+  // ── 💧 THE WATER, WITH DEPTH. Near the viewer it is clear enough to see what is in it; toward the
+  // horizon it closes up entirely. That gradient is the contrast — not a uniform slab.
+  if(w>0){
+    var top=Math.max(-4,Math.round(waterY)), stepW=Math.max(2,Math.round(K*1.5));
+    for(var yy=top; yy<SH; yy+=stepW){
+      var dep=(yy-waterY)/Math.max(1,SH-waterY);                                 // 0 at the surface … 1 in the near field
+      var far=Math.max(0,Math.min(1,1-(yy)/Math.max(1,gy)));                     // 1 at the horizon … 0 at the street
+      var al=0.42+0.57*Math.pow(far,1.5);                                        // …so the near field stays readable and the deep closes over completely
+      g.fillStyle="rgba("+Math.round(16+26*dep)+","+Math.round(44+40*dep)+","+Math.round(70+44*dep)+","+al.toFixed(3)+")";
+      g.fillRect(0,yy,SW,stepW);
+    }
+    // ☀️ shafts of light coming down through it — world-anchored, and the only bright thing under here
+    g.globalCompositeOperation="lighter";
+    for(var sh2=0;sh2<9;sh2++){
+      var sh3=((sh2*2654435761+313)>>>0); sh3=(sh3^(sh3>>>13))>>>0;
+      var sx3=((sh3>>>5)%Math.max(1,WW))-WOFF; if(sx3<-40||sx3>SW+40) continue;
+      var swd=Math.round((7+((sh3>>>13)%11))*K);
+      g.fillStyle="rgba(150,200,230,0.055)";
+      g.fillRect(Math.round(sx3),Math.round(waterY),swd,SH-Math.round(waterY));
+    }
+    g.globalCompositeOperation="source-over";
+    // 🐟 …and the surface seen from below, from underneath the frame's own waterline
+    if(waterY>-4&&waterY<SH){ g.fillStyle="rgba(196,224,240,0.5)"; g.fillRect(0,Math.round(waterY),SW,Math.max(1,Math.round(K)));
+      g.globalCompositeOperation="lighter";
+      for(var sf=0;sf<SW;sf+=Math.max(2,Math.round(K*3))){
+        var sfh=(((sf+WOFF)*2654435761)>>>0)%5;
+        g.fillStyle="rgba(180,220,244,0.22)";
+        g.fillRect(sf,Math.round(waterY-sfh*K*0.4),Math.max(1,Math.round(K*2)),Math.max(1,Math.round(K)));
+      }
+      g.globalCompositeOperation="source-over"; }
+  }
+  // ── 🏊 THEY TRY. 🔒 His call: *"people should try and swim but they eventually drown… drowned and
+  // floating throughout this like a fishtank almost."* One hashed population: each has a place in the
+  // world, a moment its strength runs out, and a depth it ends up at. Before that it is at the surface
+  // swimming; after it, it is face-down in the water and it drifts one way and never comes back.
+  // ⚠ NOTHING OSCILLATES. That was the note about the bouncing crate, and a sine on a corpse is worse.
+  {
+    var pop=90;                                    // ⚠ 46 was too few to populate a sea; at this size they read as bodies rather than confetti
+    for(var pi=0;pi<pop;pi++){
+      var hp=((pi*2654435761+6421)>>>0); hp=(hp^(hp>>>13))>>>0;
+      var home=((hp>>>5)%Math.max(1,WW));
+      if(!floodArrived(home)) continue;                                          // 🔑 the wave has not reached this one — they are still in the street, alive, drawn by the crowd
+      var drift=((hp>>>27)&1)?1:-1;
+      var pwx2=wrapW(home+drift*(now*0.0022*(0.4+((hp>>>21)%40)/40)));
+      var psx=disX(pwx2); if(psx<-8||psx>SW+8) continue;
+      // 🔑 each gets a moment of its own, measured from when the water reached IT — so the drowning
+      // travels across the world with the wave instead of the whole population giving up on one clock.
+      var giveUp=floodArrivalAp(home)+0.015+((hp>>>11)%100)/100*0.16;
+      var swim=cityApoc<giveUp;
+      if(swim){
+        if(waterY<0||waterY>SH) continue;
+        var stroke=(Math.floor(now*0.006+pi)&1);                                 // arm up / arm down — a stroke, not a bob
+        g.fillStyle="rgba(226,196,168,0.95)";
+        g.fillRect(Math.round(psx),Math.round(waterY-K),Math.max(1,Math.round(2*K)),Math.max(1,Math.round(2*K)));   // head above the surface
+        g.fillStyle=day?"rgba(40,54,72,0.9)":"rgba(20,28,40,0.9)";
+        g.fillRect(Math.round(psx+(stroke?2*K:-2*K)),Math.round(waterY-(stroke?2.4*K:0.4*K)),Math.max(1,Math.round(2*K)),Math.max(1,Math.round(K)));
+        g.globalCompositeOperation="lighter";                                     // the white water they are making
+        g.fillStyle="rgba(220,240,250,0.35)";
+        g.fillRect(Math.round(psx-2*K),Math.round(waterY),Math.max(1,Math.round(6*K)),Math.max(1,Math.round(K)));
+        g.globalCompositeOperation="source-over";
+      } else {
+        var sank=Math.min(1,(cityApoc-giveUp)/0.16);                              // it goes down, and it stays down
+        var pdep=waterY+sank*(SH-waterY)*(0.20+((hp>>>17)%70)/100*0.65);
+        if(pdep<waterY||pdep>SH+4) continue;
+        var vis=Math.max(0,Math.min(1,(pdep/Math.max(1,gy))));                    // the deep swallows the far ones
+        var aB=(0.34+0.62*vis).toFixed(2), fl2=((hp>>>23)&1)?1:-1;
+        // face-down and slightly splayed: head, shoulders, trunk, then the legs trailing. Drawn dark
+        // against the water rather than pale, so it reads as a shape and not as a speck of light.
+        g.fillStyle=day?"rgba(30,40,56,"+aB+")":"rgba(16,22,34,"+aB+")";
+        g.fillRect(Math.round(psx+2*K),Math.round(pdep),Math.max(1,Math.round(5*K)),Math.max(1,Math.round(2.4*K)));      // trunk
+        g.fillRect(Math.round(psx+7*K),Math.round(pdep+0.6*K),Math.max(1,Math.round(4*K)),Math.max(1,Math.round(1.2*K)));  // legs
+        g.fillRect(Math.round(psx+2*K),Math.round(pdep+fl2*2.2*K),Math.max(1,Math.round(3.4*K)),Math.max(1,Math.round(K)));// one arm out
+        g.fillStyle="rgba(196,166,142,"+aB+")";
+        g.fillRect(Math.round(psx),Math.round(pdep+0.2*K),Math.max(1,Math.round(2.6*K)),Math.max(1,Math.round(2.2*K)));    // the head
+      }
+    }
+  }
+  // ── 🌊🌊 AND THE WAVE. 🔑 DRAWN PER SCREEN COLUMN, from that column's own distance behind the leading
+  // edge measured along the direction of travel. The first cut walked an offset index out from the edge
+  // and multiplied it by a side sign, and the crest and the face came out on OPPOSITE sides of the mass —
+  // a wall that was tallest at its back. There is no sign to get wrong here: a column either has the wave
+  // over it or it does not, and how far behind the face it is says how tall the water is.
+  for(var k=0;k<floodWaveCount();k++){
+    var P=floodWavePos(k); if(P<0||P>WW*1.10) continue;
+    var WH=floodWaveH(k), fade=Math.max(0,Math.min(1,P/(WW*0.05)));
+    var stepC=Math.max(1,Math.round(K));
+    for(var cx2=0;cx2<SW;cx2+=stepC){
+      var wxc=wrapW(cx2+WOFF), ac=((wxc*floodWaveDir())%WW+WW)%WW;
+      var back=(P-ac)/(WW*FL_BAND);
+      if(back<0||back>1) continue;
+      var hc=((wxc*2654435761)>>>0); hc=(hc^(hc>>>13))>>>0;
+      var hgt=Math.round((w+(WH-w)*(1-back)*(1-back)+((hc>>>7)%13)*K*(1-back))*fade);   // tallest at the face
+      if(hgt<1) continue;
+      var d2=Math.min(1,0.99-0.26*back);
+      g.fillStyle="rgba("+Math.round(8+14*back)+","+Math.round(26+26*back)+","+Math.round(44+32*back)+","+d2.toFixed(2)+")";
+      g.fillRect(cx2,gy-hgt,stepC,hgt+GROUND);
+      if(back<0.06){ g.fillStyle="rgba(6,18,32,0.98)"; g.fillRect(cx2,gy-hgt,stepC,hgt+GROUND); }   // the face: steep and near-black
+      if(back<0.34){                                                       // white water tearing off the crest
+        g.globalCompositeOperation="lighter";
+        var fo=Math.round((4+((hc>>>15)%10))*K*(1-back/0.34));
+        g.fillStyle="rgba(232,246,252,"+(0.85*(1-back/0.34)*fade).toFixed(2)+")";
+        g.fillRect(cx2,gy-hgt-fo,stepC,fo+Math.round(3*K));
+        g.globalCompositeOperation="source-over";
+      }
+    }
+  }
+  // ── 🌫️ THE ONE THAT HAS NOT BROKEN YET IS DRAWN BEHIND THE CITY, not here — see `APOC_X_BACK.flood`.
+  // A flat translucent band across the full width of the FRONT layer was a blue rectangle sitting on top
+  // of the skyline: no crest, no distance, and standing in front of towers it is still miles behind.
+  // Same lesson the moon needed, and the same one place in the frame that can fix it.
+  var nextW=-1;
+  for(var kq=0;kq<floodWaveCount();kq++){ var d3=floodWaveAt(kq)-cityApoc; if(d3>0&&(nextW<0||d3<nextW)) nextW=d3; }
+  var msg=(ap<0.10)?"THE STORM IS NOT STOPPING"
+        :(ap<0.26)?"THE SEA HAS GONE OUT"
+        :(ap<FL_W0)?"SOMETHING IS COMING IN FROM THE COAST"
+        :(floodWaveOver(wrapW(WOFF+SW*0.5))>0)?"THE WAVE"
+        :(nextW>0&&nextW<0.10)?"ANOTHER ONE IS BUILDING"
+        :(base<0.98)?"THE WATER IS STILL RISING":cityName+" IS UNDER THE SEA";
   drawDoomHud(g,ap,now,msg,cityName+" DROWNED");
 }
-// a single building dying in the cataclysm: shaking, cracking, burning, collapsing to rubble
 function drawApocBuilding(g,b,bx,cl,L,now,bdir){
   var gy=HORIZON, keep=Math.max(3,Math.round(b.h*(1-cl*0.92)));
   var top=gy-keep, wob=(cl<0.7)?((Math.floor(now/90)+bx)&1):0;
@@ -58968,7 +63274,7 @@ function drawApocRoadDamage(g,L){
     // Pollution ruins infrastructure through long neglect rather than an impact; moonfall's global
     // tidal upheaval has no positional apocHit front. Every other finale follows its real hit map.
     if(curDeath==="pollution") damage=Math.max(0,Math.min(1,(cityApoc-0.02)/0.78));
-    else if(curDeath==="moonfall") damage=Math.max(0,Math.min(1,(cityApoc-0.22)/0.48));
+    else if(curDeath==="moonfall"){ var mrd=moonCrushed(wrapW(WOFF+SW*0.5)); damage=(mrd>=0?mrd:0); }   // the road breaks where the pieces actually landed
     else if(hit) damage=Math.max(0.36,Math.min(1,apocKill));
     if(damage<=0) continue;
     var h=((wx*2654435761+1709)>>>0), chance=(h%1000)/1000;
@@ -59040,7 +63346,23 @@ function draw(g,pass){
   // end-times renderer is a TIMELINE. This pins it.
   if(FORCEAPOCMS!=null){ cityPhase="apoc"; cityG=1; apocMs=FORCEAPOCMS; cityApoc=Math.min(1,apocMs/(APOC_BAND*GROW_CYCLE)); }
   if(DEMO_APOC_SEC>0){ cityPhase="apoc"; cityG=1; curSpace=1;   // TEST: play the apocalypse live on a short repeating loop
-    apocMs=Date.now()%(DEMO_APOC_SEC*1000); cityApoc=Math.min(1,apocMs/(DEMO_APOC_SEC*1000)); curDeath=FORCEDEATH||CFG_FINALE||"nuke"; }   // ⚠ CFG_FINALE too — demo mode ignored the pinned ending and always played the nuke
+    // 🚨🔒 …AND WITH NO `finale` PINNED IT PLAYED THE NUKE. FOREVER. Nick: "I am not seeing the end
+    // times at all." He was not: the review loop was switched off for the map pass, and switching it
+    // back on would have shown him ONE of the 43 on repeat, with the only way to the other 42 being to
+    // ask for a config edit and a reinstall between each. The DISASTER loop eleven thousand lines up
+    // has always cycled its roster one per loop; this one never learned to.
+    // 🔑🔑 THE ROSTER IS A UNION, NOT A TABLE. `DEATHS` holds only the ORIGINAL TWELVE — everything
+    // added since deliberately stayed out of it, because appending re-maps `h % DEATHS.length` and
+    // rewrites the fate of every life already lived (the ninetails finding). Reading `DEATHS` alone is
+    // exactly how verify-endings.js first reported "✅ ALL 12" while checking a quarter of the game.
+    // ⚠ `DEATHS_SPECIAL` is excluded because those are LAND-LOCKED — the five OSRS ends need their own
+    // egg and ninetails needs `leaf`, so cycling them on an arbitrary map shows an ending with its
+    // stage missing.
+    apocMs=Date.now()%(DEMO_APOC_SEC*1000); cityApoc=Math.min(1,apocMs/(DEMO_APOC_SEC*1000));
+    var acl=apocCycleList();
+    curDeath=FORCEDEATH||CFG_FINALE||(acl.length?acl[nukeDetId(now)%acl.length]:"nuke"); }   // ⚠ CFG_FINALE too — demo mode ignored the pinned ending and always played the nuke
+  var _span=apocSpanMs();
+  if(_span>0 && cityPhase==="apoc") apocMs=Math.round(cityApoc*_span);
   blastMs = (curDeath==="nuke") ? Math.max(0, apocMs-NUKE_FALL_MS) : apocMs;   // ms since DETONATION — 0 while the warhead is still falling, so nothing dies until impact
   apocKill = (cityPhase!=="apoc") ? cityApoc                                                 // the "everything stops/empties" clock:
     : (curDeath==="nuke")    ? Math.min(1,blastMs/4000)                                       //   nuke: within ~4s of impact
@@ -59050,8 +63372,8 @@ function draw(g,pass){
                                                       : Math.min(1,0.35+(apocMs-SUN_IGNITE_MS)/2500))  //   …then the ground ignites and everything perishes fast
     : (curDeath==="ai") ? (apocMs<AI_WAKE_MS ? Math.min(0.25,apocMs/AI_WAKE_MS*0.25)          //   ai: panic as the factories boot…
                                              : Math.min(1,0.25+(apocMs-AI_WAKE_MS)/AI_WIPE_MS))    //   …then the assimilation front empties it as it spreads
-    : (curDeath==="bh") ? (apocMs<BH_FORM_MS ? Math.min(0.25,apocMs/BH_FORM_MS*0.25)           //   black hole: dread as the singularity forms…
-                                             : Math.min(1,0.25+(apocMs-BH_FORM_MS)/BH_WIPE_MS))    //   …then the pull drags the city in as it grows
+    : (curDeath==="bh") ? (cityApoc<BH_FORM_AP ? Math.min(0.25,cityApoc/BH_FORM_AP*0.25)        //   black hole: dread as the singularity forms…
+                                             : Math.min(1,0.25+(cityApoc-BH_FORM_AP)/(BH_FULL_AP-BH_FORM_AP)))  //   …then the pull drags the city in as it grows
     : (curDeath==="alienwar") ? (apocMs<WAR_ONSET_MS ? Math.min(0.3,apocMs/WAR_ONSET_MS*0.3)   //   alien war: panic as the fleets open fire overhead…
                                                      : Math.min(1,0.3+(apocMs-WAR_ONSET_MS)/6000))    //   …then the crossfire empties the city
     : (curDeath==="frost") ? (apocMs<FROST_ONSET_MS ? Math.min(0.3,apocMs/FROST_ONSET_MS*0.3)   //   deep freeze: people flee the plummeting cold…
@@ -59060,8 +63382,12 @@ function draw(g,pass){
                                                      : Math.min(1,0.28+(apocMs-KAIJU_ARRIVE_MS)/KAIJU_WIPE_MS))   //   …then the rampage empties the city
     : (curDeath==="ninetails") ? (apocMs<FOX_ARRIVE_MS ? Math.min(0.34,apocMs/FOX_ARRIVE_MS*0.34)   //   the fox: they watch it RISE before they run…
                                                        : Math.min(1,0.34+(apocMs-FOX_ARRIVE_MS)/FOX_WIPE_MS))     //   …then the shockwave takes the valley
-    : (curDeath==="flood") ? (apocMs<FLOOD_ONSET_MS ? Math.min(0.3,apocMs/FLOOD_ONSET_MS*0.3)   //   flood: people run for high ground as the waters rise…
-                                                    : Math.min(1,0.3+(apocMs-FLOOD_ONSET_MS)/9000))   //   …then the sea drowns the city
+    // 🚨 "WHERE ARE THE PEOPLE?" — THE SECOND GLOBAL CULL WAS HERE. `apocKill` is the "how empty is the
+    //   city" clock, and on flood it ran off `apocMs` alone: by the time the wall was a third of the way
+    //   across the world it had already emptied 60% of every street in it, including the streets the
+    //   water would not reach for another two minutes. The wave is the only thing that empties anything,
+    //   so the number it empties is simply how much of the world the wave has crossed.
+    : (curDeath==="flood") ? Math.max(0.06,Math.min(1,floodWavePos(0)/(WW*1.02)))
     // 🔒🚨 THE TITANS HAD NO ROW HERE AND FELL THROUGH TO `cityApoc` — so the city began emptying at
     // ap 0.00, when the wall was still specks on the horizon and nobody could possibly know. Panic
     // before there is anything to panic about, and it drained the streets across the whole arc that
@@ -59586,7 +63912,15 @@ function draw(g,pass){
     var CX0=cx|0, CY0=c.y|0, CW0=c.w|0, CH0=c.h|0;
     g.fillStyle=rgba(cc0,cloudA*c.d);
     if(c.t===1){                                                                    // cumulus: layered cotton body + rounded lobes
-      g.fillRect(CX0,CY0,CW0,CH0);
+      // 🚨🔒 HIS REPORT: "random flying things that look like trash cans". They are these — and he is
+      // right, because the body was a HARD RECTANGLE with lobes stuck on the top edge. A box with bumps
+      // is a bin; a cloud has no straight vertical sides and no square corners. `whodrew.js` attributed
+      // them in one run (fillEllipse < draw:62063) — colour-sample, then attribute, never guess.
+      // 🔑 The ends are rounded off and the body inset, so the silhouette is convex everywhere.
+      var CIN=Math.max(1,(CW0*0.12)|0);
+      g.fillRect(CX0+CIN,CY0,CW0-CIN*2,CH0);
+      fillEllipse(g,CX0+CIN,CY0+(CH0>>1),CIN+1,Math.max(1,(CH0*0.5)|0));
+      fillEllipse(g,CX0+CW0-CIN,CY0+(CH0>>1),CIN+1,Math.max(1,(CH0*0.5)|0));
       fillEllipse(g,CX0+(CW0*0.14|0),CY0+1,Math.max(2,(CW0*0.16)|0),3);
       fillEllipse(g,CX0+(CW0*0.34|0),CY0-1,Math.max(2,(CW0*0.22)|0),5);
       fillEllipse(g,CX0+(CW0*0.57|0),CY0-3,Math.max(3,(CW0*0.25)|0),7);              // billowing sunlit crown
@@ -59595,7 +63929,7 @@ function draw(g,pass){
       g.fillStyle=rgba([255,255,255],cloudA*c.d*0.5);
       fillEllipse(g,CX0+(CW0*0.53|0),CY0-5,Math.max(2,(CW0*0.15)|0),3);              // soft top-light
       g.fillStyle=rgba(mixc(cc0,[40,50,80],0.5),cloudA*c.d*0.5);
-      g.fillRect(CX0+1,CY0+CH0-1,CW0-2,1);                                          // flat shaded base
+      g.fillRect(CX0+CIN+1,CY0+CH0-1,CW0-CIN*2-2,1);                                // shaded base, inset with the body
       if(sunsetK>0.3){ g.fillStyle=rgba([255,205,160],0.35*sunsetK*c.d);            // sunlit underside
         g.fillRect((cx+2)|0,(c.y+c.h-1)|0,(c.w*0.8)|0,1); }
     } else if(c.t===0){                                                             // wisp: two offset rects + a soft feather
@@ -59679,6 +64013,7 @@ function draw(g,pass){
   // the wilderness the city grows out of (hills, grass, river, trees, the first cabin) — recedes as it matures
   if(cityG<0.985) drawTerrain(g,cityG,L,now,nd,(pass==="fg"||pass==="city"||pass==="live")?"fg":undefined);
   drawPlainsWorked(g,L,now,nd);   // the worked prairie, ON the ground the terrain just laid down
+  drawCrustScar(g,L,now);         // …and the healed canyon, if the LAST civilization died of crustcrack
   // the falls, at the live rate. `undefined` already drew them on the classic single-canvas path
   // further up, so this is the split-canvas half only — double-painting is what pass-split guards.
   if(pass==="fg"||pass==="city"||pass==="live") drawCascades(g,L,now,nd);
@@ -60372,15 +64707,23 @@ function draw(g,pass){
         var gzF=apocEpiX(now), dF=nukeDist(pwx,gzF), frF=foxFrontR();
         if(frF>=dF){ continue; }
         fleeing=true; pwx=wrapW(pwx + pd.dir*(now%4000)*0.052); }  // they run harder than they do from anything else
-      else if(curDeath==="kaiju"){                               // kaiju: flee the rampage, then get stomped/swept when the beast reaches them
-        var gzK=apocEpiX(now), dK=nukeDist(pwx,gzK), frK=kaijuFrontR();
-        if(frK>=dK){ continue; }                                 // the rampage reached them → gone
-        fleeing=true; var awayK=((((pwx-gzK)%WW+WW*1.5)%WW)-WW*0.5)>=0?1:-1; pwx=wrapW(pwx+awayK*(now%4000)*0.045); }   // run from the monster
+      else if(curDeath==="moonfall"){                            // moonfall: nowhere to run to — they scatter from wherever a piece just came down
+        if(moonCrushed(pwx)>=0){ continue; }                      // a fragment landed on them → gone
+        fleeing=true; pwx=wrapW(pwx+pd.dir*(now%4000)*0.030); }   // slower than the others: they are watching the sky, not the road
+      else if(curDeath==="kaiju"){                               // kaiju: run AHEAD of it, in front of the walk, until it catches you
+        if(kaijuCrushed(pwx)>=0){ continue; }                    // it has walked over them → gone
+        // ⚠ they run the way it is GOING, not radially away from a point. A crowd fleeing outward from a
+        // static epicentre is what a bomb produces; a crowd running ahead of a walking animal is what
+        // this is, and it is the same direction every person on the screen, which is what reads as panic.
+        fleeing=true; pwx=wrapW(pwx+kaijuDir()*(now%4000)*0.045); }
       else if(curDeath==="flood"){                               // flood: run for high ground, then be swept away when the water reaches them
         if(floodGroundHit(pwx)){ var vsx8=pwx-WOFF; if(vsx8>SW+4&&vsx8-WW>-4)vsx8-=WW; if(vsx8<-4&&vsx8+WW<SW+4)vsx8+=WW;
           if(vsx8>-3&&vsx8<SW+3){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(120,170,210,0.6)"; g.fillRect(vsx8|0,(HORIZON-floodLevel())|0,2,2); g.globalCompositeOperation="source-over"; }   // a splash at the waterline
           continue; }                                            // swept under → gone
-        fleeing=true; pwx=wrapW(pwx + pd.dir*(now%4000)*0.04); }
+        // ⚠ they run the way the WATER is going, not whichever way they happened to be walking. A crowd
+        // scattering on its own headings is a crowd that has not noticed; one street all moving the same
+        // way, ahead of the wall, is what panic looks like from across a city.
+        fleeing=true; pwx=wrapW(pwx + floodWaveDir()*(now%4000)*0.05); }
       else if(curDeath==="kaijuwar"){                            // kaiju war: flee whichever titan is closer; gone once the battle reaches them
         if(kwCl(pwx,now)>=0){ continue; }                        // trampled / caught in the melee → gone
         var tA=kwTitanX(now,0), tB=kwTitanX(now,1);
