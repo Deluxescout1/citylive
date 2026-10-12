@@ -5144,7 +5144,16 @@ function offMs(t){ return -new Date(t).getTimezoneOffset()*60000; }
 function lifeIndexOf(now){
   var w=now+GROW_OFFSET_DAYS*86400000+WORLD_SHIFT;          // the world clock
   var base=w-(GROW_EPOCH+GROW_ALIGN);
-  if(APOC_HOUR>=0&&APOC_AT_MS<=0) base+=offMs(w)-GROW_ALIGN_OFF;
+  // 🚨🚨 THE DST CORRECTION MUST READ THE REAL WALL CLOCK, NOT THE WORLD CLOCK. `w` carries
+  // WORLD_SHIFT, and the Micah "new world" knob (worldShiftFrom's `-lives*GROW_CYCLE`, up to 4096
+  // whole cycles ≈ 11 YEARS) throws `w` years away from `now` — here: a date in 2025-11-30, EST,
+  // while the user sat in October EDT. The correction then read a −1h "DST transition" that never
+  // happened for the user and moved their chosen 20:00 rollover to 21:00 — for most hours of the
+  // day, reproducibly, whenever the shift's season disagreed with the anchor's. Its comment here
+  // always said "the offset at NOW" — the code just never read `now`. offMs(now) is the real wall
+  // clock; the anchor stays EPOCH-anchored; and for every user with no restart set (WORLD_SHIFT=0,
+  // OFFDAYS=0) `w===now`, so this only ever changes a world that was already broken.
+  if(APOC_HOUR>=0&&APOC_AT_MS<=0) base+=offMs(now)-GROW_ALIGN_OFF;
   return Math.floor(base/GROW_CYCLE);
 }
 var curLife=null;

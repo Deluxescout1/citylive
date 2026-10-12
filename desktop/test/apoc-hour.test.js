@@ -154,3 +154,38 @@ test('the settings dropdown and the engine agree on the cycle list', () => {
       `settings offers cycle "${v}" with an hour picker the engine ignores`);
   }
 });
+
+test('a new-world restart keeps the chosen hour from every hour of the day', () => {
+  // 🚨 The identity knob (worldShiftFrom's -lives*GROW_CYCLE — up to 4096 whole cycles ≈ 11 YEARS)
+  // throws the world clock years off the real date, and lifeIndexOf's DST correction used to read
+  // the offset THERE — a synthetic 2025-11-30 winter instant — so the user's chosen 20:00 rollover
+  // moved to 21:00 for most hours of the day whenever the shift's season disagreed with the
+  // anchor's. Micah-class feature, reproducibly wrong on his own desktop. The fix reads the offset
+  // at `now`; this walk is the regression net: a restart applied at EVERY wall hour must leave the
+  // grid on the chosen hour from that hour forward.
+  const c0 = loadEngine();
+  c0.applyConfig({ cycle: '1d', apocHour: 20 });
+  const mid = new Date(); mid.setHours(0, 5, 0, 0);
+  for (let h = 0; h < 24; h++) {
+    const now = mid.getTime() + h * 3600000;
+    const c = loadEngine();
+    c.applyConfig({ cycle: '1d', apocHour: 20, worldRestartAt: now - 5 * 3600000, worldRestartMode: 'at' });
+    const hits = boundaries(c, now, c.GROW_CYCLE * 2 + 86400000, 2);
+    assert.ok(hits.length >= 1, `h${h}: no boundary found`);
+    for (const at of hits) {
+      assert.strictEqual(new Date(at).getHours(), 20,
+        `restart applied at h${h}: rollover drifted to ${new Date(at).getHours()}:00`);
+    }
+  }
+  // and the 'fresh' mode shifts by the same knob — same assertion, different target
+  for (let h = 0; h < 24; h += 5) {
+    const now = mid.getTime() + h * 3600000;
+    const c = loadEngine();
+    c.applyConfig({ cycle: '1w', apocHour: 9, worldRestartAt: now - 3 * 3600000, worldRestartMode: 'fresh' });
+    const hits = boundaries(c, now, c.GROW_CYCLE * 2 + 86400000, 2);
+    for (const at of hits) {
+      assert.strictEqual(new Date(at).getHours(), 9,
+        `fresh restart at h${h}: rollover drifted to ${new Date(at).getHours()}:00`);
+    }
+  }
+});
