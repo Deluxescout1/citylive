@@ -344,7 +344,7 @@ var NOFETCH = false;  // headless flag (own line = QML-namespace writable): alma
 // reported the same ~1,500 px on eight unrelated lands before that was noticed. One render, three
 // snapshots, and the arithmetic is exact.
 var DETAILPROBE = null;
-var VERSION = "4.1.1";  // the build the user is running — surfaced in the Almanac + KDE config page (keep in sync with desktop/package.json)
+var VERSION = "4.1.2";  // the build the user is running — surfaced in the Almanac + KDE config page (keep in sync with desktop/package.json)
                         // ⚠ this sat at 2.0.2 while package.json was already 4.1.0 — the config page
                         // told the user v2.0.2 for at least two releases. Sync is a RELEASE step, not
                         // an intention; check it in docs/RELEASING.md's cut list.
@@ -3091,12 +3091,40 @@ function districtBusy(name,h){
   return (h>=7&&h<21.5)?0.85:0.32;                                      // residential/oldtown
 }
 // ---- season (Norwich CT): drives tree foliage colour ----
+// ---- THE YEAR, CONTINUOUS (2026-10-12, Nick: "fully green to the colors of fall, then everything
+// is dead" — and it must CHANGE gradually, not flip) — seasonInfo ran on hard month boundaries for
+// the project's whole life: Aug 31 fully green, Sep 1 fully gold, Nov 30 gold, Dec 1 bare. Nobody
+// ever watched a tree CHANGE. The named season and the bare/blossom flags KEEP their exact calendar
+// borders (festivals, seed heads, field palettes and a dozen gates hang off them — moved, four of
+// them break) — but the canopy now travels day by day between the anchor palettes:
+//   greenT   Mar 18 → Apr 18   dead grey → spring green (the woods wake into blossom)
+//   deepenT  Apr 25 → May 20   spring green → deep summer green
+//   fallT    Aug 10 → Oct 5    summer green → autumn gold (the slow burn — see Nick's own words)
+//   bareT    Nov 10 → Nov 30   gold → dead brown, AND the per-tree leaf-drop wave in drawTree;
+//                              by Dec 1 every deciduous tree qualifies bare and the old winter
+//                              branch path takes over unchanged.
+//   blossomT Mar 22 → Apr 6 in, gone by May 12 — sprinkles scale instead of popping at the flag flip.
+// Anchors stay BYTE-EXACT at mid-phase dates: Jul 15 = today's summer palette, Oct 15 = today's
+// autumn, Jan = today's winter grey. All mixing happens HERE, once per frame — drawTree never mixes.
 function seasonInfo(nd){
+  var doy=Math.floor((nd-new Date(nd.getFullYear(),0,1))/86400000)+1;    // day of year, 1..366
+  var ss=function(a,b){ var t=Math.max(0,Math.min(1,(doy-a)/(b-a))); return t*t*(3-2*t); };
+  var greenT=ss(77,108), deepenT=ss(115,140), fallT=ss(222,278), bareT=ss(314,334);
+  var bloomT=ss(81,96)*(1-ss(118,132));
   var m=nd.getMonth()+1;
-  if(m===12||m<=2)  return { name:"winter", canopy:[[86,94,86],[104,110,100],[74,84,78]], bare:true,  blossom:false };
-  if(m<=5)          return { name:"spring", canopy:[[112,172,92],[150,200,120],[124,182,104]], bare:false, blossom:true };
-  if(m<=8)          return { name:"summer", canopy:[[52,128,58],[70,148,74],[42,110,52]], bare:false, blossom:false };
-  return              { name:"autumn", canopy:[[206,120,42],[212,86,44],[188,152,52]], bare:false, blossom:false };
+  var name=(m===12||m<=2)?"winter":(m<=5?"spring":(m<=8?"summer":"autumn"));
+  var D3=[[86,94,86],[104,110,100],[74,84,78]],
+      SPRING=[[112,172,92],[150,200,120],[124,182,104]],
+      SUMMER=[[52,128,58],[70,148,74],[42,110,52]],
+      AUTUMN=[[206,120,42],[212,86,44],[188,152,52]];
+  // mixc blends one COLOR (3 channels); the canopy is 3 rows a tree picks from by its seed — mix
+  // THEM, row by row. (The first cut mixed whole 3x3 palettes and rendered the canopy black.)
+  var mixRows=function(A,B,t){ return [mixc(A[0],B[0],t),mixc(A[1],B[1],t),mixc(A[2],B[2],t)]; };
+  var c=(doy<115)?mixRows(D3,SPRING,greenT):mixRows(SPRING,SUMMER,deepenT);
+  if(doy>=222) c=mixRows(SUMMER,AUTUMN,fallT);
+  if(doy>=314) c=mixRows(AUTUMN,D3,bareT);
+  return { name:name, canopy:c, bare:(m===12||m<=2), blossom:(m<=5),
+           fallT:fallT, bareT:bareT, greenT:greenT, blossomT:bloomT };
 }
 var curSeason=null;   // set each frame in draw()
 
@@ -27315,6 +27343,18 @@ function drawBiomePlant(g,X,gy,day,now,seed,sc,kind,swayOn){
   var K=Math.max(1,sc), wind=Math.min(14,(weather.wind||5));
   var sway=swayOn?Math.sin(now*0.0011+seed*1.7)*(0.5+wind*0.10):0;
   function C(c){ return css(day?c:mixc(c,[14,20,20],0.58)); }
+  // 🔑 THE YEAR, CONTINUOUS — every deciduous kind reads its ramp from here (2026-10-12). The kinds
+  // had a binary switch (season_autumn_ok: a whole slope went gold on Sep 1). seasonFoliage walks the
+  // year: dead grey → green on the wake, green → gold through fallT, gold → dead brown through bareT.
+  // Winter shape is per-kind (most already have a bare-branch else-branch; cottonwood, below).
+  var SE=curSeason||seasonInfo(nowDate());
+  function seasonFoliage(green,gold,dead){
+    var c=green;
+    if(SE.greenT>0) c=mixc(dead||[120,110,92],c,SE.greenT);
+    if(SE.fallT>0)  c=mixc(c,gold||[212,150,60],SE.fallT);
+    if(SE.bareT>0)  c=mixc(c,dead||[122,104,74],SE.bareT);
+    return c;
+  }
   var R=function(x,y,w,h){ g.fillRect(Math.round(X+x),Math.round(gy+y),Math.max(1,Math.round(w)),Math.max(1,Math.round(h))); };
   if(kind==="saguaro"){
     // Arms have to GROW OUT OF the column. Offsetting them by a multiple of the trunk width left a
@@ -27381,8 +27421,11 @@ function drawBiomePlant(g,X,gy,day,now,seed,sc,kind,swayOn){
     var lh3=Math.round((9+(seed%5))*K);
     g.fillStyle=C([88,72,52]);
     R(0,0,Math.max(1,Math.round(1.1*K)),-lh3);
-    g.fillStyle=C(season_autumn_ok()?[214,168,64]:[104,140,74]);
-    for(var lq=0;lq<5;lq++){
+    // ⚠ the old code left a larch GOLD through winter (its autumn switch was `||bare`) — a deciduous
+    // conifer that never let go. Now it follows the year's ramp and drops its whorls in the wave.
+    g.fillStyle=C(seasonFoliage([104,140,74],[214,168,64],[150,118,66]));
+    if(!(SE.bare||(SE.bareT>0&&(((mixLi(seed>>>2,2654435761)>>>0)/4294967296)<SE.bareT))))
+      for(var lq=0;lq<5;lq++){
       var lf=lq/5, lw3=Math.round((4.4-3.0*lf)*K), ly3=-Math.round(lh3*(0.30+0.66*lf));
       R(-lw3/2,ly3,lw3,Math.max(1,Math.round(K)));                    // sparse, airy whorls
       R(-lw3/2-Math.round(K),ly3+Math.round(K),Math.max(1,Math.round(K)),Math.max(1,Math.round(K)));
@@ -27408,7 +27451,7 @@ function drawBiomePlant(g,X,gy,day,now,seed,sc,kind,swayOn){
     R(cx2+Math.round(1.5*K),cy2+Math.round(1.6*K),Math.round(3*K),Math.round(1.4*K));
   } else if(kind==="grass"){
     var nb=3+(seed%3);
-    g.fillStyle=C(season_autumn_ok()?[178,158,96]:[132,152,86]);          // prairie grass, wind-combed
+    g.fillStyle=C(seasonFoliage([132,152,86],[178,158,96],[146,124,88]));    // prairie grass, wind-combed
     for(var b2=0;b2<nb;b2++){
       var bx=(b2-nb/2)*1.6*K, bh2=Math.round((3+((seed>>b2)%4))*K);
       for(var y3=0;y3<bh2;y3+=Math.max(1,Math.round(K)))
@@ -27418,7 +27461,7 @@ function drawBiomePlant(g,X,gy,day,now,seed,sc,kind,swayOn){
     var ch2=Math.round((13+(seed%6))*K), cw2=Math.max(2,Math.round(1.8*K));
     g.fillStyle=C([120,110,92]);                                          // pale bark, tall and lone
     R(-cw2/2,-ch2,cw2,ch2);
-    if(!season_bare_ok(seed)){ g.fillStyle=C([146,168,104]);
+    if(!season_bare_ok(seed)){ g.fillStyle=C(seasonFoliage([146,168,104],[214,160,60],[140,126,94]));   // crown follows the year
       R(-3.2*K+sway,-ch2-2*K,6.4*K,3.4*K); R(-2.2*K+sway,-ch2-3.6*K,4.4*K,1.8*K);
       R(-2.6*K+sway,-ch2+1.2*K,5.2*K,1.6*K); }
     else { g.fillStyle=C([120,110,92]);
@@ -27595,7 +27638,9 @@ function drawBiomePlant(g,X,gy,day,now,seed,sc,kind,swayOn){
     }
     var ccy=-ch5, crw=Math.round((5+(seed%4))*K);                       // a thin, wide, flat-topped crown
     for(var lay=0;lay<3;lay++){
-      g.fillStyle=C(lay&1?[104,124,90]:[86,106,76]);
+      // the bald cypress RUSTS through the fall (real bald cypresses go copper-red) then dries out
+      g.fillStyle=C(seasonFoliage(lay&1?[104,124,90]:[86,106,76],
+                                  lay&1?[196,120,52]:[176,102,44],[152,122,82]));
       folMass(g,X+sway*0.7+((lay-1)*crw*0.5),gy+ccy+lay*Math.round(1.8*K),crw*(1-lay*0.18),Math.round(1.6*K),(seed*(lay+3))>>>0,K);
     }
     g.fillStyle=day?"rgba(158,158,132,0.72)":"rgba(34,38,32,0.7)";      // and the moss it is hung with
@@ -27614,7 +27659,8 @@ function drawBiomePlant(g,X,gy,day,now,seed,sc,kind,swayOn){
     g.fillStyle=C([104,92,72]); R(-Math.round(K*0.8),-wh5,Math.max(1,Math.round(1.6*K)),wh5);
     for(var st5=0;st5<7;st5++){                                         // WEEPING strands, hanging not spraying
       var sx5=(-3+st5)*K*1.1, sl5=Math.round((3+((seed>>st5)&3)*2)*K);
-      g.fillStyle=C(st5&1?[112,140,84]:[92,120,70]);
+      g.fillStyle=C(seasonFoliage(st5&1?[112,140,84]:[92,120,70],
+                                  st5&1?[198,132,56]:[178,112,48],[136,128,104]));
       for(var sq5=0;sq5<sl5;sq5++)
         R(sx5+sway*(sq5/sl5)*1.6+Math.sin(sq5*0.5)*K*0.4,-wh5+Math.round(K*1.2)+sq5,Math.max(1,Math.round(K*0.8)),1);
     }
@@ -27770,9 +27816,21 @@ function drawTree(g,X,gy,day,now,seed,mul,swayOn){
   var tx=X+(swayOn?Math.round(Math.sin(now*0.0010+seed*1.7)*(sc>1.8?1.5:0.75)):0);
   var trunk=day?"#5a4028":"#3c3020", tw=sc>=2.5?3:(sc>=1.7?2:1);
   var season=curSeason||seasonInfo(nowDate());
+  // 🔑 STAGGERED LEAF-DROP (continuous year, 2026-10-12): through the bareT window each tree sheds on
+  // its OWN day — a hash of its seed, so the same tree always drops the same day on every monitor and
+  // the wood goes bare as a wave down the street, not as a flip. By bareT=1 (Dec 1) the flag takes
+  // all of them anyway. Winter itself is unchanged: shedK=1 there hits today's branch path exactly.
+  // ⚠ The stagger lives HERE ONLY — season_bare_ok (the saguaro/gorse bloom gate) must never see it,
+  // or saguaros bloom in November.
+  var shedT=season.bareT||0, shedK=false;
+  if(season.bare) shedK=true;                                             // winter: all bare, as always
+  else if(shedT>0&&(((mixLi(seed>>>2,2654435761)>>>0)/4294967296)<shedT)) shedK=true;  // the wave
   var can, can2;
-  if(season.bare){                                                        // WINTER: bare branches
-    g.fillStyle=trunk; var th=Math.round(5*sc);
+  if(shedK){                                                              // BARE: today's winter branches
+    // a just-dropped tree gets the dead-leaf colour of its crown, an old-cold one the grey trunk —
+    // the transition from "gold tree" to "bare tree" reads over days, not minutes
+    var th=Math.round(5*sc);
+    g.fillStyle=trunk;
     g.fillRect(X-(tw>>1),gy-th+1,tw,th);
     for(var br=0;br<Math.round(3*sc);br++){ var by=gy-th+1-br*2, bs=(br&1)?-1:1;
       g.fillRect(X+bs*(1+(br%3)),by,Math.max(1,tw-1),1); g.fillRect(X,by-1,1,1); }
@@ -27813,8 +27871,10 @@ function drawTree(g,X,gy,day,now,seed,mul,swayOn){
   if(snowpack>0.15){ g.fillStyle="rgba(240,246,255,"+Math.min(0.9,snowpack+0.25).toFixed(2)+")";   // snow-laden crown
     var capY=(v===0)?-11:((v===1||v===5)?-11:(v===6?-13:-9));
     cv(-1,capY,3,1); if(sc>=1.7) cv(0,capY-1,1,1); }
-  if(season.blossom){ g.fillStyle="#f2b9d8";                              // SPRING blossom sprinkle
-    for(var bp=0;bp<Math.round(3*sc);bp++) g.fillRect(Math.round(tx+((seed>>bp)%5-2)*sc),Math.round(gy+(-6-((seed>>(bp+2))%4))*sc),1,1); }
+  var blT=(season.blossomT!==undefined)?season.blossomT:(season.blossom?1:0);
+  if(season.blossom&&blT>0.02){ g.fillStyle="#f2b9d8";                    // SPRING blossom sprinkle —
+    // scaled by blossomT (continuous year): petals arrive as a wave, never at the Mar 1 flag flip
+    for(var bp=0,nB=Math.round(3*sc*blT);bp<nB;bp++) g.fillRect(Math.round(tx+((seed>>bp)%5-2)*sc),Math.round(gy+(-6-((seed>>(bp+2))%4))*sc),1,1); }
 }
 // ---- the settlers' lumber camp: axemen fell trees, a hauler carries the logs home ----
 function drawAxeman(g,X,gy,dir,day,now){
@@ -65597,7 +65657,12 @@ function draw(g,pass){
   var canShed=false, shk=(curBiome.flora&&curBiome.flora.kinds)||null;
   if(shk) for(var shq=0;shq<shk.length;shq++) if(SHED_KINDS[shk[shq]]){ canShed=true; break; }
   var drift=(canShed&&curSeason&&cityPhase!=="apoc"&&!fx.rain&&!fx.snow&&!fx.thunder&&!fx.fog&&L>0.16);
-  var isAut=drift&&curSeason.name==="autumn", isSpr=drift&&curSeason.name==="spring"&&curSeason.blossom;
+  // 🔑 THE YEAR, CONTINUOUS (2026-10-12): the drifts used to key on the month NAME — gold leaves on
+  // Sep 1, gone Dec 1, petals on Mar 1 — while the canopies now travel gradually. Keyed to the ramps:
+  // a wash of falling leaves opens with fallT (Aug 10) and rides the drop wave to Dec 1; petals move
+  // with the blossom wave, so the flag flips (Mar 1 / Dec 1) never read as a pop.
+  var isAut=drift&&((curSeason.fallT||0)>0.02)&&((curSeason.bareT||0)<0.999);
+  var isSpr=drift&&((curSeason.blossomT||0)>0.15);
   // THE OLD FOREST SHEDS ALL YEAR. Everywhere else leaf-fall is a season — autumn, once — but a wet
   // old-growth canopy is always dropping something, and Nick asked for leaves coming down from the
   // top. Rather than a second particle system, the forest just qualifies for this one in every
