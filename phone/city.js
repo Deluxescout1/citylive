@@ -18920,6 +18920,51 @@ function drawCavernWater(g,L,now){
     g.globalCompositeOperation="source-over";
   }
 }
+// ---- RAIN ON FRONT WATER — the shared impact+spray layer --------------------------------------
+// Generic sea front AND the custom bottom-water renderers (karst / fjord / cavern) all end by
+// calling this, so every land whose front band is water shows rain striking it. Extracted VERBATIM
+// from drawSeaFrontBand on 2026-10-11 (Nick: "if it is raining, it needs to show it is raining in
+// the bottom river if the map has a bottom river") — the routed renderers returned before the inline
+// block ever ran, so three of eight front-water lands had NO rain response while the note below
+// claimed "all twenty lands get it at once".
+// ⚠ SCATTERED BY HASH, NEVER ON A PITCH. Dimples across a full-width band is a loop over x, and
+// this project has found that same fault five times over (the bayou's bay, the viaduct, the coast,
+// the wild shore's sawtooth, the volcano's strata). An even comb of raindrops would be the sixth.
+// Each ring is placed from a hash of its own index and a slow time slot, so they land irregularly
+// and refresh in place instead of marching.
+// ⚠⚠ THE VEIL STAYS ONE GRADIENT. Its first version was a hard-edged slab and Nick found it within
+// the hour: "why does this line on the coast exist". Constant-alpha rows end in a dead-straight
+// boundary across the whole frame — a ruled line, added in the same commit whose comments warn
+// against exactly that. A wash needs no edge: one gradient fading to fully transparent.
+// `densK` scales the ring DENSITY only (1 = the generic band; the UNDERCITY passes <1 because its
+// rain arrives only through the collapse shafts — drawUndercityRain — so its floor lake is only
+// pocked by what comes down them). A lava front would need its own treatment — no SEA_FRONT land
+// has one, so this helper stays water-only. Rings stay hash-scattered; the veil stays one gradient.
+function frontRainFX(g,rainK,top,h,now,K,day,densK){
+  if(rainK<=0||!densK) return;
+  var nDrop=Math.round(h*SW*0.00055*rainK*densK*(0.6+K*0.25));
+  var slot=Math.floor(now/230), day2=day;
+  for(var dp=0;dp<nDrop;dp++){
+    var dh=((dp*2654435761)^(slot*40503))>>>0;
+    var dx=dh%SW, dy=top+2+((dh>>>9)%Math.max(1,h-4));
+    var age=(((dh>>>19)%100)/100+(now%230)/230)%1;                  // each ring has its own phase
+    var rr=Math.round(age*2.6*K);                                    // …and expands as it ages
+    var da=(1-age)*0.42*(day2?1:0.72);
+    if(da<=0.03) continue;
+    g.fillStyle=day2?"rgba(255,255,255,"+da.toFixed(3)+")":"rgba(178,200,232,"+da.toFixed(3)+")";
+    if(rr<=0){ g.fillRect(dx,dy,Math.max(1,Math.round(K*0.7)),1); continue; }
+    g.fillRect(dx-rr,dy,Math.max(1,Math.round(K*0.7)),1);            // a ring reads as its two edges
+    g.fillRect(dx+rr,dy,Math.max(1,Math.round(K*0.7)),1);
+  }
+  if(rainK>0.65){
+    var mA=(0.13*(rainK-0.65)/0.35*densK).toFixed(3), mC=day?"223,232,242":"58,70,88";
+    var mH=Math.max(2,Math.round(h*0.66));
+    var mg2=g.createLinearGradient(0,top,0,top+mH);
+    mg2.addColorStop(0,"rgba("+mC+","+mA+")");
+    mg2.addColorStop(1,"rgba("+mC+",0)");
+    g.fillStyle=mg2; g.fillRect(0,top,SW,mH);
+  }
+}
 function drawSeaFrontBand(g,L,now){
   if(SEA_FRONT<=0) return;
   // ⚠ ON THE EMPYREAN THE BAND IN FRONT IS NOT WATER — it is the same cloud deck, nearer. Routed before
@@ -19033,43 +19078,9 @@ function drawSeaFrontBand(g,L,now){
     }
   }
   // --- RAIN ON THE WATER: impact rings, and a low veil of spray in the heavy stuff ---
-  // ⚠ SCATTERED BY HASH, NEVER ON A PITCH. Dimples across a full-width band is a loop over x, and
-  // this project has found that same fault five times over (the bayou's bay, the viaduct, the coast,
-  // the wild shore's sawtooth, the volcano's strata). An even comb of raindrops would be the sixth.
-  // Each ring is placed from a hash of its own index and a slow time slot, so they land irregularly
-  // and refresh in place instead of marching.
-  if(rainK>0){
-    var nDrop=Math.round(h*SW*0.00055*rainK*(0.6+K*0.25));
-    var slot=Math.floor(now/230), day2=day;
-    for(var dp=0;dp<nDrop;dp++){
-      var dh=((dp*2654435761)^(slot*40503))>>>0;
-      var dx=dh%SW, dy=top+2+((dh>>>9)%Math.max(1,h-4));
-      var age=(((dh>>>19)%100)/100+(now%230)/230)%1;                  // each ring has its own phase
-      var rr=Math.round(age*2.6*K);                                    // …and expands as it ages
-      var da=(1-age)*0.42*(day2?1:0.72);
-      if(da<=0.03) continue;
-      g.fillStyle=day2?"rgba(255,255,255,"+da.toFixed(3)+")":"rgba(178,200,232,"+da.toFixed(3)+")";
-      if(rr<=0){ g.fillRect(dx,dy,Math.max(1,Math.round(K*0.7)),1); continue; }
-      g.fillRect(dx-rr,dy,Math.max(1,Math.round(K*0.7)),1);            // a ring reads as its two edges
-      g.fillRect(dx+rr,dy,Math.max(1,Math.round(K*0.7)),1);
-    }
-    // Spray hanging over the surface — only in the genuinely heavy stuff.
-    // ⚠⚠ THIS WAS A HARD-EDGED SLAB, and Nick found it within the hour: "why does this line on the
-    // coast exist". It filled contiguous full-width rows from the waterline to halfway down the band
-    // at a CONSTANT alpha, so it ended in a dead-straight horizontal boundary across the whole frame —
-    // a ruled line, added by me, in the same commit whose comments warn against exactly that. Scatter
-    // discipline was applied to the raindrops and then forgotten one block later for the veil.
-    // A wash needs no edge: one gradient, fading to fully transparent, is a single rect and cannot
-    // produce a boundary at all. The fault was never the full width — it was the constant alpha.
-    if(rainK>0.65){
-      var mA=(0.13*(rainK-0.65)/0.35).toFixed(3), mC=day?"223,232,242":"58,70,88";
-      var mH=Math.max(2,Math.round(h*0.66));
-      var mg2=g.createLinearGradient(0,top,0,top+mH);
-      mg2.addColorStop(0,"rgba("+mC+","+mA+")");
-      mg2.addColorStop(1,"rgba("+mC+",0)");
-      g.fillStyle=mg2; g.fillRect(0,top,SW,mH);
-    }
-  }
+  // (Now the shared frontRainFX — generic path passes densK 1, so this band's output is unchanged.
+  // The karst / fjord / cavern waters call it too; see the note at frontRainFX.)
+  frontRainFX(g,rainK,top,h,now,K,day,1);
   // --- the mirror: on still water the sky and the land above it reflect, which is most of the read
   // on the bayou and does no harm anywhere else. Cheap: a translucent wash, not a real reflection. ---
   if(k==="swamp"){
