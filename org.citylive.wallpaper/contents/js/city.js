@@ -18962,7 +18962,10 @@ function wfxRain(){ var x=wfx(); return x.hail?1:(x.thunder?1:(x.violent?0.92:(x
 // has one, so this helper stays water-only. Rings stay hash-scattered; the veil stays one gradient.
 function frontRainFX(g,rainK,top,h,now,K,day,densK){
   if(rainK<=0||!densK) return;
-  var nDrop=Math.round(h*SW*0.00055*rainK*densK*(0.6+K*0.25));
+  // ⚠ 0.0011/ring (doubled 2026-10-11): at the shipped 0.00055 a THIN river (the gorge's ~17px band)
+  // rendered ~6 rings across Nick's 1702px world — present but unreadable, which is exactly the
+  // "I can't tell it is raining" read he then sent. A beach-scale band stays under ~90 rings.
+  var nDrop=Math.round(h*SW*0.0011*rainK*densK*(0.6+K*0.25));
   var slot=Math.floor(now/230), day2=day;
   for(var dp=0;dp<nDrop;dp++){
     var dh=((dp*2654435761)^(slot*40503))>>>0;
