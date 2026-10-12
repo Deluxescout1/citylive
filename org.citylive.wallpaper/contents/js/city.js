@@ -5986,6 +5986,8 @@ var curSlump=0;      // v1.40: how deep the DEPRESSION is right now (0 = fine �
 var NOECONFX=false;  // containment A/B: suppress the post-v1.39 hard-times street decay (drawHardTimes) the ref engine lacks — keeps the guard render byte-identical
 var FORCESLUMP=null; // test hook: pin the slump level (?slump=)
 var wetness=0;       // how rain-soaked the streets are (drives puddles, dries out after)
+var desertBloom=0;   // 0..1 the desert's rain memory — rises in warm rain on the dunes, fades over ~4 days,
+                     // and when it is up the sand flowers. Same documented integrator family as snowpack.
 var ashQuench=0;     // 0..1 how far the Ashlands' fire has been chilled by rain — decays over ~35 min, NOT with wetness
 var ashK=0;          // 0..1 how thick the ash in the air is RIGHT NOW (0 on every land but hell)
 var ashHeavy=0;      // 0..1 how far into a genuinely heavy FALL — the thing that empties the street
@@ -38067,6 +38069,32 @@ function drawDunes(g,L,now,nd){
       if(seg[x3]!==0) continue;
       g.fillRect(x3,sy[x3],1,Math.max(1,Math.round(K*0.7)));
     }
+    // ---- THE SUPERBLOOM. The desert remembers rain: `desertBloom` rises while the real forecast
+    // rains on warm sand and fades over ~4 days, and while it is up this land FLOWERS. Sparse gold
+    // and vermilion tufts rooted on the windward backs and the flat pan — never the slip faces,
+    // which avalanche whatever tries to grow there. Density is world-hashed per column so the bloom
+    // reads as scattered fields, and it follows the band's surface like everything else here.
+    // ⚠ The three tuft triples are unique strings in this engine — the test finds the bloom by
+    // colour alone, so a collision with the house-lamp family would have it passing on a rainy
+    // window district. Keep it that way when re-rolling the palette.
+    if(desertBloom>0.04){
+      var bloomDens=(b2===0?0.85:(b2===1?0.55:(b2===2?0.30:0.16)))*Math.min(1,(desertBloom-0.04)/0.30);
+      g.globalAlpha=day?1:0.55;
+      for(var bx2=0;bx2<SW;bx2++){
+        if(seg[bx2]===2) continue;                                   // the slip face stays bare
+        var bh2=mixLi(((bx2+WOFF)|0)>>>0,96013)>>>0;
+        if((bh2%1000)/1000>bloomDens) continue;
+        var bcols=["255,206,74","232,104,64","196,122,212"];
+        g.fillStyle="rgba("+bcols[(bh2>>>5)%3]+",0.82)";
+        var byy=sy[bx2]-1-((bh2>>>7)&1)*(b2===0?2:1);
+        g.fillRect(bx2,byy,1,Math.max(1,Math.round(K*0.6)));
+        if(b2===0&&(bh2&31)<4){                                       // the near sand gets a seed-pod cluster
+          g.fillStyle="rgba("+bcols[(bh2>>>3)&1?1:2]+",0.55)";
+          g.fillRect(bx2+(bh2&2?1:-1),byy+1,1,1);
+        }
+      }
+      g.globalAlpha=1;
+    }
     // ---- HEAT HAZE AND A BLEACHED HORIZON (locked answer #2) ---------------------------------------
     // ⚠⚠ THE BIOME ALREADY ASKED FOR THIS AND THE LAND NEVER READ IT. `sky.k:0.62` carries a comment
     // saying it is "DELIBERATE and above the 0.5 line: over a sand sea the air itself is the landscape —
@@ -65349,6 +65377,19 @@ function draw(g,pass){
       g.fillStyle=f.s>1?"rgba(250,252,255,0.95)":"rgba(238,244,255,0.85)"; g.fillRect(f.x|0,f.y|0,f.s,f.s); }
     snowpack=Math.min(1,snowpack+dt*0.000008);
   } else { if(flakes.length) flakes.length=0; snowpack=Math.max(0,snowpack-dt*0.0000015); }
+
+  // ---- THE DESERT'S RAIN MEMORY (superbloom) ---- a real desert blooms AFTER the rain, when its
+  // seed bank is soaked, and keeps flowering for days. So the state here is a SLOW integrator, in
+  // the same documented family as snowpack and street wetness: it rises while it is genuinely
+  // raining on the dunes with warm air (≈2 real hours of steady rain fills it), and it decays over
+  // ≈4 real days afterwards. Nothing else in the renderer may move its rate — any other term that
+  // touches `now` is a phase teleport (see THE FLOW's 🚨 note).
+  var bloomingLand=(curBiome.k==="dunes");
+  if(bloomingLand&&fx.rain&&L>0.34&&(weather.temp==null||weather.temp)>=12){
+    desertBloom=Math.min(1,desertBloom+dt*0.000000139*(wfxRain()||0.5));
+  } else if(desertBloom>0){
+    desertBloom=Math.max(0,desertBloom-dt*0.0000000029);
+  }
 
   // ---- AMBIENT SEASONAL DRIFTERS: autumn leaves / spring petals on the breeze (WIND-REACTIVE) ----
   // ⚠⚠ ONLY ON A LAND THAT HAS SOMETHING TO SHED. This ran on all twenty lands, so the REAL Norwich
