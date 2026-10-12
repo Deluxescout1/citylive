@@ -18501,6 +18501,56 @@ function drawSculls(g,L,now,top,botY){
     }
   }
 }
+// ---- THE BIG WHEEL — a ferris wheel on the promenade, on the lands with a front shore. It is a
+// LANDMARK of a particular life: a per-life hash decides whether this world ever built one (~2 in
+// 5 lives) and where it stands, so it goes up with the town and is gone when the world is reborn —
+// the same build-and-lose arc the towers have. A pure function of (world x, clock): the wheel turns
+// at a FIXED angular speed; every other lever is positional, never a rate. On a festival day it
+// runs fast and its gondolas come out in their bright clothes; after dark the rim burns warm.
+function drawFerrisWheel(g,L,now,nd){
+  if(SEA_FRONT<=0) return;
+  if(cityPhase==="apoc") return;
+  if(cityG<0.30) return;                                  // a wheel goes up when there is a town to ride it
+  var lifeIdx=lifeIndexOf(now);
+  var roll=(lifeIdx*2654435761+91)>>>0; if(roll%100>=38) return;   // ~2 lives in 5 have one
+  var wx=wrapW(((lifeIdx*40503+77003)>>>0)%Math.max(1,WW-320)+160);
+  var K=Math.max(1,KSP), day=L>0.5;
+  var R=Math.round(26*K);
+  var baseY=SEA_Y, hubY=baseY-Math.round(30*K);
+  var hol=holidays(nd), festival=!!(hol&&(hol.lantern||hol.founders||hol.kite));
+  var OMEGA=0.00022*(festival?1.7:1);                     // one turn ≈ 47s; festival ≈ 27s
+  var ang=now*OMEGA;
+  var cols2=["#d23b3b","#2f6bb0","#d9a72b","#b0508a","#3a9a5f"];
+  var legC=day?"#3a4046":"#14181c", rimC=day?"rgba(52,58,66,0.95)":"rgba(255,214,140,0.85)";
+  for(var o3=-1;o3<=1;o3++){
+    var X=Math.round(wx-WOFF+o3*WW);
+    if(X<-20-R||X>SW+20+R) continue;
+    // the A-frame legs down to the shoreline
+    g.fillStyle=legC;
+    for(var lg=0;lg<Math.round(30*K);lg++){
+      g.fillRect(X-Math.round(lg*0.30),hubY+Math.round(8*K)+lg,1,1);
+      g.fillRect(X+Math.round(lg*0.30),hubY+Math.round(8*K)+lg,1,1);
+    }
+    g.fillStyle=day?"#2c3138":"#101317"; g.fillRect(X-1,hubY-1,3,3);   // the hub
+    var nG=10;
+    for(var k5=0;k5<nG;k5++){
+      var th5=ang+(k5*Math.PI*2)/nG;
+      var gx=X+Math.round(Math.cos(th5)*R), gy=hubY+Math.round(Math.sin(th5)*R);
+      // spoke: 1px steps from hub to rim
+      for(var j3=0;j3<6;j3++){
+        var f5=(j3+0.5)/6;
+        g.fillStyle=rimC;
+        g.fillRect(X+Math.round(Math.cos(th5)*R*f5)-1,hubY+Math.round(Math.sin(th5)*R*f5),2,1);
+      }
+      // the rim dot — after dark the rim burns warm and gutters slowly
+      g.fillStyle=rimC;
+      if(day||((k5+Math.floor(now/700)+o3)%4)) g.fillRect(gx,gy,1,1);
+      // the gondola hangs below the rim point
+      g.fillStyle=cols2[k5%cols2.length]; g.fillRect(gx-1,gy+2,3,2);
+      if(!day){ g.globalCompositeOperation="lighter"; g.fillStyle="rgba(255,214,140,0.5)"; g.fillRect(gx,gy+2,1,1); g.globalCompositeOperation="source-over"; }
+    }
+  }
+}
 // ============ THE RIVER THE TOWERS STAND IN ============
 // Nick's locked answer #3. The defining photograph of this landform is limestone towers rising straight
 // out of still green water with their own reflections under them; this land had a thin pale strip behind
@@ -64579,6 +64629,7 @@ function draw(g,pass){
   // THE CREWS: dawn practice on the front water — see drawSculls. Own world-anchored gate, so the
   // generic band, the fjord and the karst pool all share one crew clock.
   if(SEA_FRONT>0) drawSculls(g,L,now,SEA_Y,SH-TASKBAR_WP);
+  if(SEA_FRONT>0) drawFerrisWheel(g,L,now,nd);           // the promenade landmark, while this life has one
   // THE PACK, in the water you can actually see. Same routine as the seam spans, given the front band's
   // geometry — and drawn AFTER the band for the reason the harbour below is: definition order is not
   // paint order, and this feature spent its whole life underneath the sea.
