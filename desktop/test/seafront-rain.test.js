@@ -196,3 +196,43 @@ test('rings land inside the water band, scattered (not a pitch), and refresh on 
   const ops3 = bandTuples(ctx3, 'drawSeaFrontBand', 0.7, 0.6, null, NOW + 230);
   assert.notEqual(sig(ops1), sig(ops3), 'a new time slot refreshes the ring field');
 });
+test('the aurora curtain reflects in the front water — and only when the sky has it', () => {
+  // AURORA IN THE WATER: the sky bands ride the real planetary K-index; the front band mirrors
+  // them on the SAME per-x phase. The gate is one source of truth (auroraNightGate): kp=0 or rain
+  // or day must kill sky AND water together — a curtain in the water under a bare overcast sky is
+  // a lie the eye would catch.
+  const c = load('swamp');
+  c.kpNow = 7;
+  c.weather = Object.assign({}, c.weather, { temp: 20, feels: 18 });   // the gate is cold+clear
+  const CLEARW = Object.assign({}, c.weather);
+  let night = null;
+  const base = new Date(); base.setHours(20, 0, 0, 0);
+  for (let d = 0; d < 60 && !night; d++) {
+    for (let mm = 0; mm < 16 && !night; mm++) {
+      const t = base.getTime() + d * 86400000 + mm * 30 * 60000;
+      c.NOWOVR = t; c.CLOCK = t;
+      const [g] = opCanvas();
+      c.draw(g, 'sky');
+      if (c.auroraOn) night = t;
+    }
+  }
+  assert.ok(night, 'no clear cold night in 60 days had the aurora — kp pin or gate broken');
+  const frame = (t, kp, wxPatch) => {
+    c.NOWOVR = t; c.CLOCK = t; c.wetness = 0; c.splashes && (c.splashes.length = 0);
+    c.kpNow = kp;
+    c.weather = Object.assign({}, CLEARW, wxPatch || {});
+    const [g, ops] = opCanvas();
+    c.draw(g, undefined);
+    return ops.length;
+  };
+  const withA = frame(night, 7);
+  const noA = frame(night, 0);
+  const overcast = frame(night, 7, { cloud: 99 });
+  const again = frame(night, 7);
+  // determinism, same context, sequential frames of the same instant
+  const again2 = frame(night, 7);
+  assert.ok(withA - noA > 40, 'kp=0 vs kp=7 differed by only ' + (withA - noA) + ' ops — aurora or its reflection not drawing');
+  assert.ok(withA - overcast > 40, 'an overcast night must kill the whole aurora (sky AND water), not just the sky');
+  assert.strictEqual(again, withA, 'same instant must render identically (determinism)');
+  assert.strictEqual(again2, again, 'and twice in the same context — no per-frame integrator drift');
+});

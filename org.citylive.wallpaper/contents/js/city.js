@@ -12356,12 +12356,20 @@ function drawRainbow(g,L,fx){
     g.beginPath(); g.arc(cx,HORIZON,R-b*2,Math.PI,2*Math.PI); g.stroke(); }
   g.globalCompositeOperation="source-over";
 }
+function auroraNightGate(L,fx,now){
+  // The whole visible gate for the real aurora (drawAurora), extracted so the WATER reflection can
+  // gate itself the same way (a curtain that dances in the sky must not mirror itself into the
+  // water unless the sky actually has it). Same rules, one source of truth — cold, clear, night,
+  // and the per-day roll that keeps most cold nights dark.
+  if(L>0.22||fx.cloudy||fx.rain||fx.snow||fx.thunder||fx.fog) return false;
+  if((weather.temp==null?60:weather.temp)>30) return false;
+  if(auroraLevel()<=0.02) return false;
+  var dn=Math.floor(now/86400000);
+  return (((dn*2654435761)>>>0)%100)<38;
+}
 function drawAurora(g,nd,L,now,fx){
   auroraOn=false;
-  if(L>0.22||fx.cloudy||fx.rain||fx.snow||fx.thunder||fx.fog) return;
-  if((weather.temp==null?60:weather.temp)>30) return;
-  var dn=Math.floor(now/86400000);
-  if((((dn*2654435761)>>>0)%100)>=38) return;                  // most cold nights stay dark
+  if(!auroraNightGate(L,fx,now)) return;
   auroraOn=true;
   g.globalCompositeOperation="lighter";
   for(var b3=0;b3<3;b3++){ var col=["rgba(80,255,160,","rgba(90,220,255,","rgba(190,120,255,"][b3];
@@ -18384,6 +18392,7 @@ function drawFjordWater(g,L,now){
   // a rain ring. A drowned valley's surface takes the weather like any other — rings before the boats,
   // so the ferry and the fleet sit on top of a wet surface, not under it.
   frontRainFX(g,wfxRain(),top,botY-top,now,K,day,1);
+  frontAuroraWater(g,now,top,botY-top,K,day,1);          // the sky curtain mirrored in the water
   fjordBoats(g,L,now,K,top,botY,day);
 }
 // THE WORKING WATERFRONT — fishing boats, and the ferry that actually connects a fjord town to anywhere.
@@ -18556,6 +18565,7 @@ function drawKarstWater(g,L,now){
   // ever ran — so for its whole life the towers stood in water that a downpour could not dimple. Rings
   // land ON the reflections; the sampans below still draw over them, as boats should.
   frontRainFX(g,wfxRain(),top,botY-top,now,K,day,1);
+  frontAuroraWater(g,now,top,botY-top,K,day,1);          // the sky curtain mirrored in the water
   // ---- THE RIVER WORKS (locked signature): sampans poling between the towers: sampans poling between the towers ------------------------------------
   // The water stops being scenery and becomes a road. Long thin boats with a standing poler — at this
   // scale the SHAPE (a shallow crescent with one upright figure) is the whole recognition.
@@ -18978,6 +18988,36 @@ function wfxRain(){ var x=wfx(); return x.hail?1:(x.thunder?1:(x.violent?0.92:(x
 // rain arrives only through the collapse shafts — drawUndercityRain — so its floor lake is only
 // pocked by what comes down them). A lava front would need its own treatment — no SEA_FRONT land
 // has one, so this helper stays water-only. Rings stay hash-scattered; the veil stays one gradient.
+function frontAuroraWater(g,now,top,h,K,day,densK){
+  // ---- AURORA IN THE WATER ---- the sky curtain already draws (drawAurora, gated by the REAL
+  // planetary K-index + cold clear night); this is its mirror in the front band, riding the SAME
+  // per-x phase math so the streaks dance in step with the sky above them. Cheap, and it is the
+  // single most "wait, the sea is reflecting the sky?" feature in the set.
+  // ⚠ OPEN SKY ONLY: same law as the rain veil — densK>=1. Water seen through a collapse shaft
+  // does not reflect a sky it cannot see.
+  if(day||!densK||densK<0.999||h<8) return;
+  var fx2=wfx();
+  if(!auroraNightGate(0,fx2,now)) return;   // 0 = the gate's full-night half; `day` was already refused above
+  var lvl=auroraLevel(); if(lvl<=0.02) return;
+  g.globalCompositeOperation="lighter";
+  var cols=["rgba(80,255,160,","rgba(90,220,255,","rgba(190,120,255,"];
+  var step3=Math.max(3,Math.round(5*K));
+  for(var b3=0;b3<3;b3++){
+    var aB=0.05+0.045;                                          // matches the sky band's base alpha scale
+    for(var x4=0;x4<SW;x4+=step3){
+      var ph2=now*0.00022+b3*2.1+(x4+WOFF)*0.018;               // SAME phase the sky band uses
+      var a2=0.05+0.045*Math.sin(ph2*0.8+b3); if(a2<=0.012) continue;
+      // reflection: dimmer than the sky, dimming toward the viewer, wobbling in depth
+      var near2=(x4/(SW*1.0));
+      var aw=a2*0.50*lvl;
+      if(aw<=0.008) continue;
+      var yy=top+2+((ph2*53+h*3)%Math.max(2,h-6));
+      g.fillStyle=cols[b3]+aw.toFixed(3)+")";
+      g.fillRect(x4+((Math.floor(ph2*37)%3)-1),yy,Math.max(2,Math.round(step3*0.8)),Math.max(2,Math.round((3+(ph2%1)*4)*K*0.5)));
+    }
+  }
+  g.globalCompositeOperation="source-over";
+}
 function frontRainFX(g,rainK,top,h,now,K,day,densK){
   if(rainK<=0||!densK) return;
   // ⚠ RING DENSITY, twice-told. The shipped 0.00055 gave a THIN river (the gorge's ~17px band) ~6
@@ -19181,6 +19221,7 @@ function drawSeaFrontBand(g,L,now){
   // (Now the shared frontRainFX — generic path passes densK 1, so this band's output is unchanged.
   // The karst / fjord / cavern waters call it too; see the note at frontRainFX.)
   frontRainFX(g,rainK,top,h,now,K,day,1);
+  frontAuroraWater(g,now,top,h,K,day,1);                // the sky curtain mirrored in the water
   // --- the mirror: on still water the sky and the land above it reflect, which is most of the read
   // on the bayou and does no harm anywhere else. Cheap: a translucent wash, not a real reflection. ---
   if(k==="swamp"){
