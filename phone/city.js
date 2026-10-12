@@ -18363,6 +18363,10 @@ function drawFjordWater(g,L,now){
     g.fillRect(gx,gy2,Math.round((5+((gh2>>>17)%18))*K*0.5),Math.max(1,Math.round(K*0.4)));
   }
   g.globalCompositeOperation="source-over";
+  // ⚠ SAME GAP AS THE KARST: this land routes to its own water renderer, so the front water never saw
+  // a rain ring. A drowned valley's surface takes the weather like any other — rings before the boats,
+  // so the ferry and the fleet sit on top of a wet surface, not under it.
+  frontRainFX(g,wfxRain(),top,botY-top,now,K,day,1);
   fjordBoats(g,L,now,K,top,botY,day);
 }
 // THE WORKING WATERFRONT — fishing boats, and the ferry that actually connects a fjord town to anywhere.
@@ -18530,6 +18534,11 @@ function drawKarstWater(g,L,now){
     g.fillRect(gx,gy2,gl,Math.max(1,Math.round(K*0.4)));
   }
   g.globalCompositeOperation="source-over";
+  // ⚠ THE KARST'S POOL GETS THE RAIN TOO (Nick, 2026-10-11: "if it is raining, it needs to show it is
+  // raining in the bottom river"). This land routes HERE, before drawSeaFrontBand's inline rain block
+  // ever ran — so for its whole life the towers stood in water that a downpour could not dimple. Rings
+  // land ON the reflections; the sampans below still draw over them, as boats should.
+  frontRainFX(g,wfxRain(),top,botY-top,now,K,day,1);
   // ---- THE RIVER WORKS (locked signature): sampans poling between the towers: sampans poling between the towers ------------------------------------
   // The water stops being scenery and becomes a road. Long thin boats with a standing poler — at this
   // scale the SHAPE (a shallow crescent with one upright figure) is the whole recognition.
@@ -18919,7 +18928,18 @@ function drawCavernWater(g,L,now){
     g.fillRect(dx,dy,Math.max(2,Math.round(3*K)),Math.max(1,Math.round(K*0.6)));
     g.globalCompositeOperation="source-over";
   }
+  // ⚠ AND THE FLOOR LAKE GETS ONLY WHAT FALLS THROUGH THE SHAFTS. It routes here, so (the karst/fjord
+  // bug again) a storm could not dimple it either. But this water sits under a thousand feet of rock:
+  // its rings arrive from the collapse shafts' spray (drawUndercityRain carries the storm down them),
+  // so the ring density is a fraction of an open-sky band's density. No veil — a cavern has no sheet
+  // of rain to hang over the surface. Its lamps make the rings catch even on the darkest tier.
+  frontRainFX(g,wfxRain(),top,botY-top,now,K,day,0.35);
 }
+// THE RAIN INTENSITY of the current weather, 0..1 — the single stepped term the front-water rain
+// art reads. Kept beside frontRainFX because that is now its main consumer; every water renderer
+// calls this rather than re-deriving its own ladder, so a drizzle and a thunderstorm read
+// differently on every land with a bottom river/lake. Same values the generic band always used.
+function wfxRain(){ var x=wfx(); return x.hail?1:(x.thunder?1:(x.violent?0.92:(x.rain?0.7:(x.drizzle?0.3:0)))); }
 // ---- RAIN ON FRONT WATER — the shared impact+spray layer --------------------------------------
 // Generic sea front AND the custom bottom-water renderers (karst / fjord / cavern) all end by
 // calling this, so every land whose front band is water shows rain striking it. Extracted VERBATIM
@@ -19022,10 +19042,11 @@ function drawSeaFrontBand(g,L,now){
   // returned nothing anywhere in the engine.
   // One intensity term, derived from the REAL weather, drives everything below: a drizzle barely
   // pocks the surface and a thunderstorm hammers it, so you can tell them apart without reading the
-  // panel. Everything is in drawSeaFrontBand, so all twenty lands with a sea front get it at once.
-  var rfx=wfx();
-  var rainK=rfx.thunder?1:(rfx.violent?0.92:(rfx.rain?0.7:(rfx.drizzle?0.3:0)));
-  if(rfx.hail) rainK=1;
+  // panel. ⚠ Now SHARED, not "everything in drawSeaFrontBand" — the karst, fjord and cavern waters
+  // route to their own renderers and never reached the inline block that lived here (the note's
+  // "all twenty lands get it at once" was false for those three and cost them every storm); they
+  // end on the same frontRainFX call now, and wfxRain() keeps the ladder in one place.
+  var rainK=wfxRain();                                       // 0..1: drizzle ladders to thunderstorm (shared with the karst/fjord/cavern waters)
   var chop=Math.min(1.9,0.5+wind/16+rainK*0.45);             // how hard it is blowing — and raining — decides how broken it is
   for(var b2=0;b2<7;b2++){
     var by=top+Math.round((b2+0.6)*(h/7.4));
