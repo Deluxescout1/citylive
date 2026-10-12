@@ -157,10 +157,10 @@ WallpaperItem {
     // coarse canvas streaks down the towers, the fine one is clean.
     // So the test is the arithmetic, not the dpr. A screen whose canvas scales by an exact integer keeps
     // the cheap coarse texels and pays nothing; only a screen that would be fractionally stretched pays.
-    readonly property bool fractionalTexel: {
-        var q = (width * dpr) / pxk;
-        return Math.abs(q - Math.round(q)) > 0.001;
-    }
+    // ⚠ `fractionalTexel` (the "is the canvas÷pxk exact" test this analysis built) was REMOVED in
+    // round five: the arithmetic it guarded is settled by the crop trick below for dpr=1 screens,
+    // and the dpr≠1 case is handled at `texelBuf` — native texels on any output plasmashell must
+    // resample to. Keeping a second unused test here is how the last four regressions happened.
     // 🚨🚨 `dpr > 1 ||` WAS STILL HERE, IN FRONT OF THE TEST THAT REPLACED IT. Everything above this
     // line argues that dpr is a PROXY and the arithmetic is the real trigger — and then the code ORs
     // the proxy back in, so on every HiDPI screen the arithmetic never gets a say and the canvas is
@@ -195,7 +195,31 @@ WallpaperItem {
     // ⚠ AND THE VISUAL VERDICT IS STILL HIS. This changes what every user renders, and no render I can
     // produce is the same as looking at a 4K panel from two feet away. If it shimmers, this line is
     // the one to revert.
-    readonly property real texelBuf: pxk
+    //
+    // 🔑🔑 THEY SHIMMERED — ROUND FIVE (Nick, 2026-10-12: lines through the karst mountains AND the
+    // water, "long lines that go through everything", LEFT screen). The false-binary rework above
+    // fixed the dpr=1 fractional-division case (2560: 854*3=2562, exact 3.0000 + crop) but left
+    // `texelBuf` pinned at `pxk` for EVERY screen — silently removing the fine texels on the one
+    // screen whose OUTPUT scale is fractional. Measured live that day, from this wallpaper's own
+    // logs and a 4K screenshot:
+    //     DP-3  4K@165%  dpr=2  canvas 1552x874  → window buffer 4656 → KWin downsample to 3840
+    // Two fractional resamples now sit in the pipeline (Qt's 3104→4656 ≈ ×1.5009 upscale of a
+    // coarse FBO, then KWin's 4656→3840 ≈ ×0.825 output downsample), and the coarse 3-device-px
+    // texel blocks beat both cadences into the recurring vertical stripes — autocorrelation of the
+    // column luminance profile peaks at +0.202 @ 60px in the mountains and +0.767 @ 120px in the
+    // water band, against +0.048 on the clean DP-4 control. The engine at 1:1 is clean (karst,
+    // rendered offscreen that day).
+    // THE RULE, AT LAST IN ITS OWN WORDS: the crop trick covers a screen whose canvas is scaled by
+    // an exact integer; a screen plasmashell must resample to a fractional output scale (dpr≠1)
+    // has no such integer in the pipeline and pays for native texels — texelBuf = dpr, canvas
+    // 2328x1311 on his 4K, rasterized 4656x2622 = the window buffer 1:1, leaving only KWin's global
+    // downsample, which is what every native-res app on that output already goes through. The cost
+    // is real and already accepted: 2.24x the canvas pixels on that one screen (~12 points of one
+    // core at 8fps when last measured, three-round history above). dpr>1 screens CANNOT keep coarse
+    // texels safely — a true 2x native panel would too, but there is no QML API for the output
+    // scale (165% reports dpr exactly 2), and paying native there is merely wasteful, never
+    // striped. This is the line the notes said to put back, put back with the right predicate.
+    readonly property real texelBuf: (dpr > 1.01) ? Math.round(dpr) : pxk
     readonly property int zoom: Math.max(1, Math.round(pxk * dpr / texelBuf))
     // total width (logical px) of the whole desktop the city spans. If unset in config,
     // auto-detect by summing every screen's width (works for a single laptop screen or
