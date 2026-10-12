@@ -1,7 +1,8 @@
-// THE CREW SCULLS — dawn practice on the front water. An 8+ shell crosses the world on the clock:
-// pure function of (world x, clock), so the three monitors agree mid-bezel. The crews are out only
-// in the 05:00–09:00 local window, stay ashore in heavy rain, and the whole shell rides inside the
-// front water band.
+// THE CREW SCULLS — dawn-through-evening practice on the front water. An 8+ shell crosses the
+// world on the clock: pure function of (world x, clock), so the three monitors agree mid-bezel.
+// The crews are out in the 05:00–20:00 local window (morning practice through the evening rows —
+// the dawn-only 05:00–09:00 window was why nobody ever caught a crew rowing), stay ashore at
+// night, and in heavy rain.
 // Detection: every op of the shell carries a STYLE UNIQUE TO drawSculls in this engine — the hull
 // pair, the crew dress and the oar brown. The test counts all of them together (a hull alone is
 // one fillRect; a fully-visible shell is ~35+ ops), so "one visible hull sliver" can never
@@ -85,20 +86,26 @@ test('a full crew is on the water at a dawn, inside the water band, no NaN', () 
         // a REAL crew: eight rowers means eight head pixels, not a hull and a prayer
         assert.ok(f.shell.filter(o => String(o[0]).charAt(0) === '#').length >= 8,
           land + ': only ' + f.shell.filter(o => String(o[0]).charAt(0) === '#').length + ' crew pixels — not an eight');
+        // AND THEY ROW: each of the eight carries an oar drawn as two segments — a crew with no
+        // oars is exactly the report this file exists to keep from recurring
+        const oars = f.shell.filter(o => String(o[0]).indexOf('120,92,50') >= 0 || String(o[0]).indexOf('52,40,26') >= 0);
+        assert.ok(oars.length >= 8, land + ': only ' + oars.length + ' oar ops on a visible crew — nobody is rowing');
       }
     }
   }
   assert.ok(found, 'no dawn in 40 days had a full crew visible on either front-river land');
 });
 
-test('the crews are ashore at noon and in heavy rain', () => {
-  const noon = new Date(); noon.setHours(13, 0, 0, 0);
-  let noonHits = 0;
-  for (let i = 0; i < 30; i++) {
-    const f = scullFrame('swamp', noon.getTime() + i * 86400000);
-    if (f.shell.length > 0) noonHits++;
+test('the crews are ashore at night and in heavy rain', () => {
+  let nightHits = 0;
+  for (const night of [21, 2]) {
+    for (let i = 0; i < 30; i++) {
+      const d = new Date(); d.setHours(night, 0, 0, 0);
+      const f = scullFrame('swamp', d.getTime() + i * 86400000);
+      if (f.shell.length > 0) nightHits++;
+    }
   }
-  assert.strictEqual(noonHits, 0, 'a crew launched during the day');
+  assert.strictEqual(nightHits, 0, 'a crew launched at night');
   const d = new Date(); d.setHours(6, 30, 0, 0);
   let rainHits = 0;
   for (let i = 0; i < 12; i++) {
@@ -106,6 +113,18 @@ test('the crews are ashore at noon and in heavy rain', () => {
     if (f.shell.length > 0) rainHits++;
   }
   assert.strictEqual(rainHits, 0, 'a crew launched into heavy rain');
+});
+
+test('a crew is out through the day, not only at dawn', () => {
+  let dayHits = 0;
+  for (const hr of [11, 17]) {
+    for (let i = 0; i < 30; i++) {
+      const d = new Date(); d.setHours(hr, 0, 0, 0);
+      const f = scullFrame('swamp', d.getTime() + i * 86400000);
+      if (f.shell.length >= 24) dayHits++;
+    }
+  }
+  assert.ok(dayHits > 0, 'no crew rowing in the daylight hours — the oars are dawn-only again');
 });
 
 test('the shells are deterministic', () => {

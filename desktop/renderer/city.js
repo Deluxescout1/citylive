@@ -344,7 +344,10 @@ var NOFETCH = false;  // headless flag (own line = QML-namespace writable): alma
 // reported the same ~1,500 px on eight unrelated lands before that was noticed. One render, three
 // snapshots, and the arithmetic is exact.
 var DETAILPROBE = null;
-var VERSION = "2.0.2";  // the build the user is running — surfaced in the Almanac + KDE config page (keep in sync with desktop/package.json)
+var VERSION = "4.1.1";  // the build the user is running — surfaced in the Almanac + KDE config page (keep in sync with desktop/package.json)
+                        // ⚠ this sat at 2.0.2 while package.json was already 4.1.0 — the config page
+                        // told the user v2.0.2 for at least two releases. Sync is a RELEASE step, not
+                        // an intention; check it in docs/RELEASING.md's cut list.
 var FORCELAYOUT = null;   // test hook: pin every building's window layout (grid/ribbon/band/punch/corp) — verify per-layout render
 var FORCECROWN = null;    // test hook: pin every building's crown/roof (gable/hip/saltbox/mansard/deco/…) — verify per-roof render
 var FORCEUSE = null;      // test hook: pin every building's functional type (hospital/theater/hotel/bank/cafe/pharmacy) — verify drawUse
@@ -18387,9 +18390,9 @@ function drawFjordWater(g,L,now){
         var on=false;
         if(xx<SW){ var rk=Math.max(hs[xx]||0,(hs0&&hs0[xx])||0); on=(rk*COMP)>need; }
         if(on){ if(rs<0) rs=xx; }
-        else if(rs>=0){ g.fillRect(rs,top+need,xx-rs,bandH); rs=-1; }
+        else if(rs>=0){ bandRunRect(g,rs,xx,top+need,bandH,g.globalAlpha); rs=-1; }
       }
-      if(rs>=0) g.fillRect(rs,top+need,SW-rs,bandH);
+      if(rs>=0) bandRunRect(g,rs,SW,top+need,bandH,g.globalAlpha);
     }
     g.globalAlpha=1;
     // the ripple, as a cheap overlay of displaced streaks rather than a per-column offset
@@ -18441,7 +18444,7 @@ function drawFjordWater(g,L,now){
   // so the ferry and the fleet sit on top of a wet surface, not under it.
   frontRainFX(g,wfxRain(),top,botY-top,now,K,day,1);
   frontAuroraWater(g,now,top,botY-top,K,day,1);          // the sky curtain mirrored in the water
-  drawSculls(g,L,now,top,botY);                          // the crews row at dawn here too
+  drawSculls(g,L,now,top,botY);                          // the crews are on the water from dawn practice through the evening rows
   fjordBoats(g,L,now,K,top,botY,day);
 }
 // THE WORKING WATERFRONT — fishing boats, and the ferry that actually connects a fjord town to anywhere.
@@ -18502,7 +18505,9 @@ function depthFrac(f,top,botY){ return Math.round(f*(botY-top)); }
 // medieval coasts.
 function drawSculls(g,L,now,top,botY){
   var hr=new Date(now).getHours();
-  if(hr<5||hr>=9) return;
+  // Rowing is a dawn-and-dusk sport — 5 to 20h covers morning practice through the evening rows.
+  // (Was dawn-only 5–9h, which is why the crews were almost never on the water when looked at.)
+  if(hr<5||hr>=20) return;
   if(cityPhase==="apoc"||curVillage) return;
   if(wfxRain()>=0.3) return;
   var K=Math.max(1,KSP), day=L>0.5;
@@ -18522,17 +18527,47 @@ function drawSculls(g,L,now,top,botY){
       var stern=sx3-heading*L3;
       // the shell first, so the crew sits on top of it
       g.fillStyle=hull; g.fillRect(Math.min(sx3,stern),by,Math.max(2,L3),Math.max(1,Math.round(K*0.5)));
+      // 🔑 "IF SOMEONE IS IN A BOAT YOU CAN SEE THEM ROWING" (Nick, 2026-10-12). The old oar was a
+      // two-pose flicker — a 2px stub that switched on a sine — and at his scale it vanished: the
+      // crew read as men SITTING. A real sculling crew reads at this size by exactly three cues, so
+      // all three are drawn, each a pure function of (world x, clock) — nothing simulated:
+      //   1 THE SWEEP — oars out PORT AND STARBOARD (alternate per rower, as a real 8 does), blade
+      //     reaching out over the side and sweeping through the arc, drawn as two 1px segments.
+      //   2 THE DIG — the blade is IN the water through the drive (darker, masked by it) and the
+      //     splash + expanding ripple live at the catch, so the water itself answers the stroke.
+      //   3 THE LEAN — each body slides ~1px fore-aft with its own phase: backs lean into the pull,
+      //     and with half the crew a half-beat off the sweep travels down the boat like a real shell.
       for(var r=0;r<8;r++){
         var pX=Math.round(sx3-heading*(2+r*(L3-4)/8));
-        var ph2=Math.sin(now*0.0016+sh2+(r&1)*0.9+r*0.13);          // half the crew a half-beat off
-        var stroke=ph2>0.25;
-        g.fillStyle=body; g.fillRect(pX,by-2,1,2);                  // the rower's back
-        g.fillStyle=SKINC[(sh2>>>r)%SKINC.length]; g.fillRect(pX,by-3,1,1);   // the head
-        // the oar: caught = blade out on the water with its own ripple; otherwise up off the loom
-        var oY=by+(stroke?1:0), oL=stroke?4:2;
+        var side=((r&1)?1:-1);                                   // sculling: oars BOTH sides of the shell
+        var ph2=Math.sin(now*0.0016+sh2+(r&1)*0.9+r*0.13);       // half the crew a half-beat off
+        var stroke=ph2>0.25;                                     // the drive half of the cycle
+        var leanK=Math.max(-1,Math.min(1,ph2*1.4));               // the body: into the pull, out to recover
+        var bX=pX-Math.round(leanK*0.6);
+        g.fillStyle=body; g.fillRect(bX,by-2,1,2);                 // the rower's back
+        g.fillStyle=SKINC[(sh2>>>r)%SKINC.length]; g.fillRect(bX,by-3,1,1);   // the head
+        // THE OAR: hub at the gunwale, then two 1px segments reaching out over the side. The reach
+        // (`sweep`) eases through the whole arc — never a snap between poses — and the blade drops
+        // to/below the waterline on the drive: the dig is what makes the splash and ripple read.
+        var sweep=(side>0?1:-1)*(1.2+1.3*(0.5+0.5*ph2));           // 0.55..2.5 out from the shell
+        var seg1X=pX+Math.round(sweep*0.7), seg2X=pX+Math.round(sweep);
+        var bladeY=by+(stroke?Math.round(K*0.5):-1);
         g.fillStyle=day?"rgba(120,92,50,0.9)":"rgba(52,40,26,0.9)";
-        g.fillRect(pX-heading*(stroke?0:2),oY-Math.round(oL*0.4),Math.max(1,Math.round(oL*0.6)),1);
-        if(stroke){ g.fillStyle=wake; g.fillRect(pX-Math.round(oL*1.4),oY+1,3,1); }
+        if(stroke){ // ⚠ fills must be ORDERED: the sweep can be negative (port side) and a negative
+          // width fillRect draws nothing on some backends — half the crew's oars vanished.
+          g.fillRect(Math.min(pX,seg1X),by-1,Math.max(1,Math.abs(seg1X-pX)),1);
+          g.fillRect(Math.min(seg1X,seg2X),bladeY,Math.max(1,Math.abs(seg2X-seg1X)),1); }
+        else { g.fillRect(pX,by-2,1,1);
+          g.fillRect(Math.min(seg1X,seg2X),by-2,Math.max(1,Math.abs(seg2X-seg1X)),1); }
+        // the water answers: a splash at the catch and an expanding ripple through the drive
+        if(stroke){
+          g.fillStyle=wake;
+          g.fillRect(Math.round(pX+sweep-K*0.5),bladeY+1,Math.max(1,Math.round(K*1.2)),1);
+          if(ph2>0.55){ var rp=Math.round((ph2-0.55)*7*K);          // the ripple grows through the pull
+            g.fillRect(Math.round(pX+sweep-rp*0.7),bladeY+1,Math.max(1,Math.round(rp*0.7)),1); }
+          if(ph2>0.25&&ph2<0.4){ g.fillStyle=day?"rgba(235,246,250,0.85)":"rgba(210,226,244,0.7)";
+            g.fillRect(seg2X,bladeY,1,1); }                        // the initial splash at the catch
+        }
       }
       // the cox, sitting up at the stern and facing the rowers
       g.fillStyle=body; g.fillRect(stern+heading*1,by-3,1,2);
@@ -18596,7 +18631,52 @@ function karstSil(){
     }
   }
   _ksil={sw:SW,woff:WOFF,cache:karstCache,sil:sil};
+  // ⚠⚠ HAIRLINE WATER SEAMS (Nick, 2026-10-12, fifth sighting of the mountain/water lines family).
+  // Two near-touching towers leave a 1–6px run of NO silhouette between their crowns (their feet are
+  // undercut and their crowns are separate), and in `drawKarstWater` that run of bare gradient —
+  // flanked by the dark reflection bands on both sides at the exact same columns — reads as a thin
+  // LIGHT vertical line down the full depth of the water. Measured on the 1:1 engine render: at
+  // world x≈161 two ranks' crowns step 213→(bare)→162 and the seam is there, ~2px wide, in every
+  // band. A 2px water gap between two reflections is invisible; the seams are not.
+  // 🔑 So BR SHORT RUNS between covered columns: a sliver shorter than a few px of world is almost-
+  // touching towers whose reflections must meet — fill it with a linear blend of the flanking values,
+  // so the reflection runs CONTINUOUS through it. Gaps wider than `BR` are real sky between towers
+  // and stay bare (a reflection that should not exist is the fjord-class fault, not this).
+  // The same silhouette feeds `drawDamageScorchY`, where a bridged sliver joins two burn patches on
+  // almost-touching towers — which is where the fire was anyway.
+  {
+    var BR=8, xa=0;
+    for(x=1;x<SW-1;x++){
+      if(sil[x]<1e9){ xa=x; continue; }
+      var xb=x; while(xb<SW && sil[xb]>=1e9) xb++;
+      if(xa>0 && xb<SW && (xb-x)<=BR && (xb-x)>0){
+        for(var xg=x;xg<xb;xg++){
+          var fg2=(xg-xa)/(xb-xa);
+          sil[xg]=sil[xa]+(sil[xb]-sil[xa])*fg2;
+        }
+      }
+      x=xb;
+    }
+  }
   return sil;
+}
+// ⚠⚠ A BANDED REFLECTION'S RUN EDGES WERE THE WATER LINES. The banded batching draws each depth band
+// as one rect per run, so the first and last column of every patch is a hard jump from full reflection
+// alpha to bare water — a 1px vertical edge down that band, and stacked over all six bands a hard edge
+// down the FULL depth of the water. Measured on Nick's screen 2026-10-12: the seams sit at patch-rim
+// columns (world x≈161, 229, 931…), not at silhouette gaps, after the hairline bridge below fixed the
+// slivers — the rims were the residue. So every run is drawn FEATHERED: ~1/3 of the run (capped at 4px)
+// at 42% alpha on each end, the core at full alpha. The edge becomes a two-step ramp and the seam reads
+// as water. Shared with the fjord's wall mirror, which had the identical structure and identical fault —
+// six-land warning: hard edges anywhere in water are this project's most repeated fault family.
+function bandRunRect(g,rsk,xk,y0,bandH,aCore){
+  var w0=xk-rsk; if(w0<=0) return;
+  var fe=Math.min(4,(w0/3)|0);
+  if(fe<1){ g.globalAlpha=aCore; g.fillRect(rsk,y0,w0,bandH); return; }
+  g.globalAlpha=aCore*0.42;
+  g.fillRect(rsk,y0,fe,bandH); g.fillRect(xk-fe,y0,fe,bandH);
+  g.globalAlpha=aCore;
+  g.fillRect(rsk+fe,y0,w0-2*fe,bandH);
 }
 function drawKarstWater(g,L,now){
   var K=Math.max(1,KSP), day=L>0.5, B=curBiome;
@@ -18637,9 +18717,9 @@ function drawKarstWater(g,L,now){
       var onk=false;
       if(xk<SW && sil[xk]<1e8) onk=((HORIZON-sil[xk])*COMP)>needK;
       if(onk){ if(rsk<0) rsk=xk; }
-      else if(rsk>=0){ g.fillRect(rsk,top+needK,xk-rsk,bandK); rsk=-1; }
+      else if(rsk>=0){ bandRunRect(g,rsk,xk,top+needK,bandK,g.globalAlpha); rsk=-1; }
     }
-    if(rsk>=0) g.fillRect(rsk,top+needK,SW-rsk,bandK);
+    if(rsk>=0) bandRunRect(g,rsk,SW,top+needK,bandK,g.globalAlpha);
   }
   g.globalAlpha=1;
   g.fillStyle=css(refC);
@@ -18675,7 +18755,7 @@ function drawKarstWater(g,L,now){
   // land ON the reflections; the sampans below still draw over them, as boats should.
   frontRainFX(g,wfxRain(),top,botY-top,now,K,day,1);
   frontAuroraWater(g,now,top,botY-top,K,day,1);          // the sky curtain mirrored in the water
-  drawSculls(g,L,now,top,botY);                          // the crews row at dawn here too
+  drawSculls(g,L,now,top,botY);                          // the crews are on the water from dawn practice through the evening rows
   // ---- THE RIVER WORKS (locked signature): sampans poling between the towers: sampans poling between the towers ------------------------------------
   // The water stops being scenery and becomes a road. Long thin boats with a standing poler — at this
   // scale the SHAPE (a shallow crescent with one upright figure) is the whole recognition.

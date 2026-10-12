@@ -8,12 +8,12 @@
             }
         ],
         "Category": "",
-        "Description": "Living pixel city — real Norwich CT day/night cycle, live weather, holiday effects",
+        "Description": "Living pixel city \u2014 real Norwich CT day/night cycle, live weather, holiday effects",
         "EnabledByDefault": true,
         "Id": "org.citylive.wallpaper",
         "License": "MIT",
         "Name": "CityLive Pixel City",
-        "Version": "4.1.0"
+        "Version": "4.1.1"
     },
     "X-Plasma-API-Minimum-Version": "6.0"
 }
