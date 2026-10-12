@@ -3791,7 +3791,7 @@ var FAUNA={
   oryx:      {plan:"quad", w:7, h:5, c:[224,214,196],c2:[92,80,70],    head:"horn"},
   buffalo:   {plan:"quad", w:9, h:5, c:[86,74,64],   c2:[52,44,38],    head:"curl"},
   monkey:    {plan:"spot", c:[122,98,72],  c2:[176,148,116], upright:1, tail:1},
-  fennec:    {plan:"spot", c:[226,200,152],c2:[248,232,204], upright:1},
+  fennec:    {plan:"spot", w:4, h:3, c:[226,200,152],c2:[248,232,204], upright:1},   // w/h: PREDATORS hunts read them raw; without them the dunes/salt hunter painted NaN (silently nothing — the ninth-species class again)
   scarab:    {plan:"spot", c:[46,52,44],   c2:[92,104,80]},
   flamingo:  {plan:"bird", c:[248,166,190], perch:1, wader:1},
   bat:       {plan:"bird", c:[46,40,50],   soar:1},
