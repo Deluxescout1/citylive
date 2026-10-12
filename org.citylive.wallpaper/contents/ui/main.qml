@@ -586,6 +586,61 @@ WallpaperItem {
     }
 
     // debounce the flurry of width/height/x changes at bring-up into one setup
+    // ---- CURSOR INSPECTOR (config: "Cursor inspector", default OFF). Hover or tap the wallpaper
+    // and the engine resolves that point — named citizen, standing building, the green, the front
+    // water, or sky-with-a-weather-note — via City.inspectScene. Draw-space coords: canvas px are
+    // pxk device px each (see cv.width), and the engine's draw space is canvas/ZOOM, so
+    // draw = mouse.x · dpr / (pxk·zoom). Read-only between frames — no repaint, no sprite work.
+    readonly property bool inspectorOn: !configuration || configuration.inspector === undefined ? false : configuration.inspector
+    function drawPt(mx, my) {
+        return Qt.point(Math.round(mx * root.dpr / (root.pxk * root.zoom)),
+                        Math.round(my * root.dpr / (root.pxk * root.zoom)));
+    }
+    Rectangle {
+        id: inspectTip
+        visible: inspectorOn && inspectText.length > 0
+        x: Math.max(4, Math.min(root.width - inspect.width - 8, inspectAnchor.x + 14))
+        y: Math.max(4, Math.min(root.height - inspect.height - 8, inspectAnchor.y + 14))
+        width: inspect.width + 16
+        height: inspect.height + 8
+        radius: 4
+        color: "#e8ecf400"       // 0 alpha base; children carry the visible card
+        property point inspectAnchor: Qt.point(0, 0)
+        Rectangle {
+            anchors.fill: parent; radius: 4; color: "#12162ae0"; border.color: "#7af5ff"; border.width: 1
+            Column {
+                id: inspect; x: 8; y: 4; spacing: 1
+                Text { color: "#ffd76a"; font.pixelSize: 14; font.bold: true; text: inspectTip.inspectTitle }
+                Text { color: "#dfe6f4"; font.pixelSize: 12; text: inspectTip.inspectDetail }
+            }
+        }
+        property string inspectTitle: ""
+        property string inspectDetail: ""
+    }
+    Timer { id: inspectFade; interval: 5000; onTriggered: { inspectTip.inspectTitle = ""; inspectTip.inspectDetail = ""; } }
+    MouseArea {
+        anchors.fill: parent
+        enabled: root.inspectorOn
+        hoverEnabled: true
+        acceptedButtons: Qt.LeftButton | Qt.RightButton
+        cursorShape: root.inspectorOn ? Qt.PointingHandCursor : Qt.ArrowCursor
+        onPositionChanged: (mouse) => {
+            if (!root.inspectorOn) return;
+            const pt = root.drawPt(mouse.x, mouse.y);
+            try {
+                const r = City.inspectScene(pt.x, pt.y);
+                if (r && r.title) {
+                    inspectTip.inspectTitle = r.title;
+                    inspectTip.inspectDetail = r.detail || "";
+                    inspectTip.inspectAnchor = Qt.point(mouse.x, mouse.y);
+                    inspectFade.restart();
+                }
+            } catch (e) { /* the inspector must never hurt the wallpaper */ }
+        }
+        onClicked: (mouse) => { onPositionChanged(mouse); }
+        onExited: inspectFade.restart()
+    }
+
     Timer { id: bootTimer; interval: 60; onTriggered: root.boot() }
 
     // NOTIFICATIONS (Nick): ~1/min, only when something of SUBSTANCE is on screen. Engine probe is

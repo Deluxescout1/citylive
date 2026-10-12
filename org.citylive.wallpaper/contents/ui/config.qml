@@ -21,6 +21,7 @@ ColumnLayout {
     property bool cfg_notifyEvents: true
     property bool cfg_pauseWhenCovered: true
     property bool cfg_chronicleEnabled: true
+    property bool cfg_inspector: false
     property string chronicleText: i18n("No witnessed events yet. Leave CityLive running and its story will appear here.")
     property bool chronicleClearArmed: false
 
@@ -433,6 +434,13 @@ ColumnLayout {
             text: i18n("Gameday takeover when the Bills are really playing")
             checked: cfgRoot.cfg_bills
             onToggled: cfgRoot.cfg_bills = checked
+        }
+
+        QQC2.CheckBox {
+            Kirigami.FormData.label: i18n("Cursor inspector:")
+            text: i18n("Show what is under the cursor — citizens, buildings, water")
+            checked: cfgRoot.cfg_inspector
+            onToggled: cfgRoot.cfg_inspector = checked
         }
 
         QQC2.Label {

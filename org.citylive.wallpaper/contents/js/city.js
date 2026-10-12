@@ -15840,6 +15840,52 @@ function peopleInspectAt(sx, sy){
 // ECONOMY TV (Stage 4a): the MONEY 9 / MARKETS jumbotron channel, now driven by the REAL citizen economy —
 // live unemployment, inequality (Gini), and named citizens' fortunes. This is the "TV station" (Nick Q24)
 // showing the economy the 175 citizens actually generate (Q21). Read-only; cached roster.
+
+// ---- CURSOR INSPECTOR — resolve a draw-space point to what lives there. The generalisation of
+// peopleInspectAt beyond the person hit: the NAMED citizen under the cursor first, then a real
+// standing building in the skyline depth rows (nearest by face centre; parks skipped, unborn
+// sites and still-scaffolding lots excluded — exactly the laws adMountAt already obeys), then a
+// green, then the front water, then sky/ground with a weather note. READ-ONLY: nothing here
+// may mutate state, so the wallpaper's MouseArea can call it between frames with no repaint.
+function inspectScene(sx,sy){
+  var per=peopleInspectAt(sx,sy);
+  if(per){
+    var bits=[];
+    if(per.office) bits.push(per.office);
+    bits.push((per.retired?"retired ":"")+per.job+" · age "+per.age+" · the "+String(per.klassName||"").toLowerCase());
+    return {kind:"person", title:per.name, detail:bits.join(" · ")};
+  }
+  var lay=[near,mid,far];
+  for(var li3=0;li3<lay.length;li3++){ var L4=lay[li3];
+    if(!L4||!L4.blds) continue;
+    var best=null, bd2=1e9;
+    for(var k6=0;k6<L4.blds.length;k6++){ var b=L4.blds[k6];
+      if(b.bAge!==undefined && cityG-b.bAge<=bandOf(b)) continue;    // unborn / still scaffolding
+      for(var w6=-1;w6<=1;w6++){
+        var bx6=b.x-WOFF+w6*WW, top6=L4.y0-b.h, bot6=L4.y0;
+        if(bx6+b.w<0||bx6>SW||sy<top6-4||sy>bot6) continue;
+        var d6=Math.abs(bx6+b.w/2-sx); if(d6<bd2){ bd2=d6; best={b:b,y0:L4.y0}; }
+      }
+    }
+    if(best){ var b6=best.b;
+      if(b6.type==="park") return {kind:"park", title:"THE GREEN", detail:String(b6.district||"").toLowerCase()};
+      var nm6=String(b6.type||"building").replace(/_/g," ");
+      return {kind:"building", title:"THE "+String(b6.district||"CITY").toUpperCase(),
+        detail:nm6+(b6.h>=24?" · ≈"+Math.max(1,Math.round(b6.h/7))+" storeys":(" · "+Math.max(1,Math.round(b6.h)))+" tall")};
+    }
+  }
+  var now=(typeof NOWOVR!=='undefined'&&NOWOVR!=null)?NOWOVR:Date.now();
+  if(SEA_FRONT>0&&sy>=SEA_Y-1) return {kind:"water", title:"THE FRONT WATER", detail:wfxRain()>0?"wet with rain":(curBiome&&curBiome.name?curBiome.name.toLowerCase():"open water")};
+  if(sy<HORIZON-6){
+    var fx2=wfx();
+    var wtxt=fx2.thunder?"a storm overhead":(fx2.rain?"rain overhead":(fx2.snow?"snow overhead":(fx2.fog?"fog overhead":"clear sky")));
+    return {kind:"sky", title:"THE SKY", detail:wtxt+(typeof weather!=='undefined'&&weather&&weather.temp!=null?", "+Math.round(weather.temp)+"°C":"")};
+  }
+  return {kind:"ground", title:"THE STREET", detail:(curBiome&&curBiome.name?curBiome.name.toLowerCase():null)||"the near ground"};
+}
+
+// live unemployment, inequality (Gini), and named citizens' fortunes. This is the "TV station" (Nick Q24)
+// showing the economy the 175 citizens actually generate (Q21). Read-only; cached roster.
 function peopleMarketBeat(now, slot){
   if(cityG<0.3 || cityPhase==="apoc") return null;
   var R=peopleRoster(now, lifeIndexOf(now), cityGrowth(now).cy), s=R.stats;
