@@ -57,6 +57,8 @@ function load(land, t) {
   context.weather = Object.assign({}, CLEAR, { temp: 20, feels: 18 });
   context.applyConfig({ land });
   context.setup('neon', { cw: 853, ch: 480, woff: 582, ww: 2269, pxk: 6, quality: 'performance' });
+  // ⚠ pin the clock AFTER setup — setup() rebuilds sim state; before, "night" frames ran at "now"
+  context.NOWOVR = t; context.CLOCK = t;
   context.wetness = 0;
   context.splashes && (context.splashes.length = 0);
   context.kpNow = 7;

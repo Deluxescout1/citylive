@@ -25,10 +25,11 @@ function load(land, t, wx) {
   const context = vm.createContext(sandbox);
   vm.runInContext(fs.readFileSync(ENGINE, 'utf8'), context, { filename: 'city.js' });
   context.NOFETCH = true;
-  context.NOWOVR = t; context.CLOCK = t;
   context.weather = Object.assign({}, CLEAR, { temp: 20, feels: 18 }, wx || {});
   context.applyConfig({ land: land || 'dunes' });
   context.setup('neon', { cw: 853, ch: 480, woff: 582, ww: 2269, pxk: 6, quality: 'performance' });
+  // ⚠ pin the clock AFTER setup — setup() rebuilds sim state; before, a "noon" frame was really "now"
+  context.NOWOVR = t; context.CLOCK = t;
   context.wetness = 0; context.kpNow = 7;
   return context;
 }

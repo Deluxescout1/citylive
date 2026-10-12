@@ -18395,6 +18395,7 @@ function drawFjordWater(g,L,now){
   // so the ferry and the fleet sit on top of a wet surface, not under it.
   frontRainFX(g,wfxRain(),top,botY-top,now,K,day,1);
   frontAuroraWater(g,now,top,botY-top,K,day,1);          // the sky curtain mirrored in the water
+  drawSculls(g,L,now,top,botY);                          // the crews row at dawn here too
   fjordBoats(g,L,now,K,top,botY,day);
 }
 // THE WORKING WATERFRONT — fishing boats, and the ferry that actually connects a fjord town to anywhere.
@@ -18445,6 +18446,61 @@ function fjordBoats(g,L,now,K,top,botY,day){
   }
 }
 function depthFrac(f,top,botY){ return Math.round(f*(botY-top)); }
+// ---- THE CREW SCULLS — dawn practice on the water you can actually see. An 8+ shell: eight rowers
+// on alternating port/starboard strokes, a cox at the stern, a bow wake and a trailing stern wake
+// that fades behind the hull, crossing the world on the clock exactly like every other boat here.
+// Pure function of (world x, clock) — position is hash offset + a fixed real-time speed, so the three
+// monitors agree mid-bezel, and any term multiplying `now` by something OTHER than a constant speed
+// would teleport the shell (THE FLOW's 🚨 rule applies to boats too: amplitude of motion, never phase).
+// The crews come out only at dawn (05:00–09:00 local), stay ashore for heavy rain / the apocalypse /
+// medieval coasts.
+function drawSculls(g,L,now,top,botY){
+  var hr=new Date(now).getHours();
+  if(hr<5||hr>=9) return;
+  if(cityPhase==="apoc"||curVillage) return;
+  if(wfxRain()>=0.3) return;
+  var K=Math.max(1,KSP), day=L>0.5;
+  var hull=day?"rgba(30,36,46,0.95)":"rgba(9,11,15,0.95)";
+  var wake=day?"rgba(230,242,248,0.38)":"rgba(150,176,220,0.20)";
+  var body=day?"#2c3138":"#15181e";
+  for(var s2=0;s2<2;s2++){
+    var sh2=mixLi((s2+11)>>>0,86029)>>>0;
+    var heading=((sh2>>>5)&1)?1:-1;
+    var SPEED=7+((sh2>>>9)%6);                                     // 7–12 world px per real second
+    var L3=Math.max(8,Math.round((25+((sh2>>>13)%9))*K*0.9));      // the hull: bow to stern
+    var bx=wrapW((sh2>>>3)%WW+(now*0.001*SPEED)*heading);          // the BOW tip, world-anchored
+    var by=top+depthFrac(0.12+((sh2>>>17)%56)/100*0.60,top,botY);
+    for(var o3=-1;o3<=1;o3++){
+      var sx3=Math.round(bx-WOFF+o3*WW);
+      if(sx3<-50||sx3>SW+50) continue;
+      var stern=sx3-heading*L3;
+      // the shell first, so the crew sits on top of it
+      g.fillStyle=hull; g.fillRect(Math.min(sx3,stern),by,Math.max(2,L3),Math.max(1,Math.round(K*0.5)));
+      for(var r=0;r<8;r++){
+        var pX=Math.round(sx3-heading*(2+r*(L3-4)/8));
+        var ph2=Math.sin(now*0.0016+sh2+(r&1)*0.9+r*0.13);          // half the crew a half-beat off
+        var stroke=ph2>0.25;
+        g.fillStyle=body; g.fillRect(pX,by-2,1,2);                  // the rower's back
+        g.fillStyle=SKINC[(sh2>>>r)%SKINC.length]; g.fillRect(pX,by-3,1,1);   // the head
+        // the oar: caught = blade out on the water with its own ripple; otherwise up off the loom
+        var oY=by+(stroke?1:0), oL=stroke?4:2;
+        g.fillStyle=day?"rgba(120,92,50,0.9)":"rgba(52,40,26,0.9)";
+        g.fillRect(pX-heading*(stroke?0:2),oY-Math.round(oL*0.4),Math.max(1,Math.round(oL*0.6)),1);
+        if(stroke){ g.fillStyle=wake; g.fillRect(pX-Math.round(oL*1.4),oY+1,3,1); }
+      }
+      // the cox, sitting up at the stern and facing the rowers
+      g.fillStyle=body; g.fillRect(stern+heading*1,by-3,1,2);
+      g.fillStyle=SKINC[(sh2>>>2)&3?((sh2>>>2)%SKINC.length):2]; g.fillRect(stern+heading*1,by-4,1,1);
+      // the bow V and the fading stern wake
+      g.fillStyle=wake;
+      g.fillRect(sx3+heading*Math.round(K*1.5),by+Math.round(K*0.5),Math.max(1,Math.round(K*1.5)),1);
+      for(var wq=0;wq<6;wq++){ var wa=0.38-wq*0.055; if(wa<=0.02) break;
+        g.fillStyle=day?"rgba(230,242,248,"+wa.toFixed(3)+")":"rgba(150,176,220,"+(wa*0.55).toFixed(3)+")";
+        g.fillRect(Math.round(stern-heading*(wq*2.6+1)*K),by+Math.round(K*0.6),Math.max(1,Math.round((2.5-wq*0.3)*K)),1);
+      }
+    }
+  }
+}
 // ============ THE RIVER THE TOWERS STAND IN ============
 // Nick's locked answer #3. The defining photograph of this landform is limestone towers rising straight
 // out of still green water with their own reflections under them; this land had a thin pale strip behind
@@ -18568,6 +18624,7 @@ function drawKarstWater(g,L,now){
   // land ON the reflections; the sampans below still draw over them, as boats should.
   frontRainFX(g,wfxRain(),top,botY-top,now,K,day,1);
   frontAuroraWater(g,now,top,botY-top,K,day,1);          // the sky curtain mirrored in the water
+  drawSculls(g,L,now,top,botY);                          // the crews row at dawn here too
   // ---- THE RIVER WORKS (locked signature): sampans poling between the towers: sampans poling between the towers ------------------------------------
   // The water stops being scenery and becomes a road. Long thin boats with a standing poler — at this
   // scale the SHAPE (a shallow crescent with one upright figure) is the whole recognition.
@@ -64519,6 +64576,9 @@ function draw(g,pass){
   // ⚠ Drawing it here rather than earlier is what keeps it in front — the mistake that hid the
   // waterfalls for two sessions was assuming definition order was paint order.
   drawSeaFrontBand(g,L,now);
+  // THE CREWS: dawn practice on the front water — see drawSculls. Own world-anchored gate, so the
+  // generic band, the fjord and the karst pool all share one crew clock.
+  if(SEA_FRONT>0) drawSculls(g,L,now,SEA_Y,SH-TASKBAR_WP);
   // THE PACK, in the water you can actually see. Same routine as the seam spans, given the front band's
   // geometry — and drawn AFTER the band for the reason the harbour below is: definition order is not
   // paint order, and this feature spent its whole life underneath the sea.
