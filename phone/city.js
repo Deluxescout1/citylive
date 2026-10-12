@@ -19036,6 +19036,12 @@ function drawSeaFrontBand(g,L,now){
   // ruling edge to edge, and a crest highlight that only appears where the wave is actually peaking.
   // Bands also thin and slow with distance, which is what sells the depth.
   var wind=Math.max(2,(weather&&weather.wind)||6), sp=0.00004*(0.6+wind/22);
+  // 🚨 `sp` MULTIPLIES `now` (~1.8e12), SO IT MUST NOT MOVE WITH THE RAIN. A step in a term that
+  // multiplies `now` teleports the phase by `now*Δsp` — millions of radians, a total re-randomise —
+  // and ramping it (0.7 rainK over a 25 s wetness ramp) races at ~1.5e3 rad/ms, which is strobe, not
+  // water. Rain answers instead with the SURFACE CURRENT below: fixed speed, rain-driven AMPLITUDE,
+  // and amplitude never multiplies `now`, so it can step without moving a phase. (The wind term
+  // already re-randomises on each live fetch — shipped behaviour, noted, not worsened here.)
   // ⚠⚠ RAIN DID NOTHING TO THIS WATER. Nick: "make sure on every map where there is water in the
   // front that it is affected by the rain… we should see the rains impact." He was right that it did
   // not — the band rendered identically in a downpour and under a clear sky, and a grep for "dimple"
@@ -19048,6 +19054,18 @@ function drawSeaFrontBand(g,L,now){
   // end on the same frontRainFX call now, and wfxRain() keeps the ladder in one place.
   var rainK=wfxRain();                                       // 0..1: drizzle ladders to thunderstorm (shared with the karst/fjord/cavern waters)
   var chop=Math.min(1.9,0.5+wind/16+rainK*0.45);             // how hard it is blowing — and raining — decides how broken it is
+  // --- THE FLOW (Nick, 2026-10-11: "It needs to affect the flow."). A river's read of "flow" is its
+  // surface texture streaming downstream, not its wave phase — so the rain adds a CURRENT: a third
+  // octave travelling +x at a FIXED speed (never a multiplier of `now` that moves — see the 🚨 note
+  // above), whose amplitude is rain-driven: rainK says how hard it is falling right now, and
+  // `wetness` ramps it in over ~25 s so a cloudburst eases into flood instead of popping. This is the
+  // documented per-screen integrator exception (see its declaration): each screen integrates its own
+  // wetness from the SAME forecast, so the cross-bezel difference is the same order as the wet-road
+  // sheen the engine already accepts — the swell lines themselves stay one world-continuous sea.
+  // Dry cost is a branch: the term is dropped from `crest` entirely below 0.02, so clear weather
+  // renders byte-identically to before, and the rain band pays exactly one extra sin per column.
+  var wetK=Math.max(0,Math.min(1,wetness||0)), curK=wetK*rainK, curWl=47*K, curSp=0.00012;
+  var hasCur=curK>0.02;
   for(var b2=0;b2<7;b2++){
     var by=top+Math.round((b2+0.6)*(h/7.4));
     var amp=(1+b2*0.5)*K*0.5*chop, wl=(58-b2*6)*K, wl2=wl*0.41;
@@ -19056,7 +19074,9 @@ function drawSeaFrontBand(g,L,now){
     for(var sx5=0;sx5<SW;sx5++){
       var wxw=sx5+WOFF;
       var ph1=wxw/wl+now*sp*(1+b2*0.5), ph2=wxw/wl2-now*sp*(0.7+b2*0.3);
-      var crest=Math.sin(ph1)*0.72+Math.sin(ph2)*0.28;       // two octaves: the crest wanders
+      var crest=hasCur?(Math.sin(ph1)*0.72+Math.sin(ph2)*0.28+
+                        Math.sin(wxw/curWl+now*curSp)*curK*(0.35+0.75*near)*K*0.5)   // the current
+                       :(Math.sin(ph1)*0.72+Math.sin(ph2)*0.28);
       var yy=by+Math.round(crest*amp);
       // the line fades in and out along its own length instead of ruling edge to edge
       var envel=0.35+0.65*(0.5+0.5*Math.sin(wxw/(63*K)+ph2*0.5+b2));
