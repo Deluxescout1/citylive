@@ -154,7 +154,7 @@ test('frontRainFX itself: zero ops in clear, rings+veil ladder in rain, density 
   const stormFills = (o) => o.filter((x) => x[0] !== 'GRAD').length;
   assert.ok(stormFills(stormCavern) > 0 && stormFills(stormCavern) < stormFills(storm),
     'a shaft-lit cave floor takes a FRACTION of the open-sky ring density');
-  assert.equal(stormCavern.filter((o) => o[0] === 'GRAD').length, 1, 'cavern veil is scaled by densK, not deleted');
+  assert.equal(stormCavern.filter((o) => o[0] === 'GRAD').length, 0, 'no spray veil in a cavern — rain through a shaft does not hang a sheet (densK < 1 is capped out of the veil)');
 });
 
 test('determinism: same clock + same weather → identical band output (pure function of (x, clock))', () => {

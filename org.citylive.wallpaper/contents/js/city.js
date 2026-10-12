@@ -18930,9 +18930,10 @@ function drawCavernWater(g,L,now){
   }
   // ⚠ AND THE FLOOR LAKE GETS ONLY WHAT FALLS THROUGH THE SHAFTS. It routes here, so (the karst/fjord
   // bug again) a storm could not dimple it either. But this water sits under a thousand feet of rock:
-  // its rings arrive from the collapse shafts' spray (drawUndercityRain carries the storm down them),
-  // so the ring density is a fraction of an open-sky band's density. No veil — a cavern has no sheet
-  // of rain to hang over the surface. Its lamps make the rings catch even on the darkest tier.
+  // its rain arrives from the collapse shafts' spray (drawUndercityRain carries the storm down them),
+  // so at densK 0.35 it takes a third of an open-sky band's rings AND streaks, and no veil — a cavern
+  // has no sheet of rain to hang over the surface (frontRainFX caps the veil at densK>=1 for this
+  // exact reason). Its lamps make the rain catch even on the darkest tier.
   frontRainFX(g,wfxRain(),top,botY-top,now,K,day,0.35);
 }
 // THE RAIN INTENSITY of the current weather, 0..1 — the single stepped term the front-water rain
@@ -18962,25 +18963,60 @@ function wfxRain(){ var x=wfx(); return x.hail?1:(x.thunder?1:(x.violent?0.92:(x
 // has one, so this helper stays water-only. Rings stay hash-scattered; the veil stays one gradient.
 function frontRainFX(g,rainK,top,h,now,K,day,densK){
   if(rainK<=0||!densK) return;
-  // ⚠ 0.0011/ring (doubled 2026-10-11): at the shipped 0.00055 a THIN river (the gorge's ~17px band)
-  // rendered ~6 rings across Nick's 1702px world — present but unreadable, which is exactly the
-  // "I can't tell it is raining" read he then sent. A beach-scale band stays under ~90 rings.
-  var nDrop=Math.round(h*SW*0.0011*rainK*densK*(0.6+K*0.25));
+  // ⚠ RING DENSITY, twice-told. The shipped 0.00055 gave a THIN river (the gorge's ~17px band) ~6
+  // rings across Nick's 1702px world — present but unreadable, exactly the "I can't tell it is
+  // raining" read he sent. Doubled (0.0011) the same day; still too shy, so 0.0016 plus the streak
+  // field below (0.0011 doubled again once Nick asked on 2026-10-11 for the rain to hit FRONT
+  // rivers harder). A beach-scale band stays under ~130 rings, still a scatter.
+  var nDrop=Math.round(h*SW*0.0016*rainK*densK*(0.6+K*0.25));
   var slot=Math.floor(now/230), day2=day;
   for(var dp=0;dp<nDrop;dp++){
     var dh=((dp*2654435761)^(slot*40503))>>>0;
     var dx=dh%SW, dy=top+2+((dh>>>9)%Math.max(1,h-4));
     var age=(((dh>>>19)%100)/100+(now%230)/230)%1;                  // each ring has its own phase
-    var rr=Math.round(age*2.6*K);                                    // …and expands as it ages
-    var da=(1-age)*0.42*(day2?1:0.72);
+    var rr=Math.round(age*3.2*K);                                    // …and expands as it ages
+    var da=(1-age)*0.52*(day2?1:0.78);
     if(da<=0.03) continue;
     g.fillStyle=day2?"rgba(255,255,255,"+da.toFixed(3)+")":"rgba(178,200,232,"+da.toFixed(3)+")";
-    if(rr<=0){ g.fillRect(dx,dy,Math.max(1,Math.round(K*0.7)),1); continue; }
-    g.fillRect(dx-rr,dy,Math.max(1,Math.round(K*0.7)),1);            // a ring reads as its two edges
-    g.fillRect(dx+rr,dy,Math.max(1,Math.round(K*0.7)),1);
+    if(rr<=0){ g.fillRect(dx,dy,Math.max(1,Math.round(K*0.8)),1); continue; }
+    g.fillRect(dx-rr,dy,Math.max(1,Math.round(K*0.8)),1);            // a ring reads as its two edges
+    g.fillRect(dx+rr,dy,Math.max(1,Math.round(K*0.8)),1);
   }
-  if(rainK>0.65){
-    var mA=(0.13*(rainK-0.65)/0.35*densK).toFixed(3), mC=day?"223,232,242":"58,70,88";
+  // --- THE FALLING WATER ITSELF — and the rain-shadow lesson. The street's rain block stops its
+  // streaks at the road band (they land on `HORIZON+GROUND`, which on a water land IS the
+  // waterline), so the front river's face was the one patch of sky with nothing falling across it —
+  // the exact reason Nick's "show it is raining in the bottom river" read was missing its most
+  // direct cue. A streak field over the band, two depth layers, wind-slanted exactly like the
+  // street's rain so one storm leans one way everywhere. Pure function of (world x, clock) —
+  // hash of (layer, i) and a shared fall; never per-drop state. `densK` scales density too, so
+  // the UNDERCITY's shaft-lit lake gets streaks at its reduced share as well (water down a hole).
+  {
+    var wnd2=Math.max(2,(weather&&weather.wind)||6);
+    var lean2=(0.28+0.85*Math.min(1,wnd2/38));
+    var RLf=[ [0.30,0.20,4,0.28], [0.26,0.30,7,0.5] ];                 // far, near: share of SW, fall px/ms, streak len, alpha
+    for(var fl=0;fl<2;fl++){
+      var layf=RLf[fl], Nf=Math.max(8,(SW*layf[0]*rainK*densK)|0), spf=layf[1], dlf=layf[2];
+      var fallf=(now*spf)%(h+dlf+Math.max(4,Math.round(6*K)));
+      var aaf1=(day?0.30:0.42)*layf[3]*(0.6+0.55*rainK), aaf2=(day?0.62:0.72)*layf[3]*(0.6+0.55*rainK);
+      var tailf=day?"rgba(112,132,168,":"rgba(174,196,232,", headf=day?"rgba(180,198,225,":"rgba(226,240,255,";
+      for(var if2=0;if2<Nf;if2++){
+        var hf=((if2*2654435761+fl*40503+777)>>>0); hf^=hf>>>15; hf=(hf*2246822519)>>>0; hf^=hf>>>13; hf=(hf*3266489917)>>>0; hf^=hf>>>16;
+        var hxf=(hf>>>0)/4294967296, hf2=(hf*668265263+0x9e3779b9)>>>0; hf2^=hf2>>>15; hf2=(hf2*2246822519)>>>0; hf2^=hf2>>>13;
+        var hyf=(hf2>>>0)/4294967296;
+        var xf=(hxf*(SW+60)-30+lean2*((now*spf)%(h+dlf)))%(SW+60); if(xf<0)xf+=SW+60; xf-=30;
+        var yf=top+((hyf*(h+dlf)+fallf)%(h+dlf))%Math.max(2,h);
+        g.fillStyle=tailf+aaf1.toFixed(3)+")";
+        for(var sgf=1;sgf<=dlf;sgf+=2){ var sxf=(xf-lean2*sgf)|0, syf=(yf-sgf)|0; if(syf<top-dlf) break; g.fillRect(sxf,syf-1,1,2); }
+        g.fillStyle=headf+aaf2.toFixed(3)+")"; g.fillRect(xf|0,yf|0,1,1);
+      }
+    }
+  }
+  // Spray hanging over the surface — only in the genuinely heavy stuff, and only UNDER OPEN SKY.
+  // ⚠ `densK>=1` is what makes the cavern note above TRUE rather than approximate: rain reaching a
+  // cave floor through a shaft does not hang a sheet over the whole lake. (Strengthened 0.13→0.16
+  // when Nick asked for the front rivers to take the rain harder — the veil is the cheap third read.)
+  if(rainK>0.65&&densK>=1){
+    var mA=(0.16*(rainK-0.65)/0.35).toFixed(3), mC=day?"223,232,242":"58,70,88";
     var mH=Math.max(2,Math.round(h*0.66));
     var mg2=g.createLinearGradient(0,top,0,top+mH);
     mg2.addColorStop(0,"rgba("+mC+","+mA+")");
@@ -19056,7 +19092,7 @@ function drawSeaFrontBand(g,L,now){
   // "all twenty lands get it at once" was false for those three and cost them every storm); they
   // end on the same frontRainFX call now, and wfxRain() keeps the ladder in one place.
   var rainK=wfxRain();                                       // 0..1: drizzle ladders to thunderstorm (shared with the karst/fjord/cavern waters)
-  var chop=Math.min(1.9,0.5+wind/16+rainK*0.45);             // how hard it is blowing — and raining — decides how broken it is
+  var chop=Math.min(1.9,0.5+wind/16+rainK*0.8);              // how hard it is blowing — and raining — decides how broken it is (rainK term strengthened 0.45→0.8 on Nick's 2026-10-11 "affect the front rivers MORE")
   // --- THE FLOW (Nick, 2026-10-11: "It needs to affect the flow."). A river's read of "flow" is its
   // surface texture streaming downstream, not its wave phase — so the rain adds a CURRENT: a third
   // octave travelling +x at a FIXED speed (never a multiplier of `now` that moves — see the 🚨 note
@@ -19067,7 +19103,10 @@ function drawSeaFrontBand(g,L,now){
   // sheen the engine already accepts — the swell lines themselves stay one world-continuous sea.
   // Dry cost is a branch: the term is dropped from `crest` entirely below 0.02, so clear weather
   // renders byte-identically to before, and the rain band pays exactly one extra sin per column.
-  var wetK=Math.max(0,Math.min(1,wetness||0)), curK=wetK*rainK, curWl=47*K, curSp=0.00012;
+  // ⚠ Tuned TWICE on Nick's own read (2026-10-11): first 0.5 → 0.9 of a column-height of texture,
+  // and the wavelength 47→40 so the streaming reads as river chop rather than a slow tide. The cap
+  // is visual only — amplitude, not phase — so it can move again without any teleport risk.
+  var wetK=Math.max(0,Math.min(1,wetness||0)), curK=wetK*rainK, curWl=40*K, curSp=0.00012;
   var hasCur=curK>0.02;
   for(var b2=0;b2<7;b2++){
     var by=top+Math.round((b2+0.6)*(h/7.4));
@@ -19078,7 +19117,7 @@ function drawSeaFrontBand(g,L,now){
       var wxw=sx5+WOFF;
       var ph1=wxw/wl+now*sp*(1+b2*0.5), ph2=wxw/wl2-now*sp*(0.7+b2*0.3);
       var crest=hasCur?(Math.sin(ph1)*0.72+Math.sin(ph2)*0.28+
-                        Math.sin(wxw/curWl+now*curSp)*curK*(0.35+0.75*near)*K*0.5)   // the current
+                        Math.sin(wxw/curWl+now*curSp)*curK*(0.45+0.85*near)*K*0.9)   // the current
                        :(Math.sin(ph1)*0.72+Math.sin(ph2)*0.28);
       var yy=by+Math.round(crest*amp);
       // the line fades in and out along its own length instead of ruling edge to edge
