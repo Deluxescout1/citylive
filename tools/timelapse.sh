@@ -3,7 +3,10 @@
 # Usage: timelapse.sh [lifeIndex] [frames] [monitor: left|mid|right|world]
 # The sim is deterministic, so any life (past or future!) can be filmed at any time.
 set -e
-LIFE="${1:-$(node -e 'const fs=require("fs"),os=require("os");const c=fs.readFileSync(os.homedir()+"/.local/share/plasma/wallpapers/org.citylive.wallpaper/contents/js/city.js","utf8");const e=/GROW_EPOCH=(\d+)/.exec(c),g=/GROW_CYCLE=(\d+)/.exec(c);console.log(Math.floor((Date.now()-+e[1])/+g[1]))')}"
+# ⚠ The clock number comes from tools/lifeindex.js, which ASKS THE ENGINE in a vm — the old
+# /GROW_CYCLE=(\d+)/ scrape matched nothing (`var GROW_CYCLE=cycleMs(CFG.cycle)`), null[1] TypeError,
+# and the weekly timelapse silently never ran again after the config-cycles refactor.
+LIFE="${1:-$(node ~/CityLive/tools/lifeindex.js life-prev)}"
 FRAMES="${2:-360}"
 MON="${3:-mid}"
 case "$MON" in
@@ -12,7 +15,7 @@ case "$MON" in
   right) WOFF=1222; CW=480; CH=270;;
   world) WOFF=0;    CW=1702; CH=360;;
 esac
-read EPOCH CYCLE < <(node -e 'const fs=require("fs"),os=require("os");const c=fs.readFileSync(os.homedir()+"/.local/share/plasma/wallpapers/org.citylive.wallpaper/contents/js/city.js","utf8");console.log(/GROW_EPOCH=(\d+)/.exec(c)[1],/GROW_CYCLE=(\d+)/.exec(c)[1])')
+read EPOCH CYCLE < <(node ~/CityLive/tools/lifeindex.js epoch cycle)
 T0=$(( EPOCH + LIFE*CYCLE ))
 OUT=~/CityLive/timelapses
 TMP=$(mktemp -d)
