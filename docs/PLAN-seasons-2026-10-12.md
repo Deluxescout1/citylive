@@ -10,5 +10,5 @@ Goal: green → fall gold → dead winter TRANSITION (no hard month flips), visi
 - New test desktop/test/seasons.test.js: 366-day sweep (anchors + smoothness), Nov stagger monotonic on leaf, per-land Oct gold presence, determinism double-render.
 - Release: separate version commit → 4.1.2 (package.json + metadata.json), docs/RELEASE-v4.1.2.md.
 
-PENDING: device-flow GH login (code D992-5291) → push main+tags (commits ad1257c, c6f3923 + tag v4.1.1).
+DONE: feature committed; v4.1.2 committed; push pending device-flow → push main+tags (commits ad1257c, c6f3923 + tag v4.1.1).
 After push: memory notes [[citylive-mountain-lines]]; Nick's visual verdict on seasons.
