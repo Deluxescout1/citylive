@@ -9256,6 +9256,14 @@ function drawTrainLine(g,L,now,fx,part){
   var twf=gstage(0.42,0.58); if(twf<=0) return;               // the viaduct is BUILT west→east across the world
   var built=WW*twf, bEnd=Math.min(SW,built-WOFF);             // how much of the line reaches this screen
   var ty=(HORIZON-Math.round(GROUND*1.1))|0;
+  // 🚨 cwY (the catenary height) lives up HERE, not beside the wire block it serves. drawTrainLine is
+  // called twice a frame — "base" draws deck+wire, "service" draws the trains — and the train's
+  // pantograph reads cwY. Declared inside the `part!=="service"` gate, it was undefined on EVERY
+  // service call: fillRect(x, NaN, …) is silently ignored, so the pantograph's arms, contact strip
+  // and welding spark have never rendered at all. The "silently nothing" class again — the audit's
+  // life-walk caught it only because trains run late in the growth curve, never at the matrix's
+  // fixed village-phase probe.
+  var cwY=ty-12;
   var night=1-L;
   var p0=Math.floor(WOFF/ELEV_SPAN)*ELEV_SPAN;
   // ⚡🔑 ONE RESOLUTION PER PIER FOR THE WHOLE ROUTINE — this replaces `blasted=nukeStruck()` and the
@@ -9362,7 +9370,7 @@ function drawTrainLine(g,L,now,fx,part){
       if((lh%5)===0) continue;                                           // a lamp out, or nothing worth lighting
       g.fillRect((lx+((lh>>>9)%3)-1)|0,ty-1,1,1); } }
   // overhead catenary: a contact wire the train's pantograph rides, on registration arms
-  var cwY=ty-12;
+  // (cwY itself is computed at the top — see the 🚨 note there; the service pass needs it too)
   if(bEnd>0){
     for(var cwm=p0; cwm<WOFF+SW+ELEV_SPAN; cwm+=ELEV_SPAN){ if(cwm>built) continue;
       var ec=EB?EB[cwm]:null; if(ec&&ec.gone) continue; var cmx=cwm-WOFF;
