@@ -65388,6 +65388,38 @@ function draw(g,pass){
       else g.fillRect(p.x|0,p.y|0,1,1); }                                                            // a petal speck
   } else { if(leaves.length) leaves.length=0; if(petals.length) petals.length=0; }
 
+  // ---- FIREFLIES — warm ground. Pure functions of (world x, clock), no particle state: each one
+  // is a hash (its base position, wander radius, blink phase, blink rate) plus the same clock every
+  // screen shares — so all three monitors agree mid-bezel, which a Math.random()-seeded swarm
+  // never could, and the apocalypse kills the swarm outright. Real rules: warm humid AIR, dusk–deep
+  // night, no storm — and only lands that genuinely grow them (the bayou, the gorge, the leaf
+  // village; ice caps and volcanoes owe the eye nothing).
+  var ffOK={swamp:1,karst:1,leaf:1}[curBiome.k];
+  if(ffOK&&L<0.30&&cityPhase!=="apoc"&&!fx.rain&&!fx.snow&&!fx.thunder&&!fx.fog&&!curVillage
+     &&(weather.temp==null||weather.temp)>=10){
+    var NF=34, blink2=now*0.0011;
+    for(var ffi=0;ffi<NF;ffi++){
+      var fh2=((ffi*2654435761+77003)>>>0);
+      var fxw=wrapW(fh2%WW+Math.sin(now*0.00021+(fh2&7))*(22+(fh2>>>9)%40)+Math.sin(now*0.00047+fh2)*17);
+      var fxs=fxw-WOFF; if(fxs<-4||fxs>SW+4) continue;
+      // hover just over the water line when there is a front river, otherwise in the near ground;
+      // a 1-in-5 dips low enough to touch the surface it loves best.
+      var fy2=(SEA_FRONT>0?SEA_Y:HORIZON)-((fh2>>>13)%30)-4+Math.sin(now*0.0009+fh2*1.3)*6;
+      var blinkPh=Math.sin(blink2*(0.6+((fh2>>>18)%40)/40)+fh2);
+      if(blinkPh<0.55) continue;                                    // each firefly blinks on its own beat
+      var fa=(0.5+0.5*blinkPh)*(0.65+0.35*((fh2>>>21)%10)/10);
+      // ⚠ BOTH triples must stay absent from every other glow in the engine: the firefly test
+      // identifies sparks by colour alone, and a collision with the lamp/window family would have
+      // the test passing on a rain-soaked window district. The warm-gold pick was moved off the
+      // shared 255,214,150 (that is EVERY lit window in town) to a unique triple.
+      var fcol=(fh2&3)==0?"255,232,172":"216,255,140";               // the odd one is warm-gold, not green
+      g.globalCompositeOperation="lighter";
+      g.fillStyle="rgba("+fcol+","+(0.16*fa).toFixed(3)+")"; g.fillRect((fxs-1)|0,(fy2-1)|0, 3, 3);   // glow body
+      g.fillStyle="rgba("+fcol+","+(0.82*fa).toFixed(3)+")"; g.fillRect(fxs|0,fy2|0,1,1);             // the spark
+      g.globalCompositeOperation="source-over";
+    }
+  }
+
   var fogTarget=fx.fog?0.92:0; fog.t+=(fogTarget-fog.t)*0.002*dt;
   if(fog.t>0.01){ for(i=0;i<4;i++){ var fy=HORIZON*0.6+i*18, drift=Math.sin(now*0.0001*(i+1))*24;
       var fbA=fog.t*(0.30-i*0.05), fbY=(fy+drift*0.2)|0;
