@@ -36,6 +36,10 @@ h1{color:#7af5ff;font-size:20px} .k{color:#8a93a8} .v{color:#ffd76a} li{margin:3
 <span class="k">Population</span> <span class="v">${pop.toLocaleString()}</span></div>
 <div class="card"><div class="k">POPULATION over this life</div>${svg(pts,580,90,"#7af5ff")}</div>
 <div class="card"><div class="k">ECONOMY (boom ↔ bust)</div>${svg(epts,580,60,"#ffd76a",1)}</div>
+<div class="card"><div class="k">TODAY'S WORLD — the whole life, all three monitors' worth</div>
+${fs.existsSync(path.join(os.homedir(),"CityLive","atlas-current.png"))?`<img src="atlas-current.png" style="max-width:100%;border-radius:6px" alt="the whole world of ${name}">`:"<span class=k>(atlas not rendered yet — the atlas render runs just before this page)</span>"}
+<div class=k style="font-size:11px">rendered by tools/atlas.sh from the live deterministic clock</div></div>
+<div class="card"><a href="chronicles/index.html" style="color:#7af5ff;text-decoration:none">■ history of worlds — the chronicle gallery →</a></div>
 <div class="card"><span class="k">Mayor</span> <span class="v">${M?M.winName+" ("+M.party.k+")":"— none yet —"}</span></div>
 <div class="card"><div class="k">THE ${F.sur.toUpperCase()} FAMILY</div>
 <li>${F.pA} & ${F.pB} ${F.sur}${cy>F.elder?" (the elder rests)":""}</li>
